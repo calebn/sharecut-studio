@@ -220,7 +220,7 @@ keep their DOM, form and disclosure state. On touch, in a window under 40rem tal
 (`@container app`, so large text counts), the Script scrolls as a whole
 with the list keeping at least 16rem, so its chrome does not cover the rows beneath
 it. `e2e-compat/reachability-sweep.spec.ts` sweeps
-the Script and the Prepare stage whole at every cell. The envelope point's Time and Level, the effect Bypass toggles and the comment composer's
+the Script and the Prepare stage whole at every cell. The envelope point's Time and Level, the effect on/off switches and the comment composer's
 fields and track picks hold the floor too, and the same sweep measures them (a seeded
 track for the first two, the Review queue on tablet and desktop, and the Review stage on a phone,
 for the last).

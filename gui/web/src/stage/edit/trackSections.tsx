@@ -344,27 +344,29 @@ export function useTrackSections(
                       </p>
                     ) : null}
                     {editable ? (
-                      <label className="track-sheet-bypass">
+                      <label className="track-sheet-switch">
                         <input
                           type="checkbox"
-                          checked={bypassed}
+                          role="switch"
+                          className="sys-adv-switch"
+                          checked={!bypassed}
+                          aria-checked={!bypassed}
                           disabled={busy}
-                          aria-label={`Bypass ${e.effect}`}
+                          aria-label={e.effect}
                           onChange={(ev) =>
                             void run(() =>
                               setEffectBypass(
                                 projectPath,
                                 track.id,
                                 i,
-                                ev.target.checked,
+                                !ev.target.checked,
                               ),
                             )
                           }
                         />
-                        Bypass
                       </label>
                     ) : (
-                      <span>{bypassed ? "bypassed" : "active"}</span>
+                      <span>{bypassed ? "off" : "on"}</span>
                     )}
                   </div>
                 ),

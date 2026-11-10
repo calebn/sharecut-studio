@@ -95,6 +95,11 @@
   inline-size: 100%;
 }
 
+.track-sheet-switch {
+  display: flex;
+  align-items: center;
+}
+
 @media (pointer: coarse) {
   .inspector
     dd
@@ -211,24 +216,16 @@ html[data-shell="phone"] .modifier-footer-actions .ui-segmented {
   border-color: var(--color-border-subtle);
 }
 
-.track-sheet-bypass {
-  display: flex;
-  align-items: center;
-  gap: var(--space-3);
-  font-size: var(--font-size-caption);
-  cursor: pointer;
-}
-
 @media (pointer: coarse) {
   .sys-inline-edit.inspector-text-field,
-  .track-sheet-bypass,
+  .track-sheet-switch,
   .track-sheet-action {
     min-block-size: var(--touch-min);
   }
 }
 
 html[data-shell="phone"] .sys-inline-edit.inspector-text-field,
-html[data-shell="phone"] .track-sheet-bypass,
+html[data-shell="phone"] .track-sheet-switch,
 html[data-shell="phone"] .track-sheet-action {
   min-block-size: var(--touch-min);
 }

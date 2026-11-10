@@ -497,39 +497,34 @@ describe("track content", () => {
     expect(screen.queryByText(/0\.5 Hz/)).toBeNull();
   });
 
-  it("bypasses an effect by its index and reads state as text for a viewer", async () => {
+  it("turns an effect off by its index and reads state as text for a viewer", async () => {
     const user = userEvent.setup();
     const effects: Effects = [
       { effect: "acompressor", params: {} },
       { effect: "deesser", params: {}, bypass: true },
     ];
     const { unmount } = open(hostTrack, effects);
-    await user.click(
-      screen.getByRole("checkbox", { name: "Bypass acompressor" }),
-    );
+    await user.click(screen.getByRole("switch", { name: "acompressor" }));
     expect(setEffectBypass).toHaveBeenCalledWith(
       "/tmp/ep.json",
       "host",
       0,
       true,
     );
-    expect(
-      screen.getByRole("checkbox", { name: "Bypass deesser" }),
-    ).toBeChecked();
+    expect(screen.getByRole("switch", { name: "acompressor" })).toBeChecked();
+    expect(screen.getByRole("switch", { name: "deesser" })).not.toBeChecked();
     unmount();
     open(hostTrack, effects, "view");
-    expect(screen.queryByRole("checkbox")).toBeNull();
-    expect(screen.getByText("active")).toBeVisible();
-    expect(screen.getByText("bypassed")).toBeVisible();
+    expect(screen.queryByRole("switch")).toBeNull();
+    expect(screen.getByText("on")).toBeVisible();
+    expect(screen.getByText("off")).toBeVisible();
   });
 
-  it("shows a failed bypass as an alert", async () => {
+  it("shows a failed effect toggle as an alert", async () => {
     const user = userEvent.setup();
     vi.mocked(setEffectBypass).mockRejectedValueOnce(new Error("no write"));
     open(hostTrack, [{ effect: "acompressor", params: {} }]);
-    await user.click(
-      screen.getByRole("checkbox", { name: "Bypass acompressor" }),
-    );
+    await user.click(screen.getByRole("switch", { name: "acompressor" }));
     expect(await screen.findByRole("alert")).toHaveTextContent("no write");
   });
 

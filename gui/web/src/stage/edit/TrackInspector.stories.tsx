@@ -68,7 +68,7 @@ const meta: Meta = {
       ...viewportStoryParameters.docs,
       description: {
         component:
-          "The live track body (`useTrackSections`) under the real heading (`inspectorHeading`) in an Inspector card, read from the hydrated episode: the header holds the track's avatar and its name as an inline field, Person and Kind come first, Level is a Scrub field, Mute, Solo and the effect Bypass rows write as before; a Viewer link sees the same values read-only.",
+          "The live track body (`useTrackSections`) under the real heading (`inspectorHeading`) in an Inspector card, read from the hydrated episode: the header holds the track's avatar and its name as an inline field, Person and Kind come first, Level is a Scrub field, Mute, Solo and the effect on/off switches write as before; a Viewer link sees the same values read-only.",
       },
     },
   },

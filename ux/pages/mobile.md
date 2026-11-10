@@ -89,7 +89,7 @@ Transcript **Find and replace** row wraps its
 controls on a coarse pointer so landscape panels stay inside the panel. At large text
 or in a short window, the Script pane scrolls as a whole so its chrome does
 not cover the rows under it.
-The envelope point's Time and Level, the effect **Bypass** toggles and the comment fields and track picks are 44 CSS px tall on touch too.
+The envelope point's Time and Level, the effect on/off switches and the comment fields and track picks are 44 CSS px tall on touch too.
 
 The chips and scale segments in the Edit stage's eye popover are at least 44 CSS px square on touch.
 
