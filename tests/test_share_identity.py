@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import logging
 from datetime import UTC
 from pathlib import Path
 
@@ -294,41 +295,65 @@ def _magic_link_post(client, headers=None):
     return client.post("/auth/magic-link", json={"email": "m@example.com"}, headers=headers or {})
 
 
-def test_magic_link_default_env_hides_link(identity_store, monkeypatch, capsys):
+def _assert_link_not_logged(caplog):
+    assert not [
+        r.getMessage()
+        for r in caplog.records
+        if "magic-link/consume" in r.getMessage() or "token=" in r.getMessage()
+    ]
+
+
+def test_magic_link_default_env_hides_link(identity_store, monkeypatch, capsys, caplog):
+    caplog.set_level(logging.INFO)
     monkeypatch.delenv("PODCAST_MAGIC_LINK_PRINT", raising=False)
     client = TestClient(create_app(), client=("127.0.0.1", 50000))
     res = _magic_link_post(client)
     assert res.status_code == 200
     assert res.json()["dev_link"] is None
     assert "PODCAST_MAGIC_LINK" not in capsys.readouterr().out
+    _assert_link_not_logged(caplog)
 
 
-def test_magic_link_flag_on_non_loopback_peer_hides_link(identity_store, monkeypatch, capsys):
+@pytest.mark.parametrize("host", ["testclient", "2001:db8::1"])
+def test_magic_link_flag_on_non_loopback_peer_hides_link(
+    identity_store, monkeypatch, capsys, caplog, host
+):
+    caplog.set_level(logging.INFO)
     monkeypatch.setenv("PODCAST_MAGIC_LINK_PRINT", "1")
-    client = TestClient(create_app())
+    client = TestClient(create_app(), client=(host, 50000))
     res = _magic_link_post(client)
     assert res.status_code == 200
     assert res.json()["dev_link"] is None
     assert "PODCAST_MAGIC_LINK" not in capsys.readouterr().out
+    _assert_link_not_logged(caplog)
 
 
-def test_magic_link_flag_on_relayed_loopback_hides_link(identity_store, monkeypatch, capsys):
+def test_magic_link_flag_on_relayed_loopback_hides_link(
+    identity_store, monkeypatch, capsys, caplog
+):
+    caplog.set_level(logging.INFO)
     monkeypatch.setenv("PODCAST_MAGIC_LINK_PRINT", "1")
     client = TestClient(create_app(), client=("127.0.0.1", 50000))
     res = _magic_link_post(client, headers={"x-sharecut-relayed": "1"})
     assert res.status_code == 200
     assert res.json()["dev_link"] is None
     assert "PODCAST_MAGIC_LINK" not in capsys.readouterr().out
+    _assert_link_not_logged(caplog)
 
 
-def test_magic_link_flag_on_loopback_shows_and_prints_link(identity_store, monkeypatch, capsys):
+@pytest.mark.parametrize("host", ["127.0.0.1", "::1"])
+def test_magic_link_flag_on_loopback_shows_and_prints_link(
+    identity_store, monkeypatch, capsys, caplog, host
+):
+    caplog.set_level(logging.INFO)
     monkeypatch.setenv("PODCAST_MAGIC_LINK_PRINT", "1")
-    client = TestClient(create_app(), client=("127.0.0.1", 50000))
+    client = TestClient(create_app(), client=(host, 50000))
     res = _magic_link_post(client)
     assert res.status_code == 200
     link = res.json()["dev_link"]
     assert "/auth/magic-link/consume?token=" in link
     assert f"PODCAST_MAGIC_LINK m@example.com {link}" in capsys.readouterr().out
+    assert any(link in r.getMessage() for r in caplog.records)
 
 
 def test_body_share_token_auth_faults_use_the_generic_guest_error(
