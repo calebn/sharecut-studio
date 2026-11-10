@@ -9,7 +9,7 @@ import { HelpDialogView } from "./HelpDialogView";
 const openDialog = (canvasElement: HTMLElement) =>
   openDialogByLauncher(canvasElement, {
     launcherName: "Open help dialog",
-    dialogName: "Help",
+    dialogName: "Report a problem",
   });
 
 const SUPPORT = "https://github.com/example/sharecut/issues";
@@ -64,6 +64,10 @@ const meta: Meta<typeof HelpDialogView> = {
   args: {
     open: false,
     onClose: fn(),
+    step: "report",
+    onStepChange: fn(),
+    onOpenShortcuts: fn(),
+    onOpenGuides: fn(),
     busy: false,
     error: null,
     bundle: null,
@@ -88,6 +92,25 @@ const meta: Meta<typeof HelpDialogView> = {
 
 export default meta;
 type Story = StoryObj<typeof HelpDialogView>;
+
+export const Menu: Story = {
+  args: { step: "menu" },
+  play: async ({ args, canvasElement, viewMode }) => {
+    if (viewMode === "docs") return;
+    const dialog = await openDialogByLauncher(canvasElement, {
+      launcherName: "Open help dialog",
+      dialogName: "Help",
+    });
+    await userEvent.click(
+      within(dialog).getByRole("button", { name: /Report a problem/ }),
+    );
+    await expect(args.onStepChange).toHaveBeenCalledWith("report");
+    await userEvent.click(
+      within(dialog).getByRole("button", { name: /Guides/ }),
+    );
+    await expect(args.onOpenGuides).toHaveBeenCalledOnce();
+  },
+};
 
 export const Idle: Story = {
   play: async ({ args, canvasElement, viewMode }) => {

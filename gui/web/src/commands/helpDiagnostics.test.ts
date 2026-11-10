@@ -20,6 +20,7 @@ describe("help.diagnosticsBundle", () => {
     const result = await execute("help.diagnosticsBundle");
     expect(result).toEqual({ status: "ok" });
     expect(useDawStore.getState().chrome.helpDialogOpen).toBe(true);
+    expect(useDawStore.getState().chrome.helpDialogStep).toBe("report");
   });
 
   it("disables for share guests", async () => {

@@ -49,7 +49,7 @@ interface DialogCase {
 
 const DIALOG_CASES: DialogCase[] = [
   {
-    name: "Help",
+    name: "Report a problem",
     menuItem: "Export diagnostics…",
     targetName: "Create diagnostics bundle",
   },

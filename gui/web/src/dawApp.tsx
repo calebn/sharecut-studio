@@ -3,6 +3,7 @@ import { registerDawWebMcpTools } from "./agentic/webmcp";
 import { registerDawCommands } from "./commands/register";
 import { useDesktopCloseGuard } from "./desktop/useDesktopCloseGuard";
 import { FeedbackToast } from "./feedback/FeedbackToast";
+import { openGuides } from "./commands/host";
 import { HelpDialog } from "./home/HelpDialog";
 import { useAutoRefreshMix } from "./hooks/useAutoRefreshMix";
 import { useGuestSyncAndProjectPoll } from "./hooks/useGuestSyncAndProjectPoll";
@@ -84,6 +85,7 @@ export function DawApp({ guestShare = false }: { guestShare?: boolean }) {
   } = useDaw(selectDawAppFields);
   const hostMcpDialogOpen = useDaw((s) => s.chrome.hostMcpDialogOpen);
   const helpDialogOpen = useDaw((s) => s.chrome.helpDialogOpen);
+  const helpDialogStep = useDaw((s) => s.chrome.helpDialogStep);
   const modelsSheetOpen = useDaw((s) => s.chrome.modelsSheetOpen);
   const { hasProject, projectName, suppressPublish } =
     useDaw(selectDawAppDerived);
@@ -248,7 +250,13 @@ export function DawApp({ guestShare = false }: { guestShare?: boolean }) {
               />
               <HelpDialog
                 open={helpDialogOpen}
+                initialStep={helpDialogStep}
                 onClose={() => setHelpDialogOpen(false)}
+                onOpenShortcuts={() => {
+                  setHelpDialogOpen(false);
+                  useDawStore.getState().setCommandPaletteOpen(true);
+                }}
+                onOpenGuides={openGuides}
               />
               {syncEnabled ? (
                 <ModelsSheet

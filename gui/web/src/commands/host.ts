@@ -40,6 +40,10 @@ import type { ExecuteResult } from "./types";
 
 const GUIDES_URL = "https://docs.sharecut.studio/";
 
+export function openGuides(): void {
+  window.open(GUIDES_URL, "_blank", "noopener,noreferrer");
+}
+
 /** Same rule and reason as the `hostProjectLoaded` when-clause (handlers run with skipWhen). */
 export function hostProjectGate(ctx: CommandContext): ExecuteResult | null {
   const gate = evaluateWhen("hostProjectLoaded", ctx);
@@ -232,12 +236,12 @@ export function registerHostCommands(): void {
         reason: "Export diagnostics is host-only",
       };
     }
-    s.setHelpDialogOpen(true);
+    s.setHelpDialogOpen(true, "report");
     return { status: "ok" };
   });
 
   registerCommand("help.guides", () => {
-    window.open(GUIDES_URL, "_blank", "noopener,noreferrer");
+    openGuides();
     return { status: "ok" };
   });
 

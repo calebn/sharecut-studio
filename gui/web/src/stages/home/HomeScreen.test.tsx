@@ -539,8 +539,10 @@ describe("HomeScreen", () => {
 
     it("says Starting an episode… while Record creates it", async () => {
       const user = userEvent.setup();
-      let release: (v: { project_path: string; name: string }) => void =
-        () => {};
+      let release: (v: {
+        project_path: string;
+        name: string;
+      }) => void = () => {};
       create.mockReturnValue(new Promise((resolve) => (release = resolve)));
       render(<HomeScreen />);
       await user.click(await screen.findByRole("button", { name: /^Record/ }));
@@ -1321,7 +1323,7 @@ describe("HomeScreen", () => {
       ).toHaveAttribute("aria-activedescendant", first.id);
     });
 
-    it("opens from the Help button and restores focus and inertness on close", async () => {
+    it("opens the Help sheet from the Help button with three rows and restores focus on close", async () => {
       const user = userEvent.setup();
       const { container } = render(<HomeScreen />);
       await screen.findByRole("list", { name: "Recent episodes" });
@@ -1330,14 +1332,69 @@ describe("HomeScreen", () => {
       );
       const trigger = screen.getByRole("button", { name: /^Help$/ });
       await user.click(trigger);
-      await screen.findByRole("dialog", { name: "Commands and shortcuts" });
+      const sheet = await screen.findByRole("dialog", { name: "Help" });
+      expect(
+        within(sheet)
+          .getAllByRole("button")
+          .map((button) => button.textContent)
+          .filter((text) => text?.includes("›")),
+      ).toEqual(["Shortcuts and gestures›", "Report a problem›", "Guides›"]);
       expect(content?.inert).toBe(true);
       await user.keyboard("{Escape}");
       expect(content?.inert).toBe(false);
       expect(trigger).toHaveFocus();
     });
 
-    it("reports a problem from the Help group in the diagnostics dialog", async () => {
+    it("opens the palette from the Shortcuts and gestures row", async () => {
+      const user = userEvent.setup();
+      render(<HomeScreen />);
+      await screen.findByRole("list", { name: "Recent episodes" });
+      await user.click(screen.getByRole("button", { name: /^Help$/ }));
+      await user.click(
+        await screen.findByRole("button", { name: /Shortcuts and gestures/ }),
+      );
+      await screen.findByRole("dialog", { name: "Commands and shortcuts" });
+      expect(screen.queryByRole("dialog", { name: "Help" })).toBeNull();
+    });
+
+    it("steps into Report a problem inside the Help sheet and back", async () => {
+      const user = userEvent.setup();
+      render(<HomeScreen />);
+      await screen.findByRole("list", { name: "Recent episodes" });
+      await user.click(screen.getByRole("button", { name: /^Help$/ }));
+      await user.click(
+        await screen.findByRole("button", { name: /Report a problem/ }),
+      );
+      const report = await screen.findByRole("dialog", {
+        name: "Report a problem",
+      });
+      expect(
+        within(report).getByRole("button", {
+          name: "Create diagnostics bundle",
+        }),
+      ).toBeInTheDocument();
+      await user.click(within(report).getByRole("button", { name: "Back" }));
+      expect(
+        await screen.findByRole("dialog", { name: "Help" }),
+      ).toBeInTheDocument();
+    });
+
+    it("opens the guides from the Guides row", async () => {
+      const user = userEvent.setup();
+      const open = vi.spyOn(window, "open").mockReturnValue(null);
+      render(<HomeScreen />);
+      await screen.findByRole("list", { name: "Recent episodes" });
+      await user.click(screen.getByRole("button", { name: /^Help$/ }));
+      await user.click(await screen.findByRole("button", { name: /Guides/ }));
+      expect(open).toHaveBeenCalledWith(
+        "https://docs.sharecut.studio/",
+        "_blank",
+        "noopener,noreferrer",
+      );
+      open.mockRestore();
+    });
+
+    it("reports a problem from the palette Help group straight on the report step", async () => {
       const user = userEvent.setup();
       render(<HomeScreen />);
       await screen.findByRole("list", { name: "Recent episodes" });
@@ -1346,7 +1403,7 @@ describe("HomeScreen", () => {
         await screen.findByRole("option", { name: /Export diagnostics/ }),
       );
       expect(
-        await screen.findByRole("dialog", { name: "Help" }),
+        await screen.findByRole("dialog", { name: "Report a problem" }),
       ).toBeInTheDocument();
     });
 
