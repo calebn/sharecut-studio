@@ -180,6 +180,23 @@ describe("useMutedSpeech", () => {
     expect(result.current).toBe(true);
   });
 
+  it("freezes the count on a live recording to paused change", async () => {
+    const { stream } = fakeStream();
+    const { result, rerender } = renderHook(
+      (props) => useMutedSpeech(stream, props),
+      { initialProps: { muted: true, counting: true, onAir: true } },
+    );
+    await advance(6_000);
+    rerender({ muted: true, counting: false, onAir: true });
+    await advance(30_000);
+    expect(result.current).toBe(false);
+    rerender({ muted: true, counting: true, onAir: true });
+    await advance(3_000);
+    expect(result.current).toBe(false);
+    await advance(2_000);
+    expect(result.current).toBe(true);
+  });
+
   it("opens no tap while the room is not on air", async () => {
     const { stream } = fakeStream();
     renderHook(() =>

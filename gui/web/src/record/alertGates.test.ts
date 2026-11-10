@@ -173,4 +173,50 @@ describe("mutedSpeechGate", () => {
     expect(late.speechMs).toBe(early.speechMs);
     expect(late.fired).toBe(false);
   });
+
+  it("keeps crediting for 400 ms of quiet after speech, and no longer", () => {
+    const spoke = run([{ ms: 1_000, db: LOUD }]);
+    const within = run([{ ms: 400, db: QUIET }], {}, spoke);
+    expect(within.speechMs).toBe(spoke.speechMs + 400);
+    const beyond = run([{ ms: 100, db: QUIET }], {}, within);
+    expect(beyond.speechMs).toBe(within.speechMs);
+  });
+
+  it("credits a tick gap of exactly 500 ms and not 501 ms", () => {
+    const early = run([{ ms: 1_000, db: LOUD }]);
+    const tick = (gap: number) =>
+      mutedSpeechGate(early, {
+        nowMs: (early.lastTickMs ?? 0) + gap,
+        levelDb: LOUD,
+        counting: true,
+      });
+    expect(tick(500).speechMs).toBe(early.speechMs + 500);
+    expect(tick(501).speechMs).toBe(early.speechMs);
+  });
+
+  it("holds speech at -50 dBFS and drops it just below", () => {
+    const spoke = run([{ ms: 500, db: LOUD }]);
+    expect(run([{ ms: 100, db: -50 }], {}, spoke).speaking).toBe(true);
+    expect(run([{ ms: 100, db: -50.1 }], {}, spoke).speaking).toBe(false);
+  });
+
+  it("does not count a pause as quiet", () => {
+    const spoke = run([{ ms: 1_000, db: LOUD }]);
+    const paused = run([{ ms: 30_000, db: QUIET }], { counting: false }, spoke);
+    const resumed = run([{ ms: 3_000, db: QUIET }], {}, paused);
+    expect(resumed.speechMs).toBeGreaterThanOrEqual(spoke.speechMs);
+    expect(resumed.lastSpeechMs).not.toBeNull();
+  });
+
+  it("does not count a throttled gap as quiet", () => {
+    const spoke = run([{ ms: 1_000, db: LOUD }]);
+    const stalled = mutedSpeechGate(spoke, {
+      nowMs: (spoke.lastTickMs ?? 0) + 20_000,
+      levelDb: QUIET,
+      counting: true,
+    });
+    const next = run([{ ms: 100, db: QUIET }], {}, stalled);
+    expect(next.speechMs).toBeGreaterThanOrEqual(spoke.speechMs);
+    expect(next.lastSpeechMs).not.toBeNull();
+  });
 });
