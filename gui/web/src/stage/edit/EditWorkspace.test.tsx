@@ -8,7 +8,11 @@ import {
 } from "../../commands/execute";
 import { registerDawCommands } from "../../commands/register";
 import { useDawStore } from "../../state/dawStore";
-import { minimalProject, sampleTrack } from "../../test/fixtures";
+import {
+  minimalProject,
+  sampleComment,
+  sampleTrack,
+} from "../../test/fixtures";
 import { transcribeRun } from "../../test/scriptHostKit";
 import { stubViewportShell } from "../../test/viewportShell";
 import {
@@ -267,6 +271,47 @@ describe("EditWorkspace arrangements", () => {
     await user.click(screen.getByRole("button", { name: "Timeline" }));
     expect(useDawStore.getState().editSurface).toBe("lanes");
     expect(useDawStore.getState().playheadSec).toBe(12);
+  });
+
+  describe("overview strip", () => {
+    const strip = () =>
+      screen.queryByRole("slider", { name: "Episode overview" });
+
+    it("shows on both phone surfaces with ticks and seeks on tap", async () => {
+      stubViewportShell("phone");
+      useDawStore.setState({
+        project: minimalProject({
+          tracks: [sampleTrack()],
+          comments: [sampleComment({ timeline_start: 15 })],
+        }),
+      });
+      const user = userEvent.setup();
+      render(<EditWorkspace />);
+      const lanes = strip();
+      expect(lanes).toHaveClass("sys-overview--16");
+      expect(lanes?.querySelectorAll(".sys-overview-dot")).toHaveLength(1);
+      await user.click(screen.getByRole("button", { name: "Script" }));
+      expect(strip()).toHaveClass("sys-overview--16");
+    });
+
+    it("shows in Script focus at 32 px and not on the side by side stage", () => {
+      const { unmount } = render(<EditWorkspace />);
+      expect(strip()).toBeNull();
+      unmount();
+      useDawStore.setState({ scriptFocus: true });
+      render(<EditWorkspace />);
+      expect(strip()).toHaveClass("sys-overview--32");
+    });
+
+    it("moves the playhead when tapped", () => {
+      useDawStore.setState({ scriptFocus: true });
+      render(<EditWorkspace />);
+      const el = strip() as HTMLElement;
+      el.getBoundingClientRect = () =>
+        ({ left: 0, width: 100, top: 0, height: 32 }) as DOMRect;
+      fireEvent.pointerDown(el, { clientX: 50, button: 0, pointerId: 1 });
+      expect(useDawStore.getState().playheadSec).toBe(30);
+    });
   });
 
   it("keeps timeline keys on the phone's lanes and off its Script", async () => {
