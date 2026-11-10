@@ -227,6 +227,29 @@ describe("the Inspector card on the desktop and the tablet", () => {
     expect(header).toHaveFocus();
   });
 
+  it("returns phone focus to the header when the stage takes focus before the selection clears", () => {
+    stubViewportShell("phone");
+    useDawStore.getState().setSelection(null);
+    render(
+      <main className="stage-frame-body" aria-label="Edit" tabIndex={-1}>
+        <PressedControls />
+        <EditWorkspace />
+      </main>,
+    );
+    const header = screen.getByRole("button", { name: "host" });
+    const stage = screen.getByRole("main", { name: "Edit" });
+    fireEvent.click(header, { detail: 1 });
+    const sheet = screen.getByRole("dialog", { name: "Inspector" });
+    expect(sheet).toContainElement(document.activeElement as HTMLElement);
+    stage.focus();
+    act(() => {
+      const state = useDawStore.getState();
+      state.setSelection(null);
+      state.setInspectorOpen(false);
+    });
+    expect(header).toHaveFocus();
+  });
+
   it("restores the phone opener after focus leaves and re-enters before selection changes", () => {
     stubViewportShell("phone");
     useDawStore.getState().setSelection(null);
