@@ -2,7 +2,7 @@ import { seamById } from "../../edit/seam";
 import type { SystemIconName } from "../../system/icons";
 import type { PersonData } from "../../system/Person";
 import { laneColorIndex } from "../../timeline/laneColors";
-import type { ProjectView, Selection } from "../../types/project";
+import type { ProjectView, Selection, TrackView } from "../../types/project";
 import {
   clipIdentityTrack,
   clipLabels,
@@ -10,6 +10,8 @@ import {
 } from "../../utils/clipLabels";
 import { sortedVolumePoints } from "../../utils/envelopes";
 import { inspectorRename } from "./inspectorRename";
+import { kindOf } from "./trackKind";
+import { episodePeople, personId } from "./trackPeople";
 
 export interface InspectorHeading {
   icon: SystemIconName;
@@ -22,6 +24,24 @@ const RANGE: InspectorHeading = {
   icon: "between-horizontal-start",
   name: "Range",
 };
+
+/**
+ * A voice track wears its person's colour, the one the Person picker shows;
+ * any other track, or a voice track nobody speaks on, wears its lane colour.
+ */
+function trackMarkColorIndex(
+  project: ProjectView,
+  track: TrackView,
+  index: number,
+): number {
+  const person =
+    kindOf(track.role) === "voice"
+      ? episodePeople(project.tracks).find(
+          (p) => p.id === personId(track.speaker),
+        )
+      : undefined;
+  return person?.colorIndex ?? laneColorIndex(track.role, index);
+}
 
 const trackLabel = (project: ProjectView | null, trackId: string) =>
   project?.tracks.find((track) => track.id === trackId)?.label || trackId;
@@ -100,7 +120,12 @@ export function inspectorHeading(
         icon: "volume-1",
         name,
         ...(track
-          ? { mark: { name, colorIndex: laneColorIndex(track.role, index) } }
+          ? {
+              mark: {
+                name,
+                colorIndex: trackMarkColorIndex(project, track, index),
+              },
+            }
           : {}),
         onRename: inspectorRename(selection, project),
       };
