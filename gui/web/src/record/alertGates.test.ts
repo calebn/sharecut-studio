@@ -132,6 +132,22 @@ describe("mutedSpeechGate", () => {
     expect(run([{ ms: 60_000, db: MID }]).fired).toBe(false);
   });
 
+  it("never accumulates steady noise between the exit and enter levels", () => {
+    for (const db of [-49.9, -47.5, -45.1]) {
+      const state = run([{ ms: 120_000, db }]);
+      expect(state.speaking).toBe(false);
+      expect(state.speechMs).toBe(0);
+      expect(state.fired).toBe(false);
+    }
+  });
+
+  it("starts speech at exactly the enter level and fires on soft speech above it", () => {
+    expect(run([{ ms: 100, db: -45 }]).speaking).toBe(true);
+    expect(run([{ ms: 100, db: -45.1 }]).speaking).toBe(false);
+    expect(run([{ ms: 10_100, db: -44.9 }]).fired).toBe(true);
+    expect(run([{ ms: 9_900, db: -44.9 }]).fired).toBe(false);
+  });
+
   it("freezes while paused and resumes where it left off", () => {
     const early = run([{ ms: 6_000, db: LOUD }]);
     const paused = run([{ ms: 30_000, db: QUIET }], { counting: false }, early);

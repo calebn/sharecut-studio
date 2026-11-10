@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { act, renderHook } from "@testing-library/react";
 import { type ReactNode, useEffect, useState } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -9,6 +11,7 @@ import {
   pendingEditView,
   sessionSuggestionView,
 } from "../../test/fixtures";
+import { SRC_ROOT, srcRelative, walkTsFiles } from "../../test/sourceFiles";
 import { useRecordBadge, useStageBadges } from "./useStageBadges";
 
 const room = (micLossNeedsAttention: boolean) =>
@@ -243,5 +246,35 @@ describe("useStageBadges pickups", () => {
       wrapper: wrap(room(false)),
     });
     expect(result.current.review).toBeUndefined();
+  });
+});
+
+describe("muted-speech tap callers", () => {
+  const callers = (name: string) =>
+    walkTsFiles(SRC_ROOT)
+      .filter((file) => !/\.test\.tsx?$/.test(file))
+      .filter((file) =>
+        new RegExp(`\\b${name}\\(`).test(readFileSync(file, "utf8")),
+      )
+      .map(srcRelative)
+      .filter((file) => !file.endsWith(`${name}.ts`));
+
+  it("has one useRecordBadge caller, so the away tap exists once", () => {
+    expect(
+      callers("useRecordBadge").filter((f) => !f.endsWith("useStageBadges.ts")),
+    ).toEqual(["stage/frame/useStageBarProps.ts"]);
+  });
+
+  it("taps the host mic from the badge only away from Record, and from RecordStage only on it", () => {
+    expect(callers("useMutedSpeech").sort()).toEqual([
+      "record/GuestRoomApp.tsx",
+      "stage/frame/useStageBadges.ts",
+      "stage/hosts/RecordStage.tsx",
+    ]);
+    const badge = readFileSync(
+      join(SRC_ROOT, "stage/frame/useStageBadges.ts"),
+      "utf8",
+    );
+    expect(badge).toContain("useMutedSpeech(away ? mic.stream : null");
   });
 });

@@ -126,6 +126,28 @@ describe("useMutedSpeech", () => {
     expect(meter.release).toHaveBeenCalledOnce();
   });
 
+  it("releases the audio context when unmounted while the meter is still loading", async () => {
+    const { stream } = fakeStream();
+    let ready!: () => void;
+    const acquired = meter.acquire.getMockImplementation()?.();
+    meter.acquire.mockImplementationOnce(() => ({
+      ...acquired,
+      ready: new Promise<void>((resolve) => {
+        ready = resolve;
+      }),
+    }));
+    const { unmount } = renderHook(() =>
+      useMutedSpeech(stream, { muted: true, counting: true, onAir: true }),
+    );
+    await advance(1_000);
+    unmount();
+    expect(meter.release).toHaveBeenCalledOnce();
+    ready();
+    await advance(1_000);
+    expect(stream.clone).not.toHaveBeenCalled();
+    expect(meter.release).toHaveBeenCalledOnce();
+  });
+
   it("does not count while paused", async () => {
     const { stream } = fakeStream();
     const { result } = renderHook(() =>
