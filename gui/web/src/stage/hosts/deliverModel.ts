@@ -11,15 +11,11 @@ import type {
   SocialClipView,
 } from "../../types/project";
 import type { StageId } from "../../types/stage";
+import { shownTitle } from "../../utils/clipTitle";
 
 export function chaptersOf(markers: readonly ChapterMarker[]): Chapter[] {
   return markers.map((m, i) => ({ id: `ch-${i}`, at: m.time, title: m.title }));
 }
-
-const UNTITLED_CLIP = "Untitled clip";
-/** What the page shows for a title: an empty one reads as the project's untitled clip. */
-export const shownTitle = (title: string | null | undefined) =>
-  title?.trim() || UNTITLED_CLIP;
 
 export function clipsOf(clips: readonly SocialClipView[]): Clip[] {
   return clips.map((c) => ({

@@ -10,6 +10,7 @@ import type {
   SocialClipView,
   TimelineComment,
 } from "../types/project";
+import { shownTitle } from "../utils/clipTitle";
 
 /** A chapter has no id of its own: its time and title name it. */
 export function chapterMarkerId(chapter: ChapterMarker): string {
@@ -35,7 +36,7 @@ export function laneMarkers(input: {
       id: clip.id,
       start: clip.start,
       end: clip.end,
-      title: clip.title_suggestion ?? `Social clip ${clip.id}`,
+      title: shownTitle(clip.title_suggestion),
       proposed: !clip.approved,
     });
   for (const comment of input.comments)

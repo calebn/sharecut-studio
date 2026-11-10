@@ -1,6 +1,7 @@
 import { act, fireEvent, render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { updateSocialClip } from "../../api";
+import { updateSocialClip, updateSocialClipDetails } from "../../api";
 import { shareProjectKey } from "../../shareMode";
 import { useDawStore } from "../../state/dawStore";
 import { expectNoA11yViolations } from "../../test/a11y";
@@ -11,6 +12,7 @@ import { SectionsBody } from "./SectionsBody";
 vi.mock("../../api", async (importOriginal) => ({
   ...(await importOriginal<typeof import("../../api")>()),
   updateSocialClip: vi.fn(async () => undefined),
+  updateSocialClipDetails: vi.fn(async () => undefined),
 }));
 
 const clip: SocialClipView = {
@@ -24,8 +26,12 @@ const clip: SocialClipView = {
   review_required: true,
 };
 
-function open(hydrateAs: "host" | "share" = "host", id = "social-1") {
-  const project = minimalProject({ social_clips: [clip] });
+function open(
+  hydrateAs: "host" | "share" = "host",
+  id = "social-1",
+  view: SocialClipView = clip,
+) {
+  const project = minimalProject({ social_clips: [view] });
   if (hydrateAs === "share")
     useDawStore
       .getState()
@@ -59,8 +65,12 @@ describe("social clip content", () => {
     expect(screen.getByRole("spinbutton", { name: "End" })).toBeVisible();
     expect(screen.queryByRole("button", { name: "Apply" })).toBeNull();
     expect(screen.queryByRole("button", { name: "Delete" })).toBeNull();
-    expect(screen.getByText("A loaf tells you when it is ready")).toBeVisible();
+    expect(screen.getByRole("textbox", { name: "Title" })).toHaveValue(
+      "A loaf tells you when it is ready",
+    );
+    expect(screen.getByRole("img", { name: "Quality 4 of 5" })).toBeVisible();
     expect(screen.queryByText("0.87")).toBeNull();
+    expect(screen.queryByText("host")).toBeNull();
     expect(screen.queryByText("Score")).toBeNull();
     expect(screen.queryByText("Approved")).toBeNull();
     expect(screen.queryByText("Review")).toBeNull();
@@ -92,13 +102,76 @@ describe("social clip content", () => {
     );
   });
 
-  it("refuses an end that is not after the start", async () => {
+  it("refuses an end before the minimum span with the range", async () => {
     open();
     await typeScrub("End", "20");
     expect(await screen.findByRole("alert")).toHaveTextContent(
-      "End must be greater than start",
+      "Enter a number from 28.1 to 60 s",
     );
     expect(updateSocialClip).not.toHaveBeenCalled();
+  });
+
+  it("refuses a start at or after the end with the range", async () => {
+    open();
+    await typeScrub("Start", "44");
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Enter a number from 0 to 43.9 s",
+    );
+    expect(updateSocialClip).not.toHaveBeenCalled();
+  });
+
+  it("retitles through the details command and leaves the range alone", async () => {
+    const user = userEvent.setup();
+    open();
+    const title = screen.getByRole("textbox", { name: "Title" });
+    await user.clear(title);
+    await user.type(title, "Bread{Enter}");
+    expect(updateSocialClipDetails).toHaveBeenCalledTimes(1);
+    expect(updateSocialClipDetails).toHaveBeenCalledWith(
+      "/tmp/p.json",
+      "social-1",
+      { title: "Bread" },
+    );
+    expect(updateSocialClip).not.toHaveBeenCalled();
+  });
+
+  it("clears the title when it is emptied", async () => {
+    const user = userEvent.setup();
+    open();
+    await user.clear(screen.getByRole("textbox", { name: "Title" }));
+    await user.keyboard("{Enter}");
+    expect(updateSocialClipDetails).toHaveBeenCalledTimes(1);
+    expect(updateSocialClipDetails).toHaveBeenCalledWith(
+      "/tmp/p.json",
+      "social-1",
+      { title: "" },
+    );
+  });
+
+  it("reports a refused retitle as an alert", async () => {
+    const user = userEvent.setup();
+    vi.mocked(updateSocialClipDetails).mockRejectedValueOnce(
+      new Error("Save failed"),
+    );
+    open();
+    const title = screen.getByRole("textbox", { name: "Title" });
+    await user.clear(title);
+    await user.type(title, "Bread{Enter}");
+    expect(await screen.findByRole("alert")).toHaveTextContent("Save failed");
+  });
+
+  it("shows no Quality for a clip added by hand and invites a title", () => {
+    open("host", "manual", {
+      ...clip,
+      id: "manual",
+      score: 0,
+      title_suggestion: null,
+    });
+    expect(screen.queryByRole("img", { name: /Quality/ })).toBeNull();
+    const title = screen.getByRole("textbox", { name: "Title" });
+    expect(title).toHaveValue("");
+    expect(title).toHaveAttribute("placeholder", "Untitled clip");
+    expect(screen.getByRole("spinbutton", { name: "Start" })).toBeVisible();
   });
 
   it("reports a failed save as an alert", async () => {
@@ -118,6 +191,8 @@ describe("social clip content", () => {
       "aria-readonly",
       "true",
     );
+    expect(screen.queryByRole("textbox", { name: "Title" })).toBeNull();
+    expect(screen.getByText("A loaf tells you when it is ready")).toBeVisible();
     expect(updateSocialClip).not.toHaveBeenCalled();
     await expectNoA11yViolations(container);
   });
