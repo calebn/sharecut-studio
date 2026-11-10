@@ -27,7 +27,7 @@ export function shortWords(words: string): string {
     : `${words.slice(0, WORDS_MAX - 1)}…`;
 }
 
-export function cuttableHits(
+function cuttableHits(
   { model, cutAway }: ScriptHostModel,
   words: string,
   cutKeys: ReadonlySet<string>,

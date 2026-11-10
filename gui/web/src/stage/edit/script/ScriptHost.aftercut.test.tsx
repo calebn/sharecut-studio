@@ -280,7 +280,7 @@ describe("Tab after a words cut", () => {
       cutAway([0, 1], "h1");
       await end();
       await act(async () => {});
-      document.querySelector<HTMLElement>(".sys-script-body button")?.focus();
+      document.querySelector<HTMLElement>(".sys-script-word")?.focus();
       expect(tab().defaultPrevented).toBe(false);
     });
 
@@ -323,6 +323,51 @@ describe("Tab after a words cut", () => {
       ).not.toBeNull(),
     );
     expect(tab().defaultPrevented).toBe(true);
+  });
+
+  it("keeps focus in the Script body after a cut of a Tab-selected occurrence", async () => {
+    const user = await startCut();
+    cutAway([0, 1], "h1");
+    await waitFor(() =>
+      expect(
+        document.activeElement?.closest(".sys-script-body"),
+      ).not.toBeNull(),
+    );
+    expect(tab().defaultPrevented).toBe(true);
+    await waitFor(() =>
+      expect(document.activeElement).toHaveTextContent("you"),
+    );
+    const stale = document.querySelector<HTMLElement>(
+      ".sys-script-body .sys-seam-hit, .sys-script-body button:not(.sys-script-word)",
+    );
+    expect(stale).not.toBeNull();
+    stale!.dispatchEvent(new FocusEvent("focusout", { bubbles: true }));
+    await act(async () => {});
+    await user.keyboard("{Backspace}");
+    await waitFor(() => expect(submitDocumentCommand).toHaveBeenCalledTimes(2));
+    const { project } = state();
+    useDawStore.setState({
+      project: {
+        ...project!,
+        history: { ...project!.history!, head_id: head("h2") },
+        transcript: {
+          utterances: project!.transcript!.utterances.map((u) => ({
+            ...u,
+            words: u.words!.filter(
+              (w) => ![0, 1, 3, 4].includes(w.word_index!),
+            ),
+          })),
+        },
+      },
+    });
+    await act(async () => {});
+    await waitFor(() =>
+      expect(
+        document.activeElement?.closest(".sys-script-body"),
+      ).not.toBeNull(),
+    );
+    expect(tab().defaultPrevented).toBe(true);
+    expect(selected()).toEqual([6, 7]);
   });
 
   it("is left native while a menu holds the keyboard", async () => {
