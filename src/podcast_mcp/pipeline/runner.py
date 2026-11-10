@@ -107,6 +107,7 @@ def _run_step_published(
 AUDIO_AFFECTING_STEPS = frozenset(
     {
         "align_tracks",
+        "extract_room_tone_beds",
         "fill_gate_holes",
         "clean_audio",
         "compress_tracks",
@@ -124,6 +125,7 @@ _STEP_MAP: dict[str, StepFn] = {
     "transcribe_tracks": pipeline_steps.transcribe_tracks,
     "align_tracks": pipeline_steps.align_tracks,
     "require_align_accept": pipeline_steps.require_align_accept,
+    "extract_room_tone_beds": pipeline_steps.extract_room_tone_beds,
     "merge_transcript": pipeline_steps.merge_transcript,
     "render_dialogue_stems": pipeline_steps.render_dialogue_stems,
     "reconcile_transcript": pipeline_steps.reconcile_transcript,
@@ -150,6 +152,7 @@ ORDERED_STEP_NAMES: list[str] = [
     "transcribe_tracks",
     "align_tracks",
     "require_align_accept",
+    "extract_room_tone_beds",
     "merge_transcript",
     "render_dialogue_stems",
     "reconcile_transcript",

@@ -156,5 +156,6 @@ def test_runner_marks_reconciliation_stale_only_for_dialogue_steps(
     monkeypatch.setitem(runner_mod._STEP_MAP, step, lambda _p, _d: "stub")
     PipelineRunner(defaults={}).run(proj, only_step=step)
     assert reconciliation_status(proj, defaults=load_defaults())["stale"] is stale
+    assert ("extract_room_tone_beds" in runner_mod.AUDIO_AFFECTING_STEPS) is True
     assert ("mix_with_music" in runner_mod.AUDIO_AFFECTING_STEPS) is False
     assert ("analyze_prosody" in runner_mod.AUDIO_AFFECTING_STEPS) is False

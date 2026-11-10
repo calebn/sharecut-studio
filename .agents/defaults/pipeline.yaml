@@ -27,6 +27,14 @@ master:
 balance:
   dialogue_lufs: -20.0
 
+room_tone:
+  # extract_room_tone_beds: cut a room-tone bed from each dialogue track that has none,
+  # from its own quiet stretch, before any step that picks a fill (gate fill, filler pads,
+  # bleed-mute fills). A recorded bed is never replaced. Off (default) runs nothing; beds
+  # already extracted stay until History undo. Not the inaudible_cuts filler pad source.
+  # See docs/pipeline.md § Room-tone extraction.
+  extract_bed: false
+
 gate_fill:
   # fill_gate_holes: room tone under each dialogue track's source-gate holes, the
   # digital silence a recorder's noise gate leaves between words (Zoom records each

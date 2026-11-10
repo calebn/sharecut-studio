@@ -270,6 +270,24 @@ def test_config_put_brings_back_sound_actions_when_the_setting_turns_on(tmp_path
     assert "apply_sound_actions" in (store.get(proj).enabled_steps or [])
 
 
+def test_room_tone_step_follows_its_setting_in_the_defaults_and_the_working_set(tmp_path) -> None:
+    from podcast_mcp.config.defaults import load_defaults
+    from podcast_mcp.services.pipeline.config import default_enabled_steps
+
+    on = merge_pipeline_config({"room_tone": {"extract_bed": True}}, base=load_defaults())
+    assert "extract_room_tone_beds" not in default_enabled_steps(load_defaults())
+    assert "extract_room_tone_beds" in default_enabled_steps(on)
+    proj = tmp_path / "ep5.project.json"
+    proj.write_text("{}", encoding="utf-8")
+    store = config_store()
+    store.put(proj, reset=True)
+    assert "extract_room_tone_beds" not in (store.get(proj).enabled_steps or [])
+    store.put(proj, config={"room_tone": {"extract_bed": True}})
+    assert "extract_room_tone_beds" in (store.get(proj).enabled_steps or [])
+    store.put(proj, config={"room_tone": {"extract_bed": False}})
+    assert "extract_room_tone_beds" not in (store.get(proj).enabled_steps or [])
+
+
 def test_config_put_preserves_focus_uncheck_when_flag_unchanged(tmp_path) -> None:
     from podcast_mcp.services.pipeline.config import FOCUS_STEPS
 

@@ -557,6 +557,57 @@ def apply_sound_actions(project: EpisodeProject, defaults: dict[str, Any]) -> St
     return result.summary()
 
 
+def extract_room_tone_beds(project: EpisodeProject, defaults: dict[str, Any]) -> StepSummary:
+    """Cut a room-tone bed from each dialogue track that has none (``room_tone.extract_bed``).
+
+    A track with a recorded or earlier-extracted bed keeps it, and one with no clean stretch
+    stays bedless, so gate fills and pads fall back as before.  Runs ahead of every step that
+    picks a fill; it never rewrites a fill an earlier run already baked.
+    """
+    from podcast_mcp.edits.extracted_bed import bedless_reason, register_extracted_bed
+    from podcast_mcp.engines.room_tone import SampleAbsent
+    from podcast_mcp.engines.room_tone_extract import plan_extracted_bed
+    from podcast_mcp.pipeline.meta import step_noop_reason
+    from podcast_mcp.util.progress import raise_if_cancel_requested
+    from podcast_mcp.util.project_state import live_project
+
+    if reason := step_noop_reason("extract_room_tone_beds", defaults):
+        return f"skipped ({reason})"
+    tracks = [t for t in project.tracks if t.role == TrackRole.DIALOGUE and t.media]
+    live = live_project(project)
+    cut: list[str] = []
+    kept: list[str] = []
+    none: list[str] = []
+    with resolve_progress_task(
+        "extract_room_tone_beds",
+        "Extracting room tone",
+        total=max(1, len(tracks)),
+        prefer_parent=True,
+    ) as prog:
+        for done, track in enumerate(tracks, start=1):
+            raise_if_cancel_requested(current_cancel_check())
+            prog.set_phase("extract", f"Extracting room tone from {track.id}…")
+            skip = bedless_reason(project, track.id)
+            if skip is None:
+                plan = plan_extracted_bed(project, track.id)
+                if isinstance(plan, SampleAbsent):
+                    none.append(f"{track.id}: {plan.cause}")
+                elif (skip := bedless_reason(live, track.id)) is None:
+                    reply = register_extracted_bed(project, track.id, plan)
+                    if reply["extracted"]:
+                        cut.append(f"{track.id} {plan.duration_sec:.1f} s")
+                    else:
+                        none.append(f"{track.id}: {reply['reason']}")
+            if skip is not None:
+                kept.append(f"{track.id}: {skip}")
+            prog.advance(1, message=f"Done {track.id} ({done}/{len(tracks)})")
+    return (
+        f"{len(cut)} beds extracted ({', '.join(cut) or 'none'}); "
+        f"{len(kept)} kept ({', '.join(kept) or 'none'}); "
+        f"{len(none)} none ({', '.join(none) or 'none'})"
+    )
+
+
 def fill_gate_holes(project: EpisodeProject, defaults: dict[str, Any]) -> StepSummary:
     from podcast_mcp.engines.gate_fill import fill_gate_holes as fill
 
