@@ -89,15 +89,6 @@ function useInspectorFocus(box: RefObject<HTMLElement | null>, ready: boolean) {
       const receipt = dismissal.current;
       const next = event.relatedTarget;
       if (
-        !receipt &&
-        next instanceof HTMLElement &&
-        next !== document.body &&
-        !box.current?.contains(next)
-      ) {
-        preserveOutsideFocus.current = true;
-        return;
-      }
-      if (
         !receipt ||
         !(next instanceof HTMLElement) ||
         !next.isConnected ||
@@ -109,9 +100,6 @@ function useInspectorFocus(box: RefObject<HTMLElement | null>, ready: boolean) {
     },
     [box],
   );
-  const onFocusCapture = useCallback(() => {
-    preserveOutsideFocus.current = false;
-  }, []);
   const onClickCapture = useCallback((event: MouseEvent<HTMLElement>) => {
     const receipt = dismissal.current;
     const target = (event.target as Element).closest<HTMLButtonElement>(
@@ -194,7 +182,6 @@ function useInspectorFocus(box: RefObject<HTMLElement | null>, ready: boolean) {
     close,
     onBlurCapture,
     onClickCapture,
-    onFocusCapture,
     onKeyDownCapture,
     onPointerCancelCapture,
     onPointerDownCapture,
@@ -377,7 +364,6 @@ function Card({
       hidden={!shown}
       onBlurCapture={focus.onBlurCapture}
       onClickCapture={focus.onClickCapture}
-      onFocusCapture={focus.onFocusCapture}
       onKeyDownCapture={focus.onKeyDownCapture}
       onPointerCancelCapture={focus.onPointerCancelCapture}
       onPointerDownCapture={focus.onPointerDownCapture}
@@ -448,7 +434,6 @@ function Phone({
       className="edit-inspector-slot"
       onBlurCapture={focus.onBlurCapture}
       onClickCapture={focus.onClickCapture}
-      onFocusCapture={focus.onFocusCapture}
       onKeyDownCapture={focus.onKeyDownCapture}
       onPointerCancelCapture={focus.onPointerCancelCapture}
       onPointerDownCapture={focus.onPointerDownCapture}
