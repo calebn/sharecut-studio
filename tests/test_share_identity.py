@@ -1309,12 +1309,24 @@ def _seed_unverified_oidc(store: ShareIdentityStore, email: str) -> None:
     )
 
 
+def _seed_unverified_github(store: ShareIdentityStore, email: str) -> None:
+    store.upsert_user_from_oidc(
+        provider="github", subject="gh-unverified", email=email, email_verified=False
+    )
+
+
 def _seed_verified_with_password(store: ShareIdentityStore, email: str) -> None:
     _verified_user(store, email)
 
 
 @pytest.mark.parametrize(
-    "seed", [_seed_verified_passwordless, _seed_unverified_oidc, _seed_verified_with_password]
+    "seed",
+    [
+        _seed_verified_passwordless,
+        _seed_unverified_oidc,
+        _seed_unverified_github,
+        _seed_verified_with_password,
+    ],
 )
 def test_register_existing_account_is_conflict(identity_store: ShareIdentityStore, seed) -> None:
     email = "existing@ex.com"
