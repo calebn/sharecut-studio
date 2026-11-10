@@ -1,7 +1,7 @@
 from __future__ import annotations
 
+import math
 import random
-import time
 from copy import deepcopy
 
 import pytest
@@ -1050,9 +1050,34 @@ def test_the_overlap_check_agrees_with_a_pairwise_check_on_random_targets():
 
 
 def test_the_overlap_check_is_fast_at_the_payload_limits():
-    started = time.perf_counter()
-    _refuse_overlapping(wide_targets(64, 1000, ["a"]))
-    assert time.perf_counter() - started < 1
+    comparisons = 0
+
+    class CountedFloat(float):
+        def __eq__(self, other):
+            nonlocal comparisons
+            comparisons += 1
+            return float.__eq__(self, other)
+
+        def __lt__(self, other):
+            nonlocal comparisons
+            comparisons += 1
+            return float.__lt__(self, other)
+
+        def __gt__(self, other):
+            nonlocal comparisons
+            comparisons += 1
+            return float.__gt__(self, other)
+
+        __hash__ = float.__hash__
+
+    targets = wide_targets(64, 1000, ["a"])
+    for target in targets:
+        for interval in target.intervals:
+            object.__setattr__(interval, "start", CountedFloat(interval.start))
+            object.__setattr__(interval, "end", CountedFloat(interval.end))
+    total = 64 * 1000
+    _refuse_overlapping(targets)
+    assert 0 < comparisons <= 10 * total * math.log2(total)
 
 
 def test_the_overlap_check_finds_one_late_clash_among_many_targets():
