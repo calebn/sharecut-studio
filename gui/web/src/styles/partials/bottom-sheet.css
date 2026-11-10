@@ -125,9 +125,7 @@ html[data-shell="phone"] .bottom-sheet-root {
 }
 
 /* The Edit stage's surface switch and Mix stack under 22rem wide
-   (src/styles/partials/stage-edit.css), so the sheet keeps clear of both rows.
-   On a coarse pointer the overview strip's row below them is a touch box
-   taller than its 1rem strip. */
+   (src/styles/partials/stage-edit.css), so the sheet keeps clear of both rows. */
 @container sheet-slot (max-width: 22rem) {
   .bottom-sheet {
     --sheet-chrome-clearance: calc(
@@ -141,24 +139,6 @@ html[data-shell="phone"] .bottom-sheet-root {
       var(--sheet-chrome-clearance) +
       var(--sheet-lane-extra)
     );
-  }
-
-  @media (pointer: coarse) {
-    .bottom-sheet {
-      --sheet-chrome-clearance: calc(
-        var(--sheet-header-clearance) +
-        2 *
-        var(--sheet-edit-row) +
-        var(--touch-min) -
-        1rem +
-        var(--ruler-height) +
-        var(--marker-lane-height)
-      );
-      --sheet-lane-clearance: calc(
-        var(--sheet-chrome-clearance) +
-        var(--sheet-lane-extra)
-      );
-    }
   }
 }
 
