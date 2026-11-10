@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import random
 import time
 from copy import deepcopy
 
@@ -1003,6 +1004,49 @@ def wide_targets(count, per_target, tracks):
         )
         for n in range(count)
     ]
+
+
+def brute_force_overlaps(targets):
+    for i, first in enumerate(targets):
+        for second in targets[i + 1 :]:
+            if not set(first.track_ids) & set(second.track_ids):
+                continue
+            for a in first.intervals:
+                for b in second.intervals:
+                    if a.start < b.end and b.start < a.end:
+                        return True
+    return False
+
+
+def test_the_overlap_check_agrees_with_a_pairwise_check_on_random_targets():
+    rng = random.Random(7)
+    refused = accepted = 0
+    for _ in range(3000):
+        targets = []
+        for _ in range(rng.randint(1, 5)):
+            cuts = sorted(rng.sample(range(0, 40), rng.randint(1, 3) * 2))
+            intervals = [
+                RangeInterval(start=cuts[i], end=cuts[i + 1]) for i in range(0, len(cuts), 2)
+            ]
+            tracks = rng.sample(["a", "b", "c"], rng.randint(1, 2))
+            targets.append(
+                ExactRangeTarget.model_construct(
+                    kind="exact_range",
+                    intervals=intervals,
+                    track_ids=tracks,
+                    clips=[],
+                    media_seals={},
+                )
+            )
+        try:
+            _refuse_overlapping(targets)
+        except ValueError:
+            refused += 1
+            assert brute_force_overlaps(targets)
+        else:
+            accepted += 1
+            assert not brute_force_overlaps(targets)
+    assert refused > 100 and accepted > 100
 
 
 def test_the_overlap_check_is_fast_at_the_payload_limits():

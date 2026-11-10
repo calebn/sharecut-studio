@@ -33,21 +33,16 @@ def _refuse_overlapping(targets: Sequence[ExactRangeTarget]) -> None:
             by_track.setdefault(track_id, []).extend((x.start, x.end, n) for x in target.intervals)
     for spans in by_track.values():
         spans.sort()
-        best = (float("-inf"), -1)
-        runner = (float("-inf"), -1)
+        reach = float("-inf")
+        owner = -1
         for start, end, n in spans:
-            other = runner if best[1] == n else best
-            if other[0] > start and start < end:
+            if reach > start and owner != n:
                 raise CodedValueError(
                     "Two targets cover the same audio on one track. Send each stretch once.",
                     code="overlapping_targets",
                 )
-            if best[1] == n:
-                best = (max(best[0], end), n)
-            elif end > best[0]:
-                runner, best = best, (end, n)
-            elif end > runner[0]:
-                runner = (end, n)
+            if end > reach:
+                reach, owner = end, n
 
 
 def edit_selected_range(
@@ -101,9 +96,6 @@ def edit_selected_range(
     used = {e.id for e in project.edit_decisions}
     for record in project.editorial.edit_log:
         used.update(record.decision_ids)
-        applied_id = record.params.get("action_id")
-        if isinstance(applied_id, str):
-            used.add(applied_id)
     taken = used & {e.id for e in edits}
     if taken:
         raise CodedValueError(
