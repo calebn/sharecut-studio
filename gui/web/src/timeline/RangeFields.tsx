@@ -15,6 +15,16 @@ import { Button } from "../ui";
 
 const NO_TRACKS = "Choose at least one track";
 
+/** The tracks picked before adoption that still exist; none when they are all gone. */
+function chosenScope(
+  project: { tracks: readonly { id: string }[] },
+  chosen: readonly string[] | null,
+): readonly string[] {
+  if (!chosen) return [];
+  const live = new Set(project.tracks.map((track) => track.id));
+  return chosen.filter((id) => live.has(id));
+}
+
 export function RangeFields({
   sheet = false,
   always = false,
@@ -69,7 +79,9 @@ export function RangeFields({
   const outSec = span?.end ?? 0;
   const scope =
     target?.track_ids ??
-    (drafting ? rangeDraft.trackIds : (state.agentRangeScope ?? []));
+    (drafting
+      ? rangeDraft.trackIds
+      : chosenScope(project, state.agentRangeScope));
   const editable = showNumeric && span !== null && (always || drafting);
   const agent = showNumeric && sessionRegion && (rangeArmed || !target);
   const unresolved =
