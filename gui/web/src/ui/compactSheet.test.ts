@@ -1,26 +1,5 @@
 import { afterEach, describe, expect, it } from "vitest";
-import {
-  capInspectorSheetForLane,
-  editedLaneTrack,
-  inspectorSheetBottom,
-  inspectorSheetPanel,
-  inspectorSheetTop,
-} from "./compactSheet";
-
-describe("editedLaneTrack", () => {
-  it("names the track of an envelope selection, and no other", () => {
-    expect(editedLaneTrack({ kind: "envelope", trackId: "host" })).toBe("host");
-    expect(
-      editedLaneTrack({
-        kind: "envelopePoint",
-        trackId: "guest",
-        pointId: "p",
-      }),
-    ).toBe("guest");
-    expect(editedLaneTrack({ kind: "track", trackId: "host" })).toBeNull();
-    expect(editedLaneTrack(null)).toBeNull();
-  });
-});
+import { inspectorSheetPanel, inspectorSheetTop } from "./compactSheet";
 
 describe("the Inspector column", () => {
   afterEach(() => {
@@ -33,9 +12,6 @@ describe("the Inspector column", () => {
     document.body.append(panel);
     expect(inspectorSheetPanel()).toBeNull();
     expect(inspectorSheetTop()).toBeNull();
-    expect(inspectorSheetBottom()).toBeNull();
-    capInspectorSheetForLane(120);
-    expect(panel.style.getPropertyValue("--sheet-lane-cap")).toBe("");
   });
 });
 
@@ -52,8 +28,5 @@ describe("the phone Inspector sheet", () => {
     document.body.append(panel);
     expect(inspectorSheetPanel()).toBe(panel);
     expect(inspectorSheetTop()).toBe(400);
-    expect(inspectorSheetBottom()).toBe(800);
-    capInspectorSheetForLane(90);
-    expect(panel.style.getPropertyValue("--sheet-lane-cap")).toBe("90px");
   });
 });

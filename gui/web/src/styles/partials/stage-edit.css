@@ -233,7 +233,7 @@ html[data-frame-short] .edit-dock {
 /* The open Inspector sheet carries the Action bar as its own dock; this one
    keeps the layout still beneath it. */
 .edit-workspace .sys-inspector--phone {
-  max-block-size: var(--sheet-lane-cap, 100%);
+  max-block-size: 100%;
 }
 
 .edit-workspace .sys-inspector-dock:empty {

@@ -7,7 +7,9 @@
 import { useLayoutEffect, useRef } from "react";
 import { useResizeObserver } from "../../ui/useResizeObserver";
 import { pinnedChromeBottom } from "./keepTargetClear";
-import { laneSelector } from "./useKeepEditedLaneClear";
+
+const laneSelector = (trackId: string) =>
+  `.lane-row[data-track-id=${JSON.stringify(trackId)}]`;
 
 function revealLane(trackId: string): void {
   const lane = document.querySelector(laneSelector(trackId));
@@ -25,7 +27,7 @@ function revealLane(trackId: string): void {
 export function useRevealEditedLane(trackId: string | null): void {
   const frame = useRef(0);
   // A rotation resizes the scroller after the effect below runs; the refit
-  // moves layout, so it waits a frame, as in `useKeepEditedLaneClear`.
+  // moves layout, so it waits a frame.
   useResizeObserver(
     [
       () => (trackId ? document.querySelector(laneSelector(trackId)) : null),
