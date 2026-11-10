@@ -1,3 +1,4 @@
+import { useEffect, useRef } from "react";
 import type { ThemePreference } from "../hooks/useTheme";
 import { AppearanceControl } from "../system/AppearanceControl";
 import type { SystemIconName } from "../system/icons";
@@ -73,6 +74,18 @@ export function SettingsSheet({
   onOpenModels,
   onOpenShortcuts,
 }: SettingsSheetProps) {
+  const revealRef = useRef<HTMLButtonElement>(null);
+  const wasRevealing = useRef(false);
+  const revealing = savedIn?.revealing ?? false;
+  // A disabled button drops focus; give it back when the request ends, so a
+  // failure leaves the person on the button that caused it.
+  useEffect(() => {
+    const was = wasRevealing.current;
+    wasRevealing.current = revealing;
+    if (!was || revealing) return;
+    const active = document.activeElement;
+    if (!active || active === document.body) revealRef.current?.focus();
+  }, [revealing]);
   return (
     <Sheet
       form={phone ? "bottom" : "end"}
@@ -96,6 +109,7 @@ export function SettingsSheet({
               </span>
               {savedIn.onReveal ? (
                 <Button
+                  ref={revealRef}
                   type="button"
                   disabledReason={savedIn.revealing ? BUSY_REASON : undefined}
                   aria-busy={savedIn.revealing || undefined}
