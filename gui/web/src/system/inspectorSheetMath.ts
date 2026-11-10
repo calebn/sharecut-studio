@@ -30,6 +30,11 @@ const CARD_MAX_SHARE = 0.6;
 /** The least a card or a full sheet can be and still show its header and a few rows: 14 rem at the default root size. */
 export const CARD_MIN_BLOCK_PX = 224;
 
+/** `CARD_MIN_BLOCK_PX` at this root font size; an unreadable root size counts as the default 16 px. */
+export function scaledMinBlock(rootPx: number) {
+  return CARD_MIN_BLOCK_PX * ((rootPx || 16) / 16);
+}
+
 /** Whether a card in a frame this tall (a frame not yet measured counts as fitting), or a full sheet in a slot this tall, can hold `minBlock`; below it the Inspector takes the screen. */
 export function cardFits(height: number, minBlock = CARD_MIN_BLOCK_PX) {
   return height <= 0 || height * CARD_MAX_SHARE >= minBlock;
@@ -145,7 +150,6 @@ export function placeCard(
   minBlock = CARD_MIN_BLOCK_PX,
 ): CardPlacement {
   const tallest = bounds.height * CARD_MAX_SHARE;
-  const floor = Math.min(minBlock, tallest);
   const below =
     bounds.height - (anchor.y + anchor.height) - CARD_GAP_PX - CARD_EDGE_PX;
   const above = anchor.y - CARD_GAP_PX - CARD_EDGE_PX;
@@ -158,7 +162,7 @@ export function placeCard(
           ? "below"
           : "above";
   const room = Math.max(0, side === "below" ? below : above);
-  const maxBlock = Math.min(tallest, Math.max(room, floor));
+  const maxBlock = Math.min(tallest, Math.max(room, minBlock));
   const edge =
     side === "below"
       ? anchor.y + anchor.height + CARD_GAP_PX

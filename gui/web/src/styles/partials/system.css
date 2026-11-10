@@ -7217,22 +7217,15 @@ textarea.sys-inline-edit {
 }
 
 /* The Inspector taking the whole screen where a card or sheet cannot hold a
-   field (large text on a short frame): a full-bleed modal with Done. */
-.ui-dialog-root > .command-palette-panel.sys-inspector-takeover {
-  inline-size: 100vw;
-  block-size: 100dvh;
-  max-inline-size: none;
-  max-block-size: none;
-  margin: 0;
+   field (large text on a short frame). The selector outweighs the phone and
+   tablet bottom-sheet rule that gives every dialog a rounded top. */
+html
+  .ui-dialog-root:not(.ui-dialog-root--anchored)
+  > .command-palette-panel.sys-inspector-takeover {
+  width: 100%;
+  max-width: none;
+  height: 100dvh;
+  max-height: none;
   border-width: 0;
   border-radius: 0;
-}
-
-.sys-inspector--takeover {
-  position: static;
-  inline-size: auto;
-  max-inline-size: none;
-  block-size: auto;
-  border: none;
-  background: transparent;
 }
