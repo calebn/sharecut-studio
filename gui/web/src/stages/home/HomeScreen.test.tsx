@@ -539,10 +539,8 @@ describe("HomeScreen", () => {
 
     it("says Starting an episode… while Record creates it", async () => {
       const user = userEvent.setup();
-      let release: (v: {
-        project_path: string;
-        name: string;
-      }) => void = () => {};
+      let release: (v: { project_path: string; name: string }) => void =
+        () => {};
       create.mockReturnValue(new Promise((resolve) => (release = resolve)));
       render(<HomeScreen />);
       await user.click(await screen.findByRole("button", { name: /^Record/ }));

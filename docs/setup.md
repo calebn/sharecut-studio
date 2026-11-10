@@ -1056,7 +1056,7 @@ podcast doctor --bundle --out DIR  # optional output directory
 # prints the zip path and configured support URL; `--open` opens it in a browser
 ```
 
-In the app: **Home → Help → Create diagnostics bundle**. The dialog shows the zip path, size, file list, and version. Add a description and approve the public upload to **Submit report**, or reveal the zip in your file manager and use **Open support**.
+In the app: **Home → Help → Report a problem → Create diagnostics bundle**. The dialog shows the zip path, size, file list, and version. Add a description and approve the public upload to **Submit report**, or reveal the zip in your file manager and use **Open support**.
 
 The zip includes doctor results, versions, a sidecar log tail, and counts (tracks/clips/decisions/comments) — not audio, transcripts, project JSON, share tokens, or `shares.json` / `sync.db`. Guests / review links cannot create a bundle (host-only).
 

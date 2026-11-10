@@ -147,7 +147,7 @@ rules are in [Contributing](docs/contributing.md#service-context-imports).
 
 ## Support
 
-Bugs: [GitHub Issues](https://github.com/calebn/sharecut-studio/issues/new?template=bug_report.yml). Attach a sanitized diagnostics zip from **Home → Help → Create diagnostics bundle** or `podcast doctor --bundle` (writes `~/Downloads/sharecut-diagnostics-<UTC>-<nonce>.zip`). Nothing is uploaded automatically — there is no telemetry. Do not attach episode audio or project JSON. Minted shares may transit the relay; GitHub issue attachments are public. Detail: [docs/setup.md § Troubleshooting](docs/setup.md#troubleshooting).
+Bugs: [GitHub Issues](https://github.com/calebn/sharecut-studio/issues/new?template=bug_report.yml). Attach a sanitized diagnostics zip from **Home → Help → Report a problem → Create diagnostics bundle** or `podcast doctor --bundle` (writes `~/Downloads/sharecut-diagnostics-<UTC>-<nonce>.zip`). Nothing is uploaded automatically — there is no telemetry. Do not attach episode audio or project JSON. Minted shares may transit the relay; GitHub issue attachments are public. Detail: [docs/setup.md § Troubleshooting](docs/setup.md#troubleshooting).
 
 ## Privacy
 
