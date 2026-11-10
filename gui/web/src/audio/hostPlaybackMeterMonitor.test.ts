@@ -3012,6 +3012,31 @@ it.each([
 );
 
 describe("raw format discovery", () => {
+  it.each(["channels", "sample-rate", "alignment", "byte-rate"])(
+    "rejects oversized PCM fmt with invalid %s before native fallback",
+    async (field) => {
+      const original = literalPcm(8000, 64, [0, 0]);
+      const bytes = new Uint8Array(original.length + 4);
+      bytes.set(original.subarray(0, 36));
+      bytes.set(original.subarray(36), 40);
+      const view = new DataView(bytes.buffer);
+      view.setUint32(4, bytes.length - 8, true);
+      view.setUint32(16, 20, true);
+      if (field === "channels") view.setUint16(22, 0, true);
+      if (field === "sample-rate") view.setUint32(24, 0, true);
+      if (field === "alignment") view.setUint16(32, 1, true);
+      if (field === "byte-rate") view.setUint32(28, 1, true);
+      const fixture = setupWav(1, bytes, "probe");
+      fixture.monitor.read("voice0");
+      await vi.waitFor(() =>
+        expect(fixture.calls[0].signal.aborted).toBe(true),
+      );
+      expect(FakeAudio.created).toHaveLength(0);
+      expect(fixture.monitor.read("voice0")).toBeNull();
+      fixture.monitor.dispose();
+    },
+  );
+
   it.each([
     "network",
     "auth",
@@ -3069,27 +3094,56 @@ describe("raw format discovery", () => {
     },
   );
 
-  it("does not create a native fallback after a pending probe is disposed", async () => {
-    const bytes = literalPcm(8000, 64, [0]);
-    bytes.set(new TextEncoder().encode("fLaC"));
-    const fixture = setupWav(1, bytes, "probe");
-    let pending!: { call: RangeCall; resolve: (response: Response) => void };
-    fixture.setResponder(
-      (call) =>
-        new Promise<Response>((resolve) => {
-          pending = { call, resolve };
-        }),
-    );
-    fixture.monitor.read("voice0");
-    fixture.monitor.dispose();
-    expect(pending.call.signal.aborted).toBe(true);
-    pending.resolve(fixture.response(pending.call));
-    await Promise.resolve();
-    await Promise.resolve();
-    await Promise.resolve();
-    expect(FakeAudio.created).toHaveLength(0);
-    expect(fixture.blobs.size).toBe(0);
-  });
+  it.each(["pause", "remove", "url", "dispose"])(
+    "rejects a late unsupported probe after %s and serves the current input",
+    async (transition) => {
+      const bytes = literalPcm(8000, 64, [0]);
+      bytes.set(new TextEncoder().encode("fLaC"));
+      const fixture = setupWav(1, bytes, "probe");
+      const tracks = fixture.getTracks();
+      let pending!: { call: RangeCall; resolve: (response: Response) => void };
+      fixture.setResponder(
+        (call) =>
+          new Promise<Response>((resolve) => {
+            pending = { call, resolve };
+          }),
+      );
+      fixture.monitor.read("voice0");
+      if (transition === "pause") fixture.setPlaying(false);
+      if (transition === "remove") fixture.setTracks([]);
+      if (transition === "url")
+        fixture.setTracks(
+          tracks.map((track) => ({
+            ...track,
+            url: `${track.url}?new`,
+            readUrl: `${track.readUrl}?new`,
+          })),
+        );
+      if (transition === "dispose") fixture.monitor.dispose();
+      expect(pending.call.signal.aborted).toBe(true);
+      const stale = fixture.response(pending.call);
+      const cancelled = vi.spyOn(stale.body!, "cancel");
+      pending.resolve(stale);
+      await vi.waitFor(() => expect(cancelled).toHaveBeenCalledOnce());
+      expect(FakeAudio.created).toHaveLength(0);
+      expect(fixture.blobs.size).toBe(0);
+      if (transition !== "dispose") {
+        fixture.assets[0] = literalPcm(8000, 40 * 8000, [8192, -4096]);
+        fixture.setResponder(fixture.response);
+        if (transition === "pause") fixture.setPlaying(true);
+        if (transition === "remove") fixture.setTracks(tracks);
+        await fixture.ready();
+        expect(fixture.monitor.read("voice0")).toEqual(
+          new Float32Array([1 / 4, -1 / 8]),
+        );
+        expect(
+          FakeAudio.created.every((media) => !media.src.startsWith("/raw/")),
+        ).toBe(true);
+        fixture.monitor.dispose();
+      }
+      expect(fixture.blobs.size).toBe(0);
+    },
+  );
 
   it.each([8000, 48000])(
     "reads literal raw PCM at separate source offsets with a %i Hz peer",
@@ -3141,11 +3195,19 @@ describe("raw format discovery", () => {
     },
   );
 
-  it.each(["flac", "float-wav"])(
+  it.each(["flac", "float-wav", "extended-pcm"])(
     "keeps unsupported %s on native decoding without repeated probes",
     async (format) => {
-      const bytes = literalPcm(8000, 64, [0, 0]);
-      if (format === "flac") bytes.set(new TextEncoder().encode("fLaC"));
+      let bytes = literalPcm(8000, 64, [0, 0]);
+      if (format === "extended-pcm") {
+        const extended = new Uint8Array(bytes.length + 4);
+        extended.set(bytes.subarray(0, 36));
+        extended.set(bytes.subarray(36), 40);
+        bytes = extended;
+        const view = new DataView(bytes.buffer);
+        view.setUint32(4, bytes.length - 8, true);
+        view.setUint32(16, 20, true);
+      } else if (format === "flac") bytes.set(new TextEncoder().encode("fLaC"));
       else {
         const view = new DataView(bytes.buffer);
         view.setUint16(20, 3, true);

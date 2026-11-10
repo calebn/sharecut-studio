@@ -86,7 +86,7 @@ describe("useAudioTransport project transitions", () => {
     vi.unstubAllGlobals();
   });
 
-  it.each(["resolve", "reject", "unmount"])(
+  it.each(["resolve", "reject", "unmount", "pending-probe"])(
     "serializes real meter replacement across project transitions and close %s",
     async (outcome) => {
       const real = await vi.importActual<
@@ -95,10 +95,12 @@ describe("useAudioTransport project transitions", () => {
       const factory = vi.mocked(createHostPlaybackMeterMonitor);
       const original = factory.getMockImplementation()!;
       factory.mockImplementation(real.createHostPlaybackMeterMonitor);
+      let finishProbe: (() => void) | undefined;
+      let staleResponse: Response | undefined;
       const request = vi.spyOn(http, "apiSend").mockImplementation(async () => {
         const bytes = new Uint8Array(12);
         bytes.set(new TextEncoder().encode("fLaC"));
-        return new Response(bytes, {
+        const response = new Response(bytes, {
           status: 206,
           headers: {
             "content-range": "bytes 0-11/64",
@@ -106,6 +108,13 @@ describe("useAudioTransport project transitions", () => {
             etag: '"raw"',
           },
         });
+        if (outcome === "pending-probe" && !finishProbe) {
+          staleResponse = response;
+          return new Promise<Response>((resolve) => {
+            finishProbe = () => resolve(response);
+          });
+        }
+        return response;
       });
       const contexts: MeterContext[] = [];
       class MeterContext extends EventTarget {
@@ -202,6 +211,36 @@ describe("useAudioTransport project transitions", () => {
       };
       try {
         await start();
+        if (outcome === "pending-probe") {
+          const oldSource = playbackMeterSource()!;
+          expect(oldSource.read("host")).toBeNull();
+          expect(finishProbe).toBeDefined();
+          act(() => {
+            useDawStore
+              .getState()
+              .hydrate("/tmp/project-next.json", trackProject("raw/host.wav"));
+            useDawStore.getState().setAuditionMode("raw");
+          });
+          expect(playbackMeterSource()).not.toBe(oldSource);
+          await start();
+          const currentMeter = await prime();
+          const count = FakeAudio.instances.length;
+          const cancelled = vi.spyOn(staleResponse!.body!, "cancel");
+          await act(async () => {
+            finishProbe!();
+            await vi.waitFor(() => expect(cancelled).toHaveBeenCalledOnce());
+          });
+          expect(oldSource.read("host")).toBeNull();
+          expect(FakeAudio.instances).toHaveLength(count);
+          expect(FakeAudio.instances.at(-1)).toBe(currentMeter);
+          const samples = playbackMeterSource()?.read("host");
+          expect([samples?.[0], samples?.[2048]]).toEqual([0.25, -0.125]);
+          expect(contexts).toHaveLength(1);
+          unmount();
+          await act(async () => contexts[0].finishClose());
+          expect(playbackMeterSource()).toBeNull();
+          return;
+        }
         const oldMeter = await prime();
         const old = contexts[0];
         act(() => {
