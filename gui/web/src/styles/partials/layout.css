@@ -522,6 +522,7 @@ html[data-shell] body {
 .range-numeric {
   display: flex;
   flex-wrap: wrap;
+  max-inline-size: 100%;
   align-items: center;
   gap: var(--space-3);
 }

@@ -35,6 +35,8 @@ export function RangeFields({
     setSelection: s.setSelection,
     commitRange: s.commitRange,
     setRangeDraft: s.setRangeDraft,
+    agentRangeScope: s.agentRangeScope,
+    setAgentRangeScope: s.setAgentRangeScope,
   }));
   const { project, selection, rangeArmed, rangeDraft, sessionRegion } = state;
   const resolution = useMemo(
@@ -65,7 +67,11 @@ export function RangeFields({
   const single = target ? target.intervals.length === 1 : span !== null;
   const inSec = span?.start ?? 0;
   const outSec = span?.end ?? 0;
-  const scope = target?.track_ids ?? (drafting ? rangeDraft.trackIds : []);
+  const scope =
+    target?.track_ids ??
+    (drafting
+      ? rangeDraft.trackIds
+      : (state.agentRangeScope ?? []));
   const editable = showNumeric && span !== null && (always || drafting);
   const agent = showNumeric && sessionRegion && (rangeArmed || !target);
   const unresolved =
@@ -94,7 +100,10 @@ export function RangeFields({
   };
   const commitScope = (ids: string[]) => {
     const spans = target?.intervals ?? (draftSpan ? [draftSpan] : null);
-    if (!spans) return;
+    if (!spans) {
+      state.setAgentRangeScope(ids);
+      return;
+    }
     const next = makeRangeTarget(project, spans, ids);
     if (next) {
       state.commitRange(next);

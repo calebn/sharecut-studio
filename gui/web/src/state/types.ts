@@ -260,6 +260,8 @@ export interface DawState {
   selection: Selection;
   rangeArmed: boolean;
   rangeDraft: RangeDraft | null;
+  /** The tracks an agent range will be adopted onto, chosen before it is adopted; null until chosen. */
+  agentRangeScope: readonly string[] | null;
   rangeBusy: boolean;
   /**
    * The selection the Inspector was opened for (`inspectKeyOf`), or null. It
@@ -273,6 +275,7 @@ export interface DawState {
   setRangeArmed: (armed: boolean) => void;
   armRange: (draft: RangeDraft) => void;
   setRangeDraft: (draft: RangeDraft) => void;
+  setAgentRangeScope: (ids: readonly string[] | null) => void;
   setRangeBusy: (busy: boolean) => void;
   userZoomed: boolean;
   layers: LayerVisibility;

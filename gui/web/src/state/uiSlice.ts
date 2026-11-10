@@ -246,6 +246,8 @@ type UiSlice = Pick<
   | "rangeDraft"
   | "armRange"
   | "setRangeDraft"
+  | "agentRangeScope"
+  | "setAgentRangeScope"
   | "setRangeBusy"
   | "userZoomed"
   | "layers"
@@ -337,6 +339,7 @@ export function uiProjectInitial() {
     rippleTrim: null,
     rangeArmed: false,
     rangeDraft: null as RangeDraft | null,
+    agentRangeScope: null as readonly string[] | null,
     rangeBusy: false,
     inspectorKey: null as string | null,
     bounceRangeTarget: null,
@@ -579,6 +582,7 @@ export const createUiSlice: StateCreator<DawStore, [], [], UiSlice> = (
     setRangeArmed: (rangeArmed) => set({ rangeArmed, rangeDraft: null }),
     armRange: (rangeDraft) => set({ rangeArmed: true, rangeDraft }),
     setRangeDraft: (rangeDraft) => set({ rangeDraft }),
+    setAgentRangeScope: (agentRangeScope) => set({ agentRangeScope }),
     setRangeBusy: (rangeBusy) => set({ rangeBusy }),
     inspectorKey: null as string | null,
     setInspectorOpen: (open) =>

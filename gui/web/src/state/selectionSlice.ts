@@ -124,6 +124,7 @@ export const createSelectionSlice: StateCreator<
       inspectorKey: "range",
       rangeArmed: false,
       rangeDraft: null,
+      agentRangeScope: null,
     }));
   },
   selectTracks: (trackIds) => {
