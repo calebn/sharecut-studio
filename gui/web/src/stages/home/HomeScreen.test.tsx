@@ -10,6 +10,8 @@ import type { ReactElement } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { BootstrapJobSnapshot, RecentProject } from "../../api";
 import * as api from "../../api";
+import { CREATE_LABEL, REPORT_TITLE } from "../../home/HelpDialogView";
+import { TABLET_MQ } from "../../hooks/useViewportClass";
 import * as ingest from "../../ingest/ingestFiles";
 import { ModelsProvider } from "../../models/ModelsProvider";
 import { ModelsContext, useModels } from "../../models/useModels";
@@ -100,7 +102,7 @@ async function chooseAppMenuRow(
   user: ReturnType<typeof userEvent.setup>,
   name: string,
 ) {
-  await user.click(screen.getByRole("button", { name: "ShareCut" }));
+  await user.click(screen.getByRole("button", { name: "ShareCut app menu" }));
   await user.click(screen.getByRole("menuitem", { name }));
 }
 
@@ -1345,7 +1347,9 @@ describe("HomeScreen", () => {
       await screen.findByRole("list", { name: "Recent episodes" });
       expect(screen.queryByRole("button", { name: /^Help/ })).toBeNull();
       expect(screen.queryByRole("button", { name: "More" })).toBeNull();
-      await user.click(screen.getByRole("button", { name: "ShareCut" }));
+      await user.click(
+        screen.getByRole("button", { name: "ShareCut app menu" }),
+      );
       expect(
         within(screen.getByRole("menu", { name: "App menu" }))
           .getAllByRole("menuitem")
@@ -1379,14 +1383,100 @@ describe("HomeScreen", () => {
       ).toEqual(["Shortcuts and gestures", "Report a problem", "Guides"]);
       await user.keyboard("{Escape}");
       expect(screen.queryByRole("dialog", { name: "Help" })).toBeNull();
-      expect(screen.getByRole("button", { name: "ShareCut" })).toHaveFocus();
+      expect(
+        screen.getByRole("button", { name: "ShareCut app menu" }),
+      ).toHaveFocus();
+    });
+
+    it("names the app menu button for what it opens", async () => {
+      render(<HomeScreen />);
+      await screen.findByRole("list", { name: "Recent episodes" });
+      expect(
+        screen.getByRole("button", { name: "ShareCut app menu" }),
+      ).toHaveAttribute("aria-haspopup");
+    });
+
+    it("lines the Help popover's left edge up with the app menu button", async () => {
+      const user = userEvent.setup();
+      render(<HomeScreen />);
+      await screen.findByRole("list", { name: "Recent episodes" });
+      const trigger = screen.getByRole("button", { name: "ShareCut app menu" });
+      vi.spyOn(trigger, "getBoundingClientRect").mockReturnValue({
+        x: 120,
+        y: 16,
+        left: 120,
+        top: 16,
+        right: 331,
+        bottom: 48,
+        width: 211,
+        height: 32,
+        toJSON: () => ({}),
+      });
+      await chooseAppMenuRow(user, "Help");
+      const sheet = await screen.findByRole("dialog", { name: "Help" });
+      expect(sheet).toHaveAttribute("aria-modal", "false");
+      await waitFor(() =>
+        expect(sheet.closest<HTMLElement>(".help-sheet-panel")).toHaveStyle({
+          left: "120px",
+        }),
+      );
+    });
+
+    it("focuses the first Help row when it opens from the app menu", async () => {
+      const user = userEvent.setup();
+      render(<HomeScreen />);
+      await screen.findByRole("list", { name: "Recent episodes" });
+      await chooseAppMenuRow(user, "Help");
+      await screen.findByRole("dialog", { name: "Help" });
+      await waitFor(() =>
+        expect(
+          screen.getByRole("button", { name: /Shortcuts and gestures/ }),
+        ).toHaveFocus(),
+      );
+    });
+
+    it("falls back to a modal sheet when the app menu button is not there", async () => {
+      const user = userEvent.setup();
+      render(<HomeScreen />);
+      await screen.findByRole("list", { name: "Recent episodes" });
+      screen
+        .getByRole("button", { name: "ShareCut app menu" })
+        .removeAttribute("data-app-menu");
+      await chooseAppMenuRow(user, "Help");
+      expect(
+        await screen.findByRole("dialog", { name: "Help" }),
+      ).toHaveAttribute("aria-modal", "true");
+    });
+
+    it("falls back to a modal sheet on a tablet viewport", async () => {
+      vi.stubGlobal(
+        "matchMedia",
+        (query: string) =>
+          ({
+            media: query,
+            matches: query === TABLET_MQ,
+            addEventListener: () => {},
+            removeEventListener: () => {},
+          }) as unknown as MediaQueryList,
+      );
+      try {
+        const user = userEvent.setup();
+        render(<HomeScreen />);
+        await screen.findByRole("list", { name: "Recent episodes" });
+        await chooseAppMenuRow(user, "Help");
+        expect(
+          await screen.findByRole("dialog", { name: "Help" }),
+        ).toHaveAttribute("aria-modal", "true");
+      } finally {
+        vi.unstubAllGlobals();
+      }
     });
 
     it("opens the palette from the Shortcuts and gestures row and returns focus to the app menu", async () => {
       const user = userEvent.setup();
       render(<HomeScreen />);
       await screen.findByRole("list", { name: "Recent episodes" });
-      const trigger = screen.getByRole("button", { name: "ShareCut" });
+      const trigger = screen.getByRole("button", { name: "ShareCut app menu" });
       await chooseAppMenuRow(user, "Help");
       await user.click(
         await screen.findByRole("button", { name: /Shortcuts and gestures/ }),
@@ -1421,11 +1511,11 @@ describe("HomeScreen", () => {
         await screen.findByRole("button", { name: /Report a problem/ }),
       );
       const report = await screen.findByRole("dialog", {
-        name: "Export diagnostics",
+        name: REPORT_TITLE,
       });
       expect(
         within(report).getByRole("button", {
-          name: "Export",
+          name: CREATE_LABEL,
         }),
       ).toBeInTheDocument();
       await user.click(within(report).getByRole("button", { name: "Back" }));
@@ -1458,7 +1548,7 @@ describe("HomeScreen", () => {
         await screen.findByRole("option", { name: /Report a problem/ }),
       );
       expect(
-        await screen.findByRole("dialog", { name: "Export diagnostics" }),
+        await screen.findByRole("dialog", { name: REPORT_TITLE }),
       ).toBeInTheDocument();
     });
 

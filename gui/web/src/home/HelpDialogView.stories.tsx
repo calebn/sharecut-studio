@@ -1,15 +1,12 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import type { ComponentProps } from "react";
+import { type ComponentProps, useRef } from "react";
 import { expect, fn, userEvent, within } from "storybook/test";
 import { isolatedStoryParameters } from "../storybook/storyLayout";
 import { DialogLauncher } from "../test/DialogLauncher";
 import { openDialogByLauncher, useArgState } from "../test/storyDialog";
-import { HelpDialogView } from "./HelpDialogView";
+import { CREATE_LABEL, HelpDialogView, REPORT_TITLE } from "./HelpDialogView";
 
-const openDialog = (
-  canvasElement: HTMLElement,
-  dialogName = "Export diagnostics",
-) =>
+const openDialog = (canvasElement: HTMLElement, dialogName = REPORT_TITLE) =>
   openDialogByLauncher(canvasElement, {
     launcherName: "Open help dialog",
     dialogName,
@@ -65,6 +62,25 @@ function HelpDialogPreview({
   );
 }
 
+function PopoverPreview(
+  props: ComponentProps<typeof HelpDialogView> & { initiallyOpen: boolean },
+) {
+  const anchorRef = useRef<HTMLButtonElement>(null);
+  return (
+    <div style={{ minHeight: "24rem" }}>
+      <button
+        ref={anchorRef}
+        type="button"
+        data-story-anchor
+        style={{ marginLeft: "6rem" }}
+      >
+        ShareCut app menu
+      </button>
+      <HelpDialogPreview {...props} anchorRef={anchorRef} />
+    </div>
+  );
+}
+
 const meta: Meta<typeof HelpDialogView> = {
   title: "Templates/HelpDialog",
   component: HelpDialogView,
@@ -112,7 +128,7 @@ export const Menu: Story = {
     );
     await expect(args.onStepChange).toHaveBeenCalledWith("report");
     const create = await within(dialog).findByRole("button", {
-      name: "Export",
+      name: CREATE_LABEL,
     });
     await expect(create).toHaveFocus();
     await userEvent.click(within(dialog).getByRole("button", { name: "Back" }));
@@ -123,6 +139,22 @@ export const Menu: Story = {
       within(dialog).getByRole("button", { name: /Guides/ }),
     );
     await expect(args.onOpenGuides).toHaveBeenCalledOnce();
+  },
+};
+
+export const Popover: Story = {
+  args: { step: "menu" },
+  render: (args, context) => (
+    <PopoverPreview {...args} initiallyOpen={context.viewMode === "story"} />
+  ),
+  play: async ({ canvasElement, viewMode }) => {
+    if (viewMode === "docs") return;
+    const dialog = await openDialog(canvasElement, "Help");
+    const anchor = canvasElement.querySelector("[data-story-anchor]");
+    await expect(dialog).toHaveAttribute("aria-modal", "false");
+    await expect(
+      dialog.closest(".help-sheet-panel")?.getBoundingClientRect().left,
+    ).toBeCloseTo(anchor?.getBoundingClientRect().left ?? -1, 0);
   },
 };
 
@@ -143,7 +175,7 @@ export const Idle: Story = {
     if (viewMode === "docs") return;
     const dialog = await openDialog(canvasElement);
     await userEvent.click(
-      within(dialog).getByRole("button", { name: "Export" }),
+      within(dialog).getByRole("button", { name: CREATE_LABEL }),
     );
     await expect(args.onCreate).toHaveBeenCalledOnce();
     await expect(

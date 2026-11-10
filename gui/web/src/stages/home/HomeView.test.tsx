@@ -119,7 +119,7 @@ describe("HomeView", () => {
     const { user, onSettings, onConnectAgent, onHelp } = setup();
     expect(screen.queryByRole("button", { name: /^Help/ })).toBeNull();
     expect(screen.queryByRole("button", { name: "More" })).toBeNull();
-    const trigger = screen.getByRole("button", { name: "ShareCut" });
+    const trigger = screen.getByRole("button", { name: "ShareCut app menu" });
     expect(trigger).toHaveAttribute("data-app-menu");
     for (const [name, handler] of [
       ["Settings", onSettings],

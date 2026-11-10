@@ -30,6 +30,8 @@ export type DialogAnchor = {
   moves?: unknown;
   /** The side tried first; below unless the subject asks to be covered less from above. */
   prefer?: "below" | "above";
+  /** Which edge of `ref` the panel lines up with; centered when left out. */
+  align?: "start" | "center" | "end";
   clearTop?: () => number;
 };
 
@@ -49,6 +51,7 @@ export function useAnchoredPanel(
   const withinRef = anchor?.exclusion?.withinRef;
   const moves = anchor?.moves;
   const prefer = anchor?.prefer;
+  const align = anchor?.align ?? "center";
   const clearTop = anchor?.clearTop;
   const active = enabled && anchorRef != null;
 
@@ -71,7 +74,7 @@ export function useAnchoredPanel(
     const options = {
       margin: 0.5 * rootPx,
       gap: 0.5 * rootPx,
-      align: "center",
+      align,
       prefer,
       clearTop: clearTop?.(),
     } as const;

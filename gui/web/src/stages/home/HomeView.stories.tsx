@@ -120,7 +120,9 @@ export const CardMenu: Story = {
 export const AppMenu: Story = {
   play: async ({ args, canvasElement }) => {
     const canvas = within(canvasElement);
-    await userEvent.click(canvas.getByRole("button", { name: "ShareCut" }));
+    await userEvent.click(
+      canvas.getByRole("button", { name: "ShareCut app menu" }),
+    );
     const menu = within(canvas.getByRole("menu", { name: "App menu" }));
     await expect(
       menu.getAllByRole("menuitem").map((row) => row.textContent),

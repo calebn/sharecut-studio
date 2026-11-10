@@ -1,4 +1,4 @@
-import { type ReactNode, useEffect, useId, useRef } from "react";
+import { type ReactNode, useEffect, useId, useMemo, useRef } from "react";
 import { createPortal } from "react-dom";
 import { CloseButton } from "./CloseButton";
 import { type DialogAnchor, useAnchoredPanel } from "./useAnchoredPanel";
@@ -70,6 +70,14 @@ export function Dialog({
   const titleId = useId();
   const panelRef = useRef<HTMLDivElement>(null);
   const closeRef = useRef<HTMLButtonElement>(null);
+  const focusRef = useMemo(
+    () => ({
+      get current() {
+        return initialFocusRef?.current ?? closeRef.current;
+      },
+    }),
+    [initialFocusRef],
+  );
   const dismiss = closeDisabled ? () => undefined : onClose;
 
   const anchored = anchor != null;
@@ -85,7 +93,7 @@ export function Dialog({
     open,
     onClose: dismiss,
     panelRef,
-    initialFocusRef: initialFocusRef ?? closeRef,
+    initialFocusRef: focusRef,
     returnFocusRef:
       anchored && outsideDismissal === "preserve-focus"
         ? undefined
