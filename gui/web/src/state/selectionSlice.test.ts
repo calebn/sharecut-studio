@@ -52,3 +52,44 @@ describe("local selection write ownership", () => {
     expect(local.aborted).toBe(false);
   });
 });
+
+describe("followChapter", () => {
+  const opening = { kind: "chapter", id: "Opening", time: 10 } as const;
+  const interview = { kind: "chapter", id: "Interview", time: 10 } as const;
+
+  it("moves the selection and an open Inspector to the renamed chapter", () => {
+    useDawStore.setState({
+      selection: opening,
+      inspectorKey: "chapter:Opening",
+    });
+    useDawStore.getState().followChapter(opening, interview);
+    expect(useDawStore.getState().selection).toEqual(interview);
+    expect(useDawStore.getState().inspectorKey).toBe("chapter:Interview");
+  });
+
+  it("leaves a closed Inspector closed", () => {
+    useDawStore.setState({ selection: opening, inspectorKey: null });
+    useDawStore.getState().followChapter(opening, interview);
+    expect(useDawStore.getState().selection).toEqual(interview);
+    expect(useDawStore.getState().inspectorKey).toBeNull();
+  });
+
+  it("does nothing once another kind is selected", () => {
+    useDawStore.setState({
+      selection: { kind: "social", id: "social-1" },
+      inspectorKey: null,
+    });
+    useDawStore.getState().followChapter(opening, interview);
+    expect(useDawStore.getState().selection).toEqual({
+      kind: "social",
+      id: "social-1",
+    });
+  });
+
+  it("does nothing once another chapter is selected", () => {
+    const later = { kind: "chapter", id: "Opening", time: 12 } as const;
+    useDawStore.setState({ selection: later, inspectorKey: null });
+    useDawStore.getState().followChapter(opening, interview);
+    expect(useDawStore.getState().selection).toEqual(later);
+  });
+});

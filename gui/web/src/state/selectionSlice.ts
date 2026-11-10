@@ -33,6 +33,7 @@ type SelectionSlice = Pick<
   DawStore,
   | "selection"
   | "setSelection"
+  | "followChapter"
   | "selectClip"
   | "toggleTrackSelected"
   | "selectTracks"
@@ -98,6 +99,25 @@ export const createSelectionSlice: StateCreator<
   setSelection: (selection) => {
     invalidateLocalSelection(get);
     set((s) => selectionPatch(s.selection, selection, s.inspectorKey));
+  },
+  followChapter: (from, to) => {
+    const current = get().selection;
+    if (
+      current?.kind !== "chapter" ||
+      current.id !== from.id ||
+      current.time !== from.time
+    )
+      return;
+    invalidateLocalSelection(get);
+    set((s) =>
+      selectionPatch(
+        s.selection,
+        to,
+        s.inspectorKey === inspectKeyOf(from)
+          ? inspectKeyOf(to)
+          : s.inspectorKey,
+      ),
+    );
   },
   selectClip: (clipId, trackId, mods) => {
     invalidateLocalSelection(get);

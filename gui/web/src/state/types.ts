@@ -227,6 +227,8 @@ export interface AnnounceOptions {
 }
 
 /** Public DAW API — same shape as the former Context value. */
+type ChapterSelection = Extract<Selection, { kind: "chapter" }>;
+
 export interface DawState {
   sourcePreview: SourcePreviewRequest | null;
   sourcePreviewGeneration: number;
@@ -419,6 +421,8 @@ export interface DawState {
   setZoomPxPerSec: (z: number) => void;
   setScrollLeft: (x: number) => void;
   setSelection: (sel: Selection) => void;
+  /** A chapter's id is its title, so a rename or move gives it a new identity. Points the selection, and an open Inspector, at it. Does nothing once something else is selected. */
+  followChapter: (from: ChapterSelection, to: ChapterSelection) => void;
   selectFromInspector: (sel: Selection) => void;
   selectClip: (
     clipId: string,
