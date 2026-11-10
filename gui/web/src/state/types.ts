@@ -261,10 +261,9 @@ export interface DawState {
   rangeArmed: boolean;
   rangeDraft: RangeDraft | null;
   /**
-   * The tracks picked before any span exists (an agent range waiting to be
-   * adopted). A `RangeDraft` needs a span, so it cannot hold them. Cleared when
-   * a range is armed, disarmed or committed, and on a project switch; it
-   * survives the agent region coming and going.
+   * The tracks picked before any span exists. A `RangeDraft` needs a span, so
+   * it cannot hold them. Kept across agent-region changes, so a pick waits for
+   * the range it is for.
    */
   agentRangeScope: readonly string[] | null;
   rangeBusy: boolean;

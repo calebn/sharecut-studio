@@ -15,7 +15,7 @@ import { Button } from "../ui";
 
 const NO_TRACKS = "Choose at least one track";
 
-/** The tracks picked before adoption that still exist; none when they are all gone. */
+/** A picked track can be removed before adoption, so only tracks still in the project count. */
 function chosenScope(
   project: { tracks: readonly { id: string }[] },
   chosen: readonly string[] | null,
