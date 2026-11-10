@@ -177,6 +177,7 @@ export async function runRangeAction(
         action === "cut" && applies && selection?.kind === "transcriptRange"
           ? cutToastOf(state.project, selection, target, epoch)
           : null;
+      const baseHead = state.project.history?.head_id ?? null;
       const result = await submitRangeEdit(action, [target]);
       const live = useDawStore.getState();
       if (live.projectEpoch !== epoch) return { status: "ok" };
@@ -207,6 +208,28 @@ export async function runRangeAction(
       else {
         if (live.selection === selection) live.setSelection(null);
         const shown = result.type === "Applied" ? cutToast : null;
+        live.setAfterCut(
+          shown?.follow &&
+            selection?.kind === "transcriptRange" &&
+            useDawStore.getState().selection === null &&
+            live.shellBreakpoint !== "phone"
+            ? {
+                ...shown.follow,
+                from: {
+                  trackId: selection.trackId,
+                  sourceId: selection.sourceId ?? null,
+                  wordIndex: selection.startWordIndex,
+                },
+                head: replyHistoryHead(result),
+                baseHead,
+                epoch,
+                selected: null,
+                at: null,
+                startedAt: null,
+                direction: null,
+              }
+            : null,
+        );
         live.announceStatus(
           shown
             ? shown.message

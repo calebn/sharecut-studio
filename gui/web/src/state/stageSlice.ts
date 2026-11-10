@@ -47,6 +47,7 @@ export type EditWordReveal = Readonly<{
   trackId: string;
   sourceId: string | null;
   wordIndex: number;
+  focus?: true;
 }>;
 
 type StageOpenOptions = {

@@ -22,6 +22,7 @@ import type {
 } from "../types/session";
 import type { LaneHeightMode } from "../utils/laneHeightPref";
 import type { WaveformScaleMode } from "../waveform/types";
+import type { AfterCutSliceState } from "./afterCutSlice";
 import type {
   HeldTrimEvent,
   HeldTrimLayer,
@@ -594,7 +595,10 @@ export interface DawState {
 }
 
 /** Internal state shared by the four slice creators. DOM refs live outside Zustand. */
-export interface DawStore extends DawState, StageSliceState {
+export interface DawStore
+  extends DawState,
+    StageSliceState,
+    AfterCutSliceState {
   _suppressTimer: number | null;
   hydrate: (
     projectPath: string,

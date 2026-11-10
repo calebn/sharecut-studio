@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { selectionFromWire } from "../session/wire";
+import { createAfterCutSlice } from "./afterCutSlice";
 import { createPresenceSlice } from "./presenceSlice";
 import { createProjectSlice } from "./projectSlice";
 import { createSelectionSlice } from "./selectionSlice";
@@ -34,6 +35,7 @@ export const useDawStore = create<DawStore>()(
     ...createSelectionSlice(...args),
     ...createUiSlice(...args),
     ...createStageSlice(...args),
+    ...createAfterCutSlice(...args),
   })),
 );
 

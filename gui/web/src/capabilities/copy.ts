@@ -47,6 +47,10 @@ export const CAPABILITY_COPY: Record<string, CapabilityCopy> = {
     label: "Clear selection",
     tooltip: "Clear selection",
   },
+  "daw.edit.nextOccurrence": {
+    label: "Next occurrence",
+    tooltip: "Jump to the next place you said the same words",
+  },
   "daw.create.menu": {
     label: "Create here",
     tooltip:

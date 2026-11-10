@@ -5,7 +5,11 @@ import type {
   Selection,
 } from "../types/project";
 
-export type CutToast = { message: string; action?: ToastAction };
+export type CutToast = {
+  message: string;
+  action?: ToastAction;
+  follow?: { words: string; cutKeys: readonly string[] };
+};
 
 type TranscriptRange = Extract<Selection, { kind: "transcriptRange" }>;
 

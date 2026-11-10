@@ -55,6 +55,7 @@ Open the in-app cheatsheet with **?** while ShareCut Studio is focused.
 |----------|---------|------|-------|
 | `F2` | Edit focused transcript word (`transcript.editWordInline`) | Loaded host project | F2: Fix text on the selected word |
 | `Escape` | Clear selection (`edit.clearSelection`) | hasInspectorSelection | Drops an armed range draft first, then closes the Inspector, then clears the selection and track targeting |
+| `Tab` | Next occurrence (`edit.nextOccurrence`) | afterCutActive | After a words cut, selects the next place the same words were said; Shift+Tab the previous |
 | `ArrowLeft` | Set clip fade (`edit.setClipFade`) | focusedFadeHandle | Left/Right 1 ms; Shift 10 ms. Release to save; Escape cancels. |
 | `ArrowLeft` | Trim clip edge (`edit.trimClipEdge`) | focusedTrimHandle | Left/Right 10 ms; Shift 100 ms. Release to save; Escape cancels. |
 | `Mod+C` | Copy (`edit.copy`) | editStage | Mod+C |

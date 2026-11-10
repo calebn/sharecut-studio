@@ -56,6 +56,17 @@ describe("stageSlice", () => {
     expect(st().consumeEditWordReveal(latest)).toBe(false);
   });
 
+  it("keeps the focus flag on a word reveal", () => {
+    const request = st().requestEditWordReveal({
+      trackId: "host",
+      sourceId: null,
+      wordIndex: 2,
+      focus: true,
+    });
+    expect(st().pendingEditWordReveal?.focus).toBe(true);
+    expect(st().consumeEditWordReveal(request)).toBe(true);
+  });
+
   it("drops only the saved Edit script offset for an explicit word reveal", () => {
     st().setPanelScroll("edit", "script", 640);
     st().setPanelScroll("edit", "inspector", 24);

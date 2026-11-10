@@ -1,5 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
+import { useDawKeymapListener } from "../../../keymap/listener";
 import { scriptFrame } from "../../../stages/edit/scriptDemo";
 import { useDawStore } from "../../../state/dawStore";
 import {
@@ -68,6 +69,57 @@ export const Reading: Story = {
     await expect(
       canvas.getByRole("button", { name: /unsure words?, go to the next/ }),
     ).toBeVisible();
+  },
+};
+
+const AfterCutFrame = (props: ScriptHostProps) => {
+  useDawKeymapListener();
+  return (
+    <div style={scriptFrame("100%")}>
+      <ScriptHost {...props} />
+    </div>
+  );
+};
+
+const selectedKey = (canvasElement: HTMLElement) =>
+  canvasElement
+    .querySelector(".sys-script-word[data-selected]")
+    ?.getAttribute("data-word-key");
+
+export const AfterCutNextOccurrence: Story = {
+  render: (props) => <AfterCutFrame {...props} />,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const [first] = await canvas.findAllByRole("button", { name: /^Let's/ });
+    await userEvent.click(first);
+    const cut = first.getAttribute("data-word-key") ?? "";
+    const [trackId, sourceId, wordIndex] = cut.split(":");
+    const store = useDawStore.getState();
+    store.setSelection(null);
+    store.setAfterCut({
+      words: "Let's",
+      cutKeys: [cut],
+      from: { trackId, sourceId: sourceId || null, wordIndex: +wordIndex },
+      head: store.project?.history?.head_id ?? null,
+      baseHead: store.project?.history?.head_id ?? null,
+      epoch: store.projectEpoch,
+      selected: null,
+      at: null,
+      startedAt: null,
+      direction: null,
+    });
+    await userEvent.keyboard("{Tab}");
+    await waitFor(() => expect(selectedKey(canvasElement)).toBeTruthy());
+    const second = selectedKey(canvasElement);
+    await expect(second).not.toBe(cut);
+    await expect(document.activeElement).toHaveAttribute(
+      "data-word-key",
+      second ?? "",
+    );
+    await userEvent.keyboard("{Tab}");
+    await waitFor(() => expect(selectedKey(canvasElement)).not.toBe(second));
+    await userEvent.keyboard("{Shift>}{Tab}{/Shift}");
+    await waitFor(() => expect(selectedKey(canvasElement)).toBe(second));
   },
 };
 

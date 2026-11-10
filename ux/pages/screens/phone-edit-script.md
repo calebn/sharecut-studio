@@ -22,6 +22,8 @@ Words whose audio is fully cut leave the active Unsure words queue and Script
 count. Neighboring words with audio remain reviewable. Undo restores a cut word
 to both lists if it is still unsure.
 
+The phone has no Tab step to the next occurrence after a words cut; **Cut all** on the cut's toast is the way to clear the same words.
+
 Follow playhead keeps overlapping speakers highlighted in transcript order.
 Backward seeks update the active words through the same time-indexed lookup.
 

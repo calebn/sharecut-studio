@@ -221,7 +221,8 @@ export const VERBS = [
     surfaces: ["decision-card", "review-dock"],
     status: "conflict",
     replaces: ["track.moveDown"],
-    note: "ArrowDown moves the selected track down today.",
+    alsoBound: ["edit.nextOccurrence"],
+    note: "ArrowDown moves the selected track down today. Tab also steps to the next occurrence after a words cut.",
   },
   {
     id: "next",
@@ -232,6 +233,7 @@ export const VERBS = [
     surfaces: ["review-queue", "edit-after-cut", "fix-text"],
     status: "conflict",
     replaces: ["track.moveDown", "track.moveUp"],
+    alsoBound: ["edit.nextOccurrence"],
     note: "Swipe up goes to the next and swipe down to the previous, on the card. The arrows move the selected track today.",
   },
   {

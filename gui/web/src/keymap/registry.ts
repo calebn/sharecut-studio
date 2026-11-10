@@ -145,6 +145,16 @@ export const KEYMAP_COMMANDS: readonly KeymapCommand[] = [
       "Drops an armed range draft first, then closes the Inspector, then clears the selection and track targeting",
   },
   {
+    id: "edit.nextOccurrence",
+    category: "edit",
+    label: "Next occurrence",
+    keys: ["Tab"],
+    bareKey: true,
+    when: "afterCutActive",
+    notes:
+      "After a words cut, selects the next place the same words were said; Shift+Tab the previous",
+  },
+  {
     id: "presence.unfollow",
     category: "presence",
     label: "Stop following",
@@ -1208,7 +1218,8 @@ export function argsFromKeyEvent(
   }
   if (
     commandId === "navigation.nudgePlayheadBack" ||
-    commandId === "navigation.nudgePlayheadForward"
+    commandId === "navigation.nudgePlayheadForward" ||
+    commandId === "edit.nextOccurrence"
   ) {
     return { shift: e.shiftKey };
   }

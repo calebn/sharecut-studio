@@ -102,7 +102,9 @@ export function ScriptHost({
       store.consumeEditWordReveal(request);
       return;
     }
-    if (store.consumeEditWordReveal(request)) scrollTo(index, "center");
+    if (!store.consumeEditWordReveal(request)) return;
+    scrollTo(index, "center");
+    if (request.focus) pane.current?.focusWord(index);
   }, [
     loading,
     model,
