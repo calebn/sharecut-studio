@@ -154,7 +154,7 @@ function useRollGesture(roll: SeamRoll, onTap?: () => void) {
       onTap?.();
     } else if (ms !== 0) {
       const saving = roll.onCommit(Math.round(ms * 10) / 10);
-      Promise.resolve(saving).finally(() => roll.onPreview?.(null));
+      void Promise.resolve(saving).finally(() => roll.onPreview?.(null));
     } else roll.onPreview?.(null);
   };
   const consumeMoved = () => {
@@ -268,7 +268,7 @@ export function Seam(props: SeamProps) {
             const limits = roll.limits();
             const ms = event.key === "ArrowLeft" ? -1 : 1;
             if (limits && ms >= limits.minMs && ms <= limits.maxMs)
-              roll.onCommit(ms);
+              void roll.onCommit(ms);
             return;
           }
           onKeyDown?.(event);
