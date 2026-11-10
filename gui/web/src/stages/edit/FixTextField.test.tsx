@@ -257,6 +257,14 @@ describe("FixTextField", () => {
     expect(onDone.mock.calls).toEqual([[null, "blur", "small room"]]);
   });
 
+  it("lets Tab leave a field that applies on Enter only, without committing", async () => {
+    const user = userEvent.setup();
+    const { onDone } = setup("small room", { commitOnBlur: false });
+    await user.keyboard("tiny space{Tab}");
+    expect(screen.getByRole("button", { name: "Elsewhere" })).toHaveFocus();
+    expect(onDone.mock.calls).toEqual([[null, "blur", "small room"]]);
+  });
+
   it("saves no draft when the field is removed rather than left", async () => {
     const user = userEvent.setup();
     const { onDone, field } = setup();
