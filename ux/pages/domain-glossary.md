@@ -248,10 +248,9 @@ Commenter and Viewer links can view them but cannot edit.
 If the words a transcript correction, Suppress, or Ignore targets change (another tab, a
 guest, or an agent) before it lands, an edit that carries the text it expected is refused
 as a conflict instead of changing a different word. ShareCut Studio's inline word
-editor always sends that text, and the word Inspector sends it whenever it can confirm the
-current text of every word in the range (otherwise it says so under Apply); Suppress and Ignore
+editor always sends that text. The word Inspector's Suppress and the Action bar's Ignore
 send the word or range's currently displayed text, or no guard when that text can't be
-confirmed, same as Apply. When that happens, the Action bar's Ignore/Restore says "text not verified" in its status message.
+confirmed. When that happens, the Action bar's Ignore/Restore says "text not verified" in its status message.
 
 A refusal from the inline editor or the word Inspector shows under the editor. A refusal from the Action bar's
 Ignore/Restore is announced as a status message instead, since it has no editor

@@ -1,11 +1,15 @@
 import { canHostMutate } from "../../shareMode";
 import { useDaw } from "../../state/useDaw";
+import { ConfidenceMeter } from "../../system/ConfidenceMeter";
 import type { InspectorSection } from "../../system/InspectorSheet";
+import { isSuspectHallucinationWord } from "../../transcript/lowConfidence";
+import { TRANSCRIPT_SUSPECT_HALLUCINATION_TIP } from "../../transcript/transcriptModeCopy";
 import type { Selection } from "../../types/project";
 import { oneWordOf } from "../../utils/rangeSelect";
 import { findTranscriptWord } from "../../utils/transcript";
 import { passageRangeSection, rangeSection } from "./rangeSection";
-import { WordActions, WordFacts, WordTiming } from "./WordParts";
+import { note } from "./sheetNote";
+import { WordActions, WordTiming } from "./WordParts";
 import type { WordRef } from "./wordTarget";
 
 const keyOf = ({ trackId, sourceId, wordIndex }: WordRef) =>
@@ -23,10 +27,13 @@ export function useWordSections(
   const word = oneWordOf(selection);
   if (!word) return [passageRangeSection];
   if (!hydrated || !canHostMutate(projectPath)) return [rangeSection];
-  if (
-    !project ||
-    !findTranscriptWord(project, word.trackId, word.wordIndex, word.sourceId)
-  )
+  const shown = findTranscriptWord(
+    project,
+    word.trackId,
+    word.wordIndex,
+    word.sourceId,
+  );
+  if (!shown)
     return [
       rangeSection,
       {
@@ -47,13 +54,31 @@ export function useWordSections(
   const key = keyOf(ref);
   const facts: InspectorSection = {
     id: "word",
-    rows: [{ id: "facts", control: <WordFacts key={key} {...ref} /> }],
+    rows: [
+      { id: "text", label: "Text", control: <span>{shown.text}</span> },
+      ...(shown.confidence != null
+        ? [
+            {
+              id: "confidence",
+              control: <ConfidenceMeter confidence={shown.confidence} />,
+            },
+          ]
+        : []),
+      ...(isSuspectHallucinationWord(shown)
+        ? [
+            {
+              id: "hint",
+              control: note(TRANSCRIPT_SUSPECT_HALLUCINATION_TIP),
+            },
+          ]
+        : []),
+    ],
   };
   const rest: InspectorSection = {
     id: "actions",
     rows: [
-      { id: "actions", control: <WordActions key={key} {...ref} /> },
       { id: "timing", control: <WordTiming key={key} {...ref} /> },
+      { id: "actions", control: <WordActions key={key} {...ref} /> },
     ],
   };
   return [rangeSection, facts, rest];
