@@ -176,6 +176,7 @@ export function EndedSessionCard({
     <div className="stage-host-record-empty">
       <SessionGroup
         title={heading(session)}
+        headingLevel={2}
         people={session.participants.length}
         takes={session.takes.length}
         duration={totalClock(session)}

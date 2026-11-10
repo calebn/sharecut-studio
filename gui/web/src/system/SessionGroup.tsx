@@ -10,6 +10,8 @@ type SessionGroupStatus = "idle" | "new" | "running" | "done" | "failed";
 
 export type SessionGroupProps = {
   title: string;
+  /** Heading level of the title; 3 under a stage's h2 (Prepare), 2 when the group is a top section. */
+  headingLevel?: 2 | 3;
   people: number;
   takes: number;
   /** "14:20". */
@@ -49,6 +51,7 @@ function plural(count: number, one: string, many: string): string {
 /** A group of takes recorded together: its numbers, where it goes, how far it got. */
 export function SessionGroup({
   title,
+  headingLevel = 3,
   people,
   takes,
   duration,
@@ -68,6 +71,7 @@ export function SessionGroup({
 }: SessionGroupProps) {
   const [renaming, setRenaming] = useState(false);
   const renameButton = useRef<HTMLButtonElement>(null);
+  const Heading = headingLevel === 2 ? "h2" : "h3";
   const percent = percentOf(progress);
   const statusText =
     status === "running"
@@ -106,7 +110,7 @@ export function SessionGroup({
       data-status={status}
     >
       <header className="sys-group-header">
-        <h3 className="sys-group-title">{title}</h3>
+        <Heading className="sys-group-title">{title}</Heading>
         {onRename && !renaming ? (
           <Button
             ref={renameButton}
