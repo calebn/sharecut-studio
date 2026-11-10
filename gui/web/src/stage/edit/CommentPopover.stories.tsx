@@ -15,7 +15,7 @@ function PopoverHost({ id }: { id: string }) {
   const pin = useRef<HTMLButtonElement>(null);
   const panel = useRef<HTMLDivElement>(null);
   return (
-    <div style={{ padding: "6rem 0 0 8rem" }}>
+    <div style={{ padding: "var(--space-8) 0 0 var(--space-8)" }}>
       <button
         ref={pin}
         type="button"
