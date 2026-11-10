@@ -1,6 +1,6 @@
-import { useRef, useState } from "react";
+import { useState } from "react";
 import type { RecordSessionSummary } from "../../record";
-import { InlineEdit } from "../../system/InlineEdit";
+import { SessionGroup } from "../../system/SessionGroup";
 import {
   Button,
   Menu,
@@ -17,7 +17,7 @@ const DATE = new Intl.DateTimeFormat("en-GB", {
   month: "short",
 });
 
-function clock(ms: number): string {
+export function formatRecordingClock(ms: number): string {
   const total = Math.max(0, Math.round(ms / 1000));
   const h = Math.floor(total / 3600);
   const m = Math.floor((total % 3600) / 60);
@@ -43,12 +43,10 @@ function heading({
     : name;
 }
 
-function takesLine({ takes }: RecordSessionSummary): string {
-  if (takes.length === 0) {
-    return "No takes";
-  }
-  const total = takes.reduce((sum, t) => sum + t.recording_ms, 0);
-  return `${takes.length} ${takes.length === 1 ? "take" : "takes"} · ${clock(total)}`;
+function totalClock({ takes }: RecordSessionSummary): string {
+  return formatRecordingClock(
+    takes.reduce((sum, t) => sum + t.recording_ms, 0),
+  );
 }
 
 export type EndedSessionCardProps = {
@@ -159,113 +157,90 @@ export function EndedSessionCard({
   onReviewPickup,
   onRename,
 }: EndedSessionCardProps) {
-  const [renaming, setRenaming] = useState(false);
-  const renameButton = useRef<HTMLButtonElement>(null);
   const canRename = session.landed && session.number !== null && !!onRename;
-  return (
-    <section
-      className="stage-host-section stage-host-record-empty"
-      aria-labelledby="record-last-session"
-    >
-      <div className="stage-host-title-row">
-        <h2 id="record-last-session" className="stage-host-title">
-          {heading(session)}
-        </h2>
-        {canRename && !renaming ? (
-          <Button
-            ref={renameButton}
-            aria-label="Rename session"
-            disabledReason={busy ? BUSY_REASON : undefined}
-            onClick={() => setRenaming(true)}
-          >
-            Rename
-          </Button>
-        ) : null}
-      </div>
-      {canRename && renaming ? (
-        <InlineEdit
-          focusOnMount
-          className="stage-host-rename"
-          label="Session name"
-          maxLength={SESSION_NAME_MAX}
-          placeholder="Session name"
-          value={session.name ?? ""}
-          onCommit={(name) => onRename?.(name)}
-          onEnd={(how) => {
-            setRenaming(false);
-            if (how !== "blur") {
-              // The button mounts after this update; focus it then.
-              queueMicrotask(() => renameButton.current?.focus());
-            }
-          }}
-        />
-      ) : null}
-      <p className="stage-host-note">{takesLine(session)}</p>
-      <ul className="stage-host-list">
-        {session.participants.map((p) => {
-          const name = p.display_name.trim() || "Guest";
-          const several =
-            session.landed &&
-            p.track_id === null &&
-            !!movable?.has(p.participant_id);
-          const target = !session.landed
-            ? null
-            : several
-              ? "Several tracks"
-              : p.track_id === null
-                ? "New track"
-                : (trackNames.get(p.track_id) ?? "Track removed");
-          const menu =
-            target !== null &&
-            !!onRemap &&
-            (tracks.length > 1 || !!onNewTrack) &&
-            movable?.has(p.participant_id);
-          return (
-            <li key={p.participant_id} className="stage-host-note">
-              {name}
-              {target === null ? null : (
-                <>
-                  {" "}
-                  <span aria-hidden="true">→</span>
-                  <span className="sr-only"> to</span>{" "}
-                  {menu ? (
-                    <TrackMenu
-                      name={name}
-                      current={p.track_id}
-                      target={target}
-                      tracks={tracks}
-                      busy={busy}
-                      onPick={(trackId) => onRemap?.(p.participant_id, trackId)}
-                      onNewTrack={
-                        onNewTrack
-                          ? () => onNewTrack(p.participant_id)
-                          : undefined
-                      }
-                    />
-                  ) : (
-                    target
-                  )}
-                </>
-              )}
-            </li>
-          );
-        })}
-      </ul>
-      {onReviewPickup ? (
-        <div className="stage-host-actions">
-          <Button variant="primary" onClick={onReviewPickup}>
-            Review pickup
-          </Button>
-        </div>
-      ) : session.landed && hasClips && onEdit ? (
-        <div className="stage-host-actions">
-          <Button variant="primary" onClick={onEdit}>
-            {session.number === null
+  const handoff = onReviewPickup
+    ? {
+        stage: "review" as const,
+        label: "Review pickup",
+        onActivate: onReviewPickup,
+      }
+    : session.landed && hasClips && onEdit
+      ? {
+          stage: "edit" as const,
+          label:
+            session.number === null
               ? "Edit session"
-              : `Edit Session ${session.number}`}
-          </Button>
-        </div>
-      ) : null}
-    </section>
+              : `Edit Session ${session.number}`,
+          onActivate: onEdit,
+        }
+      : undefined;
+  return (
+    <div className="stage-host-record-empty">
+      <SessionGroup
+        title={heading(session)}
+        people={session.participants.length}
+        takes={session.takes.length}
+        duration={totalClock(session)}
+        onRename={canRename ? onRename : undefined}
+        name={session.name ?? ""}
+        nameMaxLength={SESSION_NAME_MAX}
+        renameDisabledReason={busy ? BUSY_REASON : undefined}
+        handoff={handoff}
+        handoffVariant="primary"
+      >
+        <ul className="stage-host-list">
+          {session.participants.map((p) => {
+            const name = p.display_name.trim() || "Guest";
+            const several =
+              session.landed &&
+              p.track_id === null &&
+              !!movable?.has(p.participant_id);
+            const target = !session.landed
+              ? null
+              : several
+                ? "Several tracks"
+                : p.track_id === null
+                  ? "New track"
+                  : (trackNames.get(p.track_id) ?? "Track removed");
+            const menu =
+              target !== null &&
+              !!onRemap &&
+              (tracks.length > 1 || !!onNewTrack) &&
+              movable?.has(p.participant_id);
+            return (
+              <li key={p.participant_id} className="stage-host-note">
+                {name}
+                {target === null ? null : (
+                  <>
+                    {" "}
+                    <span aria-hidden="true">→</span>
+                    <span className="sr-only"> to</span>{" "}
+                    {menu ? (
+                      <TrackMenu
+                        name={name}
+                        current={p.track_id}
+                        target={target}
+                        tracks={tracks}
+                        busy={busy}
+                        onPick={(trackId) =>
+                          onRemap?.(p.participant_id, trackId)
+                        }
+                        onNewTrack={
+                          onNewTrack
+                            ? () => onNewTrack(p.participant_id)
+                            : undefined
+                        }
+                      />
+                    ) : (
+                      target
+                    )}
+                  </>
+                )}
+              </li>
+            );
+          })}
+        </ul>
+      </SessionGroup>
+    </div>
   );
 }

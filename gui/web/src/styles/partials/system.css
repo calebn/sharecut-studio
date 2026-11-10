@@ -3278,6 +3278,12 @@ button.sys-picker-option:focus-visible {
   font-weight: 600;
 }
 
+.sys-group-rename {
+  flex: 1 1 12rem;
+  min-inline-size: 0;
+  border-color: var(--color-border-subtle);
+}
+
 .sys-group-stats {
   flex: 1 1 auto;
   margin: 0;

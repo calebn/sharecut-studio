@@ -52,7 +52,7 @@ const meta: Meta<typeof EndedSessionCard> = {
     docs: {
       description: {
         component:
-          "The previous session on the Record stage. Once a session has landed, each person's track is a menu of the project's tracks, ending in New track; picking a track moves all of that person's clips of the session there, keeping their start times, as one undo step. New track first adds a track named for the person. A landed session with clips on the timeline has the primary Edit Session N, which opens Edit at the session start with its clips selected. A person whose clips sit on several tracks reads Several tracks. A landed, numbered session has a Rename button beside the heading: it opens a text field (Enter or leaving saves, Escape cancels, 80 characters at most), the name replaces the Session N · date heading, and an emptied field clears it. Without a landing, with one track or with no clips found, the row is plain text.\n\n**Motion.** None beyond the shared Menu drop-in.",
+          "The previous session on the Record stage, drawn as the Session group: the title (the saved name, else Session N · date), a stats line like 2 people · 3 takes · 12:04, one row per person, and the hand-off in the footer. It shows no transcription ring or target chip, since a recorded session has neither. Once a session has landed, each person's track is a menu of the project's tracks, ending in New track; picking a track moves all of that person's clips of the session there, keeping their start times, as one undo step. New track first adds a track named for the person. A landed session with clips on the timeline has the primary Edit Session N in the footer, which opens Edit at the session start with its clips selected. A person whose clips sit on several tracks reads Several tracks. A landed, numbered session has a Rename button beside the title: it opens a text field (Enter or leaving saves, Escape cancels, 80 characters at most), the name replaces the Session N · date heading, and an emptied field clears it. Without a landing, with one track or with no clips found, the row is plain text.\n\n**Motion.** None beyond the shared Menu drop-in.",
       },
     },
   },
@@ -108,6 +108,10 @@ export const Renaming: Story = {
     await userEvent.type(field, "Interview{Enter}");
     await expect(args.onRename).toHaveBeenCalledWith("Interview");
   },
+};
+
+export const Phone: Story = {
+  globals: { viewport: { value: "mobile360", isRotated: false } },
 };
 
 export const Busy: Story = { args: { busy: true } };
