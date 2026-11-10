@@ -168,8 +168,9 @@ describe("the Inspector card on the desktop and the tablet", () => {
         );
 
         const card = screen.getByRole("dialog", { name: "Inspector" });
-        // 41px of room below the lane is under the card's floor, so the card
-        // keeps its 60 % height and covers the lane instead of thinning out.
+        // 41px of room below the lane is under the card's floor, and this frame
+        // is too short for the floor, so the card takes its 60 % height and
+        // covers the lane instead of thinning out.
         expect(card.style.maxBlockSize).toBe("100.2px");
         expect(card.style.insetBlockStart).toBe("58.8px");
       } finally {
@@ -1053,6 +1054,49 @@ describe("the I key", () => {
 });
 
 describe("the Inspector sheet on the phone", () => {
+  it("offers the dock and Full only where the measured slot is too short for Half", () => {
+    stubViewportShell("phone");
+    stubResizeObserver();
+    const lanes = document.createElement("div");
+    Object.defineProperty(lanes, "clientHeight", { get: () => 400 });
+    const offsetParent = vi
+      .spyOn(HTMLElement.prototype, "offsetParent", "get")
+      .mockImplementation(function (this: HTMLElement) {
+        return this.classList.contains("sys-inspector") ? lanes : null;
+      });
+
+    try {
+      const { unmount } = render(
+        <InspectorHost
+          shell="phone"
+          root={null}
+          regionRef={() => undefined}
+          sheet={{
+            open: true,
+            rangeActionsInSheet: false,
+            close: vi.fn(),
+            dismiss: vi.fn(),
+          }}
+        />,
+      );
+      const sheet = screen.getByRole("dialog", { name: "Inspector" });
+      const grip = screen.getByRole("slider", { name: "Sheet height" });
+      expect(sheet).toHaveAttribute("data-detent", "full");
+      expect(grip).toHaveAttribute("aria-valuemax", "1");
+      fireEvent.keyDown(grip, { key: "ArrowDown" });
+      expect(sheet).toHaveAttribute("data-detent", "dock");
+      fireEvent.keyDown(grip, { key: "ArrowUp" });
+      expect(sheet).toHaveAttribute("data-detent", "full");
+      fireEvent.click(grip);
+      expect(sheet).toHaveAttribute("data-detent", "dock");
+      fireEvent.click(grip);
+      expect(sheet).toHaveAttribute("data-detent", "full");
+      unmount();
+    } finally {
+      offsetParent.mockRestore();
+    }
+  });
+
   it("returns an automatic Full height to Half as measured room returns", () => {
     stubViewportShell("phone");
     stubResizeObserver();

@@ -127,8 +127,10 @@ export function steppedDetent(
 
 /**
  * Below the anchor when the card's tallest form (60 % of the bounds) fits
- * there, otherwise above, otherwise on the side with more room, shortened to it
- * but never under a floor (`minBlock`), so a short frame covers the anchor.
+ * there, otherwise above, otherwise on the side with more room, shortened to it.
+ * The room never takes the card under `minBlock` (14 rem at the default root
+ * size), but the 60 % height still caps it: on a frame too short for that, the
+ * card is 60 % tall and covers the part of the anchor it overlaps.
  */
 export function placeCard(
   anchor: InspectorRect,
@@ -136,8 +138,6 @@ export function placeCard(
   cardWidth = CARD_WIDTH_PX,
   minBlock = CARD_MIN_BLOCK_PX,
 ): CardPlacement {
-  // Where both sides are short (a phone held sideways at large text), the card
-  // keeps a floor and covers the anchor rather than shrink to a sliver.
   const tallest = bounds.height * CARD_MAX_SHARE;
   const floor = Math.min(minBlock, tallest);
   const below =

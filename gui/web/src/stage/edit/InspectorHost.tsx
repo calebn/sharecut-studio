@@ -392,10 +392,9 @@ function Phone({
 }) {
   const [chosenDetent, setDetent] = useState<InspectorDetent>("half");
   const [tight, setTight] = useState(false);
-  // Where the slot is too short for the dock and a field at half, half is not
-  // offered and a chosen half shows as full.
-  const [measured, setMeasured] = useState(false);
-  const halfFits = !(tight && measured);
+  // Unmeasured (room 0, as before the first layout) counts as fitting, so half
+  // is dropped only for a slot measured too short for the dock and a field.
+  const [halfFits, setHalfFits] = useState(true);
   const detent = !halfFits && chosenDetent === "half" ? "full" : chosenDetent;
   const chosen = useRef(false);
   const box = useRef<HTMLDivElement>(null);
@@ -412,7 +411,7 @@ function Phone({
       16;
     const short = room * SHEET_FULL < DOCK_ROOM_REM * rootPx;
     setTight(short);
-    setMeasured(room > 0);
+    setHalfFits(!(room > 0 && short));
     if (room > 0 && !chosen.current) setDetent(short ? "full" : "half");
   }, [lanes]);
   useLayoutEffect(fit, [fit]);
