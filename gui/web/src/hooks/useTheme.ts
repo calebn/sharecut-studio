@@ -3,7 +3,7 @@
  * Persists override in localStorage; system follows prefers-color-scheme.
  */
 
-import { useCallback, useEffect, useState } from "react";
+import { useSyncExternalStore } from "react";
 import { readLocal, writeLocal } from "../utils/storage";
 
 export type ThemePreference = "system" | "light" | "dark";
@@ -57,10 +57,49 @@ export function resolvedDocumentTheme(): ResolvedTheme {
     : "dark";
 }
 
+/**
+ * The one preference every `useTheme` caller shares, so the Project menu and
+ * the Settings sheet cannot disagree. Read lazily from storage on first use.
+ */
+let current: ThemePreference | null = null;
+const listeners = new Set<() => void>();
+
+function getSnapshot(): ThemePreference {
+  current ??= readStored();
+  return current;
+}
+
+function subscribe(listener: () => void): () => void {
+  listeners.add(listener);
+  return () => {
+    listeners.delete(listener);
+  };
+}
+
+/** Choose a theme: apply it, remember it, and tell every subscriber. */
+export function setThemePreference(p: ThemePreference): void {
+  current = p;
+  applyTheme(p);
+  writeLocal(THEME_STORAGE_KEY, p);
+  for (const listener of [...listeners]) {
+    listener();
+  }
+}
+
+/** Test seam: module state outlives renders, so a test starts from storage again. */
+export function __resetThemeForTests(): void {
+  current = null;
+  listeners.clear();
+}
+
 /** Call once at app boot so first paint matches stored preference. */
 export function initTheme(): ThemePreference {
   const pref = readStored();
+  current = pref;
   applyTheme(pref);
+  for (const listener of [...listeners]) {
+    listener();
+  }
   return pref;
 }
 
@@ -68,18 +107,10 @@ export function useTheme(): {
   preference: ThemePreference;
   setPreference: (p: ThemePreference) => void;
 } {
-  const [preference, setPreferenceState] = useState<ThemePreference>(() =>
-    readStored(),
+  const preference = useSyncExternalStore(
+    subscribe,
+    getSnapshot,
+    getSnapshot,
   );
-
-  useEffect(() => {
-    applyTheme(preference);
-    writeLocal(THEME_STORAGE_KEY, preference);
-  }, [preference]);
-
-  const setPreference = useCallback((p: ThemePreference) => {
-    setPreferenceState(p);
-  }, []);
-
-  return { preference, setPreference };
+  return { preference, setPreference: setThemePreference };
 }
