@@ -40,12 +40,30 @@ const clips = [
   }),
 ];
 
-function Seeded({ children }: { children: ReactNode }) {
+const denseClips = Array.from({ length: 8 }, (_, i) =>
+  clipRow({
+    id: `d${i}`,
+    track_id: TRACK,
+    source_start: i * 0.3,
+    source_end: (i + 1) * 0.3,
+    timeline_start: i * 0.3,
+    timeline_end: (i + 1) * 0.3,
+    source_duration_sec: 60,
+  }),
+);
+
+function Seeded({
+  children,
+  rows,
+}: {
+  children: ReactNode;
+  rows: typeof clips;
+}) {
   useState(() => {
     useDawStore.setState({
       project: minimalProject({
-        clips: { tracks: { [TRACK]: clips }, clip_count: clips.length },
-        edit_boundaries: editBoundaries(clips),
+        clips: { tracks: { [TRACK]: rows }, clip_count: rows.length },
+        edit_boundaries: editBoundaries(rows),
       }),
       selection: null,
     });
@@ -53,18 +71,26 @@ function Seeded({ children }: { children: ReactNode }) {
   return <>{children}</>;
 }
 
-function Lane({ onSelect }: { onSelect: (id: string) => void }) {
+function Lane({
+  onSelect,
+  rows = clips,
+}: {
+  onSelect: (id: string) => void;
+  rows?: typeof clips;
+}) {
   const [preview, setPreview] = useState<RollPreview | null>(null);
   return (
-    <Seeded>
-      <SeamLayer
-        trackId={TRACK}
-        zoomPxPerSec={40}
-        rollPreview={preview}
-        onRollPreview={setPreview}
-        isMoving={() => false}
-        onSelectSeam={onSelect}
-      />
+    <Seeded rows={rows}>
+      <div style={{ position: "relative", blockSize: "3rem" }}>
+        <SeamLayer
+          trackId={TRACK}
+          zoomPxPerSec={40}
+          rollPreview={preview}
+          onRollPreview={setPreview}
+          isMoving={() => false}
+          onSelectSeam={onSelect}
+        />
+      </div>
     </Seeded>
   );
 }
@@ -117,5 +143,14 @@ export const Rolling: Story = {
       canvasElement.querySelector(".sys-seam-readout"),
     ).toHaveTextContent("+500 ms");
     fireEvent.pointerCancel(hit, { pointerId: 1 });
+  },
+};
+
+export const DenseSeams: Story = {
+  args: { rows: denseClips },
+  play: async ({ canvasElement }) => {
+    await expect(
+      within(canvasElement).getAllByRole("button", { name: /^Split at/ }),
+    ).toHaveLength(7);
   },
 };
