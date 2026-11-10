@@ -6,7 +6,11 @@ import {
 } from "../../../api";
 import { submitRangeEdit } from "../../../commands/rangeActions";
 import { makeRangeTarget } from "../../../edit/rangeSelection";
-import { isShareProjectKey } from "../../../shareMode";
+import {
+  loadCommandQueue,
+  loadHostCommandQueue,
+} from "../../../services/offlineQueue/offlineStore";
+import { isShareProjectKey, shareTokenFromKey } from "../../../shareMode";
 import type { FindBarHandle } from "../../../stages/edit/FindBar";
 import {
   findCountText,
@@ -72,6 +76,16 @@ function wasProposed(result: Record<string, unknown>): boolean {
   return command?.payload?.result?.proposed === true;
 }
 
+async function stillQueued(
+  projectPath: string,
+  commandId: string,
+): Promise<boolean> {
+  const rows = isShareProjectKey(projectPath)
+    ? await loadCommandQueue(shareTokenFromKey(projectPath)!)
+    : await loadHostCommandQueue(projectPath);
+  return rows.some((row) => row.command_id === commandId);
+}
+
 /**
  * Find over the whole transcript (the model's turns, not the window), the
  * hits the pane highlights, and the host's Replace all through the backend's
@@ -91,7 +105,11 @@ export function useScriptFind(
     replaceOpen: false,
     replaceText: "",
   });
-  const queued = useRef<{ epoch: number; key: string } | null>(null);
+  const queued = useRef<{
+    epoch: number;
+    key: string;
+    commandId: string;
+  } | null>(null);
   const [at, setAt] = useState(0);
   const [stepped, setStepped] = useState(0);
   const { query, caseSensitive, replaceText } = state;
@@ -166,11 +184,15 @@ export function useScriptFind(
     if (plan.targets.length === 0)
       throw new Error("No audible words in these matches.");
     const key = cutKey(plan.targets);
-    if (queued.current?.epoch === epoch && queued.current.key === key)
-      throw new Error("Cut all is already queued. Wait for it to send.");
     const offline = navigator.onLine === false;
     setRangeBusy(true);
     try {
+      const earlier = queued.current;
+      if (earlier?.epoch === epoch && earlier.key === key) {
+        if (await stillQueued(projectPath, earlier.commandId))
+          throw new Error("Cut all is already queued. Wait for it to send.");
+        queued.current = null;
+      }
       const result = await submitRangeEdit("cut", plan.targets).catch(
         (error: unknown) => {
           throw cutAllFailure(error);
@@ -178,7 +200,11 @@ export function useScriptFind(
       );
       if (useDawStore.getState().projectEpoch !== epoch) return;
       if (result.queued === true) {
-        queued.current = { epoch, key };
+        queued.current = {
+          epoch,
+          key,
+          commandId: String(result.command_id),
+        };
         announceStatus(
           isShareProjectKey(projectPath) && offline
             ? "Cut all queued as a suggestion for host review. Reconnect to send it."
