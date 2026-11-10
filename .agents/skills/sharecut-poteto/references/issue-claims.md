@@ -81,25 +81,24 @@ comment and preserve any other live owner's labels.
 ## File follow-ups
 
 Read the filing rules in [docs/beta-plan.md](../../../../docs/beta-plan.md#filing-rules).
-This applies to every agent, Claude and Codex, and to every swarm, regression,
-live and audit lane. Brief lanes with a pointer to this section. The goal is
-fewer than 1.0 new issues opened per issue closed, which the merge lane reports
-weekly.
+This applies to every agent and lane (swarm, regression, live, audit),
+including Codex. Brief lanes with a pointer to this section. Target: fewer than
+1.0 new issues opened per issue closed. The merge lane reports it weekly.
 
 Triage each finding in this order. Only step 4 files an issue.
 
-1. A defect your PR introduced, or a false claim in its docs or tests: fix it in
+1. Fix a defect your PR introduced, or a false claim in its docs or tests, in
    the PR.
-2. A small in-scope note: fix it in the PR. Drop nits.
-3. A finding with no reachable harm: if an `epic` issue with a `cause:` label
-   covers the class, add a checklist line to its Ledger section. Synthetic-only
-   and precision findings go on #1449 or the epic's Ledger. Otherwise drop it.
-   A stale-spec finding goes on the spec-deviation list.
-4. A finding with reachable harm: file it under the rules below. One PR files at
+2. Fix a small in-scope note in the PR. Drop nits.
+3. For a finding with no reachable harm, if an `epic` issue with a `cause:`
+   label covers the class, add a checklist line to its Ledger section.
+   Synthetic-only and precision findings go on #1449 or the epic's Ledger.
+   Otherwise drop it. A stale-spec finding goes on the spec-deviation list.
+4. File a finding with reachable harm under the rules below. One PR files at
    most one issue, a combined one when it has several such findings.
 
-A flaky test is not reachable harm. Re-run once. Only a test that fails
-deterministically on develop and blocks the promote is filed.
+A flaky test is not reachable harm. Re-run once. A test that fails
+deterministically on develop and blocks the promote counts as reachable harm.
 
 Filing rules:
 
@@ -114,9 +113,6 @@ Filing rules:
    report it, and let the structural fix come first.
 5. Fix test-quality and doc notes in the same PR, or drop them. Never file them.
 6. A regression your PR caused blocks the PR. Never file it as a follow-up.
-
-This section replaces any earlier instruction, including native poteto-mode or
-operator guidance, to file non-blocking notes as follow-up issues.
 
 ## Ask the owner
 
