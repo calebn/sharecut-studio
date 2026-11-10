@@ -1383,11 +1383,16 @@ cannot. Every button runs the same `record.*` command as the palette.
   that line, during a take ("Record room tone between takes."), before anyone
   has joined ("Room tone starts once someone has joined the room."), until a
   guest has accepted recording ("Room tone starts once a guest has accepted
-  recording."; the room list holds only guests who accepted, and only guests
-  react to a round), while a round runs ("Room tone is already recording."), while the host's own capture
-  records ("Your own room tone is recording.") and while a host command is in
-  flight. A host mic that is off does not disable it once a guest has accepted;
-  a guest who is still pending does not count. A
+  recording."; a pending guest shows as a Joining... tile, but a round's
+  `participant_ids` name only consented participants, `reducer.py:290`), while
+  a round runs ("Room tone is already recording."), while the host's own
+  capture records ("Your own room tone is recording.") and while a host command
+  is in flight. A host mic that is off does not disable it once a guest has
+  accepted; a guest who is still pending does not count. These reasons gate the
+  GUI item only: the `record.roomTone` palette command, `podcast record
+  room-tone` and `record_room_tone_tool` are not gated by them and meet only the
+  server's looser rules, so any of them can still start a second round or one
+  with no consented guest. A
   started round is announced as "Room tone started. Quiet please."; a refusal
   shows in the Record stage alert. **Record 1 minute of room tone** is in the
   Devices sheet and works only in the lobby or after Stop; otherwise it is
