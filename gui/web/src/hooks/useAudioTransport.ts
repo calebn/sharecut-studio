@@ -780,7 +780,14 @@ export function useAudioTransport(enabled = true): void {
                 ? rawSourceSec(currentProject, track.id, timelineSec)
                 : timelineSec;
             return mode === "raw"
-              ? { id: track.id, url, gain, mediaSec, delivery: "native" }
+              ? {
+                  id: track.id,
+                  url,
+                  readUrl: url,
+                  gain,
+                  mediaSec,
+                  delivery: "probe",
+                }
               : {
                   id: track.id,
                   url,
