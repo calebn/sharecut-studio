@@ -384,6 +384,13 @@ def test_a_done_mark_and_the_http_twin_leave_the_same_gate(world) -> None:
             "replacement_token_invalid",
         ),
         (
+            "guest_transcript_replacement_preview",
+            TranscriptService,
+            "preview_transcript_replacement",
+            CodedValueError(PLANTED, code="replacement_match_out_of_range"),
+            "replacement_match_out_of_range",
+        ),
+        (
             "guest_transcript_word_timing_context",
             TranscriptService,
             "word_timing_context",

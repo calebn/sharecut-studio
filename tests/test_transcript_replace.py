@@ -493,6 +493,66 @@ def test_find_replace_tool_only_submits_one_match_and_rejects_dry_run(minimal_pr
         find_replace_transcript_tool(str(minimal_project), "Ada", "Mira", dry_run=True, only=0)
 
 
+def test_find_replace_tool_only_zero_replaces_the_first_match(minimal_project):
+    _workspace(minimal_project)
+    out = json.loads(find_replace_transcript_tool(str(minimal_project), "Ada", "Mira", only=0))
+    assert (out["count"], out["replaced"]) == (3, 1)
+    assert _texts(minimal_project) == [["Mira,", "ADA", "Adaline"], ["\u2018Ada\u2019"]]
+
+
+def _sync_only(ws, preview, only, seq=1):
+    from podcast_mcp.services.document_sync.commands import DocumentCommand
+
+    payload = {
+        "search": "Ada",
+        "replacement": "Mira",
+        "match_case": False,
+        "preview_token": preview["preview_token"],
+        "only": only,
+    }
+    return DocumentSyncService(ws).submit(
+        DocumentCommand(
+            type="ReplaceTranscriptMatches",
+            payload=payload,
+            client_id="host",
+            role="viewer",
+            client_seq=seq,
+        )
+    )
+
+
+@pytest.mark.parametrize("only", [-1, 3, 99])
+def test_sync_only_outside_the_preview_is_refused_without_history(minimal_project, only):
+    ws = _workspace(minimal_project)
+    preview = TranscriptService(ws).preview_transcript_replacement("Ada", "Mira")
+    with pytest.raises(CodedValueError) as raised:
+        _sync_only(ws, preview, only)
+    assert raised.value.code == "replacement_match_out_of_range"
+    assert _texts(minimal_project) == [["Ada,", "ADA", "Adaline"], ["\u2018Ada\u2019"]]
+    assert DocumentSyncService.open(minimal_project).store.commands_after(0) == []
+
+
+def test_sync_only_zero_replaces_one_match(minimal_project):
+    ws = _workspace(minimal_project)
+    preview = TranscriptService(ws).preview_transcript_replacement("Ada", "Mira")
+    result = _sync_only(ws, preview, 0)
+    assert result["command"]["payload"]["result"]["replaced"] == 1
+    assert _texts(minimal_project) == [["Mira,", "ADA", "Adaline"], ["\u2018Ada\u2019"]]
+
+
+@pytest.mark.parametrize("only", [True, "1", 1.5])
+def test_sync_payload_only_must_be_a_strict_integer(only):
+    from pydantic import ValidationError
+
+    from podcast_mcp.services.document_sync.payloads import ReplaceTranscriptMatchesPayload
+
+    fields = {"search": "Ada", "replacement": "Mira", "preview_token": "a" * 64}
+    with pytest.raises(ValidationError):
+        ReplaceTranscriptMatchesPayload(**fields, only=only)
+    assert ReplaceTranscriptMatchesPayload(**fields, only=0).only == 0
+    assert ReplaceTranscriptMatchesPayload(**fields).only is None
+
+
 def test_cli_find_replace_only_zero_replaces_the_first_match(minimal_project):
     _workspace(minimal_project)
     runner = CliRunner()

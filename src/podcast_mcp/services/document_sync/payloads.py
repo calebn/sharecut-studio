@@ -15,6 +15,7 @@ from pydantic import (
     BeforeValidator,
     Field,
     SerializerFunctionWrapHandler,
+    StrictInt,
     TypeAdapter,
     ValidationError,
     field_validator,
@@ -438,7 +439,7 @@ class TranscriptReplacementOptions(BaseModel):
 
 class ReplaceTranscriptMatchesPayload(TranscriptReplacementOptions):
     preview_token: str = Field(pattern=r"^[0-9a-f]{64}$")
-    only: int | None = Field(
+    only: StrictInt | None = Field(
         default=None,
         description=(
             "Replace only the match at this 0-based position in the preview's matches. "

@@ -25,6 +25,7 @@ type SurfaceProps = {
   phone?: boolean;
   guest?: boolean;
   allOnly?: boolean;
+  oneReason?: string;
 };
 
 /** These fixtures are one transcript, so a hit's words are contiguous and replaceSpan can take its range. */
@@ -66,6 +67,7 @@ function Surface({
   phone = false,
   guest = false,
   allOnly = false,
+  oneReason,
 }: SurfaceProps) {
   const [turns, setTurns] = useState<readonly ScriptTurn[]>(SCRIPT_TURNS);
   const [open, setOpen] = useState(true);
@@ -174,6 +176,7 @@ function Surface({
                                 replaceSpan(turns, spanOf(hit), replaceText),
                               );
                           },
+                      oneReason,
                       onReplaceAll: replaceAll,
                     }
               }
@@ -255,6 +258,30 @@ export const FindReplaceAllOnly: Story = {
     await expect(
       canvas.getByRole("button", { name: "Show replace" }),
     ).toHaveAttribute("title", "Hide replace");
+  },
+};
+
+export const ReplaceOneWaits: Story = {
+  render,
+  args: {
+    query: "room",
+    replaceOpen: true,
+    replaceText: "space",
+    oneReason: "This match has no saved word position yet. Use Replace all.",
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(
+      canvas.getByRole("button", { name: "Replace" }),
+    ).toHaveAttribute("aria-disabled", "true");
+    await expect(
+      canvas.getByText(
+        "This match has no saved word position yet. Use Replace all.",
+      ),
+    ).toBeVisible();
+    await expect(
+      canvas.getByRole("button", { name: "Replace all" }),
+    ).not.toHaveAttribute("aria-disabled");
   },
 };
 

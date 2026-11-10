@@ -75,8 +75,10 @@ export function useScriptFind(
     () => (open ? findMatches(model.turns, query, caseSensitive) : []),
     [open, model.turns, query, caseSensitive],
   );
-  const current = matches.length === 0 ? -1 : Math.min(at, matches.length - 1);
+  const current =
+    matches.length === 0 || at < 0 ? -1 : Math.min(at, matches.length - 1);
 
+  const replaceBusy = useRef(false);
   const go = (list: readonly FindHit[], to: number) => {
     setAt(to);
     const hit = list[to];
@@ -85,6 +87,7 @@ export function useScriptFind(
   const edit = (patch: Partial<ScriptFindState>) => {
     const next = { ...state, ...patch };
     setState(next);
+    replaceBusy.current = false;
     if ("query" in patch || "caseSensitive" in patch) {
       go(findMatches(model.turns, next.query, next.caseSensitive), 0);
     }
@@ -143,21 +146,27 @@ export function useScriptFind(
   const pendingAdvance = useRef<{
     turns: ScriptModel["turns"];
     from: number;
+    to: number;
   } | null>(null);
   const advance = useStableCallback(() => {
     const job = pendingAdvance.current;
     if (!job || job.turns === model.turns) return;
     pendingAdvance.current = null;
+    replaceBusy.current = false;
     if (matches.length === 0) return;
-    const to = matches.findIndex((hit) => hit.indices[0] >= job.from);
-    go(matches, to === -1 ? matches.length - 1 : to);
+    const to = matches.findIndex((hit) => hit.indices[0] >= job.to);
+    if (to !== -1) return go(matches, to);
+    const before = matches.findLastIndex((hit) => hit.indices[0] < job.from);
+    go(matches, before);
   });
   useEffect(advance, [model.turns, advance]);
 
   const replaceOne = async () => {
+    if (replaceBusy.current) return;
     const hit = matches[current];
     const where = refsOf(hit);
-    if (!hit || !where) throw new Error(replaceOneReason);
+    if (!hit || !where)
+      throw new Error(replaceOneReason ?? "Choose a match to replace.");
     if (replacementChanges(model.turns, [hit], replaceText).length === 0)
       throw new Error("That match already reads this way.");
     const { projectPath, announceStatus } = useDawStore.getState();
@@ -166,18 +175,36 @@ export function useScriptFind(
       replacement: replaceText,
       match_case: caseSensitive,
     };
-    const preview = await previewTranscriptReplacement(projectPath, options);
+    const shown = model.turns
+      .flatMap((turn) => turn.words)
+      .filter((word) => hit.indices.includes(word.index))
+      .map((word) => word.text)
+      .join(" ");
+    replaceBusy.current = true;
+    let preview: Awaited<ReturnType<typeof previewTranscriptReplacement>>;
+    try {
+      preview = await previewTranscriptReplacement(projectPath, options);
+    } catch (error) {
+      replaceBusy.current = false;
+      throw error;
+    }
     const only = preview.matches.findIndex(
       (match) =>
         match.track_id === where.first.trackId &&
         (match.source_id ?? null) === where.first.sourceId &&
         match.start_word_index === where.first.wordIndex &&
-        match.end_word_index === where.last.wordIndex,
+        match.end_word_index === where.last.wordIndex &&
+        match.before === shown,
     );
-    if (only < 0) throw new Error("That match changed. Find it again.");
+    if (only < 0) {
+      replaceBusy.current = false;
+      throw new Error("That match changed. Find it again.");
+    }
+    const added = replaceText.split(/\s+/).filter(Boolean).length;
     pendingAdvance.current = {
       turns: model.turns,
-      from: where.from + replaceText.split(/\s+/).filter(Boolean).length,
+      from: where.from,
+      to: where.from + added,
     };
     try {
       const result = await replaceTranscriptMatches(
@@ -188,12 +215,14 @@ export function useScriptFind(
       );
       if (result.queued) {
         pendingAdvance.current = null;
+        replaceBusy.current = false;
         announceStatus("Replace queued. Still sending.");
         return;
       }
       announceStatus("Replaced 1", { undo: replyHistoryHead(result) });
     } catch (error) {
       pendingAdvance.current = null;
+      replaceBusy.current = false;
       throw error;
     }
   };

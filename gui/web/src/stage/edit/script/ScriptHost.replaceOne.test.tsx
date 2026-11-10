@@ -22,13 +22,14 @@ const row = (
   track: string,
   sourceId: string | null,
   start: number,
+  before = "Maya",
   end = start,
 ) => ({
   track_id: track,
   source_id: sourceId,
   start_word_index: start,
   end_word_index: end,
-  before: "",
+  before,
   after: "",
   start: 0,
   end: 0,
@@ -174,6 +175,114 @@ describe("ScriptHost single Replace", () => {
     await waitFor(() =>
       expect(screen.getByRole("search")).toHaveTextContent("2 of 2"),
     );
+  });
+
+  it("stays clear of a replacement that holds the query when no hit follows", async () => {
+    preview.mockResolvedValue({
+      matches: [row("host", null, 0, "cat")],
+      count: 1,
+      skipped_words: 0,
+      preview_token: "tok-1",
+    });
+    replace.mockImplementation(async () => {
+      act(() => {
+        seedScript({
+          utterances: [
+            scriptUtterance("host", "Maya", [
+              scriptWord("cat", 0, 10),
+              scriptWord("cat", 1, 10.5),
+            ]),
+          ],
+        });
+        useDawStore.getState().setTranscriptFindReplaceOpen(true);
+      });
+      return { type: "Applied", history_head_id: "h1" };
+    });
+    seedScript({
+      utterances: [scriptUtterance("host", "Maya", [scriptWord("cat", 0, 10)])],
+    });
+    await openReplace("cat", "cat cat");
+    expect(screen.getByRole("search")).toHaveTextContent("1 of 1");
+    await userEvent.click(screen.getByRole("button", { name: "Replace" }));
+    await waitFor(() =>
+      expect(screen.getByRole("search")).toHaveTextContent("2 matches"),
+    );
+    expect(screen.getByRole("search")).not.toHaveTextContent("of 2");
+  });
+
+  it("lands on the hit before the replaced span when none follows", async () => {
+    preview.mockResolvedValue({
+      matches: [row("host", null, 2, "cat")],
+      count: 1,
+      skipped_words: 0,
+      preview_token: "tok-1",
+    });
+    replace.mockImplementation(async () => {
+      act(() => {
+        seedScript({
+          utterances: [
+            scriptUtterance("host", "Maya", [
+              scriptWord("cat", 0, 10),
+              scriptWord("dog", 1, 11),
+              scriptWord("cat", 2, 12),
+              scriptWord("cat", 3, 12.5),
+            ]),
+          ],
+        });
+        useDawStore.getState().setTranscriptFindReplaceOpen(true);
+      });
+      return { type: "Applied", history_head_id: "h1" };
+    });
+    seedScript({
+      utterances: [
+        scriptUtterance("host", "Maya", [
+          scriptWord("cat", 0, 10),
+          scriptWord("dog", 1, 11),
+          scriptWord("cat", 2, 12),
+        ]),
+      ],
+    });
+    await openReplace("cat", "cat cat");
+    await userEvent.click(screen.getByRole("button", { name: "Next match" }));
+    expect(screen.getByRole("search")).toHaveTextContent("2 of 2");
+    await userEvent.click(screen.getByRole("button", { name: "Replace" }));
+    await waitFor(() =>
+      expect(screen.getByRole("search")).toHaveTextContent("1 of 3"),
+    );
+  });
+
+  it("does not replace twice when Replace is clicked again before the model updates", async () => {
+    seedScript({
+      utterances: [scriptUtterance("host", "Maya", [scriptWord("Ada", 0, 10)])],
+    });
+    preview.mockResolvedValue({
+      matches: [row("host", null, 0, "Ada")],
+      count: 1,
+      skipped_words: 0,
+      preview_token: "tok-1",
+    });
+    await openReplace("Ada", "Ada Lovelace");
+    const button = screen.getByRole("button", { name: "Replace" });
+    await userEvent.click(button);
+    await userEvent.click(button);
+    await waitFor(() => expect(replace).toHaveBeenCalled());
+    expect(replace).toHaveBeenCalledTimes(1);
+    expect(preview).toHaveBeenCalledTimes(1);
+  });
+
+  it("refuses a preview match whose text is not the hit's text", async () => {
+    preview.mockResolvedValue({
+      matches: [row("guest", null, 0, "Maya Rao"), row("host", null, 0, "Rao")],
+      count: 2,
+      skipped_words: 0,
+      preview_token: "tok-1",
+    });
+    await openReplace("maya", "Maia");
+    await userEvent.click(screen.getByRole("button", { name: "Replace" }));
+    expect(
+      await screen.findByText("That match changed. Find it again."),
+    ).toBeInTheDocument();
+    expect(replace).not.toHaveBeenCalled();
   });
 
   it("keeps focus in the Replace field when Enter replaces", async () => {

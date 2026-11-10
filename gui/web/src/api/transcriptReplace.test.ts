@@ -4,6 +4,12 @@ import {
   replaceTranscriptMatches,
 } from "./transcriptReplace";
 
+const submit = vi.hoisted(() => vi.fn());
+vi.mock("./documentEdits", async (original) => ({
+  ...(await original<typeof import("./documentEdits")>()),
+  submitDocumentCommand: submit,
+}));
+
 const options = { search: "Ada", replacement: "Mira", match_case: false };
 describe("host-only find and replace", () => {
   it.each(["share:guest", "record:guest"])(
@@ -20,4 +26,20 @@ describe("host-only find and replace", () => {
       fetch.mockRestore();
     },
   );
+});
+
+describe("single match replace wire", () => {
+  const sent = async (only?: number) => {
+    submit.mockClear();
+    await replaceTranscriptMatches("/tmp/ep", options, "a".repeat(64), only);
+    return submit.mock.calls[0][2] as Record<string, unknown>;
+  };
+
+  it("sends only: 0 as a real position", async () => {
+    expect(await sent(0)).toHaveProperty("only", 0);
+  });
+
+  it("omits only when it is undefined", async () => {
+    expect(await sent(undefined)).not.toHaveProperty("only");
+  });
 });
