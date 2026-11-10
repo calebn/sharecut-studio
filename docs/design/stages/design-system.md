@@ -205,7 +205,7 @@ Storybook. Shared elements live under `System/<Element>`. Stage compositions liv
 - A 280 px list of 36 px rows (44 on touch): verb icon, label, key caps. A header row names the anchor ("12:04.3 · Maya"). Rows that can't apply are absent.
 - Phone: the same rows as a content-height Sheet.
 - Instances: the Project menu (first row is the title as a rename field, then Recent 5, All projects, Settings, Connect agent, Help), More (⋯), Create here or long-press, the Session target chip menu, Person tile menu, row menus.
-- Used: MENU-MAIN, MENU-CREATE, the Home "more" and Help buttons, the record ⋯.
+- Used: MENU-MAIN, MENU-CREATE, the Home app menu (the ShareCut wordmark), the record ⋯.
 - Replaces: Project menu (edit); Home more and Help buttons, the Stage-bar "more" (rdp); the room overflow (record).
 - Story: `System/Menu`: Project, More, CreateHere, Phone.
 

@@ -10,13 +10,13 @@ body:
         Attachments on this issue are public. Minted shares may transit the relay; that
         is unrelated to GitHub attachments.
 
-        Create and preview a sanitized diagnostics zip with **Home → Help → Report a problem → Export** or `podcast doctor --bundle`. Nothing is uploaded on creation. Help can submit after explicit consent when a relay is configured; otherwise attach the local zip here if you have one. Attachments and relay ZIP links are public (relay links expire after 30 days).
+        Create and preview a sanitized diagnostics zip with **Home → ShareCut app menu → Help → Report a problem → Export** or `podcast doctor --bundle`. Nothing is uploaded on creation. Help can submit after explicit consent when a relay is configured; otherwise attach the local zip here if you have one. Attachments and relay ZIP links are public (relay links expire after 30 days).
   - type: checkboxes
     id: diagnostics
     attributes:
       label: Diagnostics bundle attached?
       options:
-        - label: I attached a `sharecut-diagnostics-*.zip` from Home → Help or `podcast doctor --bundle` (optional, but helpful).
+        - label: I attached a `sharecut-diagnostics-*.zip` from Home → ShareCut app menu → Help or `podcast doctor --bundle` (optional, but helpful).
   - type: textarea
     id: what-happened
     attributes:

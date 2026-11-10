@@ -36,7 +36,7 @@ Of the 154 non-interaction items: 67 have a story (yes), 32 partial, 55 none (co
 
 | ID | Surface | Reach | Files | Story | View split | Purpose |
 |---|---|---|---|---|---|---|
-| SCR-HOME | Host home, idle: wordmark, lede, five buttons (New project…, Open project…, Connect agent…, Models or "Models · setup incomplete", Help) | Open `/` with no project, or `/?home=1`, or Menu > New project in the editor | `home/HomeScreen.tsx`, `ui/BrandMark.tsx`, `ui/CoverScreen.tsx` | NONE (atoms only: `ui/BrandMark.stories.tsx` Lockup, Symbol; `ui/CoverScreen.stories.tsx` WithHeading, StatusOnly) | Hook (useModels, api) | Entry point for choosing or creating an episode |
+| SCR-HOME | Host home, idle: wordmark as the app menu (Settings, Connect agent…, Help), lede, New project… and Open project… buttons, and the Setup card while models are incomplete | Open `/` with no project, or `/?home=1`, or Menu > New project in the editor | `home/HomeScreen.tsx`, `ui/BrandMark.tsx`, `ui/CoverScreen.tsx` | NONE (atoms only: `ui/BrandMark.stories.tsx` Lockup, Symbol; `ui/CoverScreen.stories.tsx` WithHeading, StatusOnly) | Hook (useModels, api) | Entry point for choosing or creating an episode |
 | SCR-HOME-NEW | Home, New project form: Name, Workspace directory, Create, Cancel | Home > New project… | `home/HomeScreen.tsx`, `ui/Field.tsx` | NONE (`ui/Field.stories.tsx` Default, WithHint, WithError for the field only) | Hook | Create a workspace and open it |
 | SCR-HOME-OPEN | Home, Open project form: episode.sharecut path, Browse…, Open, Cancel | Home > Open project… | `home/HomeScreen.tsx` | NONE | Hook | Open an existing project (OS dialog or pasted path) |
 | SCR-HOME-ERROR | Home inline error alert (wrong filename, no OS dialog, switch blocked) | Submit a bad path in Open | `home/HomeScreen.tsx` | NONE | Hook | Explain why create or open failed |
@@ -172,7 +172,7 @@ All use `ui/Dialog.tsx` (phone renders as a bottom sheet) unless noted. Stories 
 | ID | Surface | Reach | Files | Story | View split | Purpose |
 |---|---|---|---|---|---|---|
 | DLG-MCP | "Connect agent": MCP URL and Cursor snippet, copy buttons, no-episode warning | Home > Connect agent…; Menu > Project > Connect agent… | `layout/HostMcpDialog.tsx`, `layout/hostMcp.ts` | `layout/HostMcpDialog.stories.tsx` (Ready, NoEpisode, Phone) | Props | Wire an AI agent to the project |
-| DLG-HELP | "Help": create diagnostics bundle, description, consent checkbox, Submit report, publication status, Open support | Home > Help; Menu > Help > Export diagnostics… | `home/HelpDialog.tsx` | NONE | Hook (api) | Report a problem with a sanitized bundle |
+| DLG-HELP | "Help": create diagnostics bundle, description, consent checkbox, Submit report, publication status, Open support | Home > ShareCut app menu > Help; Menu > Help > Export diagnostics… | `home/HelpDialog.tsx` | NONE | Hook (api) | Report a problem with a sanitized bundle |
 | DLG-MODELS | "Models": every model with Download, Update, Retry, Cancel; tool status | Home > Models; command palette "Manage models…" | `models/ModelsDialog.tsx`, `models/ModelRow.tsx`, `models/VariantPicker.tsx` | Row only (`models/ModelRow.stories.tsx`) | Hook (useModels) | Manage local models |
 | DLG-MODEL-GATE | "Download model?" prompt shown before a feature that needs a model (Primary: Download / Downloading… / Retry / Continue; Cancel download) | Run Export, Bounce, Split, Tighten, Pipeline, or a stale job's model chip without the model | `models/gate/ModelGate.tsx`, `models/gate/useModelGate.ts`, `models/gate/JobModelDownload.tsx` | partial: `layout/ExportDialogView.stories.tsx` NeedsModel (gate embedded); `layout/SplitSpeakersDialogView.stories.tsx` NeedsModel | Props (`ModelGate` object) | Just-in-time model download |
 | DLG-WHISPER | "Download Whisper model?" | Pipeline panel: pick a Whisper model not yet installed | `panels/WhisperModelPicker.tsx` | NONE | Hook | Confirm a large download |
@@ -344,7 +344,7 @@ Run the app: `uv run --extra gui podcast gui --host 127.0.0.1 --port <p> --no-op
 
 | IDs | Steps |
 |---|---|
-| SCR-HOME, SCR-HOME-NEW, SCR-HOME-OPEN, SCR-HOME-ERROR | Skip wizard first: `localStorage.setItem('sharecut.bootstrap.skip','1')` via init script. `goto('/')` (server must not pin a project; otherwise `/?home=1`). Buttons: `New project…`, `Open project…`, `Connect agent…`, `Models`, `Help`. New: fields `Name`, `Workspace directory`; Open: field `episode.sharecut`, buttons `Browse…`, `Open`, `Cancel`. Error: submit Open with a bad path and read `role=alert`. |
+| SCR-HOME, SCR-HOME-NEW, SCR-HOME-OPEN, SCR-HOME-ERROR | Skip wizard first: `localStorage.setItem('sharecut.bootstrap.skip','1')` via init script. `goto('/')` (server must not pin a project; otherwise `/?home=1`). Buttons: `New project…`, `Open project…`; the `ShareCut app menu` button opens the rows `Settings`, `Connect agent…`, `Help`. New: fields `Name`, `Workspace directory`; Open: field `episode.sharecut`, buttons `Browse…`, `Open`, `Cancel`. Error: submit Open with a bad path and read `role=alert`. |
 | SCR-SETUP, SCR-SETUP-CHECKING, SCR-SETUP-DOWNLOAD | No skip key. Mock `**/api/bootstrap/status` (rows from `e2e/modelsMock.ts`), `/api/bootstrap/run`, `/events`, `/cancel`. `goto('/')`; `getByRole('region',{name:'Setup'})`, heading "Set up ShareCut Studio", buttons `Continue`, `Skip for now`. Checking: hold the status route. Load error: fulfil with 500. |
 | SCR-LOADING | Delay `/api/project*` or `/api/review/<t>/bootstrap`; text "Loading project…" / "Loading studio…". |
 | SCR-ERROR, SCR-GUEST-LINK-INVALID, SCR-REC-INVALID | `goto('/r/not-a-token')`, `goto('/rec/not-a-token')`. |
@@ -373,7 +373,7 @@ Run the app: `uv run --extra gui podcast gui --host 127.0.0.1 --port <p> --no-op
 | DLG-BOUNCE | Menu > `Bounce…`; dialog "Bounce…". Needs a selected range for the Ready state. |
 | DLG-SHARE | Menu > `Share…`; dialog name "Share" (exact). Button `Create review link`, copy buttons, `Stop sharing`, `End room` confirm (`e2e/share-dialog.spec.ts`). |
 | DLG-MCP | Home or Menu > `Connect agent…`; dialog "Connect agent". |
-| DLG-HELP | Home > `Help`, or Menu > Help > `Export diagnostics…`; dialog "Help"; button `Create diagnostics bundle`. |
+| DLG-HELP | Home > `ShareCut app menu` > `Help`, or Menu > Help > `Export diagnostics…`; dialog "Help"; button `Create diagnostics bundle`. |
 | DLG-MODELS | Home > `Models`, or command palette "Manage models…"; dialog "Models" (mock `/api/bootstrap/*`). |
 | DLG-MODEL-GATE | Mock a job start that returns model_needed (`mockModelFailingJob` in `e2e/modelsMock.ts`) then start Export. |
 | DLG-WHISPER | Pipeline panel > pick an uninstalled Whisper model; dialog "Download Whisper model?". |
