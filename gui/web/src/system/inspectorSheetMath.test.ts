@@ -65,7 +65,7 @@ describe("inspectorSheetMath detents", () => {
     expect(settleDetent(100, -4, 640, true)).toBe("dismiss");
   });
 
-  it("reads the rise velocity from the last two samples", () => {
+  it("reads the rise velocity across the last 100 ms of samples", () => {
     expect(riseVelocity([], 0)).toBe(0);
     expect(riseVelocity([{ t: 0, height: 64 }], 0)).toBe(0);
     const samples = [
@@ -73,7 +73,7 @@ describe("inspectorSheetMath detents", () => {
       { t: 10, height: 94 },
       { t: 20, height: 154 },
     ];
-    expect(riseVelocity(samples, 20)).toBe(6);
+    expect(riseVelocity(samples, 20)).toBe(4.5);
     expect(
       riseVelocity(
         [
@@ -83,8 +83,29 @@ describe("inspectorSheetMath detents", () => {
         5,
       ),
     ).toBe(0);
-    expect(riseVelocity(samples, 100)).toBe(6);
+    expect(riseVelocity(samples, 100)).toBe(4.5);
     expect(riseVelocity(samples, 101)).toBe(0);
+  });
+
+  it("does not read two moves handled back to back as a huge flick", () => {
+    const steady = [
+      { t: 0, height: 700 },
+      { t: 60, height: 662 },
+      { t: 120, height: 625 },
+      { t: 180, height: 587 },
+      { t: 185, height: 550 },
+    ];
+    expect(riseVelocity(steady, 185)).toBeCloseTo((-137 / 125) * 1, 0);
+    expect(settleDetent(550, riseVelocity(steady, 185), 760)).toBe("half");
+  });
+
+  it("only looks back 100 ms", () => {
+    const slow = [
+      { t: 0, height: 100 },
+      { t: 150, height: 400 },
+      { t: 200, height: 410 },
+    ];
+    expect(riseVelocity(slow, 200)).toBe(0.2);
   });
 
   it("toggles half and dock, steps full down to half, and steps one detent held at the ends", () => {

@@ -269,6 +269,8 @@ function Card({
 const DOCK_REM = 4;
 const DEFAULT_ROOT_PX = 16;
 const DOCK_TOLERANCE_PX = 0.5;
+/** Moves kept for the speed read; the oldest one inside the 100 ms window is used. */
+const VELOCITY_SAMPLES = 7;
 
 function rootRem() {
   return Number.parseFloat(getComputedStyle(document.documentElement).fontSize);
@@ -330,7 +332,7 @@ function Phone({
       if (!gesture) return;
       gesture.height = dragHeight(gesture.start, move.dy, gesture.container);
       samples.current = [
-        ...samples.current.slice(-1),
+        ...samples.current.slice(-VELOCITY_SAMPLES),
         { t: performance.now(), height: gesture.height },
       ];
       setDragging(gesture.height);
