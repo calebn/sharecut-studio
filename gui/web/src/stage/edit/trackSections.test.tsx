@@ -110,7 +110,7 @@ describe("track content", () => {
     );
     await expectNoA11yViolations(container);
     const people = screen.getByRole("radiogroup", {
-      name: "Who is this voice?",
+      name: "Person",
     });
     expect(
       within(people)

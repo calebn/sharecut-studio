@@ -19,6 +19,7 @@ export function TrackPerson({
   return people.length > 0 ? (
     <PersonPicker
       apply="activate"
+      label="Person"
       people={people}
       currentId={current === "" ? undefined : current}
       onPick={(id) => {
