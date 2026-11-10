@@ -51,11 +51,6 @@ export function resetQueuedCutsForTests(): void {
   queued.clear();
 }
 
-/**
- * Cuts every hit in one undo step. A cut that was queued offline is
- * remembered per project and epoch, so a second press of Cut all, from the
- * Find bar or a toast, does not queue it twice.
- */
 export async function cutHits(
   model: ScriptModel,
   hits: readonly FindHit[],

@@ -12,7 +12,7 @@ import type {
 } from "../types/project";
 import { errorMessage } from "../utils/apiError";
 
-export const CUT_ALL_MAX_HITS = 64;
+const CUT_ALL_MAX_HITS = 64;
 const WORDS_MAX = 24;
 
 type TranscriptRange = Extract<Selection, { kind: "transcriptRange" }>;
@@ -51,17 +51,11 @@ function cutAllAction(words: string, epoch: number): ToastAction {
   };
 }
 
-/**
- * The toast for a words cut, worked out from the project as it was before the
- * cut: the other occurrences of the same words, minus the words just cut.
- * Cut all re-reads the live project when it is pressed.
- */
 export function cutToastOf(
   project: ProjectView,
   selection: TranscriptRange,
   target: ExactRangeTarget,
   epoch: number,
-  mayCut: boolean,
 ): CutToast | null {
   const { model, texts } = scriptModelFor(project);
   const cutKeys = new Set<string>();
@@ -91,9 +85,6 @@ export function cutToastOf(
   if (more === 0) return { message: head };
   return {
     message: `${head} · ${more} more`,
-    action:
-      mayCut && more <= CUT_ALL_MAX_HITS
-        ? cutAllAction(words, epoch)
-        : undefined,
+    action: more <= CUT_ALL_MAX_HITS ? cutAllAction(words, epoch) : undefined,
   };
 }
