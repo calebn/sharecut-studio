@@ -11,6 +11,13 @@
   flex-direction: column;
   align-items: flex-start;
   gap: var(--space-1);
+  min-inline-size: 0;
+  max-inline-size: 100%;
+}
+
+.settings-sheet-section > *,
+.settings-sheet-section .ui-segmented {
+  max-inline-size: 100%;
 }
 
 .settings-sheet-label {

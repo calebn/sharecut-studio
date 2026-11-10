@@ -47,7 +47,8 @@ describe("project API facade", () => {
     const [url, init] = fetchSpy.mock.calls[0] ?? [];
     expect(url).toBe("/api/project/reveal");
     expect(init?.method).toBe("POST");
-    expect(JSON.parse(String(init?.body))).toEqual({
+    expect(typeof init?.body).toBe("string");
+    expect(JSON.parse(init?.body as string)).toEqual({
       path: "/tmp/ep/episode.sharecut",
     });
   });

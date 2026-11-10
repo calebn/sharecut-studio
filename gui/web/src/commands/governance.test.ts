@@ -128,7 +128,7 @@ const ON_KEY_DOWN_ALLOWLIST = new Set([
   "system/ScrubField.tsx",
   // The take switcher is a radiogroup-like control: Left, Right, Up and Down step the take and stop there.
   "system/TakeSwitcher.tsx",
-  // The Appearance radiogroup: the arrows pick the previous or next theme and stop there.
+  // The Appearance radiogroup: the arrows pick the previous or next theme, wrapping at the ends.
   "system/AppearanceControl.tsx",
   // The script pane's words, cut pills and suggested runs are one tab stop: Left and Right, Home and End move among them, Up and Down move by line, Shift extends the selection, Alt+Shift+Left and Right move its start, Enter selects a word or, on a selected word, starts Fix text, F2 starts Fix text, and Esc clears the selection. The margin controls (speaker name, time) take Enter and Space like buttons. Space is left alone for Play/Pause.
   "system/ScriptPane.tsx",
