@@ -15,10 +15,11 @@ from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.document import (
     AnalysisService,
     EditService,
+    RoomToneBedReply,
+    RoomToneBedService,
     TimelineService,
     insert_saved_segment,
 )
-from podcast_mcp.services.document.room_tone_bed import RoomToneBedService
 from podcast_mcp.util.coded_error import CodedValueError
 
 
@@ -383,11 +384,11 @@ def fill_room_tone(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
     )
 
 
-def extract_room_tone_bed(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
+def extract_room_tone_bed(ws: ProjectWorkspace, p: dict[str, Any]) -> RoomToneBedReply:
     return RoomToneBedService(ws).extract_room_tone_bed(track_id=p["track_id"])
 
 
-def clear_extracted_room_tone_bed(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
+def clear_extracted_room_tone_bed(ws: ProjectWorkspace, p: dict[str, Any]) -> RoomToneBedReply:
     return RoomToneBedService(ws).clear_extracted_room_tone_bed(track_id=p["track_id"])
 
 

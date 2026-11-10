@@ -94,7 +94,7 @@ async function change(
         return { status: "ok" };
       }
       const reason = roomToneBedReason(label, outcome.reason);
-      live.announceStatus(reason);
+      live.announceStatus(reason, { tone: "error" });
       return { status: "disabled", reason, told: true };
     } catch (e) {
       const msg = errorMessage(e);

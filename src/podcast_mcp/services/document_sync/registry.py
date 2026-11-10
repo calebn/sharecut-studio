@@ -43,7 +43,7 @@ from podcast_mcp.services.document_sync.handlers import (
 )
 from podcast_mcp.util.coded_error import CodedValueError
 
-Handler = Callable[[ProjectWorkspace, dict[str, Any]], dict[str, Any]]
+Handler = Callable[[ProjectWorkspace, dict[str, Any]], Mapping[str, Any]]
 Family = Literal["comments", "transcript", "structural"]
 
 
@@ -954,7 +954,7 @@ def apply_command(
         raise CodedValueError(
             f"unknown document command: {command_type}", code="document_command_unknown"
         )
-    return spec.handler(ws, payload)
+    return dict(spec.handler(ws, payload))
 
 
 def edit_surface_commands() -> Mapping[str, Mapping[str, Any]]:
