@@ -49,7 +49,6 @@ export function isScrubValue(el: EventTarget | null): boolean {
 }
 
 const VERTICAL_ARROWS = new Set(["ArrowUp", "ArrowDown"]);
-const ARROWS = new Set([...VERTICAL_ARROWS, "ArrowLeft", "ArrowRight"]);
 
 /**
  * A focused choice control keeps the bare arrow keys its choices would use:
@@ -62,7 +61,7 @@ export function isChoiceControlArrow(e: KeyboardEvent): boolean {
     return false;
   }
   if (e.target.matches('[role="radio"]')) {
-    return ARROWS.has(e.key);
+    return e.key.startsWith("Arrow");
   }
   return VERTICAL_ARROWS.has(e.key) && e.target.matches(".ui-segmented button");
 }
