@@ -1367,15 +1367,41 @@ describe("barModelOf", () => {
     ).toEqual({ id: "remove", disabledReason: "Select one track to remove" });
   });
 
-  it("hears the track from the playhead when it sits inside the track, else from its first clip", async () => {
+  it("hears the first 6 s of the track when the playhead is past its audio", async () => {
     host({ kind: "track", trackId: MIRA });
-    const clips = editFixtureProject().clips.tracks[MIRA]!;
-    const first = Math.min(...clips.map((c) => c.timeline_start));
-    const last = Math.max(...clips.map((c) => c.timeline_end));
-    useDawStore.setState({ playheadSec: last + 100 });
+    useDawStore.setState({ playheadSec: 114 });
     await runEditVerb("hear", factsOf()!);
     expect(playRange).toHaveBeenLastCalledWith(
-      expect.objectContaining({ start: first, end: Math.min(last, first + 6) }),
+      expect.objectContaining({ start: 0, end: 6 }),
+    );
+  });
+
+  it("hears the track from the playhead and stops at the end of its audio", async () => {
+    host({ kind: "track", trackId: MIRA });
+    useDawStore.setState({ playheadSec: 8 });
+    await runEditVerb("hear", factsOf()!);
+    expect(playRange).toHaveBeenLastCalledWith(
+      expect.objectContaining({ start: 8, end: 14 }),
+    );
+  });
+
+  it("hears across every selected track", async () => {
+    const project = editFixtureProject();
+    project.clips.tracks[JONAS] = [
+      {
+        ...project.clips.tracks[MIRA]![0]!,
+        id: "jonas-late",
+        track_id: JONAS,
+        timeline_start: 20,
+        timeline_end: 30,
+      },
+    ];
+    host({ kind: "track", trackId: MIRA }, { project });
+    useDawStore.getState().selectTracks([MIRA, JONAS]);
+    useDawStore.setState({ playheadSec: 25 });
+    await runEditVerb("hear", factsOf()!);
+    expect(playRange).toHaveBeenLastCalledWith(
+      expect.objectContaining({ start: 25, end: 30 }),
     );
   });
 
