@@ -568,6 +568,24 @@ describe("clip join rows", () => {
     ).toHaveAttribute("aria-readonly", "true");
   });
 
+  it("shows type, Length and Offset for touching clips from different recordings", () => {
+    const other = { ...second, source_id: "take-2", recording_key: "take-2" };
+    open(
+      [{ ...clip, source_id: "take-1", recording_key: "take-1" }, other],
+      {},
+      other,
+    );
+    expect(
+      group("Start join").getByRole("button", { name: "Fade" }),
+    ).toBeVisible();
+    expect(
+      screen.getByRole("spinbutton", { name: "Start join length" }),
+    ).toBeVisible();
+    expect(
+      screen.getByRole("spinbutton", { name: "Start join offset" }),
+    ).toBeVisible();
+  });
+
   it("shows no join rows where a gap separates the neighbours", () => {
     const apart = { ...second, timeline_start: 3, timeline_end: 5 };
     open([clip, apart], {}, apart);
