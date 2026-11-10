@@ -59,9 +59,9 @@ export function dragHeight(start: number, dy: number, container: number) {
 const STALE_MS = 80;
 
 /** The speed is read across this much of the drag, so two moves handled back to back cannot read as a huge flick. */
-const VELOCITY_WINDOW_MS = 100;
+export const VELOCITY_WINDOW_MS = 100;
 
-/** Pixels per millisecond, positive when the sheet is rising, from the oldest sample within the last 100 ms, and zero once the finger has rested. */
+/** Pixels per millisecond, positive when the sheet is rising, from the oldest sample within the velocity window, and zero once the finger has rested. */
 export function riseVelocity(samples: readonly Sample[], now: number): number {
   const last = samples[samples.length - 1];
   if (!last || now - last.t > STALE_MS) return 0;

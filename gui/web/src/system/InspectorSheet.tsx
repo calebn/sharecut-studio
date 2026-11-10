@@ -25,6 +25,7 @@ import {
   settleDetent,
   steppedDetent,
   toggledDetent,
+  VELOCITY_WINDOW_MS,
 } from "./inspectorSheetMath";
 import { PersonAvatar, type PersonData } from "./Person";
 import { SystemIcon } from "./SystemIcon";
@@ -269,8 +270,6 @@ function Card({
 const DOCK_REM = 4;
 const DEFAULT_ROOT_PX = 16;
 const DOCK_TOLERANCE_PX = 0.5;
-/** Moves kept for the speed read; the oldest one inside the 100 ms window is used. */
-const VELOCITY_SAMPLES = 7;
 
 function rootRem() {
   return Number.parseFloat(getComputedStyle(document.documentElement).fontSize);
@@ -331,9 +330,12 @@ function Phone({
       const gesture = drag.current;
       if (!gesture) return;
       gesture.height = dragHeight(gesture.start, move.dy, gesture.container);
+      const t = performance.now();
       samples.current = [
-        ...samples.current.slice(-VELOCITY_SAMPLES),
-        { t: performance.now(), height: gesture.height },
+        ...samples.current.filter(
+          (sample) => t - sample.t <= VELOCITY_WINDOW_MS,
+        ),
+        { t, height: gesture.height },
       ];
       setDragging(gesture.height);
     },
