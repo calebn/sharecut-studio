@@ -103,10 +103,15 @@ export function useRecordBadge(): RecordBadge {
       stream: room?.capture.stream ?? null,
       muted: room?.host?.muted ?? false,
       counting: room?.state === "recording",
+      onAir: room?.state === "recording" || room?.state === "paused",
     }),
     shallow,
   );
-  const mutedSpeech = useMutedSpeech(away ? mic.stream : null, mic);
+  const mutedSpeech = useMutedSpeech(away ? mic.stream : null, {
+    muted: mic.muted,
+    counting: mic.counting,
+    onAir: mic.onAir,
+  });
   return useHostRoomSelector(
     (room): RecordBadge =>
       room

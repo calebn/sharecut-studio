@@ -371,7 +371,7 @@ describe("GuestRoomApp in the room", () => {
     expect(screen.queryByText("You're muted.")).toBeNull();
     expect(speech.calls.at(-1)).toEqual([
       stream,
-      { muted: true, counting: true },
+      { muted: true, counting: true, onAir: true },
     ]);
     speech.heard = true;
     rerender(<GuestRoomApp token="t" />);
@@ -383,7 +383,7 @@ describe("GuestRoomApp in the room", () => {
     render(<GuestRoomApp token="t" />);
     expect(speech.calls.at(-1)).toEqual([
       null,
-      { muted: false, counting: true },
+      { muted: false, counting: true, onAir: true },
     ]);
   });
 

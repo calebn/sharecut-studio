@@ -75,6 +75,17 @@ describe("mutedSpeechGate", () => {
     expect(run([{ ms: 10_100, db: LOUD }]).fired).toBe(true);
   });
 
+  it("counts from zero when restarted from the initial state", () => {
+    const fired = run([{ ms: 10_100, db: LOUD }]);
+    expect(fired.fired).toBe(true);
+    expect(run([{ ms: 9_000, db: LOUD }], {}, MUTED_SPEECH_INITIAL).fired).toBe(
+      false,
+    );
+    expect(
+      run([{ ms: 10_100, db: LOUD }], {}, MUTED_SPEECH_INITIAL).fired,
+    ).toBe(true);
+  });
+
   it("never fires on a short burst or on silence", () => {
     expect(
       run([
