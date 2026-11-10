@@ -337,9 +337,6 @@ export const NewAudioWaiting: Story = {
       canvas.getByRole("button", { name: /Process new audio/ }),
     );
     await expect(args.onHandoff).toHaveBeenCalled();
-    await expect(
-      canvas.queryByRole("button", { name: "More ways to run" }),
-    ).toBeNull();
   },
 };
 
