@@ -224,6 +224,44 @@ def test_failed_replacement_restores_prior_payload(
     assert not (output / "unexpected").exists()
 
 
+def test_publication_waits_out_a_transient_lock_and_gives_up_on_a_held_one(
+    payload, tmp_path, monkeypatch
+):
+    owner = load_script("ffmpeg_payload", register=True)
+    sleeps = []
+    monkeypatch.setattr(owner.time, "sleep", sleeps.append)
+    rename = Path.rename
+    denied = {"left": 2}
+
+    def locked_twice(path, destination):
+        if path.name == "payload" and denied["left"]:
+            denied["left"] -= 1
+            raise PermissionError(5, "Access is denied")
+        return rename(path, destination)
+
+    monkeypatch.setattr(Path, "rename", locked_twice)
+    output = tmp_path / "installed"
+    assert install(payload, output) == payload[4]
+    assert (output / "bin/ffmpeg").read_bytes() == b"ffmpeg9"
+    assert sleeps == [0.2, 0.4]
+    assert not (tmp_path / ".installed.work").exists()
+
+    sleeps.clear()
+    shutil.rmtree(output)
+
+    def always_locked(path, destination):
+        if path.name == "payload":
+            raise PermissionError(5, "Access is denied")
+        return rename(path, destination)
+
+    monkeypatch.setattr(Path, "rename", always_locked)
+    with pytest.raises(PermissionError):
+        install(payload, output)
+    assert len(sleeps) == owner.RENAME_ATTEMPTS - 1
+    assert not output.exists()
+    assert not (tmp_path / ".installed.work").exists()
+
+
 def payload_bytes(directory):
     return {
         file.relative_to(directory).as_posix(): file.read_bytes()

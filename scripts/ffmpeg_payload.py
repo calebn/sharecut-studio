@@ -15,6 +15,7 @@ import subprocess
 import sys
 import tarfile
 import tempfile
+import time
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 from typing import Any
@@ -256,6 +257,29 @@ def _download(artifact: Artifact, destination: Path) -> None:
     verify_archive(destination, artifact.sha256)
 
 
+RENAME_ATTEMPTS = 6
+RENAME_FIRST_DELAY_S = 0.2
+
+
+def _rename(source: Path, destination: Path) -> None:
+    """Rename a payload directory, waiting out a transient Windows lock.
+
+    The proof has just run the binaries in the directory, and a scanner or the
+    just-exited process can hold it for a moment, so the rename fails with
+    access denied until the handle closes. Other failures are not retried.
+    """
+    delay = RENAME_FIRST_DELAY_S
+    for attempt in range(RENAME_ATTEMPTS):
+        try:
+            source.rename(destination)
+            return
+        except PermissionError:
+            if attempt == RENAME_ATTEMPTS - 1:
+                raise
+            time.sleep(delay)
+            delay *= 2
+
+
 def ensure_payload(
     output: Path, *, target: str | None = None, catalog: Path = CATALOG, archive: Path | None = None
 ) -> dict[str, Any]:
@@ -303,8 +327,8 @@ def ensure_payload(
         prove_payload(stage, artifact.target)
         try:
             if output.exists():
-                output.rename(previous)
-            stage.rename(output)
+                _rename(output, previous)
+            _rename(stage, output)
         except BaseException as failure:
             if previous.exists() and not output.exists():
                 try:
