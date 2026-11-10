@@ -95,7 +95,7 @@ const meta: Meta = {
       ...viewportStoryParameters.docs,
       description: {
         component:
-          "The live chapter and social clip bodies (`useChapterSections`, `useSocialSections`) in an Inspector card, read from the hydrated episode: Title is a text field saved on blur or Enter, Time, Start and End are Scrub fields that save once per commit, and a social clip's Delete keeps its host-only gate (a chapter is removed from the Action bar). A Viewer link sees the same values read-only.",
+          "The live chapter and social clip bodies (`useChapterSections`, `useSocialSections`) in an Inspector card, read from the hydrated episode: Title is a text field saved on blur or Enter, Time, Start and End are Scrub fields that save once per commit, and a chapter and a social clip are removed from the Action bar. A Viewer link sees the same values read-only.",
       },
     },
   },

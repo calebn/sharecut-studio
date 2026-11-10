@@ -10,7 +10,7 @@ export function bleedBusyLabel(
   return null;
 }
 
-const REFRESH_FIRST = "Refresh regions before restoring audio.";
+export const REFRESH_FIRST = "Refresh regions before restoring audio.";
 
 export function bleedRestoreReason({
   busyLabel,

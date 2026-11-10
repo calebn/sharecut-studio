@@ -52,6 +52,6 @@ test("a pin-selected comment opens a usable Inspector card at 1440", async ({
   await card.getByRole("textbox", { name: "Reply to comment" }).fill("On it");
   await card.getByRole("button", { name: "Reply" }).click();
   await expect(card.getByText("On it")).toBeVisible();
-  await card.getByRole("button", { name: "Resolve" }).click();
+  await page.getByRole("button", { name: "Resolve", exact: true }).click();
   await expect(card.getByRole("button", { name: "Reopen" })).toBeVisible();
 });

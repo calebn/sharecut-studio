@@ -190,6 +190,23 @@ describe("edit.restoreClipBleed", () => {
     expect(clipBleedSession.getSnapshot()?.undo).toBeNull();
   });
 
+  it("refuses a region whose Restore choice is already saved", async () => {
+    clipBleedSession.retire();
+    vi.mocked(loadClipBleedInspection).mockResolvedValue({
+      ...inspection,
+      regions: [
+        { ...inspection.regions[0], restore: { state: "saved" } },
+        inspection.regions[1],
+      ],
+    });
+    await selectRegion();
+    expect(await execute("edit.restoreClipBleed")).toEqual({
+      status: "disabled",
+      reason: "A Restore choice already covers this interval.",
+    });
+    expect(restoreClipBleed).not.toHaveBeenCalled();
+  });
+
   it("serializes with existing timeline mutations", async () => {
     const gate = holdQueue();
     const pending = executePointerCommand("edit.restoreClipBleed");
