@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it } from "vitest";
 import { makeRangeTarget } from "../edit/rangeSelection";
@@ -245,20 +245,37 @@ describe("range fields", () => {
       "false",
     );
   });
-  it("ignores a picked track that no longer exists", () => {
+  it("adopts on the tracks that remain when a picked track is removed", async () => {
+    const user = userEvent.setup();
     useDawStore.setState({
       project: twoTrackProject(),
       selection: null,
       rangeDraft: null,
       sessionRegion: { start_sec: 3, end_sec: 4 },
-      agentRangeScope: ["gone"],
+      agentRangeScope: ["b"],
     });
-    render(<RangeFields sheet />);
-    for (const name of ["Speaker", "Guest"])
-      expect(screen.getByRole("button", { name })).toHaveAttribute(
-        "aria-pressed",
-        "false",
-      );
+    const { rerender } = render(<RangeFields sheet />);
+    expect(screen.getByRole("button", { name: "Guest" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    const full = twoTrackProject();
+    act(() =>
+      useDawStore.setState({
+        project: { ...full, tracks: full.tracks.filter((t) => t.id === "a") },
+      }),
+    );
+    rerender(<RangeFields sheet />);
+    expect(screen.queryByRole("button", { name: "Guest" })).toBeNull();
+    await user.click(
+      screen.getByRole("button", {
+        name: "Use agent range on selected tracks",
+      }),
+    );
+    expect(useDawStore.getState().selection).toMatchObject({
+      kind: "range",
+      target: { track_ids: ["a"], intervals: [{ start: 3, end: 4 }] },
+    });
   });
   it("drops the draft once the agent range is adopted", async () => {
     const user = userEvent.setup();
