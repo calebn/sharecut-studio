@@ -104,3 +104,13 @@ describe("OverviewStrip seeking", () => {
     expect(onSeek.mock.calls[0]?.[0]).toBeCloseTo(fraction, 6);
   });
 });
+
+describe("OverviewStrip touch box", () => {
+  it("keeps the slider on the root and draws the strip in an inner face", () => {
+    const { strip } = setup({ height: 16 });
+    expect(strip).toHaveClass("sys-overview--16", "sys-overview--seek");
+    const face = strip.querySelector(":scope > .sys-overview-face");
+    expect(face).not.toBeNull();
+    expect(face?.querySelector("svg")).not.toBeNull();
+  });
+});

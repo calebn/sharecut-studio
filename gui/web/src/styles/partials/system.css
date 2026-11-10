@@ -1324,9 +1324,11 @@ html[data-frame-short] .sys-header-project .sys-header-title {
   inline-size: 100%;
 }
 
-.sys-overview--seek.sys-overview--16,
-.sys-overview--seek.sys-overview--32 {
-  min-block-size: var(--touch-min);
+@media (pointer: coarse) {
+  .sys-overview--seek.sys-overview--16,
+  .sys-overview--seek.sys-overview--32 {
+    min-block-size: var(--touch-min);
+  }
 }
 
 .sys-overview--seek {
@@ -1335,6 +1337,10 @@ html[data-frame-short] .sys-header-project .sys-header-title {
 }
 
 .sys-overview--seek:focus-visible {
+  outline: none;
+}
+
+.sys-overview--seek:focus-visible > .sys-overview-face {
   outline: var(--focus-ring-width) solid var(--color-accent);
   outline-offset: calc(var(--focus-ring-width) * -1);
 }
