@@ -16,7 +16,7 @@ from fastapi.testclient import TestClient
 from model_pin_helpers import isolate_model_env
 from podcast_mcp.gui import job_events
 from podcast_mcp.gui.routes import sse_common
-from podcast_mcp.gui.schemas import GuestPipelineRunRequest, GuestRequest
+from podcast_mcp.gui.schemas import STEP_NAMES, GuestPipelineRunRequest, GuestRequest
 from podcast_mcp.gui.server import create_app
 from podcast_mcp.models import load_project, save_project
 from podcast_mcp.services.app import ProjectWorkspace
@@ -704,7 +704,7 @@ def test_the_editor_starts_a_run_and_gets_only_the_projection(runner) -> None:
         {"unattended": False},
         {"enabled_steps": ["ingest_tracks"]},
         {"overwrite_edited": True},
-        {"skip_steps": ["ingest_tracks"] * 25},
+        {"skip_steps": ["ingest_tracks"] * (len(STEP_NAMES) + 1)},
     ],
 )
 def test_the_run_body_refuses_what_only_the_host_may_send(runner, field) -> None:
