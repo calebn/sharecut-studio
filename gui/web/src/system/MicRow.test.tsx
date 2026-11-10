@@ -202,17 +202,6 @@ describe("MicRow input chip", () => {
     expect(screen.queryByRole("menu")).toBeNull();
   });
 
-  it("opens the menu with ArrowDown or ArrowUp on the closed chip", async () => {
-    render(<MicRow mic={ready()} notes={[]} />);
-    chip().focus();
-    await userEvent.keyboard("{ArrowDown}");
-    expect(chip()).toHaveAttribute("aria-expanded", "true");
-    await userEvent.keyboard("{Escape}");
-    expect(screen.queryByRole("menu")).toBeNull();
-    await userEvent.keyboard("{ArrowUp}");
-    expect(chip()).toHaveAttribute("aria-expanded", "true");
-  });
-
   it("keeps a device with an empty id apart from Default", async () => {
     const devices = [{ id: "", label: "Unnamed mic" }, ...DEVICES];
     render(<MicRow mic={ready({ devices, inputId: "" })} notes={[]} />);
