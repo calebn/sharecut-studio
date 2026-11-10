@@ -43,6 +43,7 @@ DISPATCHABLE = (
     "registry-backup-windows",
     "storybook",
     "promote",
+    "close-issues-on-develop",
 )
 WEEKLY_SCHEDULES = {
     "secret-scan": "17 5 * * 1",
