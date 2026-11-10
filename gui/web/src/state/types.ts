@@ -58,6 +58,8 @@ export interface ChromeFlags {
   helpDialogStep: HelpStep;
   /** Models sheet: every model, its state and download. */
   modelsSheetOpen: boolean;
+  /** Settings sheet: Appearance, Saved in, Models and Keyboard shortcuts. */
+  settingsSheetOpen: boolean;
   /** Transcript find/replace panel open. */
   transcriptFindReplaceOpen: boolean;
 }
@@ -561,6 +563,7 @@ export interface DawState {
   setHostMcpDialogOpen: (on: boolean) => void;
   setHelpDialogOpen: (on: boolean, step?: HelpStep) => void;
   setModelsSheetOpen: (on: boolean) => void;
+  setSettingsSheetOpen: (on: boolean) => void;
   setJoinMutationInFlight: (on: boolean) => void;
   setJoinDraft: (draft: ClipRow | null) => void;
   setRippleTrim: (trim: RippleTrim | null) => void;

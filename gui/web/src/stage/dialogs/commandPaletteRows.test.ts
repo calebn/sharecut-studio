@@ -28,6 +28,7 @@ describe("paletteCommands on Home", () => {
         "mcp.connect",
         "models.open",
         "project.open",
+        "settings.open",
       ].sort(),
     );
     expect(rows.filter((r) => r.disabledReason != null)).toEqual([]);

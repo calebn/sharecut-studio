@@ -22,7 +22,7 @@ const reloadPage = () => window.location.reload();
 /** The Project menu rows the header reports, and the command each one runs. Help opens its sheet at the three rows. */
 const MENU_COMMANDS: Record<string, string> = {
   projects: "project.home",
-  settings: "models.open",
+  settings: "settings.open",
   agent: "mcp.connect",
 };
 

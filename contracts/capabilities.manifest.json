@@ -2276,7 +2276,8 @@
         "command": "models.open",
         "gui": [
           "home.models",
-          "ModelsSheet"
+          "ModelsSheet",
+          "SettingsSheet"
         ],
         "cli": "podcast setup",
         "mcp": [
@@ -2289,6 +2290,31 @@
         "guest": true
       },
       "tooltip": "See every model and get the ones you want",
+      "presence": {
+        "cursor": "none",
+        "follow": "none"
+      }
+    },
+    {
+      "id": "daw.settings.open",
+      "label": "Settings\u2026",
+      "effect": "view",
+      "service": "Theme preference and project folder (browser storage, project reveal route)",
+      "industry_standard_key": false,
+      "gates": [
+        "canManageProjects"
+      ],
+      "surfaces": {
+        "command": "settings.open",
+        "gui": [
+          "SettingsSheet"
+        ]
+      },
+      "omit": {
+        "keyboard_reason": "sheet from the app menu (native Cmd+, is part b)",
+        "guest": true
+      },
+      "tooltip": "Appearance, where this project is saved, models and keyboard shortcuts",
       "presence": {
         "cursor": "none",
         "follow": "none"

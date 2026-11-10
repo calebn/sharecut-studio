@@ -802,6 +802,25 @@ export const COMMANDS: Record<string, CommandDef> = {
     notes:
       "Host-only sheet listing every model by what it does, with its state, size and a Get",
   },
+  "settings.open": {
+    id: "settings.open",
+    category: "ui",
+    label: "Settings…",
+    keywords: [
+      "preferences",
+      "appearance",
+      "theme",
+      "dark",
+      "light",
+      "saved in",
+      "folder",
+      "reveal",
+    ],
+    home: true,
+    when: "canManageProjects",
+    notes:
+      "Host-only sheet from the app menu: Appearance, Saved in, Models and Keyboard shortcuts",
+  },
   "export.deliverables": {
     id: "export.deliverables",
     category: "ui",

@@ -377,6 +377,11 @@ export const CAPABILITY_COPY: Record<string, CapabilityCopy> = {
     label: "Manage models…",
     tooltip: "See every model and get the ones you want",
   },
+  "daw.settings.open": {
+    label: "Settings…",
+    tooltip:
+      "Appearance, where this project is saved, models and keyboard shortcuts",
+  },
   "daw.export.deliverables": {
     label: "Export deliverables…",
     tooltip: "Export deliverables…",
@@ -660,6 +665,7 @@ export const GUI_SURFACE_TO_CAPABILITY: Record<string, string> = {
   HelpDialog: "daw.help.diagnosticsBundle",
   "home.models": "daw.models.open",
   ModelsSheet: "daw.models.open",
+  SettingsSheet: "daw.settings.open",
   deliverStage: "daw.export.deliverables",
   deliverTranscript: "daw.export.transcript",
   projectMenu: "daw.project.home",

@@ -254,6 +254,15 @@ export function registerHostCommands(): void {
     return { status: "ok" };
   });
 
+  registerCommand("settings.open", () => {
+    const s = useDawStore.getState();
+    if (!canManageProjects(s.projectPath)) {
+      return { status: "disabled", reason: "Settings is host-only" };
+    }
+    s.setSettingsSheetOpen(true);
+    return { status: "ok" };
+  });
+
   registerCommand("share.manage", (args, ctx) => {
     const blocked = hostProjectGate(ctx) ?? shareFeatureGate("Invite");
     if (blocked) {
