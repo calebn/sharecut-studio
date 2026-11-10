@@ -198,6 +198,21 @@ def test_non_ascii_digits_do_not_close_anything() -> None:
         "**close** #12.",
         "**Fixes:** #12",
         "__Fixes__ #12",
+        "__Fixes #12",
+        "__closes calebn/sharecut-studio#7",
+        "**Fixes #12",
+        "Fixes #12**",
+        "Refs #5\n\nFixes #5",
+        "Towards #5\n\nFixes #5",
+        "Step 2 of #5\n\nFixes #5",
+        "Partial #5\n\nFixes #5",
+        "Part 1 of #5\n\nFixes #5",
+        "Part of GH-5\n\nFixes #5",
+        "Part of https://github.com/calebn/sharecut-studio/issues/5\n\nFixes #5",
+        "Part of https://github.com/calebn/sharecut-studio/pull/5\n\nFixes #5",
+        "a/b/c#5 refs\nFixes #5",
+        "1234567890. Fixes #5",
+        "<!-- \n\n Fixes calebn/sharecut-studio#7\n",
         "Fixes #5\nDoes not close #5",
         "Fixes #5\nStill open: #5",
         "Fixes #5\r\nMore",
@@ -217,6 +232,7 @@ def test_partial_negated_and_inline_mentions_close_nothing(body: str) -> None:
         "* Fixes #5.",
         "1. Closes: #5",
         "**Fixes #5**",
+        "Fixes #5\n\nxPart of #5",
         "  Fixes #5,",
         "## Why\n\nFixes #5\n\nMore",
         "Fixes #5\r\n\r\nMore",
@@ -229,11 +245,19 @@ def test_line_start_and_bullet_forms_close(body: str) -> None:
     assert cod.closing_refs(body, REPO) == {5}
 
 
+def test_issue_numbers_are_capped_at_nine_digits() -> None:
+    assert cod.closing_refs("Fixes #" + "9" * 5000, REPO) == set()
+    assert cod.closing_refs("Fixes #123456789", REPO) == {123456789}
+    assert cod.closing_refs("Fixes #1234567890", REPO) == set()
+
+
 def test_a_bold_marker_wraps_the_whole_keyword_line_only() -> None:
     assert cod.closing_refs("**Fixes #12**", REPO) == {12}
     assert cod.closing_refs("**Fixes** #12", REPO) == set()
     assert cod.closing_refs("**close** #12.", REPO) == set()
     assert cod.closing_refs("**Fixes:** #12", REPO) == set()
+    assert cod.closing_refs("**Fixes #12", REPO) == set()
+    assert cod.closing_refs("Fixes #12**", REPO) == set()
 
 
 @pytest.mark.parametrize(

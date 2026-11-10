@@ -27,14 +27,14 @@ import branches
 
 GH_TIMEOUT_SECONDS = 60
 OPT_OUT_LABELS = frozenset({"needs-user-input", "owner-check"})
-_MARK = r"(?:\*\*|__)?"
 _BULLET = r"(?:[-*+]|\d{1,9}[.)])[ \t]+"
 _CLOSING = re.compile(
-    rf"^[ \t]*(?:{_BULLET})?{_MARK}(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?)\b:?[ \t]+"
-    r"(?:(?P<repo>[\w.-]{1,100}/[\w.-]{1,100}))?#(?P<num>\d+)\b(?P<rest>.*)$",
+    rf"^[ \t]*(?:{_BULLET})?(?P<bold>\*\*)?(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?)\b:?[ \t]+"
+    r"(?:(?P<repo>[\w.-]{1,100}/[\w.-]{1,100}))?#(?P<num>\d{1,9})\b(?P<rest>.*)$",
     re.IGNORECASE | re.ASCII,
 )
-_CLOSING_TAIL = re.compile(r"[\s.,;:!)*_]*")
+_CLOSING_TAIL = re.compile(r"[\s.,;:!)_]*")
+_CLOSING_TAIL_BOLD = re.compile(r"[\s.,;:!)_]*\*\*[\s.,;:!)_]*")
 _BULLET_LINE = re.compile(rf"^[ \t]*{_BULLET}")
 _PARTIAL = re.compile(
     r"\b(?:part(?:[ \t-]+\d+)?[ \t-]+of|step[ \t-]+\d+[ \t-]+of|partial(?:ly)?|partly|towards?"
@@ -43,11 +43,12 @@ _PARTIAL = re.compile(
 )
 _ISSUE_REFS = (
     re.compile(
-        r"(?<![\w/])(?:(?<![.-])(?P<repo>[\w.-]{1,100}/[\w.-]{1,100}))?#(?P<num>\d+)\b", re.ASCII
+        r"(?<![\w/])(?:(?<![.-])(?P<repo>[\w.-]{1,100}/[\w.-]{1,100}))?#(?P<num>\d{1,9})\b",
+        re.ASCII,
     ),
-    re.compile(r"\bGH-(?P<num>\d+)\b", re.IGNORECASE | re.ASCII),
+    re.compile(r"\bGH-(?P<num>\d{1,9})\b", re.IGNORECASE | re.ASCII),
     re.compile(
-        r"https?://github\.com/(?P<repo>[\w.-]{1,100}/[\w.-]{1,100})/(?:issues|pull)/(?P<num>\d+)\b",
+        r"https?://github\.com/(?P<repo>[\w.-]{1,100}/[\w.-]{1,100})/(?:issues|pull)/(?P<num>\d{1,9})\b",
         re.IGNORECASE | re.ASCII,
     ),
 )
@@ -137,7 +138,8 @@ def _scan_block(lines: Sequence[str], repo: str, found: set[int], partial: set[i
         match = None if indented else _CLOSING.match(line)
         if match:
             kind = "chain"
-            if _CLOSING_TAIL.fullmatch(match["rest"]) and _same_repo(match["repo"], repo):
+            tail = _CLOSING_TAIL_BOLD if match["bold"] else _CLOSING_TAIL
+            if tail.fullmatch(match["rest"]) and _same_repo(match["repo"], repo):
                 number = int(match["num"])
         elif not indented and (_BULLET_LINE.match(line) or (has_phrase and mentions)):
             kind = "chain"
