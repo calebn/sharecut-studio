@@ -266,6 +266,10 @@ head still lands without a refetch (`document/projectionDelta.ts`). Its click se
 first, the server refuses and the toast says "Can't undo: the project changed since.
 Nothing was undone." The reply, not the tab's store after the await, names the entry,
 because a peer's edit can reach the store while the command is in flight.
+A merged toast ("3 cuts", "Undo all") holds its entries newest first and sends one
+`UndoHistory` per entry, each guarded by that entry's `expected_head_id`. It stops
+at the first refusal and says how far it got ("Undid 1 of 3."). The edits stay
+separate History steps, so Redo takes one press per edit.
 Every mutating command in the catalog (`CommandDef.mutates`) binds its toast this way: delete, cut, paste, trim, fade, nudge saves, chapter add and envelope point add read the head from their API wrapper's return. `commands/undoToast.test.ts` fails on a flagged command with no proof. A change History does not record (a comment resolve) passes `reverse` and the toast's Undo runs it.
 Clip moves use this same reply-bound Undo, including a group moved from
 the Start Scrub field. `moveClips` returns `HistoryEntryId | null` through `replyHistoryHead`.
