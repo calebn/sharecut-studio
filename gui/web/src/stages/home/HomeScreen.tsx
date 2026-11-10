@@ -493,9 +493,9 @@ export function HomeScreen() {
           dismissHomeScreenHint();
           setHintShown(false);
         }}
-        onHelp={() => setHelpDialogOpen(true, "menu")}
-        onModels={() => setModelsSheetOpen(true)}
+        onSettings={() => setModelsSheetOpen(true)}
         onConnectAgent={() => setHostMcpDialogOpen(true)}
+        onHelp={() => setHelpDialogOpen(true, "menu")}
       />
       <CommandPalette scope="home" />
       <HostMcpDialog

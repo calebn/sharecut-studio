@@ -7,6 +7,7 @@ import {
   useRef,
   useState,
 } from "react";
+import { AppMenuItems, type AppMenuRow } from "../../system/AppMenuItems";
 import { Card } from "../../system/Card";
 import { DropOverlay } from "../../system/DropOverlay";
 import {
@@ -21,7 +22,6 @@ import {
   Button,
   InlineError,
   Menu,
-  MenuItem,
   useResizeObserver,
 } from "../../ui";
 import { OpenOther, type OpenOtherProps } from "./OpenOther";
@@ -64,11 +64,10 @@ export type HomeViewProps = {
   onRetrySetup: () => void;
   onDismissSetup: () => void;
   onDismissHint: () => void;
-  onHelp: () => void;
-  onModels: () => void;
+  /** The app menu rows. */
+  onSettings: () => void;
   onConnectAgent: () => void;
-  /** Left out while there is no settings surface: the menu then has no Settings row. */
-  onSettings?: () => void;
+  onHelp: () => void;
   /** The path form of Open other, for a browser with no OS folder picker. Default: the picker. */
   openOther?: Omit<OpenOtherProps, "onChooseFolder">;
   /** A refusal in plain words with its fix, under the Recent heading. */
@@ -126,68 +125,45 @@ function ShareGlyph() {
   );
 }
 
+/** Home's app menu: the wordmark opens Settings, Connect agent and Help, as the Project menu does in a project. */
 function HomeHeader({
-  onHelp,
-  onModels,
-  onConnectAgent,
   onSettings,
-}: Pick<
-  HomeViewProps,
-  "onHelp" | "onModels" | "onConnectAgent" | "onSettings"
->) {
+  onConnectAgent,
+  onHelp,
+}: Pick<HomeViewProps, "onSettings" | "onConnectAgent" | "onHelp">) {
   const [open, setOpen] = useState(false);
-  const pick = (run: () => void) => () => {
-    setOpen(false);
-    run();
+  const rows: Record<AppMenuRow, () => void> = {
+    settings: onSettings,
+    agent: onConnectAgent,
+    help: onHelp,
   };
   return (
     <header className="sys-home-header">
-      <h1 className="sys-home-wordmark">
-        <BrandLockup name="ShareCut" className="sys-home-lockup" />
-      </h1>
-      <div className="sys-home-header-actions">
-        <button
-          type="button"
-          className="sys-icon-btn"
-          aria-label="Help"
-          title="Help"
-          onClick={onHelp}
-        >
-          <SystemIcon name="circle-help" size={16} />
-        </button>
-        <Menu
-          open={open}
-          onOpenChange={setOpen}
-          label="More"
-          className="ui-menu-root sys-menu sys-header-menu"
-          trigger={(props) => (
-            <button
-              type="button"
-              className="sys-icon-btn"
-              aria-label="More"
-              title="More"
-              {...props}
-            >
-              <SystemIcon name="ellipsis" size={16} />
-            </button>
-          )}
-        >
-          <MenuItem onSelect={pick(onModels)}>
-            <SystemIcon name="download" size={16} />
-            Models
-          </MenuItem>
-          <MenuItem onSelect={pick(onConnectAgent)}>
-            <SystemIcon name="plug" size={16} />
-            Connect agent
-          </MenuItem>
-          {onSettings ? (
-            <MenuItem onSelect={pick(onSettings)}>
-              <SystemIcon name="settings" size={16} />
-              Settings
-            </MenuItem>
-          ) : null}
-        </Menu>
-      </div>
+      <h1 className="sr-only">ShareCut</h1>
+      <Menu
+        open={open}
+        onOpenChange={setOpen}
+        label="App menu"
+        className="ui-menu-root sys-menu sys-header-menu"
+        trigger={(props) => (
+          <button
+            type="button"
+            className="sys-home-menu"
+            data-app-menu
+            {...props}
+          >
+            <BrandLockup name="ShareCut" className="sys-home-lockup" />
+            <SystemIcon name="chevron-down" size={16} />
+          </button>
+        )}
+      >
+        <AppMenuItems
+          onSelect={(row) => {
+            setOpen(false);
+            rows[row]();
+          }}
+        />
+      </Menu>
     </header>
   );
 }
@@ -221,10 +197,9 @@ export function HomeView({
   onRetrySetup,
   onDismissSetup,
   onDismissHint,
-  onHelp,
-  onModels,
-  onConnectAgent,
   onSettings,
+  onConnectAgent,
+  onHelp,
   openOther = NO_OPEN_OTHER,
   notice,
   working,
@@ -306,10 +281,9 @@ export function HomeView({
     >
       <div className="sys-home-column">
         <HomeHeader
-          onHelp={onHelp}
-          onModels={onModels}
-          onConnectAgent={onConnectAgent}
           onSettings={onSettings}
+          onConnectAgent={onConnectAgent}
+          onHelp={onHelp}
         />
         <main className="sys-home-main">
           {narrow ? null : <div className="sys-home-tiles">{tiles}</div>}

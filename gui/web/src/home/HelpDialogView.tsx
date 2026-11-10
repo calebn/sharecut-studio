@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { type RefObject, useEffect, useRef, useState } from "react";
 import type { DiagnosticsBundleResult } from "../api";
 import type { HelpStep } from "../state/types";
 import type { SystemIconName } from "../system/icons";
@@ -10,6 +10,8 @@ export type { HelpStep };
 
 export type HelpDialogViewProps = {
   open: boolean;
+  /** Desktop: the app menu button Help sits under as a popover. Left out, a sheet. */
+  anchorRef?: RefObject<HTMLElement | null>;
   onClose: () => void;
   step: HelpStep;
   onStepChange: (step: HelpStep) => void;
@@ -34,6 +36,7 @@ export type HelpDialogViewProps = {
 
 export function HelpDialogView({
   open,
+  anchorRef,
   onClose,
   step,
   onStepChange,
@@ -58,12 +61,17 @@ export function HelpDialogView({
   const reportRowRef = useRef<HTMLButtonElement>(null);
   const createRef = useRef<HTMLButtonElement>(null);
   const seen = useRef({ open, step });
+  const [shown, setShown] = useState({ open, step, changed: false });
+  if (shown.open !== open || shown.step !== step) {
+    setShown({ open, step, changed: open && shown.open });
+  }
   useEffect(() => {
     const prev = seen.current;
     seen.current = { open, step };
     if (!open || !prev.open || prev.step === step) return;
     (step === "report" ? createRef : reportRowRef).current?.focus();
   }, [open, step]);
+  const title = step === "menu" ? "Help" : "Export diagnostics";
 
   const rows: {
     label: string;
@@ -89,56 +97,55 @@ export function HelpDialogView({
     },
   ];
 
-  return (
-    <Dialog
-      open={open}
-      onClose={onClose}
-      title={step === "menu" ? "Help" : "Export diagnostics"}
-      panelClassName="help-sheet-panel"
-      footer={
-        step === "menu" ? undefined : (
-          <div className="share-dialog-actions">
-            <Button
-              variant="default"
-              type="button"
-              onClick={() => onStepChange("menu")}
-            >
-              Back
-            </Button>
-            <Button
-              ref={createRef}
-              variant={bundle ? "default" : "primary"}
-              type="button"
-              disabledReason={busy ? BUSY_REASON : undefined}
-              aria-busy={busy || undefined}
-              onClick={onCreate}
-            >
-              {busy ? "Exporting…" : "Export"}
-            </Button>
-            {reportAvailable && bundle ? (
-              <Button
-                variant="primary"
-                type="button"
-                disabledReason={
-                  busy
-                    ? BUSY_REASON
-                    : submitted
-                      ? "This report is already submitted."
-                      : description.trim().length < 10
-                        ? "Describe the problem in at least 10 characters to submit."
-                        : !consent
-                          ? "Agree to the upload to submit."
-                          : undefined
-                }
-                onClick={onSubmit}
-              >
-                {busy ? "Submitting…" : "Submit report"}
-              </Button>
-            ) : null}
-          </div>
-        )
-      }
-    >
+  const back =
+    step === "menu" ? undefined : (
+      <button
+        type="button"
+        className="sys-icon-btn"
+        aria-label="Back"
+        title="Back"
+        onClick={() => onStepChange("menu")}
+      >
+        <SystemIcon name="chevron-left" size={16} />
+      </button>
+    );
+  const footer =
+    step === "menu" ? undefined : (
+      <div className="share-dialog-actions">
+        <Button
+          ref={createRef}
+          variant={bundle ? "default" : "primary"}
+          type="button"
+          disabledReason={busy ? BUSY_REASON : undefined}
+          aria-busy={busy || undefined}
+          onClick={onCreate}
+        >
+          {busy ? "Exporting…" : "Export"}
+        </Button>
+        {reportAvailable && bundle ? (
+          <Button
+            variant="primary"
+            type="button"
+            disabledReason={
+              busy
+                ? BUSY_REASON
+                : submitted
+                  ? "This report is already submitted."
+                  : description.trim().length < 10
+                    ? "Describe the problem in at least 10 characters to submit."
+                    : !consent
+                      ? "Agree to the upload to submit."
+                      : undefined
+            }
+            onClick={onSubmit}
+          >
+            {busy ? "Submitting…" : "Submit report"}
+          </Button>
+        ) : null}
+      </div>
+    );
+  const body = (
+    <>
       {step === "menu" ? (
         <ul className="help-sheet-rows" aria-label="Help">
           {rows.map((row) => (
@@ -251,6 +258,32 @@ export function HelpDialogView({
           </div>
         </div>
       )}
+      <p className="sr-only" role="status">
+        {shown.changed ? title : ""}
+      </p>
+    </>
+  );
+  const frame = {
+    open,
+    onClose,
+    title,
+    panelClassName: "help-sheet-panel",
+    headerStart: back,
+    footer,
+  };
+
+  return anchorRef ? (
+    <Dialog
+      {...frame}
+      anchor={{
+        reason:
+          "On desktop Help is a popover under the app menu button that opened it (DLG-HELP).",
+        ref: anchorRef,
+      }}
+    >
+      {body}
     </Dialog>
+  ) : (
+    <Dialog {...frame}>{body}</Dialog>
   );
 }

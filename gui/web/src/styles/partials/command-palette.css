@@ -56,6 +56,13 @@
   margin-bottom: var(--space-3);
 }
 
+.command-palette-heading {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-inline-size: 0;
+}
+
 .command-palette-body {
   display: flex;
   flex-direction: column;

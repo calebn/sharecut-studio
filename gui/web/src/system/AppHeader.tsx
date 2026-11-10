@@ -13,6 +13,7 @@ import {
   useOutsidePointerDown,
   useResizeObserver,
 } from "../ui";
+import { AppMenuItems } from "./AppMenuItems";
 import { type CoachHint, CoachTip } from "./CoachTip";
 import type { SystemIconName } from "./icons";
 import { type LinkRole, ROLES } from "./linkRoles";
@@ -268,6 +269,7 @@ function ProjectMenu({
           <button
             type="button"
             className="sys-header-project"
+            data-app-menu
             {...props}
             ref={(node) => {
               ref.current = node;
@@ -314,15 +316,7 @@ function ProjectMenu({
           </MenuItem>
         ) : null}
         {people}
-        <MenuItem onSelect={run("settings")}>
-          <Row icon="settings">Settings</Row>
-        </MenuItem>
-        <MenuItem onSelect={run("agent")}>
-          <Row icon="plug">Connect agent</Row>
-        </MenuItem>
-        <MenuItem onSelect={run("help")}>
-          <Row icon="circle-help">Help</Row>
-        </MenuItem>
+        <AppMenuItems onSelect={(row) => run(row)()} />
         {appearance ? <AppearanceSection {...appearance} /> : null}
       </Menu>
       {onRename ? (

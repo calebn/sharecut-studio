@@ -151,7 +151,9 @@ There are three overlay primitives.
 2. **Sheets have three zones** on phone: a header with the title and Close, a
    scrolling body, and a footer with the primary and secondary actions
    ([`docs/gui-mobile.md` § Selection sheet: three zones](gui-mobile.md#selection-sheet-three-zones)).
-   Doing controls never sit in the top zone.
+   Doing controls never sit in the top zone. A pushed step's Back is
+   navigation, not doing: it sits before the title (`Dialog` `headerStart`,
+   the Help sheet's report step).
 3. **One gate for shortcuts.** `overlayOpen()` in `ui/modalGate.ts` is the
    only predicate. While a menu is open the keymap runs nothing; while a
    dialog is open it runs only the handoff list the dialog declared with
