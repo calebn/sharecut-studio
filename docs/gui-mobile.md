@@ -430,8 +430,8 @@ sending." without Undo. A refused structural edit does not announce
 approval before the decision completes; confirmed approval then uses the same
 result feedback and guarded Undo.
 
-The app toast (`feedback/FeedbackToast`) has one message, optional guarded Undo,
-and explicit Dismiss. Compact composition puts its host first inside the same
+The app toast (`feedback/FeedbackToast`) has one message, optional guarded Undo
+("Undo all" when folded edits share the toast), and explicit Dismiss. Compact composition puts its host first inside the same
 scrolling body as the fields. The pinned header stays outside that scroller.
 The compact half and full detents keep the same outer height with or without
 feedback. Dismiss removes the card without changing the detent height or lane

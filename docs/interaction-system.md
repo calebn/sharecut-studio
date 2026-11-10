@@ -303,7 +303,16 @@ A touch user sees each gesture hint once, at the moment of first need.
    the clip.
 
 The owner can still narrow the Undo tip to the first Cut by changing
-`undoTipMoment` once a toast carries a `kind`.
+`undoTipMoment`; toasts now carry a `kind`.
+
+Back-to-back plain edits of one kind (cut, delete, split) fold into one toast.
+A producer passes `kind` to `announceStatus`, and `mergedEdits` in
+`state/uiSlice.ts` (called from `feedbackPatch`) folds the new edit into the
+standing toast when both are status toasts of that kind, the new edit follows
+the standing one in History, and neither carries an action, a gesture or a
+`reverse`. The same entry never folds twice, and the 25th edit is the last: the
+next one starts a new toast. A fresh toast id restarts the Undo lifetime. The
+live region speaks the new edit's own message; the visible text is the count.
 
 ## Keyboard and touch equivalents
 
