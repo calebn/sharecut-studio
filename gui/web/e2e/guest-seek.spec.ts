@@ -73,7 +73,6 @@ async function withGuest(
 ): Promise<void> {
   await withShareableProject(async (projectPath) => {
     if (options.tone) {
-      // The review version freezes the premix when the share is created.
       fs.writeFileSync(
         path.join(path.dirname(projectPath), "artifacts", "premix.wav"),
         steppedToneWav(),
