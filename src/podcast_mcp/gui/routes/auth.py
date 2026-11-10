@@ -228,14 +228,16 @@ def auth_password_register(body: PasswordRegisterRequest, response: Response) ->
         raise coded_http_error(
             400, "password must be at least 8 characters", code="password_too_short"
         )
-    user = store.create_or_get_email_user(
+    user, ok = store.register_email_password(
         body.email,
-        password=body.password,
+        body.password,
         display_name=body.display_name,
     )
-    # If the email already had a different password, create_or_get updates it -
-    # acceptable for host-local identity store.
-    session = store.create_session(user["id"])
+    session = store.create_registration_session(user["id"]) if ok else None
+    if session is None:
+        raise coded_http_error(
+            409, "an account with this email already exists", code="account_exists"
+        )
     _set_session_cookie(response, session)
     return {"user": store.get_user(user["id"]), "session": session}
 
