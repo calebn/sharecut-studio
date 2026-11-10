@@ -30,7 +30,6 @@ import { useFrameHeaderBoundary } from "./useFrameHeaderBoundary";
 import { useHeaderProps } from "./useHeaderProps";
 import { useShellAttributes } from "./useShellAttributes";
 import { useShortFrame } from "./useShortFrame";
-import { useStageBarProps } from "./useStageBarProps";
 
 export type StageFrameProps = {
   guestShare?: boolean;
@@ -60,7 +59,6 @@ function StageFrameAdapter({
   );
   useAnnounceStageSwitch(stage);
   const headerProps = useHeaderProps();
-  const stageBar = useStageBarProps();
   const rootRef = useRef<HTMLDivElement>(null);
   usePresenceCursorSource(rootRef);
   const shortFrame = useShortFrame(rootRef);
@@ -133,8 +131,12 @@ function StageFrameAdapter({
         )
       }
       tabs={
-        shell === "phone" && stageBar ? (
-          <StageBar {...stageBar} form="tabs" panelId={STAGE_BODY_ID} />
+        shell === "phone" && headerProps.stages ? (
+          <StageBar
+            {...headerProps.stages}
+            form="tabs"
+            panelId={STAGE_BODY_ID}
+          />
         ) : null
       }
       sheet={<SheetHost content={sheets} />}
