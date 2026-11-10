@@ -1296,6 +1296,18 @@ def test_register_claims_invited_passwordless_email(identity_store: ShareIdentit
     assert login.status_code == 200
 
 
+def test_register_verified_passwordless_account_is_conflict(
+    identity_store: ShareIdentityStore,
+) -> None:
+    identity_store.create_or_get_email_user("oidc@ex.com", email_verified=True)
+    reg = TestClient(create_app()).post(
+        "/auth/password/register", json={"email": "oidc@ex.com", "password": "password1"}
+    )
+    assert reg.status_code == 409
+    assert reg.headers["X-Sharecut-Error-Code"] == "account_exists"
+    assert identity_store.verify_email_password("oidc@ex.com", "password1") is None
+
+
 def test_register_concurrent_passwordless_single_winner(
     identity_store: ShareIdentityStore,
 ) -> None:
