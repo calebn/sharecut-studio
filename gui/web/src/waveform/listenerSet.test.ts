@@ -12,6 +12,7 @@ describe("listenerSet", () => {
     emit(8);
     expect(listener).toHaveBeenCalledTimes(1);
   });
+
   it("passes emit args to every listener, and unsubscribes", () => {
     const l = listenerSet<[string, number]>();
     const a = vi.fn();
