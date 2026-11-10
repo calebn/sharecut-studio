@@ -8,7 +8,6 @@ import { Button, InlineError } from "../ui";
 import { BUSY_REASON } from "../ui/disabledReason";
 
 export type SettingsSavedIn = {
-  /** The folder that holds the project file. */
   folder: string;
   /** Left out where the file manager cannot be opened (the browser). */
   onReveal?: () => void;
