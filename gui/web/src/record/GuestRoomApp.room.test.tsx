@@ -415,9 +415,11 @@ describe("GuestRoomApp in the room", () => {
       expect(screen.queryByRole("dialog", { name: "Devices" })).toBeNull();
       await userEvent.click(screen.getByRole("button", { name: "Devices" }));
       const dialog = await screen.findByRole("dialog", { name: "Devices" });
-      await userEvent.selectOptions(
-        within(dialog).getByLabelText("Input"),
-        "b",
+      await userEvent.click(
+        within(dialog).getByRole("button", { name: /^Input:/ }),
+      );
+      await userEvent.click(
+        screen.getByRole("menuitemradio", { name: "Headset" }),
       );
       expect(room.setDeviceId).toHaveBeenCalledWith("b");
       await userEvent.click(
@@ -468,7 +470,9 @@ describe("GuestRoomApp in the room", () => {
       render(<GuestRoomApp token="t" />);
       await userEvent.click(screen.getByRole("button", { name: "Devices" }));
       const dialog = await screen.findByRole("dialog", { name: "Devices" });
-      expect(within(dialog).getByLabelText("Input")).toBeDisabled();
+      expect(
+        within(dialog).getByRole("button", { name: /^Input:/ }),
+      ).toBeDisabled();
       const tone = within(dialog).getByRole("button", {
         name: "Record 1 minute of room tone",
       });
@@ -491,7 +495,7 @@ describe("GuestRoomApp in the room", () => {
       const { rerender } = render(<GuestRoomApp token="t" />);
       await userEvent.click(screen.getByRole("button", { name: "Devices" }));
       const dialog = await screen.findByRole("dialog", { name: "Devices" });
-      const select = within(dialog).getByLabelText("Input");
+      const select = within(dialog).getByRole("button", { name: /^Input:/ });
       select.focus();
       fakeRoom({
         snapshot: { state: "lobby", take_index: -1 },
@@ -506,7 +510,9 @@ describe("GuestRoomApp in the room", () => {
       });
       rerender(<GuestRoomApp token="t" />);
       const open = screen.getByRole("dialog", { name: "Devices" });
-      expect(within(open).getByLabelText("Input")).toBe(select);
+      expect(within(open).getByRole("button", { name: /^Input:/ })).toBe(
+        select,
+      );
       expect(select).toHaveFocus();
       expect(
         within(open).queryByRole("button", { name: "Allow microphone" }),
