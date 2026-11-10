@@ -53,7 +53,7 @@ export function InlineEdit({
     el.setSelectionRange(el.value.length, el.value.length);
   }, [focusOnMount]);
   const commit = () => {
-    if (text !== value) onCommit(text);
+    if (!readOnly && text !== value) onCommit(text);
   };
   const leave = useEffectEvent(() => {
     if (!ended.current) commit();
@@ -67,6 +67,7 @@ export function InlineEdit({
     setText(next);
   };
   const keys = (event: React.KeyboardEvent) => {
+    if (readOnly) return;
     if (event.key === "Escape") {
       if (text !== value) event.preventDefault();
       ended.current = true;
@@ -100,7 +101,7 @@ export function InlineEdit({
       ended.current = false;
     },
     onBlur: () => {
-      if (ended.current) return;
+      if (readOnly || ended.current) return;
       commit();
       onEnd?.("blur");
     },

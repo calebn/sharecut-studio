@@ -17,7 +17,7 @@ export function useProjectMutation(): {
   projectPath: string;
 } {
   const { projectPath } = useDaw((s) => ({ projectPath: s.projectPath }));
-  const [busy, setBusy] = useState(false);
+  const [pending, setPending] = useState(0);
   const [error, setErrorState] = useState<string | null>(null);
   const [errorCode, setErrorCode] = useState<string | null>(null);
 
@@ -33,7 +33,7 @@ export function useProjectMutation(): {
 
   const run = useCallback(
     async <T>(fn: () => Promise<T>): Promise<T | undefined> => {
-      setBusy(true);
+      setPending((n) => n + 1);
       setError(null);
       try {
         return await fn();
@@ -42,11 +42,19 @@ export function useProjectMutation(): {
         setErrorCode(e instanceof ApiError ? e.code : null);
         return undefined;
       } finally {
-        setBusy(false);
+        setPending((n) => n - 1);
       }
     },
     [setError],
   );
 
-  return { busy, error, errorCode, setError, run, refresh, projectPath };
+  return {
+    busy: pending > 0,
+    error,
+    errorCode,
+    setError,
+    run,
+    refresh,
+    projectPath,
+  };
 }
