@@ -202,19 +202,22 @@ A keyword counts only when the line is the keyword and one issue, so write one c
 - `**Fixes #123**` (the bold marker must wrap the whole line).
 - `Fixes calebn/sharecut-studio#123`.
 - Two issues, two lines: `Fixes #12` then `Fixes #13`, or two bullets.
-- `Fixes #123 (beta:blocker).` A short parenthetical label (one pair of parentheses, at most 40 characters) after the number is fine, as long as it has no partial word (`partial`, `partly`, `part`, `item(s)`, `not`, `only`, `except`, `but`, `until`, `after`, `once`, `if`, `when`, `still`, `some`, `half`). Only after such a label may the line go on with `.`, `;`, `:` or `!` and prose: `Fixes #123 (beta:blocker). The spec failed because ...`.
+- `Fixes #123 (beta:blocker).` One short label (one pair of parentheses, at most 40 characters) may follow the number. After a `.`, `;`, `:` or `!` the line may go on with prose: `Fixes #123 (beta:blocker). The spec failed because ...`.
 - An explanation goes after a blank line: `Fixes #123`, blank line, `Beta blocker.` still closes #123.
 
 **Not like this (closes nothing):**
 
-- `Fixes #123 (only the first half)`, `Fixes #123 (items 1-4)`, `Fixes #123 (partly)`, `Fixes #123 (a)(b)` and a label over 40 characters. A parenthetical with a partial word, a second parenthesis or a long text closes nothing.
-- `Fixes #123 items 1-4`, `Fixes #12 and #13`, `Fixes #12, closes #13` and `Fixes #123. Not the second half.` Without a parenthetical label, anything after the number but punctuation, and two keywords on one line, close nothing.
+- Limiting words in the label or in prose after it: `partial(ly)`, `partly`, `part`, `item(s)`, `not`, `only`, `except`, `but`, `until`, `after`, `once`, `if`, `when`, `still`, `some`, `half`, `other`, `rest`, `remaining`, `follow-up`, `deferred`, `later`, `too`, `also`, `then`, `next`, `first`, `second`. `Fixes #123 (only the first half)`, `Fixes #123 (J4). Only the first half` and `Fixes #123 (J4); the other half is deferred` close nothing.
+- An issue reference after the label: `Fixes #123 (J4). Remaining work tracked in #9.`
+- A second parenthesis or a label over 40 characters: `Fixes #123 (a)(b)`.
+- Anything after the number but punctuation and a label: `Fixes #123 items 1-4`, `Fixes #123. Not the second half.`, `Fixes #12 and #13`, `Fixes #12, closes #13`. Two keywords on one line close nothing.
 - A keyword mid-sentence: `This does not fix #5`.
 - `Fixes #5` directly followed or preceded by a prose line with no blank line between (it is treated as partial).
 - `Part of #5` or `Refs #5` anywhere in the body for the same issue. This also covers `Relates to`, `Related to`, `Toward(s)`, `Partial(ly)`, `Partly`, `Step N of` and `References`, as `#N`, `GH-N`, `calebn/sharecut-studio#N` or an issue URL; they cancel only issues of this repository.
 - `Fixes` inside fenced or inline code, a quote, an HTML comment, a checkbox line (`- [x] Fixes #5`), or indented 4+ spaces (or a tab).
+- Malformed markers and numbers: `**Fixes** #5`, `**Fixes #5`, `Fixes #5**`, `__Fixes #5__` and an issue number over 9 digits.
 
-Other repositories, pull request numbers and closed issues are also skipped. Details that are easy to trip on: `**Fixes** #5`, `**Fixes #5` and `Fixes #5**` close nothing, `__` is not accepted, and an issue number has at most 9 digits.
+Other repositories, pull request numbers and closed issues are also skipped.
 
 - **Opt-out labels:** an issue labelled `needs-user-input` or `owner-check` stays open. Put `owner-check` on an issue that needs the owner's confirmation before it closes.
 - **Failures:** one failing issue does not stop the others; the run then fails with an `::error::` line per issue.
