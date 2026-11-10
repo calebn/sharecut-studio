@@ -383,8 +383,9 @@ test("pending review: inline Approve and Reject stay reachable after 720 to 360 
   await inspectSelectionByKey(page);
 
   const inspector = page
-    .getByRole("dialog")
-    .and(page.locator(".sys-inspector--card, .sys-inspector-takeover"))
+    .locator(
+      '[role="dialog"].sys-inspector--card, [role="dialog"]:has(.sys-inspector-takeover)',
+    )
     .locator(INSPECTOR_SCROLL)
     .filter({ has: page.locator(".modifier-inspector") });
   await expect(inspector).toBeAttached();
