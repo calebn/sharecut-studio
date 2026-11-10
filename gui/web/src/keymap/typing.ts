@@ -48,18 +48,21 @@ export function isScrubValue(el: EventTarget | null): boolean {
   return el instanceof HTMLElement && el.matches('[role="spinbutton"]');
 }
 
-const ARROWS = new Set(["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"]);
+const VERTICAL_ARROWS = new Set(["ArrowUp", "ArrowDown"]);
+const ARROWS = new Set([...VERTICAL_ARROWS, "ArrowLeft", "ArrowRight"]);
 
 /**
- * A choice control owns the bare arrow keys: a radio, and a segment of a
- * SegmentedControl. The arrows there pick or move among the choices, so the
- * window keymap must not run Move track or a playhead nudge from them.
+ * A focused choice control keeps the bare arrow keys its choices would use:
+ * all four on a radio, which moves among its group, and Up and Down on a
+ * segment of a SegmentedControl, where the window keymap would otherwise run
+ * Move track. Left and Right on a segment still nudge the playhead.
  */
 export function isChoiceControlArrow(e: KeyboardEvent): boolean {
-  return (
-    ARROWS.has(e.key) &&
-    !hasCommandModifier(e) &&
-    e.target instanceof HTMLElement &&
-    e.target.matches('[role="radio"], .ui-segmented button')
-  );
+  if (!(e.target instanceof HTMLElement) || hasCommandModifier(e)) {
+    return false;
+  }
+  if (e.target.matches('[role="radio"]')) {
+    return ARROWS.has(e.key);
+  }
+  return VERTICAL_ARROWS.has(e.key) && e.target.matches(".ui-segmented button");
 }

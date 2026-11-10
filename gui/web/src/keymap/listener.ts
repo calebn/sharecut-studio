@@ -31,8 +31,9 @@ import {
  * Enter on its buttons) are left to the browser.
  *
  * A Scrub value (a `[role="spinbutton"]` span, `isScrubValue`) owns every key
- * but Escape while it has focus, as a text field does. A radio or a segment of
- * a SegmentedControl owns the bare arrow keys (`isChoiceControlArrow`).
+ * but Escape while it has focus, as a text field does. A radio keeps the bare
+ * arrow keys and a SegmentedControl segment keeps Up and Down
+ * (`isChoiceControlArrow`).
  *
  * When several keymap rows share a key (Backspace track or clip;
  * Escape follow or selection), try each match in the order

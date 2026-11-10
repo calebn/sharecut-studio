@@ -91,28 +91,36 @@ describe("isChoiceControlArrow", () => {
     return button;
   };
 
-  it.each([
-    ["a segmented-control segment", segment],
-    ["a radio", radio],
-  ])("reserves the bare arrows for %s", (_name, make) => {
+  it("reserves all four bare arrows for a radio", () => {
     for (const key of ["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"]) {
-      expect(isChoiceControlArrow(press(make(), { key }))).toBe(true);
-      expect(isChoiceControlArrow(press(make(), { key, shiftKey: true }))).toBe(
-        true,
-      );
+      expect(isChoiceControlArrow(press(radio(), { key }))).toBe(true);
+      expect(
+        isChoiceControlArrow(press(radio(), { key, shiftKey: true })),
+      ).toBe(true);
+    }
+  });
+
+  it("reserves Up and Down for a segment and leaves Left and Right to the playhead", () => {
+    for (const key of ["ArrowUp", "ArrowDown"]) {
+      expect(isChoiceControlArrow(press(segment(), { key }))).toBe(true);
+    }
+    for (const key of ["ArrowLeft", "ArrowRight"]) {
+      expect(isChoiceControlArrow(press(segment(), { key }))).toBe(false);
     }
   });
 
   it("leaves chords, other keys and other buttons to the keymap", () => {
-    expect(
-      isChoiceControlArrow(press(segment(), { key: "ArrowUp", metaKey: true })),
-    ).toBe(false);
-    expect(
-      isChoiceControlArrow(press(segment(), { key: "ArrowUp", altKey: true })),
-    ).toBe(false);
-    expect(isChoiceControlArrow(press(segment(), { key: "Backspace" }))).toBe(
-      false,
-    );
+    for (const make of [segment, radio]) {
+      expect(
+        isChoiceControlArrow(press(make(), { key: "ArrowUp", metaKey: true })),
+      ).toBe(false);
+      expect(
+        isChoiceControlArrow(press(make(), { key: "ArrowUp", altKey: true })),
+      ).toBe(false);
+      expect(isChoiceControlArrow(press(make(), { key: "Backspace" }))).toBe(
+        false,
+      );
+    }
     const plain = document.createElement("button");
     expect(isChoiceControlArrow(press(plain, { key: "ArrowUp" }))).toBe(false);
   });
