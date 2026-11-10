@@ -76,7 +76,22 @@ export function useClipSections(
           .find((candidate) => candidate.id === id);
   const track = project?.tracks.find((t) => t.id === clip?.track_id);
   const capMs = track === undefined ? undefined : (track.fade_max_ms ?? null);
-  const joinHost = { busy, onEdit: cancelClipPlacement };
+  const joinHost = {
+    busy,
+    onEdit: cancelClipPlacement,
+    resetKey: JSON.stringify([
+      projectPath,
+      projectEpoch,
+      selectedIds,
+      clip?.id,
+      clip?.track_id,
+      clip?.source_start,
+      clip?.source_end,
+      clip?.fade_in_ms,
+      clip?.fade_out_ms,
+      capMs,
+    ]),
+  };
   const seams =
     project && clip && selectedIds.length <= 1
       ? seamsOnTrack(project, clip.track_id)
@@ -353,7 +368,7 @@ export function useClipSections(
           label: "Auto reduction",
           control: (
             <Button
-              disabledReason={busy ? BUSY_REASON : undefined}
+              disabledReason={busy || joinBusy ? BUSY_REASON : undefined}
               onClick={() => {
                 cancelClipPlacement();
                 useDawStore.getState().setSelection({
@@ -402,7 +417,7 @@ export function useClipSections(
                 id: "ripple",
                 control: (
                   <Button
-                    disabledReason={busy ? BUSY_REASON : undefined}
+                    disabledReason={busy || joinBusy ? BUSY_REASON : undefined}
                     onClick={() => void ripple()}
                   >
                     {commandLabel("edit.rippleDelete", "short")}
