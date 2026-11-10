@@ -61,6 +61,7 @@ const KEYDOWN_LISTENER_ALLOWLIST = new Set([
   // A test listens at the window the way the app keymap does, to prove the keys the pane handles never reach it.
   "system/ScriptPane.select.test.tsx",
   // A drag in progress on a ruler handle, the ruler body or a marker takes Escape from the document, wherever focus is, so the cancel does not depend on the grabbed element holding focus.
+  "system/useCoachTip.ts",
   "system/useGrab.ts",
   "system/useSourceReorder.ts",
   // A selection-handle drag in progress takes Escape from the window, wherever focus is, and puts back the selection the grip took, so the cancel does not depend on the grip holding focus.

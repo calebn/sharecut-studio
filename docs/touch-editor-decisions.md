@@ -1297,3 +1297,26 @@ or a tap outside commits; a second finger cancels. Clip bodies, crossfade
 grips and other targets keep the existing touch grammar drag.
 
 Amended by #2294 (W3b2b, calebn, 2026-10-31): a suggestion's verbs are Cut and Keep on the Action bar, not Approve and Reject, and where the sheet has the Action bar and the suggestion has a cut, shorten or lower action (not a split or an exact range) the sheet drops its own Approve and Reject buttons; the verbs come from the Action bar (the dock on the phone), and a Cut (for a cut action) or Keep chosen there runs through the open sheet so its queued-timing lock and refine recovery still apply; a shorten or lower Cut applies the suggestion's own action after checking the sheet's busy reason. A split, an exact range proposal, a suggestion with no accept action, a comment-linked pending edit and a phone sheet with no dock (the compact drawer, the full sheet at a tight height) keep Approve and Reject in the sheet; the compact drawer's body shows no verbs (the review card sits at the top of the drawer body and does). The bar's primary verb follows the accept action alone, so a split or exact range that carries one still shows it on the bar. Amended again by #2294 (step 2b): the timeline overlay bar and the phone pinned chrome name the verbs Cut (Shorten or Lower) and Keep by `pendingOffersCut` (so on a phone sheet with no dock the card says Cut and Keep while the sheet body says Approve and Reject), and a shorten or lower Cut applies the suggestion's own action there as on the bar; a split, an exact range proposal and a suggestion with no or a leave action keep Approve and Reject. Hear before, Hear after and Seek to start come from the Action bar and the sheet's preview footer is dropped where the bar renders; the bar of a guest link with neither edit nor suggest capability (a Viewer link) has a plain Hear that plays the suggestion and no Seek row, while a Commenter with suggest capability has Hear before, Hear after and a Seek row.
+
+### Proposed decision: The touch Select range toggle stays and teaches itself once
+
+<!-- decision
+id: D-range-toggle-tip
+status: proposed
+date: 2026-11-10
+decided-by: issue #2294 implementation
+evidence:
+- #2294 G2, survey row D-39: keep the toggle, add the coach tip, remove nothing
+- spec-edit corner-box hint, once on first touch use; the copy "Drag across a lane to select" is the lane owner's pick and not yet approved
+enforced-by:
+- gui/web/src/stage/edit/EditCorner.test.tsx::shows when the toggle arms and goes with the next press
+- gui/web/src/stage/edit/EditCorner.test.tsx::stays quiet when the toggle disarms
+- gui/web/src/stage/edit/EditCorner.test.tsx::raises nothing on a phone, where the Range sheet opens over the corner
+-->
+
+A finger cannot drag on an empty lane, so the Select range toggle in the Edit
+corner stays. The first time a touch user on a tablet arms it, a one-line coach
+tip says what the next drag does. On a phone the docked Range sheet opens over
+the corner when it arms, so no tip is raised there. Disarming never raises it, and a second mounted corner
+shows no duplicate because only the instance that raised a tip renders it.
+The tip follows the rules in [Coach tips](interaction-system.md#proposed-decision-coach-tips).

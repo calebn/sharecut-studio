@@ -2656,6 +2656,76 @@ for (const [label, rootSize] of [
   });
 }
 
+const COACH_STORIES = [
+  "system-coachtip--undo-hint",
+  "system-coachtip--selection-handles-hint",
+  "system-coachtip--range-toggle-hint",
+] as const;
+
+for (const id of COACH_STORIES) {
+  test(`System/CoachTip ${id} is one line, 240 px at most and inside the frame at 360`, async ({
+    page,
+  }) => {
+    await open(page, id, 360);
+    const tip = page.getByRole("note");
+    await expect(tip).toBeVisible();
+    const measure = () =>
+      tip.evaluate((el) => {
+        const text = el.firstElementChild as HTMLElement;
+        const lines = document.createRange();
+        lines.selectNodeContents(text);
+        const box = el.getBoundingClientRect();
+        return {
+          width: box.width,
+          rects: text.getClientRects().length,
+          lines: new Set([...lines.getClientRects()].map((r) => r.top)).size,
+          start: box.left,
+          end: document.documentElement.clientWidth - box.right,
+          top: box.top,
+        };
+      });
+    const fit = await measure();
+    expect(fit.width).toBeLessThanOrEqual(240);
+    expect(fit.rects).toBe(1);
+    expect(fit.lines).toBe(1);
+    expect(fit.start).toBeGreaterThanOrEqual(0);
+    expect(fit.end).toBeGreaterThanOrEqual(0);
+    expect(fit.top).toBeGreaterThanOrEqual(0);
+
+    await tip.evaluate((el) => {
+      (el.firstElementChild as HTMLElement).textContent = "Long tip text "
+        .repeat(5)
+        .slice(0, 60);
+    });
+    expect((await measure()).width).toBeLessThanOrEqual(240);
+  });
+
+  test(`System/CoachTip ${id} stays inside the frame at 200% text`, async ({
+    page,
+  }) => {
+    await open(page, id, 360);
+    await page.evaluate(() => {
+      document.documentElement.style.fontSize = "200%";
+    });
+    const tip = page.getByRole("note");
+    await expect(tip).toBeVisible();
+    const room = await tip.evaluate((el) => {
+      const box = el.getBoundingClientRect();
+      const root = document.documentElement;
+      return {
+        top: box.top,
+        start: box.left,
+        end: root.clientWidth - box.right,
+        overflow: root.scrollWidth - root.clientWidth,
+      };
+    });
+    expect(room.top).toBeGreaterThanOrEqual(0);
+    expect(room.start).toBeGreaterThanOrEqual(0);
+    expect(room.end).toBeGreaterThanOrEqual(0);
+    expect(room.overflow).toBeLessThanOrEqual(0);
+  });
+}
+
 type Box = { x: number; y: number; width: number; height: number };
 
 const boxOf = async (

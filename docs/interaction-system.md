@@ -228,6 +228,64 @@ There are three overlay primitives.
    an expanded Safari toolbar never strands it. A ratio of 0.95 or more counts
    as fully shown.
 
+### Proposed decision: Coach tips
+
+<!-- decision
+id: D-coach-tips
+status: proposed
+date: 2026-11-10
+decided-by: issue #2294 implementation
+evidence:
+- #2294 G2, survey row D-16: spec-edit DLG-GESTURES gives each touch gesture one line, 240 px at most, dismissed by any action, never repeated
+- Undo tip trigger broadened from the first Cut to the first undoable edit (D-late-12, a default the owner can override)
+enforced-by:
+- gui/web/src/utils/coachTip.test.ts::holds the four lines the spec names
+- gui/web/src/system/useCoachTip.test.tsx::goes on the next press elsewhere and is remembered
+- gui/web/src/stage/frame/StageFrame.test.tsx::says nothing on a tablet, where two-finger tap does not undo
+- gui/web/src/system/ScriptPane.select.test.tsx::draws the hint beside the grips, hung off the pane
+- gui/web/src/system/handleHintPlace.test.ts::flips above the start grip when the end sits near the foot of the view
+- gui/web/src/system/handleHintPlace.test.ts::returns null when the tip is taller than what is on screen
+-->
+
+A touch user sees each gesture hint once, at the moment of first need.
+`utils/coachTip.ts` owns the copy (`COACH_TIPS`), the seen flag and the one slot;
+`system/useCoachTip.ts` is how a surface raises its tip.
+
+| Tip | Raised by | Shown at |
+| --- | --- | --- |
+| Drag the edges to trim | not shipped in this part; the first tap that selects an editable clip, once #3541 lands | the clip's trim handle |
+| Drag the handles to adjust | the first touch selection in the Script | beside the end grip, in the pane's text |
+| Two-finger tap to undo | the first toast that offers history Undo, on the phone shell only | at the header's inline end, below the stage's control bar, so no header control or the surface switch is covered |
+| Drag across a lane to select | the first press that arms the Select range toggle, on the tablet and desktop shells | over the toggle |
+
+1. **Touch only.** `show()` does nothing unless the store's `pointerKind` is
+   `coarse`. A mouse or pen never sees a tip.
+2. **One at a time.** The slot holds one tip and the instance that raised it. A
+   raise while the slot is taken is dropped. The range and handles tips come
+   again at the next qualifying event; the Undo tip is raised once per toast, so
+   a refused raise waits for the next undoable toast. The handles tip frees the
+   slot, unseen, when its selection clears without a press. The Undo tip also
+   waits while a guest's Role chip hint is up, since both sit at the header's
+   edge.
+3. **Dismissed by any action.** The next pointer press or key outside the bubble
+   (a modifier or Tab on its own does not count) dismisses it, as does its close button and a press on its anchor. The hook
+   listens in the capture phase so the press that raised the tip does not
+   dismiss it.
+4. **Never repeats, per browser.** The flag is `sharecut.coachTipSeen.<id>` in
+   `localStorage`, not synced. Blocked storage costs a reload, never a repeat in
+   the same session.
+5. **Teaches only where the gesture works.** The Undo tip needs the phone shell
+   and an editor, the same gate as `useTwoFingerTap`. It anchors to the header,
+   never to the toast, so the toast dock can move without touching it.
+6. **Within 15 rem.** Every tip caps at `min(15rem, 90vw)`, the Undo tip
+   included. At large text the line wraps rather than overflow the frame.
+7. **Never hidden or covering.** On a phone, arming the range toggle opens the
+   docked Range sheet over the corner, so the range tip is not raised there and
+   is not spent. The Undo tip covers no control (`e2e-storybook/coach-tip.spec.ts`).
+
+The owner can still narrow the Undo tip to the first Cut by changing
+`undoTipMoment` once a toast carries a `kind`.
+
 ## Keyboard and touch equivalents
 
 1. **Every command reachable by a gesture is reachable by a key or a visible

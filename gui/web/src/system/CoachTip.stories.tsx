@@ -3,7 +3,10 @@ import { useState } from "react";
 import { expect, userEvent, within } from "storybook/test";
 import { viewportStoryParameters } from "../storybook/storyLayout";
 import { Button } from "../ui";
+import { COACH_TIPS } from "../utils/coachTip";
 import { CoachTip } from "./CoachTip";
+import { CoachTipBubble } from "./CoachTipBubble";
+import { VerbButton } from "./VerbButton";
 
 const meta: Meta<typeof CoachTip> = {
   title: "System/CoachTip",
@@ -74,4 +77,101 @@ export const DismissedByAction: Story = {
     await userEvent.click(canvas.getByRole("button", { name: "Solo" }));
     await expect(canvas.queryByRole("note")).toBeNull();
   },
+};
+
+function UndoDemo() {
+  const [shown, setShown] = useState(true);
+  return (
+    <div
+      style={{
+        position: "relative",
+        paddingBlock: "var(--space-5) calc(var(--space-8) * 3)",
+        paddingInlineStart: "40%",
+      }}
+    >
+      <CoachTip
+        edge
+        align="end"
+        placement="below"
+        text={COACH_TIPS.undo}
+        shown={shown}
+        onDismiss={() => setShown(false)}
+      >
+        <VerbButton verb="undo" />
+      </CoachTip>
+    </div>
+  );
+}
+
+function RangeDemo() {
+  const [shown, setShown] = useState(true);
+  return (
+    <div
+      style={{
+        display: "flex",
+        justifyContent: "flex-end",
+        paddingBlock: "calc(var(--space-8) + var(--space-8)) var(--space-5)",
+        paddingInline: "var(--space-5)",
+      }}
+    >
+      <CoachTip
+        align="end"
+        placement="above"
+        text={COACH_TIPS.rangeToggle}
+        shown={shown}
+        onDismiss={() => setShown(false)}
+      >
+        <Button aria-label="Select range">Range</Button>
+      </CoachTip>
+    </div>
+  );
+}
+
+const checkNote = async (
+  canvasElement: HTMLElement,
+  text: string,
+): Promise<void> => {
+  const canvas = within(canvasElement);
+  await expect(canvas.getByRole("note")).toHaveTextContent(text);
+  await expect(
+    canvas.getByRole("button", { name: "Dismiss hint" }),
+  ).toBeVisible();
+};
+
+/** The tip at the header's inline end, below the bar under Undo, held inside the header's width. */
+export const UndoHint: Story = {
+  render: () => <UndoDemo />,
+  play: ({ canvasElement }) => checkNote(canvasElement, COACH_TIPS.undo),
+};
+
+/** The tip beside the end grip, in a positioned box where the grips live. */
+export const SelectionHandlesHint: Story = {
+  render: () => (
+    <div
+      style={{
+        position: "relative",
+        blockSize: "10rem",
+        marginInline: "var(--space-5)",
+        marginBlock: "var(--space-5)",
+      }}
+    >
+      <CoachTipBubble
+        className="sys-coach-tip--at"
+        text={COACH_TIPS.selectionHandles}
+        onClose={() => {}}
+        style={{
+          insetInlineStart: "max(0px, min(11rem, calc(100% - 15rem)))",
+          insetBlockStart: "calc(2rem + var(--space-6))",
+        }}
+      />
+    </div>
+  ),
+  play: ({ canvasElement }) =>
+    checkNote(canvasElement, COACH_TIPS.selectionHandles),
+};
+
+/** The tip over the range toggle, which sits in the corner at the foot of the lanes. */
+export const RangeToggleHint: Story = {
+  render: () => <RangeDemo />,
+  play: ({ canvasElement }) => checkNote(canvasElement, COACH_TIPS.rangeToggle),
 };

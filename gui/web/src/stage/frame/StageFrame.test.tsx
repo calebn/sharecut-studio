@@ -6,6 +6,8 @@ import { registerDawCommands } from "../../commands/register";
 import { useDawStore } from "../../state/dawStore";
 import { minimalProject, sessionRoster } from "../../test/fixtures";
 import { stubMatchMedia } from "../../test/matchMedia";
+import type { HistoryEntryId } from "../../types/project";
+import { _resetCoachTipsForTests } from "../../utils/coachTip";
 import { StageFrame } from "./StageFrame";
 
 vi.mock("../../services/offlineQueue/offlineStore", async (importOriginal) => ({
@@ -40,6 +42,8 @@ function bar() {
 }
 
 beforeEach(() => {
+  localStorage.clear();
+  _resetCoachTipsForTests();
   stubMatchMedia(false);
   clearRegisteredCommands();
   registerDawCommands();
@@ -390,5 +394,85 @@ describe("StageFrame while following", () => {
     await waitFor(() =>
       expect(useDawStore.getState().followingClientId).toBeNull(),
     );
+  });
+});
+
+describe("StageFrame undo tip", () => {
+  const head = "h1" as HistoryEntryId;
+  const cut = (
+    options: Parameters<
+      ReturnType<typeof useDawStore.getState>["announceStatus"]
+    >[1],
+  ) =>
+    act(() =>
+      useDawStore.getState().announceStatus("Cut to clipboard", options),
+    );
+
+  beforeEach(() => {
+    useDawStore.setState({ pointerKind: "coarse", feedbackToast: null });
+  });
+
+  it("points at the header Undo after an undoable edit on a phone", () => {
+    stubMatchMedia(true);
+    mount();
+    expect(screen.queryByRole("note")).toBeNull();
+    cut({ undo: head });
+    const note = screen.getByRole("note");
+    expect(note).toHaveTextContent("Two-finger tap to undo");
+    const header = screen.getAllByRole("banner")[0];
+    expect(header).toContainElement(note);
+    expect(note.closest(".sys-coach")).toContainElement(
+      within(header).getByRole("button", { name: "Undo" }),
+    );
+  });
+
+  it("says nothing on a tablet, where two-finger tap does not undo", () => {
+    vi.stubGlobal("matchMedia", (query: string) => ({
+      matches: query.includes("1194"),
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+    }));
+    mount();
+    cut({ undo: head });
+    expect(document.querySelector(".stage-frame--tablet")).not.toBeNull();
+    expect(screen.queryByRole("note")).toBeNull();
+  });
+
+  it("says nothing for a gesture toast or a change that only has reverse", () => {
+    stubMatchMedia(true);
+    mount();
+    cut({ undo: head, gesture: true });
+    expect(screen.queryByRole("note")).toBeNull();
+    cut({ reverse: { run: async () => true, done: "Reverted" } });
+    expect(screen.queryByRole("note")).toBeNull();
+  });
+
+  it("leaves the header's edge to the Role chip hint for a guest editor", () => {
+    stubMatchMedia(true);
+    useDawStore.getState().hydrate("share:tok-u2", minimalProject(), null);
+    useDawStore.setState({
+      guestMode: "edit",
+      shareCapabilities: ["edit"],
+      pointerKind: "coarse",
+    });
+    mount();
+    cut({ undo: head });
+    const notes = screen.getAllByRole("note");
+    expect(notes).toHaveLength(1);
+    expect(notes[0]).toHaveTextContent("You can edit and comment");
+    expect(screen.queryByText("Two-finger tap to undo")).toBeNull();
+  });
+
+  it("says nothing to a guest who cannot edit", () => {
+    stubMatchMedia(true);
+    useDawStore.getState().hydrate("share:tok-u", minimalProject(), null);
+    useDawStore.setState({
+      guestMode: "comment",
+      shareCapabilities: ["comment"],
+      pointerKind: "coarse",
+    });
+    mount();
+    cut({ undo: head });
+    expect(screen.queryByText("Two-finger tap to undo")).toBeNull();
   });
 });

@@ -9,7 +9,12 @@ import { SpeakerPopover } from "../../../stages/edit/SpeakerPopover";
 import { useDawStore } from "../../../state/dawStore";
 import { playheadScrollRegistry } from "../../../state/playheadScrollRegistry";
 import { ScriptPane, type ScriptPaneHandle } from "../../../system/ScriptPane";
-import type { ScriptStatus } from "../../../system/scriptPieces";
+import type {
+  ScriptStatus,
+  WordsSelection,
+} from "../../../system/scriptPieces";
+import { useCoachTip } from "../../../system/useCoachTip";
+import { useStableCallback } from "../../../utils/useStableCallback";
 import { scriptGuestOf } from "./scriptGuest";
 import { useScriptCarets } from "./useScriptCarets";
 import { useScriptFind } from "./useScriptFind";
@@ -109,6 +114,11 @@ export function ScriptHost({
     scrollTo,
   ]);
   const selection = useScriptSelection(model, mode !== "none", win.reached);
+  const handleTip = useCoachTip("selectionHandles");
+  const onSelect = useStableCallback((next: WordsSelection) => {
+    selection.onSelect?.(next);
+    handleTip.show();
+  });
   const carets = useScriptCarets(model, selection.carets);
   const jump = useScriptUnsure(model, texts, unsure, win.scrollTo, say);
   const fix = useScriptFixText(
@@ -190,7 +200,13 @@ export function ScriptHost({
         }
         seamRoll={seamRoll}
         onCaret={selection.onCaret}
-        onSelect={selection.onSelect}
+        onSelect={selection.onSelect && onSelect}
+        handleHint={{
+          text: handleTip.text,
+          shown: handleTip.shown,
+          onDismiss: handleTip.dismiss,
+          onRelease: handleTip.release,
+        }}
         onClearSelection={selection.onClearSelection}
         onSeamSelect={selection.onSeamSelect}
         onSuggestionSelect={selection.onSuggestionSelect}

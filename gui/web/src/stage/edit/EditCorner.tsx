@@ -4,7 +4,9 @@ import {
   executePointerCommand,
   runPointerCommand,
 } from "../../commands/pointer";
+import { useViewportClass } from "../../hooks/useViewportClass";
 import { useDawStore } from "../../state/dawStore";
+import { useCoachTip } from "../../system/useCoachTip";
 import { EditCornerView } from "./EditCornerView";
 import type { ViewAnchorAvailability } from "./useViewAnchor";
 import { useZoomControls } from "./useZoomControls";
@@ -29,6 +31,9 @@ export function EditCorner({
         snapEnabled: s.snapEnabled,
       })),
     );
+  const tip = useCoachTip("rangeToggle");
+  // On a phone arming opens the docked Range sheet over the corner, so the tip would never be seen.
+  const phone = useViewportClass() === "phone";
   return (
     <EditCornerView
       viewAnchor={viewAnchor}
@@ -52,13 +57,22 @@ export function EditCorner({
               reason: hasProject
                 ? undefined
                 : "Open a project to select a range",
-              onToggle: () =>
+              hint: {
+                text: tip.text,
+                shown: tip.shown,
+                onDismiss: tip.dismiss,
+              },
+              onToggle: () => {
+                const wasArmed = rangeArmed;
                 void executePointerCommand("range.arm").then((result) => {
                   if (result.status === "disabled" && !result.told)
                     useDawStore
                       .getState()
                       .announceStatus(result.reason, { tone: "error" });
-                }),
+                  else if (result.status === "ok" && !wasArmed && !phone)
+                    tip.show();
+                });
+              },
             }
           : undefined
       }
