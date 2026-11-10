@@ -130,12 +130,27 @@ async function bottomSlack(
     : 0;
 }
 
-type Sample = { top: number; max: number };
+type Sample = {
+  top: number;
+  max: number;
+  view: number;
+  lead: { top: number; bottom: number } | null;
+};
 
 async function sample(list: Locator): Promise<Sample> {
   const top = await settledScrollTop(list);
   const max = await list.evaluate((el) => el.scrollHeight - el.clientHeight);
-  return { top, max };
+  const view = await list.evaluate((el) => el.clientHeight);
+  const lead = await list.evaluate((el) => {
+    const word = el.querySelector<HTMLElement>(
+      ".sys-script-word[data-playing]",
+    );
+    if (!word) return null;
+    const offset = el.scrollTop - el.getBoundingClientRect().top;
+    const box = word.getBoundingClientRect();
+    return { top: box.top + offset, bottom: box.bottom + offset };
+  });
+  return { top, max, view, lead };
 }
 
 async function sweep(
@@ -152,21 +167,37 @@ async function sweep(
   return samples;
 }
 
-/**
- * Steps where scrollTop moved against playback. Two samples both pinned to the
- * bottom differ only because the active turn changed height there, which moves
- * the maximum, not Follow.
- */
 /** Within a few px of the bottom, where an active turn's height moves the maximum. */
 const BOTTOM_SLACK_PX = 8;
 
-function directionChanges(samples: Sample[], playbackSign: 1 | -1): number {
+/**
+ * Steps where scrollTop moved away from the leading playing word. Overlapping
+ * lanes interleave in time but not in the list, so the lead word can sit above
+ * the previous one and Follow then rightly scrolls up.
+ */
+function reversals(samples: Sample[]): number {
   return samples.slice(1).filter((now, i) => {
     const prev = samples[i];
     const pinned =
       now.top >= now.max - BOTTOM_SLACK_PX &&
       prev.top >= prev.max - BOTTOM_SLACK_PX;
-    return !pinned && (now.top - prev.top) * playbackSign < -0.5;
+    if (pinned || now.lead === null || prev.lead === null) return false;
+    return (now.top - prev.top) * (now.lead.top - prev.lead.top) < -0.5;
+  }).length;
+}
+
+function needlessScrolls(samples: Sample[]): number {
+  return samples.slice(1).filter((now, i) => {
+    const prev = samples[i];
+    const pinned =
+      now.top >= now.max - BOTTOM_SLACK_PX &&
+      prev.top >= prev.max - BOTTOM_SLACK_PX;
+    if (pinned || Math.abs(now.top - prev.top) <= 0.5) return false;
+    if (now.lead === null) return true;
+    return (
+      now.lead.top >= prev.top - 0.5 &&
+      now.lead.bottom <= prev.top + prev.view + 0.5
+    );
   }).length;
 }
 
@@ -217,27 +248,31 @@ for (const viewport of viewports) {
       }
     });
 
-    // The short phone-landscape pane still wobbles between overlapping lanes
-    // (follow-up under #2666), so this runs where the pane is tall enough.
-    if (viewport.name !== "phone landscape") {
-      test("scrolling never runs against playback while lanes overlap", async ({
-        page,
-      }) => {
-        const list = await openFollowedTranscript(page);
-        await seekTo(page, 0);
-        const forward = await sweep(page, list, "ArrowRight", 54);
-        expect(forward.at(-1)?.top).toBeGreaterThan(forward[0].top);
-        expect(
-          directionChanges(forward, 1),
-          `forward ${forward.map((f) => f.top).join(",")}`,
-        ).toBe(0);
-        const backward = await sweep(page, list, "ArrowLeft", 54);
-        expect(backward.at(-1)?.top).toBeLessThan(backward[0].top);
-        expect(
-          directionChanges(backward, -1),
-          `backward ${backward.map((f) => f.top).join(",")}`,
-        ).toBe(0);
-      });
-    }
+    test("Follow scrolls only to reveal the playing word, never away from it", async ({
+      page,
+    }) => {
+      const list = await openFollowedTranscript(page);
+      await seekTo(page, 0);
+      const forward = await sweep(page, list, "ArrowRight", 54);
+      expect(forward.at(-1)?.top).toBeGreaterThan(forward[0].top);
+      expect(
+        reversals(forward),
+        `forward ${forward.map((f) => `${f.top}/${f.lead?.top}`).join(",")}`,
+      ).toBe(0);
+      expect(
+        needlessScrolls(forward),
+        `forward ${forward.map((f) => `${f.top}/${f.lead?.top}`).join(",")}`,
+      ).toBe(0);
+      const backward = await sweep(page, list, "ArrowLeft", 54);
+      expect(backward.at(-1)?.top).toBeLessThan(backward[0].top);
+      expect(
+        reversals(backward),
+        `backward ${backward.map((f) => `${f.top}/${f.lead?.top}`).join(",")}`,
+      ).toBe(0);
+      expect(
+        needlessScrolls(backward),
+        `backward ${backward.map((f) => `${f.top}/${f.lead?.top}`).join(",")}`,
+      ).toBe(0);
+    });
   });
 }
