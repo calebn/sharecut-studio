@@ -20,7 +20,6 @@ type Props = {
   placeholder?: string;
   /** The longest text the field takes. */
   maxLength?: number;
-  /** The field shows its text but takes no typing. */
   readOnly?: boolean;
   className?: string;
 };
