@@ -56,6 +56,12 @@ describe("usePlayerProps status for a guest", () => {
     expect(p.playUnavailable).toBe(true);
   });
 
+  it("passes no stale status for a share key whose guest mode is not set yet", () => {
+    join("view");
+    useDawStore.setState({ guestMode: null });
+    expect(props().status).toBeUndefined();
+  });
+
   it("keeps the mix status for the host", () => {
     join(null);
     expect(props().status).toBe("Mix out of date");

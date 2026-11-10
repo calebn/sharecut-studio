@@ -62,7 +62,7 @@ const meta: Meta<typeof Player> = {
       ...viewportStoryParameters.docs,
       description: {
         component:
-          "Bar form: 56 px on every device. Time and cuts on the left, back 15 s, Play and forward 15 s in the center, then A/B, Comment and the Status pills (following, solo, mix, audio error) on the right. A/B is the segmented control: A is the original, B the edit. Play is ink-filled, not accent. Below a 40rem container the skip buttons and the total hide and each Status pill shows its glyph only; the text stays for assistive tech. The expanded form adds a 64 px Overview strip, a 64 px Play and the chapter list; on phone a host shows it in a Sheet.\n\n**Motion.** The expanded form rises with `--motion-panel` and the Play icon swaps with `--motion-toggle` in the animation pass. The loading ring is static here.",
+          "Bar form: 56 px on every device. Time and cuts on the left, back 15 s, Play and forward 15 s in the center, then A/B, Comment and the Status pills (following, solo, mix, audio error) on the right. A/B is the segmented control: A is the original, B the edit. Play is ink-filled, not accent. Below a 40rem container the skip buttons and the bar's total hide (the expanded form keeps its total) and each Status pill shows its glyph only; the text stays for assistive tech. The expanded form adds a 64 px Overview strip, a 64 px Play and the chapter list; on phone a host shows it in a Sheet.\n\n**Motion.** The expanded form rises with `--motion-panel` and the Play icon swaps with `--motion-toggle` in the animation pass. The loading ring is static here.",
       },
     },
   },
