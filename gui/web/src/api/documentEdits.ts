@@ -437,17 +437,28 @@ export async function setClipJoin(
   });
 }
 
+/**
+ * How many joins needed a fade, read from the host's reply; null when the
+ * reply carries no count (a queued write), so the caller says nothing.
+ */
 export async function applyFadeRecommendations(
   projectPath: string,
   trackId?: string | null,
-): Promise<void> {
-  await submitDocumentCommand(
+): Promise<number | null> {
+  const result = await submitDocumentCommand(
     projectPath,
     DocumentCommand.ApplyFadeRecommendations,
     {
       track_id: trackId ?? null,
     },
   );
+  const command = result.command;
+  const payload = isSuggestionRecord(command) ? command.payload : null;
+  const done = isSuggestionRecord(payload) ? payload.result : null;
+  const count = isSuggestionRecord(done) ? done.recommendation_count : null;
+  return typeof count === "number" && Number.isSafeInteger(count) && count >= 0
+    ? count
+    : null;
 }
 
 export async function setEffectBypass(
