@@ -147,15 +147,15 @@ function fakeRoom(over: Overrides = {}) {
 }
 
 const stopped = { state: "stopped" as const, take_index: 0 };
+beforeEach(() => {
+  speech.heard = false;
+  speech.calls = [];
+  current.room = null;
+});
+
 const leave = () => screen.getByRole("button", { name: "Leave room" });
 
 describe("GuestRoomApp in the room", () => {
-  beforeEach(() => {
-    speech.heard = false;
-    speech.calls = [];
-    current.room = null;
-  });
-
   it("holds Leave until the stopped take is file-ACK'd", () => {
     fakeRoom({
       snapshot: stopped,
@@ -721,12 +721,6 @@ describe("GuestRoomApp dock outside the saving phase", () => {
     expect(notes).toBeInTheDocument();
     expect(screen.queryByText(SAVING)).toBeNull();
   };
-
-  beforeEach(() => {
-    speech.heard = false;
-    speech.calls = [];
-    current.room = null;
-  });
 
   it("keeps the controls after pause and resume with segment 1 open", () => {
     fakeRoom({ snapshot: { state: "recording" }, upload: open });
