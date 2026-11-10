@@ -71,6 +71,9 @@ const KEYDOWN_LISTENER_ALLOWLIST = new Set([
   "system/MarkerLane.test.tsx",
   // The same window-level listener, to prove the keys a focused envelope point handles never reach the keymap, and the ones it leaves do.
   "system/Envelope.test.tsx",
+  // The same window-level listener, to prove the Arrow keys a clip or track header handles never reach the keymap.
+  "system/Clip.test.tsx",
+  "system/TrackHeader.test.tsx",
   // Esc cancels a script selection drag in the capture phase, so it never also clears the selection or reaches the keymap.
   "system/useScriptGestures.ts",
   "system/ScriptPane.gestures.test.tsx",
