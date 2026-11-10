@@ -184,7 +184,9 @@ describe("track content", () => {
     await user.click(within(people).getByRole("radio", { name: /Tomas/ }));
     await user.click(within(people).getByRole("radio", { name: /Priya/ }));
     expect(setTrackMetaCommand).toHaveBeenCalledTimes(1);
-    settle({});
+    await act(async () => {
+      settle({});
+    });
   });
 
   it("sends nothing when Add person is given the track's own speaker", async () => {
