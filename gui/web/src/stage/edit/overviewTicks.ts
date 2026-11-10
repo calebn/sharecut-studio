@@ -1,4 +1,5 @@
 import type { OverviewTick } from "../../system/OverviewStrip";
+import { clamp } from "../../utils/math";
 
 export interface OverviewTickTimes {
   commentTimes: readonly number[];
@@ -12,7 +13,7 @@ export function overviewTicks({
   durationSec,
 }: OverviewTickTimes): OverviewTick[] {
   if (!(durationSec > 0)) return [];
-  const at = (time: number) => Math.min(1, Math.max(0, time / durationSec));
+  const at = (time: number) => clamp(time / durationSec, 0, 1);
   return [
     ...commentTimes.map(
       (time): OverviewTick => ({

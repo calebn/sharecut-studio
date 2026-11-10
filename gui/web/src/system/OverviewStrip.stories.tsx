@@ -93,6 +93,7 @@ export const Player64: Story = {
     ).toContain("40%");
   },
 };
+
 export const Seek16: Story = {
   args: { height: 16, ticks, onSeek: fn(), valueText: "0:24 of 1:00" },
   play: async ({ canvasElement, args }) => {

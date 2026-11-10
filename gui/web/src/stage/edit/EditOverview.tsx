@@ -4,13 +4,13 @@ import { seekTransport } from "../../commands/seek";
 import { needsReview } from "../../review/reviewItems";
 import { useDawStore } from "../../state/dawStore";
 import { OverviewStrip } from "../../system/OverviewStrip";
+import { clamp } from "../../utils/math";
 import { transportTimecode } from "../../utils/time";
 import { overviewTicks } from "./overviewTicks";
 
 const NONE: readonly never[] = [];
 
 export interface EditOverviewProps {
-  /** 16 on the phone, 32 in Script focus. */
   height: 16 | 32;
 }
 
@@ -47,7 +47,7 @@ function EditOverviewView({ height }: EditOverviewProps) {
       <OverviewStrip
         height={height}
         label="Episode overview"
-        playhead={Math.min(1, Math.max(0, playheadSec / duration))}
+        playhead={clamp(playheadSec / duration, 0, 1)}
         valueText={transportTimecode(playheadSec, duration).title}
         ticks={ticks}
         onSeek={onSeek}
