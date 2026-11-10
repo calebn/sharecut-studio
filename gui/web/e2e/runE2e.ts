@@ -5,6 +5,7 @@ import {
   cleanupE2eManifest,
   createE2eCleanupManifest,
   type E2eCleanupManifest,
+  reapOrphanedE2eManifests,
 } from "./cleanupManifest";
 import { acquireE2ePortLease, type E2ePortLease } from "./port";
 import { processTreeTerminator } from "./processTree";
@@ -164,6 +165,7 @@ export async function runE2e(
   acquireLease: () => Promise<E2ePortLease> = () => acquireE2ePortLease(),
   lifecycle: SignalLifecycle = processLifecycle,
 ): Promise<number> {
+  await reapOrphanedE2eManifests();
   const manifest = createManifest();
   let lease: E2ePortLease | undefined;
   let signalForwarding: SignalForwarding = {

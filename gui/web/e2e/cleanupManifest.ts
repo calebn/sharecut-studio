@@ -8,6 +8,8 @@ export const cleanupManifestEnv = "DAW_E2E_CLEANUP_MANIFEST";
 
 interface CleanupManifest {
   workspaces: string[];
+  /** The `npm run test:e2e` process that owns the manifest. */
+  pid?: number;
 }
 
 export interface E2eCleanupManifest {
@@ -48,9 +50,10 @@ function readManifest(manifestPath: string): ManifestRead {
     ) {
       return { kind: "invalid" };
     }
+    const { workspaces, pid } = value as CleanupManifest;
     return {
       kind: "valid",
-      value: { workspaces: (value as CleanupManifest).workspaces },
+      value: { workspaces, ...(typeof pid === "number" ? { pid } : {}) },
     };
   } catch (error) {
     return (error as NodeJS.ErrnoException).code === "ENOENT"
@@ -113,7 +116,7 @@ export function createE2eCleanupManifest(): E2eCleanupManifest {
     path.join(os.tmpdir(), "sharecut-e2e-cleanup-"),
   );
   const manifestPath = path.join(manifestDir, "workspaces.json");
-  writeManifest(manifestPath, { workspaces: [] });
+  writeManifest(manifestPath, { workspaces: [], pid: process.pid });
   return { manifestDir, manifestPath };
 }
 
@@ -154,7 +157,8 @@ export async function cleanupE2eManifest(
     fs.rmSync(workspace, { recursive: true, force: true, maxRetries: 0 });
   },
 ): Promise<void> {
-  const registered = requiredManifest(manifest.manifestPath).workspaces;
+  const manifestRead = requiredManifest(manifest.manifestPath);
+  const registered = manifestRead.workspaces;
   const remaining: string[] = [];
   let failure: unknown;
   for (const workspace of new Set(registered)) {
@@ -180,8 +184,49 @@ export async function cleanupE2eManifest(
     }
   }
   if (remaining.length > 0) {
-    writeManifest(manifest.manifestPath, { workspaces: remaining });
+    writeManifest(manifest.manifestPath, {
+      ...manifestRead,
+      workspaces: remaining,
+    });
     throw failure;
   }
   fs.rmSync(manifest.manifestDir, { recursive: true, force: true });
+}
+
+function processIsGone(pid: number): boolean {
+  try {
+    process.kill(pid, 0);
+    return false;
+  } catch (error) {
+    return (error as NodeJS.ErrnoException).code === "ESRCH";
+  }
+}
+
+/**
+ * Finish the cleanup of runs that were killed before their own cleanup ran
+ * (SIGKILL, a timed-out job, a closed terminal). Only a manifest this user
+ * owns whose recorded run process no longer exists is touched, and only the
+ * workspaces that run registered, so a run still in progress is never reaped.
+ * Returns the manifest directories it finished.
+ */
+export async function reapOrphanedE2eManifests(): Promise<string[]> {
+  const reaped: string[] = [];
+  for (const name of fs.readdirSync(os.tmpdir())) {
+    if (!name.startsWith("sharecut-e2e-cleanup-")) {
+      continue;
+    }
+    const manifestPath = path.join(os.tmpdir(), name, "workspaces.json");
+    try {
+      const manifestDir = ownedE2eManifestDirectory(manifestPath);
+      const { pid } = requiredManifest(manifestPath);
+      if (pid === undefined || !processIsGone(pid)) {
+        continue;
+      }
+      await cleanupE2eManifest({ manifestDir, manifestPath });
+      reaped.push(manifestDir);
+    } catch {
+      // Not ours, not readable, or busy: leave it for its owner.
+    }
+  }
+  return reaped;
 }

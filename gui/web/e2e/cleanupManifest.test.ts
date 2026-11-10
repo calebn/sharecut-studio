@@ -7,6 +7,7 @@ import {
   createE2eCleanupManifest,
   managedTmpWorkspace,
   ownedE2eManifestDirectory,
+  reapOrphanedE2eManifests,
   registerE2eCleanupWorkspace,
 } from "./cleanupManifest";
 import { removeAfterTest, tempWorkspace } from "./testWorkspace";
@@ -56,6 +57,7 @@ describe("E2E cleanup manifest", () => {
     expect(fs.existsSync(manifest.manifestDir)).toBe(true);
     expect(JSON.parse(fs.readFileSync(manifest.manifestPath, "utf8"))).toEqual({
       workspaces: [retained],
+      pid: process.pid,
     });
   });
 
@@ -129,5 +131,32 @@ describe("managedTmpWorkspace", () => {
     expect(
       managedTmpWorkspace(path.join(os.tmpdir(), "..", "sharecut-e2e-abc")),
     ).toBe(undefined);
+  });
+});
+
+describe("reapOrphanedE2eManifests", () => {
+  it("removes the workspaces of a dead run and leaves a live run alone", async () => {
+    const dead = createE2eCleanupManifest();
+    const live = createE2eCleanupManifest();
+    removeAfterTest(dead.manifestDir);
+    removeAfterTest(live.manifestDir);
+    const orphan = tempWorkspace("sharecut-e2e-test-");
+    const running = tempWorkspace("sharecut-e2e-test-");
+    registerE2eCleanupWorkspace(orphan, dead.manifestPath);
+    registerE2eCleanupWorkspace(running, live.manifestPath);
+    const manifest = JSON.parse(fs.readFileSync(dead.manifestPath, "utf8"));
+    fs.writeFileSync(
+      dead.manifestPath,
+      `${JSON.stringify({ ...manifest, pid: 2 ** 22 + 1 })}\n`,
+    );
+
+    const deadDir = fs.realpathSync(dead.manifestDir);
+    const reaped = await reapOrphanedE2eManifests();
+
+    expect(reaped).toContain(deadDir);
+    expect(fs.existsSync(orphan)).toBe(false);
+    expect(fs.existsSync(dead.manifestDir)).toBe(false);
+    expect(fs.existsSync(running)).toBe(true);
+    expect(fs.existsSync(live.manifestDir)).toBe(true);
   });
 });

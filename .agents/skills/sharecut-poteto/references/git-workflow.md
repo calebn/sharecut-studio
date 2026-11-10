@@ -103,3 +103,11 @@ gh pr merge <N> --rebase --match-head-commit <sha>
 
 Clean up only worktrees this run created. Release owned claims on every exit,
 including completion, hold, abandon, and failure.
+
+Clean up only scratch this run created, before every handoff, pause, and exit:
+temp directories, lab clones, copied audio, and `/tmp/sharecut-e2e-*` left by a
+browser run. Run browser e2e only through `npm run test:e2e` (or `:compat`),
+which removes its workspaces even on failure and, on its next start, finishes
+the cleanup of any earlier run of yours that was killed. Never kill a run with
+SIGKILL when SIGTERM works. Never sweep a shared temp pattern: other lanes'
+runs may be using it.
