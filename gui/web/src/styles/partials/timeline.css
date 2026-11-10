@@ -469,7 +469,7 @@
   line-height: 0;
 }
 
-.seam-mark .sys-seam-hit {
+.seam-mark .sys-seam[data-form="diamond"] .sys-seam-hit {
   inline-size: var(--join-hit-min);
   block-size: var(--clip-inset-top);
   cursor: inherit;
@@ -478,6 +478,11 @@
 @media (pointer: coarse) {
   .seam-mark {
     translate: -50% calc((var(--clip-inset-top) - var(--touch-min)) / 2);
+  }
+
+  .seam-mark .sys-seam[data-form="diamond"] .sys-seam-hit {
+    inline-size: var(--touch-min);
+    block-size: var(--touch-min);
   }
 }
 

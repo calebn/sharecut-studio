@@ -221,7 +221,10 @@ describe("timeline styles", () => {
       css.indexOf(".lane-inner > * {"),
     );
     // A --join-hit-min (24 px, px canvas) wide hit area (WCAG 2.5.8), never taller than the gutter.
-    const hit = rule(css, ".seam-mark .sys-seam-hit");
+    const hit = rule(
+      css,
+      '.seam-mark .sys-seam[data-form="diamond"] .sys-seam-hit',
+    );
     expect(hit).toMatch(/inline-size:\s*var\(--join-hit-min\)/);
     expect(hit).toMatch(/block-size:\s*var\(--clip-inset-top\)/);
     expect(
