@@ -277,7 +277,7 @@ describe("EditWorkspace arrangements", () => {
     const strip = () =>
       screen.queryByRole("slider", { name: "Episode overview" });
 
-    it("shows on both phone surfaces with ticks and seeks on tap", async () => {
+    it("shows on both phone surfaces with its ticks", async () => {
       stubViewportShell("phone");
       useDawStore.setState({
         project: minimalProject({

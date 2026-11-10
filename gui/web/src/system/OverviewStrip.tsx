@@ -1,4 +1,5 @@
 import { type KeyboardEvent, type PointerEvent, useRef } from "react";
+import { clamp } from "../utils/math";
 
 export type OverviewTick = {
   /** 0 to 1 across the episode. */
@@ -26,8 +27,6 @@ export function snapToTick(
   }
   return best;
 }
-
-const clamp01 = (value: number) => Math.min(1, Math.max(0, value));
 
 const KEY_STEP = 0.01;
 const KEY_STEP_BIG = 0.1;
@@ -67,7 +66,7 @@ export function OverviewStrip({
   const fractionAt = (event: PointerEvent<HTMLDivElement>, snap: boolean) => {
     const box = event.currentTarget.getBoundingClientRect();
     if (box.width <= 0) return null;
-    const raw = clamp01((event.clientX - box.left) / box.width);
+    const raw = clamp((event.clientX - box.left) / box.width, 0, 1);
     return snap ? snapToTick(raw, ticks, SNAP_PX / box.width) : raw;
   };
   const press = (event: PointerEvent<HTMLDivElement>) => {
@@ -100,7 +99,7 @@ export function OverviewStrip({
     if (target === null) return;
     event.preventDefault();
     event.stopPropagation();
-    onSeek(clamp01(target));
+    onSeek(clamp(target, 0, 1));
   };
   const interactive = onSeek
     ? {
