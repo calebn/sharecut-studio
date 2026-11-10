@@ -40,13 +40,45 @@ interface Guest {
   clock: Locator;
 }
 
+/** A mono 16-bit WAV whose level steps up block by block, so its envelope is not flat. */
+function steppedToneWav(seconds = 8, sampleRate = 8000): Buffer {
+  const n = seconds * sampleRate;
+  const buf = Buffer.alloc(44 + n * 2);
+  buf.write("RIFF", 0);
+  buf.writeUInt32LE(36 + n * 2, 4);
+  buf.write("WAVEfmt ", 8);
+  buf.writeUInt32LE(16, 16);
+  buf.writeUInt16LE(1, 20);
+  buf.writeUInt16LE(1, 22);
+  buf.writeUInt32LE(sampleRate, 24);
+  buf.writeUInt32LE(sampleRate * 2, 28);
+  buf.writeUInt16LE(2, 32);
+  buf.writeUInt16LE(16, 34);
+  buf.write("data", 36);
+  buf.writeUInt32LE(n * 2, 40);
+  for (let i = 0; i < n; i += 1) {
+    const level = (1 + Math.floor((i / n) * 8)) / 8;
+    const sample = Math.sin((2 * Math.PI * 440 * i) / sampleRate) * level;
+    buf.writeInt16LE(Math.round(sample * 0.9 * 32767), 44 + i * 2);
+  }
+  return buf;
+}
+
 async function withGuest(
   browser: Browser,
   size: Size,
   theme: Theme,
   run: (guest: Guest) => Promise<void>,
+  options: { tone?: boolean } = {},
 ): Promise<void> {
   await withShareableProject(async (projectPath) => {
+    if (options.tone) {
+      // The review version freezes the premix when the share is created.
+      fs.writeFileSync(
+        path.join(path.dirname(projectPath), "artifacts", "premix.wav"),
+        steppedToneWav(),
+      );
+    }
     await withBrowserPages(
       browser,
       [
@@ -178,6 +210,40 @@ test("the expanded Player shows the 60 s total duration on a phone", async ({
     await expect(total).toBeVisible();
     await expect(total).toContainText("01:00");
   });
+});
+
+test("the guest overview strip draws the episode, not a flat line", async ({
+  browser,
+}) => {
+  await withGuest(
+    browser,
+    DESKTOP,
+    "light",
+    async (guest) => {
+      const bars = guest.page.locator(
+        ".sys-player--expanded .sys-overview-peak",
+      );
+      const heights = async () =>
+        bars.evaluateAll((els) =>
+          els.map((el) => Number(el.getAttribute("height"))),
+        );
+      await expect
+        .poll(async () => (await heights()).length, {
+          message: "one bar per peak, not the single flat line",
+        })
+        .toBeGreaterThan(64);
+      await expect
+        .poll(
+          async () => {
+            const h = await heights();
+            return Math.max(...h) - Math.min(...h);
+          },
+          { message: "bar heights vary along the strip" },
+        )
+        .toBeGreaterThan(0.2);
+    },
+    { tone: true },
+  );
 });
 
 test("a click on the strip at 73% puts the clock at 73% of the episode", async ({
