@@ -30,8 +30,8 @@ OPT_OUT_LABELS = frozenset({"needs-user-input", "owner-check"})
 _MARK = r"(?:\*\*|__)?"
 _BULLET = r"(?:[-*+]|\d{1,9}[.)])[ \t]+"
 _CLOSING = re.compile(
-    rf"^[ \t]*(?:{_BULLET})?{_MARK}(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?)\b:?{_MARK}[ \t]+"
-    r"(?:(?P<repo>[\w.-]+/[\w.-]+))?#(?P<num>\d+)\b(?P<rest>.*)$",
+    rf"^[ \t]*(?:{_BULLET})?{_MARK}(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?)\b:?[ \t]+"
+    r"(?:(?P<repo>[\w.-]{1,100}/[\w.-]{1,100}))?#(?P<num>\d+)\b(?P<rest>.*)$",
     re.IGNORECASE | re.ASCII,
 )
 _CLOSING_TAIL = re.compile(r"[\s.,;:!)*_]*")
@@ -42,10 +42,12 @@ _PARTIAL = re.compile(
     re.IGNORECASE | re.ASCII,
 )
 _ISSUE_REFS = (
-    re.compile(r"(?<![\w/])(?:(?P<repo>[\w.-]+/[\w.-]+))?#(?P<num>\d+)\b", re.ASCII),
+    re.compile(
+        r"(?<![\w/])(?:(?<![.-])(?P<repo>[\w.-]{1,100}/[\w.-]{1,100}))?#(?P<num>\d+)\b", re.ASCII
+    ),
     re.compile(r"\bGH-(?P<num>\d+)\b", re.IGNORECASE | re.ASCII),
     re.compile(
-        r"https?://github\.com/(?P<repo>[\w.-]+/[\w.-]+)/(?:issues|pull)/(?P<num>\d+)\b",
+        r"https?://github\.com/(?P<repo>[\w.-]{1,100}/[\w.-]{1,100})/(?:issues|pull)/(?P<num>\d+)\b",
         re.IGNORECASE | re.ASCII,
     ),
 )

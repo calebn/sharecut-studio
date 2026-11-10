@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import re
 import subprocess
+import time
 from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
@@ -193,6 +194,10 @@ def test_non_ascii_digits_do_not_close_anything() -> None:
         f"Fixes #5\nPart of https://github.com/{REPO}/issues/5",
         "Fixes #5\nPart-of #5",
         "Fixes #5\nonly the first half",
+        "**Fixes** #12",
+        "**close** #12.",
+        "**Fixes:** #12",
+        "__Fixes__ #12",
         "Fixes #5\nDoes not close #5",
         "Fixes #5\nStill open: #5",
         "Fixes #5\r\nMore",
@@ -222,6 +227,37 @@ def test_partial_negated_and_inline_mentions_close_nothing(body: str) -> None:
 )
 def test_line_start_and_bullet_forms_close(body: str) -> None:
     assert cod.closing_refs(body, REPO) == {5}
+
+
+def test_a_bold_marker_wraps_the_whole_keyword_line_only() -> None:
+    assert cod.closing_refs("**Fixes #12**", REPO) == {12}
+    assert cod.closing_refs("**Fixes** #12", REPO) == set()
+    assert cod.closing_refs("**close** #12.", REPO) == set()
+    assert cod.closing_refs("**Fixes:** #12", REPO) == set()
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        "Fixes #5\n" + "GH-" * 20000,
+        "Fixes #5\nhttps://github.com/" + "a-" * 25000,
+        "Fixes #5\n" + "part-" * 10000,
+        "Fixes #5\n" + "a/" * 20000 + "#",
+        "Fixes #5\n" + "a." * 25000,
+    ],
+)
+def test_long_word_runs_parse_in_linear_time(body: str) -> None:
+    start = time.perf_counter()
+    result = cod.closing_refs(body, REPO)
+    assert time.perf_counter() - start < 1.0
+    assert result == set()
+
+
+def test_long_word_runs_after_a_clean_block_still_close() -> None:
+    start = time.perf_counter()
+    result = cod.closing_refs("Fixes #5\n\n" + "GH-" * 20000, REPO)
+    assert time.perf_counter() - start < 1.0
+    assert result == {5}
 
 
 def test_consecutive_keyword_lines_and_bullets_all_close() -> None:
