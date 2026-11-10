@@ -1,8 +1,9 @@
-import { type KeyboardEvent, useEffect, useState } from "react";
+import { useEffect } from "react";
 import { updateChapter } from "../../api";
 import { useProjectMutation } from "../../hooks/useProjectMutation";
 import { isShareProjectKey } from "../../shareMode";
 import { useDaw } from "../../state/useDaw";
+import { InlineEdit } from "../../system/InlineEdit";
 import type { InspectorSection } from "../../system/InspectorSheet";
 import { ScrubField } from "../../system/ScrubField";
 import type { Selection } from "../../types/project";
@@ -11,15 +12,14 @@ import { note } from "./sheetNote";
 export function useChapterSections(
   selection: Selection,
 ): readonly InspectorSection[] | null {
-  const { projectPath, setSelection } = useDaw((s) => ({
+  const { projectPath, duration, followChapter } = useDaw((s) => ({
     projectPath: s.projectPath,
-    setSelection: s.setSelection,
+    duration: s.project?.timeline_duration_sec ?? 0,
+    followChapter: s.followChapter,
   }));
   const chapter = selection?.kind === "chapter" ? selection : null;
   const { busy, error, setError, run } = useProjectMutation();
-  const [titleStr, setTitleStr] = useState(chapter?.id ?? "");
   useEffect(() => {
-    setTitleStr(chapter?.id ?? "");
     setError(null);
   }, [chapter?.id, chapter?.time, setError]);
   if (!chapter) return null;
@@ -31,16 +31,18 @@ export function useChapterSections(
     if (nextTime === time && nextTitle === title) return;
     await run(async () => {
       await updateChapter(projectPath, time, title, nextTime, nextTitle);
-      setSelection({ kind: "chapter", id: nextTitle, time: nextTime });
+      followChapter(chapter, {
+        kind: "chapter",
+        id: nextTitle,
+        time: nextTime,
+      });
     });
   };
 
-  const commitTitle = () => {
-    const next = titleStr.trim();
-    if (next === title) {
-      setTitleStr(title);
-      return;
-    }
+  const commitTitle = (text: string) => {
+    if (busy) return;
+    const next = text.trim();
+    if (next === title) return;
     if (!next) {
       setError("Title cannot be empty");
       return;
@@ -56,16 +58,11 @@ export function useChapterSections(
           id: "title",
           label: "Title",
           control: editable ? (
-            <input
-              className="track-sheet-field"
-              aria-label="Title"
-              value={titleStr}
-              disabled={busy}
-              onChange={(e) => setTitleStr(e.target.value)}
-              onBlur={commitTitle}
-              onKeyDown={(e: KeyboardEvent<HTMLInputElement>) => {
-                if (e.key === "Enter") e.currentTarget.blur();
-              }}
+            <InlineEdit
+              label="Title"
+              value={title}
+              onCommit={commitTitle}
+              className="inspector-text-field"
             />
           ) : (
             title
@@ -82,6 +79,7 @@ export function useChapterSections(
               step={0.01}
               decimals={2}
               min={0}
+              max={duration > 0 ? duration : undefined}
               skipUnchanged
               readOnly={!editable || busy}
               onCommit={(next) => void save(next, title)}

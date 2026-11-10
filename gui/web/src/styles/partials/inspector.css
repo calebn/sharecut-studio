@@ -206,9 +206,9 @@ html[data-shell="phone"] .modifier-footer-actions .ui-segmented {
   min-inline-size: 0;
 }
 
-.track-sheet-field {
+.sys-inline-edit.inspector-text-field {
   inline-size: 100%;
-  min-block-size: var(--control-height);
+  border-color: var(--color-border-subtle);
 }
 
 .track-sheet-bypass {
@@ -220,14 +220,14 @@ html[data-shell="phone"] .modifier-footer-actions .ui-segmented {
 }
 
 @media (pointer: coarse) {
-  .track-sheet-field,
+  .sys-inline-edit.inspector-text-field,
   .track-sheet-bypass,
   .track-sheet-action {
     min-block-size: var(--touch-min);
   }
 }
 
-html[data-shell="phone"] .track-sheet-field,
+html[data-shell="phone"] .sys-inline-edit.inspector-text-field,
 html[data-shell="phone"] .track-sheet-bypass,
 html[data-shell="phone"] .track-sheet-action {
   min-block-size: var(--touch-min);

@@ -104,8 +104,6 @@ const ON_KEY_DOWN_ALLOWLIST = new Set([
   "transcript/TranscriptWordbar.tsx",
   // Escape in the comment popover keeps a typed reply draft and moves to Close; a second Escape closes.
   "stage/edit/CommentPopover.tsx",
-  // Enter in the chapter Title field commits the retitle, which Apply used to do.
-  "stage/edit/chapterSections.tsx",
   // The separator pattern: arrows resize the Script pane, Enter resets it.
   "stage/edit/ScriptDivider.tsx",
   "tracks/TrackMuteSoloButtonsView.tsx",

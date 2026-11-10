@@ -116,6 +116,86 @@ describe("chapter content", () => {
     });
   });
 
+  it("keeps the Inspector open on the renamed chapter", async () => {
+    const user = userEvent.setup();
+    open();
+    useDawStore.setState({ inspectorKey: "chapter:Opening" });
+    const title = screen.getByRole("textbox", { name: "Title" });
+    await user.clear(title);
+    await user.type(title, "Interview{Enter}");
+    expect(updateChapter).toHaveBeenCalledExactlyOnceWith(
+      "/tmp/p.json",
+      5,
+      "Opening",
+      5,
+      "Interview",
+    );
+    expect(useDawStore.getState().selection).toEqual({
+      kind: "chapter",
+      id: "Interview",
+      time: 5,
+    });
+    expect(useDawStore.getState().inspectorKey).toBe("chapter:Interview");
+  });
+
+  it("leaves a newer selection alone when a slow rename finishes", async () => {
+    let finish: () => void = () => undefined;
+    vi.mocked(updateChapter).mockImplementationOnce(
+      () => new Promise<void>((resolve) => (finish = resolve)),
+    );
+    const user = userEvent.setup();
+    open();
+    const title = screen.getByRole("textbox", { name: "Title" });
+    await user.clear(title);
+    await user.type(title, "Interview{Enter}");
+    act(() => useDawStore.setState({ selection: { kind: "social", id: "x" } }));
+    await act(async () => finish());
+    expect(useDawStore.getState().selection).toEqual({
+      kind: "social",
+      id: "x",
+    });
+  });
+
+  it("puts the title back on Escape and lets a second Escape through", async () => {
+    const user = userEvent.setup();
+    open();
+    const title = screen.getByRole("textbox", { name: "Title" });
+    await user.clear(title);
+    await user.type(title, "Interview");
+    await user.keyboard("{Escape}");
+    expect(title).toHaveValue("Opening");
+    expect(updateChapter).not.toHaveBeenCalled();
+    expect(fireEvent.keyDown(title, { key: "Escape" })).toBe(true);
+  });
+
+  it("refuses a time outside the episode", async () => {
+    open();
+    await typeScrub("Time", "4000");
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Enter a number from 0 to 60 s",
+    );
+    expect(updateChapter).not.toHaveBeenCalled();
+  });
+
+  it("saves a time inside the episode", async () => {
+    open();
+    await typeScrub("Time", "12");
+    expect(updateChapter).toHaveBeenCalledExactlyOnceWith(
+      "/tmp/p.json",
+      5,
+      "Opening",
+      12,
+      "Opening",
+    );
+  });
+
+  it("offers neither Apply nor Seek", () => {
+    open();
+    expect(screen.getByRole("textbox", { name: "Title" })).toBeVisible();
+    expect(screen.queryByRole("button", { name: "Apply" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Seek" })).toBeNull();
+  });
+
   it("keeps the typed title and reports a failed save as an alert", async () => {
     vi.mocked(updateChapter).mockRejectedValueOnce(new Error("Save failed"));
     const user = userEvent.setup();
