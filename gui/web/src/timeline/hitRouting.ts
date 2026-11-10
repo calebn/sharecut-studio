@@ -87,6 +87,14 @@ export function isReplayed(event: Event): boolean {
   return replayed.has(event);
 }
 
+/** Whether a drag may start on this press: a touch only after the router armed the target and replayed it. */
+export function dragMayStart(event: {
+  pointerType: string;
+  nativeEvent: Event;
+}): boolean {
+  return event.pointerType !== "touch" || replayed.has(event.nativeEvent);
+}
+
 function pointOf(event: PointerEvent): HitPoint {
   return { x: event.clientX, y: event.clientY };
 }

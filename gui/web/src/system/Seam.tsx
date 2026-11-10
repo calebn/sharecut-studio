@@ -41,6 +41,8 @@ export type SeamRoll = {
   pxPerSec?: number;
   /** The roll in progress in ms, or null when it ends. */
   onPreview?: (deltaMs: number | null) => void;
+  /** Whether a press may start a roll; a host that arms touches itself refuses the unarmed ones. */
+  acceptsPointer?: (event: PointerEvent<HTMLElement>) => boolean;
 };
 
 /** Transcript density: a pixel of drag is 12.5 ms, and 1 ms with Alt held. */
@@ -98,11 +100,13 @@ function useRollGesture(roll: SeamRoll, onTap?: () => void) {
   };
   const cancel = () => {
     if (!drag.current) return false;
+    moved.current = true;
     end();
     return true;
   };
   const down = (event: PointerEvent<HTMLElement>) => {
     if (event.button !== 0 || drag.current) return;
+    if (roll.acceptsPointer && !roll.acceptsPointer(event)) return;
     const limits = roll.limits();
     if (!limits) return;
     event.currentTarget.setPointerCapture?.(event.pointerId);

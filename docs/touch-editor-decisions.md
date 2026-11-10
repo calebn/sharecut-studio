@@ -291,9 +291,11 @@ evidence:
 - #2294 (C3b): one Seam object on the timeline, so the clip-edge roll strip, the join glyph and the applied tick are gone
 enforced-by:
 - gui/web/src/system/Seam.test.tsx::rolls with the drag at the timeline's pixels per second and saves once on release
-- gui/web/src/system/Seam.test.tsx::Alt with an arrow key rolls 1 ms by key
+- gui/web/src/system/Seam.test.tsx::a held Alt arrow rolls once, not once per key repeat
 - gui/web/src/timeline/SeamLayer.test.tsx::previews a drag on the lane's clips and saves one roll through the sheet's command on release
 - gui/web/src/timeline/SeamLayer.test.tsx::registers as the roll hit target of its right clip for touch
+- gui/web/src/timeline/SeamLayer.test.tsx::takes no roll from an unarmed touch drag and rolls once the long press has armed it
+- gui/web/src/commands/seamRoll.test.ts::does not save a roll when its partners change during boundary loading
 supersedes: D-join-grab-rolls
 -->
 
@@ -303,8 +305,12 @@ drag, previews the roll on both clips and the diamond, shows the ms readout,
 and saves one roll on release through `rollSeam`, the command the Seam
 sheet's Offset field uses. Alt drags at a twelfth and a half of the pace (a
 tenth of a millisecond at the finest), Escape drops the roll, and Alt with an
-arrow key rolls 1 ms. A press that does not move selects the seam. A touch
-long press on a clip edge still offers each side's ripple trim in the
+arrow key rolls 1 ms. A press that does not move selects the seam. A one-finger
+touch drag on an unarmed diamond rolls nothing: the diamond refuses a touch
+press the hit router has not replayed after its long press. The clip-edge roll
+handle is gone, so the keyboard and the sheet cover it: each diamond is a tab
+stop that rolls 1 ms with Alt and an arrow key, and the sheet's Offset field
+rolls by any amount. A touch long press on a clip edge still offers each side's ripple trim in the
 chooser, and a trim strip is a trim handle only.
 
 ### Superseded decision: Edit chips zoom, join glyphs act, applied ticks stay inert
@@ -335,18 +341,22 @@ decided-by: calebn
 evidence:
 - docs/design/stages/spec-edit.md INT-JOIN and the Seam element: "6 px diamond on the lane's top edge (filled = cut, hollow = split)"
 - #2294 (C3b): the join glyph, the edit chip and the applied seam tick are one object now
-- WCAG 2.5.8 Target Size (Minimum): the diamond's button is 24 px wide at any root font size and 44 px square under a coarse pointer
+- WCAG 2.5.8 Target Size (Minimum), the Equivalent exception: the diamond's button is 24 px wide and as tall as the 12 px gutter under a fine pointer, and 44 px square under a coarse pointer; the Seam sheet is the full-size equivalent for selecting and rolling a seam
 enforced-by:
-- gui/web/src/timeline/SeamLayer.test.tsx::draws a hollow diamond per touching pair, 6 px on the lane's top edge
+- gui/web/src/timeline/SeamLayer.test.tsx::draws a hollow diamond per touching pair at the seam's time
 - gui/web/src/timeline/TrackLane.test.tsx::draws a filled diamond where a cut left the clips touching
 - gui/web/src/timeline/timelineStyles.test.ts::draws seam marks at the top of the seam, above the clips
 - gui/web/src/timeline/AppliedEditOverlay.test.tsx::draws no tick for a cut, which is a Seam diamond
 - gui/web/src/timeline/hitRouting.grammar.test.ts::stays a seek in the lane above, where the mark's box would reach
 - gui/web/src/timeline/hitRouting.grammar.test.ts::opens the Seam from the browser's click when a finger lands 20 px beside it
+- gui/web/src/timeline/hitRouting.grammar.test.ts::keeps a fade corner under the diamond's box grabbable at the clip top
+- gui/web/src/timeline/hitRouting.grammar.test.ts::resolves the midpoint between two seams 12 px apart to exactly one of them
 supersedes: D-edit-chip-zooms
 -->
 
-Every pair of touching clips, and every pair a cut separated, draws one
+The "Join" and "Edit group" entries of the touch chooser are gone with the
+glyph and the count chip: the join type is chosen in the Seam action bar and
+sheet. Every pair of touching clips, and every pair a cut separated, draws one
 diamond (`timeline/SeamLayer.tsx`, the shared `system/Seam.tsx` in its
 diamond form): filled for a cut, hollow for a split. A tap or click selects
 the seam and opens the Seam action bar and sheet; the join type is in the bar.

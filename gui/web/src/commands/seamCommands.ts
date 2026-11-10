@@ -181,6 +181,13 @@ export async function rollSeam(
           now.projectEpoch !== projectEpoch
         )
           throw new Error("The project changed during the roll");
+        const present = now.project ? seamById(now.project, seam.id) : null;
+        if (
+          !present ||
+          JSON.stringify(seamGeometry(present)) !==
+            JSON.stringify(seamGeometry(seam))
+        )
+          throw new ApiError(ROLL_CONFLICT_MESSAGE, "document_conflict");
         return rollClipJoin(
           projectPath,
           left.id,

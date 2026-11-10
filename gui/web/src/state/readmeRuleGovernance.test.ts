@@ -63,11 +63,10 @@ describe("README rule: api.ts is the facade", () => {
     "services/commandQueue.ts -> api/documentTransport",
     "stage/edit/PendingEditBody.tsx -> api/documentEdits",
     "stage/hosts/useTunnelStatus.ts -> api/tunnelStatus",
-    "timeline/ClipBlock.tsx -> api/boundary",
     "transcript/TranscriptWordbar.tsx -> api/transcriptTiming",
   ];
-  const ALLOWLIST_PAIRS = 26;
-  const ALLOWLIST_FILES = 22;
+  const ALLOWLIST_PAIRS = 25;
+  const ALLOWLIST_FILES = 21;
 
   it("imports an api/ adapter directly only from the allowlist", () => {
     expect(adapterImports(sourceFiles())).toEqual(ALLOWLIST);
