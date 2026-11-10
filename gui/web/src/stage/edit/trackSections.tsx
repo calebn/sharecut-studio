@@ -34,7 +34,7 @@ import { kindOf, roleForKind, TRACK_KINDS } from "./trackKind";
 import { episodePeople } from "./trackPeople";
 
 function roomToneRows(track: TrackView, disabledReason: string | undefined) {
-  if (track.room_tone === "recorded")
+  if (track.room_tone_kind === "recorded")
     return [
       {
         id: "roomTone",
@@ -42,7 +42,7 @@ function roomToneRows(track: TrackView, disabledReason: string | undefined) {
         control: "Recorded for this track",
       },
     ];
-  const extracted = track.room_tone === "extracted";
+  const extracted = track.room_tone_kind === "extracted";
   return [
     {
       id: "roomTone",
@@ -116,7 +116,11 @@ export function useTrackSections(
   const hostCanSplit = canManageProjects(projectPath);
   const splitBlocker = splitSpeakersBlocker(track, hostCanSplit);
   const busyReason = busy ? BUSY_REASON : undefined;
-  const bedBlocker = roomToneBedBlocker(track, hostCanSplit);
+  const bedBlocker = roomToneBedBlocker(
+    track,
+    hostCanSplit,
+    track.room_tone_kind === "extracted" ? "clear" : "extract",
+  );
 
   const pickPerson = (speaker: string) => {
     if (!busy) void saveSpeaker(speaker);

@@ -678,7 +678,9 @@ def extract_room_tone_bed_tool(project_path: str, track_id: str) -> str:
     The bed is what later fills (tighten pads, gap fills, bleed mutes) use in place of comfort
     noise. A track with a recorded or assigned bed, or whose audio is unchanged since the last
     extraction, is left as it is. With no clean stretch the reply says why
-    (``extracted: false`` plus ``reason``). Undo restores the earlier bed state.
+    (``extracted: false`` plus ``reason``). Undo restores the earlier bed state. A later
+    ``clear_extracted_room_tone_bed_tool`` lasts only until the next pipeline run with
+    ``room_tone.extract_bed`` on, which cuts a bed for a bedless track again.
     """
     return to_json(
         submit_host_command_result(project_path, "ExtractRoomToneBed", {"track_id": track_id})
@@ -689,7 +691,10 @@ def clear_extracted_room_tone_bed_tool(project_path: str, track_id: str) -> str:
     """Take the extracted room-tone bed off ``track_id``, in one undo step.
 
     Only a bed cut from the track's own audio goes; a recorded or assigned bed is never
-    removed (``cleared: false``, ``reason: recorded_bed``). Fills already laid are unchanged.
+    removed (``cleared: false``, ``reason: recorded_bed``). Fills baked into mutes keep their
+    own copy of the bed; fills under timing holes follow the track's bed. Undo brings the bed
+    back. The clear lasts only until the next pipeline run with ``room_tone.extract_bed`` on,
+    which cuts a bed for a bedless track again.
     """
     return to_json(
         submit_host_command_result(

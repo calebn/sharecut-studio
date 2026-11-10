@@ -52,8 +52,10 @@ class RoomToneBedService(WorkspaceService):
         """Take the bed the pipeline cut off ``track_id``, in one undo step.
 
         A recorded or assigned bed is never removed, and a track with no bed is left as it is;
-        the reply says why. Fills already laid keep sounding the same, since they hold their
-        own copy. History undo brings the bed back.
+        the reply says why. Fills baked into mutes keep their own copy of the bed; fills
+        under timing holes follow the track's bed, so they fall back once it is gone. History
+        undo brings the bed back. The clear lasts only until the next pipeline run with
+        ``room_tone.extract_bed`` on, which cuts a bed for a bedless track again.
         """
         tid = self._resolve(track_id, speaker)
         track = self.ws.project.track_by_id(tid)

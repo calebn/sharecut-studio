@@ -5,15 +5,21 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import pytest
 from typer.testing import CliRunner
 
 from podcast_mcp.cli.main import app
+from podcast_mcp.edits.extracted_bed import clear_extracted_bed
 from podcast_mcp.edits.record_placement import place_room_tone
 from podcast_mcp.engines.room_tone import RecordedBedSample, room_tone_bed
+from podcast_mcp.gui.assembler import build_track_views
 from podcast_mcp.mcp.tools import timeline as mcp_timeline
 from podcast_mcp.models import load_project, save_project
-from podcast_mcp.services.document_sync import DocumentSyncService
+from podcast_mcp.services.app import ProjectWorkspace
+from podcast_mcp.services.document_sync import DocumentSyncService, ViewProjection
+from podcast_mcp.services.document_sync.errors import DocumentConflictError
 from podcast_mcp.services.document_sync.host_submit import submit_host_document_command
+from podcast_mcp.services.document_sync.projections import projection_for_command
 from test_room_tone_extract import (
     NO_CLEAN_STRETCH,
     SPEECH_THEN_ROOM,
@@ -117,7 +123,7 @@ def test_history_undo_walks_back_through_clear_and_extract(tmp_path: Path) -> No
     assert gone.source_by_id("room-tone-host") is None
 
 
-def test_clear_keeps_the_bed_source_so_laid_fills_still_resolve(tmp_path: Path) -> None:
+def test_clear_keeps_the_bed_source_entry_and_a_re_extract_works(tmp_path: Path) -> None:
     path = _saved(tmp_path)
     _extract(path)
 
@@ -142,3 +148,54 @@ def test_the_cli_extracts_and_clears(tmp_path: Path) -> None:
     )
     assert out.exit_code == 0, out.output
     assert json.loads(out.output) == {"track_id": "host", "cleared": True}
+
+
+def test_both_commands_refresh_the_tracks_projection() -> None:
+    for command in ("ExtractRoomToneBed", "ClearExtractedRoomToneBed"):
+        assert projection_for_command(command) is ViewProjection.TRACKS
+
+
+def test_the_track_view_reports_none_recorded_and_extracted(tmp_path: Path) -> None:
+    def kind(path: Path) -> str:
+        views = build_track_views(ProjectWorkspace.open(str(path)))
+        return next(v for v in views if v.id == "host").room_tone_kind
+
+    path = _saved(tmp_path / "extracted")
+    assert kind(path) == "none"
+    _extract(path)
+    assert kind(path) == "extracted"
+    _clear(path)
+    assert kind(path) == "none"
+    _undo(path)
+    assert kind(path) == "extracted"
+
+    recorded = _project(tmp_path / "recorded", _host_audio(SPEECH_THEN_ROOM))
+    recorded.ensure_dirs()
+    _write_wav(
+        tmp_path / "recorded" / "raw" / "room-tone" / "host.wav", _noise(-62.0, seed=7)[: 2 * SR]
+    )
+    place_room_tone(
+        recorded,
+        track_id="host",
+        label="Host",
+        rel="raw/room-tone/host.wav",
+        duration_s=2.0,
+        sample_rate=SR,
+        channels=1,
+    )
+    assert kind(save_project(recorded)) == "recorded"
+
+
+def test_clear_on_an_unknown_track_says_missing_track(tmp_path: Path) -> None:
+    path = _saved(tmp_path)
+
+    result = clear_extracted_bed(load_project(path), "ghost")
+
+    assert result == {"track_id": "ghost", "cleared": False, "reason": "missing_track"}
+
+
+def test_the_clear_command_refuses_an_unknown_track(tmp_path: Path) -> None:
+    path = _saved(tmp_path)
+
+    with pytest.raises(DocumentConflictError, match="unknown track_id"):
+        mcp_timeline.clear_extracted_room_tone_bed_tool(str(path), "ghost")

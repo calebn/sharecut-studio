@@ -466,7 +466,7 @@ export interface TrackView {
   media_path?: string | null;
   speaker_split_id?: string | null;
   fade_max_ms?: number | null;
-  room_tone?: "none" | "recorded" | "extracted";
+  room_tone_kind?: "none" | "recorded" | "extracted";
 }
 
 export interface TranscriptExportRequest {

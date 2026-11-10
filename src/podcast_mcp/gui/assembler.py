@@ -140,7 +140,7 @@ def build_track_views(
                 media_path=track.media.path if track.media else None,
                 speaker_split_id=split.id if split else None,
                 fade_max_ms=track_fade_max_ms(track, defaults),
-                room_tone=_room_tone_kind(track),
+                room_tone_kind=_room_tone_kind(track),
             )
         )
     return track_views

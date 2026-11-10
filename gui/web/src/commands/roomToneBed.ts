@@ -21,6 +21,14 @@ const REASONS: Record<string, string> = {
   no_quiet_run: "has no stretch quiet enough to use",
   too_short: "has no quiet stretch long enough to use",
   rejected: "has a quiet stretch, but it sounds like more than room tone",
+  missing_track: "is no longer in this project",
+  missing_file: "has an audio file that could not be found",
+  source_changed:
+    "had its audio change while room tone was being cut, so try again",
+  bed_changed:
+    "has a room tone file that changed on disk, so it was left alone",
+  unreadable_file: "has audio that could not be read, so try again",
+  gated_live: "is still being recorded, so try again when it has finished",
 };
 
 export function roomToneBedReason(label: string, reason: string): string {
@@ -31,10 +39,11 @@ export function roomToneBedReason(label: string, reason: string): string {
 export function roomToneBedBlocker(
   track: { media_path?: string | null } | undefined,
   host: boolean,
+  wanted: "extract" | "clear" = "extract",
 ): string | null {
   if (!host) return "Only the host can change room tone";
   if (!track) return "Select a track";
-  if (!track.media_path) return "Import audio first";
+  if (wanted === "extract" && !track.media_path) return "Import audio first";
   return null;
 }
 
@@ -62,7 +71,11 @@ async function change(
   },
 ): Promise<ExecuteResult> {
   const { s, track } = target(args);
-  const blocker = roomToneBedBlocker(track, canManageProjects(s.projectPath));
+  const blocker = roomToneBedBlocker(
+    track,
+    canManageProjects(s.projectPath),
+    verb.wanted,
+  );
   if (blocker || !track) return { status: "disabled", reason: blocker! };
   const label = track.label || track.id;
   const projectPath = s.projectPath;

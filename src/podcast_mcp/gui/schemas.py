@@ -539,7 +539,7 @@ class TrackView(BaseModel):
     fade_max_ms: int | None = None
     # Whose room-tone bed the track holds: none, one recorded or assigned, or one the pipeline
     # cut from the track's own audio (the only kind Clear removes).
-    room_tone: Literal["none", "recorded", "extracted"] = "none"
+    room_tone_kind: Literal["none", "recorded", "extracted"] = "none"
 
 
 class ProjectView(BaseModel):

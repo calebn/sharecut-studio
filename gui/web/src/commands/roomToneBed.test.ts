@@ -75,6 +75,21 @@ describe("room tone commands", () => {
     ["no_quiet_run", "Host has no stretch quiet enough to use"],
     ["has_bed", "Host already has a room tone that was recorded or assigned"],
     ["already_extracted", "Host already has a room tone cut from this audio"],
+    ["missing_track", "Host is no longer in this project"],
+    ["missing_file", "Host has an audio file that could not be found"],
+    [
+      "source_changed",
+      "Host had its audio change while room tone was being cut, so try again",
+    ],
+    [
+      "bed_changed",
+      "Host has a room tone file that changed on disk, so it was left alone",
+    ],
+    ["unreadable_file", "Host has audio that could not be read, so try again"],
+    [
+      "gated_live",
+      "Host is still being recorded, so try again when it has finished",
+    ],
   ])(
     "says in plain words why an extract did nothing: %s",
     async (reason, text) => {
@@ -129,6 +144,25 @@ describe("room tone commands", () => {
     );
     expect(failed).toMatchObject({ status: "disabled", reason: "boom" });
     expect(toastText()).toContain("Remove room tone failed");
+  });
+
+  it("clears on a track with no audio", async () => {
+    load({ id: "host", media_path: null });
+    vi.mocked(api.clearExtractedRoomToneBedCommand).mockResolvedValue({
+      done: true,
+      historyHead: HEAD,
+    });
+    expect(
+      await execute(
+        "track.clearRoomTone",
+        { trackId: "host" },
+        { skipWhen: true },
+      ),
+    ).toEqual({ status: "ok" });
+    expect(api.clearExtractedRoomToneBedCommand).toHaveBeenCalledWith(
+      "/tmp/ep.json",
+      "host",
+    );
   });
 
   it("is refused without audio and on a review link", async () => {

@@ -512,7 +512,7 @@ describe("track content", () => {
 
     it("offers Remove for a bed cut from the track's own audio", async () => {
       const user = userEvent.setup();
-      open({ ...withAudio, room_tone: "extracted" });
+      open({ ...withAudio, room_tone_kind: "extracted" });
       expect(
         screen.getByText("Cut from this track's own quiet stretch"),
       ).toBeVisible();
@@ -526,7 +526,7 @@ describe("track content", () => {
     });
 
     it("shows a recorded bed with no button, so it cannot be removed here", () => {
-      open({ ...withAudio, room_tone: "recorded" });
+      open({ ...withAudio, room_tone_kind: "recorded" });
       expect(screen.getByText("Recorded for this track")).toBeVisible();
       expect(screen.queryByRole("button", { name: /room tone/i })).toBeNull();
     });
