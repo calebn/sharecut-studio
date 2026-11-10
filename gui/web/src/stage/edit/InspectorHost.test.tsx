@@ -202,7 +202,7 @@ describe("the Inspector card on the desktop and the tablet", () => {
     expect(card).toContainElement(document.activeElement as HTMLElement);
   });
 
-  it("returns phone sheet focus to a clicked track header when WebKit leaves focus on body", () => {
+  it("returns phone focus to the clicked header when focus was on body", () => {
     stubViewportShell("phone");
     useDawStore.getState().setSelection(null);
     render(
@@ -227,7 +227,7 @@ describe("the Inspector card on the desktop and the tablet", () => {
     expect(header).toHaveFocus();
   });
 
-  it("returns phone focus to the header when the stage takes focus before the selection clears", () => {
+  it("returns phone focus to the header after the stage takes focus", () => {
     stubViewportShell("phone");
     useDawStore.getState().setSelection(null);
     render(
@@ -250,7 +250,7 @@ describe("the Inspector card on the desktop and the tablet", () => {
     expect(header).toHaveFocus();
   });
 
-  it("restores the phone opener after focus leaves and re-enters before selection changes", () => {
+  it("returns phone focus to the header after focus leaves and re-enters", () => {
     stubViewportShell("phone");
     useDawStore.getState().setSelection(null);
     render(
@@ -343,7 +343,7 @@ describe("the Inspector card on the desktop and the tablet", () => {
     from.remove();
   });
 
-  it("keeps the containing stage focused when it owns focus before Close", () => {
+  it("keeps the stage focused when it owns focus at Close", () => {
     stubViewportShell("phone");
     useDawStore.getState().setSelection(null);
     render(
