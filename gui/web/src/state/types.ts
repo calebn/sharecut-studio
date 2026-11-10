@@ -282,6 +282,8 @@ export interface DawState {
   shareCapabilities: string[] | null;
   /** This guest's share author (``PendingEditView.author``) from bootstrap; null for host. */
   shareAuthor: string | null;
+  /** The review episode's overview-strip envelope (0..1 columns); empty for a host or until loaded. */
+  reviewPeaks: readonly number[];
   playheadSec: number;
   playheadSeekRevision: number;
   zoomPxPerSec: number;
@@ -455,6 +457,7 @@ export interface DawState {
   setPlaybackRate: (rate: number) => void;
   setProject: (project: ProjectView) => void;
   setGuestMode: (mode: string | null) => void;
+  setReviewPeaks: (peaks: readonly number[]) => void;
   setPlayheadSec: (sec: number, origin?: "seek" | "playback") => void;
   /** Set zoom, clamped to the session-aware ceiling. */
   setZoomPxPerSec: (z: number) => void;

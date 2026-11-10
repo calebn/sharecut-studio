@@ -57,6 +57,7 @@ export function usePlayerProps(
     followDegraded,
     sessionClients,
     playbackRate,
+    reviewPeaks,
   } = useDaw((s) => ({
     project: s.project,
     projectPath: s.projectPath,
@@ -71,6 +72,7 @@ export function usePlayerProps(
     followDegraded: s.followDegraded,
     sessionClients: s.sessionClients,
     playbackRate: s.playbackRate,
+    reviewPeaks: s.reviewPeaks,
   }));
   const playheadSec = useDawStore((s) => s.playheadSec);
   // What was playing when A was pressed, so letting go goes back to it.
@@ -164,6 +166,8 @@ export function usePlayerProps(
     playUnavailable: unavailable !== undefined,
     hearOriginal: auditionMode === "raw",
     guest,
+    // The episode waveform is the guest's; a host's strip stays as it was.
+    peaks: guest ? reviewPeaks : undefined,
     following: followingClientId
       ? {
           name: leader ? rosterDisplayName(leader) : followingClientId,

@@ -112,6 +112,8 @@ type ProjectSlice = Pick<
   | "guestMode"
   | "shareCapabilities"
   | "shareAuthor"
+  | "reviewPeaks"
+  | "setReviewPeaks"
   | "heldTrim"
   | "projectEditBasis"
   | "changeHeldTrim"
@@ -139,6 +141,7 @@ export const createProjectSlice: StateCreator<
   guestMode: null as string | null,
   shareCapabilities: null as string[] | null,
   shareAuthor: null as string | null,
+  reviewPeaks: [] as readonly number[],
   projectEditBasis: () => {
     const state = get();
     const layer = state.heldTrim;
@@ -243,6 +246,12 @@ export const createProjectSlice: StateCreator<
     );
   },
   setGuestMode: (guestMode: string | null) => set({ guestMode }),
+  setReviewPeaks: (reviewPeaks) =>
+    set((s) =>
+      s.reviewPeaks.length === 0 && reviewPeaks.length === 0
+        ? s
+        : { reviewPeaks },
+    ),
   setPipelineJob: (pipelineJob: PipelineJobSnapshot | null) =>
     set({ pipelineJob }),
   pipelineJob: null,
