@@ -558,12 +558,7 @@ def apply_sound_actions(project: EpisodeProject, defaults: dict[str, Any]) -> St
 
 
 def extract_room_tone_beds(project: EpisodeProject, defaults: dict[str, Any]) -> StepSummary:
-    """Cut a room-tone bed from each dialogue track that has none (``room_tone.extract_bed``).
-
-    A track with a recorded or earlier-extracted bed keeps it, and one with no clean stretch
-    stays bedless, so gate fills and pads fall back as before.  Runs ahead of every step that
-    picks a fill; it never rewrites a fill an earlier run already baked.
-    """
+    """Cut a room-tone bed for each bedless dialogue track (``room_tone.extract_bed``)."""
     from podcast_mcp.edits.extracted_bed import bedless_reason, register_extracted_bed
     from podcast_mcp.engines.room_tone import SampleAbsent
     from podcast_mcp.engines.room_tone_extract import plan_extracted_bed
@@ -577,7 +572,7 @@ def extract_room_tone_beds(project: EpisodeProject, defaults: dict[str, Any]) ->
     live = live_project(project)
     cut: list[str] = []
     kept: list[str] = []
-    none: list[str] = []
+    absent: list[str] = []
     with resolve_progress_task(
         "extract_room_tone_beds",
         "Extracting room tone",
@@ -591,20 +586,20 @@ def extract_room_tone_beds(project: EpisodeProject, defaults: dict[str, Any]) ->
             if skip is None:
                 plan = plan_extracted_bed(project, track.id)
                 if isinstance(plan, SampleAbsent):
-                    none.append(f"{track.id}: {plan.cause}")
+                    absent.append(f"{track.id}: {plan.cause}")
                 elif (skip := bedless_reason(live, track.id)) is None:
                     reply = register_extracted_bed(project, track.id, plan)
                     if reply["extracted"]:
                         cut.append(f"{track.id} {plan.duration_sec:.1f} s")
                     else:
-                        none.append(f"{track.id}: {reply['reason']}")
+                        absent.append(f"{track.id}: {reply['reason']}")
             if skip is not None:
                 kept.append(f"{track.id}: {skip}")
             prog.advance(1, message=f"Done {track.id} ({done}/{len(tracks)})")
     return (
         f"{len(cut)} beds extracted ({', '.join(cut) or 'none'}); "
         f"{len(kept)} kept ({', '.join(kept) or 'none'}); "
-        f"{len(none)} none ({', '.join(none) or 'none'})"
+        f"{len(absent)} none ({', '.join(absent) or 'none'})"
     )
 
 

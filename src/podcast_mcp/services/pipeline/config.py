@@ -104,7 +104,6 @@ FOCUS_STEPS = ("analyze_focus_cuts", "focus_from_transcript")
 TIGHTEN_STEPS = ("analyze_fillers_pauses", "tighten_from_transcript")
 # Gated by tighten.apply_non_speech, not tighten.enabled (#1434).
 SOUND_ACTION_STEP = "apply_sound_actions"
-# Gated by room_tone.extract_bed; off by default, so the param alone turns it on.
 ROOM_TONE_STEP = "extract_room_tone_beds"
 SWITCHED_STEPS = (SOUND_ACTION_STEP, ROOM_TONE_STEP)
 
