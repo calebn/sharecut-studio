@@ -27,7 +27,6 @@ vi.mock("../api", async (importOriginal) => ({
 
 const PROJECT_PATH = "/Users/ada/Episodes/ep-12/episode.sharecut";
 
-/** Hosts the way dawApp and Home mount them: the app menu button, Settings, Models. */
 function Harness() {
   const modelsOpen = useDaw((s) => s.chrome.modelsSheetOpen);
   return (
