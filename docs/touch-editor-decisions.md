@@ -1141,7 +1141,7 @@ Round 4b builds the grammar on the 4a branch. It shipped behind the touch
 chooser lab until the owner made it the default (2026-10-07).
 
 - **Arming.** A long press (`LONG_PRESS_MS`) on one target arms it, if its
-  contract gives it an axis, or selects it (a join glyph, a pending split).
+  contract gives it an axis, or selects it (a Seam diamond, a pending split).
   Over two or more targets the chooser opens, and a chip arms its target as
   before. An armed target wears an accent halo, the screen
   reader hears "Fade in armed: drag sideways to move it, lift to finish",
