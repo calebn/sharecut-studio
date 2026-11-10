@@ -639,6 +639,42 @@ describe("InspectorSheet takeover", () => {
     expect(onClose).toHaveBeenCalled();
   });
 
+  it("leaves an open takeover alone when a field inside takes Escape for itself", async () => {
+    const onClose = vi.fn();
+    render(
+      <InspectorSheet
+        form="takeover"
+        icon="sliders-horizontal"
+        name="Maya"
+        sections={[
+          {
+            id: "edit",
+            rows: [
+              {
+                id: "field",
+                control: (
+                  <input
+                    aria-label="Chapter title"
+                    onKeyDown={(event) => {
+                      if (event.key === "Escape") event.preventDefault();
+                    }}
+                  />
+                ),
+              },
+            ],
+          },
+        ]}
+        onClose={onClose}
+      />,
+    );
+    screen.getByRole("textbox", { name: "Chapter title" }).focus();
+    await userEvent.keyboard("{Escape}");
+    expect(onClose).not.toHaveBeenCalled();
+    screen.getByRole("button", { name: "Done" }).focus();
+    await userEvent.keyboard("{Escape}");
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
   it("has no axe violations", async () => {
     render(
       <InspectorSheet

@@ -472,6 +472,11 @@ export function InspectorSheet(props: InspectorSheetProps) {
   return <Phone {...props} />;
 }
 
+/** A field inside took Escape for itself: the dialog's window listener must not close on it as well. */
+function keepEscapeFromField(event: KeyboardEvent<HTMLElement>) {
+  if (event.key === "Escape" && event.defaultPrevented) event.stopPropagation();
+}
+
 function Takeover({
   icon,
   mark,
@@ -497,7 +502,11 @@ function Takeover({
         </button>
       }
     >
-      <div className="sys-inspector sys-inspector--takeover">
+      <div
+        role="presentation"
+        className="sys-inspector sys-inspector--takeover"
+        onKeyDown={keepEscapeFromField}
+      >
         <Header icon={icon} mark={mark} name={name} onRename={onRename} />
         <Sections sections={sections} />
       </div>
