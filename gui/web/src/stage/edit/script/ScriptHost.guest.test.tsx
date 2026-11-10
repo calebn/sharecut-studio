@@ -14,7 +14,8 @@ const word = (name: string) => screen.getByRole("button", { name });
 const speakers = () =>
   screen.queryAllByRole("button", { name: /change speaker/ });
 const fixOpens = async () => {
-  await userEvent.dblClick(word("show"));
+  await userEvent.click(word("show"));
+  await userEvent.keyboard("{F2}");
   return screen.queryByRole("textbox") !== null;
 };
 

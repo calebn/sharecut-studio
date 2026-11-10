@@ -26,7 +26,7 @@ export type ScriptGesture = {
 export type ScriptGestureEnd = ScriptGesture & { committed: boolean };
 
 /** How Fix text was asked for. Typing never asks for it. */
-export type FixTextVia = "enter" | "f2" | "double-click" | "double-tap";
+export type FixTextVia = "enter" | "f2" | "double-tap";
 
 /** The pointer kinds that can start a press. */
 export type PressKind = "mouse" | "pen" | "touch";

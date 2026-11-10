@@ -2858,6 +2858,14 @@ button.sys-picker-option[data-checked] {
   background: var(--color-accent-subtle);
 }
 
+button.sys-picker-option[aria-disabled="true"] {
+  cursor: default;
+}
+
+button.sys-picker-option[aria-disabled="true"] .sys-picker-name {
+  color: var(--color-text-secondary);
+}
+
 button.sys-picker-option:focus-visible {
   outline: var(--focus-ring-width) solid var(--color-accent);
   outline-offset: var(--focus-ring-offset);
@@ -5011,6 +5019,23 @@ button.sys-scope:hover {
   padding-block-start: var(--space-0);
   font-size: var(--font-size-small);
   line-height: 1.2;
+}
+
+.sys-script[data-layout="phone"] .sys-script-turn {
+  grid-template-columns: minmax(0, 1fr);
+  max-inline-size: none;
+}
+
+.sys-script[data-layout="phone"] .sys-script-margin {
+  flex-direction: row;
+  align-items: center;
+  gap: var(--space-3);
+  padding-inline-end: 0;
+  padding-block-end: var(--space-1);
+}
+
+.sys-script[data-layout="phone"] .sys-script-margin:empty {
+  display: none;
 }
 
 .sys-script-speaker {

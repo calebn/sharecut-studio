@@ -8,6 +8,8 @@ import { siblingSplitLanes } from "../../../utils/speakerSplit";
 import { useStableCallback } from "../../../utils/useStableCallback";
 import { type ScriptModel, speakerColorIndex } from "./scriptModel";
 
+const NOT_SPLIT_LANE = "A different recording. Turns move only within a split.";
+
 export type ScriptSpeakerOpen = {
   turnId: string;
   currentId: string;
@@ -25,8 +27,9 @@ export type ScriptSpeaker = {
 };
 
 /**
- * The speaker popover. It lists the turn's speaker and the sibling lanes of
- * the same split recording, so a pick moves that turn between lanes
+ * The speaker popover. It lists the turn's speaker, the sibling lanes of
+ * the same split recording and, dimmed with the reason, every other dialogue
+ * speaker. A pick moves that turn between lanes
  * (`runMoveSpeakerLaneSpan`, which refuses with its own reason when the move
  * is not allowed) and a rename is one track at a time. Both are offered to
  * whoever may add media, as the old panel did. Turning `enabled` off closes
@@ -47,9 +50,16 @@ export function useScriptSpeaker(
   const open = useMemo<ScriptSpeakerOpen | null>(() => {
     const found = turn ? model.turns.find((t) => t.id === turn) : undefined;
     if (!found || !tracks || !enabled) return null;
+    const movable = new Set([
+      found.speakerId,
+      ...siblingSplitLanes(tracks, found.speakerId).map((track) => track.id),
+    ]);
     const lanes = [
       ...tracks.filter((track) => track.id === found.speakerId),
       ...siblingSplitLanes(tracks, found.speakerId),
+      ...tracks.filter(
+        (track) => track.role === "dialogue" && !movable.has(track.id),
+      ),
     ];
     return {
       turnId: found.id,
@@ -58,6 +68,7 @@ export function useScriptSpeaker(
         id: track.id,
         name: track.speaker || track.id,
         colorIndex: speakerColorIndex(tracks.indexOf(track)),
+        unavailable: movable.has(track.id) ? undefined : NOT_SPLIT_LANE,
       })),
       anchor,
     };

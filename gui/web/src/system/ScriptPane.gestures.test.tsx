@@ -608,14 +608,21 @@ describe("ScriptPane edge scrolling", () => {
 });
 
 describe("ScriptPane Fix text triggers", () => {
-  it("a double-click starts Fix text on the word, and a single click does not", () => {
-    const { onFixText } = setup();
+  it("a double-click keeps the word selected and never starts Fix text", () => {
+    const { onFixText, onSelect } = setup();
     fireEvent.click(word("small"), { detail: 1 });
-    expect(onFixText).not.toHaveBeenCalled();
     fireEvent.click(word("small"), { detail: 2 });
-    expect(onFixText.mock.calls).toEqual([
-      [{ start: 12, end: 12 }, "double-click"],
-    ]);
+    expect(onFixText).not.toHaveBeenCalled();
+    expect(onSelect.mock.calls).toEqual([[words(12, 12)], [words(12, 12)]]);
+  });
+
+  it("a triple-click selects the sentence around the word and nothing more", () => {
+    const { onFixText, onSelect } = setup();
+    fireEvent.click(word("small"), { detail: 3 });
+    expect(onSelect.mock.calls.at(-1)).toEqual([words(5, 19)]);
+    expect(onFixText).not.toHaveBeenCalled();
+    fireEvent.click(word("show."), { detail: 3 });
+    expect(onSelect.mock.calls.at(-1)).toEqual([words(0, 4)]);
   });
 
   it("Enter on a selected word starts Fix text on the whole selection; on another word it selects that word", async () => {

@@ -85,7 +85,7 @@ const addressable = (
   ref !== undefined && ref.wordIndex !== null;
 
 /**
- * Fix text on the Script (Enter, F2 or double-click on words). It is the
+ * Fix text on the Script (Enter, F2 or a double-tap on words). It is the
  * host's own and an Editor guest's is not offered, as in the old panel: only a
  * host with its words settled may correct them. A phrase is one correction on
  * one track, so a span across tracks is refused before the field opens, and so

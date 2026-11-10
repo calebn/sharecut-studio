@@ -166,6 +166,27 @@ describe("PersonPicker apply on activate", () => {
     expect(screen.getByRole("radio", { name: /^Maya/ })).toHaveFocus();
   });
 
+  it("lists an unavailable person with the reason and never picks them", async () => {
+    const { onPick } = setup({
+      people: [
+        ...PEOPLE,
+        {
+          id: "zed",
+          name: "Zed",
+          colorIndex: 3,
+          unavailable: "A different recording.",
+        },
+      ],
+    });
+    const zed = screen.getByRole("radio", { name: /^Zed/ });
+    expect(zed).toHaveAttribute("aria-disabled", "true");
+    expect(zed).toHaveTextContent("A different recording.");
+    await userEvent.click(zed);
+    expect(onPick).not.toHaveBeenCalled();
+    await userEvent.click(screen.getByRole("radio", { name: /^Maya/ }));
+    expect(onPick).toHaveBeenCalledWith("maya");
+  });
+
   it("keeps the ring-moving keys from bubbling to shortcuts above the picker", async () => {
     const reached = vi.fn();
     render(

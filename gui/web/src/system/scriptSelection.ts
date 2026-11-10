@@ -7,6 +7,7 @@ import {
   type ScriptSpan,
   type ScriptStop,
   type ScriptTurn,
+  type ScriptWord,
   type WordsSelection,
 } from "./scriptPieces";
 
@@ -77,6 +78,28 @@ export function spanOf(
     start: Math.min(selection.anchor, selection.head),
     end: Math.max(selection.anchor, selection.head),
   };
+}
+
+const SENTENCE_END = /[.!?\u2026]["'\u201d\u2019)\]]*$/;
+
+/**
+ * The sentence around word `index`: back to the word after the previous one
+ * that ends in . ! ? or an ellipsis, on to the next such word. A turn with no
+ * terminal punctuation is one sentence. Null when no word has that index.
+ */
+export function sentenceSpan(
+  words: readonly ScriptWord[],
+  index: number,
+): ScriptSpan | null {
+  const at = words.findIndex((word) => word.index === index);
+  if (at < 0) return null;
+  let first = at;
+  while (first > 0 && !SENTENCE_END.test(words[first - 1].text)) first -= 1;
+  let last = at;
+  while (last < words.length - 1 && !SENTENCE_END.test(words[last].text)) {
+    last += 1;
+  }
+  return { start: words[first].index, end: words[last].index };
 }
 
 /**

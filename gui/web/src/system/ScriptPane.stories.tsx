@@ -816,18 +816,17 @@ export const ClickSelectsAWord: Story = {
   },
 };
 
-export const DoubleClickFixesText: Story = {
+export const TripleClickSelectsSentence: Story = {
   ...gest,
   play: async ({ canvasElement, args }) => {
     const canvas = within(canvasElement);
-    await userEvent.dblClick(canvas.getByRole("button", { name: "small" }));
-    await expect(args.onFixText).toHaveBeenCalledWith(
-      { start: 12, end: 12 },
-      "double-click",
-    );
-    await expect(
-      canvas.getByRole("textbox", { name: "Fix text" }),
-    ).toBeVisible();
+    await userEvent.tripleClick(canvas.getByRole("button", { name: "small" }));
+    await expect(args.onSelect).toHaveBeenLastCalledWith({
+      kind: "words",
+      anchor: 5,
+      head: 19,
+    });
+    await expect(args.onFixText).not.toHaveBeenCalled();
   },
 };
 

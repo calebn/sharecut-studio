@@ -164,10 +164,10 @@ describe("ScriptHost Fix text", () => {
     },
   );
 
-  it("opens on a double-click", async () => {
+  it("does not open on a double-click, which only selects the word", async () => {
     render(<ScriptHost />);
     await userEvent.dblClick(word("show"));
-    expect(field()).toHaveValue("show");
+    expect(screen.queryByRole("textbox")).toBeNull();
   });
 
   it("commits a phrase on one track as one correction", async () => {
