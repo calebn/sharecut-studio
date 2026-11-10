@@ -660,6 +660,59 @@ describe("FeedbackToast", () => {
     ).not.toBeInTheDocument();
   });
 
+  it("Undo all undoes every merged edit, newest first", async () => {
+    const user = userEvent.setup();
+    render(<FeedbackToast />);
+    act(() => {
+      const say = useDawStore.getState().announceStatus;
+      say("Cut to clipboard", { undo: entry("host-reorder"), kind: "cut" });
+    });
+    atHead("host-reorder");
+    act(() => {
+      useDawStore
+        .getState()
+        .announceStatus("Cut to clipboard", { undo: entry("e2"), kind: "cut" });
+    });
+    atHead("e2");
+    expect(screen.getByText("2 cuts")).toBeVisible();
+    expect(screen.queryByRole("button", { name: "Undo" })).toBeNull();
+    const scope = activateDocumentScope("/tmp/ep");
+    await user.click(screen.getByRole("button", { name: "Undo all" }));
+    expect(vi.mocked(undoHistory).mock.calls.map((c) => c[1])).toEqual([
+      { scope, expectedHeadId: "e2" },
+      { scope, expectedHeadId: "host-reorder" },
+    ]);
+    expect(screen.getByText("Undone: 2 cuts")).toBeVisible();
+  });
+
+  it("Undo all stops at the first refusal and says how far it got", async () => {
+    const user = userEvent.setup();
+    render(<FeedbackToast />);
+    act(() => {
+      useDawStore.getState().announceStatus("Deleted clip", {
+        undo: entry("host-reorder"),
+        kind: "delete",
+      });
+    });
+    atHead("host-reorder");
+    act(() => {
+      useDawStore
+        .getState()
+        .announceStatus("Deleted clip", { undo: entry("e2"), kind: "delete" });
+    });
+    atHead("e2");
+    vi.mocked(undoHistory)
+      .mockResolvedValueOnce(null)
+      .mockRejectedValueOnce(
+        new ApiError("Did not undo", "history_stale", 409),
+      );
+    await user.click(screen.getByRole("button", { name: "Undo all" }));
+    expect(undoHistory).toHaveBeenCalledTimes(2);
+    expect(useDawStore.getState().statusAnnouncement).toMatch(
+      /^Undid 1 of 2\./,
+    );
+  });
+
   describe("while this tab's own edit is still saving", () => {
     const STALE = "Can't undo: the project changed since. Nothing was undone.";
     const refuseAsStale = () =>

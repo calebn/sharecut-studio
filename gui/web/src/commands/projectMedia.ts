@@ -288,6 +288,7 @@ export function registerProjectMediaCommands(): void {
         const reply = await removeTrackCommand(s.projectPath, trackId);
         useDawStore.getState().announceStatus(`Removed ${label}`, {
           undo: replyHistoryHead(reply),
+          kind: "delete",
         });
         const next = useDawStore.getState();
         next.setSelection(null);

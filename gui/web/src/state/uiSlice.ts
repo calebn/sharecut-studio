@@ -1,5 +1,6 @@
 import type { StateCreator } from "zustand";
 import { cssViewportWidth } from "../hooks/useViewportClass";
+import type { HistoryEntryId } from "../types/project";
 import {
   readLaneHeightPref,
   stepLaneHeightPx,
@@ -47,9 +48,11 @@ import type {
   KnownPerson,
   LaneHeightMode,
   LayerVisibility,
+  MergedEdits,
   PointerKind,
   RangeDraft,
   ShellBreakpoint,
+  ToastKind,
   ToastTone,
   TranscriptInlineEditFailure,
   TranscriptInlineEditRequest,
@@ -117,6 +120,51 @@ type FeedbackInput =
       ownedOutcome: boolean;
     };
 
+const MERGE_CAP = 25;
+
+const MERGE_NOUNS: Record<ToastKind, readonly [string, string]> = {
+  cut: ["cut", "cuts"],
+  delete: ["delete", "deletes"],
+  split: ["split", "splits"],
+};
+
+/** The standing toast's edits plus this one, when both are plain edits of one kind that follow each other. */
+function mergedEdits(
+  standing: FeedbackToast | null,
+  options: AnnounceOptions,
+  tone: ToastTone,
+  baseHead: HistoryEntryId | null,
+): MergedEdits | null {
+  if (
+    !standing ||
+    !options.kind ||
+    !options.undo ||
+    tone !== "status" ||
+    options.action ||
+    options.reverse ||
+    options.gesture ||
+    standing.kind !== options.kind ||
+    standing.tone !== "status" ||
+    !standing.undo ||
+    standing.undo === options.undo ||
+    standing.action ||
+    standing.reverse ||
+    standing.gesture
+  )
+    return null;
+  if (baseHead !== standing.undo && baseHead !== standing.baseHead) return null;
+  const earlier = standing.merged ?? { count: 1, entries: [standing.undo] };
+  if (earlier.count >= MERGE_CAP) return null;
+  return {
+    count: earlier.count + 1,
+    entries: [options.undo, ...earlier.entries],
+  };
+}
+
+export function mergedToastLabel(kind: ToastKind, count: number): string {
+  return `${count} ${MERGE_NOUNS[kind][1]}`;
+}
+
 function feedbackPatch(s: DawStore, input: FeedbackInput): Partial<DawStore> {
   const options: AnnounceOptions =
     input.kind === "public"
@@ -150,6 +198,10 @@ function feedbackPatch(s: DawStore, input: FeedbackInput): Partial<DawStore> {
       toastId: showToast ? id : null,
       tone,
     };
+  const baseHead = s.project?.history?.head_id ?? null;
+  const merged = showToast
+    ? mergedEdits(s.feedbackToast, options, tone, baseHead)
+    : null;
   return {
     statusAnnouncement: message,
     statusAnnouncementSeq: id,
@@ -157,15 +209,22 @@ function feedbackPatch(s: DawStore, input: FeedbackInput): Partial<DawStore> {
       ? {
           feedbackToast: {
             id,
-            message: input.kind === "jobs" ? input.verifiedToast : message,
+            message:
+              merged && options.kind
+                ? mergedToastLabel(options.kind, merged.count)
+                : input.kind === "jobs"
+                  ? input.verifiedToast
+                  : message,
             tone,
             undo: options.undo ?? null,
-            baseHead: s.project?.history?.head_id ?? null,
+            baseHead,
             reverse: options.reverse ?? null,
             onUndone: options.onUndone,
             returnFocus: options.returnFocus ?? null,
             gesture: options.gesture === true,
             action: options.action ?? null,
+            kind: options.kind ?? null,
+            merged,
           },
         }
       : {}),

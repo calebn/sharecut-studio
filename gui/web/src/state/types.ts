@@ -186,6 +186,17 @@ export interface FeedbackToast {
   /** Says what a gesture is doing; it clears when the gesture ends or the mode changes. */
   gesture: boolean;
   action: ToastAction | null;
+  /** What kind of edit the toast reports; consecutive edits of one kind merge. */
+  kind: ToastKind | null;
+  /** The edits folded into this toast, newest first (`entries[0]` is `undo`); null for a lone edit. */
+  merged: MergedEdits | null;
+}
+
+export type ToastKind = "cut" | "delete" | "split";
+
+export interface MergedEdits {
+  count: number;
+  entries: readonly HistoryEntryId[];
 }
 
 export type AnnouncedJobKind = "export" | "bounce";
@@ -225,6 +236,8 @@ export type ToastAction = {
 
 export interface AnnounceOptions {
   action?: ToastAction;
+  /** Edits of the same kind announced back to back fold into one toast. */
+  kind?: ToastKind;
   /** Offer Undo on the toast for this entry (the command reply's `replyHistoryHead`). */
   undo?: HistoryEntryId | null;
   /** Offer Undo for a change History does not record. */

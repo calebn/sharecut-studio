@@ -201,17 +201,29 @@ export function FeedbackToast({ host = null }: { host?: HTMLElement | null }) {
 
   const undo = async (
     message: string,
-    expectedHeadId: HistoryEntryId,
+    entries: readonly HistoryEntryId[],
     onUndone: (() => void) | undefined,
   ) => {
     setUndoing(true);
+    let undone = 0;
     try {
-      const result = await executePointerCommand("history.undo", {
-        expectedHeadId,
-      });
-      if (result.status === "ok") {
+      for (const expectedHeadId of entries) {
+        const result = await executePointerCommand("history.undo", {
+          expectedHeadId,
+        });
+        if (result.status !== "ok") break;
+        undone += 1;
+      }
+      if (undone === entries.length) {
         useDawStore.getState().announceStatus(`Undone: ${message}`);
         onUndone?.();
+      } else if (undone > 0) {
+        useDawStore
+          .getState()
+          .announceStatus(
+            `Undid ${undone} of ${entries.length}. Can't undo the rest: the project changed since.`,
+            { tone: "error" },
+          );
       }
     } catch (e) {
       useDawStore.getState().announceStatus(`Undo failed: ${errorMessage(e)}`, {
@@ -263,7 +275,12 @@ export function FeedbackToast({ host = null }: { host?: HTMLElement | null }) {
   const reversal = toast?.reverse ?? null;
   const onUndo =
     toast && undoEntry
-      ? () => void undo(toast.message, undoEntry, toast.onUndone)
+      ? () =>
+          void undo(
+            toast.message,
+            toast.merged?.entries ?? [undoEntry],
+            toast.onUndone,
+          )
       : reversal
         ? () => void reverse(reversal, toast?.returnFocus ?? null)
         : undefined;
@@ -285,6 +302,7 @@ export function FeedbackToast({ host = null }: { host?: HTMLElement | null }) {
         if (held) toast.returnFocus?.()?.focus({ preventScroll: true });
       }}
       onUndo={onUndo}
+      undoLabel={toast?.merged ? "Undo all" : undefined}
       actionLabel={toast?.action?.label}
       onAction={
         toast?.action && undoEntry

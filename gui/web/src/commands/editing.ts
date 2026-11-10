@@ -187,7 +187,10 @@ async function runSplitAt(
     if (outcome.kind === "suggested") {
       announce(`Suggested split at ${where}`);
     } else {
-      announce(`Split at ${where}`, { undo: outcome.undo });
+      announce(`Split at ${where}`, {
+        undo: outcome.undo,
+        kind: "split",
+      });
       if (outcome.pieces) {
         selection.apply(outcome.pieces);
         waitingForDisplay = true;
@@ -246,7 +249,7 @@ export async function runDeleteClips(
     store.setSelection(null);
     store.announceStatus(
       ripple ? `Ripple deleted ${noun}` : `Deleted ${noun}`,
-      { undo },
+      { undo, kind: "delete" },
     );
     return { status: "ok" };
   } catch (e) {
@@ -411,7 +414,7 @@ export function registerClipboardCommands(): void {
       if (!inProject(s)) return { status: "ok" };
       const store = useDawStore.getState();
       store.setSelection(null);
-      store.announceStatus("Cut to clipboard", { undo });
+      store.announceStatus("Cut to clipboard", { undo, kind: "cut" });
       return { status: "ok" };
     } catch (e) {
       const msg = errorMessage(e);
