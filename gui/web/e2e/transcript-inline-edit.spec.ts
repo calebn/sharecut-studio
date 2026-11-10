@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, type Page, test } from "@playwright/test";
 import { expectPageAxeClean } from "./axe";
 import { postDocumentCommand, postHistoryMove } from "./documentCommand";
 import { e2eProjectPath } from "./env";
@@ -83,6 +83,21 @@ test.describe("Script Fix text", () => {
   });
 });
 
+async function doubleTapFirstMy(page: Page) {
+  const list = page.locator(".sys-script-body");
+  const word = list.getByRole("button", { name: /^my(?: \(.*\))?$/ }).first();
+  await word.scrollIntoViewIfNeeded();
+  const point = await word.boundingBox();
+  expect(point).not.toBeNull();
+  const x = point!.x + point!.width / 2;
+  const y = point!.y + point!.height / 2;
+  await page.touchscreen.tap(x, y);
+  await page.touchscreen.tap(x, y);
+  const field = list.getByRole("textbox", { name: "Fix text" });
+  await expect(field).toBeFocused();
+  return { list, field };
+}
+
 test.describe("Phone Fix text", () => {
   test.use({
     viewport: { width: 320, height: 568 },
@@ -104,20 +119,7 @@ test.describe("Phone Fix text", () => {
         await withShareableProject(async (projectPath) => {
           await openProject(page, projectPath);
           await phone.showText(page);
-          const list = page.locator(".sys-script-body");
-          const word = list
-            .getByRole("button", { name: /^my(?: \(.*\))?$/ })
-            .first();
-          await word.scrollIntoViewIfNeeded();
-          const point = await word.boundingBox();
-          expect(point).not.toBeNull();
-          const x = point!.x + point!.width / 2;
-          const y = point!.y + point!.height / 2;
-          await page.touchscreen.tap(x, y);
-          await page.touchscreen.tap(x, y);
-
-          const field = list.getByRole("textbox", { name: "Fix text" });
-          await expect(field).toBeFocused();
+          const { field } = await doubleTapFirstMy(page);
           await field.fill("a considerably longer correction ".repeat(6));
 
           const fit = await page.evaluate(() => {
@@ -167,20 +169,7 @@ test.describe("Phone Fix text", () => {
     await withShareableProject(async (projectPath) => {
       await openProject(page, projectPath);
       await phone.showText(page);
-      const list = page.locator(".sys-script-body");
-      const word = list
-        .getByRole("button", { name: /^my(?: \(.*\))?$/ })
-        .first();
-      await word.scrollIntoViewIfNeeded();
-      const point = await word.boundingBox();
-      expect(point).not.toBeNull();
-      const x = point!.x + point!.width / 2;
-      const y = point!.y + point!.height / 2;
-      await page.touchscreen.tap(x, y);
-      await page.touchscreen.tap(x, y);
-
-      const field = list.getByRole("textbox", { name: "Fix text" });
-      await expect(field).toBeFocused();
+      const { list, field } = await doubleTapFirstMy(page);
       await expect(field).toBeInViewport({ ratio: 0.9 });
       await expectPageAxeClean(page, ".sys-script");
 
