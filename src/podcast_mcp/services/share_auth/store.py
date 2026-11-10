@@ -220,6 +220,7 @@ class ShareIdentityStore:
             )
         elif by_email is not None and email_verified:
             uid = by_email["id"]
+            self._verify_email_dropping_prior_credentials(uid)
             self._conn.execute(
                 update_sub,
                 (subject, display_name, uid),
@@ -315,9 +316,19 @@ class ShareIdentityStore:
             return None
         return self._user_row(row)
 
-    def mark_email_verified(self, user_id: str) -> None:
-        self._conn.execute("UPDATE users SET email_verified = 1 WHERE id = ?", (user_id,))
+    def _verify_email_dropping_prior_credentials(self, user_id: str) -> None:
+        cur = self._conn.execute(
+            "UPDATE users SET email_verified = 1, password_hash = NULL "
+            "WHERE id = ? AND email_verified = 0",
+            (user_id,),
+        )
+        if cur.rowcount == 1:
+            for table in ("sessions", "passkeys", "agent_credentials"):
+                self._conn.execute(f"DELETE FROM {table} WHERE user_id = ?", (user_id,))
         self._conn.commit()
+
+    def mark_email_verified(self, user_id: str) -> None:
+        self._verify_email_dropping_prior_credentials(user_id)
 
     def invite_to_share(
         self,

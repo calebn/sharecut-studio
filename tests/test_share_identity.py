@@ -1344,3 +1344,83 @@ def test_register_concurrent_passwordless_single_winner(
     assert sorted(results.values()) == ["conflict", "password_set"]
     winner = next(pw for pw, outcome in results.items() if outcome == "password_set")
     assert identity_store.verify_email_password("race@ex.com", winner) is not None
+
+
+def _attacker_account(store: ShareIdentityStore, email: str) -> tuple[dict, str]:
+    user = store.register_email_password(email, "attackerpw1")[0]
+    store.invite_to_share("tok-hijack", email=email, role="commenter")
+    session = store.create_session(user["id"])
+    assert store.resolve_session(session) is not None
+    return user, session
+
+
+def _assert_attacker_locked_out(
+    store: ShareIdentityStore, email: str, user_id: str, session: str
+) -> None:
+    assert store.get_user(user_id)["email_verified"] is True
+    assert store.verify_email_password(email, "attackerpw1") is None
+    assert store.resolve_session(session) is None
+    assert store.acl_allows("tok-hijack", user_id) is not None
+
+
+def test_magic_link_verification_drops_pre_registered_credentials(
+    identity_store: ShareIdentityStore,
+) -> None:
+    email = "victim@ex.com"
+    user, session = _attacker_account(identity_store, email)
+    identity_store.store_passkey(
+        credential_id="cred-x", user_id=user["id"], public_key_b64="a", sign_count=0
+    )
+    agent = identity_store.mint_agent_credential("tok-hijack", user_id=user["id"])
+    raw = identity_store.create_magic_link(email)
+    consumed = identity_store.consume_magic_link(raw)
+    assert consumed is not None
+    assert consumed["user"]["id"] == user["id"]
+    _assert_attacker_locked_out(identity_store, email, user["id"], session)
+    assert identity_store.list_passkeys(user["id"]) == []
+    assert identity_store.resolve_agent_credential(agent) is None
+    fresh = identity_store.create_session(user["id"])
+    assert identity_store.resolve_session(fresh) is not None
+
+
+def test_oidc_email_merge_drops_pre_registered_credentials(
+    identity_store: ShareIdentityStore,
+) -> None:
+    email = "victim2@ex.com"
+    user, session = _attacker_account(identity_store, email)
+    merged = identity_store.upsert_user_from_oidc(
+        provider="google", subject="g-ph", email=email, email_verified=True
+    )
+    assert merged["id"] == user["id"]
+    _assert_attacker_locked_out(identity_store, email, user["id"], session)
+
+
+def test_magic_link_keeps_credentials_of_already_verified_account(
+    identity_store: ShareIdentityStore,
+) -> None:
+    email = "verified@ex.com"
+    user = identity_store.create_or_get_email_user(email, email_verified=True)
+    identity_store.set_password(user["id"], "password1")
+    session = identity_store.create_session(user["id"])
+    identity_store.store_passkey(
+        credential_id="cred-v", user_id=user["id"], public_key_b64="a", sign_count=0
+    )
+    raw = identity_store.create_magic_link(email)
+    assert identity_store.consume_magic_link(raw) is not None
+    assert identity_store.verify_email_password(email, "password1") is not None
+    assert identity_store.resolve_session(session) is not None
+    assert len(identity_store.list_passkeys(user["id"])) == 1
+
+
+def test_magic_link_for_new_email_creates_verified_user(
+    identity_store: ShareIdentityStore,
+) -> None:
+    raw = identity_store.create_magic_link("brandnew@ex.com", share_token="tok-new")
+    consumed = identity_store.consume_magic_link(raw)
+    assert consumed is not None
+    assert consumed["share_token"] == "tok-new"
+    assert consumed["user"]["email_verified"] is True
+    assert (
+        identity_store.resolve_session(identity_store.create_session(consumed["user"]["id"]))
+        is not None
+    )
