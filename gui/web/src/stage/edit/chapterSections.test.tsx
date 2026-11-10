@@ -241,4 +241,80 @@ describe("chapter content", () => {
     expect(updateChapter).not.toHaveBeenCalled();
     await expectNoA11yViolations(container);
   });
+
+  it("sends one save for two Enters while the first is pending", async () => {
+    const user = userEvent.setup();
+    let settle: () => void = () => undefined;
+    vi.mocked(updateChapter).mockImplementationOnce(
+      () =>
+        new Promise<undefined>((resolve) => {
+          settle = () => resolve(undefined);
+        }),
+    );
+    open();
+    const title = screen.getByRole("textbox", { name: "Title" });
+    await user.clear(title);
+    await user.type(title, "Interview");
+    fireEvent.keyDown(title, { key: "Enter" });
+    fireEvent.keyDown(title, { key: "Enter" });
+    expect(updateChapter).toHaveBeenCalledTimes(1);
+    await act(async () => settle());
+  });
+
+  it("sends nothing on blur while a save is pending", async () => {
+    const user = userEvent.setup();
+    let settle: () => void = () => undefined;
+    vi.mocked(updateChapter).mockImplementationOnce(
+      () =>
+        new Promise<undefined>((resolve) => {
+          settle = () => resolve(undefined);
+        }),
+    );
+    open();
+    const title = screen.getByRole("textbox", { name: "Title" });
+    await user.clear(title);
+    await user.type(title, "Interview");
+    await act(async () => {
+      fireEvent.keyDown(screen.getByRole("spinbutton", { name: "Time" }), {
+        key: "ArrowUp",
+      });
+    });
+    await user.tab();
+    expect(updateChapter).toHaveBeenCalledTimes(1);
+    await act(async () => settle());
+  });
+
+  it("commits a title draft held during a Time save after it settles", async () => {
+    const user = userEvent.setup();
+    let settle: () => void = () => undefined;
+    vi.mocked(updateChapter).mockImplementationOnce(
+      () =>
+        new Promise<undefined>((resolve) => {
+          settle = () => resolve(undefined);
+        }),
+    );
+    open();
+    const title = screen.getByRole("textbox", { name: "Title" });
+    await user.clear(title);
+    await user.type(title, "Interview");
+    await act(async () => {
+      fireEvent.keyDown(screen.getByRole("spinbutton", { name: "Time" }), {
+        key: "ArrowUp",
+      });
+    });
+    fireEvent.keyDown(title, { key: "Enter" });
+    expect(updateChapter).toHaveBeenCalledTimes(1);
+    await act(async () => settle());
+    fireEvent.keyDown(screen.getByRole("textbox", { name: "Title" }), {
+      key: "Enter",
+    });
+    expect(updateChapter).toHaveBeenCalledTimes(2);
+    expect(updateChapter).toHaveBeenLastCalledWith(
+      "/tmp/p.json",
+      5.01,
+      "Opening",
+      5.01,
+      "Interview",
+    );
+  });
 });

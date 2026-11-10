@@ -223,4 +223,42 @@ describe("social clip content", () => {
     open("host", "nope");
     expect(screen.getByText("Social clip not found")).toBeVisible();
   });
+
+  it("sends one retitle for two Enters while the first is pending", async () => {
+    const user = userEvent.setup();
+    let settle: () => void = () => undefined;
+    vi.mocked(updateSocialClipDetails).mockImplementationOnce(
+      () =>
+        new Promise<undefined>((resolve) => {
+          settle = () => resolve(undefined);
+        }),
+    );
+    open();
+    const title = screen.getByRole("textbox", { name: "Title" });
+    await user.clear(title);
+    await user.type(title, "Bread");
+    fireEvent.keyDown(title, { key: "Enter" });
+    fireEvent.keyDown(title, { key: "Enter" });
+    expect(updateSocialClipDetails).toHaveBeenCalledTimes(1);
+    await act(async () => settle());
+  });
+
+  it("sends nothing on blur while a save is pending", async () => {
+    const user = userEvent.setup();
+    let settle: () => void = () => undefined;
+    vi.mocked(updateSocialClipDetails).mockImplementationOnce(
+      () =>
+        new Promise<undefined>((resolve) => {
+          settle = () => resolve(undefined);
+        }),
+    );
+    open();
+    const title = screen.getByRole("textbox", { name: "Title" });
+    await user.clear(title);
+    await user.type(title, "Bread");
+    fireEvent.keyDown(title, { key: "Enter" });
+    await user.tab();
+    expect(updateSocialClipDetails).toHaveBeenCalledTimes(1);
+    await act(async () => settle());
+  });
 });

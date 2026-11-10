@@ -113,4 +113,39 @@ describe("InlineEdit", () => {
     plain.unmount();
     expect(plain.onCommit).not.toHaveBeenCalled();
   });
+
+  it("ignores Enter, Escape and blur while read-only", async () => {
+    const { user, onCommit, onEnd, rerender } = setup();
+    await user.click(field());
+    await user.keyboard("{End}!");
+    rerender(
+      <InlineEdit
+        label="Name"
+        value="Ana"
+        onCommit={onCommit}
+        onEnd={onEnd}
+        readOnly
+      />,
+    );
+    fireEvent.keyDown(field(), { key: "Enter" });
+    fireEvent.keyDown(field(), { key: "Enter" });
+    fireEvent.keyDown(field(), { key: "Escape" });
+    fireEvent.blur(field());
+    expect(onCommit).not.toHaveBeenCalled();
+    expect(onEnd).not.toHaveBeenCalled();
+    expect(field()).toHaveValue("Ana!");
+  });
+
+  it("commits a draft held while read-only once the field is writable again", async () => {
+    const { user, onCommit, rerender } = setup();
+    await user.click(field());
+    await user.keyboard("{End}!");
+    rerender(
+      <InlineEdit label="Name" value="Ana" onCommit={onCommit} readOnly />,
+    );
+    fireEvent.keyDown(field(), { key: "Enter" });
+    rerender(<InlineEdit label="Name" value="Ana" onCommit={onCommit} />);
+    await user.keyboard("{Enter}");
+    expect(onCommit).toHaveBeenCalledExactlyOnceWith("Ana!");
+  });
 });
