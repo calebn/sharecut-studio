@@ -58,12 +58,18 @@ export function dragHeight(start: number, dy: number, container: number) {
 /** A finger held still this long before it lifts carries no flick. */
 const STALE_MS = 80;
 
-/** Pixels per millisecond, positive when the sheet is rising, from the last two samples, and zero once the finger has rested. */
+/** The speed is read across this much of the drag, so two moves handled back to back cannot read as a huge flick. */
+const VELOCITY_WINDOW_MS = 100;
+
+/** Pixels per millisecond, positive when the sheet is rising, from the oldest sample within the last 100 ms, and zero once the finger has rested. */
 export function riseVelocity(samples: readonly Sample[], now: number): number {
   const last = samples[samples.length - 1];
-  const prev = samples[samples.length - 2];
-  if (!last || !prev || last.t <= prev.t || now - last.t > STALE_MS) return 0;
-  return (last.height - prev.height) / (last.t - prev.t);
+  if (!last || now - last.t > STALE_MS) return 0;
+  const from = samples.find(
+    (sample) => sample.t < last.t && last.t - sample.t <= VELOCITY_WINDOW_MS,
+  );
+  if (!from) return 0;
+  return (last.height - from.height) / (last.t - from.t);
 }
 
 /**
