@@ -48,12 +48,6 @@ function InputMenu({
           {...control}
           className="sys-mic-input"
           aria-label={`Input: ${current}`}
-          onKeyDown={(event) => {
-            if (event.key === "ArrowDown" || event.key === "ArrowUp") {
-              event.preventDefault();
-              if (!locked) setOpen(true);
-            }
-          }}
           disabledReason={locked ? JOIN_TEXT.inputLocked : undefined}
         >
           <span className="sys-mic-input-name">{current}</span>
