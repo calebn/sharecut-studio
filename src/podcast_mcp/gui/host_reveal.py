@@ -9,6 +9,9 @@ from podcast_mcp.util import process
 
 _REVEAL_TIMEOUT_SEC = 10.0
 
+REVEAL_REFUSED = "Show in folder only works on the computer that runs ShareCut Studio."
+REVEAL_UNAVAILABLE = "This computer couldn't open its file manager."
+
 
 def _argv(path: Path, system: str) -> list[str] | None:
     if system == "Darwin":

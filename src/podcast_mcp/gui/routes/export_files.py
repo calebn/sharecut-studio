@@ -10,19 +10,15 @@ from fastapi import Request
 from starlette.responses import Response
 
 from podcast_mcp.gui.audio import pinned_audio_response
-from podcast_mcp.gui.host_reveal import reveal_in_file_manager
+from podcast_mcp.gui.host_reveal import REVEAL_UNAVAILABLE, reveal_in_file_manager
 from podcast_mcp.gui.routes import export_ticket
-from podcast_mcp.gui.routes.deps import coded_http_error, peer_host
+from podcast_mcp.gui.routes.deps import coded_http_error, require_loopback_peer
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.document import ExportFilesService, ServedFile
-from podcast_mcp.services.session_sync import is_loopback_host
 from podcast_mcp.util.coded_error import CodedFileNotFoundError, guest_message_for_code
 
 EXPORT_RUNNING = guest_message_for_code("export_running")
 EXPORT_FILE_GONE = guest_message_for_code("export_file_gone")
-
-REVEAL_REFUSED = "Show in folder only works on the computer that runs ShareCut Studio."
-REVEAL_UNAVAILABLE = "This computer couldn't open its file manager."
 
 _DOWNLOAD_HEADERS = {"X-Content-Type-Options": "nosniff"}
 
@@ -91,9 +87,7 @@ def download_exported_file(
 
 def reveal_exported_file(request: Request, ws: ProjectWorkspace, file_id: str) -> dict[str, bool]:
     """Show the listed file *file_id* in this computer's file manager; loopback peers only."""
-    host = peer_host(request)
-    if host is not None and (not host or not is_loopback_host(host.removeprefix("::ffff:"))):
-        raise coded_http_error(403, REVEAL_REFUSED, code="reveal_not_allowed")
+    require_loopback_peer(request)
     found = _open_listed(ws, file_id, bounces=True)
     if not reveal_in_file_manager(found.path):
         raise coded_http_error(409, REVEAL_UNAVAILABLE, code="reveal_unavailable")

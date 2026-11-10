@@ -13,6 +13,7 @@ from filelock import Timeout
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.responses import JSONResponse, Response
 
+from podcast_mcp.gui.host_reveal import REVEAL_REFUSED
 from podcast_mcp.models.episode import ProjectUnreadableError
 from podcast_mcp.project.io import ensure_utf8_path
 from podcast_mcp.services.document_sync import DocumentConflictError
@@ -20,6 +21,7 @@ from podcast_mcp.services.media import TranscriptContextBusyError
 from podcast_mcp.services.session_sync import (
     authorize_client,
     authorize_host,
+    is_loopback_host,
 )
 from podcast_mcp.util.coded_error import (
     AccessDeniedError,
@@ -211,6 +213,17 @@ def require_host(
     )
     if not decision.allowed:
         raise AccessDeniedError(decision.reason, code="authz_denied")
+
+
+def require_loopback_peer(request: Request) -> None:
+    """Refuse a reveal from any peer that is not this computer (403 ``reveal_not_allowed``).
+
+    Stricter than the project-switch gate: a request with no peer address is refused too,
+    because the file manager opens on the machine that runs the server.
+    """
+    host = peer_host(request)
+    if not host or not is_loopback_host(host.removeprefix("::ffff:")):
+        raise coded_http_error(403, REVEAL_REFUSED, code="reveal_not_allowed")
 
 
 def refuse_relayed(request: Request) -> None:
