@@ -62,12 +62,14 @@ from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.collaboration import (
     CAP_VIEW,
     SHARE_KIND_REVIEW,
+    episode_peaks,
     guest_progress_hub,
     guest_selects_transcript_words,
     lookup_share,
     require_share_cap,
     require_share_edit,
     resolve_share_audio_redirect,
+    review_peaks_target,
     sanitize_guest_document_event,
     sanitize_guest_session_event,
     sanitize_guest_session_snapshot,
@@ -94,7 +96,6 @@ from podcast_mcp.services.collaboration import (
     share_project_view,
     share_proxy_chunk_path,
     share_proxy_manifest,
-    share_review_peaks,
     share_set_action_done,
     share_upload_media,
 )
@@ -164,6 +165,12 @@ def _check_token(token: str, *, kind: str = SHARE_KIND_REVIEW) -> dict[str, Any]
     return check_share_token(token, kind=kind)
 
 
+PEAKS_RESPONSES: dict[int | str, dict[str, Any]] = {
+    403: {"description": "The link does not allow playback"},
+    429: {"description": "Rate limit or audio concurrency cap reached"},
+}
+
+
 def _rate_limit(token: str, kind: str) -> None:
     rate_limit_share(token, kind)
 
@@ -219,21 +226,35 @@ def get_review_audio(token: str):
     )
 
 
-@router.get("/api/review/{token}/peaks")
-def get_review_peaks(token: str) -> JSONResponse:
+@router.get("/api/review/{token}/peaks", responses=PEAKS_RESPONSES)
+def get_review_peaks(
+    token: str,
+    version_id: str | None = Query(
+        None,
+        max_length=128,
+        description="The review version the client keys the peaks by; must be the one this link plays.",
+    ),
+) -> JSONResponse:
     """Frozen review mix loudness envelope (``play``): 512 values 0..1, ``[]`` when unavailable.
 
-    Same ``audio`` rate class and slot as ``/audio``; the decode runs once per version.
+    Checked for ``play`` first, like ``/audio``, then rate limited and held in an audio
+    slot while it decodes; the decode runs once per version and is cached on disk.
     """
 
     try:
         _check_token(token)
+        project, vid = review_peaks_target(token, version_id)
+    except (HTTPException, GuardRefusal) as exc:
+        raise no_store_error(exc) from exc
+    except Exception as exc:
+        raise no_store_error(guest_http_error(exc, logger=log, operation="review peaks")) from exc
+    try:
         _rate_limit(token, "audio")
         slot = _audio_slot(token)
     except (HTTPException, GuardRefusal) as exc:
         raise no_store_error(exc) from exc
     try:
-        peaks = share_review_peaks(token)
+        peaks = episode_peaks(project, vid)
     except Exception as exc:
         raise no_store_error(guest_http_error(exc, logger=log, operation="review peaks")) from exc
     finally:

@@ -16531,7 +16531,7 @@
     },
     "/api/review/{token}/peaks": {
       "get": {
-        "description": "Frozen review mix loudness envelope (``play``): 512 values 0..1, ``[]`` when unavailable.\n\nSame ``audio`` rate class and slot as ``/audio``; the decode runs once per version.",
+        "description": "Frozen review mix loudness envelope (``play``): 512 values 0..1, ``[]`` when unavailable.\n\nChecked for ``play`` first, like ``/audio``, then rate limited and held in an audio\nslot while it decodes; the decode runs once per version and is cached on disk.",
         "parameters": [
           {
             "in": "path",
@@ -16540,6 +16540,25 @@
             "schema": {
               "title": "Token",
               "type": "string"
+            }
+          },
+          {
+            "description": "The review version the client keys the peaks by; must be the one this link plays.",
+            "in": "query",
+            "name": "version_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 128,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "The review version the client keys the peaks by; must be the one this link plays.",
+              "title": "Version Id"
             }
           }
         ],
@@ -16552,6 +16571,9 @@
             },
             "description": "Successful Response"
           },
+          "403": {
+            "description": "The link does not allow playback"
+          },
           "422": {
             "content": {
               "application/json": {
@@ -16561,6 +16583,9 @@
               }
             },
             "description": "Validation Error"
+          },
+          "429": {
+            "description": "Rate limit or audio concurrency cap reached"
           }
         }
       }

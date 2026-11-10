@@ -2949,3 +2949,135 @@ def test_peaks_use_the_audio_rate_class(minimal_project, sample_wav, tmp_workspa
     monkeypatch.setattr(review_share, "_rate_limit", spy)
     TestClient(create_app()).get(f"/api/review/{token}/peaks")
     assert "audio" in classes
+
+
+def test_concurrent_first_requests_decode_once_and_leave_one_valid_sidecar(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch
+):
+    import threading
+
+    ws, ver, token = _peaks_published(minimal_project, sample_wav)
+    from podcast_mcp.services.collaboration import review_peaks
+
+    calls: list[int] = []
+    gate = threading.Event()
+    arrived = threading.Semaphore(0)
+    real = review_peaks.peak_envelope
+    real_read = review_peaks._read_sidecar
+
+    def slow(path, *args, **kwargs):
+        calls.append(1)
+        gate.wait()
+        return real(path, *args, **kwargs)
+
+    def counting_read(path):
+        arrived.release()
+        return real_read(path)
+
+    monkeypatch.setattr(review_peaks, "peak_envelope", slow)
+    monkeypatch.setattr(review_peaks, "_read_sidecar", counting_read)
+    client = TestClient(create_app())
+    results: list[list[float]] = []
+
+    def ask():
+        results.append(client.get(f"/api/review/{token}/peaks").json())
+
+    threads = [threading.Thread(target=ask) for _ in range(4)]
+    for t in threads:
+        t.start()
+    for _ in threads:
+        assert arrived.acquire(timeout=30)
+    gate.set()
+    for t in threads:
+        t.join()
+    assert len(calls) == 1
+    assert len(results) == 4 and all(r == results[0] and len(r) == PEAK_COUNT for r in results)
+    sidecar = _peaks_sidecar(ws, ver["id"])
+    assert json.loads(sidecar.read_text(encoding="utf-8")) == results[0]
+    assert not list(sidecar.parent.glob("*.tmp"))
+
+
+def test_a_silent_mix_is_cached_as_empty_on_disk(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch
+):
+    import numpy as np
+
+    ws, ver, token = _peaks_published(minimal_project, sample_wav)
+    from podcast_mcp.services.collaboration import review_peaks
+
+    calls: list[int] = []
+
+    def silent(*_a, **_k):
+        calls.append(1)
+        return np.zeros(1000, dtype=np.float32), 100
+
+    monkeypatch.setattr(review_peaks, "peak_envelope", silent)
+    client = TestClient(create_app())
+    assert client.get(f"/api/review/{token}/peaks").json() == []
+    assert client.get(f"/api/review/{token}/peaks").json() == []
+    assert len(calls) == 1
+    assert json.loads(_peaks_sidecar(ws, ver["id"]).read_text(encoding="utf-8")) == []
+
+
+def test_a_decode_error_gives_empty_but_is_not_cached_and_is_retried(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch
+):
+    ws, ver, token = _peaks_published(minimal_project, sample_wav)
+    from podcast_mcp.services.collaboration import review_peaks
+    from podcast_mcp.util.pcm_stream import NoAudioDecodedError
+
+    real = review_peaks.peak_envelope
+    state = {"fail": True}
+
+    def flaky(path, *args, **kwargs):
+        if state["fail"]:
+            raise NoAudioDecodedError("boom")
+        return real(path, *args, **kwargs)
+
+    monkeypatch.setattr(review_peaks, "peak_envelope", flaky)
+    client = TestClient(create_app())
+    r = client.get(f"/api/review/{token}/peaks")
+    assert r.status_code == 200 and r.json() == []
+    assert not _peaks_sidecar(ws, ver["id"]).exists()
+    state["fail"] = False
+    assert len(client.get(f"/api/review/{token}/peaks").json()) == PEAK_COUNT
+
+
+def test_an_unknown_version_gives_empty_and_reads_no_sidecar(
+    minimal_project, sample_wav, tmp_workspace
+):
+    ws, _ver, _token = _peaks_published(minimal_project, sample_wav)
+    from podcast_mcp.services.collaboration.review_peaks import episode_peaks
+
+    project = load_project(minimal_project)
+    stray = _peaks_sidecar(ws, "../escape")
+    stray.parent.mkdir(parents=True, exist_ok=True)
+    stray.write_text(json.dumps([0.5] * PEAK_COUNT), encoding="utf-8")
+    assert episode_peaks(project, "no-such-version") == []
+    assert episode_peaks(project, "../escape") == []
+
+
+def test_peaks_for_the_version_the_link_plays_are_served_and_another_is_refused(
+    minimal_project, sample_wav, tmp_workspace
+):
+    _ws, ver, token = _peaks_published(minimal_project, sample_wav)
+    client = TestClient(create_app())
+    ok = client.get(f"/api/review/{token}/peaks", params={"version_id": ver["id"]})
+    assert ok.status_code == 200 and len(ok.json()) == PEAK_COUNT
+    other = client.get(f"/api/review/{token}/peaks", params={"version_id": "other"})
+    assert other.status_code == 404
+    assert other.headers["cache-control"] == "no-store"
+    assert not isinstance(other.json(), list)
+
+
+def test_peaks_check_play_before_taking_the_rate_bucket_or_audio_slot(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch
+):
+    _ws, _ver, token = _peaks_published(minimal_project, sample_wav, capabilities=("comment",))
+    touched: list[str] = []
+    monkeypatch.setattr(review_share, "_rate_limit", lambda *_a: touched.append("rate"))
+    monkeypatch.setattr(review_share, "_audio_slot", lambda *_a: touched.append("slot"))
+    r = TestClient(create_app()).get(f"/api/review/{token}/peaks")
+    assert r.status_code == 403
+    assert r.headers["cache-control"] == "no-store"
+    assert touched == []

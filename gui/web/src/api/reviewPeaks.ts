@@ -11,9 +11,14 @@ function isPeakList(body: unknown): body is number[] {
   );
 }
 
-async function fetchPeaks(token: string): Promise<number[] | null> {
+async function fetchPeaks(
+  token: string,
+  versionId: string,
+): Promise<number[] | null> {
   try {
-    const res = await apiFetch(shareProjectKey(token), { guest: "/peaks" });
+    const res = await apiFetch(shareProjectKey(token), {
+      guest: `/peaks?version_id=${encodeURIComponent(versionId)}`,
+    });
     const body: unknown = await res.json();
     return isPeakList(body) ? body : null;
   } catch {
@@ -24,8 +29,10 @@ async function fetchPeaks(token: string): Promise<number[] | null> {
 
 /**
  * The episode's loudness envelope (0..1 columns) for a review link's overview
- * strip. Fetched once per share and version; empty when the link may not play,
- * the host has no local copy, or the read failed (a failure is not remembered).
+ * strip, asked for the same version it is remembered under. Fetched once per
+ * share and version once it has columns; empty when the link may not play, the
+ * host has no local copy, the mix is silent or the read failed. An empty answer
+ * is never remembered, so the next ask tries again.
  */
 export function loadReviewPeaks(
   token: string,
@@ -36,9 +43,9 @@ export function loadReviewPeaks(
   if (done) return Promise.resolve(done);
   const pending = inFlight.get(key);
   if (pending) return pending;
-  const request = fetchPeaks(token)
+  const request = fetchPeaks(token, versionId)
     .then((peaks) => {
-      if (peaks) settled.set(key, peaks);
+      if (peaks && peaks.length > 0) settled.set(key, peaks);
       return peaks ?? [];
     })
     .finally(() => inFlight.delete(key));
