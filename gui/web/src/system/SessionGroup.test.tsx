@@ -1,5 +1,6 @@
-import { render, screen } from "@testing-library/react";
+import { act, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { useState } from "react";
 import { describe, expect, it, vi } from "vitest";
 import { SessionGroup, type SessionGroupProps } from "./SessionGroup";
 
@@ -204,9 +205,72 @@ describe("SessionGroup", () => {
 
     it("is shut with a reason", () => {
       render(<Group onRename={vi.fn()} renameDisabledReason="Busy" />);
+      const rename = screen.getByRole("button", { name: "Rename session" });
+      expect(rename).toBeDisabled();
+      expect(rename).toHaveAttribute("title", "Busy");
+    });
+
+    function Busy({ onRename }: { onRename: (name: string) => void }) {
+      const [busy, setBusy] = useState(false);
+      return (
+        <>
+          <Group
+            onRename={(name) => {
+              setBusy(true);
+              onRename(name);
+            }}
+            renameDisabledReason={busy ? "Busy" : undefined}
+          />
+          <button type="button" onClick={() => setBusy(false)}>
+            Finish
+          </button>
+          <button type="button">Elsewhere</button>
+        </>
+      );
+    }
+
+    async function openField() {
+      await userEvent.click(
+        screen.getByRole("button", { name: "Rename session" }),
+      );
+      return screen.getByRole("textbox", { name: "Session name" });
+    }
+
+    it("returns focus to Rename once a busy commit clears", async () => {
+      render(<Busy onRename={vi.fn()} />);
+      await userEvent.type(await openField(), "Interview{Enter}");
+      const rename = screen.getByRole("button", { name: "Rename session" });
+      expect(rename).toBeDisabled();
+      expect(rename).not.toHaveFocus();
+      act(() => screen.getByRole("button", { name: "Finish" }).click());
+      expect(rename).toBeEnabled();
+      expect(rename).toHaveFocus();
+    });
+
+    it("returns focus to Rename after Escape", async () => {
+      render(<Busy onRename={vi.fn()} />);
+      await userEvent.type(await openField(), "Draft{Escape}");
       expect(
         screen.getByRole("button", { name: "Rename session" }),
-      ).toBeDisabled();
+      ).toHaveFocus();
+    });
+
+    it("does not take focus when the user moved on during a busy commit", async () => {
+      render(<Busy onRename={vi.fn()} />);
+      await userEvent.type(await openField(), "Interview{Enter}");
+      await userEvent.click(screen.getByRole("button", { name: "Elsewhere" }));
+      act(() => screen.getByRole("button", { name: "Finish" }).click());
+      expect(
+        screen.getByRole("button", { name: "Rename session" }),
+      ).not.toHaveFocus();
+    });
+
+    it("does not steal focus when the field loses it to another control", async () => {
+      render(<Busy onRename={vi.fn()} />);
+      await openField();
+      await userEvent.click(screen.getByRole("button", { name: "Elsewhere" }));
+      expect(screen.queryByRole("textbox")).toBeNull();
+      expect(screen.getByRole("button", { name: "Elsewhere" })).toHaveFocus();
     });
   });
 });
