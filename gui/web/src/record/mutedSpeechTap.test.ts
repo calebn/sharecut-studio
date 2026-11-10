@@ -3,7 +3,7 @@ import { createMutedSpeechTap } from "./mutedSpeechTap";
 
 function fakeGraph(
   amplitude: number,
-  options: { throwOnClone?: boolean } = {},
+  options: { throwOnClone?: boolean; state?: AudioContextState } = {},
 ) {
   const cloneTrack = { enabled: false, stop: vi.fn() };
   const original = { enabled: false, stop: vi.fn() };
@@ -31,6 +31,7 @@ function fakeGraph(
   const silent = { gain: { value: 1 }, connect: vi.fn(), disconnect: vi.fn() };
   const destination = {} as AudioDestinationNode;
   const ctx = {
+    state: options.state ?? "running",
     createMediaStreamSource: vi.fn(() => source),
     createAnalyser: vi.fn(() => analyser),
     createGain: vi.fn(() => silent),
@@ -55,6 +56,15 @@ describe("createMutedSpeechTap", () => {
     const tap = createMutedSpeechTap(graph.ctx, graph.stream);
     expect(tap?.readDb()).toBeCloseTo(-20, 5);
     expect(graph.analyser.fftSize).toBe(1024);
+  });
+
+  it("reads nothing unless the context is running", () => {
+    for (const state of ["suspended", "closed"] as const) {
+      const graph = fakeGraph(0.5, { state });
+      const tap = createMutedSpeechTap(graph.ctx, graph.stream);
+      expect(tap?.readDb()).toBeNull();
+      expect(graph.analyser.getFloatTimeDomainData).not.toHaveBeenCalled();
+    }
   });
 
   it("floors digital silence", () => {

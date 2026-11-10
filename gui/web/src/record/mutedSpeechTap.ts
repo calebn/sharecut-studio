@@ -1,14 +1,18 @@
 import { linearToDb } from "../utils/audio";
 
 export type MutedSpeechTap = {
-  /** Block RMS in dBFS, or null once disposed. */
+  /** Block RMS in dBFS, or null once disposed or while the context is not running. */
   readDb: () => number | null;
   dispose: () => void;
 };
 
 type TapContext = Pick<
   AudioContext,
-  "createMediaStreamSource" | "createAnalyser" | "createGain" | "destination"
+  | "state"
+  | "createMediaStreamSource"
+  | "createAnalyser"
+  | "createGain"
+  | "destination"
 >;
 
 const WINDOW = 1024;
@@ -39,7 +43,7 @@ export function createMutedSpeechTap(
     let disposed = false;
     return {
       readDb: () => {
-        if (disposed) return null;
+        if (disposed || ctx.state !== "running") return null;
         analyser.getFloatTimeDomainData(samples);
         let sum = 0;
         for (const sample of samples) sum += sample * sample;

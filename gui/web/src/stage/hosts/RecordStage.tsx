@@ -369,6 +369,7 @@ function RecordStageBody({
   const mutedSpeech = useMutedSpeech(cap.stream ?? null, {
     muted: host?.muted ?? false,
     counting: state === "recording",
+    onAir: state === "recording" || state === "paused",
   });
   const alerts = roomAlerts(
     {

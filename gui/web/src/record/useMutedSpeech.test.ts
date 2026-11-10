@@ -31,6 +31,7 @@ describe("useMutedSpeech", () => {
     meter.release.mockClear();
     meter.acquire.mockImplementation(() => ({
       ctx: {
+        state: "running",
         resume: vi.fn(() => Promise.resolve()),
         createMediaStreamSource: () => ({
           connect: vi.fn(),
@@ -68,7 +69,7 @@ describe("useMutedSpeech", () => {
   it("turns true after 10 s of speech while muted", async () => {
     const { stream } = fakeStream();
     const { result } = renderHook(() =>
-      useMutedSpeech(stream, { muted: true, counting: true }),
+      useMutedSpeech(stream, { muted: true, counting: true, onAir: true }),
     );
     await advance(5_000);
     expect(result.current).toBe(false);
@@ -80,7 +81,7 @@ describe("useMutedSpeech", () => {
     amplitude = 0.0001;
     const { stream } = fakeStream();
     const { result } = renderHook(() =>
-      useMutedSpeech(stream, { muted: true, counting: true }),
+      useMutedSpeech(stream, { muted: true, counting: true, onAir: true }),
     );
     await advance(30_000);
     expect(result.current).toBe(false);
@@ -88,8 +89,12 @@ describe("useMutedSpeech", () => {
 
   it("opens no tap while unmuted or without a stream", async () => {
     const { stream } = fakeStream();
-    renderHook(() => useMutedSpeech(stream, { muted: false, counting: true }));
-    renderHook(() => useMutedSpeech(null, { muted: true, counting: true }));
+    renderHook(() =>
+      useMutedSpeech(stream, { muted: false, counting: true, onAir: true }),
+    );
+    renderHook(() =>
+      useMutedSpeech(null, { muted: true, counting: true, onAir: true }),
+    );
     await advance(1_000);
     expect(meter.acquire).not.toHaveBeenCalled();
     expect(stream.clone).not.toHaveBeenCalled();
@@ -98,7 +103,8 @@ describe("useMutedSpeech", () => {
   it("clears and drops the tap on unmute", async () => {
     const { stream, clones } = fakeStream();
     const { result, rerender } = renderHook(
-      ({ muted }) => useMutedSpeech(stream, { muted, counting: true }),
+      ({ muted }) =>
+        useMutedSpeech(stream, { muted, counting: true, onAir: true }),
       { initialProps: { muted: true } },
     );
     await advance(11_000);
@@ -112,7 +118,7 @@ describe("useMutedSpeech", () => {
   it("drops the tap on unmount", async () => {
     const { stream, clones } = fakeStream();
     const { unmount } = renderHook(() =>
-      useMutedSpeech(stream, { muted: true, counting: true }),
+      useMutedSpeech(stream, { muted: true, counting: true, onAir: true }),
     );
     await advance(1_000);
     unmount();
@@ -123,10 +129,74 @@ describe("useMutedSpeech", () => {
   it("does not count while paused", async () => {
     const { stream } = fakeStream();
     const { result } = renderHook(() =>
-      useMutedSpeech(stream, { muted: true, counting: false }),
+      useMutedSpeech(stream, { muted: true, counting: false, onAir: true }),
     );
     await advance(30_000);
     expect(result.current).toBe(false);
+  });
+
+  it("resets the count and the alert when the take stops, not on a pause", async () => {
+    const { stream, clones } = fakeStream();
+    const { result, rerender } = renderHook(
+      (props) => useMutedSpeech(stream, props),
+      { initialProps: { muted: true, counting: true, onAir: true } },
+    );
+    await advance(6_000);
+    rerender({ muted: true, counting: false, onAir: true });
+    await advance(30_000);
+    expect(clones).toHaveLength(1);
+    rerender({ muted: true, counting: true, onAir: true });
+    await advance(5_000);
+    expect(result.current).toBe(true);
+    rerender({ muted: true, counting: false, onAir: false });
+    expect(result.current).toBe(false);
+    expect(clones[0]?.stop).toHaveBeenCalledOnce();
+    rerender({ muted: true, counting: true, onAir: true });
+    await advance(6_000);
+    expect(result.current).toBe(false);
+    await advance(5_000);
+    expect(result.current).toBe(true);
+  });
+
+  it("opens no tap while the room is not on air", async () => {
+    const { stream } = fakeStream();
+    renderHook(() =>
+      useMutedSpeech(stream, { muted: true, counting: false, onAir: false }),
+    );
+    await advance(1_000);
+    expect(stream.clone).not.toHaveBeenCalled();
+  });
+
+  it("counts again from zero after an unmute and re-mute", async () => {
+    const { stream } = fakeStream();
+    const { result, rerender } = renderHook(
+      ({ muted }) =>
+        useMutedSpeech(stream, { muted, counting: true, onAir: true }),
+      { initialProps: { muted: true } },
+    );
+    await advance(8_000);
+    rerender({ muted: false });
+    rerender({ muted: true });
+    await advance(8_000);
+    expect(result.current).toBe(false);
+    await advance(3_000);
+    expect(result.current).toBe(true);
+  });
+
+  it("drops the old tap and opens a new one when the stream changes", async () => {
+    const first = fakeStream();
+    const second = fakeStream();
+    const { rerender } = renderHook(
+      ({ stream }) =>
+        useMutedSpeech(stream, { muted: true, counting: true, onAir: true }),
+      { initialProps: { stream: first.stream } },
+    );
+    await advance(1_000);
+    rerender({ stream: second.stream });
+    await advance(1_000);
+    expect(first.clones[0]?.stop).toHaveBeenCalledOnce();
+    expect(second.stream.clone).toHaveBeenCalledOnce();
+    expect(meter.release).toHaveBeenCalledOnce();
   });
 
   it("never fires when the clone cannot be made", async () => {
@@ -136,7 +206,7 @@ describe("useMutedSpeech", () => {
       }),
     } as unknown as MediaStream;
     const { result } = renderHook(() =>
-      useMutedSpeech(stream, { muted: true, counting: true }),
+      useMutedSpeech(stream, { muted: true, counting: true, onAir: true }),
     );
     await advance(30_000);
     expect(result.current).toBe(false);
