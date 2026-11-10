@@ -25,6 +25,8 @@ Do not commit or push directly to `main` unless the user explicitly overrides.
 Put `Fixes #N`, `Closes #N`, or `Resolves #N` on its own line for an issue the PR
 finishes. Use `Related #N` for work it touches without completing.
 Use `Part of #N` for a non-final part of a series. A bare issue mention does not close it.
+These keywords act only on `main`. After the merge to `develop`, close the issue
+yourself per [Close issues](issue-claims.md#close-issues).
 
 ## Verify an authorized merge
 
