@@ -154,7 +154,7 @@ export const SocialClip: Story = {
       await canvas.findByRole("spinbutton", { name: "Start" }),
     ).toBeVisible();
     await expect(canvas.getByRole("spinbutton", { name: "End" })).toBeVisible();
-    await expect(canvas.getByRole("button", { name: "Delete" })).toBeVisible();
+    await expect(canvas.queryByRole("button", { name: "Delete" })).toBeNull();
     await expect(canvas.queryByRole("button", { name: "Apply" })).toBeNull();
   },
 };

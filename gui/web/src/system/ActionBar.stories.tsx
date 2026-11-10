@@ -512,7 +512,6 @@ export const PhoneDockSocial: Story = {
       "Inspect",
       "Hear",
       "Comment",
-      "Fix text",
       "Remove",
       "Approve",
     ]);
