@@ -188,6 +188,73 @@ describe("the comment popover on the desktop and the tablet", () => {
     from.remove();
   });
 
+  it("puts focus in the Reply field on open", async () => {
+    stubViewportShell("desktop");
+    openComment();
+    render(<EditWorkspace />);
+    await inspect();
+    expect(
+      screen.getByRole("textbox", { name: "Reply to caleb" }),
+    ).toHaveFocus();
+  });
+
+  it("puts focus on Close when the link cannot reply", async () => {
+    stubViewportShell("desktop");
+    openComment(sampleComment(), ["share:token", "view", ["view"]]);
+    render(<EditWorkspace />);
+    await inspect();
+    expect(screen.getByRole("button", { name: "Close" })).toHaveFocus();
+  });
+
+  it("keeps a typed reply on the first Escape and closes on the second", async () => {
+    stubViewportShell("desktop");
+    openComment();
+    render(<EditWorkspace />);
+    await inspect();
+    const field = screen.getByRole("textbox", { name: "Reply to caleb" });
+    await userEvent.type(field, "Half a thought");
+    await userEvent.keyboard("{Escape}");
+    expect(screen.getByRole("dialog", { name: "Comment" })).toBeVisible();
+    expect(field).toHaveValue("Half a thought");
+    expect(screen.getByRole("button", { name: "Close" })).toHaveFocus();
+    await userEvent.keyboard("{Escape}");
+    expect(screen.queryByRole("dialog", { name: "Comment" })).toBeNull();
+  });
+
+  it("stays mounted with its draft while the pin is off screen", async () => {
+    stubViewportShell("desktop");
+    openComment();
+    render(<EditWorkspace />);
+    await inspect();
+    await userEvent.type(
+      screen.getByRole("textbox", { name: "Reply to caleb" }),
+      "Still typing",
+    );
+    const panel = screen.getByRole("dialog", { name: "Comment" });
+    act(() => panel.setAttribute("data-away", ""));
+    expect(panel).toBeInTheDocument();
+    expect(
+      within(panel).getByRole("textbox", {
+        name: "Reply to caleb",
+        hidden: true,
+      }),
+    ).toHaveValue("Still typing");
+  });
+
+  it("moves focus into the card when the comment is deleted while open", async () => {
+    stubViewportShell("desktop");
+    openComment();
+    render(<EditWorkspace />);
+    await inspect();
+    act(() => {
+      const state = useDawStore.getState();
+      if (state.project)
+        useDawStore.setState({ project: { ...state.project, comments: [] } });
+    });
+    expect(screen.getByText("Comment not found")).toBeVisible();
+    expect(document.activeElement).not.toBe(document.body);
+  });
+
   it("closes from its Close button", async () => {
     stubViewportShell("desktop");
     openComment();
@@ -261,6 +328,7 @@ describe("the comment popover placement", () => {
         }}
         root={null}
         panelRef={panelRef}
+        away={false}
         onClose={vi.fn()}
       />,
     );
@@ -275,6 +343,6 @@ describe("the comment popover placement", () => {
   it("shows beside the pin when nothing covers it", () => {
     const popover = place(0);
     expect(popover.style.visibility).toBe("");
-    expect(popover.style.top).not.toBe("");
+    expect(popover.style.top).toBe("34px");
   });
 });

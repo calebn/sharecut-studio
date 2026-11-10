@@ -2,7 +2,9 @@ import {
   type KeyboardEvent,
   type RefObject,
   useCallback,
+  useEffect,
   useMemo,
+  useRef,
 } from "react";
 import { createPortal } from "react-dom";
 import { isImeKey } from "../../system/imeKey";
@@ -24,21 +26,23 @@ export interface CommentPopoverAnchor {
 
 /**
  * The comment popover (spec-edit INS-COMMENT): the shared comment card in a
- * 320 px panel in the top layer beside the pin. It keeps clear of the floating
- * Action bar and hides, as the bar does, while the chrome above the lanes would
- * cover it. Escape and Close are the host's `onClose`.
+ * 320 px top-layer panel beside the pin. It stays mounted, hidden, while the
+ * pin is off screen so a reply draft survives.
  */
 export function CommentPopover({
   commentId,
   anchor,
   root,
   panelRef,
+  away,
   onClose,
 }: {
   commentId: string;
   anchor: CommentPopoverAnchor;
   root: HTMLElement | null;
   panelRef: RefObject<HTMLDivElement | null>;
+  /** The pin is off screen. */
+  away: boolean;
   onClose: () => void;
 }) {
   const { ref: topLayerRef, popover } = useTopLayerPanel();
@@ -76,10 +80,27 @@ export function CommentPopover({
     },
     true,
   );
+  const focused = useRef(false);
+  useEffect(() => {
+    const panel = panelRef.current;
+    if (away || focused.current || !panel) return;
+    focused.current = true;
+    (
+      panel.querySelector<HTMLElement>("textarea") ??
+      panel.querySelector<HTMLElement>(".dialog-close")
+    )?.focus({ preventScroll: true });
+  }, [away, panelRef]);
   const onKeyDown = (event: KeyboardEvent<HTMLElement>) => {
     if (event.key !== "Escape" || event.defaultPrevented || isImeKey(event))
       return;
     event.stopPropagation();
+    const field = event.target;
+    if (field instanceof HTMLTextAreaElement && field.value.trim()) {
+      panelRef.current
+        ?.querySelector<HTMLElement>(".dialog-close")
+        ?.focus({ preventScroll: true });
+      return;
+    }
     onClose();
   };
   return createPortal(
@@ -90,6 +111,7 @@ export function CommentPopover({
       role="dialog"
       aria-modal="false"
       aria-label="Comment"
+      data-away={away || undefined}
     >
       <div
         role="presentation"

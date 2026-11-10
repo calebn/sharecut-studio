@@ -238,28 +238,6 @@ html[data-shell="phone"] .track-sheet-action {
   margin: var(--space-3) 0;
 }
 
-.inspector-actions {
-  margin: 0;
-  padding-left: var(--space-5);
-}
-
-.inspector-actions.interactive {
-  list-style: none;
-  padding-left: 0;
-}
-
-.inspector-actions.interactive label {
-  display: flex;
-  align-items: flex-start;
-  gap: var(--space-3);
-  cursor: pointer;
-}
-
-.inspector-actions .done {
-  color: var(--color-text-secondary);
-  text-decoration: line-through;
-}
-
 .inspector h2 {
   font-size: var(--font-size-heading);
   margin: 0;

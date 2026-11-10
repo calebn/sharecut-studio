@@ -336,46 +336,6 @@ export const AUTO_REDUCTION_SECTIONS: readonly InspectorSection[] = [
   },
 ];
 
-export const COMMENT_SECTIONS: readonly InspectorSection[] = [
-  {
-    id: "facts",
-    rows: [
-      {
-        id: "facts",
-        control: (
-          <div className="inspector edit-sheet-part">
-            <DefinitionList>
-              <DefItem label="Time">
-                <Button>12:04</Button>
-              </DefItem>
-              <DefItem label="Author">Maya</DefItem>
-              <DefItem label="Status">Open</DefItem>
-            </DefinitionList>
-          </div>
-        ),
-      },
-      {
-        id: "body",
-        control: <p className="inspector-body">Needs a tighter open</p>,
-      },
-    ],
-  },
-  {
-    id: "reply",
-    rows: [
-      {
-        id: "reply",
-        control: (
-          <div className="comment-reply-compose">
-            <input aria-label="Reply to comment" placeholder="Reply…" />
-            <Button>Reply</Button>
-          </div>
-        ),
-      },
-    ],
-  },
-];
-
 export const PENDING_SECTIONS: readonly InspectorSection[] = [
   {
     id: "pending",

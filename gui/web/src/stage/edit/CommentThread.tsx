@@ -27,7 +27,8 @@ export function CommentThread({ commentId }: { commentId: string }) {
     role,
   });
   const comment = project?.comments?.find((c) => c.id === commentId);
-  if (!comment) return <p className="ui-field-hint">Comment not found</p>;
+  if (!project || !comment)
+    return <p className="ui-field-hint">Comment not found</p>;
   const mayReply = canReply(projectPath, guestMode, shareCapabilities);
   const mayToggle = canSetAction(projectPath, shareCapabilities);
   return (
@@ -36,7 +37,7 @@ export function CommentThread({ commentId }: { commentId: string }) {
         comment={commentCardOf(
           comment,
           comment.resolved,
-          project?.timeline_duration_sec ?? Number.NaN,
+          project.timeline_duration_sec,
         )}
         onSelect={() => void seekTransport(comment.timeline_start)}
         onResolve={

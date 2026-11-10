@@ -233,10 +233,13 @@ function Card({
   root: HTMLElement | null;
 }) {
   const selection = useDaw((s) => s.selection);
-  const thread = useDaw(
-    (s) => commentTarget(s.selection, s.project) === "thread",
+  const threadId = useDaw((s) =>
+    s.selection?.kind === "comment" &&
+    commentTarget(s.selection, s.project) === "thread"
+      ? s.selection.id
+      : null,
   );
-  const popover = thread && !sheet.rangeActionsInSheet;
+  const popoverId = sheet.rangeActionsInSheet ? null : threadId;
   const anchor = useSelectionAnchor(root, selection, true);
   const [anchorTrackId, setAnchorTrackId] = useState<string | null>(null);
   useLayoutEffect(() => {
@@ -296,20 +299,32 @@ function Card({
   const sections = useBodySections(sheet.rangeActionsInSheet, true);
   // The Action bar hides the same way when its anchor scrolls out.
   const shown = placement !== null && (anchor.visible || selection === null);
-  const focus = useInspectorFocus(popover ? panel : box, shown);
+  const focus = useInspectorFocus(popoverId ? panel : box, shown);
+  const hadPopover = useRef(false);
+  useEffect(() => {
+    if (
+      hadPopover.current &&
+      !popoverId &&
+      document.activeElement === document.body &&
+      box.current
+    )
+      focusFirstControl(box.current);
+    hadPopover.current = popoverId !== null;
+  }, [popoverId]);
   const close = () => {
     focus.close();
     sheet.close();
   };
   let card: ReactNode = null;
-  if (popover && selection?.kind === "comment") {
-    if (shown)
+  if (popoverId) {
+    if (placement)
       card = (
         <CommentPopover
-          commentId={selection.id}
+          commentId={popoverId}
           anchor={anchor}
           root={root}
           panelRef={panel}
+          away={!shown}
           onClose={close}
         />
       );

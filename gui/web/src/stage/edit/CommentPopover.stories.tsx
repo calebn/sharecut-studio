@@ -29,6 +29,7 @@ function PopoverHost({ id }: { id: string }) {
         anchor={{ ref: pin, moves: [], clearTop: () => 0 }}
         root={null}
         panelRef={panel}
+        away={false}
         onClose={fn()}
       />
     </div>
