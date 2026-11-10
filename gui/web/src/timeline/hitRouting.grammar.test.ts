@@ -490,6 +490,78 @@ describe("tap on a surface near an edit mark", () => {
     ]);
   });
 
+  describe("with the real 44 px touch box of the Seam diamond", () => {
+    const touchMark = (sec: number, id: string): HTMLButtonElement => {
+      const x = sec * 100;
+      const el = button(hitTargetProps("roll", id, sec), {
+        left: x - 22,
+        top: 84,
+        right: x + 22,
+        bottom: 128,
+      });
+      root.append(el);
+      record(id, el);
+      return el;
+    };
+    const tapAndClick = (el: Element, x: number, y: number) => {
+      tap(el, x, y);
+      nativeClick(el, x, y);
+      vi.runAllTimers();
+    };
+
+    it("opens the seam whose centre is nearer, even under a neighbour's box", () => {
+      touchMark(2, "near");
+      const far = touchMark(2.12, "far");
+      tapAndClick(far, 203, 104);
+
+      expect(marks("near")).not.toEqual([]);
+      expect(marks("far")).toEqual([]);
+    });
+
+    it("opens the later seam for a tap nearer to it", () => {
+      touchMark(2, "near");
+      const far = touchMark(2.12, "far");
+      tapAndClick(far, 209, 104);
+
+      expect(marks("far")).not.toEqual([]);
+      expect(marks("near")).toEqual([]);
+    });
+
+    it("resolves the midpoint between two seams 12 px apart to exactly one of them", () => {
+      touchMark(2, "near");
+      const far = touchMark(2.12, "far");
+      tapAndClick(far, 206, 104);
+
+      expect(marks("near").length === 0 || marks("far").length === 0).toBe(
+        true,
+      );
+      expect(marks("near").length + marks("far").length).toBeGreaterThan(0);
+    });
+
+    it("keeps a fade corner under the diamond's box grabbable at the clip top", () => {
+      const seam = touchMark(2, "seam");
+      const fade = button(hitTargetProps("fade-out", "clip-a", 2), {
+        left: 194,
+        top: 106,
+        right: 206,
+        bottom: 118,
+      });
+      root.append(fade);
+      record("fade", fade);
+      tapAndClick(seam, 200, 112);
+
+      expect(marks("fade")).not.toEqual([]);
+      expect(marks("seam")).toEqual([]);
+    });
+
+    it("takes a finger in the gutter above the corner for the seam", () => {
+      const seam = touchMark(2, "seam");
+      tapAndClick(seam, 200, 90);
+
+      expect(marks("seam")).not.toEqual([]);
+    });
+  });
+
   it("never takes a mouse click, which has no finger to miss with", () => {
     const el = lane();
     mark();

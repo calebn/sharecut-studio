@@ -273,20 +273,36 @@ describe("Seam pill rolling", () => {
     expect(onCommit).not.toHaveBeenCalled();
   });
 
-  it("Alt with an arrow key rolls 1 ms", () => {
+  it.each([
+    ["pill", { form: "pill", removed: "2.4 s", onSelect: () => undefined }],
+    [
+      "diamond",
+      {
+        form: "diamond",
+        kind: "split",
+        label: "Split at 0:05.0",
+        onSelect: () => undefined,
+      },
+    ],
+  ] as const)("Alt with an arrow key rolls a %s 1 ms", (_form, props) => {
     const onCommit = vi.fn();
     render(
       <Seam
-        {...pill}
-        roll={{ limits: () => ({ minMs: -500, maxMs: 500 }), onCommit }}
+        {...props}
+        roll={{
+          limits: () => ({ minMs: -500, maxMs: 500 }),
+          pxPerSec: 100,
+          onCommit,
+        }}
       />,
     );
     fireEvent.keyDown(screen.getByRole("button"), {
       key: "ArrowLeft",
       altKey: true,
     });
-    expect(onCommit).toHaveBeenCalledWith(-1);
+    expect(onCommit).toHaveBeenCalledExactlyOnceWith(-1);
   });
+
   it("a held Alt arrow rolls once, not once per key repeat", () => {
     const onCommit = vi.fn();
     render(
@@ -434,11 +450,69 @@ describe("Seam diamond rolling", () => {
     expect(onSelect).toHaveBeenCalledTimes(1);
   });
 
-  it("Alt with an arrow key rolls 1 ms by key", () => {
+  it("takes no roll from a press the host refuses, as an unarmed touch", () => {
     const onCommit = vi.fn();
-    render(<Seam {...diamond} roll={{ ...room, pxPerSec: 100, onCommit }} />);
-    fireEvent.keyDown(hit(), { key: "ArrowRight", altKey: true });
-    expect(onCommit).toHaveBeenCalledExactlyOnceWith(1);
+    const onPreview = vi.fn();
+    render(
+      <Seam
+        {...diamond}
+        roll={{
+          ...room,
+          pxPerSec: 100,
+          onCommit,
+          onPreview,
+          acceptsPointer: () => false,
+        }}
+      />,
+    );
+    fireEvent.pointerDown(hit(), {
+      pointerId: 1,
+      button: 0,
+      pointerType: "touch",
+      clientX: 100,
+    });
+    fireEvent.pointerMove(hit(), { pointerId: 1, clientX: 160 });
+    fireEvent.pointerUp(hit(), { pointerId: 1 });
+    expect(onPreview).not.toHaveBeenCalled();
+    expect(onCommit).not.toHaveBeenCalled();
+  });
+
+  it("rolls from a press the host accepts", () => {
+    const onCommit = vi.fn();
+    render(
+      <Seam
+        {...diamond}
+        roll={{
+          ...room,
+          pxPerSec: 100,
+          onCommit,
+          acceptsPointer: () => true,
+        }}
+      />,
+    );
+    fireEvent.pointerDown(hit(), { pointerId: 1, button: 0, clientX: 100 });
+    fireEvent.pointerMove(hit(), { pointerId: 1, clientX: 130 });
+    fireEvent.pointerUp(hit(), { pointerId: 1 });
+    expect(onCommit).toHaveBeenCalledExactlyOnceWith(300);
+  });
+
+  it("does not select on the click that follows a cancelled drag", () => {
+    const onSelect = vi.fn();
+    render(
+      <Seam
+        {...diamond}
+        onSelect={onSelect}
+        roll={{ ...room, pxPerSec: 100, onCommit: vi.fn() }}
+      />,
+    );
+    fireEvent.pointerDown(hit(), { pointerId: 1, button: 0, clientX: 100 });
+    fireEvent.pointerMove(hit(), { pointerId: 1, clientX: 130 });
+    fireEvent.keyDown(hit(), { key: "Escape" });
+    fireEvent.pointerUp(hit(), { pointerId: 1 });
+    fireEvent.click(hit());
+    expect(onSelect).not.toHaveBeenCalled();
+    fireEvent.click(hit());
+    expect(onSelect).toHaveBeenCalledTimes(1);
   });
 
   it("marks its button with the host's data attributes", () => {

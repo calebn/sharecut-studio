@@ -76,4 +76,63 @@ describe("seamRollLimits and commitSeamRoll", () => {
     await commitSeamRoll("eb:L:R", 20, say);
     expect(say).toHaveBeenLastCalledWith(ROLL_QUEUED_MESSAGE);
   });
+
+  it("saves a roll on the clips it was started on, with their geometry", async () => {
+    await commitSeamRoll("eb:L:R", 100, vi.fn());
+    expect(api.loadBoundaryContext).toHaveBeenLastCalledWith(
+      "/tmp/episode",
+      { kind: "roll", left_clip_id: "L", right_clip_id: "R" },
+      [
+        {
+          id: "L",
+          source_start: 0,
+          source_end: 4,
+          timeline_start: 0,
+          source_id: L.source_id,
+        },
+        {
+          id: "R",
+          source_start: 4,
+          source_end: 10,
+          timeline_start: 4,
+          source_id: R.source_id,
+        },
+      ],
+    );
+    expect(api.rollClipJoin).toHaveBeenCalledWith(
+      "/tmp/episode",
+      "L",
+      "R",
+      0.1,
+      "ctx-token",
+    );
+  });
+
+  it("does not save a roll when its partners change during boundary loading", async () => {
+    let release!: () => void;
+    vi.mocked(api.loadBoundaryContext).mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          release = () => resolve({ token: "ctx-token" } as never);
+        }),
+    );
+    const say = vi.fn();
+    const pending = commitSeamRoll("eb:L:R", 100, say);
+    const project = useDawStore.getState().project!;
+    useDawStore.getState().setProject({
+      ...project,
+      clips: {
+        tracks: {
+          [TRACK]: [L, { ...R, source_end: 11, timeline_end: 11 }],
+        },
+        clip_count: 2,
+      },
+    });
+    release();
+    await pending;
+    expect(api.rollClipJoin).not.toHaveBeenCalled();
+    expect(say).toHaveBeenLastCalledWith(
+      "Could not roll the seam. The seam moved before the roll saved. Nothing changed.",
+    );
+  });
 });

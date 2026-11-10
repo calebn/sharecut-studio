@@ -9,6 +9,7 @@ import {
   minimalProject,
   sampleTrack,
 } from "../test/fixtures";
+import { replayPointer } from "./hitRouting";
 import { SeamLayer } from "./SeamLayer";
 
 vi.mock("../api", async (importOriginal) => ({
@@ -74,7 +75,7 @@ beforeEach(() => {
 afterEach(() => useDawStore.setState({ project: null, projectPath: "" }));
 
 describe("SeamLayer", () => {
-  it("draws a hollow diamond per touching pair, 6 px on the lane's top edge", () => {
+  it("draws a hollow diamond per touching pair at the seam's time", () => {
     const { container } = mount();
     const marks = container.querySelectorAll<HTMLElement>(".seam-mark");
     expect(marks).toHaveLength(1);
@@ -158,6 +159,43 @@ describe("SeamLayer", () => {
     await vi.waitFor(() =>
       expect(onRollPreview).toHaveBeenLastCalledWith(null),
     );
+  });
+
+  it("takes no roll from an unarmed touch drag and rolls once the long press has armed it", () => {
+    const { onRollPreview } = mount();
+    const hit = screen.getByRole("button", { name: /^Split at 0:04\.0/ });
+    fireEvent.pointerDown(hit, {
+      pointerId: 3,
+      pointerType: "touch",
+      button: 0,
+      clientX: 100,
+    });
+    fireEvent.pointerMove(hit, {
+      pointerId: 3,
+      pointerType: "touch",
+      clientX: 160,
+    });
+    expect(onRollPreview).not.toHaveBeenCalled();
+    fireEvent.pointerUp(hit, { pointerId: 3, pointerType: "touch" });
+
+    const press = (type: "pointerdown" | "pointermove", x: number) =>
+      replayPointer(
+        type,
+        hit,
+        new PointerEvent(type, {
+          pointerId: 4,
+          pointerType: "touch",
+          isPrimary: true,
+          clientX: x,
+        }),
+      );
+    press("pointerdown", 100);
+    press("pointermove", 120);
+    expect(onRollPreview).toHaveBeenLastCalledWith({
+      leftClipId: "L",
+      rightClipId: "R",
+      deltaSec: 0.2,
+    });
   });
 
   it("has no axe violations", async () => {

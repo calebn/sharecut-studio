@@ -7,6 +7,7 @@ import { useDaw } from "../state/useDaw";
 import { Seam as SeamMark, type SeamRoll } from "../system/Seam";
 import { joinKind, markerLabel } from "../utils/editMarkerRegistry";
 import { formatRulerTime } from "../utils/time";
+import { dragMayStart } from "./hitRouting";
 import { hitTargetProps } from "./hitTargets";
 
 interface SeamLayerProps {
@@ -53,6 +54,7 @@ function SeamDiamond({
   const roll = useMemo<SeamRoll>(
     () => ({
       pxPerSec: zoomPxPerSec,
+      acceptsPointer: dragMayStart,
       limits: () => seamRollLimits(seam.id),
       onCommit: (deltaMs) => commitSeamRoll(seam.id, deltaMs, say),
       onPreview: (deltaMs) =>
