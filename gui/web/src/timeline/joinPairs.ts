@@ -2,13 +2,12 @@ import { clipRowDuringRoll, type RollPreview } from "../edit/clipEdgePreview";
 import { isJoin } from "../edit/joinRender";
 import { type ClipRow } from "../types/project";
 
-export interface JoinPair {
+interface JoinPair {
   id: string;
   left: ClipRow;
   right: ClipRow;
 }
 
-/** The abutting neighbours the lane draws a join between, rolled by a live roll as the clips draw. */
 export function joinPairs(
   clips: readonly ClipRow[],
   roll: RollPreview | null,

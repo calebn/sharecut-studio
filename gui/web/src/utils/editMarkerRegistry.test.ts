@@ -53,11 +53,9 @@ describe("edit marker registry", () => {
     expect(pendingTypeLabel("trim")).toBe("Trim");
   });
 
-  it("types an applied tick by its mute flag first, then its kind", () => {
-    expect(appliedKind({ kind: "seam", mute: false })).toBe("applied-seam");
-    expect(appliedKind({ kind: "edge", mute: false })).toBe("applied-edge");
-    expect(appliedKind({ kind: "seam", mute: true })).toBe("applied-mute");
-    expect(appliedKind({ kind: "edge", mute: true })).toBe("applied-mute");
+  it("types an applied tick by its mute flag", () => {
+    expect(appliedKind({ mute: false })).toBe("applied-edge");
+    expect(appliedKind({ mute: true })).toBe("applied-mute");
   });
 
   it("strips the state prefix for a class name", () => {

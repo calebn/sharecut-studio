@@ -37,9 +37,9 @@ export type Point = { x: number; y: number };
 /**
  * Clusters on the reference track:
  * - edge (t=10): a clip join with a 300 ms fade-in and an envelope point on
- *   the edge, its neighbours, the roll seam and join glyph;
- * - join-point (t=40): a join glyph, its roll seam and an envelope point;
- * - join (t=50): a join glyph over its roll seam;
+ *   the edge, its neighbours and the Seam diamond;
+ * - join-point (t=40): a Seam diamond and an envelope point;
+ * - join (t=50): a Seam diamond over its clips' trim strips;
  * - pending (t=24): two adjacent pending cuts.
  * env-c (t=16) is a lone envelope point.
  */

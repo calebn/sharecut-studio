@@ -103,13 +103,7 @@ join, a trim preview with its ghost, a fade readout, a read-only clip and a
 360px clip with its track name. The live `ClipBlock` (memo over
 `ClipBlockLive`) owns the gestures and commits; the catalog omits the
 store-bound waveform.
-`Templates/EditMarkerLayer` previews the production `EditMarkerLayer` and the
-real-scale `JoinBlend` in the shared lane shell: every join type and a
-blocked crossfade, the narrow (4.8 px), middle (18 px) and wide (48 px)
-tiers of a 120 ms crossfade (the wide one with its "Crossfade 120 ms" label), a
-label-room lane where a cut's label fits and a longer one would not, and a
-count chip with its phone-width twin. The live `TrackLane` plans the lane's joins (`timeline/editMarkers/plan.ts`) and decides
-which draw as glyphs and which fold into a chip.
+`Templates/SeamLayer` previews the production `SeamLayer` in the shared lane shell: a cut and a split diamond, selecting by diamond, a roll with its readout chip and a dense run of seams 12 px apart. The live `TrackLane` draws one diamond per seam and hands each join's pair to the join editor (`timeline/joinPairs.ts`).
 `Templates/CommentPlaybackBubble` previews the shipped live-timeline overlay as a
 props-only view (`CommentPlaybackBubbleView`); the live adapter keeps the store,
 API and timeline-metrics reads. It has a 360px story alongside its desktop ones, and a guard

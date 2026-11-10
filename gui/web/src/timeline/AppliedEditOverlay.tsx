@@ -14,10 +14,10 @@ interface AppliedEditOverlayProps {
  * Visual markers for applied mutes and edges, projected through the lane's current clips
  * (#527) so later ripples move them to the post-edit join instead of the stale
  * pre-edit range. A record that no longer maps to a clip has no marker. Cut seams are
- * Seam diamonds (SeamLayer), not ticks. Dense
- * cut stacks cannot meet WCAG 2.5.8 as individual 24px buttons, so ticks are
- * non-interactive, carry no hover title and sit in an `aria-hidden`,
- * `pointer-events: none` layer; the tests pin this and include an axe check.
+ * Seam diamonds (SeamLayer), not ticks. Dense cut stacks cannot meet WCAG 2.5.8 as
+ * individual 24px buttons, so ticks are non-interactive, carry no hover title and sit
+ * in an `aria-hidden`, `pointer-events: none` layer; the tests pin this and include an
+ * axe check.
  */
 export function AppliedEditOverlay({
   records,
@@ -41,7 +41,7 @@ export function AppliedEditOverlay({
       {ticks.map((t) => (
         <div
           key={t.key}
-          className={`applied-tick applied-tick--${markerVariant(appliedKind({ kind: "edge", mute: t.mute }))}`}
+          className={`applied-tick applied-tick--${markerVariant(appliedKind(t))}`}
           style={{ left: t.sec * zoomPxPerSec }}
         />
       ))}

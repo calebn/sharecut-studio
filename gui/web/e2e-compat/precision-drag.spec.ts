@@ -294,7 +294,7 @@ test("jog: a ripple over the guest's speech applies as one manual trim", async (
   const pps = await setZoom(page, 1);
   const finger = await newFinger(context, page, browserName);
   const commands = watchCommands(page);
-  const seam = `${lane} .join-seam[data-hit-kind="roll"] >> nth=1`;
+  const seam = `${lane} .seam-mark .sys-seam-hit[data-hit-kind="roll"] >> nth=1`;
   const near = await centerOf(page, seam);
   await finger.down({ x: near.x + 20, y: near.y });
   await page.waitForTimeout(60);

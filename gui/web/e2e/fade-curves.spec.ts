@@ -279,7 +279,6 @@ test.describe("Timeline fade curves", () => {
         .toBe(true);
       await expectBadgeClear();
 
-      // Two clips with a drawn seam diamond and the seam clip's revealed zero fade corners.
       await expectPageAxeClean(page, ".lane-row .clip-block");
       await expectPageAxeClean(page, ".lane-row .seam-mark");
     } finally {
