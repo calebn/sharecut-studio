@@ -2,6 +2,7 @@ import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { revealProject } from "../api";
+import { registerHostCommands } from "../commands/host";
 import { __resetThemeForTests, useTheme } from "../hooks/useTheme";
 import { ModelsSheet } from "../models";
 import { ModelsContext } from "../models/useModels";
@@ -15,7 +16,7 @@ import { waitForDialogFocus } from "../test/dialogFocus";
 import { minimalProject } from "../test/fixtures";
 import { modelStatus, modelsApi, registryRows } from "../test/renderWithModels";
 import { ApiError } from "../utils/apiError";
-import { SettingsHost } from "./SettingsHost";
+import { OPEN_SETTINGS_EVENT, SettingsHost } from "./SettingsHost";
 
 const tauri = vi.hoisted(() => ({ on: false }));
 vi.mock("@tauri-apps/api/core", () => ({ isTauri: () => tauri.on }));
@@ -244,5 +245,20 @@ describe("Appearance", () => {
     expect(
       screen.getByRole("menuitemradio", { name: "System" }),
     ).not.toBeChecked();
+  });
+});
+
+describe("native Settings menu item", () => {
+  it("opens the sheet when the desktop shell dispatches the open event", async () => {
+    registerHostCommands();
+    inProject();
+    render(<Harness />);
+    expect(screen.queryByRole("dialog", { name: "Settings" })).toBeNull();
+    act(() => {
+      window.dispatchEvent(new Event(OPEN_SETTINGS_EVENT));
+    });
+    expect(
+      await screen.findByRole("dialog", { name: "Settings" }),
+    ).toBeInTheDocument();
   });
 });
