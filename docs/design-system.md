@@ -269,8 +269,8 @@ chapter-add side effect (its store-backed `chapterAddPending` flag reaches the
 view as `addChapterBusy`). The stage frame mounts `AvatarStack` in the header's
 people slot and `ViewPopover` in the Edit corner's eye popover. Stories cover desktop,
 phone, menu-hosted, guest-share, chapter-adding, and loading/overflow/following
-states. `Stages/Frame/Presence` holds the people stories: `Avatars`, `Popover`,
-`Following` and `FollowingPhone`. A followed person's face gets a 3 px ring and
+states. `Stages/Frame/Presence` holds the people stories: `Solo`, `Avatars`, `Overflow`,
+`Popover`, `GuestPopover`, `Following`, `FollowingPhone` and `PeopleMenu`. A followed person's face gets a 3 px ring and
 the header shows one "Following Rosa" pill with a stop button; there is no
 frame round the stage (design-system element 32 and L36 win over the 2 px frame
 in the Review and Deliver spec, logged in the spec deviations audit).
