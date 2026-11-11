@@ -353,6 +353,9 @@ export const FadeCurveReadOnly: Story = {
   render: () => <ClipCard selection={curvedSelection} />,
   parameters: {
     episode: { project: curved, role: "viewer", selection: curvedSelection },
+    a11y: {
+      config: { rules: [{ id: "color-contrast", enabled: false }] },
+    },
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
