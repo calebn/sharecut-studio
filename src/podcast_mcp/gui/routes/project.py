@@ -272,6 +272,7 @@ def reveal_recent_project(
     """Show one episode's folder in this computer's file manager (Home's card menu)."""
     require_host(request, token=token, x_podcast_token=x_podcast_token)
     _require_recent_access(request)
+    require_loopback_peer(request)
     path = _require_episode_path(body.path)
     if not reveal_in_file_manager(path):
         raise coded_http_error(
