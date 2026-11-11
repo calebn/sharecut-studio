@@ -84,6 +84,17 @@ export const COMMANDS: Record<string, CommandDef> = {
     paletteRunnable: false,
     notes: "Args: { clientId: string }",
   },
+  "presence.goTo": {
+    id: "presence.goTo",
+    category: "presence",
+    label: "Go to where they are",
+    keywords: ["jump", "person", "stage", "playhead"],
+    when: "always",
+    paletteRunnable: false,
+    breaksFollow: true,
+    notes:
+      "Args: { clientId: string }. Opens their stage and moves the playhead to theirs once; it does not follow",
+  },
   "presence.unfollow": {
     id: "presence.unfollow",
     category: "presence",

@@ -39,6 +39,10 @@ export const CAPABILITY_COPY: Record<string, CapabilityCopy> = {
     label: "Follow",
     tooltip: "Follow this person",
   },
+  "daw.presence.goTo": {
+    label: "Go to where they are",
+    tooltip: "Open their stage and move to their playhead, once",
+  },
   "daw.presence.unfollow": {
     label: "Stop following",
     tooltip: "Stop following",
@@ -627,6 +631,7 @@ export const GUI_SURFACE_TO_CAPABILITY: Record<string, string> = {
   "transport.play": "daw.transport.togglePlay",
   "transport.audition": "daw.transport.audition",
   "presence.avatarStack": "daw.presence.follow",
+  "presence.goTo": "daw.presence.goTo",
   "presence.followPill": "daw.presence.unfollow",
   timeline: "daw.edit.bladeCut",
   "timeline.createMenu": "daw.comment.draftAt",

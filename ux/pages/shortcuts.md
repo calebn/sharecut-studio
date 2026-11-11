@@ -132,6 +132,7 @@ Available via toolbar / `execute`; some also appear in the in-app palette. Comma
 | Seek playhead | `transport.seek` | Always (when not typing in a field or on a focused Scrub field) | Args: { sec: number } |
 | Audition Full mix / Edited stems / Original | `transport.audition` | Project loaded | Args: { mode: mix \| fx \| raw } |
 | Follow | `presence.follow` | Always (when not typing in a field or on a focused Scrub field) | Args: { clientId: string } |
+| Go to where they are | `presence.goTo` | Always (when not typing in a field or on a focused Scrub field) | Args: { clientId: string }. Opens their stage and moves the playhead to theirs once; it does not follow |
 | Resolve comment | `comment.resolve` | Loaded host project | Args: { commentId: string, resolved: boolean, by: string } — host only; use a comment's Resolve/Reopen control |
 | Open history | `edit.history` | Host or shared edit mode | Opens the History sheet, which stays reachable when Undo and Redo are both empty. Host or Editor. |
 | Play range | `range.play` | Project loaded |  |
