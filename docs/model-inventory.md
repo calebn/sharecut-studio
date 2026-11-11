@@ -1,6 +1,6 @@
 # Model and runtime inventory
 
-Which features use a downloaded model or an optional runtime, where setup covers them today, and what is missing. This is the audit for [#1998](https://github.com/calebn/sharecut-studio/issues/1998) against `main`; update it in the same PR that changes a row. The single authoritative setup catalog it points at is the model registry, `engines/models/registry.py` (`MODELS`). `services/pipeline/bootstrap.py` (`component_status`, `run_bootstrap`) derives from it, and the GUI setup, `podcast bootstrap` and `podcast setup` share it.
+Which features use a downloaded model or an optional runtime, where setup covers them today, and what is missing. This is the audit for [#1998](https://github.com/calebn/sharecut-studio/issues/1998) against `develop`; update it in the same PR that changes a row. The single authoritative setup catalog it points at is the model registry, `engines/models/registry.py` (`MODELS`). `services/pipeline/bootstrap.py` (`component_status`, `run_bootstrap`) derives from it, and the GUI setup, `podcast bootstrap` and `podcast setup` share it.
 
 "In GUI setup" means the component is a registry row (listed in `ALL_GUI_COMPONENTS`) and can be installed from the packaged app. The frozen sidecar is built with `--extra gui` only (no torch; see [desktop-packaging.md](desktop-packaging.md) § Frozen sidecar), so a feature whose runtime is a Python extra cannot work in a packaged app by downloading weights alone.
 
@@ -8,22 +8,29 @@ Which features use a downloaded model or an optional runtime, where setup covers
 | --- | --- | --- | --- | --- | --- |
 | Transcription | Whisper tiers (`faster-whisper` / CTranslate2) | `bootstrap_whisper_model`, pinned HF snapshot | Yes, first-run default | Revision pin, `whisper_model_problem` | Works |
 | Voice activity | Silero VAD ONNX, bundled with `faster-whisper` | None | Reported by `podcast doctor` only, not in bootstrap status | n/a | Works |
-| Noise reduction | RNNoise `.rnnn` for FFmpeg `arnndn` | `bootstrap_rnnoise_model` | Yes, optional | sha256 and size_bytes pinned in contracts/bootstrap-assets.json; GitHub source is a commit-pinned raw URL (GregorR/rnnoise-models@3eee541); CDN copy not yet uploaded | Works |
+| Noise reduction | RNNoise `.rnnn` for FFmpeg `arnndn` | `bootstrap_rnnoise_model` | Yes, recommended | sha256 and size_bytes pinned in contracts/bootstrap-assets.json; GitHub source is a commit-pinned raw URL (GregorR/rnnoise-models@3eee541); CDN copy not yet uploaded | Works |
 | Precise word boundaries | Forced word aligner (ONNX, `onnxruntime` is a core dependency) | `bootstrap_word_aligner`, pinned HF snapshot | Yes, recommended (installed by Get ready and a bare bootstrap) | Revision pin, `word_aligner_problem` | Works |
 | Speaker recognition and split | ECAPA embedding network exported to ONNX (`engines/models/speaker_ecapa.py`), `onnxruntime` | `bootstrap_speaker_ecapa`, sha256-pinned file at a direct first-party CDN url | Yes, recommended (`speaker-ecapa`; installed by Get ready and a bare bootstrap) | sha256 pin, `speaker_ecapa_problem` | Works once downloaded |
 
-## What every registry row shares
+## What a registry row does, row by row
 
-Re-checked against `develop` for #1998. Each registry row, including transcription, word alignment, noise reduction and speaker recognition, goes through the same `run_bootstrap` path in `services/pipeline/bootstrap.py`:
+Re-checked against `develop` for #1998. Setup tiers come from `ModelSpec.setup` in `engines/models/registry.py`: Whisper is required; RNNoise, the word aligner and the speaker model are recommended. GUI first run, `component_status` and the MCP and GUI bootstrap jobs run `run_bootstrap` (`services/pipeline/bootstrap.py`); `podcast bootstrap` loops `install_model` directly in `cli/setup_cmd.py`.
 
-- **State:** `component_status` reports each row through `model_status`: installed when the row's registry readiness check reports no problem, `update_needed` on a pin mismatch, and missing with a hint and a fix command otherwise, without downloading anything. An unexpected error is reported, never raised.
-- **Progress:** a download reports bytes through the `bootstrap.bytes` child task (`_ByteRelay`), so the GUI, `podcast bootstrap` and `podcast setup` show the same progress.
-- **Cancel:** `cancel_check` stops a download between chunks and raises `CancelledProgress`, which ends the run.
-- **Validation:** an installed state requires the row's check against its pin (revision or sha256) to pass.
+Every row has the same shape: `model_status` reports it as `installed`, `update_needed` or `missing` without downloading, and every install runs inside `_ByteRelay`, which publishes a `bootstrap.bytes` child task. The rows differ below that.
 
-Silero VAD is the one feature without a row: it ships inside `faster-whisper`, so there is nothing to download, and `podcast doctor` (`services/support/doctor.py`) is where it is reported.
+| Row | Status check at rest | Install progress | Cancel | Pin checked |
+| --- | --- | --- | --- | --- |
+| Whisper, catalog size | Pinned snapshot; a mismatch is `update_needed` | Bytes | Through the download's progress callback | At status time and after download |
+| Whisper, size outside the pinned catalog | Weights present on disk | One start tick, no byte count | Only before the download starts | No |
+| RNNoise | File present; never `update_needed` | Bytes per 1 MiB | Per 1 MiB chunk | sha256 at download time only |
+| Word aligner | Pinned snapshot; a mismatch is `update_needed` | Bytes | Through the download's progress callback | At status time and after download |
+| Speaker model | Default file is sha256-checked; an override file via `PODCAST_MCP_SPEAKER_ECAPA_MODEL` is not | Bytes per 1 MiB | Per 1 MiB chunk | sha256 at status time and at download, except for an override |
 
-Not covered by this audit, and still open on #1998: running the speaker model download from inside a packaged app, and a real browser or device look at the Split speakers dialog.
+Cancel through `cancel_check` exists only for GUI and MCP jobs; `podcast bootstrap` passes none. Between rows, `run_bootstrap` checks `cancel_check` before each component. A word aligner override directory also skips `verify_word_aligner_snapshot`.
+
+Silero VAD has no row: it ships inside `faster-whisper`, and `podcast doctor` (`services/support/doctor.py`) reports it.
+
+Not covered by this audit, and still open on #1998: running the speaker model download from inside a packaged app, a real browser or device look at the Split speakers dialog, and whether cancelling a snapshot download stops it promptly (the progress callback is driven by `huggingface_hub`, and no test shows an exception from it ending the transfer).
 
 ## Findings
 
