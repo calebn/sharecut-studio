@@ -57,6 +57,8 @@ function publishMeter(
  *
  * The meter resets to silence whenever `read` changes or becomes `null`, so a
  * device switch never carries one mic's hold or clip latch onto the next.
+ * `useInputPeakDb` adapts a mic stream to this; stories feed it synthesized
+ * frames so they exercise the same loop.
  */
 export function usePeakMeter(
   read: FrameReader | null,
