@@ -69,9 +69,11 @@ function Harness() {
   );
 }
 
-function openSettings() {
+async function openSettings() {
   act(() => useDawStore.getState().setSettingsSheetOpen(true));
-  return screen.findByRole("dialog", { name: "Settings" });
+  const sheet = await screen.findByRole("dialog", { name: "Settings" });
+  await waitForDialogFocus(sheet);
+  return sheet;
 }
 
 function inProject() {
@@ -182,6 +184,16 @@ describe("Longest automatic join fade", () => {
     await typeMs(sheet, "120");
     expect(setJoinFadeLimitCommand).toHaveBeenCalledOnce();
     expect(setJoinFadeLimitCommand).toHaveBeenCalledWith(PROJECT_PATH, 120);
+  });
+
+  it("keeps showing the saved limit until the episode's clips catch up", async () => {
+    withLimit(40);
+    render(<Harness />);
+    const sheet = await openSettings();
+    await typeMs(sheet, "120");
+    expect(field(sheet)).toHaveAttribute("aria-valuenow", "120");
+    act(() => withLimit(120));
+    expect(field(sheet)).toHaveAttribute("aria-valuenow", "120");
   });
 
   it("steps by 5 ms with the arrow keys", async () => {

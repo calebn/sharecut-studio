@@ -325,6 +325,20 @@ export const MoveRefused: Story = {
   },
 };
 
+export const JoinFadeLimitPhone: Story = {
+  args: { phone: true },
+  globals: { viewport: { value: "mobile360", isRotated: false } },
+  play: async ({ canvasElement, viewMode }) => {
+    if (viewMode === "docs") return;
+    const sheet = await openSheet(canvasElement);
+    await expect(
+      within(sheet).getByRole("spinbutton", {
+        name: "Longest automatic join fade",
+      }),
+    ).toBeVisible();
+  },
+};
+
 export const Phone: Story = {
   args: { phone: true },
   globals: { viewport: { value: "mobile360", isRotated: false } },
