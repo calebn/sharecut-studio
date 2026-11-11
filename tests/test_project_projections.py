@@ -543,4 +543,4 @@ def test_track_views_send_no_fade_cap(minimal_project, monkeypatch) -> None:
         "podcast_mcp.services.pipeline.config.load_defaults",
         lambda: {"render": {"join_fade_max_ms": 25}},
     )
-    assert {t.id: t.fade_max_ms for t in build_track_views(ws)} == {"host": None, "bed": None}
+    assert [t.id for t in build_track_views(ws) if "fade_max_ms" in t.model_dump()] == []

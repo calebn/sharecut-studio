@@ -194,11 +194,9 @@ export function nudgeAxis(
       const found = laneClip(project, field.trackId, field.clipId);
       if (!found) return null;
       const { clip } = found;
-      const track = project.tracks.find((t) => t.id === field.trackId);
       const inEdge = field.edge === "in";
       const max = edgeFadeMaxMs(
         clip.source_end - clip.source_start,
-        track?.fade_max_ms ?? null,
         inEdge ? clip.fade_out_ms : clip.fade_in_ms,
       );
       return {

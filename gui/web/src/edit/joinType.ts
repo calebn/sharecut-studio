@@ -1,4 +1,4 @@
-import type { JoinMode, ProjectView } from "../types/project";
+import type { JoinMode } from "../types/project";
 import { joinModeOf } from "../utils/editMarkerRegistry";
 import { appliedJoinLength } from "./joinRender";
 import type { Seam } from "./seam";
@@ -23,19 +23,14 @@ export function joinTypeLabel(mode: JoinMode): string {
   return JOIN_TYPE_OPTIONS.find((option) => option.value === mode)?.label ?? "";
 }
 
-function crossfadeAvailable(seam: Seam, project: ProjectView): boolean {
-  const fadeMax =
-    project.tracks.find((t) => t.id === seam.trackId)?.fade_max_ms ?? null;
-  const room = appliedJoinLength(seam.left, seam.right, fadeMax).max;
+function crossfadeAvailable(seam: Seam): boolean {
+  const room = appliedJoinLength(seam.left, seam.right).max;
   return !seam.right.join_crossfade_blocked && room >= 1;
 }
 
-export function joinTypeChoices(
-  seam: Seam,
-  project: ProjectView,
-): readonly JoinTypeOption[] {
+export function joinTypeChoices(seam: Seam): readonly JoinTypeOption[] {
   const mode = joinModeOf(seam.right);
-  const crossfadeOk = crossfadeAvailable(seam, project);
+  const crossfadeOk = crossfadeAvailable(seam);
   return JOIN_TYPE_OPTIONS.filter(
     (option) =>
       option.value !== "crossfade" || crossfadeOk || mode === "crossfade",

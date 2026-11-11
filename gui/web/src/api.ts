@@ -84,6 +84,7 @@ export {
   setClipsGain,
   setEffectBypass,
   setEnvelope,
+  setJoinFadeLimitCommand,
   setRecordSessionNameCommand,
   setTrackFaderCommand,
   setTrackMediaCommand,

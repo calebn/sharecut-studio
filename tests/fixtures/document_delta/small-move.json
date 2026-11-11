@@ -23,8 +23,7 @@
         "fx_count": 0,
         "stem_is_fresh": false,
         "has_source_audio": true,
-        "media_path": "raw/host.wav",
-        "fade_max_ms": 40
+        "media_path": "raw/host.wav"
       }
     ],
     "clips": {
@@ -192,7 +191,9 @@
           }
         ]
       },
-      "clip_count": 8
+      "clip_count": 8,
+      "join_fade_limit_ms": 40,
+      "join_fade_limit_default_ms": 40
     },
     "chapters": [],
     "pending_edits": [],
@@ -355,8 +356,7 @@
         "fx_count": 0,
         "stem_is_fresh": false,
         "has_source_audio": true,
-        "media_path": "raw/host.wav",
-        "fade_max_ms": 40
+        "media_path": "raw/host.wav"
       }
     ],
     "clips": {
@@ -524,7 +524,9 @@
           }
         ]
       },
-      "clip_count": 8
+      "clip_count": 8,
+      "join_fade_limit_ms": 40,
+      "join_fade_limit_default_ms": 40
     },
     "chapters": [],
     "pending_edits": [],

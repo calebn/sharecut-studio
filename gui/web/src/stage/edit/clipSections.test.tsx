@@ -399,21 +399,21 @@ describe("clip fades", () => {
     });
   });
 
-  it("limits a fade to the track cap", async () => {
-    open([clip], { fade_max_ms: 100 });
-    await key("Fade out", "End");
+  it("keeps a 400 ms dialogue fade the clip has room for", async () => {
+    open([clip]);
+    await type("Fade out", "400");
     expect(setClipFade).toHaveBeenCalledWith(
       "/tmp/ep.json",
       "c1",
       10,
-      100,
+      400,
       expect.anything(),
     );
-    expect(screen.getByText("max 100 ms")).toBeVisible();
+    expect(screen.getByText("max 2000 ms")).toBeVisible();
   });
 
-  it("limits an uncapped track to the clip length less the other fade", async () => {
-    open([clip], { fade_max_ms: null });
+  it("limits a fade to the clip length less the other fade", async () => {
+    open([clip]);
     await key("Fade in", "End");
     expect(setClipFade).toHaveBeenCalledWith(
       "/tmp/ep.json",
@@ -443,20 +443,40 @@ describe("clip fades", () => {
     ).toBeVisible();
   });
 
-  it("shows the fade cap next to the cut hint", () => {
-    open([clip, { ...second, join_in_mode: "cut" }], { fade_max_ms: 100 });
+  it("shows the clip's fade limit next to the cut hint", () => {
+    open([clip, { ...second, join_in_mode: "cut" }]);
     expect(
       screen.getByText(
-        "Fade out ignored: the join after this clip is a cut · max 100 ms",
+        "Fade out ignored: the join after this clip is a cut · max 2000 ms",
       ),
     ).toBeVisible();
   });
 
-  it("waits for the clip's track before offering the fields", async () => {
-    open([clip], {}, clip, []);
-    expect(screen.getByText(/still loading/)).toBeVisible();
-    await key("Fade in", "ArrowUp");
-    expect(setClipFade).not.toHaveBeenCalled();
+  it("says when a fade is as long as the clip allows", () => {
+    open([{ ...clip, fade_in_ms: 2000, fade_out_ms: 0 }]);
+    expect(
+      screen.getByText("max 2000 ms · Fade in is as long as this clip allows"),
+    ).toBeVisible();
+  });
+
+  it("says when both fades fill the clip", () => {
+    open([{ ...clip, fade_in_ms: 1500, fade_out_ms: 500 }]);
+    expect(
+      screen.getByText(/Both fades are as long as this clip allows/),
+    ).toBeVisible();
+  });
+
+  it("does not call a fade at a cut full", () => {
+    open([
+      { ...clip, fade_in_ms: 0, fade_out_ms: 2000 },
+      { ...second, join_in_mode: "cut" },
+    ]);
+    expect(screen.queryByText(/as long as this clip allows/)).toBeNull();
+  });
+
+  it("says nothing about the bound while there is room left", () => {
+    open([clip]);
+    expect(screen.queryByText(/as long as this clip allows/)).toBeNull();
   });
 
   it("cancels a pending placement before the write", async () => {

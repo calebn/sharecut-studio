@@ -51,7 +51,7 @@ const meta: Meta<typeof SettingsSheet> = {
       ...isolatedStoryParameters.docs,
       description: {
         component:
-          "Settings from the app menu: Appearance (System, Light, Dark, shared with the Project menu), Saved in with Reveal in folder and Move… (desktop app only), and the rows that open Models and Keyboard shortcuts. A 420 px sheet on the right of a desktop or tablet, a bottom sheet as tall as its rows on a phone. On Home there is no project, so Saved in and Keyboard shortcuts are absent. Rows act as they change; there is no Apply.",
+          "Settings from the app menu: Appearance (System, Light, Dark, shared with the Project menu), Saved in with Reveal in folder and Move… (desktop app only), the episode's Longest automatic join fade (0 to 200 ms in 5 ms steps; the reset dot returns to the app default; it limits only the fades ShareCut adds at joins), and the rows that open Models and Keyboard shortcuts. A 420 px sheet on the right of a desktop or tablet, a bottom sheet as tall as its rows on a phone. On Home there is no project, so Saved in, the join fade limit and Keyboard shortcuts are absent. Rows act as they change; there is no Apply.",
       },
     },
   },
@@ -68,6 +68,13 @@ const meta: Meta<typeof SettingsSheet> = {
       onReveal: fn(),
       onMove: fn(),
       revealing: false,
+      error: null,
+    },
+    joinFadeLimit: {
+      valueMs: 40,
+      defaultMs: 40,
+      onCommit: fn(),
+      saving: false,
       error: null,
     },
   },
@@ -141,13 +148,95 @@ export const LongFolder: Story = {
   },
 };
 
+export const JoinFadeLimit: Story = {
+  args: {
+    joinFadeLimit: {
+      valueMs: 120,
+      defaultMs: 40,
+      onCommit: fn(),
+      saving: false,
+      error: null,
+    },
+  },
+  play: async ({ args, canvasElement, viewMode }) => {
+    if (viewMode === "docs") return;
+    const sheet = await openSheet(canvasElement);
+    const field = within(sheet).getByRole("spinbutton", {
+      name: "Longest automatic join fade",
+    });
+    await expect(field).toHaveAttribute("aria-valuenow", "120");
+    await expect(
+      within(sheet).getByText(/Fades you set yourself are not limited/),
+    ).toBeVisible();
+    await userEvent.click(
+      within(sheet).getByRole("button", {
+        name: "Reset Longest automatic join fade to 40 ms",
+      }),
+    );
+    await expect(args.joinFadeLimit?.onCommit).toHaveBeenCalledWith(40);
+  },
+};
+
+export const JoinFadeLimitReadOnly: Story = {
+  args: {
+    joinFadeLimit: {
+      valueMs: 40,
+      defaultMs: 40,
+      readOnlyReason:
+        "This link can view, but not change, episode settings. Ask the host for an editor link.",
+      saving: false,
+      error: null,
+    },
+  },
+  play: async ({ canvasElement, viewMode }) => {
+    if (viewMode === "docs") return;
+    const sheet = await openSheet(canvasElement);
+    await expect(
+      within(sheet).getByRole("spinbutton", {
+        name: "Longest automatic join fade",
+      }),
+    ).toHaveAttribute("aria-readonly", "true");
+    await expect(
+      within(sheet).getByText(/can view, but not change/),
+    ).toBeVisible();
+  },
+};
+
+export const JoinFadeLimitRefused: Story = {
+  args: {
+    joinFadeLimit: {
+      valueMs: 40,
+      defaultMs: 40,
+      onCommit: fn(),
+      saving: false,
+      error: "Longest automatic join fade must be between 0 and 200 ms.",
+    },
+  },
+  play: async ({ canvasElement, viewMode }) => {
+    if (viewMode === "docs") return;
+    const sheet = await openSheet(canvasElement);
+    await expect(
+      within(sheet).getByText(/must be between 0 and 200 ms/),
+    ).toBeVisible();
+  },
+};
+
 export const Home: Story = {
-  args: { savedIn: undefined, onOpenShortcuts: undefined },
+  args: {
+    savedIn: undefined,
+    joinFadeLimit: undefined,
+    onOpenShortcuts: undefined,
+  },
   play: async ({ canvasElement, viewMode }) => {
     if (viewMode === "docs") return;
     const sheet = await openSheet(canvasElement);
     await expect(
       within(sheet).queryByRole("heading", { name: "Saved in" }),
+    ).toBeNull();
+    await expect(
+      within(sheet).queryByRole("spinbutton", {
+        name: "Longest automatic join fade",
+      }),
     ).toBeNull();
     await expect(
       within(sheet).queryByRole("button", { name: "Keyboard shortcuts" }),

@@ -624,8 +624,8 @@ describe("ClipBlock waveform", () => {
       };
       const project = minimalProject({
         tracks: [
-          sampleTrack({ id: "host", duration_sec: 10, fade_max_ms: 100 }),
-          sampleTrack({ id: "guest", duration_sec: 10, fade_max_ms: 40 }),
+          sampleTrack({ id: "host", duration_sec: 10 }),
+          sampleTrack({ id: "guest", duration_sec: 10 }),
         ],
         clips: { tracks: { host: [], guest: [row, next] }, clip_count: 2 },
       });
@@ -633,7 +633,6 @@ describe("ClipBlock waveform", () => {
         row,
         {
           trackId: "host",
-          fadeMaxMs: 40,
           neighborSourceHi: 5,
           nextClip: next,
         },
@@ -1302,10 +1301,7 @@ describe("ClipBlock waveform", () => {
   });
 
   describe("fade handle drags", () => {
-    const dragIn = (
-      dxPx: number,
-      props: { fadeMaxMs?: number | null; clip?: ClipRow } = {},
-    ) => {
+    const dragIn = (dxPx: number, props: { clip?: ClipRow } = {}) => {
       const view = render(<ClipBlock {...base} {...props} />);
       const handle = view.container.querySelector(
         "button.fade-corner.in",
@@ -1319,8 +1315,10 @@ describe("ClipBlock waveform", () => {
       vi.mocked(setClipFade).mockClear();
     });
 
-    it("clamps to the track cap, shows it live and commits it", async () => {
-      const { container, handle } = dragIn(25, { fadeMaxMs: 40 });
+    it("clamps to what the clip leaves, shows it live and commits it", async () => {
+      const { container, handle } = dragIn(25, {
+        clip: { ...clip, fade_out_ms: 1960 },
+      });
       expect(handle.isConnected).toBe(true);
       expect(container.querySelector(".fade-readout.in")?.textContent).toBe(
         "40 ms",
@@ -1336,10 +1334,10 @@ describe("ClipBlock waveform", () => {
           expect.anything(),
           "c1",
           40,
-          0,
+          1960,
           {
             fade_in_ms: 0,
-            fade_out_ms: 0,
+            fade_out_ms: 1960,
             fade_in_curve: "linear",
             fade_out_curve: "linear",
           },
@@ -1349,7 +1347,7 @@ describe("ClipBlock waveform", () => {
       expect(container.querySelector(".clip-block.fade-dragging")).toBeNull();
     });
 
-    it("clamps an uncapped track to the clip length", async () => {
+    it("keeps a long dialogue fade, up to the clip length", async () => {
       const { handle } = dragIn(250);
       fireEvent.pointerUp(handle, { clientX: 350, pointerId: 3 });
       await waitFor(() =>
@@ -1431,13 +1429,9 @@ describe("ClipBlock waveform", () => {
       );
     });
 
-    it("writes nothing when a drag leaves the fade at the cap", async () => {
+    it("writes nothing when a drag leaves the fade at the clip bound", async () => {
       const { container } = render(
-        <ClipBlock
-          {...base}
-          fadeMaxMs={40}
-          clip={{ ...clip, fade_in_ms: 40 }}
-        />,
+        <ClipBlock {...base} clip={{ ...clip, fade_in_ms: 2000 }} />,
       );
       const handle = container.querySelector(
         "button.fade-corner.in",
@@ -1459,7 +1453,9 @@ describe("ClipBlock waveform", () => {
     });
 
     it("shows and commits the out-edge readout", async () => {
-      const { container } = render(<ClipBlock {...base} fadeMaxMs={40} />);
+      const { container } = render(
+        <ClipBlock {...base} clip={{ ...clip, fade_in_ms: 1960 }} />,
+      );
       const handle = container.querySelector(
         "button.fade-corner.out",
       ) as HTMLElement;
@@ -1474,10 +1470,10 @@ describe("ClipBlock waveform", () => {
         expect(setClipFade).toHaveBeenCalledWith(
           expect.anything(),
           "c1",
-          0,
+          1960,
           40,
           {
-            fade_in_ms: 0,
+            fade_in_ms: 1960,
             fade_out_ms: 0,
             fade_in_curve: "linear",
             fade_out_curve: "linear",

@@ -12,18 +12,14 @@ import {
 
 describe("maxFadeMs", () => {
   it("floors the clip length to whole ms and never goes negative", () => {
-    expect(maxFadeMs(0.0259, null)).toBe(25);
-    expect(maxFadeMs(-1, 40)).toBe(0);
-    expect(edgeFadeMaxMs(-1, null, 0)).toBe(0);
+    expect(maxFadeMs(0.0259)).toBe(25);
+    expect(maxFadeMs(-1)).toBe(0);
+    expect(edgeFadeMaxMs(-1, 0)).toBe(0);
   });
 
-  it("takes the smaller of the track cap and the clip length", () => {
-    expect(maxFadeMs(2, 40)).toBe(40);
-    expect(maxFadeMs(0.025, 40)).toBe(25);
-  });
-  it("is the clip length when the track is uncapped", () => {
-    expect(maxFadeMs(2, null)).toBe(2000);
+  it("is the clip length, so a 400 ms dialogue fade fits a 2 s clip", () => {
     expect(maxFadeMs(2)).toBe(2000);
+    expect(clampFadeMs(400, maxFadeMs(2))).toBe(400);
   });
 });
 
@@ -37,47 +33,35 @@ describe("clampFadeMs", () => {
 
 describe("edgeFadeMaxMs", () => {
   it("leaves room for the other edge's fade", () => {
-    expect(edgeFadeMaxMs(2, null, 1500)).toBe(500);
-    expect(edgeFadeMaxMs(0.06, 40, 40)).toBe(20);
-    expect(edgeFadeMaxMs(2, 40, 0)).toBe(40);
-    expect(edgeFadeMaxMs(1, null, 5000)).toBe(0);
+    expect(edgeFadeMaxMs(2, 1500)).toBe(500);
+    expect(edgeFadeMaxMs(0.06, 40)).toBe(20);
+    expect(edgeFadeMaxMs(2, 0)).toBe(2000);
+    expect(edgeFadeMaxMs(1, 5000)).toBe(0);
   });
 });
 
 describe("joinLengthMaxMs", () => {
-  it("is the min of the left's remaining room and the right's cap, uncapped", () => {
+  it("is the min of the left's remaining room and the right clip's length", () => {
     expect(
-      joinLengthMaxMs(
-        { durationSec: 2, fadeInMs: 500 },
-        { durationSec: 3 },
-        null,
-      ),
+      joinLengthMaxMs({ durationSec: 2, fadeInMs: 500 }, { durationSec: 3 }),
     ).toBe(1500);
   });
 
-  it("a track fade cap wins over both edges' room", () => {
+  it("goes past 500 ms when both clips have room", () => {
     expect(
-      joinLengthMaxMs({ durationSec: 2, fadeInMs: 0 }, { durationSec: 2 }, 40),
-    ).toBe(40);
+      joinLengthMaxMs({ durationSec: 2, fadeInMs: 0 }, { durationSec: 2 }),
+    ).toBe(2000);
   });
 
   it("the left clip's fade-in eats into the room its fade-out can take", () => {
     expect(
-      joinLengthMaxMs(
-        { durationSec: 0.06, fadeInMs: 40 },
-        { durationSec: 2 },
-        null,
-      ),
+      joinLengthMaxMs({ durationSec: 0.06, fadeInMs: 40 }, { durationSec: 2 }),
     ).toBe(20);
   });
 
   it("never goes negative", () => {
     expect(
-      joinLengthMaxMs(
-        { durationSec: 0.01, fadeInMs: 50 },
-        { durationSec: 2 },
-        null,
-      ),
+      joinLengthMaxMs({ durationSec: 0.01, fadeInMs: 50 }, { durationSec: 2 }),
     ).toBe(0);
   });
 });
@@ -87,7 +71,6 @@ type JoinLengthCase = {
   left_duration_sec: number;
   left_fade_in_ms: number;
   right_duration_sec: number;
-  track_fade_max_ms: number | null;
   max_ms: number;
 };
 
@@ -106,7 +89,6 @@ describe("joinLengthMaxMs matches set_clip_join (contracts/join-length-limits.js
         joinLengthMaxMs(
           { durationSec: c.left_duration_sec, fadeInMs: c.left_fade_in_ms },
           { durationSec: c.right_duration_sec },
-          c.track_fade_max_ms,
         ),
       ).toBe(c.max_ms);
     },
@@ -115,15 +97,9 @@ describe("joinLengthMaxMs matches set_clip_join (contracts/join-length-limits.js
 
 describe("clampClipFades", () => {
   it("clamps fade-in first, then fade-out to what is left, like set_clip_fade", () => {
-    expect(clampClipFades(5000, 5000, 2, null)).toEqual({
-      inMs: 2000,
-      outMs: 0,
-    });
-    expect(clampClipFades(1500, 1500, 2, null)).toEqual({
-      inMs: 1500,
-      outMs: 500,
-    });
-    expect(clampClipFades(40, 40, 0.06, 40)).toEqual({ inMs: 40, outMs: 20 });
-    expect(clampClipFades(500, 0, 2, 40)).toEqual({ inMs: 40, outMs: 0 });
+    expect(clampClipFades(5000, 5000, 2)).toEqual({ inMs: 2000, outMs: 0 });
+    expect(clampClipFades(1500, 1500, 2)).toEqual({ inMs: 1500, outMs: 500 });
+    expect(clampClipFades(40, 40, 0.06)).toEqual({ inMs: 40, outMs: 20 });
+    expect(clampClipFades(400, 0, 2)).toEqual({ inMs: 400, outMs: 0 });
   });
 });

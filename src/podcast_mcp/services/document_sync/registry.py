@@ -328,7 +328,7 @@ COMMANDS: Mapping[str, CommandSpec] = MappingProxyType(
             payload=p.SetJoinFadeLimitPayload,
             handler=edits.set_join_fade_limit,
             guest=ReviewRole.EDITOR,
-            gui=gap("Settings sheet row lands in the follow-up PR"),
+            gui=GUI_SENT,
             mcp=named("set_join_fade_limit_tool"),
             cli=named("podcast episode set-join-fade-limit"),
         ),

@@ -486,6 +486,10 @@ export interface ProjectView
     tracks: Record<string, ClipRow[]>;
     clip_count: number;
     timeline_duration_sec?: number;
+    /** The Longest automatic join fade in force (ms): the episode's own, else the app default. */
+    join_fade_limit_ms?: number;
+    /** The app default the episode follows while it sets no limit of its own (ms). */
+    join_fade_limit_default_ms?: number;
   };
   chapters: ChapterMarker[];
   pending_edits: PendingEditView[];

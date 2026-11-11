@@ -156,17 +156,20 @@ def test_the_clips_slice_carries_the_default_in_force(minimal_project: Path) -> 
     ws = _seed(minimal_project)
     assert _clips_slice(minimal_project)["clips"]["join_fade_limit_ms"] == 40
     TimelineService(ws).set_join_fade_limit(0)
-    assert _clips_slice(minimal_project)["clips"]["join_fade_limit_ms"] == 0
+    clips = _clips_slice(minimal_project)["clips"]
+    assert clips["join_fade_limit_ms"] == 0
+    assert clips["join_fade_limit_default_ms"] == 40
     TimelineService(ws).set_join_fade_limit(None)
     assert _clips_slice(minimal_project)["clips"]["join_fade_limit_ms"] == 40
 
 
 def test_registry_row_names_the_tool_and_the_cli() -> None:
     from podcast_mcp.services.collaboration import ReviewRole
-    from podcast_mcp.services.document_sync.registry import COMMANDS, named
+    from podcast_mcp.services.document_sync.registry import COMMANDS, GUI_SENT, named
 
     spec = COMMANDS["SetJoinFadeLimit"]
     assert spec.guest is ReviewRole.EDITOR
+    assert spec.gui is GUI_SENT
     assert spec.mcp == named("set_join_fade_limit_tool")
     assert spec.cli == named("podcast episode set-join-fade-limit")
 

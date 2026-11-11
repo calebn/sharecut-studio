@@ -21,7 +21,11 @@ from podcast_mcp.edits.inaudible_cuts import (
     optimize_timeline_cut_range,
     recommend_micro_fades,
 )
-from podcast_mcp.edits.join_modes import auto_join_fade_cap_ms, clamp_clip_fades
+from podcast_mcp.edits.join_modes import (
+    auto_join_fade_cap_ms,
+    clamp_clip_fades,
+    join_fade_max_ms,
+)
 from podcast_mcp.edits.reinsert import capture_anchors, capture_seams
 from podcast_mcp.edits.ripple import (
     RippleRemoval,
@@ -1448,6 +1452,7 @@ def list_clips(
         "tracks": by_track,
         "clip_count": len(clips),
         "join_fade_limit_ms": auto_join_fade_cap_ms(project, defaults or {}),
+        "join_fade_limit_default_ms": join_fade_max_ms(defaults or {}),
     }
 
 

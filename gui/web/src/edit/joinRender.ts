@@ -87,7 +87,6 @@ export function joinLengthMs(
 export function appliedJoinLength(
   left: ClipRow,
   right: ClipRow,
-  trackFadeMaxMs: number | null | undefined,
 ): { min: number; max: number; saved: number } {
   const max = joinLengthMaxMs(
     {
@@ -95,7 +94,6 @@ export function appliedJoinLength(
       fadeInMs: left.fade_in_ms,
     },
     { durationSec: right.source_end - right.source_start },
-    trackFadeMaxMs,
   );
   const min = joinModeOf(right) === "crossfade" ? 1 : 0;
   return {

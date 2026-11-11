@@ -32,7 +32,7 @@ function seamWith(rightOverrides: Parameters<typeof clipRow>[0]) {
   });
   const seam = seamsOnTrack(project, "host")[0];
   if (!seam) throw new Error("no seam");
-  return { seam, project };
+  return seam;
 }
 
 describe("join type", () => {
@@ -46,8 +46,8 @@ describe("join type", () => {
   });
 
   it("offers all three where the clips can overlap", () => {
-    const { seam, project } = seamWith({});
-    expect(joinTypeChoices(seam, project).map((o) => o.value)).toEqual([
+    const seam = seamWith({});
+    expect(joinTypeChoices(seam).map((o) => o.value)).toEqual([
       "cut",
       "fade",
       "crossfade",
@@ -55,22 +55,17 @@ describe("join type", () => {
   });
 
   it("leaves Crossfade out when the server says it is blocked", () => {
-    const { seam, project } = seamWith({
+    const seam = seamWith({
       join_crossfade_blocked: "no_fade_in",
     });
-    expect(joinTypeChoices(seam, project).map((o) => o.value)).toEqual([
-      "cut",
-      "fade",
-    ]);
+    expect(joinTypeChoices(seam).map((o) => o.value)).toEqual(["cut", "fade"]);
   });
 
   it("keeps Crossfade when the join already is one, even if blocked", () => {
-    const { seam, project } = seamWith({
+    const seam = seamWith({
       join_in_mode: "crossfade",
       join_crossfade_blocked: "no_fade_in",
     });
-    expect(joinTypeChoices(seam, project).map((o) => o.value)).toContain(
-      "crossfade",
-    );
+    expect(joinTypeChoices(seam).map((o) => o.value)).toContain("crossfade");
   });
 });

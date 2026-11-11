@@ -1,5 +1,5 @@
-/* Settings sheet (settings/SettingsSheet.tsx): Appearance, Saved in, and the
-   rows that open Models and Keyboard shortcuts. */
+/* Settings sheet (settings/SettingsSheet.tsx): Appearance, Saved in, the
+   Longest automatic join fade, and the rows that open Models and Keyboard shortcuts. */
 .settings-sheet-body {
   display: flex;
   flex-direction: column;
@@ -25,6 +25,12 @@
   color: var(--color-text-secondary);
   font-size: var(--font-size-small);
   font-weight: 600;
+}
+
+.settings-sheet-help {
+  margin: 0;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-small);
 }
 
 .settings-sheet-saved {

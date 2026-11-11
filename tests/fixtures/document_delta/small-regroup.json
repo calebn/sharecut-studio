@@ -275,8 +275,7 @@
         "fx_count": 0,
         "stem_is_fresh": false,
         "has_source_audio": true,
-        "media_path": "raw/host.wav",
-        "fade_max_ms": 40
+        "media_path": "raw/host.wav"
       }
     ],
     "render_status": {
@@ -616,8 +615,7 @@
         "fx_count": 0,
         "stem_is_fresh": false,
         "has_source_audio": true,
-        "media_path": "raw/host.wav",
-        "fade_max_ms": 40
+        "media_path": "raw/host.wav"
       }
     ],
     "render_status": {

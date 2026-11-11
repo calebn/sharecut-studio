@@ -68,7 +68,7 @@ to UX partners; for UI copy, this table wins.
 
 | Term | Meaning | Never say |
 |---|---|---|
-| Longest automatic join fade | A limit, not an applied length: ShareCut picks each join's fade up to this many ms (Fade joins, Smooth all joins, approving cuts), so joins can come out shorter. 0 to 200 ms, 40 ms unless the episode sets another. A fade the user sets is bounded by its clip, never by this. Never shortens a longer fade | "Fade cap", "Max fade", "Join fade max", "Default join fade length" |
+| Longest automatic join fade | The Settings sheet row for the episode. A limit, not an applied length: ShareCut picks each automatic join fade (Smooth all joins, the joins made when approving cuts, an agent's fade joins) up to this many ms, so joins can come out shorter. 0 to 200 ms in 5 ms steps; the app default (40 ms) unless the episode sets its own. Fades the user sets are not limited by it, only by their clip. Never shortens a longer fade | "Fade cap", "Max fade", "Join fade max", "Default join fade length" |
 | Process new audio | The Prepare hand-off when audio was added to a project that already ran. It runs the plan and goes back to "Review N suggestions" when done | "Run pipeline", "Reprocess", "Start" |
 | Skip (a plan row) | Leaves one Getting ready row out of the next run only. Saved nowhere; undone with Include and shown as "Skipped this time" | "Disable step" (that is the session switch in Advanced) |
 | Selected work finished | The requested steps finished. Neutral rows still say what did not run; a partial result names only the operations that ran | "Everything is ready", "All audio was transcribed" |

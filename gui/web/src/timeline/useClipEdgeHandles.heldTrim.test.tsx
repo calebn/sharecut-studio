@@ -25,7 +25,6 @@ function Harness({ clip }: { clip: ClipRow }) {
   const h = useClipEdgeHandles({
     clip,
     trackId: "guest",
-    fadeMaxMs: null,
     neighborSourceLo: bounds.neighborLo,
     neighborSourceHi: bounds.neighborHi,
     zoomPxPerSec: 50,

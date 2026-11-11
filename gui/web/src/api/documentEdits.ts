@@ -1090,6 +1090,16 @@ export async function setTrackFaderCommand(
   });
 }
 
+/** Sets the episode's Longest automatic join fade; null returns it to the app default. */
+export async function setJoinFadeLimitCommand(
+  projectPath: string,
+  ms: number | null,
+): Promise<Record<string, unknown>> {
+  return submitDocumentCommand(projectPath, DocumentCommand.SetJoinFadeLimit, {
+    ms,
+  });
+}
+
 export async function setTrackMuteCommand(
   projectPath: string,
   trackId: string,

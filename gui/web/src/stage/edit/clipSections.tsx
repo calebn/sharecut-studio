@@ -26,7 +26,7 @@ import { useDaw } from "../../state/useDaw";
 import type { InspectorSection } from "../../system/InspectorSheet";
 import { ScrubField } from "../../system/ScrubField";
 import { nudgeDriver } from "../../timeline/precision/precisionDrivers";
-import type { FadeCurve, Selection } from "../../types/project";
+import type { ClipRow, FadeCurve, Selection } from "../../types/project";
 import { Button, InspectorSeekFooter } from "../../ui";
 import { BUSY_REASON } from "../../ui/disabledReason";
 import {
@@ -58,7 +58,22 @@ function joinRows(fields: SeamJoinFields | null) {
   ];
 }
 
-const FADE_LIMIT_LOADING = "The fade limit is still loading. Wait a moment.";
+/** Names the fade that already takes all the room its clip leaves it; an edge at a cut is skipped. */
+function fadeAtClipBound(
+  clip: ClipRow,
+  clipSec: number,
+  cutIn: boolean,
+  cutOut: boolean,
+): string | null {
+  const full = (ms: number, other: number) =>
+    ms > 0 && ms >= edgeFadeMaxMs(clipSec, other);
+  const inFull = !cutIn && full(clip.fade_in_ms, clip.fade_out_ms);
+  const outFull = !cutOut && full(clip.fade_out_ms, clip.fade_in_ms);
+  if (inFull && outFull) return "Both fades are as long as this clip allows";
+  if (inFull) return "Fade in is as long as this clip allows";
+  if (outFull) return "Fade out is as long as this clip allows";
+  return null;
+}
 
 export function useClipSections(
   selection: Selection,
@@ -92,8 +107,6 @@ export function useClipSections(
       : Object.values(project?.clips.tracks ?? {})
           .flat()
           .find((candidate) => candidate.id === id);
-  const track = project?.tracks.find((t) => t.id === clip?.track_id);
-  const capMs = track === undefined ? undefined : (track.fade_max_ms ?? null);
   const joinHost = {
     busy,
     onEdit: cancelClipPlacement,
@@ -108,7 +121,6 @@ export function useClipSections(
       clip?.fade_in_ms,
       clip?.fade_out_ms,
       clip?.gain_db,
-      capMs,
     ]),
   };
   const seams =
@@ -140,7 +152,6 @@ export function useClipSections(
     clip?.fade_in_curve,
     clip?.fade_out_curve,
     clip?.gain_db,
-    capMs,
     setError,
   ]);
   if (id === null) return null;
@@ -167,7 +178,6 @@ export function useClipSections(
   );
   const lane = project?.clips.tracks[clip.track_id] ?? [];
   const index = lane.findIndex((item) => item.id === clip.id);
-  const capKnown = capMs !== undefined;
   const clipSec = clip.source_end - clip.source_start;
   const cutIn = isCutJoin(clip);
   const cutOut = clipIdsBeforeCut(lane).has(clip.id);
@@ -210,7 +220,7 @@ export function useClipSections(
   };
 
   const fade = async (edge: "in" | "out", value: number) => {
-    if (locked || !capKnown) return;
+    if (locked) return;
     cancelClipPlacement();
     await run(async () => {
       const driver = nudgeDriver(
@@ -315,10 +325,9 @@ export function useClipSections(
         min={0}
         max={edgeFadeMaxMs(
           clipSec,
-          capMs,
           which === "in" ? clip.fade_out_ms : clip.fade_in_ms,
         )}
-        readOnly={locked || !capKnown || atCut}
+        readOnly={locked || atCut}
         onCommit={(value) => void fade(which, value)}
       />
     );
@@ -414,11 +423,13 @@ export function useClipSections(
               {
                 id: "fadeNote",
                 control: note(
-                  capKnown
-                    ? [fadeHint, `max ${maxFadeMs(clipSec, capMs)} ms`]
-                        .filter(Boolean)
-                        .join(" · ")
-                    : FADE_LIMIT_LOADING,
+                  [
+                    fadeHint,
+                    `max ${maxFadeMs(clipSec)} ms`,
+                    fadeAtClipBound(clip, clipSec, cutIn, cutOut),
+                  ]
+                    .filter(Boolean)
+                    .join(" · "),
                   "status",
                 ),
               },

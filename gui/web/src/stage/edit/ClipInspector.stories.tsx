@@ -412,3 +412,41 @@ export const FadeCurveBlended: Story = {
     ).toBeDisabled();
   },
 };
+
+const shortClipSelection: Selection = {
+  kind: "clip",
+  id: "clip-mira-short",
+  trackId: MIRA,
+};
+const atClipBound = withClips([
+  clipRow({
+    id: "clip-mira-short",
+    track_id: MIRA,
+    source_end: 0.4,
+    timeline_end: 0.4,
+    source_duration_sec: EPISODE_DURATION_SEC,
+    fade_in_ms: 400,
+    recording_key: "mira-voice-take-1",
+  }),
+]);
+
+/** A 400 ms dialogue fade fills a 400 ms clip: no join fade limit applies, and the note says the clip is the bound. */
+export const FadeAtClipBound: Story = {
+  render: () => <ClipCard selection={shortClipSelection} />,
+  parameters: {
+    episode: {
+      project: atClipBound,
+      role: "editor",
+      selection: shortClipSelection,
+    },
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(
+      await canvas.findByRole("spinbutton", { name: "Fade in" }),
+    ).toHaveAttribute("aria-valuenow", "400");
+    await expect(
+      canvas.getByText(/Fade in is as long as this clip allows/),
+    ).toBeVisible();
+  },
+};
