@@ -2,7 +2,7 @@ import { type ComponentProps, useId } from "react";
 import { UploadStatus } from "../../record";
 import { Sheet } from "../../system/Sheet";
 import { Button, ToggleButton } from "../../ui";
-import { BUSY_REASON } from "../../ui/disabledReason";
+import { BUSY_REASON, useDisabledReasonNote } from "../../ui/disabledReason";
 
 export type RecordMoreSheetProps = {
   open: boolean;
@@ -57,6 +57,7 @@ export function RecordMoreSheet({
   const helpId = useId();
   const micHelpId = useId();
   const toneHelpId = useId();
+  const end = useDisabledReasonNote(endReason, "stage-host-note");
   return (
     <Sheet form="centered" title="More" open={open} onClose={onClose}>
       <div className="stack">
@@ -133,16 +134,20 @@ export function RecordMoreSheet({
         </p>
         <Button onClick={onInvite}>Invite and links…</Button>
         {onEndSession ? (
-          <Button
-            variant="danger"
-            disabledReason={endReason}
-            onClick={() => {
-              onClose();
-              onEndSession();
-            }}
-          >
-            End session
-          </Button>
+          <>
+            <Button
+              variant="danger"
+              disabledReason={endReason}
+              {...end.describedBy}
+              onClick={() => {
+                onClose();
+                onEndSession();
+              }}
+            >
+              End session
+            </Button>
+            {end.note}
+          </>
         ) : null}
       </div>
     </Sheet>
