@@ -451,6 +451,10 @@ export function EpisodeFile({
           <ExportedFiles
             {...filesOfKinds(files, ["audio", "chapters"], running)}
           />
+          <ExportedFiles
+            {...filesOfKinds(files, ["bounce"], running)}
+            grouped
+          />
         </>
       ) : null}
     </DeliverSection>

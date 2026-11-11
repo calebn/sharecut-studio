@@ -1,7 +1,7 @@
 import { expect, type Page, test } from "@playwright/test";
 import { bouncedWavs } from "./exportFiles";
 import { withShareableProject } from "./shareableProject";
-import { openProject, selectRangeSec, stageTab } from "./stageNav";
+import { goToStage, openProject, selectRangeSec, stageTab } from "./stageNav";
 
 const actionBar = (page: Page) =>
   page.getByRole("group", { name: /^(Selection|Edit) actions$/ });
@@ -29,6 +29,12 @@ test("Export on a range writes a WAV in place and the toast offers Download", as
       "true",
     );
     await expect.poll(() => bouncedWavs(projectPath)).toHaveLength(1);
+
+    await goToStage(page, "deliver");
+    const group = page
+      .getByRole("heading", { name: "Exports of a selection" })
+      .locator("..");
+    await expect(group.getByText("Unmastered export")).toBeVisible();
   });
 });
 
