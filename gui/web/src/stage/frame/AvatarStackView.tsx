@@ -1,4 +1,4 @@
-import { type CSSProperties, Fragment, useState } from "react";
+import { type CSSProperties, useRef, useState } from "react";
 import { presenceColorVar, rosterDisplayName } from "../../presence/colors";
 import { PersonAvatar } from "../../system/Person";
 import { SystemIcon } from "../../system/SystemIcon";
@@ -15,6 +15,8 @@ import {
   type PresenceViewer,
   personCard,
 } from "./personCard";
+
+const noop = () => undefined;
 
 type Handlers = {
   onFollow: (id: string) => void;
@@ -90,6 +92,7 @@ function PersonFace({
           aria-label={label}
           title={label}
           data-following={card.following || undefined}
+          data-person={card.id}
           style={colorStyle(card.colorIndex)}
         >
           <PersonAvatar
@@ -209,12 +212,6 @@ function FollowersBadge({
 }
 
 type Props = {
-  /**
-   * `menu`: a People section inside a menu that is already open. `header`:
-   * the App header's people slot, up to three faces that each open their own
-   * menu (Follow, Go to), a count for the rest and the Following pill; the
-   * phone shows one face and a count.
-   */
   variant?: "menu" | "header";
   others: readonly SessionClient[];
   self?: SessionClient;
@@ -223,11 +220,9 @@ type Props = {
   onFollow: (id: string) => void;
   onUnfollow?: () => void;
   onGoTo?: (id: string) => void;
-  /** The viewer's own stage and link, so a face can show where someone is and offer Go to. */
   viewer?: PresenceViewer;
 };
 
-/** Props-only people control: the header's faces and Following pill, and the People rows of a menu. */
 export function AvatarStackView({
   variant = "header",
   others,
@@ -239,6 +234,7 @@ export function AvatarStackView({
   onGoTo,
   viewer,
 }: Props) {
+  const root = useRef<HTMLDivElement>(null);
   const cards = others.map((c) =>
     personCard(c, names, viewer, followingClientId),
   );
@@ -250,23 +246,19 @@ export function AvatarStackView({
     return (
       <MenuSection label="People">
         {cards.map((card) => (
-          <Fragment key={card.id}>
-            <MenuItem onSelect={() => onFollow(card.id)}>
-              <Avatar
-                name={card.name}
-                colorIndex={card.colorIndex}
-                sessionRole={card.agent ? "agent" : undefined}
-                size="sm"
-              />{" "}
-              {card.name}
-              {card.following ? " · Following" : " · Follow"}
-            </MenuItem>
-            {card.goTo && onGoTo ? (
-              <MenuItem onSelect={() => onGoTo(card.id)}>
-                Go to {card.name}
-              </MenuItem>
-            ) : null}
-          </Fragment>
+          <div
+            key={card.id}
+            className="avatar-card"
+            role="group"
+            aria-label={cardLabel(card)}
+          >
+            <PersonRows
+              onFollow={onFollow}
+              onGoTo={onGoTo}
+              card={card}
+              onSelect={noop}
+            />
+          </div>
         ))}
       </MenuSection>
     );
@@ -278,7 +270,7 @@ export function AvatarStackView({
   const handlers: Handlers = { onFollow, onGoTo };
   const followed = cards.find((card) => card.following);
   return (
-    <div className="avatar-header">
+    <div className="avatar-header" ref={root}>
       {cards.length > 0 ? (
         <div className="avatar-faces" role="group" aria-label="People here">
           {cards.slice(0, 3).map((card) => (
@@ -299,7 +291,17 @@ export function AvatarStackView({
       {followed ? (
         <FollowingPill
           card={followed}
-          onUnfollow={onUnfollow ?? (() => onFollow(followed.id))}
+          onUnfollow={() => {
+            (onUnfollow ?? (() => onFollow(followed.id)))();
+            requestAnimationFrame(() => {
+              const faces =
+                root.current?.querySelectorAll<HTMLElement>(".avatar-face");
+              const own = Array.from(faces ?? []).find(
+                (face) => face.dataset.person === followed.id,
+              );
+              (own?.offsetParent ? own : faces?.[0])?.focus();
+            });
+          }}
         />
       ) : null}
       {self && (self.followers ?? 0) > 0 ? (

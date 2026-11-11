@@ -213,6 +213,16 @@ describe("AvatarStackView Following pill", () => {
     await expectNoA11yViolations(container);
   });
 
+  it("puts focus on the followed person's face when × is pressed", async () => {
+    stack({ followingClientId: "a" });
+    await userEvent.click(
+      screen.getByRole("button", { name: "Stop following Ada" }),
+    );
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: /^Ada/ })).toHaveFocus(),
+    );
+  });
+
   it("is absent when nobody is followed", () => {
     const { container } = stack();
     expect(container.querySelector(".avatar-follow")).toBeNull();
@@ -237,11 +247,15 @@ describe("AvatarStackView menu variant", () => {
       </div>,
     );
     expect(screen.getByRole("group", { name: "People" })).toBeTruthy();
+    const group = screen.getByRole("group", { name: "Ada, Review, 0:09" });
+    expect(group).toHaveTextContent("Viewer · Review · 0:09");
     await userEvent.click(
-      screen.getByRole("menuitem", { name: /Ada · Follow/ }),
+      within(group).getByRole("menuitem", { name: "Follow" }),
     );
     expect(onFollow).toHaveBeenCalledWith("a");
-    await userEvent.click(screen.getByRole("menuitem", { name: "Go to Ada" }));
+    await userEvent.click(
+      within(group).getByRole("menuitem", { name: "Go to where they are" }),
+    );
     expect(onGoTo).toHaveBeenCalledWith("a");
 
     rerender(

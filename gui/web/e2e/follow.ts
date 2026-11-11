@@ -11,12 +11,10 @@ import { withTwoBrowserPages } from "./twoBrowserPages";
 
 const FOLLOW_PILL_TRANSITION_TIMEOUT_MS = 1_000;
 
-/** The header's "Following {name}" pill, with its Stop following button. */
 export function followPill(page: Page): Locator {
   return page.locator(".avatar-header .avatar-follow");
 }
 
-/** The Player's pill: it appears only for a partial follow and carries why. */
 export function followDetail(page: Page): Locator {
   return page.locator(".sys-player-pill").filter({ hasText: /^Following / });
 }
@@ -55,12 +53,10 @@ export async function withTwoHostPages<T>(
   );
 }
 
-/** The header's faces that are showing; the phone shows one. */
 export function peopleFaces(page: Page): Locator {
   return page.locator(".avatar-header .avatar-face:visible");
 }
 
-/** The first face in the header; peers show once their presence arrives. */
 export function peopleButton(page: Page): Locator {
   return peopleFaces(page).first();
 }
@@ -71,7 +67,6 @@ function personMenu(page: Page): Locator {
   });
 }
 
-/** Open a face's menu (the first face by default: name, Follow, Go to) and return it. */
 export async function openPeopleMenu(
   page: Page,
   face: Locator = peopleButton(page),
@@ -84,10 +79,8 @@ export async function openPeopleMenu(
   return menu;
 }
 
-/** One way to reach a peer's Follow row: opens its menu and returns the row. */
 export type FollowCandidate = () => Promise<Locator>;
 
-/** Every peer the header can follow: a face each, then the people behind the count. */
 export async function followCandidates(page: Page): Promise<FollowCandidate[]> {
   await expect(peopleButton(page)).toBeVisible({ timeout: 15_000 });
   const out: FollowCandidate[] = [];

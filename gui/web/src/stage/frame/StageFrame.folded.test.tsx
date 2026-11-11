@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { clearRegisteredCommands } from "../../commands/execute";
@@ -64,7 +64,8 @@ describe("StageFrame in a folded frame", () => {
       mountGuest(guestMode);
       expect(screen.queryByRole("button", { name: /Project menu/ })).toBeNull();
       await user.click(screen.getByRole("button", { name: MENU }));
-      await user.click(await screen.findByRole("menuitem", { name: /Maya/ }));
+      const maya = await screen.findByRole("group", { name: /^Maya/ });
+      await user.click(within(maya).getByRole("menuitem", { name: "Follow" }));
       await waitFor(() =>
         expect(useDawStore.getState().followingClientId).toBe("host"),
       );

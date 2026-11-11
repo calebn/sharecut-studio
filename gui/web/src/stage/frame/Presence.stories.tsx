@@ -217,12 +217,11 @@ export const PeopleMenu: Story = {
   args: { variant: "menu", others: [ROSA, MAYA] },
   play: async ({ args, canvasElement }) => {
     const canvas = within(canvasElement);
-    await userEvent.click(
-      canvas.getByRole("menuitem", { name: /Rosa · Follow/ }),
-    );
+    const rosa = within(canvas.getByRole("group", { name: /^Rosa/ }));
+    await userEvent.click(rosa.getByRole("menuitem", { name: "Follow" }));
     await expect(args.onFollow).toHaveBeenCalledWith("rosa");
     await expect(
-      canvas.getByRole("menuitem", { name: "Go to Rosa" }),
+      rosa.getByRole("menuitem", { name: "Go to where they are" }),
     ).toBeVisible();
   },
 };

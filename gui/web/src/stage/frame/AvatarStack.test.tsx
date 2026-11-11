@@ -103,8 +103,8 @@ describe("AvatarStack", () => {
       });
     });
     expect(screen.getByRole("group", { name: "People" })).toBeTruthy();
-    expect(screen.getByRole("menuitem", { name: /Ada/ })).toBeTruthy();
-    await userEvent.click(screen.getByRole("menuitem", { name: /Ada/ }));
+    expect(screen.getByRole("group", { name: /^Ada/ })).toBeTruthy();
+    await userEvent.click(screen.getByRole("menuitem", { name: "Follow" }));
     expect(execute).toHaveBeenCalledWith("presence.follow", { clientId: "a" });
     await expectNoA11yViolations(container);
   });
