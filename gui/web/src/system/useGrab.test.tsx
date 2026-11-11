@@ -168,3 +168,56 @@ describe("useGrab event time", () => {
     vi.restoreAllMocks();
   });
 });
+
+describe("useGrab interruptions", () => {
+  function Counted({ ends }: { ends: boolean[] }) {
+    const grab = useGrab<"a">({
+      canGrab: () => true,
+      onStart: () => true,
+      onMove: () => undefined,
+      onEnd: (_grip, committed) => ends.push(committed),
+    });
+    return (
+      <button type="button" {...grab.handlers("a")}>
+        part
+      </button>
+    );
+  }
+  const grabbed = (ends: boolean[]) => {
+    render(<Counted ends={ends} />);
+    const part = screen.getByRole("button");
+    fireEvent.pointerDown(part, { pointerId: 1, clientX: 10, clientY: 0 });
+    fireEvent.pointerMove(part, { pointerId: 1, clientX: 40, clientY: 0 });
+    return part;
+  };
+
+  it.each([
+    ["blur", () => fireEvent.blur(window)],
+    ["pagehide", () => window.dispatchEvent(new Event("pagehide"))],
+    [
+      "the tab going hidden",
+      () => {
+        vi.spyOn(document, "visibilityState", "get").mockReturnValue("hidden");
+        document.dispatchEvent(new Event("visibilitychange"));
+      },
+    ],
+  ])(
+    "cancels a moved drag on %s, once, and ignores the release",
+    (_name, interrupt) => {
+      const ends: boolean[] = [];
+      const part = grabbed(ends);
+      interrupt();
+      fireEvent.pointerUp(part, { pointerId: 1, clientX: 40, clientY: 0 });
+      expect(ends).toEqual([false]);
+      vi.restoreAllMocks();
+    },
+  );
+
+  it("keeps a drag going when the tab is only shown again", () => {
+    const ends: boolean[] = [];
+    const part = grabbed(ends);
+    document.dispatchEvent(new Event("visibilitychange"));
+    fireEvent.pointerUp(part, { pointerId: 1, clientX: 40, clientY: 0 });
+    expect(ends).toEqual([true]);
+  });
+});
