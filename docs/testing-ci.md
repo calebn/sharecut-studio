@@ -128,8 +128,9 @@ Docs iframe previews initialize.
 The restored-word fixtures make ghost preview geometry observable without a
 live episode or backend. Real mouse trajectories check stable text and row
 layout, handle displacement, preview bounds, and Escape cleanup at 1440px
-and 360px in light and dark themes. `.github/workflows/storybook.yml` installs
-Chromium and runs this suite against the catalog build on pushes and on
+and 360px in light and dark themes. `.github/workflows/storybook.yml` runs, in the Playwright
+container image,
+this suite against the catalog build on pushes and on
 manual dispatch, which the nightly promotion uses. A pull request runs only the render smoke
 (`coverage.spec.ts` and `docs-theme.spec.ts`) and skips the story sweep. This
 supplements the jsdom story interaction and axe checks.
