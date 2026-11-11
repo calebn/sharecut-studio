@@ -726,7 +726,11 @@ cuts, the trim's own and each peer's:
   of the removal, using one source-piece collection with duration derived from its
   disjoint source union. Exact forward and reverse mapping proves each current piece.
   A chain of abutting clips can cross deleted source interior and retain inner original
-  pieces. Full placed words and effect reach bound the observation query. Actual
+  pieces. Full placed words and effect reach bound the observation query. The effect
+  reach is the cut crossfade, the pad fade settings and the longest fade of a clip on the
+  same track whose edge touches the cut (`cut_quality.fade_reach_sec`, the reach the
+  held-pause verdict records); a long fade on another track or far from the cut does not
+  widen it. Actual
   activity on simultaneous lanes bounds quiet, including tails beyond word timing.
   Renderer-selected paths identify media across source aliases. Lane mutes, clip mutes,
   ignored regions, repeated images, registered beds, and known pad receipts earn no

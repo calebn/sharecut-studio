@@ -16,7 +16,7 @@ from podcast_mcp.engines.mute_regions import (
     room_tone_fills_for_source_window,
 )
 from podcast_mcp.engines.timeline_render import resolve_clip_audio_path
-from podcast_mcp.models.episode import Clip, ClipJoinMode, EpisodeProject, FadeCurve, TrackRole
+from podcast_mcp.models.episode import Clip, EpisodeProject, TrackRole
 from podcast_mcp.segments.model import (
     SEGMENT_JSON,
     MediaEntry,
@@ -111,19 +111,11 @@ def _selected(
             )
         chosen = []
         for original in project.clips:
-            for piece in extract_clips_in_timeline_range([original], start, end):
-                # The extraction copies fades and the join mode of the whole clip. A cut
-                # made by the range is not a clip edge, so it gets neither.
-                cut_in = original.timeline_start < start - _EPS
-                cut_out = original.timeline_end > end + _EPS
-                update: dict[str, object] = {"timeline_start": piece.timeline_start + start}
-                if cut_in:
-                    update.update(
-                        fade_in_ms=0, fade_in_curve=FadeCurve.LINEAR, join_in_mode=ClipJoinMode.FADE
-                    )
-                if cut_out:
-                    update.update(fade_out_ms=0, fade_out_curve=FadeCurve.LINEAR)
-                chosen.append(piece.model_copy(update=update))
+            for piece in extract_clips_in_timeline_range([original], start, end, cut_fade_ms=0):
+                # A cut made by the range is not a clip edge, so it gets no fade.
+                chosen.append(
+                    piece.model_copy(update={"timeline_start": piece.timeline_start + start})
+                )
     if not chosen:
         raise CodedValueError("No clips are in that selection.", code="segment_selection_empty")
     return sorted(chosen, key=lambda clip: clip.timeline_start)

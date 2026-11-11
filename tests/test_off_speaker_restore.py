@@ -79,7 +79,7 @@ def test_automatic_full_anchors_survive_split_extract_and_clipboard(tmp_path):
     _apply(project)
     clip = EpisodeProject.model_validate_json(project.model_dump_json()).clips[0]
     left, right = split_clip_at(clip, 0.5, defaults=load_defaults())
-    extracted = extract_clips_in_timeline_range([clip], 0.3, 0.6)[0]
+    extracted = extract_clips_in_timeline_range([clip], 0.3, 0.6, cut_fade_ms=None)[0]
     clipboard = copy_segment(project, 0.3, 0.6, ["host"])
     paste_segment(
         project,

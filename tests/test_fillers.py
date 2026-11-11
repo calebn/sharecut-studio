@@ -4435,6 +4435,68 @@ def test_a_pause_trim_is_judged_against_the_silence_a_listener_hears_not_the_tra
     assert skips.get("imperceptible", 0) == (not proposed)
 
 
+def _pause_windows_and_cuts(tmp_path: Path, long_fade: str | None):
+    """The spans a pause trim is observed over and the cuts proposed, with one 1.5 s fade."""
+    from podcast_mcp.edits.session_air import SessionAir
+
+    project = _project_with_transcript(_PAUSE_WORDS)
+    project.tracks.append(
+        Track(
+            id="guest",
+            label="Guest",
+            role=TrackRole.DIALOGUE,
+            media=MediaAsset(path="raw/guest.wav", duration_sec=30),
+        )
+    )
+    project.clips.append(
+        Clip(id="guest", track_id="guest", source_start=0, source_end=30, timeline_start=0)
+    )
+    project.transcripts.append(
+        Transcript(track_id="guest", words=[TranscriptWord(text="peer", start=1.9, end=3.4)])
+    )
+    _pause_audio(project, tmp_path / str(long_fade))
+    if long_fade == "other_track":
+        project.clips[1].fade_in_ms = 1500
+    elif long_fade == "far":
+        project.clips[0].fade_out_ms = 1500
+    elif long_fade == "near":
+        project.clips[0].fade_in_ms = 1500
+    windows: list[tuple[float, float]] = []
+    observe = SessionAir.pause_observation
+
+    def spy(self, start, end, **kwargs):
+        windows.append((round(start, 6), round(end, 6)))
+        return observe(self, start, end, **kwargs)
+
+    defaults = {
+        "tighten": {
+            **_PAUSE_DEFAULTS["tighten"],
+            "min_retained_pause_sec": 0.18,
+            "min_retained_solo_pause_sec": 0.18,
+        }
+    }
+    with (
+        patch.object(SessionAir, "pause_observation", spy),
+        patch(
+            "podcast_mcp.edits.tighten.gate.pause_air_span",
+            side_effect=lambda _p, _t, start, end, **kw: PauseAir(start, start + 0.15),
+        ),
+    ):
+        decisions = analyze_fillers_and_pauses(project, project.transcripts[0], defaults)
+    cuts = [(d.start, d.end) for d in decisions if d.reason.startswith("pause:")]
+    return windows, cuts
+
+
+def test_a_long_fade_widens_a_pause_window_only_when_it_reaches_the_cut(tmp_path: Path):
+    plain_windows, plain_cuts = _pause_windows_and_cuts(tmp_path, None)
+    assert plain_windows
+    assert plain_cuts == [(pytest.approx(1.5), pytest.approx(1.65))]
+    for elsewhere in ("other_track", "far"):
+        assert _pause_windows_and_cuts(tmp_path, elsewhere) == (plain_windows, plain_cuts)
+    near_windows, _ = _pause_windows_and_cuts(tmp_path, "near")
+    assert near_windows[0][0] < plain_windows[0][0]
+
+
 @pytest.mark.parametrize(("floor", "proposed"), [(1.8, False), (0.55, True)])
 def test_a_pause_with_a_source_hole_retains_original_air_or_holds(floor, proposed, tmp_path: Path):
     from podcast_mcp.edits.tighten.candidate import _AnalyzedCut, _CutCandidate

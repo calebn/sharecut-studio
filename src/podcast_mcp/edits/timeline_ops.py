@@ -442,6 +442,7 @@ def move_segment(
             clips_for_track(project, tid),
             source_start,
             source_end,
+            cut_fade_ms=join_micro_fade_ms(defaults),
         )
     # Clip-only ripple: keep transcript words (source clocks). Moving remaps
     # them via the new clip placements; deleting words would orphan the audio.
@@ -819,6 +820,7 @@ def duplicate_segment(
             clips_for_track(project, tid),
             source_start,
             source_end,
+            cut_fade_ms=join_micro_fade_ms(defaults),
         )
     insert_gap(project, insert_at, duration, defaults=defaults)
     for tid in tracks:
@@ -868,7 +870,9 @@ def copy_segment(
             ),
         }
         for tid in tracks
-        for clip in extract_clips_in_timeline_range(clips_for_track(project, tid), start, end)
+        for clip in extract_clips_in_timeline_range(
+            clips_for_track(project, tid), start, end, cut_fade_ms=None
+        )
     ]
     return {"duration": end - start, "extracts": extracts}
 

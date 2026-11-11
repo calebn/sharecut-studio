@@ -214,7 +214,11 @@ def _timed_split_point(clip: Clip, timeline_time: float) -> tuple[float, float]:
 def split_clip_at(
     clip: Clip, timeline_time: float, *, defaults: EffectiveConfig
 ) -> tuple[Clip, Clip]:
-    """Split clip at session timeline position."""
+    """Split clip at session timeline position.
+
+    The two new inner edges get only the join micro fade; the outer edges keep the clip's
+    fades and curves.
+    """
     tl_end = clip.timeline_end
     if timeline_time <= clip.timeline_start + 1e-9 or timeline_time >= tl_end - 1e-9:
         raise CodedValueError(
@@ -234,7 +238,7 @@ def split_clip_at(
         update={
             "id": new_clip_id(),
             "source_end": source_split,
-            "fade_out_ms": max(clip.fade_out_ms, fade),
+            "fade_out_ms": fade,
             "fade_out_curve": FadeCurve.LINEAR,
         },
     )
@@ -244,7 +248,7 @@ def split_clip_at(
             "id": new_clip_id(),
             "source_start": source_split,
             "timeline_start": after_start,
-            "fade_in_ms": max(clip.fade_in_ms, fade),
+            "fade_in_ms": fade,
             "fade_in_curve": FadeCurve.LINEAR,
             "join_in_mode": ClipJoinMode.FADE,
         },
@@ -392,8 +396,15 @@ def extract_clips_in_timeline_range(
     clips: list[Clip],
     timeline_start: float,
     timeline_end: float,
+    *,
+    cut_fade_ms: int | None,
 ) -> list[Clip]:
-    """Return new clip copies for content in [timeline_start, timeline_end)."""
+    """Return new clip copies for content in [timeline_start, timeline_end).
+
+    A range end inside a clip is a new edge. With ``cut_fade_ms`` that edge gets this linear
+    fade (and a fade join on the in edge) instead of the clip's own fade from its far edge.
+    ``None`` copies the clip's fades as they are, as the Studio clipboard does.
+    """
     extracted: list[Clip] = []
     for clip in clips:
         tl_end = clip.timeline_end
@@ -401,6 +412,9 @@ def extract_clips_in_timeline_range(
         ov_end = min(timeline_end, tl_end)
         if ov_end <= ov_start + 1e-9:
             continue
+        cut_in = cut_fade_ms is not None and clip.timeline_start < timeline_start - 1e-6
+        cut_out = cut_fade_ms is not None and tl_end > timeline_end + 1e-6
+        cut_ms = cut_fade_ms or 0
         src_bounds = clip_timeline_overlap_to_source(clip, ov_start, ov_end)
         if src_bounds is None:
             continue
@@ -420,12 +434,12 @@ def extract_clips_in_timeline_range(
                 source_end=src_end,
                 timeline_start=placed_at - timeline_start,
                 source_id=clip.source_id,
-                fade_in_ms=clip.fade_in_ms,
-                fade_out_ms=clip.fade_out_ms,
-                fade_in_curve=clip.fade_in_curve,
-                fade_out_curve=clip.fade_out_curve,
+                fade_in_ms=cut_ms if cut_in else clip.fade_in_ms,
+                fade_out_ms=cut_ms if cut_out else clip.fade_out_ms,
+                fade_in_curve=FadeCurve.LINEAR if cut_in else clip.fade_in_curve,
+                fade_out_curve=FadeCurve.LINEAR if cut_out else clip.fade_out_curve,
                 gain_db=clip.gain_db,
-                join_in_mode=clip.join_in_mode,
+                join_in_mode=ClipJoinMode.FADE if cut_in else clip.join_in_mode,
                 mute_regions=mute_regions_overlapping(clip.mute_regions, src_start, src_end),
                 off_speaker_mute_regions=[
                     r.model_copy(deep=True) for r in clip.off_speaker_mute_regions

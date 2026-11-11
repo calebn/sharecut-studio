@@ -458,7 +458,9 @@ def test_geometry_held_twin_cannot_suppress_the_real_clean_proposal(tmp_path, mo
     assert [e.id for e in proposal.decisions] == ["cut_pause_200_5000_84983c60f7"]
 
 
-def test_a_longer_manual_fade_is_not_silently_shrunk_by_the_pause_edge_write(tmp_path, monkeypatch):
+def test_a_longer_manual_fade_on_the_far_edge_stays_there_when_a_pause_splits_the_clip(
+    tmp_path, monkeypatch
+):
     configure(monkeypatch, defaults(acoustic=True))
     result = _measured_original_project(tmp_path, guest="quiet")
     peer_audio = room(seed=1215)
@@ -470,10 +472,14 @@ def test_a_longer_manual_fade_is_not_silently_shrunk_by_the_pause_edge_write(tmp
     result.edit_decisions = [prepared]
     next(c for c in result.clips if c.id == "host-0").fade_out_ms = 400
     ws = workspace(result)
-    before = ws.project.model_dump(mode="json")
 
-    with pytest.raises(CodedError) as held:
-        EditService(ws).approve(["pause"])
+    EditService(ws).approve(["pause"])
 
-    assert held.value.code == "cut_scope_changed"
-    assert ws.project.model_dump(mode="json") == before
+    left, right = sorted(
+        (c for c in ws.project.clips if c.track_id == "host" and c.source_start < 2.0),
+        key=lambda c: c.timeline_start,
+    )
+    assert left.source_end == pytest.approx(prepared.start)
+    assert left.fade_out_ms < 400
+    assert right.source_end == pytest.approx(2.0)
+    assert right.fade_out_ms == 400

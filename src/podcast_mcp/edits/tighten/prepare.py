@@ -19,7 +19,6 @@ from podcast_mcp.edits.cut_proof import shared_timeline_rms_caches
 from podcast_mcp.edits.cut_quality import (
     assess_cut_risk,
     optimize_and_assess,
-    post_pad_fade_in_bounds_ms,
     recommend_cut_fade_ms,
 )
 from podcast_mcp.edits.filler_pacing import (
@@ -33,6 +32,7 @@ from podcast_mcp.edits.tighten_reasons import (
 )
 from podcast_mcp.engines.session_timeline import SessionTimeline
 from podcast_mcp.models import (
+    EditDecision,
     EpisodeProject,
 )
 from podcast_mcp.util.intervals import merge_intervals, subtract_intervals
@@ -249,20 +249,21 @@ def _prepare_candidate(
             cache=jump_cache,
             audio_cache=audio_cache,
         )
-        effect_reach = (
-            max(
-                splice_fade_ms,
-                post_pad_fade_in_bounds_ms(defaults)[1],
-                int(tighten.get("filler_pre_pad_fade_out_ms", 5)),
-                max((max(c.fade_in_ms, c.fade_out_ms) for c in project.clips), default=0),
-            )
-            / 1000.0
+        held = cut_placement.held_pause_observation_span(
+            project,
+            EditDecision(
+                id=candidate.hit_id,
+                track_id=track_id,
+                start=plan.start,
+                end=plan.end,
+                crossfade_ms=splice_fade_ms,
+            ),
+            span,
+            words,
+            defaults,
         )
         acoustic = bool(tighten.get("breath_handling", {}).get("enabled", True))
-        observation_span = (
-            min(float(span[0]) - effect_reach, float(before_span[0])),
-            max(float(span[1]) + effect_reach, float(after_span[1])),
-        )
+        observation_span = (held.lo, held.hi)
         observation = air.pause_observation(*observation_span, acoustic=acoustic)
         if isinstance(observation, PauseAirSkip):
             return CutRejected(observation.value)

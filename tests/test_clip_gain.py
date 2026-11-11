@@ -664,7 +664,7 @@ def test_extract_clips_in_range_and_split_keep_gain(minimal_project: Path) -> No
     from podcast_mcp.engines.clips_ops import extract_clips_in_timeline_range
 
     ws = _seed(minimal_project, _clip("a", 0.0, 2.0, 0.0, gain_db=-8.0))
-    extracted = extract_clips_in_timeline_range(ws.project.clips, 0.5, 1.5)
+    extracted = extract_clips_in_timeline_range(ws.project.clips, 0.5, 1.5, cut_fade_ms=None)
     assert [c.gain_db for c in extracted] == [-8.0]
     split_clip(ws.project, "host", 1.0, defaults=DEFAULTS)
     assert {c.gain_db for c in ws.project.clips} == {-8.0}
