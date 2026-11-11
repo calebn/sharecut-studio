@@ -43,9 +43,8 @@ make them feel the software is fragile.
   - Do: "Review link created and copied."
   - Don't: "Operation completed successfully."
 - Name the consequence, not the mechanism.
-  - Do: "End this record room? Both guest and producer links will
-    stop working." (Invite sheet end-room copy — good words, wrong
-    mechanism; see Errors and confirmations)
+  - Do: "Room ended." with Undo for the window the server gives (see
+    Errors and confirmations)
   - Don't: "Stop sharing coolname-xyz?" — tokens and IDs are
     addresses for machines, never labels for people. (Surface 2)
 - Pair every problem statement with its fix.

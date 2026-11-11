@@ -21,7 +21,6 @@ import { goToStage, openProject, openProjectDialog } from "./stageNav";
 
 test.use({ permissions: ["clipboard-read", "clipboard-write"] });
 
-/** Where the proof screenshots go, when a run asks for them. */
 const PROOF_DIR = process.env.UI_PROOF_DIR;
 
 async function proof(page: Page, name: string): Promise<void> {
@@ -57,7 +56,6 @@ async function openInvite(page: Page, projectPath: string): Promise<Locator> {
 
 const toast = (page: Page) => page.locator(".ui-toast-region--app .ui-toast");
 
-/** A guest in a browser of their own opens the link, as a stranger would. */
 async function guestOpens(browser: Browser, token: string): Promise<void> {
   const context = await browser.newContext();
   try {
@@ -96,7 +94,6 @@ function describeUndo(
           .click();
         await page.getByRole("menuitem", { name: "Stop sharing" }).click();
 
-        // No confirm first: the link is stopped and the toast carries Undo.
         await expectFeedback(page, "Link stopped.");
         await expect(
           sheet.getByRole("group", { name: /Stop sharing this/ }),

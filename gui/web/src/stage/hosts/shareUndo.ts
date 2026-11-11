@@ -20,7 +20,7 @@ export const ROOM_UNDO: UndoCopy = {
  * The server stops honoring Undo at `restoreMs`; the toast leaves this much
  * sooner so a press never lands after the window.
  */
-export const UNDO_MARGIN_MS = 500;
+const UNDO_MARGIN_MS = 500;
 
 /** How long the toast stays up for the window the server gave, or null when there is no time left to offer Undo. */
 export function undoDwellMs(restoreMs: number | null): number | null {
