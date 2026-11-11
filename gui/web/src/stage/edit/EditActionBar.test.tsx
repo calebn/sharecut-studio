@@ -104,6 +104,22 @@ describe("EditActionBar on the phone dock", () => {
     ).toHaveAttribute("aria-pressed", "true");
   });
 
+  it("disables Cancel export until the job has an id and once cancelling", () => {
+    host(EDIT_SELECTIONS.playhead);
+    const view = (run: { jobId: string | null; cancelling: boolean }) => (
+      <BounceRunContext.Provider value={{ kind: "running", ...run }}>
+        <EditActionBar form="dock" root={null} />
+      </BounceRunContext.Provider>
+    );
+    const cancel = () => screen.getByRole("button", { name: "Cancel export" });
+    const { rerender } = render(view({ jobId: null, cancelling: false }));
+    expect(cancel()).toBeDisabled();
+    rerender(view({ jobId: "b1", cancelling: false }));
+    expect(cancel()).toBeEnabled();
+    rerender(view({ jobId: "b1", cancelling: true }));
+    expect(cancel()).toBeDisabled();
+  });
+
   it("disables Export when another export starts and enables it when that ends", () => {
     host(EDIT_SELECTIONS.playhead, { activityJob: null });
     render(<EditActionBar form="dock" root={null} />);

@@ -90,6 +90,25 @@ describe("Export verb", () => {
     });
   });
 
+  it("disables Cancel export with the reason while the job is starting or cancelling", () => {
+    host(null);
+    const cancelItem = (reason: string | null) =>
+      barModelOf(factsOf()!, useDawStore.getState(), true, reason).items.find(
+        (item) => item.id === "export",
+      );
+    expect(cancelItem("Export is still starting")).toEqual({
+      id: "export",
+      label: "Cancel export",
+      pressed: true,
+      disabledReason: "Export is still starting",
+    });
+    expect(cancelItem(null)).toEqual({
+      id: "export",
+      label: "Cancel export",
+      pressed: true,
+    });
+  });
+
   it("is disabled with a reason while another export runs", () => {
     expect(
       itemOf(null, {
