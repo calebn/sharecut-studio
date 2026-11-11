@@ -104,6 +104,23 @@ describe("EditActionBar on the phone dock", () => {
     ).toHaveAttribute("aria-pressed", "true");
   });
 
+  it("disables Export when another export starts and enables it when that ends", () => {
+    host(EDIT_SELECTIONS.playhead, { activityJob: null });
+    render(<EditActionBar form="dock" root={null} />);
+    const exportButton = () => screen.getByRole("button", { name: "Export" });
+    expect(exportButton()).toBeEnabled();
+
+    act(() =>
+      useDawStore.setState({
+        activityJob: { id: "p1", kind: "pipeline", status: "running" } as never,
+      }),
+    );
+    expect(exportButton()).toBeDisabled();
+
+    act(() => useDawStore.setState({ activityJob: null }));
+    expect(exportButton()).toBeEnabled();
+  });
+
   it("offers Paste at the playhead only when the clipboard holds audio", async () => {
     const { setClipboard } = await import("../../edit/clipboard");
     setClipboard({

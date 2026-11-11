@@ -68,6 +68,7 @@ function EditActionBarImpl({
       rangeBusy: s.rangeBusy,
       joinMutationInFlight: s.joinMutationInFlight,
       sessionRegion: s.sessionRegion,
+      activityJob: s.activityJob,
     })),
   );
   const floating = form === "floating";
