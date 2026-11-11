@@ -102,6 +102,7 @@ generated-check:
 	uv run pytest -q --no-cov tests/test_generated_artifacts.py
 	uv run python scripts/export_capabilities_copy.py --check
 	uv run python scripts/check_project_writers.py --base origin/$(BASE)
+	uv run python scripts/check_route_inventory.py --check
 	uv run python scripts/export_timeline_zoom.py --check
 	uv run python scripts/export_limit_contracts.py --check
 	uv run python scripts/export_project_types.py --check
