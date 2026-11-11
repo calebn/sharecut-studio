@@ -2004,3 +2004,90 @@ def test_render_timeline_resets_mixed_sample_clock_before_concat(
         0.3 * 32767,
         abs=2,
     )
+
+
+def _dialogue_project(tmp_path: Path, sample_wav: Path, clips: list[Clip]) -> EpisodeProject:
+    ws = tmp_path / "ws"
+    (ws / "raw").mkdir(parents=True)
+    (ws / "raw" / "host.wav").write_bytes(sample_wav.read_bytes())
+    project = EpisodeProject.create("long fades", str(ws))
+    project.timeline.tracks = [
+        Track(
+            id="host",
+            label="Host",
+            role=TrackRole.DIALOGUE,
+            media=MediaAsset(path="raw/host.wav", duration_sec=2.0),
+        )
+    ]
+    project.timeline.clips = clips
+    return project
+
+
+def _render_stem(project: EpisodeProject, name: str):
+    import numpy as np
+
+    eng = FFmpegEngine()
+    if not eng.check_available()[0]:
+        pytest.skip("ffmpeg not available")
+    out = Path(project.workspace_path()) / name
+    render_track_from_timeline(project, project.tracks[0], out, load_defaults(), engine=eng)
+    with wave.open(str(out), "rb") as stream:
+        rate = stream.getframerate()
+        samples = np.frombuffer(stream.readframes(stream.getnframes()), dtype="<i2").astype(
+            np.float64
+        )
+    return samples, rate, eng.probe(out).duration_sec
+
+
+def _window_rms(samples, rate: int, start_ms: int, end_ms: int) -> float:
+    import numpy as np
+
+    window = samples[rate * start_ms // 1000 : rate * end_ms // 1000]
+    return float(np.sqrt(np.mean(window**2)))
+
+
+def test_a_400_ms_manual_dialogue_fade_renders_400_ms_and_keeps_the_stem_length(
+    sample_wav: Path, tmp_path: Path
+) -> None:
+    from podcast_mcp.edits.timeline_ops import set_clip_fade
+
+    def clips() -> list[Clip]:
+        return [Clip(id="a", track_id="host", source_start=0.0, source_end=1.5, timeline_start=0.0)]
+
+    plain_samples, rate, plain_dur = _render_stem(
+        _dialogue_project(tmp_path / "plain", sample_wav, clips()), "plain.wav"
+    )
+    faded = _dialogue_project(tmp_path / "faded", sample_wav, clips())
+    summary = set_clip_fade(faded, "a", 400, 400)
+    assert (summary["fade_in_ms"], summary["fade_out_ms"], summary["clamped"]) == (400, 400, False)
+    samples, _, dur = _render_stem(faded, "faded.wav")
+
+    assert len(samples) == len(plain_samples)
+    assert dur == pytest.approx(plain_dur, abs=1e-6)
+    full = _window_rms(plain_samples, rate, 600, 900)
+    assert _window_rms(samples, rate, 0, 40) < 0.2 * full
+    assert 0.15 * full < _window_rms(samples, rate, 80, 120) < 0.4 * full
+    assert 0.5 * full < _window_rms(samples, rate, 190, 210) < 0.85 * full
+    assert 0.8 * full < _window_rms(samples, rate, 380, 400) < 1.05 * full
+    assert _window_rms(samples, rate, 450, 1050) == pytest.approx(full, rel=0.02)
+    assert _window_rms(samples, rate, 1460, 1500) < 0.2 * full
+
+
+def test_a_400_ms_crossfade_join_keeps_the_stem_length(sample_wav: Path, tmp_path: Path) -> None:
+    from podcast_mcp.edits.join_modes import set_clip_join
+
+    def clips() -> list[Clip]:
+        return [
+            Clip(id="a", track_id="host", source_start=0.0, source_end=0.8, timeline_start=0.0),
+            Clip(id="b", track_id="host", source_start=0.8, source_end=1.6, timeline_start=0.8),
+        ]
+
+    _, _, cut_dur = _render_stem(
+        _dialogue_project(tmp_path / "cut", sample_wav, clips()), "cut.wav"
+    )
+    joined = _dialogue_project(tmp_path / "joined", sample_wav, clips())
+    set_clip_join(joined, "a", "b", "crossfade", length_ms=400, defaults=load_defaults())
+    assert (joined.clips[0].fade_out_ms, joined.clips[1].fade_in_ms) == (400, 400)
+    samples, rate, dur = _render_stem(joined, "joined.wav")
+    assert dur == pytest.approx(cut_dur, abs=0.002)
+    assert _window_rms(samples, rate, 700, 900) > 0.5 * _window_rms(samples, rate, 100, 300)
