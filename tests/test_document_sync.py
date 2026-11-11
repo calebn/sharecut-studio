@@ -479,7 +479,7 @@ def test_document_set_clip_fade_join_and_recommendations(minimal_project):
             type="SetClipFade",
             payload={
                 "clip_id": "c2",
-                "fade_in_ms": 40,
+                "fade_in_ms": 400,
                 "fade_out_ms": 8,
                 "expected": {"fade_in_ms": 0, "fade_out_ms": 0},
             },
@@ -491,12 +491,12 @@ def test_document_set_clip_fade_join_and_recommendations(minimal_project):
     assert faded["ok"]
     fade_snap = _current_projection(svc, faded)
     assert "project" not in fade_snap
-    assert fade_snap["patch"]["clips"]["tracks"]["host"][1]["fade_in_ms"] == 40
+    assert fade_snap["patch"]["clips"]["tracks"]["host"][1]["fade_in_ms"] == 400
     assert "render_status" in fade_snap["patch"]
     assert "tracks" in fade_snap["patch"]
     ws2 = ProjectWorkspace.open(minimal_project)
     c2 = next(c for c in ws2.project.clips if c.id == "c2")
-    assert c2.fade_in_ms == 40  # dialogue cap (render.join_fade_max_ms)
+    assert c2.fade_in_ms == 400
     assert c2.fade_out_ms == 8
 
     joined = svc.submit(

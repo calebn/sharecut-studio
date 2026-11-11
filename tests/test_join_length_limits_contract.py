@@ -17,14 +17,13 @@ IDS = [c["name"] for c in CASES]
 
 def _join(case: dict, length_ms: int) -> tuple[int, int]:
     """(left.fade_out_ms, right.fade_in_ms) after a fade SetClipJoin of *length_ms*."""
-    cap = case["track_fade_max_ms"]
     left_sec = case["left_duration_sec"]
     p = EpisodeProject.create("join_len", "/tmp/join_len")
     p.timeline.tracks = [
         Track(
             id="t",
             label="T",
-            role=TrackRole.DIALOGUE if cap is not None else TrackRole.MUSIC,
+            role=TrackRole.DIALOGUE,
             media=MediaAsset(path="raw/t.wav", duration_sec=10.0),
         )
     ]
@@ -48,8 +47,7 @@ def _join(case: dict, length_ms: int) -> tuple[int, int]:
             timeline_start=left_sec,
         ),
     ]
-    defaults = {"render": {"join_fade_max_ms": cap if cap is not None else 40}}
-    set_clip_join(p, "L", "R", "fade", length_ms=length_ms, defaults=defaults)
+    set_clip_join(p, "L", "R", "fade", length_ms=length_ms, defaults={})
     left, right = p.clips
     return left.fade_out_ms, right.fade_in_ms
 
