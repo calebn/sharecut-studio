@@ -23,16 +23,21 @@ const fixture = vi.hoisted(() => ({
   graphs: [] as GraphProbe[],
   contexts: [] as ContextProbe[],
   peaks: new Map<string, number>(),
+  departOnDispose: [] as string[],
   tapRead: vi.fn(),
   signal: vi.fn<() => Promise<void>>(),
 }));
 
 vi.mock("./mesh", () => ({
   RecordMesh: class {
-    constructor(options: RecordMeshOpts) {
+    constructor(readonly options: RecordMeshOpts) {
       fixture.meshes.push(options);
     }
-    dispose() {}
+    dispose() {
+      for (const id of fixture.departOnDispose) {
+        this.options.onRemoteGone(id);
+      }
+    }
     syncPeers() {}
     setLocalStream() {}
     setSendEnabled() {}
@@ -139,6 +144,7 @@ beforeEach(() => {
   fixture.graphs.length = 0;
   fixture.contexts.length = 0;
   fixture.peaks.clear();
+  fixture.departOnDispose.length = 0;
   fixture.tapRead.mockClear();
   fixture.signal.mockReset().mockResolvedValue(undefined);
   localStorage.clear();
@@ -254,6 +260,22 @@ describe("monitor resource original lifecycle", () => {
     expect(result.current.remoteCount).toBe(1);
     act(() => old.onRemoteGone("peer"));
     expect(fixture.graphs[0]!.removeRemote).not.toHaveBeenCalled();
+    await tick(10);
+    expect(result.current.remoteCount).toBe(1);
+    unmount();
+  });
+
+  it("treats departures fired by dispose during cleanup as no-ops", async () => {
+    fixture.departOnDispose.push("peer");
+    const initial = args();
+    const { result, rerender, unmount } = renderHook(
+      (input: Args) => useRecordMonitor(input),
+      { initialProps: initial },
+    );
+    track("old");
+    rerender({ ...initial, snapshot: room("next") });
+    expect(fixture.graphs[0]!.removeRemote).not.toHaveBeenCalled();
+    track("new");
     await tick(10);
     expect(result.current.remoteCount).toBe(1);
     unmount();
