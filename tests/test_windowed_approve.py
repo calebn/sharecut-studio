@@ -279,6 +279,55 @@ def test_a_windowed_check_reads_inside_the_window_around_its_cut(
     assert any(t1 - t0 > 5.0 for t0, t1, _ in reads)  # the context reads are the long ones
 
 
+def _windows_for_43_after_44_5(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fade: tuple[str, str, int] | None
+) -> list[tuple[float, float]]:
+    """The windows the 43.0 check reads; the 44.5 cut, applied first, builds the whole tracks.
+
+    The host clips meet at 51.5, between two words, so a fade at that join is 8 s from the cut.
+    """
+    project = _project(tmp_path)
+    project.edit_decisions = [e for e in project.edit_decisions if e.start in (43.0, 44.5)]
+    clips = {c.id: c for c in project.clips}
+    clips["host1"].source_end = 51.5
+    clips["host2"].source_start = clips["host2"].timeline_start = 51.5
+    if fade is not None:
+        clip_id, field, ms = fade
+        setattr(clips[clip_id], field, ms)
+    counts = _Counts(monkeypatch)
+    outcome = _approve(project)
+    assert outcome["held"] == [] and outcome["asked"] == [] and outcome["count"] == 2
+    assert counts.fell_back == 0 and counts.declined == 0
+    assert len(counts.whole) == 2
+    return list(counts.windows)
+
+
+def test_a_long_fade_reaching_a_cut_widens_the_carried_window_its_check_reads(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    plain = _windows_for_43_after_44_5(tmp_path / "plain", monkeypatch, None)
+    # a 3 s fade-out ending at 51.5 ramps toward the 43.0 cut: it reaches 3 s past the usual read
+    near = _windows_for_43_after_44_5(
+        tmp_path / "near", monkeypatch, ("host1", "fade_out_ms", 3000)
+    )
+
+    assert len(plain) == len(near) == 2
+    for (p0, p1), (n0, n1) in zip(plain, near, strict=True):
+        assert p0 > 36.5 and p1 < 50.0
+        assert n0 < 34.5 and n1 > 52.0
+
+
+def test_a_long_fade_far_from_a_cut_leaves_the_carried_window_as_it_is(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    plain = _windows_for_43_after_44_5(tmp_path / "plain", monkeypatch, None)
+    # a 3 s fade-in from 80.0 ramps away from every cut
+    far = _windows_for_43_after_44_5(tmp_path / "far", monkeypatch, ("host3", "fade_in_ms", 3000))
+
+    assert len(far) == 2
+    assert far == plain
+
+
 def _with_a_fresh_guest_stem(project: EpisodeProject) -> None:
     stem = stem_path(project, "guest")
     stem.parent.mkdir(parents=True, exist_ok=True)

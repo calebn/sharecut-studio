@@ -892,8 +892,9 @@ def test_a_range_cut_edge_fade_fits_the_piece_and_a_negative_one_is_refused() ->
         [clip], 1.0, 1.004, edge_fade=RangeEdgeFade.cut(MICRO)
     )
     assert (piece.fade_in_ms, piece.fade_out_ms) == (4, 4)
-    with pytest.raises(ValueError):
+    with pytest.raises(CodedValueError) as error:
         RangeEdgeFade.cut(-1)
+    assert error.value.code == "cut_edge_fade_negative"
 
 
 def test_split_clip_and_split_clip_at_make_the_same_inner_edges(minimal_project: Path) -> None:
