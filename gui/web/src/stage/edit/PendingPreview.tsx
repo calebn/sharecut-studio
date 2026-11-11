@@ -11,8 +11,10 @@ import type { PendingEditView } from "../../types/project";
 import { InspectorSeekFooterView } from "../../ui/InspectorSeekFooterView";
 import type { PreviewMode } from "../../utils/playRange";
 
+/** A click that returns sooner never shows the busy label (docs/communication-philosophy.md). */
 const BUSY_LABEL_AFTER_SEC = 2;
 
+/** Whole seconds since `active` turned true; null while it is false. */
 function useElapsedSec(active: boolean): number | null {
   const [clock] = useState(createActiveElapsedSample);
   const sec = useSyncExternalStore(clock.subscribe, clock.getSnapshot);

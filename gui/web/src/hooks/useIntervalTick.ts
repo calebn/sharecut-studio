@@ -15,10 +15,7 @@ export function startInterval(
   };
 }
 
-/**
- * Retained counter advancing every periodMs while active. Inactive schedules
- * nothing.
- */
+/** Re-render counter every `periodMs` while `active`. For clock values use useNowSec or useElapsedSince. */
 export function useIntervalTick(periodMs: number, active: boolean): number {
   const [tick, setTick] = useState(0);
   useEffect(() => {
