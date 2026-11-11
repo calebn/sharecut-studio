@@ -86,7 +86,7 @@ is the one table for phone, tablet and desktop (#1792).
 The Script keeps an open Fix text field when the shell remounts (a held pin, per project), so rotating across the phone and tablet shells keeps the word and its field (#1870). A blur saves the correction and leaves focus on the destination the user chose. Enter and Escape return focus to the edited word while the field still owns focus. Tab advances focus and selection to the next unsure word only when it saves a change; unchanged Tab keeps the existing close-to-current-word behavior. `ScriptHost.fix.test.tsx` covers these focus rules.
 In a word's Inspector body, the correction fields and Apply precede the
 secondary word controls and metadata. The full word remains the accessible
-heading even when its visible title is shortened to one line. The range's verbs live on the Action bar (floating beside the selection on desktop and tablet, docked above the Player on a phone); the Range fields keep In and Out and the word handles, first.
+heading even when its visible title is shortened to one line. The range's verbs live on the Action bar (floating beside the selection on desktop and tablet, docked above the Player on a phone); a verb with options (`BarItem.split`) gets a chevron that opens an anchored popover on desktop and tablet, and on the phone dock a More row that opens the same options in a content-height sheet; the Range fields keep In and Out and the word handles, first.
 Reordering these sections preserves their component identity and local drafts
 (`#2163`, `stage/edit/selectionSurface.test.tsx`).
 The span and tracks typed for a range not yet formed live in `rangeDraft`; it is
@@ -193,7 +193,7 @@ There are three overlay primitives.
    Released external successes keep their observed copy after chip movement.
    Fresh chip copy and ready outcomes share one live-region write. A receipt
    failure replaces progress for its own job, while unrelated copy survives.
-   Only verified result fragments enter the success toast. Receipt failures
+   Only verified result fragments enter the success toast. A job's `summarizeResult` may add a toast action (Reveal, Download); the toast carries it only when exactly one verified outcome reaches it, and a merged toast drops it. Receipt failures
    use the existing failure row while mounted and reach the shell live region
    even away from Deliver. Each distinct owned outcome is delivered even when its text matches
    the previous outcome. Resource changes do not replay an unchanged chip.
