@@ -1221,6 +1221,23 @@ describe("ScrubField commitOnUnmount", () => {
     expect(onCommit).toHaveBeenCalledExactlyOnceWith(12);
   });
 
+  it("with skipUnchanged leaves a value opened and not edited alone when the field goes away", async () => {
+    const onCommit = vi.fn();
+    const view = render(
+      <ScrubField
+        label="Offset"
+        value={5.1234}
+        decimals={2}
+        skipUnchanged
+        commitOnUnmount
+        onCommit={onCommit}
+      />,
+    );
+    await userEvent.click(screen.getByRole("spinbutton", { name: "Offset" }));
+    view.unmount();
+    expect(onCommit).not.toHaveBeenCalled();
+  });
+
   it("drops a rejected value, and does nothing unless asked", async () => {
     const rejected = mount(true);
     await userEvent.click(screen.getByRole("spinbutton", { name: "Offset" }));

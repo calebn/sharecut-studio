@@ -193,6 +193,7 @@ export function ScrubField({
     flushDraft.current = () => {
       const text = draftRef.current;
       if (!commitOnUnmount || text === null) return;
+      if (skipUnchanged && text === openedText.current) return;
       const parsed = parseScrub(text, unit);
       if (
         parsed === null ||

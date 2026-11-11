@@ -155,6 +155,21 @@ describe("ClipsRow In and Out", () => {
     expect(onTrim).not.toHaveBeenCalled();
   });
 
+  it("puts the number back and reports nothing when Escape ends a drag", () => {
+    const onTrim = vi.fn();
+    renderRow({ trimming: id, onTrim });
+    const field = screen.getByRole("spinbutton", { name: `In of ${name}` });
+    const before = field.getAttribute("aria-valuenow");
+    fireEvent.pointerDown(field, { clientX: 100, pointerId: 1, button: 0 });
+    fireEvent.pointerMove(field, { clientX: 110, pointerId: 1 });
+    fireEvent.pointerMove(field, { clientX: 140, pointerId: 1 });
+    expect(field.getAttribute("aria-valuenow")).not.toBe(before);
+    fireEvent.keyDown(field, { key: "Escape" });
+    expect(field.getAttribute("aria-valuenow")).toBe(before);
+    fireEvent.pointerUp(field, { clientX: 140, pointerId: 1 });
+    expect(onTrim).not.toHaveBeenCalled();
+  });
+
   it("leaves a word-snapped edge alone when it is opened and left", async () => {
     const onTrim = vi.fn();
     const [first, ...rest] = CLIPS;
