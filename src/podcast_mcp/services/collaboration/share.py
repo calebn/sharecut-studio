@@ -636,6 +636,8 @@ class ShareService:
             try:
                 self.revoke(token)
                 revoked.append(token)
+            except KeyError:
+                continue  # ended meanwhile (a sweep or another revoke): nothing left to do
             except Exception:
                 log.exception("failed to revoke record token %s", token)
         if not revoked:
@@ -656,7 +658,11 @@ class ShareService:
         """
         if restorable_for is not None:
             return dict(self._park_room(session_id, restorable_for, now))
-        finalized = share_pending.finalize_now(self.ws, session_id, now=now)
+        finalized = (
+            share_pending.finalize_now(self.ws, session_id, now=now)
+            if share_pending.has_pending(self.ws, session_id)
+            else []
+        )
         try:
             revoked = self._revoke_room_tokens(session_id)
         except KeyError:
@@ -712,7 +718,11 @@ class ShareService:
             self.sweep_pending(now=now)
 
     def _restore_room(self, session_id: str, now: datetime | None) -> RestoredRoom:
-        snapshots = share_pending.restore(self.ws, session_id, now=now)
+        snapshots = (
+            share_pending.restore(self.ws, session_id, now=now)
+            if share_pending.has_pending(self.ws, session_id)
+            else []
+        )
         if snapshots:
             self._invalidate_record_cache()
             return {"session_id": session_id, "restored": [str(s["token"]) for s in snapshots]}

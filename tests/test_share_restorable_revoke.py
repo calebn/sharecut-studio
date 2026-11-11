@@ -15,7 +15,7 @@ from podcast_mcp.project.store import WriteGrantKind, write_grant
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.collaboration import share_pending
 from podcast_mcp.services.collaboration.review import ReviewService
-from podcast_mcp.services.collaboration.review_shares import list_shares
+from podcast_mcp.services.collaboration.review_shares import list_shares, settle_shares_pending
 from podcast_mcp.services.collaboration.review_versions import get_version
 from podcast_mcp.services.collaboration.share import (
     ShareService,
@@ -845,3 +845,75 @@ def test_revoke_room_of_a_room_being_finalized_by_another_sweeper_is_success(
     assert len(held) == 2
     out = svc.revoke_room(room["session_id"])
     assert out["session_id"] == room["session_id"]
+
+
+def test_a_restore_racing_a_final_revoke_cannot_leave_the_sidecar_live(
+    minimal_project, sample_wav, tmp_workspace, effects, monkeypatch
+):
+    ws = _seed(minimal_project, sample_wav)
+    share = _review_share(ws)
+    svc = ShareService(ws)
+    svc.revoke(share["token"], restorable_for=WINDOW, now=T0)
+    real_settle = share_pending._settle_sidecar
+
+    raced: list[bool] = []
+
+    def final_revoke_then_settle(ws_, ids, *, restored):
+        if not raced:
+            raced.append(True)
+            ShareService(ws).revoke(share["token"])
+        real_settle(ws_, ids, restored=restored)
+
+    monkeypatch.setattr(share_pending, "_settle_sidecar", final_revoke_then_settle)
+    svc.restore(share["token"], now=at(3))
+    assert _sidecar(ws, share["id"])["revoked"] is True
+    with pytest.raises(KeyError):
+        lookup_share(share["token"])
+
+
+def test_settling_a_restore_is_a_no_op_for_a_link_the_registry_no_longer_holds(
+    minimal_project, sample_wav, tmp_workspace, effects
+):
+    ws = _seed(minimal_project, sample_wav)
+    share = _review_share(ws)
+    ShareService(ws).revoke(share["token"])
+    settle_shares_pending(ws.project.workspace_path(), [share["id"]], restored=True)
+    assert _sidecar(ws, share["id"])["revoked"] is True
+
+
+def test_a_room_revoke_ignores_a_pending_review_group_keyed_by_its_token(
+    minimal_project, sample_wav, tmp_workspace, effects
+):
+    ws = _seed(minimal_project, sample_wav)
+    share = _review_share(ws)
+    svc = ShareService(ws)
+    svc.revoke(share["token"], restorable_for=WINDOW, now=T0)
+    assert not share_pending.has_pending(ws, share["token"])
+    with pytest.raises(KeyError):
+        svc.revoke_room(share["token"])
+    with pytest.raises(KeyError):
+        svc.restore_room(share["token"], now=at(1))
+    assert [p["token"] for p in get_share_registry().list_pending()] == [share["token"]]
+    assert svc.restore(share["token"], now=at(2)) == {"restored": True, "token": share["token"]}
+    effects["object"].assert_not_called()
+
+
+def test_a_room_token_that_ended_meanwhile_is_skipped_without_an_error_log(
+    minimal_project, sample_wav, tmp_workspace, effects, caplog, monkeypatch
+):
+    ws = _seed(minimal_project, sample_wav)
+    room = _room(ws)
+    svc = ShareService(ws)
+    ended = room["guest"]["token"]
+    real_revoke = ShareService.revoke
+
+    def revoke(self, token, **kwargs):
+        if token == ended:
+            raise KeyError(f"share not found: {token}")
+        return real_revoke(self, token, **kwargs)
+
+    monkeypatch.setattr(ShareService, "revoke", revoke)
+    with caplog.at_level("DEBUG"):
+        out = svc.revoke_room(room["session_id"])
+    assert out["revoked"] == [room["producer"]["token"]]
+    assert [r for r in caplog.records if r.levelname == "ERROR"] == []
