@@ -117,7 +117,7 @@ export const createPresenceSlice: StateCreator<
     const target = rosterEntry(s.sessionClients, clientId);
     const name = target?.meta?.display_name || target?.label || clientId;
     set({ followingClientId: clientId });
-    get().announceStatus(`Following ${name}`);
+    get().announceStatus(`Following ${name}`, { toast: false });
   },
   stopFollow: (reason) => {
     if (get().followingClientId == null) {
@@ -125,9 +125,9 @@ export const createPresenceSlice: StateCreator<
     }
     set({ followingClientId: null, playbackRate: 1, followDegraded: {} });
     if (reason === "left") {
-      get().announceStatus("They left");
+      get().announceStatus("They left", { toast: false });
     } else {
-      get().announceStatus("Stopped following");
+      get().announceStatus("Stopped following", { toast: false });
     }
   },
   // --- session publish ---

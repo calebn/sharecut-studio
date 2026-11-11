@@ -597,6 +597,34 @@ describe("dawStore follow presence", () => {
     expect(useDawStore.getState().playbackRate).toBe(1);
   });
 
+  it.each([
+    [
+      "starting",
+      () => useDawStore.getState().startFollow("viewer-x"),
+      "Following",
+    ],
+    [
+      "stopping",
+      () => {
+        useDawStore.getState().startFollow("viewer-x");
+        useDawStore.getState().stopFollow("local");
+      },
+      "Stopped following",
+    ],
+    [
+      "the leader leaving",
+      () => {
+        useDawStore.getState().startFollow("viewer-x");
+        useDawStore.getState().stopFollow("left");
+      },
+      "They left",
+    ],
+  ])("speaks %s a follow without raising a toast", (_name, run, spoken) => {
+    run();
+    expect(useDawStore.getState().feedbackToast).toBeNull();
+    expect(useDawStore.getState().statusAnnouncement).toContain(spoken);
+  });
+
   it("guest setAuditionMode cannot leave Mix", () => {
     useDawStore
       .getState()

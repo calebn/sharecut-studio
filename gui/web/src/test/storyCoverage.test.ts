@@ -51,7 +51,7 @@ const COVERED: Record<string, string[]> = {
   "SCR-ERROR": ["Organisms/ErrorScreen"],
   "SCR-COVER": ["Organisms/CoverScreen"],
   "CMP-TRANSPORT-PILLS": ["Atoms/Pill"],
-  "MENU-PEOPLE": ["Templates/AvatarStack"],
+  "MENU-PEOPLE": ["Stages/Frame/Presence"],
   "CMP-TOOLRAIL": ["Stages/Edit/Corner"],
   "CMP-TABS": ["Stages/Edit/Frame"],
   "CMP-SAVEDOT": ["System/SaveIndicator"],

@@ -321,7 +321,8 @@
   --selection-row-edge-width: 0.125rem;
   --selection-remote-width: 0.0625rem;
   --follow-ring-width: 0.1875rem;
-  --follow-frame-width: 0.125rem;
+  --presence-ring-width: 0.125rem;
+  --presence-ring-gap: 0.0625rem;
 }
 
 @media (pointer: coarse) {

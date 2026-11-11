@@ -50,7 +50,8 @@ function declarations(file: string): Map<string, string[]> {
 
 const STAGE_LAYOUT: Readonly<Record<string, string>> = {
   "--follow-ring-width": "0.1875rem",
-  "--follow-frame-width": "0.125rem",
+  "--presence-ring-width": "0.125rem",
+  "--presence-ring-gap": "0.0625rem",
   "--app-header-height": "3rem",
   "--app-header-height-phone": "2.75rem",
   "--alert-slot-height": "2.75rem",

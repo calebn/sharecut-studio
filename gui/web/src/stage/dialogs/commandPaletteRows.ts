@@ -98,6 +98,8 @@ export type PalettePerson = {
   name: string;
   role: string;
   following: boolean;
+  /** This link can open where they are, and there is somewhere to go. */
+  goTo?: boolean;
 };
 
 export type PaletteEntrySources = {
@@ -149,6 +151,20 @@ export function paletteEntries(
         context: person.following ? `${person.role}, following` : person.role,
         verb: person.following ? "Stop following" : "Follow",
         commandId: "presence.follow",
+        args: { clientId: person.clientId },
+      });
+    }
+  }
+  if (allowed("presence.goTo")) {
+    for (const person of src.people) {
+      if (!person.goTo) continue;
+      out.push({
+        id: `person:goTo:${person.clientId}`,
+        group: "people",
+        label: person.name,
+        context: person.role,
+        verb: "Go to",
+        commandId: "presence.goTo",
         args: { clientId: person.clientId },
       });
     }

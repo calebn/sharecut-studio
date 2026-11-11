@@ -64,11 +64,12 @@ describe("AvatarStack", () => {
         ]),
       });
     });
-    expect(screen.getByRole("button", { name: "Follow Ada" })).toBeTruthy();
+    expect(container.querySelectorAll(".avatar-face")).toHaveLength(3);
     expect(screen.getByRole("button", { name: "+1 more" })).toBeTruthy();
     expect(container.querySelector(".ui-avatar-badge")?.textContent).toBe("2");
     expect(screen.getByLabelText("2 following you")).toBeTruthy();
-    await userEvent.click(screen.getByRole("button", { name: "Follow Ada" }));
+    await userEvent.click(screen.getByRole("button", { name: "Ada" }));
+    await userEvent.click(screen.getByRole("menuitem", { name: "Follow" }));
     expect(execute).toHaveBeenCalledWith("presence.follow", { clientId: "a" });
     await expectNoA11yViolations(container);
   });
@@ -130,10 +131,10 @@ describe("AvatarStack", () => {
         ]),
       });
     });
-    expect(screen.queryByRole("button", { name: /Follow/ })).toBeNull();
+    expect(screen.queryByRole("group", { name: "People here" })).toBeNull();
   });
 
-  it("names the follow control Stop following when pressed", () => {
+  it("shows the Following pill and stops from it", async () => {
     render(
       <DawProvider projectPath="/tmp/p.json" initialProject={minimalProject()}>
         <AvatarStack />
@@ -159,9 +160,48 @@ describe("AvatarStack", () => {
         ]),
       });
     });
-    expect(
+    await userEvent.click(
       screen.getByRole("button", { name: "Stop following Ada" }),
-    ).toBeTruthy();
+    );
+    expect(execute).toHaveBeenCalledWith("presence.unfollow");
+  });
+
+  it("goes to where a person is from their menu", async () => {
+    render(
+      <DawProvider projectPath="/tmp/p.json" initialProject={minimalProject()}>
+        <AvatarStack />
+      </DawProvider>,
+    );
+    act(() => {
+      useDawStore.setState({
+        localClientId: "me",
+        followingClientId: null,
+        stage: "edit",
+        sessionClients: sessionRoster([
+          {
+            client_id: "me",
+            role: "viewer",
+            last_seen_ns: Date.now() * 1e6,
+            meta: { display_name: "Me" },
+          },
+          {
+            client_id: "a",
+            role: "viewer",
+            last_seen_ns: Date.now() * 1e6,
+            meta: {
+              display_name: "Ada",
+              color_index: 2,
+              ui: { tab: "impact" },
+            },
+          },
+        ]),
+      });
+    });
+    await userEvent.click(screen.getByRole("button", { name: "Ada, Review" }));
+    await userEvent.click(
+      screen.getByRole("menuitem", { name: "Go to where they are" }),
+    );
+    expect(execute).toHaveBeenCalledWith("presence.goTo", { clientId: "a" });
   });
 
   it("omits the People menu when nobody is followable", () => {
@@ -222,11 +262,11 @@ describe("AvatarStack", () => {
           ]),
         });
       });
-      expect(screen.getByRole("button", { name: "Follow Ada" })).toBeTruthy();
+      expect(screen.getByRole("button", { name: "Ada" })).toBeTruthy();
       act(() => {
         vi.advanceTimersByTime(35_000);
       });
-      expect(screen.queryByRole("button", { name: "Follow Ada" })).toBeNull();
+      expect(screen.queryByRole("button", { name: "Ada" })).toBeNull();
     } finally {
       vi.useRealTimers();
     }

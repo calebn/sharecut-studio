@@ -1,4 +1,5 @@
 import type { SessionClient } from "../types/session";
+import type { StageId } from "../types/stage";
 import { type FollowApply, planFollowUi } from "./followPlan";
 import { type FollowUiCaps, remotePlayheadSec } from "./followSync";
 
@@ -12,6 +13,7 @@ export function planGoTo(
   client: Pick<SessionClient, "meta" | "playhead_sec">,
   caps: FollowUiCaps,
   durationSec: number,
+  currentStage: StageId,
   nowMs?: number,
 ): GoToPlan | null {
   const { apply, degraded } = planFollowUi(client.meta?.ui ?? {}, caps);
@@ -21,7 +23,7 @@ export function planGoTo(
     apply,
     sec,
     moves:
-      apply.stage !== undefined ||
+      (apply.stage !== undefined && apply.stage.stage !== currentStage) ||
       apply.editSurface !== undefined ||
       sec !== null,
   };

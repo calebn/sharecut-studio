@@ -1,283 +1,309 @@
-import { useState } from "react";
-import { rosterDisplayName } from "../../presence/colors";
+import { type CSSProperties, Fragment, useState } from "react";
+import { presenceColorVar, rosterDisplayName } from "../../presence/colors";
+import { PersonAvatar } from "../../system/Person";
+import { SystemIcon } from "../../system/SystemIcon";
+import { STAGES } from "../../system/verbs";
 import type { SessionClient } from "../../types/session";
 import { Avatar } from "../../ui/Avatar";
 import { Menu, MenuItem, MenuSection } from "../../ui/Menu";
+import { Pill } from "../../ui/Pill";
 import { overflowLabel } from "../../utils/format";
+import {
+  cardLabel,
+  cardWhere,
+  type PersonCard,
+  type PresenceViewer,
+  personCard,
+} from "./personCard";
 
-function PeopleList({
-  others,
-  names,
-  followingClientId,
-  onFollow,
-  onSelect,
-}: {
-  others: readonly SessionClient[];
-  names: ReadonlyMap<string, string>;
-  followingClientId: string | null;
+type Handlers = {
   onFollow: (id: string) => void;
-  onSelect?: () => void;
-}) {
+  onGoTo?: (id: string) => void;
+};
+
+function colorStyle(colorIndex: number): CSSProperties {
+  return {
+    "--sys-person-color": presenceColorVar(colorIndex),
+  } as CSSProperties;
+}
+
+function stageIcon(stage: PersonCard["badge"]) {
+  return STAGES.find((s) => s.id === stage)?.icon ?? "circle";
+}
+
+function PersonRows({
+  card,
+  onFollow,
+  onGoTo,
+  onSelect,
+}: Handlers & { card: PersonCard; onSelect: () => void }) {
   return (
     <>
-      {others.map((c) => {
-        const name = names.get(c.client_id) ?? rosterDisplayName(c);
-        return (
-          <MenuItem
-            key={c.client_id}
-            onSelect={() => {
-              onFollow(c.client_id);
-              onSelect?.();
-            }}
-          >
-            <Avatar
-              name={name}
-              colorIndex={c.meta?.color_index}
-              sessionRole={c.role}
-              size="sm"
-            />{" "}
-            {name}
-            {followingClientId === c.client_id ? " · Following" : " · Follow"}
-          </MenuItem>
-        );
-      })}
+      <div className="avatar-card-head" aria-hidden="true">
+        <span className="avatar-card-name">{card.name}</span>
+        <span className="avatar-card-meta">{cardWhere(card)}</span>
+      </div>
+      <MenuItem
+        onSelect={() => {
+          onFollow(card.id);
+          onSelect();
+        }}
+      >
+        <SystemIcon name={card.following ? "eye-off" : "eye"} size={16} />
+        {card.following ? "Stop following" : "Follow"}
+      </MenuItem>
+      {card.goTo && onGoTo ? (
+        <MenuItem
+          onSelect={() => {
+            onGoTo(card.id);
+            onSelect();
+          }}
+        >
+          <SystemIcon name="arrow-right" size={16} />
+          Go to where they are
+        </MenuItem>
+      ) : null}
     </>
+  );
+}
+
+function PersonFace({
+  card,
+  handlers,
+}: {
+  card: PersonCard;
+  handlers: Handlers;
+}) {
+  const [open, setOpen] = useState(false);
+  const label = cardLabel(card);
+  return (
+    <Menu
+      open={open}
+      onOpenChange={setOpen}
+      label={label}
+      className="ui-menu-root sys-menu avatar-header-menu avatar-face-root"
+      trigger={(t) => (
+        <button
+          type="button"
+          className="avatar-face"
+          {...t}
+          aria-label={label}
+          title={label}
+          data-following={card.following || undefined}
+          style={colorStyle(card.colorIndex)}
+        >
+          <PersonAvatar
+            person={{ name: card.name, colorIndex: card.colorIndex }}
+            size={24}
+            drawn
+          />
+          {card.badge ? (
+            <span className="avatar-face-badge" aria-hidden="true">
+              <SystemIcon name={stageIcon(card.badge)} size={12} />
+            </span>
+          ) : null}
+        </button>
+      )}
+    >
+      <PersonRows {...handlers} card={card} onSelect={() => setOpen(false)} />
+    </Menu>
+  );
+}
+
+function MoreFaces({
+  cards,
+  handlers,
+  className,
+}: {
+  cards: readonly PersonCard[];
+  handlers: Handlers;
+  className: string;
+}) {
+  const [open, setOpen] = useState(false);
+  if (cards.length === 0) return null;
+  return (
+    <Menu
+      open={open}
+      onOpenChange={setOpen}
+      label="More people"
+      className={`ui-menu-root sys-menu avatar-header-menu ${className}`}
+      trigger={(t) => (
+        <button
+          type="button"
+          className="avatar-more"
+          {...t}
+          aria-label={overflowLabel(cards.length)}
+          title={overflowLabel(cards.length)}
+          data-count={cards.length}
+        />
+      )}
+    >
+      {cards.map((card) => (
+        <div
+          key={card.id}
+          className="avatar-card"
+          role="group"
+          aria-label={cardLabel(card)}
+        >
+          <PersonRows
+            {...handlers}
+            card={card}
+            onSelect={() => setOpen(false)}
+          />
+        </div>
+      ))}
+    </Menu>
+  );
+}
+
+function FollowingPill({
+  card,
+  onUnfollow,
+}: {
+  card: PersonCard;
+  onUnfollow: () => void;
+}) {
+  return (
+    <span className="avatar-follow" style={colorStyle(card.colorIndex)}>
+      <Pill className="avatar-follow-pill">
+        <SystemIcon name="locate-fixed" size={12} />
+        <span className="avatar-follow-text">Following {card.name}</span>
+        <button
+          type="button"
+          className="sys-pill-x avatar-follow-x"
+          aria-label={`Stop following ${card.name}`}
+          title="Stop following"
+          onClick={onUnfollow}
+        >
+          <SystemIcon name="x" size={12} />
+        </button>
+      </Pill>
+    </span>
+  );
+}
+
+function FollowersBadge({
+  self,
+  names,
+}: {
+  self: SessionClient;
+  names: ReadonlyMap<string, string>;
+}) {
+  return (
+    <span
+      className="avatar-stack-followers"
+      role="img"
+      aria-label={`${self.followers} following you`}
+    >
+      <span aria-hidden>
+        <Avatar
+          name={names.get(self.client_id) ?? rosterDisplayName(self)}
+          colorIndex={self.meta?.color_index}
+          sessionRole={self.role}
+          ring="dashed"
+          badge={self.followers}
+        />
+      </span>
+    </span>
   );
 }
 
 type Props = {
   /**
-   * `inline`: the status bar's avatars. `menu`: a People section inside a menu
-   * that is already open. `popup`: its own menu behind a People button.
-   * `header`: the App header's people slot, avatars as one button that opens the
-   * Follow menu; the phone shows one avatar and a count.
+   * `menu`: a People section inside a menu that is already open. `header`:
+   * the App header's people slot, up to three faces that each open their own
+   * menu (Follow, Go to), a count for the rest and the Following pill; the
+   * phone shows one face and a count.
    */
-  variant?: "inline" | "menu" | "popup" | "header";
-  /** Class for the `popup` variant's button, so the host row can style it. */
-  triggerClassName?: string;
+  variant?: "menu" | "header";
   others: readonly SessionClient[];
   self?: SessionClient;
   names: ReadonlyMap<string, string>;
   followingClientId: string | null;
   onFollow: (id: string) => void;
+  onUnfollow?: () => void;
+  onGoTo?: (id: string) => void;
+  /** The viewer's own stage and link, so a face can show where someone is and offer Go to. */
+  viewer?: PresenceViewer;
 };
 
-/** Props-only avatar stack, shared by the desktop status bar and the People menu. */
+/** Props-only people control: the header's faces and Following pill, and the People rows of a menu. */
 export function AvatarStackView({
-  variant = "inline",
-  triggerClassName,
+  variant = "header",
   others,
   self,
   names,
   followingClientId,
   onFollow,
+  onUnfollow,
+  onGoTo,
+  viewer,
 }: Props) {
-  const [moreOpen, setMoreOpen] = useState(false);
-
-  if (variant === "header") {
-    if (others.length === 0 && (self?.followers ?? 0) === 0) {
-      return null;
-    }
-    const shownOthers = others.slice(0, 3);
-    return (
-      <div className="avatar-header">
-        {others.length > 0 ? (
-          <Menu
-            open={moreOpen}
-            onOpenChange={setMoreOpen}
-            label="People"
-            className="ui-menu-root sys-menu avatar-header-menu"
-            trigger={(t) => (
-              <button
-                type="button"
-                className="avatar-header-trigger"
-                {...t}
-                aria-label={`People here, ${others.length}. Follow someone`}
-                title="People here"
-              >
-                <span className="avatar-header-faces" aria-hidden="true">
-                  {shownOthers.map((c) => (
-                    <Avatar
-                      key={c.client_id}
-                      name={names.get(c.client_id) ?? rosterDisplayName(c)}
-                      colorIndex={c.meta?.color_index}
-                      sessionRole={c.role}
-                      size="sm"
-                      decorative
-                      ring={
-                        followingClientId === c.client_id ? "solid" : "none"
-                      }
-                    />
-                  ))}
-                </span>
-                {others.length > 3 ? (
-                  <span
-                    className="avatar-header-extra"
-                    aria-hidden="true"
-                    data-count={others.length - 3}
-                  />
-                ) : null}
-                {others.length > 1 ? (
-                  <span
-                    className="avatar-header-phone-count"
-                    aria-hidden="true"
-                    data-count={others.length - 1}
-                  />
-                ) : null}
-              </button>
-            )}
-          >
-            <PeopleList
-              others={others}
-              names={names}
-              followingClientId={followingClientId}
-              onFollow={onFollow}
-              onSelect={() => setMoreOpen(false)}
-            />
-          </Menu>
-        ) : null}
-        {self && (self.followers ?? 0) > 0 ? (
-          <span
-            className="avatar-stack-followers"
-            role="img"
-            aria-label={`${self.followers} following you`}
-          >
-            <span aria-hidden>
-              <Avatar
-                name={names.get(self.client_id) ?? rosterDisplayName(self)}
-                colorIndex={self.meta?.color_index}
-                sessionRole={self.role}
-                ring="dashed"
-                badge={self.followers}
-              />
-            </span>
-          </span>
-        ) : null}
-      </div>
-    );
-  }
-
-  if (variant === "popup") {
-    if (others.length === 0) {
-      return null;
-    }
-    return (
-      <Menu
-        open={moreOpen}
-        onOpenChange={setMoreOpen}
-        label="People"
-        trigger={(t) => (
-          <button
-            type="button"
-            className={triggerClassName ?? "ui-control"}
-            {...t}
-          >
-            People · {others.length}
-          </button>
-        )}
-      >
-        <PeopleList
-          others={others}
-          names={names}
-          followingClientId={followingClientId}
-          onFollow={onFollow}
-          onSelect={() => setMoreOpen(false)}
-        />
-      </Menu>
-    );
-  }
+  const cards = others.map((c) =>
+    personCard(c, names, viewer, followingClientId),
+  );
 
   if (variant === "menu") {
-    if (others.length === 0) {
+    if (cards.length === 0) {
       return null;
     }
     return (
       <MenuSection label="People">
-        <PeopleList
-          others={others}
-          names={names}
-          followingClientId={followingClientId}
-          onFollow={onFollow}
-        />
+        {cards.map((card) => (
+          <Fragment key={card.id}>
+            <MenuItem onSelect={() => onFollow(card.id)}>
+              <Avatar
+                name={card.name}
+                colorIndex={card.colorIndex}
+                sessionRole={card.agent ? "agent" : undefined}
+                size="sm"
+              />{" "}
+              {card.name}
+              {card.following ? " · Following" : " · Follow"}
+            </MenuItem>
+            {card.goTo && onGoTo ? (
+              <MenuItem onSelect={() => onGoTo(card.id)}>
+                Go to {card.name}
+              </MenuItem>
+            ) : null}
+          </Fragment>
+        ))}
       </MenuSection>
     );
   }
 
-  if (others.length === 0 && (self?.followers ?? 0) === 0) {
+  if (cards.length === 0 && (self?.followers ?? 0) === 0) {
     return null;
   }
-
-  const shown = others.slice(0, 3);
-  const overflow = others.slice(3);
-
+  const handlers: Handlers = { onFollow, onGoTo };
+  const followed = cards.find((card) => card.following);
   return (
-    <div className="avatar-stack" role="group" aria-label="People in session">
-      {shown.map((c) => {
-        const name = names.get(c.client_id) ?? rosterDisplayName(c);
-        const followLabel =
-          followingClientId === c.client_id
-            ? `Stop following ${name}`
-            : `Follow ${name}`;
-        return (
-          <button
-            key={c.client_id}
-            type="button"
-            className="ui-control avatar-stack-btn"
-            aria-pressed={followingClientId === c.client_id}
-            aria-label={followLabel}
-            title={followLabel}
-            onClick={() => onFollow(c.client_id)}
-          >
-            <Avatar
-              name={name}
-              colorIndex={c.meta?.color_index}
-              sessionRole={c.role}
-              ring={followingClientId === c.client_id ? "solid" : "none"}
-            />
-          </button>
-        );
-      })}
-      {overflow.length > 0 ? (
-        <Menu
-          open={moreOpen}
-          onOpenChange={setMoreOpen}
-          label="More people"
-          trigger={(t) => (
-            <button
-              type="button"
-              className="ui-control avatar-stack-more"
-              {...t}
-              aria-label={overflowLabel(overflow.length)}
-            >
-              +{overflow.length}
-            </button>
-          )}
-        >
-          <PeopleList
-            others={others}
-            names={names}
-            followingClientId={followingClientId}
-            onFollow={onFollow}
-            onSelect={() => setMoreOpen(false)}
+    <div className="avatar-header">
+      {cards.length > 0 ? (
+        <div className="avatar-faces" role="group" aria-label="People here">
+          {cards.slice(0, 3).map((card) => (
+            <PersonFace key={card.id} card={card} handlers={handlers} />
+          ))}
+          <MoreFaces
+            cards={cards.slice(3)}
+            handlers={handlers}
+            className="avatar-more-root"
           />
-        </Menu>
+          <MoreFaces
+            cards={cards.slice(1)}
+            handlers={handlers}
+            className="avatar-phone-root"
+          />
+        </div>
+      ) : null}
+      {followed ? (
+        <FollowingPill
+          card={followed}
+          onUnfollow={onUnfollow ?? (() => onFollow(followed.id))}
+        />
       ) : null}
       {self && (self.followers ?? 0) > 0 ? (
-        <span
-          className="avatar-stack-followers"
-          role="img"
-          aria-label={`${self.followers} following you`}
-        >
-          <span aria-hidden>
-            <Avatar
-              name={names.get(self.client_id) ?? rosterDisplayName(self)}
-              colorIndex={self.meta?.color_index}
-              sessionRole={self.role}
-              ring="dashed"
-              badge={self.followers}
-            />
-          </span>
-        </span>
+        <FollowersBadge self={self} names={names} />
       ) : null}
     </div>
   );
