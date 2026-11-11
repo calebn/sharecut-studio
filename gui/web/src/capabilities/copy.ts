@@ -682,6 +682,7 @@ export const GUI_SURFACE_TO_CAPABILITY: Record<string, string> = {
   "timeline.clip.joinDiamond": "daw.edit.rollClipJoin",
   "transcript.seam": "daw.edit.rollClipJoin",
   "timeline.clip.fadeHandle": "daw.edit.setClipFade",
+  "inspector.clip.gain": "daw.edit.setClipGain",
   "inspector.clip.joinType": "daw.edit.setClipJoin",
 };
 

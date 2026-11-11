@@ -1,6 +1,12 @@
-import { act, fireEvent, render, screen } from "@testing-library/react";
+import {
+  act,
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+} from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { setClipFade, setClipsFade } from "../../api";
+import { setClipFade, setClipsFade, setClipsGain } from "../../api";
 import { useDawStore } from "../../state/dawStore";
 import { minimalProject, sampleTrack } from "../../test/fixtures";
 import type { ClipRow } from "../../types/project";
@@ -11,6 +17,7 @@ vi.mock("../../api", async (importOriginal) => ({
   ...(await importOriginal<typeof import("../../api")>()),
   setClipFade: vi.fn(async () => null),
   setClipsFade: vi.fn(async () => null),
+  setClipsGain: vi.fn(async () => null),
 }));
 
 const first: ClipRow = {
@@ -76,10 +83,11 @@ const baseline = (clip: ClipRow) => ({
 beforeEach(() => {
   vi.mocked(setClipFade).mockClear();
   vi.mocked(setClipsFade).mockReset().mockResolvedValue(null);
+  vi.mocked(setClipsGain).mockReset().mockResolvedValue(null);
 });
 
 describe("several clips", () => {
-  it("heads the form by the clip count and lists only the fades", () => {
+  it("heads the form by the clip count and lists the fades and the gain", () => {
     open();
     expect(
       inspectorHeading(
@@ -90,6 +98,7 @@ describe("several clips", () => {
     expect(screen.getAllByRole("spinbutton").map((f) => f.ariaLabel)).toEqual([
       "Fade in",
       "Fade out",
+      "Gain",
     ]);
   });
 
@@ -206,5 +215,100 @@ describe("several clips", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent(
       "This clip changed.",
     );
+  });
+});
+
+describe("several clips: gain", () => {
+  const gainField = () => screen.getByRole("spinbutton", { name: "Gain" });
+
+  it("shows the common gain, treating an absent gain as 0 dB", () => {
+    open([first, second]);
+    expect(gainField()).toHaveAttribute("aria-valuetext", "0.0 dB");
+    cleanup();
+    open([
+      { ...first, gain_db: -4 },
+      { ...second, gain_db: -4 },
+    ]);
+    expect(gainField()).toHaveAttribute("aria-valuetext", "\u22124.0 dB");
+  });
+
+  it("shows Mixed when the gains differ", () => {
+    open([{ ...first, gain_db: 3 }, second]);
+    expect(gainField()).toHaveAttribute("aria-valuetext", "Mixed");
+  });
+
+  it("sets every clip to the typed value in one command with each baseline", async () => {
+    open([
+      { ...first, gain_db: 3 },
+      { ...second, gain_db: -5 },
+    ]);
+    await type("Gain", "-2");
+    expect(setClipsGain).toHaveBeenCalledTimes(1);
+    expect(setClipsGain).toHaveBeenCalledWith("/tmp/ep.json", [
+      { clip_id: "c1", gain_db: -2, expected: { gain_db: 3 } },
+      { clip_id: "c2", gain_db: -2, expected: { gain_db: -5 } },
+    ]);
+    expect(setClipFade).not.toHaveBeenCalled();
+    expect(setClipsFade).not.toHaveBeenCalled();
+  });
+
+  it("leaves out a clip that already has the typed value", async () => {
+    open([{ ...first, gain_db: 3 }, second]);
+    await type("Gain", "3");
+    expect(setClipsGain).toHaveBeenCalledWith("/tmp/ep.json", [
+      { clip_id: "c2", gain_db: 3, expected: { gain_db: 0 } },
+    ]);
+  });
+
+  it("sends nothing when every clip already has the typed value", async () => {
+    open([
+      { ...first, gain_db: 2 },
+      { ...second, gain_db: 2 },
+    ]);
+    await key("Gain", "Enter");
+    fireEvent.keyDown(screen.getByRole("textbox", { name: "Gain" }), {
+      key: "Escape",
+    });
+    expect(setClipsGain).not.toHaveBeenCalled();
+  });
+
+  it("steps from the common value", async () => {
+    open([
+      { ...first, gain_db: 2 },
+      { ...second, gain_db: 2 },
+    ]);
+    await key("Gain", "ArrowUp");
+    expect(setClipsGain).toHaveBeenCalledWith("/tmp/ep.json", [
+      { clip_id: "c1", gain_db: 2.5, expected: { gain_db: 2 } },
+      { clip_id: "c2", gain_db: 2.5, expected: { gain_db: 2 } },
+    ]);
+  });
+
+  it("resets every clip to 0 dB, including from Mixed", async () => {
+    open([
+      { ...first, gain_db: 3 },
+      { ...second, gain_db: -5 },
+    ]);
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: /Reset Gain to 0/ }));
+    });
+    expect(setClipsGain).toHaveBeenCalledWith("/tmp/ep.json", [
+      { clip_id: "c1", gain_db: 0, expected: { gain_db: 3 } },
+      { clip_id: "c2", gain_db: 0, expected: { gain_db: -5 } },
+    ]);
+  });
+
+  it("is read-only while locked", async () => {
+    open();
+    act(() => {
+      useDawStore.setState({
+        projectPath: "share:ep",
+        guestMode: "viewer",
+        shareCapabilities: ["view"],
+      });
+    });
+    expect(gainField()).toHaveAttribute("aria-readonly", "true");
+    await key("Gain", "ArrowUp");
+    expect(setClipsGain).not.toHaveBeenCalled();
   });
 });

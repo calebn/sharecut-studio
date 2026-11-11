@@ -521,7 +521,7 @@ export function ScrubField({
   const shown = value === null ? emptyText : formatScrub(value, decimals);
   const showReset =
     !readOnly &&
-    value !== null &&
+    (value !== null || variant === "level") &&
     defaultValue !== undefined &&
     value !== defaultValue;
   const editingContents = (
@@ -638,7 +638,7 @@ export function ScrubField({
                 event.preventDefault();
             }}
             onClick={() => {
-              if (variant === "level") commitLevelDefault();
+              if (variant === "level" && value !== null) commitLevelDefault();
               else onCommit(defaultValue);
               box.current?.focus();
             }}

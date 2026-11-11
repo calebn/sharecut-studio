@@ -240,3 +240,56 @@ export const MultiClip: Story = {
     ).toBeNull();
   },
 };
+
+const gainedClips = joinedClips.map((c) =>
+  c.id === "clip-mira-a" ? { ...c, gain_db: -6 } : c,
+);
+const gained = episode();
+gained.clips = {
+  tracks: { ...gained.clips.tracks, [MIRA]: gainedClips },
+  clip_count: gainedClips.length + 1,
+};
+gained.edit_boundaries = editBoundaries(gainedClips);
+const gainedSelection: Selection = {
+  kind: "clip",
+  id: "clip-mira-a",
+  trackId: MIRA,
+};
+
+export const Gain: Story = {
+  render: () => <ClipCard selection={gainedSelection} />,
+  parameters: {
+    episode: { project: gained, role: "editor", selection: gainedSelection },
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const gain = await canvas.findByRole("spinbutton", { name: "Gain" });
+    await expect(gain).toHaveAttribute("aria-valuenow", "-6");
+    await expect(gain).toHaveAttribute("aria-valuemin", "-60");
+    await expect(gain).toHaveAttribute("aria-valuemax", "12");
+  },
+};
+
+export const GainReadOnly: Story = {
+  render: () => <ClipCard selection={gainedSelection} />,
+  parameters: {
+    episode: { project: gained, role: "viewer", selection: gainedSelection },
+  },
+  play: async ({ canvasElement }) => {
+    await expect(
+      await within(canvasElement).findByRole("spinbutton", { name: "Gain" }),
+    ).toHaveAttribute("aria-readonly", "true");
+  },
+};
+
+export const GainMixed: Story = {
+  render: () => <ClipCard selection={multiSelection} />,
+  parameters: {
+    episode: { project: gained, role: "editor", selection: multiSelection },
+  },
+  play: async ({ canvasElement }) => {
+    await expect(
+      await within(canvasElement).findByRole("spinbutton", { name: "Gain" }),
+    ).toHaveAttribute("aria-valuetext", "Mixed");
+  },
+};
