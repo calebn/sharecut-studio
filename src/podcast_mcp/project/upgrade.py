@@ -10,11 +10,12 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from podcast_mcp.models import load_project
+from podcast_mcp.models import EpisodeProject, load_project
 from podcast_mcp.models.episode import EPISODE_PROJECT_FILENAME
 from podcast_mcp.models.project_format import SUPPORTED_PROJECT_VERSION
 from podcast_mcp.util.atomic_json import write_text_atomic
 from podcast_mcp.util.coded_error import CodedValueError
+from podcast_mcp.util.project_state import project_commit_lock
 
 Step = Callable[[dict[str, Any]], None]
 
@@ -54,7 +55,28 @@ def upgrade_workspace(project_file: Path, output_dir: Path) -> UpgradeResult:
             "--output must be a new directory outside the source workspace",
             code="upgrade_output_invalid",
         )
-    data = _read_document(project_file)
+    target.parent.mkdir(parents=True, exist_ok=True)
+    staging = target.parent / f".{target.name}.upgrading-{uuid.uuid4().hex[:8]}"
+    lock_key = EpisodeProject.create(source_dir.name, str(source_dir))
+    try:
+        with project_commit_lock(lock_key):
+            data = _read_document(project_file)
+            from_version = _upgrade_document(data, project_file)
+            shutil.copytree(source_dir, staging, symlinks=True, ignore=_skip_lock_files)
+        write_text_atomic(
+            staging / EPISODE_PROJECT_FILENAME,
+            json.dumps(data, indent=2, ensure_ascii=False),
+            creation_mode=0o666,
+        )
+        load_project(staging / EPISODE_PROJECT_FILENAME)
+        staging.rename(target)
+    except BaseException:
+        shutil.rmtree(staging, ignore_errors=True)
+        raise
+    return UpgradeResult(target / EPISODE_PROJECT_FILENAME, from_version, SUPPORTED_PROJECT_VERSION)
+
+
+def _upgrade_document(data: dict[str, Any], project_file: Path) -> str:
     from_version = str(data.get("version"))
     version = from_version
     if version == SUPPORTED_PROJECT_VERSION:
@@ -71,21 +93,11 @@ def upgrade_workspace(project_file: Path, output_dir: Path) -> UpgradeResult:
         version, step = STEPS[version]
         step(data)
         data["version"] = version
-    target.parent.mkdir(parents=True, exist_ok=True)
-    staging = target.parent / f".{target.name}.upgrading-{uuid.uuid4().hex[:8]}"
-    try:
-        shutil.copytree(source_dir, staging, symlinks=True)
-        write_text_atomic(
-            staging / EPISODE_PROJECT_FILENAME,
-            json.dumps(data, indent=2, ensure_ascii=False),
-            creation_mode=0o666,
-        )
-        load_project(staging / EPISODE_PROJECT_FILENAME)
-        staging.rename(target)
-    except BaseException:
-        shutil.rmtree(staging, ignore_errors=True)
-        raise
-    return UpgradeResult(target / EPISODE_PROJECT_FILENAME, from_version, SUPPORTED_PROJECT_VERSION)
+    return from_version
+
+
+def _skip_lock_files(directory: str, names: list[str]) -> list[str]:
+    return [name for name in names if name.endswith(".lock") and Path(directory).name == "artifacts"]
 
 
 def _read_document(path: Path) -> dict[str, Any]:

@@ -284,11 +284,13 @@ def assert_workspace(path: Path) -> None:
             assert_cursor()
 
 
-def inventory(directory: Path) -> dict[str, str]:
+def inventory(directory: Path, *, ignore_locks: bool = False) -> dict[str, str]:
     require(not directory.is_symlink(), f"Corpus directory is a symlink: {directory}")
     files = {}
     for path in sorted(directory.rglob("*")):
         require(not path.is_symlink(), f"Corpus path is a symlink: {path}")
+        if ignore_locks and path.suffix == ".lock":
+            continue
         if path.is_file():
             files[path.relative_to(directory).as_posix()] = hashlib.sha256(
                 path.read_bytes()
@@ -424,7 +426,9 @@ def assert_upgrade(directory: Path) -> None:
             result.returncode == 0,
             f"Released fixture requires executable episode upgrade CLI: {result.stderr}",
         )
-        require(inventory(source) == before, "Upgrade modified the source fixture")
+        require(
+            inventory(source, ignore_locks=True) == before, "Upgrade modified the source fixture"
+        )
         require(output.is_file(), "Upgrade CLI produced no output project")
         assert_workspace(output)
         old_history = read_json(source / "history/index.json")

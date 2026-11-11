@@ -74,7 +74,7 @@ def test_the_cli_upgrades_a_2_0_workspace_and_leaves_the_source_alone(tmp_path: 
         "from_version": "2.0",
         "to_version": "2.1",
     }
-    assert compat.inventory(source) == before
+    assert compat.inventory(source, ignore_locks=True) == before
 
     upgraded = load_project(output / PROJECT)
     current = load_project(DEVELOPMENT / PROJECT)
@@ -94,13 +94,51 @@ def test_the_guard_accepts_the_upgrade_for_an_unsupported_released_fixture(tmp_p
     compat.assert_upgrade(synthetic_old(tmp_path))
 
 
-def test_an_upgraded_workspace_keeps_a_user_value_free_format(tmp_path: Path) -> None:
+def test_an_upgrade_rewrites_the_version_and_adds_no_value(tmp_path: Path) -> None:
     source = synthetic_old(tmp_path)
     output = tmp_path / "out"
     upgrade_workspace(source / PROJECT, output)
-    upgraded = load_project(output / PROJECT)
-    upgraded.timeline.join_fade_max_ms = 80
+    written = json.loads((output / PROJECT).read_text(encoding="utf-8"))
+    assert written["version"] == "2.1"
+    assert "join_fade_max_ms" not in written["timeline"]
+    assert json.loads((source / PROJECT).read_text(encoding="utf-8"))["version"] == "2.0"
     assert load_project(output / PROJECT).timeline.join_fade_max_ms is None
+
+
+def test_the_source_is_read_and_copied_under_the_project_commit_lock(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from contextlib import contextmanager
+
+    from podcast_mcp.project import upgrade
+
+    source = synthetic_old(tmp_path)
+    events: list[str] = []
+
+    @contextmanager
+    def lock(_project):
+        events.append("lock")
+        yield
+        events.append("unlock")
+
+    read, copy = upgrade._read_document, upgrade.shutil.copytree
+
+    def spy_read(path):
+        events.append("read")
+        return read(path)
+
+    def spy_copy(*args, **kwargs):
+        events.append("copy")
+        return copy(*args, **kwargs)
+
+    monkeypatch.setattr(upgrade, "project_commit_lock", lock)
+    monkeypatch.setattr(upgrade, "_read_document", spy_read)
+    monkeypatch.setattr(upgrade.shutil, "copytree", spy_copy)
+    upgrade_workspace(source / PROJECT, tmp_path / "out")
+    assert events[:2] == ["lock", "read"]
+    assert events[-1] == "unlock"
+    assert set(events[2:-1]) == {"copy"}
+    assert not list((tmp_path / "out").rglob("*.lock"))
 
 
 @pytest.mark.parametrize(
