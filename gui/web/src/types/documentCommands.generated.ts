@@ -63,7 +63,7 @@ export type DocumentCommandType =
   | "SetEffectBypass"
   | "SetEnvelope"
   | "SetFeedField"
-  | "SetJoinFadeDefault"
+  | "SetJoinFadeLimit"
   | "SetJoinMode"
   | "SetRecordSessionName"
   | "SetTrackFader"
@@ -158,7 +158,7 @@ export const DocumentCommand = {
   SetEffectBypass: "SetEffectBypass",
   SetEnvelope: "SetEnvelope",
   SetFeedField: "SetFeedField",
-  SetJoinFadeDefault: "SetJoinFadeDefault",
+  SetJoinFadeLimit: "SetJoinFadeLimit",
   SetJoinMode: "SetJoinMode",
   SetRecordSessionName: "SetRecordSessionName",
   SetTrackFader: "SetTrackFader",

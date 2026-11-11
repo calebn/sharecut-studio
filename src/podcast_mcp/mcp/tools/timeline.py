@@ -228,7 +228,16 @@ def fade_joins_tool(
     fade_ms: int | None = None,
     dry_run: bool = False,
 ) -> str:
-    """Add fades at edit joins on a track; dry_run previews without applying."""
+    """Add fades at edit joins on a track; dry_run previews without applying.
+
+    Without ``fade_ms`` each join gets its own recommended fade, up to the episode's Longest
+    automatic join fade (``set_join_fade_limit_tool``), so joins can differ and come out
+    shorter than the limit. With ``fade_ms`` every join gets that length, still held to the
+    limit. The result reports ``fade_ms`` (the length applied; the longest, when joins differ),
+    ``requested_fade_ms``, ``cap_ms`` (the limit in force) and ``kept_longer_joins`` (joins
+    that keep a longer fade already there). Fades you set yourself with ``set_clip_fade_tool``
+    can be longer.
+    """
     if dry_run:
         ws = ProjectWorkspace.open(project_path)
         return to_json(
@@ -310,8 +319,8 @@ def set_clip_fade_tool(
     """Set the fade-in and fade-out duration of a single clip, and optionally their shapes.
 
     A fade you set is bounded only by the clip: each fade fits in the clip, and fade-out is
-    limited to what fade-in leaves. ``render.join_fade_max_ms`` and the episode's Default join
-    fade length (``set_join_fade_default_tool``) limit only the fades ShareCut adds by itself.
+    limited to what fade-in leaves. ``render.join_fade_max_ms`` and the episode's Longest automatic
+    join fade (``set_join_fade_limit_tool``) limit only the fades ShareCut picks by itself.
     The result reports the applied ``fade_in_ms`` / ``fade_out_ms`` and ``clamped``. A curve is ``linear`` (the default),
     ``equal_power`` or ``s``; left out, the clip keeps its current curve. A curve applies to a
     fade that is not at a cut or blended join. ``list_clips_tool`` names a curve only while it
@@ -347,7 +356,7 @@ def set_clips_fade_tool(
     """Add a delta (ms, negative shortens) to the fade-in and fade-out of several clips at once.
 
     One undo step covers every clip. Each clip is bounded by its own length like
-    ``set_clip_fade_tool``, not by the Default join fade length. A curve (``linear``,
+    ``set_clip_fade_tool``, not by the Longest automatic join fade. A curve (``linear``,
     ``equal_power`` or ``s``) is set on every named clip; left out, each clip keeps its own. A clip changed since it was read returns ``clip_fade_changed`` and no clip changes.
     """
     ws = ProjectWorkspace.open(project_path)
@@ -398,16 +407,18 @@ def set_clip_gain_tool(project_path: str, clip_id: str, gain_db: float) -> str:
     )
 
 
-def set_join_fade_default_tool(project_path: str, ms: int | None) -> str:
-    """Set the episode's Default join fade length in ms (0 to 200); null returns to the app default (40).
+def set_join_fade_limit_tool(project_path: str, ms: int | None) -> str:
+    """Set the episode's Longest automatic join fade in ms (default 40, 0 to 200); null returns to the app default.
 
-    It is the longest fade the automatic join writers add: ``fade_joins_tool``, Smooth all joins
-    (``apply_fade_recommendations_tool``) and approve-time fades. Fades set by hand with
-    ``set_clip_fade_tool``, ``set_clips_fade_tool`` or ``set_clip_join_tool`` are never capped by
-    it, and no existing fade changes. Saved in the episode file and undoable; it makes no stem
-    stale. ``list_clips_tool`` reports the value in force as ``join_fade_default_ms``.
+    This is a limit, not an applied length: ShareCut picks each join's fade itself
+    (``fade_joins_tool``, Smooth all joins via ``apply_fade_recommendations_tool``, approve-time
+    fades) and never goes above it, so joins can come out shorter (a limit of 120 may give 77 ms).
+    To give joins an exact length use ``fade_joins_tool`` with ``fade_ms`` (also held to the
+    limit, so raise it first for longer joins). Fades set by hand with ``set_clip_fade_tool``,
+    ``set_clips_fade_tool`` or ``set_clip_join_tool`` can be longer, and no existing fade changes. Saved in the episode file and undoable; it makes no stem
+    stale. ``list_clips_tool`` reports the value in force as ``join_fade_limit_ms``.
     """
-    return to_json(submit_host_command_result(project_path, "SetJoinFadeDefault", {"ms": ms}))
+    return to_json(submit_host_command_result(project_path, "SetJoinFadeLimit", {"ms": ms}))
 
 
 def set_clips_gain_tool(project_path: str, clip_ids: list[str], gain_db: float) -> str:
@@ -1110,7 +1121,7 @@ def register(mcp: MCPServer) -> None:
         set_clips_fade_tool,
         set_clip_gain_tool,
         set_clips_gain_tool,
-        set_join_fade_default_tool,
+        set_join_fade_limit_tool,
         set_join_mode_tool,
         set_clip_join_tool,
         trim_clip_edge_tool,

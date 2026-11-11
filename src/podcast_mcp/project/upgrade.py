@@ -20,11 +20,11 @@ from podcast_mcp.util.project_state import project_commit_lock
 Step = Callable[[dict[str, Any]], None]
 
 
-def _add_timeline_join_fade_default(data: dict[str, Any]) -> None:
+def _add_timeline_join_fade_limit(data: dict[str, Any]) -> None:
     """2.0 to 2.1: ``timeline.join_fade_max_ms`` is new and absent means the app default."""
 
 
-STEPS: dict[str, tuple[str, Step]] = {"2.0": ("2.1", _add_timeline_join_fade_default)}
+STEPS: dict[str, tuple[str, Step]] = {"2.0": ("2.1", _add_timeline_join_fade_limit)}
 
 
 @dataclass(frozen=True)
