@@ -91,6 +91,9 @@ class _Plane:
         return event
 
 
+_STOP_JOIN_SEC = 1.0
+
+
 class CrossProcessWatcher:
     """Polls one workspace's two journals on a daemon thread until ``stop``."""
 
@@ -253,7 +256,8 @@ class CrossProcessBridge:
         if entry is None:
             return
         entry.watcher.stop()
-        entry.watcher.join()
+        # A tick may be waiting on a lock the caller holds; give up the wait rather than deadlock.
+        entry.watcher.join(timeout=_STOP_JOIN_SEC)
         entry.cache_pin.release()
 
     def watching(self, key: str) -> bool:
