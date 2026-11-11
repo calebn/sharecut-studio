@@ -545,6 +545,40 @@ describe("ActionBar dock with a split item", () => {
     expect(screen.queryByRole("dialog")).toBeNull();
   });
 
+  it("keeps the open options sheet in step with the bar", async () => {
+    const splitWith = (label: string): BarItem => ({
+      id: "export",
+      split: {
+        label: "Export options",
+        content: <button type="button">{label}</button>,
+      },
+    });
+    const bar = (label: string) => (
+      <ActionBar
+        placement={{ form: "dock" }}
+        items={[{ id: "hear" }, splitWith(label), { id: "more" }]}
+        more={itemsOf(["copy"])}
+        onVerb={vi.fn()}
+      />
+    );
+    const { rerender } = render(bar("Also MP3 off"));
+    await userEvent.click(screen.getByRole("button", { name: "More" }));
+    await userEvent.click(
+      screen.getByRole("menuitem", { name: "Export options" }),
+    );
+    const sheet = await screen.findByRole("dialog", { name: "Export options" });
+    expect(
+      within(sheet).getByRole("button", { name: "Also MP3 off" }),
+    ).toBeVisible();
+    rerender(bar("Also MP3 on"));
+    expect(
+      within(screen.getByRole("dialog", { name: "Export options" })).getByRole(
+        "button",
+        { name: "Also MP3 on" },
+      ),
+    ).toBeVisible();
+  });
+
   it("lists both rows when the fold took the verb into More", async () => {
     render(
       <ActionBar
