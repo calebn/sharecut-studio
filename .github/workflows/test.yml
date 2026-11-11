@@ -508,10 +508,6 @@ jobs:
       - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
-          cache: pip
-          cache-dependency-path: |
-            pyproject.toml
-            uv.lock
 
       - name: Install FFmpeg
         uses: ./.github/actions/setup-ffmpeg
