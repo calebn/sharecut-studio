@@ -1,6 +1,6 @@
 # Speaker attribution
 
-Optional FOSS speaker embedding for standalone recognition and same-room bleed cleanup.
+Recommended FOSS speaker embedding for standalone recognition and same-room bleed cleanup.
 
 Bleed reconcile tags words by **RMS dominance** (which mic is louder). Same-room recording often needs **speaker identity** (whose voice is this?) via enrolled ECAPA profiles. This is verification, not unsupervised diarization.
 
