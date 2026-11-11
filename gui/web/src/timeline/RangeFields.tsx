@@ -81,7 +81,7 @@ export function RangeFields({
   const scope =
     target?.track_ids ??
     (drafting
-      ? rangeDraft.trackIds
+      ? chosenScope(project, rangeDraft.trackIds)
       : chosenScope(project, state.agentRangeScope));
   const editable = showNumeric && span !== null && (always || drafting);
   const agent = showNumeric && sessionRegion && (rangeArmed || !target);

@@ -393,6 +393,11 @@ describe("range fields", () => {
       render(<RangeFields sheet />);
       expect(screen.getByText(SCOPE_HINT)).toBeVisible();
     });
+    it("keeps the hint when the draft's only track was removed", () => {
+      arm({ start: 1, end: 3, trackIds: ["gone"] });
+      render(<RangeFields sheet />);
+      expect(screen.getByText(SCOPE_HINT)).toBeVisible();
+    });
     it("shows no hint while the draft has a track", () => {
       arm();
       render(<RangeFields sheet />);
