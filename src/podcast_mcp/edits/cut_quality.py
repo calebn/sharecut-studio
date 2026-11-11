@@ -176,19 +176,26 @@ def post_pad_fade_in_bounds_ms(defaults: EffectiveConfig) -> tuple[int, int]:
     return (max_ms, min_ms) if max_ms < min_ms else (min_ms, max_ms)
 
 
-def fade_reach_sec(project: EpisodeProject, edit: EditDecision, defaults: EffectiveConfig) -> float:
+def fade_reach_sec(
+    project: EpisodeProject,
+    edit: EditDecision,
+    defaults: EffectiveConfig,
+    *,
+    slack_sec: float = JOIN_GAP_TOLERANCE_SEC,
+) -> float:
     """The longest fade that can reach past a cut.
 
-    A clip's own fade counts only when that clip is on the edit's track and its edge lies
-    within the cut's tolerance of the edit, so one long fade elsewhere never widens it.
+    A clip's own fade counts only when that clip is on the edit's track and its ramp reaches
+    the edit: an edge at the cut, or a ramp that runs toward the cut and ends within
+    ``slack_sec`` of it. One long fade elsewhere never widens the reach.
     """
     base_ms = max(
         edit.crossfade_ms,
         post_pad_fade_in_bounds_ms(defaults)[1],
         int(_tighten_cfg(defaults).get("filler_pre_pad_fade_out_ms", 5)),
     )
-    near = max(base_ms / 1000.0, JOIN_GAP_TOLERANCE_SEC)
-    lo, hi = edit.start - near, edit.end + near
+    slack = max(base_ms / 1000.0, slack_sec)
+    lo, hi = edit.start, edit.end
     on_timeline = edit.timebase == "timeline"
     clip_ms = 0
     for c in project.clips:
@@ -197,9 +204,10 @@ def fade_reach_sec(project: EpisodeProject, edit: EditDecision, defaults: Effect
         head, tail = (
             (c.timeline_start, c.timeline_end) if on_timeline else (c.source_start, c.source_end)
         )
-        if lo <= head <= hi:
+        fade_in, fade_out = c.fade_in_ms / 1000.0, c.fade_out_ms / 1000.0
+        if lo - slack <= head <= hi + slack or (lo - head <= fade_in + slack and head < lo):
             clip_ms = max(clip_ms, c.fade_in_ms)
-        if lo <= tail <= hi:
+        if lo - slack <= tail <= hi + slack or (tail - hi <= fade_out + slack and tail > hi):
             clip_ms = max(clip_ms, c.fade_out_ms)
     return max(base_ms, clip_ms) / 1000.0
 

@@ -103,7 +103,7 @@ def test_a_cut_within_reach_of_an_applied_one_builds_again(
     assert len(built) == 2
 
 
-def test_the_reach_is_the_read_distance_plus_the_fade_reach(
+def test_a_fade_far_from_both_cuts_does_not_widen_the_reach(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     starts = (10.0, 13.5)
@@ -116,7 +116,7 @@ def test_the_reach_is_the_read_distance_plus_the_fade_reach(
     faded.clips[0].fade_in_ms = 2000
     built.clear()
     assert _approve(faded) == []
-    assert len(built) == 2
+    assert len(built) == 1
 
 
 def test_a_pause_reaches_out_to_the_words_it_is_observed_between(

@@ -12,6 +12,7 @@ from podcast_mcp.mcp.tools import timeline as mcp_timeline
 from podcast_mcp.models import Clip, MediaAsset, Track, TrackRole, load_project, save_project
 
 _REPLY_KEYS = {"operation", "join_count", "fade_ms", "dry_run", "affected_tracks"}
+_FADE_REPLY_KEYS = _REPLY_KEYS | {"requested_fade_ms", "cap_ms"}
 
 
 def _joined_path(tmp_path: Path) -> str:
@@ -60,7 +61,7 @@ def _history_total(path: str) -> int:
 def test_fade_joins_sets_fade_mode_and_micro_fades(tmp_path):
     path = _joined_path(tmp_path)
     reply = json.loads(mcp_timeline.fade_joins_tool(path, fade_ms=10))
-    assert set(reply) == _REPLY_KEYS
+    assert set(reply) == _FADE_REPLY_KEYS
     assert reply["operation"] == "fade_joins"
     assert reply["join_count"] == 3
     assert reply["dry_run"] is False

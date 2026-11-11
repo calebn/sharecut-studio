@@ -469,25 +469,21 @@ def _keys_and_spans(
     return keys, spans
 
 
-def test_a_pause_key_moves_with_a_fade_before_the_window_that_widens_its_observation_span(
+def test_a_fade_on_a_clip_far_before_the_cut_does_not_widen_the_observation_span(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """#2433: the span reads the longest fade in the project, even on a clip far before the cut."""
-    keys, spans = _keys_and_spans(tmp_path, monkeypatch, [_early_clip(20), _early_clip(800)])
+    _, spans = _keys_and_spans(tmp_path, monkeypatch, [_early_clip(20), _early_clip(800)])
     assert len(spans) == 2
-    assert spans[0] != spans[1], "the fade must move the cold observation span"
-    assert keys[0] != keys[1]
+    assert spans[0] == spans[1]
 
 
-def test_a_pause_key_moves_with_the_right_end_of_the_span_alone(
+def test_the_right_end_of_the_span_ignores_a_fade_far_before_the_cut(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    keys, spans = _keys_and_spans(
+    _, spans = _keys_and_spans(
         tmp_path, monkeypatch, [_early_clip(130, thin=True), _early_clip(800, thin=True)]
     )
-    assert spans[0][0] == spans[1][0], "the left end is clamped at the far word"
-    assert spans[0][1] != spans[1][1]
-    assert keys[0] != keys[1]
+    assert spans[0] == spans[1]
 
 
 def test_a_pause_key_moves_when_a_clip_outside_the_window_moves_the_far_word(

@@ -76,11 +76,11 @@ def test_crossfade_sets_both_fades_to_default():
     assert crossfade_ms_at_join(c1, c2) == 25
 
 
-def test_crossfade_length_is_clamped_and_zero_rejected():
+def test_crossfade_length_is_manual_and_zero_rejected():
     p = _project()
     set_clip_join(p, "c1", "c2", ClipJoinMode.CROSSFADE, length_ms=500, defaults=load_defaults())
-    assert p.clips[0].fade_out_ms == 40  # dialogue cap
-    assert p.clips[1].fade_in_ms == 40
+    assert p.clips[0].fade_out_ms == 500
+    assert p.clips[1].fade_in_ms == 500
     with pytest.raises(ValueError, match="> 0"):
         set_clip_join(p, "c1", "c2", "crossfade", length_ms=0, defaults=load_defaults())
     with pytest.raises(ValueError, match=">= 0"):
