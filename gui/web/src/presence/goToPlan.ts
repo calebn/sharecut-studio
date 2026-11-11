@@ -1,7 +1,20 @@
+import { guestHearsMixOnly } from "../shareMode";
+import { stageRoleOf } from "../state/stageRoutes";
 import type { SessionClient } from "../types/session";
 import type { StageId } from "../types/stage";
 import { type FollowApply, planFollowUi } from "./followPlan";
 import { type FollowUiCaps, remotePlayheadSec } from "./followSync";
+
+export function followCapsOf(
+  guestMode: Parameters<typeof stageRoleOf>[0],
+  breakpoint: FollowUiCaps["breakpoint"],
+): FollowUiCaps {
+  return {
+    guestShare: guestHearsMixOnly(guestMode),
+    breakpoint,
+    role: stageRoleOf(guestMode),
+  };
+}
 
 export type GoToPlan = {
   apply: FollowApply;

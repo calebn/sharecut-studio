@@ -209,7 +209,6 @@ const themeRow: Probe = async (user) => {
   expect(dark).toHaveAttribute("aria-checked", "true");
 };
 
-/** A person's face in the header opens a menu whose Follow row follows them. */
 const peopleSlot: Probe = async (user) => {
   mountFrame();
   await user.click(button(/^Maya/));

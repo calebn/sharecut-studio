@@ -135,7 +135,6 @@ async function followPeerUntilPlayheadMirrors(
     const row = await open();
     await expect(row).toBeVisible({ timeout: 15_000 });
     const rowBox = await row.boundingBox();
-    // Menu rows take the touch floor on a coarse pointer, not by width.
     if (
       await follower.evaluate(() => matchMedia("(pointer: coarse)").matches)
     ) {
@@ -491,7 +490,6 @@ test.describe("presence follow guest share", () => {
         pageB.getByRole("button", { name: /^Host/ }),
       );
       await expect(menu).toContainText("Prepare");
-      // A viewer cannot open Prepare, so there is nowhere to go.
       await expect(menu.getByRole("menuitem", { name: /Go to/ })).toHaveCount(
         0,
       );

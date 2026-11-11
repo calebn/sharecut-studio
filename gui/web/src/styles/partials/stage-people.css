@@ -1,5 +1,3 @@
-/* The header's people: a face per person, each its own menu, and the Following
-   pill (src/stage/frame/AvatarStackView). */
 .avatar-header {
   display: flex;
   align-items: center;

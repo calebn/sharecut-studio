@@ -98,7 +98,6 @@ export type PalettePerson = {
   name: string;
   role: string;
   following: boolean;
-  /** This link can open where they are, and there is somewhere to go. */
   goTo?: boolean;
 };
 

@@ -7,12 +7,10 @@ import { runAndAnnounceRefusal } from "../../commands/refusal";
 import { bareKeyConflict } from "../../keymap/registry";
 import { clearKeymapOverride, setKeymapOverride } from "../../keymap/remaps";
 import { disambiguatedNames } from "../../presence/colors";
-import { planGoTo } from "../../presence/goToPlan";
+import { followCapsOf, planGoTo } from "../../presence/goToPlan";
 import { sessionClientList } from "../../presence/roster";
 import { useLivePresenceClients } from "../../presence/useLivePresenceClients";
-import { guestHearsMixOnly } from "../../shareMode";
 import { useDawStore } from "../../state/dawStore";
-import { stageRoleOf } from "../../state/stageRoutes";
 import { useDaw } from "../../state/useDaw";
 import type { SessionClient } from "../../types/session";
 import { CommandPaletteView } from "./CommandPaletteView";
@@ -93,11 +91,7 @@ export function CommandPalette({ scope }: { scope?: "home" }) {
     }
     const names = disambiguatedNames(others);
     const state = useDawStore.getState();
-    const caps = {
-      guestShare: guestHearsMixOnly(state.guestMode),
-      breakpoint: state.shellBreakpoint,
-      role: stageRoleOf(state.guestMode),
-    };
+    const caps = followCapsOf(state.guestMode, state.shellBreakpoint);
     const duration = state.project?.timeline_duration_sec ?? Number.NaN;
     return paletteEntries(buildCommandContext(), {
       chapters: project?.chapters ?? [],

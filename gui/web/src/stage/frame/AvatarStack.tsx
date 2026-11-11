@@ -3,11 +3,10 @@ import { useShallow } from "zustand/react/shallow";
 import { execute } from "../../commands/execute";
 import { disambiguatedNames } from "../../presence/colors";
 import { isLocalPresenceClient } from "../../presence/followSync";
+import { followCapsOf } from "../../presence/goToPlan";
 import { sessionClientList } from "../../presence/roster";
 import { useLivePresenceClients } from "../../presence/useLivePresenceClients";
-import { guestHearsMixOnly } from "../../shareMode";
 import { useDawStore } from "../../state/dawStore";
-import { stageRoleOf } from "../../state/stageRoutes";
 import type { SessionClient } from "../../types/session";
 import { AvatarStackView } from "./AvatarStackView";
 
@@ -57,11 +56,7 @@ export function AvatarStack({ variant = "header" }: Props) {
     () => ({
       stage,
       durationSec,
-      caps: {
-        guestShare: guestHearsMixOnly(guestMode),
-        breakpoint,
-        role: stageRoleOf(guestMode),
-      },
+      caps: followCapsOf(guestMode, breakpoint),
     }),
     [stage, durationSec, guestMode, breakpoint],
   );

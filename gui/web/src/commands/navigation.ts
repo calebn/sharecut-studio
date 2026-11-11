@@ -1,9 +1,8 @@
 import { patchComment } from "../api";
-import { planGoTo } from "../presence/goToPlan";
+import { followCapsOf, planGoTo } from "../presence/goToPlan";
 import { rosterEntry } from "../presence/roster";
 import { canManageProjects, guestHearsMixOnly } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
-import { stageRoleOf } from "../state/stageRoutes";
 import { transportAvailability } from "../state/transportAvailability";
 import type { AuditionMode } from "../state/types";
 import { errorMessage } from "../utils/apiError";
@@ -120,11 +119,7 @@ export function registerNavigationCommands(): void {
     }
     const plan = planGoTo(
       client,
-      {
-        guestShare: guestHearsMixOnly(s.guestMode),
-        breakpoint: s.shellBreakpoint,
-        role: stageRoleOf(s.guestMode),
-      },
+      followCapsOf(s.guestMode, s.shellBreakpoint),
       s.project?.timeline_duration_sec ?? Number.NaN,
       s.stage,
     );

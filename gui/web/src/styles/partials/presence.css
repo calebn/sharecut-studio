@@ -132,13 +132,3 @@
   transform: translate(-50%, -110%);
   pointer-events: none;
 }
-
-@container app (inline-size < 68.75rem) {
-  .avatar-stack-btn {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    min-inline-size: var(--touch-min);
-    min-block-size: var(--touch-min);
-  }
-}
