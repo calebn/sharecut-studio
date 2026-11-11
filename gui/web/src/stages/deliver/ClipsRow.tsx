@@ -1,9 +1,9 @@
 import { useMemo, useState } from "react";
 import { InlineEdit } from "../../system/InlineEdit";
+import { ScrubField } from "../../system/ScrubField";
 import { Skeleton } from "../../system/Skeleton";
 import { SystemIcon } from "../../system/SystemIcon";
 import { formatSeconds } from "../../system/seconds";
-import { TimeField } from "../../system/TimeField";
 import { VerbButton } from "../../system/VerbButton";
 import { hintOf, iconOf, verbOf } from "../../system/verbDisplay";
 import { Button, EmptyState, Menu, MenuItem } from "../../ui";
@@ -20,9 +20,7 @@ import {
   type Clip,
   clipSeconds,
   clipStrength,
-  formatClock,
   itemNames,
-  parseClock,
 } from "./deliverLogic";
 
 type Props = {
@@ -221,25 +219,27 @@ export function ClipsRow({
                       onTrim={(edge, at) => onTrim(clip.id, edge, at)}
                       onGesture={onTrimGesture}
                     />
-                    <TimeField
+                    <ScrubField
                       label={`In of ${name}`}
                       value={clip.start}
                       min={0}
                       max={total}
                       step={0.1}
-                      format={formatClock}
-                      parse={parseClock}
-                      onChange={(at) => onTrim(clip.id, "start", at)}
+                      unit="s"
+                      decimals={2}
+                      commitOnUnmount
+                      onCommit={(at) => onTrim(clip.id, "start", at)}
                     />
-                    <TimeField
+                    <ScrubField
                       label={`Out of ${name}`}
                       value={clip.end}
                       min={0}
                       max={total}
                       step={0.1}
-                      format={formatClock}
-                      parse={parseClock}
-                      onChange={(at) => onTrim(clip.id, "end", at)}
+                      unit="s"
+                      decimals={2}
+                      commitOnUnmount
+                      onCommit={(at) => onTrim(clip.id, "end", at)}
                     />
                   </div>
                 ) : null}
