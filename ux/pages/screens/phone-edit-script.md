@@ -27,10 +27,10 @@ The phone has no Tab step to the next occurrence after a words cut; **Cut all** 
 Follow playhead keeps overlapping speakers highlighted in transcript order.
 Backward seeks update the active words through the same time-indexed lookup.
 
-Annotate boundary handles keep a fixed size during a roll or trim. A floating
+Roll handles on a seam (a pill's two edges, or the diamond) roll the join during a drag. A floating
 preview shows the time change, restored-word side, and legal limits. The glyph
-follows the pointer; hold Shift for fine motion of 1 ms per CSS pixel without
-jumping when Shift changes. Escape or an interrupted gesture discards the
+follows the pointer; hold Alt for fine motion of 1 ms per CSS pixel without
+jumping when Alt changes. Escape or an interrupted gesture discards the
 preview. Saving blocks another drag on that handle; a failed save displays an
 error. Tap or use Enter/Space to open the host precision dialog for a signed
 offset, 10 ms or 1 ms nudges, and separate current/proposed affected-track audio.
