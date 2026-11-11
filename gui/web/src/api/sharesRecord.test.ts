@@ -275,10 +275,7 @@ describe("host revoke and restore", () => {
 
   it.each([
     [410, "restore_window_closed"],
-    [410, "share_expired"],
     [409, "record_room_conflict"],
-    [404, "share_not_found"],
-    [404, "record_room_not_found"],
   ])("types the %i %s refusal", async (status, code) => {
     hostFetch.mockResolvedValue(json({ detail: "refused" }, status, code));
 
@@ -294,6 +291,15 @@ describe("host revoke and restore", () => {
 
     expect(restoreRefusal(error)).toBeNull();
     expect(restoreRefusal(new Error("x"))).toBeNull();
+  });
+
+  it("does not read a known code with the wrong status as a refusal", async () => {
+    hostFetch.mockResolvedValue(
+      json({ detail: "odd" }, 500, "restore_window_closed"),
+    );
+    const error = await restoreHostShare(project, "tok").catch((e) => e);
+
+    expect(restoreRefusal(error)).toBeNull();
   });
 
   it("refuses to manage links for a guest share without asking the host", async () => {

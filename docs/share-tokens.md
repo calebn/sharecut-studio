@@ -167,7 +167,7 @@ refused `403 authz_denied` and cannot undo its own revoke. The body always names
 Restore refusals carry `X-Sharecut-Error-Code`: `410 restore_window_closed` (the window ended or
 the revoke was final), `410 share_expired` (the link's own `expires_at` passed), `409
 record_room_conflict` (another record room is live for the episode) and `404 share_not_found` /
-`record_room_not_found`. The client counts the undo toast from `restore_ms`, not from its own clock.
+`record_room_not_found`. `restore_ms` is the server's remaining time.
 A record token has no single-link restore; undo its room.
 
 ## Host registry (sqlite)

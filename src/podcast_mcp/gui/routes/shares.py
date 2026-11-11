@@ -40,7 +40,6 @@ from podcast_mcp.services.record import RecordLandingError, RecordStateError
 
 router = APIRouter()
 
-# Seconds a restorable revoke can be undone (the client's Undo toast); the server counts it.
 RESTORABLE_REVOKE_SEC = 10.0
 
 
@@ -48,16 +47,18 @@ def _origin(request: Request) -> str:
     return share_public_origin(str(request.base_url))
 
 
-def _restore_ms(restorable_until: str) -> int:
-    """Milliseconds of the undo window left, counted by the server's clock."""
+def _restore_ms(restorable_until: str | None) -> int | None:
+    if restorable_until is None:
+        return None
     left = datetime.fromisoformat(restorable_until) - datetime.now(UTC)
     return max(0, int(left.total_seconds() * 1000))
 
 
-def _restore_refusal(exc: Exception) -> HTTPException:
-    """410 for a closed window or an expired link, 409 for a room that lost to a newer one."""
+def _restore_refusal(
+    exc: RestoreWindowClosedError | ShareExpiredError | RecordRoomConflictError,
+) -> HTTPException:
     status = 409 if isinstance(exc, RecordRoomConflictError) else 410
-    return coded_exception_error(status, exc, code="restore_refused")
+    return coded_http_error(status, str(exc), code=exc.code)
 
 
 @router.get("/api/shares")
@@ -133,7 +134,7 @@ def revoke_host_share(
         revoked=bool(out["revoked"]),
         token=str(out["token"]),
         restorable_until=until,
-        restore_ms=_restore_ms(until) if until else None,
+        restore_ms=_restore_ms(until),
     )
 
 
@@ -145,7 +146,6 @@ def restore_host_share(
     token: str | None = Query(None),
     x_podcast_token: str | None = Header(None, alias="X-Podcast-Token"),
 ) -> ShareRestoreResponse:
-    """Undo a restorable revoke within its window (host only; 410 once it has ended)."""
     require_host(request, token=token, x_podcast_token=x_podcast_token)
     project_path = resolve_project(body.path, request)
     ws = ProjectWorkspace.open(project_path)
@@ -242,7 +242,7 @@ def revoke_host_record_room(
         session_id=str(out["session_id"]),
         revoked=[str(t) for t in out["revoked"]],
         restorable_until=until,
-        restore_ms=_restore_ms(until) if until else None,
+        restore_ms=_restore_ms(until),
     )
 
 
@@ -254,7 +254,6 @@ def restore_host_record_room(
     token: str | None = Query(None),
     x_podcast_token: str | None = Header(None, alias="X-Podcast-Token"),
 ) -> RoomRestoreResponse:
-    """Undo a restorable room revoke within its window (host only; 410 once it has ended)."""
     require_host(request, token=token, x_podcast_token=x_podcast_token)
     project_path = resolve_project(body.path, request)
     ws = ProjectWorkspace.open(project_path)
