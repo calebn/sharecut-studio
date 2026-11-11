@@ -473,13 +473,39 @@ accepted identity returns its original acceptance before checking the baseline.
 
 A refused offline command keeps the server's error code (`code`, when the server
 sent one) beside its reason in the saved conflict list, so the queue can tell a
-stale target from any other refusal. The review queue model can
-read `range_changed` on a queued `EditSelectedRange` cut as "Your cut at 12:04
-overlaps a newer edit" and derives the time from the command's own
-`targets[].intervals`; it stores no second copy of the range. The live guest
-Review tab does not render that row yet (it needs the Hear, Suggest again and
-Drop callbacks, which land in a follow-up), so it still shows the generic Needs
-attention row. A refusal without a code, or with another code, always does.
+stale target from any other refusal. The guest's Review tab reads `range_changed`
+on a queued `EditSelectedRange` cut as "Your cut at 12:04 overlaps a newer edit"
+and derives the time and tracks from the command's own `targets[].intervals` and
+`track_ids`; it stores no second copy of the range. A refusal without a code, or
+with another code, keeps the generic Needs attention row.
+
+That row has three buttons. Each looks the conflict up by its command id when it
+is pressed, because the 2 s read may have replaced or removed the row since it was
+drawn; a row that is gone does nothing and says so.
+
+- **Hear** plays the current timeline over the cut's seconds with a 2 s pad. That
+  is what the document holds there now, not the old audio, so it is disabled with
+  its reason when the share has no play capability.
+- **Suggest again here** never re-sends the old command: its `clips` and
+  `media_seals` are exactly what the server called stale. It builds a new exact
+  range target from the guest's current document over the same timeline seconds
+  and the same tracks, then submits it as a new cut through the ordinary range
+  path (a Commenter or an offline Editor proposes; an online Editor applies).
+  "Here" is narrow on purpose: if the host's edit moved the audio, the same
+  seconds can now be different audio, and the new suggestion covers whatever is
+  there. When no target can be built (the project is not loaded, the track is
+  gone, or no audio is left in those seconds) the row stays and a plain
+  announcement says why. The old row is cleared exactly once and only after the
+  new request was admitted, whether it landed, queued offline, or was refused
+  again (which leaves a new row for the new command id).
+- **Drop it** clears only that conflict (`dismissOneConflict`, which marks it
+  dismissed without the group-wide "checking" state that Dismiss all uses) and
+  announces "Dropped your cut at 12:04". The dismissal persists in IndexedDB, so
+  it stays cleared after a reload. A double press acts once.
+
+After Drop it or Suggest again here removes the row, focus moves to the next row's
+first button, else the previous row's, else the Needs attention group, else the
+queue's progress line when the group itself is gone. A kept row keeps focus.
 
 The local host MCP `set_clip_fade_tool` explicitly sets both current fades through
 `TimelineService.set_clip_fade` without a baseline. That deliberate local workflow

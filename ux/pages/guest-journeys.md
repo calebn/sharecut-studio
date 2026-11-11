@@ -139,6 +139,21 @@ flowchart TD
    saved outcomes have been kept." through the background reads until the guest
    presses Retry, which reads the list again. Share guests see the same conflicts
    as Check rows at the top of the Review queue.
+6. A cut the host's newer edit overlapped (the server refused it as stale) reads
+   "Your cut at 12:04 overlaps a newer edit" with three buttons:
+   - **Hear** plays what the timeline holds over those seconds now, with 2 s
+     around it. It is disabled, with its reason, on a link that cannot play audio.
+   - **Suggest again here** sends a fresh cut over the same seconds and tracks,
+     built from the current episode, not the old request. If the host's edit moved
+     the audio, those seconds may now be different audio. When there is nothing
+     left to cut there, or the episode is not loaded, the row stays and says why.
+     The old row goes only once the new suggestion is in (sent, or waiting offline
+     like any other); if the host refuses it again, a new row replaces it.
+   - **Drop it** removes that row and says "Dropped your cut at 12:04". It stays
+     gone after a reload.
+
+   After a row goes, focus lands on the next row, or the previous one, or the
+   Needs attention heading when none is left.
 
 A guest whose live connection cannot keep up reconnects through the existing
 sync flow. The relay closes that connection instead of silently dropping its
