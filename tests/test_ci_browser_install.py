@@ -54,6 +54,6 @@ def test_storybook_jobs_run_in_the_playwright_image_without_installing_browsers(
         assert all("playwright install" not in step.get("run", "") for step in job["steps"])
 
 
-def test_ubuntu_runners_are_pinned_to_one_release() -> None:
+def test_no_workflow_uses_ubuntu_latest() -> None:
     for path in (ROOT / ".github/workflows").glob("*.yml"):
         assert "ubuntu-latest" not in path.read_text(), path.name
