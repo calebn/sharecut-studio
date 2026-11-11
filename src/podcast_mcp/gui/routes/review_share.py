@@ -138,6 +138,7 @@ from podcast_mcp.util.coded_error import (
     CodedValueError,
     GuardRefusal,
 )
+from podcast_mcp.util.proxy_paths import is_relayed_request
 from podcast_mcp.util.ws_limits import GUEST_FRAME_MAX_BYTES
 
 router = APIRouter()
@@ -531,7 +532,8 @@ def get_daw_proxy_manifest(token: str, request: Request) -> dict[str, Any]:
     _check_token(token)
     _rate_limit(token, "read")
     with guest_boundary(log, "review request"):
-        return share_proxy_manifest(token, request_origin=str(request.base_url))
+        origin = None if is_relayed_request(request.headers) else str(request.base_url)
+        return share_proxy_manifest(token, request_origin=origin)
 
 
 @router.get("/api/review/{token}/daw/proxy/{track_id}/{proxy_hash}/{chunk_idx}")

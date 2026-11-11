@@ -1098,3 +1098,39 @@ def test_share_cors_fallback_preserves_current_complete_restore_generation(
         assert body["tracks"]["host"]["urls"] == ["https://store.example.test/chunk"]
         assert "object_store_cors" not in body
     assert ws.path.read_bytes() == saved
+
+
+@pytest.mark.parametrize(
+    ("host", "headers", "expected"),
+    [
+        ("127.0.0.1:8765", [], "http://127.0.0.1:8765/"),
+        ("127.0.0.1:8765", [(b"x-sharecut-relayed", b"1")], None),
+        ("share.example.test", [], "http://share.example.test/"),
+    ],
+)
+def test_manifest_route_withholds_the_loopback_origin_from_relayed_requests(
+    monkeypatch, host, headers, expected
+):
+    from starlette.requests import Request
+
+    from podcast_mcp.gui.routes import review_share
+
+    seen = []
+    monkeypatch.setattr(review_share, "_check_token", lambda *_a, **_k: {})
+    monkeypatch.setattr(review_share, "_rate_limit", lambda *_a, **_k: None)
+    monkeypatch.setattr(
+        review_share,
+        "share_proxy_manifest",
+        lambda token, *, request_origin=None: seen.append(request_origin) or {},
+    )
+    request = Request(
+        {
+            "type": "http",
+            "scheme": "http",
+            "server": ("127.0.0.1", 8765),
+            "path": "/api/review/token/daw/proxy/manifest",
+            "headers": [(b"host", host.encode()), *headers],
+        }
+    )
+    review_share.get_daw_proxy_manifest("token", request)
+    assert seen == [expected]
