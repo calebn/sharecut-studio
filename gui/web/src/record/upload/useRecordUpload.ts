@@ -105,15 +105,7 @@ type UploadArgs = {
 
 type RestartInputs = Pick<
   UploadArgs,
-  | "enabled"
-  | "roomState"
-  | "captureSettled"
-  | "sessionId"
-  | "takeIndex"
-  | "participantId"
-  | "transport"
-  | "sink"
-  | "retryNonce"
+  "enabled" | "sessionId" | "participantId" | "transport" | "sink"
 >;
 
 type UploadObservation =
@@ -472,14 +464,10 @@ export function useRecordUpload(args: UploadArgs): RecordUploadProgress {
       poller.acquire(
         {
           enabled: args.enabled,
-          roomState: args.roomState,
-          captureSettled: args.captureSettled,
           sessionId: args.sessionId,
-          takeIndex: args.takeIndex,
           participantId: args.participantId,
           transport: args.transport,
           sink: args.sink,
-          retryNonce: args.retryNonce,
         },
         () => argsRef.current,
         reclaim.current,
