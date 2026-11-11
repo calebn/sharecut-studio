@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { type RefObject, useEffect, useRef } from "react";
 import type { ThemePreference } from "../hooks/useTheme";
 import { AppearanceControl } from "../system/AppearanceControl";
 import type { SystemIconName } from "../system/icons";
@@ -30,6 +30,31 @@ export type SettingsSheetProps = {
   /** Inside a project only. */
   onOpenShortcuts?: () => void;
 };
+
+/**
+ * A disabled button drops focus (to the page, or to the sheet's close button);
+ * give it back when the request ends, so a failure leaves the person on the
+ * button that caused it.
+ */
+function useRestoreFocus(
+  working: boolean,
+  button: RefObject<HTMLButtonElement | null>,
+) {
+  const was = useRef(false);
+  useEffect(() => {
+    const wasWorking = was.current;
+    was.current = working;
+    if (!wasWorking || working) return;
+    const active = document.activeElement;
+    if (
+      !active ||
+      active === document.body ||
+      active.closest(".dialog-close")
+    ) {
+      button.current?.focus();
+    }
+  }, [working, button]);
+}
 
 const KEEP_START = 14;
 const KEEP_END = 24;
@@ -78,27 +103,11 @@ export function SettingsSheet({
 }: SettingsSheetProps) {
   const revealRef = useRef<HTMLButtonElement>(null);
   const moveRef = useRef<HTMLButtonElement>(null);
-  const wasRevealing = useRef(false);
-  const wasMoving = useRef(false);
   const revealing = savedIn?.revealing ?? false;
   const moving = savedIn?.moving ?? false;
   const busy = revealing || moving;
-  // A disabled button drops focus; give it back when the request ends, so a
-  // failure leaves the person on the button that caused it.
-  useEffect(() => {
-    const was = wasRevealing.current;
-    wasRevealing.current = revealing;
-    if (!was || revealing) return;
-    const active = document.activeElement;
-    if (!active || active === document.body) revealRef.current?.focus();
-  }, [revealing]);
-  useEffect(() => {
-    const was = wasMoving.current;
-    wasMoving.current = moving;
-    if (!was || moving) return;
-    const active = document.activeElement;
-    if (!active || active === document.body) moveRef.current?.focus();
-  }, [moving]);
+  useRestoreFocus(revealing, revealRef);
+  useRestoreFocus(moving, moveRef);
   return (
     <Sheet
       form={phone ? "bottom" : "end"}
