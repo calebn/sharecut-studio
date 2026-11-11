@@ -250,7 +250,7 @@ that proved harmful, the agent does this.
    the evidence.
 3. Keep the PR unmerged if the answer could change it. Otherwise proceed on the
    default and say so in the comment.
-4. Move to other beta work.
+4. Move to other work.
 
 The owner answers in a comment when convenient. The next coordinator or agent
 pass removes the label, applies the answer, and records it. Do not pick up an
