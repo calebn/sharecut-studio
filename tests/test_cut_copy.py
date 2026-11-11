@@ -117,7 +117,12 @@ NESTED: dict[str, dict[str, str]] = {
         "ingest_alignment": "list",
         "analysis_reads_first_audio_stream": "scalar",
     },
-    "timeline": {"duration_sec": "scalar", "tracks": "deep", "clips": "clip_shell"},
+    "timeline": {
+        "duration_sec": "scalar",
+        "tracks": "deep",
+        "clips": "clip_shell",
+        "join_fade_max_ms": "scalar",
+    },
     "editorial": {
         "edit_decisions": "items",
         "edit_log": "list",

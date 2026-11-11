@@ -187,7 +187,7 @@ def _reach_sec(
     defaults: dict,
     seen: HeldPauseSpan | None,
 ) -> float:
-    reach = READ_SEC + fade_reach_sec(project, edit, defaults)
+    reach = READ_SEC + fade_reach_sec(project, edit, defaults, slack_sec=READ_SEC)
     if not _is_pause(edit):
         return reach
     reach = max(PAUSE_REACH_FLOOR_SEC, reach)

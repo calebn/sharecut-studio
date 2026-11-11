@@ -704,6 +704,13 @@ def test_fade_reach_counts_a_long_fade_on_a_clip_that_touches_the_cut():
     assert _fade_reach(clips=[left, right]) == 0.4
 
 
+def test_fade_reach_counts_a_ramp_that_runs_into_the_cut():
+    assert _fade_reach(clips=[("t", 0.0, 3.0, {"fade_out_ms": 2000})]) == 2.0
+    assert _fade_reach(clips=[("t", -1.0, 0.0, {"fade_in_ms": 2000})]) == 2.0
+    assert _fade_reach(clips=[("t", 3.0, 9.0, {"fade_in_ms": 2000})]) == 0.004
+    assert _fade_reach(clips=[("t", 0.0, 0.5, {"fade_out_ms": 2000})]) == 0.004
+
+
 def test_fade_reach_ignores_fades_far_from_the_cut_and_on_other_tracks():
     far = ("t", 30.0, 40.0, {"fade_in_ms": 2000, "fade_out_ms": 2000})
     inside = ("t", 3.0, 9.0, {"fade_in_ms": 2000})
