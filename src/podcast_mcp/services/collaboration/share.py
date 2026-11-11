@@ -694,7 +694,7 @@ class ShareService:
         self._arm_sweep_timer(window)
         return {
             "session_id": session_id,
-            "revoked": [str(p["token"]) for p in pending],
+            "revoked": sorted(str(p["token"]) for p in pending),
             "restorable_until": pending[0]["restorable_until"],
         }
 
@@ -702,7 +702,7 @@ class ShareService:
     def _pending_room(session_id: str, rows: Sequence[Any]) -> ParkedRoom:
         return {
             "session_id": session_id,
-            "revoked": [str(r["token"]) for r in rows],
+            "revoked": sorted(str(r["token"]) for r in rows),
             "restorable_until": rows[0]["restorable_until"],
         }
 
