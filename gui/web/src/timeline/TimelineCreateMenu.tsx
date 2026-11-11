@@ -125,6 +125,8 @@ export function TimelineCreateMenu({
   const restoreFocus = useStableCallback(() => {
     const surface = view.surface;
     const trackId = place.trackId;
+    // After the menu keyboard's own cleanup, which returns focus to where
+    // the press began when that was a focusable; this only catches a fall.
     queueMicrotask(() => focusAfterClose(surface, trackId));
   });
   useEffect(() => restoreFocus, [restoreFocus]);
