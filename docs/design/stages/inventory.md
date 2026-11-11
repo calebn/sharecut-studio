@@ -28,7 +28,7 @@ All paths are relative to `gui/web/src/` unless they start with `/` or a repo fo
 | Total catalogued items | 200 |
 | Story files / exported stories | 89 files / 446 stories |
 
-Of the 154 non-interaction items: 74 have a story (yes), 30 partial, 50 none (counted from the Story column of the tables). Of the 46 interactions: 18 have a frozen-state story, 15 partial, 13 none. The per-surface table is section 14.
+Of the 154 non-interaction items: 75 have a story (yes), 29 partial, 50 none (counted from the Story column of the tables). Of the 46 interactions: 18 have a frozen-state story, 15 partial, 13 none. The per-surface table is section 14.
 
 ---
 
@@ -37,12 +37,12 @@ Of the 154 non-interaction items: 74 have a story (yes), 30 partial, 50 none (co
 | ID | Surface | Reach | Files | Story | View split | Purpose |
 |---|---|---|---|---|---|---|
 | SCR-HOME | Host home, idle: the ShareCut wordmark as the app menu (Settings, Connect agent, Help), the Import audio and Record tiles, Recent with Open other…, and the Setup card while models are incomplete | Open `/` with no project, or `/?home=1`, or Project menu > All projects (Mod+O) in the editor | `stages/home/HomeScreen.tsx`, `stages/home/HomeView.tsx`, `system/StartTile.tsx`, `system/AppMenuItems.tsx`, `ui/BrandMark.tsx`, `ui/CoverScreen.tsx` | `Stages/Home/Home` (Empty, WithRecents, CardMenu, AppMenu, FolderMoved, DropHover, Loading, Phone, PhoneEmpty and more) | View + hook (`HomeView` takes props; `HomeScreen` reads useModels and the api) | Entry point for choosing or creating an episode |
-| SCR-HOME-NEW | Removed. Home has no New project form: Import audio or Record creates the episode, Project menu > Rename project renames it and Settings > Saved in moves it | none | `stages/home/HomeScreen.tsx` (Import and Record paths) | `Stages/Home/Home` | View + hook | Records that the form no longer exists |
+| SCR-HOME-NEW | Removed. Home has no New project form: Import audio or Record creates the episode, Project menu > Rename project renames it and Settings > Saved in shows where it is saved | none | `stages/home/HomeScreen.tsx` (Import and Record paths) | `Stages/Home/Home` | View + hook | Records that the form no longer exists |
 | SCR-HOME-OPEN | Open other…: the OS folder picker, or in a plain browser a popover with one path field (placeholder "Folder of the episode") and Open | Home > Open other… (Mod+O) | `stages/home/OpenOther.tsx` | `Stages/Home/OpenOther` (Picker, PathFallback, PathError) | Props | Open an existing episode by folder |
 | SCR-HOME-ERROR | Inline error under the Open other… path field (no episode in that folder, old episode file name, didn't open) | Submit a bad path in the Open other… popover | `stages/home/OpenOther.tsx` | `Stages/Home/OpenOther` PathError | Props | Explain why open failed, next to the field |
-| SCR-SETUP | Setup card on Home while required models are missing: "Get ready" (one bundle download) and "Choose…" (opens the Models sheet). It replaced the first-run wizard. "Not now" in the card's "More about setup" menu hides it for the tab (sessionStorage `sharecut.setup.notNow`). Card title: "Get ShareCut ready" | Open `/` with a fresh profile and models not installed | `stages/home/SetupCard.tsx`, `models/ModelsSheet.tsx`, `models/ModelNeedRow.tsx` | `Stages/Home/SetupCard` (Needed, Downloading, Failed, Phone) | View + hook (useModels) | Download the models the product needs |
+| SCR-SETUP | Setup card on Home while models are incomplete: "Get ready" (one bundle download) and "Choose…" (opens the Models sheet). It replaced the first-run wizard. "Not now" in the card's "More about setup" menu hides it for the tab (sessionStorage `sharecut.setup.notNow`). Card title: "Get ShareCut ready" | Open `/` with models missing and no Not now for this tab | `stages/home/SetupCard.tsx`, `models/ModelsSheet.tsx`, `models/ModelNeedRow.tsx` | `Stages/Home/SetupCard` (Needed, Downloading, Failed, Phone) | View + hook (useModels) | Download the models the product needs |
 | SCR-SETUP-CHECKING | Setup card checking (blank for 300 ms, then grey blocks with the sr-only status "Reading the setup status") and the check error "Couldn't check what's installed." with Try again | Same, while `/api/bootstrap/status` is pending or fails | `stages/home/SetupCard.tsx` | `Stages/Home/SetupCard` (Checking, CheckError) | View + hook | Loading and error state of the card |
-| SCR-SETUP-DOWNLOAD | Setup card, downloading (one bundle progress bar, time left, cancel) and the tools-missing note | Click Get ready on the card | `stages/home/SetupCard.tsx`, `models/ModelsSheet.tsx` | `Stages/Home/SetupCard` (Downloading, ToolsMissing) | View + hook | Progress while models download |
+| SCR-SETUP-DOWNLOAD | Setup card, downloading (one bundle progress bar, time left, cancel). The tools-missing note is its own card state (see SCR-SETUP) | Click Get ready on the card | `stages/home/SetupCard.tsx`, `models/ModelsSheet.tsx` | `Stages/Home/SetupCard` (Downloading, ToolsMissing) | View + hook | Progress while models download |
 | SCR-LOADING | Loading cover ("Loading project…", "Loading studio…", "Loading episode…") | Any route while features or the project bootstrap | `ui/LoadingScreen.tsx` | `ui/LoadingScreen.stories.tsx` (Default, ProjectLabel) | Props | Wait state before a route resolves |
 | SCR-ERROR | Error cover (share routes unavailable; "This link does not open the project."; invalid or ended recording link; bootstrap error) | `/r/<bad>`; `/rec/<bad>`; online extension not loaded | `ui/ErrorScreen.tsx`, `App.tsx` | `ui/ErrorScreen.stories.tsx` (Default, WithNextStep) | Props | Dead-end with a next step |
 | SCR-COVER | Generic cover shell (used by Declined, FullRoom, access ended) | via the screens that use it | `ui/CoverScreen.tsx` | `ui/CoverScreen.stories.tsx` (WithHeading, StatusOnly) | Props | Shared centered card layout |
@@ -173,7 +173,7 @@ All use `ui/Dialog.tsx` (phone renders as a bottom sheet) unless noted. Stories 
 |---|---|---|---|---|---|---|
 | DLG-MCP | "Connect agent": MCP URL and Cursor snippet, copy buttons, no-episode warning | Home > ShareCut app menu > Connect agent; Menu > Project > Connect agent… | `layout/HostMcpDialog.tsx`, `layout/hostMcp.ts` | `layout/HostMcpDialog.stories.tsx` (Ready, NoEpisode, Phone) | Props | Wire an AI agent to the project |
 | DLG-HELP | "Help": Report a problem step with Export (diagnostics bundle), description, consent checkbox, Submit report, publication status, Open support | Home > ShareCut app menu > Help; Menu > Help > Export diagnostics… | `home/HelpDialog.tsx` | NONE | Hook (api) | Report a problem with a sanitized bundle |
-| DLG-MODELS | "Models": every model with Download, Update, Retry, Cancel; tool status | Home > ShareCut app menu > Settings; Home Setup card > Choose…; command palette "Manage models…" | `models/ModelsSheet.tsx`, `models/ModelNeedRow.tsx` | Row only (`models/ModelNeedRow.stories.tsx`) | Hook (useModels) | Manage local models |
+| DLG-MODELS | "Models": every model with Download, Update, Retry, Cancel; tool status | Home > ShareCut app menu > Settings > Models; Home Setup card > Choose…; command palette "Manage models…" | `models/ModelsSheet.tsx`, `models/ModelNeedRow.tsx` | `Stages/Settings/ModelsSheet` (FreshInstall, Mixed, Downloading, Failed, Phone) and `System/ModelNeedRow` | Hook (useModels) | Manage local models |
 | DLG-MODEL-GATE | "Download model?" prompt shown before a feature that needs a model (Primary: Download / Downloading… / Retry / Continue; Cancel download) | Run Export, Bounce, Split, Tighten, Pipeline, or a stale job's model chip without the model | `models/gate/ModelGate.tsx`, `models/gate/useModelGate.ts`, `models/gate/JobModelDownload.tsx` | partial: `layout/ExportDialogView.stories.tsx` NeedsModel (gate embedded); `layout/SplitSpeakersDialogView.stories.tsx` NeedsModel | Props (`ModelGate` object) | Just-in-time model download |
 | DLG-WHISPER | "Download Whisper model?" | Pipeline panel: pick a Whisper model not yet installed | `panels/WhisperModelPicker.tsx` | NONE | Hook | Confirm a large download |
 | DLG-SPLIT | "Split speakers": speaker model, Number of speakers, progress, per-speaker review, result, Cancel split | Track inspector > Split speakers…; command `track.splitSpeakers` | `layout/SplitSpeakersDialog.tsx`, `layout/SplitSpeakersDialogView.tsx`, `utils/speakerSplit.ts` | `layout/SplitSpeakersDialogView.stories.tsx` (Settings, CountOutOfRange, Splitting, Split, SplitNoLongerLatest, NeedsModel, Failed, Cancelled, Phone) | View | Turn one recording into per-speaker tracks |
@@ -334,7 +334,7 @@ Run the app: `uv run --extra gui podcast gui --host 127.0.0.1 --port <p> --no-op
 **Common setup**
 - **R-HOST.** `page.goto('/?project=' + encodeURIComponent('<abs>/tests/fixtures/sharecut_ux_demo/episode.sharecut'))`. The title h1 reads "ShareCut Studio UX demo", the total timecode reads `01:00.000`, tracks `reference` and `guest` appear as `.lane-row[data-track-id="reference"]`. Wait for `getByRole('button', {name:'Play', exact:true})` enabled. Fixture `tests/fixtures/aligned_dialogue/episode.sharecut` is the e2e default and has words for the transcript.
 - **Viewports.** Desktop 1440x900 (`.daw-shell--desktop`), tablet 820x1024 (`.daw-shell--tablet`), phone 360x800 or 390x844 (`.daw-shell--phone`).
-- **Fresh state.** `localStorage` keys that matter: sessionStorage `sharecut.setup.notNow`, `sharecut.compactInspector` (peek, half, full), the auto-mix pref (`hooks/autoMixPref.ts`; the config sets it to off so no history entry is written).
+- **Fresh state.** Storage keys that matter: sessionStorage `sharecut.setup.notNow`, localStorage `sharecut.compactInspector` (peek, half, full), the auto-mix pref (`hooks/autoMixPref.ts`; the config sets it to off so no history entry is written).
 - **Host panel tabs.** Desktop/tablet: `page.getByLabel('Editor panels').getByRole('tab', {name:'Comments'|'History'|'Impact'|'Tighten'|'Pipeline'|'Transcript', exact:true})`. Phone: `getByRole('navigation',{name:'Primary'}).getByRole('button',{name:'More',exact:true})`, press "← More" if shown, then `.mobile-more-list` button by name.
 - **R-GUEST (token).** From the host page: `POST /api/shares` with `{path, role:'viewer'|'commenter'|'editor'}` returns `share.token`. Open `/r/<token>` in a new context and wait for `.daw-shell-guest` and `.guest-banner` (`e2e/shareNavigation.ts`, `e2e/ux-demo-screenshots.spec.ts`).
 - **R-REC.** From the host page: `POST /api/shares/record` with `{path}` returns `room.guest.token` and `room.producer.token`. Guest/producer: `/rec/<token>?e2e=1` with an init script setting `window.__SHARECUT_E2E = true`, Chromium launch args `--use-fake-device-for-media-stream --use-fake-ui-for-media-stream` (`e2e/launchOptions.ts`, `e2e/recordRoom.ts`). Host opens the panel (see DLG-RECORD) and its dialog button names are `Create record room`, `Copy guest link`, `Start`/`Pause`/`Resume`/`Stop`, `Land`.
@@ -424,7 +424,8 @@ Run the app: `uv run --extra gui podcast gui --host 127.0.0.1 --port <p> --no-op
 | INS-EMPTY, INS-PENDING, INS-APPLIED, INS-TRACK, INS-CHAPTER, INS-SOCIAL, INS-COMMENT, INS-WORD, INS-RANGE, INS-PEEK | no | |
 | SHEET-INSPECTOR, CMP-SEEK-FOOTER | yes | |
 | DLG-EXPORT, DLG-BOUNCE, DLG-SHARE, DLG-MCP, DLG-SPLIT, DLG-PALETTE, DLG-GESTURES, DLG-ASK-CONFIRM, DLG-ASK-TEXT | yes | |
-| DLG-HELP, DLG-MODELS, DLG-WHISPER, DLG-RECORD | no | |
+| DLG-HELP, DLG-WHISPER, DLG-RECORD | no | |
+| DLG-MODELS | yes | `Stages/Settings/ModelsSheet` |
 | DLG-MODEL-GATE | partial | Embedded in Export/Split stories only |
 | SCR-PHONE-LISTEN | partial | Hero yes; body no |
 | SCR-PHONE-TIMELINE, -TEXT, -MORE, -MORE-PANEL | partial | Shell views with fixtures |
@@ -442,7 +443,7 @@ Run the app: `uv run --extra gui podcast gui --host 127.0.0.1 --port <p> --no-op
 | BAN-LOADFAIL, STAT-LIVE, CMP-RAIL-PEEK | no | |
 | CMP-TUNNEL, CMP-PRESENCE-STATUS | yes | |
 
-Tally of the 154 non-interaction items, counted from the Story columns: 74 yes, 30 partial, 50 none/no. Interactions: 18 yes (frozen states), 15 partial, 13 none.
+Tally of the 154 non-interaction items, counted from the Story columns: 75 yes, 29 partial, 50 none/no. Interactions: 18 yes (frozen states), 15 partial, 13 none.
 
 ---
 
