@@ -69,6 +69,7 @@ to UX partners; for UI copy, this table wins.
 
 | Term | Meaning | Never say |
 |---|---|---|
+| Default join fade length | The longest fade ShareCut adds by itself at cuts (Fade joins, Smooth all joins, approving cuts), 0 to 200 ms, 40 ms unless the episode sets another. A fade the user sets is bounded by its clip, never by this. Never shortens a longer fade | "Fade cap", "Max fade", "Join fade max" |
 | Process new audio | The Prepare hand-off when audio was added to a project that already ran. It runs the plan and goes back to "Review N suggestions" when done | "Run pipeline", "Reprocess", "Start" |
 | Skip (a plan row) | Leaves one Getting ready row out of the next run only. Saved nowhere; undone with Include and shown as "Skipped this time" | "Disable step" (that is the session switch in Advanced) |
 | Selected work finished | The requested steps finished. Neutral rows still say what did not run; a partial result names only the operations that ran | "Everything is ready", "All audio was transcribed" |

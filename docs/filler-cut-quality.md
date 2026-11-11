@@ -1114,7 +1114,7 @@ When normalized score ≥ `tighten.max_cut_risk_score` (default `0.65`), the cut
 
 ## Render joins
 
-Dialogue cuts default to **fade joins** (`join_in_mode=fade`): independent clip placement with per-segment `afade` declick. Fade length is capped at `render.join_fade_max_ms` (default 40 ms) so multitrack stems stay the same length.
+Dialogue cuts default to **fade joins** (`join_in_mode=fade`): independent clip placement with per-segment `afade` declick. Fades the pipeline writes (approve-time, `fade_joins`, Smooth all joins) are capped at the episode's Default join fade length (`SetJoinFadeDefault`, default `render.join_fade_max_ms`, 40 ms) and never shorten a longer fade; a fade set by hand is bounded only by its clip. The cap is a taste limit, not a length guard: `afade` is a gain ramp over audio that is already there, render clamps each fade to half its segment, and a crossfade join borrows its overlap from the cut gap, so a longer fade changes neither the stem length nor the join timing.
 
 **Crossfade** (`join_in_mode=crossfade`) is opt-in only (set it with `set_clip_join_tool`, which also sets the fades the overlap needs; `set_join_mode_tool` changes the mode alone) — FFmpeg `acrossfade` blend centred on the seam, which does not shorten the track (rev 17: each clip borrows half the overlap from its recording past the seam, see below). Use `crossfade_joins_tool` for music beds or when the user explicitly wants overlapping blend. Configure curve via `render.crossfade_curve` (default `tri`).
 
@@ -1155,7 +1155,7 @@ Per-episode overrides: copy relevant keys from `tighten:` / `inaudible_cuts:` / 
 | Not enough discourse markers proposed | `min_filler_cluster` | **Down** (`1`, aggressive) |
 | Cuts land mid-word / clip consonants | `inaudible_opt` | **On**; widen `inaudible_cuts.search_window_ms` slightly |
 | Cuts too close to neighboring words | `inaudible_cuts.min_word_margin_ms` | **Up** (e.g. `10–15`) |
-| Obvious clicks or level jumps at joins | `fade_joins_tool` or `recommend_fades_tool` | Run after apply; check `render.join_fade_max_ms` |
+| Obvious clicks or level jumps at joins | `fade_joins_tool` or `recommend_fades_tool` | Run after apply; check the Default join fade length (`list_clips_tool` `join_fade_default_ms`) |
 | Edits sound "scooped" or too soft | `crossfade_ms` / `recommended_fade_ms` | **Down** slightly; avoid accidental `crossfade_joins` |
 | Robotic, rushed cadence after tighten | `min_retained_pause_sec` / `min_retained_solo_pause_sec` / `min_gap_after_filler_sec` / `filler_gap_retain_fraction` | **Up** floor or retain fraction |
 | Thinking / list-restart pauses feel slammed | `min_retained_solo_pause_sec` | **Up** (e.g. `0.65–0.8`); or leave the pause uncut |
@@ -1236,7 +1236,7 @@ Per-episode overrides: copy relevant keys from `tighten:` / `inaudible_cuts:` / 
 | `inaudible_cuts.min_word_margin_ms` | `5` | Min distance from retained word edges |
 | `inaudible_cuts.max_shift_ms` | `80` | Max boundary snap |
 | `analysis.heuristics.boundary_jump_db` | `12` | dB jump that triggers longer fades |
-| `render.join_fade_max_ms` | `40` | Cap dialogue edge fades (fade join mode); harsh-join recommendations scale up to this; the DAW reads it as `TrackView.fade_max_ms` |
+| `render.join_fade_max_ms` | `40` | App default for the **Default join fade length** (0 to 200 ms): caps the dialogue fades the pipeline writes (fade join mode); harsh-join recommendations scale up to this. An episode overrides it with `SetJoinFadeDefault`; fades set by hand are not capped by it |
 | `render.crossfade_curve` | `tri` | FFmpeg acrossfade curve when `join_in_mode=crossfade` |
 | `tighten.acoustic_gap_filler.enabled` | `true` | Propose review-only `filler:acoustic` cuts for voiced audio inside ASR gaps (see below) |
 | `tighten.acoustic_gap_filler.min_gap_sec` | `0.35` | Shortest inter-word gap scanned; values below `0.35` clamp up (max `10`) |
