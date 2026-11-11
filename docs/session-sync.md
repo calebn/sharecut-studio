@@ -471,6 +471,14 @@ Host and guest durable queues replay the original baseline and command identity.
 A refused replay is dequeued and retained in **Needs attention**. An already
 accepted identity returns its original acceptance before checking the baseline.
 
+A refused offline command keeps the server's error code (`code`, when the server
+sent one) beside its reason in the saved conflict list, so the queue can tell a
+stale target from any other refusal. The GUI reads `range_changed` on a guest's
+queued `EditSelectedRange` cut as "Your cut at 12:04 overlaps a newer edit" and
+derives the time from the command's own `targets[].intervals`; it stores no second
+copy of the range. A refusal without a code, or with another code, keeps the
+generic Needs attention row.
+
 The local host MCP `set_clip_fade_tool` explicitly sets both current fades through
 `TimelineService.set_clip_fade` without a baseline. That deliberate local workflow
 remains unconditional. Every document-command handler supplies the required pair.
