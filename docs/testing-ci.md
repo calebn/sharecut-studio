@@ -114,8 +114,8 @@ and `frontend-e2e-suites`, the Storybook `sweep` and the Storybook `build` use i
 `container:` image with `--init --ipc=host`. The image ships Chromium, Firefox and WebKit
 with their system libraries at that exact version, so a Dependabot bump of the npm lock
 moves the image with it and the two cannot drift. A bump that lands before Microsoft
-publishes the matching tag fails the job at image pull. Ubuntu runners are pinned to
-`ubuntu-24.04` in every workflow instead of `ubuntu-latest`. Jobs that need a toolchain
+publishes the matching tag fails the job at image pull. No workflow uses `ubuntu-latest`. Its Ubuntu jobs run on `ubuntu-24.04`, and the AppImage
+legs stay on `ubuntu-22.04`. Jobs that need a toolchain
 the image lacks keep their own setup actions (`setup-python`, `setup-node`, the pinned
 FFmpeg payload).
 
