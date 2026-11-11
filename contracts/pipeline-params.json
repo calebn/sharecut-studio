@@ -211,7 +211,7 @@
       "type": "number"
     },
     {
-      "default": false,
+      "default": true,
       "path": "room_tone.extract_bed",
       "type": "boolean"
     },

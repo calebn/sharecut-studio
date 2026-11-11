@@ -173,18 +173,20 @@ describe("the room-tone bed switch", () => {
       .flatMap((g) => g.steps)
       .find((step) => step.id === "extract_room_tone_beds");
 
-  it("reads on only while its setting is on, as the pipeline would run it", () => {
-    const listed = {
+  it("reads on by default and off once either the step or its setting is off", () => {
+    const withBed = (extractBed: boolean, listed: boolean) => ({
       ...cfg,
-      enabled_steps: [...cfg.enabled_steps, "extract_room_tone_beds"],
-    };
-    expect(bed(cfg)).toMatchObject({ optional: true, enabled: false });
-    expect(bed(listed)?.enabled).toBe(false);
-    const on = {
-      ...listed,
-      config: { ...cfg.config, room_tone: { extract_bed: true } },
-    };
-    expect(bed(on)?.enabled).toBe(true);
+      enabled_steps: listed
+        ? [...cfg.enabled_steps, "extract_room_tone_beds"]
+        : cfg.enabled_steps,
+      config: { ...cfg.config, room_tone: { extract_bed: extractBed } },
+    });
+    expect(bed(withBed(true, true))).toMatchObject({
+      optional: true,
+      enabled: true,
+    });
+    expect(bed(withBed(false, true))?.enabled).toBe(false);
+    expect(bed(withBed(true, false))?.enabled).toBe(false);
   });
 
   it("moves the step and its setting together", () => {

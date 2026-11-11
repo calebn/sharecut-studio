@@ -155,7 +155,7 @@ _STEP_DEFS: dict[str, StepMeta] = {
         depends_on=("require_align_accept",),
         requires_components=("ffmpeg",),
         param_sections=("room_tone",),
-        enabled_by_default=False,
+        enabled_by_default=True,
         noop_unless="room_tone.extract_bed",
     ),
     "merge_transcript": StepMeta(
