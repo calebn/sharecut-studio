@@ -17,7 +17,6 @@ export function isCutJoin(
   return clip.join_left_clip_id != null && clip.join_in_mode === "cut";
 }
 
-/** True when render blends this clip's incoming join: the overlap replaces both edge fades there. */
 export function blendsIn(clip: ClipRow): boolean {
   return (
     clip.join_left_clip_id != null &&
@@ -119,7 +118,6 @@ export function clipIdsBeforeCut(
   return ids;
 }
 
-/** Ids of clips whose outgoing join render blends: their fade-out is the overlap's ramp. */
 export function clipIdsBeforeBlend(clips: readonly ClipRow[]): Set<string> {
   const ids = new Set<string>();
   for (const c of clips) {
@@ -128,7 +126,6 @@ export function clipIdsBeforeBlend(clips: readonly ClipRow[]): Set<string> {
   return ids;
 }
 
-/** Why an edge's fade shape is ignored (a cut or a blended join sets that edge), or null. */
 export function curveIgnoredReason(
   edge: "in" | "out",
   cut: boolean,

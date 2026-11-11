@@ -71,7 +71,6 @@ export interface ClipEnvelope {
   readonly automaticMute: readonly AutomaticMuteSpan[];
   readonly fadeInSec: number;
   readonly fadeOutSec: number;
-  /** Edge curves; linear where a cut or a blended join sets the edge, as render does. */
   readonly fadeInCurve: FadeCurve;
   readonly fadeOutCurve: FadeCurve;
   readonly gainLinear: number;
