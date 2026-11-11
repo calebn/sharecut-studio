@@ -1,5 +1,9 @@
-import { useEffect } from "react";
-import { loadReviewPeaks, reviewVersionAtBootstrap } from "../api";
+import { useEffect, useLayoutEffect } from "react";
+import {
+  cachedReviewPeaks,
+  loadReviewPeaks,
+  reviewVersionAtBootstrap,
+} from "../api";
 import { shareTokenFromKey } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
 import { useDaw } from "../state/useDaw";
@@ -19,10 +23,16 @@ export function useReviewPeaks(version: ReviewVersion | null): void {
   const versionId =
     version?.versionId ?? (token ? reviewVersionAtBootstrap(token) : null);
 
-  // The strip never shows another version's or another share's columns.
+  // The strip never shows another version's or another share's columns. A
+  // version already held goes straight to its own columns, before paint, so the
+  // strip does not flash a flat line first.
   // biome-ignore lint/correctness/useExhaustiveDependencies: the key is the trigger
-  useEffect(() => {
-    useDawStore.getState().setReviewPeaks([]);
+  useLayoutEffect(() => {
+    useDawStore
+      .getState()
+      .setReviewPeaks(
+        token && versionId ? cachedReviewPeaks(token, versionId) : [],
+      );
   }, [token, versionId]);
 
   // Re-runs with each version poll (`version` is a fresh object per read), so an

@@ -1,6 +1,8 @@
-import { type KeyboardEvent, type MouseEvent, useRef } from "react";
+import { type KeyboardEvent, type MouseEvent, useRef, useState } from "react";
+import { useResizeObserver } from "../ui/useResizeObserver";
 import { clamp } from "../utils/math";
 import { formatTimeShort } from "../utils/time";
+import { bucketPeaks } from "./peakBuckets";
 import { swallowsDuringDrag, useGrab } from "./useGrab";
 import { pointerRatio } from "./wavePointer";
 
@@ -66,7 +68,14 @@ export function OverviewStrip({
       onScrub?.("cancel");
     },
   });
-  const count = Math.max(peaks.length, 1);
+  // At most one bar per pixel; every column until first measured.
+  const [widthPx, setWidthPx] = useState(0);
+  useResizeObserver(root, (entries) => {
+    const box = entries[entries.length - 1]?.contentRect;
+    if (box) setWidthPx(Math.round(box.width));
+  });
+  const drawn = widthPx > 0 ? bucketPeaks(peaks, widthPx) : peaks;
+  const count = Math.max(drawn.length, 1);
   const lines = ticks.filter((tick) => tick.kind !== "comment");
   const dots = ticks.filter((tick) => tick.kind === "comment");
   const click = (event: MouseEvent<HTMLElement>) => {
@@ -137,7 +146,7 @@ export function OverviewStrip({
               height={1}
             />
           ) : null}
-          {peaks.length === 0 ? (
+          {drawn.length === 0 ? (
             <rect
               className="sys-overview-peak"
               x={0}
@@ -146,7 +155,7 @@ export function OverviewStrip({
               height={0.04}
             />
           ) : (
-            peaks.map((peak, index) => (
+            drawn.map((peak, index) => (
               <rect
                 // biome-ignore lint/suspicious/noArrayIndexKey: fixed order
                 key={index}

@@ -1,5 +1,6 @@
-import { fireEvent, render, screen } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { act, fireEvent, render, screen } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { FakeResizeObserver, stubResizeObserver } from "../test/resizeObserver";
 import { OverviewStrip } from "./OverviewStrip";
 
 function setup(over: Partial<Parameters<typeof OverviewStrip>[0]> = {}) {
@@ -112,5 +113,89 @@ describe("OverviewStrip touch box", () => {
     const face = strip.querySelector(":scope > .sys-overview-face");
     expect(face).not.toBeNull();
     expect(face?.querySelector("svg")).not.toBeNull();
+  });
+});
+
+describe("OverviewStrip bars", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  const peaks = Array.from({ length: 512 }, (_, i) => (i === 300 ? 1 : 0.2));
+  const bars = (view: HTMLElement) =>
+    view.querySelectorAll("rect.sys-overview-peak");
+
+  it("draws one bar per pixel of the strip, keeping the loudest of each run", () => {
+    stubResizeObserver();
+    const { container } = render(
+      <OverviewStrip height={32} label="Episode overview" peaks={peaks} />,
+    );
+    expect(bars(container)).toHaveLength(512);
+    const strip = container.querySelector(".sys-overview") as HTMLElement;
+    act(() =>
+      FakeResizeObserver.of(strip).fire(strip, {
+        contentRect: { width: 100 } as DOMRectReadOnly,
+      }),
+    );
+    const drawn = [...bars(container)];
+    expect(drawn).toHaveLength(100);
+    expect(
+      Math.max(...drawn.map((bar) => Number(bar.getAttribute("height")))),
+    ).toBe(1);
+  });
+
+  it("scales the view box, selection and ticks to the bars it drew", () => {
+    stubResizeObserver();
+    const { container } = render(
+      <OverviewStrip
+        height={32}
+        label="Episode overview"
+        peaks={peaks}
+        selection={[0.5, 0.75]}
+        ticks={[{ at: 0.25, kind: "chapter" }]}
+      />,
+    );
+    const strip = container.querySelector(".sys-overview") as HTMLElement;
+    act(() =>
+      FakeResizeObserver.of(strip).fire(strip, {
+        contentRect: { width: 100.6 } as DOMRectReadOnly,
+      }),
+    );
+    expect(container.querySelector("svg")).toHaveAttribute(
+      "viewBox",
+      "0 0 101 1",
+    );
+    const selection = container.querySelector(".sys-overview-selection");
+    expect(selection).toHaveAttribute("x", "50.5");
+    expect(selection).toHaveAttribute("width", "25.25");
+    expect(container.querySelector(".sys-overview-tick")).toHaveAttribute(
+      "x1",
+      "25.25",
+    );
+    expect(bars(container)).toHaveLength(101);
+  });
+
+  it("draws a flat line when there are no peaks", () => {
+    const { container } = render(
+      <OverviewStrip height={32} label="Episode overview" />,
+    );
+    const flat = bars(container);
+    expect(flat).toHaveLength(1);
+    expect(container.querySelector("svg")).toHaveAttribute(
+      "viewBox",
+      "0 0 1 1",
+    );
+  });
+
+  it("keeps every column when the strip is wider than the peaks", () => {
+    stubResizeObserver();
+    const { container } = render(
+      <OverviewStrip height={32} label="Episode overview" peaks={peaks} />,
+    );
+    const strip = container.querySelector(".sys-overview") as HTMLElement;
+    act(() =>
+      FakeResizeObserver.of(strip).fire(strip, {
+        contentRect: { width: 900 } as DOMRectReadOnly,
+      }),
+    );
+    expect(bars(container)).toHaveLength(512);
   });
 });
