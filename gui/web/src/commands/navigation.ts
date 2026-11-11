@@ -126,6 +126,7 @@ export function registerNavigationCommands(): void {
         role: stageRoleOf(s.guestMode),
       },
       s.project?.timeline_duration_sec ?? Number.NaN,
+      s.stage,
     );
     if (!plan) {
       return {

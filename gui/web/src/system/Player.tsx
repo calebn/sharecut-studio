@@ -223,24 +223,18 @@ function StatePills({
       <span className="sr-only" aria-live="polite" data-follow-detail>
         {following?.detail}
       </span>
-      {following ? (
+      {following?.detail ? (
         <Pill
           className="sys-player-pill"
-          title={
-            following.detail
-              ? `Following ${following.name} · ${following.detail}`
-              : undefined
-          }
+          title={`Following ${following.name} · ${following.detail}`}
         >
           <SystemIcon name="locate-fixed" size={12} />
           <span className="sys-player-pill-text">
             Following {following.name}
           </span>
-          {following.detail ? (
-            <span className="sys-player-pill-detail" aria-hidden>
-              · {following.detail}
-            </span>
-          ) : null}
+          <span className="sys-player-pill-detail" aria-hidden>
+            · {following.detail}
+          </span>
           {onUnfollow ? (
             <button
               type="button"

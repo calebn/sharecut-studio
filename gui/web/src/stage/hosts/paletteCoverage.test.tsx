@@ -209,12 +209,12 @@ const themeRow: Probe = async (user) => {
   expect(dark).toHaveAttribute("aria-checked", "true");
 };
 
-/** The header's people control opens a menu whose rows follow someone. */
+/** A person's face in the header opens a menu whose Follow row follows them. */
 const peopleSlot: Probe = async (user) => {
   mountFrame();
-  await user.click(button(/People here, 1/));
+  await user.click(button(/^Maya/));
   await runs("presence.follow", () =>
-    user.click(screen.getByRole("menuitem", { name: /Maya/ })),
+    user.click(screen.getByRole("menuitem", { name: "Follow" })),
   );
 };
 

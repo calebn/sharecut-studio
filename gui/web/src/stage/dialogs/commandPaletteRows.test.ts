@@ -227,6 +227,27 @@ describe("paletteEntries", () => {
     }
   });
 
+  it("adds a Go to row only for a person there is somewhere to go to", () => {
+    const entries = paletteEntries(buildCommandContext(), {
+      ...sources,
+      people: [
+        {
+          clientId: "c1",
+          name: "Ana",
+          role: "editor",
+          following: false,
+          goTo: true,
+        },
+        { clientId: "c2", name: "Bo", role: "viewer", following: false },
+      ],
+    });
+    expect(
+      entries
+        .filter((e) => e.commandId === "presence.goTo")
+        .map((e) => [e.id, e.verb, e.args]),
+    ).toEqual([["person:goTo:c1", "Go to", { clientId: "c1" }]]);
+  });
+
   it("gives chapters that share a time and title distinct, stable ids", () => {
     const build = () =>
       paletteEntries(buildCommandContext(), {

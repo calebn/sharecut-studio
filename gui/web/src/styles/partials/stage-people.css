@@ -1,9 +1,16 @@
-/* The header's people button: faces and a count, one tap target
-   (src/stage/frame/AvatarStackView). */
+/* The header's people: a face per person, each its own menu, and the Following
+   pill (src/stage/frame/AvatarStackView). */
 .avatar-header {
   display: flex;
   align-items: center;
-  gap: var(--space-1);
+  gap: var(--space-3);
+  min-inline-size: 0;
+}
+
+.avatar-faces {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
   min-inline-size: 0;
 }
 
@@ -11,12 +18,15 @@
   min-inline-size: 0;
 }
 
-.avatar-header-trigger {
+.avatar-face,
+.avatar-more {
+  position: relative;
   display: inline-flex;
   align-items: center;
-  gap: var(--space-1);
+  justify-content: center;
+  min-inline-size: 2rem;
   min-block-size: var(--control-height);
-  padding: 0 var(--space-1);
+  padding: 0;
   border: 0;
   border-radius: var(--radius-md);
   background: transparent;
@@ -26,40 +36,133 @@
   cursor: pointer;
 }
 
-.avatar-header-trigger:hover {
+.avatar-face:hover,
+.avatar-more:hover {
   background: var(--color-hover);
 }
 
-.avatar-header-faces {
+.avatar-face .sys-person-avatar {
+  outline: var(--presence-ring-width) solid var(--sys-person-color);
+  outline-offset: var(--presence-ring-gap);
+}
+
+.avatar-face[data-following] .sys-person-avatar {
+  outline-width: var(--follow-ring-width);
+}
+
+.avatar-face-badge {
+  position: absolute;
+  inset-block-end: 0;
+  inset-inline-end: 0;
   display: inline-flex;
+  padding: 1px;
+  border-radius: 50%;
+  background: var(--color-bg-canvas);
+  color: var(--color-text-secondary);
 }
 
-.avatar-header-faces > * + * {
-  margin-inline-start: calc(var(--space-1) * -1);
-}
-
-.avatar-header-phone-count {
-  display: none;
-}
-
-/* The counts and initials are drawn, not written, so the trigger's name is its only text. */
-.avatar-header-extra::before,
-.avatar-header-phone-count::before {
+.avatar-more::before {
   content: "+" attr(data-count);
 }
 
+.avatar-faces > .avatar-phone-root {
+  display: none;
+}
+
+.avatar-card-head {
+  display: flex;
+  flex-direction: column;
+  min-inline-size: 13rem;
+  padding: var(--space-3) var(--space-3) var(--space-1);
+}
+
+.avatar-card-name {
+  font-weight: 600;
+}
+
+.avatar-card-meta {
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-caption);
+}
+
+.avatar-card + .avatar-card {
+  border-top: 1px solid var(--color-border-subtle);
+}
+
+.avatar-follow {
+  display: inline-flex;
+  align-items: center;
+  min-block-size: 2rem;
+  min-inline-size: 0;
+}
+
+.avatar-follow-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-block-size: 1.5rem;
+  border: 1px solid var(--sys-person-color);
+  background: var(--color-bg-raised);
+  color: var(--color-text-primary);
+  white-space: nowrap;
+}
+
+.avatar-follow-pill svg:first-child {
+  color: var(--sys-person-color);
+}
+
+.avatar-follow-text {
+  min-inline-size: 0;
+  max-inline-size: 16ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.avatar-follow-x::after {
+  content: "";
+  position: absolute;
+  inset: calc((100% - 2rem) / 2);
+}
+
+@media (pointer: coarse) {
+  .avatar-face,
+  .avatar-more {
+    min-inline-size: var(--touch-min);
+    min-block-size: var(--touch-min);
+  }
+
+  .avatar-follow-x::after {
+    inset: calc((100% - var(--touch-min)) / 2);
+  }
+}
+
 @container sys-app-header (max-width: 40rem) {
-  .avatar-header-faces > :nth-child(n + 2),
-  .avatar-header-extra {
+  .avatar-faces > :nth-child(n + 2):not(.avatar-phone-root),
+  .avatar-faces > .avatar-more-root {
     display: none;
   }
 
-  .avatar-header-phone-count {
-    display: inline;
+  .avatar-faces > .avatar-phone-root {
+    display: inline-flex;
   }
 
-  .avatar-header-trigger {
+  .avatar-face,
+  .avatar-more {
     min-inline-size: var(--touch-min);
     min-block-size: var(--touch-min);
+  }
+
+  .avatar-follow-text {
+    position: absolute;
+    inline-size: 1px;
+    block-size: 1px;
+    margin: -1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  .avatar-follow-x::after {
+    inset: calc((100% - var(--touch-min)) / 2);
   }
 }

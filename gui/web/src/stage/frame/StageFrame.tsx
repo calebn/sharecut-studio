@@ -4,7 +4,6 @@ import { useShortViewport } from "../../hooks/useShortViewport";
 import { useTimelineFocusRegion } from "../../hooks/useTimelineFocusRegion";
 import { useTwoFingerTap } from "../../hooks/useTwoFingerTap";
 import { PresenceGhostLayer } from "../../presence/PresenceGhostLayer";
-import { rosterEntry } from "../../presence/roster";
 import { usePresenceCursorSource } from "../../presence/usePresenceCursorSource";
 import { canApplyPass12, isGuestSession } from "../../shareMode";
 import { useDawStore } from "../../state/dawStore";
@@ -47,14 +46,10 @@ function StageFrameAdapter({
 }: StageFrameProps) {
   const shell = useShellAttributes();
   const shortViewport = useShortViewport();
-  const { stage, guest, followColorIndex, setTimelineFocused } = useDawStore(
+  const { stage, guest, setTimelineFocused } = useDawStore(
     useShallow((s) => ({
       stage: s.stage,
       guest: isGuestSession(s.projectPath, s.guestMode, guestShare),
-      followColorIndex: s.followingClientId
-        ? (rosterEntry(s.sessionClients, s.followingClientId)?.meta
-            ?.color_index ?? 0)
-        : null,
       setTimelineFocused: s.setTimelineFocused,
     })),
   );
@@ -99,7 +94,6 @@ function StageFrameAdapter({
         stage={stage}
         stageLabel={stageLabel(stage)}
         guest={guestShare}
-        followColorIndex={followColorIndex}
         header={
           <AppHeader
             {...headerProps}

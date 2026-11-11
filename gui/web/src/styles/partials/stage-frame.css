@@ -100,16 +100,6 @@ html[data-surface="home"][data-shell] {
   grid-row: 4;
 }
 
-/* Following someone: a 2 px frame in their color outlines the content area. */
-.stage-frame--following > .stage-frame-body::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  border: var(--follow-frame-width) solid var(--stage-follow);
-  pointer-events: none;
-  z-index: 1;
-}
-
 .stage-frame-tabs {
   grid-row: 5;
 }

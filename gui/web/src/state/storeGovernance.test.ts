@@ -410,6 +410,11 @@ const HOT_FIELD_ALLOWLIST: readonly AllowEntry[] = [
       "arming a range seeds its draft from the playhead when the command runs, not in render",
   },
   {
+    file: "commands/navigation.ts",
+    reason:
+      "Go to reads the roster entry of the person chosen when the command runs, not in render",
+  },
+  {
     file: "commands/shuttle.ts",
     reason:
       "J steps back from the live playhead when the key runs, not in render",
@@ -467,10 +472,6 @@ const HOT_FIELD_ALLOWLIST: readonly AllowEntry[] = [
   {
     file: "stage/frame/AvatarStack.tsx",
     reason: "leaf that reads the presence roster itself",
-  },
-  {
-    file: "stage/frame/StageFrame.tsx",
-    reason: "looks up the followed person's color for the stage frame",
   },
   {
     file: "presence/PresenceGhostLayer.tsx",

@@ -151,13 +151,12 @@ export const Following: Story = {
     playing: true,
     onUnfollow: fn(),
   },
-  play: async ({ args, canvasElement }) => {
+  play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    await expect(canvas.getByText("Following Rosa")).toBeInTheDocument();
-    await userEvent.click(
-      canvas.getByRole("button", { name: "Stop following Rosa" }),
+    await expect(canvasElement.querySelector(".sys-play")).toHaveAttribute(
+      "data-following",
     );
-    await expect(args.onUnfollow).toHaveBeenCalledOnce();
+    await expect(canvas.queryByText("Following Rosa")).toBeNull();
   },
 };
 

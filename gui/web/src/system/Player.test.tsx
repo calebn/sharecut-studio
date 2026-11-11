@@ -195,9 +195,14 @@ describe("Player", () => {
     expect(onSkip.mock.calls).toEqual([[-15], [15]]);
   });
 
-  it("names who is followed in a pill, not by colour alone", () => {
-    render(<Player {...base} following={{ name: "Rosa", colorIndex: 1 }} />);
-    expect(screen.getByText("Following Rosa")).toBeInTheDocument();
+  it("rings Play in the followed person's colour and leaves the naming to the header pill", () => {
+    const { container } = render(
+      <Player {...base} following={{ name: "Rosa", colorIndex: 1 }} />,
+    );
+    expect(container.querySelector(".sys-play")).toHaveAttribute(
+      "data-following",
+    );
+    expect(screen.queryByText("Following Rosa")).toBeNull();
   });
 
   it("explains a partial follow in the pill tooltip and a status for screen readers", () => {
@@ -246,10 +251,11 @@ describe("Player", () => {
     expect(screen.queryByRole("status")).toBeNull();
   });
 
-  it("has no tooltip when the follow is complete", () => {
-    render(<Player {...base} following={{ name: "Rosa", colorIndex: 1 }} />);
-    const pill = screen.getByText("Following Rosa").closest(".sys-player-pill");
-    expect(pill).not.toHaveAttribute("title");
+  it("shows no pill when the follow is complete", () => {
+    const { container } = render(
+      <Player {...base} following={{ name: "Rosa", colorIndex: 1 }} />,
+    );
+    expect(container.querySelector(".sys-player-pill")).toBeNull();
   });
 
   describe("hear original", () => {

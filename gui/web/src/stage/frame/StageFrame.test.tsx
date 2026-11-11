@@ -329,8 +329,10 @@ describe("StageFrame while following", () => {
   const follow = () =>
     act(() => {
       useDawStore.setState({
+        localClientId: "me",
         followingClientId: "ada",
         sessionClients: sessionRoster([
+          { client_id: "me", role: "host", meta: { display_name: "Me" } },
           {
             client_id: "ada",
             role: "viewer",
@@ -342,26 +344,30 @@ describe("StageFrame while following", () => {
 
   afterEach(() => {
     useDawStore.setState({
+      localClientId: null,
       followingClientId: null,
       followDegraded: {},
       sessionClients: sessionRoster([]),
     });
   });
 
-  it("outlines the stage in the followed person's color and drops it on unfollow", () => {
+  it("draws no frame round the stage, only the header pill and the ring", () => {
     mount();
+    follow();
     const frame = document.querySelector<HTMLElement>(".stage-frame");
     expect(frame?.classList.contains("stage-frame--following")).toBe(false);
-    follow();
-    expect(frame?.classList.contains("stage-frame--following")).toBe(true);
-    expect(frame?.style.getPropertyValue("--stage-follow")).toBe(
-      "var(--color-presence-2)",
+    expect(frame?.style.getPropertyValue("--stage-follow")).toBe("");
+    expect(
+      screen
+        .getByRole("button", { name: "Stop following Ada" })
+        .closest(".avatar-follow"),
+    ).toHaveTextContent("Following Ada");
+    expect(screen.getByRole("button", { name: /^Ada/ })).toHaveAttribute(
+      "data-following",
     );
-    act(() => useDawStore.setState({ followingClientId: null }));
-    expect(frame?.classList.contains("stage-frame--following")).toBe(false);
   });
 
-  it("puts a partial follow's reason on the Following pill for a guest", () => {
+  it("puts a partial follow's reason on the Player pill for a guest", () => {
     useDawStore.setState({ guestMode: "view" });
     mount();
     follow();
@@ -371,9 +377,10 @@ describe("StageFrame while following", () => {
       }),
     );
     const pill = screen
-      .getByText("Following Ada")
-      .closest(".sys-player-pill") as HTMLElement;
-    expect(pill.title).toBe(
+      .getAllByText(/^Following Ada$/)
+      .map((el) => el.closest<HTMLElement>(".sys-player-pill"))
+      .find(Boolean);
+    expect(pill?.title).toBe(
       "Following Ada · Listening in Mix · in Pipeline (host-only) · auditioning FX",
     );
     expect(
@@ -385,7 +392,17 @@ describe("StageFrame while following", () => {
     expect(pill).toHaveTextContent("· Listening in Mix");
   });
 
-  it("stops following from the pill", async () => {
+  it("shows the Player pill only for a partial follow", () => {
+    mount();
+    follow();
+    expect(
+      Array.from(document.querySelectorAll(".sys-player-pill")).filter((pill) =>
+        pill.textContent?.startsWith("Following"),
+      ),
+    ).toEqual([]);
+  });
+
+  it("stops following from the header pill", async () => {
     mount();
     follow();
     await userEvent.click(
