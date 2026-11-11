@@ -717,12 +717,7 @@ describe("Review queue for a guest", () => {
     });
 
     it("keeps the bar and mounts no card on a window too short for the transcript", () => {
-      stubViewportShell("tablet");
-      const base = window.matchMedia;
-      vi.stubGlobal("matchMedia", (query: string) => ({
-        ...base(query),
-        matches: query === SHORT_VIEWPORT_MQ || base(query).matches,
-      }));
+      stubViewportShell("tablet", { short: true });
       join("comment");
       render(<ReviewHost guestShare />);
       expect(document.querySelector(".sys-player--expanded")).toBeNull();
