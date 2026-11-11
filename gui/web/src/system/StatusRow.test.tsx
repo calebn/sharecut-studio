@@ -100,6 +100,46 @@ describe("StatusRow failed", () => {
     expect(onAction).not.toHaveBeenCalled();
   });
 
+  it("puts a third action after the main one and names all three", async () => {
+    const onSecondary = vi.fn();
+    const onAction = vi.fn();
+    const onTertiary = vi.fn();
+    render(
+      <StatusRow
+        state="needs-you"
+        title="Your cut at 12:04 overlaps a newer edit"
+        secondaryAction={{
+          label: "Hear",
+          name: "Hear your cut at 12:04",
+          onAction: onSecondary,
+        }}
+        action={{
+          label: "Suggest again here",
+          name: "Suggest again here, your cut at 12:04",
+          onAction,
+        }}
+        tertiaryAction={{
+          label: "Drop it",
+          name: "Drop it, your cut at 12:04",
+          onAction: onTertiary,
+        }}
+      />,
+    );
+    expect(
+      screen.getAllByRole("button").map((b) => b.getAttribute("aria-label")),
+    ).toEqual([
+      "Hear your cut at 12:04",
+      "Suggest again here, your cut at 12:04",
+      "Drop it, your cut at 12:04",
+    ]);
+    await userEvent.click(
+      screen.getByRole("button", { name: "Drop it, your cut at 12:04" }),
+    );
+    expect(onTertiary).toHaveBeenCalledOnce();
+    expect(onAction).not.toHaveBeenCalled();
+    expect(onSecondary).not.toHaveBeenCalled();
+  });
+
   it("has no Details button without a technical cause or outside failure", () => {
     const { rerender } = render(
       <StatusRow

@@ -139,6 +139,36 @@ export const Expandable: Story = {
   },
 };
 
+export const ThreeActions: Story = {
+  args: {
+    state: "needs-you",
+    title: "Your cut at 12:04 overlaps a newer edit",
+    secondaryAction: {
+      label: "Hear",
+      name: "Hear your cut at 12:04",
+      onAction: fn(),
+    },
+    action: {
+      label: "Suggest again here",
+      name: "Suggest again here, your cut at 12:04",
+      onAction: fn(),
+    },
+    tertiaryAction: {
+      label: "Drop it",
+      name: "Drop it, your cut at 12:04",
+      onAction: fn(),
+    },
+  },
+  play: async ({ canvasElement, args }) => {
+    const canvas = within(canvasElement);
+    await userEvent.click(
+      canvas.getByRole("button", { name: "Drop it, your cut at 12:04" }),
+    );
+    await expect(args.tertiaryAction?.onAction).toHaveBeenCalledOnce();
+    await expect(args.action?.onAction).not.toHaveBeenCalled();
+  },
+};
+
 export const Alert: Story = {
   args: {
     state: "failed",
