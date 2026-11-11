@@ -51,7 +51,7 @@ const meta: Meta<typeof SettingsSheet> = {
       ...isolatedStoryParameters.docs,
       description: {
         component:
-          "Settings from the app menu: Appearance (System, Light, Dark, shared with the Project menu), Saved in with Reveal in folder (desktop app only), and the rows that open Models and Keyboard shortcuts. A 420 px sheet on the right of a desktop or tablet, a bottom sheet as tall as its rows on a phone. On Home there is no project, so Saved in and Keyboard shortcuts are absent. Rows act as they change; there is no Apply.",
+          "Settings from the app menu: Appearance (System, Light, Dark, shared with the Project menu), Saved in with Reveal in folder and Move… (desktop app only), and the rows that open Models and Keyboard shortcuts. A 420 px sheet on the right of a desktop or tablet, a bottom sheet as tall as its rows on a phone. On Home there is no project, so Saved in and Keyboard shortcuts are absent. Rows act as they change; there is no Apply.",
       },
     },
   },
@@ -66,6 +66,7 @@ const meta: Meta<typeof SettingsSheet> = {
     savedIn: {
       folder: FOLDER,
       onReveal: fn(),
+      onMove: fn(),
       revealing: false,
       error: null,
     },
@@ -189,6 +190,47 @@ export const RevealError: Story = {
     const sheet = await openSheet(canvasElement);
     await expect(
       within(sheet).getByText("This computer couldn't open its file manager."),
+    ).toBeVisible();
+  },
+};
+
+export const Moving: Story = {
+  args: {
+    savedIn: {
+      folder: FOLDER,
+      onReveal: fn(),
+      onMove: fn(),
+      revealing: false,
+      moving: true,
+      error: null,
+    },
+  },
+  play: async ({ canvasElement, viewMode }) => {
+    if (viewMode === "docs") return;
+    const sheet = await openSheet(canvasElement);
+    await expect(
+      within(sheet).getByRole("button", { name: "Moving…" }),
+    ).toBeDisabled();
+  },
+};
+
+export const MoveRefused: Story = {
+  args: {
+    savedIn: {
+      folder: FOLDER,
+      onReveal: fn(),
+      onMove: fn(),
+      revealing: false,
+      error: "Someone else has this episode open in another window.",
+    },
+  },
+  play: async ({ canvasElement, viewMode }) => {
+    if (viewMode === "docs") return;
+    const sheet = await openSheet(canvasElement);
+    await expect(
+      within(sheet).getByText(
+        "Someone else has this episode open in another window.",
+      ),
     ).toBeVisible();
   },
 };
