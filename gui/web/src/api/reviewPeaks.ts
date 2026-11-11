@@ -53,6 +53,13 @@ export function loadReviewPeaks(
   return request;
 }
 
+export function cachedReviewPeaks(
+  token: string,
+  versionId: string,
+): readonly number[] {
+  return settled.get(`${token}\u0000${versionId}`) ?? [];
+}
+
 export function clearReviewPeaksCache(): void {
   settled.clear();
   inFlight.clear();

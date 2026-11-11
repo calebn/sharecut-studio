@@ -5,8 +5,10 @@ import { minimalProject } from "../test/fixtures";
 import type { ReviewVersion } from "./useReviewVersion";
 
 const loadReviewPeaks = vi.fn();
+const cachedReviewPeaks = vi.fn();
 vi.mock("../api", () => ({
   loadReviewPeaks: (...args: unknown[]) => loadReviewPeaks(...args),
+  cachedReviewPeaks: (...args: unknown[]) => cachedReviewPeaks(...args),
   reviewVersionAtBootstrap: () => null,
 }));
 
@@ -28,6 +30,8 @@ function share(token: string) {
 
 beforeEach(() => {
   loadReviewPeaks.mockReset();
+  cachedReviewPeaks.mockReset();
+  cachedReviewPeaks.mockReturnValue([]);
   useDawStore.setState({ reviewPeaks: [] });
   share("tok");
 });
@@ -54,6 +58,28 @@ describe("useReviewPeaks", () => {
     rerender({ v: read("v2") });
     expect(useDawStore.getState().reviewPeaks).toEqual([]);
     expect(loadReviewPeaks).toHaveBeenLastCalledWith("tok", "v2");
+  });
+
+  it("goes straight to a version it already holds without a flat line in between", async () => {
+    loadReviewPeaks.mockResolvedValue([0.5, 1]);
+    const { rerender } = renderHook(({ v }) => useReviewPeaks(v), {
+      initialProps: { v: read("v1") },
+    });
+    await vi.waitFor(() =>
+      expect(useDawStore.getState().reviewPeaks).toEqual([0.5, 1]),
+    );
+    cachedReviewPeaks.mockImplementation((_token: string, id: string) =>
+      id === "v2" ? [0.3, 0.9] : [],
+    );
+    loadReviewPeaks.mockReturnValue(new Promise(() => undefined));
+    const seen: (readonly number[])[] = [];
+    const stop = useDawStore.subscribe((s, prev) => {
+      if (s.reviewPeaks !== prev.reviewPeaks) seen.push(s.reviewPeaks);
+    });
+    rerender({ v: read("v2") });
+    stop();
+    expect(seen).toEqual([[0.3, 0.9]]);
+    expect(useDawStore.getState().reviewPeaks).toEqual([0.3, 0.9]);
   });
 
   it("retries a failed fetch on the next poll and not before", async () => {

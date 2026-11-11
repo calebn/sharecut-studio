@@ -1,5 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { clearReviewPeaksCache, loadReviewPeaks } from "./reviewPeaks";
+import {
+  cachedReviewPeaks,
+  clearReviewPeaksCache,
+  loadReviewPeaks,
+} from "./reviewPeaks";
 
 function requestUrl(input: RequestInfo | URL): string {
   return typeof input === "string"
@@ -28,6 +32,17 @@ describe("loadReviewPeaks", () => {
     expect(requestUrl(fetchMock.mock.calls[0]![0])).toBe(
       "/api/review/tok/peaks?version_id=v1",
     );
+  });
+
+  it("hands back what it holds for a share and version, and nothing else, without a request", async () => {
+    const fetchMock = stubFetch(() => Response.json(PEAKS));
+    expect(cachedReviewPeaks("tok", "v1")).toEqual([]);
+    await loadReviewPeaks("tok", "v1");
+    fetchMock.mockClear();
+    expect(cachedReviewPeaks("tok", "v1")).toEqual(PEAKS);
+    expect(cachedReviewPeaks("tok", "v2")).toEqual([]);
+    expect(cachedReviewPeaks("other", "v1")).toEqual([]);
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 
   it("fetches once per share and version, however often it is asked", async () => {

@@ -179,7 +179,11 @@ export {
   reviewVersionAtBootstrap,
   uploadMediaFile,
 } from "./api/project";
-export { clearReviewPeaksCache, loadReviewPeaks } from "./api/reviewPeaks";
+export {
+  cachedReviewPeaks,
+  clearReviewPeaksCache,
+  loadReviewPeaks,
+} from "./api/reviewPeaks";
 export {
   loadSessionTakes,
   type SessionTakeDetail,
