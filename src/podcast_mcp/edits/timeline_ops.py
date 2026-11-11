@@ -9,6 +9,7 @@ from typing import Any, Literal
 from pydantic import ValidationError
 
 from podcast_mcp.config.defaults import DEFAULT_MICRO_FADE_MS, EffectiveConfig, join_micro_fade_ms
+from podcast_mcp.edits.clip_fades import ClipFadeEdit
 from podcast_mcp.edits.clipping_regions import clip_clipping_payload, clip_clipping_truncated
 from podcast_mcp.edits.comment_remap import (
     remap_review_anchors_for_cuts,
@@ -104,6 +105,7 @@ from podcast_mcp.models import (
     CutSpeech,
     EditMode,
     EpisodeProject,
+    FadeCurve,
     ReinsertClips,
     RoomToneFill,
 )
@@ -1055,39 +1057,65 @@ def set_clip_fade(
     fade_out_ms: int,
     *,
     defaults: EffectiveConfig,
+    fade_in_curve: FadeCurve | None = None,
+    fade_out_curve: FadeCurve | None = None,
 ) -> dict:
 
     clip = next((c for c in project.clips if c.id == clip_id), None)
     if not clip:
         raise CodedValueError(f"unknown clip_id: {clip_id!r}", code="clip_not_found")
-    clip.fade_in_ms, clip.fade_out_ms = clamp_clip_fades(
-        project, clip, int(fade_in_ms), int(fade_out_ms), defaults=defaults
+    _write_clip_fade(
+        project, clip, fade_in_ms, fade_out_ms, fade_in_curve, fade_out_curve, defaults=defaults
     )
     return change_summary(project, operation="set_clip_fade", affected_tracks=[clip.track_id])
 
 
 def set_clips_fade(
     project: EpisodeProject,
-    fades: Sequence[tuple[str, int, int]],
+    fades: Sequence[ClipFadeEdit],
     *,
     defaults: EffectiveConfig,
 ) -> dict:
-    """Clamp and set every ``(clip_id, fade_in_ms, fade_out_ms)``; an unknown clip changes none."""
+    """Clamp and set every edit's fades and curves; an unknown clip changes none."""
 
     by_id = {c.id: c for c in project.clips}
-    missing = next((cid for cid, _, _ in fades if cid not in by_id), None)
+    missing = next((f.clip_id for f in fades if f.clip_id not in by_id), None)
     if missing is not None:
         raise CodedValueError(f"unknown clip_id: {missing!r}", code="clip_not_found")
-    for cid, fade_in_ms, fade_out_ms in fades:
-        clip = by_id[cid]
-        clip.fade_in_ms, clip.fade_out_ms = clamp_clip_fades(
-            project, clip, int(fade_in_ms), int(fade_out_ms), defaults=defaults
+    for fade in fades:
+        _write_clip_fade(
+            project,
+            by_id[fade.clip_id],
+            fade.fade_in_ms,
+            fade.fade_out_ms,
+            fade.fade_in_curve,
+            fade.fade_out_curve,
+            defaults=defaults,
         )
     return change_summary(
         project,
         operation="set_clips_fade",
-        affected_tracks=sorted({by_id[cid].track_id for cid, _, _ in fades}),
+        affected_tracks=sorted({by_id[f.clip_id].track_id for f in fades}),
     )
+
+
+def _write_clip_fade(
+    project: EpisodeProject,
+    clip: Clip,
+    fade_in_ms: int,
+    fade_out_ms: int,
+    fade_in_curve: FadeCurve | None,
+    fade_out_curve: FadeCurve | None,
+    *,
+    defaults: EffectiveConfig,
+) -> None:
+    clip.fade_in_ms, clip.fade_out_ms = clamp_clip_fades(
+        project, clip, int(fade_in_ms), int(fade_out_ms), defaults=defaults
+    )
+    if fade_in_curve is not None:
+        clip.fade_in_curve = fade_in_curve
+    if fade_out_curve is not None:
+        clip.fade_out_curve = fade_out_curve
 
 
 def set_clip_gain(project: EpisodeProject, clip_id: str, gain_db: float) -> dict:

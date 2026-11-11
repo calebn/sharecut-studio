@@ -5,7 +5,6 @@ from __future__ import annotations
 import logging
 import math
 from collections.abc import Callable, Mapping
-from dataclasses import asdict
 from pathlib import Path
 from typing import Any, Literal, TypeVar
 
@@ -21,7 +20,7 @@ from podcast_mcp.edits.chapters import (
     remove_chapter,
     update_chapter,
 )
-from podcast_mcp.edits.clip_fades import ClipFadeBaseline, require_clip_fade_baseline
+from podcast_mcp.edits.clip_fades import ClipFadeBaseline, ClipFadeEdit
 from podcast_mcp.edits.clip_gain import ClipGainBaseline
 from podcast_mcp.edits.cut_speech import (
     assess_cut_speech,
@@ -57,15 +56,13 @@ from podcast_mcp.edits.timeline_ops import (
     plan_delete_clips,
     plan_shorten_word_gaps,
     roll_clip_join,
-    set_clip_fade,
-    set_clips_fade,
     split_clips_at,
 )
 from podcast_mcp.edits.transcript_cuts import (
     append_remove_decision,
     append_split_decision,
 )
-from podcast_mcp.models import CutIntent, EditMode, EpisodeProject
+from podcast_mcp.models import CutIntent, EditMode, EpisodeProject, FadeCurve
 from podcast_mcp.services.collaboration import get_share_registry
 from podcast_mcp.services.document.bleed_inspection import (
     BleedRestoreResult,
@@ -73,6 +70,7 @@ from podcast_mcp.services.document.bleed_inspection import (
     inspect_clip_bleed,
     restore_clip_bleed,
 )
+from podcast_mcp.services.document.clip_fade import apply_clip_fade, apply_clips_fade
 from podcast_mcp.services.document.clip_gain import apply_clip_gain, apply_clips_gain
 from podcast_mcp.services.document.service_base import CutMutatingService
 from podcast_mcp.util.change_summary import change_summary
@@ -362,52 +360,24 @@ class TimelineService(CutMutatingService):
         fade_out_ms: int,
         *,
         expected: ClipFadeBaseline | None = None,
+        fade_in_curve: FadeCurve | None = None,
+        fade_out_curve: FadeCurve | None = None,
     ) -> dict:
-        with self.ws.transaction() as project:
-            if expected is not None:
-                require_clip_fade_baseline(project, clip_id, expected)
-            return dict(
-                self._mutate_clips(
-                    "set clip fade",
-                    lambda p: set_clip_fade(
-                        p, clip_id, fade_in_ms, fade_out_ms, defaults=self.ws.effective_config()
-                    ),
-                    operation="set_clip_fade",
-                    params={
-                        "clip_id": clip_id,
-                        "fade_in_ms": fade_in_ms,
-                        "fade_out_ms": fade_out_ms,
-                        **({"expected": asdict(expected)} if expected is not None else {}),
-                    },
-                )
+        return dict(
+            apply_clip_fade(
+                self.ws,
+                self._mutate_clips,
+                clip_id,
+                fade_in_ms,
+                fade_out_ms,
+                expected,
+                fade_in_curve,
+                fade_out_curve,
             )
+        )
 
-    def set_clips_fade(
-        self, fades: list[tuple[str, int, int, ClipFadeBaseline]]
-    ) -> Mapping[str, Any]:
-        with self.ws.transaction() as project:
-            for clip_id, _, _, expected in fades:
-                require_clip_fade_baseline(project, clip_id, expected)
-            return self._mutate_clips(
-                "set clips fade",
-                lambda p: set_clips_fade(
-                    p,
-                    [(clip_id, fade_in, fade_out) for clip_id, fade_in, fade_out, _ in fades],
-                    defaults=self.ws.effective_config(),
-                ),
-                operation="set_clips_fade",
-                params={
-                    "fades": [
-                        {
-                            "clip_id": clip_id,
-                            "fade_in_ms": fade_in,
-                            "fade_out_ms": fade_out,
-                            "expected": asdict(expected),
-                        }
-                        for clip_id, fade_in, fade_out, expected in fades
-                    ]
-                },
-            )
+    def set_clips_fade(self, fades: list[ClipFadeEdit]) -> Mapping[str, Any]:
+        return apply_clips_fade(self.ws, self._mutate_clips, fades)
 
     def set_clip_gain(
         self, clip_id: str, gain_db: float, *, expected: ClipGainBaseline | None = None

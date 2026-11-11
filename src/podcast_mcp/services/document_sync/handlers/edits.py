@@ -6,13 +6,15 @@ from collections.abc import Mapping
 from contextlib import nullcontext
 from typing import Any
 
+from pydantic import TypeAdapter
+
 from podcast_mcp.edits.audio_check_override import mcp_host_override
 from podcast_mcp.edits.bleed_restore_targets import BleedRestoreTarget
-from podcast_mcp.edits.clip_fades import ClipFadeBaseline
+from podcast_mcp.edits.clip_fades import ClipFadeBaseline, ClipFadeEdit
 from podcast_mcp.edits.clip_gain import ClipGainBaseline
 from podcast_mcp.edits.cut_speech import CutSpeechConfirmation
 from podcast_mcp.edits.decisions import AskedEdits, HeldEdit, PendingEditBaseline
-from podcast_mcp.models import CutIntent, EditMode
+from podcast_mcp.models import CutIntent, EditMode, FadeCurve
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.document import (
     AnalysisService,
@@ -114,12 +116,21 @@ def restore_clip_bleed(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any
     )
 
 
+_FADE_BASELINE = TypeAdapter(ClipFadeBaseline)
+
+
+def _fade_curve(raw: str | None) -> FadeCurve | None:
+    return None if raw is None else FadeCurve(raw)
+
+
 def set_clip_fade(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
     return TimelineService(ws).set_clip_fade(
         p["clip_id"],
         int(p["fade_in_ms"]),
         int(p["fade_out_ms"]),
-        expected=ClipFadeBaseline(**p["expected"]),
+        expected=_FADE_BASELINE.validate_python(p["expected"]),
+        fade_in_curve=_fade_curve(p.get("fade_in_curve")),
+        fade_out_curve=_fade_curve(p.get("fade_out_curve")),
     )
 
 
@@ -139,11 +150,13 @@ def set_clips_fade(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
     return dict(
         TimelineService(ws).set_clips_fade(
             [
-                (
+                ClipFadeEdit(
                     f["clip_id"],
                     int(f["fade_in_ms"]),
                     int(f["fade_out_ms"]),
-                    ClipFadeBaseline(**f["expected"]),
+                    _FADE_BASELINE.validate_python(f["expected"]),
+                    _fade_curve(f.get("fade_in_curve")),
+                    _fade_curve(f.get("fade_out_curve")),
                 )
                 for f in p["fades"]
             ]

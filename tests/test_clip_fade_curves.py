@@ -16,6 +16,7 @@ import pytest
 from pydantic import ValidationError
 
 from podcast_mcp.config.defaults import load_defaults
+from podcast_mcp.edits.clip_fades import ClipFadeBaseline, ClipFadeChangedError, ClipFadeEdit
 from podcast_mcp.engines.audio import SourceAudio, sources
 from podcast_mcp.engines.audio_eval import evaluate_audio
 from podcast_mcp.engines.ffmpeg import FFmpegEngine
@@ -244,6 +245,189 @@ def _hash_project(tmp_path: Path, **clip_extra) -> EpisodeProject:
     return project
 
 
+def test_service_sets_curves_and_a_length_only_write_keeps_them(minimal_project: Path) -> None:
+    from podcast_mcp.services.document import TimelineService
+
+    service = TimelineService(_seed(minimal_project))
+    service.set_clip_fade(
+        "a", 10, 20, expected=ClipFadeBaseline(0, 0), fade_in_curve=EQUAL_POWER, fade_out_curve=S
+    )
+    assert _curves(_saved(minimal_project)[0]) == (EQUAL_POWER, S)
+    service.set_clip_fade("a", 15, 25, expected=ClipFadeBaseline(10, 20, EQUAL_POWER, S))
+    clip = _saved(minimal_project)[0]
+    assert (clip.fade_in_ms, clip.fade_out_ms) == (15, 25)
+    assert _curves(clip) == (EQUAL_POWER, S)
+    service.set_clip_fade(
+        "a", 15, 25, expected=ClipFadeBaseline(15, 25, EQUAL_POWER, S), fade_out_curve=LINEAR
+    )
+    assert _curves(_saved(minimal_project)[0]) == (EQUAL_POWER, LINEAR)
+    assert "fade_out_curve" not in _saved(minimal_project)[0].model_dump(mode="json")
+
+
+def test_a_curve_only_change_keeps_both_lengths(minimal_project: Path) -> None:
+    from podcast_mcp.services.document import TimelineService
+
+    ws = _seed(minimal_project, _clip("a", fade_in_ms=40, fade_out_ms=40))
+    TimelineService(ws).set_clip_fade(
+        "a", 40, 40, expected=ClipFadeBaseline(40, 40), fade_in_curve=S
+    )
+    clip = _saved(minimal_project)[0]
+    assert (clip.fade_in_ms, clip.fade_out_ms, clip.fade_in_curve) == (40, 40, S)
+
+
+def test_a_stale_curve_only_baseline_is_refused_without_saving_or_a_history_row(
+    minimal_project: Path,
+) -> None:
+    from podcast_mcp.services.document import TimelineService
+
+    ws = _seed(minimal_project)
+    stale = TimelineService(ProjectWorkspace.open(minimal_project))
+    TimelineService(ws).set_clip_fade("a", 0, 0, expected=ClipFadeBaseline(0, 0), fade_in_curve=S)
+    before = minimal_project.read_bytes()
+    rows = _entries(ProjectWorkspace.open(minimal_project))
+    with pytest.raises(ClipFadeChangedError, match="Nothing was saved") as refusal:
+        stale.set_clip_fade("a", 25, 0, expected=ClipFadeBaseline(0, 0))
+    assert refusal.value.code == "clip_fade_changed"
+    with pytest.raises(ClipFadeChangedError):
+        stale.set_clip_fade(
+            "a", 0, 0, expected=ClipFadeBaseline(0, 0, fade_in_curve=EQUAL_POWER), fade_out_curve=S
+        )
+    assert minimal_project.read_bytes() == before
+    assert _entries(ProjectWorkspace.open(minimal_project)) == rows
+
+
+def test_an_omitted_baseline_curve_means_linear_and_matching_curves_are_accepted(
+    minimal_project: Path,
+) -> None:
+    from podcast_mcp.services.document import TimelineService
+
+    baseline = ClipFadeBaseline(10, 20)
+    assert (baseline.fade_in_curve, baseline.fade_out_curve) == (LINEAR, LINEAR)
+    ws = _seed(minimal_project, _clip("a", fade_in_ms=10, fade_out_ms=20, fade_out_curve=S))
+    service = TimelineService(ws)
+    with pytest.raises(ClipFadeChangedError):
+        service.set_clip_fade("a", 11, 20, expected=baseline)
+    service.set_clip_fade("a", 11, 20, expected=ClipFadeBaseline(10, 20, LINEAR, S))
+    assert _saved(minimal_project)[0].fade_in_ms == 11
+
+
+def test_undo_restores_the_previous_curve_and_redo_reapplies_it(minimal_project: Path) -> None:
+    from podcast_mcp.services.document import HistoryService, TimelineService
+
+    ws = _seed(minimal_project, _clip("a", fade_in_ms=30, fade_in_curve=EQUAL_POWER))
+    TimelineService(ws).set_clip_fade(
+        "a", 30, 0, expected=ClipFadeBaseline(30, 0, EQUAL_POWER), fade_in_curve=S, fade_out_curve=S
+    )
+    assert _curves(_saved(minimal_project)[0]) == (S, S)
+    HistoryService(ProjectWorkspace.open(minimal_project)).undo()
+    assert _curves(_saved(minimal_project)[0]) == (EQUAL_POWER, LINEAR)
+    HistoryService(ProjectWorkspace.open(minimal_project)).redo()
+    assert _curves(_saved(minimal_project)[0]) == (S, S)
+
+
+def test_history_params_record_curves_only_when_set(
+    minimal_project: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from podcast_mcp.services.document import TimelineService
+
+    ws = _seed(minimal_project)
+    recorded: list[dict] = []
+    real = ProjectWorkspace.mutate
+
+    def spy(self, *args, **kwargs):
+        recorded.append(kwargs["params"])
+        return real(self, *args, **kwargs)
+
+    monkeypatch.setattr(ProjectWorkspace, "mutate", spy)
+    service = TimelineService(ws)
+    service.set_clip_fade("a", 10, 10, expected=ClipFadeBaseline(0, 0))
+    service.set_clip_fade("a", 10, 10, expected=ClipFadeBaseline(10, 10), fade_in_curve=S)
+    plain, curved = recorded
+    assert not {"fade_in_curve", "fade_out_curve"} & set(plain)
+    assert curved["fade_in_curve"] == "s" and "fade_out_curve" not in curved
+
+
+def test_clips_fade_sets_per_clip_curves_in_one_history_step(minimal_project: Path) -> None:
+    from podcast_mcp.services.document import TimelineService
+
+    ws = _seed(minimal_project)
+    rows = _entries(ws)
+    TimelineService(ws).set_clips_fade(
+        [
+            ClipFadeEdit("a", 30, 0, ClipFadeBaseline(0, 0), fade_in_curve=S),
+            ClipFadeEdit("b", 0, 40, ClipFadeBaseline(0, 0), fade_out_curve=EQUAL_POWER),
+        ]
+    )
+    a, b = _saved(minimal_project)
+    assert _curves(a) == (S, LINEAR)
+    assert _curves(b) == (LINEAR, EQUAL_POWER)
+    assert _entries(ProjectWorkspace.open(minimal_project)) - rows == 2
+
+
+def test_clips_fade_is_all_or_nothing_on_a_curve_conflict(minimal_project: Path) -> None:
+    from podcast_mcp.services.document import TimelineService
+
+    ws = _seed(minimal_project, _clip("a"), _clip("b", 1.0, 2.0, 1.0, fade_in_curve=S))
+    before = minimal_project.read_bytes()
+    with pytest.raises(ClipFadeChangedError):
+        TimelineService(ws).set_clips_fade(
+            [
+                ClipFadeEdit("a", 10, 0, ClipFadeBaseline(0, 0), fade_in_curve=S),
+                ClipFadeEdit("b", 10, 0, ClipFadeBaseline(0, 0)),
+            ]
+        )
+    assert minimal_project.read_bytes() == before
+
+
+def test_an_unknown_clip_changes_nothing_even_with_curves(minimal_project: Path) -> None:
+    from podcast_mcp.services.document import TimelineService
+
+    ws = _seed(minimal_project)
+    before = minimal_project.read_bytes()
+    with pytest.raises(ClipFadeChangedError):
+        TimelineService(ws).set_clips_fade(
+            [
+                ClipFadeEdit("a", 10, 0, ClipFadeBaseline(0, 0), fade_in_curve=S),
+                ClipFadeEdit("gone", 10, 0, ClipFadeBaseline(0, 0)),
+            ]
+        )
+    assert minimal_project.read_bytes() == before
+
+
+def test_payloads_accept_optional_curves_and_reject_unknown_ones() -> None:
+    from podcast_mcp.services.document_sync.payloads import validate_payload
+
+    ok = {
+        "clip_id": "a",
+        "fade_in_ms": 5,
+        "fade_out_ms": 5,
+        "expected": {"fade_in_ms": 0, "fade_out_ms": 0},
+    }
+    plain = validate_payload("SetClipFade", ok)
+    assert plain["fade_in_curve"] is None and plain["fade_out_curve"] is None
+    assert plain["expected"]["fade_in_curve"] == LINEAR
+    curved = validate_payload(
+        "SetClipFade",
+        {
+            **ok,
+            "fade_in_curve": "equal_power",
+            "fade_out_curve": "s",
+            "expected": {"fade_in_ms": 0, "fade_out_ms": 0, "fade_out_curve": "s"},
+        },
+    )
+    assert (curved["fade_in_curve"], curved["fade_out_curve"]) == (EQUAL_POWER, S)
+    for bad in (
+        {**ok, "fade_in_curve": "log"},
+        {**ok, "fade_out_curve": 3},
+        {**ok, "expected": {"fade_in_ms": 0, "fade_out_ms": 0, "fade_in_curve": "log"}},
+    ):
+        with pytest.raises(ValidationError):
+            validate_payload("SetClipFade", bad)
+    validate_payload("SetClipsFade", {"fades": [{**ok, "fade_in_curve": "s"}]})
+    with pytest.raises(ValidationError):
+        validate_payload("SetClipsFade", {"fades": [{**ok, "fade_in_curve": "nope"}]})
+
+
 def _sync(minimal_project: Path):
     from podcast_mcp.services.document_sync import DocumentSyncService
     from podcast_mcp.services.document_sync.commands import DocumentCommand
@@ -256,3 +440,61 @@ def _sync(minimal_project: Path):
         )
 
     return svc, command
+
+
+def test_document_commands_set_curves_and_refuse_a_curve_only_stale_baseline(
+    minimal_project: Path,
+) -> None:
+    from podcast_mcp.services.document_sync.errors import DocumentConflictError
+
+    _seed(minimal_project)
+    svc, command = _sync(minimal_project)
+    one = {
+        "clip_id": "a",
+        "fade_in_ms": 0,
+        "fade_out_ms": 0,
+        "fade_in_curve": "equal_power",
+        "expected": {"fade_in_ms": 0, "fade_out_ms": 0},
+    }
+    assert svc.submit(command(1, "SetClipFade", one))["ok"] is True
+    assert _saved(minimal_project)[0].fade_in_curve is EQUAL_POWER
+    many = {
+        "fades": [
+            {
+                "clip_id": "a",
+                "fade_in_ms": 10,
+                "fade_out_ms": 0,
+                "fade_out_curve": "s",
+                "expected": {"fade_in_ms": 0, "fade_out_ms": 0, "fade_in_curve": "equal_power"},
+            },
+            {
+                "clip_id": "b",
+                "fade_in_ms": 0,
+                "fade_out_ms": 10,
+                "expected": {"fade_in_ms": 0, "fade_out_ms": 0},
+            },
+        ]
+    }
+    assert svc.submit(command(2, "SetClipsFade", many))["ok"] is True
+    a, b = _saved(minimal_project)
+    assert _curves(a) == (EQUAL_POWER, S)
+    assert _curves(b) == (LINEAR, LINEAR)
+    before = minimal_project.read_bytes()
+    from_a_client_that_predates_curves = {
+        "clip_id": "a",
+        "fade_in_ms": 10,
+        "fade_out_ms": 0,
+        "expected": {"fade_in_ms": 10, "fade_out_ms": 0},
+    }
+    with pytest.raises(DocumentConflictError) as refusal:
+        svc.submit(command(3, "SetClipFade", from_a_client_that_predates_curves))
+    assert refusal.value.code == "clip_fade_changed"
+    assert minimal_project.read_bytes() == before
+
+
+def test_the_registry_rows_still_name_their_tools() -> None:
+    from podcast_mcp.services.document_sync.registry import COMMANDS, GENERIC_CLI, named
+
+    assert COMMANDS["SetClipFade"].mcp == named("set_clip_fade_tool")
+    assert COMMANDS["SetClipsFade"].mcp == named("set_clips_fade_tool")
+    assert COMMANDS["SetClipFade"].cli == named(GENERIC_CLI)
