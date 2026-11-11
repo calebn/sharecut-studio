@@ -153,6 +153,17 @@ may not gain a wait, an unlisted file may not have one, and a file that lost wai
 count with `python scripts/check_test_waits.py --write`, so the list only shrinks. One more rule for
 the soft test budget (#1410): one test per invariant.
 
+### Route gate inventory
+
+`contracts/route-inventory.json` lists every `(method, path)` the app mounts, with the gate class of
+its handler (`host`, `authz`, `guest`, `public` or `other` with a reason; [#3123](https://github.com/calebn/sharecut-studio/issues/3123)).
+`tests/test_gui_route_inventory.py` builds the real app (`create_app()` with the collaboration extension
+routers, the share UI routes, the websockets and the account router) and fails when a mounted route has
+no row, a row has no route, a gate class changed, or more handlers call `require_host` directly than
+`host_direct_baseline` allows. The class is read from the handler's AST, so a comment does not count.
+The baseline only shrinks. After adding, removing or re-gating a route, run
+`python scripts/check_route_inventory.py --write` (`--check` is the default; `make generated-check` runs it).
+
 ### Relay proxy path invariant
 
 `tests/test_proxy_paths.py` runs a seeded, reproducible set of relay suffixes
