@@ -83,7 +83,6 @@ export function InviteBody({ options, at = null }: Props) {
     heading.current?.focus();
   }, [rows]);
 
-  /** The ended link or room leaves the list on the reload that follows; focus then lands on its group heading. */
   const stopLink = (group: "review" | "listen") => (token: string) => {
     ended.current = { kind: "link", token, group };
     options.onStop(token);
