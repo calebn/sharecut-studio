@@ -130,7 +130,7 @@ preview modes with a blocked-skip reason, and a 360px footer. The live
 props and local callbacks.
 `Stages/Edit/Divider` shows the Script divider with keyboard resize; stories
 use local state only.
-`Templates/AvatarStack` shows the production `AvatarStackView`
+`Stages/Frame/Presence` shows the production `AvatarStackView`
 used by the live `AvatarStack` adapter, and `Stages/Edit/Corner` shows the
 eye popover (`ViewPopoverView`, used by the live `ViewPopover`),
 including header-hosted and overflow states built from the same
