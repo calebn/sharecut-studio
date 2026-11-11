@@ -234,27 +234,6 @@ def test_restore_and_finalize_race_has_exactly_one_winner(tmp_path: Path):
             assert (one.get_active("race-slug-one") is not None) == restored
 
 
-def test_a_single_parked_record_token_restores_beside_its_live_room_mate(
-    registry: SqliteShareRegistry,
-):
-    registry.claim_active(_room_share("guest-tok-one", "room-a", "guest"))
-    registry.claim_active(_room_share("prod-tok-one", "room-a", "producer"))
-    _begin(registry, "guest-tok-one")
-    restored = registry.restore_group("guest-tok-one", now=T0 + timedelta(seconds=1))
-    assert [r["token"] for r in restored] == ["guest-tok-one"]
-    assert registry.get_active("guest-tok-one") is not None
-
-
-def test_a_single_parked_record_token_still_conflicts_with_another_live_room(
-    registry: SqliteShareRegistry,
-):
-    registry.claim_active(_room_share("guest-tok-two", "room-a", "guest"))
-    registry.claim_active(_room_share("other-tok-two", "room-b", "guest"))
-    _begin(registry, "guest-tok-two")
-    with pytest.raises(RecordRoomConflictError):
-        registry.restore_group("guest-tok-two", now=T0 + timedelta(seconds=1))
-
-
 def test_a_registry_file_with_only_the_old_tables_gains_pending_revokes(tmp_path: Path):
     from podcast_mcp.services.collaboration import share_registry
 

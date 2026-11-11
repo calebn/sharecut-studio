@@ -757,15 +757,11 @@ class SqliteShareRegistry:
         snaps = [json.loads(row["snapshot_json"]) for row in rows]
         if not any(snap.get("kind") == SHARE_KIND_RECORD for snap in snaps):
             return
-        own = {str(snap.get("session_id") or "") for snap in snaps}
         others = self._conn.execute(
-            "SELECT expires_at, session_id FROM active_shares"
-            " WHERE project_workspace = ? AND kind = ?",
+            "SELECT expires_at FROM active_shares WHERE project_workspace = ? AND kind = ?",
             (rows[0]["project_workspace"], SHARE_KIND_RECORD),
         ).fetchall()
         for other in others:
-            if str(other["session_id"] or "") in own:
-                continue
             expires = parse_iso(other["expires_at"])
             if expires is None or expires > moment:
                 raise RecordRoomConflictError(
