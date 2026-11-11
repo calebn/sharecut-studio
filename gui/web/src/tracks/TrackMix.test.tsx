@@ -8,7 +8,7 @@ import { expectNoA11yViolations } from "../test/a11y";
 import { partial, rule } from "../test/cssRules";
 import { minimalProject, sampleTrack } from "../test/fixtures";
 import { TrackMix } from "./TrackMix";
-import { SAVED_MUTE_READ_ONLY } from "./trackMuteCopy";
+import { SAVED_MUTE_READ_ONLY_NOTE } from "./trackMuteCopy";
 
 vi.mock("../commands/execute", () => ({
   execute: vi.fn(async () => ({ status: "ok" })),
@@ -111,7 +111,7 @@ describe("TrackMix", () => {
   });
   it("explains a saved mute a guest cannot change and ties the button to it", () => {
     setup("view", []);
-    const reason = screen.getByText(`${SAVED_MUTE_READ_ONLY}.`);
+    const reason = screen.getByText(SAVED_MUTE_READ_ONLY_NOTE);
     expect(reason).toBeVisible();
     expect(screen.getByRole("button", { name: "Mute music" })).toHaveAttribute(
       "aria-describedby",
@@ -123,7 +123,7 @@ describe("TrackMix", () => {
   });
   it("shows an editor no saved mute note", () => {
     setup();
-    expect(screen.queryByText(`${SAVED_MUTE_READ_ONLY}.`)).toBeNull();
+    expect(screen.queryByText(SAVED_MUTE_READ_ONLY_NOTE)).toBeNull();
     expect(
       screen.getByRole("button", { name: "Mute music" }),
     ).not.toHaveAttribute("aria-describedby");

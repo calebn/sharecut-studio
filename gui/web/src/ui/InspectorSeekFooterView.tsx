@@ -53,12 +53,16 @@ export function InspectorSeekFooterView({
   const playReason = unavailableReason(playDisabledReason);
   const { note: playNote, describedBy: playDescribedBy } =
     useDisabledReasonNote(busy ? undefined : playReason);
-  const { note: modesNote, describedBy: modesDescribedBy } =
-    useDisabledReasonNote(
-      onPreviewModeChange && suggestDisabledReason
-        ? suggestDisabledReason
-        : null,
-    );
+  const modesReason =
+    onPreviewModeChange && suggestDisabledReason?.trim()
+      ? suggestDisabledReason
+      : null;
+  const sharesPlayNote = !busy && !!playReason && playReason === modesReason;
+  const { note: modesNote, describedBy: ownModesDescribedBy } =
+    useDisabledReasonNote(sharesPlayNote ? null : modesReason);
+  const modesDescribedBy = sharesPlayNote
+    ? playDescribedBy
+    : ownModesDescribedBy;
   return (
     <>
       <div className="modifier-footer-actions">
@@ -89,14 +93,14 @@ export function InspectorSeekFooterView({
         {onPreviewModeChange ? (
           <SegmentedControl label="Preview mode" className="preview-modes">
             {PREVIEW_MODES.map((m) => {
-              const blocked = m.id !== "current" && !!suggestDisabledReason;
+              const blocked = m.id !== "current" && modesReason !== null;
               return (
                 <ToggleButton
                   key={m.id}
                   quiet
                   pressed={previewMode === m.id}
                   disabledReason={
-                    blocked ? (suggestDisabledReason ?? undefined) : undefined
+                    blocked ? (modesReason ?? undefined) : undefined
                   }
                   {...(blocked ? modesDescribedBy : {})}
                   onClick={() => onPreviewModeChange(m.id)}

@@ -19,7 +19,7 @@ import { shareProjectKey } from "../../shareMode";
 import { useDawStore } from "../../state/dawStore";
 import { expectNoA11yViolations } from "../../test/a11y";
 import { minimalProject, sampleTrack } from "../../test/fixtures";
-import { SAVED_MUTE_READ_ONLY } from "../../tracks/trackMuteCopy";
+import { SAVED_MUTE_READ_ONLY_NOTE } from "../../tracks/trackMuteCopy";
 import type { ProjectView, TrackView } from "../../types/project";
 import { inspectorHeading } from "./inspectorHeading";
 import { SectionsBody } from "./SectionsBody";
@@ -479,7 +479,7 @@ describe("track content", () => {
   });
   it("tells a read-only guest a saved mute cannot be undone", () => {
     open({ ...hostTrack, muted: true }, [], "view");
-    const reason = screen.getByText(`${SAVED_MUTE_READ_ONLY}.`);
+    const reason = screen.getByText(SAVED_MUTE_READ_ONLY_NOTE);
     expect(reason).toBeVisible();
     expect(screen.getByRole("button", { name: /^Mute/ })).toHaveAttribute(
       "aria-describedby",
@@ -488,7 +488,7 @@ describe("track content", () => {
   });
   it("shows an editor no saved mute note", () => {
     open({ ...hostTrack, muted: true });
-    expect(screen.queryByText(`${SAVED_MUTE_READ_ONLY}.`)).toBeNull();
+    expect(screen.queryByText(SAVED_MUTE_READ_ONLY_NOTE)).toBeNull();
   });
   it("reads Mute and Solo from the shared buttons", () => {
     open();

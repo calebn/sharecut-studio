@@ -1,4 +1,4 @@
-import { SAVED_MUTE_READ_ONLY } from "../../tracks/trackMuteCopy";
+import { SAVED_MUTE_READ_ONLY_NOTE } from "../../tracks/trackMuteCopy";
 import { useVolumeEnvelopeDb } from "../../tracks/useVolumeEnvelopeDb";
 import type { TrackView } from "../../types/project";
 import {
@@ -34,7 +34,7 @@ export function TrackLevelNote({
       </p>
       {!editable && track.muted ? (
         <p className="sys-inspector-note" id={muteNoteId}>
-          {`${SAVED_MUTE_READ_ONLY}.`}
+          {SAVED_MUTE_READ_ONLY_NOTE}
         </p>
       ) : null}
       {balance ? (
