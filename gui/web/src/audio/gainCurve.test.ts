@@ -217,3 +217,134 @@ describe("off-speaker gain", () => {
     expect(times).toContain(12);
   });
 });
+
+interface CurveCases {
+  x: number[];
+  fade_in: Record<"linear" | "equal_power" | "s", number[]>;
+  fade_out: Record<"linear" | "equal_power" | "s", number[]>;
+}
+
+const curveFixture = JSON.parse(
+  readFileSync(
+    `${process.cwd()}/../../tests/fixtures/gain_curve/fade_curve_cases.json`,
+    "utf8",
+  ),
+) as CurveCases;
+const CURVES = ["linear", "equal_power", "s"] as const;
+
+describe("fade curves (tests/fixtures/gain_curve/fade_curve_cases.json)", () => {
+  const length = 10;
+  const fade = 2;
+
+  it("names the three curves and the sample positions the preview reads", () => {
+    expect(Object.keys(curveFixture.fade_in).sort()).toEqual(
+      [...CURVES].sort(),
+    );
+    expect(Object.keys(curveFixture.fade_out).sort()).toEqual(
+      [...CURVES].sort(),
+    );
+    expect(curveFixture.x).toEqual([0, 0.25, 0.5, 0.75, 1]);
+  });
+
+  it.each(CURVES)("plays the %s fade-in at the fixture's samples", (curve) => {
+    const clip = {
+      timelineStartSec: 0,
+      timelineEndSec: length,
+      fadeInSec: fade,
+      fadeOutSec: 0,
+      fadeInCurve: curve,
+    };
+    curveFixture.x.forEach((x, i) => {
+      expect(fadeGainAt(clip, x * fade)).toBeCloseTo(
+        curveFixture.fade_in[curve][i]!,
+        6,
+      );
+    });
+  });
+
+  it.each(CURVES)(
+    "plays the %s fade-out as the mirror, at the fixture's samples",
+    (curve) => {
+      const clip = {
+        timelineStartSec: 0,
+        timelineEndSec: length,
+        fadeInSec: 0,
+        fadeOutSec: fade,
+        fadeOutCurve: curve,
+      };
+      curveFixture.x.forEach((x, i) => {
+        expect(fadeGainAt(clip, length - fade + x * fade)).toBeCloseTo(
+          curveFixture.fade_out[curve][i]!,
+          6,
+        );
+      });
+    },
+  );
+
+  it("keeps each edge's own curve when both fades are set, and linear when none is named", () => {
+    const clip = {
+      timelineStartSec: 0,
+      timelineEndSec: length,
+      fadeInSec: fade,
+      fadeOutSec: fade,
+      fadeInCurve: "s" as const,
+      fadeOutCurve: "equal_power" as const,
+    };
+    expect(fadeGainAt(clip, 0.5 * fade)).toBeCloseTo(0.5, 6);
+    expect(fadeGainAt(clip, length - fade + 0.25 * fade)).toBeCloseTo(
+      0.92388,
+      5,
+    );
+    expect(fadeGainAt({ ...clip, fadeInCurve: undefined }, 0.5)).toBeCloseTo(
+      0.25,
+      6,
+    );
+  });
+
+  it("follows a curved ramp with linear segments to within a small error, even for a short fade", () => {
+    for (const fadeSec of [2, 0.015]) {
+      for (const curve of ["equal_power", "s"] as const) {
+        const clip = {
+          timelineStartSec: 0,
+          timelineEndSec: 10,
+          fadeInSec: fadeSec,
+          fadeOutSec: 0,
+          fadeInCurve: curve,
+        };
+        const knots = [0, ...gainBreakpoints([], clip, 0, 10), 10].filter(
+          (t) => t <= fadeSec + 1e-9,
+        );
+        let worst = 0;
+        for (let i = 1; i < knots.length; i++) {
+          const a = knots[i - 1]!;
+          const b = knots[i]!;
+          const ga = fadeGainAt(clip, a);
+          const gb = fadeGainAt(clip, b);
+          for (const f of [0.25, 0.5, 0.75]) {
+            const t = a + (b - a) * f;
+            worst = Math.max(
+              worst,
+              Math.abs(ga + (gb - ga) * f - fadeGainAt(clip, t)),
+            );
+          }
+        }
+        expect(worst).toBeLessThan(0.01);
+      }
+    }
+  });
+
+  it("keeps the line crossing breakpoint for linear fades only", () => {
+    const clip = {
+      timelineStartSec: 0,
+      timelineEndSec: 1,
+      fadeInSec: 0.4,
+      fadeOutSec: 0.4,
+    };
+    const crossing = (fadeInCurve?: "s") =>
+      gainBreakpoints([], { ...clip, fadeInCurve }, 0, 1).filter(
+        (t) => Math.abs(t - 0.5) < 1e-9,
+      );
+    expect(crossing()).toHaveLength(1);
+    expect(crossing("s")).toHaveLength(0);
+  });
+});

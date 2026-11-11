@@ -333,20 +333,80 @@ describe("proxyMath", () => {
     ]);
   });
 
-  it("marks equalPower for crossfade joins", () => {
-    const slices = buildSchedule(
+  it("plays each edge's own curve, and forces linear where a cut or a blended join sets the edge", () => {
+    const curved = {
+      source_duration_sec: 10,
+      fade_in_ms: 400,
+      fade_out_ms: 400,
+      fade_in_curve: "s" as const,
+      fade_out_curve: "equal_power" as const,
+    };
+    const plain = buildSchedule(
+      [clip({ id: "c1", ...curved })],
+      0,
+      20,
+      manifest(),
+    );
+    expect(plain[0].envelope).toMatchObject({
+      fadeInCurve: "s",
+      fadeOutCurve: "equal_power",
+    });
+    const cut = buildSchedule(
       [
+        clip({ id: "a", source_end: 2, timeline_end: 2, ...curved }),
         clip({
-          id: "c1",
-          join_in_mode: "crossfade",
-          fade_in_ms: 30,
+          id: "b",
+          source_start: 2,
+          source_end: 4,
+          timeline_start: 2,
+          timeline_end: 4,
+          join_left_clip_id: "a",
+          join_in_mode: "cut",
+          ...curved,
         }),
       ],
       0,
       20,
       manifest(),
     );
-    expect(slices[0].envelope.gainCurve).toBe("equalPower");
+    expect(cut[0].envelope).toMatchObject({
+      fadeOutSec: 0,
+      fadeOutCurve: "linear",
+      fadeInCurve: "s",
+    });
+    expect(cut[1].envelope).toMatchObject({
+      fadeInSec: 0,
+      fadeInCurve: "linear",
+      fadeOutCurve: "equal_power",
+    });
+    const blended = buildSchedule(
+      [
+        clip({ id: "a", source_end: 2, timeline_end: 2, ...curved }),
+        clip({
+          id: "b",
+          source_start: 2,
+          source_end: 4,
+          timeline_start: 2,
+          timeline_end: 4,
+          join_left_clip_id: "a",
+          join_in_mode: "crossfade",
+          join_crossfade_ms: 200,
+          join_borrow_sec: 0.1,
+          ...curved,
+        }),
+      ],
+      0,
+      20,
+      manifest(),
+    );
+    expect(blended[0].envelope).toMatchObject({
+      fadeOutSec: expect.closeTo(0.2, 9),
+      fadeOutCurve: "linear",
+    });
+    expect(blended[1].envelope).toMatchObject({
+      fadeInSec: expect.closeTo(0.2, 9),
+      fadeInCurve: "linear",
+    });
   });
 
   it("blends a crossfade join around the seam and leaves later clips where they are, as render does", () => {

@@ -7,7 +7,7 @@ import {
   renderedFadeSec,
   type VolumePoint,
 } from "../audio/gainCurve";
-import { clipIdsBeforeCut, isCutJoin } from "../edit/joinRender";
+import { blendsIn, clipIdsBeforeCut, isCutJoin } from "../edit/joinRender";
 import type { ClipRow } from "../types/project";
 import { clipVirtualPieces } from "../utils/clipTiming";
 
@@ -39,16 +39,6 @@ function dipOver(
   };
 }
 
-// The render replaces both edge fades with the overlap's blend only where a crossfade actually blends.
-function blends(clip: ClipRow): boolean {
-  return (
-    clip.join_left_clip_id != null &&
-    clip.join_in_mode === "crossfade" &&
-    clip.join_crossfade_blocked == null &&
-    (clip.join_crossfade_ms ?? 0) > 0
-  );
-}
-
 export function clipGainDips(
   clips: readonly ClipRow[],
   volume: readonly VolumePoint[],
@@ -56,11 +46,12 @@ export function clipGainDips(
   const beforeCut = clipIdsBeforeCut(clips);
   const blendedLeft = new Set<string>();
   for (const c of clips) {
-    if (blends(c) && c.join_left_clip_id) blendedLeft.add(c.join_left_clip_id);
+    if (blendsIn(c) && c.join_left_clip_id)
+      blendedLeft.add(c.join_left_clip_id);
   }
   const out: ClipGainDip[] = [];
   for (const clip of clips) {
-    const crossfadeIn = blends(clip);
+    const crossfadeIn = blendsIn(clip);
     const fadeInSec =
       isCutJoin(clip) || crossfadeIn ? 0 : Math.max(0, clip.fade_in_ms) / 1000;
     const crossfadeOut = blendedLeft.has(clip.id);
@@ -96,6 +87,8 @@ export function clipGainDips(
         timelineEndSec: part.end,
         fadeInSec: part.fadeIn,
         fadeOutSec: part.fadeOut,
+        fadeInCurve: clip.fade_in_curve,
+        fadeOutCurve: clip.fade_out_curve,
         sourceStartSec: part.sourceStart,
         mute,
         automaticMute,
