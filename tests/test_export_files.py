@@ -174,6 +174,7 @@ def test_a_host_listing_adds_the_bounces_and_skips_what_is_hidden(ws, folder) ->
     (bounces / "range.json").write_text("{}", encoding="utf-8")
     (bounces / ".range.mix.wav").write_bytes(WAV)
     (bounces / ".range.trim.wav").write_bytes(WAV)
+    (bounces / f"range.4242.{'a' * 32}.partial.wav").write_bytes(WAV)
     (bounces / ".range.stems").mkdir()
     (bounces / ".range.stems" / "host.wav").write_bytes(WAV)
     (bounces / "nested").mkdir()

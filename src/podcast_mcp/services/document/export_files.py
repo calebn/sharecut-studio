@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 import unicodedata
 from dataclasses import dataclass
 from pathlib import Path
@@ -27,6 +28,7 @@ from podcast_mcp.util.fingerprint import file_stamp
 ExportedFileKind = Literal["audio", "transcript", "chapters", "feed", "bounce"]
 
 CLIPS_DIRNAME = "clips"
+_PARTIAL_TEMP = re.compile(r"\.\d+\.[0-9a-f]{32}\.partial\.")
 _HIDDEN_CHAR_CATEGORIES = frozenset({"Cc", "Zl", "Zp"})
 _BIDI_CONTROLS = frozenset(
     "\u061c\u200e\u200f\u202a\u202b\u202c\u202d\u202e\u2066\u2067\u2068\u2069"
@@ -155,6 +157,7 @@ class ExportFilesService:
                 if p.suffix[1:].lower() in AUDIO_EXPORT_MEDIA
                 and _plain_name(p.name)
                 and not p.name.startswith(".")
+                and _PARTIAL_TEMP.search(p.name) is None
             )
 
         audio_children(CLIPS_DIRNAME, "audio")
