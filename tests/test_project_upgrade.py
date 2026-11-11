@@ -134,6 +134,7 @@ def test_the_frozen_v0_1_2_release_upgrades_to_2_1_with_history_and_media_intact
     for name in ("raw", "history"):
         assert compat.inventory(output / name) == compat.inventory(frozen / name)
     compat.assert_workspace(output / PROJECT)
+    assert not (release.directory(ROOT) / "artifacts").exists()
 
 
 def test_the_source_is_read_and_copied_under_the_project_commit_lock(

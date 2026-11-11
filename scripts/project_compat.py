@@ -374,7 +374,7 @@ def check_policy(root: Path, base: str, candidate: dict[str, Any]) -> ReleaseLed
             f"Trusted frozen inventory disagrees with ledger: {release.id}",
         )
         for name, digest in release.files.items():
-            blob = git(root, "show", f"{base}:{prefix / name}")
+            blob = git(root, "show", f"{base}:{(prefix / name).as_posix()}")
             require(
                 hashlib.sha256(blob).hexdigest() == digest,
                 f"Trusted frozen bytes changed: {release.id}/{name}",
