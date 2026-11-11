@@ -3464,7 +3464,7 @@
       "id": "daw.edit.setClipFade",
       "label": "Set clip fade",
       "effect": "project",
-      "tooltip": "Drag or use focused Left/Right arrows to set fade length",
+      "tooltip": "Drag or use focused Left/Right arrows to set fade length; pick its shape in the Inspector",
       "service": "ShareCut Studio \u2192 SetClipFade document command",
       "industry_standard_key": false,
       "gates": [
@@ -3473,7 +3473,8 @@
       "surfaces": {
         "command": "edit.setClipFade",
         "gui": [
-          "timeline.clip.fadeHandle"
+          "timeline.clip.fadeHandle",
+          "inspector.clip.fadeCurve"
         ],
         "keyboard": "ArrowLeft",
         "mcp": [
