@@ -116,6 +116,19 @@ describe("InspectorSeekFooterView", () => {
     expect(screen.getByRole("button", { name: "A/B" })).toBeEnabled();
   });
 
+  it("shows no mode note for a blank reason", () => {
+    const { container } = render(
+      <InspectorSeekFooterView
+        onSeek={vi.fn()}
+        onPlay={vi.fn()}
+        previewMode="current"
+        onPreviewModeChange={vi.fn()}
+        suggestDisabledReason=""
+      />,
+    );
+    expect(container.querySelector("p")).toBeNull();
+  });
+
   it("keeps an unavailable play focusable and says why, on touch and by key", async () => {
     const reason = "Guests hear the full mix. Ask the host for editor access.";
     const onPlay = vi.fn();

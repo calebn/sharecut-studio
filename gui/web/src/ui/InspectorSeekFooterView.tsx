@@ -55,7 +55,9 @@ export function InspectorSeekFooterView({
     useDisabledReasonNote(busy ? undefined : playReason);
   const { note: modesNote, describedBy: modesDescribedBy } =
     useDisabledReasonNote(
-      onPreviewModeChange ? (suggestDisabledReason ?? null) : null,
+      onPreviewModeChange && suggestDisabledReason
+        ? suggestDisabledReason
+        : null,
     );
   return (
     <>
