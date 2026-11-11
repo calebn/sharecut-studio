@@ -1,23 +1,13 @@
 import { type ReactNode, useEffect, useRef, useState } from "react";
-import { runPointerCommand } from "../commands/pointer";
-import { askConfirm } from "../feedback/ask";
-import { canManageProjects } from "../shareMode";
-import { useDawStore } from "../state/dawStore";
 import { percentOf } from "../system/progress";
-import { StatusRow, type StatusRowProps } from "../system/StatusRow";
+import { StatusRow } from "../system/StatusRow";
 import { SystemIcon } from "../system/SystemIcon";
 import { Button, Menu, MenuItem } from "../ui";
 import { useDisabledReasonNote } from "../ui/disabledReason";
-import { type ModelActivity, modelActivity } from "./activity";
-import {
-  capabilityOf,
-  type NeedTarget,
-  plainSize,
-  rowInstalled,
-} from "./capability";
+import { capabilityOf, type NeedTarget, plainSize } from "./capability";
 import { progressText } from "./format";
 import { bytesDetail, needRowProps, progressOf } from "./needRowProps";
-import type { DownloadOutcome, ModelFailure, ModelState } from "./types";
+import type { DownloadOutcome, ModelState } from "./types";
 import { useModelNeed } from "./useModelNeed";
 
 export type ModelNeedPlacement =
