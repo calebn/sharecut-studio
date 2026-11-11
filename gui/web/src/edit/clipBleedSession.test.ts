@@ -624,6 +624,7 @@ describe("clip bleed occurrence session", () => {
     "source",
     "geometry",
     "fade",
+    "fade curve",
     "mute",
     "automatic",
     "missing seal",
@@ -645,6 +646,7 @@ describe("clip bleed occurrence session", () => {
           source_id: change === "source" ? "other" : null,
           timeline_start: change === "geometry" ? 1 : 0,
           fade_in_ms: change === "fade" ? 10 : 0,
+          fade_out_curve: change === "fade curve" ? "s" : undefined,
           mute_regions: change === "mute" ? [{ start_s: 1, end_s: 2 }] : [],
         }),
         off_speaker_mute_regions:

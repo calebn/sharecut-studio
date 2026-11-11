@@ -135,6 +135,8 @@ function contextFor(occurrence: ClipBleedOccurrence): Context | null {
           clip.timeline_end,
           clip.fade_in_ms,
           clip.fade_out_ms,
+          clip.fade_in_curve ?? "linear",
+          clip.fade_out_curve ?? "linear",
           clip.join_in_mode,
           clip.mute_regions ?? [],
           automaticRegions,
