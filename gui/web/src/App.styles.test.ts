@@ -17,7 +17,20 @@ describe("App styles", () => {
       "utf8",
     );
     expect(src).not.toMatch(/@media\s*\(/);
-    expect(src).toMatch(/@container app \(inline-size < 68\.75rem\)/);
+    const px = [...src.matchAll(/(?<![\d.])(\d+)px\b/g)].map((m) =>
+      Number(m[1]),
+    );
+    expect(px.every((n) => n <= 1)).toBe(true);
+  });
+
+  it("sizes the presence faces with rem and the header @container, not viewport media", () => {
+    const here = dirname(fileURLToPath(import.meta.url));
+    const src = readFileSync(
+      join(here, "styles/partials/stage-people.css"),
+      "utf8",
+    );
+    expect(src).not.toMatch(/@media\s*\((?!pointer)/);
+    expect(src).toMatch(/@container sys-app-header \(max-width: 40rem\)/);
     const px = [...src.matchAll(/(?<![\d.])(\d+)px\b/g)].map((m) =>
       Number(m[1]),
     );
