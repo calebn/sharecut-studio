@@ -4,6 +4,11 @@ import {
   createHostRecordRoom,
   createHostShare,
   loadHostRecordSessions,
+  restoreHostRoom,
+  restoreHostShare,
+  restoreRefusal,
+  revokeHostRoom,
+  revokeHostShare,
 } from "./sharesRecord";
 
 const hostFetch = vi.fn();
@@ -189,5 +194,116 @@ describe("createHostRecordRoom", () => {
     await expect(
       createHostRecordRoom("/tmp/episode.sharecut"),
     ).rejects.toMatchObject({ code: "record_stale_links" });
+  });
+});
+
+describe("host revoke and restore", () => {
+  const project = "/tmp/episode.sharecut";
+  const json = (body: unknown, status = 200, code?: string) =>
+    new Response(JSON.stringify(body), {
+      status,
+      headers: code ? { "X-Sharecut-Error-Code": code } : {},
+    });
+  const sent = (call = 0) => ({
+    url: String(hostFetch.mock.calls[call][0]),
+    body: JSON.parse(String(hostFetch.mock.calls[call][1].body)),
+  });
+
+  beforeEach(() => {
+    hostFetch.mockReset();
+    vi.stubGlobal("fetch", hostFetch);
+  });
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("revokes for good by default and reports no undo window", async () => {
+    hostFetch.mockResolvedValue(json({ revoked: true, token: "tok" }));
+
+    await expect(revokeHostShare(project, "tok")).resolves.toEqual({
+      restorableUntil: null,
+      restoreMs: null,
+    });
+    expect(sent().url).toContain("/api/shares/tok/revoke");
+    expect(sent().body).toEqual({ path: project });
+  });
+
+  it("asks for a restorable revoke and returns the server's remaining time", async () => {
+    hostFetch.mockResolvedValue(
+      json({
+        revoked: true,
+        token: "tok",
+        restorable_until: "2030-01-01T00:00:10+00:00",
+        restore_ms: 9800,
+      }),
+    );
+
+    await expect(
+      revokeHostShare(project, "tok", { restorable: true }),
+    ).resolves.toEqual({
+      restorableUntil: "2030-01-01T00:00:10+00:00",
+      restoreMs: 9800,
+    });
+    expect(sent().body).toEqual({ path: project, restorable: true });
+  });
+
+  it("asks for a restorable room revoke", async () => {
+    hostFetch.mockResolvedValue(
+      json({
+        session_id: "room a",
+        revoked: ["g", "p"],
+        restorable_until: "2030-01-01T00:00:10+00:00",
+        restore_ms: 10000,
+      }),
+    );
+
+    await expect(
+      revokeHostRoom(project, "room a", { restorable: true }),
+    ).resolves.toMatchObject({ restoreMs: 10000 });
+    expect(sent().url).toContain("/api/shares/rooms/room%20a/revoke");
+    expect(sent().body).toEqual({ path: project, restorable: true });
+  });
+
+  it("restores a link and a room with a POST naming the project", async () => {
+    hostFetch.mockResolvedValue(json({ restored: true, token: "tok" }));
+    await restoreHostShare(project, "tok");
+    hostFetch.mockResolvedValue(json({ session_id: "r1", restored: ["g"] }));
+    await restoreHostRoom(project, "r1");
+
+    expect(sent(0).url).toContain("/api/shares/tok/restore");
+    expect(sent(1).url).toContain("/api/shares/rooms/r1/restore");
+    expect(sent(1).body).toEqual({ path: project });
+  });
+
+  it.each([
+    [410, "restore_window_closed"],
+    [410, "share_expired"],
+    [409, "record_room_conflict"],
+    [404, "share_not_found"],
+    [404, "record_room_not_found"],
+  ])("types the %i %s refusal", async (status, code) => {
+    hostFetch.mockResolvedValue(json({ detail: "refused" }, status, code));
+
+    const error = await restoreHostRoom(project, "r1").catch((e) => e);
+
+    expect(error).toMatchObject({ name: "ApiError", status, code });
+    expect(restoreRefusal(error)).toBe(code);
+  });
+
+  it("does not read another failure as a restore refusal", async () => {
+    hostFetch.mockResolvedValue(json({ detail: "boom" }, 500, "internal"));
+    const error = await restoreHostShare(project, "tok").catch((e) => e);
+
+    expect(restoreRefusal(error)).toBeNull();
+    expect(restoreRefusal(new Error("x"))).toBeNull();
+  });
+
+  it("refuses to manage links for a guest share without asking the host", async () => {
+    const guest = shareProjectKey("tok");
+    await expect(restoreHostShare(guest, "tok")).rejects.toThrow(
+      "not available for shared guests",
+    );
+    await expect(restoreHostRoom(guest, "r1")).rejects.toThrow(
+      "not available for shared guests",
+    );
+    expect(hostFetch).not.toHaveBeenCalled();
   });
 });

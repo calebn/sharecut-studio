@@ -196,7 +196,7 @@ export function fakeExportServer() {
               ? { ...row, usable: false, revoked: true }
               : row,
           );
-          return json(null, { ok: true });
+          return json(null, { revoked: true, token });
         }
         if (method === "POST") {
           server.shareRequests.push(body);

@@ -184,6 +184,11 @@ export {
   type SessionTakeRefusal,
   type SessionTakes,
 } from "./api/sessionTakes";
+export type {
+  HostRevoked,
+  HostRevokeOptions,
+  RestoreRefusalCode,
+} from "./api/sharesRecord";
 export {
   createHostRecordRoom,
   createHostShare,
@@ -194,6 +199,9 @@ export {
   loadHostRecordState,
   postHostRecordCommand,
   replaceHostRecordInvite,
+  restoreHostRoom,
+  restoreHostShare,
+  restoreRefusal,
   revokeHostRoom,
   revokeHostShare,
 } from "./api/sharesRecord";
