@@ -1,7 +1,7 @@
 {
   "name": "sharecut-desktop",
   "private": true,
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Tauri 2 host shell for Sharecut Studio (Python FastAPI sidecar + WebView)",
   "scripts": {
     "tauri": "tauri",
