@@ -17,10 +17,10 @@ import json
 import secrets
 import sqlite3
 import threading
-from collections.abc import Callable, Iterator, Sequence
+from collections.abc import Callable, Iterator, Mapping, Sequence
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from typing import Any, Protocol, runtime_checkable
+from typing import Any, Protocol, TypedDict, runtime_checkable
 
 from coolname import generate_slug
 
@@ -53,6 +53,19 @@ RECORD_REVIEW_VERSION_SENTINEL = ""
 SHARE_COOLDOWN_DAYS = 365
 LAST_USED_TOUCH_MIN_INTERVAL = timedelta(hours=1)
 FINALIZE_LEASE = timedelta(seconds=60)
+MAX_RESTORABLE_WINDOW = timedelta(seconds=30)
+
+
+class PendingRevoke(TypedDict):
+    token: str
+    id: str | None
+    kind: str
+    group_id: str
+    project_workspace: str
+    snapshot: dict[str, Any]
+    revoked_at: str
+    restorable_until: str
+    finalize_lease_until: str | None
 
 
 class RestoreWindowClosedError(CodedValueError):
@@ -60,8 +73,10 @@ class RestoreWindowClosedError(CodedValueError):
 
     code = "restore_window_closed"
 
-
-RESTORE_WINDOW_CLOSED_MESSAGE = "the undo window for this link has ended. The link stays off."
+    def __init__(
+        self, message: str = "the undo window for this link has ended. The link stays off."
+    ) -> None:
+        super().__init__(message)
 
 
 class ShareExpiredError(CodedValueError):
@@ -118,11 +133,11 @@ CREATE TABLE IF NOT EXISTS recording_key_secret (
 """
 
 
-def _now() -> datetime:
+def utc_now() -> datetime:
     return datetime.now(UTC)
 
 
-def _parse_iso(value: str | None) -> datetime | None:
+def parse_iso(value: str | None) -> datetime | None:
     if not value:
         return None
     try:
@@ -132,6 +147,11 @@ def _parse_iso(value: str | None) -> datetime | None:
     if dt.tzinfo is None:
         dt = dt.replace(tzinfo=UTC)
     return dt
+
+
+def lease_held(row: Mapping[str, Any] | sqlite3.Row, moment: datetime) -> bool:
+    held = parse_iso(row["finalize_lease_until"])
+    return held is not None and held > moment
 
 
 def _iso(dt: datetime) -> str:
@@ -212,10 +232,11 @@ class ShareRegistryProtocol(Protocol):
         self,
         tokens: Sequence[str],
         *,
+        project_workspace: str,
         group_id: str,
         window: timedelta,
         now: datetime | None = None,
-    ) -> list[dict[str, Any]]: ...
+    ) -> list[PendingRevoke]: ...
 
     def restore_group(
         self,
@@ -233,11 +254,11 @@ class ShareRegistryProtocol(Protocol):
         project_workspace: str | None = None,
         group_id: str | None = None,
         force: bool = False,
-    ) -> list[dict[str, Any]]: ...
+    ) -> list[PendingRevoke]: ...
 
-    def complete_finalize(self, tokens: Sequence[str]) -> int: ...
+    def complete_finalize(self, tokens: Sequence[str]) -> None: ...
 
-    def list_pending(self, project_workspace: str | None = None) -> list[dict[str, Any]]: ...
+    def list_pending(self, project_workspace: str | None = None) -> list[PendingRevoke]: ...
 
     def backup_to_new(self, dest: Path) -> Path: ...
 
@@ -345,18 +366,18 @@ class SqliteShareRegistry:
         ).fetchone()
         if row is None:
             return False
-        until = _parse_iso(row["reserved_until"])
+        until = parse_iso(row["reserved_until"])
         return until is not None and until > now
 
     def purge_expired_cooldown(self, *, now: datetime | None = None) -> int:
         """Drop cooldown rows whose reserved_until has passed. Returns count."""
-        moment = now or _now()
+        moment = now or utc_now()
         with self._ready_connection(), self._write_transaction():
             return self._purge_expired_cooldown_unlocked(moment)
 
     def is_reserved(self, token: str, *, now: datetime | None = None) -> bool:
         """True if token is active or still in cooldown."""
-        moment = now or _now()
+        moment = now or utc_now()
         with self._ready_connection(), self._write_transaction():
             self._purge_expired_cooldown_unlocked(moment)
             return self._is_reserved_unlocked(token, moment)
@@ -382,7 +403,7 @@ class SqliteShareRegistry:
     def claim_active(self, share: dict[str, Any]) -> None:
         """Insert an active share with its ``id``. Raises ``ValueError`` if token is reserved."""
         token = str(share["token"])
-        now = _now()
+        now = utc_now()
         created = str(share.get("created_at") or _iso(now))
         last_used = str(share.get("last_used_at") or created)
         caps = share.get("capabilities") or []
@@ -508,7 +529,7 @@ class SqliteShareRegistry:
         min_interval: timedelta = LAST_USED_TOUCH_MIN_INTERVAL,
     ) -> str | None:
         """Update last_used_at if older than *min_interval*. Returns new ISO or None."""
-        moment = now or _now()
+        moment = now or utc_now()
         with self._ready_connection(), self._write_transaction():
             row = self._conn.execute(
                 "SELECT last_used_at FROM active_shares WHERE token = ?",
@@ -516,7 +537,7 @@ class SqliteShareRegistry:
             ).fetchone()
             if row is None:
                 return None
-            prev = _parse_iso(row["last_used_at"])
+            prev = parse_iso(row["last_used_at"])
             if prev is not None and moment - prev < min_interval:
                 return None
             ts = _iso(moment)
@@ -535,61 +556,50 @@ class SqliteShareRegistry:
         cooldown_days: int = SHARE_COOLDOWN_DAYS,
     ) -> bool:
         """Move active → cooldown. Returns False if token was not active."""
-        moment = now or _now()
+        moment = now or utc_now()
         with self._ready_connection(), self._write_transaction():
             row = self._conn.execute(
                 "SELECT * FROM active_shares WHERE token = ?", (token,)
             ).fetchone()
             if row is None:
                 return False
-            last_used = _parse_iso(row["last_used_at"]) or moment
-            reserved_until = moment + timedelta(days=cooldown_days)
-            self._conn.execute("DELETE FROM active_shares WHERE token = ?", (token,))
-            self._conn.execute(
-                """
-                INSERT INTO cooldown_shares (
-                  token, last_used_at, reserved_until, reason, project_workspace
-                ) VALUES (?, ?, ?, ?, ?)
-                ON CONFLICT(token) DO UPDATE SET
-                  last_used_at = excluded.last_used_at,
-                  reserved_until = excluded.reserved_until,
-                  reason = excluded.reason,
-                  project_workspace = excluded.project_workspace
-                """,
-                (
-                    token,
-                    _iso(last_used),
-                    _iso(reserved_until),
-                    reason,
-                    row["project_workspace"],
-                ),
-            )
+            self._reserve_revoked(row, reason, moment, cooldown_days)
             return True
 
     def begin_pending_revoke(
         self,
         tokens: Sequence[str],
         *,
+        project_workspace: str,
         group_id: str,
         window: timedelta,
         now: datetime | None = None,
-    ) -> list[dict[str, Any]]:
-        """Kill active links at once but keep a snapshot so they can come back.
+    ) -> list[PendingRevoke]:
+        """Kill active links of one workspace at once but keep a snapshot so they can return.
 
         One transaction: each active row is snapshotted into ``pending_revokes``, deleted, and
         replaced by the usual ``revoked`` cooldown row, so the token stays reserved. The group
         shares one ``restorable_until``: ``now + window`` capped at the earliest ``expires_at``.
-        Tokens that are not active are skipped.
+        Tokens that are not active in that workspace are skipped.
         """
-        moment = now or _now()
         with self._ready_connection(), self._write_transaction():
-            found = [row for row in map(self._active_row, tokens) if row is not None]
+            moment = now or utc_now()
+            found = [
+                row
+                for row in (self._active_row(token, project_workspace) for token in tokens)
+                if row is not None
+            ]
             if not found:
                 return []
-            until = self._restorable_until(found, moment + window)
+            until = min(
+                [
+                    moment + window,
+                    *(e for r in found if (e := parse_iso(r["expires_at"])) is not None),
+                ]
+            )
             for row in found:
-                self._park_active_row(row, group_id, moment, until)
-            return [self._pending_view(self._pending_row(str(row["token"]))) for row in found]
+                self._reserve_revoked(row, "revoked", moment, SHARE_COOLDOWN_DAYS)
+            return [self._park_active_row(row, group_id, moment, until) for row in found]
 
     def restore_group(
         self,
@@ -604,14 +614,19 @@ class SqliteShareRegistry:
         is open and no finalize holds a lease, so a concurrent finalize and restore cannot both
         win. The snapshot returns with its original token and id.
         """
-        moment = now or _now()
         with self._ready_connection(), self._write_transaction():
+            moment = now or utc_now()
             rows = self._pending_rows(project_workspace, group_id)
             if not rows:
                 return []
             self._require_restorable(rows, moment)
             self._require_no_live_room(rows, group_id, moment)
-            return [self._reinstate(row) for row in rows]
+            for row in rows:
+                self._reinstate(row)
+            return [
+                {**json.loads(row["snapshot_json"]), "project_workspace": row["project_workspace"]}
+                for row in rows
+            ]
 
     def claim_due(
         self,
@@ -621,55 +636,46 @@ class SqliteShareRegistry:
         project_workspace: str | None = None,
         group_id: str | None = None,
         force: bool = False,
-    ) -> list[dict[str, Any]]:
+    ) -> list[PendingRevoke]:
         """Lease the pending rows whose window ended (or any of ``group_id`` when ``force``).
 
         A row whose lease is still running is skipped; one whose lease lapsed is claimed again,
         so a finalize that crashed is retried (effects are at-least-once).
         """
-        moment = now or _now()
         with self._ready_connection(), self._write_transaction():
+            moment = now or utc_now()
             claimed = []
             for row in self._pending_rows(project_workspace, group_id):
-                if not force and not self._window_ended(row, moment):
+                if (not force and not self._window_ended(row, moment)) or lease_held(row, moment):
                     continue
-                held = _parse_iso(row["finalize_lease_until"])
-                if held is not None and held > moment:
-                    continue
+                leased_until = _iso(moment + lease)
                 self._conn.execute(
                     "UPDATE pending_revokes SET finalize_lease_until = ? WHERE token = ?",
-                    (_iso(moment + lease), row["token"]),
+                    (leased_until, row["token"]),
                 )
-                claimed.append(self._pending_view(self._pending_row(str(row["token"]))))
+                claimed.append(
+                    self._pending_view({**dict(row), "finalize_lease_until": leased_until})
+                )
             return claimed
 
-    def complete_finalize(self, tokens: Sequence[str]) -> int:
-        """Drop leased pending rows after their effects ran. Returns the rows dropped."""
+    def complete_finalize(self, tokens: Sequence[str]) -> None:
+        """Drop leased pending rows after their effects ran."""
         with self._ready_connection(), self._write_transaction():
-            dropped = 0
-            for token in tokens:
-                cur = self._conn.execute(
-                    "DELETE FROM pending_revokes"
-                    " WHERE token = ? AND finalize_lease_until IS NOT NULL",
-                    (token,),
-                )
-                dropped += int(cur.rowcount or 0)
-            return dropped
+            self._conn.executemany(
+                "DELETE FROM pending_revokes WHERE token = ? AND finalize_lease_until IS NOT NULL",
+                [(token,) for token in tokens],
+            )
 
-    def list_pending(self, project_workspace: str | None = None) -> list[dict[str, Any]]:
-        """Pending rows, optionally of one workspace."""
+    def list_pending(self, project_workspace: str | None = None) -> list[PendingRevoke]:
         with self._ready_connection():
-            return [self._pending_view(row) for row in self._pending_rows(project_workspace, None)]
+            return [
+                self._pending_view(dict(row)) for row in self._pending_rows(project_workspace, None)
+            ]
 
-    def _active_row(self, token: str) -> sqlite3.Row | None:
+    def _active_row(self, token: str, project_workspace: str) -> sqlite3.Row | None:
         found: sqlite3.Row | None = self._conn.execute(
-            "SELECT * FROM active_shares WHERE token = ?", (token,)
-        ).fetchone()
-        return found
-
-    def _pending_row(self, token: str) -> sqlite3.Row:
-        found: sqlite3.Row = self._conn.execute(
-            "SELECT * FROM pending_revokes WHERE token = ?", (token,)
+            "SELECT * FROM active_shares WHERE token = ? AND project_workspace = ?",
+            (token, project_workspace),
         ).fetchone()
         return found
 
@@ -683,26 +689,16 @@ class SqliteShareRegistry:
             ).fetchall()
         )
 
-    @staticmethod
-    def _restorable_until(rows: Sequence[sqlite3.Row], cap: datetime) -> datetime:
-        until = cap
-        for row in rows:
-            expires = _parse_iso(row["expires_at"])
-            if expires is not None and expires < until:
-                until = expires
-        return until
-
-    def _park_active_row(
-        self, row: sqlite3.Row, group_id: str, moment: datetime, until: datetime
+    def _reserve_revoked(
+        self, row: sqlite3.Row, reason: str, moment: datetime, cooldown_days: int
     ) -> None:
         token = row["token"]
-        last_used = _parse_iso(row["last_used_at"]) or moment
         self._conn.execute("DELETE FROM active_shares WHERE token = ?", (token,))
         self._conn.execute(
             """
             INSERT INTO cooldown_shares (
               token, last_used_at, reserved_until, reason, project_workspace
-            ) VALUES (?, ?, ?, 'revoked', ?)
+            ) VALUES (?, ?, ?, ?, ?)
             ON CONFLICT(token) DO UPDATE SET
               last_used_at = excluded.last_used_at,
               reserved_until = excluded.reserved_until,
@@ -711,43 +707,51 @@ class SqliteShareRegistry:
             """,
             (
                 token,
-                _iso(last_used),
-                _iso(moment + timedelta(days=SHARE_COOLDOWN_DAYS)),
+                _iso(parse_iso(row["last_used_at"]) or moment),
+                _iso(moment + timedelta(days=cooldown_days)),
+                reason,
                 row["project_workspace"],
             ),
         )
+
+    def _park_active_row(
+        self, row: sqlite3.Row, group_id: str, moment: datetime, until: datetime
+    ) -> PendingRevoke:
+        parked = {
+            "token": row["token"],
+            "group_id": group_id,
+            "project_workspace": row["project_workspace"],
+            "snapshot_json": json.dumps(self._active_row_to_dict(row)),
+            "revoked_at": _iso(moment),
+            "restorable_until": _iso(until),
+            "finalize_lease_until": None,
+        }
         self._conn.execute(
             """
             INSERT INTO pending_revokes (
               token, group_id, project_workspace, snapshot_json, revoked_at, restorable_until
-            ) VALUES (?, ?, ?, ?, ?, ?)
+            ) VALUES (:token, :group_id, :project_workspace, :snapshot_json,
+                      :revoked_at, :restorable_until)
             """,
-            (
-                token,
-                group_id,
-                row["project_workspace"],
-                json.dumps(self._active_row_to_dict(row)),
-                _iso(moment),
-                _iso(until),
-            ),
+            parked,
         )
+        return self._pending_view(parked)
 
     @staticmethod
     def _window_ended(row: sqlite3.Row, moment: datetime) -> bool:
-        until = _parse_iso(row["restorable_until"])
+        until = parse_iso(row["restorable_until"])
         return until is None or until <= moment
 
     def _require_restorable(self, rows: Sequence[sqlite3.Row], moment: datetime) -> None:
         for row in rows:
-            held = _parse_iso(row["finalize_lease_until"])
-            if held is not None and held > moment:
-                raise RestoreWindowClosedError(RESTORE_WINDOW_CLOSED_MESSAGE)
+            if lease_held(row, moment):
+                raise RestoreWindowClosedError()
             if not self._window_ended(row, moment):
                 continue
-            expires = _parse_iso(json.loads(row["snapshot_json"]).get("expires_at"))
+            expires = parse_iso(json.loads(row["snapshot_json"]).get("expires_at"))
             if expires is not None and expires <= moment:
                 raise ShareExpiredError("this link has expired, so it cannot be restored.")
-            raise RestoreWindowClosedError(RESTORE_WINDOW_CLOSED_MESSAGE)
+            raise RestoreWindowClosedError()
 
     def _require_no_live_room(
         self, rows: Sequence[sqlite3.Row], group_id: str, moment: datetime
@@ -762,13 +766,13 @@ class SqliteShareRegistry:
             (rows[0]["project_workspace"], SHARE_KIND_RECORD, group_id),
         ).fetchall()
         for other in others:
-            expires = _parse_iso(other["expires_at"])
+            expires = parse_iso(other["expires_at"])
             if expires is None or expires > moment:
                 raise RecordRoomConflictError(
                     "another record room is live for this episode, so the ended room stays ended."
                 )
 
-    def _reinstate(self, row: sqlite3.Row) -> dict[str, Any]:
+    def _reinstate(self, row: sqlite3.Row) -> None:
         snap = json.loads(row["snapshot_json"])
         token = row["token"]
         self._conn.execute("DELETE FROM pending_revokes WHERE token = ?", (token,))
@@ -797,11 +801,10 @@ class SqliteShareRegistry:
                 ),
             )
         except sqlite3.IntegrityError as exc:
-            raise RestoreWindowClosedError(RESTORE_WINDOW_CLOSED_MESSAGE) from exc
-        return {**snap, "project_workspace": row["project_workspace"]}
+            raise RestoreWindowClosedError() from exc
 
     @staticmethod
-    def _pending_view(row: sqlite3.Row) -> dict[str, Any]:
+    def _pending_view(row: Mapping[str, Any]) -> PendingRevoke:
         snap = json.loads(row["snapshot_json"])
         return {
             "token": row["token"],
@@ -924,7 +927,7 @@ def backup_share_registry(
     """Backup the host registry to *dest* (default: sibling timestamp and random suffix)."""
     reg = registry or get_share_registry()
     if dest is None:
-        stamp = _now().strftime("%Y%m%dT%H%M%SZ")
+        stamp = utc_now().strftime("%Y%m%dT%H%M%SZ")
         dest = reg.db_path.with_name(
             f"{reg.db_path.stem}.{stamp}.{secrets.token_hex(8)}.bak.sqlite"
         )
@@ -932,10 +935,10 @@ def backup_share_registry(
 
 
 def share_hard_expired(row: dict[str, Any], *, now: datetime | None = None) -> bool:
-    exp = _parse_iso(str(row.get("expires_at") or "") if row.get("expires_at") else None)
+    exp = parse_iso(str(row.get("expires_at") or "") if row.get("expires_at") else None)
     if exp is None:
         return False
-    return (now or _now()) >= exp
+    return (now or utc_now()) >= exp
 
 
 def share_is_usable(row: dict[str, Any], *, now: datetime | None = None) -> bool:
