@@ -473,11 +473,13 @@ accepted identity returns its original acceptance before checking the baseline.
 
 A refused offline command keeps the server's error code (`code`, when the server
 sent one) beside its reason in the saved conflict list, so the queue can tell a
-stale target from any other refusal. The GUI reads `range_changed` on a guest's
-queued `EditSelectedRange` cut as "Your cut at 12:04 overlaps a newer edit" and
-derives the time from the command's own `targets[].intervals`; it stores no second
-copy of the range. A refusal without a code, or with another code, keeps the
-generic Needs attention row.
+stale target from any other refusal. The review queue model can
+read `range_changed` on a queued `EditSelectedRange` cut as "Your cut at 12:04
+overlaps a newer edit" and derives the time from the command's own
+`targets[].intervals`; it stores no second copy of the range. The live guest
+Review tab does not render that row yet (it needs the Hear, Suggest again and
+Drop callbacks, which land in a follow-up), so it still shows the generic Needs
+attention row. A refusal without a code, or with another code, always does.
 
 The local host MCP `set_clip_fade_tool` explicitly sets both current fades through
 `TimelineService.set_clip_fade` without a baseline. That deliberate local workflow
