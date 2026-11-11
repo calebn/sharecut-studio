@@ -385,6 +385,38 @@ describe("several clips: fade shape", () => {
     ]);
   });
 
+  it("leaves out a clip whose out edge is a cut or blended", async () => {
+    open([
+      first,
+      { ...second, join_left_clip_id: "c1", join_in_mode: "cut" },
+      {
+        ...second,
+        id: "c3",
+        join_left_clip_id: "c2",
+        join_in_mode: "crossfade",
+        join_crossfade_ms: 200,
+      },
+    ]);
+    await act(async () => {
+      fireEvent.click(choice("Fade out shape", "Equal power"));
+    });
+    expect(setClipsFade).toHaveBeenCalledTimes(1);
+    expect(setClipsFade).toHaveBeenCalledWith("/tmp/ep.json", [
+      expect.objectContaining({
+        clip_id: "c3",
+        fade_out_curve: "equal_power",
+      }),
+    ]);
+  });
+
+  it("does not promise every selected clip for a shape", () => {
+    open();
+    expect(screen.queryByText(/every selected clip/)).toBeNull();
+    expect(
+      screen.getByText(/a shape skips clips whose join there is a cut/),
+    ).toBeVisible();
+  });
+
   it("disables the shape with a reason when no selected clip's edge applies", () => {
     open([
       { ...first, join_left_clip_id: "c0", join_in_mode: "cut" },
@@ -392,10 +424,10 @@ describe("several clips: fade shape", () => {
     ]);
     const button = choice("Fade in shape", "S");
     expect(button).toBeDisabled();
-    expect(button).toHaveAttribute(
-      "title",
-      "Shape ignored: every selected clip's join here is a cut or a crossfade",
-    );
+    const reason =
+      "Shape ignored: every selected clip's join here is a cut or a crossfade";
+    expect(button).toHaveAttribute("title", reason);
+    expect(screen.getAllByText(reason)[0]).toBeVisible();
   });
 
   it("shows a Viewer the shapes as text", () => {
