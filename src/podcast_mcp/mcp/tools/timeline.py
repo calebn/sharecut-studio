@@ -309,8 +309,10 @@ def set_clip_fade_tool(
 ) -> str:
     """Set the fade-in and fade-out duration of a single clip, and optionally their shapes.
 
-    Dialogue fades cap at ``render.join_fade_max_ms``. Each fade fits in the clip, and
-    fade-out is limited to what fade-in leaves. A curve is ``linear`` (the default),
+    A fade you set is bounded only by the clip: each fade fits in the clip, and fade-out is
+    limited to what fade-in leaves. ``render.join_fade_max_ms`` and the episode's Default join
+    fade length (``set_join_fade_default_tool``) limit only the fades ShareCut adds by itself.
+    The result reports the applied ``fade_in_ms`` / ``fade_out_ms`` and ``clamped``. A curve is ``linear`` (the default),
     ``equal_power`` or ``s``; left out, the clip keeps its current curve. A curve applies to a
     fade that is not at a cut or blended join. ``list_clips_tool`` names a curve only while it
     is not linear.
@@ -344,9 +346,9 @@ def set_clips_fade_tool(
 ) -> str:
     """Add a delta (ms, negative shortens) to the fade-in and fade-out of several clips at once.
 
-    One undo step covers every clip. Each clip is clamped like ``set_clip_fade_tool``. A curve
-    (``linear``, ``equal_power`` or ``s``) is set on every named clip; left out, each clip keeps
-    its own. A clip changed since it was read returns ``clip_fade_changed`` and no clip changes.
+    One undo step covers every clip. Each clip is bounded by its own length like
+    ``set_clip_fade_tool``, not by the Default join fade length. A curve (``linear``,
+    ``equal_power`` or ``s``) is set on every named clip; left out, each clip keeps its own. A clip changed since it was read returns ``clip_fade_changed`` and no clip changes.
     """
     ws = ProjectWorkspace.open(project_path)
     by_id = {c.id: c for c in ws.project.clips}
