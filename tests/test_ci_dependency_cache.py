@@ -49,8 +49,14 @@ def test_workflow_keeps_installs_checks_and_pinned_prebuilt_consumers() -> None:
                 "frontend-e2e-suites": "3.12",
             }[name]
         )
-        assert python["with"]["cache"] == "pip"
-        assert python["with"]["cache-dependency-path"].splitlines() == ["pyproject.toml", "uv.lock"]
+        if name == "frontend-e2e-suites":
+            assert "cache" not in python["with"]
+        else:
+            assert python["with"]["cache"] == "pip"
+            assert python["with"]["cache-dependency-path"].splitlines() == [
+                "pyproject.toml",
+                "uv.lock",
+            ]
         install = next(step for step in steps if step.get("uses") == LOCKED_INSTALL)
         assert "if" not in install and not install.get("continue-on-error")
         extras = {
