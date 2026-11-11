@@ -4,14 +4,6 @@ import { type FrameReader, usePeakMeter } from "../audio/usePeakMeter";
 import { Avatar, LevelMeter } from "./index";
 import { createParticipantMeterSource } from "./meterStorySource";
 
-/**
- * Layout sketch, not a shipped component: how per-participant meters could
- * sit in the record room roster (issue #170). Rows reuse
- * the `<ul className="record-roster">` markup (as UploadStatus does) with `.cluster`
- * items; each row is an Avatar, a name and a compact LevelMeter driven by
- * `usePeakMeter`, the same loop `useInputPeakDb` runs on a real mic.
- */
-
 function useParticipantFrames(
   seed: number,
   clipAt: number | null,
@@ -56,6 +48,13 @@ function RosterRow({
   );
 }
 
+/**
+ * Layout sketch, not a shipped component: how per-participant meters could
+ * sit in the record room roster (issue #170). Rows reuse
+ * the `<ul className="record-roster">` markup (as UploadStatus does) with `.cluster`
+ * items; each row is an Avatar, a name and a compact LevelMeter driven by
+ * `usePeakMeter`, the same loop `useInputPeakDb` runs on a real mic.
+ */
 const meta: Meta = {
   title: "Molecules/ParticipantMeter",
   tags: ["autodocs"],
