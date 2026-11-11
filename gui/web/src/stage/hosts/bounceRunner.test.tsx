@@ -339,6 +339,27 @@ describe("BounceRunnerProvider", () => {
     expect(toast()).toBeNull();
   });
 
+  it("cancels the running job when the project changes", async () => {
+    heldFollow();
+    mount();
+    await act(async () => void (await startBounce(FULL_MIX)));
+    await waitFor(() => expect(run).toMatchObject({ jobId: "b1" }));
+    act(() => useDawStore.setState({ projectPath: "/tmp/other.project.json" }));
+    await waitFor(() => expect(cancelPipelineRun).toHaveBeenCalledWith("b1"));
+  });
+
+  it("cancels a job whose start resolves after the project changed", async () => {
+    const pending = deferred<PipelineJobSnapshot>();
+    vi.mocked(startBounceJob).mockReturnValue(pending.promise);
+    heldFollow();
+    mount();
+    await act(async () => void (await startBounce(FULL_MIX)));
+    act(() => useDawStore.setState({ projectPath: "/tmp/other.project.json" }));
+    expect(cancelPipelineRun).not.toHaveBeenCalled();
+    await act(async () => pending.resolve(started));
+    await waitFor(() => expect(cancelPipelineRun).toHaveBeenCalledWith("b1"));
+  });
+
   it("keeps the new run after an old one completes in a reopened project", async () => {
     const old = deferred<PipelineJobSnapshot>();
     const next = deferred<PipelineJobSnapshot>();
