@@ -8,6 +8,8 @@ import {
 import { expectPageAxeClean } from "./axe";
 import { clickHTMLElement } from "./domClick";
 import {
+  followCandidates,
+  followDetail,
   followPill,
   followUntilPillVisible,
   openPeopleMenu,
@@ -114,7 +116,7 @@ async function expectAudition(page: Page, mode: Audition): Promise<void> {
 }
 
 async function expectGuestListeningInMix(page: Page): Promise<void> {
-  await expect(followPill(page)).toContainText(/Listening in Mix/);
+  await expect(followDetail(page)).toContainText(/Listening in Mix/);
   // A guest hears the mix only: the Player has no hear menu to change it.
   await expect(page.getByRole("button", { name: "Hear options" })).toHaveCount(
     0,
@@ -125,24 +127,21 @@ async function followPeerUntilPlayheadMirrors(
   follower: Page,
   leader: Page,
 ): Promise<void> {
-  const rows = () =>
-    follower
-      .getByRole("menu", { name: "People" })
-      .getByRole("menuitem", { name: /· Follow$/ });
-  await openPeopleMenu(follower);
-  await expect(rows().first()).toBeVisible({ timeout: 15_000 });
-  const peopleBox = await rows().first().boundingBox();
-  // Menu rows take the touch floor on a coarse pointer, not by width.
-  if (await follower.evaluate(() => matchMedia("(pointer: coarse)").matches)) {
-    expect(peopleBox?.height ?? 0).toBeGreaterThanOrEqual(44);
-  }
-  const n = await rows().count();
-  for (let i = 0; i < n; i++) {
+  const candidates = await followCandidates(follower);
+  for (const [i, open] of candidates.entries()) {
     if (i > 0) {
       await stopFollowing(follower);
-      await openPeopleMenu(follower);
     }
-    await clickHTMLElement(rows().nth(i));
+    const row = await open();
+    await expect(row).toBeVisible({ timeout: 15_000 });
+    const rowBox = await row.boundingBox();
+    // Menu rows take the touch floor on a coarse pointer, not by width.
+    if (
+      await follower.evaluate(() => matchMedia("(pointer: coarse)").matches)
+    ) {
+      expect(rowBox?.height ?? 0).toBeGreaterThanOrEqual(44);
+    }
+    await clickHTMLElement(row);
     if (!(await waitForFollowPill(follower))) {
       continue;
     }
@@ -393,6 +392,35 @@ test.describe("presence follow desktop", () => {
   });
 });
 
+test.describe("presence menu and Go to", () => {
+  test("Esc closes a face's menu before it stops the follow, and Go to leaves the follow", async ({
+    browser,
+  }) => {
+    await withTwoStudioPages(browser, DESKTOP, async (pageA, pageB) => {
+      await followPeerUntilPlayheadMirrors(pageB, pageA);
+      await expect(
+        pageB.locator(".avatar-face[data-following]").first(),
+      ).toBeVisible();
+      const menu = await openPeopleMenu(pageB);
+      await expect(
+        menu.getByRole("menuitem", { name: "Stop following" }),
+      ).toBeVisible();
+      await pageB.keyboard.press("Escape");
+      await expect(menu).toBeHidden();
+      await expect(followPill(pageB)).toBeVisible();
+      await pageB.keyboard.press("Escape");
+      await expect(followPill(pageB)).toHaveCount(0);
+
+      const again = await openPeopleMenu(pageB);
+      await clickHTMLElement(
+        again.getByRole("menuitem", { name: "Go to where they are" }),
+      );
+      await expect(again).toBeHidden();
+      await expect(followPill(pageB)).toHaveCount(0);
+    });
+  });
+});
+
 test.describe("presence follow tablet", () => {
   test("follows from Menu People then unfollows", async ({ browser }) => {
     await withTwoStudioPages(browser, TABLET, async (pageA, pageB) => {
@@ -438,17 +466,14 @@ test.describe("presence follow phone", () => {
         const pill = followPill(pageB);
         await expect(pill).toBeVisible();
         const label =
-          (await pill.locator(".sys-player-pill-text").textContent()) ?? "";
-        const followed =
-          label.match(/^Following\s+(.+?)(?:\s+·|$)/)?.[1]?.trim() ?? "";
+          (await pill.locator(".avatar-follow-text").textContent()) ?? "";
+        const followed = label.match(/^Following\s+(.+)$/)?.[1]?.trim() ?? "";
         expect(followed).not.toBe("");
         await pageB.setViewportSize(DESKTOP);
         await expect(pageB.locator(".stage-frame--phone")).toHaveCount(0, {
           timeout: 8_000,
         });
-        await expect(
-          pageB.locator(".stage-frame--desktop.stage-frame--following"),
-        ).toBeVisible();
+        await expect(pageB.locator(".stage-frame--following")).toHaveCount(0);
         await expect(pill).toBeVisible();
         await expect(pill).toContainText(`Following ${followed}`);
       },
@@ -461,11 +486,18 @@ test.describe("presence follow guest share", () => {
   test("guest follows host on a share token", async ({ browser }) => {
     await withHostGuestPages(browser, "viewer", async (pageA, pageB) => {
       await goToStage(pageA, "prepare");
-      const menu = await openPeopleMenu(pageB);
-      const followHost = menu.getByRole("menuitem", { name: /Host · Follow$/ });
-      await expect(followHost).toBeVisible({ timeout: 15_000 });
-      await followHost.click();
-      const pill = followPill(pageB);
+      const menu = await openPeopleMenu(
+        pageB,
+        pageB.getByRole("button", { name: /^Host/ }),
+      );
+      await expect(menu).toContainText("Prepare");
+      // A viewer cannot open Prepare, so there is nowhere to go.
+      await expect(menu.getByRole("menuitem", { name: /Go to/ })).toHaveCount(
+        0,
+      );
+      await menu.getByRole("menuitem", { name: "Follow" }).click();
+      await expect(followPill(pageB)).toContainText("Following Host");
+      const pill = followDetail(pageB);
       await expect(pill).toBeVisible();
       // A viewer has no timeline, so there is no presence overlay to attach.
       await expect(pill).toContainText(/in Pipeline \(host-only\)/);
@@ -473,7 +505,7 @@ test.describe("presence follow guest share", () => {
       await expect(pageB.getByRole("main", { name: "Review" })).toBeVisible();
 
       await setAudition(pageA, "fx");
-      await expect(followPill(pageB)).toContainText(/auditioning FX/);
+      await expect(followDetail(pageB)).toContainText(/auditioning FX/);
       await expectGuestListeningInMix(pageB);
     });
   });
@@ -489,7 +521,7 @@ test.describe("presence follow guest share", () => {
         await goToStage(host, "prepare");
         await followUntilPillVisible(guest);
         await setAudition(host, "fx");
-        const pill = followPill(guest);
+        const pill = followDetail(guest);
         await expect(pill).toContainText(/auditioning FX/);
         await expect(pill).toHaveAttribute("title", /auditioning FX/);
         const shellBox = await guest.locator(".stage-frame").boundingBox();
@@ -513,10 +545,13 @@ test.describe("presence follow guest share", () => {
       });
       await test.step("follow host FX presence", async () => {
         const menu = await openPeopleMenu(pageB);
-        const follows = menu.getByRole("menuitem", { name: /· Follow$/ });
+        const follows = menu.getByRole("menuitem", {
+          name: "Follow",
+          exact: true,
+        });
         await expect(follows).toHaveCount(1, { timeout: 15_000 });
         await follows.click();
-        await expect(followPill(pageB)).toContainText(/auditioning FX/, {
+        await expect(followDetail(pageB)).toContainText(/auditioning FX/, {
           timeout: 15_000,
         });
       });

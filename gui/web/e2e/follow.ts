@@ -11,8 +11,13 @@ import { withTwoBrowserPages } from "./twoBrowserPages";
 
 const FOLLOW_PILL_TRANSITION_TIMEOUT_MS = 1_000;
 
-/** The Player's "Following {name}" pill, with its Stop following button. */
+/** The header's "Following {name}" pill, with its Stop following button. */
 export function followPill(page: Page): Locator {
+  return page.locator(".avatar-header .avatar-follow");
+}
+
+/** The Player's pill: it appears only for a partial follow and carries why. */
+export function followDetail(page: Page): Locator {
   return page.locator(".sys-player-pill").filter({ hasText: /^Following / });
 }
 
@@ -50,36 +55,79 @@ export async function withTwoHostPages<T>(
   );
 }
 
-/** The header's People button; peers show once their presence arrives. */
-export function peopleButton(page: Page) {
-  return page.getByRole("button", { name: /^People here/ });
+/** The header's faces that are showing; the phone shows one. */
+export function peopleFaces(page: Page): Locator {
+  return page.locator(".avatar-header .avatar-face:visible");
 }
 
-/** Open the header's People menu (Follow and Go to) and return it. */
-export async function openPeopleMenu(page: Page): Promise<Locator> {
-  const menu = page.getByRole("menu", { name: "People" });
+/** The first face in the header; peers show once their presence arrives. */
+export function peopleButton(page: Page): Locator {
+  return peopleFaces(page).first();
+}
+
+function personMenu(page: Page): Locator {
+  return page.getByRole("menu").filter({
+    has: page.getByRole("menuitem", { name: /^(Follow|Stop following)$/ }),
+  });
+}
+
+/** Open a face's menu (the first face by default: name, Follow, Go to) and return it. */
+export async function openPeopleMenu(
+  page: Page,
+  face: Locator = peopleButton(page),
+): Promise<Locator> {
+  const menu = personMenu(page);
   if (await menu.isVisible()) return menu;
-  const trigger = peopleButton(page);
-  await expect(trigger).toBeVisible({ timeout: 15_000 });
-  await trigger.click();
+  await expect(face).toBeVisible({ timeout: 15_000 });
+  await face.click();
   await expect(menu).toBeVisible();
   return menu;
 }
 
+/** One way to reach a peer's Follow row: opens its menu and returns the row. */
+export type FollowCandidate = () => Promise<Locator>;
+
+/** Every peer the header can follow: a face each, then the people behind the count. */
+export async function followCandidates(page: Page): Promise<FollowCandidate[]> {
+  await expect(peopleButton(page)).toBeVisible({ timeout: 15_000 });
+  const out: FollowCandidate[] = [];
+  const faces = await peopleFaces(page).count();
+  for (let i = 0; i < faces; i++) {
+    out.push(async () => {
+      const menu = await openPeopleMenu(page, peopleFaces(page).nth(i));
+      return menu.getByRole("menuitem", { name: "Follow", exact: true });
+    });
+  }
+  const chips = page.locator(".avatar-header .avatar-more:visible");
+  const chipCount = await chips.count();
+  for (let c = 0; c < chipCount; c++) {
+    await chips.nth(c).click();
+    const groups = await page
+      .getByRole("menu", { name: "More people" })
+      .getByRole("group")
+      .count();
+    await page.keyboard.press("Escape");
+    for (let g = 0; g < groups; g++) {
+      out.push(async () => {
+        await chips.nth(c).click();
+        return page
+          .getByRole("menu", { name: "More people" })
+          .getByRole("group")
+          .nth(g)
+          .getByRole("menuitem", { name: "Follow", exact: true });
+      });
+    }
+  }
+  return out;
+}
+
 /** Follow each peer in turn until one shows the Following pill. */
 export async function followUntilPillVisible(follower: Page): Promise<void> {
-  const rows = () =>
-    follower
-      .getByRole("menu", { name: "People" })
-      .getByRole("menuitem", { name: /· Follow$/ });
-  await openPeopleMenu(follower);
-  await expect(rows().first()).toBeVisible({ timeout: 15_000 });
-  const n = await rows().count();
-  for (let i = 0; i < n; i++) {
-    if (i > 0) {
-      await openPeopleMenu(follower);
-    }
-    await clickHTMLElement(rows().nth(i));
+  const candidates = await followCandidates(follower);
+  for (const open of candidates) {
+    const row = await open();
+    await expect(row).toBeVisible({ timeout: 15_000 });
+    await clickHTMLElement(row);
     if (await waitForFollowPill(follower)) {
       return;
     }
