@@ -336,6 +336,58 @@ def set_clips_fade_tool(
     )
 
 
+def set_clip_gain_tool(project_path: str, clip_id: str, gain_db: float) -> str:
+    """Set the level of a single clip in dB (0 = unity, range -60 to +12).
+
+    Clip gain applies before the track chain, staging gain, and fader. A value outside the
+    range is refused. Changing it makes the track's stem stale.
+    """
+    ws = ProjectWorkspace.open(project_path)
+    clip = next((c for c in ws.project.clips if c.id == clip_id), None)
+    if clip is None:
+        raise CodedValueError(f"unknown clip_id: {clip_id!r}", code="clip_not_found")
+    return to_json(
+        submit_host_command_result(
+            project_path,
+            "SetClipGain",
+            {
+                "clip_id": clip_id,
+                "gain_db": gain_db,
+                "expected": {"gain_db": clip.gain_db},
+            },
+        )
+    )
+
+
+def set_clips_gain_tool(project_path: str, clip_ids: list[str], gain_db: float) -> str:
+    """Set several clips to the same level in dB (absolute, 0 = unity, clamped to -60..+12).
+
+    One undo step covers every clip. A clip changed since it was read returns
+    ``clip_gain_changed`` and no clip changes.
+    """
+    ws = ProjectWorkspace.open(project_path)
+    by_id = {c.id: c for c in ws.project.clips}
+    missing = next((cid for cid in clip_ids if cid not in by_id), None)
+    if missing is not None:
+        raise CodedValueError(f"unknown clip_id: {missing!r}", code="clip_not_found")
+    return to_json(
+        submit_host_command_result(
+            project_path,
+            "SetClipsGain",
+            {
+                "gains": [
+                    {
+                        "clip_id": cid,
+                        "gain_db": gain_db,
+                        "expected": {"gain_db": by_id[cid].gain_db},
+                    }
+                    for cid in dict.fromkeys(clip_ids)
+                ]
+            },
+        )
+    )
+
+
 def set_join_mode_tool(
     project_path: str,
     clip_id: str,
@@ -1006,6 +1058,8 @@ def register(mcp: MCPServer) -> None:
         crossfade_joins_tool,
         set_clip_fade_tool,
         set_clips_fade_tool,
+        set_clip_gain_tool,
+        set_clips_gain_tool,
         set_join_mode_tool,
         set_clip_join_tool,
         trim_clip_edge_tool,

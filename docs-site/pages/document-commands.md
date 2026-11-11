@@ -86,8 +86,10 @@ Raw JSON Schema (site copy): [document-commands.schema.json](../schemas/document
 | `SetActionDone` | `action_id` (string), `by` (string), `comment_id` (string) | `done` (boolean) |
 | `SetBleedAlignmentMode` | `decision_id` (string), `mode` (auto \| manual \| declined) | `end_sec` (number \| null), `override_placement_lock` (boolean), `start_sec` (number \| null), `track_id` (string \| null) |
 | `SetClipFade` | `clip_id` (string), `expected` (object), `fade_in_ms` (integer), `fade_out_ms` (integer) | — |
+| `SetClipGain` | `clip_id` (string), `expected` (object), `gain_db` (number) | — |
 | `SetClipJoin` | `left_clip_id` (string), `mode` (fade \| crossfade \| cut), `right_clip_id` (string) | `length_ms` (integer \| null) |
 | `SetClipsFade` | `fades` (array[object]) | — |
+| `SetClipsGain` | `gains` (array[object]) | — |
 | `SetEffectBypass` | `bypass` (boolean), `effect_index` (integer), `track_id` (string) | — |
 | `SetEnvelope` | `expected_points` (array[object]), `track_id` (string) | `points` (array[object]) |
 | `SetFeedField` | `key` (string), `value` (string \| integer \| number \| boolean \| array) | `by` (person \| agent \| guest) |
@@ -121,7 +123,7 @@ Raw JSON Schema (site copy): [document-commands.schema.json](../schemas/document
 | `UpdateSocialClipDetails` | `id` (string) | `approved` (boolean \| null), `title` (string \| null) |
 | `VerifyTranscript` | `corrections` (array[object]), `track_id` (string) | — |
 
-_Generated 89 command types._
+_Generated 91 command types._
 
 - Regenerate: `make schema-export`
 - CI / pre-commit: `make generated-check`

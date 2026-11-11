@@ -417,6 +417,7 @@ GENERIC_CLI_ROWS = {
     "daw.transcript.ignore",
     "daw.envelope.addPoint",
     "daw.edit.setClipFade",
+    "daw.edit.setClipGain",
     "daw.range.fillRoomTone",
 }
 
