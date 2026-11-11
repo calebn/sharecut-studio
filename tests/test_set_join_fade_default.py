@@ -142,6 +142,23 @@ def test_document_command_applies_and_refreshes_the_clips_slice(minimal_project:
     assert result["ok"] is True
     assert _stored(minimal_project) == 55
     assert projection_for_command("SetJoinFadeDefault") is ViewProjection.CLIPS
+    assert _clips_slice(minimal_project)["clips"]["join_fade_default_ms"] == 55
+
+
+def _clips_slice(project: Path) -> dict:
+    from podcast_mcp.gui.assembler import dump_project_projection
+    from podcast_mcp.services.document_sync.projection_types import ViewProjection
+
+    return dump_project_projection(project, projection=ViewProjection.CLIPS)
+
+
+def test_the_clips_slice_carries_the_default_in_force(minimal_project: Path) -> None:
+    ws = _seed(minimal_project)
+    assert _clips_slice(minimal_project)["clips"]["join_fade_default_ms"] == 40
+    TimelineService(ws).set_join_fade_default(0)
+    assert _clips_slice(minimal_project)["clips"]["join_fade_default_ms"] == 0
+    TimelineService(ws).set_join_fade_default(None)
+    assert _clips_slice(minimal_project)["clips"]["join_fade_default_ms"] == 40
 
 
 def test_registry_row_names_the_tool_and_the_cli() -> None:
