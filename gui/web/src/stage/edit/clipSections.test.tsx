@@ -1152,6 +1152,14 @@ describe("fade shape", () => {
       "title",
       "Shape ignored: the join into this clip is a cut",
     );
+    expect(
+      screen.getByText("Shape ignored: the join into this clip is a cut", {
+        selector: ".fade-shape-reason",
+      }),
+    ).toBeVisible();
+    expect(pressed).toHaveAccessibleDescription(
+      "Shape ignored: the join into this clip is a cut",
+    );
     expect(choice("Fade out shape", "S")).toBeEnabled();
     cleanup();
     open([clip, cut], {}, clip);
