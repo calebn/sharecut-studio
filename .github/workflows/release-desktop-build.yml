@@ -144,12 +144,6 @@ jobs:
           import json
           import os
 
-          prepare = {
-              "linux": {"os": "ubuntu-22.04", "name": "linux", "bundle": "appimage", "triple": "x86_64-unknown-linux-gnu"},
-              "windows": {"os": "windows-latest", "name": "windows", "bundle": "nsis", "triple": "x86_64-pc-windows-msvc"},
-              "macos-intel": {"os": "macos-15-intel", "name": "macos-intel", "bundle": "app", "triple": "x86_64-apple-darwin"},
-              "macos-arm64": {"os": "macos-15", "name": "macos-arm64", "bundle": "app", "triple": "aarch64-apple-darwin"},
-          }
           bundle = {
               "linux": {
                   "os": "ubuntu-22.04", "name": "linux-appimage", "bundle": "appimage",
@@ -191,7 +185,11 @@ jobs:
               raise SystemExit(f"::error::platforms must be 'all' or a comma list of {', '.join(bundle)}; got {raw!r}")
           wanted = [key for key in bundle if key in wanted]
           with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as out:
-              out.write("prepare_matrix=" + json.dumps({"include": [prepare[k] for k in wanted]}) + "\n")
+              prepare = [
+                  {"os": bundle[k]["os"], "name": k, "bundle": bundle[k]["bundle"], "triple": bundle[k]["triple"]}
+                  for k in wanted
+              ]
+              out.write("prepare_matrix=" + json.dumps({"include": prepare}) + "\n")
               out.write("bundle_matrix=" + json.dumps({"include": [bundle[k] for k in wanted]}) + "\n")
           print("platforms:", ", ".join(wanted))
           PY

@@ -65,26 +65,7 @@ def test_reusable_workflow_declares_call_inputs_and_secrets() -> None:
     assert "APPLE_CERTIFICATE_PASSWORD" in secrets
     assert not any(name.startswith("PODCAST_OBJECT_STORE_") for name in secrets)
     job = data["jobs"]["bundle"]
-    oses = {row["os"] for row in job["strategy"]["matrix"]["include"]}
-    assert oses == {"ubuntu-22.04", "windows-latest", "macos-15-intel", "macos-15"}
-    assert {row["triple"] for row in job["strategy"]["matrix"]["include"]} == {
-        "x86_64-unknown-linux-gnu",
-        "x86_64-pc-windows-msvc",
-        "x86_64-apple-darwin",
-        "aarch64-apple-darwin",
-    }
-    assert {row["artifact"] for row in job["strategy"]["matrix"]["include"]} == {
-        "sharecut-linux-appimage",
-        "sharecut-windows-nsis",
-        "sharecut-macos-x64-dmg",
-        "sharecut-macos-arm64-dmg",
-    }
-    assert {row["updater_artifact"] for row in job["strategy"]["matrix"]["include"]} == {
-        "sharecut-linux-appimage-updater",
-        "sharecut-windows-nsis-updater",
-        "sharecut-macos-x64-updater",
-        "sharecut-macos-arm64-updater",
-    }
+    assert job["strategy"]["matrix"] == "${{ fromJSON(needs.verify-source.outputs.bundle_matrix) }}"
     assert "TAURI_SIGNING_PRIVATE_KEY" in secrets
     assert "TAURI_SIGNING_PRIVATE_KEY_PASSWORD" in secrets
     assert job["environment"] == (
@@ -110,6 +91,102 @@ def test_reusable_workflow_declares_call_inputs_and_secrets() -> None:
     assert "Clean up Apple keychain" in steps
     assert "Clean up Windows signing material" in steps
     assert "Signing summary" in steps
+
+
+def run_platform_plan(tmp_path: Path, platforms: str) -> tuple[subprocess.CompletedProcess, dict]:
+    steps = load_github_yaml(BUILD)["jobs"]["verify-source"]["steps"]
+    plan = next(step for step in steps if step.get("name") == "Plan platform matrix")
+    script = tmp_path / "plan.sh"
+    script.write_text(plan["run"], encoding="utf-8")
+    output = tmp_path / "github_output"
+    output.write_text("", encoding="utf-8")
+    env = {**os.environ, "PLATFORMS": platforms, "GITHUB_OUTPUT": str(output)}
+    result = subprocess.run(
+        ["bash", str(script)], env=env, capture_output=True, text=True, check=False
+    )
+    outputs = {}
+    for line in output.read_text(encoding="utf-8").splitlines():
+        key, _, value = line.partition("=")
+        outputs[key] = json.loads(value)["include"]
+    return result, outputs
+
+
+def test_platform_plan_all_builds_every_leg(tmp_path: Path) -> None:
+    result, outputs = run_platform_plan(tmp_path, "all")
+    assert result.returncode == 0, result.stderr
+    bundle = outputs["bundle_matrix"]
+    assert [row["name"] for row in bundle] == [
+        "linux-appimage",
+        "windows-nsis",
+        "macos-intel-dmg",
+        "macos-arm64-dmg",
+    ]
+    assert {row["os"] for row in bundle} == {
+        "ubuntu-22.04",
+        "windows-latest",
+        "macos-15-intel",
+        "macos-15",
+    }
+    assert {row["triple"] for row in bundle} == {
+        "x86_64-unknown-linux-gnu",
+        "x86_64-pc-windows-msvc",
+        "x86_64-apple-darwin",
+        "aarch64-apple-darwin",
+    }
+    assert {row["artifact"] for row in bundle} == {
+        "sharecut-linux-appimage",
+        "sharecut-windows-nsis",
+        "sharecut-macos-x64-dmg",
+        "sharecut-macos-arm64-dmg",
+    }
+    assert {row["updater_artifact"] for row in bundle} == {
+        "sharecut-linux-appimage-updater",
+        "sharecut-windows-nsis-updater",
+        "sharecut-macos-x64-updater",
+        "sharecut-macos-arm64-updater",
+    }
+    assert {row["name"]: row["expected_arch"] for row in bundle if "expected_arch" in row} == {
+        "macos-intel-dmg": "x86_64",
+        "macos-arm64-dmg": "arm64",
+    }
+    assert [row["name"] for row in outputs["prepare_matrix"]] == [
+        "linux",
+        "windows",
+        "macos-intel",
+        "macos-arm64",
+    ]
+
+
+def test_platform_plan_empty_means_all(tmp_path: Path) -> None:
+    _, everything = run_platform_plan(tmp_path, "all")
+    result, outputs = run_platform_plan(tmp_path, "")
+    assert result.returncode == 0, result.stderr
+    assert outputs == everything
+
+
+def test_platform_plan_subset_keeps_canonical_order_and_dedupes(tmp_path: Path) -> None:
+    result, outputs = run_platform_plan(tmp_path, " Windows, linux ,windows")
+    assert result.returncode == 0, result.stderr
+    assert [row["name"] for row in outputs["bundle_matrix"]] == ["linux-appimage", "windows-nsis"]
+    assert [row["name"] for row in outputs["prepare_matrix"]] == ["linux", "windows"]
+
+
+def test_platform_plan_prepare_rows_agree_with_bundle_rows(tmp_path: Path) -> None:
+    result, outputs = run_platform_plan(tmp_path, "all")
+    assert result.returncode == 0, result.stderr
+    for prepare, bundle in zip(outputs["prepare_matrix"], outputs["bundle_matrix"], strict=True):
+        assert set(prepare) == {"os", "name", "bundle", "triple"}
+        assert bundle["name"].startswith(prepare["name"])
+        for key in ("os", "bundle", "triple"):
+            assert prepare[key] == bundle[key]
+
+
+def test_platform_plan_rejects_unknown_and_mixed_all(tmp_path: Path) -> None:
+    for value in ("bogus", "all,linux", "linux,,bogus"):
+        result, outputs = run_platform_plan(tmp_path, value)
+        assert result.returncode != 0, value
+        assert "::error::platforms must be" in result.stderr
+        assert outputs == {}
 
 
 def test_desktop_workflow_compiles_windows_only_adapters() -> None:
@@ -203,12 +280,9 @@ def test_extension_wheel_freeze_isolated_from_signing_jobs() -> None:
     assert prepare_checkout["with"]["ssh-key"] == "${{ secrets.SOURCE_REPOSITORY_SSH_KEY }}"
     assert prepare_checkout["with"]["persist-credentials"] is False
     assert "secrets." not in str(prepare["steps"][1:])
-    assert {row["os"] for row in prepare["strategy"]["matrix"]["include"]} == {
-        "ubuntu-22.04",
-        "windows-latest",
-        "macos-15-intel",
-        "macos-15",
-    }
+    assert (
+        prepare["strategy"]["matrix"] == "${{ fromJSON(needs.verify-source.outputs.prepare_matrix) }}"
+    )
 
     prepare_steps = prepare["steps"]
     prepare_names = [step.get("name") for step in prepare_steps]
@@ -455,10 +529,16 @@ def test_source_trust_is_verified_before_any_repo_code_or_secrets() -> None:
         "source_sha": "${{ steps.verify.outputs.source_sha }}",
         "trusted": "${{ steps.verify.outputs.trusted }}",
         "updater": "${{ steps.updater.outputs.updater }}",
+        "prepare_matrix": "${{ steps.plan.outputs.prepare_matrix }}",
+        "bundle_matrix": "${{ steps.plan.outputs.bundle_matrix }}",
     }
 
     steps = verify["steps"]
     names = [step.get("name") for step in steps]
+    plan_at = names.index("Plan platform matrix")
+    assert plan_at < names.index("Checkout candidate source")
+    assert "uses" not in steps[plan_at]
+    assert "secrets." not in str(steps[plan_at])
     coordinates_at = names.index("Validate source coordinates")
     checkout_at = names.index("Checkout candidate source")
     trust_at = names.index("Verify source reachable from protected main")

@@ -462,8 +462,10 @@ jobs:
 `linux`, `windows`, `macos-intel`, `macos-arm64`. An operator who builds and
 notarizes both macOS architectures locally passes `platforms: linux,windows` and
 spends no macOS runner minutes. An unknown name fails the run before any runner
-starts. The release gate still needs all four platforms in the upload, so the
-operator adds the locally built `mac-arm64` and `mac-x64` DMGs before publishing.
+starts. A skipped leg reports no check names, so a required-check rule must not
+name the `bundle` or `prepare-extension-runtime` legs it may skip. Platform
+completeness is enforced by the private operations repo's upload step, which is
+where the operator adds the locally built `mac-arm64` and `mac-x64` DMGs.
 
 `source_repository`, when set, must be `calebn/sharecut-studio` and `source_ref`
 must be a 40-character commit SHA. Before any checked-out repository code, package install,
