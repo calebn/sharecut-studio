@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { undoHistory } from "../api";
+import { setClipFade } from "../api/documentEdits";
 import { DOCUMENT_COMMAND_TIMEOUT_MS } from "../api/documentTransport";
 import { clearRegisteredCommands, execute } from "../commands/execute";
 import {
@@ -10,10 +11,15 @@ import { useDawStore } from "../state/dawStore";
 import { clipRow, minimalProject } from "../test/fixtures";
 import type { HistoryEntryId } from "../types/project";
 import { saveClipEdge } from "./clipEdgeSave";
+import { saveNudge } from "./nudge";
 
 vi.mock("../api", async (importOriginal) => ({
   ...(await importOriginal<typeof import("../api")>()),
   undoHistory: vi.fn(async () => null),
+}));
+vi.mock("../api/documentEdits", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../api/documentEdits")>()),
+  setClipFade: vi.fn(async () => null),
 }));
 vi.mock("../commands/trackMix", () => ({
   flushPendingMix: vi.fn(async () => {}),
@@ -78,4 +84,47 @@ it("a trim whose boundary token never loads drops its save, and an Undo pressed 
   await queued;
   expect(undoHistory).toHaveBeenCalledTimes(1);
   expect(useDawStore.getState().statusAnnouncement).not.toMatch(/still saving/);
+});
+
+it("a fade save on a curved clip carries both curves in its baseline, so the server does not refuse it", async () => {
+  const clip = clipRow({
+    id: "c1",
+    track_id: "t1",
+    fade_in_ms: 10,
+    fade_out_ms: 20,
+    fade_out_curve: "s",
+  });
+  await saveClipEdge("/tmp/ep", clip, { kind: "fade", inMs: 30, outMs: 20 });
+  expect(setClipFade).toHaveBeenLastCalledWith("/tmp/ep", "c1", 30, 20, {
+    fade_in_ms: 10,
+    fade_out_ms: 20,
+    fade_in_curve: "linear",
+    fade_out_curve: "s",
+  });
+});
+
+it("a nudged fade length carries the clip's curves in its baseline and leaves them out of the change", async () => {
+  const clip = clipRow({
+    id: "c1",
+    track_id: "t1",
+    fade_in_ms: 10,
+    fade_in_curve: "equal_power",
+  });
+  const origin = minimalProject({
+    clips: { tracks: { t1: [clip] }, clip_count: 1 },
+  });
+  await saveNudge(
+    "/tmp/ep",
+    origin,
+    { kind: "fade", trackId: "t1", clipId: "c1", edge: "out" },
+    40,
+    () => true,
+    () => {},
+  );
+  expect(setClipFade).toHaveBeenLastCalledWith("/tmp/ep", "c1", 10, 40, {
+    fade_in_ms: 10,
+    fade_out_ms: 0,
+    fade_in_curve: "equal_power",
+    fade_out_curve: "linear",
+  });
 });

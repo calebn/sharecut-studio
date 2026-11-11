@@ -1,4 +1,5 @@
 import { setClipsFade, setClipsGain } from "../../api";
+import { clipFadeBaseline } from "../../api/documentEdits";
 import { CLIP_HANDLE_STEPS } from "../../edit/clipHandleSteps";
 import { cancelClipPlacement } from "../../edit/clipPlacement";
 import { clampClipFades, maxFadeMs } from "../../edit/fadeLimits";
@@ -82,10 +83,7 @@ export function multiClipSections({
                 clip_id: clip.id,
                 fade_in_ms: next.inMs,
                 fade_out_ms: next.outMs,
-                expected: {
-                  fade_in_ms: clip.fade_in_ms,
-                  fade_out_ms: clip.fade_out_ms,
-                },
+                expected: clipFadeBaseline(clip),
               },
             ];
       });

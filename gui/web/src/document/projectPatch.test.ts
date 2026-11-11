@@ -10,6 +10,7 @@ import { transcriptSpanText } from "../utils/transcript";
 import {
   commentFromCommandResult,
   mergeProjectPatch,
+  patchClipFade,
   patchClipGain,
   patchTrackMeta,
   patchTracksOrder,
@@ -2018,5 +2019,41 @@ describe("commentFromCommandResult", () => {
         command: { payload: { result: { id: "c1", body: "x" } } },
       })?.id,
     ).toBe("c1");
+  });
+});
+
+describe("patchClipFade curves", () => {
+  const base = minimalProject({
+    clips: {
+      tracks: { host: [clipRow({ id: "c1", fade_out_curve: "s" })] },
+      clip_count: 1,
+    },
+  });
+  const clip = (project: ProjectView) => project.clips.tracks.host?.[0];
+
+  it("keeps a curve the call does not name and changes the one it does", () => {
+    const kept = patchClipFade(base, "c1", 40, 0);
+    expect(clip(kept)).toMatchObject({ fade_in_ms: 40, fade_out_curve: "s" });
+    const set = patchClipFade(base, "c1", 0, 0, {
+      fade_in_curve: "equal_power",
+    });
+    expect(clip(set)).toMatchObject({
+      fade_in_curve: "equal_power",
+      fade_out_curve: "s",
+    });
+  });
+
+  it("drops the key for linear, as the server omits it, and is a no-op when nothing differs", () => {
+    const linear = patchClipFade(base, "c1", 0, 0, {
+      fade_out_curve: "linear",
+    });
+    expect(clip(linear)).not.toHaveProperty("fade_out_curve");
+    expect(
+      patchClipFade(linear, "c1", 0, 0, { fade_out_curve: "linear" }),
+    ).toBe(linear);
+    expect(patchClipFade(base, "c1", 0, 0, { fade_out_curve: "s" })).toBe(base);
+    expect(patchClipFade(base, "c1", 0, 0, { fade_in_curve: "linear" })).toBe(
+      base,
+    );
   });
 });

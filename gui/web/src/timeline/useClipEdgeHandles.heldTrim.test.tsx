@@ -80,6 +80,17 @@ it("saves a fade on the original clip", async () => {
     fireEvent.pointerUp(savedButton, { pointerId: 4, clientX: 155 }),
   );
   expect(vi.mocked(setClipFade).mock.calls).toEqual([
-    ["/tmp/one.json", "wide", 100, 0, { fade_in_ms: 0, fade_out_ms: 0 }],
+    [
+      "/tmp/one.json",
+      "wide",
+      100,
+      0,
+      {
+        fade_in_ms: 0,
+        fade_out_ms: 0,
+        fade_in_curve: "linear",
+        fade_out_curve: "linear",
+      },
+    ],
   ]);
 });

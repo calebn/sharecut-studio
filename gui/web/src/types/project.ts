@@ -1,6 +1,7 @@
 import type {
   ClipJoinMode,
   ClipMuteRegion,
+  FadeCurve,
   ExactRangeTarget as GeneratedExactRangeTarget,
   ProjectView as GeneratedProjectView,
   TrackView as GeneratedTrackView,
@@ -9,7 +10,11 @@ import type {
   TranscriptRefineStatusView,
 } from "./project.generated";
 
-export type { ClipMuteRegion, RoomToneFill } from "./project.generated";
+export type {
+  ClipMuteRegion,
+  FadeCurve,
+  RoomToneFill,
+} from "./project.generated";
 
 /** The transcript check the host reads; the server always sends every field. */
 export type TranscriptCheckStatus = Required<TranscriptRefineStatusView>;
@@ -47,6 +52,10 @@ export interface ClipRow {
   timeline_end: number;
   fade_in_ms: number;
   fade_out_ms: number;
+  /** Shape of the fade-in; omitted while linear. */
+  fade_in_curve?: FadeCurve;
+  /** Shape of the fade-out; omitted while linear. */
+  fade_out_curve?: FadeCurve;
   gain_db?: number;
   join_in_mode: string;
   /** Clip on the same track this join is with; null for a track's first clip (older servers omit it). */
@@ -102,6 +111,9 @@ export type ExactRangeClip = Pick<
   | "timeline_start"
   | "fade_in_ms"
   | "fade_out_ms"
+  | "fade_in_curve"
+  | "fade_out_curve"
+  | "gain_db"
   | "join_in_mode"
 > & { mute_regions: ClipMuteRegion[] };
 

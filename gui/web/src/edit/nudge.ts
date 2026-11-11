@@ -8,7 +8,7 @@
  * so a whole run is one undoable edit (`timeline/precision/precisionDrivers.ts`).
  */
 import { setClipFade, setEnvelope, updatePendingEdit } from "../api";
-import { pendingEditBaseline } from "../api/documentEdits";
+import { clipFadeBaseline, pendingEditBaseline } from "../api/documentEdits";
 import { ENVELOPE_UPDATING, envelopeSettling } from "../commands/envelopes";
 import {
   pendingEdgePlacement,
@@ -456,7 +456,7 @@ export async function saveNudge(
           clip.id,
           field.edge === "in" ? value : clip.fade_in_ms,
           field.edge === "out" ? value : clip.fade_out_ms,
-          { fade_in_ms: clip.fade_in_ms, fade_out_ms: clip.fade_out_ms },
+          clipFadeBaseline(clip),
         );
         return { undo };
       }
@@ -529,7 +529,9 @@ export function sameNudgeBase(
       );
       return (
         now?.fade_in_ms === was?.fade_in_ms &&
-        now?.fade_out_ms === was?.fade_out_ms
+        now?.fade_out_ms === was?.fade_out_ms &&
+        (now?.fade_in_curve ?? "linear") === (was?.fade_in_curve ?? "linear") &&
+        (now?.fade_out_curve ?? "linear") === (was?.fade_out_curve ?? "linear")
       );
     }
     case "envelope-time":
