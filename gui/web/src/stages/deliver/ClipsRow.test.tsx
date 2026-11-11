@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { ClipsRow } from "./ClipsRow";
@@ -107,5 +107,47 @@ describe("ClipsRow Find clips", () => {
     expect(find).toHaveAttribute("title", "Finding clips…");
     await userEvent.click(find);
     expect(onFind).not.toHaveBeenCalled();
+  });
+});
+
+describe("ClipsRow In and Out", () => {
+  const id = CLIPS[0]?.id;
+  const name = CLIPS[0]?.title;
+
+  it("shows both edges as spinbuttons on the trimmed card only", () => {
+    renderRow({ trimming: id });
+    expect(
+      screen.getByRole("spinbutton", { name: `In of ${name}` }),
+    ).toHaveAttribute("aria-valuenow", String(CLIPS[0]?.start));
+    expect(
+      screen.getByRole("spinbutton", { name: `Out of ${name}` }),
+    ).toHaveAttribute("aria-valuenow", String(CLIPS[0]?.end));
+    expect(screen.getAllByRole("spinbutton", { name: /^In of / })).toHaveLength(
+      1,
+    );
+  });
+
+  it("reports a typed Out once, on Enter", async () => {
+    const onTrim = vi.fn();
+    renderRow({ trimming: id, onTrim });
+    await userEvent.click(
+      screen.getByRole("spinbutton", { name: `Out of ${name}` }),
+    );
+    await userEvent.keyboard("{Control>}a{/Control}700");
+    expect(onTrim).not.toHaveBeenCalled();
+    await userEvent.keyboard("{Enter}");
+    expect(onTrim).toHaveBeenCalledExactlyOnceWith(id, "end", 700);
+  });
+
+  it("reports a pointer drag once, on release", () => {
+    const onTrim = vi.fn();
+    renderRow({ trimming: id, onTrim });
+    const field = screen.getByRole("spinbutton", { name: `In of ${name}` });
+    fireEvent.pointerDown(field, { clientX: 100, pointerId: 1, button: 0 });
+    fireEvent.pointerMove(field, { clientX: 110, pointerId: 1 });
+    fireEvent.pointerMove(field, { clientX: 140, pointerId: 1 });
+    expect(onTrim).not.toHaveBeenCalled();
+    fireEvent.pointerUp(field, { clientX: 140, pointerId: 1 });
+    expect(onTrim).toHaveBeenCalledTimes(1);
   });
 });
