@@ -129,6 +129,7 @@ export function useReviewComments(guest: boolean) {
     actionLines: [],
   }));
   const draftPresent = commentDraft !== null;
+  // The next comment starts on all tracks again.
   if (options.draftPresent !== draftPresent) {
     setOptions({
       draftPresent,
@@ -178,6 +179,8 @@ export function useReviewComments(guest: boolean) {
       else next.set(id, to);
       return next;
     });
+  // The optimistic value a failed send goes back to, not just "none": the
+  // earlier Resolve's snapshot may not have landed yet.
   const readFlipped = useStableCallback(() => flipped);
 
   const resolve = async (
