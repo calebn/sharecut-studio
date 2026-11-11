@@ -2,14 +2,16 @@
 
 The registry owns the pending state (``pending_revokes``, see share_registry.py); this module
 keeps the project sidecar and the irreversible effects (object-store and proxy deletes, a
-room's session summary and land cleanup) in step with it. Finalize is at-least-once: a lease
-in the registry lets one sweeper claim a due group, and a crashed sweeper's lease lapses.
-See docs/share-tokens.md § Restorable.
+room's session summary and land cleanup) in step with it. A lease in the registry lets one
+sweeper claim a due group, and a crashed sweeper's lease lapses. A failure of the sidecar settle
+or the room end leaves the row for a retry; the object-store and proxy deletes are best-effort
+and are not retried. See docs/share-tokens.md § Restorable revoke.
 """
 
 from __future__ import annotations
 
 import logging
+import math
 import threading
 from collections import defaultdict
 from collections.abc import Callable, Iterable, Sequence
@@ -47,7 +49,16 @@ def workspace_key(ws: ProjectWorkspace) -> str:
 
 
 def clamp_window(seconds: float) -> float:
+    if math.isnan(seconds):
+        return 0.0
     return min(max(seconds, 0.0), MAX_RESTORABLE_WINDOW.total_seconds())
+
+
+def group_of(ws: ProjectWorkspace, token: str) -> str | None:
+    for row in get_share_registry().list_pending(workspace_key(ws)):
+        if row["token"] == token:
+            return row["group_id"]
+    return None
 
 
 def start_sweep_timer(delay: float, sweep: Callable[[], object]) -> None:
@@ -137,7 +148,9 @@ def finalize_now(ws: ProjectWorkspace, group_id: str, *, now: datetime | None = 
         try:
             _finalize_group(ws, group_id, claimed)
         except Exception:
-            log.exception("finalizing revoked share group %s failed; a sweep retries", group_id)
+            log.exception(
+                "finalizing revoked shares %s failed; a sweep retries", [r["id"] for r in claimed]
+            )
     return [str(row["token"]) for row in claimed]
 
 
@@ -190,7 +203,9 @@ def _finalize_all(ws: ProjectWorkspace, claimed: Sequence[PendingRevoke]) -> int
             _finalize_group(ws, group_id, rows)
             done += 1
         except Exception:
-            log.exception("finalizing revoked share group %s failed; retrying later", group_id)
+            log.exception(
+                "finalizing revoked shares %s failed; retrying later", [r["id"] for r in rows]
+            )
     return done
 
 
