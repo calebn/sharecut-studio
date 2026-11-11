@@ -949,7 +949,7 @@ describe("trimming a clip", () => {
     expect(screen.getByText("15.0 s")).toBeInTheDocument();
   });
 
-  it("stops at the end of the episode and closes again from the menu", async () => {
+  it("takes the end of the episode and closes again from the menu", async () => {
     setup();
     await open();
     await setScrub("Out of Cold open", "3120");
