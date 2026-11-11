@@ -3,7 +3,7 @@
  * Not the OS clipboard — Correct-mode text fields keep native copy/paste.
  */
 
-import type { ClipMuteRegion } from "../types/project";
+import type { ClipMuteRegion, FadeCurve } from "../types/project";
 
 /** Relative clip extract captured at copy/cut time (survives ripple-delete). */
 export type ClipboardExtract = {
@@ -15,6 +15,8 @@ export type ClipboardExtract = {
   source_id?: string | null;
   fade_in_ms?: number;
   fade_out_ms?: number;
+  fade_in_curve?: FadeCurve;
+  fade_out_curve?: FadeCurve;
   gain_db?: number;
   join_in_mode?: string;
   mute_regions?: ClipMuteRegion[];

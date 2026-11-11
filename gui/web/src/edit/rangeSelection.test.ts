@@ -165,6 +165,8 @@ describe("exact range wire seals", () => {
   function fixture() {
     const first = placement("a", 0, 8, 10);
     first.mute_regions = [{ start_s: 1.2, end_s: 1.4 }];
+    first.gain_db = -3;
+    first.fade_out_curve = "s";
     const p = project([first, placement("b", 0, 8, 10, "destination")]);
     const target = makeRangeTarget(
       p,
@@ -186,6 +188,9 @@ describe("exact range wire seals", () => {
           source_id: clip.source_id,
           fade_in_ms: clip.fade_in_ms,
           fade_out_ms: clip.fade_out_ms,
+          fade_in_curve: clip.fade_in_curve,
+          fade_out_curve: clip.fade_out_curve,
+          gain_db: clip.gain_db,
           join_in_mode: clip.join_in_mode,
           mute_regions: clip.mute_regions.map(({ start_s, end_s }) => ({
             end_s,
@@ -199,6 +204,30 @@ describe("exact range wire seals", () => {
     );
     return { p, target, wire };
   }
+
+  it("carries a clip's gain and fade curves in the target, and leaves out the defaults", () => {
+    const { target } = fixture();
+    expect(target.clips[0]).toMatchObject({ gain_db: -3, fade_out_curve: "s" });
+    expect(JSON.parse(JSON.stringify(target.clips[1]))).not.toHaveProperty(
+      "gain_db",
+    );
+    expect(JSON.parse(JSON.stringify(target.clips[1]))).not.toHaveProperty(
+      "fade_out_curve",
+    );
+  });
+
+  it("reads a missing gain or curve as 0 dB and linear", () => {
+    const { p, wire } = fixture();
+    const explicit = {
+      ...wire,
+      clips: wire.clips.map((clip, index) =>
+        index
+          ? { ...clip, gain_db: 0, fade_in_curve: "linear" as const }
+          : clip,
+      ),
+    };
+    expect(rangeIsCurrent(p, explicit)).toBe(true);
+  });
 
   it("accepts the saved server-shaped target despite object key order", () => {
     const { p, target, wire } = fixture();
@@ -215,6 +244,9 @@ describe("exact range wire seals", () => {
     ["timeline_start", 10.1],
     ["fade_in_ms", 20],
     ["fade_out_ms", 20],
+    ["fade_in_curve", "s"],
+    ["fade_out_curve", "equal_power"],
+    ["gain_db", -4],
     ["join_in_mode", "cut"],
     ["mute_regions", [{ start_s: 1.2, end_s: 1.5 }]],
   ])("rejects changed sealed clip field %s", (field, value) => {
