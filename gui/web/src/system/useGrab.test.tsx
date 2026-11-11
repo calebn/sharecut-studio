@@ -1,5 +1,5 @@
 import { createEvent, fireEvent, render, screen } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { swallowsDuringDrag, useGrab } from "./useGrab";
 
 function Part({
@@ -183,6 +183,7 @@ describe("useGrab interruptions", () => {
       </button>
     );
   }
+  afterEach(() => vi.restoreAllMocks());
   const grabbed = (ends: boolean[]) => {
     render(<Counted ends={ends} />);
     const part = screen.getByRole("button");
@@ -216,6 +217,7 @@ describe("useGrab interruptions", () => {
   it("keeps a drag going when the tab is only shown again", () => {
     const ends: boolean[] = [];
     const part = grabbed(ends);
+    vi.spyOn(document, "visibilityState", "get").mockReturnValue("visible");
     document.dispatchEvent(new Event("visibilitychange"));
     fireEvent.pointerUp(part, { pointerId: 1, clientX: 40, clientY: 0 });
     expect(ends).toEqual([true]);

@@ -1,5 +1,6 @@
 import { type PointerEvent, useEffect, useRef } from "react";
 import { HANDLE_DRAG_MIN_PX } from "../hooks/gestureConstants";
+import { listenForInterrupt } from "../hooks/useInterruptCancel";
 import { useStableCallback } from "../utils/useStableCallback";
 import { capturePointer } from "./wavePointer";
 
@@ -131,15 +132,7 @@ export function useGrab<G>(options: GrabOptions<G>) {
     stopWatching();
     const { signal } = (watching.current = new AbortController());
     document.addEventListener("keydown", escapeDrag, { capture: true, signal });
-    window.addEventListener("blur", abort, { signal });
-    window.addEventListener("pagehide", abort, { signal });
-    document.addEventListener(
-      "visibilitychange",
-      () => {
-        if (document.visibilityState === "hidden") abort();
-      },
-      { signal },
-    );
+    listenForInterrupt(abort, signal);
     capturePointer(event);
   };
   const move = (event: PointerEvent<HTMLElement>) => {
