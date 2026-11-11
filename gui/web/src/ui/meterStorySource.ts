@@ -58,7 +58,7 @@ export function createParticipantMeterSource(
       Math.sin(t * 11 + seed * 2) * 2 +
       Math.random() * 4;
     if (clipAt !== null && t % 20 > clipAt && t % 20 < clipAt + 0.4)
-      target = -0.3;
+      target = -0.3; // hot mic moment
     return target;
   });
 }

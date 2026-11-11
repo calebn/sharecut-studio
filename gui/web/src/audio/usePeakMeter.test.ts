@@ -43,6 +43,7 @@ describe("usePeakMeter", () => {
     act(() => raf.fire(1000));
     const held = result.current.peakHoldDb;
     value = 0;
+    // An earlier timestamp must not count as negative elapsed time.
     act(() => raf.fire(900));
     expect(result.current.peakHoldDb).toBeLessThanOrEqual(held);
   });
@@ -67,16 +68,16 @@ describe("usePeakMeter", () => {
 
   it("throttles level commits but publishes a clip latch immediately", () => {
     const raf = stubRaf();
-    let value = 0.1;
+    let value = 0.1; // -20 dBFS
     const read: FrameReader = () => new Float32Array([value]);
     const { result } = renderHook(() => usePeakMeter(read));
     act(() => raf.fire(1000));
     expect(result.current.levelDb).toBeCloseTo(-20, 5);
     value = 0.2;
-    act(() => raf.fire(1010));
+    act(() => raf.fire(1010)); // inside the publish interval
     expect(result.current.levelDb).toBeCloseTo(-20, 5);
     value = 0.95;
-    act(() => raf.fire(1020));
+    act(() => raf.fire(1020)); // still inside, but the latch trips
     expect(result.current.clipped).toBe(true);
     value = 0.2;
     act(() => raf.fire(1060));

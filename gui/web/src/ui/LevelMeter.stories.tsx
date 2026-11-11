@@ -82,6 +82,12 @@ export const Compact: Story = {
   },
 };
 
+/**
+ * Scripted take: room tone, speech, a laugh that clips, more speech.
+ * Feeds synthesized frames through `usePeakMeter` — the same loop
+ * `useInputPeakDb` runs on a real mic — so this story previews the real
+ * wiring, not a copy of it.
+ */
 function useScriptedFrames(): FrameReader {
   const source = useMemo(() => createScriptedMeterSource(), []);
   useEffect(() => {
