@@ -18,11 +18,11 @@ import { formatTimeShort } from "../../utils/time";
 
 const HEAR_PAD_SEC = 2;
 
-export const NOT_LISTED = "That suggestion is no longer listed";
-export const AUDIO_GONE =
+const NOT_LISTED = "That suggestion is no longer listed";
+const AUDIO_GONE =
   "That part of the audio is gone, so there is nothing to suggest again";
-export const PROJECT_NOT_OPEN = "Open the project to suggest it again";
-export const OLD_ROW_STAYS =
+const PROJECT_NOT_OPEN = "Open the project to suggest it again";
+const OLD_ROW_STAYS =
   "Suggested again, but the old row could not be cleared. Drop it to remove it.";
 
 type Actions = NonNullable<ReviewAttention["suggestionActions"]>;
