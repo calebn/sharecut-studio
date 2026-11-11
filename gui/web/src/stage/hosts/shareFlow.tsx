@@ -120,7 +120,9 @@ export function ShareFlowProvider({ children }: { children: ReactNode }) {
   const loadGeneration = useRef(0);
   const busyOwner = useRef<Owner | null>(null);
   const staleRequest = useRef<CreateRequest | null>(null);
-  const openUndo = useRef<ReverseAction | null>(null);
+  const openUndo = useRef<{ reverse: ReverseAction; until: number } | null>(
+    null,
+  );
   const copiedTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const currentRows = useStableCallback(() => rows);
   const seen = useRef({ projectPath, projectEpoch, onDeliver });
@@ -628,24 +630,40 @@ export function ShareFlowProvider({ children }: { children: ReactNode }) {
           return true;
         },
       };
-      openUndo.current = reverse;
+      openUndo.current = {
+        reverse,
+        until: Date.now() + (ended.restoreMs ?? 0),
+      };
       announceStatus(copy.ended, { dwellMs, reverse, returnFocus: focus });
     },
     [announceStatus, relist],
   );
 
-  /** True while an Undo toast of this flow is still on screen: a second end waits for it. */
-  const undoIsOpen = useCallback(
-    () =>
-      openUndo.current !== null &&
-      useDawStore.getState().feedbackToast?.reverse === openUndo.current,
-    [],
-  );
+  /** True while this flow's Undo toast is on screen and the server window has not passed: a second end waits for it. */
+  const undoIsOpen = useCallback(() => {
+    const open = openUndo.current;
+    return (
+      open !== null &&
+      Date.now() < open.until &&
+      useDawStore.getState().feedbackToast?.reverse === open.reverse
+    );
+  }, []);
+
+  const ignoreEnd = useCallback(() => {
+    setStatus(UNDO_STILL_OPEN);
+    announceStatus(UNDO_STILL_OPEN, { toast: false });
+  }, [announceStatus]);
+
+  const shownReverse = useDawStore((s) => s.feedbackToast?.reverse ?? null);
+  useEffect(() => {
+    if (shownReverse !== openUndo.current?.reverse)
+      setStatus((now) => (now === UNDO_STILL_OPEN ? null : now));
+  }, [shownReverse]);
 
   const stop = useCallback(
     (token: string, focus?: () => HTMLElement | null) => {
       if (undoIsOpen()) {
-        setStatus(UNDO_STILL_OPEN);
+        ignoreEnd();
         return false;
       }
       act(async (scope) => {
@@ -665,13 +683,13 @@ export function ShareFlowProvider({ children }: { children: ReactNode }) {
       });
       return true;
     },
-    [act, announceEnded, isCurrent, load, undoIsOpen],
+    [act, announceEnded, ignoreEnd, isCurrent, load, undoIsOpen],
   );
 
   const endRoom = useCallback(
     (sessionId: string, focus?: () => HTMLElement | null) => {
       if (undoIsOpen()) {
-        setStatus(UNDO_STILL_OPEN);
+        ignoreEnd();
         return false;
       }
       act(async (scope) => {
@@ -691,7 +709,7 @@ export function ShareFlowProvider({ children }: { children: ReactNode }) {
       });
       return true;
     },
-    [act, announceEnded, isCurrent, load, undoIsOpen],
+    [act, announceEnded, ignoreEnd, isCurrent, load, undoIsOpen],
   );
 
   const value = useMemo<ShareFlow>(
