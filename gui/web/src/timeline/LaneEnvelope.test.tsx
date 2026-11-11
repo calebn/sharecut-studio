@@ -6,7 +6,11 @@ import {
   screen,
 } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { addEnvelopePointAt, setEnvelopePoint } from "../commands/envelopes";
+import {
+  addEnvelopePointAt,
+  envelopeSettling,
+  setEnvelopePoint,
+} from "../commands/envelopes";
 import { useDawStore } from "../state/dawStore";
 import { clipRow, minimalProject, sampleTrack } from "../test/fixtures";
 import type { AutomationPoint, ClipRow } from "../types/project";
@@ -187,6 +191,27 @@ describe("LaneEnvelope drawing", () => {
     expect(expected.width).toBeLessThan(10_000);
   });
 
+  it("mounts only the window's points, placed relative to it, at a deep zoom", () => {
+    act(() => useDawStore.setState({ scrollLeft: 153_000 }));
+    putPoints([
+      { id: "a", time: 0.1, value: 1 },
+      { id: "b", time: 3.2, value: 1 },
+      { id: "c", time: 9, value: 1 },
+    ]);
+    render(
+      <TimelineGestureProvider value={hold}>
+        <Harness canvas={2_880_000} zoom={48_000} />
+      </TimelineGestureProvider>,
+    );
+    const left = Number.parseFloat(
+      screen.getByTestId("timeline-envelope").style.left,
+    );
+    expect(screen.getAllByRole("slider")).toHaveLength(1);
+    expect(point(2).style.getPropertyValue("--sys-env-x")).toBe(
+      `${3.2 * 48_000 - left}px`,
+    );
+  });
+
   it("marks selection and puts the hit attributes on the points and the line", () => {
     act(() =>
       useDawStore
@@ -207,6 +232,124 @@ describe("LaneEnvelope drawing", () => {
 });
 
 describe("LaneEnvelope drags", () => {
+  it.each([
+    [
+      "a tap",
+      () => {
+        fireEvent.pointerDown(point(2), mouse(96, 20));
+        fireEvent.pointerUp(point(2), mouse(96, 20));
+        fireEvent.click(point(2), { detail: 1 });
+      },
+    ],
+    ["Enter", () => fireEvent.keyDown(point(2), { key: "Enter" })],
+  ])(
+    "selects a point in the store with no save and no hold on %s",
+    async (_name, gesture) => {
+      setup();
+      gesture();
+      await act(async () => {});
+      expect(useDawStore.getState().selection).toEqual({
+        kind: "envelopePoint",
+        trackId: "host",
+        pointId: "b",
+      });
+      expect(setEnvelope).not.toHaveBeenCalled();
+      expect(hold).not.toHaveBeenCalled();
+    },
+  );
+
+  it("takes the geometry hold in the move that crosses the slop, not on the press", () => {
+    setup();
+    fireEvent.pointerDown(point(2), mouse(96, 20));
+    expect(hold).not.toHaveBeenCalled();
+    fireEvent.pointerMove(point(2), mouse(97, 20));
+    expect(hold).not.toHaveBeenCalled();
+    fireEvent.pointerMove(point(2), mouse(144, 20));
+    expect(hold).toHaveBeenCalledTimes(1);
+  });
+
+  it("puts the point back, saves nothing and releases once on pointercancel, then a fresh drag saves", async () => {
+    setup();
+    const { el } = dragPoint(2, 48, 0);
+    fireEvent.pointerCancel(el, mouse(0, 0));
+    await act(async () => {});
+    expect(point(2).getAttribute("aria-valuetext")).toContain("0:04");
+    expect(setEnvelope).not.toHaveBeenCalled();
+    expect(release).toHaveBeenCalledTimes(1);
+    dragPoint(2, 48, 0);
+    fireEvent.pointerUp(point(2), mouse(0, 0));
+    await act(async () => {});
+    expect(setEnvelope).toHaveBeenCalledTimes(1);
+  });
+
+  it("releases the hold once when the lane unmounts mid-drag", async () => {
+    const view = setup();
+    dragPoint(2, 48, 0);
+    view.unmount();
+    await act(async () => {});
+    expect(release).toHaveBeenCalledTimes(1);
+    expect(setEnvelope).not.toHaveBeenCalled();
+  });
+
+  it("neither releases twice, settles nor throws when a save succeeds after the lane unmounted", async () => {
+    let finish: () => void = () => {};
+    setEnvelope.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          finish = () => resolve(null);
+        }),
+    );
+    const failure = vi.spyOn(console, "error").mockImplementation(() => {});
+    const view = setup();
+    const { el } = dragPoint(2, 48, 0);
+    fireEvent.pointerUp(el, mouse(0, 0));
+    await act(async () => {});
+    view.unmount();
+    expect(release).toHaveBeenCalledTimes(1);
+    await act(async () => finish());
+    expect(release).toHaveBeenCalledTimes(1);
+    expect(hold).toHaveBeenCalledTimes(1);
+    expect(envelopeSettling("host")).toBe(false);
+    expect(failure).not.toHaveBeenCalled();
+    failure.mockRestore();
+  });
+
+  it("sends the stored order as the baseline and the sorted points as the write", async () => {
+    putPoints([POINTS[2]!, POINTS[0]!, POINTS[1]!]);
+    setup();
+    const { el } = dragPoint(2, 48, 0);
+    fireEvent.pointerUp(el, mouse(0, 0));
+    await act(async () => {});
+    const [, , written, baseline] = setEnvelope.mock.calls[0]!;
+    expect((baseline as AutomationPoint[]).map((p) => p.id)).toEqual([
+      "c",
+      "a",
+      "b",
+    ]);
+    expect((written as AutomationPoint[]).map((p) => p.id)).toEqual([
+      "a",
+      "b",
+      "c",
+    ]);
+  });
+
+  it("puts the point back and says the generic text when the save rejects with a non-Error", async () => {
+    setEnvelope.mockRejectedValueOnce("offline");
+    const announce = toasts();
+    setup();
+    const { el } = dragPoint(2, 48, 0);
+    fireEvent.pointerUp(el, mouse(0, 0));
+    await act(async () => {});
+    expect(announce).toHaveBeenCalledWith(
+      "Could not save the volume envelope",
+      {
+        tone: "error",
+      },
+    );
+    expect(point(2).getAttribute("aria-valuetext")).toContain("0:04");
+    expect(release).toHaveBeenCalledTimes(1);
+  });
+
   it("saves a time-only drag once, without rewriting the level", async () => {
     setup();
     const { el } = dragPoint(2, 48, 1);
@@ -265,7 +408,9 @@ describe("LaneEnvelope drags", () => {
     // A second drag is refused while the save runs.
     fireEvent.pointerDown(point(2), mouse(144, 20));
     fireEvent.pointerMove(point(2), mouse(200, 20));
+    fireEvent.pointerUp(point(2), mouse(200, 20));
     expect(hold).toHaveBeenCalledTimes(1);
+    expect(setEnvelope).toHaveBeenCalledTimes(1);
     await act(async () => finish(null));
     expect(release).toHaveBeenCalledTimes(1);
     expect(point(2).getAttribute("aria-valuetext")).toContain("0:06");
@@ -507,6 +652,20 @@ describe("LaneEnvelope while a save settles", () => {
     const points = lastSave();
     return { finish: () => act(async () => finish()), points };
   }
+
+  it.each([
+    ["another track", { kind: "envelope", trackId: "guest" }],
+    ["another point", { kind: "envelopePoint", trackId: "host", pointId: "c" }],
+    ["nothing", null],
+  ] as const)(
+    "keeps a selection changed to %s while a save is pending",
+    async (_name, changed) => {
+      const { finish } = await savedDrag("before");
+      act(() => useDawStore.getState().setSelection(changed));
+      await finish();
+      expect(useDawStore.getState().selection).toEqual(changed);
+    },
+  );
 
   it("does not drop a point being saved when Delete is pressed", async () => {
     const announce = toasts();

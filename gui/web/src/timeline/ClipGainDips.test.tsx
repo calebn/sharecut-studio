@@ -40,11 +40,15 @@ const pathEnds = (el: Element) => {
 
 describe("ClipGainDips", () => {
   it("draws a clip's fade-in dashed, read-only, with the first dip labelled", () => {
-    const { container } = draw();
+    const { container } = draw({ points: [{ id: "p", time: 5, value: 1 }] });
     const dip = screen.getByTestId("clip-gain-dip");
     expect(container.querySelector("svg")).toHaveAttribute(
       "aria-hidden",
       "true",
+    );
+    expect(container.querySelectorAll("svg > :not(g)")).toHaveLength(0);
+    expect(container.querySelectorAll("polyline")).toHaveLength(
+      screen.getAllByTestId("clip-gain-dip").length,
     );
     expect(dip.querySelector("polyline")).toHaveAttribute(
       "stroke-dasharray",

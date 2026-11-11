@@ -108,6 +108,30 @@ describe("Envelope drawing", () => {
     ).not.toBeNull();
   });
 
+  it("keeps each point's element and focus when a re-sort reorders the points", () => {
+    const { again } = setup();
+    const el = (id: string) => {
+      const found = document.querySelector<HTMLElement>(`[data-id="${id}"]`);
+      if (!found) throw new Error(`No point ${id}`);
+      return found;
+    };
+    const before = ["a", "b", "c", "d"].map(el);
+    el("b").focus();
+    again({
+      points: [
+        { id: "a", time: 1, db: 0 },
+        { id: "b", time: 9, db: -6 },
+        { id: "c", time: 7.2, db: -3 },
+        { id: "d", time: 10, db: -12 },
+      ],
+    });
+    ["a", "b", "c", "d"].forEach((id, i) => {
+      expect(el(id)).toBe(before[i]);
+    });
+    expect(el("b")).toHaveFocus();
+    expect(el("b")).toHaveAttribute("aria-label", "Envelope point 3");
+  });
+
   it("sizes the hit areas 16 px, 44 px coarse, and by half the gap beside a near neighbour", () => {
     setup({
       width: 600,
@@ -168,12 +192,14 @@ describe("Envelope focus", () => {
 describe("Envelope selecting", () => {
   it("selects on a click, Enter and Space, by id", async () => {
     const user = userEvent.setup();
-    const { onSelect } = setup({ readOnly: true });
+    const { onSelect, onMove, onDragEnd } = setup();
     await user.click(point(2));
     point(3).focus();
     await user.keyboard("{Enter}");
     await user.keyboard(" ");
     expect(onSelect.mock.calls).toEqual([["b"], ["c"], ["c"]]);
+    expect(onMove).not.toHaveBeenCalled();
+    expect(onDragEnd).not.toHaveBeenCalled();
   });
 });
 
@@ -416,6 +442,85 @@ describe("Envelope dragging", () => {
     fireEvent.pointerMove(point(2), mouse(120, 20));
     fireEvent.pointerCancel(point(2), mouse(120, 20));
     expect(onDragEnd).toHaveBeenCalledWith("b", false);
+  });
+
+  it.each([
+    "pointerDown",
+    "pointerMove",
+    "pointerUp",
+    "pointerCancel",
+  ] as const)(
+    "ignores a foreign %s while another pointer owns the drag",
+    (type) => {
+      const { onMove, onDragEnd } = setup();
+      fireEvent.pointerDown(point(2), mouse(96, 20));
+      fireEvent.pointerMove(point(2), mouse(120, 20));
+      const moves = onMove.mock.calls.length;
+      fireEvent[type](point(3), mouse(190, 20, 2));
+      expect(onMove).toHaveBeenCalledTimes(moves);
+      expect(onDragEnd).not.toHaveBeenCalled();
+      fireEvent.pointerUp(point(2), mouse(120, 20));
+      expect(onDragEnd.mock.calls).toEqual([["b", true]]);
+    },
+  );
+
+  it("ignores a foreign lostpointercapture while another pointer owns the drag", () => {
+    const { onDragEnd } = setup();
+    fireEvent.pointerDown(point(2), mouse(96, 20));
+    fireEvent.pointerMove(point(2), mouse(120, 20));
+    fireEvent.lostPointerCapture(group(), mouse(190, 20, 2));
+    expect(onDragEnd).not.toHaveBeenCalled();
+    fireEvent.pointerUp(point(2), mouse(120, 20));
+    expect(onDragEnd.mock.calls).toEqual([["b", true]]);
+  });
+
+  it.each([1, 2])("starts no drag with mouse button %s", (button) => {
+    const { onDragStart, onMove, onDragEnd, onSelect } = setup();
+    fireEvent.pointerDown(point(2), { ...mouse(96, 20), button });
+    fireEvent.pointerMove(point(2), mouse(120, 20));
+    fireEvent.pointerUp(point(2), mouse(120, 20));
+    expect(onDragStart).not.toHaveBeenCalled();
+    expect(onMove).not.toHaveBeenCalled();
+    expect(onDragEnd).not.toHaveBeenCalled();
+    expect(onSelect).not.toHaveBeenCalled();
+  });
+
+  it.each(["pointerCancel", "lostPointerCapture"] as const)(
+    "ends uncommitted on %s and leaves a later release inert",
+    (type) => {
+      const { onDragEnd } = setup();
+      fireEvent.pointerDown(point(2), mouse(96, 20));
+      fireEvent.pointerMove(point(2), mouse(120, 20));
+      fireEvent[type](group(), mouse(120, 20));
+      expect(onDragEnd.mock.calls).toEqual([["b", false]]);
+      fireEvent.pointerUp(point(2), mouse(120, 20));
+      expect(onDragEnd).toHaveBeenCalledTimes(1);
+    },
+  );
+
+  it("keeps a held point mounted past the window edge and culls it after release", () => {
+    const { onDragEnd, again } = setup();
+    fireEvent.pointerDown(point(4), mouse(240, 20));
+    fireEvent.pointerMove(point(4), mouse(440, 20));
+    expect(screen.getAllByRole("slider")).toHaveLength(4);
+    fireEvent.pointerUp(point(4), mouse(440, 20));
+    expect(onDragEnd).toHaveBeenCalledWith("d", true);
+    again({
+      points: [...POINTS.slice(0, 3), { id: "d", time: 18.33, db: -12 }],
+    });
+    expect(screen.getAllByRole("slider")).toHaveLength(3);
+  });
+
+  it("ends an unmounted drag uncommitted, once, only after it moved past the slop", () => {
+    const press = setup();
+    fireEvent.pointerDown(point(2), mouse(96, 20));
+    press.unmount();
+    expect(press.onDragEnd).not.toHaveBeenCalled();
+    const moved = setup();
+    fireEvent.pointerDown(point(2), mouse(96, 20));
+    fireEvent.pointerMove(point(2), mouse(120, 20));
+    moved.unmount();
+    expect(moved.onDragEnd.mock.calls).toEqual([["b", false]]);
   });
 
   it("does not start a drag when the host refuses it", () => {
