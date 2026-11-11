@@ -11,6 +11,7 @@ from podcast_mcp.gui.host_file_dialog import (
     HostPickResult,
     _normalize_chosen,
     pick_episode_project_path,
+    pick_folder,
 )
 from podcast_mcp.util import process
 
@@ -140,3 +141,99 @@ def test_pick_windows_ok(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Non
     monkeypatch.setattr("podcast_mcp.gui.host_file_dialog.process.run", _run)
     out = pick_episode_project_path(system="Windows")
     assert out.path == str(target.resolve())
+
+
+def _which_only(name: str):
+    return lambda candidate: f"/usr/bin/{name}" if candidate == name else None
+
+
+def test_pick_folder_unknown_platform() -> None:
+    assert pick_folder(system="Plan9").unavailable
+
+
+def test_pick_folder_linux_zenity_asks_for_a_directory(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr("podcast_mcp.gui.host_file_dialog.shutil.which", _which_only("zenity"))
+    seen: list[list[str]] = []
+
+    def _run(argv, **_kwargs):
+        seen.append(argv)
+        return MagicMock(returncode=0, stdout=f"{tmp_path}\n", stderr="")
+
+    monkeypatch.setattr("podcast_mcp.gui.host_file_dialog.process.run", _run)
+    out = pick_folder(system="Linux")
+    assert out.path == str(tmp_path.resolve())
+    assert "--directory" in seen[0]
+
+
+def test_pick_folder_linux_kdialog_asks_for_a_directory(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr("podcast_mcp.gui.host_file_dialog.shutil.which", _which_only("kdialog"))
+    seen: list[list[str]] = []
+
+    def _run(argv, **_kwargs):
+        seen.append(argv)
+        return MagicMock(returncode=0, stdout=f"{tmp_path}\n", stderr="")
+
+    monkeypatch.setattr("podcast_mcp.gui.host_file_dialog.process.run", _run)
+    assert pick_folder(system="Linux").path == str(tmp_path.resolve())
+    assert "--getexistingdirectory" in seen[0]
+
+
+def test_pick_folder_linux_cancel_and_missing_tools(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr("podcast_mcp.gui.host_file_dialog.shutil.which", _which_only("zenity"))
+    monkeypatch.setattr(
+        "podcast_mcp.gui.host_file_dialog.process.run",
+        lambda *_a, **_k: MagicMock(returncode=1, stdout="", stderr=""),
+    )
+    assert pick_folder(system="Linux").cancelled
+    monkeypatch.setattr("podcast_mcp.gui.host_file_dialog.shutil.which", lambda _n: None)
+    assert pick_folder(system="Linux").unavailable
+
+
+def test_pick_folder_macos_chooses_a_folder(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    seen: list[list[str]] = []
+
+    def _run(argv, **_kwargs):
+        seen.append(argv)
+        return MagicMock(returncode=0, stdout=f"{tmp_path}/\n", stderr="")
+
+    monkeypatch.setattr("podcast_mcp.gui.host_file_dialog.process.run", _run)
+    assert pick_folder(system="Darwin").path == str(tmp_path.resolve())
+    assert "choose folder" in seen[0][-1]
+
+
+def test_pick_folder_macos_cancel_and_failure(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(
+        "podcast_mcp.gui.host_file_dialog.process.run",
+        lambda *_a, **_k: MagicMock(returncode=0, stdout="\n", stderr=""),
+    )
+    assert pick_folder(system="Darwin").cancelled
+    monkeypatch.setattr(
+        "podcast_mcp.gui.host_file_dialog.process.run",
+        lambda *_a, **_k: MagicMock(returncode=1, stdout="", stderr="osascript: failed"),
+    )
+    out = pick_folder(system="Darwin")
+    assert out.unavailable
+    assert out.detail == "osascript: failed"
+
+
+def test_pick_folder_windows_uses_the_folder_browser(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr("podcast_mcp.gui.host_file_dialog.shutil.which", _which_only("powershell"))
+    seen: list[list[str]] = []
+
+    def _run(argv, **_kwargs):
+        seen.append(argv)
+        return MagicMock(returncode=0, stdout=str(tmp_path), stderr="")
+
+    monkeypatch.setattr("podcast_mcp.gui.host_file_dialog.process.run", _run)
+    assert pick_folder(system="Windows").path == str(tmp_path.resolve())
+    assert "FolderBrowserDialog" in seen[0][-1]
+    monkeypatch.setattr("podcast_mcp.gui.host_file_dialog.shutil.which", lambda _n: None)
+    assert pick_folder(system="Windows").unavailable

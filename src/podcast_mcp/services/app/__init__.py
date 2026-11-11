@@ -14,6 +14,11 @@ if TYPE_CHECKING:
         resolve_gui_static_root,
         viewer_url,
     )
+    from podcast_mcp.services.app.move_project import (
+        MovePartial,
+        MoveRefused,
+        move_episode_folder,
+    )
     from podcast_mcp.services.app.recent_projects import (
         default_workspace_dir,
         duplicate_project,
@@ -57,6 +62,8 @@ __all__ = [
     "GuiLaunchResult",
     "HandoffLost",
     "HandoffRefused",
+    "MovePartial",
+    "MoveRefused",
     "ProjectWorkspace",
     "ReviewGateService",
     "StudioBadReply",
@@ -73,6 +80,7 @@ __all__ = [
     "hand_off",
     "is_viewer_up",
     "locate_studio",
+    "move_episode_folder",
     "new_instance_id",
     "new_token",
     "packaged_cli_gui_refusal",
@@ -96,6 +104,9 @@ _MODULE_BY_NAME = {
     "packaged_cli_gui_refusal": "gui_launch",
     "resolve_gui_static_root": "gui_launch",
     "viewer_url": "gui_launch",
+    "MovePartial": "move_project",
+    "MoveRefused": "move_project",
+    "move_episode_folder": "move_project",
     "default_workspace_dir": "recent_projects",
     "duplicate_project": "recent_projects",
     "forget_recent": "recent_projects",

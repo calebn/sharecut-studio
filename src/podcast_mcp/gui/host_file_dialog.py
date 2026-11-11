@@ -48,6 +48,31 @@ def pick_episode_project_path(*, system: str | None = None) -> HostPickResult:
     )
 
 
+def pick_folder(*, system: str | None = None) -> HostPickResult:
+    """Show a native choose-folder dialog and return the folder path in ``path``.
+
+    Same outcomes as :func:`pick_episode_project_path`; the folder is not checked here.
+    """
+    os_name = (system or platform.system()).strip()
+    if os_name == "Darwin":
+        return _pick_folder_macos()
+    if os_name == "Windows":
+        return _pick_folder_windows()
+    if os_name == "Linux":
+        return _pick_folder_linux()
+    return HostPickResult(
+        unavailable=True,
+        detail=f"No OS folder dialog for platform {os_name!r}; paste the path instead.",
+    )
+
+
+def _normalize_folder(raw: str | None) -> HostPickResult:
+    text = (raw or "").strip().strip("\0")
+    if not text:
+        return HostPickResult(cancelled=True)
+    return HostPickResult(path=str(Path(text).expanduser().resolve()))
+
+
 def _normalize_chosen(raw: str | None) -> HostPickResult:
     text = (raw or "").strip().strip("\0")
     if not text:
@@ -167,3 +192,69 @@ def _run_linux_dialog(argv: list[str]) -> HostPickResult:
     if completed.returncode != 0:
         return HostPickResult(cancelled=True)
     return _normalize_chosen(completed.stdout)
+
+
+def _pick_folder_macos() -> HostPickResult:
+    script = """
+try
+  set theFolder to choose folder with prompt "Move the episode to"
+  return POSIX path of theFolder
+on error number -128
+  return ""
+end try
+"""
+    completed = _run_dialog_process(["osascript", "-e", script])
+    if isinstance(completed, HostPickResult):
+        return completed
+    stdout = (completed.stdout or "").strip()
+    if completed.returncode != 0 and not stdout:
+        err = (completed.stderr or "").strip()
+        return HostPickResult(
+            unavailable=True,
+            detail=err or "Folder dialog failed; paste the path instead.",
+        )
+    return _normalize_folder(completed.stdout)
+
+
+def _pick_folder_windows() -> HostPickResult:
+    ps = """
+Add-Type -AssemblyName System.Windows.Forms | Out-Null
+$d = New-Object System.Windows.Forms.FolderBrowserDialog
+$d.Description = 'Move the episode to'
+$r = $d.ShowDialog()
+if ($r -eq [System.Windows.Forms.DialogResult]::OK) {
+  Write-Output $d.SelectedPath
+}
+"""
+    exe = shutil.which("powershell") or shutil.which("pwsh")
+    if not exe:
+        return HostPickResult(
+            unavailable=True,
+            detail="PowerShell not found; paste the folder path.",
+        )
+    completed = _run_dialog_process([exe, "-NoProfile", "-STA", "-Command", ps])
+    if isinstance(completed, HostPickResult):
+        return completed
+    if completed.returncode != 0 and not (completed.stdout or "").strip():
+        return HostPickResult(cancelled=True, detail=(completed.stderr or "").strip() or None)
+    return _normalize_folder(completed.stdout)
+
+
+def _pick_folder_linux() -> HostPickResult:
+    zenity = shutil.which("zenity")
+    if zenity:
+        argv = [zenity, "--file-selection", "--directory", "--title=Move the episode to"]
+    else:
+        kdialog = shutil.which("kdialog")
+        if not kdialog:
+            return HostPickResult(
+                unavailable=True,
+                detail="No OS folder dialog available (install zenity or kdialog); paste the folder path.",
+            )
+        argv = [kdialog, "--getexistingdirectory", "."]
+    completed = _run_dialog_process(argv)
+    if isinstance(completed, HostPickResult):
+        return completed
+    if completed.returncode != 0:
+        return HostPickResult(cancelled=True)
+    return _normalize_folder(completed.stdout)

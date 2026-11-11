@@ -64,6 +64,18 @@ class SessionHub(FanoutHub):
             del self._cache_pins[q]
         owner[1].release()
 
+    def unsubscribe_workspace(self, workspace: str) -> None:
+        """Drop every subscriber of one workspace on the session, document and record planes."""
+        with self._lock:
+            targets = [
+                (key, queue)
+                for key, queues in self._subs.items()
+                if key.removeprefix("document:").removeprefix("record:") == workspace
+                for queue in queues
+            ]
+        for key, queue in targets:
+            self.unsubscribe(key, queue)
+
     def clear_for_tests(self) -> None:
         with self._lock:
             subscribers = [(key, q) for key, queues in self._subs.items() for q in queues]

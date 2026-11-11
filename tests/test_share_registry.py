@@ -269,6 +269,68 @@ def test_upsert_active_metadata_updates_kind_fields(registry: SqliteShareRegistr
     assert row["capabilities"] == ["monitor", "comment"]
 
 
+def _claim_in(registry: SqliteShareRegistry, token: str, workspace: str) -> None:
+    now = datetime.now(UTC)
+    registry.claim_active(
+        {
+            "token": token,
+            "id": f"id-{token}",
+            "project_workspace": workspace,
+            "review_version_id": "v1",
+            "created_at": _iso(now),
+            "last_used_at": _iso(now),
+            "capabilities": ["play"],
+        }
+    )
+
+
+def _cooldown_workspace(registry: SqliteShareRegistry, token: str) -> str | None:
+    return registry._conn.execute(
+        "SELECT project_workspace FROM cooldown_shares WHERE token = ?", (token,)
+    ).fetchone()[0]
+
+
+def test_rebase_workspace_moves_active_and_cooldown_rows(registry: SqliteShareRegistry):
+    _claim_in(registry, "live-slug", "/old/ep")
+    _claim_in(registry, "ended-slug", "/old/ep")
+    _claim_in(registry, "other-slug", "/old/other")
+    registry.demote_to_cooldown("ended-slug", reason="revoked")
+
+    assert registry.rebase_workspace("/old/ep", "/new/ep") == 2
+
+    live = registry.get_active("live-slug")
+    assert live is not None
+    assert live["project_workspace"] == "/new/ep"
+    assert _cooldown_workspace(registry, "ended-slug") == "/new/ep"
+    other = registry.get_active("other-slug")
+    assert other is not None
+    assert other["project_workspace"] == "/old/other"
+    assert registry.list_active_for_workspace("/old/ep") == []
+    assert [row["token"] for row in registry.list_active_for_workspace("/new/ep")] == ["live-slug"]
+
+
+def test_rebase_workspace_is_one_transaction(registry: SqliteShareRegistry):
+    _claim_in(registry, "live-slug", "/old/ep")
+    _claim_in(registry, "ended-slug", "/old/ep")
+    registry.demote_to_cooldown("ended-slug", reason="revoked")
+    registry._conn.execute(
+        "CREATE TRIGGER fail_cooldown BEFORE UPDATE ON cooldown_shares "
+        "BEGIN SELECT RAISE(ABORT, 'no'); END"
+    )
+
+    with pytest.raises(sqlite3.DatabaseError):
+        registry.rebase_workspace("/old/ep", "/new/ep")
+
+    live = registry.get_active("live-slug")
+    assert live is not None
+    assert live["project_workspace"] == "/old/ep"
+    assert _cooldown_workspace(registry, "ended-slug") == "/old/ep"
+
+
+def test_rebase_workspace_without_rows_changes_nothing(registry: SqliteShareRegistry):
+    assert registry.rebase_workspace("/nowhere", "/new/ep") == 0
+
+
 def test_share_is_usable_until_revoked_or_expired():
     now = datetime.now(UTC)
     base = {

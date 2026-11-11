@@ -118,8 +118,10 @@ Tables (portable schema contract for a future relay backend):
 - `cooldown_shares(token PRIMARY KEY, last_used_at, reserved_until, reason, project_workspace)`
 - `recording_key_secret(singleton=1, secret BLOB)`: one random 32-byte host installation secret
 
+`project_workspace` is the episode folder's resolved path. When the host moves the episode (`POST /api/project/move`), `rebase_workspace(old, new)` rewrites it on every active and cooldown row in one transaction, and the folder's `shares.json` rows are rewritten to match, so existing links keep resolving.
+
 Access layer: `ShareRegistryProtocol` in `services/collaboration/share_registry.py` (`get_active`,
-`list_active_for_workspace`, `is_reserved`, `claim_active`, `release_claim`, `upsert_active_metadata`,
+`list_active_for_workspace`, `is_reserved`, `claim_active`, `rebase_workspace`, `release_claim`, `upsert_active_metadata`,
 `touch_last_used`, `demote_to_cooldown`, `purge_expired_cooldown`, `backup_to_new`,
 `recording_key_secret`, `close`). Host backend: `SqliteShareRegistry` (WAL, `busy_timeout=5000`,
 `BEGIN IMMEDIATE` on registry writes and singleton secret initialization). Wired through `services/collaboration/review_shares.py`

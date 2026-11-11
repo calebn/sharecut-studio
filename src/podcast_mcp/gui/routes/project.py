@@ -19,7 +19,7 @@ from podcast_mcp.gui.audio import (
     audio_file_response,
     resolve_viewer_transport,
 )
-from podcast_mcp.gui.host_file_dialog import pick_episode_project_path
+from podcast_mcp.gui.host_file_dialog import pick_episode_project_path, pick_folder
 from podcast_mcp.gui.host_reveal import REVEAL_UNAVAILABLE, reveal_in_file_manager
 from podcast_mcp.gui.poll_meta import project_meta
 from podcast_mcp.gui.routes.deps import (
@@ -39,10 +39,13 @@ from podcast_mcp.project.io import (
 )
 from podcast_mcp.project.merge import ProjectMergeConflict
 from podcast_mcp.services.app import (
+    MovePartial,
+    MoveRefused,
     ProjectWorkspace,
     default_workspace_dir,
     duplicate_project,
     forget_recent,
+    move_episode_folder,
     recent_project_cards,
     record_recent,
 )
@@ -62,6 +65,13 @@ class CreateProjectBody(BaseModel):
 
 class OpenProjectBody(BaseModel):
     path: str
+
+
+class MoveProjectBody(BaseModel):
+    path: str
+    dest_parent: str
+    # The caller's session client id: its own presence row does not count as another window.
+    client_id: str | None = None
 
 
 def _peer_may_switch_project(request: Request) -> bool:
@@ -190,6 +200,31 @@ def pick_project_path(
         _PICK_LOCK.release()
 
 
+@router.post("/api/project/pick-folder")
+def pick_project_folder(
+    request: Request,
+    token: str | None = Query(None),
+    x_podcast_token: str | None = Header(None, alias="X-Podcast-Token"),
+):
+    """Show a host OS choose-folder dialog; return the folder without touching any project."""
+    require_host(request, token=token, x_podcast_token=x_podcast_token)
+    require_loopback_peer(request)
+    if not _PICK_LOCK.acquire(blocking=False):
+        raise coded_http_error(409, "A file dialog is already open", code="file_dialog_open")
+    try:
+        result = pick_folder()
+    finally:
+        _PICK_LOCK.release()
+    if result.unavailable:
+        return {"unavailable": True, "detail": result.detail}
+    if result.cancelled or not result.path:
+        body: dict[str, object] = {"cancelled": True}
+        if result.detail:
+            body["detail"] = result.detail
+        return body
+    return {"folder": result.path}
+
+
 @router.post("/api/project/open")
 def open_project_path(
     body: OpenProjectBody,
@@ -294,6 +329,38 @@ def reveal_project(
     if not reveal_in_file_manager(path):
         raise coded_http_error(409, REVEAL_UNAVAILABLE, code="reveal_unavailable")
     return {"revealed": True}
+
+
+_MOVE_STATUS = {"move_dest_invalid": 400, "move_failed": 500}
+
+
+@router.post("/api/project/move")
+def move_project_folder(
+    body: MoveProjectBody,
+    request: Request,
+    token: str | None = Query(None),
+    x_podcast_token: str | None = Header(None, alias="X-Podcast-Token"),
+) -> dict[str, str]:
+    """Move the served episode's folder into ``dest_parent`` (Settings' "Saved in" > Move)."""
+    require_host(request, token=token, x_podcast_token=x_podcast_token)
+    require_loopback_peer(request)
+    path = _require_episode_path(str(resolve_project(body.path, request)))
+    app = request.app
+    pinned = getattr(app.state, "served_project", None) is not None
+    try:
+        moved = move_episode_folder(
+            path,
+            body.dest_parent,
+            jobs=getattr(app.state, "jobs", None),
+            caller_client_id=body.client_id,
+            serve=(lambda target: set_served_project(app, target)) if pinned else (lambda _t: None),
+        )
+    except MovePartial as exc:
+        detail = {"detail": str(exc), "project_path": str(exc.project_path)}
+        raise coded_http_error(409, detail, code=exc.code) from exc
+    except MoveRefused as exc:
+        raise coded_http_error(_MOVE_STATUS.get(exc.code, 409), str(exc), code=exc.code) from exc
+    return {"project_path": str(moved.project_path), "previous_path": str(moved.previous_path)}
 
 
 @router.post("/api/projects/recent/duplicate")

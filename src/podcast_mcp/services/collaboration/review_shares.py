@@ -202,6 +202,26 @@ def list_shares_for_workspace(workspace: Path) -> list[dict[str, Any]]:
     return rows
 
 
+def rebase_sidecar_workspace(workspace: Path, old: str, new: str) -> None:
+    """Rewrite the workspace each sidecar row names, after the folder moved from ``old`` to ``new``.
+
+    The registry row and the sidecar row are compared when a record invite is redeemed and the
+    sidecar row is what re-registers a share, so a stale path would break a moved room's links.
+    """
+    path = shares_path_for_workspace(workspace)
+    with _sidecar_lock:
+        rows = _load(path)
+        if not any(row.get("project_workspace") == old for row in rows):
+            return
+        _save(
+            path,
+            [
+                {**row, "project_workspace": new} if row.get("project_workspace") == old else row
+                for row in rows
+            ],
+        )
+
+
 def sidecar_share(workspace: Path, share_id: str) -> dict[str, Any] | None:
     """The sidecar row for one share id (no token)."""
     for row in _load(shares_path_for_workspace(workspace)):
