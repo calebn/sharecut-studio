@@ -21,7 +21,7 @@ from podcast_mcp.engines.asr_silence import peak_envelope
 from podcast_mcp.services.collaboration.review_versions import get_version, review_artifacts_dir
 from podcast_mcp.services.collaboration.share import open_share_workspace
 from podcast_mcp.services.collaboration.share_capabilities import CAP_PLAY, has_capability
-from podcast_mcp.services.media.review_media import review_guest_audio_path
+from podcast_mcp.services.media import review_guest_audio_path
 from podcast_mcp.util.atomic_json import write_json_atomic
 from podcast_mcp.util.coded_error import (
     CodedFileNotFoundError,
