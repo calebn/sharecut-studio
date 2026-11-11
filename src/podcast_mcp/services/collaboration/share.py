@@ -1421,13 +1421,12 @@ def share_daw_waveform_snap(
     )
 
 
-def share_proxy_manifest(token: str, *, request_origin: str | None = None) -> dict[str, Any]:
+def share_proxy_manifest(token: str, *, loopback_page: bool = False) -> dict[str, Any]:
     """Per-track proxy chunk URLs for guest ShareCut Studio (object storage or local fallback).
 
     A page served from a loopback origin cannot fetch object-store URLs under its
     ``connect-src 'self'`` policy, so it always gets the share's own chunk URLs.
     """
-    from podcast_mcp.gui.middleware_host_binding import origin_is_loopback
     from podcast_mcp.services.media import (
         ensure_proxy_manifest,
         presigned_proxy_urls,
@@ -1450,9 +1449,8 @@ def share_proxy_manifest(token: str, *, request_origin: str | None = None) -> di
     store_tracks = {
         tid: (generation.tracks[tid].hash, generation.tracks[tid].chunk_count) for tid in urls
     }
-    local = bool(request_origin) and origin_is_loopback(request_origin)
-    blocked = None if local else _object_store_cors_blocked(out["tracks"], store_tracks)
-    if local or blocked is not None:
+    blocked = None if loopback_page else _object_store_cors_blocked(out["tracks"], store_tracks)
+    if loopback_page or blocked is not None:
         for tid, (proxy_hash, count) in store_tracks.items():
             out["tracks"][tid]["urls"] = _local_proxy_urls(token, tid, proxy_hash, count)
     if blocked is not None:

@@ -975,16 +975,11 @@ def test_namespace_sync_failure_preserves_saved_authority_and_retries(
 
 
 @pytest.mark.parametrize(
-    ("request_origin", "local"),
-    [
-        ("http://127.0.0.1:8765/", True),
-        ("http://localhost:8765/", True),
-        ("https://share.example.test/", False),
-        (None, False),
-    ],
+    ("loopback_page", "local"),
+    [(True, True), (False, False)],
 )
 def test_share_manifest_hands_loopback_pages_local_chunk_urls(
-    workspace, monkeypatch, fast_encode, request_origin, local
+    workspace, monkeypatch, fast_encode, loopback_page, local
 ):
     from podcast_mcp.services.collaboration import share
 
@@ -1015,7 +1010,7 @@ def test_share_manifest_hands_loopback_pages_local_chunk_urls(
         )
 
     monkeypatch.setattr("podcast_mcp.services.media.cached_guest_cors", probe)
-    body = share.share_proxy_manifest("token", request_origin=request_origin)
+    body = share.share_proxy_manifest("token", loopback_page=loopback_page)
     hash_ = generation.tracks["host"].hash
     if local:
         assert body["tracks"]["host"]["urls"] == [f"/api/review/token/daw/proxy/host/{hash_}/0"]
@@ -1103,9 +1098,10 @@ def test_share_cors_fallback_preserves_current_complete_restore_generation(
 @pytest.mark.parametrize(
     ("host", "headers", "expected"),
     [
-        ("127.0.0.1:8765", [], "http://127.0.0.1:8765/"),
-        ("127.0.0.1:8765", [(b"x-sharecut-relayed", b"1")], None),
-        ("share.example.test", [], "http://share.example.test/"),
+        ("127.0.0.1:8765", [], True),
+        ("localhost:8765", [], True),
+        ("127.0.0.1:8765", [(b"x-sharecut-relayed", b"1")], False),
+        ("share.example.test", [], False),
     ],
 )
 def test_manifest_route_withholds_the_loopback_origin_from_relayed_requests(
@@ -1121,7 +1117,7 @@ def test_manifest_route_withholds_the_loopback_origin_from_relayed_requests(
     monkeypatch.setattr(
         review_share,
         "share_proxy_manifest",
-        lambda token, *, request_origin=None: seen.append(request_origin) or {},
+        lambda token, *, loopback_page=False: seen.append(loopback_page) or {},
     )
     request = Request(
         {
