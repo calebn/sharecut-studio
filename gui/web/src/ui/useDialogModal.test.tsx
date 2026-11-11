@@ -258,6 +258,34 @@ describe("useDialogModal", () => {
     expect(screen.getByRole("button", { name: "Last" })).toHaveFocus();
   });
 
+  it("keeps the app toast's buttons in the Tab cycle while the dialog traps focus", async () => {
+    const user = userEvent.setup();
+    const region = document.createElement("div");
+    region.className = "ui-toast-region ui-toast-region--app";
+    const undo = document.createElement("button");
+    undo.textContent = "Undo";
+    region.append(undo);
+    // The toast's portal is made at app start, so it sits before a dialog opened later.
+    document.body.prepend(region);
+    try {
+      render(<Fixture />);
+      await waitFor(() => {
+        expect(screen.getByRole("button", { name: "Close" })).toHaveFocus();
+      });
+      await user.tab();
+      await user.tab();
+      expect(screen.getByRole("button", { name: "Last" })).toHaveFocus();
+      await user.tab();
+      expect(undo).toHaveFocus();
+      await user.tab();
+      expect(screen.getByRole("button", { name: "Close" })).toHaveFocus();
+      await user.tab({ shift: true });
+      expect(undo).toHaveFocus();
+    } finally {
+      region.remove();
+    }
+  });
+
   it("closes on Escape and restores focus", async () => {
     const user = userEvent.setup();
     render(

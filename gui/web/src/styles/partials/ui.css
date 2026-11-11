@@ -823,6 +823,12 @@ html[data-shell="phone"] .ui-menu-shortcut {
   pointer-events: none;
 }
 
+/* An Undo or action toast over a modal dialog (Stop sharing in the Invite sheet)
+   stays above the scrim so its button takes the press. */
+.ui-toast-region--app.ui-toast-region--actionable {
+  z-index: var(--z-toast-actionable);
+}
+
 /* ui/topLayerFloor makes the region a manual popover while a Menu panel is
    open, lifting it into the top layer above that panel. Undo the UA popover
    box so it stays where this rule puts it. */

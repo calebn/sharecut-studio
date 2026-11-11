@@ -7,9 +7,9 @@ const meta: Meta<typeof InlineConfirm> = {
   component: InlineConfirm,
   tags: ["autodocs"],
   args: {
-    prompt: "Stop sharing this Viewer link? Anyone using it loses access.",
-    keepLabel: "Keep link",
-    actionLabel: "Stop sharing",
+    prompt: "Stop this take? What was recorded so far is kept.",
+    keepLabel: "Keep recording",
+    actionLabel: "Stop take",
     onKeep: fn(),
     onConfirm: fn(),
   },
@@ -22,9 +22,11 @@ export const Default: Story = {
   play: async ({ args, canvasElement }) => {
     const canvas = within(canvasElement);
     await waitFor(() =>
-      expect(canvas.getByRole("button", { name: "Keep link" })).toHaveFocus(),
+      expect(
+        canvas.getByRole("button", { name: "Keep recording" }),
+      ).toHaveFocus(),
     );
-    await userEvent.click(canvas.getByRole("button", { name: "Stop sharing" }));
+    await userEvent.click(canvas.getByRole("button", { name: "Stop take" }));
     await expect(args.onConfirm).toHaveBeenCalledOnce();
   },
 };
@@ -33,7 +35,7 @@ export const Busy: Story = {
   args: { disabledReason: "Wait for the current action to finish." },
   play: async ({ canvasElement }) => {
     await expect(
-      within(canvasElement).getByRole("button", { name: "Stop sharing" }),
+      within(canvasElement).getByRole("button", { name: "Stop take" }),
     ).toBeDisabled();
   },
 };
