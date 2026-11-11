@@ -80,7 +80,7 @@ for (const width of [1440, 360]) {
         storyUrl("stages-frame-presence--docs", { theme, viewMode: "docs" }),
       );
       const host = page.locator("#story--stages-frame-presence--overflow");
-      await host.getByRole("button", { name: "+2 more" }).click();
+      await host.getByRole("button", { name: /^\+\d+ more$/ }).click();
       await expectInside(host.getByRole("menu"), "viewport");
     });
 
