@@ -1,4 +1,5 @@
-import { useEffect, useId } from "react";
+import { useEffect, useId, useState } from "react";
+import { setClipGain } from "../../api";
 import { commandLabel } from "../../commands/labels";
 import { executePointerCommand } from "../../commands/pointer";
 import { saveClipEdge, TRIM_MODE } from "../../edit/clipEdgeSave";
@@ -25,6 +26,12 @@ import { nudgeDriver } from "../../timeline/precision/precisionDrivers";
 import type { Selection } from "../../types/project";
 import { Button, InspectorSeekFooter } from "../../ui";
 import { BUSY_REASON } from "../../ui/disabledReason";
+import {
+  CLIP_GAIN_MAX_DB,
+  CLIP_GAIN_MIN_DB,
+  CLIP_GAIN_STEP_DB,
+  clipGainDb,
+} from "../../utils/audio";
 import { ClipStartField, ClipTrackRow } from "./clipPlacementFields";
 import { CLIP_READ_ONLY_REASON } from "./clipReadOnly";
 import { multiClipSections } from "./multiClipSections";
@@ -68,6 +75,10 @@ export function useClipSections(
   }));
   const { busy, error, setError, run } = useProjectMutation();
   const readOnlyId = useId();
+  const [gainDraft, setGainDraft] = useState<{
+    clipId: string;
+    db: number;
+  } | null>(null);
   const id = selection?.kind === "clip" ? selection.id : null;
   const selectedIds = selectedClipIdsOf(selection);
   const clip =
@@ -91,6 +102,7 @@ export function useClipSections(
       clip?.source_end,
       clip?.fade_in_ms,
       clip?.fade_out_ms,
+      clip?.gain_db,
       capMs,
     ]),
   };
@@ -120,6 +132,7 @@ export function useClipSections(
     clip?.source_end,
     clip?.fade_in_ms,
     clip?.fade_out_ms,
+    clip?.gain_db,
     capMs,
     setError,
   ]);
@@ -199,6 +212,14 @@ export function useClipSections(
       driver.show(value);
       await driver.commit();
     });
+  };
+
+  const gain = async (db: number) => {
+    if (locked) return;
+    cancelClipPlacement();
+    await run(() =>
+      setClipGain(projectPath, clip.id, db, { gain_db: clipGainDb(clip) }),
+    );
   };
 
   const ripple = async () => {
@@ -294,6 +315,27 @@ export function useClipSections(
     );
   };
 
+  const gainField = (
+    <ScrubField
+      variant="level"
+      label="Gain"
+      unit="dB"
+      min={CLIP_GAIN_MIN_DB}
+      max={CLIP_GAIN_MAX_DB}
+      step={CLIP_GAIN_STEP_DB}
+      defaultValue={0}
+      value={gainDraft?.clipId === clip.id ? gainDraft.db : clipGainDb(clip)}
+      skipUnchanged
+      readOnly={locked}
+      onPreview={(db) => setGainDraft({ clipId: clip.id, db })}
+      onCancel={() => setGainDraft(null)}
+      onCommit={(db) => {
+        setGainDraft(null);
+        void gain(db);
+      }}
+    />
+  );
+
   const fadeHint = cutFadeHint(cutIn, cutOut);
   const joinSec = clip.timeline_start;
   return [
@@ -311,6 +353,7 @@ export function useClipSections(
         { id: "out", label: "Source end", control: edge("out") },
         { id: "fadeIn", label: "Fade in", control: fadeField("in") },
         { id: "fadeOut", label: "Fade out", control: fadeField("out") },
+        { id: "gain", label: "Gain", control: gainField },
         {
           id: "track",
           label: "Track",

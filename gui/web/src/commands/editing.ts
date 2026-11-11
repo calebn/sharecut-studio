@@ -500,6 +500,13 @@ export function registerClipMoveCommands(): void {
     return runFocusedClipHandle("fade", args);
   });
 
+  registerCommand("edit.setClipGain", () => {
+    return {
+      status: "disabled",
+      reason: "Use the Gain field in the clip inspector",
+    };
+  });
+
   registerCommand("edit.setClipJoin", () => {
     return {
       status: "disabled",

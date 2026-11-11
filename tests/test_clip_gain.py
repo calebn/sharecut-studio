@@ -305,9 +305,9 @@ def test_document_commands_apply_clip_gain_and_refuse_stale(minimal_project: Pat
     assert minimal_project.read_bytes() == before
 
 
-def test_registry_rows_name_the_tools_and_hold_the_gui_gap() -> None:
+def test_registry_rows_name_the_tools_and_the_gui_sender() -> None:
     from podcast_mcp.services.collaboration import ReviewRole
-    from podcast_mcp.services.document_sync.registry import COMMANDS, GENERIC_CLI, Gap, named
+    from podcast_mcp.services.document_sync.registry import COMMANDS, GENERIC_CLI, GUI_SENT, named
 
     for name, tool in (
         ("SetClipGain", "set_clip_gain_tool"),
@@ -317,8 +317,7 @@ def test_registry_rows_name_the_tools_and_hold_the_gui_gap() -> None:
         assert spec.guest is ReviewRole.EDITOR
         assert spec.mcp == named(tool)
         assert spec.cli == named(GENERIC_CLI)
-        assert isinstance(spec.gui, Gap)
-        assert "follow-up PR" in spec.gui.reason
+        assert spec.gui == GUI_SENT
 
 
 def test_list_clips_reports_gain_db(minimal_project: Path) -> None:
