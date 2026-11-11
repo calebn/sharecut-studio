@@ -1,4 +1,6 @@
 from podcast_mcp.models.episode import (
+    CLIP_GAIN_MAX_DB,
+    CLIP_GAIN_MIN_DB,
     EPISODE_PROJECT_FILENAME,
     FADER_MAX_DB,
     FADER_MIN_DB,
@@ -95,6 +97,8 @@ from podcast_mcp.models.history import (
 )
 
 __all__ = [
+    "CLIP_GAIN_MAX_DB",
+    "CLIP_GAIN_MIN_DB",
     "EPISODE_PROJECT_FILENAME",
     "FADER_MAX_DB",
     "FADER_MIN_DB",

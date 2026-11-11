@@ -74,6 +74,7 @@ class SourceAudio:
     fade_out_sec: float = 0.0
     mute_spans: tuple[MuteEnvelope, ...] = ()
     fill_path: Path | None = None
+    gain_db: float = 0.0
     clip_id: str | None = field(default=None, compare=False)
     piece: int = field(default=0, compare=False)
     source_id: str | None = field(default=None, compare=False)

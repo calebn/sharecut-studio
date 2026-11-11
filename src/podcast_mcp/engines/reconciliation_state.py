@@ -49,6 +49,7 @@ def audio_state_fingerprint(
                             "fade_out_ms": clip.fade_out_ms,
                             "mute_regions": mute_regions_payload(clip.mute_regions),
                             **nonempty_off_speaker_regions_payload(clip),
+                            **({"gain_db": clip.gain_db} if clip.gain_db else {}),
                         },
                         sort_keys=True,
                         separators=(",", ":"),
