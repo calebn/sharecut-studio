@@ -112,7 +112,7 @@ Open the in-app cheatsheet with **?** while ShareCut Studio is focused.
 | `P` | Pause or resume take (`room.pause`) | roomTakeLive |  |
 | `?` | Commands and shortcuts (`ui.toggleCommandPalette`) | Always (when not typing in a field or on a focused Scrub field) | Also Shift+/ |
 | Palette only | Export full mix (`export.bounce`) | Loaded host project | Palette only: exports the whole episode's audible tracks in place (export/bounces/) |
-| `Mod+E` | Export deliverables… (`export.deliverables`) | Loaded host project | Mod+E: mastered export/ via PipelineService; with one range or words selected, exports that range in place (export/bounces/) and keeps the stage; with none, opens Deliver to start it |
+| `Mod+E` | Export deliverables… (`export.deliverables`) | Loaded host project | Mod+E: with one range or words selected, exports that range unmastered in place (export/bounces/) and keeps the stage; otherwise opens Deliver for the mastered export/ via PipelineService. The Edit action bar Export verb also exports the tracks or the whole episode unmastered in place |
 | Palette only | New project… (`project.new`) | Host project management | Palette only |
 | `Mod+O` | All projects (`project.home`) | Host project management | Mod+O: Home. Open project… is in the palette and on Home |
 
