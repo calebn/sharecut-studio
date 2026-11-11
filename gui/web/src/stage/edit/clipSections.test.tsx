@@ -13,6 +13,7 @@ import {
   sampleTrack,
 } from "../../test/fixtures";
 import type { ClipRow } from "../../types/project";
+import { CLIP_READ_ONLY_REASON } from "./clipReadOnly";
 import { inspectorHeading } from "./inspectorHeading";
 import { SectionsBody } from "./SectionsBody";
 
@@ -226,6 +227,48 @@ describe("clip content", () => {
       });
     });
     expect(screen.queryByText(/max \d+ ms/)).toBeNull();
+  });
+
+  it("tells a Viewer why the clip cannot be edited and ties the track buttons to it", () => {
+    open();
+    act(() => {
+      useDawStore.setState({
+        projectPath: "share:ep",
+        guestMode: "viewer",
+        shareCapabilities: ["view"],
+      });
+    });
+    const reason = screen.getByText(CLIP_READ_ONLY_REASON);
+    expect(reason).toBeVisible();
+    const button = screen.getByRole("button", { name: "host" });
+    expect(button).toHaveAttribute("aria-disabled", "true");
+    expect(button).toHaveAttribute("aria-describedby", reason.id);
+  });
+
+  it("tells a Viewer why several selected clips cannot be edited", () => {
+    open([clip, second]);
+    act(() => {
+      useDawStore.setState({
+        selection: {
+          kind: "clip",
+          id: "c1",
+          trackId: "host",
+          ids: ["c1", "c2"],
+        },
+        projectPath: "share:ep",
+        guestMode: "viewer",
+        shareCapabilities: ["view"],
+      });
+    });
+    expect(screen.getByText(CLIP_READ_ONLY_REASON)).toBeVisible();
+  });
+
+  it("shows an editor no read-only note", () => {
+    open();
+    expect(screen.queryByText(CLIP_READ_ONLY_REASON)).toBeNull();
+    expect(screen.getByRole("button", { name: "host" })).not.toHaveAttribute(
+      "aria-describedby",
+    );
   });
 
   it("refuses a source edge outside the minimum-span bounds", async () => {

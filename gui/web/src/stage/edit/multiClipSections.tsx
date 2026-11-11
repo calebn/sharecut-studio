@@ -6,6 +6,7 @@ import { clipIdsBeforeCut, isCutJoin } from "../../edit/joinRender";
 import type { InspectorSection } from "../../system/InspectorSheet";
 import { ScrubField } from "../../system/ScrubField";
 import type { ClipRow, ProjectView } from "../../types/project";
+import { CLIP_READ_ONLY_REASON } from "./clipReadOnly";
 import { note } from "./sheetNote";
 
 type Edge = "in" | "out";
@@ -18,6 +19,7 @@ export function multiClipSections({
   clipIds,
   projectPath,
   locked,
+  readOnly,
   error,
   run,
 }: {
@@ -25,6 +27,7 @@ export function multiClipSections({
   clipIds: readonly string[];
   projectPath: string;
   locked: boolean;
+  readOnly: boolean;
   error: string | null;
   run: (fn: () => Promise<unknown>) => Promise<unknown>;
 }): readonly InspectorSection[] {
@@ -107,6 +110,14 @@ export function multiClipSections({
       rows: [
         { id: "fadeIn", label: "Fade in", control: field("in") },
         { id: "fadeOut", label: "Fade out", control: field("out") },
+        ...(readOnly
+          ? [
+              {
+                id: "readOnlyNote",
+                control: note(CLIP_READ_ONLY_REASON, "status"),
+              },
+            ]
+          : []),
         ...(locked
           ? []
           : [

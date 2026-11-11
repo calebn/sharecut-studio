@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useId } from "react";
 import { commandLabel } from "../../commands/labels";
 import { executePointerCommand } from "../../commands/pointer";
 import { saveClipEdge, TRIM_MODE } from "../../edit/clipEdgeSave";
@@ -26,6 +26,7 @@ import type { Selection } from "../../types/project";
 import { Button, InspectorSeekFooter } from "../../ui";
 import { BUSY_REASON } from "../../ui/disabledReason";
 import { ClipStartField, ClipTrackRow } from "./clipPlacementFields";
+import { CLIP_READ_ONLY_REASON } from "./clipReadOnly";
 import { multiClipSections } from "./multiClipSections";
 import {
   joinLengthRows,
@@ -66,6 +67,7 @@ export function useClipSections(
     shareCapabilities: s.shareCapabilities,
   }));
   const { busy, error, setError, run } = useProjectMutation();
+  const readOnlyId = useId();
   const id = selection?.kind === "clip" ? selection.id : null;
   const selectedIds = selectedClipIdsOf(selection);
   const clip =
@@ -129,6 +131,7 @@ export function useClipSections(
       projectPath,
       locked:
         !canApplyPass12(projectPath, guestMode, shareCapabilities) || busy,
+      readOnly: !canApplyPass12(projectPath, guestMode, shareCapabilities),
       error,
       run,
     });
@@ -320,6 +323,7 @@ export function useClipSections(
                 label: t.label || t.id,
               }))}
               disabled={locked}
+              reasonId={editable ? undefined : readOnlyId}
             />
           ),
         },
@@ -337,7 +341,12 @@ export function useClipSections(
                 ),
               },
             ]
-          : []),
+          : [
+              {
+                id: "readOnlyNote",
+                control: note(CLIP_READ_ONLY_REASON, "status", readOnlyId),
+              },
+            ]),
         ...joinRows(leading),
         ...joinRows(trailing),
         ...(played.length === 0
