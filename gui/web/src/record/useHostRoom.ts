@@ -316,15 +316,13 @@ export function useHostRoom(
     const { hydrate, projectPath, setSnapshot } = request;
     if (!hydrate || !projectPath) return;
     let cancelled = false;
+    const superseded = () =>
+      cancelled ||
+      activeLookup.current !== request ||
+      useDawStore.getState().projectPath !== projectPath;
     void loadHostRecordState(projectPath)
       .then((snap) => {
-        if (
-          cancelled ||
-          activeLookup.current !== request ||
-          useDawStore.getState().projectPath !== projectPath
-        ) {
-          return;
-        }
+        if (superseded()) return;
         setLookup((current) =>
           current.request === request
             ? { ...current, status: snap ? "found" : "none" }
@@ -340,13 +338,7 @@ export function useHostRoom(
         }
       })
       .catch((err: unknown) => {
-        if (
-          cancelled ||
-          activeLookup.current !== request ||
-          useDawStore.getState().projectPath !== projectPath
-        ) {
-          return;
-        }
+        if (superseded()) return;
         const message = errorMessage(err);
         setLookup((current) =>
           current.request === request
