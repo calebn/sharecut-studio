@@ -975,6 +975,55 @@ describe("stopping a link", () => {
     expect(restoreHostShare).toHaveBeenCalledExactlyOnceWith(PATH, "first");
   });
 
+  it("clears the ignored-press note when the Undo toast ends, and says it again on a repeat", async () => {
+    revokeHostShare.mockResolvedValue(WINDOW);
+    mount();
+    act(() => {
+      flow.stop("first");
+    });
+    await waitFor(() => expect(toast()?.reverse).not.toBeNull());
+    await waitFor(() => expect(flow.busy).toBe(false));
+    const seq = () => useDawStore.getState().statusAnnouncementSeq;
+    act(() => {
+      flow.stop("second");
+    });
+    const heard = seq();
+    act(() => {
+      flow.stop("second");
+    });
+    expect(seq()).toBe(heard + 1);
+    expect(flow.status).toBe("Undo is still available.");
+    expect(toast()?.message).toBe("Link stopped.");
+    act(() => useDawStore.setState({ feedbackToast: null }));
+    await waitFor(() => expect(flow.status).toBeNull());
+  });
+
+  it("accepts a second stop once the server window has passed, even with the toast held open", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      revokeHostShare.mockResolvedValue(WINDOW);
+      mount();
+      act(() => {
+        flow.stop("first");
+      });
+      await waitFor(() => expect(toast()?.reverse).not.toBeNull());
+      await waitFor(() => expect(flow.busy).toBe(false));
+      act(() => {
+        vi.advanceTimersByTime(10_001);
+      });
+      expect(toast()?.reverse).not.toBeNull();
+      let accepted: boolean | undefined;
+      act(() => {
+        accepted = flow.stop("second");
+      });
+      expect(accepted).toBe(true);
+      await waitFor(() => expect(revokeHostShare).toHaveBeenCalledTimes(2));
+      expect(flow.status).toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("hands Undo the place focus returns to", async () => {
     revokeHostShare.mockResolvedValue(WINDOW);
     mount();

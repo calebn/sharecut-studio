@@ -173,7 +173,7 @@ export function useDialogModal({
       // one way back from a step the dialog just took (Stop sharing). It joins
       // the cycle after the panel, wherever it sits in the document.
       const toast = document.querySelector<HTMLElement>(
-        ".ui-toast-region--app",
+        ".ui-toast-region--app.ui-toast-region--actionable",
       );
       const toastItems = toast ? listFocusable(toast) : [];
       const firstItem = items[0];

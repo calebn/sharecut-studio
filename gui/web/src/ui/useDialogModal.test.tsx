@@ -261,7 +261,8 @@ describe("useDialogModal", () => {
   it("keeps the app toast's buttons in the Tab cycle while the dialog traps focus", async () => {
     const user = userEvent.setup();
     const region = document.createElement("div");
-    region.className = "ui-toast-region ui-toast-region--app";
+    region.className =
+      "ui-toast-region ui-toast-region--app ui-toast-region--actionable";
     const undo = document.createElement("button");
     undo.textContent = "Undo";
     region.append(undo);
@@ -281,6 +282,30 @@ describe("useDialogModal", () => {
       expect(screen.getByRole("button", { name: "Close" })).toHaveFocus();
       await user.tab({ shift: true });
       expect(undo).toHaveFocus();
+    } finally {
+      region.remove();
+    }
+  });
+
+  it("leaves a plain status toast out of the Tab cycle", async () => {
+    const user = userEvent.setup();
+    const region = document.createElement("div");
+    region.className = "ui-toast-region ui-toast-region--app";
+    const dismiss = document.createElement("button");
+    dismiss.textContent = "Dismiss";
+    region.append(dismiss);
+    document.body.prepend(region);
+    try {
+      render(<Fixture />);
+      await waitFor(() => {
+        expect(screen.getByRole("button", { name: "Close" })).toHaveFocus();
+      });
+      await user.tab();
+      await user.tab();
+      expect(screen.getByRole("button", { name: "Last" })).toHaveFocus();
+      await user.tab();
+      expect(dismiss).not.toHaveFocus();
+      expect(screen.getByRole("button", { name: "Close" })).toHaveFocus();
     } finally {
       region.remove();
     }
