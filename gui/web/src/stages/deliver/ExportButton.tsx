@@ -16,7 +16,7 @@ export function ExportButton({ exporting, blocker, after, onExport }: Props) {
   const reason = useDisabledReasonNote(exporting ? undefined : blocker);
   return (
     <div className="dv-primary">
-      {after ? <AfterExportPrimary {...after} /> : null}
+      {after ? <AfterExportPrimary {...after} busy={exporting} /> : null}
       <Button
         variant={after ? "default" : "primary"}
         className="dv-export"
@@ -36,9 +36,23 @@ export function ExportButton({ exporting, blocker, after, onExport }: Props) {
 function AfterExportPrimary({
   access,
   file,
+  busy,
   onReveal,
   onStarted,
-}: AfterExport) {
+}: AfterExport & { busy: boolean }) {
+  if (busy) {
+    const download = access === "download" && file.href;
+    return (
+      <Button
+        variant="primary"
+        className="dv-export"
+        disabledReason="Exporting now."
+      >
+        <SystemIcon name={download ? "download" : "folder-open"} size={18} />
+        {download ? "Download" : "Reveal in folder"}
+      </Button>
+    );
+  }
   if (access === "download" && file.href) {
     return (
       <a
