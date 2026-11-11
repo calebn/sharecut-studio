@@ -1,7 +1,7 @@
-import { type ClipFadeCurves, payloadFadeCurves } from "../edit/fadeCurves";
 import { DocumentCommand } from "../types/documentCommands.generated";
 import type { AutomationPoint, ProjectView, TrackView } from "../types/project";
 import { withVolumeEnvelopePoints } from "../utils/envelopes";
+import { type ClipFadeCurves, payloadFadeCurves } from "../utils/fadeCurves";
 import { documentAuthority } from "./authorityState";
 import {
   type ClipMoveItem,

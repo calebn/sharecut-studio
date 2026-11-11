@@ -1,12 +1,10 @@
 import { useEffect, useId, useState } from "react";
-import { setClipFade, setClipGain } from "../../api";
-import { clipFadeBaseline } from "../../api/documentEdits";
+import { clipFadeBaseline, setClipFade, setClipGain } from "../../api";
 import { commandLabel } from "../../commands/labels";
 import { executePointerCommand } from "../../commands/pointer";
 import { saveClipEdge, TRIM_MODE } from "../../edit/clipEdgeSave";
 import { CLIP_HANDLE_STEPS } from "../../edit/clipHandleSteps";
 import { cancelClipPlacement } from "../../edit/clipPlacement";
-import { clipEdgeCurve, type FadeEdge } from "../../edit/fadeCurves";
 import { edgeFadeMaxMs, maxFadeMs } from "../../edit/fadeLimits";
 import {
   blendsIn,
@@ -37,6 +35,7 @@ import {
   CLIP_GAIN_STEP_DB,
   clipGainDb,
 } from "../../utils/audio";
+import { clipEdgeCurve, type FadeEdge } from "../../utils/fadeCurves";
 import { ClipStartField, ClipTrackRow } from "./clipPlacementFields";
 import { CLIP_READ_ONLY_REASON } from "./clipReadOnly";
 import { fadeCurveRows } from "./fadeCurveRows";

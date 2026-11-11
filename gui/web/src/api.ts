@@ -54,6 +54,7 @@ export {
   applySuggestedActions,
   approveEdits,
   clearExtractedRoomToneBedCommand,
+  clipFadeBaseline,
   correctTranscriptPhrase,
   correctTranscriptWord,
   deleteChapter,

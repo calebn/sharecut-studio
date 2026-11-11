@@ -8,7 +8,6 @@ import {
   isCurrentDocumentScope,
 } from "../document/authorityState";
 import type { EditMode, TrimEdge } from "../edit/clipEdgePreview";
-import { type ClipFadeCurves, clipEdgeCurve } from "../edit/fadeCurves";
 import {
   type DocumentCommandOptions,
   type HistoryCommandType,
@@ -29,6 +28,7 @@ import {
   parseHistoryEntryId,
 } from "../types/project";
 import { ApiError } from "../utils/apiError";
+import { type ClipFadeCurves, clipEdgeCurve } from "../utils/fadeCurves";
 import { type HeldCut, type ReviewOutcome } from "../utils/pendingReviewPass";
 import { apiFetch, HOST_KEY } from "./http";
 import { loadDocumentState } from "./project";
