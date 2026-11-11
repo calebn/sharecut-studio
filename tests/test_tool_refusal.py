@@ -269,3 +269,51 @@ def test_guest_unknown_code_never_projects_host_text(host_message: str, tmp_path
         GENERIC_GUEST_MESSAGE, "unregistered_guest_failure"
     )
     assert tool_refusal(exc) == ToolRefusal(host_message, "unregistered_guest_failure")
+
+
+_SURFACE_HOST_TEXTS = {
+    "unix-path": "gone /Users/host/Talkin' Shop/x.wav",
+    "windows-path": r"gone C:\Users\caleb\Talkin Shop\x.wav",
+    "plain-prose": "Track 'Talkin Shop' is missing from the mix",
+    "multiline": "first line\nsecond /media/caleb/Talkin Shop/x.wav",
+    "blank": "",
+    "former-fallback": "Secret host detail that mentions no path",
+}
+
+
+@pytest.mark.parametrize(
+    "host_text", list(_SURFACE_HOST_TEXTS.values()), ids=list(_SURFACE_HOST_TEXTS)
+)
+@pytest.mark.parametrize(
+    "code", ["track_not_found", "export_busy", "project_write_failed", "unregistered_guest_failure"]
+)
+def test_every_guest_surface_reads_the_same_fixed_message_for_a_code(
+    code: str, host_text: str
+) -> None:
+    import logging
+
+    from podcast_mcp.gui.routes.guest_errors import guest_http_error, guest_ws_error
+    from podcast_mcp.services.remote_mcp.protocol import _tool_failure
+    from podcast_mcp.util.coded_error import guest_message_for_code
+
+    expected = guest_message_for_code(code)
+    exc = CodedValueError(host_text, code=code)
+    logger = logging.getLogger("test_guest_surfaces")
+
+    http = guest_http_error(exc, logger=logger, operation="probe")
+    ws = guest_ws_error(exc, logger=logger, operation="probe")
+    mcp = _tool_failure(1, "probe", exc)
+    mcp_result = mcp["result"]
+
+    assert http.detail == expected
+    assert http.headers is not None and http.headers["X-Sharecut-Error-Code"] == code
+    assert ws.detail == expected and ws.code == code
+    assert mcp_result["isError"] is True
+    assert mcp_result["content"][0]["text"] == expected
+    assert mcp_result["structuredContent"]["error"] == expected
+    assert mcp_result["structuredContent"]["error_code"] == code
+    assert guest_failure_detail(exc) == expected
+    for surface in (http.detail, ws.detail, mcp_result, guest_failure_detail(exc)):
+        if host_text.strip():
+            assert host_text not in str(surface)
+    assert tool_refusal(exc) == ToolRefusal(host_text, code)
