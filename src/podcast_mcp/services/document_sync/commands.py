@@ -27,6 +27,8 @@ DocumentCommandType = Literal[
     "RestoreClipBleed",
     "SetClipFade",
     "SetClipsFade",
+    "SetClipGain",
+    "SetClipsGain",
     "TrimClipEdge",
     "RollClipJoin",
     "SetJoinMode",

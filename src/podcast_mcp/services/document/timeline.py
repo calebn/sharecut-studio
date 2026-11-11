@@ -22,6 +22,7 @@ from podcast_mcp.edits.chapters import (
     update_chapter,
 )
 from podcast_mcp.edits.clip_fades import ClipFadeBaseline, require_clip_fade_baseline
+from podcast_mcp.edits.clip_gain import ClipGainBaseline
 from podcast_mcp.edits.cut_speech import (
     assess_cut_speech,
 )
@@ -72,6 +73,7 @@ from podcast_mcp.services.document.bleed_inspection import (
     inspect_clip_bleed,
     restore_clip_bleed,
 )
+from podcast_mcp.services.document.clip_gain import apply_clip_gain, apply_clips_gain
 from podcast_mcp.services.document.service_base import CutMutatingService
 from podcast_mcp.util.change_summary import change_summary
 from podcast_mcp.util.coded_error import CodedValueError
@@ -406,6 +408,14 @@ class TimelineService(CutMutatingService):
                     ]
                 },
             )
+
+    def set_clip_gain(
+        self, clip_id: str, gain_db: float, *, expected: ClipGainBaseline | None = None
+    ) -> Mapping[str, Any]:
+        return apply_clip_gain(self.ws, self._mutate_fades, clip_id, gain_db, expected)
+
+    def set_clips_gain(self, gains: list[tuple[str, float, ClipGainBaseline]]) -> Mapping[str, Any]:
+        return apply_clips_gain(self.ws, self._mutate_fades, gains)
 
     def move_clips(self, clips: list[dict]) -> dict:
         return self.ws.mutate(
