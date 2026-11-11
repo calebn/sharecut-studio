@@ -132,6 +132,14 @@ export function useGrab<G>(options: GrabOptions<G>) {
     const { signal } = (watching.current = new AbortController());
     document.addEventListener("keydown", escapeDrag, { capture: true, signal });
     window.addEventListener("blur", abort, { signal });
+    window.addEventListener("pagehide", abort, { signal });
+    document.addEventListener(
+      "visibilitychange",
+      () => {
+        if (document.visibilityState === "hidden") abort();
+      },
+      { signal },
+    );
     capturePointer(event);
   };
   const move = (event: PointerEvent<HTMLElement>) => {
