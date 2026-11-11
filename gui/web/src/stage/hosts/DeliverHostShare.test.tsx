@@ -539,9 +539,15 @@ describe("the Invite sheet over any stage", () => {
       );
       expect(server.revokeRequests).toEqual(["sample-review-link"]);
       expect(screen.getAllByText("Link stopped.")).toHaveLength(1);
+      expect(screen.getByText("Undo is still available.")).toBeVisible();
       await userEvent.click(screen.getByRole("button", { name: "Undo" }));
       await waitFor(() =>
         expect(server.restoreRequests).toEqual(["sample-review-link"]),
+      );
+      await waitFor(() =>
+        expect(
+          screen.getByRole("heading", { name: "Review links" }),
+        ).toHaveFocus(),
       );
       expect(
         await screen.findByRole("button", { name: "More for Commenter link" }),

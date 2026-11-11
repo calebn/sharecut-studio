@@ -657,8 +657,13 @@ class ShareService:
         the window end; repeating it on a parked room answers the existing window.
         """
         if restorable_for is not None:
-            if share_pending.has_pending(self.ws, session_id):
-                return self._pending_room(session_id)
+            parked = [
+                r
+                for r in share_pending.pending_rows(self.ws, session_id)
+                if r["kind"] == SHARE_KIND_RECORD
+            ]
+            if parked:
+                return self._pending_room(session_id, parked)
             return dict(self._park_room(session_id, restorable_for, now))
         finalized = (
             share_pending.finalize_now(self.ws, session_id, now=now)
@@ -693,8 +698,8 @@ class ShareService:
             "restorable_until": pending[0]["restorable_until"],
         }
 
-    def _pending_room(self, session_id: str) -> dict[str, Any]:
-        rows = share_pending.pending_rows(self.ws, session_id)
+    @staticmethod
+    def _pending_room(session_id: str, rows: Sequence[Any]) -> dict[str, Any]:
         return {
             "session_id": session_id,
             "revoked": [str(r["token"]) for r in rows],
@@ -778,17 +783,16 @@ class ShareService:
         restorable_for: float | None = None,
         now: datetime | None = None,
     ) -> dict[str, Any]:
-        group = share_pending.group_of(self.ws, token)
-        if group is not None:
-            if restorable_for is not None:
-                (parked,) = [
-                    r for r in share_pending.pending_rows(self.ws, group) if r["token"] == token
-                ]
+        if restorable_for is not None:
+            parked = share_pending.pending_row(self.ws, token)
+            if parked is not None:
                 return {
                     "revoked": True,
                     "token": token,
                     "restorable_until": parked["restorable_until"],
                 }
+        group = share_pending.group_of(self.ws, token)
+        if group is not None and restorable_for is None:
             share_pending.finalize_now(self.ws, group, now=now)
             return {"revoked": True, "token": token}
         if restorable_for is not None and self._is_review_token(token):
