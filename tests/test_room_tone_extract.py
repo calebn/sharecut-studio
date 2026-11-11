@@ -829,14 +829,36 @@ def _step(project: EpisodeProject, config: dict) -> str | None:
     return extract_room_tone_beds(project, config)
 
 
-def test_the_step_is_off_by_default_and_names_its_switch() -> None:
+def test_the_step_is_on_by_default_and_names_its_switch() -> None:
     from podcast_mcp.config.defaults import load_defaults
     from podcast_mcp.pipeline.meta import step_meta, step_noop_reason
     from podcast_mcp.services.pipeline.config import default_enabled_steps
 
-    assert step_meta(STEP).enabled_by_default is False
-    assert step_noop_reason(STEP, load_defaults()) == "room_tone.extract_bed=false"
-    assert STEP not in default_enabled_steps(load_defaults())
+    assert step_meta(STEP).enabled_by_default is True
+    assert step_noop_reason(STEP, load_defaults()) is None
+    assert step_noop_reason(STEP, OFF) == "room_tone.extract_bed=false"
+    assert STEP in default_enabled_steps(load_defaults())
+
+
+def test_the_default_run_fills_bedless_voices_and_leaves_recorded_and_music_alone(
+    tmp_path: Path,
+) -> None:
+    from podcast_mcp.config.defaults import load_defaults
+
+    project = _episode(tmp_path)
+    recorded = project.track_by_id("recorded").model_dump_json()
+    score = project.track_by_id("score").model_dump_json()
+
+    summary = _step(project, load_defaults())
+
+    assert summary is not None
+    assert summary.startswith("2 beds extracted")
+    for tid in ("host", "guest"):
+        assert project.track_by_id(tid).room_tone_origin is not None
+    assert project.track_by_id("recorded").model_dump_json() == recorded
+    assert project.track_by_id("score").model_dump_json() == score
+    assert not list((tmp_path / EXTRACT_DIR).glob("score-*"))
+    assert not list((tmp_path / EXTRACT_DIR).glob("recorded-*"))
 
 
 def test_the_step_off_decodes_nothing_and_changes_nothing(
