@@ -182,3 +182,36 @@ describe("clipGainDips for a timed clip", () => {
     );
   });
 });
+
+describe("clipGainDips with fade curves", () => {
+  const gainAt = (over: Partial<ClipRow>, time: number) => {
+    const dip = clipGainDips([clip({ fade_in_ms: 1000, ...over })], unity)[0];
+    const point = dip?.points.find((p) => Math.abs(p.time - time) < 1e-9);
+    if (!point) throw new Error(`no dip point at ${time}`);
+    return point.gain;
+  };
+
+  it("draws the edge curve, linear when none is saved", () => {
+    expect(gainAt({}, 0.5)).toBeCloseTo(0.5, 6);
+    expect(gainAt({ fade_in_curve: "s" }, 0.5)).toBeCloseTo(0.5, 6);
+    expect(gainAt({ fade_in_curve: "equal_power" }, 0.5)).toBeCloseTo(
+      0.707107,
+      5,
+    );
+  });
+
+  it("draws a blended edge flat, whatever curve the clip stores", () => {
+    const left = clip({ id: "l", timeline_end: 5, source_end: 5 });
+    const right = clip({
+      id: "r",
+      source_start: 5,
+      timeline_start: 5,
+      join_left_clip_id: "l",
+      join_in_mode: "crossfade",
+      join_crossfade_ms: 200,
+      fade_in_ms: 1000,
+      fade_in_curve: "s",
+    });
+    expect(clipGainDips([left, right], unity)).toEqual([]);
+  });
+});

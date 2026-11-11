@@ -1,10 +1,7 @@
-import {
-  clipIdsBeforeCut,
-  isCrossfadeJoin,
-  isCutJoin,
-} from "../edit/joinRender";
+import { clipEdgeCurve } from "../edit/fadeCurves";
+import { clipIdsBeforeCut, isCutJoin } from "../edit/joinRender";
 import { DocumentCommand } from "../types/documentCommands.generated";
-import type { ClipRow, ProjectView } from "../types/project";
+import type { ClipRow, FadeCurve, ProjectView } from "../types/project";
 import { clipGainDb, dbToLinear } from "../utils/audio";
 import { originTrackId } from "../utils/timebase";
 import {
@@ -74,7 +71,9 @@ export interface ClipEnvelope {
   readonly automaticMute: readonly AutomaticMuteSpan[];
   readonly fadeInSec: number;
   readonly fadeOutSec: number;
-  readonly gainCurve: "linear" | "equalPower";
+  /** Edge curves; linear where a cut or a blended join sets the edge, as render does. */
+  readonly fadeInCurve: FadeCurve;
+  readonly fadeOutCurve: FadeCurve;
   readonly gainLinear: number;
 }
 
@@ -410,7 +409,14 @@ export function buildSchedule(
           : beforeCut.has(clip.id)
             ? 0
             : Math.max(0, clip.fade_out_ms) / 1000,
-      gainCurve: isCrossfadeJoin(clip) ? "equalPower" : "linear",
+      fadeInCurve:
+        overlapInSec > 0 || isCutJoin(clip)
+          ? "linear"
+          : clipEdgeCurve(clip, "in"),
+      fadeOutCurve:
+        overlapAfter > 0 || beforeCut.has(clip.id)
+          ? "linear"
+          : clipEdgeCurve(clip, "out"),
       gainLinear: dbToLinear(clipGainDb(clip)),
     };
     const first = chunkIndexForSource(clip.source_start, descriptor.chunk_sec);

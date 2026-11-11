@@ -17,6 +17,16 @@ export function isCutJoin(
   return clip.join_left_clip_id != null && clip.join_in_mode === "cut";
 }
 
+/** True when render blends this clip's incoming join: the overlap replaces both edge fades there. */
+export function blendsIn(clip: ClipRow): boolean {
+  return (
+    clip.join_left_clip_id != null &&
+    clip.join_in_mode === "crossfade" &&
+    clip.join_crossfade_blocked == null &&
+    (clip.join_crossfade_ms ?? 0) > 0
+  );
+}
+
 /** True when this clip's incoming join is set to crossfade (it may still be blocked). */
 export function isCrossfadeJoin(clip: Pick<ClipRow, "join_in_mode">): boolean {
   return clip.join_in_mode === "crossfade";
