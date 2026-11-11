@@ -179,13 +179,14 @@ class UploadPoller {
         if (settled && !cleanupInFlight && Date.now() >= nextCleanupAt) {
           cleanupInFlight = true;
           nextCleanupAt = Date.now() + 30_000;
-          void pruneExpiredKeeperWavs(
-            sink,
-            () =>
-              !cancelled &&
-              readCommitted().roomState === "stopped" &&
-              Boolean(readCommitted().captureSettled),
-          )
+          // Maintenance runs outside the host-status/upload critical path.
+          void pruneExpiredKeeperWavs(sink, () => {
+            if (cancelled) return false;
+            const latest = readCommitted();
+            return (
+              latest.roomState === "stopped" && Boolean(latest.captureSettled)
+            );
+          })
             .then((cleanup) => {
               nextCleanupAt = cleanup.nextRunAt;
               if (cleanup.pruned > 0 && !cancelled) {
@@ -230,6 +231,8 @@ class UploadPoller {
               row.segment_index === segmentIndex &&
               row.participant_id === participantId,
           );
+          // Local completion is required even when the host reports an ACK.
+          // A pending WAV must still surface recovery instead of looking landed.
           const recovery = await inspectKeeperRecovery(sink, wavPath, {
             inspectPending: settled,
           });
@@ -255,6 +258,8 @@ class UploadPoller {
             if (
               canReclaimKeeperSegment({ remoteSeg, take, takeIndex, settled })
             ) {
+              // A fresh status response is the authority for cleanup. The
+              // completion metadata stays as the segment identity marker.
               if (
                 (await reclaimKeeperWav(sink, wavPath, reclaim, remoteSeg)) ===
                 "mismatch"
@@ -264,11 +269,15 @@ class UploadPoller {
             }
             continue;
           }
+          // Pending segments are never uploaded, and their WAV is only probed
+          // once capture has settled: during REC it may still be open.
           if (recovery.kind !== "complete") {
             allLanded = false;
             allAcked = false;
             if (!stopped) continue;
             if (!settled) {
+              // Stop is still finalizing this segment; hold Leave until the
+              // complete metadata lands (or capture latches a failure).
               finalizing = true;
               continue;
             }
@@ -281,8 +290,14 @@ class UploadPoller {
           }
           const wav = await sink.read(wavPath);
           if (!wav) {
+            // Complete metadata without its WAV is a landed, reclaimed segment
+            // (see missingKeeperWavState); the host row may since have gone
+            // (e.g. Discard take). Nothing left to upload or wait on.
             continue;
           }
+          // A pre-fix disk can hold a finalized segment with no audio; it was
+          // reported, so the server shows it stalled, but it must not block
+          // the segments after it.
           if (wav.byteLength <= RECORD_UPLOAD_WAV_HEADER) continue;
           allLanded = false;
           const ackedBefore = acked;
@@ -300,6 +315,8 @@ class UploadPoller {
             signal: abort.signal,
             onProgress: (chunks) => {
               if (cancelled) return;
+              // Publish mid-pass: the pass runs as long as every segment's
+              // upload, and a person watching sees only what this publishes.
               const live: SegmentSave = {
                 take,
                 segment: segmentIndex,
@@ -514,7 +531,9 @@ export function useHostUploadSegments(
               : current,
           );
         }
-      } catch {}
+      } catch {
+        // keep last successful snapshot
+      }
     };
     void tick();
     const timer = window.setInterval(() => void tick(), 2000);
