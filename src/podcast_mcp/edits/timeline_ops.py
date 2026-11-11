@@ -1408,6 +1408,7 @@ def list_clips(
                 "fade_in_ms": c.fade_in_ms,
                 "fade_out_ms": c.fade_out_ms,
                 **nonzero_gain_payload(c),
+                **nonlinear_fade_curves_payload(c),
                 "join_in_mode": c.join_in_mode.value,
                 **join_render_fields(prev, c, project, mutes),
                 "source_id": c.source_id,

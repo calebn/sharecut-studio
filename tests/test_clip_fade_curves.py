@@ -7,6 +7,7 @@ evaluator reproduces the same samples.
 
 from __future__ import annotations
 
+import json
 import math
 import subprocess
 from pathlib import Path
@@ -45,6 +46,7 @@ from podcast_mcp.models.episode import EditMode, RoomToneFill
 from podcast_mcp.project.store import WriteGrantKind, write_grant
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.util.binaries import resolve_ffmpeg
+from podcast_mcp.util.coded_error import CodedValueError
 
 DEFAULTS = load_defaults()
 LINEAR, EQUAL_POWER, S = FadeCurve.LINEAR, FadeCurve.EQUAL_POWER, FadeCurve.S
@@ -946,3 +948,61 @@ def test_a_saved_segment_drops_the_curves_a_documented_limitation(
     )
     assert segment.clips[0].fade_in_ms == 50
     assert "curve" not in segment.clips[0].model_dump_json()
+
+
+def test_list_clips_rows_name_curves_only_when_non_linear(minimal_project: Path) -> None:
+    from podcast_mcp.edits.timeline_ops import list_clips
+
+    ws = _seed(
+        minimal_project,
+        _clip("a", fade_in_curve=S, fade_out_curve=EQUAL_POWER),
+        _clip("b", 1.0, 2.0, 1.0, fade_out_curve=S),
+        _clip("c", 2.0, 3.0, 2.0),
+    )
+    rows = list_clips(ws.project, secret=b"s")["tracks"]["host"]
+    assert [(r.get("fade_in_curve"), r.get("fade_out_curve")) for r in rows] == [
+        ("s", "equal_power"),
+        (None, "s"),
+        (None, None),
+    ]
+
+
+def test_mcp_set_fade_tools_take_curves_and_keep_them_when_omitted(minimal_project: Path) -> None:
+    from podcast_mcp.mcp.tools.timeline import (
+        list_clips_tool,
+        set_clip_fade_tool,
+        set_clips_fade_tool,
+    )
+
+    _seed(minimal_project)
+    path = str(minimal_project)
+    out = json.loads(set_clip_fade_tool(path, "a", 100, 100, fade_in_curve="equal_power"))
+    assert out["operation"] == "set_clip_fade"
+    assert _saved(minimal_project)[0].fade_in_curve is EQUAL_POWER
+    set_clip_fade_tool(path, "a", 120, 100)
+    assert _saved(minimal_project)[0].fade_in_curve is EQUAL_POWER
+    set_clip_fade_tool(path, "a", 120, 100, fade_in_curve="linear", fade_out_curve="s")
+    assert _curves(_saved(minimal_project)[0]) == (LINEAR, S)
+    many = json.loads(
+        set_clips_fade_tool(path, ["a", "b"], fade_in_delta_ms=10, fade_out_curve="equal_power")
+    )
+    assert many["operation"] == "set_clips_fade"
+    a, b = _saved(minimal_project)
+    assert _curves(a) == (LINEAR, EQUAL_POWER)
+    assert _curves(b) == (LINEAR, EQUAL_POWER)
+    rows = json.loads(list_clips_tool(path))["tracks"]["host"]
+    assert [row.get("fade_out_curve") for row in rows] == ["equal_power", "equal_power"]
+
+
+def test_mcp_set_fade_tools_refuse_an_unknown_curve_and_change_nothing(
+    minimal_project: Path,
+) -> None:
+    from podcast_mcp.mcp.tools.timeline import set_clip_fade_tool, set_clips_fade_tool
+
+    _seed(minimal_project)
+    before = minimal_project.read_bytes()
+    with pytest.raises((ValidationError, CodedValueError)):
+        set_clip_fade_tool(str(minimal_project), "a", 10, 10, fade_in_curve="wobble")
+    with pytest.raises((ValidationError, CodedValueError)):
+        set_clips_fade_tool(str(minimal_project), ["a", "b"], fade_out_curve="wobble")
+    assert minimal_project.read_bytes() == before

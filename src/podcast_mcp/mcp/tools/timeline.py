@@ -7,7 +7,7 @@ from mcp.server import MCPServer
 from podcast_mcp.mcp.args import JsonObject, JsonObjectList
 from podcast_mcp.mcp.serialize import to_json
 from podcast_mcp.mcp.tools.agent_notify import notify_after_mutation
-from podcast_mcp.models import EditMode
+from podcast_mcp.models import Clip, EditMode, FadeCurve
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.document import (
     AnalysisService,
@@ -269,16 +269,51 @@ def crossfade_joins_tool(
     )
 
 
+FadeCurveName = Literal["linear", "equal_power", "s"]
+
+
+def _curve(value: FadeCurveName | None) -> FadeCurve | None:
+    if value is None:
+        return None
+    try:
+        return FadeCurve(value)
+    except ValueError:
+        raise CodedValueError(
+            f"unknown fade curve {value!r}; use linear, equal_power or s", code="invalid_fade_curve"
+        ) from None
+
+
+def _curve_args(
+    fade_in_curve: FadeCurveName | None, fade_out_curve: FadeCurveName | None
+) -> dict[str, str]:
+    curves = (("fade_in_curve", _curve(fade_in_curve)), ("fade_out_curve", _curve(fade_out_curve)))
+    return {key: curve.value for key, curve in curves if curve is not None}
+
+
+def _fade_baseline(clip: Clip) -> dict[str, Any]:
+    return {
+        "fade_in_ms": clip.fade_in_ms,
+        "fade_out_ms": clip.fade_out_ms,
+        "fade_in_curve": clip.fade_in_curve.value,
+        "fade_out_curve": clip.fade_out_curve.value,
+    }
+
+
 def set_clip_fade_tool(
     project_path: str,
     clip_id: str,
     fade_in_ms: int,
     fade_out_ms: int,
+    fade_in_curve: FadeCurveName | None = None,
+    fade_out_curve: FadeCurveName | None = None,
 ) -> str:
-    """Set the fade-in and fade-out duration of a single clip.
+    """Set the fade-in and fade-out duration of a single clip, and optionally their shapes.
 
     Dialogue fades cap at ``render.join_fade_max_ms``. Each fade fits in the clip, and
-    fade-out is limited to what fade-in leaves.
+    fade-out is limited to what fade-in leaves. A curve is ``linear`` (the default),
+    ``equal_power`` or ``s``; left out, the clip keeps its current curve. A curve applies to a
+    fade that is not at a cut or blended join. ``list_clips_tool`` names a curve only while it
+    is not linear.
     """
     ws = ProjectWorkspace.open(project_path)
     clip = next((c for c in ws.project.clips if c.id == clip_id), None)
@@ -292,7 +327,8 @@ def set_clip_fade_tool(
                 "clip_id": clip_id,
                 "fade_in_ms": fade_in_ms,
                 "fade_out_ms": fade_out_ms,
-                "expected": {"fade_in_ms": clip.fade_in_ms, "fade_out_ms": clip.fade_out_ms},
+                **_curve_args(fade_in_curve, fade_out_curve),
+                "expected": _fade_baseline(clip),
             },
         )
     )
@@ -303,11 +339,14 @@ def set_clips_fade_tool(
     clip_ids: list[str],
     fade_in_delta_ms: int = 0,
     fade_out_delta_ms: int = 0,
+    fade_in_curve: FadeCurveName | None = None,
+    fade_out_curve: FadeCurveName | None = None,
 ) -> str:
     """Add a delta (ms, negative shortens) to the fade-in and fade-out of several clips at once.
 
-    One undo step covers every clip. Each clip is clamped like ``set_clip_fade_tool``. A clip
-    changed since it was read returns ``clip_fade_changed`` and no clip changes.
+    One undo step covers every clip. Each clip is clamped like ``set_clip_fade_tool``. A curve
+    (``linear``, ``equal_power`` or ``s``) is set on every named clip; left out, each clip keeps
+    its own. A clip changed since it was read returns ``clip_fade_changed`` and no clip changes.
     """
     ws = ProjectWorkspace.open(project_path)
     by_id = {c.id: c for c in ws.project.clips}
@@ -324,10 +363,8 @@ def set_clips_fade_tool(
                         "clip_id": cid,
                         "fade_in_ms": max(0, by_id[cid].fade_in_ms + fade_in_delta_ms),
                         "fade_out_ms": max(0, by_id[cid].fade_out_ms + fade_out_delta_ms),
-                        "expected": {
-                            "fade_in_ms": by_id[cid].fade_in_ms,
-                            "fade_out_ms": by_id[cid].fade_out_ms,
-                        },
+                        **_curve_args(fade_in_curve, fade_out_curve),
+                        "expected": _fade_baseline(by_id[cid]),
                     }
                     for cid in clip_ids
                 ]
