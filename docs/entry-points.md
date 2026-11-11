@@ -73,7 +73,7 @@ Live browsable matrix: [docs.sharecut.studio/#/capabilities](https://docs.sharec
 |------|-------------|----------|-------|
 | Transport / tools / edit / history | ShareCut Studio chrome | See `make cheatsheet` | session / edit / history MCP |
 | Presence / follow | Avatar stack, ghosts, Following pill | Escape unfollows | `get_session_presence_tool` / `guest_get_session_presence` |
-| Bounce / export | Deliver stage | Mod+E (a range selected: opens Bounce on it) | `podcast-bounce-export` / `podcast-master-export` |
+| Bounce / export | Deliver stage | Mod+E (a range selected: exports it in place from Edit; otherwise opens Deliver) | `podcast-bounce-export` / `podcast-master-export` |
 | Pipeline / transcript / NL / clips | Pipeline tab / inspectors | F2: inline correction on a focused Navigate word; native Enter seeks | matching skills + MCP |
 | Guest review | Share SPA | — | guest remote MCP allowlist |
 
