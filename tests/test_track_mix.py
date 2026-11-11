@@ -314,6 +314,26 @@ def test_a_stem_behind_its_edits_stales_the_premix(minimal_project: Path) -> Non
         assert premix_is_stale(ws.project, defaults=defaults) is False
 
 
+def test_the_status_carries_the_premix_answer_a_guest_reads(minimal_project: Path) -> None:
+    ws = _two_tracks(minimal_project)
+    _fresh_stems(ws.project)
+    eng = _mastering_engine()
+    defaults = load_defaults()
+
+    def premix_status() -> dict:
+        return render_status_report(ws.project, defaults=defaults)["premix"]
+
+    assert premix_status()["is_stale"] is False
+    with patch.object(steps, "ffmpeg", return_value=eng):
+        steps.mix_with_music(ws.project, defaults)
+        assert premix_status()["is_stale"] is False
+        ws.project.track_by_id("guest").gain_db = 4.0
+        status = premix_status()
+        assert status["is_stale"] is True
+        assert status["is_stale"] == premix_is_stale(ws.project, defaults=defaults)
+        assert render_status_report(ws.project, defaults=defaults)["needs_rerender"] is True
+
+
 @pytest.mark.parametrize("role", [TrackRole.MUSIC, TrackRole.INTRO, TrackRole.OUTRO, TrackRole.SFX])
 def test_a_non_dialogue_stem_behind_its_effects_stales_the_premix(
     minimal_project: Path, role: TrackRole

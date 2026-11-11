@@ -53,6 +53,10 @@ export type StaleRenderBreakdown = {
   detail: string | null;
 };
 
+export function guestMixBehind(project: ProjectView): boolean {
+  return project.render_status.premix.is_stale === true;
+}
+
 /** The status pill and chip text for a stale breakdown: no mix, or an old one. */
 export function staleMixLabel(
   breakdown: Pick<StaleRenderBreakdown, "premixMissing">,

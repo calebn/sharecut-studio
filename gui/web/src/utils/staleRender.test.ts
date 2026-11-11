@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { minimalProject, sampleTrack } from "../test/fixtures";
 import {
+  guestMixBehind,
   mixRebuildKey,
   reasonChipLabel,
   staleMixLabel,
@@ -477,5 +478,35 @@ describe("mixRebuildKey", () => {
     expect(first).not.toBeNull();
     expect(same).toBe(first);
     expect(next).not.toBe(first);
+  });
+});
+
+describe("guestMixBehind", () => {
+  const withPremix = (premix: {
+    exists: boolean;
+    is_stale?: boolean;
+    stale_vs_stems?: boolean;
+  }) =>
+    minimalProject({
+      render_status: {
+        needs_rerender: true,
+        reconciliation: { stale: true },
+        premix,
+      },
+    });
+
+  it("follows only the server's premix answer", () => {
+    expect(guestMixBehind(withPremix({ exists: true, is_stale: true }))).toBe(
+      true,
+    );
+    expect(guestMixBehind(withPremix({ exists: true, is_stale: false }))).toBe(
+      false,
+    );
+  });
+
+  it("reads an older server's payload without the answer as fresh", () => {
+    expect(
+      guestMixBehind(withPremix({ exists: true, stale_vs_stems: true })),
+    ).toBe(false);
   });
 });
