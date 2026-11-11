@@ -215,7 +215,7 @@ Word actions retain the exact source identity `(track_id, source_id, word_index)
 
 The one-word Inspector sheet has no text form: **Fix text** is the inline field in the Script (Enter or F2 on the selection). The sheet shows the word's Text and its confidence as a five-dot meter, then the timing editor (see Wordbar source timing), then Suppress/Unsuppress and, for a locked word, the lock note with Return to automatic. Ignore and Restore are the Action bar's More row (Mute), not a sheet button, and there is no seek or play footer. Word-action errors appear with those controls. The word sheet is a list of Inspector sheet sections (`stage/edit/wordSections.tsx`), so the desktop card and the phone sheet show the same fields.
 
-In **Select** mode, Shift-click extends from the original word on the same track, including backward selections. Shift-click on another track selects only that word and starts a new range there. A mouse drag stays on its starting track, ignores words on other tracks, and resumes extending when the pointer returns.
+Shift-click extends from the original word on the same track, including backward selections. Shift-click on another track selects only that word and starts a new range there. A mouse drag stays on its starting track, ignores words on other tracks, and resumes extending when the pointer returns.
 
 - **Keyboard word actions:** Enter on a focused, unselected word selects it and
 seeks; Enter or F2 on a selected word opens Fix text for a hydrated host

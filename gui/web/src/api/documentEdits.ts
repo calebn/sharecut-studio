@@ -478,7 +478,7 @@ export async function setEffectBypass(
  * Send a transcript correction. On a 409 (the words changed since the caller
  * captured `expected_text`), load the host's current transcript words (the
  * `detail` phase) into the store before rethrowing, as `setEnvelope` does for
- * envelopes. The Correct inspector then re-captures its baseline from them,
+ * envelopes. The word Inspector then re-captures its baseline from them,
  * so Apply again retries against the current text (#746).
  */
 async function submitTranscriptCorrection(
