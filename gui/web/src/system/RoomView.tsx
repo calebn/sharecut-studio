@@ -85,6 +85,8 @@ export type RoomViewProps = {
    */
   declined?: { onJoin: () => void };
   embedded?: boolean;
+  /** The stage frame shows the alerts in its own slot, so the room draws none. */
+  alertsInFrame?: boolean;
   recordDisabledReason?: string;
   takes?: ReactNode;
   /** Why notes cannot be sent now (no take is open); the composer is disabled with this reason. */
@@ -180,6 +182,7 @@ export function RoomView({
   onRemovePerson,
   declined,
   embedded = false,
+  alertsInFrame = false,
   recordDisabledReason,
   takes,
   notesDisabledReason,
@@ -327,9 +330,11 @@ export function RoomView({
       )}
       <div className="sys-room-view-body" inert={declined ? true : undefined}>
         <Stage embedded={embedded} title={title}>
-          <div className="sys-room-view-alert">
-            <RoomAlert alerts={model.alerts} />
-          </div>
+          {alertsInFrame ? null : (
+            <div className="sys-room-view-alert">
+              <RoomAlert alerts={model.alerts} />
+            </div>
+          )}
           <div
             className="sys-room-view-grid"
             aria-busy={loading ? true : undefined}

@@ -4,7 +4,7 @@ import { askConfirm } from "../feedback/ask";
 import { canManageProjects } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
 import { percentOf } from "../system/progress";
-import { StatusRow } from "../system/StatusRow";
+import { StatusRow, type StatusRowProps } from "../system/StatusRow";
 import { SystemIcon } from "../system/SystemIcon";
 import { Button, Menu, MenuItem } from "../ui";
 import { useDisabledReasonNote } from "../ui/disabledReason";
@@ -16,8 +16,9 @@ import {
   rowInstalled,
 } from "./capability";
 import { progressText } from "./format";
+import { bytesDetail, needRowProps, progressOf } from "./needRowProps";
 import type { DownloadOutcome, ModelFailure, ModelState } from "./types";
-import { useModels } from "./useModels";
+import { useModelNeed } from "./useModelNeed";
 
 export type ModelNeedPlacement =
   /** Inside a Job row or a Check row: "Needs the transcription model · 1.6 GB" and Get. */
@@ -42,110 +43,8 @@ export type ModelNeedRowViewProps = {
   children?: ReactNode;
 };
 
-function progressOf(state: ModelState): number | undefined {
-  return state.kind === "downloading" && state.total
-    ? state.bytes / state.total
-    : undefined;
-}
-
-function bytesDetail(state: ModelState, size: string): string {
-  return state.kind === "downloading" ? progressText(state) : size;
-}
-
-function failureOf(state: ModelState): ModelFailure | null {
-  return state.kind === "failed" ? state.failure : null;
-}
-
-function NeedRow({
-  model,
-  state,
-  blockedReason,
-  onGet,
-  onCancel,
-  onManage,
-  onCheck,
-}: Omit<ModelNeedRowViewProps, "placement" | "children">) {
-  const { what, name } = capabilityOf(model.id, model.label);
-  const size = plainSize(model.size);
-  const working = state.kind === "downloading" || state.kind === "queued";
-  const failure = failureOf(state);
-  const manage = onManage
-    ? { label: "Manage", name: "Manage models", onAction: onManage }
-    : undefined;
-  if (state.kind === "checking" || state.kind === "unavailable") {
-    return (
-      <StatusRow
-        state={state.kind === "checking" ? "running" : "failed"}
-        title={
-          state.kind === "checking"
-            ? `Checking ${what}`
-            : `Couldn't check ${what}`
-        }
-        action={
-          state.kind === "unavailable" && onCheck
-            ? {
-                label: "Try again",
-                name: `Try again to check ${name} status`,
-                onAction: onCheck,
-              }
-            : undefined
-        }
-        secondaryAction={manage}
-      />
-    );
-  }
-  if (working) {
-    return (
-      <StatusRow
-        state="running"
-        title={`Getting ${what}`}
-        detail={bytesDetail(state, size)}
-        progress={progressOf(state)}
-        barLabel={`Getting ${what}`}
-        action={{
-          label: "Cancel",
-          name: `Cancel ${what} download`,
-          onAction: onCancel,
-        }}
-      />
-    );
-  }
-  if (failure) {
-    return (
-      <StatusRow
-        state="failed"
-        title={`Couldn't get ${what}`}
-        detail={failure.plain}
-        action={{
-          label: "Try again",
-          name: `Try again to get ${what}`,
-          icon: "cloud-download",
-          onAction: onGet,
-          disabledReason: blockedReason,
-        }}
-        secondaryAction={manage}
-      />
-    );
-  }
-  return (
-    <StatusRow
-      state="needs-you"
-      title={
-        state.kind === "update_needed"
-          ? `Needs an update for ${what}`
-          : `Needs ${what}`
-      }
-      detail={size}
-      action={{
-        label: state.kind === "update_needed" ? "Update" : "Get",
-        name: `${state.kind === "update_needed" ? "Update" : "Get"} ${what}`,
-        icon: "cloud-download",
-        onAction: onGet,
-        disabledReason: blockedReason,
-      }}
-      secondaryAction={manage}
-    />
-  );
+function NeedRow(props: Omit<ModelNeedRowViewProps, "placement" | "children">) {
+  return <StatusRow {...needRowProps(props)} />;
 }
 
 const META: Record<ModelState["kind"], string> = {
@@ -325,37 +224,6 @@ export function ModelNeedRowView(props: ModelNeedRowViewProps) {
   );
 }
 
-async function removeWithConfirm(
-  model: NeedTarget,
-  remove: ReturnType<typeof useModels>["remove"],
-): Promise<void> {
-  const { name } = capabilityOf(model.id, model.label);
-  const size = plainSize(model.size);
-  const sure = await askConfirm({
-    title: `Remove ${name}?`,
-    message: `This frees about ${size}. Get downloads it again.`,
-    keepLabel: "Keep it",
-    actionLabel: "Remove",
-    danger: false,
-  });
-  if (!sure) {
-    return;
-  }
-  const outcome = await remove(model.id, model.variant);
-  const { announceStatus } = useDawStore.getState();
-  if (outcome.kind === "ok") {
-    announceStatus(`${name} removed.`);
-  } else if (outcome.kind === "busy") {
-    announceStatus(`${name} stays: a download or job is running.`, {
-      tone: "error",
-    });
-  } else {
-    announceStatus(`Couldn't remove ${name}. ${outcome.plain}`, {
-      tone: "error",
-    });
-  }
-}
-
 export type ModelNeedRowProps = {
   model: NeedTarget;
   placement?: ModelNeedPlacement;
@@ -372,52 +240,12 @@ export function ModelNeedRow({
   onManage,
   children,
 }: ModelNeedRowProps) {
-  const { models, lookup, observe, busy, download, cancel, remove } =
-    useModels();
-  const { id, variant } = model;
-  const { row, observation } = lookup(model);
-  const loaded = models !== null;
-  useEffect(() => {
-    if (placement === "need" && loaded && observation.generation === 0) {
-      void observe({ id, variant });
-    }
-  }, [id, variant, placement, loaded, observation.generation, observe]);
-  const mayManage = useDawStore((s) => canManageProjects(s.projectPath));
-  const manage =
-    placement === "need" && mayManage
-      ? (onManage ?? (() => runPointerCommand("models.open")))
-      : undefined;
-  const sizeAsked = model.id === "whisper" && model.variant;
-  const live = row;
-  const activity: ModelActivity = modelActivity(live, busy);
-  if (placement === "need" && rowInstalled(row, model)) {
+  const view = useModelNeed(model, placement, { onGet, onManage });
+  if (!view) {
     return null;
   }
-  const state: ModelState = live?.state ?? {
-    kind: observation.kind === "checking" ? "checking" : "unavailable",
-  };
   return (
-    <ModelNeedRowView
-      placement={placement}
-      model={model}
-      state={state}
-      blockedReason={activity.blockedReason}
-      onGet={() => {
-        const outcome = download(
-          [model.id],
-          sizeAsked ? { whisperModel: model.variant ?? undefined } : undefined,
-        );
-        onGet?.(outcome);
-      }}
-      onCancel={() => void cancel()}
-      onCheck={() => void observe(model)}
-      onManage={manage}
-      onRemove={
-        placement === "list"
-          ? () => void removeWithConfirm(model, remove)
-          : undefined
-      }
-    >
+    <ModelNeedRowView placement={placement} {...view}>
       {children}
     </ModelNeedRowView>
   );
