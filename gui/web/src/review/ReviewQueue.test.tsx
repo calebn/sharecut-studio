@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useState } from "react";
 import { describe, expect, it, vi } from "vitest";
@@ -622,14 +622,17 @@ describe("ReviewQueue", () => {
           ids,
           keep = false,
           pending = 0,
+          expose,
         }: {
           ids: string[];
           keep?: boolean;
           pending?: number;
+          expose?: (remove: (id: string) => void) => void;
         }) {
           const [rows, setRows] = useState(() =>
             ids.map((id, i) => cutAt(id, 60 * (i + 1))),
           );
+          expose?.((id) => setRows((now) => now.filter((r) => r.id !== id)));
           const leave = async (row: { id: string }) => {
             if (!keep) setRows((now) => now.filter((r) => r.id !== row.id));
           };
@@ -707,6 +710,25 @@ describe("ReviewQueue", () => {
           const first = drops()[0]!;
           await user.click(first);
           expect(document.activeElement).toBe(first);
+        });
+
+        it("does not take focus later when the guest clicked away after the row was kept", async () => {
+          const user = userEvent.setup();
+          let remove = (_id: string) => {};
+          render(
+            <Host
+              ids={["a", "b"]}
+              keep
+              expose={(fn) => {
+                remove = fn;
+              }}
+            />,
+          );
+          await user.click(drops()[0]!);
+          await user.click(document.body);
+          expect(document.activeElement).toBe(document.body);
+          act(() => remove("a"));
+          expect(document.activeElement).toBe(document.body);
         });
       });
 

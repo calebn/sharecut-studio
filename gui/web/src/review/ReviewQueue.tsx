@@ -335,11 +335,16 @@ function AttentionGroup({
       if (!group.contains(event.relatedTarget as Node | null))
         onFocusChange(false);
     };
+    const clickedAway = (event: PointerEvent) => {
+      if (!group.contains(event.target as Node | null)) leaving.current = null;
+    };
     group.addEventListener("focusin", enter);
     group.addEventListener("focusout", leave);
+    document.addEventListener("pointerdown", clickedAway, true);
     return () => {
       group.removeEventListener("focusin", enter);
       group.removeEventListener("focusout", leave);
+      document.removeEventListener("pointerdown", clickedAway, true);
     };
   }, [onFocusChange]);
   const vanished = useRef(onVanished);
