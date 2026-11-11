@@ -645,46 +645,26 @@ def test_guest_mcp_range_cut_follows_the_share(
 @pytest.fixture
 def guest_read_routes(minimal_project, sample_wav, published_share):
     """Guest GET routes that read for one document command, keyed by share capabilities."""
-    from unittest.mock import patch
-
     from podcast_mcp.engines.waveform_pyramid import wait_pyramid_jobs
     from podcast_mcp.services.document import EpisodeService
 
     ws = ProjectWorkspace.open(minimal_project)
     EpisodeService(ws).add_track("host", str(sample_wav), speaker="Host", role="music")
     wait_pyramid_jobs()
-    ws.project.edit_decisions = [
-        EditDecision(id="pending", track_id="host", start=2, end=8, applied=False)
-    ]
-    save_project(ws.project, minimal_project)
     client = TestClient(create_app())
 
-    def get(route: str, caps: list[str]) -> int:
+    def get(caps: list[str]) -> int:
         _, _, share = published_share(capabilities=caps)
         base = f"/api/review/{share['token']}/daw"
-        with (
-            patch(
-                "podcast_mcp.edits.inaudible_cuts._snap_boundary_to_waveform",
-                side_effect=[1.975, 8.035],
-            ),
-            patch(
-                "podcast_mcp.services.document.analysis.AnalysisService.preview_inaudible_cut",
-                return_value={"start": 0.1, "end": 0.2, "mode": "x"},
-            ),
-        ):
-            if route == "snap":
-                response = client.get(
-                    f"{base}/waveform-snap",
-                    params={"track_id": "host", "start": 0.0, "end": 0.4},
-                )
-            else:
-                response = client.get(f"{base}/pending-edits/pending/cut-suggestion")
+        response = client.get(
+            f"{base}/waveform-snap",
+            params={"track_id": "host", "start": 0.0, "end": 0.4},
+        )
         return response.status_code
 
     return get
 
 
-@pytest.mark.parametrize("route", ["snap", "cut-suggestion"])
 @pytest.mark.parametrize(
     ("caps", "status"),
     [
@@ -706,8 +686,8 @@ def guest_read_routes(minimal_project, sample_wav, published_share):
         "editor-without-view",
     ],
 )
-def test_guest_authoring_reads_follow_the_gate(guest_read_routes, route, caps, status):
-    assert guest_read_routes(route, caps) == status
+def test_guest_authoring_reads_follow_the_gate(guest_read_routes, caps, status):
+    assert guest_read_routes(caps) == status
 
 
 def gap_project(minimal_project, monkeypatch) -> DocumentSyncService:

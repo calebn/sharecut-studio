@@ -160,7 +160,6 @@ test_pause_prior_join_contract.py
 test_pause_recording_identity_contract.py
 test_pause_review_adversarial_contract.py
 test_pause_trim_geometry.py
-test_pending_cut_suggestion.py
 test_pending_edit_guards.py
 test_pending_preview.py
 test_pipeline_run_result.py

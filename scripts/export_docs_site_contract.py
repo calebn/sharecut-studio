@@ -74,10 +74,6 @@ _ROUTE_NOTES: dict[tuple[str, str], tuple[str, str]] = {
         "view",
         "Binary min/max/RMS pyramid tiles",
     ),
-    ("GET", "/api/review/{token}/daw/pending-edits/{edit_id}/cut-suggestion"): (
-        "Commenter or Editor",
-        "Read-only full-source pending cut suggestion; no-store; read rate class",
-    ),
     ("GET", "/api/review/{token}/daw/waveform-snap"): (
         "Commenter or Editor",
         "Windowed snap ticks; a Viewer gets the wash only",
@@ -301,9 +297,6 @@ _ROUTE_AGENT: dict[tuple[str, str], str] = {
     ),
     ("GET", "/api/review/{token}/daw/waveform/tiles/{key}"): (
         "http-only: ShareCut Studio waveform; agents use guest_audition_context"
-    ),
-    ("GET", "/api/review/{token}/daw/pending-edits/{edit_id}/cut-suggestion"): (
-        "http-only: ShareCut Studio pending-cut comparison; not a named MCP tool"
     ),
     ("GET", "/api/review/{token}/daw/waveform-snap"): (
         "http-only: ShareCut Studio snap ticks; not a named MCP tool"

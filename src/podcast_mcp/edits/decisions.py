@@ -17,7 +17,6 @@ from podcast_mcp.edits.cut_speech import (
 from podcast_mcp.edits.edit_impact import ImpactKind, record_impact
 from podcast_mcp.edits.inaudible_cuts import (
     CutWordIndex,
-    OptimizedCutRange,
     optimize_source_cut_range,
 )
 from podcast_mcp.edits.source_removals import (
@@ -195,48 +194,6 @@ def require_pending_edit_baseline(
             "This pending edit changed since you reviewed it. Reload its current bounds "
             "before applying timing."
         )
-
-
-@dataclass(frozen=True)
-class PendingCutSuggestion:
-    edit_id: str
-    track_id: str
-    original_start: float
-    original_end: float
-    optimized: OptimizedCutRange
-
-
-def preview_pending_cut_range(
-    project: EpisodeProject, edit_id: str, *, defaults: EffectiveConfig
-) -> PendingCutSuggestion:
-    """Suggest source bounds for one complete pending cut without changing it."""
-    edit = next((e for e in project.edit_decisions if e.id == edit_id), None)
-    if edit is None:
-        raise CodedKeyError(f"edit decision not found: {edit_id}", code="edit_not_found")
-    if edit.applied:
-        raise CodedValueError(
-            "cut suggestions require a pending edit",
-            code="cut_suggestion_unavailable",
-        )
-    if edit.type not in (EditDecisionType.REMOVE, EditDecisionType.MUTE):
-        raise CodedValueError(
-            "cut suggestions require a remove or mute edit. Pick a remove or mute edit.",
-            code="cut_suggestion_unavailable",
-        )
-    if edit.timebase != "source":
-        raise CodedValueError(
-            "cut suggestions require source-time bounds. Pick an edit that has source-time bounds.",
-            code="cut_suggestion_unavailable",
-        )
-    return PendingCutSuggestion(
-        edit_id=edit.id,
-        track_id=edit.track_id,
-        original_start=edit.start,
-        original_end=edit.end,
-        optimized=optimize_source_cut_range(
-            project, edit.track_id, edit.start, edit.end, defaults=defaults
-        ),
-    )
 
 
 def update_pending_edit(

@@ -259,9 +259,6 @@ PROBES: dict[tuple[str, str], Probe] = {
         {"params": {"ref": "track:t", "level": 0, "start": 0}},
         no_store=True,
     ),
-    ("GET", "/api/review/{token}/daw/pending-edits/{edit_id}/cut-suggestion"): Probe(
-        _review("share_pending_cut_suggestion")
-    ),
     ("GET", "/api/review/{token}/daw/waveform-snap"): Probe(
         _review("share_daw_waveform_snap"), {"params": {"track_id": "t", "start": 0, "end": 1}}
     ),
