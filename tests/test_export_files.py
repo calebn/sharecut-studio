@@ -184,8 +184,8 @@ def test_a_host_listing_adds_the_bounces_and_skips_what_is_hidden(ws, folder) ->
     listed = ExportFilesService(ws, bounces=True).list()
 
     assert [(f.id, f.label, f.bytes) for f in listed if f.kind == "bounce"] == [
-        ("bounces/range.mp3", "Range export", len(MP3)),
-        ("bounces/range.wav", "Range export", 64),
+        ("bounces/range.mp3", "Unmastered export", len(MP3)),
+        ("bounces/range.wav", "Unmastered export", 64),
     ]
     assert "bounces/range.wav" not in [f.id for f in ExportFilesService(ws).list()]
 
@@ -234,7 +234,7 @@ def test_the_host_lists_and_downloads_a_bounce_with_a_ticket(ws, folder, remote)
     ticketed = remote.get(url, params={"path": str(ws.path), "ticket": row["ticket"]})
     bare = remote.get(url, params={"path": str(ws.path)})
 
-    assert (row["kind"], row["label"], row["name"]) == ("bounce", "Range export", "range.wav")
+    assert (row["kind"], row["label"], row["name"]) == ("bounce", "Unmastered export", "range.wav")
     assert (ticketed.status_code, ticketed.content) == (200, WAV[:64])
     assert ticketed.headers["content-disposition"].startswith("attachment")
     assert ticketed.headers["content-type"].startswith("audio/")

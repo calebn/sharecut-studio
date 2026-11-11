@@ -18,21 +18,23 @@ export type ExportedFile = {
 
 export type FileAccess = "download" | "reveal";
 
-const KIND_TITLES = {
+const KIND_TITLES: Record<ExportedFileKind, string> = {
   audio: "Audio",
   transcript: "Transcript",
   chapters: "Chapters",
   feed: "Feed",
-} satisfies Partial<Record<ExportedFileKind, string>>;
+  bounce: "Exports of a selection",
+};
 
-type GroupedKind = keyof typeof KIND_TITLES;
-
-/**
- * Files from the same kind sit together; inside a kind the order the server sent is kept.
- * Bounces are range exports the Edit toast reveals, so they have no group here.
- */
+/** Files from the same kind sit together; inside a kind the order the server sent is kept. */
 export function groupByKind(files: readonly ExportedFile[]) {
-  const order: GroupedKind[] = ["audio", "transcript", "chapters", "feed"];
+  const order: ExportedFileKind[] = [
+    "audio",
+    "transcript",
+    "chapters",
+    "feed",
+    "bounce",
+  ];
   return order
     .map((kind) => ({
       kind,
