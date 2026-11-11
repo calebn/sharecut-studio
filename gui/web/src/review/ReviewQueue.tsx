@@ -1,11 +1,4 @@
-import {
-  type ReactNode,
-  useCallback,
-  useEffect,
-  useId,
-  useRef,
-  useState,
-} from "react";
+import { type ReactNode, useEffect, useId, useRef, useState } from "react";
 import { useNowSec } from "../hooks/useNowSec";
 import { ModelNeedRow } from "../models";
 import {
@@ -302,24 +295,38 @@ function SuggestionRow({
   );
 }
 
+/** Focus fell back to the page or a container once its element left, rather than moved on. */
+const focusFellBack = (active: Element | null): boolean =>
+  !active ||
+  active === document.body ||
+  (active instanceof HTMLElement &&
+    active.tabIndex < 0 &&
+    !active.matches("input, select, textarea, [contenteditable]"));
+
 function AttentionGroup({
   attention,
   waivedIds,
   onWaived,
   onFocusChange,
+  onVanished,
 }: {
   attention: ReviewAttention;
   waivedIds: ReadonlySet<string>;
   onWaived: (ids: readonly string[]) => void;
   onFocusChange: (inside: boolean) => void;
+  onVanished: () => void;
 }) {
   const { rows, pending, refineWaiverProject } = attention;
   const reasonId = useId();
   const groupRef = useRef<HTMLDivElement>(null);
+  const leaving = useRef<{ id: string; index: number } | null>(null);
   useEffect(() => {
     const group = groupRef.current;
     if (!group) return;
-    const enter = () => onFocusChange(true);
+    const enter = () => {
+      leaving.current = null;
+      onFocusChange(true);
+    };
     const leave = (event: FocusEvent) => {
       if (!group.contains(event.relatedTarget as Node | null))
         onFocusChange(false);
@@ -331,13 +338,19 @@ function AttentionGroup({
       group.removeEventListener("focusout", leave);
     };
   }, [onFocusChange]);
-  const leaving = useRef<{ id: string; index: number } | null>(null);
+  const vanished = useRef(onVanished);
+  vanished.current = onVanished;
+  useEffect(
+    () => () => {
+      if (leaving.current) vanished.current();
+    },
+    [],
+  );
   useEffect(() => {
     const mark = leaving.current;
     if (!mark || rows.some((row) => row.id === mark.id)) return;
     leaving.current = null;
-    const active = document.activeElement;
-    if (active && active !== document.body) return;
+    if (!focusFellBack(document.activeElement)) return;
     const group = groupRef.current;
     if (!group) return;
     const next = rows[Math.min(mark.index, rows.length - 1)];
@@ -348,24 +361,15 @@ function AttentionGroup({
       : null;
     (target ?? group).focus();
   }, [rows]);
-  const leaveAfter = useCallback(
+  const leaveAfter =
     (act: (row: AttentionRow) => void | Promise<void>) =>
-      async (row: AttentionRow) => {
-        const mark = {
-          id: row.id,
-          index: rows.findIndex((r) => r.id === row.id),
-        };
-        leaving.current = mark;
-        try {
-          await act(row);
-        } finally {
-          window.setTimeout(() => {
-            if (leaving.current === mark) leaving.current = null;
-          }, 0);
-        }
-      },
-    [rows],
-  );
+    (row: AttentionRow) => {
+      leaving.current = {
+        id: row.id,
+        index: rows.findIndex((r) => r.id === row.id),
+      };
+      return act(row);
+    };
   const held = dismissHeld(attention);
   const failure = attention.unreadable
     ? UNREADABLE_NOTE
@@ -740,6 +744,10 @@ export function ReviewQueue({
           onWaived={(ids) => setWaived(new Set(ids))}
           onFocusChange={(inside) => {
             attentionFocused.current = inside;
+          }}
+          onVanished={() => {
+            if (focusFellBack(document.activeElement))
+              progressRef.current?.focus();
           }}
         />
       ) : null}
