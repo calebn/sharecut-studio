@@ -38,6 +38,15 @@ describe("clipGainDips", () => {
     expect(dip?.points.at(-1)?.gain).toBeCloseTo(0.5);
   });
 
+  it("draws a boosted or lowered clip exactly as an unchanged one", () => {
+    const plain = clipGainDips([clip({ fade_in_ms: 500 })], unity);
+    for (const gain_db of [12, -20])
+      expect(clipGainDips([clip({ fade_in_ms: 500, gain_db })], unity)).toEqual(
+        plain,
+      );
+    expect(clipGainDips([clip({ gain_db: 12 })], unity)).toEqual([]);
+  });
+
   it("moves with its clip", () => {
     const [dip] = clipGainDips(
       [clip({ timeline_start: 4, timeline_end: 14, fade_in_ms: 500 })],

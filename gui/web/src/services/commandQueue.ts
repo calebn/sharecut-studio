@@ -386,7 +386,11 @@ async function submitQueuedDocumentCommandWithinOwnership(
     if (active && isCurrentDocumentScope(scope)) {
       finishDocumentDraft(commandId);
       refreshDocumentDisplay();
-      if (error instanceof ApiError && error.code === "clip_fade_changed") {
+      if (
+        error instanceof ApiError &&
+        (error.code === "clip_fade_changed" ||
+          error.code === "clip_gain_changed")
+      ) {
         await refreshDocumentProject(projectPath).catch(() => undefined);
       }
     }

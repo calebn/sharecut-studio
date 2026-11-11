@@ -5,6 +5,7 @@ import {
 } from "../edit/joinRender";
 import { DocumentCommand } from "../types/documentCommands.generated";
 import type { ClipRow, ProjectView } from "../types/project";
+import { clipGainDb, dbToLinear } from "../utils/audio";
 import { originTrackId } from "../utils/timebase";
 import {
   type AutomaticMuteSpan,
@@ -74,6 +75,8 @@ export interface ClipEnvelope {
   readonly fadeInSec: number;
   readonly fadeOutSec: number;
   readonly gainCurve: "linear" | "equalPower";
+  /** The clip's own gain as a linear factor; 1 when it has none. */
+  readonly gainLinear: number;
 }
 
 export interface ScheduledSlice {
@@ -409,6 +412,7 @@ export function buildSchedule(
             ? 0
             : Math.max(0, clip.fade_out_ms) / 1000,
       gainCurve: isCrossfadeJoin(clip) ? "equalPower" : "linear",
+      gainLinear: dbToLinear(clipGainDb(clip)),
     };
     const first = chunkIndexForSource(clip.source_start, descriptor.chunk_sec);
     const last = chunkIndexForSource(

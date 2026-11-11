@@ -68,6 +68,7 @@ export function extractClipsInRange(
         source_id: clip.source_id,
         fade_in_ms: clip.fade_in_ms,
         fade_out_ms: clip.fade_out_ms,
+        gain_db: clip.gain_db,
         join_in_mode: clip.join_in_mode,
         mute_regions: muteRegionsOverlapping(
           clip.mute_regions,

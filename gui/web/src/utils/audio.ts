@@ -1,4 +1,4 @@
-import type { TrackView } from "../types/project";
+import type { ClipRow, TrackView } from "../types/project";
 
 export function dbToLinear(db: number): number {
   return 10 ** (db / 20);
@@ -64,6 +64,20 @@ export function trackIsAudible(
 export const FADER_MIN_DB = -60;
 export const FADER_MAX_DB = 12;
 export const FADER_STEP_DB = 0.5;
+
+/** A clip's gain range (dB), matching the server's CLIP_GAIN_MIN_DB / CLIP_GAIN_MAX_DB. */
+export const CLIP_GAIN_MIN_DB = FADER_MIN_DB;
+export const CLIP_GAIN_MAX_DB = FADER_MAX_DB;
+export const CLIP_GAIN_STEP_DB = FADER_STEP_DB;
+
+export function clampClipGainDb(db: number): number {
+  return Math.min(CLIP_GAIN_MAX_DB, Math.max(CLIP_GAIN_MIN_DB, db));
+}
+
+/** A clip's saved gain; the server omits it while 0. */
+export function clipGainDb(clip: Pick<ClipRow, "gain_db">): number {
+  return clip.gain_db ?? 0;
+}
 
 export function clampFaderDb(db: number): number {
   return Math.min(FADER_MAX_DB, Math.max(FADER_MIN_DB, db));

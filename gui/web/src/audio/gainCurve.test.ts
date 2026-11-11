@@ -131,6 +131,31 @@ const muteFixture = JSON.parse(
   ),
 ) as { cases: MuteCase[] };
 
+describe("clip gain", () => {
+  const clip = {
+    timelineStartSec: 0,
+    timelineEndSec: 4,
+    fadeInSec: 1,
+    fadeOutSec: 0,
+  };
+  const flat = [{ time: 0, value: 0.5 }];
+
+  it("scales the whole clip, fades included, by its linear gain", () => {
+    const boosted = { ...clip, gainLinear: 10 ** (12 / 20) };
+    expect(effectiveGainAt(flat, boosted, 2)).toBeCloseTo(0.5 * 10 ** 0.6);
+    expect(effectiveGainAt(flat, boosted, 0.5)).toBeCloseTo(0.25 * 10 ** 0.6);
+    const lowered = { ...clip, gainLinear: 0.5 };
+    expect(effectiveGainAt(flat, lowered, 2)).toBeCloseTo(0.25);
+  });
+
+  it("reads an absent gain as unity and keeps the breakpoints", () => {
+    expect(effectiveGainAt(flat, clip, 2)).toBeCloseTo(0.5);
+    expect(gainBreakpoints(flat, { ...clip, gainLinear: 2 }, 0, 4)).toEqual(
+      gainBreakpoints(flat, clip, 0, 4),
+    );
+  });
+});
+
 describe("mute gain", () => {
   it.each(muteFixture.cases)("$name matches what the render produces", (c) => {
     const spans = muteSpansOf([...c.regions, ...(c.ignored ?? [])]);

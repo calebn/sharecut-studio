@@ -121,6 +121,42 @@ describe("pending document display drafts", () => {
     finishDocumentDraft("fade");
     expect(overlayDocumentDrafts(base)).toBe(base);
   });
+  it("shows a queued clip gain over a snapshot that does not hold it yet", () => {
+    const base = minimalProject({
+      tracks: [sampleTrack({ id: "a" })],
+      clips: {
+        tracks: {
+          a: [
+            clipRow({ id: "c", track_id: "a" }),
+            clipRow({ id: "d", track_id: "a", gain_db: -3 }),
+          ],
+        },
+        clip_count: 2,
+      },
+    });
+    beginDocumentDraft("gain", "SetClipGain", { clip_id: "c", gain_db: 6 });
+    expect(overlayDocumentDrafts(base).clips.tracks.a?.[0]?.gain_db).toBe(6);
+    beginDocumentDraft("bad", "SetClipGain", {
+      clip_id: "c",
+      gain_db: Number.NaN,
+    });
+    finishDocumentDraft("gain");
+    expect(overlayDocumentDrafts(base)).toBe(base);
+    beginDocumentDraft("many", "SetClipsGain", {
+      gains: [
+        { clip_id: "c", gain_db: 2 },
+        { clip_id: "d", gain_db: 0 },
+        { clip_id: "missing", gain_db: 1 },
+      ],
+    });
+    const lane = overlayDocumentDrafts(base).clips.tracks.a;
+    expect(lane?.map((clip) => clip.gain_db ?? 0)).toEqual([2, 0]);
+    beginDocumentDraft("bad-many", "SetClipsGain", {
+      gains: [{ clip_id: "c", gain_db: "x" }],
+    });
+    finishDocumentDraft("many");
+    expect(overlayDocumentDrafts(base)).toBe(base);
+  });
   it("lays a held preview over whatever project it is given, until it is cleared", () => {
     const before = project();
     const owner = Symbol("k");
