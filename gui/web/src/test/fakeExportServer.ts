@@ -149,6 +149,13 @@ export function fakeExportServer() {
     shareRequests: [] as Record<string, unknown>[],
     shareAnswer: null as Answer | null,
     revokeRequests: [] as string[],
+    /** The body of every revoke, in order: `restorable` rides here. */
+    revokeBodies: [] as Record<string, unknown>[],
+    /** The undo window a restorable revoke answers, in ms. */
+    restoreMs: 10_000,
+    /** Tokens and room ids a restore was asked for, in order. */
+    restoreRequests: [] as string[],
+    restoreAnswer: null as Answer | null,
     settle(job: PipelineJobSnapshot) {
       server.settled = job;
       for (const source of FakeEventSource.all) {
@@ -187,16 +194,40 @@ export function fakeExportServer() {
         typeof init?.body === "string" ? JSON.parse(init.body) : null;
       if (url.includes("/api/shares")) {
         const method = init?.method ?? "GET";
-        const revoked = /\/api\/shares\/([^/]+)\/revoke/.exec(url);
-        if (revoked) {
-          const token = decodeURIComponent(revoked[1]);
-          server.revokeRequests.push(token);
+        const target =
+          /\/api\/shares\/(?:(rooms)\/)?([^/]+)\/(revoke|restore)/.exec(url);
+        if (target) {
+          const [, rooms, rawId, action] = target;
+          const id = decodeURIComponent(rawId);
+          const matches = (row: HostShareRow) =>
+            rooms ? row.session_id === id : row.token === id;
+          if (action === "restore") {
+            server.restoreRequests.push(id);
+            if (server.restoreAnswer) return json(server.restoreAnswer, {});
+            server.shares = server.shares.map((row) =>
+              matches(row) ? { ...row, usable: true, revoked: false } : row,
+            );
+            return json(null, rooms ? { session_id: id } : { token: id });
+          }
+          server.revokeRequests.push(id);
+          server.revokeBodies.push(body);
           server.shares = server.shares.map((row) =>
-            row.token === token
-              ? { ...row, usable: false, revoked: true }
-              : row,
+            matches(row) ? { ...row, usable: false, revoked: true } : row,
           );
-          return json(null, { revoked: true, token });
+          const window = body?.restorable
+            ? {
+                restorable_until: new Date(
+                  Date.now() + server.restoreMs,
+                ).toISOString(),
+                restore_ms: server.restoreMs,
+              }
+            : {};
+          return json(
+            null,
+            rooms
+              ? { session_id: id, revoked: [], ...window }
+              : { revoked: true, token: id, ...window },
+          );
         }
         if (method === "POST") {
           server.shareRequests.push(body);

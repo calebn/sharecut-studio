@@ -6,7 +6,6 @@ import { InlineError } from "../../../ui";
 import { ListenLinkRow } from "./ListenLinkRow";
 import { RecordLinks } from "./RecordLinks";
 import { ReviewLinks } from "./ReviewLinks";
-import { useShareEnd } from "./useShareEnd";
 
 type Props = {
   options: ShareOptions;
@@ -25,7 +24,6 @@ type EndedFocus =
  */
 export function InviteBody({ options, at = null }: Props) {
   const { error, status, recovery, tunnel, blockedKey, rows } = options;
-  const end = useShareEnd(options, false);
   const reviewId = useId();
   const recordId = useId();
   const listenId = useId();
@@ -66,15 +64,15 @@ export function InviteBody({ options, at = null }: Props) {
 
   // Focus goes to the group heading once the ended link or room has left the
   // list: the list reloads after the stop, and a heading focused earlier would
-  // be lost with it.
+  // be lost with it. An Undo brings the row back without moving focus.
   const ended = useRef<EndedFocus | null>(null);
   useEffect(() => {
     const gone = ended.current;
     if (!gone) return;
     const stillThere =
       gone.kind === "link"
-        ? rows.some((row) => row.token === gone.token)
-        : rows.some((row) => row.session_id === gone.sessionId);
+        ? rows.some((row) => row.usable && row.token === gone.token)
+        : rows.some((row) => row.usable && row.session_id === gone.sessionId);
     if (stillThere) return;
     ended.current = null;
     const heading = {
@@ -85,20 +83,14 @@ export function InviteBody({ options, at = null }: Props) {
     heading.current?.focus();
   }, [rows]);
 
-  const confirm = () => {
-    const pending = end.pending;
-    if (!pending || !end.confirm()) return;
-    ended.current =
-      pending.kind === "room"
-        ? { ...pending, group: "record" }
-        : { ...pending, group: "review" };
+  /** The ended link or room leaves the list on the reload that follows; focus then lands on its group heading. */
+  const stopLink = (group: "review" | "listen") => (token: string) => {
+    ended.current = { kind: "link", token, group };
+    options.onStop(token);
   };
-  const shared = {
-    options,
-    pending: end.pending,
-    onAsk: end.ask,
-    onKeep: end.keep,
-    onConfirm: confirm,
+  const endRoom = (sessionId: string) => {
+    ended.current = { kind: "room", sessionId, group: "record" };
+    options.onEndRoom(sessionId);
   };
   return (
     <div className="inv-body">
@@ -138,9 +130,14 @@ export function InviteBody({ options, at = null }: Props) {
         </h3>
         <p className="inv-note">
           People who open a review link can comment, or edit if you let them.
-          Links don't expire. Stop sharing turns one off.
+          Links don't expire. Stop sharing turns one off, and Undo brings it
+          back for a few seconds.
         </p>
-        <ReviewLinks labelledBy={reviewId} {...shared} />
+        <ReviewLinks
+          labelledBy={reviewId}
+          options={options}
+          onStop={stopLink("review")}
+        />
       </section>
       <section className="inv-group" data-group="record">
         <h3
@@ -154,9 +151,14 @@ export function InviteBody({ options, at = null }: Props) {
         <p className="inv-note">
           A guest link records the person who joins. A producer link lets your
           producer listen and comment without being recorded. Record links don't
-          expire. End room turns them off.
+          expire. End room turns them off, and Undo brings them back for a few
+          seconds.
         </p>
-        <RecordLinks labelledBy={recordId} trigger={end.trigger} {...shared} />
+        <RecordLinks
+          labelledBy={recordId}
+          options={options}
+          onEndRoom={endRoom}
+        />
       </section>
       <section className="inv-group" data-group="listen">
         <h3
@@ -171,13 +173,7 @@ export function InviteBody({ options, at = null }: Props) {
           For the finished episode: listeners hear the version current when you
           first copy the link.
         </p>
-        <ListenLinkRow
-          options={options}
-          escapeKeeps={false}
-          onConfirmedStop={(token) => {
-            ended.current = { kind: "link", token, group: "listen" };
-          }}
-        />
+        <ListenLinkRow options={options} onStop={stopLink("listen")} />
       </section>
     </div>
   );

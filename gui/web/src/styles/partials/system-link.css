@@ -80,10 +80,6 @@
   font-size: var(--font-size-small);
 }
 
-.sys-link-confirm {
-  flex-basis: 100%;
-}
-
 .sys-link-count {
   color: var(--color-text-secondary);
   font-size: var(--font-size-small);

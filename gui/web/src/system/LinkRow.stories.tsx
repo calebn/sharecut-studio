@@ -187,19 +187,6 @@ export const More: Story = {
   },
 };
 
-export const Confirming: Story = {
-  args: {
-    link: LINK,
-    linkName: "Commenter link",
-    more: [{ id: "stop", label: "Stop sharing", onSelect: fn() }],
-    confirming: (
-      <p style={{ margin: 0 }}>
-        Stop sharing this Commenter link? Anyone using it loses access.
-      </p>
-    ),
-  },
-};
-
 export const OnlineAnywhere: Story = {
   args: { link: LINK, reach: "anywhere" },
   play: async ({ canvasElement }) => {

@@ -10,8 +10,12 @@ import {
 import {
   createHostRecordRoom,
   createHostShare,
+  type HostRevoked,
   listHostShares,
   replaceHostRecordInvite,
+  restoreHostRoom,
+  restoreHostShare,
+  restoreRefusal,
   revokeHostRoom,
   revokeHostShare,
 } from "../../api";
@@ -34,11 +38,18 @@ import {
   shareCopyKey,
 } from "../../stages/deliver/shareLogic";
 import { useDawStore } from "../../state/dawStore";
-import { type HostShareRow, REVIEW_ROLES } from "../../types/shares";
+import type { HostShareRow } from "../../types/shares";
 import { errorMessage } from "../../utils/apiError";
 import { useStableCallback } from "../../utils/useStableCallback";
 import { copyWhenReady } from "./copyWhenReady";
 import { Flow, type ShareFlow } from "./shareFlowContext";
+import {
+  LINK_UNDO,
+  ROOM_UNDO,
+  refusalCopy,
+  type UndoCopy,
+  undoDwellMs,
+} from "./shareUndo";
 import { useTunnelStatus } from "./useTunnelStatus";
 
 const COPIED_MS = 2000;
@@ -582,33 +593,81 @@ export function ShareFlowProvider({ children }: { children: ReactNode }) {
     [announce, isCurrent, markCopied, scopeNow, currentRows],
   );
 
+  /**
+   * Says an end happened and, while the server still honors it, offers Undo.
+   * The server owns the window: the toast only leaves a little sooner.
+   */
+  const announceEnded = useCallback(
+    (
+      copy: UndoCopy,
+      what: "link" | "room",
+      ended: HostRevoked,
+      restore: () => Promise<void>,
+      scope: Scope,
+    ) => {
+      const dwellMs = undoDwellMs(ended.restoreMs);
+      if (dwellMs === null) {
+        announceStatus(copy.ended);
+        return;
+      }
+      announceStatus(copy.ended, {
+        dwellMs,
+        reverse: {
+          done: copy.restored,
+          run: async () => {
+            try {
+              await restore();
+            } catch (err) {
+              const code = restoreRefusal(err);
+              if (code === null) throw err;
+              return refusalCopy(code, what);
+            }
+            relist(scope);
+            return true;
+          },
+        },
+      });
+    },
+    [announceStatus, relist],
+  );
+
   const stop = useCallback(
     (token: string) => {
-      const role =
-        REVIEW_ROLES.find(
-          (r) =>
-            r.id ===
-            currentRows().find((row) => row.token === token)?.docs_role,
-        )?.label ?? "review";
       act(async (scope) => {
-        await revokeHostShare(scope.projectPath, token);
+        const ended = await revokeHostShare(scope.projectPath, token, {
+          restorable: true,
+        });
         if (!isCurrent(scope)) return;
-        announce(`Stopped sharing the ${role} link`);
+        announceEnded(
+          LINK_UNDO,
+          "link",
+          ended,
+          () => restoreHostShare(scope.projectPath, token),
+          scope,
+        );
         await load(scope);
       });
     },
-    [act, announce, isCurrent, load, currentRows],
+    [act, announceEnded, isCurrent, load],
   );
 
   const endRoom = useCallback(
     (sessionId: string) =>
       act(async (scope) => {
-        await revokeHostRoom(scope.projectPath, sessionId);
+        const ended = await revokeHostRoom(scope.projectPath, sessionId, {
+          restorable: true,
+        });
         if (!isCurrent(scope)) return;
-        announce("Record room ended");
+        announceEnded(
+          ROOM_UNDO,
+          "room",
+          ended,
+          () => restoreHostRoom(scope.projectPath, sessionId),
+          scope,
+        );
         await load(scope);
       }),
-    [act, announce, isCurrent, load],
+    [act, announceEnded, isCurrent, load],
   );
 
   const value = useMemo<ShareFlow>(

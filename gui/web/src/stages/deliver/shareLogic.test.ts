@@ -12,7 +12,6 @@ import {
   roleOf,
   SHARE_DEFAULTS,
   shareCopyKey,
-  shareEndKey,
   shareRowsOf,
 } from "./shareLogic";
 
@@ -36,13 +35,10 @@ describe("SHARE_DEFAULTS", () => {
   });
 });
 
-describe("shareCopyKey and shareEndKey", () => {
-  it("keeps a link and its MCP URL apart, and a link apart from a room", () => {
+describe("shareCopyKey", () => {
+  it("keeps a link and its MCP URL apart", () => {
     expect(shareCopyKey("link", "a")).toBe("link:a");
     expect(shareCopyKey("mcp", "a")).toBe("mcp:a");
-    expect(shareEndKey({ kind: "link", token: "a" })).not.toBe(
-      shareEndKey({ kind: "room", sessionId: "a" }),
-    );
   });
 });
 

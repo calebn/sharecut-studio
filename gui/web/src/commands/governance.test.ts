@@ -54,8 +54,6 @@ const KEYDOWN_LISTENER_ALLOWLIST = new Set([
   "record/useRecordLiveComments.ts",
   // Sheets and dialogs render through portals; a native root listener keeps their keys out of the stage.
   "review/ReviewStage.tsx",
-  // Escape keeps the link while Stop sharing is asking, wherever focus is, so the cancel does not depend on the row holding focus.
-  "stage/frame/invite/useShareEnd.ts",
   // Home is not a project, so the project keymap is not mounted: Mod+I, Mod+O, R and ? run Import, Open other, Record and Help here.
   "stages/home/useHomeKeys.ts",
   // A test listens at the window the way the app keymap does, to prove the keys the pane handles never reach it.

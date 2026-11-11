@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
 import { Avatar, Button } from "../ui";
 import { Menu, MenuItem } from "../ui/Menu";
 import type { LinkRole } from "./linkRoles";
@@ -50,8 +50,6 @@ export type LinkRowProps = {
   openedCount?: number;
   /** The More menu: QR code, Allow AI assistants, Replace link, Stop sharing. Without items there is no button. */
   more?: readonly LinkMoreItem[];
-  /** Replaces the row's actions with a confirm in place, such as Stop sharing. */
-  confirming?: ReactNode;
   /** Names the link for assistive technology when a page has several rows: "Copy Commenter link". */
   linkName?: string;
   disabledReason?: string;
@@ -75,24 +73,12 @@ export function LinkRow({
   pin,
   openedCount,
   more = [],
-  confirming,
   linkName,
   disabledReason,
   placeholder = "Made when you copy it",
   onCopy,
 }: LinkRowProps) {
   const [moreOpen, setMoreOpen] = useState(false);
-  const root = useRef<HTMLDivElement>(null);
-  const wasConfirming = useRef(false);
-  // Keeping the link puts focus back on the More button that asked.
-  useEffect(() => {
-    if (wasConfirming.current && !confirming) {
-      root.current
-        ?.querySelector<HTMLElement>('[aria-haspopup="menu"]')
-        ?.focus();
-    }
-    wasConfirming.current = Boolean(confirming);
-  }, [confirming]);
   if (noMix) {
     return (
       <div className="sys-link" data-state="no-mix">
@@ -112,7 +98,6 @@ export function LinkRow({
           : "Copy";
   return (
     <div
-      ref={root}
       className="sys-link"
       data-copy={copyState}
       data-highlight={highlight ? "true" : undefined}
@@ -223,7 +208,6 @@ export function LinkRow({
           </Menu>
         ) : null}
       </div>
-      {confirming ? <div className="sys-link-confirm">{confirming}</div> : null}
     </div>
   );
 }

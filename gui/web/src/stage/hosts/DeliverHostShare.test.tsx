@@ -38,6 +38,7 @@ import {
   FEATURE_SHARE_UI_MENU,
   FEATURE_TUNNEL_STATUS,
 } from "../../extensions/features";
+import { FeedbackToast } from "../../feedback/FeedbackToast";
 import { useDawStore } from "../../state/dawStore";
 import { expectNoA11yViolations } from "../../test/a11y";
 import { fakeExportServer } from "../../test/fakeExportServer";
@@ -81,6 +82,40 @@ function Host({
         <ShareFlowProvider>{children}</ShareFlowProvider>
       </ExportFlowProvider>
     </FeaturesContext.Provider>
+  );
+}
+
+/** The Host with the toast region the app mounts beside it: Undo lives there. */
+function ToastedHost() {
+  return (
+    <Host>
+      <Stages />
+      <SheetHost />
+      <FeedbackToast />
+    </Host>
+  );
+}
+
+/** The toast watches its own visibility; jsdom has no observer, so the card reads as fully shown. */
+function stubVisibleToast() {
+  vi.stubGlobal(
+    "IntersectionObserver",
+    class {
+      callback: (
+        entries: { isIntersecting: boolean; intersectionRatio: number }[],
+      ) => void;
+      constructor(
+        callback: (
+          entries: { isIntersecting: boolean; intersectionRatio: number }[],
+        ) => void,
+      ) {
+        this.callback = callback;
+      }
+      observe() {
+        this.callback([{ isIntersecting: true, intersectionRatio: 1 }]);
+      }
+      disconnect() {}
+    },
   );
 }
 
@@ -197,7 +232,8 @@ describe("Listen link on the Deliver stage", () => {
     await waitFor(() => expect(copy).toBeEnabled());
   });
 
-  it("stops sharing only after the in-place confirm", async () => {
+  it("stops the listen link at once and offers Undo, with no confirm first", async () => {
+    stubVisibleToast();
     server.shares = [
       hostShareRow({
         token: "listen-1",
@@ -205,22 +241,25 @@ describe("Listen link on the Deliver stage", () => {
         follow_latest: false,
       }),
     ];
-    render(<Host />);
+    render(<ToastedHost />);
     await userEvent.click(
       await listen().findByRole("button", { name: "More for listen link" }),
     );
     await userEvent.click(
       screen.getByRole("menuitem", { name: "Stop sharing" }),
     );
-    expect(server.revokeRequests).toEqual([]);
-    const confirm = listen().getByRole("group", {
-      name: "Stop sharing this Viewer link? Anyone using it loses access.",
-    });
-    await userEvent.click(
-      within(confirm).getByRole("button", { name: "Stop sharing" }),
-    );
     await waitFor(() => expect(server.revokeRequests).toEqual(["listen-1"]));
+    expect(server.revokeBodies).toEqual([{ path: PATH, restorable: true }]);
+    expect(
+      screen.queryByRole("group", { name: /Stop sharing this/ }),
+    ).toBeNull();
     expect(await screen.findByText("Made when you copy it")).toBeVisible();
+    expect(await screen.findByText("Link stopped.")).toBeVisible();
+    await userEvent.click(screen.getByRole("button", { name: "Undo" }));
+    await waitFor(() => expect(server.restoreRequests).toEqual(["listen-1"]));
+    expect(
+      await listen().findByRole("button", { name: "More for listen link" }),
+    ).toBeVisible();
   });
 
   it("offers Refresh mix as the row itself when the mix is stale, then makes the link once it is back", async () => {
@@ -391,49 +430,133 @@ describe("the Invite sheet over any stage", () => {
     ).toBeVisible();
   });
 
-  it("stops sharing a review link only after the in-place confirm", async () => {
-    server.shares = [hostShareRow()];
-    render(<Host />);
-    openInvite();
-    await userEvent.click(
-      await screen.findByRole("button", { name: "More for Commenter link" }),
-    );
-    await userEvent.click(
-      screen.getByRole("menuitem", { name: "Stop sharing" }),
-    );
-    expect(server.revokeRequests).toEqual([]);
-    const confirm = screen.getByRole("group", {
-      name: "Stop sharing this Commenter link? Anyone using it loses access.",
-    });
-    await userEvent.click(
-      within(confirm).getByRole("button", { name: "Stop sharing" }),
-    );
-    await waitFor(() =>
-      expect(server.revokeRequests).toEqual(["sample-review-link"]),
-    );
-    expect(useDawStore.getState().statusAnnouncement).toBe(
-      "Stopped sharing the Commenter link",
-    );
-  });
+  describe("Stop sharing and its Undo", () => {
+    beforeEach(stubVisibleToast);
+    const stopCommenter = async () => {
+      await userEvent.click(
+        await screen.findByRole("button", { name: "More for Commenter link" }),
+      );
+      await userEvent.click(
+        screen.getByRole("menuitem", { name: "Stop sharing" }),
+      );
+    };
 
-  it("keeps the link on Keep link and returns focus to More", async () => {
-    server.shares = [hostShareRow()];
-    render(<Host />);
-    openInvite();
-    const more = await screen.findByRole("button", {
-      name: "More for Commenter link",
-    });
-    await userEvent.click(more);
-    await userEvent.click(
-      screen.getByRole("menuitem", { name: "Stop sharing" }),
-    );
-    await userEvent.click(screen.getByRole("button", { name: "Keep link" }));
-    await waitFor(() =>
+    it("stops the link at once with no confirm, and a toast offers Undo for the server's window", async () => {
+      server.shares = [hostShareRow()];
+      render(<ToastedHost />);
+      openInvite();
+      await stopCommenter();
+      await waitFor(() =>
+        expect(server.revokeRequests).toEqual(["sample-review-link"]),
+      );
+      expect(server.revokeBodies).toEqual([{ path: PATH, restorable: true }]);
+      expect(screen.queryByRole("button", { name: "Keep link" })).toBeNull();
+      expect(await screen.findByText("Link stopped.")).toBeVisible();
+      expect(screen.getByRole("button", { name: "Undo" })).toBeVisible();
+      expect(useDawStore.getState().feedbackToast?.dwellMs).toBe(9500);
       expect(
-        screen.getByRole("button", { name: "More for Commenter link" }),
-      ).toHaveFocus(),
-    );
-    expect(server.revokeRequests).toEqual([]);
+        screen.queryByRole("button", { name: "More for Commenter link" }),
+      ).toBeNull();
+      await waitFor(() =>
+        expect(
+          screen.getByRole("heading", { name: "Review links" }),
+        ).toHaveFocus(),
+      );
+    });
+
+    it("sizes the toast to the window the server gave, not a fixed ten seconds", async () => {
+      server.restoreMs = 4000;
+      server.shares = [hostShareRow()];
+      render(<ToastedHost />);
+      openInvite();
+      await stopCommenter();
+      await screen.findByText("Link stopped.");
+      expect(useDawStore.getState().feedbackToast?.dwellMs).toBe(3500);
+    });
+
+    it("brings the link back on Undo: the same row is live again", async () => {
+      server.shares = [hostShareRow()];
+      render(<ToastedHost />);
+      openInvite();
+      await stopCommenter();
+      await userEvent.click(
+        await screen.findByRole("button", { name: "Undo" }),
+      );
+      await waitFor(() =>
+        expect(server.restoreRequests).toEqual(["sample-review-link"]),
+      );
+      expect(
+        await screen.findByRole("button", { name: "More for Commenter link" }),
+      ).toBeVisible();
+      expect(await screen.findByText("Link restored.")).toBeVisible();
+    });
+
+    it.each([
+      ["restore_window_closed", 410, "Too late to undo."],
+      [
+        "share_expired",
+        410,
+        "This link had already expired, so it stays stopped.",
+      ],
+      [
+        "share_not_found",
+        404,
+        "That link is already gone, so there is nothing to undo.",
+      ],
+    ])("says why on a refused Undo (%s)", async (code, status, message) => {
+      server.shares = [hostShareRow()];
+      render(<ToastedHost />);
+      openInvite();
+      await stopCommenter();
+      server.restoreAnswer = { status, code, body: { detail: message } };
+      await userEvent.click(
+        await screen.findByRole("button", { name: "Undo" }),
+      );
+      expect(await screen.findByText(message)).toBeVisible();
+      expect(
+        screen.queryByRole("button", { name: "More for Commenter link" }),
+      ).toBeNull();
+    });
+
+    it("keeps only the latest stop undoable: a later toast replaces the earlier one", async () => {
+      server.shares = [
+        hostShareRow(),
+        hostShareRow({
+          token: "second-link",
+          url: "http://127.0.0.1:8765/r/second-link",
+          docs_role: "editor",
+        }),
+      ];
+      render(<ToastedHost />);
+      openInvite();
+      await stopCommenter();
+      await screen.findByText("Link stopped.");
+      await userEvent.click(
+        await screen.findByRole("button", { name: "More for Editor link" }),
+      );
+      await userEvent.click(
+        screen.getByRole("menuitem", { name: "Stop sharing" }),
+      );
+      await waitFor(() =>
+        expect(server.revokeRequests).toEqual([
+          "sample-review-link",
+          "second-link",
+        ]),
+      );
+      await waitFor(() =>
+        expect(screen.getAllByText("Link stopped.")).toHaveLength(1),
+      );
+      await userEvent.click(screen.getByRole("button", { name: "Undo" }));
+      await waitFor(() =>
+        expect(server.restoreRequests).toEqual(["second-link"]),
+      );
+      expect(
+        await screen.findByRole("button", { name: "More for Editor link" }),
+      ).toBeVisible();
+      expect(
+        screen.queryByRole("button", { name: "More for Commenter link" }),
+      ).toBeNull();
+    });
   });
 
   it("offers Refresh mix on the row after a stale mix, then makes the link once the mix is back", async () => {
@@ -527,38 +650,90 @@ describe("the Invite sheet over any stage", () => {
     await waitFor(() => expect(heading).toHaveFocus());
   });
 
-  it("makes record links from the Record group, and ends a room after the confirm", async () => {
-    server.shares = [
-      hostShareRow({
-        token: "g1",
-        kind: "record",
-        docs_role: null,
-        record_role: "guest",
-        session_id: "room-1",
-      }),
-    ];
-    render(<Host />);
-    openInvite("record");
-    expect(await screen.findByText("Record room")).toBeVisible();
-    expect(
-      within(
-        screen
-          .getByRole("heading", { name: "Record links" })
-          .closest("section") as HTMLElement,
-      ).getByRole("button", { name: "Create record links" }),
-    ).toBeEnabled();
-    await userEvent.click(screen.getByRole("button", { name: "End room" }));
-    const confirm = screen.getByRole("group", {
-      name: "End this record room? Both guest and producer links will stop working.",
+  describe("End room and its Undo", () => {
+    beforeEach(stubVisibleToast);
+    const room = () =>
+      (server.shares = [
+        hostShareRow({
+          token: "g1",
+          kind: "record",
+          docs_role: null,
+          record_role: "guest",
+          session_id: "room-1",
+        }),
+      ]);
+
+    it("offers Create record links beside the room", async () => {
+      room();
+      render(<ToastedHost />);
+      openInvite("record");
+      expect(await screen.findByText("Record room")).toBeVisible();
+      expect(
+        within(
+          screen
+            .getByRole("heading", { name: "Record links" })
+            .closest("section") as HTMLElement,
+        ).getByRole("button", { name: "Create record links" }),
+      ).toBeEnabled();
     });
-    await userEvent.click(
-      within(confirm).getByRole("button", { name: "End room" }),
-    );
-    await waitFor(() =>
-      expect(useDawStore.getState().statusAnnouncement).toBe(
-        "Record room ended",
-      ),
-    );
+
+    it("ends the room at once with no confirm and offers Undo", async () => {
+      room();
+      render(<ToastedHost />);
+      openInvite("record");
+      await userEvent.click(
+        await screen.findByRole("button", { name: "End room" }),
+      );
+      await waitFor(() => expect(server.revokeRequests).toEqual(["room-1"]));
+      expect(server.revokeBodies).toEqual([{ path: PATH, restorable: true }]);
+      expect(screen.queryByRole("button", { name: "Keep room" })).toBeNull();
+      expect(await screen.findByText("Room ended.")).toBeVisible();
+      expect(useDawStore.getState().feedbackToast?.dwellMs).toBe(9500);
+      await waitFor(() => expect(screen.queryByText("Record room")).toBeNull());
+      await waitFor(() =>
+        expect(
+          screen.getByRole("heading", { name: "Record links" }),
+        ).toHaveFocus(),
+      );
+    });
+
+    it("brings the room back on Undo", async () => {
+      room();
+      render(<ToastedHost />);
+      openInvite("record");
+      await userEvent.click(
+        await screen.findByRole("button", { name: "End room" }),
+      );
+      await userEvent.click(
+        await screen.findByRole("button", { name: "Undo" }),
+      );
+      await waitFor(() => expect(server.restoreRequests).toEqual(["room-1"]));
+      expect(await screen.findByText("Room restored.")).toBeVisible();
+      expect(await screen.findByText("Record room")).toBeVisible();
+    });
+
+    it("says another room is live when the restore conflicts", async () => {
+      room();
+      render(<ToastedHost />);
+      openInvite("record");
+      await userEvent.click(
+        await screen.findByRole("button", { name: "End room" }),
+      );
+      server.restoreAnswer = {
+        status: 409,
+        code: "record_room_conflict",
+        body: { detail: "another room is live" },
+      };
+      await userEvent.click(
+        await screen.findByRole("button", { name: "Undo" }),
+      );
+      expect(
+        await screen.findByText(
+          "Another room is live, so this one stays ended.",
+        ),
+      ).toBeVisible();
+      expect(screen.queryByText("Record room")).toBeNull();
+    });
   });
 
   describe("Open Record stage", () => {
