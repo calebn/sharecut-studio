@@ -27,7 +27,7 @@ concurrency:
 jobs:
   promote:
     if: github.ref == 'refs/heads/main'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 330
     steps:
       - uses: actions/checkout@v7
@@ -59,7 +59,7 @@ jobs:
   nightly-alert:
     needs: promote
     if: ${{ always() && github.ref == 'refs/heads/main' && inputs.dry-run != true && (inputs.target == '' || inputs.target == 'main') }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions:
       contents: read

@@ -122,7 +122,7 @@ def test_workflow_keeps_installs_checks_and_pinned_prebuilt_consumers() -> None:
         "overwrite": True,
     }
     browser_steps = jobs["frontend-e2e-suites"]["steps"]
-    browser = next(step for step in browser_steps if "playwright install" in step.get("run", ""))
+    browser = next(step for step in browser_steps if step.get("name") == "Install frontend deps")
     assert browser["run"].splitlines() == [
         "printf 'TMPDIR: %s\\n' \"$TMPDIR\"",
         'df -hT /tmp "$TMPDIR"',
@@ -136,7 +136,6 @@ def test_workflow_keeps_installs_checks_and_pinned_prebuilt_consumers() -> None:
         "    verify()",
         "PY",
         "npm ci",
-        "npx playwright install --with-deps ${{ matrix.browser }}",
     ]
     assert "if" not in browser and not browser.get("continue-on-error")
     matrix = jobs["frontend-e2e-suites"]["strategy"]["matrix"]
@@ -664,7 +663,7 @@ def test_only_the_quota_affected_jobs_select_runner_temporary_storage() -> None:
     ("workflow", "job_name", "step_name"),
     [
         ("test.yml", "pytest-shard", "Record pytest run context"),
-        ("test.yml", "frontend-e2e-suites", "Install frontend deps and browser engines"),
+        ("test.yml", "frontend-e2e-suites", "Install frontend deps"),
         ("extras-import.yml", "extras", "Import each extra in a clean venv"),
     ],
 )
@@ -683,7 +682,7 @@ def test_quota_affected_jobs_record_temporary_paths_and_filesystem_capacity(
     [
         ("test.yml", "pytest-shard", "Record pytest run context", "ctrace"),
         ("test.yml", "pytest-shard", "Record pytest run context", "pytrace"),
-        ("test.yml", "frontend-e2e-suites", "Install frontend deps and browser engines", "ctrace"),
+        ("test.yml", "frontend-e2e-suites", "Install frontend deps", "ctrace"),
         ("extras-import.yml", "extras", "Import each extra in a clean venv", "ctrace"),
     ],
 )

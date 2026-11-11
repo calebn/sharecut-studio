@@ -15,7 +15,7 @@ concurrency:
 jobs:
   changes:
     if: github.event_name == 'pull_request' && github.event.pull_request.draft != true
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 5
     outputs:
       skip-native-registry: ${{ steps.plan.outputs.skip-native-registry }}
