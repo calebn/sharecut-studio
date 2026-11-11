@@ -1,9 +1,5 @@
 name: Resolve the Playwright image
 description: Name the official Playwright container image that matches the locked Playwright version
-inputs:
-  lockfile:
-    description: package-lock.json that pins @playwright/test
-    default: gui/web/package-lock.json
 outputs:
   image:
     description: mcr.microsoft.com/playwright image tag for the locked version
@@ -14,8 +10,6 @@ runs:
     - name: Read the locked version
       id: resolve
       shell: bash
-      env:
-        LOCKFILE: ${{ inputs.lockfile }}
       run: |
-        version="$(jq -er '.packages["node_modules/@playwright/test"].version' "$LOCKFILE")"
+        version="$(jq -er '.packages["node_modules/@playwright/test"].version' gui/web/package-lock.json)"
         printf 'image=mcr.microsoft.com/playwright:v%s-noble\n' "$version" >> "$GITHUB_OUTPUT"

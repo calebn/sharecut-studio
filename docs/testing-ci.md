@@ -106,7 +106,7 @@ bundle guard fails if E2E page flags or signal counters remain in emitted assets
 ### Browser installation
 
 Jobs that drive a browser run in the official `mcr.microsoft.com/playwright` container
-image, so no job installs a browser or touches Ubuntu's package servers at run time.
+image, so no browser job installs a browser or touches Ubuntu's package servers at run time.
 `.github/actions/playwright-image` reads the version `gui/web/package-lock.json` pins for
 `@playwright/test` and names `mcr.microsoft.com/playwright:v<version>-noble`. The
 `changes` job (`test.yml`) and the `image` job (`storybook.yml`) expose it as an output,
@@ -114,7 +114,7 @@ and `frontend-e2e-suites`, the Storybook `sweep` and the Storybook `build` use i
 `container:` image with `--init --ipc=host`. The image ships Chromium, Firefox and WebKit
 with their system libraries at that exact version, so a Dependabot bump of the npm lock
 moves the image with it and the two cannot drift. A bump that lands before Microsoft
-publishes the matching tag fails the job at image pull. Runners are pinned to
+publishes the matching tag fails the job at image pull. Ubuntu runners are pinned to
 `ubuntu-24.04` in every workflow instead of `ubuntu-latest`. Jobs that need a toolchain
 the image lacks keep their own setup actions (`setup-python`, `setup-node`, the pinned
 FFmpeg payload).
@@ -128,9 +128,8 @@ Docs iframe previews initialize.
 The restored-word fixtures make ghost preview geometry observable without a
 live episode or backend. Real mouse trajectories check stable text and row
 layout, handle displacement, preview bounds, and Escape cleanup at 1440px
-and 360px in light and dark themes. `.github/workflows/storybook.yml` runs, in the Playwright
-container image,
-this suite against the catalog build on pushes and on
+and 360px in light and dark themes. `.github/workflows/storybook.yml` runs this suite in the
+Playwright container image against the catalog build on pushes and on
 manual dispatch, which the nightly promotion uses. A pull request runs only the render smoke
 (`coverage.spec.ts` and `docs-theme.spec.ts`) and skips the story sweep. This
 supplements the jsdom story interaction and axe checks.
