@@ -51,12 +51,10 @@ const PROOF_DIR = process.env.UI_PROOF_DIR;
 async function proof(page: Page, name: string) {
   if (!PROOF_DIR) return;
   fs.mkdirSync(PROOF_DIR, { recursive: true });
-  for (const scheme of ["light", "dark"] as const) {
-    await page.emulateMedia({ colorScheme: scheme });
-    await page.screenshot({
-      path: path.join(PROOF_DIR, `${name}-${scheme}.png`),
-    });
-  }
+  await page.emulateMedia({ colorScheme: "light" });
+  await page.screenshot({ path: path.join(PROOF_DIR, `${name}-light.png`) });
+  await page.emulateMedia({ colorScheme: "dark" });
+  await page.screenshot({ path: path.join(PROOF_DIR, `${name}-dark.png`) });
   await page.emulateMedia({ colorScheme: "light" });
 }
 
