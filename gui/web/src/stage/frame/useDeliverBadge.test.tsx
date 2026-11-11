@@ -1,4 +1,4 @@
-import { renderHook, waitFor } from "@testing-library/react";
+import { act, renderHook, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const listed = vi.hoisted(() => ({ list: vi.fn() }));
@@ -9,6 +9,7 @@ vi.mock("../../api", async (importOriginal) => ({
 
 import { useDawStore } from "../../state/dawStore";
 import { minimalProject } from "../../test/fixtures";
+import type { HistoryEntryId } from "../../types/project";
 import { type ExportFlow, Flow } from "../hosts/exportFlowContext";
 import { useDeliverBadge } from "./useDeliverBadge";
 
@@ -71,6 +72,42 @@ describe("useDeliverBadge", () => {
     flow.current = { run: { kind: "failed", reason: "x" } } as ExportFlow;
     rerender();
     await waitFor(() => expect(listed.list).toHaveBeenCalledTimes(2));
+  });
+
+  it("never lists the folder with no project open", () => {
+    useDawStore.setState({ projectPath: "" });
+    const { result } = renderHook(() => useDeliverBadge());
+    expect(result.current).toBeUndefined();
+    expect(listed.list).not.toHaveBeenCalled();
+  });
+
+  it("reads the listing again after an edit", async () => {
+    renderHook(() => useDeliverBadge());
+    await waitFor(() => expect(listed.list).toHaveBeenCalledTimes(1));
+    act(() => {
+      useDawStore.setState({
+        project: {
+          ...minimalProject(),
+          history: {
+            ...minimalProject().history,
+            head_id: "after-edit" as HistoryEntryId,
+          },
+        },
+      });
+    });
+    await waitFor(() => expect(listed.list).toHaveBeenCalledTimes(2));
+  });
+
+  it("keeps the badge while the next listing loads", async () => {
+    listed.list.mockResolvedValueOnce([file("audio", true)]);
+    const { result } = renderHook(() => useDeliverBadge());
+    await waitFor(() => expect(result.current).toEqual({ kind: "done" }));
+    listed.list.mockReturnValueOnce(new Promise(() => {}));
+    act(() => {
+      window.dispatchEvent(new Event("focus"));
+    });
+    await waitFor(() => expect(listed.list).toHaveBeenCalledTimes(2));
+    expect(result.current).toEqual({ kind: "done" });
   });
 
   it("never lists the folder for a guest", async () => {
