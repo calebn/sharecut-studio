@@ -12,7 +12,7 @@ from podcast_mcp.config.defaults import mix_peak_ceiling_db
 from podcast_mcp.edits.range_target import resolve_range
 from podcast_mcp.engines.timeline_render import timeline_duration_sec
 from podcast_mcp.export.audio import specs_from_extensions, write_audio_formats
-from podcast_mcp.export.names import sanitize_export_stem
+from podcast_mcp.export.names import BOUNCES_DIRNAME, sanitize_export_stem
 from podcast_mcp.models import Track, TrackRole
 from podcast_mcp.models.episode import ExactRangeTarget
 from podcast_mcp.pipeline.helpers import ffmpeg
@@ -147,7 +147,7 @@ class BounceService:
 
         raise_if_cancel_requested(cancel_check, BOUNCE_CANCELLED)
 
-        out_dir = project.export_dir() / "bounces"
+        out_dir = project.export_dir() / BOUNCES_DIRNAME
         out_dir.mkdir(parents=True, exist_ok=True)
         stamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
         stem_label = _slug(

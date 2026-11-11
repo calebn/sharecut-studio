@@ -6,6 +6,7 @@ import re
 
 from podcast_mcp.util.hashing import short_digest
 
+BOUNCES_DIRNAME = "bounces"
 MAX_FILENAME_COMPONENT_BYTES = 255
 # The longest component an export writes is the chapters sidecar's atomic temp,
 # ``<stem>.chapters.<pid>.<32 hex>.partial.json``: 10 pid digits and 13 suffix bytes.

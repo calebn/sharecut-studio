@@ -1,7 +1,12 @@
 import { reviewApiBase, shareTokenFromKey } from "../shareMode";
 import { apiFetch, HOST_KEY } from "./http";
 
-export type ExportedFileKind = "audio" | "transcript" | "chapters" | "feed";
+export type ExportedFileKind =
+  | "audio"
+  | "transcript"
+  | "chapters"
+  | "feed"
+  | "bounce";
 export type ExportedTranscriptFormat =
   | "txt"
   | "md"

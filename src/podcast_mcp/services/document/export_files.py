@@ -9,7 +9,7 @@ from typing import Literal
 
 from podcast_mcp.export.audio import AUDIO_EXPORT_MEDIA
 from podcast_mcp.export.chapters import render_chapters_json
-from podcast_mcp.export.names import sanitize_export_stem
+from podcast_mcp.export.names import BOUNCES_DIRNAME, sanitize_export_stem
 from podcast_mcp.export.transcript import TRANSCRIPT_FORMATS, TRANSCRIPT_MIME
 from podcast_mcp.feed.inputs import feed_path
 from podcast_mcp.services.app import ProjectWorkspace
@@ -24,7 +24,7 @@ from podcast_mcp.services.pipeline import (
 from podcast_mcp.util.coded_error import CodedFileNotFoundError
 from podcast_mcp.util.fingerprint import file_stamp
 
-ExportedFileKind = Literal["audio", "transcript", "chapters", "feed"]
+ExportedFileKind = Literal["audio", "transcript", "chapters", "feed", "bounce"]
 
 CLIPS_DIRNAME = "clips"
 _HIDDEN_CHAR_CATEGORIES = frozenset({"Cc", "Zl", "Zp"})
@@ -99,8 +99,9 @@ class ExportFilesService:
     a symlink) is not found.
     """
 
-    def __init__(self, ws: ProjectWorkspace) -> None:
+    def __init__(self, ws: ProjectWorkspace, *, bounces: bool = False) -> None:
         self.ws = ws
+        self.bounces = bounces
 
     def _found(self) -> list[ServedFile]:
         project = self.ws.project
@@ -143,18 +144,22 @@ class ExportFilesService:
         wanted: list[tuple[str, ExportedFileKind, str, str | None]] = [
             (f"{stem}.{ext}", "audio", media, None) for ext, media in AUDIO_EXPORT_MEDIA.items()
         ]
-        clips = export_root / CLIPS_DIRNAME
-        if clips.is_dir() and not clips.is_symlink():
+
+        def audio_children(dirname: str, kind: ExportedFileKind) -> None:
+            folder = export_root / dirname
+            if not folder.is_dir() or folder.is_symlink():
+                return
             wanted.extend(
-                (
-                    f"{CLIPS_DIRNAME}/{p.name}",
-                    "audio",
-                    AUDIO_EXPORT_MEDIA[p.suffix[1:].lower()],
-                    None,
-                )
-                for p in sorted(clips.iterdir())
-                if p.suffix[1:].lower() in AUDIO_EXPORT_MEDIA and _plain_name(p.name)
+                (f"{dirname}/{p.name}", kind, AUDIO_EXPORT_MEDIA[p.suffix[1:].lower()], None)
+                for p in sorted(folder.iterdir())
+                if p.suffix[1:].lower() in AUDIO_EXPORT_MEDIA
+                and _plain_name(p.name)
+                and not p.name.startswith(".")
             )
+
+        audio_children(CLIPS_DIRNAME, "audio")
+        if self.bounces:
+            audio_children(BOUNCES_DIRNAME, "bounce")
         wanted.extend(
             (f"{stem}.{fmt}", "transcript", TRANSCRIPT_MIME[fmt], fmt) for fmt in TRANSCRIPT_FORMATS
         )
@@ -272,3 +277,5 @@ class ExportFilesService:
                 return "Chapters"
             case "feed":
                 return "Feed file"
+            case "bounce":
+                return "Range export"
