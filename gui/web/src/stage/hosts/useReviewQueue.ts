@@ -212,7 +212,7 @@ export function useReviewQueue(guestShare = false) {
   const detail = useTranscriptDetail();
   const activeWordCount =
     detail.kind === "ready" && !guest
-      ? selectLowConfidenceStops(utterances ?? [], false, false).length
+      ? selectLowConfidenceStops(utterances ?? []).length
       : null;
   const readyWords = useMemo(
     () =>

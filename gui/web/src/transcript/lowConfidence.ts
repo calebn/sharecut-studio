@@ -2,7 +2,7 @@ import type { TranscriptReviewCursor } from "../state/types";
 import type { CombinedUtterance, TranscriptWordView } from "../types/project";
 import { memoByRef } from "../utils/memoByRef";
 import {
-  isTranscriptUtteranceVisible,
+  isMappedUtterance,
   wordSeekSec,
   wordsForUtterance,
 } from "../utils/transcript";
@@ -40,41 +40,31 @@ export interface LowConfidenceStop {
   sourceId?: string | null;
   wordIndex: number;
   text: string;
-  /** Timeline seek; null for a cut-away word (scroll only). */
+  /** Timeline seek, when the word is placed. */
   seekSec: number | null;
   /** Timeline end of the word, when placed. */
   endSec?: number;
-  /** Transcript-order ordinal among every indexed word of the full utterance list (listed or not), so it survives corrections and a Show cut away toggle. */
+  /** Transcript-order ordinal among every indexed word of the full utterance list (listed or not), so it survives corrections. */
   order: number;
 }
 
 /**
- * Indexed low-confidence words among the utterances the Script lists
- * (`isTranscriptUtteranceVisible`), in transcript order. Pass the full
- * `project.transcript.utterances`: `order` counts every indexed word, hidden
- * cut-away ones included.
+ * Indexed low-confidence words among the mapped utterances, in transcript order.
+ * Pass the full `project.transcript.utterances`: `order` counts every indexed
+ * word, cut-away ones included.
  */
 export function lowConfidenceStops(
   utterances: readonly CombinedUtterance[],
-  annotate: boolean,
-  showCutAway: boolean,
 ): LowConfidenceStop[] {
   const stops: LowConfidenceStop[] = [];
   let order = 0;
   for (const u of utterances) {
     // suppressed-only rows are not stops; their words still count toward `order`
-    const listed =
-      !u.suppressed_only &&
-      isTranscriptUtteranceVisible(u, annotate, showCutAway);
+    const listed = !u.suppressed_only && isMappedUtterance(u);
     for (const w of wordsForUtterance(u)) {
       if (w.word_index == null) continue;
       const wordOrder = order++;
-      if (
-        !listed ||
-        !isLowConfidenceWord(w) ||
-        (w.mappable === false && !(annotate && showCutAway))
-      )
-        continue;
+      if (!listed || !isLowConfidenceWord(w) || w.mappable === false) continue;
       stops.push({
         trackId: u.track_id,
         ...((w.timing_target?.source_id ?? u.source_id) != null
@@ -83,9 +73,7 @@ export function lowConfidenceStops(
         wordIndex: w.word_index,
         text: w.text,
         seekSec: wordSeekSec(w),
-        ...(w.mappable !== false && w.timeline_end != null
-          ? { endSec: w.timeline_end }
-          : {}),
+        ...(w.timeline_end != null ? { endSec: w.timeline_end } : {}),
         order: wordOrder,
       });
     }
@@ -137,27 +125,9 @@ export function stepLowConfidence(
   return n - 1;
 }
 
-// Visibility only matters as `annotate && showCutAway` (isTranscriptUtteranceVisible),
-// so one cache per effective visibility, each keyed by the utterance array.
-const listedStops = memoByRef((utterances: readonly CombinedUtterance[]) =>
-  lowConfidenceStops(utterances, false, false),
-);
-const allStops = memoByRef((utterances: readonly CombinedUtterance[]) =>
-  lowConfidenceStops(utterances, true, true),
-);
-
 /**
- * `lowConfidenceStops`, memoized per utterance array (`memoByRef`, a WeakMap)
- * and effective visibility, so the transcript toolbar and each Next/Previous
- * step share one O(words) scan per project change, and callers on different
- * arrays never evict each other.
+ * `lowConfidenceStops`, memoized per utterance array (`memoByRef`, a WeakMap),
+ * so the transcript toolbar and each Next/Previous step share one O(words)
+ * scan per project change, and callers on different arrays never evict each other.
  */
-export function selectLowConfidenceStops(
-  utterances: readonly CombinedUtterance[],
-  annotate: boolean,
-  showCutAway: boolean,
-): LowConfidenceStop[] {
-  return annotate && showCutAway
-    ? allStops(utterances)
-    : listedStops(utterances);
-}
+export const selectLowConfidenceStops = memoByRef(lowConfidenceStops);

@@ -72,15 +72,9 @@ describe("lowConfidenceStops", () => {
   ];
 
   it("returns transcript order across utterances/tracks, skipping unindexed or confident words", () => {
-    expect(lowConfidenceStops(utterances, true, true)).toEqual<
-      LowConfidenceStop[]
-    >([
+    expect(lowConfidenceStops(utterances)).toEqual<LowConfidenceStop[]>([
       { trackId: "host", wordIndex: 1, text: "um", seekSec: 5, order: 1 },
-      { trackId: "guest", wordIndex: 0, text: "well", seekSec: null, order: 2 },
     ]);
-    expect(lowConfidenceStops(utterances, true, false)).toEqual<
-      LowConfidenceStop[]
-    >([{ trackId: "host", wordIndex: 1, text: "um", seekSec: 5, order: 1 }]);
   });
 
   it("skips suppressed-only rows but still numbers their words", () => {
@@ -116,7 +110,7 @@ describe("lowConfidenceStops", () => {
         ],
       }),
     ];
-    expect(lowConfidenceStops(utts, true, true)).toEqual<LowConfidenceStop[]>([
+    expect(lowConfidenceStops(utts)).toEqual<LowConfidenceStop[]>([
       { trackId: "host", wordIndex: 0, text: "so", seekSec: null, order: 1 },
     ]);
   });
@@ -155,9 +149,7 @@ describe("lowConfidenceStops", () => {
         ],
       }),
     ];
-    expect(
-      lowConfidenceStops(utts, true, true).map((s) => [s.text, s.order]),
-    ).toEqual([
+    expect(lowConfidenceStops(utts).map((s) => [s.text, s.order])).toEqual([
       ["so", 0],
       ["well", 2],
     ]);
@@ -200,7 +192,7 @@ describe("lowConfidenceStops", () => {
       }),
     ];
 
-    expect(lowConfidenceStops(utterances, false, false)).toEqual([
+    expect(lowConfidenceStops(utterances)).toEqual([
       {
         trackId: "host",
         sourceId: "source-a",
@@ -219,20 +211,9 @@ describe("lowConfidenceStops", () => {
         order: 2,
       },
     ]);
-    expect(
-      lowConfidenceStops(utterances, true, true).map((stop) => [
-        stop.wordIndex,
-        stop.seekSec,
-        stop.order,
-      ]),
-    ).toEqual([
-      [4, null, 0],
-      [5, 8, 1],
-      [6, null, 2],
-    ]);
   });
 
-  it("numbers hidden cut-away words too, so order is stable across Show cut away", () => {
+  it("numbers cut-away words too, so order counts every indexed word", () => {
     const utts: CombinedUtterance[] = [
       u({
         track_id: "guest",
@@ -265,11 +246,7 @@ describe("lowConfidenceStops", () => {
         ],
       }),
     ];
-    expect(lowConfidenceStops(utts, true, false)).toEqual<LowConfidenceStop[]>([
-      { trackId: "host", wordIndex: 1, text: "um", seekSec: 5, order: 2 },
-    ]);
-    expect(lowConfidenceStops(utts, true, true)).toEqual<LowConfidenceStop[]>([
-      { trackId: "guest", wordIndex: 0, text: "well", seekSec: null, order: 0 },
+    expect(lowConfidenceStops(utts)).toEqual<LowConfidenceStop[]>([
       { trackId: "host", wordIndex: 1, text: "um", seekSec: 5, order: 2 },
     ]);
   });
@@ -311,34 +288,23 @@ describe("selectLowConfidenceStops", () => {
     }),
   ];
 
-  it("caches by utterance array identity and effective visibility", () => {
-    const a = selectLowConfidenceStops(utts, true, false);
-    const b = selectLowConfidenceStops(utts, true, false);
+  it("caches by utterance array identity", () => {
+    const a = selectLowConfidenceStops(utts);
+    const b = selectLowConfidenceStops(utts);
     expect(b).toBe(a);
-    expect(a).toEqual(lowConfidenceStops(utts, true, false));
+    expect(a).toEqual(lowConfidenceStops(utts));
 
-    // Same effective visibility (annotate && showCutAway is false either way).
-    const c = selectLowConfidenceStops(utts, false, true);
-    expect(c).toBe(a);
-
-    const d = selectLowConfidenceStops(utts, true, true);
-    expect(d).not.toBe(a);
-    expect(d).toHaveLength(2);
-
-    const e = selectLowConfidenceStops([...utts], true, true);
-    expect(e).not.toBe(d);
+    const c = selectLowConfidenceStops([...utts]);
+    expect(c).not.toBe(a);
   });
 
   it("keeps each utterance array cached while callers alternate", () => {
     const other = [...utts];
-    const a = selectLowConfidenceStops(utts, true, false);
-    const b = selectLowConfidenceStops(other, true, false);
+    const a = selectLowConfidenceStops(utts);
+    const b = selectLowConfidenceStops(other);
     expect(b).not.toBe(a);
-    expect(selectLowConfidenceStops(utts, true, false)).toBe(a);
-    expect(selectLowConfidenceStops(other, true, false)).toBe(b);
-    const all = selectLowConfidenceStops(utts, true, true);
-    expect(selectLowConfidenceStops(utts, true, false)).toBe(a);
-    expect(selectLowConfidenceStops(utts, true, true)).toBe(all);
+    expect(selectLowConfidenceStops(utts)).toBe(a);
+    expect(selectLowConfidenceStops(other)).toBe(b);
   });
 });
 

@@ -507,8 +507,7 @@ function DeliverStageAdapter({ loadFailure }: DeliverStageProps) {
     comments: project.comments ?? [],
     unsureWordsLeft:
       wordDetail.kind === "ready"
-        ? lowConfidenceStops(project.transcript?.utterances ?? [], false, false)
-            .length
+        ? lowConfidenceStops(project.transcript?.utterances ?? []).length
         : wordDetail.kind === "failed"
           ? "failed"
           : "pending",
