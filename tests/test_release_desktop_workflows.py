@@ -322,7 +322,8 @@ def test_extension_wheel_freeze_isolated_from_signing_jobs() -> None:
     assert prepare_checkout["with"]["persist-credentials"] is False
     assert "secrets." not in str(prepare["steps"][1:])
     assert (
-        prepare["strategy"]["matrix"] == "${{ fromJSON(needs.verify-source.outputs.prepare_matrix) }}"
+        prepare["strategy"]["matrix"]
+        == "${{ fromJSON(needs.verify-source.outputs.prepare_matrix) }}"
     )
 
     prepare_steps = prepare["steps"]
