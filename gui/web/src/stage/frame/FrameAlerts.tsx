@@ -1,12 +1,26 @@
-import { type ReactNode, useState, useSyncExternalStore } from "react";
-import { AlertSlot } from "../../system/AlertSlot";
 import {
-  type AlertStore,
-  AlertStoreContext,
-  createAlertStore,
-} from "./useFrameAlert";
+  type ReactNode,
+  useContext,
+  useState,
+  useSyncExternalStore,
+} from "react";
+import { AlertSlot } from "../../system/AlertSlot";
+import { AlertStoreContext, createAlertStore } from "./useFrameAlert";
 
-function FrameAlertSlot({ store }: { store: AlertStore }) {
+/** Holds the frame's alerts. Mount it above the whole frame so the banners and the stage body share it. */
+export function FrameAlertProvider({ children }: { children: ReactNode }) {
+  const [store] = useState(createAlertStore);
+  return (
+    <AlertStoreContext.Provider value={store}>
+      {children}
+    </AlertStoreContext.Provider>
+  );
+}
+
+/** The frame's one alert slot; it shows what every `useFrameAlert` under the provider put there. */
+export function FrameAlertSlot() {
+  const store = useContext(AlertStoreContext);
+  if (!store) throw new Error("FrameAlertSlot needs a FrameAlertProvider");
   const alerts = useSyncExternalStore(
     store.subscribe,
     store.getSnapshot,
@@ -15,13 +29,12 @@ function FrameAlertSlot({ store }: { store: AlertStore }) {
   return <AlertSlot alerts={alerts} />;
 }
 
-/** Hosts the frame's one alert slot; every `useFrameAlert` below it lands in that slot. */
+/** A provider and its slot in one, for a tree that has no frame around it. */
 export function FrameAlerts({ children }: { children: ReactNode }) {
-  const [store] = useState(createAlertStore);
   return (
-    <AlertStoreContext.Provider value={store}>
-      <FrameAlertSlot store={store} />
+    <FrameAlertProvider>
+      <FrameAlertSlot />
       {children}
-    </AlertStoreContext.Provider>
+    </FrameAlertProvider>
   );
 }

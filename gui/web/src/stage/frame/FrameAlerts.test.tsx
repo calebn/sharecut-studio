@@ -1,6 +1,6 @@
 import { render, screen, within } from "@testing-library/react";
 import { expect, it } from "vitest";
-import { FrameAlerts } from "./FrameAlerts";
+import { FrameAlertProvider, FrameAlertSlot, FrameAlerts } from "./FrameAlerts";
 import {
   FRAME_ALERT_PRIORITY,
   useFrameAlert,
@@ -84,4 +84,21 @@ it("lists room alerts above job failures and drops the ones that go away", () =>
   expect(screen.queryByText("Your mic stopped.")).toBeNull();
   rerender(tree([]));
   expect(screen.getByText("Run failed")).toBeVisible();
+});
+
+function Sibling() {
+  useFrameAlertList([
+    { id: "mic", state: "failed", title: "Your mic stopped." },
+  ]);
+  return null;
+}
+
+it("shows an alert raised by a sibling of the slot, as a stage body is", () => {
+  render(
+    <FrameAlertProvider>
+      <FrameAlertSlot />
+      <Sibling />
+    </FrameAlertProvider>,
+  );
+  expect(screen.getByText("Your mic stopped.")).toBeVisible();
 });

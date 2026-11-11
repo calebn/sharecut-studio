@@ -20,6 +20,7 @@ import {
 } from "../edit/useViewAnchor";
 import { AvatarStack } from "./AvatarStack";
 import { BannerStack } from "./BannerStack";
+import { FrameAlertProvider } from "./FrameAlerts";
 import { guestPlayerCardShown } from "./guestPlayerCardShown";
 import { PlayerBar } from "./PlayerBar";
 import { SheetHost } from "./SheetHost";
@@ -92,69 +93,71 @@ function StageFrameAdapter({
   );
 
   return (
-    <StageFrameView
-      shell={shell}
-      stage={stage}
-      stageLabel={stageLabel(stage)}
-      guest={guestShare}
-      followColorIndex={followColorIndex}
-      header={
-        <AppHeader
-          {...headerProps}
-          undoHint={{
-            text: undoTip.text,
-            shown: undoTip.shown,
-            onDismiss: undoTip.dismiss,
-          }}
-          stages={
-            headerProps.stages && {
-              ...headerProps.stages,
-              panelId: STAGE_BODY_ID,
+    <FrameAlertProvider>
+      <StageFrameView
+        shell={shell}
+        stage={stage}
+        stageLabel={stageLabel(stage)}
+        guest={guestShare}
+        followColorIndex={followColorIndex}
+        header={
+          <AppHeader
+            {...headerProps}
+            undoHint={{
+              text: undoTip.text,
+              shown: undoTip.shown,
+              onDismiss: undoTip.dismiss,
+            }}
+            stages={
+              headerProps.stages && {
+                ...headerProps.stages,
+                panelId: STAGE_BODY_ID,
+              }
             }
-          }
-          peopleSlot={<AvatarStack variant="header" />}
-          menuPeople={<AvatarStack variant="menu" />}
-          compact={shortFrame}
-          stagesInMenu={shell === "phone"}
-          toolsSlot={
-            shortFrame && stage === "edit" ? (
-              <ToolsButton ref={toolsRef} />
-            ) : null
-          }
-        />
-      }
-      banners={<BannerStack guestShare={guestShare} />}
-      player={
-        stage === "record" ||
-        guestPlayerCardShown(stage, shell, guest, shortViewport) ? null : (
-          <PlayerBar />
-        )
-      }
-      tabs={
-        shell === "phone" && headerProps.stages ? (
-          <StageBar
-            {...headerProps.stages}
-            form="tabs"
-            panelId={STAGE_BODY_ID}
+            peopleSlot={<AvatarStack variant="header" />}
+            menuPeople={<AvatarStack variant="menu" />}
+            compact={shortFrame}
+            stagesInMenu={shell === "phone"}
+            toolsSlot={
+              shortFrame && stage === "edit" ? (
+                <ToolsButton ref={toolsRef} />
+              ) : null
+            }
           />
-        ) : null
-      }
-      sheet={<SheetHost content={sheets} />}
-      live={<StatusLive />}
-      overlay={<PresenceGhostLayer rootRef={rootRef} />}
-      bindings={{
-        root: rootRef,
-        header: headerRegion,
-        body: stage === "edit" ? undefined : bodyRegion,
-        player: playerRegion,
-      }}
-    >
-      {children(
-        shortFrame
-          ? { kind: "unavailable", returnTarget: () => toolsRef.current }
-          : AVAILABLE_VIEW_ANCHOR,
-      )}
-    </StageFrameView>
+        }
+        banners={<BannerStack guestShare={guestShare} />}
+        player={
+          stage === "record" ||
+          guestPlayerCardShown(stage, shell, guest, shortViewport) ? null : (
+            <PlayerBar />
+          )
+        }
+        tabs={
+          shell === "phone" && headerProps.stages ? (
+            <StageBar
+              {...headerProps.stages}
+              form="tabs"
+              panelId={STAGE_BODY_ID}
+            />
+          ) : null
+        }
+        sheet={<SheetHost content={sheets} />}
+        live={<StatusLive />}
+        overlay={<PresenceGhostLayer rootRef={rootRef} />}
+        bindings={{
+          root: rootRef,
+          header: headerRegion,
+          body: stage === "edit" ? undefined : bodyRegion,
+          player: playerRegion,
+        }}
+      >
+        {children(
+          shortFrame
+            ? { kind: "unavailable", returnTarget: () => toolsRef.current }
+            : AVAILABLE_VIEW_ANCHOR,
+        )}
+      </StageFrameView>
+    </FrameAlertProvider>
   );
 }
 

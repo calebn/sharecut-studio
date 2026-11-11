@@ -40,6 +40,7 @@ export function createAlertStore() {
 
 export type FrameAlertEntry = FrameAlert & { id: string };
 
+/** Divides a list index into a fraction below 1, so a list always sorts ahead of the numbered tiers. */
 const FRAME_ALERT_LIST_SCALE = 1000;
 
 export type AlertStore = ReturnType<typeof createAlertStore>;
