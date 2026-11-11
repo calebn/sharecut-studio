@@ -450,7 +450,6 @@ export function patchTracksOrder(
   return { ...project, tracks };
 }
 
-/** Optimistic splice for SetClipGain. */
 export function patchClipGain(
   project: ProjectView,
   clipId: string,
