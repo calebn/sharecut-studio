@@ -18,7 +18,7 @@ export type ConflictSuggestion = {
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null;
 
-function cutSpan(payload: unknown) {
+export function cutSpan(payload: unknown) {
   if (!isRecord(payload) || payload.action !== "cut") return undefined;
   if (!Array.isArray(payload.targets)) return undefined;
   let startSec = Number.POSITIVE_INFINITY;

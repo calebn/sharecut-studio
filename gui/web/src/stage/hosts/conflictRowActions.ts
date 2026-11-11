@@ -3,7 +3,7 @@ import {
   runRangeAction,
 } from "../../commands/rangeActions";
 import { makeRangeTarget } from "../../edit/rangeSelection";
-import { suggestionOf } from "../../review/conflictRows";
+import { cutSpan, suggestionOf } from "../../review/conflictRows";
 import type { ReviewAttention } from "../../review/reviewQueueModel";
 import {
   activeConflictIds,
@@ -11,6 +11,7 @@ import {
   dismissOneConflict,
   hasConflictBeyond,
 } from "../../services/offlineQueue/offlineAttention";
+import type { OfflineConflict } from "../../services/offlineQueue/offlineStore";
 import { hasShareCapability } from "../../shareMode";
 import { useDawStore } from "../../state/dawStore";
 import { playTimelineRange } from "../../utils/playRange";
@@ -22,8 +23,24 @@ const NOT_LISTED = "That suggestion is no longer listed";
 const AUDIO_GONE =
   "That part of the audio is gone, so there is nothing to suggest again";
 const PROJECT_NOT_OPEN = "Open the project to suggest it again";
+const HEAR_NEEDS_PROJECT = "Open the project to hear it";
+const NOT_CONFIRMED =
+  "Could not confirm the new suggestion was sent. Check the list before suggesting again.";
 const OLD_ROW_STAYS =
   "Suggested again, but the old row could not be cleared. Drop it to remove it.";
+
+type Span = { startSec: number; endSec: number; trackIds: readonly string[] };
+
+const refusedAgain = (span: Span) => (conflict: OfflineConflict) => {
+  const found = cutSpan(conflict.command.payload);
+  return (
+    found !== undefined &&
+    found.startSec === span.startSec &&
+    found.endSec === span.endSec &&
+    found.trackIds.length === span.trackIds.length &&
+    found.trackIds.every((id) => span.trackIds.includes(id))
+  );
+};
 
 type Actions = NonNullable<ReviewAttention["suggestionActions"]>;
 type Row = Pick<Parameters<Actions["onDrop"]>[0], "id">;
@@ -65,6 +82,10 @@ export function conflictRowActions(projectPath: string): Actions {
       const state = useDawStore.getState();
       if (!hasShareCapability(state.shareCapabilities, "play")) {
         tell(PLAY_DENIED_REASON);
+        return;
+      }
+      if (!state.project) {
+        tell(HEAR_NEEDS_PROJECT);
         return;
       }
       playTimelineRange({
@@ -110,11 +131,19 @@ export function conflictRowActions(projectPath: string): Actions {
         const known = activeConflictIds(projectPath);
         const result = await runRangeAction("cut", target);
         if (result.status === "disabled" && !result.told) tell(result.reason);
-        const admitted =
-          result.status === "ok" ||
-          (result.status === "disabled" &&
-            result.told === true &&
-            (await hasConflictBeyond(projectPath, known)));
+        let admitted = result.status === "ok";
+        if (result.status === "disabled" && result.told === true) {
+          try {
+            admitted = await hasConflictBeyond(
+              projectPath,
+              known,
+              refusedAgain({ startSec, endSec, trackIds }),
+            );
+          } catch {
+            tell(NOT_CONFIRMED);
+            return;
+          }
+        }
         if (!admitted) return;
         if (!(await dismissOneConflict(projectPath, found.conflict)))
           tell(OLD_ROW_STAYS);

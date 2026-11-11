@@ -194,6 +194,19 @@ describe("the live guest conflict row", () => {
     });
   });
 
+  describe("Hear without a project", () => {
+    it("does not move the playhead and says to open the project", async () => {
+      render(<Queue />);
+      await settle();
+      useDawStore.setState({ project: null });
+      await click(/^Hear your cut/);
+      expect(audition.playTimelineRange).not.toHaveBeenCalled();
+      expect(announce).toHaveBeenCalledWith("Open the project to hear it", {
+        tone: "error",
+      });
+    });
+  });
+
   describe("Drop it", () => {
     it("clears only that row once, however often it is clicked, and says so", async () => {
       render(<Queue />);
@@ -353,6 +366,40 @@ describe("the live guest conflict row", () => {
           command: expect.objectContaining({ command_id: "cut-1" }),
         }),
       ]);
+    });
+
+    it("keeps the row when an unrelated conflict arrives after a told failure", async () => {
+      ranges.runRangeAction.mockImplementation(async () => {
+        store.loadGuestAttention.mockResolvedValue({
+          pending: 0,
+          conflicts: [staleCut(), staleCut("other", { start: 40, end: 42 })],
+        });
+        return { status: "disabled", reason: "Network down", told: true };
+      });
+      render(<Queue />);
+      await settle();
+      await click(/^Suggest again here, your cut at 12:04/);
+      expect(store.dismissConflicts).not.toHaveBeenCalled();
+    });
+
+    it("tells the guest and keeps the row when the admission check cannot read", async () => {
+      ranges.runRangeAction.mockImplementation(async () => {
+        store.loadGuestAttention.mockRejectedValue(new Error("db gone"));
+        return { status: "disabled", reason: "refused", told: true };
+      });
+      render(<Queue />);
+      await settle();
+      const rejected = vi.fn();
+      process.on("unhandledRejection", rejected);
+      await click(/^Suggest again here/);
+      await settle();
+      process.off("unhandledRejection", rejected);
+      expect(rejected).not.toHaveBeenCalled();
+      expect(store.dismissConflicts).not.toHaveBeenCalled();
+      expect(announce).toHaveBeenCalledWith(
+        "Could not confirm the new suggestion was sent. Check the list before suggesting again.",
+        { tone: "error" },
+      );
     });
 
     it("says so when the old row cannot be cleared after a new request was admitted", async () => {
