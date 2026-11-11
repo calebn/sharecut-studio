@@ -2,11 +2,18 @@ import { setClipsFade, setClipsGain } from "../../api";
 import { clipFadeBaseline } from "../../api/documentEdits";
 import { CLIP_HANDLE_STEPS } from "../../edit/clipHandleSteps";
 import { cancelClipPlacement } from "../../edit/clipPlacement";
+import { clipEdgeCurve, type FadeEdge } from "../../edit/fadeCurves";
 import { clampClipFades, maxFadeMs } from "../../edit/fadeLimits";
-import { clipIdsBeforeCut, isCutJoin } from "../../edit/joinRender";
+import {
+  blendsIn,
+  clipIdsBeforeBlend,
+  clipIdsBeforeCut,
+  isCutJoin,
+} from "../../edit/joinRender";
 import type { InspectorSection } from "../../system/InspectorSheet";
 import { ScrubField } from "../../system/ScrubField";
-import type { ClipRow, ProjectView } from "../../types/project";
+import type { ClipRow, FadeCurve, ProjectView } from "../../types/project";
+import { BUSY_REASON } from "../../ui/disabledReason";
 import {
   CLIP_GAIN_MAX_DB,
   CLIP_GAIN_MIN_DB,
@@ -15,9 +22,10 @@ import {
   clipGainDb,
 } from "../../utils/audio";
 import { CLIP_READ_ONLY_REASON } from "./clipReadOnly";
+import { fadeCurveRows } from "./fadeCurveRows";
 import { note } from "./sheetNote";
 
-type Edge = "in" | "out";
+type Edge = FadeEdge;
 
 const fadeOf = (clip: ClipRow, edge: Edge) =>
   edge === "in" ? clip.fade_in_ms : clip.fade_out_ms;
@@ -50,6 +58,11 @@ export function multiClipSections({
   const cutOut = new Set(
     Object.values(project?.clips.tracks ?? {}).flatMap((lane) => [
       ...clipIdsBeforeCut(lane),
+    ]),
+  );
+  const blendedOut = new Set(
+    Object.values(project?.clips.tracks ?? {}).flatMap((lane) => [
+      ...clipIdsBeforeBlend(lane),
     ]),
   );
   const capOf = (clip: ClipRow) =>
@@ -109,6 +122,51 @@ export function multiClipSections({
     );
   };
 
+  const curveRows = (edge: Edge) => {
+    const reach = clips.filter((clip) =>
+      edge === "in"
+        ? !isCutJoin(clip) && !blendsIn(clip)
+        : !cutOut.has(clip.id) && !blendedOut.has(clip.id),
+    );
+    const shapes = new Set(
+      (reach.length > 0 ? reach : clips).map((clip) =>
+        clipEdgeCurve(clip, edge),
+      ),
+    );
+    const apply = (curve: FadeCurve) => {
+      const fades = reach.flatMap((clip) =>
+        clipEdgeCurve(clip, edge) === curve
+          ? []
+          : [
+              {
+                clip_id: clip.id,
+                fade_in_ms: clip.fade_in_ms,
+                fade_out_ms: clip.fade_out_ms,
+                ...(edge === "in"
+                  ? { fade_in_curve: curve }
+                  : { fade_out_curve: curve }),
+                expected: clipFadeBaseline(clip),
+              },
+            ],
+      );
+      if (fades.length === 0) return;
+      cancelClipPlacement();
+      void run(() => setClipsFade(projectPath, fades));
+    };
+    return fadeCurveRows({
+      edge,
+      curve: shapes.size === 1 ? [...shapes][0]! : null,
+      editable: !readOnly,
+      disabledReason:
+        reach.length === 0
+          ? "Shape ignored: every selected clip's join here is a cut or a crossfade"
+          : locked
+            ? BUSY_REASON
+            : undefined,
+      onPick: apply,
+    });
+  };
+
   const gainValues = new Set(clips.map(clipGainDb));
   const commonGain = gainValues.size === 1 ? [...gainValues][0]! : null;
   const applyGain = (value: number) => {
@@ -158,6 +216,8 @@ export function multiClipSections({
               },
             ]
           : []),
+        ...curveRows("in"),
+        ...curveRows("out"),
         { id: "gain", label: "Gain", control: gainField },
         ...(locked
           ? []
@@ -165,7 +225,7 @@ export function multiClipSections({
               {
                 id: "fadeNote",
                 control: note(
-                  "A fade changes by the amount you scrub; Gain sets every selected clip to the level you choose.",
+                  "A fade changes by the amount you scrub; a shape and Gain set every selected clip to the choice you make.",
                   "status",
                 ),
               },

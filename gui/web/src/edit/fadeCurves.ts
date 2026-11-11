@@ -11,6 +11,23 @@ export type ClipFadeCurves = Readonly<{
   fade_out_curve?: FadeCurve;
 }>;
 
+const CURVE_LABEL: Record<FadeCurve, string> = {
+  linear: "Linear",
+  equal_power: "Equal power",
+  s: "S",
+};
+
+export function fadeCurveLabel(curve: FadeCurve): string {
+  return CURVE_LABEL[curve];
+}
+
+/** The button tooltip: the name, and for Equal power what it is not. */
+export function fadeCurveTitle(curve: FadeCurve): string {
+  return curve === "equal_power"
+    ? "Quarter sine; a true equal-power pair needs a crossfade"
+    : CURVE_LABEL[curve];
+}
+
 export function isFadeCurve(value: unknown): value is FadeCurve {
   return FADE_CURVES.some((curve) => curve === value);
 }

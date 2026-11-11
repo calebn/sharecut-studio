@@ -538,7 +538,8 @@ export const CAPABILITY_COPY: Record<string, CapabilityCopy> = {
   },
   "daw.edit.setClipFade": {
     label: "Set clip fade",
-    tooltip: "Drag or use focused Left/Right arrows to set fade length",
+    tooltip:
+      "Drag or use focused Left/Right arrows to set fade length; pick its shape in the Inspector",
   },
   "daw.edit.setClipGain": {
     label: "Set clip gain",
@@ -682,6 +683,7 @@ export const GUI_SURFACE_TO_CAPABILITY: Record<string, string> = {
   "timeline.clip.joinDiamond": "daw.edit.rollClipJoin",
   "transcript.seam": "daw.edit.rollClipJoin",
   "timeline.clip.fadeHandle": "daw.edit.setClipFade",
+  "inspector.clip.fadeCurve": "daw.edit.setClipFade",
   "inspector.clip.gain": "daw.edit.setClipGain",
   "inspector.clip.joinType": "daw.edit.setClipJoin",
 };

@@ -1,13 +1,18 @@
 import { useEffect, useId, useState } from "react";
-import { setClipGain } from "../../api";
+import { setClipFade, setClipGain } from "../../api";
+import { clipFadeBaseline } from "../../api/documentEdits";
 import { commandLabel } from "../../commands/labels";
 import { executePointerCommand } from "../../commands/pointer";
 import { saveClipEdge, TRIM_MODE } from "../../edit/clipEdgeSave";
 import { CLIP_HANDLE_STEPS } from "../../edit/clipHandleSteps";
 import { cancelClipPlacement } from "../../edit/clipPlacement";
+import { clipEdgeCurve, type FadeEdge } from "../../edit/fadeCurves";
 import { edgeFadeMaxMs, maxFadeMs } from "../../edit/fadeLimits";
 import {
+  blendsIn,
+  clipIdsBeforeBlend,
   clipIdsBeforeCut,
+  curveIgnoredReason,
   cutFadeHint,
   isCutJoin,
   JOIN_AUDITION_PAD_SEC,
@@ -23,7 +28,7 @@ import { useDaw } from "../../state/useDaw";
 import type { InspectorSection } from "../../system/InspectorSheet";
 import { ScrubField } from "../../system/ScrubField";
 import { nudgeDriver } from "../../timeline/precision/precisionDrivers";
-import type { Selection } from "../../types/project";
+import type { FadeCurve, Selection } from "../../types/project";
 import { Button, InspectorSeekFooter } from "../../ui";
 import { BUSY_REASON } from "../../ui/disabledReason";
 import {
@@ -34,6 +39,7 @@ import {
 } from "../../utils/audio";
 import { ClipStartField, ClipTrackRow } from "./clipPlacementFields";
 import { CLIP_READ_ONLY_REASON } from "./clipReadOnly";
+import { fadeCurveRows } from "./fadeCurveRows";
 import { multiClipSections } from "./multiClipSections";
 import {
   joinLengthRows,
@@ -132,6 +138,8 @@ export function useClipSections(
     clip?.source_end,
     clip?.fade_in_ms,
     clip?.fade_out_ms,
+    clip?.fade_in_curve,
+    clip?.fade_out_curve,
     clip?.gain_db,
     capMs,
     setError,
@@ -164,6 +172,8 @@ export function useClipSections(
   const clipSec = clip.source_end - clip.source_start;
   const cutIn = isCutJoin(clip);
   const cutOut = clipIdsBeforeCut(lane).has(clip.id);
+  const blendIn = blendsIn(clip);
+  const blendOut = clipIdsBeforeBlend(lane).has(clip.id);
   const played = muteRegionsOverlapping(
     clip.mute_regions,
     clip.source_start,
@@ -315,6 +325,35 @@ export function useClipSections(
     );
   };
 
+  const fadeCurve = async (which: FadeEdge, curve: FadeCurve) => {
+    if (locked || clipEdgeCurve(clip, which) === curve) return;
+    cancelClipPlacement();
+    await run(() =>
+      setClipFade(
+        projectPath,
+        clip.id,
+        clip.fade_in_ms,
+        clip.fade_out_ms,
+        clipFadeBaseline(clip),
+        which === "in" ? { fade_in_curve: curve } : { fade_out_curve: curve },
+      ),
+    );
+  };
+
+  const curveRows = (which: FadeEdge) =>
+    fadeCurveRows({
+      edge: which,
+      curve: clipEdgeCurve(clip, which),
+      editable,
+      disabledReason:
+        curveIgnoredReason(
+          which,
+          which === "in" ? cutIn : cutOut,
+          which === "in" ? blendIn : blendOut,
+        ) ?? (busy || joinBusy ? BUSY_REASON : undefined),
+      onPick: (curve) => void fadeCurve(which, curve),
+    });
+
   const gainField = (
     <ScrubField
       variant="level"
@@ -353,6 +392,8 @@ export function useClipSections(
         { id: "out", label: "Source end", control: edge("out") },
         { id: "fadeIn", label: "Fade in", control: fadeField("in") },
         { id: "fadeOut", label: "Fade out", control: fadeField("out") },
+        ...curveRows("in"),
+        ...curveRows("out"),
         { id: "gain", label: "Gain", control: gainField },
         {
           id: "track",
