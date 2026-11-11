@@ -306,11 +306,14 @@ export function activeConflictIds(projectPath: string): Set<string> {
 export async function hasConflictBeyond(
   projectPath: string,
   known: ReadonlySet<string>,
+  matches: (conflict: OfflineConflict) => boolean = () => true,
 ): Promise<boolean> {
   const [, conflicts] = await read(projectPath);
   return conflicts.some(
     (conflict) =>
-      !conflict.dismissed && !known.has(conflict.command.command_id),
+      !conflict.dismissed &&
+      !known.has(conflict.command.command_id) &&
+      matches(conflict),
   );
 }
 
