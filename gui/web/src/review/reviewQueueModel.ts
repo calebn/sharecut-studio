@@ -10,6 +10,7 @@ import { verbOf } from "../system/verbDisplay";
 import type { VerbId } from "../system/verbs";
 import { TRANSCRIPT_REFINE_REFUSAL } from "../utils/apiError";
 import { plural } from "../utils/format";
+import { type ConflictSuggestion, suggestionOf } from "./conflictRows";
 import { unionSeconds } from "./rangeUnion";
 
 export type ReviewResult = "applied" | "kept";
@@ -372,6 +373,8 @@ export type AttentionRow = {
   refineReason?: string;
   /** An outcome that may have applied, so History says what happened. */
   inspectHistory?: boolean;
+  /** A guest cut a newer host edit overlaps; shown as three actions once they are wired. */
+  suggestion?: ConflictSuggestion;
 };
 
 /** Offline edits that did not apply or have not been sent, shown as Check rows above the groups. */
@@ -390,6 +393,15 @@ export type ReviewAttention = {
   onRetry: () => void;
   onSendNow?: () => void;
   onInspectHistory?: () => void;
+  /**
+   * What the three buttons of a cut suggestion row do. A row with a suggestion shows them only
+   * when this is set, so no button is ever shown without something behind it.
+   */
+  suggestionActions?: {
+    onHear: (row: AttentionRow) => void;
+    onSuggestAgain: (row: AttentionRow) => void;
+    onDrop: (row: AttentionRow) => void;
+  };
 };
 
 const COMMAND_NOUNS: Readonly<Record<string, string>> = {
@@ -425,6 +437,7 @@ export const attentionRowsOf = (
           conflict.kind === "unknown" &&
           conflict.recovery === "inspect-history") ||
         undefined,
+      suggestion: suggestionOf(conflict),
     };
   });
 

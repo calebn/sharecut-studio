@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 import { CUT_ANYWAY_REASON } from "../inspector/TranscriptRefineRecovery";
 import { reviewContent } from "../storybook/reviewContent";
 import { QUEUE_WITHOUT_CHECKS } from "../storybook/reviewFixtures";
+import { expectNoA11yViolations } from "../test/a11y";
 import { offlineConflict } from "../test/fixtures";
 import { DocumentCommand } from "../types/documentCommands.generated";
 import { TRANSCRIPT_REFINE_REFUSAL } from "../utils/apiError";
@@ -510,6 +511,96 @@ describe("ReviewQueue", () => {
       );
       expect(group).toHaveTextContent("Your change: Moved");
       expect(group).toHaveTextContent("Edit the change and submit it again.");
+    });
+
+    describe("cut suggestion conflict", () => {
+      const suggestionRows = () =>
+        attentionRowsOf(
+          [
+            offlineConflict({
+              code: "range_changed",
+              reason: "Selected audio changed. Select the range again.",
+              command: {
+                command_id: "cut-1",
+                type: DocumentCommand.EditSelectedRange,
+                payload: {
+                  action: "cut",
+                  targets: [
+                    { intervals: [{ start: 724, end: 727 }], track_ids: ["t"] },
+                  ],
+                },
+              },
+            }),
+          ],
+          true,
+        );
+      const actions = () => ({
+        onHear: vi.fn(),
+        onSuggestAgain: vi.fn(),
+        onDrop: vi.fn(),
+      });
+
+      it("keeps today's row when nothing is wired to the buttons", () => {
+        renderQueue(attention({ rows: suggestionRows() }));
+        expect(
+          screen.getByText(
+            "Your change: Selected audio changed. Select the range again.",
+          ),
+        ).toBeInTheDocument();
+        expect(screen.queryByRole("button", { name: /^Hear/ })).toBeNull();
+        expect(screen.queryByRole("button", { name: /^Drop it/ })).toBeNull();
+      });
+
+      it("shows Hear, Suggest again here and Drop it in that Tab order", async () => {
+        const user = userEvent.setup();
+        const wired = actions();
+        const rows = suggestionRows();
+        const { container } = renderQueue(
+          attention({ rows, suggestionActions: wired }),
+        );
+        expect(
+          screen.getByText("Your cut at 12:04 overlaps a newer edit"),
+        ).toBeInTheDocument();
+        expect(screen.queryByText(/Edit the change/)).toBeNull();
+        const group = screen.getByRole("group", {
+          name: "Needs attention. 1 conflict",
+        });
+        const names = [
+          "Hear your cut at 12:04",
+          "Suggest again here, your cut at 12:04",
+          "Drop it, your cut at 12:04",
+        ];
+        await user.click(group);
+        await user.tab();
+        for (const name of names) {
+          // Dismiss all comes first in the group head.
+          if (document.activeElement?.textContent === "Dismiss all") {
+            await user.tab();
+          }
+          expect(document.activeElement).toBe(
+            screen.getByRole("button", { name }),
+          );
+          await user.tab();
+        }
+        await user.click(screen.getByRole("button", { name: names[2]! }));
+        expect(wired.onDrop).toHaveBeenCalledWith(rows[0]);
+        expect(wired.onHear).not.toHaveBeenCalled();
+        await user.click(screen.getByRole("button", { name: names[0]! }));
+        expect(wired.onHear).toHaveBeenCalledWith(rows[0]);
+        await user.click(screen.getByRole("button", { name: names[1]! }));
+        expect(wired.onSuggestAgain).toHaveBeenCalledWith(rows[0]);
+        await expectNoA11yViolations(container);
+      });
+
+      it("keeps the generic row for a conflict with no suggestion", () => {
+        renderQueue(attention({ suggestionActions: actions() }));
+        expect(screen.queryByRole("button", { name: /^Hear/ })).toBeNull();
+        expect(
+          screen.getByRole("group", { name: /^Needs attention/ }),
+        ).toHaveTextContent(
+          "Your change: Envelope changed since this edit was queued",
+        );
+      });
     });
 
     it("lists every conflict row with no more-than cap", () => {
