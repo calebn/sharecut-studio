@@ -1,7 +1,7 @@
 import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { revealProject } from "../api";
+import { moveProject, pickFolder, revealProject } from "../api";
 import { registerHostCommands } from "../commands/host";
 import { __resetThemeForTests, useTheme } from "../hooks/useTheme";
 import { ModelsSheet } from "../models";
@@ -23,6 +23,8 @@ vi.mock("@tauri-apps/api/core", () => ({ isTauri: () => tauri.on }));
 vi.mock("../api", async (importOriginal) => ({
   ...(await importOriginal<typeof import("../api")>()),
   revealProject: vi.fn(),
+  pickFolder: vi.fn(),
+  moveProject: vi.fn(),
   listRecentProjects: vi.fn(async () => []),
 }));
 
@@ -159,6 +161,102 @@ describe("Reveal in folder", () => {
     ).toBeVisible();
     expect(screen.getByRole("dialog", { name: "Settings" })).toBeVisible();
     await waitFor(() => expect(button).toHaveFocus());
+  });
+});
+
+describe("Move…", () => {
+  const assign = vi.fn();
+  beforeEach(() => {
+    assign.mockReset();
+    vi.stubGlobal("location", {
+      href: "http://127.0.0.1:8765/?project=%2FUsers%2Fada%2FEpisodes%2Fep-12%2Fepisode.sharecut",
+      assign,
+    });
+  });
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("is absent outside the desktop app", async () => {
+    inProject();
+    render(<Harness />);
+    const sheet = await openSettings();
+    expect(within(sheet).queryByRole("button", { name: "Move…" })).toBeNull();
+  });
+
+  it("moves the episode to the picked folder and reloads at the new path", async () => {
+    tauri.on = true;
+    inProject();
+    useDawStore.setState({ localClientId: "tab-1" });
+    vi.mocked(pickFolder).mockResolvedValue({ folder: "/Users/ada/Archive" });
+    vi.mocked(moveProject).mockResolvedValue({
+      project_path: "/Users/ada/Archive/ep-12/episode.sharecut",
+      previous_path: PROJECT_PATH,
+    });
+    const user = userEvent.setup();
+    render(<Harness />);
+    const sheet = await openSettings();
+    await user.click(within(sheet).getByRole("button", { name: "Move…" }));
+    await waitFor(() => expect(assign).toHaveBeenCalledOnce());
+    expect(moveProject).toHaveBeenCalledWith(
+      PROJECT_PATH,
+      "/Users/ada/Archive",
+      "tab-1",
+    );
+    expect(String(assign.mock.calls[0]?.[0])).toContain(
+      encodeURIComponent("/Users/ada/Archive/ep-12/episode.sharecut"),
+    );
+  });
+
+  it("changes nothing when the folder dialog is cancelled", async () => {
+    tauri.on = true;
+    inProject();
+    vi.mocked(pickFolder).mockResolvedValue({ cancelled: true });
+    const user = userEvent.setup();
+    render(<Harness />);
+    const sheet = await openSettings();
+    const button = within(sheet).getByRole("button", { name: "Move…" });
+    await user.click(button);
+    await waitFor(() => expect(button).toBeEnabled());
+    expect(moveProject).not.toHaveBeenCalled();
+    expect(assign).not.toHaveBeenCalled();
+  });
+
+  it("shows the server's refusal under the row and keeps the episode where it is", async () => {
+    tauri.on = true;
+    inProject();
+    vi.mocked(pickFolder).mockResolvedValue({ folder: "/Users/ada/Archive" });
+    vi.mocked(moveProject).mockRejectedValue(
+      new ApiError(
+        "Someone else has this episode open in another window.",
+        "move_others_connected",
+        409,
+      ),
+    );
+    const user = userEvent.setup();
+    render(<Harness />);
+    const sheet = await openSettings();
+    const button = within(sheet).getByRole("button", { name: "Move…" });
+    await user.click(button);
+    expect(
+      await within(sheet).findByText(
+        "Someone else has this episode open in another window.",
+      ),
+    ).toBeVisible();
+    expect(assign).not.toHaveBeenCalled();
+    await waitFor(() => expect(button).toHaveFocus());
+  });
+
+  it("says so when the computer has no folder dialog", async () => {
+    tauri.on = true;
+    inProject();
+    vi.mocked(pickFolder).mockResolvedValue({ unavailable: true });
+    const user = userEvent.setup();
+    render(<Harness />);
+    const sheet = await openSettings();
+    await user.click(within(sheet).getByRole("button", { name: "Move…" }));
+    expect(
+      await within(sheet).findByText(/couldn't open a folder dialog/),
+    ).toBeVisible();
+    expect(moveProject).not.toHaveBeenCalled();
   });
 });
 

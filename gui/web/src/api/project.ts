@@ -260,6 +260,58 @@ export async function closeEpisodeProject(signal?: AbortSignal): Promise<void> {
   );
 }
 
+export type PickFolderResult =
+  | { folder: string }
+  | { cancelled: true }
+  | { unavailable: true; detail?: string };
+
+/** Asks the host's OS for a folder; nothing is opened or changed. */
+export async function pickFolder(): Promise<PickFolderResult> {
+  const res = await apiFetch(
+    HOST_KEY,
+    { host: "/api/project/pick-folder" },
+    { method: "POST" },
+  );
+  const body = (await res.json()) as Record<string, unknown>;
+  if (body.unavailable === true) {
+    return {
+      unavailable: true,
+      detail: typeof body.detail === "string" ? body.detail : undefined,
+    };
+  }
+  if (typeof body.folder === "string" && body.folder.trim()) {
+    return { folder: body.folder };
+  }
+  if (body.cancelled === true) return { cancelled: true };
+  throw new Error("Unexpected pick-folder response");
+}
+
+/**
+ * Moves the open episode's whole folder into `destParent` (same drive). The
+ * caller reloads at the returned project path. `clientId` is this window's
+ * own session id, so its presence does not count as "someone else".
+ */
+export async function moveProject(
+  path: string,
+  destParent: string,
+  clientId: string | null,
+): Promise<{ project_path: string; previous_path: string }> {
+  const res = await apiFetch(
+    HOST_KEY,
+    { host: "/api/project/move" },
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        path,
+        dest_parent: destParent,
+        ...(clientId ? { client_id: clientId } : {}),
+      }),
+    },
+  );
+  return res.json() as Promise<{ project_path: string; previous_path: string }>;
+}
+
 export type PickEpisodeProjectResult =
   | { project_path: string }
   | { cancelled: true; detail?: string }

@@ -12,6 +12,9 @@ export type SettingsSavedIn = {
   /** Left out where the file manager cannot be opened (the browser). */
   onReveal?: () => void;
   revealing: boolean;
+  /** Left out with `onReveal`: the host's folder dialog is a desktop-app feature too. */
+  onMove?: () => void;
+  moving?: boolean;
   error: string | null;
 };
 
@@ -74,8 +77,11 @@ export function SettingsSheet({
   onOpenShortcuts,
 }: SettingsSheetProps) {
   const revealRef = useRef<HTMLButtonElement>(null);
+  const moveRef = useRef<HTMLButtonElement>(null);
   const wasRevealing = useRef(false);
+  const wasMoving = useRef(false);
   const revealing = savedIn?.revealing ?? false;
+  const moving = savedIn?.moving ?? false;
   // A disabled button drops focus; give it back when the request ends, so a
   // failure leaves the person on the button that caused it.
   useEffect(() => {
@@ -85,6 +91,13 @@ export function SettingsSheet({
     const active = document.activeElement;
     if (!active || active === document.body) revealRef.current?.focus();
   }, [revealing]);
+  useEffect(() => {
+    const was = wasMoving.current;
+    wasMoving.current = moving;
+    if (!was || moving) return;
+    const active = document.activeElement;
+    if (!active || active === document.body) moveRef.current?.focus();
+  }, [moving]);
   return (
     <Sheet
       form={phone ? "bottom" : "end"}
@@ -110,11 +123,26 @@ export function SettingsSheet({
                 <Button
                   ref={revealRef}
                   type="button"
-                  disabledReason={savedIn.revealing ? BUSY_REASON : undefined}
+                  disabledReason={
+                    savedIn.revealing || moving ? BUSY_REASON : undefined
+                  }
                   aria-busy={savedIn.revealing || undefined}
                   onClick={savedIn.onReveal}
                 >
                   {savedIn.revealing ? "Revealing…" : "Reveal in folder"}
+                </Button>
+              ) : null}
+              {savedIn.onMove ? (
+                <Button
+                  ref={moveRef}
+                  type="button"
+                  disabledReason={
+                    moving || savedIn.revealing ? BUSY_REASON : undefined
+                  }
+                  aria-busy={moving || undefined}
+                  onClick={savedIn.onMove}
+                >
+                  {moving ? "Moving…" : "Move…"}
                 </Button>
               ) : null}
             </div>

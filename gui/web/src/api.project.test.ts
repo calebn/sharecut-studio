@@ -3,6 +3,8 @@ import {
   loadDocumentState,
   loadReviewBootstrap,
   loadReviewVersionStatus,
+  moveProject,
+  pickFolder,
   revealProject,
   reviewVersionAtBootstrap,
 } from "./api";
@@ -50,6 +52,54 @@ describe("project API facade", () => {
     expect(typeof init?.body).toBe("string");
     expect(JSON.parse(init?.body as string)).toEqual({
       path: "/tmp/ep/episode.sharecut",
+    });
+  });
+
+  it("reads the three answers of the folder dialog", async () => {
+    const answer = (body: unknown) =>
+      vi.stubGlobal(
+        "fetch",
+        vi.fn(async () => new Response(JSON.stringify(body), { status: 200 })),
+      );
+    answer({ folder: "/Users/ada/Archive" });
+    expect(await pickFolder()).toEqual({ folder: "/Users/ada/Archive" });
+    answer({ cancelled: true });
+    expect(await pickFolder()).toEqual({ cancelled: true });
+    answer({ unavailable: true, detail: "no dialog" });
+    expect(await pickFolder()).toEqual({
+      unavailable: true,
+      detail: "no dialog",
+    });
+    answer({});
+    await expect(pickFolder()).rejects.toThrow("Unexpected pick-folder");
+  });
+
+  it("posts the move with this window's client id only when it has one", async () => {
+    const fetchSpy = vi.fn(
+      async (_url: string, _init?: RequestInit) =>
+        new Response(
+          JSON.stringify({
+            project_path: "/a/ep/episode.sharecut",
+            previous_path: "/b",
+          }),
+          { status: 200 },
+        ),
+    );
+    vi.stubGlobal("fetch", fetchSpy);
+
+    await moveProject("/b/ep/episode.sharecut", "/a", "tab-1");
+    await moveProject("/b/ep/episode.sharecut", "/a", null);
+
+    const [first, second] = fetchSpy.mock.calls;
+    expect(first?.[0]).toBe("/api/project/move");
+    expect(JSON.parse(first?.[1]?.body as string)).toEqual({
+      path: "/b/ep/episode.sharecut",
+      dest_parent: "/a",
+      client_id: "tab-1",
+    });
+    expect(JSON.parse(second?.[1]?.body as string)).toEqual({
+      path: "/b/ep/episode.sharecut",
+      dest_parent: "/a",
     });
   });
 
