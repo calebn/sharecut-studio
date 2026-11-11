@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useState } from "react";
 import { expect, it, vi } from "vitest";
@@ -131,4 +131,71 @@ it("keeps Export the primary when the export is stale or never ran", () => {
     />,
   );
   expect(screen.getByRole("button", { name: "Export" })).toHaveClass("primary");
+});
+
+const BOUNCE = {
+  id: "bounces/field-notes_0-3.wav",
+  name: "field-notes_0-3.wav",
+  kind: "bounce" as const,
+  label: "Unmastered export",
+  bytes: 1_200_000,
+  current: true,
+};
+
+const renderWithBounce = (
+  access: "reveal" | "download",
+  withBounce: boolean,
+  onReveal?: () => void,
+) => {
+  const base = exportedFilesOf(REQUEST, access);
+  render(
+    <EpisodeFile
+      settings={SETTINGS}
+      total={TOTAL}
+      exportState={DONE}
+      files={{
+        ...base,
+        onReveal,
+        files: withBounce
+          ? [
+              ...base.files,
+              {
+                ...BOUNCE,
+                href: access === "download" ? `#${BOUNCE.id}` : undefined,
+              },
+            ]
+          : base.files,
+      }}
+      hasTranscriptSection={false}
+      onSettings={() => {}}
+      onExport={() => {}}
+    />,
+  );
+};
+
+it("lists a selection export under its own group with Download in the browser", () => {
+  renderWithBounce("download", true);
+  const group = screen
+    .getByRole("heading", { name: "Exports of a selection" })
+    .closest(".dv-file-group") as HTMLElement;
+  expect(within(group).getByText("Unmastered export")).toBeVisible();
+  expect(
+    within(group).getByRole("link", { name: /^Download field-notes_0-3\.wav/ }),
+  ).toHaveAttribute("download");
+});
+
+it("reveals a selection export in the desktop app", async () => {
+  const onReveal = vi.fn();
+  renderWithBounce("reveal", true, onReveal);
+  await userEvent.click(
+    screen.getByRole("button", { name: /^Reveal field-notes_0-3\.wav/ }),
+  );
+  expect(onReveal.mock.calls[0]?.[0]).toMatchObject({ kind: "bounce" });
+});
+
+it("shows no selection group when nothing was exported from a selection", () => {
+  renderWithBounce("download", false);
+  expect(
+    screen.queryByRole("heading", { name: "Exports of a selection" }),
+  ).toBeNull();
 });
