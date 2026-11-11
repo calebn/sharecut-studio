@@ -24,6 +24,16 @@ describe("App styles", () => {
     expect(px.every((n) => n <= 1)).toBe(true);
   });
 
+  it("lets the Range sheet value fields shrink inside a narrow sheet", () => {
+    const here = dirname(fileURLToPath(import.meta.url));
+    const src = readFileSync(
+      join(here, "styles/partials/inspector.css"),
+      "utf8",
+    );
+    const rule = src.match(/\.range-field\s*\{[^}]*min-inline-size:[^;]*;/g);
+    expect(rule?.at(-1)).toMatch(/min-inline-size:\s*min\(12rem,\s*100%\)/);
+  });
+
   it("caps Dialog and Menu overlays to dvh with internal scroll", () => {
     const here = dirname(fileURLToPath(import.meta.url));
     const palette = readFileSync(

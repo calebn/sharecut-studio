@@ -254,6 +254,7 @@ async function sweepCell(
       dense: DENSE,
       sizeExempt: SIZE_EXEMPT,
     });
+    found["armed range"].push(...(await rangeFieldOverflow(page)));
     // Nothing waits in a sheet once armed; the same toggle disarms.
     await disarmRange(page);
   }
@@ -318,6 +319,34 @@ async function sweepCell(
     .map(([state, failures]) => `${state}\n${describeReach(failures)}`)
     .join("\n");
   return report ? `${cell.name}\n${report}` : "";
+}
+
+/** The In, Out and Length value fields sit inside the Range sheet, not clipped at its edge. */
+async function rangeFieldOverflow(page: Page): Promise<Reach[]> {
+  return page.evaluate(() => {
+    const out: Reach[] = [];
+    for (const root of document.querySelectorAll<HTMLElement>(
+      ".range-actions",
+    )) {
+      const held = root.getBoundingClientRect();
+      for (const field of root.querySelectorAll<HTMLElement>(".range-field")) {
+        const box = field.getBoundingClientRect();
+        if (!box.width || box.right <= held.right + 1) continue;
+        out.push({
+          failure: "overflows-container",
+          control: `label.range-field "${field.textContent?.trim().slice(0, 20)}"`,
+          layout: { width: field.offsetWidth, height: field.offsetHeight },
+          rect: {
+            left: box.left,
+            top: box.top,
+            right: box.right,
+            bottom: box.bottom,
+          },
+        });
+      }
+    }
+    return out;
+  });
 }
 
 /**
