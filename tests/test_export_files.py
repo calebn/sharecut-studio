@@ -164,6 +164,97 @@ def test_an_id_is_matched_as_a_whole_never_joined_to_a_path(ws, folder, file_id)
     assert refused.value.code == "export_file_gone"
 
 
+def _bounce_ids(ws: ProjectWorkspace, **kwargs) -> list[str]:
+    return [f.id for f in ExportFilesService(ws, **kwargs).list() if f.kind == "bounce"]
+
+
+def test_a_host_listing_adds_the_bounces_and_skips_what_is_hidden(ws, folder) -> None:
+    bounces = folder / "bounces"
+    (bounces / "range.mp3").write_bytes(MP3)
+    (bounces / "range.json").write_text("{}", encoding="utf-8")
+    (bounces / ".range.mix.wav").write_bytes(WAV)
+    (bounces / ".range.trim.wav").write_bytes(WAV)
+    (bounces / ".range.stems").mkdir()
+    (bounces / ".range.stems" / "host.wav").write_bytes(WAV)
+    (bounces / "nested").mkdir()
+    (bounces / "nested" / "deep.wav").write_bytes(WAV)
+    (bounces / "linked.wav").symlink_to(folder / "clips" / "cold-open_c1.wav")
+
+    listed = ExportFilesService(ws, bounces=True).list()
+
+    assert [(f.id, f.label, f.bytes) for f in listed if f.kind == "bounce"] == [
+        ("bounces/range.mp3", "Range export", len(MP3)),
+        ("bounces/range.wav", "Range export", 64),
+    ]
+    assert "bounces/range.wav" not in [f.id for f in ExportFilesService(ws).list()]
+
+
+def test_the_default_service_never_lists_or_opens_a_bounce(ws, folder) -> None:
+    assert _bounce_ids(ws) == []
+    with pytest.raises(CodedFileNotFoundError):
+        ExportFilesService(ws).open("bounces/range.wav")
+    assert ExportFilesService(ws, bounces=True).open("bounces/range.wav").kind == "bounce"
+
+
+@pytest.mark.parametrize(
+    "file_id",
+    [
+        "bounces/../notes.txt",
+        "bounces//range.wav",
+        "./bounces/range.wav",
+        "bounces/.range.trim.wav",
+    ],
+)
+def test_a_bounce_id_is_matched_as_a_whole_never_joined(ws, folder, file_id) -> None:
+    (folder / "bounces" / ".range.trim.wav").write_bytes(WAV)
+
+    with pytest.raises(CodedFileNotFoundError) as refused:
+        ExportFilesService(ws, bounces=True).open(file_id)
+
+    assert refused.value.code == "export_file_gone"
+
+
+def test_a_symlinked_bounces_folder_lists_nothing(ws, folder, tmp_path) -> None:
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    (outside / "leak.wav").write_bytes(b"leak")
+    (folder / "bounces" / "range.wav").unlink()
+    (folder / "bounces").rmdir()
+    (folder / "bounces").symlink_to(outside)
+
+    assert _bounce_ids(ws, bounces=True) == []
+
+
+def test_the_host_lists_and_downloads_a_bounce_with_a_ticket(ws, folder, remote) -> None:
+    listed = remote.get("/api/export/files", params={"path": str(ws.path)}, headers=SESSION)
+    row = next(f for f in listed.json()["files"] if f["id"] == "bounces/range.wav")
+    url = "/api/export/files/bounces/range.wav"
+
+    ticketed = remote.get(url, params={"path": str(ws.path), "ticket": row["ticket"]})
+    bare = remote.get(url, params={"path": str(ws.path)})
+
+    assert (row["kind"], row["label"], row["name"]) == ("bounce", "Range export", "range.wav")
+    assert (ticketed.status_code, ticketed.content) == (200, WAV[:64])
+    assert ticketed.headers["content-disposition"].startswith("attachment")
+    assert ticketed.headers["content-type"].startswith("audio/")
+    assert bare.status_code == 403
+
+
+def test_the_host_reveals_a_bounce(ws, folder, local, monkeypatch) -> None:
+    shown: list[Path] = []
+    monkeypatch.setattr(
+        "podcast_mcp.gui.routes.export_files.reveal_in_file_manager",
+        lambda path: shown.append(path) or True,
+    )
+
+    res = local.post(
+        "/api/export/files/reveal", json={"path": str(ws.path), "id": "bounces/range.wav"}
+    )
+
+    assert (res.status_code, res.json()) == (200, {"revealed": True})
+    assert shown == [(folder / "bounces" / "range.wav").resolve()]
+
+
 def test_an_empty_export_folder_lists_nothing(ws) -> None:
     assert ExportFilesService(ws).list() == []
 
@@ -274,7 +365,9 @@ def test_transcript_renderer_runtime_errors_propagate(ws, folder, monkeypatch) -
         "notes.txt",
         "test_episode.json",
         "clips/cold-open_c1.json",
-        "bounces/range.wav",
+        "bounces/missing.wav",
+        "bounces/../notes.txt",
+        "bounces/.range.trim.wav",
         "clips/../notes.txt",
         "..%2fnotes.txt",
         "/etc/passwd",
@@ -605,6 +698,16 @@ def test_an_editor_lists_and_downloads_without_the_render_opt_in(world, monkeypa
     assert (file.status_code, file.content) == (206, MP3[:10])
     assert file.headers["content-disposition"].startswith("attachment;")
     assert (clip.status_code, clip.content) == (200, WAV[:512])
+
+
+def test_an_editor_never_sees_or_opens_a_bounce(world) -> None:
+    base = GUEST.format(token=world.tokens["editor"])
+
+    listed = world.client.get(base)
+    opened = world.client.get(f"{base}/bounces/range.wav")
+
+    assert not any(f["kind"] == "bounce" for f in listed.json()["files"])
+    assert (opened.status_code, opened.headers[CODE]) == (404, "export_file_gone")
 
 
 @pytest.mark.parametrize("role", ["viewer", "commenter"])

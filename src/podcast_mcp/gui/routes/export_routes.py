@@ -154,7 +154,9 @@ def list_export_files(
 ) -> dict[str, Any]:
     """Every file the export folder holds that an export wrote, by id; no host paths."""
     require_host(request, token=token, x_podcast_token=x_podcast_token)
-    return list_exported_files(ProjectWorkspace.open(resolve_project(path, request)), ticketed=True)
+    return list_exported_files(
+        ProjectWorkspace.open(resolve_project(path, request)), ticketed=True, bounces=True
+    )
 
 
 @router.head("/api/export/files/{file_id:path}", include_in_schema=False)
@@ -178,7 +180,7 @@ def download_export_file(
         refuse_relayed(request)
         ticket_version = export_ticket.verified_version(ticket, path, file_id)
     ws = ProjectWorkspace.open(resolve_project(path, request))
-    return download_exported_file(request, ws, file_id, ticket_version=ticket_version)
+    return download_exported_file(request, ws, file_id, ticket_version=ticket_version, bounces=True)
 
 
 @router.post("/api/export/files/reveal")

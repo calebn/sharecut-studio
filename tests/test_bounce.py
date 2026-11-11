@@ -233,6 +233,20 @@ def test_bounce_defaults_and_skips_muted_tracks(minimal_project, sample_wav):
     assert eng.render_dialogue_track.call_args.args[1].id == "guest"
 
 
+def test_bounce_explicit_track_ids_keep_a_muted_track(minimal_project, sample_wav):
+    ws = _seed_bounce_project(minimal_project, sample_wav, clip_end_sec=2.0)
+    ws.project.tracks[0].muted = True
+    save_project(ws.project, minimal_project)
+    ws = ProjectWorkspace.open(minimal_project)
+    eng = _ffmpeg_mock(mix_duration=2.0)
+
+    with patch("podcast_mcp.services.media.bounce.ffmpeg", return_value=eng):
+        BounceService(ws).bounce(BounceRequest(track_ids=["host", "guest"], formats=["wav"]))
+
+    rendered = {call.args[1].id for call in eng.render_dialogue_track.call_args_list}
+    assert rendered == {"host", "guest"}
+
+
 def test_bounce_skips_tracks_without_media(minimal_project, sample_wav):
     ws = _seed_bounce_project(minimal_project, sample_wav)
     ws.project.tracks[0].media = None

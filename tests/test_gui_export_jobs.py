@@ -36,6 +36,7 @@ def test_start_bounce_returns_paths_on_terminal_snapshot(minimal_project, monkey
     assert snap["kind"] == "bounce"
     assert snap["label"] == "Bounce"
     assert snap["result"]["paths"][0].endswith("x.wav")
+    assert snap["result"]["file_ids"] == ["bounces/x.wav"]
 
 
 def test_start_export_returns_paths_and_master_target_on_terminal_snapshot(

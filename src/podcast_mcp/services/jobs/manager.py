@@ -12,6 +12,7 @@ from contextlib import contextmanager
 from pathlib import Path
 from typing import Any, cast
 
+from podcast_mcp.export.names import BOUNCES_DIRNAME
 from podcast_mcp.models.episode import ExactRangeTarget
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.jobs.catalog import JobCatalog
@@ -724,7 +725,10 @@ class JobManager:
                 ),
                 cancel_check=cancel_check,
             )
-            return "Bounce complete", {"paths": [str(p) for p in paths]}
+            return "Bounce complete", {
+                "paths": [str(p) for p in paths],
+                "file_ids": [f"{BOUNCES_DIRNAME}/{p.name}" for p in paths],
+            }
         if job.kind == "split_speakers":
             cfg = job.config or {}
             split = SpeakerService(ws).split_speakers(

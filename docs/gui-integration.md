@@ -157,6 +157,12 @@ in the publication transaction or result construction follow the job's unexpecte
 with a null error code. A fault after publication retains the completed saved bundle and does
 not report that no variant was published. Stage descriptors close on both success and failure.
 
+A finished `kind=bounce` job's `result` carries `paths` and `file_ids`, the `bounces/<name>` ids of the
+same files. The host export-files routes (`GET /api/export/files`, the download and `POST /api/export/files/reveal`)
+list, serve and reveal them as `kind: "bounce"` (label "Range export"); the guest Editor routes never list or open
+`export/bounces/`. Deliver's Exported files does not group the `bounce` kind. The tracks an explicit `track_ids` or
+`exact_range.track_ids` names are bounced as sent, muted ones included; only an unscoped bounce skips muted tracks.
+
 This is a partial backend implementation, part of #2455. It does not add UI controls,
 CLI/MCP target support, time-range or folder selection, or guest target generation.
 Completed variant audio is exposed through the existing export-file list, open, download
