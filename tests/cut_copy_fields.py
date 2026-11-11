@@ -25,7 +25,7 @@ SHARED_FIELDS: dict[str, str] = {
     "AutomationPoint": ("id time value"),
     "ChapterMarker": ("image_url time title"),
     "Clip": (
-        "bleed_restore fade_in_ms fade_out_ms gain_db id join_in_mode mute_regions "
+        "bleed_restore fade_in_curve fade_in_ms fade_out_curve fade_out_ms gain_db id join_in_mode mute_regions "
         "off_speaker_mute_regions segment_ref source_end source_id source_start timeline_start timing track_id"
     ),
     "ClipBleedRestore": ("regions source_sha256"),
