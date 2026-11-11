@@ -265,8 +265,9 @@ def revoke_share_for_workspace(workspace: Path, token: str) -> bool:
                 found = True
         if found:
             _save(path, rows)
-    if found:
-        get_share_registry().demote_to_cooldown(token, reason="revoked")
+            # Demote under the sidecar lock: a restore settling at the same time then sees
+            # either the live link or the ended one, never a sidecar that disagrees with it.
+            get_share_registry().demote_to_cooldown(token, reason="revoked")
     return found
 
 
@@ -295,7 +296,13 @@ def mark_shares_pending(
 
 
 def settle_shares_pending(workspace: Path, share_ids: Iterable[str], *, restored: bool) -> None:
+    """Close the pending marker on sidecar rows (by share id).
+
+    A restore settles only rows the registry still holds active, so a final revoke that won the
+    race keeps the sidecar saying revoked.
+    """
     ids = list(share_ids)
+    key = str(workspace.resolve())
 
     def settle(row: dict[str, Any]) -> Mapping[str, Any]:
         kept = {k: v for k, v in row.items() if k != "restorable_until"}
@@ -303,7 +310,13 @@ def settle_shares_pending(workspace: Path, share_ids: Iterable[str], *, restored
             return {**kept, "revoked": True}
         return {**{k: v for k, v in kept.items() if k != "revoked_at"}, "revoked": False}
 
-    _rewrite_rows(workspace, lambda: ids, settle)
+    def select() -> Collection[str]:
+        if not restored:
+            return ids
+        active = {str(r["id"]) for r in get_share_registry().list_active_for_workspace(key)}
+        return [share_id for share_id in ids if share_id in active]
+
+    _rewrite_rows(workspace, select, settle)
 
 
 def share_holds_media(row: dict[str, Any]) -> bool:
