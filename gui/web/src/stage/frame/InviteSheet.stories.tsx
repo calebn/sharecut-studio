@@ -197,16 +197,23 @@ export const StopSharing: Story = {
         name: "Stop sharing",
       }),
     );
-    const confirm = await view.findByRole("group", {
-      name: "Stop sharing this Commenter link? Anyone using it loses access.",
-    });
-    await expect(
-      within(confirm).getByRole("button", { name: "Keep link" }),
-    ).toHaveFocus();
-    await userEvent.click(
-      within(confirm).getByRole("button", { name: "Stop sharing" }),
-    );
     await expect(args?.options?.onStop).toHaveBeenCalledWith("rv-1");
+    await expect(view.queryByRole("button", { name: "Keep link" })).toBeNull();
+  }),
+};
+
+export const EndRoom: Story = {
+  args: {
+    options: shareOptionsFixture({
+      rows: [GUEST, PRODUCER],
+      onEndRoom: fn(),
+    }),
+  },
+  ...launched(openInvite, async (dialog, args) => {
+    const view = within(dialog);
+    await userEvent.click(view.getByRole("button", { name: "End room" }));
+    await expect(args?.options?.onEndRoom).toHaveBeenCalledOnce();
+    await expect(view.queryByRole("button", { name: "Keep room" })).toBeNull();
   }),
 };
 

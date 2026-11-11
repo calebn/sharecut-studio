@@ -206,15 +206,6 @@ export const ROOM_LINK_COPY = {
   },
 } as const;
 
-/** The one link or room whose end the person is confirming. */
-export type ShareEnd =
-  | { kind: "link"; token: string }
-  | { kind: "room"; sessionId: string };
-
-export function shareEndKey(end: ShareEnd): string {
-  return end.kind === "link" ? `link:${end.token}` : `room:${end.sessionId}`;
-}
-
 /** What the Invite sheet and the Deliver listen link show and do, from the host's flow. */
 export type ShareOptions = {
   /** Every host share row; the sheet shows the usable ones. */

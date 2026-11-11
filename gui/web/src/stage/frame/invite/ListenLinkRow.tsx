@@ -6,7 +6,6 @@ import {
 import { LinkRow } from "../../../system/LinkRow";
 import { copyReasonOf, needsMixFor } from "./inviteLogic";
 import { MadeLinkRow } from "./ReviewLinks";
-import { useShareEnd } from "./useShareEnd";
 
 export const LISTEN_PIN_REASON =
   "The listen link is pinned to the version current when you copy it.";
@@ -21,8 +20,7 @@ export function ListenLinkRow({
   highlight = false,
   share = false,
   compact = false,
-  escapeKeeps = true,
-  onConfirmedStop,
+  onStop = options.onStop,
 }: {
   options: ShareOptions;
   /** Outlines Copy as the follow-up to an export. */
@@ -30,27 +28,16 @@ export function ListenLinkRow({
   /** Phone: labels Copy as Share. It does not open the system share sheet. */
   share?: boolean;
   compact?: boolean;
-  /** False inside the Invite sheet, whose dialog already keeps an open confirm on Escape. */
-  escapeKeeps?: boolean;
-  /** Reports an accepted Invite stop so its owner can wait for row removal. */
-  onConfirmedStop?: (token: string) => void;
+  /** Stops the link; the Invite sheet wraps it to remember where focus goes once the row is gone. */
+  onStop?: (token: string) => void;
 }) {
-  const end = useShareEnd(options, escapeKeeps);
   const { listen } = shareRowsOf(options.rows);
   if (listen) {
     return (
       <MadeLinkRow
         row={listen}
         options={options}
-        pending={end.pending}
-        onAsk={end.ask}
-        onKeep={end.keep}
-        onConfirm={() => {
-          const target = end.pending;
-          if (end.confirm() && target?.kind === "link") {
-            onConfirmedStop?.(target.token);
-          }
-        }}
+        onStop={onStop}
         highlight={highlight}
         share={share}
         compact={compact}

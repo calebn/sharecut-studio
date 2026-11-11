@@ -4,39 +4,32 @@ import {
   roleLabel,
   roleOf,
   type ShareChoices,
-  type ShareEnd,
   type ShareOptions,
   shareCopyKey,
   shareRowsOf,
 } from "../../../stages/deliver/shareLogic";
 import { type LinkMoreItem, LinkRow } from "../../../system/LinkRow";
 import { type HostShareRow, REVIEW_ROLES } from "../../../types/shares";
-import { InlineConfirm } from "../../../ui";
 import { BUSY_REASON } from "../../../ui/disabledReason";
 import { copyReasonOf, needsMixFor, SET_AT_MAKING } from "./inviteLogic";
 
-type EndProps = {
+type StopProps = {
   options: ShareOptions;
-  pending: ShareEnd | null;
-  onAsk: (end: ShareEnd) => void;
-  onKeep: () => void;
-  onConfirm: () => void;
+  /** Stops one link at once; the toast the flow raises carries the Undo. */
+  onStop: (token: string) => void;
 };
 
 /** One link that is made: its role, address, who opened it, Copy and More. */
 export function MadeLinkRow({
   row,
   options,
-  pending,
-  onAsk,
-  onKeep,
-  onConfirm,
+  onStop,
   highlight = false,
   share = false,
   compact = false,
   pinnedReason,
   linkName,
-}: EndProps & {
+}: StopProps & {
   row: HostShareRow;
   highlight?: boolean;
   share?: boolean;
@@ -49,7 +42,6 @@ export function MadeLinkRow({
   const role = roleLabel(row);
   const key = shareCopyKey("link", row.token);
   const busyReason = busy ? BUSY_REASON : undefined;
-  const confirming = pending?.kind === "link" && pending.token === row.token;
   const more: LinkMoreItem[] = [
     row.mcp_url
       ? {
@@ -73,7 +65,7 @@ export function MadeLinkRow({
       id: "stop",
       label: "Stop sharing",
       disabledReason: busyReason,
-      onSelect: () => onAsk({ kind: "link", token: row.token }),
+      onSelect: () => onStop(row.token),
     },
   ];
   return (
@@ -100,18 +92,6 @@ export function MadeLinkRow({
         (row.url ? undefined : "This link has no address to copy yet.")
       }
       onCopy={() => onCopy("link", row.token, "Link", row.url)}
-      confirming={
-        confirming ? (
-          <InlineConfirm
-            prompt={`Stop sharing this ${role} link? Anyone using it loses access.`}
-            keepLabel="Keep link"
-            actionLabel="Stop sharing"
-            disabledReason={busyReason}
-            onKeep={onKeep}
-            onConfirm={onConfirm}
-          />
-        ) : undefined
-      }
     />
   );
 }
@@ -120,7 +100,7 @@ export function MadeLinkRow({
 export function ReviewLinks({
   labelledBy,
   ...props
-}: EndProps & { labelledBy: string }) {
+}: StopProps & { labelledBy: string }) {
   const { options } = props;
   const { rows, choices, onChoices, onCreate, onRefreshMix } = options;
   const { review } = shareRowsOf(rows);

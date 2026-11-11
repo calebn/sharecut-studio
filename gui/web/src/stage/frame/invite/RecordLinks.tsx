@@ -1,25 +1,21 @@
-import { type RefCallback, useId } from "react";
+import { useId } from "react";
 import {
   formatWhen,
   type RecordRoomGroup,
   ROOM_LINK_COPY,
-  type ShareEnd,
   type ShareOptions,
   shareCopyKey,
   shareRowsOf,
 } from "../../../stages/deliver/shareLogic";
 import type { HostShareRow } from "../../../types/shares";
-import { Button, EmptyState, InlineConfirm } from "../../../ui";
+import { Button, EmptyState } from "../../../ui";
 import { BUSY_REASON } from "../../../ui/disabledReason";
 import { copyReasonOf } from "./inviteLogic";
 
 type EndProps = {
   options: ShareOptions;
-  pending: ShareEnd | null;
-  onAsk: (end: ShareEnd) => void;
-  onKeep: () => void;
-  onConfirm: () => void;
-  trigger: (target: ShareEnd) => RefCallback<HTMLElement>;
+  /** Ends one room at once; the toast the flow raises carries the Undo. */
+  onEndRoom: (sessionId: string) => void;
 };
 
 /** The record rooms of the project, each with its guest and producer links and End room, and Create record links. */
@@ -69,18 +65,11 @@ export function RecordLinks({
 function RoomCard({
   room,
   options,
-  pending,
-  onAsk,
-  onKeep,
-  onConfirm,
-  trigger,
+  onEndRoom,
 }: EndProps & { room: RecordRoomGroup }) {
   const { busy } = options;
   const labelId = useId();
   const busyReason = busy ? BUSY_REASON : undefined;
-  const target: ShareEnd = { kind: "room", sessionId: room.sessionId };
-  const confirming =
-    pending?.kind === "room" && pending.sessionId === room.sessionId;
   const created = room.guests[0]?.created_at ?? room.producers[0]?.created_at;
   return (
     <li className="inv-item inv-room">
@@ -112,29 +101,17 @@ function RoomCard({
           />
         ),
       )}
-      {confirming ? (
-        <InlineConfirm
-          prompt="End this record room? Both guest and producer links will stop working."
-          keepLabel="Keep room"
-          actionLabel="End room"
+      <div className="inv-actions">
+        <Button
+          variant="danger"
+          className="inv-danger"
           disabledReason={busyReason}
-          onKeep={onKeep}
-          onConfirm={onConfirm}
-        />
-      ) : (
-        <div className="inv-actions">
-          <Button
-            ref={trigger(target)}
-            variant="danger"
-            className="inv-danger"
-            disabledReason={busyReason}
-            aria-describedby={labelId}
-            onClick={() => onAsk(target)}
-          >
-            End room
-          </Button>
-        </div>
-      )}
+          aria-describedby={labelId}
+          onClick={() => onEndRoom(room.sessionId)}
+        >
+          End room
+        </Button>
+      </div>
     </li>
   );
 }

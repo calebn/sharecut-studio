@@ -542,30 +542,4 @@ describe("LinkRow pin, people count, More and role", () => {
       screen.getByRole("img", { name: "Commenter: can comment" }),
     ).toBeVisible();
   });
-
-  it("shows a confirm in place and puts focus back on More when it goes", async () => {
-    const { rerender } = render(
-      <LinkRow
-        access="viewer"
-        link={LINK}
-        linkName="Viewer link"
-        more={[{ id: "stop", label: "Stop sharing", onSelect: () => {} }]}
-        confirming={<p>Stop sharing this link?</p>}
-        onCopy={() => {}}
-      />,
-    );
-    expect(screen.getByText("Stop sharing this link?")).toBeVisible();
-    rerender(
-      <LinkRow
-        access="viewer"
-        link={LINK}
-        linkName="Viewer link"
-        more={[{ id: "stop", label: "Stop sharing", onSelect: () => {} }]}
-        onCopy={() => {}}
-      />,
-    );
-    expect(
-      screen.getByRole("button", { name: "More for Viewer link" }),
-    ).toHaveFocus();
-  });
 });
