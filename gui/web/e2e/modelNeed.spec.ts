@@ -493,7 +493,7 @@ for (const viewport of VIEWPORTS) {
         await page.locator("body").click({ position: { x: 1, y: 1 } });
         await runPaletteCommand(page, "Refresh mix");
 
-        const banner = page.locator(".guest-banner");
+        const banner = page.locator(".sys-room-alert-slot");
         const get = banner.getByRole("button", { name: "Get noise reduction" });
         await expect(get).toBeVisible();
         await expect(page.getByRole("dialog")).toHaveCount(0);
@@ -501,7 +501,7 @@ for (const viewport of VIEWPORTS) {
         expect(mock.runs).toEqual([]);
         await expectNoHorizontalScroll(page);
         await expectTouchTargets(get);
-        await expectSurfaceAxeClean(page, ".guest-banner");
+        await expectSurfaceAxeClean(page, ".sys-room-alert-slot");
         await shot(page, viewport.name, theme, "banner-idle");
 
         await get.click();

@@ -177,7 +177,7 @@ test("Prepare missing-model recovery status row fits at 768px", async ({
       error_model: model,
     }),
   );
-  const banner = page.locator(".guest-banner", {
+  const banner = page.locator(".sys-room-alert-slot", {
     hasText: "Needs word timing",
   });
   await expect(banner).toContainText("Needs word timing");
@@ -192,8 +192,8 @@ test("Prepare missing-model recovery status row fits at 768px", async ({
   const box = (await banner.boundingBox())!;
   expect(box.x).toBeGreaterThanOrEqual(-1);
   expect(box.x + box.width).toBeLessThanOrEqual(768 + 1);
-  await textFits(page, ".guest-banner");
-  await textFits(page, ".guest-banner .sys-status-title");
-  await textFits(page, ".guest-banner .sys-status-detail");
+  await textFits(page, ".sys-room-alert-slot");
+  await textFits(page, ".sys-room-alert-slot .sys-status-title");
+  await textFits(page, ".sys-room-alert-slot .sys-status-detail");
   await expectNoHorizontalScroll(page);
 });
