@@ -2197,6 +2197,13 @@
             "title": "Fade Out Ms",
             "type": "integer"
           },
+          "gain_db": {
+            "default": 0.0,
+            "maximum": 12.0,
+            "minimum": -60.0,
+            "title": "Gain Db",
+            "type": "number"
+          },
           "id": {
             "title": "Id",
             "type": "string"
@@ -2346,6 +2353,42 @@
           "expected"
         ],
         "title": "ClipFadeTarget",
+        "type": "object"
+      },
+      "ClipGainBaseline": {
+        "properties": {
+          "gain_db": {
+            "title": "Gain Db",
+            "type": "number"
+          }
+        },
+        "required": [
+          "gain_db"
+        ],
+        "title": "ClipGainBaseline",
+        "type": "object"
+      },
+      "ClipGainTarget": {
+        "properties": {
+          "clip_id": {
+            "title": "Clip Id",
+            "type": "string"
+          },
+          "expected": {
+            "$ref": "#/components/schemas/ClipGainBaseline",
+            "description": "The saved gain_db of this clip captured when the edit began."
+          },
+          "gain_db": {
+            "title": "Gain Db",
+            "type": "number"
+          }
+        },
+        "required": [
+          "clip_id",
+          "gain_db",
+          "expected"
+        ],
+        "title": "ClipGainTarget",
         "type": "object"
       },
       "ClipGeometry": {
@@ -8030,6 +8073,121 @@
         "title": "SetClipFadePayload",
         "type": "object"
       },
+      "SetClipGainCommand": {
+        "properties": {
+          "causation_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Causation Id"
+          },
+          "client_id": {
+            "title": "Client Id",
+            "type": "string"
+          },
+          "client_seq": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Client Seq"
+          },
+          "command_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Command Id"
+          },
+          "payload": {
+            "$ref": "#/components/schemas/SetClipGainPayload"
+          },
+          "role": {
+            "default": "viewer",
+            "enum": [
+              "agent",
+              "viewer",
+              "cli",
+              "guest"
+            ],
+            "title": "Role",
+            "type": "string"
+          },
+          "structural_mode": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Structural Mode"
+          },
+          "token": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Token"
+          },
+          "type": {
+            "const": "SetClipGain",
+            "default": "SetClipGain",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "client_id",
+          "payload"
+        ],
+        "title": "SetClipGainCommand",
+        "type": "object"
+      },
+      "SetClipGainPayload": {
+        "properties": {
+          "clip_id": {
+            "title": "Clip Id",
+            "type": "string"
+          },
+          "expected": {
+            "$ref": "#/components/schemas/ClipGainBaseline",
+            "description": "The saved gain_db captured when the edit began. A changed value returns clip_gain_changed without changing gain, history, or the journal. Read the clip's current gain_db with podcast edit list-clips."
+          },
+          "gain_db": {
+            "maximum": 12.0,
+            "minimum": -60.0,
+            "title": "Gain Db",
+            "type": "number"
+          }
+        },
+        "required": [
+          "clip_id",
+          "gain_db",
+          "expected"
+        ],
+        "title": "SetClipGainPayload",
+        "type": "object"
+      },
       "SetClipJoinCommand": {
         "properties": {
           "causation_id": {
@@ -8273,6 +8431,114 @@
           "fades"
         ],
         "title": "SetClipsFadePayload",
+        "type": "object"
+      },
+      "SetClipsGainCommand": {
+        "properties": {
+          "causation_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Causation Id"
+          },
+          "client_id": {
+            "title": "Client Id",
+            "type": "string"
+          },
+          "client_seq": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Client Seq"
+          },
+          "command_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Command Id"
+          },
+          "payload": {
+            "$ref": "#/components/schemas/SetClipsGainPayload"
+          },
+          "role": {
+            "default": "viewer",
+            "enum": [
+              "agent",
+              "viewer",
+              "cli",
+              "guest"
+            ],
+            "title": "Role",
+            "type": "string"
+          },
+          "structural_mode": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Structural Mode"
+          },
+          "token": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Token"
+          },
+          "type": {
+            "const": "SetClipsGain",
+            "default": "SetClipsGain",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "client_id",
+          "payload"
+        ],
+        "title": "SetClipsGainCommand",
+        "type": "object"
+      },
+      "SetClipsGainPayload": {
+        "properties": {
+          "gains": {
+            "description": "One absolute gain_db target per clip, each clamped to the -60 to +12 dB range. Any clip whose saved gain differs from its expected value returns clip_gain_changed and nothing changes. One history entry covers every clip.",
+            "items": {
+              "$ref": "#/components/schemas/ClipGainTarget"
+            },
+            "minItems": 1,
+            "title": "Gains",
+            "type": "array"
+          }
+        },
+        "required": [
+          "gains"
+        ],
+        "title": "SetClipsGainPayload",
         "type": "object"
       },
       "SetEdit": {
@@ -13840,8 +14106,10 @@
                     "SetActionDone": "#/components/schemas/SetActionDoneCommand",
                     "SetBleedAlignmentMode": "#/components/schemas/SetBleedAlignmentModeCommand",
                     "SetClipFade": "#/components/schemas/SetClipFadeCommand",
+                    "SetClipGain": "#/components/schemas/SetClipGainCommand",
                     "SetClipJoin": "#/components/schemas/SetClipJoinCommand",
                     "SetClipsFade": "#/components/schemas/SetClipsFadeCommand",
+                    "SetClipsGain": "#/components/schemas/SetClipsGainCommand",
                     "SetEffectBypass": "#/components/schemas/SetEffectBypassCommand",
                     "SetEnvelope": "#/components/schemas/SetEnvelopeCommand",
                     "SetFeedField": "#/components/schemas/SetFeedFieldCommand",
@@ -13928,6 +14196,12 @@
                   },
                   {
                     "$ref": "#/components/schemas/SetClipsFadeCommand"
+                  },
+                  {
+                    "$ref": "#/components/schemas/SetClipGainCommand"
+                  },
+                  {
+                    "$ref": "#/components/schemas/SetClipsGainCommand"
                   },
                   {
                     "$ref": "#/components/schemas/TrimClipEdgeCommand"

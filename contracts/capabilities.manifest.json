@@ -2647,6 +2647,8 @@
           "crossfade_joins_tool",
           "set_clip_fade_tool",
           "set_clips_fade_tool",
+          "set_clip_gain_tool",
+          "set_clips_gain_tool",
           "set_join_mode_tool",
           "shorten_gaps_tool",
           "duplicate_segment_tool",
@@ -3486,6 +3488,31 @@
       "omit": {},
       "presence": {
         "cursor": "time",
+        "follow": "none"
+      }
+    },
+    {
+      "id": "daw.edit.setClipGain",
+      "label": "Set clip gain",
+      "effect": "project",
+      "tooltip": "Raise or lower one clip's level",
+      "service": "ShareCut Studio \u2192 SetClipGain document command",
+      "industry_standard_key": false,
+      "gates": [
+        "canApplyPass12"
+      ],
+      "surfaces": {
+        "mcp": [
+          "set_clip_gain_tool",
+          "set_clips_gain_tool"
+        ],
+        "cli": "podcast doc submit"
+      },
+      "omit": {
+        "keyboard_reason": "level in dB, set from the clip Inspector or the agent"
+      },
+      "presence": {
+        "cursor": "none",
         "follow": "none"
       }
     },
