@@ -654,9 +654,11 @@ class ShareService:
         """Revoke every token in the room. KeyError if none exist.
 
         With ``restorable_for`` (seconds, capped) the room's irreversible cleanup waits for
-        the window end.
+        the window end; repeating it on a parked room answers the existing window.
         """
         if restorable_for is not None:
+            if share_pending.has_pending(self.ws, session_id):
+                return self._pending_room(session_id)
             return dict(self._park_room(session_id, restorable_for, now))
         finalized = (
             share_pending.finalize_now(self.ws, session_id, now=now)
@@ -691,6 +693,14 @@ class ShareService:
             "restorable_until": pending[0]["restorable_until"],
         }
 
+    def _pending_room(self, session_id: str) -> dict[str, Any]:
+        rows = share_pending.pending_rows(self.ws, session_id)
+        return {
+            "session_id": session_id,
+            "revoked": [str(r["token"]) for r in rows],
+            "restorable_until": rows[0]["restorable_until"],
+        }
+
     def _invalidate_record_cache(self) -> None:
         from podcast_mcp.services.record import invalidate_record_session_cache
 
@@ -706,10 +716,10 @@ class ShareService:
     def restore_room(self, session_id: str, *, now: datetime | None = None) -> RestoredRoom:
         """Bring back a room revoked with ``restorable_for``, with the same links.
 
-        Idempotent: a room that is already live answers restored. Raises
-        ``RestoreWindowClosedError`` once the window ended, ``ShareExpiredError`` when the
-        links passed their own expiry and ``RecordRoomConflictError`` when another record
-        room went live meanwhile.
+        Idempotent: a room that is already live answers restored. Once the window ended it
+        raises ``RestoreWindowClosedError``, or ``ShareExpiredError`` when a link's own expiry
+        has also passed; ``RecordRoomConflictError`` when another record room went live
+        meanwhile.
         """
         try:
             with _record_room_lock:
@@ -770,6 +780,15 @@ class ShareService:
     ) -> dict[str, Any]:
         group = share_pending.group_of(self.ws, token)
         if group is not None:
+            if restorable_for is not None:
+                (parked,) = [
+                    r for r in share_pending.pending_rows(self.ws, group) if r["token"] == token
+                ]
+                return {
+                    "revoked": True,
+                    "token": token,
+                    "restorable_until": parked["restorable_until"],
+                }
             share_pending.finalize_now(self.ws, group, now=now)
             return {"revoked": True, "token": token}
         if restorable_for is not None and self._is_review_token(token):

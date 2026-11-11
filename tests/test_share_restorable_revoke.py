@@ -186,6 +186,20 @@ def test_expiry_caps_the_window(minimal_project, sample_wav, tmp_workspace, effe
         svc.restore(share["token"], now=at(5))
 
 
+def test_a_second_restorable_revoke_of_a_pending_link_keeps_it_pending(
+    minimal_project, sample_wav, tmp_workspace, effects
+):
+    ws = _seed(minimal_project, sample_wav)
+    share = _review_share(ws)
+    svc = ShareService(ws)
+    first = svc.revoke(share["token"], restorable_for=WINDOW, now=T0)
+    again = svc.revoke(share["token"], restorable_for=WINDOW, now=at(3))
+    assert again == first
+    effects["object"].assert_not_called()
+    assert [p["token"] for p in get_share_registry().list_pending()] == [share["token"]]
+    assert svc.restore(share["token"], now=at(4)) == {"restored": True, "token": share["token"]}
+
+
 def test_a_final_revoke_of_a_pending_link_finalizes_it_at_once(
     minimal_project, sample_wav, tmp_workspace, effects
 ):
@@ -311,6 +325,21 @@ def test_minting_a_new_room_inside_the_window_makes_restore_conflict(
     with pytest.raises(KeyError):
         lookup_share(old["guest"]["token"], kind="record")
     assert lookup_share(new["guest"]["token"], kind="record")
+
+
+def test_a_second_restorable_room_revoke_keeps_the_room_pending(
+    minimal_project, sample_wav, tmp_workspace, effects
+):
+    ws = _seed(minimal_project, sample_wav)
+    room = _room(ws)
+    svc = ShareService(ws)
+    first = svc.revoke_room(room["session_id"], restorable_for=WINDOW, now=T0)
+    again = svc.revoke_room(room["session_id"], restorable_for=WINDOW, now=at(3))
+    assert set(again["revoked"]) == set(first["revoked"])
+    assert again["restorable_until"] == first["restorable_until"]
+    effects["summary"].assert_not_called()
+    back = svc.restore_room(room["session_id"], now=at(4))
+    assert set(back["restored"]) == set(first["revoked"])
 
 
 def test_final_room_revoke_of_a_pending_room_finalizes_it(

@@ -938,7 +938,7 @@ describe("stopping a link", () => {
     expect(toast()?.reverse).toBeNull();
   });
 
-  it("replaces the earlier toast: only the latest stop stays undoable", async () => {
+  it("ignores a second stop while the first Undo is open, and undoes the first", async () => {
     revokeHostShare.mockResolvedValue(WINDOW);
     mount();
     act(() => flow.stop("first"));
@@ -946,9 +946,35 @@ describe("stopping a link", () => {
     const first = toast()?.id;
     await waitFor(() => expect(flow.busy).toBe(false));
     act(() => flow.stop("second"));
-    await waitFor(() => expect(toast()?.id).not.toBe(first));
+    expect(revokeHostShare).toHaveBeenCalledExactlyOnceWith(PATH, "first", {
+      restorable: true,
+    });
+    expect(toast()?.id).toBe(first);
     await toast()?.reverse?.run();
-    expect(restoreHostShare).toHaveBeenCalledExactlyOnceWith(PATH, "second");
+    expect(restoreHostShare).toHaveBeenCalledExactlyOnceWith(PATH, "first");
+  });
+
+  it("ignores a second End room while the first Undo is open", async () => {
+    revokeHostRoom.mockResolvedValue(WINDOW);
+    mount();
+    act(() => flow.endRoom("sess1"));
+    await waitFor(() => expect(toast()?.reverse).not.toBeNull());
+    await waitFor(() => expect(flow.busy).toBe(false));
+    act(() => flow.endRoom("sess2"));
+    expect(revokeHostRoom).toHaveBeenCalledExactlyOnceWith(PATH, "sess1", {
+      restorable: true,
+    });
+  });
+
+  it("stops again once the Undo toast is gone", async () => {
+    revokeHostShare.mockResolvedValue(WINDOW);
+    mount();
+    act(() => flow.stop("first"));
+    await waitFor(() => expect(toast()?.reverse).not.toBeNull());
+    await waitFor(() => expect(flow.busy).toBe(false));
+    act(() => useDawStore.setState({ feedbackToast: null }));
+    act(() => flow.stop("second"));
+    await waitFor(() => expect(revokeHostShare).toHaveBeenCalledTimes(2));
   });
 
   it("shows a refusal and stays usable", async () => {

@@ -518,7 +518,7 @@ describe("the Invite sheet over any stage", () => {
       ).toBeNull();
     });
 
-    it("keeps only the latest stop undoable: a later toast replaces the earlier one", async () => {
+    it("ignores a second Stop sharing while the first Undo is open", async () => {
       server.shares = [
         hostShareRow(),
         hostShareRow({
@@ -537,25 +537,18 @@ describe("the Invite sheet over any stage", () => {
       await userEvent.click(
         screen.getByRole("menuitem", { name: "Stop sharing" }),
       );
-      await waitFor(() =>
-        expect(server.revokeRequests).toEqual([
-          "sample-review-link",
-          "second-link",
-        ]),
-      );
-      await waitFor(() =>
-        expect(screen.getAllByText("Link stopped.")).toHaveLength(1),
-      );
+      expect(server.revokeRequests).toEqual(["sample-review-link"]);
+      expect(screen.getAllByText("Link stopped.")).toHaveLength(1);
       await userEvent.click(screen.getByRole("button", { name: "Undo" }));
       await waitFor(() =>
-        expect(server.restoreRequests).toEqual(["second-link"]),
+        expect(server.restoreRequests).toEqual(["sample-review-link"]),
       );
       expect(
-        await screen.findByRole("button", { name: "More for Editor link" }),
+        await screen.findByRole("button", { name: "More for Commenter link" }),
       ).toBeVisible();
       expect(
-        screen.queryByRole("button", { name: "More for Commenter link" }),
-      ).toBeNull();
+        screen.getByRole("button", { name: "More for Editor link" }),
+      ).toBeVisible();
     });
   });
 
