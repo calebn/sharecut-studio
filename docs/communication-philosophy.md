@@ -133,8 +133,8 @@ to UX partners; for UI copy, this table wins.
 | Project default | Deliver's loudness choice that uses the project's configured master for the next Episode file export | "Podcast" for the configured default |
 | Unavailable export format | A previously selected format no longer offered by the current catalog. Episode file keeps its toggle checked and removable, labels it "unavailable", and omits the size estimate. Export explains "Remove unavailable formats before exporting." | Silently removing the choice or exporting only the remaining files |
 | Named loudness export | A separate audio export using Podcast, Broadcast or Streaming loudness. The result carries the name of the choice used for that run | "Master" for a named result |
-| Stop sharing | Revoke a review link. Links don't expire, so this is how a review link ends (a date set on the CLI or MCP is the one exception) | "delete link" |
-| End room | Shut down a record room (kills guest + producer links) | "close room" |
+| Stop sharing | Revoke a review link at once. Links don't expire, so this is how a review link ends (a date set on the CLI or MCP is the one exception). The toast says "Link stopped." with Undo for the server's 10 s window | "delete link" |
+| End room | Shut down a record room at once (kills guest + producer links). The toast says "Room ended." with Undo for the server's 10 s window | "close room" |
 | Online sharing | Making this computer's review and record links reachable from the internet while it runs. Share's status line says what guests can do now, with any fix behind "How to fix" and the online sharing guide | "tunnel", "relay", "host token", "relay URL", a CLI command in UI copy |
 | Guests can open your links | Online sharing is connected | "Online", "Connected" as a bare label |
 | Reconnecting… | Online sharing lost its connection and is retrying; the line adds "Trying again in N s" (a still clock time under reduced motion). Guests may see a brief interruption | "Tunnel reconnecting", "Guests see Host offline" |
@@ -291,12 +291,23 @@ the empty state, not a separate discovery task.
   `Dialog`, confirm in place with `ui/InlineConfirm` instead of
   stacking a second dialog: the row swaps its actions for the
   consequence, Keep first and focused, the danger action last. Escape
-  keeps (cancels) the open confirm before it closes the dialog. The
-  Invite sheet's Stop sharing and End room are the reference.
-  (Surfaces 2, 5, 6.)
+  keeps (cancels) the open confirm before it closes the dialog. A step
+  the server can take back is not asked at all: the Invite sheet's Stop
+  sharing and End room act at once and the toast offers Undo for the
+  server's window (below). (Surfaces 2, 5, 6.)
 - **Confirm copy names the target and the consequence** in human
-  terms: "Stop sharing this Viewer link? Anyone using it loses access.
-  [Keep link] [Stop sharing]". Never a raw token. (Surface 2.)
+  terms: "Remove the reference track? [Keep track] [Remove track]". Never a
+  raw token. (Surface 2.)
+- **A link or room that ends offers Undo for the server's window.** Stop
+  sharing says "Link stopped." and End room says "Room ended.", each with an
+  **Undo** action on the toast. Undo says "Link restored." or "Room restored."
+  The toast stays for the window the server gave minus half a second (9.5 s
+  on the default 10 s), so a press never lands after it. A refused Undo says
+  why in plain words: "Too late to undo.", "Another room is live, so this one
+  stays ended.", "This link had already expired, so it stays stopped.", or that
+  the link or room is already gone. Only the latest end is undoable: a later
+  toast replaces the earlier one, and the earlier end becomes final on its
+  own. (Surfaces 2, 5.)
 - **Feedback must be visible, not screen-reader-only.** Every
   `announceStatus` shows the same string in the app toast
   (`feedback/FeedbackToast`, built on `ui/Toast`): one toast at a time,
@@ -793,3 +804,4 @@ shipped at the port; #1031 shipped it. The adjacent MCP note shipped in #1027.
   and chapters. A delivered receipt failure survives delayed running feedback.
   Feed changes the next loudness choice only after a fresh export is admitted.
 - 2026-11-10 Prepare cleanup (D-hp-23): the ⋯ menu with "Run everything again" is gone; Run again from here on Transcribe re-transcribes. Apply sound actions moves from its own "Listen for sounds" group to the second step under Find suggestions, and a new-audio plan keeps five rows, with the sound cost on Find suggestions.
+- 2026-11-11 Stop sharing and End room undo (#3287): the Invite sheet and the Deliver Listen link no longer ask first. Stop sharing and End room act at once and the toast says "Link stopped." or "Room ended." with **Undo** for the server's 10 s restore window (the toast leaves 500 ms sooner); Undo says "Link restored." or "Room restored.", and a refused Undo says "Too late to undo.", "Another room is live, so this one stays ended.", "This link had already expired, so it stays stopped." or that the link or room is already gone. A later toast replaces the earlier one, so only the latest end is undoable. The inline confirm and its Keep link / Keep room buttons are gone from these callers; `ui/InlineConfirm` stays for the others.
