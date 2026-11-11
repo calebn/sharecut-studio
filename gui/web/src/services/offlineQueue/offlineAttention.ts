@@ -269,6 +269,93 @@ export function selectRecoveryOutcome(
   return true;
 }
 
+function markVolatileDismissed(
+  projectPath: string,
+  captured: readonly OfflineConflict[],
+): void {
+  const volatile = volatileOutcomes.get(projectPath) ?? [];
+  const marked = volatile.map((conflict) => {
+    if (!captured.includes(conflict)) return conflict;
+    const dismissed = { ...conflict, dismissed: true };
+    volatileOutcomeInstances.add(dismissed);
+    return dismissed;
+  });
+  if (marked.length) volatileOutcomes.set(projectPath, marked);
+}
+
+/** The conflict still showing under this command id, as the last read holds it. */
+export function conflictByCommandId(
+  projectPath: string,
+  commandId: string,
+): OfflineConflict | undefined {
+  return sources
+    .get(projectPath)
+    ?.snapshot.conflicts.find(
+      (conflict) =>
+        !conflict.dismissed && conflict.command.command_id === commandId,
+    );
+}
+
+/** The command ids of the conflicts still showing. */
+export function activeConflictIds(projectPath: string): Set<string> {
+  return new Set(
+    (sources.get(projectPath)?.snapshot.conflicts ?? [])
+      .filter((conflict) => !conflict.dismissed)
+      .map((conflict) => conflict.command.command_id),
+  );
+}
+
+/** Whether a fresh read holds a conflict whose command id is not in `known`. */
+export async function hasConflictBeyond(
+  projectPath: string,
+  known: ReadonlySet<string>,
+): Promise<boolean> {
+  const [, conflicts] = await read(projectPath);
+  return conflicts.some(
+    (conflict) =>
+      !conflict.dismissed && !known.has(conflict.command.command_id),
+  );
+}
+
+const dismissingOne = new Set<string>();
+
+/**
+ * Clear one conflict without the group-wide "dismissing" state. Resolves true once it is
+ * cleared; false when the store refused or the same conflict is already being cleared.
+ */
+export async function dismissOneConflict(
+  projectPath: string,
+  conflict: OfflineConflict,
+): Promise<boolean> {
+  const key = `${projectPath}\u0000${conflict.command.command_id}`;
+  if (dismissingOne.has(key)) return false;
+  dismissingOne.add(key);
+  try {
+    const token = shareTokenFromKey(projectPath);
+    const result = await (token
+      ? dismissConflicts(token, [conflict])
+      : dismissHostConflicts(projectPath, [conflict]));
+    markVolatileDismissed(projectPath, [conflict]);
+    const source = sources.get(projectPath);
+    if (source) {
+      source.generation++;
+      set(source, {
+        pending: result.pending,
+        conflicts: withVolatileOutcomes(projectPath, result.conflicts),
+        status:
+          source.snapshot.status === "checking"
+            ? "ready"
+            : source.snapshot.status,
+      });
+    }
+    return true;
+  } catch {
+    return false;
+  } finally {
+    dismissingOne.delete(key);
+  }
+}
+
 /** Clear the project's conflict list. A no-op unless the last read succeeded. */
 export function dismissAllConflicts(projectPath: string): void {
   const source = sources.get(projectPath);
@@ -285,16 +372,7 @@ export function dismissAllConflicts(projectPath: string): void {
   )
     .then((result) => {
       if (clearing === source.generation) {
-        const currentVolatile = volatileOutcomes.get(projectPath) ?? [];
-        const dismissedVolatile = currentVolatile.map((conflict) => {
-          if (!captured.includes(conflict)) return conflict;
-          const dismissed = { ...conflict, dismissed: true };
-          volatileOutcomeInstances.add(dismissed);
-          return dismissed;
-        });
-        if (dismissedVolatile.length) {
-          volatileOutcomes.set(projectPath, dismissedVolatile);
-        }
+        markVolatileDismissed(projectPath, captured);
         set(source, {
           pending: result.pending,
           conflicts: withVolatileOutcomes(projectPath, result.conflicts),
