@@ -182,7 +182,7 @@ scanning](testing.md#credential-history-scanning)).
 (`model_status`): `id`, `label`, `purpose`, `tier` (`required` or `recommended`), `model`
 (the variant), `size` and `size_bytes` (`null` when unpinned; the word aligner and speaker model carry their approximate size; Whisper follows `?whisper_model=`),
 `state` (`installed`, `missing` or `update_needed`), `path`, and for a model that is not installed a
-`hint` and a `bootstrap` command. A pin mismatch (Whisper or word aligner) is `update_needed`, the
+`hint` and a `bootstrap` command. A pin mismatch (Whisper, word aligner or speaker model) is `update_needed`, the
 mismatch is the `hint`, and the `--upgrade` `bootstrap` command names the model. The bootstrap route
 lists the records as `models`, in registry order, and puts FFmpeg under `tools.ffmpeg`
 (`state`, `source`, `hint`); `ready` is FFmpeg plus every `required` model installed. The Pipeline
