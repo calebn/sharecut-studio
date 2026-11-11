@@ -124,6 +124,30 @@ describe("useRecordLiveComments", () => {
     }
   });
 
+  it("routes a retained posting command to the committed sender", () => {
+    const previous = vi.fn(() => true);
+    const current = vi.fn(() => true);
+    const { result, rerender } = renderHook(
+      ({ send }) =>
+        useRecordLiveComments({
+          token: "tok",
+          snapshot: recording,
+          me,
+          connected: true,
+          send,
+        }),
+      { initialProps: { send: previous } },
+    );
+    const postMarker = result.current.postMarker;
+    rerender({ send: current });
+    act(() => postMarker());
+    expect(previous).not.toHaveBeenCalled();
+    expect(current).toHaveBeenCalledExactlyOnceWith(
+      "Comment",
+      expect.objectContaining({ body: MARKER_BODY, author: "p_g" }),
+    );
+  });
+
   it("flushes the reconnect queue once the snapshot acks the id", () => {
     const send = vi.fn(() => true);
     enqueueComment("tok", {

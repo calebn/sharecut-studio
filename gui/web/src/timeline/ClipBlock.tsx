@@ -23,6 +23,7 @@ import { useDawStore } from "../state/dawStore";
 import { useCoachTip } from "../system/useCoachTip";
 import type { ClipRow } from "../types/project";
 import { EMPTY_ARR } from "../utils/empty";
+import { useStableCallback } from "../utils/useStableCallback";
 import { clipDrawsPieces, clipMediaStartSec } from "../waveform/mediaRef";
 import { type MediaRef, refKind } from "../waveform/types";
 import { ClipBlockView, type ClipHitHandlers } from "./ClipBlockView";
@@ -145,11 +146,7 @@ export function ClipBlockLive({
   const bodyRef = useRef<BodyDrag | null>(null);
   const bodyMovedRef = useRef(false);
   const pointerHandledRef = useRef(false);
-  const bodyCallbacks = useRef({ onMoveCancel, onBodyEnd, onRangeGesture });
-  bodyCallbacks.current = { onMoveCancel, onBodyEnd, onRangeGesture };
   const router = useHitRouter();
-  const routerRef = useRef(router);
-  routerRef.current = router;
   /** A move is pressed against the session start, a clip's hard limit. */
   const bodyAtLimit = useRef(false);
   const [bodyBumped, setBodyBumped] = useState(false);
@@ -162,7 +159,7 @@ export function ClipBlockLive({
         .getState()
         .announceStatus(`${HIT_KINDS.clip.label} is at its limit`);
   }, []);
-  const cancelBodyDrag = useCallback(() => {
+  const cancelBodyDrag = useStableCallback(() => {
     const drag = bodyRef.current;
     if (!drag) return;
     bodyRef.current = null;
@@ -170,10 +167,10 @@ export function ClipBlockLive({
     drag.stopListening();
     if (drag.target.hasPointerCapture?.(drag.pointerId))
       drag.target.releasePointerCapture(drag.pointerId);
-    routerRef.current?.disarm(drag.target);
+    router?.disarm(drag.target);
     if (drag.rangeCandidate) {
       if (drag.started)
-        bodyCallbacks.current.onRangeGesture?.(
+        onRangeGesture?.(
           "cancel",
           {
             clientX: drag.originX,
@@ -181,9 +178,9 @@ export function ClipBlockLive({
           },
           drag,
         );
-    } else bodyCallbacks.current.onMoveCancel?.(drag.clip.id);
-    bodyCallbacks.current.onBodyEnd?.(drag.clip.id);
-  }, [markBodyLimit]);
+    } else onMoveCancel?.(drag.clip.id);
+    onBodyEnd?.(drag.clip.id);
+  });
   useLayoutEffect(() => () => cancelBodyDrag(), [cancelBodyDrag]);
 
   useLayoutEffect(() => {
@@ -403,7 +400,7 @@ export function ClipBlockLive({
     bodyRef.current = null;
     markBodyLimit(false);
     d.stopListening();
-    bodyCallbacks.current.onBodyEnd?.(d.clip.id);
+    onBodyEnd?.(d.clip.id);
     if (d.rangeCandidate) {
       (e.currentTarget as HTMLElement).releasePointerCapture?.(e.pointerId);
       if (d.started) onRangeGesture?.(cancelled ? "cancel" : "end", e, d);

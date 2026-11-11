@@ -15,6 +15,7 @@ import type {
 } from "../types/project";
 import { MARKER_ROW_HEIGHT } from "../utils/layout";
 import { formatTimeShort } from "../utils/time";
+import { useStableCallback } from "../utils/useStableCallback";
 import type { ClippingFlag } from "./clippingFlags";
 import { hitTargetProps } from "./hitTargets";
 import { chapterMarkerId, laneMarkers, movedMarker } from "./laneMarkers";
@@ -138,74 +139,50 @@ export function MarkerLaneHost({
       ),
     [authoritativeMarkers, preview],
   );
-  const latest = useRef({
-    chapters,
-    socialClips,
-    comments,
-    authoritativeMarkers,
-    duration,
-    readOnly,
+  const onSelect = useStableCallback((id: string) => {
+    const chapter = chapters.find((c) => chapterMarkerId(c) === id);
+    if (chapter) return onSelectChapter(chapter);
+    const clip = socialClips.find((c) => c.id === id);
+    if (clip) return onSelectSocial(clip);
+    const comment = comments.find((c) => c.id === id);
+    if (comment) onSelectComment(comment);
   });
-  latest.current = {
-    chapters,
-    socialClips,
-    comments,
-    authoritativeMarkers,
-    duration,
-    readOnly,
-  };
 
-  const onSelect = useCallback(
-    (id: string) => {
-      const { chapters, socialClips, comments } = latest.current;
-      const chapter = chapters.find((c) => chapterMarkerId(c) === id);
-      if (chapter) return onSelectChapter(chapter);
-      const clip = socialClips.find((c) => c.id === id);
-      if (clip) return onSelectSocial(clip);
-      const comment = comments.find((c) => c.id === id);
-      if (comment) onSelectComment(comment);
-    },
-    [onSelectChapter, onSelectSocial, onSelectComment],
-  );
-
-  const commit = useCallback(
-    async (move: HeldMove) => {
-      saving.current.add(move.origin.id);
-      try {
-        const source = latest.current.authoritativeMarkers.find(
-          (marker) => marker.id === move.origin.id,
+  const commit = useStableCallback(async (move: HeldMove) => {
+    saving.current.add(move.origin.id);
+    try {
+      const source = authoritativeMarkers.find(
+        (marker) => marker.id === move.origin.id,
+      );
+      if (
+        readOnly ||
+        duration !== move.duration ||
+        !sameSource(source, move.origin)
+      )
+        return;
+      const next = movedMarker(
+        move.origin,
+        move.grip,
+        move.delta,
+        move.duration,
+      );
+      if (next.kind === "chapter" && next.start !== move.origin.start) {
+        await onMoveChapter?.(
+          { time: move.origin.start, title: next.title },
+          next.start,
         );
-        if (
-          latest.current.readOnly ||
-          latest.current.duration !== move.duration ||
-          !sameSource(source, move.origin)
-        )
-          return;
-        const next = movedMarker(
-          move.origin,
-          move.grip,
-          move.delta,
-          move.duration,
-        );
-        if (next.kind === "chapter" && next.start !== move.origin.start) {
-          await onMoveChapter?.(
-            { time: move.origin.start, title: next.title },
-            next.start,
-          );
-        } else if (
-          next.kind === "clip" &&
-          (next.start !== move.origin.start ||
-            next.end !== markerEnd(move.origin))
-        ) {
-          await onMoveSocial?.(next.id, next.start, next.end);
-        }
-      } finally {
-        saving.current.delete(move.origin.id);
-        setPreview((current) => (current === move ? null : current));
+      } else if (
+        next.kind === "clip" &&
+        (next.start !== move.origin.start ||
+          next.end !== markerEnd(move.origin))
+      ) {
+        await onMoveSocial?.(next.id, next.start, next.end);
       }
-    },
-    [onMoveChapter, onMoveSocial],
-  );
+    } finally {
+      saving.current.delete(move.origin.id);
+      setPreview((current) => (current === move ? null : current));
+    }
+  });
 
   const hitProps = useCallback(
     (id: string, grip: MarkerGrip) => {
@@ -220,27 +197,25 @@ export function MarkerLaneHost({
     [markers, selected],
   );
 
-  const begin = useCallback((id: string, grip: MarkerGrip) => {
-    const origin = latest.current.authoritativeMarkers.find(
-      (marker) => marker.id === id,
-    );
+  const begin = useStableCallback((id: string, grip: MarkerGrip) => {
+    const origin = authoritativeMarkers.find((marker) => marker.id === id);
     if (
       !origin ||
       (origin.kind === "chapter" && saving.current.has(id)) ||
       origin.kind === "comment" ||
-      latest.current.readOnly ||
-      latest.current.duration <= 0
+      readOnly ||
+      duration <= 0
     )
       return null;
     const move: HeldMove = {
       origin,
       grip,
       delta: 0,
-      duration: latest.current.duration,
+      duration,
     };
     held.current = move;
     return move;
-  }, []);
+  });
   const onDragStart = useCallback(
     (id: string, grip: MarkerGrip) => begin(id, grip) != null,
     [begin],

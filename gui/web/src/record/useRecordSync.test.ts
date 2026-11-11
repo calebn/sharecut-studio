@@ -187,6 +187,25 @@ describe("useRecordSync", () => {
     expect(ws.sent).toHaveLength(frameCount + 1);
   });
 
+  it("uses a name committed before the pending connection opens without reconnecting", async () => {
+    FakeWebSocket.reset({ autoOpen: false });
+    const { rerender } = renderHook(({ name }) => useRecordSync("tok", name), {
+      initialProps: { name: "Ava" },
+    });
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    expect(FakeWebSocket.instances).toHaveLength(1);
+    rerender({ name: "Mira" });
+    act(() => FakeWebSocket.instances[0].open());
+    expect(FakeWebSocket.instances).toHaveLength(1);
+    expect(JSON.parse(FakeWebSocket.instances[0].sent[0])).toMatchObject({
+      command_type: "Join",
+      payload: { display_name: "Mira" },
+    });
+  });
+
   it("resends cached participant ids on reconnect Join", async () => {
     loadRecordParticipant.mockResolvedValue({
       participant_id: "p_g",

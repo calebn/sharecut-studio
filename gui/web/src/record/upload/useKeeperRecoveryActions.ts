@@ -1,7 +1,8 @@
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useState } from "react";
 import { useMountedRef } from "../../hooks/useMountedRef";
 import { useSingleFlight } from "../../hooks/useSingleFlight";
 import { errorMessage } from "../../utils/apiError";
+import { useStableCallback } from "../../utils/useStableCallback";
 import type { ByteSink } from "../keeper/store";
 import {
   downloadLocalKeepers,
@@ -54,12 +55,11 @@ export function useKeeperRecoveryActions(args: {
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const { busy, run: runSingle } = useSingleFlight();
-  const allowedRef = useRef(args.recoverAllowed);
-  allowedRef.current = args.recoverAllowed;
-  const uploadAvailableRef = useRef(args.uploadAvailable ?? true);
-  uploadAvailableRef.current = args.uploadAvailable ?? true;
-  const onRecoveredRef = useRef(args.onRecovered);
-  onRecoveredRef.current = args.onRecovered;
+  const canRecover = useStableCallback(() => args.recoverAllowed);
+  const recoveredNotice = useStableCallback((result: KeeperRecoveryResult) =>
+    recoveryNotice(result, args.uploadAvailable ?? true),
+  );
+  const onRecovered = useStableCallback(args.onRecovered);
   const mountedRef = useMountedRef();
 
   const run = useCallback(
@@ -97,22 +97,30 @@ export function useKeeperRecoveryActions(args: {
   }, [run, sink, sessionId, participantId, takeIndex]);
   const recover = useCallback(() => {
     if (!sink || !sessionId || !participantId || takeIndex === null) return;
-    if (!allowedRef.current) return;
+    if (!canRecover()) return;
     run(
       async () =>
-        recoveryNotice(
+        recoveredNotice(
           await recoverLocalKeepers(
             sink,
             sessionId,
             participantId,
             takeIndex,
-            () => allowedRef.current,
+            canRecover,
           ),
-          uploadAvailableRef.current,
         ),
-      () => onRecoveredRef.current(),
+      onRecovered,
     );
-  }, [run, sink, sessionId, participantId, takeIndex]);
+  }, [
+    run,
+    sink,
+    sessionId,
+    participantId,
+    takeIndex,
+    canRecover,
+    recoveredNotice,
+    onRecovered,
+  ]);
 
   return {
     download: ready ? download : undefined,

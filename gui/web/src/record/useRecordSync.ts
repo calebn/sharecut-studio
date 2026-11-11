@@ -8,6 +8,7 @@ import {
 import { newClientId } from "../session/clientId";
 import type { WsSender } from "../session/wsSend";
 import { openPlaneSocket, type PlaneSocketContext } from "../sync/planeSocket";
+import { useStableCallback } from "../utils/useStableCallback";
 import { isTerminalWsClose } from "../utils/wsClose";
 import { emitRecordSignal, isRecordSignal } from "./monitor/signalBus";
 import type { RecordSnapshot } from "./types";
@@ -115,9 +116,8 @@ export function useRecordSync(
   const [lease, setLease] = useState<string | null>(null);
   const sendRef = useRef<WsSender | null>(null);
   const clientIdRef = useRef(newClientId());
-  const nameRef = useRef(displayName);
+  const currentName = useStableCallback(() => displayName);
   const skipLeaseRef = useRef(false);
-  nameRef.current = displayName;
 
   const send = useCallback(
     (
@@ -167,7 +167,7 @@ export function useRecordSync(
     };
 
     const socket = openPlaneSocket<RecordMsg>({
-      url: () => recordWsUrl(token, clientIdRef.current, nameRef.current),
+      url: () => recordWsUrl(token, clientIdRef.current, currentName()),
       prepare: async () => {
         cached = skipLeaseRef.current
           ? undefined
@@ -180,7 +180,7 @@ export function useRecordSync(
         setConnected(true);
         setError(null);
         const payload: Record<string, unknown> = {
-          display_name: nameRef.current || "Guest",
+          display_name: currentName() || "Guest",
         };
         if (cached?.participant_id && cached.lease) {
           payload.participant_id = cached.participant_id;
@@ -280,7 +280,7 @@ export function useRecordSync(
       setConnected(false);
       sendRef.current = null;
     };
-  }, [token, enabled]);
+  }, [token, enabled, currentName]);
 
   const clearError = useCallback(() => {
     setError((current) => keepTerminalRecordError(current, null));
