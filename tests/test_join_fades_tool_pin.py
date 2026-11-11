@@ -13,6 +13,7 @@ from podcast_mcp.models import Clip, MediaAsset, Track, TrackRole, load_project,
 
 _REPLY_KEYS = {"operation", "join_count", "fade_ms", "dry_run", "affected_tracks"}
 _FADE_REPLY_KEYS = _REPLY_KEYS | {"requested_fade_ms", "cap_ms", "kept_longer_joins"}
+_CROSSFADE_REPLY_KEYS = _REPLY_KEYS | {"requested_fade_ms", "clamped_joins"}
 
 
 def _joined_path(tmp_path: Path) -> str:
@@ -76,7 +77,7 @@ def test_fade_joins_sets_fade_mode_and_micro_fades(tmp_path):
 def test_crossfade_joins_sets_crossfade_mode_and_fades(tmp_path):
     path = _joined_path(tmp_path)
     reply = json.loads(mcp_timeline.crossfade_joins_tool(path, fade_ms=25))
-    assert set(reply) == _REPLY_KEYS
+    assert set(reply) == _CROSSFADE_REPLY_KEYS
     assert reply["operation"] == "crossfade_joins"
     assert reply["fade_ms"] == 25
     assert reply["join_count"] == 3
