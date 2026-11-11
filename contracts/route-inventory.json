@@ -1,0 +1,1369 @@
+{
+  "api_version": 1,
+  "comment": "Gate class of every route the app mounts (#3123). host_direct_baseline is a ratchet: the handlers that call require_host themselves may only shrink. Regenerate with scripts/check_route_inventory.py --write.",
+  "host_direct_baseline": 87,
+  "routes": [
+    {
+      "gate": "other",
+      "handler": "podcast_mcp.gui.server:create_app.<locals>.index",
+      "host_direct": true,
+      "method": "GET",
+      "path": "/",
+      "reason": "SPA shell; require_host runs only for the project-mismatch page"
+    },
+    {
+      "gate": "host",
+      "handler": "podcast_mcp.gui.routes.project:get_audio",
+      "host_direct": true,
+      "method": "GET",
+      "path": "/api/audio"
+    },
+    {
+      "gate": "host",
+      "handler": "podcast_mcp.gui.routes.bootstrap:bootstrap_cancel",
+      "host_direct": true,
+      "method": "POST",
+      "path": "/api/bootstrap/cancel"
+    },
+    {
+      "gate": "host",
+      "handler": "podcast_mcp.gui.routes.bootstrap:bootstrap_events",
+      "host_direct": true,
+      "method": "GET",
+      "path": "/api/bootstrap/events"
+    },
+    {
+      "gate": "host",
+      "handler": "podcast_mcp.gui.routes.bootstrap:bootstrap_remove_model",
+      "host_direct": true,
+      "method": "DELETE",
+      "path": "/api/bootstrap/models/{model_id}"
+    },
+    {
+      "gate": "host",
+      "handler": "podcast_mcp.gui.routes.bootstrap:bootstrap_run",
+      "host_direct": true,
+      "method": "POST",
+      "path": "/api/bootstrap/run"
+    },
+    {
+      "gate": "host",
+      "handler": "podcast_mcp.gui.routes.bootstrap:bootstrap_status",
+      "host_direct": true,
+      "method": "GET",
+      "path": "/api/bootstrap/status"
+    },
+    {
+      "gate": "host",
+      "handler": "podcast_mcp.gui.routes.bootstrap:bootstrap_job_status",
+      "host_direct": true,
+      "method": "GET",
+      "path": "/api/bootstrap/status-job"
+    },
+    {
+      "gate": "host",
+      "handler": "podcast_mcp.gui.routes.boundary:post_boundary_audition",
+      "host_direct": true,
+      "method": "POST",
+      "path": "/api/boundary/audition"
+    },
+    {
+      "gate": "host",
+      "handler": "podcast_mcp.gui.routes.boundary:get_boundary_audition_audio",
+      "host_direct": true,
+      "method": "GET",
+      "path": "/api/boundary/audition/{opaque_id}/{side}"
+    },
+    {
+      "gate": "host",
+      "handler": "podcast_mcp.gui.routes.boundary:post_boundary_context",
+      "host_direct": true,
+      "method": "POST",
+      "path": "/api/boundary/context"
+    },
+    {
+      "gate": "host",
+      "handler": "podcast_mcp.gui.routes.document:get_clip_bleed",
+      "host_direct": true,
+      "method": "GET",
+      "path": "/api/clips/{clip_id}/bleed"
+    },
+    {
+      "gate": "host",
+      "handler": "podcast_mcp.gui.routes.comments:create_comment",
+      "host_direct": true,
+      "method": "POST",
+      "path": "/api/comments"
+    },
+    {
+      "gate": "host",
+      "handler": "podcast_mcp.gui.routes.comments:remove_comment",
+      "host_direct": true,
+      "method": "DELETE",
+      "path": "/api/comments/{comment_id}"
+    },
+    {
+      "gate": "host",
+      "handler": "podcast_mcp.gui.routes.comments:patch_comment",
+      "host_direct": true,
+      "method": "PATCH",
+      "path": "/api/comments/{comment_id}"
+    },
+    {
+      "gate": "host",
+      "handler": "podcast_mcp.gui.routes.comments:action_done",
+      "host_direct": true,
+      "method": "POST",
+      "path": "/api/comments/{comment_id}/actions/{action_id}/done"
+    },
+    {
+      "gate": "host",
+      "handler": "podcast_mcp.gui.routes.comments:create_reply",
+      "host_direct": true,
+      "method": "POST",
+      "path": "/api/comments/{comment_id}/replies"
+    },
+    {
+      "gate": "host",
+      "handler": "podcast_mcp.gui.routes.diagnostics:diagnostics_meta",
+      "host_direct": true,
+      "method": "GET",
+      "path": "/api/diagnostics"
+    },
+    {
+      "gate": "host",
+      "handler": "podcast_mcp.gui.routes.diagnostics:create_diagnostics_bundle",
+      "host_direct": true,
+      "method": "POST",
+      "path": "/api/diagnostics/bundle"
+    },
+    {
+      "gate": "host",
+      "handler": "podcast_mcp.gui.routes.diagnostics:download_diagnostics_bundle",
+      "host_direct": true,
+      "method": "GET",
+      "path": "/api/diagnostics/bundle/{name}"
+    },
+    {
+      "gate": "host",
+      "handler": "podcast_mcp.gui.routes.diagnostics:diagnostics_report_status",
+      "host_direct": true,
+      "method": "GET",
+      "path": "/api/diagnostics/report-status"
+    },
+    {
+      "gate": "host",
+      "handler": "podcast_mcp.gui.routes.diagnostics:submit_diagnostics_report",
+      "host_direct": true,
+      "method": "POST",
+      "path": "/api/diagnostics/submit"
+    },
+    {
+      "gate": "authz",
+      "handler": "podcast_mcp.gui.routes.document:post_document_command",
+      "method": "POST",
+      "path": "/api/document/command"
+    },
+    {
+      "gate": "authz",
+      "handler": "podcast_mcp.gui.routes.document:get_document_comments",
+      "method": "GET",
+      "path": "/api/document/comments"
+    },
+    {
+      "gate": "authz",
+      "handler": "podcast_mcp.gui.routes.document:get_document_state",
+      "method": "GET",
+      "path": "/api/document/state"
+    },
+    {
+      "gate": "host",
+      "handler": "podcast_mcp.gui.routes.export_routes:export_bounce",
+      "host_direct": true,
+      "method": "POST",
+      "path": "/api/export/bounce"
+    },
+    {
+      "gate": "host",
+      "handler": "podcast_mcp.gui.routes.export_routes:export_deliverables",
+      "host_direct": true,
+      "method": "POST",
+      "path": "/api/export/deliverables"
+    },
+    {
+      "gate": "host",
+      "handler": "podcast_mcp.gui.routes.export_routes:export_settings",
+      "host_direct": true,
+      "method": "POST",
+      "path": "/api/export/deliverables/settings"
+    },
+    {
+      "gate": "host",
+      "handler": "podcast_mcp.gui.routes.export_routes:list_export_files",
+      "host_direct": true,
+      "method": "GET",
+      "path": "/api/export/files"
+    },
+    {
+      "gate": "host",
+      "handler": "podcast_mcp.gui.routes.export_routes:reveal_export_file",
+      "host_direct": true,
+      "method": "POST",
+      "path": "/api/export/files/reveal"
+    },
+    {
+      "gate": "host",
+      "handler": "podcast_mcp.gui.routes.export_routes:download_export_file",
+      "host_direct": true,
+      "method": "GET",
+      "path": "/api/export/files/{file_id:path}"
+    },
+    {
+      "gate": "host",
+      "handler": "podcast_mcp.gui.routes.export_routes:download_export_file",
+      "host_direct": true,
+      "method": "HEAD",
+      "path": "/api/export/files/{file_id:path}"
+    },
+    {
+      "gate": "public",
+      "handler": "podcast_mcp.gui.server:create_app.<locals>.api_features",
+      "method": "GET",
+      "path": "/api/features",
+      "reason": "extension manifest the SPA reads before it has a session"
+    },
+    {
+      "gate": "host",
+      "handler": "podcast_mcp.gui.routes.feed_routes:get_feed",
+      "host_direct": true,
+      "method": "GET",
+      "path": "/api/feed"
+    },
+    {
+      "gate": "host",
+      "handler": "podcast_mcp.gui.routes.feed_routes:edit_feed",
+      "host_direct": true,
+      "method": "POST",
+      "path": "/api/feed/edit"
+    },
+    {
+      "gate": "host",
+      "handler": "podcast_mcp.gui.routes.feed_routes:write_feed_file",
+      "host_direct": true,
+      "method": "POST",
+      "path": "/api/feed/write"
+    },
+    {
+      "gate": "other",
+      "handler": "podcast_mcp.gui.routes.handoff:cancel",
+      "method": "POST",
+      "path": "/api/handoff/cancel",
+      "reason": "own handoff-token check (_unauthorized)"
+    },
+    {
+      "gate": "other",
+      "handler": "podcast_mcp.gui.routes.handoff:ping",
+      "method": "GET",
+      "path": "/api/handoff/ping",
+      "reason": "own handoff-token check (_unauthorized)"
+    },
+    {
+      "gate": "other",
+      "handler": "podcast_mcp.gui.routes.handoff:run",
+      "method": "POST",
+      "path": "/api/handoff/run",
+      "reason": "own handoff-token check (_unauthorized)"
+    },
+    {
+      "gate": "public",
+      "handler": "podcast_mcp.gui.routes.project:health",
+      "method": "GET",
+      "path": "/api/health",
+      "reason": "liveness probe"
+    },
+    {
+      "gate": "host",
+      "handler": "podcast_mcp.gui.routes.project:history_diff",
+      "host_direct": true,
+      "method": "GET",
+      "path": "/api/history/diff"
+    },
+    {
+      "gate": "authz",
+      "handler": "podcast_mcp.gui.routes.host:host_ws",
+      "method": "WS",
+      "path": "/api/host/ws"
+    },
+    {
+      "gate": "host",
+      "handler": "podcast_mcp.gui.routes.media:upload_media",
+      "host_direct": true,
+      "method": "POST",
+      "path": "/api/media/upload"
+    },
+    {
+      "gate": "host",
+      "handler": "podcast_mcp.gui.routes.project:get_pending_cut_suggestion",
+      "host_direct": true,
+      "method": "GET",
+      "path": "/api/pending-edits/{edit_id}/cut-suggestion"
+    },
+    {
+      "gate": "host",
+      "handler": "podcast_mcp.gui.routes.document:pending_preview_audio",
+      "host_direct": true,
+      "method": "GET",
+      "path": "/api/pending-preview"
+    },
+    {
+      "gate": "host",
+      "handler": "podcast_mcp.gui.routes.document:pending_preview_warm",
+      "host_direct": true,
+      "method": "POST",
+      "path": "/api/pending-preview/warm"
+    },
+    {
+      "gate": "host",
+      "handler": "podcast_mcp.gui.routes.pipeline:pipeline_analyze",
+      "host_direct": true,
+      "method": "POST",
+      "path": "/api/pipeline/analyze"
+    },
+    {
+      "gate": "host",
+      "handler": "podcast_mcp.gui.routes.pipeline:pipeline_cancel",
+      "host_direct": true,
+      "method": "POST",
+      "path": "/api/pipeline/cancel"
+    },
+    {
+      "gate": "host",
+      "handler": "podcast_mcp.gui.routes.pipeline:pipeline_get_config",
+      "host_direct": true,
+      "method": "GET",
+      "path": "/api/pipeline/config"
+    },
+    {
+      "gate": "host",
+      "handler": "podcast_mcp.gui.routes.pipeline:pipeline_put_config",
+      "host_direct": true,
+      "method": "PUT",
+      "path": "/api/pipeline/config"
+    },
+    {
+      "gate": "host",
+      "handler": "podcast_mcp.gui.routes.pipeline:pipeline_events",
+      "host_direct": true,
+      "method": "GET",
+      "path": "/api/pipeline/events"
+    },
+    {
+      "gate": "host",
+      "handler": "podcast_mcp.gui.routes.pipeline:pipeline_render_preview",
+      "host_direct": true,
+      "method": "POST",
+      "path": "/api/pipeline/render-preview"
+    },
+    {
+      "gate": "host",
+      "handler": "podcast_mcp.gui.routes.pipeline:pipeline_retry",
+      "host_direct": true,
+      "method": "POST",
+      "path": "/api/pipeline/retry"
+    },
+    {
+      "gate": "host",
+      "handler": "podcast_mcp.gui.routes.pipeline:pipeline_run",
+      "host_direct": true,
+      "method": "POST",
+      "path": "/api/pipeline/run"
+    },
+    {
+      "gate": "host",
+      "handler": "podcast_mcp.gui.routes.pipeline:pipeline_status",
+      "host_direct": true,
+      "method": "GET",
+      "path": "/api/pipeline/status"
+    },
+    {
+      "gate": "public",
+      "handler": "podcast_mcp.gui.routes.pipeline:pipeline_steps",
+      "method": "GET",
+      "path": "/api/pipeline/steps",
+      "reason": "static list of step names"
+    },
+    {
+      "gate": "host",
+      "handler": "podcast_mcp.gui.routes.project:get_project",
+      "host_direct": true,
+      "method": "GET",
+      "path": "/api/project"
+    },
+    {
+      "gate": "host",
+      "handler": "podcast_mcp.gui.routes.project:close_project_path",
+      "host_direct": true,
+      "method": "POST",
+      "path": "/api/project/close"
+    },
+    {
+      "gate": "host",
+      "handler": "podcast_mcp.gui.routes.project:create_project",
+      "host_direct": true,
+      "method": "POST",
+      "path": "/api/project/create"
+    },
+    {
+      "gate": "host",
+      "handler": "podcast_mcp.gui.routes.project:get_project_meta",
+      "host_direct": true,
+      "method": "GET",
+      "path": "/api/project/meta"
+    },
+    {
+      "gate": "host",
+      "handler": "podcast_mcp.gui.routes.project:open_project_path",
+      "host_direct": true,
+      "method": "POST",
+      "path": "/api/project/open"
+    },
+    {
+      "gate": "host",
+      "handler": "podcast_mcp.gui.routes.project:pick_project_path",
+      "host_direct": true,
+      "method": "POST",
+      "path": "/api/project/pick"
+    },
+    {
+      "gate": "host",
+      "handler": "podcast_mcp.gui.routes.project:get_project_prosody",
+      "host_direct": true,
+      "method": "GET",
+      "path": "/api/project/prosody"
+    },
+    {
+      "gate": "host",
+      "handler": "podcast_mcp.gui.routes.project:forget_recent_project",
+      "host_direct": true,
+      "method": "DELETE",
+      "path": "/api/projects/recent"
+    },
+    {
+      "gate": "host",
+      "handler": "podcast_mcp.gui.routes.project:list_recent_projects",
+      "host_direct": true,
+      "method": "GET",
+      "path": "/api/projects/recent"
+    },
+    {
+      "gate": "host",
+      "handler": "podcast_mcp.gui.routes.project:duplicate_recent_project",
+      "host_direct": true,
+      "method": "POST",
+      "path": "/api/projects/recent/duplicate"
+    },
+    {
+      "gate": "host",
+      "handler": "podcast_mcp.gui.routes.project:reveal_recent_project",
+      "host_direct": true,
+      "method": "POST",
+      "path": "/api/projects/recent/reveal"
+    },
+    {
+      "gate": "host",
+      "handler": "podcast_mcp.gui.routes.document:range_audio",
+      "host_direct": true,
+      "method": "POST",
+      "path": "/api/range-audio"
+    },
+    {
+      "gate": "guest",
+      "handler": "podcast_mcp.gui.routes.record_share:get_record_bootstrap",
+      "method": "GET",
+      "path": "/api/rec/{token}/bootstrap"
+    },
+    {
+      "gate": "guest",
+      "handler": "podcast_mcp.gui.routes.record_share:get_record_features",
+      "method": "GET",
+      "path": "/api/rec/{token}/features"
+    },
+    {
+      "gate": "guest",
+      "handler": "podcast_mcp.gui.routes.record_share:delete_record_upload",
+      "method": "DELETE",
+      "path": "/api/rec/{token}/upload"
+    },
+    {
+      "gate": "guest",
+      "handler": "podcast_mcp.gui.routes.record_share:get_record_upload_status",
+      "method": "GET",
+      "path": "/api/rec/{token}/upload"
+    },
+    {
+      "gate": "guest",
+      "handler": "podcast_mcp.gui.routes.record_share:post_record_upload",
+      "method": "POST",
+      "path": "/api/rec/{token}/upload"
+    },
+    {
+      "gate": "guest",
+      "handler": "podcast_mcp.gui.routes.record_share:record_ws",
+      "method": "WS",
+      "path": "/api/rec/{token}/ws"
+    },
+    {
+      "gate": "host",
+      "handler": "podcast_mcp.gui.routes.record_host:post_host_record_assign_track",
+      "host_direct": true,
+      "method": "POST",
+      "path": "/api/record/assign-track"
+    },
+    {
+      "gate": "host",
+      "handler": "podcast_mcp.gui.routes.record_host:post_record_command",
+      "host_direct": true,
+      "method": "POST",
+      "path": "/api/record/command"
+    },
+    {
+      "gate": "host",
+      "handler": "podcast_mcp.gui.routes.record_host:post_host_record_discard_take",
+      "host_direct": true,
+      "method": "POST",
+      "path": "/api/record/discard-take"
+    },
+    {
+      "gate": "host",
+      "handler": "podcast_mcp.gui.routes.record_host:post_host_record_land",
+      "host_direct": true,
+      "method": "POST",
+      "path": "/api/record/land"
+    },
+    {
+      "gate": "host",
+      "handler": "podcast_mcp.gui.routes.record_host:get_record_sessions",
+      "host_direct": true,
+      "method": "GET",
+      "path": "/api/record/sessions"
+    },
+    {
+      "gate": "host",
+      "handler": "podcast_mcp.gui.routes.record_host:get_record_state",
+      "host_direct": true,
+      "method": "GET",
+      "path": "/api/record/state"
+    },
+    {
+      "gate": "host",
+      "handler": "podcast_mcp.gui.routes.record_host:get_host_record_tracks",
+      "host_direct": true,
+      "method": "GET",
+      "path": "/api/record/tracks"
+    },
+    {
+      "gate": "host",
+      "handler": "podcast_mcp.gui.routes.record_host:delete_host_record_upload",
+      "host_direct": true,
+      "method": "DELETE",
+      "path": "/api/record/upload"
+    },
+    {
+      "gate": "host",
+      "handler": "podcast_mcp.gui.routes.record_host:get_host_record_upload",
+      "host_direct": true,
+      "method": "GET",
+      "path": "/api/record/upload"
+    },
+    {
+      "gate": "host",
+      "handler": "podcast_mcp.gui.routes.record_host:post_host_record_upload",
+      "host_direct": true,
+      "method": "POST",
+      "path": "/api/record/upload"
+    },
+    {
+      "gate": "guest",
+      "handler": "podcast_mcp.gui.routes.review_share:get_review_audio",
+      "method": "GET",
+      "path": "/api/review/{token}/audio"
+    },
+    {
+      "gate": "guest",
+      "handler": "podcast_mcp.gui.routes.review_share:post_review_comment",
+      "method": "POST",
+      "path": "/api/review/{token}/comments"
+    },
+    {
+      "gate": "guest",
+      "handler": "podcast_mcp.gui.routes.review_share:post_review_action_done",
+      "method": "POST",
+      "path": "/api/review/{token}/comments/{comment_id}/actions/{action_id}/done"
+    },
+    {
+      "gate": "guest",
+      "handler": "podcast_mcp.gui.routes.review_share:post_review_reply",
+      "method": "POST",
+      "path": "/api/review/{token}/comments/{comment_id}/replies"
+    },
+    {
+      "gate": "guest",
+      "handler": "podcast_mcp.gui.routes.review_share:get_daw_audio",
+      "method": "GET",
+      "path": "/api/review/{token}/daw/audio"
+    },
+    {
+      "gate": "guest",
+      "handler": "podcast_mcp.gui.routes.review_share:get_daw_audition_context",
+      "method": "GET",
+      "path": "/api/review/{token}/daw/audition-context"
+    },
+    {
+      "gate": "guest",
+      "handler": "podcast_mcp.gui.routes.review_share:get_daw_audition_context_image",
+      "method": "GET",
+      "path": "/api/review/{token}/daw/audition-context-image"
+    },
+    {
+      "gate": "guest",
+      "handler": "podcast_mcp.gui.routes.review_share:post_daw_boundary_context",
+      "method": "POST",
+      "path": "/api/review/{token}/daw/boundary/context"
+    },
+    {
+      "gate": "guest",
+      "handler": "podcast_mcp.gui.routes.review_share:post_daw_document_command",
+      "method": "POST",
+      "path": "/api/review/{token}/daw/document/command"
+    },
+    {
+      "gate": "guest",
+      "handler": "podcast_mcp.gui.routes.review_share:get_daw_document_state",
+      "method": "GET",
+      "path": "/api/review/{token}/daw/document/state"
+    },
+    {
+      "gate": "guest",
+      "handler": "podcast_mcp.gui.routes.review_editor:get_daw_edit_impact",
+      "method": "GET",
+      "path": "/api/review/{token}/daw/edit-impact"
+    },
+    {
+      "gate": "guest",
+      "handler": "podcast_mcp.gui.routes.review_editor:post_daw_export",
+      "method": "POST",
+      "path": "/api/review/{token}/daw/export"
+    },
+    {
+      "gate": "guest",
+      "handler": "podcast_mcp.gui.routes.review_editor:get_daw_export_files",
+      "method": "GET",
+      "path": "/api/review/{token}/daw/export/files"
+    },
+    {
+      "gate": "guest",
+      "handler": "podcast_mcp.gui.routes.review_editor:get_daw_export_file",
+      "method": "GET",
+      "path": "/api/review/{token}/daw/export/files/{file_id:path}"
+    },
+    {
+      "gate": "guest",
+      "handler": "podcast_mcp.gui.routes.review_editor:get_daw_export_job",
+      "method": "GET",
+      "path": "/api/review/{token}/daw/export/jobs/{job_id}"
+    },
+    {
+      "gate": "guest",
+      "handler": "podcast_mcp.gui.routes.review_editor:post_daw_export_job_cancel",
+      "method": "POST",
+      "path": "/api/review/{token}/daw/export/jobs/{job_id}/cancel"
+    },
+    {
+      "gate": "guest",
+      "handler": "podcast_mcp.gui.routes.review_editor:get_daw_export_job_events",
+      "method": "GET",
+      "path": "/api/review/{token}/daw/export/jobs/{job_id}/events"
+    },
+    {
+      "gate": "guest",
+      "handler": "podcast_mcp.gui.routes.review_editor:get_daw_export_status",
+      "method": "GET",
+      "path": "/api/review/{token}/daw/export/status"
+    },
+    {
+      "gate": "guest",
+      "handler": "podcast_mcp.gui.routes.review_share:post_daw_media_upload",
+      "method": "POST",
+      "path": "/api/review/{token}/daw/media/upload"
+    },
+    {
+      "gate": "guest",
+      "handler": "podcast_mcp.gui.routes.review_share:get_daw_meta",
+      "method": "GET",
+      "path": "/api/review/{token}/daw/meta"
+    },
+    {
+      "gate": "guest",
+      "handler": "podcast_mcp.gui.routes.review_share:get_daw_pending_cut_suggestion",
+      "method": "GET",
+      "path": "/api/review/{token}/daw/pending-edits/{edit_id}/cut-suggestion"
+    },
+    {
+      "gate": "guest",
+      "handler": "podcast_mcp.gui.routes.review_share:get_daw_pending_preview",
+      "method": "GET",
+      "path": "/api/review/{token}/daw/pending-preview"
+    },
+    {
+      "gate": "guest",
+      "handler": "podcast_mcp.gui.routes.review_share:get_daw_pending_preview_image",
+      "method": "GET",
+      "path": "/api/review/{token}/daw/pending-preview-image"
+    },
+    {
+      "gate": "guest",
+      "handler": "podcast_mcp.gui.routes.review_editor:get_daw_pipeline_job",
+      "method": "GET",
+      "path": "/api/review/{token}/daw/pipeline/jobs/{job_id}"
+    },
+    {
+      "gate": "guest",
+      "handler": "podcast_mcp.gui.routes.review_editor:post_daw_pipeline_job_cancel",
+      "method": "POST",
+      "path": "/api/review/{token}/daw/pipeline/jobs/{job_id}/cancel"
+    },
+    {
+      "gate": "guest",
+      "handler": "podcast_mcp.gui.routes.review_editor:get_daw_pipeline_job_events",
+      "method": "GET",
+      "path": "/api/review/{token}/daw/pipeline/jobs/{job_id}/events"
+    },
+    {
+      "gate": "guest",
+      "handler": "podcast_mcp.gui.routes.review_editor:post_daw_pipeline_run",
+      "method": "POST",
+      "path": "/api/review/{token}/daw/pipeline/run"
+    },
+    {
+      "gate": "guest",
+      "handler": "podcast_mcp.gui.routes.review_editor:get_daw_pipeline_status",
+      "method": "GET",
+      "path": "/api/review/{token}/daw/pipeline/status"
+    },
+    {
+      "gate": "guest",
+      "handler": "podcast_mcp.gui.routes.review_share:get_daw_project",
+      "method": "GET",
+      "path": "/api/review/{token}/daw/project"
+    },
+    {
+      "gate": "guest",
+      "handler": "podcast_mcp.gui.routes.review_share:get_daw_proxy_manifest",
+      "method": "GET",
+      "path": "/api/review/{token}/daw/proxy/manifest"
+    },
+    {
+      "gate": "guest",
+      "handler": "podcast_mcp.gui.routes.review_share:get_daw_proxy_chunk",
+      "method": "GET",
+      "path": "/api/review/{token}/daw/proxy/{track_id}/{proxy_hash}/{chunk_idx}"
+    },
+    {
+      "gate": "guest",
+      "handler": "podcast_mcp.gui.routes.review_share:guest_range_audio",
+      "method": "POST",
+      "path": "/api/review/{token}/daw/range-audio"
+    },
+    {
+      "gate": "guest",
+      "handler": "podcast_mcp.gui.routes.review_editor:post_daw_render_preview",
+      "method": "POST",
+      "path": "/api/review/{token}/daw/render-preview"
+    },
+    {
+      "gate": "guest",
+      "handler": "podcast_mcp.gui.routes.review_editor:get_daw_render_preview",
+      "method": "GET",
+      "path": "/api/review/{token}/daw/render-preview/{job_id}"
+    },
+    {
+      "gate": "guest",
+      "handler": "podcast_mcp.gui.routes.review_editor:get_daw_social_clips",
+      "method": "GET",
+      "path": "/api/review/{token}/daw/social-clips"
+    },
+    {
+      "gate": "guest",
+      "handler": "podcast_mcp.gui.routes.review_editor:get_daw_speaker_job",
+      "method": "GET",
+      "path": "/api/review/{token}/daw/speaker/jobs/{job_id}"
+    },
+    {
+      "gate": "guest",
+      "handler": "podcast_mcp.gui.routes.review_editor:post_daw_speaker_job_cancel",
+      "method": "POST",
+      "path": "/api/review/{token}/daw/speaker/jobs/{job_id}/cancel"
+    },
+    {
+      "gate": "guest",
+      "handler": "podcast_mcp.gui.routes.review_editor:get_daw_speaker_job_events",
+      "method": "GET",
+      "path": "/api/review/{token}/daw/speaker/jobs/{job_id}/events"
+    },
+    {
+      "gate": "guest",
+      "handler": "podcast_mcp.gui.routes.review_editor:post_daw_speaker_move_lane_span",
+      "method": "POST",
+      "path": "/api/review/{token}/daw/speaker/move-lane-span"
+    },
+    {
+      "gate": "guest",
+      "handler": "podcast_mcp.gui.routes.review_editor:post_daw_speaker_split",
+      "method": "POST",
+      "path": "/api/review/{token}/daw/speaker/split"
+    },
+    {
+      "gate": "guest",
+      "handler": "podcast_mcp.gui.routes.review_editor:get_daw_speaker_status",
+      "method": "GET",
+      "path": "/api/review/{token}/daw/speaker/status"
+    },
+    {
+      "gate": "guest",
+      "handler": "podcast_mcp.gui.routes.review_editor:post_daw_transcript_export",
+      "method": "POST",
+      "path": "/api/review/{token}/daw/transcript/export"
+    },
+    {
+      "gate": "guest",
+      "handler": "podcast_mcp.gui.routes.review_editor:get_daw_transcript_exports",
+      "method": "GET",
+      "path": "/api/review/{token}/daw/transcript/exports"
+    },
+    {
+      "gate": "guest",
+      "handler": "podcast_mcp.gui.routes.review_editor:post_daw_transcript_refine_done",
+      "method": "POST",
+      "path": "/api/review/{token}/daw/transcript/refine/done"
+    },
+    {
+      "gate": "guest",
+      "handler": "podcast_mcp.gui.routes.review_editor:get_daw_transcript_refine_status",
+      "method": "GET",
+      "path": "/api/review/{token}/daw/transcript/refine/status"
+    },
+    {
+      "gate": "guest",
+      "handler": "podcast_mcp.gui.routes.review_editor:post_daw_transcript_refine_waive",
+      "method": "POST",
+      "path": "/api/review/{token}/daw/transcript/refine/waive"
+    },
+    {
+      "gate": "guest",
+      "handler": "podcast_mcp.gui.routes.review_editor:post_daw_transcript_replacement_preview",
+      "method": "POST",
+      "path": "/api/review/{token}/daw/transcript/replacement-preview"
+    },
+    {
+      "gate": "guest",
+      "handler": "podcast_mcp.gui.routes.review_editor:get_daw_transcript_vocabulary",
+      "method": "GET",
+      "path": "/api/review/{token}/daw/transcript/vocabulary"
+    },
+    {
+      "gate": "guest",
+      "handler": "podcast_mcp.gui.routes.review_editor:put_daw_transcript_vocabulary",
+      "method": "PUT",
+      "path": "/api/review/{token}/daw/transcript/vocabulary"
+    },
+    {
+      "gate": "guest",
+      "handler": "podcast_mcp.gui.routes.review_editor:post_daw_transcript_word_timing_context",
+      "method": "POST",
+      "path": "/api/review/{token}/daw/transcript/word-timing-context"
+    },
+    {
+      "gate": "guest",
+      "handler": "podcast_mcp.gui.routes.review_share:get_daw_waveform_snap",
+      "method": "GET",
+      "path": "/api/review/{token}/daw/waveform-snap"
+    },
+    {
+      "gate": "guest",
+      "handler": "podcast_mcp.gui.routes.review_share:get_daw_waveform_status",
+      "method": "GET",
+      "path": "/api/review/{token}/daw/waveform/status"
+    },
+    {
+      "gate": "guest",
+      "handler": "podcast_mcp.gui.routes.review_share:get_daw_waveform_tiles",
+      "method": "GET",
+      "path": "/api/review/{token}/daw/waveform/tiles/{key}"
+    },
+    {
+      "gate": "guest",
+      "handler": "podcast_mcp.gui.routes.review_share:daw_ws",
+      "method": "WS",
+      "path": "/api/review/{token}/daw/ws"
+    },
+    {
+      "gate": "guest",
+      "handler": "podcast_mcp.gui.routes.review_share:get_review_features",
+      "method": "GET",
+      "path": "/api/review/{token}/features"
+    },
+    {
+      "gate": "guest",
+      "handler": "podcast_mcp.gui.routes.review_share:get_review_feed",
+      "method": "GET",
+      "path": "/api/review/{token}/feed"
+    },
+    {
+      "gate": "guest",
+      "handler": "podcast_mcp.gui.routes.review_share:edit_feed_show_as_guest",
+      "method": "POST",
+      "path": "/api/review/{token}/feed/edit"
+    },
+    {
+      "gate": "guest",
+      "handler": "podcast_mcp.gui.routes.review_share:write_feed_file_as_guest",
+      "method": "POST",
+      "path": "/api/review/{token}/feed/write"
+    },
+    {
+      "gate": "guest",
+      "handler": "podcast_mcp.gui.routes.review_share:get_review_project",
+      "method": "GET",
+      "path": "/api/review/{token}/project"
+    },
+    {
+      "gate": "host",
+      "handler": "podcast_mcp.gui.routes.document:session_suggestion_hear",
+      "method": "GET",
+      "path": "/api/session-suggestion/hear"
+    },
+    {
+      "gate": "host",
+      "handler": "podcast_mcp.gui.routes.document:session_suggestion_hear_wav",
+      "method": "GET",
+      "path": "/api/session-suggestion/hear-wav"
+    },
+    {
+      "gate": "host",
+      "handler": "podcast_mcp.gui.routes.document:session_suggestion_select_take",
+      "method": "POST",
+      "path": "/api/session-suggestion/select-take"
+    },
+    {
+      "gate": "host",
+      "handler": "podcast_mcp.gui.routes.document:session_suggestion_takes",
+      "method": "GET",
+      "path": "/api/session-suggestion/takes"
+    },
+    {
+      "gate": "host",
+      "handler": "podcast_mcp.gui.routes.document:session_suggestion_warm",
+      "method": "POST",
+      "path": "/api/session-suggestion/warm"
+    },
+    {
+      "gate": "authz",
+      "handler": "podcast_mcp.gui.routes.session:post_session_command",
+      "method": "POST",
+      "path": "/api/session/command"
+    },
+    {
+      "gate": "authz",
+      "handler": "podcast_mcp.gui.routes.session:get_session_meta",
+      "method": "GET",
+      "path": "/api/session/meta"
+    },
+    {
+      "gate": "authz",
+      "handler": "podcast_mcp.gui.routes.session:get_session_state",
+      "method": "GET",
+      "path": "/api/session/state"
+    },
+    {
+      "gate": "authz",
+      "handler": "podcast_mcp.gui.routes.session:post_session_state",
+      "method": "POST",
+      "path": "/api/session/state"
+    },
+    {
+      "gate": "host",
+      "handler": "podcast_mcp.gui.routes.shares:list_host_shares",
+      "host_direct": true,
+      "method": "GET",
+      "path": "/api/shares"
+    },
+    {
+      "gate": "host",
+      "handler": "podcast_mcp.gui.routes.shares:create_host_share",
+      "host_direct": true,
+      "method": "POST",
+      "path": "/api/shares"
+    },
+    {
+      "gate": "host",
+      "handler": "podcast_mcp.gui.routes.shares:create_host_record_room",
+      "host_direct": true,
+      "method": "POST",
+      "path": "/api/shares/record"
+    },
+    {
+      "gate": "host",
+      "handler": "podcast_mcp.gui.routes.shares:replace_host_record_invite",
+      "host_direct": true,
+      "method": "POST",
+      "path": "/api/shares/record/{source_token}/replace"
+    },
+    {
+      "gate": "host",
+      "handler": "podcast_mcp.gui.routes.shares:revoke_host_record_room",
+      "host_direct": true,
+      "method": "POST",
+      "path": "/api/shares/rooms/{session_id}/revoke"
+    },
+    {
+      "gate": "host",
+      "handler": "podcast_mcp.gui.routes.shares:revoke_host_share",
+      "host_direct": true,
+      "method": "POST",
+      "path": "/api/shares/{share_token}/revoke"
+    },
+    {
+      "gate": "host",
+      "handler": "podcast_mcp.gui.routes.speaker:speaker_doctor",
+      "host_direct": true,
+      "method": "GET",
+      "path": "/api/speaker/doctor"
+    },
+    {
+      "gate": "host",
+      "handler": "podcast_mcp.gui.routes.speaker:speaker_move_lane_span",
+      "host_direct": true,
+      "method": "POST",
+      "path": "/api/speaker/move-lane-span"
+    },
+    {
+      "gate": "host",
+      "handler": "podcast_mcp.gui.routes.speaker:speaker_split",
+      "host_direct": true,
+      "method": "POST",
+      "path": "/api/speaker/split"
+    },
+    {
+      "gate": "host",
+      "handler": "podcast_mcp.gui.routes.export_routes:export_transcript",
+      "host_direct": true,
+      "method": "POST",
+      "path": "/api/transcript/export"
+    },
+    {
+      "gate": "host",
+      "handler": "podcast_mcp.gui.routes.export_routes:list_exported_transcripts",
+      "host_direct": true,
+      "method": "GET",
+      "path": "/api/transcript/exports"
+    },
+    {
+      "gate": "host",
+      "handler": "podcast_mcp.gui.routes.transcript:transcript_refine_done",
+      "host_direct": true,
+      "method": "POST",
+      "path": "/api/transcript/refine/done"
+    },
+    {
+      "gate": "host",
+      "handler": "podcast_mcp.gui.routes.transcript:transcript_refine_status",
+      "host_direct": true,
+      "method": "GET",
+      "path": "/api/transcript/refine/status"
+    },
+    {
+      "gate": "host",
+      "handler": "podcast_mcp.gui.routes.transcript:transcript_refine_waive",
+      "host_direct": true,
+      "method": "POST",
+      "path": "/api/transcript/refine/waive"
+    },
+    {
+      "gate": "host",
+      "handler": "podcast_mcp.gui.routes.transcript:transcript_replacement_preview",
+      "host_direct": true,
+      "method": "POST",
+      "path": "/api/transcript/replacement-preview"
+    },
+    {
+      "gate": "host",
+      "handler": "podcast_mcp.gui.routes.transcript:transcript_vocabulary_get",
+      "host_direct": true,
+      "method": "GET",
+      "path": "/api/transcript/vocabulary"
+    },
+    {
+      "gate": "host",
+      "handler": "podcast_mcp.gui.routes.transcript:transcript_vocabulary_put",
+      "host_direct": true,
+      "method": "PUT",
+      "path": "/api/transcript/vocabulary"
+    },
+    {
+      "gate": "host",
+      "handler": "podcast_mcp.gui.routes.transcript:transcript_word_timing_context",
+      "host_direct": true,
+      "method": "POST",
+      "path": "/api/transcript/word-timing-context"
+    },
+    {
+      "gate": "host",
+      "handler": "podcast_mcp.gui.routes.tunnel:get_tunnel_status",
+      "host_direct": true,
+      "method": "GET",
+      "path": "/api/tunnel/status"
+    },
+    {
+      "gate": "host",
+      "handler": "podcast_mcp.gui.routes.project:get_waveform_snap",
+      "host_direct": true,
+      "method": "GET",
+      "path": "/api/waveform-snap"
+    },
+    {
+      "gate": "host",
+      "handler": "podcast_mcp.gui.routes.waveform:get_waveform_pcm",
+      "method": "GET",
+      "path": "/api/waveform/pcm/{key}"
+    },
+    {
+      "gate": "host",
+      "handler": "podcast_mcp.gui.routes.waveform:get_waveform_status",
+      "method": "GET",
+      "path": "/api/waveform/status"
+    },
+    {
+      "gate": "host",
+      "handler": "podcast_mcp.gui.routes.waveform:get_waveform_tiles",
+      "method": "GET",
+      "path": "/api/waveform/tiles/{key}"
+    },
+    {
+      "gate": "public",
+      "handler": "podcast_mcp.gui.static_assets:ImmutableAssetsStaticFiles",
+      "method": "MOUNT",
+      "path": "/assets",
+      "reason": "static bundle"
+    },
+    {
+      "gate": "other",
+      "handler": "podcast_mcp.gui.routes.auth:mint_agent_credential",
+      "method": "POST",
+      "path": "/auth/agent-credential",
+      "reason": "account sign-in flow; the caller has no session yet"
+    },
+    {
+      "gate": "other",
+      "handler": "podcast_mcp.gui.routes.auth:auth_callback",
+      "method": "GET",
+      "path": "/auth/callback/{provider}",
+      "reason": "account sign-in flow; the caller has no session yet"
+    },
+    {
+      "gate": "other",
+      "handler": "podcast_mcp.gui.routes.auth:auth_login_page",
+      "method": "GET",
+      "path": "/auth/login",
+      "reason": "account sign-in flow; the caller has no session yet"
+    },
+    {
+      "gate": "other",
+      "handler": "podcast_mcp.gui.routes.auth:auth_login_start",
+      "method": "GET",
+      "path": "/auth/login/{provider}",
+      "reason": "account sign-in flow; the caller has no session yet"
+    },
+    {
+      "gate": "other",
+      "handler": "podcast_mcp.gui.routes.auth:auth_logout",
+      "method": "POST",
+      "path": "/auth/logout",
+      "reason": "account sign-in flow; the caller has no session yet"
+    },
+    {
+      "gate": "other",
+      "handler": "podcast_mcp.gui.routes.auth:auth_magic_link",
+      "method": "POST",
+      "path": "/auth/magic-link",
+      "reason": "account sign-in flow; the caller has no session yet"
+    },
+    {
+      "gate": "other",
+      "handler": "podcast_mcp.gui.routes.auth:auth_magic_consume",
+      "method": "GET",
+      "path": "/auth/magic-link/consume",
+      "reason": "account sign-in flow; the caller has no session yet"
+    },
+    {
+      "gate": "other",
+      "handler": "podcast_mcp.gui.routes.auth:auth_me",
+      "method": "GET",
+      "path": "/auth/me",
+      "reason": "account sign-in flow; the caller has no session yet"
+    },
+    {
+      "gate": "other",
+      "handler": "podcast_mcp.gui.routes.auth:passkey_login_begin",
+      "method": "POST",
+      "path": "/auth/passkey/login/begin",
+      "reason": "account sign-in flow; the caller has no session yet"
+    },
+    {
+      "gate": "other",
+      "handler": "podcast_mcp.gui.routes.auth:passkey_login_finish",
+      "method": "POST",
+      "path": "/auth/passkey/login/finish",
+      "reason": "account sign-in flow; the caller has no session yet"
+    },
+    {
+      "gate": "other",
+      "handler": "podcast_mcp.gui.routes.auth:passkey_register_begin",
+      "method": "POST",
+      "path": "/auth/passkey/register/begin",
+      "reason": "account sign-in flow; the caller has no session yet"
+    },
+    {
+      "gate": "other",
+      "handler": "podcast_mcp.gui.routes.auth:passkey_register_finish",
+      "method": "POST",
+      "path": "/auth/passkey/register/finish",
+      "reason": "account sign-in flow; the caller has no session yet"
+    },
+    {
+      "gate": "other",
+      "handler": "podcast_mcp.gui.routes.auth:auth_password_login",
+      "method": "POST",
+      "path": "/auth/password/login",
+      "reason": "account sign-in flow; the caller has no session yet"
+    },
+    {
+      "gate": "other",
+      "handler": "podcast_mcp.gui.routes.auth:auth_password_register",
+      "method": "POST",
+      "path": "/auth/password/register",
+      "reason": "account sign-in flow; the caller has no session yet"
+    },
+    {
+      "gate": "other",
+      "handler": "podcast_mcp.gui.routes.auth:auth_providers",
+      "method": "GET",
+      "path": "/auth/providers",
+      "reason": "account sign-in flow; the caller has no session yet"
+    },
+    {
+      "gate": "public",
+      "handler": "fastapi.applications:FastAPI.setup.<locals>.swagger_ui_html",
+      "method": "GET",
+      "path": "/docs",
+      "reason": "FastAPI interactive docs"
+    },
+    {
+      "gate": "public",
+      "handler": "fastapi.applications:FastAPI.setup.<locals>.swagger_ui_redirect",
+      "method": "GET",
+      "path": "/docs/oauth2-redirect",
+      "reason": "FastAPI interactive docs"
+    },
+    {
+      "gate": "public",
+      "handler": "podcast_mcp.gui.server:create_app.<locals>.favicon_ico",
+      "method": "GET",
+      "path": "/favicon.ico",
+      "reason": "static bundle"
+    },
+    {
+      "gate": "public",
+      "handler": "podcast_mcp.gui.server:create_app.<locals>.favicon_svg",
+      "method": "GET",
+      "path": "/favicon.svg",
+      "reason": "static bundle"
+    },
+    {
+      "gate": "other",
+      "handler": "podcast_mcp.gui.host_mcp:_BindRequestApp",
+      "method": "POST",
+      "path": "/mcp",
+      "reason": "stateless host MCP transport; mounted on loopback binds only"
+    },
+    {
+      "gate": "guest",
+      "handler": "podcast_mcp.gui.routes.remote_mcp:mcp_info",
+      "method": "GET",
+      "path": "/mcp/{token}"
+    },
+    {
+      "gate": "guest",
+      "handler": "podcast_mcp.gui.routes.remote_mcp:mcp_bridge",
+      "method": "GET",
+      "path": "/mcp/{token}/mcp"
+    },
+    {
+      "gate": "guest",
+      "handler": "podcast_mcp.gui.routes.remote_mcp:mcp_bridge",
+      "method": "OPTIONS",
+      "path": "/mcp/{token}/mcp"
+    },
+    {
+      "gate": "guest",
+      "handler": "podcast_mcp.gui.routes.remote_mcp:mcp_bridge",
+      "method": "POST",
+      "path": "/mcp/{token}/mcp"
+    },
+    {
+      "gate": "public",
+      "handler": "fastapi.applications:FastAPI.setup.<locals>.openapi",
+      "method": "GET",
+      "path": "/openapi.json",
+      "reason": "FastAPI schema"
+    },
+    {
+      "gate": "public",
+      "handler": "podcast_mcp.gui.server:create_app.<locals>.review_spa",
+      "method": "GET",
+      "path": "/r/{token}",
+      "reason": "share SPA shell; the token only picks the page head"
+    },
+    {
+      "gate": "guest",
+      "handler": "podcast_mcp.gui.routes.remote_mcp:mcp_bridge",
+      "method": "GET",
+      "path": "/r/{token}/mcp"
+    },
+    {
+      "gate": "guest",
+      "handler": "podcast_mcp.gui.routes.remote_mcp:mcp_bridge",
+      "method": "OPTIONS",
+      "path": "/r/{token}/mcp"
+    },
+    {
+      "gate": "guest",
+      "handler": "podcast_mcp.gui.routes.remote_mcp:mcp_bridge",
+      "method": "POST",
+      "path": "/r/{token}/mcp"
+    },
+    {
+      "gate": "public",
+      "handler": "podcast_mcp.gui.server:create_app.<locals>.record_spa",
+      "method": "GET",
+      "path": "/rec/{token}",
+      "reason": "record SPA shell; the token only picks the page head"
+    },
+    {
+      "gate": "public",
+      "handler": "fastapi.applications:FastAPI.setup.<locals>.redoc_html",
+      "method": "GET",
+      "path": "/redoc",
+      "reason": "FastAPI interactive docs"
+    }
+  ]
+}
