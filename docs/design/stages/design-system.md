@@ -181,7 +181,7 @@ Storybook. Shared elements live under `System/<Element>`. Stage compositions liv
 - Story: `System/ScopeChip`.
 
 **9. Sheet.** Every non-modal surface that is not a menu.
-- Anatomy: header 40 px (object icon, title or inline rename, Done on the primary side of the header, or a Close X only where nothing is edited; see 4.8a), body of rows (label left, control right), optional footer with one primary in the thumb zone.
+- Anatomy: header 40 px (object icon, title or inline rename, Done at the trailing edge, with an optional Close X beside it on a desktop card, or a Close X alone only where nothing is edited; see 4.8a), body of rows (label left, control right), optional footer with one primary in the thumb zone.
 - Desktop placements: Anchored card, 320 px, to a selection or button, at most 60 % of the viewport (the Inspector). Side panel, 400 px, on the right (Settings). Centered card, 400 px (Join).
 - Phone: a bottom sheet with detents (4.3).
 - Values apply as they change. There are no Apply buttons.
@@ -659,12 +659,12 @@ One rule, so the same job never has two labels. Escape, an outside tap and a pho
 
 | The surface | Control | Escape, outside tap, swipe down |
 |---|---|---|
-| Saves as you go (sheets, the Inspector, popovers a person edits in) | **Done**, a labelled button on the primary side of the header. A desktop card or popover may also keep a Close X beside it; a phone sheet and the full-screen Inspector show Done alone | Same as Done. Nothing is lost, so there is never a confirm |
+| Saves as you go (sheets, the Inspector, popovers a person edits in) | **Done**, a labelled button at the trailing edge of the header. A desktop card or popover may also keep a Close X beside it; a phone sheet and the full-screen Inspector show Done alone | Same as Done. Nothing is lost, so there is never a confirm |
 | Needs confirming (Rename project, Delete clip, any Ask) | **Cancel** plus the verb ("Rename", "Delete clip"). To keep something that exists, the keep button ("Keep link") is the Cancel. No X | Same as Cancel |
 | Nothing is edited (hints, cards, read-only popovers, the Find bar) | A Close X named **Close**, or **Dismiss** for a hint or card | Same as the X. A hint also closes when its anchor is used |
 | A running job | **Cancel <the thing>** ("Cancel splitting"), never a bare Cancel. An icon-only control carries that name | n/a |
 
-Done is the default label. A descriptive word for the same job beats it ("Done trimming"). Never "Save": nothing is saved on press, so the speaker popover has Done and no Save.
+Done is the default label. A descriptive word for the same job beats it ("Done trimming"). Never "Save", because nothing is saved on press. The speaker popover has Done and no Save.
 
 Escape goes to the innermost thing first: an open menu, an open confirm, a field or drag mid-edit (it reverts and the surface stays), then the surface. Done keeps. Cancel discards.
 
