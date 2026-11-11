@@ -69,6 +69,20 @@ def cap_fade_ms(
     return min(fade, auto_join_fade_cap_ms(project, defaults))
 
 
+def set_join_fade_default(
+    project: EpisodeProject, ms: int | None, *, defaults: EffectiveConfig
+) -> dict:
+    """Store the episode's Default join fade length; ``None`` returns to the app default.
+
+    Rewrites no existing fade: only the automatic join writers read it afterwards.
+    """
+    project.timeline.join_fade_max_ms = None if ms is None else _checked_join_fade_ms(ms)
+    summary = change_summary(project, operation="set_join_fade_default", affected_tracks=[])
+    summary["stored_ms"] = project.timeline.join_fade_max_ms
+    summary["join_fade_default_ms"] = auto_join_fade_cap_ms(project, defaults)
+    return summary
+
+
 def clamp_clip_fades(clip: Clip, fade_in_ms: int, fade_out_ms: int) -> tuple[int, int]:
     """Edge fades a manual edit may give *clip*: each fits in the clip and the fade-out in
     what the fade-in leaves, so the two never overlap. No other cap applies.

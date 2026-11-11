@@ -324,6 +324,14 @@ COMMANDS: Mapping[str, CommandSpec] = MappingProxyType(
             mcp=named("set_clips_gain_tool"),
             cli=named(GENERIC_CLI),
         ),
+        "SetJoinFadeDefault": CommandSpec(
+            payload=p.SetJoinFadeDefaultPayload,
+            handler=edits.set_join_fade_default,
+            guest=ReviewRole.EDITOR,
+            gui=gap("Settings sheet row lands in the follow-up PR"),
+            mcp=named("set_join_fade_default_tool"),
+            cli=named("podcast episode set-join-fade-default"),
+        ),
         "TrimClipEdge": CommandSpec(
             payload=p.TrimClipEdgePayload,
             handler=edits.trim_clip_edge,

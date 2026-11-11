@@ -550,6 +550,11 @@ export const CAPABILITY_COPY: Record<string, CapabilityCopy> = {
     tooltip:
       "How this clip meets the previous one: cut, fade or crossfade, with its length",
   },
+  "daw.edit.setJoinFadeDefault": {
+    label: "Set default join fade length",
+    tooltip:
+      "The longest fade ShareCut adds by itself at cuts; fades you set stay as you set them",
+  },
   "daw.transcript.findReplace": {
     label: "Find and replace transcript",
     tooltip:

@@ -2649,6 +2649,7 @@
           "set_clips_fade_tool",
           "set_clip_gain_tool",
           "set_clips_gain_tool",
+          "set_join_fade_default_tool",
           "set_join_mode_tool",
           "shorten_gaps_tool",
           "duplicate_segment_tool",
@@ -3546,6 +3547,30 @@
       },
       "presence": {
         "cursor": "time",
+        "follow": "none"
+      }
+    },
+    {
+      "id": "daw.edit.setJoinFadeDefault",
+      "label": "Set default join fade length",
+      "effect": "project",
+      "tooltip": "The longest fade ShareCut adds by itself at cuts; fades you set stay as you set them",
+      "service": "ShareCut Studio \u2192 SetJoinFadeDefault document command",
+      "industry_standard_key": false,
+      "gates": [
+        "canApplyPass12"
+      ],
+      "surfaces": {
+        "mcp": [
+          "set_join_fade_default_tool"
+        ],
+        "cli": "podcast episode set-join-fade-default"
+      },
+      "omit": {
+        "keyboard_reason": "a project setting, set from the Settings sheet or the agent"
+      },
+      "presence": {
+        "cursor": "none",
         "follow": "none"
       }
     },

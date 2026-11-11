@@ -29,6 +29,7 @@ DocumentCommandType = Literal[
     "SetClipsFade",
     "SetClipGain",
     "SetClipsGain",
+    "SetJoinFadeDefault",
     "TrimClipEdge",
     "RollClipJoin",
     "SetJoinMode",

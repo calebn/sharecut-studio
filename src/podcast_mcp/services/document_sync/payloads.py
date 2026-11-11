@@ -360,6 +360,17 @@ class SetClipsGainPayload(BaseModel):
         return gains
 
 
+class SetJoinFadeDefaultPayload(BaseModel):
+    ms: int | None = Field(
+        ge=0,
+        le=200,
+        description="The episode's Default join fade length in ms (0 to 200): the longest fade "
+        "the automatic join writers (Fade joins, Smooth all joins, approve-time fades) add. "
+        "Null returns to the app default (render.join_fade_max_ms, 40). Fades set by hand are "
+        "never capped by it and no existing fade changes.",
+    )
+
+
 class TrimClipEdgePayload(BaseModel):
     clip_id: str
     edge: Literal["in", "out"]
@@ -1207,6 +1218,11 @@ class SetClipsGainCommand(DocumentCommandEnvelope):
     payload: SetClipsGainPayload
 
 
+class SetJoinFadeDefaultCommand(DocumentCommandEnvelope):
+    type: Literal["SetJoinFadeDefault"] = "SetJoinFadeDefault"
+    payload: SetJoinFadeDefaultPayload
+
+
 class TrimClipEdgeCommand(DocumentCommandEnvelope):
     type: Literal["TrimClipEdge"] = "TrimClipEdge"
     payload: TrimClipEdgePayload
@@ -1589,6 +1605,7 @@ DocumentCommandBody = Annotated[
     | SetClipsFadeCommand
     | SetClipGainCommand
     | SetClipsGainCommand
+    | SetJoinFadeDefaultCommand
     | TrimClipEdgeCommand
     | RollClipJoinCommand
     | SetJoinModeCommand

@@ -8779,6 +8779,124 @@
       "title": "SetFeedFieldPayload",
       "type": "object"
     },
+    "SetJoinFadeDefaultCommand": {
+      "properties": {
+        "causation_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Causation Id"
+        },
+        "client_id": {
+          "title": "Client Id",
+          "type": "string"
+        },
+        "client_seq": {
+          "anyOf": [
+            {
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Client Seq"
+        },
+        "command_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Command Id"
+        },
+        "payload": {
+          "$ref": "#/$defs/SetJoinFadeDefaultPayload"
+        },
+        "role": {
+          "default": "viewer",
+          "enum": [
+            "agent",
+            "viewer",
+            "cli",
+            "guest"
+          ],
+          "title": "Role",
+          "type": "string"
+        },
+        "structural_mode": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Structural Mode"
+        },
+        "token": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Token"
+        },
+        "type": {
+          "const": "SetJoinFadeDefault",
+          "default": "SetJoinFadeDefault",
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "client_id",
+        "payload"
+      ],
+      "title": "SetJoinFadeDefaultCommand",
+      "type": "object"
+    },
+    "SetJoinFadeDefaultPayload": {
+      "properties": {
+        "ms": {
+          "anyOf": [
+            {
+              "maximum": 200,
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "The episode's Default join fade length in ms (0 to 200): the longest fade the automatic join writers (Fade joins, Smooth all joins, approve-time fades) add. Null returns to the app default (render.join_fade_max_ms, 40). Fades set by hand are never capped by it and no existing fade changes.",
+          "title": "Ms"
+        }
+      },
+      "required": [
+        "ms"
+      ],
+      "title": "SetJoinFadeDefaultPayload",
+      "type": "object"
+    },
     "SetJoinModeCommand": {
       "properties": {
         "causation_id": {
@@ -12892,6 +13010,7 @@
       "SetEffectBypass": "#/$defs/SetEffectBypassCommand",
       "SetEnvelope": "#/$defs/SetEnvelopeCommand",
       "SetFeedField": "#/$defs/SetFeedFieldCommand",
+      "SetJoinFadeDefault": "#/$defs/SetJoinFadeDefaultCommand",
       "SetJoinMode": "#/$defs/SetJoinModeCommand",
       "SetRecordSessionName": "#/$defs/SetRecordSessionNameCommand",
       "SetTrackFader": "#/$defs/SetTrackFaderCommand",
@@ -12981,6 +13100,9 @@
     },
     {
       "$ref": "#/$defs/SetClipsGainCommand"
+    },
+    {
+      "$ref": "#/$defs/SetJoinFadeDefaultCommand"
     },
     {
       "$ref": "#/$defs/TrimClipEdgeCommand"

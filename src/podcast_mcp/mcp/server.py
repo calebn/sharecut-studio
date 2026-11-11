@@ -215,6 +215,7 @@ from podcast_mcp.mcp.tools.timeline import (  # noqa: E402, F401
     set_clips_fade_tool,
     set_clips_gain_tool,
     set_effect_bypass_tool,
+    set_join_fade_default_tool,
     set_join_mode_tool,
     shorten_gaps_tool,
     split_clip_tool,

@@ -6,7 +6,7 @@ from pathlib import Path
 import typer
 
 from podcast_mcp.services.app import ProjectWorkspace
-from podcast_mcp.services.document import EpisodeService, TranscriptService
+from podcast_mcp.services.document import EpisodeService, TimelineService, TranscriptService
 from podcast_mcp.services.pipeline import WHISPER_MODEL_IDS
 
 episode_app = typer.Typer(help="Manage episode projects.")
@@ -56,6 +56,24 @@ def track_set_volume(
 ) -> None:
     ws = ProjectWorkspace.open(project)
     typer.echo(json.dumps(EpisodeService(ws).set_track_volume(id, db).model_dump()))
+
+
+@episode_app.command("set-join-fade-default")
+def set_join_fade_default(
+    project: Path = typer.Option(..., "--project", help="episode.sharecut"),
+    ms: int | None = typer.Option(
+        None,
+        "--ms",
+        min=0,
+        max=200,
+        help="Default join fade length in ms (0 to 200): the longest fade the automatic join writers add",
+    ),
+    reset: bool = typer.Option(False, "--reset", help="Return to the app default (40 ms)"),
+) -> None:
+    if reset == (ms is not None):
+        raise typer.BadParameter("Pass exactly one of --ms or --reset.")
+    ws = ProjectWorkspace.open(project)
+    typer.echo(json.dumps(dict(TimelineService(ws).set_join_fade_default(None if reset else ms))))
 
 
 @episode_app.command("set-track-mute")
