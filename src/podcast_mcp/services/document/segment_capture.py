@@ -231,6 +231,7 @@ def capture_segment(
                 mute_spans=mute_spans_for_source_window(
                     clip, clip.source_start, clip.source_end, extra=ignored_words.for_clip(clip)
                 ),
+                gain_db=clip.gain_db,
             )
             audio = f"clip-{index:02d}.flac"
             rate, channels, chunks = engine.stream_pcm_f32(cut)

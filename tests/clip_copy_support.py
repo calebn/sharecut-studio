@@ -27,6 +27,7 @@ _VALUES: dict[str, Any] = {
     "source_id": "src_a",
     "fade_in_ms": 7,
     "fade_out_ms": 9,
+    "gain_db": -3.5,
     "join_in_mode": ClipJoinMode.CROSSFADE,
 }
 

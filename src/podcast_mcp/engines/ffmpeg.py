@@ -1293,6 +1293,9 @@ class FFmpegEngine:
             parts.append(f"afade=t=out:st={st}:d={d}")
         return parts
 
+    def _gain_chain(self, gain_db: float) -> list[str]:
+        return [f"volume={gain_db}dB"] if gain_db else []
+
     def _mute_chain(
         self,
         seg_duration: float,
@@ -1432,6 +1435,7 @@ class FFmpegEngine:
                         origin=seek.first_sample(seg.src_start, source_rates[path]),
                     )
                 )
+            chain.extend(self._gain_chain(seg.gain_db))
             body = ",".join(chain) if chain else "anull"
             filters.append(
                 f"{src_labels[i]}{body}{observer(f'node_{source_node_indices[i]}')}[a{i}]"
@@ -2530,19 +2534,22 @@ class FFmpegEngine:
         end_sec: float,
         *,
         mute_spans: tuple[MuteEnvelope, ...] = (),
+        gain_db: float = 0.0,
     ) -> Path:
         """Extract [start_sec, end_sec] from src into output_path (non-destructive).
 
         ``mute_spans`` are seconds from the start of the extracted window (same
-        clock as ``mute_spans_for_source_window``).
+        clock as ``mute_spans_for_source_window``). ``gain_db`` is baked into the output.
         """
         output_path.parent.mkdir(parents=True, exist_ok=True)
-        if mute_spans:
+        if mute_spans or gain_db:
             # Same atrim + asetpts + volume graph as render_timeline so `t` in
             # the mute expression matches output samples (plain -ss/-af does not).
             return self.render_timeline(
                 output_path,
-                SourceAudio(src, max(0.0, start_sec), end_sec, mute_spans=mute_spans),
+                SourceAudio(
+                    src, max(0.0, start_sec), end_sec, mute_spans=mute_spans, gain_db=gain_db
+                ),
                 "anull",
             )
         seek = MediaSeek.at(max(0.0, start_sec), lead_sec=self.audio_start_sec(src))

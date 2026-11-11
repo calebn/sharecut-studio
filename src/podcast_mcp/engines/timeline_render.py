@@ -111,6 +111,7 @@ def _tile_at(
     source_id: str | None,
     edge_in: float,
     edge_out: float,
+    gain_db: float = 0.0,
 ) -> At:
     """A room-tone tile; a tile edge that blends into its neighbour ramps over the blend, any
     other edge takes ``edge_in`` / ``edge_out``."""
@@ -127,6 +128,7 @@ def _tile_at(
             is_fill=True,
             reach_in=tile.reach_in,
             reach_out=tile.reach_out,
+            gain_db=gain_db,
         ),
     )
 
@@ -140,6 +142,7 @@ def _room_tone_under_mutes(
     *,
     stem_span: tuple[float, float] | None = None,
     grid: TrackGrid | None = None,
+    gain_db: float = 0.0,
 ) -> list[At]:
     """The room tone under ``clip``'s filled mutes in the source window ``[src_start, src_end]``.
 
@@ -148,7 +151,9 @@ def _room_tone_under_mutes(
     (their count, length and order depend on the whole fill) rather than its own (#2498).
     """
     if stem_span is not None:
-        return _room_tone_cut_to_window(project, track, clip, src_start, src_end, stem_span, grid)
+        return _room_tone_cut_to_window(
+            project, track, clip, src_start, src_end, stem_span, grid, gain_db
+        )
     seg_dur = src_end - src_start
     tiles: list[At] = []
     for env, fill in room_tone_fills_for_source_window(clip, src_start, src_end):
@@ -166,6 +171,7 @@ def _room_tone_under_mutes(
                     source_id=fill.source_id,
                     edge_in=env.fade_out_sec if t == env.start else 0.0,
                     edge_out=env.fade_in_sec if last and env.end <= seg_dur + 1e-6 else 0.0,
+                    gain_db=gain_db,
                 )
             )
             t += tile.length
@@ -180,6 +186,7 @@ def _room_tone_cut_to_window(
     src_end: float,
     stem_span: tuple[float, float],
     grid: TrackGrid | None,
+    gain_db: float = 0.0,
 ) -> list[At]:
     stem_start, stem_end = stem_span
     stem_dur = stem_end - stem_start
@@ -211,6 +218,7 @@ def _room_tone_cut_to_window(
                         if last and env.end <= stem_dur + 1e-6 and not cut_out
                         else 0.0
                     ),
+                    gain_db=gain_db,
                 )
             )
     return tiles
@@ -922,6 +930,7 @@ def placed_track_audio(
             ),
             mute_spans=mute_spans_for_source_window(clip, source_start, source_end, extra=ignored),
             fill_path=fill,
+            gain_db=clip.gain_db,
             clip_id=clip.id,
             piece=pieces[index],
             source_id=clip.source_id,
@@ -934,7 +943,14 @@ def placed_track_audio(
                 stem_parts = _spans_and_borrow(project, track, sorted_clips, grid, None, 0, mutes)
             stem_span = _stem_leaf_bounds(stem_parts, index, grid, src)
         tiles = _room_tone_under_mutes(
-            project, track, clip, source_start, source_end, stem_span=stem_span, grid=grid
+            project,
+            track,
+            clip,
+            source_start,
+            source_end,
+            stem_span=stem_span,
+            grid=grid,
+            gain_db=clip.gain_db,
         )
         body: Audio = MixAudio(At(0.0, leaf), tuple(tiles)) if tiles else leaf
         if clip.off_speaker_mute_regions:
