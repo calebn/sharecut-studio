@@ -145,6 +145,16 @@ def test_platform_plan_all_builds_every_leg(tmp_path: Path) -> None:
         "sharecut-macos-x64-updater",
         "sharecut-macos-arm64-updater",
     }
+    appimage = "gui/desktop/src-tauri/target/release/bundle/appimage/*.AppImage"
+    nsis = "gui/desktop/src-tauri/target/release/bundle/nsis/*-setup.exe"
+    dmg = "gui/desktop/src-tauri/target/release/bundle/dmg/*.dmg"
+    updater = "gui/desktop/src-tauri/target/release/bundle/updater/*"
+    assert {row["name"]: (row["artifact_path"], row["updater_path"]) for row in bundle} == {
+        "linux-appimage": (appimage, f"{appimage}\n{appimage}.sig\n"),
+        "windows-nsis": (nsis, f"{nsis}\n{nsis}.sig\n"),
+        "macos-intel-dmg": (dmg, updater),
+        "macos-arm64-dmg": (dmg, updater),
+    }
     assert {row["name"]: row["expected_arch"] for row in bundle if "expected_arch" in row} == {
         "macos-intel-dmg": "x86_64",
         "macos-arm64-dmg": "arm64",
@@ -159,9 +169,10 @@ def test_platform_plan_all_builds_every_leg(tmp_path: Path) -> None:
 
 def test_platform_plan_empty_means_all(tmp_path: Path) -> None:
     _, everything = run_platform_plan(tmp_path, "all")
-    result, outputs = run_platform_plan(tmp_path, "")
-    assert result.returncode == 0, result.stderr
-    assert outputs == everything
+    for value in ("", " ", "\t"):
+        result, outputs = run_platform_plan(tmp_path, value)
+        assert result.returncode == 0, result.stderr
+        assert outputs == everything
 
 
 def test_platform_plan_subset_keeps_canonical_order_and_dedupes(tmp_path: Path) -> None:
@@ -182,7 +193,7 @@ def test_platform_plan_prepare_rows_agree_with_bundle_rows(tmp_path: Path) -> No
 
 
 def test_platform_plan_rejects_unknown_and_mixed_all(tmp_path: Path) -> None:
-    for value in ("bogus", "all,linux", "linux,,bogus"):
+    for value in ("bogus", "all,linux", "linux,,bogus", ",", " , "):
         result, outputs = run_platform_plan(tmp_path, value)
         assert result.returncode != 0, value
         assert "::error::platforms must be" in result.stderr

@@ -380,6 +380,7 @@ when Environment `desktop-signing` is populated.
 |-------|------|------|
 | `version` | string | Informational run label. Bundle version stays `tauri.conf.json`. |
 | `sign` | boolean | When true, macOS/Windows legs **fail** unless the source SHA is reachable from protected `main` and that platform's secrets are complete. `sign=false` permits unsigned dogfood builds from a feature branch. Linux has no OS code signing. With an updater profile, the Linux leg also needs the `TAURI_SIGNING_PRIVATE_KEY` secret (updater signing, separate from OS code signing), joins `desktop-signing`, and fails closed without it. |
+| `platforms` | string | Legs to build. Default `all`; otherwise a comma list of `linux`, `windows`, `macos-intel`, `macos-arm64`. Empty or whitespace-only means `all`. An unknown name fails before any runner starts. |
 | `source_repository` / `source_ref` | string | Optional checkout of another `owner/name` + ref so a private funnel can build this tree. When `source_repository` is set, `source_ref` is required (prefer a full commit SHA). |
 | `distribution_profile_json` | string | Public, validated distribution profile supplied by a private release caller. Empty uses the checked-in development profile. Secret-shaped fields are rejected. |
 | `extension_artifact_name` / `extension_wheel_sha256` | string | Optional private extension wheel artifact and its exact SHA-256. A nonempty artifact name requires the SHA. The wheel is installed and frozen only in an unsigned, no-permissions Linux/Windows/macOS preparation matrix; signing jobs download its prepared runtime and do not install or import the wheel. |
@@ -463,9 +464,12 @@ jobs:
 notarizes both macOS architectures locally passes `platforms: linux,windows` and
 spends no macOS runner minutes. An unknown name fails the run before any runner
 starts. A skipped leg reports no check names, so a required-check rule must not
-name the `bundle` or `prepare-extension-runtime` legs it may skip. Platform
-completeness is enforced by the private operations repo's upload step, which is
-where the operator adds the locally built `mac-arm64` and `mac-x64` DMGs.
+name the `bundle` or `prepare-extension-runtime` legs it may skip. The private
+operations repo requires all four platforms at publish time
+(`release_upload --required-platform`). CI publishing therefore needs
+`platforms=all`; with `platforms: linux,windows` the operator adds the locally
+built `mac-arm64` and `mac-x64` DMGs through the ops repo's local publish script
+(`scripts/publish_desktop_release.sh`).
 
 `source_repository`, when set, must be `calebn/sharecut-studio` and `source_ref`
 must be a 40-character commit SHA. Before any checked-out repository code, package install,
