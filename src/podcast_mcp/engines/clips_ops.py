@@ -76,7 +76,9 @@ class RangeEdgeFade:
     @classmethod
     def cut(cls, ms: int) -> RangeEdgeFade:
         if ms < 0:
-            raise ValueError(f"a cut edge fade cannot be negative: {ms}")
+            raise CodedValueError(
+                f"a cut edge fade cannot be negative: {ms}", code="cut_edge_fade_negative"
+            )
         return cls(keep_clip=False, ms=ms)
 
     @classmethod
