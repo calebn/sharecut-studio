@@ -13,7 +13,7 @@ def test_v2_round_trip(tmp_path: Path):
     project.timeline.tracks.append(Track(id="host", label="Host", role=TrackRole.DIALOGUE))
     path = save_project(project)
     loaded = load_project(path)
-    assert loaded.version == "2.0"
+    assert loaded.version == "2.1"
     assert loaded.meta.name == "roundtrip"
     assert loaded.tracks[0].id == "host"
 

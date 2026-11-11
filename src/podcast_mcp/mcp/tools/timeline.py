@@ -1063,7 +1063,6 @@ def register(mcp: MCPServer) -> None:
         crossfade_joins_tool,
         set_clip_fade_tool,
         set_clips_fade_tool,
-        set_join_fade_default_tool,
         set_join_mode_tool,
         set_clip_join_tool,
         trim_clip_edge_tool,
