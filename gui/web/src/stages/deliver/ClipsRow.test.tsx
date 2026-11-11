@@ -5,7 +5,7 @@ import { ClipsRow } from "./ClipsRow";
 import { CLIPS, TOTAL } from "./deliverFixture";
 
 function renderRow(extra: Partial<React.ComponentProps<typeof ClipsRow>> = {}) {
-  render(
+  return render(
     <ClipsRow
       clips={CLIPS}
       total={TOTAL}
@@ -153,6 +153,33 @@ describe("ClipsRow In and Out", () => {
     );
     await userEvent.keyboard("{Enter}");
     expect(onTrim).not.toHaveBeenCalled();
+  });
+
+  it("leaves a word-snapped edge alone when it is opened and left", async () => {
+    const onTrim = vi.fn();
+    const [first, ...rest] = CLIPS;
+    if (!first) throw new Error("fixture has no clips");
+    renderRow({
+      clips: [{ ...first, start: 612.1234 }, ...rest],
+      trimming: first.id,
+      onTrim,
+    });
+    await userEvent.click(
+      screen.getByRole("spinbutton", { name: `In of ${first.title}` }),
+    );
+    await userEvent.keyboard("{Enter}");
+    expect(onTrim).not.toHaveBeenCalled();
+  });
+
+  it("commits a typed edge still open when the row goes away", async () => {
+    const onTrim = vi.fn();
+    const view = renderRow({ trimming: id, onTrim });
+    await userEvent.click(
+      screen.getByRole("spinbutton", { name: `Out of ${name}` }),
+    );
+    await userEvent.keyboard("{Control>}a{/Control}701");
+    view.unmount();
+    expect(onTrim).toHaveBeenCalledExactlyOnceWith(id, "end", 701);
   });
 
   it("refuses a typed Out past the end of the episode", async () => {

@@ -336,9 +336,10 @@ describe("Deliver host write-back through the command queue", () => {
     await userEvent.click(
       await screen.findByRole("menuitem", { name: "Trim" }),
     );
-    const out = screen.getByRole("textbox", { name: "Out of A line" });
-    await userEvent.clear(out);
-    await userEvent.type(out, "0:30{Enter}");
+    await userEvent.click(
+      screen.getByRole("spinbutton", { name: "Out of A line" }),
+    );
+    await userEvent.keyboard("{Control>}a{/Control}0:30{Enter}");
     await waitFor(() =>
       expect(sent()).toEqual([
         ["UpdateSocialClip", { id: "s1", start: 10, end: 30 }],
@@ -649,8 +650,10 @@ describe("Deliver host time text typed but not yet entered", () => {
       await userEvent.click(
         await screen.findByRole("menuitem", { name: "Trim" }),
       );
-      await userEvent.type(
-        screen.getByRole("textbox", { name: `${edge} of A line` }),
+      await userEvent.click(
+        screen.getByRole("spinbutton", { name: `${edge} of A line` }),
+      );
+      await userEvent.keyboard(
         `{Control>}a{/Control}0:${edge === "In" ? "12" : "42"}`,
       );
       expect(wire.post).not.toHaveBeenCalled();
@@ -992,9 +995,10 @@ describe("Deliver host values that follow the edits", () => {
     await userEvent.click(
       await screen.findByRole("menuitem", { name: "Trim" }),
     );
-    const start = screen.getByRole("textbox", { name: "In of A line" });
-    await userEvent.clear(start);
-    await userEvent.type(start, "0:15{Enter}");
+    await userEvent.click(
+      screen.getByRole("spinbutton", { name: "In of A line" }),
+    );
+    await userEvent.keyboard("{Control>}a{/Control}0:15{Enter}");
     await userEvent.click(screen.getByRole("button", { name: "Play A line" }));
     expect(wire.seek).toHaveBeenCalledWith(15);
   });
