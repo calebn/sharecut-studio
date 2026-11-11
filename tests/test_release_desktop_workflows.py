@@ -189,6 +189,36 @@ def test_platform_plan_rejects_unknown_and_mixed_all(tmp_path: Path) -> None:
         assert outputs == {}
 
 
+def test_platform_plan_is_recorded_last_in_verify_source(tmp_path: Path) -> None:
+    steps = load_github_yaml(BUILD)["jobs"]["verify-source"]["steps"]
+    record = steps[-1]
+    assert record["name"] == "Record platform plan"
+    assert "uses" not in record
+    assert "secrets." not in str(record)
+    _, outputs = run_platform_plan(tmp_path, "linux,windows")
+    summary = tmp_path / "summary.md"
+    env = {
+        **os.environ,
+        "PLATFORMS": "linux,windows",
+        "BUNDLE_MATRIX": json.dumps({"include": outputs["bundle_matrix"]}),
+        "SOURCE_SHA": "a" * 40,
+        "VERSION": "1.2.3",
+        "SIGN": "true",
+        "GITHUB_STEP_SUMMARY": str(summary),
+    }
+    result = subprocess.run(
+        ["bash", "-c", record["run"]], env=env, capture_output=True, text=True, check=False
+    )
+    assert result.returncode == 0, result.stderr
+    text = summary.read_text(encoding="utf-8")
+    assert "a" * 40 in text
+    assert "linux-appimage, windows-nsis" in text
+    assert "1.2.3" in text
+    assert "macos" not in text
+    assert "same source SHA" in text
+    assert "does not sign or notarize skipped legs" in text
+
+
 def test_desktop_workflow_compiles_windows_only_adapters() -> None:
     data = load_github_yaml(DESKTOP_CHECK)
     job = data["jobs"]["desktop-windows-check"]

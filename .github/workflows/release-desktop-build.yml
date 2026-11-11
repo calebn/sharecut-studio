@@ -261,6 +261,30 @@ jobs:
             printf 'trusted=%s\n' "$trusted"
           } >> "$GITHUB_OUTPUT"
 
+      - name: Record platform plan
+        env:
+          PLATFORMS: ${{ inputs.platforms }}
+          BUNDLE_MATRIX: ${{ steps.plan.outputs.bundle_matrix }}
+          SOURCE_SHA: ${{ steps.verify.outputs.source_sha }}
+          VERSION: ${{ inputs.version }}
+          SIGN: ${{ inputs.sign }}
+        run: |
+          set -euo pipefail
+          legs="$(jq -r '[.include[].name] | join(", ")' <<<"$BUNDLE_MATRIX")"
+          {
+            printf '### Platform plan\n\n'
+            printf -- '- platforms input: `%s`\n' "${PLATFORMS:-all}"
+            printf -- '- legs built here: %s\n' "$legs"
+            printf -- '- source sha: `%s`\n' "$SOURCE_SHA"
+            if [[ -n "$VERSION" ]]; then
+              printf -- '- version: %s\n' "$VERSION"
+            fi
+            printf -- '- legs not built here must be built elsewhere from that same source SHA.\n'
+            if [[ "$SIGN" == "true" ]]; then
+              printf -- '- sign=true does not sign or notarize skipped legs.\n'
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
   # A private wheel can execute while pip installs it. This job intentionally has
   # no environment, secrets, or GitHub token permissions. It emits prepared
   # runtime bytes; credentialed jobs below do not install or import the wheel.
