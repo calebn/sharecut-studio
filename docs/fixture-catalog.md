@@ -118,8 +118,8 @@ Skills live under `.agents/skills/`.
 | Module | Count | Domain |
 |--------|-------|--------|
 | `mcp/tools/episode.py` | 9 | Project / tracks |
-| `mcp/tools/ingest.py` | 4 | Ingest |
-| `mcp/tools/align.py` | 4 | Conversation-clock alignment |
+| `mcp/tools/ingest.py` | 4 | Ingest / align suggest + verify |
+| `mcp/tools/align.py` | 4 | Align accept gate (status / brief / done / waive) |
 | `mcp/tools/transcript.py` | 32 | Transcribe / reconcile / correct / suppress / precorrect / refine |
 | `mcp/tools/edits.py` | 23 | NL edit / tighten |
 | `mcp/tools/timeline.py` | 47 | Timeline, FX, chapters |
@@ -129,14 +129,14 @@ Skills live under `.agents/skills/`.
 | `mcp/tools/clips.py` | 6 | Social clips |
 | `mcp/tools/history.py` | 7 | Undo / redo |
 | `mcp/tools/comments.py` | 9 | Timeline comments |
-| `mcp/tools/record.py` | 12 | Live recording room |
-| `mcp/tools/review.py` | 12 | Review shares |
-| `mcp/tools/segments.py` | 4 | Segments |
-| `mcp/tools/session.py` | 8 | Session |
-| `mcp/tools/kits.py` | 4 | Kits |
-| `mcp/tools/document.py` | 2 | Document |
+| `mcp/tools/record.py` | 12 | Recording session control / takes |
+| `mcp/tools/review.py` | 12 | Review versions / shares, suggestions, record rooms |
+| `mcp/tools/segments.py` | 4 | Segment library |
+| `mcp/tools/session.py` | 8 | Shared GUI session state / presence |
+| `mcp/tools/kits.py` | 4 | Show kits |
+| `mcp/tools/document.py` | 2 | Document command schema / submit |
 | `mcp/tools/feed.py` | 4 | RSS feed / show details |
-| `mcp/tools/models.py` | 2 | Models |
+| `mcp/tools/models.py` | 2 | Model downloads / status |
 | `mcp/tools/gui.py` | 1 | Open GUI |
 
 Registration hub: `src/podcast_mcp/mcp/server.py`. CLI mirrors MCP via `src/podcast_mcp/cli/main.py`.
