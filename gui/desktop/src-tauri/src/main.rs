@@ -218,6 +218,13 @@ fn native_menu(app: &tauri::AppHandle<tauri::Wry>) -> tauri::Result<tauri::menu:
         Some("CmdOrCtrl+Q"),
     )?;
     let check_updates = updater::menu_item(app)?;
+    let settings = MenuItem::with_id(
+        app,
+        SETTINGS_MENU_ID,
+        "Settings…",
+        true,
+        Some("CmdOrCtrl+,"),
+    )?;
     let install_cli = MenuItem::with_id(
         app,
         cli_links::INSTALL_MENU_ID,
@@ -245,6 +252,7 @@ fn native_menu(app: &tauri::AppHandle<tauri::Wry>) -> tauri::Result<tauri::menu:
     if let Some(check_updates) = &check_updates {
         app_items.push(check_updates);
     }
+    app_items.push(&settings);
     app_items.push(&install_cli);
     app_items.push(&remove_cli);
     #[cfg(target_os = "macos")]
@@ -613,6 +621,19 @@ fn eval_js(win: &WebviewWindow, js: &str) {
     }
 }
 
+/// Menu id of the native Settings… item (macOS and Linux app menu).
+const SETTINGS_MENU_ID: &str = "sharecut.settings";
+
+/// Asks the web app to open its Settings sheet, the same one the in-app menu opens.
+fn open_settings(app: &tauri::AppHandle) {
+    if let Some(win) = app.get_webview_window("main") {
+        eval_js(
+            &win,
+            "window.dispatchEvent(new Event('sharecut:open-settings'))",
+        );
+    }
+}
+
 fn show_sidecar_error(app: &tauri::AppHandle, detail: &str) {
     let log = sidecar_log_path();
     let msg = format!(
@@ -844,6 +865,8 @@ fn main() {
                 app.exit(0);
             } else if id == updater::MENU_ID {
                 updater::on_menu_click(app);
+            } else if id == SETTINGS_MENU_ID {
+                open_settings(app);
             } else {
                 #[cfg(unix)]
                 if id == cli_links::INSTALL_MENU_ID {
