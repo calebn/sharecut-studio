@@ -1,0 +1,242 @@
+{
+  "version": "2.0",
+  "meta": {
+    "name": "v0.1.2 miniature",
+    "workspace_dir": ".",
+    "created_at": "2026-11-11T18:57:24.428807+00:00",
+    "schema_id": "podcast-mcp/episode/2",
+    "ingest_alignment": null,
+    "analysis_reads_first_audio_stream": true
+  },
+  "sources": [],
+  "timeline": {
+    "duration_sec": 3.0,
+    "tracks": [
+      {
+        "id": "host",
+        "label": "Host",
+        "role": "dialogue",
+        "speaker": "Host",
+        "media": {
+          "path": "raw/host.wav",
+          "duration_sec": 3.0,
+          "sample_rate": 16000,
+          "channels": 1
+        },
+        "room_tone": null,
+        "room_tone_origin": null,
+        "gate_fill": null,
+        "gain_db": 0.0,
+        "balance_basis": null,
+        "fader_db": 0.0,
+        "muted": false,
+        "transcript_gate": false,
+        "transcript_gate_scope": null,
+        "proxy": null,
+        "timeline_empty": false
+      },
+      {
+        "id": "guest",
+        "label": "Guest",
+        "role": "dialogue",
+        "speaker": "Guest",
+        "media": {
+          "path": "raw/guest.wav",
+          "duration_sec": 3.0,
+          "sample_rate": 16000,
+          "channels": 1
+        },
+        "room_tone": null,
+        "room_tone_origin": null,
+        "gate_fill": null,
+        "gain_db": 0.0,
+        "balance_basis": null,
+        "fader_db": -3.0,
+        "muted": false,
+        "transcript_gate": false,
+        "transcript_gate_scope": null,
+        "proxy": null,
+        "timeline_empty": false
+      }
+    ],
+    "clips": [
+      {
+        "id": "clip_42552b9e",
+        "track_id": "host",
+        "source_start": 0.0,
+        "source_end": 3.0,
+        "timeline_start": 0.0,
+        "source_id": null,
+        "fade_in_ms": 0,
+        "fade_out_ms": 0,
+        "join_in_mode": "fade",
+        "mute_regions": []
+      },
+      {
+        "id": "clip_85092e0c",
+        "track_id": "guest",
+        "source_start": 0.0,
+        "source_end": 3.0,
+        "timeline_start": 0.0,
+        "source_id": null,
+        "fade_in_ms": 0,
+        "fade_out_ms": 0,
+        "join_in_mode": "fade",
+        "mute_regions": []
+      }
+    ]
+  },
+  "editorial": {
+    "edit_decisions": [],
+    "edit_log": [],
+    "chapters": [],
+    "retained_bleed_alignments": [],
+    "sound_actions": [],
+    "speaker_splits": [],
+    "record_sessions": [],
+    "session_suggestions": []
+  },
+  "transcripts": {
+    "per_track": [],
+    "combined": null
+  },
+  "mix": {
+    "processing_chains": [],
+    "automation_envelopes": []
+  },
+  "render": {
+    "proxy_manifests": [],
+    "last_completed_step": null,
+    "pipeline_runs": [],
+    "artifacts": {
+      "premix": null,
+      "mastered": null
+    },
+    "reconciliation_stale": true,
+    "last_reconciliation_hash": null,
+    "invalidations": [
+      {
+        "id": "inv_c62dab222c",
+        "track_ids": [
+          "host"
+        ],
+        "timeline_start": null,
+        "timeline_end": null,
+        "reason": "other",
+        "at": "2026-11-11T18:57:25.498318+00:00"
+      },
+      {
+        "id": "inv_162c8b9c74",
+        "track_ids": [
+          "host"
+        ],
+        "timeline_start": null,
+        "timeline_end": null,
+        "reason": "other",
+        "at": "2026-11-11T18:57:25.498628+00:00"
+      },
+      {
+        "id": "inv_d9e19f41e7",
+        "track_ids": [
+          "guest"
+        ],
+        "timeline_start": null,
+        "timeline_end": null,
+        "reason": "other",
+        "at": "2026-11-11T18:57:26.769969+00:00"
+      },
+      {
+        "id": "inv_f58c525668",
+        "track_ids": [
+          "guest"
+        ],
+        "timeline_start": null,
+        "timeline_end": null,
+        "reason": "other",
+        "at": "2026-11-11T18:57:26.770397+00:00"
+      }
+    ]
+  },
+  "social": {
+    "clip_candidates": []
+  },
+  "feed": {
+    "show_id": null,
+    "guid": null,
+    "first_exported_at": null,
+    "pins": {}
+  },
+  "review": {
+    "comments": [],
+    "versions": [],
+    "active_version_id": null
+  },
+  "history": {
+    "cursor": 4,
+    "entries": [
+      {
+        "id": "62cfb07c5b29",
+        "label": "initial",
+        "created_at": "2026-11-11T18:57:24.439242+00:00",
+        "snapshot_file": "history/snapshots/62cfb07c5b29.json",
+        "operation": null,
+        "params": null
+      },
+      {
+        "id": "2666d72a8142",
+        "label": "after add track host",
+        "created_at": "2026-11-11T18:57:25.499559+00:00",
+        "snapshot_file": "history/snapshots/2666d72a8142.json",
+        "operation": "add_track",
+        "params": {
+          "track_id": "host",
+          "file_path": "raw/host.wav"
+        }
+      },
+      {
+        "id": "94350cd3e18c",
+        "label": "after add track guest",
+        "created_at": "2026-11-11T18:57:26.771227+00:00",
+        "snapshot_file": "history/snapshots/94350cd3e18c.json",
+        "operation": "add_track",
+        "params": {
+          "track_id": "guest",
+          "file_path": "raw/guest.wav"
+        }
+      },
+      {
+        "id": "5df3efb62d75",
+        "label": "after set track volume guest",
+        "created_at": "2026-11-11T18:57:28.004267+00:00",
+        "snapshot_file": "history/snapshots/5df3efb62d75.json",
+        "operation": "set_track_volume",
+        "params": {
+          "track_id": "guest",
+          "fader_db": -3.0
+        }
+      },
+      {
+        "id": "20d9bf90a55e",
+        "label": "manual-a",
+        "created_at": "2026-11-11T18:57:28.976409+00:00",
+        "snapshot_file": "history/snapshots/20d9bf90a55e.json",
+        "operation": null,
+        "params": null
+      },
+      {
+        "id": "ce641ab9c17a",
+        "label": "after mute track host",
+        "created_at": "2026-11-11T18:57:37.370954+00:00",
+        "snapshot_file": "history/snapshots/ce641ab9c17a.json",
+        "operation": "set_track_mute",
+        "params": {
+          "track_id": "host",
+          "muted": true
+        }
+      }
+    ]
+  },
+  "document_sync": {
+    "last_command": null
+  }
+}

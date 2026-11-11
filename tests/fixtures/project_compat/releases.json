@@ -1,1 +1,24 @@
-{"releases": []}
+{
+  "releases": [
+    {
+      "build": "sharecut-studio 0.1.2 (tag v0.1.2, commit 0a44917daef2ad8040482e4ad84d3369365523b6, project format 2.0)",
+      "captured_at": "2026-11-11T18:57:55Z",
+      "files": {
+        "episode.sharecut": "214ccecb7d68faa295a1368107500b33e6486aa35630d0d66ff89e71e53d614e",
+        "history/index.json": "5b5ed158f9302294361bab4f13bc7574cd52b3706034f3d243091eac432d2a45",
+        "history/snapshots/20d9bf90a55e.json": "ea9f13ccf1eb5a008bdeb7129efe9e09d767481120520aafb17431fca6fea770",
+        "history/snapshots/2666d72a8142.json": "2875595d71f6b37ee49d841022c185e33511c17f8e734e7c800df6fe1713de42",
+        "history/snapshots/5df3efb62d75.json": "ea9f13ccf1eb5a008bdeb7129efe9e09d767481120520aafb17431fca6fea770",
+        "history/snapshots/62cfb07c5b29.json": "8653350322b2320c31776d8823860144595aeb0e7cb98c6d5e4cee6059ac807e",
+        "history/snapshots/94350cd3e18c.json": "efb3d87d6fa40b979e22cbc636d9c1e996494ae37efbc5bcda97857cc25a3243",
+        "history/snapshots/ce641ab9c17a.json": "9c7e3006124f89e260cb44ce9f24b160ad1a2062f3fa5b8b6f59bcfd84f7a1de",
+        "raw/guest.wav": "66722128636f26763190a7fe6bb93cdc050d091bbe6cc6336a920b00f1cf5a5f",
+        "raw/host.wav": "9c1232c93ae4940377739fc00a97c3c7476eb9ea537f65823a2beb59c1c4b488",
+        "shape.lock.json": "2aa3e5d7f3f6e2fd1bb7fc4e3f28f597fa160026766e634588722937e19c7918"
+      },
+      "id": "v0-1-2",
+      "project_version": "2.0",
+      "source_commit": "0a44917daef2ad8040482e4ad84d3369365523b6"
+    }
+  ]
+}

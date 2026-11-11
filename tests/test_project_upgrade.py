@@ -105,6 +105,39 @@ def test_an_upgrade_rewrites_the_version_and_adds_no_value(tmp_path: Path) -> No
     assert load_project(output / PROJECT).timeline.join_fade_max_ms is None
 
 
+def test_the_frozen_v0_1_2_release_upgrades_to_2_1_with_history_and_media_intact(
+    tmp_path: Path,
+) -> None:
+    ledger = {release.id: release for release in compat.read_ledger(ROOT).releases}
+    release = ledger["v0-1-2"]
+    assert release.project_version == "2.0"
+    frozen = tmp_path / "frozen"
+    shutil.copytree(release.directory(ROOT), frozen)
+    old = json.loads((frozen / PROJECT).read_text(encoding="utf-8"))
+    assert old["version"] == "2.0"
+    assert "join_fade_max_ms" not in old["timeline"]
+    old_history = json.loads((frozen / "history/index.json").read_text(encoding="utf-8"))
+
+    output = tmp_path / "upgraded"
+    result = upgrade_workspace(frozen / PROJECT, output)
+    assert (result.from_version, result.to_version) == ("2.0", "2.1")
+
+    written = json.loads((output / PROJECT).read_text(encoding="utf-8"))
+    assert written["version"] == "2.1"
+    assert "join_fade_max_ms" not in written["timeline"]
+    assert {key: value for key, value in written.items() if key != "version"} == {
+        key: value for key, value in old.items() if key != "version"
+    }
+    upgraded = load_project(output / PROJECT)
+    assert upgraded.timeline.join_fade_max_ms is None
+    assert [track.id for track in upgraded.tracks] == ["host", "guest"]
+    assert json.loads((output / "history/index.json").read_text(encoding="utf-8")) == old_history
+    assert len(compat.inventory(output / "history/snapshots")) == 6
+    for name in ("raw", "history"):
+        assert compat.inventory(output / name) == compat.inventory(frozen / name)
+    compat.assert_workspace(output / PROJECT)
+
+
 def test_the_source_is_read_and_copied_under_the_project_commit_lock(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

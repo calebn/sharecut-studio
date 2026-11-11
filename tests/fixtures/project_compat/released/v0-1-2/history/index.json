@@ -1,0 +1,65 @@
+{
+  "cursor": 4,
+  "entries": [
+    {
+      "id": "62cfb07c5b29",
+      "label": "initial",
+      "created_at": "2026-11-11T18:57:24.439242+00:00",
+      "snapshot_file": "history/snapshots/62cfb07c5b29.json",
+      "operation": null,
+      "params": null
+    },
+    {
+      "id": "2666d72a8142",
+      "label": "after add track host",
+      "created_at": "2026-11-11T18:57:25.499559+00:00",
+      "snapshot_file": "history/snapshots/2666d72a8142.json",
+      "operation": "add_track",
+      "params": {
+        "track_id": "host",
+        "file_path": "raw/host.wav"
+      }
+    },
+    {
+      "id": "94350cd3e18c",
+      "label": "after add track guest",
+      "created_at": "2026-11-11T18:57:26.771227+00:00",
+      "snapshot_file": "history/snapshots/94350cd3e18c.json",
+      "operation": "add_track",
+      "params": {
+        "track_id": "guest",
+        "file_path": "raw/guest.wav"
+      }
+    },
+    {
+      "id": "5df3efb62d75",
+      "label": "after set track volume guest",
+      "created_at": "2026-11-11T18:57:28.004267+00:00",
+      "snapshot_file": "history/snapshots/5df3efb62d75.json",
+      "operation": "set_track_volume",
+      "params": {
+        "track_id": "guest",
+        "fader_db": -3.0
+      }
+    },
+    {
+      "id": "20d9bf90a55e",
+      "label": "manual-a",
+      "created_at": "2026-11-11T18:57:28.976409+00:00",
+      "snapshot_file": "history/snapshots/20d9bf90a55e.json",
+      "operation": null,
+      "params": null
+    },
+    {
+      "id": "ce641ab9c17a",
+      "label": "after mute track host",
+      "created_at": "2026-11-11T18:57:37.370954+00:00",
+      "snapshot_file": "history/snapshots/ce641ab9c17a.json",
+      "operation": "set_track_mute",
+      "params": {
+        "track_id": "host",
+        "muted": true
+      }
+    }
+  ]
+}
