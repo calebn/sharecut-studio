@@ -12,6 +12,19 @@ Which features use a downloaded model or an optional runtime, where setup covers
 | Precise word boundaries | Forced word aligner (ONNX, `onnxruntime` is a core dependency) | `bootstrap_word_aligner`, pinned HF snapshot | Yes, recommended (installed by Get ready and a bare bootstrap) | Revision pin, `word_aligner_problem` | Works |
 | Speaker recognition and split | ECAPA embedding network exported to ONNX (`engines/models/speaker_ecapa.py`), `onnxruntime` | `bootstrap_speaker_ecapa`, sha256-pinned file at a direct first-party CDN url | Yes, recommended (`speaker-ecapa`; installed by Get ready and a bare bootstrap) | sha256 pin, `speaker_ecapa_problem` | Works once downloaded |
 
+## What every registry row shares
+
+Re-checked against `develop` for #1998. Each registry row, including transcription, word alignment, noise reduction and speaker recognition, goes through the same `run_bootstrap` path in `services/pipeline/bootstrap.py`:
+
+- **State:** `component_status` reports each row through `model_status`: installed when the row's registry readiness check reports no problem, `update_needed` on a pin mismatch, and missing with a hint and a fix command otherwise, without downloading anything. An unexpected error is reported, never raised.
+- **Progress:** a download reports bytes through the `bootstrap.bytes` child task (`_ByteRelay`), so the GUI, `podcast bootstrap` and `podcast setup` show the same progress.
+- **Cancel:** `cancel_check` stops a download between chunks and raises `CancelledProgress`, which ends the run.
+- **Validation:** an installed state requires the row's check against its pin (revision or sha256) to pass.
+
+Silero VAD is the one feature without a row: it ships inside `faster-whisper`, so there is nothing to download, and `podcast doctor` (`services/support/doctor.py`) is where it is reported.
+
+Not covered by this audit, and still open on #1998: running the speaker model download from inside a packaged app, and a real browser or device look at the Split speakers dialog.
+
 ## Findings
 
 1. **Join quality has no model.** The WavLM and NISQA-named layer was removed (it never ran in a default install; the bake-off had no real labelled fails to rank it against the numpy detector fusion). Continuity is the numpy detector fusion only, so there is nothing to download or set up for it.
