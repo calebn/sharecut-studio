@@ -254,9 +254,23 @@ describe("monitor resource original lifecycle", () => {
     expect(result.current.remoteCount).toBe(1);
     act(() => old.onRemoteGone("peer"));
     expect(fixture.graphs[0]!.removeRemote).not.toHaveBeenCalled();
-    expect(fixture.graphs[1]!.removeRemote).not.toHaveBeenCalled();
-    await tick(5);
+    await tick(10);
     expect(result.current.remoteCount).toBe(1);
+    unmount();
+  });
+
+  it("still removes a peer when the live mesh reports its departure", async () => {
+    const initial = args();
+    const { result, unmount } = renderHook(
+      (input: Args) => useRecordMonitor(input),
+      { initialProps: initial },
+    );
+    track("live");
+    expect(result.current.remoteCount).toBe(1);
+    act(() => fixture.meshes[0]!.onRemoteGone("peer"));
+    expect(fixture.graphs[0]!.removeRemote).toHaveBeenCalledWith("peer");
+    await tick(10);
+    expect(result.current.remoteCount).toBe(0);
     unmount();
   });
 
