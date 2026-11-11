@@ -28,7 +28,6 @@ export type OfflineConflict =
       command: QueuedCommand;
       kind: "refused";
       reason: string;
-      /** The server's error code (such as `range_changed`), when it sent one. */
       code?: string;
       recovery: "edit-and-resubmit";
       dismissed?: boolean;

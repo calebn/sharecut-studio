@@ -18,7 +18,6 @@ export type ConflictSuggestion = {
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null;
 
-/** The cut's span and tracks, read defensively from the stored command payload. */
 function cutSpan(payload: unknown) {
   if (!isRecord(payload) || payload.action !== "cut") return undefined;
   if (!Array.isArray(payload.targets)) return undefined;
