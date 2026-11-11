@@ -184,6 +184,29 @@ describe("selectionClipboard", () => {
     expect(JSON.parse(JSON.stringify(guest))).not.toHaveProperty("gain_db");
   });
 
+  it("keeps a clip's fade curves in its extract, and omits linear or unknown ones", () => {
+    const project = sampleProject();
+    const host = project.clips?.tracks.host?.[0];
+    const guest = project.clips?.tracks.guest?.[0];
+    if (!host || !guest) {
+      throw new Error("sample project has a host and a guest clip");
+    }
+    host.fade_in_curve = "equal_power";
+    host.fade_out_curve = "s";
+    guest.fade_in_curve = "linear";
+    Object.assign(guest, { fade_out_curve: "wobble" });
+    const extracts = extractClipsInRange(project, 1, 3);
+    expect(extracts.find((e) => e.track_id === "host")).toMatchObject({
+      fade_in_curve: "equal_power",
+      fade_out_curve: "s",
+    });
+    const sent = JSON.parse(
+      JSON.stringify(extracts.find((e) => e.track_id === "guest")),
+    );
+    expect(sent).not.toHaveProperty("fade_in_curve");
+    expect(sent).not.toHaveProperty("fade_out_curve");
+  });
+
   it("builds payload from clip selection", () => {
     const sel: Selection = { kind: "clip", id: "c1", trackId: "host" };
     const payload = payloadFromSelection(sampleProject(), sel, "cut");

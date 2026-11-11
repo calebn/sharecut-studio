@@ -1,6 +1,7 @@
 import type { ClipRow, ProjectView, Selection } from "../types/project";
 import { transcriptWordRange } from "../utils/transcript";
 import type { ClipboardExtract, ClipboardPayload } from "./clipboard";
+import { clipFadeCurves } from "./fadeCurves";
 import { muteRegionsOverlapping } from "./muteRegions";
 
 function findClip(project: ProjectView, id: string): ClipRow | null {
@@ -68,6 +69,7 @@ export function extractClipsInRange(
         source_id: clip.source_id,
         fade_in_ms: clip.fade_in_ms,
         fade_out_ms: clip.fade_out_ms,
+        ...clipFadeCurves(clip),
         gain_db: clip.gain_db,
         join_in_mode: clip.join_in_mode,
         mute_regions: muteRegionsOverlapping(

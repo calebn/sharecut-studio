@@ -9,6 +9,7 @@ import type {
 } from "../types/project";
 import { sourceSecOnClipToTimeline } from "../utils/timebase";
 import { findTranscriptWord } from "../utils/transcript";
+import { clipFadeCurves } from "./fadeCurves";
 import { timelineEndSec } from "./pickupTarget";
 
 export const SPAN_STEP_SEC = 0.01;
@@ -126,6 +127,8 @@ export function makeRangeTarget(
       timeline_start: c.timeline_start,
       fade_in_ms: c.fade_in_ms,
       fade_out_ms: c.fade_out_ms,
+      ...clipFadeCurves(c),
+      ...(c.gain_db ? { gain_db: c.gain_db } : {}),
       join_in_mode: c.join_in_mode,
       mute_regions: c.mute_regions ?? [],
     }));
@@ -169,6 +172,9 @@ export function rangeTargetsEqual(
       clip.timeline_start,
       clip.fade_in_ms,
       clip.fade_out_ms,
+      clip.fade_in_curve ?? "linear",
+      clip.fade_out_curve ?? "linear",
+      clip.gain_db ?? 0,
       clip.join_in_mode,
       clip.mute_regions.map(({ start_s, end_s }) => [start_s, end_s]),
     ]),
