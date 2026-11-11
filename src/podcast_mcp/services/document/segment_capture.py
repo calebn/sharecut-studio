@@ -181,7 +181,7 @@ def capture_segment(
     middle of a clip carries no fade at the cut. Clips that overlap on one track get
     separate lanes.
 
-    The audio is the clip's source window with its mute regions and ignored words baked in,
+    The audio is the clip's source window with its mute regions, ignored words and clip gain baked in,
     as the episode renders them. Track gain, the processing chain, the transcript gate,
     fades and joins are not baked in. Clips with room-tone fills, off-speaker mutes or bleed
     restore are refused (``segment_render_unsupported``), since the episode would sound

@@ -282,9 +282,10 @@ gain keeps its hashes. Occurrence source proxies read raw source audio and ignor
 input identity does not move with clip gain. The bleed gate analysis reads the clip rows, so it
 may be recomputed after a gain edit, but its plan does not depend on the level. Timing holes
 inside a clip take its gain; gaps between clips take none. `strip_silence` rebuilds clips at
-gain 0. A saved segment bakes the gain into its audio; inserting it creates clips at unity. Because
-`balance_tracks` measures the stems, it measures them after clip gain and shifts the staging
-`gain_db` to compensate.
+gain 0. A saved segment bakes the gain into its audio; inserting it creates clips at unity.
+`balance_tracks` measures the track media through its chain, not the stems, so it ignores clip
+gain and does not compensate for it. The browser's playback graph applies clip gain in the
+follow-up Inspector change; until then browser playback does not include it.
 
 ## Dialogue gain staging (`balance_tracks`)
 

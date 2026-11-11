@@ -3509,7 +3509,7 @@
         "cli": "podcast doc submit"
       },
       "omit": {
-        "keyboard_reason": "level in dB, set from the clip Inspector or the agent"
+        "keyboard_reason": "level in dB, set by the agent or the document command"
       },
       "presence": {
         "cursor": "none",
