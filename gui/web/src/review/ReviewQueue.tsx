@@ -279,6 +279,7 @@ function SuggestionRow({
         label: "Hear",
         name: suggestion.names.hear,
         onAction: () => actions.onHear(row),
+        disabledReason: actions.hearBlocked,
       }}
       action={{
         label: "Suggest again here",

@@ -399,8 +399,11 @@ export type ReviewAttention = {
    */
   suggestionActions?: {
     onHear: (row: AttentionRow) => void;
-    onSuggestAgain: (row: AttentionRow) => void;
-    onDrop: (row: AttentionRow) => void;
+    /** Why Hear cannot play, shown on the disabled button. */
+    hearBlocked?: string;
+    /** Settles when the row is cleared or kept, so the queue can place focus. */
+    onSuggestAgain: (row: AttentionRow) => void | Promise<void>;
+    onDrop: (row: AttentionRow) => void | Promise<void>;
   };
 };
 
