@@ -284,12 +284,16 @@ function SuggestionRow({
       action={{
         label: "Suggest again here",
         name: suggestion.names.suggestAgain,
-        onAction: () => actions.onSuggestAgain(row),
+        onAction: () => {
+          void actions.onSuggestAgain(row);
+        },
       }}
       tertiaryAction={{
         label: "Drop it",
         name: suggestion.names.drop,
-        onAction: () => actions.onDrop(row),
+        onAction: () => {
+          void actions.onDrop(row);
+        },
       }}
     />
   );
@@ -339,7 +343,9 @@ function AttentionGroup({
     };
   }, [onFocusChange]);
   const vanished = useRef(onVanished);
-  vanished.current = onVanished;
+  useEffect(() => {
+    vanished.current = onVanished;
+  });
   useEffect(
     () => () => {
       if (leaving.current) vanished.current();
