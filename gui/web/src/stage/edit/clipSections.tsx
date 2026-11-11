@@ -124,14 +124,14 @@ export function useClipSections(
     setError,
   ]);
   if (id === null) return null;
+  const editable = canApplyPass12(projectPath, guestMode, shareCapabilities);
   if (selectedIds.length > 1)
     return multiClipSections({
       project,
       clipIds: selectedIds,
       projectPath,
-      locked:
-        !canApplyPass12(projectPath, guestMode, shareCapabilities) || busy,
-      readOnly: !canApplyPass12(projectPath, guestMode, shareCapabilities),
+      locked: !editable || busy,
+      readOnly: !editable,
       error,
       run,
     });
@@ -140,7 +140,6 @@ export function useClipSections(
       { id: "gone", rows: [{ id: "gone", control: note("Clip not found") }] },
     ];
 
-  const editable = canApplyPass12(projectPath, guestMode, shareCapabilities);
   const canStructural = canSuggestStructural(
     projectPath,
     guestMode,
