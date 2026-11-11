@@ -59,7 +59,7 @@ export function AlertSlot({ alerts }: AlertSlotProps) {
           aria-live={ticking ? "off" : undefined}
           tabIndex={-1}
         >
-          {top ? <AlertRow alert={top} /> : null}
+          {top ? <AlertRow key={top.id} alert={top} /> : null}
         </div>
         {more > 0 ? (
           <Button

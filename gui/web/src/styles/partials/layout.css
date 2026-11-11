@@ -8,14 +8,6 @@ html[data-shell] body {
   overscroll-behavior: none;
 }
 
-.guest-banner {
-  padding: var(--space-3) var(--space-4);
-  background: var(--color-bg-raised);
-  border-bottom: 1px solid var(--color-border);
-  color: var(--color-text-secondary);
-  font-size: var(--font-size-small);
-}
-
 .track-headers {
   display: flex;
   flex-direction: column;
