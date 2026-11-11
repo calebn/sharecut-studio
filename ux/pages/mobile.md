@@ -180,7 +180,7 @@ app follows their mode, selection, and playback where those are available.
 
 Your phone does not show their mouse cursor.
 
-To stop following, scrub the timeline or tap the × on the Following pill in the Player.
+To stop following, scrub the timeline or tap the × on the Following pill in the header. Tap a face to Follow someone or Go to where they are once.
 
 ## What's different from desktop?
 
