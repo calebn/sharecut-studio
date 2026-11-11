@@ -23,10 +23,13 @@ export function useDeliverBadge(): StageBadge | undefined {
   const settled = run
     ? `${run.kind}|${"finishedAt" in run ? run.finishedAt : ""}`
     : "";
-  const { files, load } = useExportedFiles(host ? projectPath : null, {
-    access: "download",
-    refreshKey: `${headId}|${settled}`,
-  });
+  const { files, load } = useExportedFiles(
+    host && projectPath ? projectPath : null,
+    {
+      access: "download",
+      refreshKey: `${headId}|${settled}`,
+    },
+  );
   if (load !== "ready") return undefined;
   const audio = files.filter((file) => file.kind === "audio");
   if (audio.length === 0) return undefined;
