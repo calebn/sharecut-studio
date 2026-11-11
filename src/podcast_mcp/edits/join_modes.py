@@ -74,6 +74,25 @@ def auto_join_fade_cap_ms(project: EpisodeProject, defaults: EffectiveConfig) ->
     return join_fade_max_ms(defaults) if own is None else _checked_join_fade_ms(own)
 
 
+def automatic_fade_ms(
+    project: EpisodeProject,
+    current_ms: int,
+    requested_ms: int,
+    defaults: EffectiveConfig,
+    *,
+    splice_fade_ms: int = 0,
+) -> int:
+    """Fade (ms) an automatic writer sets on an edge clip that already has ``current_ms``.
+
+    A fade up to the longest an automatic writer leaves (the Default join fade length, or the
+    cut's own splice fade) is replaced by the writer's value as before; a longer one can only
+    be manual and is kept.
+    """
+    current = int(current_ms)
+    ceiling = max(requested_ms, splice_fade_ms, auto_join_fade_cap_ms(project, defaults))
+    return current if current > ceiling else requested_ms
+
+
 def cap_fade_ms(
     project: EpisodeProject,
     track_id: str,

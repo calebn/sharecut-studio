@@ -13,6 +13,7 @@ from uuid import NAMESPACE_URL, uuid5
 import numpy as np
 
 from podcast_mcp.config.defaults import EffectiveConfig
+from podcast_mcp.edits.join_modes import automatic_fade_ms
 from podcast_mcp.edits.timeline_ops import move_clips
 from podcast_mcp.engines.alignment_key import ingest_alignment_entry
 from podcast_mcp.engines.bleed_delay import LongDelayConfig, measure_long_delay_regions
@@ -890,9 +891,17 @@ def apply_retained_bleed_alignment(
         for clip in trimmed:
             kept = clip.id in untouched
             if abs(clip.timeline_end - fringe_start) < 1e-9:
-                clip.fade_out_ms = max(clip.fade_out_ms if kept else 0, _INTERNAL_FADE_MS)
+                clip.fade_out_ms = (
+                    automatic_fade_ms(working, clip.fade_out_ms, _INTERNAL_FADE_MS, defaults)
+                    if kept
+                    else _INTERNAL_FADE_MS
+                )
             if abs(clip.timeline_start - fringe_end) < 1e-9:
-                clip.fade_in_ms = max(clip.fade_in_ms if kept else 0, _INTERNAL_FADE_MS)
+                clip.fade_in_ms = (
+                    automatic_fade_ms(working, clip.fade_in_ms, _INTERNAL_FADE_MS, defaults)
+                    if kept
+                    else _INTERNAL_FADE_MS
+                )
         set_track_clips(working, proposal.direct_track_id, trimmed)
         middle = next(
             clip
