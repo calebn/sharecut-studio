@@ -229,7 +229,7 @@ test("System controls show the 2 px accent focus ring", async ({ page }) => {
 test("System/Player follow pill X has a 44 px hit area at 360", async ({
   page,
 }) => {
-  await open(page, "system-player--following", 360);
+  await open(page, "system-player--following-partial", 360);
   const x = page.getByRole("button", { name: /^Stop following/ });
   await expect(x).toBeVisible();
   const box = await x.boundingBox();
