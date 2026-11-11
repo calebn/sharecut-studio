@@ -119,6 +119,7 @@ export function ShareFlowProvider({ children }: { children: ReactNode }) {
   const loadGeneration = useRef(0);
   const busyOwner = useRef<Owner | null>(null);
   const staleRequest = useRef<CreateRequest | null>(null);
+  const openUndo = useRef<ReverseAction | null>(null);
   const copiedTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const currentRows = useStableCallback(() => rows);
   const seen = useRef({ projectPath, projectEpoch, onDeliver });
@@ -625,13 +626,23 @@ export function ShareFlowProvider({ children }: { children: ReactNode }) {
           return true;
         },
       };
+      openUndo.current = reverse;
       announceStatus(copy.ended, { dwellMs, reverse });
     },
     [announceStatus, relist],
   );
 
+  /** True while an Undo toast of this flow is still on screen: a second end waits for it. */
+  const undoIsOpen = useCallback(
+    () =>
+      openUndo.current !== null &&
+      useDawStore.getState().feedbackToast?.reverse === openUndo.current,
+    [],
+  );
+
   const stop = useCallback(
     (token: string) => {
+      if (undoIsOpen()) return;
       act(async (scope) => {
         const ended = await revokeHostShare(scope.projectPath, token, {
           restorable: true,
@@ -647,11 +658,12 @@ export function ShareFlowProvider({ children }: { children: ReactNode }) {
         await load(scope);
       });
     },
-    [act, announceEnded, isCurrent, load],
+    [act, announceEnded, isCurrent, load, undoIsOpen],
   );
 
   const endRoom = useCallback(
-    (sessionId: string) =>
+    (sessionId: string) => {
+      if (undoIsOpen()) return;
       act(async (scope) => {
         const ended = await revokeHostRoom(scope.projectPath, sessionId, {
           restorable: true,
@@ -665,8 +677,9 @@ export function ShareFlowProvider({ children }: { children: ReactNode }) {
           scope,
         );
         await load(scope);
-      }),
-    [act, announceEnded, isCurrent, load],
+      });
+    },
+    [act, announceEnded, isCurrent, load, undoIsOpen],
   );
 
   const value = useMemo<ShareFlow>(

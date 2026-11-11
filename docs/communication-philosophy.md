@@ -305,9 +305,9 @@ the empty state, not a separate discovery task.
   on the default 10 s), so a press never lands after it. A refused Undo says
   why in plain words: "Too late to undo.", "Another room is live, so this one
   stays ended.", "This link had already expired, so it stays stopped.", or that
-  the link or room is already gone. Only the latest end is undoable: a later
-  toast replaces the earlier one, and the earlier end becomes final on its
-  own. (Surfaces 2, 5.)
+  the link or room is already gone. While that Undo is open, a
+  second Stop sharing or End room does nothing, so the one Undo on screen is
+  always for the end the person just made. (Surfaces 2, 5.)
 - **Feedback must be visible, not screen-reader-only.** Every
   `announceStatus` shows the same string in the app toast
   (`feedback/FeedbackToast`, built on `ui/Toast`): one toast at a time,
@@ -804,4 +804,4 @@ shipped at the port; #1031 shipped it. The adjacent MCP note shipped in #1027.
   and chapters. A delivered receipt failure survives delayed running feedback.
   Feed changes the next loudness choice only after a fresh export is admitted.
 - 2026-11-10 Prepare cleanup (D-hp-23): the ⋯ menu with "Run everything again" is gone; Run again from here on Transcribe re-transcribes. Apply sound actions moves from its own "Listen for sounds" group to the second step under Find suggestions, and a new-audio plan keeps five rows, with the sound cost on Find suggestions.
-- 2026-11-11 Stop sharing and End room undo (#3287): the Invite sheet and the Deliver Listen link no longer ask first. Stop sharing and End room act at once and the toast says "Link stopped." or "Room ended." with **Undo** for the server's 10 s restore window (the toast leaves 500 ms sooner); Undo says "Link restored." or "Room restored.", and a refused Undo says "Too late to undo.", "Another room is live, so this one stays ended.", "This link had already expired, so it stays stopped." or that the link or room is already gone. A later toast replaces the earlier one, so only the latest end is undoable. The inline confirm and its Keep link / Keep room buttons are gone from these callers; `ui/InlineConfirm` stays for the others.
+- 2026-11-11 Stop sharing and End room undo (#3287): the Invite sheet and the Deliver Listen link no longer ask first. Stop sharing and End room act at once and the toast says "Link stopped." or "Room ended." with **Undo** for the server's 10 s restore window (the toast leaves 500 ms sooner); Undo says "Link restored." or "Room restored.", and a refused Undo says "Too late to undo.", "Another room is live, so this one stays ended.", "This link had already expired, so it stays stopped." or that the link or room is already gone. While an Undo toast is open a second Stop sharing or End room is ignored. The inline confirm and its Keep link / Keep room buttons are gone from these callers; `ui/InlineConfirm` stays for the others.

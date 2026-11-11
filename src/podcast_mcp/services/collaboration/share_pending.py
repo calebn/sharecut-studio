@@ -61,6 +61,14 @@ def group_of(ws: ProjectWorkspace, token: str) -> str | None:
     return None
 
 
+def pending_rows(ws: ProjectWorkspace, group_id: str) -> list[PendingRevoke]:
+    return [
+        row
+        for row in get_share_registry().list_pending(workspace_key(ws))
+        if row["group_id"] == group_id
+    ]
+
+
 def has_pending(ws: ProjectWorkspace, group_id: str) -> bool:
     """True while a record room of this id is parked (a review link's group never matches)."""
     return any(
