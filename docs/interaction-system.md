@@ -212,7 +212,9 @@ There are three overlay primitives.
    string, the reason the change cannot be taken back, shown as the error. An Undo that expires on
    a clock the server keeps (Stop sharing, End room) also passes `dwellMs`,
    the window less a safety margin, and the server stays the authority: the
-   client has no commit timer. `commands/undoToast.test.ts` walks
+   client has no commit timer. A toast that carries Undo or an action rides above a modal dialog's scrim
+   (`--z-toast-actionable`) and its buttons join the dialog's Tab cycle after the panel, so the
+   Undo for a step the dialog just took stays pressable. `commands/undoToast.test.ts` walks
    every catalog command flagged `mutates` and fails on one with no proof.
 3. **Status and error are two styles of one component.** An error names the
    failure and the next step. A status names what changed. They never share one

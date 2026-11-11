@@ -4,11 +4,11 @@ import { Button } from "./Button";
 import { registerInlineConfirm } from "./inlineConfirmGate";
 
 type Props = {
-  /** Names the target and the consequence, e.g. "Stop sharing this Viewer link? Anyone using it loses access." */
+  /** Names the target and the consequence, e.g. "Stop this take? What was recorded so far is kept." */
   prompt: string;
-  /** Safe choice, shown first and focused on open, e.g. "Keep link". */
+  /** Safe choice, shown first and focused on open, e.g. "Keep recording". */
   keepLabel: string;
-  /** Destructive choice, e.g. "Stop sharing". */
+  /** Destructive choice, e.g. "Stop take". */
   actionLabel: string;
   onKeep: () => void;
   onConfirm: () => void;

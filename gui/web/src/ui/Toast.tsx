@@ -84,9 +84,14 @@ type Props = {
  * moves to `returnFocusRef`.
  */
 export function Toast({ toast, className, regionRef, ...rest }: Props) {
-  const regionClass = className
-    ? `ui-toast-region ${className}`
-    : "ui-toast-region";
+  const actionable = toast != null && (rest.onUndo || rest.onAction);
+  const regionClass = [
+    "ui-toast-region",
+    className,
+    actionable ? "ui-toast-region--actionable" : null,
+  ]
+    .filter(Boolean)
+    .join(" ");
   return (
     <div ref={regionRef} className={regionClass}>
       {toast ? <ToastCard toast={toast} {...rest} /> : null}

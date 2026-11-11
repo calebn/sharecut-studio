@@ -164,23 +164,36 @@ export function useDialogModal({
       if (!panel) {
         return;
       }
-      const focusable = listFocusable(panel);
-      if (focusable.length === 0) {
+      const items = listFocusable(panel);
+      if (items.length === 0) {
         e.preventDefault();
         return;
       }
-      const first = focusable[0];
-      const last = focusable[focusable.length - 1];
+      // The app toast stays in reach while the dialog traps Tab: its Undo is the
+      // one way back from a step the dialog just took (Stop sharing). It joins
+      // the cycle after the panel, wherever it sits in the document.
+      const toast = document.querySelector<HTMLElement>(
+        ".ui-toast-region--app",
+      );
+      const toastItems = toast ? listFocusable(toast) : [];
+      const firstItem = items[0];
+      const lastItem = items[items.length - 1];
       const active = document.activeElement;
-      if (e.shiftKey) {
-        if (active === first || !panel.contains(active)) {
-          e.preventDefault();
-          last.focus();
-        }
-      } else if (active === last || !panel.contains(active)) {
+      const inToast = !!toast?.contains(active);
+      const inPanel = panel.contains(active);
+      const go = (target: HTMLElement | undefined) => {
         e.preventDefault();
-        first.focus();
-      }
+        target?.focus();
+      };
+      if (e.shiftKey) {
+        if (inToast) {
+          if (active === toastItems[0]) go(lastItem);
+        } else if (!inPanel) go(lastItem);
+        else if (active === firstItem) go(toastItems.at(-1) ?? lastItem);
+      } else if (inToast) {
+        if (active === toastItems.at(-1)) go(firstItem);
+      } else if (!inPanel) go(firstItem);
+      else if (active === lastItem) go(toastItems[0] ?? firstItem);
     };
 
     window.addEventListener("keydown", onKey);

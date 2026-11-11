@@ -116,6 +116,8 @@
   /* The app toast floats over shell chrome and menus, under modal dialogs. */
   --z-toast: 70;
   --z-command-palette: 80;
+  /* A toast that carries Undo or an action rides over a modal dialog and its scrim: its button must stay pressable. */
+  --z-toast-actionable: 90;
 
   /* Layout — rem chrome; px canvas (lane/ruler/marker px in utils/layout.ts) */
   /* stylelint-disable-next-line meowtec/no-px -- user-approved: canvas lane height */

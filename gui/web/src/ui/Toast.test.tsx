@@ -759,6 +759,32 @@ describe("Toast", () => {
     await expectNoA11yViolations(container);
   });
 
+  it("lifts a toast that carries Undo or an action above a modal dialog, and a plain one not", () => {
+    const { rerender } = render(
+      <Toast toast={{ id: 1, message: "Saved" }} onDismiss={vi.fn()} />,
+    );
+    expect(region()).not.toHaveClass("ui-toast-region--actionable");
+    rerender(
+      <Toast
+        toast={{ id: 1, message: "Link stopped." }}
+        onUndo={vi.fn()}
+        onDismiss={vi.fn()}
+      />,
+    );
+    expect(region()).toHaveClass("ui-toast-region--actionable");
+    rerender(
+      <Toast
+        toast={{ id: 2, message: "Cut" }}
+        actionLabel="Cut all"
+        onAction={vi.fn()}
+        onDismiss={vi.fn()}
+      />,
+    );
+    expect(region()).toHaveClass("ui-toast-region--actionable");
+    rerender(<Toast toast={null} onUndo={vi.fn()} onDismiss={vi.fn()} />);
+    expect(region()).not.toHaveClass("ui-toast-region--actionable");
+  });
+
   it("styles an error apart from a status", () => {
     const { rerender } = render(
       <Toast toast={{ id: 1, message: "Saved" }} onDismiss={vi.fn()} />,
