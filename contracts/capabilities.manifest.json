@@ -2311,7 +2311,7 @@
         ]
       },
       "omit": {
-        "keyboard_reason": "sheet from the app menu (native Cmd+, is part b)",
+        "keyboard_reason": "sheet from the app menu; native Cmd+, (macOS) / Ctrl+, (Linux) in the desktop app menu",
         "guest": true
       },
       "tooltip": "Appearance, where this project is saved, models and keyboard shortcuts",
