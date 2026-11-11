@@ -215,6 +215,7 @@ describe("Move…", () => {
     const sheet = await openSettings();
     const button = within(sheet).getByRole("button", { name: "Move…" });
     await user.click(button);
+    await waitFor(() => expect(pickFolder).toHaveBeenCalledOnce());
     await waitFor(() => expect(button).toBeEnabled());
     expect(moveProject).not.toHaveBeenCalled();
     expect(assign).not.toHaveBeenCalled();
@@ -245,10 +246,60 @@ describe("Move…", () => {
     await waitFor(() => expect(button).toHaveFocus());
   });
 
+  it("follows the folder when the move only half finished", async () => {
+    tauri.on = true;
+    inProject();
+    vi.mocked(pickFolder).mockResolvedValue({ folder: "/Users/ada/Archive" });
+    vi.mocked(moveProject).mockRejectedValue(
+      new ApiError(
+        "The episode moved, but some links could not be updated.",
+        "project_moved_partial",
+        409,
+        null,
+        {
+          detail: {
+            detail: "The episode moved, but some links could not be updated.",
+            project_path: "/Users/ada/Archive/ep-12/episode.sharecut",
+          },
+        },
+      ),
+    );
+    const user = userEvent.setup();
+    render(<Harness />);
+    const sheet = await openSettings();
+    await user.click(within(sheet).getByRole("button", { name: "Move…" }));
+    await waitFor(() => expect(assign).toHaveBeenCalledOnce());
+    expect(String(assign.mock.calls[0]?.[0])).toContain(
+      encodeURIComponent("/Users/ada/Archive/ep-12/episode.sharecut"),
+    );
+  });
+
+  it("stays disabled once the move succeeded, until the page unloads", async () => {
+    tauri.on = true;
+    inProject();
+    vi.mocked(pickFolder).mockResolvedValue({ folder: "/Users/ada/Archive" });
+    vi.mocked(moveProject).mockResolvedValue({
+      project_path: "/Users/ada/Archive/ep-12/episode.sharecut",
+      previous_path: PROJECT_PATH,
+    });
+    const user = userEvent.setup();
+    render(<Harness />);
+    const sheet = await openSettings();
+    const button = within(sheet).getByRole("button", { name: "Move…" });
+    await user.click(button);
+    await waitFor(() => expect(assign).toHaveBeenCalledOnce());
+    expect(
+      within(sheet).getByRole("button", { name: "Moving…" }),
+    ).toBeDisabled();
+  });
+
   it("says so when the computer has no folder dialog", async () => {
     tauri.on = true;
     inProject();
-    vi.mocked(pickFolder).mockResolvedValue({ unavailable: true });
+    vi.mocked(pickFolder).mockResolvedValue({
+      unavailable: true,
+      detail: "no dialog; paste the path instead.",
+    });
     const user = userEvent.setup();
     render(<Harness />);
     const sheet = await openSettings();
@@ -256,6 +307,7 @@ describe("Move…", () => {
     expect(
       await within(sheet).findByText(/couldn't open a folder dialog/),
     ).toBeVisible();
+    expect(within(sheet).queryByText(/paste the path/)).toBeNull();
     expect(moveProject).not.toHaveBeenCalled();
   });
 });

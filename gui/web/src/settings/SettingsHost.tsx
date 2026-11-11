@@ -7,6 +7,7 @@ import { useTheme } from "../hooks/useTheme";
 import { useViewportClass } from "../hooks/useViewportClass";
 import { useDawStore } from "../state/dawStore";
 import { useDaw } from "../state/useDaw";
+import { ApiError } from "../utils/apiError";
 import { projectUrl } from "../utils/projectUrl";
 import { SettingsSheet } from "./SettingsSheet";
 
@@ -15,8 +16,17 @@ function parentFolder(projectPath: string): string {
   return projectPath.replace(/[\\/][^\\/]*$/, "");
 }
 
-const NO_FOLDER_DIALOG =
-  "This computer couldn't open a folder dialog, so the episode stays where it is.";
+const PARTIAL_MOVE_CODE = "project_moved_partial";
+
+/** Where a half-finished move left the episode, from the server's refusal body. */
+function movedTo(error: unknown): string | null {
+  if (!(error instanceof ApiError) || error.code !== PARTIAL_MOVE_CODE) {
+    return null;
+  }
+  const detail = (error.body as { detail?: { project_path?: unknown } } | null)
+    ?.detail;
+  return typeof detail?.project_path === "string" ? detail.project_path : null;
+}
 
 /** The desktop app's native Settings… menu item (Cmd+,) dispatches this on window. */
 export const OPEN_SETTINGS_EVENT = "sharecut:open-settings";
@@ -35,6 +45,8 @@ export function SettingsHost() {
   const mover = useProjectMutation();
   const error = reveal.error ?? mover.error;
   const localClientId = useDaw((s) => s.localClientId);
+  // Busy ends before the page unloads; keep Move disabled until it does.
+  const [leaving, setLeaving] = useState(false);
   useEffect(() => {
     const openSettings = () => runPointerCommand("settings.open");
     window.addEventListener(OPEN_SETTINGS_EVENT, openSettings);
@@ -54,24 +66,34 @@ export function SettingsHost() {
     mover.setError(null);
     void reveal.run(() => revealProject(projectPath));
   };
-  // The picker is the host's own dialog; a cancel changes nothing. A move
-  // reloads the page at the new path, so the sheet never shows a stale folder.
+  // A move reloads the page at the new path, so the sheet never shows a stale folder.
   const moveFolder = () => {
     reveal.setError(null);
     void mover.run(async () => {
       const picked = await pickFolder();
       if ("unavailable" in picked) {
-        throw new Error(picked.detail ?? NO_FOLDER_DIALOG);
+        throw new Error(
+          "This computer couldn't open a folder dialog, so the episode stays where it is.",
+        );
       }
       if ("cancelled" in picked) return;
-      const moved = await moveProject(
-        projectPath,
-        picked.folder,
-        localClientId,
-      );
-      window.location.assign(
-        projectUrl(window.location.href, moved.project_path),
-      );
+      try {
+        const moved = await moveProject(
+          projectPath,
+          picked.folder,
+          localClientId,
+        );
+        setLeaving(true);
+        window.location.assign(
+          projectUrl(window.location.href, moved.project_path),
+        );
+      } catch (error) {
+        // The folder did move: stay on the old path and the next save misses.
+        const there = movedTo(error);
+        if (there === null) throw error;
+        setLeaving(true);
+        window.location.assign(projectUrl(window.location.href, there));
+      }
     });
   };
   return (
@@ -87,7 +109,7 @@ export function SettingsHost() {
               folder: parentFolder(projectPath),
               onReveal: isTauri() ? revealFolder : undefined,
               onMove: isTauri() ? moveFolder : undefined,
-              moving: mover.busy,
+              moving: mover.busy || leaving,
               revealing: reveal.busy,
               error,
             }
