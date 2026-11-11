@@ -712,6 +712,28 @@ describe("FeedbackToast", () => {
     expect(seen.slice(0, 2)).toEqual([true, true]);
   });
 
+  it("merges in the real order: the head moves before the producer announces", async () => {
+    render(<FeedbackToast />);
+    const say = (id: string) =>
+      act(() => {
+        useDawStore
+          .getState()
+          .announceStatus("Deleted clip", { undo: entry(id), kind: "delete" });
+      });
+    say("host-reorder");
+    for (const [head, next] of [
+      ["host-reorder", "e2"],
+      ["e2", "e3"],
+    ] as const) {
+      act(() => atHead(next));
+      await act(async () => {});
+      say(next);
+      expect(head).toBeTruthy();
+    }
+    expect(screen.getByText("3 deletes")).toBeVisible();
+    expect(screen.getByRole("button", { name: "Undo all" })).toBeEnabled();
+  });
+
   it("Undo all stops at the first refusal and says how far it got", async () => {
     const user = userEvent.setup();
     render(<FeedbackToast />);

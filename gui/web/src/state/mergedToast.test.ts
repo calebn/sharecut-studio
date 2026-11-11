@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { ProjectView } from "../types/project";
 import { useDawStore } from "./dawStore";
 
@@ -128,6 +128,78 @@ describe("merged edit toasts", () => {
     headAt("h1");
     say("Cut", { undo: "h2", kind: "cut" });
     expect(toast()?.merged).toBeNull();
+  });
+
+  it("merges when the head moves first and the Undo of the standing toast has already lapsed", () => {
+    headAt("h0");
+    say("Cut", { undo: "h1", kind: "cut" });
+    headAt("h1");
+    say("Cut", { undo: "h2", kind: "cut" });
+    headAt("h3");
+    useDawStore.getState().dropFeedbackUndo(toast()!.id);
+    expect(toast()?.undo).toBeNull();
+    say("Cut", { undo: "h3", kind: "cut" });
+    expect(toast()?.merged?.entries).toEqual(["h3", "h2", "h1"]);
+    expect(toast()?.message).toBe("3 cuts");
+  });
+
+  it("does not merge into a lapsed toast once the moment has passed", () => {
+    vi.useFakeTimers();
+    try {
+      headAt("h0");
+      say("Cut", { undo: "h1", kind: "cut" });
+      headAt("h1");
+      useDawStore.getState().dropFeedbackUndo(toast()!.id);
+      vi.advanceTimersByTime(2000);
+      headAt("h2");
+      say("Cut", { undo: "h2", kind: "cut" });
+      expect(toast()?.merged).toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("does not merge into a lapsed toast of another kind", () => {
+    headAt("h0");
+    say("Cut", { undo: "h1", kind: "cut" });
+    headAt("h1");
+    useDawStore.getState().dropFeedbackUndo(toast()!.id);
+    headAt("h2");
+    say("Split", { undo: "h2", kind: "split" });
+    expect(toast()?.merged).toBeNull();
+  });
+
+  it("does not fold an edit that has no Undo, an incoming action or a reverse", () => {
+    headAt("h0");
+    say("Cut", { undo: "h1", kind: "cut" });
+    headAt("h1");
+    say("Cut", { kind: "cut" });
+    expect(toast()?.merged).toBeNull();
+    say("Cut", { undo: "h1", kind: "cut" });
+    headAt("h1");
+    say("Cut", {
+      undo: "h2",
+      kind: "cut",
+      action: { label: "Cut all", run: () => {} },
+    });
+    expect(toast()?.merged).toBeNull();
+    headAt("h2");
+    say("Cut", { undo: "h3", kind: "cut" });
+    headAt("h3");
+    say("Cut", {
+      undo: "h4",
+      kind: "cut",
+      reverse: { run: async () => true, done: "Done" },
+    });
+    expect(toast()?.merged).toBeNull();
+  });
+
+  it("folds splits and names them", () => {
+    headAt("h0");
+    say("Split at 0:04", { undo: "h1", kind: "split" });
+    headAt("h1");
+    say("Split at 0:09", { undo: "h2", kind: "split" });
+    expect(toast()?.message).toBe("2 splits");
   });
 
   it("stops folding at 25 edits and starts a new toast", () => {
