@@ -401,9 +401,7 @@ class UploadPoller {
         if (cancelled || abort.signal.aborted) {
           return;
         }
-        if (!cancelled) {
-          this.observe({ kind: "pass-failed", cause: err });
-        }
+        this.observe({ kind: "pass-failed", cause: err });
       } finally {
         inFlight = false;
         if (refreshAfterCleanup && !cancelled) {
@@ -532,7 +530,7 @@ export function useHostUploadSegments(
           );
         }
       } catch {
-        // keep last successful snapshot
+        // A failed poll keeps the last good snapshot; the next tick retries.
       }
     };
     void tick();
