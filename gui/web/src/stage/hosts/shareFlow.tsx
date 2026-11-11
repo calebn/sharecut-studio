@@ -38,6 +38,7 @@ import {
   shareCopyKey,
 } from "../../stages/deliver/shareLogic";
 import { useDawStore } from "../../state/dawStore";
+import type { ReverseAction } from "../../state/types";
 import type { HostShareRow } from "../../types/shares";
 import { errorMessage } from "../../utils/apiError";
 import { useStableCallback } from "../../utils/useStableCallback";
@@ -610,23 +611,21 @@ export function ShareFlowProvider({ children }: { children: ReactNode }) {
         announceStatus(copy.ended);
         return;
       }
-      announceStatus(copy.ended, {
-        dwellMs,
-        reverse: {
-          done: copy.restored,
-          run: async () => {
-            try {
-              await restore();
-            } catch (err) {
-              const code = restoreRefusal(err);
-              if (code === null) throw err;
-              return refusalCopy(code, what);
-            }
-            relist(scope);
-            return true;
-          },
+      const reverse: ReverseAction = {
+        done: copy.restored,
+        run: async () => {
+          try {
+            await restore();
+          } catch (err) {
+            const code = restoreRefusal(err);
+            if (code === null) throw err;
+            return refusalCopy(code, what);
+          }
+          relist(scope);
+          return true;
         },
-      });
+      };
+      announceStatus(copy.ended, { dwellMs, reverse });
     },
     [announceStatus, relist],
   );
