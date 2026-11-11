@@ -406,25 +406,23 @@ function AttentionGroup({
           {pending + rows.length || "!"}
         </span>
         {rows.length > 0 && attention.canDismiss ? (
-          <>
-            <Button
-              aria-disabled={held || undefined}
-              aria-describedby={held ? reasonId : undefined}
-              title={held ? dismissReason(attention) : undefined}
-              onClick={() => {
-                if (!held) attention.onDismissAll();
-              }}
-            >
-              Dismiss all
-            </Button>
-            {held ? (
-              <span id={reasonId} className="sr-only">
-                {dismissReason(attention)}
-              </span>
-            ) : null}
-          </>
+          <Button
+            aria-disabled={held || undefined}
+            aria-describedby={held ? reasonId : undefined}
+            title={held ? dismissReason(attention) : undefined}
+            onClick={() => {
+              if (!held) attention.onDismissAll();
+            }}
+          >
+            Dismiss all
+          </Button>
         ) : null}
       </div>
+      {held && rows.length > 0 && attention.canDismiss ? (
+        <p id={reasonId} className="ui-field-hint rv-group-reason">
+          {dismissReason(attention)}
+        </p>
+      ) : null}
       {failure ? (
         <StatusRow
           state="failed"
