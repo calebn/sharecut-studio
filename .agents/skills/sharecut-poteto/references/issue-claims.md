@@ -152,7 +152,7 @@ call, listening, device feel, or a decision that proved harmful:
    and the evidence.
 3. Keep the PR unmerged if the answer could change it. Otherwise proceed on the
    default and say so in the comment.
-4. Move to other beta work.
+4. Move to other work.
 
 The next coordinator or agent pass removes the label once the owner answers,
 applies the answer, and records it.
