@@ -14,6 +14,8 @@ export type AlertSlotItem = {
   barLabel?: string;
   /** `timer` for a title that ticks: the live region then stays quiet. */
   titleRole?: "timer";
+  /** The text is already announced through the status line, so the slot's live region stays quiet for it. */
+  announcedElsewhere?: boolean;
   action?: {
     label: string;
     name?: string;
@@ -49,7 +51,8 @@ export function AlertSlot({ alerts }: AlertSlotProps) {
   if (rest.length === 0 && expanded) setExpanded(false);
   const open = expanded && rest.length > 0;
   // A ticking line is not announced; the room's one-shot announcer speaks start and end.
-  const ticking = top?.titleRole === "timer";
+  const ticking =
+    top?.titleRole === "timer" || top?.announcedElsewhere === true;
   const more = rest.length;
   return (
     <div className="sys-room-alert-slot" ref={slot}>

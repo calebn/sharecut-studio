@@ -39,3 +39,8 @@ it("calls the top alert's action", async () => {
   await userEvent.click(screen.getByRole("button", { name: "Try again" }));
   expect(onAction).toHaveBeenCalledOnce();
 });
+
+it("keeps the live region quiet for text announced through the status line", () => {
+  render(<AlertSlot alerts={[item("a", { announcedElsewhere: true })]} />);
+  expect(screen.getByRole("status")).toHaveAttribute("aria-live", "off");
+});

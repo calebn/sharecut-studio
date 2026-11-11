@@ -14,7 +14,7 @@ import {
   notDownloadedLine,
 } from "../../utils/apiError";
 import { isTerminalJobStatus } from "../../utils/pipeline";
-import { FRAME_ALERT_PRIORITY, useFrameAlert } from "./frameAlerts";
+import { FRAME_ALERT_PRIORITY, useFrameAlert } from "./useFrameAlert";
 
 const RESUMABLE = new Set(["pipeline", "render_preview"]);
 type Stopped = { job: PipelineJobSnapshot; epoch: number; path: string };
@@ -92,6 +92,7 @@ function AcceptedJobObserver({
       ? {
           state: "failed",
           title: message,
+          announcedElsewhere: true,
           action: {
             label: "Try again",
             name: "Check the resumed run",
@@ -116,6 +117,7 @@ function RefusedRunAlert({
   useFrameAlert(FRAME_ALERT_PRIORITY.failed, {
     state: "failed",
     title: message,
+    announcedElsewhere: true,
     action: {
       label: "Try again",
       name: "Resume the stopped run",

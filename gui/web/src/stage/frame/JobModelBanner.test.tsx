@@ -25,7 +25,7 @@ import {
 } from "../../test/renderWithModels";
 import type { PipelineJobSnapshot } from "../../types/pipeline";
 import { ApiError, type ModelNeeded } from "../../utils/apiError";
-import { FrameAlerts } from "./frameAlerts";
+import { FrameAlerts } from "./FrameAlerts";
 import { JobModelBanner } from "./JobModelBanner";
 
 const runPointerCommand = vi.hoisted(() => vi.fn());
