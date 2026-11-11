@@ -34,8 +34,8 @@ export function SheetHost({
   );
   const [detent, setDetent] = useState<DrawerDetent>("half");
   const modal = useModalOpen();
-  // The phone's Mix sheet yields to any dialog that opens over it (Bounce from
-  // its shortcut, say) and does not come back when that dialog closes.
+  // The phone's Mix sheet yields to any dialog that opens over it (Export
+  // options, say) and does not come back when that dialog closes.
   const yieldsToDialog = openSheet === "mix" && shell === "phone" && modal;
   useEffect(() => {
     if (yieldsToDialog) setOpenSheet(null);

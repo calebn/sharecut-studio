@@ -17,8 +17,10 @@ vi.mock("../../api", async (importOriginal) => ({
   listExportedFiles: vi.fn(),
 }));
 
+import { startBounce } from "../../commands/bounceRunnerHandle";
 import { clearRegisteredCommands, execute } from "../../commands/execute";
 import { registerDawCommands } from "../../commands/register";
+import type { BounceRequest } from "../../edit/exportRange";
 import { FeaturesContext } from "../../extensions/FeaturesContext";
 import { useDawStore } from "../../state/dawStore";
 import {
@@ -28,12 +30,19 @@ import {
 } from "../../test/fakeExportServer";
 import { minimalProject, sampleTrack } from "../../test/fixtures";
 import { stubViewportShell } from "../../test/viewportShell";
-import { BounceFlowProvider } from "./bounceFlow";
+import { BounceRunnerProvider } from "./bounceRunner";
 import { DeliverStage } from "./DeliverStage";
 import { ExportFlowProvider } from "./exportFlow";
 import { ShareFlowProvider } from "./shareFlow";
 
 const PATH = "/tmp/ep/episode.sharecut";
+
+const FULL_MIX: BounceRequest = {
+  range: null,
+  trackIds: null,
+  source: "mix",
+  includeMp3: false,
+};
 
 const dryRun = {
   language: "en",
@@ -51,11 +60,11 @@ function Host() {
       value={{ ready: true, manifest: { api_version: 1, features: [] } }}
     >
       <ExportFlowProvider>
-        <BounceFlowProvider>
+        <BounceRunnerProvider>
           <ShareFlowProvider>
             <DeliverStage />
           </ShareFlowProvider>
-        </BounceFlowProvider>
+        </BounceRunnerProvider>
       </ExportFlowProvider>
     </FeaturesContext.Provider>
   );
@@ -69,7 +78,11 @@ function asHost(withTranscript: boolean) {
       ? ({ language: "en", words: [] } as unknown as typeof project.transcript)
       : null,
   });
-  useDawStore.setState({ stage: "deliver", guestMode: null });
+  useDawStore.setState({
+    stage: "deliver",
+    guestMode: null,
+    activityJob: null,
+  });
 }
 
 let server: ReturnType<typeof fakeExportServer>;
@@ -196,14 +209,19 @@ describe("Transcript on the Deliver stage", () => {
     render(<Host />);
     await screen.findByText("Hello there.");
     await waitFor(() => expect(api.listExportedFiles).toHaveBeenCalledTimes(1));
-    await userEvent.click(screen.getByRole("button", { name: "Bounce" }));
+    await act(async () => void (await startBounce(FULL_MIX)));
     await waitFor(() => expect(server.bounceRequests).toHaveLength(1));
     expect((await screen.findAllByText(RUNNING)).length).toBeGreaterThan(0);
     expect(
       screen.getByRole("button", { name: "Export 2 files" }),
     ).toBeDisabled();
     await act(async () => server.settle(BOUNCE_FINISHED));
-    await screen.findByText("Bounced 1 file(s) to export/bounces/");
+    await waitFor(() =>
+      expect([...useDawStore.getState().jobFeedback.values()]).toContainEqual({
+        kind: "ready",
+        outcome: { kind: "verified", copy: "Exported the full mix as WAV" },
+      }),
+    );
     await act(async () => {
       await vi.advanceTimersByTimeAsync(1000);
     });

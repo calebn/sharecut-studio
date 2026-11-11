@@ -7,6 +7,11 @@ import {
   waitForPipelineJob,
 } from "../api";
 import { refreshDocumentProject } from "../document/applyDocumentUpdate";
+import {
+  bounceRequestOf,
+  EXPORT_RANGE_DEFAULTS,
+  readExportRangeChoices,
+} from "../edit/exportRange";
 import { resolveSelectionRange } from "../edit/rangeSelection";
 import {
   FEATURE_SHARE_UI_MENU,
@@ -28,11 +33,6 @@ import {
   useRecordHostStore,
 } from "../record";
 import { canManageProjects, canRefreshMix } from "../shareMode";
-import {
-  bounceRequestOf,
-  EXPORT_RANGE_DEFAULTS,
-  readExportRangeChoices,
-} from "../stage/edit/exportRange";
 import { useDawStore } from "../state/dawStore";
 import { type RoomKeyHandlers, roomKeys } from "../state/roomKeys";
 import { seedStudioJob } from "../state/seedStudioJob";

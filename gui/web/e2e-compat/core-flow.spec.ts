@@ -22,7 +22,6 @@ import {
 import { withShareableProject } from "../e2e/shareableProject";
 import { createReviewShare, openGuestShare } from "../e2e/shareNavigation";
 import {
-  deliverPage,
   goToStage,
   openPanel,
   runPaletteCommand,
@@ -220,25 +219,16 @@ test.describe("core flow", () => {
           });
 
           await test.step("export: bounce the mix to a non-silent WAV", async () => {
-            await goToStage(host, "deliver");
-            const deliver = deliverPage(host);
-            await expect(
-              deliver.getByRole("heading", { name: "Bounce" }),
-            ).toBeVisible();
+            await goToStage(host, "edit");
             if (ownsStudioAxe({ suite: "compat", engine: browserName })) {
               await expectPageAxeClean(host);
             }
-            await deliver
-              .getByRole("button", { name: "Bounce", exact: true })
-              .click();
+            await runPaletteCommand(host, "Export full mix");
             await expect(
-              deliver.getByText("Bounced", { exact: true }),
-            ).toBeVisible({ timeout: 60_000 });
-            await expect(
-              host
-                .getByRole("status")
-                .filter({ hasText: "Bounced 1 file(s) to export/bounces/" }),
-            ).toHaveCount(1);
+              host.locator(".ui-toast-region--app .ui-toast"),
+            ).toContainText("Exported the full mix as WAV", {
+              timeout: 60_000,
+            });
 
             await expect.poll(() => bouncedWavs(projectPath)).toHaveLength(1);
             const wavs = await bouncedWavs(projectPath);

@@ -1,4 +1,4 @@
-import type { BounceRequest } from "../stage/edit/exportRange";
+import type { BounceRequest } from "../edit/exportRange";
 import type { PipelineJobSnapshot } from "../types/pipeline";
 import { isTerminalJobStatus } from "../utils/pipeline";
 import type { ExecuteResult } from "./types";

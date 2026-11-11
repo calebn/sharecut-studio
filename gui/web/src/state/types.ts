@@ -45,8 +45,6 @@ export type RangeDraft = TimelineSpan & { trackIds: readonly string[] };
 export interface ChromeFlags {
   /** Command palette (Commands and shortcuts) open. */
   commandPaletteOpen: boolean;
-  /** A bounce asked for by a command; the Deliver stage focuses its Bounce button and clears this. */
-  bounceRequested: boolean;
   /** An export asked for by a command; the Deliver stage starts it and clears this. */
   exportRequested: boolean;
   transcriptRequested: boolean;
@@ -373,8 +371,6 @@ export interface DawState {
   /** Lane height the mounted timeline last resolved (fit or fixed); null with no timeline. Stepping from fit mode starts here. */
   drawnLaneHeightPx: number | null;
   chrome: ChromeFlags;
-  bounceRangeTarget: ExactRangeTarget | null;
-  setBounceRangeTarget: (target: ExactRangeTarget | null) => void;
   /** Source Prepare shows its split prompt for, set by "Split speakers…"; null otherwise. */
   prepareFocusTrackId: string | null;
   /**
@@ -555,7 +551,6 @@ export interface DawState {
   setDrawnLaneHeightPx: (px: number | null) => void;
   setCommandPaletteOpen: (on: boolean) => void;
   toggleCommandPalette: () => void;
-  setBounceRequested: (on: boolean) => void;
   setTranscriptFindReplaceOpen: (on: boolean) => void;
   setExportRequested: (on: boolean) => void;
   setPrepareFocusTrackId: (trackId: string | null) => void;

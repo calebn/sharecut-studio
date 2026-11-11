@@ -12,7 +12,6 @@ import { deferred } from "../../test/deferred";
 import { fakeExportServer } from "../../test/fakeExportServer";
 import { minimalProject, sampleTrack } from "../../test/fixtures";
 import { stubViewportShell } from "../../test/viewportShell";
-import { BounceFlowProvider } from "./bounceFlow";
 import { DeliverStage } from "./DeliverStage";
 import { ExportFlowProvider } from "./exportFlow";
 import { ReviewHost } from "./ReviewHost";
@@ -66,11 +65,9 @@ function App() {
   if (stage === "review") return <ReviewHost />;
   return (
     <ExportFlowProvider>
-      <BounceFlowProvider>
-        <ShareFlowProvider>
-          <DeliverStage />
-        </ShareFlowProvider>
-      </BounceFlowProvider>
+      <ShareFlowProvider>
+        <DeliverStage />
+      </ShareFlowProvider>
     </ExportFlowProvider>
   );
 }

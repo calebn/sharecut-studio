@@ -34,7 +34,6 @@ import {
 } from "../../stages/deliver/deliverLogic";
 import { FeedPanel } from "../../stages/deliver/FeedPanel";
 import { useDawStore } from "../../state/dawStore";
-import { selectedTrackIdsOf } from "../../state/selection";
 import { StatusRow } from "../../system/StatusRow";
 import { lowConfidenceStops } from "../../transcript/lowConfidence";
 import type { LoudnessId } from "../../types/pipeline";
@@ -44,8 +43,7 @@ import { shownTitle } from "../../utils/clipTitle";
 import { mediaSignature } from "../../waveform/mediaRef";
 import { ListenLinkRow } from "../frame/invite/ListenLinkRow";
 import { useStageScroll } from "../useStageScroll";
-import { useBounceFlow } from "./bounceFlowContext";
-import { bounceOptionsOf } from "./deliverBounce";
+import { useBounceRun } from "./bounceRunnerContext";
 import {
   type DeliverPage,
   patchDeliverDraft,
@@ -155,15 +153,8 @@ function DeliverStageAdapter({ loadFailure }: DeliverStageProps) {
     projectEpoch,
     exportRequested,
     setExportRequested,
-    bounceRequested,
-    setBounceRequested,
     transcriptRequested,
     setTranscriptRequested,
-    bounceRange,
-    setBounceRange,
-    selection,
-    soloTracks,
-    sessionRegion,
   } = useDawStore(
     useShallow((s) => ({
       project: s.project,
@@ -171,26 +162,17 @@ function DeliverStageAdapter({ loadFailure }: DeliverStageProps) {
       projectEpoch: s.projectEpoch,
       exportRequested: s.chrome.exportRequested,
       setExportRequested: s.setExportRequested,
-      bounceRequested: s.chrome.bounceRequested,
-      setBounceRequested: s.setBounceRequested,
       transcriptRequested: s.chrome.transcriptRequested,
       setTranscriptRequested: s.setTranscriptRequested,
-      bounceRange: s.bounceRangeTarget,
-      setBounceRange: s.setBounceRangeTarget,
-      selection: s.selection,
-      soloTracks: s.soloTracks,
-      sessionRegion: s.sessionRegion,
     })),
   );
   const wordDetail = useTranscriptDetail();
   const exportFlow = useExportFlow();
   const { reload: reloadExportSettings, start: startExport } = exportFlow;
-  const bounceFlow = useBounceFlow();
+  const bouncing = useBounceRun().kind === "running";
   const shareFlow = useShareFlow();
   const shareOffered = useHasFeature(FEATURE_SHARE_UI_MENU);
-  const nowSec = useNowSec(
-    exportFlow.run.kind === "running" || bounceFlow.run.kind === "running",
-  );
+  const nowSec = useNowSec(exportFlow.run.kind === "running");
   const announceStatus = useDawStore((s) => s.announceStatus);
   useStallAnnouncement(
     [
@@ -199,12 +181,6 @@ function DeliverStageAdapter({ loadFailure }: DeliverStageProps) {
           exportFlow.run.kind === "running" && !exportFlow.run.cancelling,
         tracked: exportFlow.job != null,
         lastProgressAt: exportFlow.job?.last_progress_at,
-      },
-      {
-        running:
-          bounceFlow.run.kind === "running" && !bounceFlow.run.cancelling,
-        tracked: bounceFlow.job != null,
-        lastProgressAt: bounceFlow.job?.last_progress_at,
       },
     ],
     nowSec,
@@ -220,7 +196,6 @@ function DeliverStageAdapter({ loadFailure }: DeliverStageProps) {
   const shell = useViewportClass();
   const scrollRef = useStageScroll("deliver", "body", ".dv-page");
   const breakdown = useStaleRenderBreakdown(project);
-  const bounceCmd = useCommand("export.bounce");
   const shareCmd = useCommand("share.manage");
   const shareOptions = shareOptionsOf(shareFlow, {
     blockedReason: shareCmd.whenReason,
@@ -380,7 +355,6 @@ function DeliverStageAdapter({ loadFailure }: DeliverStageProps) {
       window.setTimeout(() => {
         if (liveHosts > 0) return;
         useDawStore.getState().setExportRequested(false);
-        useDawStore.getState().setBounceRequested(false);
         useDawStore.getState().setTranscriptRequested(false);
       }, 0);
     };
@@ -414,13 +388,6 @@ function DeliverStageAdapter({ loadFailure }: DeliverStageProps) {
     new Map<string, { head: HistoryEntryId; scope: DocumentScope }>(),
   );
   const [findingClips, setFindingClips] = useState(false);
-  const [focusBounce, setFocusBounce] = useState(false);
-  const clearBounceFocus = useCallback(() => setFocusBounce(false), []);
-  useEffect(() => {
-    if (!bounceRequested || state !== "ready") return;
-    setBounceRequested(false);
-    setFocusBounce(true);
-  }, [bounceRequested, state, setBounceRequested]);
   useEffect(() => {
     if (!projectPath || state !== "ready" || draft.page?.key === seedKey)
       return;
@@ -572,16 +539,6 @@ function DeliverStageAdapter({ loadFailure }: DeliverStageProps) {
             edits,
             onFormats: exportFlow.setSelected,
           }}
-          bounce={bounceOptionsOf(bounceFlow, nowSec, {
-            selectedCount: selectedTrackIdsOf(selection).length,
-            soloCount: Object.values(soloTracks).filter(Boolean).length,
-            hasRegion: sessionRegion != null,
-            range: bounceRange,
-            clearRange: () => setBounceRange(null),
-            blockedReason: bounceCmd.whenReason,
-            focusRequested: focusBounce,
-            onFocused: clearBounceFocus,
-          })}
           feed={
             projectPath ? (
               <FeedPanel
@@ -608,9 +565,7 @@ function DeliverStageAdapter({ loadFailure }: DeliverStageProps) {
             run: transcriptFlow.run,
             choices: transcriptFlow.choices,
             onChoices: transcriptFlow.setChoices,
-            exportRunning:
-              exportFlow.run.kind === "running" ||
-              bounceFlow.run.kind === "running",
+            exportRunning: exportFlow.run.kind === "running" || bouncing,
             copyState: transcriptFlow.copyState,
             onExport: transcriptFlow.exportNow,
             onCopy: transcriptFlow.copyText,

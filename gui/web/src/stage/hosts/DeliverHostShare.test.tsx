@@ -44,7 +44,6 @@ import { fakeExportServer } from "../../test/fakeExportServer";
 import { hostShareRow, minimalProject, sampleTrack } from "../../test/fixtures";
 import { stubViewportShell } from "../../test/viewportShell";
 import { SheetHost } from "../frame/SheetHost";
-import { BounceFlowProvider } from "./bounceFlow";
 import { DeliverStage } from "./DeliverStage";
 import { ExportFlowProvider } from "./exportFlow";
 import { StageHost } from "./StageHost";
@@ -79,9 +78,7 @@ function Host({
       value={{ ready, manifest: { api_version: 1, features } }}
     >
       <ExportFlowProvider>
-        <BounceFlowProvider>
-          <ShareFlowProvider>{children}</ShareFlowProvider>
-        </BounceFlowProvider>
+        <ShareFlowProvider>{children}</ShareFlowProvider>
       </ExportFlowProvider>
     </FeaturesContext.Provider>
   );
@@ -122,7 +119,7 @@ beforeEach(() => {
   registerDawCommands();
   loadTunnelStatus.mockReset();
   refreshMix.mockReset().mockResolvedValue({ status: "ok" });
-  useDawStore.setState({ statusAnnouncement: "", bounceRangeTarget: null });
+  useDawStore.setState({ statusAnnouncement: "" });
   asHost();
 });
 

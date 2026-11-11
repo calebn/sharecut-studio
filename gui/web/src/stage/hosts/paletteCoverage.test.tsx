@@ -36,7 +36,6 @@ import { EDIT_SHEETS } from "../edit/editSheets";
 import { PlusMenu } from "../edit/PlusMenu";
 import { PlayerBar } from "../frame/PlayerBar";
 import { StageFrame } from "../frame/StageFrame";
-import { BounceFlowProvider } from "./bounceFlow";
 import { ExportFlowProvider } from "./exportFlow";
 import { StageHost } from "./StageHost";
 import { ShareFlowProvider } from "./shareFlow";
@@ -154,11 +153,9 @@ function mountStage(stage: "prepare" | "review" | "deliver" | "record") {
       }}
     >
       <ExportFlowProvider>
-        <BounceFlowProvider>
-          <ShareFlowProvider>
-            <StageHost />
-          </ShareFlowProvider>
-        </BounceFlowProvider>
+        <ShareFlowProvider>
+          <StageHost />
+        </ShareFlowProvider>
       </ExportFlowProvider>
     </FeaturesContext.Provider>,
   );
@@ -275,28 +272,14 @@ const exportButton: Probe = async (user) => {
   );
 };
 
-const bounceButton: Probe = async (user) => {
-  const bounceServer = fakeExportServer();
-  mountStage("deliver");
-  await user.click(await screen.findByRole("button", { name: "Bounce" }));
-  await waitFor(() =>
-    expect(
-      bounceServer.bounceRequests,
-      "Bounce did not start a job",
-    ).toHaveLength(1),
-  );
-};
-
 const refreshMixRow: Probe = async (user) => {
   asHost("deliver");
   useDawStore.getState().setProject(staleProject());
   render(
     <ExportFlowProvider>
-      <BounceFlowProvider>
-        <ShareFlowProvider>
-          <StageHost />
-        </ShareFlowProvider>
-      </BounceFlowProvider>
+      <ShareFlowProvider>
+        <StageHost />
+      </ShareFlowProvider>
     </ExportFlowProvider>,
   );
   await runs("render.refreshMix", () =>
@@ -387,7 +370,7 @@ const REMOVED_SURFACES: Entry[] = [
   entry("transport Menu", "Cut at playhead", "edit.bladeCut"),
   entry("transport Menu", "New project", "project.new"),
   entry("transport Menu", "Open project", "project.open"),
-  entry("transport Menu", "Bounce", "export.bounce", [bounceButton]),
+  entry("transport Menu", "Bounce", "export.bounce"),
   entry("transport Menu", "Export deliverables", "export.deliverables", [
     exportButton,
   ]),

@@ -257,7 +257,7 @@ test.describe("Stage shell on desktop", () => {
     await expect.poll(waiting).toBeGreaterThan(0);
   });
 
-  test("opens the Record stage from where it lives, and Export and Bounce are on Deliver", async ({
+  test("opens the Record stage from where it lives, and Export is on Deliver while Bounce is not", async ({
     page,
   }) => {
     await openProject(page);
@@ -267,7 +267,7 @@ test.describe("Stage shell on desktop", () => {
     ).toBeVisible();
     await expect(
       deliverPage(page).getByRole("button", { name: "Bounce", exact: true }),
-    ).toBeVisible();
+    ).toHaveCount(0);
     await openProjectDialog(page, "record");
     await expect(stageTab(page, "record")).toHaveAttribute(
       "aria-selected",

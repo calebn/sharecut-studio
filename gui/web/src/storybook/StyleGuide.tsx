@@ -24,8 +24,8 @@ const CATALOG = [
     use: "Use the shared modal behavior and scrolling body.",
   },
   {
-    label: "Bounce section",
-    id: "stages-deliver-bounce--docs",
+    label: "Export options",
+    id: "stages-edit-exportrange--docs",
     use: "See aligned controls and section spacing in a real task.",
   },
   {
@@ -58,7 +58,7 @@ const TYPE = [
   {
     token: "--font-size-body",
     label: "Dialog body",
-    sample: "Choose the tracks to bounce.",
+    sample: "Choose the tracks to export.",
   },
   {
     token: "--font-size-ui",
@@ -154,10 +154,9 @@ export function StyleGuide() {
           ))}
         </dl>
         <p>
-          In Bounce, control rows share an input/text alignment. The Source
-          group, export options, and footer are separated with{" "}
-          <code>--space-6</code>; labels have a <code>--touch-min</code> minimum
-          target.
+          In Export options, control rows share an input/text alignment. The
+          Source group and the Also MP3 toggle are separated with{" "}
+          <code>--space-3</code>.
         </p>
       </section>
 

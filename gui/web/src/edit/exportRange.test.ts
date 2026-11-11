@@ -1,7 +1,6 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { makeRangeTarget } from "../../edit/rangeSelection";
-import { clipRow, minimalProject, sampleTrack } from "../../test/fixtures";
-import type { ProjectView, Selection } from "../../types/project";
+import { clipRow, minimalProject, sampleTrack } from "../test/fixtures";
+import type { ProjectView, Selection } from "../types/project";
 import {
   type BounceRequest,
   bounceBody,
@@ -16,6 +15,7 @@ import {
   usableChoices,
   writeExportRangeChoices,
 } from "./exportRange";
+import { makeRangeTarget } from "./rangeSelection";
 
 function episode(): ProjectView {
   const tracks = [

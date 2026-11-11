@@ -3,6 +3,7 @@ import { hostFetch } from "../api/documentTransport";
 import { apiSend } from "../api/http";
 import { commentDraftFromRange } from "../comments/commentAnchor";
 import { setClipboard } from "../edit/clipboard";
+import { exportRequestNow } from "../edit/exportRange";
 import {
   rangeIsCurrent,
   resolveSelectionRange,
@@ -15,7 +16,6 @@ import {
   isShareProjectKey,
   rangeEditMode,
 } from "../shareMode";
-import { exportRequestNow } from "../stage/edit/exportRange";
 import { useDawStore } from "../state/dawStore";
 import { isRangeSelection } from "../state/selection";
 import type { DawState } from "../state/types";

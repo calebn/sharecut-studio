@@ -1,11 +1,11 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it } from "vitest";
+import { EXPORT_RANGE_STORAGE_KEY } from "../../edit/exportRange";
 import { makeRangeTarget } from "../../edit/rangeSelection";
 import { useDawStore } from "../../state/dawStore";
 import { clipRow, minimalProject, sampleTrack } from "../../test/fixtures";
 import { ExportRangeOptions } from "./ExportRangeOptions";
-import { EXPORT_RANGE_STORAGE_KEY } from "./exportRange";
 
 const tracks = [sampleTrack({ id: "host" }), sampleTrack({ id: "guest" })];
 const project = minimalProject({

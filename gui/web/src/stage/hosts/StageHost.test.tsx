@@ -18,7 +18,6 @@ import {
 } from "../../test/fixtures";
 import { stubViewportShell } from "../../test/viewportShell";
 import type { StageId } from "../../types/stage";
-import { BounceFlowProvider } from "./bounceFlow";
 import { ExportFlowProvider } from "./exportFlow";
 import { StageHost } from "./StageHost";
 import { ShareFlowProvider } from "./shareFlow";
@@ -59,13 +58,11 @@ function mount(guestShare = false) {
       }}
     >
       <ExportFlowProvider>
-        <BounceFlowProvider>
-          <ShareFlowProvider>
-            <HostRoom>
-              <StageHost guestShare={guestShare} />
-            </HostRoom>
-          </ShareFlowProvider>
-        </BounceFlowProvider>
+        <ShareFlowProvider>
+          <HostRoom>
+            <StageHost guestShare={guestShare} />
+          </HostRoom>
+        </ShareFlowProvider>
       </ExportFlowProvider>
     </FeaturesContext.Provider>,
   );
@@ -469,15 +466,13 @@ describe("Deliver host", () => {
     server = fakeExportServer();
   });
 
-  it("starts the export and bounce here, and shows the Listen link row and no Share section", async () => {
+  it("starts the export here, and shows the Listen link row and no Share section", async () => {
     asHost("deliver");
     mount();
     const exportButton = await screen.findByRole("button", { name: "Export" });
     await waitFor(() => expect(exportButton).toBeEnabled());
     await userEvent.click(exportButton);
     await waitFor(() => expect(server.exportRequests).toHaveLength(1));
-    await userEvent.click(screen.getByRole("button", { name: "Bounce" }));
-    await waitFor(() => expect(server.bounceRequests).toHaveLength(1));
     expect(screen.getByRole("heading", { name: "Listen link" })).toBeVisible();
     expect(
       screen.getByRole("button", { name: "Copy listen link" }),
@@ -487,10 +482,7 @@ describe("Deliver host", () => {
       screen.queryByRole("button", { name: "Share a listen link" }),
     ).toBeNull();
     const { chrome } = useDawStore.getState();
-    expect([chrome.exportRequested, chrome.bounceRequested]).toEqual([
-      false,
-      false,
-    ]);
+    expect(chrome.exportRequested).toBe(false);
   });
 
   it("sends an open row to the stage that fixes it", async () => {
@@ -525,11 +517,9 @@ describe("Deliver host", () => {
         value={{ ready: true, manifest: { api_version: 1, features: [] } }}
       >
         <ExportFlowProvider>
-          <BounceFlowProvider>
-            <ShareFlowProvider>
-              <StageHost />
-            </ShareFlowProvider>
-          </BounceFlowProvider>
+          <ShareFlowProvider>
+            <StageHost />
+          </ShareFlowProvider>
         </ExportFlowProvider>
       </FeaturesContext.Provider>,
     );
