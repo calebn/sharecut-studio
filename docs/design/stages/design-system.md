@@ -181,7 +181,7 @@ Storybook. Shared elements live under `System/<Element>`. Stage compositions liv
 - Story: `System/ScopeChip`.
 
 **9. Sheet.** Every non-modal surface that is not a menu.
-- Anatomy: header 40 px (object icon, title or inline rename, close), body of rows (label left, control right), optional footer with one primary in the thumb zone.
+- Anatomy: header 40 px (object icon, title or inline rename, **Done** on the primary side of the header; see 4.8a for when it is a Close X instead), body of rows (label left, control right), optional footer with one primary in the thumb zone.
 - Desktop placements: Anchored card, 320 px, to a selection or button, at most 60 % of the viewport (the Inspector). Side panel, 400 px, on the right (Settings). Centered card, 400 px (Join).
 - Phone: a bottom sheet with detents (4.3).
 - Values apply as they change. There are no Apply buttons.
@@ -652,6 +652,19 @@ Colour roles, all existing tokens:
 - Ink: transport.
 
 ---
+
+### 4.8a How a surface is dismissed
+
+One rule, so the same job never has two labels:
+
+| The surface | Visible control | Escape and outside tap |
+|---|---|---|
+| Saves as you go (sheets, the Inspector, popovers a person edits in) | **Done**, a labelled button on the primary side of the header. On a desktop card or popover a Close X may sit beside it; on a phone Done is the control, because it is the larger target and has no keyboard fallback | Same as Done. Nothing is lost, so there is never a confirm |
+| Needs confirming (Rename project, Delete clip, any Ask) | **Cancel** plus the verb button ("Rename", "Delete clip"). Where the choice is to keep something that exists, the keep button ("Keep link") stands in for Cancel | Same as Cancel |
+| Nothing is edited (coach tips, cards, the Find bar) | A Close X, named **Close** (**Dismiss** for a hint or card) | Same as the X |
+| A running job | **Cancel <the thing>** ("Cancel splitting"), never a bare Cancel | n/a |
+
+Rules: Done never discards. Cancel never saves. Do not draw both a Done and an X on a phone.
 
 ## 5. Conflicts resolved
 
