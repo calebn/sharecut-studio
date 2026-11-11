@@ -53,6 +53,10 @@ export function InspectorSeekFooterView({
   const playReason = unavailableReason(playDisabledReason);
   const { note: playNote, describedBy: playDescribedBy } =
     useDisabledReasonNote(busy ? undefined : playReason);
+  const { note: modesNote, describedBy: modesDescribedBy } =
+    useDisabledReasonNote(
+      onPreviewModeChange ? (suggestDisabledReason ?? null) : null,
+    );
   return (
     <>
       <div className="modifier-footer-actions">
@@ -92,6 +96,7 @@ export function InspectorSeekFooterView({
                   disabledReason={
                     blocked ? (suggestDisabledReason ?? undefined) : undefined
                   }
+                  {...(blocked ? modesDescribedBy : {})}
                   onClick={() => onPreviewModeChange(m.id)}
                 >
                   {m.label}
@@ -102,6 +107,7 @@ export function InspectorSeekFooterView({
         ) : null}
       </div>
       {playNote}
+      {modesNote}
     </>
   );
 }

@@ -93,6 +93,27 @@ describe("InspectorSeekFooterView", () => {
     expect(suggested).toHaveAttribute("title", reason);
     expect(ab).toHaveAttribute("title", reason);
     expect(screen.getByRole("button", { name: "Current" })).toBeEnabled();
+    const note = screen.getByText(reason, { selector: "p" });
+    expect(note).toBeVisible();
+    expect(suggested).toHaveAttribute("aria-describedby", note.id);
+    expect(ab).toHaveAttribute("aria-describedby", note.id);
+    expect(screen.getByRole("button", { name: "Current" })).not.toHaveAttribute(
+      "aria-describedby",
+    );
+  });
+
+  it("shows no mode note when Suggested and A/B are available", () => {
+    const { container } = render(
+      <InspectorSeekFooterView
+        onSeek={vi.fn()}
+        onPlay={vi.fn()}
+        previewMode="current"
+        onPreviewModeChange={vi.fn()}
+        suggestDisabledReason={null}
+      />,
+    );
+    expect(container.querySelector("p")).toBeNull();
+    expect(screen.getByRole("button", { name: "A/B" })).toBeEnabled();
   });
 
   it("keeps an unavailable play focusable and says why, on touch and by key", async () => {
