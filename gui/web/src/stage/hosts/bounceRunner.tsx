@@ -48,6 +48,10 @@ type BounceModelNeed = ModelNeeded & {
 
 const ALREADY_RUNNING = "Export is already running";
 
+function stopOrphan(jobId: string): void {
+  cancelPipelineRun(jobId).catch(() => undefined);
+}
+
 /**
  * The host's range and episode export, outside any stage so it outlives them: the same
  * `BounceService` job as MCP `bounce_audio_tool` and CLI `podcast pipeline bounce`.
@@ -76,6 +80,9 @@ export function BounceRunnerProvider({ children }: { children: ReactNode }) {
   );
 
   useEffect(() => {
+    const previous = runRef.current;
+    if (previous.kind === "running" && previous.jobId !== null)
+      stopOrphan(previous.jobId);
     activeAttempt.current = null;
     runRef.current = IDLE;
     setRun(IDLE);
@@ -112,31 +119,38 @@ export function BounceRunnerProvider({ children }: { children: ReactNode }) {
       let started = false;
       void (async () => {
         try {
-          await runAnnouncedJob(() => startBounceJob(path, body), {
-            kind: "bounce",
-            failLabel: "Export failed",
-            summarizeResult: (job) => {
-              if (job.status === "cancelled" && !jobResultPaths(job).length)
-                return null;
-              const action = bounceResultAction(
-                path,
-                fileIdsOf(job),
-                hostFileAccess(),
-              );
-              return {
-                copy: bounceResultCopy(request),
-                ...(action ? { action } : {}),
-              };
+          await runAnnouncedJob(
+            async () => {
+              const job = await startBounceJob(path, body);
+              if (!isCurrent()) stopOrphan(job.id);
+              return job;
             },
-            signal: scope.signal,
-            onStart: (job) => {
-              started = true;
-              if (!isCurrent()) return;
-              const next: BounceRun = { ...running, jobId: job.id };
-              runRef.current = next;
-              setRun(next);
+            {
+              kind: "bounce",
+              failLabel: "Export failed",
+              summarizeResult: (job) => {
+                if (job.status === "cancelled" && !jobResultPaths(job).length)
+                  return null;
+                const action = bounceResultAction(
+                  path,
+                  fileIdsOf(job),
+                  hostFileAccess(),
+                );
+                return {
+                  copy: bounceResultCopy(request),
+                  ...(action ? { action } : {}),
+                };
+              },
+              signal: scope.signal,
+              onStart: (job) => {
+                started = true;
+                if (!isCurrent()) return;
+                const next: BounceRun = { ...running, jobId: job.id };
+                runRef.current = next;
+                setRun(next);
+              },
             },
-          });
+          );
         } catch (err) {
           if (!isCurrent() || isAbortError(err)) return;
           if (isModelNeeded(err)) {
