@@ -35,7 +35,7 @@ type StatusRowProps = {
   barLabel?: string;
   /** `timer` for a title that ticks, so a screen reader does not read each change. */
   titleRole?: "timer";
-  /** At most one action; `name` is the accessible name when the label alone would repeat. */
+  /** The main action; `name` is the accessible name when the label alone would repeat. */
   action?: {
     label: string;
     name?: string;
@@ -45,6 +45,8 @@ type StatusRowProps = {
   };
   /** A quieter action beside the main one, such as Save a copy next to Resume saving. */
   secondaryAction?: { label: string; name?: string; onAction: () => void };
+  /** A third action after the main one, for a row the spec gives three verbs (guest conflict: Drop it). */
+  tertiaryAction?: { label: string; name?: string; onAction: () => void };
   /** The technical cause of a failed row, behind a Details button. */
   details?: string;
   /** `list` 48, `alert` 44, `inline` 32. */
@@ -65,6 +67,7 @@ export function StatusRow({
   barLabel,
   action,
   secondaryAction,
+  tertiaryAction,
   titleRole,
   details,
   density = "list",
@@ -105,7 +108,7 @@ export function StatusRow({
         ) : (
           <span className="sys-status-text">{text}</span>
         )}
-        {action || secondaryAction || showDetails ? (
+        {action || secondaryAction || tertiaryAction || showDetails ? (
           <div className="sys-status-actions">
             {showDetails ? (
               <Button
@@ -137,6 +140,14 @@ export function StatusRow({
                   <SystemIcon name={action.icon} size={14} />
                 ) : null}
                 {action.label}
+              </Button>
+            ) : null}
+            {tertiaryAction ? (
+              <Button
+                aria-label={tertiaryAction.name}
+                onClick={tertiaryAction.onAction}
+              >
+                {tertiaryAction.label}
               </Button>
             ) : null}
           </div>
