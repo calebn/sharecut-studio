@@ -261,11 +261,7 @@ def crossfade_joins_tool(
     fade_ms: int | None = None,
     dry_run: bool = False,
 ) -> str:
-    """Add crossfades at edit joins on a track; dry_run previews without applying.
-
-    Each join's length is bounded by its clips (not by the Longest automatic join fade);
-    ``fade_ms`` in the reply is the length applied, ``clamped_joins`` the joins it shortened.
-    """
+    """Add crossfades at edit joins on a track, bounded by the clips only; dry_run previews."""
     if dry_run:
         ws = ProjectWorkspace.open(project_path)
         return to_json(
