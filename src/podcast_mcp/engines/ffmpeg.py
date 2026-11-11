@@ -955,7 +955,11 @@ class FFmpegEngine:
             return None
 
     def stream_pcm_f32(
-        self, path: Path, *, chunk_frames: int = PCM_STREAM_CHUNK_FRAMES
+        self,
+        path: Path,
+        *,
+        chunk_frames: int = PCM_STREAM_CHUNK_FRAMES,
+        timeout_sec: float | None = None,
     ) -> tuple[int, int, Generator[np.ndarray, None, None]]:
         """Decode *path* to interleaved float32 PCM at its native rate and layout.
 
@@ -963,7 +967,7 @@ class FFmpegEngine:
         ``(frames, channels)`` float32 array of ``chunk_frames`` frames (the
         last may be shorter). ffmpeg starts on first ``next()`` and is killed
         when the generator closes, or when one chunk waits on ffmpeg longer than
-        ``PCM_STREAM_TIMEOUT_SEC`` (the consumer's time between chunks does not
+        ``timeout_sec`` (``PCM_STREAM_TIMEOUT_SEC`` when None; the consumer's time between chunks does not
         count). A non-zero exit raises ``RuntimeError`` with the tail of ffmpeg's
         stderr. A successful whole-file exit also raises when the normalized
         final output timestamp is materially short of the declared audio-stream
@@ -989,7 +993,7 @@ class FFmpegEngine:
                 argv,
                 channels,
                 chunk_frames=chunk_frames,
-                timeout_sec=PCM_STREAM_TIMEOUT_SEC,
+                timeout_sec=PCM_STREAM_TIMEOUT_SEC if timeout_sec is None else timeout_sec,
                 expected_duration_sec=expected_duration,
             ),
         )

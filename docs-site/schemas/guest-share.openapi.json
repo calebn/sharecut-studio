@@ -16922,6 +16922,9 @@
             },
             "description": "512 loudness values 0..1, or [] when unavailable"
           },
+          "400": {
+            "description": "The request was refused"
+          },
           "403": {
             "description": "The link does not allow playback"
           },
@@ -16940,6 +16943,12 @@
           },
           "429": {
             "description": "Rate limit or audio concurrency cap reached"
+          },
+          "500": {
+            "description": "Internal error"
+          },
+          "503": {
+            "description": "The project is busy"
           }
         }
       }

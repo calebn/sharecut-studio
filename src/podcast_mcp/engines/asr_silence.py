@@ -618,11 +618,16 @@ def flag_words_without_acoustic_evidence(
     return flagged
 
 
-def peak_envelope(path: Path, *, block_sec: float = PEAK_BLOCK_SEC) -> tuple[np.ndarray, float]:
-    """Stream ``path``; return ``(peaks, rate)``: max |sample| over all channels per block."""
+def peak_envelope(
+    path: Path, *, block_sec: float = PEAK_BLOCK_SEC, timeout_sec: float | None = None
+) -> tuple[np.ndarray, float]:
+    """Stream ``path``; return ``(peaks, rate)``: max |sample| over all channels per block.
+
+    ``timeout_sec`` bounds how long one chunk may wait on ffmpeg (the engine default when None).
+    """
     from podcast_mcp.engines.waveform_pyramid import decode_media
 
-    sample_rate, _channels, chunks = decode_media(path)
+    sample_rate, _channels, chunks = decode_media(path, timeout_sec=timeout_sec)
     block = max(1, round(sample_rate * block_sec))
     parts: list[np.ndarray] = []
     carry = np.zeros(0, dtype=np.float32)

@@ -34,6 +34,7 @@ log = logging.getLogger(__name__)
 
 PEAK_COUNT = 512
 PEAKS_SIDECAR = "peaks.json"
+PEAKS_DECODE_TIMEOUT_SEC = 60.0
 
 
 def bin_peaks(envelope: np.ndarray, count: int = PEAK_COUNT) -> list[float]:
@@ -70,7 +71,7 @@ def _flight_lock(sidecar: Path) -> threading.Lock:
 def _read_sidecar(path: Path) -> list[float] | None:
     try:
         data = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, ValueError):
+    except (OSError, ValueError, RecursionError):
         return None
     if data == []:
         return []
@@ -94,7 +95,16 @@ def episode_peaks(project, version_id: str) -> list[float]:
     try:
         get_version(project, version_id)
         audio = review_guest_audio_path(project, version_id)
-    except (CodedKeyError, CodedValueError, CodedFileNotFoundError, KeyError, ValueError):
+    except (
+        CodedKeyError,
+        CodedValueError,
+        CodedFileNotFoundError,
+        KeyError,
+        ValueError,
+    ):
+        return []
+    except (OSError, RuntimeError):
+        log.warning("review peaks: cannot resolve the frozen mix for %s", version_id, exc_info=True)
         return []
     sidecar = review_artifacts_dir(project) / version_id / PEAKS_SIDECAR
     cached = _read_sidecar(sidecar)
@@ -105,7 +115,7 @@ def episode_peaks(project, version_id: str) -> list[float]:
         if cached is not None:
             return cached
         try:
-            envelope, _rate = peak_envelope(audio)
+            envelope, _rate = peak_envelope(audio, timeout_sec=PEAKS_DECODE_TIMEOUT_SEC)
         # The waveform is cosmetic and the audio untrusted: any decode failure (ffprobe
         # exit or timeout, ffmpeg exit, watchdog, short output) is "unavailable", not 500.
         except Exception:
@@ -114,7 +124,7 @@ def episode_peaks(project, version_id: str) -> list[float]:
         peaks = bin_peaks(envelope)
         try:
             write_json_atomic(sidecar, peaks, compact=True)
-        except OSError:
+        except (OSError, ValueError):
             log.warning("review peaks: cannot write sidecar for %s", version_id, exc_info=True)
         return peaks
 

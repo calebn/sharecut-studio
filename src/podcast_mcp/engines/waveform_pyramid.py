@@ -530,20 +530,21 @@ def _iter_wav(path: Path, info: _WavInfo, chunk_frames: int) -> Generator[np.nda
 
 
 def decode_media(
-    path: Path, *, engine: FFmpegEngine | None = None
+    path: Path, *, engine: FFmpegEngine | None = None, timeout_sec: float | None = None
 ) -> tuple[int, int, Generator[np.ndarray, None, None]]:
     """``(sample_rate, channels, chunks)`` of float32 ``(frames, channels)`` arrays.
 
     Integer-PCM WAVs (widths 1-4, uncompressed, including integer-PCM
     WAVE_FORMAT_EXTENSIBLE on every supported Python via ``open_wav``) decode with the
     stdlib; anything ``wave`` rejects (float WAVs, other EXTENSIBLE sub-formats,
-    compressed media) streams through ``FFmpegEngine.stream_pcm_f32``.
+    compressed media) streams through ``FFmpegEngine.stream_pcm_f32``, which alone honors
+    ``timeout_sec``.
     """
     info = _wav_info(path)
     if info is not None:
         return info.sample_rate, info.channels, _iter_wav(path, info, PCM_STREAM_CHUNK_FRAMES)
     eng = engine or FFmpegEngine()
-    return eng.stream_pcm_f32(path)
+    return eng.stream_pcm_f32(path, timeout_sec=timeout_sec)
 
 
 def _minmax_int16(data: np.ndarray) -> np.ndarray:

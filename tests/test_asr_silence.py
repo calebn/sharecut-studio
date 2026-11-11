@@ -102,6 +102,26 @@ def test_file_wrapper_success_and_failure(tmp_path, caplog):
     assert "silence filter skipped" in caplog.text
 
 
+def test_peak_envelope_hands_its_timeout_to_the_decoder(tmp_path, monkeypatch):
+    import numpy as np
+
+    from podcast_mcp.engines import waveform_pyramid
+
+    seen: dict = {}
+
+    def fake_decode(path, **kwargs):
+        seen.update(kwargs)
+
+        def chunks():
+            yield np.ones((100, 1), dtype=np.float32)
+
+        return 100, 1, chunks()
+
+    monkeypatch.setattr(waveform_pyramid, "decode_media", fake_decode)
+    peak_envelope(tmp_path / "x.mp3", timeout_sec=60.0)
+    assert seen == {"timeout_sec": 60.0}
+
+
 def test_peak_envelope_native_rate_stereo_high_frequency(tmp_path):
     sr = 44100
     t = np.arange(sr) / sr
