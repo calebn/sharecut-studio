@@ -252,9 +252,7 @@ test.describe("Pending inspector layout", () => {
     await expect(
       page.getByRole("group", { name: /^Needs attention/ }),
     ).toHaveCount(0);
-    // Cut anyway is one short button now, so the recovery needs a shorter
-    // window than the old waiver box did before the panel has to scroll.
-    for (const height of [480, 400, 340, 300]) {
+    for (let height = 480; height >= 120; height -= 20) {
       await page.setViewportSize({ width: 1280, height });
       const scrolls = await actionbar.evaluate(
         (panel) => panel.scrollHeight > panel.clientHeight,
