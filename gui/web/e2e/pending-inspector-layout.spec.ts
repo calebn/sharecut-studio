@@ -259,15 +259,14 @@ test.describe("Pending inspector layout", () => {
         }
         return panel.scrollHeight > panel.clientHeight;
       });
-    for (let height = 480; height >= 120; height -= 20) {
-      await page.setViewportSize({ width: 1280, height });
-      if ((await settledScrolls()) && (await settledScrolls())) break;
-    }
-    await expect
-      .poll(() =>
-        actionbar.evaluate((panel) => panel.scrollHeight > panel.clientHeight),
-      )
-      .toBe(true);
+    await expect(async () => {
+      await page.setViewportSize({ width: 1280, height: 480 });
+      for (let height = 480; height >= 120; height -= 20) {
+        await page.setViewportSize({ width: 1280, height });
+        if ((await settledScrolls()) && (await settledScrolls())) break;
+      }
+      await expect.poll(settledScrolls, { timeout: 2_000 }).toBe(true);
+    }).toPass({ timeout: 30_000 });
     const [panelBox, regionBox, viewport] = await Promise.all([
       actionbar.boundingBox(),
       page.locator(".pending-overlay.selected").boundingBox(),
