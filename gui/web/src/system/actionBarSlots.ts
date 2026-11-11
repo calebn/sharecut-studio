@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import type { BarId } from "./editActionSets";
 import type { SystemIconName } from "./icons";
 
@@ -6,6 +7,12 @@ export type BarOption = {
   readonly label: string;
   readonly icon: SystemIconName;
   readonly pressed: boolean;
+};
+
+export type BarSplit = {
+  /** Names the chevron, the dock's options row and the content's dialog. */
+  readonly label: string;
+  readonly content: ReactNode;
 };
 
 export type BarItem = {
@@ -20,7 +27,26 @@ export type BarItem = {
   readonly disabledReason?: string;
   readonly describedBy?: string;
   readonly options?: readonly BarOption[];
+  /** A chevron beside the verb opens `content` in a popover; the dock gets a More row that opens it in a sheet. */
+  readonly split?: BarSplit;
 };
+
+/** The More row that opens a split verb's options; `onVerb` hears it as `(id, "options")`. */
+export const SPLIT_OPTIONS_ARG = "options";
+
+export function isOptionsRow(item: BarItem): boolean {
+  return item.split !== undefined && item.arg === SPLIT_OPTIONS_ARG;
+}
+
+function optionsRow(item: BarItem & { split: BarSplit }): BarItem {
+  return {
+    id: item.id,
+    arg: SPLIT_OPTIONS_ARG,
+    label: item.split.label,
+    split: item.split,
+    disabledReason: item.disabledReason,
+  };
+}
 
 /** Verb slots in the phone dock, the primary's included. Design-system element 7 and spec-edit. */
 const DOCK_VERB_SLOTS = 5;
@@ -54,8 +80,22 @@ export function foldDock(
     items.filter((item) => item.id !== "more" && item.id !== "inspect"),
   );
   const room = DOCK_VERB_SLOTS - (hasPrimary ? 1 : 0);
+  const kept = slots.slice(0, room).flat();
+  const moved = slots.slice(room).flat();
+  const splitRows = (rows: readonly BarItem[]) =>
+    rows.flatMap((item) =>
+      item.split ? [optionsRow({ ...item, split: item.split })] : [],
+    );
   return {
-    items: slots.slice(0, room).flat(),
-    more: [...slots.slice(room).flat(), ...more],
+    items: kept,
+    more: [
+      ...moved.flatMap((item) =>
+        item.split
+          ? [item, optionsRow({ ...item, split: item.split })]
+          : [item],
+      ),
+      ...splitRows(kept),
+      ...more,
+    ],
   };
 }

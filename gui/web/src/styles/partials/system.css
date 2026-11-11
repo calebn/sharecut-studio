@@ -4128,6 +4128,36 @@ button.sys-picker-option:focus-visible {
   align-items: center;
 }
 
+.sys-actions-split {
+  display: inline-flex;
+  align-items: center;
+}
+
+.sys-actions-split-chevron {
+  min-inline-size: calc(var(--control-height) / 2);
+  padding: 0;
+}
+
+.sys-split-popover {
+  position: fixed;
+  z-index: var(--z-menu);
+  inset: auto;
+  margin: 0;
+  box-sizing: border-box;
+  inline-size: min(17.5rem, calc(100vw - var(--space-4)));
+  max-block-size: 70dvh;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  overflow: auto;
+  background: var(--color-bg-overlay);
+  color: var(--color-text-on-overlay);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-floating);
+}
+
 .sys-actions--dock {
   position: relative;
   display: grid;
@@ -4376,8 +4406,13 @@ button.sys-scope:hover {
     min-inline-size: var(--touch-min);
   }
 
-  button.sys-scope {
+  button.sys-scope,
+  .sys-actions-split-chevron {
     min-block-size: var(--touch-min);
+  }
+
+  .sys-actions-split-chevron {
+    min-inline-size: calc(var(--touch-min) / 2);
   }
 }
 

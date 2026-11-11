@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { type CSSProperties, useRef } from "react";
+import { type CSSProperties, useRef, useState } from "react";
 import { expect, fn, userEvent, within } from "storybook/test";
 import type { EditRole } from "../edit/editSelection";
 import { viewportStoryParameters } from "../storybook/storyLayout";
@@ -9,10 +9,12 @@ import {
   EDIT_SELECTIONS,
 } from "../test/actionBarFixtures";
 import type { Selection } from "../types/project";
+import { SegmentedControl, ToggleButton } from "../ui";
 import { timelineChromeBottom } from "../utils/timelineChrome";
 import {
   ActionBar,
   type ActionBarProps,
+  type BarItem,
   SelectionCount,
   SelectionObject,
 } from "./ActionBar";
@@ -515,5 +517,134 @@ export const PhoneDockSocial: Story = {
       "Remove",
       "Approve",
     ]);
+  },
+};
+
+const SPLIT_SOURCES = [
+  { id: "mix", label: "Full mix" },
+  { id: "selected", label: "Selected tracks" },
+  { id: "soloed", label: "Soloed" },
+] as const;
+
+function RangeSplitOptions() {
+  const [source, setSource] = useState<string>("mix");
+  const [mp3, setMp3] = useState(false);
+  return (
+    <>
+      <SegmentedControl label="Source">
+        {SPLIT_SOURCES.map((option) => (
+          <ToggleButton
+            key={option.id}
+            quiet
+            pressed={source === option.id}
+            onClick={() => setSource(option.id)}
+          >
+            {option.label}
+          </ToggleButton>
+        ))}
+      </SegmentedControl>
+      <ToggleButton pressed={mp3} onClick={() => setMp3((on) => !on)}>
+        Also MP3
+      </ToggleButton>
+    </>
+  );
+}
+
+const withSplit = (items: readonly BarItem[]): BarItem[] =>
+  items.map((item) =>
+    item.id === "export"
+      ? {
+          ...item,
+          split: { label: "Export options", content: <RangeSplitOptions /> },
+        }
+      : item,
+  );
+
+function RangeSplitScene({ onVerb }: { onVerb: ActionBarProps["onVerb"] }) {
+  const anchorRef = useRef<HTMLDivElement>(null);
+  const scene = barScene(EDIT_SELECTIONS.rangeOnAllTracks, {});
+  const items = withSplit(scene.items);
+  return (
+    <main>
+      <div style={stage}>
+        <div ref={anchorRef} data-testid="ruler-selection" style={selected} />
+        <ActionBar
+          placement={{ form: "floating", anchorRef }}
+          leading={leadingFor(scene, true)}
+          items={items}
+          more={scene.more}
+          primary={scene.primary}
+          onVerb={onVerb}
+        />
+      </div>
+      <div
+        data-testid="phone-dock"
+        style={{
+          display: "flex",
+          flexDirection: "column",
+          justifyContent: "flex-end",
+          inlineSize: "24.375rem",
+          maxInlineSize: "100%",
+          blockSize: "10rem",
+        }}
+      >
+        <ActionBar
+          placement={{ form: "dock" }}
+          leading={leadingFor(scene, true)}
+          items={items}
+          more={scene.more}
+          primary={scene.primary}
+          onVerb={onVerb}
+        />
+      </div>
+    </main>
+  );
+}
+
+export const RangeSplit: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          "Export on a range with a split item. On desktop a chevron beside the verb opens an anchored popover (Escape closes it and returns focus to the chevron). On the phone dock the verb stays a plain button and More gains an Export options row that opens the same content in a content-height sheet. The Source and Also MP3 controls are placeholders for the real options. Animations come later: the popover and the sheet appear without easing.",
+      },
+    },
+  },
+  render: (args) => <RangeSplitScene onVerb={args.onVerb} />,
+  play: async ({ args, canvasElement }) => {
+    const canvas = within(canvasElement);
+    const body = within(canvasElement.ownerDocument.body);
+    const chevron = canvas.getByRole("button", { name: "Export options" });
+    await expect(chevron).toHaveAttribute("aria-haspopup", "dialog");
+    await userEvent.click(chevron);
+    const popover = await body.findByRole("dialog", { name: "Export options" });
+    await expect(
+      within(popover).getByRole("group", { name: "Source" }),
+    ).toBeVisible();
+    await userEvent.click(
+      within(popover).getByRole("button", { name: "Soloed" }),
+    );
+    await expect(
+      within(popover).getByRole("button", { name: "Soloed" }),
+    ).toHaveAttribute("aria-pressed", "true");
+    await userEvent.keyboard("{Escape}");
+    await expect(body.queryByRole("dialog")).toBeNull();
+    await expect(chevron).toHaveFocus();
+    const dock = within(canvas.getByTestId("phone-dock"));
+    await expect(
+      dock.queryByRole("button", { name: "Export options" }),
+    ).toBeNull();
+    await userEvent.click(dock.getByRole("button", { name: "More" }));
+    const menu = await body.findByRole("menu", { name: "More actions" });
+    await expect(
+      within(menu)
+        .getAllByRole("menuitem")
+        .map((item) => item.textContent)
+        .slice(0, 2),
+    ).toEqual(["Export", "Export options"]);
+    await userEvent.click(
+      within(menu).getByRole("menuitem", { name: "Export options" }),
+    );
+    await expect(args.onVerb).toHaveBeenLastCalledWith("export", "options");
   },
 };
