@@ -104,6 +104,7 @@ beforeEach(() => {
     isPlaying: false,
     selection: null,
     highlightStaleRender: false,
+    lastAgentQuery: null,
     shareCapabilities: null,
     guestMode: null,
   });
@@ -152,7 +153,8 @@ describe("TimelineView committed overlay geometry", () => {
     expect(first).toHaveFocus();
     scrollBox = new DOMRect(0, 100, 400, 500);
     act(() => {
-      useDawStore.setState({ highlightStaleRender: true });
+      // TimelineView reads this field but it does not touch the overlays.
+      useDawStore.setState({ lastAgentQuery: "unrelated" });
     });
     expect(screen.getByRole("menu")).toBe(original);
     expect(original.style.left).toBe("164px");
