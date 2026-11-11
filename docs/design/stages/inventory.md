@@ -36,13 +36,13 @@ Of the 154 non-interaction items: 67 have a story (yes), 32 partial, 55 none (co
 
 | ID | Surface | Reach | Files | Story | View split | Purpose |
 |---|---|---|---|---|---|---|
-| SCR-HOME | Host home, idle: the ShareCut wordmark as the app menu (Settings, Connect agent, Help), the Import audio and Record tiles, Recent with Open other…, and the Setup card while models are incomplete | Open `/` with no project, or `/?home=1`, or Menu > New project in the editor | `home/HomeScreen.tsx`, `ui/BrandMark.tsx`, `ui/CoverScreen.tsx` | NONE (atoms only: `ui/BrandMark.stories.tsx` Lockup, Symbol; `ui/CoverScreen.stories.tsx` WithHeading, StatusOnly) | Hook (useModels, api) | Entry point for choosing or creating an episode |
-| SCR-HOME-NEW | Home, New project form: Name, Workspace directory, Create, Cancel | Home > New project… | `home/HomeScreen.tsx`, `ui/Field.tsx` | NONE (`ui/Field.stories.tsx` Default, WithHint, WithError for the field only) | Hook | Create a workspace and open it |
-| SCR-HOME-OPEN | Home, Open project form: episode.sharecut path, Browse…, Open, Cancel | Home > Open project… | `home/HomeScreen.tsx` | NONE | Hook | Open an existing project (OS dialog or pasted path) |
-| SCR-HOME-ERROR | Home inline error alert (wrong filename, no OS dialog, switch blocked) | Submit a bad path in Open | `home/HomeScreen.tsx` | NONE | Hook | Explain why create or open failed |
-| SCR-SETUP | First-run setup wizard (replaces Home until models are ready or skipped): required, recommended and offered model rows, size summary, Continue, Skip for now | Open `/` with a fresh profile (no `sharecut.bootstrap.skip` in localStorage) and models not installed | `home/BootstrapWizard.tsx`, `models/ModelRow.tsx`, `models/VariantPicker.tsx`, `models/ModelProgress.tsx` | Row only: `models/ModelRow.stories.tsx` (Installed, Missing, UpdateNeeded, Queued, Downloading, DownloadingUnknownTotal, Failed, BlockedByAnotherDownload, SelectRequired, SelectOffered) | Hook (useModels) | Pick and download the models the product needs |
-| SCR-SETUP-CHECKING | Wizard, "Checking installed tools…" and load-error variants | Same, while `/api/bootstrap/status` is pending or fails | `home/BootstrapWizard.tsx` | NONE | Hook | Loading and error state of the wizard |
-| SCR-SETUP-DOWNLOAD | Wizard, downloading (Continue disabled, progress per row, summary "Download in progress") and tools-unavailable note | Click Continue in the wizard | `home/BootstrapWizard.tsx`, `models/ModelProgress.tsx` | Row states only (see above) | Hook | Progress while models download |
+| SCR-HOME | Host home, idle: the ShareCut wordmark as the app menu (Settings, Connect agent, Help), the Import audio and Record tiles, Recent with Open other…, and the Setup card while models are incomplete | Open `/` with no project, or `/?home=1`, or Menu > Project > Home in the editor | `stages/home/HomeScreen.tsx`, `stages/home/HomeView.tsx`, `ui/BrandMark.tsx`, `ui/CoverScreen.tsx` | `Stages/Home/Home` (Empty, WithRecents, CardMenu, AppMenu, FolderMoved, DropHover, Loading, Phone, PhoneEmpty and more) | View + hook (`HomeView` takes props; `HomeScreen` reads useModels and the api) | Entry point for choosing or creating an episode |
+| SCR-HOME-NEW | Removed. Home has no New project form: Import audio or Record creates the episode, the Stage bar renames it and Project settings > Saved in moves it | none | `stages/home/HomeScreen.tsx` (Import and Record paths) | `Stages/Home/Home` | View + hook | Records that the form no longer exists |
+| SCR-HOME-OPEN | Open other…: the OS folder picker, or in a plain browser a popover with one path field (placeholder "Folder of the episode") and Open | Home > Open other… (Mod+O) | `stages/home/OpenOther.tsx` | `Stages/Home/OpenOther` (Picker, PathFallback, PathError) | Props | Open an existing episode by folder |
+| SCR-HOME-ERROR | Inline error under the Open other… path field (wrong folder, no OS picker, switch blocked) | Submit a bad path in the Open other… popover | `stages/home/OpenOther.tsx` | `Stages/Home/OpenOther` PathError | Props | Explain why open failed, next to the field |
+| SCR-SETUP | Setup card on Home while required models are missing: "Get ready" (one bundle download) and "Choose…" (opens the Models sheet). It replaced the first-run wizard | Open `/` with a fresh profile and models not installed | `stages/home/SetupCard.tsx`, `models/ModelsSheet.tsx`, `models/ModelNeedRow.tsx` | `Stages/Home/SetupCard` (Needed, Downloading, Failed, Phone) | View + hook (useModels) | Download the models the product needs |
+| SCR-SETUP-CHECKING | Setup card, "Checking installed tools…" and check-error states | Same, while `/api/bootstrap/status` is pending or fails | `stages/home/SetupCard.tsx` | `Stages/Home/SetupCard` (Checking, CheckError) | View + hook | Loading and error state of the card |
+| SCR-SETUP-DOWNLOAD | Setup card, downloading (one bundle progress bar, time left, cancel) and the tools-missing note | Click Get ready on the card | `stages/home/SetupCard.tsx`, `models/ModelsSheet.tsx` | `Stages/Home/SetupCard` (Downloading, ToolsMissing) | View + hook | Progress while models download |
 | SCR-LOADING | Loading cover ("Loading project…", "Loading studio…", "Loading episode…") | Any route while features or the project bootstrap | `ui/LoadingScreen.tsx` | `ui/LoadingScreen.stories.tsx` (Default, ProjectLabel) | Props | Wait state before a route resolves |
 | SCR-ERROR | Error cover (share routes unavailable; "This link does not open the project."; invalid or ended recording link; bootstrap error) | `/r/<bad>`; `/rec/<bad>`; online extension not loaded | `ui/ErrorScreen.tsx`, `App.tsx` | `ui/ErrorScreen.stories.tsx` (Default, WithNextStep) | Props | Dead-end with a next step |
 | SCR-COVER | Generic cover shell (used by Declined, FullRoom, access ended) | via the screens that use it | `ui/CoverScreen.tsx` | `ui/CoverScreen.stories.tsx` (WithHeading, StatusOnly) | Props | Shared centered card layout |
@@ -344,8 +344,8 @@ Run the app: `uv run --extra gui podcast gui --host 127.0.0.1 --port <p> --no-op
 
 | IDs | Steps |
 |---|---|
-| SCR-HOME, SCR-HOME-NEW, SCR-HOME-OPEN, SCR-HOME-ERROR | Skip wizard first: `localStorage.setItem('sharecut.bootstrap.skip','1')` via init script. `goto('/')` (server must not pin a project; otherwise `/?home=1`). Buttons: `Import audio`, `Record`, `Open other…`; the `ShareCut app menu` button opens the menu items `Settings`, `Connect agent`, `Help`. New: fields `Name`, `Workspace directory`; Open: field `episode.sharecut`, buttons `Browse…`, `Open`, `Cancel`. Error: submit Open with a bad path and read `role=alert`. |
-| SCR-SETUP, SCR-SETUP-CHECKING, SCR-SETUP-DOWNLOAD | No skip key. Mock `**/api/bootstrap/status` (rows from `e2e/modelsMock.ts`), `/api/bootstrap/run`, `/events`, `/cancel`. `goto('/')`; `getByRole('region',{name:'Setup'})`, heading "Set up ShareCut Studio", buttons `Continue`, `Skip for now`. Checking: hold the status route. Load error: fulfil with 500. |
+| SCR-HOME, SCR-HOME-OPEN, SCR-HOME-ERROR | Mock `**/api/bootstrap/status` as ready (rows from `e2e/modelsMock.ts`). `goto('/')` (server must not pin a project; otherwise `/?home=1`). Buttons: `Import audio`, `Record`, `Open other…`; the `ShareCut app menu` button opens the menu items `Settings`, `Connect agent`, `Help`. Open other…: in a plain browser a popover with the field `Folder of the episode`; submit a bad folder and read the inline error under the field. SCR-HOME-NEW is removed. |
+| SCR-SETUP, SCR-SETUP-CHECKING, SCR-SETUP-DOWNLOAD | Mock `**/api/bootstrap/status` (rows from `e2e/modelsMock.ts`), `/api/bootstrap/run`, `/events`, `/cancel`. `goto('/')`; the Setup card shows `Get ready` and `Choose…`. Checking: hold the status route. Check error: fulfil with 500. |
 | SCR-LOADING | Delay `/api/project*` or `/api/review/<t>/bootstrap`; text "Loading project…" / "Loading studio…". |
 | SCR-ERROR, SCR-GUEST-LINK-INVALID, SCR-REC-INVALID | `goto('/r/not-a-token')`, `goto('/rec/not-a-token')`. |
 | SCR-RECOVERY | Request a project URL not served with `Accept: text/html`; page has links "Open …" and "Choose a different project…". |
@@ -397,8 +397,8 @@ Run the app: `uv run --extra gui podcast gui --host 127.0.0.1 --port <p> --no-op
 
 | Surface | Story | Notes |
 |---|---|---|
-| SCR-HOME, SCR-HOME-NEW, SCR-HOME-OPEN, SCR-HOME-ERROR | no | Needs a `HomeScreenView` split (state and callbacks as props); only BrandMark and Field atoms exist |
-| SCR-SETUP, -CHECKING, -DOWNLOAD | partial | ModelRow only; needs a `BootstrapWizardView` taking `models`, `tools`, `busy`, `loadError` |
+| SCR-HOME, SCR-HOME-NEW, SCR-HOME-OPEN, SCR-HOME-ERROR | yes | `Stages/Home/Home` and `Stages/Home/OpenOther`; SCR-HOME-NEW is removed |
+| SCR-SETUP, -CHECKING, -DOWNLOAD | yes | `Stages/Home/SetupCard` |
 | SCR-LOADING, SCR-ERROR, SCR-COVER | yes | |
 | SCR-RECOVERY | no | Server HTML |
 | SCR-SHELL-DESKTOP, -TABLET, -LOADING, -INGEST | partial | Real transport/timeline/panels/inspector are replaced by fixtures |
@@ -448,8 +448,8 @@ Tally of the 154 non-interaction items, counted from the Story columns: 67 yes, 
 
 ## 15. Prioritized gaps (screens and modals first)
 
-1. **SCR-HOME and SCR-HOME-NEW/OPEN** (first screen every host sees). Extract `HomeScreenView` (mode, name, dir, path, busyAction, error, models state, callbacks). Stories: Idle, SetupIncompleteLabel, NewForm, NewBusy, OpenForm, OpenBrowsing, Error.
-2. **SCR-SETUP wizard** (first-run). Extract `BootstrapWizardView(models, tools, busy, loadError, overrides)`. Stories: Checking, LoadError, Picking, ToolsUnavailable, Downloading, FailedRow, Stuck.
+1. **SCR-HOME and SCR-HOME-OPEN**: done. `HomeView` takes props; stories are `Stages/Home/Home` and `Stages/Home/OpenOther`.
+2. **SCR-SETUP**: done. The wizard became the Setup card; stories are `Stages/Home/SetupCard`.
 3. **DLG-MODELS** and **DLG-MODEL-GATE** (own stories for Ask, Downloading, Failed, Ready). Both already use props-driven `ModelRow`; split the `useModels` read from the render.
 4. **DLG-HELP**. Stories: Empty, BundleCreated, Consent, Submitting, Queued, Published, Failed, NoRelay. Move the api calls into an adapter.
 5. **DLG-RECORD (host Record room panel)**. Largest host-side surface with no story; compose the existing record parts (RecIndicator, Roster, HostUploadRoster, LiveComments, UploadStatus, RoomToneCapture) into a `RecordPanelView`: NoRoom, Checking, Lobby, Recording, Paused, Stopped, Landing.
