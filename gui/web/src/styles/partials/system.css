@@ -4412,7 +4412,7 @@ button.sys-scope:hover {
   }
 
   .sys-actions-split-chevron {
-    min-inline-size: calc(var(--touch-min) / 2);
+    min-inline-size: var(--touch-min);
   }
 }
 

@@ -193,7 +193,7 @@ There are three overlay primitives.
    Released external successes keep their observed copy after chip movement.
    Fresh chip copy and ready outcomes share one live-region write. A receipt
    failure replaces progress for its own job, while unrelated copy survives.
-   Only verified result fragments enter the success toast. A job's `summarizeResult` may add a toast action (Reveal, Download); the toast carries it only when exactly one verified outcome reaches it, and a merged toast drops it. Receipt failures
+   Only verified result fragments enter the success toast. A job's `summarizeResult` may add a toast action (Reveal, Download); the toast carries it only when exactly one verified outcome reaches it; results combined into one toast carry none. Receipt failures
    use the existing failure row while mounted and reach the shell live region
    even away from Deliver. Each distinct owned outcome is delivered even when its text matches
    the previous outcome. Resource changes do not replay an unchanged chip.
