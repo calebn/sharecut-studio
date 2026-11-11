@@ -154,8 +154,9 @@ function NavRow({
 
 /**
  * Settings from the app menu: Appearance, where the project is saved, the
- * episode's Longest automatic join fade, and the way into Models and Keyboard shortcuts. A side sheet on desktop and tablet,
- * a bottom sheet as tall as its rows on the phone. Rows act as they change.
+ * episode's Longest automatic join fade, and the way into Models and Keyboard
+ * shortcuts. A side sheet on desktop and tablet, a bottom sheet as tall as its
+ * rows on the phone. Rows act as they change.
  */
 export function SettingsSheet({
   open,

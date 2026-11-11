@@ -1,7 +1,7 @@
 // A fade set by hand is bounded by its clip only, as `join_modes.clamp_clip_fades`
 // bounds it: the Longest automatic join fade limits automatic join fades, never these.
 
-/** Longest edge fade (ms) a clip may take: its length in whole ms (floored, never negative), as `join_modes.clamp_clip_fades` computes it. */
+/** Longest edge fade (ms) a clip may take: its length in whole ms, floored, never negative. */
 export function maxFadeMs(clipDurationSec: number): number {
   return Math.max(0, Math.floor(clipDurationSec * 1000));
 }
