@@ -138,7 +138,6 @@ export function offlineConflict(
     reason?: string;
     recovery?: OfflineConflict["recovery"];
     blocksSave?: boolean;
-    /** The server's error code on a refused conflict. */
     code?: string;
   } = {},
 ): OfflineConflict {
