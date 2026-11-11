@@ -114,7 +114,8 @@ off.
 
 A revoke called with `restorable_for` (seconds) is undoable until that window ends. It is a
 service-level option; no HTTP route or client uses it yet, and the CLI, MCP and internal
-revokes (mint-time room revoke, auto-revoke of a vanished version) never pass it.
+revokes (mint-time room revoke, auto-revoke of a vanished version) never pass it. The window is
+clamped to 30 s, below the 60 s finalize lease.
 
 - **Revoke**: `begin_pending_revoke` runs in one `BEGIN IMMEDIATE` transaction. It snapshots each
   active row into `pending_revokes`, deletes it, and inserts the usual `revoked` cooldown row, so
@@ -138,11 +139,13 @@ revokes (mint-time room revoke, auto-revoke of a vanished version) never pass it
   the sidecar `restorable_until`, runs the effects, then deletes the pending row last. Effects are
   at-least-once and idempotent; a crashed sweeper's lease lapses and the next sweep retries. A
   final revoke of a pending link finalizes it at once.
-- **Sweeps** run on every restorable revoke, `create_record_room`, `list` / `list_presented`,
+- **Sweeps** run on `create_record_room`, `list` / `list_presented`,
   restore and host start (`sweep_all_pending`), and on a best-effort daemon `threading.Timer` set
   `restorable_for + 1 s` after the revoke. Correctness never depends on the timer.
 - **Crash repair**: a pending row whose sidecar is not flagged is flagged again; a live registry
-  row whose sidecar still says revoked and restorable is cleared; a lapsed lease is retried.
+  row whose sidecar still says revoked and restorable is cleared, as is a restorable marker on a
+  row that is neither pending nor active; a failed sidecar settle at finalize keeps the pending
+  row, and a lapsed lease is retried.
 
 ## Host registry (sqlite)
 

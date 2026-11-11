@@ -50,7 +50,7 @@ def clamp_window(seconds: float) -> float:
     return min(max(seconds, 0.0), MAX_RESTORABLE_WINDOW.total_seconds())
 
 
-def start_sweep_timer(delay: float, sweep: Callable[[], None]) -> None:
+def start_sweep_timer(delay: float, sweep: Callable[[], object]) -> None:
     """Best-effort latency helper: a daemon timer that sweeps once the window has closed.
 
     Correctness never depends on it; every list, mint, restore and host start sweeps too.
