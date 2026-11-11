@@ -1293,9 +1293,6 @@ class FFmpegEngine:
             parts.append(f"afade=t=out:st={st}:d={d}")
         return parts
 
-    def _gain_chain(self, gain_db: float) -> list[str]:
-        return [f"volume={gain_db}dB"] if gain_db else []
-
     def _mute_chain(
         self,
         seg_duration: float,
@@ -1435,7 +1432,8 @@ class FFmpegEngine:
                         origin=seek.first_sample(seg.src_start, source_rates[path]),
                     )
                 )
-            chain.extend(self._gain_chain(seg.gain_db))
+            if seg.gain_db:
+                chain.append(f"volume={seg.gain_db}dB")
             body = ",".join(chain) if chain else "anull"
             filters.append(
                 f"{src_labels[i]}{body}{observer(f'node_{source_node_indices[i]}')}[a{i}]"
@@ -2539,7 +2537,7 @@ class FFmpegEngine:
         """Extract [start_sec, end_sec] from src into output_path (non-destructive).
 
         ``mute_spans`` are seconds from the start of the extracted window (same
-        clock as ``mute_spans_for_source_window``). ``gain_db`` is baked into the output.
+        clock as ``mute_spans_for_source_window``).
         """
         output_path.parent.mkdir(parents=True, exist_ok=True)
         if mute_spans or gain_db:

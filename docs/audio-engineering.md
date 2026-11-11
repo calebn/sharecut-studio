@@ -274,12 +274,15 @@ The ceiling is part of the hash too, so a pipeline run with a different `mix.pre
 
 `Clip.gain_db` (`-60..+12` dB, default `0`) is the first level in the signal order: clip gain
 -> track chain and FX -> staging `gain_db` -> fader. It is applied as a `volume` stage on the
-clip's leaf after the edge fades and mute regions (`FFmpegEngine._gain_chain`, mirrored in
+clip's leaf after the edge fades and mute regions (mirrored in
 `audio_eval._source`), and also on room tone tiled under that clip's mutes so a filled mute
-stays level-matched. Silence filled between clips takes no gain. It is part of the stem
+stays level-matched. It is part of the stem
 render hash and the reconciliation fingerprint only while nonzero, so a project with no clip
-gain keeps its hashes. Source proxies and the bleed gate read raw source audio and ignore it.
-A saved segment bakes the gain into its audio; inserting it creates clips at unity. Because
+gain keeps its hashes. Occurrence source proxies read raw source audio and ignore it; their
+input identity does not move with clip gain. The bleed gate analysis reads the clip rows, so it
+may be recomputed after a gain edit, but its plan does not depend on the level. Timing holes
+inside a clip take its gain; gaps between clips take none. `strip_silence` rebuilds clips at
+gain 0. A saved segment bakes the gain into its audio; inserting it creates clips at unity. Because
 `balance_tracks` measures the stems, it measures them after clip gain and shifts the staging
 `gain_db` to compensate.
 

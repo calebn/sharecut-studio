@@ -13,7 +13,10 @@ from podcast_mcp.engines.ffmpeg import MASTER_SEMANTICS_REV, MIX_SEMANTICS_REV
 from podcast_mcp.engines.mastering import MasterTarget
 from podcast_mcp.engines.media_probe import probe_media
 from podcast_mcp.engines.mute_regions import IgnoredWordRegions, mute_regions_payload
-from podcast_mcp.engines.off_speaker_regions import nonempty_off_speaker_regions_payload
+from podcast_mcp.engines.off_speaker_regions import (
+    nonempty_off_speaker_regions_payload,
+    nonzero_gain_payload,
+)
 from podcast_mcp.engines.timeline_render import RENDER_SEMANTICS_REV, shell_micro_fade_ms
 from podcast_mcp.models import AutomationEnvelope, Clip, EpisodeProject, Track
 from podcast_mcp.util.atomic_json import write_text_atomic
@@ -90,9 +93,8 @@ def _track_render_hash(project: EpisodeProject, track_id: str, *, defaults: Effe
             "join_in_mode": c.join_in_mode.value,
             "mute_regions": mute_regions_payload(c.mute_regions),
             **nonempty_off_speaker_regions_payload(c),
+            **nonzero_gain_payload(c),
         }
-        if c.gain_db:
-            clip_payload["gain_db"] = c.gain_db
         borrow = crossfade_borrow_sec(project, previous, c, mutes) if previous is not None else 0.0
         if borrow > 0:
             clip_payload["join_borrow_sec"] = borrow

@@ -571,7 +571,7 @@ Do **not** expose Swagger on the public relay (`docs_url=None`). Host OpenAPI de
 | `SetClipFade` | `TimelineService.set_clip_fade` | `clip_id`, `fade_in_ms`, `fade_out_ms` |
 | `SetClipsFade` | `TimelineService.set_clips_fade` | `fades: [{clip_id, fade_in_ms, fade_out_ms, expected}]`, one history entry; any stale `expected` pair returns `clip_fade_changed` for all |
 | `SetClipGain` | `TimelineService.set_clip_gain` | `clip_id`, `gain_db` (`-60..+12` dB), `expected: {gain_db}`; a stale `expected` returns `clip_gain_changed` |
-| `SetClipsGain` | `TimelineService.set_clips_gain` | `gains: [{clip_id, gain_db, expected}]` absolute per-clip targets, each clamped, one history entry; any stale `expected` returns `clip_gain_changed` for all |
+| `SetClipsGain` | `TimelineService.set_clips_gain` | `gains: [{clip_id, gain_db, expected}]` absolute per-clip targets, each within `-60..+12` dB or refused, one history entry; any stale `expected` returns `clip_gain_changed` for all |
 | `TrimClipEdge` | `TimelineService.trim_clip_edge` | `clip_id`, `edge`, `source_sec`, `mode` (`ripple` \| `gap`), required `expected_token` from a boundary context minted for that mode |
 | `RollClipJoin` | `TimelineService.roll_clip_join` | `left_clip_id`, `right_clip_id`, `delta_sec`, required `expected_token` from boundary context. The clips must abut (`clips_abut`); across a gap the command is refused, HTTP 400 with `X-Sharecut-Error-Code: roll_needs_abutting_clips`, before the token is checked |
 | `SetJoinMode` | `TimelineService.set_join_mode` | `clip_id`, `join_in_mode` (`fade` \| `crossfade` \| `cut`) — mode only (fades untouched); the result adds the `join_*` render fields (`join_crossfade_blocked`) |
