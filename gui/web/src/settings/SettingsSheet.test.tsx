@@ -1,7 +1,19 @@
-import { act, render, screen, waitFor, within } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { moveProject, pickFolder, revealProject } from "../api";
+import {
+  moveProject,
+  pickFolder,
+  revealProject,
+  setJoinFadeLimitCommand,
+} from "../api";
 import { registerHostCommands } from "../commands/host";
 import { __resetThemeForTests, useTheme } from "../hooks/useTheme";
 import { ModelsSheet } from "../models";
@@ -32,6 +44,7 @@ vi.mock("../api", async (importOriginal) => ({
   revealProject: vi.fn(),
   pickFolder: vi.fn(),
   moveProject: vi.fn(),
+  setJoinFadeLimitCommand: vi.fn(async () => ({})),
   listRecentProjects: vi.fn(async () => []),
 }));
 
@@ -97,13 +110,14 @@ const rowNames = (sheet: HTMLElement) =>
     );
 
 describe("SettingsHost rows", () => {
-  it("in a project lists Appearance, Saved in, Models and Keyboard shortcuts", async () => {
+  it("in a project lists Appearance, Saved in, the join fade limit, Models and Keyboard shortcuts", async () => {
     inProject();
     render(<Harness />);
     const sheet = await openSettings();
     expect(rowNames(sheet)).toEqual([
       "Appearance",
       "Saved in",
+      "Longest automatic join fade",
       "Models",
       "Keyboard shortcuts",
     ]);
@@ -117,6 +131,127 @@ describe("SettingsHost rows", () => {
     render(<Harness />);
     const sheet = await openSettings();
     expect(rowNames(sheet)).toEqual(["Appearance", "Models"]);
+  });
+});
+
+describe("Longest automatic join fade", () => {
+  const LABEL = "Longest automatic join fade";
+  const withLimit = (ms: number, defaultMs = 40) => {
+    const project = minimalProject();
+    useDawStore.getState().hydrate(PROJECT_PATH, {
+      ...project,
+      clips: {
+        ...project.clips,
+        join_fade_limit_ms: ms,
+        join_fade_limit_default_ms: defaultMs,
+      },
+    });
+  };
+  const field = (sheet: HTMLElement) =>
+    within(sheet).getByRole("spinbutton", { name: LABEL });
+  const typeMs = async (sheet: HTMLElement, text: string) => {
+    fireEvent.keyDown(field(sheet), { key: "Enter" });
+    const input = within(sheet).getByRole("textbox", { name: LABEL });
+    fireEvent.change(input, { target: { value: text } });
+    await act(async () => {
+      fireEvent.keyDown(input, { key: "Enter" });
+    });
+  };
+
+  beforeEach(() => {
+    vi.mocked(setJoinFadeLimitCommand).mockReset().mockResolvedValue({});
+  });
+
+  it("shows the limit in force, 0 to 200 ms, and says it limits only automatic fades", async () => {
+    withLimit(40);
+    render(<Harness />);
+    const sheet = await openSettings();
+    expect(field(sheet)).toHaveAttribute("aria-valuenow", "40");
+    expect(field(sheet)).toHaveAttribute("aria-valuemin", "0");
+    expect(field(sheet)).toHaveAttribute("aria-valuemax", "200");
+    expect(field(sheet)).toHaveAccessibleDescription(
+      "ShareCut picks each automatic join fade up to this length. Fades you set yourself are not limited.",
+    );
+    await expectNoA11yViolations(sheet);
+  });
+
+  it("saves a typed limit for the episode", async () => {
+    withLimit(40);
+    render(<Harness />);
+    const sheet = await openSettings();
+    await typeMs(sheet, "120");
+    expect(setJoinFadeLimitCommand).toHaveBeenCalledOnce();
+    expect(setJoinFadeLimitCommand).toHaveBeenCalledWith(PROJECT_PATH, 120);
+  });
+
+  it("steps by 5 ms with the arrow keys", async () => {
+    withLimit(40);
+    render(<Harness />);
+    const sheet = await openSettings();
+    await act(async () => {
+      fireEvent.keyDown(field(sheet), { key: "ArrowUp" });
+    });
+    expect(setJoinFadeLimitCommand).toHaveBeenCalledWith(PROJECT_PATH, 45);
+  });
+
+  it("goes back to the app default from the reset dot, storing nothing", async () => {
+    withLimit(120, 60);
+    const user = userEvent.setup();
+    render(<Harness />);
+    const sheet = await openSettings();
+    await user.click(
+      within(sheet).getByRole("button", { name: `Reset ${LABEL} to 60 ms` }),
+    );
+    expect(setJoinFadeLimitCommand).toHaveBeenCalledWith(PROJECT_PATH, null);
+  });
+
+  it("refuses a limit over 200 ms without saving", async () => {
+    withLimit(40);
+    render(<Harness />);
+    const sheet = await openSettings();
+    await typeMs(sheet, "250");
+    expect(setJoinFadeLimitCommand).not.toHaveBeenCalled();
+  });
+
+  it("shows the server's refusal under the row", async () => {
+    withLimit(40);
+    vi.mocked(setJoinFadeLimitCommand).mockRejectedValue(
+      new ApiError(
+        "Longest automatic join fade must be between 0 and 200 ms.",
+        "out_of_range",
+        400,
+      ),
+    );
+    render(<Harness />);
+    const sheet = await openSettings();
+    await typeMs(sheet, "120");
+    expect(
+      await within(sheet).findByText(/must be between 0 and 200 ms/),
+    ).toBeVisible();
+    expect(field(sheet)).toHaveAttribute("aria-valuenow", "40");
+  });
+
+  it("is read-only, with the reason, for a link that can only view", async () => {
+    withLimit(40);
+    useDawStore.setState({
+      projectPath: "share:ep",
+      guestMode: "viewer",
+      shareCapabilities: ["view"],
+    });
+    render(<Harness />);
+    const sheet = await openSettings();
+    expect(field(sheet)).toHaveAttribute("aria-readonly", "true");
+    expect(within(sheet).getByText(/can view, but not change/)).toBeVisible();
+    await act(async () => {
+      fireEvent.keyDown(field(sheet), { key: "ArrowUp" });
+    });
+    expect(setJoinFadeLimitCommand).not.toHaveBeenCalled();
+  });
+
+  it("is absent on Home", async () => {
+    render(<Harness />);
+    const sheet = await openSettings();
+    expect(within(sheet).queryByRole("spinbutton", { name: LABEL })).toBeNull();
   });
 });
 

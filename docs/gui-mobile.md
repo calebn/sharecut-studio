@@ -768,6 +768,6 @@ The native labeled inputs and preview list wrap within the panel and scroll with
 
 ### Crossfade length on Timeline
 
-Select a Seam diamond to set its length in the seam sheet: the **Length** Scrub field (0 to 500 ms). On a phone the sheet docks above the bar; a drag shows the draft overlap on the timeline and release saves one coupled join change. Canceling restores the saved overlap. Stored unequal fades stay until an intentional edit sets both edges equally.
+Select a Seam diamond to set its length in the seam sheet: the **Length** Scrub field (from 0 up to what the two clips leave). On a phone the sheet docks above the bar; a drag shows the draft overlap on the timeline and release saves one coupled join change. Canceling restores the saved overlap. Stored unequal fades stay until an intentional edit sets both edges equally.
 
 Moving a clip without dragging, and the panel size controls, are described in [daw-editing.md § Move clips without dragging](daw-editing.md#move-clips-without-dragging).

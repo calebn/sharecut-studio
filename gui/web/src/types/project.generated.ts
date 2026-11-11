@@ -505,7 +505,6 @@ export interface TrackView {
   has_source_audio?: boolean;
   media_path?: string | null;
   speaker_split_id?: string | null;
-  fade_max_ms?: number | null;
   room_tone_kind?: "none" | "recorded" | "extracted";
 }
 

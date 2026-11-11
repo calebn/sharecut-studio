@@ -143,11 +143,21 @@ describe("seam sheet", () => {
     expect(screen.queryByRole("spinbutton", { name: "Length" })).toBeNull();
   });
 
-  it("offers a length from zero up to 500 ms for a fade", () => {
+  it("offers a fade length from zero up to what the clips leave, past 500 ms", () => {
     open(right({ join_in_mode: "fade" }));
     expect(field()).toHaveAttribute("aria-valuemin", "0");
-    expect(Number(field().getAttribute("aria-valuemax"))).toBeLessThanOrEqual(
-      500,
+    expect(field()).toHaveAttribute("aria-valuemax", "2000");
+  });
+
+  it("commits an 800 ms fade length the clips have room for", async () => {
+    open(right({ join_in_mode: "fade" }));
+    await typeLength("800");
+    expect(setClipJoin).toHaveBeenCalledWith(
+      "/tmp/ep.json",
+      "c1",
+      "c2",
+      "fade",
+      800,
     );
   });
 

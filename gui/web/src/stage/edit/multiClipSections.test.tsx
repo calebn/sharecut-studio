@@ -47,11 +47,11 @@ const second: ClipRow = {
   fade_out_curve: "s",
 };
 
-function open(clips: ClipRow[] = [first, second], cap: number | null = 100) {
+function open(clips: ClipRow[] = [first, second]) {
   useDawStore.getState().hydrate(
     "/tmp/ep.json",
     minimalProject({
-      tracks: [sampleTrack({ id: "host", speaker: "Mira", fade_max_ms: cap })],
+      tracks: [sampleTrack({ id: "host", speaker: "Mira" })],
       clips: { tracks: { host: clips }, clip_count: clips.length },
     }),
   );
@@ -154,33 +154,43 @@ describe("several clips", () => {
     expect(setClipFade).not.toHaveBeenCalled();
   });
 
-  it("clamps each clip by its own limits", async () => {
-    open();
+  it("clamps each clip by its own length", async () => {
+    const short = { ...second, source_end: 2.125, timeline_end: 2.125 };
+    open([first, short]);
     await type("Fade out", "100");
     expect(setClipsFade).toHaveBeenCalledWith("/tmp/ep.json", [
       {
         clip_id: "c1",
         fade_in_ms: 10,
-        fade_out_ms: 100,
+        fade_out_ms: 120,
         expected: baseline(first),
       },
       {
         clip_id: "c2",
         fade_in_ms: 10,
-        fade_out_ms: 100,
-        expected: baseline(second),
+        fade_out_ms: 115,
+        expected: baseline(short),
       },
     ]);
   });
 
   it("leaves a clip at its limit out of the command", async () => {
-    open([first, { ...second, fade_in_ms: 100 }]);
+    open([
+      first,
+      {
+        ...second,
+        source_end: 2.125,
+        timeline_end: 2.125,
+        fade_in_ms: 125,
+        fade_out_ms: 0,
+      },
+    ]);
     await key("Fade in", "End");
     expect(setClipsFade).toHaveBeenCalledWith("/tmp/ep.json", [
       {
         clip_id: "c1",
-        fade_in_ms: 100,
-        fade_out_ms: 20,
+        fade_in_ms: 2000,
+        fade_out_ms: 0,
         expected: baseline(first),
       },
     ]);

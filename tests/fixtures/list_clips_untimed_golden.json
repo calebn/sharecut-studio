@@ -1,5 +1,6 @@
 {
   "clip_count": 2,
+  "join_fade_limit_default_ms": 40,
   "join_fade_limit_ms": 40,
   "tracks": {
     "host": [

@@ -35,7 +35,6 @@ function Harness({ handle }: { handle: "fade-in" | "trim-out" }) {
   const h = useClipEdgeHandles({
     clip,
     trackId: "host",
-    fadeMaxMs: null,
     neighborSourceLo: bounds.neighborLo,
     neighborSourceHi: bounds.neighborHi,
     zoomPxPerSec: 50,

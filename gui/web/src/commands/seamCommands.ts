@@ -84,9 +84,7 @@ export async function setSeamJoin(
   const current = seamById(project, seam.id);
   if (!current) return SKIPPED;
   const { left, right } = current;
-  const fadeMax =
-    project.tracks.find((t) => t.id === current.trackId)?.fade_max_ms ?? null;
-  const range = appliedJoinLength(left, right, fadeMax);
+  const range = appliedJoinLength(left, right);
   let sent: number | null = null;
   if (mode === "crossfade") {
     if (range.max < 1 || right.join_crossfade_blocked) return SKIPPED;

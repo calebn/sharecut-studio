@@ -37,7 +37,6 @@ import { magnetSec, snapActive } from "./snapOverlay";
 type Context = {
   clip: ClipRow;
   trackId: string;
-  fadeMaxMs: number | null;
   neighborSourceLo: number;
   neighborSourceHi: number;
   zoomPxPerSec: number;
@@ -98,7 +97,7 @@ function projectEdge(draft: Draft, candidate: number): Draft {
     const other = draft.edge === "in" ? clip.fade_out_ms : clip.fade_in_ms;
     const value = clampFadeMs(
       candidate,
-      edgeFadeMaxMs(clip.source_end - clip.source_start, c.fadeMaxMs, other),
+      edgeFadeMaxMs(clip.source_end - clip.source_start, other),
     );
     return {
       ...draft,
@@ -199,15 +198,10 @@ export function useClipEdgeHandles(context: Context) {
     const lane = project?.clips.tracks[capture.clip.track_id] ?? [];
     const index = lane.findIndex((row) => row.id === capture.clip.id);
     const savedClip = lane[index];
-    const savedTrack = project?.tracks.find(
-      (track) => track.id === capture.clip.track_id,
-    );
     const savedGeometryMatches =
       (project == null && s.project == null) ||
       (savedClip != null &&
         sameGeometry(savedClip, capture.clip) &&
-        savedTrack != null &&
-        (savedTrack.fade_max_ms ?? null) === capture.fadeMaxMs &&
         sameTrimBounds(lane, index, capture));
     return (
       mounted.current &&
@@ -218,7 +212,6 @@ export function useClipEdgeHandles(context: Context) {
       canApplyPass12(s.projectPath, s.guestMode, s.shareCapabilities) &&
       c.trackId === capture.trackId &&
       sameGeometry(c.clip, capture.clip) &&
-      c.fadeMaxMs === capture.fadeMaxMs &&
       c.neighborSourceLo === capture.neighborSourceLo &&
       c.neighborSourceHi === capture.neighborSourceHi
     );
@@ -235,7 +228,6 @@ export function useClipEdgeHandles(context: Context) {
     const capture: Capture = {
       clip: c.clip,
       trackId: c.trackId,
-      fadeMaxMs: c.fadeMaxMs,
       neighborSourceLo: c.neighborSourceLo,
       neighborSourceHi: c.neighborSourceHi,
       zoomPxPerSec: c.zoomPxPerSec,

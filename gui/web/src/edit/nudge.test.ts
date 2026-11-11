@@ -43,7 +43,7 @@ const right = clipRow({
   timeline_end: 40,
 });
 const project: ProjectView = minimalProject({
-  tracks: [sampleTrack({ id: "host", duration_sec: 60, fade_max_ms: null })],
+  tracks: [sampleTrack({ id: "host", duration_sec: 60 })],
   clips: { tracks: { host: [left, clip, right] }, clip_count: 3 },
   pending_edits: [
     pendingEditView({

@@ -1,7 +1,8 @@
-import { type RefObject, useEffect, useRef } from "react";
+import { type RefObject, useEffect, useId, useRef } from "react";
 import type { ThemePreference } from "../hooks/useTheme";
 import { AppearanceControl } from "../system/AppearanceControl";
 import type { SystemIconName } from "../system/icons";
+import { ScrubField } from "../system/ScrubField";
 import { Sheet } from "../system/Sheet";
 import { SystemIcon } from "../system/SystemIcon";
 import { Button, InlineError } from "../ui";
@@ -18,6 +19,24 @@ export type SettingsSavedIn = {
   error: string | null;
 };
 
+const JOIN_FADE_LIMIT_MAX_MS = 200;
+const JOIN_FADE_LIMIT_STEP_MS = 5;
+const JOIN_FADE_LIMIT_LABEL = "Longest automatic join fade";
+const JOIN_FADE_LIMIT_HELP =
+  "ShareCut picks each automatic join fade up to this length. Fades you set yourself are not limited.";
+
+export type SettingsJoinFadeLimit = {
+  /** Null until the episode's clips have loaded. */
+  valueMs: number | null;
+  /** The app default; the reset dot returns to it. */
+  defaultMs: number;
+  /** Left out where the person may not edit the episode, with the reason in `readOnlyReason`. */
+  onCommit?: (ms: number) => void;
+  readOnlyReason?: string;
+  saving: boolean;
+  error: string | null;
+};
+
 export type SettingsSheetProps = {
   open: boolean;
   onClose: () => void;
@@ -26,6 +45,8 @@ export type SettingsSheetProps = {
   onTheme: (preference: ThemePreference) => void;
   /** Inside a project only. */
   savedIn?: SettingsSavedIn;
+  /** Inside a project only. */
+  joinFadeLimit?: SettingsJoinFadeLimit;
   onOpenModels: () => void;
   /** Inside a project only. */
   onOpenShortcuts?: () => void;
@@ -66,6 +87,51 @@ function middleTruncate(path: string): string {
     : `${path.slice(0, KEEP_START)}…${path.slice(-KEEP_END)}`;
 }
 
+function JoinFadeLimitRow({
+  valueMs,
+  defaultMs,
+  onCommit,
+  readOnlyReason,
+  saving,
+  error,
+}: SettingsJoinFadeLimit) {
+  const helpId = useId();
+  const reasonId = useId();
+  return (
+    <section
+      className="settings-sheet-section"
+      aria-label={JOIN_FADE_LIMIT_LABEL}
+    >
+      <h3 className="settings-sheet-label">{JOIN_FADE_LIMIT_LABEL}</h3>
+      <ScrubField
+        label={JOIN_FADE_LIMIT_LABEL}
+        value={valueMs}
+        emptyText="Loading…"
+        unit="ms"
+        min={0}
+        max={JOIN_FADE_LIMIT_MAX_MS}
+        step={JOIN_FADE_LIMIT_STEP_MS}
+        decimals={0}
+        integerOnly
+        defaultValue={defaultMs}
+        skipUnchanged
+        readOnly={!onCommit || saving || valueMs === null}
+        describedBy={readOnlyReason ? `${helpId} ${reasonId}` : helpId}
+        onCommit={(ms) => onCommit?.(ms)}
+      />
+      <p id={helpId} className="settings-sheet-help">
+        {JOIN_FADE_LIMIT_HELP}
+      </p>
+      {readOnlyReason ? (
+        <p id={reasonId} className="settings-sheet-help">
+          {readOnlyReason}
+        </p>
+      ) : null}
+      <InlineError message={error} />
+    </section>
+  );
+}
+
 function NavRow({
   icon,
   label,
@@ -87,8 +153,8 @@ function NavRow({
 }
 
 /**
- * Settings from the app menu: Appearance, where the project is saved, and the
- * way into Models and Keyboard shortcuts. A side sheet on desktop and tablet,
+ * Settings from the app menu: Appearance, where the project is saved, the
+ * episode's Longest automatic join fade, and the way into Models and Keyboard shortcuts. A side sheet on desktop and tablet,
  * a bottom sheet as tall as its rows on the phone. Rows act as they change.
  */
 export function SettingsSheet({
@@ -98,6 +164,7 @@ export function SettingsSheet({
   theme,
   onTheme,
   savedIn,
+  joinFadeLimit,
   onOpenModels,
   onOpenShortcuts,
 }: SettingsSheetProps) {
@@ -159,6 +226,7 @@ export function SettingsSheet({
             <InlineError message={savedIn.error} />
           </section>
         ) : null}
+        {joinFadeLimit ? <JoinFadeLimitRow {...joinFadeLimit} /> : null}
         <div className="settings-sheet-nav-list">
           <NavRow
             icon="cloud-download"

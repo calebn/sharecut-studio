@@ -1,6 +1,6 @@
 import { act, fireEvent, render, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { trimClipEdge } from "../api";
+import { setClipFade, trimClipEdge } from "../api";
 import { runFocusedClipHandle } from "../commands/focusedClipHandle";
 import { trimNeighborBounds } from "../edit/trimLimits";
 import { useDawStore } from "../state/dawStore";
@@ -10,6 +10,7 @@ import { useClipEdgeHandles } from "./useClipEdgeHandles";
 vi.mock("../api", async (original) => ({
   ...(await original<typeof import("../api")>()),
   trimClipEdge: vi.fn(async () => ({ queued: false, asked: false })),
+  setClipFade: vi.fn(async () => ({ queued: false, asked: false })),
 }));
 vi.mock("../api/boundary", async (original) => ({
   ...(await original<typeof import("../api/boundary")>()),
@@ -27,7 +28,6 @@ function Harness() {
   const h = useClipEdgeHandles({
     clip,
     trackId: "t1",
-    fadeMaxMs: null,
     neighborSourceLo: bounds.neighborLo,
     neighborSourceHi: bounds.neighborHi,
     zoomPxPerSec: 50,
@@ -43,6 +43,33 @@ function Harness() {
       onFocus={(e) => h.onFocus("trim-in", e)}
     >
       Trim
+    </button>
+  );
+}
+
+function FadeHarness() {
+  const bounds = trimNeighborBounds(
+    useDawStore.getState().project!.clips.tracks.t1,
+    0,
+    "ripple",
+  );
+  const h = useClipEdgeHandles({
+    clip,
+    trackId: "t1",
+    neighborSourceLo: bounds.neighborLo,
+    neighborSourceHi: bounds.neighborHi,
+    zoomPxPerSec: 50,
+    getTicks: () => [],
+    onSelect: () => {},
+  });
+  return (
+    <button
+      type="button"
+      onPointerDown={(e) => h.onPointerDown("fade-in", e)}
+      onPointerMove={h.onPointerMove}
+      onPointerUp={h.onPointerUp}
+    >
+      Fade in
     </button>
   );
 }
@@ -133,5 +160,43 @@ describe("a trim-handle drag interrupted by the window", () => {
       });
     });
     await waitFor(() => expect(trimClipEdge).toHaveBeenCalledOnce());
+  });
+});
+
+describe("a fade-handle drag whose clip limits change", () => {
+  it("is discarded when the saved clip's other fade changes, and saves nothing", async () => {
+    vi.mocked(setClipFade).mockClear();
+    const button = render(<FadeHarness />).getByRole("button");
+    fireEvent.pointerDown(button, { pointerId: 7, clientX: 100 });
+    fireEvent.pointerMove(button, { pointerId: 7, clientX: 120 });
+    act(() => {
+      const project = useDawStore.getState().project!;
+      useDawStore.getState().hydrate(
+        "/tmp/interrupt.project.json",
+        minimalProject({
+          tracks: project.tracks,
+          clips: {
+            tracks: { t1: [{ ...clip, fade_out_ms: 900 }] },
+            clip_count: 1,
+          },
+        }),
+      );
+    });
+    fireEvent.pointerMove(button, { pointerId: 7, clientX: 130 });
+    await act(async () =>
+      fireEvent.pointerUp(button, { pointerId: 7, clientX: 130 }),
+    );
+    expect(setClipFade).not.toHaveBeenCalled();
+  });
+
+  it("saves the dragged fade when the limits hold", async () => {
+    vi.mocked(setClipFade).mockClear();
+    const button = render(<FadeHarness />).getByRole("button");
+    fireEvent.pointerDown(button, { pointerId: 8, clientX: 100 });
+    fireEvent.pointerMove(button, { pointerId: 8, clientX: 120 });
+    await act(async () =>
+      fireEvent.pointerUp(button, { pointerId: 8, clientX: 120 }),
+    );
+    await waitFor(() => expect(setClipFade).toHaveBeenCalledOnce());
   });
 });

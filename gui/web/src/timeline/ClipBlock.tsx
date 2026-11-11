@@ -49,8 +49,6 @@ export interface ClipBlockProps {
   /** Speaker identity from the clip's origin track, for labels and names. */
   trackSpeaker?: string;
   zoomPxPerSec: number;
-  /** The server's edge-fade cap for this track (TrackView.fade_max_ms). */
-  fadeMaxMs?: number | null;
   color: string;
   selected: boolean;
   /** Media the clip draws (`waveform/mediaRef.clipMediaRef`). */
@@ -110,7 +108,6 @@ export function ClipBlockLive({
   trackLabel,
   trackSpeaker,
   zoomPxPerSec,
-  fadeMaxMs = null,
   color,
   selected,
   mediaRef,
@@ -204,7 +201,6 @@ export function ClipBlockLive({
   const edgeHandles = useClipEdgeHandles({
     clip,
     trackId,
-    fadeMaxMs,
     neighborSourceLo,
     neighborSourceHi,
     zoomPxPerSec,

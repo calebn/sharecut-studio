@@ -64,9 +64,6 @@ export function multiClipSections({
       ...clipIdsBeforeBlend(lane),
     ]),
   );
-  const capOf = (clip: ClipRow) =>
-    project?.tracks.find((t) => t.id === clip.track_id)?.fade_max_ms;
-  const capKnown = clips.every((clip) => capOf(clip) !== undefined);
   const secOf = (clip: ClipRow) => clip.source_end - clip.source_start;
 
   const field = (edge: Edge) => {
@@ -75,10 +72,7 @@ export function multiClipSections({
     );
     const values = new Set(reach.map((clip) => fadeOf(clip, edge)));
     const common = values.size === 1 ? [...values][0] : null;
-    const ceiling = Math.max(
-      0,
-      ...reach.map((clip) => maxFadeMs(secOf(clip), capOf(clip))),
-    );
+    const ceiling = Math.max(0, ...reach.map((clip) => maxFadeMs(secOf(clip))));
     const apply = (value: number) => {
       const delta = value - (common ?? 0);
       const fades = reach.flatMap((clip) => {
@@ -86,7 +80,6 @@ export function multiClipSections({
           clip.fade_in_ms + (edge === "in" ? delta : 0),
           clip.fade_out_ms + (edge === "out" ? delta : 0),
           secOf(clip),
-          capOf(clip),
         );
         return next.inMs === clip.fade_in_ms && next.outMs === clip.fade_out_ms
           ? []
@@ -115,7 +108,7 @@ export function multiClipSections({
         integerOnly
         min={common === null ? -ceiling : 0}
         max={ceiling}
-        readOnly={locked || !capKnown || reach.length === 0}
+        readOnly={locked || reach.length === 0}
         onCommit={apply}
       />
     );

@@ -56,7 +56,7 @@ export interface ChromeFlags {
   helpDialogStep: HelpStep;
   /** Models sheet: every model, its state and download. */
   modelsSheetOpen: boolean;
-  /** Settings sheet: Appearance, Saved in, Models and Keyboard shortcuts. */
+  /** Settings sheet: Appearance, Saved in, Longest automatic join fade, Models and Keyboard shortcuts. */
   settingsSheetOpen: boolean;
   /** Transcript find/replace panel open. */
   transcriptFindReplaceOpen: boolean;

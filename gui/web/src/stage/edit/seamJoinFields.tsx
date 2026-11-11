@@ -29,7 +29,6 @@ import { useSeamReplay } from "./useSeamReplay";
 
 type Rows = InspectorSection["rows"];
 
-const MAX_JOIN_LENGTH_MS = 500;
 const NO_ROOM_NOTE = "The clips leave no room to roll";
 
 const CROSSFADE_BLOCKED_REASON: Record<string, string> = {
@@ -162,10 +161,8 @@ export function useSeamJoinFields(
   const editable = canApplyPass12(projectPath, guestMode, shareCapabilities);
   const { left, right } = seam;
   const mode = joinModeOf(right);
-  const fadeMax =
-    project.tracks.find((t) => t.id === seam.trackId)?.fade_max_ms ?? null;
-  const range = appliedJoinLength(left, right, fadeMax);
-  const max = Math.min(MAX_JOIN_LENGTH_MS, range.max);
+  const range = appliedJoinLength(left, right);
+  const { max } = range;
   const crossfade = mode === "crossfade";
   const draft = crossfade ? draftMs : null;
   const reducedOut =
@@ -174,7 +171,6 @@ export function useSeamJoinFields(
           draft,
           right.fade_out_ms,
           right.source_end - right.source_start,
-          fadeMax,
         ).outMs
       : right.fade_out_ms;
   const blocked = right.join_crossfade_blocked
@@ -290,7 +286,7 @@ export function joinTypeRows(f: SeamJoinFields): Rows {
       label,
       control: (
         <SegmentedControl label={label}>
-          {joinTypeChoices(f.seam, f.project).map((option) => (
+          {joinTypeChoices(f.seam).map((option) => (
             <ToggleButton
               key={option.value}
               quiet

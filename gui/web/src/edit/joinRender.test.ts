@@ -563,7 +563,7 @@ describe("appliedJoinLength", () => {
 
   it("reports the length the join holds within its range", () => {
     const right = clipRow({ source_start: 5, source_end: 10, fade_in_ms: 120 });
-    const { min, max, saved } = appliedJoinLength(left, right, 2000);
+    const { min, max, saved } = appliedJoinLength(left, right);
     expect(min).toBe(0);
     expect(saved).toBe(120);
     expect(max).toBeGreaterThanOrEqual(saved);
@@ -576,16 +576,27 @@ describe("appliedJoinLength", () => {
       join_in_mode: "crossfade",
       join_crossfade_ms: 0,
     });
-    const { min, saved } = appliedJoinLength(left, right, 2000);
+    const { min, saved } = appliedJoinLength(left, right);
     expect(min).toBe(1);
     expect(saved).toBeGreaterThanOrEqual(1);
   });
 
-  it("clamps a stored length to the track cap", () => {
+  it("keeps a long dialogue join the clips have room for", () => {
     const right = clipRow({ source_start: 5, source_end: 10, fade_in_ms: 900 });
-    const { max, saved } = appliedJoinLength(left, right, 300);
-    expect(max).toBeLessThanOrEqual(300);
-    expect(saved).toBe(max);
+    const { max, saved } = appliedJoinLength(left, right);
+    expect(max).toBe(5000);
+    expect(saved).toBe(900);
+  });
+
+  it("clamps a stored length to the shorter clip", () => {
+    const right = clipRow({
+      source_start: 5,
+      source_end: 5.5,
+      fade_in_ms: 900,
+    });
+    const { max, saved } = appliedJoinLength(left, right);
+    expect(max).toBe(500);
+    expect(saved).toBe(500);
   });
 });
 

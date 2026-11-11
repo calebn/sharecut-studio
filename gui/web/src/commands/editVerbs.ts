@@ -172,7 +172,7 @@ function joinTypeItem(s: DawState): BarItem | null {
   return {
     id: "joinType",
     ...(s.joinMutationInFlight ? { disabledReason: BUSY_REASON } : {}),
-    options: joinTypeChoices(seam, project).map((option) => ({
+    options: joinTypeChoices(seam).map((option) => ({
       ...option,
       pressed: option.value === mode,
     })),

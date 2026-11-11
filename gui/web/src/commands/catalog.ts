@@ -816,11 +816,12 @@ export const COMMANDS: Record<string, CommandDef> = {
       "saved in",
       "folder",
       "reveal",
+      "join fade",
     ],
     home: true,
     when: "canManageProjects",
     notes:
-      "Host-only sheet from the app menu: Appearance, Saved in, Models and Keyboard shortcuts; desktop app: Cmd+, (macOS), Ctrl+, (Linux)",
+      "Host-only sheet from the app menu: Appearance, Saved in, Longest automatic join fade, Models and Keyboard shortcuts; desktop app: Cmd+, (macOS), Ctrl+, (Linux)",
   },
   "export.deliverables": {
     id: "export.deliverables",
