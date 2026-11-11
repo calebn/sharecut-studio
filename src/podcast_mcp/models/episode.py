@@ -88,6 +88,14 @@ class ClipJoinMode(StrEnum):
     CUT = "cut"
 
 
+class FadeCurve(StrEnum):
+    """The shape of a clip edge's fade. Linear is the default and is left out of the file."""
+
+    LINEAR = "linear"
+    EQUAL_POWER = "equal_power"
+    S = "s"
+
+
 class SourceSpan(BaseModel):
     """``[start_s, end_s)`` in source-media seconds."""
 
@@ -372,6 +380,8 @@ class Clip(BaseModel):
     source_id: str | None = None
     fade_in_ms: int = 0
     fade_out_ms: int = 0
+    fade_in_curve: FadeCurve = FadeCurve.LINEAR
+    fade_out_curve: FadeCurve = FadeCurve.LINEAR
     gain_db: float = Field(
         default=0.0, ge=CLIP_GAIN_MIN_DB, le=CLIP_GAIN_MAX_DB, allow_inf_nan=False
     )
@@ -407,6 +417,10 @@ class Clip(BaseModel):
             data.pop("bleed_restore", None)
         if self.gain_db == 0.0:
             data.pop("gain_db", None)
+        if self.fade_in_curve is FadeCurve.LINEAR:
+            data.pop("fade_in_curve", None)
+        if self.fade_out_curve is FadeCurve.LINEAR:
+            data.pop("fade_out_curve", None)
         if self.timing is None:
             data.pop("timing", None)
         if self.segment_ref is None:

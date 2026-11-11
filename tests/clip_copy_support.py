@@ -5,7 +5,7 @@ from __future__ import annotations
 from enum import Enum
 from typing import Any
 
-from podcast_mcp.models import Clip, ClipJoinMode
+from podcast_mcp.models import Clip, ClipJoinMode, FadeCurve
 from podcast_mcp.models.clip_timing import ClipTiming, QuietSpan, TimingStep
 from podcast_mcp.models.episode import (
     ClipBleedRestore,
@@ -27,6 +27,8 @@ _VALUES: dict[str, Any] = {
     "source_id": "src_a",
     "fade_in_ms": 7,
     "fade_out_ms": 9,
+    "fade_in_curve": FadeCurve.EQUAL_POWER,
+    "fade_out_curve": FadeCurve.S,
     "gain_db": -3.5,
     "join_in_mode": ClipJoinMode.CROSSFADE,
 }
