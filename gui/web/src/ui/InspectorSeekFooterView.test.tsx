@@ -139,8 +139,45 @@ describe("InspectorSeekFooterView", () => {
         suggestDisabledReason="   "
       />,
     );
+    expect(screen.getByRole("button", { name: "Suggested" })).toBeEnabled();
     expect(screen.getByRole("button", { name: "A/B" })).toBeEnabled();
     expect(document.querySelector("p")).toBeNull();
+  });
+
+  it("shows one note when the modes reason differs only by padding", () => {
+    render(
+      <InspectorSeekFooterView
+        onSeek={vi.fn()}
+        onPlay={vi.fn()}
+        previewMode="current"
+        onPreviewModeChange={vi.fn()}
+        playDisabledReason="Guests hear the full mix."
+        suggestDisabledReason="  Guests hear the full mix.  "
+      />,
+    );
+    expect(
+      screen.getAllByText("Guests hear the full mix.", { selector: "p" }),
+    ).toHaveLength(1);
+  });
+
+  it("gives the modes their own note while play is preparing", () => {
+    const reason = "Guests hear the full mix.";
+    render(
+      <InspectorSeekFooterView
+        onSeek={vi.fn()}
+        onPlay={vi.fn()}
+        previewMode="current"
+        onPreviewModeChange={vi.fn()}
+        playBusySec={2}
+        playDisabledReason={reason}
+        suggestDisabledReason={reason}
+      />,
+    );
+    const note = screen.getByText(reason, { selector: "p" });
+    expect(screen.getByRole("button", { name: "A/B" })).toHaveAttribute(
+      "aria-describedby",
+      note.id,
+    );
   });
 
   it("shows one note when play and the modes give the same reason", () => {
