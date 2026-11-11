@@ -42,6 +42,7 @@ import { seedPendingKeeper } from "../../test/keepers";
 import { stubViewportShell } from "../../test/viewportShell";
 import { BUSY_REASON } from "../../ui/disabledReason";
 import { takeAutoRoom, writeOpenIntent } from "../../utils/openIntent";
+import { FrameAlerts } from "../frame/FrameAlerts";
 import { RecordStage } from "./RecordStage";
 
 const { exec, roomTone } = vi.hoisted(() => ({
@@ -163,7 +164,9 @@ function Harness({ capture = {} }: { capture?: HostRoomCapture }) {
     <HostRoomProvider value={room}>
       <KeymapProbe />
       <main>
-        <RecordStage />
+        <FrameAlerts>
+          <RecordStage />
+        </FrameAlerts>
       </main>
     </HostRoomProvider>
   );

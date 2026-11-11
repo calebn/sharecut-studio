@@ -1,7 +1,11 @@
 import { render, screen, within } from "@testing-library/react";
 import { expect, it } from "vitest";
 import { FrameAlerts } from "./FrameAlerts";
-import { FRAME_ALERT_PRIORITY, useFrameAlert } from "./useFrameAlert";
+import {
+  FRAME_ALERT_PRIORITY,
+  useFrameAlert,
+  useFrameAlertList,
+} from "./useFrameAlert";
 
 function Raise({ priority, title }: { priority: number; title: string }) {
   useFrameAlert(priority, { state: "failed", title });
@@ -56,4 +60,28 @@ it("keeps the order of equal alerts when the earlier one re-renders", () => {
   rerender(tree("Older failure, updated"));
   expect(screen.getByText("Newer failure")).toBeVisible();
   expect(screen.queryByText("Older failure, updated")).toBeNull();
+});
+
+function RaiseList({ titles }: { titles: string[] }) {
+  useFrameAlertList(
+    titles.map((title) => ({ id: title, state: "needs-you", title })),
+  );
+  return null;
+}
+
+it("lists room alerts above job failures and drops the ones that go away", () => {
+  const tree = (titles: string[]) => (
+    <FrameAlerts>
+      <Raise priority={FRAME_ALERT_PRIORITY.failed} title="Run failed" />
+      <RaiseList titles={titles} />
+    </FrameAlerts>
+  );
+  const { rerender } = render(tree(["Your mic stopped.", "You're muted."]));
+  expect(screen.getByText("Your mic stopped.")).toBeVisible();
+  expect(screen.getByRole("button", { name: "2 more alerts" })).toBeVisible();
+  rerender(tree(["You're muted."]));
+  expect(screen.getByText("You're muted.")).toBeVisible();
+  expect(screen.queryByText("Your mic stopped.")).toBeNull();
+  rerender(tree([]));
+  expect(screen.getByText("Run failed")).toBeVisible();
 });

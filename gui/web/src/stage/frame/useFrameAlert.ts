@@ -1,9 +1,10 @@
-import { createContext, useContext, useEffect, useId } from "react";
+import { createContext, useContext, useEffect, useId, useRef } from "react";
 import type { AlertSlotItem } from "../../system/AlertSlot";
 
 /** Lower numbers are more urgent. */
 export const FRAME_ALERT_PRIORITY = {
   failed: 10,
+  needsYou: 20,
 } as const;
 
 export type FrameAlert = Omit<AlertSlotItem, "id">;
@@ -37,6 +38,10 @@ export function createAlertStore() {
   };
 }
 
+export type FrameAlertEntry = FrameAlert & { id: string };
+
+const FRAME_ALERT_LIST_SCALE = 1000;
+
 export type AlertStore = ReturnType<typeof createAlertStore>;
 
 export const AlertStoreContext = createContext<AlertStore | null>(null);
@@ -52,4 +57,33 @@ export function useFrameAlert(priority: number, alert: FrameAlert | null) {
     store?.set(id, priority, alert);
   });
   useEffect(() => () => store?.set(id, 0, null), [store, id]);
+}
+
+/**
+ * Puts a list of alerts in the frame's slot, already ordered most urgent
+ * first. They outrank every other frame alert, and drop out when the list
+ * shrinks or the caller unmounts.
+ */
+export function useFrameAlertList(alerts: readonly FrameAlertEntry[]) {
+  const store = useContext(AlertStoreContext);
+  const base = useId();
+  const held = useRef(new Set<string>());
+  useEffect(() => {
+    if (!store) return;
+    const now = new Set<string>();
+    alerts.forEach(({ id, ...alert }, index) => {
+      const key = `${base}:${id}`;
+      now.add(key);
+      store.set(key, index / FRAME_ALERT_LIST_SCALE, alert);
+    });
+    for (const key of held.current) if (!now.has(key)) store.set(key, 0, null);
+    held.current = now;
+  });
+  useEffect(
+    () => () => {
+      for (const key of held.current) store?.set(key, 0, null);
+      held.current = new Set();
+    },
+    [store],
+  );
 }

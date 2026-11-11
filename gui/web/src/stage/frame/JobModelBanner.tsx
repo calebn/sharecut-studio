@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { retryPipelineJob, waitForPipelineJob } from "../../api";
 import { runPointerCommand } from "../../commands/pointer";
-import { ModelNeedRow, useModelResume } from "../../models";
+import { useModelResume } from "../../models";
 import { useDawStore } from "../../state/dawStore";
 import { useDaw } from "../../state/useDaw";
 import type { PipelineJobSnapshot } from "../../types/pipeline";
@@ -14,6 +14,7 @@ import {
   notDownloadedLine,
 } from "../../utils/apiError";
 import { isTerminalJobStatus } from "../../utils/pipeline";
+import { ModelNeedAlert } from "./ModelNeedAlert";
 import { FRAME_ALERT_PRIORITY, useFrameAlert } from "./useFrameAlert";
 
 const RESUMABLE = new Set(["pipeline", "render_preview"]);
@@ -439,9 +440,7 @@ export function JobModelBanner({ guestShare }: { guestShare: boolean }) {
           onTryAgain={() => resume(selected.wait)}
         />
       ) : stop && stop === selectedWait ? (
-        <div className="guest-banner" role="status">
-          <ModelNeedRow model={stop} />
-        </div>
+        <ModelNeedAlert model={stop} />
       ) : null}
     </>
   );

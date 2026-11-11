@@ -1,29 +1,24 @@
 import { useId, useRef, useState } from "react";
 import { Button } from "../ui";
 import { StatusList } from "./StatusList";
-import { StatusRow, type StatusRowState } from "./StatusRow";
+import { StatusRow, type StatusRowProps } from "./StatusRow";
 import { useFocusOffDisabled } from "./useFocusOffDisabled";
 import { useFocusRescue } from "./useFocusRescue";
 
-export type AlertSlotItem = {
+export type AlertSlotItem = Omit<
+  StatusRowProps,
+  "density" | "children" | "expanded" | "onToggle"
+> & {
   /** Stable per alert; keys the row in the "+N" list. */
   id: string;
-  state: StatusRowState;
-  title: string;
-  progress?: number;
-  barLabel?: string;
-  /** `timer` for a title that ticks: the live region then stays quiet. */
-  titleRole?: "timer";
   /** The text is already announced through the status line, so the slot's live region stays quiet for it. */
   announcedElsewhere?: boolean;
-  action?: {
-    label: string;
-    name?: string;
-    onAction: () => void;
-    disabledReason?: string;
-  };
-  secondaryAction?: { label: string; name?: string; onAction: () => void };
 };
+
+function AlertRow({ alert }: { alert: AlertSlotItem }) {
+  const { id: _id, announcedElsewhere: _quiet, ...row } = alert;
+  return <StatusRow {...row} density="alert" />;
+}
 
 export type AlertSlotProps = {
   /** Active alerts, most urgent first. The first shows; the rest sit behind "+N". */
@@ -64,18 +59,7 @@ export function AlertSlot({ alerts }: AlertSlotProps) {
           aria-live={ticking ? "off" : undefined}
           tabIndex={-1}
         >
-          {top ? (
-            <StatusRow
-              state={top.state}
-              title={top.title}
-              density="alert"
-              titleRole={top.titleRole}
-              progress={top.progress}
-              barLabel={top.barLabel}
-              action={top.action}
-              secondaryAction={top.secondaryAction}
-            />
-          ) : null}
+          {top ? <AlertRow alert={top} /> : null}
         </div>
         {more > 0 ? (
           <Button
@@ -94,17 +78,7 @@ export function AlertSlot({ alerts }: AlertSlotProps) {
         <div id={listId}>
           <StatusList label="More alerts">
             {rest.map((alert) => (
-              <StatusRow
-                key={alert.id}
-                state={alert.state}
-                title={alert.title}
-                density="alert"
-                titleRole={alert.titleRole}
-                progress={alert.progress}
-                barLabel={alert.barLabel}
-                action={alert.action}
-                secondaryAction={alert.secondaryAction}
-              />
+              <AlertRow key={alert.id} alert={alert} />
             ))}
           </StatusList>
         </div>

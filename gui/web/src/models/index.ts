@@ -22,6 +22,7 @@ export {
 } from "./ModelNeedRow";
 export { ModelsProvider } from "./ModelsProvider";
 export { ModelsSheet } from "./ModelsSheet";
+export { needRowProps } from "./needRowProps";
 export type {
   DownloadOptions,
   DownloadOutcome,
@@ -31,6 +32,7 @@ export type {
   RemoveOutcome,
   WhisperChoice,
 } from "./types";
+export { useModelNeed } from "./useModelNeed";
 export { useModelNeedFocus } from "./useModelNeedFocus";
 export { useModelResume } from "./useModelResume";
 export { useModels } from "./useModels";

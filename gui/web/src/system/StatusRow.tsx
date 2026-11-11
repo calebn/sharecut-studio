@@ -22,7 +22,7 @@ const GLYPH: Record<StatusRowState, StatusState> = {
   failed: "failed",
 };
 
-type StatusRowProps = {
+export type StatusRowProps = {
   state: StatusRowState;
   title: string;
   /** Numbers and plain detail: "3 of 5 sources". */

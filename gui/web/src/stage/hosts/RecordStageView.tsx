@@ -2,7 +2,9 @@ import type { ReactNode, Ref } from "react";
 import type { RecordSessionSummary } from "../../record";
 import type { ShellBreakpoint } from "../../state/types";
 import { RoomView, type RoomViewProps } from "../../system/RoomView";
+import { roomAlertItems } from "../../system/roomAlertItems";
 import { Button } from "../../ui";
+import { useFrameAlertList } from "../frame/useFrameAlert";
 import {
   EndedSessionCard,
   type EndedSessionCardProps,
@@ -202,6 +204,7 @@ export function RecordStageView({
   onCreateRoom,
   onCheckAgain,
 }: RecordStageViewProps) {
+  useFrameAlertList(roomAlertItems(room?.alerts ?? []));
   return (
     <HostBody
       stage="record"
@@ -228,7 +231,7 @@ export function RecordStageView({
             ))}
             {storage}
           </div>
-          <RoomView {...room} embedded />
+          <RoomView {...room} embedded alertsInFrame />
           {more}
           {toast}
         </>
