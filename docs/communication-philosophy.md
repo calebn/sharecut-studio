@@ -105,7 +105,7 @@ to UX partners; for UI copy, this table wins.
 | Seam diamond | The 6 px diamond on the lane's top edge at each seam: filled for a cut, hollow for a split. Click selects the Seam; dragging rolls it. Named like "Split at 0:05.0" | "badge", "join badge", "edit marker" |
 | Cut all | A Review Queue group's bulk button, and the Find bar's button for every match: the verb and the count, `Cut all 3`; one cuttable item says plain `Cut`. One undo reverts the group or the whole search. Each row's own Cut and Keep decide one hit | "Apply all", "Accept all", "Apply eligible" |
 | Suggested action | What the app proposes for a sound: cut, shorten, lower or leave, picked from one table per kind of sound. The label under each hit says which | "Auto-fix", "Safe", "Eligible" |
-| Hold a word, then drag | The touch way to make a word range in Select mode: press and hold a word until it arms, then drag across more words. One finger moving before the hold scrolls and selects nothing. The Select hint names it instead of Mod+X | "long-press select", "drag to select" |
+| Hold a word, then drag | The touch way to make a word range: press and hold a word until it arms, then drag across more words. One finger moving before the hold scrolls and selects nothing. The hint names it instead of Mod+X | "long-press select", "drag to select" |
 | Pending edit | A proposed edit awaiting approve/reject | — |
 | Suggest cut | Propose a cut from the transcript | — |
 | Split | Cut a clip in two at the playhead, at both edges of a selected range or words, or at a held time from the touch create menu (Split here) | "slice", "Blade cut" |
@@ -343,7 +343,7 @@ the empty state, not a separate discovery task.
 - **A press answers at once, and a long one says it is working.** Make the
   action fast first: a slow command is a defect to fix, not a state to
   decorate. Work that stays long after that shows, in place beside the
-  control that started it, what is running ("Approving 86 edits…") and, past
+  control that started it, what is running ("Cutting 86…") and, past
   two seconds, how long it has run. It shows no percent unless the host reports
   a real total ([progress.md](progress.md)). The control stays disabled with
   the busy reason, and the status clears when the command ends, leaving the
@@ -375,7 +375,7 @@ the empty state, not a separate discovery task.
   its place (#1690). For a logical approval recorded across two commands,
   the first toast's Undo is refused and the pass toast's Undo takes back both
   edits (#1677). Transcript word fixes, Suppress, Ignore and Restore, a range Cut or
-  Mute, single pending-edit Cut and Keep (Approve and Reject on the sheet and card for a split, an exact range or a suggestion with no accept action), the Review queue's group verbs (which ask first with the pending-edit and track counts), track reorder and track removal offer it; blade, trim and the other timeline edits
+  Mute, single pending-edit Cut and Keep (Approve and Reject on the sheet and card for a split, an exact range or a suggestion with no accept action), the Review queue's group verbs (which confirm inline only when the gate holds), track reorder and track removal offer it; blade, trim and the other timeline edits
   still need to adopt it.
 - A stale fade gesture says "This clip changed. Nothing was saved. Adjust the
   fade again." Timeline handles and phone nudges use the visible announcement;
@@ -732,8 +732,8 @@ shipped at the port; #1031 shipped it. The adjacent MCP note shipped in #1027.
 - 2026-10-13 Hung boundary load (#1314). The dialog now offers **Try again**
   beside that message instead of only Close.
 - 2026-10-12 Timeline rail and bulk review (#1028). Zoom out and Zoom in sat in
-  the phone and tablet tool rail (gone since #2294); the Review queue's group verbs ask first
-  with counts and answer with one toast Undo; the tablet lane header's M and S
+  the phone and tablet tool rail (gone since #2294); the Review queue's group verbs confirm
+  inline when the gate holds and answer with one toast Undo; the tablet lane header's M and S
   reach the 44 px target on touch. Track lock stays out of scope: it was a
   product gap, not an established violation.
 - 2026-10-12 Comment field and comment time (#1338). Commenting needs no mode
