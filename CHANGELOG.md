@@ -63,6 +63,47 @@
 * A stdio MCP tool call no longer runs in its own process when the live Studio serving the project is bound to a non-loopback address (such as `--host 0.0.0.0`) and so serves no `/mcp`. It stops with a message that names the Studio and offers `--host 127.0.0.1` or `PODCAST_NO_STUDIO_HANDOFF=1`, and writes nothing. The CLI is unchanged.
 * A `podcast review` command that names `--project` is now handed to the Studio serving the project instead of writing the project directly (#2325).
 
+## [0.1.3](https://github.com/calebn/sharecut-studio/compare/v0.1.2...v0.1.3) (2026-11-11)
+
+
+### Features
+
+* **fades:** add SetJoinFadeDefault with MCP tool and episode CLI ([9ae568e](https://github.com/calebn/sharecut-studio/commit/9ae568ebafc13ce31c8cdbc985d3dd2c86a65311))
+* **fades:** Longest automatic join fade setting and uncapped manual fades in the GUI ([2c45167](https://github.com/calebn/sharecut-studio/commit/2c45167109bc4497638497041003c5bc668ccfc0))
+* **fades:** manual dialogue fades are bounded by the clip, automatic ones by the default join fade ([85a88a4](https://github.com/calebn/sharecut-studio/commit/85a88a453ddad2bb9c1696403586bbd3c5f32c3e))
+* **project:** bump the project format to 2.1 and add podcast episode upgrade ([71dc6fa](https://github.com/calebn/sharecut-studio/commit/71dc6fa882412251eb3c3d623a57271412e696a0))
+* **share:** tell a guest when the mix they hear is behind the host's edits ([307a360](https://github.com/calebn/sharecut-studio/commit/307a360a229f0def9882428f3a405b51f8997c8c)), closes [#3605](https://github.com/calebn/sharecut-studio/issues/3605)
+* **web:** a toast can set its dwell and a reverse Undo can say why it was refused ([4db0076](https://github.com/calebn/sharecut-studio/commit/4db0076b095694d4b46847ad763c10a66ec26c74))
+* **web:** Stop sharing and End room act at once with an Undo toast ([408a7e2](https://github.com/calebn/sharecut-studio/commit/408a7e28bc270583fda5ef328f16ad29c226baa9))
+
+
+### Fixes
+
+* **cut:** a fade widens the cut's read window only when its clip touches the cut ([7dd44d3](https://github.com/calebn/sharecut-studio/commit/7dd44d3af7b0a852a043f4b0328bbede83d74075))
+* **desktop:** freeze the sidecar against uv.lock and read Typer path params on both shapes ([f75254e](https://github.com/calebn/sharecut-studio/commit/f75254e29bb79f504cc2c835ce97fdda242b6882))
+* **desktop:** tolerate Windows temp-dir cleanup locks in the locked freeze install ([bd92330](https://github.com/calebn/sharecut-studio/commit/bd9233029e844bfb90fc8c169b2f3fe4df39119e))
+* **fades:** automatic fade writers keep only a fade longer than any automatic writer leaves ([63187e5](https://github.com/calebn/sharecut-studio/commit/63187e56a57e922486b0fcd6bb1d3f6e780a11ff))
+* **fades:** automatic pad, pause-edge and trim writers never shrink a longer manual fade ([4b7b896](https://github.com/calebn/sharecut-studio/commit/4b7b8964f638edb5f5bc26a259ae1ad3adfb7211))
+* **fades:** clamp an out-of-range render.join_fade_max_ms with a warning instead of failing every automatic writer ([b4cc2c9](https://github.com/calebn/sharecut-studio/commit/b4cc2c92c742881b1f99b85c0160fa1f274b28f9))
+* **fades:** fade_joins reports joins that keep a longer fade and SetJoinFadeDefault refuses booleans ([6392ca5](https://github.com/calebn/sharecut-studio/commit/6392ca5ee78c2dedfc558af957dc63152f9b32aa))
+* **fades:** hold the saved join fade limit until the clips catch up ([2f339b9](https://github.com/calebn/sharecut-studio/commit/2f339b930f1e37aee138bb5e6678693033e88919))
+* **fades:** scope the fade reach to ramps that run into the cut and update the pins ([fc74217](https://github.com/calebn/sharecut-studio/commit/fc74217f3d699b2e4397069a9af0c1b40c199aa1))
+* **gui:** keep marker Inspector fields honest while a save runs ([5126eb1](https://github.com/calebn/sharecut-studio/commit/5126eb19880bd85c5f5dddae55dfd68f81e68d8d)), closes [#3537](https://github.com/calebn/sharecut-studio/issues/3537)
+* **gui:** keep the chapter selection and open Inspector on the chapter after undo, redo or a collaborator edit ([c09b097](https://github.com/calebn/sharecut-studio/commit/c09b09728b5011270f4c8806a50e1be0f4ca5888)), closes [#3536](https://github.com/calebn/sharecut-studio/issues/3536)
+* **gui:** keep the read-only scrub value readable over its fill ([d7be625](https://github.com/calebn/sharecut-studio/commit/d7be6250af8293fc97eb62f6b1d3d9c5f99f6221))
+* **project:** keep frozen release bytes and blob paths portable ([2fce486](https://github.com/calebn/sharecut-studio/commit/2fce486563f1e6b299c5ab22ea8a280ef54a8009))
+* **project:** scope the -text attribute to the project_compat fixtures ([bfb6b3d](https://github.com/calebn/sharecut-studio/commit/bfb6b3da49a36f9d25307d3eaa463ee447bbb8eb))
+* **share:** a repeated restorable revoke keeps the pending link or room, and the UI ignores a second end while Undo is open ([1710aff](https://github.com/calebn/sharecut-studio/commit/1710aff6bc3231303a20bcca0b039581b1c01e88))
+* **share:** hand loopback pages the share's own proxy chunk URLs ([af64665](https://github.com/calebn/sharecut-studio/commit/af6466544184ab2b042a44bf3c28deb94765277b)), closes [#3487](https://github.com/calebn/sharecut-studio/issues/3487)
+* **share:** harden the guest review peaks endpoint ([#3620](https://github.com/calebn/sharecut-studio/issues/3620)) ([fca07c1](https://github.com/calebn/sharecut-studio/commit/fca07c1380025c1f21d7cf27cc7ae9a7ab8cef15))
+* **share:** list a parked room's tokens in one sorted order so a repeat revoke answers exactly what the first did ([9b6b115](https://github.com/calebn/sharecut-studio/commit/9b6b1151859f044df9495480cd3f5bd045e72e63))
+* **share:** one registry read for a repeat revoke, feedback for an ignored second end, Undo returns focus to the group heading ([170d818](https://github.com/calebn/sharecut-studio/commit/170d818afe51520c95a85c924c44f90db409775e))
+* **share:** relayed guests keep object-store chunk URLs ([adadfb5](https://github.com/calebn/sharecut-studio/commit/adadfb57439100ae431f28a00b09e22967a57afe))
+* **upgrade:** read and copy the workspace under the project commit lock ([b12884a](https://github.com/calebn/sharecut-studio/commit/b12884a49d74c554a01499db07ddd702a4061688))
+* **web:** an Undo toast rides above a modal dialog and joins its Tab cycle ([56e7ff0](https://github.com/calebn/sharecut-studio/commit/56e7ff01e878a83a1ee353f5347bffe69bc0a894))
+* **web:** plain toasts stay out of the modal Tab cycle, the ignored-press note clears and re-announces, a held toast no longer blocks a second end after the window ([9dca1b9](https://github.com/calebn/sharecut-studio/commit/9dca1b9527d5966462be340944c0a247a3ab618c))
+* **web:** update the Home recents read when removing an entry ([0186dd8](https://github.com/calebn/sharecut-studio/commit/0186dd847df16fd0ce8057badd229b8c5528b134))
+
 ## [0.1.2](https://github.com/calebn/sharecut-studio/compare/v0.1.1...v0.1.2) (2026-11-11)
 
 
