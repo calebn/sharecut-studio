@@ -1602,3 +1602,20 @@ def test_copy_lane_discovery_status_survives_direct_role_in_other_relationship(
         expected.append({"track_id": "direct", "reason": f"saved_{mode}_decision"})
     assert plan.skipped == tuple(expected)
     assert len(plan.proposals) == (1 if mode == "auto" else 0)
+
+
+def test_a_manual_fade_on_a_clip_ending_at_the_trim_edge_is_kept(tmp_path: Path) -> None:
+    from podcast_mcp.engines.clips_ops import set_track_clips, split_clip_at
+
+    p = _episode(tmp_path)
+    api = _api()
+    defaults = load_defaults()
+    direct = next(clip for clip in p.clips if clip.track_id == "direct")
+    head, tail = split_clip_at(direct, 1.03, defaults=defaults)
+    head.fade_out_ms = 400
+    set_track_clips(p, "direct", [head, tail])
+    plan = api.plan_retained_bleed_alignment(p, start_sec=0.8, end_sec=3.5, defaults=defaults)
+    assert len(plan.proposals) == 1
+    api.apply_retained_bleed_alignment(p, plan, defaults=defaults)
+    kept = next(clip for clip in p.clips if clip.id == head.id)
+    assert kept.fade_out_ms == 400

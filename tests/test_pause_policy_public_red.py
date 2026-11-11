@@ -456,3 +456,26 @@ def test_geometry_held_twin_cannot_suppress_the_real_clean_proposal(tmp_path, mo
         ("guest", pytest.approx(0.2), pytest.approx(4.45), None),
     ]
     assert [e.id for e in proposal.decisions] == ["cut_pause_200_5000_84983c60f7"]
+
+
+def test_a_longer_manual_fade_is_not_silently_shrunk_by_the_pause_edge_write(
+    tmp_path, monkeypatch
+):
+    configure(monkeypatch, defaults(acoustic=True))
+    result = _measured_original_project(tmp_path, guest="quiet")
+    peer_audio = room(seed=1215)
+    voice(peer_audio, 0, 0.2)
+    voice(peer_audio, 5, 5.35)
+    write_wav(tmp_path / "raw/guest.wav", peer_audio)
+    prepared = _prepared_pause(result, defaults(acoustic=True))
+    add_bed(result, tmp_path)
+    result.edit_decisions = [prepared]
+    next(c for c in result.clips if c.id == "host-0").fade_out_ms = 400
+    ws = workspace(result)
+    before = ws.project.model_dump(mode="json")
+
+    with pytest.raises(CodedError) as held:
+        EditService(ws).approve(["pause"])
+
+    assert held.value.code == "cut_scope_changed"
+    assert ws.project.model_dump(mode="json") == before
