@@ -1,5 +1,4 @@
-/* Settings sheet (settings/SettingsSheet.tsx): Appearance, Saved in, the
-   Longest automatic join fade, and the rows that open Models and Keyboard shortcuts. */
+/* Settings sheet (settings/SettingsSheet.tsx). */
 .settings-sheet-body {
   display: flex;
   flex-direction: column;
