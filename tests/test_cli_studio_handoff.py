@@ -832,6 +832,49 @@ def test_no_project_command_reads_its_paths_in_a_way_the_planner_cannot_follow()
     assert unsupported == []
 
 
+@pytest.mark.parametrize(
+    ("param", "expected"),
+    [
+        (SimpleNamespace(type=SimpleNamespace(name="path")), True),
+        (SimpleNamespace(type=SimpleNamespace(name="filename")), True),
+        (SimpleNamespace(type=SimpleNamespace(name="text")), False),
+        (SimpleNamespace(type_descriptor=SimpleNamespace(is_path=True, is_file=False)), True),
+        (SimpleNamespace(type_descriptor=SimpleNamespace(is_path=False, is_file=True)), True),
+        (SimpleNamespace(type_descriptor=SimpleNamespace(is_path=False, is_file=False)), False),
+    ],
+    ids=["old-path", "old-filename", "old-text", "new-path", "new-file", "new-text"],
+)
+def test_takes_path_reads_either_typer_parameter_shape(param: Any, expected: bool) -> None:
+    assert takes_path(param) is expected
+
+
+def test_takes_path_rejects_a_parameter_with_neither_shape() -> None:
+    with pytest.raises(TypeError, match=r"cannot classify parameter 'odd'.*typer"):
+        takes_path(SimpleNamespace(name="odd"))
+
+
+def test_takes_path_classifies_real_project_option_and_path_argument() -> None:
+    root = typer.main.get_command(cli_app)
+    project_options: list[Any] = []
+    path_arguments: list[Any] = []
+
+    def walk(command: Any) -> None:
+        if is_group(command):
+            for child in command.commands.values():
+                walk(child)
+            return
+        for param in command.params:
+            if is_option(param) and "--project" in param.opts:
+                project_options.append(param)
+            if not is_option(param) and takes_path(param):
+                path_arguments.append(param)
+
+    walk(root)
+    assert project_options
+    assert all(takes_path(param) for param in project_options)
+    assert path_arguments
+
+
 def test_plan_makes_paths_absolute_and_keeps_everything_else(tmp_path: Path) -> None:
     tmp_path = tmp_path.resolve()
     root = typer.main.get_command(cli_app)

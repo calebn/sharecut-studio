@@ -16,6 +16,7 @@ directory is not the caller's.
 from __future__ import annotations
 
 import contextlib
+import importlib.metadata
 import os
 import sys
 from collections.abc import Callable, Iterator
@@ -76,7 +77,8 @@ class HandoffPlan:
 
 # Typer vendors its own click, so the command objects here are duck-typed: a group has
 # ``commands``, a parameter says whether it is an ``option`` or an ``argument``, and a path
-# parameter's type is named ``path`` (or ``filename`` for a file argument).
+# parameter's type is named ``path`` (or ``filename`` for a file argument), or on newer Typer
+# its ``type_descriptor`` says ``is_path`` / ``is_file``.
 Command = Any
 Parameter = Any
 
@@ -99,7 +101,16 @@ def _options(command: Command) -> dict[str, Parameter]:
 
 
 def takes_path(param: Parameter) -> bool:
-    return bool(param.type.name in {"path", "filename"})
+    descriptor = getattr(param, "type_descriptor", None)
+    if descriptor is not None:
+        return bool(descriptor.is_path or descriptor.is_file)
+    legacy_type = getattr(param, "type", None)
+    if legacy_type is None:
+        raise TypeError(
+            f"cannot classify parameter {getattr(param, 'name', param)!r}: neither "
+            f"type_descriptor nor type found (typer {importlib.metadata.version('typer')})"
+        )
+    return bool(legacy_type.name in {"path", "filename"})
 
 
 def _absolute(value: str, cwd: Path) -> str:
