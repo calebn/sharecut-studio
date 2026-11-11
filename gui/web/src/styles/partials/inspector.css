@@ -340,5 +340,5 @@ html[data-shell="phone"] .track-sheet-action {
 .range-field {
   flex-wrap: nowrap;
   justify-content: space-between;
-  min-inline-size: 12rem;
+  min-inline-size: min(12rem, 100%);
 }
