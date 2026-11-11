@@ -20,7 +20,6 @@ import {
   exportRequest,
   formatClock,
   itemNames,
-  parseClock,
   partSeconds,
   planRange,
   readinessRows,
@@ -352,10 +351,6 @@ describe("export contract", () => {
 describe("clock", () => {
   it("round trips", () => {
     expect(formatClock(83.5)).toBe("1:23.5");
-    expect(parseClock("1:23.5")).toBe(83.5);
-    expect(parseClock("83")).toBe(83);
-    expect(parseClock("1:23")).toBe(83);
-    expect(parseClock("soon")).toBeNull();
     expect(formatClock(59.96)).toBe("1:00.0");
     expect(formatClock(0)).toBe("0:00.0");
   });
@@ -648,28 +643,6 @@ describe("round three of the audit", () => {
   });
 
   it.each([
-    ["1:23", 83],
-    [" 1:23 ", 83],
-    ["1:23 ", 83],
-    [" 1:23", 83],
-    ["\t83.5\n", 83.5],
-    ["1:23.5", 83.5],
-    ["0", 0],
-    ["83.5s", null],
-    ["1:2:3", null],
-    ["1:23x", null],
-    ["x1:23", null],
-    ["-5", null],
-    ["", null],
-    ["  ", null],
-    ["1:", null],
-    [":23", null],
-    ["1.5:23", null],
-  ])("reads %j as %s", (text, seconds) => {
-    expect(parseClock(text)).toBe(seconds);
-  });
-
-  it.each([
     [
       ["a", "b"],
       ["a", "b"],
@@ -847,41 +820,7 @@ describe("every readiness row keeps its exact title", () => {
   });
 });
 
-describe("parseClock fractions", () => {
-  it.each([
-    ["1:23.45", 83.45],
-    ["83.25", 83.25],
-    ["0:00.125", 0.125],
-    ["12.5", 12.5],
-    ["1:23.0", 83],
-    ["0.5", 0.5],
-  ])("reads %j as %f", (text, seconds) => {
-    expect(parseClock(text)).toBeCloseTo(seconds, 9);
-  });
-  it.each(["1:23.", "1.2.3", ".5", "1:.5", "1:23.4.5"])(
-    "rejects %j",
-    (text) => {
-      expect(parseClock(text)).toBeNull();
-    },
-  );
-});
-
-describe("parseClock integer parts and formatClock rounding", () => {
-  it.each([
-    ["125", 125],
-    ["125.5", 125.5],
-    ["3600", 3600],
-    ["100", 100],
-    ["999.9", 999.9],
-    ["10:05", 605],
-    ["125:00", 7500],
-    ["1:125", 185],
-    ["0:07", 7],
-    ["007", 7],
-  ])("reads %j as %f", (text, seconds) => {
-    expect(parseClock(text)).toBeCloseTo(seconds, 9);
-  });
-
+describe("formatClock rounding", () => {
   it.each([
     [12.31, "0:12.3"],
     [12.36, "0:12.4"],
@@ -908,28 +847,6 @@ describe("restoreChapter with repeated titles", () => {
     expect(rest).toHaveLength(3);
     expect(restoreChapter(rest, gone)).toEqual(same);
     expect(restoreChapter(restoreChapter(rest, gone), gone)).toEqual(same);
-  });
-});
-
-describe("parseClock rejects other separators and notations", () => {
-  it.each([
-    "83,5",
-    "1:23,4",
-    "1;23",
-    "1 23",
-    "1:23:45",
-    "1e3",
-    "0x10",
-    "+5",
-    "Infinity",
-    "NaN",
-    " ",
-    "1:23.5.1",
-    "１２３",
-    "1:23 5",
-    "٣",
-  ])("rejects %j", (text) => {
-    expect(parseClock(text)).toBeNull();
   });
 });
 

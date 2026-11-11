@@ -254,8 +254,6 @@ const SURFACE_GESTURES: Record<string, string> = {
     "observes native scrolling to retain the guest reading place; word-selection gestures remain in useScriptGestures and grips remain in SelectionHandles",
   "system/ScrubField.tsx":
     "the scrub field: a horizontal drag previews a number and saves one value on release; it is an inspector field, not a timeline target",
-  "system/TimeField.tsx":
-    "a number field's grip drags its own value, 4 px to start; a field edit, not a timeline target",
   "system/useCoachTip.ts":
     "a press or key anywhere dismisses the one coach tip on screen; it starts no gesture",
   "system/useHoverTip.ts":

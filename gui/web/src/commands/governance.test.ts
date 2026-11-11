@@ -96,8 +96,6 @@ const ON_KEY_DOWN_ALLOWLIST = new Set([
   "stages/home/OpenOther.tsx",
   // Escape closes the Review comment field.
   "stage/hosts/useReviewComments.tsx",
-  // The time field: arrows step, Enter commits and Escape reverts, like a spin box.
-  "system/TimeField.tsx",
   "stages/prepare/LanguagePicker.tsx",
   // A focused clip trim handle moves with the arrow keys, 10 ms, 100 ms with Shift.
   "stages/deliver/ClipTrimWave.tsx",
