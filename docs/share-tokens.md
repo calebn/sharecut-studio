@@ -112,9 +112,9 @@ off.
 
 ## Restorable revoke
 
-A revoke called with `restorable_for` (seconds) is undoable until that window ends. It is a
-service-level option; no HTTP route or client uses it yet, and the CLI, MCP and internal
-revokes (mint-time room revoke, auto-revoke of a vanished version) never pass it. The window is
+A revoke called with `restorable_for` (seconds) is undoable until that window ends. The host
+REST routes opt in with `restorable: true` (see [REST surface](#rest-surface)); the CLI, MCP and
+internal revokes (mint-time room revoke, auto-revoke of a vanished version) never pass it. The window is
 clamped to 30 s, below the 60 s finalize lease (a non-finite window closes at once or caps at
 30 s). Only review links park as single links; a record token parks only with its room through
 `revoke_room`, and `revoke(record_token, restorable_for=...)` is a final revoke.
@@ -150,6 +150,25 @@ clamped to 30 s, below the 60 s finalize lease (a non-finite window closes at on
   row whose sidecar still says revoked and restorable is cleared, as is a restorable marker on a
   row that is neither pending nor active; a failed sidecar settle at finalize keeps the pending
   row, and a lapsed lease is retried.
+
+### REST surface
+
+All four routes are host-only (`require_host`), so a guest or relayed caller holding a link is
+refused `403 authz_denied` and cannot undo its own revoke. The body always names the episode
+(`{ "path": ... }`).
+
+| Route | Body and answer |
+| --- | --- |
+| `POST /api/shares/{token}/revoke` | `restorable?: boolean` (default `false`, a final revoke as before). With `true` the revoke is parked for 10 s and the answer adds `restorable_until` (ISO time) and `restore_ms` (the server's remaining milliseconds). A final revoke answers `{ revoked, token }` only |
+| `POST /api/shares/rooms/{session_id}/revoke` | Same opt-in; answers `{ session_id, revoked: [tokens] }`, plus `restorable_until` and `restore_ms` when parked |
+| `POST /api/shares/{token}/restore` | Review link: `{ restored: true, token }`. A link that is already live answers success again |
+| `POST /api/shares/rooms/{session_id}/restore` | Record room, every token or none: `{ session_id, restored: [tokens] }` |
+
+Restore refusals carry `X-Sharecut-Error-Code`: `410 restore_window_closed` (the window ended or
+the revoke was final), `410 share_expired` (the link's own `expires_at` passed), `409
+record_room_conflict` (another record room is live for the episode) and `404 share_not_found` /
+`record_room_not_found`. The client counts the undo toast from `restore_ms`, not from its own clock.
+A record token has no single-link restore; undo its room.
 
 ## Host registry (sqlite)
 
