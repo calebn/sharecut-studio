@@ -632,6 +632,10 @@ class SourceProxyInputs:
     def input_hash(self) -> str:
         return short_digest(self.identity_json, 64)
 
+    @property
+    def bakes_mutes(self) -> bool:
+        return bool(self.regions and self.gate.attenuation_spans and self.gate.floor_gain < 1)
+
     @classmethod
     def capture_legacy(
         cls,
@@ -710,7 +714,10 @@ class SourceProxyInputs:
         elif source_id is not None:
             selected = snapshot.source_by_id(source_id)
             if selected is None:
-                raise _inputs_changed()
+                raise CodedValueError(
+                    f"Source {source_id!r} is not in sources[]. Refresh the project or re-add the recording.",
+                    code="clip_source_missing",
+                )
             source = resolve_under_workspace(snapshot, selected.path)
         elif context.media is not None:
             source = resolve_under_workspace(snapshot, context.media.path)
@@ -961,7 +968,7 @@ def render_source_proxy_inputs(
                 defaults=defaults,
             )
             validate()
-            if inputs.regions and inputs.gate.attenuation_spans and inputs.gate.floor_gain < 1:
+            if inputs.bakes_mutes:
                 native = _decode_clock(engine, inputs.source, directory)
                 spec = SourceProxySpec(
                     inputs.clip_id or "",
