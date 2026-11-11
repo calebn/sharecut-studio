@@ -282,7 +282,7 @@ pins at `x = 0, 0.25, 0.5, 0.75, 1`. Equal power is a property of a pair, so a s
 only fades from or to silence along a quarter sine. A fade at a cut join, a blended join (which
 uses `render.crossfade_curve`), the micro-fades a timing map puts on its inner pieces, and room-tone
 tiles stay linear. A non-linear curve enters the stem render hash, the reconciliation fingerprint
-and the verdict cache key; occurrence source proxies read raw audio and ignore it.
+and the verdict cache key; occurrence source proxies read raw audio and ignore it. The browser proxy preview (`gainCurve.ts` `fadeGainAt`) reads the same fixture and plays the curve live on a share link; host playback follows the rebuilt stems and premix.
 
 ## Per-clip gain
 
