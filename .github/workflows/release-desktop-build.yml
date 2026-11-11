@@ -47,6 +47,11 @@ on:
         type: boolean
         required: false
         default: false
+      platforms:
+        description: Comma-separated legs to build, any of linux, windows, macos-intel, macos-arm64, or all. Lets an operator build macOS locally and run only linux,windows here.
+        type: string
+        required: false
+        default: all
       source_repository:
         description: owner/name to checkout (empty = caller repository)
         type: string
@@ -126,7 +131,71 @@ jobs:
       source_sha: ${{ steps.verify.outputs.source_sha }}
       trusted: ${{ steps.verify.outputs.trusted }}
       updater: ${{ steps.updater.outputs.updater }}
+      prepare_matrix: ${{ steps.plan.outputs.prepare_matrix }}
+      bundle_matrix: ${{ steps.plan.outputs.bundle_matrix }}
     steps:
+      - name: Plan platform matrix
+        id: plan
+        env:
+          PLATFORMS: ${{ inputs.platforms }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json
+          import os
+
+          prepare = {
+              "linux": {"os": "ubuntu-22.04", "name": "linux", "bundle": "appimage", "triple": "x86_64-unknown-linux-gnu"},
+              "windows": {"os": "windows-latest", "name": "windows", "bundle": "nsis", "triple": "x86_64-pc-windows-msvc"},
+              "macos-intel": {"os": "macos-15-intel", "name": "macos-intel", "bundle": "app", "triple": "x86_64-apple-darwin"},
+              "macos-arm64": {"os": "macos-15", "name": "macos-arm64", "bundle": "app", "triple": "aarch64-apple-darwin"},
+          }
+          bundle = {
+              "linux": {
+                  "os": "ubuntu-22.04", "name": "linux-appimage", "bundle": "appimage",
+                  "triple": "x86_64-unknown-linux-gnu", "artifact": "sharecut-linux-appimage",
+                  "artifact_path": "gui/desktop/src-tauri/target/release/bundle/appimage/*.AppImage",
+                  "updater_artifact": "sharecut-linux-appimage-updater",
+                  "updater_path": "gui/desktop/src-tauri/target/release/bundle/appimage/*.AppImage\ngui/desktop/src-tauri/target/release/bundle/appimage/*.AppImage.sig\n",
+              },
+              "windows": {
+                  "os": "windows-latest", "name": "windows-nsis", "bundle": "nsis",
+                  "triple": "x86_64-pc-windows-msvc", "artifact": "sharecut-windows-nsis",
+                  "artifact_path": "gui/desktop/src-tauri/target/release/bundle/nsis/*-setup.exe",
+                  "updater_artifact": "sharecut-windows-nsis-updater",
+                  "updater_path": "gui/desktop/src-tauri/target/release/bundle/nsis/*-setup.exe\ngui/desktop/src-tauri/target/release/bundle/nsis/*-setup.exe.sig\n",
+              },
+              "macos-intel": {
+                  "os": "macos-15-intel", "name": "macos-intel-dmg", "bundle": "app",
+                  "triple": "x86_64-apple-darwin", "expected_arch": "x86_64",
+                  "artifact": "sharecut-macos-x64-dmg",
+                  "artifact_path": "gui/desktop/src-tauri/target/release/bundle/dmg/*.dmg",
+                  "updater_artifact": "sharecut-macos-x64-updater",
+                  "updater_path": "gui/desktop/src-tauri/target/release/bundle/updater/*",
+              },
+              "macos-arm64": {
+                  "os": "macos-15", "name": "macos-arm64-dmg", "bundle": "app",
+                  "triple": "aarch64-apple-darwin", "expected_arch": "arm64",
+                  "artifact": "sharecut-macos-arm64-dmg",
+                  "artifact_path": "gui/desktop/src-tauri/target/release/bundle/dmg/*.dmg",
+                  "updater_artifact": "sharecut-macos-arm64-updater",
+                  "updater_path": "gui/desktop/src-tauri/target/release/bundle/updater/*",
+              },
+          }
+          raw = os.environ["PLATFORMS"].strip().lower() or "all"
+          wanted = [item.strip() for item in raw.split(",") if item.strip()]
+          if wanted == ["all"]:
+              wanted = list(bundle)
+          unknown = [item for item in wanted if item not in bundle]
+          if unknown or not wanted:
+              raise SystemExit(f"::error::platforms must be 'all' or a comma list of {', '.join(bundle)}; got {raw!r}")
+          wanted = [key for key in bundle if key in wanted]
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as out:
+              out.write("prepare_matrix=" + json.dumps({"include": [prepare[k] for k in wanted]}) + "\n")
+              out.write("bundle_matrix=" + json.dumps({"include": [bundle[k] for k in wanted]}) + "\n")
+          print("platforms:", ", ".join(wanted))
+          PY
+
       - name: Validate source coordinates
         id: source
         env:
@@ -206,24 +275,7 @@ jobs:
     permissions: {}
     strategy:
       fail-fast: false
-      matrix:
-        include:
-          - os: ubuntu-22.04
-            name: linux
-            bundle: appimage
-            triple: x86_64-unknown-linux-gnu
-          - os: windows-latest
-            name: windows
-            bundle: nsis
-            triple: x86_64-pc-windows-msvc
-          - os: macos-15-intel
-            name: macos-intel
-            bundle: app
-            triple: x86_64-apple-darwin
-          - os: macos-15
-            name: macos-arm64
-            bundle: app
-            triple: aarch64-apple-darwin
+      matrix: ${{ fromJSON(needs.verify-source.outputs.prepare_matrix) }}
     defaults:
       run:
         shell: bash
@@ -375,46 +427,7 @@ jobs:
     environment: ${{ needs.verify-source.outputs.trusted == 'true' && (inputs.sign || (inputs.sign_updater && matrix.bundle != 'app' && needs.verify-source.outputs.updater == 'true')) && (matrix.bundle != 'appimage' || needs.verify-source.outputs.updater == 'true') && 'desktop-signing' || '' }}
     strategy:
       fail-fast: false
-      matrix:
-        include:
-          - os: ubuntu-22.04
-            name: linux-appimage
-            bundle: appimage
-            triple: x86_64-unknown-linux-gnu
-            artifact: sharecut-linux-appimage
-            artifact_path: gui/desktop/src-tauri/target/release/bundle/appimage/*.AppImage
-            updater_artifact: sharecut-linux-appimage-updater
-            updater_path: |
-              gui/desktop/src-tauri/target/release/bundle/appimage/*.AppImage
-              gui/desktop/src-tauri/target/release/bundle/appimage/*.AppImage.sig
-          - os: windows-latest
-            name: windows-nsis
-            bundle: nsis
-            triple: x86_64-pc-windows-msvc
-            artifact: sharecut-windows-nsis
-            artifact_path: gui/desktop/src-tauri/target/release/bundle/nsis/*-setup.exe
-            updater_artifact: sharecut-windows-nsis-updater
-            updater_path: |
-              gui/desktop/src-tauri/target/release/bundle/nsis/*-setup.exe
-              gui/desktop/src-tauri/target/release/bundle/nsis/*-setup.exe.sig
-          - os: macos-15-intel
-            name: macos-intel-dmg
-            bundle: app
-            triple: x86_64-apple-darwin
-            expected_arch: x86_64
-            artifact: sharecut-macos-x64-dmg
-            artifact_path: gui/desktop/src-tauri/target/release/bundle/dmg/*.dmg
-            updater_artifact: sharecut-macos-x64-updater
-            updater_path: gui/desktop/src-tauri/target/release/bundle/updater/*
-          - os: macos-15
-            name: macos-arm64-dmg
-            bundle: app
-            triple: aarch64-apple-darwin
-            expected_arch: arm64
-            artifact: sharecut-macos-arm64-dmg
-            artifact_path: gui/desktop/src-tauri/target/release/bundle/dmg/*.dmg
-            updater_artifact: sharecut-macos-arm64-updater
-            updater_path: gui/desktop/src-tauri/target/release/bundle/updater/*
+      matrix: ${{ fromJSON(needs.verify-source.outputs.bundle_matrix) }}
     defaults:
       run:
         shell: bash
