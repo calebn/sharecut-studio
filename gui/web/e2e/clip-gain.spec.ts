@@ -20,6 +20,22 @@ async function savedClips(page: Page, path = e2eProjectPath) {
   return Object.values(body.clips.tracks).flat();
 }
 
+async function savedGainsByTrack(page: Page, path = e2eProjectPath) {
+  const response = await page.request.get(
+    `/api/project?path=${encodeURIComponent(path)}&phase=full`,
+  );
+  expect(response.ok()).toBe(true);
+  const body = (await response.json()) as {
+    clips: { tracks: Record<string, SavedClip[]> };
+  };
+  return Object.fromEntries(
+    Object.entries(body.clips.tracks).map(([track, clips]) => [
+      track,
+      clips.map((clip) => clip.gain_db ?? 0),
+    ]),
+  );
+}
+
 async function savedGain(page: Page, clipId: string) {
   const clip = (await savedClips(page)).find((row) => row.id === clipId);
   if (!clip) throw new Error("clip missing from saved snapshot");
@@ -89,6 +105,7 @@ test.describe("Clip inspector gain", () => {
     await inspectSelection(page);
 
     const gain = page.getByRole("spinbutton", { name: "Gain" });
+    await gain.scrollIntoViewIfNeeded();
     const box = await gain.boundingBox();
     if (!box) throw new Error("Gain field has no box");
     const y = box.y + box.height / 2;
@@ -126,6 +143,13 @@ test.describe("Clip inspector gain", () => {
     await page.keyboard.press("ControlOrMeta+K");
     await expect(lane.locator(".clip-block")).toHaveCount(2);
     const undone = () => ofType(commands, "UndoHistory").length;
+    const deselect = async () => {
+      await page.keyboard.press("Escape");
+      await expect(page.getByRole("spinbutton", { name: "Gain" })).toHaveCount(
+        0,
+      );
+      await page.keyboard.press("Escape");
+    };
     try {
       await inspectSelection(page);
       const gain = page.getByRole("spinbutton", { name: "Gain" });
@@ -133,23 +157,23 @@ test.describe("Clip inspector gain", () => {
 
       await setScrub(page, gain, "4");
       await expect
-        .poll(async () => (await savedClips(page)).map((c) => c.gain_db ?? 0))
-        .toEqual([4, 4]);
+        .poll(() => savedGainsByTrack(page))
+        .toEqual({ reference: [0, 4], guest: [0, 4] });
       const [many] = ofType(commands, "SetClipsGain");
       expect(many.payload.gains).toEqual([
         expect.objectContaining({ gain_db: 4, expected: { gain_db: 0 } }),
         expect.objectContaining({ gain_db: 4, expected: { gain_db: 0 } }),
       ]);
 
-      await page.keyboard.press("Escape");
+      await deselect();
       await lane.locator(".clip-block").nth(1).click();
       await inspectSelection(page);
       await page.getByRole("spinbutton", { name: "Gain" }).press("ArrowUp");
       await expect
-        .poll(async () => (await savedClips(page)).map((c) => c.gain_db ?? 0))
-        .toEqual([4, 4.5]);
+        .poll(() => savedGainsByTrack(page))
+        .toEqual({ reference: [0, 4.5], guest: [0, 4] });
 
-      await page.keyboard.press("Escape");
+      await deselect();
       await lane.locator(".clip-block").first().click();
       await lane
         .locator(".clip-block")
@@ -161,8 +185,8 @@ test.describe("Clip inspector gain", () => {
       ).toHaveAttribute("aria-valuetext", "Mixed");
       await page.getByRole("button", { name: /^Reset Gain to 0/ }).click();
       await expect
-        .poll(async () => (await savedClips(page)).map((c) => c.gain_db ?? 0))
-        .toEqual([0, 0]);
+        .poll(() => savedGainsByTrack(page))
+        .toEqual({ reference: [0, 0], guest: [0, 4] });
       expect(ofType(commands, "SetClipsGain")).toHaveLength(2);
     } finally {
       await page.keyboard.press("Escape");
