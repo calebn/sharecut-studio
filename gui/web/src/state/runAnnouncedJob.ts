@@ -6,14 +6,16 @@ import { lateCancelCopy } from "../utils/pipeline";
 import { plainError } from "../utils/plainError";
 import { useDawStore } from "./dawStore";
 import { seedStudioJob } from "./seedStudioJob";
-import type { AnnouncedJobKind, JobResultOwner } from "./types";
+import type { AnnouncedJobKind, JobResultOwner, ToastAction } from "./types";
 
 export async function runAnnouncedJob(
   start: () => Promise<PipelineJobSnapshot>,
   opts: {
     kind: AnnouncedJobKind;
     failLabel: string;
-    summarizeResult: (job: PipelineJobSnapshot) => { copy: string } | null;
+    summarizeResult: (
+      job: PipelineJobSnapshot,
+    ) => { copy: string; action?: ToastAction } | null;
     signal?: AbortSignal;
     onStart?: (job: PipelineJobSnapshot) => void;
   },
@@ -61,7 +63,7 @@ export async function runAnnouncedJob(
     if (cancellation && !isCurrent()) throw cancellation;
     assertCurrent();
 
-    let summary: { copy: string } | null;
+    let summary: { copy: string; action?: ToastAction } | null;
     try {
       summary = opts.summarizeResult(done);
       if (!summary && !cancellation) throw new Error(opts.failLabel);
@@ -80,6 +82,7 @@ export async function runAnnouncedJob(
         ? {
             kind: "verified",
             copy: cancellation ? lateCancelCopy(summary.copy) : summary.copy,
+            ...(summary.action ? { action: summary.action } : {}),
           }
         : { kind: "cancelled-empty" },
     );

@@ -1130,6 +1130,41 @@ describe("FeedbackToast", () => {
     );
   });
 
+  it("shows a toast action with no Undo entry, runs it once and passes axe", async () => {
+    const user = userEvent.setup();
+    const run = vi.fn();
+    render(<FeedbackToast />);
+    act(() => {
+      useDawStore.getState().announceStatus("Bounced 1 file", {
+        action: { label: "Download", run },
+      });
+    });
+    expect(screen.queryByRole("button", { name: "Undo" })).toBeNull();
+    await expectNoA11yViolations(document.body);
+    await user.click(screen.getByRole("button", { name: "Download" }));
+    expect(run).toHaveBeenCalledTimes(1);
+  });
+
+  it("returns focus from a no-Undo action when the toast is dismissed", async () => {
+    const user = userEvent.setup();
+    const elsewhere = document.createElement("button");
+    elsewhere.textContent = "Elsewhere";
+    document.body.append(elsewhere);
+    render(<FeedbackToast />);
+    act(() => {
+      useDawStore.getState().announceStatus("Bounced 1 file", {
+        action: { label: "Download", run: vi.fn() },
+        returnFocus: () => elsewhere,
+      });
+    });
+    const download = screen.getByRole("button", { name: "Download" });
+    act(() => download.focus());
+    expect(download).toHaveFocus();
+    await user.click(screen.getByRole("button", { name: "Dismiss" }));
+    expect(useDawStore.getState().feedbackToast).toBeNull();
+    expect(elsewhere).toHaveFocus();
+  });
+
   it("runs a reverse Undo for a change History does not record, then says it is done", async () => {
     const user = userEvent.setup();
     const run = vi.fn(async () => true);

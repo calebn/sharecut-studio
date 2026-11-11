@@ -52,6 +52,7 @@ import type {
   PointerKind,
   RangeDraft,
   ShellBreakpoint,
+  ToastAction,
   ToastKind,
   ToastTone,
   TranscriptInlineEditFailure,
@@ -116,6 +117,7 @@ type FeedbackInput =
       kind: "jobs";
       message: string;
       verifiedToast: string;
+      action: ToastAction | null;
       failure: boolean;
       ownedOutcome: boolean;
     };
@@ -235,7 +237,8 @@ function feedbackPatch(s: DawStore, input: FeedbackInput): Partial<DawStore> {
             onUndone: options.onUndone,
             returnFocus: options.returnFocus ?? null,
             gesture: options.gesture === true,
-            action: options.action ?? null,
+            action:
+              (input.kind === "jobs" ? input.action : options.action) ?? null,
             kind: options.kind ?? null,
             merged,
             lapsed: null,
@@ -611,6 +614,7 @@ export const createUiSlice: StateCreator<DawStore, [], [], UiSlice> = (
           }
         }
         const verified: string[] = [];
+        let verifiedAction: ToastAction | null = null;
         const delivered: string[] = [];
         let failure = false;
         for (const [id, record] of jobFeedback) {
@@ -625,6 +629,7 @@ export const createUiSlice: StateCreator<DawStore, [], [], UiSlice> = (
             if (record.outcome.kind === "verified") {
               if (id === chipId && !chipTerminal) continue;
               verified.push(record.outcome.copy);
+              verifiedAction = record.outcome.action ?? null;
               delivered.push(id);
               jobFeedback.delete(id);
               live.set(id, record.outcome.copy);
@@ -646,6 +651,7 @@ export const createUiSlice: StateCreator<DawStore, [], [], UiSlice> = (
             kind: "jobs",
             message: joinJobCopy([...live.values()]),
             verifiedToast: joinJobCopy(verified),
+            action: verified.length === 1 ? verifiedAction : null,
             failure,
             ownedOutcome: failure || delivered.length > 0,
           }),
