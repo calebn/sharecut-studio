@@ -59,22 +59,22 @@ def track_set_volume(
     typer.echo(json.dumps(EpisodeService(ws).set_track_volume(id, db).model_dump()))
 
 
-@episode_app.command("set-join-fade-default")
-def set_join_fade_default(
+@episode_app.command("set-join-fade-limit")
+def set_join_fade_limit(
     project: Path = typer.Option(..., "--project", help="episode.sharecut"),
     ms: int | None = typer.Option(
         None,
         "--ms",
         min=0,
         max=200,
-        help="Default join fade length in ms (0 to 200): the longest fade the automatic join writers add",
+        help="Longest automatic join fade in ms (default 40, 0 to 200): ShareCut picks each join's fade up to this length; fades you set yourself can be longer",
     ),
     reset: bool = typer.Option(False, "--reset", help="Return to the app default (40 ms)"),
 ) -> None:
     if reset == (ms is not None):
         raise typer.BadParameter("Pass exactly one of --ms or --reset.")
     ws = ProjectWorkspace.open(project)
-    typer.echo(json.dumps(dict(TimelineService(ws).set_join_fade_default(None if reset else ms))))
+    typer.echo(json.dumps(dict(TimelineService(ws).set_join_fade_limit(None if reset else ms))))
 
 
 @episode_app.command("upgrade")

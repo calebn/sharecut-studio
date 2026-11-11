@@ -360,14 +360,15 @@ class SetClipsGainPayload(BaseModel):
         return gains
 
 
-class SetJoinFadeDefaultPayload(BaseModel):
+class SetJoinFadeLimitPayload(BaseModel):
     ms: StrictInt | None = Field(
         ge=0,
         le=200,
-        description="The episode's Default join fade length in ms (0 to 200): the longest fade "
-        "the automatic join writers (Fade joins, Smooth all joins, approve-time fades) add. "
-        "Null returns to the app default (render.join_fade_max_ms, 40). Fades set by hand are "
-        "never capped by it and no existing fade changes.",
+        description="Longest automatic join fade in ms (default 40, 0 to 200): a limit, not an "
+        "applied length. ShareCut picks each join's fade (Fade joins, Smooth all joins, "
+        "approve-time fades) up to this length, so joins can come out shorter. Null returns to "
+        "the app default (render.join_fade_max_ms, 40). Fades you set yourself can be longer and "
+        "no existing fade changes.",
     )
 
 
@@ -1218,9 +1219,9 @@ class SetClipsGainCommand(DocumentCommandEnvelope):
     payload: SetClipsGainPayload
 
 
-class SetJoinFadeDefaultCommand(DocumentCommandEnvelope):
-    type: Literal["SetJoinFadeDefault"] = "SetJoinFadeDefault"
-    payload: SetJoinFadeDefaultPayload
+class SetJoinFadeLimitCommand(DocumentCommandEnvelope):
+    type: Literal["SetJoinFadeLimit"] = "SetJoinFadeLimit"
+    payload: SetJoinFadeLimitPayload
 
 
 class TrimClipEdgeCommand(DocumentCommandEnvelope):
@@ -1605,7 +1606,7 @@ DocumentCommandBody = Annotated[
     | SetClipsFadeCommand
     | SetClipGainCommand
     | SetClipsGainCommand
-    | SetJoinFadeDefaultCommand
+    | SetJoinFadeLimitCommand
     | TrimClipEdgeCommand
     | RollClipJoinCommand
     | SetJoinModeCommand

@@ -19,7 +19,7 @@ from podcast_mcp.edits.decisions import UNSURE_WORD_REASON, AskedEdits, HeldEdit
 from podcast_mcp.edits.edit_reasons import NL_RANGE_REASON
 from podcast_mcp.edits.source_removals import STALE_REASON, cut_label
 from podcast_mcp.edits.tighten_intensity import normalize_tighten_intensity
-from podcast_mcp.models import EditMode
+from podcast_mcp.models import EditMode, FadeCurve
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.document import (
     AnalysisService,
@@ -29,6 +29,7 @@ from podcast_mcp.services.document import (
 )
 from podcast_mcp.services.document_sync import apply_external_document_edit
 from podcast_mcp.services.jobs import run_audio_edit
+from podcast_mcp.util.coded_error import CodedValueError
 from podcast_mcp.util.project_state import RENDER_LOCK_TIMEOUT_SEC
 
 edit_app = typer.Typer(help="Transcript-driven cuts for natural language editing.")
@@ -858,7 +859,11 @@ def edit_fade_joins_cmd(
     project: Path = typer.Option(..., "--project"),
     track: str | None = typer.Option(None, "--track"),
     speaker: str | None = typer.Option(None, "--speaker"),
-    fade_ms: int | None = typer.Option(None, "--fade-ms"),
+    fade_ms: int | None = typer.Option(
+        None,
+        "--fade-ms",
+        help="Fade length for every join, held to the Longest automatic join fade. Left out, each join gets its own recommended fade up to that limit",
+    ),
     dry_run: bool = typer.Option(False, "--dry-run"),
 ) -> None:
     ws = ProjectWorkspace.open(project)
@@ -888,6 +893,60 @@ def edit_crossfade_joins_cmd(
         )
 
     result = crossfade() if dry_run else apply_external_document_edit(ws, crossfade)
+    typer.echo(json.dumps(result, indent=2))
+
+
+@edit_app.command("set-clip-fade")
+def edit_set_clip_fade_cmd(
+    project: Path = typer.Option(..., "--project"),
+    clip: str = typer.Option(..., "--clip", help="Clip id"),
+    fade_in_ms: int | None = typer.Option(
+        None, "--fade-in-ms", min=0, help="Fade-in length in ms; left out keeps the current one"
+    ),
+    fade_out_ms: int | None = typer.Option(
+        None, "--fade-out-ms", min=0, help="Fade-out length in ms; left out keeps the current one"
+    ),
+    fade_in_curve: FadeCurve | None = typer.Option(
+        None, "--fade-in-curve", help="linear | equal_power | s; left out keeps the current shape"
+    ),
+    fade_out_curve: FadeCurve | None = typer.Option(
+        None, "--fade-out-curve", help="linear | equal_power | s; left out keeps the current shape"
+    ),
+) -> None:
+    """Set one clip's fades by hand. Bounded only by the clip, not by the Longest automatic join fade.
+
+    The result reports the applied fade_in_ms / fade_out_ms and clamped (true when the clip
+    shortened a request). The same edit as the set_clip_fade_tool MCP tool.
+    """
+    if (
+        fade_in_ms is None
+        and fade_out_ms is None
+        and fade_in_curve is None
+        and fade_out_curve is None
+    ):
+        raise typer.BadParameter("Pass at least one of --fade-in-ms, --fade-out-ms or a curve.")
+    from podcast_mcp.services.document_sync import submit_host_command_result
+
+    ws = ProjectWorkspace.open(project)
+    current = next((c for c in ws.project.clips if c.id == clip), None)
+    if current is None:
+        raise CodedValueError(f"unknown clip_id: {clip!r}", code="clip_not_found")
+    payload: dict[str, Any] = {
+        "clip_id": clip,
+        "fade_in_ms": current.fade_in_ms if fade_in_ms is None else fade_in_ms,
+        "fade_out_ms": current.fade_out_ms if fade_out_ms is None else fade_out_ms,
+        "expected": {
+            "fade_in_ms": current.fade_in_ms,
+            "fade_out_ms": current.fade_out_ms,
+            "fade_in_curve": current.fade_in_curve.value,
+            "fade_out_curve": current.fade_out_curve.value,
+        },
+    }
+    if fade_in_curve is not None:
+        payload["fade_in_curve"] = fade_in_curve.value
+    if fade_out_curve is not None:
+        payload["fade_out_curve"] = fade_out_curve.value
+    result = submit_host_command_result(project, "SetClipFade", payload, client_id="cli")
     typer.echo(json.dumps(result, indent=2))
 
 

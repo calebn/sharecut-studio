@@ -24,22 +24,24 @@ from podcast_mcp.util.change_summary import change_summary
 from podcast_mcp.util.coded_error import CodedValueError
 from podcast_mcp.util.tracks import dialogue_track_ids, resolve_track
 
-JOIN_FADE_DEFAULT_RANGE_MS = (0, 200)
+JOIN_FADE_LIMIT_RANGE_MS = (0, 200)
 
 log = logging.getLogger(__name__)
 
 
 def _checked_join_fade_ms(value: object) -> int:
-    lo, hi = JOIN_FADE_DEFAULT_RANGE_MS
+    lo, hi = JOIN_FADE_LIMIT_RANGE_MS
     if isinstance(value, bool) or not isinstance(value, int | float | str):
-        raise CodedValueError("join fade length must be a number", code="out_of_range")
+        raise CodedValueError("longest automatic join fade must be a number", code="out_of_range")
     try:
         ms = int(value)
     except ValueError:
-        raise CodedValueError("join fade length must be a number", code="out_of_range") from None
+        raise CodedValueError(
+            "longest automatic join fade must be a number", code="out_of_range"
+        ) from None
     if not lo <= ms <= hi:
         raise CodedValueError(
-            f"join fade length must be between {lo} and {hi} ms. Pass a value in that range.",
+            f"longest automatic join fade must be between {lo} and {hi} ms. Pass a value in that range.",
             code="out_of_range",
         )
     return ms
@@ -50,7 +52,7 @@ def join_fade_max_ms(defaults: EffectiveConfig) -> int:
     configured = defaults.get("render", {}).get("join_fade_max_ms")
     if configured is None:
         return bundled
-    lo, hi = JOIN_FADE_DEFAULT_RANGE_MS
+    lo, hi = JOIN_FADE_LIMIT_RANGE_MS
     ms = (
         bundled if isinstance(configured, bool) else int(bounded_float(configured, bundled, lo, hi))
     )
@@ -67,8 +69,8 @@ def join_fade_max_ms(defaults: EffectiveConfig) -> int:
 
 
 def auto_join_fade_cap_ms(project: EpisodeProject, defaults: EffectiveConfig) -> int:
-    """Longest fade (ms) the automatic join writers add: the episode's Default join fade
-    length, else ``render.join_fade_max_ms`` from the config, else the bundled default.
+    """Longest fade (ms) the automatic join writers add: the episode's Longest automatic
+    join fade (a limit on ShareCut's own picks), else ``render.join_fade_max_ms`` from the config, else the bundled default.
     """
     own = project.timeline.join_fade_max_ms
     return join_fade_max_ms(defaults) if own is None else _checked_join_fade_ms(own)
@@ -84,7 +86,7 @@ def automatic_fade_ms(
 ) -> int:
     """Fade (ms) an automatic writer sets on an edge clip that already has ``current_ms``.
 
-    A fade up to the longest an automatic writer leaves (the Default join fade length, or the
+    A fade up to the longest an automatic writer leaves (the Longest automatic join fade, or the
     cut's own splice fade) is replaced by the writer's value as before; a longer one can only
     be manual and is kept.
     """
@@ -99,7 +101,7 @@ def cap_fade_ms(
     fade_ms: int,
     defaults: EffectiveConfig,
 ) -> int:
-    """Cap an automatically written dialogue fade at the Default join fade length.
+    """Cap an automatically written dialogue fade at the Longest automatic join fade.
 
     Manual fades (``clamp_clip_fades``) never pass through here; other roles are uncapped.
     """
@@ -110,17 +112,17 @@ def cap_fade_ms(
     return min(fade, auto_join_fade_cap_ms(project, defaults))
 
 
-def set_join_fade_default(
+def set_join_fade_limit(
     project: EpisodeProject, ms: int | None, *, defaults: EffectiveConfig
 ) -> dict:
-    """Store the episode's Default join fade length; ``None`` returns to the app default.
+    """Store the episode's Longest automatic join fade; ``None`` returns to the app default.
 
     Rewrites no existing fade: only the automatic join writers read it afterwards.
     """
     project.timeline.join_fade_max_ms = None if ms is None else _checked_join_fade_ms(ms)
-    summary = change_summary(project, operation="set_join_fade_default", affected_tracks=[])
+    summary = change_summary(project, operation="set_join_fade_limit", affected_tracks=[])
     summary["stored_ms"] = project.timeline.join_fade_max_ms
-    summary["join_fade_default_ms"] = auto_join_fade_cap_ms(project, defaults)
+    summary["join_fade_limit_ms"] = auto_join_fade_cap_ms(project, defaults)
     return summary
 
 
@@ -185,8 +187,8 @@ def set_clip_join(
     (a later fade/crossfade reseeds defaults; undo restores them).
     ``fade`` sets both to ``length_ms``; without one it keeps the current fades, seeding
     ``inaudible_cuts.micro_fade_ms`` when both are 0. This is a manual edit: fades go through
-    ``clamp_clip_fades`` like ``set_clip_fade`` (bounded by the clips, not by the Default join
-    fade length). Non-abutting neighbours are allowed; the result reports
+    ``clamp_clip_fades`` like ``set_clip_fade`` (bounded by the clips, not by the Longest automatic
+    join fade). Non-abutting neighbours are allowed; the result reports
     ``crossfade_blocked``. The DAW's join Length slider max mirrors this clamp order
     (``gui/web/src/edit/fadeLimits.ts`` ``joinLengthMaxMs``); ``contracts/join-length-limits.json``
     pins both.
@@ -252,10 +254,12 @@ def fade_joins(
 ) -> dict:
     """Set abutting joins to fade mode with declick micro-fades (no overlap).
 
-    An automatic writer: fades are capped at the Default join fade length and never shrink an
-    existing longer fade. ``fade_ms`` in the result is the length applied after the cap
-    (``requested_fade_ms`` is what was asked for, ``cap_ms`` the cap); ``kept_longer_joins``
-    counts joins where a longer existing fade was left as it is.
+    An automatic writer: fades are capped at the Longest automatic join fade and never shrink an
+    existing longer fade. Without ``fade_ms`` each join gets its own recommended fade, up to the
+    limit, so joins can differ and come out shorter than it. ``fade_ms`` in the result is the
+    length applied after the limit (the longest, when joins differ); ``requested_fade_ms`` is
+    what was asked for, ``cap_ms`` the limit in force; ``kept_longer_joins`` counts joins where a
+    longer existing fade was left as it is.
     """
     join_count = 0
     track_ids = _target_track_ids(project, track_id=track_id, speaker=speaker)

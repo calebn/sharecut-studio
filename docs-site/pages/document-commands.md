@@ -93,7 +93,7 @@ Raw JSON Schema (site copy): [document-commands.schema.json](../schemas/document
 | `SetEffectBypass` | `bypass` (boolean), `effect_index` (integer), `track_id` (string) | — |
 | `SetEnvelope` | `expected_points` (array[object]), `track_id` (string) | `points` (array[object]) |
 | `SetFeedField` | `key` (string), `value` (string \| integer \| number \| boolean \| array) | `by` (person \| agent \| guest) |
-| `SetJoinFadeDefault` | `ms` (integer \| null) | — |
+| `SetJoinFadeLimit` | `ms` (integer \| null) | — |
 | `SetJoinMode` | `clip_id` (string), `join_in_mode` (fade \| crossfade \| cut) | — |
 | `SetRecordSessionName` | `name` (string), `session_id` (string) | — |
 | `SetTrackFader` | `fader_db` (number), `track_id` (string) | — |

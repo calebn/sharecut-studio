@@ -47,15 +47,15 @@ def _stored(minimal_project: Path) -> int | None:
 
 def test_sets_resets_and_undoes_in_one_step(minimal_project: Path) -> None:
     ws = _seed(minimal_project)
-    out = TimelineService(ws).set_join_fade_default(80)
-    assert (out["operation"], out["join_fade_default_ms"], out["stored_ms"]) == (
-        "set_join_fade_default",
+    out = TimelineService(ws).set_join_fade_limit(80)
+    assert (out["operation"], out["join_fade_limit_ms"], out["stored_ms"]) == (
+        "set_join_fade_limit",
         80,
         80,
     )
     assert _stored(minimal_project) == 80
-    reset = TimelineService(ws).set_join_fade_default(None)
-    assert (reset["join_fade_default_ms"], reset["stored_ms"]) == (40, None)
+    reset = TimelineService(ws).set_join_fade_limit(None)
+    assert (reset["join_fade_limit_ms"], reset["stored_ms"]) == (40, None)
     assert _stored(minimal_project) is None
     assert b"join_fade_max_ms" not in minimal_project.read_bytes()
     HistoryService(ws).undo()
@@ -71,7 +71,7 @@ def test_refuses_values_outside_the_range_without_changing_anything(
     ws = _seed(minimal_project)
     before = minimal_project.read_bytes()
     with pytest.raises(CodedValueError) as err:
-        TimelineService(ws).set_join_fade_default(bad)
+        TimelineService(ws).set_join_fade_limit(bad)
     assert err.value.code == "out_of_range"
     assert minimal_project.read_bytes() == before
 
@@ -86,7 +86,7 @@ def test_changes_no_stem_and_writes_no_invalidation(minimal_project: Path) -> No
         ws.project, dialogue_render_hashes(ws.project, defaults=config), defaults=config
     )
     fresh = stem_is_fresh(ws.project, "host", defaults=config)
-    TimelineService(ws).set_join_fade_default(120)
+    TimelineService(ws).set_join_fade_limit(120)
     after = fingerprint(
         ws.project, dialogue_render_hashes(ws.project, defaults=config), defaults=config
     )
@@ -98,7 +98,7 @@ def test_changes_no_stem_and_writes_no_invalidation(minimal_project: Path) -> No
 
 def test_the_automatic_writers_read_the_saved_default(minimal_project: Path) -> None:
     ws = _seed(minimal_project)
-    TimelineService(ws).set_join_fade_default(90)
+    TimelineService(ws).set_join_fade_limit(90)
     out = TimelineService(ws).fade_joins(fade_ms=200)
     assert (out["fade_ms"], out["cap_ms"]) == (90, 90)
     assert [c.fade_in_ms for c in load_project(minimal_project).clips] == [0, 90]
@@ -106,20 +106,20 @@ def test_the_automatic_writers_read_the_saved_default(minimal_project: Path) -> 
 
 def test_list_clips_reports_the_effective_default(minimal_project: Path) -> None:
     ws = _seed(minimal_project)
-    assert TimelineService(ws).list_clips()["join_fade_default_ms"] == 40
-    TimelineService(ws).set_join_fade_default(65)
-    assert TimelineService(ws).list_clips()["join_fade_default_ms"] == 65
+    assert TimelineService(ws).list_clips()["join_fade_limit_ms"] == 40
+    TimelineService(ws).set_join_fade_limit(65)
+    assert TimelineService(ws).list_clips()["join_fade_limit_ms"] == 65
 
 
 def test_payload_accepts_null_and_refuses_out_of_range() -> None:
     from podcast_mcp.services.document_sync.payloads import validate_payload
 
-    validate_payload("SetJoinFadeDefault", {"ms": 0})
-    validate_payload("SetJoinFadeDefault", {"ms": 200})
-    validate_payload("SetJoinFadeDefault", {"ms": None})
+    validate_payload("SetJoinFadeLimit", {"ms": 0})
+    validate_payload("SetJoinFadeLimit", {"ms": 200})
+    validate_payload("SetJoinFadeLimit", {"ms": None})
     for bad in ({}, {"ms": -1}, {"ms": 201}, {"ms": 1.5}, {"ms": "x"}, {"ms": True}, {"ms": False}):
         with pytest.raises(ValidationError):
-            validate_payload("SetJoinFadeDefault", bad)
+            validate_payload("SetJoinFadeLimit", bad)
 
 
 def test_document_command_applies_and_refreshes_the_clips_slice(minimal_project: Path) -> None:
@@ -132,7 +132,7 @@ def test_document_command_applies_and_refreshes_the_clips_slice(minimal_project:
     svc = DocumentSyncService.open(minimal_project)
     result = svc.submit(
         DocumentCommand(
-            type="SetJoinFadeDefault",
+            type="SetJoinFadeLimit",
             client_id="c",
             role="editor",
             client_seq=1,
@@ -141,8 +141,8 @@ def test_document_command_applies_and_refreshes_the_clips_slice(minimal_project:
     )
     assert result["ok"] is True
     assert _stored(minimal_project) == 55
-    assert projection_for_command("SetJoinFadeDefault") is ViewProjection.CLIPS
-    assert _clips_slice(minimal_project)["clips"]["join_fade_default_ms"] == 55
+    assert projection_for_command("SetJoinFadeLimit") is ViewProjection.CLIPS
+    assert _clips_slice(minimal_project)["clips"]["join_fade_limit_ms"] == 55
 
 
 def _clips_slice(project: Path) -> dict:
@@ -154,46 +154,46 @@ def _clips_slice(project: Path) -> dict:
 
 def test_the_clips_slice_carries_the_default_in_force(minimal_project: Path) -> None:
     ws = _seed(minimal_project)
-    assert _clips_slice(minimal_project)["clips"]["join_fade_default_ms"] == 40
-    TimelineService(ws).set_join_fade_default(0)
-    assert _clips_slice(minimal_project)["clips"]["join_fade_default_ms"] == 0
-    TimelineService(ws).set_join_fade_default(None)
-    assert _clips_slice(minimal_project)["clips"]["join_fade_default_ms"] == 40
+    assert _clips_slice(minimal_project)["clips"]["join_fade_limit_ms"] == 40
+    TimelineService(ws).set_join_fade_limit(0)
+    assert _clips_slice(minimal_project)["clips"]["join_fade_limit_ms"] == 0
+    TimelineService(ws).set_join_fade_limit(None)
+    assert _clips_slice(minimal_project)["clips"]["join_fade_limit_ms"] == 40
 
 
 def test_registry_row_names_the_tool_and_the_cli() -> None:
     from podcast_mcp.services.collaboration import ReviewRole
     from podcast_mcp.services.document_sync.registry import COMMANDS, named
 
-    spec = COMMANDS["SetJoinFadeDefault"]
+    spec = COMMANDS["SetJoinFadeLimit"]
     assert spec.guest is ReviewRole.EDITOR
-    assert spec.mcp == named("set_join_fade_default_tool")
-    assert spec.cli == named("podcast episode set-join-fade-default")
+    assert spec.mcp == named("set_join_fade_limit_tool")
+    assert spec.cli == named("podcast episode set-join-fade-limit")
 
 
 def test_mcp_tool_sets_and_resets(minimal_project: Path) -> None:
     from podcast_mcp.mcp.server import mcp
-    from podcast_mcp.mcp.tools.timeline import set_join_fade_default_tool
+    from podcast_mcp.mcp.tools.timeline import set_join_fade_limit_tool
 
     _seed(minimal_project)
-    assert "set_join_fade_default_tool" in {t.name for t in mcp._tool_manager.list_tools()}
-    out = json.loads(set_join_fade_default_tool(str(minimal_project), 70))
+    assert "set_join_fade_limit_tool" in {t.name for t in mcp._tool_manager.list_tools()}
+    out = json.loads(set_join_fade_limit_tool(str(minimal_project), 70))
     assert _stored(minimal_project) == 70
-    assert out["join_fade_default_ms"] == 70
-    json.loads(set_join_fade_default_tool(str(minimal_project), None))
+    assert out["join_fade_limit_ms"] == 70
+    json.loads(set_join_fade_limit_tool(str(minimal_project), None))
     assert _stored(minimal_project) is None
     with pytest.raises((CodedValueError, ValidationError)):
-        set_join_fade_default_tool(str(minimal_project), 500)
+        set_join_fade_limit_tool(str(minimal_project), 500)
     assert _stored(minimal_project) is None
 
 
 def test_cli_sets_and_resets(minimal_project: Path) -> None:
     _seed(minimal_project)
     runner = CliRunner()
-    base = ["episode", "set-join-fade-default", "--project", str(minimal_project)]
+    base = ["episode", "set-join-fade-limit", "--project", str(minimal_project)]
     done = runner.invoke(app, [*base, "--ms", "75"])
     assert done.exit_code == 0, done.output
-    assert json.loads(done.output)["join_fade_default_ms"] == 75
+    assert json.loads(done.output)["join_fade_limit_ms"] == 75
     assert _stored(minimal_project) == 75
     reset = runner.invoke(app, [*base, "--reset"])
     assert reset.exit_code == 0, reset.output

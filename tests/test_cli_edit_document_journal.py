@@ -394,6 +394,7 @@ def test_adjacent_cli_aliases_keep_the_same_notification_contract(edit_project, 
             "EditSelectedRange",
         ),
         (["roll-join", "--left", "h1", "--right", "h2", "--delta-sec", "0.1"], "RollClipJoin"),
+        (["set-clip-fade", "--clip", "h1", "--fade-in-ms", "400"], "SetClipFade"),
         (["suppress-low-audibility", "--track", "host"], "SuppressLowAudibility"),
         (["suppress-bleed", "--track", "host"], "SuppressBleed"),
         (["apply-bleed-mute", "--track", "host"], "ExternalMutate"),
@@ -561,7 +562,7 @@ def test_every_registered_edit_command_has_a_documented_journal_owner():
     table = doc.split("| CLI edit command | Journal owner | Contract |", 1)[1].split("\n\n", 1)[0]
     documented = {line.split("`", 2)[1] for line in table.splitlines() if line.startswith("| `")}
     assert documented == registered
-    assert len(registered) == 60
+    assert len(registered) == 61
 
 
 def test_add_chapter_with_fresh_stems_does_not_decode_under_submit(edit_project, monkeypatch):

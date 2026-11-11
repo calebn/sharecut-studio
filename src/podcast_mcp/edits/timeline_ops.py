@@ -1447,7 +1447,7 @@ def list_clips(
     return {
         "tracks": by_track,
         "clip_count": len(clips),
-        "join_fade_default_ms": auto_join_fade_cap_ms(project, defaults or {}),
+        "join_fade_limit_ms": auto_join_fade_cap_ms(project, defaults or {}),
     }
 
 

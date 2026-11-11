@@ -1092,7 +1092,7 @@ class TimelineSection(BaseModel):
     join_fade_max_ms: int | None = Field(default=None, ge=0, le=200)
 
     @model_serializer(mode="wrap")
-    def _serialize_join_fade_default(self, handler: SerializerFunctionWrapHandler):
+    def _serialize_join_fade_limit(self, handler: SerializerFunctionWrapHandler):
         data = handler(self)
         if self.join_fade_max_ms is None:
             data.pop("join_fade_max_ms", None)

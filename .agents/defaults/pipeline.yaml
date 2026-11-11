@@ -283,9 +283,9 @@ tighten:
 
 render:
   default_dialogue_join: fade
-  # App default for the Default join fade length: the longest fade the automatic join
-  # writers add (fade_joins, Smooth all joins, approve-time). An episode overrides it
-  # (set_join_fade_default_tool); fades set by hand are not capped. Cut-time micro fades
+  # App default for the Longest automatic join fade (a limit, not an applied length): ShareCut
+  # picks each join's fade (fade_joins, Smooth all joins, approve-time) up to this long. An
+  # episode overrides it (set_join_fade_limit_tool); fades you set yourself can be longer. Cut-time micro fades
   # still use inaudible_cuts.micro_fade_ms.
   join_fade_max_ms: 40
   crossfade_curve: tri

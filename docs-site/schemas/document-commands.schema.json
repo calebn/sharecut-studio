@@ -8779,7 +8779,7 @@
       "title": "SetFeedFieldPayload",
       "type": "object"
     },
-    "SetJoinFadeDefaultCommand": {
+    "SetJoinFadeLimitCommand": {
       "properties": {
         "causation_id": {
           "anyOf": [
@@ -8823,7 +8823,7 @@
           "title": "Command Id"
         },
         "payload": {
-          "$ref": "#/$defs/SetJoinFadeDefaultPayload"
+          "$ref": "#/$defs/SetJoinFadeLimitPayload"
         },
         "role": {
           "default": "viewer",
@@ -8861,8 +8861,8 @@
           "title": "Token"
         },
         "type": {
-          "const": "SetJoinFadeDefault",
-          "default": "SetJoinFadeDefault",
+          "const": "SetJoinFadeLimit",
+          "default": "SetJoinFadeLimit",
           "title": "Type",
           "type": "string"
         }
@@ -8871,10 +8871,10 @@
         "client_id",
         "payload"
       ],
-      "title": "SetJoinFadeDefaultCommand",
+      "title": "SetJoinFadeLimitCommand",
       "type": "object"
     },
-    "SetJoinFadeDefaultPayload": {
+    "SetJoinFadeLimitPayload": {
       "properties": {
         "ms": {
           "anyOf": [
@@ -8887,14 +8887,14 @@
               "type": "null"
             }
           ],
-          "description": "The episode's Default join fade length in ms (0 to 200): the longest fade the automatic join writers (Fade joins, Smooth all joins, approve-time fades) add. Null returns to the app default (render.join_fade_max_ms, 40). Fades set by hand are never capped by it and no existing fade changes.",
+          "description": "Longest automatic join fade in ms (default 40, 0 to 200): a limit, not an applied length. ShareCut picks each join's fade (Fade joins, Smooth all joins, approve-time fades) up to this length, so joins can come out shorter. Null returns to the app default (render.join_fade_max_ms, 40). Fades you set yourself can be longer and no existing fade changes.",
           "title": "Ms"
         }
       },
       "required": [
         "ms"
       ],
-      "title": "SetJoinFadeDefaultPayload",
+      "title": "SetJoinFadeLimitPayload",
       "type": "object"
     },
     "SetJoinModeCommand": {
@@ -13010,7 +13010,7 @@
       "SetEffectBypass": "#/$defs/SetEffectBypassCommand",
       "SetEnvelope": "#/$defs/SetEnvelopeCommand",
       "SetFeedField": "#/$defs/SetFeedFieldCommand",
-      "SetJoinFadeDefault": "#/$defs/SetJoinFadeDefaultCommand",
+      "SetJoinFadeLimit": "#/$defs/SetJoinFadeLimitCommand",
       "SetJoinMode": "#/$defs/SetJoinModeCommand",
       "SetRecordSessionName": "#/$defs/SetRecordSessionNameCommand",
       "SetTrackFader": "#/$defs/SetTrackFaderCommand",
@@ -13102,7 +13102,7 @@
       "$ref": "#/$defs/SetClipsGainCommand"
     },
     {
-      "$ref": "#/$defs/SetJoinFadeDefaultCommand"
+      "$ref": "#/$defs/SetJoinFadeLimitCommand"
     },
     {
       "$ref": "#/$defs/TrimClipEdgeCommand"
