@@ -843,9 +843,7 @@ def test_split_clip_on_a_track_resets_inner_edges(minimal_project: Path) -> None
 @pytest.mark.parametrize(
     ("at", "fades", "left", "right"),
     [
-        # A 400 ms fade-out split 100 ms before the clip's end: only the short right piece keeps it.
         (3.9, {"fade_out_ms": 400}, (0, MICRO), (MICRO, 400)),
-        # A 400 ms fade-in split 100 ms after the clip's start: only the short left piece keeps it.
         (0.1, {"fade_in_ms": 400}, (400, MICRO), (MICRO, 0)),
     ],
 )

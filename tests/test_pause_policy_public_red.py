@@ -473,7 +473,7 @@ def test_a_longer_manual_fade_on_the_far_edge_stays_there_when_a_pause_splits_th
     next(c for c in result.clips if c.id == "host-0").fade_out_ms = 400
     ws = workspace(result)
 
-    EditService(ws).approve(["pause"])
+    assert EditService(ws).approve(["pause"]) == 1
 
     left, right = sorted(
         (c for c in ws.project.clips if c.track_id == "host" and c.source_start < 2.0),
@@ -481,5 +481,6 @@ def test_a_longer_manual_fade_on_the_far_edge_stays_there_when_a_pause_splits_th
     )
     assert left.source_end == pytest.approx(prepared.start)
     assert left.fade_out_ms < 400
+    assert right.fade_in_ms < 400
     assert right.source_end == pytest.approx(2.0)
     assert right.fade_out_ms == 400
