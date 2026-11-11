@@ -349,6 +349,11 @@ const PLAYHEAD_WRITERS: PlayheadWriter[] = [
       "Hear injects the raw store setter into playTimelineRange instead of seekTransport (follow-up)",
   },
   {
+    prefix: "stage/hosts/conflictRowActions.ts",
+    reason:
+      "Hear injects the raw store setter into playTimelineRange like playComment does (follow-up)",
+  },
+  {
     prefix: "utils/playRange.ts",
     reason:
       "calls an injected setter; playComment and useReviewQueue pass the raw store setter (follow-up)",
