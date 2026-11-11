@@ -321,7 +321,6 @@ async function sweepCell(
   return report ? `${cell.name}\n${report}` : "";
 }
 
-/** The In, Out and Length value fields sit inside the Range sheet, not clipped at its edge. */
 async function rangeFieldOverflow(page: Page): Promise<Reach[]> {
   return page.evaluate(() => {
     const out: Reach[] = [];
