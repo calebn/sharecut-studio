@@ -30,7 +30,9 @@ const fixture = vi.hoisted(() => ({
 
 vi.mock("./mesh", () => ({
   RecordMesh: class {
-    constructor(readonly options: RecordMeshOpts) {
+    options: RecordMeshOpts;
+    constructor(options: RecordMeshOpts) {
+      this.options = options;
       fixture.meshes.push(options);
     }
     dispose() {
