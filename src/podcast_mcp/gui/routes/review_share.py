@@ -166,7 +166,12 @@ def _check_token(token: str, *, kind: str = SHARE_KIND_REVIEW) -> dict[str, Any]
 
 
 PEAKS_RESPONSES: dict[int | str, dict[str, Any]] = {
+    200: {
+        "description": "512 loudness values 0..1, or [] when unavailable",
+        "content": {"application/json": {"schema": {"type": "array", "items": {"type": "number"}}}},
+    },
     403: {"description": "The link does not allow playback"},
+    404: {"description": "Unknown or expired link, or a version this link does not play"},
     429: {"description": "Rate limit or audio concurrency cap reached"},
 }
 

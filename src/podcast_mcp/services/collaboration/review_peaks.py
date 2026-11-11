@@ -29,7 +29,6 @@ from podcast_mcp.util.coded_error import (
     CodedPermissionError,
     CodedValueError,
 )
-from podcast_mcp.util.pcm_stream import NoAudioDecodedError
 
 log = logging.getLogger(__name__)
 
@@ -107,8 +106,9 @@ def episode_peaks(project, version_id: str) -> list[float]:
             return cached
         try:
             envelope, _rate = peak_envelope(audio)
-        # RuntimeError: ffmpeg PCM decode failed (non-zero exit, watchdog, short output).
-        except (NoAudioDecodedError, OSError, ValueError, RuntimeError):
+        # The waveform is cosmetic and the audio untrusted: any decode failure (ffprobe
+        # exit or timeout, ffmpeg exit, watchdog, short output) is "unavailable", not 500.
+        except Exception:
             log.warning("review peaks: cannot decode frozen mix for %s", version_id, exc_info=True)
             return []
         peaks = bin_peaks(envelope)

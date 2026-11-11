@@ -47,6 +47,7 @@ from podcast_mcp.gui.routes import (
 )
 from podcast_mcp.gui.routes.deps import (
     ERROR_CODE_HEADER,
+    NO_STORE,
     coded_http_error,
     guard_exception_handler,
     host_setup_exception_handler,
@@ -118,13 +119,15 @@ def _project_mismatch(requested: str, served: Path) -> bool:
 
 async def _validation_error_handler(request: Request, exc: Exception) -> JSONResponse:
     """Return a safe validation response while retaining FastAPI's list contract."""
-    del request
     if not isinstance(exc, RequestValidationError):
         raise exc
+    headers = {ERROR_CODE_HEADER: "invalid_request"}
+    if request.url.path.startswith("/api/review/"):
+        headers.update(NO_STORE)
     return JSONResponse(
         status_code=422,
         content=format_validation_errors(exc.errors()),
-        headers={ERROR_CODE_HEADER: "invalid_request"},
+        headers=headers,
     )
 
 
