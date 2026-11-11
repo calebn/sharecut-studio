@@ -112,7 +112,7 @@ Home shows a Setup card ("Get ShareCut ready") when FFmpeg or Whisper is missing
 
 Default speech model is **large-v3-turbo**. Users can pick a smaller size in the Models sheet or via `./install.sh --whisper-model` / `podcast bootstrap --whisper-model`.
 
-First run checks the bundled FFmpeg pair and downloads Whisper, with recommended RNNoise.
+First run checks the bundled FFmpeg pair and downloads Whisper, with the recommended RNNoise, word aligner and speaker model offered by Get ready.
 
 **Open project:** Home's **Open other…** calls `POST /api/project/pick` on the Python sidecar (OS dialog), the same API as a system browser on `http://127.0.0.1:8765`, and Mod+O opens Home. A path field replaces the dialog when no dialog tool is available. The desktop `tauri-plugin-dialog` is reserved for native close confirmation; it is not used as a project picker.
 

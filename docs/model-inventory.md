@@ -16,14 +16,14 @@ Which features use a downloaded model or an optional runtime, where setup covers
 
 Setup tiers come from `ModelSpec.setup` in `engines/models/registry.py`: Whisper is required; RNNoise, the word aligner and the speaker model are recommended. GUI first run and the MCP and GUI bootstrap jobs install through `run_bootstrap` (`services/pipeline/bootstrap.py`), which reads `component_status` when it finishes; `podcast bootstrap` loops over the rows in `cli/setup_cmd.py` (through `install_and_report`, which calls `install_model`) and passes no `cancel_check`.
 
-Every row has the same shape: `model_status` reports it as `installed`, `update_needed` or `missing` without downloading, and every install runs inside `_ByteRelay`, which publishes a `bootstrap.bytes` child task on the first progress tick (a cached skip ticks nothing, so no task appears). The rows differ below that.
+Every row has the same shape: `model_status` reports it as `installed`, `update_needed` or `missing` without downloading, and every install runs inside `_ByteRelay`, which publishes a `bootstrap.bytes` child task on the first progress tick (a cached RNNoise, word aligner or speaker model ticks nothing, so no task appears; Whisper always ticks once). The rows differ below that.
 
 | Row | Status check at rest | Install progress | Cancel | Pin checked |
 | --- | --- | --- | --- | --- |
-| Whisper, catalog size | Pinned snapshot; a mismatch is `update_needed` | Bytes | Via the progress callback; a raise from it stops a faked hub download in `test_pinned_download_stops_when_the_sink_raises` | At status time and after download |
+| Whisper, catalog size | Pinned snapshot; a mismatch is `update_needed` | Bytes | Via the progress callback; `test_pinned_download_stops_when_the_sink_raises` shows the exception propagates out of a faked hub download | At status time and after download |
 | Whisper, size outside the pinned catalog | Weights present on disk | One start tick, no byte count | Only before the download starts | No |
 | RNNoise | File present; never `update_needed` | Bytes per 1 MiB | Per 1 MiB chunk | sha256 at download time only |
-| Word aligner | Pinned snapshot; a mismatch is `update_needed` | Bytes | Via the progress callback; a raise from it stops a faked hub download in `test_pinned_download_stops_when_the_sink_raises` | At status time and after download; an override directory skips `verify_word_aligner_snapshot` |
+| Word aligner | Pinned snapshot; a mismatch is `update_needed` | Bytes | Via the progress callback; `test_pinned_download_stops_when_the_sink_raises` shows the exception propagates out of a faked hub download | At status time and after download; an override directory skips `verify_word_aligner_snapshot` |
 | Speaker model | Default file is sha256-checked; an override file via `PODCAST_MCP_SPEAKER_ECAPA_MODEL` is not | Bytes per 1 MiB | Per 1 MiB chunk | sha256 at status time and at download; with an override set no download is attempted |
 
 Between rows, `run_bootstrap` checks `cancel_check` before each component.
@@ -36,7 +36,7 @@ Still open on #1998:
 
 - Running the speaker model download from inside a packaged app.
 - A look at the Split speakers dialog in a real browser and on a device.
-- Whether cancelling a snapshot download stops it promptly: the progress callback is driven by `huggingface_hub`, and the only test (`test_pinned_download_stops_when_the_sink_raises`) uses a faked hub that runs the callback on the calling thread, so real worker-thread behaviour is untested.
+- Whether cancelling a snapshot download stops it promptly: the progress callback is driven by `huggingface_hub`, and the only test (`test_pinned_download_stops_when_the_sink_raises`) fakes the hub's listing and per-file download and shows only that the exception propagates, so a real transfer stopping promptly is untested.
 
 ## Findings
 
