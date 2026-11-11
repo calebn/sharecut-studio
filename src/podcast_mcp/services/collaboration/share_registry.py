@@ -150,6 +150,8 @@ class ShareRegistryProtocol(Protocol):
 
     def claim_active(self, share: dict[str, Any]) -> None: ...
 
+    def rebase_workspace(self, old: str, new: str) -> int: ...
+
     def release_claim(self, token: str) -> bool: ...
 
     def upsert_active_metadata(self, row: dict[str, Any]) -> None: ...
@@ -361,6 +363,23 @@ class SqliteShareRegistry:
                     "share token already reserved. Mint a new share token.",
                     code="share_token_reserved",
                 ) from exc
+
+    def rebase_workspace(self, old: str, new: str) -> int:
+        """Point every active and cooldown row of workspace ``old`` at ``new`` (a moved folder).
+
+        Both tables change in one transaction, so a guest link never resolves to a folder that
+        is gone while its cooldown row names the new one. Returns the rows changed.
+        """
+        with self._ready_connection(), self._write_transaction():
+            active = self._conn.execute(
+                "UPDATE active_shares SET project_workspace = ? WHERE project_workspace = ?",
+                (new, old),
+            )
+            cooldown = self._conn.execute(
+                "UPDATE cooldown_shares SET project_workspace = ? WHERE project_workspace = ?",
+                (new, old),
+            )
+            return int(active.rowcount or 0) + int(cooldown.rowcount or 0)
 
     def release_claim(self, token: str) -> bool:
         """Drop an active claim without cooldown (create rollback)."""

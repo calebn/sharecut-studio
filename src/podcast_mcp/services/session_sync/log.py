@@ -96,6 +96,25 @@ def drop_cached_stores_for_tests(*, kind: str, variant: str | None = None) -> li
     return stores
 
 
+def drop_cached_stores_under(workspace: Path) -> None:
+    """Close and forget the cached stores of one workspace's files, so none holds them open.
+
+    A store still pinned by a subscriber or watcher is left alone: its owner closes it.
+    """
+    root = workspace.resolve()
+    with _STORE_CACHE_LOCK:
+        keys = [
+            key
+            for key in list(_STORE_CACHE)
+            if key[0].is_relative_to(root) and not _PINNED_STORES.get(key[0])
+        ]
+        stores = [_STORE_CACHE.pop(key, None) for key in keys]
+    for store in stores:
+        close = getattr(store, "close", None)
+        if close is not None:
+            close()
+
+
 _STORE_CACHE: WeakValueDictionary[tuple[Path, str, str], object] = WeakValueDictionary()
 _STORE_CACHE_LOCK = threading.RLock()
 _PINNED_STORES: dict[Path, tuple[int, dict[int, object]]] = {}

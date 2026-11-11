@@ -406,6 +406,13 @@ def _pool_key(project: EpisodeProject, track_id: str) -> PoolKey | None:
     return (*own, tuple(sorted((*key, offset) for key, offset in peers)))
 
 
+def forget_workspace_pools(workspace: Path) -> None:
+    """Drop the pools remembered for audio under ``workspace`` (its folder moved)."""
+    with _POOLS_LOCK:
+        for key in [key for key in _POOLS if Path(key[0]).is_relative_to(workspace)]:
+            del _POOLS[key]
+
+
 def _remember_pool(key: PoolKey, pool: tuple[Sample, ...]) -> None:
     with _POOLS_LOCK:
         _POOLS.pop(key, None)

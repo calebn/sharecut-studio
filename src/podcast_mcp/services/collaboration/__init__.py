@@ -51,6 +51,7 @@ if TYPE_CHECKING:
         effective_review_version_id,
         list_shares,
         list_usable_shares,
+        rebase_sidecar_workspace,
     )
     from podcast_mcp.services.collaboration.review_versions import (
         MixUnavailableError,
@@ -213,6 +214,7 @@ __all__ = [
     "lookup_share",
     "open_share_workspace",
     "read_tunnel_status",
+    "rebase_sidecar_workspace",
     "record_bootstrap",
     "render_record_spa_html",
     "render_share_spa_html",
@@ -356,6 +358,7 @@ _MODULE_BY_NAME = {
     "effective_review_version_id": "review_shares",
     "list_shares": "review_shares",
     "list_usable_shares": "review_shares",
+    "rebase_sidecar_workspace": "review_shares",
     "MixUnavailableError": "review_versions",
     "encode_version_mp3": "review_versions",
     "get_version": "review_versions",

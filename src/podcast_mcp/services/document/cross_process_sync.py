@@ -246,6 +246,16 @@ class CrossProcessBridge:
         watcher.join()
         entry.cache_pin.release()
 
+    def stop_workspace(self, key: str) -> None:
+        """Stop the watcher of one workspace whatever its leases; their later releases are no-ops."""
+        with self._lock:
+            entry = self._entries.pop(key, None)
+        if entry is None:
+            return
+        entry.watcher.stop()
+        entry.watcher.join()
+        entry.cache_pin.release()
+
     def watching(self, key: str) -> bool:
         with self._lock:
             return key in self._entries

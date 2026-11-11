@@ -143,6 +143,14 @@ def invalidate_record_session_cache(project: EpisodeProject) -> None:
     _SID_CACHE.pop(_workspace_cache_key(project))
 
 
+def forget_workspace_runtime(workspace: str) -> None:
+    """Drop the in-process record state keyed by one workspace path (its folder moved)."""
+    _SID_CACHE.pop(workspace)
+    with _STORE_LOCK:
+        _AUTHORITIES.pop(workspace, None)
+    clear_connections_for_hub(f"record:{workspace}")
+
+
 def claim_connection(participant_id: str, connection_id: str, *, hub_key: str) -> None:
     if participant_id == HOST_PARTICIPANT_ID:
         now_mono, now_wall = _now_pair()

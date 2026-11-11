@@ -242,7 +242,9 @@ def _hold_state_lock(project: EpisodeProject) -> Iterator[None]:
 
 
 @contextmanager
-def project_commit_lock(project: EpisodeProject) -> Iterator[None]:
+def project_commit_lock(
+    project: EpisodeProject, *, timeout: float = PROJECT_COMMIT_LOCK_TIMEOUT_SEC
+) -> Iterator[None]:
     """Serialize history-index + project-JSON commits across threads and processes.
 
     Lock order: the in-process ``project_state_lock`` RLock first, then the shared
@@ -254,7 +256,7 @@ def project_commit_lock(project: EpisodeProject) -> Iterator[None]:
     commit, so read-modify-write is serialized across processes (#213).
 
     Raises ``ProjectBusyError`` (a ``filelock.Timeout`` subclass) after
-    ``PROJECT_COMMIT_LOCK_TIMEOUT_SEC`` if *acquiring* the file lock times out. A
+    ``timeout`` (default ``PROJECT_COMMIT_LOCK_TIMEOUT_SEC``) if *acquiring* the file lock times out. A
     ``filelock.Timeout`` raised by the body once the lock is held (a nested lock, e.g.
     the transcript-context lock, #396/#401) propagates unchanged — only the acquire is
     rewrapped (#488).
@@ -264,7 +266,7 @@ def project_commit_lock(project: EpisodeProject) -> Iterator[None]:
     with _hold_state_lock(project):
         started = time.monotonic()
         try:
-            lock.acquire(timeout=PROJECT_COMMIT_LOCK_TIMEOUT_SEC)
+            lock.acquire(timeout=timeout)
         except Timeout as exc:
             waited = time.monotonic() - started
             raise ProjectBusyError(

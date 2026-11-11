@@ -32,6 +32,7 @@ if TYPE_CHECKING:
         cached_sync_store_if_exists,
         cross_process_command,
         drop_cached_stores_for_tests,
+        drop_cached_stores_under,
         pin_cached_stores,
     )
     from podcast_mcp.services.session_sync.presence_delta import (
@@ -78,6 +79,7 @@ __all__ = [
     "connect_session_db",
     "cross_process_command",
     "drop_cached_stores_for_tests",
+    "drop_cached_stores_under",
     "ensure_non_loopback_session_auth",
     "get_hub",
     "guest_display_name",
@@ -123,6 +125,7 @@ _MODULE_BY_NAME = {
     "connect_session_db": "sqlite",
     "cross_process_command": "log",
     "drop_cached_stores_for_tests": "log",
+    "drop_cached_stores_under": "log",
     "pin_cached_stores": "log",
     "ensure_non_loopback_session_auth": "authz",
     "get_hub": "hub",
