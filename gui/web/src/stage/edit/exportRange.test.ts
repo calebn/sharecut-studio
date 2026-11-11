@@ -13,6 +13,7 @@ import {
   type ExportScope,
   exportScopeOf,
   readExportRangeChoices,
+  usableChoices,
   writeExportRangeChoices,
 } from "./exportRange";
 
@@ -379,4 +380,28 @@ describe("bounceResultCopy", () => {
       }),
     ).toBe("Exported the soloed tracks as WAV and MP3");
   });
+});
+
+describe("usableChoices", () => {
+  const project = episode();
+
+  it("keeps a source that has tracks", () => {
+    expect(
+      usableChoices(
+        project,
+        wholeScope(),
+        { source: "soloed", includeMp3: true },
+        { bed: true },
+      ),
+    ).toEqual({ source: "soloed", includeMp3: true });
+  });
+
+  it.each(["soloed", "selected"] as const)(
+    "falls back to the full mix when %s has no tracks, keeping MP3",
+    (source) => {
+      expect(
+        usableChoices(project, wholeScope(), { source, includeMp3: true }, {}),
+      ).toEqual({ source: "mix", includeMp3: true });
+    },
+  );
 });

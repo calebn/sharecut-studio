@@ -151,6 +151,19 @@ export function sourceFor(
     : source;
 }
 
+/** The saved source, or the full mix when what it names is not available now (nothing soloed, no track selected). */
+export function usableChoices(
+  project: ProjectView,
+  scope: ExportScope,
+  choices: ExportRangeChoices,
+  solo: Readonly<Record<string, boolean>>,
+): ExportRangeChoices {
+  const source = sourceFor(scope, choices.source);
+  return bounceTracks(project, scope, source, solo).ok
+    ? choices
+    : { ...choices, source: "mix" };
+}
+
 export function bounceRequestOf(
   project: ProjectView,
   scope: ExportScope,
