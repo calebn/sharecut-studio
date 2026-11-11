@@ -9,11 +9,14 @@ This script writes a gitignored runtime tree and a target-triple launcher that
 from __future__ import annotations
 
 import argparse
+import json
 import os
 import shutil
 import stat
 import subprocess
 import sys
+import tempfile
+import tomllib
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -23,6 +26,8 @@ LAUNCHER_RS = Path(__file__).resolve().parent / "sidecar_launcher.rs"
 SIDECAR_STEM = "sharecut-sidecar"
 GUI_EXTRAS = "gui"
 PYTHON_VERSION = "3.12"
+LOCK_FILE = ROOT / "uv.lock"
+LOCK_CHECKED_PACKAGES = ("typer", "click")
 FREEZE_COMPLETE = ".freeze-complete"
 PYTHON_HOME_MARKER = ".python-home"
 E2E_WEB_MARKERS = (b"__SHARECUT_E2E", b"__recordSignalCount")
@@ -471,6 +476,63 @@ def install_extension_wheels(uv: str, venv_py: Path, directory: Path) -> None:
         raise SystemExit("extension wheels did not add a podcast_mcp.extensions entry point")
 
 
+def install_locked_project(uv: str, venv_py: Path) -> None:
+    """Install exactly the versions in uv.lock, then the project itself without deps."""
+    with tempfile.TemporaryDirectory() as tmp:
+        requirements = Path(tmp) / "requirements.txt"
+        subprocess.check_call(
+            [
+                uv,
+                "export",
+                "--locked",
+                "--no-dev",
+                "--extra",
+                GUI_EXTRAS,
+                "--no-emit-project",
+                "--no-hashes",
+                "-o",
+                str(requirements),
+            ],
+            cwd=ROOT,
+        )
+        subprocess.check_call(
+            [uv, "pip", "install", "--python", str(venv_py), "-r", str(requirements)]
+        )
+    subprocess.check_call([uv, "pip", "install", "--python", str(venv_py), "--no-deps", str(ROOT)])
+
+
+def locked_versions(lock_text: str, names: tuple[str, ...]) -> dict[str, set[str]]:
+    wanted = set(names)
+    found: dict[str, set[str]] = {name: set() for name in names}
+    for package in tomllib.loads(lock_text).get("package", []):
+        if package.get("name") in wanted:
+            found[package["name"]].add(package["version"])
+    return found
+
+
+def installed_versions(venv_py: Path, names: tuple[str, ...]) -> dict[str, str]:
+    code = (
+        "import json, sys; from importlib.metadata import version; "
+        "print(json.dumps({name: version(name) for name in sys.argv[1:]}))"
+    )
+    output = subprocess.check_output([str(venv_py), "-c", code, *names], text=True)
+    return json.loads(output)
+
+
+def assert_frozen_matches_lock(venv_py: Path, lock_file: Path = LOCK_FILE) -> None:
+    """Fail the build when the frozen venv drifted from uv.lock."""
+    names = LOCK_CHECKED_PACKAGES
+    locked = locked_versions(lock_file.read_text(encoding="utf-8"), names)
+    installed = installed_versions(venv_py, names)
+    drift = [
+        f"{name} {installed[name]} (uv.lock: {', '.join(sorted(locked[name])) or 'absent'})"
+        for name in names
+        if installed[name] not in locked[name]
+    ]
+    if drift:
+        raise SystemExit("frozen runtime differs from uv.lock: " + "; ".join(drift))
+
+
 def freeze_python(runtime: Path, *, extension_wheels_dir: Path | None = None) -> None:
     uv = _uv()
     py_home = runtime / "python"
@@ -483,8 +545,8 @@ def freeze_python(runtime: Path, *, extension_wheels_dir: Path | None = None) ->
         shutil.rmtree(venv)
     subprocess.check_call([py, "-m", "venv", "--copies", str(venv)])
     venv_py = venv / ("Scripts/python.exe" if os.name == "nt" else "bin/python")
-    spec = f"{ROOT}[{GUI_EXTRAS}]"
-    subprocess.check_call([uv, "pip", "install", "--python", str(venv_py), spec])
+    install_locked_project(uv, venv_py)
+    assert_frozen_matches_lock(venv_py)
     if extension_wheels_dir is not None:
         install_extension_wheels(uv, venv_py, extension_wheels_dir)
     slim_python_runtime(runtime)

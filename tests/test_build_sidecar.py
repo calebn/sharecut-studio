@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -781,3 +782,101 @@ def test_freeze_smoke_requires_packaged_defaults(tmp_path: Path) -> None:
     (pkg / "defaults").mkdir()
     (pkg / "defaults" / "pipeline.yaml").write_text("tighten: {x: 1}\n", encoding="utf-8")
     assert subprocess.run(cmd, env=env, capture_output=True).returncode == 0
+
+
+_LOCK_TEXT = """
+version = 1
+
+[[package]]
+name = "click"
+version = "8.4.2"
+
+[[package]]
+name = "typer"
+version = "0.28.0"
+"""
+
+
+def test_freeze_python_installs_locked_requirements_before_project(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    mod = _load_build_sidecar()
+    calls: list[list[str]] = []
+    monkeypatch.setattr(mod, "_uv", lambda: "uv")
+    monkeypatch.setattr(mod, "managed_cpython_executable", lambda _uv, env: "python")
+    monkeypatch.setattr(mod, "assert_frozen_matches_lock", lambda _py: calls.append(["lock"]))
+    monkeypatch.setattr(mod, "slim_python_runtime", lambda _runtime: 0)
+    monkeypatch.setattr(mod, "bundled_cpython_prefix", lambda _runtime: tmp_path)
+    monkeypatch.setattr(mod, "rewrite_pyvenv_cfg", lambda *_a: None)
+    monkeypatch.setattr(mod, "write_python_home_marker", lambda *_a: None)
+    monkeypatch.setattr(mod, "assert_frozen_interpreter", lambda _py: None)
+    monkeypatch.setattr(mod.subprocess, "check_call", lambda args, **_k: calls.append(list(args)))
+
+    mod.freeze_python(tmp_path / "runtime")
+
+    installs = [c for c in calls if c[:3] == ["uv", "pip", "install"]]
+    assert len(installs) == 2
+    assert "-r" in installs[0]
+    assert "--no-deps" not in installs[0]
+    assert installs[1][-2:] == ["--no-deps", str(mod.ROOT)]
+    export = next(c for c in calls if c[:2] == ["uv", "export"])
+    assert "--locked" in export
+    assert calls.index(export) < calls.index(installs[0]) < calls.index(installs[1])
+    assert calls.index(installs[1]) < calls.index(["lock"])
+    assert not any(c[-1] == f"{mod.ROOT}[gui]" for c in calls)
+
+
+def test_assert_frozen_matches_lock_accepts_locked_versions(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    mod = _load_build_sidecar()
+    lock = tmp_path / "uv.lock"
+    lock.write_text(_LOCK_TEXT, encoding="utf-8")
+    monkeypatch.setattr(
+        mod, "installed_versions", lambda _py, _names: {"typer": "0.28.0", "click": "8.4.2"}
+    )
+    mod.assert_frozen_matches_lock(tmp_path / "python", lock)
+
+
+def test_assert_frozen_matches_lock_rejects_drift(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    mod = _load_build_sidecar()
+    lock = tmp_path / "uv.lock"
+    lock.write_text(_LOCK_TEXT, encoding="utf-8")
+    monkeypatch.setattr(
+        mod, "installed_versions", lambda _py, _names: {"typer": "0.29.1", "click": "8.4.2"}
+    )
+    with pytest.raises(SystemExit, match=r"typer 0\.29\.1 \(uv\.lock: 0\.28\.0\)"):
+        mod.assert_frozen_matches_lock(tmp_path / "python", lock)
+
+
+def test_locked_versions_reads_uv_lock() -> None:
+    mod = _load_build_sidecar()
+    assert mod.locked_versions(_LOCK_TEXT, ("typer", "absent")) == {
+        "typer": {"0.28.0"},
+        "absent": set(),
+    }
+
+
+@pytest.mark.skipif(shutil.which("uv") is None, reason="uv not installed")
+def test_uv_export_of_real_lock_pins_locked_typer(tmp_path: Path) -> None:
+    mod = _load_build_sidecar()
+    out = tmp_path / "requirements.txt"
+    subprocess.check_call(
+        [
+            "uv",
+            "export",
+            "--locked",
+            "--no-dev",
+            "--extra",
+            "gui",
+            "--no-emit-project",
+            "--no-hashes",
+            "-o",
+            str(out),
+        ],
+        cwd=ROOT,
+    )
+    (typer_version,) = mod.locked_versions((ROOT / "uv.lock").read_text(), ("typer",))["typer"]
+    assert f"typer=={typer_version}" in out.read_text(encoding="utf-8")
