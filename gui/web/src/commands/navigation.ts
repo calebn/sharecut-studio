@@ -1,6 +1,9 @@
 import { patchComment } from "../api";
+import { planGoTo } from "../presence/goToPlan";
+import { rosterEntry } from "../presence/roster";
 import { canManageProjects, guestHearsMixOnly } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
+import { stageRoleOf } from "../state/stageRoutes";
 import { transportAvailability } from "../state/transportAvailability";
 import type { AuditionMode } from "../state/types";
 import { errorMessage } from "../utils/apiError";
@@ -9,6 +12,7 @@ import { clampToSession } from "../utils/time";
 import { registerCommand } from "./execute";
 import { shuttleBack, shuttleForward } from "./shuttle";
 import type { ExecuteResult } from "./types";
+import { cancelUserStageSwitch, markUserStageSwitch } from "./userStageSwitch";
 
 // Module scope: HomeScreen re-registers the commands on every mount, which
 // replaces the handler; the hold-A restore must outlive that.
@@ -101,6 +105,50 @@ export function registerNavigationCommands(): void {
       return { status: "ok" };
     }
     s.startFollow(clientId);
+    return { status: "ok" };
+  });
+
+  registerCommand("presence.goTo", (args) => {
+    const clientId = typeof args.clientId === "string" ? args.clientId : "";
+    if (!clientId) {
+      return { status: "disabled", reason: "clientId required" };
+    }
+    const s = useDawStore.getState();
+    const client = rosterEntry(s.sessionClients, clientId);
+    if (!client) {
+      return { status: "disabled", reason: "They are not here any more" };
+    }
+    const plan = planGoTo(
+      client,
+      {
+        guestShare: guestHearsMixOnly(s.guestMode),
+        breakpoint: s.shellBreakpoint,
+        role: stageRoleOf(s.guestMode),
+      },
+      s.project?.timeline_duration_sec ?? Number.NaN,
+    );
+    if (!plan) {
+      return {
+        status: "disabled",
+        reason: "This link cannot open where they are",
+      };
+    }
+    const { apply, sec } = plan;
+    if (apply.stage) {
+      const before = s.stage;
+      markUserStageSwitch();
+      s.openStage(apply.stage.stage, {
+        section: apply.stage.section,
+        sheet: apply.stage.sheet,
+      });
+      if (useDawStore.getState().stage === before) cancelUserStageSwitch();
+    }
+    if (apply.editSurface) {
+      s.setEditSurface(apply.editSurface);
+    }
+    if (sec !== null) {
+      s.setPlayheadSec(sec);
+    }
     return { status: "ok" };
   });
 

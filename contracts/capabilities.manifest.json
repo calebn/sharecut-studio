@@ -220,6 +220,31 @@
       }
     },
     {
+      "id": "daw.presence.goTo",
+      "label": "Go to where they are",
+      "effect": "session",
+      "service": "ShareCut Studio command bus \u2192 services/session_sync",
+      "industry_standard_key": false,
+      "gates": [
+        "always"
+      ],
+      "surfaces": {
+        "command": "presence.goTo",
+        "gui": [
+          "presence.goTo"
+        ]
+      },
+      "omit": {
+        "keyboard_reason": "not industry-standard; avatar menu",
+        "agent_reason": "viewer navigation: an agent has no viewport to move"
+      },
+      "tooltip": "Open their stage and move to their playhead, once",
+      "presence": {
+        "cursor": "none",
+        "follow": "none"
+      }
+    },
+    {
       "id": "daw.presence.unfollow",
       "label": "Stop following",
       "effect": "session",
