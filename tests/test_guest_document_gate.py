@@ -643,8 +643,8 @@ def test_guest_mcp_range_cut_follows_the_share(
 
 
 @pytest.fixture
-def guest_read_routes(minimal_project, sample_wav, published_share):
-    """Guest GET routes that read for one document command, keyed by share capabilities."""
+def guest_snap_status(minimal_project, sample_wav, published_share):
+    """Status of the guest waveform-snap read for a share published with the given capabilities."""
     from podcast_mcp.engines.waveform_pyramid import wait_pyramid_jobs
     from podcast_mcp.services.document import EpisodeService
 
@@ -686,8 +686,8 @@ def guest_read_routes(minimal_project, sample_wav, published_share):
         "editor-without-view",
     ],
 )
-def test_guest_authoring_reads_follow_the_gate(guest_read_routes, caps, status):
-    assert guest_read_routes(caps) == status
+def test_guest_snap_read_follows_the_gate(guest_snap_status, caps, status):
+    assert guest_snap_status(caps) == status
 
 
 def gap_project(minimal_project, monkeypatch) -> DocumentSyncService:
