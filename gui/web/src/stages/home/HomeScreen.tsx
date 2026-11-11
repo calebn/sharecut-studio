@@ -418,8 +418,13 @@ export function HomeScreen() {
   );
 
   const remove = useCallback(async (id: string) => {
-    setRecents((current) =>
-      current ? current.filter((entry) => entry.path !== id) : current,
+    setRead((current) =>
+      current.recents
+        ? {
+            ...current,
+            recents: current.recents.filter((entry) => entry.path !== id),
+          }
+        : current,
     );
     try {
       await forgetRecentProject(id);
