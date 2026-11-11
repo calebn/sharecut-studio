@@ -115,7 +115,9 @@ off.
 A revoke called with `restorable_for` (seconds) is undoable until that window ends. It is a
 service-level option; no HTTP route or client uses it yet, and the CLI, MCP and internal
 revokes (mint-time room revoke, auto-revoke of a vanished version) never pass it. The window is
-clamped to 30 s, below the 60 s finalize lease.
+clamped to 30 s, below the 60 s finalize lease (a non-finite window closes at once or caps at
+30 s). Only review links park as single links; a record token parks only with its room through
+`revoke_room`, and `revoke(record_token, restorable_for=...)` is a final revoke.
 
 - **Revoke**: `begin_pending_revoke` runs in one `BEGIN IMMEDIATE` transaction. It snapshots each
   active row into `pending_revokes`, deletes it, and inserts the usual `revoked` cooldown row, so
@@ -130,15 +132,17 @@ clamped to 30 s, below the 60 s finalize lease.
 - **Restore**: `ShareService.restore(token)` / `restore_room(session_id)` run `restore_group`, a
   compare-and-set in one transaction: the pending rows are deleted only while `restorable_until`
   is in the future and no finalize lease is held, the cooldown rows are deleted, and the snapshot
-  is re-inserted with the same token and `id`. A room restores every token atomically. Refusals
+  is re-inserted with the same token and `id`. A room restores every token atomically, under the record-room lock that
+  `create_record_room` uses, and skips tokens that already ended. Refusals
   are coded: `restore_window_closed` (410), `share_expired` (410, the link's own `expires_at`
   passed), `record_room_conflict` (409, another record room is live for the same episode, for
   example one minted inside the window), and the existing `share_not_found` /
   `record_room_not_found`. Restoring a link that is already live answers success again.
 - **Finalize**: `sweep_pending()` claims due rows with a lease (`finalize_lease_until`, 60 s), clears
-  the sidecar `restorable_until`, runs the effects, then deletes the pending row last. Effects are
-  at-least-once and idempotent; a crashed sweeper's lease lapses and the next sweep retries. A
-  final revoke of a pending link finalizes it at once.
+  the sidecar `restorable_until`, runs the effects, then deletes the pending row last. A failed
+  settle or room end leaves the row, and a crashed sweeper's lease lapses so the next sweep retries;
+  object-store and proxy deletes are best-effort, as for a final revoke. A final revoke of a
+  pending link (or of a token inside a parked room) finalizes its whole group at once.
 - **Sweeps** run on `create_record_room`, `list` / `list_presented`,
   restore and host start (`sweep_all_pending`), and on a best-effort daemon `threading.Timer` set
   `restorable_for + 1 s` after the revoke. Correctness never depends on the timer.

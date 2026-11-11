@@ -690,16 +690,101 @@ def test_restore_room_retried_after_a_failed_settle_reports_success_and_heals(
     assert rows and not any(r.get("revoked") or "restorable_until" in r for r in rows)
 
 
-def test_a_single_record_token_parks_and_restores(
+def test_a_record_token_revoke_is_final_even_with_restorable_for(
     minimal_project, sample_wav, tmp_workspace, effects
 ):
     ws = _seed(minimal_project, sample_wav)
     room = _room(ws)
     svc = ShareService(ws)
     token = room["guest"]["token"]
-    svc.revoke(token, restorable_for=WINDOW, now=T0)
-    assert svc.restore(token, now=at(1)) == {"restored": True, "token": token}
-    assert lookup_share(token, kind="record")["session_id"] == room["session_id"]
+    assert svc.revoke(token, restorable_for=WINDOW, now=T0) == {"revoked": True, "token": token}
+    assert get_share_registry().list_pending() == []
+    with pytest.raises(KeyError):
+        lookup_share(token, kind="record")
+    with pytest.raises(KeyError):
+        svc.restore(token, now=at(1))
+
+
+def test_room_park_after_one_token_was_revoked_parks_the_live_ones(
+    minimal_project, sample_wav, tmp_workspace, effects
+):
+    ws = _seed(minimal_project, sample_wav)
+    room = _room(ws)
+    svc = ShareService(ws)
+    svc.revoke(room["guest"]["token"])
+    out = svc.revoke_room(room["session_id"], restorable_for=WINDOW, now=T0)
+    assert out["revoked"] == [room["producer"]["token"]]
+    back = svc.restore_room(room["session_id"], now=at(1))
+    assert back["restored"] == [room["producer"]["token"]]
+
+
+def test_restore_room_of_a_live_room_with_one_ended_token_reports_the_live_ones(
+    minimal_project, sample_wav, tmp_workspace, effects
+):
+    ws = _seed(minimal_project, sample_wav)
+    room = _room(ws)
+    svc = ShareService(ws)
+    svc.revoke(room["guest"]["token"])
+    back = svc.restore_room(room["session_id"], now=T0)
+    assert back["restored"] == [room["producer"]["token"]]
+
+
+def test_restore_room_of_a_fully_ended_room_is_window_closed(
+    minimal_project, sample_wav, tmp_workspace, effects
+):
+    ws = _seed(minimal_project, sample_wav)
+    room = _room(ws)
+    svc = ShareService(ws)
+    svc.revoke_room(room["session_id"])
+    with pytest.raises(RestoreWindowClosedError):
+        svc.restore_room(room["session_id"], now=T0)
+
+
+def test_final_revoke_of_a_token_inside_a_parked_room_finalizes_the_room(
+    minimal_project, sample_wav, tmp_workspace, effects
+):
+    ws = _seed(minimal_project, sample_wav)
+    room = _room(ws)
+    svc = ShareService(ws)
+    svc.revoke_room(room["session_id"], restorable_for=WINDOW, now=T0)
+    token = room["guest"]["token"]
+    assert svc.revoke(token) == {"revoked": True, "token": token}
+    assert get_share_registry().list_pending() == []
+    effects["summary"].assert_called_once()
+    with pytest.raises(RestoreWindowClosedError):
+        svc.restore_room(room["session_id"], now=at(1))
+    with pytest.raises(RestoreWindowClosedError):
+        svc.restore(room["producer"]["token"], now=at(1))
+
+
+def test_finalize_failure_logs_never_carry_the_bearer_token(
+    minimal_project, sample_wav, tmp_workspace, effects, monkeypatch, caplog
+):
+    ws = _seed(minimal_project, sample_wav)
+    share = _review_share(ws)
+    svc = ShareService(ws)
+    svc.revoke(share["token"], restorable_for=WINDOW, now=T0)
+    _make_settle_fail(monkeypatch)
+    svc.sweep_pending(now=at(11))
+    assert caplog.records
+    assert share["token"] not in caplog.text
+
+
+def test_a_non_finite_window_is_closed_or_capped_without_raising(
+    minimal_project, sample_wav, tmp_workspace, effects
+):
+    ws = _seed(minimal_project, sample_wav)
+    first = _review_share(ws)
+    second = _review_share(ws)
+    svc = ShareService(ws)
+    assert (
+        svc.revoke(first["token"], restorable_for=float("nan"), now=T0)["restorable_until"]
+        == T0.isoformat()
+    )
+    assert (
+        svc.revoke(second["token"], restorable_for=float("inf"), now=T0)["restorable_until"]
+        == at(30).isoformat()
+    )
 
 
 def test_a_zero_window_closes_at_once_and_the_refused_restore_sweeps_it_final(

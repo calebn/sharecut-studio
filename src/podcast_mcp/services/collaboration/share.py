@@ -667,7 +667,11 @@ class ShareService:
         return {"session_id": session_id, "revoked": revoked}
 
     def _park_room(self, session_id: str, window: float, now: datetime | None) -> ParkedRoom:
-        tokens = [str(row["token"]) for row in list_room_shares(self.ws.project, session_id)]
+        tokens = [
+            str(row["token"])
+            for row in list_room_shares(self.ws.project, session_id)
+            if row.get("token")
+        ]
         pending = share_pending.park(
             self.ws, tokens, group_id=session_id, window_sec=window, now=now
         )
@@ -718,10 +722,13 @@ class ShareService:
                 f"record room not found: {session_id}", code="record_room_not_found"
             )
         registry = get_share_registry()
-        live = all(row.get("token") and registry.get_active(str(row["token"])) for row in rows)
-        if any(row.get("revoked") for row in rows) and not live:
+        tokens = [str(row["token"]) for row in rows if row.get("token")]
+        pending_sidecar = any(row.get("revoked") for row in rows if row.get("token"))
+        if not tokens or (
+            pending_sidecar and not all(registry.get_active(token) for token in tokens)
+        ):
             raise RestoreWindowClosedError()
-        return {"session_id": session_id, "restored": [str(row["token"]) for row in rows]}
+        return {"session_id": session_id, "restored": tokens}
 
     def restore(self, token: str, *, now: datetime | None = None) -> RestoredShare:
         """Bring back a share revoked with ``restorable_for``. Idempotent for a live link."""
@@ -751,10 +758,12 @@ class ShareService:
         restorable_for: float | None = None,
         now: datetime | None = None,
     ) -> dict[str, Any]:
-        if restorable_for is not None:
-            return dict(self._park_share(token, restorable_for, now))
-        if share_pending.finalize_now(self.ws, token, now=now):
+        group = share_pending.group_of(self.ws, token)
+        if group is not None:
+            share_pending.finalize_now(self.ws, group, now=now)
             return {"revoked": True, "token": token}
+        if restorable_for is not None and self._is_review_token(token):
+            return dict(self._park_share(token, restorable_for, now))
 
         version_id: str | None = None
         kind = SHARE_KIND_REVIEW
@@ -769,6 +778,12 @@ class ShareService:
         if kind != SHARE_KIND_RECORD:
             share_pending.delete_review_effects(self.ws, [version_id or ""])
         return {"revoked": True, "token": token}
+
+    def _is_review_token(self, token: str) -> bool:
+        return any(
+            row.get("token") == token and row.get("kind", SHARE_KIND_REVIEW) == SHARE_KIND_REVIEW
+            for row in list_shares(self.ws.project)
+        )
 
     def _park_share(self, token: str, window: float, now: datetime | None) -> ParkedShare:
         pending = share_pending.park(self.ws, [token], group_id=token, window_sec=window, now=now)
