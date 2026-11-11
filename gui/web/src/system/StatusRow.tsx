@@ -44,7 +44,12 @@ export type StatusRowProps = {
     disabledReason?: string;
   };
   /** A quieter action beside the main one, such as Save a copy next to Resume saving. */
-  secondaryAction?: { label: string; name?: string; onAction: () => void };
+  secondaryAction?: {
+    label: string;
+    name?: string;
+    onAction: () => void;
+    disabledReason?: string;
+  };
   /** A third action after the main one, for a row the spec gives three verbs (guest conflict: Drop it). */
   tertiaryAction?: { label: string; name?: string; onAction: () => void };
   /** The technical cause of a failed row, behind a Details button. */
@@ -123,6 +128,7 @@ export function StatusRow({
             {secondaryAction ? (
               <Button
                 aria-label={secondaryAction.name}
+                disabledReason={secondaryAction.disabledReason}
                 onClick={secondaryAction.onAction}
               >
                 {secondaryAction.label}
