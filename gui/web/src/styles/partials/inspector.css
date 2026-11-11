@@ -342,3 +342,7 @@ html[data-shell="phone"] .track-sheet-action {
   justify-content: space-between;
   min-inline-size: min(12rem, 100%);
 }
+
+.range-field .sys-scrub-box {
+  min-inline-size: 0;
+}

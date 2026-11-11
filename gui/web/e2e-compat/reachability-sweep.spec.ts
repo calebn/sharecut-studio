@@ -329,7 +329,8 @@ async function rangeFieldOverflow(page: Page): Promise<Reach[]> {
     )) {
       const held = root.getBoundingClientRect();
       for (const field of root.querySelectorAll<HTMLElement>(".range-field")) {
-        const box = field.getBoundingClientRect();
+        const inner = field.querySelector(".sys-scrub-box") ?? field;
+        const box = inner.getBoundingClientRect();
         if (!box.width || box.right <= held.right + 1) continue;
         out.push({
           failure: "overflows-container",
