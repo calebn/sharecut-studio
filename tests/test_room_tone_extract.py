@@ -861,15 +861,39 @@ def test_the_default_run_fills_bedless_voices_and_leaves_recorded_and_music_alon
     assert not list((tmp_path / EXTRACT_DIR).glob("recorded-*"))
 
 
-def test_a_gated_track_is_refused_and_the_other_tracks_still_get_beds(tmp_path: Path) -> None:
+def test_a_digitally_silent_track_is_refused_and_the_other_tracks_still_get_beds(
+    tmp_path: Path,
+) -> None:
     project = _episode(tmp_path)
-    _add_track(project, "gated", TrackRole.DIALOGUE, np.zeros(round(DURATION_SEC * SR)))
+    _add_track(project, "silent", TrackRole.DIALOGUE, np.zeros(round(DURATION_SEC * SR)))
 
     summary = _step(project, ON)
 
     assert summary is not None
     assert summary.startswith("2 beds extracted")
-    assert "gated: digital_silence" in summary
+    assert "silent: digital_silence" in summary
+    assert project.track_by_id("silent").room_tone is None
+    assert project.track_by_id("silent").room_tone_origin is None
+    for tid in ("host", "guest"):
+        assert project.track_by_id(tid).room_tone_origin is not None
+    assert not list((tmp_path / EXTRACT_DIR).glob("silent-*"))
+
+
+def test_a_mostly_gated_track_is_refused_and_the_other_tracks_still_get_beds(
+    tmp_path: Path,
+) -> None:
+    project = _episode(tmp_path)
+    gated = np.zeros(round(DURATION_SEC * SR))
+    live = round(3.0 * SR)
+    gated[:live] = _noise(FLOOR_DB, seed=3655)[:live]
+    _add_track(project, "gated", TrackRole.DIALOGUE, gated)
+
+    summary = _step(project, ON)
+
+    assert summary is not None
+    assert summary.startswith("2 beds extracted")
+    assert "gated: gated_live" in summary
+    assert project.track_by_id("gated").room_tone is None
     assert project.track_by_id("gated").room_tone_origin is None
     for tid in ("host", "guest"):
         assert project.track_by_id(tid).room_tone_origin is not None
