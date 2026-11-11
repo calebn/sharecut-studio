@@ -67,6 +67,7 @@ from podcast_mcp.engines.mute_regions import (
 )
 from podcast_mcp.engines.off_speaker_regions import (
     nonempty_off_speaker_regions_payload,
+    nonlinear_fade_curves_payload,
     nonzero_gain_payload,
 )
 from podcast_mcp.engines.room_tone import (
@@ -852,6 +853,7 @@ def copy_segment(
             "fade_in_ms": clip.fade_in_ms,
             "fade_out_ms": clip.fade_out_ms,
             **nonzero_gain_payload(clip),
+            **nonlinear_fade_curves_payload(clip),
             "join_in_mode": clip.join_in_mode.value,
             "mute_regions": mute_regions_payload(clip.mute_regions),
             **nonempty_off_speaker_regions_payload(clip),
@@ -905,6 +907,16 @@ def _pasted_gain_db(raw: object) -> float:
     if isinstance(raw, bool) or not isinstance(raw, int | float) or not math.isfinite(raw):
         return 0.0
     return round(min(CLIP_GAIN_MAX_DB, max(CLIP_GAIN_MIN_DB, float(raw))), 2)
+
+
+def _pasted_fade_curve(raw: dict, key: str, index: int) -> FadeCurve:
+    value = raw.get(key, FadeCurve.LINEAR.value)
+    try:
+        return FadeCurve(value)
+    except ValueError:
+        raise PasteRejectedError(
+            "paste_bad_extract", f"extract {index} has an unknown {key} {value!r}"
+        ) from None
 
 
 def _clips_from_paste(project: EpisodeProject, extracts: list[dict]) -> dict[str, list[Clip]]:
@@ -983,6 +995,8 @@ def _clips_from_paste(project: EpisodeProject, extracts: list[dict]) -> dict[str
                 source_id=None if source_id is None else str(source_id),
                 fade_in_ms=int(raw.get("fade_in_ms", 0) or 0),
                 fade_out_ms=int(raw.get("fade_out_ms", 0) or 0),
+                fade_in_curve=_pasted_fade_curve(raw, "fade_in_curve", index),
+                fade_out_curve=_pasted_fade_curve(raw, "fade_out_curve", index),
                 gain_db=_pasted_gain_db(raw.get("gain_db")),
                 join_in_mode=join_mode,
                 mute_regions=mute_regions_overlapping(parsed_mutes, src_start, src_end),
@@ -1825,6 +1839,8 @@ def _tiled_fill_clips(
                 source_id=source_id,
                 fade_in_ms=CROSSFADE_MS if blends_in else (10 if index == 0 else 0),
                 fade_out_ms=CROSSFADE_MS if blends_out else (10 if index + 1 == len(tiles) else 0),
+                fade_in_curve=FadeCurve.LINEAR,
+                fade_out_curve=FadeCurve.LINEAR,
                 join_in_mode=ClipJoinMode.CROSSFADE if blends_in else ClipJoinMode.FADE,
             )
         )

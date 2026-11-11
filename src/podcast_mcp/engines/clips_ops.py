@@ -19,7 +19,14 @@ from podcast_mcp.engines.session_timeline import (
     clip_timeline_overlap_to_source,
     clip_timeline_point_to_source,
 )
-from podcast_mcp.models import Clip, ClipJoinMode, EditMode, EpisodeProject, SourceRecording
+from podcast_mcp.models import (
+    Clip,
+    ClipJoinMode,
+    EditMode,
+    EpisodeProject,
+    FadeCurve,
+    SourceRecording,
+)
 from podcast_mcp.models.clip_timing import MIN_STEP_GAP_SEC
 from podcast_mcp.util.batch_scope import scoped
 from podcast_mcp.util.coded_error import CodedError, CodedValueError
@@ -228,6 +235,7 @@ def split_clip_at(
             "id": new_clip_id(),
             "source_end": source_split,
             "fade_out_ms": max(clip.fade_out_ms, fade),
+            "fade_out_curve": FadeCurve.LINEAR,
         },
     )
     after = clip.model_copy(
@@ -237,6 +245,7 @@ def split_clip_at(
             "source_start": source_split,
             "timeline_start": after_start,
             "fade_in_ms": max(clip.fade_in_ms, fade),
+            "fade_in_curve": FadeCurve.LINEAR,
             "join_in_mode": ClipJoinMode.FADE,
         },
     )
@@ -413,6 +422,8 @@ def extract_clips_in_timeline_range(
                 source_id=clip.source_id,
                 fade_in_ms=clip.fade_in_ms,
                 fade_out_ms=clip.fade_out_ms,
+                fade_in_curve=clip.fade_in_curve,
+                fade_out_curve=clip.fade_out_curve,
                 gain_db=clip.gain_db,
                 join_in_mode=clip.join_in_mode,
                 mute_regions=mute_regions_overlapping(clip.mute_regions, src_start, src_end),

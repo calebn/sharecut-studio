@@ -49,7 +49,7 @@ from podcast_mcp.edits.cut_placement import (
 from podcast_mcp.edits.cut_quality import fade_reach_sec
 from podcast_mcp.edits.cut_speech import SourceExtent, _chosen_on_timeline
 from podcast_mcp.edits.tighten_reasons import is_pause_reason
-from podcast_mcp.models import ClipJoinMode
+from podcast_mcp.models import ClipJoinMode, FadeCurve
 from podcast_mcp.util.bounded_cache import BoundedCache
 from podcast_mcp.util.fingerprint import file_stamp
 
@@ -475,6 +475,10 @@ def _heard(clip: Any, lo: float, hi: float) -> list[Any]:
         heard.append(timing.model_dump(mode="json"))
     if clip.gain_db:
         heard.append(clip.gain_db)
+    if opens and clip.fade_in_curve is not FadeCurve.LINEAR:
+        heard.append(["fade_in_curve", clip.fade_in_curve.value])
+    if closes and clip.fade_out_curve is not FadeCurve.LINEAR:
+        heard.append(["fade_out_curve", clip.fade_out_curve.value])
     return heard
 
 
@@ -525,11 +529,15 @@ def _outside_ramps(
     ramp_out = closes and clip.fade_out_ms
     if not (ramp_in or ramp_out):
         return None
+    in_curve = [] if clip.fade_in_curve is FadeCurve.LINEAR else [clip.fade_in_curve.value]
+    out_curve = [] if clip.fade_out_curve is FadeCurve.LINEAR else [clip.fade_out_curve.value]
     return [
         clip.track_id,
         clip.source_id,
-        [*edge(clip.source_start, clip.fade_in_ms), clip.join_in_mode.value] if ramp_in else None,
-        edge(clip.source_end, clip.fade_out_ms) if ramp_out else None,
+        [*edge(clip.source_start, clip.fade_in_ms), clip.join_in_mode.value, *in_curve]
+        if ramp_in
+        else None,
+        [*edge(clip.source_end, clip.fade_out_ms), *out_curve] if ramp_out else None,
         *([clip.gain_db] if clip.gain_db else []),
     ]
 

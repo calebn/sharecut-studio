@@ -18,7 +18,7 @@ from podcast_mcp.engines.ranges import merge_timeline_ranges, subtract_ranges_fr
 from podcast_mcp.engines.silence import SilenceInterval, quiet_intervals
 from podcast_mcp.engines.transcript_sync import apply_source_transcript_removes
 from podcast_mcp.engines.ungated_audio import load_mono_full
-from podcast_mcp.models import Clip, ClipJoinMode, EpisodeProject
+from podcast_mcp.models import Clip, ClipJoinMode, EpisodeProject, FadeCurve
 from podcast_mcp.util.coded_error import CodedValueError
 
 
@@ -116,6 +116,8 @@ def strip_silence(
                 timeline_start=timeline_cursor,
                 fade_in_ms=fades["fade_in_ms"] if timeline_cursor > 0 else 0,
                 fade_out_ms=fades["fade_out_ms"],
+                fade_in_curve=FadeCurve.LINEAR,
+                fade_out_curve=FadeCurve.LINEAR,
                 join_in_mode=ClipJoinMode.FADE,
             )
         )

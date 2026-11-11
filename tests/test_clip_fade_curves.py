@@ -20,6 +20,8 @@ from podcast_mcp.edits.clip_fades import ClipFadeBaseline, ClipFadeChangedError,
 from podcast_mcp.engines.audio import SourceAudio, placed_sources, sources
 from podcast_mcp.engines.audio_eval import evaluate_audio
 from podcast_mcp.engines.ffmpeg import FFmpegEngine
+from podcast_mcp.engines.play_audit import track_render_hash
+from podcast_mcp.engines.reconciliation_state import audio_state_fingerprint
 from podcast_mcp.engines.timeline_render import (
     placed_track_audio,
     render_track_from_timeline,
@@ -39,7 +41,7 @@ from podcast_mcp.models import (
     load_project,
     save_project,
 )
-from podcast_mcp.models.episode import RoomToneFill
+from podcast_mcp.models.episode import EditMode, RoomToneFill
 from podcast_mcp.project.store import WriteGrantKind, write_grant
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.util.binaries import resolve_ffmpeg
@@ -433,6 +435,96 @@ def _hash_project(tmp_path: Path, **clip_extra) -> EpisodeProject:
     return project
 
 
+def test_linear_curves_leave_the_render_hash_byte_identical(tmp_path: Path) -> None:
+    plain = _hash_project(tmp_path)
+    explicit = _hash_project(tmp_path, fade_in_curve=LINEAR, fade_out_curve=LINEAR)
+    assert track_render_hash(plain, "host", defaults=DEFAULTS) == track_render_hash(
+        explicit, "host", defaults=DEFAULTS
+    )
+    assert track_render_hash(plain, "guest", defaults=DEFAULTS) == "1f11cf02970cc948"
+
+
+@pytest.mark.parametrize("edge", ["fade_in_curve", "fade_out_curve"])
+@pytest.mark.parametrize("curve", [EQUAL_POWER, S])
+def test_a_curve_only_change_moves_the_render_hash_and_the_fingerprint(
+    tmp_path: Path, edge: str, curve: FadeCurve
+) -> None:
+    project = _hash_project(tmp_path)
+    host = track_render_hash(project, "host", defaults=DEFAULTS)
+    guest = track_render_hash(project, "guest", defaults=DEFAULTS)
+    fingerprint = audio_state_fingerprint(project, defaults=DEFAULTS)
+    setattr(project.clips[0], edge, curve)
+    changed = track_render_hash(project, "host", defaults=DEFAULTS)
+    assert changed != host
+    assert track_render_hash(project, "guest", defaults=DEFAULTS) == guest
+    assert audio_state_fingerprint(project, defaults=DEFAULTS) != fingerprint
+    setattr(project.clips[0], edge, EQUAL_POWER if curve is S else S)
+    assert track_render_hash(project, "host", defaults=DEFAULTS) != changed
+    setattr(project.clips[0], edge, LINEAR)
+    assert track_render_hash(project, "host", defaults=DEFAULTS) == host
+    assert audio_state_fingerprint(project, defaults=DEFAULTS) == fingerprint
+
+
+def test_the_verdict_cache_key_sees_a_curve_only_edit_and_stays_put_without_one() -> None:
+    from podcast_mcp.edits.verdict_cache import _heard, _outside_ramps
+
+    plain = _clip("a", 0.0, 4.0, 1.0, fade_in_ms=20, fade_out_ms=20)
+    explicit = plain.model_copy(update={"fade_in_curve": LINEAR, "fade_out_curve": LINEAR})
+    window = (-math.inf, math.inf)
+    assert _heard(explicit, *window) == _heard(plain, *window)
+
+    def near(*_args):
+        return []
+
+    assert _outside_ramps(explicit, near, True, True) == _outside_ramps(plain, near, True, True)
+    for update in ({"fade_in_curve": S}, {"fade_out_curve": EQUAL_POWER}):
+        curved = plain.model_copy(update=update)
+        assert _heard(curved, *window) != _heard(plain, *window)
+        assert _outside_ramps(curved, near, True, True) != _outside_ramps(plain, near, True, True)
+
+
+def test_occurrence_proxy_identity_ignores_clip_curves(tmp_path: Path) -> None:
+    import wave as wave_module
+
+    from podcast_mcp.engines import source_proxy_audio as proxy
+    from podcast_mcp.models import ClipBleedRestore
+    from podcast_mcp.models.episode import SourceSpan
+    from podcast_mcp.util.hashing import sha256_file
+
+    with wave_module.open(str(tmp_path / "primary.wav"), "wb") as stream:
+        stream.setnchannels(1)
+        stream.setsampwidth(2)
+        stream.setframerate(16000)
+        stream.writeframes(np.full(16000, 1000, dtype="<i2").tobytes())
+    project = EpisodeProject.create("Inputs", str(tmp_path))
+    project.tracks = [Track(id="origin", label="Origin", media=MediaAsset(path="primary.wav"))]
+    project.clips = [
+        Clip(
+            id="choice",
+            track_id="origin",
+            source_start=0.1,
+            source_end=0.9,
+            timeline_start=5,
+            fade_in_ms=30,
+            bleed_restore=ClipBleedRestore(
+                source_sha256=sha256_file(tmp_path / "primary.wav"),
+                regions=[SourceSpan(start_s=0.3, end_s=0.7)],
+            ),
+        )
+    ]
+    engine = FFmpegEngine()
+
+    def capture():
+        return proxy.SourceProxyInputs.capture_occurrence(
+            project, "choice", engine, defaults=DEFAULTS
+        )
+
+    original = capture().input_hash
+    project.clips[0].fade_in_curve = S
+    project.clips[0].fade_out_curve = EQUAL_POWER
+    assert capture().input_hash == original
+
+
 def test_service_sets_curves_and_a_length_only_write_keeps_them(minimal_project: Path) -> None:
     from podcast_mcp.services.document import TimelineService
 
@@ -686,3 +778,171 @@ def test_the_registry_rows_still_name_their_tools() -> None:
     assert COMMANDS["SetClipFade"].mcp == named("set_clip_fade_tool")
     assert COMMANDS["SetClipsFade"].mcp == named("set_clips_fade_tool")
     assert COMMANDS["SetClipFade"].cli == named(GENERIC_CLI)
+
+
+def test_split_resets_the_new_inner_edges_and_keeps_the_outer_ones() -> None:
+    from podcast_mcp.engines.clips_ops import split_clip_at
+
+    clip = _clip(
+        "a",
+        0.0,
+        4.0,
+        0.0,
+        fade_in_ms=100,
+        fade_out_ms=100,
+        fade_in_curve=EQUAL_POWER,
+        fade_out_curve=S,
+    )
+    before, after = split_clip_at(clip, 2.0, defaults=DEFAULTS)
+    assert _curves(before) == (EQUAL_POWER, LINEAR)
+    assert _curves(after) == (LINEAR, S)
+    assert _curves(clip) == (EQUAL_POWER, S)
+
+
+def test_split_clip_on_a_track_resets_inner_edges(minimal_project: Path) -> None:
+    from podcast_mcp.edits.timeline_ops import split_clip
+
+    ws = _seed(
+        minimal_project, _clip("a", 0.0, 2.0, 0.0, fade_in_curve=S, fade_out_curve=EQUAL_POWER)
+    )
+    split_clip(ws.project, "host", 1.0, defaults=DEFAULTS)
+    left, right = sorted(ws.project.clips, key=lambda c: c.timeline_start)
+    assert _curves(left) == (S, LINEAR)
+    assert _curves(right) == (LINEAR, EQUAL_POWER)
+
+
+def test_range_extraction_and_slicing_carry_the_curves() -> None:
+    from podcast_mcp.engines.clips_ops import (
+        extract_clips_in_timeline_range,
+        remove_timeline_range_from_clips,
+        slice_timeline_range_from_clips,
+    )
+
+    clips = [
+        _clip("a", 0.0, 2.0, 0.0, fade_in_curve=S, fade_out_curve=EQUAL_POWER),
+        _clip("b", 2.0, 4.0, 2.0, fade_in_curve=EQUAL_POWER, fade_out_curve=S),
+    ]
+    whole = [(S, EQUAL_POWER), (EQUAL_POWER, S)]
+    assert [_curves(c) for c in extract_clips_in_timeline_range(clips, 0.0, 4.0)] == whole
+    assert [
+        _curves(c) for c in slice_timeline_range_from_clips(clips, 0.0, 4.0, defaults=DEFAULTS)
+    ] == whole
+    inner = slice_timeline_range_from_clips(clips, 1.0, 3.0, defaults=DEFAULTS)
+    assert [_curves(c) for c in inner] == [(LINEAR, EQUAL_POWER), (EQUAL_POWER, LINEAR)]
+    kept = remove_timeline_range_from_clips(clips, 1.0, 3.0, defaults=DEFAULTS)
+    assert [_curves(c) for c in kept] == [(S, LINEAR), (LINEAR, S)]
+
+
+def test_copy_and_paste_carry_curves_and_the_payload_names_only_non_linear(
+    minimal_project: Path,
+) -> None:
+    from podcast_mcp.edits.timeline_ops import copy_segment, paste_segment
+
+    ws = _seed(
+        minimal_project, _clip("a", 0.0, 1.0, 0.0, fade_in_curve=S), _clip("b", 1.0, 2.0, 1.0)
+    )
+    clipboard = copy_segment(ws.project, 0.0, 2.0)
+    first, second = clipboard["extracts"]
+    assert first["fade_in_curve"] == "s" and "fade_out_curve" not in first
+    assert "fade_in_curve" not in second and "fade_out_curve" not in second
+    paste_segment(
+        ws.project,
+        5.0,
+        clipboard["duration"],
+        clipboard["extracts"],
+        mode=EditMode.GAP,
+        defaults=DEFAULTS,
+    )
+    pasted = sorted(
+        (c for c in ws.project.clips if c.id not in {"a", "b"}), key=lambda c: c.timeline_start
+    )
+    assert [_curves(c) for c in pasted] == [(S, LINEAR), (LINEAR, LINEAR)]
+
+
+@pytest.mark.parametrize("bad", ["logarithmic", 3, None, ["s"], ""])
+@pytest.mark.parametrize("key", ["fade_in_curve", "fade_out_curve"])
+def test_paste_rejects_an_unknown_curve(minimal_project: Path, key: str, bad) -> None:
+    from podcast_mcp.edits.timeline_ops import PasteRejectedError, copy_segment, paste_segment
+
+    ws = _seed(minimal_project, _clip("a", 0.0, 1.0, 0.0))
+    clipboard = copy_segment(ws.project, 0.0, 1.0)
+    extracts = [{**clipboard["extracts"][0], key: bad}]
+    with pytest.raises(PasteRejectedError) as refusal:
+        paste_segment(
+            ws.project,
+            5.0,
+            clipboard["duration"],
+            extracts,
+            mode=EditMode.GAP,
+            defaults=DEFAULTS,
+        )
+    assert refusal.value.code == "paste_bad_extract"
+    assert [c.id for c in ws.project.clips] == ["a"]
+
+
+def test_an_older_clipboard_without_curves_pastes_linear(minimal_project: Path) -> None:
+    from podcast_mcp.edits.timeline_ops import copy_segment, paste_segment
+
+    ws = _seed(minimal_project, _clip("a", 0.0, 1.0, 0.0, fade_in_ms=10))
+    clipboard = copy_segment(ws.project, 0.0, 1.0)
+    paste_segment(
+        ws.project,
+        5.0,
+        clipboard["duration"],
+        clipboard["extracts"],
+        mode=EditMode.GAP,
+        defaults=DEFAULTS,
+    )
+    (pasted,) = [c for c in ws.project.clips if c.id != "a"]
+    assert _curves(pasted) == (LINEAR, LINEAR)
+
+
+def test_tiled_room_tone_fill_clips_are_linear() -> None:
+    from podcast_mcp.edits.timeline_ops import _tiled_fill_clips
+
+    clips = _tiled_fill_clips("host", None, 0.0, 0.3, 5.0, 6.0)
+    assert len(clips) >= 2
+    assert {_curves(c) for c in clips} == {(LINEAR, LINEAR)}
+    assert all("_curve" not in c.model_dump_json() for c in clips)
+
+
+def test_a_saved_segment_drops_the_curves_a_documented_limitation(
+    minimal_project: Path, sample_wav: Path, tmp_path: Path
+) -> None:
+    from podcast_mcp.segments.model import SegmentClip
+    from podcast_mcp.services.document.segment_capture import capture_segment
+
+    assert "fade_in_curve" not in SegmentClip.model_fields
+    assert "fade_out_curve" not in SegmentClip.model_fields
+    with pytest.raises(ValidationError):
+        SegmentClip.model_validate(
+            {
+                "audio": "a.flac",
+                "offset_sec": 0,
+                "duration_sec": 1,
+                "lane": "a",
+                "fade_in_curve": "s",
+            }
+        )
+    if not FFmpegEngine().check_available()[0]:
+        pytest.skip("ffmpeg not available")
+    project = load_project(minimal_project)
+    raw = Path(project.workspace_path()) / "raw"
+    raw.mkdir(exist_ok=True)
+    (raw / "host.wav").write_bytes(sample_wav.read_bytes())
+    project.tracks = [
+        Track(id="host", label="Host", role=TrackRole.MUSIC, media=MediaAsset(path="raw/host.wav"))
+    ]
+    project.clips = [
+        _clip("curved", 0.0, 1.0, 0.0, fade_in_ms=50, fade_in_curve=S, fade_out_curve=EQUAL_POWER)
+    ]
+    save_project(project, minimal_project)
+    segment = capture_segment(
+        ProjectWorkspace.open(minimal_project),
+        name="Curved",
+        directory=tmp_path / "seg",
+        clip_ids=["curved"],
+        kind="sting",
+    )
+    assert segment.clips[0].fade_in_ms == 50
+    assert "curve" not in segment.clips[0].model_dump_json()
