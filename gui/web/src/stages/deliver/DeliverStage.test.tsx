@@ -8,7 +8,6 @@ import {
   modelsWrapper,
   registryRows,
 } from "../../test/renderWithModels";
-import { BOUNCE_DEFAULTS, type BounceOptions } from "./bounceLogic";
 import { DeliverStage, type DeliverStageProps } from "./DeliverStage";
 import {
   CHAPTERS,
@@ -5217,41 +5216,6 @@ describe("host export options", () => {
   });
 });
 
-describe("Bounce section", () => {
-  const bounce = {
-    state: { phase: "idle" },
-    choices: { source: "entire", includeMp3: false, limitToRegion: false },
-    onChoices: vi.fn(),
-    selectedCount: 0,
-    soloCount: 0,
-    hasRegion: false,
-    onBounce: vi.fn(),
-    onCancel: vi.fn(),
-  } as const;
-
-  it("sits after the episode file when the host offers it", () => {
-    setup({ bounce });
-    const titles = screen
-      .getAllByRole("heading", { level: 2 })
-      .map((h) => h.textContent);
-    expect(titles.indexOf("Bounce")).toBe(titles.indexOf("Episode file") + 1);
-  });
-
-  it("is absent without the host's bounce", () => {
-    setup();
-    expect(screen.queryByRole("heading", { name: "Bounce" })).toBeNull();
-  });
-
-  it("is a skeleton while the page loads, and absent for a guest", () => {
-    const { unmount } = setup({ bounce, state: "loading" });
-    expect(screen.queryByRole("button", { name: "Bounce" })).toBeNull();
-    expect(screen.getByRole("heading", { name: "Bounce" })).toBeTruthy();
-    unmount();
-    setup({ bounce, guest: true });
-    expect(screen.queryByRole("heading", { name: "Bounce" })).toBeNull();
-  });
-});
-
 describe("host Listen link slot", () => {
   const listen = vi.fn(({ highlight }: { highlight: boolean }) => (
     <p>{highlight ? "highlighted listen row" : "plain listen row"}</p>
@@ -5310,31 +5274,18 @@ describe("host Listen link slot", () => {
 });
 
 describe("Deliver asynchronous section composition", () => {
-  const bounce = (): BounceOptions => ({
-    state: { phase: "idle" },
-    choices: BOUNCE_DEFAULTS,
-    onChoices: vi.fn(),
-    selectedCount: 2,
-    soloCount: 0,
-    hasRegion: true,
-    onBounce: vi.fn(),
-    onCancel: vi.fn(),
-  });
   it.each(["desktop", "phone"] as const)(
-    "%s keeps one Transcript after Bounce, Chapters and Clips during hydration",
+    "%s keeps one Transcript after Chapters and Clips during hydration",
     (layout) => {
-      const value = bounce();
       const all = props({
         layout,
-        bounce: value,
         transcript: transcriptOptions({ preview: { kind: "loading" } }),
       });
       const view = render(<DeliverStage {...all} />);
       const transcript = screen.getByRole("region", { name: "Transcript" });
       const chapters = screen.getByRole("region", { name: "Chapters" });
       const clips = screen.getByRole("region", { name: "Clips" });
-      const bounceSection = screen.getByRole("region", { name: "Bounce" });
-      for (const preceding of [bounceSection, chapters, clips]) {
+      for (const preceding of [chapters, clips]) {
         expect(
           preceding.compareDocumentPosition(transcript) &
             Node.DOCUMENT_POSITION_FOLLOWING,
@@ -5372,7 +5323,6 @@ describe("Deliver asynchronous section composition", () => {
           screen.getByRole("list", { name: "Transcript preview" }),
         ).getAllByRole("listitem"),
       ).toHaveLength(layout === "phone" ? 4 : 6);
-      expect(value.onBounce).not.toHaveBeenCalled();
     },
   );
   it.each(["desktop", "phone"] as const)(
@@ -5384,8 +5334,7 @@ describe("Deliver asynchronous section composition", () => {
         onExport: vi.fn(),
         onPrepare: vi.fn(),
       });
-      const value = bounce();
-      const all = props({ layout, transcript, bounce: value });
+      const all = props({ layout, transcript });
       const view = render(<DeliverStage {...all} />);
       const copy = within(
         screen.getByRole("region", { name: "Transcript" }),
@@ -5429,7 +5378,6 @@ describe("Deliver asynchronous section composition", () => {
         expect(transcript.onChoices).not.toHaveBeenCalled();
         expect(transcript.onExport).not.toHaveBeenCalled();
         expect(transcript.onPrepare).not.toHaveBeenCalled();
-        expect(value.onBounce).not.toHaveBeenCalled();
       } finally {
         if (priorScroll)
           Object.defineProperty(
@@ -5456,16 +5404,4 @@ describe("Deliver asynchronous section composition", () => {
       expect(onFocused).toHaveBeenCalledOnce();
     },
   );
-  it("starts the existing command without changing another section's native anchoring", async () => {
-    const value = bounce();
-    setup({ bounce: value, transcript: transcriptOptions() });
-    const transcript = screen.getByRole("region", { name: "Transcript" });
-    transcript.style.setProperty("overflow-anchor", "auto", "important");
-    await userEvent.click(screen.getByRole("button", { name: /^Bounce$/ }));
-    expect(value.onBounce).toHaveBeenCalledOnce();
-    expect(transcript.style.getPropertyValue("overflow-anchor")).toBe("auto");
-    expect(transcript.style.getPropertyPriority("overflow-anchor")).toBe(
-      "important",
-    );
-  });
 });

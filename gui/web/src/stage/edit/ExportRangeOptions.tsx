@@ -1,8 +1,5 @@
 import { useId, useMemo, useState } from "react";
 import { useShallow } from "zustand/react/shallow";
-import { useDawStore } from "../../state/dawStore";
-import { SegmentedControl } from "../../ui/SegmentedControl";
-import { ToggleButton } from "../../ui/ToggleButton";
 import {
   type BounceSource,
   bounceTracks,
@@ -13,7 +10,10 @@ import {
   sourceFor,
   usableChoices,
   writeExportRangeChoices,
-} from "./exportRange";
+} from "../../edit/exportRange";
+import { useDawStore } from "../../state/dawStore";
+import { SegmentedControl } from "../../ui/SegmentedControl";
+import { ToggleButton } from "../../ui/ToggleButton";
 
 const SOURCES: readonly { id: BounceSource; label: string }[] = [
   { id: "mix", label: "Full mix" },

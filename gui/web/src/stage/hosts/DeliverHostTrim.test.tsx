@@ -56,7 +56,6 @@ import { minimalProject, sampleTrack } from "../../test/fixtures";
 import { stubViewportShell } from "../../test/viewportShell";
 import type { HistoryEntryId } from "../../types/project";
 import { ApiError } from "../../utils/apiError";
-import { BounceFlowProvider } from "./bounceFlow";
 import { DeliverStage as HostDeliverStage } from "./DeliverStage";
 import { ExportFlowProvider } from "./exportFlow";
 import { ShareFlowProvider } from "./shareFlow";
@@ -64,11 +63,9 @@ import { ShareFlowProvider } from "./shareFlow";
 function DeliverStage() {
   return (
     <ExportFlowProvider>
-      <BounceFlowProvider>
-        <ShareFlowProvider>
-          <HostDeliverStage />
-        </ShareFlowProvider>
-      </BounceFlowProvider>
+      <ShareFlowProvider>
+        <HostDeliverStage />
+      </ShareFlowProvider>
     </ExportFlowProvider>
   );
 }

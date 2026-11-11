@@ -9,10 +9,10 @@ import {
 import { withShareableProject } from "./shareableProject";
 import { createReviewShare } from "./shareNavigation";
 import {
-  deliverPage,
   openProject,
   openProjectDialog,
   runPaletteCommand,
+  stageTab,
 } from "./stageNav";
 import { withAppearance } from "./theme";
 
@@ -150,7 +150,7 @@ test("editor Mix commits saved volume through guest capabilities", async ({
   });
 });
 
-test("phone Mix restores Escape focus after Tab and reaches Bounce through the palette once closed", async ({
+test("phone Mix restores Escape focus after Tab and exports the full mix through the palette once closed", async ({
   page,
 }) => {
   await page.setViewportSize({ width: 360, height: 740 });
@@ -176,9 +176,14 @@ test("phone Mix restores Escape focus after Tab and reaches Bounce through the p
     await openPhoneMix(page);
     await page.keyboard.press("Escape");
     await expect(page.getByRole("dialog")).toHaveCount(0);
-    await runPaletteCommand(page, "Bounce…");
-    await expect(
-      deliverPage(page).getByRole("button", { name: "Bounce", exact: true }),
-    ).toBeFocused();
+    await runPaletteCommand(page, "Export full mix");
+    await expect(page.locator(".ui-toast-region--app .ui-toast")).toContainText(
+      "Exported the full mix as WAV",
+      { timeout: 60_000 },
+    );
+    await expect(stageTab(page, "edit")).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
   });
 });

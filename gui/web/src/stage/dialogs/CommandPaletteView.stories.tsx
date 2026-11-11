@@ -309,7 +309,7 @@ export const Search: Story = {
     const dialog = await openDialogViaLauncher(canvasElement, LAUNCHER, TITLE);
     await userEvent.type(
       within(dialog).getByRole("combobox", { name: "Search commands" }),
-      "export",
+      "deliverables",
     );
     await expect(within(dialog).getByRole("status")).toHaveTextContent(
       "1 command. Enter runs Export deliverables…. Tab remaps",

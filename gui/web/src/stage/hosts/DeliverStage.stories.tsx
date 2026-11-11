@@ -9,7 +9,6 @@ import {
 import { episode } from "../../test/episodeFixture";
 import { episodeBeforeEach, withEpisode } from "../../test/withEpisode";
 import { StageFrame } from "../frame/StageFrame";
-import { BounceFlowProvider } from "./bounceFlow";
 import { ExportFlowProvider } from "./exportFlow";
 import { StageHost, type StageHostProps } from "./StageHost";
 import { ShareFlowProvider } from "./shareFlow";
@@ -45,13 +44,11 @@ const meta: Meta<StageHostProps> = {
     withEpisode,
     (Story) => (
       <ExportFlowProvider>
-        <BounceFlowProvider>
-          <ShareFlowProvider>
-            <div data-daw-app-chrome>
-              <Story />
-            </div>
-          </ShareFlowProvider>
-        </BounceFlowProvider>
+        <ShareFlowProvider>
+          <div data-daw-app-chrome>
+            <Story />
+          </div>
+        </ShareFlowProvider>
       </ExportFlowProvider>
     ),
   ],
@@ -104,7 +101,6 @@ export const Ready: Story = {
     await expect(
       await canvas.findByRole("button", { name: "Export" }),
     ).toBeVisible();
-    await expect(canvas.getByRole("button", { name: "Bounce" })).toBeVisible();
   },
 };
 

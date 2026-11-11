@@ -1,18 +1,15 @@
-import {
-  makeRangeTarget,
-  resolveSelectionRange,
-} from "../../edit/rangeSelection";
-import { selectedTrackIdsOf } from "../../state/selection";
+import { selectedTrackIdsOf } from "../state/selection";
 import type {
   ExactRangeTarget,
   ProjectView,
   Selection,
   TimelineSpan,
   TrackView,
-} from "../../types/project";
-import { trackHasSourceAudio } from "../../utils/projectMedia";
-import { readLocal, writeLocal } from "../../utils/storage";
-import { formatTimeShort } from "../../utils/time";
+} from "../types/project";
+import { trackHasSourceAudio } from "../utils/projectMedia";
+import { readLocal, writeLocal } from "../utils/storage";
+import { formatTimeShort } from "../utils/time";
+import { makeRangeTarget, resolveSelectionRange } from "./rangeSelection";
 
 export type BounceSource = "mix" | "selected" | "soloed";
 

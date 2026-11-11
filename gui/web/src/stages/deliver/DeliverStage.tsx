@@ -5,8 +5,6 @@ import { Skeleton } from "../../system/Skeleton";
 import { StageHandoff } from "../../system/StageHandoff";
 import type { StageId } from "../../types/stage";
 import { Toast, type ToastState } from "../../ui";
-import { BounceSection } from "./BounceSection";
-import type { BounceOptions } from "./bounceLogic";
 import { ChaptersList } from "./ChaptersList";
 import { ClipsRow } from "./ClipsRow";
 import type { ClipWord } from "./clipTrim";
@@ -82,8 +80,6 @@ export type DeliverStageProps = {
   /** False when the app frame already carries the Player bar. */
   showPlayer?: boolean;
   exportOptions?: ExportOptions;
-  /** Without it the Bounce section is not shown. */
-  bounce?: BounceOptions;
   /** Without it the Transcript section is not shown. */
   transcript?: TranscriptOptions;
   /**
@@ -138,7 +134,6 @@ export function DeliverStage({
   showLink = true,
   showPlayer = true,
   exportOptions,
-  bounce,
   transcript,
   listen,
   feed,
@@ -394,9 +389,6 @@ export function DeliverStage({
               onExport={() => startExport()}
               onCancel={onCancel}
             />
-            {bounce ? (
-              <BounceSection options={bounce} state={sharedState} />
-            ) : null}
             {phone ? null : (
               <>
                 {chaptersPart}

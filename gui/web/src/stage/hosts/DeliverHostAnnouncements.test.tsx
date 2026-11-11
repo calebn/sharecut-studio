@@ -13,7 +13,6 @@ import {
 import { minimalProject, sampleTrack } from "../../test/fixtures";
 import type { PipelineJobSnapshot } from "../../types/pipeline";
 import { StatusLive } from "../frame/StatusLive";
-import { BounceFlowProvider } from "./bounceFlow";
 import { DeliverStage } from "./DeliverStage";
 import { ExportFlowProvider } from "./exportFlow";
 import { ShareFlowProvider } from "./shareFlow";
@@ -43,11 +42,9 @@ function AppWithStatusDiscovery() {
     <>
       <StatusLive />
       <ExportFlowProvider>
-        <BounceFlowProvider>
-          <ShareFlowProvider>
-            {stage === "deliver" ? <DeliverStage /> : <p>another stage</p>}
-          </ShareFlowProvider>
-        </BounceFlowProvider>
+        <ShareFlowProvider>
+          {stage === "deliver" ? <DeliverStage /> : <p>another stage</p>}
+        </ShareFlowProvider>
       </ExportFlowProvider>
     </>
   );

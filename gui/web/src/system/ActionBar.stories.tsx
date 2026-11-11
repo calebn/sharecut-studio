@@ -407,6 +407,7 @@ const playPlayhead = async ({
     "Add chapter",
     "Record",
     "Paste",
+    "Export",
   ]);
 };
 

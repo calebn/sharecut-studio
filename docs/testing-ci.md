@@ -401,8 +401,6 @@ with axe before the collected results are asserted.
 
 | Check | Spec | Area | Chromium (Chrome) | WebKit (Safari) | Firefox |
 | --- | --- | --- | --- | --- | --- |
-| Bounce remains reachable through running-row insertion and late Transcript hydration | `gui/web/e2e-compat/bounce-deliver-hydration.spec.ts` | CSS / layout | Pass | Pass | Not run |
-| Deliver restores normal reading after departure from a starting Bounce | `gui/web/e2e-compat/bounce-deliver-hydration.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | Fix text fallback fits wide text and stays within its row | `gui/web/e2e-compat/fix-text-width.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | a Fix text draft survives tablet-phone-tablet layout changes | `gui/web/e2e-compat/fix-text-draft-layout.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | Project menu keeps focus after a blurred Fix text save and Undo restores the word | `gui/web/e2e-compat/project-menu-after-fix.spec.ts` | Core flow | Pass | Pass | Not run |

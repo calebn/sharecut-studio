@@ -8,7 +8,6 @@ import { commandLocks } from "../../test/commandLocks";
 import { fakeExportServer } from "../../test/fakeExportServer";
 import { minimalProject, sampleTrack } from "../../test/fixtures";
 import { stubViewportShell } from "../../test/viewportShell";
-import { BounceFlowProvider } from "./bounceFlow";
 import { DeliverStage as HostDeliverStage } from "./DeliverStage";
 import { ExportFlowProvider } from "./exportFlow";
 import { ShareFlowProvider } from "./shareFlow";
@@ -85,11 +84,9 @@ describe("Deliver host clip trim peaks", () => {
   const peakCount = async () => {
     render(
       <ExportFlowProvider>
-        <BounceFlowProvider>
-          <ShareFlowProvider>
-            <HostDeliverStage />
-          </ShareFlowProvider>
-        </BounceFlowProvider>
+        <ShareFlowProvider>
+          <HostDeliverStage />
+        </ShareFlowProvider>
       </ExportFlowProvider>,
     );
     await userEvent.click(

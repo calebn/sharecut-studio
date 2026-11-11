@@ -8,7 +8,6 @@ import {
 import { playInCanvas } from "../../storybook/storyPlay";
 import { withModels } from "../../test/modelsStory";
 import { isApplePlatform } from "../../utils/platform";
-import { BOUNCE_DEFAULTS, type BounceState } from "./bounceLogic";
 import { DeliverStage, type DeliverStageProps } from "./DeliverStage";
 import {
   CHAPTERS,
@@ -63,36 +62,6 @@ function Live({ link, onRefreshMix, ...props }: StoryArgs) {
         props.onExport(request);
         setExportState(exportedState(request));
         setFiles(exportedFilesOf(request, props.files?.access ?? "reveal"));
-      }}
-    />
-  );
-}
-
-function LiveBounce(props: StoryArgs) {
-  const [state, setState] = useState<BounceState>({ phase: "idle" });
-  const bounce = props.bounce!;
-  return (
-    <Live
-      {...props}
-      bounce={{
-        ...bounce,
-        state,
-        onBounce: () => {
-          bounce.onBounce();
-          setState({
-            phase: "running",
-            progress: null,
-            detail: "Starting bounce…",
-          });
-        },
-        onCancel: () => {
-          bounce.onCancel();
-          setState({
-            phase: "cancelled",
-            files: [],
-            detail: "Nothing was written.",
-          });
-        },
       }}
     />
   );
@@ -322,42 +291,6 @@ export const NoMix: Story = {
     link: { url: null, noMix: true },
     facts: { ...CLEAR_FACTS, mixUpToDate: false },
   },
-};
-
-export const WithBounce: Story = {
-  render: (args) => <LiveBounce {...args} />,
-  args: {
-    bounce: {
-      state: { phase: "idle" },
-      choices: BOUNCE_DEFAULTS,
-      onChoices: fn(),
-      selectedCount: 0,
-      soloCount: 0,
-      hasRegion: false,
-      onBounce: fn(),
-      onCancel: fn(),
-    },
-  },
-  play: playInCanvas(async ({ canvasElement, args }) => {
-    const view = within(canvasElement);
-    await expect(view.getByRole("heading", { name: "Bounce" })).toBeVisible();
-    await expect(
-      view.getByRole("button", { name: "Entire mix" }),
-    ).toHaveAttribute("aria-pressed", "true");
-    const original = view.getByRole("button", { name: /^Bounce$/ });
-    await userEvent.click(original);
-    await expect(args.bounce?.onBounce).toHaveBeenCalledOnce();
-    await expect(original).toBeDisabled();
-    await expect(view.getByText("Starting bounce…")).toBeVisible();
-    await expect(
-      view
-        .getByRole("button", { name: "Cancel" })
-        .compareDocumentPosition(original) & Node.DOCUMENT_POSITION_FOLLOWING,
-    ).toBeTruthy();
-    await userEvent.click(view.getByRole("button", { name: "Cancel" }));
-    await expect(args.bounce?.onCancel).toHaveBeenCalledOnce();
-    await expect(view.getByText("Bounce cancelled")).toBeVisible();
-  }),
 };
 
 export const Loading: Story = { args: { state: "loading" } };

@@ -293,14 +293,6 @@ export async function startExport(page: Page): Promise<void> {
   await page.getByRole("button", { name: "Export", exact: true }).click();
 }
 
-/** Go to Deliver and bounce with the choices there. */
-export async function startBounce(page: Page): Promise<void> {
-  await goToStage(page, "deliver");
-  await deliverPage(page)
-    .getByRole("button", { name: "Bounce", exact: true })
-    .click();
-}
-
 /** Rows with no menu item; the palette runs them. */
 const PALETTE_ONLY_ITEMS = new Set(["Report a problem…"]);
 

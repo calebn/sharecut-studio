@@ -32,8 +32,8 @@ vi.mock("./stage/frame/useLandingStage", () => ({ useLandingStage: () => {} }));
 vi.mock("./stage/dialogs/CommandPalette", () => ({
   CommandPalette: () => null,
 }));
-vi.mock("./stage/hosts/bounceFlow", () => ({
-  BounceFlowProvider: ({ children }: { children: ReactNode }) => children,
+vi.mock("./stage/hosts/bounceRunner", () => ({
+  BounceRunnerProvider: ({ children }: { children: ReactNode }) => children,
 }));
 vi.mock("./stage/hosts/shareFlow", () => ({
   ShareFlowProvider: ({ children }: { children: ReactNode }) => children,

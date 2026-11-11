@@ -5,7 +5,6 @@ import { useDawStore } from "./dawStore";
 
 const FLAGS = [
   "commandPaletteOpen",
-  "bounceRequested",
   "exportRequested",
   "transcriptRequested",
   "hostMcpDialogOpen",
@@ -17,7 +16,6 @@ type Flag = (typeof FLAGS)[number];
 
 const SETTERS: Record<Flag, string> = {
   commandPaletteOpen: "setCommandPaletteOpen",
-  bounceRequested: "setBounceRequested",
   exportRequested: "setExportRequested",
   transcriptRequested: "setTranscriptRequested",
   hostMcpDialogOpen: "setHostMcpDialogOpen",
@@ -51,7 +49,6 @@ function setFlag(flag: Flag, open: boolean) {
 describe("dawStore chrome flags", () => {
   beforeEach(() => {
     for (const f of FLAGS) setFlag(f, false);
-    useDawStore.setState({ bounceRangeTarget: null });
   });
   afterEach(() => {
     for (const f of FLAGS) setFlag(f, false);
@@ -102,13 +99,12 @@ describe("dawStore chrome flags", () => {
       openEverything();
       useDawStore.getState().hydrate("/tmp/ep.project.json", minimalProject());
       expect(read("transcriptFindReplaceOpen")).toBe(true);
-      expect(read("bounceRequested")).toBe(true);
       expect(read("exportRequested")).toBe(true);
       expect(read("transcriptRequested")).toBe(true);
       for (const f of OTHER) expect(read(f)).toBe(true);
     });
 
-    it("closes find/replace on a path change and leaves the untouched four open", () => {
+    it("closes find/replace on a path change and leaves the untouched flags open", () => {
       useDawStore.getState().hydrate("/tmp/ep.project.json", minimalProject());
       openEverything();
       useDawStore.getState().hydrate("/tmp/other.json", minimalProject());
@@ -116,11 +112,10 @@ describe("dawStore chrome flags", () => {
       for (const f of OTHER) expect(read(f)).toBe(true);
     });
 
-    it("drops a pending bounce, export and transcript request when the project switches", () => {
+    it("drops a pending export and transcript request when the project switches", () => {
       useDawStore.getState().hydrate("/tmp/ep.project.json", minimalProject());
       openEverything();
       useDawStore.getState().hydrate("/tmp/other.json", minimalProject());
-      expect(read("bounceRequested")).toBe(false);
       expect(read("exportRequested")).toBe(false);
       expect(read("transcriptRequested")).toBe(false);
     });

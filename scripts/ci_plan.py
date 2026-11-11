@@ -71,7 +71,7 @@ SMOKE_SPECS = (
     "home-states.spec.ts",
     "root-pin.spec.ts",
     "stage-shell.spec.ts",
-    "bounce-deliver.spec.ts",
+    "export-range.spec.ts",
 )
 # A diff that selects more pytest files than this touched a core module: run the whole suite.
 MAX_CHANGED_TESTS = 120

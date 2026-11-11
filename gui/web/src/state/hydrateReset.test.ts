@@ -48,7 +48,6 @@ const RESET_ON_SWITCH: Reset = {
   rangeDraft: null,
   agentRangeScope: null,
   rangeBusy: false,
-  bounceRangeTarget: null,
   prepareFocusTrackId: null,
   selection: null,
   jobFeedback: new Map(),
@@ -118,9 +117,8 @@ describe("hydrate resets", () => {
     expect(pick(Object.keys(RESET_ON_SWITCH))).toEqual(RESET_ON_SWITCH);
   });
 
-  it("resets the four project-bound chrome flags only on a project switch", () => {
+  it("resets the three project-bound chrome flags only on a project switch", () => {
     const flags = {
-      bounceRequested: true,
       exportRequested: true,
       transcriptRequested: true,
       transcriptFindReplaceOpen: true,
@@ -132,7 +130,6 @@ describe("hydrate resets", () => {
     expect(useDawStore.getState().chrome).toMatchObject(flags);
     useDawStore.getState().hydrate("/tmp/other.json", minimalProject());
     expect(useDawStore.getState().chrome).toMatchObject({
-      bounceRequested: false,
       exportRequested: false,
       transcriptRequested: false,
       transcriptFindReplaceOpen: false,

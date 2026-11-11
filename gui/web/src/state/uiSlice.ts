@@ -382,9 +382,6 @@ type UiSlice = Pick<
   | "setDrawnLaneHeightPx"
   | "setCommandPaletteOpen"
   | "toggleCommandPalette"
-  | "bounceRangeTarget"
-  | "setBounceRangeTarget"
-  | "setBounceRequested"
   | "setExportRequested"
   | "prepareFocusTrackId"
   | "setPrepareFocusTrackId"
@@ -427,7 +424,6 @@ export function uiProjectInitial() {
     agentRangeScope: null as readonly string[] | null,
     rangeBusy: false,
     inspectorKey: null as string | null,
-    bounceRangeTarget: null,
     prepareFocusTrackId: null,
     feedbackToast: null,
     knownPeople: [] as readonly KnownPerson[],
@@ -440,7 +436,6 @@ export function uiProjectInitial() {
 export function chromeInitial(): ChromeFlags {
   return {
     commandPaletteOpen: false,
-    bounceRequested: false,
     exportRequested: false,
     transcriptRequested: false,
     hostMcpDialogOpen: false,
@@ -928,9 +923,6 @@ export const createUiSlice: StateCreator<DawStore, [], [], UiSlice> = (
           commandPaletteOpen: !s.chrome.commandPaletteOpen,
         },
       })),
-    setBounceRangeTarget: (bounceRangeTarget) => set({ bounceRangeTarget }),
-    setBounceRequested: (on) =>
-      set((s) => ({ chrome: { ...s.chrome, bounceRequested: on } })),
     setExportRequested: (on) =>
       set((s) => ({ chrome: { ...s.chrome, exportRequested: on } })),
     setPrepareFocusTrackId: (prepareFocusTrackId) =>

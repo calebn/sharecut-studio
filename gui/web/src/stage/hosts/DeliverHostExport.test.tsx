@@ -31,7 +31,6 @@ import {
 import { stubViewportShell } from "../../test/viewportShell";
 import type { HistoryEntryId } from "../../types/project";
 import { StatusLive } from "../frame/StatusLive";
-import { BounceFlowProvider } from "./bounceFlow";
 import { DeliverStage } from "./DeliverStage";
 import { ExportFlowProvider } from "./exportFlow";
 import { ShareFlowProvider } from "./shareFlow";
@@ -61,11 +60,9 @@ function Stages() {
 function Host() {
   return (
     <ExportFlowProvider>
-      <BounceFlowProvider>
-        <ShareFlowProvider>
-          <Stages />
-        </ShareFlowProvider>
-      </BounceFlowProvider>
+      <ShareFlowProvider>
+        <Stages />
+      </ShareFlowProvider>
     </ExportFlowProvider>
   );
 }

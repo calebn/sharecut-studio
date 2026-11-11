@@ -29,7 +29,6 @@ import { registerAfterCutNav } from "./stage/edit/script/afterCutNav";
 import { registerCutToast } from "./stage/edit/script/cutToast";
 import { StageFrame } from "./stage/frame/StageFrame";
 import { useLandingStage } from "./stage/frame/useLandingStage";
-import { BounceFlowProvider } from "./stage/hosts/bounceFlow";
 import { BounceRunnerProvider } from "./stage/hosts/bounceRunner";
 import { ExportFlowProvider } from "./stage/hosts/exportFlow";
 import { FindMoreFlowProvider } from "./stage/hosts/findMoreFlow";
@@ -225,44 +224,42 @@ export function DawApp({ guestShare = false }: { guestShare?: boolean }) {
   return (
     <HostRoomProvider value={hostRoom}>
       <ExportFlowProvider>
-        <BounceFlowProvider>
-          <BounceRunnerProvider>
-            <FindMoreFlowProvider>
-              <ShareFlowProvider>
-                {engines}
-                <div data-daw-app-chrome>
-                  <StageFrame guestShare={guestShare} sheets={EDIT_SHEETS}>
-                    {(viewAnchor) => (
-                      <>
-                        <StageHost
-                          viewAnchor={viewAnchor}
-                          guestShare={guestShare}
-                          loadFailure={loadFailure}
-                          onRetryLoad={retryBootstrap}
-                        />
-                      </>
-                    )}
-                  </StageFrame>
-                </div>
-                <CommandPalette />
-                <HostMcpDialog
-                  open={hostMcpDialogOpen}
-                  onClose={() => setHostMcpDialogOpen(false)}
-                  hasProject={hasProject}
+        <BounceRunnerProvider>
+          <FindMoreFlowProvider>
+            <ShareFlowProvider>
+              {engines}
+              <div data-daw-app-chrome>
+                <StageFrame guestShare={guestShare} sheets={EDIT_SHEETS}>
+                  {(viewAnchor) => (
+                    <>
+                      <StageHost
+                        viewAnchor={viewAnchor}
+                        guestShare={guestShare}
+                        loadFailure={loadFailure}
+                        onRetryLoad={retryBootstrap}
+                      />
+                    </>
+                  )}
+                </StageFrame>
+              </div>
+              <CommandPalette />
+              <HostMcpDialog
+                open={hostMcpDialogOpen}
+                onClose={() => setHostMcpDialogOpen(false)}
+                hasProject={hasProject}
+              />
+              <HelpHost />
+              <SettingsHost />
+              {syncEnabled ? (
+                <ModelsSheet
+                  open={modelsSheetOpen}
+                  onClose={() => setModelsSheetOpen(false)}
                 />
-                <HelpHost />
-                <SettingsHost />
-                {syncEnabled ? (
-                  <ModelsSheet
-                    open={modelsSheetOpen}
-                    onClose={() => setModelsSheetOpen(false)}
-                  />
-                ) : null}
-                <FeedbackToast />
-              </ShareFlowProvider>
-            </FindMoreFlowProvider>
-          </BounceRunnerProvider>
-        </BounceFlowProvider>
+              ) : null}
+              <FeedbackToast />
+            </ShareFlowProvider>
+          </FindMoreFlowProvider>
+        </BounceRunnerProvider>
       </ExportFlowProvider>
     </HostRoomProvider>
   );
