@@ -7099,6 +7099,7 @@ input.sys-edit-fix {
 
 .fade-shape {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: var(--space-3);
   min-inline-size: 0;
@@ -7113,6 +7114,13 @@ html[data-shell="phone"] .fade-shape > .ui-segmented > .ui-control {
   min-inline-size: var(--touch-min);
 }
 
+@media (pointer: coarse) {
+  .fade-shape > .ui-segmented > .ui-control {
+    min-inline-size: var(--touch-min);
+  }
+}
+
+.fade-shape-reason,
 .fade-shape-mixed {
   color: var(--color-text-secondary);
   font-size: var(--font-size-small);
