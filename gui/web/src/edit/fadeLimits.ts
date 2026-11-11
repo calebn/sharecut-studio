@@ -3,14 +3,9 @@
  * bounds it: the Longest automatic join fade limits automatic join fades, never these.
  */
 
-/** Clip length in whole ms (floored, never negative), as `join_modes.clamp_clip_fades` computes it. */
-function clipLengthMs(clipDurationSec: number): number {
-  return Math.max(0, Math.floor(clipDurationSec * 1000));
-}
-
-/** Longest edge fade (ms) a clip may take: its length. */
+/** Longest edge fade (ms) a clip may take: its length in whole ms (floored, never negative), as `join_modes.clamp_clip_fades` computes it. */
 export function maxFadeMs(clipDurationSec: number): number {
-  return clipLengthMs(clipDurationSec);
+  return Math.max(0, Math.floor(clipDurationSec * 1000));
 }
 
 /** Round to whole ms and clamp into [0, maxMs]. */
@@ -26,7 +21,7 @@ export function edgeFadeMaxMs(
   clipDurationSec: number,
   otherEdgeMs: number,
 ): number {
-  return Math.max(0, clipLengthMs(clipDurationSec) - Math.max(0, otherEdgeMs));
+  return Math.max(0, maxFadeMs(clipDurationSec) - Math.max(0, otherEdgeMs));
 }
 
 /**
