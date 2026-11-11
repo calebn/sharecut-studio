@@ -173,6 +173,7 @@ describe("ClipsRow In and Out", () => {
     fireEvent.pointerMove(field, { clientX: 110, pointerId: 1 });
     fireEvent.pointerMove(field, { clientX: 140, pointerId: 1 });
     expect(onTrim).not.toHaveBeenCalled();
+    expect(field).not.toHaveAttribute("aria-valuenow", String(CLIPS[0]?.start));
     fireEvent.pointerUp(field, { clientX: 140, pointerId: 1 });
     expect(onTrim).toHaveBeenCalledTimes(1);
   });

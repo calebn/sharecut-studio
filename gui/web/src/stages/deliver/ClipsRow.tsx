@@ -105,6 +105,46 @@ function ClipMenu({
   );
 }
 
+function TrimField({
+  edge,
+  name,
+  value,
+  total,
+  onTrim,
+}: {
+  edge: "In" | "Out";
+  name: string;
+  value: number;
+  total: number;
+  onTrim: (at: number) => void;
+}) {
+  const [live, setLive] = useState<number | null>(null);
+  return (
+    <div className="dv-part-field">
+      <span className="dv-part-label" aria-hidden="true">
+        {edge}
+      </span>
+      <ScrubField
+        label={`${edge} of ${name}`}
+        value={live ?? value}
+        min={0}
+        max={total}
+        step={0.1}
+        unit="s"
+        decimals={2}
+        skipUnchanged
+        commitOnUnmount
+        onPreview={setLive}
+        onCancel={() => setLive(null)}
+        onCommit={(at) => {
+          setLive(null);
+          onTrim(at);
+        }}
+      />
+    </div>
+  );
+}
+
 /** Approved clips export with the episode. */
 export function ClipsRow({
   clips,
@@ -219,40 +259,20 @@ export function ClipsRow({
                       onTrim={(edge, at) => onTrim(clip.id, edge, at)}
                       onGesture={onTrimGesture}
                     />
-                    <div className="dv-part-field">
-                      <span className="dv-part-label" aria-hidden="true">
-                        In
-                      </span>
-                      <ScrubField
-                        label={`In of ${name}`}
-                        value={clip.start}
-                        min={0}
-                        max={total}
-                        step={0.1}
-                        unit="s"
-                        decimals={2}
-                        skipUnchanged
-                        commitOnUnmount
-                        onCommit={(at) => onTrim(clip.id, "start", at)}
-                      />
-                    </div>
-                    <div className="dv-part-field">
-                      <span className="dv-part-label" aria-hidden="true">
-                        Out
-                      </span>
-                      <ScrubField
-                        label={`Out of ${name}`}
-                        value={clip.end}
-                        min={0}
-                        max={total}
-                        step={0.1}
-                        unit="s"
-                        decimals={2}
-                        skipUnchanged
-                        commitOnUnmount
-                        onCommit={(at) => onTrim(clip.id, "end", at)}
-                      />
-                    </div>
+                    <TrimField
+                      edge="In"
+                      name={name}
+                      value={clip.start}
+                      total={total}
+                      onTrim={(at) => onTrim(clip.id, "start", at)}
+                    />
+                    <TrimField
+                      edge="Out"
+                      name={name}
+                      value={clip.end}
+                      total={total}
+                      onTrim={(at) => onTrim(clip.id, "end", at)}
+                    />
                   </div>
                 ) : null}
                 <div className="dv-clip-meta">
