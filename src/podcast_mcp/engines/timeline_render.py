@@ -54,7 +54,7 @@ from podcast_mcp.engines.render_clock import read_render_clock
 from podcast_mcp.engines.room_tone_tiles import Tile, tile_span
 from podcast_mcp.engines.session_timeline import clip_timeline_overlap_to_source
 from podcast_mcp.engines.timed_pieces import TimingHole, expand_timed_pieces
-from podcast_mcp.models import Clip, ClipJoinMode, EpisodeProject, Track
+from podcast_mcp.models import Clip, ClipJoinMode, EpisodeProject, FadeCurve, Track
 from podcast_mcp.util.batch_scope import batch_scope
 from podcast_mcp.util.coded_error import CodedValueError
 from podcast_mcp.util.media_identity import same_recording
@@ -913,22 +913,26 @@ def placed_track_audio(
         ignored = ignored_lookup.for_clip(clip)
         prev = sorted_clips[index - 1] if index else None
         nxt = sorted_clips[index + 1] if index + 1 < len(sorted_clips) else None
+        fade_in_sec = (
+            _segment_fade_in(prev, clip, first=True, blended=blends[index] > 0)
+            if timeline_start <= clip.timeline_start + 1e-4
+            else 0.0
+        )
+        fade_out_sec = (
+            _segment_fade_out(
+                clip, nxt, last=True, blended=index + 1 < len(blends) and blends[index + 1] > 0
+            )
+            if timeline_end >= clip.timeline_end - 1e-4
+            else 0.0
+        )
         leaf = SourceAudio(
             path=src,
             src_start=source_start,
             src_end=source_end,
-            fade_in_sec=(
-                _segment_fade_in(prev, clip, first=True, blended=blends[index] > 0)
-                if timeline_start <= clip.timeline_start + 1e-4
-                else 0.0
-            ),
-            fade_out_sec=(
-                _segment_fade_out(
-                    clip, nxt, last=True, blended=index + 1 < len(blends) and blends[index + 1] > 0
-                )
-                if timeline_end >= clip.timeline_end - 1e-4
-                else 0.0
-            ),
+            fade_in_sec=fade_in_sec,
+            fade_out_sec=fade_out_sec,
+            fade_in_curve=clip.fade_in_curve if fade_in_sec > 0 else FadeCurve.LINEAR,
+            fade_out_curve=clip.fade_out_curve if fade_out_sec > 0 else FadeCurve.LINEAR,
             mute_spans=mute_spans_for_source_window(clip, source_start, source_end, extra=ignored),
             fill_path=fill,
             gain_db=clip.gain_db,

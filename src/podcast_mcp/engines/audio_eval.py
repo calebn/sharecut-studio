@@ -39,6 +39,7 @@ from podcast_mcp.engines.audio import (
 )
 from podcast_mcp.engines.media_probe import probe_media
 from podcast_mcp.engines.media_seek import MediaSeek
+from podcast_mcp.models import FadeCurve
 
 EVAL_SAMPLE_RATE = 8000
 CHUNK_SAMPLES = 1 << 20
@@ -213,6 +214,17 @@ def _sequence(parts: list[Piece]) -> Piece:
     return Piece(ends[-1], read)
 
 
+def _edge_gain(curve: FadeCurve, x: np.ndarray) -> np.ndarray:
+    """The fade-in gain at ``x`` (0 to 1); a fade-out takes it at ``1 - x``."""
+    match curve:
+        case FadeCurve.EQUAL_POWER:
+            return np.sin(x * np.float32(math.pi / 2))
+        case FadeCurve.S:
+            return (np.float32(1.0) - np.cos(x * np.float32(math.pi))) * np.float32(0.5)
+        case FadeCurve.LINEAR:
+            return x
+
+
 def _edge_fades(
     piece: np.ndarray, start: int, size: int, node: SourceAudio, sample_rate: int
 ) -> np.ndarray:
@@ -224,14 +236,16 @@ def _edge_fades(
     if node.fade_in_sec > 0:
         count = min(size, round(fade_duration(length, node.fade_in_sec) * sample_rate))
         head = index < count
-        piece[head] *= index[head].astype(np.float32) / max(count, 1)
+        ratio = index[head].astype(np.float32) / max(count, 1)
+        piece[head] *= _edge_gain(node.fade_in_curve, ratio)
     if node.fade_out_sec > 0:
         d = fade_duration(length, node.fade_out_sec)
         fade_start = round(max(0.0, length - d) * sample_rate)
         count = min(size - fade_start, round(d * sample_rate))
         if count > 0:
             tail = (index >= fade_start) & (index < fade_start + count)
-            piece[tail] *= 1.0 - (index[tail] - fade_start).astype(np.float32) / max(count, 1)
+            ratio = (index[tail] - fade_start).astype(np.float32) / max(count, 1)
+            piece[tail] *= _edge_gain(node.fade_out_curve, np.float32(1.0) - ratio)
         piece[index >= fade_start + max(count, 0)] = 0.0
     return piece
 

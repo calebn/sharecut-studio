@@ -6,6 +6,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from podcast_mcp.engines.media_seek import MediaSeek
+from podcast_mcp.models import FadeCurve
 from podcast_mcp.util.coded_error import CodedValueError
 
 
@@ -60,6 +61,13 @@ class MuteEnvelope:
         )
 
 
+AFADE_CURVE_NAMES: dict[FadeCurve, str] = {
+    FadeCurve.LINEAR: "tri",
+    FadeCurve.EQUAL_POWER: "qsin",
+    FadeCurve.S: "hsin",
+}
+
+
 def fade_duration(segment_duration: float, requested: float) -> float:
     """Duration used by FFmpeg's ordinary triangular edge ramp."""
     return min(requested, max(segment_duration * 0.5, 0.001))
@@ -75,6 +83,8 @@ class SourceAudio:
     mute_spans: tuple[MuteEnvelope, ...] = ()
     fill_path: Path | None = None
     gain_db: float = 0.0
+    fade_in_curve: FadeCurve = FadeCurve.LINEAR
+    fade_out_curve: FadeCurve = FadeCurve.LINEAR
     clip_id: str | None = field(default=None, compare=False)
     piece: int = field(default=0, compare=False)
     source_id: str | None = field(default=None, compare=False)
@@ -195,7 +205,12 @@ def placed_sources(audio: Audio, *, crossfade_curve: str) -> list[PlacedSource]:
                 own = []
                 if node.fade_in_sec > 0:
                     own.append(
-                        GainRamp(at, at + fade_duration(length, node.fade_in_sec), True, "tri")
+                        GainRamp(
+                            at,
+                            at + fade_duration(length, node.fade_in_sec),
+                            True,
+                            AFADE_CURVE_NAMES[node.fade_in_curve],
+                        )
                     )
                 if node.fade_out_sec > 0:
                     own.append(
@@ -203,7 +218,7 @@ def placed_sources(audio: Audio, *, crossfade_curve: str) -> list[PlacedSource]:
                             at + length - fade_duration(length, node.fade_out_sec),
                             at + length,
                             False,
-                            "tri",
+                            AFADE_CURVE_NAMES[node.fade_out_curve],
                         )
                     )
                 result.append(
