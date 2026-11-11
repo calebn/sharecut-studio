@@ -51,6 +51,9 @@ const VIEWER: PresenceViewer = {
   caps: { guestShare: false, breakpoint: "desktop", role: "host" },
 };
 
+const WIDE_ONLY_REASON =
+  "Desktop header: faces fold into the Stage menu below 40rem; FollowingPhone covers the phone.";
+
 const meta: Meta<typeof AvatarStackView> = {
   title: "Stages/Frame/Presence",
   component: AvatarStackView,
@@ -99,6 +102,8 @@ export const Solo: Story = {
 };
 
 export const Avatars: Story = {
+  tags: ["wide-only"],
+  parameters: { wideOnlyReason: WIDE_ONLY_REASON },
   args: { others: [ROSA, MAYA, BO] },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
@@ -114,6 +119,8 @@ export const Avatars: Story = {
 };
 
 export const Overflow: Story = {
+  tags: ["wide-only"],
+  parameters: { wideOnlyReason: WIDE_ONLY_REASON },
   args: { others: [ROSA, MAYA, BO, CY, DI] },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
@@ -127,6 +134,8 @@ export const Overflow: Story = {
 };
 
 export const Popover: Story = {
+  tags: ["wide-only"],
+  parameters: { wideOnlyReason: WIDE_ONLY_REASON },
   args: { others: [ROSA, MAYA] },
   play: async ({ args, canvasElement }) => {
     const canvas = within(canvasElement);
@@ -152,6 +161,8 @@ export const Popover: Story = {
 };
 
 export const GuestPopover: Story = {
+  tags: ["wide-only"],
+  parameters: { wideOnlyReason: WIDE_ONLY_REASON },
   args: {
     others: [BO],
     viewer: {
@@ -173,6 +184,8 @@ export const GuestPopover: Story = {
 };
 
 export const Following: Story = {
+  tags: ["wide-only"],
+  parameters: { wideOnlyReason: WIDE_ONLY_REASON },
   args: { others: [ROSA, MAYA], followingClientId: "rosa" },
   play: async ({ args, canvasElement }) => {
     const canvas = within(canvasElement);
@@ -189,7 +202,7 @@ export const Following: Story = {
 
 export const FollowingPhone: Story = {
   parameters: {
-    headerWidth: "24rem",
+    headerWidth: "22rem",
     viewport: { defaultViewport: "mobile390" },
   },
   args: { others: [ROSA, MAYA, BO], followingClientId: "rosa" },
