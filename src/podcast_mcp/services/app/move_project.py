@@ -191,7 +191,6 @@ def _move_locked(
     source = source_file.parent
     target = _reserve(dest_root, source.name)
     try:
-        release_workspace(source)
         _rename(source, target)
     except BaseException:
         # A reservation another process already filled is not removed (rmdir needs it empty).
@@ -199,6 +198,7 @@ def _move_locked(
             os.rmdir(target)
         raise
     target_file = target / EPISODE_PROJECT_FILENAME
+    release_workspace(source)
     try:
         _repoint(source, target, target_file, serve)
     except Exception as exc:

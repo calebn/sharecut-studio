@@ -99,15 +99,11 @@ def drop_cached_stores_for_tests(*, kind: str, variant: str | None = None) -> li
 def drop_cached_stores_under(workspace: Path) -> None:
     """Close and forget the cached stores of one workspace's files, so none holds them open.
 
-    A store still pinned by a subscriber or watcher is left alone: its owner closes it.
+    Pinned stores go too: after a move their path is stale, so no owner can keep using them.
     """
     root = workspace.resolve()
     with _STORE_CACHE_LOCK:
-        keys = [
-            key
-            for key in list(_STORE_CACHE)
-            if key[0].is_relative_to(root) and not _PINNED_STORES.get(key[0])
-        ]
+        keys = [key for key in list(_STORE_CACHE) if key[0].is_relative_to(root)]
         stores = [_STORE_CACHE.pop(key, None) for key in keys]
     for store in stores:
         close = getattr(store, "close", None)
