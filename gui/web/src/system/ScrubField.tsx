@@ -188,21 +188,25 @@ export function ScrubField({
     latestCancel.current = onCancel;
   });
 
+  const resolveDraft = (text: string) => {
+    const parsed = parseScrub(text, unit);
+    if (
+      parsed === null ||
+      !inBounds(parsed, bounds) ||
+      (integerOnly && !Number.isInteger(parsed))
+    )
+      return null;
+    return clamp(roundTo(parsed, decimals), bounds);
+  };
+
   const flushDraft = useRef(() => {});
   useEffect(() => {
     flushDraft.current = () => {
       const text = draftRef.current;
       if (!commitOnUnmount || text === null) return;
       if (skipUnchanged && text === openedText.current) return;
-      const parsed = parseScrub(text, unit);
-      if (
-        parsed === null ||
-        !inBounds(parsed, bounds) ||
-        (integerOnly && !Number.isInteger(parsed))
-      )
-        return;
-      const next = clamp(roundTo(parsed, decimals), bounds);
-      if (next !== value) onCommit(next);
+      const next = resolveDraft(text);
+      if (next !== null && next !== value) onCommit(next);
     };
   });
 
@@ -486,20 +490,15 @@ export function ScrubField({
   const finishEdit = (how: "enter" | "escape" | "blur") => {
     const text = draftRef.current;
     if (text === null) return;
-    const parsed = parseScrub(text, unit);
-    const valid =
-      parsed !== null &&
-      inBounds(parsed, bounds) &&
-      !(integerOnly && !Number.isInteger(parsed));
-    if (how === "enter" && !valid) {
+    const next = resolveDraft(text);
+    if (how === "enter" && next === null) {
       setRejected(true);
       return;
     }
     refocus.current = how !== "blur";
     setDraft(null);
-    if (how === "escape" || parsed === null || !valid) return;
+    if (how === "escape" || next === null) return;
     if (skipUnchanged && text === openedText.current) return;
-    const next = clamp(roundTo(parsed, decimals), bounds);
     if (next !== value || (commitUnchanged && how === "enter")) onCommit(next);
   };
 
