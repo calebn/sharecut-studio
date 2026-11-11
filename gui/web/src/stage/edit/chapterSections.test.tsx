@@ -96,6 +96,16 @@ describe("chapter content", () => {
       "Title cannot be empty",
     );
     expect(updateChapter).not.toHaveBeenCalled();
+    expect(title).toHaveValue("Opening");
+  });
+
+  it("shows the stored title after a trailing space saves nothing", async () => {
+    const user = userEvent.setup();
+    open();
+    const title = screen.getByRole("textbox", { name: "Title" });
+    await user.type(title, " {Enter}");
+    expect(title).toHaveValue("Opening");
+    expect(updateChapter).not.toHaveBeenCalled();
   });
 
   it("saves a new time through the Scrub field with the old identity", async () => {
@@ -182,6 +192,10 @@ describe("chapter content", () => {
     const title = screen.getByRole("textbox", { name: "Title" });
     expect(title).toHaveAttribute("readonly");
     expect(title).toHaveAttribute("aria-busy", "true");
+    expect(screen.getByRole("spinbutton", { name: "Time" })).toHaveAttribute(
+      "aria-busy",
+      "true",
+    );
     await user.type(title, "X");
     expect(title).toHaveValue("Opening");
     await act(async () => settle());

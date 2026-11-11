@@ -39,12 +39,12 @@ export function useChapterSections(
     });
   };
 
-  const commitTitle = (text: string) => {
+  const commitTitle = (text: string): void | false => {
     const next = text.trim();
     if (next === title) return;
     if (!next) {
       setError("Title cannot be empty");
-      return;
+      return false;
     }
     void save(time, next);
   };
@@ -62,6 +62,7 @@ export function useChapterSections(
               value={title}
               onCommit={commitTitle}
               readOnly={busy}
+              trim
               className="inspector-text-field"
             />
           ) : (
@@ -82,6 +83,7 @@ export function useChapterSections(
               max={duration > 0 ? duration : undefined}
               skipUnchanged
               readOnly={!editable || busy}
+              busy={busy}
               onCommit={(next) => void save(next, title)}
             />
           ),

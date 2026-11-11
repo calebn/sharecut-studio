@@ -256,6 +256,67 @@ describe("ScrubField drag", () => {
   });
 });
 
+const makeCalls = (): Calls => ({
+  onPreview: vi.fn(),
+  onCommit: vi.fn(),
+  onCancel: vi.fn(),
+});
+
+describe("ScrubField read-only during a drag", () => {
+  it("cancels instead of committing when the field turns read-only before release", () => {
+    const calls = makeCalls();
+    const { rerender } = render(<Harness calls={calls} />);
+    const spin = () => screen.getByRole("spinbutton");
+    dragBy(spin(), 25);
+    rerender(<Harness calls={calls} readOnly />);
+    fireEvent.pointerUp(spin(), { pointerId: 1 });
+    expect(calls.onCommit).not.toHaveBeenCalled();
+    expect(calls.onCancel).toHaveBeenCalledOnce();
+  });
+
+  it("opens no editor for a click that finishes after the field turned read-only", () => {
+    const calls: Calls = {
+      onPreview: vi.fn(),
+      onCommit: vi.fn(),
+      onCancel: vi.fn(),
+    };
+    const { rerender } = render(<Harness calls={calls} />);
+    fireEvent.pointerDown(screen.getByRole("spinbutton"), {
+      clientX: 100,
+      pointerId: 1,
+      button: 0,
+    });
+    rerender(<Harness calls={calls} readOnly />);
+    fireEvent.pointerUp(screen.getByRole("spinbutton"), {
+      clientX: 100,
+      pointerId: 1,
+    });
+    expect(screen.queryByRole("textbox")).toBeNull();
+    expect(calls.onCommit).not.toHaveBeenCalled();
+  });
+
+  it("commits nothing from an open editor once the field turned read-only", () => {
+    const calls: Calls = {
+      onPreview: vi.fn(),
+      onCommit: vi.fn(),
+      onCancel: vi.fn(),
+    };
+    const { rerender } = render(<Harness calls={calls} />);
+    fireEvent.keyDown(screen.getByRole("spinbutton"), { key: "Enter" });
+    fireEvent.change(screen.getByRole("textbox"), { target: { value: "7" } });
+    rerender(<Harness calls={calls} readOnly />);
+    fireEvent.keyDown(screen.getByRole("textbox"), { key: "Enter" });
+    expect(calls.onCommit).not.toHaveBeenCalled();
+    expect(screen.queryByRole("textbox")).toBeNull();
+  });
+
+  it("marks the field busy", () => {
+    const calls = makeCalls();
+    render(<Harness calls={calls} busy />);
+    expect(screen.getByRole("spinbutton")).toHaveAttribute("aria-busy", "true");
+  });
+});
+
 describe("ScrubField keyboard", () => {
   it("steps by one, ten with Shift, a tenth with Alt", async () => {
     const user = userEvent.setup();

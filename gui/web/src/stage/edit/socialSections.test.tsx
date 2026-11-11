@@ -195,6 +195,11 @@ describe("social clip content", () => {
     const title = screen.getByRole("textbox", { name: "Title" });
     expect(title).toHaveAttribute("readonly");
     expect(title).toHaveAttribute("aria-busy", "true");
+    for (const name of ["Start", "End"])
+      expect(screen.getByRole("spinbutton", { name })).toHaveAttribute(
+        "aria-busy",
+        "true",
+      );
     await user.type(title, "X");
     expect(title).toHaveValue("A loaf tells you when it is ready");
     await act(async () => settle());

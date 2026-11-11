@@ -114,7 +114,7 @@ describe("InlineEdit", () => {
     expect(plain.onCommit).not.toHaveBeenCalled();
   });
 
-  it("ignores Enter, Escape and blur while read-only", async () => {
+  it("ignores Enter and Escape while read-only, and a blur puts the stored text back", async () => {
     const { user, onCommit, onEnd, rerender } = setup();
     await user.click(field());
     await user.keyboard("{End}!");
@@ -133,7 +133,7 @@ describe("InlineEdit", () => {
     fireEvent.blur(field());
     expect(onCommit).not.toHaveBeenCalled();
     expect(onEnd).not.toHaveBeenCalled();
-    expect(field()).toHaveValue("Ana!");
+    expect(field()).toHaveValue("Ana");
   });
 
   it("commits a draft held while read-only once the field is writable again", async () => {
@@ -147,5 +147,74 @@ describe("InlineEdit", () => {
     rerender(<InlineEdit label="Name" value="Ana" onCommit={onCommit} />);
     await user.keyboard("{Enter}");
     expect(onCommit).toHaveBeenCalledExactlyOnceWith("Ana!");
+  });
+
+  it("keeps the text a blur already sent while its save runs", async () => {
+    const { user, onCommit, rerender } = setup();
+    await user.click(field());
+    await user.keyboard("{End}!");
+    fireEvent.blur(field());
+    rerender(
+      <InlineEdit label="Name" value="Ana" onCommit={onCommit} readOnly />,
+    );
+    fireEvent.focus(field());
+    fireEvent.blur(field());
+    expect(field()).toHaveValue("Ana!");
+    expect(onCommit).toHaveBeenCalledExactlyOnceWith("Ana!");
+  });
+
+  it("shows the trimmed text after a commit that changes nothing", async () => {
+    const { user, onCommit } = setup({ trim: true });
+    await user.click(field());
+    await user.keyboard("{End}  {Enter}");
+    expect(field()).toHaveValue("Ana");
+    expect(onCommit).not.toHaveBeenCalled();
+  });
+
+  it("commits the trimmed text", async () => {
+    const { user, onCommit } = setup({ trim: true });
+    await user.click(field());
+    await user.keyboard("{End}! {Enter}");
+    expect(onCommit).toHaveBeenCalledExactlyOnceWith("Ana!");
+    expect(field()).toHaveValue("Ana!");
+  });
+
+  it("shows the stored text again when the parent refuses the commit", async () => {
+    const { user, onCommit } = setup({ trim: true });
+    onCommit.mockReturnValue(false);
+    await user.click(field());
+    await user.keyboard("{Control>}a{/Control}{Backspace}{Enter}");
+    expect(onCommit).toHaveBeenCalledExactlyOnceWith("");
+    expect(field()).toHaveValue("Ana");
+  });
+
+  it("sends nothing for a focus and blur over a stored text with a trailing space", async () => {
+    const { user, onCommit } = setup({ trim: true, value: "Ana " });
+    await user.click(field());
+    await user.click(screen.getByRole("button", { name: "Elsewhere" }));
+    expect(onCommit).not.toHaveBeenCalled();
+    expect(field()).toHaveValue("Ana ");
+  });
+
+  it("forgets what it sent once the stored text changes", () => {
+    const { onCommit, rerender } = setup({ trim: true });
+    const edit = (value: string, readOnly: boolean) => (
+      <InlineEdit
+        label="Name"
+        value={value}
+        onCommit={onCommit}
+        readOnly={readOnly}
+        trim
+      />
+    );
+    onCommit.mockReturnValue(false);
+    fireEvent.change(field(), { target: { value: "Bob" } });
+    fireEvent.blur(field());
+    expect(onCommit).toHaveBeenCalledExactlyOnceWith("Bob");
+    rerender(edit("Cy", false));
+    fireEvent.change(field(), { target: { value: "Bob" } });
+    rerender(edit("Cy", true));
+    fireEvent.blur(field());
+    expect(field()).toHaveValue("Cy");
   });
 });

@@ -6,8 +6,10 @@ type Props = {
   /** Accessible name; the field shows no visible label. */
   label: string;
   value: string;
-  /** Called with a text that differs from `value`, on Enter and on blur. A parent that ignores it sees the same text sent again on the next end. */
-  onCommit: (value: string) => void;
+  /** Called with a text that differs from `value`, on Enter and on blur. A parent that ignores it sees the same text sent again on the next end. Returning `false` refuses the text and the field shows `value` again. */
+  onCommit: (value: string) => void | false;
+  /** Trims the text on commit and shows the trimmed text, so a trailing space does not stay in a field that saved nothing. */
+  trim?: boolean;
   /** After the field finishes by Enter, Escape or blur. A blur that follows Enter or Escape is not reported. */
   onEnd?: (how: InlineEditEnd) => void;
   /** Enter commits; Shift+Enter breaks the line. */
@@ -29,6 +31,7 @@ export function InlineEdit({
   value,
   onCommit,
   onEnd,
+  trim = false,
   multiline = false,
   focusOnMount = false,
   commitOnUnmount = false,
@@ -38,11 +41,13 @@ export function InlineEdit({
   readOnly = false,
   className,
 }: Props) {
+  const lastSent = useRef<string | null>(null);
   const [text, setText] = useState(value);
   const [seen, setSeen] = useState(value);
   if (value !== seen) {
     setSeen(value);
     setText(value);
+    lastSent.current = null;
   }
   const ended = useRef(false);
   const field = useRef<HTMLInputElement | HTMLTextAreaElement | null>(null);
@@ -53,7 +58,15 @@ export function InlineEdit({
     el.setSelectionRange(el.value.length, el.value.length);
   }, [focusOnMount]);
   const commit = () => {
-    if (!readOnly && text !== value) onCommit(text);
+    if (readOnly || text === value) return;
+    const next = trim ? text.trim() : text;
+    if (next === value) {
+      setText(value);
+      return;
+    }
+    if (next !== text) setText(next);
+    lastSent.current = next;
+    if (onCommit(next) === false) setText(value);
   };
   const leave = useEffectEvent(() => {
     if (!ended.current) commit();
@@ -101,7 +114,11 @@ export function InlineEdit({
       ended.current = false;
     },
     onBlur: () => {
-      if (readOnly || ended.current) return;
+      if (ended.current) return;
+      if (readOnly) {
+        if (text !== lastSent.current) setText(value);
+        return;
+      }
       commit();
       onEnd?.("blur");
     },
