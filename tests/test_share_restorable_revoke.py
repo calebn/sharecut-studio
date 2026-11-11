@@ -233,6 +233,7 @@ def test_a_repeat_restorable_room_revoke_survives_a_finalize_landing_mid_call(
     first = svc.revoke_room(room["session_id"], restorable_for=WINDOW, now=T0)
     _vanish_after_first_read(monkeypatch)
     again = svc.revoke_room(room["session_id"], restorable_for=WINDOW, now=at(3))
+    assert first["revoked"] == sorted([room["guest"]["token"], room["producer"]["token"]])
     assert again == first
 
 
