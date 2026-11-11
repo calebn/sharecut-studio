@@ -52,7 +52,11 @@ type PositionedProps = {
   viewport?: Bounds;
   /** An x coordinate the positioned menu keeps clear of. */
   avoidX?: number | null;
-  /** The row index a sliding finger is over, or null. */
+  /**
+   * The row index a sliding finger is over, or null. The popover form only:
+   * the phone Sheet is modal and its rows are plain buttons, so there is no
+   * row highlighted under a sliding finger there.
+   */
   over?: number | null;
   /** The held lane's top and bottom, for the dashed time mark. */
   mark?: { top: number; bottom: number } | null;
