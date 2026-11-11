@@ -1649,14 +1649,11 @@ explicit integer sequence retain their `(client_id, client_seq)` retry coordinat
 even when a retry carries a new command ID. Persisted commands always have integer
 sequences. Roles and participant IDs still determine authorization and actor identity.
 
-On the client, monitor operational inputs, upload polling and maintenance inputs,
-and the guest room's microphone/meter gesture actions publish their latest React
-inputs at commit, before layout callbacks. A discarded render must not replace
-those active inputs. This keeps the host's Snapshot-before-Signal ordering and
-lets Join recording commit reopened mic enablement before calling the current
-request in the same click callback. The monitor/upload input tests and the guest
-room Join recording test cover this local ordering with synthetic fixtures;
-the headphone and device test contracts below still apply.
+On the client, the guest room publishes its microphone and meter gesture inputs
+at commit, before layout callbacks, so a discarded render cannot replace them.
+Join recording commits the reopened mic enablement (flushSync) before calling the
+current request in the same click; the guest room Join recording test covers this
+ordering.
 
 | Data | How |
 |------|-----|
