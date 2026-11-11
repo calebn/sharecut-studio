@@ -2,8 +2,7 @@ import type { OfflineConflict } from "../services/offlineQueue/offlineStore";
 import { DocumentCommand } from "../types/documentCommands.generated";
 import { formatTimeShort } from "../utils/time";
 
-/** The one stale-target code a guest's queued range cut is refused with. */
-const STALE_SUGGESTION_CODES: ReadonlySet<string> = new Set(["range_changed"]);
+const STALE_RANGE_CODE = "range_changed";
 
 /** A guest cut that no longer fits a newer host edit, in words for its Status row. */
 export type ConflictSuggestion = {
@@ -64,8 +63,7 @@ export function suggestionOf(
 ): ConflictSuggestion | undefined {
   if (
     conflict.kind !== "refused" ||
-    !conflict.code ||
-    !STALE_SUGGESTION_CODES.has(conflict.code) ||
+    conflict.code !== STALE_RANGE_CODE ||
     conflict.command.type !== DocumentCommand.EditSelectedRange
   ) {
     return undefined;
