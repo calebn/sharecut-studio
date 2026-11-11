@@ -11,7 +11,11 @@ import { ChaptersList } from "./ChaptersList";
 import { ClipsRow } from "./ClipsRow";
 import type { ClipWord } from "./clipTrim";
 import { DeliverSection } from "./DeliverSection";
-import type { DeliverFiles, NamedExportFiles } from "./deliverFiles";
+import {
+  afterExportOf,
+  type DeliverFiles,
+  type NamedExportFiles,
+} from "./deliverFiles";
 import {
   addChapterAt,
   approveClip,
@@ -428,6 +432,10 @@ export function DeliverStage({
           <ExportButton
             exporting={exporting}
             blocker={blocker}
+            after={afterExportOf(
+              namedFiles ? undefined : files,
+              shownState.phase === "done",
+            )}
             onExport={() => startExport()}
           />
         ) : null}
