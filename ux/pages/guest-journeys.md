@@ -153,7 +153,8 @@ flowchart TD
      gone after a reload.
 
    After a row goes, focus lands on the next row, or the previous one, or the
-   Needs attention heading when none is left.
+   Needs attention group when none is left (or the queue's progress line when the
+   browser has already dropped focus to the page).
 
 A guest whose live connection cannot keep up reconnects through the existing
 sync flow. The relay closes that connection instead of silently dropping its
