@@ -14,6 +14,7 @@ import type { PipelineJobSnapshot } from "../../types/pipeline";
 import type { StageId } from "../../types/stage";
 import { isPipelineKindJob, isPipelineSlotBusy } from "../../utils/pipeline";
 import { recordBadge } from "./recordBadge";
+import { useDeliverBadge } from "./useDeliverBadge";
 
 type StageBadgeInput = {
   pipelineJob: PipelineJobSnapshot | null;
@@ -23,6 +24,8 @@ type StageBadgeInput = {
   /** Comments nobody has resolved. */
   openCommentCount: number;
   recordAttention: boolean;
+  /** Whether the export folder holds a current audio file, an older one, or none. */
+  deliver?: StageBadge;
 };
 
 /**
@@ -30,7 +33,8 @@ type StageBadgeInput = {
  * after one failed, Review while anything waits on a decision. Record shows
  * its room badge (`useRecordBadge`, which also says "Mic on" off-stage in an
  * open room) and, when the mic or the recording
- * needs the host from another stage, a failed dot; Deliver has no badge yet.
+ * needs the host from another stage, a failed dot; Deliver shows a check while an
+ * export is current and a dot once an edit has left it behind (`useDeliverBadge`).
  */
 function stageBadges(
   input: StageBadgeInput,
@@ -48,6 +52,9 @@ function stageBadges(
   const waiting = input.pendingReviewCount + input.openCommentCount;
   if (waiting > 0) {
     badges.review = { kind: "needs-you", count: waiting };
+  }
+  if (input.deliver) {
+    badges.deliver = input.deliver;
   }
   return badges;
 }
@@ -70,6 +77,7 @@ export function useStageBadges(): Partial<Record<StageId, StageBadge>> {
       announceStatus("Your mic stopped. Open Record to reconnect it.");
     }
   }, [micLostAway, announceStatus]);
+  const deliver = useDeliverBadge();
   const input = useDaw((s) => ({
     pipelineJob: s.pipelineJob,
     activityJob: s.activityJob,
@@ -86,7 +94,7 @@ export function useStageBadges(): Partial<Record<StageId, StageBadge>> {
       s.project?.comments?.filter((c) => !c.resolved).length ?? 0,
     recordAttention,
   }));
-  return stageBadges(input);
+  return stageBadges({ ...input, deliver });
 }
 
 /**
