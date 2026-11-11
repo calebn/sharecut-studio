@@ -137,3 +137,43 @@ describe("useSplitAtPointer refusal ownership", () => {
     });
   });
 });
+
+describe("useSplitAtPointer window listeners", () => {
+  beforeEach(() => {
+    useDawStore.setState({
+      project: minimalProject(),
+      projectPath: "/tmp/episode",
+      guestMode: null,
+      shareCapabilities: null,
+      scrollLeft: 0,
+    });
+    vi.clearAllMocks();
+  });
+
+  function ZoomLanes({ zoom }: { zoom: number }) {
+    const lanesRef = useRef<HTMLDivElement>(null);
+    const split = useSplitAtPointer(lanesRef, zoom, 20);
+    return (
+      <div
+        ref={lanesRef}
+        data-testid="lanes"
+        onPointerMove={split.onPointerMove}
+      />
+    );
+  }
+
+  it("runs the latest committed show when Alt is pressed after a rerender", () => {
+    const { rerender } = render(<ZoomLanes zoom={10} />);
+    // Pointer rests inside without Alt, so nothing is shown yet.
+    fireEvent.pointerMove(screen.getByTestId("lanes"), { clientX: 40 });
+    expect(clientXToTimelineSec).not.toHaveBeenCalled();
+    rerender(<ZoomLanes zoom={20} />);
+    expect(clientXToTimelineSec).not.toHaveBeenCalled();
+
+    fireEvent.keyDown(window, { key: "Alt" });
+
+    expect(clientXToTimelineSec).toHaveBeenCalledOnce();
+    expect(vi.mocked(clientXToTimelineSec).mock.calls[0]?.[3]).toBe(20);
+    expect(useDawStore.getState().splitHoverSec).toBe(4);
+  });
+});
