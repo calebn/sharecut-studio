@@ -91,8 +91,8 @@ Severity decides whether a defect holds the beta.
 | S3 | Cosmetic or rare, and nobody is blocked. | Post-beta. |
 
 `beta:blocker` marks an S1 or a defect that keeps a journey from its bar.
-`beta:quality` marks an S2. `post-beta` marks everything else. It labels the beta scope and does not stop
-anyone from picking the issue up.
+`beta:quality` marks an S2. `post-beta` marks everything else. The beta labels
+describe the beta scope and never stop anyone from picking an issue up.
 
 The `v1` label marks work deferred to version 1.0 (for example #3337 and
 #3345). Lanes never take it.
