@@ -145,7 +145,7 @@ hits EOF.
   `FFmpegEngine.stream_pcm_f32`. That method probes with
   `probe(path, untrusted=True)`, then runs ffmpeg with the same
   `-protocol_whitelist file,crypto,data`, `-threads 1`, `-f f32le -ac <ch>
-  -ar <sr> pipe:1`. A 600 s watchdog kills a stuck process. It is armed only while waiting on
+  -ar <sr> pipe:1`. A 600 s watchdog (a caller may pass a shorter `timeout_sec`) kills a stuck process. It is armed only while waiting on
   ffmpeg for each chunk, so time the consumer spends between chunks never
   counts, and a long episode decodes as long as ffmpeg keeps producing output.
   Each chunk's watchdog carries its own generation, so a timer that fires after

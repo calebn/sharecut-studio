@@ -466,6 +466,14 @@ def test_wav_info_rejects_a_data_size_the_file_does_not_hold(tmp_path, declared)
     eng.stream_pcm_f32.assert_called_once()
 
 
+def test_decode_media_hands_a_timeout_to_the_engine_stream(tmp_path):
+    path = tmp_path / "x.mp3"
+    path.write_bytes(b"\xff\xfb")
+    eng = MagicMock()
+    decode_media(path, engine=eng, timeout_sec=60.0)
+    eng.stream_pcm_f32.assert_called_once_with(path, timeout_sec=60.0)
+
+
 def test_wav_info_keeps_an_empty_wav_on_the_fast_path(tmp_path):
     path = tmp_path / "empty.wav"
     _write_int_wav(path, np.zeros((0, 1), dtype=np.int64), width=2)
@@ -1053,6 +1061,21 @@ def test_complete_decode_requires_final_timestamp_evidence(tmp_path, progress):
             list(chunks)
     assert proc.wait.call_count >= 2
     assert proc.poll() == 0
+
+
+def test_stream_timeout_sec_overrides_the_default_watchdog(tmp_path):
+    proc = _FakeProc()
+    _ImmediateTimer.instances.clear()
+    eng = FFmpegEngine()
+    with (
+        patch.object(FFmpegEngine, "probe", side_effect=_probe),
+        patch("podcast_mcp.engines.ffmpeg.popen", return_value=proc),
+        patch("podcast_mcp.engines.ffmpeg.threading.Timer", _ImmediateTimer),
+    ):
+        _, _, chunks = eng.stream_pcm_f32(tmp_path / "stuck.wav", timeout_sec=60.0)
+        with pytest.raises(RuntimeError, match=r"killed by the 60 s watchdog"):
+            list(chunks)
+    assert _ImmediateTimer.instances[0].interval == 60.0
 
 
 def test_stream_timer_kills_stuck_process(tmp_path):

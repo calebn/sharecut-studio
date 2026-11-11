@@ -2958,11 +2958,9 @@ def test_peaks_any_decode_exception_gives_empty_uncached(
 def test_peaks_garbage_mix_mp3_gives_empty_with_the_real_ffprobe(
     minimal_project, sample_wav, tmp_workspace
 ):
-    import os
-
     ws, ver, token = _peaks_published(minimal_project, sample_wav)
     version_dir = _peaks_sidecar(ws, ver["id"]).parent
-    (version_dir / "mix.mp3").write_bytes(os.urandom(3000))
+    (version_dir / "mix.mp3").write_bytes(bytes(range(256)) * 12)
     project = load_project(minimal_project)
     entry = next(v for v in project.review.versions if v.id == ver["id"])
     entry.mp3_relpath = (Path(entry.audio_relpath).parent / "mix.mp3").as_posix()
@@ -2973,6 +2971,71 @@ def test_peaks_garbage_mix_mp3_gives_empty_with_the_real_ffprobe(
     assert not _peaks_sidecar(ws, ver["id"]).exists()
 
 
+def test_peaks_a_deeply_nested_sidecar_is_redecoded_not_a_500(
+    minimal_project, sample_wav, tmp_workspace
+):
+    ws, ver, token = _peaks_published(minimal_project, sample_wav)
+    sidecar = _peaks_sidecar(ws, ver["id"])
+    sidecar.parent.mkdir(parents=True, exist_ok=True)
+    sidecar.write_text("[" * 200_000, encoding="utf-8")
+    r = TestClient(create_app()).get(f"/api/review/{token}/peaks")
+    assert r.status_code == 200
+    assert len(r.json()) == PEAK_COUNT
+
+
+@pytest.mark.parametrize(
+    "exc", [OSError("too many levels of symbolic links"), RuntimeError("loop")]
+)
+def test_peaks_a_path_that_cannot_be_resolved_gives_empty(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch, exc
+):
+    _ws, _ver, token = _peaks_published(minimal_project, sample_wav)
+    from podcast_mcp.services.collaboration import review_peaks
+
+    def unresolvable(*_a, **_k):
+        raise exc
+
+    monkeypatch.setattr(review_peaks, "review_guest_audio_path", unresolvable)
+    r = TestClient(create_app()).get(f"/api/review/{token}/peaks")
+    assert r.status_code == 200
+    assert r.json() == []
+
+
+@pytest.mark.parametrize("exc", [PermissionError("read-only"), ValueError("not serializable")])
+def test_peaks_a_sidecar_that_cannot_be_written_still_serves_the_peaks(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch, exc
+):
+    ws, ver, token = _peaks_published(minimal_project, sample_wav)
+    from podcast_mcp.services.collaboration import review_peaks
+
+    def unwritable(*_a, **_k):
+        raise exc
+
+    monkeypatch.setattr(review_peaks, "write_json_atomic", unwritable)
+    r = TestClient(create_app()).get(f"/api/review/{token}/peaks")
+    assert r.status_code == 200
+    assert len(r.json()) == PEAK_COUNT
+    assert not _peaks_sidecar(ws, ver["id"]).exists()
+
+
+def test_peaks_the_decode_is_bounded_by_the_peaks_timeout(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch
+):
+    _ws, _ver, token = _peaks_published(minimal_project, sample_wav)
+    from podcast_mcp.services.collaboration import review_peaks
+
+    real = review_peaks.peak_envelope
+    seen: list[float | None] = []
+
+    def spying(path, **kwargs):
+        seen.append(kwargs.get("timeout_sec"))
+        return real(path, **kwargs)
+
+    monkeypatch.setattr(review_peaks, "peak_envelope", spying)
+    assert TestClient(create_app()).get(f"/api/review/{token}/peaks").status_code == 200
+    assert seen == [60.0]
+
+
 def test_peaks_version_id_over_length_422_is_not_cached(minimal_project, sample_wav, tmp_workspace):
     _ws, _ver, token = _peaks_published(minimal_project, sample_wav)
     r = TestClient(create_app()).get(f"/api/review/{token}/peaks", params={"version_id": "x" * 129})
@@ -2980,10 +3043,10 @@ def test_peaks_version_id_over_length_422_is_not_cached(minimal_project, sample_
     assert r.headers["cache-control"] == "no-store"
 
 
-def test_peaks_openapi_lists_404_and_an_array_of_numbers_for_200():
+def test_peaks_openapi_lists_every_error_status_and_an_array_of_numbers_for_200():
     spec = create_app().openapi()
     op = spec["paths"]["/api/review/{token}/peaks"]["get"]["responses"]
-    assert "404" in op
+    assert {"400", "403", "404", "429", "500", "503"} <= set(op)
     assert op["200"]["content"]["application/json"]["schema"] == {
         "type": "array",
         "items": {"type": "number"},

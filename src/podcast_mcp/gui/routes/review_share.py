@@ -172,9 +172,12 @@ PEAKS_RESPONSES: dict[int | str, dict[str, Any]] = {
         "description": "512 loudness values 0..1, or [] when unavailable",
         "content": {"application/json": {"schema": {"type": "array", "items": {"type": "number"}}}},
     },
+    400: {"description": "The request was refused"},
     403: {"description": "The link does not allow playback"},
     404: {"description": "Unknown or expired link, or a version this link does not play"},
     429: {"description": "Rate limit or audio concurrency cap reached"},
+    500: {"description": "Internal error"},
+    503: {"description": "The project is busy"},
 }
 
 
