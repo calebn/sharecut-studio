@@ -146,57 +146,6 @@ test.describe("Invite sheet", () => {
     });
   });
 
-  test("Stop sharing confirms in place, keeps the link on Keep, and turns it off on confirm", async ({
-    page,
-  }) => {
-    await withShareableProject(async (projectPath) => {
-      await openProject(page, projectPath);
-      const token = await createReviewShare(page, projectPath, "viewer");
-      const nativeDialogs: string[] = [];
-      page.on("dialog", (native) => {
-        nativeDialogs.push(native.message());
-        void native.dismiss();
-      });
-      const sheet = await openInvite(page, projectPath);
-      const more = sheet.getByRole("button", { name: "More for Viewer link" });
-      const stop = async () => {
-        await more.click();
-        await page.getByRole("menuitem", { name: "Stop sharing" }).click();
-      };
-      await stop();
-      const confirm = sheet.getByRole("group", {
-        name: "Stop sharing this Viewer link? Anyone using it loses access.",
-      });
-      await expect(confirm).toBeVisible();
-      await expect(
-        confirm.getByRole("button", { name: "Keep link" }),
-      ).toBeFocused();
-
-      await page.keyboard.press("Escape");
-      await expect(confirm).toBeHidden();
-      await expect(sheet).toBeVisible();
-      await expect(more).toBeFocused();
-      expect(
-        (await rows(page, projectPath)).find((r) => r.token === token)?.usable,
-      ).toBe(true);
-
-      await stop();
-      await confirm.getByRole("button", { name: "Keep link" }).click();
-      await expect(more).toBeFocused();
-
-      await stop();
-      await confirm.getByRole("button", { name: "Stop sharing" }).click();
-      await expect(more).toBeHidden();
-      await expect(
-        sheet.getByRole("heading", { name: "Review links" }),
-      ).toBeFocused();
-      expect((await rows(page, projectPath)).filter((r) => r.usable)).toEqual(
-        [],
-      );
-      expect(nativeDialogs).toEqual([]);
-    });
-  });
-
   test("online sharing shows each state, and a link only this network can open says so", async ({
     page,
   }) => {
@@ -344,7 +293,7 @@ test.describe("Invite sheet", () => {
     });
   });
 
-  test("record links: create, copy the guest link, and end the room after the confirm", async ({
+  test("record links: create, copy the guest link, and end the room at once", async ({
     page,
   }) => {
     await withShareableProject(async (projectPath) => {
@@ -362,16 +311,7 @@ test.describe("Invite sheet", () => {
       expect(room).toBeTruthy();
 
       await sheet.getByRole("button", { name: "End room" }).click();
-      const confirm = sheet.getByRole("group", {
-        name: "End this record room? Both guest and producer links will stop working.",
-      });
-      await expect(
-        confirm.getByRole("button", { name: "Keep room" }),
-      ).toBeFocused();
-      await confirm.getByRole("button", { name: "End room" }).click();
-      await expect(
-        sheet.getByRole("button", { name: "Create record links" }),
-      ).toBeVisible();
+      await expect(sheet.getByText("No record rooms yet.")).toBeVisible();
       expect((await rows(page, projectPath)).filter((r) => r.usable)).toEqual(
         [],
       );

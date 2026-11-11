@@ -93,34 +93,6 @@ test("phone 390x844: the sheet's controls are 44 px and fit the width", async ({
   });
 });
 
-test("phone 390x844: Stop sharing's confirm fits and keeps 44 px buttons", async ({
-  page,
-}) => {
-  await withShareableProject(async (projectPath) => {
-    await openProject(page, projectPath);
-    await createReviewShare(page, projectPath, "editor");
-    const sheet = await openInvite(page, projectPath);
-    await sheet.getByRole("button", { name: "More for Editor link" }).click();
-    await page.getByRole("menuitem", { name: "Stop sharing" }).click();
-    const confirm = sheet.getByRole("group", {
-      name: "Stop sharing this Editor link? Anyone using it loses access.",
-    });
-    await expectWithinWidth(confirm);
-    for (const name of ["Keep link", "Stop sharing"]) {
-      const button = confirm.getByRole("button", { name });
-      await expectWithinWidth(button);
-      const size = await button.evaluate((el) => ({
-        height: el.getBoundingClientRect().height,
-        layoutHeight: el instanceof HTMLElement ? el.offsetHeight : 0,
-      }));
-      expectTouchHeight(size.height, size.layoutHeight);
-    }
-    await expectNoHorizontalScroll(page);
-    await confirm.getByRole("button", { name: "Stop sharing" }).click();
-    await expect(confirm).toBeHidden();
-  });
-});
-
 test("phone 390x844: a stale mix shows its notice and Refresh mix inside the width", async ({
   page,
 }) => {
