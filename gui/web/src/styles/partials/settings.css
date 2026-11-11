@@ -37,6 +37,13 @@
   min-block-size: var(--control-height);
 }
 
+.settings-sheet-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  margin-inline-start: auto;
+}
+
 .settings-sheet-path {
   min-inline-size: 0;
   overflow-wrap: anywhere;
