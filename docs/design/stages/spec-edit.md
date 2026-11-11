@@ -551,7 +551,7 @@ Rules. Cut always removes audio and is drawn as struck text plus a hatched wavef
 
 - **Today:** POP-SPEAKER--desktop-light.png. Hierarchy: a dropdown, "All turns on reference.", Save speaker and Cancel push the turn text sideways. Language: "Save speaker".
 - **Fate:** replace with a speaker popover anchored to the margin name.
-- **Spec:** 260 px popover: list of speakers (avatar + name, 44 px rows) with a check on the current one; choosing another moves this turn to that speaker's lane (Move to speaker); a pencil on each row renames the speaker everywhere (applies on Enter; Esc cancels). No Save button. Undo covers both.
+- **Spec:** 260 px popover: list of speakers (avatar + name, 44 px rows) with a check on the current one; choosing another moves this turn to that speaker's lane (Move to speaker); a pencil on each row renames the speaker everywhere (applies on Enter; Esc cancels). No Save button; Done closes it (4.8a). Undo covers both.
 - **Shared elements used:** Person tile avatar, Action bar verb Move to speaker.
 - **Story to build:** `Edit/SpeakerPopover` stories `Open`, `Renaming`, `Phone`.
 
@@ -609,7 +609,7 @@ Rules. Cut always removes audio and is drawn as struck text plus a hatched wavef
 - **Fate:** replace with the shared Inspector sheet.
 - **Spec:**
   - Opened by the action bar's Inspect (sliders), the I key, or double-click on an object. Never open by default on selection.
-  - Desktop/tablet: a 320 px card anchored to the action bar, below or above it whichever has room, max height 60 % of the viewport, scrolls inside. Header 40 px: object icon + name (rename inline where applicable) + close ✕. Body: rows of label (12 px secondary, left) and Scrub field (right). Sections collapse by heading.
+  - Desktop/tablet: a 320 px card anchored to the action bar, below or above it whichever has room, max height 60 % of the viewport, scrolls inside. Header 40 px: object icon + name (rename inline where applicable) + **Done** (4.8a; a Close X may sit beside it). Body: rows of label (12 px secondary, left) and Scrub field (right). Sections collapse by heading.
   - Phone: the action dock (64 px) is the sheet's first detent. Drag up to half (50 %) and full (92 %); drag down past the dock clears the selection. Working grip, 36 × 5 px with a 44 px hit. No Expand/Collapse buttons; tapping the grip toggles half/dock.
   - Short frames (large text on a short window or a phone held sideways): where the card's 60 % height, or the phone sheet's 92 %, is under 8.75 rem, neither can hold its header and a field, so the Inspector takes the whole screen as a modal with a **Done** button (Escape also closes it, and there is no Close X, as 4.8a says for a phone or full-screen surface that saves as you go; undo and redo keep working). The name field and every section are the same.
   - Values apply as they change (live preview), committing one undo step on release or Enter. No Apply buttons anywhere.
