@@ -19,6 +19,16 @@ import { useOutsidePointerDown } from "./useOutsidePointerDown";
 const POINTER_CONTROL_SELECTOR =
   'button, input:not([type="hidden" i]), select, textarea, a[href], area[href], details > summary:first-of-type, iframe, object, embed, audio[controls], video[controls], [tabindex], [contenteditable=""], [contenteditable="true" i], [contenteditable="plaintext-only" i]';
 
+function pressedOnScrollbar(panel: HTMLElement, event: MouseEvent): boolean {
+  const box = panel.getBoundingClientRect();
+  const x = event.clientX - box.left - panel.clientLeft;
+  const y = event.clientY - box.top - panel.clientTop;
+  return (
+    (panel.clientWidth > 0 && x >= panel.clientWidth) ||
+    (panel.clientHeight > 0 && y >= panel.clientHeight)
+  );
+}
+
 function layoutOpenMenuPanel(trigger: HTMLElement, panel: HTMLElement): void {
   if (panel.dataset.menuMode === "fallback") {
     const rowSize = getComputedStyle(trigger).getPropertyValue(
@@ -248,6 +258,8 @@ export function Menu({
             !control.matches(":disabled") &&
             !control.closest("[inert]")
           )
+            return;
+          if (target === panel && pressedOnScrollbar(panel, event.nativeEvent))
             return;
           const active = panel.ownerDocument.activeElement;
           if (active === panel) return;

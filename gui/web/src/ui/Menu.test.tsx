@@ -491,6 +491,24 @@ describe("Menu", () => {
     expect(screen.getByRole("menu")).toBeInTheDocument();
   });
 
+  it("keeps a scrollable menu open when its scrollbar is pressed", async () => {
+    const user = userEvent.setup();
+    render(<MixedFocusFixture />);
+    await user.click(screen.getByRole("button", { name: "Open mixed" }));
+    await waitFor(() =>
+      expect(screen.getByRole("menuitem", { name: "First" })).toHaveFocus(),
+    );
+    const panel = screen.getByRole("menu");
+    Object.defineProperty(panel, "clientWidth", { value: 100 });
+    Object.defineProperty(panel, "clientHeight", { value: 100 });
+    panel.getBoundingClientRect = () => new DOMRect(0, 0, 115, 100);
+    fireEvent.mouseDown(panel, { button: 0, clientX: 110, clientY: 50 });
+    expect(screen.getByRole("menu")).toBeInTheDocument();
+    expect(screen.getByRole("menuitem", { name: "First" })).toHaveFocus();
+    fireEvent.mouseDown(panel, { button: 0, clientX: 50, clientY: 50 });
+    expect(screen.queryByRole("menu")).toBeNull();
+  });
+
   it("does not manufacture a blank-left close in an empty menu", async () => {
     const user = userEvent.setup();
     render(<MixedFocusFixture empty />);
