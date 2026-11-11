@@ -10,6 +10,7 @@ import { Flow } from "../hosts/exportFlowContext";
  * current, a dot once every audio file there is older than the latest edit,
  * nothing before the first export. The listing is the server's, so a failed or
  * cancelled run that left files behind still counts, and a guest never gets one.
+ * It keeps the last listing while a new one loads, so an edit does not blink the badge.
  */
 export function useDeliverBadge(): StageBadge | undefined {
   const flow = useContext(Flow);
@@ -22,11 +23,11 @@ export function useDeliverBadge(): StageBadge | undefined {
   const settled = run
     ? `${run.kind}|${"finishedAt" in run ? run.finishedAt : ""}`
     : "";
-  const { files, currentLoad } = useExportedFiles(host ? projectPath : null, {
+  const { files, load } = useExportedFiles(host ? projectPath : null, {
     access: "download",
     refreshKey: `${headId}|${settled}`,
   });
-  if (currentLoad !== "ready") return undefined;
+  if (load !== "ready") return undefined;
   const audio = files.filter((file) => file.kind === "audio");
   if (audio.length === 0) return undefined;
   return audio.some((file) => file.current)
