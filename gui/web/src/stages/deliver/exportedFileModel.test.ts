@@ -28,15 +28,15 @@ describe("groupByKind", () => {
     ]);
   });
 
-  it("leaves range exports out of Exported files", () => {
+  it("lists selection exports in their own group after the episode files", () => {
     const groups = groupByKind([
-      file("bounces/range.wav", "bounce", "Range export"),
+      file("bounces/range.wav", "bounce", "Unmastered export"),
       file("show.wav", "audio"),
     ]);
 
-    expect(groups.map((g) => g.kind)).toEqual(["audio"]);
-    expect(groups.flatMap((g) => g.files.map((f) => f.id))).toEqual([
-      "show.wav",
+    expect(groups.map((g) => [g.title, g.files.map((f) => f.id)])).toEqual([
+      ["Audio", ["show.wav"]],
+      ["Exports of a selection", ["bounces/range.wav"]],
     ]);
   });
 });

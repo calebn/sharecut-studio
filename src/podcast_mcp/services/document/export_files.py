@@ -281,4 +281,4 @@ class ExportFilesService:
             case "feed":
                 return "Feed file"
             case "bounce":
-                return "Range export"
+                return "Unmastered export"
