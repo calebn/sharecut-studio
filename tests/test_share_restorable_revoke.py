@@ -486,3 +486,168 @@ def test_host_start_finalizes_due_revokes(
         pass
     effects["object"].assert_called_once()
     assert get_share_registry().list_pending() == []
+
+
+def _make_settle_fail(monkeypatch) -> object:
+    real = share_pending.settle_shares_pending
+    monkeypatch.setattr(
+        share_pending, "settle_shares_pending", MagicMock(side_effect=OSError("disk gone"))
+    )
+    return real
+
+
+def test_failed_settle_keeps_the_pending_row_for_the_next_sweep(
+    minimal_project, sample_wav, tmp_workspace, effects, monkeypatch
+):
+    ws = _seed(minimal_project, sample_wav)
+    share = _review_share(ws)
+    svc = ShareService(ws)
+    svc.revoke(share["token"], restorable_for=WINDOW, now=T0)
+    real = _make_settle_fail(monkeypatch)
+    assert svc.sweep_pending(now=at(11)) == 0
+    assert len(get_share_registry().list_pending()) == 1
+    effects["object"].assert_not_called()
+    monkeypatch.setattr(share_pending, "settle_shares_pending", real)
+    assert svc.sweep_pending(now=at(80)) == 1
+    assert get_share_registry().list_pending() == []
+    effects["object"].assert_called_once()
+    assert "restorable_until" not in _sidecar(ws, share["id"])
+
+
+def test_a_stale_snapshot_cannot_flag_a_group_that_already_finalized(
+    minimal_project, sample_wav, tmp_workspace, effects
+):
+    ws = _seed(minimal_project, sample_wav)
+    share = _review_share(ws)
+    svc = ShareService(ws)
+    svc.revoke(share["token"], restorable_for=WINDOW, now=T0)
+    snapshot = get_share_registry().list_pending()
+    assert svc.sweep_pending(now=at(11)) == 1
+    share_pending._flag_sidecar(ws, snapshot, at(12))
+    assert "restorable_until" not in _sidecar(ws, share["id"])
+
+
+def test_reconcile_clears_a_marker_on_a_row_that_is_neither_pending_nor_active(
+    minimal_project, sample_wav, tmp_workspace, effects
+):
+    from podcast_mcp.services.collaboration.review_shares import (
+        mark_shares_pending,
+        share_holds_media,
+    )
+
+    ws = _seed(minimal_project, sample_wav)
+    share = _review_share(ws)
+    svc = ShareService(ws)
+    svc.revoke(share["token"], restorable_for=WINDOW, now=T0)
+    svc.sweep_pending(now=at(11))
+    mark_shares_pending(
+        ws.project.workspace_path(),
+        {share["id"]: at(99).isoformat()},
+        revoked_at=T0.isoformat(),
+        still_pending=lambda: [share["id"]],
+    )
+    assert share_holds_media(_sidecar(ws, share["id"]))
+    svc.sweep_pending(now=at(12))
+    side = _sidecar(ws, share["id"])
+    assert side["revoked"] is True and "restorable_until" not in side
+    assert not share_holds_media(side)
+
+
+def test_restored_sign_in_share_keeps_its_policy_while_the_sidecar_still_says_revoked(
+    minimal_project, sample_wav, tmp_workspace, effects, monkeypatch
+):
+    monkeypatch.setenv("PODCAST_SHARE_ACCOUNTS", "1")
+    ws = _seed(minimal_project, sample_wav)
+    share = _review_share(ws, require_sign_in=True, general_access="restricted")
+    svc = ShareService(ws)
+    svc.revoke(share["token"], restorable_for=WINDOW, now=T0)
+    _make_settle_fail(monkeypatch)
+    svc.restore(share["token"], now=at(1))
+    assert _sidecar(ws, share["id"])["revoked"] is True
+    row = lookup_share(share["token"])
+    assert row["require_sign_in"] is True
+    assert row["general_access"] == "restricted"
+    assert row["revoked"] is False
+
+
+def test_the_window_is_read_inside_the_transaction(tmp_path, monkeypatch):
+    from podcast_mcp.services.collaboration import share_registry
+    from podcast_mcp.services.collaboration.share_registry import SqliteShareRegistry
+
+    registry = SqliteShareRegistry(tmp_path / "share_registry.sqlite")
+    seen: list[bool] = []
+    real = share_registry.utc_now
+
+    def clock() -> datetime:
+        seen.append(registry._conn.in_transaction)
+        return real()
+
+    monkeypatch.setattr(share_registry, "utc_now", clock)
+    registry.begin_pending_revoke([], project_workspace="/ws", group_id="g", window=timedelta(1))
+    registry.restore_group("g")
+    registry.claim_due()
+    assert seen == [True, True, True]
+    registry.close()
+
+
+def test_restorable_for_is_clamped_below_the_finalize_lease(
+    minimal_project, sample_wav, tmp_workspace, effects, timers
+):
+    ws = _seed(minimal_project, sample_wav)
+    share = _review_share(ws)
+    out = ShareService(ws).revoke(share["token"], restorable_for=3600, now=T0)
+    assert out["restorable_until"] == at(30).isoformat()
+    assert [delay for delay, _ in timers] == [31.0]
+
+
+def test_a_failed_final_room_revoke_effect_leaves_the_row_and_lease_for_a_sweep(
+    minimal_project, sample_wav, tmp_workspace, effects
+):
+    ws = _seed(minimal_project, sample_wav)
+    room = _room(ws)
+    svc = ShareService(ws)
+    svc.revoke_room(room["session_id"], restorable_for=WINDOW, now=T0)
+    effects["summary"].side_effect = [RuntimeError("summary failed"), None]
+    out = svc.revoke_room(room["session_id"])
+    assert set(out["revoked"]) == {room["guest"]["token"], room["producer"]["token"]}
+    assert len(get_share_registry().list_pending()) == 2
+    assert svc.sweep_pending(now=at(80)) == 1
+    assert get_share_registry().list_pending() == []
+
+
+def test_a_service_of_another_workspace_cannot_park_a_foreign_token(
+    minimal_project, sample_wav, tmp_workspace, effects, tmp_path
+):
+    ws = _seed(minimal_project, sample_wav)
+    share = _review_share(ws)
+    other = tmp_path / "other"
+    other.mkdir()
+    registry = get_share_registry()
+    assert (
+        registry.begin_pending_revoke(
+            [share["token"]],
+            project_workspace=str(other),
+            group_id=share["token"],
+            window=timedelta(seconds=WINDOW),
+            now=T0,
+        )
+        == []
+    )
+    assert lookup_share(share["token"])["id"] == share["id"]
+
+
+def test_room_park_and_restore_drop_the_record_session_cache(
+    minimal_project, sample_wav, tmp_workspace, effects, monkeypatch
+):
+    from podcast_mcp.services import record
+
+    dropped = MagicMock(wraps=record.invalidate_record_session_cache)
+    monkeypatch.setattr("podcast_mcp.services.record.invalidate_record_session_cache", dropped)
+    ws = _seed(minimal_project, sample_wav)
+    room = _room(ws)
+    dropped.reset_mock()
+    svc = ShareService(ws)
+    svc.revoke_room(room["session_id"], restorable_for=WINDOW, now=T0)
+    assert dropped.call_count == 1
+    svc.restore_room(room["session_id"], now=at(1))
+    assert dropped.call_count == 2

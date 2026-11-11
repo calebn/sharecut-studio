@@ -542,3 +542,42 @@ def test_object_store_client_from_config_object(minimal_project, monkeypatch):
     # Already uploaded - short-circuit
     assert upload_track_proxy_to_object_store(ws, "host", object_store=fake2) is not None
     assert not fake2.upload_fileobj.called
+
+
+def test_delete_skips_while_a_revoked_share_is_still_restorable(
+    minimal_project, monkeypatch, tmp_workspace, sample_wav
+):
+    from datetime import UTC, datetime
+
+    from podcast_mcp.services.collaboration.review import ReviewService
+    from podcast_mcp.services.collaboration.share import ShareService
+
+    ws = _seed_track(minimal_project)
+    art = ws.project.artifacts_dir()
+    art.mkdir(parents=True, exist_ok=True)
+    (art / "premix.wav").write_bytes(sample_wav.read_bytes())
+    ver = ReviewService(ws).publish(label="Proxy")
+    share = ShareService(ws).create(review_version_id=ver["id"], capabilities=["view", "play"])
+    monkeypatch.setattr("podcast_mcp.services.media.proxy_media.CHUNK_SEC", 0.5)
+    ensure_track_proxy(ws, "host")
+
+    def mutate(p):
+        t = p.track_by_id("host")
+        assert t and t.proxy
+        t.proxy.object_store_prefix = "proxy/host/h/"
+        t.proxy.object_store_uploaded_at = "2020-01-01T00:00:00+00:00"
+        return {}
+
+    ws.mutate("before", "after", mutate)
+    fake = MagicMock()
+    cfg = ObjectStoreConfig(
+        endpoint_url="https://s3.example.test",
+        region="us-test-1",
+        bucket="b",
+        access_key_id="k",
+        secret_access_key="s",
+    )
+    monkeypatch.setattr("podcast_mcp.services.media.proxy_media.ObjectStoreClient", lambda _c: fake)
+    ShareService(ws).revoke(share["token"], restorable_for=10.0, now=datetime.now(UTC))
+    assert delete_proxy_objects_if_unused(ws, "host", object_store=cfg) is False
+    assert not fake.delete_object.called
