@@ -76,11 +76,24 @@ def test_resolver_prefers_episode_then_config_then_bundled() -> None:
     assert auto_join_fade_cap_ms(p, {}) == 0
 
 
-@pytest.mark.parametrize("bad", [-5, 201, "x"])
-def test_resolver_refuses_a_bad_configured_value(bad: object) -> None:
-    with pytest.raises(CodedValueError) as err:
-        auto_join_fade_cap_ms(_project(), {"render": {"join_fade_max_ms": bad}})
-    assert err.value.code == "out_of_range"
+@pytest.mark.parametrize(
+    ("configured", "expected"),
+    [(-5, 0), (250, 200), ("x", 40), (float("inf"), 40), (True, 40), (25.5, 25)],
+)
+def test_a_bad_configured_value_is_clamped_or_replaced_with_a_warning(
+    configured: object, expected: int, caplog: pytest.LogCaptureFixture
+) -> None:
+    cfg = {"render": {"join_fade_max_ms": configured}}
+    with caplog.at_level("WARNING"):
+        assert auto_join_fade_cap_ms(_project(), cfg) == expected
+        fade_joins(_project(), fade_ms=100, defaults=cfg)
+    assert "join_fade_max_ms_out_of_range" in caplog.text
+
+
+def test_a_valid_configured_value_logs_nothing(caplog: pytest.LogCaptureFixture) -> None:
+    with caplog.at_level("WARNING"):
+        assert auto_join_fade_cap_ms(_project(), {"render": {"join_fade_max_ms": 25}}) == 25
+    assert caplog.text == ""
 
 
 def test_cap_fade_ms_caps_dialogue_only() -> None:

@@ -2,9 +2,15 @@
 
 from __future__ import annotations
 
+import logging
 import math
 
-from podcast_mcp.config.defaults import EffectiveConfig, bundled_defaults, join_micro_fade_ms
+from podcast_mcp.config.defaults import (
+    EffectiveConfig,
+    bounded_float,
+    bundled_defaults,
+    join_micro_fade_ms,
+)
 from podcast_mcp.edits.cut_quality import recommend_cut_fade_ms
 from podcast_mcp.engines.clips_ops import (
     abutting_pairs,
@@ -19,6 +25,8 @@ from podcast_mcp.util.coded_error import CodedValueError
 from podcast_mcp.util.tracks import dialogue_track_ids, resolve_track
 
 JOIN_FADE_DEFAULT_RANGE_MS = (0, 200)
+
+log = logging.getLogger(__name__)
 
 
 def _checked_join_fade_ms(value: object) -> int:
@@ -38,10 +46,24 @@ def _checked_join_fade_ms(value: object) -> int:
 
 
 def join_fade_max_ms(defaults: EffectiveConfig) -> int:
+    bundled = int(bundled_defaults()["render"]["join_fade_max_ms"])
     configured = defaults.get("render", {}).get("join_fade_max_ms")
     if configured is None:
-        configured = bundled_defaults()["render"]["join_fade_max_ms"]
-    return _checked_join_fade_ms(configured)
+        return bundled
+    lo, hi = JOIN_FADE_DEFAULT_RANGE_MS
+    ms = (
+        bundled if isinstance(configured, bool) else int(bounded_float(configured, bundled, lo, hi))
+    )
+    if ms != configured or isinstance(configured, bool):
+        log.warning(
+            "join_fade_max_ms_out_of_range: render.join_fade_max_ms=%r is not a whole number "
+            "of ms between %d and %d; using %d",
+            configured,
+            lo,
+            hi,
+            ms,
+        )
+    return ms
 
 
 def auto_join_fade_cap_ms(project: EpisodeProject, defaults: EffectiveConfig) -> int:
