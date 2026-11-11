@@ -9,7 +9,7 @@ pytestmark = pytest.mark.e2e
 
 def test_e2e_project_loads_v2(e2e_workspace) -> None:
     proj = load_project(e2e_workspace)
-    assert proj.version == "2.0"
+    assert proj.version == "2.1"
     assert len(proj.tracks) == 2
     assert len(proj.clips) == 2
 

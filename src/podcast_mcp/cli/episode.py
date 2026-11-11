@@ -5,6 +5,7 @@ from pathlib import Path
 
 import typer
 
+from podcast_mcp.project.upgrade import upgrade_workspace
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.document import EpisodeService, TimelineService, TranscriptService
 from podcast_mcp.services.pipeline import WHISPER_MODEL_IDS
@@ -74,6 +75,23 @@ def set_join_fade_default(
         raise typer.BadParameter("Pass exactly one of --ms or --reset.")
     ws = ProjectWorkspace.open(project)
     typer.echo(json.dumps(dict(TimelineService(ws).set_join_fade_default(None if reset else ms))))
+
+
+@episode_app.command("upgrade")
+def episode_upgrade(
+    project: Path = typer.Option(..., "--project", help="Older episode.sharecut to upgrade"),
+    output: Path = typer.Option(..., "--output", help="New workspace directory for the result"),
+) -> None:
+    result = upgrade_workspace(project, output)
+    typer.echo(
+        json.dumps(
+            {
+                "project": str(result.project),
+                "from_version": result.from_version,
+                "to_version": result.to_version,
+            }
+        )
+    )
 
 
 @episode_app.command("set-track-mute")

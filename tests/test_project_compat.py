@@ -52,7 +52,7 @@ def synthetic_repo(tmp_path: Path):
 def capture_synthetic(root: Path, base: str):
     provenance = compat.ReleaseProvenance(
         id="synthetic-guard-input",
-        project_version="2.0",
+        project_version=compat.SUPPORTED_PROJECT_VERSION,
         build="SYNTHETIC guard test, never a product release",
         source_commit=base,
         captured_at="2026-10-18T00:00:00Z",

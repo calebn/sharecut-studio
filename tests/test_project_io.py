@@ -25,7 +25,7 @@ def test_resolve_project_path_dir(tmp_path):
     (ws / "episode.sharecut").write_text(
         json.dumps(
             {
-                "version": "2.0",
+                "version": "2.1",
                 "meta": {
                     "name": "t",
                     "workspace_dir": str(ws),
@@ -318,7 +318,7 @@ def test_copy_relocated_workspace_rewrites_dir_and_rejects_source(tmp_path):
     (src / "episode.sharecut").write_text(
         json.dumps(
             {
-                "version": "2.0",
+                "version": "2.1",
                 "meta": {
                     "name": "t",
                     "workspace_dir": str(src),

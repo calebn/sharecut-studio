@@ -1411,7 +1411,7 @@ class DocumentSyncSection(BaseModel):
 class EpisodeProject(BaseModel):
     """Episode Project Format v2 - canonical on-disk representation."""
 
-    version: str = "2.0"
+    version: str = SUPPORTED_PROJECT_VERSION
     meta: ProjectMeta
     sources: list[SourceRecording] = Field(default_factory=list)
     timeline: TimelineSection = Field(default_factory=TimelineSection)

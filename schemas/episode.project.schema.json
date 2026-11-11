@@ -5,7 +5,7 @@
   "type": "object",
   "required": ["version", "meta", "timeline", "editorial", "transcripts", "mix", "render"],
   "properties": {
-    "version": { "const": "2.0" },
+    "version": { "const": "2.1" },
     "meta": { "$ref": "#/$defs/ProjectMeta" },
     "sources": { "type": "array", "items": { "$ref": "#/$defs/SourceRecording" } },
     "timeline": { "$ref": "#/$defs/TimelineSection" },
@@ -64,7 +64,8 @@
       "properties": {
         "duration_sec": { "type": ["number", "null"] },
         "tracks": { "type": "array", "items": { "$ref": "#/$defs/Track" } },
-        "clips": { "type": "array", "items": { "$ref": "#/$defs/Clip" } }
+        "clips": { "type": "array", "items": { "$ref": "#/$defs/Clip" } },
+        "join_fade_max_ms": { "type": ["integer", "null"], "minimum": 0, "maximum": 200 }
       }
     },
     "TrackProxy": {

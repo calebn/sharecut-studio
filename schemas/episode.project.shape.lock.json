@@ -1,5 +1,5 @@
 {
-  "project_version": "2.0",
+  "project_version": "2.1",
   "schemas": {
     "serialization": {
       "$defs": {
@@ -1181,7 +1181,7 @@
               "$ref": "#/$defs/TranscriptsSection"
             },
             "version": {
-              "default": "2.0",
+              "default": "2.1",
               "type": "string"
             }
           },
@@ -3475,6 +3475,19 @@
               "anyOf": [
                 {
                   "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "join_fade_max_ms": {
+              "anyOf": [
+                {
+                  "maximum": 200,
+                  "minimum": 0,
+                  "type": "integer"
                 },
                 {
                   "type": "null"
@@ -5320,7 +5333,7 @@
               "$ref": "#/$defs/TranscriptsSection"
             },
             "version": {
-              "default": "2.0",
+              "default": "2.1",
               "type": "string"
             }
           },
@@ -7614,6 +7627,19 @@
               "anyOf": [
                 {
                   "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "join_fade_max_ms": {
+              "anyOf": [
+                {
+                  "maximum": 200,
+                  "minimum": 0,
+                  "type": "integer"
                 },
                 {
                   "type": "null"
