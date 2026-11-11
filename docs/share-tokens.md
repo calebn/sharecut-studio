@@ -133,7 +133,7 @@ clamped to 30 s, below the 60 s finalize lease (a non-finite window closes at on
   compare-and-set in one transaction: the pending rows are deleted only while `restorable_until`
   is in the future and no finalize lease is held, the cooldown rows are deleted, and the snapshot
   is re-inserted with the same token and `id`. A room restores every token atomically, under the record-room lock that
-  `create_record_room` uses, and skips tokens that already ended. Refusals
+  `create_record_room` uses, and reports only the tokens still live. Refusals
   are coded: `restore_window_closed` (410), `share_expired` (410, the link's own `expires_at`
   passed), `record_room_conflict` (409, another record room is live for the same episode, for
   example one minted inside the window), and the existing `share_not_found` /

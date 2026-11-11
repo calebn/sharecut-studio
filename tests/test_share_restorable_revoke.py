@@ -653,9 +653,11 @@ def test_room_park_and_restore_drop_the_record_session_cache(
     assert dropped.call_count == 2
 
 
-def test_restore_room_holds_the_room_lock_around_the_registry_restore(
+def test_a_mint_cannot_take_the_room_lock_while_restore_room_runs(
     minimal_project, sample_wav, tmp_workspace, effects, monkeypatch
 ):
+    import threading
+
     from podcast_mcp.services.collaboration import share as share_module
 
     ws = _seed(minimal_project, sample_wav)
@@ -663,15 +665,23 @@ def test_restore_room_holds_the_room_lock_around_the_registry_restore(
     svc = ShareService(ws)
     svc.revoke_room(room["session_id"], restorable_for=WINDOW, now=T0)
     real = share_pending.restore
-    held: list[bool] = []
+    probes: list[bool] = []
+
+    def probe() -> None:
+        got = share_module._record_room_lock.acquire(blocking=False)
+        probes.append(got)
+        if got:
+            share_module._record_room_lock.release()
 
     def watched(*args, **kwargs):
-        held.append(share_module._record_room_lock._is_owned())
+        thread = threading.Thread(target=probe)
+        thread.start()
+        thread.join()
         return real(*args, **kwargs)
 
     monkeypatch.setattr(share_pending, "restore", watched)
     svc.restore_room(room["session_id"], now=at(1))
-    assert held == [True]
+    assert probes == [False]
 
 
 def test_restore_room_retried_after_a_failed_settle_reports_success_and_heals(
@@ -799,3 +809,39 @@ def test_a_zero_window_closes_at_once_and_the_refused_restore_sweeps_it_final(
         svc.restore(share["token"], now=T0)
     assert get_share_registry().list_pending() == []
     effects["object"].assert_called_once()
+
+
+def test_final_revoke_after_a_failed_flag_leaves_the_sidecar_revoked_and_media_free(
+    minimal_project, sample_wav, tmp_workspace, effects, monkeypatch
+):
+    from podcast_mcp.services.collaboration.review_shares import share_holds_media
+
+    ws = _seed(minimal_project, sample_wav)
+    share = _review_share(ws)
+    svc = ShareService(ws)
+    real = share_pending.mark_shares_pending
+    monkeypatch.setattr(
+        share_pending, "mark_shares_pending", MagicMock(side_effect=OSError("disk gone"))
+    )
+    svc.revoke(share["token"], restorable_for=WINDOW, now=T0)
+    monkeypatch.setattr(share_pending, "mark_shares_pending", real)
+    svc.revoke(share["token"])
+    svc.sweep_pending(now=at(1))
+    side = _sidecar(ws, share["id"])
+    assert side["revoked"] is True
+    assert not share_holds_media(side)
+
+
+def test_revoke_room_of_a_room_being_finalized_by_another_sweeper_is_success(
+    minimal_project, sample_wav, tmp_workspace, effects
+):
+    ws = _seed(minimal_project, sample_wav)
+    room = _room(ws)
+    svc = ShareService(ws)
+    svc.revoke_room(room["session_id"], restorable_for=WINDOW, now=T0)
+    held = get_share_registry().claim_due(
+        project_workspace=share_pending.workspace_key(ws), group_id=room["session_id"], force=True
+    )
+    assert len(held) == 2
+    out = svc.revoke_room(room["session_id"])
+    assert out["session_id"] == room["session_id"]

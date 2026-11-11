@@ -300,7 +300,7 @@ def settle_shares_pending(workspace: Path, share_ids: Iterable[str], *, restored
     def settle(row: dict[str, Any]) -> Mapping[str, Any]:
         kept = {k: v for k, v in row.items() if k != "restorable_until"}
         if not restored:
-            return kept
+            return {**kept, "revoked": True}
         return {**{k: v for k, v in kept.items() if k != "revoked_at"}, "revoked": False}
 
     _rewrite_rows(workspace, lambda: ids, settle)

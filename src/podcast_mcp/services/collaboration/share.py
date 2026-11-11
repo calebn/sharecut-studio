@@ -660,7 +660,7 @@ class ShareService:
         try:
             revoked = self._revoke_room_tokens(session_id)
         except KeyError:
-            if not finalized:
+            if not finalized and not share_pending.has_pending(self.ws, session_id):
                 raise
             return {"session_id": session_id, "revoked": finalized}
         share_pending.end_room(self.ws, session_id)

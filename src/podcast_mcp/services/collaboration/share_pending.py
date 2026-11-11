@@ -61,6 +61,12 @@ def group_of(ws: ProjectWorkspace, token: str) -> str | None:
     return None
 
 
+def has_pending(ws: ProjectWorkspace, group_id: str) -> bool:
+    return any(
+        row["group_id"] == group_id for row in get_share_registry().list_pending(workspace_key(ws))
+    )
+
+
 def start_sweep_timer(delay: float, sweep: Callable[[], object]) -> None:
     """Best-effort latency helper: a daemon timer that sweeps once the window has closed.
 
