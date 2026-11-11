@@ -14,6 +14,7 @@ from podcast_mcp.services.collaboration import (
     encode_version_mp3,
     get_version,
     list_shares,
+    share_holds_media,
     version_audio_path,
     version_mp3_path,
 )
@@ -167,7 +168,7 @@ def delete_object_store_object_if_unused(
     active = [
         row
         for row in list_shares(ws.project)
-        if not row.get("revoked")
+        if share_holds_media(row)
         and (
             row.get("review_version_id") == version_id
             or effective_review_version_id(ws.project, row) == version_id

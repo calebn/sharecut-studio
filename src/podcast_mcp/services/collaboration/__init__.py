@@ -52,6 +52,7 @@ if TYPE_CHECKING:
         list_shares,
         list_usable_shares,
         rebase_sidecar_workspace,
+        share_holds_media,
     )
     from podcast_mcp.services.collaboration.review_versions import (
         MixUnavailableError,
@@ -102,6 +103,7 @@ if TYPE_CHECKING:
         share_selected_range_audio,
         share_set_action_done,
         share_upload_media,
+        sweep_all_pending,
     )
     from podcast_mcp.services.collaboration.share_capabilities import (
         ALL_CAPABILITIES,
@@ -245,6 +247,7 @@ __all__ = [
     "share_daw_waveform_status",
     "share_daw_waveform_tiles",
     "share_episode_name",
+    "share_holds_media",
     "share_is_usable",
     "share_pending_cut_suggestion",
     "share_pending_preview_image",
@@ -261,6 +264,7 @@ __all__ = [
     "share_selected_range_audio",
     "share_set_action_done",
     "share_upload_media",
+    "sweep_all_pending",
     "version_audio_path",
     "version_mp3_path",
 ]
@@ -348,6 +352,7 @@ _MODULE_BY_NAME = {
     "share_public_origin": "share_page",
     "share_set_action_done": "share",
     "share_upload_media": "share",
+    "sweep_all_pending": "share",
     "SHARE_KIND_RECORD": "share_registry",
     "SHARE_KIND_REVIEW": "share_registry",
     "SqliteShareRegistry": "share_registry",
@@ -359,6 +364,7 @@ _MODULE_BY_NAME = {
     "list_shares": "review_shares",
     "list_usable_shares": "review_shares",
     "rebase_sidecar_workspace": "review_shares",
+    "share_holds_media": "review_shares",
     "MixUnavailableError": "review_versions",
     "encode_version_mp3": "review_versions",
     "get_version": "review_versions",

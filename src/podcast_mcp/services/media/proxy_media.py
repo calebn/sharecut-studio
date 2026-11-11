@@ -11,7 +11,13 @@ from podcast_mcp.engines.ffmpeg import FFmpegEngine
 from podcast_mcp.engines.media_seek import MediaSeek
 from podcast_mcp.models import EpisodeProject, TrackProxy
 from podcast_mcp.services.app import ProjectWorkspace
-from podcast_mcp.services.collaboration import CAP_PLAY, CAP_VIEW, has_capability, list_shares
+from podcast_mcp.services.collaboration import (
+    CAP_PLAY,
+    CAP_VIEW,
+    has_capability,
+    list_shares,
+    share_holds_media,
+)
 from podcast_mcp.services.media.review_media import presign_ttl_seconds
 from podcast_mcp.util.datetime_utils import now_iso as _now_iso
 from podcast_mcp.util.object_store import (
@@ -185,7 +191,7 @@ def delete_proxy_objects_if_unused(
     active = [
         row
         for row in list_shares(ws.project)
-        if not row.get("revoked")
+        if share_holds_media(row)
         and (
             has_capability(row.get("capabilities"), CAP_VIEW)
             or has_capability(row.get("capabilities"), CAP_PLAY)

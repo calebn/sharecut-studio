@@ -61,7 +61,7 @@ class RestoreWindowClosedError(CodedValueError):
     code = "restore_window_closed"
 
 
-_WINDOW_CLOSED = "the undo window for this link has ended. The link stays off."
+RESTORE_WINDOW_CLOSED_MESSAGE = "the undo window for this link has ended. The link stays off."
 
 
 class ShareExpiredError(CodedValueError):
@@ -741,13 +741,13 @@ class SqliteShareRegistry:
         for row in rows:
             held = _parse_iso(row["finalize_lease_until"])
             if held is not None and held > moment:
-                raise RestoreWindowClosedError(_WINDOW_CLOSED)
+                raise RestoreWindowClosedError(RESTORE_WINDOW_CLOSED_MESSAGE)
             if not self._window_ended(row, moment):
                 continue
             expires = _parse_iso(json.loads(row["snapshot_json"]).get("expires_at"))
             if expires is not None and expires <= moment:
                 raise ShareExpiredError("this link has expired, so it cannot be restored.")
-            raise RestoreWindowClosedError(_WINDOW_CLOSED)
+            raise RestoreWindowClosedError(RESTORE_WINDOW_CLOSED_MESSAGE)
 
     def _require_no_live_room(
         self, rows: Sequence[sqlite3.Row], group_id: str, moment: datetime
@@ -797,7 +797,7 @@ class SqliteShareRegistry:
                 ),
             )
         except sqlite3.IntegrityError as exc:
-            raise RestoreWindowClosedError(_WINDOW_CLOSED) from exc
+            raise RestoreWindowClosedError(RESTORE_WINDOW_CLOSED_MESSAGE) from exc
         return {**snap, "project_workspace": row["project_workspace"]}
 
     @staticmethod

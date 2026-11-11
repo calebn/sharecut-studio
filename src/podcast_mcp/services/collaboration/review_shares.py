@@ -12,6 +12,7 @@ from __future__ import annotations
 import json
 import threading
 import uuid
+from collections.abc import Callable, Iterable, Mapping
 from pathlib import Path
 from typing import Any
 
@@ -267,6 +268,55 @@ def revoke_share_for_workspace(workspace: Path, token: str) -> bool:
     if found:
         get_share_registry().demote_to_cooldown(token, reason="revoked")
     return found
+
+
+def mark_shares_pending(
+    workspace: Path, restorable_until: Mapping[str, str], *, revoked_at: str
+) -> None:
+    """Flag sidecar rows (by share id) as revoked but restorable until the given instant."""
+    _rewrite_rows(
+        workspace,
+        restorable_until,
+        lambda row, until: {
+            **row,
+            "revoked": True,
+            "revoked_at": row.get("revoked_at") or revoked_at,
+            "restorable_until": until,
+        },
+    )
+
+
+def settle_shares_pending(workspace: Path, share_ids: Iterable[str], *, restored: bool) -> None:
+    """End the restorable state of sidecar rows: back to live, or revoked for good."""
+
+    def settle(row: dict[str, Any], _until: str) -> dict[str, Any]:
+        kept = {k: v for k, v in row.items() if k != "restorable_until"}
+        if not restored:
+            return kept
+        return {**{k: v for k, v in kept.items() if k != "revoked_at"}, "revoked": False}
+
+    _rewrite_rows(workspace, dict.fromkeys(share_ids, ""), settle)
+
+
+def share_holds_media(row: dict[str, Any]) -> bool:
+    """True while a link still needs its review media: live, or revoked but restorable."""
+    return not row.get("revoked") or bool(row.get("restorable_until"))
+
+
+def _rewrite_rows(
+    workspace: Path,
+    by_id: Mapping[str, str],
+    change: Callable[[dict[str, Any], str], dict[str, Any]],
+) -> None:
+    path = shares_path_for_workspace(workspace)
+    with _sidecar_lock:
+        rows = _load(path)
+        updated = [
+            change(row, by_id[str(row.get("id"))]) if str(row.get("id")) in by_id else row
+            for row in rows
+        ]
+        if updated != rows:
+            _save(path, updated)
 
 
 def drop_share(project: EpisodeProject, token: str) -> bool:

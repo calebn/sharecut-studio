@@ -67,6 +67,7 @@ from podcast_mcp.gui.static_assets import (
 from podcast_mcp.gui.validation_errors import format_validation_errors
 from podcast_mcp.models.episode import ProjectUnreadableError
 from podcast_mcp.project.io import adopt_retired_entry_file
+from podcast_mcp.services.collaboration import sweep_all_pending
 from podcast_mcp.services.document import cross_process_bridge
 from podcast_mcp.services.jobs import shared_job_manager
 from podcast_mcp.services.media import TranscriptContextBusyError
@@ -231,12 +232,20 @@ def _project_mismatch_page(request: Request, served: Path, index_path: Path) -> 
     )
 
 
+def _finalize_due_revokes() -> None:
+    try:
+        sweep_all_pending()
+    except Exception:
+        log.warning("finalizing revoked share links at start failed", exc_info=True)
+
+
 @asynccontextmanager
 async def _gui_lifespan(app: FastAPI) -> AsyncIterator[None]:
     """Run the host MCP session manager for the app's life, announce the served project to
     local CLIs once the server accepts connections (#1733), then withdraw that and stop the
     cross-process watchers on shutdown (#695)."""
     try:
+        await asyncio.to_thread(_finalize_due_revokes)
         async with host_mcp_lifespan(app):
             port = getattr(app.state, "listen_port", None)
             if port is not None:
