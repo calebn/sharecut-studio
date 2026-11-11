@@ -54,7 +54,7 @@ from podcast_mcp.edits.decisions import (
 )
 from podcast_mcp.edits.edit_log import archive_decision
 from podcast_mcp.edits.filler_pacing import filler_pad_mode
-from podcast_mcp.edits.join_modes import cap_fade_ms
+from podcast_mcp.edits.join_modes import automatic_fade_ms, cap_fade_ms
 from podcast_mcp.edits.reinsert import PadEdges, edge_fade, pad_record
 from podcast_mcp.edits.ripple import RippleRemoval, TrimPlan, ripple_track_ids
 from podcast_mcp.edits.source_removals import (
@@ -447,7 +447,9 @@ def _apply_replace_gap_pad(
     )
     left_pad_fade_out_ms = pre_pad_fade_out_ms(defaults)
     for clip in left_edge:
-        clip.fade_out_ms = max(int(clip.fade_out_ms), left_pad_fade_out_ms)
+        clip.fade_out_ms = automatic_fade_ms(
+            project, clip.fade_out_ms, left_pad_fade_out_ms, defaults
+        )
     for clip in right_edge:
         cache = (source_audio_caches or {}).get(clip.track_id)
         right_pad_fade_in_ms = recommend_post_pad_fade_in_ms(
@@ -459,7 +461,9 @@ def _apply_replace_gap_pad(
             audio_cache=cache,
         )
         if right_pad_fade_in_ms > 0:
-            clip.fade_in_ms = max(int(clip.fade_in_ms), right_pad_fade_in_ms)
+            clip.fade_in_ms = automatic_fade_ms(
+                project, clip.fade_in_ms, right_pad_fade_in_ms, defaults
+            )
             clip.join_in_mode = ClipJoinMode.FADE
     return _PadWrite(samples, recorded)
 
@@ -968,9 +972,21 @@ def _write_source_remove(
     ]
     for edge, clip in matches:
         if edge.side == "left":
-            clip.fade_out_ms = max(int(clip.fade_out_ms), edge.milliseconds)
+            clip.fade_out_ms = automatic_fade_ms(
+                project,
+                clip.fade_out_ms,
+                edge.milliseconds,
+                defaults,
+                splice_fade_ms=edit.crossfade_ms,
+            )
         else:
-            clip.fade_in_ms = max(int(clip.fade_in_ms), edge.milliseconds)
+            clip.fade_in_ms = automatic_fade_ms(
+                project,
+                clip.fade_in_ms,
+                edge.milliseconds,
+                defaults,
+                splice_fade_ms=edit.crossfade_ms,
+            )
             clip.join_in_mode = ClipJoinMode.FADE
     first = spans[0]
     cuts = [first, *spans[1:]]
