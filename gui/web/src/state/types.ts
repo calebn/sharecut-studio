@@ -159,9 +159,12 @@ export type SourcePreviewError = {
 /** How a toast looks and what it asks of the person: a result, or a failure with a next step. */
 export type ToastTone = "status" | "error";
 
-/** An Undo that is not a History step (a comment resolve); `run` reports whether it took effect. */
+/**
+ * An Undo that is not a History step (a comment resolve). `run` reports whether it took
+ * effect; a string is a refusal, announced as the error in place of the generic one.
+ */
 export interface ReverseAction {
-  run: () => Promise<boolean>;
+  run: () => Promise<boolean | string>;
   /** Announced after `run` succeeds. */
   done: string;
 }
@@ -184,6 +187,8 @@ export interface FeedbackToast {
   onUndone?: () => void;
   /** Where focus goes when its Undo or Dismiss closes the toast; the panel the change was made in. */
   returnFocus: (() => HTMLElement | null) | null;
+  /** How long the toast stays up, when the Undo it offers expires on a clock of its own; null for the usual dwell. */
+  dwellMs: number | null;
   /** Says what a gesture is doing; it clears when the gesture ends or the mode changes. */
   gesture: boolean;
   action: ToastAction | null;
@@ -252,6 +257,8 @@ export interface AnnounceOptions {
   /** Runs only after Undo moved the History head, not on a refusal or failure. */
   onUndone?: () => void;
   returnFocus?: () => HTMLElement | null;
+  /** Stays up this long (not hovered or focused) instead of the usual dwell: for an Undo the server stops honoring. */
+  dwellMs?: number;
   /** `error` names a failure and its next step; internals are replaced before it is shown. */
   tone?: ToastTone;
   /** The message belongs to the running gesture (see `FeedbackToast.gesture`). */

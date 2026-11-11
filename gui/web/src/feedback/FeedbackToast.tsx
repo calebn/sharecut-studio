@@ -245,7 +245,8 @@ export function FeedbackToast({ host = null }: { host?: HTMLElement | null }) {
   ) => {
     setUndoing(true);
     try {
-      if (await run()) {
+      const outcome = await run();
+      if (outcome === true) {
         useDawStore.getState().announceStatus(done);
         const active = document.activeElement;
         if (!active || active === document.body || portal.contains(active))
@@ -254,10 +255,10 @@ export function FeedbackToast({ host = null }: { host?: HTMLElement | null }) {
         useDawStore
           .getState()
           .announceStatus(
-            "Can't undo: the project changed since. Nothing was undone.",
-            {
-              tone: "error",
-            },
+            outcome === false
+              ? "Can't undo: the project changed since. Nothing was undone."
+              : outcome,
+            { tone: "error" },
           );
     } catch (e) {
       useDawStore.getState().announceStatus(`Undo failed: ${errorMessage(e)}`, {
@@ -313,6 +314,7 @@ export function FeedbackToast({ host = null }: { host?: HTMLElement | null }) {
         if (held) toast.returnFocus?.()?.focus({ preventScroll: true });
       }}
       onUndo={onUndo}
+      timeoutMs={toast?.dwellMs ?? undefined}
       undoLabel={toast?.merged ? "Undo all" : undefined}
       actionLabel={toast?.action?.label}
       onAction={runnableAction ? () => void act(runnableAction.run) : undefined}

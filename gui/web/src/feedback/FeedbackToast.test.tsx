@@ -1194,6 +1194,40 @@ describe("FeedbackToast", () => {
     });
   });
 
+  it("shows the reason a reverse Undo gives when it is refused", async () => {
+    const user = userEvent.setup();
+    render(<FeedbackToast />);
+    act(() => {
+      useDawStore.getState().announceStatus("Link stopped.", {
+        reverse: { run: async () => "Too late to undo.", done: "Restored" },
+      });
+    });
+    await user.click(screen.getByRole("button", { name: "Undo" }));
+    expect(useDawStore.getState().feedbackToast).toMatchObject({
+      message: "Too late to undo.",
+      tone: "error",
+    });
+  });
+
+  it("stays up for the dwell a toast asks for instead of the usual Undo dwell", () => {
+    vi.useFakeTimers();
+    render(<FeedbackToast />);
+    act(() => {
+      useDawStore.getState().announceStatus("Link stopped.", {
+        dwellMs: 4000,
+        reverse: { run: async () => true, done: "Restored" },
+      });
+    });
+    act(() => {
+      vi.advanceTimersByTime(3900);
+    });
+    expect(useDawStore.getState().feedbackToast).not.toBeNull();
+    act(() => {
+      vi.advanceTimersByTime(200);
+    });
+    expect(useDawStore.getState().feedbackToast).toBeNull();
+  });
+
   it("names a failed reverse Undo as an error", async () => {
     const user = userEvent.setup();
     render(<FeedbackToast />);
