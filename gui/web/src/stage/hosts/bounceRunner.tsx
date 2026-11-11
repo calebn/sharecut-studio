@@ -52,12 +52,7 @@ function stopOrphan(jobId: string): void {
   cancelPipelineRun(jobId).catch(() => undefined);
 }
 
-/**
- * The host's range and episode export, outside any stage so it outlives them: the same
- * `BounceService` job as MCP `bounce_audio_tool` and CLI `podcast pipeline bounce`.
- * Progress is the Activity chip and the result is a toast. A project switch stops
- * following the job and returns to idle.
- */
+/** Runs outside any stage so it outlives them. */
 export function BounceRunnerProvider({ children }: { children: ReactNode }) {
   const projectPath = useDawStore((s) => s.projectPath);
   const projectEpoch = useDawStore((s) => s.projectEpoch);
@@ -67,9 +62,6 @@ export function BounceRunnerProvider({ children }: { children: ReactNode }) {
   const runRef = useRef(run);
   runRef.current = run;
   const activeAttempt = useRef<symbol | null>(null);
-  const startRef = useRef<(request: BounceRequest) => Promise<ExecuteResult>>(
-    () => Promise.resolve({ status: "ok" }),
-  );
   const restart = useRef<(need: BounceModelNeed) => void>(() => undefined);
   const retried = useRef<string | null>(null);
   const { download } = useModels();
@@ -216,7 +208,6 @@ export function BounceRunnerProvider({ children }: { children: ReactNode }) {
     },
     [launch, clear],
   );
-  startRef.current = start;
 
   restart.current = (need) => {
     const current = useDawStore.getState();
@@ -260,11 +251,11 @@ export function BounceRunnerProvider({ children }: { children: ReactNode }) {
   useEffect(
     () =>
       registerBounceRunner({
-        start: (request) => startRef.current(request),
+        start,
         cancel,
         running: () => runRef.current.kind === "running",
       }),
-    [cancel],
+    [start, cancel],
   );
 
   const job =

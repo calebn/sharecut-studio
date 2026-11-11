@@ -15,12 +15,7 @@ import { useTopLayerPanel } from "../ui/useTopLayerPanel";
 const FOCUSABLE =
   'button:not(:disabled), input:not(:disabled), select:not(:disabled), [tabindex]:not([tabindex="-1"])';
 
-/**
- * The options popover that hangs off a split verb's chevron. Non-modal, in the
- * top layer, flipped above or below by room. Escape and Tab out of an end
- * return focus to the chevron; a press outside or another dialog taking focus
- * closes it and leaves focus where it went.
- */
+/** Escape and Tab out of an end return focus to the chevron; a press outside or another dialog taking focus closes it and leaves focus where it went. */
 export function SplitPopover({
   anchorRef,
   label,

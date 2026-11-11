@@ -62,7 +62,6 @@ export function writeExportRangeChoices(choices: ExportRangeChoices): void {
   );
 }
 
-/** What Export covers: a time range when `intervals` is set, else the whole episode; `trackIds` are the selection's tracks. */
 export type ExportScope = {
   intervals: TimelineSpan[] | null;
   trackIds: readonly string[];
@@ -137,7 +136,7 @@ export type BounceRequest = {
   includeMp3: boolean;
 };
 
-/** Tracks selected without a range export those tracks, since the full mix would ignore the selection. */
+/** Tracks selected without a range export those tracks, not the full mix. */
 export function sourceFor(
   scope: ExportScope,
   source: BounceSource,
@@ -147,7 +146,6 @@ export function sourceFor(
     : source;
 }
 
-/** The saved source, or the full mix when what it names is not available now (nothing soloed, no track selected). */
 export function usableChoices(
   project: ProjectView,
   scope: ExportScope,
@@ -190,7 +188,6 @@ export function bounceRequestOf(
   };
 }
 
-/** The request Export makes right now: what the person saved in the options, what the selection covers, what is soloed. */
 export function exportRequestNow(
   project: ProjectView,
   scope: ExportScope,
@@ -204,7 +201,7 @@ export function exportRequestNow(
   );
 }
 
-/** `POST /api/export/bounce`, the same fields as MCP `bounce_audio_tool` and `podcast pipeline bounce`, plus `exact_range`. */
+/** The `POST /api/export/bounce` body. */
 type BounceBody = {
   track_ids: string[] | null;
   start_s: number | null;
