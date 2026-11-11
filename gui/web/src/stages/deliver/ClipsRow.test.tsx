@@ -139,6 +139,32 @@ describe("ClipsRow In and Out", () => {
     expect(onTrim).toHaveBeenCalledExactlyOnceWith(id, "end", 700);
   });
 
+  it("labels the two fields In and Out where they can be seen", () => {
+    renderRow({ trimming: id });
+    const labels = document.querySelectorAll(".dv-part-label");
+    expect([...labels].map((node) => node.textContent)).toEqual(["In", "Out"]);
+  });
+
+  it("reports nothing for an edge opened and left as it was", async () => {
+    const onTrim = vi.fn();
+    renderRow({ trimming: id, onTrim });
+    await userEvent.click(
+      screen.getByRole("spinbutton", { name: `In of ${name}` }),
+    );
+    await userEvent.keyboard("{Enter}");
+    expect(onTrim).not.toHaveBeenCalled();
+  });
+
+  it("refuses a typed Out past the end of the episode", async () => {
+    const onTrim = vi.fn();
+    renderRow({ trimming: id, onTrim });
+    await userEvent.click(
+      screen.getByRole("spinbutton", { name: `Out of ${name}` }),
+    );
+    await userEvent.keyboard("{Control>}a{/Control}999999{Enter}");
+    expect(onTrim).not.toHaveBeenCalled();
+  });
+
   it("reports a pointer drag once, on release", () => {
     const onTrim = vi.fn();
     renderRow({ trimming: id, onTrim });
