@@ -332,19 +332,22 @@ function AttentionGroup({
       onFocusChange(true);
     };
     const leave = (event: FocusEvent) => {
-      if (!group.contains(event.relatedTarget as Node | null))
-        onFocusChange(false);
-    };
-    const clickedAway = (event: PointerEvent) => {
-      if (!group.contains(event.target as Node | null)) leaving.current = null;
+      if (group.contains(event.relatedTarget as Node | null)) return;
+      // Focus moved out while its element survives (a click-away or tab-out), not
+      // because the element was removed (some engines fire focusout mid-removal, so
+      // look once the removal has landed): the guest chose to go, so a later row
+      // removal must not pull focus back.
+      const target = event.target as Node | null;
+      queueMicrotask(() => {
+        if (target?.isConnected) leaving.current = null;
+      });
+      onFocusChange(false);
     };
     group.addEventListener("focusin", enter);
     group.addEventListener("focusout", leave);
-    document.addEventListener("pointerdown", clickedAway, true);
     return () => {
       group.removeEventListener("focusin", enter);
       group.removeEventListener("focusout", leave);
-      document.removeEventListener("pointerdown", clickedAway, true);
     };
   }, [onFocusChange]);
   const vanished = useRef(onVanished);
