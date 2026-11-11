@@ -311,11 +311,7 @@ export function FeedbackToast({ host = null }: { host?: HTMLElement | null }) {
       onUndo={onUndo}
       undoLabel={toast?.merged ? "Undo all" : undefined}
       actionLabel={toast?.action?.label}
-      onAction={
-        toast?.action && undoEntry
-          ? () => void act(toast.action!.run)
-          : undefined
-      }
+      onAction={toast?.action ? () => void act(toast.action!.run) : undefined}
       actionDisabledReason={acting ? BUSY_REASON : undefined}
       undoDisabledReason={undoing ? BUSY_REASON : undefined}
       undoNote={

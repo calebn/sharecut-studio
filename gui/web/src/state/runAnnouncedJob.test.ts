@@ -80,6 +80,45 @@ describe("runAnnouncedJob", () => {
     );
   });
 
+  it("carries the summary's action onto the verified outcome", async () => {
+    const action = { label: "Download", run: vi.fn() };
+    followMock.mockResolvedValue(okJob);
+    await runAnnouncedJob(async () => snap, {
+      kind: "export",
+      failLabel: "F",
+      summarizeResult: () => ({ copy: "Bounced", action }),
+    });
+    expect(useDawStore.getState().jobFeedback).toEqual(
+      new Map([
+        [
+          "j1",
+          {
+            kind: "ready",
+            outcome: { kind: "verified", copy: "Bounced", action },
+          },
+        ],
+      ]),
+    );
+  });
+
+  it("keeps the action when a late cancel still wrote files", async () => {
+    const action = { label: "Reveal", run: vi.fn() };
+    followMock.mockRejectedValue(
+      new JobCancelledError({ ...okJob, status: "cancelled" }, "Cancelled"),
+    );
+    await expect(
+      runAnnouncedJob(async () => snap, {
+        kind: "export",
+        failLabel: "F",
+        summarizeResult: () => ({ copy: "Bounced", action }),
+      }),
+    ).rejects.toBeInstanceOf(JobCancelledError);
+    expect(useDawStore.getState().jobFeedback.get("j1")).toMatchObject({
+      kind: "ready",
+      outcome: { kind: "verified", action },
+    });
+  });
+
   it("hands the started job to onStart before following it", async () => {
     const onStart = vi.fn<(job: PipelineJobSnapshot) => void>();
     const followed = deferred<PipelineJobSnapshot>();

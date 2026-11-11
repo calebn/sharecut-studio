@@ -267,6 +267,45 @@ describe("job result announcements", () => {
     expect(spoken()).toBe("RESULT-A. RESULT-B");
   });
 
+  it("hands one verified outcome's action to its toast", () => {
+    const b1 = beginResult("b1");
+    const action = { label: "Download", run: () => {} };
+    mountProbe();
+    act(() => {
+      st().finishJobResult(b1, { kind: "verified", copy: RESULT, action });
+      st().setActivityJob(bounceChip("b1", "ok", "Bounce complete"));
+    });
+    expect(st().feedbackToast).toMatchObject({ message: RESULT, action });
+  });
+
+  it("drops the actions when two verified outcomes merge into one toast", () => {
+    const a = beginResult("a");
+    const b = beginResult("b");
+    const action = { label: "Download", run: () => {} };
+    mountProbe();
+    act(() => {
+      st().setActivityJob(bounceChip("x", "running", "Mixing bounce…"));
+    });
+    act(() => {
+      st().finishJobResult(a, { kind: "verified", copy: "RESULT-A", action });
+      st().finishJobResult(b, { kind: "verified", copy: "RESULT-B", action });
+    });
+    expect(st().feedbackToast).toMatchObject({
+      message: "RESULT-A. RESULT-B",
+      action: null,
+    });
+  });
+
+  it("gives a toast no action when the outcome carries none", () => {
+    const b1 = beginResult("b1");
+    mountProbe();
+    act(() => {
+      st().finishJobResult(b1, { kind: "verified", copy: RESULT });
+      st().setActivityJob(bounceChip("b1", "ok", "Bounce complete"));
+    });
+    expect(st().feedbackToast).toMatchObject({ message: RESULT, action: null });
+  });
+
   it("does not let a later result for another job un-mark the chip's spoken job", () => {
     const j = beginResult("j");
     const k = beginResult("k");

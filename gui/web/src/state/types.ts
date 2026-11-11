@@ -216,7 +216,7 @@ export type JobResultOwner = Readonly<{
   jobId: string;
 }>;
 export type JobResultOutcome =
-  | { kind: "verified"; copy: string }
+  | { kind: "verified"; copy: string; action?: ToastAction }
   | { kind: "failure"; copy: string }
   | { kind: "cancelled-empty" };
 export type JobFeedback =
