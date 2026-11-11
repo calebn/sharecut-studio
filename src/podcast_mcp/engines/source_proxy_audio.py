@@ -829,6 +829,8 @@ class SourceProxyInputs:
                         "timeline_start",
                         "fade_in_ms",
                         "fade_out_ms",
+                        "fade_in_curve",
+                        "fade_out_curve",
                         "gain_db",
                         "join_in_mode",
                     ):

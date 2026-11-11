@@ -8,6 +8,7 @@ from podcast_mcp.config.defaults import EffectiveConfig
 from podcast_mcp.engines.mute_regions import mute_regions_payload
 from podcast_mcp.engines.off_speaker_regions import (
     nonempty_off_speaker_regions_payload,
+    nonlinear_fade_curves_payload,
     nonzero_gain_payload,
 )
 from podcast_mcp.engines.play_audit import dialogue_render_hashes, envelope_audio_payload
@@ -53,6 +54,7 @@ def audio_state_fingerprint(
                             "mute_regions": mute_regions_payload(clip.mute_regions),
                             **nonempty_off_speaker_regions_payload(clip),
                             **nonzero_gain_payload(clip),
+                            **nonlinear_fade_curves_payload(clip),
                         },
                         sort_keys=True,
                         separators=(",", ":"),

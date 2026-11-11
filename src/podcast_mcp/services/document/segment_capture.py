@@ -16,7 +16,7 @@ from podcast_mcp.engines.mute_regions import (
     room_tone_fills_for_source_window,
 )
 from podcast_mcp.engines.timeline_render import resolve_clip_audio_path
-from podcast_mcp.models.episode import Clip, ClipJoinMode, EpisodeProject, TrackRole
+from podcast_mcp.models.episode import Clip, ClipJoinMode, EpisodeProject, FadeCurve, TrackRole
 from podcast_mcp.segments.model import (
     SEGMENT_JSON,
     MediaEntry,
@@ -118,9 +118,11 @@ def _selected(
                 cut_out = original.timeline_end > end + _EPS
                 update: dict[str, object] = {"timeline_start": piece.timeline_start + start}
                 if cut_in:
-                    update.update(fade_in_ms=0, join_in_mode=ClipJoinMode.FADE)
+                    update.update(
+                        fade_in_ms=0, fade_in_curve=FadeCurve.LINEAR, join_in_mode=ClipJoinMode.FADE
+                    )
                 if cut_out:
-                    update.update(fade_out_ms=0)
+                    update.update(fade_out_ms=0, fade_out_curve=FadeCurve.LINEAR)
                 chosen.append(piece.model_copy(update=update))
     if not chosen:
         raise CodedValueError("No clips are in that selection.", code="segment_selection_empty")

@@ -31,6 +31,7 @@ from podcast_mcp.models import (
     ChapterMarker,
     Clip,
     EpisodeProject,
+    FadeCurve,
     SourceRecording,
     Track,
     TrackRole,
@@ -209,6 +210,8 @@ def insert_segment(
                 timeline_start=clip.offset_sec,
                 fade_in_ms=clip.fade_in_ms,
                 fade_out_ms=clip.fade_out_ms,
+                fade_in_curve=FadeCurve.LINEAR,
+                fade_out_curve=FadeCurve.LINEAR,
                 join_in_mode=clip.join_in_mode,
                 segment_ref=ref,
             )
