@@ -83,13 +83,22 @@ export function InviteBody({ options, at = null }: Props) {
     heading.current?.focus();
   }, [rows]);
 
+  const headings = {
+    review: reviewHeading,
+    record: recordHeading,
+    listen: listenHeading,
+  };
   const stopLink = (group: "review" | "listen") => (token: string) => {
-    ended.current = { kind: "link", token, group };
-    options.onStop(token);
+    const accepted = options.onStop(token, () => headings[group].current);
+    if (accepted !== false) ended.current = { kind: "link", token, group };
   };
   const endRoom = (sessionId: string) => {
-    ended.current = { kind: "room", sessionId, group: "record" };
-    options.onEndRoom(sessionId);
+    const accepted = options.onEndRoom(
+      sessionId,
+      () => headings.record.current,
+    );
+    if (accepted !== false)
+      ended.current = { kind: "room", sessionId, group: "record" };
   };
   return (
     <div className="inv-body">

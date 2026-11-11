@@ -301,7 +301,8 @@ the empty state, not a separate discovery task.
   sharing says "Link stopped." and End room says "Room ended.", each with an
   **Undo** action on the toast. Undo says "Link restored." or "Room restored."
   The toast stays for the window the server gave minus half a second (9.5 s
-  on the default 10 s), so a press never lands after it. A refused Undo says
+  on the default 10 s), so a press normally lands inside it. The toast stays up while hovered or
+  focused, so a late press can still be refused with "Too late to undo.". A refused Undo says
   why in plain words: "Too late to undo.", "Another room is live, so this one
   stays ended.", "This link had already expired, so it stays stopped.", or that
   the link or room is already gone. While that Undo is open, a

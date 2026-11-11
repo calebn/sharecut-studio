@@ -438,7 +438,9 @@ describe("creating a link", () => {
     expect(flow.busy).toBe(true);
     act(() => flow.create());
     act(() => flow.createRecord());
-    act(() => flow.stop("x"));
+    act(() => {
+      flow.stop("x");
+    });
     expect(createHostShare).toHaveBeenCalledOnce();
     expect(createHostRecordRoom).not.toHaveBeenCalled();
     expect(revokeHostShare).not.toHaveBeenCalled();
@@ -865,7 +867,9 @@ describe("stopping a link", () => {
     mount();
     act(() => flow.reload());
     await waitFor(() => expect(flow.rows).toHaveLength(1));
-    act(() => flow.stop(liveRow.token));
+    act(() => {
+      flow.stop(liveRow.token);
+    });
     await waitFor(() =>
       expect(revokeHostShare).toHaveBeenCalledWith(PATH, liveRow.token, {
         restorable: true,
@@ -880,7 +884,9 @@ describe("stopping a link", () => {
   it("restores the link on Undo and lists again", async () => {
     revokeHostShare.mockResolvedValue(WINDOW);
     mount();
-    act(() => flow.stop(liveRow.token));
+    act(() => {
+      flow.stop(liveRow.token);
+    });
     await waitFor(() => expect(toast()?.reverse).not.toBeNull());
     listHostShares.mockClear();
     await expect(toast()?.reverse?.run()).resolves.toBe(true);
@@ -907,7 +913,9 @@ describe("stopping a link", () => {
       revokeHostShare.mockResolvedValue(WINDOW);
       restoreHostShare.mockRejectedValue(refusal(status, code));
       mount();
-      act(() => flow.stop(liveRow.token));
+      act(() => {
+        flow.stop(liveRow.token);
+      });
       await waitFor(() => expect(toast()?.reverse).not.toBeNull());
       await expect(toast()?.reverse?.run()).resolves.toBe(message);
     },
@@ -917,7 +925,9 @@ describe("stopping a link", () => {
     revokeHostShare.mockResolvedValue(WINDOW);
     restoreHostShare.mockRejectedValue(new Error("offline"));
     mount();
-    act(() => flow.stop(liveRow.token));
+    act(() => {
+      flow.stop(liveRow.token);
+    });
     await waitFor(() => expect(toast()?.reverse).not.toBeNull());
     await expect(toast()?.reverse?.run()).rejects.toThrow("offline");
   });
@@ -925,7 +935,9 @@ describe("stopping a link", () => {
   it("offers no Undo when the server gave no window", async () => {
     revokeHostShare.mockResolvedValue(FINAL);
     mount();
-    act(() => flow.stop(liveRow.token));
+    act(() => {
+      flow.stop(liveRow.token);
+    });
     await waitFor(() => expect(announcement()).toBe("Link stopped."));
     expect(toast()?.reverse).toBeNull();
   });
@@ -933,7 +945,9 @@ describe("stopping a link", () => {
   it("offers no Undo when the window is already inside the safety margin", async () => {
     revokeHostShare.mockResolvedValue({ ...WINDOW, restoreMs: 400 });
     mount();
-    act(() => flow.stop(liveRow.token));
+    act(() => {
+      flow.stop(liveRow.token);
+    });
     await waitFor(() => expect(announcement()).toBe("Link stopped."));
     expect(toast()?.reverse).toBeNull();
   });
@@ -941,11 +955,18 @@ describe("stopping a link", () => {
   it("ignores a second stop while the first Undo is open, and undoes the first", async () => {
     revokeHostShare.mockResolvedValue(WINDOW);
     mount();
-    act(() => flow.stop("first"));
+    act(() => {
+      flow.stop("first");
+    });
     await waitFor(() => expect(toast()?.reverse).not.toBeNull());
     const first = toast()?.id;
     await waitFor(() => expect(flow.busy).toBe(false));
-    act(() => flow.stop("second"));
+    let accepted: boolean | undefined;
+    act(() => {
+      accepted = flow.stop("second");
+    });
+    expect(accepted).toBe(false);
+    expect(flow.status).toBe("Undo is still available.");
     expect(revokeHostShare).toHaveBeenCalledExactlyOnceWith(PATH, "first", {
       restorable: true,
     });
@@ -954,13 +975,28 @@ describe("stopping a link", () => {
     expect(restoreHostShare).toHaveBeenCalledExactlyOnceWith(PATH, "first");
   });
 
+  it("hands Undo the place focus returns to", async () => {
+    revokeHostShare.mockResolvedValue(WINDOW);
+    mount();
+    const target = document.createElement("h3");
+    act(() => {
+      flow.stop("first", () => target);
+    });
+    await waitFor(() => expect(toast()?.reverse).not.toBeNull());
+    expect(toast()?.returnFocus?.()).toBe(target);
+  });
+
   it("ignores a second End room while the first Undo is open", async () => {
     revokeHostRoom.mockResolvedValue(WINDOW);
     mount();
-    act(() => flow.endRoom("sess1"));
+    act(() => {
+      flow.endRoom("sess1");
+    });
     await waitFor(() => expect(toast()?.reverse).not.toBeNull());
     await waitFor(() => expect(flow.busy).toBe(false));
-    act(() => flow.endRoom("sess2"));
+    act(() => {
+      flow.endRoom("sess2");
+    });
     expect(revokeHostRoom).toHaveBeenCalledExactlyOnceWith(PATH, "sess1", {
       restorable: true,
     });
@@ -969,18 +1005,24 @@ describe("stopping a link", () => {
   it("stops again once the Undo toast is gone", async () => {
     revokeHostShare.mockResolvedValue(WINDOW);
     mount();
-    act(() => flow.stop("first"));
+    act(() => {
+      flow.stop("first");
+    });
     await waitFor(() => expect(toast()?.reverse).not.toBeNull());
     await waitFor(() => expect(flow.busy).toBe(false));
     act(() => useDawStore.setState({ feedbackToast: null }));
-    act(() => flow.stop("second"));
+    act(() => {
+      flow.stop("second");
+    });
     await waitFor(() => expect(revokeHostShare).toHaveBeenCalledTimes(2));
   });
 
   it("shows a refusal and stays usable", async () => {
     revokeHostShare.mockRejectedValue(new Error("Could not stop"));
     mount();
-    act(() => flow.stop("x"));
+    act(() => {
+      flow.stop("x");
+    });
     await waitFor(() => expect(flow.error).toBe("Could not stop"));
     expect(flow.busy).toBe(false);
     expect(toast()).toBeNull();
@@ -1057,7 +1099,9 @@ describe("record rooms", () => {
     mount();
     act(() => flow.reload());
     await waitFor(() => expect(flow.rows).toHaveLength(2));
-    act(() => flow.endRoom("sess1"));
+    act(() => {
+      flow.endRoom("sess1");
+    });
     await waitFor(() =>
       expect(revokeHostRoom).toHaveBeenCalledWith(PATH, "sess1", {
         restorable: true,
@@ -1071,7 +1115,9 @@ describe("record rooms", () => {
   it("restores the room on Undo", async () => {
     revokeHostRoom.mockResolvedValue(WINDOW);
     mount();
-    act(() => flow.endRoom("sess1"));
+    act(() => {
+      flow.endRoom("sess1");
+    });
     await waitFor(() => expect(toast()?.reverse).not.toBeNull());
     await expect(toast()?.reverse?.run()).resolves.toBe(true);
     expect(restoreHostRoom).toHaveBeenCalledWith(PATH, "sess1");
@@ -1096,7 +1142,9 @@ describe("record rooms", () => {
       revokeHostRoom.mockResolvedValue(WINDOW);
       restoreHostRoom.mockRejectedValue(refusal(status, code));
       mount();
-      act(() => flow.endRoom("sess1"));
+      act(() => {
+        flow.endRoom("sess1");
+      });
       await waitFor(() => expect(toast()?.reverse).not.toBeNull());
       await expect(toast()?.reverse?.run()).resolves.toBe(message);
     },

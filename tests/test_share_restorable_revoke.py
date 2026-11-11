@@ -200,6 +200,54 @@ def test_a_second_restorable_revoke_of_a_pending_link_keeps_it_pending(
     assert svc.restore(share["token"], now=at(4)) == {"restored": True, "token": share["token"]}
 
 
+def _vanish_after_first_read(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The pending row is there for one registry read, then a sweep finalizes it."""
+    registry = get_share_registry()
+    real = registry.list_pending
+    reads = {"n": 0}
+
+    def list_pending(*args, **kwargs):
+        reads["n"] += 1
+        return real(*args, **kwargs) if reads["n"] == 1 else []
+
+    monkeypatch.setattr(registry, "list_pending", list_pending)
+
+
+def test_a_repeat_restorable_revoke_survives_a_finalize_landing_mid_call(
+    minimal_project, sample_wav, tmp_workspace, effects, monkeypatch
+):
+    ws = _seed(minimal_project, sample_wav)
+    share = _review_share(ws)
+    svc = ShareService(ws)
+    first = svc.revoke(share["token"], restorable_for=WINDOW, now=T0)
+    _vanish_after_first_read(monkeypatch)
+    assert svc.revoke(share["token"], restorable_for=WINDOW, now=at(3)) == first
+
+
+def test_a_repeat_restorable_room_revoke_survives_a_finalize_landing_mid_call(
+    minimal_project, sample_wav, tmp_workspace, effects, monkeypatch
+):
+    ws = _seed(minimal_project, sample_wav)
+    room = _room(ws)
+    svc = ShareService(ws)
+    first = svc.revoke_room(room["session_id"], restorable_for=WINDOW, now=T0)
+    _vanish_after_first_read(monkeypatch)
+    again = svc.revoke_room(room["session_id"], restorable_for=WINDOW, now=at(3))
+    assert again == first
+
+
+def test_a_repeat_restorable_revoke_of_a_finalized_link_is_not_found(
+    minimal_project, sample_wav, tmp_workspace, effects
+):
+    ws = _seed(minimal_project, sample_wav)
+    share = _review_share(ws)
+    svc = ShareService(ws)
+    svc.revoke(share["token"], restorable_for=WINDOW, now=T0)
+    svc.revoke(share["token"])
+    with pytest.raises(KeyError):
+        svc.revoke(share["token"], restorable_for=WINDOW, now=at(3))
+
+
 def test_a_final_revoke_of_a_pending_link_finalizes_it_at_once(
     minimal_project, sample_wav, tmp_workspace, effects
 ):

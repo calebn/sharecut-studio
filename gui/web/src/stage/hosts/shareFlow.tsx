@@ -54,6 +54,7 @@ import {
 import { useTunnelStatus } from "./useTunnelStatus";
 
 const COPIED_MS = 2000;
+const UNDO_STILL_OPEN = "Undo is still available.";
 
 /** The project and visit a result belongs to; anything else is dropped. */
 type Scope = {
@@ -606,6 +607,7 @@ export function ShareFlowProvider({ children }: { children: ReactNode }) {
       ended: HostRevoked,
       restore: () => Promise<void>,
       scope: Scope,
+      focus?: () => HTMLElement | null,
     ) => {
       const dwellMs = undoDwellMs(ended.restoreMs);
       if (dwellMs === null) {
@@ -627,7 +629,7 @@ export function ShareFlowProvider({ children }: { children: ReactNode }) {
         },
       };
       openUndo.current = reverse;
-      announceStatus(copy.ended, { dwellMs, reverse });
+      announceStatus(copy.ended, { dwellMs, reverse, returnFocus: focus });
     },
     [announceStatus, relist],
   );
@@ -641,8 +643,11 @@ export function ShareFlowProvider({ children }: { children: ReactNode }) {
   );
 
   const stop = useCallback(
-    (token: string) => {
-      if (undoIsOpen()) return;
+    (token: string, focus?: () => HTMLElement | null) => {
+      if (undoIsOpen()) {
+        setStatus(UNDO_STILL_OPEN);
+        return false;
+      }
       act(async (scope) => {
         const ended = await revokeHostShare(scope.projectPath, token, {
           restorable: true,
@@ -654,16 +659,21 @@ export function ShareFlowProvider({ children }: { children: ReactNode }) {
           ended,
           () => restoreHostShare(scope.projectPath, token),
           scope,
+          focus,
         );
         await load(scope);
       });
+      return true;
     },
     [act, announceEnded, isCurrent, load, undoIsOpen],
   );
 
   const endRoom = useCallback(
-    (sessionId: string) => {
-      if (undoIsOpen()) return;
+    (sessionId: string, focus?: () => HTMLElement | null) => {
+      if (undoIsOpen()) {
+        setStatus(UNDO_STILL_OPEN);
+        return false;
+      }
       act(async (scope) => {
         const ended = await revokeHostRoom(scope.projectPath, sessionId, {
           restorable: true,
@@ -675,9 +685,11 @@ export function ShareFlowProvider({ children }: { children: ReactNode }) {
           ended,
           () => restoreHostRoom(scope.projectPath, sessionId),
           scope,
+          focus,
         );
         await load(scope);
       });
+      return true;
     },
     [act, announceEnded, isCurrent, load, undoIsOpen],
   );

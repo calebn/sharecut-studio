@@ -40,10 +40,10 @@ export type ShareFlow = {
     label: string,
     text: string | null,
   ) => void;
-  stop: (token: string) => void;
+  stop: (token: string, focus?: () => HTMLElement | null) => boolean;
   createRecord: () => void;
   replaceInvite: (sourceToken: string) => void;
-  endRoom: (sessionId: string) => void;
+  endRoom: (sessionId: string, focus?: () => HTMLElement | null) => boolean;
 };
 
 export const Flow = createContext<ShareFlow | null>(null);

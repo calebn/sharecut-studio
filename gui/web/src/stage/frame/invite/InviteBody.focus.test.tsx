@@ -26,7 +26,11 @@ describe("Invite stop focus", () => {
         screen.getByRole("button", { name: `More for ${name} link` }),
       );
       await user.click(screen.getByRole("menuitem", { name: "Stop sharing" }));
-      expect(onStop).toHaveBeenCalledExactlyOnceWith("stopped-link");
+      expect(onStop).toHaveBeenCalledExactlyOnceWith(
+        "stopped-link",
+        expect.any(Function),
+      );
+      expect(onStop.mock.calls[0]?.[1]()).toBe(heading);
       expect(heading).not.toHaveFocus();
       expect(
         screen.getByRole("button", { name: `More for ${name} link` }),
@@ -94,9 +98,29 @@ describe("Invite stop focus", () => {
     const heading = screen.getByRole("heading", { name: "Record links" });
 
     await user.click(screen.getByRole("button", { name: "End room" }));
-    expect(options.onEndRoom).toHaveBeenCalledExactlyOnceWith("record-session");
+    expect(options.onEndRoom).toHaveBeenCalledExactlyOnceWith(
+      "record-session",
+      expect.any(Function),
+    );
     expect(heading).not.toHaveFocus();
     rerender(<InviteBody options={{ ...options, rows: [replacement] }} />);
     await waitFor(() => expect(heading).toHaveFocus());
+  });
+
+  it("does not move focus for an ignored stop", async () => {
+    const user = userEvent.setup();
+    const row = hostShareRow({ token: "kept-link", docs_role: "commenter" });
+    const options = shareOptionsFixture({
+      rows: [row],
+      onStop: vi.fn(() => false),
+    });
+    const { rerender } = render(<InviteBody options={options} />);
+    const heading = screen.getByRole("heading", { name: "Review links" });
+    await user.click(
+      screen.getByRole("button", { name: "More for Commenter link" }),
+    );
+    await user.click(screen.getByRole("menuitem", { name: "Stop sharing" }));
+    rerender(<InviteBody options={{ ...options, rows: [] }} />);
+    expect(heading).not.toHaveFocus();
   });
 });

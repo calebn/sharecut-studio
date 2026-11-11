@@ -241,10 +241,14 @@ export type ShareOptions = {
     label: string,
     text: string | null,
   ) => void;
-  onStop: (token: string) => void;
+  /** `false` when the press was ignored (an earlier end's Undo is still open). `focus` is where Undo returns focus. */
+  onStop: (token: string, focus?: () => HTMLElement | null) => boolean | void;
   onCreateRecord: () => void;
   onReplaceInvite: (sourceToken: string) => void;
-  onEndRoom: (sessionId: string) => void;
+  onEndRoom: (
+    sessionId: string,
+    focus?: () => HTMLElement | null,
+  ) => boolean | void;
   /** Without it a room has no "Open Record stage" button (the sheet is already over Record). */
   onOpenRecord?: () => void;
 };
