@@ -104,7 +104,7 @@ export const LinkStopped: Story = {
     const body = within(canvasElement.ownerDocument.body);
     await expect(await body.findByText("Link stopped.")).toBeVisible();
     await expect(
-      await body.findByRole("button", { name: "Undo" }),
+      await body.findByText("Undo", { selector: "button" }),
     ).toBeVisible();
   },
 };

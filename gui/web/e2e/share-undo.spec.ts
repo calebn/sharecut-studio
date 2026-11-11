@@ -170,7 +170,12 @@ test.describe("desktop 1280x900 beyond the happy path", () => {
       await expectFeedback(page, "Link stopped.");
       await expect(toast(page)).toBeHidden({ timeout: 12_000 });
       // The toast leaves 500 ms before the server's window closes; wait the window out.
-      await page.waitForTimeout(Math.max(0, stoppedAt + 10_500 - Date.now()));
+      await expect
+        .poll(() => Date.now() >= stoppedAt + 10_500, {
+          timeout: 12_000,
+          intervals: [100],
+        })
+        .toBe(true);
       expect(await guestStatus(page, token)).toBe(404);
       const res = await page.request.post(
         `/api/shares/${encodeURIComponent(token)}/restore`,

@@ -197,7 +197,10 @@ export const StopSharing: Story = {
         name: "Stop sharing",
       }),
     );
-    await expect(args?.options?.onStop).toHaveBeenCalledWith("rv-1");
+    await expect(args?.options?.onStop).toHaveBeenCalledWith(
+      "rv-1",
+      expect.any(Function),
+    );
     await expect(view.queryByRole("button", { name: "Keep link" })).toBeNull();
   }),
 };
