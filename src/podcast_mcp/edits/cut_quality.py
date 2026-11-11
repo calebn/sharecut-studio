@@ -14,6 +14,7 @@ from podcast_mcp.edits.inaudible_cuts import (
     optimize_source_cut_range,
 )
 from podcast_mcp.engines.audio_audit import measure_window_rms_db
+from podcast_mcp.engines.clips_ops import JOIN_GAP_TOLERANCE_SEC
 from podcast_mcp.util.dsp import DIGITAL_SILENCE_DB
 from podcast_mcp.util.tracks import track_audio_path
 
@@ -176,16 +177,31 @@ def post_pad_fade_in_bounds_ms(defaults: EffectiveConfig) -> tuple[int, int]:
 
 
 def fade_reach_sec(project: EpisodeProject, edit: EditDecision, defaults: EffectiveConfig) -> float:
-    """The longest fade that can reach past a cut."""
-    return (
-        max(
-            edit.crossfade_ms,
-            post_pad_fade_in_bounds_ms(defaults)[1],
-            int(_tighten_cfg(defaults).get("filler_pre_pad_fade_out_ms", 5)),
-            max((max(c.fade_in_ms, c.fade_out_ms) for c in project.clips), default=0),
-        )
-        / 1000.0
+    """The longest fade that can reach past a cut.
+
+    A clip's own fade counts only when that clip is on the edit's track and its edge lies
+    within the cut's tolerance of the edit, so one long fade elsewhere never widens it.
+    """
+    base_ms = max(
+        edit.crossfade_ms,
+        post_pad_fade_in_bounds_ms(defaults)[1],
+        int(_tighten_cfg(defaults).get("filler_pre_pad_fade_out_ms", 5)),
     )
+    near = max(base_ms / 1000.0, JOIN_GAP_TOLERANCE_SEC)
+    lo, hi = edit.start - near, edit.end + near
+    on_timeline = edit.timebase == "timeline"
+    clip_ms = 0
+    for c in project.clips:
+        if c.track_id != edit.track_id:
+            continue
+        head, tail = (
+            (c.timeline_start, c.timeline_end) if on_timeline else (c.source_start, c.source_end)
+        )
+        if lo <= head <= hi:
+            clip_ms = max(clip_ms, c.fade_in_ms)
+        if lo <= tail <= hi:
+            clip_ms = max(clip_ms, c.fade_out_ms)
+    return max(base_ms, clip_ms) / 1000.0
 
 
 def _fit_before_burst_ms(

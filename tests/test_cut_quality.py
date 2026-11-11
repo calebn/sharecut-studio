@@ -654,7 +654,7 @@ def test_optimize_and_assess_shares_jump_cache_with_fade_recommendation():
     assert measure.call_count == 2
 
 
-def _fade_reach(crossfade_ms=4, tighten=None, **clip):
+def _fade_reach(crossfade_ms=4, tighten=None, clips=(), edit_track="t"):
     from podcast_mcp.edits.cut_quality import fade_reach_sec
     from podcast_mcp.models import Clip, EditDecision, EditDecisionType, EpisodeProject
 
@@ -668,11 +668,19 @@ def _fade_reach(crossfade_ms=4, tighten=None, **clip):
     }
     project = EpisodeProject.create("fade reach", "/tmp/fade-reach")
     project.clips = [
-        Clip(id="c", track_id="t", source_start=0, source_end=9, timeline_start=0, **clip)
+        Clip(
+            id=f"c{i}",
+            track_id=track,
+            source_start=start,
+            source_end=end,
+            timeline_start=start,
+            **fades,
+        )
+        for i, (track, start, end, fades) in enumerate(clips)
     ]
     edit = EditDecision(
         id="e",
-        track_id="t",
+        track_id=edit_track,
         type=EditDecisionType.REMOVE,
         start=1,
         end=2,
@@ -681,10 +689,49 @@ def _fade_reach(crossfade_ms=4, tighten=None, **clip):
     return fade_reach_sec(project, edit, defaults)
 
 
-def test_fade_reach_is_the_longest_of_the_cut_the_pads_and_the_clips():
+def test_fade_reach_is_the_longest_of_the_cut_and_the_pads():
     assert _fade_reach() == 0.004
     assert _fade_reach(crossfade_ms=80) == 0.08
     assert _fade_reach(tighten={"filler_post_pad_fade_in_max_ms": 90}) == 0.09
     assert _fade_reach(tighten={"filler_pre_pad_fade_out_ms": 70}) == 0.07
-    assert _fade_reach(fade_in_ms=250) == 0.25
-    assert _fade_reach(fade_out_ms=300) == 0.3
+
+
+def test_fade_reach_counts_a_long_fade_on_a_clip_that_touches_the_cut():
+    left = ("t", 0.0, 1.0, {"fade_out_ms": 400})
+    right = ("t", 2.0, 9.0, {"fade_in_ms": 250})
+    assert _fade_reach(clips=[left]) == 0.4
+    assert _fade_reach(clips=[right]) == 0.25
+    assert _fade_reach(clips=[left, right]) == 0.4
+
+
+def test_fade_reach_ignores_fades_far_from_the_cut_and_on_other_tracks():
+    far = ("t", 30.0, 40.0, {"fade_in_ms": 2000, "fade_out_ms": 2000})
+    inside = ("t", 3.0, 9.0, {"fade_in_ms": 2000})
+    other_track = ("u", 0.0, 1.0, {"fade_out_ms": 2000})
+    assert _fade_reach(clips=[far, inside, other_track]) == 0.004
+
+
+def test_fade_reach_reads_a_timeline_edit_against_the_clip_timeline():
+    from podcast_mcp.edits.cut_quality import fade_reach_sec
+    from podcast_mcp.models import Clip, EditDecision, EditDecisionType, EpisodeProject
+
+    project = EpisodeProject.create("fade reach", "/tmp/fade-reach")
+    project.clips = [
+        Clip(
+            id="c",
+            track_id="t",
+            source_start=50,
+            source_end=51,
+            timeline_start=0,
+            fade_out_ms=300,
+        )
+    ]
+    edit = EditDecision(
+        id="e",
+        track_id="t",
+        type=EditDecisionType.REMOVE,
+        start=1,
+        end=1,
+        timebase="timeline",
+    )
+    assert fade_reach_sec(project, edit, load_defaults()) == 0.3
