@@ -202,6 +202,8 @@ export function usePipelineJob(
       });
   });
 
+  // Timers below re-enter through `attachEvents`, not this function's own name,
+  // so a reconnect always runs the latest committed closure.
   const attachEvents = useStableCallback(function attachJobEvents(
     jobId: string,
   ) {
@@ -254,7 +256,7 @@ export function usePipelineJob(
             if (!acceptsAttachment() || streamOwnsChrome()) {
               return;
             }
-            attachJobEvents(next);
+            attachEvents(next);
           }, 2000);
         })
         .catch((err: unknown) => {
@@ -301,7 +303,7 @@ export function usePipelineJob(
             }
             const next = attachTargetId(st);
             if (next) {
-              attachJobEvents(next);
+              attachEvents(next);
             }
           })
           .catch((err: unknown) => {

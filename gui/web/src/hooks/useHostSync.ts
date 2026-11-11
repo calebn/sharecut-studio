@@ -141,6 +141,8 @@ export function useHostSync(
   const applySession = useStableCallback(applyAgentSession);
   const remoteSessionRef = useRef<SessionState | null>(null);
 
+  // Layout, not passive: the epoch reset must land before the socket effect
+  // below and before any frame handler reads the cursor.
   useLayoutEffect(() => {
     if (cursorRef.current.epoch !== projectEpoch) {
       cursorRef.current = {
