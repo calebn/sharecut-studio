@@ -12,7 +12,6 @@ import { ActionBar } from "./ActionBar";
 import type { AuditionSide } from "./auditionWindow";
 import type { InspectorBounds, InspectorRect } from "./inspectorSheetMath";
 import { ScrubField, type ScrubFieldProps } from "./ScrubField";
-import { TimeField } from "./TimeField";
 
 export function LiveScrub(props: ScrubFieldProps) {
   const [committed, setCommitted] = useState(props.value);
@@ -47,7 +46,14 @@ export function LiveAb({ note }: { note: string }) {
 export function LiveTime({ label, start }: { label: string; start: number }) {
   const [value, setValue] = useState(start);
   return (
-    <TimeField label={label} value={value} step={0.1} onChange={setValue} />
+    <ScrubField
+      label={label}
+      value={value}
+      step={0.1}
+      unit="s"
+      decimals={2}
+      onCommit={setValue}
+    />
   );
 }
 

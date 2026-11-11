@@ -75,13 +75,6 @@ export function formatClock(seconds: number, whole = false): string {
     : `${minutes}:${rest.toFixed(1).padStart(4, "0")}`;
 }
 
-/** "1:23.5", "83.5" or "1:23" in seconds, or null. */
-export function parseClock(text: string): number | null {
-  const match = /^\s*(?:(\d+):)?(\d+(?:\.\d+)?)\s*$/.exec(text);
-  if (!match) return null;
-  return Number(match[1] ?? 0) * 60 + Number(match[2]);
-}
-
 export type ReadinessFacts = {
   suggestions: { decided: number; total: number };
   comments: { resolved: number; total: number };
