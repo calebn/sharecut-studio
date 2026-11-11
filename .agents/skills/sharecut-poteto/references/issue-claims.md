@@ -6,19 +6,18 @@ and linked PRs immediately before claiming. The `pipeline-claim` marker and
 
 ## Choose what to pick up
 
-Scope is [docs/beta-plan.md](../../../../docs/beta-plan.md). Labels decide
-eligibility, and the plan page decides what the labels mean.
+Scope is [docs/beta-plan.md](../../../../docs/beta-plan.md). The `v1` label
+decides eligibility, and the plan page defines what the labels mean.
 
-1. Pick `beta:blocker` issues first, then `beta:quality` issues ordered by
-   milestone. Both belong to the Beta milestone.
-2. Skip `post-beta` issues. Two exceptions apply. The owner names the issue, or
-   it is D5 CI-cost work (`cause:test-time-waits`).
-3. Skip an issue with no beta label. Add the label that fits from the plan, or
-   ask the owner, before you start it.
-4. Check the result against the bar of the issue's `journey:J#` label.
-5. Skip an issue that carries `needs-user-input` unless its **Owner question:**
+1. Any open issue without the `v1` label is eligible. Skip `v1` issues. Beta
+   labels never exclude an issue.
+2. Among eligible issues, take `beta:blocker` first, then `beta:quality` ordered
+   by milestone and journey bar, then the rest.
+3. Check the result against the bar of the issue's `journey:J#` label, when it
+   has one.
+4. Skip an issue that carries `needs-user-input` unless its **Owner question:**
    comment has an answer.
-6. Then run the taken check below.
+5. Then run the taken check below.
 
 ## Check whether an issue is taken
 

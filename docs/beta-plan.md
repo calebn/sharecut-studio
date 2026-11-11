@@ -9,7 +9,8 @@ for what is open. Lists of issue numbers on this page are snapshots dated
 A beta user is a podcast host editing a remote or in-person conversation, plus
 the guests and producers the host invites. The beta is finished when that user
 can complete each journey below to its bar, on the named shells, with the named
-proof. Work that no journey needs is post-beta.
+proof. Work that no journey needs is post-beta, which labels scope and does not
+restrict pickup.
 
 ## Where the plan lives
 
@@ -17,6 +18,7 @@ proof. Work that no journey needs is post-beta.
 | --- | --- |
 | Scope, bars, rules | This page |
 | What is open and how bad | Issue labels `beta:blocker`, `beta:quality`, `post-beta` |
+| Work deferred to version 1.0 | Label `v1` |
 | Which journey an issue serves | Labels `journey:J1` to `journey:J9` |
 | Which root cause an issue belongs to | Labels `cause:*`, and the `epic` issue for that cause |
 | Beta milestone | [Beta](https://github.com/calebn/sharecut-studio/milestone/1) |
@@ -89,7 +91,11 @@ Severity decides whether a defect holds the beta.
 | S3 | Cosmetic or rare, and nobody is blocked. | Post-beta. |
 
 `beta:blocker` marks an S1 or a defect that keeps a journey from its bar.
-`beta:quality` marks an S2. `post-beta` marks everything else.
+`beta:quality` marks an S2. `post-beta` marks everything else. It labels the beta scope and does not stop
+anyone from picking the issue up.
+
+The `v1` label marks work deferred to version 1.0 (for example #3337 and
+#3345). Lanes never take it.
 
 ### Decision: Beta scope is nine journeys
 
@@ -111,7 +117,8 @@ enforced-by:
 
 The nine journeys above are the scope. A new issue joins the beta only if it
 breaks a journey, loses data or exposes security. Everything else is
-post-beta, which is not a judgment that the idea is bad.
+post-beta, which is not a judgment that the idea is bad and does not stop
+anyone from picking it up.
 
 ### Decision: Beta bug bar is S1, S2, S3
 
@@ -221,14 +228,13 @@ The same rules, in imperative form for agents, are in
 
 ## Pick work
 
-1. Start `beta:blocker` issues first.
-2. Then start `beta:quality` issues, ordered by milestone and by the
-   journey whose bar is furthest away.
-3. Skip `post-beta` issues. Two exceptions apply. The owner names the issue, or
-   the issue is D5 CI-cost work (#1446, and CI cost work such as #1409).
-4. In-flight work finishes. Check the result against the bar of the journey the
+1. Any open issue without the `v1` label is eligible. Skip `v1` issues. Beta
+   labels never exclude an issue.
+2. Among eligible issues, take `beta:blocker` first, then `beta:quality`
+   ordered by milestone and journey bar, then the rest.
+3. In-flight work finishes. Check the result against the bar of the journey the
    issue carries.
-5. Apply the claim protocol in
+4. Apply the claim protocol in
    [issue claims](../.agents/skills/sharecut-poteto/references/issue-claims.md)
    before you start.
 
