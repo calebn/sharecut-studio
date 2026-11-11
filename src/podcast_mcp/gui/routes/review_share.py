@@ -25,6 +25,7 @@ from podcast_mcp.feed.model import FeedEdit, SetEdit
 from podcast_mcp.feed.resolve import pin_row
 from podcast_mcp.gui.assembler import VIEW_PROJECTION_QUERY_DESCRIPTION, ViewProjection
 from podcast_mcp.gui.audio import pending_preview_headers, pinned_audio_response
+from podcast_mcp.gui.middleware_host_binding import origin_is_loopback
 from podcast_mcp.gui.routes.boundary import BoundaryContextInput
 from podcast_mcp.gui.routes.deps import NO_STORE, coded_http_error
 from podcast_mcp.gui.routes.document import RangeAudioInput
@@ -532,8 +533,9 @@ def get_daw_proxy_manifest(token: str, request: Request) -> dict[str, Any]:
     _check_token(token)
     _rate_limit(token, "read")
     with guest_boundary(log, "review request"):
-        origin = None if is_relayed_request(request.headers) else str(request.base_url)
-        return share_proxy_manifest(token, request_origin=origin)
+        direct = not is_relayed_request(request.headers)
+        loopback = direct and origin_is_loopback(str(request.base_url))
+        return share_proxy_manifest(token, loopback_page=loopback)
 
 
 @router.get("/api/review/{token}/daw/proxy/{track_id}/{proxy_hash}/{chunk_idx}")
