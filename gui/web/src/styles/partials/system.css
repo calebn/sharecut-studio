@@ -4465,6 +4465,10 @@ button.sys-scope:hover {
   cursor: default;
 }
 
+.sys-scrub-box[data-readonly] .sys-scrub-fill {
+  background: var(--color-accent-subtle);
+}
+
 .sys-scrub-box[data-editing] {
   cursor: text;
 }
