@@ -7,6 +7,7 @@ import { useDawStore } from "../state/dawStore";
 import { useMenuKeyboard } from "../ui/useMenuKeyboard";
 import { useTopLayerPanel } from "../ui/useTopLayerPanel";
 import { formatTime } from "../utils/time";
+import { useStableCallback } from "../utils/useStableCallback";
 import {
   createAnnouncement,
   createMenuRowsFor,
@@ -121,20 +122,12 @@ export function TimelineCreateMenu({
     [topLayerRef],
   );
   const time = formatTime(place.atTime);
-  const surfaceRef = useRef(view.surface);
-  surfaceRef.current = view.surface;
-  const trackIdRef = useRef(place.trackId);
-  trackIdRef.current = place.trackId;
-  useEffect(
-    () => () => {
-      const surface = surfaceRef.current;
-      const trackId = trackIdRef.current;
-      // After the menu keyboard's own cleanup, which returns focus to where
-      // the press began when that was a focusable; this only catches a fall.
-      queueMicrotask(() => focusAfterClose(surface, trackId));
-    },
-    [],
-  );
+  const restoreFocus = useStableCallback(() => {
+    const surface = view.surface;
+    const trackId = place.trackId;
+    queueMicrotask(() => focusAfterClose(surface, trackId));
+  });
+  useEffect(() => restoreFocus, [restoreFocus]);
   const empty = rows.length === 0;
   useEffect(() => {
     if (empty) return;

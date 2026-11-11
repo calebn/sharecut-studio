@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { hasCommandModifier, isTypingTarget } from "../keymap/typing";
+import { useStableCallback } from "../utils/useStableCallback";
 import {
   liveTakeOpen,
   loadCommentQueue,
@@ -26,15 +27,14 @@ export function useRecordLiveComments(opts: {
   const { token, snapshot, me, connected, send, captureKeys = false } = opts;
   const [note, setNote] = useState("");
   const flushedRef = useRef<Set<string>>(new Set());
-  const sendRef = useRef(send);
-  sendRef.current = send;
+  const sendComment = useStableCallback(send);
 
   const post = useCallback(
     (body: string): boolean => {
       if (!snapshot || !me || !liveTakeOpen(snapshot.state)) {
         return false;
       }
-      const comment = postLiveComment(sendRef.current, token, {
+      const comment = postLiveComment(sendComment, token, {
         body,
         takeIndex: snapshot.take_index,
         recordingMs: snapshot.recording_ms ?? 0,
@@ -46,7 +46,7 @@ export function useRecordLiveComments(opts: {
       flushedRef.current.add(comment.id);
       return true;
     },
-    [me, snapshot, token],
+    [me, snapshot, token, sendComment],
   );
 
   const postMarker = useCallback(() => {
@@ -93,12 +93,12 @@ export function useRecordLiveComments(opts: {
       if (flushedRef.current.has(queued.id)) {
         continue;
       }
-      const sent = sendRef.current("Comment", queued);
+      const sent = sendComment("Comment", queued);
       if (sent !== false) {
         flushedRef.current.add(queued.id);
       }
     }
-  }, [ackedKey, connected, token]);
+  }, [ackedKey, connected, token, sendComment]);
 
   useEffect(() => {
     if (!captureKeys) {

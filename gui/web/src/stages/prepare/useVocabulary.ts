@@ -6,6 +6,7 @@ import {
 } from "../../api";
 import { useDawStore } from "../../state/dawStore";
 import { ApiError, errorMessage } from "../../utils/apiError";
+import { useStableCallback } from "../../utils/useStableCallback";
 import {
   type VocabularyLists,
   vocabularyChips,
@@ -26,8 +27,7 @@ export function useVocabulary(projectPath: string, refreshKey: string) {
   const [saved, setSaved] = useState<TranscriptVocabulary | null>(null);
   const [draft, setDraft] = useState<VocabularyLists | null>(null);
   const [reload, setReload] = useState(0);
-  const latest = useRef({ projectPath, saved });
-  latest.current = { projectPath, saved };
+  const currentProject = useStableCallback(() => projectPath);
   const pending = useRef<VocabularyLists | null>(null);
   const revision = useRef<string | null>(null);
   const flushing = useRef(false);
@@ -67,10 +67,10 @@ export function useVocabulary(projectPath: string, refreshKey: string) {
         const next = pending.current;
         pending.current = null;
         try {
-          const result = await saveTranscriptVocabulary(
-            latest.current.projectPath,
-            { ...next, base_revision: revision.current },
-          );
+          const result = await saveTranscriptVocabulary(currentProject(), {
+            ...next,
+            base_revision: revision.current,
+          });
           sequence.current += 1;
           revision.current = result.revision;
           if (!pending.current) {
@@ -93,20 +93,17 @@ export function useVocabulary(projectPath: string, refreshKey: string) {
     } finally {
       flushing.current = false;
     }
-  }, []);
+  }, [currentProject]);
 
   const lists: VocabularyLists | null = draft ?? saved;
-  const onTermsChange = useCallback(
-    (chips: string[]) => {
-      const base = draft ?? latest.current.saved;
-      if (!base) return;
-      const next = vocabularyFromChips(base, chips);
-      setDraft(next);
-      pending.current = next;
-      void flush();
-    },
-    [draft, flush],
-  );
+  const onTermsChange = useStableCallback((chips: string[]) => {
+    const base = draft ?? saved;
+    if (!base) return;
+    const next = vocabularyFromChips(base, chips);
+    setDraft(next);
+    pending.current = next;
+    void flush();
+  });
 
   return {
     terms: lists ? vocabularyChips(lists) : [],

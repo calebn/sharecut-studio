@@ -2107,6 +2107,37 @@ describe("ClipBlock waveform", () => {
     ).toBeInTheDocument();
   });
 
+  it("cancels an existing body drag with the newly committed callbacks", () => {
+    const previousCancel = vi.fn();
+    const currentCancel = vi.fn();
+    const previousEnd = vi.fn();
+    const currentEnd = vi.fn();
+    const view = render(
+      <ClipBlock
+        {...base}
+        canMove
+        onMoveCancel={previousCancel}
+        onBodyEnd={previousEnd}
+      />,
+    );
+    const hit = view.container.querySelector(".clip-hit") as HTMLElement;
+    fireEvent.pointerDown(hit, { pointerId: 7, clientX: 40, clientY: 10 });
+    fireEvent.pointerMove(hit, { pointerId: 7, clientX: 80, clientY: 10 });
+    view.rerender(
+      <ClipBlock
+        {...base}
+        canMove
+        onMoveCancel={currentCancel}
+        onBodyEnd={currentEnd}
+      />,
+    );
+    expect(previousCancel).not.toHaveBeenCalled();
+    expect(previousEnd).not.toHaveBeenCalled();
+    fireEvent.keyDown(document.body, { key: "Escape" });
+    expect(currentCancel).toHaveBeenCalledExactlyOnceWith(clip.id);
+    expect(currentEnd).toHaveBeenCalledExactlyOnceWith(clip.id);
+  });
+
   it.each(["Escape", "blur", "unmount"])(
     "cancels the body owner on %s and ignores later held input",
     (interruption) => {
