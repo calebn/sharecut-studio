@@ -39,7 +39,8 @@ describe("guest share proxy setup contract", () => {
     expect(source).toContain("await openHostShare(host, projectPath);");
     expect(viewerSource).toContain('withHostGuestPages(browser, "viewer"');
     expect(editorSource).toContain('withHostGuestPages(browser, "editor"');
-    expect(viewerSource).toContain("Host · Follow$/");
+    expect(viewerSource).toContain("{ name: /^Host/ }");
+    expect(viewerSource).toContain("Following Host");
     expect(viewerSource).toContain("in Pipeline \\(host-only\\)");
     expect(viewerSource).toContain("/auditioning FX/");
     expect(viewerSource).toContain("expectGuestListeningInMix(pageB)");
