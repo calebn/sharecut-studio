@@ -7109,6 +7109,10 @@ input.sys-edit-fix {
   padding-inline: var(--space-3);
 }
 
+html[data-shell="phone"] .fade-shape > .ui-segmented > .ui-control {
+  min-inline-size: var(--touch-min);
+}
+
 .fade-shape-mixed {
   color: var(--color-text-secondary);
   font-size: var(--font-size-small);
