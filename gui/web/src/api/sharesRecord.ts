@@ -7,6 +7,10 @@ import {
 import type { RecordUploadTransport } from "../record/upload/transport";
 import { isShareProjectKey } from "../shareMode";
 import type {
+  RoomRevokeResponse,
+  ShareRevokeResponse,
+} from "../types/project.generated";
+import type {
   HostRecordRoom,
   HostShareRow,
   HostSharesResponse,
@@ -54,7 +58,75 @@ export async function createHostShare(
   return data.share;
 }
 
+/**
+ * What a host revoke answered. `restoreMs` is the server's remaining undo window and is null
+ * for a final revoke (the default), so a caller shows Undo only when it is a number.
+ */
+export type HostRevoked = {
+  restorableUntil: string | null;
+  restoreMs: number | null;
+};
+
+export type HostRevokeOptions = {
+  /** Ask for an undoable revoke; omitted or false ends the link for good. */
+  restorable?: boolean;
+};
+
+function revoked(body: ShareRevokeResponse | RoomRevokeResponse): HostRevoked {
+  return {
+    restorableUntil: body.restorable_until ?? null,
+    restoreMs: body.restore_ms ?? null,
+  };
+}
+
+/** The codes the host restore routes refuse with (410, 410, 409 and the two 404s). */
+export type RestoreRefusalCode =
+  | "restore_window_closed"
+  | "share_expired"
+  | "record_room_conflict"
+  | "share_not_found"
+  | "record_room_not_found";
+
+const RESTORE_REFUSAL_STATUS: Record<RestoreRefusalCode, number> = {
+  restore_window_closed: 410,
+  share_expired: 410,
+  record_room_conflict: 409,
+  share_not_found: 404,
+  record_room_not_found: 404,
+};
+
+/** The restore refusal an error carries, or null for any other failure. */
+export function restoreRefusal(error: unknown): RestoreRefusalCode | null {
+  if (!(error instanceof ApiError) || error.code === null) return null;
+  const code = error.code as RestoreRefusalCode;
+  return RESTORE_REFUSAL_STATUS[code] === error.status ? code : null;
+}
+
 export async function revokeHostShare(
+  projectPath: string,
+  shareToken: string,
+  options: HostRevokeOptions = {},
+): Promise<HostRevoked> {
+  if (isShareProjectKey(projectPath)) {
+    throw new Error("Share management is not available for shared guests");
+  }
+  const res = await apiFetch(
+    HOST_KEY,
+    { host: `/api/shares/${encodeURIComponent(shareToken)}/revoke` },
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        path: projectPath,
+        ...(options.restorable ? { restorable: true } : {}),
+      }),
+    },
+  );
+  return revoked((await res.json()) as ShareRevokeResponse);
+}
+
+/** Undo a restorable revoke. Rejects with an ApiError; read it with `restoreRefusal`. */
+export async function restoreHostShare(
   projectPath: string,
   shareToken: string,
 ): Promise<void> {
@@ -63,7 +135,7 @@ export async function revokeHostShare(
   }
   await apiFetch(
     HOST_KEY,
-    { host: `/api/shares/${encodeURIComponent(shareToken)}/revoke` },
+    { host: `/api/shares/${encodeURIComponent(shareToken)}/restore` },
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -259,13 +331,37 @@ export async function hostLandRecord(
 export async function revokeHostRoom(
   projectPath: string,
   sessionId: string,
+  options: HostRevokeOptions = {},
+): Promise<HostRevoked> {
+  if (isShareProjectKey(projectPath)) {
+    throw new Error("Share management is not available for shared guests");
+  }
+  const res = await apiFetch(
+    HOST_KEY,
+    { host: `/api/shares/rooms/${encodeURIComponent(sessionId)}/revoke` },
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        path: projectPath,
+        ...(options.restorable ? { restorable: true } : {}),
+      }),
+    },
+  );
+  return revoked((await res.json()) as RoomRevokeResponse);
+}
+
+/** Undo a restorable room revoke. Rejects with an ApiError; read it with `restoreRefusal`. */
+export async function restoreHostRoom(
+  projectPath: string,
+  sessionId: string,
 ): Promise<void> {
   if (isShareProjectKey(projectPath)) {
     throw new Error("Share management is not available for shared guests");
   }
   await apiFetch(
     HOST_KEY,
-    { host: `/api/shares/rooms/${encodeURIComponent(sessionId)}/revoke` },
+    { host: `/api/shares/rooms/${encodeURIComponent(sessionId)}/restore` },
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },
