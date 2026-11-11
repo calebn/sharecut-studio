@@ -527,6 +527,11 @@ html[data-shell] body {
   gap: var(--space-3);
 }
 
+.range-numeric .range-scope-hint {
+  flex-basis: 100%;
+  color: var(--color-text-secondary);
+}
+
 .range-overlay {
   block-size: 100%;
   background: var(--color-selection-subtle);

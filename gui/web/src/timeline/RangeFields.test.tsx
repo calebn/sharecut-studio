@@ -44,6 +44,8 @@ const twoTrackProject = () => {
   });
 };
 
+const SCOPE_HINT = "Pick a track in Scope to apply this range.";
+
 const target = makeRangeTarget(project, [{ start: 1, end: 2 }], ["a"])!;
 
 beforeEach(() =>
@@ -385,6 +387,16 @@ describe("range fields", () => {
       expect(useDawStore.getState().feedbackToast?.message).toBe(
         "Choose at least one track",
       );
+    });
+    it("keeps a lasting hint while the draft has no track", () => {
+      arm({ start: 1, end: 3, trackIds: [] });
+      render(<RangeFields sheet />);
+      expect(screen.getByText(SCOPE_HINT)).toBeVisible();
+    });
+    it("shows no hint while the draft has a track", () => {
+      arm();
+      render(<RangeFields sheet />);
+      expect(screen.queryByText(SCOPE_HINT)).toBeNull();
     });
     it("hides once a range is selected", () => {
       arm();

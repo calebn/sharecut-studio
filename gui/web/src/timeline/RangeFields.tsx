@@ -13,6 +13,7 @@ import { useDaw } from "../state/useDaw";
 import { ScrubField } from "../system/ScrubField";
 import { Button } from "../ui";
 
+const SCOPE_HINT = "Pick a track in Scope to apply this range.";
 const NO_TRACKS = "Choose at least one track";
 
 /** A picked track can be removed before adoption, so only tracks still in the project count. */
@@ -197,6 +198,9 @@ export function RangeFields({
             value={scope}
             onChange={commitScope}
           />
+          {drafting && scope.length === 0 ? (
+            <p className="range-scope-hint">{SCOPE_HINT}</p>
+          ) : null}
           {agent ? (
             <Button
               type="button"
