@@ -56,7 +56,7 @@ const COMMANDS: PaletteCommand[] = [
   },
   {
     id: "export.bounce",
-    label: "Bounce…",
+    label: "Export full mix",
     category: "ui",
     shortcut: null,
     defaultKey: undefined,

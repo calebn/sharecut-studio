@@ -431,7 +431,7 @@ export const VERBS = [
     surfaces: ["deliver", "action-bar"],
     status: "bound",
     commandId: "export.deliverables",
-    note: "Mod+E drives this command. With one range selected it opens Deliver with Bounce focused and the range filled in.",
+    note: "Mod+E drives this command. With one range or words selected it exports that range in place and keeps the stage; with none it opens Deliver. On the action bar the verb exports the range, the selected tracks or the whole episode.",
   },
   {
     id: "import",

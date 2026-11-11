@@ -109,8 +109,8 @@ Open the in-app cheatsheet with **?** while ShareCut Studio is focused.
 | `R` | Stop take (`room.stop`) | roomTakeLive | Hold R for 600 ms to stop the take |
 | `P` | Pause or resume take (`room.pause`) | roomTakeLive |  |
 | `?` | Commands and shortcuts (`ui.toggleCommandPalette`) | Always (when not typing in a field or on a focused Scrub field) | Also Shift+/ |
-| Palette only | Bounce… (`export.bounce`) | Loaded host project | Palette only: Bounce in Deliver (export/bounces/) |
-| `Mod+E` | Export deliverables… (`export.deliverables`) | Loaded host project | Mod+E: mastered export/ via PipelineService; with one range selected, opens Deliver with Bounce focused and that range filled in |
+| Palette only | Export full mix (`export.bounce`) | Loaded host project | Palette only: exports the whole episode's audible tracks in place (export/bounces/) |
+| `Mod+E` | Export deliverables… (`export.deliverables`) | Loaded host project | Mod+E: mastered export/ via PipelineService; with one range or words selected, exports that range in place (export/bounces/) and keeps the stage; with none, opens Deliver to start it |
 | Palette only | New project… (`project.new`) | Host project management | Palette only |
 | `Mod+O` | All projects (`project.home`) | Host project management | Mod+O: Home. Open project… is in the palette and on Home |
 
@@ -139,7 +139,7 @@ Available via toolbar / `execute`; some also appear in the in-app palette. Comma
 | Fill range with room tone | `range.fillRoomTone` | editStage |  |
 | Move to speaker | `range.moveSpeakerLane` | Project loaded | Args: { toLaneId }. The Action bar's More menu shows Move to {speaker} on one split lane |
 | Comment on range | `range.comment` | Project loaded |  |
-| Bounce selected range | `range.bounce` | Project loaded |  |
+| Export selected range | `range.bounce` | Project loaded |  |
 | Select a range | `range.arm` | Project loaded |  |
 | Toggle track mute | `track.muteToggle` | Project loaded | Mute (edit.mute) on a track: saved mix mute (SetTrackMute) for the host and editors; listen-only mute for other guests (Args: { trackId? }) |
 | Set track volume | `track.setVolume` | Host or shared edit mode | Args: { trackId?, db }: SetTrackFader, the saved volume on top of staging gain (-60 to +12 dB) |

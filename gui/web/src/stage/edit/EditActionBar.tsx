@@ -11,9 +11,13 @@ import {
 import type { BarId } from "../../system/editActionSets";
 import { ScopeChip } from "../../system/ScopeChip";
 import { dialogueTrackIds } from "../../utils/bladeTracks";
+import { useBounceRun } from "../hosts/bounceRunnerContext";
 import { scopeOf } from "./barScope";
+import { ExportRangeOptions } from "./ExportRangeOptions";
 import { inspectorHeading, inspectorShortName } from "./inspectorHeading";
 import { useSelectionAnchor } from "./useSelectionAnchor";
+
+const EXPORT_OPTIONS = "Export options";
 
 type EditActionBarForm = "floating" | "dock";
 
@@ -71,10 +75,25 @@ function EditActionBarImpl({
     () => editFactsOf({ selection, project, projectPath, shareCapabilities }),
     [selection, project, projectPath, shareCapabilities],
   );
+  const exporting = useBounceRun().kind === "running";
   const model = useMemo(
     () =>
-      facts ? barModelOf(facts, { ...useDawStore.getState(), ...gates }) : null,
-    [facts, gates],
+      facts
+        ? barModelOf(facts, { ...useDawStore.getState(), ...gates }, exporting)
+        : null,
+    [facts, gates, exporting],
+  );
+  const items = useMemo(
+    () =>
+      model?.items.map((item) =>
+        item.id === "export"
+          ? {
+              ...item,
+              split: { label: EXPORT_OPTIONS, content: <ExportRangeOptions /> },
+            }
+          : item,
+      ),
+    [model],
   );
   const anchor = useSelectionAnchor(
     root,
@@ -145,8 +164,8 @@ function EditActionBarImpl({
       leading={leading}
       items={
         inInspector
-          ? model.items.filter((item) => item.id !== "inspect")
-          : model.items
+          ? (items ?? []).filter((item) => item.id !== "inspect")
+          : (items ?? [])
       }
       more={model.more}
       primary={model.primary ?? undefined}

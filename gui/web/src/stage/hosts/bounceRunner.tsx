@@ -245,6 +245,7 @@ export function BounceRunnerProvider({ children }: { children: ReactNode }) {
       registerBounceRunner({
         start: (request) => startRef.current(request),
         cancel,
+        running: () => runRef.current.kind === "running",
       }),
     [cancel],
   );

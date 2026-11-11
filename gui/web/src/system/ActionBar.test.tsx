@@ -157,7 +157,7 @@ describe("ActionBar dock", () => {
     );
     expect(
       screen.getAllByRole("button").map((button) => button.textContent),
-    ).toEqual(["Split", "Add chapter", "Record", "Paste"]);
+    ).toEqual(["Split", "Add chapter", "Record", "Paste", "Export"]);
   });
 
   it("pairs A/B in one slot", () => {

@@ -427,9 +427,9 @@ export const COMMANDS: Record<string, CommandDef> = {
   "range.bounce": {
     id: "range.bounce",
     category: "edit",
-    label: "Bounce selected range",
-    shortLabel: "Bounce",
-    keywords: ["render", "mixdown"],
+    label: "Export selected range",
+    shortLabel: "Export",
+    keywords: ["render", "mixdown", "bounce"],
     when: "hasProject",
   },
   "range.arm": {
@@ -628,10 +628,11 @@ export const COMMANDS: Record<string, CommandDef> = {
   "export.bounce": {
     id: "export.bounce",
     category: "ui",
-    label: "Bounce…",
-    keywords: ["render", "mixdown", "stems"],
+    label: "Export full mix",
+    keywords: ["render", "mixdown", "stems", "bounce"],
     when: "hostProjectLoaded",
-    notes: "Go to Deliver and focus Bounce → export/bounces/. Palette only",
+    notes:
+      "Exports the whole episode's audible tracks as WAV (and MP3 when Also MP3 is on) to export/bounces/ in place, without leaving the stage. Palette only",
   },
   "export.transcript": {
     id: "export.transcript",
@@ -839,7 +840,7 @@ export const COMMANDS: Record<string, CommandDef> = {
     when: "hostProjectLoaded",
     announcesRefusal: true,
     notes:
-      "Master encode to export/ (same as MCP export_audio). Mod+E; with one range selected, opens Deliver with Bounce focused and that range filled in",
+      "Master encode to export/ (same as MCP export_audio). Mod+E; with one range or words selected, exports that range in place (export/bounces/) and keeps the stage; with none, opens Deliver to start it",
   },
   "project.new": {
     id: "project.new",

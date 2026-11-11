@@ -193,6 +193,20 @@ export function bounceRequestOf(
   };
 }
 
+/** The request Export makes right now: what the person saved in the options, what the selection covers, what is soloed. */
+export function exportRequestNow(
+  project: ProjectView,
+  scope: ExportScope,
+  solo: Readonly<Record<string, boolean>>,
+): { ok: true; request: BounceRequest } | { ok: false; reason: string } {
+  return bounceRequestOf(
+    project,
+    scope,
+    usableChoices(project, scope, readExportRangeChoices(), solo),
+    solo,
+  );
+}
+
 /** `POST /api/export/bounce`, the same fields as MCP `bounce_audio_tool` and `podcast pipeline bounce`, plus `exact_range`. */
 type BounceBody = {
   track_ids: string[] | null;

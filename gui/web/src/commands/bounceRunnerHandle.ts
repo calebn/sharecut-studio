@@ -6,6 +6,7 @@ import type { ExecuteResult } from "./types";
 export type BounceRunner = {
   start(request: BounceRequest): Promise<ExecuteResult>;
   cancel(): Promise<ExecuteResult>;
+  running(): boolean;
 };
 
 export const EXPORT_BUSY_REASON = "Another export is running.";
@@ -32,6 +33,10 @@ export function registerBounceRunner(next: BounceRunner): () => void {
 
 export function startBounce(request: BounceRequest): Promise<ExecuteResult> {
   return runner ? runner.start(request) : Promise.resolve(UNAVAILABLE);
+}
+
+export function bounceRunning(): boolean {
+  return runner?.running() ?? false;
 }
 
 export function cancelBounce(): Promise<ExecuteResult> {

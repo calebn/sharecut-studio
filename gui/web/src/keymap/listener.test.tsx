@@ -9,6 +9,7 @@ import userEvent from "@testing-library/user-event";
 import { createRef } from "react";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { redoHistory, undoHistory } from "../api";
+import { startBounce } from "../commands/bounceRunnerHandle";
 import { clearRegisteredCommands, execute } from "../commands/execute";
 import { registerFocusedClipHandle } from "../commands/focusedClipHandle";
 import { registerDawCommands } from "../commands/register";
@@ -36,6 +37,9 @@ vi.mock("../commands/execute", async (importOriginal) => {
   return { ...actual, execute: vi.fn(actual.execute) };
 });
 
+vi.mock("../commands/bounceRunnerHandle", () => ({
+  startBounce: vi.fn(async () => ({ status: "ok" })),
+}));
 vi.mock("../api", async (importOriginal) => ({
   ...(await importOriginal<typeof import("../api")>()),
   undoHistory: vi.fn(async () => null),
@@ -856,15 +860,16 @@ async function pressModE(target: Element) {
   });
 }
 
-it("Mod+E with one range selected opens Deliver on Bounce and does not request the export", async () => {
+it("Mod+E with one range selected exports it in place and does not request the export", async () => {
   const project = rangedProject();
   const target = makeRangeTarget(project, [{ start: 11, end: 12 }], ["a"])!;
   useDawStore.setState({
     project,
     selection: { kind: "range", target },
-    bounceRangeTarget: null,
+    stage: "edit",
   });
-  setChrome({ exportRequested: false, bounceRequested: false });
+  vi.mocked(startBounce).mockClear();
+  setChrome({ exportRequested: false });
   render(<KeymapHost />);
   await pressModE(screen.getByRole("button", { name: "Boundary button" }));
   const s = useDawStore.getState();
@@ -873,21 +878,26 @@ it("Mod+E with one range selected opens Deliver on Bounce and does not request t
     expect.anything(),
     expect.anything(),
   );
-  expect(s.stage).toBe("deliver");
-  expect(s.bounceRangeTarget).toEqual(target);
-  expect(s.chrome.bounceRequested).toBe(true);
+  expect(s.stage).toBe("edit");
+  expect(startBounce).toHaveBeenCalledWith({
+    range: target,
+    trackIds: ["a"],
+    source: "mix",
+    includeMp3: false,
+  });
   expect(s.chrome.exportRequested).toBe(false);
 });
 
 it("Mod+E with no range selected asks for the full export once", async () => {
-  useDawStore.setState({ selection: null, bounceRangeTarget: null });
-  setChrome({ exportRequested: false, bounceRequested: false });
+  useDawStore.setState({ selection: null });
+  vi.mocked(startBounce).mockClear();
+  setChrome({ exportRequested: false });
   render(<KeymapHost />);
   await pressModE(screen.getByRole("button", { name: "Boundary button" }));
   const s = useDawStore.getState();
   expect(s.stage).toBe("deliver");
   expect(s.chrome.exportRequested).toBe(true);
-  expect(s.chrome.bounceRequested).toBe(false);
+  expect(startBounce).not.toHaveBeenCalled();
 });
 
 it("Mod+E from a Deliver text field is left to the field", async () => {

@@ -3,10 +3,10 @@ import { submitDocumentCommand } from "../api/documentEdits";
 import { getClipboard, setClipboard } from "../edit/clipboard";
 import { makeRangeTarget } from "../edit/rangeSelection";
 import { useDawStore } from "../state/dawStore";
-import { setChrome } from "../test/chrome";
 import { deferred } from "../test/deferred";
 import { clipRow, minimalProject, sampleTrack } from "../test/fixtures";
 import { ApiError } from "../utils/apiError";
+import { startBounce } from "./bounceRunnerHandle";
 import { clearRegisteredCommands, execute } from "./execute";
 import {
   rangeActionDescriptors,
@@ -15,6 +15,7 @@ import {
 } from "./rangeActions";
 import { runAndAnnounceRefusal } from "./refusal";
 
+vi.mock("./bounceRunnerHandle", () => ({ startBounce: vi.fn() }));
 vi.mock("../api/documentEdits", async (orig) => ({
   ...(await orig<typeof import("../api/documentEdits")>()),
   submitDocumentCommand: vi.fn(),
@@ -49,7 +50,6 @@ beforeEach(() => {
   clearRegisteredCommands();
   registerRangeCommands();
   setClipboard(null);
-  setChrome({ bounceRequested: false });
   useDawStore.setState({
     project: p,
     projectPath: "/tmp/ep",
@@ -60,7 +60,6 @@ beforeEach(() => {
     selection: { kind: "range", target },
     rangeBusy: false,
     joinMutationInFlight: false,
-    bounceRangeTarget: null,
     commentDraft: null,
     sourcePreview: null,
   });
@@ -98,13 +97,13 @@ describe("shared range action policy and commands", () => {
       ["mute", "Mute", null],
       ["fillRoomTone", "Fill room tone", "No gap between clips in this range"],
       ["comment", "Comment", null],
-      ["bounce", "Bounce", null],
+      ["bounce", "Export", null],
     ]));
   it.each([
     ["suggest", "Suggest cut", "Suggest mute"],
     ["edit", "Cut", "Mute"],
   ])(
-    "a %s guest gets %s / %s and cannot bounce",
+    "a %s guest gets %s / %s and cannot export",
     (mode, cutLabel, muteLabel) => {
       const fill =
         mode === "edit"
@@ -126,7 +125,7 @@ describe("shared range action policy and commands", () => {
         [muteLabel, null],
         ["Fill room tone", fill],
         ["Comment", null],
-        ["Bounce", "Only the host can export selected tracks"],
+        ["Export", "Only the host can export selected tracks"],
       ]);
     },
   );
@@ -249,13 +248,16 @@ describe("shared range action policy and commands", () => {
     expect(useDawStore.getState().stage).toBe("review");
     expect(useDawStore.getState().reviewSection).toBe("queue");
   });
-  it("hands Bounce a detached fixed target on the Deliver stage", async () => {
+  it("exports the range in place through the runner, keeping the stage", async () => {
+    vi.mocked(startBounce).mockResolvedValue({ status: "ok" });
     expect(await runRangeAction("bounce")).toEqual({ status: "ok" });
-    const state = useDawStore.getState();
-    expect(state.bounceRangeTarget).toEqual(target);
-    expect(state.bounceRangeTarget).not.toBe(target);
-    expect(state.chrome.bounceRequested).toBe(true);
-    expect(state.stage).toBe("deliver");
+    expect(startBounce).toHaveBeenCalledWith({
+      range: target,
+      trackIds: ["a"],
+      source: "mix",
+      includeMp3: false,
+    });
+    expect(useDawStore.getState().stage).toBe("edit");
   });
   it("plays a prepared range through the owned transport preview", async () => {
     vi.stubGlobal(

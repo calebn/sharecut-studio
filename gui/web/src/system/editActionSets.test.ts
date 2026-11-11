@@ -219,7 +219,7 @@ const matrix: [string, Partial<EditFacts>, ResolvedBar][] = [
     { kind: "track" },
     {
       leading: null,
-      bar: ["hear", "remove", "more", "inspect"],
+      bar: ["hear", "export", "remove", "more", "inspect"],
       more: ["moveTrackUp", "moveTrackDown", "smoothJoins"],
       primary: null,
     },
@@ -229,7 +229,7 @@ const matrix: [string, Partial<EditFacts>, ResolvedBar][] = [
     { kind: "track", count: 2 },
     {
       leading: "count",
-      bar: ["hear", "remove", "more", "inspect"],
+      bar: ["hear", "export", "remove", "more", "inspect"],
       more: ["moveTrackUp", "moveTrackDown", "smoothJoins"],
       primary: null,
     },
@@ -264,7 +264,7 @@ const matrix: [string, Partial<EditFacts>, ResolvedBar][] = [
     { kind: "playhead", count: 0 },
     {
       leading: null,
-      bar: ["split", "addChapter", "record"],
+      bar: ["split", "addChapter", "record", "export"],
       more: [],
       primary: null,
     },
@@ -274,7 +274,7 @@ const matrix: [string, Partial<EditFacts>, ResolvedBar][] = [
     { kind: "playhead", count: 0, clipboardHasAudio: true },
     {
       leading: null,
-      bar: ["split", "addChapter", "record", "paste"],
+      bar: ["split", "addChapter", "record", "paste", "export"],
       more: [],
       primary: null,
     },
