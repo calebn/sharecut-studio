@@ -58,17 +58,13 @@ export async function createHostShare(
   return data.share;
 }
 
-/**
- * What a host revoke answered. `restoreMs` is the server's remaining undo window and is null
- * for a final revoke (the default), so a caller shows Undo only when it is a number.
- */
+/** `restoreMs` is the server's remaining undo window; null for a final revoke. */
 export type HostRevoked = {
   restorableUntil: string | null;
   restoreMs: number | null;
 };
 
 export type HostRevokeOptions = {
-  /** Ask for an undoable revoke; omitted or false ends the link for good. */
   restorable?: boolean;
 };
 
@@ -79,25 +75,19 @@ function revoked(body: ShareRevokeResponse | RoomRevokeResponse): HostRevoked {
   };
 }
 
-/** The codes the host restore routes refuse with (410, 410, 409 and the two 404s). */
-export type RestoreRefusalCode =
-  | "restore_window_closed"
-  | "share_expired"
-  | "record_room_conflict"
-  | "share_not_found"
-  | "record_room_not_found";
-
-const RESTORE_REFUSAL_STATUS: Record<RestoreRefusalCode, number> = {
+const RESTORE_REFUSAL_STATUS = {
   restore_window_closed: 410,
   share_expired: 410,
   record_room_conflict: 409,
   share_not_found: 404,
   record_room_not_found: 404,
-};
+} as const;
 
-/** The restore refusal an error carries, or null for any other failure. */
+export type RestoreRefusalCode = keyof typeof RESTORE_REFUSAL_STATUS;
+
 export function restoreRefusal(error: unknown): RestoreRefusalCode | null {
   if (!(error instanceof ApiError) || error.code === null) return null;
+  if (!Object.hasOwn(RESTORE_REFUSAL_STATUS, error.code)) return null;
   const code = error.code as RestoreRefusalCode;
   return RESTORE_REFUSAL_STATUS[code] === error.status ? code : null;
 }
@@ -351,7 +341,6 @@ export async function revokeHostRoom(
   return revoked((await res.json()) as RoomRevokeResponse);
 }
 
-/** Undo a restorable room revoke. Rejects with an ApiError; read it with `restoreRefusal`. */
 export async function restoreHostRoom(
   projectPath: string,
   sessionId: string,

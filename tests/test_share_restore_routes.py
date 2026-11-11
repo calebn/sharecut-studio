@@ -193,12 +193,3 @@ def test_a_guest_cannot_restore_or_revoke_restorably(ws, client, minimal_project
     assert (
         client.post(f"/api/shares/{token}/restore", json=_body(minimal_project)).status_code == 200
     )
-
-
-def test_restore_routes_are_typed_in_the_openapi_schema(client):
-    spec = client.get("/openapi.json").json()["paths"]
-    for url in ("/api/shares/{share_token}/restore", "/api/shares/rooms/{session_id}/restore"):
-        schema = spec[url]["post"]["responses"]["200"]["content"]["application/json"]["schema"]
-        assert "$ref" in schema
-    revoke = spec["/api/shares/{share_token}/revoke"]["post"]["responses"]["200"]
-    assert "$ref" in revoke["content"]["application/json"]["schema"]

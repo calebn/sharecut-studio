@@ -11,6 +11,11 @@ from fastapi.testclient import TestClient
 from model_pin_helpers import isolate_model_env
 from podcast_mcp.gui.server import create_app
 from podcast_mcp.models import load_project, save_project
+from podcast_mcp.services.collaboration import (
+    RecordRoomConflictError,
+    RestoreWindowClosedError,
+    ShareExpiredError,
+)
 from podcast_mcp.util.coded_error import CodedValueError
 
 CODE = "X-Sharecut-Error-Code"
@@ -195,12 +200,6 @@ def test_share_routes_refusals(
     )
     FakeShares.exc = KeyError("room")
     _check(client.post("/api/shares/rooms/r1/revoke", json=body), 404, "record_room_not_found")
-
-    from podcast_mcp.services.collaboration import (
-        RecordRoomConflictError,
-        RestoreWindowClosedError,
-        ShareExpiredError,
-    )
 
     restore, restore_room = "/api/shares/tok/restore", "/api/shares/rooms/r1/restore"
     FakeShares.exc = RestoreWindowClosedError()

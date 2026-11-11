@@ -380,7 +380,6 @@ export interface RoomRevokeResponse {
   session_id: string;
   revoked: Array<string>;
   restorable_until?: string | null;
-  /** Server-authoritative milliseconds left to restore. */
   restore_ms?: number | null;
 }
 
@@ -449,7 +448,6 @@ export interface ShareRevokeResponse {
   revoked: boolean;
   token: string;
   restorable_until?: string | null;
-  /** Server-authoritative milliseconds left to restore. */
   restore_ms?: number | null;
 }
 

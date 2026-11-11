@@ -614,8 +614,6 @@ class ShareCreateRequest(BaseModel):
 
 class ShareRevokeRequest(BaseModel):
     path: str
-    # Opt in to an undoable revoke (the host answers `restorable_until` and `restore_ms`);
-    # false, the default, ends the link for good as for MCP and the CLI.
     restorable: bool = False
 
 
@@ -627,9 +625,7 @@ class ShareRevokeResponse(BaseModel):
     revoked: bool
     token: str
     restorable_until: str | None = None
-    restore_ms: int | None = Field(
-        default=None, description="Server-authoritative milliseconds left to restore."
-    )
+    restore_ms: int | None = None
 
 
 class ShareRestoreResponse(BaseModel):
@@ -641,9 +637,7 @@ class RoomRevokeResponse(BaseModel):
     session_id: str
     revoked: list[str]
     restorable_until: str | None = None
-    restore_ms: int | None = Field(
-        default=None, description="Server-authoritative milliseconds left to restore."
-    )
+    restore_ms: int | None = None
 
 
 class RoomRestoreResponse(BaseModel):
