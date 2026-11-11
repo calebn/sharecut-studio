@@ -116,7 +116,7 @@ button.sys-role[aria-pressed="true"] {
   }
 }
 
-/* After an export the link row is outlined, never filled: Export stays the one filled button. */
+/* After an export the link row is outlined, never filled: the filled button stays Export, or Reveal / Download once a file exists. */
 .sys-link[data-highlight="true"] {
   border-color: var(--color-accent);
 }
