@@ -101,7 +101,9 @@ def _refuse_if_busy(
         raise MoveRefused("A run or export is working on this episode.", code="move_busy_jobs")
     if RecordSessionService.active_session_id(ws.project):
         raise MoveRefused("A recording room is open for this episode.", code="move_room_open")
-    store = cached_sync_store_if_exists(sync_db_path(ws.project))
+    store = cached_sync_store_if_exists(
+        sync_db_path(ws.project), table_prefix="", enforce_command_ids=True
+    )
     if store is not None and any(
         row["client_id"] != caller_client_id
         for row in store.list_clients(max_age_ns=PRESENCE_MAX_AGE_NS)
