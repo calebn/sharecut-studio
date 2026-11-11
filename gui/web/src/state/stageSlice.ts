@@ -179,8 +179,6 @@ export const createStageSlice: StateCreator<
         },
       };
       return {
-        // An uncommitted range draft belongs to the Edit stage it began in.
-        ...(prev === "edit" ? { rangeArmed: false, rangeDraft: null } : {}),
         // A comment draft belongs to the Review stage it opened.
         ...(prev === "review" ? { commentDraft: null } : {}),
         // The pending target waits for Record's room, not for a later visit.

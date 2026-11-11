@@ -21,16 +21,6 @@ describe("stageSlice", () => {
     });
   });
 
-  it("drops an armed range draft when leaving Edit", () => {
-    st().armRange({ start: 1, end: 2, trackIds: [] });
-    st().setAgentRangeScope(["a"]);
-    st().openStage("review");
-    st().openStage("edit");
-    expect(st().agentRangeScope).toEqual(["a"]);
-    expect(st().rangeArmed).toBe(false);
-    expect(st().rangeDraft).toBeNull();
-  });
-
   it("starts on Edit with nothing saved", () => {
     expect(st().stage).toBe("edit");
     expect(st().stageViews).toEqual({});
