@@ -189,6 +189,17 @@ def test_fade_joins_never_shrink_a_longer_manual_fade() -> None:
     assert (_by_id(p)["a"].fade_out_ms, _by_id(p)["b"].fade_in_ms) == (400, 300)
 
 
+def test_fade_joins_reports_joins_that_keep_a_longer_fade() -> None:
+    p = _project()
+    set_clip_fade(p, "a", 0, 300)
+    summary = fade_joins(p, fade_ms=40, defaults=load_defaults())
+    assert summary["fade_ms"] == 40
+    assert summary["kept_longer_joins"] == 1
+    assert (_by_id(p)["a"].fade_out_ms, _by_id(p)["b"].fade_in_ms) == (300, 40)
+    again = fade_joins(_project(), fade_ms=40, defaults=load_defaults())
+    assert again["kept_longer_joins"] == 0
+
+
 def test_fade_joins_dry_run_reports_the_applied_values() -> None:
     p = _project()
     summary = fade_joins(p, fade_ms=100, defaults=load_defaults(), dry_run=True)
