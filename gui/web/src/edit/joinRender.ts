@@ -119,6 +119,34 @@ export function clipIdsBeforeCut(
   return ids;
 }
 
+/** Ids of clips whose outgoing join render blends: their fade-out is the overlap's ramp. */
+export function clipIdsBeforeBlend(clips: readonly ClipRow[]): Set<string> {
+  const ids = new Set<string>();
+  for (const c of clips) {
+    if (blendsIn(c) && c.join_left_clip_id) ids.add(c.join_left_clip_id);
+  }
+  return ids;
+}
+
+/** Why an edge's fade shape is ignored (a cut or a blended join sets that edge), or null. */
+export function curveIgnoredReason(
+  edge: "in" | "out",
+  cut: boolean,
+  blended: boolean,
+): string | null {
+  if (cut) {
+    return edge === "in"
+      ? "Shape ignored: the join into this clip is a cut"
+      : "Shape ignored: the join after this clip is a cut";
+  }
+  if (blended) {
+    return edge === "in"
+      ? "Shape ignored: the crossfade into this clip replaces its fade-in"
+      : "Shape ignored: the crossfade after this clip replaces its fade-out";
+  }
+  return null;
+}
+
 /** Why inspector fade inputs are ignored at cut joins, or null. */
 export function cutFadeHint(cutIn: boolean, cutOut: boolean): string | null {
   if (cutIn && cutOut) {

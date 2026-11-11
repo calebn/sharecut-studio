@@ -6,8 +6,11 @@ import { JOIN_GAP_TOLERANCE_SEC } from "../types/limits.generated";
 import type { ClipRow } from "../types/project";
 import {
   appliedJoinLength,
+  blendsIn,
+  clipIdsBeforeBlend,
   clipIdsBeforeCut,
   clipsAbut,
+  curveIgnoredReason,
   cutFadeHint,
   drawnOverlapPx,
   isCrossfadeJoin,
@@ -583,5 +586,48 @@ describe("appliedJoinLength", () => {
     const { max, saved } = appliedJoinLength(left, right, 300);
     expect(max).toBeLessThanOrEqual(300);
     expect(saved).toBe(max);
+  });
+});
+
+describe("blended joins and ignored fade shapes", () => {
+  const left = clipRow({ id: "l" });
+  const blended = clipRow({
+    id: "r",
+    join_left_clip_id: "l",
+    join_in_mode: "crossfade",
+    join_crossfade_ms: 200,
+  });
+
+  it("blends only a crossfade that has an overlap and is not blocked", () => {
+    expect(blendsIn(blended)).toBe(true);
+    expect(blendsIn({ ...blended, join_crossfade_ms: 0 })).toBe(false);
+    expect(
+      blendsIn({ ...blended, join_crossfade_blocked: "no_headroom" }),
+    ).toBe(false);
+    expect(blendsIn({ ...blended, join_in_mode: "fade" })).toBe(false);
+    expect(blendsIn({ ...blended, join_left_clip_id: null })).toBe(false);
+  });
+
+  it("names the clips that end in a blended join", () => {
+    expect([...clipIdsBeforeBlend([left, blended])]).toEqual(["l"]);
+    expect(
+      clipIdsBeforeBlend([left, { ...blended, join_in_mode: "cut" }]).size,
+    ).toBe(0);
+  });
+
+  it("says why an edge shape is ignored, or null", () => {
+    expect(curveIgnoredReason("in", false, false)).toBeNull();
+    expect(curveIgnoredReason("in", true, false)).toBe(
+      "Shape ignored: the join into this clip is a cut",
+    );
+    expect(curveIgnoredReason("out", true, false)).toBe(
+      "Shape ignored: the join after this clip is a cut",
+    );
+    expect(curveIgnoredReason("in", false, true)).toBe(
+      "Shape ignored: the crossfade into this clip replaces its fade-in",
+    );
+    expect(curveIgnoredReason("out", false, true)).toBe(
+      "Shape ignored: the crossfade after this clip replaces its fade-out",
+    );
   });
 });

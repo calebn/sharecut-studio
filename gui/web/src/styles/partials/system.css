@@ -7097,6 +7097,23 @@ input.sys-edit-fix {
   min-inline-size: 0;
 }
 
+.fade-shape {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-inline-size: 0;
+}
+
+.fade-shape > .ui-segmented > .ui-control {
+  min-inline-size: 0;
+  padding-inline: var(--space-3);
+}
+
+.fade-shape-mixed {
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-small);
+}
+
 .sys-inspector-slot > .sys-picker {
   flex: 1 1 auto;
 }

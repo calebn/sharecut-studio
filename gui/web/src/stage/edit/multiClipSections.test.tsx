@@ -4,10 +4,12 @@ import {
   fireEvent,
   render,
   screen,
+  within,
 } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { setClipFade, setClipsFade, setClipsGain } from "../../api";
 import { useDawStore } from "../../state/dawStore";
+import { expectNoA11yViolations } from "../../test/a11y";
 import { minimalProject, sampleTrack } from "../../test/fixtures";
 import type { ClipRow } from "../../types/project";
 import { inspectorHeading } from "./inspectorHeading";
@@ -313,5 +315,105 @@ describe("several clips: gain", () => {
     expect(gainField()).toHaveAttribute("aria-readonly", "true");
     await key("Gain", "ArrowUp");
     expect(setClipsGain).not.toHaveBeenCalled();
+  });
+});
+
+describe("several clips: fade shape", () => {
+  const group = (name: string) =>
+    screen.getByRole("group", { name: new RegExp(`^${name}`) });
+  const choice = (name: string, label: string) =>
+    within(group(name)).getByRole("button", { name: label });
+  const pressed = (name: string) =>
+    within(group(name))
+      .getAllByRole("button")
+      .filter((button) => button.getAttribute("aria-pressed") === "true");
+
+  it("presses the common shape, linear for clips that save none", () => {
+    open();
+    expect(pressed("Fade in shape").map((b) => b.textContent)).toEqual([
+      "Linear",
+    ]);
+  });
+
+  it("reads Mixed with no button pressed when the shapes differ", () => {
+    open();
+    expect(pressed("Fade out shape")).toEqual([]);
+    expect(
+      screen.getByText("Mixed", { selector: ".fade-shape-mixed" }),
+    ).toBeVisible();
+    expect(group("Fade out shape")).toHaveAccessibleName(
+      "Fade out shape, Mixed",
+    );
+  });
+
+  it("sets the absolute shape on every clip that differs, in one command", async () => {
+    open();
+    await act(async () => {
+      fireEvent.click(choice("Fade out shape", "S"));
+    });
+    expect(setClipsFade).toHaveBeenCalledTimes(1);
+    expect(setClipsFade).toHaveBeenCalledWith("/tmp/ep.json", [
+      {
+        clip_id: "c1",
+        fade_in_ms: 10,
+        fade_out_ms: 20,
+        fade_out_curve: "s",
+        expected: baseline(first),
+      },
+    ]);
+    expect(setClipFade).not.toHaveBeenCalled();
+  });
+
+  it("leaves out a clip at a cut or a blended edge", async () => {
+    open([
+      first,
+      { ...second, join_left_clip_id: "c1", join_in_mode: "cut" },
+      {
+        ...second,
+        id: "c3",
+        join_left_clip_id: "c2",
+        join_in_mode: "crossfade",
+        join_crossfade_ms: 200,
+      },
+    ]);
+    // c1 ends at a cut, c2 starts at one, c3 starts in a blend that also ends c2's out edge.
+    await act(async () => {
+      fireEvent.click(choice("Fade in shape", "Equal power"));
+    });
+    expect(setClipsFade).toHaveBeenCalledWith("/tmp/ep.json", [
+      expect.objectContaining({ clip_id: "c1", fade_in_curve: "equal_power" }),
+    ]);
+  });
+
+  it("disables the shape with a reason when no selected clip's edge applies", () => {
+    open([
+      { ...first, join_left_clip_id: "c0", join_in_mode: "cut" },
+      { ...second, join_left_clip_id: "c1", join_in_mode: "cut" },
+    ]);
+    const button = choice("Fade in shape", "S");
+    expect(button).toBeDisabled();
+    expect(button).toHaveAttribute(
+      "title",
+      "Shape ignored: every selected clip's join here is a cut or a crossfade",
+    );
+  });
+
+  it("shows a Viewer the shapes as text", () => {
+    open();
+    act(() => {
+      useDawStore.setState({
+        projectPath: "share:ep",
+        guestMode: "viewer",
+        shareCapabilities: ["view"],
+      });
+    });
+    expect(screen.queryByRole("group", { name: /shape/ })).toBeNull();
+    expect(screen.getByText("Linear")).toBeVisible();
+    expect(screen.getAllByText("Mixed").length).toBeGreaterThan(1);
+  });
+
+  it("has no axe violations", async () => {
+    const { container } = open();
+    await expectNoA11yViolations(container);
   });
 });

@@ -293,3 +293,137 @@ export const GainMixed: Story = {
     ).toHaveAttribute("aria-valuetext", "Mixed");
   },
 };
+
+function withClips(clips: typeof joinedClips) {
+  const project = episode();
+  project.clips = {
+    tracks: { ...project.clips.tracks, [MIRA]: clips },
+    clip_count: clips.length + 1,
+  };
+  project.edit_boundaries = editBoundaries(clips);
+  return project;
+}
+const curvedClips = joinedClips.map((c) =>
+  c.id === "clip-mira-a"
+    ? {
+        ...c,
+        fade_in_ms: 80,
+        fade_in_curve: "s" as const,
+        fade_out_curve: "equal_power" as const,
+      }
+    : c,
+);
+const curved = withClips(curvedClips);
+const curvedSelection: Selection = {
+  kind: "clip",
+  id: "clip-mira-a",
+  trackId: MIRA,
+};
+const shape = (canvas: ReturnType<typeof within>, name: string) =>
+  within(canvas.getByRole("group", { name }));
+
+export const FadeCurve: Story = {
+  render: () => <ClipCard selection={curvedSelection} />,
+  parameters: {
+    episode: { project: curved, role: "editor", selection: curvedSelection },
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await canvas.findByRole("group", { name: "Fade in shape" });
+    await expect(
+      shape(canvas, "Fade in shape").getByRole("button", { name: "S" }),
+    ).toHaveAttribute("aria-pressed", "true");
+    await expect(
+      shape(canvas, "Fade out shape").getByRole("button", {
+        name: "Equal power",
+      }),
+    ).toHaveAttribute("aria-pressed", "true");
+  },
+};
+
+export const FadeCurvePhone: Story = {
+  render: () => <ClipCard phone selection={curvedSelection} />,
+  globals: { viewport: { value: "mobile360", isRotated: false } },
+  parameters: {
+    episode: { project: curved, role: "editor", selection: curvedSelection },
+  },
+};
+
+export const FadeCurveReadOnly: Story = {
+  render: () => <ClipCard selection={curvedSelection} />,
+  parameters: {
+    episode: { project: curved, role: "viewer", selection: curvedSelection },
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await canvas.findByRole("spinbutton", { name: "Fade in" });
+    await expect(
+      canvas.queryByRole("group", { name: "Fade in shape" }),
+    ).toBeNull();
+    await expect(canvas.getByText("Equal power")).toBeVisible();
+  },
+};
+
+export const FadeCurveMixed: Story = {
+  render: () => <ClipCard selection={multiSelection} />,
+  parameters: {
+    episode: { project: curved, role: "editor", selection: multiSelection },
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const group = await canvas.findByRole("group", {
+      name: "Fade in shape, Mixed",
+    });
+    await expect(
+      within(group).queryByRole("button", { pressed: true }),
+    ).toBeNull();
+  },
+};
+
+const cutClips = curvedClips.map((c) =>
+  c.id === "clip-mira-b" ? { ...c, join_in_mode: "cut" } : c,
+);
+const cutJoin = withClips(cutClips);
+
+export const FadeCurveAtCut: Story = {
+  render: () => <ClipCard selection={joinedSelection} />,
+  parameters: {
+    episode: { project: cutJoin, role: "editor", selection: joinedSelection },
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await canvas.findByRole("group", { name: "Fade in shape" });
+    await expect(
+      shape(canvas, "Fade in shape").getByRole("button", { name: "Linear" }),
+    ).toBeDisabled();
+    await expect(
+      shape(canvas, "Fade out shape").getByRole("button", { name: "Linear" }),
+    ).toBeEnabled();
+  },
+};
+
+const blendedClips = curvedClips.map((c) =>
+  c.id === "clip-mira-b"
+    ? {
+        ...c,
+        join_in_mode: "crossfade",
+        join_crossfade_ms: 100,
+        join_borrow_sec: 0.05,
+      }
+    : c,
+);
+const blended = withClips(blendedClips);
+
+export const FadeCurveBlended: Story = {
+  render: () => <ClipCard selection={joinedSelection} />,
+  parameters: {
+    episode: { project: blended, role: "editor", selection: joinedSelection },
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await canvas.findByRole("group", { name: "Fade in shape" });
+    await expect(
+      shape(canvas, "Fade in shape").getByRole("button", { name: "Linear" }),
+    ).toBeDisabled();
+  },
+};

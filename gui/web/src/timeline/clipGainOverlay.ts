@@ -7,7 +7,12 @@ import {
   renderedFadeSec,
   type VolumePoint,
 } from "../audio/gainCurve";
-import { blendsIn, clipIdsBeforeCut, isCutJoin } from "../edit/joinRender";
+import {
+  blendsIn,
+  clipIdsBeforeBlend,
+  clipIdsBeforeCut,
+  isCutJoin,
+} from "../edit/joinRender";
 import type { ClipRow } from "../types/project";
 import { clipVirtualPieces } from "../utils/clipTiming";
 
@@ -44,11 +49,7 @@ export function clipGainDips(
   volume: readonly VolumePoint[],
 ): ClipGainDip[] {
   const beforeCut = clipIdsBeforeCut(clips);
-  const blendedLeft = new Set<string>();
-  for (const c of clips) {
-    if (blendsIn(c) && c.join_left_clip_id)
-      blendedLeft.add(c.join_left_clip_id);
-  }
+  const blendedLeft = clipIdsBeforeBlend(clips);
   const out: ClipGainDip[] = [];
   for (const clip of clips) {
     const crossfadeIn = blendsIn(clip);

@@ -1,4 +1,11 @@
-import { act, fireEvent, render, screen, within } from "@testing-library/react";
+import {
+  act,
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  within,
+} from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { setClipFade, setClipGain, setClipJoin } from "../../api";
 import { executePointerCommand } from "../../commands/pointer";
@@ -1044,5 +1051,169 @@ describe("clip gain", () => {
     });
     await key("Gain", "ArrowUp");
     expect(setClipGain).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("fade shape", () => {
+  const group = (name: string) => screen.getByRole("group", { name });
+  const choice = (name: string, label: string) =>
+    within(group(name)).getByRole("button", { name: label });
+  const curved: ClipRow = {
+    ...clip,
+    fade_in_curve: "s",
+    fade_out_curve: "equal_power",
+  };
+
+  it("lists Linear, Equal power and S for each edge after the fade rows", () => {
+    open();
+    for (const name of ["Fade in shape", "Fade out shape"])
+      expect(
+        within(group(name))
+          .getAllByRole("button")
+          .map((button) => button.getAttribute("aria-label")),
+      ).toEqual(["Linear", "Equal power", "S"]);
+    const rows = [...document.querySelectorAll(".sys-inspector-label")].map(
+      (label) => label.textContent,
+    );
+    expect(
+      rows.slice(rows.indexOf("Fade in"), rows.indexOf("Gain") + 1),
+    ).toEqual([
+      "Fade in",
+      "Fade out",
+      "Fade in shape",
+      "Fade out shape",
+      "Gain",
+    ]);
+  });
+
+  it("presses the saved curve, linear when none is saved", () => {
+    open([curved]);
+    expect(choice("Fade in shape", "S")).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    expect(choice("Fade in shape", "Linear")).toHaveAttribute(
+      "aria-pressed",
+      "false",
+    );
+    expect(choice("Fade out shape", "Equal power")).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    cleanup();
+    open();
+    expect(choice("Fade out shape", "Linear")).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+  });
+
+  it("explains Equal power", () => {
+    open();
+    expect(choice("Fade in shape", "Equal power")).toHaveAttribute(
+      "title",
+      "Quarter sine; a true equal-power pair needs a crossfade",
+    );
+  });
+
+  it("saves one SetClipFade with the lengths kept and the full baseline, and skips the saved curve", async () => {
+    open([curved]);
+    await act(async () => {
+      fireEvent.click(choice("Fade out shape", "S"));
+    });
+    expect(setClipFade).toHaveBeenCalledTimes(1);
+    expect(setClipFade).toHaveBeenCalledWith(
+      "/tmp/ep.json",
+      "c1",
+      10,
+      20,
+      {
+        fade_in_ms: 10,
+        fade_out_ms: 20,
+        fade_in_curve: "s",
+        fade_out_curve: "equal_power",
+      },
+      { fade_out_curve: "s" },
+    );
+    vi.mocked(setClipFade).mockClear();
+    await act(async () => {
+      fireEvent.click(choice("Fade in shape", "S"));
+    });
+    expect(setClipFade).not.toHaveBeenCalled();
+  });
+
+  it("disables an edge at a cut join, still showing the saved curve and why", () => {
+    const cut: ClipRow = { ...second, join_in_mode: "cut", fade_in_curve: "s" };
+    open([clip, cut], {}, cut);
+    const pressed = choice("Fade in shape", "S");
+    expect(pressed).toHaveAttribute("aria-pressed", "true");
+    expect(pressed).toBeDisabled();
+    expect(pressed).toHaveAttribute(
+      "title",
+      "Shape ignored: the join into this clip is a cut",
+    );
+    expect(choice("Fade out shape", "S")).toBeEnabled();
+    cleanup();
+    open([clip, cut], {}, clip);
+    expect(choice("Fade out shape", "Linear")).toBeDisabled();
+    expect(choice("Fade out shape", "Linear")).toHaveAttribute(
+      "title",
+      "Shape ignored: the join after this clip is a cut",
+    );
+  });
+
+  it("disables both edges of a blended crossfade join", () => {
+    const blended: ClipRow = {
+      ...second,
+      join_in_mode: "crossfade",
+      join_crossfade_ms: 200,
+    };
+    open([clip, blended], {}, blended);
+    expect(choice("Fade in shape", "Linear")).toBeDisabled();
+    expect(choice("Fade in shape", "Linear")).toHaveAttribute(
+      "title",
+      "Shape ignored: the crossfade into this clip replaces its fade-in",
+    );
+    cleanup();
+    open([clip, blended], {}, clip);
+    expect(choice("Fade out shape", "Linear")).toHaveAttribute(
+      "title",
+      "Shape ignored: the crossfade after this clip replaces its fade-out",
+    );
+  });
+
+  it("shows a Viewer the curve as text, with no buttons", () => {
+    open([curved]);
+    act(() => {
+      useDawStore.setState({
+        projectPath: "share:ep",
+        guestMode: "viewer",
+        shareCapabilities: ["view"],
+      });
+    });
+    expect(screen.queryByRole("group", { name: "Fade in shape" })).toBeNull();
+    expect(screen.getByText("Equal power")).toBeVisible();
+    expect(screen.getByText("S")).toBeVisible();
+  });
+
+  it("lets a share Editor pick a shape", async () => {
+    open();
+    act(() => {
+      useDawStore.setState({
+        projectPath: "share:ep",
+        guestMode: "editor",
+        shareCapabilities: ["view", "edit"],
+      });
+    });
+    await act(async () => {
+      fireEvent.click(choice("Fade in shape", "Equal power"));
+    });
+    expect(setClipFade).toHaveBeenCalledTimes(1);
+  });
+
+  it("has no axe violations, enabled or disabled", async () => {
+    const cut: ClipRow = { ...second, join_in_mode: "cut" };
+    const { container } = open([clip, cut], {}, cut);
+    await expectNoA11yViolations(container);
   });
 });
