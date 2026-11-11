@@ -117,7 +117,7 @@ Dialogs launched from Home are listed in section 7: DLG-MCP, DLG-MODELS, DLG-HEL
 | CMP-TURN | One speaker turn with word spans, cut-away rendering, low-confidence styling | inside PNL-TRANSCRIPT | `transcript/TranscriptTurnView.tsx` | `transcript/TranscriptTurnView.stories.tsx` | View | The transcript's core row |
 | CMP-GHOST | Restored ("ghost") word chips | Inside a turn after a cut | `transcript/GhostWordChips.tsx` | `transcript/GhostWordChips.stories.tsx` (RestoredWords, NoRestoredWords, MobileRestoredWords) | Props | Restore cut words |
 | CMP-EDITBOUNDARY | Edit boundary mark (roll join, trim edge, host-only precision edit) with drag preview | Between turns at a cut | `transcript/EditBoundaryMark.tsx`, `transcript/EditBoundaryMarkView.tsx` | `transcript/EditBoundaryMark.stories.tsx` (RollJoin, RollDragPreview, TrimEdge, HostOnlyPrecisionEdit, PhoneWidth, LongFailure). The Precision dialog is not opened in any story | View | Adjust a cut from the text |
-| POP-WORD-EDIT | Inline word correction field ("Correct word “x”") | Double-click word (touch: double-tap), or F2 on a focused word (Fix text) | `transcript/InlineWordEditor.tsx` | NONE | Props | Fix a word in place |
+| POP-WORD-EDIT | Inline word correction field ("Fix text") | Enter or F2 on a selected word, or double-tap on touch (Fix text) | `transcript/InlineWordEditor.tsx` | NONE | Props | Fix a word in place |
 | POP-SPEAKER | Speaker change popover ("Change speaker for X", Speaker name field) | Click the speaker header button in a turn | `transcript/TranscriptSpeakerEditor.tsx` | NONE | Props | Rename or reassign a speaker for the track |
 | CMP-FINDREPLACE | Find and replace region (Find, Replace with, counts, preview list, Replace all) | Transcript toolbar "Find and replace transcript" | `transcript/TranscriptFindReplace.tsx` | NONE | Store | Bulk text fixes |
 | CMP-WORDBAR | Word timing bar: draggable start/end handles, neighbor words, numeric seconds, Apply timing, Cancel draft, Preview, Reload timing | Transcript word selected > inspector (Adjust word timing) | `transcript/TranscriptWordbar.tsx` | NONE | Store | Fine-tune word boundaries |
@@ -295,7 +295,7 @@ Shortcuts are from `keymap/registry.ts` (Mod = ⌘ on macOS, Ctrl elsewhere); to
 | INT-COMMENT-RESOLVE | Resolve/reopen, reply, edit a comment | Comment card actions; swipe left on touch | CMP-COMMENT-CARD, INS-COMMENT | swipe left | yes |
 | INT-WORD-SELECT | Select words by click, Shift-click, drag, hold-then-drag on touch | Transcript Select intent | PNL-TRANSCRIPT, CMP-RANGE-ACTIONS | long-press then drag | partial (Active/Selected turn) |
 | INT-WORD-CUT | Cut or mute selected words/range | Range actions on a text selection | CMP-RANGE-ACTIONS, CMP-WORDRANGE | none (Mod+X is Cut when `canApplyPass12`) | NONE |
-| INT-WORD-CORRECT | Correct a word | F2, double-click or double-tap | POP-WORD-EDIT, INS-WORD | F2 | NONE |
+| INT-WORD-CORRECT | Correct a word | F2, Enter or double-tap | POP-WORD-EDIT, INS-WORD | F2 | NONE |
 | INT-WORD-TIMING | Adjust word timing | Wordbar handles or numeric fields | CMP-WORDBAR | none | NONE |
 | INT-WORD-IGNORE | Ignore or restore words | Transcript toolbar | PNL-TRANSCRIPT | none | NONE |
 | INT-LOWCONF | Step through low-confidence words | Prev/Next in toolbar | PNL-TRANSCRIPT | none | partial |
@@ -362,7 +362,7 @@ Run the app: `uv run --extra gui podcast gui --host 127.0.0.1 --port <p> --no-op
 | CMP-RANGE-ACTIONS | Drag across an empty lane, or Shift-drag a clip; `region "Range actions"`. |
 | CMP-TRACK-HEADERS | `getByRole('group',{name:'Tracks'})`; buttons `Open track details, <label>`, `Reorder track <label>`, mute and solo by `aria-label`. |
 | CMP-TRACK-MIX, SHEET-PHONE-MIX | Phone: More > Mix. |
-| PNL-TRANSCRIPT, CMP-TURN, POP-SPEAKER, POP-WORD-EDIT, CMP-FINDREPLACE | R-HOST (aligned_dialogue for words). Wait for `[data-transcript-word]`. Toolbar toggles: `Correct`, `Select`, `Annotate`. Speaker: button "Change speaker <name>". Correct: set Correct, click a word, field "Correct word “…”" (or focus a word and press F2). Find: command `Find and replace transcript` (region "Find and replace transcript"). Phone: nav > Text. |
+| PNL-TRANSCRIPT, CMP-TURN, POP-SPEAKER, POP-WORD-EDIT, CMP-FINDREPLACE | R-HOST (aligned_dialogue for words). Wait for `[data-transcript-word]`. Speaker: button "Change speaker <name>". Fix text: click a word and press F2 or Enter, field "Fix text". Find: command `Find and replace transcript` (region "Find and replace transcript"). Phone: nav > Text. |
 | CMP-WORDBAR | Select one word, region "Word timing" in the inspector (see `e2e/wordbarFlow.ts`). |
 | CMP-EDITBOUNDARY, DLG-PRECISION | After a cut, boundary mark in the transcript; precision button opens dialog "Precision boundary" (see `e2e/edit-boundary-precision.spec.ts`, `e2e/boundaryFixture.ts`). |
 | PNL-COMMENTS, CMP-COMMENT-*, CMP-GUEST-NAME | Tab Comments; field label per CommentCompose; for the name step use a guest context with no stored name. |
