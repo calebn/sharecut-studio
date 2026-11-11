@@ -13,8 +13,8 @@ from podcast_mcp.services.session_sync import drop_cached_stores_under, get_hub
 def release_workspace(workspace: Path) -> None:
     """Close the handles, subscriptions and path-keyed caches of ``workspace`` (resolved).
 
-    Run before the folder is renamed: an open sqlite file blocks a rename on Windows, and a
-    cache keyed by the old path would otherwise outlive it. Order matters: the watcher and the
+    Run right after the folder is renamed, so a refused move leaves the open episode untouched:
+    a cache keyed by the old path would otherwise outlive the move. Order matters: the watcher and the
     subscribers pin the stores, so they go first. Whatever is opened again later opens at the
     folder's new path.
     """
