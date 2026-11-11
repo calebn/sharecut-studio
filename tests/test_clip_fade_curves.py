@@ -16,7 +16,7 @@ import numpy as np
 import pytest
 from pydantic import ValidationError
 
-from podcast_mcp.config.defaults import load_defaults
+from podcast_mcp.config.defaults import join_micro_fade_ms, load_defaults
 from podcast_mcp.edits.clip_fades import ClipFadeBaseline, ClipFadeChangedError, ClipFadeEdit
 from podcast_mcp.engines.audio import SourceAudio, placed_sources, sources
 from podcast_mcp.engines.audio_eval import evaluate_audio
@@ -50,6 +50,7 @@ from podcast_mcp.util.coded_error import CodedValueError
 
 DEFAULTS = load_defaults()
 LINEAR, EQUAL_POWER, S = FadeCurve.LINEAR, FadeCurve.EQUAL_POWER, FadeCurve.S
+MICRO = join_micro_fade_ms(DEFAULTS)
 RATE = 8000
 SAMPLES_AT = (0.25, 0.5, 0.75)
 
@@ -839,6 +840,64 @@ def test_split_clip_on_a_track_resets_inner_edges(minimal_project: Path) -> None
     assert _curves(right) == (LINEAR, EQUAL_POWER)
 
 
+@pytest.mark.parametrize(
+    ("at", "fades", "left", "right"),
+    [
+        # A 400 ms fade-out split 100 ms before the clip's end: only the short right piece keeps it.
+        (3.9, {"fade_out_ms": 400}, (0, MICRO), (MICRO, 400)),
+        # A 400 ms fade-in split 100 ms after the clip's start: only the short left piece keeps it.
+        (0.1, {"fade_in_ms": 400}, (400, MICRO), (MICRO, 0)),
+    ],
+)
+def test_a_split_never_moves_a_long_far_edge_fade_onto_the_new_edge(at, fades, left, right) -> None:
+    from podcast_mcp.engines.clips_ops import split_clip_at
+
+    clip = _clip("a", 0.0, 4.0, 0.0, fade_in_curve=S, fade_out_curve=EQUAL_POWER, **fades)
+    before, after = split_clip_at(clip, at, defaults=DEFAULTS)
+    assert (before.fade_in_ms, before.fade_out_ms) == left
+    assert (after.fade_in_ms, after.fade_out_ms) == right
+    assert _curves(before) == (S, LINEAR)
+    assert _curves(after) == (LINEAR, EQUAL_POWER)
+
+
+def test_split_clip_on_a_track_gives_the_new_edges_only_the_micro_fade(
+    minimal_project: Path,
+) -> None:
+    from podcast_mcp.edits.timeline_ops import split_clip
+
+    ws = _seed(minimal_project, _clip("a", 0.0, 2.0, 0.0, fade_in_ms=400, fade_out_ms=400))
+    split_clip(ws.project, "host", 1.0, defaults=DEFAULTS)
+    left, right = sorted(ws.project.clips, key=lambda c: c.timeline_start)
+    assert (left.fade_in_ms, left.fade_out_ms) == (400, MICRO)
+    assert (right.fade_in_ms, right.fade_out_ms) == (MICRO, 400)
+
+
+def test_moving_a_range_from_inside_a_clip_gives_its_cut_edges_only_the_micro_fade(
+    minimal_project: Path,
+) -> None:
+    from podcast_mcp.edits.timeline_ops import move_segment
+
+    ws = _seed(
+        minimal_project,
+        _clip("a", 0.0, 2.0, 0.0, fade_in_ms=400, fade_out_ms=400, fade_in_curve=S),
+    )
+    move_segment(ws.project, 0.5, 1.0, 2.0, defaults=DEFAULTS)
+    moved = next(c for c in ws.project.clips if c.source_start == pytest.approx(0.5))
+    assert (moved.fade_in_ms, moved.fade_out_ms) == (MICRO, MICRO)
+    assert _curves(moved) == (LINEAR, LINEAR)
+    assert moved.join_in_mode == ClipJoinMode.FADE
+
+
+def test_extraction_without_a_cut_fade_copies_the_clip_fades() -> None:
+    from podcast_mcp.engines.clips_ops import extract_clips_in_timeline_range
+
+    clip = _clip("a", 0.0, 2.0, 0.0, fade_in_ms=400, fade_out_ms=300)
+    (copied,) = extract_clips_in_timeline_range([clip], 0.5, 1.0, cut_fade_ms=None)
+    assert (copied.fade_in_ms, copied.fade_out_ms) == (400, 300)
+    (cut,) = extract_clips_in_timeline_range([clip], 0.0, 1.0, cut_fade_ms=MICRO)
+    assert (cut.fade_in_ms, cut.fade_out_ms) == (400, MICRO)
+
+
 def test_range_extraction_and_slicing_carry_the_curves() -> None:
     from podcast_mcp.engines.clips_ops import (
         extract_clips_in_timeline_range,
@@ -851,7 +910,9 @@ def test_range_extraction_and_slicing_carry_the_curves() -> None:
         _clip("b", 2.0, 4.0, 2.0, fade_in_curve=EQUAL_POWER, fade_out_curve=S),
     ]
     whole = [(S, EQUAL_POWER), (EQUAL_POWER, S)]
-    assert [_curves(c) for c in extract_clips_in_timeline_range(clips, 0.0, 4.0)] == whole
+    assert [
+        _curves(c) for c in extract_clips_in_timeline_range(clips, 0.0, 4.0, cut_fade_ms=None)
+    ] == whole
     assert [
         _curves(c) for c in slice_timeline_range_from_clips(clips, 0.0, 4.0, defaults=DEFAULTS)
     ] == whole

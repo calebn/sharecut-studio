@@ -852,7 +852,7 @@ def test_extract_and_rebuild_clips_keep_mute_regions():
         timeline_start=0.0,
         mute_regions=[ClipMuteRegion(start_s=0.2, end_s=0.8)],
     )
-    extracted = extract_clips_in_timeline_range([clip], 0.3, 0.6)
+    extracted = extract_clips_in_timeline_range([clip], 0.3, 0.6, cut_fade_ms=None)
     assert extracted
     assert [(r.start_s, r.end_s) for r in extracted[0].mute_regions] == [(0.2, 0.8)]
 
@@ -1689,7 +1689,7 @@ def test_partial_copy_of_a_mute_pastes_silent_up_to_the_cut(tmp_path):
 
     project, region, whole = _approved_silent_mute(tmp_path)
     _, silent_end = _silent_span(region)
-    (copied,) = extract_clips_in_timeline_range(project.clips, 1.15, 2.0)
+    (copied,) = extract_clips_in_timeline_range(project.clips, 1.15, 2.0, cut_fade_ms=None)
 
     paste_segment(
         project,
