@@ -17,7 +17,7 @@ import { useDaw } from "../../state/useDaw";
 import type { PlayerProps } from "../../system/Player";
 import type { AuditionMode } from "../../types/session";
 import { NO_PREVIEW_ERROR } from "../../utils/audioErrorLabel";
-import { staleMixLabel } from "../../utils/staleRender";
+import { guestMixBehind, staleMixLabel } from "../../utils/staleRender";
 import { transportTimecode } from "../../utils/time";
 import { skipListen } from "./listenSeek";
 import {
@@ -143,10 +143,12 @@ export function usePlayerProps(
     isPlaying,
     playStartSec,
   }).togglePlay;
+  const mixBehind =
+    project != null && (guest ? guestMixBehind(project) : breakdown.stale);
   const mixStatus =
     audioError === NO_PREVIEW_ERROR
       ? staleMixLabel({ premixMissing: true })
-      : project && breakdown.stale && !guest
+      : mixBehind
         ? staleMixLabel(breakdown)
         : undefined;
   const mayComment = canComment(projectPath, guestMode, shareCapabilities);

@@ -18,12 +18,21 @@ beforeEach(() => {
   registerDawCommands();
 });
 
-function join(guestMode: "view" | "comment" | "edit" | null, tracks = true) {
+const BEHIND = {
+  ...STALE,
+  premix: { exists: true, is_stale: true },
+} as const;
+
+function join(
+  guestMode: "view" | "comment" | "edit" | null,
+  tracks = true,
+  render_status: typeof STALE | typeof BEHIND = STALE,
+) {
   useDawStore.getState().hydrate(
     guestMode ? "share:tok" : "/tmp/player-props/episode.sharecut",
     minimalProject({
       tracks: tracks ? [sampleTrack({ stem_is_fresh: true })] : [],
-      render_status: STALE,
+      render_status,
       timeline_duration_sec: 100,
     }),
     guestMode ?? undefined,
@@ -43,8 +52,31 @@ describe("usePlayerProps status for a guest", () => {
     },
   );
 
+  it.each(["view", "comment", "edit"] as const)(
+    "tells a %s guest the mix is out of date when the server says the mix they hear is behind",
+    (mode) => {
+      join(mode, true, BEHIND);
+      expect(props().status).toBe("Mix out of date");
+    },
+  );
+
+  it("does not tell a guest the mix is out of date when only the transcript is behind", () => {
+    join("comment", true, {
+      needs_rerender: true,
+      reconciliation: { stale: true },
+      premix: { exists: true, is_stale: false },
+    } as unknown as typeof STALE);
+    expect(props().status).toBeUndefined();
+  });
+
   it("keeps No mix yet for a guest when Play found nothing to preview", () => {
     join("comment");
+    useDawStore.setState({ audioError: NO_PREVIEW_ERROR });
+    expect(props().status).toBe("No mix yet");
+  });
+
+  it("reads No mix yet, not out of date, when Play found nothing to preview on a behind mix", () => {
+    join("comment", true, BEHIND);
     useDawStore.setState({ audioError: NO_PREVIEW_ERROR });
     expect(props().status).toBe("No mix yet");
   });

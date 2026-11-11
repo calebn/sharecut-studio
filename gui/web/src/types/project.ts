@@ -516,6 +516,7 @@ export interface ProjectView
       stale_vs_stems?: boolean;
       /** Volume, mute or staging gain changed since the premix was mixed. */
       stale_vs_mix?: boolean;
+      is_stale?: boolean;
     };
     invalidations?: Array<{
       id: string;

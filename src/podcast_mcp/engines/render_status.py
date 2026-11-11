@@ -55,12 +55,14 @@ def render_status_report(project: EpisodeProject, *, defaults: EffectiveConfig) 
         tracks[tid] = entry
 
     premix = premix_path(project)
+    premix_behind = premix_is_stale(project, defaults=defaults)
     premix_info: dict = {
         "path": str(premix) if premix.is_file() else None,
         "exists": premix.is_file(),
         "stale_vs_stems": premix_stale_vs_stems(project),
         # Fader, mute or staging gain changed since the premix was mixed.
         "stale_vs_mix": premix_stale_vs_mix(project, defaults=defaults),
+        "is_stale": premix_behind,
     }
     if premix.is_file():
         premix_info["mtime_sec"] = premix.stat().st_mtime
@@ -77,7 +79,5 @@ def render_status_report(project: EpisodeProject, *, defaults: EffectiveConfig) 
         "premix": premix_info,
         "reconciliation": reconciliation,
         "invalidations": invalidations_as_dicts(project),
-        "needs_rerender": (
-            any_stale_stem or not premix.is_file() or premix_is_stale(project, defaults=defaults)
-        ),
+        "needs_rerender": (any_stale_stem or not premix.is_file() or premix_behind),
     }
