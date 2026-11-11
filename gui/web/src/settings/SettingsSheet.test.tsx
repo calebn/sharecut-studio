@@ -316,6 +316,23 @@ describe("Move…", () => {
     expect(moveProject).not.toHaveBeenCalled();
   });
 
+  it("re-checks the queue after the folder is picked", async () => {
+    tauri.on = true;
+    inProject();
+    vi.mocked(pickFolder).mockImplementationOnce(async () => {
+      queued.count = 1;
+      return { folder: "/Volumes/Archive" };
+    });
+    const user = userEvent.setup();
+    render(<Harness />);
+    const sheet = await openSettings();
+    await user.click(within(sheet).getByRole("button", { name: "Move…" }));
+    expect(
+      await within(sheet).findByText(/edits are still waiting to be saved/),
+    ).toBeVisible();
+    expect(moveProject).not.toHaveBeenCalled();
+  });
+
   it("says so when the computer has no folder dialog", async () => {
     tauri.on = true;
     inProject();

@@ -20,6 +20,16 @@ function parentFolder(projectPath: string): string {
 const PARTIAL_MOVE_CODE = "project_moved_partial";
 
 /** Where a half-finished move left the episode, from the server's refusal body. */
+// Edits still waiting to be saved are queued under the old path, and the
+// reload would strand them.
+async function refuseWhileEditsQueued(projectPath: string): Promise<void> {
+  if ((await loadHostCommandCount(projectPath)) > 0) {
+    throw new Error(
+      "Some edits are still waiting to be saved. Wait for them to finish, then move the episode.",
+    );
+  }
+}
+
 function movedTo(error: unknown): string | null {
   if (!(error instanceof ApiError) || error.code !== PARTIAL_MOVE_CODE) {
     return null;
@@ -71,13 +81,7 @@ export function SettingsHost() {
   const moveFolder = () => {
     reveal.setError(null);
     void mover.run(async () => {
-      // Edits still waiting to be saved are queued under the old path, and the
-      // reload would strand them.
-      if ((await loadHostCommandCount(projectPath)) > 0) {
-        throw new Error(
-          "Some edits are still waiting to be saved. Wait for them to finish, then move the episode.",
-        );
-      }
+      await refuseWhileEditsQueued(projectPath);
       const picked = await pickFolder();
       if ("unavailable" in picked) {
         throw new Error(
@@ -85,6 +89,7 @@ export function SettingsHost() {
         );
       }
       if ("cancelled" in picked) return;
+      await refuseWhileEditsQueued(projectPath);
       try {
         const moved = await moveProject(
           projectPath,

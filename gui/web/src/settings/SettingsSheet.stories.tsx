@@ -221,7 +221,8 @@ export const MoveRefused: Story = {
       onReveal: fn(),
       onMove: fn(),
       revealing: false,
-      error: "Someone else has this episode open in another window.",
+      error:
+        "Some edits are still waiting to be saved. Wait for them to finish, then move the episode.",
     },
   },
   play: async ({ canvasElement, viewMode }) => {
@@ -229,7 +230,7 @@ export const MoveRefused: Story = {
     const sheet = await openSheet(canvasElement);
     await expect(
       within(sheet).getByText(
-        "Someone else has this episode open in another window.",
+        "Some edits are still waiting to be saved. Wait for them to finish, then move the episode.",
       ),
     ).toBeVisible();
   },
