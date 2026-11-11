@@ -270,6 +270,19 @@ The ceiling is part of the hash too, so a pipeline run with a different `mix.pre
 
 `check_loudness_tool` measures the existing exported WAV, or `premix.wav` when no exported WAV exists. Its `pass` field judges measured loudness. Its separate `stale` and `stale_reason` fields report known render age without rendering. For a premix, the check uses its hash and included stems. For an exported WAV, it also checks the current master hash and whether the export predates the master. Missing or unverified upstream artifacts report stale. An explicit unrelated audio path has `stale: null` and `stale_reason: "untracked_audio"`. The measured stream is the file's first audio stream (#2131). Only ebur128's own summary is read, never the file's metadata tags (#2143), so a file with no audio stream or zero decoded audio frames measures `null` and fails `pass`. `stale: false` means these checks found no known mismatch; timestamps cannot prove the export's content came from the current master. The check does not refresh audio or alter the loudness verdict.
 
+## Per-clip gain
+
+`Clip.gain_db` (`-60..+12` dB, default `0`) is the first level in the signal order: clip gain
+-> track chain and FX -> staging `gain_db` -> fader. It is applied as a `volume` stage on the
+clip's leaf after the edge fades and mute regions (`FFmpegEngine._gain_chain`, mirrored in
+`audio_eval._source`), and also on room tone tiled under that clip's mutes so a filled mute
+stays level-matched. Silence filled between clips takes no gain. It is part of the stem
+render hash and the reconciliation fingerprint only while nonzero, so a project with no clip
+gain keeps its hashes. Source proxies and the bleed gate read raw source audio and ignore it.
+A saved segment bakes the gain into its audio; inserting it creates clips at unity. Because
+`balance_tracks` measures the stems, it measures them after clip gain and shifts the staging
+`gain_db` to compensate.
+
 ## Dialogue gain staging (`balance_tracks`)
 
 `balance_tracks` runs after `compress_tracks`. It measures each dialogue track through its

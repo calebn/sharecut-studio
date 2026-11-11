@@ -188,7 +188,10 @@ def _source(
             end = min(stop, under)
             out[: end - start] += fill.read(first + start, first + end)
         out = _edge_fades(out, start, size, node, sample_rate)
-        return _muted(out, start, node, seek, sample_rate)
+        out = _muted(out, start, node, seek, sample_rate)
+        if node.gain_db:
+            out = out * np.float32(10 ** (node.gain_db / 20))
+        return out
 
     return Piece(size, read)
 

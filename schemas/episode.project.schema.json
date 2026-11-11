@@ -591,6 +591,7 @@
         "timeline_start": { "type": "number" },
         "fade_in_ms": { "type": "integer", "default": 0 },
         "fade_out_ms": { "type": "integer", "default": 0 },
+        "gain_db": { "type": "number", "minimum": -60, "maximum": 12, "default": 0 },
         "join_in_mode": {
           "type": "string",
           "enum": ["fade", "crossfade", "cut"],

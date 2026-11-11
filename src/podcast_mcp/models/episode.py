@@ -39,6 +39,8 @@ _T = TypeVar("_T")
 # Track volume fader range (dB), on top of the pipeline's staging gain_db.
 FADER_MIN_DB = -60.0
 FADER_MAX_DB = 12.0
+CLIP_GAIN_MIN_DB = FADER_MIN_DB
+CLIP_GAIN_MAX_DB = FADER_MAX_DB
 
 
 class TrackRole(StrEnum):
@@ -370,6 +372,9 @@ class Clip(BaseModel):
     source_id: str | None = None
     fade_in_ms: int = 0
     fade_out_ms: int = 0
+    gain_db: float = Field(
+        default=0.0, ge=CLIP_GAIN_MIN_DB, le=CLIP_GAIN_MAX_DB, allow_inf_nan=False
+    )
     join_in_mode: ClipJoinMode = ClipJoinMode.FADE
     # Source-media mute holes honoured at render (tighten.edit_mode=mute).
     mute_regions: list[ClipMuteRegion] = Field(default_factory=list)
@@ -400,6 +405,8 @@ class Clip(BaseModel):
             data.pop("off_speaker_mute_regions", None)
         if "bleed_restore" not in self.model_fields_set and self.bleed_restore is None:
             data.pop("bleed_restore", None)
+        if self.gain_db == 0.0:
+            data.pop("gain_db", None)
         if self.timing is None:
             data.pop("timing", None)
         if self.segment_ref is None:

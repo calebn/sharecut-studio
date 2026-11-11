@@ -29,6 +29,7 @@ export interface Clip {
   source_id?: string | null;
   fade_in_ms?: number;
   fade_out_ms?: number;
+  gain_db?: number;
   join_in_mode?: ClipJoinMode;
   mute_regions?: Array<ClipMuteRegion>;
   off_speaker_mute_regions?: Array<ClipOffSpeakerMuteRegion>;
