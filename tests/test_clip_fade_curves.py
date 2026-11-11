@@ -801,11 +801,11 @@ def test_document_commands_set_curves_and_refuse_a_curve_only_stale_baseline(
 
 
 def test_the_registry_rows_still_name_their_tools() -> None:
-    from podcast_mcp.services.document_sync.registry import COMMANDS, GENERIC_CLI, named
+    from podcast_mcp.services.document_sync.registry import COMMANDS, named
 
     assert COMMANDS["SetClipFade"].mcp == named("set_clip_fade_tool")
     assert COMMANDS["SetClipsFade"].mcp == named("set_clips_fade_tool")
-    assert COMMANDS["SetClipFade"].cli == named(GENERIC_CLI)
+    assert COMMANDS["SetClipFade"].cli == named("podcast edit set-clip-fade")
 
 
 def test_split_resets_the_new_inner_edges_and_keeps_the_outer_ones() -> None:
