@@ -2256,10 +2256,18 @@
           ],
           "default": null
         },
+        "fade_in_curve": {
+          "$ref": "#/$defs/FadeCurve",
+          "default": "linear"
+        },
         "fade_in_ms": {
           "default": 0,
           "title": "Fade In Ms",
           "type": "integer"
+        },
+        "fade_out_curve": {
+          "$ref": "#/$defs/FadeCurve",
+          "default": "linear"
         },
         "fade_out_ms": {
           "default": 0,
@@ -2381,10 +2389,18 @@
     },
     "ClipFadeBaseline": {
       "properties": {
+        "fade_in_curve": {
+          "$ref": "#/$defs/FadeCurve",
+          "default": "linear"
+        },
         "fade_in_ms": {
           "minimum": 0,
           "title": "Fade In Ms",
           "type": "integer"
+        },
+        "fade_out_curve": {
+          "$ref": "#/$defs/FadeCurve",
+          "default": "linear"
         },
         "fade_out_ms": {
           "minimum": 0,
@@ -2407,11 +2423,35 @@
         },
         "expected": {
           "$ref": "#/$defs/ClipFadeBaseline",
-          "description": "Both saved fades of this clip captured when the edit began."
+          "description": "Both saved fades and both curves of this clip captured when the edit began. An omitted curve is read as linear."
+        },
+        "fade_in_curve": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/FadeCurve"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "The fade-in shape. Left out keeps the clip's current curve."
         },
         "fade_in_ms": {
           "title": "Fade In Ms",
           "type": "integer"
+        },
+        "fade_out_curve": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/FadeCurve"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "The fade-out shape. Left out keeps the clip's current curve."
         },
         "fade_out_ms": {
           "title": "Fade Out Ms",
@@ -4240,6 +4280,16 @@
       ],
       "title": "ExtractRoomToneBedPayload",
       "type": "object"
+    },
+    "FadeCurve": {
+      "description": "The shape of a clip edge's fade. Linear is the default and is left out of the file.",
+      "enum": [
+        "linear",
+        "equal_power",
+        "s"
+      ],
+      "title": "FadeCurve",
+      "type": "string"
     },
     "FadeJoinsCommand": {
       "properties": {
@@ -7807,11 +7857,35 @@
         },
         "expected": {
           "$ref": "#/$defs/ClipFadeBaseline",
-          "description": "Both saved fades captured when the edit began. A changed pair returns clip_fade_changed without changing fades, history, or the journal. Read the clip's current {fade_in_ms, fade_out_ms} with podcast edit list-clips."
+          "description": "Both saved fades and both curves captured when the edit began. A changed value returns clip_fade_changed without changing fades, history, or the journal. Read the clip's current {fade_in_ms, fade_out_ms, fade_in_curve, fade_out_curve} with podcast edit list-clips; a clip row without a curve is linear, and an omitted baseline curve is read as linear."
+        },
+        "fade_in_curve": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/FadeCurve"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "The fade-in shape. Left out keeps the clip's current curve."
         },
         "fade_in_ms": {
           "title": "Fade In Ms",
           "type": "integer"
+        },
+        "fade_out_curve": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/FadeCurve"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "The fade-out shape. Left out keeps the clip's current curve."
         },
         "fade_out_ms": {
           "title": "Fade Out Ms",

@@ -29,6 +29,8 @@ export interface Clip {
   source_id?: string | null;
   fade_in_ms?: number;
   fade_out_ms?: number;
+  fade_in_curve?: FadeCurve;
+  fade_out_curve?: FadeCurve;
   gain_db?: number;
   join_in_mode?: ClipJoinMode;
   mute_regions?: Array<ClipMuteRegion>;
@@ -163,6 +165,9 @@ export interface ExportSettingsUnavailable {
 }
 
 export type ExportTarget = "broadcast" | "podcast" | "streaming";
+
+/** The shape of a clip edge's fade. Linear is the default and is left out of the file. */
+export type FadeCurve = "linear" | "equal_power" | "s";
 
 /** One edit to the episode's podcast listing; the empty string unsets. */
 export interface FeedEditRequest {

@@ -59,6 +59,8 @@ Normal dialogue **ripple** cuts from tighten, NL, and focus set `join_in_mode=fa
 
 Crossfade curve for overlap mode only: `render.crossfade_curve` (default `tri`).
 
+Each clip edge fade has its own shape, `fade_in_curve` / `fade_out_curve` (`linear` default, `equal_power`, `s`; [audio-engineering.md § Clip fade curves](audio-engineering.md#clip-fade-curves)). It shapes the clip's own fade only, not a crossfade or a fade at a cut join.
+
 ShareCut Studio draws a blending crossfade join (`join_in_mode=crossfade`, not
 `join_crossfade_blocked`, `join_crossfade_ms > 0`) as two transparent waveforms
 across exactly `join_crossfade_ms`, centred on the seam: the left clip's tail

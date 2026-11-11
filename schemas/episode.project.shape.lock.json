@@ -357,9 +357,17 @@
               ],
               "default": null
             },
+            "fade_in_curve": {
+              "$ref": "#/$defs/FadeCurve",
+              "default": "linear"
+            },
             "fade_in_ms": {
               "default": 0,
               "type": "integer"
+            },
+            "fade_out_curve": {
+              "$ref": "#/$defs/FadeCurve",
+              "default": "linear"
             },
             "fade_out_ms": {
               "default": 0,
@@ -1227,6 +1235,14 @@
             "media_seals"
           ],
           "type": "object"
+        },
+        "FadeCurve": {
+          "enum": [
+            "linear",
+            "equal_power",
+            "s"
+          ],
+          "type": "string"
         },
         "FeedSection": {
           "properties": {
@@ -4480,9 +4496,17 @@
               ],
               "default": null
             },
+            "fade_in_curve": {
+              "$ref": "#/$defs/FadeCurve",
+              "default": "linear"
+            },
             "fade_in_ms": {
               "default": 0,
               "type": "integer"
+            },
+            "fade_out_curve": {
+              "$ref": "#/$defs/FadeCurve",
+              "default": "linear"
             },
             "fade_out_ms": {
               "default": 0,
@@ -5350,6 +5374,14 @@
             "media_seals"
           ],
           "type": "object"
+        },
+        "FadeCurve": {
+          "enum": [
+            "linear",
+            "equal_power",
+            "s"
+          ],
+          "type": "string"
         },
         "FeedSection": {
           "properties": {

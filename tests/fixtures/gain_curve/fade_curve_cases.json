@@ -1,0 +1,61 @@
+{
+  "about": "Edge fade gain at position x (0 to 1) along a fade, per curve. fade_in is g(x); fade_out is the mirror g(1 - x). tests/test_clip_fade_curves.py pins the ffmpeg render and the evaluator to it, and the GUI preview's fade gain reads the same file, so the two cannot drift apart (#3370).",
+  "afade_curve": {
+    "linear": "tri",
+    "equal_power": "qsin",
+    "s": "hsin"
+  },
+  "x": [
+    0.0,
+    0.25,
+    0.5,
+    0.75,
+    1.0
+  ],
+  "fade_in": {
+    "linear": [
+      0.0,
+      0.25,
+      0.5,
+      0.75,
+      1.0
+    ],
+    "equal_power": [
+      0.0,
+      0.382683,
+      0.707107,
+      0.92388,
+      1.0
+    ],
+    "s": [
+      0.0,
+      0.146447,
+      0.5,
+      0.853553,
+      1.0
+    ]
+  },
+  "fade_out": {
+    "linear": [
+      1.0,
+      0.75,
+      0.5,
+      0.25,
+      0.0
+    ],
+    "equal_power": [
+      1.0,
+      0.92388,
+      0.707107,
+      0.382683,
+      0.0
+    ],
+    "s": [
+      1.0,
+      0.853553,
+      0.5,
+      0.146447,
+      0.0
+    ]
+  }
+}

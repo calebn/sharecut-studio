@@ -31,7 +31,7 @@ The id is the name's ASCII slug plus eight hex digits of the exact name's sha256
 | `fader_db` | Level of the lane. |
 | `duck_under_dialogue` | Whether the lane lowers under speech. Capture sets it to false. |
 | `chapter_title` | Optional chapter marker text. |
-| `clips` | `audio` (a file in the segment), `offset_sec` from the segment start, `duration_sec`, `fade_in_ms`, `fade_out_ms`, `join_in_mode` and `lane`. |
+| `clips` | `audio` (a file in the segment), `offset_sec` from the segment start, `duration_sec`, `fade_in_ms`, `fade_out_ms`, `join_in_mode` and `lane`. A saved segment keeps no fade curve: capture drops a clip's `fade_in_curve` / `fade_out_curve` and an insert creates linear fades (a documented limitation; storing them is a segment schema change). |
 | `transcript_words` | Optional words (`text`, `start`, `end`, seconds from the segment start). Capture does not write them yet. |
 | `media` | For each audio file, its `sha256` and `bytes`. |
 
