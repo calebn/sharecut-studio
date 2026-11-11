@@ -76,7 +76,7 @@ organisms; domain screens are templates, colocated with their domain component
 | **Atoms** | Irreducible UI elements | Button, ToggleButton, Icon, Avatar, InlineError, LevelMeter, ClipLed, Pill, Timecode, EmptyState, SurfaceLadder (token reference), CloseButton |
 | **Molecules** | Small groups doing one job | Menu, DefinitionList, Field, FieldRow, SegmentedControl, Toast, FocusPull, InlineConfirm |
 | **Organisms** | Complex, generic, reusable components / sections | Dialog, AskDialog, BottomSheet, CoverScreen, LoadingScreen, ErrorScreen |
-| **Templates** | Assembled, context-specific domain screens and their shipped chrome, shown with static / representative content and locked domain copy; a store-bound one hydrates the shared episode instead (see [Catalog boundary](#catalog-boundary-store-bound-components)) | UploadStatus, Transport, TransportPlayControls, PipelineStatusChip, ListenHero, TimelineRange, AppliedEditOverlay, PendingEditOverlay, MarkerLaneHost, ClipBlock, CommentPlaybackBubble, TrackHeader, CommentCompose, TranscriptTurn, InspectorSeekFooter, HostMcpDialog, AvatarStack, CommandPalette |
+| **Templates** | Assembled, context-specific domain screens and their shipped chrome, shown with static / representative content and locked domain copy; a store-bound one hydrates the shared episode instead (see [Catalog boundary](#catalog-boundary-store-bound-components)) | UploadStatus, Transport, TransportPlayControls, PipelineStatusChip, ListenHero, TimelineRange, AppliedEditOverlay, PendingEditOverlay, MarkerLaneHost, ClipBlock, CommentPlaybackBubble, TrackHeader, CommentCompose, TranscriptTurn, InspectorSeekFooter, HostMcpDialog, CommandPalette |
 
 **Organisms vs Templates:** an organism is generic and reusable anywhere in the
 app; a template is one specific domain screen or panel (record room, review
@@ -145,7 +145,8 @@ presentational frame that the live component renders. `System/Player` and
 Pause, time, edited length, Hear original (with its hear menu on long-press or
 right-click), the mix ring and the Solo chip, and `AppHeader` carries the
 Project menu, save indicator, Undo and Redo, a people slot (the live frame
-mounts `AvatarStack` there; on a phone one avatar plus a count), Invite and
+mounts `AvatarStack` there: up to three 24 px faces, each opening its own menu,
+then a count, and the Following pill; on a phone one face plus a count), Invite and
 search. `StageFrame` (`src/stage/frame/`) adds command wiring, the store
 selectors and the sheets around them. Templates that render a page banner also
 render a `<main>` region beside it, so the story harness does not nest the
@@ -258,7 +259,7 @@ The view derives the blocked-Suggested reason id
 with `useId()`, so several footers on one autodocs page never share an
 `aria-describedby` target.
 
-`Templates/AvatarStack` and `Stages/Edit/Corner` (the eye popover) follow the same
+`Stages/Frame/Presence` and `Stages/Edit/Corner` (the eye popover) follow the same
 adapter/view split as
 `ScriptPane`: each live component is a thin adapter that reads the DAW
 store and renders a props-only `XView`. `AvatarStackView` and
@@ -268,7 +269,11 @@ chapter-add side effect (its store-backed `chapterAddPending` flag reaches the
 view as `addChapterBusy`). The stage frame mounts `AvatarStack` in the header's
 people slot and `ViewPopover` in the Edit corner's eye popover. Stories cover desktop,
 phone, menu-hosted, guest-share, chapter-adding, and loading/overflow/following
-states.
+states. `Stages/Frame/Presence` holds the people stories: `Avatars`, `Popover`,
+`Following` and `FollowingPhone`. A followed person's face gets a 3 px ring and
+the header shows one "Following Rosa" pill with a stop button; there is no
+frame round the stage (design-system element 32 and L36 win over the 2 px frame
+in the Review and Deliver spec, logged in the spec deviations audit).
 
 `Templates/HostMcpDialog` previews the shipped agent-connection dialog. Its story supplies
 a fixed loopback URL so its fields and client snippet do not depend on the
@@ -440,7 +445,7 @@ Give anchored menus room to open inside their story. Use
 `menuStoryDecorator` from `src/storybook/storyLayout.tsx` for end-aligned
 menu triggers. The decorator reserves vertical space and keeps wide panels
 inside the preview. Host decorators for other anchored popups must also
-reserve space below their triggers, as in `AvatarStackView.stories.tsx`.
+reserve space below their triggers, as in `Stages/Frame/Presence`.
 
 Use `isolatedStoryParameters` from the same module for fixed overlays,
 body portals, document-level state, or viewport-sized shells. Spread the
