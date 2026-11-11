@@ -293,6 +293,76 @@ def test_crossfade_joins_default_fade_ms() -> None:
     assert summary["fade_ms"] == 33
 
 
+def _crossfade_pair(left_sec: float, right_sec: float, **left_fades: int) -> EpisodeProject:
+    p = _two_track_project()
+    p.clips = [
+        Clip(
+            id="a",
+            track_id="host",
+            source_start=0.0,
+            source_end=left_sec,
+            timeline_start=0.0,
+            **left_fades,
+        ),
+        Clip(
+            id="b",
+            track_id="host",
+            source_start=left_sec,
+            source_end=left_sec + right_sec,
+            timeline_start=left_sec,
+        ),
+    ]
+    return p
+
+
+def test_crossfade_joins_bounds_an_explicit_length_by_the_clips() -> None:
+    p = _crossfade_pair(2.0, 0.5, fade_in_ms=1500)
+    summary = crossfade_joins(p, fade_ms=5000, defaults=load_defaults())
+    a, b = p.clips
+    assert (a.fade_in_ms, a.fade_out_ms) == (1500, 500)
+    assert b.fade_in_ms == 500
+    assert summary["fade_ms"] == 500
+    assert summary["requested_fade_ms"] == 5000
+    assert summary["clamped_joins"] == 1
+
+
+def test_crossfade_joins_is_not_held_to_the_longest_automatic_join_fade() -> None:
+    p = _crossfade_pair(2.0, 2.0)
+    p.timeline.join_fade_max_ms = 40
+    summary = crossfade_joins(p, fade_ms=400, defaults=load_defaults())
+    a, b = p.clips
+    assert (a.fade_out_ms, b.fade_in_ms) == (400, 400)
+    assert summary["fade_ms"] == 400
+    assert summary["clamped_joins"] == 0
+
+
+def test_crossfade_joins_keeps_a_longer_fade_within_the_clip() -> None:
+    p = _crossfade_pair(2.0, 2.0, fade_out_ms=300)
+    crossfade_joins(p, fade_ms=25, defaults=load_defaults())
+    a, b = p.clips
+    assert (a.fade_out_ms, b.fade_in_ms) == (300, 25)
+
+
+def test_crossfade_joins_dry_run_reports_the_bounded_length_and_writes_nothing() -> None:
+    p = _crossfade_pair(2.0, 0.5)
+    summary = crossfade_joins(p, fade_ms=1000, defaults=load_defaults(), dry_run=True)
+    a, b = p.clips
+    assert (a.fade_out_ms, b.fade_in_ms) == (0, 0)
+    assert b.join_in_mode != ClipJoinMode.CROSSFADE
+    assert summary["fade_ms"] == 500
+    assert summary["clamped_joins"] == 1
+
+
+def test_crossfade_joins_without_joins_reports_the_request() -> None:
+    p = _crossfade_pair(2.0, 2.0)
+    p.clips[1].timeline_start = 5.0
+    summary = crossfade_joins(p, defaults={"tighten": {"crossfade_ms": 33}})
+    assert summary["join_count"] == 0
+    assert summary["fade_ms"] == 33
+    assert summary["requested_fade_ms"] is None
+    assert summary["clamped_joins"] == 0
+
+
 def test_fade_joins_dry_run_and_speaker_scope() -> None:
     p = _two_track_project()
     p.clips = [

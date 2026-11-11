@@ -320,24 +320,41 @@ def crossfade_joins(
     defaults: EffectiveConfig,
     dry_run: bool = False,
 ) -> dict:
-    """Set abutting joins to crossfade mode with overlapping blend fades."""
+    """Set abutting joins to crossfade mode with overlapping blend fades.
+
+    A manual edit, the bulk form of a crossfade ``set_clip_join``: the length (``fade_ms``,
+    default ``tighten.crossfade_ms``) is bounded per join by the clips (``clamp_clip_fades``),
+    not by the Longest automatic join fade, and a longer fade already on an edge is kept.
+    ``fade_ms`` in the result is the length applied after that bound (the longest, when joins
+    differ); ``requested_fade_ms`` is what was asked for and ``clamped_joins`` counts joins the
+    clips shortened. A dry run reports the same without writing.
+    """
     ms = (
         fade_ms if fade_ms is not None else default_join_length_ms(ClipJoinMode.CROSSFADE, defaults)
     )
-    join_count = 0
-    for tid in _target_track_ids(project, track_id=track_id, speaker=speaker):
+    track_ids = _target_track_ids(project, track_id=track_id, speaker=speaker)
+    applied_ms: list[int] = []
+    for tid in track_ids:
         clips = clips_for_track(project, tid)
         for left, right in abutting_pairs(clips):
-            join_count += 1
+            room_out = clamp_clip_fades(left, left.fade_in_ms, ms)[1]
+            room_in = clamp_clip_fades(right, ms, 0)[0]
+            applied_ms.append(min(room_out, room_in))
             if dry_run:
                 continue
             right.join_in_mode = ClipJoinMode.CROSSFADE
-            left.fade_out_ms = max(left.fade_out_ms, ms)
-            right.fade_in_ms = max(right.fade_in_ms, ms)
+            left.fade_in_ms, left.fade_out_ms = clamp_clip_fades(
+                left, left.fade_in_ms, max(left.fade_out_ms, ms)
+            )
+            right.fade_in_ms, right.fade_out_ms = clamp_clip_fades(
+                right, max(right.fade_in_ms, ms), right.fade_out_ms
+            )
     return {
         "operation": "crossfade_joins",
-        "join_count": join_count,
-        "fade_ms": ms,
+        "join_count": len(applied_ms),
+        "fade_ms": max(applied_ms, default=ms),
+        "requested_fade_ms": fade_ms,
+        "clamped_joins": sum(applied < ms for applied in applied_ms),
         "dry_run": dry_run,
-        "affected_tracks": _target_track_ids(project, track_id=track_id, speaker=speaker),
+        "affected_tracks": track_ids,
     }
