@@ -40,6 +40,7 @@ from podcast_mcp.edits.join_modes import (
     fade_joins,
     set_clip_join,
     set_clip_join_mode,
+    set_join_fade_default,
 )
 from podcast_mcp.edits.ripple import TrimEdge, plan_trim
 from podcast_mcp.edits.timeline_ops import (
@@ -386,6 +387,15 @@ class TimelineService(CutMutatingService):
 
     def set_clips_gain(self, gains: list[tuple[str, float, ClipGainBaseline]]) -> Mapping[str, Any]:
         return apply_clips_gain(self.ws, self._mutate_clips, gains)
+
+    def set_join_fade_default(self, ms: int | None) -> Mapping[str, Any]:
+        return self.ws.mutate(
+            "before set join fade default",
+            "after set join fade default",
+            lambda p: set_join_fade_default(p, ms, defaults=self.ws.effective_config()),
+            operation="set_join_fade_default",
+            params={"ms": ms},
+        )
 
     def move_clips(self, clips: list[dict]) -> dict:
         return self.ws.mutate(
@@ -740,8 +750,7 @@ class TimelineService(CutMutatingService):
         self, track_id: str | None = None, *, include_timing_steps: bool = False
     ) -> dict:
         secret = get_share_registry().recording_key_secret()
-        timed = include_timing_steps and any(c.timing is not None for c in self.ws.project.clips)
-        defaults = self.ws.effective_config() if timed else None
+        defaults = self.ws.effective_config()
         return list_clips(
             self.ws.project,
             track_id,

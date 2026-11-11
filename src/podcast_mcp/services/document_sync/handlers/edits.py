@@ -140,6 +140,11 @@ def set_clip_gain(ws: ProjectWorkspace, p: dict[str, Any]) -> Mapping[str, Any]:
     )
 
 
+def set_join_fade_default(ws: ProjectWorkspace, p: dict[str, Any]) -> Mapping[str, Any]:
+    ms = p["ms"]
+    return TimelineService(ws).set_join_fade_default(None if ms is None else int(ms))
+
+
 def set_clips_gain(ws: ProjectWorkspace, p: dict[str, Any]) -> Mapping[str, Any]:
     return TimelineService(ws).set_clips_gain(
         [(g["clip_id"], float(g["gain_db"]), ClipGainBaseline(**g["expected"])) for g in p["gains"]]

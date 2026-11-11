@@ -396,6 +396,18 @@ def set_clip_gain_tool(project_path: str, clip_id: str, gain_db: float) -> str:
     )
 
 
+def set_join_fade_default_tool(project_path: str, ms: int | None) -> str:
+    """Set the episode's Default join fade length in ms (0 to 200); null returns to the app default (40).
+
+    It is the longest fade the automatic join writers add: ``fade_joins_tool``, Smooth all joins
+    (``apply_fade_recommendations_tool``) and approve-time fades. Fades set by hand with
+    ``set_clip_fade_tool``, ``set_clips_fade_tool`` or ``set_clip_join_tool`` are never capped by
+    it, and no existing fade changes. Saved in the episode file and undoable; it makes no stem
+    stale. ``list_clips_tool`` reports the value in force as ``join_fade_default_ms``.
+    """
+    return to_json(submit_host_command_result(project_path, "SetJoinFadeDefault", {"ms": ms}))
+
+
 def set_clips_gain_tool(project_path: str, clip_ids: list[str], gain_db: float) -> str:
     """Set several clips to the same level in dB (absolute, 0 = unity, range -60 to +12).
 
@@ -1051,6 +1063,7 @@ def register(mcp: MCPServer) -> None:
         crossfade_joins_tool,
         set_clip_fade_tool,
         set_clips_fade_tool,
+        set_join_fade_default_tool,
         set_join_mode_tool,
         set_clip_join_tool,
         trim_clip_edge_tool,
@@ -1096,6 +1109,7 @@ def register(mcp: MCPServer) -> None:
         set_clips_fade_tool,
         set_clip_gain_tool,
         set_clips_gain_tool,
+        set_join_fade_default_tool,
         set_join_mode_tool,
         set_clip_join_tool,
         trim_clip_edge_tool,
