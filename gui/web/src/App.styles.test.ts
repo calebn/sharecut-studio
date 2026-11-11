@@ -32,6 +32,9 @@ describe("App styles", () => {
     );
     const rule = src.match(/\.range-field\s*\{[^}]*min-inline-size:[^;]*;/g);
     expect(rule?.at(-1)).toMatch(/min-inline-size:\s*min\(12rem,\s*100%\)/);
+    expect(src).toMatch(
+      /\.range-field \.sys-scrub-box\s*\{[^}]*min-inline-size:\s*0;/,
+    );
   });
 
   it("caps Dialog and Menu overlays to dvh with internal scroll", () => {
