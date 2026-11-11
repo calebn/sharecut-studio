@@ -120,27 +120,31 @@ export function SettingsSheet({
               <span className="settings-sheet-path" title={savedIn.folder}>
                 {middleTruncate(savedIn.folder)}
               </span>
-              {savedIn.onReveal ? (
-                <Button
-                  ref={revealRef}
-                  type="button"
-                  disabledReason={busy ? BUSY_REASON : undefined}
-                  aria-busy={savedIn.revealing || undefined}
-                  onClick={savedIn.onReveal}
-                >
-                  {savedIn.revealing ? "Revealing…" : "Reveal in folder"}
-                </Button>
-              ) : null}
-              {savedIn.onMove ? (
-                <Button
-                  ref={moveRef}
-                  type="button"
-                  disabledReason={busy ? BUSY_REASON : undefined}
-                  aria-busy={moving || undefined}
-                  onClick={savedIn.onMove}
-                >
-                  {moving ? "Moving…" : "Move…"}
-                </Button>
+              {savedIn.onReveal || savedIn.onMove ? (
+                <div className="settings-sheet-actions">
+                  {savedIn.onReveal ? (
+                    <Button
+                      ref={revealRef}
+                      type="button"
+                      disabledReason={busy ? BUSY_REASON : undefined}
+                      aria-busy={savedIn.revealing || undefined}
+                      onClick={savedIn.onReveal}
+                    >
+                      {savedIn.revealing ? "Revealing…" : "Reveal in folder"}
+                    </Button>
+                  ) : null}
+                  {savedIn.onMove ? (
+                    <Button
+                      ref={moveRef}
+                      type="button"
+                      disabledReason={busy ? BUSY_REASON : undefined}
+                      aria-busy={moving || undefined}
+                      onClick={savedIn.onMove}
+                    >
+                      {moving ? "Moving…" : "Move…"}
+                    </Button>
+                  ) : null}
+                </div>
               ) : null}
             </div>
             <InlineError message={savedIn.error} />
