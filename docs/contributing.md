@@ -163,7 +163,7 @@ advisory, non-blocking step; ignoring a real finding it surfaces still needs
 
 ## Git workflow
 
-Choose work from the [beta plan](beta-plan.md). Any open issue without the `v1` label is eligible. Skip `v1` issues. Beta labels never exclude an issue. Among eligible issues, take `beta:blocker` first, then `beta:quality` ordered by milestone and journey bar, then the rest. File follow-ups under the plan's filing rules.
+Choose work from the [beta plan](beta-plan.md). Any open issue without a `v1` or `deferred-v1` label is eligible. Skip `v1` and `deferred-v1` issues. Beta labels never exclude an issue. Among eligible issues, take `beta:blocker` first, then `beta:quality` ordered by milestone and then by the journey whose bar is furthest away, then the rest. File follow-ups under the plan's filing rules.
 
 Follow the [Git policy](../.agents/skills/sharecut-poteto/references/git-workflow.md)
 for fresh worktrees, branch names, focused commits, draft PRs, issue links,
