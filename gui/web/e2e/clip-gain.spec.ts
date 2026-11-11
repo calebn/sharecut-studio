@@ -9,7 +9,7 @@ import { inspectSelection, openProject, setScrub } from "./stageNav";
 type SavedClip = { id: string; gain_db?: number };
 type Command = { type: string; payload: Record<string, unknown> };
 
-async function savedClips(page: Page, path = e2eProjectPath) {
+async function savedTracks(page: Page, path = e2eProjectPath) {
   const response = await page.request.get(
     `/api/project?path=${encodeURIComponent(path)}&phase=full`,
   );
@@ -17,19 +17,16 @@ async function savedClips(page: Page, path = e2eProjectPath) {
   const body = (await response.json()) as {
     clips: { tracks: Record<string, SavedClip[]> };
   };
-  return Object.values(body.clips.tracks).flat();
+  return body.clips.tracks;
 }
 
-async function savedGainsByTrack(page: Page, path = e2eProjectPath) {
-  const response = await page.request.get(
-    `/api/project?path=${encodeURIComponent(path)}&phase=full`,
-  );
-  expect(response.ok()).toBe(true);
-  const body = (await response.json()) as {
-    clips: { tracks: Record<string, SavedClip[]> };
-  };
+async function savedClips(page: Page, path = e2eProjectPath) {
+  return Object.values(await savedTracks(page, path)).flat();
+}
+
+async function savedGainsByTrack(page: Page) {
   return Object.fromEntries(
-    Object.entries(body.clips.tracks).map(([track, clips]) => [
+    Object.entries(await savedTracks(page)).map(([track, clips]) => [
       track,
       clips.map((clip) => clip.gain_db ?? 0),
     ]),
@@ -149,6 +146,9 @@ test.describe("Clip inspector gain", () => {
         0,
       );
       await page.keyboard.press("Escape");
+      await expect(
+        page.locator('.clip-block [aria-pressed="true"]'),
+      ).toHaveCount(0);
     };
     try {
       await inspectSelection(page);
