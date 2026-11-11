@@ -284,8 +284,8 @@ may be recomputed after a gain edit, but its plan does not depend on the level. 
 inside a clip take its gain; gaps between clips take none. `strip_silence` rebuilds clips at
 gain 0. A saved segment bakes the gain into its audio; inserting it creates clips at unity.
 `balance_tracks` measures the track media through its chain, not the stems, so it ignores clip
-gain and does not compensate for it. The browser's playback graph applies clip gain in the
-follow-up Inspector change; until then browser playback does not include it.
+gain and does not compensate for it. The browser's playback graph applies clip gain (the
+proxy engine multiplies each clip's `10 ** (gain_db / 20)` into its envelope).
 
 ## Dialogue gain staging (`balance_tracks`)
 
