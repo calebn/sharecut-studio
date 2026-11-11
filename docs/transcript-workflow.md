@@ -24,7 +24,7 @@ Agent skill hub: [.agents/skills/podcast-transcript-workflow/SKILL.md](../.agent
 | **3. Refine** | Agent context/grammar fixes from deferred queue | Yes (reviewed) | No | `podcast-transcript-refine` |
 | **4. Escalate** | Listen-first single-span decisions | Yes (one span) | No | `podcast-transcript-audition` |
 
-The MCP tools for all four layers (transcribe, reconcile, correct, suppress, refine) are registered from `mcp/tools/transcript.py`.
+Layers 1-3 tools (reconcile, suppress, precorrect, refine, plus transcribe and correct) are registered from `mcp/tools/transcript.py`; layer 4 audition tools are in `mcp/tools/play.py`.
 
 ## Pipeline order
 

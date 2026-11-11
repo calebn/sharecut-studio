@@ -113,20 +113,31 @@ Skills live under `.agents/skills/`.
 
 ---
 
-## MCP tools (82) by module
+## MCP tools (218) by module
 
 | Module | Count | Domain |
 |--------|-------|--------|
-| `mcp/tools/episode.py` | 2 | Project / tracks |
-| `mcp/tools/ingest.py` | 3 | Ingest / align |
-| `mcp/tools/transcript.py` | 4 | Transcribe / reconcile / correct / refine |
-| `mcp/tools/edits.py` | 14 | NL edit / tighten |
-| `mcp/tools/timeline.py` | 37 | Timeline, FX, chapters |
-| `mcp/tools/speaker.py` | 5 | Speaker attribution |
-| `mcp/tools/play.py` | 2 | Audition |
-| `mcp/tools/pipeline.py` | 5 | Pipeline / render / export |
+| `mcp/tools/episode.py` | 9 | Project / tracks |
+| `mcp/tools/ingest.py` | 4 | Ingest |
+| `mcp/tools/align.py` | 4 | Conversation-clock alignment |
+| `mcp/tools/transcript.py` | 32 | Transcribe / reconcile / correct / suppress / precorrect / refine |
+| `mcp/tools/edits.py` | 23 | NL edit / tighten |
+| `mcp/tools/timeline.py` | 47 | Timeline, FX, chapters |
+| `mcp/tools/speaker.py` | 12 | Speaker attribution |
+| `mcp/tools/play.py` | 7 | Audition |
+| `mcp/tools/pipeline.py` | 9 | Pipeline / render / export |
 | `mcp/tools/clips.py` | 6 | Social clips |
-| `mcp/tools/history.py` | 4 | Undo / redo |
+| `mcp/tools/history.py` | 7 | Undo / redo |
+| `mcp/tools/comments.py` | 9 | Timeline comments |
+| `mcp/tools/record.py` | 12 | Live recording room |
+| `mcp/tools/review.py` | 12 | Review shares |
+| `mcp/tools/segments.py` | 4 | Segments |
+| `mcp/tools/session.py` | 8 | Session |
+| `mcp/tools/kits.py` | 4 | Kits |
+| `mcp/tools/document.py` | 2 | Document |
+| `mcp/tools/feed.py` | 4 | RSS feed / show details |
+| `mcp/tools/models.py` | 2 | Models |
+| `mcp/tools/gui.py` | 1 | Open GUI |
 
 Registration hub: `src/podcast_mcp/mcp/server.py`. CLI mirrors MCP via `src/podcast_mcp/cli/main.py`.
 
