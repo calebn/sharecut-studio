@@ -1190,8 +1190,8 @@ describe("fade shape", () => {
     );
   });
 
-  it("shows a Viewer the curve as text, with no buttons", () => {
-    open([curved]);
+  it("shows a Viewer the curve as text, with no buttons", async () => {
+    const { container } = open([curved]);
     act(() => {
       useDawStore.setState({
         projectPath: "share:ep",
@@ -1202,6 +1202,7 @@ describe("fade shape", () => {
     expect(screen.queryByRole("group", { name: "Fade in shape" })).toBeNull();
     expect(screen.getByText("Equal power")).toBeVisible();
     expect(screen.getByText("S")).toBeVisible();
+    await expectNoA11yViolations(container);
   });
 
   it("lets a share Editor pick a shape", async () => {

@@ -349,24 +349,6 @@ export const FadeCurvePhone: Story = {
   },
 };
 
-export const FadeCurveReadOnly: Story = {
-  render: () => <ClipCard selection={curvedSelection} />,
-  parameters: {
-    episode: { project: curved, role: "viewer", selection: curvedSelection },
-    a11y: {
-      config: { rules: [{ id: "color-contrast", enabled: false }] },
-    },
-  },
-  play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement);
-    await canvas.findByRole("spinbutton", { name: "Fade in" });
-    await expect(
-      canvas.queryByRole("group", { name: "Fade in shape" }),
-    ).toBeNull();
-    await expect(canvas.getByText("Equal power")).toBeVisible();
-  },
-};
-
 export const FadeCurveMixed: Story = {
   render: () => <ClipCard selection={multiSelection} />,
   parameters: {
