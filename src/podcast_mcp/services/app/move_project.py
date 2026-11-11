@@ -198,8 +198,8 @@ def _move_locked(
             os.rmdir(target)
         raise
     target_file = target / EPISODE_PROJECT_FILENAME
-    release_workspace(source)
     try:
+        release_workspace(source)
         _repoint(source, target, target_file, serve)
     except Exception as exc:
         _undo(source, target, source_file, target_file, serve, exc)
