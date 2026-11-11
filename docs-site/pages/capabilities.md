@@ -19,7 +19,7 @@ documentation annotation, not the runtime share gate.
 
 > **Auto-generated** from [`contracts/capabilities.manifest.json`](https://github.com/calebn/sharecut-studio/blob/main/contracts/capabilities.manifest.json). Do not edit by hand — run `make schema-export`.
 
-**155** capabilities · **120** ShareCut Studio commands · **65** keyed · **217** MCP tools · **17** skills on rows (+ **19** hub skills).
+**155** capabilities · **121** ShareCut Studio commands · **65** keyed · **217** MCP tools · **17** skills on rows (+ **19** hub skills).
 
 Keyboard chords: [UX shortcuts](https://ux.sharecut.studio/#/shortcuts). Document plane: [Document commands](#/document-commands). Guest MCP allowlist: [Remote MCP](#/remote-mcp).
 
@@ -131,6 +131,7 @@ Effect `project` changes the saved project, review state, transcripts or artifac
 | Restore original audio | project | `edit.restoreClipBleed` | — (Select a region in the Auto reduction inspector, then Keep on the Action bar) | — | `restoreClipBleed` | `restore_clip_bleed_tool` | `podcast edit restore-clip-bleed` | — | yes | none · none |
 | Roll clip join | project | `edit.rollClipJoin` | — (pointer Seam diamond or Seam pill; Alt+Arrow on the focused Seam, no industry-standard key) | `long-press-arm-drag` | `timeline.clip.joinDiamond`, `transcript.seam` | `roll_clip_join_tool` | `podcast edit roll-join` | — | — | time · none |
 | Set clip fade | project | `edit.setClipFade` | `ArrowLeft` | `long-press-arm-drag`, `hold-nudge` | `timeline.clip.fadeHandle` | `set_clip_fade_tool` | `podcast doc submit` | — | — | time · none |
+| Set clip gain | project | `edit.setClipGain` | — (level in dB, set from the clip Inspector or the agent) | — | `inspector.clip.gain` | `set_clip_gain_tool`, `set_clips_gain_tool` | `podcast doc submit` | — | — | none · none |
 | Set clip join | project | `edit.setClipJoin` | — (clip inspector join type and the Seam action bar; no industry-standard key) | — | `inspector.clip.joinType` | `set_clip_join_tool` | `podcast edit set-clip-join` | — | — | time · none |
 | Find and replace transcript | project | `transcript.findReplace` | — (toolbar and command palette; no shortcut yet) | — | `transcript.findReplace` | `find_replace_transcript_tool` | `podcast transcript find-replace` | — | yes | none · none |
 | Play range | session | `range.play` | — (Context action with explicit range selection) | — | `actionBar` | — | — | — | — | none · none |
@@ -187,7 +188,6 @@ Host/agent capabilities without a ShareCut Studio `command` id (pipeline, transc
 | Kits | project | `kit_list_tool`, `kit_show_tool`, `kit_save_tool`, `kit_apply_tool` | `podcast kit` | — | yes |
 | Generic document commands | project | `document_command_schema_tool`, `submit_document_command_tool` | `podcast doc` | — | yes |
 | Correct transcript | project | `correct_transcript_tool`, `correct_transcript_phrase_tool` | `podcast transcript correct` | — | — |
-| Set clip gain | project | `set_clip_gain_tool`, `set_clips_gain_tool` | `podcast doc submit` | — | — |
 | Read podcast listing | view | `feed_read` | `podcast feed show` | `podcast-rss-feed` | — |
 | Edit podcast listing | project | `feed_set`, `feed_unset` | `podcast feed set` | `podcast-rss-feed` | — |
 | Write podcast feed file | project | `feed_write` | `podcast feed write` | `podcast-rss-feed` | — |

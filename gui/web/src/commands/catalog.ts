@@ -1026,6 +1026,16 @@ export const COMMANDS: Record<string, CommandDef> = {
     notes:
       "Pointer or focused keyboard fade handles (1 ms; Shift 10 ms) and paired sliders in Clip inspector",
   },
+  "edit.setClipGain": {
+    id: "edit.setClipGain",
+    mutates: true,
+    category: "edit",
+    label: "Set clip gain",
+    when: "canApplyPass12",
+    paletteRunnable: false,
+    notes:
+      "Gain field in the clip inspector (-60 to +12 dB, 0.5 dB steps); with several clips selected it sets every one to the typed level",
+  },
   "edit.setClipJoin": {
     id: "edit.setClipJoin",
     mutates: true,

@@ -1,4 +1,4 @@
-import { setClipsFade } from "../../api";
+import { setClipsFade, setClipsGain } from "../../api";
 import { CLIP_HANDLE_STEPS } from "../../edit/clipHandleSteps";
 import { cancelClipPlacement } from "../../edit/clipPlacement";
 import { clampClipFades, maxFadeMs } from "../../edit/fadeLimits";
@@ -6,6 +6,13 @@ import { clipIdsBeforeCut, isCutJoin } from "../../edit/joinRender";
 import type { InspectorSection } from "../../system/InspectorSheet";
 import { ScrubField } from "../../system/ScrubField";
 import type { ClipRow, ProjectView } from "../../types/project";
+import {
+  CLIP_GAIN_MAX_DB,
+  CLIP_GAIN_MIN_DB,
+  CLIP_GAIN_STEP_DB,
+  clampClipGainDb,
+  clipGainDb,
+} from "../../utils/audio";
 import { note } from "./sheetNote";
 
 type Edge = "in" | "out";
@@ -101,19 +108,55 @@ export function multiClipSections({
     );
   };
 
+  const gainValues = new Set(clips.map(clipGainDb));
+  const commonGain = gainValues.size === 1 ? [...gainValues][0]! : null;
+  const applyGain = (value: number) => {
+    const target = clampClipGainDb(value);
+    const gains = clips.flatMap((clip) =>
+      clipGainDb(clip) === target
+        ? []
+        : [
+            {
+              clip_id: clip.id,
+              gain_db: target,
+              expected: { gain_db: clipGainDb(clip) },
+            },
+          ],
+    );
+    if (gains.length === 0) return;
+    cancelClipPlacement();
+    void run(() => setClipsGain(projectPath, gains));
+  };
+  const gainField = (
+    <ScrubField
+      variant="level"
+      label="Gain"
+      value={commonGain}
+      emptyText="Mixed"
+      unit="dB"
+      min={CLIP_GAIN_MIN_DB}
+      max={CLIP_GAIN_MAX_DB}
+      step={CLIP_GAIN_STEP_DB}
+      defaultValue={0}
+      readOnly={locked}
+      onCommit={applyGain}
+    />
+  );
+
   return [
     {
       id: "clip",
       rows: [
         { id: "fadeIn", label: "Fade in", control: field("in") },
         { id: "fadeOut", label: "Fade out", control: field("out") },
+        { id: "gain", label: "Gain", control: gainField },
         ...(locked
           ? []
           : [
               {
                 id: "fadeNote",
                 control: note(
-                  "A fade changes by the amount you scrub, on every selected clip.",
+                  "A fade changes by the amount you scrub; Gain sets every selected clip to the level you choose.",
                   "status",
                 ),
               },

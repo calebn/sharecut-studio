@@ -1,6 +1,6 @@
 import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { setClipFade, setClipJoin } from "../../api";
+import { setClipFade, setClipGain, setClipJoin } from "../../api";
 import { executePointerCommand } from "../../commands/pointer";
 import { rollSeam } from "../../commands/seamCommands";
 import { saveClipEdge, TRIM_MODE } from "../../edit/clipEdgeSave";
@@ -19,6 +19,7 @@ import { SectionsBody } from "./SectionsBody";
 vi.mock("../../api", async (importOriginal) => ({
   ...(await importOriginal<typeof import("../../api")>()),
   setClipFade: vi.fn(async () => null),
+  setClipGain: vi.fn(async () => null),
   setClipJoin: vi.fn(async () => undefined),
 }));
 vi.mock("../../edit/clipEdgeSave", async (importOriginal) => ({
@@ -97,6 +98,7 @@ const type = async (name: string, text: string) => {
 
 beforeEach(() => {
   vi.mocked(setClipFade).mockReset().mockResolvedValue(null);
+  vi.mocked(setClipGain).mockReset().mockResolvedValue(null);
   vi.mocked(setClipJoin).mockReset().mockResolvedValue(undefined);
   vi.mocked(rollSeam).mockReset().mockResolvedValue({ status: "done" });
   vi.mocked(saveClipEdge).mockClear();
@@ -860,5 +862,142 @@ describe("clip join rows", () => {
   it("has no axe violations with both joins showing", async () => {
     const { container } = open([clip, second, third], {}, second);
     await expectNoA11yViolations(container);
+  });
+});
+
+describe("clip gain", () => {
+  const gainField = () => screen.getByRole("spinbutton", { name: "Gain" });
+
+  it("sits after Fade out as a level field that reads 0 dB for an unchanged clip", () => {
+    open();
+    const names = screen
+      .getAllByRole("spinbutton")
+      .map((field) => field.ariaLabel);
+    expect(names.indexOf("Gain")).toBe(names.indexOf("Fade out") + 1);
+    expect(gainField()).toHaveAttribute("aria-valuenow", "0");
+    expect(gainField()).toHaveAttribute("aria-valuemin", "-60");
+    expect(gainField()).toHaveAttribute("aria-valuemax", "12");
+    expect(gainField().closest(".sys-scrub")).toHaveAttribute(
+      "data-variant",
+      "level",
+    );
+  });
+
+  it("shows the saved gain", () => {
+    open([{ ...clip, gain_db: -6.5 }]);
+    expect(gainField()).toHaveAttribute("aria-valuenow", "-6.5");
+  });
+
+  it("saves one command with the saved gain as its baseline", async () => {
+    open([{ ...clip, gain_db: -2 }]);
+    await key("Gain", "ArrowUp");
+    expect(setClipGain).toHaveBeenCalledTimes(1);
+    expect(setClipGain).toHaveBeenCalledWith("/tmp/ep.json", "c1", -1.5, {
+      gain_db: -2,
+    });
+  });
+
+  it("expects 0 dB from a clip that carries no gain", async () => {
+    open();
+    await type("Gain", "3");
+    expect(setClipGain).toHaveBeenCalledWith("/tmp/ep.json", "c1", 3, {
+      gain_db: 0,
+    });
+  });
+
+  it("limits a typed gain to -60..12 dB", async () => {
+    open();
+    await type("Gain", "13");
+    expect(setClipGain).not.toHaveBeenCalled();
+    fireEvent.keyDown(screen.getByRole("textbox", { name: "Gain" }), {
+      key: "Escape",
+    });
+    await key("Gain", "End");
+    expect(setClipGain).toHaveBeenLastCalledWith("/tmp/ep.json", "c1", 12, {
+      gain_db: 0,
+    });
+  });
+
+  it("sends nothing while a drag previews, then one command on release", async () => {
+    open();
+    const field = gainField();
+    fireEvent.pointerDown(field, { clientX: 100, pointerId: 1, button: 0 });
+    fireEvent.pointerMove(field, { clientX: 110, pointerId: 1 });
+    fireEvent.pointerMove(field, { clientX: 140, pointerId: 1 });
+    expect(Number(gainField().getAttribute("aria-valuenow"))).toBeGreaterThan(
+      0,
+    );
+    expect(setClipGain).not.toHaveBeenCalled();
+    await act(async () => {
+      fireEvent.pointerUp(field, { clientX: 140, pointerId: 1 });
+    });
+    expect(setClipGain).toHaveBeenCalledTimes(1);
+    const [, id, db, expected] = vi.mocked(setClipGain).mock.calls[0]!;
+    expect([id, expected]).toEqual(["c1", { gain_db: 0 }]);
+    expect(db).toBeGreaterThan(0);
+  });
+
+  it("drops a cancelled drag and shows the saved gain again", () => {
+    open([{ ...clip, gain_db: -3 }]);
+    const field = gainField();
+    fireEvent.pointerDown(field, { clientX: 100, pointerId: 1, button: 0 });
+    fireEvent.pointerMove(field, { clientX: 110, pointerId: 1 });
+    fireEvent.pointerMove(field, { clientX: 150, pointerId: 1 });
+    fireEvent.keyDown(field, { key: "Escape" });
+    expect(gainField()).toHaveAttribute("aria-valuenow", "-3");
+    expect(setClipGain).not.toHaveBeenCalled();
+  });
+
+  it("resets to 0 dB with the reset dot", async () => {
+    open([{ ...clip, gain_db: 4 }]);
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: /Reset Gain to 0/ }));
+    });
+    expect(setClipGain).toHaveBeenCalledWith("/tmp/ep.json", "c1", 0, {
+      gain_db: 4,
+    });
+  });
+
+  it("cancels a pending placement before the write", async () => {
+    open();
+    previewStart();
+    expect(getClipPlacement().kind).toBe("preview");
+    await key("Gain", "ArrowUp");
+    expect(getClipPlacement()).toEqual({ kind: "idle" });
+  });
+
+  it("says why a refusal saved nothing and shows the saved gain again", async () => {
+    vi.mocked(setClipGain).mockRejectedValueOnce(new Error("Gain refused"));
+    open();
+    await key("Gain", "ArrowUp");
+    expect(screen.getByRole("alert")).toHaveTextContent("Gain refused");
+    expect(gainField()).toHaveAttribute("aria-valuenow", "0");
+  });
+
+  it("is read-only for a Viewer", async () => {
+    open();
+    act(() => {
+      useDawStore.setState({
+        projectPath: "share:ep",
+        guestMode: "viewer",
+        shareCapabilities: ["view"],
+      });
+    });
+    expect(gainField()).toHaveAttribute("aria-readonly", "true");
+    await key("Gain", "ArrowUp");
+    expect(setClipGain).not.toHaveBeenCalled();
+  });
+
+  it("is editable for a share Editor", async () => {
+    open();
+    act(() => {
+      useDawStore.setState({
+        projectPath: "share:ep",
+        guestMode: "editor",
+        shareCapabilities: ["view", "edit"],
+      });
+    });
+    await key("Gain", "ArrowUp");
+    expect(setClipGain).toHaveBeenCalledTimes(1);
   });
 });

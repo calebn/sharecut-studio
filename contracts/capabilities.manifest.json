@@ -3502,6 +3502,10 @@
         "canApplyPass12"
       ],
       "surfaces": {
+        "command": "edit.setClipGain",
+        "gui": [
+          "inspector.clip.gain"
+        ],
         "mcp": [
           "set_clip_gain_tool",
           "set_clips_gain_tool"
@@ -3509,7 +3513,7 @@
         "cli": "podcast doc submit"
       },
       "omit": {
-        "keyboard_reason": "level in dB, set by the agent or the document command"
+        "keyboard_reason": "level in dB, set from the clip Inspector or the agent"
       },
       "presence": {
         "cursor": "none",

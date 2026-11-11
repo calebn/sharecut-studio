@@ -1106,6 +1106,29 @@ describe("ScrubField states", () => {
     expect(screen.getByRole("spinbutton", { name: "Offset" })).toHaveFocus();
   });
 
+  it("offers the reset dot on an empty level so a Mixed selection can return to its default", async () => {
+    const user = userEvent.setup();
+    const { calls } = setup({
+      variant: "level",
+      value: null,
+      emptyText: "Mixed",
+      min: -60,
+      max: 12,
+      defaultValue: 0,
+      decimals: 1,
+      unit: "dB",
+    });
+    await user.click(
+      screen.getByRole("button", { name: "Reset Offset to 0.0 dB" }),
+    );
+    expect(calls.onCommit.mock.calls).toEqual([[0]]);
+  });
+
+  it("offers no reset dot on an empty plain field", () => {
+    setup({ value: null, defaultValue: 0 });
+    expect(screen.queryByRole("button", { name: /Reset/ })).toBeNull();
+  });
+
   it("draws the empty state and steps from the default", async () => {
     const user = userEvent.setup();
     const { calls, field } = setup({ value: null, defaultValue: 20 });

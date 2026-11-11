@@ -218,6 +218,7 @@ const IN_PLACE: Record<string, string> = {
   "edit.mute":
     "runs range.mute, transcript.ignoreWords or track.muteToggle, each proven here",
   "edit.rollClipJoin": "the Seam diamond moves under the person's hand",
+  "edit.setClipGain": "the Gain field in the clip inspector shows the level",
   "edit.setClipJoin": "the Seam bar shows the new join type",
   "track.muteToggle": "the lane and its button show the mute",
   "track.setVolume": "the fader shows the level",
