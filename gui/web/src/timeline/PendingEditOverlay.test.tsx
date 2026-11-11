@@ -8,7 +8,7 @@ import {
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { StrictMode } from "react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { updatePendingEdit, waiveTranscriptRefine } from "../api";
 import { clearRegisteredCommands } from "../commands/execute";
 import {
@@ -45,18 +45,31 @@ import {
   minimalProject,
 } from "../test/fixtures";
 import { decide } from "../test/pendingDecision";
+import { FakeResizeObserver, stubResizeObserver } from "../test/resizeObserver";
 import type { PendingEditView } from "../types/project";
 import { ApiError, TRANSCRIPT_REFINE_REQUIRED_CODE } from "../utils/apiError";
 import { PENDING_REVIEW_QUEUED_MESSAGE } from "../utils/pendingEditLabels";
 import { pendingEditTimingFieldId } from "../utils/pendingEditTimingField";
 import { PendingEditOverlay } from "./PendingEditOverlay";
 import { PendingEditOverlayView } from "./PendingEditOverlayView";
+import {
+  type PendingActionPlacement,
+  placePendingActionbar,
+} from "./pendingActionPlacement";
 
 vi.mock("../api", async (importOriginal) => ({
   ...(await importOriginal<typeof import("../api")>()),
   updatePendingEdit: vi.fn(async () => undefined),
   waiveTranscriptRefine: vi.fn(async () => undefined),
 }));
+vi.mock("./pendingActionPlacement", async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import("./pendingActionPlacement")>();
+  return {
+    ...actual,
+    placePendingActionbar: vi.fn(actual.placePendingActionbar),
+  };
+});
 vi.mock("../hooks/useWaveformSnapTicks", () => ({
   useWaveformSnapTicks: vi.fn(() => ({
     ticks: [],
@@ -1529,6 +1542,247 @@ it("keeps a waiver save busy across relocation and shows its failure on the same
     view.unmount();
     root.remove();
   }
+});
+
+describe("pending actions panel placement state", () => {
+  const selector = ".pending-actionbar";
+  const placementAt = (maxHeight: number): PendingActionPlacement => ({
+    left: 40,
+    top: 90,
+    maxHeight,
+  });
+  let frames: Map<number, FrameRequestCallback>;
+  let nextFrame: number;
+  let sheetRoot: HTMLElement | null = null;
+
+  beforeEach(() => {
+    frames = new Map();
+    nextFrame = 1;
+    vi.spyOn(window, "requestAnimationFrame").mockImplementation((cb) => {
+      frames.set(nextFrame, cb);
+      return nextFrame++;
+    });
+    vi.spyOn(window, "cancelAnimationFrame").mockImplementation((id) => {
+      frames.delete(id);
+    });
+    vi.mocked(useWaveformSnapTicks).mockReturnValue(snapResource([]));
+    vi.mocked(placePendingActionbar).mockClear();
+    useDawStore
+      .getState()
+      .hydrate("/tmp/p.json", minimalProject({ pending_edits: [edit] }));
+  });
+
+  afterEach(() => {
+    sheetRoot?.remove();
+    sheetRoot = null;
+    vi.mocked(placePendingActionbar).mockReset();
+    vi.restoreAllMocks();
+  });
+
+  const flush = () =>
+    act(() => {
+      const due = [...frames.values()];
+      frames.clear();
+      for (const cb of due) cb(0);
+    });
+  const panel = () => document.querySelector<HTMLElement>(selector);
+  const state = () => panel()?.getAttribute("data-placement");
+  const viewOf = (selectedId: string | null, zoomPxPerSec = 10) => (
+    <PendingEditOverlayView
+      edits={[edit]}
+      trackId="host"
+      zoomPxPerSec={zoomPxPerSec}
+      timelineWidthPx={1000}
+      selectedId={selectedId}
+      projectPath="/tmp/p.json"
+      clipsByTrack={{}}
+      canAdjust
+      canApply
+      onSelect={vi.fn()}
+      onCommitSpan={vi.fn()}
+      onReviewAction={vi.fn(async () => ({ queued: false }))}
+    />
+  );
+  const mountSelected = (selectedId: string | null = "cut_1") =>
+    render(viewOf(selectedId));
+
+  const expectHidden = () => {
+    expect(panel()?.getAttribute("aria-hidden")).toBe("true");
+    expect(panel()?.style.visibility).toBe("hidden");
+    expect(
+      panel()?.style.getPropertyValue("--pending-actionbar-max-height"),
+    ).toBe("");
+  };
+
+  it("is pending and hidden before the first measurement, without the max-height var", () => {
+    mountSelected();
+    expect(state()).toBe("pending");
+    expectHidden();
+  });
+
+  it("turns placed only when a second pass reproduces the first", () => {
+    vi.mocked(placePendingActionbar).mockReturnValue(placementAt(300));
+    mountSelected();
+    flush();
+    expect(state()).toBe("pending");
+    expect(panel()?.getAttribute("aria-hidden")).toBe("false");
+    expect(
+      panel()?.style.getPropertyValue("--pending-actionbar-max-height"),
+    ).toBe("300px");
+    flush();
+    expect(state()).toBe("placed");
+    expect(frames.size).toBe(0);
+  });
+
+  it("stays pending while consecutive passes still move the panel", () => {
+    vi.mocked(placePendingActionbar)
+      .mockReturnValueOnce(placementAt(0))
+      .mockReturnValueOnce(placementAt(300))
+      .mockReturnValue(placementAt(300));
+    mountSelected();
+    flush();
+    flush();
+    expect(state()).toBe("pending");
+    flush();
+    expect(state()).toBe("placed");
+  });
+
+  it("goes back to pending as soon as a resize is scheduled, then settles", () => {
+    vi.mocked(placePendingActionbar).mockReturnValue(placementAt(300));
+    mountSelected();
+    flush();
+    flush();
+    expect(state()).toBe("placed");
+    // Dispatched outside act so React has not committed the reset yet.
+    window.dispatchEvent(new Event("resize"));
+    expect(state()).toBe("pending");
+    act(() => {});
+    expect(state()).toBe("pending");
+    expect(panel()?.dataset.placement).toBe("pending");
+    flush();
+    expect(state()).toBe("pending");
+    flush();
+    expect(state()).toBe("placed");
+  });
+
+  it("stays pending and stops verifying when geometry never converges", () => {
+    let n = 0;
+    vi.mocked(placePendingActionbar).mockImplementation(() =>
+      placementAt(100 + n++),
+    );
+    mountSelected();
+    for (let i = 0; i < 12; i++) flush();
+    expect(vi.mocked(placePendingActionbar)).toHaveBeenCalledTimes(6);
+    expect(state()).toBe("pending");
+    expect(frames.size).toBe(0);
+  });
+
+  it("keeps the pass budget across ResizeObserver updates until a pass settles", () => {
+    stubResizeObserver();
+    try {
+      const observed = () =>
+        act(() => {
+          for (const ro of FakeResizeObserver.all) ro.fire();
+        });
+      let n = 0;
+      vi.mocked(placePendingActionbar).mockImplementation(() =>
+        placementAt(100 + n++),
+      );
+      mountSelected();
+      flush();
+      flush();
+      observed();
+      for (let i = 0; i < 12; i++) {
+        flush();
+        observed();
+      }
+      for (let i = 0; i < 12; i++) flush();
+      expect(vi.mocked(placePendingActionbar)).toHaveBeenCalledTimes(6);
+      expect(state()).toBe("pending");
+      expect(frames.size).toBe(0);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it("returns to pending when the panel is deselected and selected again", () => {
+    vi.mocked(placePendingActionbar).mockReturnValue(placementAt(300));
+    const { rerender } = mountSelected();
+    flush();
+    flush();
+    expect(state()).toBe("placed");
+    rerender(viewOf(null));
+    rerender(viewOf("cut_1"));
+    expect(state()).toBe("pending");
+    flush();
+    expect(state()).toBe("pending");
+    flush();
+    expect(state()).toBe("placed");
+  });
+
+  it("returns to pending when the span's left or width changes", () => {
+    vi.mocked(placePendingActionbar).mockReturnValue(placementAt(300));
+    const { rerender } = mountSelected();
+    flush();
+    flush();
+    expect(state()).toBe("placed");
+    rerender(viewOf("cut_1", 20));
+    expect(state()).toBe("pending");
+    flush();
+    expect(state()).toBe("pending");
+    flush();
+    expect(state()).toBe("placed");
+  });
+
+  it("does not confirm a pass measured before the previous max-height was applied", () => {
+    vi.mocked(placePendingActionbar).mockReturnValue(placementAt(300));
+    mountSelected();
+    flush();
+    panel()?.style.removeProperty("--pending-actionbar-max-height");
+    flush();
+    expect(state()).toBe("pending");
+    panel()?.style.setProperty("--pending-actionbar-max-height", "300px");
+    flush();
+    expect(state()).toBe("placed");
+  });
+
+  it("settles as none when there is no room, and keeps the panel hidden", () => {
+    vi.mocked(placePendingActionbar).mockReturnValue(null);
+    mountSelected();
+    flush();
+    expect(state()).toBe("pending");
+    flush();
+    expect(state()).toBe("none");
+    expectHidden();
+  });
+
+  it("has no state when the panel is not rendered", () => {
+    mountSelected(null);
+    flush();
+    expect(panel()).toBeNull();
+  });
+
+  it("reports docked inside the phone Inspector sheet", () => {
+    const root = document.createElement("div");
+    root.className = "bottom-sheet-root";
+    const sheet = document.createElement("div");
+    sheet.className = "bottom-sheet bottom-sheet--half sys-inspector--phone";
+    const scroll = document.createElement("div");
+    scroll.className = "sys-inspector-scroll";
+    sheet.append(scroll);
+    root.append(sheet);
+    document.body.append(root);
+    sheetRoot = root;
+    useDawStore.getState().setSelection({
+      kind: "pending",
+      id: edit.id,
+      trackId: edit.track_id,
+    });
+    mountSelected();
+    flush();
+    flush();
+    expect(state()).toBe("docked");
+  });
 });
 
 describe("single pending review feedback", () => {

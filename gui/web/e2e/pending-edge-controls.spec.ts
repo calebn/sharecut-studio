@@ -8,6 +8,7 @@ import {
 } from "./liveProject";
 import { openSuggestedPendingEdit } from "./pendingEdit";
 import { openPhoneTimeline } from "./phoneTimeline";
+import { resizeViewport } from "./resizeViewport";
 import { switchE2eProject } from "./shareableProject";
 import { altClickSplit, inspectSelection, stepTrackHeight } from "./stageNav";
 
@@ -439,9 +440,10 @@ test("phone pending controls stay clear of handles and dense labels follow layou
   await reselectHit.focus();
   await reselectHit.press("Enter");
 
-  await page.setViewportSize({ width: 1280, height: 720 });
+  await resizeViewport(page, { width: 1280, height: 720 });
   await expect(page.locator(".stage-frame--desktop")).toBeVisible();
   await expect(actionbar).toBeVisible();
+  await expect(actionbar).toHaveAttribute("data-placement", "placed");
   const resizedActionBox = await actionbar.boundingBox();
   expect(resizedActionBox).toBeTruthy();
   expect(resizedActionBox!.x).toBeGreaterThanOrEqual(0);
