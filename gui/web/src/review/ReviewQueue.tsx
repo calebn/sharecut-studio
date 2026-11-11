@@ -22,6 +22,7 @@ import { Button, EmptyState, SegmentedControl, ToggleButton } from "../ui";
 import { disabledAttrs, useDisabledReasonNote } from "../ui/disabledReason";
 import type { ModelNeeded } from "../utils/apiError";
 import { formatTimeShort } from "../utils/time";
+import type { ConflictSuggestion } from "./conflictRows";
 import { RefineGateWaiver } from "./RefineGateWaiver";
 import {
   type ReviewDetailKind,
@@ -29,6 +30,7 @@ import {
   reviewSubsetCount,
 } from "./reviewCompleteness";
 import {
+  type AttentionRow,
   attentionLabelOf,
   attentionVisible,
   commentLine,
@@ -259,6 +261,39 @@ function GroupHeader({
   );
 }
 
+/** A guest cut a newer host edit overlaps: Hear it, suggest it again, or drop it. */
+function SuggestionRow({
+  row,
+  suggestion,
+  actions,
+}: {
+  row: AttentionRow;
+  suggestion: ConflictSuggestion;
+  actions: NonNullable<ReviewAttention["suggestionActions"]>;
+}) {
+  return (
+    <StatusRow
+      state="needs-you"
+      title={suggestion.title}
+      secondaryAction={{
+        label: "Hear",
+        name: suggestion.names.hear,
+        onAction: () => actions.onHear(row),
+      }}
+      action={{
+        label: "Suggest again here",
+        name: suggestion.names.suggestAgain,
+        onAction: () => actions.onSuggestAgain(row),
+      }}
+      tertiaryAction={{
+        label: "Drop it",
+        name: suggestion.names.drop,
+        onAction: () => actions.onDrop(row),
+      }}
+    />
+  );
+}
+
 function AttentionGroup({
   attention,
   waivedIds,
@@ -351,19 +386,27 @@ function AttentionGroup({
       ) : null}
       {rows.map((row) => (
         <div key={row.id} className="rv-check">
-          <StatusRow
-            state="needs-you"
-            title={row.title}
-            detail={row.detail || undefined}
-            action={
-              row.inspectHistory && attention.onInspectHistory
-                ? {
-                    label: "Inspect History",
-                    onAction: attention.onInspectHistory,
-                  }
-                : undefined
-            }
-          />
+          {row.suggestion && attention.suggestionActions ? (
+            <SuggestionRow
+              row={row}
+              suggestion={row.suggestion}
+              actions={attention.suggestionActions}
+            />
+          ) : (
+            <StatusRow
+              state="needs-you"
+              title={row.title}
+              detail={row.detail || undefined}
+              action={
+                row.inspectHistory && attention.onInspectHistory
+                  ? {
+                      label: "Inspect History",
+                      onAction: attention.onInspectHistory,
+                    }
+                  : undefined
+              }
+            />
+          )}
           {row.refineReason !== undefined &&
           refineWaiverProject !== undefined ? (
             <RefineGateWaiver

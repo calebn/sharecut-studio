@@ -451,6 +451,38 @@ describe("attention rows", () => {
     ...over,
   });
 
+  it("carries the cut suggestion of a stale refusal and leaves the generic words", () => {
+    const [row] = attentionRowsOf(
+      [
+        offlineConflict({
+          code: "range_changed",
+          reason: "Selected audio changed. Select the range again.",
+          command: {
+            command_id: "cut-1",
+            type: "EditSelectedRange",
+            payload: {
+              action: "cut",
+              targets: [
+                { intervals: [{ start: 724, end: 727 }], track_ids: ["t"] },
+              ],
+            },
+          },
+        }),
+      ],
+      true,
+    );
+    expect(row?.title).toBe(
+      "Your change: Selected audio changed. Select the range again.",
+    );
+    expect(row?.detail).toBe("Edit the change and submit it again.");
+    expect(row?.suggestion).toMatchObject({
+      title: "Your cut at 12:04 overlaps a newer edit",
+      startSec: 724,
+      endSec: 727,
+      trackIds: ["t"],
+    });
+  });
+
   it("words each conflict for the queue, with the guest advice", () => {
     expect(
       attentionRowsOf(
