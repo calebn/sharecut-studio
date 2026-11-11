@@ -97,7 +97,9 @@ def _upgrade_document(data: dict[str, Any], project_file: Path) -> str:
 
 
 def _skip_lock_files(directory: str, names: list[str]) -> list[str]:
-    return [name for name in names if name.endswith(".lock") and Path(directory).name == "artifacts"]
+    return [
+        name for name in names if name.endswith(".lock") and Path(directory).name == "artifacts"
+    ]
 
 
 def _read_document(path: Path) -> dict[str, Any]:
