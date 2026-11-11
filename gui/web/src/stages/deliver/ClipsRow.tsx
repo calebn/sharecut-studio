@@ -219,28 +219,40 @@ export function ClipsRow({
                       onTrim={(edge, at) => onTrim(clip.id, edge, at)}
                       onGesture={onTrimGesture}
                     />
-                    <ScrubField
-                      label={`In of ${name}`}
-                      value={clip.start}
-                      min={0}
-                      max={total}
-                      step={0.1}
-                      unit="s"
-                      decimals={2}
-                      commitOnUnmount
-                      onCommit={(at) => onTrim(clip.id, "start", at)}
-                    />
-                    <ScrubField
-                      label={`Out of ${name}`}
-                      value={clip.end}
-                      min={0}
-                      max={total}
-                      step={0.1}
-                      unit="s"
-                      decimals={2}
-                      commitOnUnmount
-                      onCommit={(at) => onTrim(clip.id, "end", at)}
-                    />
+                    <div className="dv-part-field">
+                      <span className="dv-part-label" aria-hidden="true">
+                        In
+                      </span>
+                      <ScrubField
+                        label={`In of ${name}`}
+                        value={clip.start}
+                        min={0}
+                        max={total}
+                        step={0.1}
+                        unit="s"
+                        decimals={2}
+                        skipUnchanged
+                        commitOnUnmount
+                        onCommit={(at) => onTrim(clip.id, "start", at)}
+                      />
+                    </div>
+                    <div className="dv-part-field">
+                      <span className="dv-part-label" aria-hidden="true">
+                        Out
+                      </span>
+                      <ScrubField
+                        label={`Out of ${name}`}
+                        value={clip.end}
+                        min={0}
+                        max={total}
+                        step={0.1}
+                        unit="s"
+                        decimals={2}
+                        skipUnchanged
+                        commitOnUnmount
+                        onCommit={(at) => onTrim(clip.id, "end", at)}
+                      />
+                    </div>
                   </div>
                 ) : null}
                 <div className="dv-clip-meta">

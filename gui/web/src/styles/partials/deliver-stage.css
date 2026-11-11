@@ -495,8 +495,12 @@
 
 .dv-clip-trim {
   display: flex;
-  flex-direction: column;
-  gap: var(--space-1);
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-4);
+}
+
+.dv-clip-trim > .sys-wave {
+  flex: 1 1 100%;
 }
 
 .dv-page[aria-busy="true"] {
