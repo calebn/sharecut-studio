@@ -8,6 +8,7 @@ import {
   exportedFilesOf,
   NEVER,
   REQUEST,
+  RUNNING,
   SETTINGS,
   STALE,
   TOTAL,
@@ -64,7 +65,7 @@ it.each([{ remaining: [] }, { remaining: ["mp3"] }])(
 );
 
 const renderAfter = (
-  state: typeof DONE | typeof STALE,
+  state: typeof DONE | typeof STALE | typeof RUNNING,
   access: "reveal" | "download",
   extra: { onReveal?: () => void; onStarted?: () => void } = {},
 ) =>
@@ -80,10 +81,10 @@ const renderAfter = (
     />,
   );
 
-it("makes Reveal in Finder the primary after an export and keeps Export as a quiet again", async () => {
+it("makes Reveal in folder the primary after an export and keeps Export as a quiet again", async () => {
   const onReveal = vi.fn();
   renderAfter(DONE, "reveal", { onReveal });
-  const reveal = screen.getByRole("button", { name: "Reveal in Finder" });
+  const reveal = screen.getByRole("button", { name: "Reveal in folder" });
   expect(reveal).toHaveClass("primary");
   const again = screen.getByRole("button", { name: "Export again" });
   expect(again).not.toHaveClass("primary");
@@ -92,10 +93,18 @@ it("makes Reveal in Finder the primary after an export and keeps Export as a qui
   expect(onReveal.mock.calls[0]?.[0]).toMatchObject({ kind: "audio" });
 });
 
+it("keeps the file primary while an export runs again", () => {
+  renderAfter(RUNNING, "reveal");
+  expect(screen.getByRole("button", { name: "Reveal in folder" })).toHaveClass(
+    "primary",
+  );
+  expect(screen.getByRole("button", { name: "Export again" })).toBeDisabled();
+});
+
 it("makes Download the primary after a browser export and downloads the main file", async () => {
   const onStarted = vi.fn();
   renderAfter(DONE, "download", { onStarted });
-  const link = screen.getByRole("link", { name: "Download" });
+  const link = screen.getByRole("link", { name: /^Download main file/ });
   expect(link).toHaveClass("primary");
   expect(link).toHaveAttribute("download");
   expect(screen.getByRole("button", { name: "Export again" })).not.toHaveClass(
@@ -109,7 +118,7 @@ it("makes Download the primary after a browser export and downloads the main fil
 it("keeps Export the primary when the export is stale or never ran", () => {
   const { unmount } = renderAfter(STALE, "reveal");
   expect(screen.getByRole("button", { name: "Export" })).toHaveClass("primary");
-  expect(screen.queryByRole("button", { name: "Reveal in Finder" })).toBeNull();
+  expect(screen.queryByRole("button", { name: "Reveal in folder" })).toBeNull();
   unmount();
   render(
     <EpisodeFile

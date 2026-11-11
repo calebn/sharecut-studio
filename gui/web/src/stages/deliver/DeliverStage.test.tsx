@@ -768,7 +768,7 @@ describe("the double-export timer", () => {
 });
 
 describe("the primary button after an export", () => {
-  it("is still Export, with no Download all, Reveal in Finder or Show in folder", async () => {
+  it("is still Export, with no Download all, Reveal in folder or Show in folder", async () => {
     for (const apple of [false, true]) {
       platform.apple = apple;
       for (const access of ["reveal", "download"] as const) {
@@ -780,7 +780,7 @@ describe("the primary button after an export", () => {
         expect(all.onExport).toHaveBeenCalledOnce();
         for (const gone of [
           "Download all",
-          "Reveal in Finder",
+          "Reveal in folder",
           "Show in folder",
         ]) {
           expect(screen.queryByText(gone)).toBeNull();
@@ -796,9 +796,9 @@ describe("the primary button after an export", () => {
       files: exportedFilesOf(REQUEST, "download"),
     });
     expect(container.querySelectorAll(".primary")).toHaveLength(1);
-    expect(screen.getByRole("link", { name: "Download" })).toHaveClass(
-      "primary",
-    );
+    expect(
+      screen.getByRole("link", { name: /^Download main file/ }),
+    ).toHaveClass("primary");
   });
 });
 
@@ -2718,7 +2718,7 @@ describe("round five of the audit: the whole visible page, state by state", () =
             "Whole episode",
             "Part…",
             "Change",
-            "Reveal in Finder",
+            "Reveal in folder",
             "Export again",
             "Reveal field-notes.mp3, 50 MB",
             "Reveal field-notes.wav, 550 MB",
@@ -2772,7 +2772,7 @@ describe("round five of the audit: the whole visible page, state by state", () =
             "done",
             "done",
           ],
-          "text": "Ready to exportDone: Suggestions decided14 of 14Done: Comments resolved3 of 3Done: Unsure words checked0 leftDone: Mix up to dateCurrentDone: Loudness−16.0 LUFS target, will be checkedDone: Peaks under −1.5 dBTPChecked on exportDone: Chapters5Done: Edits saved23.6 sEpisode fileMP350 MBWAV550 MBFLAC303 MBAvailable captions and transcript are included with every audio export.LoudnessPodcast−16Broadcast−23Streaming−14RangeWhole episodePart…Saves to Field Notes/exportChangeDone: ExportedLast export 2 h agoReveal in FinderExport againmp3field-notes.mp3Listening file50 MBRevealwavfield-notes.wavLossless master550 MBRevealwavcold-open.wavClip6 MBRevealChapters0.00s312.40s1180.00s2410.50sAdd at playheadClipsFind clips41.0 sApprove28.0 sApprove33.0 sApprovedUnapproveListen linkViewerhttps://share.…k9TnP4vLr8Za3wFrozen on Rough cutCopy0:00 / 52:001515AB",
+          "text": "Ready to exportDone: Suggestions decided14 of 14Done: Comments resolved3 of 3Done: Unsure words checked0 leftDone: Mix up to dateCurrentDone: Loudness−16.0 LUFS target, will be checkedDone: Peaks under −1.5 dBTPChecked on exportDone: Chapters5Done: Edits saved23.6 sEpisode fileMP350 MBWAV550 MBFLAC303 MBAvailable captions and transcript are included with every audio export.LoudnessPodcast−16Broadcast−23Streaming−14RangeWhole episodePart…Saves to Field Notes/exportChangeDone: ExportedLast export 2 h agoReveal in folderExport againmp3field-notes.mp3Listening file50 MBRevealwavfield-notes.wavLossless master550 MBRevealwavcold-open.wavClip6 MBRevealChapters0.00s312.40s1180.00s2410.50sAdd at playheadClipsFind clips41.0 sApprove28.0 sApprove33.0 sApprovedUnapproveListen linkViewerhttps://share.…k9TnP4vLr8Za3wFrozen on Rough cutCopy0:00 / 52:001515AB",
         },
         "desktop: done in the browser": {
           "buttons": [
@@ -3459,7 +3459,7 @@ describe("round five of the audit: the whole visible page, state by state", () =
             "Play Cold open",
             "Unapprove Cold open",
             "More for Cold open",
-            "Reveal in Finder",
+            "Reveal in folder",
             "Export again",
             "0:00 / 52:00. Expand player",
             "Back 15 seconds",
@@ -3487,7 +3487,7 @@ describe("round five of the audit: the whole visible page, state by state", () =
             "done",
             "done",
           ],
-          "text": "Ready to exportDone: Suggestions decided14 of 14Done: Comments resolved3 of 3Done: Unsure words checked0 leftDone: Mix up to dateCurrentDone: Loudness−16.0 LUFS target, will be checkedDone: Peaks under −1.5 dBTPChecked on exportDone: Chapters5Done: Edits saved23.6 sEpisode fileMP350 MBWAV550 MBFLAC303 MBAvailable captions and transcript are included with every audio export.LoudnessPodcast−16Broadcast−23Streaming−14RangeWhole episodePart…Saves to Field Notes/exportChangeDone: ExportedLast export 2 h agomp3field-notes.mp3Listening file50 MBRevealwavfield-notes.wavLossless master550 MBRevealwavcold-open.wavClip6 MBRevealListen linkhttps://share.…k9TnP4vLr8Za3wFrozen on Rough cutCopyChapters0.00s312.40s1180.00s2410.50sAdd at playheadClipsFind clips41.0 sApprove28.0 sApprove33.0 sApprovedUnapproveReveal in FinderExport again0:00 / 52:001515AB",
+          "text": "Ready to exportDone: Suggestions decided14 of 14Done: Comments resolved3 of 3Done: Unsure words checked0 leftDone: Mix up to dateCurrentDone: Loudness−16.0 LUFS target, will be checkedDone: Peaks under −1.5 dBTPChecked on exportDone: Chapters5Done: Edits saved23.6 sEpisode fileMP350 MBWAV550 MBFLAC303 MBAvailable captions and transcript are included with every audio export.LoudnessPodcast−16Broadcast−23Streaming−14RangeWhole episodePart…Saves to Field Notes/exportChangeDone: ExportedLast export 2 h agomp3field-notes.mp3Listening file50 MBRevealwavfield-notes.wavLossless master550 MBRevealwavcold-open.wavClip6 MBRevealListen linkhttps://share.…k9TnP4vLr8Za3wFrozen on Rough cutCopyChapters0.00s312.40s1180.00s2410.50sAdd at playheadClipsFind clips41.0 sApprove28.0 sApprove33.0 sApprovedUnapproveReveal in folderExport again0:00 / 52:001515AB",
         },
         "phone: done in the browser": {
           "buttons": [
