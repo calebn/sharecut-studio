@@ -34,6 +34,8 @@ flowchart TD
 
 A Viewer (listen-only) link shows no comment field.
 
+On a link that cannot edit, the clip inspector says so in text ("This link can view, but not edit, clips. Ask the host for an editor link.") and a track the host muted shows "Muted in the mix. Only the host and editors can unmute it." beside its Mute button.
+
 An unavailable or revoked link shows an error. A share built without `view` (API only, no role mints one) opens the same kind of error: "This link doesn't open anything. Ask the person who sent it for a new link."
 
 The comment fields fit narrow phones without horizontal page scrolling.
@@ -134,7 +136,7 @@ flowchart TD
 4. If this device cannot read saved edits, **Needs attention** keeps its last
    verified values and says "Could not read saved edits on this device. Your
    saved edits have been kept." Dismiss all is unavailable until the saved
-   queue and conflicts can be read.
+   queue and conflicts can be read. The reason shows in text under the group header.
 5. If dismissing fails, **Needs attention** keeps saying "Dismissal failed. Your
    saved outcomes have been kept." through the background reads until the guest
    presses Retry, which reads the list again. Share guests see the same conflicts

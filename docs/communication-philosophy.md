@@ -616,6 +616,8 @@ shipped at the port; #1031 shipped it. The adjacent MCP note shipped in #1027.
 
 ## Changelog
 
+- 2026-11-11 Five more controls say why they are unavailable, in text beside them (#1686): the clip inspector for a View-only link ("This link can view, but not edit, clips. Ask the host for an editor link."), a saved mute a guest cannot undo (the mixer and the track inspector show "Muted in the mix. Only the host and editors can unmute it."), the More sheet's End session, the pending-edit Suggested and A/B preview modes, and the Review queue's held Dismiss all (no longer screen-reader-only). Each control keeps its `title` and points `aria-describedby` at the visible note.
+
 - 2026-11-11 Bounce is now Export in the UI. Export runs in place from the Edit action bar and `Mod+E` exports a selected range in place; the palette has **Export full mix**. Deliver lists the files as **Exports of a selection**, labelled **Unmastered export**. The Deliver Bounce section is gone.
 
 - 2026-11-08 Job receipt failures use the existing failure row and the shared
