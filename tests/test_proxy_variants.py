@@ -351,7 +351,7 @@ def test_all_nonempty_choices_bind_inactive_and_unity_occurrences(workspace, fas
     }
     assert "input_hash" not in str(payload)
     assert payload["occurrences"]["selected"]["outputTrackId"] == "host"
-    assert payload["occurrences"]["selected"]["bakesMutes"] is True
+    assert payload["occurrences"]["selected"]["bakesMutes"] is False
     assert payload["occurrences"]["repeat"]["bakesMutes"] is False
 
 
@@ -1070,7 +1070,7 @@ def test_share_cors_fallback_preserves_current_complete_restore_generation(
         "selected": {
             "artifactId": generation.occurrences["selected"].artifact_id,
             "outputTrackId": "host",
-            "bakesMutes": True,
+            "bakesMutes": False,
         }
     }
     for descriptor in body["artifacts"].values():

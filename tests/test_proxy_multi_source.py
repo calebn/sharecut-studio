@@ -1,17 +1,23 @@
 from __future__ import annotations
 
+import dataclasses
 import json
 import wave
 
 import numpy as np
 import pytest
 
+from podcast_mcp.config.defaults import load_defaults
+from podcast_mcp.engines.bleed_gate import BleedGatePlan
+from podcast_mcp.engines.ffmpeg import FFmpegEngine
+from podcast_mcp.engines.source_proxy_audio import SourceProxyInputs
 from podcast_mcp.models import Clip, MediaAsset, Track, load_project, save_project
 from podcast_mcp.models.episode import ClipBleedRestore, SourceRecording, SourceSpan
 from podcast_mcp.project.store import WriteGrantKind, write_grant
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.media import proxy_media as pm
 from podcast_mcp.services.media import proxy_variants as pv
+from podcast_mcp.util.coded_error import CodedValueError
 from podcast_mcp.util.hashing import sha256_file
 
 
@@ -128,8 +134,52 @@ def test_bleed_restore_occurrence_wins_over_recording_binding(two_recording_trac
     )
     ws.save()
     generation = pv.ensure_proxy_manifest(ws)
-    assert generation.occurrences["second"].bakes_mutes is True
+    assert generation.occurrences["second"].bakes_mutes is False
     assert list(generation.occurrences) == ["second"]
+
+
+def _restore_second(ws):
+    source = ws.project.workspace_path() / "raw/host_src1.wav"
+    clip = next(c for c in ws.project.clips if c.id == "second")
+    clip.bleed_restore = ClipBleedRestore(
+        source_sha256=sha256_file(source), regions=[SourceSpan(start_s=0.6, end_s=0.9)]
+    )
+    return clip
+
+
+def test_clip_with_unknown_source_id_fails_with_clip_source_missing(two_recording_track):
+    ws = two_recording_track
+    next(c for c in ws.project.clips if c.id == "second").source_id = "nope"
+    ws.save()
+    with pytest.raises(CodedValueError) as raised:
+        pv.ensure_proxy_manifest(ws)
+    assert raised.value.code == "clip_source_missing"
+
+
+def test_restored_clip_with_unknown_source_id_fails_with_clip_source_missing(two_recording_track):
+    ws = two_recording_track
+    _restore_second(ws).source_id = "nope"
+    ws.save()
+    with pytest.raises(CodedValueError) as raised:
+        pv.ensure_proxy_manifest(ws)
+    assert raised.value.code == "clip_source_missing"
+
+
+def test_inputs_bake_mutes_only_when_the_gate_attenuates(two_recording_track):
+    ws = two_recording_track
+    _restore_second(ws)
+    ws.save()
+    captured = SourceProxyInputs.capture_occurrence(
+        ws.project, "second", FFmpegEngine(), defaults=load_defaults()
+    )
+    assert captured.regions
+    assert captured.bakes_mutes is False
+    gate = BleedGatePlan(attenuation_spans=((0.6, 0.9),), reduction="mute")
+    assert dataclasses.replace(captured, gate=gate).bakes_mutes is True
+    unity = BleedGatePlan(attenuation_spans=((0.6, 0.9),), reduction="attenuate", attenuation_db=0)
+    assert unity.floor_gain == 1
+    assert dataclasses.replace(captured, gate=unity).bakes_mutes is False
+    assert dataclasses.replace(captured, gate=gate, regions=()).bakes_mutes is False
 
 
 def test_missing_recording_file_fails_instead_of_playing_the_primary(two_recording_track):
