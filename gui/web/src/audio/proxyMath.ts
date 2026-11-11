@@ -75,7 +75,6 @@ export interface ClipEnvelope {
   readonly fadeInSec: number;
   readonly fadeOutSec: number;
   readonly gainCurve: "linear" | "equalPower";
-  /** The clip's own gain as a linear factor; 1 when it has none. */
   readonly gainLinear: number;
 }
 

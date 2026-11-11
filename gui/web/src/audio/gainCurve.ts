@@ -13,7 +13,6 @@ export interface ClipFade {
   readonly mute?: readonly MuteSpan[];
   /** Off-speaker (automatic) mute spans in source seconds; see `automaticGainAt`. */
   readonly automaticMute?: readonly AutomaticMuteSpan[];
-  /** The clip's own level as a linear factor, `10 ** (gain_db / 20)`; absent is unity. */
   readonly gainLinear?: number;
 }
 
