@@ -19,7 +19,7 @@ documentation annotation, not the runtime share gate.
 
 > **Auto-generated** from [`contracts/capabilities.manifest.json`](https://github.com/calebn/sharecut-studio/blob/main/contracts/capabilities.manifest.json). Do not edit by hand — run `make schema-export`.
 
-**152** capabilities · **118** ShareCut Studio commands · **65** keyed · **215** MCP tools · **17** skills on rows (+ **19** hub skills).
+**153** capabilities · **119** ShareCut Studio commands · **65** keyed · **215** MCP tools · **17** skills on rows (+ **19** hub skills).
 
 Keyboard chords: [UX shortcuts](https://ux.sharecut.studio/#/shortcuts). Document plane: [Document commands](#/document-commands). Guest MCP allowlist: [Remote MCP](#/remote-mcp).
 
@@ -107,7 +107,8 @@ Effect `project` changes the saved project, review state, transcripts or artifac
 | Connect agent… | view | `mcp.connect` | — (dialog from Menu) | — | `HostMcpDialog` | — | — | — | yes | none · none |
 | Report a problem… | view | `help.diagnosticsBundle` | — (dialog from Home / Menu) | — | `HelpDialog` | — | `podcast doctor --bundle` | — | yes | none · none |
 | Guides | view | `help.guides` | — (palette Help group) | — | — | — | — | — | — | none · none |
-| Manage models… | view | `models.open` | — (sheet from Home / palette) | — | `home.models`, `ModelsSheet` | `model_download`, `model_download_status` | `podcast setup` | — | yes | none · none |
+| Manage models… | view | `models.open` | — (sheet from Home / palette) | — | `home.models`, `ModelsSheet`, `SettingsSheet` | `model_download`, `model_download_status` | `podcast setup` | — | yes | none · none |
+| Settings… | view | `settings.open` | — (sheet from the app menu (native Cmd+, is part b)) | — | `SettingsSheet` | — | — | — | yes | none · none |
 | Export deliverables… | project | `export.deliverables` | `Mod+E` | — | `deliverStage` | `export_audio_tool`, `bounce_audio_tool` | `podcast pipeline export-audio` | `podcast-master-export` | yes | none · none |
 | Export transcript… | project | `export.transcript` | — (Deliver page action, reached from the command palette) | — | `deliverTranscript` | `export_transcript`, `list_exported_transcripts` | `podcast transcript export` | `podcast-transcript-workflow` | yes | none · none |
 | New project… | project | `project.new` | — (Mod+N opens a browser window; New project is in the palette and on Home) | — | — | `episode_create` | `podcast episode init` | — | yes | none · none |
