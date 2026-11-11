@@ -49,7 +49,7 @@ def registry(tmp_path: Path) -> Iterator[SqliteShareRegistry]:
 
 def _begin(registry: SqliteShareRegistry, *tokens: str, group: str | None = None, now=T0):
     return registry.begin_pending_revoke(
-        list(tokens), group_id=group or tokens[0], window=WINDOW, now=now
+        list(tokens), project_workspace="/ws/a", group_id=group or tokens[0], window=WINDOW, now=now
     )
 
 
@@ -179,8 +179,9 @@ def test_complete_finalize_is_idempotent_and_keeps_the_token_reserved(
     _begin(registry, "final-slug-one")
     now = T0 + WINDOW
     registry.claim_due(now=now)
-    assert registry.complete_finalize(["final-slug-one"]) == 1
-    assert registry.complete_finalize(["final-slug-one"]) == 0
+    registry.complete_finalize(["final-slug-one"])
+    registry.complete_finalize(["final-slug-one"])
+    assert registry.list_pending() == []
     assert registry.is_reserved("final-slug-one", now=now)
     assert registry.get_active("final-slug-one") is None
     assert registry.restore_group("final-slug-one", now=now) == []

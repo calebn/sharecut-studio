@@ -65,10 +65,6 @@ def effects(monkeypatch) -> dict[str, MagicMock]:
     }
     monkeypatch.setattr(share_pending, "delete_object_store_object_if_unused", mocks["object"])
     monkeypatch.setattr(share_pending, "delete_all_proxies_if_unused", mocks["proxies"])
-    monkeypatch.setattr(
-        "podcast_mcp.services.collaboration.share.delete_object_store_object_if_unused",
-        mocks["object"],
-    )
     monkeypatch.setattr("podcast_mcp.services.record.persist_session_summary", mocks["summary"])
     monkeypatch.setattr("podcast_mcp.services.record.purge_session_land_rollbacks", mocks["purge"])
     monkeypatch.setattr("podcast_mcp.services.record.release_session_land_lock", mocks["release"])

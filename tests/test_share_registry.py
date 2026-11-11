@@ -1004,7 +1004,8 @@ def test_revoke_object_store_cleanup_warning(
         raise RuntimeError("object_store cleanup boom")
 
     monkeypatch.setattr(
-        "podcast_mcp.services.collaboration.share.delete_object_store_object_if_unused", _boom
+        "podcast_mcp.services.collaboration.share_pending.delete_object_store_object_if_unused",
+        _boom,
     )
     monkeypatch.setattr("podcast_mcp.services.media.delete_all_proxies_if_unused", _boom)
     out = ShareService(ws).revoke(share["token"])

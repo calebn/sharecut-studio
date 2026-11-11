@@ -12,7 +12,7 @@ from __future__ import annotations
 import json
 import threading
 import uuid
-from collections.abc import Callable, Iterable, Mapping
+from collections.abc import Callable, Collection, Iterable, Mapping
 from pathlib import Path
 from typing import Any
 
@@ -27,9 +27,9 @@ from podcast_mcp.services.collaboration.share_registry import (
     SHARE_KIND_REVIEW,
     SHARE_KINDS,
     SHARE_TOKEN_IS_GLOBALLY_UNIQUE,
-    _parse_iso,
     claim_with_mint_retry,
     get_share_registry,
+    parse_iso,
     share_is_usable,
 )
 from podcast_mcp.util.atomic_json import write_json_atomic
@@ -73,7 +73,7 @@ def _active_share_id(token: str) -> str | None:
 
 
 def validate_expires_at(expires_at: str | None) -> None:
-    if expires_at is not None and _parse_iso(expires_at) is None:
+    if expires_at is not None and parse_iso(expires_at) is None:
         raise CodedValueError(
             f"expires_at must be ISO 8601, got {expires_at!r}. Pass an ISO 8601 time such as 2026-12-31T00:00:00Z.",
             code="expires_at_invalid",
@@ -271,31 +271,39 @@ def revoke_share_for_workspace(workspace: Path, token: str) -> bool:
 
 
 def mark_shares_pending(
-    workspace: Path, restorable_until: Mapping[str, str], *, revoked_at: str
+    workspace: Path,
+    restorable_until: Mapping[str, str],
+    *,
+    revoked_at: str,
+    still_pending: Callable[[], Collection[str]],
 ) -> None:
-    """Flag sidecar rows (by share id) as revoked but restorable until the given instant."""
+    """Flag sidecar rows (by share id) revoked but restorable; only ids ``still_pending`` names.
+
+    ``still_pending`` runs under the sidecar lock, so a finalize that settled a row first
+    cannot have its marker written back.
+    """
     _rewrite_rows(
         workspace,
-        restorable_until,
-        lambda row, until: {
+        lambda: [i for i in still_pending() if i in restorable_until],
+        lambda row: {
             **row,
             "revoked": True,
             "revoked_at": row.get("revoked_at") or revoked_at,
-            "restorable_until": until,
+            "restorable_until": restorable_until[str(row["id"])],
         },
     )
 
 
 def settle_shares_pending(workspace: Path, share_ids: Iterable[str], *, restored: bool) -> None:
-    """End the restorable state of sidecar rows: back to live, or revoked for good."""
+    ids = list(share_ids)
 
-    def settle(row: dict[str, Any], _until: str) -> dict[str, Any]:
+    def settle(row: dict[str, Any]) -> Mapping[str, Any]:
         kept = {k: v for k, v in row.items() if k != "restorable_until"}
         if not restored:
             return kept
         return {**{k: v for k, v in kept.items() if k != "revoked_at"}, "revoked": False}
 
-    _rewrite_rows(workspace, dict.fromkeys(share_ids, ""), settle)
+    _rewrite_rows(workspace, lambda: ids, settle)
 
 
 def share_holds_media(row: dict[str, Any]) -> bool:
@@ -305,16 +313,14 @@ def share_holds_media(row: dict[str, Any]) -> bool:
 
 def _rewrite_rows(
     workspace: Path,
-    by_id: Mapping[str, str],
-    change: Callable[[dict[str, Any], str], dict[str, Any]],
+    select_ids: Callable[[], Collection[str]],
+    change: Callable[[dict[str, Any]], Mapping[str, Any]],
 ) -> None:
     path = shares_path_for_workspace(workspace)
     with _sidecar_lock:
+        ids = set(select_ids())
         rows = _load(path)
-        updated = [
-            change(row, by_id[str(row.get("id"))]) if str(row.get("id")) in by_id else row
-            for row in rows
-        ]
+        updated = [dict(change(row)) if str(row.get("id")) in ids else row for row in rows]
         if updated != rows:
             _save(path, updated)
 

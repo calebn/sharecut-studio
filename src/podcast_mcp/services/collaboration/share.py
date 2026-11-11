@@ -9,7 +9,7 @@ from collections.abc import Sequence
 from datetime import datetime
 from functools import lru_cache
 from pathlib import Path
-from typing import Any
+from typing import Any, TypedDict
 
 from podcast_mcp.edits.comments import comments_for_view
 from podcast_mcp.edits.pending_preview import DEFAULT_PAD_SEC, PendingPreviewSpan
@@ -28,6 +28,7 @@ from podcast_mcp.services.collaboration.review_shares import (
     resolve_share,
     revoke_share,
     revoke_share_for_workspace,
+    share_holds_media,
     sidecar_share,
     touch_share_last_used_for_workspace,
     validate_expires_at,
@@ -46,7 +47,6 @@ from podcast_mcp.services.collaboration.share_capabilities import (
 )
 from podcast_mcp.services.collaboration.share_registry import (
     RECORD_REVIEW_VERSION_SENTINEL,
-    RESTORE_WINDOW_CLOSED_MESSAGE,
     SHARE_KIND_RECORD,
     SHARE_KIND_REVIEW,
     RestoreWindowClosedError,
@@ -64,7 +64,6 @@ from podcast_mcp.services.document_sync import (
 )
 from podcast_mcp.services.media import (
     WaveformStatusResult,
-    delete_object_store_object_if_unused,
     review_guest_audio_path,
     upload_review_version_to_object_store,
 )
@@ -182,6 +181,28 @@ def present_share(
     if version_label is not None:
         presented["review_version_label"] = version_label
     return presented
+
+
+class ParkedShare(TypedDict):
+    revoked: bool
+    token: str
+    restorable_until: str
+
+
+class ParkedRoom(TypedDict):
+    session_id: str
+    revoked: list[str]
+    restorable_until: str
+
+
+class RestoredShare(TypedDict):
+    restored: bool
+    token: str
+
+
+class RestoredRoom(TypedDict):
+    session_id: str
+    restored: list[str]
 
 
 class ShareService:
@@ -630,77 +651,65 @@ class ShareService:
     ) -> dict[str, Any]:
         """Revoke every token in the room. KeyError if none exist.
 
-        With ``restorable_for`` (seconds) the links die at once but ``restore_room`` can bring
-        them back until that window ends; the room's irreversible cleanup waits for the end.
+        With ``restorable_for`` (seconds, capped) the room's irreversible cleanup waits for
+        the window end.
         """
         if restorable_for is not None:
-            return self._park_room(session_id, restorable_for, now or share_pending.utc_now())
+            return dict(self._park_room(session_id, restorable_for, now))
         finalized = share_pending.finalize_now(self.ws, session_id, now=now)
         try:
-            return self._revoke_room_final(session_id)
+            revoked = self._revoke_room_tokens(session_id)
         except KeyError:
             if not finalized:
                 raise
             return {"session_id": session_id, "revoked": finalized}
+        share_pending.end_room(self.ws, session_id)
+        return {"session_id": session_id, "revoked": revoked}
 
-    def _park_room(self, session_id: str, window: float, moment: datetime) -> dict[str, Any]:
-        tokens = [
-            str(row["token"])
-            for row in list_room_shares(self.ws.project, session_id)
-            if row.get("token")
-        ]
+    def _park_room(self, session_id: str, window: float, now: datetime | None) -> ParkedRoom:
+        tokens = [str(row["token"]) for row in list_room_shares(self.ws.project, session_id)]
         pending = share_pending.park(
-            self.ws, tokens, group_id=session_id, window_sec=window, now=moment
+            self.ws, tokens, group_id=session_id, window_sec=window, now=now
         )
         if not pending:
             raise KeyError(f"record room not found: {session_id}")
+        self._invalidate_record_cache()
         self._arm_sweep_timer(window)
-        self.sweep_pending(now=moment)
         return {
             "session_id": session_id,
             "revoked": [str(p["token"]) for p in pending],
             "restorable_until": pending[0]["restorable_until"],
         }
 
+    def _invalidate_record_cache(self) -> None:
+        from podcast_mcp.services.record import invalidate_record_session_cache
+
+        invalidate_record_session_cache(self.ws.project)
+
     def _arm_sweep_timer(self, window: float) -> None:
-        workspace = str(self.ws.project.workspace_path())
+        workspace = share_pending.workspace_key(self.ws)
         share_pending.start_sweep_timer(
-            window + share_pending.SWEEP_TIMER_GRACE_SEC,
-            lambda: sweep_workspace_quietly(workspace),
+            share_pending.clamp_window(window) + share_pending.SWEEP_TIMER_GRACE_SEC,
+            lambda: sweep_all_pending(workspace=workspace),
         )
 
-    def _revoke_room_final(self, session_id: str) -> dict[str, Any]:
-        revoked = self._revoke_room_tokens(session_id)
-        from podcast_mcp.services.record import (
-            persist_session_summary,
-            purge_session_land_rollbacks,
-            release_session_land_lock,
-            remove_session_land_lock_file,
-        )
-
-        persist_session_summary(self.ws.project, session_id)
-        # Purge first: it takes the land lock, which the release and file removal drop.
-        purge_session_land_rollbacks(self.ws.project, session_id)
-        release_session_land_lock(session_id)
-        remove_session_land_lock_file(self.ws.project.workspace_path(), session_id)
-        return {"session_id": session_id, "revoked": revoked}
-
-    def restore_room(self, session_id: str, *, now: datetime | None = None) -> dict[str, Any]:
+    def restore_room(self, session_id: str, *, now: datetime | None = None) -> RestoredRoom:
         """Bring back a room revoked with ``restorable_for``, with the same links.
 
-        Raises ``RestoreWindowClosedError`` once the window ended, ``ShareExpiredError`` when
-        the links passed their own expiry and ``RecordRoomConflictError`` when another record
+        Idempotent: a room that is already live answers restored. Raises
+        ``RestoreWindowClosedError`` once the window ended, ``ShareExpiredError`` when the
+        links passed their own expiry and ``RecordRoomConflictError`` when another record
         room went live meanwhile.
         """
-        moment = now or share_pending.utc_now()
         try:
-            return self._restore_room(session_id, moment)
+            return self._restore_room(session_id, now)
         finally:
-            self.sweep_pending(now=moment)
+            self.sweep_pending(now=now)
 
-    def _restore_room(self, session_id: str, moment: datetime) -> dict[str, Any]:
-        snapshots = share_pending.restore(self.ws, session_id, now=moment)
+    def _restore_room(self, session_id: str, now: datetime | None) -> RestoredRoom:
+        snapshots = share_pending.restore(self.ws, session_id, now=now)
         if snapshots:
+            self._invalidate_record_cache()
             return {"session_id": session_id, "restored": [str(s["token"]) for s in snapshots]}
         rows = list_room_shares(self.ws.project, session_id)
         if not rows:
@@ -708,33 +717,28 @@ class ShareService:
                 f"record room not found: {session_id}", code="record_room_not_found"
             )
         if any(row.get("revoked") for row in rows):
-            raise RestoreWindowClosedError(RESTORE_WINDOW_CLOSED_MESSAGE)
-        return {
-            "session_id": session_id,
-            "restored": [str(row["token"]) for row in rows if row.get("token")],
-        }
+            raise RestoreWindowClosedError()
+        return {"session_id": session_id, "restored": [str(row["token"]) for row in rows]}
 
-    def restore(self, token: str, *, now: datetime | None = None) -> dict[str, Any]:
-        """Bring back a share revoked with ``restorable_for``, with the same link."""
-        moment = now or share_pending.utc_now()
+    def restore(self, token: str, *, now: datetime | None = None) -> RestoredShare:
+        """Bring back a share revoked with ``restorable_for``. Idempotent for a live link."""
         try:
-            return self._restore_share(token, moment)
+            return self._restore_share(token, now)
         finally:
-            self.sweep_pending(now=moment)
+            self.sweep_pending(now=now)
 
-    def _restore_share(self, token: str, moment: datetime) -> dict[str, Any]:
+    def _restore_share(self, token: str, now: datetime | None) -> RestoredShare:
         registry = get_share_registry()
-        if share_pending.restore(self.ws, token, now=moment):
+        if share_pending.restore(self.ws, token, now=now):
             return {"restored": True, "token": token}
         live = registry.get_active(token)
         if live is not None and live["project_workspace"] == share_pending.workspace_key(self.ws):
             return {"restored": True, "token": token}
-        if registry.is_reserved(token, now=moment):
-            raise RestoreWindowClosedError(RESTORE_WINDOW_CLOSED_MESSAGE)
+        if registry.is_reserved(token, now=now):
+            raise RestoreWindowClosedError()
         raise CodedKeyError(f"share not found: {token}", code="share_not_found")
 
     def sweep_pending(self, *, now: datetime | None = None) -> int:
-        """Finalize revoked links whose undo window ended and heal crash states."""
         return share_pending.sweep(self.ws, now=now)
 
     def revoke(
@@ -744,24 +748,11 @@ class ShareService:
         restorable_for: float | None = None,
         now: datetime | None = None,
     ) -> dict[str, Any]:
-        """Revoke a share. With ``restorable_for`` (seconds) ``restore`` can undo it until then."""
         if restorable_for is not None:
-            return self._park_share(token, restorable_for, now or share_pending.utc_now())
+            return dict(self._park_share(token, restorable_for, now))
         if share_pending.finalize_now(self.ws, token, now=now):
             return {"revoked": True, "token": token}
-        return self._revoke_final(token)
 
-    def _park_share(self, token: str, window: float, moment: datetime) -> dict[str, Any]:
-        pending = share_pending.park(
-            self.ws, [token], group_id=token, window_sec=window, now=moment
-        )
-        if not pending:
-            raise KeyError(f"share not found: {token}")
-        self._arm_sweep_timer(window)
-        self.sweep_pending(now=moment)
-        return {"revoked": True, "token": token, "restorable_until": pending[0]["restorable_until"]}
-
-    def _revoke_final(self, token: str) -> dict[str, Any]:
         version_id: str | None = None
         kind = SHARE_KIND_REVIEW
         for row in list_shares(self.ws.project):
@@ -772,47 +763,30 @@ class ShareService:
         ok = revoke_share(self.ws.project, token)
         if not ok:
             raise KeyError(f"share not found: {token}")
-        if version_id and kind != SHARE_KIND_RECORD:
-            try:
-                delete_object_store_object_if_unused(self.ws, version_id)
-            except Exception:
-                log.warning(
-                    "object storage cleanup failed for review version %s",
-                    version_id,
-                    exc_info=True,
-                )
         if kind != SHARE_KIND_RECORD:
-            try:
-                from podcast_mcp.services.media import delete_all_proxies_if_unused
-
-                delete_all_proxies_if_unused(self.ws)
-            except Exception:
-                log.warning("Proxy object storage cleanup failed on share revoke", exc_info=True)
+            share_pending.delete_review_effects(self.ws, [version_id or ""])
         return {"revoked": True, "token": token}
 
-
-def sweep_workspace(workspace: str | Path, *, now: datetime | None = None) -> int:
-    """Finalize the due revoked links of one episode folder (a timer or host start)."""
-    ws = workspace_from_share_row({"project_workspace": str(workspace)})
-    return share_pending.sweep(ws, now=now)
-
-
-def sweep_workspace_quietly(workspace: str | Path) -> None:
-    try:
-        sweep_workspace(workspace)
-    except Exception:
-        log.warning("sweeping revoked shares of %s failed", workspace, exc_info=True)
+    def _park_share(self, token: str, window: float, now: datetime | None) -> ParkedShare:
+        pending = share_pending.park(self.ws, [token], group_id=token, window_sec=window, now=now)
+        if not pending:
+            raise KeyError(f"share not found: {token}")
+        self._arm_sweep_timer(window)
+        return {"revoked": True, "token": token, "restorable_until": pending[0]["restorable_until"]}
 
 
-def sweep_all_pending(*, now: datetime | None = None) -> int:
-    """Finalize every due revoked link the host registry holds, whatever its episode."""
-    workspaces = sorted({str(p["project_workspace"]) for p in get_share_registry().list_pending()})
+def sweep_all_pending(*, now: datetime | None = None, workspace: str | None = None) -> int:
+    """Finalize every due revoked link the host registry holds (or one workspace's)."""
+    keys = sorted(
+        {str(p["project_workspace"]) for p in get_share_registry().list_pending(workspace)}
+    )
     done = 0
-    for workspace in workspaces:
+    for key in keys:
         try:
-            done += sweep_workspace(workspace, now=now)
+            ws = workspace_from_share_row({"project_workspace": key})
+            done += share_pending.sweep(ws, now=now)
         except Exception:
-            log.warning("sweeping revoked shares of %s failed", workspace, exc_info=True)
+            log.warning("sweeping revoked shares of %s failed", key, exc_info=True)
     return done
 
 
@@ -838,10 +812,11 @@ def lookup_share(token: str, *, kind: str | None = None) -> dict[str, Any]:
             resolved_workspace = candidate.resolve().parent
             touch_share_last_used_for_workspace(resolved_workspace, token)
             side = sidecar_share(resolved_workspace, str(row.get("id") or ""))
-            if side is not None and not side.get("revoked"):
+            if side is not None and share_holds_media(side):
                 # Sidecar holds general_access / require_sign_in; the token lives only
-                # in the registry row.
-                row = {**row, **side, "token": token}
+                # in the registry row. A restored link whose sidecar still carries the
+                # pending revoke keeps its policy.
+                row = {**row, **side, "token": token, "revoked": False}
         except Exception:
             log.debug("share last_used touch failed for %s", token, exc_info=True)
             reg.touch_last_used(token)
