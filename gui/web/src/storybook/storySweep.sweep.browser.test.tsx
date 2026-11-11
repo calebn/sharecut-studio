@@ -39,36 +39,41 @@ const widthsFor = (story: ComposedStory) =>
         ? [PHONE]
         : [PHONE, WIDE];
 
+const atWidth = (width: number, what: string) => `${width}px wide: ${what}`;
+
 function expectShellFit(width: number) {
   const shell = document.querySelector(".stage-frame");
-  if (!shell) throw new Error("Frame story renders no .stage-frame");
+  if (!shell)
+    throw new Error(atWidth(width, "Frame story renders no .stage-frame"));
   const main = shell.querySelector("main");
-  if (!main) throw new Error("Frame has no main region");
+  if (!main) throw new Error(atWidth(width, "Frame has no main region"));
   const rect = shell.getBoundingClientRect();
-  const at = (what: string) => `${width}px wide: ${what}`;
   expect(
     rect.left,
-    at("frame starts inside the viewport"),
+    atWidth(width, "frame starts inside the viewport"),
   ).toBeGreaterThanOrEqual(0);
-  expect(rect.right, at("frame ends inside the viewport")).toBeLessThanOrEqual(
-    width,
-  );
+  expect(
+    rect.right,
+    atWidth(width, "frame ends inside the viewport"),
+  ).toBeLessThanOrEqual(width);
   expect(
     shell.scrollWidth,
-    at("frame does not scroll sideways"),
+    atWidth(width, "frame does not scroll sideways"),
   ).toBeLessThanOrEqual(shell.clientWidth);
-  expect(rect.height, at("frame fills the viewport height")).toBe(HEIGHT);
+  expect(rect.height, atWidth(width, "frame fills the viewport height")).toBe(
+    HEIGHT,
+  );
   expect(
     main.getBoundingClientRect().height,
-    at("main region is taller than 200px"),
+    atWidth(width, "main region is taller than 200px"),
   ).toBeGreaterThan(200);
   expect(
     document.querySelectorAll("main, [role=main]"),
-    at("exactly one main region"),
+    atWidth(width, "exactly one main region"),
   ).toHaveLength(1);
   expect(
     document.querySelectorAll("h1, [role=heading][aria-level='1']"),
-    at("exactly one level-1 heading"),
+    atWidth(width, "exactly one level-1 heading"),
   ).toHaveLength(1);
 }
 
@@ -257,18 +262,22 @@ for (const theme of THEMES) {
             if (SHELL_TITLES.includes(base.title)) expectShellFit(width);
             expect(
               document.documentElement.scrollWidth,
-              `${width}px wide: page does not scroll sideways`,
+              atWidth(width, "page does not scroll sideways"),
             ).toBeLessThanOrEqual(width);
             const results = await axe.run(document.documentElement, {
               runOnly: { type: "tag", values: AXE_TAGS },
             });
             expect(
               results.violations,
-              `${width}px wide: ${JSON.stringify(results.violations, null, 2)}`,
+              atWidth(
+                width,
+                `accessibility violations ${JSON.stringify(results.violations, null, 2)}`,
+              ),
             ).toEqual([]);
-            expect(errors, `${width}px wide: console or load errors`).toEqual(
-              [],
-            );
+            expect(
+              errors,
+              atWidth(width, "page errors, rejections or console errors"),
+            ).toEqual([]);
           }
         } finally {
           window.removeEventListener("error", onResourceError, true);
