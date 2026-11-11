@@ -257,7 +257,12 @@ function MoreMenu({
   request?: number;
 }) {
   const [open, setOpen] = useState(false);
-  const [sheet, setSheet] = useState<BarSplit | null>(null);
+  const [sheetId, setSheetId] = useState<string | null>(null);
+  const sheet =
+    sheetId === null
+      ? null
+      : (rows.find((row) => isOptionsRow(row) && row.id === sheetId)?.split ??
+        null);
   const seen = useRef(request);
   useEffect(() => {
     if (request === seen.current) return;
@@ -285,7 +290,7 @@ function MoreMenu({
               disabledReason={row.disabledReason}
               onSelect={() => {
                 setOpen(false);
-                if (isOptionsRow(row)) setSheet(row.split ?? null);
+                if (isOptionsRow(row)) setSheetId(row.id);
                 onVerb(row.id, row.arg);
               }}
             >
@@ -300,7 +305,7 @@ function MoreMenu({
           form="bottom"
           detent="fit"
           title={sheet.label}
-          onClose={() => setSheet(null)}
+          onClose={() => setSheetId(null)}
         >
           {sheet.content}
         </Sheet>
