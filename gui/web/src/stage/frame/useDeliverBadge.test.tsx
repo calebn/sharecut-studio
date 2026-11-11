@@ -9,7 +9,10 @@ vi.mock("../../api", async (importOriginal) => ({
 
 import { useDawStore } from "../../state/dawStore";
 import { minimalProject } from "../../test/fixtures";
+import { type ExportFlow, Flow } from "../hosts/exportFlowContext";
 import { useDeliverBadge } from "./useDeliverBadge";
+
+const flow = { current: { run: { kind: "idle" } } as ExportFlow };
 
 const file = (kind: string, current: boolean) => ({
   id: `${kind}/${current}`,
@@ -24,6 +27,7 @@ const file = (kind: string, current: boolean) => ({
 beforeEach(() => {
   listed.list.mockReset();
   listed.list.mockResolvedValue([]);
+  flow.current = { run: { kind: "idle" } } as ExportFlow;
   useDawStore.setState({
     projectPath: "/tmp/ep/episode.sharecut",
     guestMode: null,
@@ -57,8 +61,20 @@ describe("useDeliverBadge", () => {
     expect(result.current).toBeUndefined();
   });
 
+  it("reads the listing again when a failed run settles", async () => {
+    const { rerender } = renderHook(() => useDeliverBadge(), {
+      wrapper: ({ children }) => (
+        <Flow.Provider value={flow.current}>{children}</Flow.Provider>
+      ),
+    });
+    await waitFor(() => expect(listed.list).toHaveBeenCalledTimes(1));
+    flow.current = { run: { kind: "failed", reason: "x" } } as ExportFlow;
+    rerender();
+    await waitFor(() => expect(listed.list).toHaveBeenCalledTimes(2));
+  });
+
   it("never lists the folder for a guest", async () => {
-    useDawStore.setState({ guestMode: "review" as never });
+    useDawStore.setState({ guestMode: "view" });
     const { result } = renderHook(() => useDeliverBadge());
     expect(result.current).toBeUndefined();
     expect(listed.list).not.toHaveBeenCalled();

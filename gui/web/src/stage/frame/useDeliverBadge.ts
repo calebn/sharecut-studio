@@ -19,13 +19,12 @@ export function useDeliverBadge(): StageBadge | undefined {
     host: s.guestMode === null && !isShareProjectKey(s.projectPath),
   }));
   const run = flow?.run;
-  const finishedAt =
-    run && (run.kind === "done" || run.kind === "cancelled")
-      ? run.finishedAt
-      : null;
+  const settled = run
+    ? `${run.kind}|${"finishedAt" in run ? run.finishedAt : ""}`
+    : "";
   const { files, currentLoad } = useExportedFiles(host ? projectPath : null, {
     access: "download",
-    refreshKey: `${headId}|${finishedAt}`,
+    refreshKey: `${headId}|${settled}`,
   });
   if (currentLoad !== "ready") return undefined;
   const audio = files.filter((file) => file.kind === "audio");
