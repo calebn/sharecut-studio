@@ -170,4 +170,79 @@ describe("PresenceGhostLayer", () => {
 
     expect(spy.mock.calls.map(([c]) => c.client_id)).toEqual(["a"]);
   });
+
+  it("moves and hides a ghost when a peer's cursor changes but the roster length stays the same", () => {
+    vi.useFakeTimers({ now: 1_800_000_000_000 });
+    try {
+      const remote = (anchor: string) =>
+        sessionRoster([
+          { client_id: "me", role: "viewer" },
+          {
+            client_id: "them",
+            role: "viewer",
+            last_seen_ns: Date.now() * 1e6,
+            meta: {
+              display_name: "Ada",
+              cursor: { anchor, x: 0, y: 0 },
+            },
+          },
+        ]);
+      useDawStore.setState({
+        localClientId: "me",
+        sessionClients: remote("audition:near"),
+      });
+      const rectAt = (left: number, top: number) =>
+        ({
+          left,
+          top,
+          right: left + 100,
+          bottom: top + 50,
+          width: 100,
+          height: 50,
+        }) as DOMRect;
+      const rootRef = createRef<HTMLDivElement>();
+      const { container } = render(
+        <div ref={rootRef}>
+          <span data-presence-anchor="audition:near" />
+          <span data-presence-anchor="audition:far" />
+          <PresenceGhostLayer rootRef={rootRef} />
+        </div>,
+      );
+      const near = container.querySelector(
+        '[data-presence-anchor="audition:near"]',
+      ) as HTMLElement;
+      const far = container.querySelector(
+        '[data-presence-anchor="audition:far"]',
+      ) as HTMLElement;
+      near.getBoundingClientRect = () => rectAt(100, 100);
+      far.getBoundingClientRect = () => rectAt(500, 100);
+      const ghost = container.querySelector(
+        ".presence-cursor--ghost",
+      ) as HTMLElement;
+
+      act(() => {
+        vi.advanceTimersByTime(50);
+      });
+      expect(ghost.style.display).toBe("");
+      expect(ghost.style.left).toBe("100px");
+
+      act(() => {
+        useDawStore.setState({ sessionClients: remote("audition:far") });
+      });
+      act(() => {
+        vi.advanceTimersByTime(50);
+      });
+      expect(Number.parseFloat(ghost.style.left)).toBeGreaterThan(100);
+
+      act(() => {
+        useDawStore.setState({ sessionClients: remote("audition:gone") });
+      });
+      act(() => {
+        vi.advanceTimersByTime(50);
+      });
+      expect(ghost.style.display).toBe("none");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 });
