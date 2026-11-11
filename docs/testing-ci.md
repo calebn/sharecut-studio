@@ -640,7 +640,7 @@ writes one non-silent WAV under `export/bounces/` — its own result copy goes
 through `runAnnouncedJob` with pre-POST reservation, exact-ID binding before
 Activity seeding, and a verified outcome handoff to `finishJobResult`. The frame's
 `useJobStatusAnnouncement` reconciles and speaks it in place of the generic Activity "ok"
-headline instead of racing it (a real bug, not WebKit-only; `bounceFlow.tsx`
+headline instead of racing it (a real bug, not WebKit-only; `bounceRunner.tsx`
 and `exportFlow.tsx` share the fix, and it covers
 the phone shell too). The stages run serially in one test
 because export bounces the landed track, so a stage that fails on both attempts

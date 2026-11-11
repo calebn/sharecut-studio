@@ -89,7 +89,7 @@ Effect `project` changes the saved project, review state, transcripts or artifac
 | Redo | project | `history.redo` | `Mod+Shift+Z` | — | `historyPanel` | `history_redo` | `podcast redo` | `podcast-history` | — | none · none |
 | Commands and shortcuts | view | `ui.toggleCommandPalette` | `?` | — | `home.help` | — | — | — | — | none · none |
 | Refresh mix | project | `render.refreshMix` | — (Mod+B belongs to the browser (bookmarks, bold); Refresh mix is in the palette and the mix ring) | — | `deliverShare` | `render_preview` | `podcast render-preview` | `podcast-play-audition` | — | none · none |
-| Bounce… | project | `export.bounce` | — (Mod+E opens Deliver with Bounce focused and the selected range filled in; Bounce is also in the palette and on Deliver) | — | `deliverBounce` | `bounce_audio_tool` | `podcast pipeline bounce` | `podcast-bounce-export` | yes | none · none |
+| Export full mix | project | `export.bounce` | — (Palette only: exports the whole episode's audible tracks in place (export/bounces/); the action bar's Export button does the same for a range or tracks) | — | `actionBar` | `bounce_audio_tool` | `podcast pipeline bounce` | `podcast-bounce-export` | yes | none · none |
 | Share… | project | `share.manage` | — (Invite, or Menu) | — | `inviteSheet` | — | `podcast review share` | — | yes | none · none |
 | Create record room | project | `record.createRoom` | — (empty-state action on the Record stage) | — | `RecordStage` | `create_record_room_tool` | `podcast review share --kind record` | `podcast-record-session` | yes | none · none |
 | Copy guest link | session | `record.copyGuestLink` | — (Palette command; the Invite sheet also has a Copy guest link button) | — | — | — | — | — | yes | none · none |
@@ -139,7 +139,7 @@ Effect `project` changes the saved project, review state, transcripts or artifac
 | Fill range with room tone | project | `range.fillRoomTone` | — (Context action with explicit range selection) | — | `actionBar` | `fill_with_room_tone_tool` | `podcast doc submit` | — | — | none · none |
 | Move to speaker | project | `range.moveSpeakerLane` | — (Context action with explicit range selection on one split lane) | — | `actionBar` | `speaker_move_lane_span_tool` | `podcast speaker move-lane-span` | `podcast-speaker-attribution` | — | none · none |
 | Comment on range | project | `range.comment` | — (Context action with explicit range selection) | — | `actionBar` | `add_comment_tool` | `podcast comment add` | — | — | none · none |
-| Bounce selected range | project | `range.bounce` | — (Context action with explicit range selection) | — | `actionBar` | `bounce_audio_tool` | `podcast pipeline bounce` | — | — | none · none |
+| Export selected range | project | `range.bounce` | — (Context action with explicit range selection) | — | `actionBar` | `bounce_audio_tool` | `podcast pipeline bounce` | — | — | none · none |
 | Select a range | view | `range.arm` | — (Context action with explicit range selection) | — | `editCorner` | — | — | — | — | none · none |
 | Split | project | `edit.split` | `S` | — | `actionBar` | `split_clip_tool` | `podcast doc submit` | — | — | time · none |
 | Hear | session | `edit.hear` | `Shift+Space` | — | `actionBar` | — | — | — | — | none · none |

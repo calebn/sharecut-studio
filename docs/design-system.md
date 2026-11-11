@@ -294,11 +294,10 @@ Invite on every stage. Deliver embeds only the Listen link row;
 `ShareFlowProvider` owns listing, making, copying and stopping, and
 `deliverShare.ts` maps it to both.
 
-`Stages/Deliver/Bounce` renders the props-only `BounceSection`. The Deliver
-host keeps selection and solo resolution, and `BounceFlowProvider` keeps
-`startBounceJob` / the job follow, project-switch abort and the status
-announcement. Stories cover ready, no tracks, no region, a fixed range,
-bouncing, done, failed, cancelled, the model prompt and 360px.
+`Edit/ExportRangeOptions` is the Export options popover (Full mix, Selected
+tracks, Soloed; Also MP3). `BounceRunnerProvider` keeps the bounce start, the job
+follow, project-switch abort and the status announcement. Stories cover the
+default, a track selection, a soloed track and the saved-source fallback.
 
 `Stages/Deliver/Podcast listing` renders the props-only `FeedSection` from a
 typed `FeedView` (`feedView.ts`): facts that say where each value came from,
