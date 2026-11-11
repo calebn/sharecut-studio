@@ -12,7 +12,7 @@ from podcast_mcp.mcp.tools import timeline as mcp_timeline
 from podcast_mcp.models import Clip, MediaAsset, Track, TrackRole, load_project, save_project
 
 _REPLY_KEYS = {"operation", "join_count", "fade_ms", "dry_run", "affected_tracks"}
-_FADE_REPLY_KEYS = _REPLY_KEYS | {"requested_fade_ms", "cap_ms"}
+_FADE_REPLY_KEYS = _REPLY_KEYS | {"requested_fade_ms", "cap_ms", "kept_longer_joins"}
 
 
 def _joined_path(tmp_path: Path) -> str:

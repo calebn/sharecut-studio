@@ -117,7 +117,7 @@ def test_payload_accepts_null_and_refuses_out_of_range() -> None:
     validate_payload("SetJoinFadeDefault", {"ms": 0})
     validate_payload("SetJoinFadeDefault", {"ms": 200})
     validate_payload("SetJoinFadeDefault", {"ms": None})
-    for bad in ({}, {"ms": -1}, {"ms": 201}, {"ms": 1.5}, {"ms": "x"}):
+    for bad in ({}, {"ms": -1}, {"ms": 201}, {"ms": 1.5}, {"ms": "x"}, {"ms": True}, {"ms": False}):
         with pytest.raises(ValidationError):
             validate_payload("SetJoinFadeDefault", bad)
 

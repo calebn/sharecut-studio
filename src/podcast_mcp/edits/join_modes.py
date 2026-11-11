@@ -235,11 +235,13 @@ def fade_joins(
 
     An automatic writer: fades are capped at the Default join fade length and never shrink an
     existing longer fade. ``fade_ms`` in the result is the length applied after the cap
-    (``requested_fade_ms`` is what was asked for, ``cap_ms`` the cap).
+    (``requested_fade_ms`` is what was asked for, ``cap_ms`` the cap); ``kept_longer_joins``
+    counts joins where a longer existing fade was left as it is.
     """
     join_count = 0
     track_ids = _target_track_ids(project, track_id=track_id, speaker=speaker)
     applied_ms: list[int] = []
+    kept_longer = 0
     for tid in track_ids:
         clips = clips_for_track(project, tid)
         for left, right in abutting_pairs(clips):
@@ -263,6 +265,7 @@ def fade_joins(
                     defaults,
                 )
             applied_ms.append(ms)
+            kept_longer += left.fade_out_ms > ms or right.fade_in_ms > ms
             if dry_run:
                 continue
             right.join_in_mode = ClipJoinMode.FADE
@@ -279,6 +282,7 @@ def fade_joins(
         "fade_ms": shown_ms,
         "requested_fade_ms": fade_ms,
         "cap_ms": cap_ms,
+        "kept_longer_joins": kept_longer,
         "dry_run": dry_run,
         "affected_tracks": track_ids,
     }

@@ -361,7 +361,7 @@ class SetClipsGainPayload(BaseModel):
 
 
 class SetJoinFadeDefaultPayload(BaseModel):
-    ms: int | None = Field(
+    ms: StrictInt | None = Field(
         ge=0,
         le=200,
         description="The episode's Default join fade length in ms (0 to 200): the longest fade "
