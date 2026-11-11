@@ -170,6 +170,20 @@ describe("selectionClipboard", () => {
     expect(extracts[0]?.mute_regions).toEqual([mute]);
   });
 
+  it("keeps a clip's gain in its extract, and omits it for an unchanged clip", () => {
+    const project = sampleProject();
+    const host = project.clips?.tracks.host?.[0];
+    if (!host) {
+      throw new Error("sample project has a host clip");
+    }
+    host.gain_db = -7.5;
+    const extracts = extractClipsInRange(project, 1, 3);
+    expect(extracts.find((e) => e.track_id === "host")?.gain_db).toBe(-7.5);
+    const guest = extracts.find((e) => e.track_id === "guest");
+    expect(guest?.gain_db ?? 0).toBe(0);
+    expect(JSON.parse(JSON.stringify(guest))).not.toHaveProperty("gain_db");
+  });
+
   it("builds payload from clip selection", () => {
     const sel: Selection = { kind: "clip", id: "c1", trackId: "host" };
     const payload = payloadFromSelection(sampleProject(), sel, "cut");

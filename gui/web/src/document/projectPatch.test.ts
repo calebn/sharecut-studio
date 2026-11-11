@@ -1,10 +1,16 @@
 import { describe, expect, it } from "vitest";
-import { minimalProject, sampleComment, sampleTrack } from "../test/fixtures";
+import {
+  clipRow,
+  minimalProject,
+  sampleComment,
+  sampleTrack,
+} from "../test/fixtures";
 import { HISTORY_ROOT_ID, type ProjectView } from "../types/project";
 import { transcriptSpanText } from "../utils/transcript";
 import {
   commentFromCommandResult,
   mergeProjectPatch,
+  patchClipGain,
   patchTrackMeta,
   patchTracksOrder,
   projectFromDocumentSnapshot,
@@ -163,6 +169,29 @@ describe("patchTracksOrder / patchTrackMeta", () => {
       expect(patchTrackMeta(previous, "missing", { speaker })).toBe(previous);
     },
   );
+});
+
+describe("patchClipGain", () => {
+  const base = minimalProject({
+    clips: {
+      tracks: { host: [clipRow({ id: "c1" }), clipRow({ id: "c2" })] },
+      clip_count: 2,
+    },
+  });
+
+  it("sets one clip's gain and leaves the others and the project identity", () => {
+    const next = patchClipGain(base, "c1", 4.5);
+    expect(next.clips.tracks.host?.[0]?.gain_db).toBe(4.5);
+    expect(next.clips.tracks.host?.[1]).toBe(base.clips.tracks.host?.[1]);
+    expect(base.clips.tracks.host?.[0]?.gain_db).toBeUndefined();
+  });
+
+  it("returns the same project for an unchanged or unknown clip", () => {
+    expect(patchClipGain(base, "c1", 0)).toBe(base);
+    expect(patchClipGain(base, "nope", 3)).toBe(base);
+    const gained = patchClipGain(base, "c1", 3);
+    expect(patchClipGain(gained, "c1", 3)).toBe(gained);
+  });
 });
 
 describe("projectFromDocumentSnapshot", () => {

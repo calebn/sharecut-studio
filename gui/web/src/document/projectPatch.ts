@@ -450,6 +450,31 @@ export function patchTracksOrder(
   return { ...project, tracks };
 }
 
+/** Optimistic splice for SetClipGain. */
+export function patchClipGain(
+  project: ProjectView,
+  clipId: string,
+  gainDb: number,
+): ProjectView {
+  for (const [trackId, lane] of Object.entries(project.clips.tracks)) {
+    const index = lane.findIndex((c) => c.id === clipId);
+    const clip = lane[index];
+    if (!clip) continue;
+    if ((clip.gain_db ?? 0) === gainDb) return project;
+    const next = lane.map((c, i) =>
+      i === index ? { ...c, gain_db: gainDb } : c,
+    );
+    return {
+      ...project,
+      clips: {
+        ...project.clips,
+        tracks: { ...project.clips.tracks, [trackId]: next },
+      },
+    };
+  }
+  return project;
+}
+
 /** Optimistic splice for SetClipFade. */
 export function patchClipFade(
   project: ProjectView,

@@ -364,6 +364,41 @@ export async function setClipsFade(
   );
 }
 
+export type ClipGainBaseline = Readonly<{ gain_db: number }>;
+
+export async function setClipGain(
+  projectPath: string,
+  clipId: string,
+  gainDb: number,
+  expected: ClipGainBaseline,
+): Promise<HistoryEntryId | null> {
+  return replyHistoryHead(
+    await submitDocumentCommand(projectPath, DocumentCommand.SetClipGain, {
+      clip_id: clipId,
+      gain_db: gainDb,
+      expected: { ...expected },
+    }),
+  );
+}
+
+export async function setClipsGain(
+  projectPath: string,
+  gains: ReadonlyArray<{
+    clip_id: string;
+    gain_db: number;
+    expected: ClipGainBaseline;
+  }>,
+): Promise<HistoryEntryId | null> {
+  return replyHistoryHead(
+    await submitDocumentCommand(projectPath, DocumentCommand.SetClipsGain, {
+      gains: gains.map((gain) => ({
+        ...gain,
+        expected: { ...gain.expected },
+      })),
+    }),
+  );
+}
+
 export async function trimClipEdge(
   projectPath: string,
   clipId: string,

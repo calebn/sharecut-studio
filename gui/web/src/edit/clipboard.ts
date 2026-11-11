@@ -15,6 +15,7 @@ export type ClipboardExtract = {
   source_id?: string | null;
   fade_in_ms?: number;
   fade_out_ms?: number;
+  gain_db?: number;
   join_in_mode?: string;
   mute_regions?: ClipMuteRegion[];
 };

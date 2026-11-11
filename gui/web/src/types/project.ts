@@ -47,6 +47,8 @@ export interface ClipRow {
   timeline_end: number;
   fade_in_ms: number;
   fade_out_ms: number;
+  /** Clip level in dB, -60..12; omitted by the server while 0 (read `gain_db ?? 0`). */
+  gain_db?: number;
   join_in_mode: string;
   /** Clip on the same track this join is with; null for a track's first clip (older servers omit it). */
   join_left_clip_id?: string | null;

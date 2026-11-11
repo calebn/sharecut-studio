@@ -84,6 +84,40 @@ describe("proxyMath", () => {
     expect(b.envelope.fadeOutSec).toBeCloseTo(0.05);
   });
 
+  it("carries each clip's gain as a linear factor", () => {
+    const [a, b, c] = buildSchedule(
+      [
+        clip({
+          id: "c1",
+          source_end: 2,
+          timeline_end: 2,
+          gain_db: 6,
+        }),
+        clip({
+          id: "c2",
+          source_start: 2,
+          source_end: 4,
+          timeline_start: 2,
+          timeline_end: 4,
+          gain_db: -12,
+        }),
+        clip({
+          id: "c3",
+          source_start: 4,
+          source_end: 6,
+          timeline_start: 4,
+          timeline_end: 6,
+        }),
+      ],
+      0,
+      10,
+      manifest(),
+    );
+    expect(a.envelope.gainLinear).toBeCloseTo(10 ** (6 / 20));
+    expect(b.envelope.gainLinear).toBeCloseTo(10 ** (-12 / 20));
+    expect(c.envelope.gainLinear).toBe(1);
+  });
+
   it("keeps a first clip's fade-in when its leftover mode is cut", () => {
     const [c1] = buildSchedule(
       [
