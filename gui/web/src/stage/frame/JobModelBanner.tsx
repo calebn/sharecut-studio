@@ -4,7 +4,6 @@ import { runPointerCommand } from "../../commands/pointer";
 import { ModelNeedRow, useModelResume } from "../../models";
 import { useDawStore } from "../../state/dawStore";
 import { useDaw } from "../../state/useDaw";
-import { StatusRow } from "../../system/StatusRow";
 import type { PipelineJobSnapshot } from "../../types/pipeline";
 import {
   ApiError,
@@ -15,6 +14,7 @@ import {
   notDownloadedLine,
 } from "../../utils/apiError";
 import { isTerminalJobStatus } from "../../utils/pipeline";
+import { FRAME_ALERT_PRIORITY, useFrameAlert } from "./frameAlerts";
 
 const RESUMABLE = new Set(["pipeline", "render_preview"]);
 type Stopped = { job: PipelineJobSnapshot; epoch: number; path: string };
@@ -86,23 +86,43 @@ function AcceptedJobObserver({
     return () => controller.abort();
   }, [accepted, observe, retry]);
 
-  if (!message) return null;
-  return (
-    <div className="guest-banner">
-      <StatusRow
-        state="failed"
-        title={message}
-        action={{
-          label: "Try again",
-          name: "Check the resumed run",
-          onAction: () => {
-            setMessage(null);
-            setRetry((value) => value + 1);
+  useFrameAlert(
+    FRAME_ALERT_PRIORITY.failed,
+    message
+      ? {
+          state: "failed",
+          title: message,
+          action: {
+            label: "Try again",
+            name: "Check the resumed run",
+            onAction: () => {
+              setMessage(null);
+              setRetry((value) => value + 1);
+            },
           },
-        }}
-      />
-    </div>
+        }
+      : null,
   );
+  return null;
+}
+
+function RefusedRunAlert({
+  message,
+  onTryAgain,
+}: {
+  message: string;
+  onTryAgain: () => void;
+}) {
+  useFrameAlert(FRAME_ALERT_PRIORITY.failed, {
+    state: "failed",
+    title: message,
+    action: {
+      label: "Try again",
+      name: "Resume the stopped run",
+      onAction: onTryAgain,
+    },
+  });
+  return null;
 }
 
 export function JobModelBanner({ guestShare }: { guestShare: boolean }) {
@@ -412,17 +432,10 @@ export function JobModelBanner({ guestShare }: { guestShare: boolean }) {
           />
         ))}
       {selected?.kind === "refused" ? (
-        <div className="guest-banner">
-          <StatusRow
-            state="failed"
-            title={selected.message}
-            action={{
-              label: "Try again",
-              name: "Resume the stopped run",
-              onAction: () => resume(selected.wait),
-            }}
-          />
-        </div>
+        <RefusedRunAlert
+          message={selected.message}
+          onTryAgain={() => resume(selected.wait)}
+        />
       ) : stop && stop === selectedWait ? (
         <div className="guest-banner" role="status">
           <ModelNeedRow model={stop} />
