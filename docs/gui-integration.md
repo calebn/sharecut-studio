@@ -159,8 +159,8 @@ not report that no variant was published. Stage descriptors close on both succes
 
 A finished `kind=bounce` job's `result` carries `paths` and `file_ids`, the `bounces/<name>` ids of the
 same files. The host export-files routes (`GET /api/export/files`, the download and `POST /api/export/files/reveal`)
-list, serve and reveal them as `kind: "bounce"` (label "Range export"); the guest Editor routes never list or open
-`export/bounces/`. Deliver's Exported files does not group the `bounce` kind. The tracks an explicit `track_ids` or
+list, serve and reveal them as `kind: "bounce"` (label "Unmastered export"); the guest Editor routes never list or open
+`export/bounces/`. Deliver's Exported files lists the `bounce` kind under Exports of a selection. The tracks an explicit `track_ids` or
 `exact_range.track_ids` names are bounced as sent, muted ones included; only an unscoped bounce skips muted tracks.
 
 This is a partial backend implementation, part of #2455. It does not add UI controls,
