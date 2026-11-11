@@ -13,7 +13,13 @@ import { useTrackMuteState } from "./useTrackMuteState";
  * silences shows a dashed "implied mute", as in Pro Tools. Solid means
  * everyone and every export; dashed means only you hear it that way.
  */
-export function TrackMuteSoloButtons({ trackId }: { trackId: string }) {
+export function TrackMuteSoloButtons({
+  trackId,
+  readOnlyNoteId,
+}: {
+  trackId: string;
+  readOnlyNoteId?: string;
+}) {
   const { solo, project, projectPath, guestMode, shareCapabilities } = useDaw(
     (s) => ({
       solo: Boolean(s.soloTracks[trackId]),
@@ -33,6 +39,7 @@ export function TrackMuteSoloButtons({ trackId }: { trackId: string }) {
       muteState={state}
       solo={solo}
       editsMix={editsMix}
+      readOnlyNoteId={readOnlyNoteId}
       shortcuts={{
         mute: displayShortcutFor("edit.mute") ?? "",
         solo: displayShortcutFor("track.soloToggle") ?? "",

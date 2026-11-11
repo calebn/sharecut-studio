@@ -17,6 +17,7 @@ export interface TrackMuteSoloButtonsViewProps {
   muteState: MuteState;
   solo: boolean;
   editsMix: boolean;
+  readOnlyNoteId?: string;
   shortcuts?: { mute: string; solo: string };
   onMute: () => void;
   onSolo: () => void;
@@ -29,6 +30,7 @@ export function TrackMuteSoloButtonsView({
   muteState,
   solo,
   editsMix,
+  readOnlyNoteId,
   shortcuts,
   onMute,
   onSolo,
@@ -45,6 +47,9 @@ export function TrackMuteSoloButtonsView({
       <ToggleButton
         pressed={muteState === "saved" || muteState === "listen"}
         aria-disabled={muteState === "saved" && !editsMix ? true : undefined}
+        aria-describedby={
+          muteState === "saved" && !editsMix ? readOnlyNoteId : undefined
+        }
         aria-label={muteButtonLabel(trackLabel)}
         className={`trk-btn ui-control--compact${muteClass}`}
         title={muteButtonTitle(muteState, editsMix, shortcuts?.mute)}

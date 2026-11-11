@@ -15,6 +15,7 @@ describe("TrackMuteSoloButtonsView", () => {
           muteState="saved"
           solo
           editsMix={false}
+          readOnlyNoteId="why"
           onMute={onMute}
           onSolo={onSolo}
         />
@@ -23,6 +24,10 @@ describe("TrackMuteSoloButtonsView", () => {
     expect(screen.getByRole("button", { name: "Mute Mira" })).toHaveAttribute(
       "aria-disabled",
       "true",
+    );
+    expect(screen.getByRole("button", { name: "Mute Mira" })).toHaveAttribute(
+      "aria-describedby",
+      "why",
     );
     expect(screen.getByRole("button", { name: "Solo Mira" })).toHaveAttribute(
       "aria-pressed",
@@ -34,5 +39,23 @@ describe("TrackMuteSoloButtonsView", () => {
       expect(name.startsWith(glyph)).toBe(true);
     }
     await expectNoA11yViolations(container);
+  });
+
+  it("points no description at an editor's saved mute", () => {
+    render(
+      <TrackMuteSoloButtonsView
+        trackId="mira"
+        trackLabel="Mira"
+        muteState="saved"
+        solo={false}
+        editsMix
+        readOnlyNoteId="why"
+        onMute={vi.fn()}
+        onSolo={vi.fn()}
+      />,
+    );
+    expect(
+      screen.getByRole("button", { name: "Mute Mira" }),
+    ).not.toHaveAttribute("aria-describedby");
   });
 });

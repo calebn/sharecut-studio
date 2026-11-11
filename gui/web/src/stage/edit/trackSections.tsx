@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useId } from "react";
 import { setEffectBypass } from "../../api";
 import { executePointerCommand } from "../../commands/pointer";
 import { roomToneBedBlocker } from "../../commands/roomToneBed";
@@ -72,6 +72,7 @@ function roomToneRows(track: TrackView, disabledReason: string | undefined) {
 export function useTrackSections(
   selection: Selection,
 ): readonly InspectorSection[] | null {
+  const muteNoteId = useId();
   const {
     project,
     projectPath,
@@ -236,14 +237,23 @@ export function useTrackSections(
         },
         {
           id: "levelNote",
-          control: <TrackLevelNote track={track} editable={mixEditable} />,
+          control: (
+            <TrackLevelNote
+              track={track}
+              editable={mixEditable}
+              muteNoteId={muteNoteId}
+            />
+          ),
         },
         {
           id: "mix",
           label: "Mute and solo",
           control: (
             <div className="track-transport-btns">
-              <TrackMuteSoloButtons trackId={track.id} />
+              <TrackMuteSoloButtons
+                trackId={track.id}
+                readOnlyNoteId={muteNoteId}
+              />
             </div>
           ),
         },
