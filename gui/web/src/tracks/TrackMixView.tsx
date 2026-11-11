@@ -3,7 +3,7 @@ import type { MuteState } from "../utils/audio";
 import { MUTE_STATE_ROW_CLASS } from "./muteRowClass";
 import { TrackFaderView } from "./TrackFaderView";
 import { TrackMuteSoloButtonsView } from "./TrackMuteSoloButtonsView";
-import { SAVED_MUTE_READ_ONLY } from "./trackMuteCopy";
+import { SAVED_MUTE_READ_ONLY_NOTE } from "./trackMuteCopy";
 
 export type MixTrack = Readonly<{
   id: string;
@@ -56,7 +56,7 @@ export function TrackMixView(props: TrackMixViewProps) {
       {access.kind !== "edit" &&
       rows.some((row) => row.muteState === "saved") ? (
         <p className="track-mix-note" id={mutedNoteId}>
-          {`${SAVED_MUTE_READ_ONLY}.`}
+          {SAVED_MUTE_READ_ONLY_NOTE}
         </p>
       ) : null}
       {preview === "shared-full-mix" ? (

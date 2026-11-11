@@ -129,6 +129,44 @@ describe("InspectorSeekFooterView", () => {
     expect(container.querySelector("p")).toBeNull();
   });
 
+  it("treats a whitespace-only mode reason as no reason", () => {
+    render(
+      <InspectorSeekFooterView
+        onSeek={vi.fn()}
+        onPlay={vi.fn()}
+        previewMode="current"
+        onPreviewModeChange={vi.fn()}
+        suggestDisabledReason="   "
+      />,
+    );
+    expect(screen.getByRole("button", { name: "A/B" })).toBeEnabled();
+    expect(document.querySelector("p")).toBeNull();
+  });
+
+  it("shows one note when play and the modes give the same reason", () => {
+    const reason = "Guests hear the full mix.";
+    render(
+      <InspectorSeekFooterView
+        onSeek={vi.fn()}
+        onPlay={vi.fn()}
+        previewMode="current"
+        onPreviewModeChange={vi.fn()}
+        playDisabledReason={reason}
+        suggestDisabledReason={reason}
+      />,
+    );
+    const notes = screen.getAllByText(reason, { selector: "p" });
+    expect(notes).toHaveLength(1);
+    expect(screen.getByRole("button", { name: "A/B" })).toHaveAttribute(
+      "aria-describedby",
+      notes[0].id,
+    );
+    expect(screen.getByRole("button", { name: "Play around" })).toHaveAttribute(
+      "aria-describedby",
+      notes[0].id,
+    );
+  });
+
   it("keeps an unavailable play focusable and says why, on touch and by key", async () => {
     const reason = "Guests hear the full mix. Ask the host for editor access.";
     const onPlay = vi.fn();

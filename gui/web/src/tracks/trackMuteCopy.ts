@@ -4,6 +4,8 @@ import type { MuteState } from "../utils/audio";
 export const SAVED_MUTE_READ_ONLY =
   "Muted in the mix. Only the host and editors can unmute it";
 
+export const SAVED_MUTE_READ_ONLY_NOTE = `${SAVED_MUTE_READ_ONLY}.`;
+
 /** Visible text on the M / S buttons. Accessible names must start with it (WCAG 2.5.3). */
 export const MUTE_GLYPH = "M";
 export const SOLO_GLYPH = "S";
