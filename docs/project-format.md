@@ -49,10 +49,10 @@ examples, and comments. Persisted fields with those names and literal defaults
 remain in the lock. The public schema version, model default, and runtime
 supported version must agree.
 
-The release ledger is `tests/fixtures/project_compat/releases.json`. It started
-empty and now lists `v0-1-2`, the 0.1.2 build at project version `2.0`, which the
-guard upgrades to the current version. An empty ledger would mean no
-released-format compatibility has been tested.
+The release ledger is `tests/fixtures/project_compat/releases.json`. It lists
+`v0-1-2`, the 0.1.2 build at project version `2.0`, which the guard upgrades to
+the current version. An empty ledger means no released-format compatibility has
+been tested.
 The development workspace is generated coverage of today's format, with a tiny
 raw WAV stub. It is never a released fixture or evidence of historical support.
 
