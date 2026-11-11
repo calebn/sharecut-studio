@@ -256,8 +256,8 @@ export const CAPABILITY_COPY: Record<string, CapabilityCopy> = {
     tooltip: "Refresh mix",
   },
   "daw.export.bounce": {
-    label: "Bounce…",
-    tooltip: "Bounce…",
+    label: "Export full mix",
+    tooltip: "Export full mix",
   },
   "daw.share.manage": {
     label: "Share…",
@@ -575,8 +575,8 @@ export const CAPABILITY_COPY: Record<string, CapabilityCopy> = {
     tooltip: "Comment on range",
   },
   "daw.range.bounce": {
-    label: "Bounce selected range",
-    tooltip: "Bounce selected range",
+    label: "Export selected range",
+    tooltip: "Export selected range",
   },
   "daw.range.arm": {
     label: "Select a range",
@@ -658,7 +658,6 @@ export const GUI_SURFACE_TO_CAPABILITY: Record<string, string> = {
   "transcript.wordbar": "daw.transcript.adjustTiming",
   "home.help": "daw.ui.toggleCommandPalette",
   deliverShare: "daw.render.refreshMix",
-  deliverBounce: "daw.export.bounce",
   inviteSheet: "daw.share.manage",
   RecordStage: "daw.room.pause",
   HostMcpDialog: "daw.mcp.connect",

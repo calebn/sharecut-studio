@@ -1487,7 +1487,7 @@
     },
     {
       "id": "daw.export.bounce",
-      "label": "Bounce\u2026",
+      "label": "Export full mix",
       "effect": "project",
       "service": "ShareCut Studio command bus \u2192 services/document",
       "industry_standard_key": false,
@@ -1497,7 +1497,7 @@
       "surfaces": {
         "command": "export.bounce",
         "gui": [
-          "deliverBounce"
+          "actionBar"
         ],
         "mcp": [
           "bounce_audio_tool"
@@ -1507,9 +1507,9 @@
       },
       "omit": {
         "guest": true,
-        "keyboard_reason": "Mod+E opens Deliver with Bounce focused and the selected range filled in; Bounce is also in the palette and on Deliver"
+        "keyboard_reason": "Palette only: exports the whole episode's audible tracks in place (export/bounces/); the action bar's Export button does the same for a range or tracks"
       },
-      "tooltip": "Bounce\u2026",
+      "tooltip": "Export full mix",
       "presence": {
         "cursor": "none",
         "follow": "none"
@@ -3712,7 +3712,7 @@
     },
     {
       "id": "daw.range.bounce",
-      "label": "Bounce selected range",
+      "label": "Export selected range",
       "effect": "project",
       "service": "BounceService",
       "industry_standard_key": false,
@@ -3732,7 +3732,7 @@
       "omit": {
         "keyboard_reason": "Context action with explicit range selection"
       },
-      "tooltip": "Bounce selected range",
+      "tooltip": "Export selected range",
       "presence": {
         "cursor": "none",
         "follow": "none"
