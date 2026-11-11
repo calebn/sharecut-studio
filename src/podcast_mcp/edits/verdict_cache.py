@@ -473,6 +473,8 @@ def _heard(clip: Any, lo: float, hi: float) -> list[Any]:
     timing = getattr(clip, "timing", None)
     if timing is not None:
         heard.append(timing.model_dump(mode="json"))
+    if clip.gain_db:
+        heard.append(clip.gain_db)
     return heard
 
 
@@ -528,6 +530,7 @@ def _outside_ramps(
         clip.source_id,
         [*edge(clip.source_start, clip.fade_in_ms), clip.join_in_mode.value] if ramp_in else None,
         edge(clip.source_end, clip.fade_out_ms) if ramp_out else None,
+        *([clip.gain_db] if clip.gain_db else []),
     ]
 
 

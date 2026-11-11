@@ -360,10 +360,9 @@ def set_clip_gain_tool(project_path: str, clip_id: str, gain_db: float) -> str:
 
 
 def set_clips_gain_tool(project_path: str, clip_ids: list[str], gain_db: float) -> str:
-    """Set several clips to the same level in dB (absolute, 0 = unity, clamped to -60..+12).
+    """Set several clips to the same level in dB (absolute, 0 = unity, range -60 to +12).
 
-    One undo step covers every clip. A clip changed since it was read returns
-    ``clip_gain_changed`` and no clip changes.
+    One undo step covers every clip. A value outside the range is refused and no clip changes.
     """
     ws = ProjectWorkspace.open(project_path)
     by_id = {c.id: c for c in ws.project.clips}

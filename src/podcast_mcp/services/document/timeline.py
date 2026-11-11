@@ -348,7 +348,7 @@ class TimelineService(CutMutatingService):
     def restore_clip_bleed(self, target: BleedRestoreTarget) -> BleedRestoreResult:
         return restore_clip_bleed(self.ws, target)
 
-    def _mutate_fades(
+    def _mutate_clips(
         self, label: str, apply: Callable[[EpisodeProject], dict], *, operation: str, params: dict
     ) -> Mapping[str, Any]:
         return self.ws.mutate(
@@ -367,7 +367,7 @@ class TimelineService(CutMutatingService):
             if expected is not None:
                 require_clip_fade_baseline(project, clip_id, expected)
             return dict(
-                self._mutate_fades(
+                self._mutate_clips(
                     "set clip fade",
                     lambda p: set_clip_fade(
                         p, clip_id, fade_in_ms, fade_out_ms, defaults=self.ws.effective_config()
@@ -388,7 +388,7 @@ class TimelineService(CutMutatingService):
         with self.ws.transaction() as project:
             for clip_id, _, _, expected in fades:
                 require_clip_fade_baseline(project, clip_id, expected)
-            return self._mutate_fades(
+            return self._mutate_clips(
                 "set clips fade",
                 lambda p: set_clips_fade(
                     p,
@@ -412,10 +412,10 @@ class TimelineService(CutMutatingService):
     def set_clip_gain(
         self, clip_id: str, gain_db: float, *, expected: ClipGainBaseline | None = None
     ) -> Mapping[str, Any]:
-        return apply_clip_gain(self.ws, self._mutate_fades, clip_id, gain_db, expected)
+        return apply_clip_gain(self.ws, self._mutate_clips, clip_id, gain_db, expected)
 
     def set_clips_gain(self, gains: list[tuple[str, float, ClipGainBaseline]]) -> Mapping[str, Any]:
-        return apply_clips_gain(self.ws, self._mutate_fades, gains)
+        return apply_clips_gain(self.ws, self._mutate_clips, gains)
 
     def move_clips(self, clips: list[dict]) -> dict:
         return self.ws.mutate(

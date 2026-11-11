@@ -2451,6 +2451,8 @@
           "description": "The saved gain_db of this clip captured when the edit began."
         },
         "gain_db": {
+          "maximum": 12.0,
+          "minimum": -60.0,
           "title": "Gain Db",
           "type": "number"
         }
@@ -7928,7 +7930,7 @@
         },
         "expected": {
           "$ref": "#/$defs/ClipGainBaseline",
-          "description": "The saved gain_db captured when the edit began. A changed value returns clip_gain_changed without changing gain, history, or the journal. Read the clip's current gain_db with podcast edit list-clips."
+          "description": "The saved gain_db captured when the edit began. A changed value returns clip_gain_changed without changing gain, history, or the journal. Read the clip's current gain_db with podcast edit list-clips; a clip row without gain_db is at 0."
         },
         "gain_db": {
           "maximum": 12.0,
@@ -8299,7 +8301,7 @@
     "SetClipsGainPayload": {
       "properties": {
         "gains": {
-          "description": "One absolute gain_db target per clip, each clamped to the -60 to +12 dB range. Any clip whose saved gain differs from its expected value returns clip_gain_changed and nothing changes. One history entry covers every clip.",
+          "description": "One absolute gain_db target per clip, each within -60 to +12 dB or refused. Any clip whose saved gain differs from its expected value returns clip_gain_changed and nothing changes. One history entry covers every clip.",
           "items": {
             "$ref": "#/$defs/ClipGainTarget"
           },

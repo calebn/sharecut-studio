@@ -351,6 +351,7 @@ def _hole_room_tone(
                 source_id=source_id,
                 edge_in=0.0 if cut_in else fade,
                 edge_out=0.0 if cut_out else fade,
+                gain_db=hole.parent.gain_db,
             )
         )
     return MixAudio(ats[0], tuple(ats[1:])) if ats else None

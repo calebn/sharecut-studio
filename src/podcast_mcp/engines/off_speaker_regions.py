@@ -23,6 +23,10 @@ def nonempty_off_speaker_regions_payload(clip: Clip) -> dict[str, Any]:
     )
 
 
+def nonzero_gain_payload(clip: Clip) -> dict[str, Any]:
+    return {"gain_db": clip.gain_db} if clip.gain_db else {}
+
+
 def add_off_speaker_mute(clip: Clip, region: ClipOffSpeakerMuteRegion) -> bool:
     if region in clip.off_speaker_mute_regions:
         return False
