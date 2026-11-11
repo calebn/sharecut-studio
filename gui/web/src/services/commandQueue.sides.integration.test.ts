@@ -250,6 +250,23 @@ describe.each([
     });
   });
 
+  it("keeps the server's error code on a refusal, and none when the server sent none", async () => {
+    post.mockResolvedValue({
+      ok: false,
+      status: 409,
+      failure: new ApiError("Selected audio changed.", "range_changed", 409),
+    });
+    await run(false);
+    expect(settle.mock.calls[0]?.[2]).toMatchObject({
+      kind: "refused",
+      code: "range_changed",
+    });
+    settle.mockClear();
+    post.mockResolvedValue(refused);
+    await run(false);
+    expect(settle.mock.calls[0]?.[2]).not.toHaveProperty("code");
+  });
+
   it("clears an earlier save-blocking outcome once a command saves", async () => {
     post.mockResolvedValue(ok);
     removeHostConflictsWhere.mockResolvedValue(undefined);

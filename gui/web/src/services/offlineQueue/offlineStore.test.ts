@@ -211,6 +211,24 @@ describe("dismissal transaction results", () => {
   );
 });
 
+describe("refusal code", () => {
+  it("keeps a string code on a saved refusal and drops any other value", async () => {
+    rows.set("conflicts:token", [
+      { ...conflict, code: "range_changed" },
+      { ...conflict, code: 409 },
+      { ...conflict, code: "" },
+      conflict,
+    ]);
+    const loaded = await loadConflicts("token");
+    expect(loaded.map((c) => ("code" in c ? c.code : undefined))).toEqual([
+      "range_changed",
+      undefined,
+      undefined,
+      undefined,
+    ]);
+  });
+});
+
 it("reads host pending work and its outcome from one IndexedDB snapshot", async () => {
   rows.set("host-queue:/project", [command]);
   rows.set("host-conflicts:/project", [conflict]);

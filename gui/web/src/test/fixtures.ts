@@ -138,6 +138,8 @@ export function offlineConflict(
     reason?: string;
     recovery?: OfflineConflict["recovery"];
     blocksSave?: boolean;
+    /** The server's error code on a refused conflict. */
+    code?: string;
   } = {},
 ): OfflineConflict {
   const kind = overrides.kind ?? "refused";
@@ -158,6 +160,7 @@ export function offlineConflict(
       kind,
       reason,
       recovery: "edit-and-resubmit",
+      ...(overrides.code ? { code: overrides.code } : {}),
       ...(overrides.blocksSave ? { blocksSave: true } : {}),
     };
   }
