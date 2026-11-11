@@ -29,7 +29,7 @@ concurrency:
 jobs:
   changes:
     if: github.event_name == 'pull_request' && github.event.pull_request.draft != true
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 5
     outputs:
       skip-native-web: ${{ steps.plan.outputs.skip-native-web }}
@@ -49,7 +49,7 @@ jobs:
   web-dist:
     needs: changes
     if: ${{ !cancelled() && github.event.pull_request.draft != true && (needs.changes.result != 'success' || needs.changes.outputs.skip-native-web != '1') }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 20
     defaults:
       run:
@@ -73,7 +73,7 @@ jobs:
   desktop-scaffold:
     needs: changes
     if: ${{ !cancelled() && github.event.pull_request.draft != true && (needs.changes.result != 'success' || needs.changes.outputs.skip-native-cargo != '1') }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v7

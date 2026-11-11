@@ -490,6 +490,7 @@ def test_changes_job_feeds_frontend_and_the_browser_suites() -> None:
         "e2e-matrix": "${{ steps.plan.outputs.e2e-matrix }}",
         "release-only": "${{ steps.plan.outputs.release-only }}",
         "pytest": "${{ steps.plan.outputs.pytest }}",
+        "playwright-image": "${{ steps.playwright.outputs.image }}",
     }
     (plan,) = [step for step in changes["steps"] if step.get("id") == "plan"]
     assert plan["uses"] == "./.github/actions/ci-plan"

@@ -27,10 +27,32 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' && github.run_attempt == 1 }}
 
 jobs:
+  image:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      playwright: ${{ steps.playwright.outputs.image }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          sparse-checkout-cone-mode: false
+          sparse-checkout: |
+            .github/actions/playwright-image
+            gui/web/package-lock.json
+          persist-credentials: false
+
+      - name: Resolve the Playwright image
+        id: playwright
+        uses: ./.github/actions/playwright-image
+
   sweep:
     # Per-story axe and fit sweep (Vitest browser mode), sharded.
+    needs: image
     if: github.event_name != 'pull_request'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    container:
+      image: ${{ needs.image.outputs.playwright }}
+      options: --init --ipc=host
     timeout-minutes: 20
     strategy:
       fail-fast: false
@@ -49,10 +71,6 @@ jobs:
         run: npm ci
         working-directory: gui/web
 
-      - name: Install Chromium
-        run: npx playwright install --with-deps chromium
-        working-directory: gui/web
-
       - name: Sweep every story for axe violations and overflow
         run: npm run test:stories
         env:
@@ -60,8 +78,12 @@ jobs:
         working-directory: gui/web
 
   build:
+    needs: image
     if: github.event.pull_request.draft != true
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    container:
+      image: ${{ needs.image.outputs.playwright }}
+      options: --init --ipc=host
     steps:
       - uses: actions/checkout@v7
 
@@ -73,10 +95,6 @@ jobs:
 
       - name: Install dependencies
         run: npm ci
-        working-directory: gui/web
-
-      - name: Install Chromium
-        run: npx playwright install --with-deps chromium
         working-directory: gui/web
 
       - name: Build Storybook and run the render smoke
@@ -109,7 +127,7 @@ jobs:
   deploy:
     needs: [build, sweep]
     if: github.ref == 'refs/heads/main' && contains(fromJSON('["push","workflow_dispatch"]'), github.event_name)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     permissions:
       contents: read
       pages: write

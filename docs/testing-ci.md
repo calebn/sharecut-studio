@@ -84,7 +84,7 @@ and `frontend-suite` (the planner's `quick` scope). On pull requests the
 | `pytest` | The required check. Needs `changes`, `pytest-quality` and `pytest-shard`, and fails unless the plan, quality and every planned shard succeeded (a `quick` plan, a push, accepts skipped shards). On full runs it combines the shard coverage and enforces the 95% floor. |
 | `pytest-python-floor` | Advisory (not a required repository merge check): Python 3.11, the `requires-python` floor, runs `tests/test_wav_util.py` and `tests/test_bleed_gate_channels.py`, which pin the EXTENSIBLE-WAV reads that 3.11's stdlib `wave` rejects (#1183). The `pytest-shard` jobs use 3.14; a local 3.11 venv reproduces the gap. |
 | `frontend-suite` → `frontend` | The workload runs in `gui/web`: `npm ci`, `npm audit --omit=dev --audit-level=high` (advisory, `continue-on-error`, failures noted in the job summary; see [§ Dependency updates and audit](testing.md#dependency-updates-and-audit)), `npm run lint` (oxlint + Stylelint tokens/rem/`@container`; `!important`/`@layer` consent-gated), `npm run format:check` (Biome), `npm run typecheck` (strict `tsc`), `npm test` (Vitest + `axe-core` via `expectNoA11yViolations`; all `.stories.ts` and `.stories.tsx` modules are discovered, rendered with Storybook preview annotations, played, and axe-checked including body portals by `gui/web/src/test/allStories.test.tsx`; keeper PCM/WAV/segment bars in `gui/web/src/record/keeper/`; mix-minus MM1–MM9 in `gui/web/src/audio/mixMinus.test.ts`; stories/Storybook/test helpers never imported by app code or root build configs in `gui/web/src/test/storyGovernance.test.ts`), `npm run build` (Vite module-ID guard rejects story/Storybook inputs in every app build) |
-| `frontend-e2e-suites` → `frontend-e2e` | On dispatch, which promotion uses (the planner's `e2e` output; skipped on push to `develop`), six matrix jobs build ShareCut Studio and install only their declared browser engine with Playwright `--with-deps`: the four main-suite shards (`main-1of4` through `main-4of4`) use Chromium, `compat-chromium` uses Chromium, and `compat-webkit` uses WebKit. They run Playwright against a **temp copy** of `aligned_dialogue` (no committed waveform data: pyramids build on demand from fixture WAVs; the copy skips `artifacts/`, `history/`, `export/`, `_build/`, `.git`, and sync sqlite; see [§ Fixture hygiene](testing.md#fixture-hygiene)). Ordinary loopback Playwright launches leave `podcast gui` unpinned and provide each temporary `?project=` path. The main jobs run `npm run test:e2e -- --shard=i/4`; each deletes its live copy after Playwright terminates the web server. The main Chromium suite also runs `e2e/record-timeline-layering.spec.ts`, which checks recording and paused bands above an existing chapter marker at 1280px desktop and 360px and 390px phone widths in light and dark themes. Host→guest follow seeds a temp premix and needs `ffmpeg` on PATH. `e2e/host-tab-selection.spec.ts` opens two host tabs on one project: a click in one leaves the other's selection alone, and an agent-set selection reaches both. Presence follow also covers tab follow, chrome ghosts, lane-bottom no-jump, guest Pipeline/FX degrade, and the 360px phone guest Following pill (`e2e/presence-follow.spec.ts`). Full-page axe runs through `expectPageAxeClean` in `gui/web/e2e/axe.ts`. Each compatibility job runs the complete matrix for its named engine with one worker and one CI retry (see [§ Browser compatibility matrix](#browser-compatibility-matrix)). A pull request with a GUI-facing change runs one `main-smoke` job (the `SMOKE_SPECS` in `scripts/ci_plan.py`); a release-please pull request runs the four main shards and `compat-webkit-1of3` through `compat-webkit-3of3`. Failed-spec traces upload as `playwright-test-results-<name>` (`main-1of4` through `main-4of4`, `compat-chromium`, or `compat-webkit`; `main-smoke` on a PR). Every job uploads timing JSON as `playwright-reports-<name>` with the same suffixes. Touch-peek screenshots upload as `playwright-touch-peek-<name>` with the same suffixes. All three artifact types are kept for 7 days. The required `frontend-e2e` aggregate rejects any failed or cancelled matrix result, a skip the plan did not order, and a `changes` job that did not succeed. Firefox pending-inspector layout remains [Follow-up](../ROADMAP.md#after-the-beta) (original #155 report was Firefox @ 1280). `e2e/root-pin.spec.ts` checks that `/` with a pinned project redirects to it and never POSTs `/api/project/close`; specs that need Home call `openHome` from `e2e/home.ts` (it loads `/?home=1` and, unless a spec is about the Setup card, dismisses that card first). |
+| `frontend-e2e-suites` → `frontend-e2e` | On dispatch, which promotion uses (the planner's `e2e` output; skipped on push to `develop`), six matrix jobs build ShareCut Studio inside the Playwright container image (see [§ Browser installation](#browser-installation)) and run only their declared browser engine: the four main-suite shards (`main-1of4` through `main-4of4`) use Chromium, `compat-chromium` uses Chromium, and `compat-webkit` uses WebKit. They run Playwright against a **temp copy** of `aligned_dialogue` (no committed waveform data: pyramids build on demand from fixture WAVs; the copy skips `artifacts/`, `history/`, `export/`, `_build/`, `.git`, and sync sqlite; see [§ Fixture hygiene](testing.md#fixture-hygiene)). Ordinary loopback Playwright launches leave `podcast gui` unpinned and provide each temporary `?project=` path. The main jobs run `npm run test:e2e -- --shard=i/4`; each deletes its live copy after Playwright terminates the web server. The main Chromium suite also runs `e2e/record-timeline-layering.spec.ts`, which checks recording and paused bands above an existing chapter marker at 1280px desktop and 360px and 390px phone widths in light and dark themes. Host→guest follow seeds a temp premix and needs `ffmpeg` on PATH. `e2e/host-tab-selection.spec.ts` opens two host tabs on one project: a click in one leaves the other's selection alone, and an agent-set selection reaches both. Presence follow also covers tab follow, chrome ghosts, lane-bottom no-jump, guest Pipeline/FX degrade, and the 360px phone guest Following pill (`e2e/presence-follow.spec.ts`). Full-page axe runs through `expectPageAxeClean` in `gui/web/e2e/axe.ts`. Each compatibility job runs the complete matrix for its named engine with one worker and one CI retry (see [§ Browser compatibility matrix](#browser-compatibility-matrix)). A pull request with a GUI-facing change runs one `main-smoke` job (the `SMOKE_SPECS` in `scripts/ci_plan.py`); a release-please pull request runs the four main shards and `compat-webkit-1of3` through `compat-webkit-3of3`. Failed-spec traces upload as `playwright-test-results-<name>` (`main-1of4` through `main-4of4`, `compat-chromium`, or `compat-webkit`; `main-smoke` on a PR). Every job uploads timing JSON as `playwright-reports-<name>` with the same suffixes. Touch-peek screenshots upload as `playwright-touch-peek-<name>` with the same suffixes. All three artifact types are kept for 7 days. The required `frontend-e2e` aggregate rejects any failed or cancelled matrix result, a skip the plan did not order, and a `changes` job that did not succeed. Firefox pending-inspector layout remains [Follow-up](../ROADMAP.md#after-the-beta) (original #155 report was Firefox @ 1280). `e2e/root-pin.spec.ts` checks that `/` with a pinned project redirects to it and never POSTs `/api/project/close`; specs that need Home call `openHome` from `e2e/home.ts` (it loads `/?home=1` and, unless a spec is about the Setup card, dismisses that card first). |
 
 The [release refresh and final validation policy](#release-refreshes-and-final-validation) describes the advisory selector jobs and the mandatory full release receipt.
 
@@ -105,49 +105,19 @@ bundle guard fails if E2E page flags or signal counters remain in emitted assets
 
 ### Browser installation
 
-Browser matrix jobs install the matrix-selected engine and system dependencies
-through the locked Playwright package with `--with-deps`. They configure
-`scripts/ci_apt_method.py` before installation. The method preserves apt's package
-resolver, Ubuntu signing keys, signature and date checks, and final package hashes.
-It removes the runner's Azure mirror entry and the exact redundant entry
-`http://us-east-2.ec2.archive.ubuntu.com/ubuntu/` followed by one tab and `priority:1`.
-Other regional entries remain unsupported. Canonical HTTPS remains primary.
-The text reader normalizes CRLF and lone CR line endings to LF before entry validation.
-
-Apt-authenticated SHA256 objects use a second HTTPS source at
-`mirrors.edge.kernel.org/ubuntu` after a two-second hedge. Only complete bytes
-matching apt's expected size and SHA256 can win. Each object has a 90-second
-acquisition budget. Initial unsigned-by-hash metadata is fetched in order,
-with 15 seconds for Canonical and then 15 seconds for Kernel. Apt authenticates
-the returned metadata. A healthy primary therefore determines metadata freshness;
-a fallback can still carry an older valid signed release that apt accepts.
-A corrupt first metadata response fails apt authentication rather than starting
-a race between signed releases.
-
-Connections have a five-second bound. Transfers below 16 KiB/s for five seconds
-are stopped. Apt update errors fail setup even when cached indexes exist.
-Diagnostics report the source, bytes, elapsed time, budget, HTTP status and remote
-address without dumping apt configuration or credentials. An address can identify
-a proxy rather than the serving backend. For an unsupported mirror entry, setup
-fails with one bounded JSON diagnostic containing the one-based line number,
-character length excluding LF or CRLF, and entry. The entry appears exactly only
-when it matches a bounded ASCII HTTP or HTTPS DNS hostname with `/ubuntu` or
-`/ubuntu/`, optional numeric `priority:` metadata of up to six digits, and bounded
-spaces or tabs. Every other rejected entry is fully replaced with `<redacted>`.
-This diagnostic does not admit additional mirrors or fix an unsupported layout.
-The method supports the current Ubuntu resolute runner archive layout. For an
-unrecognised apt sources layout the step prints a warning annotation naming the
-public URIs, redacting any other token, writes nothing and leaves stock apt in
-place. A mirror, suite, component, ownership or prerequisite problem still fails
-setup.
-
-This provides bounded origin fallback for the remaining apt acquisition failure
-class in [#2117](https://github.com/calebn/sharecut-studio/issues/2117).
-It does not identify the historical slow backend or establish independent network
-routes. Mirror lag, shared network failures and older signed fallback metadata
-remain availability risks. Browser and npm downloads retain their own transports.
-The installation step keeps its ten-minute bound and the job its 60-minute bound.
-There is no browser cache or install retry.
+Jobs that drive a browser run in the official `mcr.microsoft.com/playwright` container
+image, so no job installs a browser or touches Ubuntu's package servers at run time.
+`.github/actions/playwright-image` reads the version `gui/web/package-lock.json` pins for
+`@playwright/test` and names `mcr.microsoft.com/playwright:v<version>-noble`. The
+`changes` job (`test.yml`) and the `image` job (`storybook.yml`) expose it as an output,
+and `frontend-e2e-suites`, the Storybook `sweep` and the Storybook `build` use it as their
+`container:` image with `--init --ipc=host`. The image ships Chromium, Firefox and WebKit
+with their system libraries at that exact version, so a Dependabot bump of the npm lock
+moves the image with it and the two cannot drift. A bump that lands before Microsoft
+publishes the matching tag fails the job at image pull. Runners are pinned to
+`ubuntu-24.04` in every workflow instead of `ubuntu-latest`. Jobs that need a toolchain
+the image lacks keep their own setup actions (`setup-python`, `setup-node`, the pinned
+FFmpeg payload).
 
 ### Storybook browser geometry
 
