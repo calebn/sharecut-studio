@@ -264,7 +264,13 @@ their own if no new clips).
 
 A crash after the guest mint and before the producer mint can leave a one-token
 room. `revoke_room` / End room / `podcast review revoke-share --session-id`
-still clear it.
+still clear it. The Invite sheet's **End room** acts at once and the toast offers Undo for
+10 s: it calls the host route `POST /api/shares/rooms/{session_id}/revoke` with
+`restorable: true`, so the links die at once and the room's end-of-session work (summary, land
+cleanup) waits 10 s, and `POST /api/shares/rooms/{session_id}/restore` brings the same links back
+until then, unless another room went live in the meantime (409
+`record_room_conflict`; see [share-tokens.md § Restorable revoke](share-tokens.md#restorable-revoke)).
+The Record stage's own End session keeps its client-side 10 s delay.
 
 Capture, ingest, host lobby, mix-minus graph: FOSS core. Public `/rec/` guest
 routes: collaboration extension + relay allowlist, exactly like `/r/`.
