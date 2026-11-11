@@ -52,9 +52,7 @@ export interface ClipRow {
   timeline_end: number;
   fade_in_ms: number;
   fade_out_ms: number;
-  /** Shape of the fade-in; omitted while linear. */
   fade_in_curve?: FadeCurve;
-  /** Shape of the fade-out; omitted while linear. */
   fade_out_curve?: FadeCurve;
   gain_db?: number;
   join_in_mode: string;

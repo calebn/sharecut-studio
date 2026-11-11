@@ -376,7 +376,6 @@ describe("several clips: fade shape", () => {
         join_crossfade_ms: 200,
       },
     ]);
-    // c1 ends at a cut, c2 starts at one, c3 starts in a blend that also ends c2's out edge.
     await act(async () => {
       fireEvent.click(choice("Fade in shape", "Equal power"));
     });

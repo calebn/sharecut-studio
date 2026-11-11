@@ -477,7 +477,6 @@ export function patchClipGain(
   return project;
 }
 
-/** The clip with `curve` spliced in under `key`; the key is dropped for linear, as the server omits it. */
 function withCurve(
   clip: ClipRow,
   key: "fade_in_curve" | "fade_out_curve",
@@ -487,10 +486,6 @@ function withCurve(
   return curve === "linear" ? rest : { ...rest, [key]: curve };
 }
 
-/**
- * Optimistic splice for SetClipFade. A curve the call does not name stays as
- * it is, as on the server.
- */
 export function patchClipFade(
   project: ProjectView,
   clipId: string,

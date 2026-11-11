@@ -333,11 +333,6 @@ export type ClipFadeBaseline = Readonly<{
   fade_out_curve?: FadeCurve;
 }>;
 
-/**
- * A clip's saved fades as the server compares them: lengths and both curves,
- * a missing curve being linear. Every fade sender takes its baseline here, or
- * a curved clip would be refused as changed.
- */
 export function clipFadeBaseline(clip: ClipRow): ClipFadeBaseline {
   return {
     fade_in_ms: clip.fade_in_ms,

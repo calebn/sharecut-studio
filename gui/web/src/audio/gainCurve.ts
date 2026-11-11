@@ -10,7 +10,6 @@ export interface ClipFade {
   readonly timelineEndSec: number;
   readonly fadeInSec: number;
   readonly fadeOutSec: number;
-  /** Shape of each edge fade (`afade` curve tri, qsin, hsin); linear when left out. */
   readonly fadeInCurve?: FadeCurve;
   readonly fadeOutCurve?: FadeCurve;
   /** Source second the clip starts at; with `mute`, places the mutes on the timeline. */
@@ -211,11 +210,6 @@ export function envelopeGainAt(
   return points[points.length - 1]!.value;
 }
 
-/**
- * Gain of an edge fade a fraction `x` (0 to 1) of the way along it, per curve
- * (tests/fixtures/gain_curve/fade_curve_cases.json). A fade-out is the mirror,
- * so it passes the fraction of the fade that remains.
- */
 function edgeGain(curve: FadeCurve | undefined, x: number): number {
   switch (curve) {
     case "equal_power":
@@ -236,7 +230,6 @@ export function fadeGainAt(clip: ClipFade, sec: number): number {
     clip.fadeInSec > 0 ? renderedFadeSec(length, clip.fadeInSec) : 0;
   const fadeOut =
     clip.fadeOutSec > 0 ? renderedFadeSec(length, clip.fadeOutSec) : 0;
-  // The two rendered fades never overlap, so the product is the one that is below 1.
   return (
     (fadeIn > 0
       ? edgeGain(clip.fadeInCurve, unit((sec - clip.timelineStartSec) / fadeIn))
@@ -293,7 +286,6 @@ export function gainBreakpoints(
   ];
   const curved = (curve: FadeCurve | undefined) =>
     curve !== undefined && curve !== "linear";
-  // A curved fade is followed in at least eight segments, however short it is.
   const edgeStep = (fadeSec: number, curve: FadeCurve | undefined) =>
     curved(curve) ? Math.min(FADE_STEP_SEC, fadeSec / 8) : FADE_STEP_SEC;
   const ramps: (readonly [number, number, number?])[] = [
