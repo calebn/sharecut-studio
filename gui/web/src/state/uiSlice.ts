@@ -122,6 +122,9 @@ type FeedbackInput =
 
 const MERGE_CAP = 25;
 
+/** How soon after its Undo lapsed a toast still takes the next edit of its kind (the head moves before the producer announces). */
+const LAPSE_MERGE_MS = 1500;
+
 const MERGE_NOUNS: Record<ToastKind, readonly [string, string]> = {
   cut: ["cut", "cuts"],
   delete: ["delete", "deletes"],
@@ -145,20 +148,28 @@ function mergedEdits(
     options.gesture ||
     standing.kind !== options.kind ||
     standing.tone !== "status" ||
-    !standing.undo ||
     standing.undo === options.undo ||
     standing.action ||
     standing.reverse ||
     standing.gesture
   )
     return null;
+  const lapsed =
+    !standing.undo &&
+    standing.lapsed &&
+    baseHead === options.undo &&
+    Date.now() - standing.lapsed.at < LAPSE_MERGE_MS
+      ? standing.lapsed.entries
+      : null;
+  if (!standing.undo && !lapsed) return null;
   if (
+    standing.undo &&
     baseHead !== standing.undo &&
     baseHead !== standing.baseHead &&
     baseHead !== options.undo
   )
     return null;
-  const earlier = standing.merged?.entries ?? [standing.undo];
+  const earlier = lapsed ?? standing.merged?.entries ?? [standing.undo!];
   if (earlier.length >= MERGE_CAP) return null;
   return { entries: [options.undo, ...earlier] };
 }
@@ -227,6 +238,7 @@ function feedbackPatch(s: DawStore, input: FeedbackInput): Partial<DawStore> {
             action: options.action ?? null,
             kind: options.kind ?? null,
             merged,
+            lapsed: null,
           },
         }
       : {}),
@@ -471,7 +483,20 @@ export const createUiSlice: StateCreator<DawStore, [], [], UiSlice> = (
     dropFeedbackUndo: (id) =>
       set((s) =>
         s.feedbackToast?.id === id && s.feedbackToast.undo
-          ? { feedbackToast: { ...s.feedbackToast, undo: null } }
+          ? {
+              feedbackToast: {
+                ...s.feedbackToast,
+                undo: null,
+                lapsed: s.feedbackToast.kind
+                  ? {
+                      entries: s.feedbackToast.merged?.entries ?? [
+                        s.feedbackToast.undo,
+                      ],
+                      at: Date.now(),
+                    }
+                  : null,
+              },
+            }
           : {},
       ),
     expectJobResult: (jobId) =>

@@ -190,6 +190,12 @@ export interface FeedbackToast {
   kind: ToastKind | null;
   /** The edits folded into this toast, newest first (`entries[0]` is `undo`); null for a lone edit. */
   merged: MergedEdits | null;
+  /**
+   * The edits this toast offered Undo for when the head moved past them (usually
+   * the next edit of the same kind landing). The next edit of that kind folds into
+   * them within a moment; otherwise they are history.
+   */
+  lapsed: { entries: readonly HistoryEntryId[]; at: number } | null;
 }
 
 export type ToastKind = "cut" | "delete" | "split";

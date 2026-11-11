@@ -25,6 +25,7 @@ const toast = (over: Partial<FeedbackToastState>): FeedbackToastState => ({
   action: null,
   kind: null,
   merged: null,
+  lapsed: null,
   ...over,
 });
 
