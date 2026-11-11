@@ -18,7 +18,7 @@ restrict pickup.
 | --- | --- |
 | Scope, bars, rules | This page |
 | What is open and how bad | Issue labels `beta:blocker`, `beta:quality`, `post-beta` |
-| Work deferred to version 1.0 | Label `v1` |
+| Work deferred to v1 | Labels `v1`, `deferred-v1` |
 | Which journey an issue serves | Labels `journey:J1` to `journey:J9` |
 | Which root cause an issue belongs to | Labels `cause:*`, and the `epic` issue for that cause |
 | Beta milestone | [Beta](https://github.com/calebn/sharecut-studio/milestone/1) |
@@ -94,8 +94,9 @@ Severity decides whether a defect holds the beta.
 `beta:quality` marks an S2. `post-beta` marks everything else. The beta labels
 describe the beta scope and never stop anyone from picking an issue up.
 
-The `v1` label marks work deferred to version 1.0 (for example #3337 and
-#3345). Lanes never take it.
+The `v1` and `deferred-v1` labels mark work deferred past the beta to v1 (for
+example #3337, #3345, #18 and #151). Lanes never take them. Elsewhere on this
+page the bare word v1 names the version, and only the labels control pickup.
 
 ### Decision: Beta scope is nine journeys
 
@@ -228,12 +229,13 @@ The same rules, in imperative form for agents, are in
 
 ## Pick work
 
-1. Any open issue without the `v1` label is eligible. Skip `v1` issues. Beta
-   labels never exclude an issue.
+1. Any open issue without a `v1` or `deferred-v1` label is eligible. Skip `v1`
+   and `deferred-v1` issues. Beta labels never exclude an issue.
 2. Among eligible issues, take `beta:blocker` first, then `beta:quality`
-   ordered by milestone and journey bar, then the rest.
+   ordered by milestone and then by the journey whose bar is furthest away,
+   then the rest.
 3. In-flight work finishes. Check the result against the bar of the journey the
-   issue carries.
+   issue carries, if it carries one.
 4. Apply the claim protocol in
    [issue claims](../.agents/skills/sharecut-poteto/references/issue-claims.md)
    before you start.

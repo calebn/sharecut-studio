@@ -21,7 +21,7 @@ The product is in beta and has no users. Breaking changes are allowed; backward 
 
 Read [docs/beta-plan.md](docs/beta-plan.md) before you choose work. It defines the nine journeys (J1 to J9), their bars, and what is not in the beta.
 
-- Any open issue without the `v1` label is eligible. Skip `v1` issues. Beta labels never exclude an issue. Among eligible issues, take `beta:blocker` first, then `beta:quality` ordered by milestone and journey bar, then the rest.
+- Any open issue without a `v1` or `deferred-v1` label is eligible. Skip `v1` and `deferred-v1` issues. Beta labels never exclude an issue. Among eligible issues, take `beta:blocker` first, then `beta:quality` ordered by milestone and then by the journey whose bar is furthest away, then the rest.
 - Label every new issue when you file it: a beta bucket, a `journey:J#`, and a `cause:` label when one fits.
 - Triage every finding per [File follow-ups](.agents/skills/sharecut-poteto/references/issue-claims.md#file-follow-ups), and file an issue only for reachable harm. The six filing rules are in the plan and there.
 - Close what you fix. Follow [Close issues](.agents/skills/sharecut-poteto/references/issue-claims.md#close-issues) at every merge and after every issue you file.
