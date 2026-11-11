@@ -283,7 +283,6 @@ function markVolatileDismissed(
   if (marked.length) volatileOutcomes.set(projectPath, marked);
 }
 
-/** The conflict still showing under this command id, as the last read holds it. */
 export function conflictByCommandId(
   projectPath: string,
   commandId: string,
@@ -296,7 +295,6 @@ export function conflictByCommandId(
     );
 }
 
-/** The command ids of the conflicts still showing. */
 export function activeConflictIds(projectPath: string): Set<string> {
   return new Set(
     (sources.get(projectPath)?.snapshot.conflicts ?? [])
@@ -305,7 +303,6 @@ export function activeConflictIds(projectPath: string): Set<string> {
   );
 }
 
-/** Whether a fresh read holds a conflict whose command id is not in `known`. */
 export async function hasConflictBeyond(
   projectPath: string,
   known: ReadonlySet<string>,
