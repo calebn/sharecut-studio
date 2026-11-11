@@ -1,4 +1,3 @@
-import type { ClipFadeCurves } from "../edit/fadeCurves";
 import type {
   ClipRow,
   CombinedUtterance,
@@ -8,6 +7,7 @@ import type {
   TrackView,
   TranscriptWordView,
 } from "../types/project";
+import type { ClipFadeCurves } from "../utils/fadeCurves";
 import type { DocumentFileSignature } from "./cursor";
 import { reuseUnchanged, sameItems } from "./reuseUnchanged";
 

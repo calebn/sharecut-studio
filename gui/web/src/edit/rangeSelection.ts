@@ -7,9 +7,9 @@ import type {
   Selection,
   TimelineSpan,
 } from "../types/project";
+import { clipFadeCurves } from "../utils/fadeCurves";
 import { sourceSecOnClipToTimeline } from "../utils/timebase";
 import { findTranscriptWord } from "../utils/transcript";
-import { clipFadeCurves } from "./fadeCurves";
 import { timelineEndSec } from "./pickupTarget";
 
 export const SPAN_STEP_SEC = 0.01;

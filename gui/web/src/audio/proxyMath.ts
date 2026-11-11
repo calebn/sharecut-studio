@@ -1,8 +1,8 @@
-import { clipEdgeCurve } from "../edit/fadeCurves";
 import { clipIdsBeforeCut, isCutJoin } from "../edit/joinRender";
 import { DocumentCommand } from "../types/documentCommands.generated";
 import type { ClipRow, FadeCurve, ProjectView } from "../types/project";
 import { clipGainDb, dbToLinear } from "../utils/audio";
+import { clipEdgeCurve } from "../utils/fadeCurves";
 import { originTrackId } from "../utils/timebase";
 import {
   type AutomaticMuteSpan,

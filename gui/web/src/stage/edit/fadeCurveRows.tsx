@@ -1,12 +1,12 @@
+import type { InspectorSection } from "../../system/InspectorSheet";
+import type { FadeCurve } from "../../types/project";
+import { SegmentedControl, ToggleButton } from "../../ui";
 import {
   FADE_CURVES,
   type FadeEdge,
   fadeCurveLabel,
   fadeCurveTitle,
-} from "../../edit/fadeCurves";
-import type { InspectorSection } from "../../system/InspectorSheet";
-import type { FadeCurve } from "../../types/project";
-import { SegmentedControl, ToggleButton } from "../../ui";
+} from "../../utils/fadeCurves";
 
 type Rows = InspectorSection["rows"];
 

@@ -3,9 +3,8 @@
  * handles (`useClipEdgeHandles`) and the inspector sheet's nudges
  * (`edit/nudge.ts`) send.
  */
-import { setClipFade, trimClipEdge } from "../api";
+import { clipFadeBaseline, setClipFade, trimClipEdge } from "../api";
 import { loadBoundaryContext } from "../api/boundary";
-import { clipFadeBaseline } from "../api/documentEdits";
 import { trackEditSave } from "../state/documentSendOrder";
 import type { ClipRow, HistoryEntryId } from "../types/project";
 import type { EditMode, TrimEdge } from "./clipEdgePreview";

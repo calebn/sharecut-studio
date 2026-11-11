@@ -1,7 +1,7 @@
 import type { ClipRow, ProjectView, Selection } from "../types/project";
+import { clipFadeCurves } from "../utils/fadeCurves";
 import { transcriptWordRange } from "../utils/transcript";
 import type { ClipboardExtract, ClipboardPayload } from "./clipboard";
-import { clipFadeCurves } from "./fadeCurves";
 import { muteRegionsOverlapping } from "./muteRegions";
 
 function findClip(project: ProjectView, id: string): ClipRow | null {

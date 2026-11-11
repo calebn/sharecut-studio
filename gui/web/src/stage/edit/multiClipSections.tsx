@@ -1,8 +1,6 @@
-import { setClipsFade, setClipsGain } from "../../api";
-import { clipFadeBaseline } from "../../api/documentEdits";
+import { clipFadeBaseline, setClipsFade, setClipsGain } from "../../api";
 import { CLIP_HANDLE_STEPS } from "../../edit/clipHandleSteps";
 import { cancelClipPlacement } from "../../edit/clipPlacement";
-import { clipEdgeCurve, type FadeEdge } from "../../edit/fadeCurves";
 import { clampClipFades, maxFadeMs } from "../../edit/fadeLimits";
 import {
   blendsIn,
@@ -21,6 +19,7 @@ import {
   clampClipGainDb,
   clipGainDb,
 } from "../../utils/audio";
+import { clipEdgeCurve, type FadeEdge } from "../../utils/fadeCurves";
 import { CLIP_READ_ONLY_REASON } from "./clipReadOnly";
 import { fadeCurveRows } from "./fadeCurveRows";
 import { note } from "./sheetNote";
