@@ -1,4 +1,4 @@
-import { expect, type Locator } from "@playwright/test";
+import { expect, type Locator, type Page } from "@playwright/test";
 import {
   acceptedEnvelopeCommand,
   addEnvelopePoint,
@@ -16,19 +16,16 @@ import {
   controlGeometry,
   wheelInspector,
 } from "../e2e/inspectorResponsiveEvidence";
-import { test } from "../e2e/interactionEvidence";
+import { type InteractionReceipt, test } from "../e2e/interactionEvidence";
 import { openPhoneTimeline } from "../e2e/phoneTimeline";
 import { withShareableProject } from "../e2e/shareableProject";
 import { openProject } from "../e2e/stageNav";
 
-test.use({
-  viewport: { width: 568, height: 320 },
-});
-
-test("568x320 phone envelope controls scroll into reach and preserve saved points", async ({
-  page,
-  receipts,
-}) => {
+async function exerciseEnvelopeControls(
+  page: Page,
+  receipts: InteractionReceipt[],
+  requireScroll: boolean,
+) {
   await withShareableProject(
     async (projectPath) => {
       const track = envelopeTrack(projectPath);
@@ -37,7 +34,9 @@ test("568x320 phone envelope controls scroll into reach and preserve saved point
       await openPhoneTimeline(page);
       await openEnvelopeTrackDetails(page, track.label, receipts);
       await showEnvelope(page);
-      const trackInspector = page.getByRole("dialog", { name: "Inspector" });
+      const trackInspector = page.getByRole("dialog", {
+        name: "Inspector",
+      });
       await expect(trackInspector).toBeVisible();
       await trackInspector.getByRole("button", { name: "Close" }).click();
       await expect(trackInspector).toBeHidden();
@@ -106,12 +105,14 @@ test("568x320 phone envelope controls scroll into reach and preserve saved point
         clientHeight: element.clientHeight,
         scrollHeight: element.scrollHeight,
       }));
-      expect(initialBody.scrollHeight).toBeGreaterThan(
-        initialBody.clientHeight,
-      );
+      if (requireScroll)
+        expect(initialBody.scrollHeight).toBeGreaterThan(
+          initialBody.clientHeight,
+        );
 
       let observedProgress = false;
       let clippedToReachable = false;
+      let sawClipped = false;
       const reach = async (control: Locator) => {
         let geometry = await controlGeometry(control);
         const initialGeometry = geometry;
@@ -137,6 +138,7 @@ test("568x320 phone envelope controls scroll into reach and preserve saved point
             initialMeasurement.rect.top < initialMeasurement.clip.top - 1 ||
             initialMeasurement.rect.bottom >
               initialMeasurement.clip.bottom + 1);
+        if (wasClipped) sawClipped = true;
         let movedTowardReach = false;
         for (let attempt = 0; !fullyAdmitted() && attempt < 12; attempt++) {
           expect(
@@ -213,16 +215,62 @@ test("568x320 phone envelope controls scroll into reach and preserve saved point
       expect(envelopeSnapshot(projectPath, track.id).points).toEqual(
         expectedRemoved,
       );
-      expect(
-        observedProgress,
-        "ordinary wheel input moves the Inspector body",
-      ).toBe(true);
-      expect(
-        clippedToReachable,
-        "a clipped control becomes reachable after observed body scrolling",
-      ).toBe(true);
+      if (requireScroll || sawClipped) {
+        expect(
+          observedProgress,
+          "ordinary wheel input moves the Inspector body",
+        ).toBe(true);
+        expect(
+          clippedToReachable,
+          "a clipped control becomes reachable after observed body scrolling",
+        ).toBe(true);
+      }
     },
     undefined,
     emptyEnvelopeProject,
   );
+}
+
+test.describe("568x320 phone shell", () => {
+  test.use({ viewport: { width: 568, height: 320 } });
+
+  test("568x320 phone envelope controls scroll into reach and preserve saved points", async ({
+    page,
+    receipts,
+  }) => {
+    await exerciseEnvelopeControls(page, receipts, true);
+  });
+});
+
+test.describe("667x375 phone shell", () => {
+  test.use({ viewport: { width: 667, height: 375 } });
+
+  test("667x375 phone envelope controls stay in reach and preserve saved points", async ({
+    page,
+    receipts,
+  }) => {
+    await exerciseEnvelopeControls(page, receipts, false);
+  });
+});
+
+test.describe("740x360 phone shell", () => {
+  test.use({ viewport: { width: 740, height: 360 } });
+
+  test("740x360 phone envelope controls stay in reach and preserve saved points", async ({
+    page,
+    receipts,
+  }) => {
+    await exerciseEnvelopeControls(page, receipts, false);
+  });
+});
+
+test.describe("767x375 phone shell", () => {
+  test.use({ viewport: { width: 767, height: 375 } });
+
+  test("767x375 phone envelope controls stay in reach and preserve saved points", async ({
+    page,
+    receipts,
+  }) => {
+    await exerciseEnvelopeControls(page, receipts, false);
+  });
 });
