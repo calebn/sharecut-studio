@@ -27,7 +27,7 @@ The phone has no Tab step to the next occurrence after a words cut; **Cut all** 
 Follow playhead keeps overlapping speakers highlighted in transcript order.
 Backward seeks update the active words through the same time-indexed lookup.
 
-Roll handles on a seam (a pill's two edges, or the diamond) roll the join during a drag. A floating
+Roll handles on a seam pill's two edges roll the join during a drag. A floating
 preview shows the time change, restored-word side, and legal limits. The glyph
 follows the pointer; hold Alt for fine motion of 1 ms per CSS pixel without
 jumping when Alt changes. Escape or an interrupted gesture discards the
