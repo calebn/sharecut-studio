@@ -45,7 +45,7 @@ import {
   selectedTrackIdsOf,
 } from "../state/selection";
 import type { PendingRecordTarget } from "../state/stageSlice";
-import { type BarItem, SPLIT_OPTIONS_ARG } from "../system/actionBarSlots";
+import type { BarItem, SPLIT_OPTIONS_ARG } from "../system/actionBarSlots";
 import { type BarId, resolveBar } from "../system/editActionSets";
 import type { HistoryEntryId, ProjectView, Selection } from "../types/project";
 import { BUSY_REASON } from "../ui/disabledReason";
@@ -809,11 +809,13 @@ async function dispatch(
   }
 }
 
+const OPTIONS_ARG: typeof SPLIT_OPTIONS_ARG = "options";
+
 async function exportVerb(
   facts: EditFacts,
   arg: VerbArg,
 ): Promise<ExecuteResult> {
-  if (arg === SPLIT_OPTIONS_ARG) return { status: "ok" };
+  if (arg === OPTIONS_ARG) return { status: "ok" };
   if (bounceRunning()) return cancelBounce();
   if (facts.kind === "range") return executePointerCommand("range.bounce");
   const { project, selection, soloTracks } = useDawStore.getState();
