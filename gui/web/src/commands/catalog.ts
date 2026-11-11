@@ -819,7 +819,7 @@ export const COMMANDS: Record<string, CommandDef> = {
     home: true,
     when: "canManageProjects",
     notes:
-      "Host-only sheet from the app menu: Appearance, Saved in, Models and Keyboard shortcuts",
+      "Host-only sheet from the app menu: Appearance, Saved in, Models and Keyboard shortcuts; desktop app: Cmd+, (macOS), Ctrl+, (Linux)",
   },
   "export.deliverables": {
     id: "export.deliverables",

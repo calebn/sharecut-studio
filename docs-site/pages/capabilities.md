@@ -109,7 +109,7 @@ Effect `project` changes the saved project, review state, transcripts or artifac
 | Report a problem… | view | `help.diagnosticsBundle` | — (dialog from Home / Menu) | — | `HelpDialog` | — | `podcast doctor --bundle` | — | yes | none · none |
 | Guides | view | `help.guides` | — (palette Help group) | — | — | — | — | — | — | none · none |
 | Manage models… | view | `models.open` | — (sheet from Home / palette) | — | `home.models`, `ModelsSheet`, `SettingsSheet` | `model_download`, `model_download_status` | `podcast setup` | — | yes | none · none |
-| Settings… | view | `settings.open` | — (sheet from the app menu (native Cmd+, is part b)) | — | `SettingsSheet` | — | — | — | yes | none · none |
+| Settings… | view | `settings.open` | — (sheet from the app menu; native Cmd+, (macOS) / Ctrl+, (Linux) in the desktop app menu) | — | `SettingsSheet` | — | — | — | yes | none · none |
 | Export deliverables… | project | `export.deliverables` | `Mod+E` | — | `deliverStage` | `export_audio_tool`, `bounce_audio_tool` | `podcast pipeline export-audio` | `podcast-master-export` | yes | none · none |
 | Export transcript… | project | `export.transcript` | — (Deliver page action, reached from the command palette) | — | `deliverTranscript` | `export_transcript`, `list_exported_transcripts` | `podcast transcript export` | `podcast-transcript-workflow` | yes | none · none |
 | New project… | project | `project.new` | — (Mod+N opens a browser window; New project is in the palette and on Home) | — | — | `episode_create` | `podcast episode init` | — | yes | none · none |
