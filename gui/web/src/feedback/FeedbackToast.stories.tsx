@@ -21,6 +21,7 @@ const toast = (over: Partial<FeedbackToastState>): FeedbackToastState => ({
   baseHead: head,
   reverse: null,
   returnFocus: null,
+  dwellMs: null,
   gesture: false,
   action: null,
   kind: null,
@@ -83,6 +84,27 @@ export const WithUndo: Story = {
   play: async ({ canvasElement }) => {
     await expect(
       await within(canvasElement.ownerDocument.body).findByText("Trimmed Mira"),
+    ).toBeVisible();
+  },
+};
+
+export const LinkStopped: Story = {
+  parameters: {
+    episode: {
+      state: {
+        feedbackToast: toast({
+          message: "Link stopped.",
+          dwellMs: 9500,
+          reverse: { run: async () => true, done: "Link restored." },
+        }),
+      },
+    },
+  },
+  play: async ({ canvasElement }) => {
+    const body = within(canvasElement.ownerDocument.body);
+    await expect(await body.findByText("Link stopped.")).toBeVisible();
+    await expect(
+      await body.findByRole("button", { name: "Undo" }),
     ).toBeVisible();
   },
 };

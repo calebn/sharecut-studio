@@ -236,6 +236,7 @@ function feedbackPatch(s: DawStore, input: FeedbackInput): Partial<DawStore> {
             reverse: options.reverse ?? null,
             onUndone: options.onUndone,
             returnFocus: options.returnFocus ?? null,
+            dwellMs: options.dwellMs ?? null,
             gesture: options.gesture === true,
             action:
               (input.kind === "jobs" ? input.action : options.action) ?? null,
