@@ -75,6 +75,8 @@ export function HistoryPanel() {
   const selectionStale = selectedKey !== null && selectedIndex === -1;
   const shownDiff = selectionStale ? null : diff;
   const diffLoading = loading && !selectionStale;
+  // A step that left the list takes its selection, diff and pending load with
+  // it, so a reload that brings the same key back starts unselected.
   if (selectionStale) {
     setView({ ...view, selected: null, diff: null, loading: false });
   }
