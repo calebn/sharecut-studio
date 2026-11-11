@@ -11,6 +11,7 @@ import {
   startBounceJob,
 } from "../../api";
 import {
+  EXPORT_CANCELLING_REASON,
   EXPORT_STARTING_REASON,
   exportBusyReason,
   registerBounceRunner,
@@ -221,6 +222,8 @@ export function BounceRunnerProvider({ children }: { children: ReactNode }) {
       return { status: "disabled", reason: "Nothing is exporting" };
     if (r.jobId === null)
       return { status: "disabled", reason: EXPORT_STARTING_REASON };
+    if (r.cancelling)
+      return { status: "disabled", reason: EXPORT_CANCELLING_REASON };
     const next: BounceRun = { ...r, cancelling: true };
     runRef.current = next;
     setRun(next);

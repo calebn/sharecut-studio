@@ -969,6 +969,7 @@ export function barModelOf(
   facts: EditFacts,
   s: DawState,
   exporting: boolean = bounceRunning(),
+  cancelReason: string | null = null,
 ): BarModel {
   const resolved = resolveBar(facts);
   const wired = WIRED_VERBS[facts.kind];
@@ -1037,7 +1038,13 @@ export function barModelOf(
       if (id === "record")
         return { id, label: rangeLike ? "Re-record" : "Record here" };
       if (id === "export") {
-        if (exporting) return { id, label: "Cancel export", pressed: true };
+        if (exporting)
+          return {
+            id,
+            label: "Cancel export",
+            pressed: true,
+            ...(cancelReason ? { disabledReason: cancelReason } : {}),
+          };
         const reason =
           exportBusyReason(s.activityJob) ?? descriptor("bounce")?.reason;
         return reason ? { id, disabledReason: reason } : item;

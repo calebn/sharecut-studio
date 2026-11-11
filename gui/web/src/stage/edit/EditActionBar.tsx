@@ -1,5 +1,9 @@
 import { memo, useCallback, useEffect, useMemo, useRef } from "react";
 import { useShallow } from "zustand/react/shallow";
+import {
+  EXPORT_CANCELLING_REASON,
+  EXPORT_STARTING_REASON,
+} from "../../commands/bounceRunnerHandle";
 import { barModelOf, editFactsOf, runEditVerb } from "../../commands/editVerbs";
 import { makeRangeTarget } from "../../edit/rangeSelection";
 import { useDawStore } from "../../state/dawStore";
@@ -76,13 +80,27 @@ function EditActionBarImpl({
     () => editFactsOf({ selection, project, projectPath, shareCapabilities }),
     [selection, project, projectPath, shareCapabilities],
   );
-  const exporting = useBounceRun().kind === "running";
+  const run = useBounceRun();
+  const exporting = run.kind === "running";
+  const cancelReason =
+    run.kind !== "running"
+      ? null
+      : run.jobId === null
+        ? EXPORT_STARTING_REASON
+        : run.cancelling
+          ? EXPORT_CANCELLING_REASON
+          : null;
   const model = useMemo(
     () =>
       facts
-        ? barModelOf(facts, { ...useDawStore.getState(), ...gates }, exporting)
+        ? barModelOf(
+            facts,
+            { ...useDawStore.getState(), ...gates },
+            exporting,
+            cancelReason,
+          )
         : null,
-    [facts, gates, exporting],
+    [facts, gates, exporting, cancelReason],
   );
   const items = useMemo(
     () =>

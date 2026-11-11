@@ -11,6 +11,7 @@ export type BounceRunner = {
 
 export const EXPORT_BUSY_REASON = "Another export is running.";
 export const EXPORT_STARTING_REASON = "Export is still starting";
+export const EXPORT_CANCELLING_REASON = "Export is cancelling";
 const UNAVAILABLE: ExecuteResult = {
   status: "disabled",
   reason: "Export is not available here",
