@@ -1,0 +1,81 @@
+{
+  "sources": [],
+  "timeline": {
+    "duration_sec": 3.0,
+    "tracks": [
+      {
+        "id": "host",
+        "label": "Host",
+        "role": "dialogue",
+        "speaker": "Host",
+        "media": {
+          "path": "raw/host.wav",
+          "duration_sec": 3.0,
+          "sample_rate": 16000,
+          "channels": 1
+        },
+        "room_tone": null,
+        "room_tone_origin": null,
+        "gate_fill": null,
+        "gain_db": 0.0,
+        "balance_basis": null,
+        "fader_db": 0.0,
+        "muted": false,
+        "transcript_gate": false,
+        "transcript_gate_scope": null,
+        "proxy": null,
+        "timeline_empty": false
+      }
+    ],
+    "clips": [
+      {
+        "id": "clip_42552b9e",
+        "track_id": "host",
+        "source_start": 0.0,
+        "source_end": 3.0,
+        "timeline_start": 0.0,
+        "source_id": null,
+        "fade_in_ms": 0,
+        "fade_out_ms": 0,
+        "join_in_mode": "fade",
+        "mute_regions": []
+      }
+    ]
+  },
+  "editorial": {
+    "edit_decisions": [],
+    "edit_log": [],
+    "chapters": [],
+    "retained_bleed_alignments": [],
+    "sound_actions": [],
+    "speaker_splits": [],
+    "record_sessions": [],
+    "session_suggestions": []
+  },
+  "transcripts": {
+    "per_track": [],
+    "combined": null
+  },
+  "mix": {
+    "processing_chains": [],
+    "automation_envelopes": []
+  },
+  "social": {
+    "clip_candidates": []
+  },
+  "feed": {
+    "show_id": null,
+    "guid": null,
+    "first_exported_at": null,
+    "pins": {}
+  },
+  "review": {
+    "comments": [],
+    "versions": [],
+    "active_version_id": null
+  },
+  "render_last_completed_step": null,
+  "meta": {
+    "name": "v0.1.2 miniature"
+  }
+}
