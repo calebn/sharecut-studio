@@ -17,17 +17,20 @@ from pydantic import ValidationError
 
 from podcast_mcp.config.defaults import load_defaults
 from podcast_mcp.edits.clip_fades import ClipFadeBaseline, ClipFadeChangedError, ClipFadeEdit
-from podcast_mcp.engines.audio import SourceAudio, sources
+from podcast_mcp.engines.audio import SourceAudio, placed_sources, sources
 from podcast_mcp.engines.audio_eval import evaluate_audio
 from podcast_mcp.engines.ffmpeg import FFmpegEngine
 from podcast_mcp.engines.timeline_render import (
     placed_track_audio,
     render_track_from_timeline,
     track_grid,
+    unfiltered_track_audio,
 )
 from podcast_mcp.engines.ungated_audio import load_mono_full
 from podcast_mcp.models import (
     Clip,
+    ClipJoinMode,
+    ClipMuteRegion,
     EpisodeProject,
     FadeCurve,
     MediaAsset,
@@ -36,6 +39,7 @@ from podcast_mcp.models import (
     load_project,
     save_project,
 )
+from podcast_mcp.models.episode import RoomToneFill
 from podcast_mcp.project.store import WriteGrantKind, write_grant
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.util.binaries import resolve_ffmpeg
@@ -195,6 +199,100 @@ def _evaluated_unit(
     return result
 
 
+def test_the_default_filter_string_is_byte_identical() -> None:
+    engine = FFmpegEngine()
+    assert engine._fade_chain(1.0, 0.1, 0.2) == [
+        "afade=t=in:st=0:d=0.1",
+        "afade=t=out:st=0.8:d=0.2",
+    ]
+    assert engine._fade_chain(1.0, 0.1, 0.2, LINEAR, LINEAR) == engine._fade_chain(1.0, 0.1, 0.2)
+    assert engine._fade_chain(1.0, 0.0, 0.0, S, S) == []
+
+
+def test_curved_edges_name_the_afade_curve_and_only_where_set() -> None:
+    engine = FFmpegEngine()
+    assert engine._fade_chain(1.0, 0.1, 0.2, EQUAL_POWER, S) == [
+        "afade=t=in:st=0:d=0.1:curve=qsin",
+        "afade=t=out:st=0.8:d=0.2:curve=hsin",
+    ]
+    assert engine._fade_chain(1.0, 0.1, 0.2, LINEAR, EQUAL_POWER) == [
+        "afade=t=in:st=0:d=0.1",
+        "afade=t=out:st=0.8:d=0.2:curve=qsin",
+    ]
+
+
+def test_the_pinned_ffmpeg_lists_the_curves_the_mapping_uses() -> None:
+    if not FFmpegEngine().check_available()[0]:
+        pytest.skip("ffmpeg not available")
+    text = subprocess.run(
+        [resolve_ffmpeg(), "-hide_banner", "-h", "filter=afade"],
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout
+    names = {line.split()[0] for line in text.splitlines() if line.startswith("     ")}
+    assert {"tri", "qsin", "hsin"} <= names
+
+
+@pytest.mark.parametrize("curve", [LINEAR, EQUAL_POWER, S])
+@pytest.mark.parametrize("source", ["ffmpeg", "evaluator"])
+def test_samples_follow_the_curve_in_and_out(curve: FadeCurve, source: str) -> None:
+    count = int(0.4 * RATE)
+    make = _ffmpeg_unit if source == "ffmpeg" else _evaluated_unit
+    rendered = make(0.4, 0.4, curve, curve)
+    fade_out_start = RATE - count
+    for x in SAMPLES_AT:
+        assert rendered[round(x * count)] == pytest.approx(_fade_in_gain(curve, x), abs=2e-3)
+        assert rendered[fade_out_start + round(x * count)] == pytest.approx(
+            _fade_out_gain(curve, x), abs=2e-3
+        )
+    assert rendered[count + 10 : fade_out_start - 10].tolist() == [1.0] * (
+        fade_out_start - count - 20
+    )
+
+
+@pytest.mark.parametrize(
+    ("in_curve", "out_curve"),
+    [(LINEAR, LINEAR), (EQUAL_POWER, S), (S, EQUAL_POWER), (LINEAR, EQUAL_POWER), (S, LINEAR)],
+)
+def test_evaluator_matches_ffmpeg_sample_for_sample(in_curve, out_curve) -> None:
+    rendered = _ffmpeg_unit(0.3, 0.45, in_curve, out_curve)
+    evaluated = _evaluated_unit(0.3, 0.45, in_curve, out_curve)
+    common = min(rendered.size, evaluated.size)
+    assert abs(rendered.size - evaluated.size) <= 3
+    assert np.abs(rendered[:common] - evaluated[:common]).max() < 1e-3
+
+
+def test_equal_power_pair_keeps_constant_power_at_the_midpoint() -> None:
+    power = _fade_in_gain(EQUAL_POWER, 0.5) ** 2 + _fade_out_gain(EQUAL_POWER, 0.5) ** 2
+    assert power == pytest.approx(1.0)
+    assert _fade_in_gain(S, 0.5) == pytest.approx(0.5)
+
+
+def test_edge_ramps_carry_the_afade_curve_name() -> None:
+    leaf = SourceAudio(
+        Path("a"),
+        0.0,
+        1.0,
+        fade_in_sec=0.1,
+        fade_out_sec=0.1,
+        fade_in_curve=EQUAL_POWER,
+        fade_out_curve=S,
+    )
+    (placed,) = placed_sources(leaf, crossfade_curve="exp")
+    assert [(r.rising, r.curve) for r in placed.ramps] == [(True, "qsin"), (False, "hsin")]
+    plain = SourceAudio(Path("a"), 0.0, 1.0, fade_in_sec=0.1, fade_out_sec=0.1)
+    (default,) = placed_sources(plain, crossfade_curve="exp")
+    assert {r.curve for r in default.ramps} == {"tri"}
+
+
+def test_a_leaf_with_another_curve_is_a_different_leaf() -> None:
+    base = SourceAudio(Path("a"), 0.0, 1.0, fade_in_sec=0.1)
+    assert base == SourceAudio(Path("a"), 0.0, 1.0, fade_in_sec=0.1, fade_in_curve=LINEAR)
+    assert base != SourceAudio(Path("a"), 0.0, 1.0, fade_in_sec=0.1, fade_in_curve=S)
+    assert base != SourceAudio(Path("a"), 0.0, 1.0, fade_in_sec=0.1, fade_out_curve=S)
+
+
 def _tone_project(tmp_path: Path, sample_wav: Path, clips: list[Clip]) -> EpisodeProject:
     ws = tmp_path / "ws"
     (ws / "raw").mkdir(parents=True)
@@ -230,6 +328,96 @@ def _leaves(project: EpisodeProject, *, fills: bool = False) -> list[SourceAudio
         grid=track_grid(project, track, project.clips, FFmpegEngine()),
     )
     return [leaf for leaf in sources(graph.audio) if leaf.is_fill is fills]
+
+
+def test_a_curved_clip_renders_differently_and_the_evaluator_agrees(
+    tmp_path: Path, sample_wav: Path
+) -> None:
+    curved = _clip(fade_in_ms=200, fade_out_ms=200, fade_in_curve=EQUAL_POWER, fade_out_curve=S)
+    plain = _clip(fade_in_ms=200, fade_out_ms=200)
+    project = _tone_project(tmp_path / "c", sample_wav, [curved])
+    rendered = _render_track(project, "curved.wav")
+    baseline = _render_track(_tone_project(tmp_path / "p", sample_wav, [plain]), "plain.wav")
+    assert np.abs(rendered - baseline).max() > 0.01
+    audio, curve = unfiltered_track_audio(project, project.tracks[0], DEFAULTS)
+    evaluated = evaluate_audio(audio, crossfade_curve=curve, load_source=load_mono_full)
+    assert evaluated is not None
+    common = min(evaluated.size, rendered.size)
+    assert abs(evaluated.size - rendered.size) <= 3
+    assert np.abs(evaluated[:common] - rendered[:common]).max() < 1e-3
+
+
+def test_naming_linear_renders_the_same_bytes_as_the_default(
+    tmp_path: Path, sample_wav: Path
+) -> None:
+    implicit = _render_track(
+        _tone_project(tmp_path / "i", sample_wav, [_clip(fade_in_ms=100, fade_out_ms=100)]), "i.wav"
+    )
+    explicit = _render_track(
+        _tone_project(
+            tmp_path / "e",
+            sample_wav,
+            [_clip(fade_in_ms=100, fade_out_ms=100, fade_in_curve=LINEAR, fade_out_curve=LINEAR)],
+        ),
+        "e.wav",
+    )
+    assert implicit.tobytes() == explicit.tobytes()
+
+
+def test_the_graph_leaf_carries_the_clips_curves(tmp_path: Path, sample_wav: Path) -> None:
+    clip = _clip(
+        end=1.5, fade_in_ms=50, fade_out_ms=60, fade_in_curve=S, fade_out_curve=EQUAL_POWER
+    )
+    (leaf,) = _leaves(_tone_project(tmp_path, sample_wav, [clip]))
+    assert (leaf.fade_in_curve, leaf.fade_out_curve) == (S, EQUAL_POWER)
+
+
+def test_a_cut_join_keeps_no_fade_so_no_curve_is_rendered(tmp_path: Path, sample_wav: Path) -> None:
+    first = _clip("a", 0.0, 1.0, 0.0, fade_out_ms=80, fade_out_curve=S)
+    second = _clip(
+        "b", 1.0, 2.0, 1.0, join_in_mode=ClipJoinMode.CUT, fade_in_ms=80, fade_in_curve=S
+    )
+    leaves = _leaves(_tone_project(tmp_path, sample_wav, [first, second]))
+    assert [(leaf.fade_in_sec, leaf.fade_out_sec) for leaf in leaves] == [(0.0, 0.0), (0.0, 0.0)]
+
+
+def test_room_tone_tiles_stay_linear_whatever_the_clip_curves_are(
+    tmp_path: Path, sample_wav: Path
+) -> None:
+    clip = _clip(
+        end=1.5,
+        fade_in_ms=100,
+        fade_out_ms=100,
+        fade_in_curve=S,
+        fade_out_curve=EQUAL_POWER,
+        mute_regions=[
+            ClipMuteRegion(start_s=0.4, end_s=0.7, fill=RoomToneFill(start_s=1.0, end_s=1.2))
+        ],
+    )
+    fills = _leaves(_tone_project(tmp_path, sample_wav, [clip]), fills=True)
+    assert fills
+    assert {_curves(leaf) for leaf in fills} == {(LINEAR, LINEAR)}
+
+
+def test_timed_clip_inner_shell_edges_are_linear_and_outer_edges_keep_the_curve() -> None:
+    from podcast_mcp.engines.timed_pieces import expand_timed_clips
+    from podcast_mcp.models.clip_timing import ClipTiming, TimingStep
+
+    clip = _clip(
+        "m",
+        0.0,
+        6.0,
+        0.0,
+        fade_in_ms=40,
+        fade_out_ms=40,
+        fade_in_curve=EQUAL_POWER,
+        fade_out_curve=S,
+        timing=ClipTiming(steps=[TimingStep(at=3.0, delta_sec=0.5)]),
+    )
+    shells, _ = expand_timed_clips([clip])
+    first, last = shells
+    assert _curves(first) == (EQUAL_POWER, LINEAR)
+    assert _curves(last) == (LINEAR, S)
 
 
 def _hash_project(tmp_path: Path, **clip_extra) -> EpisodeProject:

@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from itertools import pairwise
 
 from podcast_mcp.config.defaults import DEFAULT_MICRO_FADE_MS
-from podcast_mcp.models import Clip, ClipJoinMode
+from podcast_mcp.models import Clip, ClipJoinMode, FadeCurve
 from podcast_mcp.models.clip_timing import MAX_TIMING_STEPS
 from podcast_mcp.util.coded_error import CodedValueError
 
@@ -76,6 +76,10 @@ def expand_timed_pieces(
                     "timeline_start": tl_a,
                     "fade_in_ms": fade_in,
                     "fade_out_ms": fade_out,
+                    "fade_in_curve": clip.fade_in_curve if index == 0 else FadeCurve.LINEAR,
+                    "fade_out_curve": (
+                        clip.fade_out_curve if index + 1 == len(pieces) else FadeCurve.LINEAR
+                    ),
                     "join_in_mode": clip.join_in_mode if index == 0 else ClipJoinMode.FADE,
                 }
             )

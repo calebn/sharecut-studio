@@ -18,6 +18,7 @@ from typing import IO, Any
 import numpy as np
 
 from podcast_mcp.engines.audio import (
+    AFADE_CURVE_NAMES,
     Audio,
     CrossfadeAudio,
     FrameTransform,
@@ -66,6 +67,7 @@ from podcast_mcp.engines.render_clock import (
 from podcast_mcp.models import (
     AutomationEnvelope,
     EpisodeProject,
+    FadeCurve,
     ProcessingChain,
     ProcessingEffect,
     Track,
@@ -230,6 +232,10 @@ def _escape_filter_value(value: str) -> str:
     Windows drive-letter separator) or `'`/`\\`.
     """
     return value.replace("\\", "\\\\").replace(":", "\\:").replace("'", "\\'")
+
+
+def _afade_curve_option(curve: FadeCurve) -> str:
+    return "" if curve is FadeCurve.LINEAR else f":curve={AFADE_CURVE_NAMES[curve]}"
 
 
 def _effect_filter(fx: ProcessingEffect) -> str | None:
@@ -1282,15 +1288,17 @@ class FFmpegEngine:
         seg_duration: float,
         fade_in_sec: float,
         fade_out_sec: float,
+        fade_in_curve: FadeCurve = FadeCurve.LINEAR,
+        fade_out_curve: FadeCurve = FadeCurve.LINEAR,
     ) -> list[str]:
         parts: list[str] = []
         if fade_in_sec > 0:
             d = fade_duration(seg_duration, fade_in_sec)
-            parts.append(f"afade=t=in:st=0:d={d}")
+            parts.append(f"afade=t=in:st=0:d={d}{_afade_curve_option(fade_in_curve)}")
         if fade_out_sec > 0:
             d = fade_duration(seg_duration, fade_out_sec)
             st = max(0.0, seg_duration - d)
-            parts.append(f"afade=t=out:st={st}:d={d}")
+            parts.append(f"afade=t=out:st={st}:d={d}{_afade_curve_option(fade_out_curve)}")
         return parts
 
     def _mute_chain(
@@ -1419,7 +1427,9 @@ class FFmpegEngine:
             path = source_paths[i]
             seek = seeks[path]
             dur = seg.src_end - seg.src_start
-            chain = self._fade_chain(dur, seg.fade_in_sec, seg.fade_out_sec)
+            chain = self._fade_chain(
+                dur, seg.fade_in_sec, seg.fade_out_sec, seg.fade_in_curve, seg.fade_out_curve
+            )
             if seg.mute_spans:
                 if path not in source_rates:
                     source_rates[path] = self.probe(path).sample_rate
