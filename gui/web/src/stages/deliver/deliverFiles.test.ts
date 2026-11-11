@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { type DeliverFiles, filesOfKinds } from "./deliverFiles";
+import { afterExportOf, type DeliverFiles, filesOfKinds } from "./deliverFiles";
 import type { ExportedFile } from "./exportedFileModel";
 
 const file = (id: string, kind: ExportedFile["kind"]): ExportedFile => ({
@@ -46,5 +46,44 @@ describe("filesOfKinds", () => {
     expect(
       filesOfKinds({ ...source, files: [] }, ["audio"], false).files,
     ).toEqual([]);
+  });
+});
+
+describe("afterExportOf", () => {
+  const stale = { ...file("old.mp3", "audio"), current: false };
+  const source = (
+    files: ExportedFile[],
+    access: DeliverFiles["access"] = "reveal",
+  ): DeliverFiles => ({ files, access });
+
+  it("offers the first current audio file once the export is finished", () => {
+    const got = afterExportOf(
+      source([file("ep.srt", "transcript"), file("ep.mp3", "audio")]),
+      true,
+    );
+    expect(got?.file.id).toBe("ep.mp3");
+  });
+
+  it("offers nothing before an export finishes or without files", () => {
+    const files = source([file("ep.mp3", "audio")]);
+    expect(afterExportOf(files, false)).toBeUndefined();
+    expect(afterExportOf(undefined, true)).toBeUndefined();
+    expect(afterExportOf(source([]), true)).toBeUndefined();
+  });
+
+  it("skips stale audio and non-audio files", () => {
+    expect(
+      afterExportOf(source([stale, file("ep.srt", "transcript")]), true),
+    ).toBeUndefined();
+  });
+
+  it("needs a link to download in a browser", () => {
+    const noLink = source([file("ep.mp3", "audio")], "download");
+    expect(afterExportOf(noLink, true)).toBeUndefined();
+    const linked = source(
+      [{ ...file("ep.mp3", "audio"), href: "#ep" }],
+      "download",
+    );
+    expect(afterExportOf(linked, true)?.access).toBe("download");
   });
 });

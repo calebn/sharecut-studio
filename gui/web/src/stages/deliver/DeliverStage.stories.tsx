@@ -292,7 +292,9 @@ export const EditedAfterExport: Story = {
   },
   play: playInCanvas(async ({ canvasElement }) => {
     const view = within(canvasElement);
-    await expect(view.getByRole("button", { name: /^Export$/ })).toBeEnabled();
+    await expect(
+      view.getByRole("button", { name: /^Export again$/ }),
+    ).toBeEnabled();
     await expect(view.getByText("Exported")).toBeInTheDocument();
     await userEvent.click(view.getByRole("button", { name: /^Streaming/ }));
     await expect(view.getByText("Export is out of date")).toBeInTheDocument();
