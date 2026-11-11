@@ -478,7 +478,7 @@ def install_extension_wheels(uv: str, venv_py: Path, directory: Path) -> None:
 
 def install_locked_project(uv: str, venv_py: Path) -> None:
     """Install exactly the versions in uv.lock, then the project itself without deps."""
-    with tempfile.TemporaryDirectory() as tmp:
+    with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
         requirements = Path(tmp) / "requirements.txt"
         subprocess.check_call(
             [
