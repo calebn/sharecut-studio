@@ -3,6 +3,7 @@ import type { MuteState } from "../utils/audio";
 import { MUTE_STATE_ROW_CLASS } from "./muteRowClass";
 import { TrackFaderView } from "./TrackFaderView";
 import { TrackMuteSoloButtonsView } from "./TrackMuteSoloButtonsView";
+import { SAVED_MUTE_READ_ONLY } from "./trackMuteCopy";
 
 export type MixTrack = Readonly<{
   id: string;
@@ -34,6 +35,7 @@ export type TrackMixViewProps =
 
 export function TrackMixView(props: TrackMixViewProps) {
   const noteId = useId();
+  const mutedNoteId = useId();
   if (props.state === "loading") {
     return (
       <div className="track-mix" aria-busy="true" aria-label="Loading tracks">
@@ -51,6 +53,12 @@ export function TrackMixView(props: TrackMixViewProps) {
           ? "Volume and M are saved in the mix. S is for your listening and never exports."
           : "Only the host and editors can change volume. M and S are for your listening and never exports. A saved mute cannot be overridden."}
       </p>
+      {access.kind !== "edit" &&
+      rows.some((row) => row.muteState === "saved") ? (
+        <p className="track-mix-note" id={mutedNoteId}>
+          {`${SAVED_MUTE_READ_ONLY}.`}
+        </p>
+      ) : null}
       {preview === "shared-full-mix" ? (
         <p className="track-mix-note">
           Shared playback uses Full mix; listen controls may not be audible in
@@ -69,6 +77,7 @@ export function TrackMixView(props: TrackMixViewProps) {
               row={row}
               access={access}
               noteId={noteId}
+              mutedNoteId={mutedNoteId}
               renderPlaysAt={renderPlaysAt}
               onMute={onMute}
               onSolo={onSolo}
@@ -84,6 +93,7 @@ function MixRow({
   row,
   access,
   noteId,
+  mutedNoteId,
   renderPlaysAt,
   onMute,
   onSolo,
@@ -91,6 +101,7 @@ function MixRow({
   row: MixTrack;
   access: MixAccess;
   noteId: string;
+  mutedNoteId: string;
   renderPlaysAt?: (trackId: string, baseDb: number) => ReactNode;
   onMute: (trackId: string) => void;
   onSolo: (trackId: string) => void;
@@ -112,6 +123,7 @@ function MixRow({
         muteState={row.muteState}
         solo={row.solo}
         editsMix={access.kind === "edit"}
+        readOnlyNoteId={mutedNoteId}
         onMute={() => onMute(row.id)}
         onSolo={() => onSolo(row.id)}
       />

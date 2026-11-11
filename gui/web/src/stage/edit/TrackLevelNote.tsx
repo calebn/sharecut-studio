@@ -1,3 +1,4 @@
+import { SAVED_MUTE_READ_ONLY } from "../../tracks/trackMuteCopy";
 import { useVolumeEnvelopeDb } from "../../tracks/useVolumeEnvelopeDb";
 import type { TrackView } from "../../types/project";
 import {
@@ -9,9 +10,11 @@ import {
 export function TrackLevelNote({
   track,
   editable,
+  muteNoteId,
 }: {
   track: TrackView;
   editable: boolean;
+  muteNoteId?: string;
 }) {
   const envelopeDb = useVolumeEnvelopeDb(track.id);
   const fader = trackFaderDb(track);
@@ -29,6 +32,11 @@ export function TrackLevelNote({
           ? ""
           : ` with the volume envelope at ${formatGainDb(envelopeDb)} at the playhead`}
       </p>
+      {!editable && track.muted ? (
+        <p className="sys-inspector-note" id={muteNoteId}>
+          {`${SAVED_MUTE_READ_ONLY}.`}
+        </p>
+      ) : null}
       {balance ? (
         <p className="sys-inspector-note">
           Balance{" "}
