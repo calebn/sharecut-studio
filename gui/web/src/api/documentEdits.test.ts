@@ -27,7 +27,9 @@ import {
   moveClips,
   restoreAppliedEdit,
   selectSessionTakeCommand,
+  setClipGain,
   setClipsFade,
+  setClipsGain,
   setTranscriptWordAutomatic,
   setTranscriptWordSuppressed,
   setTranscriptWordsIgnored,
@@ -561,6 +563,48 @@ describe("setClipsFade", () => {
       "/tmp/ep",
       "SetClipsFade",
       { fades: [{ clip_id: "c1", fade_in_ms: 5, fade_out_ms: 2, expected }] },
+      undefined,
+    );
+  });
+});
+
+describe("setClipGain", () => {
+  it("sends the target with a copy of its baseline and returns the entry", async () => {
+    const expected = { gain_db: -3 };
+    vi.mocked(submitQueuedDocumentCommand).mockResolvedValueOnce({
+      history_head_id: "gain",
+    });
+    expect(await setClipGain("/tmp/ep", "c1", 4.5, expected)).toBe("gain");
+    expected.gain_db = 0;
+    expect(submitQueuedDocumentCommand).toHaveBeenLastCalledWith(
+      "/tmp/ep",
+      "SetClipGain",
+      { clip_id: "c1", gain_db: 4.5, expected: { gain_db: -3 } },
+      undefined,
+    );
+  });
+});
+
+describe("setClipsGain", () => {
+  it("sends every clip's absolute target with its baseline in one command", async () => {
+    vi.mocked(submitQueuedDocumentCommand).mockResolvedValueOnce({
+      history_head_id: "gains",
+    });
+    expect(
+      await setClipsGain("/tmp/ep", [
+        { clip_id: "c1", gain_db: 2, expected: { gain_db: 0 } },
+        { clip_id: "c2", gain_db: 2, expected: { gain_db: -1 } },
+      ]),
+    ).toBe("gains");
+    expect(submitQueuedDocumentCommand).toHaveBeenLastCalledWith(
+      "/tmp/ep",
+      "SetClipsGain",
+      {
+        gains: [
+          { clip_id: "c1", gain_db: 2, expected: { gain_db: 0 } },
+          { clip_id: "c2", gain_db: 2, expected: { gain_db: -1 } },
+        ],
+      },
       undefined,
     );
   });

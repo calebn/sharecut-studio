@@ -5,6 +5,7 @@ import { documentAuthority } from "./authorityState";
 import {
   type ClipMoveItem,
   patchClipFade,
+  patchClipGain,
   patchClipsMove,
   patchProjectName,
   patchTrackMeta,
@@ -15,6 +16,7 @@ import {
 type Draft =
   | { kind: "move"; clips: ClipMoveItem[] }
   | { kind: "fade"; clipId: string; fadeInMs: number; fadeOutMs: number }
+  | { kind: "gain"; clipId: string; gainDb: number }
   /** A held control's local preview, a function of the latest project (not a copy of one). */
   | {
       kind: "preview";
@@ -101,6 +103,38 @@ export function beginDocumentDraft(
         fadeOutMs: payload.fade_out_ms,
       },
     ]);
+  } else if (
+    type === DocumentCommand.SetClipGain &&
+    typeof payload.clip_id === "string" &&
+    typeof payload.gain_db === "number" &&
+    Number.isFinite(payload.gain_db)
+  ) {
+    entries.push([
+      `gain:${payload.clip_id}`,
+      { kind: "gain", clipId: payload.clip_id, gainDb: payload.gain_db },
+    ]);
+  } else if (
+    type === DocumentCommand.SetClipsGain &&
+    Array.isArray(payload.gains)
+  ) {
+    if (payload.gains.length > 10_000)
+      throw new Error("Too many pending clip gains");
+    const gains: [string, Draft][] = [];
+    for (const raw of payload.gains) {
+      const value = record(raw);
+      if (
+        !value ||
+        typeof value.clip_id !== "string" ||
+        typeof value.gain_db !== "number" ||
+        !Number.isFinite(value.gain_db)
+      )
+        return;
+      gains.push([
+        `gain:${value.clip_id}`,
+        { kind: "gain", clipId: value.clip_id, gainDb: value.gain_db },
+      ]);
+    }
+    entries.push(...gains);
   } else if (
     type === DocumentCommand.RenameProject &&
     typeof payload.name === "string"
@@ -257,6 +291,9 @@ export function overlayDocumentDrafts(
           draft.fadeInMs,
           draft.fadeOutMs,
         );
+        break;
+      case "gain":
+        result = patchClipGain(result, draft.clipId, draft.gainDb);
         break;
       case "preview":
         result = draft.apply(result);
