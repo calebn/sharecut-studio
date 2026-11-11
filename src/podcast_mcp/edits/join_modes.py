@@ -320,41 +320,48 @@ def crossfade_joins(
     defaults: EffectiveConfig,
     dry_run: bool = False,
 ) -> dict:
-    """Set abutting joins to crossfade mode with overlapping blend fades.
+    """Set abutting joins to crossfade mode: each join edge gets the longer of its fade and
+    ``fade_ms`` (default ``tighten.crossfade_ms``), then ``clamp_clip_fades`` fits both clips.
 
-    A manual edit, the bulk form of a crossfade ``set_clip_join``: the length (``fade_ms``,
-    default ``tighten.crossfade_ms``) is bounded per join by the clips (``clamp_clip_fades``),
-    not by the Longest automatic join fade, and a longer fade already on an edge is kept.
-    ``fade_ms`` in the result is the length applied after that bound (the longest, when joins
-    differ); ``requested_fade_ms`` is what was asked for and ``clamped_joins`` counts joins the
-    clips shortened. A dry run reports the same without writing.
+    A manual edit, not held to the Longest automatic join fade. A join where either edge would
+    be 0 ms is left as it is. ``fade_ms`` in the result is the longest fade left on a join edge
+    (the request when there are no joins); a dry run computes the same without writing.
     """
     ms = (
         fade_ms if fade_ms is not None else default_join_length_ms(ClipJoinMode.CROSSFADE, defaults)
     )
+    if ms <= 0:
+        raise CodedValueError(
+            "crossfade fade_ms must be > 0. Pass more than 0.", code="out_of_range"
+        )
     track_ids = _target_track_ids(project, track_id=track_id, speaker=speaker)
-    applied_ms: list[int] = []
+    fades: dict[str, tuple[int, int]] = {}
+    joins: list[tuple[Clip, Clip]] = []
+    join_count = 0
     for tid in track_ids:
-        clips = clips_for_track(project, tid)
-        for left, right in abutting_pairs(clips):
-            room_out = clamp_clip_fades(left, left.fade_in_ms, ms)[1]
-            room_in = clamp_clip_fades(right, ms, 0)[0]
-            applied_ms.append(min(room_out, room_in))
-            if dry_run:
+        for left, right in abutting_pairs(clips_for_track(project, tid)):
+            join_count += 1
+            left_in, left_out = fades.get(left.id, (left.fade_in_ms, left.fade_out_ms))
+            right_in, right_out = fades.get(right.id, (right.fade_in_ms, right.fade_out_ms))
+            new_left = clamp_clip_fades(left, left_in, max(left_out, ms))
+            new_right = clamp_clip_fades(right, max(right_in, ms), right_out)
+            if new_left[1] == 0 or new_right[0] == 0:
                 continue
+            fades[left.id], fades[right.id] = new_left, new_right
+            joins.append((left, right))
+    edges = [(fades[left.id][1], fades[right.id][0]) for left, right in joins]
+    if not dry_run:
+        for clip in project.clips:
+            if clip.id in fades:
+                clip.fade_in_ms, clip.fade_out_ms = fades[clip.id]
+        for _, right in joins:
             right.join_in_mode = ClipJoinMode.CROSSFADE
-            left.fade_in_ms, left.fade_out_ms = clamp_clip_fades(
-                left, left.fade_in_ms, max(left.fade_out_ms, ms)
-            )
-            right.fade_in_ms, right.fade_out_ms = clamp_clip_fades(
-                right, max(right.fade_in_ms, ms), right.fade_out_ms
-            )
     return {
         "operation": "crossfade_joins",
-        "join_count": len(applied_ms),
-        "fade_ms": max(applied_ms, default=ms),
+        "join_count": join_count,
+        "fade_ms": max((max(edge) for edge in edges), default=0 if join_count else ms),
         "requested_fade_ms": fade_ms,
-        "clamped_joins": sum(applied < ms for applied in applied_ms),
+        "clamped_joins": join_count - sum(min(edge) >= ms for edge in edges),
         "dry_run": dry_run,
         "affected_tracks": track_ids,
     }
