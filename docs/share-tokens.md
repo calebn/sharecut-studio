@@ -41,6 +41,9 @@ stateDiagram-v2
   [*] --> Active: create_share_coolname
   Active --> Active: guest_use_updates_last_used_at_for_display
   Active --> Cooldown: revoke_or_host_chosen_expires_at_passed
+  Active --> Restorable: restorable_revoke
+  Restorable --> Active: restore_within_window
+  Restorable --> Cooldown: window_ended_finalize
   Active --> Free: create_failed_release_claim
   Cooldown --> Free: reserved_until_elapsed
   Free --> Active: new_create_reuses_slug
@@ -49,6 +52,7 @@ stateDiagram-v2
 | Pool | Guest `/r/{token}` | Mint collision? |
 |------|--------------------|-----------------|
 | **Active** | Usable (caps apply) | Yes — blocked |
+| **Restorable** | **404** | Yes — blocked (its `revoked` cooldown row is already in place) |
 | **Cooldown** | **404** | Yes — blocked until `reserved_until` |
 | Free (absent) | 404 | May mint |
 
@@ -59,6 +63,7 @@ stateDiagram-v2
 | **Mint** | `claim_with_mint_retry`: coolname slug → `claim_active` under `BEGIN IMMEDIATE`; remint on reservation race; then write project sidecar; `last_used_at = created_at` |
 | **Guest use** | `lookup_share` checks the active registry row on each request, touches `last_used_at` (throttle **1 hour**), and reads the project `shares.json` row with the registry row's `id` directly for current access policy. The project JSON need not be parsed for this lookup |
 | **Demote** | On revoke, or when the host-chosen `expires_at` has passed → move to cooldown with `reserved_until = now + 365d`, counted from when the link ends, not from its last use (single transaction). Idle time never demotes a link |
+| **Restorable revoke** | `ShareService.revoke(token, restorable_for=seconds)` and `revoke_room(session_id, restorable_for=seconds)` kill the link at once but keep it restorable. See [Restorable revoke](#restorable-revoke). Without `restorable_for` (every internal caller, MCP and the CLI) a revoke stays final, as above |
 | **Create rollback** | Sidecar write failure → `release_claim` (delete active, **no** cooldown) so flaky disk does not burn coolnames |
 | **Remint** | Allowed only if token absent from active and (absent from cooldown or `reserved_until` passed) |
 | **Tunnel** | Advertise **usable** active tokens only (`list_usable_shares`) |
@@ -105,6 +110,40 @@ opt-in on the CLI and MCP, and the section shows a date only on a link that has
 one. Its copy says links don't expire, and Stop sharing or End room turns them
 off.
 
+## Restorable revoke
+
+A revoke called with `restorable_for` (seconds) is undoable until that window ends. It is a
+service-level option; no HTTP route or client uses it yet, and the CLI, MCP and internal
+revokes (mint-time room revoke, auto-revoke of a vanished version) never pass it.
+
+- **Revoke**: `begin_pending_revoke` runs in one `BEGIN IMMEDIATE` transaction. It snapshots each
+  active row into `pending_revokes`, deletes it, and inserts the usual `revoked` cooldown row, so
+  guests are refused at once and the token stays reserved. `restorable_until` is
+  `min(now + window, expires_at)` and is shared by every token of a room. Then the sidecar row is
+  flagged `revoked: true` with `revoked_at` and `restorable_until` (this reverses the final
+  order, sidecar then registry, only for the restorable path). The host list shows no link for it.
+- **Deferred effects**: object-store and proxy deletes (review links) and the session summary,
+  land-rollback purge and land-lock release and file removal (rooms, once per room) wait for the
+  end of the window. While a link is restorable it still holds its review media against another
+  link's revoke (`share_holds_media`).
+- **Restore**: `ShareService.restore(token)` / `restore_room(session_id)` run `restore_group`, a
+  compare-and-set in one transaction: the pending rows are deleted only while `restorable_until`
+  is in the future and no finalize lease is held, the cooldown rows are deleted, and the snapshot
+  is re-inserted with the same token and `id`. A room restores every token atomically. Refusals
+  are coded: `restore_window_closed` (410), `share_expired` (410, the link's own `expires_at`
+  passed), `record_room_conflict` (409, another record room is live for the same episode, for
+  example one minted inside the window), and the existing `share_not_found` /
+  `record_room_not_found`. Restoring a link that is already live answers success again.
+- **Finalize**: `sweep_pending()` claims due rows with a lease (`finalize_lease_until`, 60 s), clears
+  the sidecar `restorable_until`, runs the effects, then deletes the pending row last. Effects are
+  at-least-once and idempotent; a crashed sweeper's lease lapses and the next sweep retries. A
+  final revoke of a pending link finalizes it at once.
+- **Sweeps** run on every restorable revoke, `create_record_room`, `list` / `list_presented`,
+  restore and host start (`sweep_all_pending`), and on a best-effort daemon `threading.Timer` set
+  `restorable_for + 1 s` after the revoke. Correctness never depends on the timer.
+- **Crash repair**: a pending row whose sidecar is not flagged is flagged again; a live registry
+  row whose sidecar still says revoked and restorable is cleared; a lapsed lease is retried.
+
 ## Host registry (sqlite)
 
 | | |
@@ -116,13 +155,15 @@ Tables (portable schema contract for a future relay backend):
 
 - `active_shares(token PRIMARY KEY, id, project_workspace, review_version_id, created_at, last_used_at, expires_at, capabilities, kind, role, session_id)`; the per-workspace sidecar row also holds `follow_latest` (the link serves the active review version): `id` is the random per-share id (`EditDecision.author`); `kind` is `review` \| `record` (default `review`)
 - `cooldown_shares(token PRIMARY KEY, last_used_at, reserved_until, reason, project_workspace)`
+- `pending_revokes(token PRIMARY KEY, group_id, project_workspace, snapshot_json, revoked_at, restorable_until, finalize_lease_until)`: one row per link revoked with `restorable_for` and not yet finalized. `snapshot_json` is the full active row, so a restore returns the same token and `id`; `group_id` is the token of a single share or the `session_id` of a record room. Additive: no existing table changed
 - `recording_key_secret(singleton=1, secret BLOB)`: one random 32-byte host installation secret
 
-`project_workspace` is the episode folder's resolved path. When the host moves the episode (`POST /api/project/move`), `rebase_workspace(old, new)` rewrites it on every active and cooldown row in one transaction, and the folder's `shares.json` rows are rewritten to match, so existing links keep resolving.
+`project_workspace` is the episode folder's resolved path. When the host moves the episode (`POST /api/project/move`), `rebase_workspace(old, new)` rewrites it on every active, cooldown and pending row in one transaction, and the folder's `shares.json` rows are rewritten to match, so existing links keep resolving.
 
 Access layer: `ShareRegistryProtocol` in `services/collaboration/share_registry.py` (`get_active`,
 `list_active_for_workspace`, `is_reserved`, `claim_active`, `rebase_workspace`, `release_claim`, `upsert_active_metadata`,
 `touch_last_used`, `demote_to_cooldown`, `purge_expired_cooldown`, `backup_to_new`,
+`begin_pending_revoke`, `restore_group`, `claim_due`, `complete_finalize`, `list_pending`,
 `recording_key_secret`, `close`). Host backend: `SqliteShareRegistry` (WAL, `busy_timeout=5000`,
 `BEGIN IMMEDIATE` on registry writes and singleton secret initialization). Wired through `services/collaboration/review_shares.py`
 and `services/collaboration/share.py`. Do **not** hand-edit the DB or invent a third index.
@@ -203,6 +244,10 @@ as **capability-adjacent**, because tokens are capabilities.
 
 ### Backup / restore
 
+A backup is a whole-database snapshot, so it carries `pending_revokes` with the other tables:
+a restored backup still honours the undo window of a link revoked just before the snapshot, and
+the next sweep finalizes the rows that are due.
+
 Registry backup path refusals use `registry_backup_invalid_path` for ambiguous
 Windows anchors or filenames. Backup identity guards and POSIX registry identity
 checks use `registry_backup_integrity_changed`. Existing Windows ancestry replacement
@@ -282,7 +327,8 @@ The host's share list (`ShareService.list` / `list_presented`, `GET /api/shares`
 `podcast review list-shares`) joins each row's token from the registry's active
 rows for that workspace (`list_active_for_workspace`), and Copy link uses the URL
 built from it. A revoked or demoted share has no active row, so it has no token or
-link; the Invite sheet lists only live links. Revoke and drop map a token to its
+link; the Invite sheet lists only live links. A restorable revoke's pending row is not an
+active row either, so it has no link until restored. Revoke and drop map a token to its
 `id` through the registry before touching the sidecar.
 
 ## Record sessions
@@ -307,7 +353,9 @@ Sidecar rows stay in `artifacts/review/shares.json` with the same fields (no tok
 Mint a room (`session_id` + guest + producer tokens) with
 `podcast review share --kind record` or `POST /api/shares/record`; end it with
 `podcast review revoke-share --session-id` / `POST /api/shares/rooms/{session_id}/revoke`
-/ MCP `revoke_record_room_tool`. Remint is refused while the active room is
+/ MCP `revoke_record_room_tool` (all final; the service can also revoke a room restorably,
+see [Restorable revoke](#restorable-revoke), and a room minted inside that window leaves the
+old room pending, so restoring it answers `record_room_conflict`). Remint is refused while the active room is
 `recording` or `paused` (`RecordStateError`, HTTP 409, CLI non-zero, MCP error:
 "A take is open (REC/PAUSED). Stop it before minting a new room."). Stop the
 take first. A successful remint revokes every guest and producer token of the
