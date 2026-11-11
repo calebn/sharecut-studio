@@ -506,3 +506,25 @@ def test_an_approval_starting_mid_warm_stops_the_warm_and_reuses_what_it_finishe
     assert len(set(by_warm) | set(by_approval)) == len(ids)
     assert len(by_warm) + len(by_approval) <= len(ids) + 1  # at most the cut in flight twice
     assert result["warmed"] <= 3
+
+
+def test_a_long_fade_on_a_far_clip_does_not_widen_the_read_window(tmp_path: Path) -> None:
+    project = _project(tmp_path)
+    edit = project.edit_decisions[0]
+    span = (5.0, 5.4)
+    base = verdict_cache._reach_sec(project, edit, span, load_defaults(), None)
+    project.clips = [
+        Clip(id="a", track_id="host", source_start=0, source_end=12.0, timeline_start=0),
+        Clip(
+            id="b",
+            track_id="host",
+            source_start=12.0,
+            source_end=SECONDS,
+            timeline_start=12.0,
+            fade_in_ms=800,
+        ),
+    ]
+    assert verdict_cache._reach_sec(project, edit, span, load_defaults(), None) == base
+    project.clips[0].source_end = 5.0
+    project.clips[0].fade_out_ms = 800
+    assert verdict_cache._reach_sec(project, edit, span, load_defaults(), None) > base + 0.5

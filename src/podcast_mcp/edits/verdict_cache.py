@@ -357,9 +357,9 @@ def _payload(
         "words": words,
         "pause": _pause_words_seen(project, edit, near),
         # A held pause records its observation span (``peer_observation_span``), which fade_reach_sec
-        # widens: by the cut crossfade, the pad fade config and the longest fade of any clip, also
-        # one ending before the window that nothing else here hashes. The words' places clamp the
-        # span. The two ends are hashed (not their inputs), so a fade that moves neither still
+        # widens: by the cut crossfade, the pad fade config and the longest fade of a clip on the
+        # track whose edge touches the cut, also one ending before the window that nothing else
+        # here hashes. The words' places clamp the span. The two ends are hashed (not their inputs), so a fade that moves neither still
         # hits. The gap between the words needs no entry: each word is hashed in ``pause`` and
         # placed by the clips in the window, or else by its end of the span.
         "pause_span": None if seen is None else [seen.lo, seen.hi],
