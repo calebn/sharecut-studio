@@ -13,7 +13,7 @@ from podcast_mcp.services.session_sync import drop_cached_stores_under, get_hub
 def release_workspace(workspace: Path) -> None:
     """Close the handles, subscriptions and path-keyed caches of ``workspace`` (resolved).
 
-    Run right after the folder is renamed, so a refused move leaves the open episode untouched:
+    Run right after the folder is renamed, so a refusal before the rename leaves the open episode untouched:
     a cache keyed by the old path would otherwise outlive the move. Order matters: the watcher and the
     subscribers pin the stores, so they go first. Whatever is opened again later opens at the
     folder's new path.
