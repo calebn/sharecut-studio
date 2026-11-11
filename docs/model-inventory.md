@@ -30,6 +30,8 @@ Cancel through `cancel_check` exists only for GUI and MCP jobs; `podcast bootstr
 
 Silero VAD has no row: it ships inside `faster-whisper`, and `podcast doctor` (`services/support/doctor.py`) reports it.
 
+`docs/setup.md` (bootstrap tiers, per-row pins, download progress and failures) is the user-facing description of the same path; this table records where the rows differ.
+
 Not covered by this audit, and still open on #1998: running the speaker model download from inside a packaged app, a real browser or device look at the Split speakers dialog, and whether cancelling a snapshot download stops it promptly (the progress callback is driven by `huggingface_hub`, and no test shows an exception from it ending the transfer).
 
 ## Findings
@@ -37,7 +39,7 @@ Not covered by this audit, and still open on #1998: running the speaker model do
 1. **Join quality has no model.** The WavLM and NISQA-named layer was removed (it never ran in a default install; the bake-off had no real labelled fails to rank it against the numpy detector fusion). Continuity is the numpy detector fusion only, so there is nothing to download or set up for it.
 2. **Speaker backends were the real gap.** The torch backends could not run in the packaged app; the ONNX ECAPA component (#1998, option A below) fixed that and is now the only speaker model. Whatever the fix is, it needs a runtime decision first (see below), then catalog entries, readiness checks and tests.
 3. **(Fixed by #1999.) `resolve_speaker_backend()` with no argument fell back to `MockSpeakerBackend`** when neither real backend imports, so a packaged app silently scored speakers with the development mock. The default now raises `speaker_backend_unavailable` (or `model_needed` when the ECAPA ONNX file is the missing piece and no override is set) unless `PODCAST_SPEAKER_BACKEND=mock` is set, so the embedding commands report the missing backend instead of scoring. Setup must not present that as a working backend, and the status payload should say the speaker feature is unavailable rather than ready.
-4. **Lazy, unpinned downloads.** ECAPA downloads at first use with no revision pin and no offline story. That bypasses the consent, progress, cancel and retry flow the catalog components get.
+4. **(Resolved.)** ECAPA is a sha256-pinned registry row (`speaker-ecapa`) with consent, progress and retry like the other components; the lazy first-use download is gone.
 5. **Resolved: the RNNoise download is pinned.** The URL is commit-pinned and the sha256 and size are verified. The CDN object upload remains operator work (issue item 1). The read-only [public mirror check](setup.md#check-a-public-bootstrap-mirror) covers item 3 and reports availability without verifying integrity. It resolves the manifest's exact Hugging Face repositories anonymously before any CDN HEAD; the declared turbo metadata endpoint returned HTTP 401 on 2026-11-04, so the current complete inventory fails closed. Runtime pins and fallbacks remain unchanged.
 
 ## Decision needed before building the speaker slice
