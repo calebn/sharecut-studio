@@ -5,6 +5,7 @@ import { runPointerCommand } from "../commands/pointer";
 import { useProjectMutation } from "../hooks/useProjectMutation";
 import { useTheme } from "../hooks/useTheme";
 import { useViewportClass } from "../hooks/useViewportClass";
+import { loadHostCommandCount } from "../services/offlineQueue/offlineStore";
 import { useDawStore } from "../state/dawStore";
 import { useDaw } from "../state/useDaw";
 import { ApiError } from "../utils/apiError";
@@ -70,6 +71,13 @@ export function SettingsHost() {
   const moveFolder = () => {
     reveal.setError(null);
     void mover.run(async () => {
+      // Edits still waiting to be saved are queued under the old path, and the
+      // reload would strand them.
+      if ((await loadHostCommandCount(projectPath)) > 0) {
+        throw new Error(
+          "Some edits are still waiting to be saved. Wait for them to finish, then move the episode.",
+        );
+      }
       const picked = await pickFolder();
       if ("unavailable" in picked) {
         throw new Error(

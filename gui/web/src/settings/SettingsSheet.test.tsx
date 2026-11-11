@@ -19,6 +19,13 @@ import { ApiError } from "../utils/apiError";
 import { OPEN_SETTINGS_EVENT, SettingsHost } from "./SettingsHost";
 
 const tauri = vi.hoisted(() => ({ on: false }));
+const queued = vi.hoisted(() => ({ count: 0 }));
+vi.mock("../services/offlineQueue/offlineStore", async (importOriginal) => ({
+  ...(await importOriginal<
+    typeof import("../services/offlineQueue/offlineStore")
+  >()),
+  loadHostCommandCount: vi.fn(async () => queued.count),
+}));
 vi.mock("@tauri-apps/api/core", () => ({ isTauri: () => tauri.on }));
 vi.mock("../api", async (importOriginal) => ({
   ...(await importOriginal<typeof import("../api")>()),
@@ -167,6 +174,7 @@ describe("Reveal in folder", () => {
 describe("Move…", () => {
   const assign = vi.fn();
   beforeEach(() => {
+    queued.count = 0;
     assign.mockReset();
     vi.stubGlobal("location", {
       href: "http://127.0.0.1:8765/?project=%2FUsers%2Fada%2FEpisodes%2Fep-12%2Fepisode.sharecut",
@@ -291,6 +299,21 @@ describe("Move…", () => {
     expect(
       within(sheet).getByRole("button", { name: "Moving…" }),
     ).toBeDisabled();
+  });
+
+  it("waits while edits are still queued, without opening the dialog", async () => {
+    tauri.on = true;
+    inProject();
+    queued.count = 2;
+    const user = userEvent.setup();
+    render(<Harness />);
+    const sheet = await openSettings();
+    await user.click(within(sheet).getByRole("button", { name: "Move…" }));
+    expect(
+      await within(sheet).findByText(/edits are still waiting to be saved/),
+    ).toBeVisible();
+    expect(pickFolder).not.toHaveBeenCalled();
+    expect(moveProject).not.toHaveBeenCalled();
   });
 
   it("says so when the computer has no folder dialog", async () => {
