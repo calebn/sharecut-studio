@@ -7097,17 +7097,32 @@ input.sys-edit-fix {
   min-inline-size: 0;
 }
 
+.sys-inspector-row:has(> .sys-inspector-slot > .fade-shape) {
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-2);
+}
+
+.sys-inspector-slot > .fade-shape {
+  flex: 1 1 auto;
+}
+
 .fade-shape {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: var(--space-3);
+  gap: var(--space-2) var(--space-3);
   min-inline-size: 0;
 }
 
+.fade-shape > .ui-segmented {
+  flex: 1 1 100%;
+}
+
 .fade-shape > .ui-segmented > .ui-control {
+  flex: 1 1 auto;
   min-inline-size: 0;
   padding-inline: var(--space-3);
+  white-space: nowrap;
 }
 
 html[data-shell="phone"] .fade-shape > .ui-segmented > .ui-control {
