@@ -291,11 +291,13 @@ export async function pickFolder(): Promise<PickFolderResult> {
  * caller reloads at the returned project path. `clientId` is this window's
  * own session id, so its presence does not count as "someone else".
  */
+export type MoveProjectResult = { project_path: string; previous_path: string };
+
 export async function moveProject(
   path: string,
   destParent: string,
   clientId: string | null,
-): Promise<{ project_path: string; previous_path: string }> {
+): Promise<MoveProjectResult> {
   const res = await apiFetch(
     HOST_KEY,
     { host: "/api/project/move" },
@@ -309,7 +311,7 @@ export async function moveProject(
       }),
     },
   );
-  return res.json() as Promise<{ project_path: string; previous_path: string }>;
+  return res.json();
 }
 
 export type PickEpisodeProjectResult =

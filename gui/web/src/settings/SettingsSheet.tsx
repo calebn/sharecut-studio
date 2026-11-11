@@ -82,6 +82,7 @@ export function SettingsSheet({
   const wasMoving = useRef(false);
   const revealing = savedIn?.revealing ?? false;
   const moving = savedIn?.moving ?? false;
+  const busy = revealing || moving;
   // A disabled button drops focus; give it back when the request ends, so a
   // failure leaves the person on the button that caused it.
   useEffect(() => {
@@ -123,9 +124,7 @@ export function SettingsSheet({
                 <Button
                   ref={revealRef}
                   type="button"
-                  disabledReason={
-                    savedIn.revealing || moving ? BUSY_REASON : undefined
-                  }
+                  disabledReason={busy ? BUSY_REASON : undefined}
                   aria-busy={savedIn.revealing || undefined}
                   onClick={savedIn.onReveal}
                 >
@@ -136,9 +135,7 @@ export function SettingsSheet({
                 <Button
                   ref={moveRef}
                   type="button"
-                  disabledReason={
-                    moving || savedIn.revealing ? BUSY_REASON : undefined
-                  }
+                  disabledReason={busy ? BUSY_REASON : undefined}
                   aria-busy={moving || undefined}
                   onClick={savedIn.onMove}
                 >
