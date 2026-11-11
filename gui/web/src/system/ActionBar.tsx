@@ -2,6 +2,7 @@ import {
   type ButtonHTMLAttributes,
   type ReactNode,
   type RefObject,
+  useCallback,
   useEffect,
   useRef,
   useState,
@@ -9,9 +10,17 @@ import {
 import { Button, Menu, MenuItem, SegmentedControl, ToggleButton } from "../ui";
 import { disabledAttrs, useDisabledReasonNote } from "../ui/disabledReason";
 import { type AnchorExclusion, useAnchoredPanel } from "../ui/useAnchoredPanel";
-import { type BarItem, foldDock, slotsOf } from "./actionBarSlots";
+import {
+  type BarItem,
+  type BarSplit,
+  foldDock,
+  isOptionsRow,
+  slotsOf,
+} from "./actionBarSlots";
 import { type BarId, barDisplay } from "./editActionSets";
 import type { SystemIconName } from "./icons";
+import { Sheet } from "./Sheet";
+import { SplitPopover } from "./SplitPopover";
 import { SystemIcon } from "./SystemIcon";
 
 export type { BarItem };
@@ -191,6 +200,51 @@ function SegmentedItem({
   );
 }
 
+function SplitItem({
+  look,
+  item,
+  split,
+  onVerb,
+}: {
+  look: Look;
+  item: BarItem;
+  split: BarSplit;
+  onVerb: ActionBarProps["onVerb"];
+}) {
+  const [open, setOpen] = useState(false);
+  const chevronRef = useRef<HTMLButtonElement>(null);
+  const close = useCallback(() => setOpen(false), []);
+  const gated = item.disabledReason !== undefined;
+  return (
+    <span className="sys-actions-split">
+      <LookButton look={look} item={item} onClick={() => onVerb(item.id)} />
+      <button
+        ref={chevronRef}
+        type="button"
+        className="sys-icon-btn sys-actions-split-chevron"
+        aria-label={split.label}
+        title={split.label}
+        aria-haspopup="dialog"
+        aria-expanded={open && !gated}
+        aria-describedby={item.describedBy}
+        {...disabledAttrs(item.disabledReason)}
+        onClick={() => setOpen((was) => !was)}
+      >
+        <SystemIcon name="chevron-down" size={12} />
+      </button>
+      {open && !gated ? (
+        <SplitPopover
+          anchorRef={chevronRef}
+          label={split.label}
+          onClose={close}
+        >
+          {split.content}
+        </SplitPopover>
+      ) : null}
+    </span>
+  );
+}
+
 function MoreMenu({
   look,
   rows,
@@ -203,6 +257,7 @@ function MoreMenu({
   request?: number;
 }) {
   const [open, setOpen] = useState(false);
+  const [sheet, setSheet] = useState<BarSplit | null>(null);
   const seen = useRef(request);
   useEffect(() => {
     if (request === seen.current) return;
@@ -210,32 +265,47 @@ function MoreMenu({
     setOpen(true);
   }, [request]);
   return (
-    <Menu
-      open={open}
-      onOpenChange={setOpen}
-      label="More actions"
-      className="ui-menu-root sys-menu"
-      trigger={(trigger) => (
-        <LookButton look={look} item={{ id: "more" }} {...trigger} />
-      )}
-    >
-      {rows.map((row) => {
-        const glyph = barDisplay(row.id).icon;
-        return (
-          <MenuItem
-            key={row.arg ? `${row.id}:${row.arg}` : row.id}
-            disabledReason={row.disabledReason}
-            onSelect={() => {
-              setOpen(false);
-              onVerb(row.id, row.arg);
-            }}
-          >
-            {glyph ? <SystemIcon name={glyph} size={16} /> : null}
-            {labelOf(row)}
-          </MenuItem>
-        );
-      })}
-    </Menu>
+    <>
+      <Menu
+        open={open}
+        onOpenChange={setOpen}
+        label="More actions"
+        className="ui-menu-root sys-menu"
+        trigger={(trigger) => (
+          <LookButton look={look} item={{ id: "more" }} {...trigger} />
+        )}
+      >
+        {rows.map((row) => {
+          const glyph = isOptionsRow(row)
+            ? "sliders-horizontal"
+            : barDisplay(row.id).icon;
+          return (
+            <MenuItem
+              key={row.arg ? `${row.id}:${row.arg}` : row.id}
+              disabledReason={row.disabledReason}
+              onSelect={() => {
+                setOpen(false);
+                if (isOptionsRow(row)) setSheet(row.split ?? null);
+                onVerb(row.id, row.arg);
+              }}
+            >
+              {glyph ? <SystemIcon name={glyph} size={16} /> : null}
+              {labelOf(row)}
+            </MenuItem>
+          );
+        })}
+      </Menu>
+      {sheet ? (
+        <Sheet
+          form="bottom"
+          detent="fit"
+          title={sheet.label}
+          onClose={() => setSheet(null)}
+        >
+          {sheet.content}
+        </Sheet>
+      ) : null}
+    </>
   );
 }
 
@@ -271,6 +341,16 @@ function Items({
             />
           ))}
         </span>
+      );
+    if (first.split && look !== "dock")
+      return (
+        <SplitItem
+          key={first.id}
+          look={look}
+          item={first}
+          split={first.split}
+          onVerb={onVerb}
+        />
       );
     if (first.options)
       return (
