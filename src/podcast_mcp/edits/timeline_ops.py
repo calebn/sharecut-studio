@@ -4,7 +4,7 @@ import math
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any, Literal, NamedTuple
 
 from pydantic import ValidationError
 
@@ -1070,66 +1070,86 @@ def set_clip_fade(
     fade_in_ms: int,
     fade_out_ms: int,
     *,
-    defaults: EffectiveConfig,
     fade_in_curve: FadeCurve | None = None,
     fade_out_curve: FadeCurve | None = None,
 ) -> dict:
+    """Set one clip's edge fades. A manual edit: only the clip bounds apply, and the result
+    reports the applied lengths and whether they were clamped to the clip.
+    """
 
     clip = next((c for c in project.clips if c.id == clip_id), None)
     if not clip:
         raise CodedValueError(f"unknown clip_id: {clip_id!r}", code="clip_not_found")
-    _write_clip_fade(
-        project, clip, fade_in_ms, fade_out_ms, fade_in_curve, fade_out_curve, defaults=defaults
+    applied = _write_clip_fade(clip, fade_in_ms, fade_out_ms, fade_in_curve, fade_out_curve)
+    return change_summary(
+        project,
+        operation="set_clip_fade",
+        affected_tracks=[clip.track_id],
+        fade_in_ms=applied.fade_in_ms,
+        fade_out_ms=applied.fade_out_ms,
+        clamped=applied.clamped,
     )
-    return change_summary(project, operation="set_clip_fade", affected_tracks=[clip.track_id])
 
 
-def set_clips_fade(
-    project: EpisodeProject,
-    fades: Sequence[ClipFadeEdit],
-    *,
-    defaults: EffectiveConfig,
-) -> dict:
-    """Clamp and set every edit's fades and curves; an unknown clip changes none."""
+def set_clips_fade(project: EpisodeProject, fades: Sequence[ClipFadeEdit]) -> dict:
+    """Set every edit's fades and curves as ``set_clip_fade`` does; an unknown clip changes none."""
 
     by_id = {c.id: c for c in project.clips}
     missing = next((f.clip_id for f in fades if f.clip_id not in by_id), None)
     if missing is not None:
         raise CodedValueError(f"unknown clip_id: {missing!r}", code="clip_not_found")
-    for fade in fades:
-        _write_clip_fade(
-            project,
-            by_id[fade.clip_id],
-            fade.fade_in_ms,
-            fade.fade_out_ms,
-            fade.fade_in_curve,
-            fade.fade_out_curve,
-            defaults=defaults,
+    applied = [
+        (
+            fade.clip_id,
+            _write_clip_fade(
+                by_id[fade.clip_id],
+                fade.fade_in_ms,
+                fade.fade_out_ms,
+                fade.fade_in_curve,
+                fade.fade_out_curve,
+            ),
         )
+        for fade in fades
+    ]
     return change_summary(
         project,
         operation="set_clips_fade",
         affected_tracks=sorted({by_id[f.clip_id].track_id for f in fades}),
+        clamped=any(a.clamped for _, a in applied),
+        fades=[
+            {
+                "clip_id": clip_id,
+                "fade_in_ms": a.fade_in_ms,
+                "fade_out_ms": a.fade_out_ms,
+                "clamped": a.clamped,
+            }
+            for clip_id, a in applied
+        ],
     )
 
 
+class _AppliedFade(NamedTuple):
+    fade_in_ms: int
+    fade_out_ms: int
+    clamped: bool
+
+
 def _write_clip_fade(
-    project: EpisodeProject,
     clip: Clip,
     fade_in_ms: int,
     fade_out_ms: int,
     fade_in_curve: FadeCurve | None,
     fade_out_curve: FadeCurve | None,
-    *,
-    defaults: EffectiveConfig,
-) -> None:
-    clip.fade_in_ms, clip.fade_out_ms = clamp_clip_fades(
-        project, clip, int(fade_in_ms), int(fade_out_ms), defaults=defaults
-    )
+) -> _AppliedFade:
+    want = (int(fade_in_ms), int(fade_out_ms))
+    clip.fade_in_ms, clip.fade_out_ms = clamp_clip_fades(clip, *want)
     if fade_in_curve is not None:
         clip.fade_in_curve = fade_in_curve
     if fade_out_curve is not None:
         clip.fade_out_curve = fade_out_curve
+    return _AppliedFade(
+        clip.fade_in_ms, clip.fade_out_ms, (clip.fade_in_ms, clip.fade_out_ms) != want
+    )
 
 
 def set_clip_gain(project: EpisodeProject, clip_id: str, gain_db: float) -> dict:

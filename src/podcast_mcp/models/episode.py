@@ -1089,6 +1089,14 @@ class TimelineSection(BaseModel):
     duration_sec: float | None = None
     tracks: list[Track] = Field(default_factory=list)
     clips: list[Clip] = Field(default_factory=list)
+    join_fade_max_ms: int | None = Field(default=None, ge=0, le=200)
+
+    @model_serializer(mode="wrap")
+    def _serialize_join_fade_default(self, handler: SerializerFunctionWrapHandler):
+        data = handler(self)
+        if self.join_fade_max_ms is None:
+            data.pop("join_fade_max_ms", None)
+        return data
 
 
 class RetainedBleedAlignmentDecision(SourceSpan):

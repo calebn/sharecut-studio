@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import math
 
-from podcast_mcp.config.defaults import EffectiveConfig, join_micro_fade_ms
+from podcast_mcp.config.defaults import EffectiveConfig, bundled_defaults, join_micro_fade_ms
 from podcast_mcp.edits.cut_quality import recommend_cut_fade_ms
 from podcast_mcp.engines.clips_ops import (
     abutting_pairs,
@@ -13,28 +13,43 @@ from podcast_mcp.engines.clips_ops import (
     neighbour_clips,
     previous_clip,
 )
-from podcast_mcp.models import Clip, ClipJoinMode, EpisodeProject, Track, TrackRole
+from podcast_mcp.models import Clip, ClipJoinMode, EpisodeProject, TrackRole
 from podcast_mcp.util.change_summary import change_summary
 from podcast_mcp.util.coded_error import CodedValueError
 from podcast_mcp.util.tracks import dialogue_track_ids, resolve_track
 
+JOIN_FADE_DEFAULT_RANGE_MS = (0, 200)
+
+
+def _checked_join_fade_ms(value: object) -> int:
+    lo, hi = JOIN_FADE_DEFAULT_RANGE_MS
+    if isinstance(value, bool) or not isinstance(value, int | float | str):
+        raise CodedValueError("join fade length must be a number", code="out_of_range")
+    try:
+        ms = int(value)
+    except ValueError:
+        raise CodedValueError("join fade length must be a number", code="out_of_range") from None
+    if not lo <= ms <= hi:
+        raise CodedValueError(
+            f"join fade length must be between {lo} and {hi} ms. Pass a value in that range.",
+            code="out_of_range",
+        )
+    return ms
+
 
 def join_fade_max_ms(defaults: EffectiveConfig) -> int:
-    return int(defaults.get("render", {}).get("join_fade_max_ms", 40))
+    configured = defaults.get("render", {}).get("join_fade_max_ms")
+    if configured is None:
+        configured = bundled_defaults()["render"]["join_fade_max_ms"]
+    return _checked_join_fade_ms(configured)
 
 
-def track_fade_max_ms(track: Track | None, defaults: EffectiveConfig) -> int | None:
-    """Longest edge fade (ms) a clip on *track* may take; ``None`` when uncapped.
-
-    Dialogue fades cap at ``render.join_fade_max_ms``; other roles are uncapped.
-    The project view (``TrackView.fade_max_ms``), ``cap_fade_ms`` (used by the batch fade
-    writers) and ``clamp_clip_fades`` (used by ``set_clip_fade``) resolve the cap here; keep
-    any future per-episode override inside this function so they cannot diverge. Only
-    ``clamp_clip_fades`` also bounds a fade by the clip length and the other edge's fade.
+def auto_join_fade_cap_ms(project: EpisodeProject, defaults: EffectiveConfig) -> int:
+    """Longest fade (ms) the automatic join writers add: the episode's Default join fade
+    length, else ``render.join_fade_max_ms`` from the config, else the bundled default.
     """
-    if track is None or track.role != TrackRole.DIALOGUE:
-        return None
-    return join_fade_max_ms(defaults)
+    own = project.timeline.join_fade_max_ms
+    return join_fade_max_ms(defaults) if own is None else _checked_join_fade_ms(own)
 
 
 def cap_fade_ms(
@@ -43,27 +58,26 @@ def cap_fade_ms(
     fade_ms: int,
     defaults: EffectiveConfig,
 ) -> int:
-    """Cap dialogue fades at render.join_fade_max_ms; leave other roles uncapped."""
-    cap = track_fade_max_ms(project.track_by_id(track_id), defaults)
+    """Cap an automatically written dialogue fade at the Default join fade length.
+
+    Manual fades (``clamp_clip_fades``) never pass through here; other roles are uncapped.
+    """
     fade = max(0, fade_ms)
-    return fade if cap is None else min(fade, cap)
+    track = project.track_by_id(track_id)
+    if track is None or track.role != TrackRole.DIALOGUE:
+        return fade
+    return min(fade, auto_join_fade_cap_ms(project, defaults))
 
 
-def clamp_clip_fades(
-    project: EpisodeProject,
-    clip: Clip,
-    fade_in_ms: int,
-    fade_out_ms: int,
-    defaults: EffectiveConfig,
-) -> tuple[int, int]:
-    """Edge fades *clip* may take: each capped for its track and bounded by the clip
-    length, and fade-out bounded by what fade-in leaves so the two never overlap.
+def clamp_clip_fades(clip: Clip, fade_in_ms: int, fade_out_ms: int) -> tuple[int, int]:
+    """Edge fades a manual edit may give *clip*: each fits in the clip and the fade-out in
+    what the fade-in leaves, so the two never overlap. No other cap applies.
 
     The DAW mirrors this rule in ``gui/web/src/edit/fadeLimits.ts`` (``clampClipFades``).
     """
     clip_ms = max(0, math.floor((clip.source_end - clip.source_start) * 1000))
-    fade_in = min(cap_fade_ms(project, clip.track_id, fade_in_ms, defaults), clip_ms)
-    fade_out = min(cap_fade_ms(project, clip.track_id, fade_out_ms, defaults), clip_ms - fade_in)
+    fade_in = min(max(0, fade_in_ms), clip_ms)
+    fade_out = min(max(0, fade_out_ms), clip_ms - fade_in)
     return fade_in, fade_out
 
 
@@ -115,8 +129,9 @@ def set_clip_join(
     (default ``tighten.crossfade_ms``; ``0`` is rejected). ``cut`` zeroes both fades
     (a later fade/crossfade reseeds defaults; undo restores them).
     ``fade`` sets both to ``length_ms``; without one it keeps the current fades, seeding
-    ``inaudible_cuts.micro_fade_ms`` when both are 0. Fades go through ``clamp_clip_fades``
-    like ``set_clip_fade``. Non-abutting neighbours are allowed; the result reports
+    ``inaudible_cuts.micro_fade_ms`` when both are 0. This is a manual edit: fades go through
+    ``clamp_clip_fades`` like ``set_clip_fade`` (bounded by the clips, not by the Default join
+    fade length). Non-abutting neighbours are allowed; the result reports
     ``crossfade_blocked``. The DAW's join Length slider max mirrors this clamp order
     (``gui/web/src/edit/fadeLimits.ts`` ``joinLengthMaxMs``); ``contracts/join-length-limits.json``
     pins both.
@@ -141,12 +156,8 @@ def set_clip_join(
     else:
         out_ms, in_ms = left.fade_out_ms, right.fade_in_ms
     right.join_in_mode = join_mode
-    left.fade_in_ms, left.fade_out_ms = clamp_clip_fades(
-        project, left, left.fade_in_ms, out_ms, defaults
-    )
-    right.fade_in_ms, right.fade_out_ms = clamp_clip_fades(
-        project, right, in_ms, right.fade_out_ms, defaults
-    )
+    left.fade_in_ms, left.fade_out_ms = clamp_clip_fades(left, left.fade_in_ms, out_ms)
+    right.fade_in_ms, right.fade_out_ms = clamp_clip_fades(right, in_ms, right.fade_out_ms)
     fields = join_render_fields(left, right, project)
     blocked = fields["join_crossfade_blocked"]
     summary = change_summary(project, operation="set_clip_join", affected_tracks=[left.track_id])
@@ -184,37 +195,56 @@ def fade_joins(
     defaults: EffectiveConfig,
     dry_run: bool = False,
 ) -> dict:
-    """Set abutting joins to fade mode with declick micro-fades (no overlap)."""
+    """Set abutting joins to fade mode with declick micro-fades (no overlap).
+
+    An automatic writer: fades are capped at the Default join fade length and never shrink an
+    existing longer fade. ``fade_ms`` in the result is the length applied after the cap
+    (``requested_fade_ms`` is what was asked for, ``cap_ms`` the cap).
+    """
     join_count = 0
-    for tid in _target_track_ids(project, track_id=track_id, speaker=speaker):
+    track_ids = _target_track_ids(project, track_id=track_id, speaker=speaker)
+    applied_ms: list[int] = []
+    for tid in track_ids:
         clips = clips_for_track(project, tid)
         for left, right in abutting_pairs(clips):
             join_count += 1
+            if fade_ms is not None:
+                ms = cap_fade_ms(project, tid, fade_ms, defaults)
+            elif dry_run:
+                continue
+            else:
+                ms = cap_fade_ms(
+                    project,
+                    tid,
+                    recommend_cut_fade_ms(
+                        project,
+                        tid,
+                        left.source_end,
+                        right.source_start,
+                        cut_kind="filler",
+                        defaults=defaults,
+                    ),
+                    defaults,
+                )
+            applied_ms.append(ms)
             if dry_run:
                 continue
             right.join_in_mode = ClipJoinMode.FADE
-            if fade_ms is not None:
-                ms = cap_fade_ms(project, tid, fade_ms, defaults)
-                left.fade_out_ms = max(left.fade_out_ms, ms)
-                right.fade_in_ms = max(right.fade_in_ms, ms)
-            else:
-                ms = recommend_cut_fade_ms(
-                    project,
-                    tid,
-                    left.source_end,
-                    right.source_start,
-                    cut_kind="filler",
-                    defaults=defaults,
-                )
-                ms = cap_fade_ms(project, tid, ms, defaults)
-                left.fade_out_ms = max(left.fade_out_ms, ms)
-                right.fade_in_ms = max(right.fade_in_ms, ms)
+            left.fade_out_ms = max(left.fade_out_ms, ms)
+            right.fade_in_ms = max(right.fade_in_ms, ms)
+    cap_ms = auto_join_fade_cap_ms(project, defaults)
+    if applied_ms:
+        shown_ms: int | None = max(applied_ms)
+    else:
+        shown_ms = None if fade_ms is None else min(max(0, fade_ms), cap_ms)
     return {
         "operation": "fade_joins",
         "join_count": join_count,
-        "fade_ms": fade_ms,
+        "fade_ms": shown_ms,
+        "requested_fade_ms": fade_ms,
+        "cap_ms": cap_ms,
         "dry_run": dry_run,
-        "affected_tracks": _target_track_ids(project, track_id=track_id, speaker=speaker),
+        "affected_tracks": track_ids,
     }
 
 

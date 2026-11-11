@@ -558,17 +558,16 @@ def test_split_clip_and_set_fade() -> None:
     split_clip(p, "host", 5.0, defaults=load_defaults())
     host_clips = [c for c in p.clips if c.track_id == "host"]
     assert len(host_clips) >= 2
-    fade = set_clip_fade(p, host_clips[0].id, 5, 10, defaults=load_defaults())
+    fade = set_clip_fade(p, host_clips[0].id, 5, 10)
     assert fade["operation"] == "set_clip_fade"
     assert host_clips[0].fade_in_ms == 5
 
 
-def test_set_clip_fade_caps_dialogue() -> None:
+def test_set_clip_fade_dialogue_is_bounded_by_the_clip_only() -> None:
     p = _two_track_project()
     clip = next(c for c in p.clips if c.track_id == "host")
-    set_clip_fade(p, clip.id, 40, 50, defaults=load_defaults())
-    assert clip.fade_in_ms == 40
-    assert clip.fade_out_ms == 40
+    set_clip_fade(p, clip.id, 40, 50)
+    assert (clip.fade_in_ms, clip.fade_out_ms) == (40, 50)
 
 
 def test_set_clip_fade_bounds_fades_to_the_clip_length() -> None:
@@ -585,9 +584,9 @@ def test_set_clip_fade_bounds_fades_to_the_clip_length() -> None:
         Clip(id="bed_1", track_id="bed", source_start=0.0, source_end=2.0, timeline_start=0.0)
     )
     clip = next(c for c in p.clips if c.id == "bed_1")
-    set_clip_fade(p, "bed_1", 5000, 5000, defaults=load_defaults())
+    set_clip_fade(p, "bed_1", 5000, 5000)
     assert (clip.fade_in_ms, clip.fade_out_ms) == (2000, 0)
-    set_clip_fade(p, "bed_1", 1500, 1500, defaults=load_defaults())
+    set_clip_fade(p, "bed_1", 1500, 1500)
     assert (clip.fade_in_ms, clip.fade_out_ms) == (1500, 500)
 
 
@@ -596,7 +595,7 @@ def test_set_clip_fade_dialogue_fades_share_a_short_clip() -> None:
     p.timeline.clips = [
         Clip(id="short", track_id="host", source_start=0.0, source_end=0.06, timeline_start=0.0)
     ]
-    set_clip_fade(p, "short", 40, 40, defaults=load_defaults())
+    set_clip_fade(p, "short", 40, 40)
     assert (p.clips[0].fade_in_ms, p.clips[0].fade_out_ms) == (40, 20)
 
 
@@ -908,7 +907,7 @@ def test_ripple_delete_invalid_range() -> None:
 def test_set_clip_fade_unknown_id() -> None:
     p = _two_track_project()
     try:
-        set_clip_fade(p, "missing", 0, 0, defaults=load_defaults())
+        set_clip_fade(p, "missing", 0, 0)
     except ValueError as exc:
         assert "unknown clip_id" in str(exc)
     else:
@@ -1158,17 +1157,6 @@ def test_insert_room_tone_pad_falls_back_without_bed() -> None:
         c for c in p.clips if c.track_id == "host" and c.source_id == room_tone_source_id("host")
     ]
     assert pads == []
-
-
-def test_track_fade_max_ms_dialogue_only() -> None:
-    from podcast_mcp.edits.join_modes import track_fade_max_ms
-
-    cfg = {"render": {"join_fade_max_ms": 25}}
-    host = Track(id="host", label="Host", role=TrackRole.DIALOGUE, speaker="Host")
-    bed = Track(id="bed", label="Bed", role=TrackRole.MUSIC)
-    assert track_fade_max_ms(host, cfg) == 25
-    assert track_fade_max_ms(bed, cfg) is None
-    assert track_fade_max_ms(None, cfg) is None
 
 
 def _pending_decisions() -> list[EditDecision]:

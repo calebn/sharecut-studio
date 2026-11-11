@@ -533,9 +533,7 @@ class TrackView(BaseModel):
     media_path: str | None = None
     # Id of the speaker split this track is a lane of (editorial.speaker_splits), else null.
     speaker_split_id: str | None = None
-    # Longest edge fade (ms) a clip on this track may take; null = uncapped. Display copy of
-    # the cap set_clip_fade enforces at write time (same track_fade_max_ms resolver); every
-    # TRACKS/CLIPS slice, including the one after each SetClipFade, rebuilds it.
+    # Always null: a manual fade is bounded by its clip only. Kept for builds that still read it.
     fade_max_ms: int | None = None
     # Whose room-tone bed the track holds: none, one recorded or assigned, or one the pipeline
     # cut from the track's own audio (the only kind Clear removes).

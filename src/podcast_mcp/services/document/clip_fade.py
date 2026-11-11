@@ -39,7 +39,6 @@ def apply_clip_fade(
                 clip_id,
                 fade_in_ms,
                 fade_out_ms,
-                defaults=ws.effective_config(),
                 fade_in_curve=fade_in_curve,
                 fade_out_curve=fade_out_curve,
             ),
@@ -62,7 +61,7 @@ def apply_clips_fade(
             require_clip_fade_baseline(project, fade.clip_id, fade.expected)
         return mutate(
             "set clips fade",
-            lambda p: set_clips_fade(p, fades, defaults=ws.effective_config()),
+            lambda p: set_clips_fade(p, fades),
             operation="set_clips_fade",
             params={
                 "fades": [
