@@ -29,7 +29,6 @@ import {
   WORDS,
 } from "./deliverFixture";
 import type { ExportState } from "./deliverLogic";
-import { formatClock } from "./deliverLogic";
 import { type ListenFixture, listenOf } from "./listenFixture";
 import { SAMPLE_PREVIEW, transcriptOptions } from "./transcriptFixtures";
 
@@ -221,6 +220,12 @@ const field = (value: string, className: string) =>
     .find((el) => el.classList.contains(className)) as HTMLElement;
 const clipTitle = (value: string) => field(value, "dv-clip-title");
 const chapterTitle = (value: string) => field(value, "dv-chapter-title");
+const scrub = (name: string | RegExp) =>
+  screen.getByRole("spinbutton", { name });
+const setScrub = async (name: string | RegExp, text: string) => {
+  await userEvent.click(scrub(name));
+  await userEvent.keyboard(`{Control>}a{/Control}${text}{Enter}`);
+};
 
 describe("stale after an export", () => {
   it("offers Export again beside the stale row, and it exports what the page shows", async () => {
@@ -282,9 +287,7 @@ describe("stale after an export", () => {
     await userEvent.click(
       await screen.findByRole("menuitem", { name: "Trim" }),
     );
-    const out = screen.getByRole("textbox", { name: "Out of Cold open" });
-    await userEvent.clear(out);
-    await userEvent.type(out, "0:20{Enter}");
+    await setScrub("Out of Cold open", "20");
     expect(screen.getByText("Edited since export")).toBeInTheDocument();
   });
 
@@ -362,12 +365,9 @@ describe("stale after an export", () => {
     await userEvent.click(
       await screen.findByRole("menuitem", { name: "Trim" }),
     );
-    const start = screen.getByRole("textbox", { name: "In of Cold open" });
-    await userEvent.clear(start);
-    await userEvent.type(start, "0:05{Enter}");
+    await setScrub("In of Cold open", "5");
     expect(screen.getByText("Edited since export")).toBeInTheDocument();
-    await userEvent.clear(start);
-    await userEvent.type(start, "0:00{Enter}");
+    await setScrub("In of Cold open", "0");
     expect(screen.queryByText("Edited since export")).toBeNull();
   });
 
@@ -935,27 +935,25 @@ describe("trimming a clip", () => {
   it("moves Out and In separately and shows the new length", async () => {
     setup();
     await open();
-    const out = screen.getByRole("textbox", { name: "Out of Cold open" });
-    await userEvent.clear(out);
-    await userEvent.type(out, "0:20{Enter}");
-    expect(
-      screen.getByRole("textbox", { name: "In of Cold open" }),
-    ).toHaveValue("0:00.0");
+    await setScrub("Out of Cold open", "20");
+    expect(scrub("In of Cold open")).toHaveAttribute("aria-valuenow", "0");
+    expect(scrub("Out of Cold open")).toHaveAttribute("aria-valuenow", "20");
+    expect(scrub("Out of Cold open")).toHaveAttribute(
+      "aria-valuetext",
+      "20.00 s",
+    );
     expect(screen.getByText("20.0 s")).toBeInTheDocument();
-    const start = screen.getByRole("textbox", { name: "In of Cold open" });
-    await userEvent.clear(start);
-    await userEvent.type(start, "0:05{Enter}");
-    expect(out).toHaveValue("0:20.0");
+    await setScrub("In of Cold open", "5");
+    expect(scrub("In of Cold open")).toHaveAttribute("aria-valuenow", "5");
+    expect(scrub("Out of Cold open")).toHaveAttribute("aria-valuenow", "20");
     expect(screen.getByText("15.0 s")).toBeInTheDocument();
   });
 
   it("stops at the end of the episode and closes again from the menu", async () => {
     setup();
     await open();
-    const out = screen.getByRole("textbox", { name: "Out of Cold open" });
-    await userEvent.clear(out);
-    await userEvent.type(out, "99:00{Enter}");
-    expect(out).toHaveValue("52:00.0");
+    await setScrub("Out of Cold open", "3120");
+    expect(scrub("Out of Cold open")).toHaveAttribute("aria-valuenow", "3120");
     await userEvent.click(
       screen.getByRole("button", { name: "More for Cold open" }),
     );
@@ -963,7 +961,7 @@ describe("trimming a clip", () => {
       await screen.findByRole("menuitem", { name: "Done trimming" }),
     );
     expect(
-      screen.queryByRole("textbox", { name: "In of Cold open" }),
+      screen.queryByRole("spinbutton", { name: "In of Cold open" }),
     ).toBeNull();
   });
 });
@@ -1029,10 +1027,14 @@ describe("the right item gets the action", () => {
       await screen.findByRole("menuitem", { name: "Trim" }),
     );
     expect(
-      screen.getByRole("textbox", { name: "In of The boat was still there" }),
+      screen.getByRole("spinbutton", {
+        name: "In of The boat was still there",
+      }),
     ).toBeInTheDocument();
     expect(
-      screen.queryByRole("textbox", { name: "In of Nobody asked the river" }),
+      screen.queryByRole("spinbutton", {
+        name: "In of Nobody asked the river",
+      }),
     ).toBeNull();
     await userEvent.click(
       screen.getByRole("button", { name: "More for The boat was still there" }),
@@ -1099,9 +1101,7 @@ describe("state edits build on each other", () => {
     await userEvent.click(
       await screen.findByRole("menuitem", { name: "Trim" }),
     );
-    const out = screen.getByRole("textbox", { name: "Out of Cold open" });
-    await userEvent.clear(out);
-    await userEvent.type(out, "0:20{Enter}");
+    await setScrub("Out of Cold open", "20");
     expect(clipTitle("Nobody asked the river?")).toBeInTheDocument();
     expect(screen.getAllByText("Approved")).toHaveLength(2);
     expect(screen.getByText("20.0 s")).toBeInTheDocument();
@@ -1920,10 +1920,8 @@ describe("what the last audit found unguarded", () => {
     await userEvent.click(
       await screen.findByRole("menuitem", { name: "Trim" }),
     );
-    const out = screen.getByRole("textbox", { name: "Out of Last gasp" });
-    await userEvent.clear(out);
-    await userEvent.type(out, "0:10{Enter}");
-    expect(out).toHaveValue("52:00.0");
+    await setScrub("Out of Last gasp", "10");
+    expect(scrub("Out of Last gasp")).toHaveAttribute("aria-valuenow", "3120");
   });
 
   it("fires Refresh mix, not Try again, when both handlers exist", async () => {
@@ -4033,10 +4031,11 @@ describe("round five of the audit: the whole visible page, state by state", () =
   });
 
   it.each([
-    ["1:23.5", "1:23.5"],
-    ["0:00.7", "0:00.7"],
-    ["10:05.3", "10:05.3"],
-    ["10:06.9", "10:06.9"],
+    ["1:23.5", "83.50 s"],
+    ["0:00.7", "0.70 s"],
+    ["10:05.3", "605.30 s"],
+    ["10:06.9", "606.90 s"],
+    ["83.5", "83.50 s"],
   ])("keeps the tenths when a clip In is typed as %s", async (typed, shown) => {
     setup();
     await userEvent.click(
@@ -4045,15 +4044,13 @@ describe("round five of the audit: the whole visible page, state by state", () =
     await userEvent.click(
       await screen.findByRole("menuitem", { name: "Trim" }),
     );
-    const start = screen.getByRole("textbox", { name: /^In of / });
-    await userEvent.clear(start);
-    await userEvent.type(start, `${typed}{Enter}`);
-    expect(screen.getByRole("textbox", { name: /^In of / })).toHaveValue(shown);
+    await setScrub(/^In of /, typed);
+    expect(scrub(/^In of /)).toHaveAttribute("aria-valuetext", shown);
   });
 
   it.each([
-    ["ArrowUp", "10:12.1"],
-    ["ArrowDown", "10:11.9"],
+    ["ArrowUp", "612.10 s"],
+    ["ArrowDown", "611.90 s"],
   ])(
     "keeps the tenths when a clip In is nudged with %s",
     async (key, shown) => {
@@ -4064,12 +4061,10 @@ describe("round five of the audit: the whole visible page, state by state", () =
       await userEvent.click(
         await screen.findByRole("menuitem", { name: "Trim" }),
       );
-      const start = screen.getByRole("textbox", { name: /^In of / });
+      const start = scrub(/^In of /);
       start.focus();
       fireEvent.keyDown(start, { key });
-      expect(screen.getByRole("textbox", { name: /^In of / })).toHaveValue(
-        shown,
-      );
+      expect(scrub(/^In of /)).toHaveAttribute("aria-valuetext", shown);
     },
   );
 });
@@ -4207,18 +4202,10 @@ describe("round seven of the audit", () => {
     await userEvent.click(
       await screen.findByRole("menuitem", { name: "Trim" }),
     );
-    const out = screen.getByRole("textbox", { name: /^Out of / });
-    await userEvent.clear(out);
-    await userEvent.type(out, "700{Enter}");
-    const start = screen.getByRole("textbox", { name: /^In of / });
-    await userEvent.clear(start);
-    await userEvent.type(start, "125{Enter}");
-    expect(screen.getByRole("textbox", { name: /^In of / })).toHaveValue(
-      "2:05.0",
-    );
-    expect(screen.getByRole("textbox", { name: /^Out of / })).toHaveValue(
-      "11:40.0",
-    );
+    await setScrub(/^Out of /, "700");
+    await setScrub(/^In of /, "125");
+    expect(scrub(/^In of /)).toHaveAttribute("aria-valuetext", "125.00 s");
+    expect(scrub(/^Out of /)).toHaveAttribute("aria-valuetext", "700.00 s");
   });
 
   it("keeps a 60-character chapter title intact, keystroke by keystroke", async () => {
@@ -4494,7 +4481,9 @@ describe("clip trim handles in the stage", () => {
       name: `${edge} handle of Nobody asked the river`,
     });
   const input = (edge: "In" | "Out") =>
-    screen.getByRole("textbox", { name: `${edge} of Nobody asked the river` });
+    screen.getByRole("spinbutton", {
+      name: `${edge} of Nobody asked the river`,
+    });
   const exportedClip = (all: DeliverStageProps) =>
     vi.mocked(all.onExport).mock.calls[0]?.[0].clips.find((c) => c.id === "k1");
 
@@ -4542,7 +4531,7 @@ describe("clip trim handles in the stage", () => {
     setup({ words: WORDS, peaks: PEAKS });
     await openTrim();
     fireEvent.keyDown(handle("In"), { key: "ArrowRight", shiftKey: true });
-    expect(input("In")).toHaveValue(formatClock(612.1));
+    expect(input("In")).toHaveAttribute("aria-valuetext", "612.10 s");
     expect(handle("In")).toHaveAttribute("aria-valuenow", "612.1");
   });
 
@@ -4593,12 +4582,65 @@ describe("clip trim handles in the stage", () => {
     },
   );
 
+  it("fires onClips once per pointer drag of a field", async () => {
+    const onClips = vi.fn();
+    setup({ onClips });
+    await openTrim();
+    const field = input("In");
+    onClips.mockClear();
+    fireEvent.pointerDown(field, { clientX: 100, pointerId: 1, button: 0 });
+    fireEvent.pointerMove(field, { clientX: 110, pointerId: 1 });
+    fireEvent.pointerMove(field, { clientX: 130, pointerId: 1 });
+    fireEvent.pointerMove(field, { clientX: 150, pointerId: 1 });
+    expect(onClips).not.toHaveBeenCalled();
+    fireEvent.pointerUp(field, { clientX: 150, pointerId: 1 });
+    expect(onClips).toHaveBeenCalledTimes(1);
+    const committed = onClips.mock.calls[0]?.[0].find(
+      (c: { id: string }) => c.id === "k1",
+    );
+    expect(committed.start).toBeGreaterThan(612);
+  });
+
+  it("leaves the clip alone when Escape cancels a typed edit", async () => {
+    const onClips = vi.fn();
+    setup({ onClips });
+    await openTrim();
+    onClips.mockClear();
+    await userEvent.click(input("In"));
+    await userEvent.keyboard("{Control>}a{/Control}700{Escape}");
+    expect(onClips).not.toHaveBeenCalled();
+    expect(input("In")).toHaveAttribute("aria-valuenow", "612");
+  });
+
+  it("commits a typed value when the card collapses", async () => {
+    setup();
+    await openTrim();
+    await userEvent.click(input("In"));
+    await userEvent.keyboard("{Control>}a{/Control}620");
+    await userEvent.click(
+      screen.getByRole("button", { name: "More for Nobody asked the river" }),
+    );
+    await userEvent.click(
+      await screen.findByRole("menuitem", { name: "Done trimming" }),
+    );
+    await openTrim();
+    expect(input("In")).toHaveAttribute("aria-valuenow", "620");
+  });
+
+  it("takes pasted m:ss.f text", async () => {
+    setup();
+    await openTrim();
+    await userEvent.click(input("In"));
+    await userEvent.keyboard("{Control>}a{/Control}");
+    await userEvent.paste("10:20.5");
+    await userEvent.keyboard("{Enter}");
+    expect(input("In")).toHaveAttribute("aria-valuenow", "620.5");
+  });
+
   it("keeps a typed In in step with the handle", async () => {
     setup({ words: WORDS, peaks: PEAKS });
     await openTrim();
-    const start = input("In");
-    await userEvent.clear(start);
-    await userEvent.type(start, "10:15{Enter}");
+    await setScrub("In of Nobody asked the river", "10:15");
     expect(handle("In")).toHaveAttribute("aria-valuenow", "615");
   });
 
@@ -4628,11 +4670,9 @@ describe("clip trim handles in the stage", () => {
     async (edge) => {
       setup({ words: WORDS, peaks: PEAKS });
       await openTrim();
-      const field = input(edge);
-      await userEvent.clear(field);
-      await userEvent.type(
-        field,
-        edge === "Out" ? "50:00{Enter}" : "0:05{Enter}",
+      await setScrub(
+        `${edge} of Nobody asked the river`,
+        edge === "Out" ? "50:00" : "0:05",
       );
       for (const which of ["In", "Out"] as const) {
         const at = Number.parseFloat(handle(which).style.insetInlineStart);

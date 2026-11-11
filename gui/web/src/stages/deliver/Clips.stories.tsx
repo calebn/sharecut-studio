@@ -88,13 +88,12 @@ export const Trimming: Story = {
   args: { trimming: "k1" },
   play: async ({ canvasElement }) => {
     const view = within(canvasElement);
-    const out = view.getByRole("textbox", {
-      name: "Out of Nobody asked the river",
-    });
-    await expect(out).toHaveValue("10:53.0");
-    await userEvent.clear(out);
-    await userEvent.type(out, "10:50{Enter}");
-    await expect(out).toHaveValue("10:50.0");
+    const out = () =>
+      view.getByRole("spinbutton", { name: "Out of Nobody asked the river" });
+    await expect(out()).toHaveAttribute("aria-valuetext", "653.00 s");
+    await userEvent.click(out());
+    await userEvent.keyboard("{Control>}a{/Control}650{Enter}");
+    await expect(out()).toHaveAttribute("aria-valuetext", "650.00 s");
     await expect(view.getByText("38.0 s")).toBeInTheDocument();
   },
 };
@@ -110,8 +109,8 @@ export const TrimmingWithWords: Story = {
     await userEvent.keyboard("{Shift>}{ArrowRight}{/Shift}");
     await expect(handle).toHaveAttribute("aria-valuenow", "612.1");
     await expect(
-      view.getByRole("textbox", { name: "In of Nobody asked the river" }),
-    ).toHaveValue("10:12.1");
+      view.getByRole("spinbutton", { name: "In of Nobody asked the river" }),
+    ).toHaveAttribute("aria-valuetext", "612.10 s");
   },
 };
 
