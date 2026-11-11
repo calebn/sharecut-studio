@@ -431,7 +431,7 @@ export function EpisodeFile({
           blocker={blocker}
           after={afterExportOf(
             namedFiles ? undefined : files,
-            exportState.phase === "done",
+            exportState.phase === "done" || exportState.phase === "running",
           )}
           onExport={onExport}
         />

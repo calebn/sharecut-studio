@@ -45,6 +45,7 @@ function AfterExportPrimary({
         className="ui-control modifier-action primary dv-export"
         href={file.href}
         download={file.name}
+        aria-label={`Download main file ${file.name}`}
         onClick={() => onStarted?.(file)}
       >
         <SystemIcon name="download" size={18} />
@@ -59,7 +60,7 @@ function AfterExportPrimary({
       onClick={() => onReveal?.(file)}
     >
       <SystemIcon name="folder-open" size={18} />
-      Reveal in Finder
+      Reveal in folder
     </Button>
   );
 }

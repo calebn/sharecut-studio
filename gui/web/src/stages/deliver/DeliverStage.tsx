@@ -434,7 +434,7 @@ export function DeliverStage({
             blocker={blocker}
             after={afterExportOf(
               namedFiles ? undefined : files,
-              shownState.phase === "done",
+              shownState.phase === "done" || shownState.phase === "running",
             )}
             onExport={() => startExport()}
           />
