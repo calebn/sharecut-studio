@@ -114,8 +114,9 @@ not render audio, download models, or add browser tests.
 
 The dedicated development fixture has complete history and a raw stub. Existing
 fixtures outside that corpus provide project-only round trips, including the AMI
-fixture whose referenced history files are absent. The released corpus is empty
-until an actual tester build is captured. See the
+fixture whose referenced history files are absent. The released corpus holds the
+v0.1.2 build's workspace (`released/v0-1-2`); later builds are added when they
+are tagged. See the
 [format policy and capture procedure](project-format.md#compatibility-boundary).
 
 ## Python quality tooling
