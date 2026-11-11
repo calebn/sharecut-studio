@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
+from datetime import UTC, datetime
 from typing import Any
 
-from fastapi import APIRouter, Header, Query, Request
+from fastapi import APIRouter, Header, HTTPException, Query, Request
 
 from podcast_mcp.gui.routes.deps import (
     coded_exception_error,
@@ -15,14 +16,23 @@ from podcast_mcp.gui.routes.deps import (
 from podcast_mcp.gui.schemas import (
     RecordInviteReplaceRequest,
     RecordRoomCreateRequest,
+    RecordRoomRestoreRequest,
     RecordRoomRevokeRequest,
+    RoomRestoreResponse,
+    RoomRevokeResponse,
     ShareCreateRequest,
+    ShareRestoreRequest,
+    ShareRestoreResponse,
     ShareRevokeRequest,
+    ShareRevokeResponse,
 )
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.collaboration import (
     MixUnavailableError,
+    RecordRoomConflictError,
     RecordStaleLinksError,
+    RestoreWindowClosedError,
+    ShareExpiredError,
     ShareService,
     share_public_origin,
 )
@@ -30,9 +40,24 @@ from podcast_mcp.services.record import RecordLandingError, RecordStateError
 
 router = APIRouter()
 
+# Seconds a restorable revoke can be undone (the client's Undo toast); the server counts it.
+RESTORABLE_REVOKE_SEC = 10.0
+
 
 def _origin(request: Request) -> str:
     return share_public_origin(str(request.base_url))
+
+
+def _restore_ms(restorable_until: str) -> int:
+    """Milliseconds of the undo window left, counted by the server's clock."""
+    left = datetime.fromisoformat(restorable_until) - datetime.now(UTC)
+    return max(0, int(left.total_seconds() * 1000))
+
+
+def _restore_refusal(exc: Exception) -> HTTPException:
+    """410 for a closed window or an expired link, 409 for a room that lost to a newer one."""
+    status = 409 if isinstance(exc, RecordRoomConflictError) else 410
+    return coded_exception_error(status, exc, code="restore_refused")
 
 
 @router.get("/api/shares")
@@ -82,21 +107,55 @@ def create_host_share(
     return {"share": share}
 
 
-@router.post("/api/shares/{share_token}/revoke")
+@router.post(
+    "/api/shares/{share_token}/revoke",
+    response_model=ShareRevokeResponse,
+    response_model_exclude_none=True,
+)
 def revoke_host_share(
     share_token: str,
     body: ShareRevokeRequest,
     request: Request,
     token: str | None = Query(None),
     x_podcast_token: str | None = Header(None, alias="X-Podcast-Token"),
-) -> dict[str, Any]:
+) -> ShareRevokeResponse:
     require_host(request, token=token, x_podcast_token=x_podcast_token)
     project_path = resolve_project(body.path, request)
     ws = ProjectWorkspace.open(project_path)
     try:
-        return ShareService(ws).revoke(share_token)
+        out = ShareService(ws).revoke(
+            share_token, restorable_for=RESTORABLE_REVOKE_SEC if body.restorable else None
+        )
     except KeyError as exc:
         raise coded_exception_error(404, exc, code="share_not_found") from exc
+    until = out.get("restorable_until")
+    return ShareRevokeResponse(
+        revoked=bool(out["revoked"]),
+        token=str(out["token"]),
+        restorable_until=until,
+        restore_ms=_restore_ms(until) if until else None,
+    )
+
+
+@router.post("/api/shares/{share_token}/restore", response_model=ShareRestoreResponse)
+def restore_host_share(
+    share_token: str,
+    body: ShareRestoreRequest,
+    request: Request,
+    token: str | None = Query(None),
+    x_podcast_token: str | None = Header(None, alias="X-Podcast-Token"),
+) -> ShareRestoreResponse:
+    """Undo a restorable revoke within its window (host only; 410 once it has ended)."""
+    require_host(request, token=token, x_podcast_token=x_podcast_token)
+    project_path = resolve_project(body.path, request)
+    ws = ProjectWorkspace.open(project_path)
+    try:
+        out = ShareService(ws).restore(share_token)
+    except (RestoreWindowClosedError, ShareExpiredError) as exc:
+        raise _restore_refusal(exc) from exc
+    except KeyError as exc:
+        raise coded_exception_error(404, exc, code="share_not_found") from exc
+    return ShareRestoreResponse(restored=out["restored"], token=out["token"])
 
 
 @router.post("/api/shares/record")
@@ -157,18 +216,52 @@ def replace_host_record_invite(
     return {"share": share}
 
 
-@router.post("/api/shares/rooms/{session_id}/revoke")
+@router.post(
+    "/api/shares/rooms/{session_id}/revoke",
+    response_model=RoomRevokeResponse,
+    response_model_exclude_none=True,
+)
 def revoke_host_record_room(
     session_id: str,
     body: RecordRoomRevokeRequest,
     request: Request,
     token: str | None = Query(None),
     x_podcast_token: str | None = Header(None, alias="X-Podcast-Token"),
-) -> dict[str, Any]:
+) -> RoomRevokeResponse:
     require_host(request, token=token, x_podcast_token=x_podcast_token)
     project_path = resolve_project(body.path, request)
     ws = ProjectWorkspace.open(project_path)
     try:
-        return ShareService(ws).revoke_room(session_id)
+        out = ShareService(ws).revoke_room(
+            session_id, restorable_for=RESTORABLE_REVOKE_SEC if body.restorable else None
+        )
     except KeyError as exc:
         raise coded_exception_error(404, exc, code="record_room_not_found") from exc
+    until = out.get("restorable_until")
+    return RoomRevokeResponse(
+        session_id=str(out["session_id"]),
+        revoked=[str(t) for t in out["revoked"]],
+        restorable_until=until,
+        restore_ms=_restore_ms(until) if until else None,
+    )
+
+
+@router.post("/api/shares/rooms/{session_id}/restore", response_model=RoomRestoreResponse)
+def restore_host_record_room(
+    session_id: str,
+    body: RecordRoomRestoreRequest,
+    request: Request,
+    token: str | None = Query(None),
+    x_podcast_token: str | None = Header(None, alias="X-Podcast-Token"),
+) -> RoomRestoreResponse:
+    """Undo a restorable room revoke within its window (host only; 410 once it has ended)."""
+    require_host(request, token=token, x_podcast_token=x_podcast_token)
+    project_path = resolve_project(body.path, request)
+    ws = ProjectWorkspace.open(project_path)
+    try:
+        out = ShareService(ws).restore_room(session_id)
+    except (RestoreWindowClosedError, ShareExpiredError, RecordRoomConflictError) as exc:
+        raise _restore_refusal(exc) from exc
+    except KeyError as exc:
+        raise coded_exception_error(404, exc, code="record_room_not_found") from exc
+    return RoomRestoreResponse(session_id=out["session_id"], restored=list(out["restored"]))
