@@ -149,7 +149,7 @@ There are three overlay primitives.
 | --- | --- | --- | --- |
 | `Menu` | Transient choice | Anchored popover in the top layer | Same, with the touch item height |
 | `Dialog` | A task with inputs and a primary action | Centered modal | Bottom sheet with the primary pinned above the home bar |
-| `InlineConfirm` | A destructive step confirmed beside its control | In place, Keep first, danger last | Same |
+| `InlineConfirm` | A destructive step that cannot be taken back, confirmed beside its control | In place, Keep first, danger last | Same |
 
 1. **One at a time.** A sheet closes before another opens. Stacking is a bug.
    `askConfirm` (`feedback/ask.ts`) renders through `Dialog`, so
@@ -208,7 +208,11 @@ There are three overlay primitives.
 2. **Undo rides with the result.** Every mutating command passes `undo` to
    `announceStatus`. The toast's Undo is the same History step the Undo button
    runs. A change History does not record (a comment resolve) passes `reverse`
-   instead, and the toast's Undo runs it. `commands/undoToast.test.ts` walks
+   instead, and the toast's Undo runs it; its `run` answers `true`, `false`, or a
+   string, the reason the change cannot be taken back, shown as the error. An Undo that expires on
+   a clock the server keeps (Stop sharing, End room) also passes `dwellMs`,
+   the window less a safety margin, and the server stays the authority: the
+   client has no commit timer. `commands/undoToast.test.ts` walks
    every catalog command flagged `mutates` and fails on one with no proof.
 3. **Status and error are two styles of one component.** An error names the
    failure and the next step. A status names what changed. They never share one
