@@ -490,6 +490,7 @@ export const createUiSlice: StateCreator<DawStore, [], [], UiSlice> = (
               feedbackToast: {
                 ...s.feedbackToast,
                 undo: null,
+                action: null,
                 lapsed: s.feedbackToast.kind
                   ? {
                       entries: s.feedbackToast.merged?.entries ?? [
