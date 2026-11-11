@@ -28,8 +28,8 @@ const JOIN_FADE_LIMIT_HELP =
 export type SettingsJoinFadeLimit = {
   /** Null until the episode's clips have loaded. */
   valueMs: number | null;
-  /** The app default; the reset dot returns to it. */
-  defaultMs: number;
+  /** The app default the reset dot returns to; unknown until the episode's clips have loaded. */
+  defaultMs?: number;
   /** Left out where the person may not edit the episode, with the reason in `readOnlyReason`. */
   onCommit?: (ms: number) => void;
   readOnlyReason?: string;

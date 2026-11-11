@@ -107,32 +107,24 @@ test.describe("Longest automatic join fade", () => {
     const block = page.locator(".lane-row .clip-block").first();
     const clipId = await block.getAttribute("data-clip-id");
     if (!clipId) throw new Error("clip lacks identity");
+    const savedFadeIn = async () =>
+      Object.values((await savedClipsSlice(page)).tracks)
+        .flat()
+        .find((clip) => clip.id === clipId)?.fade_in_ms;
+    const before = await savedFadeIn();
+    expect(before).not.toBe(400);
     await block.click();
     await inspectSelection(page);
 
     const fadeIn = page.getByRole("spinbutton", { name: "Fade in" });
     await setScrub(page, fadeIn, "400");
-    await expect
-      .poll(async () => {
-        const slice = await savedClipsSlice(page);
-        return Object.values(slice.tracks)
-          .flat()
-          .find((clip) => clip.id === clipId)?.fade_in_ms;
-      })
-      .toBe(400);
+    await expect.poll(savedFadeIn).toBe(400);
     await expect(fadeIn).toHaveAttribute("aria-valuenow", "400");
     expect(ofType(commands, "SetClipFade")).toHaveLength(1);
     expect(ofType(commands, "SetClipFade")[0].payload.fade_in_ms).toBe(400);
 
     await page.getByRole("button", { name: "Close", exact: true }).focus();
     await page.keyboard.press("ControlOrMeta+Z");
-    await expect
-      .poll(async () => {
-        const slice = await savedClipsSlice(page);
-        return Object.values(slice.tracks)
-          .flat()
-          .find((clip) => clip.id === clipId)?.fade_in_ms;
-      })
-      .not.toBe(400);
+    await expect.poll(savedFadeIn).toBe(before);
   });
 });

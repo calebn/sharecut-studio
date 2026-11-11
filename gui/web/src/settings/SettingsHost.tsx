@@ -24,8 +24,6 @@ function parentFolder(projectPath: string): string {
 }
 
 const PARTIAL_MOVE_CODE = "project_moved_partial";
-/** The bundled app default, until the episode's clips say which default is in force. */
-const JOIN_FADE_LIMIT_DEFAULT_MS = 40;
 const JOIN_FADE_LIMIT_READ_ONLY =
   "This link can view, but not change, episode settings. Ask the host for an editor link.";
 
@@ -67,13 +65,14 @@ export function SettingsHost() {
   const limit = useProjectMutation();
   const limitMs = useDaw((s) => s.project?.clips.join_fade_limit_ms ?? null);
   const limitDefaultMs = useDaw(
-    (s) =>
-      s.project?.clips.join_fade_limit_default_ms ?? JOIN_FADE_LIMIT_DEFAULT_MS,
+    (s) => s.project?.clips.join_fade_limit_default_ms,
   );
   const canEdit = useDaw((s) =>
     canApplyPass12(s.projectPath, s.guestMode, s.shareCapabilities),
   );
   const [limitDraft, setLimitDraft] = useState<number | null>(null);
+  // The draft shows the saved value until the episode's clips catch up with it.
+  if (limitDraft !== null && limitDraft === limitMs) setLimitDraft(null);
   const error = reveal.error ?? mover.error;
   const localClientId = useDaw((s) => s.localClientId);
   // Busy ends before the page unloads; keep Move disabled until it does.
@@ -133,11 +132,17 @@ export function SettingsHost() {
   // Setting the app default stores no value of its own, so the episode keeps following the default.
   const commitLimit = (ms: number) => {
     setLimitDraft(ms);
-    void limit
-      .run(() =>
-        setJoinFadeLimitCommand(projectPath, ms === limitDefaultMs ? null : ms),
-      )
-      .finally(() => setLimitDraft(null));
+    void limit.run(async () => {
+      try {
+        await setJoinFadeLimitCommand(
+          projectPath,
+          ms === limitDefaultMs ? null : ms,
+        );
+      } catch (error) {
+        setLimitDraft(null);
+        throw error;
+      }
+    });
   };
   return (
     <SettingsSheet
