@@ -5,6 +5,7 @@
  */
 import { setClipFade, trimClipEdge } from "../api";
 import { loadBoundaryContext } from "../api/boundary";
+import { clipFadeBaseline } from "../api/documentEdits";
 import { trackEditSave } from "../state/documentSendOrder";
 import type { ClipRow, HistoryEntryId } from "../types/project";
 import type { EditMode, TrimEdge } from "./clipEdgePreview";
@@ -55,7 +56,7 @@ async function send(
       clip.id,
       change.inMs,
       change.outMs,
-      { fade_in_ms: clip.fade_in_ms, fade_out_ms: clip.fade_out_ms },
+      clipFadeBaseline(clip),
     );
     return { undo };
   }

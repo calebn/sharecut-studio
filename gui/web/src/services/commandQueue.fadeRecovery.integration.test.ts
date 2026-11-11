@@ -226,6 +226,41 @@ describe.each(paths)("fade recovery for %s", (path) => {
     },
   );
 
+  it("replaces a stale fade curve with the saved one after a curve-only refusal", async () => {
+    const curved = minimalProject({
+      project_path: path,
+      clips: {
+        tracks: { host: [clipRow({ fade_out_curve: "s" })] },
+        clip_count: 1,
+      },
+    });
+    useDawStore.getState().hydrate(path, curved);
+    applyDocumentSnapshot({ server_seq: 1, project: curved });
+    server(async () => response(snapshot(path)));
+    await expect(
+      submitQueuedDocumentCommand(
+        path,
+        "SetClipFade",
+        {
+          clip_id: "clip-1",
+          fade_in_ms: 0,
+          fade_out_ms: 0,
+          fade_out_curve: "equal_power",
+          expected: {
+            fade_in_ms: 0,
+            fade_out_ms: 0,
+            fade_in_curve: "linear",
+            fade_out_curve: "s",
+          },
+        },
+        { client_id: "c", command_id: "curve", client_seq: 9 },
+      ),
+    ).rejects.toMatchObject({ code: "clip_fade_changed" });
+    expect(
+      useDawStore.getState().project?.clips.tracks.host[0],
+    ).not.toHaveProperty("fade_out_curve");
+  });
+
   it("continues replay past the permanent refusal when refresh fails", async () => {
     open(path);
     const { posted } = server(async () => {

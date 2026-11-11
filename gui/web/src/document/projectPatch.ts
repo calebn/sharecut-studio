@@ -1,5 +1,8 @@
+import type { ClipFadeCurves } from "../edit/fadeCurves";
 import type {
+  ClipRow,
   CombinedUtterance,
+  FadeCurve,
   ProjectView,
   TimelineComment,
   TrackView,
@@ -474,22 +477,50 @@ export function patchClipGain(
   return project;
 }
 
-/** Optimistic splice for SetClipFade. */
+/** The clip with `curve` spliced in under `key`; the key is dropped for linear, as the server omits it. */
+function withCurve(
+  clip: ClipRow,
+  key: "fade_in_curve" | "fade_out_curve",
+  curve: FadeCurve,
+): ClipRow {
+  const { [key]: _was, ...rest } = clip;
+  return curve === "linear" ? rest : { ...rest, [key]: curve };
+}
+
+/**
+ * Optimistic splice for SetClipFade. A curve the call does not name stays as
+ * it is, as on the server.
+ */
 export function patchClipFade(
   project: ProjectView,
   clipId: string,
   fadeInMs: number,
   fadeOutMs: number,
+  curves: ClipFadeCurves = {},
 ): ProjectView {
   for (const [trackId, lane] of Object.entries(project.clips.tracks)) {
     const index = lane.findIndex((c) => c.id === clipId);
     const clip = lane[index];
     if (!clip) continue;
-    if (clip.fade_in_ms === fadeInMs && clip.fade_out_ms === fadeOutMs)
+    const curveIn = curves.fade_in_curve ?? clip.fade_in_curve ?? "linear";
+    const curveOut = curves.fade_out_curve ?? clip.fade_out_curve ?? "linear";
+    if (
+      clip.fade_in_ms === fadeInMs &&
+      clip.fade_out_ms === fadeOutMs &&
+      (clip.fade_in_curve ?? "linear") === curveIn &&
+      (clip.fade_out_curve ?? "linear") === curveOut
+    )
       return project;
-    const next = lane.map((c, i) =>
-      i === index ? { ...c, fade_in_ms: fadeInMs, fade_out_ms: fadeOutMs } : c,
+    const faded = withCurve(
+      withCurve(
+        { ...clip, fade_in_ms: fadeInMs, fade_out_ms: fadeOutMs },
+        "fade_in_curve",
+        curveIn,
+      ),
+      "fade_out_curve",
+      curveOut,
     );
+    const next = lane.map((c, i) => (i === index ? faded : c));
     return {
       ...project,
       clips: {

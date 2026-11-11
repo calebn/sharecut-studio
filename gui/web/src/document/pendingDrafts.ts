@@ -1,3 +1,4 @@
+import { type ClipFadeCurves, payloadFadeCurves } from "../edit/fadeCurves";
 import { DocumentCommand } from "../types/documentCommands.generated";
 import type { AutomationPoint, ProjectView, TrackView } from "../types/project";
 import { withVolumeEnvelopePoints } from "../utils/envelopes";
@@ -15,7 +16,13 @@ import {
 
 type Draft =
   | { kind: "move"; clips: ClipMoveItem[] }
-  | { kind: "fade"; clipId: string; fadeInMs: number; fadeOutMs: number }
+  | {
+      kind: "fade";
+      clipId: string;
+      fadeInMs: number;
+      fadeOutMs: number;
+      curves: ClipFadeCurves;
+    }
   | { kind: "gain"; clipId: string; gainDb: number }
   /** A held control's local preview, a function of the latest project (not a copy of one). */
   | {
@@ -101,6 +108,7 @@ export function beginDocumentDraft(
         clipId: payload.clip_id,
         fadeInMs: payload.fade_in_ms,
         fadeOutMs: payload.fade_out_ms,
+        curves: payloadFadeCurves(payload),
       },
     ]);
   } else if (
@@ -290,6 +298,7 @@ export function overlayDocumentDrafts(
           draft.clipId,
           draft.fadeInMs,
           draft.fadeOutMs,
+          draft.curves,
         );
         break;
       case "gain":

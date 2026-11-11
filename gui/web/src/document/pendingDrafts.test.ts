@@ -121,6 +121,26 @@ describe("pending document display drafts", () => {
     finishDocumentDraft("fade");
     expect(overlayDocumentDrafts(base)).toBe(base);
   });
+  it("shows a clicked fade curve at once and ignores an unknown one", () => {
+    const base = minimalProject({
+      tracks: [sampleTrack({ id: "a" })],
+      clips: {
+        tracks: { a: [clipRow({ id: "c", track_id: "a" })] },
+        clip_count: 1,
+      },
+    });
+    beginDocumentDraft("fade", "SetClipFade", {
+      clip_id: "c",
+      fade_in_ms: 0,
+      fade_out_ms: 0,
+      fade_out_curve: "s",
+      fade_in_curve: "bogus",
+    });
+    const clip = overlayDocumentDrafts(base).clips.tracks.a?.[0];
+    expect(clip?.fade_out_curve).toBe("s");
+    expect(clip).not.toHaveProperty("fade_in_curve");
+    finishDocumentDraft("fade");
+  });
   it("shows a queued clip gain over a snapshot that does not hold it yet", () => {
     const base = minimalProject({
       tracks: [sampleTrack({ id: "a" })],

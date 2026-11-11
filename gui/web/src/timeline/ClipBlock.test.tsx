@@ -178,7 +178,12 @@ describe("ClipBlock waveform", () => {
           "c1",
           inMs,
           outMs,
-          { fade_in_ms: 100, fade_out_ms: 200 },
+          {
+            fade_in_ms: 100,
+            fade_out_ms: 200,
+            fade_in_curve: "linear",
+            fade_out_curve: "linear",
+          },
         );
       },
     );
@@ -425,7 +430,12 @@ describe("ClipBlock waveform", () => {
         "c1",
         23,
         40,
-        { fade_in_ms: 20, fade_out_ms: 40 },
+        {
+          fade_in_ms: 20,
+          fade_out_ms: 40,
+          fade_in_curve: "linear",
+          fade_out_curve: "linear",
+        },
       );
     });
 
@@ -467,7 +477,12 @@ describe("ClipBlock waveform", () => {
           "c1",
           11,
           0,
-          { fade_in_ms: 10, fade_out_ms: 0 },
+          {
+            fade_in_ms: 10,
+            fade_out_ms: 0,
+            fade_in_curve: "linear",
+            fade_out_curve: "linear",
+          },
         ),
       );
 
@@ -533,7 +548,12 @@ describe("ClipBlock waveform", () => {
           "c1",
           2000,
           0,
-          { fade_in_ms: 1998, fade_out_ms: 0 },
+          {
+            fade_in_ms: 1998,
+            fade_out_ms: 0,
+            fade_in_curve: "linear",
+            fade_out_curve: "linear",
+          },
         ),
       );
 
@@ -632,7 +652,12 @@ describe("ClipBlock waveform", () => {
           "c1",
           1,
           0,
-          { fade_in_ms: 0, fade_out_ms: 0 },
+          {
+            fade_in_ms: 0,
+            fade_out_ms: 0,
+            fade_in_curve: "linear",
+            fade_out_curve: "linear",
+          },
         ),
       );
     });
@@ -686,7 +711,12 @@ describe("ClipBlock waveform", () => {
           "c1",
           21,
           0,
-          { fade_in_ms: 20, fade_out_ms: 0 },
+          {
+            fade_in_ms: 20,
+            fade_out_ms: 0,
+            fade_in_curve: "linear",
+            fade_out_curve: "linear",
+          },
         ),
       );
       expect(useDawStore.getState().playheadSec).toBe(0);
@@ -798,6 +828,8 @@ describe("ClipBlock waveform", () => {
       expect(setClipFade).toHaveBeenLastCalledWith(secondPath, "c1", 41, 0, {
         fade_in_ms: 40,
         fade_out_ms: 0,
+        fade_in_curve: "linear",
+        fade_out_curve: "linear",
       });
     });
 
@@ -848,7 +880,12 @@ describe("ClipBlock waveform", () => {
           "c1",
           1,
           1,
-          { fade_in_ms: 1, fade_out_ms: 0 },
+          {
+            fade_in_ms: 1,
+            fade_out_ms: 0,
+            fade_in_curve: "linear",
+            fade_out_curve: "linear",
+          },
         ),
       );
       act(() => useDawStore.setState({ project: projectWithClip(clip) }));
@@ -878,7 +915,12 @@ describe("ClipBlock waveform", () => {
           "c1",
           0,
           1,
-          { fade_in_ms: 0, fade_out_ms: 0 },
+          {
+            fade_in_ms: 0,
+            fade_out_ms: 0,
+            fade_in_curve: "linear",
+            fade_out_curve: "linear",
+          },
         ),
       );
     });
@@ -1131,7 +1173,12 @@ describe("ClipBlock waveform", () => {
             "c1",
             0,
             10,
-            { fade_in_ms: 0, fade_out_ms: 0 },
+            {
+              fade_in_ms: 0,
+              fade_out_ms: 0,
+              fade_in_curve: "linear",
+              fade_out_curve: "linear",
+            },
           );
           expect(trimClipEdge).not.toHaveBeenCalled();
         }
@@ -1290,7 +1337,12 @@ describe("ClipBlock waveform", () => {
           "c1",
           40,
           0,
-          { fade_in_ms: 0, fade_out_ms: 0 },
+          {
+            fade_in_ms: 0,
+            fade_out_ms: 0,
+            fade_in_curve: "linear",
+            fade_out_curve: "linear",
+          },
         ),
       );
       expect(container.querySelector(".fade-readout")).toBeNull();
@@ -1306,7 +1358,12 @@ describe("ClipBlock waveform", () => {
           "c1",
           2000,
           0,
-          { fade_in_ms: 0, fade_out_ms: 0 },
+          {
+            fade_in_ms: 0,
+            fade_out_ms: 0,
+            fade_in_curve: "linear",
+            fade_out_curve: "linear",
+          },
         ),
       );
     });
@@ -1339,7 +1396,12 @@ describe("ClipBlock waveform", () => {
           "c1",
           0,
           0,
-          { fade_in_ms: 40, fade_out_ms: 0 },
+          {
+            fade_in_ms: 40,
+            fade_out_ms: 0,
+            fade_in_curve: "linear",
+            fade_out_curve: "linear",
+          },
         ),
       );
       expect(container.querySelector(".fade-readout")).toBeNull();
@@ -1359,7 +1421,12 @@ describe("ClipBlock waveform", () => {
           "c1",
           500,
           1500,
-          { fade_in_ms: 0, fade_out_ms: 1500 },
+          {
+            fade_in_ms: 0,
+            fade_out_ms: 1500,
+            fade_in_curve: "linear",
+            fade_out_curve: "linear",
+          },
         ),
       );
     });
@@ -1409,7 +1476,12 @@ describe("ClipBlock waveform", () => {
           "c1",
           0,
           40,
-          { fade_in_ms: 0, fade_out_ms: 0 },
+          {
+            fade_in_ms: 0,
+            fade_out_ms: 0,
+            fade_in_curve: "linear",
+            fade_out_curve: "linear",
+          },
         ),
       );
     });

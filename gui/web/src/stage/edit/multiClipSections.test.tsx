@@ -42,6 +42,7 @@ const second: ClipRow = {
   timeline_start: 2,
   timeline_end: 4,
   fade_out_ms: 40,
+  fade_out_curve: "s",
 };
 
 function open(clips: ClipRow[] = [first, second], cap: number | null = 100) {
@@ -78,6 +79,8 @@ const type = async (name: string, text: string) => {
 const baseline = (clip: ClipRow) => ({
   fade_in_ms: clip.fade_in_ms,
   fade_out_ms: clip.fade_out_ms,
+  fade_in_curve: clip.fade_in_curve ?? "linear",
+  fade_out_curve: clip.fade_out_curve ?? "linear",
 });
 
 beforeEach(() => {

@@ -8,6 +8,7 @@ import {
   isCurrentDocumentScope,
 } from "../document/authorityState";
 import type { EditMode, TrimEdge } from "../edit/clipEdgePreview";
+import { type ClipFadeCurves, clipEdgeCurve } from "../edit/fadeCurves";
 import {
   type DocumentCommandOptions,
   type HistoryCommandType,
@@ -21,6 +22,8 @@ import {
 } from "../types/documentCommands.generated";
 import {
   type AutomationPoint,
+  type ClipRow,
+  type FadeCurve,
   type HistoryEntryId,
   type PendingEditView,
   parseHistoryEntryId,
@@ -326,7 +329,23 @@ export async function restoreAppliedEdit(
 export type ClipFadeBaseline = Readonly<{
   fade_in_ms: number;
   fade_out_ms: number;
+  fade_in_curve?: FadeCurve;
+  fade_out_curve?: FadeCurve;
 }>;
+
+/**
+ * A clip's saved fades as the server compares them: lengths and both curves,
+ * a missing curve being linear. Every fade sender takes its baseline here, or
+ * a curved clip would be refused as changed.
+ */
+export function clipFadeBaseline(clip: ClipRow): ClipFadeBaseline {
+  return {
+    fade_in_ms: clip.fade_in_ms,
+    fade_out_ms: clip.fade_out_ms,
+    fade_in_curve: clipEdgeCurve(clip, "in"),
+    fade_out_curve: clipEdgeCurve(clip, "out"),
+  };
+}
 
 export async function setClipFade(
   projectPath: string,
@@ -334,12 +353,14 @@ export async function setClipFade(
   fadeInMs: number,
   fadeOutMs: number,
   expected: ClipFadeBaseline,
+  curves: ClipFadeCurves = {},
 ): Promise<HistoryEntryId | null> {
   return replyHistoryHead(
     await submitDocumentCommand(projectPath, DocumentCommand.SetClipFade, {
       clip_id: clipId,
       fade_in_ms: fadeInMs,
       fade_out_ms: fadeOutMs,
+      ...curves,
       expected: { ...expected },
     }),
   );
@@ -351,6 +372,8 @@ export async function setClipsFade(
     clip_id: string;
     fade_in_ms: number;
     fade_out_ms: number;
+    fade_in_curve?: FadeCurve;
+    fade_out_curve?: FadeCurve;
     expected: ClipFadeBaseline;
   }>,
 ): Promise<HistoryEntryId | null> {

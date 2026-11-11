@@ -387,6 +387,8 @@ describe("clip fades", () => {
     expect(setClipFade).toHaveBeenCalledWith("/tmp/ep.json", "c1", 11, 20, {
       fade_in_ms: 10,
       fade_out_ms: 20,
+      fade_in_curve: "linear",
+      fade_out_curve: "linear",
     });
   });
 

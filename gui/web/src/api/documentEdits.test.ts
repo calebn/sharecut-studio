@@ -17,16 +17,19 @@ import { applyDocumentSnapshot } from "../document/applyDocumentUpdate";
 import { noteDocumentSeq, resetDocumentSeqForTests } from "../document/cursor";
 import { submitQueuedDocumentCommand } from "../services/commandQueue";
 import { useDawStore } from "../state/dawStore";
+import { clipRow } from "../test/fixtures";
 import { ApiError } from "../utils/apiError";
 import {
   acceptSessionSuggestionCommand,
   applySuggestedActions,
   approveEdits,
+  clipFadeBaseline,
   correctTranscriptPhrase,
   correctTranscriptWord,
   moveClips,
   restoreAppliedEdit,
   selectSessionTakeCommand,
+  setClipFade,
   setClipGain,
   setClipsFade,
   setClipsGain,
@@ -545,6 +548,52 @@ describe("moveClips reply history", () => {
       .mockResolvedValueOnce({ command_id: "retry", idempotent: true });
     expect(await moveClips("/tmp/ep", clips)).toBe("move-first");
     expect(await moveClips("/tmp/ep", clips)).toBeNull();
+  });
+});
+
+describe("clipFadeBaseline", () => {
+  it("carries all four fade fields, a missing curve reading linear", () => {
+    expect(
+      clipFadeBaseline(clipRow({ fade_in_ms: 5, fade_out_ms: 7 })),
+    ).toEqual({
+      fade_in_ms: 5,
+      fade_out_ms: 7,
+      fade_in_curve: "linear",
+      fade_out_curve: "linear",
+    });
+    expect(
+      clipFadeBaseline(
+        clipRow({ fade_in_curve: "s", fade_out_curve: "equal_power" }),
+      ),
+    ).toMatchObject({ fade_in_curve: "s", fade_out_curve: "equal_power" });
+  });
+});
+
+describe("setClipFade curves", () => {
+  it("adds a curve to the payload only when one is given", async () => {
+    const expected = clipFadeBaseline(clipRow({ fade_out_curve: "s" }));
+    await setClipFade("/tmp/ep", "c1", 5, 6, expected);
+    expect(submitQueuedDocumentCommand).toHaveBeenLastCalledWith(
+      "/tmp/ep",
+      "SetClipFade",
+      { clip_id: "c1", fade_in_ms: 5, fade_out_ms: 6, expected },
+      undefined,
+    );
+    await setClipFade("/tmp/ep", "c1", 5, 6, expected, {
+      fade_in_curve: "equal_power",
+    });
+    expect(submitQueuedDocumentCommand).toHaveBeenLastCalledWith(
+      "/tmp/ep",
+      "SetClipFade",
+      {
+        clip_id: "c1",
+        fade_in_ms: 5,
+        fade_out_ms: 6,
+        fade_in_curve: "equal_power",
+        expected,
+      },
+      undefined,
+    );
   });
 });
 

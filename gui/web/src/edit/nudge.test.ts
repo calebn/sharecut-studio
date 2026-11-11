@@ -7,7 +7,13 @@ import {
 } from "../test/fixtures";
 import type { ProjectView } from "../types/project";
 import { dbToLinear } from "../utils/audio";
-import { type NudgeField, nudgeAxis, nudgeStep, withNudge } from "./nudge";
+import {
+  type NudgeField,
+  nudgeAxis,
+  nudgeStep,
+  sameNudgeBase,
+  withNudge,
+} from "./nudge";
 import { softBoundaries } from "./nudgeBoundaries";
 
 const left = clipRow({
@@ -379,5 +385,33 @@ describe("nudgeAxis", () => {
       }),
     ).toBeNull();
     expect(nudgeAxis(project, { ...fadeIn, clipId: "gone" })).toBeNull();
+  });
+});
+
+describe("sameNudgeBase on a fade", () => {
+  const field: NudgeField = {
+    kind: "fade",
+    trackId: "host",
+    clipId: "b",
+    edge: "out",
+  };
+  const withClip = (c: typeof clip): ProjectView => ({
+    ...project,
+    clips: { ...project.clips, tracks: { host: [left, c, right] } },
+  });
+
+  it("breaks when a peer changes only a fade curve", () => {
+    const origin = withClip(clip);
+    expect(sameNudgeBase(withClip({ ...clip }), origin, field)).toBe(true);
+    expect(
+      sameNudgeBase(withClip({ ...clip, fade_out_curve: "s" }), origin, field),
+    ).toBe(false);
+    expect(
+      sameNudgeBase(
+        withClip({ ...clip, fade_in_curve: "equal_power" }),
+        origin,
+        field,
+      ),
+    ).toBe(false);
   });
 });
