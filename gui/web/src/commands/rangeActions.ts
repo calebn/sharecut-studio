@@ -180,7 +180,7 @@ export async function runRangeAction(
           : null;
       const baseHead = state.project.history?.head_id ?? null;
       const focused = scriptBodyFocused();
-      const holdUntil = Date.now() + WAIT_MS;
+      const holdUntil = cutToast && !cutToast.follow ? 0 : Date.now() + WAIT_MS;
       if (state.afterCut) state.setAfterCut({ ...state.afterCut, holdUntil });
       const result = await submitRangeEdit(action, [target]);
       const live = useDawStore.getState();

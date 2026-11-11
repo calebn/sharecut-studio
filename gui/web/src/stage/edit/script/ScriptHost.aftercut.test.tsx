@@ -706,6 +706,68 @@ describe("Tab after a words cut", () => {
     await waitFor(() => expect(selected()).toEqual([6, 7]));
   });
 
+  async function chainToLastOccurrence() {
+    const user = await startCut();
+    cutAway([0, 1], "h1");
+    tab();
+    await user.keyboard("{Backspace}");
+    await waitFor(() => expect(submitDocumentCommand).toHaveBeenCalledTimes(2));
+    cutAway([0, 1, 3, 4], "h2");
+    tab();
+    expect(selected()).toEqual([6, 7]);
+    return user;
+  }
+
+  it("lets Tab through natively while the last occurrence's cut is in flight", async () => {
+    const user = await chainToLastOccurrence();
+    let release: () => void = () => {};
+    vi.mocked(submitDocumentCommand).mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          release = () =>
+            resolve({ type: "Applied", history_head_id: head("h3") });
+        }),
+    );
+    await user.keyboard("{Backspace}");
+    await waitFor(() => expect(state().rangeBusy).toBe(true));
+    expect(tab().defaultPrevented).toBe(false);
+    cutAway([0, 1, 3, 4, 6, 7], "h3");
+    await act(async () => release());
+    await waitFor(() => expect(state().rangeBusy).toBe(false));
+    expect(state().afterCut).toBeNull();
+    expect(tab().defaultPrevented).toBe(false);
+  });
+
+  it("keeps the chain when the last occurrence's cut fails", async () => {
+    const user = await chainToLastOccurrence();
+    vi.mocked(submitDocumentCommand).mockRejectedValueOnce(new Error("down"));
+    await user.keyboard("{Backspace}");
+    await waitFor(() => expect(submitDocumentCommand).toHaveBeenCalledTimes(3));
+    await waitFor(() => expect(state().rangeBusy).toBe(false));
+    expect(state().afterCut).not.toBeNull();
+    expect(selected()).toEqual([6, 7]);
+  });
+
+  it("leaves Tab native while the first cut is still in flight", async () => {
+    const user = userEvent.setup();
+    render(<Harness />);
+    await user.click(screen.getAllByRole("button", { name: "you" })[0]!);
+    act(() => state().setSelection(range(0, 1)));
+    let release: () => void = () => {};
+    vi.mocked(submitDocumentCommand).mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          release = () =>
+            resolve({ type: "Applied", history_head_id: head("h1") });
+        }),
+    );
+    await user.keyboard("{Backspace}");
+    await waitFor(() => expect(state().rangeBusy).toBe(true));
+    expect(tab().defaultPrevented).toBe(false);
+    await act(async () => release());
+    await waitFor(() => expect(state().afterCut).not.toBeNull());
+  });
+
   it("keeps the chain through a toolbar Undo and Redo of the cut", async () => {
     await startCut();
     cutAway([0, 1], "h1");
