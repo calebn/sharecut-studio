@@ -224,7 +224,7 @@ export function multiClipSections({
               {
                 id: "fadeNote",
                 control: note(
-                  "A fade changes by the amount you scrub; a shape and Gain set every selected clip to the choice you make.",
+                  "A fade changes by the amount you scrub; Gain sets all selected clips, and a shape skips clips whose join there is a cut or a crossfade.",
                   "status",
                 ),
               },
