@@ -252,12 +252,16 @@ test.describe("Pending inspector layout", () => {
     await expect(
       page.getByRole("group", { name: /^Needs attention/ }),
     ).toHaveCount(0);
+    const settledScrolls = () =>
+      actionbar.evaluate(async (panel) => {
+        for (let tick = 0; tick < 3; tick += 1) {
+          await new Promise((resolve) => requestAnimationFrame(resolve));
+        }
+        return panel.scrollHeight > panel.clientHeight;
+      });
     for (let height = 480; height >= 120; height -= 20) {
       await page.setViewportSize({ width: 1280, height });
-      const scrolls = await actionbar.evaluate(
-        (panel) => panel.scrollHeight > panel.clientHeight,
-      );
-      if (scrolls) break;
+      if ((await settledScrolls()) && (await settledScrolls())) break;
     }
     await expect
       .poll(() =>
