@@ -527,11 +527,11 @@ def get_daw_audition_context_image(
 
 
 @router.get("/api/review/{token}/daw/proxy/manifest")
-def get_daw_proxy_manifest(token: str) -> dict[str, Any]:
+def get_daw_proxy_manifest(token: str, request: Request) -> dict[str, Any]:
     _check_token(token)
     _rate_limit(token, "read")
     with guest_boundary(log, "review request"):
-        return share_proxy_manifest(token)
+        return share_proxy_manifest(token, request_origin=str(request.base_url))
 
 
 @router.get("/api/review/{token}/daw/proxy/{track_id}/{proxy_hash}/{chunk_idx}")

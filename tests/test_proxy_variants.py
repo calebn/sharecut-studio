@@ -974,6 +974,58 @@ def test_namespace_sync_failure_preserves_saved_authority_and_retries(
     assert orphan.read_bytes() == original
 
 
+@pytest.mark.parametrize(
+    ("request_origin", "local"),
+    [
+        ("http://127.0.0.1:8765/", True),
+        ("http://localhost:8765/", True),
+        ("https://share.example.test/", False),
+        (None, False),
+    ],
+)
+def test_share_manifest_hands_loopback_pages_local_chunk_urls(
+    workspace, monkeypatch, fast_encode, request_origin, local
+):
+    from podcast_mcp.services.collaboration import share
+
+    ws = workspace
+    _choice(ws)
+    generation = pv.ensure_proxy_manifest(ws)
+    ws.project.tracks[0].proxy = generation.tracks["host"].model_copy()
+    ws.save()
+    probes = []
+    monkeypatch.setattr(
+        share, "require_share_cap", lambda *_: ({"capabilities": ["play", "view"]}, ws)
+    )
+    monkeypatch.setattr(
+        "podcast_mcp.services.media.presigned_proxy_urls",
+        lambda *_a, **_k: ["https://store.example.test/chunk"],
+    )
+    monkeypatch.setattr(
+        "podcast_mcp.services.collaboration.share_page.share_public_origin",
+        lambda: "https://share.example.test",
+    )
+
+    def probe(url, origin):
+        probes.append((url, origin))
+        from podcast_mcp.services.media import object_store_cors as cors
+
+        return cors.probe_guest_cors(
+            url, origin, fetch=lambda *_: {"access-control-allow-origin": origin}
+        )
+
+    monkeypatch.setattr("podcast_mcp.services.media.cached_guest_cors", probe)
+    body = share.share_proxy_manifest("token", request_origin=request_origin)
+    hash_ = generation.tracks["host"].hash
+    if local:
+        assert body["tracks"]["host"]["urls"] == [f"/api/review/token/daw/proxy/host/{hash_}/0"]
+        assert probes == []
+        assert "object_store_cors" not in body
+    else:
+        assert body["tracks"]["host"]["urls"] == ["https://store.example.test/chunk"]
+        assert probes == [("https://store.example.test/chunk", "https://share.example.test")]
+
+
 @pytest.mark.parametrize("probe_status", ["ok", "blocked", "unknown"])
 def test_share_cors_fallback_preserves_current_complete_restore_generation(
     workspace, monkeypatch, fast_encode, probe_status
