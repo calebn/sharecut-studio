@@ -56,8 +56,10 @@ export type DocumentCommandType =
   | "SetActionDone"
   | "SetBleedAlignmentMode"
   | "SetClipFade"
+  | "SetClipGain"
   | "SetClipJoin"
   | "SetClipsFade"
+  | "SetClipsGain"
   | "SetEffectBypass"
   | "SetEnvelope"
   | "SetFeedField"
@@ -148,8 +150,10 @@ export const DocumentCommand = {
   SetActionDone: "SetActionDone",
   SetBleedAlignmentMode: "SetBleedAlignmentMode",
   SetClipFade: "SetClipFade",
+  SetClipGain: "SetClipGain",
   SetClipJoin: "SetClipJoin",
   SetClipsFade: "SetClipsFade",
+  SetClipsGain: "SetClipsGain",
   SetEffectBypass: "SetEffectBypass",
   SetEnvelope: "SetEnvelope",
   SetFeedField: "SetFeedField",

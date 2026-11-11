@@ -531,6 +531,10 @@ export const CAPABILITY_COPY: Record<string, CapabilityCopy> = {
     label: "Set clip fade",
     tooltip: "Drag or use focused Left/Right arrows to set fade length",
   },
+  "daw.edit.setClipGain": {
+    label: "Set clip gain",
+    tooltip: "Raise or lower one clip's level",
+  },
   "daw.edit.setClipJoin": {
     label: "Set clip join",
     tooltip:
