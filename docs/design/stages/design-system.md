@@ -664,6 +664,8 @@ One rule, so the same job never has two labels:
 | Nothing is edited (coach tips, cards, the Find bar) | A Close X, named **Close** (**Dismiss** for a hint or card) | Same as the X |
 | A running job | **Cancel <the thing>** ("Cancel splitting"), never a bare Cancel | n/a |
 
+Goal: be consistent where it helps, but a more descriptive label wins over the generic one. Done is the default for a save-as-you-go surface; when the surface has a clearer word for what finishing does ("Done trimming", "Save speaker", "Add person"), use that word in the same place. The behaviour stays the same: the label names it, and Escape does the same.
+
 Rules: Done never discards. Cancel never saves. Do not draw both a Done and an X on a phone.
 
 ## 5. Conflicts resolved
