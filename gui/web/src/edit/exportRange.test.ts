@@ -37,7 +37,14 @@ function episode(): ProjectView {
       tracks: Object.fromEntries(
         tracks.map((t) => [
           t.id,
-          [clipRow({ id: `${t.id}-1`, track_id: t.id })],
+          [
+            clipRow({
+              id: `${t.id}-1`,
+              track_id: t.id,
+              timeline_start: 700,
+              timeline_end: 1100,
+            }),
+          ],
         ]),
       ),
       clip_count: tracks.length,
@@ -156,7 +163,7 @@ describe("bounceTracks", () => {
         "selected",
         none,
       ),
-    ).toEqual({ ok: true, trackIds: ["guest"] });
+    ).toEqual({ ok: true, trackIds: ["guest", "muted"] });
   });
 
   it("soloed intersects the solo set with the bounceable tracks", () => {
@@ -165,8 +172,9 @@ describe("bounceTracks", () => {
         bed: true,
         host: false,
         muted: true,
+        scratch: true,
       }),
-    ).toEqual({ ok: true, trackIds: ["bed"] });
+    ).toEqual({ ok: true, trackIds: ["muted", "bed"] });
   });
 
   it("explains why selected is empty with no tracks", () => {
@@ -178,7 +186,7 @@ describe("bounceTracks", () => {
 
   it("explains why selected is empty when none of them is audible", () => {
     expect(
-      bounceTracks(project, rangeScope(["muted", "empty"]), "selected", none),
+      bounceTracks(project, rangeScope(["scratch", "empty"]), "selected", none),
     ).toEqual({
       ok: false,
       reason: "The selected tracks have nothing audible.",
@@ -191,7 +199,7 @@ describe("bounceTracks", () => {
       reason: "Solo one or more tracks first.",
     });
     expect(
-      bounceTracks(project, wholeScope(), "soloed", { muted: true }),
+      bounceTracks(project, wholeScope(), "soloed", { empty: true }),
     ).toEqual({ ok: false, reason: "The soloed tracks have nothing audible." });
   });
 
@@ -236,7 +244,7 @@ describe("bounceRequestOf", () => {
       { source: "selected", includeMp3: true },
       {},
     );
-    expect(made.ok && made.request.range?.track_ids).toEqual(["host"]);
+    expect(made.ok && made.request.range?.track_ids).toEqual(["host", "muted"]);
     expect(made.ok && made.request.includeMp3).toBe(true);
   });
 
@@ -274,6 +282,17 @@ describe("bounceRequestOf", () => {
       { bed: true },
     );
     expect(made.ok && made.request.trackIds).toEqual(["bed"]);
+  });
+
+  it("refuses a range that overlaps no clip", () => {
+    expect(
+      bounceRequestOf(
+        project,
+        { intervals: [{ start: 90000, end: 90100 }], trackIds: ["host"] },
+        choices,
+        {},
+      ),
+    ).toEqual({ ok: false, reason: "Nothing audible in this range." });
   });
 
   it("carries the reason when no track applies", () => {

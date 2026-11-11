@@ -92,10 +92,8 @@ export function exportScopeOf(
   };
 }
 
-const audible = (track: TrackView): boolean =>
-  BOUNCEABLE_ROLES.has(track.role) &&
-  trackHasSourceAudio(track) &&
-  track.muted !== true;
+const bounceable = (track: TrackView): boolean =>
+  BOUNCEABLE_ROLES.has(track.role) && trackHasSourceAudio(track);
 
 export function bounceTracks(
   project: ProjectView,
@@ -103,12 +101,13 @@ export function bounceTracks(
   source: BounceSource,
   solo: Readonly<Record<string, boolean>>,
 ): { ok: true; trackIds: string[] } | { ok: false; reason: string } {
-  const bounceable = project.tracks.filter(audible).map((t) => t.id);
+  const candidates = project.tracks.filter(bounceable);
   const keep = (ids: readonly string[]) =>
-    bounceable.filter((id) => ids.includes(id));
+    candidates.filter((t) => ids.includes(t.id)).map((t) => t.id);
   if (source === "mix") {
-    return bounceable.length
-      ? { ok: true, trackIds: bounceable }
+    const audible = candidates.filter((t) => t.muted !== true).map((t) => t.id);
+    return audible.length
+      ? { ok: true, trackIds: audible }
       : { ok: false, reason: "Nothing audible to export." };
   }
   if (source === "selected") {
@@ -183,7 +182,8 @@ export function bounceRequestOf(
     };
   }
   const range = makeRangeTarget(project, scope.intervals, tracks.trackIds);
-  if (!range) return { ok: false, reason: "Nothing audible in this range." };
+  if (!range?.clips.length)
+    return { ok: false, reason: "Nothing audible in this range." };
   return {
     ok: true,
     request: { range, trackIds: tracks.trackIds, source, includeMp3 },
