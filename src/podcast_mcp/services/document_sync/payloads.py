@@ -41,6 +41,7 @@ from podcast_mcp.models.episode import (
     ClipJoinMode,
     EditMode,
     ExactRangeTarget,
+    FadeCurve,
     RangeInterval,
 )
 from podcast_mcp.models.feed import FieldValue, PinAuthor
@@ -278,10 +279,18 @@ class SetClipFadePayload(BaseModel):
     clip_id: str
     fade_in_ms: int
     fade_out_ms: int
+    fade_in_curve: FadeCurve | None = Field(
+        default=None, description="The fade-in shape. Left out keeps the clip's current curve."
+    )
+    fade_out_curve: FadeCurve | None = Field(
+        default=None, description="The fade-out shape. Left out keeps the clip's current curve."
+    )
     expected: ClipFadeBaseline = Field(
-        description="Both saved fades captured when the edit began. A changed pair "
-        "returns clip_fade_changed without changing fades, history, or the journal. Read the "
-        "clip's current {fade_in_ms, fade_out_ms} with podcast edit list-clips."
+        description="Both saved fades and both curves captured when the edit began. A changed "
+        "value returns clip_fade_changed without changing fades, history, or the journal. Read "
+        "the clip's current {fade_in_ms, fade_out_ms, fade_in_curve, fade_out_curve} with "
+        "podcast edit list-clips; a clip row without a curve is linear, and an omitted baseline "
+        "curve is read as linear."
     )
 
 
@@ -289,8 +298,15 @@ class ClipFadeTarget(BaseModel):
     clip_id: str
     fade_in_ms: int
     fade_out_ms: int
+    fade_in_curve: FadeCurve | None = Field(
+        default=None, description="The fade-in shape. Left out keeps the clip's current curve."
+    )
+    fade_out_curve: FadeCurve | None = Field(
+        default=None, description="The fade-out shape. Left out keeps the clip's current curve."
+    )
     expected: ClipFadeBaseline = Field(
-        description="Both saved fades of this clip captured when the edit began."
+        description="Both saved fades and both curves of this clip captured when the edit "
+        "began. An omitted curve is read as linear."
     )
 
 

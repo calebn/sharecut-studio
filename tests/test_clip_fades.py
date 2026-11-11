@@ -1,6 +1,6 @@
 import pytest
 
-from podcast_mcp.edits.clip_fades import ClipFadeBaseline
+from podcast_mcp.edits.clip_fades import ClipFadeBaseline, ClipFadeEdit
 from podcast_mcp.models import Clip, load_project
 from podcast_mcp.services.app import ProjectWorkspace
 
@@ -120,8 +120,8 @@ def test_clips_fade_sets_every_clip_clamped_in_one_history_step(minimal_project)
     before = len(HistoryService(ws).list_entries().entries)
     result = TimelineService(ws).set_clips_fade(
         [
-            ("a", 15, 7, ClipFadeBaseline(10, 0)),
-            ("b", 15, 9000, ClipFadeBaseline(10, 20)),
+            ClipFadeEdit("a", 15, 7, ClipFadeBaseline(10, 0)),
+            ClipFadeEdit("b", 15, 9000, ClipFadeBaseline(10, 20)),
         ]
     )
     assert result["operation"] == "set_clips_fade"
@@ -138,8 +138,8 @@ def test_clips_fade_refuses_every_clip_when_one_is_stale(minimal_project):
     with pytest.raises(ClipFadeChangedError, match="Nothing was saved"):
         TimelineService(ProjectWorkspace.open(minimal_project)).set_clips_fade(
             [
-                ("a", 15, 7, ClipFadeBaseline(10, 0)),
-                ("b", 15, 7, ClipFadeBaseline(10, 21)),
+                ClipFadeEdit("a", 15, 7, ClipFadeBaseline(10, 0)),
+                ClipFadeEdit("b", 15, 7, ClipFadeBaseline(10, 21)),
             ]
         )
     assert minimal_project.read_bytes() == before
