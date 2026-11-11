@@ -769,13 +769,14 @@ export const KEYMAP_COMMANDS: readonly KeymapCommand[] = [
   {
     id: "export.bounce",
     category: "ui",
-    label: "Bounce…",
+    label: "Export full mix",
     keys: [],
     bareKey: false,
     requireMod: true,
     requireShift: true,
     when: "hostProjectLoaded",
-    notes: "Palette only: Bounce in Deliver (export/bounces/)",
+    notes:
+      "Palette only: exports the whole episode's audible tracks in place (export/bounces/)",
   },
   {
     id: "export.deliverables",
@@ -788,7 +789,7 @@ export const KEYMAP_COMMANDS: readonly KeymapCommand[] = [
     when: "hostProjectLoaded",
     noRepeat: true,
     notes:
-      "Mod+E: mastered export/ via PipelineService; with one range selected, opens Deliver with Bounce focused and that range filled in",
+      "Mod+E: mastered export/ via PipelineService; with one range or words selected, exports that range in place (export/bounces/) and keeps the stage; with none, opens Deliver to start it",
   },
   {
     id: "project.new",

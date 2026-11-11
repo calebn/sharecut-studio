@@ -28,11 +28,17 @@ import {
   useRecordHostStore,
 } from "../record";
 import { canManageProjects, canRefreshMix } from "../shareMode";
+import {
+  bounceRequestOf,
+  EXPORT_RANGE_DEFAULTS,
+  readExportRangeChoices,
+} from "../stage/edit/exportRange";
 import { useDawStore } from "../state/dawStore";
 import { type RoomKeyHandlers, roomKeys } from "../state/roomKeys";
 import { seedStudioJob } from "../state/seedStudioJob";
 import { isRangeSelection } from "../state/selection";
 import { errorMessage } from "../utils/apiError";
+import { startBounce } from "./bounceRunnerHandle";
 import { type CommandContext, evaluateWhen } from "./context";
 import { registerCommand } from "./execute";
 import { runRangeAction } from "./rangeActions";
@@ -201,11 +207,20 @@ export function registerHostCommands(): void {
     if (blocked) {
       return blocked;
     }
-    const s = useDawStore.getState();
-    s.setBounceRangeTarget(null);
-    s.openStage("deliver");
-    s.setBounceRequested(true);
-    return { status: "ok" };
+    const { project, soloTracks } = useDawStore.getState();
+    if (!project) return { status: "disabled", reason: "No project loaded" };
+    const made = bounceRequestOf(
+      project,
+      { intervals: null, trackIds: [] },
+      {
+        ...EXPORT_RANGE_DEFAULTS,
+        includeMp3: readExportRangeChoices().includeMp3,
+      },
+      soloTracks,
+    );
+    return made.ok
+      ? startBounce(made.request)
+      : { status: "disabled", reason: made.reason };
   });
 
   registerCommand("export.transcript", (_args, ctx) => {

@@ -4,9 +4,13 @@ import { makeRangeTarget } from "../edit/rangeSelection";
 import { useDawStore } from "../state/dawStore";
 import { setChrome } from "../test/chrome";
 import { clipRow, minimalProject, sampleTrack } from "../test/fixtures";
+import { startBounce } from "./bounceRunnerHandle";
 import { clearRegisteredCommands, execute } from "./execute";
 import { registerDawCommands } from "./register";
 
+vi.mock("./bounceRunnerHandle", () => ({
+  startBounce: vi.fn(async () => ({ status: "ok" })),
+}));
 vi.mock("../api", async (importOriginal) => ({
   ...(await importOriginal<typeof import("../api")>()),
   startExportJob: vi.fn(),
@@ -17,7 +21,8 @@ describe("export.deliverables", () => {
     clearRegisteredCommands();
     registerDawCommands();
     vi.mocked(api.startExportJob).mockReset();
-    setChrome({ exportRequested: false, bounceRequested: false });
+    setChrome({ exportRequested: false });
+    vi.mocked(startBounce).mockClear();
     useDawStore.setState({
       projectPath: "/tmp/test/episode.sharecut",
       project: minimalProject(),
@@ -75,19 +80,22 @@ describe("export.deliverables", () => {
       ["a"],
     )!;
 
-    it("opens Deliver with Bounce focused on the range instead of asking for the export", async () => {
+    it("exports the range in place instead of asking for the export", async () => {
       useDawStore.setState({
         project: rangedProject,
         selection: { kind: "range", target },
-        bounceRangeTarget: null,
       });
       expect(
         await execute("export.deliverables", {}, { skipWhen: true }),
       ).toEqual({ status: "ok" });
+      expect(startBounce).toHaveBeenCalledWith({
+        range: target,
+        trackIds: ["a"],
+        source: "mix",
+        includeMp3: false,
+      });
       const s = useDawStore.getState();
-      expect(s.stage).toBe("deliver");
-      expect(s.bounceRangeTarget).toEqual(target);
-      expect(s.chrome.bounceRequested).toBe(true);
+      expect(s.stage).toBe("edit");
       expect(s.chrome.exportRequested).toBe(false);
     });
 
@@ -96,14 +104,12 @@ describe("export.deliverables", () => {
         project: rangedProject,
         stage: "deliver",
         selection: { kind: "range", target },
-        bounceRangeTarget: null,
       });
       expect(
         await execute("export.deliverables", {}, { skipWhen: true }),
       ).toEqual({ status: "ok" });
       const s = useDawStore.getState();
-      expect(s.bounceRangeTarget).toBeNull();
-      expect(s.chrome.bounceRequested).toBe(false);
+      expect(startBounce).not.toHaveBeenCalled();
       expect(s.chrome.exportRequested).toBe(true);
     });
 
@@ -115,7 +121,6 @@ describe("export.deliverables", () => {
           startWordIndex: 0,
           endWordIndex: 0,
         } as never,
-        bounceRangeTarget: null,
       });
       const result = await execute(
         "export.deliverables",
@@ -125,7 +130,7 @@ describe("export.deliverables", () => {
       expect(result.status).toBe("disabled");
       const s = useDawStore.getState();
       expect(s.chrome.exportRequested).toBe(false);
-      expect(s.chrome.bounceRequested).toBe(false);
+      expect(startBounce).not.toHaveBeenCalled();
       expect(s.stage).toBe("edit");
     });
 
@@ -133,11 +138,10 @@ describe("export.deliverables", () => {
       useDawStore.setState({
         project: rangedProject,
         selection: { kind: "clip", trackId: "a", clipId: "c" } as never,
-        bounceRangeTarget: null,
       });
       await execute("export.deliverables", {}, { skipWhen: true });
       const s = useDawStore.getState();
-      expect(s.bounceRangeTarget).toBeNull();
+      expect(startBounce).not.toHaveBeenCalled();
       expect(s.chrome.exportRequested).toBe(true);
     });
   });

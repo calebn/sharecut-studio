@@ -1302,10 +1302,11 @@ describe("barModelOf", () => {
     },
   );
 
-  it("puts Hear, Remove, More and Inspect on a track, with the reorder rows in More and no Mute", () => {
+  it("puts Hear, Export, Remove, More and Inspect on a track, with the reorder rows in More and no Mute", () => {
     const first = model({ kind: "track", trackId: MIRA });
     expect(first.items.map((item) => item.id)).toEqual([
       "hear",
+      "export",
       "remove",
       "more",
       "inspect",

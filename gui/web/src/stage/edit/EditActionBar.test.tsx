@@ -23,6 +23,7 @@ import {
   MIRA,
 } from "../../test/actionBarFixtures";
 import { clipRow, minimalProject, sampleTrack } from "../../test/fixtures";
+import { BounceRunContext } from "../hosts/bounceRunnerContext";
 import { EditActionBar } from "./EditActionBar";
 
 vi.mock("../../api/speakerMoveLaneSpan", () => ({
@@ -63,8 +64,44 @@ describe("EditActionBar on the phone dock", () => {
   it("shows the playhead verbs when nothing is selected", async () => {
     host(EDIT_SELECTIONS.playhead);
     const { container } = render(<EditActionBar form="dock" root={null} />);
-    expect(names()).toEqual(["Split", "Add chapter", "Record here"]);
+    expect(names()).toEqual([
+      "Split",
+      "Add chapter",
+      "Record here",
+      "Export",
+      "More",
+    ]);
     await expectNoA11yViolations(container);
+  });
+
+  it("opens the Export options from More with the saved source and MP3", async () => {
+    host(EDIT_SELECTIONS.playhead);
+    render(<EditActionBar form="dock" root={null} />);
+    await userEvent.click(screen.getByRole("button", { name: "More" }));
+    await userEvent.click(
+      await screen.findByRole("menuitem", { name: "Export options" }),
+    );
+    const sheet = await screen.findByRole("dialog", { name: "Export options" });
+    expect(
+      within(sheet).getByRole("button", { name: "Full mix" }),
+    ).toHaveAttribute("aria-pressed", "true");
+    expect(
+      within(sheet).getByRole("button", { name: "Also MP3" }),
+    ).toHaveAttribute("aria-pressed", "false");
+  });
+
+  it("reads Cancel export, pressed, while a bounce runs", () => {
+    host(EDIT_SELECTIONS.playhead);
+    render(
+      <BounceRunContext.Provider
+        value={{ kind: "running", jobId: "b1", cancelling: false }}
+      >
+        <EditActionBar form="dock" root={null} />
+      </BounceRunContext.Provider>,
+    );
+    expect(
+      screen.getByRole("button", { name: "Cancel export" }),
+    ).toHaveAttribute("aria-pressed", "true");
   });
 
   it("offers Paste at the playhead only when the clipboard holds audio", async () => {

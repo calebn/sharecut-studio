@@ -37,6 +37,7 @@ import {
   hasShareCapability,
   rangeEditMode,
 } from "../shareMode";
+import { exportRequestNow, exportScopeOf } from "../stage/edit/exportRange";
 import { useDawStore } from "../state/dawStore";
 import {
   inspectorOpenFor,
@@ -44,7 +45,7 @@ import {
   selectedTrackIdsOf,
 } from "../state/selection";
 import type { PendingRecordTarget } from "../state/stageSlice";
-import type { BarItem } from "../system/actionBarSlots";
+import { type BarItem, SPLIT_OPTIONS_ARG } from "../system/actionBarSlots";
 import { type BarId, resolveBar } from "../system/editActionSets";
 import type { HistoryEntryId, ProjectView, Selection } from "../types/project";
 import { BUSY_REASON } from "../ui/disabledReason";
@@ -60,6 +61,12 @@ import {
   siblingSplitLanes,
   speakerLaneMoveTarget,
 } from "../utils/speakerSplit";
+import {
+  bounceRunning,
+  cancelBounce,
+  exportBusyReason,
+  startBounce,
+} from "./bounceRunnerHandle";
 import { COMMANDS } from "./catalog";
 import { bleedKeepReason, selectedBleedRegion } from "./clipBleed";
 import { buildCommandContext, evaluateWhen } from "./context";
@@ -755,7 +762,7 @@ async function dispatch(
     case "paste":
       return executePointerCommand("edit.paste");
     case "export":
-      return executePointerCommand("range.bounce");
+      return exportVerb(facts, arg);
     case "remove": {
       const selection = useDawStore.getState().selection;
       if (selection?.kind === "social") return removeSocial(selection.id);
@@ -802,9 +809,24 @@ async function dispatch(
   }
 }
 
+async function exportVerb(
+  facts: EditFacts,
+  arg: VerbArg,
+): Promise<ExecuteResult> {
+  if (arg === SPLIT_OPTIONS_ARG) return { status: "ok" };
+  if (bounceRunning()) return cancelBounce();
+  if (facts.kind === "range") return executePointerCommand("range.bounce");
+  const { project, selection, soloTracks } = useDawStore.getState();
+  if (!project) return disabled("Open a project");
+  const scope = exportScopeOf(project, selection);
+  if (!scope.ok) return disabled(scope.reason);
+  const made = exportRequestNow(project, scope.scope, soloTracks);
+  return made.ok ? startBounce(made.request) : disabled(made.reason);
+}
+
 // The bar draws what resolveBar says minus what is not wired yet, so no button is a dead end.
 export const WIRED_VERBS: Readonly<Record<EditKind, readonly BarId[]>> = {
-  playhead: ["split", "addChapter", "record", "paste"],
+  playhead: ["split", "addChapter", "record", "paste", "export"],
   words: [
     "hear",
     "keep",
@@ -822,7 +844,7 @@ export const WIRED_VERBS: Readonly<Record<EditKind, readonly BarId[]>> = {
   chapter: ["hear", "fixText", "remove", "inspect"],
   social: ["hear", "comment", "remove", "inspect"],
   comment: ["remove", "inspect"],
-  track: ["hear", "remove", "more", "inspect"],
+  track: ["hear", "export", "remove", "more", "inspect"],
   envelope: ["inspect"],
   envelopePoint: ["hear", "remove", "inspect"],
   bleed: ["hearBefore", "hearAfter", "keep", "inspect"],
@@ -941,7 +963,11 @@ function wordsRestoreAvailability(
   };
 }
 
-export function barModelOf(facts: EditFacts, s: DawState): BarModel {
+export function barModelOf(
+  facts: EditFacts,
+  s: DawState,
+  exporting: boolean = bounceRunning(),
+): BarModel {
   const resolved = resolveBar(facts);
   const wired = WIRED_VERBS[facts.kind];
   const project = s.project;
@@ -1008,6 +1034,12 @@ export function barModelOf(facts: EditFacts, s: DawState): BarModel {
       }
       if (id === "record")
         return { id, label: rangeLike ? "Re-record" : "Record here" };
+      if (id === "export") {
+        if (exporting) return { id, label: "Cancel export", pressed: true };
+        const reason =
+          exportBusyReason(s.activityJob) ?? descriptor("bounce")?.reason;
+        return reason ? { id, disabledReason: reason } : item;
+      }
       return item;
     });
 

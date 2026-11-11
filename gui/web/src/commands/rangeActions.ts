@@ -15,6 +15,7 @@ import {
   isShareProjectKey,
   rangeEditMode,
 } from "../shareMode";
+import { exportRequestNow } from "../stage/edit/exportRange";
 import { useDawStore } from "../state/dawStore";
 import { isRangeSelection } from "../state/selection";
 import type { DawState } from "../state/types";
@@ -22,6 +23,7 @@ import { DocumentCommand } from "../types/documentCommands.generated";
 import type { ExactRangeTarget } from "../types/project";
 import { ApiError, errorMessage, readApiError } from "../utils/apiError";
 import { scriptBodyFocused, WAIT_MS } from "./afterCutWindow";
+import { startBounce } from "./bounceRunnerHandle";
 import { openCommentDraft } from "./comments";
 import { cutToastOf } from "./cutToastHost";
 import { registerCommand } from "./execute";
@@ -154,10 +156,14 @@ export async function runRangeAction(
     return { status: "ok" };
   }
   if (action === "bounce") {
-    state.setBounceRangeTarget(structuredClone(target));
-    state.openStage("deliver");
-    state.setBounceRequested(true);
-    return { status: "ok" };
+    const made = exportRequestNow(
+      state.project,
+      { intervals: target.intervals, trackIds: target.track_ids },
+      state.soloTracks,
+    );
+    return made.ok
+      ? startBounce(made.request)
+      : { status: "disabled", reason: made.reason };
   }
   state.setRangeBusy(true);
   const epoch = state.projectEpoch;

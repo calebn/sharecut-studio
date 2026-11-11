@@ -71,6 +71,7 @@ export const ACTION_SETS: Readonly<Record<EditKind, ActionSet>> = {
       bar("addChapter"),
       bar("record", "host"),
       bar("paste", "clipboardHasAudio"),
+      bar("export", "host"),
     ],
     more: [],
   },
@@ -93,7 +94,7 @@ export const ACTION_SETS: Readonly<Record<EditKind, ActionSet>> = {
       bar("split"),
       bar("comment"),
       bar("record", "host"),
-      bar("export"),
+      bar("export", "host"),
       bar("more"),
       bar("inspect"),
     ],
@@ -149,7 +150,13 @@ export const ACTION_SETS: Readonly<Record<EditKind, ActionSet>> = {
     more: [],
   },
   track: {
-    bar: [bar("hear"), bar("remove"), bar("more"), bar("inspect")],
+    bar: [
+      bar("hear"),
+      bar("export", "host"),
+      bar("remove"),
+      bar("more"),
+      bar("inspect"),
+    ],
     more: [row("moveTrackUp"), row("moveTrackDown"), row("smoothJoins")],
   },
   envelope: {
