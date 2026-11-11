@@ -10,7 +10,7 @@ import {
   seedRangeDraft,
 } from "../edit/rangeSelection";
 import { roomToneGaps } from "../edit/roomToneGaps";
-import { extractClipsInRange } from "../edit/selectionClipboard";
+import { CUT_EDGE_FADE, extractClipsInRange } from "../edit/selectionClipboard";
 import {
   hasShareCapability,
   isShareProjectKey,
@@ -204,6 +204,7 @@ export async function runRangeAction(
               state.project!,
               r.start,
               r.end,
+              CUT_EDGE_FADE,
               target.track_ids,
             ).map((c) => ({
               ...c,

@@ -4497,6 +4497,27 @@ def test_a_long_fade_widens_a_pause_window_only_when_it_reaches_the_cut(tmp_path
     assert near_windows[0][0] < plain_windows[0][0]
 
 
+def test_the_pause_window_reach_is_read_on_the_source_clock_of_the_proposed_cut(
+    tmp_path: Path,
+):
+    from podcast_mcp.edits import cut_placement
+
+    edits = []
+    held = cut_placement.held_pause_observation_span
+
+    def spy(project, edit, span, words, defaults):
+        edits.append(edit)
+        return held(project, edit, span, words, defaults)
+
+    with patch.object(cut_placement, "held_pause_observation_span", spy):
+        _windows, cuts = _pause_windows_and_cuts(tmp_path, None)
+    assert edits and all(edit.timebase == "source" for edit in edits)
+    assert (edits[-1].start, edits[-1].end) == (
+        pytest.approx(cuts[0][0]),
+        pytest.approx(cuts[0][1]),
+    )
+
+
 @pytest.mark.parametrize(("floor", "proposed"), [(1.8, False), (0.55, True)])
 def test_a_pause_with_a_source_hole_retains_original_air_or_holds(floor, proposed, tmp_path: Path):
     from podcast_mcp.edits.tighten.candidate import _AnalyzedCut, _CutCandidate

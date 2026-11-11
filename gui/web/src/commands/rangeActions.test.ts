@@ -5,6 +5,7 @@ import { makeRangeTarget } from "../edit/rangeSelection";
 import { useDawStore } from "../state/dawStore";
 import { deferred } from "../test/deferred";
 import { clipRow, minimalProject, sampleTrack } from "../test/fixtures";
+import { SPLIT_MICRO_FADE_MS } from "../types/limits.generated";
 import { ApiError } from "../utils/apiError";
 import { startBounce } from "./bounceRunnerHandle";
 import { clearRegisteredCommands, execute } from "./execute";
@@ -188,14 +189,55 @@ describe("shared range action policy and commands", () => {
             source_end: 2,
             relative_timeline_start: 0,
             source_id: null,
-            fade_in_ms: 0,
-            fade_out_ms: 0,
+            fade_in_ms: SPLIT_MICRO_FADE_MS,
+            fade_out_ms: SPLIT_MICRO_FADE_MS,
             join_in_mode: "fade",
             mute_regions: [],
           },
         ]);
     },
   );
+  it("gives a cut's new edges only the micro fade, never the clip's far-edge fades", async () => {
+    const faded = {
+      ...p,
+      clips: {
+        ...p.clips!,
+        tracks: {
+          a: [
+            {
+              ...p.clips!.tracks.a![0]!,
+              fade_in_ms: 400,
+              fade_out_ms: 300,
+              fade_in_curve: "s" as const,
+              fade_out_curve: "equal_power" as const,
+              join_in_mode: "cut" as const,
+            },
+          ],
+        },
+      },
+    };
+    const fadedTarget = makeRangeTarget(
+      faded,
+      [{ start: 11, end: 12 }],
+      ["a"],
+    )!;
+    useDawStore.setState({
+      project: faded,
+      selection: { kind: "range", target: fadedTarget },
+    });
+    vi.mocked(submitDocumentCommand).mockResolvedValue({ type: "Applied" });
+    expect(await execute("range.cut", {}, { skipWhen: true })).toEqual({
+      status: "ok",
+    });
+    const [extract] = getClipboard()?.extracts ?? [];
+    expect(extract).toMatchObject({
+      fade_in_ms: SPLIT_MICRO_FADE_MS,
+      fade_out_ms: SPLIT_MICRO_FADE_MS,
+      join_in_mode: "fade",
+    });
+    expect(extract).not.toHaveProperty("fade_in_curve");
+    expect(extract).not.toHaveProperty("fade_out_curve");
+  });
   it("preserves selection and clipboard when queued", async () => {
     vi.mocked(submitDocumentCommand).mockResolvedValue({
       ok: true,

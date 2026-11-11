@@ -30,7 +30,7 @@ existing time-splice preview. The shared cases in
 `contracts/ripple-scope.json` check saved geometry, clip and recording identity,
 source ranges, arrows, cuts, and atomic refusal in Python and Vitest.
 The geometry constants both sides share (minimum clip span, time epsilon, join
-gap tolerance, ripple edge epsilon) sit in the `constants` block of
+gap tolerance, split micro fade, ripple edge epsilon) sit in the `constants` block of
 `contracts/trim-edge-limits.json`, `join-length-limits.json` and
 `ripple-scope.json`. Python reads them through `util/contracts.py`; the GUI reads
 `gui/web/src/types/limits.generated.ts`, written by

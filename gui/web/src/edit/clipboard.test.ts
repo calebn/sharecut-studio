@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { minimalProject } from "../test/fixtures";
+import { SPLIT_MICRO_FADE_MS } from "../types/limits.generated";
 import type { Selection } from "../types/project";
 import {
   _resetClipboardForTests,
@@ -7,7 +8,10 @@ import {
   setClipboard,
 } from "./clipboard";
 import {
+  CUT_EDGE_FADE,
+  edgeFadeFor,
   extractClipsInRange,
+  KEEP_CLIP_FADES,
   payloadFromSelection,
 } from "./selectionClipboard";
 
@@ -138,13 +142,24 @@ describe("clipboard", () => {
 
 describe("selectionClipboard", () => {
   it("extracts same-track clips in range", () => {
-    const extracts = extractClipsInRange(sampleProject(), 1, 3);
+    const extracts = extractClipsInRange(
+      sampleProject(),
+      1,
+      3,
+      KEEP_CLIP_FADES,
+    );
     expect(extracts).toHaveLength(2);
     expect(extracts.map((e) => e.track_id).sort()).toEqual(["guest", "host"]);
   });
 
   it("narrows to one track when trackIds set", () => {
-    const extracts = extractClipsInRange(sampleProject(), 1, 3, ["host"]);
+    const extracts = extractClipsInRange(
+      sampleProject(),
+      1,
+      3,
+      KEEP_CLIP_FADES,
+      ["host"],
+    );
     expect(extracts).toHaveLength(1);
     expect(extracts[0]?.track_id).toBe("host");
     expect(extracts[0]?.mute_regions).toEqual([{ start_s: 1.2, end_s: 1.8 }]);
@@ -165,7 +180,9 @@ describe("selectionClipboard", () => {
       fade_in_ms: 120,
     };
     host.mute_regions = [mute, { start_s: 3.2, end_s: 3.4 }];
-    const extracts = extractClipsInRange(project, 1.5, 3, ["host"]);
+    const extracts = extractClipsInRange(project, 1.5, 3, KEEP_CLIP_FADES, [
+      "host",
+    ]);
     expect(extracts[0]?.source_start).toBe(1.5);
     expect(extracts[0]?.mute_regions).toEqual([mute]);
   });
@@ -177,7 +194,7 @@ describe("selectionClipboard", () => {
       throw new Error("sample project has a host clip");
     }
     host.gain_db = -7.5;
-    const extracts = extractClipsInRange(project, 1, 3);
+    const extracts = extractClipsInRange(project, 1, 3, KEEP_CLIP_FADES);
     expect(extracts.find((e) => e.track_id === "host")?.gain_db).toBe(-7.5);
     const guest = extracts.find((e) => e.track_id === "guest");
     expect(guest?.gain_db ?? 0).toBe(0);
@@ -195,7 +212,7 @@ describe("selectionClipboard", () => {
     host.fade_out_curve = "s";
     guest.fade_in_curve = "linear";
     Object.assign(guest, { fade_out_curve: "wobble" });
-    const extracts = extractClipsInRange(project, 1, 3);
+    const extracts = extractClipsInRange(project, 1, 3, KEEP_CLIP_FADES);
     expect(extracts.find((e) => e.track_id === "host")).toMatchObject({
       fade_in_curve: "equal_power",
       fade_out_curve: "s",
@@ -205,6 +222,66 @@ describe("selectionClipboard", () => {
     );
     expect(sent).not.toHaveProperty("fade_in_curve");
     expect(sent).not.toHaveProperty("fade_out_curve");
+  });
+
+  it("follows the server's range-edge rule: a cut's new edges get only the micro fade", () => {
+    const project = sampleProject();
+    const host = project.clips?.tracks.host?.[0];
+    if (!host) {
+      throw new Error("sample project has a host clip");
+    }
+    Object.assign(host, {
+      fade_in_ms: 400,
+      fade_out_ms: 300,
+      fade_in_curve: "s",
+      fade_out_curve: "equal_power",
+      join_in_mode: "cut",
+    });
+    const [copied] = extractClipsInRange(project, 1, 3, KEEP_CLIP_FADES, [
+      "host",
+    ]);
+    expect(copied).toMatchObject({
+      fade_in_ms: 400,
+      fade_out_ms: 300,
+      fade_in_curve: "s",
+      fade_out_curve: "equal_power",
+      join_in_mode: "cut",
+    });
+    const [cut] = extractClipsInRange(project, 1, 3, CUT_EDGE_FADE, ["host"]);
+    expect(cut).toMatchObject({
+      fade_in_ms: SPLIT_MICRO_FADE_MS,
+      fade_out_ms: SPLIT_MICRO_FADE_MS,
+      join_in_mode: "fade",
+    });
+    expect(cut).not.toHaveProperty("fade_in_curve");
+    expect(cut).not.toHaveProperty("fade_out_curve");
+    const [head] = extractClipsInRange(project, 0, 3, CUT_EDGE_FADE, ["host"]);
+    expect(head).toMatchObject({
+      fade_in_ms: 400,
+      fade_in_curve: "s",
+      fade_out_ms: SPLIT_MICRO_FADE_MS,
+      join_in_mode: "cut",
+    });
+    expect(head).not.toHaveProperty("fade_out_curve");
+  });
+
+  it("fits a cut edge fade to a piece shorter than it", () => {
+    const [piece] = extractClipsInRange(
+      sampleProject(),
+      1,
+      1.004,
+      CUT_EDGE_FADE,
+      ["host"],
+    );
+    expect(piece).toMatchObject({ fade_in_ms: 4, fade_out_ms: 4 });
+  });
+
+  it("copies keep the clip fades and cuts give new edges the micro fade", () => {
+    expect(edgeFadeFor("copy")).toBe(KEEP_CLIP_FADES);
+    expect(edgeFadeFor("cut")).toEqual({
+      kind: "cut",
+      ms: SPLIT_MICRO_FADE_MS,
+    });
   });
 
   it("builds payload from clip selection", () => {

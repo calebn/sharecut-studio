@@ -7,6 +7,7 @@ import math
 import uuid
 from bisect import bisect_left, bisect_right
 from collections.abc import Mapping, Sequence
+from dataclasses import dataclass
 from enum import Enum
 from itertools import pairwise
 from typing import Any, Literal
@@ -43,6 +44,44 @@ JOIN_GAP_TOLERANCE_SEC: float = contract_constant(
 
 def new_clip_id() -> str:
     return f"clip_{uuid.uuid4().hex[:8]}"
+
+
+def split_micro_fade_ms(defaults: EffectiveConfig) -> int:
+    """The fade a split or a range cut gives the new edge it makes inside a clip.
+
+    ``inaudible_cuts.micro_fade_ms``, floored at 1 ms as ``recommend_micro_fades`` floors it,
+    so a zero or negative setting never leaves a hard edge where the clip used to play on.
+    """
+    return max(1, join_micro_fade_ms(defaults))
+
+
+def _piece_ms(source_start: float, source_end: float) -> int:
+    """A piece's length in whole ms, the bound a fade on it is clamped to."""
+    return max(0, math.floor((source_end - source_start) * 1000 + 1e-6))
+
+
+@dataclass(frozen=True, slots=True)
+class RangeEdgeFade:
+    """What a range end that falls inside a clip gets when the range is extracted.
+
+    There is no default: each caller names the rule. :meth:`cut` is for content that is cut
+    or moved (the range end is a new edge, so it gets a linear ``ms`` fade and never the
+    clip's far-edge fade). :meth:`keep_clip_fades` is for a plain copy, which carries the
+    clip's own fades and curves as they are (``copy_segment``, Studio Copy).
+    """
+
+    keep_clip: bool
+    ms: int
+
+    @classmethod
+    def cut(cls, ms: int) -> RangeEdgeFade:
+        if ms < 0:
+            raise ValueError(f"a cut edge fade cannot be negative: {ms}")
+        return cls(keep_clip=False, ms=ms)
+
+    @classmethod
+    def keep_clip_fades(cls) -> RangeEdgeFade:
+        return cls(keep_clip=True, ms=0)
 
 
 _ATOMS = (str, int, float, bool, type(None), Enum)
@@ -216,8 +255,8 @@ def split_clip_at(
 ) -> tuple[Clip, Clip]:
     """Split clip at session timeline position.
 
-    The two new inner edges get only the join micro fade; the outer edges keep the clip's
-    fades and curves.
+    The two new inner edges get only :func:`split_micro_fade_ms`, clamped to each piece's
+    length; the outer edges keep the clip's fades and curves.
     """
     tl_end = clip.timeline_end
     if timeline_time <= clip.timeline_start + 1e-9 or timeline_time >= tl_end - 1e-9:
@@ -232,13 +271,13 @@ def split_clip_at(
         )
     else:
         source_split, after_start = _timed_split_point(clip, timeline_time)
-    fade = join_micro_fade_ms(defaults=defaults)
+    fade = split_micro_fade_ms(defaults)
     before = clip.model_copy(
         deep=True,
         update={
             "id": new_clip_id(),
             "source_end": source_split,
-            "fade_out_ms": fade,
+            "fade_out_ms": min(fade, _piece_ms(clip.source_start, source_split)),
             "fade_out_curve": FadeCurve.LINEAR,
         },
     )
@@ -248,7 +287,7 @@ def split_clip_at(
             "id": new_clip_id(),
             "source_start": source_split,
             "timeline_start": after_start,
-            "fade_in_ms": fade,
+            "fade_in_ms": min(fade, _piece_ms(source_split, clip.source_end)),
             "fade_in_curve": FadeCurve.LINEAR,
             "join_in_mode": ClipJoinMode.FADE,
         },
@@ -397,13 +436,15 @@ def extract_clips_in_timeline_range(
     timeline_start: float,
     timeline_end: float,
     *,
-    cut_fade_ms: int | None,
+    edge_fade: RangeEdgeFade,
 ) -> list[Clip]:
     """Return new clip copies for content in [timeline_start, timeline_end).
 
-    A range end inside a clip is a new edge. With ``cut_fade_ms`` that edge gets this linear
-    fade (and a fade join on the in edge) instead of the clip's own fade from its far edge.
-    ``None`` copies the clip's fades as they are, as the Studio clipboard does.
+    A range end inside a clip is a new edge. With :meth:`RangeEdgeFade.cut` that edge gets
+    the cut's linear fade, clamped to the piece (and a fade join on the in edge), instead of
+    the clip's own fade from its far edge. :meth:`RangeEdgeFade.keep_clip_fades` copies the
+    clip's fades as they are. ``gui/web/src/edit/selectionClipboard.ts``
+    ``extractClipsInRange`` follows the same rule.
     """
     extracted: list[Clip] = []
     for clip in clips:
@@ -412,13 +453,13 @@ def extract_clips_in_timeline_range(
         ov_end = min(timeline_end, tl_end)
         if ov_end <= ov_start + 1e-9:
             continue
-        cut_in = cut_fade_ms is not None and clip.timeline_start < timeline_start - 1e-6
-        cut_out = cut_fade_ms is not None and tl_end > timeline_end + 1e-6
-        cut_ms = cut_fade_ms or 0
+        cut_in = not edge_fade.keep_clip and clip.timeline_start < timeline_start - 1e-6
+        cut_out = not edge_fade.keep_clip and tl_end > timeline_end + 1e-6
         src_bounds = clip_timeline_overlap_to_source(clip, ov_start, ov_end)
         if src_bounds is None:
             continue
         src_start, src_end = src_bounds
+        cut_ms = min(edge_fade.ms, _piece_ms(src_start, src_end))
         timing = None if clip.timing is None else clip.timing.sliced(src_start, src_end)
         placed_at = ov_start
         if clip.timing is not None:

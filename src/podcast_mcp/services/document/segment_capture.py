@@ -8,7 +8,7 @@ import tempfile
 from collections.abc import Sequence
 from pathlib import Path
 
-from podcast_mcp.engines.clips_ops import extract_clips_in_timeline_range
+from podcast_mcp.engines.clips_ops import RangeEdgeFade, extract_clips_in_timeline_range
 from podcast_mcp.engines.ffmpeg import FFmpegEngine
 from podcast_mcp.engines.mute_regions import (
     IgnoredWordRegions,
@@ -111,7 +111,9 @@ def _selected(
             )
         chosen = []
         for original in project.clips:
-            for piece in extract_clips_in_timeline_range([original], start, end, cut_fade_ms=0):
+            for piece in extract_clips_in_timeline_range(
+                [original], start, end, edge_fade=RangeEdgeFade.cut(0)
+            ):
                 # A cut made by the range is not a clip edge, so it gets no fade.
                 chosen.append(
                     piece.model_copy(update={"timeline_start": piece.timeline_start + start})

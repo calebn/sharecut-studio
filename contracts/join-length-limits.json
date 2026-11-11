@@ -1,6 +1,6 @@
 {
-  "$comment": "Longest join length SetClipJoin keeps on both edges of a dialogue join. gui/web/src/edit/fadeLimits.ts joinLengthMaxMs mirrors edits/join_modes.set_clip_join; gui/web/src/edit/fadeLimits.test.ts and tests/test_join_length_limits_contract.py both read these cases. A manual fade is bounded by its clips only.",
-  "constants": { "join_gap_tolerance_sec": 0.05 },
+  "$comment": "Longest join length SetClipJoin keeps on both edges of a dialogue join. gui/web/src/edit/fadeLimits.ts joinLengthMaxMs mirrors edits/join_modes.set_clip_join; gui/web/src/edit/fadeLimits.test.ts and tests/test_join_length_limits_contract.py both read these cases. A manual fade is bounded by its clips only. split_micro_fade_ms is the default inaudible_cuts.micro_fade_ms (config.defaults.DEFAULT_MICRO_FADE_MS): the fade the GUI clipboard gives a range-cut edge inside a clip, as clips_ops.split_micro_fade_ms does on the server.",
+  "constants": { "join_gap_tolerance_sec": 0.05, "split_micro_fade_ms": 10 },
   "cases": [
     { "name": "the left fade-in leaves room", "left_duration_sec": 2.0, "left_fade_in_ms": 500, "right_duration_sec": 3.0, "max_ms": 1500 },
     { "name": "a dialogue join has no cap, only the clips bound it", "left_duration_sec": 2.0, "left_fade_in_ms": 0, "right_duration_sec": 2.0, "max_ms": 2000 },

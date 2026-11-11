@@ -9,7 +9,11 @@ import pytest
 from podcast_mcp.config.defaults import load_defaults
 from podcast_mcp.edits.timeline_ops import copy_segment, paste_segment
 from podcast_mcp.engines.bleed_gate import BleedGatePlan, bleed_gate_payload
-from podcast_mcp.engines.clips_ops import extract_clips_in_timeline_range, split_clip_at
+from podcast_mcp.engines.clips_ops import (
+    RangeEdgeFade,
+    extract_clips_in_timeline_range,
+    split_clip_at,
+)
 from podcast_mcp.engines.play_audit import track_render_hash
 from podcast_mcp.engines.timeline_render import render_track_from_timeline, render_track_segment
 from podcast_mcp.models import Clip, ClipMuteRegion, EditMode, EpisodeProject, MediaAsset, Track
@@ -149,7 +153,9 @@ def test_restore_roundtrip_canonical_intervals_and_independent_lifecycle(tmp_pat
         left.bleed_restore.regions == right.bleed_restore.regions == restored.bleed_restore.regions
     )
     assert left.bleed_restore is not right.bleed_restore
-    extracted = extract_clips_in_timeline_range([restored], 0.3, 0.6, cut_fade_ms=None)[0]
+    extracted = extract_clips_in_timeline_range(
+        [restored], 0.3, 0.6, edge_fade=RangeEdgeFade.keep_clip_fades()
+    )[0]
     assert extracted.bleed_restore == restored.bleed_restore
     assert extracted.bleed_restore is not restored.bleed_restore
     clipboard = copy_segment(project, 0.3, 0.6, ["host"])

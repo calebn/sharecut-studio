@@ -730,8 +730,12 @@ cuts, the trim's own and each peer's:
   reach is the cut crossfade, the pad fade settings and the longest fade of a clip on the
   same track whose edge touches the cut (`cut_quality.fade_reach_sec`, the reach the
   held-pause verdict records); a long fade on another track or far from the cut does not
-  widen it. Actual activity on simultaneous lanes bounds quiet, including tails beyond word
-  timing.
+  widen it. Tighten pause decisions are source-clock (`EditDecision.timebase` "source"), so
+  the reach compares the cut with each clip's source edges, as approval does. A pause that
+  splits a clip with a long fade on its far edge is applied: the split gives the new edge
+  only the micro fade, so nothing moves into the window. A long fade on the clip edge at the
+  pause widens the reach, and approval still holds it with `cut_scope_changed`. Actual
+  activity on simultaneous lanes bounds quiet, including tails beyond word timing.
   Renderer-selected paths identify media across source aliases. Lane mutes, clip mutes,
   ignored regions, repeated images, registered beds, and known pad receipts earn no
   duration. Current clip fields cannot distinguish a history-free replacement with

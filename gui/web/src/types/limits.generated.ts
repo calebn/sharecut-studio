@@ -6,6 +6,8 @@ export const MIN_EDGE_SPAN_SEC = 0.05;
 export const TIME_EPS_SEC = 1e-9;
 /** `join-length-limits.json` `constants.join_gap_tolerance_sec` */
 export const JOIN_GAP_TOLERANCE_SEC = 0.05;
+/** `join-length-limits.json` `constants.split_micro_fade_ms` */
+export const SPLIT_MICRO_FADE_MS = 10;
 /** `ripple-scope.json` `constants.edge_eps_sec` */
 export const RIPPLE_EDGE_EPS_SEC = 0.001;
 /** `roll-join-limits.json` `constants.min_step_gap_sec` */
