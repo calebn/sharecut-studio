@@ -80,7 +80,9 @@ pub type Tools = [(String, Desired); 2];
 
 #[cfg(unix)]
 pub fn link_tools(launchers: &[(String, PathBuf); 2]) -> Tools {
-    launchers.clone().map(|(name, target)| (name, Desired::Link(target)))
+    launchers
+        .clone()
+        .map(|(name, target)| (name, Desired::Link(target)))
 }
 
 #[cfg(unix)]
@@ -358,7 +360,10 @@ mod tests {
         let root = std::env::temp_dir().join(format!(
             "clilinks-{label}-{}-{}",
             std::process::id(),
-            std::thread::current().name().unwrap_or("test").replace("::", "-")
+            std::thread::current()
+                .name()
+                .unwrap_or("test")
+                .replace("::", "-")
         ));
         let _ = fs::remove_dir_all(&root);
         fs::create_dir_all(&root).unwrap();
@@ -376,7 +381,11 @@ mod tests {
 
     #[cfg(unix)]
     fn states(bin: &Path, tools: &Tools) -> Vec<State> {
-        status(bin, tools).unwrap().into_iter().map(|(_, s)| s).collect()
+        status(bin, tools)
+            .unwrap()
+            .into_iter()
+            .map(|(_, s)| s)
+            .collect()
     }
 
     #[cfg(unix)]
@@ -407,7 +416,9 @@ mod tests {
         let reports = install(&bin, &tools, false).unwrap();
         assert_eq!(reports[0].action, Action::Updated);
         assert_eq!(reports[1].action, Action::Added);
-        let Desired::Link(target) = &tools[0].1 else { unreachable!() };
+        let Desired::Link(target) = &tools[0].1 else {
+            unreachable!()
+        };
         assert_eq!(fs::read_link(bin.join("podcast")).unwrap(), *target);
         fs::remove_dir_all(root).unwrap();
     }
@@ -425,7 +436,10 @@ mod tests {
         assert_eq!(states(&bin, &tools), [State::Foreign, State::Foreign]);
         let skipped = install(&bin, &tools, false).unwrap();
         assert!(skipped.iter().all(|r| r.action == Action::SkippedForeign));
-        assert_eq!(fs::read(bin.join("podcast")).unwrap(), b"#!/bin/sh\necho dev venv\n");
+        assert_eq!(
+            fs::read(bin.join("podcast")).unwrap(),
+            b"#!/bin/sh\necho dev venv\n"
+        );
         let replaced = install(&bin, &tools, true).unwrap();
         assert!(matches!(replaced[0].action, Action::Replaced { .. }));
         assert_eq!(
@@ -490,8 +504,12 @@ mod tests {
         fs::write(&image, b"#!/bin/sh\nprintf '%s\\n' \"$@\"\n").unwrap();
         fs::set_permissions(&image, fs::Permissions::from_mode(0o755)).unwrap();
         let tools = appimage_tools(&image).unwrap();
-        let Desired::Wrapper(first) = &tools[0].1 else { unreachable!() };
-        assert!(String::from_utf8_lossy(first).contains("Sharecut'\\''s Studio.AppImage' --cli \"$@\""));
+        let Desired::Wrapper(first) = &tools[0].1 else {
+            unreachable!()
+        };
+        assert!(
+            String::from_utf8_lossy(first).contains("Sharecut'\\''s Studio.AppImage' --cli \"$@\"")
+        );
         let bin = root.join("bin");
         install(&bin, &tools, false).unwrap();
         assert_eq!(states(&bin, &tools), [State::Current, State::Current]);
