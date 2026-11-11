@@ -13,7 +13,9 @@ test("Export on a range writes a WAV in place and the toast offers Download", as
   await withShareableProject(async (projectPath) => {
     await openProject(page, projectPath);
     await selectRangeSec(page, "1", "3");
-    await actionBar(page).getByRole("button", { name: "Export" }).click();
+    await actionBar(page)
+      .getByRole("button", { name: "Export", exact: true })
+      .click();
 
     await expect(toast(page)).toContainText(
       "Exported 0:01–0:03 (full mix) as WAV",
@@ -45,7 +47,9 @@ test("the Export options choose the source and add an MP3", async ({
     ).toBeDisabled();
     await options.getByRole("button", { name: "Also MP3" }).click();
     await page.keyboard.press("Escape");
-    await actionBar(page).getByRole("button", { name: "Export" }).click();
+    await actionBar(page)
+      .getByRole("button", { name: "Export", exact: true })
+      .click();
 
     await expect(toast(page)).toContainText(
       "Exported 0:01–0:03 (full mix) as WAV and MP3",
