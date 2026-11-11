@@ -228,7 +228,14 @@ fn native_menu(app: &tauri::AppHandle<tauri::Wry>) -> tauri::Result<tauri::menu:
     let install_cli = MenuItem::with_id(
         app,
         cli_links::INSTALL_MENU_ID,
-        "Install Command Line Tools…",
+        "Install or Update Command Line Tools…",
+        true,
+        None::<&str>,
+    )?;
+    let status_cli = MenuItem::with_id(
+        app,
+        cli_links::STATUS_MENU_ID,
+        "Command Line Tools Status…",
         true,
         None::<&str>,
     )?;
@@ -254,6 +261,7 @@ fn native_menu(app: &tauri::AppHandle<tauri::Wry>) -> tauri::Result<tauri::menu:
     }
     app_items.push(&settings);
     app_items.push(&install_cli);
+    app_items.push(&status_cli);
     app_items.push(&remove_cli);
     #[cfg(target_os = "macos")]
     let (services, hide, hide_others) = (
@@ -336,59 +344,118 @@ fn native_menu(app: &tauri::AppHandle<tauri::Wry>) -> tauri::Result<tauri::menu:
 }
 
 #[cfg(unix)]
-fn cli_bin_and_targets() -> Result<(PathBuf, [(String, PathBuf); 2]), String> {
+fn cli_bin_and_tools() -> Result<(PathBuf, cli_links::Tools), String> {
     let home = std::env::var_os("HOME").ok_or("HOME is not set")?;
-    let exe = std::env::current_exe().map_err(|err| err.to_string())?;
-    let launchers = cli_links::targets(&exe).map_err(|err| err.to_string())?;
-    Ok((PathBuf::from(home).join(".local/bin"), launchers))
+    let bin = PathBuf::from(home).join(".local/bin");
+    let tools = if let Some(image) = std::env::var_os("APPIMAGE") {
+        cli_links::appimage_tools(std::path::Path::new(&image)).map_err(|err| err.to_string())?
+    } else {
+        let exe = std::env::current_exe().map_err(|err| err.to_string())?;
+        let launchers = cli_links::targets(&exe).map_err(|err| err.to_string())?;
+        cli_links::link_tools(&launchers)
+    };
+    Ok((bin, tools))
 }
 
+#[cfg(unix)]
+fn cli_message(win: &tauri::WebviewWindow, title: &str, message: String) {
+    win.dialog()
+        .message(message)
+        .title(title)
+        .buttons(MessageDialogButtons::Ok)
+        .parent(win)
+        .show(|_| {});
+}
+
+#[cfg(unix)]
+fn cli_finish(win: &tauri::WebviewWindow, install: bool, replace_foreign: bool) {
+    let result = cli_bin_and_tools().and_then(|(bin, tools)| {
+        let reports = if install {
+            cli_links::install(&bin, &tools, replace_foreign)
+        } else {
+            cli_links::remove(&bin, &tools)
+        }
+        .map_err(|err| err.to_string())?;
+        let mut text = format!(
+            "Command line tools in {} (ShareCut Studio {}):\n\n{}",
+            bin.display(),
+            env!("CARGO_PKG_VERSION"),
+            cli_links::describe_reports(&reports)
+        );
+        if install && !cli_links::bin_on_path(&bin, std::env::var_os("PATH").as_deref()) {
+            text.push_str(&format!(
+                "\n\nAdd {} to your shell PATH and open a new terminal.",
+                bin.display()
+            ));
+        }
+        Ok(text)
+    });
+    match result {
+        Ok(message) => cli_message(win, "Command Line Tools", message),
+        Err(err) => cli_message(win, "Command Line Tools Error", err),
+    }
+}
+
+/// Install adds missing commands and refreshes ones ShareCut installed before.
+/// Commands something else owns are only replaced after the user agrees, and
+/// the original is kept beside it as `<name>.sharecut-backup`.
 #[cfg(unix)]
 fn cli_action(app: &tauri::AppHandle, install: bool) {
     let Some(win) = app.get_webview_window("main") else {
         return;
     };
-    let result = cli_bin_and_targets().and_then(|(bin, launchers)| {
-        let action = if let Some(image) = std::env::var_os("APPIMAGE") {
-            let wrappers = cli_links::appimage_wrappers(std::path::Path::new(&image))
-                .map_err(|err| err.to_string())?;
-            if install {
-                cli_links::install_appimage(&bin, &wrappers)
-            } else {
-                cli_links::remove_appimage(&bin, &wrappers)
-            }
-        } else if install {
-            cli_links::install(&bin, &launchers)
-        } else {
-            cli_links::remove(&bin, &launchers)
-        };
-        action.map_err(|err| err.to_string())?;
-        let suffix =
-            if install && !cli_links::bin_on_path(&bin, std::env::var_os("PATH").as_deref()) {
-                format!(
-                    " Add {} to your shell PATH and open a new terminal.",
-                    bin.display()
-                )
-            } else {
-                String::new()
-            };
-        Ok(format!(
-            "Command line tools {} in {}.{}",
-            if install { "installed" } else { "removed" },
-            bin.display(),
-            suffix
-        ))
-    });
-    let (title, message) = match result {
-        Ok(message) => ("Command Line Tools", message),
-        Err(err) => ("Command Line Tools Error", err),
+    let foreign = if install {
+        cli_bin_and_tools().and_then(|(bin, tools)| {
+            cli_links::status(&bin, &tools)
+                .map(|all| {
+                    all.into_iter()
+                        .filter(|(_, state)| *state == cli_links::State::Foreign)
+                        .map(|(name, _)| name)
+                        .collect::<Vec<_>>()
+                })
+                .map_err(|err| err.to_string())
+        })
+    } else {
+        Ok(Vec::new())
     };
-    win.dialog()
-        .message(message)
-        .title(title)
-        .buttons(MessageDialogButtons::Ok)
-        .parent(&win)
-        .show(|_| {});
+    match foreign {
+        Err(err) => cli_message(&win, "Command Line Tools Error", err),
+        Ok(names) if names.is_empty() => cli_finish(&win, install, false),
+        Ok(names) => {
+            let ask_win = win.clone();
+            win.dialog()
+                .message(format!(
+                    "{} already exist(s) in ~/.local/bin and were not installed by ShareCut Studio.\n\nReplace them? Each original is kept next to it as <name>.sharecut-backup. Choose Skip to install only the other tools.",
+                    names.join(", ")
+                ))
+                .title("Command Line Tools")
+                .buttons(MessageDialogButtons::OkCancelCustom("Replace".into(), "Skip".into()))
+                .parent(&win)
+                .show(move |replace| cli_finish(&ask_win, true, replace));
+        }
+    }
+}
+
+#[cfg(unix)]
+fn cli_status(app: &tauri::AppHandle) {
+    let Some(win) = app.get_webview_window("main") else {
+        return;
+    };
+    match cli_bin_and_tools().and_then(|(bin, tools)| {
+        cli_links::status(&bin, &tools)
+            .map(|all| {
+                format!(
+                    "Command line tools in {} (ShareCut Studio {}):\n\n{}",
+                    bin.display(),
+                    env!("CARGO_PKG_VERSION"),
+                    cli_links::describe_status(&all)
+                )
+            })
+            .map_err(|err| err.to_string())
+    }) {
+        Ok(message) => cli_message(&win, "Command Line Tools", message),
+        Err(err) => cli_message(&win, "Command Line Tools Error", err),
+    }
 }
 
 #[cfg(unix)]
@@ -873,6 +940,8 @@ fn main() {
                     cli_action(app, true);
                 } else if id == cli_links::REMOVE_MENU_ID {
                     cli_action(app, false);
+                } else if id == cli_links::STATUS_MENU_ID {
+                    cli_status(app);
                 }
             }
         })

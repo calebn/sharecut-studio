@@ -80,7 +80,7 @@ Builds whose distribution profile sets `updater_endpoint` and `updater_public_ke
 
 ## AppImage command line tools
 
-Run the AppImage itself with `--cli <podcast arguments>` or `--mcp <podcast-mcp arguments>`. The native **Install Command Line Tools…** menu installs `~/.local/bin/podcast` and `podcast-mcp` wrappers that invoke the absolute AppImage path. The first successful engine launch offers this once. Keep the AppImage at that path, or use the menu to remove the wrappers before moving it and reinstall them afterward. Existing unrelated files and links are left alone.
+Run the AppImage itself with `--cli <podcast arguments>` or `--mcp <podcast-mcp arguments>`. The native **Install or Update Command Line Tools…** menu (with **Command Line Tools Status…**) installs or refreshes `~/.local/bin/podcast` and `podcast-mcp` wrappers that invoke the absolute AppImage path. The first successful engine launch offers this once. Keep the AppImage at that path, or run the menu again after moving it to update the wrappers. Existing unrelated files and links are only replaced if you confirm, and the original is kept as `<name>.sharecut-backup`.
 
 ## Deep links
 

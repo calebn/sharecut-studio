@@ -9,6 +9,7 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 
 pub const INSTALL_MENU_ID: &str = "native-cli-install";
+pub const STATUS_MENU_ID: &str = "native-cli-status";
 pub const REMOVE_MENU_ID: &str = "native-cli-remove";
 const NAMES: [&str; 2] = ["podcast", "podcast-mcp"];
 
@@ -38,6 +39,9 @@ pub fn run_appimage_command(exe: &Path, launcher: &str, args: &[OsString]) -> io
 }
 
 #[cfg(unix)]
+const WRAPPER_MARK: &[u8] = b"#!/bin/sh\n# Sharecut Studio AppImage CLI wrapper";
+
+#[cfg(unix)]
 fn appimage_wrapper(appimage: &Path, launcher: &str) -> io::Result<Vec<u8>> {
     use std::os::unix::ffi::OsStrExt;
     if !appimage.is_absolute() || !fs::metadata(appimage)?.is_file() {
@@ -63,133 +67,265 @@ fn appimage_wrapper(appimage: &Path, launcher: &str) -> io::Result<Vec<u8>> {
     Ok(script)
 }
 
+/// What one command in the bin directory should be after installing.
 #[cfg(unix)]
-pub fn appimage_wrappers(appimage: &Path) -> io::Result<[(String, Vec<u8>); 2]> {
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum Desired {
+    Link(PathBuf),
+    Wrapper(Vec<u8>),
+}
+
+#[cfg(unix)]
+pub type Tools = [(String, Desired); 2];
+
+#[cfg(unix)]
+pub fn link_tools(launchers: &[(String, PathBuf); 2]) -> Tools {
+    launchers.clone().map(|(name, target)| (name, Desired::Link(target)))
+}
+
+#[cfg(unix)]
+pub fn appimage_tools(appimage: &Path) -> io::Result<Tools> {
     Ok([
-        ("podcast".into(), appimage_wrapper(appimage, "podcast")?),
+        (
+            "podcast".into(),
+            Desired::Wrapper(appimage_wrapper(appimage, "podcast")?),
+        ),
         (
             "podcast-mcp".into(),
-            appimage_wrapper(appimage, "podcast-mcp")?,
+            Desired::Wrapper(appimage_wrapper(appimage, "podcast-mcp")?),
         ),
     ])
 }
 
 #[cfg(unix)]
-fn wrapper_matches(path: &Path, expected: &[u8]) -> io::Result<bool> {
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum State {
+    /// Nothing at that path.
+    Missing,
+    /// Already exactly what this app would install.
+    Current,
+    /// Put there by a ShareCut app, but differs (moved app, old wrapper, lost execute bit).
+    Stale,
+    /// Something else lives there; never touched unless the user agrees.
+    Foreign,
+}
+
+#[cfg(unix)]
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum Action {
+    Added,
+    Updated,
+    Replaced { backup: PathBuf },
+    Removed,
+    Unchanged,
+    SkippedForeign,
+}
+
+#[cfg(unix)]
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ToolReport {
+    pub name: String,
+    pub before: State,
+    pub action: Action,
+}
+
+/// A symlink counts as ShareCut's own when it names this command inside a
+/// path that mentions sharecut (an installed or moved app bundle).
+#[cfg(unix)]
+fn owned_link_target(target: &Path, name: &str) -> bool {
+    target.file_name() == Some(OsStr::new(name))
+        && target.to_string_lossy().to_lowercase().contains("sharecut")
+}
+
+#[cfg(unix)]
+fn classify(path: &Path, name: &str, desired: &Desired) -> io::Result<State> {
+    use std::os::unix::fs::PermissionsExt;
     let metadata = match fs::symlink_metadata(path) {
         Ok(value) => value,
-        Err(err) if err.kind() == io::ErrorKind::NotFound => return Ok(false),
+        Err(err) if err.kind() == io::ErrorKind::NotFound => return Ok(State::Missing),
         Err(err) => return Err(err),
     };
-    Ok(metadata.file_type().is_file() && fs::read(path)? == expected)
-}
-
-#[cfg(unix)]
-fn wrapper_executable(path: &Path) -> io::Result<bool> {
-    use std::os::unix::fs::PermissionsExt;
+    if metadata.file_type().is_symlink() {
+        let target = fs::read_link(path)?;
+        return Ok(match desired {
+            Desired::Link(expected) if *expected == target => State::Current,
+            _ if owned_link_target(&target, name) => State::Stale,
+            _ => State::Foreign,
+        });
+    }
+    if !metadata.file_type().is_file() {
+        return Ok(State::Foreign);
+    }
     // The installer creates the wrapper as this user, so its owner bit must
     // permit that user to execute it; group/other bits are insufficient.
-    Ok(fs::metadata(path)?.permissions().mode() & 0o100 != 0)
+    let executable = metadata.permissions().mode() & 0o100 != 0;
+    Ok(match desired {
+        Desired::Wrapper(expected) if fs::read(path)? == *expected && executable => State::Current,
+        Desired::Wrapper(expected) if fs::read(path)? == *expected => State::Stale,
+        _ if fs::read(path)?.starts_with(WRAPPER_MARK) => State::Stale,
+        _ => State::Foreign,
+    })
 }
 
 #[cfg(unix)]
-pub fn install_appimage(bin: &Path, wrappers: &[(String, Vec<u8>); 2]) -> io::Result<()> {
-    use std::os::unix::fs::OpenOptionsExt;
+pub fn status(bin: &Path, tools: &Tools) -> io::Result<Vec<(String, State)>> {
+    tools
+        .iter()
+        .map(|(name, desired)| Ok((name.clone(), classify(&bin.join(name), name, desired)?)))
+        .collect()
+}
+
+#[cfg(unix)]
+fn temp_path(bin: &Path, name: &str) -> PathBuf {
     use std::sync::atomic::{AtomicU64, Ordering};
     static NEXT_TEMP: AtomicU64 = AtomicU64::new(0);
-    fs::create_dir_all(bin)?;
-    for (name, content) in wrappers {
-        let path = bin.join(name);
-        match fs::symlink_metadata(&path) {
-            Ok(_) if !wrapper_matches(&path, content)? => {
-                return Err(io::Error::new(
-                    io::ErrorKind::AlreadyExists,
-                    format!(
-                        "{} already exists; move it manually before installing",
-                        path.display()
-                    ),
-                ));
-            }
-            Ok(_) => {
-                if !wrapper_executable(&path)? {
-                    return Err(io::Error::new(
-                        io::ErrorKind::PermissionDenied,
-                        format!("{} is this app's wrapper but is not executable; restore its execute permission", path.display()),
-                    ));
-                }
-            }
-            Err(err) if err.kind() == io::ErrorKind::NotFound => {}
-            Err(err) => return Err(err),
+    bin.join(format!(
+        ".{name}.sharecut-{}-{}.tmp",
+        std::process::id(),
+        NEXT_TEMP.fetch_add(1, Ordering::Relaxed)
+    ))
+}
+
+/// Writes the command next to `path`, then renames it into place so a reader
+/// never sees a half-written wrapper or a missing command.
+#[cfg(unix)]
+fn place(bin: &Path, name: &str, desired: &Desired) -> io::Result<()> {
+    use std::io::Write;
+    use std::os::unix::fs::{symlink, OpenOptionsExt};
+    let path = bin.join(name);
+    let temp = temp_path(bin, name);
+    let result = match desired {
+        Desired::Link(target) => symlink(target, &temp),
+        Desired::Wrapper(content) => {
+            let mut file = fs::OpenOptions::new()
+                .write(true)
+                .create_new(true)
+                .mode(0o755)
+                .open(&temp)?;
+            file.write_all(content).and_then(|()| file.sync_all())
         }
     }
-    for (name, content) in wrappers {
-        let path = bin.join(name);
-        if wrapper_matches(&path, content)? && wrapper_executable(&path)? {
-            continue;
-        }
-        let temp = bin.join(format!(
-            ".{name}.sharecut-{}-{}.tmp",
-            std::process::id(),
-            NEXT_TEMP.fetch_add(1, Ordering::Relaxed)
-        ));
-        let mut file = fs::OpenOptions::new()
-            .write(true)
-            .create_new(true)
-            .mode(0o755)
-            .open(&temp)?;
-        use std::io::Write;
-        let result = file
-            .write_all(content)
-            .and_then(|()| file.sync_all())
-            .and_then(|()| fs::hard_link(&temp, &path));
-        drop(file);
+    .and_then(|()| fs::rename(&temp, &path));
+    if result.is_err() {
         let _ = fs::remove_file(&temp);
-        match result {
-            Ok(()) => {}
-            Err(err)
-                if err.kind() == io::ErrorKind::AlreadyExists
-                    && wrapper_matches(&path, content)? => {}
-            Err(err) => return Err(err),
-        }
     }
-    Ok(())
+    result
 }
 
 #[cfg(unix)]
-pub fn remove_appimage(bin: &Path, wrappers: &[(String, Vec<u8>); 2]) -> io::Result<()> {
-    for (name, content) in wrappers {
-        let path = bin.join(name);
-        match fs::symlink_metadata(&path) {
-            Ok(_) if !wrapper_matches(&path, content)? => {
-                return Err(io::Error::new(
-                    io::ErrorKind::PermissionDenied,
-                    format!(
-                        "{} is not this app's wrapper; it was left alone",
-                        path.display()
-                    ),
-                ));
-            }
-            Ok(_) => {}
-            Err(err) if err.kind() == io::ErrorKind::NotFound => {}
-            Err(err) => return Err(err),
-        }
+fn backup_path(bin: &Path, name: &str) -> PathBuf {
+    let first = bin.join(format!("{name}.sharecut-backup"));
+    if fs::symlink_metadata(&first).is_err() {
+        return first;
     }
-    for (name, content) in wrappers {
-        let path = bin.join(name);
-        if wrapper_matches(&path, content)? {
-            fs::remove_file(path)?;
-        }
-    }
-    Ok(())
+    (2u32..)
+        .map(|n| bin.join(format!("{name}.sharecut-backup-{n}")))
+        .find(|candidate| fs::symlink_metadata(candidate).is_err())
+        .expect("an unused backup name")
 }
 
-fn existing_link_matches(link: &Path, target: &Path) -> io::Result<bool> {
-    match fs::symlink_metadata(link) {
-        Ok(metadata) if metadata.file_type().is_symlink() => Ok(fs::read_link(link)? == target),
-        Ok(_) => Ok(false),
-        Err(err) if err.kind() == io::ErrorKind::NotFound => Ok(false),
-        Err(err) => Err(err),
+/// Adds missing commands and refreshes ones a ShareCut app installed earlier.
+/// A command something else owns is skipped, or with `replace_foreign` moved
+/// to `<name>.sharecut-backup` first, so it is never lost.
+#[cfg(unix)]
+pub fn install(bin: &Path, tools: &Tools, replace_foreign: bool) -> io::Result<Vec<ToolReport>> {
+    fs::create_dir_all(bin)?;
+    let mut reports = Vec::new();
+    for (name, desired) in tools {
+        let path = bin.join(name);
+        let before = classify(&path, name, desired)?;
+        let action = match before {
+            State::Current => Action::Unchanged,
+            State::Missing => {
+                place(bin, name, desired)?;
+                Action::Added
+            }
+            State::Stale => {
+                place(bin, name, desired)?;
+                Action::Updated
+            }
+            State::Foreign if replace_foreign => {
+                let backup = backup_path(bin, name);
+                fs::rename(&path, &backup)?;
+                place(bin, name, desired)?;
+                Action::Replaced { backup }
+            }
+            State::Foreign => Action::SkippedForeign,
+        };
+        reports.push(ToolReport {
+            name: name.clone(),
+            before,
+            action,
+        });
     }
+    Ok(reports)
+}
+
+/// Removes only commands this app or an earlier ShareCut app installed.
+#[cfg(unix)]
+pub fn remove(bin: &Path, tools: &Tools) -> io::Result<Vec<ToolReport>> {
+    let mut reports = Vec::new();
+    for (name, desired) in tools {
+        let path = bin.join(name);
+        let before = classify(&path, name, desired)?;
+        let action = match before {
+            State::Current | State::Stale => {
+                fs::remove_file(&path)?;
+                Action::Removed
+            }
+            State::Missing => Action::Unchanged,
+            State::Foreign => Action::SkippedForeign,
+        };
+        reports.push(ToolReport {
+            name: name.clone(),
+            before,
+            action,
+        });
+    }
+    Ok(reports)
+}
+
+#[cfg(unix)]
+pub fn describe_status(status: &[(String, State)]) -> String {
+    status
+        .iter()
+        .map(|(name, state)| {
+            let text = match state {
+                State::Missing => "not installed",
+                State::Current => "installed, up to date",
+                State::Stale => "installed by ShareCut, needs an update",
+                State::Foreign => "present, but not installed by ShareCut",
+            };
+            format!("{name}: {text}")
+        })
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
+#[cfg(unix)]
+pub fn describe_reports(reports: &[ToolReport]) -> String {
+    reports
+        .iter()
+        .map(|report| {
+            let name = &report.name;
+            match &report.action {
+                Action::Added => format!("{name}: installed"),
+                Action::Updated => format!("{name}: updated"),
+                Action::Replaced { backup } => {
+                    format!("{name}: replaced (old one kept as {})", backup.display())
+                }
+                Action::Removed => format!("{name}: removed"),
+                Action::Unchanged if report.before == State::Missing => {
+                    format!("{name}: not installed")
+                }
+                Action::Unchanged => format!("{name}: already up to date"),
+                Action::SkippedForeign => {
+                    format!("{name}: left alone, it was not installed by ShareCut")
+                }
+            }
+        })
+        .collect::<Vec<_>>()
+        .join("\n")
 }
 
 pub fn targets(exe: &Path) -> io::Result<[(String, PathBuf); 2]> {
@@ -208,90 +344,6 @@ pub fn targets(exe: &Path) -> io::Result<[(String, PathBuf); 2]> {
     Ok(result)
 }
 
-/// Symlink creation is exclusive: an existing file or even a dangling link is
-/// never replaced. Existing links to these exact packaged launchers are idempotent.
-#[cfg(unix)]
-pub fn install(bin: &Path, launchers: &[(String, PathBuf); 2]) -> io::Result<()> {
-    use std::os::unix::fs::symlink;
-    fs::create_dir_all(bin)?;
-    // Catch ordinary conflicts before writing either link. symlink() still
-    // performs the exclusive final check if another process changes a path.
-    for (name, target) in launchers {
-        let link = bin.join(name);
-        match fs::symlink_metadata(&link) {
-            Ok(_) if !existing_link_matches(&link, target)? => {
-                return Err(io::Error::new(
-                    io::ErrorKind::AlreadyExists,
-                    format!(
-                        "{} already exists; move it manually before installing",
-                        link.display()
-                    ),
-                ));
-            }
-            Ok(_) => {}
-            Err(err) if err.kind() == io::ErrorKind::NotFound => {}
-            Err(err) => return Err(err),
-        }
-    }
-    for (name, target) in launchers {
-        let link = bin.join(name);
-        match symlink(target, &link) {
-            Ok(()) => {}
-            Err(err) if err.kind() == io::ErrorKind::AlreadyExists => {
-                if !existing_link_matches(&link, target)? {
-                    return Err(io::Error::new(
-                        io::ErrorKind::AlreadyExists,
-                        format!(
-                            "{} already exists; move it manually before installing",
-                            link.display()
-                        ),
-                    ));
-                }
-            }
-            Err(err) => return Err(err),
-        }
-    }
-    Ok(())
-}
-
-/// Remove only links whose literal destination is a packaged launcher next to
-/// this running app. A missing link is already removed.
-pub fn remove(bin: &Path, launchers: &[(String, PathBuf); 2]) -> io::Result<()> {
-    // Validate both entries before changing either one. This is best effort
-    // against concurrent changes in the user's writable bin directory.
-    for (name, target) in launchers {
-        let link = bin.join(name);
-        match fs::symlink_metadata(&link) {
-            Ok(metadata) if metadata.file_type().is_symlink() => {
-                if !existing_link_matches(&link, target)? {
-                    return Err(io::Error::new(
-                        io::ErrorKind::PermissionDenied,
-                        format!("{} points elsewhere; it was left alone", link.display()),
-                    ));
-                }
-            }
-            Ok(_) => {
-                return Err(io::Error::new(
-                    io::ErrorKind::PermissionDenied,
-                    format!(
-                        "{} is not a ShareCut link; it was left alone",
-                        link.display()
-                    ),
-                ))
-            }
-            Err(err) if err.kind() == io::ErrorKind::NotFound => {}
-            Err(err) => return Err(err),
-        }
-    }
-    for (name, target) in launchers {
-        let link = bin.join(name);
-        if existing_link_matches(&link, target)? {
-            fs::remove_file(&link)?;
-        }
-    }
-    Ok(())
-}
-
 pub fn bin_on_path(bin: &Path, path: Option<&std::ffi::OsStr>) -> bool {
     path.map(|value| std::env::split_paths(value).any(|entry| entry == bin))
         .unwrap_or(false)
@@ -302,59 +354,102 @@ mod tests {
     use super::*;
 
     #[cfg(unix)]
-    #[test]
-    fn links_are_exclusive_idempotent_and_only_owned_links_are_removed() {
+    fn scratch(label: &str) -> PathBuf {
         let root = std::env::temp_dir().join(format!(
-            "sharecut-cli-links-{}-{}",
+            "clilinks-{label}-{}-{}",
             std::process::id(),
-            std::thread::current().name().unwrap_or("test")
+            std::thread::current().name().unwrap_or("test").replace("::", "-")
         ));
         let _ = fs::remove_dir_all(&root);
-        fs::create_dir_all(root.join("app")).unwrap();
+        fs::create_dir_all(&root).unwrap();
+        root
+    }
+
+    #[cfg(unix)]
+    fn app_tools(root: &Path) -> Tools {
+        fs::create_dir_all(root.join("ShareCut.app")).unwrap();
         for name in NAMES {
-            fs::write(root.join("app").join(name), b"launcher").unwrap();
+            fs::write(root.join("ShareCut.app").join(name), b"launcher").unwrap();
         }
-        let launchers = targets(&root.join("app/sharecut")).unwrap();
+        link_tools(&targets(&root.join("ShareCut.app/sharecut")).unwrap())
+    }
+
+    #[cfg(unix)]
+    fn states(bin: &Path, tools: &Tools) -> Vec<State> {
+        status(bin, tools).unwrap().into_iter().map(|(_, s)| s).collect()
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn install_adds_missing_and_is_idempotent() {
+        let root = scratch("add");
+        let tools = app_tools(&root);
         let bin = root.join("bin");
-        install(&bin, &launchers).unwrap();
-        install(&bin, &launchers).unwrap();
-        remove(&bin, &launchers).unwrap();
-        assert!(!bin.join("podcast").exists());
-        std::os::unix::fs::symlink(root.join("missing"), bin.join("podcast")).unwrap();
-        assert_eq!(
-            install(&bin, &launchers).unwrap_err().kind(),
-            io::ErrorKind::AlreadyExists
-        );
-        assert!(fs::symlink_metadata(bin.join("podcast")).is_ok());
-        assert!(remove(&bin, &launchers).is_err());
-        fs::remove_file(bin.join("podcast")).unwrap();
-        fs::write(bin.join("podcast-mcp"), b"foreign").unwrap();
-        assert_eq!(
-            install(&bin, &launchers).unwrap_err().kind(),
-            io::ErrorKind::AlreadyExists
-        );
-        assert!(fs::symlink_metadata(bin.join("podcast")).is_err());
+        assert_eq!(states(&bin, &tools), [State::Missing, State::Missing]);
+        let reports = install(&bin, &tools, false).unwrap();
+        assert!(reports.iter().all(|r| r.action == Action::Added));
+        assert_eq!(states(&bin, &tools), [State::Current, State::Current]);
+        let again = install(&bin, &tools, false).unwrap();
+        assert!(again.iter().all(|r| r.action == Action::Unchanged));
         fs::remove_dir_all(root).unwrap();
     }
 
     #[cfg(unix)]
     #[test]
-    fn mixed_link_ownership_leaves_both_entries_untouched() {
-        let root = std::env::temp_dir().join(format!("sharecut-cli-mixed-{}", std::process::id()));
-        let _ = fs::remove_dir_all(&root);
-        fs::create_dir_all(root.join("bin")).unwrap();
-        let launchers = [
-            ("podcast".into(), root.join("owned")),
-            ("podcast-mcp".into(), root.join("other-owned")),
-        ];
+    fn install_updates_moved_app_links_and_adds_the_missing_one() {
+        let root = scratch("stale");
+        let tools = app_tools(&root);
         let bin = root.join("bin");
-        std::os::unix::fs::symlink(&launchers[0].1, bin.join("podcast")).unwrap();
-        fs::write(bin.join("podcast-mcp"), b"foreign").unwrap();
+        fs::create_dir_all(&bin).unwrap();
+        let old = root.join("Old ShareCut.app/podcast");
+        std::os::unix::fs::symlink(&old, bin.join("podcast")).unwrap();
+        assert_eq!(states(&bin, &tools), [State::Stale, State::Missing]);
+        let reports = install(&bin, &tools, false).unwrap();
+        assert_eq!(reports[0].action, Action::Updated);
+        assert_eq!(reports[1].action, Action::Added);
+        let Desired::Link(target) = &tools[0].1 else { unreachable!() };
+        assert_eq!(fs::read_link(bin.join("podcast")).unwrap(), *target);
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn foreign_commands_are_skipped_or_backed_up_never_lost() {
+        let root = scratch("foreign");
+        let tools = app_tools(&root);
+        let bin = root.join("bin");
+        fs::create_dir_all(&bin).unwrap();
+        fs::write(bin.join("podcast"), b"#!/bin/sh\necho dev venv\n").unwrap();
+        std::os::unix::fs::symlink(root.join("elsewhere/podcast-mcp"), bin.join("podcast-mcp"))
+            .unwrap();
+        assert_eq!(states(&bin, &tools), [State::Foreign, State::Foreign]);
+        let skipped = install(&bin, &tools, false).unwrap();
+        assert!(skipped.iter().all(|r| r.action == Action::SkippedForeign));
+        assert_eq!(fs::read(bin.join("podcast")).unwrap(), b"#!/bin/sh\necho dev venv\n");
+        let replaced = install(&bin, &tools, true).unwrap();
+        assert!(matches!(replaced[0].action, Action::Replaced { .. }));
         assert_eq!(
-            remove(&bin, &launchers).unwrap_err().kind(),
-            io::ErrorKind::PermissionDenied
+            fs::read(bin.join("podcast.sharecut-backup")).unwrap(),
+            b"#!/bin/sh\necho dev venv\n"
         );
-        assert_eq!(fs::read_link(bin.join("podcast")).unwrap(), launchers[0].1);
+        assert!(fs::symlink_metadata(bin.join("podcast-mcp.sharecut-backup")).is_ok());
+        assert_eq!(states(&bin, &tools), [State::Current, State::Current]);
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn remove_only_takes_owned_commands() {
+        let root = scratch("remove");
+        let tools = app_tools(&root);
+        let bin = root.join("bin");
+        install(&bin, &tools, false).unwrap();
+        fs::remove_file(bin.join("podcast-mcp")).unwrap();
+        fs::write(bin.join("podcast-mcp"), b"foreign").unwrap();
+        let reports = remove(&bin, &tools).unwrap();
+        assert_eq!(reports[0].action, Action::Removed);
+        assert_eq!(reports[1].action, Action::SkippedForeign);
+        assert!(fs::symlink_metadata(bin.join("podcast")).is_err());
         assert_eq!(fs::read(bin.join("podcast-mcp")).unwrap(), b"foreign");
         fs::remove_dir_all(root).unwrap();
     }
@@ -388,36 +483,24 @@ mod tests {
 
     #[cfg(unix)]
     #[test]
-    fn appimage_wrappers_are_owned_and_keep_shell_arguments() {
-        let root =
-            std::env::temp_dir().join(format!("sharecut-appimage-links-{}", std::process::id()));
-        let _ = fs::remove_dir_all(&root);
-        fs::create_dir_all(&root).unwrap();
+    fn appimage_wrappers_are_owned_repaired_and_keep_shell_arguments() {
+        use std::os::unix::fs::PermissionsExt;
+        let root = scratch("appimage");
         let image = root.join("Sharecut's Studio.AppImage");
         fs::write(&image, b"#!/bin/sh\nprintf '%s\\n' \"$@\"\n").unwrap();
-        use std::os::unix::fs::PermissionsExt;
         fs::set_permissions(&image, fs::Permissions::from_mode(0o755)).unwrap();
-        let wrappers = appimage_wrappers(&image).unwrap();
-        assert!(String::from_utf8_lossy(&wrappers[0].1)
-            .contains("Sharecut'\\''s Studio.AppImage' --cli \"$@\""));
+        let tools = appimage_tools(&image).unwrap();
+        let Desired::Wrapper(first) = &tools[0].1 else { unreachable!() };
+        assert!(String::from_utf8_lossy(first).contains("Sharecut'\\''s Studio.AppImage' --cli \"$@\""));
         let bin = root.join("bin");
-        install_appimage(&bin, &wrappers).unwrap();
-        install_appimage(&bin, &wrappers).unwrap();
-        fs::set_permissions(bin.join("podcast"), fs::Permissions::from_mode(0o644)).unwrap();
-        let err = install_appimage(&bin, &wrappers).unwrap_err();
-        assert_eq!(err.kind(), io::ErrorKind::PermissionDenied);
-        assert!(err.to_string().contains("not executable"));
-        for mode in [0o001, 0o010, 0o401, 0o410] {
+        install(&bin, &tools, false).unwrap();
+        assert_eq!(states(&bin, &tools), [State::Current, State::Current]);
+        for mode in [0o644, 0o001, 0o010, 0o401, 0o410] {
             fs::set_permissions(bin.join("podcast"), fs::Permissions::from_mode(mode)).unwrap();
-            let err = install_appimage(&bin, &wrappers).unwrap_err();
-            assert_eq!(err.kind(), io::ErrorKind::PermissionDenied);
-            if mode & 0o400 != 0 {
-                assert!(err.to_string().contains("not executable"));
-            }
+            assert_eq!(states(&bin, &tools)[0], State::Stale);
+            install(&bin, &tools, false).unwrap();
+            assert_eq!(states(&bin, &tools)[0], State::Current);
         }
-        fs::set_permissions(bin.join("podcast"), fs::Permissions::from_mode(0o755)).unwrap();
-        install_appimage(&bin, &wrappers).unwrap();
-        assert_eq!(fs::read(bin.join("podcast")).unwrap(), wrappers[0].1);
         assert_eq!(fs::read_dir(&bin).unwrap().count(), 2);
         let output = Command::new(bin.join("podcast"))
             .arg("an argument with spaces")
@@ -425,23 +508,18 @@ mod tests {
             .unwrap();
         assert!(output.status.success());
         assert_eq!(output.stdout, b"--cli\nan argument with spaces\n");
-        remove_appimage(&bin, &wrappers).unwrap();
+
+        let other = root.join("Moved Sharecut.AppImage");
+        fs::copy(&image, &other).unwrap();
+        let moved = appimage_tools(&other).unwrap();
+        assert_eq!(states(&bin, &moved), [State::Stale, State::Stale]);
+        install(&bin, &moved, false).unwrap();
+        assert_eq!(states(&bin, &moved), [State::Current, State::Current]);
+
+        remove(&bin, &moved).unwrap();
         assert!(fs::symlink_metadata(bin.join("podcast")).is_err());
-        std::os::unix::fs::symlink(&image, bin.join("podcast")).unwrap();
-        assert_eq!(
-            install_appimage(&bin, &wrappers).unwrap_err().kind(),
-            io::ErrorKind::AlreadyExists
-        );
-        assert_eq!(
-            remove_appimage(&bin, &wrappers).unwrap_err().kind(),
-            io::ErrorKind::PermissionDenied
-        );
-        fs::remove_file(bin.join("podcast")).unwrap();
         fs::write(bin.join("podcast"), b"foreign").unwrap();
-        assert_eq!(
-            install_appimage(&bin, &wrappers).unwrap_err().kind(),
-            io::ErrorKind::AlreadyExists
-        );
+        assert_eq!(states(&bin, &tools)[0], State::Foreign);
         fs::remove_dir_all(root).unwrap();
     }
 }
