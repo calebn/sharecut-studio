@@ -886,11 +886,13 @@ def apply_retained_bleed_alignment(
             if (span := clip_timeline_overlap_to_source(clip, fringe_start, fringe_end)) is not None
         ]
         trimmed = punch_timeline_range_from_clips(lane, fringe_start, fringe_end, defaults=defaults)
+        untouched = {clip.id for clip in lane}
         for clip in trimmed:
+            kept = clip.id in untouched
             if abs(clip.timeline_end - fringe_start) < 1e-9:
-                clip.fade_out_ms = _INTERNAL_FADE_MS
+                clip.fade_out_ms = max(clip.fade_out_ms if kept else 0, _INTERNAL_FADE_MS)
             if abs(clip.timeline_start - fringe_end) < 1e-9:
-                clip.fade_in_ms = _INTERNAL_FADE_MS
+                clip.fade_in_ms = max(clip.fade_in_ms if kept else 0, _INTERNAL_FADE_MS)
         set_track_clips(working, proposal.direct_track_id, trimmed)
         middle = next(
             clip

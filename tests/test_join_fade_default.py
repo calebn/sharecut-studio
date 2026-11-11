@@ -242,3 +242,14 @@ def test_approve_time_join_fades_follow_the_default_and_never_shrink() -> None:
     p.timeline.join_fade_max_ms = 10
     write(p, 150)
     assert (_by_id(p)["a"].fade_out_ms, _by_id(p)["b"].fade_in_ms) == (120, 120)
+
+
+def test_a_replacement_pad_keeps_a_longer_manual_fade_out_on_the_clip_before_it() -> None:
+    from podcast_mcp.edits.cut_application import _apply_replace_gap_pad
+    from podcast_mcp.models import EditDecision
+
+    p = _project()
+    set_clip_fade(p, "b", 0, 400)
+    edit = EditDecision(id="e1", track_id="host", start=6.0, end=6.3, replace_gap_sec=0.2)
+    _apply_replace_gap_pad(p, edit, 6.0, effects=[], defaults=load_defaults())
+    assert _by_id(p)["b"].fade_out_ms == 400
