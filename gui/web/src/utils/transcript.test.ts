@@ -16,7 +16,6 @@ import {
   findTurnIndexForUtterance,
   groupConsecutiveSpeakerTurns,
   isMappedUtterance,
-  isTranscriptUtteranceVisible,
   isUtteranceActive,
   isWordActive,
   scrollChildIntoParent,
@@ -789,25 +788,6 @@ describe("trackWordTexts / spanTextFromIndex", () => {
         );
       }
     }
-  });
-});
-
-describe("isTranscriptUtteranceVisible", () => {
-  const mapped = u({ start: 0, end: 1, text: "hi", mappable: true });
-  const cutAway = u({ start: 1, end: 2, text: "bye", mappable: false });
-
-  it("shows a cut-away utterance only under annotate + showCutAway", () => {
-    expect(isTranscriptUtteranceVisible(cutAway, true, true)).toBe(true);
-    expect(isTranscriptUtteranceVisible(cutAway, true, false)).toBe(false);
-    expect(isTranscriptUtteranceVisible(cutAway, false, true)).toBe(false);
-    expect(isTranscriptUtteranceVisible(cutAway, false, false)).toBe(false);
-  });
-
-  it("always shows a mappable utterance", () => {
-    expect(isTranscriptUtteranceVisible(mapped, true, true)).toBe(true);
-    expect(isTranscriptUtteranceVisible(mapped, true, false)).toBe(true);
-    expect(isTranscriptUtteranceVisible(mapped, false, true)).toBe(true);
-    expect(isTranscriptUtteranceVisible(mapped, false, false)).toBe(true);
   });
 });
 

@@ -590,7 +590,7 @@ export function unsureEntriesOf(
     }
   }
 
-  for (const stop of selectLowConfidenceStops(utterances, false, false)) {
+  for (const stop of selectLowConfidenceStops(utterances)) {
     found.set(wordIdOf(stop.trackId, stop.sourceId ?? null, stop.wordIndex), {
       trackId: stop.trackId,
       sourceId: stop.sourceId ?? null,

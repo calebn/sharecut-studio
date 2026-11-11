@@ -169,7 +169,7 @@ Tap outside a confirmation sheet to dismiss it. Hear original sits in the player
 | **Two-finger tap** | Optional ShareCut shortcut for Undo |
 | **Pinch** | Zoom the timeline in/out |
 | **Long-press** | Open the selection sheet for a comment, or fix a transcript word (hosts). Hold a word in the Script and drag across more to select a range; Range actions also add or drop a word at either end. On the timeline, a long press arms a target so it can be dragged (on a clip's body, the clip, which then slides in time), or on empty space opens a menu to split here, add a comment or a chapter, (host) record here, add a volume point on a lane, or paste |
-| **Double-tap word** | Open word correction (hosts) in the sheet; the transcript hint says so on touch; touch keeps the sheet rather than desktop's inline editor so the keyboard has room |
+| **Double-tap word** | Open word correction (hosts); Fix text opens inline in the Script pane; the transcript hint says so on touch |
 
 A full list is in the app: **Commands and shortcuts → Gestures** (tap the search button in the header).
 
