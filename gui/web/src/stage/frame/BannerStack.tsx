@@ -1,4 +1,4 @@
-import { FrameAlerts } from "./frameAlerts";
+import { FrameAlerts } from "./FrameAlerts";
 import { JobModelBanner } from "./JobModelBanner";
 import { OfflineAttentionAnnouncer } from "./OfflineAttentionAnnouncer";
 

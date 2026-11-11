@@ -1,10 +1,7 @@
 import { render, screen, within } from "@testing-library/react";
 import { expect, it } from "vitest";
-import {
-  FRAME_ALERT_PRIORITY,
-  FrameAlerts,
-  useFrameAlert,
-} from "./frameAlerts";
+import { FrameAlerts } from "./FrameAlerts";
+import { FRAME_ALERT_PRIORITY, useFrameAlert } from "./useFrameAlert";
 
 function Raise({ priority, title }: { priority: number; title: string }) {
   useFrameAlert(priority, { state: "failed", title });
@@ -14,7 +11,7 @@ function Raise({ priority, title }: { priority: number; title: string }) {
 it("shows the most urgent alert in one slot and counts the others", () => {
   render(
     <FrameAlerts>
-      <Raise priority={FRAME_ALERT_PRIORITY.needsYou} title="Needs you" />
+      <Raise priority={FRAME_ALERT_PRIORITY.failed + 1} title="Needs you" />
       <Raise priority={FRAME_ALERT_PRIORITY.failed} title="Run failed" />
     </FrameAlerts>,
   );
@@ -35,4 +32,15 @@ it("drops an alert when its component unmounts", () => {
   rerender(<FrameAlerts>{null}</FrameAlerts>);
   expect(screen.queryByText("Run failed")).toBeNull();
   expect(screen.getByRole("status")).toBeEmptyDOMElement();
+});
+
+it("shows the newest of two alerts with the same priority", () => {
+  render(
+    <FrameAlerts>
+      <Raise priority={FRAME_ALERT_PRIORITY.failed} title="First failure" />
+      <Raise priority={FRAME_ALERT_PRIORITY.failed} title="Second failure" />
+    </FrameAlerts>,
+  );
+  expect(screen.getByText("Second failure")).toBeVisible();
+  expect(screen.queryByText("First failure")).toBeNull();
 });
