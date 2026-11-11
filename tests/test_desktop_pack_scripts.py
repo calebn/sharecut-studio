@@ -261,8 +261,8 @@ def test_desktop_build_has_native_intel_mac_job() -> None:
     assert "sharecut-macos-arm64-dmg" in gha
     assert "Require native macOS architecture" in gha
     assert "uname -m" in gha
-    assert "expected_arch: x86_64" in gha
-    assert "expected_arch: arm64" in gha
+    assert '"expected_arch": "x86_64"' in gha
+    assert '"expected_arch": "arm64"' in gha
     assert "do not Rosetta-cross" in gha
     assert "matrix.bundle == 'appimage'" in gha
 
