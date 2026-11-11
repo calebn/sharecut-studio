@@ -347,7 +347,7 @@ the empty state, not a separate discovery task.
   two seconds, how long it has run. It shows no percent unless the host reports
   a real total ([progress.md](progress.md)). The control stays disabled with
   the busy reason, and the status clears when the command ends, leaving the
-  result toast and its Undo. The Review queue's Cut all and Keep all use
+  result toast and its Undo. The Review queue's Cut all and Shorten all use
   this working line (#1491, #2165). A job that outlives the panel belongs on the Activity chip.
 - **Destructive list actions get toast-with-undo.** Approve, reject,
   skip, blade, trim: after the mutation, a transient confirmation
@@ -732,8 +732,8 @@ shipped at the port; #1031 shipped it. The adjacent MCP note shipped in #1027.
 - 2026-10-13 Hung boundary load (#1314). The dialog now offers **Try again**
   beside that message instead of only Close.
 - 2026-10-12 Timeline rail and bulk review (#1028). Zoom out and Zoom in sat in
-  the phone and tablet tool rail (gone since #2294); the Review queue's group verbs confirm
-  inline when the gate holds and answer with one toast Undo; the tablet lane header's M and S
+  the phone and tablet tool rail (gone since #2294); the Review queue's group verbs ask first
+  with counts and answer with one toast Undo; the tablet lane header's M and S
   reach the 44 px target on touch. Track lock stays out of scope: it was a
   product gap, not an established violation.
 - 2026-10-12 Comment field and comment time (#1338). Commenting needs no mode
