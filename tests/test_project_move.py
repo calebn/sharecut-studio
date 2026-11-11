@@ -205,7 +205,9 @@ def test_another_connected_window_blocks_the_move_but_the_callers_own_does_not(
     episode, dest_parent
 ) -> None:
     app = _app(episode)
-    store = cached_sync_store(sync_db_path(ProjectWorkspace.open(episode).project))
+    store = cached_sync_store(
+        sync_db_path(ProjectWorkspace.open(episode).project), enforce_command_ids=True
+    )
     store.touch_client("tab-a", role="editor")
     store.touch_client("tab-b", role="viewer")
 
