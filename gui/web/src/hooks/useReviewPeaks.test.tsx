@@ -81,4 +81,30 @@ describe("useReviewPeaks", () => {
     rerender();
     expect(useDawStore.getState().reviewPeaks).toEqual([]);
   });
+
+  it("ignores an answer for the old version that arrives after a version change", async () => {
+    let resolveOld: (p: number[]) => void = () => undefined;
+    loadReviewPeaks.mockReturnValueOnce(
+      new Promise<number[]>((r) => {
+        resolveOld = r;
+      }),
+    );
+    const { rerender } = renderHook(({ v }) => useReviewPeaks(v), {
+      initialProps: { v: read("v1") },
+    });
+    loadReviewPeaks.mockReturnValueOnce(new Promise(() => undefined));
+    rerender({ v: read("v2") });
+    await act(async () => {
+      resolveOld([0.9, 1]);
+    });
+    expect(useDawStore.getState().reviewPeaks).toEqual([]);
+  });
+
+  it("does not fetch when the link may not play", async () => {
+    useDawStore.setState({ shareCapabilities: ["comment"] });
+    renderHook(() => useReviewPeaks(read("v1")));
+    await act(async () => undefined);
+    expect(loadReviewPeaks).not.toHaveBeenCalled();
+    expect(useDawStore.getState().reviewPeaks).toEqual([]);
+  });
 });
