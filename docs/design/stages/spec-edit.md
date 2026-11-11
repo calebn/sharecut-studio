@@ -513,7 +513,7 @@ Rules. Cut always removes audio and is drawn as struck text plus a hatched wavef
 
 ### PNL-TRANSCRIPT · Transcript panel
 
-- **Today:** PNL-TRANSCRIPT--desktop-light.png, SCR-PHONE-TEXT--phone-light.png, INS-WORD shots. Hierarchy: three visible lines at the bottom; every word is a button with button spacing. Interaction cost: five modes (Annotate, Correct, Select, Find and replace, Follow) change what a click does. Language: permanent help sentence. Touch: on phone the mode buttons wrap to two rows and the help takes three lines.
+- **Today:** PNL-TRANSCRIPT--desktop-light.png, SCR-PHONE-TEXT--phone-light.png, INS-WORD shots. Hierarchy: three visible lines at the bottom; every word is a button with button spacing. Interaction cost: two modes (Find and replace, Follow) change what a click does. Language: permanent help sentence. Touch: on phone the mode buttons wrap to two rows and the help takes three lines.
 - **Fate:** replace with NEW: Script pane.
 - **Spec:**
   - Header 40 px: search (magnifier, opens CMP-FINDREPLACE inline), low-confidence stepper chip "? 3" (only when > 0; click or Alt+↓ jumps to next), show-cut-text eye toggle, follow-playhead pin toggle. Inline notices (transcribing %, "Transcript out of date · Update") sit at the right of this header.
@@ -588,7 +588,7 @@ Rules. Cut always removes audio and is drawn as struck text plus a hatched wavef
 
 ### CMP-EDITBOUNDARY · Edit boundary mark
 
-- **Today:** DLG-PRECISION--desktop-light.png (red "¦" boxes in the text). Language: the glyph has no meaning without the Annotate mode. Consistency: called "boundary", "roll join", "trim edge".
+- **Today:** DLG-PRECISION--desktop-light.png (red "¦" boxes in the text). Language: the glyph has no meaning to a reader. Consistency: called "boundary", "roll join", "trim edge".
 - **Fate:** restyle as the text form of NEW: Seam.
 - **Spec:** a cut inside the text renders as an 18 px tall pill inline: scissors glyph + removed length ("2.4 s"). Hover shows the cut words in a tooltip. Click selects the Seam: same action bar as on the timeline (Hear across, Keep, join type, Inspect). Drag the pill's left or right edge to roll the seam (readout chip shows ms). With the eye on, the pill is replaced by the struck words.
 - **Shared elements used:** NEW: Seam, Action bar.
