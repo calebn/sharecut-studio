@@ -335,14 +335,15 @@ export async function dismissOneConflict(
     markVolatileDismissed(projectPath, [conflict]);
     const source = sources.get(projectPath);
     if (source) {
-      source.generation++;
+      const { status } = source.snapshot;
+      if (status !== "dismissing") source.generation++;
       set(source, {
         pending: result.pending,
         conflicts: withVolatileOutcomes(projectPath, result.conflicts),
         status:
-          source.snapshot.status === "checking"
+          status === "checking" || status === "dismiss-failed"
             ? "ready"
-            : source.snapshot.status,
+            : status,
       });
     }
     return true;

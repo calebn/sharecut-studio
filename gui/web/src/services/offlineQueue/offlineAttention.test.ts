@@ -130,4 +130,52 @@ describe("dismissing one conflict", () => {
     expect(result.current.status).toBe("ready");
     expect(conflictByCommandId(KEY, "cut-1")).toBe(first);
   });
+  it("lets an in-flight Dismiss all finish when one row is dropped meanwhile", async () => {
+    let finishAll!: (value: unknown) => void;
+    store.dismissConflicts.mockReturnValueOnce(
+      new Promise((resolve) => {
+        finishAll = resolve;
+      }),
+    );
+    const { result } = renderHook(() => useOfflineAttention(KEY));
+    await flush();
+    act(() => dismissAllConflicts(KEY));
+    expect(result.current.status).toBe("dismissing");
+    store.dismissConflicts.mockResolvedValueOnce({
+      pending: 0,
+      conflicts: [{ ...first, dismissed: true }, second],
+    });
+    await act(async () => {
+      await dismissOneConflict(KEY, first);
+    });
+    await act(async () => {
+      finishAll({
+        pending: 0,
+        conflicts: [
+          { ...first, dismissed: true },
+          { ...second, dismissed: true },
+        ],
+      });
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(result.current.status).toBe("ready");
+    expect(result.current.conflicts.every((c) => c.dismissed)).toBe(true);
+  });
+
+  it("clears a failed-dismissal banner once one row is dropped from a fresh read", async () => {
+    store.dismissConflicts.mockRejectedValueOnce(new Error("no"));
+    const { result } = renderHook(() => useOfflineAttention(KEY));
+    await flush();
+    act(() => dismissAllConflicts(KEY));
+    await flush();
+    expect(result.current.status).toBe("dismiss-failed");
+    store.dismissConflicts.mockResolvedValueOnce({
+      pending: 0,
+      conflicts: [{ ...first, dismissed: true }, second],
+    });
+    await act(async () => {
+      await dismissOneConflict(KEY, first);
+    });
+    expect(result.current.status).toBe("ready");
+  });
 });
