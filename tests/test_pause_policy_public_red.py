@@ -458,9 +458,7 @@ def test_geometry_held_twin_cannot_suppress_the_real_clean_proposal(tmp_path, mo
     assert [e.id for e in proposal.decisions] == ["cut_pause_200_5000_84983c60f7"]
 
 
-def test_a_longer_manual_fade_is_not_silently_shrunk_by_the_pause_edge_write(
-    tmp_path, monkeypatch
-):
+def test_a_longer_manual_fade_is_not_silently_shrunk_by_the_pause_edge_write(tmp_path, monkeypatch):
     configure(monkeypatch, defaults(acoustic=True))
     result = _measured_original_project(tmp_path, guest="quiet")
     peer_audio = room(seed=1215)

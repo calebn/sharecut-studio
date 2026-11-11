@@ -17,7 +17,6 @@ from podcast_mcp.edits.join_modes import (
 from podcast_mcp.edits.timeline_ops import set_clip_fade, set_clips_fade
 from podcast_mcp.models import Clip, EpisodeProject, MediaAsset, Track, TrackRole
 from podcast_mcp.models.episode import TimelineSection
-from podcast_mcp.util.coded_error import CodedValueError
 
 
 def _project(*, music: bool = False) -> EpisodeProject:
