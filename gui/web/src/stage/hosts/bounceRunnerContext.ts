@@ -1,6 +1,5 @@
 import { createContext, useContext } from "react";
 
-/** The bounce the host runs outside any stage; the live job snapshot comes from the store. */
 export type BounceRun =
   | { kind: "idle" }
   | { kind: "running"; jobId: string | null; cancelling: boolean };

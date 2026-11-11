@@ -30,7 +30,6 @@ export function fileIdsOf(job: {
     : [];
 }
 
-/** Reveal the first file in the app, or download every file in a browser; none when the job named no file. */
 export function bounceResultAction(
   projectPath: string,
   fileIds: readonly string[],

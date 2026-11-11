@@ -12,6 +12,7 @@ import {
   writeExportRangeChoices,
 } from "../../edit/exportRange";
 import { useDawStore } from "../../state/dawStore";
+import type { ProjectView } from "../../types/project";
 import { SegmentedControl } from "../../ui/SegmentedControl";
 import { ToggleButton } from "../../ui/ToggleButton";
 
@@ -26,7 +27,7 @@ const MIX_NEEDS_NO_TRACKS = "Deselect the tracks to export the full mix.";
 function reasonFor(
   source: BounceSource,
   scope: ExportScope,
-  project: Parameters<typeof bounceTracks>[0],
+  project: ProjectView,
   solo: Readonly<Record<string, boolean>>,
 ): string | undefined {
   if (source === "mix" && scope.intervals === null && scope.trackIds.length)
@@ -35,10 +36,7 @@ function reasonFor(
   return found.ok ? undefined : found.reason;
 }
 
-/**
- * The Export verb's options: which tracks the export mixes, and whether an MP3
- * comes with the WAV. A change is saved as it is made and applies to the next Export.
- */
+/** A change is saved as it is made and applies to the next Export. */
 export function ExportRangeOptions() {
   const { project, selection, solo } = useDawStore(
     useShallow((s) => ({

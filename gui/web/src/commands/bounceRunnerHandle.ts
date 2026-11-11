@@ -9,7 +9,7 @@ export type BounceRunner = {
   running(): boolean;
 };
 
-export const EXPORT_BUSY_REASON = "Another export is running.";
+const EXPORT_BUSY_REASON = "Another export is running.";
 export const EXPORT_STARTING_REASON = "Export is still starting";
 export const EXPORT_CANCELLING_REASON = "Export is cancelling";
 const UNAVAILABLE: ExecuteResult = {
@@ -44,7 +44,6 @@ export function cancelBounce(): Promise<ExecuteResult> {
   return runner ? runner.cancel() : Promise.resolve(UNAVAILABLE);
 }
 
-/** Why an export cannot start while the Activity slot holds a live export, pipeline or bounce; null when it can. */
 export function exportBusyReason(
   job: Pick<PipelineJobSnapshot, "kind" | "status"> | null,
 ): string | null {

@@ -27,11 +27,9 @@ export type BarItem = {
   readonly disabledReason?: string;
   readonly describedBy?: string;
   readonly options?: readonly BarOption[];
-  /** A chevron beside the verb opens `content` in a popover; the dock gets a More row that opens it in a sheet. */
   readonly split?: BarSplit;
 };
 
-/** The More row that opens a split verb's options; `onVerb` hears it as `(id, "options")`. */
 export const SPLIT_OPTIONS_ARG = "options";
 
 export function isOptionsRow(item: BarItem): boolean {
