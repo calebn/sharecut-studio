@@ -35,6 +35,7 @@ import {
   openRoomNotes,
   readSavedProject,
   recordParticipantId,
+  roomAlertSlot,
   roomPill,
   roomTile,
   stopHostTake,
@@ -662,7 +663,7 @@ test.describe("record lobby", () => {
         await expect(recTab.locator(".sys-stage-badge")).toBeVisible();
         await goToStage(host, "record");
         // Record's alerts show in the frame alert slot, above the stage.
-        const alert = host.locator(".sys-room-alert-slot");
+        const alert = roomAlertSlot(host);
         await expect(alert.getByText("Your mic stopped.")).toBeVisible();
         await alert.getByRole("button", { name: "Reconnect mic" }).click();
         await expect(
