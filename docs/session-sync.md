@@ -463,9 +463,13 @@ Deliberate unconditional agent nudges can omit `expected`.
 
 ### Captured clip fade commands
 
-`SetClipFade.expected` is required and contains only `fade_in_ms` and
-`fade_out_ms`, both nonnegative integers. The pair is captured from saved values
-when drafting starts. The service compares both values under the existing project
+`SetClipFade.expected` is required and holds `fade_in_ms` and `fade_out_ms`
+(nonnegative integers) and `fade_in_curve` and `fade_out_curve` (`linear`,
+`equal_power` or `s`). The curves are always compared, and a baseline that leaves
+one out means `linear`, the value a clip without that key has, so a client that
+missed a curve-only change from a peer is refused rather than overwriting it. The
+values are captured from saved values
+when drafting starts. The service compares all of them under the existing project
 transaction before history capture. A changed or missing clip returns HTTP 409
 with `X-Sharecut-Error-Code: clip_fade_changed`. No fade, history, redo, or journal
 change is recorded. Missing baselines fail validation with no fallback.
@@ -596,8 +600,8 @@ Do **not** expose Swagger on the public relay (`docs_url=None`). Host OpenAPI de
 | `ApproveEdits`, `RejectEdits` | `EditService` | `ids: string[]`; `hold_blocked` reports held cuts instead of refusing the batch; `skip_unsure` (bulk guard) leaves every cut that covers an unsure word pending as `held` with reason `unsure_word`, forced on for a guest's multi-edit approve ([gui-integration.md § Unsure words](gui-integration.md#unsure-words)); trusted interactive context, or `override_audio_checks` from a caller that may run the command, overrides the acoustic holds (not the unsure hold) |
 | `UpdatePendingEdit` | `EditService.update_pending` | `id`, `start`, `end`, `snap?`, `expected?` (saved track/type/clock/bounds) |
 | `RestoreAppliedEdit` | `EditService.revert_applied` | `ids` (applied-edit log ids), `dry_run` (default false). Returns `RestoreResult{status: restored\|planned\|conflict, conflicts, summary}`. One History step for all ids; `dry_run` and conflicts write nothing: no History step, no journal row, no `server_seq` advance. An auto-applied ripple cut restores through its `ReinsertClips` inverse; a cut that a later cut touched returns a conflict whose `blocked_by` names the record to restore first. Records without an `inverse` (`restore.state: history_only`) return a `local_restore_requires_history` conflict; choose guarded `UndoHistory` for the whole action. A retry of a succeeded Restore with the same `command_id` returns the stored result (`idempotent: true`) before any plan. The reply also carries the conflicts at the top level as `restore_conflicts`, because a guest's `command` is reduced to its type |
-| `SetClipFade` | `TimelineService.set_clip_fade` | `clip_id`, `fade_in_ms`, `fade_out_ms` |
-| `SetClipsFade` | `TimelineService.set_clips_fade` | `fades: [{clip_id, fade_in_ms, fade_out_ms, expected}]`, one history entry; any stale `expected` pair returns `clip_fade_changed` for all |
+| `SetClipFade` | `TimelineService.set_clip_fade` | `clip_id`, `fade_in_ms`, `fade_out_ms`, optional `fade_in_curve` / `fade_out_curve` (`linear`, `equal_power`, `s`; left out keeps the clip's curve), `expected: {fade_in_ms, fade_out_ms, fade_in_curve?, fade_out_curve?}` |
+| `SetClipsFade` | `TimelineService.set_clips_fade` | `fades: [{clip_id, fade_in_ms, fade_out_ms, fade_in_curve?, fade_out_curve?, expected}]`, one history entry; any stale `expected` (lengths or curves) returns `clip_fade_changed` for all |
 | `SetClipGain` | `TimelineService.set_clip_gain` | `clip_id`, `gain_db` (`-60..+12` dB), `expected: {gain_db}`; a stale `expected` returns `clip_gain_changed` |
 | `SetClipsGain` | `TimelineService.set_clips_gain` | `gains: [{clip_id, gain_db, expected}]` absolute per-clip targets, each within `-60..+12` dB or refused, one history entry; any stale `expected` returns `clip_gain_changed` for all |
 | `TrimClipEdge` | `TimelineService.trim_clip_edge` | `clip_id`, `edge`, `source_sec`, `mode` (`ripple` \| `gap`), required `expected_token` from a boundary context minted for that mode |

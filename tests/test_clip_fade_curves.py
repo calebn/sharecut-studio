@@ -151,6 +151,16 @@ def test_curves_round_trip_through_save_and_load(minimal_project: Path) -> None:
     assert _curves(load_project(minimal_project).clips[0]) == (S, EQUAL_POWER)
 
 
+def test_project_schema_lists_the_three_curves() -> None:
+    schema = json.loads(
+        (Path(__file__).parents[1] / "schemas" / "episode.project.schema.json").read_text()
+    )
+    props = schema["$defs"]["Clip"]["properties"]
+    for key in ("fade_in_curve", "fade_out_curve"):
+        assert props[key]["default"] == "linear"
+        assert props[key]["enum"] == [curve.value for curve in FadeCurve]
+
+
 def _ffmpeg_unit(
     fade_in: float,
     fade_out: float,
@@ -265,6 +275,22 @@ def test_evaluator_matches_ffmpeg_sample_for_sample(in_curve, out_curve) -> None
     common = min(rendered.size, evaluated.size)
     assert abs(rendered.size - evaluated.size) <= 3
     assert np.abs(rendered[:common] - evaluated[:common]).max() < 1e-3
+
+
+def test_the_shared_fixture_pins_the_formulas_and_the_afade_names() -> None:
+    from podcast_mcp.engines.audio import AFADE_CURVE_NAMES
+
+    fixture = json.loads(
+        (Path(__file__).parent / "fixtures" / "gain_curve" / "fade_curve_cases.json").read_text()
+    )
+    assert fixture["afade_curve"] == {c.value: AFADE_CURVE_NAMES[c] for c in FadeCurve}
+    for curve in FadeCurve:
+        assert fixture["fade_in"][curve.value] == [
+            pytest.approx(_fade_in_gain(curve, x), abs=1e-6) for x in fixture["x"]
+        ]
+        assert fixture["fade_out"][curve.value] == [
+            pytest.approx(_fade_out_gain(curve, x), abs=1e-6) for x in fixture["x"]
+        ]
 
 
 def test_equal_power_pair_keeps_constant_power_at_the_midpoint() -> None:
@@ -948,6 +974,11 @@ def test_a_saved_segment_drops_the_curves_a_documented_limitation(
     )
     assert segment.clips[0].fade_in_ms == 50
     assert "curve" not in segment.clips[0].model_dump_json()
+
+
+def test_the_segment_limitation_is_written_down() -> None:
+    text = (Path(__file__).parents[1] / "docs" / "segments.md").read_text().lower()
+    assert "fade curve" in text
 
 
 def test_list_clips_rows_name_curves_only_when_non_linear(minimal_project: Path) -> None:

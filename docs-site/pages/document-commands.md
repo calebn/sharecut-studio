@@ -85,7 +85,7 @@ Raw JSON Schema (site copy): [document-commands.schema.json](../schemas/document
 | `SelectSessionTake` | `suggestion_id` (string), `take_index` (integer) | — |
 | `SetActionDone` | `action_id` (string), `by` (string), `comment_id` (string) | `done` (boolean) |
 | `SetBleedAlignmentMode` | `decision_id` (string), `mode` (auto \| manual \| declined) | `end_sec` (number \| null), `override_placement_lock` (boolean), `start_sec` (number \| null), `track_id` (string \| null) |
-| `SetClipFade` | `clip_id` (string), `expected` (object), `fade_in_ms` (integer), `fade_out_ms` (integer) | — |
+| `SetClipFade` | `clip_id` (string), `expected` (object), `fade_in_ms` (integer), `fade_out_ms` (integer) | `fade_in_curve` (linear \| equal_power \| s \| null), `fade_out_curve` (linear \| equal_power \| s \| null) |
 | `SetClipGain` | `clip_id` (string), `expected` (object), `gain_db` (number) | — |
 | `SetClipJoin` | `left_clip_id` (string), `mode` (fade \| crossfade \| cut), `right_clip_id` (string) | `length_ms` (integer \| null) |
 | `SetClipsFade` | `fades` (array[object]) | — |

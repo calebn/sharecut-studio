@@ -270,6 +270,20 @@ The ceiling is part of the hash too, so a pipeline run with a different `mix.pre
 
 `check_loudness_tool` measures the existing exported WAV, or `premix.wav` when no exported WAV exists. Its `pass` field judges measured loudness. Its separate `stale` and `stale_reason` fields report known render age without rendering. For a premix, the check uses its hash and included stems. For an exported WAV, it also checks the current master hash and whether the export predates the master. Missing or unverified upstream artifacts report stale. An explicit unrelated audio path has `stale: null` and `stale_reason: "untracked_audio"`. The measured stream is the file's first audio stream (#2131). Only ebur128's own summary is read, never the file's metadata tags (#2143), so a file with no audio stream or zero decoded audio frames measures `null` and fails `pass`. `stale: false` means these checks found no known mismatch; timestamps cannot prove the export's content came from the current master. The check does not refresh audio or alter the loudness verdict.
 
+## Clip fade curves
+
+`Clip.fade_in_curve` and `Clip.fade_out_curve` (`linear` default, `equal_power`, `s`) shape a
+clip's own start and end fades. The render names ffmpeg's `afade` curve only when an edge is not
+linear (`linear` = `tri`, the filter string the render always produced; `equal_power` = `qsin`;
+`s` = `hsin`), so a project with no curve renders and hashes exactly as before. A fade-in follows
+`g(x)`: `x`, `sin(pi x / 2)` or `(1 - cos(pi x)) / 2`. The fade-out is its mirror, `g(1 - x)`,
+which `audio_eval._edge_fades` reproduces and `tests/fixtures/gain_curve/fade_curve_cases.json`
+pins at `x = 0, 0.25, 0.5, 0.75, 1`. Equal power is a property of a pair, so a single `qsin` edge
+only fades from or to silence along a quarter sine. A fade at a cut join, a blended join (which
+uses `render.crossfade_curve`), the micro-fades a timing map puts on its inner pieces, and room-tone
+tiles stay linear. A non-linear curve enters the stem render hash, the reconciliation fingerprint
+and the verdict cache key; occurrence source proxies read raw audio and ignore it.
+
 ## Per-clip gain
 
 `Clip.gain_db` (`-60..+12` dB, default `0`) is the first level in the signal order: clip gain
