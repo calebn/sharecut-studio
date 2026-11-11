@@ -110,9 +110,16 @@ function commandOutcome(
   kind: OfflineConflict["kind"],
   reason: string,
   replayable = false,
+  code?: string | null,
 ): OfflineConflict {
   return kind === "refused"
-    ? { command, kind, reason, recovery: "edit-and-resubmit" }
+    ? {
+        command,
+        kind,
+        reason,
+        recovery: "edit-and-resubmit",
+        ...(code ? { code } : {}),
+      }
     : {
         command,
         kind,
@@ -839,7 +846,13 @@ async function submitThroughQueue(
       cmd,
       answeredInline
         ? null
-        : commandOutcome(cmd, "refused", refusalReason(failure)),
+        : commandOutcome(
+            cmd,
+            "refused",
+            refusalReason(failure),
+            false,
+            failure.code,
+          ),
       side.ownsQueueRow || admitted.persisted,
     );
     throw failure;

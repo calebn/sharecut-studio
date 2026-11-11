@@ -28,6 +28,8 @@ export type OfflineConflict =
       command: QueuedCommand;
       kind: "refused";
       reason: string;
+      /** The server's error code (such as `range_changed`), when it sent one. */
+      code?: string;
       recovery: "edit-and-resubmit";
       dismissed?: boolean;
       /** The project file itself is missing or damaged, so nothing can be saved until it is back. */
@@ -241,6 +243,9 @@ function parseConflictList(value: unknown): OfflineConflict[] {
         reason: conflict.reason,
         kind,
         recovery: "edit-and-resubmit",
+        ...(typeof conflict.code === "string" && conflict.code
+          ? { code: conflict.code }
+          : {}),
         ...(typeof conflict.dismissed === "boolean"
           ? { dismissed: conflict.dismissed }
           : {}),
