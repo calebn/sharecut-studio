@@ -208,16 +208,6 @@ def assert_main_ownership(sources: dict[str, str]) -> None:
     assert "emulateMedia" not in helper
 
 
-def installed_engines(run: str) -> set[str]:
-    """Browser engines named on `playwright install` lines of a workflow `run`."""
-    return {
-        word
-        for match in _INSTALL_RE.finditer(run)
-        for word in match.group(1).split()
-        if not word.startswith("-")
-    }
-
-
 def _matrix() -> MarkdownTable:
     return section_table(TESTING_DOC, HEADING)
 
@@ -364,30 +354,20 @@ def test_ci_runs_both_browser_suites_on_dispatch_on_every_passing_engine() -> No
     assert not runner.get("continue-on-error"), "the browser suite runner must fail its cell"
     assert "continue-on-error" not in job, f"{CI_SUITES_JOB} must fail the build"
 
-    install_runs = [
-        str(step.get("run", "")) for step in steps if _INSTALL_RE.search(str(step.get("run", "")))
-    ]
-    assert len(install_runs) == 1, f"expected one browser install step, got {install_runs}"
-    browser_expression = "${{ matrix.browser }}"
-    assert install_runs[0].count(browser_expression) == 1, (
-        f"browser install must use exactly one matrix.browser value: {install_runs[0]!r}"
+    assert job["container"]["image"] == "${{ needs.changes.outputs.playwright-image }}", (
+        f"{CI_SUITES_JOB} must run in the Playwright image, which ships every engine"
     )
-    installed_runs = [
-        install_runs[0].replace(browser_expression, entry["browser"]) for entry in include
-    ]
-    assert all("${{" not in run for run in installed_runs), (
-        f"browser install has an unresolved workflow expression: {installed_runs}"
+    assert not any(_INSTALL_RE.search(str(step.get("run", ""))) for step in steps), (
+        "browsers come from the container image, not a run-time install"
     )
-    installed = set().union(*(installed_engines(run) for run in installed_runs))
-    assert installed <= set(COMPAT_ENGINES), f"browser install names an unknown engine: {installed}"
     engines_with_pass = {
         ENGINE_COLUMNS[column]
         for record in _matrix().records()
         for column in ENGINE_COLUMNS
         if record[column] == PASS
     }
-    assert engines_with_pass <= installed, (
-        f"{engines_with_pass - installed} have a Pass cell but {CI_SUITES_JOB} never installs them"
+    assert engines_with_pass <= set(COMPAT_ENGINES), (
+        f"{engines_with_pass - set(COMPAT_ENGINES)} have a Pass cell but no compat project"
     )
 
 
@@ -783,14 +763,6 @@ def test_compat_projects_rejects_an_unreadable_test_ignore() -> None:
     )
     with pytest.raises(AssertionError, match="testIgnore list"):
         compat_projects(non_literal_entry)
-
-
-def test_installed_engines_reads_the_playwright_install_line() -> None:
-    assert installed_engines("npm ci\nnpx playwright install --with-deps chromium webkit\n") == {
-        "chromium",
-        "webkit",
-    }
-    assert installed_engines("npm ci") == set()
 
 
 def test_skip_regex_flags_every_skip_form() -> None:
