@@ -25,7 +25,7 @@ flowchart TB
   ST --> review
   ST --> PREP[Prepare: sources, getting ready, cleanup]
   ST --> REC[Record: launcher and live take]
-  ST --> DEL[Deliver: export, bounce, Listen link]
+  ST --> DEL[Deliver: export, Listen link]
   SEL[Selection] --> BS[Bottom sheet: inspector]
 ```
 

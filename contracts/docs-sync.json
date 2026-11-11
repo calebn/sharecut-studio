@@ -429,11 +429,16 @@
         "include": [
           "src/podcast_mcp/services/media/bounce.py",
           "src/podcast_mcp/gui/routes/export_routes.py",
+          "src/podcast_mcp/gui/routes/export_files.py",
+          "src/podcast_mcp/services/document/export_files.py",
           "src/podcast_mcp/export/names.py",
           "gui/web/src/stage/hosts/bounceRunner*",
           "gui/web/src/stage/hosts/bounceResultAction.ts",
           "gui/web/src/stage/edit/ExportRangeOptions.tsx",
           "gui/web/src/edit/exportRange.ts",
+          "gui/web/src/commands/bounceRunnerHandle.ts",
+          "gui/web/src/system/ActionBar.tsx",
+          "gui/web/src/system/SplitPopover.tsx",
           "gui/web/src/api/exportJobs.ts"
         ]
       }

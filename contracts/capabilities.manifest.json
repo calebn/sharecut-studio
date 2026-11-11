@@ -1507,7 +1507,7 @@
       },
       "omit": {
         "guest": true,
-        "keyboard_reason": "Palette only: exports the whole episode's audible tracks in place (export/bounces/); the action bar's Export button does the same for a range or tracks"
+        "keyboard_reason": "Palette only: exports the whole episode's audible tracks in place (export/bounces/); the action bar's Export button does the same for the whole episode with nothing selected, and for the selected tracks or a range"
       },
       "tooltip": "Export full mix",
       "presence": {

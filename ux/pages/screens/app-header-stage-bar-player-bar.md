@@ -18,7 +18,7 @@ The transport bar, status bar, Menu, View menu and bottom dock tabs of earlier r
 | **End session** | The Record stage's More sheet has **End session** (host). It stays disabled, with the reason beside it, until a running take is stopped and every take is saved and landed on the timeline and no live notes wait. Pressing it shows “Ending this session in 10 seconds. Guest links stop working when it ends.” with **Undo**; the links are revoked only when the 10 s pass, so Undo changes nothing. Leaving Record inside the window still ends the room. |
 | **Previous session card** | With no open room, the Record stage shows the last ended session above “No record room yet” as a Session group card: “Session N · Sun 25 Oct” (“Last session” until it has a number) as its title, a stats line like “2 people · 3 takes · 12:04” (people, takes, total recording time; it shows no transcription ring and no target chip, since a recorded session has neither) and one row per participant, “Ava → Ava” (their track), “Sam → New track”, “Pat → Several tracks”, or just the name if the session never landed. The card is optional and is left out if the sessions request fails. Once the session has landed and its clips are on the timeline, a person's track is a menu of the project's tracks (current one checked; it also opens with a single track); picking another moves all of that person's clips of the session there, keeping their start times, as one undo step (overlap on the destination is allowed; the old track stays). The menu ends with **New track**: it adds a track named for the person, then moves their clips there (a second undo step; if the move fails the empty track stays). The menu is disabled while the move runs and a failure is announced. A landed session with clips has the primary **Edit Session N** in the card’s footer, full width on a phone (**Edit session** without a number): it opens Edit, puts the playhead at the session's earliest clip and selects all its clips. A landed, numbered session also has **Rename** beside the title: it opens a text field named “Session name” (Enter or leaving saves, Esc cancels, 80 characters at most); the name replaces “Session N · Sun 25 Oct” as the title and an empty field clears it. It is disabled while a change runs and a failure is announced (“Could not rename the session: …”). On the Edit ruler each landed numbered session has a tinted band with an “S2” pill button (host only; named “S2, Session 2 - Name: select its clips”) that moves the playhead to the session start and selects its clips. A session with a pickup waiting in Review (an insert or a replace not yet accepted or skipped; it has no clips on the timeline) has the primary **Review pickup** in that footer instead: it opens Review with that pickup selected, or on the first undecided item if the pickup was decided meanwhile; once it is accepted the card shows Edit Session N, and once it is skipped no primary. There is no rename from the open room. The open room's header starts with the session's label: the saved name, else “Session N” with N the number a land would give it; it is read when the room opens and again when its state changes, a long name is cut with an ellipsis, and it is left out until the sessions request answers and when that fails. Under it the create button reads **Start Session N+1** (N the card's number) and **Create record room** when the card has no number. |
 | **Record header** | The open room's slim header holds, left to right, the session's label (the saved name, else “Session N”), the **Session target chip** and the room status pill. The chip is a placement glyph (arrow to the end, arrow to the start, insert, replace) and the words: “Lands at the end · after 52:10”, “Starts the episode” (also what an end reads on an empty project), “Inserts at 12:04”, “Replaces 12:04-12:09”. Before the first take it opens a menu of radio choices, with the current one checked and announced: At the end, At the start, At the playhead (12:04) and Replace selection, the last two only when Edit has a playhead or a selection to read. It is disabled while a command is in flight. After the first take lands it is a lock glyph and “Set when the first take landed”, with no menu. At phone width the label keeps a readable width and the chip and pill wrap to the next line rather than squeezing it. |
-| **Old homes** | Bounce… → Deliver · Export deliverables… → Deliver (`Mod+E`) · Share… → the Invite sheet · Record room… → Record · Import audio, New track → Prepare and the **+** menu · Add chapter at playhead → the **+** menu (host) and the palette · Select a range → drag an empty lane or arm Range · Audition → Hear original menu · Mix status → mix ring · Presence, People → header avatars · Theme → Project menu → Appearance (link guests: the Appearance button in the header) · Layouts → `T` and `Shift+T` · Commands and shortcuts → search |
+| **Old homes** | Bounce… → Export in the Edit action bar · Export deliverables… → Deliver (`Mod+E`) · Share… → the Invite sheet · Record room… → Record · Import audio, New track → Prepare and the **+** menu · Add chapter at playhead → the **+** menu (host) and the palette · Select a range → drag an empty lane or arm Range · Audition → Hear original menu · Mix status → mix ring · Presence, People → header avatars · Theme → Project menu → Appearance (link guests: the Appearance button in the header) · Layouts → `T` and `Shift+T` · Commands and shortcuts → search |
 | **Data shown** | Playhead (timeline sec) · duration · hear mode · optional stale-render note |
 | **Empty / error** | Known `?project=` but shell not yet: the frame with skeleton content, **Loading episode…**, Play/Stop focusable and showing “Loading project…”. Zero tracks after load: the Import and Record Start tiles (160 x 96; dropped audio lands on them too), not the loading well, and Play/Stop show “Import audio to play.” |
 | **Out of scope** | Full mixer; a free-form pipeline editor (Prepare keeps only a short Advanced step list) |
@@ -31,25 +31,23 @@ Menu panels (the Project menu, the hear menu) open below their trigger, flip abo
 ├─ ▶  12:34 / 58:39      Hear original   mix ring ───────────────┤
 ```
 
-Bounce is a section of the Deliver stage, below Episode file, not a dialog.
-It writes a quick mix to `export/bounces/` without mastering or captions.
-Source is a choice of Entire mix, Selected tracks (n) or Soloed tracks (n); a
-source with no tracks greys Bounce and says "Select one or more tracks first."
-or "Solo one or more tracks first." Two toggles follow: Limit to session region
-(greyed with "No session region set." when there is none) and Also write MP3.
-A range chosen in Edit (Range actions → Bounce) is shown as "Selected range · …
-This selection is fixed for this bounce." in place of the Source choice and the
-region toggle, with "Bounce the whole mix instead" to let it go. `Mod+E` with a range selected,
-the palette and Range actions go to Deliver and put focus on Bounce; they never
-start a bounce. While it runs the section shows "Bouncing" with the job's step
-progress, elapsed time and Cancel (greyed with its reason until the job has
-started); leaving Deliver does not stop it. It ends with "Bounced" and the file
-names, "Bounce failed" with the cause and Try again, or "Bounce cancelled"
-(listing any files a late cancel could not stop) with Bounce again. A missing
-model is asked for inside the section. A project switch stops following the
-job and returns the section to its choices. A range from Edit stays until it is
-bounced or let go. Storybook: `Stages/Deliver/Bounce`.
+Export in the Edit action bar writes an unmastered quick mix to `export/bounces/`
+without mastering or captions, in place: the stage does not change. It exports
+the selected range, the selected tracks or the whole episode. A chevron beside
+it (a More row on the phone dock) opens Export options: Source is Full mix,
+Selected tracks or Soloed, each greyed with its reason when it has no tracks
+(for example "Solo one or more tracks first."), and Also write MP3. Only the
+Full mix leaves out muted tracks; selected and soloed tracks are exported as
+chosen. A range that holds no clip says "Nothing audible in this range."
+`Mod+E` with a range or words selected runs the same export; with none it opens
+Deliver for the mastered export. While it runs the Activity chip shows the
+job's progress and the verb reads Cancel export, greyed with its reason until
+the job has started and while it cancels; leaving Edit does not stop it, and a
+project switch cancels it. The result is a toast with Reveal (desktop app) or
+Download (browser), and the files stay listed in Deliver under Exports of a
+selection, labelled Unmastered export. A missing model is asked for
+before the export starts. Storybook: `Stages/Edit/ExportRangeOptions`.
 
-For both Episode file and Bounce, a failed Cancel shows its error and permits
+For the Episode file, a failed Cancel shows its error and permits
 another attempt only while that job is current. A late failure from an earlier
 job leaves the current job's progress and pending cancellation unchanged.
