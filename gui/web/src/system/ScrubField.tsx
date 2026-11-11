@@ -51,6 +51,8 @@ export type ScrubFieldProps = ScrubRange & {
   /** Reset target shown by the dot and, for level fields, a double activation. */
   defaultValue?: number;
   readOnly?: boolean;
+  /** A save is running: the field reads as busy to assistive tech. */
+  busy?: boolean;
   /** A message from outside, such as a rejected value. Typing a bad number sets its own. */
   error?: string;
   /** The id of text that explains the whole field, such as why it is read-only. */
@@ -110,6 +112,7 @@ export function ScrubField({
   decimals = multiplicative ? 2 : placesOf(step),
   defaultValue,
   readOnly = false,
+  busy = false,
   error,
   describedBy: describedByProp,
   onPreview,
@@ -203,7 +206,7 @@ export function ScrubField({
   useEffect(() => {
     flushDraft.current = () => {
       const text = draftRef.current;
-      if (!commitOnUnmount || text === null) return;
+      if (!commitOnUnmount || text === null || readOnly) return;
       if (skipUnchanged && text === openedText.current) return;
       const next = resolveDraft(text);
       if (next !== null && next !== value) onCommit(next);
@@ -293,6 +296,10 @@ export function ScrubField({
     if (!gesture || event.pointerId !== gesture.pointerId) return;
     drag.current = null;
     if (!gesture.active) {
+      if (readOnly) {
+        clearLevelReset();
+        return;
+      }
       const nextDraft = value === null ? "" : formatScrub(value, decimals);
       if (
         canResetLevel() &&
@@ -316,7 +323,10 @@ export function ScrubField({
       setDraft(nextDraft);
       return;
     }
-    if (gesture.current === roundTo(gesture.start ?? base, decimals))
+    if (
+      readOnly ||
+      gesture.current === roundTo(gesture.start ?? base, decimals)
+    )
       onCancel?.();
     else onCommit(gesture.current);
   };
@@ -490,6 +500,11 @@ export function ScrubField({
   const finishEdit = (how: "enter" | "escape" | "blur") => {
     const text = draftRef.current;
     if (text === null) return;
+    if (readOnly) {
+      refocus.current = how !== "blur";
+      setDraft(null);
+      return;
+    }
     const next = resolveDraft(text);
     if (how === "enter" && next === null) {
       setRejected(true);
@@ -583,6 +598,7 @@ export function ScrubField({
             aria-valuemax={max}
             aria-valuetext={value === null ? emptyText : `${shown}${unitText}`}
             aria-readonly={readOnly || undefined}
+            aria-busy={busy || undefined}
             aria-invalid={error ? true : undefined}
             aria-describedby={
               [error ? errorId : null, describedByProp]

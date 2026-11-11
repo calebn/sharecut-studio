@@ -59,6 +59,7 @@ export function useSocialSections(
       max={max}
       skipUnchanged
       readOnly={!editable || busy}
+      busy={busy}
       onCommit={(next) =>
         void save(
           which === "start" ? next : clip.start,
@@ -93,6 +94,7 @@ export function useSocialSections(
               maxLength={200}
               onCommit={retitle}
               readOnly={busy}
+              trim
               className="inspector-text-field"
             />
           ) : (
