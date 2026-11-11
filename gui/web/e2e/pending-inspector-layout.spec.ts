@@ -3,6 +3,7 @@ import { waiveRefineGate } from "./documentCommand";
 import { e2eProjectPath } from "./env";
 import { exposeControl } from "./inspectorResponsiveEvidence";
 import { openSuggestedPendingEdit } from "./pendingEdit";
+import { resizeViewport } from "./resizeViewport";
 import { phone } from "./stageNav";
 
 const REFINE_GATE =
@@ -252,21 +253,23 @@ test.describe("Pending inspector layout", () => {
     await expect(
       page.getByRole("group", { name: /^Needs attention/ }),
     ).toHaveCount(0);
-    const settledScrolls = () =>
-      actionbar.evaluate(async (panel) => {
-        for (let tick = 0; tick < 3; tick += 1) {
-          await new Promise((resolve) => requestAnimationFrame(resolve));
-        }
-        return panel.scrollHeight > panel.clientHeight;
-      });
+    // `placed` means a pass measured under the panel's own max-height
+    // reproduced the previous one; it is `pending` again as soon as a resize
+    // is scheduled, which the page does synchronously in its resize handler.
+    const expectPlaced = () =>
+      expect(actionbar).toHaveAttribute("data-placement", "placed");
+    const scrolls = () =>
+      actionbar.evaluate((panel) => panel.scrollHeight > panel.clientHeight);
     await expect(async () => {
-      await page.setViewportSize({ width: 1280, height: 480 });
       for (let height = 480; height >= 120; height -= 20) {
-        await page.setViewportSize({ width: 1280, height });
-        if ((await settledScrolls()) && (await settledScrolls())) break;
+        await resizeViewport(page, { width: 1280, height });
+        await expectPlaced();
+        if (await scrolls()) return;
       }
-      await expect.poll(settledScrolls, { timeout: 2_000 }).toBe(true);
+      throw new Error("the actions panel never scrolled");
     }).toPass({ timeout: 30_000 });
+    await expectPlaced();
+    expect(await scrolls()).toBe(true);
     const [panelBox, regionBox, viewport] = await Promise.all([
       actionbar.boundingBox(),
       page.locator(".pending-overlay.selected").boundingBox(),

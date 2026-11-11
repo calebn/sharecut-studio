@@ -4,6 +4,7 @@ import {
   useId,
   useLayoutEffect,
   useMemo,
+  useReducer,
   useRef,
   useState,
 } from "react";
@@ -114,6 +115,47 @@ type Gesture =
 const IDLE: Gesture = { kind: "idle" };
 const ACTION_BAR_WIDTH_REM = 15;
 const VIEWPORT_GUTTER_REM = 0.5;
+/**
+ * Measuring passes allowed after each scheduled update. A panel whose geometry
+ * has not reproduced by then stays `pending` rather than reporting `placed`.
+ */
+const MAX_PLACEMENT_PASSES = 6;
+
+const MAX_HEIGHT_VAR = "--pending-actionbar-max-height";
+
+interface PlacementPass {
+  docked: boolean;
+  placement: PendingActionPlacement | null;
+}
+
+function samePlacementPass(a: PlacementPass, b: PlacementPass): boolean {
+  if (a.docked !== b.docked) return false;
+  if (a.placement === null || b.placement === null) {
+    return a.placement === b.placement;
+  }
+  return (
+    a.placement.left === b.placement.left &&
+    a.placement.top === b.placement.top &&
+    a.placement.maxHeight === b.placement.maxHeight
+  );
+}
+
+/** The max-height a pass asked the panel to apply, as the DOM stores it. */
+function appliedMaxHeight(pass: PlacementPass): string {
+  return pass.placement ? `${pass.placement.maxHeight}px` : "";
+}
+
+type PlacementState = "docked" | "pending" | "placed" | "none";
+
+function placementStateOf(
+  docked: boolean,
+  settled: boolean,
+  placement: PendingActionPlacement | null,
+): PlacementState {
+  if (docked) return "docked";
+  if (!settled) return "pending";
+  return placement ? "placed" : "none";
+}
 const LABEL_INLINE_WIDTH_REM = 9;
 
 function rootRem(): number {
@@ -259,6 +301,10 @@ function PendingEditRegion({
   const [overlayHeightPx, setOverlayHeightPx] = useState(0);
   const [labelActive, setLabelActive] = useState(false);
   const [docked, setDocked] = useState(false);
+  // True once a pass measured the panel with the previous pass's max-height
+  // applied and reproduced that pass; any scheduled update clears it.
+  const [placementSettled, setPlacementSettled] = useState(false);
+  const [, rerender] = useReducer((n: number) => n + 1, 0);
   const [actionbarHost] = useState(() => {
     if (typeof document === "undefined") return null;
     const host = document.createElement("div");
@@ -550,8 +596,19 @@ function PendingEditRegion({
     if ((!selected && !labelInPortal) || !regionRef.current) {
       return;
     }
+    const actionbarNode = actionbarRef.current;
+    let lastPass: PlacementPass | null = null;
+    let passes = 0;
+    let settledNow = false;
+    let frame = 0;
+    const schedule = () => {
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(update);
+    };
     const update = () => {
       if (regionRef.current) {
+        let settled = true;
+        let reverify = false;
         if (selected && actionbarRef.current) {
           const anchor = regionRef.current.getBoundingClientRect();
           setOverlayHeightPx(anchor.height);
@@ -585,6 +642,17 @@ function PendingEditRegion({
             VIEWPORT_GUTTER_REM * rem,
           );
           setActionbarPlacement(placement);
+          const pass = { docked: sheetTop !== null, placement };
+          passes += 1;
+          // Only a pass measured after the previous result's max-height
+          // reached the DOM can confirm it; an earlier one just repeats it.
+          settled =
+            lastPass !== null &&
+            panelElement.style.getPropertyValue(MAX_HEIGHT_VAR) ===
+              appliedMaxHeight(lastPass) &&
+            samePlacementPass(lastPass, pass);
+          reverify = !settled && passes < MAX_PLACEMENT_PASSES;
+          lastPass = pass;
           setPortalPosition(
             placement
               ? { left: placement.left, top: placement.top }
@@ -597,20 +665,48 @@ function PendingEditRegion({
           setPortalPosition(viewportPosition(regionRef.current));
         }
         setPortalReady(true);
+        settledNow = settled;
+        setPlacementSettled(settled);
+        if (reverify) schedule();
       }
     };
-    let frame = 0;
     const scheduleUpdate = () => {
-      cancelAnimationFrame(frame);
-      frame = requestAnimationFrame(update);
+      lastPass = null;
+      passes = 0;
+      // React commits the state below later; reset the attribute now so a
+      // reader never sees `placed` for geometry that is already stale. Already
+      // unsettled means the attribute and state are pending, so skip the render.
+      if (settledNow) {
+        settledNow = false;
+        const node = actionbarRef.current;
+        if (node && node.dataset.placement !== "docked") {
+          node.dataset.placement = "pending";
+        }
+        setPlacementSettled(false);
+        rerender();
+      }
+      schedule();
     };
-    scheduleResizeUpdateRef.current = scheduleUpdate;
+    // Observer-driven updates keep the pass budget until a pass settles, so an
+    // oscillating panel size cannot restart it; once spent they are ignored.
+    const scheduleObserved = () => {
+      if (settledNow) scheduleUpdate();
+      else if (passes < MAX_PLACEMENT_PASSES) schedule();
+    };
+    scheduleResizeUpdateRef.current = scheduleObserved;
     scheduleUpdate();
     window.addEventListener("scroll", scheduleUpdate, true);
     window.addEventListener("resize", scheduleUpdate);
     return () => {
       cancelAnimationFrame(frame);
       scheduleResizeUpdateRef.current = null;
+      // The bookkeeping above restarts with the next run, so the settled state
+      // must too: a reselect or a left/width change would otherwise show
+      // `placed` with the last run's geometry until its first pass.
+      if (actionbarNode && actionbarNode.dataset.placement !== "docked") {
+        actionbarNode.dataset.placement = "pending";
+      }
+      setPlacementSettled(false);
       window.removeEventListener("scroll", scheduleUpdate, true);
       window.removeEventListener("resize", scheduleUpdate);
     };
@@ -1023,7 +1119,7 @@ function PendingEditRegion({
         )
       : null;
   const actionbarStyle: CSSProperties & {
-    "--pending-actionbar-max-height": string;
+    "--pending-actionbar-max-height"?: string;
   } = {
     left: docked
       ? undefined
@@ -1037,8 +1133,22 @@ function PendingEditRegion({
         : 0,
     visibility:
       docked || (portalReady && actionbarPlacement) ? "visible" : "hidden",
-    "--pending-actionbar-max-height": `${actionbarPlacement?.maxHeight ?? 0}px`,
+    "--pending-actionbar-max-height": actionbarPlacement
+      ? `${actionbarPlacement.maxHeight}px`
+      : undefined,
   };
+  const placementState = placementStateOf(
+    docked,
+    placementSettled,
+    actionbarPlacement,
+  );
+  // React only writes the attribute when the prop changes; this re-asserts it
+  // after scheduleUpdate overwrote the DOM node ahead of the commit.
+  useLayoutEffect(() => {
+    if (actionbarRef.current) {
+      actionbarRef.current.dataset.placement = placementState;
+    }
+  });
   const actionPortal =
     selected && isOriginLane && spanIndex === 0 && actionbarHost
       ? createPortal(
@@ -1046,6 +1156,7 @@ function PendingEditRegion({
             ref={actionbarRef}
             className={`pending-actionbar${docked ? " pending-actionbar--docked" : ""}`}
             style={actionbarStyle}
+            data-placement={placementState}
             aria-hidden={
               !docked && (!portalReady || actionbarPlacement === null)
             }
