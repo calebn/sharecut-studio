@@ -283,8 +283,10 @@ tighten:
 
 render:
   default_dialogue_join: fade
-  # Allow jump-scaled harsh-join fades (recommend_boundary_fades) without smearing
-  # typical micro-fades; cut-time micro fades still use inaudible_cuts.micro_fade_ms.
+  # App default for the Default join fade length: the longest fade the automatic join
+  # writers add (fade_joins, Smooth all joins, approve-time). An episode overrides it
+  # (set_join_fade_default_tool); fades set by hand are not capped. Cut-time micro fades
+  # still use inaudible_cuts.micro_fade_ms.
   join_fade_max_ms: 40
   crossfade_curve: tri
 

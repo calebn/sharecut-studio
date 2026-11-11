@@ -205,7 +205,8 @@ flowchart LR
 |----------|-------|
 | When on mix | `timeline_start` … `timeline_end` |
 | From raw | `source_start` … `source_end` |
-| Fades | `fade_in_ms` / `fade_out_ms`, with `fade_in_curve` / `fade_out_curve` (Linear, Equal power, S; picked in the Inspector), drawn as ramps over the waveform; handles at the clip's top corners; dialogue capped at 40 ms by default (the cap shown in the inspector refreshes with every fade save); both fades fit in the clip without overlapping (the clip inspector says when it clamped an entry); a click under 3 px on a handle only selects |
+| Fades | `fade_in_ms` / `fade_out_ms`, with `fade_in_curve` / `fade_out_curve` (Linear, Equal power, S; picked in the Inspector), drawn as ramps over the waveform; handles at the clip's top corners; a fade you set is bounded only by its clip, so a 400 ms dialogue fade stays 400 ms; both fades fit in the clip without overlapping (the clip inspector says when it clamped an entry); a click under 3 px on a handle only selects |
+| Default join fade length | `timeline.join_fade_max_ms`, 0 to 200 ms (null = the app default, 40 ms): the longest fade ShareCut adds by itself at cuts (Fade joins, Smooth all joins, approving cuts). It never shortens a fade that is already longer and never limits a fade you set. Set today with `set_join_fade_default_tool` or `podcast episode set-join-fade-default`; the Settings sheet row follows |
 | Join | `join_in_mode` (a Seam diamond on the lane's top edge at each seam: filled for a cut, hollow for a split; click selects the Seam and opens the Seam action bar and sheet, drag rolls it; a blending crossfade draws a connected endpoint grip in a reserved timeline row) |
 
 ---

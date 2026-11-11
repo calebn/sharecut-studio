@@ -389,9 +389,8 @@ class TimelineService(CutMutatingService):
         return apply_clips_gain(self.ws, self._mutate_clips, gains)
 
     def set_join_fade_default(self, ms: int | None) -> Mapping[str, Any]:
-        return self.ws.mutate(
-            "before set join fade default",
-            "after set join fade default",
+        return self._mutate_clips(
+            "set join fade default",
             lambda p: set_join_fade_default(p, ms, defaults=self.ws.effective_config()),
             operation="set_join_fade_default",
             params={"ms": ms},
