@@ -1238,6 +1238,25 @@ describe("ScrubField commitOnUnmount", () => {
     expect(onCommit).not.toHaveBeenCalled();
   });
 
+  it("with skipUnchanged treats a draft retyped to its opened text as unchanged", async () => {
+    const onCommit = vi.fn();
+    const view = render(
+      <ScrubField
+        label="Offset"
+        value={5.1234}
+        decimals={2}
+        skipUnchanged
+        commitOnUnmount
+        onCommit={onCommit}
+      />,
+    );
+    await userEvent.click(screen.getByRole("spinbutton", { name: "Offset" }));
+    await userEvent.keyboard("{Control>}a{/Control}9");
+    await userEvent.keyboard("{Control>}a{/Control}5.12");
+    view.unmount();
+    expect(onCommit).not.toHaveBeenCalled();
+  });
+
   it("drops a rejected value, and does nothing unless asked", async () => {
     const rejected = mount(true);
     await userEvent.click(screen.getByRole("spinbutton", { name: "Offset" }));
