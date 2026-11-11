@@ -25,6 +25,7 @@ import {
 } from "../../test/renderWithModels";
 import type { PipelineJobSnapshot } from "../../types/pipeline";
 import { ApiError, type ModelNeeded } from "../../utils/apiError";
+import { FrameAlerts } from "./frameAlerts";
 import { JobModelBanner } from "./JobModelBanner";
 
 const runPointerCommand = vi.hoisted(() => vi.fn());
@@ -91,7 +92,9 @@ function BoundedRealBanner({ onLimit }: { onLimit: () => void }) {
     <>
       <button onClick={() => void refresh()}>Refresh model status</button>
       {show ? (
-        <JobModelBanner guestShare={false} />
+        <FrameAlerts>
+          <JobModelBanner guestShare={false} />
+        </FrameAlerts>
       ) : (
         <p>Safety limit reached</p>
       )}
@@ -145,7 +148,9 @@ function failedJob(overrides: Partial<PipelineJobSnapshot> = {}) {
 function mount(guestShare = false) {
   return renderWithLanding(
     <DawProvider projectPath="/tmp/p.json" initialProject={minimalProject()}>
-      <JobModelBanner guestShare={guestShare} />
+      <FrameAlerts>
+        <JobModelBanner guestShare={guestShare} />
+      </FrameAlerts>
     </DawProvider>,
     { status: modelStatus(registryRows()) },
   );
@@ -1325,7 +1330,9 @@ describe("JobModelBanner", () => {
             projectPath="/tmp/p.json"
             initialProject={minimalProject()}
           >
-            <JobModelBanner guestShare={false} />
+            <FrameAlerts>
+              <JobModelBanner guestShare={false} />
+            </FrameAlerts>
           </DawProvider>
         </ModelsContext.Provider>
       </StrictMode>
