@@ -121,6 +121,8 @@
 
 .dv-primary {
   display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
 }
 
 .dv-tx-actions {

@@ -6,6 +6,7 @@ import { StatusRow } from "../../system/StatusRow";
 import { Button, InlineError, SegmentedControl, ToggleButton } from "../../ui";
 import { DeliverSection } from "./DeliverSection";
 import {
+  afterExportOf,
   type DeliverFiles,
   filesOfKinds,
   type NamedExportFiles,
@@ -428,6 +429,10 @@ export function EpisodeFile({
         <ExportButton
           exporting={running}
           blocker={blocker}
+          after={afterExportOf(
+            namedFiles ? undefined : files,
+            exportState.phase === "done",
+          )}
           onExport={onExport}
         />
       )}

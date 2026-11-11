@@ -34,3 +34,31 @@ export function filesOfKinds(
     onStarted: source.onStarted,
   };
 }
+
+export type AfterExport = {
+  access: FileAccess;
+  file: ExportedFile;
+  onReveal?: (file: ExportedFile) => void;
+  onStarted?: (file: ExportedFile) => void;
+};
+
+/** What a finished, current export offers first: its main audio file, revealed or downloaded. */
+export function afterExportOf(
+  source: DeliverFiles | undefined,
+  finished: boolean,
+): AfterExport | undefined {
+  if (!finished || !source) return undefined;
+  const file = source.files.find(
+    (candidate) =>
+      candidate.kind === "audio" &&
+      candidate.current &&
+      (source.access === "reveal" || candidate.href),
+  );
+  if (!file) return undefined;
+  return {
+    access: source.access,
+    file,
+    onReveal: source.onReveal,
+    onStarted: source.onStarted,
+  };
+}
