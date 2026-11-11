@@ -241,7 +241,7 @@ const SURFACE_GESTURES: Record<string, string> = {
   "system/useSwipeReveal.ts":
     "a touch swipe left slides a row over to show the action behind it, and a swipe right or a tap elsewhere closes it; a mouse never swipes, and the row's actions menu holds the same action by key; it moves one row and owns no timeline target",
   "system/useGrab.ts":
-    "the pointer lifecycle the ruler and the marker lane share for a dragged mark: one pointer has hold, the drag starts after the slop, and Escape, a blur, a cancel, a lost capture or the owner leaving end it as not committed; it reports intents and owns no timeline target",
+    "the pointer lifecycle the ruler and the marker lane share for a dragged mark: one pointer has hold, the drag starts after the slop, and Escape, a blur, the page hiding or the tab going to the background, a cancel, a lost capture or the owner leaving end it as not committed; it reports intents and owns no timeline target",
   "system/TrackHeader.tsx":
     "the track header is draggable except on its controls so the column can reorder it by HTML drag; Shift with Up or Down asks the host to do the same by key; it is not a timeline target",
   "system/SuggestionWaveform.tsx":
