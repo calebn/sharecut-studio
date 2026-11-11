@@ -1,4 +1,11 @@
-import { type ReactNode, useEffect, useId, useRef, useState } from "react";
+import {
+  type ReactNode,
+  useCallback,
+  useEffect,
+  useId,
+  useRef,
+  useState,
+} from "react";
 import { useNowSec } from "../hooks/useNowSec";
 import { ModelNeedRow } from "../models";
 import {
@@ -324,6 +331,41 @@ function AttentionGroup({
       group.removeEventListener("focusout", leave);
     };
   }, [onFocusChange]);
+  const leaving = useRef<{ id: string; index: number } | null>(null);
+  useEffect(() => {
+    const mark = leaving.current;
+    if (!mark || rows.some((row) => row.id === mark.id)) return;
+    leaving.current = null;
+    const active = document.activeElement;
+    if (active && active !== document.body) return;
+    const group = groupRef.current;
+    if (!group) return;
+    const next = rows[Math.min(mark.index, rows.length - 1)];
+    const target = next
+      ? group.querySelector<HTMLElement>(
+          `[data-attention-row="${CSS.escape(next.id)}"] button`,
+        )
+      : null;
+    (target ?? group).focus();
+  }, [rows]);
+  const leaveAfter = useCallback(
+    (act: (row: AttentionRow) => void | Promise<void>) =>
+      async (row: AttentionRow) => {
+        const mark = {
+          id: row.id,
+          index: rows.findIndex((r) => r.id === row.id),
+        };
+        leaving.current = mark;
+        try {
+          await act(row);
+        } finally {
+          window.setTimeout(() => {
+            if (leaving.current === mark) leaving.current = null;
+          }, 0);
+        }
+      },
+    [rows],
+  );
   const held = dismissHeld(attention);
   const failure = attention.unreadable
     ? UNREADABLE_NOTE
@@ -386,12 +428,18 @@ function AttentionGroup({
         </div>
       ) : null}
       {rows.map((row) => (
-        <div key={row.id} className="rv-check">
+        <div key={row.id} className="rv-check" data-attention-row={row.id}>
           {row.suggestion && attention.suggestionActions ? (
             <SuggestionRow
               row={row}
               suggestion={row.suggestion}
-              actions={attention.suggestionActions}
+              actions={{
+                ...attention.suggestionActions,
+                onSuggestAgain: leaveAfter(
+                  attention.suggestionActions.onSuggestAgain,
+                ),
+                onDrop: leaveAfter(attention.suggestionActions.onDrop),
+              }}
             />
           ) : (
             <StatusRow

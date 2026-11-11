@@ -1,5 +1,6 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { useState } from "react";
 import { describe, expect, it, vi } from "vitest";
 import { CUT_ANYWAY_REASON } from "../inspector/TranscriptRefineRecovery";
 import { reviewContent } from "../storybook/reviewContent";
@@ -590,6 +591,123 @@ describe("ReviewQueue", () => {
         await user.click(screen.getByRole("button", { name: names[1]! }));
         expect(wired.onSuggestAgain).toHaveBeenCalledWith(rows[0]);
         await expectNoA11yViolations(container);
+      });
+
+      describe("focus after a row leaves", () => {
+        const cutAt = (id: string, start: number) =>
+          attentionRowsOf(
+            [
+              offlineConflict({
+                code: "range_changed",
+                reason: "Selected audio changed. Select the range again.",
+                command: {
+                  command_id: id,
+                  type: DocumentCommand.EditSelectedRange,
+                  payload: {
+                    action: "cut",
+                    targets: [
+                      {
+                        intervals: [{ start, end: start + 2 }],
+                        track_ids: ["t"],
+                      },
+                    ],
+                  },
+                },
+              }),
+            ],
+            true,
+          )[0]!;
+
+        function Host({
+          ids,
+          keep = false,
+          pending = 0,
+        }: {
+          ids: string[];
+          keep?: boolean;
+          pending?: number;
+        }) {
+          const [rows, setRows] = useState(() =>
+            ids.map((id, i) => cutAt(id, 60 * (i + 1))),
+          );
+          const leave = async (row: { id: string }) => {
+            if (!keep) setRows((now) => now.filter((r) => r.id !== row.id));
+          };
+          return (
+            <ReviewQueue
+              items={[{ id: "m", kind: "comment", at: 5, savedSeconds: 0 }]}
+              content={reviewContent}
+              selectedId={null}
+              filter="all"
+              guest
+              attention={attention({
+                rows,
+                pending,
+                suggestionActions: {
+                  onHear: vi.fn(),
+                  onSuggestAgain: leave,
+                  onDrop: leave,
+                },
+              })}
+              onFilter={vi.fn()}
+              onSelect={vi.fn()}
+            />
+          );
+        }
+
+        const drops = () => screen.getAllByRole("button", { name: /^Drop it/ });
+
+        it("moves to the next row's first button", async () => {
+          const user = userEvent.setup();
+          render(<Host ids={["a", "b", "c"]} />);
+          await user.click(drops()[0]!);
+          expect(document.activeElement).toBe(
+            screen.getAllByRole("button", { name: /^Hear your cut/ })[0],
+          );
+          expect(
+            screen.getByRole("button", { name: /^Hear your cut at 2:00/ }),
+          ).toBe(document.activeElement);
+        });
+
+        it("moves to the previous row when the last one leaves", async () => {
+          const user = userEvent.setup();
+          render(<Host ids={["a", "b"]} />);
+          await user.click(
+            screen.getByRole("button", {
+              name: /^Suggest again here, your cut at 2:00/,
+            }),
+          );
+          expect(document.activeElement).toBe(
+            screen.getByRole("button", { name: /^Hear your cut at 1:00/ }),
+          );
+        });
+
+        it("moves to the group when other lines remain", async () => {
+          const user = userEvent.setup();
+          render(<Host ids={["a"]} pending={2} />);
+          await user.click(drops()[0]!);
+          expect(document.activeElement).toBe(
+            screen.getByRole("group", { name: /^Needs attention/ }),
+          );
+        });
+
+        it("moves to the queue progress line when the group goes", async () => {
+          const user = userEvent.setup();
+          render(<Host ids={["a"]} />);
+          await user.click(drops()[0]!);
+          expect(
+            screen.queryByRole("group", { name: /^Needs attention/ }),
+          ).toBeNull();
+          expect(document.activeElement).toHaveClass("rv-progress");
+        });
+
+        it("leaves focus on the button when the row is kept", async () => {
+          const user = userEvent.setup();
+          render(<Host ids={["a", "b"]} keep />);
+          const first = drops()[0]!;
+          await user.click(first);
+          expect(document.activeElement).toBe(first);
+        });
       });
 
       it("keeps the generic row for a conflict with no suggestion", () => {
