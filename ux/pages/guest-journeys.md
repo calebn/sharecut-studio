@@ -47,11 +47,11 @@ The comment fields fit narrow phones without horizontal page scrolling.
 Commenters and Editors turn on transcript **Select** and pick words (for
 example a stray "Um."), or select a timeline passage, then choose the intended
 occurrence when it repeats. A Commenter sees **Play full mix, Suggest cut,
-Suggest mute, Comment, Bounce**; the suggestion leaves clips unchanged until the
+Suggest mute, Comment**; the suggestion leaves clips unchanged until the
 host or an Editor selects the pending overlay and approves it. An Editor sees **Cut** and
 **Mute** instead, and they apply at once, exactly as for the host. Either way one
 History Undo restores the whole action. Disabled actions explain permissions;
-Bounce is host-only. Changed selected audio requires reselection.
+Export is host-only. Changed selected audio requires reselection.
 
 On a lane with multiple takes, transcript selection starts from the take shown.
 Two takes can both have word zero. A session-scoped cut can still ripple across

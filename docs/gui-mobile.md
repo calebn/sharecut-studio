@@ -288,7 +288,7 @@ native menus keep the toast ordering in
 | **Prepare** | Import, pipeline jobs, vocabulary | Get audio ready |
 | **Edit** | Timeline surface (playhead that starts at 0 and holds the center once passed; Ferrite lane gutter; eye popover) and Script surface (transcript), switched by an icon pair | Spatial edit, word fix, suggest cut |
 | **Review** | Queue (guests: Comments) | Guest review and comments, approve or reject edits |
-| **Deliver** | Export, Bounce, Listen link | Hand off |
+| **Deliver** | Export, Listen link | Hand off |
 
 Guests see only the stages their role allows (`stagesForRole`): a Commenter link is Review alone and has no Stage bar.
 
@@ -384,7 +384,7 @@ Navigation keeps focus on the chosen nav control. Project, follow, destination,
 selection, or range changes invalidate Mix permanently; returning to More does
 not reopen it. Mix and Inspector share one keyed sheet. Gestures closes Mix
 before opening its existing dialog. Other global dialogs also
-invalidate Mix, and so does Bounce, which goes to Deliver. Committed writes continue through the shared
+invalidate Mix, and so does Export options, which the Mix sheet yields to. Committed writes continue through the shared
 mix queue after closing. A swipe overlay remains deferred.
 
 `e2e-compat/phone-mix.spec.ts` checks pointer opening after Commands and shortcuts has

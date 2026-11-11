@@ -17,7 +17,7 @@ export async function bounceAudio(
   opts?: { signal?: AbortSignal },
 ): Promise<string[]> {
   const job = await startBounceJob(projectPath, body);
-  return followExportJob(job.id, "Bounce failed", opts);
+  return followExportJob(job.id, "Export failed", opts);
 }
 
 export async function startBounceJob(
@@ -56,13 +56,13 @@ export async function startBounceJob(
       status: "queued",
       current: null,
       total: null,
-      message: "Bounce",
+      message: "Export",
       error: null,
       elapsed_sec: 0,
       steps: [],
     };
   }
-  throw new Error("Bounce did not return a job");
+  throw new Error("Export did not return a job");
 }
 export async function exportDeliverables(
   projectPath: string,
