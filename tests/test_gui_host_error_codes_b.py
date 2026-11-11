@@ -145,7 +145,7 @@ def test_share_routes_refusals(
         def create_for_host(self, **_k: object) -> None:
             raise self.exc
 
-        def revoke(self, _t: str) -> None:
+        def revoke(self, _t: str, **_k: object) -> None:
             raise self.exc
 
         def create_record_room(self, **_k: object) -> None:
@@ -154,7 +154,13 @@ def test_share_routes_refusals(
         def replace_closed_record_invite(self, *_a: object, **_k: object) -> None:
             raise self.exc
 
-        def revoke_room(self, _s: str) -> None:
+        def revoke_room(self, _s: str, **_k: object) -> None:
+            raise self.exc
+
+        def restore(self, _t: str) -> None:
+            raise self.exc
+
+        def restore_room(self, _s: str) -> None:
             raise self.exc
 
     monkeypatch.setattr(shares, "ShareService", FakeShares)
@@ -189,6 +195,26 @@ def test_share_routes_refusals(
     )
     FakeShares.exc = KeyError("room")
     _check(client.post("/api/shares/rooms/r1/revoke", json=body), 404, "record_room_not_found")
+
+    from podcast_mcp.services.collaboration import (
+        RecordRoomConflictError,
+        RestoreWindowClosedError,
+        ShareExpiredError,
+    )
+
+    restore, restore_room = "/api/shares/tok/restore", "/api/shares/rooms/r1/restore"
+    FakeShares.exc = RestoreWindowClosedError()
+    _check(client.post(restore, json=body), 410, "restore_window_closed")
+    _check(client.post(restore_room, json=body), 410, "restore_window_closed")
+    FakeShares.exc = ShareExpiredError("the link expired")
+    _check(client.post(restore, json=body), 410, "share_expired")
+    _check(client.post(restore_room, json=body), 410, "share_expired")
+    FakeShares.exc = RecordRoomConflictError("another room is live")
+    _check(client.post(restore_room, json=body), 409, "record_room_conflict")
+    FakeShares.exc = KeyError("tok")
+    _check(client.post(restore, json=body), 404, "share_not_found")
+    FakeShares.exc = KeyError("room")
+    _check(client.post(restore_room, json=body), 404, "record_room_not_found")
 
 
 # ---- speaker.py -----------------------------------------------------------------------------

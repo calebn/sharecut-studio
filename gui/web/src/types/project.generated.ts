@@ -358,12 +358,30 @@ export interface RecordRoomCreateRequest {
   land_first?: boolean;
 }
 
+export interface RecordRoomRestoreRequest {
+  path: string;
+}
+
 export interface RecordRoomRevokeRequest {
   path: string;
+  restorable?: boolean;
 }
 
 export interface RenderPreviewRequest {
   path: string;
+}
+
+export interface RoomRestoreResponse {
+  session_id: string;
+  restored: Array<string>;
+}
+
+export interface RoomRevokeResponse {
+  session_id: string;
+  revoked: Array<string>;
+  restorable_until?: string | null;
+  /** Server-authoritative milliseconds left to restore. */
+  restore_ms?: number | null;
 }
 
 /** Room tone tiled under a muted span: this stretch of ``source_id``'s audio. ``source_id`` names a ``sources[]`` entry (a recorded room-tone bed); ``None`` is air sampled from the track's own media. */
@@ -413,8 +431,26 @@ export interface ShareCreateRequest {
   freeze?: boolean;
 }
 
+export interface ShareRestoreRequest {
+  path: string;
+}
+
+export interface ShareRestoreResponse {
+  restored: boolean;
+  token: string;
+}
+
 export interface ShareRevokeRequest {
   path: string;
+  restorable?: boolean;
+}
+
+export interface ShareRevokeResponse {
+  revoked: boolean;
+  token: string;
+  restorable_until?: string | null;
+  /** Server-authoritative milliseconds left to restore. */
+  restore_ms?: number | null;
 }
 
 /** ``[start_s, end_s)`` in source-media seconds. */
