@@ -150,11 +150,6 @@ def test_get_project_unknown_phase(local, minimal_project):
     assert res.headers[CODE] == "projection_unknown"
 
 
-def test_pending_cut_suggestion_unknown_edit(local, minimal_project):
-    res = local.get("/api/pending-edits/nope/cut-suggestion", params={"path": str(minimal_project)})
-    _assert(res, 404, "pending_edit_not_found")
-
-
 def test_waveform_snap_invalid(local, minimal_project):
     res = local.get(
         "/api/waveform-snap",

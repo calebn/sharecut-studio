@@ -133,21 +133,11 @@ def _notched(tmp_path, *, foreign=False):
     return result
 
 
-def test_real_optimizer_preview_update_and_saved_consumption_share_settled_edges(
-    tmp_path, monkeypatch
-):
+def test_real_optimizer_update_and_saved_consumption_share_settled_edges(tmp_path, monkeypatch):
     _enabled(monkeypatch, optimize=True)
     ws = workspace(_notched(tmp_path))
     service = EditService(ws)
-    before = files(tmp_path)
 
-    suggested = service.preview_pending_cut("notched")
-
-    assert suggested.edit_id == "notched"
-    assert (suggested.original_start, suggested.original_end) == (1, 2)
-    assert (suggested.optimized.start, suggested.optimized.end) == pytest.approx((1.011, 2.011))
-    assert suggested.optimized.details["strategy"] == "word+waveform"
-    assert files(tmp_path) == before
     updated = service.update_pending("notched", start=1, end=2, snap=True)
     assert (updated.id, updated.boundary_mode) == ("notched", "vocal_transcript_guided")
     assert (updated.start, updated.end) == pytest.approx((1.011, 2.011))
@@ -176,8 +166,6 @@ def test_real_optimizer_expansion_into_foreign_playback_holds_without_saved_chan
     before_files = files(tmp_path)
     before_model = ws.project.model_dump(mode="json")
     service = EditService(ws)
-    suggestion = service.preview_pending_cut("notched")
-    assert (suggestion.optimized.start, suggestion.optimized.end) == pytest.approx((1.011, 2.011))
 
     if delivery == "update":
         with pytest.raises(CodedError) as held:

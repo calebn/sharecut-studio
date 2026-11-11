@@ -15170,50 +15170,6 @@
         }
       }
     },
-    "/api/review/{token}/daw/pending-edits/{edit_id}/cut-suggestion": {
-      "get": {
-        "parameters": [
-          {
-            "in": "path",
-            "name": "token",
-            "required": true,
-            "schema": {
-              "title": "Token",
-              "type": "string"
-            }
-          },
-          {
-            "in": "path",
-            "name": "edit_id",
-            "required": true,
-            "schema": {
-              "title": "Edit Id",
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {}
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        }
-      }
-    },
     "/api/review/{token}/daw/pending-preview": {
       "get": {
         "description": "Listen-first Current / Suggested / A/B WAV, ``pad_sec`` either side (``play`` + ``view``).\n\nThe ``X-Preview-*`` headers say where the file sits, as on the host route.",

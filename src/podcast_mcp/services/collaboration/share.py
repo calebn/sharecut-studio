@@ -1390,16 +1390,6 @@ def share_daw_waveform_tiles(
     return tile_bytes(project_path, ref, key, level, start, count)
 
 
-def share_pending_cut_suggestion(token: str, edit_id: str) -> dict[str, Any]:
-    """Read a complete pending source cut for a guest who may retime pending edits."""
-    from dataclasses import asdict
-
-    from podcast_mcp.services.document import EditService
-
-    _row, ws = require_share_command(token, "UpdatePendingEdit")
-    return asdict(EditService(ws).preview_pending_cut(edit_id))
-
-
 def share_daw_waveform_snap(
     token: str,
     *,

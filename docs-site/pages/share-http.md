@@ -53,7 +53,6 @@ using MCP; REST `/comments*` is the HTTP twin for clients that do not use docume
 | `GET` | `…/daw/export/status` | `Editor` | Read the share project's export jobs (fixed copy, no host paths) |
 | `POST` | `…/daw/media/upload` | `Editor` | Chunked audio into host raw/ |
 | `GET` | `…/daw/meta` | `view` | mtime/size + document server_seq for poll reload (server_seq omitted when document.db is unreadable) |
-| `GET` | `…/daw/pending-edits/{edit_id}/cut-suggestion` | `Commenter or Editor` | Read-only full-source pending cut suggestion; no-store; read rate class |
 | `GET` | `…/daw/pending-preview` | `play + view` | Listen-first Current/Suggested/A/B WAV (not host speakers) |
 | `GET` | `…/daw/pending-preview-image` | `play + view` | Waveform or spectrogram of the listen-first extract |
 | `GET` | `…/daw/pipeline/jobs/{job_id}` | `Editor` | Read one job of this project; any other job id is 404 |

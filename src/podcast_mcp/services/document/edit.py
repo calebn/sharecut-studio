@@ -36,9 +36,7 @@ from podcast_mcp.edits.cut_speech import (
 from podcast_mcp.edits.decisions import (
     AskedEdits,
     HeldEdit,
-    PendingCutSuggestion,
     PendingEditBaseline,
-    preview_pending_cut_range,
     require_pending_edit_baseline,
     update_pending_edit,
 )
@@ -561,11 +559,6 @@ class EditService(CutMutatingService):
             return reject_edits(p, ids)
 
         return self.ws.mutate("before reject edits", "after reject edits", mutate)
-
-    def preview_pending_cut(self, edit_id: str) -> PendingCutSuggestion:
-        return preview_pending_cut_range(
-            self.ws.project, edit_id, defaults=self.ws.effective_config()
-        )
 
     def update_pending(
         self,
