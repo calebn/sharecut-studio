@@ -45,14 +45,30 @@ function expectShellFit(width: number) {
   const main = shell.querySelector("main");
   if (!main) throw new Error("Frame has no main region");
   const rect = shell.getBoundingClientRect();
-  expect(rect.left).toBeGreaterThanOrEqual(0);
-  expect(rect.right).toBeLessThanOrEqual(width);
-  expect(shell.scrollWidth).toBeLessThanOrEqual(shell.clientWidth);
-  expect(rect.height).toBe(HEIGHT);
-  expect(main.getBoundingClientRect().height).toBeGreaterThan(200);
-  expect(document.querySelectorAll("main, [role=main]")).toHaveLength(1);
+  const at = (what: string) => `${width}px wide: ${what}`;
+  expect(
+    rect.left,
+    at("frame starts inside the viewport"),
+  ).toBeGreaterThanOrEqual(0);
+  expect(rect.right, at("frame ends inside the viewport")).toBeLessThanOrEqual(
+    width,
+  );
+  expect(
+    shell.scrollWidth,
+    at("frame does not scroll sideways"),
+  ).toBeLessThanOrEqual(shell.clientWidth);
+  expect(rect.height, at("frame fills the viewport height")).toBe(HEIGHT);
+  expect(
+    main.getBoundingClientRect().height,
+    at("main region is taller than 200px"),
+  ).toBeGreaterThan(200);
+  expect(
+    document.querySelectorAll("main, [role=main]"),
+    at("exactly one main region"),
+  ).toHaveLength(1);
   expect(
     document.querySelectorAll("h1, [role=heading][aria-level='1']"),
+    at("exactly one level-1 heading"),
   ).toHaveLength(1);
 }
 
@@ -239,17 +255,20 @@ for (const theme of THEMES) {
               await settle();
             }
             if (SHELL_TITLES.includes(base.title)) expectShellFit(width);
-            expect(document.documentElement.scrollWidth).toBeLessThanOrEqual(
-              width,
-            );
+            expect(
+              document.documentElement.scrollWidth,
+              `${width}px wide: page does not scroll sideways`,
+            ).toBeLessThanOrEqual(width);
             const results = await axe.run(document.documentElement, {
               runOnly: { type: "tag", values: AXE_TAGS },
             });
             expect(
               results.violations,
-              JSON.stringify(results.violations, null, 2),
+              `${width}px wide: ${JSON.stringify(results.violations, null, 2)}`,
             ).toEqual([]);
-            expect(errors).toEqual([]);
+            expect(errors, `${width}px wide: console or load errors`).toEqual(
+              [],
+            );
           }
         } finally {
           window.removeEventListener("error", onResourceError, true);
