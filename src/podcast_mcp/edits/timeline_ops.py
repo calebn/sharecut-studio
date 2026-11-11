@@ -91,6 +91,8 @@ from podcast_mcp.engines.transcript_sync import (
     timeline_removes_by_transcript,
 )
 from podcast_mcp.models import (
+    CLIP_GAIN_MAX_DB,
+    CLIP_GAIN_MIN_DB,
     Clip,
     ClipBleedRestore,
     ClipJoinMode,
@@ -844,6 +846,7 @@ def copy_segment(
             "source_id": clip.source_id,
             "fade_in_ms": clip.fade_in_ms,
             "fade_out_ms": clip.fade_out_ms,
+            **({"gain_db": clip.gain_db} if clip.gain_db else {}),
             "join_in_mode": clip.join_in_mode.value,
             "mute_regions": mute_regions_payload(clip.mute_regions),
             **nonempty_off_speaker_regions_payload(clip),
@@ -891,6 +894,12 @@ def _paste_source_limit(
         return source.duration_sec if source else None
     track = project.track_by_id(track_id)
     return track.media.duration_sec if track and track.media else None
+
+
+def _pasted_gain_db(raw: object) -> float:
+    if isinstance(raw, bool) or not isinstance(raw, int | float) or not math.isfinite(raw):
+        return 0.0
+    return round(min(CLIP_GAIN_MAX_DB, max(CLIP_GAIN_MIN_DB, float(raw))), 2)
 
 
 def _clips_from_paste(project: EpisodeProject, extracts: list[dict]) -> dict[str, list[Clip]]:
@@ -969,6 +978,7 @@ def _clips_from_paste(project: EpisodeProject, extracts: list[dict]) -> dict[str
                 source_id=None if source_id is None else str(source_id),
                 fade_in_ms=int(raw.get("fade_in_ms", 0) or 0),
                 fade_out_ms=int(raw.get("fade_out_ms", 0) or 0),
+                gain_db=_pasted_gain_db(raw.get("gain_db")),
                 join_in_mode=join_mode,
                 mute_regions=mute_regions_overlapping(parsed_mutes, src_start, src_end),
                 off_speaker_mute_regions=automatic,
@@ -1075,6 +1085,36 @@ def set_clips_fade(
         operation="set_clips_fade",
         affected_tracks=sorted({by_id[cid].track_id for cid, _, _ in fades}),
     )
+
+
+def set_clip_gain(project: EpisodeProject, clip_id: str, gain_db: float) -> dict:
+    clip = next((c for c in project.clips if c.id == clip_id), None)
+    if not clip:
+        raise CodedValueError(f"unknown clip_id: {clip_id!r}", code="clip_not_found")
+    clip.gain_db = _clamped_gain_db(gain_db)
+    return change_summary(project, operation="set_clip_gain", affected_tracks=[clip.track_id])
+
+
+def set_clips_gain(project: EpisodeProject, gains: Sequence[tuple[str, float]]) -> dict:
+    """Clamp and set every ``(clip_id, gain_db)``; an unknown clip changes none."""
+
+    by_id = {c.id: c for c in project.clips}
+    missing = next((cid for cid, _ in gains if cid not in by_id), None)
+    if missing is not None:
+        raise CodedValueError(f"unknown clip_id: {missing!r}", code="clip_not_found")
+    for cid, gain_db in gains:
+        by_id[cid].gain_db = _clamped_gain_db(gain_db)
+    return change_summary(
+        project,
+        operation="set_clips_gain",
+        affected_tracks=sorted({by_id[cid].track_id for cid, _ in gains}),
+    )
+
+
+def _clamped_gain_db(value: float) -> float:
+    if not math.isfinite(value):
+        raise CodedValueError("gain_db must be a finite number", code="invalid_clip_gain")
+    return round(min(CLIP_GAIN_MAX_DB, max(CLIP_GAIN_MIN_DB, float(value))), 2)
 
 
 def _write_trim_clip_edge(
@@ -1321,6 +1361,7 @@ def list_clips(
                 "timeline_end": c.timeline_end,
                 "fade_in_ms": c.fade_in_ms,
                 "fade_out_ms": c.fade_out_ms,
+                **({"gain_db": c.gain_db} if c.gain_db else {}),
                 "join_in_mode": c.join_in_mode.value,
                 **join_render_fields(prev, c, project, mutes),
                 "source_id": c.source_id,

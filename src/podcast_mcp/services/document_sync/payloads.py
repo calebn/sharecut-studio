@@ -25,6 +25,7 @@ from pydantic import (
 
 from podcast_mcp.edits.bleed_restore_targets import BleedRestoreTarget
 from podcast_mcp.edits.clip_fades import ClipFadeBaseline
+from podcast_mcp.edits.clip_gain import ClipGainBaseline
 from podcast_mcp.edits.comments import COMMENT_BODY_MAX
 from podcast_mcp.edits.decisions import PendingEditBaseline
 from podcast_mcp.edits.strip_silence import (
@@ -33,6 +34,8 @@ from podcast_mcp.edits.strip_silence import (
 )
 from podcast_mcp.edits.timeline_ops import DEFAULT_SHORTEN_GAP_SEC
 from podcast_mcp.models.episode import (
+    CLIP_GAIN_MAX_DB,
+    CLIP_GAIN_MIN_DB,
     FADER_MAX_DB,
     FADER_MIN_DB,
     ClipJoinMode,
@@ -305,6 +308,40 @@ class SetClipsFadePayload(BaseModel):
         if len({f.clip_id for f in fades}) != len(fades):
             raise ValueError("fades must name each clip once")
         return fades
+
+
+class SetClipGainPayload(BaseModel):
+    clip_id: str
+    gain_db: float = Field(ge=CLIP_GAIN_MIN_DB, le=CLIP_GAIN_MAX_DB, allow_inf_nan=False)
+    expected: ClipGainBaseline = Field(
+        description="The saved gain_db captured when the edit began. A changed value "
+        "returns clip_gain_changed without changing gain, history, or the journal. Read the "
+        "clip's current gain_db with podcast edit list-clips."
+    )
+
+
+class ClipGainTarget(BaseModel):
+    clip_id: str
+    gain_db: float = Field(allow_inf_nan=False)
+    expected: ClipGainBaseline = Field(
+        description="The saved gain_db of this clip captured when the edit began."
+    )
+
+
+class SetClipsGainPayload(BaseModel):
+    gains: list[ClipGainTarget] = Field(
+        min_length=1,
+        description="One absolute gain_db target per clip, each clamped to the -60 to +12 dB "
+        "range. Any clip whose saved gain differs from its expected value returns "
+        "clip_gain_changed and nothing changes. One history entry covers every clip.",
+    )
+
+    @field_validator("gains")
+    @classmethod
+    def _distinct_clips(cls, gains: list[ClipGainTarget]) -> list[ClipGainTarget]:
+        if len({g.clip_id for g in gains}) != len(gains):
+            raise ValueError("gains must name each clip once")
+        return gains
 
 
 class TrimClipEdgePayload(BaseModel):
@@ -1144,6 +1181,16 @@ class SetClipsFadeCommand(DocumentCommandEnvelope):
     payload: SetClipsFadePayload
 
 
+class SetClipGainCommand(DocumentCommandEnvelope):
+    type: Literal["SetClipGain"] = "SetClipGain"
+    payload: SetClipGainPayload
+
+
+class SetClipsGainCommand(DocumentCommandEnvelope):
+    type: Literal["SetClipsGain"] = "SetClipsGain"
+    payload: SetClipsGainPayload
+
+
 class TrimClipEdgeCommand(DocumentCommandEnvelope):
     type: Literal["TrimClipEdge"] = "TrimClipEdge"
     payload: TrimClipEdgePayload
@@ -1524,6 +1571,8 @@ DocumentCommandBody = Annotated[
     | RestoreClipBleedCommand
     | SetClipFadeCommand
     | SetClipsFadeCommand
+    | SetClipGainCommand
+    | SetClipsGainCommand
     | TrimClipEdgeCommand
     | RollClipJoinCommand
     | SetJoinModeCommand

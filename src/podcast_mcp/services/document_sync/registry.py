@@ -308,6 +308,22 @@ COMMANDS: Mapping[str, CommandSpec] = MappingProxyType(
             mcp=named("set_clips_fade_tool"),
             cli=named(GENERIC_CLI),
         ),
+        "SetClipGain": CommandSpec(
+            payload=p.SetClipGainPayload,
+            handler=edits.set_clip_gain,
+            guest=ReviewRole.EDITOR,
+            gui=gap("Inspector row lands in the follow-up PR"),
+            mcp=named("set_clip_gain_tool"),
+            cli=named(GENERIC_CLI),
+        ),
+        "SetClipsGain": CommandSpec(
+            payload=p.SetClipsGainPayload,
+            handler=edits.set_clips_gain,
+            guest=ReviewRole.EDITOR,
+            gui=gap("Inspector row lands in the follow-up PR"),
+            mcp=named("set_clips_gain_tool"),
+            cli=named(GENERIC_CLI),
+        ),
         "TrimClipEdge": CommandSpec(
             payload=p.TrimClipEdgePayload,
             handler=edits.trim_clip_edge,

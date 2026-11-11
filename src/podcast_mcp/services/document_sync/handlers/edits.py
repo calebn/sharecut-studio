@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from contextlib import nullcontext
 from typing import Any
 
 from podcast_mcp.edits.audio_check_override import mcp_host_override
 from podcast_mcp.edits.bleed_restore_targets import BleedRestoreTarget
 from podcast_mcp.edits.clip_fades import ClipFadeBaseline
+from podcast_mcp.edits.clip_gain import ClipGainBaseline
 from podcast_mcp.edits.cut_speech import CutSpeechConfirmation
 from podcast_mcp.edits.decisions import AskedEdits, HeldEdit, PendingEditBaseline
 from podcast_mcp.models import CutIntent, EditMode
@@ -118,6 +120,18 @@ def set_clip_fade(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
         int(p["fade_in_ms"]),
         int(p["fade_out_ms"]),
         expected=ClipFadeBaseline(**p["expected"]),
+    )
+
+
+def set_clip_gain(ws: ProjectWorkspace, p: dict[str, Any]) -> Mapping[str, Any]:
+    return TimelineService(ws).set_clip_gain(
+        p["clip_id"], float(p["gain_db"]), expected=ClipGainBaseline(**p["expected"])
+    )
+
+
+def set_clips_gain(ws: ProjectWorkspace, p: dict[str, Any]) -> Mapping[str, Any]:
+    return TimelineService(ws).set_clips_gain(
+        [(g["clip_id"], float(g["gain_db"]), ClipGainBaseline(**g["expected"])) for g in p["gains"]]
     )
 
 

@@ -40,6 +40,8 @@ _CLIP_OPS = frozenset(
     {
         "set_clip_fade",
         "set_clips_fade",
+        "set_clip_gain",
+        "set_clips_gain",
         "set_clip_join_mode",
         "set_clip_join",
         "fade_joins",
