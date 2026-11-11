@@ -635,7 +635,7 @@ hydrates; "transcribe" is the browser rendering only, because live ASR is
 server-side (`make e2e-slow`). The Review queue opens with no suggestions to decide. A
 transcript word is corrected and undone with Mod+Z. A viewer review share
 plays the per-track MP3 proxies through Web Audio (a 200 `audio/mpeg` chunk on
-Play). The Bounce section on Deliver passes full-page axe on WebKit (`expectPageAxeClean`) and
+Play). The palette command Export full mix
 writes one non-silent WAV under `export/bounces/` — its own result copy goes
 through `runAnnouncedJob` with pre-POST reservation, exact-ID binding before
 Activity seeding, and a verified outcome handoff to `finishJobResult`. The frame's

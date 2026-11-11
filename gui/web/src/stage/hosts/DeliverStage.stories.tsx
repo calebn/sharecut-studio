@@ -63,7 +63,7 @@ const meta: Meta<StageHostProps> = {
     docs: {
       description: {
         component:
-          "The Deliver stage host: Readiness, Chapters and Clips with their edits saved to the project, the project's export formats with Export, its progress and its outcome, the Bounce section with its progress and outcome, then the Listen link entry point. Host only.\n\n**Motion.** None. A readiness row changes state in one frame when its cause is fixed.",
+          "The Deliver stage host: Readiness, Chapters and Clips with their edits saved to the project, the project's export formats with Export, its progress and its outcome, the exported files it lists (including exports of a selection), then the Listen link entry point. Host only.\n\n**Motion.** None. A readiness row changes state in one frame when its cause is fixed.",
       },
     },
   },

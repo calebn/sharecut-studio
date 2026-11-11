@@ -128,7 +128,7 @@ to UX partners; for UI copy, this table wins.
 | Overlapping speech | Two or more people talking at once in a split. It plays once, on the track of the speaker heard most, and the dialog says how long it lasts | "crosstalk" and "bleed" in UI copy (bleed is microphone leakage, a different thing) |
 | Listen for | The result of a split names what to listen to before relying on the tracks: overlapping speech and unsure stretches | "warnings" |
 | Unsure stretch | Time in a split where the speaker is unclear. The dialog says how long and asks the host to listen there before relying on the tracks | "low confidence" in UI copy (that term is for transcript words) |
-| Bounce | Render the current mix | "export mix" |
+| Export (a mix or a selection) | Render the current mix or a selected range in place. Files are "Unmastered export"; the palette command is "Export full mix". Bounce is the developer word (MCP `bounce_audio_tool`, `podcast pipeline bounce`) | "Bounce" or "export mix" in UI copy |
 | Deliverables | Mastered export set | "final export" |
 | Project default | Deliver's loudness choice that uses the project's configured master for the next Episode file export | "Podcast" for the configured default |
 | Unavailable export format | A previously selected format no longer offered by the current catalog. Episode file keeps its toggle checked and removable, labels it "unavailable", and omits the size estimate. Export explains "Remove unavailable formats before exporting." | Silently removing the choice or exporting only the remaining files |
@@ -615,6 +615,8 @@ item lives in `docs/contributing.md`. `Dialog` has no `danger` variant;
 shipped at the port; #1031 shipped it. The adjacent MCP note shipped in #1027.
 
 ## Changelog
+
+- 2026-11-11 Bounce is now Export in the UI. Export runs in place from the Edit action bar and `Mod+E` exports a selected range in place; the palette has **Export full mix**. Deliver lists the files as **Exports of a selection**, labelled **Unmastered export**. The Deliver Bounce section is gone.
 
 - 2026-11-08 Job receipt failures use the existing failure row and the shared
   live region. Coincident outcomes keep their own copy, and only verified

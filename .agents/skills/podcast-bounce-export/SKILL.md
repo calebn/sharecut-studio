@@ -9,8 +9,11 @@ description: >-
 
 # Bounce export (stems / range)
 
-Lightweight mixdown — **not** the ship-to-host path. Same tooling as the **Bounce**
-section of Sharecut Studio's Deliver stage (palette: Bounce…; Mod+E with one range selected opens it with that range).
+Lightweight mixdown — **not** the ship-to-host path. Same tooling as **Export** in
+Sharecut Studio's Edit action bar, which runs in place (palette: Export full mix;
+Mod+E exports a selected range in place, otherwise it opens Deliver). The files are
+listed on Deliver as "Exports of a selection" (label "Unmastered export"). The MCP
+`bounce_audio_tool` and `podcast pipeline bounce` are unchanged.
 
 ## When to use
 
@@ -42,14 +45,12 @@ Outputs land in `{workspace}/export/bounces/`.
 
 ## Notes
 
-- Deliver keeps the starting Bounce controls reachable while Transcript loads.
-  The whole Transcript section follows Bounce, Chapters and Clips in the current
-  desktop and phone flows; native scrolling stays under the reader's control.
-  Leaving the stage does not stop the job.
+- Export runs in place from the Edit action bar, with progress and Cancel, and
+  the toast offers Download. Leaving the stage does not stop the job.
 
-- Studio selected-range Bounce opens the normal configuration with a fixed exact
-  target. It exports selected occurrences/lanes and preserves silent gaps between
-  islands; a changed target rejects before output. Share guests cannot export it.
+- Studio selected-range Export uses a fixed exact target. It exports selected
+  occurrences/lanes and preserves silent gaps between islands; a changed target
+  rejects before output. Share guests cannot export it.
 
 - Omit `track_ids` / `--tracks` → all **non-muted** mixable tracks with media
 - Renders stems into a **private bounce temp dir** (does not overwrite shared
