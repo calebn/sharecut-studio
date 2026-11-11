@@ -16566,13 +16566,21 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "items": {
+                    "type": "number"
+                  },
+                  "type": "array"
+                }
               }
             },
-            "description": "Successful Response"
+            "description": "512 loudness values 0..1, or [] when unavailable"
           },
           "403": {
             "description": "The link does not allow playback"
+          },
+          "404": {
+            "description": "Unknown or expired link, or a version this link does not play"
           },
           "422": {
             "content": {

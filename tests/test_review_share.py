@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import struct
+import subprocess
 import time
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -2923,6 +2924,70 @@ def test_peaks_ffmpeg_runtime_error_is_a_decode_error_not_cached_and_retried(
     again = client.get(f"/api/review/{token}/peaks").json()
     assert len(again) == PEAK_COUNT
     assert len(calls) == 1
+
+
+class _OddDecodeError(Exception):
+    pass
+
+
+@pytest.mark.parametrize(
+    "make_exc",
+    [
+        lambda: subprocess.CalledProcessError(1, ["ffprobe"]),
+        lambda: subprocess.TimeoutExpired(["ffprobe"], 120),
+        lambda: _OddDecodeError("unexpected"),
+    ],
+    ids=["called-process-error", "timeout-expired", "arbitrary-exception"],
+)
+def test_peaks_any_decode_exception_gives_empty_uncached(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch, make_exc
+):
+    ws, ver, token = _peaks_published(minimal_project, sample_wav)
+    from podcast_mcp.services.collaboration import review_peaks
+
+    def failing(*_a, **_k):
+        raise make_exc()
+
+    monkeypatch.setattr(review_peaks, "peak_envelope", failing)
+    r = TestClient(create_app()).get(f"/api/review/{token}/peaks")
+    assert r.status_code == 200
+    assert r.json() == []
+    assert not _peaks_sidecar(ws, ver["id"]).exists()
+
+
+def test_peaks_garbage_mix_mp3_gives_empty_with_the_real_ffprobe(
+    minimal_project, sample_wav, tmp_workspace
+):
+    import os
+
+    ws, ver, token = _peaks_published(minimal_project, sample_wav)
+    version_dir = _peaks_sidecar(ws, ver["id"]).parent
+    (version_dir / "mix.mp3").write_bytes(os.urandom(3000))
+    project = load_project(minimal_project)
+    entry = next(v for v in project.review.versions if v.id == ver["id"])
+    entry.mp3_relpath = (Path(entry.audio_relpath).parent / "mix.mp3").as_posix()
+    save_project(project, minimal_project)
+    r = TestClient(create_app()).get(f"/api/review/{token}/peaks")
+    assert r.status_code == 200
+    assert r.json() == []
+    assert not _peaks_sidecar(ws, ver["id"]).exists()
+
+
+def test_peaks_version_id_over_length_422_is_not_cached(minimal_project, sample_wav, tmp_workspace):
+    _ws, _ver, token = _peaks_published(minimal_project, sample_wav)
+    r = TestClient(create_app()).get(f"/api/review/{token}/peaks", params={"version_id": "x" * 129})
+    assert r.status_code == 422
+    assert r.headers["cache-control"] == "no-store"
+
+
+def test_peaks_openapi_lists_404_and_an_array_of_numbers_for_200():
+    spec = create_app().openapi()
+    op = spec["paths"]["/api/review/{token}/peaks"]["get"]["responses"]
+    assert "404" in op
+    assert op["200"]["content"]["application/json"]["schema"] == {
+        "type": "array",
+        "items": {"type": "number"},
+    }
 
 
 def test_peaks_sidecar_from_an_earlier_process_is_served_without_decoding(
