@@ -108,7 +108,12 @@ test("refuses a fade drafted before the Undo projection arrives, then saves a fr
           clip_id: id,
           fade_in_ms: 1,
           fade_out_ms: 1,
-          expected: { fade_in_ms: 1, fade_out_ms: 0 },
+          expected: {
+            fade_in_ms: 1,
+            fade_out_ms: 0,
+            fade_in_curve: "linear",
+            fade_out_curve: "linear",
+          },
         },
       });
       await expect(page.locator(".ui-toast-region--app")).toContainText(

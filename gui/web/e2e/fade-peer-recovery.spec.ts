@@ -57,7 +57,12 @@ test("refreshes a refused fade before retry while peer projections stay delayed"
         clip_id: id,
         fade_in_ms: 1,
         fade_out_ms: 1,
-        expected: { fade_in_ms: 1, fade_out_ms: 0 },
+        expected: {
+          fade_in_ms: 1,
+          fade_out_ms: 0,
+          fade_in_curve: "linear",
+          fade_out_curve: "linear",
+        },
       });
       await expect(page.locator(".ui-toast-region")).toContainText(
         "This clip changed. Nothing was saved. Adjust the fade again.",
@@ -81,7 +86,12 @@ test("refreshes a refused fade before retry while peer projections stay delayed"
         clip_id: id,
         fade_in_ms: 0,
         fade_out_ms: 1,
-        expected: { fade_in_ms: 0, fade_out_ms: 0 },
+        expected: {
+          fade_in_ms: 0,
+          fade_out_ms: 0,
+          fade_in_curve: "linear",
+          fade_out_curve: "linear",
+        },
       });
       await expect.poll(pair).toEqual([0, 1]);
     } finally {
