@@ -217,3 +217,46 @@ export function inspectorOpenFor(
 export function isRangeSelection(selection: Selection): boolean {
   return selection?.kind === "range" || selection?.kind === "transcriptRange";
 }
+
+type ChapterKey = { title: string; time: number };
+
+const sameChapter = (a: ChapterKey, b: ChapterKey) =>
+  a.title === b.title && a.time === b.time;
+
+/**
+ * Where a chapter selection goes when the project underneath it changes.
+ * A chapter has no id beyond its title and time, so an undo, a redo or a
+ * collaborator's rename or move leaves the selection naming a chapter that is
+ * gone. One chapter gone and one new that keeps its title (a move) or its
+ * time (a rename) is that chapter changed: follow it.
+ * Anything else (deleted, several changes at once) closes the selection.
+ * A selection the previous project did not list either is ahead of the
+ * project, not stale, and stays.
+ * `undefined` means the selection is still right.
+ */
+export function chapterSelectionAfter(
+  selection: Selection,
+  previous: readonly ChapterKey[] | undefined,
+  next: readonly ChapterKey[] | undefined,
+): Selection | undefined {
+  if (selection?.kind !== "chapter" || !next) return undefined;
+  const mine = { title: selection.id, time: selection.time };
+  if (next.some((c) => sameChapter(c, mine))) return undefined;
+  if (previous && !previous.some((c) => sameChapter(c, mine))) return undefined;
+  const before = previous ?? [];
+  const gone = before.filter((c) => !next.some((n) => sameChapter(n, c)));
+  const added = next.filter((n) => !before.some((c) => sameChapter(c, n)));
+  const [only] = added;
+  const [was] = gone;
+  if (
+    gone.length === 1 &&
+    added.length === 1 &&
+    only &&
+    was &&
+    sameChapter(was, mine) &&
+    (only.title === mine.title || only.time === mine.time)
+  ) {
+    return { kind: "chapter", id: only.title, time: only.time };
+  }
+  return null;
+}

@@ -1,6 +1,7 @@
 import type { StateCreator } from "zustand";
 import type { Selection } from "../types/project";
 import {
+  chapterSelectionAfter,
   clipClickSelection,
   inspectKeyOf,
   isRangeSelection,
@@ -69,6 +70,24 @@ function inspectorKeyAfter(
   return inspectorKey !== null && inspectorKey === inspectKeyOf(selection)
     ? inspectorKey
     : null;
+}
+
+/** The selection patch a project replacement implies for an open chapter, or nothing when it still stands. */
+export function chapterFollowPatch(
+  state: Pick<DawStore, "selection" | "inspectorKey" | "project">,
+  next: DawStore["project"],
+): ReturnType<typeof selectionPatch> | Record<string, never> {
+  const after = chapterSelectionAfter(
+    state.selection,
+    state.project?.chapters,
+    next?.chapters,
+  );
+  if (after === undefined) return {};
+  const followed =
+    after !== null && state.inspectorKey === inspectKeyOf(state.selection)
+      ? inspectKeyOf(after)
+      : state.inspectorKey;
+  return selectionPatch(state.selection, after, followed);
 }
 
 /** A new project starts with nothing selected; a wire selection waiting for its target stays. */

@@ -12,7 +12,7 @@ import type { ProjectView } from "../types/project";
 import { waveformViewState } from "../utils/waveformViewPref";
 import { sessionSecOf } from "../utils/zoom";
 import { presenceProjectInitial } from "./presenceSlice";
-import { NO_SELECTION } from "./selectionSlice";
+import { chapterFollowPatch, NO_SELECTION } from "./selectionSlice";
 import { stageProjectInitial } from "./stageSlice";
 import { zoomReclampPatch } from "./storeMath";
 import { timelineViewportRegistry } from "./timelineViewportRegistry";
@@ -241,6 +241,7 @@ export const createProjectSlice: StateCreator<
         : {
             heldTrim: null,
             project,
+            ...chapterFollowPatch(state, project),
             ...zoomReclampPatch(state, sessionSecOf({ project })),
           },
     );
@@ -290,7 +291,7 @@ export const createProjectSlice: StateCreator<
       // Preserve transport on a same-project shell refresh. A project switch
       // starts a new session and discards the previous project's status (#78).
       ...(samePath
-        ? {}
+        ? chapterFollowPatch(get(), initialProject)
         : {
             ...presenceProjectInitial(),
             ...transportProjectInitial(),

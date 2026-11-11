@@ -93,3 +93,85 @@ describe("followChapter", () => {
     expect(useDawStore.getState().selection).toEqual(later);
   });
 });
+
+describe("a chapter selection follows the project", () => {
+  const chapter = (title: string, time: number) => ({ title, time });
+  const withChapters = (...chapters: { title: string; time: number }[]) =>
+    ({ chapters }) as never;
+  const select = (id: string, time: number, key: string | null) =>
+    useDawStore.setState({
+      project: withChapters(chapter("Opening", 10), chapter("Outro", 90)),
+      selection: { kind: "chapter", id, time },
+      inspectorKey: key,
+    });
+
+  it("follows a rename or a Time move that undo, redo or a collaborator made", () => {
+    select("Opening", 10, "chapter:Opening");
+    useDawStore
+      .getState()
+      .setProject(withChapters(chapter("Cold open", 10), chapter("Outro", 90)));
+    expect(useDawStore.getState().selection).toEqual({
+      kind: "chapter",
+      id: "Cold open",
+      time: 10,
+    });
+    expect(useDawStore.getState().inspectorKey).toBe("chapter:Cold open");
+    useDawStore
+      .getState()
+      .setProject(withChapters(chapter("Cold open", 20), chapter("Outro", 90)));
+    expect(useDawStore.getState().selection).toEqual({
+      kind: "chapter",
+      id: "Cold open",
+      time: 20,
+    });
+  });
+
+  it("keeps a closed Inspector closed while following", () => {
+    select("Opening", 10, null);
+    useDawStore
+      .getState()
+      .setProject(withChapters(chapter("Cold open", 10), chapter("Outro", 90)));
+    expect(useDawStore.getState().inspectorKey).toBeNull();
+  });
+
+  it("closes the selection and the Inspector once the chapter is gone", () => {
+    select("Opening", 10, "chapter:Opening");
+    useDawStore.getState().setProject(withChapters(chapter("Outro", 90)));
+    expect(useDawStore.getState().selection).toBeNull();
+    expect(useDawStore.getState().inspectorKey).toBeNull();
+  });
+
+  it("closes the selection when more than one chapter changed at once", () => {
+    select("Opening", 10, "chapter:Opening");
+    useDawStore
+      .getState()
+      .setProject(withChapters(chapter("Intro", 12), chapter("Wrap", 95)));
+    expect(useDawStore.getState().selection).toBeNull();
+  });
+
+  it("leaves the selection alone while its chapter still exists", () => {
+    select("Opening", 10, "chapter:Opening");
+    useDawStore
+      .getState()
+      .setProject(withChapters(chapter("Opening", 10), chapter("Outro", 91)));
+    expect(useDawStore.getState().selection).toEqual({
+      kind: "chapter",
+      id: "Opening",
+      time: 10,
+    });
+    expect(useDawStore.getState().inspectorKey).toBe("chapter:Opening");
+  });
+
+  it("does not touch another kind of selection", () => {
+    useDawStore.setState({
+      project: withChapters(chapter("Opening", 10)),
+      selection: { kind: "social", id: "social-1" },
+      inspectorKey: null,
+    });
+    useDawStore.getState().setProject(withChapters());
+    expect(useDawStore.getState().selection).toEqual({
+      kind: "social",
+      id: "social-1",
+    });
+  });
+});

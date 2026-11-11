@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { clipRow, minimalProject, sampleTrack } from "../test/fixtures";
 import type { Selection } from "../types/project";
 import {
+  chapterSelectionAfter,
   clipClickSelection,
   inspectKeyOf,
   selectedClipIdsOf,
@@ -190,5 +191,131 @@ describe("what the Inspector is open for", () => {
     expect(inspectKeyOf(clip("c1", "host"))).not.toBe(
       inspectKeyOf(clip("c2", "host")),
     );
+  });
+});
+
+describe("chapterSelectionAfter", () => {
+  const ch = (title: string, time: number) => ({ title, time });
+  const open: Selection = { kind: "chapter", id: "Opening", time: 10 };
+
+  it("leaves a selection alone when its chapter is still there", () => {
+    expect(
+      chapterSelectionAfter(
+        open,
+        [ch("Opening", 10), ch("Outro", 90)],
+        [ch("Opening", 10), ch("Outro", 91)],
+      ),
+    ).toBeUndefined();
+  });
+
+  it("ignores a reorder that changes no chapter", () => {
+    expect(
+      chapterSelectionAfter(
+        open,
+        [ch("Opening", 10), ch("Outro", 90)],
+        [ch("Outro", 90), ch("Opening", 10)],
+      ),
+    ).toBeUndefined();
+  });
+
+  it("keeps the selection when another chapter was swapped for a new one", () => {
+    expect(
+      chapterSelectionAfter(
+        open,
+        [ch("Opening", 10), ch("Outro", 90)],
+        [ch("Opening", 10), ch("Wrap", 95)],
+      ),
+    ).toBeUndefined();
+  });
+
+  it("keeps the selection while one of two identical chapters remains", () => {
+    expect(
+      chapterSelectionAfter(
+        open,
+        [ch("Opening", 10), ch("Opening", 10)],
+        [ch("Opening", 10)],
+      ),
+    ).toBeUndefined();
+  });
+
+  it("follows a rename when one of two identical chapters is selected and renamed", () => {
+    expect(
+      chapterSelectionAfter(
+        open,
+        [ch("Opening", 10), ch("Outro", 90)],
+        [ch("Cold open", 10), ch("Outro", 90)],
+      ),
+    ).toEqual({ kind: "chapter", id: "Cold open", time: 10 });
+  });
+
+  it("closes when the chapter is gone and nothing replaced it", () => {
+    expect(chapterSelectionAfter(open, [ch("Opening", 10)], [])).toBeNull();
+  });
+
+  it("closes when several chapters changed at once", () => {
+    expect(
+      chapterSelectionAfter(
+        open,
+        [ch("Opening", 10), ch("Outro", 90)],
+        [ch("Intro", 12), ch("Wrap", 95)],
+      ),
+    ).toBeNull();
+  });
+
+  it("closes when there was no earlier list to follow from", () => {
+    expect(
+      chapterSelectionAfter(open, undefined, [ch("Intro", 12)]),
+    ).toBeNull();
+  });
+
+  it("leaves the selection when the new project has no chapter list", () => {
+    expect(
+      chapterSelectionAfter(open, [ch("Opening", 10)], undefined),
+    ).toBeUndefined();
+  });
+
+  it("does not touch another kind of selection", () => {
+    expect(
+      chapterSelectionAfter(
+        { kind: "social", id: "s1" },
+        [ch("Opening", 10)],
+        [],
+      ),
+    ).toBeUndefined();
+  });
+});
+
+describe("chapterSelectionAfter follows only a related chapter", () => {
+  const ch = (title: string, time: number) => ({ title, time });
+  const open: Selection = { kind: "chapter", id: "Opening", time: 10 };
+
+  it("closes when the selected chapter was removed and an unrelated one added", () => {
+    expect(
+      chapterSelectionAfter(
+        open,
+        [ch("Opening", 10), ch("Outro", 90)],
+        [ch("Wrap", 95), ch("Outro", 90)],
+      ),
+    ).toBeNull();
+  });
+
+  it("follows a Time move that keeps the title", () => {
+    expect(
+      chapterSelectionAfter(open, [ch("Opening", 10)], [ch("Opening", 40)]),
+    ).toEqual({ kind: "chapter", id: "Opening", time: 40 });
+  });
+
+  it("follows a rename that keeps the time", () => {
+    expect(
+      chapterSelectionAfter(open, [ch("Opening", 10)], [ch("Intro", 10)]),
+    ).toEqual({ kind: "chapter", id: "Intro", time: 10 });
+  });
+
+  describe("chapterSelectionAfter when the selection is ahead of the project", () => {
+    it("keeps a chapter selection that neither project lists", () => {
+      const ahead = { kind: "chapter", id: "B", time: 10 } as const;
+      const listed = [{ title: "A", time: 10 }];
+      expect(chapterSelectionAfter(ahead, listed, listed)).toBeUndefined();
+    });
   });
 });
