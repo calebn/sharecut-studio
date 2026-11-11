@@ -17,6 +17,7 @@ EXPORTS: tuple[tuple[str, str, str], ...] = (
     ("trim-edge-limits.json", "min_clip_span_sec", "MIN_EDGE_SPAN_SEC"),
     ("trim-edge-limits.json", "time_eps_sec", "TIME_EPS_SEC"),
     ("join-length-limits.json", "join_gap_tolerance_sec", "JOIN_GAP_TOLERANCE_SEC"),
+    ("join-length-limits.json", "split_micro_fade_ms", "SPLIT_MICRO_FADE_MS"),
     ("ripple-scope.json", "edge_eps_sec", "RIPPLE_EDGE_EPS_SEC"),
     ("roll-join-limits.json", "min_step_gap_sec", "MIN_STEP_GAP_SEC"),
 )

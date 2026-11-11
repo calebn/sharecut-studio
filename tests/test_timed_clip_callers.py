@@ -5,7 +5,7 @@ from pathlib import Path
 import pytest
 
 from podcast_mcp.engines.asr_silence import placement_digest
-from podcast_mcp.engines.clips_ops import extract_clips_in_timeline_range
+from podcast_mcp.engines.clips_ops import RangeEdgeFade, extract_clips_in_timeline_range
 from podcast_mcp.engines.lane_window import lane_clip_placements, lane_placements
 from podcast_mcp.models import (
     Clip,
@@ -74,11 +74,15 @@ def test_an_untimed_placement_digest_is_the_old_row_digest(tmp_path: Path) -> No
 def test_extract_carries_the_timing_inside_the_extracted_source() -> None:
     clip = _clip(_timing())
 
-    (whole,) = extract_clips_in_timeline_range([clip], 0.0, 100.0, cut_fade_ms=None)
+    (whole,) = extract_clips_in_timeline_range(
+        [clip], 0.0, 100.0, edge_fade=RangeEdgeFade.keep_clip_fades()
+    )
     assert whole.timing == clip.timing
     assert whole.timeline_end == pytest.approx(16.0)
 
-    (head,) = extract_clips_in_timeline_range([clip], 5.0, 11.0, cut_fade_ms=None)
+    (head,) = extract_clips_in_timeline_range(
+        [clip], 5.0, 11.0, edge_fade=RangeEdgeFade.keep_clip_fades()
+    )
     assert (head.source_start, head.source_end) == (0.0, 4.0)
     assert head.timing is None
 
@@ -86,7 +90,9 @@ def test_extract_carries_the_timing_inside_the_extracted_source() -> None:
 def test_extract_keeps_only_the_steps_inside_the_sliced_range() -> None:
     clip = _clip(_timing())
 
-    (tail,) = extract_clips_in_timeline_range([clip], 11.0, 100.0, cut_fade_ms=None)
+    (tail,) = extract_clips_in_timeline_range(
+        [clip], 11.0, 100.0, edge_fade=RangeEdgeFade.keep_clip_fades()
+    )
 
     assert (tail.source_start, tail.source_end) == (4.0, 10.0)
     assert tail.timing is not None
@@ -95,7 +101,9 @@ def test_extract_keeps_only_the_steps_inside_the_sliced_range() -> None:
 
 
 def test_extracting_an_untimed_clip_leaves_timing_unset() -> None:
-    (got,) = extract_clips_in_timeline_range([_clip(None)], 6.0, 9.0, cut_fade_ms=None)
+    (got,) = extract_clips_in_timeline_range(
+        [_clip(None)], 6.0, 9.0, edge_fade=RangeEdgeFade.keep_clip_fades()
+    )
 
     assert got.timing is None
     assert (got.source_start, got.source_end, got.timeline_start) == (1.0, 4.0, 0.0)
@@ -162,7 +170,9 @@ def test_extract_places_a_window_opening_in_a_hole_at_the_next_piece(
 ) -> None:
     clip = _clip(_timing())
 
-    got = extract_clips_in_timeline_range([clip], *window, cut_fade_ms=None)
+    got = extract_clips_in_timeline_range(
+        [clip], *window, edge_fade=RangeEdgeFade.keep_clip_fades()
+    )
 
     assert (got[0].source_start, got[0].timeline_start) == pytest.approx(
         (first_source, first_timeline)

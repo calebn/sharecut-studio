@@ -661,10 +661,12 @@ def test_a_bad_clipboard_gain_does_not_reject_the_paste(minimal_project: Path, r
 
 def test_extract_clips_in_range_and_split_keep_gain(minimal_project: Path) -> None:
     from podcast_mcp.edits.timeline_ops import split_clip
-    from podcast_mcp.engines.clips_ops import extract_clips_in_timeline_range
+    from podcast_mcp.engines.clips_ops import RangeEdgeFade, extract_clips_in_timeline_range
 
     ws = _seed(minimal_project, _clip("a", 0.0, 2.0, 0.0, gain_db=-8.0))
-    extracted = extract_clips_in_timeline_range(ws.project.clips, 0.5, 1.5, cut_fade_ms=None)
+    extracted = extract_clips_in_timeline_range(
+        ws.project.clips, 0.5, 1.5, edge_fade=RangeEdgeFade.keep_clip_fades()
+    )
     assert [c.gain_db for c in extracted] == [-8.0]
     split_clip(ws.project, "host", 1.0, defaults=DEFAULTS)
     assert {c.gain_db for c in ws.project.clips} == {-8.0}

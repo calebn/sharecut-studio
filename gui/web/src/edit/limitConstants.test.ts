@@ -6,6 +6,7 @@ import {
   JOIN_GAP_TOLERANCE_SEC,
   MIN_EDGE_SPAN_SEC,
   RIPPLE_EDGE_EPS_SEC,
+  SPLIT_MICRO_FADE_MS,
   TIME_EPS_SEC,
 } from "../types/limits.generated";
 
@@ -24,6 +25,12 @@ describe("geometry constants match contracts/*.json", () => {
   it("join gap tolerance", () => {
     expect(JOIN_GAP_TOLERANCE_SEC).toBe(
       constants("join-length-limits.json").join_gap_tolerance_sec,
+    );
+  });
+
+  it("split micro fade", () => {
+    expect(SPLIT_MICRO_FADE_MS).toBe(
+      constants("join-length-limits.json").split_micro_fade_ms,
     );
   });
 

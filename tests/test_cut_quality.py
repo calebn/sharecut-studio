@@ -742,3 +742,38 @@ def test_fade_reach_reads_a_timeline_edit_against_the_clip_timeline():
         timebase="timeline",
     )
     assert fade_reach_sec(project, edit, load_defaults()) == 0.3
+
+
+def test_fade_reach_reads_a_source_edit_against_the_clip_source():
+    """Tighten pause decisions are source-clock: the reach finds the edge at the cut's source
+    time even when the clip sits elsewhere on the timeline."""
+    from podcast_mcp.edits.cut_quality import fade_reach_sec
+    from podcast_mcp.models import Clip, EditDecision, EditDecisionType, EpisodeProject
+
+    project = EpisodeProject.create("fade reach", "/tmp/fade-reach")
+    project.clips = [
+        Clip(
+            id="c",
+            track_id="t",
+            source_start=0,
+            source_end=1,
+            timeline_start=50,
+            fade_out_ms=300,
+        )
+    ]
+
+    def reach(start: float, timebase: str) -> float:
+        edit = EditDecision(
+            id="e",
+            track_id="t",
+            type=EditDecisionType.REMOVE,
+            start=start,
+            end=start + 0.2,
+            timebase=timebase,
+        )
+        return fade_reach_sec(project, edit, load_defaults())
+
+    assert EditDecision(id="e", track_id="t", start=1, end=2).timebase == "source"
+    assert reach(1.0, "source") == 0.3
+    assert reach(51.0, "source") < 0.3
+    assert reach(51.0, "timeline") == 0.3

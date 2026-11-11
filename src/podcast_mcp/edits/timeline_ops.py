@@ -19,7 +19,6 @@ from podcast_mcp.edits.cut_speech import cut_speech_params
 from podcast_mcp.edits.edit_log import archive_timeline_op, seam_source_by_track
 from podcast_mcp.edits.inaudible_cuts import (
     optimize_timeline_cut_range,
-    recommend_micro_fades,
 )
 from podcast_mcp.edits.join_modes import (
     auto_join_fade_cap_ms,
@@ -45,6 +44,7 @@ from podcast_mcp.edits.transcript_search import (
 from podcast_mcp.engines.clips_ops import (
     JOIN_GAP_TOLERANCE_SEC,
     MuteIndex,
+    RangeEdgeFade,
     clips_for_track,
     extract_clips_in_timeline_range,
     join_render_fields,
@@ -56,6 +56,7 @@ from podcast_mcp.engines.clips_ops import (
     set_track_clips,
     source_duration_sec,
     split_clip_at,
+    split_micro_fade_ms,
     update_timeline_duration,
 )
 from podcast_mcp.engines.clips_ops import (
@@ -442,7 +443,7 @@ def move_segment(
             clips_for_track(project, tid),
             source_start,
             source_end,
-            cut_fade_ms=join_micro_fade_ms(defaults),
+            edge_fade=RangeEdgeFade.cut(split_micro_fade_ms(defaults)),
         )
     # Clip-only ripple: keep transcript words (source clocks). Moving remaps
     # them via the new clip placements; deleting words would orphan the audio.
@@ -582,9 +583,6 @@ def split_clip(
                     "right_clip_id": after.id,
                 }
             )
-            fades = recommend_micro_fades(defaults=defaults)
-            before.fade_out_ms = max(before.fade_out_ms, fades["fade_out_ms"])
-            after.fade_in_ms = max(after.fade_in_ms, fades["fade_in_ms"])
             new_clips.extend([before, after])
             split = True
         else:
@@ -820,7 +818,7 @@ def duplicate_segment(
             clips_for_track(project, tid),
             source_start,
             source_end,
-            cut_fade_ms=join_micro_fade_ms(defaults),
+            edge_fade=RangeEdgeFade.cut(split_micro_fade_ms(defaults)),
         )
     insert_gap(project, insert_at, duration, defaults=defaults)
     for tid in tracks:
@@ -838,10 +836,14 @@ def copy_segment(
     end: float,
     track_ids: list[str] | None = None,
 ) -> dict:
-    """The clipboard Studio Copy / Cut holds for ``[start, end)``: ``duration`` + ``extracts``.
+    """The clipboard Studio Copy holds for ``[start, end)``: ``duration`` + ``extracts``.
 
-    Mirrors ``extractClipsInRange`` (``gui/web/src/edit/selectionClipboard.ts``): every
-    track with clips in range, or only ``track_ids``. ``paste_segment`` takes it back.
+    Mirrors ``extractClipsInRange`` (``gui/web/src/edit/selectionClipboard.ts``) in copy
+    mode: every track with clips in range, or only ``track_ids``. A copy keeps each clip's
+    own fades and curves, also where the range ends inside a clip
+    (:meth:`RangeEdgeFade.keep_clip_fades`); Studio Cut, ``move_segment`` and
+    ``duplicate_segment`` give those edges the split micro fade instead. ``paste_segment``
+    takes it back.
     """
     if end <= start:
         raise CodedValueError(
@@ -871,7 +873,7 @@ def copy_segment(
         }
         for tid in tracks
         for clip in extract_clips_in_timeline_range(
-            clips_for_track(project, tid), start, end, cut_fade_ms=None
+            clips_for_track(project, tid), start, end, edge_fade=RangeEdgeFade.keep_clip_fades()
         )
     ]
     return {"duration": end - start, "extracts": extracts}

@@ -6,6 +6,7 @@ import json
 import re
 from pathlib import Path
 
+from podcast_mcp.config.defaults import DEFAULT_MICRO_FADE_MS
 from podcast_mcp.edits import ripple
 from podcast_mcp.engines import clips_ops, ranges
 from podcast_mcp.models import clip_timing
@@ -25,8 +26,12 @@ def test_trim_edge_constants() -> None:
 
 
 def test_join_gap_tolerance_constant() -> None:
-    assert _constants("join-length-limits.json") == {"join_gap_tolerance_sec": 0.05}
+    assert _constants("join-length-limits.json") == {
+        "join_gap_tolerance_sec": 0.05,
+        "split_micro_fade_ms": 10,
+    }
     assert clips_ops.JOIN_GAP_TOLERANCE_SEC == 0.05
+    assert DEFAULT_MICRO_FADE_MS == 10
 
 
 def test_ripple_edge_epsilon_constant() -> None:
@@ -48,6 +53,7 @@ def test_gui_constants_are_the_server_constants() -> None:
         "MIN_EDGE_SPAN_SEC": clips_ops._MIN_CLIP_SPAN_SEC,
         "TIME_EPS_SEC": ranges.SPAN_EPS_S,
         "JOIN_GAP_TOLERANCE_SEC": clips_ops.JOIN_GAP_TOLERANCE_SEC,
+        "SPLIT_MICRO_FADE_MS": DEFAULT_MICRO_FADE_MS,
         "RIPPLE_EDGE_EPS_SEC": ripple._EDGE_EPS_SEC,
         "MIN_STEP_GAP_SEC": clip_timing.MIN_STEP_GAP_SEC,
     }

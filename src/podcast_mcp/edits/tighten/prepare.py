@@ -257,6 +257,7 @@ def _prepare_candidate(
                 start=plan.start,
                 end=plan.end,
                 crossfade_ms=splice_fade_ms,
+                timebase="source",
             ),
             span,
             words,

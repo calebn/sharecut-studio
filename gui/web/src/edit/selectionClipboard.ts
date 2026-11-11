@@ -1,3 +1,4 @@
+import { SPLIT_MICRO_FADE_MS } from "../types/limits.generated";
 import type { ClipRow, ProjectView, Selection } from "../types/project";
 import { clipFadeCurves } from "../utils/fadeCurves";
 import { transcriptWordRange } from "../utils/transcript";
@@ -35,13 +36,41 @@ function clipOverlapToSource(
 }
 
 /**
+ * What a range end that falls inside a clip gets in an extract. There is no
+ * default; each caller names the rule (`clips_ops.RangeEdgeFade` on the server).
+ * `cut`: the range end is a new edge, so it gets a linear `ms` fade (clamped to
+ * the piece) and a fade join, never the clip's far-edge fade; Studio Cut uses
+ * it, as `move_segment` and `duplicate_segment` do. `keep`: a plain copy keeps
+ * the clip's own fades and curves, as `copy_segment` does.
+ */
+export type RangeEdgeFade = { kind: "keep" } | { kind: "cut"; ms: number };
+
+export const KEEP_CLIP_FADES: RangeEdgeFade = { kind: "keep" };
+export const CUT_EDGE_FADE: RangeEdgeFade = {
+  kind: "cut",
+  ms: SPLIT_MICRO_FADE_MS,
+};
+
+export function edgeFadeFor(mode: "copy" | "cut"): RangeEdgeFade {
+  return mode === "cut" ? CUT_EDGE_FADE : KEEP_CLIP_FADES;
+}
+
+const EDGE_EPS_SEC = 1e-6;
+
+function pieceMs(sourceStart: number, sourceEnd: number): number {
+  return Math.max(0, Math.floor((sourceEnd - sourceStart) * 1000 + 1e-6));
+}
+
+/**
  * Extract relative clips in [timelineStart, timelineEnd) for paste after cut.
  * When trackIds is set, only those tracks; else all tracks with clips in range.
+ * Mirrors `clips_ops.extract_clips_in_timeline_range`.
  */
 export function extractClipsInRange(
   project: ProjectView,
   timelineStart: number,
   timelineEnd: number,
+  edgeFade: RangeEdgeFade,
   trackIds?: string[],
 ): ClipboardExtract[] {
   const tracks = project.clips?.tracks ?? {};
@@ -61,17 +90,25 @@ export function extractClipsInRange(
       if (!src) {
         continue;
       }
+      const cut = edgeFade.kind === "cut";
+      const cutIn = cut && clip.timeline_start < timelineStart - EDGE_EPS_SEC;
+      const cutOut = cut && clip.timeline_end > timelineEnd + EDGE_EPS_SEC;
+      const cutMs = cut
+        ? Math.min(edgeFade.ms, pieceMs(src.sourceStart, src.sourceEnd))
+        : 0;
+      const { fade_in_curve, fade_out_curve } = clipFadeCurves(clip);
       out.push({
         track_id: clip.track_id,
         source_start: src.sourceStart,
         source_end: src.sourceEnd,
         relative_timeline_start: ovStart - timelineStart,
         source_id: clip.source_id,
-        fade_in_ms: clip.fade_in_ms,
-        fade_out_ms: clip.fade_out_ms,
-        ...clipFadeCurves(clip),
+        fade_in_ms: cutIn ? cutMs : clip.fade_in_ms,
+        fade_out_ms: cutOut ? cutMs : clip.fade_out_ms,
+        ...(fade_in_curve && !cutIn ? { fade_in_curve } : {}),
+        ...(fade_out_curve && !cutOut ? { fade_out_curve } : {}),
         gain_db: clip.gain_db,
-        join_in_mode: clip.join_in_mode,
+        join_in_mode: cutIn ? "fade" : clip.join_in_mode,
         mute_regions: muteRegionsOverlapping(
           clip.mute_regions,
           src.sourceStart,
@@ -117,6 +154,7 @@ function finishPayload(
     project,
     timelineStart,
     timelineEnd,
+    edgeFadeFor(opts.mode),
     opts.trackIds,
   );
   return {

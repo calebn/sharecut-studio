@@ -71,7 +71,11 @@ def test_automatic_reapply_keeps_restore_and_has_no_authored_change(tmp_path):
 
 def test_automatic_full_anchors_survive_split_extract_and_clipboard(tmp_path):
     from podcast_mcp.edits.timeline_ops import copy_segment, paste_segment
-    from podcast_mcp.engines.clips_ops import extract_clips_in_timeline_range, split_clip_at
+    from podcast_mcp.engines.clips_ops import (
+        RangeEdgeFade,
+        extract_clips_in_timeline_range,
+        split_clip_at,
+    )
     from podcast_mcp.models import EditMode, EpisodeProject
 
     project = _project(tmp_path)
@@ -79,7 +83,9 @@ def test_automatic_full_anchors_survive_split_extract_and_clipboard(tmp_path):
     _apply(project)
     clip = EpisodeProject.model_validate_json(project.model_dump_json()).clips[0]
     left, right = split_clip_at(clip, 0.5, defaults=load_defaults())
-    extracted = extract_clips_in_timeline_range([clip], 0.3, 0.6, cut_fade_ms=None)[0]
+    extracted = extract_clips_in_timeline_range(
+        [clip], 0.3, 0.6, edge_fade=RangeEdgeFade.keep_clip_fades()
+    )[0]
     clipboard = copy_segment(project, 0.3, 0.6, ["host"])
     paste_segment(
         project,
@@ -514,7 +520,7 @@ def test_split_retains_original_automatic_fades_and_restore_edges(tmp_path, monk
     ]
     project.clips[0] = _restore(project.clips[0], tmp_path / "source.wav", [(0.3, 0.6)])
     whole = _render(project, tmp_path / "whole.wav", None)
-    monkeypatch.setattr("podcast_mcp.engines.clips_ops.join_micro_fade_ms", lambda **_kw: 0)
+    monkeypatch.setattr("podcast_mcp.engines.clips_ops.split_micro_fade_ms", lambda *_a, **_kw: 0)
     project.clips = list(split_clip_at(project.clips[0], 0.45, defaults=load_defaults()))
     split = _render(project, tmp_path / "split.wav", None)
     np.testing.assert_array_equal(split, whole)

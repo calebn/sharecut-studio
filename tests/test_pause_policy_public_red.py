@@ -22,6 +22,7 @@ from podcast_mcp.edits.cut_safety import inspect_source_remove
 from podcast_mcp.edits.pending_preview import apply_for_suggested, resolve_pending_preview
 from podcast_mcp.edits.tighten import propose_tighten_edits
 from podcast_mcp.edits.timeline_ops import LaneSample, LaneUnavailable, room_tone_pad
+from podcast_mcp.engines.clips_ops import split_clip_at
 from podcast_mcp.engines.room_tone import RecordedBedSample, SampleAbsent
 from podcast_mcp.engines.session_timeline import SessionTimeline
 from podcast_mcp.models import Clip, CutIntent, EditDecisionType, Transcript, load_project
@@ -461,6 +462,9 @@ def test_geometry_held_twin_cannot_suppress_the_real_clean_proposal(tmp_path, mo
 def test_a_longer_manual_fade_on_the_far_edge_stays_there_when_a_pause_splits_the_clip(
     tmp_path, monkeypatch
 ):
+    """#3699: the split used to copy the 400 ms far-edge fade onto the new edge at the
+    pause, and that leaked fade held the pause (``acoustic_edge``). The far edge keeps it now,
+    so the pause applies."""
     configure(monkeypatch, defaults(acoustic=True))
     result = _measured_original_project(tmp_path, guest="quiet")
     peer_audio = room(seed=1215)
@@ -484,3 +488,30 @@ def test_a_longer_manual_fade_on_the_far_edge_stays_there_when_a_pause_splits_th
     assert right.fade_in_ms < 400
     assert right.source_end == pytest.approx(2.0)
     assert right.fade_out_ms == 400
+
+
+def test_a_long_fade_on_the_edge_at_the_pause_still_holds_it_as_cut_scope_changed(
+    tmp_path, monkeypatch
+):
+    configure(monkeypatch, defaults(acoustic=True))
+    result = _measured_original_project(tmp_path, guest="quiet")
+    peer_audio = room(seed=1215)
+    voice(peer_audio, 0, 0.2)
+    voice(peer_audio, 5, 5.35)
+    write_wav(tmp_path / "raw/guest.wav", peer_audio)
+    prepared = _prepared_pause(result, defaults(acoustic=True))
+    add_bed(result, tmp_path)
+    result.edit_decisions = [prepared]
+    host = next(c for c in result.clips if c.id == "host-0")
+    left, right = split_clip_at(host, prepared.start, defaults=defaults(acoustic=True))
+    left.fade_out_ms = 400
+    result.clips[result.clips.index(host) : result.clips.index(host) + 1] = [left, right]
+    ws = workspace(result)
+    before = ws.project.model_dump(mode="json")
+
+    with pytest.raises(CodedError) as held:
+        EditService(ws).approve(["pause"])
+
+    assert held.value.code == "cut_scope_changed"
+    assert [hold.reason for hold in held.value.held] == ["pause_air"]
+    assert ws.project.model_dump(mode="json") == before
