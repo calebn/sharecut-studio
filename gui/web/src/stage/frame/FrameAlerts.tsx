@@ -20,8 +20,8 @@ export function FrameAlerts({ children }: { children: ReactNode }) {
   const [store] = useState(createAlertStore);
   return (
     <AlertStoreContext.Provider value={store}>
-      {children}
       <FrameAlertSlot store={store} />
+      {children}
     </AlertStoreContext.Provider>
   );
 }

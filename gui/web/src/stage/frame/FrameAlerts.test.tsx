@@ -44,3 +44,16 @@ it("shows the newest of two alerts with the same priority", () => {
   expect(screen.getByText("Second failure")).toBeVisible();
   expect(screen.queryByText("First failure")).toBeNull();
 });
+
+it("keeps the order of equal alerts when the earlier one re-renders", () => {
+  const tree = (first: string) => (
+    <FrameAlerts>
+      <Raise priority={FRAME_ALERT_PRIORITY.failed} title={first} />
+      <Raise priority={FRAME_ALERT_PRIORITY.failed} title="Newer failure" />
+    </FrameAlerts>
+  );
+  const { rerender } = render(tree("Older failure"));
+  rerender(tree("Older failure, updated"));
+  expect(screen.getByText("Newer failure")).toBeVisible();
+  expect(screen.queryByText("Older failure, updated")).toBeNull();
+});

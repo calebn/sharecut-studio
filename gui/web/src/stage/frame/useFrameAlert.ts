@@ -18,7 +18,11 @@ export function createAlertStore() {
   return {
     set(id: string, priority: number, alert: FrameAlert | null) {
       if (alert)
-        entries.set(id, { priority, seq: seq++, item: { ...alert, id } });
+        entries.set(id, {
+          priority,
+          seq: entries.get(id)?.seq ?? seq++,
+          item: { ...alert, id },
+        });
       else if (!entries.delete(id)) return;
       snapshot = [...entries.values()]
         .sort((a, b) => a.priority - b.priority || b.seq - a.seq)
