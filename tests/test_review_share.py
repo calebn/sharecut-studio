@@ -2899,6 +2899,32 @@ def test_peaks_are_decoded_once_and_cached_on_disk_per_version(
     assert json.loads(sidecar.read_text(encoding="utf-8")) == first
 
 
+def test_peaks_ffmpeg_runtime_error_is_a_decode_error_not_cached_and_retried(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch
+):
+    ws, ver, token = _peaks_published(minimal_project, sample_wav)
+    from podcast_mcp.services.collaboration import review_peaks
+
+    real = review_peaks.peak_envelope
+    calls: list[Path] = []
+
+    def failing(path, *args, **kwargs):
+        calls.append(Path(path))
+        raise RuntimeError("ffmpeg exited 1")
+
+    monkeypatch.setattr(review_peaks, "peak_envelope", failing)
+    client = TestClient(create_app())
+    r = client.get(f"/api/review/{token}/peaks")
+    assert r.status_code == 200
+    assert r.json() == []
+    assert not _peaks_sidecar(ws, ver["id"]).exists()
+
+    monkeypatch.setattr(review_peaks, "peak_envelope", real)
+    again = client.get(f"/api/review/{token}/peaks").json()
+    assert len(again) == PEAK_COUNT
+    assert len(calls) == 1
+
+
 def test_peaks_sidecar_from_an_earlier_process_is_served_without_decoding(
     minimal_project, sample_wav, tmp_workspace, monkeypatch
 ):
