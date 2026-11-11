@@ -45,7 +45,7 @@ function heldTransport() {
     status,
     put: (args) => inner.put(args),
   };
-  return { transport, status, requests };
+  return { transport, requests };
 }
 
 function useObservedUpload(args: Args, seen: Seen[]) {
