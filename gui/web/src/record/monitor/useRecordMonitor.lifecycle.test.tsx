@@ -242,7 +242,7 @@ describe("monitor resource original lifecycle", () => {
     unmount();
   });
 
-  it("retains the captured old graph and shared map semantics for an old departure callback", async () => {
+  it("ignores a retired mesh's departure so the new connection keeps its peer", async () => {
     const initial = args();
     const { result, rerender, unmount } = renderHook(
       (input: Args) => useRecordMonitor(input),
@@ -253,10 +253,10 @@ describe("monitor resource original lifecycle", () => {
     track("new");
     expect(result.current.remoteCount).toBe(1);
     act(() => old.onRemoteGone("peer"));
-    expect(fixture.graphs[0]!.removeRemote).toHaveBeenCalledWith("peer");
+    expect(fixture.graphs[0]!.removeRemote).not.toHaveBeenCalled();
     expect(fixture.graphs[1]!.removeRemote).not.toHaveBeenCalled();
     await tick(5);
-    expect(result.current.remoteCount).toBe(0);
+    expect(result.current.remoteCount).toBe(1);
     unmount();
   });
 
