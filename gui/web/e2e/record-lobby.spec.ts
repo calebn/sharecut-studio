@@ -661,13 +661,15 @@ test.describe("record lobby", () => {
         });
         await expect(recTab.locator(".sys-stage-badge")).toBeVisible();
         await goToStage(host, "record");
-        await expect(roomDlg.getByText("Your mic stopped.")).toBeVisible();
-        await roomDlg.getByRole("button", { name: "Reconnect mic" }).click();
+        // Record's alerts show in the frame alert slot, above the stage.
+        const alert = host.locator(".sys-room-alert-slot");
+        await expect(alert.getByText("Your mic stopped.")).toBeVisible();
+        await alert.getByRole("button", { name: "Reconnect mic" }).click();
         await expect(
           roomDlg.getByText(/Microphone is blocked for this site/),
         ).toBeVisible();
-        await roomDlg.getByRole("button", { name: "Reconnect mic" }).click();
-        await expect(roomDlg.getByText("Your mic stopped.")).toBeHidden();
+        await alert.getByRole("button", { name: "Reconnect mic" }).click();
+        await expect(alert.getByText("Your mic stopped.")).toBeHidden();
         await expect(
           roomDlg.getByText(/Microphone is blocked for this site/),
         ).toBeHidden();
