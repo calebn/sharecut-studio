@@ -80,6 +80,11 @@
   font-weight: 600;
 }
 
+.rv-group-reason {
+  padding-inline: var(--space-4);
+  padding-block-end: var(--space-2);
+}
+
 .rv-group-count {
   margin-inline-end: auto;
 }

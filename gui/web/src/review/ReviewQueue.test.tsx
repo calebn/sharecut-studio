@@ -766,6 +766,13 @@ describe("ReviewQueue", () => {
       expect(held).toHaveAccessibleDescription(
         "Saved edits could not be read. Dismissal is unavailable.",
       );
+      const reason = screen.getByText(
+        "Saved edits could not be read. Dismissal is unavailable.",
+        { selector: "p" },
+      );
+      expect(reason).toBeVisible();
+      expect(reason.closest(".sr-only")).toBeNull();
+      expect(held).toHaveAttribute("aria-describedby", reason.id);
     });
 
     it("dismisses all conflicts and is held while reading", async () => {
