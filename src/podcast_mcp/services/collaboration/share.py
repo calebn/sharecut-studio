@@ -702,7 +702,8 @@ class ShareService:
         room went live meanwhile.
         """
         try:
-            return self._restore_room(session_id, now)
+            with _record_room_lock:
+                return self._restore_room(session_id, now)
         finally:
             self.sweep_pending(now=now)
 
@@ -716,7 +717,9 @@ class ShareService:
             raise CodedKeyError(
                 f"record room not found: {session_id}", code="record_room_not_found"
             )
-        if any(row.get("revoked") for row in rows):
+        registry = get_share_registry()
+        live = all(row.get("token") and registry.get_active(str(row["token"])) for row in rows)
+        if any(row.get("revoked") for row in rows) and not live:
             raise RestoreWindowClosedError()
         return {"session_id": session_id, "restored": [str(row["token"]) for row in rows]}
 

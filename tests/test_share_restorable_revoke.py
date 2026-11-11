@@ -651,3 +651,66 @@ def test_room_park_and_restore_drop_the_record_session_cache(
     assert dropped.call_count == 1
     svc.restore_room(room["session_id"], now=at(1))
     assert dropped.call_count == 2
+
+
+def test_restore_room_holds_the_room_lock_around_the_registry_restore(
+    minimal_project, sample_wav, tmp_workspace, effects, monkeypatch
+):
+    from podcast_mcp.services.collaboration import share as share_module
+
+    ws = _seed(minimal_project, sample_wav)
+    room = _room(ws)
+    svc = ShareService(ws)
+    svc.revoke_room(room["session_id"], restorable_for=WINDOW, now=T0)
+    real = share_pending.restore
+    held: list[bool] = []
+
+    def watched(*args, **kwargs):
+        held.append(share_module._record_room_lock._is_owned())
+        return real(*args, **kwargs)
+
+    monkeypatch.setattr(share_pending, "restore", watched)
+    svc.restore_room(room["session_id"], now=at(1))
+    assert held == [True]
+
+
+def test_restore_room_retried_after_a_failed_settle_reports_success_and_heals(
+    minimal_project, sample_wav, tmp_workspace, effects, monkeypatch
+):
+    ws = _seed(minimal_project, sample_wav)
+    room = _room(ws)
+    svc = ShareService(ws)
+    svc.revoke_room(room["session_id"], restorable_for=WINDOW, now=T0)
+    real = _make_settle_fail(monkeypatch)
+    first = svc.restore_room(room["session_id"], now=at(1))
+    monkeypatch.setattr(share_pending, "settle_shares_pending", real)
+    again = svc.restore_room(room["session_id"], now=at(2))
+    assert set(again["restored"]) == set(first["restored"])
+    rows = list_shares(ws.project)
+    assert rows and not any(r.get("revoked") or "restorable_until" in r for r in rows)
+
+
+def test_a_single_record_token_parks_and_restores(
+    minimal_project, sample_wav, tmp_workspace, effects
+):
+    ws = _seed(minimal_project, sample_wav)
+    room = _room(ws)
+    svc = ShareService(ws)
+    token = room["guest"]["token"]
+    svc.revoke(token, restorable_for=WINDOW, now=T0)
+    assert svc.restore(token, now=at(1)) == {"restored": True, "token": token}
+    assert lookup_share(token, kind="record")["session_id"] == room["session_id"]
+
+
+def test_a_zero_window_closes_at_once_and_the_refused_restore_sweeps_it_final(
+    minimal_project, sample_wav, tmp_workspace, effects
+):
+    ws = _seed(minimal_project, sample_wav)
+    share = _review_share(ws)
+    svc = ShareService(ws)
+    out = svc.revoke(share["token"], restorable_for=0, now=T0)
+    assert out["restorable_until"] == T0.isoformat()
+    with pytest.raises(RestoreWindowClosedError):
+        svc.restore(share["token"], now=T0)
+    assert get_share_registry().list_pending() == []
+    effects["object"].assert_called_once()

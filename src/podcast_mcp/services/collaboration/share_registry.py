@@ -620,7 +620,7 @@ class SqliteShareRegistry:
             if not rows:
                 return []
             self._require_restorable(rows, moment)
-            self._require_no_live_room(rows, group_id, moment)
+            self._require_no_live_room(rows, moment)
             for row in rows:
                 self._reinstate(row)
             return [
@@ -753,17 +753,16 @@ class SqliteShareRegistry:
                 raise ShareExpiredError("this link has expired, so it cannot be restored.")
             raise RestoreWindowClosedError()
 
-    def _require_no_live_room(
-        self, rows: Sequence[sqlite3.Row], group_id: str, moment: datetime
-    ) -> None:
-        if not any(
-            json.loads(row["snapshot_json"]).get("kind") == SHARE_KIND_RECORD for row in rows
-        ):
+    def _require_no_live_room(self, rows: Sequence[sqlite3.Row], moment: datetime) -> None:
+        snaps = [json.loads(row["snapshot_json"]) for row in rows]
+        if not any(snap.get("kind") == SHARE_KIND_RECORD for snap in snaps):
             return
+        own = {str(snap.get("session_id") or "") for snap in snaps}
         others = self._conn.execute(
             "SELECT expires_at FROM active_shares"
-            " WHERE project_workspace = ? AND kind = ? AND COALESCE(session_id, '') != ?",
-            (rows[0]["project_workspace"], SHARE_KIND_RECORD, group_id),
+            " WHERE project_workspace = ? AND kind = ?"
+            f" AND COALESCE(session_id, '') NOT IN ({','.join('?' * len(own))})",
+            (rows[0]["project_workspace"], SHARE_KIND_RECORD, *own),
         ).fetchall()
         for other in others:
             expires = parse_iso(other["expires_at"])
