@@ -749,3 +749,17 @@ def test_reveal_says_when_this_computer_has_no_file_manager(local, tmp_path, mon
     res = local.post("/api/projects/recent/reveal", json={"path": str(project)})
     assert res.status_code == 409
     assert res.headers[CODE] == "reveal_unavailable"
+
+
+def test_reveal_is_refused_when_the_request_has_no_peer_address(local, tmp_path, monkeypatch):
+    project = _make(tmp_path, "nopeer")
+    shown: list[Path] = []
+    monkeypatch.setattr(
+        "podcast_mcp.gui.routes.project.reveal_in_file_manager",
+        lambda path: shown.append(path) or True,
+    )
+    monkeypatch.setattr("podcast_mcp.gui.routes.deps.peer_host", lambda request: None)
+    res = local.post("/api/projects/recent/reveal", json={"path": str(project)})
+    assert res.status_code == 403
+    assert res.headers[CODE] == "reveal_not_allowed"
+    assert shown == []
