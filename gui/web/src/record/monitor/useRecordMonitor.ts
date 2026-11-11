@@ -227,6 +227,9 @@ class MonitorResources {
         this.observe({ kind: "peer-count", count: sources.size });
       },
       onRemoteGone: (peerId) => {
+        if (cancelled) {
+          return;
+        }
         const previous = gone.get(peerId);
         if (previous !== undefined) {
           window.clearTimeout(previous);
