@@ -6,7 +6,10 @@ from typing import Any
 
 from podcast_mcp.config.defaults import EffectiveConfig
 from podcast_mcp.engines.mute_regions import mute_regions_payload
-from podcast_mcp.engines.off_speaker_regions import nonempty_off_speaker_regions_payload
+from podcast_mcp.engines.off_speaker_regions import (
+    nonempty_off_speaker_regions_payload,
+    nonzero_gain_payload,
+)
 from podcast_mcp.engines.play_audit import dialogue_render_hashes, envelope_audio_payload
 from podcast_mcp.models import EpisodeProject
 from podcast_mcp.util.hashing import short_digest
@@ -49,7 +52,7 @@ def audio_state_fingerprint(
                             "fade_out_ms": clip.fade_out_ms,
                             "mute_regions": mute_regions_payload(clip.mute_regions),
                             **nonempty_off_speaker_regions_payload(clip),
-                            **({"gain_db": clip.gain_db} if clip.gain_db else {}),
+                            **nonzero_gain_payload(clip),
                         },
                         sort_keys=True,
                         separators=(",", ":"),

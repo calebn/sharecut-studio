@@ -1,4 +1,3 @@
-import math
 from dataclasses import dataclass
 from typing import Annotated
 
@@ -21,9 +20,5 @@ def require_clip_gain_baseline(
     project: EpisodeProject, clip_id: str, expected: ClipGainBaseline
 ) -> None:
     clip = next((item for item in project.clips if item.id == clip_id), None)
-    if (
-        clip is None
-        or not math.isfinite(expected.gain_db)
-        or round(clip.gain_db, 2) != round(expected.gain_db, 2)
-    ):
+    if clip is None or round(clip.gain_db, 2) != round(expected.gain_db, 2):
         raise ClipGainChangedError("This clip changed. Nothing was saved. Adjust the gain again.")

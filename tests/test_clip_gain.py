@@ -217,7 +217,7 @@ def test_one_command_is_one_undo_step(minimal_project: Path) -> None:
     assert _gains(minimal_project) == [0.0, 0.0]
 
 
-def test_clips_gain_sets_absolute_targets_clamped_in_one_history_step(
+def test_clips_gain_sets_absolute_targets_in_one_history_step(
     minimal_project: Path,
 ) -> None:
     from podcast_mcp.services.document import HistoryService, TimelineService
@@ -225,7 +225,7 @@ def test_clips_gain_sets_absolute_targets_clamped_in_one_history_step(
     ws = _seed(minimal_project, _clip("a", gain_db=2.0), _clip("b", 1.0, 2.0, 1.0))
     before = _entries(ws)
     result = TimelineService(ws).set_clips_gain(
-        [("a", -99.0, ClipGainBaseline(2.0)), ("b", 40.0, ClipGainBaseline(0.0))]
+        [("a", -60.0, ClipGainBaseline(2.0)), ("b", 12.0, ClipGainBaseline(0.0))]
     )
     assert result["operation"] == "set_clips_gain"
     assert _gains(minimal_project) == [-60.0, 12.0]
@@ -267,6 +267,9 @@ def test_payloads_validate_range_baseline_and_distinct_targets() -> None:
             validate_payload("SetClipGain", bad)
     target = {"clip_id": "a", "gain_db": 1, "expected": {"gain_db": 0}}
     validate_payload("SetClipsGain", {"gains": [target]})
+    for gain in (-61, 13, math.nan, math.inf):
+        with pytest.raises(ValidationError):
+            validate_payload("SetClipsGain", {"gains": [{**target, "gain_db": gain}]})
     for gains in ([], [target, target]):
         with pytest.raises(ValidationError):
             validate_payload("SetClipsGain", {"gains": gains})
@@ -343,8 +346,9 @@ def test_mcp_tools_set_one_clip_and_many_absolute(minimal_project: Path) -> None
     out = json.loads(set_clips_gain_tool(str(minimal_project), ["a", "b"], 4.0))
     assert out["operation"] == "set_clips_gain"
     assert _gains(minimal_project) == [4.0, 4.0]
-    set_clips_gain_tool(str(minimal_project), ["a", "b"], 99.0)
-    assert _gains(minimal_project) == [12.0, 12.0]
+    with pytest.raises(ValidationError):
+        set_clips_gain_tool(str(minimal_project), ["a", "b"], 99.0)
+    assert _gains(minimal_project) == [4.0, 4.0]
 
 
 def test_mcp_tools_refuse_unknown_clips_and_bad_values(minimal_project: Path) -> None:
@@ -469,7 +473,7 @@ def test_graph_leaf_carries_gain_and_timed_pieces_keep_it(tmp_path: Path, sample
     assert {leaf.gain_db for leaf in leaves} == {-3.0}
 
 
-def test_room_tone_under_a_mute_takes_the_clips_gain_but_hole_fills_do_not(
+def test_room_tone_under_a_mute_takes_the_clips_gain_but_gaps_between_clips_do_not(
     tmp_path: Path, sample_wav: Path
 ) -> None:
     clip = _clip(
@@ -747,3 +751,92 @@ def test_occurrence_proxy_identity_ignores_clip_gain(tmp_path: Path) -> None:
     original = capture().input_hash
     project.clips[0].gain_db = -9.0
     assert capture().input_hash == original
+
+
+def test_timing_hole_room_tone_takes_the_parent_clips_gain(tmp_path: Path) -> None:
+    from test_timed_clip_holes import _fills, _lane, _pool
+    from test_timed_clip_render import _project, _source
+
+    clip = _lane([{"at": 2.0, "delta_sec": 0.5}], gain_db=-6.0)
+    project = _project(tmp_path, [clip], _source(room=0.02))
+    with _pool((5.0, 7.0)):
+        fills = _fills(clip, project)
+    assert fills
+    assert {leaf.gain_db for leaf in fills} == {-6.0}
+
+
+def test_gate_row_gain_does_not_move_the_occurrence_proxy_identity(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import wave as wave_module
+
+    from podcast_mcp.engines import source_proxy_audio as proxy
+    from podcast_mcp.engines.bleed_gate import BleedGatePlan
+    from podcast_mcp.models import ClipBleedRestore
+    from podcast_mcp.models.episode import SourceSpan
+    from podcast_mcp.util.hashing import sha256_file
+
+    for name in ("primary.wav", "peer.wav"):
+        with wave_module.open(str(tmp_path / name), "wb") as stream:
+            stream.setnchannels(1)
+            stream.setsampwidth(2)
+            stream.setframerate(16000)
+            stream.writeframes(np.full(16000, 1000, dtype="<i2").tobytes())
+    project = EpisodeProject.create("Inputs", str(tmp_path))
+    project.tracks = [
+        Track(
+            id="origin",
+            label="Origin",
+            media=MediaAsset(path="primary.wav"),
+            transcript_gate=True,
+        ),
+        Track(id="peer", label="Peer", media=MediaAsset(path="peer.wav")),
+    ]
+    project.clips = [
+        Clip(
+            id="choice",
+            track_id="origin",
+            source_start=0.1,
+            source_end=0.9,
+            timeline_start=5,
+            bleed_restore=ClipBleedRestore(
+                source_sha256=sha256_file(tmp_path / "primary.wav"),
+                regions=[SourceSpan(start_s=0.3, end_s=0.7)],
+            ),
+        )
+    ]
+    plan = BleedGatePlan(attenuation_spans=((0.2, 0.4),))
+    monkeypatch.setattr(proxy, "build_bleed_gate_plan", lambda *_a, **_k: plan)
+    engine = FFmpegEngine()
+
+    def capture():
+        return proxy.SourceProxyInputs.capture_occurrence(
+            project, "choice", engine, defaults=DEFAULTS
+        )
+
+    original = capture().input_hash
+    project.clips[0].gain_db = -9.0
+    assert capture().input_hash == original
+
+
+def test_verdict_cache_key_sees_a_gain_only_edit_and_stays_put_without_one() -> None:
+    from podcast_mcp.edits.verdict_cache import _heard, _outside_ramps
+
+    plain = _clip("a", 0.0, 4.0, 1.0, fade_in_ms=20, fade_out_ms=20)
+    gained = plain.model_copy(update={"gain_db": -6.0})
+    zero = plain.model_copy(update={"gain_db": 0.0})
+    window = (-math.inf, math.inf)
+    assert _heard(zero, *window) == _heard(plain, *window)
+    base = _heard(plain, *window)
+    moved = _heard(gained, *window)
+    assert moved[: len(base)] == base
+    assert moved != base
+    quiet = _heard(plain.model_copy(update={"gain_db": -12.0}), *window)
+    assert quiet != moved
+
+    def near(*_args):
+        return []
+
+    assert _outside_ramps(plain, near, True, True) is not None
+    assert _outside_ramps(gained, near, True, True) != _outside_ramps(plain, near, True, True)
+    assert _outside_ramps(zero, near, True, True) == _outside_ramps(plain, near, True, True)

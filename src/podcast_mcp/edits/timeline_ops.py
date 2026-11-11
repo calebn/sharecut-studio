@@ -64,7 +64,10 @@ from podcast_mcp.engines.mute_regions import (
     mute_regions_overlapping,
     mute_regions_payload,
 )
-from podcast_mcp.engines.off_speaker_regions import nonempty_off_speaker_regions_payload
+from podcast_mcp.engines.off_speaker_regions import (
+    nonempty_off_speaker_regions_payload,
+    nonzero_gain_payload,
+)
 from podcast_mcp.engines.room_tone import (
     OwnQuietSample,
     RecordedBedSample,
@@ -846,7 +849,7 @@ def copy_segment(
             "source_id": clip.source_id,
             "fade_in_ms": clip.fade_in_ms,
             "fade_out_ms": clip.fade_out_ms,
-            **({"gain_db": clip.gain_db} if clip.gain_db else {}),
+            **nonzero_gain_payload(clip),
             "join_in_mode": clip.join_in_mode.value,
             "mute_regions": mute_regions_payload(clip.mute_regions),
             **nonempty_off_speaker_regions_payload(clip),
@@ -1091,19 +1094,17 @@ def set_clip_gain(project: EpisodeProject, clip_id: str, gain_db: float) -> dict
     clip = next((c for c in project.clips if c.id == clip_id), None)
     if not clip:
         raise CodedValueError(f"unknown clip_id: {clip_id!r}", code="clip_not_found")
-    clip.gain_db = _clamped_gain_db(gain_db)
+    clip.gain_db = _checked_gain_db(gain_db)
     return change_summary(project, operation="set_clip_gain", affected_tracks=[clip.track_id])
 
 
 def set_clips_gain(project: EpisodeProject, gains: Sequence[tuple[str, float]]) -> dict:
-    """Clamp and set every ``(clip_id, gain_db)``; an unknown clip changes none."""
-
     by_id = {c.id: c for c in project.clips}
     missing = next((cid for cid, _ in gains if cid not in by_id), None)
     if missing is not None:
         raise CodedValueError(f"unknown clip_id: {missing!r}", code="clip_not_found")
     for cid, gain_db in gains:
-        by_id[cid].gain_db = _clamped_gain_db(gain_db)
+        by_id[cid].gain_db = _checked_gain_db(gain_db)
     return change_summary(
         project,
         operation="set_clips_gain",
@@ -1111,10 +1112,13 @@ def set_clips_gain(project: EpisodeProject, gains: Sequence[tuple[str, float]]) 
     )
 
 
-def _clamped_gain_db(value: float) -> float:
-    if not math.isfinite(value):
-        raise CodedValueError("gain_db must be a finite number", code="invalid_clip_gain")
-    return round(min(CLIP_GAIN_MAX_DB, max(CLIP_GAIN_MIN_DB, float(value))), 2)
+def _checked_gain_db(value: float) -> float:
+    if not CLIP_GAIN_MIN_DB <= value <= CLIP_GAIN_MAX_DB:
+        raise CodedValueError(
+            f"gain_db must be between {CLIP_GAIN_MIN_DB:g} and {CLIP_GAIN_MAX_DB:g} dB",
+            code="invalid_clip_gain",
+        )
+    return round(float(value), 2)
 
 
 def _write_trim_clip_edge(
@@ -1361,7 +1365,7 @@ def list_clips(
                 "timeline_end": c.timeline_end,
                 "fade_in_ms": c.fade_in_ms,
                 "fade_out_ms": c.fade_out_ms,
-                **({"gain_db": c.gain_db} if c.gain_db else {}),
+                **nonzero_gain_payload(c),
                 "join_in_mode": c.join_in_mode.value,
                 **join_render_fields(prev, c, project, mutes),
                 "source_id": c.source_id,

@@ -316,13 +316,13 @@ class SetClipGainPayload(BaseModel):
     expected: ClipGainBaseline = Field(
         description="The saved gain_db captured when the edit began. A changed value "
         "returns clip_gain_changed without changing gain, history, or the journal. Read the "
-        "clip's current gain_db with podcast edit list-clips."
+        "clip's current gain_db with podcast edit list-clips; a clip row without gain_db is at 0."
     )
 
 
 class ClipGainTarget(BaseModel):
     clip_id: str
-    gain_db: float = Field(allow_inf_nan=False)
+    gain_db: float = Field(ge=CLIP_GAIN_MIN_DB, le=CLIP_GAIN_MAX_DB, allow_inf_nan=False)
     expected: ClipGainBaseline = Field(
         description="The saved gain_db of this clip captured when the edit began."
     )
@@ -331,8 +331,8 @@ class ClipGainTarget(BaseModel):
 class SetClipsGainPayload(BaseModel):
     gains: list[ClipGainTarget] = Field(
         min_length=1,
-        description="One absolute gain_db target per clip, each clamped to the -60 to +12 dB "
-        "range. Any clip whose saved gain differs from its expected value returns "
+        description="One absolute gain_db target per clip, each within -60 to +12 dB or refused. "
+        "Any clip whose saved gain differs from its expected value returns "
         "clip_gain_changed and nothing changes. One history entry covers every clip.",
     )
 

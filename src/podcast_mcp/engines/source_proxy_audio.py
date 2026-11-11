@@ -829,6 +829,7 @@ class SourceProxyInputs:
                         "timeline_start",
                         "fade_in_ms",
                         "fade_out_ms",
+                        "gain_db",
                         "join_in_mode",
                     ):
                         row.pop(key, None)
