@@ -1450,14 +1450,12 @@ def share_proxy_manifest(token: str, *, request_origin: str | None = None) -> di
     store_tracks = {
         tid: (generation.tracks[tid].hash, generation.tracks[tid].chunk_count) for tid in urls
     }
-    if request_origin and origin_is_loopback(request_origin):
+    local = bool(request_origin) and origin_is_loopback(request_origin)
+    blocked = None if local else _object_store_cors_blocked(out["tracks"], store_tracks)
+    if local or blocked is not None:
         for tid, (proxy_hash, count) in store_tracks.items():
             out["tracks"][tid]["urls"] = _local_proxy_urls(token, tid, proxy_hash, count)
-        return out
-    blocked = _object_store_cors_blocked(out["tracks"], store_tracks)
     if blocked is not None:
-        for tid, (proxy_hash, count) in store_tracks.items():
-            out["tracks"][tid]["urls"] = _local_proxy_urls(token, tid, proxy_hash, count)
         out["object_store_cors"] = {"status": "blocked", "origin": blocked.origin}
     return out
 
