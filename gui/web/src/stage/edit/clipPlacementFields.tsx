@@ -108,10 +108,12 @@ export function ClipTrackRow({
   clip,
   tracks,
   disabled,
+  reasonId,
 }: {
   clip: ClipRow;
   tracks: readonly { id: string; label: string }[];
   disabled: boolean;
+  reasonId?: string;
 }) {
   const allowed = useDawStore(canPlaceClips);
   const move = useClipMove(clip);
@@ -124,6 +126,7 @@ export function ClipTrackRow({
           quiet
           pressed={track.id === clip.track_id}
           aria-disabled={locked || undefined}
+          aria-describedby={locked ? reasonId : undefined}
           onClick={() => {
             if (locked || track.id === clip.track_id) return;
             void move.commit(clip.timeline_start, track.id);
