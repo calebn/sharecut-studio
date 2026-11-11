@@ -4401,7 +4401,7 @@ describe("round eight of the audit", () => {
         await userEvent.click(
           await screen.findByRole("menuitem", { name: "Trim" }),
         );
-        const field = screen.getByRole("textbox", {
+        const field = screen.getByRole("spinbutton", {
           name: `${which} of Nobody asked the river`,
         });
         field.focus();
