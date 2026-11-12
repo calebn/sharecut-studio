@@ -309,15 +309,7 @@ describe("useProxyTransport", () => {
   });
 
   it("hands the engine the timeline duration of the project", async () => {
-    useDawStore.getState().hydrate(
-      shareProjectKey("tok"),
-      minimalProject({
-        tracks: [sampleTrack({ id: "host" })],
-        timeline_duration_sec: 120,
-      }),
-    );
-    renderHook(() => useProxyTransport());
-    await ready();
+    await playingEpisode(120);
     expect(engine.setSnapshot).toHaveBeenLastCalledWith(
       expect.objectContaining({ durationSec: 120 }),
     );

@@ -28,23 +28,18 @@ import {
 } from "../services/offlineQueue/offlineStore";
 import { isShareProjectKey, shareTokenFromKey } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
-import type { DawStore } from "../state/types";
 import { useDaw } from "../state/useDaw";
 import { ApiError, errorMessage } from "../utils/apiError";
 import { audioContextCtor } from "../utils/audio";
 import { AUDITION_STOP_EPS_SEC } from "../utils/auditionStop";
 import { sortedVolumePoints } from "../utils/envelopes";
 
-type AuditionEnd = Pick<
-  DawStore,
-  "setPlayheadSec" | "setIsPlaying" | "clearSessionRegion"
->;
-
 /** An audition stops where it was asked to, or at the episode end if that comes first. */
-function finishAudition(store: AuditionEnd, atSec: number): void {
-  store.setPlayheadSec(atSec);
-  store.setIsPlaying(false);
-  store.clearSessionRegion();
+function finishAudition(atSec: number): void {
+  const state = useDawStore.getState();
+  state.setPlayheadSec(atSec);
+  state.setIsPlaying(false);
+  state.clearSessionRegion();
 }
 
 /**
@@ -64,8 +59,6 @@ export function useProxyTransport(): boolean {
     playheadSeekRevision,
     setPlayheadSec,
     playUntilSec,
-    setIsPlaying,
-    clearSessionRegion,
     viewerMute,
     soloTracks,
   } = useDaw((s) => ({
@@ -79,8 +72,6 @@ export function useProxyTransport(): boolean {
     playheadSeekRevision: s.playheadSeekRevision,
     setPlayheadSec: s.setPlayheadSec,
     playUntilSec: s.playUntilSec,
-    setIsPlaying: s.setIsPlaying,
-    clearSessionRegion: s.clearSessionRegion,
     viewerMute: s.viewerMute,
     soloTracks: s.soloTracks,
   }));
@@ -177,7 +168,7 @@ export function useProxyTransport(): boolean {
     )
       return;
     if (state.playUntilSec != null) {
-      finishAudition(state, Math.min(state.playUntilSec, endSec));
+      finishAudition(Math.min(state.playUntilSec, endSec));
       return;
     }
     state.setPlayheadSec(endSec, "playback");
@@ -390,10 +381,7 @@ export function useProxyTransport(): boolean {
         const until = playUntilRef.current;
         if (until != null && t >= until - AUDITION_STOP_EPS_SEC) {
           engine.pause();
-          finishAudition(
-            { setPlayheadSec, setIsPlaying, clearSessionRegion },
-            until,
-          );
+          finishAudition(until);
           return;
         }
         rafRef.current = requestAnimationFrame(tick);
@@ -415,14 +403,7 @@ export function useProxyTransport(): boolean {
         rafRef.current = null;
       }
     };
-  }, [
-    isPlaying,
-    active,
-    timelineActive,
-    setIsPlaying,
-    setPlayheadSec,
-    clearSessionRegion,
-  ]);
+  }, [isPlaying, active, timelineActive, setPlayheadSec]);
 
   useEffect(() => {
     const engine = engineRef.current;
