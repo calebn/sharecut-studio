@@ -90,7 +90,7 @@ export function GuestListen({ review, script, scriptState }: GuestListenProps) {
     wasComposing.current = composing;
     if (was && !composing)
       document
-        .querySelector<HTMLElement>(".sys-dock-comment")
+        .querySelector<HTMLElement>(".sys-listen-dock-comment")
         ?.focus({ preventScroll: true });
   }, [composing]);
   const posted = review.posted;
@@ -162,11 +162,13 @@ export function GuestListen({ review, script, scriptState }: GuestListenProps) {
             ? {
                 title: card.title,
                 onBack: () => setStep(null),
+                backLabel: "Back to comments",
                 children: (
                   <DecisionCard
                     kind={stepItem.kind}
                     state="ready"
                     title={card.title}
+                    titleInFrame
                     time={card.time}
                     speaker={card.speaker}
                     suggestedBy={card.suggestedBy}

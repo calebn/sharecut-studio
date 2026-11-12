@@ -74,6 +74,8 @@ type Props = {
    * what it describes; it slides back when they let go.
    */
   stowed?: boolean;
+  /** A pushed step: Back leads the header, before the title. */
+  back?: { label: string; icon: ReactNode; onBack: () => void };
   /** Extra class on the panel. */
   className?: string;
   placement?: SheetPlacement;
@@ -98,6 +100,7 @@ export function BottomSheet({
   resizeLabels,
   drawer: requestedDrawer,
   stowed = false,
+  back,
   className,
   placement = "sheet",
 }: Props) {
@@ -245,6 +248,17 @@ export function BottomSheet({
           </label>
         ) : null}
         <div className="bottom-sheet-header">
+          {back ? (
+            <button
+              type="button"
+              className="ui-control dialog-close bottom-sheet-back"
+              aria-label={back.label}
+              title={back.label}
+              onClick={back.onBack}
+            >
+              {back.icon}
+            </button>
+          ) : null}
           {title ? (
             <h2 id={titleId} className="bottom-sheet-title">
               {title}
