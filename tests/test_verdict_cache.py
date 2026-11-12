@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import itertools
 import wave
 from pathlib import Path
 from types import SimpleNamespace
@@ -184,7 +185,7 @@ def test_every_input_of_the_check_changes_the_key(
     assert key() != base  # the same recording plays again somewhere else
 
 
-def test_a_fade_inside_a_second_widens_the_window_and_a_longer_one_is_not_cached(
+def test_a_fade_inside_a_second_widens_the_window_and_a_longer_one_in_it_is_not_cached(
     tmp_path: Path,
 ) -> None:
     project = _project(tmp_path)
@@ -207,10 +208,89 @@ def test_a_fade_inside_a_second_widens_the_window_and_a_longer_one_is_not_cached
     widened = verdict_cache.verdict_key(project, edit, **kwargs)
     assert widened is not None and widened != base
     project.clips[1].fade_in_ms = 1000
-    assert verdict_cache.verdict_key(project, edit, **kwargs) not in (None, widened)
+    second = verdict_cache.verdict_key(project, edit, **kwargs)
+    assert second not in (None, widened)
     project.clips[1].fade_in_ms = 1001
+    assert verdict_cache.verdict_key(project, edit, **kwargs) not in (None, second)
+    project.clips[0].source_end = 11.0
+    project.clips[1].source_start = project.clips[1].timeline_start = 11.0
     assert verdict_cache.verdict_key(project, edit, **kwargs) is None
     assert verdict_cache.key_parts(project, edit, **kwargs) is None
+
+
+def _host_clips(
+    *edges: float,
+    offset: float = 0.0,
+    fade_in: dict[int, int] | None = None,
+    fade_out: dict[int, int] | None = None,
+) -> list[Clip]:
+    bounds = [0.0, *edges, float(SECONDS)]
+    return [
+        Clip(
+            id=f"h{i}",
+            track_id="host",
+            source_start=a,
+            source_end=b,
+            timeline_start=a + offset,
+            fade_in_ms=(fade_in or {}).get(i, 0),
+            fade_out_ms=(fade_out or {}).get(i, 0),
+        )
+        for i, (a, b) in enumerate(itertools.pairwise(bounds))
+    ]
+
+
+@pytest.mark.parametrize(
+    "clips",
+    [
+        _host_clips(5.4, fade_in={1: 3000}),
+        _host_clips(7.0, fade_out={0: 3000}),
+    ],
+    ids=["ramp-from-the-cut-edge", "ramp-through-the-cut"],
+)
+def test_a_long_fade_that_plays_into_a_cut_s_window_is_checked_again(
+    tmp_path: Path, cache_on: None, monkeypatch: pytest.MonkeyPatch, clips: list[Clip]
+) -> None:
+    project = _project(tmp_path)
+    project.clips = clips
+    precompute_verdicts(project, IDS, defaults=load_defaults())
+    seen = _spy_observations(monkeypatch)
+    _approve(project)
+    assert seen == ["near"]
+
+
+def test_a_long_fade_far_from_both_cuts_leaves_their_checks_cached(
+    tmp_path: Path, cache_on: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    project = _project(tmp_path)
+    project.clips = _host_clips(15.0, fade_out={0: 3000}, fade_in={1: 3000})
+    precompute_verdicts(project, IDS, defaults=load_defaults())
+    seen = _spy_observations(monkeypatch)
+    _approve(project)
+    assert seen == []
+
+
+def test_a_far_long_fade_changed_after_the_warm_is_never_served_from_the_cache(
+    tmp_path: Path, cache_on: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    project = _project(tmp_path)
+    project.clips = _host_clips(15.0, fade_out={0: 3000})
+    precompute_verdicts(project, IDS, defaults=load_defaults())
+    project.clips[0].fade_out_ms = 2500
+    seen = _spy_observations(monkeypatch)
+    _approve(project)
+    assert seen == ["far", "near"]
+
+
+def test_a_long_fade_is_found_on_the_timeline_when_the_clips_sit_later_than_their_source(
+    tmp_path: Path, cache_on: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    project = _project(tmp_path)
+    project.clips = _host_clips(5.4, offset=50.0, fade_in={1: 3000})
+    project.timeline.duration_sec = SECONDS + 50.0
+    precompute_verdicts(project, IDS, defaults=load_defaults())
+    seen = _spy_observations(monkeypatch)
+    _approve(project)
+    assert seen == ["near"]
 
 
 def test_a_cut_far_from_the_window_does_not_change_the_key(tmp_path: Path, cache_on: None) -> None:

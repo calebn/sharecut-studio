@@ -218,22 +218,33 @@ def verdict_key(
     span: tuple[float, float],
     base_profile: str,
 ) -> str | None:
-    """Hash of everything near ``edit`` that its check reads; ``None`` when any input is unreadable.
+    """Hash of everything near ``edit`` that its check reads; ``None`` when any input is unreadable
+    or a clip fade over ``LONG_FADE_NO_CACHE_SEC`` runs into the window (a far one does not).
 
     ``base_profile`` is ``BatchBase.stamp`` of the batch the check belongs to. It is required:
     a key without it would be shared by every batch, whatever base each read.
     """
-    if _has_long_fade(project):
-        return None
     try:
-        return _key(project, edit, defaults, manual, batch, span, base_profile)
+        payload = _payload(project, edit, defaults, manual, batch, span, base_profile)
     except (OSError, ValueError, KeyError):
         return None
+    return None if payload is None else _digest(payload)
 
 
-def _has_long_fade(project: EpisodeProject) -> bool:
-    return any(
-        max(c.fade_in_ms, c.fade_out_ms) > LONG_FADE_NO_CACHE_SEC * 1000 for c in project.clips
+def _long_ramp_in_window(clip: Any, lo: float, hi: float) -> bool:
+    """A fade over ``LONG_FADE_NO_CACHE_SEC`` that runs into ``[lo, hi]`` on the timeline.
+
+    The render shortens a fade to half its clip, so such a ramp can depend on a clip end
+    outside the window, which the key leaves out.
+    """
+    longest = LONG_FADE_NO_CACHE_SEC * 1000
+    fade_in, fade_out = clip.fade_in_ms / 1000, clip.fade_out_ms / 1000
+    return (
+        clip.fade_in_ms > longest
+        and clip.timeline_start < hi
+        and clip.timeline_start + fade_in > lo
+    ) or (
+        clip.fade_out_ms > longest and clip.timeline_end > lo and clip.timeline_end - fade_out < hi
     )
 
 
@@ -248,25 +259,13 @@ def key_parts(
     base_profile: str,
 ) -> dict[str, str] | None:
     """A digest per input of the key, to see which input made a check miss (lab); ``None`` as ``verdict_key``."""
-    if _has_long_fade(project):
-        return None
     try:
         payload = _payload(project, edit, defaults, manual, batch, span, base_profile)
     except (OSError, ValueError, KeyError):
         return None
+    if payload is None:
+        return None
     return {name: _digest(value) for name, value in payload.items()}
-
-
-def _key(
-    project: EpisodeProject,
-    edit: EditDecision,
-    defaults: dict,
-    manual: bool,
-    batch: Sequence[SourceExtent],
-    span: tuple[float, float],
-    base_profile: str,
-) -> str:
-    return _digest(_payload(project, edit, defaults, manual, batch, span, base_profile))
 
 
 def _payload(
@@ -277,7 +276,8 @@ def _payload(
     batch: Sequence[SourceExtent],
     span: tuple[float, float],
     base_profile: str,
-) -> dict[str, Any]:
+) -> dict[str, Any] | None:
+    """What the key hashes; ``None`` when a long fade runs into the window (never cached)."""
     from podcast_mcp.util.tracks import recording_audio_path
 
     seen = _held_pause_span(project, edit, span, defaults)
@@ -290,6 +290,8 @@ def _payload(
     downstream = []
     near = _words_near(project)
     for c in project.clips:
+        if _long_ramp_in_window(c, lo, hi):
+            return None
         in_window = c.timeline_start < hi and c.timeline_end > lo
         if in_window:
             heard.append(_heard(c, lo, hi))
