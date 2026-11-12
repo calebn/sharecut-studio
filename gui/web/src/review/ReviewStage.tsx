@@ -1,5 +1,4 @@
 import {
-  Fragment,
   type ReactNode,
   type Ref,
   useEffect,
@@ -10,7 +9,6 @@ import {
   useState,
 } from "react";
 import type { TranscriptDetailView } from "../document/useTranscriptDetail";
-import { useShortLayoutViewport } from "../hooks/useShortLayoutViewport";
 import type { AuditionSide } from "../system/auditionWindow";
 import { DecisionCard } from "../system/DecisionCard";
 import { Sheet } from "../system/Sheet";
@@ -196,8 +194,6 @@ export function ReviewStage({
     else setPending(null);
   }
 
-  const short = useShortLayoutViewport();
-  const dockedComposer = phone && guest && !short;
   const selected = items.find((item) => item.id === selectedId) ?? null;
   const completeness = reviewCompletenessOf(items, wordDetail?.kind, speaker);
   const gate = !waived && hasCheck;
@@ -554,7 +550,7 @@ export function ReviewStage({
             />
           ) : null}
 
-          {!dockedComposer && <Fragment key="composer">{composer}</Fragment>}
+          {composer}
           {regionFailure && guestColumn ? regionFailure : centerBottom}
           {guestColumn && !selected ? null : !selected &&
             !completeness.wordsKnown ? null : (
@@ -635,7 +631,6 @@ export function ReviewStage({
               }
             />
           )}
-          {dockedComposer && <Fragment key="composer">{composer}</Fragment>}
         </div>
       </div>
       {centerTop ? null : (
