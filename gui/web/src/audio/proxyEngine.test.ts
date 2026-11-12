@@ -22,6 +22,7 @@ function makeCtx() {
     playbackRate: { value: number };
     buffer: AudioBuffer | null;
     connect: ReturnType<typeof vi.fn>;
+    disconnect: ReturnType<typeof vi.fn>;
   }> = [];
   const gains: Array<{
     connect: ReturnType<typeof vi.fn>;
@@ -131,6 +132,7 @@ describe("ProxyEngine", () => {
       ctx,
       async () => new ArrayBuffer(64),
       vi.fn(),
+      vi.fn(),
     );
     const manifest: ProxyManifest = {
       revision: "r",
@@ -152,6 +154,7 @@ describe("ProxyEngine", () => {
       manifest,
       clipsByTrack: {},
       tracks: [{ id: "host", gain_db: 6, muted: false }],
+      durationSec: Number.POSITIVE_INFINITY,
     });
     expect(engine.readTrackFrame("host")).toBeNull();
     expect(analysers).not.toHaveBeenCalled();
@@ -184,7 +187,12 @@ describe("ProxyEngine", () => {
     expect(engine.readTrackFrame("host")?.[0]).toBe(0.5);
     expect(gains[1]?.gain.value).toBeCloseTo(1.995262);
     const split = splitter.mock.results.at(-1)?.value;
-    engine.setSnapshot({ manifest, clipsByTrack: {}, tracks: [] });
+    engine.setSnapshot({
+      manifest,
+      clipsByTrack: {},
+      tracks: [],
+      durationSec: Number.POSITIVE_INFINITY,
+    });
     expect(split?.disconnect).toHaveBeenCalledOnce();
     expect(engine.readTrackFrame("host")).toBeNull();
     engine.pause();
@@ -198,6 +206,7 @@ describe("ProxyEngine", () => {
     const engine = new ProxyEngine(
       ctx,
       async () => new ArrayBuffer(64),
+      vi.fn(),
       vi.fn(),
     );
     const manifest: ProxyManifest = {
@@ -236,6 +245,7 @@ describe("ProxyEngine", () => {
       manifest,
       clipsByTrack: { host: clips },
       tracks: [{ id: "host", gain_db: 0, muted: false }],
+      durationSec: Number.POSITIVE_INFINITY,
     });
     engine.play(0);
     await new Promise((r) => setTimeout(r, 20));
@@ -257,6 +267,7 @@ describe("ProxyEngine", () => {
       ctx,
       async () => new ArrayBuffer(64),
       vi.fn(),
+      vi.fn(),
     );
     engine.setSnapshot({
       manifest,
@@ -266,6 +277,7 @@ describe("ProxyEngine", () => {
         { id: "guest", gain_db: 0, muted: true },
         { id: "cohost", gain_db: 0, muted: false },
       ],
+      durationSec: Number.POSITIVE_INFINITY,
     });
     // gains[0] is the master; then one per track, in order.
     const level = () => gains.slice(1).map((g) => g.gain.value);
@@ -286,6 +298,7 @@ describe("ProxyEngine", () => {
     const engine = new ProxyEngine(
       ctx,
       async () => new ArrayBuffer(64),
+      vi.fn(),
       vi.fn(),
     );
     const manifest: ProxyManifest = {
@@ -326,6 +339,7 @@ describe("ProxyEngine", () => {
       manifest,
       clipsByTrack: clips,
       tracks: [{ id: "host", gain_db: 0, muted: false }],
+      durationSec: Number.POSITIVE_INFINITY,
     });
     engine.play(0);
     await new Promise((r) => setTimeout(r, 20));
@@ -337,6 +351,7 @@ describe("ProxyEngine", () => {
       manifest,
       clipsByTrack: structuredClone(clips),
       tracks: [{ id: "host", gain_db: 0, fader_db: -6, muted: false }],
+      durationSec: Number.POSITIVE_INFINITY,
     });
     await new Promise((r) => setTimeout(r, 20));
     expect(created).toHaveLength(scheduled);
@@ -352,6 +367,7 @@ describe("ProxyEngine", () => {
     const engine = new ProxyEngine(
       ctx,
       async () => new ArrayBuffer(64),
+      vi.fn(),
       vi.fn(),
     );
     const manifest: ProxyManifest = {
@@ -391,6 +407,7 @@ describe("ProxyEngine", () => {
         ],
       },
       tracks: [{ id: "host", gain_db: 0, muted: false }],
+      durationSec: Number.POSITIVE_INFINITY,
     });
     engine.setPlaybackRate(2);
     engine.play(0);
@@ -426,6 +443,7 @@ describe("ProxyEngine", () => {
     const engine = new ProxyEngine(
       ctx,
       () => new Promise((resolve) => releases.push(resolve)),
+      vi.fn(),
       vi.fn(),
     );
     const manifest: ProxyManifest = {
@@ -465,6 +483,7 @@ describe("ProxyEngine", () => {
         ],
       },
       tracks: [{ id: "host", gain_db: 0, muted: false }],
+      durationSec: Number.POSITIVE_INFINITY,
     });
     engine.play(0);
     engine.seek(5);
@@ -517,6 +536,7 @@ function snapshot(hash = "a".repeat(16), url = "legacy", chunkSec = 60) {
       ],
     },
     tracks: [{ id: "host", gain_db: 0, muted: false }],
+    durationSec: Number.POSITIVE_INFINITY,
   };
 }
 
@@ -534,7 +554,7 @@ describe("immutable playback snapshots", () => {
   it("replaces a playing artifact at the current position and reuses unchanged bytes", async () => {
     const { ctx, created, setTime } = makeCtx();
     const fetch = vi.fn(async (_ref: ImmutableChunkRef) => new ArrayBuffer(64));
-    const engine = new ProxyEngine(ctx, fetch, vi.fn());
+    const engine = new ProxyEngine(ctx, fetch, vi.fn(), vi.fn());
     engine.setSnapshot(snapshot());
     engine.play(1);
     await vi.waitFor(() => expect(created).toHaveLength(1));
@@ -553,6 +573,7 @@ describe("immutable playback snapshots", () => {
         ...snapshot("b".repeat(64), "replacement").manifest,
         revision: "another-basis",
       },
+      durationSec: Number.POSITIVE_INFINITY,
     });
     expect(created).toHaveLength(2);
     engine.seek(5);
@@ -570,7 +591,7 @@ describe("immutable playback snapshots", () => {
         : Promise.resolve(new ArrayBuffer(128)),
     );
     const failure = vi.fn();
-    const engine = new ProxyEngine(ctx, fetch, failure);
+    const engine = new ProxyEngine(ctx, fetch, failure, vi.fn());
     engine.setSnapshot(snapshot());
     engine.play(0);
     engine.setSnapshot(snapshot("b".repeat(64), "replacement"));
@@ -590,7 +611,7 @@ describe("immutable playback snapshots", () => {
     const stale = deferred<AudioBuffer>();
     decode.mockImplementationOnce(() => stale.promise);
     const fetch = vi.fn(async (_ref: ImmutableChunkRef) => new ArrayBuffer(64));
-    const engine = new ProxyEngine(ctx, fetch, vi.fn());
+    const engine = new ProxyEngine(ctx, fetch, vi.fn(), vi.fn());
     engine.setSnapshot(snapshot());
     engine.play(0);
     await vi.waitFor(() => expect(decode).toHaveBeenCalledOnce());
@@ -610,7 +631,12 @@ describe("immutable playback snapshots", () => {
     const { ctx, decode, created } = makeCtx();
     const pending = deferred<ArrayBuffer>();
     const failure = vi.fn();
-    const engine = new ProxyEngine(ctx, () => pending.promise, failure);
+    const engine = new ProxyEngine(
+      ctx,
+      () => pending.promise,
+      failure,
+      vi.fn(),
+    );
     engine.setSnapshot(snapshot());
     engine.play(0);
     engine.pause();
@@ -632,6 +658,7 @@ describe("immutable playback snapshots", () => {
       ctx,
       async () => new ArrayBuffer(64),
       failure,
+      vi.fn(),
     );
     engine.setSnapshot(snapshot());
     engine.play(2);
@@ -656,6 +683,7 @@ describe("immutable playback snapshots", () => {
       ctx,
       async () => new ArrayBuffer(64),
       vi.fn(),
+      vi.fn(),
     );
     const next = snapshot("a".repeat(16), "legacy", 10);
     next.clipsByTrack.host[0].fade_out_ms = 8000;
@@ -667,6 +695,7 @@ describe("immutable playback snapshots", () => {
           { time: 20, value: 0.5 },
         ],
       },
+      durationSec: Number.POSITIVE_INFINITY,
     });
     engine.play(16);
     await vi.waitFor(() => expect(created).toHaveLength(1));
@@ -684,6 +713,7 @@ describe("immutable playback snapshots", () => {
       ctx,
       async () => new ArrayBuffer(64),
       vi.fn(),
+      vi.fn(),
     );
     engine.setSnapshot({
       ...snapshot("a".repeat(16), "legacy", 10),
@@ -694,6 +724,7 @@ describe("immutable playback snapshots", () => {
           { time: 15, value: 0.5 },
         ],
       },
+      durationSec: Number.POSITIVE_INFINITY,
     });
     engine.play(11);
     await vi.waitFor(() => expect(created).toHaveLength(1));
@@ -712,6 +743,7 @@ describe("immutable playback snapshots", () => {
     const engine = new ProxyEngine(
       ctx,
       async () => new ArrayBuffer(64),
+      vi.fn(),
       vi.fn(),
     );
     const next = snapshot("a".repeat(16), "legacy", 30);
@@ -737,6 +769,7 @@ describe("immutable playback snapshots", () => {
     const engine = new ProxyEngine(
       ctx,
       async () => new ArrayBuffer(64),
+      vi.fn(),
       vi.fn(),
     );
     const next = snapshot("a".repeat(16), "legacy", 30);
@@ -769,6 +802,7 @@ describe("immutable playback snapshots", () => {
       ctx,
       async () => new ArrayBuffer(64),
       vi.fn(),
+      vi.fn(),
     );
     const next = snapshot("a".repeat(16), "legacy", 10);
     next.clipsByTrack.host[0].fade_in_ms = 15000;
@@ -793,6 +827,7 @@ describe("immutable playback snapshots", () => {
     const engine = new ProxyEngine(
       ctx,
       async () => new ArrayBuffer(64),
+      vi.fn(),
       vi.fn(),
     );
     const next = snapshot();
@@ -850,14 +885,18 @@ function soundingAt(
   ctxTime: number,
   rate: number,
 ): number {
-  return created.filter(({ start }) => {
+  return created.filter(({ start, stop }) => {
     const [when, , duration] = start.mock.calls[0] ?? [];
-    return when <= ctxTime && ctxTime < when + duration / rate;
+    return (
+      stop.mock.calls.length === 0 &&
+      when <= ctxTime &&
+      ctxTime < when + duration / rate
+    );
   }).length;
 }
 
-function episode(durationSec: number) {
-  const chunkCount = Math.ceil(durationSec / 60);
+function episode(durationSec: number, chunkSec = 60) {
+  const chunkCount = Math.ceil(durationSec / chunkSec);
   return {
     manifest: {
       revision: "long",
@@ -865,7 +904,7 @@ function episode(durationSec: number) {
       tracks: {
         host: {
           hash: "a".repeat(16),
-          chunk_sec: 60,
+          chunk_sec: chunkSec,
           overlap_ms: 200,
           chunk_count: chunkCount,
           duration_sec: durationSec,
@@ -908,7 +947,7 @@ describe("playing a timeline longer than the first window", () => {
     async (rate) => {
       const handle = makeCtx();
       const fetchChunk = vi.fn(async () => new ArrayBuffer(64));
-      const engine = new ProxyEngine(handle.ctx, fetchChunk, vi.fn());
+      const engine = new ProxyEngine(handle.ctx, fetchChunk, vi.fn(), vi.fn());
       engine.setSnapshot(episode(400));
       engine.setPlaybackRate(rate);
       engine.play(0);
@@ -957,6 +996,169 @@ describe("playing a timeline longer than the first window", () => {
     expect(handle.created).toHaveLength(sourcesAtEnd);
     expect(engine.readTrackFrame("host")).toBeNull();
     expect(onEnded).toHaveBeenCalledTimes(1);
+    engine.dispose();
+  });
+
+  it("abuts the next batch to the slice that straddles the old edge and starts that slice once", async () => {
+    const handle = makeCtx();
+    const engine = new ProxyEngine(
+      handle.ctx,
+      async () => new ArrayBuffer(64),
+      vi.fn(),
+      vi.fn(),
+    );
+    engine.setSnapshot(episode(250, 50));
+    engine.play(0);
+    await flush();
+    for (let ctxSec = 1; ctxSec <= 200; ctxSec += 1) {
+      await advanceTo(handle, ctxSec);
+    }
+    const starts = handle.created.map(({ start }) => start.mock.calls[0]);
+    expect(starts.map(([when]) => when)).toEqual([0, 50, 100, 150, 200]);
+    for (let i = 1; i < starts.length; i += 1) {
+      const [previousWhen, , previousDuration] = starts[i - 1];
+      expect(
+        Math.abs(previousWhen + previousDuration - starts[i][0]),
+      ).toBeLessThan(1e-9);
+    }
+    engine.dispose();
+  });
+
+  describe("while an extension is still fetching", () => {
+    async function playUntilExtensionPending(rate = 1) {
+      const handle = makeCtx();
+      const gate = deferred<ArrayBuffer>();
+      const fetchChunk = vi.fn((ref: ImmutableChunkRef) =>
+        ref.index === 2 ? gate.promise : Promise.resolve(new ArrayBuffer(64)),
+      );
+      const failure = vi.fn();
+      const onEnded = vi.fn();
+      const engine = new ProxyEngine(handle.ctx, fetchChunk, failure, onEnded);
+      engine.setSnapshot(episode(400));
+      engine.setPlaybackRate(rate);
+      engine.play(0);
+      await flush();
+      for (let ctxSec = 1; ctxSec <= 75; ctxSec += 1) {
+        await advanceTo(handle, ctxSec);
+      }
+      expect(fetchChunk.mock.calls.some(([ref]) => ref.index === 2)).toBe(true);
+      return { handle, engine, gate, failure, onEnded };
+    }
+
+    it("places nothing from the extension after a seek", async () => {
+      const { handle, engine, gate, failure, onEnded } =
+        await playUntilExtensionPending();
+      engine.seek(300);
+      await flush();
+      const created = handle.created.length;
+      gate.resolve(new ArrayBuffer(64));
+      await flush();
+      expect(handle.created).toHaveLength(created);
+      for (let ctxSec = 76; ctxSec < 75 + 99; ctxSec += 1) {
+        await advanceTo(handle, ctxSec);
+        expect(
+          soundingAt(handle.created, ctxSec + 0.5, 1),
+          `sources sounding at ctx ${ctxSec + 0.5} s`,
+        ).toBe(1);
+      }
+      expect(failure).not.toHaveBeenCalled();
+      expect(onEnded).not.toHaveBeenCalled();
+      engine.dispose();
+    });
+
+    it("places nothing from the extension after a pause", async () => {
+      const { handle, engine, gate, failure, onEnded } =
+        await playUntilExtensionPending();
+      const created = handle.created.length;
+      engine.pause();
+      gate.resolve(new ArrayBuffer(64));
+      await flush();
+      await advanceTo(handle, 200);
+      expect(handle.created).toHaveLength(created);
+      expect(engine.readTrackFrame("host")).toBeNull();
+      expect(failure).not.toHaveBeenCalled();
+      expect(onEnded).not.toHaveBeenCalled();
+      engine.dispose();
+    });
+
+    it("places nothing from the extension after a rate change, which reschedules on its own", async () => {
+      const { handle, engine, gate, failure, onEnded } =
+        await playUntilExtensionPending();
+      engine.setPlaybackRate(2);
+      gate.resolve(new ArrayBuffer(64));
+      await flush();
+      const live = handle.created.filter(
+        ({ stop }) => stop.mock.calls.length === 0,
+      );
+      expect(
+        new Set(live.map(({ start }) => start.mock.calls[0][1])).size,
+      ).toBe(live.length);
+      expect(soundingAt(handle.created, 76.5, 2)).toBe(1);
+      expect(failure).not.toHaveBeenCalled();
+      expect(onEnded).not.toHaveBeenCalled();
+      engine.dispose();
+    });
+
+    it("stops everything once and wakes nothing when the extension's fetch fails", async () => {
+      const { handle, engine, gate, failure, onEnded } =
+        await playUntilExtensionPending();
+      const error = new TypeError("Failed to fetch");
+      expect(soundingAt(handle.created, 75.5, 1)).toBe(1);
+      gate.reject(error);
+      await flush();
+      expect(failure).toHaveBeenCalledExactlyOnceWith(
+        error,
+        expect.objectContaining({ index: 2 }),
+      );
+      expect(soundingAt(handle.created, 75.5, 1)).toBe(0);
+      const created = handle.created.length;
+      await advanceTo(handle, 200);
+      expect(handle.created).toHaveLength(created);
+      expect(engine.currentTimeSec()).toBe(75);
+      expect(onEnded).not.toHaveBeenCalled();
+      engine.dispose();
+    });
+  });
+
+  it("disconnects each source once it has finished and keeps the ones still to sound", async () => {
+    const handle = makeCtx();
+    const engine = new ProxyEngine(
+      handle.ctx,
+      async () => new ArrayBuffer(64),
+      vi.fn(),
+      vi.fn(),
+    );
+    engine.setSnapshot(episode(400));
+    engine.play(0);
+    await flush();
+    for (let ctxSec = 1; ctxSec <= 76; ctxSec += 1) {
+      await advanceTo(handle, ctxSec);
+    }
+    expect(handle.created[0].disconnect).toHaveBeenCalled();
+    expect(handle.created[1].disconnect).not.toHaveBeenCalled();
+    for (let ctxSec = 77; ctxSec <= 196; ctxSec += 1) {
+      await advanceTo(handle, ctxSec);
+    }
+    expect(handle.created[1].disconnect).toHaveBeenCalled();
+    expect(handle.created.at(-1)?.disconnect).not.toHaveBeenCalled();
+    engine.dispose();
+  });
+
+  it("starts over from the beginning when Play is pressed at the end", async () => {
+    const handle = makeCtx();
+    const onEnded = vi.fn();
+    const engine = new ProxyEngine(
+      handle.ctx,
+      async () => new ArrayBuffer(64),
+      vi.fn(),
+      onEnded,
+    );
+    engine.setSnapshot(episode(130));
+    engine.play(130);
+    await flush();
+    expect(engine.currentTimeSec()).toBe(0);
+    expect(handle.created[0].start).toHaveBeenCalledWith(0, 0, 60);
+    expect(onEnded).not.toHaveBeenCalled();
     engine.dispose();
   });
 });
