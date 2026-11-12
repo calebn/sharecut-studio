@@ -10,7 +10,9 @@ const NONE: ChapterMarker[] = [];
 export function usePlayerChapters() {
   const markers = useDawStore((s) => s.project?.chapters) ?? NONE;
   const duration = useDawStore((s) => s.project?.timeline_duration_sec ?? 0);
-  const playheadSec = useDawStore((s) => s.playheadSec);
+  const current = useDawStore((s) =>
+    chapterIndexAt(sortChapters(s.project?.chapters ?? NONE), s.playheadSec),
+  );
   const sorted = useMemo(() => sortChapters(markers), [markers]);
   const chapters = useMemo(
     () => playerChapters(sorted, duration),
@@ -18,7 +20,7 @@ export function usePlayerChapters() {
   );
   return {
     chapters,
-    current: chapterIndexAt(sorted, playheadSec),
+    current,
     seekTo: (index: number) => {
       const target = sorted[index];
       if (target) void seekTransport(target.time);
