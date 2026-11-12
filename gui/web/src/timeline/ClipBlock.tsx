@@ -17,6 +17,7 @@ import {
 } from "../edit/clipMove";
 import { rippleTrimOf } from "../edit/ripplePreview";
 import { MOVE_THRESHOLD_PX } from "../hooks/gestureConstants";
+import { listenForInterrupt } from "../hooks/useInterruptCancel";
 import { useSnapTicks, useSplitGuideOnClip } from "../hooks/useSnapTicks";
 import { hasShareCapability, isShareProjectKey } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
@@ -334,7 +335,8 @@ export function ClipBlockLive({
       if (event.key === "Escape") cancelBodyDrag();
     };
     document.addEventListener("keydown", onOwnedKey, true);
-    window.addEventListener("blur", cancelBodyDrag);
+    const interrupts = new AbortController();
+    listenForInterrupt(cancelBodyDrag, interrupts.signal);
     bodyMovedRef.current = false;
     bodyRef.current = {
       clip,
@@ -343,7 +345,7 @@ export function ClipBlockLive({
       target,
       stopListening: () => {
         document.removeEventListener("keydown", onOwnedKey, true);
-        window.removeEventListener("blur", cancelBodyDrag);
+        interrupts.abort();
       },
       rangeCandidate,
       pointerId: e.pointerId,
