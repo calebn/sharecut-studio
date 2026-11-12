@@ -10,7 +10,6 @@ import {
   commentPostedStatus,
   usePostComment,
 } from "../../comments/usePostComment";
-import { useShortLayoutViewport } from "../../hooks/useShortLayoutViewport";
 import { stepUndecided } from "../../review/advance";
 import {
   commentEntriesOf,
@@ -90,9 +89,10 @@ export function useReviewComments(guest: boolean) {
   const mayComment = canComment(projectPath, guestMode, capabilities);
   const mayReply = canReply(projectPath, guestMode, capabilities);
   const mayAction = canSetAction(projectPath, capabilities);
-  const showComposer = mayComment && (guest || commentDraft !== null);
-  const short = useShortLayoutViewport();
-  const docked = shell === "phone" && guest && !short;
+  // A guest on a wide shell always has the field. A phone guest opens it from
+  // the Player's Comment button, like a host.
+  const showComposer =
+    mayComment && (commentDraft !== null || (guest && shell !== "phone"));
   const duration = project?.timeline_duration_sec ?? Number.NaN;
   const comments = project?.comments;
   const [flipped, setFlipped] = useState<ReadonlyMap<string, boolean>>(
@@ -375,7 +375,7 @@ export function useReviewComments(guest: boolean) {
   };
 
   const composer = showComposer ? (
-    <div className="rv-compose" data-docked={docked ? "" : undefined}>
+    <div className="rv-compose">
       <ComposeAnchor
         compact
         explainEmpty

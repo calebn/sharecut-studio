@@ -159,26 +159,6 @@
   padding: var(--space-3) var(--space-4) 0;
 }
 
-/* A guest on a phone keeps the comment field in reach: it comes last in the card
-   and sticks to the bottom of the host panel, the real scroller, so .rv-main must
-   not clip it. The Player and the safe area the frame pads sit below the panel. */
-.rv-stage[data-layout="phone"]:has(.rv-compose[data-docked]) .rv-main {
-  overflow-x: clip;
-  overflow-y: visible;
-}
-
-.rv-stage[data-layout="phone"] .rv-compose[data-docked] {
-  flex: none;
-  position: sticky;
-  inset-block-end: 0;
-  z-index: 1;
-  max-block-size: 40dvh;
-  overflow-y: auto;
-  padding-block-end: var(--space-3);
-  background: var(--color-bg-canvas);
-  border-block-start: 1px solid var(--color-border-subtle);
-}
-
 .rv-foot {
   flex: none;
   display: flex;

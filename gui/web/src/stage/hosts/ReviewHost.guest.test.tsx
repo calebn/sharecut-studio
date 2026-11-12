@@ -7,6 +7,9 @@ import {
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { clearRegisteredCommands } from "../../commands/execute";
+import { executePointerCommand } from "../../commands/pointer";
+import { registerDawCommands } from "../../commands/register";
 import { resolveCommentAnchor } from "../../comments/commentAnchor";
 import { useDawStore } from "../../state/dawStore";
 import { expectNoA11yViolations } from "../../test/a11y";
@@ -562,27 +565,31 @@ describe("Review queue for a guest", () => {
     });
   });
 
-  describe("comment field docking", () => {
+  describe("comment field placement", () => {
+    beforeEach(() => {
+      clearRegisteredCommands();
+      registerDawCommands();
+    });
     afterEach(() => {
       useDawStore.setState({ shellBreakpoint: "desktop" });
       vi.unstubAllGlobals();
     });
 
-    const docked = () =>
-      document.querySelector(".rv-compose")?.hasAttribute("data-docked");
-
-    it("docks the field for a Commenter on a phone", () => {
-      stubViewportShell("phone");
-      useDawStore.setState({ shellBreakpoint: "phone" });
-      join("comment");
-      render(<ReviewHost guestShare />);
-      expect(docked()).toBe(true);
-    });
+    const above = () => {
+      const compose = document.querySelector(".rv-compose") as Element;
+      const card = document.querySelector(
+        ".rv-card > :not(.rv-compose):not(.sys-player)",
+      );
+      return !!(
+        card &&
+        compose.compareDocumentPosition(card) & Node.DOCUMENT_POSITION_FOLLOWING
+      );
+    };
 
     it("names the foot strip apart from the Player's Episode overview", () => {
       stubViewportShell("phone");
       useDawStore.setState({ shellBreakpoint: "phone" });
-      join("comment");
+      join("edit");
       render(<ReviewHost guestShare />);
       expect(
         screen.getByRole("slider", { name: "Episode overview, queue markers" }),
@@ -592,84 +599,32 @@ describe("Review queue for a guest", () => {
       ).toBeNull();
     });
 
-    it("leaves the field in the card on a short phone", () => {
-      stubViewportShell("phone", { short: true });
-      useDawStore.setState({ shellBreakpoint: "phone" });
-      join("comment");
-      render(<ReviewHost guestShare />);
-      expect(document.querySelector(".rv-compose")).not.toBeNull();
-      expect(docked()).toBe(false);
-      expect(after()).toBe(false);
-    });
-
-    it("keeps the field docked when only the visual viewport is short", () => {
+    it("phone Editor: no field until Comment, then above the card", async () => {
       stubViewportShell("phone");
-      vi.stubGlobal("visualViewport", {
-        height: 300,
-        scale: 1,
-        addEventListener: vi.fn(),
-        removeEventListener: vi.fn(),
-      });
       useDawStore.setState({ shellBreakpoint: "phone" });
-      join("comment");
+      join("edit");
       render(<ReviewHost guestShare />);
-      expect(docked()).toBe(true);
+      expect(screen.queryByRole("textbox", { name: "Comment" })).toBeNull();
+      await act(() => executePointerCommand("comment.draftAt", { atTime: 4 }));
+      expect(field()).toBeVisible();
+      expect(above()).toBe(true);
     });
 
-    it("leaves a guest on a tablet undocked", () => {
+    it("keeps a guest's field in the card on a tablet", () => {
       stubViewportShell("tablet");
       useDawStore.setState({ shellBreakpoint: "tablet" });
       join("comment");
       render(<ReviewHost guestShare />);
-      expect(document.querySelector(".rv-compose")).not.toBeNull();
-      expect(docked()).toBe(false);
-    });
-
-    it("keeps the same field element when the shell changes under it", () => {
-      stubViewportShell("phone");
-      useDawStore.setState({ shellBreakpoint: "phone" });
-      join("comment");
-      render(<ReviewHost guestShare />);
-      const field = screen.getByRole("textbox", { name: "Comment" });
-      expect(docked()).toBe(true);
-      act(() => useDawStore.setState({ shellBreakpoint: "desktop" }));
-      expect(docked()).toBe(false);
-      expect(screen.getByRole("textbox", { name: "Comment" })).toBe(field);
-      expect(field.isConnected).toBe(true);
-    });
-
-    const after = () => {
-      const compose = document.querySelector(".rv-compose") as Element;
-      const card = document.querySelector(
-        ".rv-card > :not(.rv-compose):not(.sys-player)",
-      );
-      return !!(
-        card &&
-        compose.compareDocumentPosition(card) & Node.DOCUMENT_POSITION_PRECEDING
-      );
-    };
-
-    it("puts the docked field after the card in tab order", () => {
-      stubViewportShell("phone");
-      useDawStore.setState({ shellBreakpoint: "phone" });
-      join("comment");
-      render(<ReviewHost guestShare />);
-      expect(after()).toBe(true);
+      expect(field()).toBeVisible();
     });
 
     it("keeps the field before the card on a desktop", () => {
       join("comment");
       render(<ReviewHost guestShare />);
-      expect(after()).toBe(false);
+      expect(above()).toBe(true);
     });
 
-    it("leaves it in the card on a desktop", () => {
-      join("comment");
-      render(<ReviewHost guestShare />);
-      expect(docked()).toBe(false);
-    });
-
-    it("leaves a host's field undocked on a phone", () => {
+    it("leaves a host's field before the card on a phone", () => {
       stubViewportShell("phone");
       useDawStore.setState({ shellBreakpoint: "phone" });
       useDawStore.getState().hydrate("/p", minimalProject());
@@ -678,8 +633,7 @@ describe("Review queue for a guest", () => {
         commentDraft: { startSec: 1, endSec: null },
       });
       render(<ReviewHost />);
-      expect(docked()).toBe(false);
-      expect(after()).toBe(false);
+      expect(above()).toBe(true);
     });
   });
 
