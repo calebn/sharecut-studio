@@ -390,7 +390,11 @@ def version_key(version: str) -> tuple[int, ...]:
 
 
 def assert_upgrade(directory: Path) -> None:
-    """Require a real production CLI result whenever a released format is unsupported."""
+    """Require a real production CLI result for every released format older than the current one.
+
+    Ordinary loading must either open the old file in memory (a known older version) or refuse
+    it with the coded unsupported-version error; it never writes the file.
+    """
     with TemporaryDirectory() as temporary:
         source = Path(temporary) / "source"
         shutil.copytree(directory, source)
@@ -399,11 +403,10 @@ def assert_upgrade(directory: Path) -> None:
             load_project(source / PROJECT)
         except ValueError as exc:
             require(
-                "Unsupported project file version" in str(exc),
+                getattr(exc, "code", None) == "project_version_unsupported",
                 "Old format failed for the wrong reason",
             )
-        else:
-            raise ValueError("Old released version is still accepted by ordinary runtime loading")
+        require(inventory(source) == before, "Opening the old release changed the source fixture")
         output = Path(temporary) / "upgraded" / PROJECT
         result = subprocess.run(
             [

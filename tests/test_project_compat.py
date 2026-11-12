@@ -67,6 +67,84 @@ def unsupported_synthetic(directory: Path) -> None:
     write_json(directory / compat.PROJECT, project)
 
 
+V20 = ROOT / compat.CORPUS / "format_2_0" / compat.PROJECT
+
+
+@pytest.fixture
+def v20_workspace(tmp_path: Path) -> Path:
+    workspace = tmp_path / "saved-by-0-1-3"
+    workspace.mkdir()
+    shutil.copy(V20, workspace / compat.PROJECT)
+    return workspace
+
+
+def test_format_2_0_fixture_is_a_2_0_document_without_the_2_1_field() -> None:
+    document = compat.read_json(V20)
+    assert document["version"] == "2.0"
+    assert "join_fade_max_ms" not in document["timeline"]
+
+
+def test_format_2_0_opens_through_load_project_and_stays_2_0_on_disk(v20_workspace) -> None:
+    before = (v20_workspace / compat.PROJECT).read_bytes()
+    project = compat.load_project(v20_workspace / compat.PROJECT)
+    assert project.version == "2.1"
+    assert [t.id for t in project.timeline.tracks] == ["reference", "guest"]
+    assert (v20_workspace / compat.PROJECT).read_bytes() == before
+
+
+def test_format_2_0_opens_through_the_http_open_route(v20_workspace) -> None:
+    from fastapi.testclient import TestClient
+
+    from podcast_mcp.gui.server import create_app
+
+    before = (v20_workspace / compat.PROJECT).read_bytes()
+    client = TestClient(create_app(), client=("127.0.0.1", 50000))
+    res = client.post("/api/project/open", json={"path": str(v20_workspace)})
+    assert res.status_code == 200, res.text
+    assert (v20_workspace / compat.PROJECT).read_bytes() == before
+
+
+@pytest.mark.parametrize(
+    ("version", "code", "advice"),
+    [
+        ("9.0", "project_version_newer", "Update the app"),
+        ("1.0", "project_version_unsupported", "restore a backup"),
+    ],
+)
+def test_http_open_route_answers_a_bad_version_with_its_code_and_message(
+    v20_workspace, version, code, advice
+) -> None:
+    from fastapi.testclient import TestClient
+
+    from podcast_mcp.gui.server import create_app
+
+    document = compat.read_json(v20_workspace / compat.PROJECT)
+    document["version"] = version
+    write_json(v20_workspace / compat.PROJECT, document)
+    client = TestClient(create_app(), client=("127.0.0.1", 50000))
+    res = client.post("/api/project/open", json={"path": str(v20_workspace)})
+    assert res.status_code == 400
+    assert res.headers["X-Sharecut-Error-Code"] == code
+    assert advice in res.json()["detail"]
+    assert str(v20_workspace) not in res.json()["detail"]
+
+
+def test_format_2_0_is_read_by_the_cli(v20_workspace) -> None:
+    import json
+
+    from typer.testing import CliRunner
+
+    from podcast_mcp.cli.main import app
+
+    before = (v20_workspace / compat.PROJECT).read_bytes()
+    result = CliRunner().invoke(
+        app, ["info", "--project", str(v20_workspace / compat.PROJECT), "--json"]
+    )
+    assert result.exit_code == 0, result.output
+    assert json.loads(result.stdout)["version"] == "2.1"
+    assert (v20_workspace / compat.PROJECT).read_bytes() == before
+
+
 def test_committed_lock_and_complete_development_corpus() -> None:
     assert (ROOT / compat.LOCK).read_text(encoding="utf-8") == compat.dumps(compat.shape_lock())
     compat.read_ledger(ROOT)

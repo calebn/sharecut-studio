@@ -1,6 +1,6 @@
 # Episode project format
 
-**Canonical spec:** [episode-format-v2.md](episode-format-v2.md) (version `2.1` only; `podcast episode upgrade` moves a `2.0` workspace to it).
+**Canonical spec:** [episode-format-v2.md](episode-format-v2.md) (version `2.1`; a `2.0` file opens and is saved as `2.1`; `podcast episode upgrade` copies a `2.0` workspace to a new `2.1` one).
 
 Primary file: `episode.sharecut` in the episode workspace directory.
 
@@ -36,8 +36,13 @@ Before the first beta tester build ships, format changes need no migration.
 After that delivery, every structural persisted-shape change requires a project
 version bump and a tested, one-shot CLI upgrade of every older released fixture.
 This includes additive fields and history-only changes. A version bump without
-a shape change also requires the upgrade tests. Ordinary loading rejects old
-versions. Runtime code keeps no old-format branches.
+a shape change also requires the upgrade tests. A file saved by a shipped build
+must still open: `load_project` moves a known older document to the current
+version in memory with the shared `STEPS` table (`models/project_format.py`) and
+leaves the file as it was until the next normal save. A newer or unknown version
+fails with the coded errors `project_version_newer` (update the app) and
+`project_version_unsupported` (open it with the version that saved it, or restore
+a backup).
 
 `scripts/project_compat.py` owns the developer guard. Its generated
 `schemas/episode.project.shape.lock.json` records both validation and serialization
@@ -129,9 +134,9 @@ it cannot attest that a private installer was delivered. Follow the
 
 `podcast episode upgrade` upgrades a `2.0` workspace to `2.1` (`2.1` added
 `timeline.join_fade_max_ms`; the step table is `STEPS` in
-`src/podcast_mcp/project/upgrade.py`, and the next break adds one entry and its
-expected-value tests). The guard invokes this fixed command for every unsupported
-released fixture:
+`src/podcast_mcp/models/project_format.py`, and the next break adds one entry and its
+expected-value tests). The guard invokes this fixed command for every released fixture
+older than the current version:
 
 ```bash
 python -m podcast_mcp.cli.main --no-progress episode upgrade \
@@ -142,7 +147,8 @@ python -m podcast_mcp.cli.main --no-progress episode upgrade \
 `--project` names a file called `episode.sharecut`. `--output` names a new workspace directory. The command
 must publish its current `episode.sharecut`, history index, every retained upgraded snapshot, and
 unchanged raw media there. It must leave the source unchanged. The guard first
-requires ordinary loading to reject the source version. A missing command,
+requires ordinary loading to leave the source file unchanged (it opens a known older
+version in memory, or refuses it with `project_version_unsupported`). A missing command,
 nonzero exit, absent output, discarded history, changed media, or failed current
 replay fails CI. History cursor, entry order, ids, labels, timestamps, operations,
 params, and snapshot references must survive; additive index fields are allowed.

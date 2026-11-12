@@ -45,11 +45,23 @@ def test_the_project_version_is_2_1_everywhere() -> None:
     assert load_project(DEVELOPMENT / PROJECT).version == "2.1"
 
 
-def test_ordinary_loading_rejects_the_old_version_and_names_the_upgrade(tmp_path: Path) -> None:
+def test_ordinary_loading_opens_the_old_version_in_memory_and_leaves_the_file(
+    tmp_path: Path,
+) -> None:
     source = synthetic_old(tmp_path)
-    with pytest.raises(ValueError, match=r"Unsupported project file version '2\.0'") as refusal:
+    before = (source / PROJECT).read_bytes()
+    assert load_project(source / PROJECT).version == "2.1"
+    assert (source / PROJECT).read_bytes() == before
+
+
+def test_ordinary_loading_refuses_a_version_without_a_step_and_says_what_to_do(
+    tmp_path: Path,
+) -> None:
+    source = synthetic_old(tmp_path, "1.0")
+    with pytest.raises(CodedValueError, match=r"project format \(1\.0\)") as refusal:
         load_project(source / PROJECT)
-    assert "episode upgrade" in str(refusal.value)
+    assert refusal.value.code == "project_version_unsupported"
+    assert "restore a backup" in str(refusal.value)
 
 
 def test_the_cli_upgrades_a_2_0_workspace_and_leaves_the_source_alone(tmp_path: Path) -> None:
