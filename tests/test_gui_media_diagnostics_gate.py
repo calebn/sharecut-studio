@@ -26,11 +26,7 @@ def _relayed() -> TestClient:
 
 
 @pytest.mark.parametrize(("method", "path"), ROUTES)
-def test_every_route_refuses_a_relayed_caller(
-    method: str, path: str, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    monkeypatch.delenv("PODCAST_SESSION_AUTHZ", raising=False)
-
+def test_every_route_refuses_a_relayed_caller(method: str, path: str) -> None:
     res = _relayed().request(
         method,
         path,
@@ -44,11 +40,7 @@ def test_every_route_refuses_a_relayed_caller(
 
 
 @pytest.mark.parametrize(("method", "path"), ROUTES)
-def test_the_gate_runs_before_request_validation(
-    method: str, path: str, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    monkeypatch.delenv("PODCAST_SESSION_AUTHZ", raising=False)
-
+def test_the_gate_runs_before_request_validation(method: str, path: str) -> None:
     res = _relayed().request(method, path, json={} if method == "POST" else None)
 
     assert res.status_code == 403

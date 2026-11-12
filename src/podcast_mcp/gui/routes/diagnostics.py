@@ -90,9 +90,7 @@ def _load_project(request: Request, path: str | None):
 
 
 @router.get("/api/diagnostics")
-def diagnostics_meta(
-    request: Request,
-) -> dict[str, Any]:
+def diagnostics_meta() -> dict[str, Any]:
     metadata = runtime_distribution_metadata()
     try:
         report_relay_url()
