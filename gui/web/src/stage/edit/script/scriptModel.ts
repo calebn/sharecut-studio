@@ -40,7 +40,7 @@ export type ScriptWordRef = {
 };
 
 export type ScriptModelInput = {
-  /** The utterances to show. Words an applied cut took out are not among them: the boundaries carry those. */
+  /** The utterances to show. The words an applied cut took out may remain among them as unmappable; the boundaries show those at the join. */
   utterances: readonly CombinedUtterance[];
   /** Applied cuts. Each carries the words it took out, which the model puts back as cut words at the join. */
   boundaries: readonly EditBoundaryView[];
@@ -184,8 +184,9 @@ function cutWordsOf(boundary: EditBoundaryView): DraftWord[] {
 /**
  * The project's transcript as the Script pane's turns. A turn is a run of
  * utterances by one speaker on one track, as the old transcript grouped them.
- * An applied cut leaves no words in the utterances, so its boundary puts them
- * back as cut words where the join falls. Window indices run over every word in
+ * An applied cut leaves its words in the utterances as unmappable ones; they
+ * are dropped there and its boundary shows them as cut words where the join
+ * falls. Window indices run over every word in
  * order, so the pane's selection and carets address words by one number and
  * `refs` maps them back.
  */
@@ -198,6 +199,9 @@ export function buildScriptModel(input: ScriptModelInput): ScriptModel {
   // in the utterance. Its source id can differ from the utterance's (null for
   // the primary recording), so the match is track, index and text.
   const shownAtJoin = new Set<string>();
+  // The utterance copies dropped below, by project word key, so a caller that
+  // names one still finds its cut word at the join.
+  const droppedAt = new Map<string, string>();
   for (const boundary of input.boundaries) {
     if (!boundary.has_cutaway) continue;
     for (const word of boundary.cutaway_word_ids) {
@@ -217,6 +221,14 @@ export function buildScriptModel(input: ScriptModelInput): ScriptModel {
             `${utterance.track_id}:${word.word_index}:${word.text}`,
           )
         ) {
+          droppedAt.set(
+            wordKey({
+              trackId: utterance.track_id,
+              sourceId: utterance.source_id ?? null,
+              wordIndex: word.word_index,
+            }),
+            `${utterance.track_id}:${word.word_index}:${word.text}`,
+          );
           continue;
         }
         const mark = markOf(
@@ -277,6 +289,8 @@ export function buildScriptModel(input: ScriptModelInput): ScriptModel {
   const first = new Map<string, number>();
   const last = new Map<string, number>();
   const seen = new Map<string, number>();
+  const cutFirst = new Map<string, number>();
+  const cutLast = new Map<string, number>();
   const turns: ScriptTurn[] = [];
   let previousEnd: number | null = null;
 
@@ -311,6 +325,11 @@ export function buildScriptModel(input: ScriptModelInput): ScriptModel {
       if (word.ref.wordIndex != null) {
         if (!first.has(base)) first.set(base, index);
         last.set(base, index);
+        if (word.cut && word.ref.wordIndex < 0) {
+          const loose = `${word.ref.trackId}:${-1 - word.ref.wordIndex}:${word.text}`;
+          if (!cutFirst.has(loose)) cutFirst.set(loose, index);
+          cutLast.set(loose, index);
+        }
       }
       words.push({
         index,
@@ -345,6 +364,13 @@ export function buildScriptModel(input: ScriptModelInput): ScriptModel {
       words,
     });
     if (turnEnd != null) previousEnd = turnEnd;
+  }
+
+  for (const [key, loose] of droppedAt) {
+    const at = cutFirst.get(loose);
+    if (at === undefined) continue;
+    first.set(key, at);
+    last.set(key, cutLast.get(loose) ?? at);
   }
 
   return {
