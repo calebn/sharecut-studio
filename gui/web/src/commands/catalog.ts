@@ -1094,7 +1094,7 @@ export const COMMANDS: Record<string, CommandDef> = {
     label: "Add comment",
     when: "canComment",
     notes:
-      "C. Args: { atTime?: number, trackId?: string } → a comment draft anchored at that time (the create menu); with no time, on the selection, else at the playhead",
+      "C. Args: { atTime?: number, trackId?: string, pause?: boolean } → a comment draft anchored at that time (the create menu); pause stops playback first and the draft remembers to resume it (the phone Listen dock); with no time, on the selection, else at the playhead",
   },
 };
 

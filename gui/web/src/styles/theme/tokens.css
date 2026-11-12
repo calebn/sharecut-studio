@@ -188,6 +188,8 @@
     var(--sheet-lane-extra)
   );
   --player-height: 3.5rem;
+  /* The Listen dock (phone guest Review): scrubber, readout and transport. Its rows and the sheets that rest on it read this. */
+  --player-dock-height: 7.5rem;
   /* Control heights: one per role so rows line up. */
   --control-height: 2rem;
   --control-height-compact: 1.75rem;

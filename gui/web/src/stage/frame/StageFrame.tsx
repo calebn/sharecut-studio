@@ -5,8 +5,9 @@ import { useTimelineFocusRegion } from "../../hooks/useTimelineFocusRegion";
 import { useTwoFingerTap } from "../../hooks/useTwoFingerTap";
 import { PresenceGhostLayer } from "../../presence/PresenceGhostLayer";
 import { usePresenceCursorSource } from "../../presence/usePresenceCursorSource";
-import { canApplyPass12, isGuestSession } from "../../shareMode";
+import { canApplyPass12 } from "../../shareMode";
 import { useDawStore } from "../../state/dawStore";
+import { stageRoleOf } from "../../state/stageRoutes";
 import { AppHeader } from "../../system/AppHeader";
 import { StageBar } from "../../system/StageBar";
 import { useUndoCoachTip } from "../../system/useCoachTip";
@@ -20,15 +21,18 @@ import {
 import { AvatarStack } from "./AvatarStack";
 import { BannerStack } from "./BannerStack";
 import { FrameAlertProvider } from "./FrameAlerts";
-import { guestPlayerCardShown } from "./guestPlayerCardShown";
 import { PlayerBar } from "./PlayerBar";
+import { playerPlacementOf } from "./playerPlacement";
 import { SheetHost } from "./SheetHost";
 import { STAGE_BODY_ID, StageFrameView } from "./StageFrameView";
 import { StatusLive } from "./StatusLive";
 import { useAnnounceStageSwitch } from "./useAnnounceStageSwitch";
 import { useFrameHeaderBoundary } from "./useFrameHeaderBoundary";
 import { useHeaderProps } from "./useHeaderProps";
-import { useShellAttributes } from "./useShellAttributes";
+import {
+  usePlayerPlacementAttribute,
+  useShellAttributes,
+} from "./useShellAttributes";
 import { useShortFrame } from "./useShortFrame";
 
 export type StageFrameProps = {
@@ -46,13 +50,20 @@ function StageFrameAdapter({
 }: StageFrameProps) {
   const shell = useShellAttributes();
   const shortViewport = useShortViewport();
-  const { stage, guest, setTimelineFocused } = useDawStore(
+  const { stage, role, setTimelineFocused } = useDawStore(
     useShallow((s) => ({
       stage: s.stage,
-      guest: isGuestSession(s.projectPath, s.guestMode, guestShare),
+      role: stageRoleOf(s.guestMode),
       setTimelineFocused: s.setTimelineFocused,
     })),
   );
+  const placement = playerPlacementOf({
+    stage,
+    shell,
+    role,
+    short: shortViewport,
+  });
+  usePlayerPlacementAttribute(placement);
   useAnnounceStageSwitch(stage);
   const headerProps = useHeaderProps();
   const rootRef = useRef<HTMLDivElement>(null);
@@ -121,10 +132,9 @@ function StageFrameAdapter({
         }
         banners={<BannerStack guestShare={guestShare} />}
         player={
-          stage === "record" ||
-          guestPlayerCardShown(stage, shell, guest, shortViewport) ? null : (
-            <PlayerBar />
-          )
+          placement === "bar" || placement === "dock" ? (
+            <PlayerBar placement={placement} />
+          ) : null
         }
         tabs={
           shell === "phone" && headerProps.stages ? (

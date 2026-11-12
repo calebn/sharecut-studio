@@ -6,6 +6,7 @@ import { Sheet } from "../../system/Sheet";
 import type { StageSheet } from "../../types/stage";
 import type { DrawerDetent } from "../../ui/BottomSheet";
 import { useModalOpen } from "../../ui/useModalOpen";
+import { ChaptersList } from "./ChaptersList";
 import { InviteSheet } from "./InviteSheet";
 
 const TITLES: Record<StageSheet, string> = {
@@ -13,11 +14,14 @@ const TITLES: Record<StageSheet, string> = {
   mix: "Mix",
   tools: "Tools",
   invite: "Invite",
+  comments: "Comments",
+  chapters: "Chapters",
 };
 
 /**
  * Renders the open Stage sheet: a bottom Sheet on a phone, a centered one
- * elsewhere. History and Invite are hosted here; the stage hosts hand in Mix and Tools. The
+ * elsewhere. History, Invite and Chapters are hosted here; the stage hosts hand in Mix and Tools.
+ * The Comments sheet is the Listen layout's own (it needs the queue's state). The
  * phone's Mix sheet closes when a dialog opens over it.
  */
 export function SheetHost({
@@ -52,13 +56,18 @@ export function SheetHost({
     );
   }
   const body =
-    content?.[openSheet] ?? (openSheet === "history" ? <HistoryPanel /> : null);
+    content?.[openSheet] ??
+    (openSheet === "history" ? (
+      <HistoryPanel />
+    ) : openSheet === "chapters" ? (
+      <ChaptersList onPicked={() => setOpenSheet(null)} />
+    ) : null);
   if (!body) return null;
   return (
     <Sheet
       form={shell === "phone" ? "bottom" : "centered"}
       title={TITLES[openSheet]}
-      detent={detent}
+      detent={openSheet === "chapters" ? "fit" : detent}
       onDetentChange={setDetent}
       onClose={() => setOpenSheet(null)}
     >
