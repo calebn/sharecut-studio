@@ -2,13 +2,13 @@ from __future__ import annotations
 
 from typing import Any
 
-from fastapi import APIRouter, Header, Query, Request
+from fastapi import APIRouter, Depends, Query, Request
 from fastapi.responses import StreamingResponse
 
 from podcast_mcp.gui.routes.deps import (
     bad_request_error,
     coded_exception_error,
-    require_host,
+    host_gate,
     resolve_project,
 )
 from podcast_mcp.gui.routes.pipeline_jobs import (
@@ -38,6 +38,7 @@ from podcast_mcp.services.pipeline import (
 from podcast_mcp.util.coded_error import CodedValueError
 
 router = APIRouter()
+_HOST_GATE = [Depends(host_gate)]
 
 
 def _jobs(request: Request) -> JobManager:
@@ -49,26 +50,20 @@ def pipeline_steps() -> dict[str, Any]:
     return {"steps": list(STEP_NAMES)}
 
 
-@router.get("/api/pipeline/config")
+@router.get("/api/pipeline/config", dependencies=_HOST_GATE)
 def pipeline_get_config(
     request: Request,
     path: str = Query(...),
-    token: str | None = Query(None),
-    x_podcast_token: str | None = Header(None, alias="X-Podcast-Token"),
 ) -> dict[str, Any]:
-    require_host(request, token=token, x_podcast_token=x_podcast_token)
     project_path = resolve_project(path, request)
     return build_config_payload(project_path)
 
 
-@router.put("/api/pipeline/config")
+@router.put("/api/pipeline/config", dependencies=_HOST_GATE)
 def pipeline_put_config(
     req: PipelineConfigPutRequest,
     request: Request,
-    token: str | None = Query(None),
-    x_podcast_token: str | None = Header(None, alias="X-Podcast-Token"),
 ) -> dict[str, Any]:
-    require_host(request, token=token, x_podcast_token=x_podcast_token)
     project_path = resolve_project(req.path, request)
     try:
         config_store().put(
@@ -83,15 +78,12 @@ def pipeline_put_config(
     return build_config_payload(project_path)
 
 
-@router.post("/api/pipeline/analyze")
+@router.post("/api/pipeline/analyze", dependencies=_HOST_GATE)
 def pipeline_analyze(
     req: PipelineAnalyzeRequest,
     request: Request,
-    token: str | None = Query(None),
-    x_podcast_token: str | None = Header(None, alias="X-Podcast-Token"),
 ) -> dict[str, Any]:
     """Heuristic Analyze as a ``kind=analyze`` pipeline-slot job (progress via ``/events``)."""
-    require_host(request, token=token, x_podcast_token=x_podcast_token)
     project_path = resolve_project(req.path, request)
     try:
         job = _jobs(request).start_analyze(project_path, apply=req.apply)
@@ -100,25 +92,19 @@ def pipeline_analyze(
     return {"job": job.snapshot()}
 
 
-@router.get("/api/pipeline/status")
+@router.get("/api/pipeline/status", dependencies=_HOST_GATE)
 def pipeline_status(
     request: Request,
-    token: str | None = Query(None),
-    x_podcast_token: str | None = Header(None, alias="X-Podcast-Token"),
 ) -> dict[str, Any]:
-    require_host(request, token=token, x_podcast_token=x_podcast_token)
     served = getattr(request.app.state, "served_project", None)
     return _jobs(request).status(project_path=str(served) if served is not None else None)
 
 
-@router.post("/api/pipeline/retry")
+@router.post("/api/pipeline/retry", dependencies=_HOST_GATE)
 def pipeline_retry(
     req: PipelineRetryRequest,
     request: Request,
-    token: str | None = Query(None),
-    x_podcast_token: str | None = Header(None, alias="X-Podcast-Token"),
 ) -> dict[str, Any]:
-    require_host(request, token=token, x_podcast_token=x_podcast_token)
     project_path = resolve_project(req.path, request)
     try:
         job = _jobs(request).retry_pipeline(project_path, req.job_id)
@@ -130,14 +116,11 @@ def pipeline_retry(
     return {"job": job.snapshot()}
 
 
-@router.post("/api/pipeline/run")
+@router.post("/api/pipeline/run", dependencies=_HOST_GATE)
 def pipeline_run(
     req: PipelineRunRequest,
     request: Request,
-    token: str | None = Query(None),
-    x_podcast_token: str | None = Header(None, alias="X-Podcast-Token"),
 ) -> dict[str, Any]:
-    require_host(request, token=token, x_podcast_token=x_podcast_token)
     jobs = _jobs(request)
     project_path = resolve_project(req.path, request)
     check_steps(req.from_step, req.only_step, req.skip_steps)
@@ -187,26 +170,20 @@ def pipeline_run(
     return {"job": job.snapshot()}
 
 
-@router.post("/api/pipeline/cancel")
+@router.post("/api/pipeline/cancel", dependencies=_HOST_GATE)
 def pipeline_cancel(
     req: PipelineCancelRequest,
     request: Request,
-    token: str | None = Query(None),
-    x_podcast_token: str | None = Header(None, alias="X-Podcast-Token"),
 ) -> dict[str, Any]:
-    require_host(request, token=token, x_podcast_token=x_podcast_token)
     return {"job": cancel_job(_jobs(request), req.job_id).snapshot()}
 
 
-@router.post("/api/pipeline/render-preview")
+@router.post("/api/pipeline/render-preview", dependencies=_HOST_GATE)
 def pipeline_render_preview(
     req: RenderPreviewRequest,
     request: Request,
-    token: str | None = Query(None),
-    x_podcast_token: str | None = Header(None, alias="X-Podcast-Token"),
 ) -> dict[str, Any]:
     """Rebuild stems/premix (``PipelineService.render_preview``) as a background job."""
-    require_host(request, token=token, x_podcast_token=x_podcast_token)
     jobs = _jobs(request)
     project_path = resolve_project(req.path, request)
     try:
@@ -216,12 +193,9 @@ def pipeline_render_preview(
     return {"job": job.snapshot()}
 
 
-@router.get("/api/pipeline/events")
+@router.get("/api/pipeline/events", dependencies=_HOST_GATE)
 def pipeline_events(
     request: Request,
     job_id: str | None = Query(None),
-    token: str | None = Query(None),
-    x_podcast_token: str | None = Header(None, alias="X-Podcast-Token"),
 ) -> StreamingResponse:
-    require_host(request, token=token, x_podcast_token=x_podcast_token)
     return job_events_response(find_job(_jobs(request), job_id))

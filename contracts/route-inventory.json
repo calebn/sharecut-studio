@@ -1,6 +1,6 @@
 {
   "api_version": 1,
-  "host_direct_baseline": 44,
+  "host_direct_baseline": 35,
   "routes": [
     {
       "gate": "other",
@@ -301,63 +301,54 @@
     {
       "gate": "host",
       "handler": "podcast_mcp.gui.routes.pipeline:pipeline_analyze",
-      "host_direct": true,
       "method": "POST",
       "path": "/api/pipeline/analyze"
     },
     {
       "gate": "host",
       "handler": "podcast_mcp.gui.routes.pipeline:pipeline_cancel",
-      "host_direct": true,
       "method": "POST",
       "path": "/api/pipeline/cancel"
     },
     {
       "gate": "host",
       "handler": "podcast_mcp.gui.routes.pipeline:pipeline_get_config",
-      "host_direct": true,
       "method": "GET",
       "path": "/api/pipeline/config"
     },
     {
       "gate": "host",
       "handler": "podcast_mcp.gui.routes.pipeline:pipeline_put_config",
-      "host_direct": true,
       "method": "PUT",
       "path": "/api/pipeline/config"
     },
     {
       "gate": "host",
       "handler": "podcast_mcp.gui.routes.pipeline:pipeline_events",
-      "host_direct": true,
       "method": "GET",
       "path": "/api/pipeline/events"
     },
     {
       "gate": "host",
       "handler": "podcast_mcp.gui.routes.pipeline:pipeline_render_preview",
-      "host_direct": true,
       "method": "POST",
       "path": "/api/pipeline/render-preview"
     },
     {
       "gate": "host",
       "handler": "podcast_mcp.gui.routes.pipeline:pipeline_retry",
-      "host_direct": true,
       "method": "POST",
       "path": "/api/pipeline/retry"
     },
     {
       "gate": "host",
       "handler": "podcast_mcp.gui.routes.pipeline:pipeline_run",
-      "host_direct": true,
       "method": "POST",
       "path": "/api/pipeline/run"
     },
     {
       "gate": "host",
       "handler": "podcast_mcp.gui.routes.pipeline:pipeline_status",
-      "host_direct": true,
       "method": "GET",
       "path": "/api/pipeline/status"
     },
