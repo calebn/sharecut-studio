@@ -176,12 +176,12 @@ describe("project.open", () => {
     const result = await runAndAnnounceRefusal(() => execute("project.new"));
     expect(result).toEqual({
       status: "disabled",
-      reason: "Stop and finish recording before switching projects",
+      reason: "Stop the take before switching projects",
       told: true,
     });
     expect(announce).toHaveBeenCalledTimes(1);
     expect(announce).toHaveBeenCalledWith(
-      "Stop and finish recording before switching projects",
+      "Stop the take before switching projects",
       { tone: "error" },
     );
     expect(closeMock).not.toHaveBeenCalled();
@@ -215,7 +215,7 @@ describe("project.open", () => {
     const result = await runAndAnnounceRefusal(() => execute("project.open"));
     expect(result).toEqual({
       status: "disabled",
-      reason: "Stop and finish recording before switching projects",
+      reason: "Stop the take before switching projects",
       told: true,
     });
     expect(announce).toHaveBeenCalledTimes(1);
@@ -367,7 +367,7 @@ describe("project.open", () => {
       });
       await waitFor(() =>
         expect(useDawStore.getState().statusAnnouncement).toBe(
-          "Stop and finish recording before switching projects",
+          "Stop the take before switching projects",
         ),
       );
       expect(assign).not.toHaveBeenCalled();

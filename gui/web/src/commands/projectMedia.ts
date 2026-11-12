@@ -21,8 +21,7 @@ import { registerCommand } from "./execute";
 import { enqueueTrackMutate } from "./trackMutation";
 import type { ExecuteResult } from "./types";
 
-const PROJECT_SWITCH_BLOCKED =
-  "Stop and finish recording before switching projects";
+const PROJECT_SWITCH_BLOCKED = "Stop the take before switching projects";
 export const REMOVE_ONE_TRACK = "Select one track to remove";
 
 let projectOpenInFlight = false;
