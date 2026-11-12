@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { ClipRow } from "../types/project";
+import { leavePlaybackSession } from "./playbackSession";
 import { ProxyEngine } from "./proxyEngine";
 import type { ImmutableChunkRef, ProxyManifest } from "./proxyMath";
 
@@ -13,6 +14,11 @@ interface FakeSentinel {
   start: ReturnType<typeof vi.fn>;
   stop: ReturnType<typeof vi.fn>;
 }
+
+vi.mock("./playbackSession", () => ({
+  enterPlaybackSession: vi.fn(),
+  leavePlaybackSession: vi.fn(),
+}));
 
 function makeCtx() {
   const sentinels: FakeSentinel[] = [];
@@ -1258,6 +1264,65 @@ describe("playing a timeline longer than the first window", () => {
     }
     expect(handle.created[1].disconnect).toHaveBeenCalled();
     expect(handle.created.at(-1)?.disconnect).not.toHaveBeenCalled();
+    engine.dispose();
+  });
+
+  it("ends an empty timeline at once, reporting the end exactly once", async () => {
+    const handle = makeCtx();
+    const onEnded = vi.fn();
+    const engine = new ProxyEngine(
+      handle.ctx,
+      async () => new ArrayBuffer(64),
+      vi.fn(),
+      onEnded,
+    );
+    engine.setSnapshot({ ...episode(60), clipsByTrack: {}, durationSec: 0 });
+    engine.play(0);
+    await flush();
+    await advanceTo(handle, 5);
+    expect(onEnded).toHaveBeenCalledExactlyOnceWith(0);
+    expect(handle.created).toHaveLength(0);
+    engine.dispose();
+  });
+
+  it("leaves the playback session when the episode ends", async () => {
+    const handle = makeCtx();
+    const engine = new ProxyEngine(
+      handle.ctx,
+      async () => new ArrayBuffer(64),
+      vi.fn(),
+      vi.fn(),
+    );
+    engine.setSnapshot(episode(130));
+    engine.play(0);
+    await flush();
+    vi.mocked(leavePlaybackSession).mockClear();
+    for (let ctxSec = 1; ctxSec <= 130; ctxSec += 1) {
+      await advanceTo(handle, ctxSec);
+    }
+    expect(leavePlaybackSession).toHaveBeenCalled();
+    engine.dispose();
+  });
+
+  it("ends at a shorter duration that arrives in a snapshot while playing", async () => {
+    const handle = makeCtx();
+    const onEnded = vi.fn();
+    const engine = new ProxyEngine(
+      handle.ctx,
+      async () => new ArrayBuffer(64),
+      vi.fn(),
+      onEnded,
+    );
+    engine.setSnapshot(episode(400));
+    engine.play(0);
+    await flush();
+    await advanceTo(handle, 10);
+    engine.setSnapshot({ ...episode(400), durationSec: 20 });
+    await flush();
+    for (let ctxSec = 11; ctxSec <= 20; ctxSec += 1) {
+      await advanceTo(handle, ctxSec);
+    }
+    expect(onEnded).toHaveBeenCalledExactlyOnceWith(20);
     engine.dispose();
   });
 
