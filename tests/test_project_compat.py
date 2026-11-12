@@ -136,6 +136,19 @@ def test_format_2_0_is_read_by_the_cli(v20_workspace) -> None:
     assert (v20_workspace / compat.PROJECT).read_bytes() == before
 
 
+def test_guard_fails_when_a_released_version_loses_its_migration_step(
+    tmp_path: Path, monkeypatch
+) -> None:
+    released = tmp_path / "released"
+    shutil.copytree(DEVELOPMENT, released)
+    document = compat.read_json(released / compat.PROJECT)
+    document["version"] = "2.0"
+    write_json(released / compat.PROJECT, document)
+    monkeypatch.setattr(compat, "STEPS", {})
+    with pytest.raises(ValueError):
+        compat.assert_upgrade(released)
+
+
 def test_committed_lock_and_complete_development_corpus() -> None:
     assert (ROOT / compat.LOCK).read_text(encoding="utf-8") == compat.dumps(compat.shape_lock())
     compat.read_ledger(ROOT)

@@ -71,6 +71,8 @@ _GUEST_MESSAGES = {
     "project_moved_partial": "The episode moved, but some links could not be updated. Reopen it from its new folder.",
     "project_write_failed": "Your change could not be saved on the host's computer. Ask the host to check that its disk has space and is not read-only, then try again.",
     "project_unreadable": "This project can't be opened right now; ask the host to check it.",
+    "project_version_newer": "This episode needs a newer version of ShareCut Studio; ask the host to update the app.",
+    "project_version_unsupported": "This episode can't be opened by this version of ShareCut Studio; ask the host to check it.",
     "project_not_found": "This link isn't available right now; ask the host to check it.",
     "readable_timing_unavailable": "This reading copy needs word timings after a partial cut. Choose Text or Markdown instead.",
     "registry_not_private": "The host's sharing setup needs attention; ask the host to check it.",

@@ -102,3 +102,12 @@ def test_a_newer_or_unknown_version_is_a_coded_refusal_with_a_fix(
     assert refusal.value.code == code
     assert advice in str(refusal.value)
     assert str(tmp_path) not in str(refusal.value)
+
+
+@pytest.mark.parametrize("code", ["project_version_newer", "project_version_unsupported"])
+def test_version_refusals_have_plain_guest_copy(code: str):
+    from podcast_mcp.util.coded_error import GENERIC_GUEST_MESSAGE, guest_message_for_code
+
+    message = guest_message_for_code(code)
+    assert message != GENERIC_GUEST_MESSAGE
+    assert "/" not in message
