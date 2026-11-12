@@ -99,6 +99,8 @@ export type ReviewStageProps = {
   thread?: (item: ReviewItem) => ReactNode;
   /** The inline comment field, above the card. */
   composer?: ReactNode;
+  /** The comment this person just posted, for the phone Listen row to say so. */
+  posted?: { text: string } | null;
   /** Guest Review: the Player card, first in the center column. */
   centerTop?: ReactNode;
   /** Guest Review: the transcript, after the composer. */

@@ -62,6 +62,8 @@ export type ComposerProps = {
   compact?: boolean;
   /** Say why Post is off while the field is empty. Reply and Ask fields keep only the busy reason. */
   explainEmpty?: boolean;
+  /** Phone listen layout: a leading Close (x) that hides the field and keeps the text. */
+  onClose?: () => void;
   /** Focus from outside: C on a mounted card, the guest's first key press. */
   inputRef?: Ref<HTMLTextAreaElement>;
 };
@@ -106,6 +108,7 @@ export function Composer(props: ComposerProps) {
     placeholder = "Add a comment",
     compact = false,
     onEscape,
+    onClose,
     inputRef,
     explainEmpty = false,
   } = props;
@@ -231,6 +234,17 @@ export function Composer(props: ComposerProps) {
         </div>
       ) : null}
       <div className="sys-composer-field">
+        {onClose ? (
+          <button
+            type="button"
+            className="sys-icon-btn sys-composer-close"
+            aria-label="Close"
+            title="Close"
+            onClick={onClose}
+          >
+            <SystemIcon name="x" size={16} />
+          </button>
+        ) : null}
         {anchor ? (
           <AnchorChip
             anchor={anchor}

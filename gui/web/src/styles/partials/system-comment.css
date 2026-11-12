@@ -180,6 +180,10 @@ button.sys-composer-chip {
   max-block-size: calc(4lh + 2 * var(--space-1));
 }
 
+.sys-composer-close {
+  flex: none;
+}
+
 @media (pointer: coarse) {
   .sys-composer-input,
   .sys-composer-chip,
@@ -188,6 +192,7 @@ button.sys-composer-chip {
   }
 
   .sys-composer-clear,
+  .sys-composer-close,
   .sys-composer-submit {
     inline-size: var(--touch-min);
     min-block-size: var(--touch-min);
