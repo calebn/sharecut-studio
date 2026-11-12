@@ -264,10 +264,6 @@ export const Phone: Story = {
   },
 };
 
-const phone390 = {
-  globals: { viewport: { value: "mobile390", isRotated: false } },
-} as const;
-
 const asGuest = (role: "commenter" | "viewer", episodeState: object = {}) => ({
   args: { guestShare: true },
   parameters: {
@@ -297,22 +293,23 @@ function startDetailRequest() {
   );
 }
 
-function firstVisitCommenterHint() {
-  const key = "sharecut.roleHintSeen.commenter";
-  const previous = localStorage.getItem(key);
-  localStorage.removeItem(key);
-  return () => {
-    if (previous === null) localStorage.removeItem(key);
-    else localStorage.setItem(key, previous);
-  };
-}
-
 const noDecisions = async (canvas: ReturnType<typeof within>) => {
   await expect(
     await canvas.findByRole("region", { name: "Queue" }),
   ).toBeVisible();
   for (const name of [/^Cut/, /^Keep/, /Find more/, /Deliver/, /Resolve/])
     await expect(canvas.queryByRole("button", { name })).toBeNull();
+};
+
+const WIDE_ONLY_REASON =
+  "The guest Queue column and the always-open comment field exist on a tablet or desktop; a 360 px viewport selects the phone Listen layout (Stages/Review/Guest).";
+
+const wideGuest = (role: "commenter" | "viewer", episodeState: object = {}) => {
+  const base = asGuest(role, episodeState);
+  return {
+    ...base,
+    parameters: { ...base.parameters, wideOnlyReason: WIDE_ONLY_REASON },
+  };
 };
 
 const commenterPlay: Story["play"] = async ({ canvasElement }) => {
@@ -327,73 +324,9 @@ const commenterPlay: Story["play"] = async ({ canvasElement }) => {
 };
 
 export const GuestCommenter: Story = {
-  ...asGuest("commenter"),
+  ...wideGuest("commenter"),
+  tags: ["wide-only"],
   play: commenterPlay,
-};
-
-export const GuestCommenterPhone: Story = {
-  ...phone,
-  ...asGuest("commenter"),
-  play: commenterPlay,
-};
-
-export const GuestCommenterPhone390: Story = {
-  ...phone390,
-  ...asGuest("commenter"),
-  play: commenterPlay,
-};
-
-const commenterFirstVisitPlay: Story["play"] = async ({ canvasElement }) => {
-  const canvas = within(canvasElement);
-  const script = await waitFor(() => {
-    const node = canvasElement.querySelector<HTMLElement>(
-      ".stage-host-guest-script",
-    );
-    if (!node) throw new Error("The phone Script should be visible");
-    return node;
-  });
-  const note = await canvas.findByRole("note");
-  await expect(note).toHaveTextContent(
-    "You can comment and suggest cuts. The host decides.",
-  );
-  const roleChip = canvas.getByRole("img", { name: "Commenter: can comment" });
-  await expect(roleChip).toBeVisible();
-  const caption = canvas.getByText("You can comment and suggest edits");
-  await expect(caption).toBeVisible();
-  await waitFor(async () => {
-    const noteBox = note.getBoundingClientRect();
-    const captionBox = caption.getBoundingClientRect();
-    await expect(noteBox.left).toBeGreaterThanOrEqual(0);
-    await expect(noteBox.right).toBeLessThanOrEqual(window.innerWidth);
-    await expect(captionBox.left).toBeGreaterThanOrEqual(0);
-    await expect(captionBox.right).toBeLessThanOrEqual(window.innerWidth);
-    await expect(captionBox.top).toBeGreaterThanOrEqual(0);
-    await expect(captionBox.bottom).toBeLessThanOrEqual(window.innerHeight);
-    await expect(
-      canvasElement.ownerDocument.documentElement.scrollWidth,
-    ).toBeLessThanOrEqual(window.innerWidth);
-  });
-  await userEvent.click(canvas.getByRole("button", { name: "Dismiss hint" }));
-  await expect(canvas.queryByRole("note")).toBeNull();
-  await expect(roleChip).toBeVisible();
-  await expect(script).toBeVisible();
-  await expect(
-    canvas.getByText("You can comment and suggest edits"),
-  ).toBeVisible();
-};
-
-export const GuestCommenterPhoneFirstVisit360: Story = {
-  ...phone,
-  ...asGuest("commenter"),
-  beforeEach: firstVisitCommenterHint,
-  play: commenterFirstVisitPlay,
-};
-
-export const GuestCommenterPhoneFirstVisit390: Story = {
-  ...phone390,
-  ...asGuest("commenter"),
-  beforeEach: firstVisitCommenterHint,
-  play: commenterFirstVisitPlay,
 };
 
 export const GuestCommenterTranscriptPending: Story = {
@@ -407,10 +340,10 @@ export const GuestCommenterTranscriptPending: Story = {
     startDetailRequest();
     const canvas = within(canvasElement);
     await expect(
-      (await canvas.findAllByRole("region", { name: "Queue" }))[0],
+      await canvas.findByRole("slider", { name: "Episode overview" }),
     ).toBeVisible();
     await expect(
-      canvas.getByRole("textbox", { name: "Comment" }),
+      canvas.getByRole("button", { name: /^Comment at/ }),
     ).toBeEnabled();
     await expect(
       canvasElement.querySelector(".sys-skeleton[aria-busy='true']"),
@@ -428,7 +361,7 @@ export const GuestCommenterTranscriptPending: Story = {
       canvasElement.querySelector(".sys-skeleton[aria-busy='true']"),
     ).not.toBeNull();
     await expect(
-      canvas.getByRole("textbox", { name: "Comment" }),
+      canvas.getByRole("button", { name: /^Comment at/ }),
     ).toBeEnabled();
   },
 };
@@ -459,9 +392,11 @@ export const GuestCommenterTranscriptFailure: Story = {
     await expect(
       within(alert).queryByText(/server_seq|Invalid document basis/),
     ).toBeNull();
-    await expect(canvas.getByRole("region", { name: "Queue" })).toBeVisible();
     await expect(
-      canvas.getByRole("textbox", { name: "Comment" }),
+      canvas.getByRole("slider", { name: "Episode overview" }),
+    ).toBeVisible();
+    await expect(
+      canvas.getByRole("button", { name: /^Comment at/ }),
     ).toBeEnabled();
     const retry = within(alert).getByRole("button", { name: "Try again" });
     await userEvent.click(retry);
@@ -471,9 +406,11 @@ export const GuestCommenterTranscriptFailure: Story = {
         name: "The transcript didn't load",
       }),
     ).toBeVisible();
-    await expect(canvas.getByRole("region", { name: "Queue" })).toBeVisible();
     await expect(
-      canvas.getByRole("textbox", { name: "Comment" }),
+      canvas.getByRole("slider", { name: "Episode overview" }),
+    ).toBeVisible();
+    await expect(
+      canvas.getByRole("button", { name: /^Comment at/ }),
     ).toBeEnabled();
   },
 };
@@ -487,7 +424,7 @@ export const GuestViewerTranscriptWordsUnavailable: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     await expect(
-      (await canvas.findAllByRole("region", { name: "Queue" }))[0],
+      await canvas.findByRole("slider", { name: "Episode overview" }),
     ).toBeVisible();
     await expect(
       canvasElement.querySelector(".sys-skeleton[aria-busy='true']"),
@@ -504,15 +441,13 @@ export const GuestCommenterEmpty: Story = {
   ...asGuest("commenter", { project: NO_COMMENTS }),
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    // The queue's empty line, the phone's count button, or the progress line
-    // when a saved-edits notice has taken the empty line's place.
     await expect(
-      (await canvas.findAllByText(/^(No comments( yet)?|0 of 0 resolved)$/))[0],
+      await canvas.findByRole("button", { name: /^Comment at/ }),
     ).toBeVisible();
+    await expect(
+      canvas.queryByRole("button", { name: /^Show comments/ }),
+    ).toBeNull();
     await expect(canvas.queryByRole("button", { name: /Deliver/ })).toBeNull();
-    await expect(
-      canvas.getByRole("textbox", { name: "Comment" }),
-    ).toBeVisible();
   },
 };
 
@@ -524,7 +459,8 @@ const viewerPlay: Story["play"] = async ({ canvasElement }) => {
 };
 
 export const GuestViewer: Story = {
-  ...asGuest("viewer"),
+  ...wideGuest("viewer"),
+  tags: ["wide-only"],
   play: viewerPlay,
 };
 
@@ -542,23 +478,6 @@ export const GuestViewerReadsTranscript: Story = {
       canvasElement.querySelector(".sys-script-word[data-selected]"),
     ).toBeNull();
   },
-};
-
-export const GuestViewerPhone: Story = {
-  ...phone,
-  ...asGuest("viewer"),
-  play: viewerPlay,
-};
-
-const WIDE_ONLY_REASON =
-  "The Player card and the guest column exist on a tablet or desktop; a 360 px viewport selects the phone layout.";
-
-const wideGuest = (role: "commenter" | "viewer", episodeState: object = {}) => {
-  const base = asGuest(role, episodeState);
-  return {
-    ...base,
-    parameters: { ...base.parameters, wideOnlyReason: WIDE_ONLY_REASON },
-  };
 };
 
 const cardPlay =
@@ -650,13 +569,6 @@ const selectionBarPlay: Story["play"] = async ({ canvasElement }) => {
 export const GuestCommenterSelection: Story = {
   ...wideGuest("commenter", { selection: selections.range }),
   tags: ["wide-only"],
-  play: selectionBarPlay,
-};
-
-/** At 390 px the bar stays inside the viewport and off the selected words. */
-export const GuestCommenterSelectionPhone390: Story = {
-  ...phone390,
-  ...asGuest("commenter", { selection: selections.range }),
   play: selectionBarPlay,
 };
 

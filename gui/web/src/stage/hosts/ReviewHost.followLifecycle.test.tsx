@@ -237,24 +237,21 @@ describe("guest Review transcript follow lifetime", () => {
     expect(back()).toBeVisible();
   });
 
-  it("retains the place paused with Follow after playback has scrolled the pane", () => {
+  it("retains the place a reader paused after playback has scrolled the pane", () => {
     const size = viewport("phone");
     join();
     render(<ReviewHost guestShare />);
     moveTo(11.1);
     const reader = body();
     expect(reader.scrollTop).toBe(1820);
-    fireEvent.scroll(reader);
-    fireEvent.click(
-      screen.getByRole("button", { name: "Follow the playhead" }),
-    );
+    scrollManually(reader, 1830);
     expect(back()).toBeVisible();
 
     size.short("layout", true);
     size.short("layout", false);
 
     expect(back()).toBeVisible();
-    expect(body().scrollTop).toBe(1820);
+    expect(body().scrollTop).toBe(1830);
   });
 
   it("keeps a captured word offset when a shell move rebuilds the guest transcript", () => {
@@ -364,9 +361,6 @@ describe("guest Review transcript follow lifetime", () => {
     });
     size.short("layout", false);
 
-    expect(
-      screen.getByRole("button", { name: "Follow the playhead" }),
-    ).toHaveAttribute("aria-pressed", "false");
     expect(body().scrollTop).toBe(1090);
     expect(
       screen.getByRole("button", { name: "word-11" }).getBoundingClientRect()

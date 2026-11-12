@@ -271,3 +271,61 @@ export const ExpandedAudioError: Story = {
     await expect(args.onRetry).toHaveBeenCalledOnce();
   },
 };
+
+/** The phone guest's Listen dock: an always-visible scrubber over the readout and the transport, Chapters first and a labelled Comment last. */
+export const Dock: Story = {
+  args: {
+    form: "dock",
+    guest: true,
+    onChapters: fn(),
+    onSeek: fn(),
+    time: "1:26",
+  },
+  play: async ({ args, canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(
+      canvas.getByRole("slider", { name: "Episode overview" }),
+    ).toBeVisible();
+    for (const name of [
+      "Chapters",
+      "Back 15 seconds",
+      "Play",
+      "Forward 15 seconds",
+      "Comment at 1:26",
+    ])
+      await expect(canvas.getByRole("button", { name })).toBeVisible();
+    await expect(canvas.queryByRole("button", { name: "A" })).toBeNull();
+    await userEvent.click(canvas.getByRole("button", { name: "Chapters" }));
+    await expect(args.onChapters).toHaveBeenCalledOnce();
+    await userEvent.click(
+      canvas.getByRole("button", { name: "Comment at 1:26" }),
+    );
+    await expect(args.onComment).toHaveBeenCalledOnce();
+  },
+};
+
+/** A short landscape frame folds the dock to the scrubber over one row. */
+export const DockFolded: Story = {
+  args: {
+    form: "dock",
+    guest: true,
+    onChapters: fn(),
+    onSeek: fn(),
+    time: "1:26",
+  },
+  beforeEach: () => {
+    document.documentElement.dataset.frameShort = "";
+    return () => {
+      delete document.documentElement.dataset.frameShort;
+    };
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(
+      canvas.getByRole("slider", { name: "Episode overview" }),
+    ).toBeVisible();
+    await expect(
+      canvas.getByRole("button", { name: "Comment at 1:26" }),
+    ).toBeVisible();
+  },
+};
