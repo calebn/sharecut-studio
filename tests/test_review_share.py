@@ -372,6 +372,82 @@ def test_sanitize_guest_view_drops_suppressed_only_rows():
     assert "words" not in rows[0]
 
 
+def _words_view(*, patch: bool) -> dict:
+    word = {
+        "text": "hello",
+        "start": 0.0,
+        "end": 0.3,
+        "timeline_start": 0.0,
+        "timeline_end": 0.3,
+        "mappable": True,
+        "word_index": 0,
+        "ignored": False,
+        "suppressed": False,
+        "confidence": 0.4,
+        "unsure": True,
+        "timing_target": {"track_id": "host", "source_id": None, "word_index": 0},
+    }
+    bleed = {**word, "text": "bleed", "word_index": 1, "suppressed": True}
+    view: dict = {
+        "meta": {"name": "ep", "hydration": {"transcript_words": True}},
+        "transcript": {"utterances": [{"text": "hello", "words": [word, bleed]}]},
+        "pending_edits": [
+            {"id": "e1", "unsure_count": 1, "unsure_words": [{"text": "hello", "word_index": 0}]}
+        ],
+    }
+    if not patch:
+        view["project_path"] = "/x"
+    return view
+
+
+@pytest.mark.parametrize("patch", [False, True], ids=["full", "patch"])
+def test_sanitize_guest_words_modes(patch):
+    from podcast_mcp.services.collaboration.share import sanitize_guest_project_view
+    from podcast_mcp.services.collaboration.share_capabilities import GuestWords
+
+    none = sanitize_guest_project_view(_words_view(patch=patch), words=GuestWords.NONE)
+    assert "words" not in none["transcript"]["utterances"][0]
+    assert none["meta"]["hydration"]["transcript_words"] is False
+    assert "unsure_words" not in none["pending_edits"][0]
+
+    reading = sanitize_guest_project_view(_words_view(patch=patch), words=GuestWords.READING)
+    [word] = reading["transcript"]["utterances"][0]["words"]
+    assert word == {
+        "text": "hello",
+        "start": 0.0,
+        "end": 0.3,
+        "timeline_start": 0.0,
+        "timeline_end": 0.3,
+        "mappable": True,
+        "word_index": 0,
+        "ignored": False,
+    }
+    assert reading["meta"]["hydration"]["transcript_words"] is True
+    assert "unsure_words" not in reading["pending_edits"][0]
+    assert reading["pending_edits"][0]["unsure_count"] == 1
+
+    selectable = sanitize_guest_project_view(_words_view(patch=patch), words=GuestWords.SELECTABLE)
+    [full_word] = selectable["transcript"]["utterances"][0]["words"]
+    assert full_word["confidence"] == 0.4
+    assert full_word["timing_target"]["track_id"] == "host"
+    assert selectable["meta"]["hydration"]["transcript_words"] is True
+    assert selectable["pending_edits"][0]["unsure_words"][0]["text"] == "hello"
+
+
+def test_sanitize_guest_reading_words_still_null_an_absolute_path_text():
+    from podcast_mcp.services.collaboration.share import sanitize_guest_project_view
+    from podcast_mcp.services.collaboration.share_capabilities import GuestWords
+
+    view = {
+        "meta": {"name": "ep", "hydration": {"transcript_words": True}},
+        "transcript": {
+            "utterances": [{"text": "x", "words": [{"text": "/Users/host/a.wav", "start": 0.0}]}]
+        },
+    }
+    out = sanitize_guest_project_view(view, words=GuestWords.READING)
+    assert out["transcript"]["utterances"][0]["words"][0]["text"] is None
+
+
 def test_sanitize_guest_tracks_patch_does_not_inject_keys():
     from podcast_mcp.services.collaboration.share import sanitize_guest_project_view
 

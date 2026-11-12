@@ -21,7 +21,7 @@ from podcast_mcp.models import (
     save_project,
 )
 from podcast_mcp.services.app import ProjectWorkspace
-from podcast_mcp.services.collaboration.share_capabilities import capabilities_for_role
+from podcast_mcp.services.collaboration.share_capabilities import GuestWords, capabilities_for_role
 from podcast_mcp.services.document import HistoryService, TranscriptService
 from podcast_mcp.services.document_sync import DocumentCommand, DocumentSyncService
 from podcast_mcp.services.document_sync.handlers import edits as handlers
@@ -144,7 +144,7 @@ def test_mapped_words_carry_the_unsure_flag_and_guests_keep_it(tmp_path):
     assert any(w["unsure"] for u in detail["transcript"]["utterances"] for w in u["words"])
     from podcast_mcp.gui.mapper import guest_transcript
 
-    shown = guest_transcript(detail["transcript"], words=True)
+    shown = guest_transcript(detail["transcript"], words=GuestWords.SELECTABLE)
     assert any(w["unsure"] for u in shown["utterances"] for w in u["words"])
 
 
@@ -448,7 +448,7 @@ def test_a_guest_with_the_word_grant_keeps_the_per_cut_words(tmp_path):
     from podcast_mcp.services.collaboration.share import sanitize_guest_project_view
 
     view = _view_with_unsure_edit(tmp_path)
-    shown = sanitize_guest_project_view(view, transcript_words=True)
+    shown = sanitize_guest_project_view(view, words=GuestWords.SELECTABLE)
     rows = {r["id"]: r for r in shown["pending_edits"]}
     assert rows["uncle"]["unsure_words"][0]["text"] == "uncle"
 
