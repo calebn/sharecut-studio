@@ -191,9 +191,9 @@ beta that works earns more trust than a broad one that half works.
 ## Compatibility
 
 Breaking changes are allowed in the beta, and the runtime keeps no compatibility
-code. The owner added one rule on 2026-10-17, and it takes effect once the first beta
+code for old APIs. The owner added one rule on 2026-10-17, and it takes effect once the first beta
 tester build ships. Until then, format breaks need no migration and no upgrade
-tooling. After that build ships, a change to the project file's shape, or anything else that breaks backward compatibility of data a user already has, ships in the same change with tooling that upgrades older project files: a one-shot `podcast` CLI command the user runs, with tests that upgrade a fixture of the old shape. The old shape is then unsupported at runtime, and no runtime compatibility code is kept in either phase. Enforced by #1702.
+tooling. After that build ships, a change to the project file's shape, or anything else that breaks backward compatibility of data a user already has, ships in the same change with a migration that runs when the project loads: an older project file opens and is upgraded in memory, and the file is written at the new version on its next save. Tests open a fixture of the old shape through the real loader. `podcast episode upgrade` stays as the explicit copy command. A project format that a shipped build wrote is never rejected at runtime, and the migration table is the only compatibility code kept for it (owner, 2026-11-12: migrations on load are required). Enforced by #1702 and `scripts/project_compat.py`.
 
 ## Filing rules
 
