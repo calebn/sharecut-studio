@@ -23,6 +23,7 @@ from podcast_mcp.models import (
 )
 from podcast_mcp.models.history import HistoryEntry, ProjectHistory, ProjectStateSnapshot
 from podcast_mcp.models.project_format import snapshot_editable_state
+from podcast_mcp.util.atomic_file import atomic_write
 from podcast_mcp.util.atomic_json import load_json_object, write_json_atomic
 from podcast_mcp.util.bounded_cache import BoundedCache
 from podcast_mcp.util.fingerprint import file_stamp
@@ -500,8 +501,8 @@ class ProjectStore:
                 return
         except FileNotFoundError:
             pass
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_bytes(content)
+        # creation_mode 0o666 keeps the umask-governed mode Path.write_bytes created.
+        atomic_write(path, lambda handle: handle.write(content), creation_mode=0o666)
 
     @staticmethod
     def _transcript_cache_paths(project: EpisodeProject) -> list[Path]:
