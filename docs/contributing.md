@@ -285,9 +285,9 @@ rationale. A useful one-off proof does not itself justify recurring CI.
 Follow the [project-format compatibility policy](project-format.md#compatibility-boundary)
 when changing persisted models or history. Before the first tester delivery,
 refresh the generated shape lock. After that delivery, a structural change also
-requires a version bump and a real CLI upgrade test over every older released
-fixture. A version-only bump has the same upgrade requirement. Keep old formats
-unsupported in ordinary runtime loading. The compatibility guard runs on every
+requires a version bump and a migration on load, tested by opening every older
+released fixture through the real loader. A version-only bump has the same
+requirement. A format a shipped build wrote is never rejected at runtime. The compatibility guard runs on every
 PR, including docs-only and web-only changes.
 
 ### CI on a pull request
