@@ -111,8 +111,8 @@ describe("Review queue for a guest", () => {
         [...document.querySelectorAll(".rv-group")].map((g) =>
           g.getAttribute("aria-label"),
         ),
-      ).toEqual(["Comments"]);
-      expect(screen.getByText(/of 1 resolved/)).toBeVisible();
+      ).toEqual(["In time order"]);
+      expect(screen.getByText(/^1 comment$/)).toBeVisible();
       expect(screen.queryByText(/saves/)).toBeNull();
       expect(screen.queryByRole("button", { name: /^Suggestions/ })).toBeNull();
     },
@@ -216,7 +216,7 @@ describe("Review queue for a guest", () => {
       [...document.querySelectorAll(".rv-group")].map((g) =>
         g.getAttribute("aria-label"),
       ),
-    ).toEqual(["Comments"]);
+    ).toEqual(["In time order"]);
     for (const label of [/^Cut/, /^Keep/, /Find more/])
       expect(screen.queryByRole("button", { name: label })).toBeNull();
   });

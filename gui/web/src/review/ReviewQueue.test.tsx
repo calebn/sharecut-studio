@@ -268,8 +268,30 @@ describe("ReviewQueue", () => {
         onSelect={vi.fn()}
       />,
     );
-    expect(getByText(/resolved$/)).toBeInTheDocument();
+    expect(getByText(/comments?$/)).toBeInTheDocument();
     expect(queryByRole("button", { name: /^Checks/ })).toBeNull();
+  });
+
+  it("offers a guest no filter or sort with one kind of item, and lists by time", () => {
+    render(
+      <ReviewQueue
+        items={[
+          { id: "a", kind: "comment", at: 9, savedSeconds: 0 },
+          { id: "b", kind: "comment", at: 2, savedSeconds: 0 },
+        ]}
+        content={reviewContent}
+        selectedId={null}
+        filter="all"
+        guest
+        onFilter={vi.fn()}
+        onSort={vi.fn()}
+        onSelect={vi.fn()}
+      />,
+    );
+    expect(screen.queryByRole("group", { name: "Filter" })).toBeNull();
+    expect(screen.queryByRole("group", { name: "Sort" })).toBeNull();
+    expect(screen.queryByText(/resolved$/)).toBeNull();
+    expect(screen.getByLabelText("In time order")).toBeInTheDocument();
   });
 
   it("shows the bulk row for a group that has left the queue, without a fake bar", () => {
@@ -841,7 +863,7 @@ describe("ReviewQueue", () => {
           onSelect={vi.fn()}
         />,
       );
-      expect(screen.getByText(/of 1 resolved/)).toHaveFocus();
+      expect(screen.getByText(/^1 comment$/)).toHaveFocus();
     });
 
     it("does not take focus when the group clears while focus is elsewhere", () => {
@@ -858,7 +880,7 @@ describe("ReviewQueue", () => {
           onSelect={vi.fn()}
         />,
       );
-      expect(screen.getByText(/of 1 resolved/)).not.toHaveFocus();
+      expect(screen.getByText(/^1 comment$/)).not.toHaveFocus();
     });
 
     it("counts a failure with no rows as ! and holds nothing", () => {
