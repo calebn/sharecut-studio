@@ -8,6 +8,8 @@ type SheetStep = {
   title: string;
   children: ReactNode;
   onBack: () => void;
+  /** Accessible name of Back; "Back" when absent. */
+  backLabel?: string;
 };
 
 export type SheetProps = {
@@ -44,13 +46,19 @@ export type SheetProps = {
   initialFocusRef?: RefObject<HTMLElement | null>;
 };
 
-function BackButton({ onBack }: { onBack: () => void }) {
+function BackButton({
+  onBack,
+  label = "Back",
+}: {
+  onBack: () => void;
+  label?: string;
+}) {
   return (
     <button
       type="button"
       className="sys-icon-btn"
-      aria-label="Back"
-      title="Back"
+      aria-label={label}
+      title={label}
       onClick={onBack}
     >
       <SystemIcon name="chevron-left" size={16} />
@@ -78,7 +86,9 @@ function Body({
   }
   return (
     <div ref={rowsRef} className="sys-sheet-rows">
-      {backInBody ? <BackButton onBack={step.onBack} /> : null}
+      {backInBody ? (
+        <BackButton onBack={step.onBack} label={step.backLabel} />
+      ) : null}
       {step.children}
     </div>
   );
@@ -103,14 +113,16 @@ export function Sheet({
   const headingRef = useRef<HTMLHeadingElement>(null);
   const rowsRef = useRef<HTMLDivElement>(null);
   const hadStep = useRef(false);
-  const backInBody = form === "centered" || form === "end" || form === "bottom";
+  // The bottom form leads its own header with Back, so a step has no body row for it.
+  const backInBody = form === "centered" || form === "end";
+  const staticFrame = form === "anchored" || form === "side";
   const pushed = Boolean(step);
   // A push or a back replaces the body, so the focused control unmounts. Move
   // focus to the new step's heading (static frames) or its first control.
   useEffect(() => {
     if (hadStep.current === pushed) return;
     hadStep.current = pushed;
-    if (!backInBody) {
+    if (staticFrame) {
       headingRef.current?.focus({ preventScroll: true });
       return;
     }
@@ -132,7 +144,7 @@ export function Sheet({
       }
     });
     return () => cancelAnimationFrame(frame);
-  }, [pushed, backInBody]);
+  }, [pushed, staticFrame]);
   const body = (
     <Body step={step} backInBody={backInBody} rowsRef={rowsRef}>
       {children}
@@ -161,6 +173,15 @@ export function Sheet({
         onClose={onClose}
         backgroundPolicy="interactive"
         title={heading}
+        back={
+          step
+            ? {
+                label: step.backLabel ?? "Back",
+                icon: <SystemIcon name="chevron-left" size={20} />,
+                onBack: step.onBack,
+              }
+            : undefined
+        }
         className={panelClassName}
         size={detent}
         drawer={
@@ -186,7 +207,7 @@ export function Sheet({
     <Frame className={`sys-sheet sys-sheet--${form}`} aria-label={title}>
       <div className="sys-sheet-header">
         {step ? (
-          <BackButton onBack={step.onBack} />
+          <BackButton onBack={step.onBack} label={step.backLabel} />
         ) : icon ? (
           <SystemIcon name={icon} size={16} />
         ) : null}

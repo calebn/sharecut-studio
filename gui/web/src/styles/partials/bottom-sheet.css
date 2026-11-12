@@ -467,3 +467,12 @@ html[data-keyboard="open"] .bottom-sheet.bottom-sheet--column {
 .bottom-sheet-column-host {
   display: contents;
 }
+
+/* Resize and Back are secondary to the sheet's own content: quiet like Close. */
+.bottom-sheet-header .bottom-sheet-resize-action.ui-control {
+  color: var(--color-text-secondary);
+}
+
+.bottom-sheet-back {
+  flex: none;
+}

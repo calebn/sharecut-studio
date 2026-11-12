@@ -35,6 +35,8 @@ export type DecisionCardState = "ready" | "loading" | "error" | "empty";
 export type DecisionCardProps = {
   kind: DecisionKind;
   title: string;
+  /** The surrounding frame already shows the title (a sheet's header), so the card draws none. */
+  titleInFrame?: boolean;
   /** "18:36" */
   time: string;
   speaker?: { name: string; colorIndex?: number };
@@ -250,6 +252,7 @@ export function DecisionCard(props: DecisionCardProps) {
   const {
     kind,
     title,
+    titleInFrame,
     time,
     speaker,
     suggestedBy,
@@ -370,7 +373,9 @@ export function DecisionCard(props: DecisionCardProps) {
       data-kind={kind}
       data-layout={layout}
       data-state="ready"
-      aria-labelledby={headingId}
+      {...(titleInFrame
+        ? { "aria-label": title }
+        : { "aria-labelledby": headingId })}
       style={
         drag
           ? ({
@@ -413,9 +418,11 @@ export function DecisionCard(props: DecisionCardProps) {
             </span>
           ) : null}
         </p>
-        <h2 id={headingId} className="sys-decision-title">
-          {title}
-        </h2>
+        {titleInFrame ? null : (
+          <h2 id={headingId} className="sys-decision-title">
+            {title}
+          </h2>
+        )}
         {excerpt ? <p className="sys-decision-excerpt">{excerpt}</p> : null}
         {kind === "comment" && thread ? (
           <div>{thread}</div>
