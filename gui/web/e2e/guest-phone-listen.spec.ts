@@ -39,6 +39,16 @@ const PORTRAITS = [
 
 const FOLDED = { width: 667, height: 375 } as const;
 
+/** A sheet rests exactly on the dock: its bottom edge meets the dock's top edge. */
+async function expectRestsOnDock(guest: Page, sheet: Locator) {
+  await expect(sheet).toBeVisible();
+  const dock = await guest.locator(".sys-listen-dock").boundingBox();
+  const box = await sheet.boundingBox();
+  expect(dock && box).toBeTruthy();
+  if (!dock || !box) return;
+  expect(Math.abs(box.y + box.height - dock.y)).toBeLessThanOrEqual(1);
+}
+
 type Profile = (typeof PROFILES)[number];
 type Size = { width: number; height: number };
 
@@ -147,7 +157,9 @@ for (const profile of PROFILES) {
           await expect(guest.getByRole("textbox")).toHaveCount(0);
           const play = guest.getByRole("button", { name: "Play", exact: true });
           await expectReached(scrubber(guest));
-          const strip = await guest.locator(".sys-dock-strip").boundingBox();
+          const strip = await guest
+            .locator(".sys-listen-dock-strip")
+            .boundingBox();
           expect(strip?.height ?? 0).toBeGreaterThanOrEqual(TOUCH_MIN - 0.5);
           for (const control of [play, commentButton(guest)]) {
             await expectReached(control);
@@ -223,12 +235,20 @@ for (const profile of PROFILES) {
             .getByRole("button", { name: /^Show comments/ })
             .tap({ timeout: 10_000 });
           const sheet = guest.getByRole("dialog", { name: "Comments" });
-          await expect(sheet).toBeVisible();
+          await expectRestsOnDock(guest, sheet);
           await sheet
             .locator(".sys-queue-row")
             .first()
             .getByRole("button")
             .tap({ timeout: 10_000 });
+          const thread = guest.getByRole("dialog", { name: /^Comment from/ });
+          const back = thread.getByRole("button", { name: "Back to comments" });
+          await expect(back).toBeVisible();
+          const backBox = await back.boundingBox();
+          expect(backBox?.width ?? 0).toBeGreaterThanOrEqual(44);
+          expect(backBox?.height ?? 0).toBeGreaterThanOrEqual(44);
+          await expect(thread.getByRole("heading")).toHaveCount(1);
+          await expectRestsOnDock(guest, thread);
           const reply = guest.getByRole("textbox", { name: /^Reply to/ });
           await expect(reply).toBeVisible();
           await reply.tap({ timeout: 10_000 });
@@ -251,7 +271,7 @@ for (const profile of PROFILES) {
             .getByRole("button", { name: "Chapters" })
             .tap({ timeout: 10_000 });
           const sheet = guest.getByRole("dialog", { name: "Chapters" });
-          await expect(sheet).toBeVisible();
+          await expectRestsOnDock(guest, sheet);
           await sheet.getByRole("button").first().tap({ timeout: 10_000 });
           await expect(sheet).toHaveCount(0);
         },
@@ -289,7 +309,7 @@ for (const profile of PROFILES) {
         const bar = guest.getByRole("group", { name: "Selection actions" });
         await expect(bar).toBeVisible();
         const barBox = await bar.boundingBox();
-        const dock = await guest.locator(".sys-dock").boundingBox();
+        const dock = await guest.locator(".sys-listen-dock").boundingBox();
         const row = await guest.locator(".gl-row").boundingBox();
         expect(barBox).not.toBeNull();
         expect(dock).not.toBeNull();
@@ -316,7 +336,7 @@ for (const profile of PROFILES) {
         const comment = commentButton(guest);
         await expectReached(comment);
         await expectReached(play);
-        const dockBox = await guest.locator(".sys-dock").boundingBox();
+        const dockBox = await guest.locator(".sys-listen-dock").boundingBox();
         const playBox = await play.boundingBox();
         const commentBox = await comment.boundingBox();
         expect(playBox && commentBox).toBeTruthy();
@@ -328,6 +348,24 @@ for (const profile of PROFILES) {
           commentBox.y + commentBox.height,
         );
         await expectNoHorizontalScroll(guest, FOLDED.width);
+      },
+    );
+  });
+
+  test(`the Comments sheet rests on the folded dock on ${profile.name} 667x375`, async ({
+    browser,
+  }) => {
+    await withPhoneGuest(
+      browser,
+      profile,
+      FOLDED,
+      "commenter",
+      async (guest) => {
+        await guest
+          .getByRole("button", { name: /^Show comments/ })
+          .tap({ timeout: 10_000 });
+        const comments = guest.getByRole("dialog", { name: "Comments" });
+        await expectRestsOnDock(guest, comments);
       },
     );
   });
