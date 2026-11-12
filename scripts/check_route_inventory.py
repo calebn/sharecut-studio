@@ -7,27 +7,31 @@ hand. Each row records the gate class of its handler:
 
 * ``host``: the handler calls ``require_host``, directly or through a known helper.
 * ``authz``: the handler calls ``require_authz`` or ``authorize_client``.
-* ``guest``: a share-token router (``review_editor``, ``review_share``, ``record_share``,
-  ``remote_mcp``) whose own gate admits the guest.
+* ``guest``: a handler of a share-token router (``review_editor``, ``review_share``,
+  ``record_share``, ``remote_mcp``) that names one of ``GUEST_CHECKS`` or depends on a
+  registered ``guest_route`` twin. A guest-module handler with neither is ``unreviewed``.
 * ``public``: named in ``PUBLIC_ROUTES`` with a reason.
 * ``other``: every other route, with the reason from ``OTHER_REASONS`` or ``OVERRIDES``.
 
 The class comes from the AST of the handler source, so a comment or a string that says
 ``require_host`` does not count. ``host_direct_baseline`` is a ratchet: the number of handlers that
 call ``require_host`` themselves may only shrink. ``--write`` regenerates the file and lowers the
-baseline, never raises it. ``--check`` (the default) fails on any difference.
+baseline, never raises it. ``--check`` (the default) fails on any difference. ``--base REF`` also fails when the baseline or
+the live count is above the one recorded at REF, and caps ``--write`` at it.
 """
 
 from __future__ import annotations
 
+import argparse
 import ast
 import inspect
 import json
 import os
+import subprocess
 import sys
 import tempfile
 import textwrap
-from collections.abc import Callable, Iterator
+from collections.abc import Callable, Iterable, Iterator
 from pathlib import Path
 from typing import Any
 
@@ -56,6 +60,18 @@ GUEST_MODULES = frozenset(
     }
 )
 
+GUEST_CHECKS = frozenset(
+    {
+        "_guest_call",
+        "_check_token",
+        "check_share_token",
+        "require_share_cap",
+        "require_share_edit",
+        "_require_mcp_capability",
+        "admit_guest_ws",
+    }
+)
+
 PUBLIC_ROUTES: dict[tuple[str, str], str] = {
     ("GET", "/api/health"): "liveness probe",
     ("GET", "/api/features"): "extension manifest the SPA reads before it has a session",
@@ -72,47 +88,102 @@ PUBLIC_ROUTES: dict[tuple[str, str], str] = {
 }
 OVERRIDES: dict[tuple[str, str], str] = {
     ("GET", "/"): "SPA shell; require_host runs only for the project-mismatch page",
+    ("GET", "/api/export/files/{file_id:path}"): (
+        "require_host unless a per-file export ticket is given, which then stands in for it"
+    ),
+    ("HEAD", "/api/export/files/{file_id:path}"): (
+        "require_host unless a per-file export ticket is given, which then stands in for it"
+    ),
+    ("GET", "/auth/providers"): "lists the sign-in providers; the caller has no session yet",
+    ("GET", "/auth/me"): "reads the session cookie and answers null without one",
+    ("POST", "/auth/logout"): "revokes the session cookie it is sent; a missing cookie is a no-op",
+    ("GET", "/auth/login/{provider}"): "starts the OAuth redirect; the caller has no session yet",
+    ("GET", "/auth/callback/{provider}"): "finishes the OAuth redirect and mints the session",
+    ("POST", "/auth/password/register"): "creates the account and its session; no session yet",
+    ("POST", "/auth/password/login"): "checks the password and mints the session; no session yet",
+    ("POST", "/auth/magic-link"): "emails a sign-in link; the caller has no session yet",
+    ("GET", "/auth/magic-link/consume"): "the one-time token mints the session; no session yet",
+    ("POST", "/auth/passkey/register/begin"): "needs the session cookie; 401 without one",
+    ("POST", "/auth/passkey/register/finish"): "needs the session cookie; 401 without one",
+    (
+        "POST",
+        "/auth/passkey/login/begin",
+    ): "starts a passkey sign-in; the caller has no session yet",
+    (
+        "POST",
+        "/auth/passkey/login/finish",
+    ): "checks the passkey and mints the session; no session yet",
+    (
+        "POST",
+        "/auth/agent-credential",
+    ): "needs the session cookie and a share ACL entry for the user",
+    ("GET", "/auth/login"): "static sign-in hint page; the caller has no session yet",
 }
 OTHER_REASONS: dict[str, str] = {
-    "podcast_mcp.gui.routes.auth": "account sign-in flow; the caller has no session yet",
     "podcast_mcp.gui.routes.handoff": "own handoff-token check (_unauthorized)",
     "podcast_mcp.gui.host_mcp": "stateless host MCP transport; mounted on loopback binds only",
 }
 
 
-def call_names(function: Callable[..., Any]) -> frozenset[str]:
-    """Names of every function or method the handler source calls, nested definitions included."""
-    try:
-        source = textwrap.dedent(inspect.getsource(inspect.unwrap(function)))
-    except (OSError, TypeError):
+def _by_path(key: tuple[str, str]) -> tuple[str, str]:
+    return key[1], key[0]
+
+
+def referenced_names(function: Callable[..., Any]) -> frozenset[str]:
+    """Names the handler source calls or refers to, nested definitions included.
+
+    A reference counts as well as a call, so ``Depends(require_host)`` is seen, and an import alias
+    resolves through the function's globals. A routine whose source cannot be read raises: the
+    inventory must not guess a gate from nothing. Objects that are not routines (mounted ASGI apps)
+    have no handler source and give an empty set.
+    """
+    target = inspect.unwrap(function)
+    if not inspect.isroutine(target):
         return frozenset()
+    tree = ast.parse(textwrap.dedent(inspect.getsource(target)))
+    scope = getattr(target, "__globals__", {})
     names: set[str] = set()
-    for node in ast.walk(ast.parse(source)):
-        if isinstance(node, ast.Call):
-            func = node.func
-            if isinstance(func, ast.Name):
-                names.add(func.id)
-            elif isinstance(func, ast.Attribute):
-                names.add(func.attr)
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Name):
+            names.add(node.id)
+            names.add(getattr(scope.get(node.id), "__name__", node.id))
+        elif isinstance(node, ast.Attribute):
+            names.add(node.attr)
     return frozenset(names)
 
 
-def calls_require_host(function: Callable[..., Any]) -> bool:
-    return HOST_CALL in call_names(function)
+def dependency_callables(route: Any) -> Iterator[Callable[..., Any]]:
+    """Every ``Depends`` callable of a route, nested dependencies included."""
+    pending = list(getattr(getattr(route, "dependant", None), "dependencies", []))
+    while pending:
+        dependant = pending.pop()
+        if dependant.call is not None:
+            yield dependant.call
+        pending.extend(dependant.dependencies)
 
 
-def gate_of(method: str, path: str, handler: Callable[..., Any]) -> tuple[str, str | None]:
-    """The gate class of a handler and, for ``public`` and ``other``, the reason."""
+def gate_of(
+    method: str,
+    path: str,
+    handler: Callable[..., Any],
+    dependencies: Iterable[Callable[..., Any]] = (),
+) -> tuple[str, str | None]:
+    """The gate class of a handler and, for ``public`` and ``other``, the reason.
+
+    ``dependencies`` are the ``Depends`` callables of the route: their source counts as the
+    handler's own.
+    """
     key = (method, path)
     if key in OVERRIDES:
         return "other", OVERRIDES[key]
-    names = call_names(handler)
+    names = referenced_names(handler).union(*map(referenced_names, dependencies))
     module = getattr(handler, "__module__", type(handler).__module__)
     if HOST_CALL in names or names & HOST_HELPERS.keys():
         return "host", None
     if names & AUTHZ_CALLS:
         return "authz", None
-    if module in GUEST_MODULES:
+    registered = any(hasattr(call, "guest_route_name") for call in dependencies)
+    if module in GUEST_MODULES and (names & GUEST_CHECKS or registered):
         return "guest", None
     if key in PUBLIC_ROUTES:
         return "public", PUBLIC_ROUTES[key]
@@ -140,48 +211,73 @@ def _methods(route: Any) -> list[str]:
     return sorted(m for m in declared if m != "HEAD" or "GET" not in declared)
 
 
-def build_app() -> Any:
-    """``create_app()`` with only the collaboration extension, plus the account router."""
-    previous = os.environ.get("PODCAST_EXTENSIONS")
-    os.environ["PODCAST_EXTENSIONS"] = "collaboration"
+def build_app(*, bundle: bool = True, bind_host: str = "127.0.0.1") -> Any:
+    """``create_app()`` with only the collaboration extension, plus the account router.
+
+    ``bundle`` says whether the static SPA bundle exists; ``bind_host`` decides the host MCP mount.
+    """
+    pinned = {"PODCAST_EXTENSIONS": "collaboration", "PODCAST_GUI_OPENAPI": "1"}
+    previous = {name: os.environ.get(name) for name in pinned}
+    os.environ.update(pinned)
     try:
         from podcast_mcp.gui.routes import auth
         from podcast_mcp.gui.server import create_app
 
         with tempfile.TemporaryDirectory() as raw:
             static = Path(raw)
-            (static / "assets").mkdir()
-            (static / "index.html").write_text("<!doctype html>", encoding="utf-8")
-            app = create_app(static_dir=static)
+            if bundle:
+                (static / "assets").mkdir()
+                (static / "index.html").write_text("<!doctype html>", encoding="utf-8")
+            app = create_app(static_dir=static, bind_host=bind_host)
         app.include_router(auth.router)
         return app
     finally:
-        if previous is None:
-            os.environ.pop("PODCAST_EXTENSIONS", None)
-        else:
-            os.environ["PODCAST_EXTENSIONS"] = previous
+        for name, value in previous.items():
+            if value is None:
+                os.environ.pop(name, None)
+            else:
+                os.environ[name] = value
 
 
-def live_rows(app: Any | None = None) -> list[dict[str, Any]]:
-    """One row per mounted ``(method, path)``, sorted, from the routes ``app`` serves."""
-    app = build_app() if app is None else app
+def variant_apps() -> Iterator[Any]:
+    """The configurations the inventory is the union of: bundle present or absent, and a
+    loopback or a LAN bind (only loopback mounts the host MCP transport)."""
+    yield build_app()
+    yield build_app(bundle=False)
+    yield build_app(bind_host="0.0.0.0")
+
+
+def _rows_of(app: Any) -> dict[tuple[str, str], dict[str, Any]]:
     rows: dict[tuple[str, str], dict[str, Any]] = {}
     for route in _walk(list(app.routes)):
         handler: Callable[..., Any] = getattr(route, "endpoint", None) or route.app
+        dependencies = list(dependency_callables(route))
         for method in _methods(route):
-            gate, reason = gate_of(method, route.path, handler)
+            key = (method, route.path)
+            if key in rows:
+                raise ValueError(f"{method} {route.path} is mounted twice")
+            gate, reason = gate_of(method, route.path, handler, dependencies)
             row: dict[str, Any] = {
                 "method": method,
                 "path": route.path,
                 "gate": gate,
                 "handler": handler_id(handler),
             }
-            if calls_require_host(handler):
+            if HOST_CALL in referenced_names(handler):
                 row["host_direct"] = True
             if reason is not None:
                 row["reason"] = reason
-            rows.setdefault((method, route.path), row)
-    return [rows[key] for key in sorted(rows, key=lambda k: (k[1], k[0]))]
+            rows[key] = row
+    return rows
+
+
+def live_rows(apps: Iterable[Any] | None = None) -> list[dict[str, Any]]:
+    """One row per ``(method, path)`` mounted in any variant, sorted by path then method."""
+    rows: dict[tuple[str, str], dict[str, Any]] = {}
+    for app in variant_apps() if apps is None else apps:
+        for key, row in _rows_of(app).items():
+            rows.setdefault(key, row)
+    return [rows[key] for key in sorted(rows, key=_by_path)]
 
 
 def host_direct_count(rows: list[dict[str, Any]]) -> int:
@@ -199,11 +295,11 @@ def problems(live: list[dict[str, Any]], contract: dict[str, Any]) -> Iterator[s
     """One message per drift between the mounted routes and the recorded inventory."""
     recorded = {(r["method"], r["path"]): r for r in contract["routes"]}
     mounted = {(r["method"], r["path"]): r for r in live}
-    for method, path in sorted(mounted.keys() - recorded.keys(), key=lambda k: (k[1], k[0])):
+    for method, path in sorted(mounted.keys() - recorded.keys(), key=_by_path):
         yield f"{method} {path} is mounted but has no row in the inventory. {WRITE_HINT}"
-    for method, path in sorted(recorded.keys() - mounted.keys(), key=lambda k: (k[1], k[0])):
+    for method, path in sorted(recorded.keys() - mounted.keys(), key=_by_path):
         yield f"{method} {path} has a row but no mounted route. {WRITE_HINT}"
-    for key in sorted(mounted.keys() & recorded.keys(), key=lambda k: (k[1], k[0])):
+    for key in sorted(mounted.keys() & recorded.keys(), key=_by_path):
         if mounted[key]["gate"] != recorded[key]["gate"]:
             yield (
                 f"{key[0]} {key[1]} is gated as {mounted[key]['gate']!r} but the inventory "
@@ -225,14 +321,31 @@ def problems(live: list[dict[str, Any]], contract: dict[str, Any]) -> Iterator[s
         )
 
 
+def base_baseline(ref: str) -> int | None:
+    """``host_direct_baseline`` recorded at ``ref``, or None when the ref has no inventory yet."""
+    shown = subprocess.run(
+        ["git", "show", f"{ref}:{CONTRACT.relative_to(ROOT).as_posix()}"],
+        cwd=ROOT,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    return int(json.loads(shown.stdout)["host_direct_baseline"]) if shown.returncode == 0 else None
+
+
+def growth(base: int | None, direct: int, baseline: int) -> Iterator[str]:
+    """Messages when the ratchet or the live count is above the baseline recorded at the base."""
+    if base is None:
+        return
+    if baseline > base:
+        yield f"host_direct_baseline is {baseline}, the base records {base}. It may only shrink."
+    if direct > base:
+        yield f"{direct} handlers call require_host directly, the base allows {base}."
+
+
 def render(live: list[dict[str, Any]], baseline: int) -> str:
     payload = {
         "api_version": API_VERSION,
-        "comment": (
-            "Gate class of every route the app mounts (#3123). host_direct_baseline is a ratchet: "
-            "the handlers that call require_host themselves may only shrink. Regenerate with "
-            "scripts/check_route_inventory.py --write."
-        ),
         "host_direct_baseline": baseline,
         "routes": live,
     }
@@ -240,14 +353,19 @@ def render(live: list[dict[str, Any]], baseline: int) -> str:
 
 
 def main(argv: list[str] | None = None) -> int:
-    args = sys.argv[1:] if argv is None else argv
+    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    mode = parser.add_mutually_exclusive_group()
+    mode.add_argument("--check", action="store_true", help="fail on any difference (default)")
+    mode.add_argument("--write", action="store_true", help="regenerate the contract")
+    parser.add_argument("--base", help="git ref whose recorded baseline the count may not exceed")
+    args = parser.parse_args(argv)
     live = live_rows()
     contract = load_contract()
-    if "--write" in args:
+    base = base_baseline(args.base) if args.base else None
+    if args.write:
         direct = host_direct_count(live)
-        baseline = (
-            min(direct, int(contract["host_direct_baseline"])) if CONTRACT.is_file() else direct
-        )
+        ceilings = [int(contract["host_direct_baseline"])] if CONTRACT.is_file() else []
+        baseline = min([direct, *ceilings, *([] if base is None else [base])])
         CONTRACT.write_text(render(live, baseline), encoding="utf-8")
         print(f"wrote {CONTRACT.relative_to(ROOT)}: {len(live)} routes, baseline {baseline}")
         if direct > baseline:
@@ -258,7 +376,10 @@ def main(argv: list[str] | None = None) -> int:
             )
             return 1
         return 0
-    found = list(problems(live, contract))
+    found = [
+        *problems(live, contract),
+        *growth(base, host_direct_count(live), int(contract["host_direct_baseline"])),
+    ]
     if CONTRACT.is_file() and render(live, int(contract["host_direct_baseline"])) != (
         CONTRACT.read_text(encoding="utf-8")
     ):

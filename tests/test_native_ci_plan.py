@@ -288,6 +288,7 @@ def test_contract_inventory_is_explicit_and_unknown_additions_run_full() -> None
         "join-length-limits.json",
         "project-writers.json",
         "ripple-scope.json",
+        "route-inventory.json",
         "timeline-zoom.json",
         "trim-edge-limits.json",
     }

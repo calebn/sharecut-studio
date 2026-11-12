@@ -161,7 +161,7 @@ its handler (`host`, `authz`, `guest`, `public` or `other` with a reason; [#3123
 routers, the share UI routes, the websockets and the account router) and fails when a mounted route has
 no row, a row has no route, a gate class changed, or more handlers call `require_host` directly than
 `host_direct_baseline` allows. The class is read from the handler's AST, so a comment does not count.
-The baseline only shrinks. After adding, removing or re-gating a route, run
+The inventory is the union of three configurations: collaboration extension on, the static bundle present or absent, and a loopback or a LAN bind (only loopback mounts `/mcp`); the script mounts the account router itself, and `PODCAST_GUI_OPENAPI` is pinned on. A `guest` row needs the handler to name a reviewed share-token check; the `/auth/*` rows carry a per-route reason. The baseline only shrinks, and a test compares it with `origin/<base>` (`--base REF` on the script does the same). After adding, removing or re-gating a route, run
 `python scripts/check_route_inventory.py --write` (`--check` is the default; `make generated-check` runs it).
 
 ### Relay proxy path invariant
