@@ -12,7 +12,6 @@ export interface OsRecorderSnapshot {
   } | null>;
   violations: string[];
   media: Array<{
-    index: number;
     src: string;
     paused: boolean;
     duration: number;
@@ -44,21 +43,6 @@ function record(): void {
     contexts: [],
   };
   (window as unknown as RecorderWindow).__os = rec;
-
-  if (!("audioSession" in navigator)) {
-    let type = "auto";
-    Object.defineProperty(navigator, "audioSession", {
-      configurable: true,
-      value: {
-        get type() {
-          return type;
-        },
-        set type(value: string) {
-          type = value;
-        },
-      },
-    });
-  }
 
   const session = navigator.mediaSession;
   const setHandler = session.setActionHandler.bind(session);
@@ -146,8 +130,7 @@ export function readOsRecorder(page: Page): Promise<OsRecorderSnapshot> {
       ),
       positionStates: [...rec.positionStates],
       violations: [...rec.violations],
-      media: rec.media.map((element, index) => ({
-        index,
+      media: rec.media.map((element) => ({
         src: element.src.startsWith("data:") ? "data:" : element.src,
         paused: element.paused,
         duration: element.duration,

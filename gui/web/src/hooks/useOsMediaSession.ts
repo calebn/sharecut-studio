@@ -2,7 +2,6 @@ import { useEffect } from "react";
 import { livePlayheadSec } from "../audio/livePlayhead";
 import {
   applyOsMediaSession,
-  episodeDurationSec,
   OS_SESSION_OFF,
   type OsMediaSessionState,
   type OsTransportCommands,
@@ -11,6 +10,7 @@ import {
   osTransportInput,
   projectOsMediaSession,
 } from "../audio/osMediaSession";
+import { episodeDurationSec } from "../audio/proxyMath";
 import { skipListen } from "../commands/listenSeek";
 import { runPointerCommand } from "../commands/pointer";
 import { seekTransport } from "../commands/seek";
@@ -23,7 +23,7 @@ const storeCommands: OsTransportCommands = {
   syncPlayhead,
   togglePlay: () => runPointerCommand("transport.togglePlay"),
   skip: (deltaSec) =>
-    skipListen(deltaSec, episodeDurationSec(useDawStore.getState())),
+    skipListen(deltaSec, episodeDurationSec(useDawStore.getState().project)),
   seek: (sec) => void seekTransport(sec),
 };
 
