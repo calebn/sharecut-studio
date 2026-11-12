@@ -385,6 +385,13 @@ describe("buildScriptModel", () => {
       true,
       false,
     ]);
+    // A caller that names the dropped utterance word lands on its cut word.
+    expect(
+      model.indexOf({ trackId: "host", sourceId: null, wordIndex: 1 }),
+    ).toBe(1);
+    expect(
+      model.indexOf({ trackId: "host", sourceId: null, wordIndex: 2 }, "last"),
+    ).toBe(2);
   });
 
   it("shows a cut word once when the boundary names a source id and the utterance has none", () => {
