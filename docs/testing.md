@@ -164,6 +164,19 @@ no row, a row has no route, a gate class changed, or more handlers call `require
 The inventory is the union of three configurations: collaboration extension on, the static bundle present or absent, and a loopback or a LAN bind (only loopback mounts `/mcp`); the script mounts the account router itself, and `PODCAST_GUI_OPENAPI` is pinned on. A `guest` row needs the handler to name a reviewed share-token check; the `/auth/*` rows carry a per-route reason. The baseline only shrinks, and a test compares it with `origin/<base>` (`--base REF` on the script does the same). After adding, removing or re-gating a route, run
 `python scripts/check_route_inventory.py --write` (`--check` is the default; `make generated-check` runs it).
 
+### Copy never says what the Terminology table forbids
+
+The web app's copy does not use a quoted multi-word phrase from the "Never say" column of the
+Terminology table in [communication-philosophy.md](communication-philosophy.md) (#3123 item 7).
+`scripts/check_terminology.py` (run by `make lint-py`; CI runs it through `tests/test_terminology.py`)
+reads those phrases and looks for them in the string literals and JSX text of `gui/web/src`, outside
+tests, stories and generated files, and compares the hits per phrase and file with
+`tests/terminology_baseline.json`. The list is a ratchet like the wait list above: a file may not
+gain a hit, and a file that lost hits must lower its count with `python scripts/check_terminology.py
+--write`. Single words are not read, because the table bans them only in a stated sense ("clip" for a
+recording pass). A hit that is right in its context stays in the baseline until the table is narrowed
+or the copy changes.
+
 ### Relay proxy path invariant
 
 `tests/test_proxy_paths.py` runs a seeded, reproducible set of relay suffixes

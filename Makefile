@@ -154,6 +154,7 @@ lint-py:
 	uv run ruff check src tests scripts
 	uv run python scripts/check_level_literals.py
 	uv run python scripts/check_test_waits.py
+	uv run python scripts/check_terminology.py
 	uv run bandit -c pyproject.toml -r src -ll
 	uv run vulture
 	uv run deptry .
