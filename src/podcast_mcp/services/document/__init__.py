@@ -62,10 +62,13 @@ if TYPE_CHECKING:
     from podcast_mcp.services.document.room_tone_bed import RoomToneBedReply, RoomToneBedService
     from podcast_mcp.services.document.segment_capture import parse_range, save_segment
     from podcast_mcp.services.document.segment_insert import (
-        SegmentInsertReport,
         insert_saved_segment,
         preview_segment_insert,
         preview_segment_insert_on,
+    )
+    from podcast_mcp.services.document.segment_insert_results import (
+        SegmentInsertApplied,
+        SegmentInsertPreview,
     )
     from podcast_mcp.services.document.session_suggestion import SessionSuggestionService
     from podcast_mcp.services.document.timeline import TimelineService
@@ -111,7 +114,8 @@ __all__ = [
     "RollBoundaryTarget",
     "RoomToneBedReply",
     "RoomToneBedService",
-    "SegmentInsertReport",
+    "SegmentInsertApplied",
+    "SegmentInsertPreview",
     "ServedFile",
     "SessionSuggestionService",
     "TimelineService",
@@ -185,7 +189,8 @@ _MODULE_BY_NAME = {
     "parse_range": "segment_capture",
     "preview_segment_insert": "segment_insert",
     "preview_segment_insert_on": "segment_insert",
-    "SegmentInsertReport": "segment_insert",
+    "SegmentInsertApplied": "segment_insert_results",
+    "SegmentInsertPreview": "segment_insert_results",
     "KitApplyReport": "kit_apply",
     "save_segment": "segment_capture",
     "SessionSuggestionService": "session_suggestion",

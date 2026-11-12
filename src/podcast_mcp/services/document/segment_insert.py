@@ -5,11 +5,7 @@ from __future__ import annotations
 import os
 import shutil
 import tempfile
-from collections.abc import Mapping
 from pathlib import Path
-from typing import Any
-
-from pydantic import BaseModel, ConfigDict
 
 from podcast_mcp.edits.segment_insert import (
     SegmentAudio,
@@ -24,26 +20,13 @@ from podcast_mcp.segments.model import SegmentFile
 from podcast_mcp.segments.position import parse_position
 from podcast_mcp.segments.store import SegmentStore, sha256_file
 from podcast_mcp.services.app import ProjectWorkspace
+from podcast_mcp.services.document.segment_insert_results import (
+    ChapterMove,
+    CommentMove,
+    SegmentInsertApplied,
+    SegmentInsertPreview,
+)
 from podcast_mcp.util.coded_error import CodedValueError
-
-
-class SegmentInsertReport(BaseModel):
-    """What an insert did (``dry_run`` false) or would do (true).
-
-    The CLI and MCP print ``wire()``. The fields below are always present; the rest of the
-    report (clips moved, chapters, tracks, ...) rides along as extra keys, unchanged.
-    """
-
-    model_config = ConfigDict(extra="allow")
-
-    dry_run: bool
-    segment_id: str
-    segment_version: int
-    at: float
-    duration_sec: float
-
-    def wire(self) -> Mapping[str, Any]:
-        return self.model_dump()
 
 
 def _mismatch(segment: SegmentFile, name: str) -> CodedValueError:
@@ -117,7 +100,7 @@ def insert_saved_segment(
     *,
     version: int | None = None,
     store: SegmentStore | None = None,
-) -> dict[str, Any]:
+) -> SegmentInsertApplied:
     """Insert a library segment at ``at`` (seconds, ``start`` or ``end``); later content moves.
 
     ``end`` is read inside the document lock, so an edit saved meanwhile is not split. The audio is copied into the project and its hash checked. The edit is one undo step.
@@ -135,8 +118,10 @@ def insert_saved_segment(
     return ws.mutate(
         f"before insert segment {segment.name}",
         f"after insert segment {segment.name}",
-        lambda p: insert_segment(
-            p, segment, audio, resolve_insert_position(p, at), defaults=ws.effective_config()
+        lambda p: SegmentInsertApplied.model_validate(
+            insert_segment(
+                p, segment, audio, resolve_insert_position(p, at), defaults=ws.effective_config()
+            )
         ),
         operation="insert_segment",
         params={"segment_id": segment.id, "version": segment.version, "at": early},
@@ -145,7 +130,7 @@ def insert_saved_segment(
 
 def _chapters_moved(
     project: EpisodeProject, trial: EpisodeProject, segment: SegmentFile, at: float
-) -> list[dict[str, Any]]:
+) -> list[ChapterMove]:
     after = sorted(trial.editorial.chapters, key=lambda chapter: chapter.time)
     if segment.chapter_title:
         added = next((c for c in after if c.title == segment.chapter_title and c.time == at), None)
@@ -153,7 +138,7 @@ def _chapters_moved(
             after.remove(added)
     before = sorted(project.editorial.chapters, key=lambda chapter: chapter.time)
     return [
-        {"title": new.title, "from": old.time, "to": new.time}
+        ChapterMove(title=new.title, from_sec=old.time, to=new.time)
         for old, new in zip(before, after, strict=False)
         if old.time != new.time
     ]
@@ -166,7 +151,7 @@ def preview_segment_insert(
     *,
     version: int | None = None,
     store: SegmentStore | None = None,
-) -> SegmentInsertReport:
+) -> SegmentInsertPreview:
     report, _trial = preview_segment_insert_on(
         ws, ws.project, segment_id, at, version=version, store=store
     )
@@ -181,7 +166,7 @@ def preview_segment_insert_on(
     *,
     version: int | None = None,
     store: SegmentStore | None = None,
-) -> tuple[SegmentInsertReport, EpisodeProject]:
+) -> tuple[SegmentInsertPreview, EpisodeProject]:
     """:func:`preview_segment_insert` on ``project`` (a copy the caller owns) and the result.
 
     Returns the report and the project as it would be after the insert, so a kit's dry run
@@ -223,32 +208,29 @@ def preview_segment_insert_on(
     old_tracks = {track.id for track in project.tracks}
     old_comments = {c.id: c.timeline_start for c in project.review.comments}
     old_pending = {e.id: (e.start, e.end) for e in project.editorial.edit_decisions}
-    report = SegmentInsertReport.model_validate(
-        {
-            "dry_run": True,
-            "segment_id": segment.id,
-            "segment_version": segment.version,
-            "at": at,
-            "duration_sec": segment.duration_sec,
-            "timeline_duration_before_sec": timeline_end(project),
-            "timeline_duration_after_sec": timeline_end(trial),
-            "clips_moved": sum(1 for clip in kept if clip.timeline_start != before[clip.id]),
-            "clips_added": len(trial.clips) - len(before),
-            "clips_from_segment": len(segment.clips),
-            "chapters_moved": _chapters_moved(project, trial, segment, at),
-            "chapter_added": segment.chapter_title,
-            "comments_moved": [
-                {"id": c.id, "from": old_comments[c.id], "to": c.timeline_start}
-                for c in trial.review.comments
-                if c.id in old_comments and c.timeline_start != old_comments[c.id]
-            ],
-            "pending_edits_moved": sum(
-                1
-                for e in trial.editorial.edit_decisions
-                if e.id in old_pending and (e.start, e.end) != old_pending[e.id]
-            ),
-            "tracks_added": [t.id for t in trial.tracks if t.id not in old_tracks],
-            "tracks": summary["tracks"],
-        }
+    report = SegmentInsertPreview(
+        segment_id=segment.id,
+        segment_version=segment.version,
+        at=at,
+        duration_sec=segment.duration_sec,
+        timeline_duration_before_sec=timeline_end(project),
+        timeline_duration_after_sec=timeline_end(trial),
+        clips_moved=sum(1 for clip in kept if clip.timeline_start != before[clip.id]),
+        clips_added=len(trial.clips) - len(before),
+        clips_from_segment=len(segment.clips),
+        chapters_moved=_chapters_moved(project, trial, segment, at),
+        chapter_added=segment.chapter_title,
+        comments_moved=[
+            CommentMove(id=c.id, from_sec=old_comments[c.id], to=c.timeline_start)
+            for c in trial.review.comments
+            if c.id in old_comments and c.timeline_start != old_comments[c.id]
+        ],
+        pending_edits_moved=sum(
+            1
+            for e in trial.editorial.edit_decisions
+            if e.id in old_pending and (e.start, e.end) != old_pending[e.id]
+        ),
+        tracks_added=[t.id for t in trial.tracks if t.id not in old_tracks],
+        tracks=summary["tracks"],
     )
     return report, trial
