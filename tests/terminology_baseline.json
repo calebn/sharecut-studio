@@ -8,7 +8,6 @@
     "apply all|gui/web/src/capabilities/copy.ts": 1,
     "blade tool|gui/web/src/system/verbs.ts": 1,
     "context menu|gui/web/src/commands/catalog.ts": 1,
-    "finish recording|gui/web/src/commands/projectMedia.ts": 1,
     "guest role|gui/web/src/system/AppHeader.tsx": 1,
     "host offline|gui/web/src/utils/apiError.ts": 1,
     "leave gap|gui/web/src/system/ScopeChip.tsx": 1,
