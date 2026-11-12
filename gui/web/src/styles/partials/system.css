@@ -1110,46 +1110,50 @@ html[data-frame-short] .sys-player-right > :not(.sys-player-hear) {
 }
 
 /* The Listen dock (phone guest Review): the scrubber, the readout and the
-   transport in one 7.5 rem block that never expands. The strip is inset from
+   transport in one block of --player-dock-height that never expands. The strip is inset from
    both screen edges so a system back swipe never starts a seek. Its own class,
    not .sys-player, so the bar's container rules do not reach it. */
-.sys-dock {
+.sys-listen-dock {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto;
-  grid-template-rows: var(--touch-min) auto minmax(0, 1fr);
+  grid-template-rows:
+    var(--touch-min) var(--control-height)
+    calc(var(--target-dock-primary) + var(--space-6) / 2);
   grid-template-areas:
     "strip strip strip"
     "elapsed centre total"
     "transport transport transport";
   align-items: center;
+  align-content: start;
   column-gap: var(--space-3);
-  min-block-size: var(--player-dock-height);
+  box-sizing: border-box;
+  block-size: var(--player-dock-height);
   padding-inline: var(--space-4);
   background: var(--color-bg-elevated);
   border-block-start: 1px solid var(--color-border-subtle);
   color: var(--color-text-primary);
 }
 
-.sys-dock-strip {
+.sys-listen-dock-strip {
   grid-area: strip;
   min-inline-size: 0;
   margin-inline: calc(var(--space-6) - var(--space-4));
 }
 
-.sys-dock-elapsed,
-.sys-dock-total {
+.sys-listen-dock-elapsed,
+.sys-listen-dock-total {
   font-size: var(--font-size-ui);
 }
 
-.sys-dock-elapsed {
+.sys-listen-dock-elapsed {
   grid-area: elapsed;
 }
 
-.sys-dock-total {
+.sys-listen-dock-total {
   grid-area: total;
 }
 
-.sys-dock-centre {
+.sys-listen-dock-centre {
   grid-area: centre;
   display: flex;
   align-items: center;
@@ -1160,33 +1164,33 @@ html[data-frame-short] .sys-player-right > :not(.sys-player-hear) {
   font-size: var(--font-size-small);
 }
 
-.sys-dock-chapter,
-.sys-dock-status {
+.sys-listen-dock-chapter,
+.sys-listen-dock-status {
   min-inline-size: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.sys-dock-status {
+.sys-listen-dock-status {
   display: inline-flex;
   align-items: center;
   gap: var(--space-1);
   color: var(--color-warning-on-surface);
 }
 
-.sys-dock-status-text {
+.sys-listen-dock-status-text {
   min-inline-size: 0;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
-.sys-dock-status-btn {
+.sys-listen-dock-status-btn {
   display: none;
   color: var(--color-warning-on-surface);
 }
 
-.sys-dock-transport {
+.sys-listen-dock-transport {
   grid-area: transport;
   display: flex;
   align-items: center;
@@ -1195,32 +1199,32 @@ html[data-frame-short] .sys-player-right > :not(.sys-player-hear) {
   min-inline-size: 0;
 }
 
-.sys-dock .sys-player-skip {
+.sys-listen-dock .sys-player-skip {
   display: inline-flex;
 }
 
-.sys-dock .sys-icon-btn {
+.sys-listen-dock .sys-icon-btn {
   min-inline-size: var(--touch-min);
   min-block-size: var(--touch-min);
 }
 
-.sys-dock .sys-play .sys-play-btn {
+.sys-listen-dock .sys-play .sys-play-btn {
   inline-size: var(--target-dock-primary);
   block-size: var(--target-dock-primary);
   min-inline-size: var(--target-dock-primary);
   min-block-size: var(--target-dock-primary);
 }
 
-.sys-dock .sys-play-ring {
+.sys-listen-dock .sys-play-ring {
   inline-size: calc(var(--target-dock-primary) + var(--space-6) / 2);
   block-size: calc(var(--target-dock-primary) + var(--space-6) / 2);
 }
 
-.sys-dock-chapters {
+.sys-listen-dock-chapters {
   margin-inline-end: auto;
 }
 
-.sys-dock-comment {
+.sys-listen-dock-comment {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -1237,13 +1241,13 @@ html[data-frame-short] .sys-player-right > :not(.sys-player-hear) {
   cursor: pointer;
 }
 
-.sys-dock-comment:hover {
+.sys-listen-dock-comment:hover {
   background: var(--color-hover);
 }
 
 /* A narrow phone keeps the icon and drops the word. */
 @container sys-player (max-width: 20rem) {
-  .sys-dock-comment-label {
+  .sys-listen-dock-comment-label {
     position: absolute;
     inline-size: 1px;
     block-size: 1px;
@@ -1258,42 +1262,42 @@ html[data-frame-short] .sys-player-right > :not(.sys-player-hear) {
    the clock, the strip, Play and an icon-only Comment. The skips, Chapters,
    the readout and the status text give way; the status keeps a button that
    says why in a toast. */
-html[data-frame-short] .sys-dock {
+html[data-frame-short] .sys-listen-dock {
   grid-template-columns: auto minmax(0, 1fr) auto auto;
   grid-template-rows: minmax(0, 1fr);
   grid-template-areas: "elapsed strip transport status";
-  min-block-size: var(--player-height);
+  block-size: var(--player-height);
 }
 
-html[data-frame-short] .sys-dock-strip {
+html[data-frame-short] .sys-listen-dock-strip {
   margin-inline: 0;
 }
 
-html[data-frame-short] .sys-dock-total,
-html[data-frame-short] .sys-dock .sys-player-skip,
-html[data-frame-short] .sys-dock-chapters,
-html[data-frame-short] .sys-dock-chapter,
-html[data-frame-short] .sys-dock-status,
-html[data-frame-short] .sys-dock-comment-label {
+html[data-frame-short] .sys-listen-dock-total,
+html[data-frame-short] .sys-listen-dock .sys-player-skip,
+html[data-frame-short] .sys-listen-dock-chapters,
+html[data-frame-short] .sys-listen-dock-chapter,
+html[data-frame-short] .sys-listen-dock-status,
+html[data-frame-short] .sys-listen-dock-comment-label {
   display: none;
 }
 
-html[data-frame-short] .sys-dock-centre {
+html[data-frame-short] .sys-listen-dock-centre {
   grid-area: status;
 }
 
-html[data-frame-short] .sys-dock-status-btn {
+html[data-frame-short] .sys-listen-dock-status-btn {
   display: inline-flex;
 }
 
-html[data-frame-short] .sys-dock .sys-play .sys-play-btn {
+html[data-frame-short] .sys-listen-dock .sys-play .sys-play-btn {
   inline-size: var(--touch-min);
   block-size: var(--touch-min);
   min-inline-size: var(--touch-min);
   min-block-size: var(--touch-min);
 }
 
-html[data-frame-short] .sys-dock-comment {
+html[data-frame-short] .sys-listen-dock-comment {
   margin-inline-start: 0;
 }
 

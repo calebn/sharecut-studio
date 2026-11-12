@@ -55,7 +55,7 @@ const STAGE_LAYOUT: Readonly<Record<string, string>> = {
   "--app-header-height": "3rem",
   "--app-header-height-phone": "2.75rem",
   "--alert-slot-height": "2.75rem",
-  "--player-dock-height": "7.5rem",
+  "--player-dock-height": "9.8125rem",
   "--script-pane-width": "25rem",
   "--script-pane-width-min": "20rem",
   "--script-pane-width-max": "40rem",
