@@ -38,8 +38,10 @@ from podcast_mcp.services.collaboration.share_capabilities import (
     CAP_MCP,
     CAP_PLAY,
     CAP_VIEW,
+    GuestWords,
     capabilities_for_role,
     guest_mode,
+    guest_reads_transcript_words,
     has_capability,
     record_capabilities_for_role,
     review_role_for_capabilities,
@@ -1062,19 +1064,28 @@ def _guest_view_is_full(view: dict[str, Any]) -> bool:
 
 def guest_selects_transcript_words(caps: Sequence[str] | None) -> bool:
     """A guest the document-command gate lets submit ``EditSelectedRange`` (Commenter
-    or Editor) receives timed transcript words to select a range from."""
+    or Editor) may select a range from timed transcript words."""
     return "EditSelectedRange" in document_command_types_for_caps(list(caps or []))
 
 
+def guest_words(caps: Sequence[str] | None) -> GuestWords:
+    """The timed words a guest receives: selectable, readable only, or none."""
+    if guest_selects_transcript_words(caps):
+        return GuestWords.SELECTABLE
+    if guest_reads_transcript_words(list(caps or [])):
+        return GuestWords.READING
+    return GuestWords.NONE
+
+
 def sanitize_guest_project_view(
-    view: dict[str, Any], *, transcript_words: bool = False
+    view: dict[str, Any], *, words: GuestWords = GuestWords.NONE
 ) -> dict[str, Any]:
     """Strip host filesystem paths from a ProjectView-shaped dict for guests.
 
     Size (words[]) is handled by named projections. This keeps **privacy** only.
     TRACKS/DETAIL/CLIPS/FX/ENVELOPES patches sanitize existing keys and do not
-    inject full-view stubs. ``transcript_words`` keeps unsuppressed timed words
-    (see ``guest_selects_transcript_words``); otherwise they are dropped.
+    inject full-view stubs. ``words`` says which unsuppressed timed words stay
+    (see ``guest_words``); ``GuestWords.NONE`` drops them.
     """
     from podcast_mcp.gui.mapper import guest_transcript
 
@@ -1116,15 +1127,15 @@ def sanitize_guest_project_view(
     if full or "social_clips" in out:
         out["social_clips"] = []
     if isinstance(out.get("transcript"), dict):
-        out["transcript"] = guest_transcript(out["transcript"], words=transcript_words)
-        if not transcript_words:
+        out["transcript"] = guest_transcript(out["transcript"], words=words)
+        if words is GuestWords.NONE:
             meta = dict(out.get("meta") or {})
             hydra = dict(meta.get("hydration") or {})
             hydra["transcript_words"] = False
             meta["hydration"] = hydra
             out["meta"] = meta
-    if not transcript_words and isinstance(out.get("pending_edits"), list):
-        # Word text, indices and scores follow the same grant as the transcript's words;
+    if words is not GuestWords.SELECTABLE and isinstance(out.get("pending_edits"), list):
+        # Word text, indices and scores follow the grant to select words, not to read them;
         # the count alone says a cut needs a look.
         out["pending_edits"] = [
             {k: v for k, v in row.items() if k != "unsure_words"} if isinstance(row, dict) else row
@@ -1163,7 +1174,7 @@ def _guest_file_signature(value: Any) -> dict[str, int] | None:
 
 
 def sanitize_guest_document_event(
-    event: dict[str, Any], *, transcript_words: bool = False
+    event: dict[str, Any], *, words: GuestWords = GuestWords.NONE
 ) -> dict[str, Any]:
     """Sanitize a document-plane hub event for share guests.
 
@@ -1187,9 +1198,7 @@ def sanitize_guest_document_event(
             snap = {"server_seq": snap.get("server_seq", 0), "resync": True}
         for key in ("project", "patch"):
             if isinstance(snap.get(key), dict):
-                snap[key] = sanitize_guest_project_view(
-                    snap[key], transcript_words=transcript_words
-                )
+                snap[key] = sanitize_guest_project_view(snap[key], words=words)
         if "history" in snap:
             snap["history"] = _guest_history(snap["history"])
         for key in ("file", "file_before"):
@@ -1281,6 +1290,7 @@ def share_project_view(token: str) -> dict[str, Any]:
     return {
         "mode": "review",
         "guest_mode": guest_mode(caps),
+        "reads_transcript_words": guest_reads_transcript_words(caps),
         "token": token,
         "author": share_author(row),
         "meta": {"name": project.meta.name},

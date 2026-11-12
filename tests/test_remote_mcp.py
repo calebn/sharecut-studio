@@ -342,6 +342,37 @@ def test_guest_tool_surface_and_protocol_edges(
     assert "error" in no_mcp
 
 
+def test_a_viewer_with_mcp_gets_no_words_from_the_project_but_timed_search_hits(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch
+):
+    from podcast_mcp.engines.transcript_sync import rebuild_combined
+    from podcast_mcp.models import Transcript, TranscriptWord
+
+    ws = _seed_premix(minimal_project, sample_wav)
+    ws.project.transcripts = [
+        Transcript(
+            track_id="host",
+            words=[
+                TranscriptWord(text="hello", start=0.2, end=0.6, confidence=0.9),
+                TranscriptWord(text="world", start=0.8, end=1.2, confidence=0.9),
+            ],
+        )
+    ]
+    rebuild_combined(ws.project, defaults=ws.effective_config())
+    ws.save()
+    share = _share(
+        ws, monkeypatch, tmp_workspace, capabilities_for_role("viewer", with_mcp=True), "viewer"
+    )
+    token = share["token"]
+    project = json.loads(_call(token, "guest_get_project")["result"]["content"][0]["text"])
+    utterances = project["transcript"]["utterances"]
+    assert [u["text"] for u in utterances] == ["hello world"]
+    assert all("words" not in u for u in utterances)
+    found = _call(token, "guest_search_transcript", {"query": "hello", "limit": 3}, req_id=2)
+    assert "error" not in found
+    assert "hello" in found["result"]["content"][0]["text"]
+
+
 def test_suggest_only_denies_approve(minimal_project, sample_wav, tmp_workspace, monkeypatch):
     ws = _seed_premix(minimal_project, sample_wav)
     share = _share(

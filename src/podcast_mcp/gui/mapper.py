@@ -36,6 +36,7 @@ from podcast_mcp.models import (
     EpisodeProject,
     Transcript,
 )
+from podcast_mcp.services.collaboration import GuestWords
 from podcast_mcp.util.intervals import HalfOpenIntervalIndex
 from podcast_mcp.util.timebase import SourceSec, TimelineSec
 
@@ -615,14 +616,27 @@ def _word_view(
     return view
 
 
+READING_WORD_FIELDS = (
+    "text",
+    "start",
+    "end",
+    "timeline_start",
+    "timeline_end",
+    "mappable",
+    "word_index",
+    "ignored",
+)
+
+
 def guest_transcript(
-    transcript: dict[str, Any] | None, *, words: bool = False
+    transcript: dict[str, Any] | None, *, words: GuestWords = GuestWords.NONE
 ) -> dict[str, Any] | None:
     """A combined-transcript dict for guests.
 
     Drops view-only ``suppressed_only`` rows (#758): their text is suppressed words,
-    which guests never see. ``words=False`` drops per-word timings; ``words=True``
-    keeps them minus suppressed words, for guests who select transcript ranges.
+    which guests never see. ``NONE`` drops per-word timings. ``READING`` keeps them
+    minus suppressed words, cut to ``READING_WORD_FIELDS``. ``SELECTABLE`` keeps the
+    whole word view minus suppressed words.
     """
     if transcript is None:
         return None
@@ -637,8 +651,17 @@ def guest_transcript(
             continue
         row = dict(utterance)
         timed = row.pop("words", None)
-        if words and isinstance(timed, list):
-            row["words"] = [w for w in timed if not (isinstance(w, dict) and w.get("suppressed"))]
+        if words is not GuestWords.NONE and isinstance(timed, list):
+            kept = [w for w in timed if not (isinstance(w, dict) and w.get("suppressed"))]
+            row["words"] = (
+                kept
+                if words is GuestWords.SELECTABLE
+                else [
+                    {k: w[k] for k in READING_WORD_FIELDS if k in w}
+                    for w in kept
+                    if isinstance(w, dict)
+                ]
+            )
         slim.append(row)
     return {**transcript, "utterances": slim}
 

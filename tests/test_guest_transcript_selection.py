@@ -1,7 +1,7 @@
 """Guest transcript selection follows share capabilities (#6).
 
 ``edit`` guests apply a selected range, ``suggest`` guests propose it, and
-view/play/comment guests can neither edit nor see timed words.
+Viewers read timed words and neither select, edit nor suggest.
 """
 
 from __future__ import annotations
@@ -10,11 +10,10 @@ import pytest
 from fastapi.testclient import TestClient
 
 from podcast_mcp.edits.range_target import range_geometry, range_media_seal
+from podcast_mcp.engines.transcript_sync import rebuild_combined
 from podcast_mcp.gui.server import create_app
 from podcast_mcp.models import (
     Clip,
-    CombinedTranscript,
-    CombinedUtterance,
     CutIntent,
     MediaAsset,
     ProposalOrigin,
@@ -26,7 +25,18 @@ from podcast_mcp.models import (
 )
 from podcast_mcp.models.episode import ExactRangeTarget, RangeInterval
 from podcast_mcp.services.app import ProjectWorkspace
-from podcast_mcp.services.collaboration.share_capabilities import capabilities_for_role
+from podcast_mcp.services.collaboration.share import (
+    guest_selects_transcript_words,
+    guest_words,
+    sanitize_guest_project_view,
+    share_project_view,
+)
+from podcast_mcp.services.collaboration.share_capabilities import (
+    REVIEW_ROLE_CAPABILITIES,
+    GuestWords,
+    capabilities_for_role,
+    guest_reads_transcript_words,
+)
 
 VIEW = capabilities_for_role("viewer")
 SUGGEST = capabilities_for_role("commenter")
@@ -58,13 +68,7 @@ def guest(minimal_project, published_share):
             ],
         )
     ]
-    ws.project.combined_transcript = CombinedTranscript(
-        utterances=[
-            CombinedUtterance(
-                track_id="host", speaker="Host", start=0.2, end=1.5, text="Um. welcome"
-            )
-        ]
-    )
+    rebuild_combined(ws.project, defaults=ws.effective_config())
     ws.save()
     client = TestClient(create_app())
 
@@ -102,23 +106,103 @@ def _clip_spans(project_path) -> list[tuple[float, float]]:
     return sorted((c.source_start, c.source_end) for c in load_project(project_path).clips)
 
 
-@pytest.mark.parametrize(
-    ("capabilities", "words"),
-    [(VIEW, None), (SUGGEST, ["Um.", "welcome"]), (EDIT, ["Um.", "welcome"])],
-    ids=["viewer", "commenter", "editor"],
-)
-def test_detail_words_follow_capabilities_and_never_include_suppressed(guest, capabilities, words):
-    client, open_share, _path = guest
-    token = open_share(capabilities)
+READING_KEYS = {
+    "text",
+    "start",
+    "end",
+    "timeline_start",
+    "timeline_end",
+    "mappable",
+    "word_index",
+    "ignored",
+}
+NO_ROLE = [["play"], ["comment"], ["join", "monitor", "comment"]]
+
+
+def _detail(client: TestClient, token: str) -> dict:
     body = client.get(f"/api/review/{token}/daw/document/state", params={"phase": "detail"})
     assert body.status_code == 200
-    patch = body.json()["patch"]
+    return body.json()["patch"]
+
+
+@pytest.mark.parametrize(
+    "capabilities", [VIEW, SUGGEST, EDIT], ids=["viewer", "commenter", "editor"]
+)
+def test_detail_words_follow_capabilities_and_never_include_suppressed(guest, capabilities):
+    client, open_share, _path = guest
+    patch = _detail(client, open_share(capabilities))
     [row] = patch["transcript"]["utterances"]
-    got = [w["text"] for w in row["words"]] if "words" in row else None
-    assert got == words
-    assert patch["meta"] == {
-        "hydration": {"transcript_words": words is not None, "history_groups": True}
+    assert [w["text"] for w in row["words"]] == ["Um.", "welcome"]
+    assert "bleed" not in row["text"]
+    assert patch["meta"] == {"hydration": {"transcript_words": True, "history_groups": True}}
+
+
+def test_viewer_words_carry_text_and_timing_only(guest):
+    client, open_share, _path = guest
+    [viewer_row] = _detail(client, open_share(VIEW))["transcript"]["utterances"]
+    for word in viewer_row["words"]:
+        assert set(word) == READING_KEYS
+    [commenter_row] = _detail(client, open_share(SUGGEST))["transcript"]["utterances"]
+    um = commenter_row["words"][0]
+    assert um["confidence"] == 0.9
+    assert um["unsure"] is False
+    assert um["suppressed"] is False
+    assert um["timing_target"] == {"track_id": "host", "source_id": None, "word_index": 0}
+    assert {k: um[k] for k in READING_KEYS} == viewer_row["words"][0]
+
+
+@pytest.mark.parametrize("caps", NO_ROLE, ids=["play", "comment", "join-monitor-comment"])
+def test_a_share_with_no_role_reads_no_words(guest, caps):
+    client, open_share, _path = guest
+    assert guest_reads_transcript_words(caps) is False
+    assert guest_selects_transcript_words(caps) is False
+    assert guest_words(caps) is GuestWords.NONE
+    assert guest_reads_transcript_words(None) is False
+    assert guest_words(None) is GuestWords.NONE
+    full = {
+        "project_path": "/x",
+        "meta": {"name": "ep", "hydration": {"transcript_words": True}},
+        "transcript": {"utterances": [{"text": "hi", "words": [{"text": "hi", "start": 0}]}]},
     }
+    out = sanitize_guest_project_view(full)
+    assert "words" not in out["transcript"]["utterances"][0]
+    assert out["meta"]["hydration"]["transcript_words"] is False
+    if "view" not in caps:
+        state = client.get(f"/api/review/{open_share(caps)}/daw/document/state")
+        assert state.status_code == 403
+
+
+def test_a_viewer_with_a_stray_capability_still_reads(guest):
+    assert guest_words(["view", "suggest"]) is GuestWords.READING
+
+
+def test_selecting_implies_reading():
+    sets = (
+        [list(caps) for caps in REVIEW_ROLE_CAPABILITIES.values()] + NO_ROLE + [["view", "suggest"]]
+    )
+    for caps in sets:
+        if guest_selects_transcript_words(caps):
+            assert guest_reads_transcript_words(caps)
+    assert guest_words(VIEW) is GuestWords.READING
+    assert guest_words(SUGGEST) is GuestWords.SELECTABLE
+    assert guest_words(EDIT) is GuestWords.SELECTABLE
+
+
+@pytest.mark.parametrize(
+    "capabilities", [VIEW, SUGGEST, EDIT], ids=["viewer", "commenter", "editor"]
+)
+def test_bootstrap_words_flag_matches_the_document_state_route(guest, capabilities):
+    client, open_share, _path = guest
+    token = open_share(capabilities)
+    assert share_project_view(token)["reads_transcript_words"] is True
+    [row] = _detail(client, token)["transcript"]["utterances"]
+    assert "words" in row
+
+
+@pytest.mark.parametrize("caps", NO_ROLE, ids=["play", "comment", "join-monitor-comment"])
+def test_bootstrap_words_flag_is_false_for_a_share_with_no_role(guest, caps):
+    _client, open_share, _path = guest
+    assert share_project_view(open_share(caps))["reads_transcript_words"] is False
 
 
 def test_edit_guest_cut_applies(guest):

@@ -65,7 +65,7 @@ from podcast_mcp.services.collaboration import (
     SHARE_KIND_REVIEW,
     episode_peaks,
     guest_progress_hub,
-    guest_selects_transcript_words,
+    guest_words,
     lookup_share,
     require_share_cap,
     require_share_edit,
@@ -561,7 +561,7 @@ def get_daw_document_state(
         snapshot = DocumentSyncService(ws).document_snapshot(projection=phase)
         return sanitize_guest_document_event(
             {"snapshot": snapshot},
-            transcript_words=guest_selects_transcript_words(row.get("capabilities")),
+            words=guest_words(row.get("capabilities")),
         )["snapshot"]
 
 

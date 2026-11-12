@@ -188,6 +188,24 @@ def guest_mode(caps: list[str] | None) -> str:
     return _ROLE_GUEST_MODE[role] if role is not None else "none"
 
 
+def guest_reads_transcript_words(caps: list[str] | None) -> bool:
+    """A link with a review role (Viewer, Commenter or Editor) may receive timed
+    transcript words to read; a link with no role reads none.
+
+    Reading is not selecting: ``guest_selects_transcript_words`` asks the
+    document-command gate. Neither is a capability of its own.
+    """
+    return review_role_for_capabilities(caps) is not None
+
+
+class GuestWords(StrEnum):
+    """What timed transcript words a guest event carries."""
+
+    NONE = "none"
+    READING = "reading"
+    SELECTABLE = "selectable"
+
+
 SHARE_ACTOR_PREFIX = "share:"
 
 
