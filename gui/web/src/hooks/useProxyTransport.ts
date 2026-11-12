@@ -154,6 +154,18 @@ export function useProxyTransport(): boolean {
     },
   );
 
+  const handleEnded = useEffectEvent((endSec: number) => {
+    const state = useDawStore.getState();
+    if (
+      state.projectPath !== projectPath ||
+      state.projectEpoch !== projectEpoch ||
+      state.sourcePreview
+    )
+      return;
+    state.setPlayheadSec(endSec, "playback");
+    state.setIsPlaying(false);
+  });
+
   // A blocked proxy (a failed chunk fetch, a missing manifest) leaves nothing to retry it,
   // so a second Play would show Pause over a frozen playhead. Each Play after a block asks
   // for a fresh acceptance; if that fails again, block() stops playback with the error.
@@ -193,6 +205,7 @@ export function useProxyTransport(): boolean {
         new Ctx(),
         (ref) => cachedFetchArrayBuffer(projectPath, ref.url),
         (error, ref) => handleFailure(error, ref),
+        (endSec) => handleEnded(endSec),
       );
     } catch (error) {
       queueMicrotask(() => {
@@ -321,6 +334,7 @@ export function useProxyTransport(): boolean {
           sortedVolumePoints(project.envelopes, track.id),
         ]),
       ),
+      durationSec: project.timeline_duration_sec ?? Number.POSITIVE_INFINITY,
     });
   }, [project, accepted, active]);
 

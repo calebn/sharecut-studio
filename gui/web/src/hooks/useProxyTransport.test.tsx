@@ -249,6 +249,21 @@ describe("useProxyTransport", () => {
     expect(engine.seek).toHaveBeenLastCalledWith(120);
   });
 
+  it("hands the engine the timeline duration of the project", async () => {
+    useDawStore.getState().hydrate(
+      shareProjectKey("tok"),
+      minimalProject({
+        tracks: [sampleTrack({ id: "host" })],
+        timeline_duration_sec: 120,
+      }),
+    );
+    renderHook(() => useProxyTransport());
+    await ready();
+    expect(engine.setSnapshot).toHaveBeenLastCalledWith(
+      expect.objectContaining({ durationSec: 120 }),
+    );
+  });
+
   it("ignores the engine's end of episode while a source preview owns the timeline", async () => {
     renderHook(() => {
       const ownsTimeline = useProxyTransport();
@@ -274,6 +289,7 @@ describe("useProxyTransport", () => {
     act(() => onEnded?.(120));
     expect(useDawStore.getState().playheadSec).toBe(10);
     expect(useDawStore.getState().isPlaying).toBe(true);
+    act(() => useDawStore.getState().releaseSourcePreview("pending:edit"));
   });
 
   it("yields a playing proxy to an owned preview until release", async () => {
