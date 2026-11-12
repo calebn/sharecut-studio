@@ -62,6 +62,12 @@ fn parse_mode(args: impl IntoIterator<Item = OsString>) -> LauncherMode {
     }
 }
 
+/// macOS reports the path the process was started through, so a symlink such as
+/// ~/.local/bin/podcast would look for the runtime beside the link. Follow it.
+fn resolve_exe(exe: PathBuf) -> PathBuf {
+    fs::canonicalize(&exe).unwrap_or(exe)
+}
+
 fn runtime_dir(exe: &Path) -> Option<PathBuf> {
     let dir = exe.parent()?;
     let mut candidates = vec![
@@ -330,6 +336,7 @@ fn main() {
         eprintln!("ShareCut Studio sidecar: current_exe failed: {err}");
         exit(1);
     });
+    let exe = resolve_exe(exe);
     let Some(runtime) = runtime_dir(&exe) else {
         eprintln!(
             "ShareCut Studio sidecar: sharecut-runtime not found next to {}",
@@ -372,6 +379,25 @@ mod tests {
     use std::cell::Cell;
     use std::ffi::OsStr;
     use std::time::{SystemTime, UNIX_EPOCH};
+
+    #[cfg(unix)]
+    #[test]
+    fn runtime_is_found_through_a_symlinked_launcher() {
+        let root = std::env::temp_dir().join(format!("launcher-symlink-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(root.join("app/sharecut-runtime")).unwrap();
+        fs::create_dir_all(root.join("bin")).unwrap();
+        fs::write(root.join("app/podcast"), b"launcher").unwrap();
+        let link = root.join("bin/podcast");
+        std::os::unix::fs::symlink(root.join("app/podcast"), &link).unwrap();
+        assert!(runtime_dir(&link).is_none());
+        let resolved = resolve_exe(link);
+        assert_eq!(
+            runtime_dir(&resolved).unwrap(),
+            fs::canonicalize(root.join("app/sharecut-runtime")).unwrap()
+        );
+        fs::remove_dir_all(root).unwrap();
+    }
 
     fn os_args(args: &[&str]) -> Vec<OsString> {
         args.iter().map(OsString::from).collect()

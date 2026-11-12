@@ -352,7 +352,7 @@ fn cli_bin_and_tools() -> Result<(PathBuf, cli_links::Tools), String> {
     } else {
         let exe = std::env::current_exe().map_err(|err| err.to_string())?;
         let launchers = cli_links::targets(&exe).map_err(|err| err.to_string())?;
-        cli_links::link_tools(&launchers)
+        cli_links::link_tools(&launchers).map_err(|err| err.to_string())?
     };
     Ok((bin, tools))
 }
