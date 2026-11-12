@@ -16,6 +16,7 @@ import {
   SegmentedControl,
   ToggleButton,
 } from "../ui";
+import { SKIP_SEC } from "../utils/time";
 import { OverviewStrip, type OverviewTick } from "./OverviewStrip";
 import { SystemIcon } from "./SystemIcon";
 import { VerbButton } from "./VerbButton";
@@ -93,8 +94,6 @@ export type PlayerProps = {
   onUnfollow?: () => void;
 };
 
-const SKIP = 15;
-
 function Skip({
   seconds,
   onSkip,
@@ -103,7 +102,7 @@ function Skip({
   onSkip?: (seconds: number) => void;
 }) {
   const back = seconds < 0;
-  const label = `${back ? "Back" : "Forward"} ${SKIP} seconds`;
+  const label = `${back ? "Back" : "Forward"} ${SKIP_SEC} seconds`;
   return (
     <button
       type="button"
@@ -163,9 +162,9 @@ function Play({
 function PlayCluster(props: PlayerProps & { statusId: string }) {
   return (
     <>
-      <Skip seconds={-SKIP} onSkip={props.onSkip} />
+      <Skip seconds={-SKIP_SEC} onSkip={props.onSkip} />
       <Play {...props} />
-      <Skip seconds={SKIP} onSkip={props.onSkip} />
+      <Skip seconds={SKIP_SEC} onSkip={props.onSkip} />
     </>
   );
 }
