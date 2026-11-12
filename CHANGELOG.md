@@ -63,6 +63,37 @@
 * A stdio MCP tool call no longer runs in its own process when the live Studio serving the project is bound to a non-loopback address (such as `--host 0.0.0.0`) and so serves no `/mcp`. It stops with a message that names the Studio and offers `--host 127.0.0.1` or `PODCAST_NO_STUDIO_HANDOFF=1`, and writes nothing. The CLI is unchanged.
 * A `podcast review` command that names `--project` is now handed to the Studio serving the project instead of writing the project directly (#2325).
 
+## [0.1.4](https://github.com/calebn/sharecut-studio/compare/v0.1.3...v0.1.4) (2026-11-12)
+
+
+### Features
+
+* **waveform:** scale the clip waveform by the clip Gain ([d70edf5](https://github.com/calebn/sharecut-studio/commit/d70edf5485abafb16218bcae034f825f5778b808))
+
+
+### Fixes
+
+* **copy:** say "Stop the take" when a recording blocks switching projects ([b5fa036](https://github.com/calebn/sharecut-studio/commit/b5fa036d3b3a7fc5b86291c7883d282ecb09e863))
+* **fades:** bound crossfade_joins by its clips and report the applied length ([8922142](https://github.com/calebn/sharecut-studio/commit/8922142e681befddb4892e7724ae821b3642adb5)), closes [#3699](https://github.com/calebn/sharecut-studio/issues/3699)
+* **fades:** key a cut on a clip's length when its fade in the window can be halved ([6c8b1f0](https://github.com/calebn/sharecut-studio/commit/6c8b1f0998dbc1f3c9effb1b398ed79a88f4db1a))
+* **fades:** make cut-edge fades explicit and match the Studio clipboard ([8281593](https://github.com/calebn/sharecut-studio/commit/82815936c66953afca2b29e31a68f9072044dcb3))
+* **fades:** raise a coded error for a negative cut edge fade ([8aa5aec](https://github.com/calebn/sharecut-studio/commit/8aa5aec5b64e4b61cc5ace5ca458fca364f16963))
+* **fades:** report the fades crossfade_joins leaves and preview them join by join ([998fa7f](https://github.com/calebn/sharecut-studio/commit/998fa7f56ccfb9ef2e4346750c390bd1b56f3203)), closes [#3699](https://github.com/calebn/sharecut-studio/issues/3699)
+* **fades:** scope the long-fade verdict cache bypass to fades that reach the cut ([6dfba64](https://github.com/calebn/sharecut-studio/commit/6dfba6486d16e1a90d8bb3036bdb3a2101f2ab51))
+* **fades:** split edges and pause reach ignore far long fades ([c6b99ec](https://github.com/calebn/sharecut-studio/commit/c6b99eceab6b47d44ebcacdc7eecede7ec6ca391)), closes [#3699](https://github.com/calebn/sharecut-studio/issues/3699)
+* **gui:** apply include-time route gates only to API routes ([2faa981](https://github.com/calebn/sharecut-studio/commit/2faa98126b0ba0319c632248145f835feb5afbf6))
+* **gui:** cancel a clip move on pagehide and a hidden tab ([00d56c9](https://github.com/calebn/sharecut-studio/commit/00d56c9ee3be427488b4dfe492e5bd13fcc8fffa))
+* **gui:** cancel a script-text drag on pagehide and a hidden tab ([185a7ed](https://github.com/calebn/sharecut-studio/commit/185a7ed29f8686b5f90041336e1c7ba4838cb86f))
+* **gui:** cancel a system Clip drag on pagehide and a hidden tab ([bf55aa6](https://github.com/calebn/sharecut-studio/commit/bf55aa69c51baa151d40416686316eb71d2e2c8c))
+* **gui:** cancel useGrab drags on pagehide and a hidden tab ([ce8cc27](https://github.com/calebn/sharecut-studio/commit/ce8cc27a3db584457564608beb89cc945c866eaf))
+* **gui:** expose pending actions panel placement for e2e waits ([6783171](https://github.com/calebn/sharecut-studio/commit/6783171e6b281b40fa2c1bbadacfa5e6817c8aec))
+* name odd project versions in the open refusal ([4cba103](https://github.com/calebn/sharecut-studio/commit/4cba1031c02ba1800c0bef5ca39f5ad44e5bfe54))
+* open projects saved at format 2.0 ([d2c0075](https://github.com/calebn/sharecut-studio/commit/d2c00755a11030ea8a71e85c94a6807b2e8b09e0))
+* **proxy:** derive bakes_mutes from the renderer condition and name a missing recording ([6cb64fb](https://github.com/calebn/sharecut-studio/commit/6cb64fb256e44bfd67f1a3ed7233bdacfc1c00d9))
+* **share:** draw one overview bar per pixel and skip the flat-line flash on a cached version ([40581d0](https://github.com/calebn/sharecut-studio/commit/40581d07e958381ea0a6fdaa50fa83a39a54c0b8))
+* tighten the format 2.0 compat guard ([a167241](https://github.com/calebn/sharecut-studio/commit/a16724171546c6e515734d9cdff0179b2c1f8408))
+* **waveform:** apply clip gain without the post-fader chip and harden the scrub preview ([0fbba29](https://github.com/calebn/sharecut-studio/commit/0fbba29ea084fa1d22cd4ea7255464a0bde47045))
+
 ## [0.1.3](https://github.com/calebn/sharecut-studio/compare/v0.1.2...v0.1.3) (2026-11-11)
 
 
