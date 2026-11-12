@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { redisplayDrafts } from "../../document/applyDocumentUpdate";
+import { documentAuthority } from "../../document/authorityState";
 import { useDawStore } from "../../state/dawStore";
 import type { ProjectView } from "../../types/project";
 import {
@@ -28,6 +29,7 @@ function open(gain_db?: number) {
 afterEach(() => {
   endClipGainPreview("c1", false);
   endClipGainPreview("c2", false);
+  documentAuthority.project = null;
   redisplayDrafts();
 });
 
@@ -104,5 +106,24 @@ describe("clip gain preview", () => {
     });
     endClipGainPreview("c1", true);
     expect(clipGain()).toBe(5);
+  });
+
+  it("puts back the gain the document authority holds, not the one from before the scrub", () => {
+    open(1);
+    showClipGainPreview("c1", 1, 8);
+    const project = useDawStore.getState().project!;
+    documentAuthority.project = {
+      ...project,
+      clips: {
+        ...project.clips,
+        tracks: {
+          host: project.clips.tracks.host!.map((c) =>
+            c.id === "c1" ? { ...c, gain_db: 4 } : c,
+          ),
+        },
+      },
+    };
+    endClipGainPreview("c1", true);
+    expect(clipGain()).toBe(4);
   });
 });
