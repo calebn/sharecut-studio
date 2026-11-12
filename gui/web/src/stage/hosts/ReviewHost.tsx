@@ -10,9 +10,10 @@ import { isGuestSession, isShareProjectKey } from "../../shareMode";
 import type { GuestReading } from "../../stages/guest/useGuestReading";
 import { useGuestReading } from "../../stages/guest/useGuestReading";
 import { useDawStore } from "../../state/dawStore";
+import { stageRoleOf } from "../../state/stageRoutes";
 import { Skeleton } from "../../system/Skeleton";
 import { GuestPlayerCard } from "../frame/GuestPlayerCard";
-import { guestPlayerCardShown } from "../frame/guestPlayerCardShown";
+import { playerPlacementOf } from "../frame/playerPlacement";
 import { useStageScroll } from "../useStageScroll";
 import { GuestScriptHost } from "./GuestScriptHost";
 import { LoadFailureCover } from "./HostBody";
@@ -103,7 +104,12 @@ function ReviewHostAdapter({
         queue,
         find,
         guest && (loadFailure != null || detail.kind === "ready"),
-        guestPlayerCardShown("review", shell, guest, short),
+        playerPlacementOf({
+          stage: "review",
+          shell,
+          role: stageRoleOf(guestMode),
+          short,
+        }) === "card",
         loadFailure ? (
           <LoadFailureCover stage="review" failure={loadFailure} />
         ) : null,

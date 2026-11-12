@@ -371,4 +371,79 @@ describe("Player", () => {
       screen.queryByRole("button", { name: "Collapse player" }),
     ).toBeNull();
   });
+
+  describe("dock form", () => {
+    const dock = {
+      ...base,
+      form: "dock" as const,
+      time: "1:26",
+      total: "52:10",
+    };
+
+    it("shows the scrubber, readout and transport with no expand control", () => {
+      render(
+        <Player
+          {...dock}
+          duration={3130}
+          playhead={0.5}
+          onSeek={vi.fn()}
+          onComment={vi.fn()}
+        />,
+      );
+      expect(
+        screen.getByRole("slider", { name: "Episode overview" }),
+      ).toBeVisible();
+      expect(screen.getByText("1:26")).toBeVisible();
+      expect(screen.getByText("52:10")).toBeVisible();
+      for (const name of [
+        "Back 15 seconds",
+        "Play",
+        "Forward 15 seconds",
+        "Comment at 1:26",
+      ])
+        expect(screen.getByRole("button", { name })).toBeVisible();
+      expect(
+        screen.queryByRole("button", { name: /Expand player/ }),
+      ).toBeNull();
+      expect(screen.getByText("Comment")).toBeVisible();
+    });
+
+    it("has no Comment button without a handler", () => {
+      render(<Player {...dock} />);
+      expect(screen.queryByRole("button", { name: /^Comment/ })).toBeNull();
+    });
+
+    it("shows the mix status as visible text, and the chapter when the mix is fine", () => {
+      const { rerender } = render(
+        <Player
+          {...dock}
+          status="Mix out of date"
+          chapters={chapters}
+          chapter={1}
+        />,
+      );
+      expect(screen.getByText("Mix out of date")).toBeVisible();
+      expect(screen.queryByText("The long way round")).toBeNull();
+      rerender(<Player {...dock} chapters={chapters} chapter={1} />);
+      expect(screen.getByText("The long way round")).toBeVisible();
+    });
+
+    it("offers Chapters only with a handler, and runs it", async () => {
+      const onChapters = vi.fn();
+      const { rerender } = render(<Player {...dock} />);
+      expect(screen.queryByRole("button", { name: "Chapters" })).toBeNull();
+      rerender(<Player {...dock} onChapters={onChapters} />);
+      await userEvent.click(screen.getByRole("button", { name: "Chapters" }));
+      expect(onChapters).toHaveBeenCalledTimes(1);
+    });
+
+    it("keeps a status button that explains the status", async () => {
+      const onStatusInfo = vi.fn();
+      render(
+        <Player {...dock} status="No mix yet" onStatusInfo={onStatusInfo} />,
+      );
+      await userEvent.click(screen.getByRole("button", { name: "No mix yet" }));
+      expect(onStatusInfo).toHaveBeenCalledTimes(1);
+    });
+  });
 });
