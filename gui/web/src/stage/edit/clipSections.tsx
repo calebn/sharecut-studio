@@ -36,6 +36,11 @@ import {
   clipGainDb,
 } from "../../utils/audio";
 import { clipEdgeCurve, type FadeEdge } from "../../utils/fadeCurves";
+import {
+  endClipGainPreview,
+  savedClipGain,
+  showClipGainPreview,
+} from "./clipGainPreview";
 import { ClipStartField, ClipTrackRow } from "./clipPlacementFields";
 import { CLIP_READ_ONLY_REASON } from "./clipReadOnly";
 import { fadeCurveRows } from "./fadeCurveRows";
@@ -234,11 +239,17 @@ export function useClipSections(
   };
 
   const gain = async (db: number) => {
-    if (locked) return;
+    const baseline = savedClipGain(clip.id, clipGainDb(clip));
+    if (locked) {
+      endClipGainPreview(true, db);
+      return;
+    }
     cancelClipPlacement();
-    await run(() =>
-      setClipGain(projectPath, clip.id, db, { gain_db: clipGainDb(clip) }),
-    );
+    const saved = await run(async () => {
+      await setClipGain(projectPath, clip.id, db, { gain_db: baseline });
+      return true;
+    });
+    endClipGainPreview(saved !== true, db);
   };
 
   const ripple = async () => {
@@ -374,8 +385,17 @@ export function useClipSections(
       value={gainDraft?.clipId === clip.id ? gainDraft.db : clipGainDb(clip)}
       skipUnchanged
       readOnly={locked}
-      onPreview={(db) => setGainDraft({ clipId: clip.id, db })}
-      onCancel={() => setGainDraft(null)}
+      onPreview={(db) => {
+        setGainDraft({ clipId: clip.id, db });
+        if (!locked) showClipGainPreview(clip.id, clipGainDb(clip), db);
+      }}
+      onCancel={() => {
+        setGainDraft(null);
+        endClipGainPreview(
+          true,
+          gainDraft?.clipId === clip.id ? gainDraft.db : clipGainDb(clip),
+        );
+      }}
       onCommit={(db) => {
         setGainDraft(null);
         void gain(db);

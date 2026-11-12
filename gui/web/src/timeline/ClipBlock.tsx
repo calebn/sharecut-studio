@@ -24,7 +24,11 @@ import { useCoachTip } from "../system/useCoachTip";
 import type { ClipRow } from "../types/project";
 import { EMPTY_ARR } from "../utils/empty";
 import { useStableCallback } from "../utils/useStableCallback";
-import { clipDrawsPieces, clipMediaStartSec } from "../waveform/mediaRef";
+import {
+  clipDrawsPieces,
+  clipMediaStartSec,
+  clipWaveformGainDb,
+} from "../waveform/mediaRef";
 import { type MediaRef, refKind } from "../waveform/types";
 import { ClipBlockView, type ClipHitHandlers } from "./ClipBlockView";
 import { clipBlockGeometry } from "./clipBlockGeometry";
@@ -265,6 +269,7 @@ export function ClipBlockLive({
     ticksRef.current = ticks;
   }, [ticks]);
   const waveKind = refKind(mediaRef);
+  const waveGainDb = clipWaveformGainDb(clip, mediaRef, gainDb);
 
   const extraTicks = () => waveformTicksToTimeline(clip, ticks);
 
@@ -498,7 +503,7 @@ export function ClipBlockLive({
             kind={waveKind}
             colorVar={color}
             role={role}
-            gainDb={gainDb}
+            gainDb={waveGainDb}
           />
         ) : (
           <WaveformLayer
@@ -510,7 +515,7 @@ export function ClipBlockLive({
             zoom={zoomPxPerSec}
             colorVar={color}
             role={role}
-            gainDb={gainDb}
+            gainDb={waveGainDb}
           />
         )
       }
@@ -529,7 +534,7 @@ export function ClipBlockLive({
             zoom={zoomPxPerSec}
             colorVar={color}
             role={role}
-            gainDb={gainDb}
+            gainDb={waveGainDb}
           />
         ) : null
       }

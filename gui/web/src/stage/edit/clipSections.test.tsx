@@ -1020,6 +1020,20 @@ describe("clip gain", () => {
     expect(setClipGain).not.toHaveBeenCalled();
   });
 
+  it("shows the scrubbed gain on the displayed clip and restores it on cancel", () => {
+    open([{ ...clip, gain_db: -3 }]);
+    const shown = () =>
+      useDawStore.getState().project?.clips.tracks.host?.[0]?.gain_db;
+    const field = gainField();
+    fireEvent.pointerDown(field, { clientX: 100, pointerId: 1, button: 0 });
+    fireEvent.pointerMove(field, { clientX: 110, pointerId: 1 });
+    fireEvent.pointerMove(field, { clientX: 150, pointerId: 1 });
+    expect(shown()).toBe(Number(gainField().getAttribute("aria-valuenow")));
+    expect(shown()).not.toBe(-3);
+    fireEvent.keyDown(field, { key: "Escape" });
+    expect(shown()).toBe(-3);
+  });
+
   it("resets to 0 dB with the reset dot", async () => {
     open([{ ...clip, gain_db: 4 }]);
     await act(async () => {

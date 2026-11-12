@@ -1000,6 +1000,34 @@ describe("ClipBlock waveform", () => {
     });
   });
 
+  it("adds the clip gain to the track gain for the waveform layer", () => {
+    render(<ClipBlock {...base} gainDb={-4} clip={{ ...clip, gain_db: 6 }} />);
+    expect(layers.at(-1)!.at(-1)).toMatchObject({ gainDb: 2 });
+  });
+
+  it("scales a raw waveform by the clip gain alone when the track gain is 0", () => {
+    render(<ClipBlock {...base} clip={{ ...clip, gain_db: -9.5 }} />);
+    expect(layers.at(-1)!.at(-1)).toMatchObject({ gainDb: -9.5 });
+  });
+
+  it("leaves the track gain alone when the clip carries no gain", () => {
+    const { gain_db: _unused, ...bare } = { ...clip, gain_db: 3 };
+    render(<ClipBlock {...base} gainDb={-4} clip={bare} />);
+    expect(layers.at(-1)!.at(-1)).toMatchObject({ gainDb: -4 });
+  });
+
+  it("does not add the clip gain to a stem that already carries it", () => {
+    render(
+      <ClipBlock
+        {...base}
+        mediaRef="stem:host"
+        gainDb={-4}
+        clip={{ ...clip, gain_db: 6 }}
+      />,
+    );
+    expect(layers.at(-1)!.at(-1)).toMatchObject({ kind: "stem", gainDb: -4 });
+  });
+
   it("defaults the waveform layer gain to 0 dB", () => {
     render(<ClipBlock {...base} />);
     expect(layers.at(-1)!.at(-1)).toMatchObject({ gainDb: 0 });
