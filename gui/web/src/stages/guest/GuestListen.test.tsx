@@ -95,7 +95,7 @@ describe("the phone Commenter Listen layout", () => {
     mount();
     expect(screen.queryByRole("textbox")).toBeNull();
     expect(
-      screen.getByRole("button", { name: "Show comments, 3" }),
+      screen.getByRole("button", { name: "Show comments, 3 comments" }),
     ).toBeVisible();
     expect(
       screen.getByRole("slider", { name: "Episode overview" }),
@@ -257,7 +257,9 @@ describe("the phone Commenter Listen layout", () => {
     const user = userEvent.setup();
     join("comment");
     mount();
-    await user.click(screen.getByRole("button", { name: "Show comments, 3" }));
+    await user.click(
+      screen.getByRole("button", { name: "Show comments, 3 comments" }),
+    );
     const sheet = screen.getByRole("dialog", { name: "Comments" });
     await user.click(within(sheet).getByText("Note number 1"));
     expect(
@@ -275,7 +277,7 @@ describe("the phone Commenter Listen layout", () => {
     join("comment");
     mount();
     act(() => useDawStore.setState({ playheadSec: 5 }));
-    const row = screen.getByRole("button", { name: "Show comments, 3" });
+    const row = screen.getByRole("button", { name: /^Show comments/ });
     expect(row).toHaveTextContent("Claude · 0:03 Note number 1");
     await user.click(row);
     expect(
@@ -307,7 +309,7 @@ describe("the phone Viewer Listen layout", () => {
     expect(screen.queryByRole("button", { name: /^Comment at/ })).toBeNull();
     expect(screen.getByRole("list", { name: "Chapters" })).toBeVisible();
     expect(
-      screen.getByRole("button", { name: "Show comments, 3" }),
+      screen.getByRole("button", { name: "Show comments, 3 comments" }),
     ).toBeVisible();
   });
 });

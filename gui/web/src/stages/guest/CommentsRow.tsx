@@ -9,7 +9,7 @@ export type CommentsRowPreview = {
 export type CommentsRowProps = {
   /** "15 comments", "15 comments · 2 suggestions". */
   label: string;
-  /** The count the accessible name carries. */
+  /** The count the accessible name carries beside a preview. */
   comments: number;
   /** The comment the guest is listening past; the row shows it in place of the label. */
   preview?: CommentsRowPreview;
@@ -26,12 +26,17 @@ export function CommentsRow({
   flash,
   onOpen,
 }: CommentsRowProps) {
+  const shown = flash
+    ? flash
+    : preview
+      ? `${preview.author} · ${preview.time} ${preview.text}, ${comments}`
+      : label;
   return (
     <>
       <button
         type="button"
         className="gl-row"
-        aria-label={`Show comments, ${comments}`}
+        aria-label={`Show comments, ${shown}`}
         onClick={onOpen}
       >
         <SystemIcon name="message-square" size={16} />
