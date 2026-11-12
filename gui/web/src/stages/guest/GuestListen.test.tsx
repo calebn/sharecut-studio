@@ -268,7 +268,9 @@ describe("the phone Commenter Listen layout", () => {
     expect(
       screen.getByRole("textbox", { name: "Reply to Claude" }),
     ).toBeVisible();
-    await user.click(screen.getByRole("button", { name: "Back" }));
+    const thread = screen.getByRole("dialog", { name: "Comment from Claude" });
+    expect(within(thread).getAllByRole("heading")).toHaveLength(1);
+    await user.click(screen.getByRole("button", { name: "Back to comments" }));
     expect(screen.getByRole("dialog", { name: "Comments" })).toBeVisible();
   });
 
