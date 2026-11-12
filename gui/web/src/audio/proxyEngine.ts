@@ -107,6 +107,7 @@ export class ProxyEngine {
       manifest.occurrences,
       clipsByTrack,
       volumeByTrack,
+      snapshot.durationSec,
     ]);
     const changed = scheduleKey !== this.scheduleKey;
     this.scheduleKey = scheduleKey;
