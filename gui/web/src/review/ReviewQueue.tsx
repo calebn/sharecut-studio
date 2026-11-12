@@ -526,7 +526,11 @@ export function ReviewQueue({
   const { counts } = completeness;
   const shown = filterItems(items, filter, speaker);
   const people = canDecide && onSpeaker ? speakersOf(items) : [];
-  const byTime = sort === "time";
+  // With one kind of item the grouping has nothing to separate, so a
+  // comments-only queue (no bulk verbs on the groups) lists by time.
+  const oneKind = new Set(items.map((item) => item.kind)).size <= 1;
+  const sortable = !!onSort && (canDecide || !oneKind);
+  const byTime = sort === "time" || (!canDecide && oneKind);
   const groups = byTime ? [] : groupQueue(shown);
   const inTime = byTime ? timeQueue(shown) : [];
   const lowRisk = canDecide && !bulkRunning ? lowRiskBulk(shown) : null;
@@ -550,6 +554,28 @@ export function ReviewQueue({
     attentionFocused.current = false;
     progressRef.current?.focus();
   }, [showAttention]);
+  const filters = FILTERS.filter(({ id }) =>
+    id === "checks" ? canDecide && !guest : canDecide || id !== "suggestions",
+  );
+  // A comments-only queue does not offer a filter with nothing to filter: it
+  // stays when it is the active choice, when a count is unknown, or when two
+  // or more kinds exist. The host's chips also name its empty states, so they stay.
+  const kindsPresent = filters.filter(
+    ({ id }) =>
+      id !== "all" &&
+      (counts[id] === null ||
+        items.some((item) => kindInFilter(item.kind, id))),
+  ).length;
+  const showFilter = canDecide || kindsPresent > 1 || filter !== "all";
+  // Only a host resolves, so a guest's count of resolved comments shows once the
+  // host has resolved one; until then the line is a screen-reader anchor.
+  const resolvedSome = items.some((item) => item.result !== undefined);
+  const quietLine = !canDecide && !resolvedSome;
+  const statusLine = canDecide
+    ? (completeness.unavailableMessage ?? progressLine(items))
+    : resolvedSome
+      ? commentLine(items)
+      : `${items.length} ${items.length === 1 ? "comment" : "comments"}`;
   const reason = useDisabledReasonNote(guest ? undefined : findMoreDisabled);
 
   if (state !== "ready") {
@@ -571,60 +597,68 @@ export function ReviewQueue({
     );
   }
 
-  const header = (
-    <header className="rv-head">
-      <p
-        ref={progressRef}
-        tabIndex={-1}
-        className="rv-progress sys-mono"
-        aria-live="polite"
-      >
-        {canDecide
-          ? (completeness.unavailableMessage ?? progressLine(items))
-          : commentLine(items)}
-      </p>
-      <div className="rv-filter">
-        <SegmentedControl label="Filter" className="rv-kind-filter">
-          {FILTERS.filter(({ id }) =>
-            id === "checks"
-              ? canDecide && !guest
-              : canDecide || id !== "suggestions",
-          ).map(({ id, label, icon }) => (
-            <ToggleButton
-              key={id}
-              quiet
-              pressed={filter === id}
-              aria-label={`${label}, ${counts[id] ?? "count unavailable"}`}
-              title={label}
-              onClick={() => onFilter(id)}
-            >
-              {icon}
-              <span>{label}</span>{" "}
-              <span className="sys-mono">{counts[id] ?? "—"}</span>
-            </ToggleButton>
-          ))}
-        </SegmentedControl>
-        {guest ? null : (
-          <VerbButton
-            verb="propose"
-            label="Find more"
-            onClick={onFindMore}
-            {...disabledAttrs(findMoreDisabled)}
-            {...reason.describedBy}
-          />
-        )}
-      </div>
-      {onSort ? (
+  const progress = (
+    <p
+      ref={progressRef}
+      tabIndex={-1}
+      className={
+        quietLine ? "rv-progress sys-mono sr-only" : "rv-progress sys-mono"
+      }
+      aria-live="polite"
+    >
+      {statusLine}
+    </p>
+  );
+  const hasControls =
+    showFilter || !guest || sortable || (people.length > 0 && !!onSpeaker);
+  const controls = (
+    <>
+      {showFilter || !guest ? (
+        <div className="rv-filter">
+          {showFilter ? (
+            <SegmentedControl label="Filter" className="rv-kind-filter">
+              {filters.map(({ id, label, icon }) => (
+                <ToggleButton
+                  key={id}
+                  quiet
+                  pressed={filter === id}
+                  aria-label={`${label}, ${counts[id] ?? "count unavailable"}`}
+                  title={label}
+                  onClick={() => onFilter(id)}
+                >
+                  {icon}
+                  <span>{label}</span>{" "}
+                  <span className="sys-mono">{counts[id] ?? "—"}</span>
+                </ToggleButton>
+              ))}
+            </SegmentedControl>
+          ) : null}
+          {guest ? null : (
+            <VerbButton
+              verb="propose"
+              label="Find more"
+              onClick={onFindMore}
+              {...disabledAttrs(findMoreDisabled)}
+              {...reason.describedBy}
+            />
+          )}
+        </div>
+      ) : null}
+      {sortable ? (
         <div className="rv-filter rv-sort">
           <SegmentedControl label="Sort">
             <ToggleButton
               quiet
               pressed={!byTime}
-              onClick={() => onSort("kind")}
+              onClick={() => onSort?.("kind")}
             >
               <span>By kind</span>
             </ToggleButton>
-            <ToggleButton quiet pressed={byTime} onClick={() => onSort("time")}>
+            <ToggleButton
+              quiet
+              pressed={byTime}
+              onClick={() => onSort?.("time")}
+            >
               <span>By time</span>
             </ToggleButton>
           </SegmentedControl>
@@ -658,7 +692,17 @@ export function ReviewQueue({
           </SegmentedControl>
         </div>
       ) : null}
+    </>
+  );
+  // With nothing to show above the rows, only the screen-reader line stays, and
+  // outside the header so it takes no height.
+  const header = hasControls ? (
+    <header className="rv-head">
+      {progress}
+      {controls}
     </header>
+  ) : (
+    progress
   );
 
   const activate = (item: ReviewItem) => {
@@ -831,13 +875,15 @@ export function ReviewQueue({
       })}
       {inTime.length > 0 ? (
         <section className="rv-group" aria-label="In time order">
-          <div className="rv-group-head">
-            <SystemIcon name="clock" size={16} />
-            <span className="rv-group-name">In time order</span>
-            <span className="sys-mono rv-group-count">
-              {counts[filter] ?? "Count unavailable"}
-            </span>
-          </div>
+          {!canDecide && oneKind ? null : (
+            <div className="rv-group-head">
+              <SystemIcon name="clock" size={16} />
+              <span className="rv-group-name">In time order</span>
+              <span className="sys-mono rv-group-count">
+                {counts[filter] ?? "Count unavailable"}
+              </span>
+            </div>
+          )}
           {inTime.map((item) => renderItem(item))}
         </section>
       ) : null}
