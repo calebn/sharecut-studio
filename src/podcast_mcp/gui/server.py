@@ -319,7 +319,7 @@ def create_app(
 
     # Core FOSS routes only - share/auth/remote MCP come from extensions.
     app.include_router(project.router)
-    app.include_router(boundary.router)
+    app.include_router(boundary.router, dependencies=[Depends(host_gate)])
     app.include_router(waveform.router)
     app.include_router(session.router)
     app.include_router(host.router)
@@ -332,7 +332,7 @@ def create_app(
     app.include_router(diagnostics.router)
     app.include_router(export_routes.router)
     app.include_router(feed_routes.router, dependencies=[Depends(host_gate)])
-    app.include_router(speaker.router)
+    app.include_router(speaker.router, dependencies=[Depends(host_gate)])
     app.include_router(comments.router)
     app.include_router(media.router)
 

@@ -1,6 +1,6 @@
 {
   "api_version": 1,
-  "host_direct_baseline": 88,
+  "host_direct_baseline": 82,
   "routes": [
     {
       "gate": "other",
@@ -62,21 +62,18 @@
     {
       "gate": "host",
       "handler": "podcast_mcp.gui.routes.boundary:post_boundary_audition",
-      "host_direct": true,
       "method": "POST",
       "path": "/api/boundary/audition"
     },
     {
       "gate": "host",
       "handler": "podcast_mcp.gui.routes.boundary:get_boundary_audition_audio",
-      "host_direct": true,
       "method": "GET",
       "path": "/api/boundary/audition/{opaque_id}/{side}"
     },
     {
       "gate": "host",
       "handler": "podcast_mcp.gui.routes.boundary:post_boundary_context",
-      "host_direct": true,
       "method": "POST",
       "path": "/api/boundary/context"
     },
@@ -1061,21 +1058,18 @@
     {
       "gate": "host",
       "handler": "podcast_mcp.gui.routes.speaker:speaker_doctor",
-      "host_direct": true,
       "method": "GET",
       "path": "/api/speaker/doctor"
     },
     {
       "gate": "host",
       "handler": "podcast_mcp.gui.routes.speaker:speaker_move_lane_span",
-      "host_direct": true,
       "method": "POST",
       "path": "/api/speaker/move-lane-span"
     },
     {
       "gate": "host",
       "handler": "podcast_mcp.gui.routes.speaker:speaker_split",
-      "host_direct": true,
       "method": "POST",
       "path": "/api/speaker/split"
     },

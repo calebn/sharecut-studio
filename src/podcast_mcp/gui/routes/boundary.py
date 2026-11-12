@@ -1,13 +1,12 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Header, Query, Request
+from fastapi import APIRouter, Query, Request
 from pydantic import BaseModel
 
 from podcast_mcp.gui.audio import audio_file_response
 from podcast_mcp.gui.routes.deps import (
     bad_request_error,
     coded_exception_error,
-    require_host,
     resolve_project,
 )
 from podcast_mcp.services.app import ProjectWorkspace
@@ -44,10 +43,7 @@ class BoundaryAuditionRequest(BaseModel):
 def post_boundary_context(
     body: BoundaryContextRequest,
     request: Request,
-    token: str | None = Query(None),
-    x_podcast_token: str | None = Header(None, alias="X-Podcast-Token"),
 ) -> dict:
-    require_host(request, token=token, x_podcast_token=x_podcast_token)
     ws = ProjectWorkspace.open(resolve_project(body.path, request))
     try:
         with ws.transaction():
@@ -65,10 +61,7 @@ def post_boundary_context(
 def post_boundary_audition(
     body: BoundaryAuditionRequest,
     request: Request,
-    token: str | None = Query(None),
-    x_podcast_token: str | None = Header(None, alias="X-Podcast-Token"),
 ) -> dict:
-    require_host(request, token=token, x_podcast_token=x_podcast_token)
     ws = ProjectWorkspace.open(resolve_project(body.path, request))
     try:
         return (
@@ -90,10 +83,7 @@ def get_boundary_audition_audio(
     side: str,
     request: Request,
     expected_token: str = Query(...),
-    token: str | None = Query(None),
-    x_podcast_token: str | None = Header(None, alias="X-Podcast-Token"),
 ):
-    require_host(request, token=token, x_podcast_token=x_podcast_token)
     try:
         project_path = PlayService.issued_boundary_project(opaque_id)
         ws = ProjectWorkspace.open(resolve_project(str(project_path), request))

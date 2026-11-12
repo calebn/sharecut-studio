@@ -4,12 +4,11 @@ from __future__ import annotations
 
 from typing import Any
 
-from fastapi import APIRouter, Header, Query, Request
+from fastapi import APIRouter, Request
 
 from podcast_mcp.gui.routes.deps import (
     coded_exception_error,
     coded_http_error,
-    require_host,
     resolve_project,
 )
 from podcast_mcp.gui.schemas import SpeakerMoveLaneSpanRequest, SpeakerSplitRequest
@@ -25,11 +24,8 @@ router = APIRouter()
 @router.get("/api/speaker/doctor")
 def speaker_doctor(
     request: Request,
-    token: str | None = Query(None),
-    x_podcast_token: str | None = Header(None, alias="X-Podcast-Token"),
 ) -> dict[str, Any]:
     """Report whether this host can import a speaker recognition backend."""
-    require_host(request, token=token, x_podcast_token=x_podcast_token)
     return SpeakerService.doctor_static()
 
 
@@ -41,11 +37,8 @@ def _jobs(request: Request) -> JobManager:
 def speaker_split(
     body: SpeakerSplitRequest,
     request: Request,
-    token: str | None = Query(None),
-    x_podcast_token: str | None = Header(None, alias="X-Podcast-Token"),
 ) -> dict[str, Any]:
     """Start a ``kind=split_speakers`` job; its result is ``SpeakerService.split_speakers``'s."""
-    require_host(request, token=token, x_podcast_token=x_podcast_token)
     project_path = resolve_project(body.path, request)
     try:
         job = _jobs(request).start_split_speakers(
@@ -72,11 +65,8 @@ def speaker_split(
 def speaker_move_lane_span(
     body: SpeakerMoveLaneSpanRequest,
     request: Request,
-    token: str | None = Query(None),
-    x_podcast_token: str | None = Header(None, alias="X-Podcast-Token"),
 ) -> dict[str, Any]:
     """Move a timeline range from one speaker-split lane to a sibling lane."""
-    require_host(request, token=token, x_podcast_token=x_podcast_token)
     project_path = resolve_project(body.path, request)
     ws = ProjectWorkspace.open(project_path)
     try:
