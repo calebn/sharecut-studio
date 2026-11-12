@@ -225,6 +225,57 @@ describe("useProxyTransport", () => {
     expect(engine.seek).toHaveBeenCalledExactlyOnceWith(10.3);
   });
 
+  it("the episode ending parks the playhead at the duration and stops without an error", async () => {
+    useDawStore.getState().hydrate(
+      shareProjectKey("tok"),
+      minimalProject({
+        tracks: [sampleTrack({ id: "host" })],
+        timeline_duration_sec: 120,
+      }),
+    );
+    useDawStore.getState().setAudioError(null);
+    renderHook(() => useProxyTransport());
+    await ready();
+    act(() => {
+      useDawStore.getState().setPlayheadSec(10);
+      useDawStore.getState().setIsPlaying(true);
+    });
+    const onEnded = vi.mocked(ProxyEngine).mock.calls.at(-1)?.[3];
+    expect(onEnded).toBeTypeOf("function");
+    act(() => onEnded?.(120));
+    expect(useDawStore.getState().playheadSec).toBe(120);
+    expect(useDawStore.getState().isPlaying).toBe(false);
+    expect(useDawStore.getState().audioError).toBeNull();
+    expect(engine.seek).toHaveBeenLastCalledWith(120);
+  });
+
+  it("ignores the engine's end of episode while a source preview owns the timeline", async () => {
+    renderHook(() => {
+      const ownsTimeline = useProxyTransport();
+      useAudioTransport(!ownsTimeline);
+      return ownsTimeline;
+    });
+    await ready();
+    act(() => {
+      useDawStore.getState().setPlayheadSec(10);
+      useDawStore.getState().setIsPlaying(true);
+    });
+    const onEnded = vi.mocked(ProxyEngine).mock.calls.at(-1)?.[3];
+    expect(onEnded).toBeTypeOf("function");
+    act(() =>
+      useDawStore.getState().beginSourcePreview({
+        ownerId: "pending:edit",
+        media: { kind: "rendered", url: "blob:pending-preview" },
+        startSec: 0,
+        endSec: 2,
+      }),
+    );
+    await act(async () => {});
+    act(() => onEnded?.(120));
+    expect(useDawStore.getState().playheadSec).toBe(10);
+    expect(useDawStore.getState().isPlaying).toBe(true);
+  });
+
   it("yields a playing proxy to an owned preview until release", async () => {
     const { result } = renderHook(() => {
       const ownsTimeline = useProxyTransport();
