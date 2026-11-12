@@ -866,7 +866,13 @@ Playback meter sources live under `gui/web/src/audio/`. Transports bind one
 runtime source through `playbackMeterSource.ts`; track meter leaves subscribe
 without sending frame readings through the project store. `channelPeakTap.ts`
 measures channels independently so opposite-polarity stereo cannot cancel.
-`ProxyEngine` owns its post-gain taps. `hostPlaybackMeterMonitor.ts` fetches
+`ProxyEngine` owns its post-gain taps. It schedules a horizon of sources
+ahead of the playhead (two minutes at first) and extends it from the audio
+clock: a silent sentinel node whose `ended` event fires when under 45 s of
+sound remain, so a guest hears the whole episode from one Play even when the
+page is throttled and timers or frames stop. At the timeline duration the
+engine pauses itself and reports the end; the transport parks the playhead there
+and Play again starts from 0. `hostPlaybackMeterMonitor.ts` fetches
 processed PCM16 stems and validated raw PCM16 recordings through finite byte
 ranges checked against each asset's ETag. Compatible source sample grids share
 bounded native WAV readers with separate per-track channel taps and gains. Each
