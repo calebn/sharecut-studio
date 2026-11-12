@@ -5,7 +5,7 @@ import shutil
 import threading
 from pathlib import Path
 
-from fastapi import APIRouter, Header, Query, Request
+from fastapi import APIRouter, Depends, Query, Request
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
@@ -25,8 +25,8 @@ from podcast_mcp.gui.routes.deps import (
     bad_request_error,
     coded_exception_error,
     coded_http_error,
+    host_gate,
     peer_host,
-    require_host,
     require_loopback_peer,
     resolve_project,
 )
@@ -52,6 +52,7 @@ from podcast_mcp.services.document import HistoryService, PlayService
 from podcast_mcp.services.session_sync import is_loopback_host
 
 router = APIRouter()
+_HOST_GATE = [Depends(host_gate)]
 
 _PICK_LOCK = threading.Lock()
 
@@ -114,15 +115,12 @@ def _open_validated(path_raw: str) -> ProjectWorkspace:
         raise coded_exception_error(400, exc, code="project_open_failed") from exc
 
 
-@router.post("/api/project/create")
+@router.post("/api/project/create", dependencies=_HOST_GATE)
 def create_project(
     body: CreateProjectBody,
     request: Request,
-    token: str | None = Query(None),
-    x_podcast_token: str | None = Header(None, alias="X-Podcast-Token"),
 ):
     """Create a new episode workspace (host / loopback only)."""
-    require_host(request, token=token, x_podcast_token=x_podcast_token)
     if not _peer_may_switch_project(request):
         raise coded_http_error(
             403, "project create not allowed from this client", code="project_create_not_allowed"
@@ -160,14 +158,11 @@ def create_project(
     return {"project_path": str(ws.path), "name": ws.project.name}
 
 
-@router.post("/api/project/pick")
+@router.post("/api/project/pick", dependencies=_HOST_GATE)
 def pick_project_path(
     request: Request,
-    token: str | None = Query(None),
-    x_podcast_token: str | None = Header(None, alias="X-Podcast-Token"),
 ):
     """Show a host OS file dialog; return a path without pinning served_project."""
-    require_host(request, token=token, x_podcast_token=x_podcast_token)
     if not _peer_may_switch_project(request):
         raise coded_http_error(
             403, "project pick not allowed from this client", code="project_pick_not_allowed"
@@ -199,14 +194,11 @@ def pick_project_path(
         _PICK_LOCK.release()
 
 
-@router.post("/api/project/pick-folder")
+@router.post("/api/project/pick-folder", dependencies=_HOST_GATE)
 def pick_project_folder(
     request: Request,
-    token: str | None = Query(None),
-    x_podcast_token: str | None = Header(None, alias="X-Podcast-Token"),
 ):
     """Show a host OS choose-folder dialog; return the folder without touching any project."""
-    require_host(request, token=token, x_podcast_token=x_podcast_token)
     require_loopback_peer(request)
     if not _PICK_LOCK.acquire(blocking=False):
         raise coded_http_error(409, "A file dialog is already open", code="file_dialog_open")
@@ -224,15 +216,12 @@ def pick_project_folder(
     return {"folder": result.path}
 
 
-@router.post("/api/project/open")
+@router.post("/api/project/open", dependencies=_HOST_GATE)
 def open_project_path(
     body: OpenProjectBody,
     request: Request,
-    token: str | None = Query(None),
-    x_podcast_token: str | None = Header(None, alias="X-Podcast-Token"),
 ):
     """Validate an existing project and retarget served_project on loopback."""
-    require_host(request, token=token, x_podcast_token=x_podcast_token)
     if not _peer_may_switch_project(request):
         raise coded_http_error(
             403,
@@ -245,14 +234,11 @@ def open_project_path(
     return {"project_path": str(ws.path), "name": ws.project.name}
 
 
-@router.post("/api/project/close")
+@router.post("/api/project/close", dependencies=_HOST_GATE)
 def close_project_path(
     request: Request,
-    token: str | None = Query(None),
-    x_podcast_token: str | None = Header(None, alias="X-Podcast-Token"),
 ):
     """Unpin served_project on loopback (host home / New project)."""
-    require_host(request, token=token, x_podcast_token=x_podcast_token)
     if not _peer_may_switch_project(request):
         raise coded_http_error(
             403, "project close not allowed from this client", code="project_close_not_allowed"
@@ -270,41 +256,32 @@ def _require_recent_access(request: Request) -> None:
         )
 
 
-@router.get("/api/projects/recent")
+@router.get("/api/projects/recent", dependencies=_HOST_GATE)
 def list_recent_projects(
     request: Request,
-    token: str | None = Query(None),
-    x_podcast_token: str | None = Header(None, alias="X-Podcast-Token"),
 ) -> JSONResponse:
     """The last opened episodes on this machine as Home cards (host / loopback only)."""
-    require_host(request, token=token, x_podcast_token=x_podcast_token)
     _require_recent_access(request)
     cards = recent_project_cards(getattr(request.app.state, "jobs", None))
     return JSONResponse({"projects": cards}, headers={"Cache-Control": "no-store"})
 
 
-@router.delete("/api/projects/recent")
+@router.delete("/api/projects/recent", dependencies=_HOST_GATE)
 def forget_recent_project(
     request: Request,
     path: str = Query(..., description="Path of the entry to drop from the list"),
-    token: str | None = Query(None),
-    x_podcast_token: str | None = Header(None, alias="X-Podcast-Token"),
 ) -> dict[str, bool]:
     """Remove one entry from the recent list; the project itself is never touched."""
-    require_host(request, token=token, x_podcast_token=x_podcast_token)
     _require_recent_access(request)
     return {"removed": forget_recent(path)}
 
 
-@router.post("/api/projects/recent/reveal")
+@router.post("/api/projects/recent/reveal", dependencies=_HOST_GATE)
 def reveal_recent_project(
     body: OpenProjectBody,
     request: Request,
-    token: str | None = Query(None),
-    x_podcast_token: str | None = Header(None, alias="X-Podcast-Token"),
 ) -> dict[str, bool]:
     """Show one episode's folder in this computer's file manager (Home's card menu)."""
-    require_host(request, token=token, x_podcast_token=x_podcast_token)
     _require_recent_access(request)
     require_loopback_peer(request)
     path = _require_episode_path(body.path)
@@ -315,15 +292,12 @@ def reveal_recent_project(
     return {"revealed": True}
 
 
-@router.post("/api/project/reveal")
+@router.post("/api/project/reveal", dependencies=_HOST_GATE)
 def reveal_project(
     body: OpenProjectBody,
     request: Request,
-    token: str | None = Query(None),
-    x_podcast_token: str | None = Header(None, alias="X-Podcast-Token"),
 ) -> dict[str, bool]:
     """Show the served episode's project file in this computer's file manager (Settings' "Saved in")."""
-    require_host(request, token=token, x_podcast_token=x_podcast_token)
     require_loopback_peer(request)
     path = _require_episode_path(str(resolve_project(body.path, request)))
     if not reveal_in_file_manager(path):
@@ -334,15 +308,12 @@ def reveal_project(
 _MOVE_STATUS = {"move_dest_invalid": 400, "move_failed": 500}
 
 
-@router.post("/api/project/move")
+@router.post("/api/project/move", dependencies=_HOST_GATE)
 def move_project_folder(
     body: MoveProjectBody,
     request: Request,
-    token: str | None = Query(None),
-    x_podcast_token: str | None = Header(None, alias="X-Podcast-Token"),
 ) -> dict[str, str]:
     """Move the served episode's folder into ``dest_parent`` (Settings' "Saved in" > Move)."""
-    require_host(request, token=token, x_podcast_token=x_podcast_token)
     require_loopback_peer(request)
     path = _require_episode_path(str(resolve_project(body.path, request)))
     app = request.app
@@ -363,15 +334,12 @@ def move_project_folder(
     return {"project_path": str(moved.project_path), "previous_path": str(moved.previous_path)}
 
 
-@router.post("/api/projects/recent/duplicate")
+@router.post("/api/projects/recent/duplicate", dependencies=_HOST_GATE)
 def duplicate_recent_project(
     body: OpenProjectBody,
     request: Request,
-    token: str | None = Query(None),
-    x_podcast_token: str | None = Header(None, alias="X-Podcast-Token"),
 ) -> dict[str, str]:
     """Copy one episode into a new folder and list it; the original is untouched."""
-    require_host(request, token=token, x_podcast_token=x_podcast_token)
     _require_recent_access(request)
     source = _require_episode_path(body.path)
     try:
@@ -390,7 +358,7 @@ def health(request: Request) -> dict[str, bool]:
     return {"ok": True}
 
 
-@router.get("/api/project")
+@router.get("/api/project", dependencies=_HOST_GATE)
 def get_project(
     request: Request,
     path: str = Query(..., description="Path to episode.sharecut"),
@@ -398,10 +366,7 @@ def get_project(
         None,
         description=VIEW_PROJECTION_QUERY_DESCRIPTION,
     ),
-    token: str | None = Query(None),
-    x_podcast_token: str | None = Header(None, alias="X-Podcast-Token"),
 ):
-    require_host(request, token=token, x_podcast_token=x_podcast_token)
     project_path = resolve_project(path, request)
     pin_served_if_allowed(request, project_path)
     try:
@@ -412,19 +377,16 @@ def get_project(
     return dump_project_projection(ws, projection=projection)
 
 
-@router.get("/api/project/meta")
+@router.get("/api/project/meta", dependencies=_HOST_GATE)
 def get_project_meta(
     request: Request,
     path: str = Query(..., description="Path to episode.sharecut"),
-    token: str | None = Query(None),
-    x_podcast_token: str | None = Header(None, alias="X-Podcast-Token"),
 ):
-    require_host(request, token=token, x_podcast_token=x_podcast_token)
     project_path = resolve_project(path, request)
     return project_meta(project_path)
 
 
-@router.get("/api/waveform-snap")
+@router.get("/api/waveform-snap", dependencies=_HOST_GATE)
 def get_waveform_snap(
     request: Request,
     path: str = Query(..., description="Path to episode.sharecut"),
@@ -433,11 +395,8 @@ def get_waveform_snap(
     end: float = Query(...),
     timeline: bool = Query(False),
     focus: float | None = Query(None),
-    token: str | None = Query(None),
-    x_podcast_token: str | None = Header(None, alias="X-Podcast-Token"),
 ):
     """Windowed inaudible-cut preview + silence-island ticks for the snap overlay."""
-    require_host(request, token=token, x_podcast_token=x_podcast_token)
     project_path = resolve_project(path, request)
     ws = ProjectWorkspace.open(project_path)
     from podcast_mcp.services.document import AnalysisService
@@ -454,20 +413,17 @@ def get_waveform_snap(
         raise coded_exception_error(400, exc, code="waveform_snap_invalid") from exc
 
 
-@router.get("/api/project/prosody")
+@router.get("/api/project/prosody", dependencies=_HOST_GATE)
 def get_project_prosody(
     request: Request,
     path: str = Query(..., description="Path to episode.sharecut"),
-    token: str | None = Query(None),
-    x_podcast_token: str | None = Header(None, alias="X-Podcast-Token"),
 ):
     """Cached prosody profile per dialogue track, timeline-mapped, for the DAW overlay (#719)."""
-    require_host(request, token=token, x_podcast_token=x_podcast_token)
     project_path = resolve_project(path, request)
     return PlayService(ProjectWorkspace.open(project_path)).prosody_overlay()
 
 
-@router.get("/api/audio")
+@router.get("/api/audio", dependencies=_HOST_GATE)
 def get_audio(
     request: Request,
     path: str = Query(..., description="Path to episode.sharecut"),
@@ -488,11 +444,8 @@ def get_audio(
         False,
         description="Rebuild premix/stem before serving (same as podcast play --rerender)",
     ),
-    token: str | None = Query(None),
-    x_podcast_token: str | None = Header(None, alias="X-Podcast-Token"),
 ):
     """Stream a WAV for browser transport via PlayService (supports HTTP Range)."""
-    require_host(request, token=token, x_podcast_token=x_podcast_token)
     project_path = resolve_project(path, request)
     ws = ProjectWorkspace.open(project_path)
     transport_kind = kind
@@ -524,16 +477,13 @@ def get_audio(
     return response
 
 
-@router.get("/api/history/diff")
+@router.get("/api/history/diff", dependencies=_HOST_GATE)
 def history_diff(
     request: Request,
     path: str = Query(...),
     from_index: int | None = Query(None, alias="from_index"),
     to_index: int | None = Query(None, alias="to_index"),
-    token: str | None = Query(None),
-    x_podcast_token: str | None = Header(None, alias="X-Podcast-Token"),
 ):
-    require_host(request, token=token, x_podcast_token=x_podcast_token)
     project_path = resolve_project(path, request)
     ws = ProjectWorkspace.open(project_path)
     try:
