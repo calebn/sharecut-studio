@@ -515,16 +515,29 @@ export const recordRoom: RecordSnapshot = recordSnapshot({
 
 export type EpisodeRole = "host" | "viewer" | "commenter" | "editor";
 
-/** `guest_mode` and capabilities the server sends for each role; the host has neither. */
+/** `guest_mode`, capabilities and `reads_transcript_words` the server sends for each role; the host has none. */
 export const ROLE_SHARE: Record<
   EpisodeRole,
-  { guestMode: string | null; capabilities: string[] | null }
+  {
+    guestMode: string | null;
+    capabilities: string[] | null;
+    transcriptWords: boolean;
+  }
 > = {
-  host: { guestMode: null, capabilities: null },
-  viewer: { guestMode: "view", capabilities: ["play", "view"] },
-  commenter: { guestMode: "comment", capabilities: COMMENTER_CAPABILITIES },
+  host: { guestMode: null, capabilities: null, transcriptWords: false },
+  viewer: {
+    guestMode: "view",
+    capabilities: ["play", "view"],
+    transcriptWords: true,
+  },
+  commenter: {
+    guestMode: "comment",
+    capabilities: COMMENTER_CAPABILITIES,
+    transcriptWords: true,
+  },
   editor: {
     guestMode: "edit",
     capabilities: [...COMMENTER_CAPABILITIES, "edit"],
+    transcriptWords: true,
   },
 };

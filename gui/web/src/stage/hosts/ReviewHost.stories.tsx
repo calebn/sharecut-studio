@@ -480,7 +480,10 @@ export const GuestCommenterTranscriptFailure: Story = {
 
 export const GuestViewerTranscriptWordsUnavailable: Story = {
   ...phone,
-  ...asGuest("viewer", { project: TRANSCRIPT_WORDS_PENDING }),
+  ...asGuest("viewer", {
+    project: TRANSCRIPT_WORDS_PENDING,
+    state: { stage: "review", shareTranscriptWords: false },
+  }),
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     await expect(
@@ -523,6 +526,23 @@ const viewerPlay: Story["play"] = async ({ canvasElement }) => {
 export const GuestViewer: Story = {
   ...asGuest("viewer"),
   play: viewerPlay,
+};
+
+/** A Viewer link reads the transcript: the Script follows playback and a word seeks, with no selection or composer. */
+export const GuestViewerReadsTranscript: Story = {
+  ...asGuest("viewer"),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const script = canvasElement.querySelector(".stage-host-guest-script");
+    await expect(script).not.toBeNull();
+    await expect(
+      within(script as HTMLElement).getByText("Read only"),
+    ).toBeVisible();
+    await expect(canvas.queryByRole("textbox", { name: "Comment" })).toBeNull();
+    await expect(
+      canvasElement.querySelector(".sys-script-word[data-selected]"),
+    ).toBeNull();
+  },
 };
 
 export const GuestViewerPhone: Story = {

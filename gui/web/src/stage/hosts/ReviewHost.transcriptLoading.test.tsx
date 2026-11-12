@@ -37,7 +37,11 @@ function deferred<T>() {
   return { promise, resolve, reject };
 }
 
-function join(role: "comment" | "view", transcriptWordsLoaded: boolean) {
+function join(
+  role: "comment" | "view",
+  transcriptWordsLoaded: boolean,
+  transcriptWords = true,
+) {
   useDawStore.getState().hydrate(
     "share:tok",
     minimalProject({
@@ -50,6 +54,8 @@ function join(role: "comment" | "view", transcriptWordsLoaded: boolean) {
     }),
     role,
     role === "comment" ? ["view", "comment", "suggest"] : ["view"],
+    null,
+    transcriptWords,
   );
   useDawStore.setState({ stage: "review" });
   resetDocumentAuthority("share:tok");
@@ -166,8 +172,8 @@ describe("guest transcript detail loading in Review", () => {
     expect(loadDetail).toHaveBeenCalledTimes(1);
   });
 
-  it("does not show a permanent loading region to a Viewer without timed words", () => {
-    join("view", false);
+  it("does not show a permanent loading region to a link that carries no words", () => {
+    join("view", false, false);
     const { container } = render(<ReviewHost guestShare />);
 
     expect(screen.getAllByRole("region", { name: "Queue" })[0]).toBeVisible();
@@ -181,8 +187,71 @@ describe("guest transcript detail loading in Review", () => {
     expect(loadDetail).not.toHaveBeenCalled();
   });
 
+  it("loads the transcript for a Viewer and mounts a read-only Script", async () => {
+    const project = minimalProject({
+      comments: [sampleComment()],
+      transcript: {
+        utterances: [
+          {
+            track_id: "t1",
+            source_id: null,
+            speaker: "Maya",
+            start: 0,
+            end: 1,
+            text: "Welcome back",
+            words: [
+              {
+                text: "Welcome",
+                start: 0,
+                end: 0.5,
+                timeline_start: 0,
+                timeline_end: 0.5,
+                mappable: true,
+                word_index: 0,
+              },
+              {
+                text: "back",
+                start: 0.5,
+                end: 1,
+                timeline_start: 0.5,
+                timeline_end: 1,
+                mappable: true,
+                word_index: 1,
+              },
+            ],
+          },
+        ],
+      },
+      meta: {
+        name: "Test Episode",
+        workspace_dir: "/tmp/test",
+        hydration: { transcript_words: true },
+      },
+    });
+    const landed = deferred<DocumentSnapshot>();
+    loadDetail.mockReturnValueOnce(landed.promise);
+    join("view", false);
+    render(<ReviewHost guestShare />);
+    expect(loadDetail).toHaveBeenCalledTimes(1);
+
+    await act(async () =>
+      landed.resolve({
+        server_seq: 0,
+        state_token: TOKEN,
+        project,
+      }),
+    );
+
+    expect(await screen.findByText("Read only")).toBeVisible();
+    expect(screen.getByRole("button", { name: "Welcome" })).toBeVisible();
+    expect(screen.queryByRole("textbox", { name: "Comment" })).toBeNull();
+    expect(screen.queryByRole("toolbar")).toBeNull();
+    expect(screen.queryByRole("button", { name: /suggest/i })).toBeNull();
+    expect(loadDetail).toHaveBeenCalledTimes(1);
+  });
+
   it.each(["complete", "unspecified"] as const)(
-    "keeps the legacy Viewer Script mount when hydration metadata is %s",
+    "mounts the Viewer Script when hydration metadata is %s",
     (hydration) => {
       join("view", true);
       if (hydration === "unspecified") {
@@ -535,19 +604,25 @@ describe("guest transcript detail loading in Review", () => {
     act(() => {
       useDawStore
         .getState()
-        .hydrate("share:other", incomplete, "comment", [
-          "view",
+        .hydrate(
+          "share:other",
+          incomplete,
           "comment",
-          "suggest",
-        ]);
+          ["view", "comment", "suggest"],
+          null,
+          true,
+        );
       scheduleTranscriptDetailHydrate(incomplete);
       useDawStore
         .getState()
-        .hydrate("share:tok", incomplete, "comment", [
-          "view",
+        .hydrate(
+          "share:tok",
+          incomplete,
           "comment",
-          "suggest",
-        ]);
+          ["view", "comment", "suggest"],
+          null,
+          true,
+        );
       documentAuthority.token = TOKEN;
       documentAuthority.project = incomplete;
       documentAuthority.phase = { kind: "ready" };

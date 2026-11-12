@@ -87,6 +87,7 @@ export type ScriptSeed = {
   projectPath?: string;
   guestMode?: string | null;
   shareCapabilities?: string[] | null;
+  shareTranscriptWords?: boolean;
   utterances?: CombinedUtterance[];
   project?: Partial<ProjectView>;
   playheadSec?: number;
@@ -100,6 +101,7 @@ export function seedScript(seed: ScriptSeed = {}) {
     projectPath: seed.projectPath ?? "/tmp/ep",
     guestMode: seed.guestMode ?? null,
     shareCapabilities: seed.shareCapabilities ?? null,
+    shareTranscriptWords: seed.shareTranscriptWords ?? false,
     project: minimalProject({
       tracks: [
         sampleTrack({ id: "host", speaker: "Maya" }),

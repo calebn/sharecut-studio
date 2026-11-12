@@ -14,6 +14,7 @@ import {
   guestHearsMixOnly,
   hasShareCapability,
   isShareProjectKey,
+  readsTranscriptWords,
   shareProjectKey,
   shareTokenFromKey,
 } from "./shareMode";
@@ -135,5 +136,13 @@ describe("commentRole", () => {
     expect(commentRole(shareProjectKey("tok"), null)).toBe("guest");
     expect(commentRole("/tmp/ep.json", "comment")).toBe("guest");
     expect(commentRole("/tmp/ep.json", null, true)).toBe("guest");
+  });
+});
+
+describe("readsTranscriptWords", () => {
+  it("lets the host read and a share read only when the bootstrap said so", () => {
+    expect(readsTranscriptWords("/p/ep.json", false)).toBe(true);
+    expect(readsTranscriptWords("share:abc", false)).toBe(false);
+    expect(readsTranscriptWords("share:abc", true)).toBe(true);
   });
 });

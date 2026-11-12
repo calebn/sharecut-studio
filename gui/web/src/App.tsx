@@ -74,6 +74,7 @@ type GuestAccess = {
   key: string;
   mode: string;
   capabilities: string[] | null;
+  transcriptWords: boolean;
   author: string | null;
 };
 type CachedGuestProject = { key: string; project: ProjectView };
@@ -172,6 +173,7 @@ function AppInner() {
   const shareKey = guest?.key ?? null;
   const guestMode = guest?.mode ?? null;
   const shareCapabilities = guest?.capabilities ?? null;
+  const shareTranscriptWords = guest?.transcriptWords ?? false;
   const shareAuthor = guest?.author ?? null;
   const shareBootstrapping = current.status === "pending";
   const projectLoading = () =>
@@ -229,6 +231,7 @@ function AppInner() {
             key: shareProjectKey(reviewToken),
             mode: bootstrap.guest_mode ?? "view",
             capabilities: caps,
+            transcriptWords: bootstrap.reads_transcript_words,
             author: bootstrap.author ?? null,
           },
         };
@@ -252,7 +255,13 @@ function AppInner() {
           const key = shareProjectKey(reviewToken);
           outcome = {
             kind: "cached",
-            guest: { key, mode: "view", capabilities: null, author: null },
+            guest: {
+              key,
+              mode: "view",
+              capabilities: null,
+              transcriptWords: false,
+              author: null,
+            },
             cached: { key, project: cachedProject },
           };
           return;
@@ -352,6 +361,7 @@ function AppInner() {
         }
         guestMode={guestMode}
         shareCapabilities={shareCapabilities}
+        shareTranscriptWords={shareTranscriptWords}
         shareAuthor={shareAuthor}
       >
         <Suspense fallback={projectLoading()}>

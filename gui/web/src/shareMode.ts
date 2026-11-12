@@ -45,6 +45,14 @@ export function isGuestSession(
 
 export { reviewApiBase } from "./shareRoute";
 
+/** The server's answer (`reads_transcript_words`), not a rule: host sessions read, a share reads when the bootstrap said so. */
+export function readsTranscriptWords(
+  projectPath: string,
+  granted: boolean,
+): boolean {
+  return !isShareProjectKey(projectPath) || granted;
+}
+
 /** Mirrors ``has_capability`` (view→play, comment→reply). */
 export function hasShareCapability(
   capabilities: string[] | null | undefined,

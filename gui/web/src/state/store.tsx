@@ -12,6 +12,7 @@ export function DawProvider({
   initialProject,
   guestMode = null,
   shareCapabilities = null,
+  shareTranscriptWords = false,
   shareAuthor = null,
 }: {
   children: ReactNode;
@@ -19,6 +20,7 @@ export function DawProvider({
   initialProject: ProjectView | null;
   guestMode?: string | null;
   shareCapabilities?: string[] | null;
+  shareTranscriptWords?: boolean;
   shareAuthor?: string | null;
 }) {
   const hydrate = useDawStore((s) => s.hydrate);
@@ -29,6 +31,7 @@ export function DawProvider({
       guestMode,
       shareCapabilities,
       shareAuthor,
+      shareTranscriptWords,
     );
   }, [
     hydrate,
@@ -37,6 +40,7 @@ export function DawProvider({
     guestMode,
     shareCapabilities,
     shareAuthor,
+    shareTranscriptWords,
   ]);
   return <>{children}</>;
 }

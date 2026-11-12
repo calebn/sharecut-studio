@@ -287,6 +287,8 @@ export interface DawState {
   guestMode: string | null;
   /** Share capability list from bootstrap; null for host. */
   shareCapabilities: string[] | null;
+  /** Whether the server sends this share timed transcript words (bootstrap `reads_transcript_words`); false for a host. */
+  shareTranscriptWords: boolean;
   /** This guest's share author (``PendingEditView.author``) from bootstrap; null for host. */
   shareAuthor: string | null;
   /** The review episode's overview-strip envelope (0..1 columns); empty for a host or until loaded. */
@@ -614,5 +616,6 @@ export interface DawStore
     guestMode?: string | null,
     shareCapabilities?: string[] | null,
     shareAuthor?: string | null,
+    shareTranscriptWords?: boolean,
   ) => void;
 }

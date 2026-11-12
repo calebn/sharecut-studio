@@ -61,6 +61,7 @@ function bootstrap(author: string) {
     JSON.stringify({
       capabilities: ["view", "comment"],
       guest_mode: "comment",
+      reads_transcript_words: true,
       author,
       meta: { name: author },
     }),

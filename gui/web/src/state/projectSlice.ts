@@ -111,6 +111,7 @@ type ProjectSlice = Pick<
   | "projectEpoch"
   | "guestMode"
   | "shareCapabilities"
+  | "shareTranscriptWords"
   | "shareAuthor"
   | "reviewPeaks"
   | "setReviewPeaks"
@@ -140,6 +141,7 @@ export const createProjectSlice: StateCreator<
   projectEpoch: 0,
   guestMode: null as string | null,
   shareCapabilities: null as string[] | null,
+  shareTranscriptWords: false,
   shareAuthor: null as string | null,
   reviewPeaks: [] as readonly number[],
   projectEditBasis: () => {
@@ -269,6 +271,7 @@ export const createProjectSlice: StateCreator<
     guestMode = null,
     shareCapabilities = null,
     shareAuthor = null,
+    shareTranscriptWords = false,
   ) => {
     const samePath = get().projectPath === projectPath;
     const { exportRequested, transcriptRequested, transcriptFindReplaceOpen } =
@@ -286,6 +289,7 @@ export const createProjectSlice: StateCreator<
       heldTrim: null,
       guestMode,
       shareCapabilities,
+      shareTranscriptWords,
       shareAuthor,
       ...uiAlwaysInitial(),
       // Preserve transport on a same-project shell refresh. A project switch

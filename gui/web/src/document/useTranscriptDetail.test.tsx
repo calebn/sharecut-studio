@@ -3,7 +3,7 @@ import { afterEach, expect, it, vi } from "vitest";
 import { useDawStore } from "../state/dawStore";
 import { deferred } from "../test/deferred";
 import { minimalProject } from "../test/fixtures";
-import { resetDocumentAuthority } from "./authorityState";
+import { documentAuthority, resetDocumentAuthority } from "./authorityState";
 import { scheduleTranscriptDetailHydrate } from "./hydrateTranscriptDetail";
 import type { DocumentSnapshot } from "./projectPatch";
 import { useTranscriptDetail } from "./useTranscriptDetail";
@@ -28,7 +28,14 @@ it("only lets the current Retry restart a failure after an untracked view", asyn
   });
   useDawStore
     .getState()
-    .hydrate("share:tok", project, "comment", ["view", "comment", "suggest"]);
+    .hydrate(
+      "share:tok",
+      project,
+      "comment",
+      ["view", "comment", "suggest"],
+      null,
+      true,
+    );
   resetDocumentAuthority("share:tok");
   const request = deferred<DocumentSnapshot>();
   const replacement = deferred<DocumentSnapshot>();
@@ -54,4 +61,63 @@ it("only lets the current Retry restart a failure after an untracked view", asyn
   act(() => failed.retry());
   expect(loadDetail).toHaveBeenCalledTimes(2);
   expect(result.current).toMatchObject({ kind: "failed", recovering: true });
+});
+
+function viewerShell() {
+  const project = minimalProject({
+    meta: {
+      name: "Test Episode",
+      workspace_dir: "/tmp/test",
+      hydration: { transcript_words: false },
+    },
+  });
+  return project;
+}
+
+it("a Viewer with a granted flag and an incomplete shell loads detail once and becomes ready", async () => {
+  const project = viewerShell();
+  useDawStore
+    .getState()
+    .hydrate("share:tok", project, "view", ["play", "view"], null, true);
+  resetDocumentAuthority("share:tok");
+  documentAuthority.project = project;
+  documentAuthority.token = "a".repeat(64);
+  documentAuthority.phase = { kind: "ready" };
+  const request = deferred<DocumentSnapshot>();
+  loadDetail.mockReturnValueOnce(request.promise);
+  const { result } = renderHook(useTranscriptDetail);
+  expect(result.current.kind).toBe("pending");
+
+  act(() => scheduleTranscriptDetailHydrate(project));
+  expect(loadDetail).toHaveBeenCalledTimes(1);
+  expect(loadDetail.mock.calls[0]?.[1]).toBe("detail");
+  expect(result.current.kind).toBe("pending");
+
+  await act(async () =>
+    request.resolve({
+      server_seq: 0,
+      state_token: "a".repeat(64),
+      project: minimalProject({
+        meta: {
+          name: "Test Episode",
+          workspace_dir: "/tmp/test",
+          hydration: { transcript_words: true },
+        },
+      }),
+    }),
+  );
+  expect(result.current.kind).toBe("ready");
+});
+
+it("a flag of false is hidden and never loads detail", () => {
+  const project = viewerShell();
+  useDawStore
+    .getState()
+    .hydrate("share:tok", project, "view", ["play", "view"], null, false);
+  resetDocumentAuthority("share:tok");
+  loadDetail.mockClear();
+  const { result } = renderHook(useTranscriptDetail);
+  expect(result.current.kind).toBe("hidden");
+  act(() => scheduleTranscriptDetailHydrate(project));
+  expect(loadDetail).not.toHaveBeenCalled();
 });

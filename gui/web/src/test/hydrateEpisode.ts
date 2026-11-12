@@ -131,7 +131,7 @@ export function hydrateEpisode(
   registerDawCommands();
   registerCutToast();
   registerAfterCutNav();
-  const { guestMode, capabilities } = ROLE_SHARE[role];
+  const { guestMode, capabilities, transcriptWords } = ROLE_SHARE[role];
   const episodeProject = project ?? episode();
   previous.hydrate(
     guestMode === null ? episodeProject.project_path : "share:episode",
@@ -140,6 +140,7 @@ export function hydrateEpisode(
   useDawStore.setState({
     guestMode,
     shareCapabilities: capabilities,
+    shareTranscriptWords: transcriptWords,
     // A frame story at a phone width leaves `phone` here; start every story from desktop.
     shellBreakpoint: "desktop",
     ...state,
