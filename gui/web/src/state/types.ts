@@ -120,6 +120,8 @@ export interface CommentDraft {
   endSec: number | null;
   trackIds?: string[];
   intervals?: { start: number; end: number }[];
+  /** The Listen dock's Comment paused playback: Post or Close plays again. */
+  resume?: true;
 }
 
 type SourcePreviewBase = {

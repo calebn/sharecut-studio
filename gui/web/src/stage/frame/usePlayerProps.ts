@@ -2,7 +2,6 @@ import { useCallback, useMemo, useRef } from "react";
 import { episodeDurationSec } from "../../audio/proxyMath";
 import { skipListen } from "../../commands/listenSeek";
 import { runPointerCommand } from "../../commands/pointer";
-import { seekTransport } from "../../commands/seek";
 import { useStaleRenderBreakdown } from "../../hooks/useStaleRenderBreakdown";
 import { rosterDisplayName } from "../../presence/colors";
 import { followDetail } from "../../presence/followSync";
@@ -20,17 +19,10 @@ import type { PlayerProps } from "../../system/Player";
 import type { AuditionMode } from "../../types/session";
 import { NO_PREVIEW_ERROR } from "../../utils/audioErrorLabel";
 import { guestMixBehind, staleMixLabel } from "../../utils/staleRender";
-import { transportTimecode } from "../../utils/time";
-import {
-  auditionOf,
-  chapterIndexAt,
-  cutsLabel,
-  hearModeOf,
-  playerChapters,
-  playerTicks,
-  sortChapters,
-} from "./playerModel";
+import { formatTimeShort, transportTimecode } from "../../utils/time";
+import { auditionOf, cutsLabel, hearModeOf, playerTicks } from "./playerModel";
 import { TAB_LABELS } from "./tabLabels";
+import { usePlayerChapters } from "./usePlayerChapters";
 import { useSeekFraction } from "./useSeekFraction";
 
 const NONE: never[] = [];
@@ -98,15 +90,7 @@ export function usePlayerProps(
   const breakdown = useStaleRenderBreakdown(project);
   const duration = episodeDurationSec(project);
   const { onSeek, onScrub } = useSeekFraction(duration);
-  const chapterMarkers = project?.chapters ?? NONE;
-  const sortedMarkers = useMemo(
-    () => sortChapters(chapterMarkers),
-    [chapterMarkers],
-  );
-  const chapters = useMemo(
-    () => playerChapters(sortedMarkers, duration),
-    [sortedMarkers, duration],
-  );
+  const { chapters, current: chapter, seekTo } = usePlayerChapters();
   const comments = project?.comments;
   const pendingEdits = project?.pending_edits;
   const suggestionsShown =
@@ -123,7 +107,13 @@ export function usePlayerProps(
     [chapters, comments, duration, suggestionsShown, pendingEdits],
   );
 
-  const clock = transportTimecode(playheadSec, duration);
+  const clock =
+    form === "dock"
+      ? {
+          current: formatTimeShort(playheadSec),
+          total: formatTimeShort(duration),
+        }
+      : transportTimecode(playheadSec, duration);
   const guest = isShareProjectKey(projectPath) || guestMode !== null;
   const leader = followingClientId
     ? rosterEntry(sessionClients, followingClientId)
@@ -183,7 +173,7 @@ export function usePlayerProps(
       : undefined,
     title: project?.meta.name,
     chapters,
-    chapter: chapterIndexAt(sortedMarkers, playheadSec),
+    chapter,
     ticks,
     playhead: duration > 0 ? playheadSec / duration : 0,
     duration,
@@ -204,18 +194,28 @@ export function usePlayerProps(
       ? () =>
           runPointerCommand("comment.draftAt", {
             atTime: useDawStore.getState().playheadSec,
+            // The keyboard will hide Play, so the dock stops the audio first.
+            pause: form === "dock",
           })
       : undefined,
-    onExpand: () => onFormChange("expanded"),
+    onChapters:
+      form === "dock" && chapters.length > 0
+        ? () => useDawStore.getState().setOpenSheet("chapters")
+        : undefined,
+    onStatusInfo:
+      form === "dock" && (unavailable ?? mixStatus)
+        ? () =>
+            useDawStore
+              .getState()
+              .announceStatus((unavailable ?? mixStatus) as string)
+        : undefined,
+    onExpand: form === "dock" ? undefined : () => onFormChange("expanded"),
     onCollapse: () => onFormChange("bar"),
     onRetry: () => {
       useDawStore.getState().setAudioError(null);
       runPointerCommand("transport.togglePlay");
     },
-    onChapter: (index) => {
-      const target = sortedMarkers[index];
-      if (target) void seekTransport(target.time);
-    },
+    onChapter: seekTo,
     onUnfollow: () => runPointerCommand("presence.unfollow"),
   };
 }

@@ -48,6 +48,22 @@ html[data-frame-short][data-shell="phone"] {
   );
 }
 
+/* A phone Viewer or Commenter has no tab bar, and the Listen dock is the
+   Player: sheets and the toast rest on the dock alone. */
+html[data-shell="phone"][data-player="dock"] {
+  --frame-bottom-chrome: calc(
+    var(--player-dock-height) +
+    env(safe-area-inset-bottom)
+  );
+}
+
+html[data-shell="phone"][data-player="dock"][data-frame-short] {
+  --frame-bottom-chrome: calc(
+    var(--player-height) +
+    env(safe-area-inset-bottom)
+  );
+}
+
 /* Home has no tab bar, Player or app header, so sheets and the toast rest on
    the screen edge (the safe area), not above phantom chrome. Sheets portal to
    the body, so this keys off the root (useShellAttributes("home")). */
