@@ -19,25 +19,19 @@ Vitest uses four worker threads and two inline projects in
 edit, timeline, time and audio test files without DOM setup, including
 `src/audio/proxyMath.test.ts` and `src/audio/wavHeader.encode.test.ts`. The
 `jsdom` project runs the remaining frontend tests with `src/test/setup.ts`. Both
-projects use the same list to keep their file sets disjoint, and jsdom retains
-Vitest's default exclusions.
-The thread pool keeps file isolation and bounded parallelism after fork workers
-stalled on a macOS host with endpoint scanning. Keep a separate Playwright
-browser run for real-browser checks.
+projects use the same list to keep their file sets disjoint, and jsdom retains Vitest's default exclusions. The thread
+pool keeps file isolation and bounded parallelism after fork workers stalled on a macOS host with endpoint scanning.
+Keep a separate Playwright browser run for real-browser checks.
 
-Before adding a test, check existing coverage and state the behavior that the
-new test covers and existing tests do not. Prefer one focused test per
-invariant. Extend an existing test when it already covers that behavior. Use
-the cheapest layer that faithfully exercises the behavior. Pure edit and
-timeline utility calculations can use Node only when their imports and tested
-paths require no DOM or shared browser setup.
-Component behavior stays in jsdom, and browser behavior stays in Playwright. Before changing the
-Node list, compare test discovery and results across both projects and the
-full suite. Record evidence that every test runs once and retains its assertions.
-Check existing coverage before adding a permanent case. Justify each expensive
-browser matrix dimension by the distinct failure it can catch. Keep broad
-exploratory sweeps and deliberate faults in PR evidence unless a case protects
-a distinct important regression.
+Before adding a test, check existing coverage and state the behavior that the new test covers and existing tests do
+not. Prefer one focused test per invariant. Extend an existing test when it already covers that behavior. Use the
+cheapest layer that faithfully exercises the behavior. Pure edit and timeline utility calculations can use Node only
+when their imports and tested paths require no DOM or shared browser setup. Component behavior stays in jsdom, and
+browser behavior stays in Playwright. Before changing the Node list, compare test discovery and results across both
+projects and the full suite. Record evidence that every test runs once and retains its assertions. Check existing
+coverage before adding a permanent case. Justify each expensive browser matrix dimension by the distinct failure it
+can catch. Keep broad exploratory sweeps and deliberate faults in PR evidence unless a case protects a distinct
+important regression.
 
 `make test` runs under [`pytest-xdist`](https://pytest-xdist.readthedocs.io/) (`-n auto`), capped at four workers to keep local runs and CI reliable under contention. An explicit `-n N` remains unchanged. `pytest-cov` merges the per-worker coverage data, so the 95% gate is unchanged. CI (`.github/workflows/test.yml`) runs the same marker filter in four shards, in parallel with a `frontend-suite` job for ShareCut Studio (`gui/web`).
 
@@ -69,32 +63,26 @@ Python and test-tool versions, FFmpeg version, worker invocation, marker filter,
 coverage gate provenance; the shard's coverage total is partial. The pytest command also prints up to 100 phases that
 took at least 0.1 seconds with `--durations=100 --durations-min=0.1`.
 
-These measurements answer different questions. Pytest phase durations report
-the slowest setup, call, and teardown phases, while JUnit testcase durations
-report each test's elapsed setup, call, and teardown time by default. Summing
-those testcase durations adds work that can overlap across workers. Neither is
-the parallel suite's wall time or the Actions step or job duration. Compare the report with the recorded versions,
-run, worker policy, and coverage gate. Pytest truncates the duration list at 100
-entries, so phases below the 0.1-second cutoff and remaining phases beyond the
-100-entry limit are absent. A duration alone does not show a cause, attribute time to a
-subprocess, or prove that a change saves time. Inspect the relevant test and
-dependencies, then isolate a candidate with bounded runs before claiming a cause
-or savings. 
-Test jobs also add a per-area summary to the GitHub job summary. Python uses
-JUnit testcase records, Vitest uses its JSON reporter, and the main, compatibility,
-and Storybook browser jobs use Playwright JSON reports. Browser matrix jobs show
-their own shard row. Counts represent logical tests, so a Playwright retry does
-not add another test. Durations sum testcase or attempt times and can overlap
-when tests run in parallel. They are not job wall time. A missing or unreadable
-report appears as unavailable, and the summary does not change the test result.
+These measurements answer different questions. Pytest phase durations report the slowest setup, call, and teardown
+phases, while JUnit testcase durations report each test's elapsed setup, call, and teardown time by default. Summing
+those testcase durations adds work that can overlap across workers. Neither is the parallel suite's wall time or the
+Actions step or job duration. Compare the report with the recorded versions, run, worker policy, and coverage gate.
+Pytest truncates the duration list at 100 entries, so phases below the 0.1-second cutoff and remaining phases beyond
+the 100-entry limit are absent. A duration alone does not show a cause, attribute time to a subprocess, or prove that
+a change saves time. Inspect the relevant test and dependencies, then isolate a candidate with bounded runs before
+claiming a cause or savings. Test jobs also add a per-area summary to the GitHub job summary. Python uses JUnit
+testcase records, Vitest uses its JSON reporter, and the main, compatibility, and Storybook browser jobs use
+Playwright JSON reports. Browser matrix jobs show their own shard row. Counts represent logical tests, so a Playwright
+retry does not add another test. Durations sum testcase or attempt times and can overlap when tests run in parallel.
+They are not job wall time. A missing or unreadable report appears as unavailable, and the summary does not change the
+test result.
 
 ## Project and history compatibility
 
 The required `pytest` check always runs, through `pytest-quality`, `scripts/project_compat.py check` and
 `tests/test_project_compat.py` before the full, web, or docs test selection.
-Its trusted base is the PR base SHA, the previous push SHA, or the checked-out
-SHA for scheduled and manual runs. The check cannot be skipped by a docs-only
-or web-only diff.
+Its trusted base is the PR base SHA, the previous push SHA, or the checked-out SHA for scheduled and manual runs. The
+check cannot be skipped by a docs-only or web-only diff.
 
 Run the focused checks with:
 
