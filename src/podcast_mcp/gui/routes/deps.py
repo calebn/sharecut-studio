@@ -224,6 +224,15 @@ def host_gate(
     require_host(request, token=token, x_podcast_token=x_podcast_token)
 
 
+def host_gate_for_client(
+    request: Request,
+    client_id: str = Query("viewer"),
+    x_podcast_token: str | None = Header(None, alias="X-Podcast-Token"),
+) -> None:
+    """``require_host`` as a route dependency for the comment routes: ``client_id`` query, header token only."""
+    require_host(request, client_id=client_id, x_podcast_token=x_podcast_token)
+
+
 def require_loopback_peer(request: Request) -> None:
     """Refuse a reveal from any peer that is not this computer (403 ``reveal_not_allowed``).
 

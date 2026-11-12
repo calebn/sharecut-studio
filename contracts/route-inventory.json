@@ -1,6 +1,6 @@
 {
   "api_version": 1,
-  "host_direct_baseline": 7,
+  "host_direct_baseline": 2,
   "routes": [
     {
       "gate": "other",
@@ -79,35 +79,30 @@
     {
       "gate": "host",
       "handler": "podcast_mcp.gui.routes.comments:create_comment",
-      "host_direct": true,
       "method": "POST",
       "path": "/api/comments"
     },
     {
       "gate": "host",
       "handler": "podcast_mcp.gui.routes.comments:remove_comment",
-      "host_direct": true,
       "method": "DELETE",
       "path": "/api/comments/{comment_id}"
     },
     {
       "gate": "host",
       "handler": "podcast_mcp.gui.routes.comments:patch_comment",
-      "host_direct": true,
       "method": "PATCH",
       "path": "/api/comments/{comment_id}"
     },
     {
       "gate": "host",
       "handler": "podcast_mcp.gui.routes.comments:action_done",
-      "host_direct": true,
       "method": "POST",
       "path": "/api/comments/{comment_id}/actions/{action_id}/done"
     },
     {
       "gate": "host",
       "handler": "podcast_mcp.gui.routes.comments:create_reply",
-      "host_direct": true,
       "method": "POST",
       "path": "/api/comments/{comment_id}/replies"
     },

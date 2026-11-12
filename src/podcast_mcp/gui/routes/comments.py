@@ -2,12 +2,12 @@ from __future__ import annotations
 
 from typing import Any
 
-from fastapi import APIRouter, Header, Query, Request
+from fastapi import APIRouter, Depends, Request
 
 from podcast_mcp.gui.routes.deps import (
     coded_exception_error,
     coded_http_error,
-    require_host,
+    host_gate_for_client,
     resolve_project,
 )
 from podcast_mcp.gui.schemas import (
@@ -21,16 +21,14 @@ from podcast_mcp.services.document import CommentService, run_comment_mutation_w
 from podcast_mcp.services.document_sync import notify_comments_changed
 
 router = APIRouter()
+_HOST_GATE = [Depends(host_gate_for_client)]
 
 
-@router.post("/api/comments")
+@router.post("/api/comments", dependencies=_HOST_GATE)
 def create_comment(
     req: CommentCreateRequest,
     request: Request,
-    client_id: str = Query("viewer"),
-    x_podcast_token: str | None = Header(None, alias="X-Podcast-Token"),
 ) -> dict[str, Any]:
-    require_host(request, client_id=client_id, x_podcast_token=x_podcast_token)
     path = resolve_project(req.path, request)
     ws = ProjectWorkspace.open(path)
     try:
@@ -52,15 +50,12 @@ def create_comment(
     return {"comment": comment.model_dump()}
 
 
-@router.patch("/api/comments/{comment_id}")
+@router.patch("/api/comments/{comment_id}", dependencies=_HOST_GATE)
 def patch_comment(
     comment_id: str,
     req: CommentPatchRequest,
     request: Request,
-    client_id: str = Query("viewer"),
-    x_podcast_token: str | None = Header(None, alias="X-Podcast-Token"),
 ) -> dict[str, Any]:
-    require_host(request, client_id=client_id, x_podcast_token=x_podcast_token)
     path = resolve_project(req.path, request)
     ws = ProjectWorkspace.open(path)
     svc = CommentService(ws)
@@ -106,16 +101,13 @@ def patch_comment(
     return {"comment": comment.model_dump()}
 
 
-@router.post("/api/comments/{comment_id}/actions/{action_id}/done")
+@router.post("/api/comments/{comment_id}/actions/{action_id}/done", dependencies=_HOST_GATE)
 def action_done(
     comment_id: str,
     action_id: str,
     req: CommentActionDoneRequest,
     request: Request,
-    client_id: str = Query("viewer"),
-    x_podcast_token: str | None = Header(None, alias="X-Podcast-Token"),
 ) -> dict[str, Any]:
-    require_host(request, client_id=client_id, x_podcast_token=x_podcast_token)
     path = resolve_project(req.path, request)
     ws = ProjectWorkspace.open(path)
     try:
@@ -133,15 +125,12 @@ def action_done(
     return result.model_dump()
 
 
-@router.post("/api/comments/{comment_id}/replies")
+@router.post("/api/comments/{comment_id}/replies", dependencies=_HOST_GATE)
 def create_reply(
     comment_id: str,
     req: CommentReplyRequest,
     request: Request,
-    client_id: str = Query("viewer"),
-    x_podcast_token: str | None = Header(None, alias="X-Podcast-Token"),
 ) -> dict[str, Any]:
-    require_host(request, client_id=client_id, x_podcast_token=x_podcast_token)
     path = resolve_project(req.path, request)
     ws = ProjectWorkspace.open(path)
     try:
@@ -157,15 +146,12 @@ def create_reply(
     return result.model_dump()
 
 
-@router.delete("/api/comments/{comment_id}")
+@router.delete("/api/comments/{comment_id}", dependencies=_HOST_GATE)
 def remove_comment(
     comment_id: str,
     request: Request,
     path: str,
-    client_id: str = Query("viewer"),
-    x_podcast_token: str | None = Header(None, alias="X-Podcast-Token"),
 ) -> dict[str, Any]:
-    require_host(request, client_id=client_id, x_podcast_token=x_podcast_token)
     project_path = resolve_project(path, request)
     ws = ProjectWorkspace.open(project_path)
     try:
