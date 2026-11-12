@@ -55,6 +55,7 @@ describe("App review route", () => {
           JSON.stringify({
             capabilities: ["play", "comment"],
             guest_mode: "comment",
+            reads_transcript_words: true,
             meta: { name: "Episode" },
           }),
           { status: 200 },

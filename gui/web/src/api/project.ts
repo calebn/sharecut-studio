@@ -12,20 +12,21 @@ export function reviewVersionAtBootstrap(token: string): string | null {
   return bootstrapVersionIds.get(token) ?? null;
 }
 
-export async function loadReviewBootstrap(token: string): Promise<{
+export type ReviewBootstrap = {
   author?: string;
   capabilities: string[];
   guest_mode?: string;
+  /** The server's answer to "may this link receive timed transcript words". */
+  reads_transcript_words: boolean;
   meta: { name?: string };
-}> {
+  review_version?: { id?: string } | null;
+};
+
+export async function loadReviewBootstrap(
+  token: string,
+): Promise<ReviewBootstrap> {
   const res = await apiFetch(shareProjectKey(token), { guest: "/project" });
-  const body = (await res.json()) as {
-    author?: string;
-    capabilities: string[];
-    guest_mode?: string;
-    meta: { name?: string };
-    review_version?: { id?: string } | null;
-  };
+  const body = (await res.json()) as ReviewBootstrap;
   const versionId = body.review_version?.id;
   if (versionId) bootstrapVersionIds.set(token, versionId);
   return body;

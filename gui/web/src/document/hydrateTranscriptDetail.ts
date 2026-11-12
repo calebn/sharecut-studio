@@ -1,5 +1,5 @@
 import { loadDocumentState } from "../api/project";
-import { type RangeEditMode, rangeEditMode } from "../shareMode";
+import { readsTranscriptWords } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
 import type { ProjectView } from "../types/project";
 import { applyDocumentSnapshot } from "./applyDocumentUpdate";
@@ -86,7 +86,10 @@ function requestStillCurrent(request: Attempt): boolean {
     projectPath === request.key.path &&
     needsTranscriptDetailHydrate(
       currentProject,
-      rangeEditMode(projectPath, useDawStore.getState().shareCapabilities),
+      readsTranscriptWords(
+        projectPath,
+        useDawStore.getState().shareTranscriptWords,
+      ),
     )
   );
 }
@@ -160,7 +163,10 @@ function beginRequest(
       if (
         needsTranscriptDetailHydrate(
           current,
-          rangeEditMode(key.path, useDawStore.getState().shareCapabilities),
+          readsTranscriptWords(
+            key.path,
+            useDawStore.getState().shareTranscriptWords,
+          ),
         )
       ) {
         publish({ kind: "failed", request, recovering: false });
@@ -196,12 +202,12 @@ function beginRequest(
   return request;
 }
 
-/** Timed words load only for sessions that can select a range from them. */
+/** Timed words load for sessions that read the transcript. */
 export function needsTranscriptDetailHydrate(
   next: ProjectView | null,
-  mode: RangeEditMode,
+  reads: boolean,
 ): boolean {
-  return mode !== "none" && next?.meta?.hydration?.transcript_words === false;
+  return reads && next?.meta?.hydration?.transcript_words === false;
 }
 
 export function subscribeTranscriptDetail(listener: () => void): () => void {
@@ -250,10 +256,13 @@ export function retryTranscriptDetail(attemptId: number): void {
 export function scheduleTranscriptDetailHydrate(
   next: ProjectView | null,
 ): void {
-  const { projectPath: path, shareCapabilities } = useDawStore.getState();
+  const { projectPath: path, shareTranscriptWords } = useDawStore.getState();
   if (
     !path ||
-    !needsTranscriptDetailHydrate(next, rangeEditMode(path, shareCapabilities))
+    !needsTranscriptDetailHydrate(
+      next,
+      readsTranscriptWords(path, shareTranscriptWords),
+    )
   ) {
     retire();
     return;

@@ -1,6 +1,6 @@
 import { useSyncExternalStore } from "react";
 import { useShallow } from "zustand/react/shallow";
-import { rangeEditMode } from "../shareMode";
+import { readsTranscriptWords } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
 import { documentAuthority, documentScope } from "./authorityState";
 import { currentDocumentSeq } from "./cursor";
@@ -20,11 +20,11 @@ export type TranscriptDetailView =
   | { kind: "failed"; retry: () => void; recovering: boolean };
 
 export function useTranscriptDetail(): TranscriptDetailView {
-  const { project, projectPath, shareCapabilities } = useDawStore(
+  const { project, projectPath, shareTranscriptWords } = useDawStore(
     useShallow((state) => ({
       project: state.project,
       projectPath: state.projectPath,
-      shareCapabilities: state.shareCapabilities,
+      shareTranscriptWords: state.shareTranscriptWords,
     })),
   );
   const observedSnapshot = useSyncExternalStore(
@@ -33,10 +33,10 @@ export function useTranscriptDetail(): TranscriptDetailView {
   );
   if (!project) return { kind: "hidden" };
 
-  const mode = rangeEditMode(projectPath, shareCapabilities);
+  const reads = readsTranscriptWords(projectPath, shareTranscriptWords);
   const incomplete = project.meta?.hydration?.transcript_words === false;
-  if (incomplete && mode === "none") return { kind: "hidden" };
-  if (!needsTranscriptDetailHydrate(project, mode)) return { kind: "ready" };
+  if (incomplete && !reads) return { kind: "hidden" };
+  if (!needsTranscriptDetailHydrate(project, reads)) return { kind: "ready" };
 
   const scope = documentScope();
   const seq = currentDocumentSeq();
@@ -54,7 +54,7 @@ export function useTranscriptDetail(): TranscriptDetailView {
       documentAuthority.token !== token ||
       !needsTranscriptDetailHydrate(
         state.project,
-        rangeEditMode(state.projectPath, state.shareCapabilities),
+        readsTranscriptWords(state.projectPath, state.shareTranscriptWords),
       )
     )
       return;

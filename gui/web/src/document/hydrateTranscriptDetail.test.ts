@@ -19,15 +19,17 @@ describe("detail hydration eligibility", () => {
   };
 
   it.each([
-    ["edit", true],
-    ["suggest", true],
-    ["none", false],
-  ] as const)("hydrates missing words for a %s session: %s", (mode, want) => {
-    expect(needsTranscriptDetailHydrate(incomplete, mode)).toBe(want);
-  });
+    ["reads", true, true],
+    ["does not read", false, false],
+  ] as const)(
+    "a session that %s the transcript hydrates missing words: %s",
+    (_name, reads, want) => {
+      expect(needsTranscriptDetailHydrate(incomplete, reads)).toBe(want);
+    },
+  );
 
   it("never hydrates complete detail or no project", () => {
-    expect(needsTranscriptDetailHydrate(complete, "edit")).toBe(false);
-    expect(needsTranscriptDetailHydrate(null, "edit")).toBe(false);
+    expect(needsTranscriptDetailHydrate(complete, true)).toBe(false);
+    expect(needsTranscriptDetailHydrate(null, true)).toBe(false);
   });
 });

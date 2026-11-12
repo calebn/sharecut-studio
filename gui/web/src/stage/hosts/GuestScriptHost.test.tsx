@@ -143,6 +143,42 @@ describe("GuestScriptHost", () => {
     expect(seekTransport).toHaveBeenCalledExactlyOnceWith(11);
   });
 
+  describe("a Viewer link", () => {
+    it("seeks to the clicked word and selects nothing", async () => {
+      as("view", 0);
+      render(<GuestScriptHost />);
+      await userEvent.click(screen.getByRole("button", { name: "back" }));
+      expect(seekTransport).toHaveBeenCalledExactlyOnceWith(11);
+      expect(useDawStore.getState().selection).toBeNull();
+    });
+
+    it("seeks to a focused word on Enter", async () => {
+      as("view", 0);
+      render(<GuestScriptHost />);
+      screen.getByRole("button", { name: "back" }).focus();
+      await userEvent.keyboard("{Enter}");
+      expect(seekTransport).toHaveBeenCalledExactlyOnceWith(11);
+      expect(useDawStore.getState().selection).toBeNull();
+    });
+
+    it("leaves the selection empty under Shift+click and Shift+Arrow", async () => {
+      as("view", 0);
+      render(<GuestScriptHost />);
+      await userEvent.click(screen.getByRole("button", { name: "Welcome" }));
+      await userEvent.keyboard("{Shift>}");
+      await userEvent.click(screen.getByRole("button", { name: "back" }));
+      await userEvent.keyboard("{ArrowRight}{/Shift}");
+      expect(useDawStore.getState().selection).toBeNull();
+      expect(document.querySelector("[data-selected]")).toBeNull();
+    });
+
+    it("draws no selection grips", () => {
+      as("view", 0);
+      render(<GuestScriptHost />);
+      expect(document.querySelector("[class*='grip']")).toBeNull();
+    });
+  });
+
   it("says so when there is no transcript", () => {
     useDawStore.getState().hydrate("share:abc", minimalProject());
     useDawStore.setState({ guestMode: "view" });
