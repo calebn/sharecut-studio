@@ -491,6 +491,16 @@ const HOT_FIELD_ALLOWLIST: readonly AllowEntry[] = [
       "the overview strip's playhead follows the live playhead; only this memoized leaf renders it, so the Edit adapter does not re-render per frame",
   },
   {
+    file: "stage/frame/usePlayerChapters.ts",
+    reason:
+      "reads the playhead only to find the chapter it is in; the Player dock and the Chapters sheet re-render when the chapter changes, with the readout",
+  },
+  {
+    file: "stages/guest/GuestListen.tsx",
+    reason:
+      "selects the id of the comment within 15 s before the playhead, so the comments row re-renders when that id changes, not per frame",
+  },
+  {
     file: "stage/frame/usePlayerProps.ts",
     reason:
       "the Player bar's time readout and overview position follow the live playhead; only the PlayerBar subtree renders it",
