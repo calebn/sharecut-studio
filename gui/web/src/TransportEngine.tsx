@@ -2,6 +2,7 @@ import { useAudioTransport } from "./hooks/useAudioTransport";
 import { useFollowTransport } from "./hooks/useFollowTransport";
 import { useFollowUi } from "./hooks/useFollowUi";
 import { useFollowViewport } from "./hooks/useFollowViewport";
+import { useOsMediaSession } from "./hooks/useOsMediaSession";
 import { useProxyTransport } from "./hooks/useProxyTransport";
 
 /**
@@ -14,6 +15,7 @@ export function TransportEngine() {
   useFollowTransport();
   const proxyActive = useProxyTransport();
   useAudioTransport(!proxyActive);
+  useOsMediaSession();
   return null;
 }
 
