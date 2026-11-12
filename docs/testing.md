@@ -160,8 +160,17 @@ its handler (`host`, `authz`, `guest`, `public` or `other` with a reason; [#3123
 `tests/test_gui_route_inventory.py` builds the real app (`create_app()` with the collaboration extension
 routers, the share UI routes, the websockets and the account router) and fails when a mounted route has
 no row, a row has no route, a gate class changed, or more handlers call `require_host` directly than
-`host_direct_baseline` allows. The class is read from the handler's AST, so a comment does not count.
-The inventory is the union of three configurations: collaboration extension on, the static bundle present or absent, and a loopback or a LAN bind (only loopback mounts `/mcp`); the script mounts the account router itself, and `PODCAST_GUI_OPENAPI` is pinned on. A `guest` row needs the handler to name a reviewed share-token check; the `/auth/*` rows carry a per-route reason. The walker follows `include_router`: the include-time prefix is prepended to every child path, and include-time or router-level `dependencies` count as a gate for every child (a router-level `require_host` makes the child `host` without the direct marker). The baseline is shrink-only in a narrow sense: it counts distinct handlers that reference `require_host`, so a conditional or dead call still counts as `host`, and routes gated through `HOST_HELPERS` are not counted. The growth check is the pytest test that uses `--base` (`--base REF` on the script does the same); it skips when `origin/<base>` does not resolve, and a route-only edit to most existing route files does not select the inventory test at PR time (it runs on full runs). Gate a new owner route with `include_router(router, dependencies=[Depends(require_host)])` rather than a direct call. `--write` exits nonzero when it emits an unreviewed row; add the route to `OVERRIDES` or `PUBLIC_ROUTES`. After adding, removing or re-gating a route, run
+`host_direct_baseline` allows.
+
+- The inventory is the union of three app variants: bundle present, bundle absent, and a LAN bind (only loopback mounts `/mcp`). The collaboration extension is always on, the script mounts the account router itself, and `PODCAST_GUI_OPENAPI` is pinned on.
+- The class is read from the handler's AST, so a comment does not count. A `guest` row needs the handler to name a reviewed share-token check.
+- An `other` route takes its reason from `OVERRIDES` by route, or from `OTHER_REASONS` by module; the `/auth/*` rows carry a per-route reason. `--write` exits nonzero on an unreviewed row: add the route to `OVERRIDES` or `PUBLIC_ROUTES`.
+- The walker follows `include_router`. The include-time prefix is prepended to every child path. Include-time and router-level `dependencies` gate a child (a router-level `require_host` makes it `host` without the direct marker), but include-time `dependencies` reach only `APIRoute` and `APIWebSocketRoute`, never a plain Starlette `Route`, `Mount` or `Host`.
+- The match is by name, so a name mention without a call, a dead or conditional call, or a same-named function counts as `require_host`. The reviewed diff line is the guard. Routes gated through `HOST_HELPERS` are not counted in the baseline.
+- The growth check is the pytest test that uses `--base` (`--base REF` on the script does the same). It skips when `origin/<base>` does not resolve, and a route-only edit to most existing route files does not select the inventory test at PR time (it runs on full runs).
+- Gate a new owner route with `include_router(router, dependencies=[Depends(require_host)])` rather than a direct call.
+
+After adding, removing or re-gating a route, run
 `python scripts/check_route_inventory.py --write` (`--check` is the default; `make generated-check` runs it).
 
 ### Relay proxy path invariant

@@ -1224,7 +1224,7 @@
       "handler": "podcast_mcp.gui.routes.auth:auth_magic_link",
       "method": "POST",
       "path": "/auth/magic-link",
-      "reason": "sends no email; returns or prints the link only when PODCAST_MAGIC_LINK_PRINT=1 on a loopback peer; the caller has no session yet"
+      "reason": "sends no email; returns or prints the link only when PODCAST_MAGIC_LINK_PRINT=1 on a loopback peer that is not relayed; the caller has no session yet"
     },
     {
       "gate": "other",
