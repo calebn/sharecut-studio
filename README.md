@@ -181,4 +181,4 @@ from a disposable copy of the existing showcase fixture.
 
 ## License
 
-MIT
+ShareCut Studio is licensed under the GNU Affero General Public License, version 3 or later (AGPL-3.0-or-later). See [LICENSE](LICENSE).
