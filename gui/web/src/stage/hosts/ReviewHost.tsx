@@ -7,6 +7,8 @@ import { useViewportClass } from "../../hooks/useViewportClass";
 import { ReviewStage } from "../../review/ReviewStage";
 import { reviewCompletenessOf } from "../../review/reviewCompleteness";
 import { isGuestSession, isShareProjectKey } from "../../shareMode";
+import { GuestListen } from "../../stages/guest/GuestListen";
+import { listenScriptOf } from "../../stages/guest/listenLayout";
 import type { GuestReading } from "../../stages/guest/useGuestReading";
 import { useGuestReading } from "../../stages/guest/useGuestReading";
 import { useDawStore } from "../../state/dawStore";
@@ -77,10 +79,19 @@ function ReviewHostAdapter({
   const detail = useTranscriptDetail();
   const shell = useViewportClass();
   const short = useShortViewport();
+  const placement = playerPlacementOf({
+    stage: "review",
+    shell,
+    role: stageRoleOf(guestMode),
+    short,
+  });
+  const listening = placement === "dock";
   const scrollRef = useStageScroll("review", "section:queue");
   const reading = useGuestReading();
+  // The Listen layout keeps the transcript at any height, the keyboard's included.
+  const roomForScript = listening || !short;
   const detailFailure =
-    guest && !loadFailure && !short && detail.kind === "failed" ? (
+    guest && !loadFailure && roomForScript && detail.kind === "failed" ? (
       <LoadFailureCover
         stage="review"
         failure={{
@@ -91,33 +102,44 @@ function ReviewHostAdapter({
       />
     ) : null;
   const detailLoading =
-    guest && !loadFailure && !short && detail.kind === "pending" ? (
+    guest && !loadFailure && roomForScript && detail.kind === "pending" ? (
       <Skeleton rows={1} onRetry={detail.retry} />
     ) : null;
   const detailRegion = detailFailure ?? detailLoading;
+  const failure = loadFailure ? (
+    <LoadFailureCover stage="review" failure={loadFailure} />
+  ) : null;
+  const feedback = detailRegion ? (
+    <div className="stage-host-guest-feedback">{detailRegion}</div>
+  ) : null;
+  const scripted = guest && (loadFailure != null || detail.kind === "ready");
+  const panel = listening ? (
+    <GuestListen
+      review={queue.stageProps}
+      scriptState={listenScriptOf({
+        loadFailed: loadFailure != null,
+        detail: detail.kind,
+        hasTranscript: (project?.transcript?.utterances?.length ?? 0) > 0,
+      })}
+      script={feedback ?? failure ?? <GuestScriptHost reading={reading} />}
+    />
+  ) : (
+    panelFor(
+      queue,
+      find,
+      scripted,
+      placement === "card",
+      failure,
+      feedback,
+      reading,
+    )
+  );
   return (
     <ReviewStageView
       shell={shell}
       state={hostStateOf(project, loadFailure)}
       failure={loadFailure}
-      panel={panelFor(
-        queue,
-        find,
-        guest && (loadFailure != null || detail.kind === "ready"),
-        playerPlacementOf({
-          stage: "review",
-          shell,
-          role: stageRoleOf(guestMode),
-          short,
-        }) === "card",
-        loadFailure ? (
-          <LoadFailureCover stage="review" failure={loadFailure} />
-        ) : null,
-        detailRegion ? (
-          <div className="stage-host-guest-feedback">{detailRegion}</div>
-        ) : null,
-        reading,
-      )}
+      panel={panel}
       onDeliver={guest ? undefined : () => runPointerCommand("stage.deliver")}
       undecided={completeness.undecided}
       scrollRef={scrollRef}
