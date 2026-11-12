@@ -14,6 +14,7 @@ import { useDawStore } from "../../state/dawStore";
 import { stageRoleOf } from "../../state/stageRoutes";
 import { scriptGuestOf } from "../edit/script/scriptGuest";
 import { useScriptSelection } from "../edit/script/useScriptSelection";
+import { playerPlacementOf } from "../frame/playerPlacement";
 import { GuestSelectionBar } from "./GuestSelectionBar";
 import {
   guestScriptModelOf,
@@ -61,7 +62,10 @@ function GuestScriptHostAdapter({
       playheadWord: last === "" ? undefined : Number(last),
     };
   }, [positionKey]);
-  const hidden = role === "host" ? false : short || !mayRange;
+  // The phone Listen layout keeps the Script at any height, the keyboard's included.
+  const listening =
+    playerPlacementOf({ stage: "review", shell, role, short }) === "dock";
+  const hidden = role === "host" ? false : (short && !listening) || !mayRange;
   const wasHidden = useRef(hidden);
   useEffect(() => {
     const turnedOff = hidden && !wasHidden.current;
@@ -71,7 +75,7 @@ function GuestScriptHostAdapter({
     if (selection?.kind === "transcriptRange" || selection?.kind === "range")
       setSelection(null);
   }, [hidden]);
-  if (role === "host" || short) return null;
+  if (role === "host" || (short && !listening)) return null;
   return (
     <div ref={setRoot} className="stage-host-guest-script">
       <GuestScript

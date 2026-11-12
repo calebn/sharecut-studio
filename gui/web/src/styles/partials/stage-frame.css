@@ -315,3 +315,18 @@ html[data-surface="home"][data-shell] {
   min-block-size: 100dvh;
   background: var(--color-bg-canvas);
 }
+
+/* Keyboard up under the Listen dock: the frame takes exactly the visible band
+   (as the Inspector column does, #1696) and the dock steps aside, so the
+   composer sits on the keyboard. */
+@media (pointer: coarse) {
+  html[data-keyboard="open"][data-player="dock"] .stage-frame {
+    inset-block: var(--visual-viewport-top) auto;
+    block-size: var(--visual-viewport-height);
+    padding-block-end: 0;
+  }
+}
+
+html[data-keyboard="open"][data-player="dock"] .stage-frame-player {
+  display: none;
+}

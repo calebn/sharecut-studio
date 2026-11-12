@@ -109,7 +109,7 @@ describe("guest transcript detail loading in Review", () => {
     expect(screen.getByRole("textbox", { name: "Comment" })).toBeEnabled();
   });
 
-  it("keeps the phone Queue and composer usable beside the pending Script region", () => {
+  it("keeps the phone comments row usable beside the pending Script region", () => {
     stubViewportShell("phone");
     join("comment", false);
     const { container } = render(<ReviewHost guestShare />);
@@ -118,12 +118,14 @@ describe("guest transcript detail loading in Review", () => {
       container.querySelector(".sys-skeleton[aria-busy='true']"),
     ).not.toBeNull();
     expect(screen.getAllByRole("region", { name: "Queue" })[0]).toBeVisible();
-    expect(screen.getByRole("textbox", { name: "Comment" })).toBeEnabled();
+    expect(
+      screen.getByRole("button", { name: /^Show comments/ }),
+    ).toBeEnabled();
     expect(loadDetail).toHaveBeenCalledTimes(1);
   });
 
   it("hides the pending and failed Script slot at short height, then restores it with the same request", async () => {
-    stubViewportShell("phone");
+    stubViewportShell("tablet");
     const visualViewport = Object.assign(new EventTarget(), {
       height: 400,
       width: 390,

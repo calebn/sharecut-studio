@@ -3,6 +3,7 @@ import {
   type ListenInput,
   type ListenLayout,
   listenLayoutOf,
+  listenScriptOf,
   nearestBefore,
 } from "./listenLayout";
 
@@ -138,4 +139,23 @@ describe("nearestBefore", () => {
   it("gives null for no items", () => {
     expect(nearestBefore([], 10, 15)).toBeNull();
   });
+});
+
+describe("listenScriptOf", () => {
+  it.each([
+    [false, "ready", true, "ready"],
+    [false, "ready", false, "none"],
+    [false, "hidden", true, "none"],
+    [false, "pending", false, "pending"],
+    [false, "failed", true, "failed"],
+    [true, "ready", true, "failed"],
+    [true, "hidden", false, "failed"],
+  ] as const)(
+    "load failure %s, detail %s, transcript %s gives %s",
+    (loadFailed, detail, hasTranscript, expected) => {
+      expect(listenScriptOf({ loadFailed, detail, hasTranscript })).toBe(
+        expected,
+      );
+    },
+  );
 });
