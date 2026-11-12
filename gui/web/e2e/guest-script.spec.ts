@@ -18,7 +18,7 @@ const SIZES = [
 ] as const;
 
 for (const size of SIZES) {
-  test(`a Commenter link ${size.script ? "shows" : "hides"} the Script and keeps the composer in view at ${size.width}x${size.height}`, async ({
+  test(`a Commenter link ${size.script ? "shows" : "hides"} the Script and keeps the comment field reachable at ${size.width}x${size.height}`, async ({
     browser,
   }) => {
     await withShareableProject(async (projectPath) => {
@@ -36,14 +36,21 @@ for (const size of SIZES) {
           const token = await createReviewShare(host, projectPath, "commenter");
           await openGuestShare(guest, token);
           const script = guest.locator(".stage-host-guest-script");
+          const phone = size.width <= 767;
           if (size.script) {
             await expect(script).toBeVisible();
-            await expect(script).toContainText(
-              "You can comment and suggest edits",
-            );
+            await expect(
+              phone
+                ? script.locator(".sys-script-word").first()
+                : script.getByText("You can comment and suggest edits"),
+            ).toBeVisible();
             await expect(script).toBeInViewport();
           } else {
             await expect(script).toHaveCount(0);
+          }
+          if (phone) {
+            await expect(guest.getByRole("textbox")).toHaveCount(0);
+            await guest.getByRole("button", { name: /^Comment at/ }).tap();
           }
           const field = guest
             .locator(".rv-compose")
@@ -271,10 +278,11 @@ test("a Commenter keeps readable Script through native page zoom and viewport re
                 ),
               ),
               field: measure(document.querySelector(".rv-compose textarea")),
-              styled:
+              styled: ["flex", "grid"].includes(
                 getComputedStyle(
-                  document.querySelector(".rv-stage") ?? document.body,
-                ).display === "flex",
+                  document.querySelector(".gl, .rv-stage") ?? document.body,
+                ).display,
+              ),
             };
           });
         const nativeTabTo = async (target: typeof word) => {
@@ -308,12 +316,11 @@ test("a Commenter keeps readable Script through native page zoom and viewport re
           }
           await expect(target).toBeFocused();
         };
+        const comment = guest.getByRole("button", { name: /^Comment at/ });
         const capture = async (name: string, shown: boolean, scale = 1) => {
           await expect(script).toHaveCount(shown ? 1 : 0);
           if (shown) {
-            await expect(script).toContainText(
-              "You can comment and suggest edits",
-            );
+            await expect(word).toBeVisible();
             await nativeTabTo(word);
             await expect
               .poll(async () => (await observe()).word?.visibleWidth ?? 0)
@@ -342,6 +349,7 @@ test("a Commenter keeps readable Script through native page zoom and viewport re
               contentType: "image/png",
             });
           }
+          await comment.tap();
           await expect(field).toBeEditable();
           await nativeTabTo(field);
           await expect
@@ -369,6 +377,8 @@ test("a Commenter keeps readable Script through native page zoom and viewport re
             body: await guest.screenshot(),
             contentType: "image/png",
           });
+          await guest.getByRole("button", { name: "Close" }).tap();
+          await expect(field).toHaveCount(0);
         };
         let bodyFailed = false;
         let bodyFailure: unknown;
@@ -391,9 +401,9 @@ test("a Commenter keeps readable Script through native page zoom and viewport re
           await expect.poll(async () => (await observe()).visual.scale).toBe(1);
           await capture("zoom-reset", true);
           for (const checkpoint of [
-            { height: 460, shown: false, mediaShort: true },
-            { height: 500, shown: false, mediaShort: false },
-            { height: 519, shown: false, mediaShort: false },
+            { height: 460, shown: true, mediaShort: true },
+            { height: 500, shown: true, mediaShort: false },
+            { height: 519, shown: true, mediaShort: false },
             { height: 520, shown: true, mediaShort: false },
           ]) {
             await guest.setViewportSize({

@@ -95,10 +95,8 @@ async function withGuest(
         await openHostShare(host, projectPath);
         const token = await createReviewShare(host, projectPath, "commenter");
         await openGuestShare(page, token);
-        if (size.touch)
-          await page.getByRole("button", { name: /Expand player/ }).tap();
         const strip = page
-          .locator(".sys-player--expanded")
+          .locator(size.touch ? ".sys-dock" : ".sys-player--expanded")
           .getByRole("slider", { name: "Episode overview", exact: true });
         await expect(strip).toBeVisible();
         await run({
@@ -201,13 +199,13 @@ function settleFrames(page: Page): Promise<void> {
   );
 }
 
-test("the expanded Player shows the 60 s total duration on a phone", async ({
+test("the Listen dock shows the 60 s total duration on a phone", async ({
   browser,
 }) => {
   await withGuest(browser, PHONE, "light", async (guest) => {
-    const total = guest.page.locator(".sys-player--expanded .sys-player-total");
+    const total = guest.page.locator(".sys-dock .sys-player-total");
     await expect(total).toBeVisible();
-    await expect(total).toContainText("01:00");
+    await expect(total).toHaveText("1:00");
   });
 });
 
