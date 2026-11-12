@@ -202,3 +202,6 @@ export function formatIngestDuration(sec: number): string {
   const total = Math.round(s);
   return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, "0")}`;
 }
+
+/** The seconds the Player's skip buttons and the lock-screen skips move. */
+export const SKIP_SEC = 15;
