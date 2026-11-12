@@ -334,36 +334,56 @@ def test_post_edit_with_an_offset_publish_date_leaves_the_page_readable(episode:
     assert client.get("/api/feed", params={"path": str(episode)}).status_code == 200
 
 
-def test_a_relayed_guest_cannot_read_or_edit_the_listing(episode: Path) -> None:
-    relayed = TestClient(
+def _relayed() -> TestClient:
+    return TestClient(
         create_app(), client=("127.0.0.1", 50000), headers={RELAYED_REQUEST_HEADER: "1"}
     )
-
-    assert relayed.get("/api/feed", params={"path": str(episode)}).status_code == 403
-    res = relayed.post(
-        "/api/feed/edit",
-        json={"path": str(episode), "edit": {"op": "unset", "key": "item.intro"}},
-    )
-    assert res.status_code == 403
-    assert _rows(episode) == []
 
 
 @pytest.mark.parametrize(
     ("method", "path"),
     [("GET", "/api/feed"), ("POST", "/api/feed/edit"), ("POST", "/api/feed/write")],
 )
-def test_every_listing_route_refuses_a_relayed_caller(
+def test_a_relayed_guest_cannot_read_or_edit_the_listing(
     episode: Path, method: str, path: str
 ) -> None:
-    relayed = TestClient(
-        create_app(), client=("127.0.0.1", 50000), headers={RELAYED_REQUEST_HEADER: "1"}
-    )
     body = {"path": str(episode), "edit": {"op": "unset", "key": "item.intro"}}
 
-    res = relayed.request(method, path, params={"path": str(episode)}, json=body)
+    res = _relayed().request(method, path, params={"path": str(episode)}, json=body)
 
     assert res.status_code == 403
     assert res.headers[CODE] == "authz_denied"
+    assert _rows(episode) == []
+
+
+@pytest.mark.parametrize(
+    ("method", "path", "body"),
+    [("GET", "/api/feed", None), ("POST", "/api/feed/edit", {}), ("POST", "/api/feed/write", {})],
+)
+def test_the_gate_answers_before_the_request_is_validated(
+    method: str, path: str, body: dict[str, object] | None
+) -> None:
+    res = _relayed().request(method, path, json=body)
+
+    assert res.status_code == 403
+    assert res.headers[CODE] == "authz_denied"
+
+
+def test_strict_authz_honors_the_token_query_and_header(
+    episode: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("PODCAST_SESSION_AUTHZ", "strict")
+    monkeypatch.setenv("PODCAST_SESSION_TOKEN", "feed-token")
+    remote = TestClient(create_app(), client=("203.0.113.9", 50000))
+    params = {"path": str(episode)}
+
+    assert remote.get("/api/feed", params=params).status_code == 403
+    assert remote.get("/api/feed", params={**params, "token": "wrong"}).status_code == 403
+    assert remote.get("/api/feed", params={**params, "token": "feed-token"}).status_code == 200
+    wrong = {"X-Podcast-Token": "wrong"}
+    assert remote.get("/api/feed", params=params, headers=wrong).status_code == 403
+    right = {"X-Podcast-Token": "feed-token"}
+    assert remote.get("/api/feed", params=params, headers=right).status_code == 200
 
 
 def test_strict_authz_refuses_a_remote_peer(episode: Path, monkeypatch: pytest.MonkeyPatch) -> None:
