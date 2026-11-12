@@ -597,10 +597,20 @@ The eye popover's **Waveform scale** is three-way (icon segments): **Auto** (the
 every lane. The amplitude ×N control (the popover's amplitude scrub field, ×1 to ×16 with a ×1.25 step,
 or `Shift+ArrowUp/Down`) is a pre-mapping gain under both scales: under log,
 ×2 lifts the shape by 6 dB. The **Waveforms post-fader** chip in the same popover (off by default)
-multiplies the display gain by `dbToLinear(gain_db + fader_db)`
-(`utils/audio.ts` `trackOutputGainDb`), rounded to 0.5 dB
-(`postFaderDisplayGain`, `waveform/types.ts`) so a fader drag re-rasterizes
-at most once per half dB, in every audition mode. The scale,
+multiplies the display gain by `dbToLinear(gain_db + fader_db + clip gain_db)`
+(`utils/audio.ts` `trackOutputGainDb` plus the clip's `gain_db ?? 0`,
+`clipWaveformGainDb`, `waveform/mediaRef.ts`), rounded to 0.5 dB
+(`postFaderDisplayGain`, `waveform/types.ts`) so a fader or clip Gain drag
+re-rasterizes at most once per half dB, in every audition mode. The clip
+gain scales at draw time only: peaks are not re-extracted, and the
+rasterizer clamps each column to the lane (`displayAmplitude`), so +12 dB
+cannot overflow. It follows the displayed clip, so the Inspector Gain row's
+drag redraws the waveform live (a preview draft, put back on Escape or a
+refused save) and a saved or queued gain shows at once. A fresh FX stem
+already carries the clip gain (it is baked into the stem render), so a stem
+waveform takes the track gain alone; the raw waveform and a stale stem's
+fallback take the clip gain added. Like the track gain, it only applies
+while the chip is on. The scale,
 amplitude and post-fader flag are remembered per project, per browser, in
 `localStorage` (`sharecut.waveformView`, `utils/waveformViewPref.ts`, 32
 most-recent projects) — a convenience like `sharecut.laneHeight`, not a
