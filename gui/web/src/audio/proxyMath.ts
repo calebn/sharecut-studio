@@ -325,6 +325,13 @@ export function episodeEndSec(
   return end;
 }
 
+/** The episode end for a loaded project view, 0 before one loads. */
+export function episodeDurationSec(project: ProjectView | null): number {
+  return project
+    ? episodeEndSec(project.timeline_duration_sec ?? 0, project.clips.tracks)
+    : 0;
+}
+
 export function chunkRefKey(ref: ImmutableChunkRef): string {
   return JSON.stringify([ref.kind, ref.artifactId, ref.hash, ref.index]);
 }

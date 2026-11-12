@@ -2,10 +2,10 @@ import { isShareProjectKey } from "../shareMode";
 import { transportAvailability } from "../state/transportAvailability";
 import type { DawState } from "../state/types";
 import { SKIP_SEC } from "../utils/time";
-import { episodeEndSec } from "./proxyMath";
+import { episodeDurationSec } from "./proxyMath";
 
 /** Actions the lock screen or notification may send that the guest Player handles. */
-export const OS_ACTIONS = [
+const OS_ACTIONS = [
   "play",
   "pause",
   "seekbackward",
@@ -13,8 +13,8 @@ export const OS_ACTIONS = [
   "seekto",
 ] as const;
 /** Set to null: the listener gets second skips, never track buttons. */
-export const OS_CLEARED_ACTIONS = ["previoustrack", "nexttrack"] as const;
-export type OsAction = (typeof OS_ACTIONS)[number];
+const OS_CLEARED_ACTIONS = ["previoustrack", "nexttrack"] as const;
+type OsAction = (typeof OS_ACTIONS)[number];
 
 /** What the projection reads, already resolved from the store. */
 export type OsTransportInput = Readonly<{
@@ -29,7 +29,7 @@ export type OsTransportInput = Readonly<{
   playbackRate: number;
 }>;
 
-export type OsPositionState = Readonly<{
+type OsPositionState = Readonly<{
   duration: number;
   playbackRate: number;
   position: number;
@@ -86,14 +86,6 @@ export function projectOsMediaSession(
   };
 }
 
-/** Where the episode ends, by the engine's rule: the later of the stored duration and the last clip end. */
-export function episodeDurationSec(state: Pick<DawState, "project">): number {
-  const project = state.project;
-  return project
-    ? episodeEndSec(project.timeline_duration_sec ?? 0, project.clips.tracks)
-    : 0;
-}
-
 const guestCanPlay = (state: DawState): boolean =>
   isShareProjectKey(state.projectPath) &&
   transportAvailability(state).togglePlay === undefined;
@@ -105,7 +97,7 @@ export function osTransportInput(
   return {
     available: guestCanPlay(state),
     title: state.project?.meta.name ?? null,
-    durationSec: episodeDurationSec(state),
+    durationSec: episodeDurationSec(state.project),
     isPlaying: state.isPlaying,
     preview: state.sourcePreview
       ? { playing: state.sourcePreview.playing }
@@ -125,7 +117,7 @@ export function osDiscontinuityKey(state: DawState): string {
     state.projectPath,
     guestCanPlay(state),
     state.project?.meta.name ?? null,
-    episodeDurationSec(state),
+    episodeDurationSec(state.project),
     state.isPlaying,
     state.sourcePreview ? state.sourcePreview.playing : null,
     state.playheadSeekRevision,
@@ -138,9 +130,7 @@ export type MediaSessionLike = Pick<
   "metadata" | "playbackState" | "setActionHandler" | "setPositionState"
 >;
 
-export type OsActionHandlers = Readonly<
-  Record<OsAction, MediaSessionActionHandler>
->;
+type OsActionHandlers = Readonly<Record<OsAction, MediaSessionActionHandler>>;
 
 /**
  * Writes the change from `prev` to `next`: metadata, then state, then position.

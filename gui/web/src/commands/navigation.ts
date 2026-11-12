@@ -1,5 +1,5 @@
 import { patchComment } from "../api";
-import { episodeDurationSec } from "../audio/osMediaSession";
+import { episodeDurationSec } from "../audio/proxyMath";
 import { followCapsOf, planGoTo } from "../presence/goToPlan";
 import { rosterEntry } from "../presence/roster";
 import { canManageProjects, guestHearsMixOnly } from "../shareMode";
@@ -61,7 +61,7 @@ export function registerNavigationCommands(): void {
     const duration =
       s.project?.timeline_duration_sec == null
         ? Number.NaN
-        : episodeDurationSec(s);
+        : episodeDurationSec(s.project);
     s.setPlayheadSec(clampToSession(sec, duration));
     s.setPlayUntilSec(null);
     return { status: "ok" };
