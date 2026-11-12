@@ -2094,10 +2094,13 @@ export const ScriptPane = forwardRef<ScriptPaneHandle, ScriptPaneProps>(
       if (next) now.props.onSelect?.(next);
     };
 
+    // A phone guest's header would hold only the caption and the follow pin:
+    // the Role chip says what the link allows, and scrolling stops following.
     const showHeader =
-      status.kind === "ready" ||
-      status.kind === "transcribing" ||
-      status.kind === "outOfDate";
+      (status.kind === "ready" ||
+        status.kind === "transcribing" ||
+        status.kind === "outOfDate") &&
+      !(guest && layout === "phone");
 
     if (status.kind === "empty") {
       return (

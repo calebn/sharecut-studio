@@ -42,6 +42,15 @@ describe("GuestScript", () => {
     ).toBeInTheDocument();
   });
 
+  it("draws no caption or header on a phone, where the Role chip says it", () => {
+    setup({ layout: "phone" });
+    expect(screen.queryByText("You can comment and suggest edits")).toBeNull();
+    expect(document.querySelector(".sys-script-header")).toBeNull();
+    expect(
+      screen.queryByRole("button", { name: "Follow the playhead" }),
+    ).toBeNull();
+  });
+
   it("reads only without selection props: no selected state", () => {
     setup({ selection: undefined });
     expect(document.querySelector("[aria-selected]")).toBeNull();
