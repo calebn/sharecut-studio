@@ -202,7 +202,10 @@ export function buildScriptModel(input: ScriptModelInput): ScriptModel {
         wordKey({
           trackId: word.track_id,
           sourceId: word.source_id,
-          wordIndex: word.word_index,
+          // The server lists a boundary's cut words as previews at -1 - i, where
+          // i is the word's index in its utterance.
+          wordIndex:
+            word.word_index < 0 ? -1 - word.word_index : word.word_index,
         }),
       );
     }
