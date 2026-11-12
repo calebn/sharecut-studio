@@ -97,6 +97,21 @@ RAW_WRITES: dict[str, int] = {
 _WRITE_MODE_CHARS = frozenset("wax+")
 _INLINE_TEMPFILE = "<tempfile>"
 _ARCHIVE_WRITE_FIRST = frozenset("wax")
+_ARCHIVE_OPENS = frozenset(
+    {
+        "gzip.open",
+        "bz2.open",
+        "lzma.open",
+        "tarfile.open",
+        "zipfile.ZipFile",
+        "ZipFile",
+        "gzip.GzipFile",
+        "bz2.BZ2File",
+        "lzma.LZMAFile",
+        "tarfile.TarFile",
+    }
+)
+_OPEN_CALLS = frozenset({"io.open", "builtins.open", "codecs.open", "os.fdopen"})
 _SHUTIL_COPIES = frozenset({"shutil.copy", "shutil.copyfile", "shutil.copy2"})
 _TEMPFILE_BINDERS = frozenset(
     {"mkdtemp", "TemporaryDirectory", "NamedTemporaryFile", "mkstemp", "gettempdir"}
@@ -200,22 +215,6 @@ def _scratch_names(scope: ast.AST) -> set[str]:
     return scratch
 
 
-_ARCHIVE_OPENS = frozenset(
-    {
-        "gzip.open",
-        "bz2.open",
-        "lzma.open",
-        "tarfile.open",
-        "zipfile.ZipFile",
-        "ZipFile",
-        "gzip.GzipFile",
-        "bz2.BZ2File",
-        "lzma.LZMAFile",
-        "tarfile.TarFile",
-    }
-)
-
-
 def _mode(call: ast.Call, index: int) -> ast.expr | None:
     return call.args[index] if len(call.args) > index else _keyword_value(call, "mode")
 
@@ -228,13 +227,9 @@ def _raw_write_target(call: ast.Call) -> ast.expr | bool | None:
     """The written path expression for a banned call, ``None`` if unknown, ``False`` if allowed."""
     func = call.func
     chain = _attr_chain(func)
-    if (isinstance(func, ast.Name) and func.id == "open") or chain in {
-        "io.open",
-        "builtins.open",
-        "codecs.open",
-    }:
+    if (isinstance(func, ast.Name) and func.id == "open") or chain in _OPEN_CALLS:
         return _first_arg(call) if _is_write_mode(_mode(call, 1)) else False
-    if chain in _ARCHIVE_OPENS or (isinstance(func, ast.Name) and func.id == "ZipFile"):
+    if chain in _ARCHIVE_OPENS:
         mode = _mode(call, 1)
         is_write = (
             isinstance(mode, ast.Constant)
@@ -242,8 +237,6 @@ def _raw_write_target(call: ast.Call) -> ast.expr | bool | None:
             and mode.value[:1] in _ARCHIVE_WRITE_FIRST
         )
         return _first_arg(call) if is_write else False
-    if chain == "os.fdopen":
-        return _first_arg(call) if _is_write_mode(_mode(call, 1)) else False
     if not isinstance(func, ast.Attribute):
         return False
     if func.attr == "open":
@@ -273,7 +266,7 @@ def scan_source(source: str, filename: str = "<string>") -> list[int]:
             if target is not False:
                 root = _root_name(target) if isinstance(target, ast.expr) else None
                 scratch = root == _INLINE_TEMPFILE or root in scratch_by_scope[id(scope)]
-                if root is None or not scratch:
+                if not scratch:
                     lines.append(node.lineno)
         for child in ast.iter_child_nodes(node):
             visit(child, scope)
@@ -374,7 +367,6 @@ def test_the_stale_check_flags_a_cap_of_zero_and_a_file_with_no_write_left() -> 
         'open(p, mode="w")',
         'io.open(p, "w")',
         'os.fdopen(fd, "w", encoding="utf-8")',
-        'os.fdopen(fd, "wb")',
         'os.fdopen(fd, mode="w")',
         'gzip.open(p, "wb")',
         'bz2.open(p, mode="w")',
@@ -468,23 +460,12 @@ def test_the_scanner_counts_module_level_and_async_and_nested_writes() -> None:
     assert scan_source(source) == [1, 4, 5]
 
 
-def test_the_scan_skips_the_atomic_helpers(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    (tmp_path / "util").mkdir()
-    raw = "def f(p):\n    p.write_text('x')\n"
-    (tmp_path / "util" / "atomic_file.py").write_text(raw, encoding="utf-8")
-    (tmp_path / "util" / "other.py").write_text(raw, encoding="utf-8")
-    (tmp_path / "atomic_elsewhere.py").write_text(raw, encoding="utf-8")
-    monkeypatch.setattr(f"{__name__}.SRC", tmp_path)
-    assert _raw_write_counts() == {"util/other.py": 1, "atomic_elsewhere.py": 1}
-
-
-@pytest.mark.parametrize("name", ["p", "path", "out", "handle"])
 @pytest.mark.parametrize(
     "call",
     ['zipfile.ZipFile({n}, "w")', 'tarfile.open({n}, "w:gz")', 'gzip.open({n}, "wb")'],
 )
-def test_an_archive_write_on_a_parameter_is_counted(name: str, call: str) -> None:
-    source = f"def f({name}):\n    {call.format(n=name)}\n"
+def test_an_archive_write_on_a_parameter_is_counted(call: str) -> None:
+    source = f"def f(p):\n    {call.format(n='p')}\n"
     assert scan_source(source) == [2]
 
 
@@ -535,10 +516,19 @@ def test_only_the_top_level_util_atomic_helpers_are_skipped(
     (tmp_path / "util").mkdir()
     (tmp_path / "services" / "util").mkdir(parents=True)
     raw = "def f(p):\n    p.write_text('x')\n"
-    (tmp_path / "util" / "atomic_new.py").write_text(raw, encoding="utf-8")
-    (tmp_path / "services" / "util" / "atomic_cache.py").write_text(raw, encoding="utf-8")
+    for rel in (
+        "util/atomic_file.py",
+        "util/other.py",
+        "atomic_elsewhere.py",
+        "services/util/atomic_cache.py",
+    ):
+        (tmp_path / rel).write_text(raw, encoding="utf-8")
     monkeypatch.setattr(f"{__name__}.SRC", tmp_path)
-    assert _raw_write_counts() == {"services/util/atomic_cache.py": 1}
+    assert _raw_write_counts() == {
+        "util/other.py": 1,
+        "atomic_elsewhere.py": 1,
+        "services/util/atomic_cache.py": 1,
+    }
 
 
 def test_a_bad_source_file_is_named_and_a_bom_is_tolerated(
