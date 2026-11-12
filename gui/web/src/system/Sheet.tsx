@@ -126,10 +126,14 @@ export function Sheet({
       headingRef.current?.focus({ preventScroll: true });
       return;
     }
+    // The bottom form's Back lives in the header, ahead of the body's controls.
     const focusFirst = () =>
-      rowsRef.current
-        ?.querySelector<HTMLElement>(FOCUSABLE)
-        ?.focus({ preventScroll: true });
+      (
+        rowsRef.current
+          ?.closest("[role=dialog]")
+          ?.querySelector<HTMLElement>(".bottom-sheet-back") ??
+        rowsRef.current?.querySelector<HTMLElement>(FOCUSABLE)
+      )?.focus({ preventScroll: true });
     focusFirst();
     // The new title restarts the overlay hook, which moves focus to Close on
     // the next frame. Take it back after that, unless the user moved it.
