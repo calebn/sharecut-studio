@@ -1,6 +1,6 @@
 import type { ClipRow, ProjectView, TrackView } from "../types/project";
-import { clipSourceToTimelineNearest } from "../utils/clipTiming";
 import { clipGainDb } from "../utils/audio";
+import { clipSourceToTimelineNearest } from "../utils/clipTiming";
 import { originTrackId } from "../utils/timebase";
 import type { MediaRef, WaveformKind } from "./types";
 
