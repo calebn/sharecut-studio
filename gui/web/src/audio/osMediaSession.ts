@@ -16,7 +16,6 @@ const OS_ACTIONS = [
 const OS_CLEARED_ACTIONS = ["previoustrack", "nexttrack"] as const;
 type OsAction = (typeof OS_ACTIONS)[number];
 
-/** What the projection reads, already resolved from the store. */
 export type OsTransportInput = Readonly<{
   /** A guest share with something to play. */
   available: boolean;
@@ -40,11 +39,9 @@ export type OsMediaSessionState = Readonly<{
   playbackState: "none" | "paused" | "playing";
   /** null clears the browser's position state. */
   positionState: OsPositionState | null;
-  /** True: every OS_ACTIONS handler is set. False: all are null. */
   handlersOn: boolean;
 }>;
 
-/** What the browser holds before the page touches the Media Session. */
 export const OS_SESSION_OFF: OsMediaSessionState = {
   metadata: null,
   playbackState: "none",

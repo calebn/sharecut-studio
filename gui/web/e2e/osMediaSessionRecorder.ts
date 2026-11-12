@@ -1,6 +1,5 @@
 import type { Page } from "@playwright/test";
 
-/** What the page recorded about the OS media surface, read back by the specs. */
 export interface OsRecorderSnapshot {
   metadata: { title: string; artist: string; album: string } | null;
   playbackState: string;
