@@ -12,7 +12,6 @@
     "guest role|gui/web/src/system/AppHeader.tsx": 1,
     "host offline|gui/web/src/utils/apiError.ts": 1,
     "leave gap|gui/web/src/system/ScopeChip.tsx": 1,
-    "mix out of date|gui/web/src/system/Player.tsx": 1,
     "mix out of date|gui/web/src/utils/staleRender.ts": 1,
     "not found|gui/web/src/inspector/selectionSurface.tsx": 2,
     "not found|gui/web/src/record/guestRoomModel.ts": 1,
@@ -20,15 +19,13 @@
     "not found|gui/web/src/stage/edit/CommentThread.tsx": 1,
     "not found|gui/web/src/stage/edit/bleedSections.tsx": 1,
     "not found|gui/web/src/stage/edit/clipSections.tsx": 1,
-    "not found|gui/web/src/stage/edit/commentSections.tsx": 2,
+    "not found|gui/web/src/stage/edit/commentSections.tsx": 1,
     "not found|gui/web/src/stage/edit/multiClipSections.tsx": 1,
     "not found|gui/web/src/stage/edit/pendingSections.tsx": 1,
     "not found|gui/web/src/stage/edit/seamSections.tsx": 1,
     "not found|gui/web/src/stage/edit/socialSections.tsx": 1,
     "not found|gui/web/src/stage/edit/trackSections.tsx": 1,
     "not found|gui/web/src/stage/edit/wordSections.tsx": 1,
-    "saved to project|gui/web/src/record/saveStatus.ts": 1,
-    "saved to project|gui/web/src/record/types.ts": 4,
     "wait for the current action to finish.|gui/web/src/ui/disabledReason.tsx": 1
   }
 }

@@ -2,18 +2,13 @@
 
 from __future__ import annotations
 
-import importlib.util
-import sys
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[1]
-_SPEC = importlib.util.spec_from_file_location(
-    "check_terminology", ROOT / "scripts" / "check_terminology.py"
-)
-assert _SPEC is not None and _SPEC.loader is not None
-lint = importlib.util.module_from_spec(_SPEC)
-sys.modules["check_terminology"] = lint
-_SPEC.loader.exec_module(lint)
+import pytest
+
+from script_loader import load_script
+
+lint = load_script("check_terminology")
 
 TABLE = """\
 ## Terminology
@@ -23,6 +18,8 @@ TABLE = """\
 | Review link | Async share | "share link"; "Run pipeline", "Start" |
 | Record room | Live room | "session link", "call" |
 | Comment here | Starts a draft | "Add comment" in the create menu |
+| Land | Finish | "save" (a recording is "Saved to project"; Land places it) |
+| Broken | short row |
 
 ## Next
 | Term | Meaning | Never say |
@@ -44,7 +41,7 @@ def test_the_copy_holds_no_phrase_beyond_the_baseline() -> None:
 def test_only_quoted_multi_word_phrases_of_the_terminology_table_are_read(tmp_path: Path) -> None:
     doc = tmp_path / "doc.md"
     doc.write_text(TABLE, encoding="utf-8")
-    assert lint.never_say_phrases(doc) == {
+    assert lint.never_say_phrases(doc, minimum=1) == {
         "share link": "Review link",
         "run pipeline": "Review link",
         "session link": "Record room",
@@ -52,10 +49,14 @@ def test_only_quoted_multi_word_phrases_of_the_terminology_table_are_read(tmp_pa
     }
 
 
-def test_the_real_table_yields_phrases() -> None:
-    phrases = lint.never_say_phrases()
-    assert phrases["share link"] == "Review link"
-    assert "start" not in phrases
+def test_a_table_that_yields_too_few_phrases_stops_the_check(tmp_path: Path) -> None:
+    doc = tmp_path / "doc.md"
+    doc.write_text(TABLE, encoding="utf-8")
+    with pytest.raises(SystemExit, match="fewer than"):
+        lint.never_say_phrases(doc)
+    doc.write_text("# no table", encoding="utf-8")
+    with pytest.raises(SystemExit, match="no '## Terminology'"):
+        lint.never_say_phrases(doc)
 
 
 def test_text_is_counted_in_literals_and_jsx_but_not_in_imports_tests_or_stories(
@@ -97,3 +98,50 @@ def test_write_then_load_round_trips(tmp_path: Path) -> None:
     path = tmp_path / "baseline.json"
     lint.write_baseline({"b|f": 2, "a|f": 1}, path)
     assert lint.load_baseline(path) == {"a|f": 1, "b|f": 2}
+
+
+def test_a_phrase_in_parentheses_is_an_example_and_a_short_row_is_skipped(tmp_path: Path) -> None:
+    doc = tmp_path / "doc.md"
+    doc.write_text(TABLE, encoding="utf-8")
+    phrases = lint.never_say_phrases(doc, minimum=1)
+    assert "saved to project" not in phrases
+    assert "Land" not in phrases.values()
+
+
+def test_comments_and_mid_word_matches_are_not_copy(tmp_path: Path) -> None:
+    _src(
+        tmp_path,
+        "View.tsx",
+        "// the share link in a comment\n"
+        "/* share link\n   again */\n"
+        'const url = "https://x.test/share link";\n'
+        'const a = "reshare link";\n',
+    )
+    counts = lint.scan(tmp_path, {"share link": "Review link"})
+    assert counts == {"share link|gui/web/src/View.tsx": 1}
+
+
+def test_a_test_folder_above_the_checkout_does_not_hide_the_source(tmp_path: Path) -> None:
+    root = tmp_path / "test" / "checkout"
+    _src(root, "View.tsx", 'const a = "share link";\n')
+    assert lint.scan(root, {"share link": "Review link"}) == {"share link|gui/web/src/View.tsx": 1}
+
+
+def test_main_exits_on_a_new_hit_and_write_rewrites_the_baseline(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    doc = tmp_path / "doc.md"
+    doc.write_text(TABLE, encoding="utf-8")
+    baseline = tmp_path / "baseline.json"
+    lint.write_baseline({}, baseline)
+    _src(tmp_path, "View.tsx", 'const a = "share link";\n')
+    monkeypatch.setattr(lint, "ROOT", tmp_path)
+    monkeypatch.setattr(lint, "TABLE_DOC", doc)
+    monkeypatch.setattr(lint, "BASELINE", baseline)
+    monkeypatch.setattr(lint, "MIN_PHRASES", 1)
+    monkeypatch.setattr(lint, "never_say_phrases", lambda: {"share link": "Review link"})
+    assert lint.main([]) == 1
+    assert "View.tsx" in capsys.readouterr().err
+    assert lint.main(["--write"]) == 0
+    assert lint.load_baseline(baseline) == {"share link|gui/web/src/View.tsx": 1}
+    assert lint.main([]) == 0

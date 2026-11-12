@@ -170,10 +170,10 @@ The web app's copy does not use a quoted multi-word phrase from the "Never say" 
 Terminology table in [communication-philosophy.md](communication-philosophy.md) (#3123 item 7).
 `scripts/check_terminology.py` (run by `make lint-py`; CI runs it through `tests/test_terminology.py`)
 reads those phrases and looks for them in the string literals and JSX text of `gui/web/src`, outside
-tests, stories and generated files, and compares the hits per phrase and file with
+comments, `*.test.*`, `*.stories.*` and `*.generated.*` files and `test/` folders, and compares the hits per phrase and file with
 `tests/terminology_baseline.json`. The list is a ratchet like the wait list above: a file may not
 gain a hit, and a file that lost hits must lower its count with `python scripts/check_terminology.py
---write`. Single words are not read, because the table bans them only in a stated sense ("clip" for a
+--write`. A phrase in parentheses in the table is an example of what to say and is not read. The baseline sits in `tests/` because a `contracts/*.json` file joins the native CI plan. Single words are not read, because the table bans them only in a stated sense ("clip" for a
 recording pass). A hit that is right in its context stays in the baseline until the table is narrowed
 or the copy changes.
 
