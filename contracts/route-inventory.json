@@ -1,6 +1,5 @@
 {
   "api_version": 1,
-  "comment": "Gate class of every route the app mounts (#3123). host_direct_baseline is a ratchet: the handlers that call require_host themselves may only shrink. Regenerate with scripts/check_route_inventory.py --write.",
   "host_direct_baseline": 91,
   "routes": [
     {
@@ -212,18 +211,20 @@
       "path": "/api/export/files/reveal"
     },
     {
-      "gate": "host",
+      "gate": "other",
       "handler": "podcast_mcp.gui.routes.export_routes:download_export_file",
       "host_direct": true,
       "method": "GET",
-      "path": "/api/export/files/{file_id:path}"
+      "path": "/api/export/files/{file_id:path}",
+      "reason": "require_host unless a per-file export ticket is given, which then stands in for it"
     },
     {
-      "gate": "host",
+      "gate": "other",
       "handler": "podcast_mcp.gui.routes.export_routes:download_export_file",
       "host_direct": true,
       "method": "HEAD",
-      "path": "/api/export/files/{file_id:path}"
+      "path": "/api/export/files/{file_id:path}",
+      "reason": "require_host unless a per-file export ticket is given, which then stands in for it"
     },
     {
       "gate": "public",
@@ -1188,105 +1189,105 @@
       "handler": "podcast_mcp.gui.routes.auth:mint_agent_credential",
       "method": "POST",
       "path": "/auth/agent-credential",
-      "reason": "account sign-in flow; the caller has no session yet"
+      "reason": "needs the session cookie and a share ACL entry for the user"
     },
     {
       "gate": "other",
       "handler": "podcast_mcp.gui.routes.auth:auth_callback",
       "method": "GET",
       "path": "/auth/callback/{provider}",
-      "reason": "account sign-in flow; the caller has no session yet"
+      "reason": "finishes the OAuth redirect and mints the session"
     },
     {
       "gate": "other",
       "handler": "podcast_mcp.gui.routes.auth:auth_login_page",
       "method": "GET",
       "path": "/auth/login",
-      "reason": "account sign-in flow; the caller has no session yet"
+      "reason": "static sign-in hint page; the caller has no session yet"
     },
     {
       "gate": "other",
       "handler": "podcast_mcp.gui.routes.auth:auth_login_start",
       "method": "GET",
       "path": "/auth/login/{provider}",
-      "reason": "account sign-in flow; the caller has no session yet"
+      "reason": "starts the OAuth redirect; the caller has no session yet"
     },
     {
       "gate": "other",
       "handler": "podcast_mcp.gui.routes.auth:auth_logout",
       "method": "POST",
       "path": "/auth/logout",
-      "reason": "account sign-in flow; the caller has no session yet"
+      "reason": "revokes the session cookie it is sent; a missing cookie is a no-op"
     },
     {
       "gate": "other",
       "handler": "podcast_mcp.gui.routes.auth:auth_magic_link",
       "method": "POST",
       "path": "/auth/magic-link",
-      "reason": "account sign-in flow; the caller has no session yet"
+      "reason": "emails a sign-in link; the caller has no session yet"
     },
     {
       "gate": "other",
       "handler": "podcast_mcp.gui.routes.auth:auth_magic_consume",
       "method": "GET",
       "path": "/auth/magic-link/consume",
-      "reason": "account sign-in flow; the caller has no session yet"
+      "reason": "the one-time token mints the session; no session yet"
     },
     {
       "gate": "other",
       "handler": "podcast_mcp.gui.routes.auth:auth_me",
       "method": "GET",
       "path": "/auth/me",
-      "reason": "account sign-in flow; the caller has no session yet"
+      "reason": "reads the session cookie and answers null without one"
     },
     {
       "gate": "other",
       "handler": "podcast_mcp.gui.routes.auth:passkey_login_begin",
       "method": "POST",
       "path": "/auth/passkey/login/begin",
-      "reason": "account sign-in flow; the caller has no session yet"
+      "reason": "starts a passkey sign-in; the caller has no session yet"
     },
     {
       "gate": "other",
       "handler": "podcast_mcp.gui.routes.auth:passkey_login_finish",
       "method": "POST",
       "path": "/auth/passkey/login/finish",
-      "reason": "account sign-in flow; the caller has no session yet"
+      "reason": "checks the passkey and mints the session; no session yet"
     },
     {
       "gate": "other",
       "handler": "podcast_mcp.gui.routes.auth:passkey_register_begin",
       "method": "POST",
       "path": "/auth/passkey/register/begin",
-      "reason": "account sign-in flow; the caller has no session yet"
+      "reason": "needs the session cookie; 401 without one"
     },
     {
       "gate": "other",
       "handler": "podcast_mcp.gui.routes.auth:passkey_register_finish",
       "method": "POST",
       "path": "/auth/passkey/register/finish",
-      "reason": "account sign-in flow; the caller has no session yet"
+      "reason": "needs the session cookie; 401 without one"
     },
     {
       "gate": "other",
       "handler": "podcast_mcp.gui.routes.auth:auth_password_login",
       "method": "POST",
       "path": "/auth/password/login",
-      "reason": "account sign-in flow; the caller has no session yet"
+      "reason": "checks the password and mints the session; no session yet"
     },
     {
       "gate": "other",
       "handler": "podcast_mcp.gui.routes.auth:auth_password_register",
       "method": "POST",
       "path": "/auth/password/register",
-      "reason": "account sign-in flow; the caller has no session yet"
+      "reason": "creates the account and its session; no session yet"
     },
     {
       "gate": "other",
       "handler": "podcast_mcp.gui.routes.auth:auth_providers",
       "method": "GET",
       "path": "/auth/providers",
-      "reason": "account sign-in flow; the caller has no session yet"
+      "reason": "lists the sign-in providers; the caller has no session yet"
     },
     {
       "gate": "public",

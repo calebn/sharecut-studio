@@ -137,6 +137,7 @@ NATIVE_CONTRACTS: dict[str, frozenset[NativeFamily]] = {
     "join-length-limits.json": PYTHON_NATIVE,
     "project-writers.json": PYTHON_NATIVE,
     "ripple-scope.json": PYTHON_NATIVE,
+    "route-inventory.json": PYTHON_NATIVE,
     "timeline-zoom.json": PYTHON_NATIVE,
     "trim-edge-limits.json": PYTHON_NATIVE,
     **dict.fromkeys(

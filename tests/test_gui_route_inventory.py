@@ -5,11 +5,16 @@ from __future__ import annotations
 import copy
 import importlib
 import importlib.util
+import subprocess
 import sys
 from pathlib import Path
 from typing import Any
 
 import pytest
+
+from script_loader import load_script
+
+pytest.importorskip("fastapi")
 
 ROOT = Path(__file__).resolve().parents[1]
 _SPEC = importlib.util.spec_from_file_location(
@@ -21,6 +26,7 @@ sys.modules["check_route_inventory"] = inventory
 _SPEC.loader.exec_module(inventory)
 
 WRITE = "check_route_inventory.py --write"
+branches = load_script("branches", register=True)
 
 
 @pytest.fixture(scope="module")
@@ -39,36 +45,15 @@ def _keys(rows: list[dict[str, Any]]) -> set[tuple[str, str]]:
     return {(r["method"], r["path"]) for r in rows}
 
 
-def test_every_mounted_route_has_a_row(live, contract) -> None:
-    missing = sorted(_keys(live) - _keys(contract["routes"]))
-    assert not missing, f"mounted routes without a row: {missing}. Run scripts/{WRITE}."
+def _contract_of(live: list[dict[str, Any]]) -> dict[str, Any]:
+    return {
+        "host_direct_baseline": inventory.host_direct_count(live),
+        "routes": copy.deepcopy(live),
+    }
 
 
-def test_every_row_has_a_mounted_route(live, contract) -> None:
-    stale = sorted(_keys(contract["routes"]) - _keys(live))
-    assert not stale, f"rows without a mounted route: {stale}. Run scripts/{WRITE}."
-
-
-def test_recorded_gate_classes_match_the_handlers(live, contract) -> None:
-    recorded = {(r["method"], r["path"]): r["gate"] for r in contract["routes"]}
-    drift = sorted(
-        (r["method"], r["path"], recorded[(r["method"], r["path"])], r["gate"])
-        for r in live
-        if (r["method"], r["path"]) in recorded and recorded[(r["method"], r["path"])] != r["gate"]
-    )
-    assert not drift, f"(method, path, recorded, live): {drift}. Run scripts/{WRITE}."
-
-
-def test_direct_require_host_handlers_only_shrink(live, contract) -> None:
-    direct, baseline = inventory.host_direct_count(live), contract["host_direct_baseline"]
-    assert direct <= baseline, (
-        f"{direct} handlers call require_host directly, baseline is {baseline}. "
-        "The count may only shrink; gate the route another way."
-    )
-    assert direct == baseline, (
-        f"{direct} handlers call require_host directly, baseline is {baseline}. "
-        f"Lower host_direct_baseline: run scripts/{WRITE}."
-    )
+def test_the_contract_matches_the_mounted_routes(live, contract) -> None:
+    assert list(inventory.problems(live, contract)) == [], f"Run scripts/{WRITE}."
 
 
 def test_the_contract_is_the_generated_form(live, contract) -> None:
@@ -78,9 +63,33 @@ def test_the_contract_is_the_generated_form(live, contract) -> None:
     )
 
 
+def test_the_baseline_has_not_grown_since_the_origin_base(live, contract) -> None:
+    base = f"origin/{branches.base()}"
+    resolves = subprocess.run(
+        ["git", "rev-parse", "--verify", "--quiet", f"{base}^{{commit}}"],
+        cwd=ROOT,
+        check=False,
+        capture_output=True,
+    )
+    if resolves.returncode:
+        pytest.skip(f"{base} is not available in this checkout")
+    recorded = inventory.base_baseline(base)
+    problems = inventory.growth(
+        recorded, inventory.host_direct_count(live), contract["host_direct_baseline"]
+    )
+    assert list(problems) == []
+
+
+def test_a_raised_baseline_with_a_new_direct_handler_fails_the_growth_check(live) -> None:
+    base = inventory.host_direct_count(live)
+    assert list(inventory.growth(None, base + 1, base + 1)) == []
+    assert list(inventory.growth(base, base, base)) == []
+    assert len(list(inventory.growth(base, base + 1, base + 1))) == 2
+
+
 def test_no_other_route_is_unreviewed(live) -> None:
     unreviewed = [r["path"] for r in live if r.get("reason") == inventory.UNREVIEWED]
-    assert not unreviewed, f"add a reason to OTHER_REASONS for: {unreviewed}"
+    assert not unreviewed, f"add a reason to OTHER_REASONS or OVERRIDES for: {unreviewed}"
 
 
 def test_the_inventory_covers_the_extension_and_share_ui_routes(live) -> None:
@@ -92,14 +101,30 @@ def test_the_inventory_covers_the_extension_and_share_ui_routes(live) -> None:
     assert ("POST", "/api/shares") in keys
     assert ("GET", "/auth/me") in keys
     assert ("GET", "/r/{token}") in keys
-    assert {"WS"} == {m for m, p in keys if p.endswith("/ws")}
-    assert inventory.WEBSOCKET in {r["method"] for r in live if r["path"] == "/api/host/ws"}
+    assert {inventory.WEBSOCKET} == {m for m, p in keys if p.endswith("/ws")}
+
+
+def test_the_variants_each_mount_a_subset_of_the_inventory(live) -> None:
+    for app in inventory.variant_apps():
+        assert _keys(inventory.live_rows([app])) <= _keys(live)
+    without_bundle = _keys(inventory.live_rows([inventory.build_app(bundle=False)]))
+    assert (inventory.MOUNT, "/assets") not in without_bundle
+    lan = _keys(inventory.live_rows([inventory.build_app(bind_host="0.0.0.0")]))
+    assert ("POST", "/mcp") not in lan
+    assert ("POST", "/mcp") in _keys(live)
+
+
+def test_the_account_routes_that_need_a_session_say_so(live) -> None:
+    reasons = {(r["method"], r["path"]): r.get("reason", "") for r in live}
+    for path in ("/auth/passkey/register/begin", "/auth/passkey/register/finish", "/auth/logout"):
+        assert "no session yet" not in reasons[("POST", path)]
+    assert "no session yet" in reasons[("POST", "/auth/password/login")]
 
 
 @pytest.mark.parametrize("helper", sorted(inventory.HOST_HELPERS))
 def test_known_host_helpers_call_require_host(helper: str) -> None:
     module = importlib.import_module(inventory.HOST_HELPERS[helper])
-    assert inventory.calls_require_host(getattr(module, helper))
+    assert inventory.HOST_CALL in inventory.referenced_names(getattr(module, helper))
 
 
 def require_host(request): ...
@@ -126,6 +151,15 @@ def _authorized(request):
     require_authz(request)
 
 
+def _depends(request, gate=require_host):
+    return gate
+
+
+def _aliased(request):
+    gate = require_host
+    gate(request)
+
+
 def _commented(request):
     """Mentions require_host(request) in a docstring only."""
     return "require_host(request)"
@@ -135,27 +169,56 @@ def test_gate_classes_come_from_the_handler_source() -> None:
     assert inventory.gate_of("GET", "/x", _direct) == ("host", None)
     assert inventory.gate_of("GET", "/x", _helper) == ("host", None)
     assert inventory.gate_of("GET", "/x", _authorized) == ("authz", None)
+    assert inventory.gate_of("GET", "/x", _aliased) == ("host", None)
     assert inventory.gate_of("GET", "/x", _commented) == ("other", inventory.UNREVIEWED)
     assert inventory.gate_of("GET", "/x", _plain) == ("other", inventory.UNREVIEWED)
-    assert inventory.calls_require_host(_direct)
-    assert not inventory.calls_require_host(_helper)
-    assert not inventory.calls_require_host(_commented)
+    assert inventory.HOST_CALL in inventory.referenced_names(_direct)
+    assert inventory.HOST_CALL not in inventory.referenced_names(_helper)
+    assert inventory.HOST_CALL not in inventory.referenced_names(_commented)
 
 
-def test_an_unlisted_route_a_stale_row_and_a_raised_baseline_each_fail(live) -> None:
-    contract = {
-        "host_direct_baseline": inventory.host_direct_count(live),
-        "routes": copy.deepcopy(live),
-    }
-    assert list(inventory.problems(live, contract)) == []
+def test_a_dependency_on_a_gate_counts_and_unreadable_source_fails() -> None:
+    assert inventory.gate_of("GET", "/x", _plain, [_direct]) == ("host", None)
+    assert inventory.gate_of("GET", "/x", _plain, [_authorized]) == ("authz", None)
+    namespace: dict[str, Any] = {}
+    exec("def unreadable(request): ...", namespace)
+    unreadable = namespace["unreadable"]
+    with pytest.raises((OSError, TypeError)):
+        inventory.referenced_names(unreadable)
 
+
+def test_a_guest_module_handler_must_name_a_check() -> None:
+    def _check_token(token): ...
+
+    def named(token):
+        _check_token(token)
+
+    def bare(token): ...
+
+    named.__module__ = bare.__module__ = "podcast_mcp.gui.routes.review_share"
+    assert inventory.gate_of("GET", "/x", named) == ("guest", None)
+    assert inventory.gate_of("GET", "/x", bare) == ("other", inventory.UNREVIEWED)
+
+
+def test_a_duplicate_method_and_path_is_an_error() -> None:
+    from fastapi import FastAPI
+
+    app = FastAPI()
+    app.get("/dup")(_plain)
+    app.get("/dup")(_authorized)
+    with pytest.raises(ValueError, match="mounted twice"):
+        inventory.live_rows([app])
+
+
+def test_each_drift_is_reported(live) -> None:
+    contract = _contract_of(live)
     extra = [*live, {"method": "GET", "path": "/api/new", "gate": "host", "handler": "m:f"}]
     assert any(
         "/api/new is mounted but has no row" in m for m in inventory.problems(extra, contract)
     )
 
-    shrunk = copy.deepcopy(contract)
-    shrunk["routes"] = [r for r in shrunk["routes"] if r["path"] != "/api/health"]
+    health = next(r for r in contract["routes"] if r["path"] == "/api/health")
+    shrunk = {**contract, "routes": [r for r in contract["routes"] if r is not health]}
     assert any(
         "/api/health is mounted but has no row" in m for m in inventory.problems(live, shrunk)
     )
@@ -164,15 +227,19 @@ def test_an_unlisted_route_a_stale_row_and_a_raised_baseline_each_fail(live) -> 
     stale["routes"].append({"method": "GET", "path": "/gone", "gate": "host", "handler": "m:f"})
     assert any("/gone has a row but no mounted route" in m for m in inventory.problems(live, stale))
 
-    drifted = copy.deepcopy(contract)
-    drifted["routes"][0]["gate"] = "public"
-    assert any("records 'public'" in m for m in inventory.problems(live, drifted))
 
-    lowered = copy.deepcopy(contract)
+def test_a_changed_gate_class_is_reported(live) -> None:
+    drifted = _contract_of(live)
+    health = next(r for r in drifted["routes"] if r["path"] == "/api/health")
+    health["gate"] = "host"
+    assert any("records 'host'" in m for m in inventory.problems(live, drifted))
+
+
+def test_the_baseline_must_equal_the_count(live) -> None:
+    lowered = _contract_of(live)
     lowered["host_direct_baseline"] -= 1
-    messages = list(inventory.problems(live, lowered))
-    assert any("may only shrink" in m for m in messages)
+    assert any("may only shrink" in m for m in inventory.problems(live, lowered))
 
-    raised = copy.deepcopy(contract)
+    raised = _contract_of(live)
     raised["host_direct_baseline"] += 1
     assert any("Lower it" in m for m in inventory.problems(live, raised))
