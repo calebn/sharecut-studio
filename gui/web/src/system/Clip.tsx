@@ -10,6 +10,7 @@ import {
   useRef,
 } from "react";
 import { HANDLE_DRAG_MIN_PX } from "../hooks/gestureConstants";
+import { listenForInterrupt } from "../hooks/useInterruptCancel";
 import { presenceColorVar } from "../presence/colors";
 import { formatTime } from "../utils/time";
 import { useStableCallback } from "../utils/useStableCallback";
@@ -121,7 +122,7 @@ export type ClipProps = {
   ) => boolean | undefined;
   onDrag?: (id: string, grip: ClipGrip, drag: ClipDrag) => void;
   /**
-   * `committed` is false when Escape, a window blur, the browser, a lost
+   * `committed` is false when Escape, a window blur, a hidden page or tab, the browser, a lost
    * capture or the clip leaving the page ended it.
    */
   onDragEnd?: (id: string, grip: ClipGrip, committed: boolean) => void;
@@ -283,6 +284,7 @@ export const Clip = memo(function Clip({
     if (grab.current && grab.current.pointerId !== event.pointerId) return;
     dragged.current = false;
     grab.current?.stopWatching();
+    const interrupts = new AbortController();
     grab.current = {
       grip,
       pointerId: event.pointerId,
@@ -291,11 +293,11 @@ export const Clip = memo(function Clip({
       moved: false,
       stopWatching() {
         document.removeEventListener("keydown", escapeDrag, true);
-        window.removeEventListener("blur", abort);
+        interrupts.abort();
       },
     };
     document.addEventListener("keydown", escapeDrag, true);
-    window.addEventListener("blur", abort);
+    listenForInterrupt(abort, interrupts.signal);
     capturePointer(event);
   };
   const move = (event: PointerEvent<HTMLElement>) => {

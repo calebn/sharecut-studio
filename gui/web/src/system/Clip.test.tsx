@@ -446,6 +446,23 @@ describe("Clip cancelling a drag", () => {
     expect(onDragEnd.mock.calls).toEqual([["clip-1", "fade-out", false]]);
   });
 
+  it.each([
+    ["pagehide", () => window.dispatchEvent(new Event("pagehide"))],
+    [
+      "the tab going hidden",
+      () => {
+        vi.spyOn(document, "visibilityState", "get").mockReturnValue("hidden");
+        document.dispatchEvent(new Event("visibilitychange"));
+      },
+    ],
+  ])("ends the drag as not committed on %s, once", (_name, interrupt) => {
+    onTestFinished(() => void vi.restoreAllMocks());
+    const { grip, onDragEnd } = dragging();
+    interrupt();
+    fireEvent.pointerUp(grip, { pointerId: 1, clientX: 140 });
+    expect(onDragEnd.mock.calls).toEqual([["clip-1", "fade-out", false]]);
+  });
+
   it("ends the drag as not committed when the clip leaves the page mid-drag, once", () => {
     const { onDragEnd, unmount } = dragging();
     unmount();
