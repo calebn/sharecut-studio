@@ -325,7 +325,7 @@ def create_app(
     app.include_router(host.router)
     app.include_router(handoff.router)
     app.include_router(transcript.router, dependencies=[Depends(host_gate)])
-    app.include_router(record_host.router)
+    app.include_router(record_host.router, dependencies=[Depends(host_gate)])
     app.include_router(document.router)
     app.include_router(pipeline.router)
     app.include_router(bootstrap.router, dependencies=[Depends(host_gate)])
