@@ -6,6 +6,7 @@ import { registerDawCommands } from "../../commands/register";
 import { useDawStore } from "../../state/dawStore";
 import { minimalProject, sessionRoster } from "../../test/fixtures";
 import { stubMatchMedia } from "../../test/matchMedia";
+import { stubViewportShell } from "../../test/viewportShell";
 import type { HistoryEntryId } from "../../types/project";
 import { _resetCoachTipsForTests } from "../../utils/coachTip";
 import { StageFrame } from "./StageFrame";
@@ -265,6 +266,51 @@ describe("StageFrame roles", () => {
     useDawStore.setState({ guestMode, stage: "review" });
     mount();
     expect(screen.getByRole("img", { name })).toBeInTheDocument();
+  });
+
+  describe("on a phone", () => {
+    afterEach(() => {
+      vi.unstubAllGlobals();
+      delete document.documentElement.dataset.player;
+    });
+
+    it.each([
+      ["view", "Viewer: can listen"],
+      ["comment", "Commenter: can comment"],
+      ["edit", "Editor: can edit"],
+    ])(
+      "shows a %s link's Role chip as an icon with its name",
+      (guestMode, name) => {
+        stubViewportShell("phone");
+        useDawStore.setState({ guestMode, stage: "review" });
+        mount();
+        const chip = screen.getByRole("img", { name });
+        expect(chip).toHaveTextContent("");
+      },
+    );
+
+    it.each([
+      ["view", "dock"],
+      ["comment", "dock"],
+      ["edit", undefined],
+    ])("marks the Listen dock for a %s link: %s", (guestMode, player) => {
+      stubViewportShell("phone");
+      useDawStore.setState({ guestMode, stage: "review" });
+      mount();
+      expect(document.documentElement.dataset.player).toBe(player);
+    });
+
+    it("draws the Listen dock instead of the bar for a Commenter", () => {
+      stubViewportShell("phone");
+      useDawStore.setState({ guestMode: "comment", stage: "review" });
+      mount();
+      expect(
+        screen.getByRole("slider", { name: "Episode overview" }),
+      ).toBeVisible();
+      expect(
+        screen.queryByRole("button", { name: /Expand player/ }),
+      ).toBeNull();
+    });
   });
 
   it("explains a guest's role once, until it is dismissed in this browser", async () => {

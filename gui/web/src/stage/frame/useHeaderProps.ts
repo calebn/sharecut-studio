@@ -36,9 +36,10 @@ export function useHeaderProps(): Omit<
   AppHeaderProps,
   "peopleSlot" | "menuPeople"
 > {
-  const { title, guestMode } = useDaw((s) => ({
+  const { title, guestMode, shell } = useDaw((s) => ({
     title: s.project?.meta.name ?? null,
     guestMode: s.guestMode,
+    shell: s.shellBreakpoint,
   }));
   const onRename = useRenameProject();
   const save = useSaveIndicator();
@@ -62,6 +63,7 @@ export function useHeaderProps(): Omit<
             }
           : undefined,
         role,
+        compact: shell === "phone",
         hint: {
           text: ROLE_HINT_TEXT[role],
           shown: !dismissed.includes(role) && !roleHintSeen(role),
