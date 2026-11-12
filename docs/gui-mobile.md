@@ -771,3 +771,35 @@ The native labeled inputs and preview list wrap within the panel and scroll with
 Select a Seam diamond to set its length in the seam sheet: the **Length** Scrub field (from 0 up to what the two clips leave). On a phone the sheet docks above the bar; a drag shows the draft overlap on the timeline and release saves one coupled join change. Canceling restores the saved overlap. Stored unequal fades stay until an intentional edit sets both edges equally.
 
 Moving a clip without dragging, and the panel size controls, are described in [daw-editing.md § Move clips without dragging](daw-editing.md#move-clips-without-dragging).
+
+## Lock screen and background playback on share links (#3785)
+
+A guest who plays an episode from a share link can lock the phone and keep listening, with the lock screen (iPhone) or notification (Android) showing the episode title, the real duration and a moving position, and sending Play, Pause, skip back and forward by seconds, and scrubbing to the page. Host pages do not register any of this yet.
+
+**What the OS adopts as the Now Playing source.**
+
+| Platform | Before | Now |
+| --- | --- | --- |
+| iPhone Safari | The Web Audio context. It cannot seek, so iOS drops skip and seek and draws track arrows; its lock-screen commands go to the context and never reach the page. | The keep-alive `<audio>` element. It is seekable and routes commands to the page's Media Session handlers. |
+| Android Chrome | Nothing. Chromium builds a media session only from media elements longer than 5 s. | The same element. |
+
+**One owner.** `useOsMediaSession` (mounted once in `TransportEngine`) is the only code that writes `navigator.mediaSession`. `projectOsMediaSession` (`audio/osMediaSession.ts`) maps the transport store to metadata, `playbackState`, a position state and a handler switch. It is off, with no metadata, state `none` and null handlers, unless the page is a share link with something to play. The title is the project name; there is no artist, album or artwork line. The projection is applied again only when `osDiscontinuityKey` changes (play or pause, seek, rate, duration, preview), never per frame: the OS advances the position from the declared rate. State is written before position so Blink and WebKit extrapolate from the fresh value, and the position is written again on every apply because WebKit extrapolates from the time of the last write.
+
+**Handlers.** `play`, `pause`, `seekbackward` and `seekforward` (`details.seekOffset ?? SKIP_SEC`) and `seekto` (non-finite times and `fastSeek` are not special-cased) call the Player's own commands: `transport.togglePlay` through the pointer path, `skipListen` and `seekTransport`. A lock-screen action therefore breaks a Follow like the Player buttons do. `previoustrack` and `nexttrack` are set to `null`: listeners get second skips, not track buttons. `stop` is not registered, because Chrome pauses the element on Stop anyway and the element's `pause` event keeps the listener's place. A locked page paints no frames, so the store playhead is stale: the `pause` handler first copies `livePlayheadSec()` (the audio clock while playing) into the store, and `skipListen` starts from it.
+
+**The keep-alive** (`audio/playbackSession.ts`). One silent 8 kHz 16-bit mono WAV of `KEEP_ALIVE_SEC = 6` s from a `blob:` URL, looped, never muted, created and given its `src` on the first Play so that opening a link never takes over the lock screen from the listener's own music. The contract is fixed by the engines: it must load (the page CSP allows `blob:`, not `data:`), last more than 5 s (Chromium treats less as transient and never controllable) and stay unmuted (WebKit excludes muted elements). `navigator.audioSession.type` is set to `"playback"` on enter and never reset. `ProxyEngine.play` and `pause` still enter and leave the session, and `pause` still suspends the context.
+
+**Two stop paths for the OS stopping the sound.** Both end in `pauseFromSystem(engine.pause())`, which writes through the setters so it does not end a Follow. (1) The keep-alive's `pause` event, counted only while the app is entered and the element is paused. (2) A guarded `statechange` on the audio context, acted on only while the engine plays and its `resume()` has settled and the state is not `running`; the engine sets `playing = false` before any internal suspend. If the OS resumes the keep-alive after the app left (a call or Siri ended), `onSystemPlay` resumes the episode; if it does not, the episode stays paused. The end of the episode takes the same path.
+
+**What only a device proves.** The Playwright specs (`e2e/guest-os-media-session.spec.ts` on the Pixel 7 and iPhone 15 Pro descriptors, `e2e-compat/guest-keep-alive.spec.ts` in Chromium and WebKit) prove what the page registers, that each action drives the real transport and that the blob loads under the real CSP. They do not prove the iOS or Android UI. Device checklist (force-quit Safari first, so the engine cold-starts; note the iOS and Chrome versions):
+
+1. Before Play, open the link while your own music app plays: it keeps the lock screen.
+2. iPhone: Play, lock. Expect the title, back 15 and forward 15 (not track arrows), the real duration and a moving position.
+3. Pause from the lock screen, wait 30 s, press Play: sound resumes at the same place; unlock and the app agrees.
+4. Skip back and forward, and drag the scrubber: audio and the app follow.
+5. Play locked for 5 minutes untouched: sound continues (needs the #3788 scheduler).
+6. Take a call or invoke Siri while locked and end it: the lock screen and the app agree, never "Pause" over silence.
+7. AirPods click toggles; the Control Centre player matches the lock screen; the silent switch does not mute playback.
+8. Android: Play, pull the shade, lock. Expect the title, seek back and forward, no previous or next, the real duration. Pause, Play, seek and drag the bar from the notification; take a call; dismiss the notification (paused, place kept).
+
+If the lock-screen Play shows Pause over silence, move the `isPlaying` to element mirror onto a synchronous store subscription. If sound stops at lock on an iOS version with the background audio-context regression (WebKit bug 261554, fixed in iOS 17.5), route the context into a `MediaStreamAudioDestinationNode` and play that from the element. Neither ships until a device shows the failure.
