@@ -37,13 +37,19 @@ ever bound from ``tempfile`` in a function stays scratch after a rebind, and a n
 function does not see its parent's tempfile names (it fails loud). A ``Path`` imported
 under another name is not recognised as a scratch root and is counted. Archive writes
 (``gzip``/``bz2``/``lzma``/``tarfile.open``, ``zipfile.ZipFile`` in ``w``/``a``/``x``)
-and ``os.fdopen`` write modes are counted.
+and ``os.fdopen`` write modes are counted, except an archive opened on a handle that is
+a parameter of the enclosing function: that is the ``atomic_write`` callback pattern
+(``def fill(handle): ZipFile(handle, "w")``). Also not recognised: module aliases
+(``import gzip as gz``, ``from shutil import copyfile``) and ``ZipFile.open(name, "w")``.
+A ``tempfile`` call with ``dir=`` pointing into the project is still scratch, so a
+hand-rolled temp-then-``os.replace`` write is not flagged. Only ``util/atomic_*.py``
+directly under the package ``util/`` is skipped. A ``+`` in an ``open`` mode (``r+``)
+counts as a write. A failure lists line numbers for files above their cap.
 """
 
 from __future__ import annotations
 
 import ast
-from collections import Counter
 from pathlib import Path
 
 import pytest
@@ -64,7 +70,7 @@ RAW_WRITES: dict[str, int] = {
     "edits/transcript_precorrect.py": 1,
     "engines/ffmpeg.py": 6,
     "engines/render_clock.py": 1,
-    "engines/source_proxy_audio.py": 1,
+    "engines/source_proxy_audio.py": 2,
     "engines/speaker_id.py": 1,
     "engines/transcript_gated_play.py": 2,
     "export/audio.py": 1,
@@ -73,8 +79,7 @@ RAW_WRITES: dict[str, int] = {
     "pipeline/steps.py": 5,
     "project/history/manager.py": 1,
     "project/store.py": 1,
-    "segments/bundle.py": 2,
-    "segments/kit_bundle.py": 1,
+    "segments/bundle.py": 1,
     "segments/store.py": 1,
     "services/collaboration/review_versions.py": 6,
     "services/document/golden_ear.py": 5,
@@ -87,7 +92,9 @@ RAW_WRITES: dict[str, int] = {
     "util/file_locks.py": 1,
 }
 
-_WRITE_MODE_CHARS = frozenset("wax")
+_WRITE_MODE_CHARS = frozenset("wax+")
+_INLINE_TEMPFILE = "<tempfile>"
+_ARCHIVE_WRITE_FIRST = frozenset("wax")
 _SHUTIL_COPIES = frozenset({"shutil.copy", "shutil.copyfile", "shutil.copy2"})
 _TEMPFILE_BINDERS = frozenset(
     {"mkdtemp", "TemporaryDirectory", "NamedTemporaryFile", "mkstemp", "gettempdir"}
@@ -121,6 +128,8 @@ def _root_name(node: ast.expr) -> str | None:
     while True:
         if isinstance(node, ast.Name):
             return node.id
+        if _is_tempfile_call(node):
+            return _INLINE_TEMPFILE
         if isinstance(node, ast.Attribute | ast.Subscript):
             node = node.value
         elif isinstance(node, ast.Call):
@@ -149,10 +158,22 @@ def _bound_names(target: ast.expr) -> list[str]:
     return []
 
 
+def _own_nodes(scope: ast.AST) -> list[ast.AST]:
+    """Nodes in ``scope`` without descending into nested functions."""
+    found: list[ast.AST] = []
+    stack = list(ast.iter_child_nodes(scope))
+    while stack:
+        node = stack.pop()
+        found.append(node)
+        if not isinstance(node, ast.FunctionDef | ast.AsyncFunctionDef):
+            stack.extend(ast.iter_child_nodes(node))
+    return found
+
+
 def _scratch_names(scope: ast.AST) -> set[str]:
     """Names bound from ``tempfile`` or derived from one in ``scope`` (to a fixed point)."""
     pairs: list[tuple[list[str], ast.expr]] = []
-    for node in ast.walk(scope):
+    for node in _own_nodes(scope):
         if isinstance(node, ast.Assign):
             pairs.append(([n for t in node.targets for n in _bound_names(t)], node.value))
         elif isinstance(node, ast.AnnAssign) and node.value is not None:
@@ -178,7 +199,18 @@ def _scratch_names(scope: ast.AST) -> set[str]:
 
 
 _ARCHIVE_OPENS = frozenset(
-    {"gzip.open", "bz2.open", "lzma.open", "tarfile.open", "zipfile.ZipFile", "ZipFile"}
+    {
+        "gzip.open",
+        "bz2.open",
+        "lzma.open",
+        "tarfile.open",
+        "zipfile.ZipFile",
+        "ZipFile",
+        "gzip.GzipFile",
+        "bz2.BZ2File",
+        "lzma.LZMAFile",
+        "tarfile.TarFile",
+    }
 )
 
 
@@ -190,18 +222,38 @@ def _first_arg(call: ast.Call) -> ast.expr | None:
     return call.args[0] if call.args else None
 
 
+def _is_archive_open(call: ast.Call) -> bool:
+    func = call.func
+    return _attr_chain(func) in _ARCHIVE_OPENS or (
+        isinstance(func, ast.Name) and func.id == "ZipFile"
+    )
+
+
+def _parameter_names(scope: ast.AST) -> set[str]:
+    if not isinstance(scope, ast.FunctionDef | ast.AsyncFunctionDef):
+        return set()
+    a = scope.args
+    names = {arg.arg for arg in [*a.posonlyargs, *a.args, *a.kwonlyargs]}
+    names |= {arg.arg for arg in (a.vararg, a.kwarg) if arg is not None}
+    return names
+
+
 def _raw_write_target(call: ast.Call) -> ast.expr | bool | None:
     """The written path expression for a banned call, ``None`` if unknown, ``False`` if allowed."""
     func = call.func
     chain = _attr_chain(func)
-    if (isinstance(func, ast.Name) and func.id == "open") or chain == "io.open":
+    if (isinstance(func, ast.Name) and func.id == "open") or chain in {
+        "io.open",
+        "builtins.open",
+        "codecs.open",
+    }:
         return _first_arg(call) if _is_write_mode(_mode(call, 1)) else False
     if chain in _ARCHIVE_OPENS or (isinstance(func, ast.Name) and func.id == "ZipFile"):
         mode = _mode(call, 1)
         is_write = (
             isinstance(mode, ast.Constant)
             and isinstance(mode.value, str)
-            and mode.value[:1] in _WRITE_MODE_CHARS
+            and mode.value[:1] in _ARCHIVE_WRITE_FIRST
         )
         return _first_arg(call) if is_write else False
     if chain == "os.fdopen":
@@ -217,9 +269,9 @@ def _raw_write_target(call: ast.Call) -> ast.expr | bool | None:
     return False
 
 
-def scan_source(source: str) -> list[int]:
+def scan_source(source: str, filename: str = "<string>") -> list[int]:
     """Line numbers of raw durable writes in ``source`` (scratch tempfile writes excluded)."""
-    tree = ast.parse(source)
+    tree = ast.parse(source, filename=filename)
     scopes: list[ast.AST] = [tree] + [
         n for n in ast.walk(tree) if isinstance(n, ast.FunctionDef | ast.AsyncFunctionDef)
     ]
@@ -234,7 +286,13 @@ def scan_source(source: str) -> list[int]:
             target = _raw_write_target(node)
             if target is not False:
                 root = _root_name(target) if isinstance(target, ast.expr) else None
-                if root is None or root not in scratch_by_scope[id(scope)]:
+                handle_owned = (
+                    _is_archive_open(node)
+                    and isinstance(target, ast.Name)
+                    and target.id in _parameter_names(scope)
+                )
+                scratch = root == _INLINE_TEMPFILE or root in scratch_by_scope[id(scope)]
+                if not handle_owned and (root is None or not scratch):
                     lines.append(node.lineno)
         for child in ast.iter_child_nodes(node):
             visit(child, scope)
@@ -243,22 +301,37 @@ def scan_source(source: str) -> list[int]:
     return sorted(lines)
 
 
+_SCAN_CACHE: dict[Path, dict[str, list[int]]] = {}
+
+
+def _raw_write_lines() -> dict[str, list[int]]:
+    """Raw write line numbers per file; each tree is scanned once per process."""
+    if SRC not in _SCAN_CACHE:
+        found: dict[str, list[int]] = {}
+        for path in sorted(SRC.rglob("*.py")):
+            rel = path.relative_to(SRC).as_posix()
+            if path.parent == SRC / "util" and path.name.startswith("atomic_"):
+                continue
+            lines = scan_source(path.read_text(encoding="utf-8-sig"), filename=rel)
+            if lines:
+                found[rel] = lines
+        _SCAN_CACHE[SRC] = found
+    return _SCAN_CACHE[SRC]
+
+
 def _raw_write_counts() -> dict[str, int]:
-    found: Counter[str] = Counter()
-    for path in sorted(SRC.rglob("*.py")):
-        rel = path.relative_to(SRC).as_posix()
-        if path.parent.name == "util" and path.name.startswith("atomic_"):
-            continue
-        count = len(scan_source(path.read_text(encoding="utf-8")))
-        if count:
-            found[rel] = count
-    return dict(found)
+    return {name: len(lines) for name, lines in _raw_write_lines().items()}
 
 
-def _violations(counts: dict[str, int], caps: dict[str, int]) -> list[str]:
+def _violations(
+    counts: dict[str, int],
+    caps: dict[str, int],
+    lines: dict[str, list[int]] | None = None,
+) -> list[str]:
     """Files above their cap. A file absent from ``caps`` allows 0."""
     return [
-        f"{name}: {counts[name]} raw durable writes, allowed {caps.get(name, 0)}. "
+        f"{name}: {counts[name]} raw durable writes, allowed {caps.get(name, 0)}"
+        f"{f' (lines {lines[name]})' if lines and name in lines else ''}. "
         f"Write through {HELPERS}."
         for name in sorted(counts)
         if counts[name] > caps.get(name, 0)
@@ -276,7 +349,7 @@ def _stale(counts: dict[str, int], caps: dict[str, int]) -> list[str]:
 
 
 def test_raw_durable_writes_match_the_allowlist() -> None:
-    problems = _violations(_raw_write_counts(), RAW_WRITES)
+    problems = _violations(_raw_write_counts(), RAW_WRITES, _raw_write_lines())
     assert not problems, "\n".join(problems)
 
 
@@ -294,6 +367,7 @@ def test_the_violation_check_fails_only_above_a_cap() -> None:
     assert "write_json_atomic" in over[0]
     assert "atomic_write" in over[0]
     assert "allowed 0" in _violations({"new.py": 1}, {})[0]
+    assert "(lines [4, 9])" in _violations({"a.py": 2}, {}, {"a.py": [4, 9]})[0]
     assert "allowed 0" in _violations({"new.py": 1}, {"new.py": 0})[0]
 
 
@@ -335,7 +409,7 @@ def test_the_stale_check_flags_a_cap_of_zero_and_a_file_with_no_write_left() -> 
     ],
 )
 def test_the_scanner_flags_each_banned_form(line: str) -> None:
-    assert scan_source(f"def f(p, a, b, root, fd):\n    {line}\n") == [2]
+    assert scan_source(f"def f(a, b, root, fd):\n    {line}\n") == [2]
 
 
 @pytest.mark.parametrize(
@@ -343,7 +417,6 @@ def test_the_scanner_flags_each_banned_form(line: str) -> None:
     [
         "open(p)",
         'open(p, "r")',
-        'open(p, "r+")',
         "open(p, mode)",
         'os.fdopen(fd, "r")',
         "os.fdopen(fd)",
@@ -364,7 +437,7 @@ def test_the_scanner_flags_each_banned_form(line: str) -> None:
     ],
 )
 def test_the_scanner_allows_reads_and_helper_calls(line: str) -> None:
-    assert scan_source(f"def f(p, a, b, obj, handle, mode, fd):\n    {line}\n") == []
+    assert scan_source(f"def f(a, b, obj, handle, mode, fd):\n    {line}\n") == []
 
 
 def test_the_scanner_skips_writes_under_a_tempfile_root() -> None:
@@ -418,3 +491,88 @@ def test_the_scan_skips_the_atomic_helpers(tmp_path: Path, monkeypatch: pytest.M
     (tmp_path / "atomic_elsewhere.py").write_text(raw, encoding="utf-8")
     monkeypatch.setattr(f"{__name__}.SRC", tmp_path)
     assert _raw_write_counts() == {"util/other.py": 1, "atomic_elsewhere.py": 1}
+
+
+def test_an_archive_on_a_caller_owned_handle_parameter_is_not_a_raw_write() -> None:
+    source = (
+        "def fill(handle):\n"
+        "    with zipfile.ZipFile(handle, 'w') as z:\n"
+        "        z.writestr('a', 'b')\n"
+        "def fill2(*, out):\n"
+        "    tarfile.open(out, 'w:gz')\n"
+        "    gzip.open(out, 'wb')\n"
+    )
+    assert scan_source(source) == []
+
+
+def test_an_archive_on_a_path_or_a_non_parameter_is_still_a_raw_write() -> None:
+    source = (
+        "def f(handle, p):\n"
+        "    zipfile.ZipFile(p / 'x.zip', 'w')\n"
+        "    zipfile.ZipFile(other, 'w')\n"
+        "    open(handle, 'w')\n"
+        "    handle.write_text('x')\n"
+        "zipfile.ZipFile(handle, 'w')\n"
+    )
+    assert scan_source(source) == [2, 3, 4, 5, 6]
+
+
+@pytest.mark.parametrize(
+    "line",
+    [
+        'open(p, "r+")',
+        'open(p, "rb+")',
+        'os.fdopen(fd, "r+")',
+        'builtins.open(p, "w")',
+        'codecs.open(p, "w", "utf-8")',
+        'gzip.GzipFile(p, "wb")',
+        'bz2.BZ2File(p, "w")',
+        'lzma.LZMAFile(p, "w")',
+        'tarfile.TarFile(p, "w")',
+    ],
+)
+def test_the_scanner_flags_read_write_and_file_class_forms(line: str) -> None:
+    assert scan_source(f"def f(fd):\n    {line}\n") == [2]
+
+
+def test_scratch_names_do_not_leak_out_of_a_nested_function() -> None:
+    source = (
+        "def f(root):\n"
+        "    def helper():\n"
+        "        root = tempfile.mkdtemp()\n"
+        "        root.write_text('x')\n"
+        "    root.write_text('y')\n"
+    )
+    assert scan_source(source) == [5]
+
+
+def test_only_the_top_level_util_atomic_helpers_are_skipped(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    (tmp_path / "util").mkdir()
+    (tmp_path / "services" / "util").mkdir(parents=True)
+    raw = "def f(p):\n    p.write_text('x')\n"
+    (tmp_path / "util" / "atomic_new.py").write_text(raw, encoding="utf-8")
+    (tmp_path / "services" / "util" / "atomic_cache.py").write_text(raw, encoding="utf-8")
+    monkeypatch.setattr(f"{__name__}.SRC", tmp_path)
+    assert _raw_write_counts() == {"services/util/atomic_cache.py": 1}
+
+
+def test_a_bad_source_file_is_named_and_a_bom_is_tolerated(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    (tmp_path / "bom.py").write_bytes(b"\xef\xbb\xbfx = 1\n")
+    monkeypatch.setattr(f"{__name__}.SRC", tmp_path)
+    assert _raw_write_counts() == {}
+    with pytest.raises(SyntaxError, match=r"bad\.py"):
+        scan_source("def f(:\n", filename="bad.py")
+
+
+def test_inline_tempfile_targets_are_scratch() -> None:
+    source = (
+        "def f():\n"
+        "    open(os.path.join(tempfile.mkdtemp(), 'a'), 'w')\n"
+        "    open(tempfile.mkstemp()[1], 'w')\n"
+        "    (Path(tempfile.gettempdir()) / 'x').write_text('x')\n"
+    )
+    assert scan_source(source) == []
