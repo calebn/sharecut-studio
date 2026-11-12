@@ -49,6 +49,45 @@ async function expectRestsOnDock(guest: Page, sheet: Locator) {
   expect(Math.abs(box.y + box.height - dock.y)).toBeLessThanOrEqual(1);
 }
 
+/**
+ * The list reads at its default detent: `min` comment rows sit fully between
+ * the sheet header and the dock, each at least 44 px tall, with author, time and text.
+ */
+async function expectCommentsReadable(
+  guest: Page,
+  sheet: Locator,
+  min: number,
+) {
+  const dock = await guest.locator(".sys-listen-dock").boundingBox();
+  const header = await sheet.locator(".bottom-sheet-header").boundingBox();
+  expect(dock && header).toBeTruthy();
+  if (!dock || !header) return;
+  const rows = sheet.locator(".sys-queue-row");
+  const count = await rows.count();
+  let visible = 0;
+  for (let i = 0; i < count; i++) {
+    const box = await rows.nth(i).boundingBox();
+    if (!box) continue;
+    expect(box.height).toBeGreaterThanOrEqual(44);
+    const text = (await rows.nth(i).innerText()).replace(/\s+/g, " ");
+    // The author is the row's avatar: its initial shows, its title names them.
+    expect(text).toMatch(/^[DE] /);
+    await expect(
+      rows.nth(i).locator('[title="Dee"], [title="Eli"]').first(),
+    ).toBeVisible();
+    expect(text).toMatch(/\d+:\d\d/);
+    expect(text).toMatch(/Cut candidate: long pause|Level feels low here/);
+    if (
+      box.y >= header.y + header.height - 1 &&
+      box.y + box.height <= dock.y + 1
+    )
+      visible++;
+  }
+  expect(visible).toBeGreaterThanOrEqual(min);
+  await expect(sheet.getByRole("group", { name: "Filter" })).toHaveCount(0);
+  await expect(sheet.getByRole("group", { name: "Sort" })).toHaveCount(0);
+}
+
 type Profile = (typeof PROFILES)[number];
 type Size = { width: number; height: number };
 
@@ -236,6 +275,7 @@ for (const profile of PROFILES) {
             .tap({ timeout: 10_000 });
           const sheet = guest.getByRole("dialog", { name: "Comments" });
           await expectRestsOnDock(guest, sheet);
+          await expectCommentsReadable(guest, sheet, 2);
           await sheet
             .locator(".sys-queue-row")
             .first()
@@ -366,6 +406,7 @@ for (const profile of PROFILES) {
           .tap({ timeout: 10_000 });
         const comments = guest.getByRole("dialog", { name: "Comments" });
         await expectRestsOnDock(guest, comments);
+        await expectCommentsReadable(guest, comments, 1);
       },
     );
   });
