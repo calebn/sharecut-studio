@@ -4,14 +4,13 @@ from __future__ import annotations
 
 from typing import Any
 
-from fastapi import APIRouter, Header, Query, Request
+from fastapi import APIRouter, Query, Request
 from fastapi.responses import StreamingResponse
 
 from podcast_mcp.gui.routes.deps import (
     bad_request_error,
     coded_exception_error,
     coded_http_error,
-    require_host,
 )
 from podcast_mcp.gui.routes.sse_common import job_events_response
 from podcast_mcp.gui.schemas import BootstrapCancelRequest, BootstrapRunRequest
@@ -31,13 +30,7 @@ def _jobs(request: Request) -> JobManager:
 
 
 @router.get("/api/bootstrap/status")
-def bootstrap_status(
-    request: Request,
-    whisper_model: str | None = Query(None),
-    token: str | None = Query(None),
-    x_podcast_token: str | None = Header(None, alias="X-Podcast-Token"),
-) -> dict[str, Any]:
-    require_host(request, token=token, x_podcast_token=x_podcast_token)
+def bootstrap_status(whisper_model: str | None = Query(None)) -> dict[str, Any]:
     try:
         return component_status(whisper_model=whisper_model)
     except ValueError as exc:
@@ -48,10 +41,7 @@ def bootstrap_status(
 def bootstrap_run(
     req: BootstrapRunRequest,
     request: Request,
-    token: str | None = Query(None),
-    x_podcast_token: str | None = Header(None, alias="X-Podcast-Token"),
 ) -> dict[str, Any]:
-    require_host(request, token=token, x_podcast_token=x_podcast_token)
     mgr = _jobs(request)
     try:
         model = resolve_whisper_model(requested=req.whisper_model)
@@ -76,11 +66,8 @@ def bootstrap_remove_model(
     model_id: str,
     request: Request,
     whisper_model: str | None = Query(None),
-    token: str | None = Query(None),
-    x_podcast_token: str | None = Header(None, alias="X-Podcast-Token"),
 ) -> dict[str, Any]:
     """Delete one downloaded model (one Whisper size). Refused while a download or job runs."""
-    require_host(request, token=token, x_podcast_token=x_podcast_token)
     mgr = _jobs(request)
     try:
         with mgr.model_removal():
@@ -106,10 +93,7 @@ def bootstrap_remove_model(
 def bootstrap_cancel(
     req: BootstrapCancelRequest,
     request: Request,
-    token: str | None = Query(None),
-    x_podcast_token: str | None = Header(None, alias="X-Podcast-Token"),
 ) -> dict[str, Any]:
-    require_host(request, token=token, x_podcast_token=x_podcast_token)
     job = _jobs(request).cancel_bootstrap(req.job_id)
     if job is None:
         raise coded_http_error(404, "No bootstrap job", code="bootstrap_job_not_found")
@@ -120,10 +104,7 @@ def bootstrap_cancel(
 def bootstrap_job_status(
     request: Request,
     job_id: str | None = Query(None),
-    token: str | None = Query(None),
-    x_podcast_token: str | None = Header(None, alias="X-Podcast-Token"),
 ) -> dict[str, Any]:
-    require_host(request, token=token, x_podcast_token=x_podcast_token)
     job = _jobs(request).get_bootstrap_job(job_id)
     if job is None:
         return {"job": None}
@@ -134,10 +115,7 @@ def bootstrap_job_status(
 def bootstrap_events(
     request: Request,
     job_id: str | None = Query(None),
-    token: str | None = Query(None),
-    x_podcast_token: str | None = Header(None, alias="X-Podcast-Token"),
 ) -> StreamingResponse:
-    require_host(request, token=token, x_podcast_token=x_podcast_token)
     job = _jobs(request).get_bootstrap_job(job_id)
     if job is None:
         raise coded_http_error(404, "No bootstrap job", code="bootstrap_job_not_found")
