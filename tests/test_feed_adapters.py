@@ -348,6 +348,24 @@ def test_a_relayed_guest_cannot_read_or_edit_the_listing(episode: Path) -> None:
     assert _rows(episode) == []
 
 
+@pytest.mark.parametrize(
+    ("method", "path"),
+    [("GET", "/api/feed"), ("POST", "/api/feed/edit"), ("POST", "/api/feed/write")],
+)
+def test_every_listing_route_refuses_a_relayed_caller(
+    episode: Path, method: str, path: str
+) -> None:
+    relayed = TestClient(
+        create_app(), client=("127.0.0.1", 50000), headers={RELAYED_REQUEST_HEADER: "1"}
+    )
+    body = {"path": str(episode), "edit": {"op": "unset", "key": "item.intro"}}
+
+    res = relayed.request(method, path, params={"path": str(episode)}, json=body)
+
+    assert res.status_code == 403
+    assert res.headers[CODE] == "authz_denied"
+
+
 def test_strict_authz_refuses_a_remote_peer(episode: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("PODCAST_SESSION_AUTHZ", "strict")
     remote = TestClient(create_app(), client=("203.0.113.9", 50000))

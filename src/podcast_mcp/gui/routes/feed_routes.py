@@ -7,10 +7,10 @@ import re
 from pathlib import PureWindowsPath
 from typing import Any
 
-from fastapi import APIRouter, Header, Query, Request
+from fastapi import APIRouter, Query, Request
 
 from podcast_mcp.feed.urls import is_local_art
-from podcast_mcp.gui.routes.deps import coded_exception_error, require_host, resolve_project
+from podcast_mcp.gui.routes.deps import coded_exception_error, resolve_project
 from podcast_mcp.gui.routes.project import pin_served_if_allowed
 from podcast_mcp.gui.schemas import FeedEditRequest, FeedWriteRequest
 from podcast_mcp.services.app import ProjectWorkspace
@@ -54,10 +54,7 @@ def _name_local_files_only(view: dict[str, Any]) -> None:
 def get_feed(
     request: Request,
     path: str = Query(..., description="Path to episode.sharecut"),
-    token: str | None = Query(None),
-    x_podcast_token: str | None = Header(None, alias="X-Podcast-Token"),
 ) -> dict[str, Any]:
-    require_host(request, token=token, x_podcast_token=x_podcast_token)
     project_path = resolve_project(path, request)
     pin_served_if_allowed(request, project_path)
     return served(FeedService(ProjectWorkspace.open(project_path)))
@@ -67,11 +64,8 @@ def get_feed(
 def edit_feed(
     body: FeedEditRequest,
     request: Request,
-    token: str | None = Query(None),
-    x_podcast_token: str | None = Header(None, alias="X-Podcast-Token"),
 ) -> dict[str, Any]:
     """Pin or unpin one listing value as the host. It undoes like any episode edit."""
-    require_host(request, token=token, x_podcast_token=x_podcast_token)
     project_path = resolve_project(body.path, request)
     pin_served_if_allowed(request, project_path)
     service = FeedService(ProjectWorkspace.open(project_path))
@@ -86,11 +80,8 @@ def edit_feed(
 def write_feed_file(
     body: FeedWriteRequest,
     request: Request,
-    token: str | None = Query(None),
-    x_podcast_token: str | None = Header(None, alias="X-Podcast-Token"),
 ) -> dict[str, Any]:
     """Write the episode's feed file as the host. Refused with 400 while a blocker stands."""
-    require_host(request, token=token, x_podcast_token=x_podcast_token)
     project_path = resolve_project(body.path, request)
     pin_served_if_allowed(request, project_path)
     service = FeedService(ProjectWorkspace.open(project_path))

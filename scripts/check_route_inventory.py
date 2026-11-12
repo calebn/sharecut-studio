@@ -341,7 +341,7 @@ def problems(live: list[dict[str, Any]], contract: dict[str, Any]) -> Iterator[s
         yield (
             f"{direct} handlers call require_host directly, baseline is {baseline}. The count may "
             "only shrink: gate the route with a router-level dependency, "
-            "include_router(router, dependencies=[Depends(require_host)]), instead of calling "
+            "include_router(router, dependencies=[Depends(host_gate)]), instead of calling "
             "require_host in the handler or raising the baseline."
         )
     elif direct < baseline:

@@ -1,6 +1,6 @@
 {
   "api_version": 1,
-  "host_direct_baseline": 91,
+  "host_direct_baseline": 88,
   "routes": [
     {
       "gate": "other",
@@ -236,21 +236,18 @@
     {
       "gate": "host",
       "handler": "podcast_mcp.gui.routes.feed_routes:get_feed",
-      "host_direct": true,
       "method": "GET",
       "path": "/api/feed"
     },
     {
       "gate": "host",
       "handler": "podcast_mcp.gui.routes.feed_routes:edit_feed",
-      "host_direct": true,
       "method": "POST",
       "path": "/api/feed/edit"
     },
     {
       "gate": "host",
       "handler": "podcast_mcp.gui.routes.feed_routes:write_feed_file",
-      "host_direct": true,
       "method": "POST",
       "path": "/api/feed/write"
     },

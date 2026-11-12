@@ -7,7 +7,7 @@ from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
 
-from fastapi import HTTPException, Request, WebSocket
+from fastapi import Header, HTTPException, Query, Request, WebSocket
 from fastapi.exception_handlers import http_exception_handler
 from filelock import Timeout
 from starlette.exceptions import HTTPException as StarletteHTTPException
@@ -213,6 +213,15 @@ def require_host(
     )
     if not decision.allowed:
         raise AccessDeniedError(decision.reason, code="authz_denied")
+
+
+def host_gate(
+    request: Request,
+    token: str | None = Query(None),
+    x_podcast_token: str | None = Header(None, alias="X-Podcast-Token"),
+) -> None:
+    """``require_host`` as an include-time dependency, reading the token from the query or header."""
+    require_host(request, token=token, x_podcast_token=x_podcast_token)
 
 
 def require_loopback_peer(request: Request) -> None:

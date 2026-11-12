@@ -333,6 +333,32 @@ def test_a_mid_level_include_gate_reaches_the_leaf() -> None:
     assert _rows(app)[("GET", "/top/mid/leaf")]["gate"] == "authz"
 
 
+def test_an_include_time_gate_reaches_a_websocket_route() -> None:
+    async def socket(websocket): ...
+
+    router = APIRouter()
+    router.websocket("/ws")(socket)
+    app = FastAPI()
+    app.include_router(router, prefix="/g", dependencies=[Depends(require_host)])
+    row = _rows(app)[(inventory.WEBSOCKET, "/g/ws")]
+    assert row["gate"] == "host"
+    assert "host_direct" not in row
+
+
+def test_a_gate_reached_through_a_nested_sub_dependency_counts() -> None:
+    def inner(request, gate=Depends(require_host)): ...
+
+    def outer(request, nested=Depends(inner)): ...
+
+    router = APIRouter()
+    router.get("/deep", dependencies=[Depends(outer)])(_plain)
+    app = FastAPI()
+    app.include_router(router, prefix="/n")
+    row = _rows(app)[("GET", "/n/deep")]
+    assert row["gate"] == "host"
+    assert "host_direct" not in row
+
+
 def test_write_exits_nonzero_when_it_emits_an_unreviewed_row(monkeypatch, tmp_path, capsys) -> None:
     row = {"method": "GET", "path": "/new", "gate": "other", "handler": "m:f"}
     monkeypatch.setattr(inventory, "ROOT", tmp_path)
