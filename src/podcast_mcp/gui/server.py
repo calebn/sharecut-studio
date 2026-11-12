@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import urlencode
 
-from fastapi import FastAPI, Request
+from fastapi import Depends, FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
@@ -50,6 +50,7 @@ from podcast_mcp.gui.routes.deps import (
     NO_STORE,
     coded_http_error,
     guard_exception_handler,
+    host_gate,
     host_setup_exception_handler,
     http_exception_response,
     model_missing_exception_handler,
@@ -330,7 +331,7 @@ def create_app(
     app.include_router(bootstrap.router)
     app.include_router(diagnostics.router)
     app.include_router(export_routes.router)
-    app.include_router(feed_routes.router)
+    app.include_router(feed_routes.router, dependencies=[Depends(host_gate)])
     app.include_router(speaker.router)
     app.include_router(comments.router)
     app.include_router(media.router)
