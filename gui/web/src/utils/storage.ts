@@ -23,23 +23,6 @@ export function writeLocal(key: string, value: string): void {
   }
 }
 
-/** Per-tab, per-launch twin of `readLocal`: gone when the tab or app window closes. */
-export function readSession(key: string): string | null {
-  try {
-    return globalThis.sessionStorage?.getItem(key) ?? null;
-  } catch {
-    return null;
-  }
-}
-
-export function writeSession(key: string, value: string): void {
-  try {
-    globalThis.sessionStorage?.setItem(key, value);
-  } catch {
-    /* SecurityError / quota: the choice just lasts until the next render */
-  }
-}
-
 export function removeLocal(key: string): void {
   try {
     globalThis.localStorage?.removeItem(key);

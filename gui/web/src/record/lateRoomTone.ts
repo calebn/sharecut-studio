@@ -1,3 +1,4 @@
+import { readLocal, writeLocal } from "../utils/storage";
 import type { RecordParticipant, RecordSnapshot } from "./types";
 
 export type RoomToneMark = "recorded" | "skipped";
@@ -26,18 +27,10 @@ export function roomToneMarkKey(
 }
 
 export function readRoomToneMark(key: string): RoomToneMark | null {
-  try {
-    const value = localStorage.getItem(key);
-    return value === "recorded" || value === "skipped" ? value : null;
-  } catch {
-    return null;
-  }
+  const value = readLocal(key);
+  return value === "recorded" || value === "skipped" ? value : null;
 }
 
 export function writeRoomToneMark(key: string, mark: RoomToneMark): void {
-  try {
-    localStorage.setItem(key, mark);
-  } catch {
-    // A blocked store only means a reload asks again.
-  }
+  writeLocal(key, mark);
 }

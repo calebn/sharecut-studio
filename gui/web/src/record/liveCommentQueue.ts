@@ -1,4 +1,5 @@
 import { randomUuid } from "../utils/randomUuid";
+import { getTab, setTab } from "../utils/tabStorage";
 export const MARKER_BODY = "Marker";
 export const HOST_COMMENT_QUEUE_TOKEN = "host";
 export const LIVE_COMMENT_QUEUE_MAX = 500;
@@ -57,7 +58,7 @@ function capQueue(rows: LiveComment[]): LiveComment[] {
 
 export function loadCommentQueue(token: string): LiveComment[] {
   try {
-    const raw = sessionStorage.getItem(commentsQueueKey(token));
+    const raw = getTab(commentsQueueKey(token));
     if (!raw) {
       return [];
     }
@@ -82,11 +83,10 @@ export function loadCommentQueue(token: string): LiveComment[] {
 
 export function saveCommentQueue(token: string, rows: LiveComment[]): boolean {
   try {
-    sessionStorage.setItem(
+    return setTab(
       commentsQueueKey(token),
       JSON.stringify(capQueue(mergeById(rows))),
     );
-    return true;
   } catch {
     return false;
   }

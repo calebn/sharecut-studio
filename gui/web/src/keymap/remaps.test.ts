@@ -1,4 +1,5 @@
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { blockStorage } from "../test/blockStorage";
 import { _resetKeymapOverridesForTests, getKeymapOverride } from "./remaps";
 
 const KEY = "sharecut.keymap.overrides";
@@ -6,6 +7,21 @@ const stored = () => JSON.parse(localStorage.getItem(KEY) ?? "{}") as unknown;
 
 describe("keymap remaps", () => {
   beforeEach(() => _resetKeymapOverridesForTests());
+
+  it("reset removes the stored remaps", () => {
+    localStorage.setItem(KEY, JSON.stringify({ "view.fit": ["B"] }));
+    _resetKeymapOverridesForTests();
+    expect(localStorage.getItem(KEY)).toBeNull();
+  });
+
+  it("reset does not throw when storage is blocked", () => {
+    blockStorage();
+    try {
+      expect(() => _resetKeymapOverridesForTests()).not.toThrow();
+    } finally {
+      vi.restoreAllMocks();
+    }
+  });
 
   it("drops saved remaps for the removed focus.* and layout.* commands", () => {
     localStorage.setItem(

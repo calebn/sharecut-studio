@@ -7,6 +7,7 @@
  * Not project state (see `docs/persistence.md`).
  */
 import { STAGE_IDS, type StageId } from "../types/stage";
+import { getTab, removeTab, setTab } from "./tabStorage";
 
 const PREFIX = "sharecut.openIntent:";
 
@@ -18,7 +19,7 @@ export type OpenIntent = {
 
 function read(projectPath: string): OpenIntent {
   try {
-    const raw = globalThis.sessionStorage?.getItem(PREFIX + projectPath);
+    const raw = getTab(PREFIX + projectPath);
     const parsed: unknown = raw ? JSON.parse(raw) : null;
     if (!parsed || typeof parsed !== "object") return {};
     const { stage, autoRun, autoRoom } = parsed as Record<string, unknown>;
@@ -33,18 +34,10 @@ function read(projectPath: string): OpenIntent {
 }
 
 function write(projectPath: string, intent: OpenIntent): void {
-  try {
-    const empty =
-      intent.stage === undefined && !intent.autoRun && !intent.autoRoom;
-    if (empty) globalThis.sessionStorage?.removeItem(PREFIX + projectPath);
-    else
-      globalThis.sessionStorage?.setItem(
-        PREFIX + projectPath,
-        JSON.stringify(intent),
-      );
-  } catch {
-    /* blocked storage: the project opens on its landing stage */
-  }
+  const empty =
+    intent.stage === undefined && !intent.autoRun && !intent.autoRoom;
+  if (empty) removeTab(PREFIX + projectPath);
+  else setTab(PREFIX + projectPath, JSON.stringify(intent));
 }
 
 export function writeOpenIntent(projectPath: string, intent: OpenIntent): void {

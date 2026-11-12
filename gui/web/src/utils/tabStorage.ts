@@ -18,3 +18,11 @@ export function setTab(key: string, value: string): boolean {
     return false;
   }
 }
+
+export function removeTab(key: string): void {
+  try {
+    globalThis.sessionStorage?.removeItem(key);
+  } catch {
+    /* blocked or missing storage: nothing was stored to clear */
+  }
+}

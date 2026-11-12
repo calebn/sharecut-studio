@@ -38,7 +38,7 @@ import {
   RETIRED_PROJECT_FILENAME,
 } from "../../utils/projectFile";
 import { OPEN_OTHER_QUERY_PARAM, projectUrl } from "../../utils/projectUrl";
-import { readSession, writeSession } from "../../utils/storage";
+import { getTab, setTab } from "../../utils/tabStorage";
 import { applySoundScanStart } from "../prepare/applySoundScanStart";
 import { HomeView } from "./HomeView";
 import {
@@ -195,7 +195,7 @@ export function HomeScreen() {
   const [pathError, setPathError] = useState<string | undefined>();
   const [replacing, setReplacing] = useState<string | undefined>();
   const [setupDismissed, setSetupDismissed] = useState(
-    () => readSession(SETUP_DISMISSED_KEY) === "1",
+    () => getTab(SETUP_DISMISSED_KEY) === "1",
   );
   const [hintShown, setHintShown] = useState(() =>
     homeScreenHintDue(readHomeScreenEnv(), countHomeVisit()),
@@ -481,7 +481,7 @@ export function HomeScreen() {
     setup?.state !== "failed" &&
     setup?.state !== "tools-missing";
   const dismissSetup = useCallback(() => {
-    writeSession(SETUP_DISMISSED_KEY, "1");
+    setTab(SETUP_DISMISSED_KEY, "1");
     setSetupDismissed(true);
   }, []);
 
