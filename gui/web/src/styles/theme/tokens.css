@@ -188,8 +188,8 @@
     var(--sheet-lane-extra)
   );
   --player-height: 3.5rem;
-  /* The Listen dock (phone guest Review): scrubber, readout and transport. Its rows and the sheets that rest on it read this. */
-  --player-dock-height: 7.5rem;
+  /* The Listen dock (phone guest Review), its height exactly: hairline, scrubber row, readout row, Play with its ring and a little air. The dock sets its block-size to this, and the sheets and toast that rest on it read it. */
+  --player-dock-height: 9.8125rem;
   /* Control heights: one per role so rows line up. */
   --control-height: 2rem;
   --control-height-compact: 1.75rem;
