@@ -6,7 +6,7 @@ import logging
 import sqlite3
 from typing import Any, Literal
 
-from fastapi import APIRouter, Header, Query, Request
+from fastapi import APIRouter, Depends, Header, Query, Request
 from pydantic import BaseModel
 
 from podcast_mcp.edits.range_target import RangeChangedError
@@ -17,6 +17,7 @@ from podcast_mcp.gui.routes.deps import (
     coded_exception_error,
     coded_http_error,
     document_conflict_error,
+    host_gate,
     require_authz,
     resolve_project,
 )
@@ -42,23 +43,20 @@ from podcast_mcp.util.write_failure import ProjectWriteFailedError
 log = logging.getLogger(__name__)
 
 router = APIRouter()
+_HOST_GATE = [Depends(host_gate)]
 
 
-@router.get("/api/clips/{clip_id}/bleed")
+@router.get("/api/clips/{clip_id}/bleed", dependencies=_HOST_GATE)
 def get_clip_bleed(
     clip_id: str,
     request: Request,
     path: str = Query(...),
     track_id: str = Query(...),
-    token: str | None = Query(None),
-    x_podcast_token: str | None = Header(None, alias="X-Podcast-Token"),
 ) -> dict[str, Any]:
     from podcast_mcp.edits.bleed_restore_targets import BleedRestoreChangedError
-    from podcast_mcp.gui.routes.deps import require_host
     from podcast_mcp.services.app import ProjectWorkspace
     from podcast_mcp.services.document import TimelineService
 
-    require_host(request, token=token, x_podcast_token=x_podcast_token)
     ws = ProjectWorkspace.open(resolve_project(path, request))
     try:
         return (
@@ -145,20 +143,16 @@ class RangeAudioInput(BaseModel):
     action: Literal["play"] = "play"
 
 
-@router.post("/api/range-audio")
+@router.post("/api/range-audio", dependencies=_HOST_GATE)
 def range_audio(
     body: RangeAudioInput,
     request: Request,
     path: str = Query(...),
-    token: str | None = Query(None),
-    x_podcast_token: str | None = Header(None, alias="X-Podcast-Token"),
 ):
     from podcast_mcp.gui.audio import pinned_audio_response
-    from podcast_mcp.gui.routes.deps import require_host
     from podcast_mcp.services.app import ProjectWorkspace
     from podcast_mcp.services.document import PlayService
 
-    require_host(request, token=token, x_podcast_token=x_podcast_token)
     ws = ProjectWorkspace.open(resolve_project(path, request))
     try:
         audio = PlayService(ws).play_selected_range(body.target)
@@ -167,7 +161,7 @@ def range_audio(
         raise coded_exception_error(409, exc, code="range_changed") from exc
 
 
-@router.post("/api/pending-preview/warm")
+@router.post("/api/pending-preview/warm", dependencies=_HOST_GATE)
 def pending_preview_warm(
     request: Request,
     path: str = Query(...),
@@ -178,8 +172,6 @@ def pending_preview_warm(
         le=PENDING_PREVIEW_PAD_MAX_SEC,
     ),
     background: bool = Query(False),
-    token: str | None = Query(None),
-    x_podcast_token: str | None = Header(None, alias="X-Podcast-Token"),
 ):
     """Run a pending preview's whole-episode passes ahead of the first Play around.
 
@@ -188,7 +180,6 @@ def pending_preview_warm(
     idle pre-measure: no edit, a lower CPU priority, and a 2 s wait for that stem lock (the
     client asks again later).
     """
-    from podcast_mcp.gui.routes.deps import require_host
     from podcast_mcp.services.app import ProjectWorkspace
     from podcast_mcp.services.document import PlayService, warm_in_background
     from podcast_mcp.util.process import low_priority
@@ -197,7 +188,6 @@ def pending_preview_warm(
         REQUEST_RENDER_LOCK_TIMEOUT_SEC,
     )
 
-    require_host(request, token=token, x_podcast_token=x_podcast_token)
     project_path = resolve_project(path, request)
     try:
         if background:
@@ -220,7 +210,7 @@ def pending_preview_warm(
         raise bad_request_error(exc) from exc
 
 
-@router.get("/api/pending-preview")
+@router.get("/api/pending-preview", dependencies=_HOST_GATE)
 def pending_preview_audio(
     request: Request,
     path: str = Query(...),
@@ -231,8 +221,6 @@ def pending_preview_audio(
         ge=PENDING_PREVIEW_PAD_MIN_SEC,
         le=PENDING_PREVIEW_PAD_MAX_SEC,
     ),
-    token: str | None = Query(None),
-    x_podcast_token: str | None = Header(None, alias="X-Podcast-Token"),
 ):
     """The Current / Suggested / A/B WAV around a pending edit, ``pad_sec`` either side.
 
@@ -240,12 +228,10 @@ def pending_preview_audio(
     Ask ``mode=current`` and ``mode=suggested`` for the A and B files of an audition.
     """
     from podcast_mcp.gui.audio import pending_preview_headers, pinned_audio_response
-    from podcast_mcp.gui.routes.deps import require_host
     from podcast_mcp.services.app import ProjectWorkspace
     from podcast_mcp.services.document import PlayService
     from podcast_mcp.util.project_state import render_lock
 
-    require_host(request, token=token, x_podcast_token=x_podcast_token)
     ws = ProjectWorkspace.open(resolve_project(path, request))
     try:
         play = PlayService(ws)

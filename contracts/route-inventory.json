@@ -1,6 +1,6 @@
 {
   "api_version": 1,
-  "host_direct_baseline": 18,
+  "host_direct_baseline": 7,
   "routes": [
     {
       "gate": "other",
@@ -73,7 +73,6 @@
     {
       "gate": "host",
       "handler": "podcast_mcp.gui.routes.document:get_clip_bleed",
-      "host_direct": true,
       "method": "GET",
       "path": "/api/clips/{clip_id}/bleed"
     },
@@ -163,35 +162,30 @@
     {
       "gate": "host",
       "handler": "podcast_mcp.gui.routes.export_routes:export_bounce",
-      "host_direct": true,
       "method": "POST",
       "path": "/api/export/bounce"
     },
     {
       "gate": "host",
       "handler": "podcast_mcp.gui.routes.export_routes:export_deliverables",
-      "host_direct": true,
       "method": "POST",
       "path": "/api/export/deliverables"
     },
     {
       "gate": "host",
       "handler": "podcast_mcp.gui.routes.export_routes:export_settings",
-      "host_direct": true,
       "method": "POST",
       "path": "/api/export/deliverables/settings"
     },
     {
       "gate": "host",
       "handler": "podcast_mcp.gui.routes.export_routes:list_export_files",
-      "host_direct": true,
       "method": "GET",
       "path": "/api/export/files"
     },
     {
       "gate": "host",
       "handler": "podcast_mcp.gui.routes.export_routes:reveal_export_file",
-      "host_direct": true,
       "method": "POST",
       "path": "/api/export/files/reveal"
     },
@@ -285,14 +279,12 @@
     {
       "gate": "host",
       "handler": "podcast_mcp.gui.routes.document:pending_preview_audio",
-      "host_direct": true,
       "method": "GET",
       "path": "/api/pending-preview"
     },
     {
       "gate": "host",
       "handler": "podcast_mcp.gui.routes.document:pending_preview_warm",
-      "host_direct": true,
       "method": "POST",
       "path": "/api/pending-preview/warm"
     },
@@ -444,7 +436,6 @@
     {
       "gate": "host",
       "handler": "podcast_mcp.gui.routes.document:range_audio",
-      "host_direct": true,
       "method": "POST",
       "path": "/api/range-audio"
     },
@@ -1021,14 +1012,12 @@
     {
       "gate": "host",
       "handler": "podcast_mcp.gui.routes.export_routes:export_transcript",
-      "host_direct": true,
       "method": "POST",
       "path": "/api/transcript/export"
     },
     {
       "gate": "host",
       "handler": "podcast_mcp.gui.routes.export_routes:list_exported_transcripts",
-      "host_direct": true,
       "method": "GET",
       "path": "/api/transcript/exports"
     },
