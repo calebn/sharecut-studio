@@ -1136,9 +1136,9 @@ describe("playing a timeline longer than the first window", () => {
     engine.play(0);
     await flush();
     await advanceTo(handle, 330);
-    expect(fetchChunk.mock.calls.map(([ref]) => ref.index).sort()).toEqual([
-      0, 1, 5, 6,
-    ]);
+    expect(
+      fetchChunk.mock.calls.map(([ref]) => ref.index).sort((a, b) => a - b),
+    ).toEqual([0, 1, 5, 6]);
     expect(handle.created.map(({ start }) => start.mock.calls[0][0])).toEqual([
       0, 60, 330, 360,
     ]);
