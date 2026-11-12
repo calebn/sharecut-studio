@@ -146,7 +146,7 @@ function openFailure(error: unknown): string {
     const coded =
       VERSION_REFUSAL_CODES.has(error.code) ||
       (error.status === 400 && !GENERIC_OPEN_CODES.has(error.code));
-    if (coded) return readableServerMessage(error) ?? NOT_OPENED;
+    return coded ? (readableServerMessage(error) ?? NOT_OPENED) : NOT_OPENED;
   }
   return NOT_OPENED;
 }

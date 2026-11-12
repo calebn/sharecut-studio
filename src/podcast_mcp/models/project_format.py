@@ -60,7 +60,7 @@ def _unsupported_version(version: object) -> CodedValueError:
             f"This episode was saved by a newer version of ShareCut Studio "
             f"(project format {version}). Update the app, then open it again."
         )
-    shown = f" ({version})" if isinstance(version, str) and found is not None else ""
+    shown = f" ({version})" if found is not None else ""
     return ProjectVersionUnsupportedError(
         f"This episode was saved in a project format{shown} that this version of ShareCut Studio "
         "can't open. Open it with the version that saved it, or restore a backup."
