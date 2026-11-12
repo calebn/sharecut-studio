@@ -828,10 +828,16 @@ pending cuts on a copy, at low priority, with the interactive intent Approve all
 is part of the check, so a check made for another intent is never reused), stopping as soon as
 an approval starts, and an approval reuses the check of every cut whose neighbourhood is unchanged. The key
 (`edits/verdict_cache.py`) hashes the cut, the intent, the whole settings mapping, what every
-track plays within 6 s of the cut plus the longest fade (cut crossfade, pad fade or clip fade;
-a project with any clip fade over 1 s is never cached), and for a pause at least 13 s out and out
-to the words its check observes, the words there, the span the pause is observed over (its two
-ends, which the longest fade of any clip, also one ending before the window, can widen), the edit
+track plays within 6 s of the cut plus the longest fade (cut crossfade, pad fade, or the fade of
+a clip on the cut's track whose edge touches the cut, `cut_quality.fade_reach_sec`), and for a
+pause at least 13 s out and out to the words its check observes. A cut whose window a clip fade
+over 1 s runs into, on any track, is never cached: the render shortens a fade to half its clip,
+so that ramp can depend on a clip end outside the window. A long fade outside the window leaves
+the cut cached (#3699; before, any clip fade over 1 s turned the cache off for the whole
+project); the window is on the timeline, so a clip placed away from its source time is judged
+where it plays. The key also hashes the words there, the span the pause is observed over (its two
+ends, which the longest fade of a touching clip on the track, also one ending before the window,
+can widen), the edit
 log's pad records it reads (#2439). A pad-purpose record with no `pad_samples` is hashed. So is
 `pad_samples` that is neither a list nor a tuple, on any record. For a list or tuple, each sample is hashed if
 it is malformed, or if its range is invalid (non-finite, below 0 or not increasing). The check
