@@ -1,3 +1,4 @@
+import type { TranscriptDetailView } from "../../document/useTranscriptDetail";
 import type { CommentDraft } from "../../state/types";
 
 /** Only links that read and comment get the Listen layout; an Editor keeps Review. */
@@ -74,4 +75,24 @@ export function nearestBefore<T extends { at: number }>(
     if (best === null || item.at > best.at) best = item;
   }
   return best;
+}
+
+/** The transcript's state from what the link really carries, never from the role. */
+export function listenScriptOf(input: {
+  loadFailed: boolean;
+  detail: TranscriptDetailView["kind"];
+  /** The project has utterances at all. */
+  hasTranscript: boolean;
+}): ListenInput["script"] {
+  if (input.loadFailed) return "failed";
+  switch (input.detail) {
+    case "hidden":
+      return "none";
+    case "ready":
+      return input.hasTranscript ? "ready" : "none";
+    case "pending":
+      return "pending";
+    case "failed":
+      return "failed";
+  }
 }
