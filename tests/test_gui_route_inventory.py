@@ -16,6 +16,8 @@ from script_loader import load_script
 
 pytest.importorskip("fastapi")
 
+from fastapi import APIRouter, Depends, FastAPI
+
 ROOT = Path(__file__).resolve().parents[1]
 _SPEC = importlib.util.spec_from_file_location(
     "check_route_inventory", ROOT / "scripts" / "check_route_inventory.py"
@@ -151,8 +153,7 @@ def _authorized(request):
     require_authz(request)
 
 
-def _depends(request, gate=require_host):
-    return gate
+def _depends(request, gate=Depends(require_host)): ...
 
 
 def _aliased(request):
@@ -170,6 +171,7 @@ def test_gate_classes_come_from_the_handler_source() -> None:
     assert inventory.gate_of("GET", "/x", _helper) == ("host", None)
     assert inventory.gate_of("GET", "/x", _authorized) == ("authz", None)
     assert inventory.gate_of("GET", "/x", _aliased) == ("host", None)
+    assert inventory.gate_of("GET", "/x", _depends) == ("host", None)
     assert inventory.gate_of("GET", "/x", _commented) == ("other", inventory.UNREVIEWED)
     assert inventory.gate_of("GET", "/x", _plain) == ("other", inventory.UNREVIEWED)
     assert inventory.HOST_CALL in inventory.referenced_names(_direct)
@@ -243,3 +245,84 @@ def test_the_baseline_must_equal_the_count(live) -> None:
     raised = _contract_of(live)
     raised["host_direct_baseline"] += 1
     assert any("Lower it" in m for m in inventory.problems(live, raised))
+
+
+def _rows(app: Any) -> dict[tuple[str, str], dict[str, Any]]:
+    return {(r["method"], r["path"]): r for r in inventory.live_rows([app])}
+
+
+def test_include_router_prefix_and_dependencies_apply_to_every_child() -> None:
+    inner = APIRouter(prefix="/inner")
+    inner.get("/leaf")(_plain)
+    outer = APIRouter(prefix="/outer")
+    outer.get("/own")(_plain)
+    outer.include_router(inner, prefix="/mid", dependencies=[Depends(require_authz)])
+    app = FastAPI()
+    app.include_router(outer, prefix="/api", dependencies=[Depends(require_host)])
+    rows = _rows(app)
+    assert rows[("GET", "/api/outer/own")]["gate"] == "host"
+    assert rows[("GET", "/api/outer/mid/inner/leaf")]["gate"] == "host"
+    assert ("GET", "/own") not in rows and ("GET", "/leaf") not in rows
+
+
+def test_a_router_level_gate_is_a_gate_but_not_a_direct_call() -> None:
+    gated = APIRouter(dependencies=[Depends(require_host)])
+    gated.get("/one")(_plain)
+    direct = APIRouter()
+    direct.get("/two")(_direct)
+    app = FastAPI()
+    app.include_router(gated, prefix="/g")
+    app.include_router(direct, prefix="/d")
+    rows = _rows(app)
+    assert rows[("GET", "/g/one")]["gate"] == "host"
+    assert "host_direct" not in rows[("GET", "/g/one")]
+    assert rows[("GET", "/d/two")]["host_direct"] is True
+    assert inventory.host_direct_count(list(rows.values())) == 1
+
+
+def test_an_include_without_a_gate_leaves_the_class_to_the_handler() -> None:
+    inner = APIRouter()
+    inner.get("/plain")(_plain)
+    inner.get("/authz")(_authorized)
+    app = FastAPI()
+    app.include_router(inner, prefix="/p")
+    rows = _rows(app)
+    assert rows[("GET", "/p/plain")]["gate"] == "other"
+    assert rows[("GET", "/p/authz")]["gate"] == "authz"
+
+
+def test_an_include_time_gate_does_not_leak_to_a_sibling_include() -> None:
+    gated, open_ = APIRouter(), APIRouter()
+    gated.get("/a")(_plain)
+    open_.get("/b")(_plain)
+    app = FastAPI()
+    app.include_router(gated, prefix="/x", dependencies=[Depends(require_host)])
+    app.include_router(open_, prefix="/y")
+    rows = _rows(app)
+    assert rows[("GET", "/x/a")]["gate"] == "host"
+    assert rows[("GET", "/y/b")]["gate"] == "other"
+
+
+def test_no_include_router_in_the_app_carries_a_prefix_or_dependencies() -> None:
+    for app in inventory.variant_apps():
+        for route, path, gates in inventory._walk(list(app.routes)):
+            assert path == route.path
+            assert gates == ()
+
+
+def test_the_failure_messages_say_where_to_fix(live, contract) -> None:
+    assert "OVERRIDES" in inventory.UNREVIEWED and "PUBLIC_ROUTES" in inventory.UNREVIEWED
+    raised = _contract_of(live)
+    raised["host_direct_baseline"] -= 1
+    message = next(m for m in inventory.problems(live, raised) if "only shrink" in m)
+    assert "include_router" in message and "dependencies" in message
+
+
+def test_write_exits_nonzero_when_it_emits_an_unreviewed_row(monkeypatch, tmp_path) -> None:
+    row = {"method": "GET", "path": "/new", "gate": "other", "handler": "m:f"}
+    monkeypatch.setattr(inventory, "ROOT", tmp_path)
+    monkeypatch.setattr(inventory, "CONTRACT", tmp_path / "route-inventory.json")
+    monkeypatch.setattr(inventory, "live_rows", lambda: [{**row, "reason": inventory.UNREVIEWED}])
+    assert inventory.main(["--write"]) == 1
+    monkeypatch.setattr(inventory, "live_rows", lambda: [{**row, "reason": "reviewed"}])
+    assert inventory.main(["--write"]) == 0

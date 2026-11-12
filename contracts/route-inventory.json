@@ -1224,7 +1224,7 @@
       "handler": "podcast_mcp.gui.routes.auth:auth_magic_link",
       "method": "POST",
       "path": "/auth/magic-link",
-      "reason": "emails a sign-in link; the caller has no session yet"
+      "reason": "sends no email; returns or prints the link only when PODCAST_MAGIC_LINK_PRINT=1 on a loopback peer; the caller has no session yet"
     },
     {
       "gate": "other",
@@ -1238,7 +1238,7 @@
       "handler": "podcast_mcp.gui.routes.auth:auth_me",
       "method": "GET",
       "path": "/auth/me",
-      "reason": "reads the session cookie and answers null without one"
+      "reason": "reads the session cookie or a Bearer session; 401 sign_in_required without one"
     },
     {
       "gate": "other",
