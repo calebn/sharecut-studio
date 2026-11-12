@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { readLocal, writeLocal } from "./storage";
+import { readLocal, removeLocal, writeLocal } from "./storage";
 
 function securityError(): DOMException {
   return new DOMException("The operation is insecure.", "SecurityError");
@@ -53,5 +53,15 @@ describe("storage", () => {
     );
     expect(readLocal("sharecut.test")).toBeNull();
     expect(() => writeLocal("sharecut.test", "1")).not.toThrow();
+  });
+
+  it("removeLocal clears a value and swallows a throwing removeItem", () => {
+    writeLocal("sharecut.test", "1");
+    removeLocal("sharecut.test");
+    expect(readLocal("sharecut.test")).toBeNull();
+    vi.spyOn(Storage.prototype, "removeItem").mockImplementation(() => {
+      throw securityError();
+    });
+    expect(() => removeLocal("sharecut.test")).not.toThrow();
   });
 });

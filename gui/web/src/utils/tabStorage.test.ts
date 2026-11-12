@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { blockStorage } from "../test/blockStorage";
-import { getTab, setTab } from "./tabStorage";
+import { getTab, removeTab, setTab } from "./tabStorage";
 
 describe("tabStorage", () => {
   beforeEach(() => sessionStorage.clear());
@@ -38,5 +38,25 @@ describe("tabStorage", () => {
     vi.stubGlobal("sessionStorage", undefined);
     expect(getTab("k")).toBeNull();
     expect(setTab("k", "v")).toBe(false);
+  });
+
+  describe("removeTab", () => {
+    it("removes a stored value", () => {
+      setTab("k", "v");
+      removeTab("k");
+      expect(getTab("k")).toBeNull();
+    });
+
+    it("never throws when removal is blocked", () => {
+      vi.spyOn(Storage.prototype, "removeItem").mockImplementation(() => {
+        throw new DOMException("blocked", "SecurityError");
+      });
+      expect(() => removeTab("k")).not.toThrow();
+    });
+
+    it("degrades when the global is missing", () => {
+      vi.stubGlobal("sessionStorage", undefined);
+      expect(() => removeTab("k")).not.toThrow();
+    });
   });
 });

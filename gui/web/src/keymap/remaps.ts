@@ -3,7 +3,7 @@
  * Empty / missing override → use catalog keys.
  */
 
-import { readLocal, writeLocal } from "../utils/storage";
+import { readLocal, removeLocal, writeLocal } from "../utils/storage";
 
 const STORAGE_KEY = "sharecut.keymap.overrides";
 
@@ -123,11 +123,5 @@ export function clearAllKeymapOverrides(): void {
 /** Test helper — reset in-memory + storage. */
 export function _resetKeymapOverridesForTests(): void {
   memory = null;
-  try {
-    if (typeof localStorage !== "undefined") {
-      localStorage.removeItem(STORAGE_KEY);
-    }
-  } catch {
-    /* jsdom / incomplete localStorage stubs */
-  }
+  removeLocal(STORAGE_KEY);
 }

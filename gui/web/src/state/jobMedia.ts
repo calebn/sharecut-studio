@@ -1,6 +1,7 @@
 import type { PipelineJobSnapshot } from "../types/pipeline";
 import type { TrackView } from "../types/project";
 import { isPipelineKindJob, isPipelineRunning } from "../utils/pipeline";
+import { getTab, setTab } from "../utils/tabStorage";
 import { useDawStore } from "./dawStore";
 
 const keys = new Map<string, string>();
@@ -75,11 +76,7 @@ export function recordJobMedia(jobId: string, key: string | null): void {
   for (const old of ids.slice(0, Math.max(0, ids.length - SAVED_JOBS))) {
     delete saved[old];
   }
-  try {
-    window.sessionStorage.setItem(SAVED_KEY, JSON.stringify(saved));
-  } catch {
-    /* private window: the memory copy still serves this page load */
-  }
+  setTab(SAVED_KEY, JSON.stringify(saved));
 }
 
 export function jobMediaKey(jobId: string): string | undefined {
@@ -91,7 +88,7 @@ const SAVED_JOBS = 20;
 
 function savedKeys(): Record<string, string> {
   try {
-    const raw = window.sessionStorage.getItem(SAVED_KEY);
+    const raw = getTab(SAVED_KEY);
     const parsed: unknown = raw ? JSON.parse(raw) : {};
     return parsed && typeof parsed === "object"
       ? (parsed as Record<string, string>)

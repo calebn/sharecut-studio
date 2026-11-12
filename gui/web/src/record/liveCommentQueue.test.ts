@@ -9,6 +9,7 @@ import {
   loadCommentQueue,
   MARKER_BODY,
   postLiveComment,
+  saveCommentQueue,
 } from "./liveCommentQueue";
 
 describe("liveCommentQueue", () => {
@@ -86,6 +87,19 @@ describe("liveCommentQueue", () => {
       ),
     ).toThrow("sender closed");
     expect(loadCommentQueue("tok")[0]?.body).toBe("Keep queued");
+  });
+
+  it("returns false when the queue cannot be serialised", () => {
+    const comment = buildLiveComment({
+      body: MARKER_BODY,
+      takeIndex: 0,
+      recordingMs: 0,
+      author: "p_g",
+      id: "live-big",
+    });
+    const unserialisable = { ...comment, extra: 1n } as typeof comment;
+    expect(saveCommentQueue("tok", [unserialisable])).toBe(false);
+    expect(loadCommentQueue("tok")).toEqual([]);
   });
 
   it("returns false when sessionStorage save fails", () => {

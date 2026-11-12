@@ -54,6 +54,14 @@ describe("open intent", () => {
     expect(takeAutoRun(PATH)).toBe(false);
   });
 
+  it("removes the stored key once nothing is left to hand over", () => {
+    writeOpenIntent(PATH, { stage: "edit" });
+    expect(takeOpenStage(PATH)).toBe("edit");
+    expect(sessionStorage.getItem(`sharecut.openIntent:${PATH}`)).toBeNull();
+    writeOpenIntent(PATH, {});
+    expect(sessionStorage.length).toBe(0);
+  });
+
   it("does nothing without a path or with blocked storage", () => {
     writeOpenIntent("", { stage: "edit" });
     expect(takeOpenStage("")).toBeNull();
