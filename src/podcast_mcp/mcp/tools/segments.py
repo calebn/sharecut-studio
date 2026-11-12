@@ -91,7 +91,7 @@ def segment_insert_tool(
             version=version,
             dry_run=dry_run,
             client_id="mcp:host",
-        ).wire()
+        ).model_dump()
     )
 
 

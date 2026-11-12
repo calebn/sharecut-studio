@@ -164,7 +164,7 @@ def segment_insert_cmd(
     """Insert a saved segment into an episode at start, end or a timeline second."""
     result = submit_segment_insert(
         project, segment_id, at, version=version, dry_run=dry_run, client_id="cli"
-    ).wire()
+    ).model_dump()
     if as_json:
         typer.echo(_json(result))
     elif dry_run:

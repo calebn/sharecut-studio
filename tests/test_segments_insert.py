@@ -854,7 +854,68 @@ def test_the_insert_results_are_typed_and_refuse_unknown_keys(tmp_path: Path, pr
     assert preview.chapters_moved[0].to == 8.0
     assert isinstance(applied, SegmentInsertApplied)
     assert applied.tracks == {"0": "warm_intro", "1": "warm_intro_2"}
+    assert preview.model_dump()["chapters_moved"] == [{"title": "Later", "from": 6.0, "to": 8.0}]
     with pytest.raises(ValidationError):
-        SegmentInsertPreview.model_validate({**preview.model_dump(), "surprise": 1})
+        SegmentInsertPreview.model_validate({**preview.model_dump(by_alias=False), "surprise": 1})
     with pytest.raises(ValidationError):
         SegmentInsertApplied.model_validate({**applied.model_dump(), "surprise": 1})
+
+
+def test_a_moved_comment_prints_the_same_bytes_as_before(tmp_path: Path, project: str) -> None:
+    from podcast_mcp.mcp.tools import segments as tools
+    from podcast_mcp.models.episode import TimelineComment
+
+    proj = load_project(Path(project))
+    proj.review.comments = [
+        TimelineComment(
+            id="cm1", body="tighten", author="Ana", created_at="2026-11-01", timeline_start=6.0
+        )
+    ]
+    save_project(proj, Path(project))
+    segment = _save(tmp_path, "Warm Intro", chapter_title="Welcome", role="dialogue", lanes=(0, 1))
+
+    preview = tools.segment_insert_tool(project, segment.id, 4.0, dry_run=True)
+    inserted = tools.segment_insert_tool(project, segment.id, 4.0)
+
+    moved = [{"id": "cm1", "from": 6.0, "to": 8.0}]
+    assert preview == json.dumps(_preview_wire(segment.id, comments_moved=moved), indent=2)
+    assert inserted == json.dumps(
+        {
+            "dry_run": False,
+            "segment_id": segment.id,
+            "segment_version": 1,
+            "at": 4.0,
+            "duration_sec": 2.0,
+            "operation": "insert_segment",
+            "affected_tracks": ["host", "warm_intro", "warm_intro_2"],
+            "clip_count": 4,
+            "timeline_duration_sec": 10.0,
+            "tracks": {"0": "warm_intro", "1": "warm_intro_2"},
+        },
+        indent=2,
+    )
+    assert load_project(Path(project)).review.comments[0].timeline_start == 8.0
+
+
+def test_a_retried_insert_returns_the_stored_result_and_inserts_once(
+    tmp_path: Path, project: str
+) -> None:
+    from podcast_mcp.services.document import SegmentInsertApplied
+
+    segment = _save(tmp_path, "Plain Sting")
+    command = DocumentCommand(
+        type="InsertSegment",
+        payload={"segment_id": segment.id, "at": 2.0},
+        client_id="gui",
+        client_seq=None,
+        role="owner",
+    )
+    first = DocumentSyncService.open(project).submit(command)
+    after_first = _layout(project)
+
+    retry = DocumentSyncService.open(project).submit(command)
+
+    stored = first["command"]["payload"]["result"]
+    assert json.dumps(retry["command"]["payload"]["result"]) == json.dumps(stored)
+    assert _layout(project) == after_first
+    assert json.dumps(SegmentInsertApplied.model_validate(stored).journal()) == json.dumps(stored)

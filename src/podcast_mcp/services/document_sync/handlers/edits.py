@@ -395,12 +395,13 @@ def move_segment(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
 def insert_segment(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
     version = p.get("version")
     at = p["at"]
-    return insert_saved_segment(
+    inserted = insert_saved_segment(
         ws,
         str(p["segment_id"]),
         at if isinstance(at, str) else float(at),
         version=None if version is None else int(version),
-    ).model_dump()
+    )
+    return dict(inserted.journal())
 
 
 def insert_gap(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
