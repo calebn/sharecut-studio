@@ -628,6 +628,7 @@ shipped at the port; #1031 shipped it. The adjacent MCP note shipped in #1027.
 
 ## Changelog
 
+- 2026-11-12 The Terminology table's quoted multi-word "Never say" phrases are now checked against the web app's copy (#3123 item 7, `scripts/check_terminology.py`). The 33 hits that exist are a shrink-only baseline in `tests/terminology_baseline.json`; no copy changed.
 - 2026-11-11 A guest is told when the mix they hear is behind (#3605): the player's status reads "Mix out of date", with no "· Refresh" and no action, only when the server says the mix the guest plays no longer matches the host's edits (`render_status.premix.is_stale`). The host's pill is unchanged.
 - 2026-11-11 Five more controls say why they are unavailable, in text beside them (#1686): the clip inspector for a View-only link ("This link can view, but not edit, clips. Ask the host for an editor link."), a saved mute a guest cannot undo (the mixer and the track inspector show "Muted in the mix. Only the host and editors can unmute it."), the More sheet's End session, the pending-edit Suggested and A/B preview modes, and the Review queue's held Dismiss all (no longer screen-reader-only). Each control keeps its `title` and points `aria-describedby` at the visible note.
 
