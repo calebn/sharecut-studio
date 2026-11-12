@@ -7,7 +7,7 @@ name = "podcast-mcp"
 version = "0.1.4"
 description = "FOSS CLI and MCP toolkit for podcast multitrack editing, transcription, and mastering"
 readme = "README.md"
-license = "MIT"
+license = "AGPL-3.0-or-later"
 requires-python = ">=3.11"
 dependencies = [
     "typer>=0.12.0",
