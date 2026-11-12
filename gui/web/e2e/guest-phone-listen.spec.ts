@@ -316,12 +316,12 @@ for (const profile of PROFILES) {
         const comment = commentButton(guest);
         await expectReached(comment);
         await expectReached(play);
-        const stripBox = await guest.locator(".sys-dock-strip").boundingBox();
+        const dockBox = await guest.locator(".sys-dock").boundingBox();
         const playBox = await play.boundingBox();
         const commentBox = await comment.boundingBox();
-        expect(stripBox && playBox && commentBox).toBeTruthy();
-        if (!stripBox || !playBox || !commentBox) return;
-        expect(playBox.y).toBeGreaterThanOrEqual(stripBox.y + stripBox.height);
+        expect(playBox && commentBox).toBeTruthy();
+        if (!playBox || !commentBox) return;
+        expect(dockBox?.height ?? 999).toBeLessThanOrEqual(150);
         const playMiddle = playBox.y + playBox.height / 2;
         expect(playMiddle).toBeGreaterThanOrEqual(commentBox.y);
         expect(playMiddle).toBeLessThanOrEqual(
