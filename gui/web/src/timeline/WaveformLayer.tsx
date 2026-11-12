@@ -92,6 +92,8 @@ type Props = {
   role: string;
   /** Track output gain (dB, `gain_db + fader_db`); drawn only post-fader. */
   gainDb: number;
+  /** The clip's own gain (dB); drawn always, not only post-fader. */
+  clipGainDb?: number;
   minWidthCss?: number;
 };
 
@@ -213,6 +215,7 @@ function WaveformLayerView({
   colorVar,
   role,
   gainDb,
+  clipGainDb = 0,
   minWidthCss = MIN_CLIP_CSS_PX,
 }: Props) {
   const projectPath = useDawStore((s) => s.projectPath);
@@ -220,8 +223,9 @@ function WaveformLayerView({
   const scaleMode = useDawStore((s) => s.waveformScale);
   const postFader = useDawStore((s) => s.waveformPostFader);
   const scale = resolveWaveformScale(scaleMode, role);
-  // Display gain: View amplitude, times the track's output gain (0.5 dB steps) post-fader.
-  const gain = ampZoom * (postFader ? postFaderDisplayGain(gainDb) : 1);
+  // Display gain: View amplitude, times the clip gain, plus the track's output gain post-fader (0.5 dB steps).
+  const gain =
+    ampZoom * postFaderDisplayGain(clipGainDb + (postFader ? gainDb : 0));
   const theme = useResolvedTheme();
   const dprReal = useDevicePixelRatio();
   const held = useHeldReady(

@@ -417,6 +417,23 @@ describe("WaveformLayer", () => {
     expect(rasters()[0]!.job.ampZoom).toBeCloseTo(10 ** (-6 / 20), 5);
   });
 
+  it("scales by the clip gain with the post-fader chip off, and rounds it to 0.5 dB", () => {
+    mount({ clipGainDb: 6 });
+    expect(rasters()[0]!.job.ampZoom).toBeCloseTo(10 ** (6 / 20), 5);
+    state.rasters = [];
+    mount({ clipGainDb: 6.2 });
+    expect(rasters()[0]!.job.ampZoom).toBeCloseTo(10 ** (6 / 20), 5);
+  });
+
+  it("adds the track gain to the clip gain only post-fader", () => {
+    mount({ gainDb: -6, clipGainDb: 6 });
+    expect(rasters()[0]!.job.ampZoom).toBeCloseTo(10 ** (6 / 20), 5);
+    state.rasters = [];
+    useDawStore.setState({ waveformPostFader: true });
+    mount({ gainDb: -6, clipGainDb: 6 });
+    expect(rasters()[0]!.job.ampZoom).toBeCloseTo(1, 5);
+  });
+
   it("dims the peak edge at coarse zoom, keeps it at fine zoom", () => {
     mount({ zoom: 10 });
     const coarseAlpha = rasters()[0]!.job.edge[3];

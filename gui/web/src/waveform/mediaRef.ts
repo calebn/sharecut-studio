@@ -1,5 +1,6 @@
 import type { ClipRow, ProjectView, TrackView } from "../types/project";
 import { clipSourceToTimelineNearest } from "../utils/clipTiming";
+import { clipGainDb } from "../utils/audio";
 import { originTrackId } from "../utils/timebase";
 import type { MediaRef, WaveformKind } from "./types";
 
@@ -40,19 +41,9 @@ export function clipMediaStartSec(
   return sourceStart;
 }
 
-/**
- * Output gain (dB) the clip's waveform is scaled by post-fader: the track's
- * plus the clip's own. A fresh stem already carries the clip gain, so it
- * takes the track's alone.
- */
-export function clipWaveformGainDb(
-  clip: ClipRow,
-  ref: MediaRef,
-  trackGainDb: number,
-): number {
-  return ref.startsWith("stem:")
-    ? trackGainDb
-    : trackGainDb + (clip.gain_db ?? 0);
+/** The clip gain (dB) its waveform is scaled by: none for a stem, which already carries it. */
+export function clipWaveformGainDb(clip: ClipRow, ref: MediaRef): number {
+  return ref.startsWith("stem:") ? 0 : clipGainDb(clip);
 }
 
 export function clipDrawsPieces(clip: ClipRow, ref: MediaRef): boolean {

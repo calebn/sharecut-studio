@@ -30,6 +30,8 @@ const waves: JoinWaveSides = {
   rightRef: "source:b",
   role: "dialogue",
   gainDb: -3,
+  leftClipGainDb: 4,
+  rightClipGainDb: -2.5,
 };
 function mount(row = right(200), zoom = 100) {
   return render(
@@ -120,12 +122,15 @@ describe("JoinBlend overlap waveforms", () => {
       colorVar: "join-blend-left",
       minWidthCss: 1,
       zoom: 100,
+      gainDb: -3,
+      clipGainDb: 4,
     });
     expect(r).toMatchObject({
       mediaRef: "source:b",
       mediaStartSec: 4.9,
       colorVar: "join-blend-right",
       minWidthCss: 1,
+      clipGainDb: -2.5,
     });
   });
 

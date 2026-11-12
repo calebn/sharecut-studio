@@ -15,6 +15,7 @@ type Props = {
   colorVar: string;
   role: string;
   gainDb: number;
+  clipGainDb?: number;
 };
 
 export function PieceWaveforms({
@@ -26,6 +27,7 @@ export function PieceWaveforms({
   colorVar,
   role,
   gainDb,
+  clipGainDb,
 }: Props) {
   const culled = pieces.length > PIECE_CULL_MIN;
   const [first, last] = useDawStore(
@@ -71,6 +73,7 @@ export function PieceWaveforms({
               colorVar={colorVar}
               role={role}
               gainDb={gainDb}
+              clipGainDb={clipGainDb}
             />
           </span>
         ),

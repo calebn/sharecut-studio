@@ -7,7 +7,15 @@ import { expectNoA11yViolations } from "../test/a11y";
 import { clipRow } from "../test/fixtures";
 import { JoinEditor } from "./JoinEditor";
 
-vi.mock("./WaveformLayer", () => ({ WaveformLayer: () => null }));
+const layers = vi.hoisted(() => ({
+  calls: [] as Record<string, unknown>[],
+}));
+vi.mock("./WaveformLayer", () => ({
+  WaveformLayer: (props: Record<string, unknown>) => {
+    layers.calls.push(props);
+    return null;
+  },
+}));
 
 const left = clipRow({
   id: "left",
@@ -53,10 +61,20 @@ function draft(ms: number, base = right, from = left) {
 }
 
 beforeEach(() => {
+  layers.calls = [];
   useDawStore.setState({ joinDraft: null });
 });
 
 describe("JoinEditor", () => {
+  it("scales each side of the seam by its own clip gain", () => {
+    mount({
+      ...waves,
+      left: { ...left, gain_db: 3 },
+      right: { ...right, gain_db: -6 },
+    });
+    expect(layers.calls.map((c) => c.clipGainDb)).toEqual([3, -6]);
+  });
+
   it("paints the saved overlap as a centred 1 px box", () => {
     const { container } = mount();
     expect(container.querySelector(".join-blend")).toHaveStyle({
