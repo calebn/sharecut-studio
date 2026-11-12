@@ -3,15 +3,17 @@
 
 ``docs/communication-philosophy.md`` § Terminology lists, per canonical term, what the product must
 never say. This reads the quoted multi-word phrases from that column and looks for them in the
-text a person can read in ``gui/web/src``: string and template literals and JSX text, outside tests,
-stories and generated files. Single words ("clip", "Start", "Error") are not read: the table bans
+text a person can read in ``gui/web/src``: string and template literals and JSX text, outside comments,
+tests, stories and generated files. A phrase in parentheses in the table is an example of what to do
+and is not read. Single words ("clip", "Start", "Error") are not read: the table bans
 them only in a stated sense, which a text match cannot see.
 
 The hits that exist today are counted per phrase and file in ``tests/terminology_baseline.json``.
 It is a ratchet: a file may not gain a hit, a file that is not listed may not have one, and a file
 that lost hits must lower its count, so the list only shrinks. A hit that is right in its context
 (a command label the table bans only in one menu) still counts here until the table is narrowed
-or the copy changes. ``--write`` regenerates the baseline after a fix.
+or the copy changes. ``--write`` regenerates the baseline after a fix. It lives in ``tests/``
+because a ``contracts/*.json`` file joins the native CI plan (``scripts/ci_native.py``).
 """
 
 from __future__ import annotations
@@ -27,16 +29,24 @@ TABLE_DOC = ROOT / "docs" / "communication-philosophy.md"
 BASELINE = ROOT / "tests" / "terminology_baseline.json"
 SOURCE = "gui/web/src"
 SUFFIXES = frozenset({".ts", ".tsx"})
-SKIPPED_NAME = re.compile(r"\.(test|stories)\.|generated")
+SKIPPED_NAME = re.compile(r"\.(test|stories|generated)\.")
+STRING = r"""(?:"(?:[^"\\\n]|\\.)*"|'(?:[^'\\\n]|\\.)*'|`(?:[^`\\]|\\.)*`)"""
+CODE_OR_COMMENT = re.compile(
+    rf"(?P<string>{STRING})|(?P<comment>/\*.*?\*/|(?<!:)//[^\n]*)", re.DOTALL
+)
 LITERAL = re.compile(r"""(?:"((?:[^"\\\n]|\\.)*)"|'((?:[^'\\\n]|\\.)*)'|`((?:[^`\\]|\\.)*)`)""")
+PARENTHETICAL = re.compile(r"\([^)]*\)")
+MIN_PHRASES = 20
 JSX_TEXT = re.compile(r">([^<>{}\n]+)<")
 QUOTED = re.compile(r'"([^"]+)"')
 TERMINOLOGY_HEADING = "## Terminology"
 
 
-def never_say_phrases(doc: Path = TABLE_DOC) -> dict[str, str]:
+def never_say_phrases(doc: Path = TABLE_DOC, minimum: int = MIN_PHRASES) -> dict[str, str]:
     """The quoted multi-word phrases of the table's last column, each with the term it belongs to."""
     text = doc.read_text(encoding="utf-8")
+    if TERMINOLOGY_HEADING not in text:
+        raise SystemExit(f"{doc.name} has no '{TERMINOLOGY_HEADING}' section to read")
     section = text.split(TERMINOLOGY_HEADING, 1)[1].split("\n## ", 1)[0]
     phrases: dict[str, str] = {}
     for line in section.splitlines():
@@ -45,16 +55,22 @@ def never_say_phrases(doc: Path = TABLE_DOC) -> dict[str, str]:
         cells = [cell.strip() for cell in line.strip().strip("|").split(" | ")]
         if len(cells) < 3:
             continue
-        for quoted in QUOTED.findall(cells[2]):
+        for quoted in QUOTED.findall(PARENTHETICAL.sub("", cells[2])):
             phrase = quoted.strip()
             if len(phrase.split()) >= 2:
                 phrases[phrase.lower()] = cells[0]
+    if len(phrases) < minimum:
+        raise SystemExit(
+            f"read {len(phrases)} phrases from {doc.name}, fewer than {minimum}: "
+            "the Terminology table changed shape and the check would pass on nothing"
+        )
     return phrases
 
 
 def readable_text(path: Path) -> Iterator[str]:
-    """The string literals and JSX text of ``path``, without module specifiers."""
-    source = path.read_text(encoding="utf-8", errors="ignore")
+    """The string literals and JSX text of ``path``, without comments or relative import paths."""
+    raw = path.read_text(encoding="utf-8", errors="ignore")
+    source = CODE_OR_COMMENT.sub(lambda m: m["string"] or "", raw)
     for double, single, template in LITERAL.findall(source):
         text = double or single or template
         if not text.startswith(("./", "../")):
@@ -68,7 +84,7 @@ def source_files(root: Path) -> Iterator[Path]:
         if (
             path.suffix in SUFFIXES
             and not SKIPPED_NAME.search(path.name)
-            and "test" not in path.parent.parts
+            and "test" not in path.relative_to(base).parent.parts
         ):
             yield path
 
@@ -96,7 +112,6 @@ def load_baseline(path: Path = BASELINE) -> dict[str, int]:
 def problems(
     counts: dict[str, int], allowed: dict[str, int], phrases: dict[str, str]
 ) -> Iterator[str]:
-    """One message per phrase and file whose count differs from its allowance."""
     for key in sorted(counts.keys() | allowed.keys()):
         found, limit = counts.get(key, 0), allowed.get(key, 0)
         phrase, rel = key.split("|", 1)
@@ -129,14 +144,14 @@ def write_baseline(counts: dict[str, int], path: Path = BASELINE) -> None:
 def main(argv: list[str] | None = None) -> int:
     args = sys.argv[1:] if argv is None else argv
     phrases = never_say_phrases()
-    counts = scan(phrases=phrases)
+    counts = scan(ROOT, phrases)
     if "--write" in args:
-        write_baseline(counts)
+        write_baseline(counts, BASELINE)
         print(
             f"wrote {BASELINE.relative_to(ROOT)}: {sum(counts.values())} hits in {len(counts)} rows"
         )
         return 0
-    found = list(problems(counts, load_baseline(), phrases))
+    found = list(problems(counts, load_baseline(BASELINE), phrases))
     for message in found:
         print(message, file=sys.stderr)
     return 1 if found else 0
