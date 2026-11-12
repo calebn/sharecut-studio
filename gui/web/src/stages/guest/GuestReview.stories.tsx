@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { useState } from "react";
-import { expect, fn, userEvent, within } from "storybook/test";
+import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import {
   type ReviewContent,
   ReviewQueue,
@@ -12,10 +12,17 @@ import {
   type ReviewFilter,
   type ReviewItem,
 } from "../../review/reviewQueueModel";
+import { StageFrame } from "../../stage/frame/StageFrame";
+import { StageHost } from "../../stage/hosts/StageHost";
 import { reviewContent } from "../../storybook/reviewContent";
-import { viewportStoryParameters } from "../../storybook/storyLayout";
+import {
+  studioViewports,
+  viewportStoryParameters,
+} from "../../storybook/storyLayout";
 import { SaveIndicator } from "../../system/SaveIndicator";
+import { episode } from "../../test/episodeFixture";
 import { offlineConflict } from "../../test/fixtures";
+import { episodeBeforeEach, withEpisode } from "../../test/withEpisode";
 import { DocumentCommand } from "../../types/documentCommands.generated";
 import { WORD_STARTS } from "./guestFixture";
 
@@ -142,6 +149,7 @@ const meta: Meta<GuestReviewProps> = {
   },
   parameters: {
     ...viewportStoryParameters,
+    viewport: { options: studioViewports },
     docs: {
       ...viewportStoryParameters.docs,
       description: {
@@ -246,5 +254,241 @@ export const Reconnected: Story = {
       view.getByRole("button", { name: "Hear your cut at 12:04" }),
     ).toBeInTheDocument();
     await expectNoBanner(canvasElement);
+  },
+};
+
+const NAME_KEY = "podcast-mcp-guest-comment-name";
+const HINT_KEY = "sharecut.roleHintSeen.commenter";
+
+const phoneViewports = {
+  ...studioViewports,
+  phoneLandscape: {
+    name: "Phone landscape 667",
+    styles: { width: "667px", height: "375px" },
+    type: "mobile",
+  },
+} as const;
+
+function rememberLocal(key: string, value: string | null) {
+  const previous = localStorage.getItem(key);
+  if (value === null) localStorage.removeItem(key);
+  else localStorage.setItem(key, value);
+  return () => {
+    if (previous === null) localStorage.removeItem(key);
+    else localStorage.setItem(key, previous);
+  };
+}
+
+function PhoneShare({ guestShare }: { guestShare: boolean }) {
+  return (
+    <StageFrame guestShare={guestShare}>
+      {(viewAnchor) => (
+        <StageHost viewAnchor={viewAnchor} guestShare={guestShare} />
+      )}
+    </StageFrame>
+  );
+}
+
+/** A whole phone share link: the app header, the stage and the Player placed by the frame. */
+const phoneShare = (
+  role: "commenter" | "viewer" | "editor",
+  options: {
+    viewport?: keyof typeof phoneViewports;
+    project?: ReturnType<typeof episode>;
+    beforeEach?: () => () => void;
+  } = {},
+): Story => ({
+  render: () => <PhoneShare guestShare={role !== "editor"} />,
+  beforeEach: options.beforeEach
+    ? [episodeBeforeEach, options.beforeEach]
+    : [episodeBeforeEach],
+  decorators: [
+    withEpisode,
+    (Render) => (
+      <div data-daw-app-chrome>
+        <Render />
+      </div>
+    ),
+  ],
+  globals: {
+    viewport: { value: options.viewport ?? "mobile390", isRotated: false },
+  },
+  parameters: {
+    viewport: { options: phoneViewports },
+    episode: {
+      role,
+      state: { stage: "review" },
+      ...(options.project ? { project: options.project } : {}),
+    },
+  },
+});
+
+const commentButton = (canvas: ReturnType<typeof within>) =>
+  canvas.findByRole("button", { name: /^Comment at/ });
+
+export const CommenterPhone: Story = {
+  ...phoneShare("commenter", {
+    beforeEach: () => rememberLocal(HINT_KEY, "1"),
+  }),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(await commentButton(canvas)).toBeVisible();
+    await expect(canvas.queryByRole("textbox")).toBeNull();
+    await expect(
+      canvas.getByRole("slider", { name: "Episode overview" }),
+    ).toBeVisible();
+    await expect(
+      canvas.getByRole("button", { name: /^Show comments/ }),
+    ).toBeVisible();
+    await expect(canvas.getByRole("button", { name: "Play" })).toBeVisible();
+    await expect(
+      canvasElement.ownerDocument.documentElement.scrollWidth,
+    ).toBeLessThanOrEqual(window.innerWidth);
+  },
+};
+
+export const CommenterPhoneComposing: Story = {
+  ...phoneShare("commenter", {
+    beforeEach: () => {
+      const hint = rememberLocal(HINT_KEY, "1");
+      const name = rememberLocal(NAME_KEY, "Maya");
+      return () => {
+        hint();
+        name();
+      };
+    },
+  }),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await userEvent.click(await commentButton(canvas));
+    const field = await canvas.findByRole("textbox", { name: "Comment" });
+    await expect(field).toHaveFocus();
+    await expect(
+      canvas.queryByRole("textbox", { name: "Your name" }),
+    ).toBeNull();
+    await userEvent.click(canvas.getByRole("button", { name: "Close" }));
+    await waitFor(() =>
+      expect(canvas.queryByRole("textbox", { name: "Comment" })).toBeNull(),
+    );
+    await expect(await commentButton(canvas)).toHaveFocus();
+  },
+};
+
+export const CommenterPhoneFirstComment: Story = {
+  ...phoneShare("commenter", {
+    beforeEach: () => {
+      const hint = rememberLocal(HINT_KEY, "1");
+      const name = rememberLocal(NAME_KEY, null);
+      return () => {
+        hint();
+        name();
+      };
+    },
+  }),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(
+      canvas.queryByRole("textbox", { name: "Your name" }),
+    ).toBeNull();
+    await userEvent.click(await commentButton(canvas));
+    await expect(
+      await canvas.findByRole("textbox", { name: "Your name" }),
+    ).toBeVisible();
+    await expect(
+      canvas.getByRole("textbox", { name: "Comment" }),
+    ).toHaveFocus();
+  },
+};
+
+export const CommenterPhoneComments: Story = {
+  ...phoneShare("commenter", {
+    beforeEach: () => rememberLocal(HINT_KEY, "1"),
+  }),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await userEvent.click(
+      await canvas.findByRole("button", { name: /^Show comments/ }),
+    );
+    const sheet = await within(canvasElement.ownerDocument.body).findByRole(
+      "dialog",
+      { name: "Comments" },
+    );
+    await expect(sheet).toBeVisible();
+    await expect(
+      within(sheet).getByRole("region", { name: "Review queue" }),
+    ).toBeVisible();
+  },
+};
+
+/** Pick the Phone landscape 667 viewport to see the dock fold to one row under the scrubber. */
+export const CommenterPhoneFolded: Story = {
+  ...phoneShare("commenter", {
+    viewport: "phoneLandscape",
+    beforeEach: () => rememberLocal(HINT_KEY, "1"),
+  }),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(
+      await canvas.findByRole("slider", { name: "Episode overview" }),
+    ).toBeVisible();
+    await expect(await commentButton(canvas)).toBeVisible();
+  },
+};
+
+export const ViewerPhone: Story = {
+  ...phoneShare("viewer"),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(
+      await canvas.findByRole("slider", { name: "Episode overview" }),
+    ).toBeVisible();
+    await expect(canvas.queryByRole("textbox")).toBeNull();
+    await expect(
+      canvas.queryByRole("button", { name: /^Comment at/ }),
+    ).toBeNull();
+    await expect(canvas.getByRole("button", { name: "Play" })).toBeVisible();
+  },
+};
+
+export const EditorPhone: Story = {
+  ...phoneShare("editor"),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(
+      await canvas.findByRole("group", { name: "Player" }),
+    ).toBeVisible();
+    await userEvent.click(canvas.getByRole("button", { name: "Comment" }));
+    await expect(
+      await canvas.findByRole("textbox", { name: "Comment" }),
+    ).toHaveFocus();
+  },
+};
+
+export const FirstVisitRoleHint: Story = {
+  ...phoneShare("commenter", {
+    beforeEach: () => rememberLocal(HINT_KEY, null),
+  }),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const note = await canvas.findByRole("note");
+    await expect(note).toHaveTextContent(
+      "You can comment and suggest cuts. The host decides.",
+    );
+    await expect(
+      canvas.getByRole("img", { name: "Commenter: can comment" }),
+    ).toBeVisible();
+    const comment = await commentButton(canvas);
+    const row = canvas.getByRole("button", { name: /^Show comments/ });
+    await waitFor(async () => {
+      const bubble = note.getBoundingClientRect();
+      await expect(bubble.left).toBeGreaterThanOrEqual(0);
+      await expect(bubble.right).toBeLessThanOrEqual(window.innerWidth);
+      for (const covered of [comment, row])
+        await expect(bubble.bottom).toBeLessThanOrEqual(
+          covered.getBoundingClientRect().top,
+        );
+    });
+    await userEvent.click(canvas.getByRole("button", { name: "Dismiss hint" }));
+    await expect(canvas.queryByRole("note")).toBeNull();
   },
 };
