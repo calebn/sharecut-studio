@@ -251,8 +251,8 @@ The Script pane has no modes, so one grammar covers mouse, touch and keys
   on from the hold extends it under the finger, and it commits when the
   finger lifts. A finger that moves before the hold scrolls and selects
   nothing. A second finger cancels the drag and keeps the earlier selection.
-- Esc, a cancelled or lost pointer or a window blur ends a drag without
-  committing it. Leaving the pane does not: the pane holds the pointer, so the
+- Esc, a cancelled or lost pointer, a window blur, pagehide or a hidden tab
+  ends a drag without committing it. Leaving the pane does not: the pane holds the pointer, so the
   drag goes on selecting to the nearest word and commits on release.
 - The browser's own text selection is off in the pane; the pane's copy event
   copies the selected words.

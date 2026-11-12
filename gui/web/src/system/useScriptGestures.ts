@@ -1,5 +1,6 @@
 import { type RefObject, useLayoutEffect, useMemo, useRef } from "react";
 import { LONG_PRESS_MS } from "../hooks/gestureConstants";
+import { listenForInterrupt } from "../hooks/useInterruptCancel";
 import {
   edgeScrollDelta,
   type PressKind,
@@ -260,7 +261,7 @@ export function useScriptGestures(
         },
         { capture: true, signal },
       );
-      window.addEventListener("blur", () => finish(false), { signal });
+      listenForInterrupt(() => finish(false), signal);
       if (kind === "touch") {
         p.timer = setTimeout(() => {
           p.timer = null;
