@@ -37,10 +37,11 @@ ever bound from ``tempfile`` in a function stays scratch after a rebind, and a n
 function does not see its parent's tempfile names (it fails loud). A ``Path`` imported
 under another name is not recognised as a scratch root and is counted. Archive writes
 (``gzip``/``bz2``/``lzma``/``tarfile.open``, ``zipfile.ZipFile`` in ``w``/``a``/``x``)
-and ``os.fdopen`` write modes are counted, except an archive opened on a handle that is
-a parameter of the enclosing function: that is the ``atomic_write`` callback pattern
-(``def fill(handle): ZipFile(handle, "w")``). Also not recognised: module aliases
-(``import gzip as gz``, ``from shutil import copyfile``) and ``ZipFile.open(name, "w")``.
+and ``os.fdopen`` write modes are counted. An archive written onto a handle inside an
+``atomic_write`` callback (``def fill(handle): ZipFile(handle, "w")``) is counted too: the
+scan cannot tell a caller-owned handle from a path parameter, so such a row stays in
+``RAW_WRITES`` until its callback is moved off the raw constructor. Also not recognised:
+module aliases (``import gzip as gz``, ``from shutil import copyfile``) and ``ZipFile.open(name, "w")``.
 A ``tempfile`` call with ``dir=`` pointing into the project is still scratch, so a
 hand-rolled temp-then-``os.replace`` write is not flagged. Only ``util/atomic_*.py``
 directly under the package ``util/`` is skipped. A ``+`` in an ``open`` mode (``r+``)
@@ -79,7 +80,8 @@ RAW_WRITES: dict[str, int] = {
     "pipeline/steps.py": 5,
     "project/history/manager.py": 1,
     "project/store.py": 1,
-    "segments/bundle.py": 1,
+    "segments/bundle.py": 2,
+    "segments/kit_bundle.py": 1,
     "segments/store.py": 1,
     "services/collaboration/review_versions.py": 6,
     "services/document/golden_ear.py": 5,
@@ -222,22 +224,6 @@ def _first_arg(call: ast.Call) -> ast.expr | None:
     return call.args[0] if call.args else None
 
 
-def _is_archive_open(call: ast.Call) -> bool:
-    func = call.func
-    return _attr_chain(func) in _ARCHIVE_OPENS or (
-        isinstance(func, ast.Name) and func.id == "ZipFile"
-    )
-
-
-def _parameter_names(scope: ast.AST) -> set[str]:
-    if not isinstance(scope, ast.FunctionDef | ast.AsyncFunctionDef):
-        return set()
-    a = scope.args
-    names = {arg.arg for arg in [*a.posonlyargs, *a.args, *a.kwonlyargs]}
-    names |= {arg.arg for arg in (a.vararg, a.kwarg) if arg is not None}
-    return names
-
-
 def _raw_write_target(call: ast.Call) -> ast.expr | bool | None:
     """The written path expression for a banned call, ``None`` if unknown, ``False`` if allowed."""
     func = call.func
@@ -286,13 +272,8 @@ def scan_source(source: str, filename: str = "<string>") -> list[int]:
             target = _raw_write_target(node)
             if target is not False:
                 root = _root_name(target) if isinstance(target, ast.expr) else None
-                handle_owned = (
-                    _is_archive_open(node)
-                    and isinstance(target, ast.Name)
-                    and target.id in _parameter_names(scope)
-                )
                 scratch = root == _INLINE_TEMPFILE or root in scratch_by_scope[id(scope)]
-                if not handle_owned and (root is None or not scratch):
+                if root is None or not scratch:
                     lines.append(node.lineno)
         for child in ast.iter_child_nodes(node):
             visit(child, scope)
@@ -312,7 +293,11 @@ def _raw_write_lines() -> dict[str, list[int]]:
             rel = path.relative_to(SRC).as_posix()
             if path.parent == SRC / "util" and path.name.startswith("atomic_"):
                 continue
-            lines = scan_source(path.read_text(encoding="utf-8-sig"), filename=rel)
+            try:
+                source = path.read_text(encoding="utf-8-sig")
+            except UnicodeDecodeError as exc:
+                raise ValueError(f"{rel}: source is not valid UTF-8") from exc
+            lines = scan_source(source, filename=rel)
             if lines:
                 found[rel] = lines
         _SCAN_CACHE[SRC] = found
@@ -493,19 +478,17 @@ def test_the_scan_skips_the_atomic_helpers(tmp_path: Path, monkeypatch: pytest.M
     assert _raw_write_counts() == {"util/other.py": 1, "atomic_elsewhere.py": 1}
 
 
-def test_an_archive_on_a_caller_owned_handle_parameter_is_not_a_raw_write() -> None:
-    source = (
-        "def fill(handle):\n"
-        "    with zipfile.ZipFile(handle, 'w') as z:\n"
-        "        z.writestr('a', 'b')\n"
-        "def fill2(*, out):\n"
-        "    tarfile.open(out, 'w:gz')\n"
-        "    gzip.open(out, 'wb')\n"
-    )
-    assert scan_source(source) == []
+@pytest.mark.parametrize("name", ["p", "path", "out", "handle"])
+@pytest.mark.parametrize(
+    "call",
+    ['zipfile.ZipFile({n}, "w")', 'tarfile.open({n}, "w:gz")', 'gzip.open({n}, "wb")'],
+)
+def test_an_archive_write_on_a_parameter_is_counted(name: str, call: str) -> None:
+    source = f"def f({name}):\n    {call.format(n=name)}\n"
+    assert scan_source(source) == [2]
 
 
-def test_an_archive_on_a_path_or_a_non_parameter_is_still_a_raw_write() -> None:
+def test_an_archive_on_a_path_or_a_non_parameter_is_a_raw_write() -> None:
     source = (
         "def f(handle, p):\n"
         "    zipfile.ZipFile(p / 'x.zip', 'w')\n"
@@ -576,3 +559,12 @@ def test_inline_tempfile_targets_are_scratch() -> None:
         "    (Path(tempfile.gettempdir()) / 'x').write_text('x')\n"
     )
     assert scan_source(source) == []
+
+
+def test_a_source_that_is_not_utf8_is_named(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    (tmp_path / "latin.py").write_bytes(b"x = '\xe9'\n")
+    monkeypatch.setattr(f"{__name__}.SRC", tmp_path)
+    with pytest.raises(ValueError, match=r"latin\.py"):
+        _raw_write_lines()
