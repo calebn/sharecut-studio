@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { bindWsSender } from "../session/wsSend";
+import { blockStorage } from "../test/blockStorage";
 import {
   bindRecordHostSend,
   nextHostRecordClientSeq,
@@ -10,8 +11,32 @@ import { commentsQueueKey, postLiveComment } from "./liveCommentQueue";
 describe("hostWire", () => {
   afterEach(() => {
     vi.restoreAllMocks();
+    vi.useRealTimers();
     sessionStorage.clear();
     bindRecordHostSend(null);
+  });
+
+  it("keeps the host counter under its key and above the clock when storage is blocked", async () => {
+    vi.resetModules();
+    const fresh = await import("./hostWire");
+    sessionStorage.setItem("daw_record_client_seq", "9");
+    expect(fresh.nextHostRecordClientSeq()).toBe(10);
+    expect(sessionStorage.getItem("daw_record_client_seq")).toBe("10");
+
+    vi.useFakeTimers({ now: 1_700_000_000_000 });
+    blockStorage();
+    const first = fresh.nextHostRecordClientSeq();
+    expect(first).toBeGreaterThan(1_700_000_000_000);
+    vi.setSystemTime(1_600_000_000_000);
+    expect(fresh.nextHostRecordClientSeq()).toBeGreaterThan(first);
+  });
+
+  it("resets instead of throwing on a corrupt host counter", async () => {
+    vi.resetModules();
+    const fresh = await import("./hostWire");
+    vi.useFakeTimers({ now: 1_700_000_000_000 });
+    sessionStorage.setItem("daw_record_client_seq", "41tail");
+    expect(fresh.nextHostRecordClientSeq()).toBe(1_700_000_000_001);
   });
 
   it("persists client_seq across reloads", () => {

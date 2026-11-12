@@ -40,6 +40,22 @@ describe("useRecordSync", () => {
   afterEach(() => {
     vi.unstubAllGlobals();
     vi.restoreAllMocks();
+    vi.useRealTimers();
+  });
+
+  it("resets instead of throwing on a corrupt record counter", async () => {
+    const now = 1_700_000_000_000;
+    vi.useFakeTimers({ now, toFake: ["Date"] });
+    sessionStorage.setItem("record:tok-corrupt:client_seq", "41tail");
+    renderHook(() => useRecordSync("tok-corrupt", "Ava"));
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    const join = JSON.parse(FakeWebSocket.instances[0]?.sent[0] || "{}");
+    expect(join.command_type).toBe("Join");
+    expect(join.client_seq).toBeGreaterThanOrEqual(now);
+    expect(join.client_seq).not.toBe(41);
   });
 
   it("sends Join and caches the Echo lease", async () => {
@@ -471,8 +487,21 @@ describe("useRecordSync", () => {
     expect(result.current.send("Heartbeat")).toBe(false);
   });
 
+  it("counts record frames per token under record:<token>:client_seq", async () => {
+    sessionStorage.setItem("record:tok-seq:client_seq", "6");
+    renderHook(() => useRecordSync("tok-seq", "Ava"));
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    const join = JSON.parse(FakeWebSocket.instances[0].sent[0] || "{}");
+    expect(join.client_seq).toBe(7);
+    expect(sessionStorage.getItem("record:tok-seq:client_seq")).toBe("7");
+    expect(sessionStorage.getItem("record:tok:client_seq")).toBeNull();
+  });
+
   it("persists Join client_seq across remounts", async () => {
-    const { unmount } = renderHook(() => useRecordSync("tok", "Ava"));
+    const { unmount } = renderHook(() => useRecordSync("tok-remount", "Ava"));
     await act(async () => {
       await Promise.resolve();
       await Promise.resolve();
@@ -481,7 +510,7 @@ describe("useRecordSync", () => {
       JSON.parse(FakeWebSocket.instances[0].sent[0] || "{}").client_seq,
     ).toBe(1);
     unmount();
-    renderHook(() => useRecordSync("tok", "Ava"));
+    renderHook(() => useRecordSync("tok-remount", "Ava"));
     await act(async () => {
       await Promise.resolve();
       await Promise.resolve();

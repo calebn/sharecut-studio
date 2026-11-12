@@ -5,9 +5,10 @@ import {
   loadRecordParticipant,
   saveRecordParticipant,
 } from "../services/offlineQueue/offlineStore";
-import { newClientId } from "../session/clientId";
 import type { WsSender } from "../session/wsSend";
 import { openPlaneSocket, type PlaneSocketContext } from "../sync/planeSocket";
+import { documentClientId } from "../utils/documentClient";
+import { nextSeq } from "../utils/monotonicSeq";
 import { useStableCallback } from "../utils/useStableCallback";
 import { isTerminalWsClose } from "../utils/wsClose";
 import { emitRecordSignal, isRecordSignal } from "./monitor/signalBus";
@@ -24,17 +25,7 @@ function seqStorageKey(token: string): string {
 }
 
 function nextRecordClientSeq(token: string): number {
-  try {
-    const parsed = Number.parseInt(
-      sessionStorage.getItem(seqStorageKey(token)) || "0",
-      10,
-    );
-    const next = (Number.isFinite(parsed) && parsed > 0 ? parsed : 0) + 1;
-    sessionStorage.setItem(seqStorageKey(token), String(next));
-    return next;
-  } catch {
-    return Date.now();
-  }
+  return nextSeq(seqStorageKey(token));
 }
 
 /** A lease or identity hiccup the server expects the client to retry almost at once. */
@@ -115,7 +106,7 @@ export function useRecordSync(
   const [meId, setMeId] = useState<string | null>(null);
   const [lease, setLease] = useState<string | null>(null);
   const sendRef = useRef<WsSender | null>(null);
-  const clientIdRef = useRef(newClientId());
+  const clientIdRef = useRef(documentClientId());
   const currentName = useStableCallback(() => displayName);
   const skipLeaseRef = useRef(false);
 

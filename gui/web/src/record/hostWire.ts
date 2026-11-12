@@ -1,3 +1,5 @@
+import { nextSeq } from "../utils/monotonicSeq";
+
 const SEQ_KEY = "daw_record_client_seq";
 
 type HostFrameSender = (frame: Record<string, unknown>) => unknown;
@@ -10,15 +12,7 @@ type HostCommandSender = (
 let sender: HostCommandSender | null = null;
 
 export function nextHostRecordClientSeq(): number {
-  try {
-    const raw = sessionStorage.getItem(SEQ_KEY);
-    const parsed = Number.parseInt(raw || "0", 10);
-    const next = (Number.isFinite(parsed) && parsed > 0 ? parsed : 0) + 1;
-    sessionStorage.setItem(SEQ_KEY, String(next));
-    return next;
-  } catch {
-    return Date.now();
-  }
+  return nextSeq(SEQ_KEY);
 }
 
 export function bindRecordHostSend(send: HostFrameSender | null): void {
