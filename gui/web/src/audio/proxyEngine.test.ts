@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { ClipRow } from "../types/project";
 import { leavePlaybackSession } from "./playbackSession";
-import { ProxyEngine } from "./proxyEngine";
+import { ProxyEngine, type ProxyEngineEvents } from "./proxyEngine";
 import type { ImmutableChunkRef, ProxyManifest } from "./proxyMath";
 
 interface FakeSentinel {
@@ -19,6 +19,18 @@ vi.mock("./playbackSession", () => ({
   enterPlaybackSession: vi.fn(),
   leavePlaybackSession: vi.fn(),
 }));
+
+function engineEvents(
+  over: Partial<ProxyEngineEvents> = {},
+): ProxyEngineEvents {
+  return {
+    onFailure: vi.fn(),
+    onEnded: vi.fn(),
+    onSinkStopped: vi.fn(),
+    onSystemPlay: vi.fn(),
+    ...over,
+  };
+}
 
 function makeCtx() {
   const sentinels: FakeSentinel[] = [];
@@ -39,7 +51,14 @@ function makeCtx() {
       setValueAtTime: ReturnType<typeof vi.fn>;
     };
   }> = [];
+  const stateListeners = new Set<() => void>();
   const ctx = {
+    addEventListener: vi.fn((_type: string, listener: () => void) => {
+      stateListeners.add(listener);
+    }),
+    removeEventListener: vi.fn((_type: string, listener: () => void) => {
+      stateListeners.delete(listener);
+    }),
     createChannelSplitter: vi.fn(() => ({
       connect: vi.fn(),
       disconnect: vi.fn(),
@@ -124,6 +143,12 @@ function makeCtx() {
     setState: (state: string) => {
       ctx.state = state;
     },
+    /** The browser moving the context to `state` and telling listeners. */
+    changeState: (state: string) => {
+      ctx.state = state;
+      for (const listener of stateListeners) listener();
+    },
+    listenerCount: () => stateListeners.size,
     setTime: (time: number) => {
       ctx.currentTime = time;
     },
@@ -137,8 +162,7 @@ describe("ProxyEngine", () => {
     const engine = new ProxyEngine(
       ctx,
       async () => new ArrayBuffer(64),
-      vi.fn(),
-      vi.fn(),
+      engineEvents(),
     );
     const manifest: ProxyManifest = {
       revision: "r",
@@ -212,8 +236,7 @@ describe("ProxyEngine", () => {
     const engine = new ProxyEngine(
       ctx,
       async () => new ArrayBuffer(64),
-      vi.fn(),
-      vi.fn(),
+      engineEvents(),
     );
     const manifest: ProxyManifest = {
       revision: "r",
@@ -272,8 +295,7 @@ describe("ProxyEngine", () => {
     const engine = new ProxyEngine(
       ctx,
       async () => new ArrayBuffer(64),
-      vi.fn(),
-      vi.fn(),
+      engineEvents(),
     );
     engine.setSnapshot({
       manifest,
@@ -304,8 +326,7 @@ describe("ProxyEngine", () => {
     const engine = new ProxyEngine(
       ctx,
       async () => new ArrayBuffer(64),
-      vi.fn(),
-      vi.fn(),
+      engineEvents(),
     );
     const manifest: ProxyManifest = {
       revision: "r",
@@ -373,8 +394,7 @@ describe("ProxyEngine", () => {
     const engine = new ProxyEngine(
       ctx,
       async () => new ArrayBuffer(64),
-      vi.fn(),
-      vi.fn(),
+      engineEvents(),
     );
     const manifest: ProxyManifest = {
       revision: "r",
@@ -449,8 +469,7 @@ describe("ProxyEngine", () => {
     const engine = new ProxyEngine(
       ctx,
       () => new Promise((resolve) => releases.push(resolve)),
-      vi.fn(),
-      vi.fn(),
+      engineEvents(),
     );
     const manifest: ProxyManifest = {
       revision: "r",
@@ -560,7 +579,7 @@ describe("immutable playback snapshots", () => {
   it("replaces a playing artifact at the current position and reuses unchanged bytes", async () => {
     const { ctx, created, setTime } = makeCtx();
     const fetch = vi.fn(async (_ref: ImmutableChunkRef) => new ArrayBuffer(64));
-    const engine = new ProxyEngine(ctx, fetch, vi.fn(), vi.fn());
+    const engine = new ProxyEngine(ctx, fetch, engineEvents());
     engine.setSnapshot(snapshot());
     engine.play(1);
     await vi.waitFor(() => expect(created).toHaveLength(1));
@@ -597,7 +616,11 @@ describe("immutable playback snapshots", () => {
         : Promise.resolve(new ArrayBuffer(128)),
     );
     const failure = vi.fn();
-    const engine = new ProxyEngine(ctx, fetch, failure, vi.fn());
+    const engine = new ProxyEngine(
+      ctx,
+      fetch,
+      engineEvents({ onFailure: failure, onEnded: vi.fn() }),
+    );
     engine.setSnapshot(snapshot());
     engine.play(0);
     engine.setSnapshot(snapshot("b".repeat(64), "replacement"));
@@ -617,7 +640,7 @@ describe("immutable playback snapshots", () => {
     const stale = deferred<AudioBuffer>();
     decode.mockImplementationOnce(() => stale.promise);
     const fetch = vi.fn(async (_ref: ImmutableChunkRef) => new ArrayBuffer(64));
-    const engine = new ProxyEngine(ctx, fetch, vi.fn(), vi.fn());
+    const engine = new ProxyEngine(ctx, fetch, engineEvents());
     engine.setSnapshot(snapshot());
     engine.play(0);
     await vi.waitFor(() => expect(decode).toHaveBeenCalledOnce());
@@ -640,8 +663,7 @@ describe("immutable playback snapshots", () => {
     const engine = new ProxyEngine(
       ctx,
       () => pending.promise,
-      failure,
-      vi.fn(),
+      engineEvents({ onFailure: failure, onEnded: vi.fn() }),
     );
     engine.setSnapshot(snapshot());
     engine.play(0);
@@ -663,8 +685,7 @@ describe("immutable playback snapshots", () => {
     const engine = new ProxyEngine(
       ctx,
       async () => new ArrayBuffer(64),
-      failure,
-      vi.fn(),
+      engineEvents({ onFailure: failure, onEnded: vi.fn() }),
     );
     engine.setSnapshot(snapshot());
     engine.play(2);
@@ -688,8 +709,7 @@ describe("immutable playback snapshots", () => {
     const engine = new ProxyEngine(
       ctx,
       async () => new ArrayBuffer(64),
-      vi.fn(),
-      vi.fn(),
+      engineEvents(),
     );
     const next = snapshot("a".repeat(16), "legacy", 10);
     next.clipsByTrack.host[0].fade_out_ms = 8000;
@@ -718,8 +738,7 @@ describe("immutable playback snapshots", () => {
     const engine = new ProxyEngine(
       ctx,
       async () => new ArrayBuffer(64),
-      vi.fn(),
-      vi.fn(),
+      engineEvents(),
     );
     engine.setSnapshot({
       ...snapshot("a".repeat(16), "legacy", 10),
@@ -749,8 +768,7 @@ describe("immutable playback snapshots", () => {
     const engine = new ProxyEngine(
       ctx,
       async () => new ArrayBuffer(64),
-      vi.fn(),
-      vi.fn(),
+      engineEvents(),
     );
     const next = snapshot("a".repeat(16), "legacy", 30);
     Object.assign(next.clipsByTrack.host[0], {
@@ -775,8 +793,7 @@ describe("immutable playback snapshots", () => {
     const engine = new ProxyEngine(
       ctx,
       async () => new ArrayBuffer(64),
-      vi.fn(),
-      vi.fn(),
+      engineEvents(),
     );
     const next = snapshot("a".repeat(16), "legacy", 30);
     Object.assign(next.clipsByTrack.host[0], {
@@ -807,8 +824,7 @@ describe("immutable playback snapshots", () => {
     const engine = new ProxyEngine(
       ctx,
       async () => new ArrayBuffer(64),
-      vi.fn(),
-      vi.fn(),
+      engineEvents(),
     );
     const next = snapshot("a".repeat(16), "legacy", 10);
     next.clipsByTrack.host[0].fade_in_ms = 15000;
@@ -833,8 +849,7 @@ describe("immutable playback snapshots", () => {
     const engine = new ProxyEngine(
       ctx,
       async () => new ArrayBuffer(64),
-      vi.fn(),
-      vi.fn(),
+      engineEvents(),
     );
     const next = snapshot();
     const id = "b".repeat(64);
@@ -953,7 +968,7 @@ describe("playing a timeline longer than the first window", () => {
     async (rate) => {
       const handle = makeCtx();
       const fetchChunk = vi.fn(async () => new ArrayBuffer(64));
-      const engine = new ProxyEngine(handle.ctx, fetchChunk, vi.fn(), vi.fn());
+      const engine = new ProxyEngine(handle.ctx, fetchChunk, engineEvents());
       engine.setSnapshot(episode(400));
       engine.setPlaybackRate(rate);
       engine.play(0);
@@ -983,8 +998,7 @@ describe("playing a timeline longer than the first window", () => {
     const engine = new ProxyEngine(
       handle.ctx,
       async () => new ArrayBuffer(64),
-      vi.fn(),
-      onEnded,
+      engineEvents({ onFailure: vi.fn(), onEnded: onEnded }),
     );
     engine.setSnapshot(episode(130));
     engine.play(0);
@@ -1010,8 +1024,7 @@ describe("playing a timeline longer than the first window", () => {
     const engine = new ProxyEngine(
       handle.ctx,
       async () => new ArrayBuffer(64),
-      vi.fn(),
-      vi.fn(),
+      engineEvents(),
     );
     engine.setSnapshot(episode(250, 50));
     engine.play(0);
@@ -1039,7 +1052,11 @@ describe("playing a timeline longer than the first window", () => {
       );
       const failure = vi.fn();
       const onEnded = vi.fn();
-      const engine = new ProxyEngine(handle.ctx, fetchChunk, failure, onEnded);
+      const engine = new ProxyEngine(
+        handle.ctx,
+        fetchChunk,
+        engineEvents({ onFailure: failure, onEnded: onEnded }),
+      );
       engine.setSnapshot(episode(400));
       engine.setPlaybackRate(rate);
       engine.play(0);
@@ -1131,7 +1148,7 @@ describe("playing a timeline longer than the first window", () => {
     const fetchChunk = vi.fn(
       async (_ref: ImmutableChunkRef) => new ArrayBuffer(64),
     );
-    const engine = new ProxyEngine(handle.ctx, fetchChunk, vi.fn(), vi.fn());
+    const engine = new ProxyEngine(handle.ctx, fetchChunk, engineEvents());
     engine.setSnapshot(episode(400));
     engine.play(0);
     await flush();
@@ -1172,8 +1189,7 @@ describe("playing a timeline longer than the first window", () => {
     const engine = new ProxyEngine(
       handle.ctx,
       async (ref) => new ArrayBuffer(ref.url.startsWith("g") ? 96 : 64),
-      vi.fn(),
-      vi.fn(),
+      engineEvents(),
     );
     engine.setSnapshot({
       ...base,
@@ -1219,8 +1235,7 @@ describe("playing a timeline longer than the first window", () => {
     const engine = new ProxyEngine(
       handle.ctx,
       async () => new ArrayBuffer(64),
-      vi.fn(),
-      vi.fn(),
+      engineEvents(),
     );
     engine.setSnapshot(episode(400));
     engine.play(0);
@@ -1248,8 +1263,7 @@ describe("playing a timeline longer than the first window", () => {
     const engine = new ProxyEngine(
       handle.ctx,
       async () => new ArrayBuffer(64),
-      vi.fn(),
-      vi.fn(),
+      engineEvents(),
     );
     engine.setSnapshot(episode(400));
     engine.play(0);
@@ -1273,8 +1287,7 @@ describe("playing a timeline longer than the first window", () => {
     const engine = new ProxyEngine(
       handle.ctx,
       async () => new ArrayBuffer(64),
-      vi.fn(),
-      onEnded,
+      engineEvents({ onFailure: vi.fn(), onEnded: onEnded }),
     );
     engine.setSnapshot({ ...episode(60), clipsByTrack: {}, durationSec: 0 });
     engine.play(0);
@@ -1290,8 +1303,7 @@ describe("playing a timeline longer than the first window", () => {
     const engine = new ProxyEngine(
       handle.ctx,
       async () => new ArrayBuffer(64),
-      vi.fn(),
-      vi.fn(),
+      engineEvents(),
     );
     engine.setSnapshot(episode(130));
     engine.play(0);
@@ -1310,8 +1322,7 @@ describe("playing a timeline longer than the first window", () => {
     const engine = new ProxyEngine(
       handle.ctx,
       async () => new ArrayBuffer(64),
-      vi.fn(),
-      onEnded,
+      engineEvents({ onFailure: vi.fn(), onEnded: onEnded }),
     );
     engine.setSnapshot(episode(20));
     engine.play(0);
@@ -1337,8 +1348,7 @@ describe("playing a timeline longer than the first window", () => {
       const engine = new ProxyEngine(
         handle.ctx,
         async () => new ArrayBuffer(64),
-        vi.fn(),
-        onEnded,
+        engineEvents({ onEnded }),
       );
       engine.setSnapshot(stale());
       engine.play(0);
@@ -1358,8 +1368,7 @@ describe("playing a timeline longer than the first window", () => {
       const engine = new ProxyEngine(
         handle.ctx,
         async () => new ArrayBuffer(64),
-        vi.fn(),
-        vi.fn(),
+        engineEvents(),
       );
       engine.setSnapshot(stale());
       engine.play(25);
@@ -1376,8 +1385,7 @@ describe("playing a timeline longer than the first window", () => {
     const engine = new ProxyEngine(
       handle.ctx,
       async () => new ArrayBuffer(64),
-      vi.fn(),
-      onEnded,
+      engineEvents({ onFailure: vi.fn(), onEnded: onEnded }),
     );
     engine.setSnapshot(episode(130));
     engine.play(130);
@@ -1386,5 +1394,50 @@ describe("playing a timeline longer than the first window", () => {
     expect(handle.created[0].start).toHaveBeenCalledWith(0, 0, 60);
     expect(onEnded).not.toHaveBeenCalled();
     engine.dispose();
+  });
+
+  describe("system stops", () => {
+    const settle = () => new Promise((resolve) => setTimeout(resolve, 0));
+    function playing() {
+      const handle = makeCtx();
+      const events = engineEvents();
+      const engine = new ProxyEngine(
+        handle.ctx,
+        async () => new ArrayBuffer(64),
+        events,
+      );
+      engine.play(0);
+      return { handle, events, engine };
+    }
+
+    it("reports a context that leaves running while playing, once", async () => {
+      const { handle, events } = playing();
+      await settle();
+      handle.changeState("interrupted");
+      handle.changeState("suspended");
+      expect(events.onSinkStopped).toHaveBeenCalledTimes(1);
+    });
+
+    it("stays quiet about its own pause", async () => {
+      const { handle, events, engine } = playing();
+      await settle();
+      engine.pause();
+      handle.changeState("suspended");
+      expect(events.onSinkStopped).not.toHaveBeenCalled();
+    });
+
+    it("stays quiet about a late suspend event after a quick replay", () => {
+      const { handle, events, engine } = playing();
+      engine.pause();
+      engine.play(0);
+      handle.changeState("suspended");
+      expect(events.onSinkStopped).not.toHaveBeenCalled();
+    });
+
+    it("stops listening when disposed", () => {
+      const { handle, engine } = playing();
+      engine.dispose();
+      expect(handle.listenerCount()).toBe(0);
+    });
   });
 });

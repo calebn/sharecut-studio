@@ -225,6 +225,48 @@ describe("useProxyTransport", () => {
     expect(engine.seek).toHaveBeenCalledExactlyOnceWith(10.3);
   });
 
+  it("the OS stopping the sound pauses the store at the engine's place", async () => {
+    renderHook(() => useProxyTransport());
+    await ready();
+    act(() => {
+      useDawStore.getState().setPlayheadSec(10);
+      useDawStore.getState().setIsPlaying(true);
+    });
+    const revision = useDawStore.getState().playheadSeekRevision;
+    act(() => vi.mocked(ProxyEngine).mock.calls.at(-1)?.[2].onSinkStopped());
+    expect(useDawStore.getState().isPlaying).toBe(false);
+    expect(useDawStore.getState().playheadSec).toBe(26);
+    expect(useDawStore.getState().playheadSeekRevision).toBe(revision);
+    expect(engine.seek).toHaveBeenLastCalledWith(26);
+  });
+
+  it("the OS resuming the sound after the app left plays again", async () => {
+    renderHook(() => useProxyTransport());
+    await ready();
+    const onSystemPlay = vi
+      .mocked(ProxyEngine)
+      .mock.calls.at(-1)?.[2].onSystemPlay;
+    act(() => onSystemPlay?.());
+    expect(useDawStore.getState().isPlaying).toBe(true);
+    act(() => onSystemPlay?.());
+    expect(useDawStore.getState().isPlaying).toBe(true);
+  });
+
+  it("a followed leader's pause position wins over the engine's", async () => {
+    renderHook(() => useProxyTransport());
+    await ready();
+    act(() => {
+      useDawStore.getState().setPlayheadSec(10);
+      useDawStore.getState().setIsPlaying(true);
+    });
+    act(() => {
+      useDawStore.getState().setIsPlaying(false);
+      useDawStore.getState().setPlayheadSec(44);
+    });
+    expect(useDawStore.getState().playheadSec).toBe(44);
+    expect(engine.seek).toHaveBeenLastCalledWith(44);
+  });
+
   it("the episode ending parks the playhead at the duration and stops without an error", async () => {
     useDawStore.getState().hydrate(
       shareProjectKey("tok"),
@@ -240,7 +282,7 @@ describe("useProxyTransport", () => {
       useDawStore.getState().setPlayheadSec(10);
       useDawStore.getState().setIsPlaying(true);
     });
-    const onEnded = vi.mocked(ProxyEngine).mock.calls.at(-1)?.[3];
+    const onEnded = vi.mocked(ProxyEngine).mock.calls.at(-1)?.[2].onEnded;
     expect(onEnded).toBeTypeOf("function");
     act(() => onEnded?.(120));
     expect(useDawStore.getState().playheadSec).toBe(120);
@@ -260,7 +302,7 @@ describe("useProxyTransport", () => {
     useDawStore.getState().setAudioError(null);
     renderHook(() => useProxyTransport());
     await ready();
-    return () => vi.mocked(ProxyEngine).mock.calls.at(-1)?.[3];
+    return () => vi.mocked(ProxyEngine).mock.calls.at(-1)?.[2].onEnded;
   }
 
   it("ending an audition that reaches the episode end clears its session region", async () => {
@@ -326,7 +368,7 @@ describe("useProxyTransport", () => {
       useDawStore.getState().setPlayheadSec(10);
       useDawStore.getState().setIsPlaying(true);
     });
-    const onEnded = vi.mocked(ProxyEngine).mock.calls.at(-1)?.[3];
+    const onEnded = vi.mocked(ProxyEngine).mock.calls.at(-1)?.[2].onEnded;
     expect(onEnded).toBeTypeOf("function");
     act(() =>
       useDawStore.getState().beginSourcePreview({
@@ -489,7 +531,7 @@ describe("useProxyTransport", () => {
       });
       await ready();
       act(() => useDawStore.getState().setIsPlaying(true));
-      const failure = vi.mocked(ProxyEngine).mock.calls.at(-1)?.[2];
+      const failure = vi.mocked(ProxyEngine).mock.calls.at(-1)?.[2].onFailure;
       act(() =>
         failure?.(new TypeError("Failed to fetch"), {
           kind,
@@ -514,7 +556,7 @@ describe("useProxyTransport", () => {
     });
     await ready();
     act(() => useDawStore.getState().setIsPlaying(true));
-    const failure = vi.mocked(ProxyEngine).mock.calls.at(-1)?.[2];
+    const failure = vi.mocked(ProxyEngine).mock.calls.at(-1)?.[2].onFailure;
     act(() =>
       failure?.(new TypeError("Failed to fetch"), {
         kind: "track",
@@ -552,7 +594,7 @@ describe("useProxyTransport", () => {
     });
     await ready();
     act(() => useDawStore.getState().setIsPlaying(true));
-    const failure = vi.mocked(ProxyEngine).mock.calls.at(-1)?.[2];
+    const failure = vi.mocked(ProxyEngine).mock.calls.at(-1)?.[2].onFailure;
     act(() =>
       failure?.(new TypeError("Failed to fetch"), {
         kind: "track",
@@ -888,7 +930,7 @@ describe("useProxyTransport", () => {
       index: 0,
       url: "u0",
     };
-    const failure = vi.mocked(ProxyEngine).mock.calls.at(-1)?.[2];
+    const failure = vi.mocked(ProxyEngine).mock.calls.at(-1)?.[2].onFailure;
     act(() =>
       failure?.(
         new ApiError("unavailable", "proxy_generation_unavailable", 404),
