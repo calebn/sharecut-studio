@@ -35,7 +35,7 @@ export interface ProxyPlaybackSnapshot {
   readonly tracks: readonly TrackInfo[];
   /** Each track's volume envelope points by track id, sorted by time. */
   readonly volumeByTrack?: Readonly<Record<string, readonly VolumePoint[]>>;
-  /** The stored timeline duration, a floor for the episode end; Infinity when unknown, which never ends it. */
+  /** The stored timeline duration; the episode ends no earlier. Infinity when unknown, which never ends it. */
   readonly durationSec: number;
 }
 
@@ -178,7 +178,7 @@ export class ProxyEngine {
   }
 
   play(fromTimelineSec: number): void {
-    if (fromTimelineSec >= this.durationSec()) fromTimelineSec = 0;
+    if (fromTimelineSec >= this.endSec) fromTimelineSec = 0;
     this.playing = true;
     this.originTimelineSec = fromTimelineSec;
     this.originCtxTime = this.ctx.currentTime;
@@ -229,7 +229,7 @@ export class ProxyEngine {
       return this.originTimelineSec;
     }
     return Math.min(
-      this.durationSec(),
+      this.endSec,
       this.originTimelineSec +
         (this.ctx.currentTime - this.originCtxTime) * this.playbackRate,
     );
@@ -237,10 +237,6 @@ export class ProxyEngine {
 
   private get scheduleReady(): boolean {
     return this.horizon !== null;
-  }
-
-  private durationSec(): number {
-    return this.snapshot ? this.endSec : Number.POSITIVE_INFINITY;
   }
 
   readTrackFrame(trackId: string): ArrayLike<number> | null {
@@ -502,7 +498,7 @@ export class ProxyEngine {
   }
 
   private wakeTimelineSec(horizon: Horizon): number {
-    const duration = this.durationSec();
+    const duration = this.endSec;
     return horizon.throughSec >= duration
       ? duration
       : horizon.throughSec - LOW_WATER_CTX_SEC * this.playbackRate;
@@ -554,7 +550,7 @@ export class ProxyEngine {
     if (!this.playing || !horizon) return;
     this.pruneEnded();
     const t = this.currentTimeSec();
-    if (t >= this.durationSec()) {
+    if (t >= this.endSec) {
       this.finish();
       return;
     }
