@@ -91,7 +91,7 @@ def submit_kit_apply(
             )
         except CodedError as exc:
             raise _entry_error(exc, position, len(resolved), item.entry.label(), 0) from exc
-        previews.append({"position": position, "note": item.entry.note, **report.wire()})
+        previews.append({"position": position, "note": item.entry.note, **report.model_dump()})
     if dry_run:
         return KitApplyReport(
             kit_id=kit.id,
@@ -128,7 +128,7 @@ def submit_kit_apply(
                 "Check the episode and History before retrying the kit; "
                 "retrying can insert entries again."
             ) from exc
-        applied.append({"position": position, "note": item.entry.note, **result.wire()})
+        applied.append({"position": position, "note": item.entry.note, **result.model_dump()})
     final = ProjectWorkspace.open(project_path, adopt=False)
     return KitApplyReport(
         kit_id=kit.id,
