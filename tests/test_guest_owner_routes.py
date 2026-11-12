@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import inspect
 from pathlib import Path
 from types import SimpleNamespace
 from typing import get_type_hints
@@ -13,6 +12,7 @@ from pydantic import ValidationError
 
 from podcast_mcp.gui import schemas
 from podcast_mcp.gui.routes import pipeline, review_editor, review_share
+from podcast_mcp.gui.routes.deps import host_gate
 from podcast_mcp.gui.server import create_app
 from podcast_mcp.models import load_project, save_project
 from podcast_mcp.services.app import ProjectWorkspace
@@ -453,7 +453,8 @@ def test_owner_routes_keep_their_host_gate() -> None:
     # /api/pipeline/steps only lists static step names; every other owner route is gated.
     for route in pipeline.router.routes:
         if route.path != "/api/pipeline/steps":
-            assert "require_host(" in inspect.getsource(route.endpoint), route.path
+            calls = [dep.call for dep in route.dependant.dependencies]
+            assert host_gate in calls, route.path
 
 
 def test_relayed_owner_calls_are_still_refused(world) -> None:
