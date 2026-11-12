@@ -11,7 +11,12 @@ from typing import Any
 
 from podcast_mcp.models import EpisodeProject, load_project
 from podcast_mcp.models.episode import EPISODE_PROJECT_FILENAME
-from podcast_mcp.models.project_format import STEPS, SUPPORTED_PROJECT_VERSION
+from podcast_mcp.models.project_format import (
+    SUPPORTED_PROJECT_VERSION,
+    ProjectVersionNewerError,
+    ProjectVersionUnsupportedError,
+    migrate_document,
+)
 from podcast_mcp.util.atomic_json import write_text_atomic
 from podcast_mcp.util.coded_error import CodedValueError
 from podcast_mcp.util.project_state import project_commit_lock
@@ -68,22 +73,18 @@ def upgrade_workspace(project_file: Path, output_dir: Path) -> UpgradeResult:
 
 def _upgrade_document(data: dict[str, Any], project_file: Path) -> str:
     from_version = str(data.get("version"))
-    version = from_version
-    if version == SUPPORTED_PROJECT_VERSION:
+    if from_version == SUPPORTED_PROJECT_VERSION:
         raise CodedValueError(
             f"{project_file} is already at version {SUPPORTED_PROJECT_VERSION}",
             code="upgrade_not_needed",
         )
-    while version != SUPPORTED_PROJECT_VERSION:
-        if version not in STEPS:
-            raise CodedValueError(
-                f"Cannot upgrade project version {version!r} to {SUPPORTED_PROJECT_VERSION!r}",
-                code="upgrade_unsupported_version",
-            )
-        version, step = STEPS[version]
-        step(data)
-        data["version"] = version
-    return from_version
+    try:
+        return migrate_document(data)
+    except (ProjectVersionNewerError, ProjectVersionUnsupportedError) as exc:
+        raise CodedValueError(
+            f"Cannot upgrade project version {from_version!r} to {SUPPORTED_PROJECT_VERSION!r}",
+            code="upgrade_unsupported_version",
+        ) from exc
 
 
 def _skip_lock_files(directory: str, names: list[str]) -> list[str]:

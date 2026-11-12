@@ -19,7 +19,11 @@ from pydantic import BaseModel, ConfigDict, Field, create_model
 from podcast_mcp.models import EpisodeProject, load_project, save_project
 from podcast_mcp.models.episode import EPISODE_PROJECT_FILENAME, ProjectMeta, RenderSection
 from podcast_mcp.models.history import ProjectHistory, ProjectStateSnapshot
-from podcast_mcp.models.project_format import SUPPORTED_PROJECT_VERSION, snapshot_editable_state
+from podcast_mcp.models.project_format import (
+    STEPS,
+    SUPPORTED_PROJECT_VERSION,
+    snapshot_editable_state,
+)
 from podcast_mcp.project.history.manager import apply_snapshot_to_project
 from podcast_mcp.project.store import read_history_snapshot, snapshot_from_project
 from podcast_mcp.services.app import ProjectWorkspace
@@ -395,13 +399,19 @@ def assert_upgrade(directory: Path) -> None:
         source = Path(temporary) / "source"
         shutil.copytree(directory, source)
         before = inventory(source)
-        try:
+        version = read_json(source / PROJECT).get("version")
+        if version in STEPS:
             load_project(source / PROJECT)
-        except ValueError as exc:
-            require(
-                getattr(exc, "code", None) == "project_version_unsupported",
-                "Old format failed for the wrong reason",
-            )
+        else:
+            try:
+                load_project(source / PROJECT)
+            except ValueError as exc:
+                require(
+                    getattr(exc, "code", None) == "project_version_unsupported",
+                    "Old format failed for the wrong reason",
+                )
+            else:
+                raise ValueError("Old released version without a migration step still opens")
         require(inventory(source) == before, "Opening the old release changed the source fixture")
         output = Path(temporary) / "upgraded" / PROJECT
         result = subprocess.run(
