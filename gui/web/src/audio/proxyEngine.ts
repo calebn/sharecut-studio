@@ -23,7 +23,6 @@ export interface TrackInfo {
 }
 
 const WINDOW_PAD_SEC = 120;
-/** Sound scheduled ahead of the playhead, in audio-clock seconds, below which the engine schedules more. */
 const LOW_WATER_CTX_SEC = 45;
 /** Time constant for a live gain change (reaches ~99% in 5x this). */
 const GAIN_GLIDE_SEC = 0.01;
@@ -43,7 +42,6 @@ type FetchChunk = (ref: ImmutableChunkRef) => Promise<ArrayBuffer>;
 type ChunkFailure = (error: unknown, ref: ImmutableChunkRef | null) => void;
 type EpisodeEnded = (endSec: number) => void;
 
-/** Where sound is scheduled right now; it exists only between a finished (re)schedule and the next stop. */
 interface Horizon {
   readonly generation: number;
   /**
@@ -175,7 +173,6 @@ export class ProxyEngine {
   }
 
   play(fromTimelineSec: number): void {
-    // Play at the end of the episode starts it over instead of sounding nothing.
     if (fromTimelineSec >= this.durationSec()) fromTimelineSec = 0;
     this.playing = true;
     this.originTimelineSec = fromTimelineSec;
@@ -400,7 +397,6 @@ export class ProxyEngine {
     );
   }
 
-  /** Fills `decoded` with the buffer of every chunk the slices need, fetching what is not cached. */
   private decodeInto(
     decoded: Map<string, AudioBuffer>,
     slices: readonly ScheduledSlice[],
@@ -434,7 +430,6 @@ export class ProxyEngine {
     this.arm();
   }
 
-  /** Starts a source for every slice at its place on the audio clock, catching up any that are already under way. */
   private place(
     slices: readonly ScheduledSlice[],
     decoded: ReadonlyMap<string, AudioBuffer>,
@@ -476,7 +471,6 @@ export class ProxyEngine {
     }
   }
 
-  /** Schedules the next stretch of slices; runs when the sentinel finds the scheduled sound running low. */
   private async extend(horizon: Horizon): Promise<void> {
     const snapshot = this.snapshot;
     if (!snapshot) return;
@@ -502,7 +496,6 @@ export class ProxyEngine {
     this.arm();
   }
 
-  /** The timeline second at which the engine must next act: schedule more, or end the episode. */
   private wakeTimelineSec(horizon: Horizon): number {
     const duration = this.durationSec();
     return horizon.throughSec >= duration
