@@ -10,6 +10,7 @@ import { enterPlaybackSession, leavePlaybackSession } from "./playbackSession";
 import {
   buildSchedule,
   chunkRefKey,
+  episodeEndSec,
   type ImmutableChunkRef,
   type ProxyManifest,
   type ScheduledSlice,
@@ -34,7 +35,7 @@ export interface ProxyPlaybackSnapshot {
   readonly tracks: readonly TrackInfo[];
   /** Each track's volume envelope points by track id, sorted by time. */
   readonly volumeByTrack?: Readonly<Record<string, readonly VolumePoint[]>>;
-  /** The timeline's end; Infinity when unknown, which never ends the episode. */
+  /** The stored timeline duration, a floor for the episode end; Infinity when unknown, which never ends it. */
   readonly durationSec: number;
 }
 
@@ -62,6 +63,7 @@ export class ProxyEngine {
   private fetchChunk: FetchChunk;
   private snapshot: ProxyPlaybackSnapshot | null = null;
   private scheduleKey = "";
+  private endSec = Number.POSITIVE_INFINITY;
   private tracks: readonly TrackInfo[] = [];
   private onFailure: ChunkFailure;
   private onEnded: EpisodeEnded;
@@ -101,17 +103,19 @@ export class ProxyEngine {
 
   setSnapshot(snapshot: ProxyPlaybackSnapshot): void {
     const { tracks, manifest, clipsByTrack, volumeByTrack } = snapshot;
+    const endSec = episodeEndSec(snapshot.durationSec, clipsByTrack);
     const scheduleKey = JSON.stringify([
       manifest.tracks,
       manifest.artifacts,
       manifest.occurrences,
       clipsByTrack,
       volumeByTrack,
-      snapshot.durationSec,
+      endSec,
     ]);
     const changed = scheduleKey !== this.scheduleKey;
     this.scheduleKey = scheduleKey;
     this.snapshot = snapshot;
+    this.endSec = endSec;
     this.tracks = tracks;
     for (const t of tracks) {
       if (!this.trackGains.has(t.id)) {
@@ -236,7 +240,7 @@ export class ProxyEngine {
   }
 
   private durationSec(): number {
-    return this.snapshot?.durationSec ?? Number.POSITIVE_INFINITY;
+    return this.snapshot ? this.endSec : Number.POSITIVE_INFINITY;
   }
 
   readTrackFrame(trackId: string): ArrayLike<number> | null {

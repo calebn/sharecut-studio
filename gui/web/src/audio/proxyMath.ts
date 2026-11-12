@@ -309,6 +309,22 @@ export function isQueuedMoveOverlay(
   );
 }
 
+/**
+ * Where the episode ends: the stored duration can lag the clips, and the render
+ * plays to the later of it and the last clip end, so playback does too.
+ */
+export function episodeEndSec(
+  storedDurationSec: number,
+  clipsByTrack: Readonly<Record<string, readonly ClipRow[]>>,
+): number {
+  let end = Number.isNaN(storedDurationSec) ? 0 : storedDurationSec;
+  for (const clips of Object.values(clipsByTrack))
+    for (const clip of clips)
+      if (Number.isFinite(clip.timeline_end) && clip.timeline_end > end)
+        end = clip.timeline_end;
+  return end;
+}
+
 export function chunkRefKey(ref: ImmutableChunkRef): string {
   return JSON.stringify([ref.kind, ref.artifactId, ref.hash, ref.index]);
 }
