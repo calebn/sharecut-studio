@@ -175,7 +175,7 @@ Undo/redo restores snapshot → `ProjectStore.commit()` updates `episode.sharecu
 
 ## Version policy
 
-Only **`version: "2.1"`** is supported. `2.1` added `timeline.join_fade_max_ms`. Older versions and flat layouts are rejected at load time; `podcast episode upgrade --project <old episode.sharecut> --output <new workspace dir>` writes a `2.1` copy of a `2.0` workspace and leaves the source unchanged ([project-format.md](project-format.md#upgrade-after-a-real-format-break)).
+Only **`version: "2.1"`** is supported. `2.1` added `timeline.join_fade_max_ms`. A `2.0` file opens and is upgraded in memory (written as `2.1` by the next save); other older or newer versions and flat layouts are refused at load time with a coded error; `podcast episode upgrade --project <old episode.sharecut> --output <new workspace dir>` writes a `2.1` copy of a `2.0` workspace and leaves the source unchanged ([project-format.md](project-format.md#upgrade-after-a-real-format-break)).
 
 ## Prior art
 

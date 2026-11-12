@@ -5,26 +5,16 @@ from __future__ import annotations
 import json
 import shutil
 import uuid
-from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
 from podcast_mcp.models import EpisodeProject, load_project
 from podcast_mcp.models.episode import EPISODE_PROJECT_FILENAME
-from podcast_mcp.models.project_format import SUPPORTED_PROJECT_VERSION
+from podcast_mcp.models.project_format import STEPS, SUPPORTED_PROJECT_VERSION
 from podcast_mcp.util.atomic_json import write_text_atomic
 from podcast_mcp.util.coded_error import CodedValueError
 from podcast_mcp.util.project_state import project_commit_lock
-
-Step = Callable[[dict[str, Any]], None]
-
-
-def _add_timeline_join_fade_limit(data: dict[str, Any]) -> None:
-    """2.0 to 2.1: ``timeline.join_fade_max_ms`` is new and absent means the app default."""
-
-
-STEPS: dict[str, tuple[str, Step]] = {"2.0": ("2.1", _add_timeline_join_fade_limit)}
 
 
 @dataclass(frozen=True)

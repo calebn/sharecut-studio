@@ -261,6 +261,49 @@ describe("HomeScreen", () => {
     expect(assign).not.toHaveBeenCalled();
   });
 
+  it("shows the server's plain words when an episode was saved by a newer app", async () => {
+    const user = userEvent.setup();
+    const message =
+      "This episode was saved by a newer version of ShareCut Studio (project format 3.0). Update the app, then open it again.";
+    open.mockRejectedValue(new ApiError(message, "project_version_newer", 400));
+    render(<HomeScreen />);
+    await user.click(await screen.findByRole("button", { name: /Rosa/ }));
+    expect(await screen.findByRole("alert")).toHaveTextContent(message);
+    expect(assign).not.toHaveBeenCalled();
+  });
+
+  it("shows any other coded open refusal in the server's words when they read as plain words", async () => {
+    const user = userEvent.setup();
+    open.mockRejectedValue(
+      new ApiError(
+        "The project file is damaged and could not be read. Restore it from a backup.",
+        "project_unreadable",
+        400,
+      ),
+    );
+    render(<HomeScreen />);
+    await user.click(await screen.findByRole("button", { name: /Rosa/ }));
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Restore it from a backup.",
+    );
+  });
+
+  it("keeps the generic line when a coded refusal carries a path", async () => {
+    const user = userEvent.setup();
+    open.mockRejectedValue(
+      new ApiError(
+        "Cannot read /Users/rosa/ep/episode.sharecut",
+        "some_code",
+        400,
+      ),
+    );
+    render(<HomeScreen />);
+    await user.click(await screen.findByRole("button", { name: /Rosa/ }));
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent("That episode didn't open. Try again.");
+    expect(alert).not.toHaveTextContent("Users");
+  });
+
   it("says a failed read and reads again on Try again", async () => {
     const user = userEvent.setup();
     list.mockRejectedValueOnce(new Error("500"));

@@ -118,13 +118,35 @@ function navigateToProject(path: string): true {
   return true;
 }
 
-/** Plain words with a fix for a failed open; the server's own text never shows. */
+/** A server refusal that names its own fix: the version of the file, not a fault to retry. */
+const VERSION_REFUSAL_CODES = new Set([
+  "project_version_newer",
+  "project_version_unsupported",
+]);
+const GENERIC_OPEN_CODES = new Set(["project_open_failed", "network_error"]);
+const READABLE_MESSAGE_MAX = 240;
+
+/** The server's own words, only when they are a short sentence with no path in it. */
+function readableServerMessage(error: ApiError): string | null {
+  const text = error.message.trim();
+  if (!text || text.length > READABLE_MESSAGE_MAX) return null;
+  if (/[\\/]/.test(text)) return null;
+  return text;
+}
+
+/** Plain words with a fix for a failed open; a coded server message shows when it reads as plain words. */
 function openFailure(error: unknown): string {
   if (error instanceof ApiError && error.code === OLD_FILENAME_CODE) {
     return OLD_FILENAME;
   }
   if (error instanceof ApiError && NOT_AN_EPISODE_CODES.has(error.code ?? "")) {
     return NOT_AN_EPISODE;
+  }
+  if (error instanceof ApiError && error.code) {
+    const coded =
+      VERSION_REFUSAL_CODES.has(error.code) ||
+      (error.status === 400 && !GENERIC_OPEN_CODES.has(error.code));
+    if (coded) return readableServerMessage(error) ?? NOT_OPENED;
   }
   return NOT_OPENED;
 }

@@ -1,17 +1,75 @@
 from __future__ import annotations
 
+from collections.abc import Callable
 from typing import Any
+
+from podcast_mcp.util.coded_error import CodedValueError
 
 SUPPORTED_PROJECT_VERSION = "2.1"
 
+Step = Callable[[dict[str, Any]], None]
+
+
+def _add_timeline_join_fade_limit(data: dict[str, Any]) -> None:
+    """2.0 to 2.1: ``timeline.join_fade_max_ms`` is new and absent means the app default."""
+
+
+# One entry per released format: the version it moves to, and the edit that moves a document
+# there. Shared by `podcast episode upgrade` and the in-memory migration in `load_project`.
+STEPS: dict[str, tuple[str, Step]] = {"2.0": ("2.1", _add_timeline_join_fade_limit)}
+
+
+class ProjectVersionNewerError(CodedValueError):
+    code = "project_version_newer"
+
+
+class ProjectVersionUnsupportedError(CodedValueError):
+    code = "project_version_unsupported"
+
+
+def _version_key(version: object) -> tuple[int, ...] | None:
+    if not isinstance(version, str):
+        return None
+    parts = version.split(".")
+    if not all(part.isascii() and part.isdigit() for part in parts):
+        return None
+    return tuple(int(part) for part in parts)
+
+
+def migrate_document(data: dict[str, Any]) -> str:
+    """Move a known older *data* document to the supported version in place.
+
+    Returns the version it had. A document already at the supported version is unchanged.
+    A newer or unknown version raises a coded refusal that says what to do.
+    """
+    original = data.get("version")
+    version = original
+    while version != SUPPORTED_PROJECT_VERSION:
+        if not isinstance(version, str) or version not in STEPS:
+            raise _unsupported_version(original)
+        version, step = STEPS[version]
+        step(data)
+        data["version"] = version
+    return str(original)
+
+
+def _unsupported_version(version: object) -> CodedValueError:
+    found, current = _version_key(version), _version_key(SUPPORTED_PROJECT_VERSION)
+    if found is not None and current is not None and found > current:
+        return ProjectVersionNewerError(
+            f"This episode was saved by a newer version of ShareCut Studio "
+            f"(project format {version}). Update the app, then open it again."
+        )
+    shown = f" ({version})" if isinstance(version, str) and found is not None else ""
+    return ProjectVersionUnsupportedError(
+        f"This episode was saved in a project format{shown} that this version of ShareCut Studio "
+        "can't open. Open it with the version that saved it, or restore a backup."
+    )
+
 
 def require_v2_document(data: dict[str, Any]) -> None:
-    version = data.get("version")
-    if version != SUPPORTED_PROJECT_VERSION:
-        raise ValueError(
-            f"Unsupported project file version {version!r}; expected {SUPPORTED_PROJECT_VERSION!r}. "
-            "Upgrade an older project with `podcast episode upgrade --project <file> --output <new dir>`."
-        )
+    """Bring *data* to the supported version in memory; the file on disk is not touched."""
+    migrate_document(data)
     if "meta" not in data or "timeline" not in data:
         raise ValueError("Invalid project file: missing required v2 sections (meta, timeline).")
 
