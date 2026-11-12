@@ -129,8 +129,8 @@ def apply_gui_extensions(app: Any, registry: FeatureRegistry) -> None:
     """Mount middleware and routers from the registry onto a FastAPI app."""
     for cls, kwargs in registry.middlewares:
         app.add_middleware(cls, **kwargs)
-    for router in registry.routers:
-        app.include_router(router)
+    for router, dependencies in registry.router_mounts:
+        app.include_router(router, dependencies=list(dependencies))
     app.state.feature_registry = registry
 
 

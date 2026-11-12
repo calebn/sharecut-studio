@@ -34,7 +34,7 @@ class FeatureRegistry:
     _known: frozenset[str] = field(
         default_factory=lambda: STABLE_FEATURE_IDS | EXPERIMENTAL_FEATURE_IDS
     )
-    _route_mounts: list[Any] = field(default_factory=list)
+    _route_mounts: list[tuple[Any, tuple[Any, ...]]] = field(default_factory=list)
     _mcp_registrars: list[Callable[[Any], None]] = field(default_factory=list)
     _cli_registrars: list[Callable[[Any], None]] = field(default_factory=list)
     _middlewares: list[Any] = field(default_factory=list)
@@ -79,8 +79,9 @@ class FeatureRegistry:
         *,
         source: str,
         feature_id: str | None = FEATURE_SHARE_ROUTES,
+        dependencies: Sequence[Any] = (),
     ) -> None:
-        self._route_mounts.append(router)
+        self._route_mounts.append((router, tuple(dependencies)))
         if feature_id is not None:
             self.add(feature_id, source=source, payload={"kind": "router"})
 
@@ -101,6 +102,10 @@ class FeatureRegistry:
 
     @property
     def routers(self) -> Sequence[Any]:
+        return tuple(router for router, _ in self._route_mounts)
+
+    @property
+    def router_mounts(self) -> Sequence[tuple[Any, tuple[Any, ...]]]:
         return tuple(self._route_mounts)
 
     @property
