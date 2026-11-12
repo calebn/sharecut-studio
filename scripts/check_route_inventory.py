@@ -16,7 +16,7 @@ hand. Each row records the gate class of its handler:
 The class comes from the AST of the handler source, so a comment or a string that says
 ``require_host`` does not count. ``host_direct_baseline`` is a ratchet: the number of handlers that
 call ``require_host`` themselves may only shrink. ``--write`` regenerates the file and lowers the
-baseline, never raises it. ``--check`` (the default) fails on any difference. ``--base REF`` also fails when the baseline or
+baseline, never raises it, and exits nonzero when it writes an unreviewed row. ``--check`` (the default) fails on any difference. ``--base REF`` also fails when the baseline or
 the live count is above the one recorded at REF, and caps ``--write`` at it.
 """
 
@@ -43,7 +43,10 @@ WRITE_HINT = (
 API_VERSION = 1
 MOUNT = "MOUNT"
 WEBSOCKET = "WS"
-UNREVIEWED = "unreviewed: add a reason to OTHER_REASONS in scripts/check_route_inventory.py"
+UNREVIEWED = (
+    "unreviewed: add the route to OVERRIDES or PUBLIC_ROUTES (the per-route reason tables) "
+    "in scripts/check_route_inventory.py"
+)
 
 HOST_CALL = "require_host"
 HOST_HELPERS: dict[str, str] = {
@@ -95,13 +98,19 @@ OVERRIDES: dict[tuple[str, str], str] = {
         "require_host unless a per-file export ticket is given, which then stands in for it"
     ),
     ("GET", "/auth/providers"): "lists the sign-in providers; the caller has no session yet",
-    ("GET", "/auth/me"): "reads the session cookie and answers null without one",
+    (
+        "GET",
+        "/auth/me",
+    ): "reads the session cookie or a Bearer session; 401 sign_in_required without one",
     ("POST", "/auth/logout"): "revokes the session cookie it is sent; a missing cookie is a no-op",
     ("GET", "/auth/login/{provider}"): "starts the OAuth redirect; the caller has no session yet",
     ("GET", "/auth/callback/{provider}"): "finishes the OAuth redirect and mints the session",
     ("POST", "/auth/password/register"): "creates the account and its session; no session yet",
     ("POST", "/auth/password/login"): "checks the password and mints the session; no session yet",
-    ("POST", "/auth/magic-link"): "emails a sign-in link; the caller has no session yet",
+    ("POST", "/auth/magic-link"): (
+        "sends no email; returns or prints the link only when PODCAST_MAGIC_LINK_PRINT=1 on a "
+        "loopback peer; the caller has no session yet"
+    ),
     ("GET", "/auth/magic-link/consume"): "the one-time token mints the session; no session yet",
     ("POST", "/auth/passkey/register/begin"): "needs the session cookie; 401 without one",
     ("POST", "/auth/passkey/register/finish"): "needs the session cookie; 401 without one",
@@ -176,7 +185,9 @@ def gate_of(
     key = (method, path)
     if key in OVERRIDES:
         return "other", OVERRIDES[key]
+    dependencies = list(dependencies)
     names = referenced_names(handler).union(*map(referenced_names, dependencies))
+    names |= {getattr(call, "__name__", "") for call in dependencies}
     module = getattr(handler, "__module__", type(handler).__module__)
     if HOST_CALL in names or names & HOST_HELPERS.keys():
         return "host", None
@@ -195,13 +206,25 @@ def handler_id(handler: Callable[..., Any]) -> str:
     return f"{target.__module__}:{target.__qualname__}"
 
 
-def _walk(routes: list[Any]) -> Iterator[Any]:
+def _walk(
+    routes: list[Any], prefix: str = "", gates: tuple[Callable[..., Any], ...] = ()
+) -> Iterator[tuple[Any, str, tuple[Callable[..., Any], ...]]]:
+    """Every leaf route with its mounted path and the include-time ``Depends`` callables above it.
+
+    An ``include_router`` call carries a prefix and dependencies that FastAPI applies to every
+    child route, so both are accumulated down the nested includes.
+    """
     for route in routes:
         included = getattr(route, "original_router", None)
-        if included is not None:
-            yield from _walk(list(included.routes))
-        else:
-            yield route
+        if included is None:
+            yield route, prefix + route.path, gates
+            continue
+        context = route.include_context
+        yield from _walk(
+            list(included.routes),
+            prefix + context.prefix,
+            gates + tuple(depends.dependency for depends in context.dependencies),
+        )
 
 
 def _methods(route: Any) -> list[str]:
@@ -249,17 +272,17 @@ def variant_apps() -> Iterator[Any]:
 
 def _rows_of(app: Any) -> dict[tuple[str, str], dict[str, Any]]:
     rows: dict[tuple[str, str], dict[str, Any]] = {}
-    for route in _walk(list(app.routes)):
+    for route, path, gates in _walk(list(app.routes)):
         handler: Callable[..., Any] = getattr(route, "endpoint", None) or route.app
-        dependencies = list(dependency_callables(route))
+        dependencies = [*dependency_callables(route), *gates]
         for method in _methods(route):
-            key = (method, route.path)
+            key = (method, path)
             if key in rows:
-                raise ValueError(f"{method} {route.path} is mounted twice")
-            gate, reason = gate_of(method, route.path, handler, dependencies)
+                raise ValueError(f"{method} {path} is mounted twice")
+            gate, reason = gate_of(method, path, handler, dependencies)
             row: dict[str, Any] = {
                 "method": method,
-                "path": route.path,
+                "path": path,
                 "gate": gate,
                 "handler": handler_id(handler),
             }
@@ -312,7 +335,9 @@ def problems(live: list[dict[str, Any]], contract: dict[str, Any]) -> Iterator[s
     if direct > baseline:
         yield (
             f"{direct} handlers call require_host directly, baseline is {baseline}. The count may "
-            "only shrink: gate the new route another way instead of raising the baseline."
+            "only shrink: gate the route with a router-level dependency, "
+            "include_router(router, dependencies=[Depends(require_host)]), instead of calling "
+            "require_host in the handler or raising the baseline."
         )
     elif direct < baseline:
         yield (
@@ -375,7 +400,13 @@ def main(argv: list[str] | None = None) -> int:
                 file=sys.stderr,
             )
             return 1
-        return 0
+        unreviewed = [r for r in live if r.get("reason") == UNREVIEWED]
+        for row in unreviewed:
+            print(
+                f"{row['method']} {row['path']} was written as unreviewed. {UNREVIEWED}.",
+                file=sys.stderr,
+            )
+        return 1 if unreviewed else 0
     found = [
         *problems(live, contract),
         *growth(base, host_direct_count(live), int(contract["host_direct_baseline"])),
