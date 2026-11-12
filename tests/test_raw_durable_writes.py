@@ -78,8 +78,6 @@ RAW_WRITES: dict[str, int] = {
     "export/episode.py": 1,
     "feed/writer.py": 2,
     "pipeline/steps.py": 5,
-    "project/history/manager.py": 1,
-    "project/store.py": 1,
     "segments/bundle.py": 2,
     "segments/kit_bundle.py": 1,
     "segments/store.py": 1,

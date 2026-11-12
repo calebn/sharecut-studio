@@ -15,7 +15,7 @@ from podcast_mcp.project.store import (
     snapshot_from_project,
     snapshots_equal,
 )
-from podcast_mcp.util.atomic_json import write_json_atomic
+from podcast_mcp.util.atomic_json import write_json_atomic, write_text_atomic
 from podcast_mcp.util.coded_error import CodedError
 from podcast_mcp.util.project_state import project_commit_lock
 
@@ -33,8 +33,8 @@ def write_snapshot(project: EpisodeProject, snapshot: ProjectStateSnapshot, entr
     """Write ``snapshot`` as history entry ``entry_id``; return its workspace-relative path."""
     path = history_snapshot_path(history_index_path(project), entry_id)
     rel = path.relative_to(project.workspace_path()).as_posix()
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(snapshot.model_dump_json(indent=2, by_alias=True), encoding="utf-8")
+    # creation_mode 0o666 keeps the umask-governed mode Path.write_text created.
+    write_text_atomic(path, snapshot.model_dump_json(indent=2, by_alias=True), creation_mode=0o666)
     return rel
 
 
