@@ -57,6 +57,28 @@ function composer(guest: Page): Locator {
   return guest.locator(".rv-compose");
 }
 
+/** The phone shell (767 px and narrower) opens the composer from the dock's Comment button. */
+const onPhoneShell = (size: { width: number }) => size.width <= 767;
+
+async function openComposer(guest: Page, size: { width: number }) {
+  if (!onPhoneShell(size)) return;
+  await guest.getByRole("button", { name: /^Comment at/ }).tap();
+  await expect(composer(guest)).toBeVisible();
+}
+
+/** Posting closes the phone composer; a wide shell keeps its field. */
+async function expectPosted(
+  guest: Page,
+  size: { width: number },
+  field: Locator,
+) {
+  if (onPhoneShell(size)) {
+    await expect(composer(guest)).toHaveCount(0);
+    await openComposer(guest, size);
+  }
+  await expect(field).toHaveValue("");
+}
+
 const POST = { name: "Post", exact: true } as const;
 
 function fields(dock: Locator) {
@@ -102,6 +124,7 @@ async function withGuest(
         await openHostShare(host, projectPath);
         const token = await createReviewShare(host, projectPath, "commenter");
         await openGuestShare(guest, token);
+        await openComposer(guest, size);
         await run(guest, host, composer(guest));
       },
     );
@@ -123,6 +146,7 @@ async function withNamedGuest(
       await field.fill("First");
       await name.fill(who);
       await post.tap();
+      await expectPosted(guest, size, field);
       await expect(fields(dock).known).toContainText(who);
       await run(guest, dock);
     },
@@ -164,7 +188,7 @@ for (const theme of ["light", "dark"] as const) {
 
           await name.fill("Riley Okafor");
           await post.tap();
-          await expect(field).toHaveValue("");
+          await expectPosted(guest, phone, field);
           await expect(fields(dock).known).toContainText("Riley Okafor");
           await expectNoHorizontalScroll(guest, phone.width);
 
@@ -173,11 +197,12 @@ for (const theme of ["light", "dark"] as const) {
           expect(rows[0]).not.toContain("Guest");
 
           await guest.reload();
+          await openComposer(guest, phone);
           await expect(fields(dock).known).toContainText("Riley Okafor");
           await field.tap();
           await field.fill("Second note");
           await post.tap();
-          await expect(field).toHaveValue("");
+          await expectPosted(guest, phone, field);
           await expect(fields(dock).known).toContainText("Riley Okafor");
         },
         theme,
@@ -192,17 +217,18 @@ test("a phone guest can leave the name blank and change it later", async ({
   await withGuest(
     browser,
     { width: 390, height: 844 },
-    async (_guest, host, dock) => {
+    async (guest, host, dock) => {
+      const size = { width: 390 };
       const { field, name, post } = fields(dock);
       await field.fill("Anonymous note");
       await post.tap();
-      await expect(field).toHaveValue("");
+      await expectPosted(guest, size, field);
       await expect(name).toHaveValue("");
 
       await name.fill("Alex");
       await field.fill("Named note");
       await post.tap();
-      await expect(field).toHaveValue("");
+      await expectPosted(guest, size, field);
 
       const rows = await hostComments(host, 2);
       expect(rows.join("\n")).toContain("Alex");
@@ -315,3 +341,38 @@ for (const size of [
     });
   });
 }
+
+test("a phone guest meets no text field until Comment is tapped, and no name field until then", async ({
+  browser,
+}) => {
+  await withShareableProject(async (projectPath) => {
+    await withBrowserPages(
+      browser,
+      [
+        {},
+        {
+          viewport: { width: 390, height: 844 },
+          reducedMotion: "reduce",
+          hasTouch: true,
+          isMobile: true,
+        },
+      ],
+      async ([host, guest]) => {
+        await openHostShare(host, projectPath);
+        const token = await createReviewShare(host, projectPath, "commenter");
+        await openGuestShare(guest, token);
+        await expect(
+          guest.getByRole("button", { name: /^Comment at/ }),
+        ).toBeVisible();
+        await expect(guest.getByRole("textbox")).toHaveCount(0);
+        await guest.getByRole("button", { name: /^Comment at/ }).tap();
+        await expect(
+          guest.getByRole("textbox", { name: "Your name" }),
+        ).toBeVisible();
+        await expect(
+          guest.getByRole("textbox", { name: "Comment", exact: true }),
+        ).toBeFocused();
+      },
+    );
+  });
+});
