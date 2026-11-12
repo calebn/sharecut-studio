@@ -4,7 +4,7 @@ import { clearRegisteredCommands } from "../commands/execute";
 import { registerDawCommands } from "../commands/register";
 import { shareProjectKey } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
-import { minimalProject, sampleTrack } from "../test/fixtures";
+import { clipRow, minimalProject, sampleTrack } from "../test/fixtures";
 import { useOsMediaSession } from "./useOsMediaSession";
 
 const handlers = new Map<string, MediaSessionActionHandler | null>();
@@ -132,6 +132,29 @@ describe("useOsMediaSession", () => {
     expect(useDawStore.getState().playheadSec).toBe(55);
     act(() => handlers.get("seekbackward")?.(details({ seekOffset: 5 })));
     expect(useDawStore.getState().playheadSec).toBe(50);
+  });
+
+  it("skips forward past a stored duration that lags the clips", () => {
+    useDawStore.getState().hydrate(
+      shareProjectKey("tok"),
+      minimalProject({
+        timeline_duration_sec: 60,
+        tracks: [sampleTrack({ id: "host" })],
+        clips: {
+          tracks: { host: [clipRow({ track_id: "host", timeline_end: 90 })] },
+          clip_count: 1,
+        },
+      }),
+    );
+    renderHook(() => useOsMediaSession());
+    expect(session.setPositionState).toHaveBeenLastCalledWith({
+      duration: 90,
+      playbackRate: 1,
+      position: 0,
+    });
+    act(() => useDawStore.getState().setPlayheadSec(55));
+    act(() => handlers.get("seekforward")?.(details()));
+    expect(useDawStore.getState().playheadSec).toBe(70);
   });
 
   it("clears everything on unmount", () => {

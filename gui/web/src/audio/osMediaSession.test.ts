@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { useDawStore } from "../state/dawStore";
-import { minimalProject, sampleTrack } from "../test/fixtures";
+import { clipRow, minimalProject, sampleTrack } from "../test/fixtures";
 import {
   applyOsMediaSession,
   type MediaSessionLike,
@@ -411,6 +411,23 @@ describe("transport store projection", () => {
       positionState: { duration: 600, playbackRate: 2, position: 30 },
       handlersOn: true,
     });
+  });
+
+  it("hands the OS the episode end when a clip runs past the stored duration", () => {
+    useDawStore.setState({
+      project: minimalProject({
+        timeline_duration_sec: 60,
+        tracks: [sampleTrack()],
+        clips: {
+          tracks: { "mira-voice": [clipRow({ timeline_end: 90 })] },
+          clip_count: 1,
+        },
+      }),
+    });
+    expect(
+      projectOsMediaSession(osTransportInput(useDawStore.getState(), 70))
+        .positionState,
+    ).toEqual({ duration: 90, playbackRate: 1, position: 70 });
   });
 
   it("keeps one key across playback playhead writes and changes it on a play, seek or rate change", () => {
