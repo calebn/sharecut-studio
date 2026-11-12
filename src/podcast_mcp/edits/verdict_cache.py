@@ -218,8 +218,7 @@ def verdict_key(
     span: tuple[float, float],
     base_profile: str,
 ) -> str | None:
-    """Hash of everything near ``edit`` that its check reads; ``None`` when any input is unreadable
-    or a clip fade over ``LONG_FADE_NO_CACHE_SEC`` runs into the window (a far one does not).
+    """Hash of everything near ``edit`` that its check reads; ``None`` when ``_payload`` refuses.
 
     ``base_profile`` is ``BatchBase.stamp`` of the batch the check belongs to. It is required:
     a key without it would be shared by every batch, whatever base each read.
@@ -231,21 +230,13 @@ def verdict_key(
     return None if payload is None else _digest(payload)
 
 
-def _long_ramp_in_window(clip: Any, lo: float, hi: float) -> bool:
-    """A fade over ``LONG_FADE_NO_CACHE_SEC`` that runs into ``[lo, hi]`` on the timeline.
-
-    The render shortens a fade to half its clip, so such a ramp can depend on a clip end
-    outside the window, which the key leaves out.
-    """
-    longest = LONG_FADE_NO_CACHE_SEC * 1000
-    fade_in, fade_out = clip.fade_in_ms / 1000, clip.fade_out_ms / 1000
-    return (
-        clip.fade_in_ms > longest
-        and clip.timeline_start < hi
-        and clip.timeline_start + fade_in > lo
-    ) or (
-        clip.fade_out_ms > longest and clip.timeline_end > lo and clip.timeline_end - fade_out < hi
+def _ramps_in_window(clip: Any, lo: float, hi: float) -> list[int]:
+    """The requested fades (ms) of ``clip`` whose ramps run into ``[lo, hi]`` on the timeline."""
+    ramps = (
+        (clip.fade_in_ms, clip.timeline_start, clip.timeline_start + clip.fade_in_ms / 1000),
+        (clip.fade_out_ms, clip.timeline_end - clip.fade_out_ms / 1000, clip.timeline_end),
     )
+    return [ms for ms, start, end in ramps if ms > 0 and start < hi and end > lo]
 
 
 def key_parts(
@@ -277,7 +268,13 @@ def _payload(
     span: tuple[float, float],
     base_profile: str,
 ) -> dict[str, Any] | None:
-    """What the key hashes; ``None`` when a long fade runs into the window (never cached)."""
+    """What the key hashes; ``None`` when any input is unreadable or a clip fade over
+    ``LONG_FADE_NO_CACHE_SEC``, on any track, runs into the window (never cached).
+
+    A ramp outside the window does not refuse the key. The render shortens a fade to half its
+    clip (``engines.audio.fade_duration``), so a ramp in the window can depend on a clip end
+    outside it; ``_heard`` hashes the clip's length when that can happen.
+    """
     from podcast_mcp.util.tracks import recording_audio_path
 
     seen = _held_pause_span(project, edit, span, defaults)
@@ -290,7 +287,7 @@ def _payload(
     downstream = []
     near = _words_near(project)
     for c in project.clips:
-        if _long_ramp_in_window(c, lo, hi):
+        if any(ms > LONG_FADE_NO_CACHE_SEC * 1000 for ms in _ramps_in_window(c, lo, hi)):
             return None
         in_window = c.timeline_start < hi and c.timeline_end > lo
         if in_window:
@@ -454,6 +451,8 @@ def _heard(clip: Any, lo: float, hi: float) -> list[Any]:
 
     A clip's id and the ends that lie outside the window are left out, so a cut applied far
     away (which splits or trims the clip there) does not change what is heard near this one.
+    Its length is kept when a fade in the window is longer than half of it, as the render
+    then shortens that fade by the length.
     """
     start, end = max(clip.timeline_start, lo), min(clip.timeline_end, hi)
     offset = clip.timeline_start - clip.source_start
@@ -478,6 +477,9 @@ def _heard(clip: Any, lo: float, hi: float) -> list[Any]:
         heard.append(timing.model_dump(mode="json"))
     if clip.gain_db:
         heard.append(clip.gain_db)
+    length = clip.source_end - clip.source_start
+    if any(ms / 1000 > length / 2 for ms in _ramps_in_window(clip, lo, hi)):
+        heard.append(["length", length])
     if opens and clip.fade_in_curve is not FadeCurve.LINEAR:
         heard.append(["fade_in_curve", clip.fade_in_curve.value])
     if closes and clip.fade_out_curve is not FadeCurve.LINEAR:

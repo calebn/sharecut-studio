@@ -17,6 +17,7 @@ from podcast_mcp.edits.cut_speech import LaneSourceExtent
 from podcast_mcp.models import (
     Clip,
     CutIntent,
+    EditDecision,
     EpisodeProject,
     MediaAsset,
     Track,
@@ -55,6 +56,15 @@ def _project(tmp_path: Path, *, cuts=((5.0, 5.4), (30.0, 30.4))) -> EpisodeProje
     project.timeline.duration_sec = SECONDS
     project.edit_decisions = [_cut(i, a, b) for i, (a, b) in zip(IDS, cuts, strict=True)]
     return project
+
+
+_KEY_ARGS = {
+    "defaults": load_defaults(),
+    "manual": False,
+    "batch": (),
+    "span": (5.0, 5.4),
+    "base_profile": "test-base",
+}
 
 
 @pytest.fixture
@@ -185,37 +195,93 @@ def test_every_input_of_the_check_changes_the_key(
     assert key() != base  # the same recording plays again somewhere else
 
 
-def test_a_fade_inside_a_second_widens_the_window_and_a_longer_one_in_it_is_not_cached(
-    tmp_path: Path,
-) -> None:
+def test_a_fade_inside_a_second_widens_the_window(tmp_path: Path) -> None:
     project = _project(tmp_path)
     edit = project.edit_decisions[0]
-    kwargs = {
-        "defaults": load_defaults(),
-        "manual": False,
-        "batch": (),
-        "span": (5.0, 5.4),
-        "base_profile": "test-base",
-    }
-    base = verdict_cache.verdict_key(project, edit, **kwargs)
+    base = verdict_cache.verdict_key(project, edit, **_KEY_ARGS)
     project.clips = [
         Clip(id="a", track_id="host", source_start=0, source_end=12.0, timeline_start=0),
         Clip(id="b", track_id="host", source_start=12.0, source_end=SECONDS, timeline_start=12.0),
     ]
     assert base is not None
-    assert verdict_cache.verdict_key(project, edit, **kwargs) == base
+    assert verdict_cache.verdict_key(project, edit, **_KEY_ARGS) == base
     project.clips[1].fade_in_ms = 800
-    widened = verdict_cache.verdict_key(project, edit, **kwargs)
+    widened = verdict_cache.verdict_key(project, edit, **_KEY_ARGS)
     assert widened is not None and widened != base
     project.clips[1].fade_in_ms = 1000
-    second = verdict_cache.verdict_key(project, edit, **kwargs)
-    assert second not in (None, widened)
-    project.clips[1].fade_in_ms = 1001
-    assert verdict_cache.verdict_key(project, edit, **kwargs) not in (None, second)
-    project.clips[0].source_end = 11.0
-    project.clips[1].source_start = project.clips[1].timeline_start = 11.0
-    assert verdict_cache.verdict_key(project, edit, **kwargs) is None
-    assert verdict_cache.key_parts(project, edit, **kwargs) is None
+    assert verdict_cache.verdict_key(project, edit, **_KEY_ARGS) not in (None, widened)
+
+
+def _with_guest(project: EpisodeProject) -> EpisodeProject:
+    project.tracks.append(
+        Track(
+            id="guest",
+            label="Guest",
+            role=TrackRole.DIALOGUE,
+            media=MediaAsset(path="raw/host.wav", duration_sec=SECONDS, sample_rate=SR, channels=1),
+        )
+    )
+    return project
+
+
+def _guest_clips(head: float, fade_in_ms: int) -> list[Clip]:
+    return [
+        Clip(id="g0", track_id="guest", source_start=0, source_end=head, timeline_start=0),
+        Clip(
+            id="g1",
+            track_id="guest",
+            source_start=head,
+            source_end=SECONDS,
+            timeline_start=head,
+            fade_in_ms=fade_in_ms,
+        ),
+    ]
+
+
+@pytest.mark.parametrize("track", ["host", "guest"])
+def test_a_ramp_over_a_second_in_the_window_refuses_the_key_and_one_outside_keeps_it(
+    tmp_path: Path, track: str
+) -> None:
+    project = _with_guest(_project(tmp_path))
+    edit = project.edit_decisions[0]
+    host = [Clip(id="h", track_id="host", source_start=0, source_end=SECONDS, timeline_start=0)]
+
+    def key(head: float, fade_in_ms: int) -> str | None:
+        if track == "host":
+            project.clips = _host_clips(head, fade_in={1: fade_in_ms}) + _guest_clips(1.0, 0)
+        else:
+            project.clips = host + _guest_clips(head, fade_in_ms)
+        return verdict_cache.verdict_key(project, edit, **_KEY_ARGS)
+
+    assert key(6.0, 1000) is not None
+    assert key(6.0, 1001) is None
+    assert verdict_cache.key_parts(project, edit, **_KEY_ARGS) is None
+    assert key(20.0, 1001) is not None
+    assert verdict_cache.key_parts(project, edit, **_KEY_ARGS) is not None
+
+
+def test_a_short_clip_whose_fade_runs_into_the_window_keys_on_its_length(
+    tmp_path: Path,
+) -> None:
+    project = _project(tmp_path)
+    near, far = project.edit_decisions
+
+    def key(edit: EditDecision, clips: list[Clip]) -> str:
+        project.clips = clips
+        span = (edit.start, edit.end)
+        found = verdict_cache.verdict_key(project, edit, **{**_KEY_ARGS, "span": span})
+        assert found is not None
+        return found
+
+    assert key(near, _host_clips(11.3, 12.9, fade_in={1: 1000})) != key(
+        near, _host_clips(11.3, 13.5, fade_in={1: 1000})
+    )
+    assert key(far, _host_clips(22.6, 24.4, fade_out={1: 1000})) != key(
+        far, _host_clips(21.0, 24.4, fade_out={1: 1000})
+    )
+    assert key(near, _host_clips(11.3, 14.0, fade_in={1: 1000})) == key(
+        near, _host_clips(11.3, 15.0, fade_in={1: 1000})
+    )
 
 
 def _host_clips(
