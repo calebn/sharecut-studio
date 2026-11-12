@@ -181,6 +181,27 @@ for (const [deviceName, phone] of PHONES) {
       });
     });
 
+    test("a seek while playing declares the new position", async ({
+      browser,
+    }) => {
+      await withPhoneGuest(browser, phone, async (page) => {
+        await play(page).tap();
+        await expect(pause(page)).toBeVisible();
+        await page.waitForTimeout(1500);
+
+        await fireOsAction(page, "seekto", { seekTime: 40 });
+        await expect
+          .poll(async () => lastPosition(await readOsRecorder(page))?.position)
+          .toBeCloseTo(40, 0);
+        expect((await readOsRecorder(page)).playbackState).toBe("playing");
+
+        await fireOsAction(page, "seekbackward");
+        await expect
+          .poll(async () => lastPosition(await readOsRecorder(page))?.position)
+          .toBeCloseTo(40 - SKIP_SEC, 0);
+      });
+    });
+
     test("a locked page keeps the listener's place", async ({ browser }) => {
       await withPhoneGuest(browser, phone, async (page) => {
         await play(page).tap();

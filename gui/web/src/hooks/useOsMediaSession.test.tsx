@@ -1,5 +1,6 @@
 import { act, renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { bindPlaybackClock } from "../audio/playbackClock";
 import { clearRegisteredCommands } from "../commands/execute";
 import { registerDawCommands } from "../commands/register";
 import { shareProjectKey } from "../shareMode";
@@ -38,6 +39,7 @@ beforeEach(() => {
   session.metadata = null;
   session.playbackState = "none";
   vi.clearAllMocks();
+  session.setPositionState.mockImplementation(() => undefined);
   vi.stubGlobal(
     "MediaMetadata",
     class {
@@ -155,6 +157,87 @@ describe("useOsMediaSession", () => {
     act(() => useDawStore.getState().setPlayheadSec(55));
     act(() => handlers.get("seekforward")?.(details()));
     expect(useDawStore.getState().playheadSec).toBe(70);
+  });
+
+  it("declares the sought position, not the engine's pre-seek clock, while playing", () => {
+    hydrateGuest();
+    renderHook(() => useOsMediaSession());
+    act(() => useDawStore.getState().setIsPlaying(true));
+    const unbind = bindPlaybackClock(() =>
+      useDawStore.getState().isPlaying ? 10 : null,
+    );
+    act(() => handlers.get("seekto")?.(details({ seekTime: 40 })));
+    expect(session.setPositionState).toHaveBeenLastCalledWith({
+      duration: 60,
+      playbackRate: 1,
+      position: 40,
+    });
+    act(() => handlers.get("seekforward")?.(details()));
+    expect(session.setPositionState).toHaveBeenLastCalledWith({
+      duration: 60,
+      playbackRate: 1,
+      position: 55,
+    });
+    unbind();
+  });
+
+  it("declares 0 when Play starts at the end, where the engine wraps", () => {
+    hydrateGuest();
+    renderHook(() => useOsMediaSession());
+    act(() => useDawStore.getState().setPlayheadSec(60, "seek"));
+    act(() => handlers.get("play")?.(details()));
+    expect(useDawStore.getState().isPlaying).toBe(true);
+    expect(session.setPositionState).toHaveBeenLastCalledWith({
+      duration: 60,
+      playbackRate: 1,
+      position: 0,
+    });
+  });
+
+  it("keeps Play working when the browser throws from setPositionState", () => {
+    hydrateGuest();
+    renderHook(() => useOsMediaSession());
+    session.setPositionState.mockImplementation(() => {
+      throw new TypeError("rejected");
+    });
+    const error = vi
+      .spyOn(console, "error")
+      .mockImplementation(() => undefined);
+    expect(() =>
+      act(() => useDawStore.getState().setIsPlaying(true)),
+    ).not.toThrow();
+    expect(useDawStore.getState().isPlaying).toBe(true);
+    error.mockRestore();
+  });
+
+  it("stops a source preview when the OS pauses and the transport is idle", () => {
+    hydrateGuest();
+    renderHook(() => useOsMediaSession());
+    act(() =>
+      useDawStore.getState().beginSourcePreview({
+        ownerId: "word",
+        startSec: 1,
+        endSec: 3,
+        media: { kind: "rendered", url: "u" },
+      }),
+    );
+    expect(session.playbackState).toBe("playing");
+    act(() => handlers.get("pause")?.(details()));
+    expect(useDawStore.getState().sourcePreview).toBeNull();
+    expect(session.playbackState).toBe("paused");
+  });
+
+  it("does not build the change key for playhead ticks", () => {
+    hydrateGuest();
+    renderHook(() => useOsMediaSession());
+    act(() => useDawStore.getState().setIsPlaying(true));
+    const stringify = vi.spyOn(JSON, "stringify");
+    act(() => {
+      for (let i = 0; i < 200; i += 1)
+        useDawStore.getState().setPlayheadSec(i / 10, "playback");
+    });
+    expect(stringify).not.toHaveBeenCalled();
+    stringify.mockRestore();
   });
 
   it("clears everything on unmount", () => {

@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useDawStore } from "../state/dawStore";
-import { minimalProject, sampleTrack } from "../test/fixtures";
+import { clipRow, minimalProject, sampleTrack } from "../test/fixtures";
 import { clearRegisteredCommands, execute } from "./execute";
 import { registerDawCommands } from "./register";
 import { resetShuttleEscalation } from "./shuttle";
@@ -52,6 +52,23 @@ describe("transport.shuttleBack / transport.shuttleForward", () => {
     await execute("transport.shuttleForward");
     await execute("transport.seek", { sec: 5 });
     expect(s().playbackRate).toBe(2);
+  });
+
+  it("J steps back from a playhead past a stored duration that lags the clips", async () => {
+    s().hydrate(
+      "/tmp/p.json",
+      minimalProject({
+        timeline_duration_sec: 60,
+        tracks: [sampleTrack()],
+        clips: {
+          tracks: { "mira-voice": [clipRow({ timeline_end: 90 })] },
+          clip_count: 1,
+        },
+      }),
+    );
+    s().setPlayheadSec(80);
+    await execute("transport.shuttleBack");
+    expect(s().playheadSec).toBe(77);
   });
 
   it("J jumps back 3, 6 then 12 s inside a second, and keeps the play state", async () => {

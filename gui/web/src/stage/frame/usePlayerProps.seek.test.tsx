@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { clearRegisteredCommands } from "../../commands/execute";
 import { registerDawCommands } from "../../commands/register";
 import { useDawStore } from "../../state/dawStore";
-import { minimalProject } from "../../test/fixtures";
+import { clipRow, minimalProject } from "../../test/fixtures";
 import { usePlayerProps } from "./usePlayerProps";
 
 beforeEach(() => {
@@ -38,5 +38,32 @@ describe("usePlayerProps onSeek", () => {
     );
     result.current.onSeek?.(1.5);
     await waitFor(() => expect(useDawStore.getState().playheadSec).toBe(100));
+  });
+
+  describe("when a clip outlasts the stored duration", () => {
+    beforeEach(() => {
+      useDawStore.getState().hydrate(
+        "/tmp/player-props/episode.sharecut",
+        minimalProject({
+          timeline_duration_sec: 60,
+          clips: {
+            tracks: { "mira-voice": [clipRow({ timeline_end: 90 })] },
+            clip_count: 1,
+          },
+        }),
+      );
+    });
+
+    it("reads, seeks and skips against the episode end", async () => {
+      const { result } = renderHook(() =>
+        usePlayerProps("expanded", () => undefined),
+      );
+      expect(result.current.duration).toBe(90);
+      result.current.onSeek?.(1);
+      await waitFor(() => expect(useDawStore.getState().playheadSec).toBe(90));
+      useDawStore.setState({ playheadSec: 55 });
+      result.current.onSkip?.(15);
+      await waitFor(() => expect(useDawStore.getState().playheadSec).toBe(70));
+    });
   });
 });

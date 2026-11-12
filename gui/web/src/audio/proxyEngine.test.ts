@@ -1439,5 +1439,41 @@ describe("playing a timeline longer than the first window", () => {
       engine.dispose();
       expect(handle.listenerCount()).toBe(0);
     });
+
+    it("a stale first resume does not arm the stop guard for the next play", async () => {
+      const handle = makeCtx();
+      const resumes: Array<() => void> = [];
+      Object.assign(handle.ctx, {
+        resume: () => new Promise<void>((resolve) => resumes.push(resolve)),
+      });
+      const events = engineEvents();
+      const engine = new ProxyEngine(
+        handle.ctx,
+        async () => new ArrayBuffer(64),
+        events,
+      );
+      engine.play(0);
+      engine.pause();
+      engine.play(0);
+      handle.setState("running");
+      resumes[0]!();
+      await settle();
+      handle.changeState("suspended");
+      expect(events.onSinkStopped).not.toHaveBeenCalled();
+    });
+
+    it("a resume that rejects is not an unhandled rejection", async () => {
+      const handle = makeCtx();
+      Object.assign(handle.ctx, {
+        resume: () => Promise.reject(new Error("not allowed")),
+      });
+      const engine = new ProxyEngine(
+        handle.ctx,
+        async () => new ArrayBuffer(64),
+        engineEvents(),
+      );
+      expect(() => engine.play(0)).not.toThrow();
+      await settle();
+    });
   });
 });

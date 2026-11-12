@@ -5,6 +5,7 @@ import { loadDocumentState } from "../api/project";
 import { cachedFetchArrayBuffer } from "../audio/chunkCache";
 import { playbackPositionSec } from "../audio/playbackClock";
 import { playbackMeterSource } from "../audio/playbackMeterSource";
+import { leavePlaybackSession } from "../audio/playbackSession";
 import { ProxyEngine } from "../audio/proxyEngine";
 import { type ProxyManifest, projectProxyBasis } from "../audio/proxyMath";
 import { applyDocumentSnapshot } from "../document/applyDocumentUpdate";
@@ -36,6 +37,10 @@ const engine = vi.hoisted(() => ({
   currentTimeSec: vi.fn(() => 30),
   dispose: vi.fn(),
   readTrackFrame: vi.fn(() => new Float32Array([0.5])),
+}));
+vi.mock("../audio/playbackSession", () => ({
+  enterPlaybackSession: vi.fn(),
+  leavePlaybackSession: vi.fn(),
 }));
 vi.mock("../audio/proxyEngine", () => ({
   ProxyEngine: vi.fn(function ProxyEngine() {
@@ -250,6 +255,21 @@ describe("useProxyTransport", () => {
     expect(useDawStore.getState().isPlaying).toBe(true);
     act(() => onSystemPlay?.());
     expect(useDawStore.getState().isPlaying).toBe(true);
+  });
+
+  it("declines a system resume for a project the store has left and re-pauses the element", async () => {
+    renderHook(() => useProxyTransport());
+    await ready();
+    const onSystemPlay = vi
+      .mocked(ProxyEngine)
+      .mock.calls.at(-1)?.[2].onSystemPlay;
+    useDawStore.setState({
+      projectEpoch: useDawStore.getState().projectEpoch + 1,
+    });
+    vi.mocked(leavePlaybackSession).mockClear();
+    act(() => onSystemPlay?.());
+    expect(useDawStore.getState().isPlaying).toBe(false);
+    expect(leavePlaybackSession).toHaveBeenCalledTimes(1);
   });
 
   it("a followed leader's pause position wins over the engine's", async () => {
