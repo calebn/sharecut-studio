@@ -325,7 +325,7 @@ export function episodeEndSec(
   return end;
 }
 
-/** The episode end for a loaded project view, 0 before one loads. */
+/** The end the engine plays to, so the lock screen and the skips agree with it. */
 export function episodeDurationSec(project: ProjectView | null): number {
   return project
     ? episodeEndSec(project.timeline_duration_sec ?? 0, project.clips.tracks)

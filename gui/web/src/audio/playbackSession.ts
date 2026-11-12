@@ -34,7 +34,6 @@ const SILENT_SAMPLE_RATE = 8000;
 /** Over Chromium's 5 s persistent-media threshold and WebKit's 0.95 s. */
 export const KEEP_ALIVE_SEC = 6;
 
-/** A silent mono 16-bit PCM WAV. */
 export function silentWavBytes(seconds: number): Uint8Array {
   const dataBytes = Math.round(seconds * SILENT_SAMPLE_RATE) * 2;
   const bytes = new Uint8Array(44 + dataBytes);
