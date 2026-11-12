@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Any
 
 import httpx
-from fastapi import APIRouter, Header, Query, Request
+from fastapi import APIRouter, Request
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 
@@ -16,7 +16,6 @@ from podcast_mcp.config.distribution import runtime_distribution_metadata
 from podcast_mcp.gui.routes.deps import (
     coded_exception_error,
     coded_http_error,
-    require_host,
     resolve_project,
 )
 from podcast_mcp.services.app import ProjectWorkspace
@@ -93,10 +92,7 @@ def _load_project(request: Request, path: str | None):
 @router.get("/api/diagnostics")
 def diagnostics_meta(
     request: Request,
-    token: str | None = Query(None),
-    x_podcast_token: str | None = Header(None, alias="X-Podcast-Token"),
 ) -> dict[str, Any]:
-    require_host(request, token=token, x_podcast_token=x_podcast_token)
     metadata = runtime_distribution_metadata()
     try:
         report_relay_url()
@@ -116,10 +112,7 @@ def diagnostics_meta(
 def create_diagnostics_bundle(
     body: DiagnosticsBundleRequest,
     request: Request,
-    token: str | None = Query(None),
-    x_podcast_token: str | None = Header(None, alias="X-Podcast-Token"),
 ) -> dict[str, Any]:
-    require_host(request, token=token, x_podcast_token=x_podcast_token)
     out_dir = default_bundle_dir()
     project = _load_project(request, body.path)
     try:
@@ -152,10 +145,7 @@ def create_diagnostics_bundle(
 def download_diagnostics_bundle(
     name: str,
     request: Request,
-    token: str | None = Query(None),
-    x_podcast_token: str | None = Header(None, alias="X-Podcast-Token"),
 ) -> FileResponse:
-    require_host(request, token=token, x_podcast_token=x_podcast_token)
     if not is_allowed_bundle_name(name):
         raise coded_http_error(400, "invalid bundle filename", code="bundle_filename_invalid")
     registered = _bundle_registry(request).get(name)
@@ -182,10 +172,7 @@ def download_diagnostics_bundle(
 def submit_diagnostics_report(
     body: DiagnosticsSubmitRequest,
     request: Request,
-    token: str | None = Query(None),
-    x_podcast_token: str | None = Header(None, alias="X-Podcast-Token"),
 ) -> dict[str, str]:
-    require_host(request, token=token, x_podcast_token=x_podcast_token)
     if not body.consent:
         raise coded_http_error(
             400, "public upload consent is required", code="report_consent_required"
@@ -219,10 +206,7 @@ def submit_diagnostics_report(
 def diagnostics_report_status(
     request: Request,
     url: str,
-    token: str | None = Query(None),
-    x_podcast_token: str | None = Header(None, alias="X-Podcast-Token"),
 ) -> dict[str, str | None]:
-    require_host(request, token=token, x_podcast_token=x_podcast_token)
     statuses: set[str] = getattr(request.app.state, "diagnostics_report_statuses", set())
     if url not in statuses:
         raise coded_http_error(404, "report not found", code="report_not_found")

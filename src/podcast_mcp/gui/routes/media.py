@@ -2,13 +2,12 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Header, Query, Request
+from fastapi import APIRouter, Query, Request
 from filelock import Timeout
 
 from podcast_mcp.gui.routes.deps import (
     coded_exception_error,
     coded_http_error,
-    require_host,
     resolve_project,
 )
 from podcast_mcp.services.app import ProjectWorkspace
@@ -30,10 +29,7 @@ async def upload_media(
     upload_id: str | None = Query(None),
     chunk_index: int = Query(0, ge=0),
     total_chunks: int = Query(1, ge=1),
-    token: str | None = Query(None),
-    x_podcast_token: str | None = Header(None, alias="X-Podcast-Token"),
 ):
-    require_host(request, token=token, x_podcast_token=x_podcast_token)
     project_path = resolve_project(path, request)
     limit = gui_media_chunk_max_bytes() if total_chunks > 1 else gui_media_max_bytes()
     try:

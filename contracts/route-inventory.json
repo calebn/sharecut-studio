@@ -1,6 +1,6 @@
 {
   "api_version": 1,
-  "host_direct_baseline": 82,
+  "host_direct_baseline": 76,
   "routes": [
     {
       "gate": "other",
@@ -122,35 +122,30 @@
     {
       "gate": "host",
       "handler": "podcast_mcp.gui.routes.diagnostics:diagnostics_meta",
-      "host_direct": true,
       "method": "GET",
       "path": "/api/diagnostics"
     },
     {
       "gate": "host",
       "handler": "podcast_mcp.gui.routes.diagnostics:create_diagnostics_bundle",
-      "host_direct": true,
       "method": "POST",
       "path": "/api/diagnostics/bundle"
     },
     {
       "gate": "host",
       "handler": "podcast_mcp.gui.routes.diagnostics:download_diagnostics_bundle",
-      "host_direct": true,
       "method": "GET",
       "path": "/api/diagnostics/bundle/{name}"
     },
     {
       "gate": "host",
       "handler": "podcast_mcp.gui.routes.diagnostics:diagnostics_report_status",
-      "host_direct": true,
       "method": "GET",
       "path": "/api/diagnostics/report-status"
     },
     {
       "gate": "host",
       "handler": "podcast_mcp.gui.routes.diagnostics:submit_diagnostics_report",
-      "host_direct": true,
       "method": "POST",
       "path": "/api/diagnostics/submit"
     },
@@ -292,7 +287,6 @@
     {
       "gate": "host",
       "handler": "podcast_mcp.gui.routes.media:upload_media",
-      "host_direct": true,
       "method": "POST",
       "path": "/api/media/upload"
     },
