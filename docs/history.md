@@ -82,6 +82,8 @@ Each snapshot stores a **full copy** of editable v2 sections (not diffs), so und
 
 Undo/redo restores the snapshot and **`ProjectStore.commit()`** writes `episode.sharecut`.
 
+Snapshot files and the project store's transcript cache are written atomically (a temp file in the same directory, then a replace), so a crash leaves the old file or the new one and never a truncated one.
+
 History normally retains up to 400 recent snapshots. Pruning removes only the oldest
 undo entries, keeps adjacent `before …` / `after …` edit pairs together, and never
 drops redo entries. If the cursor is old and its redo tail exceeds 400 entries, history
