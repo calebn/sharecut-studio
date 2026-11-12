@@ -512,11 +512,9 @@ export function ReviewStage({
           <div className="rv-phone-top">
             <Button aria-haspopup="dialog" onClick={() => setSheetOpen(true)}>
               <SystemIcon name="inbox" size={14} />
-              {!canDecide && items.length === 0
-                ? "No comments"
-                : completeness.total === null
-                  ? "Review queue"
-                  : `${position} of ${completeness.total}`}
+              {completeness.total === null
+                ? "Review queue"
+                : `${position} of ${completeness.total}`}
               {attentionVisible(attention, "all") ? " · Needs attention" : ""}
             </Button>
             <button

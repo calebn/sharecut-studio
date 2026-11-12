@@ -146,7 +146,7 @@ describe("guest Review transcript follow lifetime", () => {
   });
 
   it.each(["layout", "visual"] as const)(
-    "keeps a phone reader's pause and position after a short %s viewport recovers",
+    "keeps a phone reader's pause and position while the %s viewport is short and after it recovers",
     (via) => {
       const size = viewport("phone");
       join();
@@ -154,7 +154,8 @@ describe("guest Review transcript follow lifetime", () => {
       readAway();
 
       size.short(via, true);
-      expect(document.querySelector(".sys-script-body")).toBeNull();
+      expect(back()).toBeVisible();
+      expect(body().scrollTop).toBe(123);
       moveTo(11.1);
       size.short(via, false);
 
