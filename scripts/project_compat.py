@@ -390,11 +390,7 @@ def version_key(version: str) -> tuple[int, ...]:
 
 
 def assert_upgrade(directory: Path) -> None:
-    """Require a real production CLI result for every released format older than the current one.
-
-    Ordinary loading must either open the old file in memory (a known older version) or refuse
-    it with the coded unsupported-version error; it never writes the file.
-    """
+    """Require a real production CLI result whenever a released format is older than the current one."""
     with TemporaryDirectory() as temporary:
         source = Path(temporary) / "source"
         shutil.copytree(directory, source)

@@ -1,14 +1,19 @@
 from __future__ import annotations
 
 import copy
+import json
 import shutil
 import sys
 from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
+from fastapi.testclient import TestClient
+from typer.testing import CliRunner
 
 from github_yaml import load_github_yaml
+from podcast_mcp.cli.main import app
+from podcast_mcp.gui.server import create_app
 from script_loader import load_script
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -93,10 +98,6 @@ def test_format_2_0_opens_through_load_project_and_stays_2_0_on_disk(v20_workspa
 
 
 def test_format_2_0_opens_through_the_http_open_route(v20_workspace) -> None:
-    from fastapi.testclient import TestClient
-
-    from podcast_mcp.gui.server import create_app
-
     before = (v20_workspace / compat.PROJECT).read_bytes()
     client = TestClient(create_app(), client=("127.0.0.1", 50000))
     res = client.post("/api/project/open", json={"path": str(v20_workspace)})
@@ -114,10 +115,6 @@ def test_format_2_0_opens_through_the_http_open_route(v20_workspace) -> None:
 def test_http_open_route_answers_a_bad_version_with_its_code_and_message(
     v20_workspace, version, code, advice
 ) -> None:
-    from fastapi.testclient import TestClient
-
-    from podcast_mcp.gui.server import create_app
-
     document = compat.read_json(v20_workspace / compat.PROJECT)
     document["version"] = version
     write_json(v20_workspace / compat.PROJECT, document)
@@ -130,12 +127,6 @@ def test_http_open_route_answers_a_bad_version_with_its_code_and_message(
 
 
 def test_format_2_0_is_read_by_the_cli(v20_workspace) -> None:
-    import json
-
-    from typer.testing import CliRunner
-
-    from podcast_mcp.cli.main import app
-
     before = (v20_workspace / compat.PROJECT).read_bytes()
     result = CliRunner().invoke(
         app, ["info", "--project", str(v20_workspace / compat.PROJECT), "--json"]
