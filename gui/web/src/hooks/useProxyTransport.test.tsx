@@ -249,6 +249,65 @@ describe("useProxyTransport", () => {
     expect(engine.seek).toHaveBeenLastCalledWith(120);
   });
 
+  async function playingEpisode(durationSec: number) {
+    useDawStore.getState().hydrate(
+      shareProjectKey("tok"),
+      minimalProject({
+        tracks: [sampleTrack({ id: "host" })],
+        timeline_duration_sec: durationSec,
+      }),
+    );
+    useDawStore.getState().setAudioError(null);
+    renderHook(() => useProxyTransport());
+    await ready();
+    return () => vi.mocked(ProxyEngine).mock.calls.at(-1)?.[3];
+  }
+
+  it("ending an audition that reaches the episode end clears its session region", async () => {
+    const onEnded = await playingEpisode(120);
+    act(() => {
+      useDawStore.setState({
+        sessionRegion: { start_sec: 100, end_sec: 125 },
+        lastAgentQuery: "play the outro",
+      });
+      useDawStore.getState().beginAudition({ playheadSec: 100, untilSec: 125 });
+    });
+    act(() => onEnded()?.(120));
+    const state = useDawStore.getState();
+    expect(state.playheadSec).toBe(120);
+    expect(state.isPlaying).toBe(false);
+    expect(state.playUntilSec).toBeNull();
+    expect(state.sessionRegion).toBeNull();
+    expect(state.lastAgentQuery).toBeNull();
+  });
+
+  it("an end report after the store was paused keeps the paused playhead", async () => {
+    const onEnded = await playingEpisode(120);
+    act(() => {
+      useDawStore.getState().setPlayheadSec(25);
+      useDawStore.getState().setIsPlaying(true);
+    });
+    act(() => {
+      useDawStore.getState().setIsPlaying(false);
+      onEnded()?.(120);
+    });
+    expect(useDawStore.getState().playheadSec).toBe(25);
+    expect(useDawStore.getState().isPlaying).toBe(false);
+  });
+
+  it("Play after the episode ended starts the engine again", async () => {
+    const onEnded = await playingEpisode(120);
+    act(() => {
+      useDawStore.getState().setPlayheadSec(10);
+      useDawStore.getState().setIsPlaying(true);
+    });
+    act(() => onEnded()?.(120));
+    engine.play.mockClear();
+    act(() => useDawStore.getState().setIsPlaying(true));
+    expect(engine.play).toHaveBeenCalledExactlyOnceWith(120);
+    expect(useDawStore.getState().isPlaying).toBe(true);
+  });
+
   it("hands the engine the timeline duration of the project", async () => {
     useDawStore.getState().hydrate(
       shareProjectKey("tok"),
