@@ -1,6 +1,6 @@
 {
   "api_version": 1,
-  "host_direct_baseline": 35,
+  "host_direct_baseline": 18,
   "routes": [
     {
       "gate": "other",
@@ -13,7 +13,6 @@
     {
       "gate": "host",
       "handler": "podcast_mcp.gui.routes.project:get_audio",
-      "host_direct": true,
       "method": "GET",
       "path": "/api/audio"
     },
@@ -268,7 +267,6 @@
     {
       "gate": "host",
       "handler": "podcast_mcp.gui.routes.project:history_diff",
-      "host_direct": true,
       "method": "GET",
       "path": "/api/history/diff"
     },
@@ -362,98 +360,84 @@
     {
       "gate": "host",
       "handler": "podcast_mcp.gui.routes.project:get_project",
-      "host_direct": true,
       "method": "GET",
       "path": "/api/project"
     },
     {
       "gate": "host",
       "handler": "podcast_mcp.gui.routes.project:close_project_path",
-      "host_direct": true,
       "method": "POST",
       "path": "/api/project/close"
     },
     {
       "gate": "host",
       "handler": "podcast_mcp.gui.routes.project:create_project",
-      "host_direct": true,
       "method": "POST",
       "path": "/api/project/create"
     },
     {
       "gate": "host",
       "handler": "podcast_mcp.gui.routes.project:get_project_meta",
-      "host_direct": true,
       "method": "GET",
       "path": "/api/project/meta"
     },
     {
       "gate": "host",
       "handler": "podcast_mcp.gui.routes.project:move_project_folder",
-      "host_direct": true,
       "method": "POST",
       "path": "/api/project/move"
     },
     {
       "gate": "host",
       "handler": "podcast_mcp.gui.routes.project:open_project_path",
-      "host_direct": true,
       "method": "POST",
       "path": "/api/project/open"
     },
     {
       "gate": "host",
       "handler": "podcast_mcp.gui.routes.project:pick_project_path",
-      "host_direct": true,
       "method": "POST",
       "path": "/api/project/pick"
     },
     {
       "gate": "host",
       "handler": "podcast_mcp.gui.routes.project:pick_project_folder",
-      "host_direct": true,
       "method": "POST",
       "path": "/api/project/pick-folder"
     },
     {
       "gate": "host",
       "handler": "podcast_mcp.gui.routes.project:get_project_prosody",
-      "host_direct": true,
       "method": "GET",
       "path": "/api/project/prosody"
     },
     {
       "gate": "host",
       "handler": "podcast_mcp.gui.routes.project:reveal_project",
-      "host_direct": true,
       "method": "POST",
       "path": "/api/project/reveal"
     },
     {
       "gate": "host",
       "handler": "podcast_mcp.gui.routes.project:forget_recent_project",
-      "host_direct": true,
       "method": "DELETE",
       "path": "/api/projects/recent"
     },
     {
       "gate": "host",
       "handler": "podcast_mcp.gui.routes.project:list_recent_projects",
-      "host_direct": true,
       "method": "GET",
       "path": "/api/projects/recent"
     },
     {
       "gate": "host",
       "handler": "podcast_mcp.gui.routes.project:duplicate_recent_project",
-      "host_direct": true,
       "method": "POST",
       "path": "/api/projects/recent/duplicate"
     },
     {
       "gate": "host",
       "handler": "podcast_mcp.gui.routes.project:reveal_recent_project",
-      "host_direct": true,
       "method": "POST",
       "path": "/api/projects/recent/reveal"
     },
@@ -1099,7 +1083,6 @@
     {
       "gate": "host",
       "handler": "podcast_mcp.gui.routes.project:get_waveform_snap",
-      "host_direct": true,
       "method": "GET",
       "path": "/api/waveform-snap"
     },
