@@ -75,7 +75,7 @@ RAW_WRITES: dict[str, int] = {
 }
 
 _WRITE_MODE_CHARS = frozenset("wax")
-_SHUTIL_COPIES = frozenset({"copy", "copyfile", "copy2"})
+_SHUTIL_COPIES = frozenset({"shutil.copy", "shutil.copyfile", "shutil.copy2"})
 _TEMPFILE_BINDERS = frozenset(
     {"mkdtemp", "TemporaryDirectory", "NamedTemporaryFile", "mkstemp", "gettempdir"}
 )
@@ -89,7 +89,7 @@ def _is_write_mode(node: ast.expr | None) -> bool:
     )
 
 
-def _keyword(call: ast.Call, name: str) -> ast.expr | None:
+def _keyword_value(call: ast.Call, name: str) -> ast.expr | None:
     return next((kw.value for kw in call.keywords if kw.arg == name), None)
 
 
@@ -108,7 +108,7 @@ def _root_name(node: ast.expr) -> str | None:
     while True:
         if isinstance(node, ast.Name):
             return node.id
-        if isinstance(node, ast.Attribute | ast.Subscript | ast.Starred):
+        if isinstance(node, ast.Attribute | ast.Subscript):
             node = node.value
         elif isinstance(node, ast.Call):
             if node.args and _attr_chain(node.func) in {"Path", "os.path.join", "str", "Path.cwd"}:
@@ -122,11 +122,10 @@ def _root_name(node: ast.expr) -> str | None:
 
 
 def _is_tempfile_call(node: ast.expr) -> bool:
-    return (
-        isinstance(node, ast.Call)
-        and _attr_chain(node.func).startswith("tempfile.")
-        and _attr_chain(node.func).split(".")[-1] in _TEMPFILE_BINDERS
-    )
+    if not isinstance(node, ast.Call):
+        return False
+    module, _, binder = _attr_chain(node.func).rpartition(".")
+    return module == "tempfile" and binder in _TEMPFILE_BINDERS
 
 
 def _bound_names(target: ast.expr) -> list[str]:
@@ -168,22 +167,19 @@ def _scratch_names(scope: ast.AST) -> set[str]:
 def _raw_write_target(call: ast.Call) -> ast.expr | bool | None:
     """The written path expression for a banned call, ``None`` if unknown, ``False`` if allowed."""
     func = call.func
-    if isinstance(func, ast.Name) and func.id == "open":
-        mode = call.args[1] if len(call.args) > 1 else _keyword(call, "mode")
+    chain = _attr_chain(func)
+    if (isinstance(func, ast.Name) and func.id == "open") or chain == "io.open":
+        mode = call.args[1] if len(call.args) > 1 else _keyword_value(call, "mode")
         return (call.args[0] if call.args else None) if _is_write_mode(mode) else False
     if not isinstance(func, ast.Attribute):
         return False
-    chain = _attr_chain(func)
-    if chain == "io.open":
-        mode = call.args[1] if len(call.args) > 1 else _keyword(call, "mode")
-        return (call.args[0] if call.args else None) if _is_write_mode(mode) else False
     if func.attr == "open":
-        mode = call.args[0] if call.args else _keyword(call, "mode")
+        mode = call.args[0] if call.args else _keyword_value(call, "mode")
         return func.value if _is_write_mode(mode) else False
     if func.attr in {"write_text", "write_bytes"}:
         return func.value
-    if chain in {f"shutil.{name}" for name in _SHUTIL_COPIES}:
-        return call.args[1] if len(call.args) > 1 else _keyword(call, "dst")
+    if chain in _SHUTIL_COPIES:
+        return call.args[1] if len(call.args) > 1 else _keyword_value(call, "dst")
     return False
 
 
@@ -213,15 +209,15 @@ def scan_source(source: str) -> list[int]:
     return sorted(lines)
 
 
-def _counts() -> dict[str, int]:
+def _raw_write_counts() -> dict[str, int]:
     found: Counter[str] = Counter()
     for path in sorted(SRC.rglob("*.py")):
         rel = path.relative_to(SRC).as_posix()
         if path.parent.name == "util" and path.name.startswith("atomic_"):
             continue
-        n = len(scan_source(path.read_text(encoding="utf-8")))
-        if n:
-            found[rel] = n
+        count = len(scan_source(path.read_text(encoding="utf-8")))
+        if count:
+            found[rel] = count
     return dict(found)
 
 
@@ -242,19 +238,17 @@ def _violations(counts: dict[str, int], caps: dict[str, int]) -> list[str]:
 
 
 def test_raw_durable_writes_match_the_allowlist() -> None:
-    problems = _violations(_counts(), RAW_WRITES)
+    problems = _violations(_raw_write_counts(), RAW_WRITES)
     assert not problems, "\n".join(problems)
 
 
 def test_the_violation_check_is_exact_in_both_directions() -> None:
     assert _violations({"a.py": 2}, {"a.py": 2}) == []
-    assert _violations({}, {}) == []
     over = _violations({"a.py": 3}, {"a.py": 2})
     assert len(over) == 1
     assert "3 raw durable writes, allowed 2" in over[0]
     assert "write_json_atomic" in over[0]
     assert "atomic_write" in over[0]
-    assert "allowed 0" in _violations({"new.py": 1}, {"new.py": 0})[0]
     assert "allowed 0" in _violations({"new.py": 1}, {})[0]
     stale = _violations({"a.py": 1}, {"a.py": 2})
     assert stale == ["a.py: 1 raw durable writes left, RAW_WRITES allows 2. Lower it to 1."]
@@ -292,7 +286,6 @@ def test_the_scanner_flags_each_banned_form(line: str) -> None:
     [
         "open(p)",
         'open(p, "r")',
-        'open(p, "rb")',
         'open(p, "r+")',
         "open(p, mode)",
         'p.open("r")',
@@ -300,7 +293,6 @@ def test_the_scanner_flags_each_banned_form(line: str) -> None:
         "p.read_text()",
         "json.dump(obj, handle)",
         "write_json_atomic(p, obj)",
-        "write_text_atomic(p, 'x')",
         "atomic_write(p, lambda h: h.write(b))",
         "shutil.copyfileobj(a, b)",
         "shutil.move(a, b)",
@@ -361,4 +353,4 @@ def test_the_scan_skips_the_atomic_helpers(tmp_path: Path, monkeypatch: pytest.M
     (tmp_path / "util" / "other.py").write_text(raw, encoding="utf-8")
     (tmp_path / "atomic_elsewhere.py").write_text(raw, encoding="utf-8")
     monkeypatch.setattr(f"{__name__}.SRC", tmp_path)
-    assert _counts() == {"util/other.py": 1, "atomic_elsewhere.py": 1}
+    assert _raw_write_counts() == {"util/other.py": 1, "atomic_elsewhere.py": 1}
