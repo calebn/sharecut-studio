@@ -436,6 +436,12 @@ describe("WaveformLayer", () => {
     expect(rasters()[0]!.job.ampZoom).toBeCloseTo(1, 5);
   });
 
+  it("rounds the summed clip and track gain once to 0.5 dB", () => {
+    useDawStore.setState({ waveformPostFader: true });
+    mount({ gainDb: 0.2, clipGainDb: 0.2 });
+    expect(rasters()[0]!.job.ampZoom).toBeCloseTo(10 ** (0.5 / 20), 5);
+  });
+
   it("dims the peak edge at coarse zoom, keeps it at fine zoom", () => {
     mount({ zoom: 10 });
     const coarseAlpha = rasters()[0]!.job.edge[3];

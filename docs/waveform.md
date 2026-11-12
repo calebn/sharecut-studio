@@ -542,7 +542,7 @@ Revocation stops new requests only.
 
 `timeline/WaveformLayer.tsx` is a `memo` component with primitive props:
 `{mediaRef, kind, mediaStartSec, clipLeftCss, clipWidthCss, zoom, colorVar,
-role, gainDb}`. `ClipBlock` renders one for the clip, and a second for the
+role, gainDb, clipGainDb}`. `ClipBlock` renders one for the clip, and a second for the
 trim ghost, which starts at the ghost's source start and has the ghost's
 width.
 

@@ -1045,6 +1045,22 @@ describe("clip gain", () => {
       fireEvent.pointerMove(field, { clientX: 150, pointerId: 1 });
     };
 
+    it("keeps a refusal on screen while a later scrub steps the gain", async () => {
+      vi.mocked(setClipGain).mockRejectedValueOnce(new Error("Gain refused"));
+      open([{ ...clip, gain_db: -3 }]);
+      const field = gainField();
+      scrub(field);
+      await act(async () => {
+        fireEvent.pointerUp(field, { clientX: 150, pointerId: 1 });
+      });
+      expect(screen.getByRole("alert")).toHaveTextContent("Gain refused");
+      fireEvent.pointerDown(field, { clientX: 100, pointerId: 2, button: 0 });
+      fireEvent.pointerMove(field, { clientX: 110, pointerId: 2 });
+      fireEvent.pointerMove(field, { clientX: 150, pointerId: 2 });
+      expect(shown()).not.toBe(-3);
+      expect(screen.getByRole("alert")).toHaveTextContent("Gain refused");
+    });
+
     it("puts the saved gain back when the save fails", async () => {
       vi.mocked(setClipGain).mockRejectedValueOnce(new Error("Gain refused"));
       open([{ ...clip, gain_db: -3 }]);
