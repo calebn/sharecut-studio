@@ -1,9 +1,21 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import type { ClipRow } from "../types/project";
 import { ProxyEngine } from "./proxyEngine";
 import type { ImmutableChunkRef, ProxyManifest } from "./proxyMath";
 
+interface FakeSentinel {
+  offset: { value: number };
+  onended: (() => void) | null;
+  stopAt: number | null;
+  fired: boolean;
+  connect: ReturnType<typeof vi.fn>;
+  disconnect: ReturnType<typeof vi.fn>;
+  start: ReturnType<typeof vi.fn>;
+  stop: ReturnType<typeof vi.fn>;
+}
+
 function makeCtx() {
+  const sentinels: FakeSentinel[] = [];
   const created: Array<{
     start: ReturnType<typeof vi.fn>;
     stop: ReturnType<typeof vi.fn>;
@@ -51,6 +63,22 @@ function makeCtx() {
       gains.push(gain);
       return gain;
     },
+    createConstantSource: () => {
+      const node: FakeSentinel = {
+        offset: { value: 1 },
+        onended: null,
+        stopAt: null,
+        fired: false,
+        connect: vi.fn(),
+        disconnect: vi.fn(),
+        start: vi.fn(),
+        stop: vi.fn((when?: number) => {
+          node.stopAt = when ?? null;
+        }),
+      };
+      sentinels.push(node);
+      return node;
+    },
     createBufferSource: () => {
       const source = {
         buffer: null as AudioBuffer | null,
@@ -79,6 +107,7 @@ function makeCtx() {
   return {
     ctx: ctx as unknown as AudioContext,
     created,
+    sentinels,
     gains,
     decode: ctx.decodeAudioData,
     analysers: ctx.createAnalyser,
@@ -784,6 +813,150 @@ describe("immutable playback snapshots", () => {
     expect(gains[2].connect).toHaveBeenCalledExactlyOnceWith(gains[1]);
     expect(gains[1].gain.value).toBeCloseTo(10 ** (-6 / 20));
     expect(engine.readTrackFrame("host")?.[0]).toBe(0.5);
+    engine.dispose();
+  });
+});
+
+async function flush(): Promise<void> {
+  for (let i = 0; i < 60; i += 1) await Promise.resolve();
+}
+
+/** Moves the audio clock to `time` and delivers each sentinel `ended` that came due, oldest first. */
+async function advanceTo(
+  handle: ReturnType<typeof makeCtx>,
+  time: number,
+): Promise<void> {
+  handle.setTime(time);
+  for (;;) {
+    const due = handle.sentinels
+      .filter(
+        (node) =>
+          !node.fired &&
+          node.onended !== null &&
+          node.stopAt !== null &&
+          node.stopAt <= time,
+      )
+      .sort((a, b) => (a.stopAt ?? 0) - (b.stopAt ?? 0))[0];
+    if (!due) break;
+    due.fired = true;
+    due.onended?.();
+    await flush();
+  }
+  await flush();
+}
+
+function soundingAt(
+  created: ReturnType<typeof makeCtx>["created"],
+  ctxTime: number,
+  rate: number,
+): number {
+  return created.filter(({ start }) => {
+    const [when, , duration] = start.mock.calls[0] ?? [];
+    return when <= ctxTime && ctxTime < when + duration / rate;
+  }).length;
+}
+
+function episode(durationSec: number) {
+  const chunkCount = Math.ceil(durationSec / 60);
+  return {
+    manifest: {
+      revision: "long",
+      project_basis: { history_head_id: "root", render_hashes: {}, clips: {} },
+      tracks: {
+        host: {
+          hash: "a".repeat(16),
+          chunk_sec: 60,
+          overlap_ms: 200,
+          chunk_count: chunkCount,
+          duration_sec: durationSec,
+          urls: Array.from({ length: chunkCount }, (_, i) => `c${i}`),
+        },
+      },
+      artifacts: {},
+      occurrences: {},
+    } as ProxyManifest,
+    clipsByTrack: {
+      host: [
+        {
+          id: "c",
+          track_id: "host",
+          source_start: 0,
+          source_end: durationSec,
+          timeline_start: 0,
+          timeline_end: durationSec,
+          fade_in_ms: 0,
+          fade_out_ms: 0,
+          join_in_mode: "fade" as const,
+          source_id: null,
+          source_duration_sec: null,
+          recording_key: null,
+        },
+      ],
+    },
+    tracks: [{ id: "host", gain_db: 0, muted: false }],
+    durationSec,
+  };
+}
+
+describe("playing a timeline longer than the first window", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it.each([1, 4])(
+    "keeps exactly one source sounding to the end of a 400 s clip at %ix",
+    async (rate) => {
+      const handle = makeCtx();
+      const fetchChunk = vi.fn(async () => new ArrayBuffer(64));
+      const engine = new ProxyEngine(handle.ctx, fetchChunk, vi.fn());
+      engine.setSnapshot(episode(400));
+      engine.setPlaybackRate(rate);
+      engine.play(0);
+      await flush();
+      for (let ctxSec = 1; ctxSec + 0.5 < 400 / rate; ctxSec += 1) {
+        await advanceTo(handle, ctxSec);
+        expect(
+          soundingAt(handle.created, ctxSec + 0.5, rate),
+          `sources sounding at ctx ${ctxSec + 0.5} s (timeline ${(ctxSec + 0.5) * rate} s)`,
+        ).toBe(1);
+      }
+      expect(handle.created).toHaveLength(7);
+      expect(
+        new Set(handle.created.map(({ start }) => start.mock.calls[0][0])).size,
+      ).toBe(7);
+      expect(fetchChunk).toHaveBeenCalledTimes(7);
+      engine.dispose();
+    },
+  );
+
+  it("ends the episode from the audio clock without a frame callback", async () => {
+    vi.stubGlobal("requestAnimationFrame", () => {
+      throw new Error("the engine must not use requestAnimationFrame");
+    });
+    const handle = makeCtx();
+    const onEnded = vi.fn();
+    const engine = new ProxyEngine(
+      handle.ctx,
+      async () => new ArrayBuffer(64),
+      vi.fn(),
+      onEnded,
+    );
+    engine.setSnapshot(episode(130));
+    engine.play(0);
+    await flush();
+    for (let ctxSec = 1; ctxSec < 130; ctxSec += 1) {
+      await advanceTo(handle, ctxSec);
+    }
+    expect(onEnded).not.toHaveBeenCalled();
+    await advanceTo(handle, 130);
+    expect(onEnded).toHaveBeenCalledExactlyOnceWith(130);
+    expect(handle.suspend).toHaveBeenCalled();
+    const sourcesAtEnd = handle.created.length;
+    await advanceTo(handle, 140);
+    expect(engine.currentTimeSec()).toBe(130);
+    expect(handle.created).toHaveLength(sourcesAtEnd);
+    expect(engine.readTrackFrame("host")).toBeNull();
+    expect(onEnded).toHaveBeenCalledTimes(1);
     engine.dispose();
   });
 });
