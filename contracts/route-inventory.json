@@ -1,6 +1,6 @@
 {
   "api_version": 1,
-  "host_direct_baseline": 76,
+  "host_direct_baseline": 63,
   "routes": [
     {
       "gate": "other",
@@ -20,42 +20,36 @@
     {
       "gate": "host",
       "handler": "podcast_mcp.gui.routes.bootstrap:bootstrap_cancel",
-      "host_direct": true,
       "method": "POST",
       "path": "/api/bootstrap/cancel"
     },
     {
       "gate": "host",
       "handler": "podcast_mcp.gui.routes.bootstrap:bootstrap_events",
-      "host_direct": true,
       "method": "GET",
       "path": "/api/bootstrap/events"
     },
     {
       "gate": "host",
       "handler": "podcast_mcp.gui.routes.bootstrap:bootstrap_remove_model",
-      "host_direct": true,
       "method": "DELETE",
       "path": "/api/bootstrap/models/{model_id}"
     },
     {
       "gate": "host",
       "handler": "podcast_mcp.gui.routes.bootstrap:bootstrap_run",
-      "host_direct": true,
       "method": "POST",
       "path": "/api/bootstrap/run"
     },
     {
       "gate": "host",
       "handler": "podcast_mcp.gui.routes.bootstrap:bootstrap_status",
-      "host_direct": true,
       "method": "GET",
       "path": "/api/bootstrap/status"
     },
     {
       "gate": "host",
       "handler": "podcast_mcp.gui.routes.bootstrap:bootstrap_job_status",
-      "host_direct": true,
       "method": "GET",
       "path": "/api/bootstrap/status-job"
     },
@@ -1084,49 +1078,42 @@
     {
       "gate": "host",
       "handler": "podcast_mcp.gui.routes.transcript:transcript_refine_done",
-      "host_direct": true,
       "method": "POST",
       "path": "/api/transcript/refine/done"
     },
     {
       "gate": "host",
       "handler": "podcast_mcp.gui.routes.transcript:transcript_refine_status",
-      "host_direct": true,
       "method": "GET",
       "path": "/api/transcript/refine/status"
     },
     {
       "gate": "host",
       "handler": "podcast_mcp.gui.routes.transcript:transcript_refine_waive",
-      "host_direct": true,
       "method": "POST",
       "path": "/api/transcript/refine/waive"
     },
     {
       "gate": "host",
       "handler": "podcast_mcp.gui.routes.transcript:transcript_replacement_preview",
-      "host_direct": true,
       "method": "POST",
       "path": "/api/transcript/replacement-preview"
     },
     {
       "gate": "host",
       "handler": "podcast_mcp.gui.routes.transcript:transcript_vocabulary_get",
-      "host_direct": true,
       "method": "GET",
       "path": "/api/transcript/vocabulary"
     },
     {
       "gate": "host",
       "handler": "podcast_mcp.gui.routes.transcript:transcript_vocabulary_put",
-      "host_direct": true,
       "method": "PUT",
       "path": "/api/transcript/vocabulary"
     },
     {
       "gate": "host",
       "handler": "podcast_mcp.gui.routes.transcript:transcript_word_timing_context",
-      "host_direct": true,
       "method": "POST",
       "path": "/api/transcript/word-timing-context"
     },

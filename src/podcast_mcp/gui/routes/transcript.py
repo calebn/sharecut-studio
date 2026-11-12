@@ -2,13 +2,12 @@ from __future__ import annotations
 
 from typing import Any
 
-from fastapi import APIRouter, Header, Query, Request
+from fastapi import APIRouter, Query, Request
 
 from podcast_mcp.edits.transcript_timing import TranscriptTimingChangedError, WordTimingTarget
 from podcast_mcp.gui.routes.deps import (
     bad_request_error,
     coded_exception_error,
-    require_host,
     resolve_project,
 )
 from podcast_mcp.gui.schemas import (
@@ -35,10 +34,7 @@ router = APIRouter()
 def transcript_vocabulary_get(
     request: Request,
     path: str = Query(...),
-    token: str | None = Query(None),
-    x_podcast_token: str | None = Header(None, alias="X-Podcast-Token"),
 ) -> dict[str, Any]:
-    require_host(request, token=token, x_podcast_token=x_podcast_token)
     project_path = resolve_project(path, request)
     return TranscriptPrecorrectService.vocabulary_status(project_path)
 
@@ -47,10 +43,7 @@ def transcript_vocabulary_get(
 def transcript_vocabulary_put(
     req: TranscriptVocabularyPutRequest,
     request: Request,
-    token: str | None = Query(None),
-    x_podcast_token: str | None = Header(None, alias="X-Podcast-Token"),
 ) -> dict[str, Any]:
-    require_host(request, token=token, x_podcast_token=x_podcast_token)
     project_path = resolve_project(req.path, request)
     try:
         return TranscriptPrecorrectService(ProjectWorkspace.open(project_path)).set_vocabulary(
@@ -68,11 +61,8 @@ def transcript_vocabulary_put(
 def transcript_refine_status(
     request: Request,
     path: str = Query(...),
-    token: str | None = Query(None),
-    x_podcast_token: str | None = Header(None, alias="X-Podcast-Token"),
 ) -> dict[str, Any]:
     """Read the transcript-check gate: open, done or waived, plus the unsure-word count."""
-    require_host(request, token=token, x_podcast_token=x_podcast_token)
     project_path = resolve_project(path, request)
     return TranscriptRefineService(ProjectWorkspace.open(project_path)).gate_status()
 
@@ -81,11 +71,8 @@ def transcript_refine_status(
 def transcript_refine_done(
     req: TranscriptRefineDoneRequest,
     request: Request,
-    token: str | None = None,
-    x_podcast_token: str | None = Header(None, alias="X-Podcast-Token"),
 ) -> dict[str, Any]:
     """Mark the transcript checked for the host. A repeat while done writes nothing."""
-    require_host(request, token=token, x_podcast_token=x_podcast_token)
     project_path = resolve_project(req.path, request)
     try:
         return TranscriptRefineService(ProjectWorkspace.open(project_path)).mark_checked(
@@ -101,11 +88,8 @@ def transcript_refine_done(
 def transcript_refine_waive(
     req: TranscriptRefineWaiveRequest,
     request: Request,
-    token: str | None = None,
-    x_podcast_token: str | None = Header(None, alias="X-Podcast-Token"),
 ) -> dict[str, Any]:
     """Record an intentional host waiver for the transcript-refine gate."""
-    require_host(request, token=token, x_podcast_token=x_podcast_token)
     project_path = resolve_project(req.path, request)
     try:
         return TranscriptRefineService(ProjectWorkspace.open(project_path)).waive(
@@ -120,10 +104,7 @@ def transcript_refine_waive(
 def transcript_replacement_preview(
     req: TranscriptReplacementPreviewRequest,
     request: Request,
-    token: str | None = Query(None),
-    x_podcast_token: str | None = Header(None, alias="X-Podcast-Token"),
 ) -> dict[str, Any]:
-    require_host(request, token=token, x_podcast_token=x_podcast_token)
     project_path = resolve_project(req.path, request)
     try:
         return TranscriptService(
@@ -137,10 +118,7 @@ def transcript_replacement_preview(
 def transcript_word_timing_context(
     req: TranscriptWordTimingContextRequest,
     request: Request,
-    token: str | None = Query(None),
-    x_podcast_token: str | None = Header(None, alias="X-Podcast-Token"),
 ) -> dict[str, Any]:
-    require_host(request, token=token, x_podcast_token=x_podcast_token)
     project_path = resolve_project(req.path, request)
     try:
         return TranscriptService(ProjectWorkspace.open(project_path)).word_timing_context(
