@@ -5,6 +5,7 @@ import {
   buildSchedule,
   chunkFileStartSec,
   chunkIndexForSource,
+  episodeEndSec,
   isQueuedMoveOverlay,
   offsetInChunk,
   type ProxyManifest,
@@ -851,5 +852,36 @@ describe("manifest boundary and occurrence scheduling", () => {
         ["host", "guest"],
       ),
     ).toBe(false);
+  });
+});
+
+describe("episodeEndSec", () => {
+  const lanes = (...ends: number[]) => ({
+    host: ends.map((end, i) => clip({ id: `c${i}`, timeline_end: end })),
+  });
+
+  it("keeps a stored duration that is later than every clip", () => {
+    expect(episodeEndSec(60, lanes(10, 30))).toBe(60);
+  });
+
+  it("uses the last clip end when the stored duration is shorter", () => {
+    expect(episodeEndSec(20, lanes(10, 30))).toBe(30);
+  });
+
+  it("uses the stored duration when there are no clips", () => {
+    expect(episodeEndSec(45, {})).toBe(45);
+    expect(episodeEndSec(45, { host: [] })).toBe(45);
+  });
+
+  it("uses the last clip end when the stored duration is 0", () => {
+    expect(episodeEndSec(0, lanes(12))).toBe(12);
+  });
+
+  it("keeps an unknown duration unknown and ignores a non-finite value", () => {
+    expect(episodeEndSec(Number.POSITIVE_INFINITY, lanes(30))).toBe(
+      Number.POSITIVE_INFINITY,
+    );
+    expect(episodeEndSec(Number.NaN, lanes(30))).toBe(30);
+    expect(episodeEndSec(20, lanes(Number.NaN, 25))).toBe(25);
   });
 });

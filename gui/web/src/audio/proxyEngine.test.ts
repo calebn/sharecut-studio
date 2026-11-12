@@ -1326,6 +1326,48 @@ describe("playing a timeline longer than the first window", () => {
     engine.dispose();
   });
 
+  describe("when the stored duration is shorter than the last clip", () => {
+    const stale = () => ({ ...episode(30), durationSec: 20 });
+
+    it("sounds to the clip end and reports the end there", async () => {
+      const handle = makeCtx();
+      const onEnded = vi.fn();
+      const engine = new ProxyEngine(
+        handle.ctx,
+        async () => new ArrayBuffer(64),
+        vi.fn(),
+        onEnded,
+      );
+      engine.setSnapshot(stale());
+      engine.play(0);
+      await flush();
+      for (let ctxSec = 1; ctxSec <= 29; ctxSec += 1) {
+        await advanceTo(handle, ctxSec);
+      }
+      expect(soundingAt(handle.created, 25.5, 1)).toBe(1);
+      expect(onEnded).not.toHaveBeenCalled();
+      await advanceTo(handle, 30);
+      expect(onEnded).toHaveBeenCalledExactlyOnceWith(30);
+      engine.dispose();
+    });
+
+    it("plays from a position past the stored duration instead of restarting", async () => {
+      const handle = makeCtx();
+      const engine = new ProxyEngine(
+        handle.ctx,
+        async () => new ArrayBuffer(64),
+        vi.fn(),
+        vi.fn(),
+      );
+      engine.setSnapshot(stale());
+      engine.play(25);
+      await flush();
+      expect(engine.currentTimeSec()).toBe(25);
+      expect(handle.created[0].start).toHaveBeenCalledWith(0, 25, 5);
+      engine.dispose();
+    });
+  });
+
   it("starts over from the beginning when Play is pressed at the end", async () => {
     const handle = makeCtx();
     const onEnded = vi.fn();
