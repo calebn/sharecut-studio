@@ -4,13 +4,12 @@ from __future__ import annotations
 
 from typing import Any
 
-from fastapi import APIRouter, Header, Query, Request
+from fastapi import APIRouter, Query, Request
 from pydantic import BaseModel, Field
 
 from podcast_mcp.gui.routes.deps import (
     coded_exception_error,
     coded_http_error,
-    require_host,
     resolve_project,
 )
 from podcast_mcp.gui.routes.record_upload_http import (
@@ -51,10 +50,7 @@ class RecordCommandBody(BaseModel):
 def get_record_state(
     request: Request,
     path: str = Query(..., description="Path to episode.sharecut"),
-    token: str | None = Query(None),
-    x_podcast_token: str | None = Header(None, alias="X-Podcast-Token"),
 ) -> dict[str, Any]:
-    require_host(request, token=token, x_podcast_token=x_podcast_token)
     project_path = resolve_project(path, request)
     ws = ProjectWorkspace.open(project_path)
     session_id = RecordSessionService.active_session_id(ws.project)
@@ -69,10 +65,7 @@ def get_record_state(
 def get_record_sessions(
     request: Request,
     path: str = Query(..., description="Path to episode.sharecut"),
-    token: str | None = Query(None),
-    x_podcast_token: str | None = Header(None, alias="X-Podcast-Token"),
 ) -> dict[str, Any]:
-    require_host(request, token=token, x_podcast_token=x_podcast_token)
     ws = ProjectWorkspace.open(resolve_project(path, request))
     return {"sessions": list_record_sessions(ws.project)}
 
@@ -81,10 +74,7 @@ def get_record_sessions(
 def post_record_command(
     body: RecordCommandBody,
     request: Request,
-    token: str | None = Query(None),
-    x_podcast_token: str | None = Header(None, alias="X-Podcast-Token"),
 ) -> dict[str, Any]:
-    require_host(request, token=token, x_podcast_token=x_podcast_token)
     project_path = resolve_project(body.path, request)
     ws = ProjectWorkspace.open(project_path)
     try:
@@ -111,10 +101,7 @@ def _host_upload(request: Request, path: str) -> tuple[RecordUploadService, str,
 def get_host_record_upload(
     request: Request,
     path: str = Query(..., description="Path to episode.sharecut"),
-    token: str | None = Query(None),
-    x_podcast_token: str | None = Header(None, alias="X-Podcast-Token"),
 ) -> dict[str, Any]:
-    require_host(request, token=token, x_podcast_token=x_podcast_token)
     uploader, session_id, _ws = _host_upload(request, path)
     return uploader.status(session_id=session_id)
 
@@ -134,10 +121,7 @@ async def post_host_record_upload(
     clipping: ClippingParam = None,
     clipping_truncated: ClippingTruncatedParam = False,
     kind: UploadKindParam = None,
-    token: str | None = Query(None),
-    x_podcast_token: str | None = Header(None, alias="X-Podcast-Token"),
 ):
-    require_host(request, token=token, x_podcast_token=x_podcast_token)
     uploader, session_id, ws = _host_upload(request, path)
     try:
         return await ingest_record_upload_request(
@@ -167,10 +151,7 @@ def delete_host_record_upload(
     request: Request,
     path: str = Query(..., description="Path to episode.sharecut"),
     kind: UploadKindParam = None,
-    token: str | None = Query(None),
-    x_podcast_token: str | None = Header(None, alias="X-Podcast-Token"),
 ) -> dict[str, Any]:
-    require_host(request, token=token, x_podcast_token=x_podcast_token)
     uploader, session_id, _ws = _host_upload(request, path)
     try:
         parsed = parse_upload_kind(kind)
@@ -193,10 +174,7 @@ class RecordDiscardTakeBody(BaseModel):
 def post_host_record_land(
     request: Request,
     path: str = Query(..., description="Path to episode.sharecut"),
-    token: str | None = Query(None),
-    x_podcast_token: str | None = Header(None, alias="X-Podcast-Token"),
 ) -> dict[str, Any]:
-    require_host(request, token=token, x_podcast_token=x_podcast_token)
     ws = ProjectWorkspace.open(resolve_project(path, request))
     try:
         return RecordControlService(ws).land()
@@ -212,10 +190,7 @@ def post_host_record_land(
 def post_host_record_discard_take(
     body: RecordDiscardTakeBody,
     request: Request,
-    token: str | None = Query(None),
-    x_podcast_token: str | None = Header(None, alias="X-Podcast-Token"),
 ) -> dict[str, Any]:
-    require_host(request, token=token, x_podcast_token=x_podcast_token)
     ws = ProjectWorkspace.open(resolve_project(body.path, request))
     try:
         return RecordControlService(ws).discard_take(body.take_index)
@@ -235,11 +210,8 @@ class RecordAssignTrackBody(BaseModel):
 def get_host_record_tracks(
     request: Request,
     path: str = Query(..., description="Path to episode.sharecut"),
-    token: str | None = Query(None),
-    x_podcast_token: str | None = Header(None, alias="X-Podcast-Token"),
 ) -> dict[str, Any]:
     """Host only: which track each recorded person lands on (never sent to guests)."""
-    require_host(request, token=token, x_podcast_token=x_podcast_token)
     ws = ProjectWorkspace.open(resolve_project(path, request))
     try:
         return RecordControlService(ws).tracks()
@@ -251,10 +223,7 @@ def get_host_record_tracks(
 def post_host_record_assign_track(
     body: RecordAssignTrackBody,
     request: Request,
-    token: str | None = Query(None),
-    x_podcast_token: str | None = Header(None, alias="X-Podcast-Token"),
 ) -> dict[str, Any]:
-    require_host(request, token=token, x_podcast_token=x_podcast_token)
     ws = ProjectWorkspace.open(resolve_project(body.path, request))
     try:
         return RecordControlService(ws).assign_track(body.participant_id, body.track)

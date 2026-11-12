@@ -1,6 +1,6 @@
 {
   "api_version": 1,
-  "host_direct_baseline": 63,
+  "host_direct_baseline": 53,
   "routes": [
     {
       "gate": "other",
@@ -512,70 +512,60 @@
     {
       "gate": "host",
       "handler": "podcast_mcp.gui.routes.record_host:post_host_record_assign_track",
-      "host_direct": true,
       "method": "POST",
       "path": "/api/record/assign-track"
     },
     {
       "gate": "host",
       "handler": "podcast_mcp.gui.routes.record_host:post_record_command",
-      "host_direct": true,
       "method": "POST",
       "path": "/api/record/command"
     },
     {
       "gate": "host",
       "handler": "podcast_mcp.gui.routes.record_host:post_host_record_discard_take",
-      "host_direct": true,
       "method": "POST",
       "path": "/api/record/discard-take"
     },
     {
       "gate": "host",
       "handler": "podcast_mcp.gui.routes.record_host:post_host_record_land",
-      "host_direct": true,
       "method": "POST",
       "path": "/api/record/land"
     },
     {
       "gate": "host",
       "handler": "podcast_mcp.gui.routes.record_host:get_record_sessions",
-      "host_direct": true,
       "method": "GET",
       "path": "/api/record/sessions"
     },
     {
       "gate": "host",
       "handler": "podcast_mcp.gui.routes.record_host:get_record_state",
-      "host_direct": true,
       "method": "GET",
       "path": "/api/record/state"
     },
     {
       "gate": "host",
       "handler": "podcast_mcp.gui.routes.record_host:get_host_record_tracks",
-      "host_direct": true,
       "method": "GET",
       "path": "/api/record/tracks"
     },
     {
       "gate": "host",
       "handler": "podcast_mcp.gui.routes.record_host:delete_host_record_upload",
-      "host_direct": true,
       "method": "DELETE",
       "path": "/api/record/upload"
     },
     {
       "gate": "host",
       "handler": "podcast_mcp.gui.routes.record_host:get_host_record_upload",
-      "host_direct": true,
       "method": "GET",
       "path": "/api/record/upload"
     },
     {
       "gate": "host",
       "handler": "podcast_mcp.gui.routes.record_host:post_host_record_upload",
-      "host_direct": true,
       "method": "POST",
       "path": "/api/record/upload"
     },
