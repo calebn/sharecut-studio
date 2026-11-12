@@ -91,7 +91,7 @@ def test_a_raised_baseline_with_a_new_direct_handler_fails_the_growth_check(live
 
 def test_no_other_route_is_unreviewed(live) -> None:
     unreviewed = [r["path"] for r in live if r.get("reason") == inventory.UNREVIEWED]
-    assert not unreviewed, f"add a reason to OTHER_REASONS or OVERRIDES for: {unreviewed}"
+    assert not unreviewed, f"add the route to OVERRIDES or PUBLIC_ROUTES: {unreviewed}"
 
 
 def test_the_inventory_covers_the_extension_and_share_ui_routes(live) -> None:
@@ -303,26 +303,44 @@ def test_an_include_time_gate_does_not_leak_to_a_sibling_include() -> None:
     assert rows[("GET", "/y/b")]["gate"] == "other"
 
 
-def test_no_include_router_in_the_app_carries_a_prefix_or_dependencies() -> None:
-    for app in inventory.variant_apps():
-        for route, path, gates in inventory._walk(list(app.routes)):
-            assert path == route.path
-            assert gates == ()
+def test_include_time_gates_apply_only_to_api_routes() -> None:
+    from starlette.applications import Starlette
+    from starlette.responses import PlainTextResponse
+    from starlette.routing import Mount, Route
+
+    async def plain_endpoint(request):
+        return PlainTextResponse("ok")
+
+    router = APIRouter()
+    router.get("/api")(_plain)
+    router.routes.append(Route("/sroute", plain_endpoint))
+    router.routes.append(Mount("/m", app=Starlette()))
+    app = FastAPI()
+    app.include_router(router, prefix="/g", dependencies=[Depends(require_host)])
+    rows = _rows(app)
+    assert rows[("GET", "/g/api")]["gate"] == "host"
+    assert rows[("GET", "/g/sroute")]["gate"] == "other"
+    assert rows[(inventory.MOUNT, "/g/m")]["gate"] == "other"
 
 
-def test_the_failure_messages_say_where_to_fix(live, contract) -> None:
-    assert "OVERRIDES" in inventory.UNREVIEWED and "PUBLIC_ROUTES" in inventory.UNREVIEWED
-    raised = _contract_of(live)
-    raised["host_direct_baseline"] -= 1
-    message = next(m for m in inventory.problems(live, raised) if "only shrink" in m)
-    assert "include_router" in message and "dependencies" in message
+def test_a_mid_level_include_gate_reaches_the_leaf() -> None:
+    inner = APIRouter()
+    inner.get("/leaf")(_plain)
+    outer = APIRouter()
+    outer.include_router(inner, prefix="/mid", dependencies=[Depends(require_authz)])
+    app = FastAPI()
+    app.include_router(outer, prefix="/top")
+    assert _rows(app)[("GET", "/top/mid/leaf")]["gate"] == "authz"
 
 
-def test_write_exits_nonzero_when_it_emits_an_unreviewed_row(monkeypatch, tmp_path) -> None:
+def test_write_exits_nonzero_when_it_emits_an_unreviewed_row(monkeypatch, tmp_path, capsys) -> None:
     row = {"method": "GET", "path": "/new", "gate": "other", "handler": "m:f"}
     monkeypatch.setattr(inventory, "ROOT", tmp_path)
     monkeypatch.setattr(inventory, "CONTRACT", tmp_path / "route-inventory.json")
     monkeypatch.setattr(inventory, "live_rows", lambda: [{**row, "reason": inventory.UNREVIEWED}])
     assert inventory.main(["--write"]) == 1
+    err = capsys.readouterr().err
+    assert "GET /new was written to the inventory, unreviewed: add the route to OVERRIDES" in err
+    assert "unreviewed. unreviewed" not in err
     monkeypatch.setattr(inventory, "live_rows", lambda: [{**row, "reason": "reviewed"}])
     assert inventory.main(["--write"]) == 0

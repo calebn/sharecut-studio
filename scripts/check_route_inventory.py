@@ -16,8 +16,9 @@ hand. Each row records the gate class of its handler:
 The class comes from the AST of the handler source, so a comment or a string that says
 ``require_host`` does not count. ``host_direct_baseline`` is a ratchet: the number of handlers that
 call ``require_host`` themselves may only shrink. ``--write`` regenerates the file and lowers the
-baseline, never raises it, and exits nonzero when it writes an unreviewed row. ``--check`` (the default) fails on any difference. ``--base REF`` also fails when the baseline or
-the live count is above the one recorded at REF, and caps ``--write`` at it.
+baseline, never raises it, and exits nonzero when it writes an unreviewed row. ``--check`` (the
+default) fails on any difference. ``--base REF`` also fails when the baseline or the live count is
+above the one recorded at REF, and caps ``--write`` at it.
 """
 
 from __future__ import annotations
@@ -109,7 +110,7 @@ OVERRIDES: dict[tuple[str, str], str] = {
     ("POST", "/auth/password/login"): "checks the password and mints the session; no session yet",
     ("POST", "/auth/magic-link"): (
         "sends no email; returns or prints the link only when PODCAST_MAGIC_LINK_PRINT=1 on a "
-        "loopback peer; the caller has no session yet"
+        "loopback peer that is not relayed; the caller has no session yet"
     ),
     ("GET", "/auth/magic-link/consume"): "the one-time token mints the session; no session yet",
     ("POST", "/auth/passkey/register/begin"): "needs the session cookie; 401 without one",
@@ -211,13 +212,17 @@ def _walk(
 ) -> Iterator[tuple[Any, str, tuple[Callable[..., Any], ...]]]:
     """Every leaf route with its mounted path and the include-time ``Depends`` callables above it.
 
-    An ``include_router`` call carries a prefix and dependencies that FastAPI applies to every
-    child route, so both are accumulated down the nested includes.
+    An ``include_router`` call carries a prefix and dependencies. The prefix reaches every child;
+    the dependencies reach only ``APIRoute`` and ``APIWebSocketRoute`` children, not plain Starlette
+    routes or mounts. Both are accumulated down the nested includes.
     """
+    from fastapi.routing import APIRoute, APIWebSocketRoute
+
     for route in routes:
         included = getattr(route, "original_router", None)
         if included is None:
-            yield route, prefix + route.path, gates
+            applies = isinstance(route, (APIRoute, APIWebSocketRoute))
+            yield route, prefix + route.path, gates if applies else ()
             continue
         context = route.include_context
         yield from _walk(
@@ -403,7 +408,7 @@ def main(argv: list[str] | None = None) -> int:
         unreviewed = [r for r in live if r.get("reason") == UNREVIEWED]
         for row in unreviewed:
             print(
-                f"{row['method']} {row['path']} was written as unreviewed. {UNREVIEWED}.",
+                f"{row['method']} {row['path']} was written to the inventory, {UNREVIEWED}.",
                 file=sys.stderr,
             )
         return 1 if unreviewed else 0
