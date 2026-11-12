@@ -6,6 +6,7 @@ import type { CommentDraft, DawState } from "../state/types";
 import { clampToSession } from "../utils/time";
 import { buildCommandContext, evaluateWhen } from "./context";
 import { registerCommand } from "./execute";
+import { executePointerCommand } from "./pointer";
 import type { ExecuteResult } from "./types";
 
 /** Starts a comment on `draft` in the Review composer. */
@@ -59,10 +60,14 @@ export function registerCommentCommands(): void {
       return { status: "disabled", reason: "atTime must be a number" };
     }
     const trackId = typeof args.trackId === "string" ? args.trackId : null;
+    // Through the transport's own toggle, the one path every play control uses.
+    const pause = args.pause === true && useDawStore.getState().isPlaying;
+    if (pause) void executePointerCommand("transport.togglePlay");
     openCommentDraft({
       startSec: clampToSession(raw, project.timeline_duration_sec),
       endSec: null,
       ...(trackId ? { trackIds: [trackId] } : {}),
+      ...(pause ? { resume: true as const } : {}),
     });
     return { status: "ok" };
   });

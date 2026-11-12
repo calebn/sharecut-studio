@@ -17,6 +17,7 @@ import {
   ToggleButton,
 } from "../ui";
 import { OverviewStrip, type OverviewTick } from "./OverviewStrip";
+import { PlayerChapters } from "./PlayerChapters";
 import { SystemIcon } from "./SystemIcon";
 import { VerbButton } from "./VerbButton";
 
@@ -32,7 +33,7 @@ const HEAR_MODES: readonly { id: HearMode; label: string }[] = [
 ];
 
 export type PlayerProps = {
-  form: "bar" | "expanded";
+  form: "bar" | "expanded" | "dock";
   playing: boolean;
   time: string;
   total: string;
@@ -83,6 +84,10 @@ export type PlayerProps = {
    */
   hearMenu?: { mode: HearMode; onMode: (mode: HearMode) => void };
   onComment?: () => void;
+  /** Dock only: opens the Chapters sheet. Absent when there are no chapters. */
+  onChapters?: () => void;
+  /** Dock only: explains the status where its text has no room (a folded frame). */
+  onStatusInfo?: () => void;
   onExpand?: () => void;
   onCollapse?: () => void;
   /** Audio error: tries again. Shown in the bar and in the expanded form. */
@@ -408,6 +413,91 @@ function HearOriginal({
   );
 }
 
+/**
+ * The phone guest's Listen dock: the scrubber, the readout, and the transport
+ * with a labelled Comment button. It never expands, so nothing is hidden a
+ * tap away. The status reads as text here, not a clipped glyph.
+ */
+function Dock(props: PlayerProps & { statusId: string }) {
+  const { time, total, state, status, chapters = [], chapter } = props;
+  const centre = status ?? chapters[chapter ?? -1]?.title;
+  return (
+    <div
+      role="group"
+      aria-label="Player"
+      className="sys-player-host"
+      data-state={state}
+    >
+      <div className="sys-dock">
+        <div className="sys-dock-strip">
+          <OverviewStrip
+            height={32}
+            peaks={props.peaks}
+            ticks={props.ticks}
+            playhead={props.playhead}
+            duration={props.duration}
+            onSeek={props.onSeek}
+            onScrub={props.onScrub}
+            label="Episode overview"
+          />
+        </div>
+        <span className="sys-dock-elapsed sys-player-now">{time}</span>
+        <div className="sys-dock-centre">
+          {status ? (
+            <>
+              <span id={props.statusId} className="sys-dock-status">
+                <SystemIcon name="triangle-alert" size={12} />
+                <span className="sys-dock-status-text">{status}</span>
+              </span>
+              {props.onStatusInfo ? (
+                <button
+                  type="button"
+                  className="sys-icon-btn sys-dock-status-btn"
+                  aria-label={status}
+                  title={status}
+                  onClick={props.onStatusInfo}
+                >
+                  <SystemIcon name="triangle-alert" size={16} />
+                </button>
+              ) : null}
+            </>
+          ) : centre ? (
+            <span className="sys-dock-chapter">{centre}</span>
+          ) : null}
+          <StatePills {...props} />
+        </div>
+        <span className="sys-dock-total sys-player-total">{total}</span>
+        <div className="sys-dock-transport">
+          {props.onChapters ? (
+            <button
+              type="button"
+              className="sys-icon-btn sys-dock-chapters"
+              aria-label="Chapters"
+              title="Chapters"
+              onClick={props.onChapters}
+            >
+              <SystemIcon name="list" size={20} />
+            </button>
+          ) : null}
+          <PlayCluster {...props} />
+          {props.onComment ? (
+            <button
+              type="button"
+              className="sys-dock-comment"
+              aria-label={`Comment at ${time}`}
+              title={`Comment at ${time}`}
+              onClick={props.onComment}
+            >
+              <SystemIcon name="message-square" size={16} />
+              <span className="sys-dock-comment-label">Comment</span>
+            </button>
+          ) : null}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /** The Player in its 56 px bar form and its expanded form. Props only. */
 export function Player(props: PlayerProps) {
   const headingId = useId();
@@ -443,6 +533,7 @@ export function Player(props: PlayerProps) {
       preventScroll: true,
     });
   }, [form]);
+  if (form === "dock") return <Dock {...props} statusId={statusId} />;
   if (form === "bar") {
     return (
       <div
@@ -546,23 +637,11 @@ export function Player(props: PlayerProps) {
         )}
         {onComment ? <VerbButton verb="comment" onClick={onComment} /> : null}
       </div>
-      {chapters.length > 0 ? (
-        <ol className="sys-player-chapters" aria-label="Chapters">
-          {chapters.map((entry, index) => (
-            <li key={entry.title}>
-              <button
-                type="button"
-                className="sys-row-btn"
-                aria-current={index === chapter ? "true" : undefined}
-                onClick={() => onChapter?.(index)}
-              >
-                <span className="sys-row-title">{entry.title}</span>
-                <span className="sys-mono">{entry.time}</span>
-              </button>
-            </li>
-          ))}
-        </ol>
-      ) : null}
+      <PlayerChapters
+        chapters={chapters}
+        current={chapter}
+        onChapter={onChapter}
+      />
     </section>
   );
 }

@@ -3,6 +3,7 @@ import { useViewportClass } from "../../hooks/useViewportClass";
 import { useViewportPan } from "../../hooks/useViewportPan";
 import { useDawStore } from "../../state/dawStore";
 import type { ShellBreakpoint } from "../../state/types";
+import type { PlayerPlacement } from "./playerPlacement";
 
 /**
  * The viewport class, written to the store and to `data-shell` on the root.
@@ -31,4 +32,14 @@ export function useShellAttributes(
     };
   }, [surface]);
   return shell;
+}
+
+/** `html[data-player="dock"]` while the Listen dock shows, so the sheets and the toast rest on it (stage-frame.css). */
+export function usePlayerPlacementAttribute(placement: PlayerPlacement) {
+  useEffect(() => {
+    if (placement === "dock") document.documentElement.dataset.player = "dock";
+    return () => {
+      delete document.documentElement.dataset.player;
+    };
+  }, [placement]);
 }

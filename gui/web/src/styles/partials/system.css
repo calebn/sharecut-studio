@@ -1109,6 +1109,194 @@ html[data-frame-short] .sys-player-right > :not(.sys-player-hear) {
   display: none;
 }
 
+/* The Listen dock (phone guest Review): the scrubber, the readout and the
+   transport in one 7.5 rem block that never expands. The strip is inset from
+   both screen edges so a system back swipe never starts a seek. Its own class,
+   not .sys-player, so the bar's container rules do not reach it. */
+.sys-dock {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-rows: var(--touch-min) auto minmax(0, 1fr);
+  grid-template-areas:
+    "strip strip strip"
+    "elapsed centre total"
+    "transport transport transport";
+  align-items: center;
+  column-gap: var(--space-3);
+  min-block-size: var(--player-dock-height);
+  padding-inline: var(--space-4);
+  background: var(--color-bg-elevated);
+  border-block-start: 1px solid var(--color-border-subtle);
+  color: var(--color-text-primary);
+}
+
+.sys-dock-strip {
+  grid-area: strip;
+  min-inline-size: 0;
+  margin-inline: calc(var(--space-6) - var(--space-4));
+}
+
+.sys-dock-elapsed,
+.sys-dock-total {
+  font-size: var(--font-size-ui);
+}
+
+.sys-dock-elapsed {
+  grid-area: elapsed;
+}
+
+.sys-dock-total {
+  grid-area: total;
+}
+
+.sys-dock-centre {
+  grid-area: centre;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-3);
+  min-inline-size: 0;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-small);
+}
+
+.sys-dock-chapter,
+.sys-dock-status {
+  min-inline-size: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sys-dock-status {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  color: var(--color-warning-on-surface);
+}
+
+.sys-dock-status-text {
+  min-inline-size: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sys-dock-status-btn {
+  display: none;
+  color: var(--color-warning-on-surface);
+}
+
+.sys-dock-transport {
+  grid-area: transport;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-3);
+  min-inline-size: 0;
+}
+
+.sys-dock .sys-player-skip {
+  display: inline-flex;
+}
+
+.sys-dock .sys-icon-btn {
+  min-inline-size: var(--touch-min);
+  min-block-size: var(--touch-min);
+}
+
+.sys-dock .sys-play .sys-play-btn {
+  inline-size: var(--target-dock-primary);
+  block-size: var(--target-dock-primary);
+  min-inline-size: var(--target-dock-primary);
+  min-block-size: var(--target-dock-primary);
+}
+
+.sys-dock .sys-play-ring {
+  inline-size: calc(var(--target-dock-primary) + var(--space-6) / 2);
+  block-size: calc(var(--target-dock-primary) + var(--space-6) / 2);
+}
+
+.sys-dock-chapters {
+  margin-inline-end: auto;
+}
+
+.sys-dock-comment {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-3);
+  min-block-size: var(--touch-min);
+  min-inline-size: var(--touch-min);
+  margin-inline-start: auto;
+  padding-inline: var(--space-4);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-xl);
+  background: transparent;
+  color: var(--color-text-primary);
+  font-size: var(--font-size-ui);
+  cursor: pointer;
+}
+
+.sys-dock-comment:hover {
+  background: var(--color-hover);
+}
+
+/* A narrow phone keeps the icon and drops the word. */
+@container sys-player (max-width: 20rem) {
+  .sys-dock-comment-label {
+    position: absolute;
+    inline-size: 1px;
+    block-size: 1px;
+    margin: -1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+}
+
+/* A folded frame (useShortFrame) keeps the dock as one touch-height row:
+   the clock, the strip, Play and an icon-only Comment. The skips, Chapters,
+   the readout and the status text give way; the status keeps a button that
+   says why in a toast. */
+html[data-frame-short] .sys-dock {
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  grid-template-rows: minmax(0, 1fr);
+  grid-template-areas: "elapsed strip transport status";
+  min-block-size: var(--player-height);
+}
+
+html[data-frame-short] .sys-dock-strip {
+  margin-inline: 0;
+}
+
+html[data-frame-short] .sys-dock-total,
+html[data-frame-short] .sys-dock .sys-player-skip,
+html[data-frame-short] .sys-dock-chapters,
+html[data-frame-short] .sys-dock-chapter,
+html[data-frame-short] .sys-dock-status,
+html[data-frame-short] .sys-dock-comment-label {
+  display: none;
+}
+
+html[data-frame-short] .sys-dock-centre {
+  grid-area: status;
+}
+
+html[data-frame-short] .sys-dock-status-btn {
+  display: inline-flex;
+}
+
+html[data-frame-short] .sys-dock .sys-play .sys-play-btn {
+  inline-size: var(--touch-min);
+  block-size: var(--touch-min);
+  min-inline-size: var(--touch-min);
+  min-block-size: var(--touch-min);
+}
+
+html[data-frame-short] .sys-dock-comment {
+  margin-inline-start: 0;
+}
+
 /* The tab bar folds into the header's stage menu, and the Edit rows and the
    corner into its Tools button, so the stage keeps the height. The project
    title gives way to the stage name; the Project menu keeps it in its name. */
