@@ -1,11 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { clearRegisteredCommands } from "../../commands/execute";
-import { registerDawCommands } from "../../commands/register";
-import { useDawStore } from "../../state/dawStore";
-import { minimalProject } from "../../test/fixtures";
+import { bindPlaybackClock } from "../audio/playbackClock";
+import { useDawStore } from "../state/dawStore";
+import { minimalProject } from "../test/fixtures";
+import { SKIP_SEC } from "../utils/time";
+import { clearRegisteredCommands } from "./execute";
 import { skipListen } from "./listenSeek";
-
-const SKIP_SEC = 15;
+import { registerDawCommands } from "./register";
 
 describe("skipListen", () => {
   beforeEach(() => {
@@ -30,5 +30,16 @@ describe("skipListen", () => {
     useDawStore.setState({ playheadSec: from });
     skipListen(delta, 60);
     expect(useDawStore.getState().playheadSec).toBe(to);
+  });
+
+  it("skips from the audio clock when the store playhead is stale", () => {
+    useDawStore.setState({
+      project: minimalProject({ timeline_duration_sec: 200 }),
+      playheadSec: 40,
+    });
+    const unbind = bindPlaybackClock(() => 100);
+    skipListen(SKIP_SEC, 200);
+    unbind();
+    expect(useDawStore.getState().playheadSec).toBe(115);
   });
 });
