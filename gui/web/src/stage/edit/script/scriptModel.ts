@@ -192,10 +192,38 @@ function cutWordsOf(boundary: EditBoundaryView): DraftWord[] {
 export function buildScriptModel(input: ScriptModelInput): ScriptModel {
   const pending = pendingByTrack(input.pending);
   const grouped = groupConsecutiveSpeakerTurns([...input.utterances]);
+  // A cut word the server still lists in its utterance (mappable false) is
+  // already shown at its join by the boundary, so the running text drops it.
+  const shownAtJoin = new Set<string>();
+  for (const boundary of input.boundaries) {
+    if (!boundary.has_cutaway) continue;
+    for (const word of boundary.cutaway_word_ids) {
+      shownAtJoin.add(
+        wordKey({
+          trackId: word.track_id,
+          sourceId: word.source_id,
+          wordIndex: word.word_index,
+        }),
+      );
+    }
+  }
   const drafts: DraftTurn[] = grouped.map((turn) => {
     const words: DraftWord[] = [];
     for (const utterance of turn.utterances) {
       for (const word of wordsForUtterance(utterance)) {
+        if (
+          word.mappable === false &&
+          word.word_index != null &&
+          shownAtJoin.has(
+            wordKey({
+              trackId: utterance.track_id,
+              sourceId: utterance.source_id ?? null,
+              wordIndex: word.word_index,
+            }),
+          )
+        ) {
+          continue;
+        }
         const mark = markOf(
           word,
           suggestionFor(pending.get(utterance.track_id), word),

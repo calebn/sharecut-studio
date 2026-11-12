@@ -330,6 +330,79 @@ describe("buildScriptModel", () => {
     ]);
   });
 
+  it("shows a cut word once when the utterance still lists it as unmappable", () => {
+    const boundary = {
+      id: "b1",
+      track_id: "host",
+      timeline_join_sec: 12.5,
+      has_cutaway: true,
+      cutaway_source_start: 12.5,
+      cutaway_source_end: 14,
+      cutaway_word_ids: [
+        {
+          track_id: "host",
+          source_id: null,
+          word_index: 1,
+          text: "uh",
+          start: 12.5,
+          end: 12.9,
+        },
+        {
+          track_id: "host",
+          source_id: null,
+          word_index: 2,
+          text: "well",
+          start: 13,
+          end: 13.4,
+        },
+      ],
+    } as unknown as EditBoundaryView;
+    const joined = utterance("host", "Maya", [
+      word("Welcome", 0, 12),
+      word("uh", 1, 12.5, {
+        mappable: false,
+        timeline_start: null,
+        timeline_end: null,
+      }),
+      word("well", 2, 13, {
+        mappable: false,
+        timeline_start: null,
+        timeline_end: null,
+      }),
+      word("friends", 3, 14),
+    ]);
+    const model = buildScriptModel(input([joined], { boundaries: [boundary] }));
+    const words = model.turns[0]?.words ?? [];
+    expect(words.map((w) => w.text)).toEqual([
+      "Welcome",
+      "uh",
+      "well",
+      "friends",
+    ]);
+    expect(words.map((w) => w.mark?.kind === "cut")).toEqual([
+      false,
+      true,
+      true,
+      false,
+    ]);
+  });
+
+  it("keeps an unmappable word that no boundary shows", () => {
+    const joined = utterance("host", "Maya", [
+      word("Welcome", 0, 12),
+      word("gone", 1, 12.5, {
+        mappable: false,
+        timeline_start: null,
+        timeline_end: null,
+      }),
+    ]);
+    const model = buildScriptModel(input([joined]));
+    expect((model.turns[0]?.words ?? []).map((w) => w.text)).toEqual([
+      "Welcome",
+      "gone",
+    ]);
+  });
+
   it("ignores a boundary with no cutaway", () => {
     const boundary = {
       id: "b2",
