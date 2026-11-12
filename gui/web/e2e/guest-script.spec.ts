@@ -349,7 +349,8 @@ test("a Commenter keeps readable Script through native page zoom and viewport re
               contentType: "image/png",
             });
           }
-          await comment.tap();
+          await nativeTabTo(comment);
+          await guest.keyboard.press("Enter");
           await expect(field).toBeEditable();
           await nativeTabTo(field);
           await expect
@@ -377,7 +378,7 @@ test("a Commenter keeps readable Script through native page zoom and viewport re
             body: await guest.screenshot(),
             contentType: "image/png",
           });
-          await guest.getByRole("button", { name: "Close" }).tap();
+          await guest.keyboard.press("Escape");
           await expect(field).toHaveCount(0);
         };
         let bodyFailed = false;
