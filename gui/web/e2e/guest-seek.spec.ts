@@ -96,7 +96,7 @@ async function withGuest(
         const token = await createReviewShare(host, projectPath, "commenter");
         await openGuestShare(page, token);
         const strip = page
-          .locator(size.touch ? ".sys-dock" : ".sys-player--expanded")
+          .locator(size.touch ? ".sys-listen-dock" : ".sys-player--expanded")
           .getByRole("slider", { name: "Episode overview", exact: true });
         await expect(strip).toBeVisible();
         await run({
@@ -203,7 +203,7 @@ test("the Listen dock shows the 60 s total duration on a phone", async ({
   browser,
 }) => {
   await withGuest(browser, PHONE, "light", async (guest) => {
-    const total = guest.page.locator(".sys-dock .sys-player-total");
+    const total = guest.page.locator(".sys-listen-dock .sys-player-total");
     await expect(total).toBeVisible();
     await expect(total).toHaveText("1:00");
   });

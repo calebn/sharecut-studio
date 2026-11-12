@@ -427,8 +427,8 @@ function Dock(props: PlayerProps & { statusId: string }) {
       className="sys-player-host"
       data-state={state}
     >
-      <div className="sys-dock">
-        <div className="sys-dock-strip">
+      <div className="sys-listen-dock">
+        <div className="sys-listen-dock-strip">
           <OverviewStrip
             height={32}
             peaks={props.peaks}
@@ -440,18 +440,18 @@ function Dock(props: PlayerProps & { statusId: string }) {
             label="Episode overview"
           />
         </div>
-        <span className="sys-dock-elapsed sys-player-now">{time}</span>
-        <div className="sys-dock-centre">
+        <span className="sys-listen-dock-elapsed sys-player-now">{time}</span>
+        <div className="sys-listen-dock-centre">
           {status ? (
             <>
-              <span id={props.statusId} className="sys-dock-status">
+              <span id={props.statusId} className="sys-listen-dock-status">
                 <SystemIcon name="triangle-alert" size={12} />
-                <span className="sys-dock-status-text">{status}</span>
+                <span className="sys-listen-dock-status-text">{status}</span>
               </span>
               {props.onStatusInfo ? (
                 <button
                   type="button"
-                  className="sys-icon-btn sys-dock-status-btn"
+                  className="sys-icon-btn sys-listen-dock-status-btn"
                   aria-label={status}
                   title={status}
                   onClick={props.onStatusInfo}
@@ -461,16 +461,16 @@ function Dock(props: PlayerProps & { statusId: string }) {
               ) : null}
             </>
           ) : centre ? (
-            <span className="sys-dock-chapter">{centre}</span>
+            <span className="sys-listen-dock-chapter">{centre}</span>
           ) : null}
           <StatePills {...props} />
         </div>
-        <span className="sys-dock-total sys-player-total">{total}</span>
-        <div className="sys-dock-transport">
+        <span className="sys-listen-dock-total sys-player-total">{total}</span>
+        <div className="sys-listen-dock-transport">
           {props.onChapters ? (
             <button
               type="button"
-              className="sys-icon-btn sys-dock-chapters"
+              className="sys-icon-btn sys-listen-dock-chapters"
               aria-label="Chapters"
               title="Chapters"
               onClick={props.onChapters}
@@ -482,13 +482,13 @@ function Dock(props: PlayerProps & { statusId: string }) {
           {props.onComment ? (
             <button
               type="button"
-              className="sys-dock-comment"
+              className="sys-listen-dock-comment"
               aria-label={`Comment at ${time}`}
               title={`Comment at ${time}`}
               onClick={props.onComment}
             >
               <SystemIcon name="message-square" size={16} />
-              <span className="sys-dock-comment-label">Comment</span>
+              <span className="sys-listen-dock-comment-label">Comment</span>
             </button>
           ) : null}
         </div>
