@@ -28,11 +28,24 @@ import {
 } from "../services/offlineQueue/offlineStore";
 import { isShareProjectKey, shareTokenFromKey } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
+import type { DawStore } from "../state/types";
 import { useDaw } from "../state/useDaw";
 import { ApiError, errorMessage } from "../utils/apiError";
 import { audioContextCtor } from "../utils/audio";
 import { AUDITION_STOP_EPS_SEC } from "../utils/auditionStop";
 import { sortedVolumePoints } from "../utils/envelopes";
+
+type AuditionEnd = Pick<
+  DawStore,
+  "setPlayheadSec" | "setIsPlaying" | "clearSessionRegion"
+>;
+
+/** An audition stops where it was asked to, or at the episode end if that comes first. */
+function finishAudition(store: AuditionEnd, atSec: number): void {
+  store.setPlayheadSec(atSec);
+  store.setIsPlaying(false);
+  store.clearSessionRegion();
+}
 
 /**
  * Guest proxy transport: Web Audio clip scheduler over FX source-clock chunks.
@@ -159,9 +172,14 @@ export function useProxyTransport(): boolean {
     if (
       state.projectPath !== projectPath ||
       state.projectEpoch !== projectEpoch ||
-      state.sourcePreview
+      state.sourcePreview ||
+      !state.isPlaying
     )
       return;
+    if (state.playUntilSec != null) {
+      finishAudition(state, Math.min(state.playUntilSec, endSec));
+      return;
+    }
     state.setPlayheadSec(endSec, "playback");
     state.setIsPlaying(false);
   });
@@ -372,9 +390,10 @@ export function useProxyTransport(): boolean {
         const until = playUntilRef.current;
         if (until != null && t >= until - AUDITION_STOP_EPS_SEC) {
           engine.pause();
-          setPlayheadSec(until);
-          setIsPlaying(false);
-          clearSessionRegion();
+          finishAudition(
+            { setPlayheadSec, setIsPlaying, clearSessionRegion },
+            until,
+          );
           return;
         }
         rafRef.current = requestAnimationFrame(tick);
