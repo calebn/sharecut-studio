@@ -39,18 +39,22 @@ pub fn run_appimage_command(exe: &Path, launcher: &str, args: &[OsString]) -> io
 }
 
 #[cfg(unix)]
-const WRAPPER_MARK: &[u8] = b"#!/bin/sh\n# Sharecut Studio AppImage CLI wrapper";
+const WRAPPER_MARK: &[u8] = b"#!/bin/sh\n# Sharecut Studio ";
 
+/// A tiny shell script that execs the real launcher. A script, not a symlink,
+/// because a launcher started through a symlink can lose track of where its
+/// runtime lives (0.1.3 on macOS: "sharecut-runtime not found next to ~/.local/bin/podcast").
 #[cfg(unix)]
-fn appimage_wrapper(appimage: &Path, launcher: &str) -> io::Result<Vec<u8>> {
+fn shell_wrapper(target: &Path, flag: Option<&str>) -> io::Result<Vec<u8>> {
     use std::os::unix::ffi::OsStrExt;
-    if !appimage.is_absolute() || !fs::metadata(appimage)?.is_file() {
-        return Err(io::Error::other(
-            "APPIMAGE must name an absolute AppImage file",
-        ));
+    if !target.is_absolute() || !fs::metadata(target)?.is_file() {
+        return Err(io::Error::other(format!(
+            "{} must be an absolute path to a file",
+            target.display()
+        )));
     }
-    let mut script = b"#!/bin/sh\n# Sharecut Studio AppImage CLI wrapper v1\nexec '".to_vec();
-    for byte in appimage.as_os_str().as_bytes() {
+    let mut script = b"#!/bin/sh\n# Sharecut Studio CLI wrapper v2\nexec '".to_vec();
+    for byte in target.as_os_str().as_bytes() {
         if *byte == b'\'' {
             script.extend_from_slice(b"'\\''");
         } else {
@@ -58,43 +62,39 @@ fn appimage_wrapper(appimage: &Path, launcher: &str) -> io::Result<Vec<u8>> {
         }
     }
     script.extend_from_slice(b"' ");
-    script.extend_from_slice(if launcher == "podcast" {
-        b"--cli"
-    } else {
-        b"--mcp"
-    });
-    script.extend_from_slice(b" \"$@\"\n");
+    if let Some(flag) = flag {
+        script.extend_from_slice(flag.as_bytes());
+        script.push(b' ');
+    }
+    script.extend_from_slice(b"\"$@\"\n");
     Ok(script)
 }
 
-/// What one command in the bin directory should be after installing.
+/// The wrapper bytes each command should contain after installing.
 #[cfg(unix)]
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub enum Desired {
-    Link(PathBuf),
-    Wrapper(Vec<u8>),
-}
+pub type Tools = [(String, Vec<u8>); 2];
 
 #[cfg(unix)]
-pub type Tools = [(String, Desired); 2];
-
-#[cfg(unix)]
-pub fn link_tools(launchers: &[(String, PathBuf); 2]) -> Tools {
-    launchers
-        .clone()
-        .map(|(name, target)| (name, Desired::Link(target)))
+pub fn link_tools(launchers: &[(String, PathBuf); 2]) -> io::Result<Tools> {
+    Ok([
+        (
+            launchers[0].0.clone(),
+            shell_wrapper(&launchers[0].1, None)?,
+        ),
+        (
+            launchers[1].0.clone(),
+            shell_wrapper(&launchers[1].1, None)?,
+        ),
+    ])
 }
 
 #[cfg(unix)]
 pub fn appimage_tools(appimage: &Path) -> io::Result<Tools> {
     Ok([
-        (
-            "podcast".into(),
-            Desired::Wrapper(appimage_wrapper(appimage, "podcast")?),
-        ),
+        ("podcast".into(), shell_wrapper(appimage, Some("--cli"))?),
         (
             "podcast-mcp".into(),
-            Desired::Wrapper(appimage_wrapper(appimage, "podcast-mcp")?),
+            shell_wrapper(appimage, Some("--mcp"))?,
         ),
     ])
 }
@@ -140,7 +140,7 @@ fn owned_link_target(target: &Path, name: &str) -> bool {
 }
 
 #[cfg(unix)]
-fn classify(path: &Path, name: &str, desired: &Desired) -> io::Result<State> {
+fn classify(path: &Path, name: &str, expected: &[u8]) -> io::Result<State> {
     use std::os::unix::fs::PermissionsExt;
     let metadata = match fs::symlink_metadata(path) {
         Ok(value) => value,
@@ -148,24 +148,26 @@ fn classify(path: &Path, name: &str, desired: &Desired) -> io::Result<State> {
         Err(err) => return Err(err),
     };
     if metadata.file_type().is_symlink() {
-        let target = fs::read_link(path)?;
-        return Ok(match desired {
-            Desired::Link(expected) if *expected == target => State::Current,
-            _ if owned_link_target(&target, name) => State::Stale,
-            _ => State::Foreign,
+        // Earlier versions linked straight to the launcher, which breaks on macOS.
+        return Ok(if owned_link_target(&fs::read_link(path)?, name) {
+            State::Stale
+        } else {
+            State::Foreign
         });
     }
     if !metadata.file_type().is_file() {
         return Ok(State::Foreign);
     }
+    let content = fs::read(path)?;
     // The installer creates the wrapper as this user, so its owner bit must
     // permit that user to execute it; group/other bits are insufficient.
     let executable = metadata.permissions().mode() & 0o100 != 0;
-    Ok(match desired {
-        Desired::Wrapper(expected) if fs::read(path)? == *expected && executable => State::Current,
-        Desired::Wrapper(expected) if fs::read(path)? == *expected => State::Stale,
-        _ if fs::read(path)?.starts_with(WRAPPER_MARK) => State::Stale,
-        _ => State::Foreign,
+    Ok(if content == expected && executable {
+        State::Current
+    } else if content == expected || content.starts_with(WRAPPER_MARK) {
+        State::Stale
+    } else {
+        State::Foreign
     })
 }
 
@@ -173,7 +175,7 @@ fn classify(path: &Path, name: &str, desired: &Desired) -> io::Result<State> {
 pub fn status(bin: &Path, tools: &Tools) -> io::Result<Vec<(String, State)>> {
     tools
         .iter()
-        .map(|(name, desired)| Ok((name.clone(), classify(&bin.join(name), name, desired)?)))
+        .map(|(name, expected)| Ok((name.clone(), classify(&bin.join(name), name, expected)?)))
         .collect()
 }
 
@@ -191,23 +193,21 @@ fn temp_path(bin: &Path, name: &str) -> PathBuf {
 /// Writes the command next to `path`, then renames it into place so a reader
 /// never sees a half-written wrapper or a missing command.
 #[cfg(unix)]
-fn place(bin: &Path, name: &str, desired: &Desired) -> io::Result<()> {
+fn place(bin: &Path, name: &str, content: &[u8]) -> io::Result<()> {
     use std::io::Write;
-    use std::os::unix::fs::{symlink, OpenOptionsExt};
+    use std::os::unix::fs::OpenOptionsExt;
     let path = bin.join(name);
     let temp = temp_path(bin, name);
-    let result = match desired {
-        Desired::Link(target) => symlink(target, &temp),
-        Desired::Wrapper(content) => {
-            let mut file = fs::OpenOptions::new()
-                .write(true)
-                .create_new(true)
-                .mode(0o755)
-                .open(&temp)?;
-            file.write_all(content).and_then(|()| file.sync_all())
-        }
-    }
-    .and_then(|()| fs::rename(&temp, &path));
+    let mut file = fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .mode(0o755)
+        .open(&temp)?;
+    let result = file
+        .write_all(content)
+        .and_then(|()| file.sync_all())
+        .and_then(|()| fs::rename(&temp, &path));
+    drop(file);
     if result.is_err() {
         let _ = fs::remove_file(&temp);
     }
@@ -233,23 +233,23 @@ fn backup_path(bin: &Path, name: &str) -> PathBuf {
 pub fn install(bin: &Path, tools: &Tools, replace_foreign: bool) -> io::Result<Vec<ToolReport>> {
     fs::create_dir_all(bin)?;
     let mut reports = Vec::new();
-    for (name, desired) in tools {
+    for (name, expected) in tools {
         let path = bin.join(name);
-        let before = classify(&path, name, desired)?;
+        let before = classify(&path, name, expected)?;
         let action = match before {
             State::Current => Action::Unchanged,
             State::Missing => {
-                place(bin, name, desired)?;
+                place(bin, name, expected)?;
                 Action::Added
             }
             State::Stale => {
-                place(bin, name, desired)?;
+                place(bin, name, expected)?;
                 Action::Updated
             }
             State::Foreign if replace_foreign => {
                 let backup = backup_path(bin, name);
                 fs::rename(&path, &backup)?;
-                place(bin, name, desired)?;
+                place(bin, name, expected)?;
                 Action::Replaced { backup }
             }
             State::Foreign => Action::SkippedForeign,
@@ -267,9 +267,9 @@ pub fn install(bin: &Path, tools: &Tools, replace_foreign: bool) -> io::Result<V
 #[cfg(unix)]
 pub fn remove(bin: &Path, tools: &Tools) -> io::Result<Vec<ToolReport>> {
     let mut reports = Vec::new();
-    for (name, desired) in tools {
+    for (name, expected) in tools {
         let path = bin.join(name);
-        let before = classify(&path, name, desired)?;
+        let before = classify(&path, name, expected)?;
         let action = match before {
             State::Current | State::Stale => {
                 fs::remove_file(&path)?;
@@ -376,7 +376,7 @@ mod tests {
         for name in NAMES {
             fs::write(root.join("ShareCut.app").join(name), b"launcher").unwrap();
         }
-        link_tools(&targets(&root.join("ShareCut.app/sharecut")).unwrap())
+        link_tools(&targets(&root.join("ShareCut.app/sharecut")).unwrap()).unwrap()
     }
 
     #[cfg(unix)]
@@ -416,10 +416,53 @@ mod tests {
         let reports = install(&bin, &tools, false).unwrap();
         assert_eq!(reports[0].action, Action::Updated);
         assert_eq!(reports[1].action, Action::Added);
-        let Desired::Link(target) = &tools[0].1 else {
-            unreachable!()
-        };
-        assert_eq!(fs::read_link(bin.join("podcast")).unwrap(), *target);
+        assert_eq!(fs::read(bin.join("podcast")).unwrap(), tools[0].1);
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn symlinks_to_the_launcher_are_replaced_by_a_working_wrapper() {
+        let root = scratch("symlink");
+        let tools = app_tools(&root);
+        let launcher = root.join("ShareCut.app/podcast");
+        fs::write(&launcher, b"#!/bin/sh\necho \"launcher $0 $@\"\n").unwrap();
+        use std::os::unix::fs::PermissionsExt;
+        fs::set_permissions(&launcher, fs::Permissions::from_mode(0o755)).unwrap();
+        let bin = root.join("bin");
+        fs::create_dir_all(&bin).unwrap();
+        std::os::unix::fs::symlink(&launcher, bin.join("podcast")).unwrap();
+        assert_eq!(states(&bin, &tools)[0], State::Stale);
+        install(&bin, &tools, false).unwrap();
+        assert_eq!(states(&bin, &tools)[0], State::Current);
+        assert!(!fs::symlink_metadata(bin.join("podcast"))
+            .unwrap()
+            .file_type()
+            .is_symlink());
+        let output = Command::new(bin.join("podcast"))
+            .arg("hi")
+            .output()
+            .unwrap();
+        assert_eq!(
+            String::from_utf8_lossy(&output.stdout).trim(),
+            format!("launcher {} hi", launcher.display())
+        );
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn older_appimage_wrappers_are_stale_not_foreign() {
+        let root = scratch("v1");
+        let tools = app_tools(&root);
+        let bin = root.join("bin");
+        fs::create_dir_all(&bin).unwrap();
+        fs::write(
+            bin.join("podcast"),
+            b"#!/bin/sh\n# Sharecut Studio AppImage CLI wrapper v1\nexec 'x' --cli \"$@\"\n",
+        )
+        .unwrap();
+        assert_eq!(states(&bin, &tools)[0], State::Stale);
         fs::remove_dir_all(root).unwrap();
     }
 
@@ -504,9 +547,7 @@ mod tests {
         fs::write(&image, b"#!/bin/sh\nprintf '%s\\n' \"$@\"\n").unwrap();
         fs::set_permissions(&image, fs::Permissions::from_mode(0o755)).unwrap();
         let tools = appimage_tools(&image).unwrap();
-        let Desired::Wrapper(first) = &tools[0].1 else {
-            unreachable!()
-        };
+        let first = &tools[0].1;
         assert!(
             String::from_utf8_lossy(first).contains("Sharecut'\\''s Studio.AppImage' --cli \"$@\"")
         );
