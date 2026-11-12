@@ -1120,6 +1120,123 @@ describe("playing a timeline longer than the first window", () => {
     });
   });
 
+  it("after a late wake fetches nothing that already ended and resumes in sync", async () => {
+    const handle = makeCtx();
+    const fetchChunk = vi.fn(
+      async (_ref: ImmutableChunkRef) => new ArrayBuffer(64),
+    );
+    const engine = new ProxyEngine(handle.ctx, fetchChunk, vi.fn(), vi.fn());
+    engine.setSnapshot(episode(400));
+    engine.play(0);
+    await flush();
+    await advanceTo(handle, 330);
+    expect(fetchChunk.mock.calls.map(([ref]) => ref.index).sort()).toEqual([
+      0, 1, 5, 6,
+    ]);
+    expect(handle.created.map(({ start }) => start.mock.calls[0][0])).toEqual([
+      0, 60, 330, 360,
+    ]);
+    for (let ctxSec = 330; ctxSec + 0.5 < 400; ctxSec += 1) {
+      await advanceTo(handle, ctxSec);
+      expect(
+        soundingAt(handle.created, ctxSec + 0.5, 1),
+        `sources sounding at ctx ${ctxSec + 0.5} s`,
+      ).toBe(1);
+    }
+    const [when, offset, duration] = handle.created[2].start.mock.calls[0];
+    expect(when).toBe(330);
+    expect(offset).toBeCloseTo(30.2, 9);
+    expect(duration).toBe(30);
+    engine.dispose();
+  });
+
+  it("places a clip that starts and one that ends exactly on a batch edge once each", async () => {
+    const handle = makeCtx();
+    const base = episode(240);
+    const guestChunks = 5;
+    const clip = (id: string, trackId: string, start: number, end: number) => ({
+      ...base.clipsByTrack.host[0],
+      id,
+      track_id: trackId,
+      source_start: start,
+      source_end: end,
+      timeline_start: start,
+      timeline_end: end,
+    });
+    const engine = new ProxyEngine(
+      handle.ctx,
+      async (ref) => new ArrayBuffer(ref.url.startsWith("g") ? 96 : 64),
+      vi.fn(),
+      vi.fn(),
+    );
+    engine.setSnapshot({
+      ...base,
+      manifest: {
+        ...base.manifest,
+        tracks: {
+          host: base.manifest.tracks.host,
+          guest: {
+            ...base.manifest.tracks.host,
+            chunk_count: guestChunks,
+            duration_sec: 300,
+            urls: Array.from({ length: guestChunks }, (_, i) => `g${i}`),
+          },
+        },
+      },
+      clipsByTrack: {
+        host: [clip("h", "host", 0, 240)],
+        guest: [clip("a", "guest", 0, 120), clip("b", "guest", 120, 300)],
+      },
+      tracks: [
+        { id: "host", gain_db: 0, muted: false },
+        { id: "guest", gain_db: 0, muted: false },
+      ],
+      durationSec: 300,
+    });
+    engine.play(0);
+    await flush();
+    for (let ctxSec = 1; ctxSec <= 250; ctxSec += 1) {
+      await advanceTo(handle, ctxSec);
+    }
+    const whens = (bufferLength: number) =>
+      handle.created
+        .filter(({ buffer }) => buffer?.length === bufferLength)
+        .map(({ start }) => start.mock.calls[0][0])
+        .sort((a, b) => a - b);
+    expect(whens(64)).toEqual([0, 60, 120, 180]);
+    expect(whens(96)).toEqual([0, 60, 120, 180, 240]);
+    engine.dispose();
+  });
+
+  it("keeps one source sounding to the end across a rate change after an extension", async () => {
+    const handle = makeCtx();
+    const engine = new ProxyEngine(
+      handle.ctx,
+      async () => new ArrayBuffer(64),
+      vi.fn(),
+      vi.fn(),
+    );
+    engine.setSnapshot(episode(400));
+    engine.play(0);
+    await flush();
+    for (let ctxSec = 1; ctxSec <= 130; ctxSec += 1) {
+      await advanceTo(handle, ctxSec);
+    }
+    const oldSentinel = handle.sentinels.filter(({ fired }) => !fired).at(-1);
+    engine.setPlaybackRate(2);
+    await flush();
+    expect(oldSentinel?.onended).toBeNull();
+    for (let ctxSec = 131; ctxSec + 0.5 < 130 + 135; ctxSec += 1) {
+      await advanceTo(handle, ctxSec);
+      expect(
+        soundingAt(handle.created, ctxSec + 0.5, 2),
+        `sources sounding at ctx ${ctxSec + 0.5} s`,
+      ).toBe(1);
+    }
+    expect(oldSentinel?.fired).toBe(false);
+    engine.dispose();
+  });
+
   it("disconnects each source once it has finished and keeps the ones still to sound", async () => {
     const handle = makeCtx();
     const engine = new ProxyEngine(

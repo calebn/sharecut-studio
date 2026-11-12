@@ -483,12 +483,16 @@ export class ProxyEngine {
     const { generation } = horizon;
     // From the old edge, not the playhead: a late wake still gets the slices that should already be sounding.
     const from = horizon.throughSec;
+    const t = this.currentTimeSec();
     const to =
-      Math.max(from, this.currentTimeSec()) +
+      Math.max(from, t) +
       Math.max(WINDOW_PAD_SEC, 2 * LOW_WATER_CTX_SEC * this.playbackRate);
-    // A slice that straddles `from` already has its source from the earlier batch.
+    // A slice that straddles `from` already has its source from the earlier batch;
+    // one that has already ended is not worth fetching after a late wake.
     const slices = this.slicesBetween(snapshot, from, to).filter(
-      (slice) => slice.whenTimelineSec >= from,
+      (slice) =>
+        slice.whenTimelineSec >= from &&
+        slice.whenTimelineSec + slice.durationSec > t,
     );
     const decoded = new Map<string, AudioBuffer>();
     await this.decodeInto(decoded, slices, generation);
@@ -541,10 +545,10 @@ export class ProxyEngine {
     sentinel.onended = null;
     try {
       sentinel.stop();
-      sentinel.disconnect();
     } catch {
       /* already stopped */
     }
+    sentinel.disconnect();
   }
 
   private pump(): void {
