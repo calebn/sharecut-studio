@@ -18,7 +18,7 @@ from podcast_mcp.services.document_sync.service import DocumentSyncService
 from podcast_mcp.util.coded_error import CodedValueError
 
 if TYPE_CHECKING:
-    from podcast_mcp.services.document import SegmentInsertReport
+    from podcast_mcp.services.document import SegmentInsertApplied, SegmentInsertPreview
 
 
 def submit_host_document_command(
@@ -95,7 +95,7 @@ def submit_segment_insert(
     version: int | None = None,
     dry_run: bool = False,
     client_id: str = "mcp-agent",
-) -> SegmentInsertReport:
+) -> SegmentInsertPreview | SegmentInsertApplied:
     """Insert a library segment (or report what an insert would move), for the CLI and MCP.
 
     ``at`` is ``start``, ``end`` or seconds, parsed by one function for every caller; ``end``
@@ -107,7 +107,7 @@ def submit_segment_insert(
     """
     from podcast_mcp.segments.position import parse_position
     from podcast_mcp.segments.store import SegmentStore
-    from podcast_mcp.services.document import SegmentInsertReport, preview_segment_insert
+    from podcast_mcp.services.document import SegmentInsertApplied, preview_segment_insert
 
     store = SegmentStore()
     position = parse_position(at)
@@ -126,4 +126,4 @@ def submit_segment_insert(
         {"segment_id": segment_id, "at": position, "version": pinned},
         client_id=client_id,
     )
-    return SegmentInsertReport.model_validate({**result, "dry_run": False})
+    return SegmentInsertApplied.model_validate(result)

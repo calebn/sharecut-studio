@@ -623,7 +623,7 @@ def test_end_is_resolved_under_the_lock_not_from_a_snapshot(tmp_path: Path, proj
     other.mutate("before append", "after append", _append)
     result = insert_saved_segment(stale, segment.id, "end")
 
-    assert result["at"] == pytest.approx(11.0)
+    assert result.at == pytest.approx(11.0)
     placed = [c for c in load_project(Path(project)).clips if c.segment_ref]
     assert placed[0].timeline_start == pytest.approx(11.0)
 
@@ -715,3 +715,146 @@ def test_read_paths_do_not_rename_a_legacy_project_file(tmp_path: Path, project:
     clip = load_project(retired).clips[0]
     tools.segment_save_tool(str(retired), "Cold Open", clip_ids=[clip.id])
     assert retired.exists() and not entry.exists()
+
+
+def _preview_wire(segment_id: str, **moved: object) -> dict[str, object]:
+    return {
+        "dry_run": True,
+        "segment_id": segment_id,
+        "segment_version": 1,
+        "at": 4.0,
+        "duration_sec": 2.0,
+        "timeline_duration_before_sec": 8.0,
+        "timeline_duration_after_sec": 10.0,
+        "clips_moved": 1,
+        "clips_added": 2,
+        "clips_from_segment": 2,
+        "chapters_moved": [{"title": "Later", "from": 6.0, "to": 8.0}],
+        "chapter_added": "Welcome",
+        "comments_moved": [],
+        "pending_edits_moved": 0,
+        "tracks_added": ["warm_intro", "warm_intro_2"],
+        "tracks": {"0": "warm_intro", "1": "warm_intro_2"},
+        **moved,
+    }
+
+
+def test_the_insert_reports_print_the_same_bytes_as_before(tmp_path: Path, project: str) -> None:
+    from podcast_mcp.mcp.tools import segments as tools
+
+    segment = _save(tmp_path, "Warm Intro", chapter_title="Welcome", role="dialogue", lanes=(0, 1))
+    plain = _save(tmp_path, "Plain Sting")
+
+    preview = tools.segment_insert_tool(project, segment.id, 4.0, dry_run=True)
+    assert preview == json.dumps(_preview_wire(segment.id), indent=2)
+
+    no_chapter = tools.segment_insert_tool(project, plain.id, "end", dry_run=True)
+    assert no_chapter == json.dumps(
+        _preview_wire(
+            plain.id,
+            at=8.0,
+            clips_moved=0,
+            clips_added=1,
+            clips_from_segment=1,
+            chapters_moved=[],
+            chapter_added=None,
+            tracks_added=[],
+            tracks={"0": "jingles"},
+        ),
+        indent=2,
+    )
+
+    inserted = tools.segment_insert_tool(project, segment.id, 4.0)
+    assert inserted == json.dumps(
+        {
+            "dry_run": False,
+            "segment_id": segment.id,
+            "segment_version": 1,
+            "at": 4.0,
+            "duration_sec": 2.0,
+            "operation": "insert_segment",
+            "affected_tracks": ["host", "warm_intro", "warm_intro_2"],
+            "clip_count": 4,
+            "timeline_duration_sec": 10.0,
+            "tracks": {"0": "warm_intro", "1": "warm_intro_2"},
+        },
+        indent=2,
+    )
+    cli = runner.invoke(app, ["segment", "insert", project, plain.id, "--at", "end", "--json"])
+    assert cli.exit_code == 0, cli.output
+    assert list(json.loads(cli.output)) == list(json.loads(inserted))
+
+
+def test_the_journal_keeps_the_handler_result_in_its_order(tmp_path: Path, project: str) -> None:
+    segment = _save(tmp_path, "Plain Sting")
+    command = DocumentCommand(
+        type="InsertSegment",
+        payload={"segment_id": segment.id, "at": 2.0},
+        client_id="gui",
+        client_seq=None,
+        role="owner",
+    )
+
+    reply = DocumentSyncService.open(project).submit(command)
+
+    expected = {
+        "operation": "insert_segment",
+        "affected_tracks": ["host", "jingles"],
+        "clip_count": 4,
+        "timeline_duration_sec": 10.0,
+        "segment_id": segment.id,
+        "segment_version": 1,
+        "at": 2.0,
+        "duration_sec": 2.0,
+        "tracks": {"0": "jingles"},
+    }
+    result = reply["command"]["payload"]["result"]
+    assert json.dumps(result) == json.dumps(expected)
+    stored = DocumentSyncService.open(project).store.commands_after(0)
+    assert json.dumps(stored[0]["payload"]["result"]) == json.dumps(expected)
+
+
+@pytest.mark.parametrize("dry_run", [True, False])
+def test_a_refused_insert_keeps_its_code_on_every_path(
+    tmp_path: Path, project: str, dry_run: bool
+) -> None:
+    from podcast_mcp.mcp.tools import segments as tools
+    from podcast_mcp.util.coded_error import CodedValueError
+
+    segment = _save(tmp_path, "Plain Sting")
+    flags = ["--dry-run"] if dry_run else []
+
+    with pytest.raises(CodedValueError) as refused:
+        tools.segment_insert_tool(project, segment.id, 500.0, dry_run=dry_run)
+    cli = runner.invoke(app, ["segment", "insert", project, segment.id, "--at", "500", *flags])
+
+    assert refused.value.code == "segment_position_out_of_range"
+    assert cli.exit_code == 1
+    assert "(code segment_position_out_of_range)" in cli.output
+
+
+def test_the_insert_results_are_typed_and_refuse_unknown_keys(tmp_path: Path, project: str) -> None:
+    from pydantic import ValidationError
+
+    from podcast_mcp.services.app import ProjectWorkspace
+    from podcast_mcp.services.document import (
+        SegmentInsertApplied,
+        SegmentInsertPreview,
+        insert_saved_segment,
+        preview_segment_insert,
+    )
+
+    segment = _save(tmp_path, "Warm Intro", chapter_title="Welcome", role="dialogue", lanes=(0, 1))
+    ws = ProjectWorkspace.open(project)
+
+    preview = preview_segment_insert(ws, segment.id, 4.0)
+    applied = insert_saved_segment(ws, segment.id, 4.0)
+
+    assert isinstance(preview, SegmentInsertPreview)
+    assert preview.chapters_moved[0].to == 8.0
+    assert isinstance(applied, SegmentInsertApplied)
+    assert applied.tracks == {"0": "warm_intro", "1": "warm_intro_2"}
+    with pytest.raises(ValidationError):
+        SegmentInsertPreview.model_validate({**preview.model_dump(), "surprise": 1})
+    with pytest.raises(ValidationError):
+        SegmentInsertApplied.model_validate({**applied.model_dump(), "surprise": 1})
