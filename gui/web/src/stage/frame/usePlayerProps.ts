@@ -1,4 +1,5 @@
 import { useCallback, useMemo, useRef } from "react";
+import { skipListen } from "../../commands/listenSeek";
 import { runPointerCommand } from "../../commands/pointer";
 import { seekTransport } from "../../commands/seek";
 import { useStaleRenderBreakdown } from "../../hooks/useStaleRenderBreakdown";
@@ -19,7 +20,6 @@ import type { AuditionMode } from "../../types/session";
 import { NO_PREVIEW_ERROR } from "../../utils/audioErrorLabel";
 import { guestMixBehind, staleMixLabel } from "../../utils/staleRender";
 import { transportTimecode } from "../../utils/time";
-import { skipListen } from "./listenSeek";
 import {
   auditionOf,
   chapterIndexAt,
