@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { runPointerCommand } from "../../commands/pointer";
 import { resolveCommentAnchor } from "../../comments/commentAnchor";
 import { commentTimeLabel } from "../../comments/commentTimeLabel";
 import { playComment } from "../../comments/playComment";
@@ -28,6 +29,7 @@ import {
   commentRole,
 } from "../../shareMode";
 import { useDawStore } from "../../state/dawStore";
+import { stageRoleOf } from "../../state/stageRoutes";
 import type { CommentDraft } from "../../state/types";
 import { useDaw } from "../../state/useDaw";
 import { CommentCard } from "../../system/CommentCard";
@@ -44,6 +46,7 @@ import {
   sessionDisplayName,
 } from "../../utils/commentAuthor";
 import { useStableCallback } from "../../utils/useStableCallback";
+import { playerPlacementOf } from "../frame/playerPlacement";
 import { ActionItemsField } from "./ActionItemsField";
 import { filledActions } from "./actionItems";
 import { ComposeAnchor } from "./ComposeAnchor";
@@ -93,6 +96,15 @@ export function useReviewComments(guest: boolean) {
   // the Player's Comment button, like a host.
   const showComposer =
     mayComment && (commentDraft !== null || (guest && shell !== "phone"));
+  // The phone Viewer and Commenter page opens the field from the dock, closes
+  // it without losing the text, and plays on again if the dock paused it.
+  const listen =
+    playerPlacementOf({
+      stage: "review",
+      shell,
+      role: stageRoleOf(guestMode),
+      short: false,
+    }) === "dock";
   const duration = project?.timeline_duration_sec ?? Number.NaN;
   const comments = project?.comments;
   const [flipped, setFlipped] = useState<ReadonlyMap<string, boolean>>(
@@ -118,6 +130,7 @@ export function useReviewComments(guest: boolean) {
     () => guest && capCommentName(savedGuestName()) !== "",
   );
   const [postedRev, setPostedRev] = useState(0);
+  const [posted, setPosted] = useState<{ text: string } | null>(null);
   const sent = useRef(new Set<string>());
   const [replyErrors, setReplyErrors] = useState<
     Readonly<Record<string, string | null>>
@@ -284,6 +297,12 @@ export function useReviewComments(guest: boolean) {
   const stageOf = () =>
     composeRef.current?.closest<HTMLElement>(".rv-stage") ?? null;
 
+  // Playback the dock paused for Comment goes on, unless the guest has already moved it.
+  const resumePlayback = (draft: CommentDraft | null) => {
+    if (draft?.resume && !useDawStore.getState().isPlaying)
+      runPointerCommand("transport.togglePlay");
+  };
+
   const session = useRef(0);
   const close = () => {
     session.current += 1;
@@ -292,8 +311,18 @@ export function useReviewComments(guest: boolean) {
     setBody("");
     setOptions((current) => ({ ...current, scope: [], actionLines: [] }));
     postComment.cancel();
+    resumePlayback(useDawStore.getState().commentDraft);
     useDawStore.getState().setCommentDraft(null);
     stage?.focus({ preventScroll: true });
+  };
+
+  /** Listen layout: drop the draft, keep the typed text. */
+  const collapse = () => {
+    session.current += 1;
+    droppedDraft.current = null;
+    postComment.cancel();
+    resumePlayback(useDawStore.getState().commentDraft);
+    useDawStore.getState().setCommentDraft(null);
   };
 
   const postBusy = useRef(false);
@@ -308,6 +337,8 @@ export function useReviewComments(guest: boolean) {
     postBusy.current = true;
     const stage = stageOf();
     const started = session.current;
+    // Posting clears the draft, so read what it says first.
+    const draft = useDawStore.getState().commentDraft;
     try {
       const result = await postComment.post({
         body,
@@ -340,6 +371,12 @@ export function useReviewComments(guest: boolean) {
       useDawStore
         .getState()
         .announceStatus(commentPostedStatus(result.comment));
+      setPosted({
+        text: result.comment
+          ? `Comment added at ${commentTimeLabel(result.comment)}`
+          : "Comment saved for later",
+      });
+      resumePlayback(draft);
       stage?.focus({ preventScroll: true });
     } finally {
       postBusy.current = false;
@@ -379,7 +416,8 @@ export function useReviewComments(guest: boolean) {
       <ComposeAnchor
         compact
         explainEmpty
-        onEscape={close}
+        onEscape={listen ? collapse : close}
+        onClose={listen ? collapse : undefined}
         body={body}
         onBodyChange={type}
         onSubmit={() => void post()}
@@ -480,6 +518,7 @@ export function useReviewComments(guest: boolean) {
     stageProps: {
       thread,
       composer,
+      posted,
       onPlayComment: (id: string) => {
         const c = comments?.find((x) => x.id === commentIdOf(id));
         if (c) void playComment(c);
