@@ -43,6 +43,15 @@ type FetchChunk = (ref: ImmutableChunkRef) => Promise<ArrayBuffer>;
 type ChunkFailure = (error: unknown, ref: ImmutableChunkRef | null) => void;
 type EpisodeEnded = (endSec: number) => void;
 
+export interface ProxyEngineEvents {
+  onFailure: ChunkFailure;
+  onEnded: EpisodeEnded;
+  /** The sound stopped without a command: the OS paused the keep-alive, or the audio context left "running". */
+  onSinkStopped: () => void;
+  /** The OS resumed the keep-alive after the app had left (a call or Siri ended). */
+  onSystemPlay: () => void;
+}
+
 interface Horizon {
   readonly generation: number;
   /**
@@ -65,8 +74,7 @@ export class ProxyEngine {
   private scheduleKey = "";
   private endSec = Number.POSITIVE_INFINITY;
   private tracks: readonly TrackInfo[] = [];
-  private onFailure: ChunkFailure;
-  private onEnded: EpisodeEnded;
+  private events: ProxyEngineEvents;
   private buffers = new Map<string, AudioBuffer>();
   private lru: string[] = [];
   private decodedBytes = 0;
@@ -78,6 +86,8 @@ export class ProxyEngine {
   private master: GainNode;
   private active: ActiveSource[] = [];
   private playing = false;
+  /** True once this play's `resume()` settled, so a late `statechange` from the previous pause reads as ours. */
+  private sinkRunning = false;
   private horizon: Horizon | null = null;
   private sentinel: ConstantSourceNode | null = null;
   private playbackRate = 1;
@@ -90,13 +100,12 @@ export class ProxyEngine {
   constructor(
     ctx: AudioContext,
     fetchChunk: FetchChunk,
-    onFailure: ChunkFailure,
-    onEnded: EpisodeEnded,
+    events: ProxyEngineEvents,
   ) {
     this.ctx = ctx;
     this.fetchChunk = fetchChunk;
-    this.onFailure = onFailure;
-    this.onEnded = onEnded;
+    this.events = events;
+    ctx.addEventListener("statechange", this.onContextStateChange);
     this.master = ctx.createGain();
     this.master.connect(ctx.destination);
   }
@@ -183,8 +192,14 @@ export class ProxyEngine {
     this.originTimelineSec = fromTimelineSec;
     this.originCtxTime = this.ctx.currentTime;
     // iPhone mutes Web Audio on the silent switch unless the page is in a playback session.
-    enterPlaybackSession();
-    void this.ctx.resume();
+    enterPlaybackSession({
+      onSystemPause: this.events.onSinkStopped,
+      onSystemPlay: this.events.onSystemPlay,
+    });
+    this.sinkRunning = false;
+    void this.ctx.resume().then(() => {
+      if (this.playing) this.sinkRunning = true;
+    });
     this.schedule(fromTimelineSec);
   }
 
@@ -203,6 +218,7 @@ export class ProxyEngine {
   pause(): number {
     const t = this.currentTimeSec();
     this.playing = false;
+    this.sinkRunning = false;
     this.horizon = null;
     this.scheduleGeneration += 1;
     this.stopSources();
@@ -261,7 +277,15 @@ export class ProxyEngine {
     }
   }
 
+  private onContextStateChange = (): void => {
+    if (!this.playing || !this.sinkRunning || this.ctx.state === "running")
+      return;
+    this.sinkRunning = false;
+    this.events.onSinkStopped();
+  };
+
   dispose(): void {
+    this.ctx.removeEventListener("statechange", this.onContextStateChange);
     this.pause();
     for (const tap of this.meterTaps.values()) tap.dispose();
     this.meterTaps.clear();
@@ -340,7 +364,7 @@ export class ProxyEngine {
 
   private fail(error: unknown, ref: ImmutableChunkRef | null): void {
     this.pause();
-    this.onFailure(error, ref);
+    this.events.onFailure(error, ref);
   }
 
   private applyFades(
@@ -579,6 +603,6 @@ export class ProxyEngine {
   }
 
   private finish(): void {
-    this.onEnded(this.pause());
+    this.events.onEnded(this.pause());
   }
 }

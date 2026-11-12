@@ -28,6 +28,8 @@ import {
 } from "../services/offlineQueue/offlineStore";
 import { isShareProjectKey, shareTokenFromKey } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
+import { pauseFromSystem } from "../state/systemPlayhead";
+import { transportAvailability } from "../state/transportAvailability";
 import { useDaw } from "../state/useDaw";
 import { ApiError, errorMessage } from "../utils/apiError";
 import { audioContextCtor } from "../utils/audio";
@@ -171,8 +173,20 @@ export function useProxyTransport(): boolean {
       finishAudition(Math.min(state.playUntilSec, endSec));
       return;
     }
-    state.setPlayheadSec(endSec, "playback");
-    state.setIsPlaying(false);
+    pauseFromSystem(endSec);
+  });
+
+  const handleSinkStopped = useEffectEvent(() => {
+    if (engineRef.current) pauseFromSystem(engineRef.current.pause());
+  });
+
+  const handleSystemPlay = useEffectEvent(() => {
+    const state = useDawStore.getState();
+    if (
+      !state.isPlaying &&
+      transportAvailability(state).togglePlay === undefined
+    )
+      state.setIsPlaying(true);
   });
 
   // A blocked proxy (a failed chunk fetch, a missing manifest) leaves nothing to retry it,
@@ -213,8 +227,12 @@ export function useProxyTransport(): boolean {
       engineRef.current = new ProxyEngine(
         new Ctx(),
         (ref) => cachedFetchArrayBuffer(projectPath, ref.url),
-        (error, ref) => handleFailure(error, ref),
-        (endSec) => handleEnded(endSec),
+        {
+          onFailure: (error, ref) => handleFailure(error, ref),
+          onEnded: (endSec) => handleEnded(endSec),
+          onSinkStopped: () => handleSinkStopped(),
+          onSystemPlay: () => handleSystemPlay(),
+        },
       );
     } catch (error) {
       queueMicrotask(() => {
