@@ -124,8 +124,10 @@ vi.mock("./quietWash", async (importOriginal) => {
 const { WaveformLayer } = await import("./WaveformLayer");
 
 const drawImage = vi.fn();
-const baseProps: typeof WAVEFORM_LAYER_PROPS & { minWidthCss?: number } =
-  WAVEFORM_LAYER_PROPS;
+const baseProps: typeof WAVEFORM_LAYER_PROPS & {
+  minWidthCss?: number;
+  clipGainDb?: number;
+} = WAVEFORM_LAYER_PROPS;
 
 function mount(props: Partial<typeof baseProps> = {}) {
   const onRender = vi.fn();
