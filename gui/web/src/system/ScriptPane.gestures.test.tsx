@@ -352,6 +352,25 @@ describe("ScriptPane drag ends without a commit", () => {
     }
   });
 
+  it.each(["pagehide", "hidden tab"] as const)(
+    "%s ends a running drag uncommitted at once, and the release after it selects nothing",
+    (interruption) => {
+      const { body, onSelect, onSelectionEnd } = setup();
+      drag(stop(12), 12, 14);
+      if (interruption === "pagehide")
+        window.dispatchEvent(new Event("pagehide"));
+      else {
+        vi.spyOn(document, "visibilityState", "get").mockReturnValue("hidden");
+        document.dispatchEvent(new Event("visibilitychange"));
+        vi.restoreAllMocks();
+      }
+      expect(ended(onSelectionEnd)).toEqual([[12, 14, false]]);
+      fireEvent.pointerUp(body, { ...MOUSE, ...centre(14) });
+      expect(ended(onSelectionEnd)).toEqual([[12, 14, false]]);
+      expect(onSelect).not.toHaveBeenCalled();
+    },
+  );
+
   it("ignores a second pointer while a mouse drag runs", () => {
     const { body, onSelect, onSelectionStart } = setup();
     drag(stop(12), 12, 14);
