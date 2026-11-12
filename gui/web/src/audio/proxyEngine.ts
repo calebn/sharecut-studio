@@ -514,7 +514,7 @@ export class ProxyEngine {
   private arm(): void {
     this.disarm();
     const horizon = this.horizon;
-    if (!this.playing || !horizon) return;
+    if (!horizon) return;
     const { generation } = horizon;
     const wakeTimelineSec = this.wakeTimelineSec(horizon);
     if (this.currentTimeSec() >= wakeTimelineSec) {
