@@ -23,10 +23,21 @@ is rooted in a name bound from ``tempfile`` (``mkdtemp``, ``TemporaryDirectory``
 scratch space. Whether any other target is a throwaway export artifact needs a human,
 so those stay listed.
 
-``RAW_WRITES`` caps the count per file and only shrinks. A file absent from it allows 0.
-A count above its cap fails, so a file cannot gain a raw write. A count below its cap
-fails too, with the number to write: whoever converts a write lowers (or deletes) the
-entry in the same change.
+``RAW_WRITES`` caps the count per file. A file absent from it allows 0. A count above
+its cap fails, so a file cannot gain a raw write. Like the reference ratchet
+(``tests/test_service_result_types.py``), a count below its cap does not fail, so two
+PRs that each convert a different write in one file cannot turn develop red; lower the
+cap in the conversion PR. A separate check fails an entry with cap 0 or a file with no
+raw write left, so a cleaned file cannot linger in the list.
+
+Not checked: that the helpers fsync or replace in the right order (``os.replace``,
+``os.rename`` and ``fsync`` are not looked for), ``os.open`` with ``O_CREAT``, and a
+mode that is not a string literal. The tempfile exclusion is flow-insensitive: a name
+ever bound from ``tempfile`` in a function stays scratch after a rebind, and a nested
+function does not see its parent's tempfile names (it fails loud). A ``Path`` imported
+under another name is not recognised as a scratch root and is counted. Archive writes
+(``gzip``/``bz2``/``lzma``/``tarfile.open``, ``zipfile.ZipFile`` in ``w``/``a``/``x``)
+and ``os.fdopen`` write modes are counted.
 """
 
 from __future__ import annotations
@@ -46,6 +57,7 @@ HELPERS = (
 
 RAW_WRITES: dict[str, int] = {
     "cli/ingest.py": 2,
+    "config/runtime.py": 1,
     "edits/focus.py": 2,
     "edits/join_labels.py": 1,
     "edits/join_ranker.py": 1,
@@ -61,9 +73,10 @@ RAW_WRITES: dict[str, int] = {
     "pipeline/steps.py": 5,
     "project/history/manager.py": 1,
     "project/store.py": 1,
-    "segments/bundle.py": 1,
+    "segments/bundle.py": 2,
+    "segments/kit_bundle.py": 1,
     "segments/store.py": 1,
-    "services/collaboration/review_versions.py": 5,
+    "services/collaboration/review_versions.py": 6,
     "services/document/golden_ear.py": 5,
     "services/document/play.py": 2,
     "services/document/transcript.py": 1,
@@ -164,18 +177,39 @@ def _scratch_names(scope: ast.AST) -> set[str]:
     return scratch
 
 
+_ARCHIVE_OPENS = frozenset(
+    {"gzip.open", "bz2.open", "lzma.open", "tarfile.open", "zipfile.ZipFile", "ZipFile"}
+)
+
+
+def _mode(call: ast.Call, index: int) -> ast.expr | None:
+    return call.args[index] if len(call.args) > index else _keyword_value(call, "mode")
+
+
+def _first_arg(call: ast.Call) -> ast.expr | None:
+    return call.args[0] if call.args else None
+
+
 def _raw_write_target(call: ast.Call) -> ast.expr | bool | None:
     """The written path expression for a banned call, ``None`` if unknown, ``False`` if allowed."""
     func = call.func
     chain = _attr_chain(func)
     if (isinstance(func, ast.Name) and func.id == "open") or chain == "io.open":
-        mode = call.args[1] if len(call.args) > 1 else _keyword_value(call, "mode")
-        return (call.args[0] if call.args else None) if _is_write_mode(mode) else False
+        return _first_arg(call) if _is_write_mode(_mode(call, 1)) else False
+    if chain in _ARCHIVE_OPENS or (isinstance(func, ast.Name) and func.id == "ZipFile"):
+        mode = _mode(call, 1)
+        is_write = (
+            isinstance(mode, ast.Constant)
+            and isinstance(mode.value, str)
+            and mode.value[:1] in _WRITE_MODE_CHARS
+        )
+        return _first_arg(call) if is_write else False
+    if chain == "os.fdopen":
+        return _first_arg(call) if _is_write_mode(_mode(call, 1)) else False
     if not isinstance(func, ast.Attribute):
         return False
     if func.attr == "open":
-        mode = call.args[0] if call.args else _keyword_value(call, "mode")
-        return func.value if _is_write_mode(mode) else False
+        return func.value if _is_write_mode(_mode(call, 0)) else False
     if func.attr in {"write_text", "write_bytes"}:
         return func.value
     if chain in _SHUTIL_COPIES:
@@ -222,19 +256,23 @@ def _raw_write_counts() -> dict[str, int]:
 
 
 def _violations(counts: dict[str, int], caps: dict[str, int]) -> list[str]:
-    problems: list[str] = []
-    for name in sorted(set(counts) | set(caps)):
-        have, cap = counts.get(name, 0), caps.get(name, 0)
-        if have > cap:
-            problems.append(
-                f"{name}: {have} raw durable writes, allowed {cap}. Write through {HELPERS}."
-            )
-        elif have < cap:
-            problems.append(
-                f"{name}: {have} raw durable writes left, RAW_WRITES allows {cap}. "
-                + (f"Lower it to {have}." if have else "Delete the entry.")
-            )
-    return problems
+    """Files above their cap. A file absent from ``caps`` allows 0."""
+    return [
+        f"{name}: {counts[name]} raw durable writes, allowed {caps.get(name, 0)}. "
+        f"Write through {HELPERS}."
+        for name in sorted(counts)
+        if counts[name] > caps.get(name, 0)
+    ]
+
+
+def _stale(counts: dict[str, int], caps: dict[str, int]) -> list[str]:
+    """Entries that no longer allow anything: a cap of 0, or a file with no raw write left."""
+    return [
+        f"{name}: RAW_WRITES entry is stale ({'cap 0' if caps[name] == 0 else 'no raw write left'}); "
+        "delete it."
+        for name in sorted(caps)
+        if caps[name] == 0 or name not in counts
+    ]
 
 
 def test_raw_durable_writes_match_the_allowlist() -> None:
@@ -242,18 +280,28 @@ def test_raw_durable_writes_match_the_allowlist() -> None:
     assert not problems, "\n".join(problems)
 
 
-def test_the_violation_check_is_exact_in_both_directions() -> None:
+def test_the_allowlist_has_no_stale_entries() -> None:
+    stale = _stale(_raw_write_counts(), RAW_WRITES)
+    assert not stale, "\n".join(stale)
+
+
+def test_the_violation_check_fails_only_above_a_cap() -> None:
     assert _violations({"a.py": 2}, {"a.py": 2}) == []
+    assert _violations({"a.py": 1}, {"a.py": 2}) == []
     over = _violations({"a.py": 3}, {"a.py": 2})
     assert len(over) == 1
     assert "3 raw durable writes, allowed 2" in over[0]
     assert "write_json_atomic" in over[0]
     assert "atomic_write" in over[0]
     assert "allowed 0" in _violations({"new.py": 1}, {})[0]
-    stale = _violations({"a.py": 1}, {"a.py": 2})
-    assert stale == ["a.py: 1 raw durable writes left, RAW_WRITES allows 2. Lower it to 1."]
-    gone = _violations({}, {"a.py": 2})
-    assert gone == ["a.py: 0 raw durable writes left, RAW_WRITES allows 2. Delete the entry."]
+    assert "allowed 0" in _violations({"new.py": 1}, {"new.py": 0})[0]
+
+
+def test_the_stale_check_flags_a_cap_of_zero_and_a_file_with_no_write_left() -> None:
+    assert _stale({"a.py": 1}, {"a.py": 2}) == []
+    assert len(_stale({"a.py": 1}, {"a.py": 0})) == 1
+    assert len(_stale({}, {"gone.py": 2})) == 1
+    assert len(_stale({"a.py": 1}, {"a.py": 0, "gone.py": 2})) == 2
 
 
 @pytest.mark.parametrize(
@@ -266,6 +314,15 @@ def test_the_violation_check_is_exact_in_both_directions() -> None:
         'open(p, "w+", encoding="utf-8")',
         'open(p, mode="w")',
         'io.open(p, "w")',
+        'os.fdopen(fd, "w", encoding="utf-8")',
+        'os.fdopen(fd, "wb")',
+        'os.fdopen(fd, mode="w")',
+        'gzip.open(p, "wb")',
+        'bz2.open(p, mode="w")',
+        'lzma.open(p, "xb")',
+        'tarfile.open(p, "w:gz")',
+        'zipfile.ZipFile(p, "w")',
+        'ZipFile(p, mode="a")',
         'p.open("w")',
         'p.open(mode="wb")',
         'root.joinpath("x").open("a")',
@@ -278,7 +335,7 @@ def test_the_violation_check_is_exact_in_both_directions() -> None:
     ],
 )
 def test_the_scanner_flags_each_banned_form(line: str) -> None:
-    assert scan_source(f"def f(p, a, b, root):\n    {line}\n") == [2]
+    assert scan_source(f"def f(p, a, b, root, fd):\n    {line}\n") == [2]
 
 
 @pytest.mark.parametrize(
@@ -288,6 +345,13 @@ def test_the_scanner_flags_each_banned_form(line: str) -> None:
         'open(p, "r")',
         'open(p, "r+")',
         "open(p, mode)",
+        'os.fdopen(fd, "r")',
+        "os.fdopen(fd)",
+        'gzip.open(p, "rb")',
+        "gzip.open(p)",
+        'tarfile.open(p, "r:gz")',
+        'zipfile.ZipFile(p, "r")',
+        "ZipFile(p)",
         'p.open("r")',
         "p.open()",
         "p.read_text()",
@@ -300,7 +364,7 @@ def test_the_scanner_flags_each_banned_form(line: str) -> None:
     ],
 )
 def test_the_scanner_allows_reads_and_helper_calls(line: str) -> None:
-    assert scan_source(f"def f(p, a, b, obj, handle, mode):\n    {line}\n") == []
+    assert scan_source(f"def f(p, a, b, obj, handle, mode, fd):\n    {line}\n") == []
 
 
 def test_the_scanner_skips_writes_under_a_tempfile_root() -> None:
