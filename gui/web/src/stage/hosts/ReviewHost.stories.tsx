@@ -293,6 +293,28 @@ function startDetailRequest() {
   );
 }
 
+// jsdom has no media queries, so only a real phone viewport mounts the Listen layout.
+const onPhone = (host: HTMLElement) =>
+  host.querySelector(".stage-frame--phone") !== null;
+
+/** Where a Commenter writes: the dock's Comment button on a phone, else the comment field. */
+const commentControl = (
+  canvas: ReturnType<typeof within>,
+  host: HTMLElement,
+) =>
+  onPhone(host)
+    ? canvas.findByRole("button", { name: /^Comment at/ })
+    : canvas.findByRole("textbox", { name: "Comment" });
+
+/** What the guest listens with: the dock's scrubber on a phone, else the Queue. */
+const listenSurface = async (
+  canvas: ReturnType<typeof within>,
+  host: HTMLElement,
+) =>
+  onPhone(host)
+    ? canvas.findByRole("slider", { name: "Episode overview" })
+    : (await canvas.findAllByRole("region", { name: "Queue" }))[0];
+
 const noDecisions = async (canvas: ReturnType<typeof within>) => {
   await expect(
     await canvas.findByRole("region", { name: "Queue" }),
@@ -339,12 +361,8 @@ export const GuestCommenterTranscriptPending: Story = {
   play: async ({ canvasElement }) => {
     startDetailRequest();
     const canvas = within(canvasElement);
-    await expect(
-      await canvas.findByRole("slider", { name: "Episode overview" }),
-    ).toBeVisible();
-    await expect(
-      canvas.getByRole("button", { name: /^Comment at/ }),
-    ).toBeEnabled();
+    await expect(await listenSurface(canvas, canvasElement)).toBeVisible();
+    await expect(await commentControl(canvas, canvasElement)).toBeEnabled();
     await expect(
       canvasElement.querySelector(".sys-skeleton[aria-busy='true']"),
     ).not.toBeNull();
@@ -360,9 +378,7 @@ export const GuestCommenterTranscriptPending: Story = {
     await expect(
       canvasElement.querySelector(".sys-skeleton[aria-busy='true']"),
     ).not.toBeNull();
-    await expect(
-      canvas.getByRole("button", { name: /^Comment at/ }),
-    ).toBeEnabled();
+    await expect(await commentControl(canvas, canvasElement)).toBeEnabled();
   },
 };
 
@@ -392,12 +408,8 @@ export const GuestCommenterTranscriptFailure: Story = {
     await expect(
       within(alert).queryByText(/server_seq|Invalid document basis/),
     ).toBeNull();
-    await expect(
-      canvas.getByRole("slider", { name: "Episode overview" }),
-    ).toBeVisible();
-    await expect(
-      canvas.getByRole("button", { name: /^Comment at/ }),
-    ).toBeEnabled();
+    await expect(await listenSurface(canvas, canvasElement)).toBeVisible();
+    await expect(await commentControl(canvas, canvasElement)).toBeEnabled();
     const retry = within(alert).getByRole("button", { name: "Try again" });
     await userEvent.click(retry);
     await expect(retry).toHaveFocus();
@@ -406,12 +418,8 @@ export const GuestCommenterTranscriptFailure: Story = {
         name: "The transcript didn't load",
       }),
     ).toBeVisible();
-    await expect(
-      canvas.getByRole("slider", { name: "Episode overview" }),
-    ).toBeVisible();
-    await expect(
-      canvas.getByRole("button", { name: /^Comment at/ }),
-    ).toBeEnabled();
+    await expect(await listenSurface(canvas, canvasElement)).toBeVisible();
+    await expect(await commentControl(canvas, canvasElement)).toBeEnabled();
   },
 };
 
@@ -423,9 +431,7 @@ export const GuestViewerTranscriptWordsUnavailable: Story = {
   }),
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    await expect(
-      await canvas.findByRole("slider", { name: "Episode overview" }),
-    ).toBeVisible();
+    await expect(await listenSurface(canvas, canvasElement)).toBeVisible();
     await expect(
       canvasElement.querySelector(".sys-skeleton[aria-busy='true']"),
     ).toBeNull();
@@ -433,6 +439,9 @@ export const GuestViewerTranscriptWordsUnavailable: Story = {
       canvas.queryByText("The host has not made a transcript of this version."),
     ).toBeNull();
     await expect(canvas.queryByRole("textbox", { name: "Comment" })).toBeNull();
+    await expect(
+      canvas.queryByRole("button", { name: /^Comment at/ }),
+    ).toBeNull();
   },
 };
 
@@ -441,12 +450,16 @@ export const GuestCommenterEmpty: Story = {
   ...asGuest("commenter", { project: NO_COMMENTS }),
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    await expect(
-      await canvas.findByRole("button", { name: /^Comment at/ }),
-    ).toBeVisible();
+    await expect(await commentControl(canvas, canvasElement)).toBeVisible();
     await expect(
       canvas.queryByRole("button", { name: /^Show comments/ }),
     ).toBeNull();
+    if (!onPhone(canvasElement))
+      await expect(
+        (
+          await canvas.findAllByText(/^(No comments( yet)?|0 of 0 resolved)$/)
+        )[0],
+      ).toBeVisible();
     await expect(canvas.queryByRole("button", { name: /Deliver/ })).toBeNull();
   },
 };
