@@ -18,7 +18,9 @@ export function useChapterSections(
     followChapter: s.followChapter,
   }));
   const chapter = selection?.kind === "chapter" ? selection : null;
-  const { busy, error, setError, run } = useProjectMutation();
+  const { busy, error, setError, run } = useProjectMutation(
+    chapter ? `${chapter.time}:${chapter.id}` : undefined,
+  );
   useEffect(() => {
     setError(null);
   }, [chapter?.id, chapter?.time, setError]);

@@ -331,4 +331,50 @@ describe("chapter content", () => {
       "Interview",
     );
   });
+
+  it("leaves a newly selected chapter editable while another save is pending", async () => {
+    let settle: () => void = () => undefined;
+    vi.mocked(updateChapter).mockImplementationOnce(
+      () =>
+        new Promise<undefined>((resolve) => {
+          settle = () => resolve(undefined);
+        }),
+    );
+    open();
+    await typeScrub("Time", "6");
+    expect(screen.getByRole("textbox", { name: "Title" })).toHaveAttribute(
+      "readonly",
+    );
+    act(() =>
+      useDawStore.setState({
+        selection: { kind: "chapter", id: "Closing", time: 30 },
+      }),
+    );
+    const title = screen.getByRole("textbox", { name: "Title" });
+    expect(title).toHaveValue("Closing");
+    expect(title).not.toHaveAttribute("readonly");
+    expect(
+      screen.getByRole("spinbutton", { name: "Time" }),
+    ).not.toHaveAttribute("aria-busy", "true");
+    await act(async () => settle());
+  });
+
+  it("does not show a failed save on the chapter selected afterwards", async () => {
+    let fail: (e: Error) => void = () => undefined;
+    vi.mocked(updateChapter).mockImplementationOnce(
+      () =>
+        new Promise<undefined>((_, reject) => {
+          fail = reject;
+        }),
+    );
+    open();
+    await typeScrub("Time", "6");
+    act(() =>
+      useDawStore.setState({
+        selection: { kind: "chapter", id: "Closing", time: 30 },
+      }),
+    );
+    await act(async () => fail(new Error("Save failed")));
+    expect(screen.queryByRole("alert")).toBeNull();
+  });
 });

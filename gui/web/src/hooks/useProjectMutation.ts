@@ -7,7 +7,7 @@ import { ApiError, errorMessage } from "../utils/apiError";
 /**
  * Shared busy/error wrapper for inspector/panel mutations that hit the project API.
  */
-export function useProjectMutation(): {
+export function useProjectMutation(scope?: string): {
   busy: boolean;
   error: string | null;
   errorCode: string | null;
@@ -17,14 +17,19 @@ export function useProjectMutation(): {
   projectPath: string;
 } {
   const { projectPath } = useDaw((s) => ({ projectPath: s.projectPath }));
-  const [pending, setPending] = useState(0);
-  const [error, setErrorState] = useState<string | null>(null);
-  const [errorCode, setErrorCode] = useState<string | null>(null);
+  const [pending, setPending] = useState<readonly (string | undefined)[]>([]);
+  const [failure, setFailure] = useState<{
+    message: string;
+    code: string | null;
+    scope: string | undefined;
+  } | null>(null);
 
-  const setError = useCallback((message: string | null) => {
-    setErrorState(message);
-    setErrorCode(null);
-  }, []);
+  const setError = useCallback(
+    (message: string | null) => {
+      setFailure(message === null ? null : { message, code: null, scope });
+    },
+    [scope],
+  );
 
   const refresh = useCallback(async () => {
     const next = await refreshDocumentProject(projectPath);
@@ -33,25 +38,33 @@ export function useProjectMutation(): {
 
   const run = useCallback(
     async <T>(fn: () => Promise<T>): Promise<T | undefined> => {
-      setPending((n) => n + 1);
-      setError(null);
+      setPending((list) => [...list, scope]);
+      setFailure(null);
       try {
         return await fn();
       } catch (e) {
-        setErrorState(errorMessage(e));
-        setErrorCode(e instanceof ApiError ? e.code : null);
+        setFailure({
+          message: errorMessage(e),
+          code: e instanceof ApiError ? e.code : null,
+          scope,
+        });
         return undefined;
       } finally {
-        setPending((n) => n - 1);
+        setPending((list) => {
+          const at = list.indexOf(scope);
+          return at < 0 ? list : list.filter((_, i) => i !== at);
+        });
       }
     },
-    [setError],
+    [scope],
   );
 
+  const visible = failure !== null && failure.scope === scope ? failure : null;
+
   return {
-    busy: pending > 0,
-    error,
-    errorCode,
+    busy: scope === undefined ? pending.length > 0 : pending.includes(scope),
+    error: visible?.message ?? null,
+    errorCode: visible?.code ?? null,
     setError,
     run,
     refresh,
