@@ -513,3 +513,62 @@ def test_relay_package_getattr() -> None:
     assert callable(pr.create_relay_app)
     with pytest.raises(AttributeError):
         _ = pr.not_a_thing  # type: ignore[attr-defined]
+
+
+def test_add_router_keeps_dependencies_beside_the_router() -> None:
+    from podcast_mcp.extensions.registry import FeatureRegistry
+
+    gated, plain = object(), object()
+    dep = object()
+    reg = FeatureRegistry()
+    reg.add_router(gated, source="t", feature_id=None, dependencies=[dep])
+    reg.add_router(plain, source="t", feature_id=None)
+
+    assert reg.routers == (gated, plain)
+    assert reg.router_mounts == ((gated, (dep,)), (plain, ()))
+
+
+def test_apply_gui_extensions_passes_dependencies_to_include_router() -> None:
+    from fastapi import APIRouter, Depends, FastAPI, HTTPException
+    from fastapi.testclient import TestClient
+
+    from podcast_mcp.extensions.loader import apply_gui_extensions
+    from podcast_mcp.extensions.registry import FeatureRegistry
+
+    def deny() -> None:
+        raise HTTPException(status_code=418)
+
+    gated, plain = APIRouter(), APIRouter()
+
+    @gated.get("/gated")
+    def _gated() -> dict[str, str]:
+        return {"ok": "gated"}
+
+    @plain.get("/plain")
+    def _plain() -> dict[str, str]:
+        return {"ok": "plain"}
+
+    reg = FeatureRegistry()
+    reg.add_router(gated, source="t", feature_id=None, dependencies=[Depends(deny)])
+    reg.add_router(plain, source="t", feature_id=None)
+    app = FastAPI()
+    apply_gui_extensions(app, reg)
+    client = TestClient(app)
+
+    assert client.get("/gated").status_code == 418
+    assert client.get("/plain").json() == {"ok": "plain"}
+
+
+def test_apply_gui_extensions_without_dependencies_passes_an_empty_dependency_list() -> None:
+    from unittest.mock import MagicMock
+
+    from podcast_mcp.extensions.loader import apply_gui_extensions
+    from podcast_mcp.extensions.registry import FeatureRegistry
+
+    router = object()
+    reg = FeatureRegistry()
+    reg.add_router(router, source="t", feature_id=None)
+    app = MagicMock()
+    apply_gui_extensions(app, reg)
+
+    app.include_router.assert_called_once_with(router, dependencies=[])

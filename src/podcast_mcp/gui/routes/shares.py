@@ -5,12 +5,11 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from typing import Any
 
-from fastapi import APIRouter, Header, HTTPException, Query, Request
+from fastapi import APIRouter, HTTPException, Request
 
 from podcast_mcp.gui.routes.deps import (
     coded_exception_error,
     coded_http_error,
-    require_host,
     resolve_project,
 )
 from podcast_mcp.gui.schemas import (
@@ -65,10 +64,7 @@ def _restore_refusal(
 def list_host_shares(
     path: str,
     request: Request,
-    token: str | None = Query(None),
-    x_podcast_token: str | None = Header(None, alias="X-Podcast-Token"),
 ) -> dict[str, Any]:
-    require_host(request, token=token, x_podcast_token=x_podcast_token)
     project_path = resolve_project(path, request)
     ws = ProjectWorkspace.open(project_path)
     origin = _origin(request)
@@ -82,10 +78,7 @@ def list_host_shares(
 def create_host_share(
     body: ShareCreateRequest,
     request: Request,
-    token: str | None = Query(None),
-    x_podcast_token: str | None = Header(None, alias="X-Podcast-Token"),
 ) -> dict[str, Any]:
-    require_host(request, token=token, x_podcast_token=x_podcast_token)
     project_path = resolve_project(body.path, request)
     ws = ProjectWorkspace.open(project_path)
     origin = _origin(request)
@@ -117,10 +110,7 @@ def revoke_host_share(
     share_token: str,
     body: ShareRevokeRequest,
     request: Request,
-    token: str | None = Query(None),
-    x_podcast_token: str | None = Header(None, alias="X-Podcast-Token"),
 ) -> ShareRevokeResponse:
-    require_host(request, token=token, x_podcast_token=x_podcast_token)
     project_path = resolve_project(body.path, request)
     ws = ProjectWorkspace.open(project_path)
     try:
@@ -143,10 +133,7 @@ def restore_host_share(
     share_token: str,
     body: ShareRestoreRequest,
     request: Request,
-    token: str | None = Query(None),
-    x_podcast_token: str | None = Header(None, alias="X-Podcast-Token"),
 ) -> ShareRestoreResponse:
-    require_host(request, token=token, x_podcast_token=x_podcast_token)
     project_path = resolve_project(body.path, request)
     ws = ProjectWorkspace.open(project_path)
     try:
@@ -162,10 +149,7 @@ def restore_host_share(
 def create_host_record_room(
     body: RecordRoomCreateRequest,
     request: Request,
-    token: str | None = Query(None),
-    x_podcast_token: str | None = Header(None, alias="X-Podcast-Token"),
 ) -> dict[str, Any]:
-    require_host(request, token=token, x_podcast_token=x_podcast_token)
     project_path = resolve_project(body.path, request)
     ws = ProjectWorkspace.open(project_path)
     origin = _origin(request)
@@ -198,10 +182,7 @@ def replace_host_record_invite(
     source_token: str,
     body: RecordInviteReplaceRequest,
     request: Request,
-    token: str | None = Query(None),
-    x_podcast_token: str | None = Header(None, alias="X-Podcast-Token"),
 ) -> dict[str, Any]:
-    require_host(request, token=token, x_podcast_token=x_podcast_token)
     project_path = resolve_project(body.path, request)
     ws = ProjectWorkspace.open(project_path)
     try:
@@ -225,10 +206,7 @@ def revoke_host_record_room(
     session_id: str,
     body: RecordRoomRevokeRequest,
     request: Request,
-    token: str | None = Query(None),
-    x_podcast_token: str | None = Header(None, alias="X-Podcast-Token"),
 ) -> RoomRevokeResponse:
-    require_host(request, token=token, x_podcast_token=x_podcast_token)
     project_path = resolve_project(body.path, request)
     ws = ProjectWorkspace.open(project_path)
     try:
@@ -251,10 +229,7 @@ def restore_host_record_room(
     session_id: str,
     body: RecordRoomRestoreRequest,
     request: Request,
-    token: str | None = Query(None),
-    x_podcast_token: str | None = Header(None, alias="X-Podcast-Token"),
 ) -> RoomRestoreResponse:
-    require_host(request, token=token, x_podcast_token=x_podcast_token)
     project_path = resolve_project(body.path, request)
     ws = ProjectWorkspace.open(project_path)
     try:

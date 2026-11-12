@@ -51,6 +51,8 @@ class CollaborationExtension:
             )
 
     def _contribute_gui(self, registry: FeatureRegistry) -> None:
+        from fastapi import Depends
+
         from podcast_mcp.gui.middleware_share_identity import ShareIdentityMiddleware
         from podcast_mcp.gui.routes import (
             record_share,
@@ -60,6 +62,7 @@ class CollaborationExtension:
             shares,
             tunnel,
         )
+        from podcast_mcp.gui.routes.deps import host_gate
 
         registry.add_middleware(ShareIdentityMiddleware, source=self.name)
         for router in (
@@ -67,10 +70,15 @@ class CollaborationExtension:
             review_share.router,
             record_share.router,
             remote_mcp.router,
-            shares.router,
-            tunnel.router,
         ):
             registry.add_router(router, source=self.name, feature_id=None)
+        for router in (shares.router, tunnel.router):
+            registry.add_router(
+                router,
+                source=self.name,
+                feature_id=None,
+                dependencies=[Depends(host_gate)],
+            )
         registry.add(FEATURE_SHARE_ROUTES, source=self.name)
         registry.add(FEATURE_SHARE_REMOTE_MCP, source=self.name)
         registry.add(FEATURE_SHARE_UI_MENU, source=self.name)

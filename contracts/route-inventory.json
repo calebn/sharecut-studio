@@ -1,6 +1,6 @@
 {
   "api_version": 1,
-  "host_direct_baseline": 53,
+  "host_direct_baseline": 44,
   "routes": [
     {
       "gate": "other",
@@ -980,56 +980,48 @@
     {
       "gate": "host",
       "handler": "podcast_mcp.gui.routes.shares:list_host_shares",
-      "host_direct": true,
       "method": "GET",
       "path": "/api/shares"
     },
     {
       "gate": "host",
       "handler": "podcast_mcp.gui.routes.shares:create_host_share",
-      "host_direct": true,
       "method": "POST",
       "path": "/api/shares"
     },
     {
       "gate": "host",
       "handler": "podcast_mcp.gui.routes.shares:create_host_record_room",
-      "host_direct": true,
       "method": "POST",
       "path": "/api/shares/record"
     },
     {
       "gate": "host",
       "handler": "podcast_mcp.gui.routes.shares:replace_host_record_invite",
-      "host_direct": true,
       "method": "POST",
       "path": "/api/shares/record/{source_token}/replace"
     },
     {
       "gate": "host",
       "handler": "podcast_mcp.gui.routes.shares:restore_host_record_room",
-      "host_direct": true,
       "method": "POST",
       "path": "/api/shares/rooms/{session_id}/restore"
     },
     {
       "gate": "host",
       "handler": "podcast_mcp.gui.routes.shares:revoke_host_record_room",
-      "host_direct": true,
       "method": "POST",
       "path": "/api/shares/rooms/{session_id}/revoke"
     },
     {
       "gate": "host",
       "handler": "podcast_mcp.gui.routes.shares:restore_host_share",
-      "host_direct": true,
       "method": "POST",
       "path": "/api/shares/{share_token}/restore"
     },
     {
       "gate": "host",
       "handler": "podcast_mcp.gui.routes.shares:revoke_host_share",
-      "host_direct": true,
       "method": "POST",
       "path": "/api/shares/{share_token}/revoke"
     },
@@ -1110,7 +1102,6 @@
     {
       "gate": "host",
       "handler": "podcast_mcp.gui.routes.tunnel:get_tunnel_status",
-      "host_direct": true,
       "method": "GET",
       "path": "/api/tunnel/status"
     },
