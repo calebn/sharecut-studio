@@ -54,7 +54,7 @@ leaves the outside control's pointer behavior and click intact, including an
 already-focused scrub field's uncommitted draft. It dismisses an automatic
 hint while leaving focus on the outside control.
 
-**Comment field on a phone:** on the phone layout only (a landscape phone wider than 767 px uses the tablet shell and is not docked), a Commenter's Review comment field (with its "at 0:12" chip) comes last in the card and stays docked at the bottom of the panel, above the Player, while the card scrolls (on a viewport 480 px tall or shorter, such as a landscape phone, it is not docked and stays at the top of the card as on a tablet; an on-screen keyboard or a pinch zoom does not change this); on a tablet, a desktop and for the host it stays at the top of the card.
+**Comment field on a phone:** on the phone layout (767 px and narrower) a Viewer or Commenter link uses the Listen layout: no text field is on screen until the guest taps **Comment** in the Listen dock, which pins the time, pauses, and opens the composer above the dock; **Post** or **Close** resumes playback if Comment paused it and returns focus to the Comment button. An Editor link on a phone keeps the Player bar, and its composer opens from the bar's Comment button. A landscape phone wider than 767 px uses the tablet shell. On a tablet, a desktop and for the host the field stays at the top of the card.
 
 **Approve in the queue:** an Editor decides the suggested cuts in the Review queue with **Cut** and **Keep** (the Review badge counts them); Find more, unsure-word Fix and Resolve stay host-only. Approve and Reject also work from the Timeline overlay, and as Cut and Keep from the Action bar.
 

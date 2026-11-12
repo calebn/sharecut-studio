@@ -19,6 +19,8 @@ and [consistency audit](design-system-audit.md) for checked examples and remaini
 phone coverage. Guest review bounds its reading column and lets native composer
 fields shrink to fit narrow viewports.
 
+**Phone guest Listen (#3784).** On the phone shell a Viewer or Commenter link places the Player as a `dock` (`playerPlacementOf` in `stage/frame/playerPlacement.ts`; `html[data-player="dock"]`) and Review renders `GuestListen` (`stages/guest/`) instead of the Queue and card: the transcript (or the chapter list, or a cover) in the middle, one comments row, and the dock, with `listenLayoutOf` choosing the middle (`script`, `chapters`, `empty`, from the transcript's real state, never the role) and the bottom surface (`row`, `composer`, `none`). The dock is a form of the one `Player` (`form: "dock"`): an always-visible overview strip inset 1.5 rem from each edge, the readout, and Chapters, Back 15, Play, Forward 15 and a labelled Comment button. Comment pins the time, pauses through the transport's own toggle, and opens the composer; Post or Close resumes if it paused, and focus returns to the Comment button. Comments and Chapters are sheets (`openSheet` values `comments` and `chapters`); a thread is a pushed step of the Comments sheet. `--frame-bottom-chrome` for the dock excludes the tab bar (Viewer and Commenter have none), a folded frame (`html[data-frame-short]`) puts the readout and transport on one row, and with the soft keyboard open (`html[data-keyboard="open"]`) the frame takes the visual viewport and the dock hides. An Editor on a phone keeps the bar and the Review card; its composer opens from the bar's Comment button.
+
 The `StageFrame` adapter (`gui/web/src/stage/frame/`) renders the props-only `StageFrameView`
 on every viewport class: header, Stage bar (a bottom tab bar on a phone), stage
 content, Player bar and banners. Each stage has a host in `src/stage/hosts/` and
@@ -297,7 +299,7 @@ The Player bar and the header wrap their controls when one row cannot hold them,
 
 While `project === null` (progressive load), the frame shows the header and Stage bar with skeleton content and a disabled Player bar ("Loading episode…"). That chrome is not the empty-session Start tiles.
 
-**Commenting (#1338).** Commenting is the job of a Commenter or Editor review link, so the Player bar always carries a comment-at-playhead control and Review holds the guest's comments in the Queue (`stage/hosts/useReviewComments.tsx`): the `Composer` above the card and one `CommentCard` per comment, with no Cut, Keep, Find more or Deliver. A guest types, taps the arrow, and the time chip that leads the field shows where the comment lands (the draft that C, the Player bar's comment button or the first keystroke set, else the selected range, else the playhead; see [timeline-comments.md](timeline-comments.md#daw-viewer)). A guest's Composer carries a **Your name** field above the comment field until this browser knows the name; then it says **Posting as** the name with a **Change name** button that brings the field back focused. The host's Composer has no name field. The post is announced in a polite live region ("Comment posted at 0:12") and in the toast, which docks above the Player bar. The name (40 code points at most) is remembered in a guest-only `localStorage` key, which the host never reads or writes; a blank name posts under the saved name, else as **Guest**. A reply uses the saved name or Guest without asking. The field is 1rem so iOS does not zoom in on focus. On a touch screen (a coarse pointer, where the soft keyboard has no Shift) Return adds a line and the arrow posts; Cmd or Ctrl+Return still posts. A Viewer link shows no composer.
+**Commenting (#1338).** Commenting is the job of a Commenter or Editor review link, so the Player bar always carries a comment-at-playhead control and Review holds the guest's comments in the Queue (`stage/hosts/useReviewComments.tsx`): the `Composer` above the card and one `CommentCard` per comment, with no Cut, Keep, Find more or Deliver. A guest types, taps the arrow, and the time chip that leads the field shows where the comment lands (the draft that C, the Player bar's comment button or the first keystroke set, else the selected range, else the playhead; see [timeline-comments.md](timeline-comments.md#daw-viewer)). A guest's Composer carries a **Your name** field above the comment field until this browser knows the name; then it says **Posting as** the name with a **Change name** button that brings the field back focused. The host's Composer has no name field. The post is announced in a polite live region ("Comment posted at 0:12") and in the toast, which docks above the Player bar. The name (40 code points at most) is remembered in a guest-only `localStorage` key, which the host never reads or writes; a blank name posts under the saved name, else as **Guest**. A reply uses the saved name or Guest without asking. The field is 1rem so iOS does not zoom in on focus. On a touch screen (a coarse pointer, where the soft keyboard has no Shift) Return adds a line and the arrow posts; Cmd or Ctrl+Return still posts. A Viewer link shows no composer. On a phone a Commenter's composer is not on screen until the dock's Comment button opens it (see the phone guest Listen paragraph above).
 A share link never opens the Inspector by itself: a stored or remote selection whose target is gone clears silently, and no tab, host or guest, takes on another viewer's selection (see [session-sync.md](session-sync.md)) (#1339).
 
 A timeline or transcript range opens the same sheet with **Range fields** as its body on the phone and the tablet (`Inspector` renders `RangeFields`; the tablet no longer draws them in the bar under the scrim). The range draft opens the Range fields on every shell, and the one shared draft and range `RangeFields` mount in `SelectionSheetBody` (its `always` prop) serves both. A selected range's sheet carries the **In**, **Out** and **Length** Scrub fields and a **Scope** row of track toggles (`RangeFields`, rendered by the range surface and `rangeSection`). Editing a field commits the range it describes as the new selection; at least one track stays on. While **Select range** is armed, the range is drawn by dragging on the lanes, and the sheet opens for the range draft, and when an agent range is waiting it also carries the explicit **Use agent range on selected tracks** action. The agent range is not adopted automatically. The selected target and saved sheet detent do not change. There are no number inputs, Select range or Cancel buttons. The desktop shell keeps them in the inspector aside, not a sheet. Selection opens a non-modal **half → full** [`BottomSheet`](../gui/web/src/ui/BottomSheet.tsx) wrapping the desktop inspector views. It retains `aria-modal="false"`, Escape, focus restoration, and an interactive timeline background. It has no Tab trap. **Expand** and **Collapse** are icon buttons (maximize and restore) with the same accessible names, and change view size only; these actions and **Close** use the sheet-scoped `--touch-min` floor. Only the compact inspector below swipes.
@@ -589,6 +591,21 @@ Two-finger Undo is active only while a project is loaded and the shared Undo com
 ├─ Player: ▶ 12:34   Hear original ────┤
 ├─ Record | Prepare | Edit | Review | Deliver ─┤
 ```
+### Phone guest — Listen (Viewer and Commenter links)
+
+```
+┌─ Project title            ◉ ☾ ⌕ ┐
+│ reference  0:02                   │
+│ my uncle was delighted for …      │
+├───────────────────────────────────┤
+│ ▢ Claude · 0:03 Cut candidate… 15 ⌃│  ← comments row (Comments sheet)
+├───────────────────────────────────┤
+│ ▁▂▅▇▅▂▁▂▅▇▅▂▁  overview strip      │
+│ 0:05   Cold open   1:00           │
+│ ☰   ↺15   ▶   ↻15   [▢ Comment]   │  ← Listen dock
+└───────────────────────────────────┘
+```
+
 ### Phone — Timeline (fixed playhead)
 
 ```
