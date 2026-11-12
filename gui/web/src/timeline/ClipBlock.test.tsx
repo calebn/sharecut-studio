@@ -1985,6 +1985,7 @@ describe("ClipBlock waveform", () => {
       "pointercancel",
       "lostpointercapture",
       "window blur",
+      "pagehide",
       "Escape",
       "unmount",
     ])(
@@ -2008,6 +2009,8 @@ describe("ClipBlock waveform", () => {
           else if (interruption === "lostpointercapture")
             fireEvent.lostPointerCapture(hit, { pointerId: 7 });
           else if (interruption === "window blur") fireEvent.blur(window);
+          else if (interruption === "pagehide")
+            window.dispatchEvent(new Event("pagehide"));
           else if (interruption === "Escape")
             fireEvent.keyDown(document.body, { key: "Escape" });
           else unmount();
@@ -2240,7 +2243,7 @@ describe("ClipBlock waveform", () => {
     expect(currentEnd).toHaveBeenCalledExactlyOnceWith(clip.id);
   });
 
-  it.each(["Escape", "blur", "unmount"])(
+  it.each(["Escape", "blur", "pagehide", "hidden tab", "unmount"])(
     "cancels the body owner on %s and ignores later held input",
     (interruption) => {
       const onMovePreview = vi.fn();
@@ -2264,7 +2267,13 @@ describe("ClipBlock waveform", () => {
       if (interruption === "Escape")
         fireEvent.keyDown(document.body, { key: "Escape" });
       else if (interruption === "blur") fireEvent.blur(hit);
-      else view.unmount();
+      else if (interruption === "pagehide")
+        window.dispatchEvent(new Event("pagehide"));
+      else if (interruption === "hidden tab") {
+        vi.spyOn(document, "visibilityState", "get").mockReturnValue("hidden");
+        document.dispatchEvent(new Event("visibilitychange"));
+        vi.restoreAllMocks();
+      } else view.unmount();
       expect(onMoveCancel).toHaveBeenCalledTimes(1);
       fireEvent.pointerMove(hit, { pointerId: 7, clientX: 100, clientY: 10 });
       fireEvent.pointerUp(hit, { pointerId: 7, clientX: 100, clientY: 10 });
