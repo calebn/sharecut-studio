@@ -25,7 +25,6 @@ import {
   sessionAppliedHasGap,
   withAgentAppliedAuthority,
 } from "../session/appliedDelta";
-import { newClientId } from "../session/clientId";
 import { createRosterRequester } from "../session/rosterRequest";
 import type { WsSender } from "../session/wsSend";
 import { shareTokenFromKey } from "../shareMode";
@@ -35,6 +34,7 @@ import { openPlaneSocket, type PlaneSocketContext } from "../sync/planeSocket";
 import type { ProjectView, TimelineComment } from "../types/project";
 import type { SessionState } from "../types/session";
 import { sessionDisplayName } from "../utils/commentAuthor";
+import { documentClientId } from "../utils/documentClient";
 import { createFallbackPoll } from "../utils/fallbackPoll";
 import {
   type GuestProgressEvent,
@@ -96,7 +96,7 @@ export function useGuestSync(
   const projectEpoch = useDawStore((state) => state.projectEpoch);
   const applySession = useStableCallback(applyAgentSession);
   const wsOpenRef = useRef(false);
-  const [connectId] = useState(newClientId);
+  const [connectId] = useState(documentClientId);
   const clientIdRef = useRef(connectId);
   const pendingAgentRecoveryRef = useRef<GuestMsg | null>(null);
   const sendRef = useRef<WsSender | null>(null);

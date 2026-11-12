@@ -1,41 +1,29 @@
-/** Stable document-plane client identity + monotonic client_seq for the DAW tab. */
-
+import { createMonotonicSeq } from "./monotonicSeq";
 import { randomUuid } from "./randomUuid";
+import { getTab, setTab } from "./tabStorage";
+
+const documentSeq = createMonotonicSeq("daw_document_client_seq", {
+  onCorrupt: "throw",
+});
 
 const CLIENT_ID_KEY = "daw_client_id";
-const CLIENT_SEQ_KEY = "daw_document_client_seq";
+
+let unpersistedId: string | undefined;
 
 export function documentClientId(): string {
-  const existing = sessionStorage.getItem(CLIENT_ID_KEY);
+  const existing = getTab(CLIENT_ID_KEY);
   if (existing) {
     return existing;
   }
-  const id = `viewer-${randomUuid().slice(0, 8)}`;
-  sessionStorage.setItem(CLIENT_ID_KEY, id);
+  const id = unpersistedId ?? `viewer-${randomUuid().slice(0, 8)}`;
+  if (!setTab(CLIENT_ID_KEY, id)) {
+    unpersistedId = id;
+  }
   return id;
 }
 
 export function nextDocumentClientSeq(): number {
-  const raw = sessionStorage.getItem(CLIENT_SEQ_KEY);
-  const previous = raw === null ? 0 : Number(raw);
-  if (
-    (raw !== null && !/^\d+$/.test(raw)) ||
-    !Number.isSafeInteger(previous) ||
-    previous < 0 ||
-    previous >= Number.MAX_SAFE_INTEGER
-  ) {
-    throw new Error(
-      "Cannot create this edit because its saved sequence is invalid.",
-    );
-  }
-  const next = previous + 1;
-  sessionStorage.setItem(CLIENT_SEQ_KEY, String(next));
-  return next;
-}
-
-/** Peek next seq without consuming (for building a queued record). */
-export function allocateDocumentClientSeq(): number {
-  return nextDocumentClientSeq();
+  return documentSeq.next();
 }
 
 export function newCommandId(): string {

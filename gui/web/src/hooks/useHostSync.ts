@@ -39,7 +39,6 @@ import {
   sessionAppliedHasGap,
   withAgentAppliedAuthority,
 } from "../session/appliedDelta";
-import { newClientId } from "../session/clientId";
 import {
   type AppliedCursor,
   advanceCursorIfNewer,
@@ -131,7 +130,7 @@ export function useHostSync(
   enabled = true,
 ): void {
   const projectEpoch = useDawStore((state) => state.projectEpoch);
-  const clientIdRef = useRef(newClientId());
+  const clientIdRef = useRef(documentClientId());
   const sendRef = useRef<WsSender | null>(null);
   const [wsReady, setWsReady] = useState(false);
   const cursorRef = useRef<{ epoch: number; value: AppliedCursor }>({
