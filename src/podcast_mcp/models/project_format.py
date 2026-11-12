@@ -27,13 +27,32 @@ class ProjectVersionUnsupportedError(CodedValueError):
     code = "project_version_unsupported"
 
 
+_MAX_PART_DIGITS = 9
+_MAX_SHOWN = 24
+
+
 def _version_key(version: object) -> tuple[int, ...] | None:
     if not isinstance(version, str):
         return None
     parts = version.split(".")
     if not all(part.isascii() and part.isdigit() for part in parts):
         return None
-    return tuple(int(part) for part in parts)
+    # A part past nine digits is newer than any real one; never run int() on untrusted length.
+    return tuple(
+        int(part) if len(part) <= _MAX_PART_DIGITS else 10**_MAX_PART_DIGITS for part in parts
+    )
+
+
+def version_label(version: object) -> str:
+    """How a refusal names *version*: a short form, or "" when it should not be echoed."""
+    if isinstance(version, bool) or version is None:
+        return ""
+    if isinstance(version, int | float):
+        return repr(version)
+    if _version_key(version) is None:
+        return ""
+    text = str(version)
+    return text if len(text) <= _MAX_SHOWN else text[:_MAX_SHOWN] + "…"
 
 
 def migrate_document(data: dict[str, Any]) -> str:
@@ -55,12 +74,18 @@ def migrate_document(data: dict[str, Any]) -> str:
 
 def _unsupported_version(version: object) -> CodedValueError:
     found, current = _version_key(version), _version_key(SUPPORTED_PROJECT_VERSION)
+    label = version_label(version)
     if found is not None and current is not None and found > current:
         return ProjectVersionNewerError(
             f"This episode was saved by a newer version of ShareCut Studio "
-            f"(project format {version}). Update the app, then open it again."
+            f"(project format {label}). Update the app, then open it again."
         )
-    shown = f" ({version})" if found is not None else ""
+    if isinstance(version, int | float) and not isinstance(version, bool):
+        shown = f" ({label}, a number rather than text)"
+    elif label:
+        shown = f" ({label})"
+    else:
+        shown = " (no version)" if version is None else ""
     return ProjectVersionUnsupportedError(
         f"This episode was saved in a project format{shown} that this version of ShareCut Studio "
         "can't open. Open it with the version that saved it, or restore a backup."

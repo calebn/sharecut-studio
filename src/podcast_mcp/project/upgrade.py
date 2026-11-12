@@ -80,9 +80,21 @@ def _upgrade_document(data: dict[str, Any], project_file: Path) -> str:
         )
     try:
         return migrate_document(data)
-    except (ProjectVersionNewerError, ProjectVersionUnsupportedError) as exc:
+    except ProjectVersionNewerError as exc:
         raise CodedValueError(
-            f"Cannot upgrade project version {from_version!r} to {SUPPORTED_PROJECT_VERSION!r}",
+            f"{project_file} was saved by a newer version of ShareCut Studio. "
+            "Update the app instead of upgrading it.",
+            code="upgrade_unsupported_version",
+        ) from exc
+    except ProjectVersionUnsupportedError as exc:
+        found = data.get("version")
+        what = (
+            f"project version {found!r}"
+            if isinstance(found, str)
+            else f"a project whose version is {found!r} (not text)"
+        )
+        raise CodedValueError(
+            f"Cannot upgrade {what} to {SUPPORTED_PROJECT_VERSION!r}",
             code="upgrade_unsupported_version",
         ) from exc
 

@@ -220,3 +220,19 @@ def test_the_source_must_be_a_project_file(tmp_path: Path) -> None:
     with pytest.raises(CodedValueError) as unreadable:
         upgrade_workspace(broken / PROJECT, tmp_path / "out")
     assert unreadable.value.code == "upgrade_source_invalid"
+
+
+@pytest.mark.parametrize("version", ["2.2", "3.0"])
+def test_upgrading_a_newer_project_says_to_update_the_app(tmp_path: Path, version) -> None:
+    source = synthetic_old(tmp_path, version)
+    with pytest.raises(CodedValueError, match="Update the app") as refusal:
+        upgrade_workspace(source / PROJECT, tmp_path / "new")
+    assert refusal.value.code == "upgrade_unsupported_version"
+    assert not (tmp_path / "new").exists()
+
+
+def test_upgrading_a_number_version_does_not_read_as_an_upgradable_2_0(tmp_path: Path) -> None:
+    source = synthetic_old(tmp_path, 2.0)
+    with pytest.raises(CodedValueError, match="not text") as refusal:
+        upgrade_workspace(source / PROJECT, tmp_path / "new")
+    assert refusal.value.code == "upgrade_unsupported_version"
