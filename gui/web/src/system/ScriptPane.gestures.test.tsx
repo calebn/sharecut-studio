@@ -360,9 +360,11 @@ describe("ScriptPane drag ends without a commit", () => {
       if (interruption === "pagehide")
         window.dispatchEvent(new Event("pagehide"));
       else {
-        vi.spyOn(document, "visibilityState", "get").mockReturnValue("hidden");
+        const hidden = vi
+          .spyOn(document, "visibilityState", "get")
+          .mockReturnValue("hidden");
         document.dispatchEvent(new Event("visibilitychange"));
-        vi.restoreAllMocks();
+        hidden.mockRestore();
       }
       expect(ended(onSelectionEnd)).toEqual([[12, 14, false]]);
       fireEvent.pointerUp(body, { ...MOUSE, ...centre(14) });
