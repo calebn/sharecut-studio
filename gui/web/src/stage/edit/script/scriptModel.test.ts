@@ -330,7 +330,7 @@ describe("buildScriptModel", () => {
     ]);
   });
 
-  it("shows a cut word once when the utterance still lists it as unmappable", () => {
+  it("shows a cut word once when the utterance still lists it as unmappable (boundary index -1 - i)", () => {
     const boundary = {
       id: "b1",
       track_id: "host",
@@ -342,7 +342,7 @@ describe("buildScriptModel", () => {
         {
           track_id: "host",
           source_id: null,
-          word_index: 1,
+          word_index: -2,
           text: "uh",
           start: 12.5,
           end: 12.9,
@@ -350,7 +350,7 @@ describe("buildScriptModel", () => {
         {
           track_id: "host",
           source_id: null,
-          word_index: 2,
+          word_index: -3,
           text: "well",
           start: 13,
           end: 13.4,
@@ -385,6 +385,44 @@ describe("buildScriptModel", () => {
       true,
       false,
     ]);
+  });
+
+  it("keeps an unmappable word from another recording with the same index", () => {
+    const boundary = {
+      id: "b1",
+      track_id: "host",
+      timeline_join_sec: 12.5,
+      has_cutaway: true,
+      cutaway_source_start: 12.5,
+      cutaway_source_end: 14,
+      cutaway_word_ids: [
+        {
+          track_id: "host",
+          source_id: "a",
+          word_index: -2,
+          text: "uh",
+          start: 12.5,
+          end: 12.9,
+        },
+      ],
+    } as unknown as EditBoundaryView;
+    const other = utterance(
+      "host",
+      "Maya",
+      [
+        word("Welcome", 0, 12),
+        word("uh", 1, 12.5, {
+          mappable: false,
+          timeline_start: null,
+          timeline_end: null,
+        }),
+      ],
+      { source_id: "b" },
+    );
+    const model = buildScriptModel(input([other], { boundaries: [boundary] }));
+    expect(
+      model.turns.flatMap((t) => t.words).filter((w) => w.text === "uh"),
+    ).toHaveLength(2);
   });
 
   it("keeps an unmappable word that no boundary shows", () => {
