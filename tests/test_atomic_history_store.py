@@ -26,9 +26,10 @@ def test_write_snapshot_bytes_and_mode_match_plain_write(minimal_project) -> Non
     snapshot = snapshot_from_project(project)
     rel = write_snapshot(project, snapshot, "entry-a")
     path = project.workspace_path() / rel
-    assert path.read_bytes() == snapshot.model_dump_json(indent=2, by_alias=True).encode("utf-8")
+    expected = snapshot.model_dump_json(indent=2, by_alias=True)
+    assert path.read_bytes() == expected.encode("utf-8")
     plain = path.with_name("plain.json")
-    plain.write_text(snapshot.model_dump_json(indent=2, by_alias=True), encoding="utf-8")
+    plain.write_text(expected, encoding="utf-8")
     if os.name == "posix":
         assert path.stat().st_mode & 0o777 == plain.stat().st_mode & 0o777 == 0o666 & ~_umask()
 
