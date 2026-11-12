@@ -111,3 +111,36 @@ def test_version_refusals_have_plain_guest_copy(code: str):
     message = guest_message_for_code(code)
     assert message != GENERIC_GUEST_MESSAGE
     assert "/" not in message
+
+
+def _open_with_version(tmp_path: Path, version):
+    document = json.loads(V20.read_text(encoding="utf-8"))
+    document["version"] = version
+    path = tmp_path / "episode.sharecut"
+    path.write_text(json.dumps(document), encoding="utf-8")
+    return path
+
+
+def test_a_huge_digit_version_is_a_coded_newer_refusal_not_an_int_error(tmp_path: Path):
+    path = _open_with_version(tmp_path, "9" * 5000)
+    with pytest.raises(CodedValueError) as refusal:
+        load_project(path)
+    assert refusal.value.code == "project_version_newer"
+    assert "Update the app" in str(refusal.value)
+
+
+def test_a_long_newer_version_keeps_the_message_short_and_the_hint(tmp_path: Path):
+    path = _open_with_version(tmp_path, "9" * 300)
+    with pytest.raises(CodedValueError) as refusal:
+        load_project(path)
+    assert len(str(refusal.value)) < 200
+    assert str(refusal.value).endswith("Update the app, then open it again.")
+
+
+@pytest.mark.parametrize(("version", "named"), [(2.0, "2.0"), (2, "2"), (None, "no version")])
+def test_a_non_text_version_is_named_in_the_refusal(tmp_path: Path, version, named):
+    path = _open_with_version(tmp_path, version)
+    with pytest.raises(CodedValueError) as refusal:
+        load_project(path)
+    assert refusal.value.code == "project_version_unsupported"
+    assert named in str(refusal.value)
