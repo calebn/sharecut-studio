@@ -870,10 +870,11 @@ measures channels independently so opposite-polarity stereo cannot cancel.
 ahead of the playhead, two minutes at first, and extends it from the audio
 clock. A silent sentinel node fires `ended` when under 45 s of sound remain,
 so a guest hears the whole episode from one Play even when the page is
-throttled and timers and frames stop. At the timeline duration the engine
-pauses itself and reports the end. The transport parks the playhead there
+throttled and timers and frames stop. At the episode end, the later of
+the project's timeline duration and its last clip end (the render takes the
+same maximum), the engine pauses itself and reports the end. The transport parks the playhead there
 (an audition that reaches the end also clears its range), and Play again
-starts from 0. A snapshot that changes the duration reschedules like a clip
+starts from 0. A snapshot that moves the end reschedules like a clip
 change. `hostPlaybackMeterMonitor.ts` fetches
 processed PCM16 stems and validated raw PCM16 recordings through finite byte
 ranges checked against each asset's ETag. Compatible source sample grids share

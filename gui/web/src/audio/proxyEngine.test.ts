@@ -1304,7 +1304,7 @@ describe("playing a timeline longer than the first window", () => {
     engine.dispose();
   });
 
-  it("ends at a shorter duration that arrives in a snapshot while playing", async () => {
+  it("ends at a later duration that arrives in a snapshot while playing", async () => {
     const handle = makeCtx();
     const onEnded = vi.fn();
     const engine = new ProxyEngine(
@@ -1313,16 +1313,18 @@ describe("playing a timeline longer than the first window", () => {
       vi.fn(),
       onEnded,
     );
-    engine.setSnapshot(episode(400));
+    engine.setSnapshot(episode(20));
     engine.play(0);
     await flush();
     await advanceTo(handle, 10);
-    engine.setSnapshot({ ...episode(400), durationSec: 20 });
+    engine.setSnapshot({ ...episode(20), durationSec: 40 });
     await flush();
-    for (let ctxSec = 11; ctxSec <= 20; ctxSec += 1) {
+    for (let ctxSec = 11; ctxSec < 40; ctxSec += 1) {
       await advanceTo(handle, ctxSec);
     }
-    expect(onEnded).toHaveBeenCalledExactlyOnceWith(20);
+    expect(onEnded).not.toHaveBeenCalled();
+    await advanceTo(handle, 40);
+    expect(onEnded).toHaveBeenCalledExactlyOnceWith(40);
     engine.dispose();
   });
 
