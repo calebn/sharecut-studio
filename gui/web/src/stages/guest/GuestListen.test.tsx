@@ -8,7 +8,11 @@ import { SheetHost } from "../../stage/frame/SheetHost";
 import { ReviewHost } from "../../stage/hosts/ReviewHost";
 import { useDawStore } from "../../state/dawStore";
 import { expectNoA11yViolations } from "../../test/a11y";
-import { minimalProject, sampleComment } from "../../test/fixtures";
+import {
+  minimalProject,
+  sampleComment,
+  sampleTrack,
+} from "../../test/fixtures";
 import { stubViewportShell } from "../../test/viewportShell";
 
 const createComment = vi.fn();
@@ -37,6 +41,12 @@ function join(mode: "view" | "comment", count = 3) {
     "share:tok",
     minimalProject({
       comments: comments(count),
+      tracks: [sampleTrack({ stem_is_fresh: true })],
+      render_status: {
+        needs_rerender: true,
+        reconciliation: { stale: false },
+        premix: { exists: true },
+      },
       timeline_duration_sec: 600,
       chapters: [{ title: "Cold open", time: 0 }],
     }),
@@ -132,6 +142,115 @@ describe("the phone Commenter Listen layout", () => {
     expect(
       screen.getByRole("button", { name: /^Show comments/ }),
     ).toBeVisible();
+  });
+
+  it("closes without losing the text, and gives it back on the next Comment", async () => {
+    const user = userEvent.setup();
+    localStorage.setItem(NAME_KEY, "Maya");
+    join("comment");
+    mount();
+    await user.click(screen.getByRole("button", { name: "Comment at 0:00" }));
+    await user.type(commentField(), "half a thought");
+    await user.click(screen.getByRole("button", { name: "Close" }));
+    expect(screen.queryByRole("textbox")).toBeNull();
+    await user.click(screen.getByRole("button", { name: "Comment at 0:00" }));
+    expect(commentField()).toHaveValue("half a thought");
+  });
+
+  it("returns focus to the Comment button after Close and after Post", async () => {
+    const user = userEvent.setup();
+    localStorage.setItem(NAME_KEY, "Maya");
+    join("comment");
+    mount();
+    const comment = () =>
+      screen.getByRole("button", { name: "Comment at 0:00" });
+    await user.click(comment());
+    await user.click(screen.getByRole("button", { name: "Close" }));
+    expect(comment()).toHaveFocus();
+    await user.click(comment());
+    await user.type(commentField(), "Too long a pause");
+    await user.click(screen.getByRole("button", { name: "Post" }));
+    await act(async () => {});
+    expect(comment()).toHaveFocus();
+  });
+
+  it("says a comment was added for a moment after Post", async () => {
+    const user = userEvent.setup();
+    localStorage.setItem(NAME_KEY, "Maya");
+    createComment.mockResolvedValue(
+      sampleComment({ id: "new", timeline_start: 86 }),
+    );
+    join("comment");
+    mount();
+    await user.click(screen.getByRole("button", { name: "Comment at 0:00" }));
+    await user.type(commentField(), "Too long a pause");
+    await user.click(screen.getByRole("button", { name: "Post" }));
+    await act(async () => {});
+    expect(screen.getAllByText("Comment added at 1:26").length).toBeGreaterThan(
+      0,
+    );
+  });
+
+  describe("playback", () => {
+    const playing = () => useDawStore.getState().isPlaying;
+
+    it.each([
+      [
+        "Post",
+        async (user: ReturnType<typeof userEvent.setup>) => {
+          await user.type(commentField(), "Too long a pause");
+          await user.click(screen.getByRole("button", { name: "Post" }));
+          await act(async () => {});
+        },
+      ],
+      [
+        "Close",
+        async (user: ReturnType<typeof userEvent.setup>) => {
+          await user.click(screen.getByRole("button", { name: "Close" }));
+        },
+      ],
+    ])("pauses on Comment and plays again after %s", async (_name, finish) => {
+      const user = userEvent.setup();
+      localStorage.setItem(NAME_KEY, "Maya");
+      join("comment");
+      useDawStore.setState({
+        isPlaying: true,
+        playStartSec: 0,
+        playheadSec: 5,
+      });
+      mount();
+      await user.click(screen.getByRole("button", { name: "Comment at 0:05" }));
+      expect(playing()).toBe(false);
+      await finish(user);
+      expect(playing()).toBe(true);
+    });
+
+    it("leaves a transport the guest started themselves alone", async () => {
+      const user = userEvent.setup();
+      localStorage.setItem(NAME_KEY, "Maya");
+      join("comment");
+      useDawStore.setState({
+        isPlaying: true,
+        playStartSec: 0,
+        playheadSec: 5,
+      });
+      mount();
+      await user.click(screen.getByRole("button", { name: "Comment at 0:05" }));
+      act(() => useDawStore.getState().togglePlaying());
+      expect(playing()).toBe(true);
+      await user.click(screen.getByRole("button", { name: "Close" }));
+      expect(playing()).toBe(true);
+    });
+
+    it("does not start a transport that was paused when Comment was tapped", async () => {
+      const user = userEvent.setup();
+      localStorage.setItem(NAME_KEY, "Maya");
+      join("comment");
+      mount();
+      await user.click(screen.getByRole("button", { name: "Comment at 0:00" }));
+      await user.click(screen.getByRole("button", { name: "Close" }));
+      expect(playing()).toBe(false);
+    });
   });
 
   it("opens the Comments sheet from the row and a thread on its row", async () => {

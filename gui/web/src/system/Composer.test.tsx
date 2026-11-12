@@ -32,6 +32,15 @@ afterEach(() => {
 });
 
 describe("Composer", () => {
+  it("draws a Close button only with a handler, and runs it", async () => {
+    const onClose = vi.fn();
+    const { rerender } = render(<Harness />);
+    expect(screen.queryByRole("button", { name: "Close" })).toBeNull();
+    rerender(<Harness onClose={onClose} />);
+    await userEvent.click(screen.getByRole("button", { name: "Close" }));
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
   it("tells the caller when a body change happens during an IME composition", () => {
     const onBodyChange = vi.fn();
     render(<Harness onBodyChange={onBodyChange} start="a" />);

@@ -1,4 +1,4 @@
-import { type ReactNode, useMemo, useState } from "react";
+import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import { useShallow } from "zustand/react/shallow";
 import { useKeyboardInset } from "../../hooks/useKeyboardInset";
 import { type ReviewContent, ReviewQueue } from "../../review/ReviewQueue";
@@ -21,6 +21,8 @@ import {
 
 /** How far back from the playhead a comment still counts as the one being heard. */
 const PREVIEW_WINDOW_SEC = 15;
+/** How long the row says a comment was added. */
+const FLASH_MS = 3000;
 
 export type GuestListenProps = {
   /** `useReviewQueue(guest).stageProps`: the items, the selection, the thread and the composer. */
@@ -78,7 +80,27 @@ export function GuestListen({ review, script, scriptState }: GuestListenProps) {
     hasChapters,
     draft,
   });
-  useKeyboardInset(layout.bottom.kind === "composer");
+  const composing = layout.bottom.kind === "composer";
+  useKeyboardInset(composing);
+  // The field unmounts on Post or Close: focus goes to the dock's Comment
+  // button, after the keyboard hook has put the dock back.
+  const wasComposing = useRef(false);
+  useEffect(() => {
+    const was = wasComposing.current;
+    wasComposing.current = composing;
+    if (was && !composing)
+      document
+        .querySelector<HTMLElement>(".sys-dock-comment")
+        ?.focus({ preventScroll: true });
+  }, [composing]);
+  const posted = review.posted;
+  const [flash, setFlash] = useState<string | null>(null);
+  useEffect(() => {
+    if (!posted) return;
+    setFlash(posted.text);
+    const timer = setTimeout(() => setFlash(null), FLASH_MS);
+    return () => clearTimeout(timer);
+  }, [posted]);
 
   const heardId = useDawStore(
     (s) =>
@@ -122,6 +144,7 @@ export function GuestListen({ review, script, scriptState }: GuestListenProps) {
           label={bottom.label}
           comments={bottom.comments}
           preview={heard ? previewOf(heard, content) : undefined}
+          flash={flash ?? undefined}
           onOpen={() => open(heardId)}
         />
       ) : bottom.kind === "composer" ? (
