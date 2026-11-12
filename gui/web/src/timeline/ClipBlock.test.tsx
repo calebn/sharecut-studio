@@ -39,6 +39,7 @@ type LayerProps = {
   colorVar: string;
   role: string;
   gainDb: number;
+  clipGainDb?: number;
 };
 
 const layers = vi.hoisted(() => [] as LayerProps[][]);
@@ -967,6 +968,7 @@ describe("ClipBlock waveform", () => {
       colorVar: "var(--color-clip-dialogue-0)",
       role: "dialogue",
       gainDb: 0,
+      clipGainDb: 0,
     });
   });
 
@@ -1000,23 +1002,23 @@ describe("ClipBlock waveform", () => {
     });
   });
 
-  it("adds the clip gain to the track gain for the waveform layer", () => {
+  it("passes the clip gain beside the track gain to the waveform layer", () => {
     render(<ClipBlock {...base} gainDb={-4} clip={{ ...clip, gain_db: 6 }} />);
-    expect(layers.at(-1)!.at(-1)).toMatchObject({ gainDb: 2 });
+    expect(layers.at(-1)!.at(-1)).toMatchObject({
+      gainDb: -4,
+      clipGainDb: 6,
+    });
   });
 
-  it("scales a raw waveform by the clip gain alone when the track gain is 0", () => {
-    render(<ClipBlock {...base} clip={{ ...clip, gain_db: -9.5 }} />);
-    expect(layers.at(-1)!.at(-1)).toMatchObject({ gainDb: -9.5 });
+  it("passes a 0 dB clip gain for a clip that carries none", () => {
+    render(<ClipBlock {...base} gainDb={-4} />);
+    expect(layers.at(-1)!.at(-1)).toMatchObject({
+      gainDb: -4,
+      clipGainDb: 0,
+    });
   });
 
-  it("leaves the track gain alone when the clip carries no gain", () => {
-    const { gain_db: _unused, ...bare } = { ...clip, gain_db: 3 };
-    render(<ClipBlock {...base} gainDb={-4} clip={bare} />);
-    expect(layers.at(-1)!.at(-1)).toMatchObject({ gainDb: -4 });
-  });
-
-  it("does not add the clip gain to a stem that already carries it", () => {
+  it("passes no clip gain to a stem that already carries it", () => {
     render(
       <ClipBlock
         {...base}
@@ -1025,7 +1027,11 @@ describe("ClipBlock waveform", () => {
         clip={{ ...clip, gain_db: 6 }}
       />,
     );
-    expect(layers.at(-1)!.at(-1)).toMatchObject({ kind: "stem", gainDb: -4 });
+    expect(layers.at(-1)!.at(-1)).toMatchObject({
+      kind: "stem",
+      gainDb: -4,
+      clipGainDb: 0,
+    });
   });
 
   it("defaults the waveform layer gain to 0 dB", () => {

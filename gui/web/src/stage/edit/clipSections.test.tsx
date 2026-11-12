@@ -1034,6 +1034,89 @@ describe("clip gain", () => {
     expect(shown()).toBe(-3);
   });
 
+  describe("gain preview", () => {
+    const shown = (id = "c1") =>
+      useDawStore
+        .getState()
+        .project?.clips.tracks.host?.find((c) => c.id === id)?.gain_db;
+    const scrub = (field: HTMLElement) => {
+      fireEvent.pointerDown(field, { clientX: 100, pointerId: 1, button: 0 });
+      fireEvent.pointerMove(field, { clientX: 110, pointerId: 1 });
+      fireEvent.pointerMove(field, { clientX: 150, pointerId: 1 });
+    };
+
+    it("puts the saved gain back when the save fails", async () => {
+      vi.mocked(setClipGain).mockRejectedValueOnce(new Error("Gain refused"));
+      open([{ ...clip, gain_db: -3 }]);
+      const field = gainField();
+      scrub(field);
+      expect(shown()).not.toBe(-3);
+      await act(async () => {
+        fireEvent.pointerUp(field, { clientX: 150, pointerId: 1 });
+      });
+      expect(setClipGain).toHaveBeenCalledTimes(1);
+      expect(shown()).toBe(-3);
+      expect(gainField()).toHaveAttribute("aria-valuenow", "-3");
+    });
+
+    it("keeps the scrubbed gain on screen when the save goes through", async () => {
+      open([{ ...clip, gain_db: -3 }]);
+      const field = gainField();
+      scrub(field);
+      const previewed = shown();
+      await act(async () => {
+        fireEvent.pointerUp(field, { clientX: 150, pointerId: 1 });
+      });
+      expect(setClipGain).toHaveBeenCalledTimes(1);
+      expect(shown()).toBe(previewed);
+    });
+
+    it("puts the saved gain back when the field turns read-only mid-scrub", async () => {
+      open([{ ...clip, gain_db: -3 }]);
+      const field = gainField();
+      scrub(field);
+      expect(shown()).not.toBe(-3);
+      act(() => {
+        useDawStore.setState({
+          projectPath: "share:ep",
+          guestMode: "viewer",
+          shareCapabilities: ["view"],
+        });
+      });
+      await act(async () => {
+        fireEvent.pointerUp(field, { clientX: 150, pointerId: 1 });
+      });
+      expect(setClipGain).not.toHaveBeenCalled();
+      expect(shown()).toBe(-3);
+    });
+
+    it("puts the old clip back when the selection moves to another clip mid-scrub", () => {
+      open([
+        { ...clip, gain_db: -3 },
+        { ...second, gain_db: 5 },
+      ]);
+      const field = gainField();
+      scrub(field);
+      expect(shown("c1")).not.toBe(-3);
+      act(() => {
+        useDawStore.setState({
+          selection: { kind: "clip", id: "c2", trackId: "host" },
+        });
+      });
+      fireEvent.pointerMove(field, { clientX: 130, pointerId: 1 });
+      expect(shown("c1")).toBe(-3);
+      expect(shown("c2")).not.toBe(5);
+    });
+
+    it("puts the saved gain back when the Inspector closes mid-scrub", () => {
+      const { unmount } = open([{ ...clip, gain_db: -3 }]);
+      scrub(gainField());
+      expect(shown()).not.toBe(-3);
+      unmount();
+      expect(shown()).toBe(-3);
+    });
+  });
+
   it("resets to 0 dB with the reset dot", async () => {
     open([{ ...clip, gain_db: 4 }]);
     await act(async () => {

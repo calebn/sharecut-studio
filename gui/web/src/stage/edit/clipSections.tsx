@@ -38,7 +38,7 @@ import {
 import { clipEdgeCurve, type FadeEdge } from "../../utils/fadeCurves";
 import {
   endClipGainPreview,
-  savedClipGain,
+  previewBaselineDb,
   showClipGainPreview,
 } from "./clipGainPreview";
 import { ClipStartField, ClipTrackRow } from "./clipPlacementFields";
@@ -112,6 +112,9 @@ export function useClipSections(
       : Object.values(project?.clips.tracks ?? {})
           .flat()
           .find((candidate) => candidate.id === id);
+  const savedGainDb = clip
+    ? previewBaselineDb(clip.id, clipGainDb(clip))
+    : undefined;
   const joinHost = {
     busy,
     onEdit: cancelClipPlacement,
@@ -125,7 +128,7 @@ export function useClipSections(
       clip?.source_end,
       clip?.fade_in_ms,
       clip?.fade_out_ms,
-      clip?.gain_db,
+      savedGainDb,
     ]),
   };
   const seams =
@@ -156,7 +159,7 @@ export function useClipSections(
     clip?.fade_out_ms,
     clip?.fade_in_curve,
     clip?.fade_out_curve,
-    clip?.gain_db,
+    savedGainDb,
     setError,
   ]);
   if (id === null) return null;
@@ -239,17 +242,14 @@ export function useClipSections(
   };
 
   const gain = async (db: number) => {
-    const baseline = savedClipGain(clip.id, clipGainDb(clip));
-    if (locked) {
-      endClipGainPreview(true, db);
-      return;
-    }
+    if (locked) return;
+    const baseline = previewBaselineDb(clip.id, clipGainDb(clip));
     cancelClipPlacement();
     const saved = await run(async () => {
       await setClipGain(projectPath, clip.id, db, { gain_db: baseline });
       return true;
     });
-    endClipGainPreview(saved !== true, db);
+    endClipGainPreview(clip.id, saved !== true);
   };
 
   const ripple = async () => {
@@ -391,10 +391,7 @@ export function useClipSections(
       }}
       onCancel={() => {
         setGainDraft(null);
-        endClipGainPreview(
-          true,
-          gainDraft?.clipId === clip.id ? gainDraft.db : clipGainDb(clip),
-        );
+        endClipGainPreview(clip.id, true);
       }}
       onCommit={(db) => {
         setGainDraft(null);

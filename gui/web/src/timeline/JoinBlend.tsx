@@ -14,6 +14,8 @@ export type JoinWaveSides = {
   rightRef: MediaRef;
   role: string;
   gainDb: number;
+  leftClipGainDb?: number;
+  rightClipGainDb?: number;
 };
 
 const LEFT_KEY = "join-blend-left";
@@ -57,6 +59,7 @@ function JoinWaves({
     mediaRef: MediaRef,
     mediaStartSec: number,
     colorVar: string,
+    clipGainDb: number | undefined,
   ) => (
     <span className={`join-blend-wave join-blend-wave-${side}`}>
       <WaveformLayer
@@ -69,6 +72,7 @@ function JoinWaves({
         colorVar={colorVar}
         role={waves.role}
         gainDb={waves.gainDb}
+        clipGainDb={clipGainDb}
         minWidthCss={1}
       />
     </span>
@@ -79,8 +83,20 @@ function JoinWaves({
       aria-hidden="true"
       style={{ left: visual.leftPx, width: visual.widthPx }}
     >
-      {layer("left", waves.leftRef, spans.leftMediaStartSec, LEFT_KEY)}
-      {layer("right", waves.rightRef, spans.rightMediaStartSec, RIGHT_KEY)}
+      {layer(
+        "left",
+        waves.leftRef,
+        spans.leftMediaStartSec,
+        LEFT_KEY,
+        waves.leftClipGainDb,
+      )}
+      {layer(
+        "right",
+        waves.rightRef,
+        spans.rightMediaStartSec,
+        RIGHT_KEY,
+        waves.rightClipGainDb,
+      )}
     </span>
   );
 }

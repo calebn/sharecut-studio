@@ -269,7 +269,7 @@ export function ClipBlockLive({
     ticksRef.current = ticks;
   }, [ticks]);
   const waveKind = refKind(mediaRef);
-  const waveGainDb = clipWaveformGainDb(clip, mediaRef, gainDb);
+  const waveClipGainDb = clipWaveformGainDb(clip, mediaRef);
 
   const extraTicks = () => waveformTicksToTimeline(clip, ticks);
 
@@ -503,7 +503,8 @@ export function ClipBlockLive({
             kind={waveKind}
             colorVar={color}
             role={role}
-            gainDb={waveGainDb}
+            gainDb={gainDb}
+            clipGainDb={waveClipGainDb}
           />
         ) : (
           <WaveformLayer
@@ -515,7 +516,8 @@ export function ClipBlockLive({
             zoom={zoomPxPerSec}
             colorVar={color}
             role={role}
-            gainDb={waveGainDb}
+            gainDb={gainDb}
+            clipGainDb={waveClipGainDb}
           />
         )
       }
@@ -534,7 +536,8 @@ export function ClipBlockLive({
             zoom={zoomPxPerSec}
             colorVar={color}
             role={role}
-            gainDb={waveGainDb}
+            gainDb={gainDb}
+            clipGainDb={waveClipGainDb}
           />
         ) : null
       }

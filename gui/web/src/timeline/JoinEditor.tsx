@@ -2,6 +2,7 @@ import { memo, useMemo } from "react";
 import { joinVisual } from "../edit/joinRender";
 import { useDaw } from "../state/useDaw";
 import type { ClipRow } from "../types/project";
+import { clipWaveformGainDb } from "../waveform/mediaRef";
 import type { MediaRef } from "../waveform/types";
 import { JoinBlend, type JoinWaveSides } from "./JoinBlend";
 
@@ -31,9 +32,16 @@ function JoinEditorLive({
   const waves = useMemo<JoinWaveSides | undefined>(
     () =>
       leftRef && rightRef && role !== undefined && gainDb !== undefined
-        ? { leftRef, rightRef, role, gainDb }
+        ? {
+            leftRef,
+            rightRef,
+            role,
+            gainDb,
+            leftClipGainDb: clipWaveformGainDb(left, leftRef),
+            rightClipGainDb: clipWaveformGainDb(right, rightRef),
+          }
         : undefined,
-    [leftRef, rightRef, role, gainDb],
+    [left, right, leftRef, rightRef, role, gainDb],
   );
   return (
     <JoinBlend

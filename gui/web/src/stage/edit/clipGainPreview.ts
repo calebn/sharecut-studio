@@ -1,21 +1,33 @@
 import { endPreview, showPreview } from "../../document/applyDocumentUpdate";
+import { documentAuthority } from "../../document/authorityState";
 import { patchClipGain } from "../../document/projectPatch";
 import type { ProjectView } from "../../types/project";
+import { clipGainDb } from "../../utils/audio";
 
-let held: { clipId: string; owner: symbol; baselineDb: number } | null = null;
+type ActivePreview = {
+  clipId: string;
+  owner: symbol;
+  baselineDb: number;
+  shownDb: number;
+};
 
-const keyOf = (clipId: string) => `clipgain:${clipId}`;
+let activePreview: ActivePreview | null = null;
 
-function savedGain(project: ProjectView, clipId: string): number | undefined {
+const previewKey = (clipId: string) => `clipgain:${clipId}`;
+
+function gainIn(project: ProjectView, clipId: string): number | undefined {
   for (const lane of Object.values(project.clips.tracks)) {
     const clip = lane.find((c) => c.id === clipId);
-    if (clip) return clip.gain_db ?? 0;
+    if (clip) return clipGainDb(clip);
   }
   return undefined;
 }
 
-export function savedClipGain(clipId: string, displayedDb: number): number {
-  return held?.clipId === clipId ? held.baselineDb : displayedDb;
+/** The gain a save of this clip is based on: the one before the scrub began, else the displayed one. */
+export function previewBaselineDb(clipId: string, displayedDb: number): number {
+  return activePreview?.clipId === clipId
+    ? activePreview.baselineDb
+    : displayedDb;
 }
 
 export function showClipGainPreview(
@@ -23,28 +35,42 @@ export function showClipGainPreview(
   displayedDb: number,
   gainDb: number,
 ): void {
-  if (held && held.clipId !== clipId) endClipGainPreview(false, 0);
-  held ??= {
+  if (activePreview && activePreview.clipId !== clipId) {
+    endClipGainPreview(activePreview.clipId, true);
+  }
+  const preview: ActivePreview = activePreview ?? {
     clipId,
-    owner: Symbol(keyOf(clipId)),
+    owner: Symbol(previewKey(clipId)),
     baselineDb: displayedDb,
+    shownDb: displayedDb,
   };
   const apply = (project: ProjectView) =>
     patchClipGain(project, clipId, gainDb);
-  showPreview(keyOf(clipId), held.owner, apply, apply, () => true);
+  showPreview(previewKey(clipId), preview.owner, apply, apply, () => true);
+  preview.shownDb = gainDb;
+  activePreview = preview;
 }
 
-export function endClipGainPreview(revert: boolean, shownDb: number): void {
-  if (!held) return;
-  const { clipId, owner, baselineDb } = held;
-  held = null;
+/** Drop the preview; `revert` also puts the saved gain back. A preview on another clip is always put back. */
+export function endClipGainPreview(clipId: string, revert: boolean): void {
+  if (!activePreview) return;
+  const { owner, baselineDb, shownDb } = activePreview;
+  const previewClipId = activePreview.clipId;
+  activePreview = null;
+  const putBack = revert || previewClipId !== clipId;
   endPreview(
-    keyOf(clipId),
+    previewKey(previewClipId),
     owner,
-    revert
+    putBack
       ? (project) =>
-          savedGain(project, clipId) === shownDb
-            ? patchClipGain(project, clipId, baselineDb)
+          gainIn(project, previewClipId) === shownDb
+            ? patchClipGain(
+                project,
+                previewClipId,
+                (documentAuthority.project
+                  ? gainIn(documentAuthority.project, previewClipId)
+                  : undefined) ?? baselineDb,
+              )
             : project
       : undefined,
   );
