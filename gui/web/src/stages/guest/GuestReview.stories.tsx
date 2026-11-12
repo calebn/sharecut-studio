@@ -323,6 +323,10 @@ const phoneShare = (
   },
 });
 
+// jsdom has no media queries, so only a real phone viewport mounts the Listen layout.
+const onPhone = (host: HTMLElement) =>
+  host.querySelector(".stage-frame--phone") !== null;
+
 const commentButton = (canvas: ReturnType<typeof within>) =>
   canvas.findByRole("button", { name: /^Comment at/ });
 
@@ -332,6 +336,10 @@ export const CommenterPhone: Story = {
   }),
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
+    await expect(
+      await canvas.findByRole("main", { name: "Review" }),
+    ).toBeVisible();
+    if (!onPhone(canvasElement)) return;
     await expect(await commentButton(canvas)).toBeVisible();
     await expect(canvas.queryByRole("textbox")).toBeNull();
     await expect(
@@ -360,6 +368,10 @@ export const CommenterPhoneComposing: Story = {
   }),
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
+    await expect(
+      await canvas.findByRole("main", { name: "Review" }),
+    ).toBeVisible();
+    if (!onPhone(canvasElement)) return;
     await userEvent.click(await commentButton(canvas));
     const field = await canvas.findByRole("textbox", { name: "Comment" });
     await expect(field).toHaveFocus();
@@ -388,6 +400,10 @@ export const CommenterPhoneFirstComment: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     await expect(
+      await canvas.findByRole("main", { name: "Review" }),
+    ).toBeVisible();
+    if (!onPhone(canvasElement)) return;
+    await expect(
       canvas.queryByRole("textbox", { name: "Your name" }),
     ).toBeNull();
     await userEvent.click(await commentButton(canvas));
@@ -406,6 +422,10 @@ export const CommenterPhoneComments: Story = {
   }),
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
+    await expect(
+      await canvas.findByRole("main", { name: "Review" }),
+    ).toBeVisible();
+    if (!onPhone(canvasElement)) return;
     await userEvent.click(
       await canvas.findByRole("button", { name: /^Show comments/ }),
     );
@@ -429,6 +449,10 @@ export const CommenterPhoneFolded: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     await expect(
+      await canvas.findByRole("main", { name: "Review" }),
+    ).toBeVisible();
+    if (!onPhone(canvasElement)) return;
+    await expect(
       await canvas.findByRole("slider", { name: "Episode overview" }),
     ).toBeVisible();
     await expect(await commentButton(canvas)).toBeVisible();
@@ -439,6 +463,10 @@ export const ViewerPhone: Story = {
   ...phoneShare("viewer"),
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
+    await expect(
+      await canvas.findByRole("main", { name: "Review" }),
+    ).toBeVisible();
+    if (!onPhone(canvasElement)) return;
     await expect(
       await canvas.findByRole("slider", { name: "Episode overview" }),
     ).toBeVisible();
@@ -455,6 +483,10 @@ export const EditorPhone: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     await expect(
+      await canvas.findByRole("main", { name: "Review" }),
+    ).toBeVisible();
+    if (!onPhone(canvasElement)) return;
+    await expect(
       await canvas.findByRole("group", { name: "Player" }),
     ).toBeVisible();
     await userEvent.click(canvas.getByRole("button", { name: "Comment" }));
@@ -470,6 +502,10 @@ export const FirstVisitRoleHint: Story = {
   }),
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
+    await expect(
+      await canvas.findByRole("main", { name: "Review" }),
+    ).toBeVisible();
+    if (!onPhone(canvasElement)) return;
     const note = await canvas.findByRole("note");
     await expect(note).toHaveTextContent(
       "You can comment and suggest cuts. The host decides.",
