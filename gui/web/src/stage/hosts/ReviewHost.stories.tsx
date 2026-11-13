@@ -297,7 +297,6 @@ function startDetailRequest() {
 const onPhone = (host: HTMLElement) =>
   host.querySelector(".stage-frame--phone") !== null;
 
-/** Where a Commenter writes: the dock's Comment button on a phone, else the comment field. */
 const commentControl = (
   canvas: ReturnType<typeof within>,
   host: HTMLElement,
@@ -306,7 +305,6 @@ const commentControl = (
     ? canvas.findByRole("button", { name: /^Comment at/ })
     : canvas.findByRole("textbox", { name: "Comment" });
 
-/** What the guest listens with: the dock's scrubber on a phone, else the Queue. */
 const listenSurface = async (
   canvas: ReturnType<typeof within>,
   host: HTMLElement,
