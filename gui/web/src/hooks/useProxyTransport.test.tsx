@@ -570,7 +570,7 @@ describe("useProxyTransport", () => {
     expect(useDawStore.getState().audioError).toBeNull();
   });
 
-  it("never matches a cached manifest whose hashes predate the per-track proxy basis", async () => {
+  it("never matches a cached manifest whose render hashes are stem hashes", async () => {
     const current = structuredClone(useDawStore.getState().project!);
     current.render_status.tracks = { host: { render_hash: "stem-host" } };
     current.render_status.proxy_hashes = {
