@@ -469,6 +469,7 @@ export const ViewerPhone: Story = {
     await expect(
       await canvas.findByRole("slider", { name: "Episode overview" }),
     ).toBeVisible();
+    await expect(await canvas.findByText("Read only")).toBeVisible();
     await expect(canvas.queryByRole("textbox")).toBeNull();
     await expect(
       canvas.queryByRole("button", { name: /^Comment at/ }),
