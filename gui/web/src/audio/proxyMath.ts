@@ -32,6 +32,12 @@ export interface ProxyClipBasis {
   readonly timeline_end: number;
 }
 
+/**
+ * What a manifest was built from. `render_hashes` and `clips` are the audio
+ * identity a manifest is matched on. `history_head_id` only records which
+ * document state it came from: it moves on every save, audible or not, so it
+ * takes no part in any comparison.
+ */
 export interface ProxyProjectBasis {
   readonly history_head_id: string;
   readonly render_hashes: Readonly<Record<string, string>>;
@@ -231,7 +237,6 @@ function sortedMap<T>(value: Readonly<Record<string, T>>): [string, T][] {
 
 export function proxyBasisKey(basis: ProxyProjectBasis): string {
   return JSON.stringify([
-    basis.history_head_id,
     sortedMap(basis.render_hashes),
     sortedMap(basis.clips).map(([id, c]) => [
       id,
@@ -261,7 +266,6 @@ export function isQueuedMoveOverlay(
     Object.keys(manifest.artifacts).length !== 0 ||
     Object.keys(manifest.occurrences).length !== 0 ||
     queue.length === 0 ||
-    displayed.history_head_id !== manifest.project_basis.history_head_id ||
     JSON.stringify(sortedMap(displayed.render_hashes)) !==
       JSON.stringify(sortedMap(manifest.project_basis.render_hashes))
   )
