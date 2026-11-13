@@ -168,14 +168,44 @@ GENERIC_POSIX = HostPlatform(
     executable_suffix="",
 )
 GENERIC_NT = replace(GENERIC_POSIX, name="nt", kernel="nt", executable_suffix=".exe")
+# A platform that is neither listed nor a desktop kernel family (android, wasi, emscripten, a
+# name not yet known) may be a sandbox, so it starts with no capability and no trust.
+UNKNOWN = HostPlatform(
+    name="unknown",
+    kernel="other",
+    system_label="",
+    can_spawn_processes=False,
+    loopback_is_trusted=False,
+    media_tools="unavailable",
+    transcription="unavailable",
+    file_dialog=None,
+    reveal_tool=None,
+    audition_player=None,
+    homebrew_ffmpeg=False,
+    executable_suffix="",
+)
 
-ROWS: tuple[HostPlatform, ...] = (MACOS, LINUX, WINDOWS, IOS, GENERIC_POSIX, GENERIC_NT)
+ROWS: tuple[HostPlatform, ...] = (MACOS, LINUX, WINDOWS, IOS, GENERIC_POSIX, GENERIC_NT, UNKNOWN)
+
+# ``sys.platform`` prefixes of the desktop kernels that ran ShareCut through the generic rows
+# before the table existed. Only these get GENERIC_POSIX / GENERIC_NT; any other name is UNKNOWN.
+DESKTOP_KERNEL_FAMILIES: tuple[str, ...] = (
+    "freebsd",
+    "openbsd",
+    "netbsd",
+    "dragonfly",
+    "sunos",
+    "aix",
+    "cygwin",
+    "msys",
+)
 
 _override: HostPlatform | None = None
 
 
 def current() -> HostPlatform:
-    """The row for this process. An unlisted platform gets a generic row; this never raises."""
+    """The row for this process. An unlisted platform is a desktop family's generic row or the
+    fail-closed UNKNOWN row; this never raises."""
     if _override is not None:
         return _override
     name = sys.platform
@@ -187,7 +217,10 @@ def current() -> HostPlatform:
         return WINDOWS
     if name == "ios":
         return IOS
-    generic = GENERIC_NT if os.name == "nt" else GENERIC_POSIX
+    if name.startswith(DESKTOP_KERNEL_FAMILIES):
+        generic = GENERIC_NT if os.name == "nt" else GENERIC_POSIX
+    else:
+        generic = UNKNOWN
     return replace(generic, system_label=platform.system())
 
 
