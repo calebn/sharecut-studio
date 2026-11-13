@@ -450,7 +450,7 @@ export const GuestCommenterEmpty: Story = {
     const canvas = within(canvasElement);
     await expect(await commentControl(canvas, canvasElement)).toBeVisible();
     await expect(
-      canvas.queryByRole("button", { name: /^Show comments/ }),
+      canvas.queryByRole("button", { name: /^Show\b.*\bcomments?/ }),
     ).toBeNull();
     if (!onPhone(canvasElement))
       await expect(

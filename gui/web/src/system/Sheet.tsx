@@ -126,11 +126,13 @@ export function Sheet({
       return;
     }
     // The bottom form's Back lives in the header, ahead of the body's controls.
+    // Coming back to the list, focus goes to the row the guest came from.
     const focusFirst = () =>
       (
         rowsRef.current
           ?.closest("[role=dialog]")
           ?.querySelector<HTMLElement>(".bottom-sheet-back") ??
+        rowsRef.current?.querySelector<HTMLElement>('[aria-current="true"]') ??
         rowsRef.current?.querySelector<HTMLElement>(FOCUSABLE)
       )?.focus({ preventScroll: true });
     focusFirst();
