@@ -6,6 +6,8 @@ import re
 from collections.abc import Sequence
 from pathlib import Path
 
+from podcast_mcp.util.host_session_wire import EXCHANGE_PARAM, EXCHANGE_PATH, SESSION_COOKIE
+
 _SHARE_TOKEN = re.compile(
     r"(?P<prefix>/r/|/rec/|/api/review/|/mcp/)(?P<token>[A-Za-z0-9_-]{8,}(?:-[A-Za-z0-9_-]+)*)"
 )
@@ -16,6 +18,9 @@ _AUTH_HEADER = re.compile(r"(?i)(authorization\s*:\s*)(\S.+)")
 _COOKIE_HEADER = re.compile(r"(?i)(cookie\s*:\s*)(.+)")
 _SECRET_ASSIGN = re.compile(
     r"(?i)(secret|password|api[_-]?key|token)=(\S+)",
+)
+_HOST_SESSION = re.compile(
+    rf"({re.escape(SESSION_COOKIE)}=|{re.escape(EXCHANGE_PATH)}\?{EXCHANGE_PARAM}=)([^\s;&]+)"
 )
 _EMAIL = re.compile(r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b")
 _IPV4 = re.compile(
@@ -101,6 +106,7 @@ def sanitize(
     out = _AUTH_HEADER.sub(r"\1<redacted>", out)
     out = _COOKIE_HEADER.sub(r"\1<redacted>", out)
     out = _SECRET_ASSIGN.sub(lambda m: f"{m.group(1)}=<redacted>", out)
+    out = _HOST_SESSION.sub(r"\1<redacted>", out)
     out = _SHARE_TOKEN.sub(lambda m: f"{m.group('prefix')}<share-token>", out)
     out = _EMAIL.sub("<email>", out)
     out = _IPV4.sub(_sub_ipv4, out)
@@ -125,6 +131,7 @@ def redact_secrets(text: str, secrets: Sequence[str] = ()) -> str:
         out = out.replace(secret, "<redacted>")
     out = _AUTH_HEADER.sub(r"\1<redacted>", out)
     out = _SECRET_ASSIGN.sub(lambda m: f"{m.group(1)}=<redacted>", out)
+    out = _HOST_SESSION.sub(r"\1<redacted>", out)
     out = _SHARE_TOKEN.sub(lambda m: f"{m.group('prefix')}<share-token>", out)
     return _HEX_RUN.sub("<hex>", out)
 

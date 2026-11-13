@@ -10,6 +10,10 @@ lifespan, which stops the job leases and file watchers. So ``stop()`` is final: 
 ``start()`` is refused and the host reopens the app. The port is bound once and held until
 then, so a retry after a failed start (the app never served) gets the same port.
 
+A host whose loopback is not trusted gets a single-use exchange code with the port: its web
+view's first navigation is ``/api/session/exchange?code=...``, which opens the owner session
+(``gui/host_session.py``). Every ``start()`` mints a fresh code; a trusted host has none.
+
 The state is ``Idle``, ``Serving(port)``, ``Failed(reason)`` (never served, retry allowed) or
 ``Stopped(reason)`` (served and ended, terminal), under one lock. A failed start keeps its
 one-line reason in ``status()`` and the traceback in ``engine.log`` under the host's first log
@@ -26,7 +30,7 @@ import time
 import traceback
 from dataclasses import dataclass
 from datetime import UTC, datetime
-from typing import Any
+from typing import Any, NamedTuple
 
 from podcast_mcp.gui.bind import build_gui_server, exclusive_listen_socket
 from podcast_mcp.util import host_platform
@@ -67,6 +71,13 @@ class Failed:
 
 
 EmbeddedState = Idle | Serving | Failed | Stopped
+
+
+class Started(NamedTuple):
+    """Where the engine listens, and the code the web view trades for its owner session."""
+
+    port: int
+    exchange_code: str | None
 
 
 class EmbeddedStartError(RuntimeError):
@@ -125,14 +136,18 @@ class _Engine:
             self._notice_dead_listener()
             return self._state
 
-    def start(self) -> int:
+    def start(self) -> Started:
         with self._lock:
             self._notice_dead_listener()
-            if isinstance(self._state, Serving):
-                return self._state.port
             if isinstance(self._state, Stopped):
                 raise EmbeddedStartError(self._state.reason)
-            return self._bind()
+            if isinstance(self._state, Serving):
+                return Started(self._state.port, self._exchange_code())
+            return Started(self._bind(), self._exchange_code())
+
+    def _exchange_code(self) -> str | None:
+        sessions = getattr(self._app.state, "host_sessions", None)
+        return sessions.issue_code() if sessions is not None else None
 
     def stop(self) -> None:
         with self._lock:
@@ -205,10 +220,11 @@ def _write_engine_log(headline: str) -> None:
 _ENGINE = _Engine()
 
 
-def start() -> int:
-    """Bind ``127.0.0.1:0``, serve the Studio on a daemon thread, return the bound port.
+def start() -> Started:
+    """Bind ``127.0.0.1:0``, serve the Studio on a daemon thread, return the port and an exchange code.
 
-    Already serving: the same port. Raises ``EmbeddedStartError`` when the app or the
+    The code is None on a host whose loopback is trusted. Already serving: the same port and
+    a new code. Raises ``EmbeddedStartError`` when the app or the
     listener cannot come up (``status()`` then says why; a retry is allowed) and after
     ``stop()`` (the engine starts once per process).
     """

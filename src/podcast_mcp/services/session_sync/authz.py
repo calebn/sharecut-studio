@@ -28,6 +28,19 @@ HOST_ROLE_RELAYED_REASON = "host role required: relayed share traffic cannot rea
 
 
 @dataclass(frozen=True)
+class HostCredential:
+    """What a request presents as proof it comes from the owner.
+
+    ``token`` is the shared ``PODCAST_SESSION_TOKEN`` a trusted host accepts. ``session`` says the
+    request carried a live browser session, which is the only credential a host whose loopback is
+    not trusted accepts.
+    """
+
+    token: str | None = None
+    session: bool = False
+
+
+@dataclass(frozen=True)
 class AuthzDecision:
     allowed: bool
     reason: str = ""
@@ -61,6 +74,7 @@ def authorize_host(
     client_id: str = "host",
     peer_host: str | None = None,
     token: str | None = None,
+    session: bool = False,
     relayed: bool = False,
 ) -> AuthzDecision:
     """Host role: gate for owner GUI routes that read or mutate owner project state.
@@ -68,7 +82,8 @@ def authorize_host(
     Relay-tunneled requests (share guests) are always denied, even from loopback
     and in non-strict mode. Otherwise non-strict allows all; strict requires a
     loopback peer or ``PODCAST_SESSION_TOKEN`` (share tokens never match). A host whose
-    loopback is not trusted (other apps on the device can reach it) always requires the token.
+    loopback is not trusted (other apps on the device can reach it) admits a live browser
+    session and nothing else: not a loopback peer, not the token.
     """
     if not client_id:
         return AuthzDecision(False, "client_id required")
@@ -77,12 +92,14 @@ def authorize_host(
     trusted = host_platform.current().loopback_is_trusted
     if trusted and not _strict():
         return AuthzDecision(True)
-    if trusted and is_loopback_host(peer_host):
+    if not trusted:
+        if session:
+            return AuthzDecision(True, "session")
+        return AuthzDecision(False, "this host requires an owner session")
+    if is_loopback_host(peer_host):
         return AuthzDecision(True, "loopback")
     if _tokens_match(token, settings.value("PODCAST_SESSION_TOKEN")):
         return AuthzDecision(True, "token")
-    if not trusted:
-        return AuthzDecision(False, "this host requires PODCAST_SESSION_TOKEN")
     return AuthzDecision(False, "remote client requires PODCAST_SESSION_TOKEN")
 
 
@@ -92,6 +109,7 @@ def authorize_client(
     role: ClientRole | str,
     peer_host: str | None = None,
     token: str | None = None,
+    session: bool = False,
     display_name: str | None = None,
     allow_guest: bool = False,
     relayed: bool = False,
@@ -110,7 +128,9 @@ def authorize_client(
         return AuthzDecision(False, f"unknown role: {role}")
     if role == "guest" and not allow_guest:
         return AuthzDecision(False, "guest role not allowed on this surface")
-    return authorize_host(client_id=client_id, peer_host=peer_host, token=token, relayed=relayed)
+    return authorize_host(
+        client_id=client_id, peer_host=peer_host, token=token, session=session, relayed=relayed
+    )
 
 
 def authorize_share_token(

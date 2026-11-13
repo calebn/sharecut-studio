@@ -82,12 +82,14 @@ async def host_ws(
     relayed = is_relayed_request(websocket.headers)
 
     def authorize() -> AuthzDecision:
+        credential = host_credential(websocket, SOCKET_QUERY)
         for identity in (client_id, document_client_id):
             decision = authorize_client(
                 client_id=identity,
                 role=role,
                 peer_host=peer,
-                token=host_credential(websocket, SOCKET_QUERY),
+                token=credential.token,
+                session=credential.session,
                 display_name=label,
                 relayed=relayed,
             )
