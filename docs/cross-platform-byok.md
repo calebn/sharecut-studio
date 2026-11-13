@@ -1,6 +1,6 @@
 # Cross-platform ShareCut Studio and bring-your-own agent
 
-**Status:** deferred long-horizon path. Do **not** implement this as a project now. Use it to steer architecture so a later native iOS/Android app and in-app agent do not require a rewrite.
+**Status:** deferred long-horizon path, except stage 1 of the native iOS studio, which is in progress under [#3810](https://github.com/calebn/sharecut-studio/issues/3810): the engine's `HostPlatform` table ([architecture.md § Host platform](architecture.md#host-platform)) is the first part. Do **not** implement the rest of this as a project now. Use it to steer architecture so a later native iOS/Android app and in-app agent do not require a rewrite.
 
 Near-term work stays desktop packaging, episode format, MCP, and the existing phone **web** shell ([gui-mobile.md](gui-mobile.md)). This document is the detailed counterpart to the one-line pointers in [ROADMAP.md](../ROADMAP.md). When implementing, start at [When it is time to build](#when-it-is-time-to-build) so you do not re-run the 2026 research.
 
@@ -49,7 +49,7 @@ Follow these **now**, while shipping unrelated features. They are cheap constrai
 
 ### Do
 
-1. **Keep one media facade.** All encode/decode/filter/bounce goes through [`engines/ffmpeg.py`](../src/podcast_mcp/engines/ffmpeg.py) (`FFmpegEngine`). Do not spawn `ffmpeg` from GUI routes, MCP handlers, or new services. A later `AudioEngine` protocol (subprocess on desktop, in-process libav on phones) is a backend swap behind that class, not a second edit engine.
+1. **Keep one media facade.** Nearly all encode/decode/filter/bounce goes through [`engines/ffmpeg.py`](../src/podcast_mcp/engines/ffmpeg.py) (`FFmpegEngine`). Not all media work does: the probes in `util/binaries.py`, the hardware and diagnostics probes and the host dialogs also start programs. The one seam every spawn passes through is [`util/process.py`](../src/podcast_mcp/util/process.py) (`_spawn`), which refuses with `SpawnUnavailableError` on a row whose `can_spawn_processes` is false, and `resolve_ffmpeg_pair` refuses on a row whose `media_tools` is `unavailable`. Do not spawn `ffmpeg` from GUI routes, MCP handlers, or new services. A later `AudioEngine` protocol (subprocess on desktop, in-process libav on phones) is a backend swap behind that class, not a second edit engine.
 2. **Keep filtergraph construction in one place.** `render_timeline`, `filter_audio`, loudnorm, deess, `arnndn`, concat/acrossfade strings must stay next to `FFmpegEngine` so an FFmpegKit `execute("-y -i …")` backend can reuse them.
 3. **Keep playback separate from bounce.** `PlayService` / session transport / guest Web Audio scheduler are not FFmpeg live graphs. Mobile will use AVAudioEngine / Oboe for scrub; FFmpeg stays offline render. Do not merge play and render into one “just call ffmpeg” path.
 4. **Keep episode format v2 as the portable document.** Phone and PC must round-trip the same `episode.sharecut` + media folder ([episode-format-v2.md](episode-format-v2.md)). Do not invent a mobile-only project schema or a second clip model.

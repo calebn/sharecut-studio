@@ -41,6 +41,17 @@ Host-local durable stores beyond episode JSON (session sync sqlite, share-token 
 
 Every SQLite store (session sync, share identity, share registry, relay reports) opens through `util/sqlite_open.open_sqlite`. It runs the WAL switch and the store's schema inside the bounded `util/sqlite_wal.retry_transient` retry (busy and transient readonly answers are retried, a readonly one on a fresh connection), then sets a busy timeout (5 s unless overridden). Persistent owners use its per-connection lifetime cleanup described in [persistence.md](persistence.md). Session setup retains its per-path locks and timing controls. Failed registry secret transactions close their connections. The process-wide getter and each registry operation, including directly injected owners, recover from durable state before token lookup.
 
+### Host platform
+
+The engine asks one table what the host can do: [`util/host_platform.py`](../src/podcast_mcp/util/host_platform.py). `HostPlatform.current()` returns a frozen row (`MACOS`, `LINUX`, `WINDOWS`, `IOS`, and `GENERIC_POSIX` / `GENERIC_NT` for any other host, so import never fails). A row has two axes, and a site reads the one that matches its question:
+
+- **Kernel** (`kernel`: `darwin`, `linux`, `nt`, `other`; `is_nt` and `is_posix`) decides syscalls. macOS and iOS share the Darwin kernel, so `renameatx_np`, `fclonefileat` and the ACL calls take one branch for both.
+- **Capabilities** decide features: `can_spawn_processes`, `loopback_is_trusted`, `media_tools`, `transcription`, `file_dialog`, `reveal_tool`, `audition_player`, `homebrew_ffmpeg` and `executable_suffix`. `system_label` is exactly what `platform.system()` returned before the table, kept for diagnostics and hardware reports.
+
+`HostPlatform.data_roots(home)` is the one definition of where data lives when no `PODCAST_*` override names a place ([persistence.md § Data roots](persistence.md#data-roots)). Ruff TID251 bans `sys.platform`, `os.name` and the `platform` module's host queries under `src/podcast_mcp` outside that file, so the next host is one more row, never one more conditional. Tests select a row with `using(row)` (the `host` fixture in `tests/conftest.py`), never by patching `sys` or `os`.
+
+A row fails closed where it lacks a capability. `util/process._spawn` raises `SpawnUnavailableError` (`ENOSYS`) when `can_spawn_processes` is false, `resolve_ffmpeg_pair` raises one plain sentence when `media_tools` is `unavailable`, bootstrap status reports those components as `unsupported` with a `host` object, and `authorize_host` requires `PODCAST_SESSION_TOKEN` on every owner route (and `/mcp` is not mounted) when `loopback_is_trusted` is false. See [cross-platform-byok.md](cross-platform-byok.md) for the iOS plan these rows serve.
+
 ### Progress
 
 Domain code opens `progress_task` from `podcast_mcp.util.progress`; adapters bind the reporter at their choke points and attach only live sinks with `compose_progress`. The package splits by role: `protocol` (the six-method reporter and `ProgressEvent`), `task`, `sinks` (registries and the MCP and guest wraps), `reporters` and `compliance`. `util/` imports no adapter, so the CLI command wrap lives in `cli/progress.py`. Every class that implements the protocol derives from `ElapsedProgressMixin`, which holds the no-op bodies and the one heartbeat; `tests/test_progress_compliance.py` enforces that by AST. Spec and event semantics: [progress.md](progress.md).

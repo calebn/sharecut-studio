@@ -184,6 +184,21 @@ Activity, lock hold duration, and remaining time are unavailable. Shared and gue
 error projections keep their fixed path-free messages. See
 [Debugging the CLI](setup.md#debugging-the-cli) for retry guidance and platform limits.
 
+## Data roots
+
+`HostPlatform.data_roots(home)` in `util/host_platform.py` defines the default location of every host-local store; a `PODCAST_*` override still wins. The desktop rows (macOS, Linux, Windows and the generic rows) keep the paths named throughout this catalog. The iOS row keeps the same stores inside the app container, which is `HOME`:
+
+| Root | Desktop | iOS |
+|------|---------|-----|
+| config (`PODCAST_CONFIG_DIR`, `relay.yaml`) | `~/.config/podcast_mcp` | `Library/Application Support/ShareCut` |
+| state (share registry, share identity) | `~/.podcast_mcp` | `Library/Application Support/ShareCut/state` |
+| cache (`PODCAST_MCP_CACHE`, models, tiles) | `~/.cache/podcast_mcp` | `Library/Caches/ShareCut` |
+| new episodes (`PODCAST_WORKSPACE_ROOT`) | `~/ShareCut` | `Documents` |
+| exports and support bundles | `~/Downloads` | `Documents/Exports` |
+| sidecar and engine logs | `~/Library/Logs/ShareCut Studio`, `~/.local/state/SharecutStudio` | `Library/Logs/ShareCut` |
+
+The private-directory walk for the share registry (`util/registry_backup_posix.py`) stops at the row's `trust_root`: nothing above it is checked on iOS, where the ancestors of the container belong to the OS. Every directory from the container down is still checked. Desktop rows have no trust root, so the walk runs to `/` as before.
+
 ## When to extend which store
 
 | Need | Prefer |
