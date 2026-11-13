@@ -198,8 +198,13 @@ export type OsTransportCommands = Readonly<{
 export function osActionHandlers(cmd: OsTransportCommands): OsActionHandlers {
   const skipBy = (direction: 1 | -1): MediaSessionActionHandler => {
     return (details) => {
-      const offset = details.seekOffset ?? SKIP_SEC;
-      if (Number.isFinite(offset)) cmd.skip(direction * offset);
+      const offset = details.seekOffset;
+      cmd.skip(
+        direction *
+          (offset != null && Number.isFinite(offset) && offset > 0
+            ? offset
+            : SKIP_SEC),
+      );
     };
   };
   return {
