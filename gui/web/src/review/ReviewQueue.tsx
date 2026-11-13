@@ -558,23 +558,16 @@ export function ReviewQueue({
   const filters = FILTERS.filter(({ id }) =>
     id === "checks" ? canDecide && !guest : canDecide || id !== "suggestions",
   );
-  // A comments-only queue does not offer a filter with nothing to filter: it
-  // stays when it is the active choice, when a count is unknown, or when two
-  // or more kinds exist. The host's chips also name its empty states, so they stay.
-  const kindsPresent = filters.filter(
-    ({ id }) =>
-      id !== "all" &&
-      (counts[id] === null ||
-        items.some((item) => kindInFilter(item.kind, id))),
-  ).length;
-  const showFilter = canDecide || kindsPresent > 1 || filter !== "all";
+  // A guest queue with one kind of item has nothing to filter, sort, group or
+  // count aloud; with two or more kinds it keeps all four, as a host's does.
+  const showFilter = canDecide || !oneKind || filter !== "all";
   // Only a host resolves, so a guest's count of resolved comments shows once the
   // host has resolved one; until then the line is a screen-reader anchor.
   const resolvedSome = items.some((item) => item.result !== undefined);
-  const quietLine = !canDecide && !resolvedSome;
+  const quietLine = !canDecide && oneKind && !resolvedSome;
   const statusLine = canDecide
     ? (completeness.unavailableMessage ?? progressLine(items))
-    : resolvedSome
+    : resolvedSome || !oneKind
       ? commentLine(items)
       : `${items.length} ${items.length === 1 ? "comment" : "comments"}`;
   const reason = useDisabledReasonNote(guest ? undefined : findMoreDisabled);
