@@ -39,7 +39,7 @@ function comments(count: number) {
   );
 }
 
-function join(mode: "view" | "comment", count = 3) {
+function join(mode: "view" | "comment", count = 3, caps = CAPS[mode]) {
   useDawStore.getState().hydrate(
     "share:tok",
     minimalProject({
@@ -54,7 +54,7 @@ function join(mode: "view" | "comment", count = 3) {
       chapters: [{ title: "Cold open", time: 0 }],
     }),
     mode,
-    CAPS[mode],
+    caps,
   );
   useDawStore.setState({
     stage: "review",
@@ -348,6 +348,10 @@ const playing = () => useDawStore.getState().isPlaying;
 const commentAt = () => screen.getByRole("button", { name: /^Comment at/ });
 const rowButton = () =>
   screen.getByRole("button", { name: /^Show\b.*\bcomments?/ });
+const openListed = (user: ReturnType<typeof userEvent.setup>, note: string) =>
+  user.click(
+    within(screen.getByRole("dialog", { name: "Comments" })).getByText(note),
+  );
 const startPlaying = () =>
   useDawStore.setState({ isPlaying: true, playStartSec: 0, playheadSec: 5 });
 
@@ -383,11 +387,7 @@ describe("one surface owns the bottom", () => {
     join("comment");
     mount();
     await user.click(rowButton());
-    await user.click(
-      within(screen.getByRole("dialog", { name: "Comments" })).getByText(
-        "Note number 1",
-      ),
-    );
+    await openListed(user, "Note number 1");
     expect(
       screen.getByRole("dialog", { name: "Comment from Claude" }),
     ).toBeVisible();
@@ -402,11 +402,7 @@ describe("one surface owns the bottom", () => {
     join("comment");
     mount();
     await user.click(rowButton());
-    await user.click(
-      within(screen.getByRole("dialog", { name: "Comments" })).getByText(
-        "Note number 1",
-      ),
-    );
+    await openListed(user, "Note number 1");
     act(() => useDawStore.getState().setOpenSheet(null));
     await user.click(rowButton());
     expect(screen.getByRole("dialog", { name: "Comments" })).toBeVisible();
@@ -531,11 +527,7 @@ describe("the Comments list", () => {
     join("comment");
     mount();
     await user.click(rowButton());
-    await user.click(
-      within(screen.getByRole("dialog", { name: "Comments" })).getByText(
-        "Note number 2",
-      ),
-    );
+    await openListed(user, "Note number 2");
     await waitFor(() =>
       expect(useDawStore.getState().selection).toEqual({
         kind: "comment",
@@ -569,11 +561,7 @@ describe("the Comments list", () => {
     join("comment");
     mount();
     await user.click(rowButton());
-    await user.click(
-      within(screen.getByRole("dialog", { name: "Comments" })).getByText(
-        "Note number 3",
-      ),
-    );
+    await openListed(user, "Note number 3");
     scrollIntoView.mockClear();
     await user.click(screen.getByRole("button", { name: "Back to comments" }));
     const came = within(screen.getByRole("dialog", { name: "Comments" }))
@@ -586,22 +574,8 @@ describe("the Comments list", () => {
 
 describe("one source for who may comment", () => {
   it("keeps the comments row when a Commenter link lacks the comment capability", () => {
-    useDawStore.getState().hydrate(
-      "share:tok",
-      minimalProject({
-        comments: comments(3),
-        tracks: [sampleTrack({ stem_is_fresh: true })],
-        timeline_duration_sec: 600,
-      }),
-      "comment",
-      ["view"],
-    );
-    useDawStore.setState({
-      stage: "review",
-      commentDraft: { startSec: 0, endSec: null },
-      openSheet: null,
-      shellBreakpoint: "phone",
-    });
+    join("comment", 3, ["view"]);
+    useDawStore.setState({ commentDraft: { startSec: 0, endSec: null } });
     mount();
     expect(rowButton()).toBeVisible();
     expect(screen.queryByRole("button", { name: /^Comment at/ })).toBeNull();
@@ -614,11 +588,7 @@ describe("a Viewer's thread", () => {
     join("view");
     mount();
     await user.click(rowButton());
-    await user.click(
-      within(screen.getByRole("dialog", { name: "Comments" })).getByText(
-        "Note number 1",
-      ),
-    );
+    await openListed(user, "Note number 1");
     expect(
       screen.getByRole("dialog", { name: "Comment from Claude" }),
     ).toBeVisible();

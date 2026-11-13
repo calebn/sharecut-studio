@@ -26,7 +26,7 @@ export function CommentsRow({
   flash,
   onOpen,
 }: CommentsRowProps) {
-  const shown = flash ?? preview;
+  const replacesLabel = flash ?? preview;
   return (
     <button
       type="button"
@@ -35,7 +35,7 @@ export function CommentsRow({
       onClick={onOpen}
     >
       <SystemIcon name="message-square" size={16} />
-      {shown ? <span className="gl-row-count">{comments}</span> : null}
+      {replacesLabel ? <span className="gl-row-count">{comments}</span> : null}
       {flash ? (
         <span className="gl-row-text">{flash}</span>
       ) : preview ? (
