@@ -1,10 +1,15 @@
-"""After any document command a guest's render hashes and clip rows are current.
+"""A guest learns of every change to the proxy audio it plays.
 
-For every command in the registry, on a project where a gated, transcribed track has audio to
-change, the guest's view is advanced the way the client advances it (delta operations, or the
-replacement snapshot, or a refetch on ``resync``). The render hashes and clip rows the proxy
-match reads must then equal ``project_basis`` on the saved project, and still equal it after
-Undo and Redo. Which commands move audio is not classified by hand.
+Ground truth is the set of proxy artifacts a fresh manifest would reference: the (context track,
+input hash) pairs of the inputs ``_ensure`` selects. For every command in the registry, on a
+project with a gated, transcribed dialogue track and a track of every other role that owns its
+own recording, the guest's view is advanced the way the client advances it (delta operations, or
+the replacement snapshot, or a refetch on ``resync``). Whenever the artifacts change, the key the
+client matches manifests on must change; and that key must always equal the manifest's own.
+Commands that target a track or clip run once per track role. A case that cannot move the
+artifacts proves nothing, so it must be listed in ``CANNOT_MOVE_AUDIO`` with the reason.
+The fields the client's key reads are pinned by ``fixtures/proxy_basis/key.json``, which the
+client's tests read too.
 """
 
 from __future__ import annotations
@@ -13,7 +18,7 @@ import copy
 import json
 import shutil
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
@@ -21,6 +26,9 @@ import pytest
 
 from podcast_mcp.edits.range_target import build_range_target
 from podcast_mcp.edits.transcript_timing import WordTimingTarget
+from podcast_mcp.engines import source_proxy_audio
+from podcast_mcp.engines.ffmpeg import FFmpegEngine
+from podcast_mcp.engines.source_proxy_audio import SourceProxyInputs
 from podcast_mcp.gui.assembler import dump_project_projection
 from podcast_mcp.mcp.tools import timeline
 from podcast_mcp.models import (
@@ -35,11 +43,13 @@ from podcast_mcp.models import (
 )
 from podcast_mcp.models.episode import (
     InsertAnchor,
+    ProxyClipBasis,
     RangeInterval,
     RecordSessionRecord,
     SessionSuggestion,
     SourceRecording,
     StagedTake,
+    TrackRole,
 )
 from podcast_mcp.project.store import WriteGrantKind, write_grant
 from podcast_mcp.services.app import ProjectWorkspace
@@ -55,12 +65,54 @@ from podcast_mcp.services.document_sync import DocumentSyncService
 from podcast_mcp.services.document_sync.commands import DocumentCommand
 from podcast_mcp.services.document_sync.projection_delta import split
 from podcast_mcp.services.document_sync.registry import COMMANDS
-from podcast_mcp.services.media.proxy_variants import project_basis
+from podcast_mcp.services.media import proxy_variants
+from podcast_mcp.util.hashing import sha256_file
+from podcast_mcp.util.project_state import file_revision
+from podcast_mcp.util.tracks import dialogue_track_ids
 from test_bleed_alignment_surfaces import _workspace as _bleed_surfaces_workspace
 from test_room_tone_extract import SPEECH_THEN_ROOM, _host_audio, _project
 from test_segments_insert import _save
 
 Sections = dict[tuple[str, str | None], Any]
+Key = tuple[tuple[tuple[str, str], ...], tuple[tuple[Any, ...], ...]]
+Artifacts = frozenset[tuple[str, str]]
+
+KEY = json.loads(
+    (Path(__file__).parent / "fixtures" / "proxy_basis" / "key.json").read_text(encoding="utf-8")
+)
+ROLES = tuple(TrackRole)
+_DIGESTS: dict[tuple[Path, tuple[int, int, int, int]], str] = {}
+
+
+def _sha256_once(path: Path) -> str:
+    key = (path.resolve(), file_revision(path))
+    if key not in _DIGESTS:
+        _DIGESTS[key] = sha256_file(path)
+    return _DIGESTS[key]
+
+
+@pytest.fixture(autouse=True)
+def _hash_each_file_revision_once(monkeypatch: pytest.MonkeyPatch) -> None:
+    # Capturing proxy inputs digests every file, ffmpeg included; a file revision's digest
+    # does not change, so each is read once per session.
+    monkeypatch.setattr(source_proxy_audio, "sha256_file", _sha256_once)
+
+
+@dataclass(frozen=True)
+class Target:
+    role: TrackRole
+
+    @property
+    def track(self) -> str:
+        return "host" if self.role is TrackRole.DIALOGUE else self.role.value
+
+    @property
+    def left(self) -> str:
+        return "h1" if self.role is TrackRole.DIALOGUE else f"{self.role.value}1"
+
+    @property
+    def right(self) -> str:
+        return "h2" if self.role is TrackRole.DIALOGUE else f"{self.role.value}2"
 
 
 @dataclass
@@ -82,11 +134,42 @@ class Rig:
                 role="host",
                 client_seq=self.seq,
             ),
+            range_policy="apply",
             audience=audience,
         )
 
     def head(self) -> str:
         return self.ws.project.history.head_id()
+
+
+def _artifacts(ws: ProjectWorkspace) -> Artifacts:
+    project = ws.project
+    defaults = ws.effective_config()
+    engine = FFmpegEngine()
+    inputs = [
+        SourceProxyInputs.capture_legacy(project, tid, engine, defaults=defaults)
+        for tid in dialogue_track_ids(project)
+    ]
+    restored = {
+        clip.id for clip in project.clips if clip.bleed_restore and clip.bleed_restore.regions
+    }
+    inputs += [
+        SourceProxyInputs.capture_occurrence(project, clip_id, engine, defaults=defaults)
+        for clip_id in sorted(restored)
+    ]
+    keys = dict.fromkeys(
+        key
+        for clip in project.clips
+        if clip.id not in restored
+        and (key := proxy_variants._recording_key(project, clip)) is not None
+    )
+    inputs += [
+        SourceProxyInputs.capture_recording(project, *key, engine, defaults=defaults)
+        for key in keys
+    ]
+    return frozenset(
+        (i.context_track_id, proxy_variants._input_hash(project, i, defaults)) for i in inputs
+    )
 
 
 def _guest_sections(ws: ProjectWorkspace) -> Sections:
@@ -113,94 +196,104 @@ def _apply_operations(sections: Sections, operations: list[dict[str, Any]]) -> S
     return sections
 
 
-def _client_basis(sections: Sections) -> tuple[dict[str, str], dict[str, tuple]]:
-    """What ``projectProxyBasis`` reads from the guest's displayed project."""
-    hashes = {
-        row["key"]: row["value"]["render_hash"]
-        for row in sections.get(("render_tracks", None), [])
-        if row["value"].get("render_hash")
+def _walk(value: Any, path: list[str]) -> Any:
+    if not path:
+        return value
+    if not isinstance(value, dict):
+        return None
+    head, *rest = path
+    if head == "*":
+        return {k: v for k, item in value.items() if (v := _walk(item, rest))}
+    return _walk(value.get(head), rest)
+
+
+def _key(hashes: dict[str, str], clips: dict[str, tuple[Any, ...]]) -> Key:
+    return tuple(sorted(hashes.items())), tuple(sorted((cid, *row) for cid, row in clips.items()))
+
+
+def _client_key(sections: Sections) -> Key:
+    """What ``proxyBasisKey(projectProxyBasis(project))`` reads from the guest's project."""
+    status = dict(sections.get(("render_status", None)) or {})
+    status["tracks"] = {
+        row["key"]: row["value"] for row in sections.get(("render_tracks", None), [])
     }
-    clips: dict[str, tuple] = {}
+    hashes = _walk({"render_status": status}, KEY["view_hashes"]) or {}
+    clips: dict[str, tuple[Any, ...]] = {}
     for (section, _parent), rows in sections.items():
         if section != "clip_rows":
             continue
         for row in rows:
-            clips[row["id"]] = (
-                row["track_id"],
-                row.get("origin_track_id") or row["track_id"],
-                row.get("source_id"),
-                row["source_start"],
-                row["source_end"],
-                row["timeline_start"],
-                row["timeline_end"],
+            clips[row["id"]] = tuple(
+                row.get(name) or row["track_id"] if name == "origin_track_id" else row.get(name)
+                for name in KEY["clip_fields"]
             )
-    return hashes, clips
+    return _key(hashes, clips)
 
 
-def _truth(ws: ProjectWorkspace) -> tuple[dict[str, str], dict[str, tuple]]:
-    basis = project_basis(ws.project, ws.effective_config())
+def _manifest_key(ws: ProjectWorkspace) -> Key:
+    basis = proxy_variants.project_basis(ws.project, ws.effective_config()).model_dump(mode="json")
+    hashes = _walk(basis, KEY["manifest_hashes"]) or {}
     clips = {
-        clip_id: (
-            c.track_id,
-            c.origin_track_id,
-            c.source_id,
-            c.source_start,
-            c.source_end,
-            c.timeline_start,
-            c.timeline_end,
-        )
-        for clip_id, c in basis.clips.items()
+        cid: tuple(row[name] for name in KEY["clip_fields"]) for cid, row in basis["clips"].items()
     }
-    return dict(basis.render_hashes), clips
+    return _key(hashes, clips)
 
 
-def _same_clips(shown: dict[str, tuple], truth: dict[str, tuple]) -> bool:
-    if shown.keys() != truth.keys():
-        return False
-    for clip_id, row in truth.items():
-        for got, want in zip(shown[clip_id], row, strict=True):
-            if isinstance(want, float) or isinstance(got, float):
-                if abs((got or 0.0) - (want or 0.0)) > 1e-6:
-                    return False
-            elif got != want:
-                return False
-    return True
+@dataclass(frozen=True)
+class Step:
+    label: str
+    artifacts_moved: bool
+    key_moved: bool
 
 
 class Guest:
     def __init__(self, rig: Rig) -> None:
         self.rig = rig
         self.sections = _guest_sections(rig.ws)
+        self.artifacts = _artifacts(rig.ws)
+        self.assert_matches_manifest("before")
 
-    def step(self, command_type: str, payload: dict[str, Any]) -> str:
+    def step(self, command_type: str, payload: dict[str, Any], label: str) -> Step:
+        key = _client_key(self.sections)
+        artifacts = self.artifacts
         reply = self.rig.submit(command_type, payload, audience="guest")
         snapshot = reply["snapshot"]
         if snapshot.get("resync"):
             self.sections = _guest_sections(self.rig.ws)
-            return "resync"
-        if "delta" in snapshot:
+        elif "delta" in snapshot:
             self.sections = _apply_operations(self.sections, snapshot["delta"]["operations"])
-            return "delta"
-        assert "project" in snapshot, sorted(snapshot)
-        self.sections = split(snapshot["project"])
-        return "replacement"
+        else:
+            assert "project" in snapshot, sorted(snapshot)
+            self.sections = split(snapshot["project"])
+        self.artifacts = _artifacts(self.rig.ws)
+        return Step(label, self.artifacts != artifacts, _client_key(self.sections) != key)
 
-    def assert_current(self, label: str) -> None:
-        hashes, clips = _client_basis(self.sections)
-        want_hashes, want_clips = _truth(self.rig.ws)
-        assert hashes == want_hashes, f"{label}: the guest shows stale render hashes"
-        assert _same_clips(clips, want_clips), f"{label}: the guest shows stale clip rows"
+    def assert_matches_manifest(self, label: str) -> None:
+        assert _client_key(self.sections) == _manifest_key(self.rig.ws), (
+            f"{label}: the guest's key differs from the manifest's"
+        )
+
+
+Payload = Callable[[Rig, Target], dict[str, Any]]
+Setup = Callable[[Rig, Target], None]
 
 
 @dataclass(frozen=True)
 class Case:
-    payload: Callable[[Rig], dict[str, Any]]
-    setup: Callable[[Rig], None] | None = None
+    payload: Payload
+    setup: Setup | None = None
     build: Callable[[Path], ProjectWorkspace] | None = None
+    # The roles whose track or clip the payload targets; empty for a command without a target.
+    roles: tuple[TrackRole, ...] = ROLES
+
+
+def _once(payload: Payload, setup: Setup | None = None, **kwargs: Any) -> Case:
+    return Case(payload, setup, roles=(), **kwargs)
 
 
 def _template(root: Path) -> Path:
-    """A gated, transcribed host with a splittable pair of clips, an ungated guest, a bed to cut."""
+    """A gated, transcribed host with a splittable pair of clips, an ungated guest, a bed to cut,
+    and per other track role a track whose two clips play a recording of their own."""
     project = _project(root, _host_audio(SPEECH_THEN_ROOM))
     shutil.copyfile(root / "raw" / "host.wav", root / "raw" / "guest.wav")
     host = project.tracks[0]
@@ -226,6 +319,40 @@ def _template(root: Path) -> Path:
             off_speaker_mute_regions=[ClipOffSpeakerMuteRegion(start_s=1.0, end_s=2.0)],
         ),
     ]
+    for role in ROLES:
+        if role is TrackRole.DIALOGUE:
+            continue
+        target = Target(role)
+        for name in (f"{role.value}.wav", f"{role.value}-take.wav"):
+            shutil.copyfile(root / "raw" / "host.wav", root / "raw" / name)
+        project.tracks.append(
+            Track(
+                id=target.track,
+                label=role.value.title(),
+                role=role,
+                media=MediaAsset(path=f"raw/{role.value}.wav", duration_sec=10.0),
+            )
+        )
+        project.sources.append(
+            SourceRecording(
+                id=f"{role.value}-src",
+                path=f"raw/{role.value}-take.wav",
+                duration_sec=10.0,
+                sample_rate=16000,
+                channels=1,
+            )
+        )
+        project.clips += [
+            Clip(
+                id=clip_id,
+                track_id=target.track,
+                source_id=f"{role.value}-src",
+                source_start=start,
+                source_end=start + 5.0,
+                timeline_start=start,
+            )
+            for clip_id, start in ((target.left, 0.0), (target.right, 5.0))
+        ]
     project.transcripts = [
         Transcript(
             track_id="host",
@@ -258,27 +385,66 @@ def _open(template: Path, tmp_path: Path, case: Case) -> Rig:
     return Rig(ProjectWorkspace.open(root / template.name), root)
 
 
-EFFECT = {"track_id": "host", "effect": "highpass"}
+def _effect(t: Target) -> dict[str, Any]:
+    return {"track_id": t.track, "effect": "highpass"}
+
+
 COMMENT = {"body": "c", "author": "a", "timeline_start": 1.0}
 CHAPTER = {"time": 1.0, "title": "One"}
 SOCIAL_CLIP = {"track_id": "host", "start": 1.0, "end": 3.0}
-STAGE_CUT = {"track_id": "host", "start": 6.0, "end": 6.5, "review_required": True}
 
 
-def _add_comment(rig: Rig) -> None:
+def _stage_payload(t: Target) -> dict[str, Any]:
+    start = 6.0 if t.role is TrackRole.DIALOGUE else 1.0
+    return {"track_id": t.track, "start": start, "end": start + 0.5, "review_required": True}
+
+
+FIRST_WORD = [{"track_id": "host", "word_index": 0}]
+
+
+def _set_feed_field(rig: Rig, t: Target) -> None:
+    rig.host("SetFeedField", {"key": "item.title", "value": "d"})
+
+
+def _add_action_item(rig: Rig, t: Target) -> None:
+    rig.host("AddComment", {**COMMENT, "action_texts": ["do"]})
+
+
+def _suppressed_word(rig: Rig, t: Target) -> None:
+    rig.host(
+        "SetTranscriptWordSuppressed", {"track_id": "host", "word_index": 0, "suppressed": True}
+    )
+
+
+def _staged_filler(*, review_required: bool) -> Setup:
+    def stage(rig: Rig, t: Target) -> None:
+        payload = {**_stage_payload(t), "reason": "filler:um", "review_required": review_required}
+        rig.host("StageTimeRangeCut", payload)
+        assert _pending(rig)
+
+    return stage
+
+
+def _gap(rig: Rig, t: Target) -> None:
+    rig.host(
+        "MoveClips", {"clips": [{"clip_id": t.right, "timeline_start": 5.5, "track_id": t.track}]}
+    )
+
+
+def _add_comment(rig: Rig, t: Target) -> None:
     rig.host("AddComment", COMMENT)
 
 
-def _add_chapter(rig: Rig) -> None:
+def _add_chapter(rig: Rig, t: Target) -> None:
     rig.host("AddChapter", CHAPTER)
 
 
-def _add_social_clip(rig: Rig) -> None:
+def _add_social_clip(rig: Rig, t: Target) -> None:
     rig.host("AddSocialClip", SOCIAL_CLIP)
 
 
-def _undone_chapter(rig: Rig) -> None:
-    _add_chapter(rig)
+def _undone_effect(rig: Rig, t: Target) -> None:
+    _add_effect(rig, t)
     rig.host("UndoHistory", {"expected_head_id": rig.head()})
 
 
@@ -287,22 +453,22 @@ def _pending(rig: Rig) -> list[str]:
     return [d.id for d in rig.ws.project.editorial.edit_decisions if not d.applied]
 
 
-def _stage_cut(rig: Rig) -> None:
-    rig.host("StageTimeRangeCut", STAGE_CUT)
+def _stage_cut(rig: Rig, t: Target) -> None:
+    rig.host("StageTimeRangeCut", _stage_payload(t))
     assert _pending(rig)
 
 
-def _applied_edit(rig: Rig) -> None:
-    _stage_cut(rig)
+def _applied_edit(rig: Rig, t: Target) -> None:
+    _stage_cut(rig, t)
     rig.host("ApproveEdits", {"ids": _pending(rig)})
 
 
-def _add_effect(rig: Rig) -> None:
-    rig.host("AddEffect", EFFECT)
+def _add_effect(rig: Rig, t: Target) -> None:
+    rig.host("AddEffect", _effect(t))
 
 
-def _bed(rig: Rig) -> None:
-    reply = rig.host("ExtractRoomToneBed", {"track_id": "host"})
+def _bed(rig: Rig, t: Target) -> None:
+    reply = rig.host("ExtractRoomToneBed", {"track_id": t.track})
     assert reply["command"]["payload"]["result"]["extracted"] is True
 
 
@@ -327,7 +493,7 @@ def _segment(rig: Rig) -> str:
     return _save(rig.root.parent, "Warm Intro").id
 
 
-def _session(rig: Rig) -> None:
+def _session(rig: Rig, t: Target) -> None:
     """An insert and a replace suggestion, staged the way the record room leaves them."""
     shutil.copyfile(rig.root / "raw" / "host.wav", rig.root / "raw" / "take.wav")
 
@@ -404,187 +570,215 @@ def _bleed_workspace(root: Path) -> ProjectWorkspace:
         return _bleed_surfaces_workspace(root)
 
 
-def _alignment_decision(rig: Rig) -> str:
+def _applied_alignment(rig: Rig, t: Target) -> None:
     window = {"track_id": "uncertain", "start_sec": 0.8, "end_sec": 3.5}
-    preview = json.loads(
-        timeline.align_retained_bleed_tool(str(rig.ws.path), **window, apply=False)
-    )
-    return preview["proposals"][0]["decision_id"]
+    with write_grant(WriteGrantKind.LEGACY_MCP):
+        applied = json.loads(timeline.align_retained_bleed_tool(str(rig.ws.path), **window))
+    assert applied["applied_count"] == 1
+    rig.ws.reload()
 
+
+def _alignment_decision(rig: Rig) -> str:
+    return rig.ws.project.editorial.retained_bleed_alignments[0].id
+
+
+def _first_comment(rig: Rig) -> str:
+    return rig.ws.project.comments[0].id
+
+
+def _first_social_clip(rig: Rig) -> str:
+    return rig.ws.project.social_clip_candidates[0].id
+
+
+DIALOGUE = (TrackRole.DIALOGUE,)
+NON_DIALOGUE = tuple(role for role in ROLES if role is not TrackRole.DIALOGUE)
+# A cut staged on the fixture's other lanes, whose two clips play one recording, is refused
+# as having no single continuous placement; CutRange covers a cut on those lanes.
+STAGED_CUT_ROLES = DIALOGUE
 
 CASES: dict[str, Case] = {
-    "AcceptSessionSuggestion": Case(lambda r: {"suggestion_id": "sug1"}, _session),
-    "AddAction": Case(
-        lambda r: {"comment_id": r.ws.project.comments[0].id, "text": "x"},
-        _add_comment,
+    "AcceptSessionSuggestion": _once(lambda r, t: {"suggestion_id": "sug1"}, _session),
+    "AddAction": _once(lambda r, t: {"comment_id": _first_comment(r), "text": "x"}, _add_comment),
+    "AddChapter": _once(lambda r, t: CHAPTER),
+    "AddComment": _once(lambda r, t: COMMENT),
+    "AddEffect": Case(lambda r, t: _effect(t)),
+    "AddReply": _once(
+        lambda r, t: {"comment_id": _first_comment(r), "body": "r", "author": "a"}, _add_comment
     ),
-    "AddChapter": Case(lambda r: CHAPTER),
-    "AddComment": Case(lambda r: COMMENT),
-    "AddEffect": Case(lambda r: EFFECT),
-    "AddReply": Case(
-        lambda r: {"comment_id": r.ws.project.comments[0].id, "body": "r", "author": "a"},
-        _add_comment,
-    ),
-    "AddSocialClip": Case(lambda r: SOCIAL_CLIP),
-    "AddTrack": Case(lambda r: {"track_id": "t3", "label": "T3"}),
-    "ApplyAutoEdits": Case(lambda r: {}),
+    "AddSocialClip": _once(lambda r, t: SOCIAL_CLIP),
+    "AddTrack": _once(lambda r, t: {"track_id": "t3", "label": "T3", "role": "music"}),
+    "ApplyAutoEdits": _once(lambda r, t: {}, _staged_filler(review_required=False)),
     "ApplyEditPlan": Case(
-        lambda r: {
-            "edits": [{"track_id": "host", "start": 6.0, "end": 6.5}],
+        lambda r, t: {
+            "edits": [{k: _stage_payload(t)[k] for k in ("track_id", "start", "end")}],
             "review_required": False,
-        }
+        },
+        roles=STAGED_CUT_ROLES,
     ),
     "ApplyFadeRecommendationList": Case(
-        lambda r: {"recommendations": [{"clip_id": "h2", "fade_in_ms": 20, "fade_out_ms": 20}]}
+        lambda r, t: {
+            "recommendations": [{"clip_id": t.right, "fade_in_ms": 20, "fade_out_ms": 20}]
+        }
     ),
-    "ApplyFadeRecommendations": Case(lambda r: {"track_id": "host"}),
-    "ApplySuggestedActions": Case(lambda r: {}),
+    "ApplyFadeRecommendations": Case(lambda r, t: {"track_id": t.track}),
+    "ApplySuggestedActions": _once(lambda r, t: {}, _staged_filler(review_required=True)),
     "ApplyTranscriptCleanup": Case(
-        lambda r: {
+        lambda r, t: {
             "track_id": "host",
             "words": [{"word_index": 1, "text": "there!"}],
             "phrases": [{"start_word_index": 0, "end_word_index": 0, "text": "hi there"}],
-        }
+        },
+        roles=DIALOGUE,
     ),
-    "ApproveEdits": Case(lambda r: {"ids": _pending(r)}, _stage_cut),
-    "ClearExtractedRoomToneBed": Case(lambda r: {"track_id": "host"}, _bed),
-    "ClearFeedField": Case(
-        lambda r: {"key": "item.title"},
-        lambda r: r.host("SetFeedField", {"key": "item.title", "value": "d"}),
+    "ApproveEdits": Case(lambda r, t: {"ids": _pending(r)}, _stage_cut, roles=STAGED_CUT_ROLES),
+    "ClearExtractedRoomToneBed": Case(lambda r, t: {"track_id": t.track}, _bed, roles=DIALOGUE),
+    "ClearFeedField": _once(
+        lambda r, t: {"key": "item.title"},
+        _set_feed_field,
     ),
     "CorrectTranscriptPhrase": Case(
-        lambda r: {
+        lambda r, t: {
             "track_id": "host",
             "start_word_index": 0,
             "end_word_index": 1,
             "text": "howdy you",
-        }
+        },
+        roles=DIALOGUE,
     ),
-    "CorrectTranscriptWord": Case(lambda r: {"track_id": "host", "word_index": 0, "text": "howdy"}),
-    "CrossfadeJoins": Case(lambda r: {"track_id": "host"}),
-    "CutRange": Case(lambda r: {"start": 6.0, "end": 6.4, "mode": "gap", "track_ids": ["host"]}),
-    "DeleteChapter": Case(
-        lambda r: {"time": 1.0, "title": "One"},
-        _add_chapter,
+    "CorrectTranscriptWord": Case(
+        lambda r, t: {"track_id": "host", "word_index": 0, "text": "howdy"}, roles=DIALOGUE
     ),
-    "DeleteClip": Case(lambda r: {"clip_id": "h2", "mode": "gap", "override_audio_checks": True}),
-    "DeleteComment": Case(
-        lambda r: {"comment_id": r.ws.project.comments[0].id},
-        _add_comment,
+    "CrossfadeJoins": Case(lambda r, t: {"track_id": t.track}),
+    "CutRange": Case(
+        lambda r, t: {"start": 6.0, "end": 6.4, "mode": "gap", "track_ids": [t.track]}
     ),
-    "DeleteSocialClip": Case(
-        lambda r: {"id": r.ws.project.social_clip_candidates[0].id},
-        _add_social_clip,
+    "DeleteChapter": _once(lambda r, t: {"time": 1.0, "title": "One"}, _add_chapter),
+    "DeleteClip": Case(
+        lambda r, t: {"clip_id": t.right, "mode": "gap", "override_audio_checks": True}
     ),
-    "DuplicateSegment": Case(lambda r: {"source_start": 0.0, "source_end": 0.3, "insert_at": 3.0}),
+    "DeleteComment": _once(lambda r, t: {"comment_id": _first_comment(r)}, _add_comment),
+    "DeleteSocialClip": _once(lambda r, t: {"id": _first_social_clip(r)}, _add_social_clip),
+    "DuplicateSegment": _once(
+        lambda r, t: {"source_start": 0.0, "source_end": 0.3, "insert_at": 3.0}
+    ),
     "EditSelectedRange": Case(
-        lambda r: {
+        lambda r, t: {
             "action": "cut",
             "targets": [
                 build_range_target(
-                    r.ws.project, [RangeInterval(start=6.0, end=6.5)], ["host"]
+                    r.ws.project,
+                    [RangeInterval(start=_stage_payload(t)["start"], end=_stage_payload(t)["end"])],
+                    [t.track],
                 ).model_dump(mode="json")
+            ],
+        },
+        roles=STAGED_CUT_ROLES,
+    ),
+    "ExtractRoomToneBed": Case(lambda r, t: {"track_id": t.track}, roles=DIALOGUE),
+    "FadeJoins": Case(lambda r, t: {"track_id": t.track}),
+    "FillRoomTone": Case(lambda r, t: {"track_id": t.track}, _gap),
+    "InsertGap": _once(lambda r, t: {"at_time": 1.0, "duration_sec": 0.5}),
+    "InsertSegment": _once(lambda r, t: {"segment_id": _segment(r), "at": "start"}),
+    "MoveByText": _once(
+        lambda r, t: {"source_query": "hello", "destination_query": "again", "position": "after"}
+    ),
+    "MoveClips": Case(
+        lambda r, t: {"clips": [{"clip_id": t.right, "timeline_start": 5.25, "track_id": t.track}]}
+    ),
+    "MoveSegment": _once(lambda r, t: {"source_start": 0.0, "source_end": 0.3, "insert_at": 2.5}),
+    "PasteSegment": _once(
+        lambda r, t: {
+            "insert_at": 1.0,
+            "duration": 0.5,
+            "mode": "gap",
+            "extracts": [
+                {"track_id": "host", "source_start": 6.0, "source_end": 6.5, "offset": 0.0}
             ],
         }
     ),
-    "ExtractRoomToneBed": Case(lambda r: {"track_id": "host"}),
-    "FadeJoins": Case(lambda r: {"track_id": "host"}),
-    "FillRoomTone": Case(lambda r: {"track_id": "host"}),
-    "InsertGap": Case(lambda r: {"at_time": 1.0, "duration_sec": 0.5}),
-    "InsertSegment": Case(lambda r: {"segment_id": _segment(r), "at": "start"}),
-    "MoveByText": Case(
-        lambda r: {"source_query": "hello", "destination_query": "again", "position": "after"}
-    ),
-    "MoveClips": Case(
-        lambda r: {"clips": [{"clip_id": "g1", "timeline_start": 0.25, "track_id": "guest"}]}
-    ),
-    "MoveSegment": Case(lambda r: {"source_start": 0.0, "source_end": 0.3, "insert_at": 2.5}),
-    "PasteSegment": Case(lambda r: {"insert_at": 1.0, "duration": 0.5, "mode": "gap"}),
-    "ProposeSocialClips": Case(lambda r: {}),
-    "ProposeTighten": Case(lambda r: {}),
-    "ReconcileTranscript": Case(lambda r: {"track_id": "host"}),
-    "RedoHistory": Case(
-        lambda r: {"expected_head_id": r.head()},
-        _undone_chapter,
-    ),
-    "RejectEdits": Case(lambda r: {"ids": _pending(r)}, _stage_cut),
-    "RemoveEffect": Case(lambda r: EFFECT, _add_effect),
-    "RemoveTrack": Case(lambda r: {"track_id": "guest"}),
-    "RenameProject": Case(lambda r: {"name": "renamed"}),
-    "ReorderTrack": Case(lambda r: {"track_id": "guest", "index": 0}),
-    "ReplaceTranscriptMatches": Case(
-        lambda r: {
+    "ProposeSocialClips": _once(lambda r, t: {}),
+    "ProposeTighten": _once(lambda r, t: {}),
+    "ReconcileTranscript": Case(lambda r, t: {"track_id": t.track}, roles=DIALOGUE),
+    "RedoHistory": Case(lambda r, t: {"expected_head_id": r.head()}, _undone_effect),
+    "RejectEdits": Case(lambda r, t: {"ids": _pending(r)}, _stage_cut, roles=STAGED_CUT_ROLES),
+    "RemoveEffect": Case(lambda r, t: _effect(t), _add_effect),
+    "RemoveTrack": Case(lambda r, t: {"track_id": t.track}),
+    "RenameProject": _once(lambda r, t: {"name": "renamed"}),
+    "ReorderTrack": Case(lambda r, t: {"track_id": t.track, "index": 0}),
+    "ReplaceTranscriptMatches": _once(
+        lambda r, t: {
             "search": "again",
             "replacement": "once more",
             "match_case": False,
             "preview_token": _replace_preview(r),
         }
     ),
-    "ResolveComment": Case(
-        lambda r: {"comment_id": r.ws.project.comments[0].id, "by": "a"},
-        _add_comment,
+    "ResolveComment": _once(
+        lambda r, t: {"comment_id": _first_comment(r), "by": "a"}, _add_comment
     ),
     "RestoreAppliedEdit": Case(
-        lambda r: {"ids": [r.ws.project.editorial.edit_log[-1].id]}, _applied_edit
+        lambda r, t: {"ids": [r.ws.project.editorial.edit_log[-1].id]},
+        _applied_edit,
+        roles=STAGED_CUT_ROLES,
     ),
-    "RestoreClipBleed": Case(lambda r: {"target": _bleed_target(r)}),
-    "RippleDeleteText": Case(lambda r: {"query": "there"}),
+    "RestoreClipBleed": Case(lambda r, t: {"target": _bleed_target(r)}, roles=DIALOGUE),
+    "RippleDeleteText": _once(lambda r, t: {"query": "there", "override_audio_checks": True}),
     "RollClipJoin": Case(
-        lambda r: {
-            "left_clip_id": "h1",
-            "right_clip_id": "h2",
+        lambda r, t: {
+            "left_clip_id": t.left,
+            "right_clip_id": t.right,
             "delta_sec": 0.1,
             "expected_token": boundary_context(
                 r.ws.project,
-                RollBoundaryTarget(left_clip_id="h1", right_clip_id="h2"),
+                RollBoundaryTarget(left_clip_id=t.left, right_clip_id=t.right),
                 defaults=r.ws.effective_config(),
             ).token,
         }
     ),
-    "SelectSessionTake": Case(lambda r: {"suggestion_id": "sug2", "take_index": 1}, _session),
-    "SetActionDone": Case(
-        lambda r: {
-            "comment_id": r.ws.project.comments[0].id,
+    "SelectSessionTake": _once(lambda r, t: {"suggestion_id": "sug2", "take_index": 1}, _session),
+    "SetActionDone": _once(
+        lambda r, t: {
+            "comment_id": _first_comment(r),
             "action_id": r.ws.project.comments[0].action_items[0].id,
             "by": "a",
         },
-        lambda r: r.host(
-            "AddComment",
-            {"body": "c", "author": "a", "timeline_start": 1.0, "action_texts": ["do"]},
-        ),
+        _add_action_item,
     ),
-    "SetBleedAlignmentMode": Case(
-        lambda r: {
+    "SetBleedAlignmentMode": _once(
+        lambda r, t: {
             "decision_id": _alignment_decision(r),
             "mode": "declined",
             "track_id": "uncertain",
             "start_sec": 0.8,
             "end_sec": 3.5,
         },
+        _applied_alignment,
         build=_bleed_workspace,
     ),
     "SetClipFade": Case(
-        lambda r: {
-            "clip_id": "h1",
+        lambda r, t: {
+            "clip_id": t.left,
             "fade_in_ms": 20,
             "fade_out_ms": 20,
             "expected": {"fade_in_ms": 0, "fade_out_ms": 0},
         }
     ),
-    "SetClipGain": Case(lambda r: {"clip_id": "h1", "gain_db": 3.0, "expected": {"gain_db": 0.0}}),
+    "SetClipGain": Case(
+        lambda r, t: {"clip_id": t.left, "gain_db": 3.0, "expected": {"gain_db": 0.0}}
+    ),
     "SetClipJoin": Case(
-        lambda r: {
-            "left_clip_id": "h1",
-            "right_clip_id": "h2",
+        lambda r, t: {
+            "left_clip_id": t.left,
+            "right_clip_id": t.right,
             "mode": "crossfade",
             "length_ms": 30,
         }
     ),
     "SetClipsFade": Case(
-        lambda r: {
+        lambda r, t: {
             "fades": [
                 {
-                    "clip_id": "h2",
+                    "clip_id": t.right,
                     "fade_in_ms": 10,
                     "fade_out_ms": 10,
                     "expected": {"fade_in_ms": 0, "fade_out_ms": 0},
@@ -593,14 +787,16 @@ CASES: dict[str, Case] = {
         }
     ),
     "SetClipsGain": Case(
-        lambda r: {"gains": [{"clip_id": "h2", "gain_db": -2.0, "expected": {"gain_db": 0.0}}]}
+        lambda r, t: {
+            "gains": [{"clip_id": t.right, "gain_db": -2.0, "expected": {"gain_db": 0.0}}]
+        }
     ),
     "SetEffectBypass": Case(
-        lambda r: {"track_id": "host", "effect_index": 0, "bypass": True}, _add_effect
+        lambda r, t: {"track_id": t.track, "effect_index": 0, "bypass": True}, _add_effect
     ),
     "SetEnvelope": Case(
-        lambda r: {
-            "track_id": "host",
+        lambda r, t: {
+            "track_id": t.track,
             "points": [
                 {"id": "p1", "time": 0.0, "value": 1.0},
                 {"id": "p2", "time": 1.0, "value": 0.5},
@@ -608,130 +804,261 @@ CASES: dict[str, Case] = {
             "expected_points": [],
         }
     ),
-    "SetFeedField": Case(lambda r: {"key": "item.title", "value": "d"}),
-    "SetJoinFadeLimit": Case(lambda r: {"ms": 100}),
-    "SetJoinMode": Case(lambda r: {"clip_id": "h2", "join_in_mode": "cut"}),
-    "SetRecordSessionName": Case(lambda r: {"session_id": "s" * 12, "name": "Cold open"}, _session),
-    "SetTrackFader": Case(lambda r: {"track_id": "host", "fader_db": -3.0}),
-    "SetTrackMedia": Case(lambda r: {"track_id": "guest", "rel_path": "raw/host.wav"}),
-    "SetTrackMeta": Case(lambda r: {"track_id": "guest", "label": "G2"}),
-    "SetTrackMute": Case(lambda r: {"track_id": "guest", "muted": True}),
+    "SetFeedField": _once(lambda r, t: {"key": "item.title", "value": "d"}),
+    "SetJoinFadeLimit": _once(lambda r, t: {"ms": 100}),
+    "SetJoinMode": Case(lambda r, t: {"clip_id": t.right, "join_in_mode": "cut"}),
+    "SetRecordSessionName": _once(
+        lambda r, t: {"session_id": "s" * 12, "name": "Cold open"}, _session
+    ),
+    "SetTrackFader": Case(lambda r, t: {"track_id": t.track, "fader_db": -3.0}),
+    "SetTrackMedia": Case(lambda r, t: {"track_id": t.track, "rel_path": "raw/guest.wav"}),
+    "SetTrackMeta": Case(
+        lambda r, t: {
+            "track_id": t.track,
+            "role": "music" if t.role is TrackRole.DIALOGUE else "dialogue",
+        }
+    ),
+    "SetTrackMute": Case(lambda r, t: {"track_id": t.track, "muted": True}),
     "SetTranscriptWordAutomatic": Case(
-        lambda r: {"track_id": "host", "word_index": 0},
-        lambda r: r.host(
-            "SetTranscriptWordSuppressed", {"track_id": "host", "word_index": 0, "suppressed": True}
-        ),
+        lambda r, t: {"track_id": "host", "word_index": 0},
+        _suppressed_word,
+        roles=DIALOGUE,
     ),
     "SetTranscriptWordSuppressed": Case(
-        lambda r: {"track_id": "host", "word_index": 0, "suppressed": True}
+        lambda r, t: {"track_id": "host", "word_index": 0, "suppressed": True}, roles=DIALOGUE
     ),
     "SetTranscriptWordTiming": Case(
-        lambda r: {
+        lambda r, t: {
             "target": {"track_id": "host", "source_id": None, "word_index": 0},
             "expected_token": _timing_token(r),
             "start": 1.05,
             "end": 1.35,
-        }
+        },
+        roles=DIALOGUE,
     ),
     "SetTranscriptWordsIgnored": Case(
-        lambda r: {
+        lambda r, t: {
             "track_id": "host",
             "start_word_index": 0,
             "end_word_index": 0,
             "ignored": True,
-        }
+        },
+        roles=DIALOGUE,
     ),
-    "ShortenWordGaps": Case(lambda r: {"expected_head_id": r.head()}),
-    "SkipSessionSuggestion": Case(lambda r: {"suggestion_id": "sug1"}, _session),
-    "SplitAtTime": Case(lambda r: {"at_time": 0.5, "track_ids": ["host"]}),
-    "StageTextMatchCut": Case(lambda r: {"query": "there", "review_required": True}),
-    "StageTimeRangeCut": Case(lambda r: STAGE_CUT),
-    "StageUtteranceCut": Case(lambda r: {"utterance_index": 0, "review_required": True}),
+    "ShortenWordGaps": _once(lambda r, t: {"max_gap_sec": 0.3, "override_audio_checks": True}),
+    "SkipSessionSuggestion": _once(lambda r, t: {"suggestion_id": "sug1"}, _session),
+    "SplitAtTime": Case(lambda r, t: {"at_time": 0.5, "track_ids": [t.track]}),
+    "StageTextMatchCut": _once(lambda r, t: {"query": "there", "review_required": True}),
+    "StageTimeRangeCut": Case(lambda r, t: _stage_payload(t), roles=STAGED_CUT_ROLES),
+    "StageUtteranceCut": _once(lambda r, t: {"utterance_index": 0, "review_required": True}),
     "StageWordsCut": Case(
-        lambda r: {
+        lambda r, t: {
             "track_id": "host",
             "start_word_index": 1,
             "end_word_index": 1,
             "review_required": True,
-        }
+        },
+        roles=DIALOGUE,
     ),
-    "StripSilence": Case(lambda r: {"track_id": "host"}),
-    "SuggestPendingEdit": Case(lambda r: {"track_id": "host", "start": 6.0, "end": 6.5}),
-    "SuppressBleed": Case(lambda r: {"track_id": "host"}),
-    "SuppressLowAudibility": Case(lambda r: {}),
+    "StripSilence": Case(lambda r, t: {"track_id": t.track}),
+    "SuggestPendingEdit": Case(
+        lambda r, t: {"track_id": t.track, "start": 6.0, "end": 6.5}, roles=STAGED_CUT_ROLES
+    ),
+    "SuppressBleed": Case(lambda r, t: {"track_id": "host", "words": FIRST_WORD}, roles=DIALOGUE),
+    "SuppressLowAudibility": Case(lambda r, t: {"words": FIRST_WORD}, roles=DIALOGUE),
     "TrimClipEdge": Case(
-        lambda r: {
-            "clip_id": "h2",
+        lambda r, t: {
+            "clip_id": t.right,
             "edge": "in",
             "source_sec": 7.0,
             "mode": "gap",
             "override_audio_checks": True,
             "expected_token": boundary_context(
                 r.ws.project,
-                TrimBoundaryTarget(clip_id="h2", edge="in", mode=EditMode.GAP),
+                TrimBoundaryTarget(clip_id=t.right, edge="in", mode=EditMode.GAP),
                 defaults=r.ws.effective_config(),
             ).token,
         }
     ),
-    "UndoHistory": Case(
-        lambda r: {"expected_head_id": r.head()},
+    "UndoHistory": Case(lambda r, t: {"expected_head_id": r.head()}, _add_effect),
+    "UpdateChapter": _once(
+        lambda r, t: {"old_time": 1.0, "old_title": "One", "time": 2.0, "title": "Two"},
         _add_chapter,
     ),
-    "UpdateChapter": Case(
-        lambda r: {"old_time": 1.0, "old_title": "One", "time": 2.0, "title": "Two"},
-        _add_chapter,
-    ),
-    "UpdateComment": Case(
-        lambda r: {"comment_id": r.ws.project.comments[0].id, "body": "edited"},
-        _add_comment,
+    "UpdateComment": _once(
+        lambda r, t: {"comment_id": _first_comment(r), "body": "edited"}, _add_comment
     ),
     "UpdatePendingEdit": Case(
-        lambda r: {"id": _pending(r)[0], "start": 6.1, "end": 6.4}, _stage_cut
+        lambda r, t: {"id": _pending(r)[0], "start": 6.1, "end": 6.4},
+        _stage_cut,
+        roles=STAGED_CUT_ROLES,
     ),
-    "UpdateSocialClip": Case(
-        lambda r: {"id": r.ws.project.social_clip_candidates[0].id, "start": 1.5, "end": 3.0},
-        _add_social_clip,
+    "UpdateSocialClip": _once(
+        lambda r, t: {"id": _first_social_clip(r), "start": 1.5, "end": 3.0}, _add_social_clip
     ),
-    "UpdateSocialClipDetails": Case(
-        lambda r: {"id": r.ws.project.social_clip_candidates[0].id, "title": "T"},
-        _add_social_clip,
+    "UpdateSocialClipDetails": _once(
+        lambda r, t: {"id": _first_social_clip(r), "title": "T"}, _add_social_clip
     ),
     "VerifyTranscript": Case(
-        lambda r: {"track_id": "host", "corrections": [{"word_index": 0, "text": "hello"}]}
+        lambda r, t: {"track_id": "host", "corrections": [{"word_index": 0, "text": "hello"}]},
+        roles=DIALOGUE,
     ),
 }
 
-# Commands that cannot run on any fixture here. Empty on purpose: add a name only with a reason.
-EXCLUDED: dict[str, str] = {}
+
+@dataclass(frozen=True)
+class Cannot:
+    reason: str
+    roles: tuple[TrackRole, ...] = field(default=ROLES)
 
 
-def test_every_registry_command_has_a_case_and_exclusions_are_real() -> None:
-    assert set(EXCLUDED) <= set(COMMANDS), "an excluded command is not in the registry"
-    missing = set(COMMANDS) - set(CASES) - set(EXCLUDED)
+# Commands, or roles of a command, that leave every proxy artifact as it was, and why.
+PLACEMENT = (
+    "a non-dialogue track's artifact is its whole recording; the player cuts, places, fades "
+    "and gains its clips from the clip rows"
+)
+METADATA = "review, chapter, social, feed or naming metadata; no audio input"
+PENDING = "stages or reviews edit decisions; nothing plays until one is applied"
+CANNOT_MOVE_AUDIO: dict[str, Cannot] = {
+    **dict.fromkeys(
+        [
+            "AddAction",
+            "AddChapter",
+            "AddComment",
+            "AddReply",
+            "AddSocialClip",
+            "ClearFeedField",
+            "DeleteChapter",
+            "DeleteComment",
+            "DeleteSocialClip",
+            "ProposeSocialClips",
+            "RenameProject",
+            "ResolveComment",
+            "SetActionDone",
+            "SetFeedField",
+            "SetRecordSessionName",
+            "UpdateChapter",
+            "UpdateComment",
+            "UpdateSocialClip",
+            "UpdateSocialClipDetails",
+        ],
+        Cannot(METADATA),
+    ),
+    **dict.fromkeys(
+        [
+            "ApplyEditPlan",
+            "ProposeTighten",
+            "RejectEdits",
+            "SelectSessionTake",
+            "SkipSessionSuggestion",
+            "StageTextMatchCut",
+            "StageTimeRangeCut",
+            "StageUtteranceCut",
+            "StageWordsCut",
+            "SuggestPendingEdit",
+            "UpdatePendingEdit",
+        ],
+        Cannot(PENDING),
+    ),
+    **dict.fromkeys(
+        [
+            "ApplyFadeRecommendationList",
+            "ApplyFadeRecommendations",
+            "CrossfadeJoins",
+            "CutRange",
+            "DeleteClip",
+            "FadeJoins",
+            "FillRoomTone",
+            "MoveClips",
+            "RollClipJoin",
+            "SetClipFade",
+            "SetClipGain",
+            "SetClipJoin",
+            "SetClipsFade",
+            "SetClipsGain",
+            "SetJoinMode",
+            "SplitAtTime",
+            "TrimClipEdge",
+        ],
+        Cannot(PLACEMENT, NON_DIALOGUE),
+    ),
+    "AddTrack": Cannot("a new track has no media and no clips, so no artifact reads it"),
+    "CorrectTranscriptWord": Cannot("word text and confidence only; the gate reads neither"),
+    "ReorderTrack": Cannot("track order is no artifact's input"),
+    "SetBleedAlignmentMode": Cannot(
+        "records a choice the next bleed alignment pass reads; no render reads the record"
+    ),
+    "SetEnvelope": Cannot("the player applies volume envelopes over the artifacts"),
+    "SetJoinFadeLimit": Cannot("caps only fades the automatic join writers pick later"),
+    "SetTrackFader": Cannot("the player applies the mix fader"),
+    "SetTrackMute": Cannot("the player applies the mix mute"),
+    "VerifyTranscript": Cannot("word text and confidence only; the gate reads neither"),
+}
+
+
+def _cannot(command_type: str, role: TrackRole | None) -> Cannot | None:
+    cannot = CANNOT_MOVE_AUDIO.get(command_type)
+    if cannot is None or (role is not None and role not in cannot.roles):
+        return None
+    return cannot
+
+
+def _params() -> list[Any]:
+    return [
+        pytest.param(name, role, id=name if role is None else f"{name}-{role.value}")
+        for name in sorted(COMMANDS)
+        if name in CASES
+        for role in (CASES[name].roles or (None,))
+    ]
+
+
+def test_every_registry_command_has_a_case_and_every_listing_is_real() -> None:
+    missing = set(COMMANDS) - set(CASES)
     assert not missing, f"give these commands a case: {sorted(missing)}"
     assert not set(CASES) - set(COMMANDS), "a case names a command the registry lacks"
-    assert not set(CASES) & set(EXCLUDED)
+    assert set(CANNOT_MOVE_AUDIO) <= set(COMMANDS), "CANNOT_MOVE_AUDIO names an unknown command"
 
 
-@pytest.mark.parametrize("command_type", sorted(COMMANDS))
-def test_a_guest_shows_current_audio_identity_after_the_command_and_its_undo_redo(
-    template: Path, tmp_path: Path, command_type: str
-) -> None:
-    if command_type in EXCLUDED:
-        pytest.skip(EXCLUDED[command_type])
+def test_the_manifest_key_reads_every_clip_field_the_manifest_carries() -> None:
+    assert set(ProxyClipBasis.model_fields) == set(KEY["clip_fields"])
+
+
+def run_case(template: Path, tmp_path: Path, command_type: str, role: TrackRole | None) -> list:
     case = CASES[command_type]
+    target = Target(role or TrackRole.DIALOGUE)
     rig = _open(template, tmp_path, case)
     if case.setup is not None:
-        case.setup(rig)
-    payload = case.payload(rig)
+        case.setup(rig, target)
+    payload = case.payload(rig, target)
     guest = Guest(rig)
-    guest.assert_current("before")
     head = rig.head()
-    guest.step(command_type, payload)
-    guest.assert_current(command_type)
+    steps = [guest.step(command_type, payload, command_type)]
+    guest.assert_matches_manifest(command_type)
     if rig.head() == head or not rig.ws.project.history.can_undo():
-        return
-    guest.step("UndoHistory", {"expected_head_id": rig.head()})
-    guest.assert_current(f"Undo({command_type})")
-    guest.step("RedoHistory", {"expected_head_id": rig.head()})
-    guest.assert_current(f"Redo({command_type})")
+        return steps
+    for name in ("UndoHistory", "RedoHistory"):
+        label = f"{name}({command_type})"
+        steps.append(guest.step(name, {"expected_head_id": rig.head()}, label))
+        guest.assert_matches_manifest(label)
+    return steps
+
+
+@pytest.mark.parametrize(("command_type", "role"), _params())
+def test_a_guest_learns_of_every_proxy_artifact_change(
+    template: Path, tmp_path: Path, command_type: str, role: TrackRole | None
+) -> None:
+    steps = run_case(template, tmp_path, command_type, role)
+    for step in steps:
+        assert step.key_moved or not step.artifacts_moved, (
+            f"{step.label}: the proxy artifacts changed but the guest's key did not"
+        )
+    cannot = _cannot(command_type, role)
+    if cannot is None:
+        assert steps[0].artifacts_moved, (
+            f"{command_type}: the case leaves every proxy artifact as it was, so it proves "
+            "nothing; give it a fixture where it changes audio or list it in CANNOT_MOVE_AUDIO"
+        )
+    else:
+        assert not steps[0].artifacts_moved, (
+            f"{command_type} is in CANNOT_MOVE_AUDIO ({cannot.reason}) but changed audio"
+        )
