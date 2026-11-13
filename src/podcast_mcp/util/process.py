@@ -13,6 +13,7 @@ never orphans one.
 from __future__ import annotations
 
 import ctypes
+import errno
 import os
 import shutil
 import signal
@@ -190,6 +191,10 @@ def _with_niceness(cmd: list[str]) -> list[str]:
     return [nice, "-n", str(niceness), *cmd] if nice else cmd
 
 
+class SpawnUnavailableError(OSError):
+    """This host cannot start other programs (``ENOSYS``). Callers that already catch ``OSError`` report it."""
+
+
 def _spawn(
     cmd: list[str],
     *,
@@ -201,6 +206,8 @@ def _spawn(
     env: Mapping[str, str] | None = None,
     start_new_session: bool = False,
 ) -> subprocess.Popen[Any]:
+    if not host_platform.current().can_spawn_processes:
+        raise SpawnUnavailableError(errno.ENOSYS, "This device can't start other programs.")
     cmd = _with_niceness(cmd)
 
     def popen_(*, detach: bool) -> subprocess.Popen[Any]:

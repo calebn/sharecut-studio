@@ -34,6 +34,7 @@ from podcast_mcp.services.pipeline.install_failure import (
     classify,
     unexpected_text,
 )
+from podcast_mcp.util import host_platform
 from podcast_mcp.util.asset_sources import DOWNLOAD_TASK_ID, DownloadProgress, cdn_base_configured
 from podcast_mcp.util.binaries import (
     FFmpegPairResolutionError,
@@ -80,6 +81,18 @@ class UninstallModelResult(TypedDict):
     model: dict[str, Any]
 
 
+def _model_row(
+    model_id: str, variant: str | None, host: host_platform.HostPlatform
+) -> dict[str, Any]:
+    if model_id == "whisper" and host.transcription == "unavailable":
+        return {
+            **model_base(model_id, variant),
+            "state": "unsupported",
+            "hint": host_platform.TRANSCRIPTION_UNAVAILABLE,
+        }
+    return model_status(model_id, variant)
+
+
 def uninstall_model(model_id: str, variant: str | None = None) -> UninstallModelResult:
     """Delete one model Studio downloaded and report the record after it, plus the bytes freed.
 
@@ -97,6 +110,7 @@ def uninstall_model(model_id: str, variant: str | None = None) -> UninstallModel
 def component_status(*, whisper_model: str | None = None) -> dict[str, Any]:
     """Return GUI first-run readiness without downloads."""
     model = resolve_whisper_model(requested=whisper_model)
+    host = host_platform.current()
     ffmpeg_error = None
     try:
         ffmpeg_pair = resolve_ffmpeg_pair(force_refresh=True)
@@ -104,7 +118,14 @@ def component_status(*, whisper_model: str | None = None) -> dict[str, Any]:
         ffmpeg_pair = None
         ffmpeg_error = str(exc)
     ffmpeg_ok = ffmpeg_pair is not None and ffmpeg_pair.is_available()
-    models = [model_status(spec.id, model if spec.id == "whisper" else None) for spec in MODELS]
+    ffmpeg_state = (
+        "unsupported"
+        if host.media_tools == "unavailable"
+        else "installed"
+        if ffmpeg_ok
+        else "missing"
+    )
+    models = [_model_row(spec.id, model if spec.id == "whisper" else None, host) for spec in MODELS]
     ready = ffmpeg_ok and all(
         row["state"] == "installed" for row in models if row["id"] in DEFAULT_FIRST_RUN_COMPONENTS
     )
@@ -113,9 +134,16 @@ def component_status(*, whisper_model: str | None = None) -> dict[str, Any]:
         "cdn_base": cdn_base_configured(),
         "whisper_model": model,
         "whisper_models": catalog_payload(),
+        "host": {
+            "name": host.name,
+            "can_spawn_processes": host.can_spawn_processes,
+            "loopback_is_trusted": host.loopback_is_trusted,
+            "media_tools": host.media_tools,
+            "transcription": host.transcription,
+        },
         "tools": {
             "ffmpeg": {
-                "state": "installed" if ffmpeg_ok else "missing",
+                "state": ffmpeg_state,
                 "source": ffmpeg_pair.source if ffmpeg_pair else "not found",
                 "hint": ffmpeg_error,
             }
