@@ -3,6 +3,7 @@
 #[cfg(all(unix, not(target_os = "ios"), not(target_os = "android")))]
 pub mod cli_links;
 mod close_guard;
+pub mod engine;
 mod share_url;
 mod sidecar;
 mod update;

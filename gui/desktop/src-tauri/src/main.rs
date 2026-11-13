@@ -1,8 +1,7 @@
 // Prevents additional console window on Windows in release
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
-use std::io::{self, Write};
-use std::net::TcpStream;
+use std::io;
 use std::path::PathBuf;
 use std::process::{Child, Command};
 use std::sync::{Arc, Mutex};
@@ -10,8 +9,8 @@ use std::thread;
 use std::time::{Duration, Instant};
 
 use sharecut::{
-    bundled_sidecar_path, detach_to_sidecar_log, parse_listen_json, random_boot_token,
-    read_health_response, sidecar_listen_path, sidecar_log_path, sidecar_owns_listen,
+    bundled_sidecar_path, detach_to_sidecar_log, engine, parse_listen_json, random_boot_token,
+    sidecar_listen_path, sidecar_log_path, sidecar_owns_listen,
 };
 use tauri::{Manager, RunEvent, WebviewWindow, Window};
 use tauri_plugin_deep_link::DeepLinkExt;
@@ -48,9 +47,6 @@ struct CloseGuardStatus {
     exiting: bool,
 }
 
-const HEALTH_IO_TIMEOUT: Duration = Duration::from_millis(400);
-const HEALTH_READ_CAP: usize = 4096;
-const FALLBACK_PORT: u16 = 8765;
 const SHARE_OPEN_DEBOUNCE: Duration = Duration::from_millis(1500);
 
 fn close_guard_decision(window: &WebviewWindow) -> sharecut::CloseDecision {
@@ -507,15 +503,12 @@ fn spawn_bundled(path: PathBuf) -> Result<SidecarHandle, String> {
                 );
             }
         }
-        cmd.env("PODCAST_SIDECAR_EPHEMERAL", "1");
-        cmd.env("PODCAST_SIDECAR_BOOT_TOKEN", &token);
-        cmd.env("PODCAST_SIDECAR_LISTEN_FILE", &listen);
-        cmd.env("PODCAST_GUI_OPENAPI", "0");
-        if std::env::var_os("PODCAST_BOOTSTRAP_CDN_BASE").is_none() {
-            if let Some(cdn_base) = sharecut::distribution::BOOTSTRAP_CDN_BASE {
-                cmd.env("PODCAST_BOOTSTRAP_CDN_BASE", cdn_base);
-            }
-        }
+        let cdn_base = if std::env::var_os("PODCAST_BOOTSTRAP_CDN_BASE").is_none() {
+            sharecut::distribution::BOOTSTRAP_CDN_BASE
+        } else {
+            None
+        };
+        cmd.envs(engine::engine_environment(&token, &listen, cdn_base));
         (Some(listen), Some(token))
     };
     let child = cmd.spawn().map_err(|e| e.to_string())?;
@@ -643,33 +636,12 @@ fn try_engine_ready(app: &tauri::AppHandle) -> Result<u16, String> {
             }
             (port, boot_token.as_deref())
         }
-        None => (FALLBACK_PORT, None),
+        None => (engine::FALLBACK_PORT, None),
     };
-    if !tcp_get_health(port, token).unwrap_or(false) {
+    if !engine::probe_health(port, token).unwrap_or(false) {
         return Err(format!("health not ok on 127.0.0.1:{port}"));
     }
     Ok(port)
-}
-
-fn tcp_get_health(port: u16, boot_token: Option<&str>) -> Result<bool, ()> {
-    let mut stream = TcpStream::connect(("127.0.0.1", port)).map_err(|_| ())?;
-    stream
-        .set_read_timeout(Some(HEALTH_IO_TIMEOUT))
-        .map_err(|_| ())?;
-    stream
-        .set_write_timeout(Some(HEALTH_IO_TIMEOUT))
-        .map_err(|_| ())?;
-    // Connection: close helps the failure path finish with EOF after the body;
-    // success still returns as soon as the buffer contains HTTP 200 + `"ok": true`.
-    let mut req = String::from("GET /api/health HTTP/1.0\r\nHost: 127.0.0.1\r\n");
-    if let Some(token) = boot_token {
-        req.push_str("X-Sharecut-Boot-Token: ");
-        req.push_str(token);
-        req.push_str("\r\n");
-    }
-    req.push_str("Connection: close\r\n\r\n");
-    stream.write_all(req.as_bytes()).map_err(|_| ())?;
-    Ok(read_health_response(&mut stream, HEALTH_READ_CAP))
 }
 
 fn eval_js(win: &WebviewWindow, js: &str) {
@@ -699,26 +671,17 @@ fn open_settings(app: &tauri::AppHandle) {
 
 fn show_sidecar_error(app: &tauri::AppHandle, detail: &str) {
     let log = sidecar_log_path();
-    let msg = format!(
-        "Could not start the ShareCut engine ({detail}). Log: {}",
-        log.display()
-    );
+    let msg = engine::sidecar_error_message(detail, &log);
     if let Some(win) = app.get_webview_window("main") {
         if let Ok(js) = serde_json::to_string(&msg) {
-            eval_js(
-                &win,
-                &format!("var el=document.getElementById('status'); if(el) el.textContent={js};"),
-            );
+            eval_js(&win, &engine::splash_status_script(&js));
         }
     }
 }
 
 fn open_engine_window(app: &tauri::AppHandle, port: u16) {
     if let Some(win) = app.get_webview_window("main") {
-        eval_js(
-            &win,
-            &format!("window.location.replace('http://127.0.0.1:{port}/')"),
-        );
+        eval_js(&win, &engine::engine_location_script(port));
     }
 }
 
@@ -816,13 +779,6 @@ fn open_share_url(app: tauri::AppHandle, url: String) -> Result<&'static str, St
     open_allowed_share(&app, &url)
 }
 
-fn engine_navigation_allowed(url: &str, engine_port: Option<u16>) -> bool {
-    if sharecut::is_allowed_webview_navigation(url, engine_port) {
-        return true;
-    }
-    cfg!(debug_assertions) && sharecut::is_allowed_webview_navigation(url, Some(FALLBACK_PORT))
-}
-
 fn start_sidecar(app: &tauri::AppHandle) -> Result<(), String> {
     let state = app.state::<SidecarState>();
     let mut slot = state
@@ -909,7 +865,10 @@ fn main() {
         .plugin(
             tauri::plugin::Builder::<tauri::Wry, ()>::new("engine-nav")
                 .on_navigation(move |_webview, url| {
-                    engine_navigation_allowed(url.as_str(), nav_port.lock().ok().and_then(|g| *g))
+                    engine::engine_navigation_allowed(
+                        url.as_str(),
+                        nav_port.lock().ok().and_then(|g| *g),
+                    )
                 })
                 .build(),
         );
