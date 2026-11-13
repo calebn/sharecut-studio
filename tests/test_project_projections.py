@@ -423,9 +423,9 @@ def test_projection_for_command() -> None:
     assert projection_for_command("SetEnvelope") is ViewProjection.ENVELOPES
     assert projection_for_command("UndoHistory") is ViewProjection.SHELL
     assert projection_for_command("CorrectTranscriptWord") is ViewProjection.DETAIL
-    assert projection_for_command("CorrectTranscriptPhrase") is ViewProjection.DETAIL
-    assert projection_for_command("SetTranscriptWordSuppressed") is ViewProjection.DETAIL
-    assert projection_for_command("SetTranscriptWordAutomatic") is ViewProjection.DETAIL
+    assert projection_for_command("CorrectTranscriptPhrase") is ViewProjection.TRANSCRIPT_AUDIO
+    assert projection_for_command("SetTranscriptWordSuppressed") is ViewProjection.TRANSCRIPT_AUDIO
+    assert projection_for_command("SetTranscriptWordAutomatic") is ViewProjection.TRANSCRIPT_AUDIO
     assert projection_for_command("SetTranscriptWordsIgnored") is ViewProjection.TRANSCRIPT_AUDIO
     from podcast_mcp.services.document_sync.projections import (
         TRANSCRIPT_AUDIO_COMMANDS,
