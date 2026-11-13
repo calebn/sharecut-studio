@@ -6,7 +6,7 @@ from collections.abc import Mapping
 from dataclasses import asdict
 from typing import Any
 
-from fastapi import APIRouter, Depends, Header, Query, Request
+from fastapi import APIRouter, Depends, Query, Request
 from starlette.responses import Response
 
 from podcast_mcp.gui.routes import export_ticket
@@ -150,9 +150,7 @@ def download_export_file(
     file_id: str,
     request: Request,
     path: str = Query(...),
-    token: str | None = Query(None),
     ticket: str | None = Query(None),
-    x_podcast_token: str | None = Header(None, alias="X-Podcast-Token"),
 ) -> Response:
     """Download one listed file as an attachment. The id is checked against the listing.
 
@@ -160,7 +158,7 @@ def download_export_file(
     """
     ticket_version = None
     if ticket is None:
-        require_host(request, token=token, x_podcast_token=x_podcast_token)
+        require_host(request)
     else:
         refuse_relayed(request)
         ticket_version = export_ticket.verified_version(ticket, path, file_id)

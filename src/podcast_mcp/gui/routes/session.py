@@ -3,7 +3,7 @@ from __future__ import annotations
 import sqlite3
 from typing import Any
 
-from fastapi import APIRouter, Header, Query, Request
+from fastapi import APIRouter, Query, Request
 from fastapi.responses import JSONResponse
 from pydantic import ValidationError
 
@@ -181,10 +181,8 @@ def apply_ws_client_message(
 def get_session_meta(
     request: Request,
     path: str = Query(..., description="Path to episode.sharecut"),
-    token: str | None = Query(None),
-    x_podcast_token: str | None = Header(None, alias="X-Podcast-Token"),
 ):
-    require_authz(request, token=token or x_podcast_token)
+    require_authz(request)
     project_path = resolve_project(path, request)
     return session_file_meta(project_path)
 
@@ -193,10 +191,8 @@ def get_session_meta(
 def get_session_state(
     request: Request,
     path: str = Query(..., description="Path to episode.sharecut"),
-    token: str | None = Query(None),
-    x_podcast_token: str | None = Header(None, alias="X-Podcast-Token"),
 ):
-    require_authz(request, token=token or x_podcast_token)
+    require_authz(request)
     project_path = resolve_project(path, request)
     ws = ProjectWorkspace.open(project_path)
     state = read_session_state(ws.project)
@@ -213,10 +209,8 @@ def post_session_command(
     body: SessionCommandRequest,
     request: Request,
     path: str = Query(..., description="Path to episode.sharecut"),
-    token: str | None = Query(None),
-    x_podcast_token: str | None = Header(None, alias="X-Podcast-Token"),
 ):
-    require_authz(request, client_id=body.client_id, role=body.role, token=token or x_podcast_token)
+    require_authz(request, client_id=body.client_id, role=body.role)
     project_path = resolve_project(path, request)
     ws = ProjectWorkspace.open(project_path)
     svc = SessionSyncService(ws.project)
@@ -248,11 +242,9 @@ def post_session_state(
     body: ViewerSessionSnapshot,
     request: Request,
     path: str = Query(..., description="Path to episode.sharecut"),
-    token: str | None = Query(None),
-    x_podcast_token: str | None = Header(None, alias="X-Podcast-Token"),
 ):
     """Viewer blob -> typed commands (Ack, presence heartbeat, durable deltas)."""
-    require_authz(request, token=token or x_podcast_token)
+    require_authz(request)
     project_path = resolve_project(path, request)
     ws = ProjectWorkspace.open(project_path)
     return _publish_viewer_blob(ws.project, body)

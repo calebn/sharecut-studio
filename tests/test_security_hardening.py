@@ -308,7 +308,7 @@ def test_require_authz_raises(monkeypatch):
 
     monkeypatch.setenv("PODCAST_SESSION_AUTHZ", "strict")
     monkeypatch.delenv("PODCAST_SESSION_TOKEN", raising=False)
-    scope = {"type": "http", "headers": [], "client": ("1.2.3.4", 1)}
+    scope = {"type": "http", "headers": [], "query_string": b"", "client": ("1.2.3.4", 1)}
     with pytest.raises(AccessDeniedError) as exc:
         require_authz(Request(scope), client_id="viewer", role="viewer")
     assert exc.value.code == "authz_denied"

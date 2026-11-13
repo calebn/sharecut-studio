@@ -6,7 +6,7 @@ import logging
 import sqlite3
 from typing import Any, Literal
 
-from fastapi import APIRouter, Depends, Header, Query, Request
+from fastapi import APIRouter, Depends, Query, Request
 from pydantic import BaseModel
 
 from podcast_mcp.edits.range_target import RangeChangedError
@@ -74,10 +74,8 @@ def get_document_comments(
     path: str = Query(...),
     client_id: str = Query("viewer"),
     role: str = Query("viewer"),
-    token: str | None = Query(None),
-    x_podcast_token: str | None = Header(None, alias="X-Podcast-Token"),
 ) -> dict[str, Any]:
-    require_authz(request, client_id=client_id, role=role, token=token or x_podcast_token)
+    require_authz(request, client_id=client_id, role=role)
     project_path = resolve_project(path, request)
     svc = DocumentSyncService.open(project_path)
     return svc.comments_snapshot()
@@ -88,10 +86,8 @@ def get_document_state(
     request: Request,
     path: str = Query(...),
     phase: str = Query("shell", pattern="^(shell|detail|full)$"),
-    token: str | None = Query(None),
-    x_podcast_token: str | None = Header(None, alias="X-Podcast-Token"),
 ) -> dict[str, Any]:
-    require_authz(request, token=token or x_podcast_token)
+    require_authz(request)
     project_path = resolve_project(path, request)
     pin_served_if_allowed(request, project_path)
     return DocumentSyncService.open(project_path).document_snapshot(projection=phase)
@@ -102,14 +98,12 @@ def post_document_command(
     body: DocumentCommandRequest,
     request: Request,
     path: str = Query(...),
-    token: str | None = Query(None),
-    x_podcast_token: str | None = Header(None, alias="X-Podcast-Token"),
 ) -> dict[str, Any]:
     require_authz(
         request,
         client_id=body.client_id,
         role=body.role,
-        token=token or x_podcast_token or body.token,
+        body_token=body.token,
     )
     project_path = resolve_project(path, request)
     svc = DocumentSyncService.open(project_path)
@@ -266,14 +260,12 @@ def pending_preview_audio(
         ) from exc
 
 
-def _session_heard(
-    request: Request, path: str, token: str | None, x_podcast_token: str | None
-) -> tuple[Any, Any]:
+def _session_heard(request: Request, path: str) -> tuple[Any, Any]:
     from podcast_mcp.gui.routes.deps import require_host
     from podcast_mcp.services.app import ProjectWorkspace
     from podcast_mcp.services.document import SessionSuggestionService
 
-    require_host(request, token=token, x_podcast_token=x_podcast_token)
+    require_host(request)
     ws = ProjectWorkspace.open(resolve_project(path, request))
     return ws, SessionSuggestionService(ws)
 
@@ -283,14 +275,12 @@ def session_suggestion_warm(
     request: Request,
     path: str = Query(...),
     suggestion_id: str = Query(...),
-    token: str | None = Query(None),
-    x_podcast_token: str | None = Header(None, alias="X-Podcast-Token"),
 ):
     """Render a pending session's Current and Suggested windows ahead of the first Play."""
     from podcast_mcp.util.process import low_priority
     from podcast_mcp.util.project_state import REQUEST_RENDER_LOCK_TIMEOUT_SEC
 
-    _ws, service = _session_heard(request, path, token, x_podcast_token)
+    _ws, service = _session_heard(request, path)
     try:
         with low_priority():
             return service.warm(suggestion_id, lock_timeout=REQUEST_RENDER_LOCK_TIMEOUT_SEC)
@@ -307,11 +297,9 @@ def session_suggestion_takes(
     request: Request,
     path: str = Query(...),
     suggestion_id: str = Query(...),
-    token: str | None = Query(None),
-    x_podcast_token: str | None = Header(None, alias="X-Podcast-Token"),
 ):
     """The takes of a staged session for a take switcher: length, words, chosen and default."""
-    _ws, service = _session_heard(request, path, token, x_podcast_token)
+    _ws, service = _session_heard(request, path)
     try:
         return service.takes(suggestion_id)
     except KeyError as exc:
@@ -326,11 +314,9 @@ def session_suggestion_select_take(
     path: str = Query(...),
     suggestion_id: str = Query(...),
     take_index: int = Query(...),
-    token: str | None = Query(None),
-    x_podcast_token: str | None = Header(None, alias="X-Podcast-Token"),
 ):
     """Pick the take Accept places for a pending replace (one undo step)."""
-    _ws, service = _session_heard(request, path, token, x_podcast_token)
+    _ws, service = _session_heard(request, path)
     try:
         return service.select_take(suggestion_id, take_index)
     except KeyError as exc:
@@ -347,14 +333,12 @@ def session_suggestion_hear(
     mode: Literal["current", "suggested", "ab"] = Query("ab"),
     take_index: int | None = Query(None),
     pad_sec: float = Query(1.5, ge=0, le=10),
-    token: str | None = Query(None),
-    x_podcast_token: str | None = Header(None, alias="X-Podcast-Token"),
 ):
     """What a pending session sounds like before and after Accept: windows, lengths and speech.
 
     The WAVs are served by ``/api/session-suggestion/hear-wav`` with the same query.
     """
-    ws, service = _session_heard(request, path, token, x_podcast_token)
+    ws, service = _session_heard(request, path)
     try:
         heard = _hear_session(ws, service, suggestion_id, mode, take_index, pad_sec)
     except KeyError as exc:
@@ -380,14 +364,12 @@ def session_suggestion_hear_wav(
     mode: Literal["current", "suggested", "ab"] = Query("suggested"),
     take_index: int | None = Query(None),
     pad_sec: float = Query(1.5, ge=0, le=10),
-    token: str | None = Query(None),
-    x_podcast_token: str | None = Header(None, alias="X-Podcast-Token"),
 ):
     from pathlib import Path
 
     from podcast_mcp.gui.audio import pinned_audio_response
 
-    ws, service = _session_heard(request, path, token, x_podcast_token)
+    ws, service = _session_heard(request, path)
     try:
         heard = _hear_session(ws, service, suggestion_id, mode, take_index, pad_sec)
         audio = Path(heard["wav"])
