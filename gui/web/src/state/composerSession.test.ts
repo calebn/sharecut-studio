@@ -437,8 +437,21 @@ describe("show", () => {
   });
 });
 
-describe("reset", () => {
-  it("clears everything and starts nothing", () => {
+describe("reset: the guest may no longer comment", () => {
+  it("clears everything and leaves a playing episode alone", () => {
+    const { state, effects } = run(
+      session({
+        surface: "composer",
+        draft: draft("a", 5, false),
+        post: { id: 1, sentText: "a" },
+      }),
+      [[{ type: "reset" }, { playing: true }]],
+    );
+    expect(state).toEqual(initialSession);
+    expect(effects).toEqual([]);
+  });
+
+  it("plays on what the composer paused, as Close does", () => {
     const { state, effects } = run(
       session({
         surface: "composer",
@@ -448,7 +461,67 @@ describe("reset", () => {
       [[{ type: "reset" }]],
     );
     expect(state).toEqual(initialSession);
+    expect(effects).toEqual(["play"]);
+  });
+
+  it("plays on from a held draft with the field closed", () => {
+    const { state, effects } = run(session({ draft: draft("a", 5, true) }), [
+      [{ type: "reset" }],
+    ]);
+    expect(state).toEqual(initialSession);
+    expect(effects).toEqual(["play"]);
+  });
+
+  it("leaves a paused episode the listener paused alone", () => {
+    const { effects } = run(
+      session({ surface: "composer", draft: draft("a", 5, false) }),
+      [[{ type: "reset" }]],
+    );
     expect(effects).toEqual([]);
+  });
+});
+
+describe("open with listen false keeps a held pause", () => {
+  const held = session({ surface: "composer", draft: draft("a", 5, true) });
+
+  it("keeps resume, never pauses, and replaces the pin", () => {
+    const { state, effects } = run(held, [
+      [{ type: "open", anchor: at(40), replacePin: true, listen: false }],
+    ]);
+    expect(effects).toEqual([]);
+    expect(state.draft).toMatchObject({
+      text: "a",
+      anchor: at(40),
+      resume: true,
+    });
+    expect(state.pausing).toBe(false);
+  });
+
+  it("plays on at Post after the layout stopped being Listen", () => {
+    const { effects } = run(held, [
+      [{ type: "open", anchor: at(40), replacePin: true, listen: false }],
+      [{ type: "postStart", id: 1 }],
+      [{ type: "postDone", id: 1 }],
+    ]);
+    expect(effects).toEqual(["play"]);
+  });
+
+  it("plays on at Close and at discard", () => {
+    for (const type of ["close", "discard"] as const) {
+      const { effects } = run(held, [
+        [{ type: "open", anchor: at(40), replacePin: true, listen: false }],
+        [{ type }],
+      ]);
+      expect(effects).toEqual(["play"]);
+    }
+  });
+
+  it("does not invent a promise where none was held", () => {
+    const { state } = run(
+      session({ surface: "composer", draft: draft("a", 5, false) }),
+      [[{ type: "open", anchor: at(40), replacePin: true, listen: false }]],
+    );
+    expect(state.draft?.resume).toBe(false);
   });
 });
 

@@ -452,7 +452,7 @@ describe("Player", () => {
     });
   });
 
-  it("keeps the bar's Comment in a folded frame, as a 44 px target", () => {
+  it("keeps the bar's Comment in a folded phone frame only, as a 44 px target", () => {
     render(<Player {...base} guest onComment={() => undefined} />);
     const comment = screen.getByRole("button", { name: "Comment" });
     expect(comment).toHaveClass("sys-player-comment");
@@ -462,7 +462,13 @@ describe("Player", () => {
     );
     expect(folded?.[1]).toContain(".sys-player-comment");
     expect(css).toMatch(
-      /html\[data-frame-short\] \.sys-player-comment\s*\{[^}]*var\(--touch-min\)/,
+      /html\[data-frame-short\]:not\(\[data-shell="phone"\]\)\s*\.sys-player-comment\s*\{[^}]*display:\s*none/,
+    );
+    expect(css).toMatch(
+      /html\[data-frame-short\]\[data-shell="phone"\]\s*\.sys-player-comment\s*\{[^}]*var\(--touch-min\)/,
+    );
+    expect(css).not.toMatch(
+      /html\[data-frame-short\] \.sys-player-comment\s*\{/,
     );
   });
 });
