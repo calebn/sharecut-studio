@@ -121,7 +121,8 @@ describe("lock screen position against the real proxy transport clock", () => {
 
   it("has no live position between a store seek and the engine taking it", async () => {
     await playing();
-    expect(livePlayheadSec()).toBe(10);
+    engine.currentTimeSec.mockReturnValue(12);
+    expect(livePlayheadSec()).toBe(12);
     let during = Number.NaN;
     act(() => {
       useDawStore.getState().setPlayheadSec(40, "seek");
@@ -144,20 +145,20 @@ describe("lock screen position against the real proxy transport clock", () => {
     });
   });
 
-  it("skips from the sought position once the engine has taken the seek", async () => {
+  it("skips from the engine clock once the engine has taken the seek", async () => {
     await playing();
-    act(() => handlers.get("seekto")?.({ action: "seekto", seekTime: 40 }));
+    act(() => handlers.get("seekto")?.({ action: "seekto", seekTime: 20 }));
     expect(session.setPositionState).toHaveBeenLastCalledWith({
       duration: 60,
       playbackRate: 1,
-      position: 40,
+      position: 20,
     });
-    engine.currentTimeSec.mockReturnValue(40);
+    engine.currentTimeSec.mockReturnValue(30);
     act(() => handlers.get("seekforward")?.({ action: "seekforward" }));
     expect(session.setPositionState).toHaveBeenLastCalledWith({
       duration: 60,
       playbackRate: 1,
-      position: 55,
+      position: 45,
     });
   });
 });
