@@ -156,6 +156,23 @@ test.describe("Stage shell on desktop", () => {
     await expect(tools).toBeFocused();
   });
 
+  test("hides the Player's Comment when a desktop frame folds", async ({
+    page,
+  }) => {
+    await openProject(page);
+    await expect(
+      player(page).getByRole("button", { name: "Comment" }),
+    ).toBeVisible();
+    await page.setViewportSize({ width: 1280, height: 220 });
+    await expect(page.locator("html")).toHaveAttribute("data-frame-short", "");
+    await expect(
+      player(page).getByRole("button", { name: "Play", exact: true }),
+    ).toBeVisible();
+    await expect(
+      player(page).getByRole("button", { name: "Comment" }),
+    ).toBeHidden();
+  });
+
   test("opens a project into Edit and is axe-clean", async ({ page }) => {
     await openProject(page);
     await expect(page.getByRole("heading", { level: 1 })).toContainText(

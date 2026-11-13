@@ -67,6 +67,56 @@ for (const size of SIZES) {
   });
 }
 
+test("an Editor link on a phone keeps the comment field docked at the foot, clear of the Player and the card", async ({
+  browser,
+}) => {
+  await withShareableProject(async (projectPath) => {
+    await withBrowserPages(
+      browser,
+      [{}, { viewport: { width: 390, height: 844 }, hasTouch: true }],
+      async ([host, guest]) => {
+        await openHostShare(host, projectPath);
+        const token = await createReviewShare(host, projectPath, "editor");
+        await openGuestShare(guest, token);
+        const field = guest
+          .locator(".rv-compose")
+          .getByRole("textbox", { name: "Comment", exact: true });
+        await expect(field).toBeVisible();
+        await expect(field).toBeInViewport();
+        await expect(guest.locator(".rv-compose[data-docked]")).toHaveCount(1);
+        const gap = await guest.evaluate(() => {
+          const compose = document.querySelector<HTMLElement>(".rv-compose");
+          const bar = document.querySelector<HTMLElement>(".sys-player");
+          if (!compose || !bar) return null;
+          for (
+            let el = compose.parentElement;
+            el && el !== document.body;
+            el = el.parentElement
+          ) {
+            const y = getComputedStyle(el).overflowY;
+            if (/auto|scroll/.test(y) && el.scrollHeight > el.clientHeight)
+              el.scrollTop = el.scrollHeight;
+          }
+          const box = compose.getBoundingClientRect();
+          const prev = compose.previousElementSibling?.getBoundingClientRect();
+          return {
+            aboveBar: bar.getBoundingClientRect().top - box.bottom,
+            belowCard: prev ? box.top - prev.bottom : 0,
+          };
+        });
+        expect(gap).not.toBeNull();
+        expect(gap?.aboveBar ?? -1).toBeGreaterThanOrEqual(-0.5);
+        expect(gap?.belowCard ?? -1).toBeGreaterThanOrEqual(-0.5);
+        await expect
+          .poll(() =>
+            guest.evaluate(() => document.documentElement.scrollWidth),
+          )
+          .toBeLessThanOrEqual(390);
+      },
+    );
+  });
+});
+
 function viewerProof(guest: Page, name: string): Promise<Buffer> {
   const dir = process.env.VIEWER_PROOF_DIR;
   if (dir) fs.mkdirSync(dir, { recursive: true });
