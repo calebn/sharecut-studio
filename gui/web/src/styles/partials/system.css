@@ -1107,7 +1107,7 @@ html[data-frame-short] .sys-player-ab,
 html[data-frame-short] .sys-player-left > :not(.sys-player-time),
 html[data-frame-short]
   .sys-player-right
-  > :not(.sys-player-hear):not(.sys-player-comment) {
+  > :not(.sys-player-hear, .sys-player-comment) {
   display: none;
 }
 
