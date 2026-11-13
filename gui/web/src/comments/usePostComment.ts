@@ -32,12 +32,10 @@ export function commentPostedStatus(comment: TimelineComment | null): string {
  * `comment` is null when an offline host queued it.
  */
 export function usePostComment(): {
-  busy: boolean;
   error: string | null;
   setError: (message: string | null) => void;
   post: (input: CommentInput) => Promise<PostResult>;
 } {
-  const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const post = useCallback(async (input: CommentInput): Promise<PostResult> => {
     setError(null);
@@ -50,7 +48,6 @@ export function usePostComment(): {
     if (!body) return { ok: false };
     const state = useDawStore.getState();
     const { draft } = resolveCommentAnchor(state);
-    setBusy(true);
     try {
       if (!isGuestSession(state.projectPath, state.guestMode)) {
         saveCommentAuthor(author);
@@ -70,10 +67,8 @@ export function usePostComment(): {
     } catch (e) {
       setError(errorMessage(e));
       return { ok: false };
-    } finally {
-      setBusy(false);
     }
   }, []);
 
-  return { busy, error, setError, post };
+  return { error, setError, post };
 }
