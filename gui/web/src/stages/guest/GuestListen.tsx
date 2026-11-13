@@ -1,7 +1,11 @@
 import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import { useShallow } from "zustand/react/shallow";
 import { useKeyboardInset } from "../../hooks/useKeyboardInset";
-import { type ReviewContent, ReviewQueue } from "../../review/ReviewQueue";
+import {
+  type ReviewContent,
+  ReviewQueue,
+  type ReviewQueueProps,
+} from "../../review/ReviewQueue";
 import type { ReviewStageProps } from "../../review/ReviewStage";
 import type { ReviewItem } from "../../review/reviewQueueModel";
 import { ChaptersList } from "../../stage/frame/ChaptersList";
@@ -31,6 +35,21 @@ type GuestListenProps = {
   /** The transcript's real state; it decides whether the middle is the Script. */
   scriptState: ListenInput["script"];
 };
+
+/** The queue, scrolled to the row the guest is on every time the list appears. */
+function CommentsList(props: ReviewQueueProps) {
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    ref.current
+      ?.querySelector('[aria-current="true"]')
+      ?.scrollIntoView({ block: "center" });
+  }, []);
+  return (
+    <div ref={ref} className="gl-list">
+      <ReviewQueue {...props} />
+    </div>
+  );
+}
 
 function previewOf(
   item: ReviewItem,
@@ -115,11 +134,13 @@ export function GuestListen({ review, script, scriptState }: GuestListenProps) {
     setStep(null);
     setOpenSheet(null);
   };
-  const open = (id: string | null) => {
-    if (id) {
-      review.onSelect(id);
-      setStep(id);
-    }
+  const openList = () => {
+    if (heardId) review.onSelect(heardId);
+    setOpenSheet("comments");
+  };
+  const openThread = (id: string) => {
+    review.onSelect(id);
+    setStep(id);
     setOpenSheet("comments");
   };
 
@@ -145,7 +166,7 @@ export function GuestListen({ review, script, scriptState }: GuestListenProps) {
           comments={bottom.comments}
           preview={heard ? previewOf(heard, content) : undefined}
           flash={flash ?? undefined}
-          onOpen={() => open(heardId)}
+          onOpen={openList}
         />
       ) : bottom.kind === "composer" ? (
         review.composer
@@ -185,7 +206,7 @@ export function GuestListen({ review, script, scriptState }: GuestListenProps) {
             : null
         }
       >
-        <ReviewQueue
+        <CommentsList
           items={items}
           content={content}
           selectedId={selectedId}
@@ -199,7 +220,8 @@ export function GuestListen({ review, script, scriptState }: GuestListenProps) {
           state={review.state}
           onFilter={review.onFilter}
           onSort={review.onSort}
-          onSelect={(id) => open(id)}
+          onSelect={openThread}
+          onPlayComment={review.onPlayComment}
           onRetry={review.onRetry}
         />
       </Sheet>

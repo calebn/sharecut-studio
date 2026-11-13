@@ -119,7 +119,7 @@ describe("guest transcript detail loading in Review", () => {
     ).not.toBeNull();
     expect(screen.getAllByRole("region", { name: "Queue" })[0]).toBeVisible();
     expect(
-      screen.getByRole("button", { name: /^Show comments/ }),
+      screen.getByRole("button", { name: /^Show\b.*\bcomments?/ }),
     ).toBeEnabled();
     expect(loadDetail).toHaveBeenCalledTimes(1);
   });

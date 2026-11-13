@@ -345,7 +345,7 @@ export const CommenterPhone: Story = {
       canvas.getByRole("slider", { name: "Episode overview" }),
     ).toBeVisible();
     await expect(
-      canvas.getByRole("button", { name: /^Show comments/ }),
+      canvas.getByRole("button", { name: /^Show\b.*\bcomments?/ }),
     ).toBeVisible();
     await expect(canvas.getByRole("button", { name: "Play" })).toBeVisible();
     await expect(
@@ -426,7 +426,7 @@ export const CommenterPhoneComments: Story = {
     ).toBeVisible();
     if (!onPhone(canvasElement)) return;
     await userEvent.click(
-      await canvas.findByRole("button", { name: /^Show comments/ }),
+      await canvas.findByRole("button", { name: /^Show\b.*\bcomments?/ }),
     );
     const sheet = await within(canvasElement.ownerDocument.body).findByRole(
       "dialog",
@@ -513,7 +513,7 @@ export const FirstVisitRoleHint: Story = {
       canvas.getByRole("img", { name: "Commenter: can comment" }),
     ).toBeVisible();
     const comment = await commentButton(canvas);
-    const row = canvas.getByRole("button", { name: /^Show comments/ });
+    const row = canvas.getByRole("button", { name: /^Show\b.*\bcomments?/ });
     await waitFor(async () => {
       const bubble = note.getBoundingClientRect();
       await expect(bubble.left).toBeGreaterThanOrEqual(0);
