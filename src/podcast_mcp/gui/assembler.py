@@ -32,7 +32,8 @@ from podcast_mcp.services.document_sync import (
     ViewProjection,
     parse_view_projection,
 )
-from podcast_mcp.util.batch_scope import batch_scope
+from podcast_mcp.services.media import proxy_basis_hashes
+from podcast_mcp.util.batch_scope import batch_scope, frozen_state
 
 __all__ = [
     "VIEW_PROJECTION_QUERY_DESCRIPTION",
@@ -57,12 +58,25 @@ def _freshness_patch(
     edit: EditService | None = None,
 ) -> dict[str, Any]:
     svc = edit if edit is not None else EditService(ws)
-    status = svc.render_status()
+    status = _render_status(ws, svc)
     return {
         **extra,
         "tracks": [t.model_dump() for t in build_track_views(ws, edit=svc, render_status=status)],
         "render_status": status,
     }
+
+
+def _render_status(ws: ProjectWorkspace, edit: EditService) -> dict[str, Any]:
+    """Stem freshness, plus ``proxy_hashes``: per track, what its proxy artifacts are built from.
+
+    A guest's player matches proxy manifests on ``proxy_hashes`` and the clip rows, so every
+    slice that ships render freshness ships them. One read-only block shares each track's
+    render hash between the two.
+    """
+    with frozen_state():
+        status = edit.render_status()
+        status["proxy_hashes"] = proxy_basis_hashes(ws.project, ws.effective_config())
+    return status
 
 
 def _hydration(*, transcript_words: bool, history_groups: bool) -> dict[str, bool]:
@@ -175,7 +189,7 @@ def build_project_view(
     include_words = proj is ViewProjection.FULL
 
     clips = TimelineService(ws).list_clips(include_timing_steps=audience != "guest")
-    render_status = edit.render_status()
+    render_status = _render_status(ws, edit)
     pending = edit.list_decisions(applied=False)
     applied = edit.list_applied_edits()
     chapters = TimelineService(ws).list_chapters()
