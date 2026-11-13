@@ -61,9 +61,8 @@ export function silentWavBytes(seconds: number): Uint8Array {
 
 let keepAlive: KeepAliveElement | null = null;
 let events: PlaybackSessionEvents | null = null;
-/** True from enter to leave; the element's own events count only against this. */
-let entered = false;
-let entries = 0;
+/** The live enter call, null once left or refused; the element's own events count only while set. */
+let entry: object | null = null;
 
 function defaultCreateElement(): KeepAliveElement | null {
   return typeof Audio === "undefined" ? null : new Audio();
@@ -75,12 +74,12 @@ function defaultCreateObjectUrl(blob: Blob): string {
 
 function watch(element: KeepAliveElement): void {
   element.addEventListener("pause", () => {
-    if (!entered || !element.paused) return;
-    entered = false;
+    if (!entry || !element.paused) return;
+    entry = null;
     events?.onSystemPause();
   });
   element.addEventListener("play", () => {
-    if (entered || element.paused) return;
+    if (entry || element.paused) return;
     events?.onSystemPlay();
   });
 }
@@ -105,8 +104,8 @@ export function enterPlaybackSession(
     // An unsupported or locked session type must never stop playback.
   }
   events = sessionEvents;
-  entered = true;
-  const entry = ++entries;
+  const mine = {};
+  entry = mine;
   try {
     if (!keepAlive) {
       const element = createElement();
@@ -124,18 +123,18 @@ export function enterPlaybackSession(
     const started = keepAlive?.play();
     if (started && typeof (started as Promise<void>).catch === "function") {
       (started as Promise<void>).catch(() => {
-        if (entry === entries) entered = false;
+        if (entry === mine) entry = null;
       });
     }
   } catch {
     // Autoplay rules can refuse the silent element; the Web Audio path still runs.
-    entered = false;
+    entry = null;
   }
 }
 
 /** Pause the silent element when playback pauses; the paused element keeps the lock screen's place. */
 export function leavePlaybackSession(): void {
-  entered = false;
+  entry = null;
   try {
     keepAlive?.pause();
   } catch {
@@ -154,5 +153,5 @@ export function releasePlaybackSession(
 export function resetPlaybackSessionForTest(): void {
   keepAlive = null;
   events = null;
-  entered = false;
+  entry = null;
 }

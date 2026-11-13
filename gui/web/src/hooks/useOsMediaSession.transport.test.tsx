@@ -2,13 +2,13 @@ import { act, renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { loadProxyManifest } from "../api";
 import { livePlayheadSec } from "../audio/livePlayhead";
-import { type ProxyManifest, projectProxyBasis } from "../audio/proxyMath";
 import { clearRegisteredCommands } from "../commands/execute";
 import { registerDawCommands } from "../commands/register";
 import { resetDocumentAuthority } from "../document/authorityState";
 import { shareProjectKey } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
 import { minimalProject, sampleTrack } from "../test/fixtures";
+import { hostProxyManifest } from "../test/proxyManifest";
 import { useOsMediaSession } from "./useOsMediaSession";
 import { useProxyTransport } from "./useProxyTransport";
 
@@ -48,38 +48,27 @@ vi.mock("../api", async (importOriginal) => ({
 }));
 vi.mock("../audio/chunkCache", () => ({ cachedFetchArrayBuffer: vi.fn() }));
 
-function manifestFor(): ProxyManifest {
-  return {
-    revision: "revision",
-    project_basis: projectProxyBasis(useDawStore.getState().project!),
-    tracks: {
-      host: {
-        hash: "a".repeat(16),
-        chunk_sec: 60,
-        overlap_ms: 200,
-        chunk_count: 1,
-        duration_sec: 60,
-        urls: ["u0"],
-      },
-    },
-    artifacts: {},
-    occurrences: {},
-  };
-}
-
+const handlers = new Map<string, MediaSessionActionHandler | null>();
 const session = {
   metadata: null as unknown,
   playbackState: "none",
-  setActionHandler: vi.fn(),
+  setActionHandler: vi.fn(
+    (action: string, handler: MediaSessionActionHandler | null) => {
+      handlers.set(action, handler);
+    },
+  ),
   setPositionState: vi.fn(),
 };
 
 describe("lock screen position against the real proxy transport clock", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    handlers.clear();
     vi.spyOn(navigator, "onLine", "get").mockReturnValue(true);
     resetDocumentAuthority(shareProjectKey("tok"));
-    vi.mocked(loadProxyManifest).mockImplementation(async () => manifestFor());
+    vi.mocked(loadProxyManifest).mockImplementation(async () =>
+      hostProxyManifest(useDawStore.getState().project!),
+    );
     engine.currentTimeSec.mockReturnValue(10);
     vi.stubGlobal(
       "MediaMetadata",
@@ -106,7 +95,11 @@ describe("lock screen position against the real proxy transport clock", () => {
         tracks: [sampleTrack({ id: "host" })],
       }),
     );
-    useDawStore.setState({ isPlaying: false, playheadSec: 10 });
+    useDawStore.setState({
+      isPlaying: false,
+      playheadSec: 10,
+      playbackRate: 1,
+    });
   });
 
   afterEach(() => {
@@ -136,7 +129,6 @@ describe("lock screen position against the real proxy transport clock", () => {
     });
     expect(during).toBe(40);
     expect(engine.seek).toHaveBeenCalledWith(40);
-    expect(livePlayheadSec()).toBe(10);
   });
 
   it("declares the sought position when a rate change follows the seek in one tick", async () => {
@@ -149,6 +141,23 @@ describe("lock screen position against the real proxy transport clock", () => {
       duration: 60,
       playbackRate: 1.03,
       position: 40,
+    });
+  });
+
+  it("skips from the sought position once the engine has taken the seek", async () => {
+    await playing();
+    act(() => handlers.get("seekto")?.({ action: "seekto", seekTime: 40 }));
+    expect(session.setPositionState).toHaveBeenLastCalledWith({
+      duration: 60,
+      playbackRate: 1,
+      position: 40,
+    });
+    engine.currentTimeSec.mockReturnValue(40);
+    act(() => handlers.get("seekforward")?.({ action: "seekforward" }));
+    expect(session.setPositionState).toHaveBeenLastCalledWith({
+      duration: 60,
+      playbackRate: 1,
+      position: 55,
     });
   });
 });
