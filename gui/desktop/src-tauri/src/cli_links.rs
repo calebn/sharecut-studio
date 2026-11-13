@@ -158,7 +158,18 @@ fn classify(path: &Path, name: &str, expected: &[u8]) -> io::Result<State> {
     if !metadata.file_type().is_file() {
         return Ok(State::Foreign);
     }
-    let content = fs::read(path)?;
+    let content = match fs::read(path) {
+        Ok(value) => value,
+        Err(err) if err.kind() == io::ErrorKind::PermissionDenied => {
+            use std::os::unix::fs::MetadataExt;
+            let ours = path
+                .parent()
+                .and_then(|dir| fs::metadata(dir).ok())
+                .is_some_and(|dir| dir.uid() == metadata.uid());
+            return Ok(if ours { State::Stale } else { State::Foreign });
+        }
+        Err(err) => return Err(err),
+    };
     // The installer creates the wrapper as this user, so its owner bit must
     // permit that user to execute it; group/other bits are insufficient.
     let executable = metadata.permissions().mode() & 0o100 != 0;
