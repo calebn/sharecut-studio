@@ -570,10 +570,10 @@ describe("useProxyTransport", () => {
     expect(useDawStore.getState().audioError).toBeNull();
   });
 
-  it("refuses an older generation after the displayed project revision advances", async () => {
+  it("refuses an older generation after the displayed project audio advances", async () => {
     const cached = manifestFor();
     const current = structuredClone(useDawStore.getState().project!);
-    current.history.head_id = "after-restore" as typeof current.history.head_id;
+    current.render_status.tracks = { host: { render_hash: "after-restore" } };
     useDawStore.getState().setProject(current);
     vi.mocked(loadProxyManifest).mockRejectedValue(new Error("offline"));
     vi.mocked(loadOfflineSnapshot).mockResolvedValue({
@@ -627,10 +627,63 @@ describe("useProxyTransport", () => {
     );
   });
 
-  it.each(["head", "hash"])(
+  it("keeps playing without a pause or manifest fetch when a refresh only moves history.head_id", async () => {
+    renderHook(() => useProxyTransport());
+    await ready();
+    act(() => useDawStore.getState().setIsPlaying(true));
+    expect(engine.play).toHaveBeenCalled();
+    engine.pause.mockClear();
+    engine.setSnapshot.mockClear();
+    const project = structuredClone(useDawStore.getState().project!);
+    project.history.head_id = "after-comment" as typeof project.history.head_id;
+    act(() => useDawStore.getState().setProject(project));
+    await act(async () => {});
+    expect(useDawStore.getState().isPlaying).toBe(true);
+    expect(engine.pause).not.toHaveBeenCalled();
+    expect(loadProxyManifest).toHaveBeenCalledOnce();
+    expect(useDawStore.getState().audioError).toBeNull();
+  });
+
+  it.each(["render hash", "clip timeline"])(
+    "stops playing when an audible %s change lands with the head moved",
+    async (change) => {
+      const fixture = moveFixture();
+      useDawStore.getState().setProject(fixture.base);
+      renderHook(() => useProxyTransport());
+      await ready();
+      act(() => useDawStore.getState().setIsPlaying(true));
+      engine.pause.mockClear();
+      const project = structuredClone(fixture.base);
+      project.history.head_id = "after-edit" as typeof project.history.head_id;
+      if (change === "clip timeline")
+        project.clips.tracks = {
+          host: [
+            {
+              ...project.clips.tracks.host[0],
+              timeline_start: 3,
+              timeline_end: 8,
+            },
+          ],
+        };
+      else
+        project.render_status.tracks = { host: { render_hash: "new-render" } };
+      act(() => useDawStore.getState().setProject(project));
+      await vi.waitFor(() =>
+        expect(loadProxyManifest).toHaveBeenCalledTimes(2),
+      );
+      await act(async () => {});
+      expect(engine.pause).toHaveBeenCalled();
+      expect(useDawStore.getState().isPlaying).toBe(false);
+      expect(useDawStore.getState().audioError).toBeNull();
+    },
+  );
+
+  it.each(["render hash", "clip"])(
     "refuses a first Restore or authored %s advance behind an empty cached manifest",
     async (advance) => {
-      const cached = manifestFor();
+      const fixture = moveFixture();
+      useDawStore.getState().setProject(fixture.base);
+      const cached = manifestFor(fixture.base);
       renderHook(() => useProxyTransport());
       await ready();
       act(() => useDawStore.getState().setIsPlaying(true));
@@ -639,10 +692,10 @@ describe("useProxyTransport", () => {
         manifest: cached,
         saved_at: 1,
       });
-      const project = structuredClone(useDawStore.getState().project!);
-      if (advance === "head")
-        project.history.head_id =
-          "first-restore" as typeof project.history.head_id;
+      const project = structuredClone(fixture.base);
+      project.history.head_id =
+        "first-restore" as typeof project.history.head_id;
+      if (advance === "clip") project.clips.tracks = fixture.moved.clips.tracks;
       else
         project.render_status.tracks = { host: { render_hash: "new-render" } };
       engine.setSnapshot.mockClear();
@@ -657,6 +710,27 @@ describe("useProxyTransport", () => {
       expect(useDawStore.getState().projectPath).toBe(projectPath);
     },
   );
+
+  it("keeps playing for a head-only advance behind a cached manifest", async () => {
+    const cached = manifestFor();
+    renderHook(() => useProxyTransport());
+    await ready();
+    act(() => useDawStore.getState().setIsPlaying(true));
+    vi.mocked(loadProxyManifest).mockRejectedValue(new Error("offline"));
+    vi.mocked(loadOfflineSnapshot).mockResolvedValue({
+      manifest: cached,
+      saved_at: 1,
+    });
+    const project = structuredClone(useDawStore.getState().project!);
+    project.history.head_id = "after-comment" as typeof project.history.head_id;
+    engine.setSnapshot.mockClear();
+    engine.pause.mockClear();
+    act(() => useDawStore.getState().setProject(project));
+    await act(async () => {});
+    expect(useDawStore.getState().isPlaying).toBe(true);
+    expect(useDawStore.getState().audioError).toBeNull();
+    expect(engine.pause).not.toHaveBeenCalled();
+  });
 
   it("plays a matching offline pair without a document authority token", async () => {
     const cached = manifestFor();
@@ -916,7 +990,7 @@ describe("useProxyTransport", () => {
   it("uses document recovery for a newer manifest and admits the recovered pair", async () => {
     const old = useDawStore.getState().project!;
     const newer = structuredClone(old);
-    newer.history.head_id = "new-head" as typeof newer.history.head_id;
+    newer.render_status.tracks = { host: { render_hash: "new-render" } };
     const manifest = manifestFor(newer);
     applyDocumentSnapshot({ project: old, server_seq: 1, state_token: "old" });
     vi.mocked(loadProxyManifest).mockResolvedValue(manifest);
@@ -932,8 +1006,8 @@ describe("useProxyTransport", () => {
     expect(loadProxyManifest).toHaveBeenCalledOnce();
     expect(
       engine.setSnapshot.mock.calls.at(-1)?.[0].manifest.project_basis
-        .history_head_id,
-    ).toBe("new-head");
+        .render_hashes.host,
+    ).toBe("new-render");
   });
 
   it("recovers the next document delta after a derived save without refetching the unchanged proxy basis", async () => {
@@ -989,13 +1063,13 @@ describe("useProxyTransport", () => {
     );
     renderHook(() => useProxyTransport());
     const newer = structuredClone(useDawStore.getState().project!);
-    newer.history.head_id = "new-head" as typeof newer.history.head_id;
+    newer.render_status.tracks = { host: { render_hash: "new-render" } };
     act(() => useDawStore.getState().setProject(newer));
     await ready();
     expect(
       engine.setSnapshot.mock.calls.at(-1)?.[0].manifest.project_basis
-        .history_head_id,
-    ).toBe("new-head");
+        .render_hashes.host,
+    ).toBe("new-render");
     engine.setSnapshot.mockClear();
     await act(async () => release(previous));
     expect(engine.setSnapshot).not.toHaveBeenCalled();
