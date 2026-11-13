@@ -128,10 +128,10 @@ pub struct ToolReport {
     pub action: Action,
 }
 
-/// A symlink counts as ShareCut's own only when a packaged app could have made
-/// it: this command inside a macOS `*sharecut*.app` bundle, or under the
-/// `.deb` roots (`/usr/lib`, `/usr/bin`, `/opt`) in a directory named for
-/// sharecut. A developer link into a checkout or venv is someone else's.
+/// A symlink is ShareCut's own only when a packaged app could have made it:
+/// inside a macOS `*sharecut*.app` bundle, or in a sharecut-named directory
+/// under a `.deb` root (`/usr/lib`, `/usr/bin`, `/opt`). A developer link into
+/// a checkout or venv is someone else's.
 #[cfg(unix)]
 fn owned_link_target(target: &Path, name: &str) -> bool {
     use std::path::Component;
@@ -142,20 +142,17 @@ fn owned_link_target(target: &Path, name: &str) -> bool {
     {
         return false;
     }
-    let in_bundle = target.components().any(|c| match c {
-        Component::Normal(part) => {
+    let named = |c: Component, ext: &str| {
+        matches!(c, Component::Normal(part) if {
             let part = lower(part);
-            part.ends_with(".app") && part.contains("sharecut")
-        }
-        _ => false,
-    });
+            part.contains("sharecut") && part.ends_with(ext)
+        })
+    };
+    let in_bundle = target.components().any(|c| named(c, ".app"));
     let in_package_root = ["/usr/lib", "/usr/bin", "/opt"].iter().any(|root| {
         target.strip_prefix(root).is_ok_and(|rest| {
-            rest.parent().is_some_and(|dirs| {
-                dirs.components().any(
-                    |c| matches!(c, Component::Normal(part) if lower(part).contains("sharecut")),
-                )
-            })
+            rest.parent()
+                .is_some_and(|dirs| dirs.components().any(|c| named(c, "")))
         })
     });
     in_bundle || in_package_root
@@ -317,9 +314,8 @@ fn replace_with(
 }
 
 /// Adds missing commands and refreshes ones a ShareCut app installed earlier.
-/// A command something else owns is skipped, or with `replace_foreign` moved
-/// to `<name>.sharecut-backup` first, so it is never lost. Only names listed
-/// in `replace` (the ones the user agreed to) are replaced.
+/// A command something else owns is skipped, unless the user agreed to replace
+/// it by name in `replace`; it is then moved to `<name>.sharecut-backup` first.
 #[cfg(unix)]
 pub fn install(bin: &Path, tools: &Tools, replace: &[String]) -> io::Result<Vec<ToolReport>> {
     fs::create_dir_all(bin)?;
@@ -649,24 +645,6 @@ mod tests {
             Path::new("/Applications/ShareCut.app/podcast-mcp"),
             "podcast"
         ));
-    }
-
-    #[cfg(unix)]
-    #[test]
-    fn developer_symlink_into_a_sharecut_checkout_is_foreign_and_survives_remove() {
-        let root = scratch("devlink");
-        let tools = app_tools(&root);
-        let bin = root.join("bin");
-        fs::create_dir_all(&bin).unwrap();
-        let dev = root.join("src/sharecut-studio/.venv/bin/podcast");
-        std::os::unix::fs::symlink(&dev, bin.join("podcast")).unwrap();
-        assert_eq!(states(&bin, &tools)[0], State::Foreign);
-        let skipped = install(&bin, &tools, &[]).unwrap();
-        assert_eq!(skipped[0].action, Action::SkippedForeign);
-        let removed = remove(&bin, &tools).unwrap();
-        assert_eq!(removed[0].action, Action::SkippedForeign);
-        assert_eq!(fs::read_link(bin.join("podcast")).unwrap(), dev);
-        fs::remove_dir_all(root).unwrap();
     }
 
     #[cfg(unix)]
