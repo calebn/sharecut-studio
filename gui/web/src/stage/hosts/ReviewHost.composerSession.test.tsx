@@ -331,3 +331,30 @@ describe("a link with chapters, no transcript and a failed load", () => {
     ).toBeInTheDocument();
   });
 });
+
+describe("a Viewer with a Script on the phone", () => {
+  it("reads it in the middle, read only, and a tap on a word seeks", async () => {
+    const user = userEvent.setup();
+    join("view");
+    mount();
+    const script = document.querySelector<HTMLElement>(
+      ".stage-host-guest-script",
+    );
+    expect(script).not.toBeNull();
+    expect(within(script as HTMLElement).getByText("Read only")).toBeVisible();
+    const word = (script as HTMLElement).querySelectorAll<HTMLElement>(
+      ".sys-script-word",
+    )[3] as HTMLElement;
+    await user.click(word);
+    expect(useDawStore.getState().playheadSec).toBeGreaterThan(0);
+    expect(screen.queryByRole("textbox")).toBeNull();
+    expect(screen.queryByRole("button", { name: /^Comment at/ })).toBeNull();
+    expect(
+      screen.queryByRole("group", { name: "Selection actions" }),
+    ).toBeNull();
+    expect((script as HTMLElement).querySelector("[data-selected]")).toBeNull();
+    expect(
+      screen.getByRole("button", { name: /^Chapters/ }),
+    ).toBeInTheDocument();
+  });
+});

@@ -2094,13 +2094,14 @@ export const ScriptPane = forwardRef<ScriptPaneHandle, ScriptPaneProps>(
       if (next) now.props.onSelect?.(next);
     };
 
-    // A phone guest's header would hold only the caption and the follow pin:
-    // the Role chip says what the link allows, and scrolling stops following.
+    // A phone Commenter or Editor's header would hold only the caption and the follow
+    // pin: the Role chip says what the link allows, and scrolling stops
+    // following. A Viewer's keeps its "Read only" label.
     const showHeader =
       (status.kind === "ready" ||
         status.kind === "transcribing" ||
         status.kind === "outOfDate") &&
-      !(guest && layout === "phone");
+      !(guest && guest !== "viewer" && layout === "phone");
 
     if (status.kind === "empty") {
       return (
