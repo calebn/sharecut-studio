@@ -22,6 +22,7 @@ import {
   sessionSuggestionView,
 } from "../../test/fixtures";
 import { stubViewportShell } from "../../test/viewportShell";
+import { PlayerBar } from "../frame/PlayerBar";
 import { ReviewHost } from "./ReviewHost";
 
 const postGuest = vi.hoisted(() => vi.fn());
@@ -600,13 +601,18 @@ describe("Review queue for a guest", () => {
       ).toBeNull();
     });
 
-    it("phone Editor: no field until Comment, then above the card", async () => {
+    it("phone Editor: no field is docked; the bar's Comment, visible without a menu, opens it above the card", async () => {
       stubViewportShell("phone");
       useDawStore.setState({ shellBreakpoint: "phone" });
       join("edit");
-      render(<ReviewHost guestShare />);
+      render(
+        <>
+          <ReviewHost guestShare />
+          <PlayerBar placement="bar" />
+        </>,
+      );
       expect(screen.queryByRole("textbox", { name: "Comment" })).toBeNull();
-      await act(() => executePointerCommand("comment.draftAt", { atTime: 4 }));
+      await userEvent.click(screen.getByRole("button", { name: /^Comment/ }));
       expect(field()).toBeVisible();
       expect(above()).toBe(true);
     });
