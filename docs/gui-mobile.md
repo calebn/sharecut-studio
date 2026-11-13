@@ -94,7 +94,11 @@ full-screen path.**
   Island side held sideways and the home indicator; the inset bands take
   `--color-bg-base`. Viewport-fixed top-layer panels also set their edges from
   the matching safe-area insets because they escape shell padding. Other pages
-  pad the body's left and right.
+  pad the body's left and right. Home has no stage frame, so `.sys-home-column`
+  pads its own top by `env(safe-area-inset-top)` (`max(var(--space-8), ...)`
+  wide, the bare inset when narrow); without it a full-screen webview such as
+  the iOS app draws the header under the status bar (`App.styles.test.ts` pins
+  both rules).
 - **Home Screen app.** `public/assets/app/manifest.webmanifest` declares
   `display: standalone`, the name "ShareCut Studio" (short "ShareCut"), the
   transport colour `#1b1815` as theme and background, and icons rendered from

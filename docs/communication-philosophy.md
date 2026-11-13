@@ -73,7 +73,7 @@ to UX partners; for UI copy, this table wins.
 | Skip (a plan row) | Leaves one Getting ready row out of the next run only. Saved nowhere; undone with Include and shown as "Skipped this time" | "Disable step" (that is the session switch in Advanced) |
 | Selected work finished | The requested steps finished. Neutral rows still say what did not run; a partial result names only the operations that ran | "Everything is ready", "All audio was transcribed" |
 | Apply sound actions | The optional step that applies suggested actions to non-speech sounds during processing (`apply_sound_actions`), in Advanced under "Find suggestions". Cost is said as "about 2½ minutes for 30 minutes of audio" | "Scan for sounds", scan-only wording |
-| Audio tools | The bundled FFmpeg and FFprobe pair needed for media work. Source installs supply a supported matching pair | "Download FFmpeg" in desktop setup |
+| Audio tools | The bundled FFmpeg and FFprobe pair needed for media work. Source installs supply a supported matching pair. On a device that cannot have them Studio says so in the server's one sentence ("ShareCut can't process audio on this device yet.") and offers no install | "Download FFmpeg" in desktop setup, "unsupported" |
 | Review link | Async share for follow-along/comment/edit, no live session. It works until the host chooses Stop sharing | "share link"; "share" alone when record rooms also exist |
 | Record room | The live recording room and its lobby/session | "session link", "call" |
 | Guest link | Record-room link for the person being recorded | "guest role" |
@@ -628,6 +628,7 @@ shipped at the port; #1031 shipped it. The adjacent MCP note shipped in #1027.
 
 ## Changelog
 
+- 2026-11-13 A device that cannot have audio tools says so (#3810): Home's card reads "Audio tools" with the server's sentence, the Models sheet shows it once and each model row reads "Not available on this device yet", with no Get, Try again, size control, link or spinner. Edited the Audio tools term.
 - 2026-11-12 The Terminology table's quoted multi-word "Never say" phrases are now checked against the web app's copy (#3123 item 7, `scripts/check_terminology.py`). The 26 hits that exist are a shrink-only baseline in `tests/terminology_baseline.json`; no copy changed.
 - 2026-11-11 A guest is told when the mix they hear is behind (#3605): the player's status reads "Mix out of date", with no "· Refresh" and no action, only when the server says the mix the guest plays no longer matches the host's edits (`render_status.premix.is_stale`). The host's pill is unchanged.
 - 2026-11-11 Five more controls say why they are unavailable, in text beside them (#1686): the clip inspector for a View-only link ("This link can view, but not edit, clips. Ask the host for an editor link."), a saved mute a guest cannot undo (the mixer and the track inspector show "Muted in the mix. Only the host and editors can unmute it."), the More sheet's End session, the pending-edit Suggested and A/B preview modes, and the Review queue's held Dismiss all (no longer screen-reader-only). Each control keeps its `title` and points `aria-describedby` at the visible note.
