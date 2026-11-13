@@ -294,6 +294,28 @@ describe("ReviewQueue", () => {
     expect(screen.getByLabelText("In time order")).toBeInTheDocument();
   });
 
+  it("keeps the filter, the sort, the visible count and the group heading for a guest queue with more than one kind", () => {
+    render(
+      <ReviewQueue
+        items={[
+          { id: "a", kind: "comment", at: 9, savedSeconds: 0 },
+          ...fillers.slice(0, 1),
+        ]}
+        content={reviewContent}
+        selectedId={null}
+        filter="all"
+        guest
+        onFilter={vi.fn()}
+        onSort={vi.fn()}
+        onSelect={vi.fn()}
+      />,
+    );
+    expect(screen.getByRole("group", { name: "Filter" })).toBeInTheDocument();
+    expect(screen.getByRole("group", { name: "Sort" })).toBeInTheDocument();
+    expect(document.querySelector(".rv-progress.sr-only")).toBeNull();
+    expect(document.querySelector(".rv-group-name")).not.toBeNull();
+  });
+
   it("shows the bulk row for a group that has left the queue, without a fake bar", () => {
     const { getByText, queryByRole, queryByText } = render(
       <ReviewQueue
