@@ -21,10 +21,12 @@ from podcast_mcp.project.io import ensure_utf8_path
 from podcast_mcp.services.document_sync import DocumentConflictError
 from podcast_mcp.services.media import TranscriptContextBusyError
 from podcast_mcp.services.session_sync import (
+    HostCredential,
     authorize_client,
     authorize_host,
     is_loopback_host,
 )
+from podcast_mcp.util import host_platform
 from podcast_mcp.util.coded_error import (
     AccessDeniedError,
     CodedError,
@@ -32,6 +34,7 @@ from podcast_mcp.util.coded_error import (
     HostSetupError,
     SignInRequiredError,
 )
+from podcast_mcp.util.host_session_wire import SESSION_COOKIE
 from podcast_mcp.util.model_missing import ModelMissing
 from podcast_mcp.util.project_state import PROJECT_BUSY_CODE, busy_message
 from podcast_mcp.util.proxy_paths import is_relayed_request
@@ -155,29 +158,39 @@ def host_credential(
     sources: CredentialSources = OWNER_API,
     *,
     body_token: str | None = None,
-) -> str | None:
+) -> HostCredential:
     """The credential this request presents as the owner, from the one place that reads it.
 
-    The first source that carries a value wins: the query keys, then the header, then a token
-    the request body carried. Every owner route, page and socket asks here, so a host kind that
-    takes its credential from somewhere else changes one function.
+    Every owner route, page and socket asks here. A host whose loopback is trusted reads the
+    shared token from the first of *sources* that carries one, then from *body_token*. A host
+    whose loopback is not trusted reads only the browser session cookie, whatever else the
+    request carries.
     """
+    if not host_platform.current().loopback_is_trusted:
+        return HostCredential(session=_session_is_live(connection))
     token = next((v for key in sources.query if (v := connection.query_params.get(key))), None)
     if not token and sources.header:
         token = connection.headers.get(TOKEN_HEADER)
-    return token or body_token or None
+    return HostCredential(token=token or body_token or None)
+
+
+def _session_is_live(connection: HTTPConnection) -> bool:
+    sessions = getattr(connection.app.state, "host_sessions", None)
+    return sessions is not None and sessions.is_live(connection.cookies.get(SESSION_COOKIE))
 
 
 def page_credential_query(request: Request) -> dict[str, str]:
     """The page-link credential a recovery link must carry forward: ``{}`` when the request has none."""
-    token = host_credential(request, PAGE_QUERY)
+    token = host_credential(request, PAGE_QUERY).token
     return {PAGE_TOKEN_PARAM: token} if token else {}
 
 
 def _is_host(request: Request) -> bool:
+    credential = host_credential(request)
     return authorize_host(
         peer_host=peer_host(request),
-        token=host_credential(request),
+        token=credential.token,
+        session=credential.session,
         relayed=is_relayed_request(request.headers),
     ).allowed
 
@@ -229,11 +242,13 @@ def require_authz(
     body_token: str | None = None,
 ) -> None:
     """Session-sync gate for a viewer, agent or editor client; raises ``AccessDeniedError`` when denied."""
+    credential = host_credential(request, body_token=body_token)
     decision = authorize_client(
         client_id=client_id or "anonymous",
         role=role or "viewer",
         peer_host=peer_host(request),
-        token=host_credential(request, body_token=body_token),
+        token=credential.token,
+        session=credential.session,
         relayed=is_relayed_request(request.headers),
     )
     if not decision.allowed:
@@ -247,10 +262,12 @@ def require_host(
     client_id: str = "host",
 ) -> None:
     """Host-role gate for owner GUI routes (#393); raises ``AccessDeniedError`` when denied."""
+    credential = host_credential(request, sources)
     decision = authorize_host(
         client_id=client_id,
         peer_host=peer_host(request),
-        token=host_credential(request, sources),
+        token=credential.token,
+        session=credential.session,
         relayed=is_relayed_request(request.headers),
     )
     if not decision.allowed:

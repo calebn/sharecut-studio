@@ -45,7 +45,7 @@ def _listener_threads() -> list[threading.Thread]:
 
 
 def test_start_serves_the_studio_on_a_loopback_port() -> None:
-    port = embedded.start()
+    port = embedded.start().port
 
     assert port > 0
     assert _health(port) == {"ok": True}
@@ -53,10 +53,10 @@ def test_start_serves_the_studio_on_a_loopback_port() -> None:
 
 
 def test_a_second_start_returns_the_same_port_and_the_same_app() -> None:
-    first = embedded.start()
+    first = embedded.start().port
     app = embedded._ENGINE._app
 
-    assert embedded.start() == first
+    assert embedded.start().port == first
     assert embedded._ENGINE._app is app
     assert len(_listener_threads()) == 1
 
@@ -72,7 +72,7 @@ def test_stop_is_safe_to_repeat_and_ends_the_server_thread() -> None:
 
 
 def test_start_after_stop_is_refused_and_the_port_is_released() -> None:
-    port = embedded.start()
+    port = embedded.start().port
     embedded.stop()
 
     with pytest.raises(embedded.EmbeddedStartError) as refused:
@@ -89,11 +89,11 @@ def test_stop_before_any_start_leaves_the_engine_able_to_start() -> None:
     embedded.stop()
 
     assert embedded.status() == embedded.Idle()
-    assert _health(embedded.start()) == {"ok": True}
+    assert _health(embedded.start().port) == {"ok": True}
 
 
 def test_stop_returns_while_an_event_stream_is_open() -> None:
-    port = embedded.start()
+    port = embedded.start().port
     job = shared_job_manager().adopt_agent_job(tool_id="test", label="Test", claim="streaming")
     stream = http.client.HTTPConnection("127.0.0.1", port, timeout=10)
     stream.request("GET", f"/api/pipeline/events?job_id={job.id}")
@@ -110,7 +110,7 @@ def test_stop_returns_while_an_event_stream_is_open() -> None:
 
 
 def test_the_host_mcp_is_not_mounted_even_on_a_trusted_host() -> None:
-    port = embedded.start()
+    port = embedded.start().port
     app = embedded._ENGINE._app
     request = urllib.request.Request(f"http://127.0.0.1:{port}/mcp", data=b"{}", method="POST")
 
@@ -191,7 +191,7 @@ def test_a_failed_start_can_be_retried(monkeypatch: pytest.MonkeyPatch) -> None:
     with pytest.raises(embedded.EmbeddedStartError):
         embedded.start()
 
-    port = embedded.start()
+    port = embedded.start().port
 
     assert _health(port) == {"ok": True}
     assert len(calls) == 2
@@ -227,7 +227,7 @@ def test_a_lifespan_that_raises_fails_the_start_and_the_held_port_survives_a_ret
     assert embedded.status() == embedded.Failed("the server stopped while starting")
     assert _listener_threads() == []
 
-    assert embedded.start() == port
+    assert embedded.start().port == port
 
     with urllib.request.urlopen(f"http://127.0.0.1:{port}/ping", timeout=10) as response:
         assert json.loads(response.read()) == {"pong": True}
