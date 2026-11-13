@@ -746,7 +746,10 @@ describe("useAudioTransport saved mix (#386)", () => {
             ...project.comments,
             { ...project.comments[0], id: "c-new", body: "hi" },
           ].filter(Boolean),
-          history: { ...project.history, head_id: "after-comment" },
+          history: {
+            ...project.history,
+            head_id: "after-comment" as typeof project.history.head_id,
+          },
         });
       });
 
