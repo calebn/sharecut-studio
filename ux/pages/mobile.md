@@ -213,6 +213,10 @@ Held sideways, tracks get shorter so at least three fit on screen, and the contr
 
 Editing a volume envelope point with the phone held sideways keeps the track you are editing on screen beside the card, along with the ruler. On the shortest screens (about 914×331, or an iPhone SE held sideways) the marker row and clipping row scroll with the tracks at all times, so a tap on a track's name always reaches it. **Time**, **Level** and **Remove point** stay in view in the card. Turning the phone with a point open keeps it open. On a short window, dragging the divider above the tabs can make the tabs smaller as well as larger.
 
+### Signing in on a phone app
+
+When ShareCut runs inside the phone app, the app signs you in as the owner by itself. You never paste a link or a token, and nothing you could copy or share carries your owner access. Review and record links are for guests and work as before.
+
 ### Mix tracks
 
 The Mix button on the Edit stage shows all tracks without opening each inspector. M and Volume save
