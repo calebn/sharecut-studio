@@ -8,9 +8,9 @@ import {
 } from "../../review/ReviewQueue";
 import type { ReviewStageProps } from "../../review/ReviewStage";
 import type { ReviewItem } from "../../review/reviewQueueModel";
+import { canComment } from "../../shareMode";
 import { ChaptersList } from "../../stage/frame/ChaptersList";
 import { useDawStore } from "../../state/dawStore";
-import { stageRoleOf } from "../../state/stageRoutes";
 import { Cover } from "../../system/Cover";
 import { DecisionCard } from "../../system/DecisionCard";
 import { Sheet } from "../../system/Sheet";
@@ -18,7 +18,6 @@ import type { DrawerDetent } from "../../ui/BottomSheet";
 import { CommentsRow, type CommentsRowPreview } from "./CommentsRow";
 import {
   type ListenInput,
-  type ListenRole,
   listenLayoutOf,
   nearestBefore,
 } from "./listenLayout";
@@ -71,25 +70,30 @@ function previewOf(
  * queue's state.
  */
 export function GuestListen({ review, script, scriptState }: GuestListenProps) {
-  const { role, draft, openSheet, setOpenSheet, projectName, hasChapters } =
-    useDawStore(
-      useShallow((s) => ({
-        role: stageRoleOf(s.guestMode),
-        draft: s.commentDraft,
-        openSheet: s.openSheet,
-        setOpenSheet: s.setOpenSheet,
-        projectName: s.project?.meta.name ?? "",
-        hasChapters: (s.project?.chapters.length ?? 0) > 0,
-      })),
-    );
-  const listenRole: ListenRole = role === "viewer" ? "viewer" : "commenter";
+  const {
+    mayComment,
+    draft,
+    openSheet,
+    setOpenSheet,
+    projectName,
+    hasChapters,
+  } = useDawStore(
+    useShallow((s) => ({
+      mayComment: canComment(s.projectPath, s.guestMode, s.shareCapabilities),
+      draft: s.commentDraft,
+      openSheet: s.openSheet,
+      setOpenSheet: s.setOpenSheet,
+      projectName: s.project?.meta.name ?? "",
+      hasChapters: (s.project?.chapters.length ?? 0) > 0,
+    })),
+  );
   const { items, content, selectedId } = review;
   const commentItems = useMemo(
     () => items.filter((item) => item.kind === "comment"),
     [items],
   );
   const layout = listenLayoutOf({
-    role: listenRole,
+    mayComment,
     script: scriptState,
     counts: {
       comments: commentItems.length,
