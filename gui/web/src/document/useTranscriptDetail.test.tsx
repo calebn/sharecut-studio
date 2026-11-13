@@ -64,14 +64,13 @@ it("only lets the current Retry restart a failure after an untracked view", asyn
 });
 
 function viewerShell() {
-  const project = minimalProject({
+  return minimalProject({
     meta: {
       name: "Test Episode",
       workspace_dir: "/tmp/test",
       hydration: { transcript_words: false },
     },
   });
-  return project;
 }
 
 it("a Viewer with a granted flag and an incomplete shell loads detail once and becomes ready", async () => {
