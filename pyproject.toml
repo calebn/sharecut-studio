@@ -14,11 +14,11 @@ dependencies = [
     "pydantic>=2.7.0",
     "pyyaml>=6.0",
     "mcp>=2.2,<3",
-    "faster-whisper>=1.1.0",
-    "av>=11,<19",
+    "faster-whisper>=1.1.0; sys_platform != 'ios'",
+    "av>=11,<19; sys_platform != 'ios'",
     # Imported directly by the opt-in forced aligner (#714); faster-whisper already
     # installs both, so this only makes the dependency explicit (deptry DEP003).
-    "onnxruntime>=1.17.0",
+    "onnxruntime>=1.17.0; sys_platform != 'ios'",
     "huggingface-hub>=2.0",
     "numpy>=1.26.0",
     "rich>=13.7.0",
@@ -46,7 +46,8 @@ dev = [
 gui = [
     "anyio>=4.0.0",
     "fastapi>=0.116.1",
-    "uvicorn[standard]>=0.32.0",
+    "uvicorn>=0.32.0",
+    "uvicorn[standard]>=0.32.0; sys_platform != 'ios'",
     "httpx>=0.27.0",
     "websockets>=14.0",
     "boto3>=1.34.0",
