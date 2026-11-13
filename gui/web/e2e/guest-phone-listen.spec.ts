@@ -478,16 +478,26 @@ for (const profile of PROFILES) {
       });
     });
 
-    test(`a Viewer reads the chapters in the middle, with no Chapters button, and a thread without a reply field on ${where}`, async ({
+    test(`a Viewer reads the Script in the middle, read only, with Chapters in the dock, and a thread without a reply field on ${where}`, async ({
       browser,
     }) => {
       await withPhoneGuest(browser, profile, size, "viewer", async (guest) => {
+        const script = guest.locator(".stage-host-guest-script");
+        await expect(script).toContainText("Read only");
+        const elapsed = guest.locator(".sys-listen-dock-elapsed");
+        const before = await elapsed.textContent();
+        await script
+          .locator(".sys-script-word")
+          .nth(8)
+          .tap({ timeout: 10_000 });
+        await expect(elapsed).not.toHaveText(before ?? "");
+        await expect(script.locator("[data-selected]")).toHaveCount(0);
         await expect(
-          guest.getByRole("list", { name: "Chapters" }),
-        ).toBeVisible();
+          guest.getByRole("group", { name: "Selection actions" }),
+        ).toHaveCount(0);
         await expect(
           guest.getByRole("button", { name: "Chapters" }),
-        ).toHaveCount(0);
+        ).toBeVisible();
         await commentsRow(guest).tap({ timeout: 10_000 });
         const sheet = guest.getByRole("dialog", { name: "Comments" });
         await sheet
