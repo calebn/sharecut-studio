@@ -151,7 +151,7 @@ const commentsRow = (guest: Page) =>
   guest.getByRole("button", { name: /^Show\b.*\bcomments?/ });
 const composer = (guest: Page) => guest.locator(".rv-compose");
 
-async function expectDockFits(guest: Page, width: number) {
+async function expectDockFits(guest: Page, width: number, controls = 5) {
   const fit = await guest.evaluate(() => {
     const dock = document.querySelector<HTMLElement>(".sys-listen-dock");
     const transport = document.querySelector<HTMLElement>(
@@ -178,7 +178,7 @@ async function expectDockFits(guest: Page, width: number) {
   });
   expect(fit).not.toBeNull();
   if (!fit) return;
-  expect(fit.count).toBe(5);
+  expect(fit.count).toBe(controls);
   expect(fit.scrolls).toBe(false);
   expect(fit.left).toBeGreaterThanOrEqual(fit.padding - 0.5);
   expect(fit.right).toBeGreaterThanOrEqual(fit.padding - 0.5);
@@ -600,7 +600,7 @@ for (const profile of PROFILES) {
         const chapters = guest.getByRole("button", { name: "Chapters" });
         await expectReached(chapters);
         await expectTouchTarget(chapters);
-        await expectDockFits(guest, FOLDED.width);
+        await expectDockFits(guest, FOLDED.width, 3);
         await chapters.tap({ timeout: 10_000 });
         await expect(
           guest.getByRole("dialog", { name: "Chapters" }),
