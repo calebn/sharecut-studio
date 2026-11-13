@@ -187,7 +187,7 @@ To stop following, scrub the timeline or tap the × on the Following pill in the
 A few things live in different places on mobile:
 
 - **Comments** are in Review, and the player has a comment button at the playhead
-- **A review link on a phone (Viewer or Commenter)** opens Listen: the transcript, one comments row, and a player dock with the overview strip, Chapters, Back 15, Play, Forward 15 and a labelled Comment button. The comment field appears only after you tap Comment, which pauses the episode and puts it back when you post or close. Comments and Chapters open as sheets
+- **A review link on a phone (Viewer or Commenter)** opens Listen: the transcript, one comments row, and a player dock with the overview strip, Chapters (absent when the chapter list already fills the middle), Back 15, Play, Forward 15 and a Comment button. The comment field appears only after you tap Comment, which pauses the episode and puts it back when you post or close. Comments and Chapters open as sheets
 - **History** is a sheet in Edit; the **Queue** and Comments are in Review, and the pipeline steps are in Prepare
 - **Gestures** has a reference list behind the search button (Commands and shortcuts)
 - **Mute/Solo and Volume** for a track: tap its header row on the left side of Timeline
