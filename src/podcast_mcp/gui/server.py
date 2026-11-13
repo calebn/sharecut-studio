@@ -4,7 +4,7 @@ import asyncio
 import json
 import logging
 from collections.abc import AsyncIterator
-from contextlib import asynccontextmanager
+from contextlib import AsyncExitStack, asynccontextmanager
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlencode
@@ -22,7 +22,6 @@ from podcast_mcp import __version__, settings
 from podcast_mcp.config.runtime import normalize_exact_origin
 from podcast_mcp.extensions.loader import apply_gui_extensions, load_extensions
 from podcast_mcp.gui.audio import PENDING_PREVIEW_HEADER_NAMES
-from podcast_mcp.gui.host_mcp import host_mcp_lifespan, mount_host_mcp
 from podcast_mcp.gui.job_events import gui_agent_job_progress_sink, gui_sse_progress_sink
 from podcast_mcp.gui.middleware_host_binding import HostOriginBindingMiddleware
 from podcast_mcp.gui.middleware_security_headers import SecurityHeadersMiddleware
@@ -72,6 +71,7 @@ from podcast_mcp.services.collaboration import sweep_all_pending
 from podcast_mcp.services.document import cross_process_bridge
 from podcast_mcp.services.jobs import shared_job_manager
 from podcast_mcp.services.media import TranscriptContextBusyError
+from podcast_mcp.util import host_platform
 from podcast_mcp.util.body_limits import MaxBodySizeMiddleware, gui_max_body_bytes
 from podcast_mcp.util.coded_error import GuardRefusal, HostSetupError
 from podcast_mcp.util.model_missing import ModelMissing
@@ -247,7 +247,11 @@ async def _gui_lifespan(app: FastAPI) -> AsyncIterator[None]:
     cross-process watchers on shutdown (#695)."""
     try:
         await asyncio.to_thread(_finalize_due_revokes)
-        async with host_mcp_lifespan(app):
+        async with AsyncExitStack() as stack:
+            if getattr(app.state, "host_mcp_session_manager", None) is not None:
+                from podcast_mcp.gui.host_mcp import host_mcp_lifespan
+
+                await stack.enter_async_context(host_mcp_lifespan(app))
             port = getattr(app.state, "listen_port", None)
             if port is not None:
                 host = getattr(app.state, "listen_host", None)
@@ -484,5 +488,10 @@ def create_app(
             return missing_bundle_response(static_root)
 
     # Exact ``/mcp`` last: guest ``/mcp/{token}`` stays on the share router.
-    mount_host_mcp(app, enabled=is_bind_loopback(bind_host))
+    if host_platform.current().loopback_is_trusted:
+        from podcast_mcp.gui.host_mcp import mount_host_mcp
+
+        mount_host_mcp(app, enabled=is_bind_loopback(bind_host))
+    else:
+        app.state.host_mcp_session_manager = None
     return app

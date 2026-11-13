@@ -16,6 +16,7 @@ from dataclasses import dataclass
 from typing import Literal, get_args
 
 from podcast_mcp import settings
+from podcast_mcp.util import host_platform
 
 # The one client-role set. document_sync.commands re-exports it; session_sync.commands
 # TransportRole is this set minus "guest".
@@ -66,19 +67,22 @@ def authorize_host(
 
     Relay-tunneled requests (share guests) are always denied, even from loopback
     and in non-strict mode. Otherwise non-strict allows all; strict requires a
-    loopback peer or ``PODCAST_SESSION_TOKEN`` (share tokens never match).
+    loopback peer or ``PODCAST_SESSION_TOKEN`` (share tokens never match). A host whose
+    loopback is not trusted (other apps on the device can reach it) always requires the token.
     """
     if not client_id:
         return AuthzDecision(False, "client_id required")
     if relayed:
         return AuthzDecision(False, HOST_ROLE_RELAYED_REASON)
-    if not _strict():
+    trusted = host_platform.current().loopback_is_trusted
+    if trusted and not _strict():
         return AuthzDecision(True)
-    if is_loopback_host(peer_host):
+    if trusted and is_loopback_host(peer_host):
         return AuthzDecision(True, "loopback")
-    expected = settings.value("PODCAST_SESSION_TOKEN")
-    if _tokens_match(token, expected):
+    if _tokens_match(token, settings.value("PODCAST_SESSION_TOKEN")):
         return AuthzDecision(True, "token")
+    if not trusted:
+        return AuthzDecision(False, "this host requires PODCAST_SESSION_TOKEN")
     return AuthzDecision(False, "remote client requires PODCAST_SESSION_TOKEN")
 
 
