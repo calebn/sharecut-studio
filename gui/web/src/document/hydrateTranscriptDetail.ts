@@ -202,7 +202,6 @@ function beginRequest(
   return request;
 }
 
-/** Timed words load for sessions that read the transcript. */
 export function needsTranscriptDetailHydrate(
   next: ProjectView | null,
   reads: boolean,

@@ -16,7 +16,6 @@ type ReviewBootstrap = {
   author?: string;
   capabilities: string[];
   guest_mode?: string;
-  /** The server's answer to "may this link receive timed transcript words". */
   reads_transcript_words: boolean;
   meta: { name?: string };
   review_version?: { id?: string } | null;
