@@ -6,6 +6,7 @@ if TYPE_CHECKING:
     from podcast_mcp.services.session_sync.authz import (
         AuthzDecision,
         ClientRole,
+        HostCredential,
         authorize_client,
         authorize_host,
         authorize_share_token,
@@ -64,6 +65,7 @@ __all__ = [
     "AuthzDecision",
     "ClientRole",
     "ClientSequenceConflictError",
+    "HostCredential",
     "SessionSyncService",
     "StoreCachePin",
     "SyncCommand",
@@ -108,6 +110,7 @@ _MODULE_BY_NAME = {
     "AuthzDecision": "authz",
     "ClientRole": "authz",
     "ClientSequenceConflictError": "log",
+    "HostCredential": "authz",
     "GUEST_CLIENT_ID_PREFIX": "commands",
     "ROSTER_REQUEST": "presence_delta",
     "SessionSyncService": "service",
