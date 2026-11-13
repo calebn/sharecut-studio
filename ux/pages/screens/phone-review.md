@@ -36,7 +36,7 @@ A Viewer or Commenter link on a phone shows the app header (the role chip is an 
 │ guest  0:08                       │
 │ antonia pointed up to the sky …   │
 ├───────────────────────────────────┤
-│ ▢ Claude · 0:03 Cut candidate… 15 ⌃│
+│ ▢ 15  Claude · 0:03 Cut candidate… ⌃│
 ├───────────────────────────────────┤
 │ ▁▂▅▇▅▂▁▂▅▇▅▂▁ scrubber (44 px)    │
 │ 0:05   Cold open   1:00           │
@@ -44,10 +44,10 @@ A Viewer or Commenter link on a phone shows the app header (the role chip is an 
 └───────────────────────────────────┘
 ```
 
-- **Dock.** The scrubber is always visible, inset 1.5 rem from each screen edge so an edge-back swipe never starts a seek. The readout shows the elapsed time, the mix status as text or the chapter, and the total. The transport holds Chapters, Back 15 seconds, Play, Forward 15 seconds and the labelled **Comment** button (a Viewer has no Comment button).
+- **Dock.** A labelled region named Player, so a screen reader can jump to it. The scrubber is always visible, inset 1.5 rem from each screen edge so an edge-back swipe never starts a seek. The readout shows the elapsed time, the mix status as text or the chapter, and the total. The transport holds Chapters, Back 15 seconds, Play, Forward 15 seconds and the **Comment** button (a Viewer has no Comment button). Chapters is absent when the middle already is the chapter list. Below a width of 376 px the Comment button shows its icon only, so the row fits from 320 px up with room to spare; its accessible name is still "Comment at" the time.
 - **Comment.** Tapping it pins the playhead time, pauses, and opens the composer above the dock with the keyboard. **Post** or **Close** resumes playback if Comment paused it, and focus returns to the Comment button. The name row appears with the composer on the first comment from this browser and is optional.
-- **Comments row.** It reads "15 comments". While a comment sits in the 15 seconds before the playhead the row shows that comment instead (author, time, one truncated line) with the count at the trailing edge, and tapping it opens that comment's thread. After a post it reads "Comment added at 1:26" for about 3 seconds. With no comments there is no row.
-- **Comments sheet.** The list of comments; picking one pushes a thread step: one header row with Back ("Back to comments") left of the sheet title, then the comment and its reply field. Sheets rest exactly on the dock's top edge.
-- **Middle.** The transcript when the link carries one; otherwise the chapter list, or a cover with the project name and "Press play to listen." The Chapters button opens a sheet of chapters and is absent only when the middle is already the chapter list.
-- **Short landscape.** On a wide short phone (667 x 375) the readout and transport share one row under the scrubber, and when the frame folds (the same fit that folds the tab bar) the dock keeps that one row at any width.
+- **Comments row.** It reads "15 comments" and is named "Show 15 comments" ("Show 1 comment" for one). While a comment sits in the 15 seconds before the playhead the row shows that comment instead (author, time, one truncated line) with the count beside the comment icon. Tapping the row always opens the Comments list, scrolled to that comment and highlighting it. After a post it reads "Comment added at 1:26" for about 3 seconds; the post is announced once, by the status line. With no comments there is no row.
+- **Comments sheet.** The list of comments; picking one plays it, as on a tablet or desktop, and pushes a thread step: one header row with Back ("Back to comments") left of the sheet title, then the comment and its reply field. Back scrolls the list to the row the guest came from and focuses it. A sheet closed by anything but its own Close (Comment, Chapters) reopens on the list, not on the old thread. Sheets rest exactly on the dock's top edge.
+- **Middle.** The transcript when the link carries one; otherwise the chapter list, or a cover with the project name and "Press play to listen." The Chapters button opens a sheet of chapters and is absent when the middle is already the chapter list.
+- **Short landscape.** On a wide short phone (667 x 375) the readout and transport share one row under the scrubber. When the frame folds (the same fit that folds the tab bar) the dock is one row at any width holding the scrubber, Play and an icon-only Comment; Back 15, Forward 15, Chapters and the readout give way.
 - **Keyboard.** With the soft keyboard open the frame takes the visual viewport and the dock hides, so the composer sits above the keys.
