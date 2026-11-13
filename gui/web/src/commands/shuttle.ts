@@ -1,3 +1,4 @@
+import { seekLimitSec } from "../audio/proxyMath";
 import { useDawStore } from "../state/dawStore";
 import { clampToSession } from "../utils/time";
 
@@ -38,7 +39,7 @@ export function shuttleBack(): void {
       : 0;
   lastBackAt = now;
   const step = BACK_STEPS_SEC[backStep]!;
-  const duration = s.project?.timeline_duration_sec ?? Number.NaN;
+  const duration = seekLimitSec(s.project);
   s.setPlaybackRate(1);
   s.setPlayheadSec(clampToSession(s.playheadSec - step, duration));
   s.announceStatus(`Back ${step} s`, { toast: false });

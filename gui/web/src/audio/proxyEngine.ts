@@ -88,6 +88,7 @@ export class ProxyEngine {
   private playing = false;
   /** True once this play's `resume()` settled, so a late `statechange` from the previous pause reads as ours. */
   private sinkRunning = false;
+  private playToken = 0;
   private horizon: Horizon | null = null;
   private sentinel: ConstantSourceNode | null = null;
   private playbackRate = 1;
@@ -197,9 +198,18 @@ export class ProxyEngine {
       onSystemPlay: this.events.onSystemPlay,
     });
     this.sinkRunning = false;
-    void this.ctx.resume().then(() => {
-      if (this.playing) this.sinkRunning = true;
-    });
+    const token = ++this.playToken;
+    this.ctx
+      .resume()
+      .then(() => {
+        if (
+          this.playing &&
+          token === this.playToken &&
+          this.ctx.state === "running"
+        )
+          this.sinkRunning = true;
+      })
+      .catch(() => undefined);
     this.schedule(fromTimelineSec);
   }
 

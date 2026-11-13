@@ -9,6 +9,7 @@ import {
   osDiscontinuityKey,
   osTransportInput,
   projectOsMediaSession,
+  sameOsInputs,
 } from "../audio/osMediaSession";
 import { episodeDurationSec } from "../audio/proxyMath";
 import { skipListen } from "../commands/listenSeek";
@@ -20,6 +21,8 @@ import { syncPlayhead } from "../state/systemPlayhead";
 const storeCommands: OsTransportCommands = {
   isPlaying: () => useDawStore.getState().isPlaying,
   livePositionSec: livePlayheadSec,
+  previewActive: () => useDawStore.getState().sourcePreview !== null,
+  stopPreview: () => useDawStore.getState().setIsPlaying(false),
   syncPlayhead,
   togglePlay: () => runPointerCommand("transport.togglePlay"),
   skip: (deltaSec) =>
@@ -47,27 +50,40 @@ export function useOsMediaSession(): void {
       new MediaMetadata(metadata);
     let applied: OsMediaSessionState = OS_SESSION_OFF;
     let appliedKey = "";
+    let appliedRevision: number | null = null;
+    let seen: ReturnType<typeof useDawStore.getState> | null = null;
+    let reported = false;
+    const write = (next: OsMediaSessionState) => {
+      try {
+        applyOsMediaSession(session, next, applied, handlers, makeMetadata);
+      } catch (error) {
+        if (!reported && typeof globalThis.reportError === "function")
+          globalThis.reportError(error);
+        reported = true;
+      }
+      applied = next;
+    };
     const sync = (state: ReturnType<typeof useDawStore.getState>) => {
+      if (seen && sameOsInputs(seen, state)) return;
+      seen = state;
       const key = osDiscontinuityKey(state);
       if (key === appliedKey) return;
       appliedKey = key;
-      const next = projectOsMediaSession(
-        osTransportInput(state, livePlayheadSec()),
-      );
-      applyOsMediaSession(session, next, applied, handlers, makeMetadata);
-      applied = next;
+      // After a seek the engine still reads the old clock: it moves in a
+      // later effect, so the store holds the position to declare.
+      const position =
+        state.playheadSeekRevision !== appliedRevision
+          ? state.playheadSec
+          : livePlayheadSec();
+      appliedRevision = state.playheadSeekRevision;
+      const next = projectOsMediaSession(osTransportInput(state, position));
+      write(next);
     };
     sync(useDawStore.getState());
     const unsubscribe = useDawStore.subscribe(sync);
     return () => {
       unsubscribe();
-      applyOsMediaSession(
-        session,
-        OS_SESSION_OFF,
-        applied,
-        handlers,
-        makeMetadata,
-      );
+      write(OS_SESSION_OFF);
     };
   }, []);
 }

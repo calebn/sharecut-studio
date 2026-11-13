@@ -257,15 +257,21 @@ describe("useProxyTransport", () => {
     expect(useDawStore.getState().isPlaying).toBe(true);
   });
 
-  it("declines a system resume for a project the store has left and re-pauses the element", async () => {
+  it("declines a system resume while a source preview plays and re-pauses the element", async () => {
+    useDawStore.setState({ isPlaying: false });
     renderHook(() => useProxyTransport());
     await ready();
     const onSystemPlay = vi
       .mocked(ProxyEngine)
       .mock.calls.at(-1)?.[2].onSystemPlay;
-    useDawStore.setState({
-      projectEpoch: useDawStore.getState().projectEpoch + 1,
-    });
+    act(() =>
+      useDawStore.getState().beginSourcePreview({
+        ownerId: "word",
+        startSec: 1,
+        endSec: 3,
+        media: { kind: "rendered", url: "u" },
+      }),
+    );
     vi.mocked(leavePlaybackSession).mockClear();
     act(() => onSystemPlay?.());
     expect(useDawStore.getState().isPlaying).toBe(false);
