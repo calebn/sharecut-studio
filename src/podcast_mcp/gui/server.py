@@ -47,12 +47,14 @@ from podcast_mcp.gui.routes import (
 from podcast_mcp.gui.routes.deps import (
     ERROR_CODE_HEADER,
     NO_STORE,
+    PAGE_QUERY,
     coded_http_error,
     guard_exception_handler,
     host_gate,
     host_setup_exception_handler,
     http_exception_response,
     model_missing_exception_handler,
+    page_credential_query,
     project_busy_exception_handler,
     project_unreadable_exception_handler,
     require_host,
@@ -156,9 +158,7 @@ def _recovery_query(request: Request, served: Path, *, include_project: bool) ->
         query["project"] = str(served)
     else:
         query[HOME_QUERY_PARAM] = "1"
-    session_token = request.query_params.get("session_token")
-    if session_token:
-        query["session_token"] = session_token
+    query.update(page_credential_query(request))
     return urlencode(query)
 
 
@@ -180,7 +180,7 @@ def _pinned_root_redirect(request: Request, served: Path) -> RedirectResponse | 
     if not served.is_file():
         return None
     try:
-        require_host(request, token=params.get("session_token"))
+        require_host(request, sources=PAGE_QUERY)
     except GuardRefusal:
         return None
     try:
@@ -379,7 +379,7 @@ def create_app(
                         "project path not allowed for this server instance",
                         code="project_path_not_allowed",
                     )
-                require_host(request, token=request.query_params.get("session_token"))
+                require_host(request, sources=PAGE_QUERY)
                 return _project_mismatch_page(request, Path(served), index_path)
             try:
                 from podcast_mcp.models import load_project

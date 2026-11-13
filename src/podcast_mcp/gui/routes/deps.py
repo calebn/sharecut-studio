@@ -4,13 +4,15 @@ from __future__ import annotations
 
 import json
 from collections.abc import Mapping
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from fastapi import Header, HTTPException, Query, Request, WebSocket
+from fastapi import HTTPException, Query, Request, WebSocket
 from fastapi.exception_handlers import http_exception_handler
 from filelock import Timeout
 from starlette.exceptions import HTTPException as StarletteHTTPException
+from starlette.requests import HTTPConnection
 from starlette.responses import JSONResponse, Response
 
 from podcast_mcp.gui.host_reveal import REVEAL_REFUSED
@@ -131,10 +133,51 @@ async def project_unreadable_exception_handler(request: Request, exc: Exception)
     )
 
 
+@dataclass(frozen=True)
+class CredentialSources:
+    """Where a route reads the owner's token: the ``X-Podcast-Token`` header, then these query keys."""
+
+    header: bool = True
+    query: tuple[str, ...] = ("token",)
+
+
+OWNER_API = CredentialSources()
+HEADER_ONLY = CredentialSources(query=())
+SOCKET_QUERY = CredentialSources(header=False)
+PAGE_TOKEN_PARAM = "session_token"
+PAGE_QUERY = CredentialSources(header=False, query=(PAGE_TOKEN_PARAM,))
+
+TOKEN_HEADER = "X-Podcast-Token"
+
+
+def host_credential(
+    connection: HTTPConnection,
+    sources: CredentialSources = OWNER_API,
+    *,
+    body_token: str | None = None,
+) -> str | None:
+    """The credential this request presents as the owner, from the one place that reads it.
+
+    The first source that carries a value wins: the query keys, then the header, then a token
+    the request body carried. Every owner route, page and socket asks here, so a host kind that
+    takes its credential from somewhere else changes one function.
+    """
+    token = next((v for key in sources.query if (v := connection.query_params.get(key))), None)
+    if not token and sources.header:
+        token = connection.headers.get(TOKEN_HEADER)
+    return token or body_token or None
+
+
+def page_credential_query(request: Request) -> dict[str, str]:
+    """The page-link credential a recovery link must carry forward: ``{}`` when the request has none."""
+    token = host_credential(request, PAGE_QUERY)
+    return {PAGE_TOKEN_PARAM: token} if token else {}
+
+
 def _is_host(request: Request) -> bool:
     return authorize_host(
         peer_host=peer_host(request),
-        token=request.query_params.get("token") or request.headers.get("X-Podcast-Token"),
+        token=host_credential(request),
         relayed=is_relayed_request(request.headers),
     ).allowed
 
@@ -183,14 +226,14 @@ def require_authz(
     *,
     client_id: str | None = None,
     role: str | None = None,
-    token: str | None = None,
+    body_token: str | None = None,
 ) -> None:
     """Session-sync gate for a viewer, agent or editor client; raises ``AccessDeniedError`` when denied."""
     decision = authorize_client(
         client_id=client_id or "anonymous",
         role=role or "viewer",
         peer_host=peer_host(request),
-        token=token,
+        token=host_credential(request, body_token=body_token),
         relayed=is_relayed_request(request.headers),
     )
     if not decision.allowed:
@@ -200,37 +243,28 @@ def require_authz(
 def require_host(
     request: Request,
     *,
-    token: str | None = None,
-    x_podcast_token: str | None = None,
+    sources: CredentialSources = OWNER_API,
     client_id: str = "host",
 ) -> None:
     """Host-role gate for owner GUI routes (#393); raises ``AccessDeniedError`` when denied."""
     decision = authorize_host(
         client_id=client_id,
         peer_host=peer_host(request),
-        token=token or x_podcast_token,
+        token=host_credential(request, sources),
         relayed=is_relayed_request(request.headers),
     )
     if not decision.allowed:
         raise AccessDeniedError(decision.reason, code="authz_denied")
 
 
-def host_gate(
-    request: Request,
-    token: str | None = Query(None),
-    x_podcast_token: str | None = Header(None, alias="X-Podcast-Token"),
-) -> None:
-    """``require_host`` as an include-time dependency, reading the token from the query or header."""
-    require_host(request, token=token, x_podcast_token=x_podcast_token)
+def host_gate(request: Request) -> None:
+    """``require_host`` as an include-time dependency."""
+    require_host(request)
 
 
-def host_gate_for_client(
-    request: Request,
-    client_id: str = Query("viewer"),
-    x_podcast_token: str | None = Header(None, alias="X-Podcast-Token"),
-) -> None:
+def host_gate_for_client(request: Request, client_id: str = Query("viewer")) -> None:
     """``require_host`` as a route dependency for the comment routes: ``client_id`` query, header token only."""
-    require_host(request, client_id=client_id, x_podcast_token=x_podcast_token)
+    require_host(request, client_id=client_id, sources=HEADER_ONLY)
 
 
 def require_loopback_peer(request: Request) -> None:
