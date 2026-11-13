@@ -13,7 +13,7 @@ from fastapi import APIRouter, Query, WebSocket
 from starlette.concurrency import run_in_threadpool
 
 from podcast_mcp.gui.middleware_host_binding import websocket_host_binding_denied
-from podcast_mcp.gui.routes.deps import resolve_project
+from podcast_mcp.gui.routes.deps import SOCKET_QUERY, host_credential, resolve_project
 from podcast_mcp.gui.routes.guest_ws_common import GuestWsGuard, WsTaskSet
 from podcast_mcp.gui.routes.session import apply_ws_client_message, apply_ws_viewer_state
 from podcast_mcp.services.app import ProjectWorkspace
@@ -72,7 +72,6 @@ async def host_ws(
     document_client_id: str = Query(...),
     role: str = Query("viewer"),
     label: str | None = Query(None),
-    token: str | None = Query(None),
 ):
     denied = websocket_host_binding_denied(websocket)
     if denied is not None:
@@ -88,7 +87,7 @@ async def host_ws(
                 client_id=identity,
                 role=role,
                 peer_host=peer,
-                token=token,
+                token=host_credential(websocket, SOCKET_QUERY),
                 display_name=label,
                 relayed=relayed,
             )
