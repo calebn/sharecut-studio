@@ -643,6 +643,7 @@ def guest_transcript(
     utterances = transcript.get("utterances")
     if not isinstance(utterances, list):
         return transcript
+    words = GuestWords.of(words)
     slim: list[dict[str, Any]] = []
     for utterance in utterances:
         if not isinstance(utterance, dict):
@@ -651,6 +652,8 @@ def guest_transcript(
             continue
         row = dict(utterance)
         timed = row.pop("words", None)
+        if words is not GuestWords.SELECTABLE:
+            row.pop("locked_word_indices", None)
         if words is not GuestWords.NONE and isinstance(timed, list):
             kept = [w for w in timed if not (isinstance(w, dict) and w.get("suppressed"))]
             row["words"] = (

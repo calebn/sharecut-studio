@@ -1088,6 +1088,7 @@ def sanitize_guest_project_view(
     """
     from podcast_mcp.gui.mapper import guest_transcript
 
+    words = GuestWords.of(words)
     out = dict(view)
     out.pop("session_suggestions", None)
     if isinstance(out.get("editorial"), dict):
@@ -1289,7 +1290,7 @@ def share_project_view(token: str) -> dict[str, Any]:
     return {
         "mode": "review",
         "guest_mode": guest_mode(caps),
-        "reads_transcript_words": guest_reads_transcript_words(caps),
+        "reads_transcript_words": guest_words(caps) is not GuestWords.NONE,
         "token": token,
         "author": share_author(row),
         "meta": {"name": project.meta.name},
