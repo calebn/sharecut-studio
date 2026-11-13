@@ -1,28 +1,29 @@
-export type ShareRole = "viewer" | "commenter" | "editor";
+import { REVIEW_ROLE_IDS, type ReviewRole } from "./roles.generated";
+
+export type ShareRole = ReviewRole;
+
+const ROLE_COPY: Record<ShareRole, { label: string; description: string }> = {
+  viewer: {
+    label: "Viewer",
+    description: "Views and plays the project.",
+  },
+  commenter: {
+    label: "Commenter",
+    description:
+      "Also comments and suggests edits for you or an Editor to approve.",
+  },
+  editor: {
+    label: "Editor",
+    description: "Also edits directly and approves or rejects suggestions.",
+  },
+};
 
 /** Review-link roles, as in Google Docs; each holds the one before it and more. */
 export const REVIEW_ROLES: readonly {
   id: ShareRole;
   label: string;
   description: string;
-}[] = [
-  {
-    id: "viewer",
-    label: "Viewer",
-    description: "Views and plays the project.",
-  },
-  {
-    id: "commenter",
-    label: "Commenter",
-    description:
-      "Also comments and suggests edits for you or an Editor to approve.",
-  },
-  {
-    id: "editor",
-    label: "Editor",
-    description: "Also edits directly and approves or rejects suggestions.",
-  },
-];
+}[] = REVIEW_ROLE_IDS.map((id) => ({ id, ...ROLE_COPY[id] }));
 
 export type HostShareKind = "review" | "record";
 

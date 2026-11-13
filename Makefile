@@ -107,6 +107,7 @@ generated-check:
 	uv run python scripts/export_limit_contracts.py --check
 	uv run python scripts/export_project_types.py --check
 	uv run python scripts/export_pipeline_params.py --check
+	uv run python scripts/export_roles.py --check
 
 # Docs-sync gate for this branch (the same check CI runs on the PR diff). Judges commits,
 # not uncommitted worktree edits; commit first, then run this before opening a PR.
@@ -143,6 +144,7 @@ schema-export:
 	uv run python scripts/export_limit_contracts.py
 	uv run python scripts/export_project_types.py
 	uv run python scripts/export_pipeline_params.py
+	uv run python scripts/export_roles.py
 
 # Static type checks; timebase-critical modules run strict (see [tool.mypy]).
 typecheck:
