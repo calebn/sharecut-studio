@@ -15,6 +15,7 @@ from podcast_mcp.util.host_platform import (
     IOS,
     LINUX,
     MACOS,
+    UNKNOWN,
     WINDOWS,
     DataRoots,
     HostPlatform,
@@ -127,6 +128,24 @@ def test_generic_rows() -> None:
     )
 
 
+def test_the_unknown_row_has_no_capability_and_no_trust() -> None:
+    assert _fields(UNKNOWN) == {
+        "name": "unknown",
+        "kernel": "other",
+        "system_label": "",
+        "can_spawn_processes": False,
+        "loopback_is_trusted": False,
+        "media_tools": "unavailable",
+        "transcription": "unavailable",
+        "file_dialog": None,
+        "reveal_tool": None,
+        "audition_player": None,
+        "homebrew_ffmpeg": False,
+        "executable_suffix": "",
+        "app_container": False,
+    }
+
+
 @pytest.mark.parametrize(
     ("row", "is_nt", "is_posix"),
     [
@@ -134,6 +153,7 @@ def test_generic_rows() -> None:
         (LINUX, False, True),
         (IOS, False, True),
         (GENERIC_POSIX, False, True),
+        (UNKNOWN, False, True),
         (WINDOWS, True, False),
         (GENERIC_NT, True, False),
     ],
@@ -142,7 +162,7 @@ def test_nt_and_posix_flavour(row: HostPlatform, is_nt: bool, is_posix: bool) ->
     assert (row.is_nt, row.is_posix) == (is_nt, is_posix)
 
 
-@pytest.mark.parametrize("row", [MACOS, LINUX, WINDOWS, GENERIC_POSIX, GENERIC_NT])
+@pytest.mark.parametrize("row", [MACOS, LINUX, WINDOWS, GENERIC_POSIX, GENERIC_NT, UNKNOWN])
 def test_desktop_rows_keep_the_dotfile_data_layout(row: HostPlatform) -> None:
     assert row.data_roots(HOME) == DataRoots(
         config=Path("/h/user/.config/podcast_mcp"),
@@ -192,21 +212,58 @@ def test_current_maps_each_listed_platform_to_its_row(
     assert current() is expected
 
 
-def test_current_gives_an_unlisted_platform_a_generic_row_with_its_reported_name(
+@pytest.mark.parametrize(
+    ("sys_platform", "os_name", "system", "expected"),
+    [
+        ("freebsd14", "posix", "FreeBSD", GENERIC_POSIX),
+        ("openbsd7", "posix", "OpenBSD", GENERIC_POSIX),
+        ("netbsd9", "posix", "NetBSD", GENERIC_POSIX),
+        ("dragonfly6", "posix", "DragonFly", GENERIC_POSIX),
+        ("sunos5", "posix", "SunOS", GENERIC_POSIX),
+        ("aix7", "posix", "AIX", GENERIC_POSIX),
+        ("msys", "posix", "MSYS_NT-10.0", GENERIC_POSIX),
+        ("cygwin", "nt", "CYGWIN_NT-10.0", GENERIC_NT),
+    ],
+)
+def test_a_desktop_kernel_family_gets_its_trusted_generic_row_with_its_reported_name(
     monkeypatch: pytest.MonkeyPatch,
+    sys_platform: str,
+    os_name: str,
+    system: str,
+    expected: HostPlatform,
 ) -> None:
-    with monkeypatch.context() as scope:
-        scope.setattr(sys, "platform", "freebsd14")
-        scope.setattr(os, "name", "posix")
-        scope.setattr(platform, "system", lambda: "FreeBSD")
-        posix = current()
-    with monkeypatch.context() as scope:
-        scope.setattr(sys, "platform", "cygwin")
-        scope.setattr(os, "name", "nt")
-        scope.setattr(platform, "system", lambda: "CYGWIN_NT-10.0")
-        nt = current()
-    assert posix == dataclasses.replace(GENERIC_POSIX, system_label="FreeBSD")
-    assert nt == dataclasses.replace(GENERIC_NT, system_label="CYGWIN_NT-10.0")
+    monkeypatch.setattr(sys, "platform", sys_platform)
+    monkeypatch.setattr(os, "name", os_name)
+    monkeypatch.setattr(platform, "system", lambda: system)
+    row = current()
+    assert row == dataclasses.replace(expected, system_label=system)
+    assert (row.can_spawn_processes, row.loopback_is_trusted) == (True, True)
+
+
+@pytest.mark.parametrize("sys_platform", ["android", "wasi", "emscripten", "somethingnew"])
+def test_any_other_platform_fails_closed(
+    monkeypatch: pytest.MonkeyPatch, sys_platform: str
+) -> None:
+    monkeypatch.setattr(sys, "platform", sys_platform)
+    monkeypatch.setattr(platform, "system", lambda: "Mystery")
+    row = current()
+    assert row == dataclasses.replace(UNKNOWN, system_label="Mystery")
+    assert (row.can_spawn_processes, row.loopback_is_trusted) == (False, False)
+    assert (row.media_tools, row.transcription) == ("unavailable", "unavailable")
+    assert (row.file_dialog, row.reveal_tool, row.audition_player) == (None, None, None)
+
+
+def test_every_desktop_family_prefix_is_named_in_one_table() -> None:
+    assert host_platform.DESKTOP_KERNEL_FAMILIES == (
+        "freebsd",
+        "openbsd",
+        "netbsd",
+        "dragonfly",
+        "sunos",
+        "aix",
+        "cygwin",
+        "msys",
+    )
 
 
 def test_using_selects_a_row_and_restores_the_previous_one() -> None:

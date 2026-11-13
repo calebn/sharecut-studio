@@ -9,7 +9,7 @@ from fastapi.testclient import TestClient
 
 from podcast_mcp.gui.server import create_app
 from podcast_mcp.services.session_sync.authz import authorize_host
-from podcast_mcp.util.host_platform import IOS, LINUX, MACOS
+from podcast_mcp.util.host_platform import IOS, LINUX, MACOS, UNKNOWN
 
 TOKEN = "s3cret-token"
 LOOPBACK = ("127.0.0.1", 50000)
@@ -32,6 +32,20 @@ def test_a_loopback_peer_without_the_token_is_refused_where_loopback_is_not_trus
     assert wrong.allowed is False
     accepted = authorize_host(peer_host="127.0.0.1", token=TOKEN)
     assert (accepted.allowed, accepted.reason) == (True, "token")
+
+
+@pytest.mark.parametrize("row", [IOS, UNKNOWN])
+def test_an_owner_route_without_the_token_is_refused_where_loopback_is_not_trusted(
+    host, session_token, monkeypatch: pytest.MonkeyPatch, tmp_path: Path, row
+) -> None:
+    monkeypatch.setenv("PODCAST_MCP_CACHE", str(tmp_path / "cache"))
+    host(row)
+    client = TestClient(create_app(), client=LOOPBACK)
+    refused = client.get("/api/bootstrap/status")
+    assert (refused.status_code, refused.headers["X-Sharecut-Error-Code"]) == (403, "authz_denied")
+    assert (
+        client.get("/api/bootstrap/status", headers={"X-Podcast-Token": TOKEN}).status_code == 200
+    )
 
 
 def test_a_host_without_a_configured_token_refuses_everyone_where_loopback_is_not_trusted(

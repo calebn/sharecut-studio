@@ -186,7 +186,7 @@ error projections keep their fixed path-free messages. See
 
 ## Data roots
 
-`HostPlatform.data_roots(home)` in `util/host_platform.py` defines the default location of every host-local store; a `PODCAST_*` override still wins. The desktop rows (macOS, Linux, Windows and the generic rows) keep the paths named throughout this catalog. The iOS row keeps the same stores inside the app container, which is `HOME`:
+`HostPlatform.data_roots(home)` in `util/host_platform.py` defines the default location of every host-local store; a `PODCAST_*` override still wins. The desktop rows (macOS, Linux, Windows, the generic rows and the fail-closed unknown row) keep the paths named throughout this catalog. The iOS row keeps the same stores inside the app container, which is `HOME`:
 
 | Root | Desktop | iOS |
 |------|---------|-----|

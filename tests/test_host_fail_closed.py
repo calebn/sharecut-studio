@@ -8,7 +8,7 @@ import pytest
 from podcast_mcp.services.pipeline import bootstrap as boot
 from podcast_mcp.util import process
 from podcast_mcp.util.binaries import FFmpegPairResolutionError, resolve_ffmpeg_pair
-from podcast_mcp.util.host_platform import IOS, MACOS
+from podcast_mcp.util.host_platform import IOS, MACOS, UNKNOWN
 
 
 @pytest.fixture(autouse=True)
@@ -29,6 +29,13 @@ def test_a_host_that_cannot_spawn_refuses_before_starting_anything(
     assert refused.value.errno == errno.ENOSYS
     assert isinstance(refused.value, OSError)
     assert refused.value.strerror == "This device can't start other programs."
+
+
+def test_a_host_that_is_not_known_cannot_spawn(host, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(process.subprocess, "Popen", lambda *_a, **_k: pytest.fail("spawned"))
+    host(UNKNOWN)
+    with pytest.raises(process.SpawnUnavailableError):
+        process.run(["true"])
 
 
 def test_a_desktop_host_still_spawns(host) -> None:
