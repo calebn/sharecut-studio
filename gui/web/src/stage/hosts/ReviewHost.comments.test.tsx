@@ -806,6 +806,20 @@ describe("Review host comments", () => {
       expect(heading()).toBe("Comment from Rosa");
     });
 
+    it("leaves a playing episode playing when C opens the composer", async () => {
+      mount();
+      useDawStore.setState({
+        isPlaying: true,
+        playStartSec: 0,
+        playheadSec: 12,
+      });
+      act(() => {
+        press("c");
+      });
+      await waitFor(() => expect(field()).toHaveFocus());
+      expect(useDawStore.getState().isPlaying).toBe(true);
+    });
+
     it("scopes a comment to the chosen tracks and shows no picker for one track", async () => {
       mount();
       act(() => {

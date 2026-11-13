@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { openCommentDraft } from "../../commands/comments";
 import { clearRegisteredCommands } from "../../commands/execute";
+import { runPointerCommand } from "../../commands/pointer";
 import { registerDawCommands } from "../../commands/register";
 import { useDawStore } from "../../state/dawStore";
 import { noComposer } from "../../test/composerStore";
@@ -356,5 +357,63 @@ describe("a Viewer with a Script on the phone", () => {
     expect(
       screen.getByRole("button", { name: /^Chapters/ }),
     ).toBeInTheDocument();
+  });
+});
+
+describe("a layout that is not the phone Listen layout", () => {
+  function joinOn(
+    shell: "desktop" | "tablet" | "phone",
+    mode: "view" | "comment" | "edit",
+  ) {
+    join(mode === "edit" ? "comment" : mode);
+    if (mode === "edit")
+      useDawStore
+        .getState()
+        .hydrate("share:tok", useDawStore.getState().project!, "edit", [
+          "view",
+          "comment",
+          "edit",
+        ]);
+    stubViewportShell(shell);
+    useDawStore.setState({ shellBreakpoint: shell, isPlaying: false });
+  }
+
+  it("keeps a guest on a desktop playing when the transcript's Comment opens the composer", async () => {
+    joinOn("desktop", "comment");
+    startPlaying();
+    render(<ReviewHost guestShare />);
+    act(() => openCommentDraft(range));
+    expect(field()).toBeInTheDocument();
+    expect(playing()).toBe(true);
+  });
+
+  it("keeps a guest on a tablet playing when the timeline's create menu opens the composer", async () => {
+    joinOn("tablet", "comment");
+    startPlaying();
+    render(<ReviewHost guestShare />);
+    act(() => {
+      runPointerCommand("comment.draftAt", { atTime: 30 });
+    });
+    expect(playing()).toBe(true);
+  });
+
+  it("keeps an Editor on a phone playing when a range opens the composer", async () => {
+    joinOn("phone", "edit");
+    startPlaying();
+    render(<ReviewHost guestShare />);
+    act(() => openCommentDraft(range));
+    expect(playing()).toBe(true);
+  });
+
+  it("gives a chosen time the pin even where text was typed, as it always did", async () => {
+    const user = userEvent.setup();
+    joinOn("desktop", "comment");
+    render(<ReviewHost guestShare />);
+    await user.type(field(), "too loud here");
+    act(() => {
+      runPointerCommand("comment.draftAt", { atTime: 40, keepPin: true });
+    });
+    expect(useDawStore.getState().commentDraft?.startSec).toBe(40);
+    expect(value()).toBe("too loud here");
   });
 });
