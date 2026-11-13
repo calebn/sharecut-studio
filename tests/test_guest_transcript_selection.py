@@ -6,6 +6,9 @@ Viewers read timed words and neither select, edit nor suggest.
 
 from __future__ import annotations
 
+import itertools
+import json
+
 import pytest
 from fastapi.testclient import TestClient
 
@@ -32,6 +35,7 @@ from podcast_mcp.services.collaboration.share import (
     share_project_view,
 )
 from podcast_mcp.services.collaboration.share_capabilities import (
+    ALL_CAPABILITIES,
     REVIEW_ROLE_CAPABILITIES,
     GuestWords,
     capabilities_for_role,
@@ -162,12 +166,12 @@ def test_a_share_with_no_role_reads_no_words(guest, caps):
         "meta": {"name": "ep", "hydration": {"transcript_words": True}},
         "transcript": {"utterances": [{"text": "hi", "words": [{"text": "hi", "start": 0}]}]},
     }
-    out = sanitize_guest_project_view(full)
+    out = sanitize_guest_project_view(full, words=guest_words(caps))
     assert "words" not in out["transcript"]["utterances"][0]
     assert out["meta"]["hydration"]["transcript_words"] is False
-    if "view" not in caps:
-        state = client.get(f"/api/review/{open_share(caps)}/daw/document/state")
-        assert state.status_code == 403
+    token = open_share(caps)
+    for route in ("daw/document/state", "daw/project"):
+        assert client.get(f"/api/review/{token}/{route}").status_code == 403
 
 
 def test_a_viewer_with_a_stray_capability_still_reads(guest):
@@ -257,3 +261,77 @@ def test_view_guest_can_neither_edit_nor_suggest(guest, command_type, payload):
     assert reply.status_code == 403
     assert load_project(path).edit_decisions == []
     assert _clip_spans(path) == [(0.0, 2.0)]
+
+
+def test_bootstrap_words_flag_equals_guest_words_for_every_capability_subset(guest, monkeypatch):
+    _client, open_share, _path = guest
+    token = open_share(VIEW)
+    from podcast_mcp.services.collaboration import share as share_module
+
+    real = share_module.open_share_workspace
+    current: dict = {}
+
+    def with_caps(tok):
+        row, ws = real(tok)
+        return {**row, "capabilities": current["caps"]}, ws
+
+    monkeypatch.setattr(share_module, "open_share_workspace", with_caps)
+    for size in range(len(ALL_CAPABILITIES) + 1):
+        for subset in itertools.combinations(ALL_CAPABILITIES, size):
+            current["caps"] = list(subset)
+            flag = share_project_view(token)["reads_transcript_words"]
+            assert flag is (guest_words(list(subset)) is not GuestWords.NONE), subset
+
+
+def test_viewer_interior_suppressed_word_never_reaches_words_or_utterance_text(guest):
+    client, open_share, path = guest
+    from podcast_mcp.models import CombinedTranscript, CombinedUtterance
+
+    ws = ProjectWorkspace.open(path)
+    ws.project.transcripts = [
+        Transcript(
+            track_id="host",
+            words=[
+                TranscriptWord(text="Um.", start=0.2, end=0.6, confidence=0.9),
+                TranscriptWord(text="bleed", start=0.7, end=0.8, suppressed=True),
+                TranscriptWord(text="welcome", start=0.9, end=1.2, confidence=0.9),
+            ],
+        )
+    ]
+    ws.project.combined_transcript = CombinedTranscript(
+        utterances=[
+            CombinedUtterance(
+                track_id="host", speaker="Host", start=0.2, end=1.2, text="Um. bleed welcome"
+            )
+        ]
+    )
+    ws.save()
+    token = open_share(VIEW)
+    for phase in ("shell", "detail", "full"):
+        body = client.get(f"/api/review/{token}/daw/document/state", params={"phase": phase})
+        assert "bleed" not in json.dumps(body.json()), phase
+
+
+def test_viewer_ws_hello_pump_and_command_reply_carry_no_words(guest):
+    client, open_share, path = guest
+    viewer = open_share(VIEW)
+    with client.websocket_connect(f"/api/review/{viewer}/daw/ws") as guest_ws:
+        hello = [guest_ws.receive_json(), guest_ws.receive_json()]
+        assert all('"words"' not in json.dumps(m) for m in hello)
+        commenter = open_share(SUGGEST)
+        reply = _command(
+            client,
+            commenter,
+            "EditSelectedRange",
+            {"action": "cut", "targets": [_um_target(path)]},
+        )
+        assert reply.status_code == 200
+        assert '"words"' not in json.dumps(reply.json())
+        pumped = []
+        for _ in range(10):
+            msg = guest_ws.receive_json()
+            pumped.append(msg)
+            if msg.get("type") == "Applied" and msg.get("plane") == "document":
+                break
+        assert any(m.get("plane") == "document" for m in pumped)
+        assert all('"words"' not in json.dumps(m) for m in pumped)

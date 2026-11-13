@@ -23,17 +23,20 @@ vi.mock("./state/store", () => ({
     projectPath,
     initialProject,
     shareAuthor,
+    shareTranscriptWords,
   }: {
     children: ReactNode;
     projectPath: string;
     initialProject: ProjectView | null;
     shareAuthor?: string | null;
+    shareTranscriptWords?: boolean;
   }) => (
     <section
       aria-label="Bootstrap provider"
       data-path={projectPath}
       data-cached-name={initialProject?.meta.name ?? ""}
       data-author={shareAuthor ?? ""}
+      data-transcript-words={String(shareTranscriptWords)}
     >
       {children}
     </section>
@@ -56,12 +59,12 @@ function deferred<T>() {
   return { promise, resolve };
 }
 
-function bootstrap(author: string) {
+function bootstrap(author: string, flag: boolean | "absent" = true) {
   return new Response(
     JSON.stringify({
       capabilities: ["view", "comment"],
       guest_mode: "comment",
-      reads_transcript_words: true,
+      reads_transcript_words: flag === "absent" ? undefined : flag,
       author,
       meta: { name: author },
     }),
@@ -142,6 +145,30 @@ describe("App bootstrap request lifetime", () => {
       expect(offline.clear).not.toHaveBeenCalled();
     },
   );
+
+  it.each([
+    ["granted", true, "true"],
+    ["refused", false, "false"],
+    ["missing", "absent", "false"],
+  ] as const)(
+    "hands the bootstrap's transcript-words flag to the store provider when it is %s",
+    async (_name, flag, want) => {
+      serve(async () => bootstrap("Alpha", flag));
+      render(<App />);
+      await screen.findByText("Studio body");
+      expect(provider()).toHaveAttribute("data-transcript-words", want);
+    },
+  );
+
+  it("gives an offline cached review no transcript words", async () => {
+    offline.load.mockResolvedValue({ project: cachedProject(), saved_at: 1 });
+    serve(async () => {
+      throw new TypeError("offline");
+    });
+    render(<App />);
+    await screen.findByText("Studio body");
+    expect(provider()).toHaveAttribute("data-transcript-words", "false");
+  });
 
   it("retires the first A attempt across committed A B A routes", async () => {
     const firstA = deferred<Response>();
