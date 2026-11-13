@@ -8,6 +8,7 @@ import { useDawStore } from "../../state/dawStore";
 import { stageRoleOf } from "../../state/stageRoutes";
 import { useDaw } from "../../state/useDaw";
 import type { AppHeaderProps } from "../../system/AppHeader";
+import { isHostRole } from "../../utils/can";
 import {
   markRoleHintSeen,
   ROLE_HINT_TEXT,
@@ -48,29 +49,28 @@ export function useHeaderProps(): Omit<
   const { preference, setPreference } = useTheme();
   const role = stageRoleOf(guestMode);
   const [dismissed, setDismissed] = useState<readonly string[]>([]);
-  const guest: AppHeaderProps["guest"] =
-    role === "host"
-      ? undefined
-      : {
-          version: version?.label ?? "Shared link",
-          followsLatest: version?.followsLatest,
-          update: version?.changed
-            ? {
-                id: version.versionId,
-                label: version.label,
-                onListen: reloadPage,
-              }
-            : undefined,
-          role,
-          hint: {
-            text: ROLE_HINT_TEXT[role],
-            shown: !dismissed.includes(role) && !roleHintSeen(role),
-            onDismiss: () => {
-              markRoleHintSeen(role);
-              setDismissed((current) => [...current, role]);
-            },
+  const guest: AppHeaderProps["guest"] = isHostRole(role)
+    ? undefined
+    : {
+        version: version?.label ?? "Shared link",
+        followsLatest: version?.followsLatest,
+        update: version?.changed
+          ? {
+              id: version.versionId,
+              label: version.label,
+              onListen: reloadPage,
+            }
+          : undefined,
+        role,
+        hint: {
+          text: ROLE_HINT_TEXT[role],
+          shown: !dismissed.includes(role) && !roleHintSeen(role),
+          onDismiss: () => {
+            markRoleHintSeen(role);
+            setDismissed((current) => [...current, role]);
           },
-        };
+        },
+      };
   const onMenuCommand = useCallback((command: string) => {
     if (command === "help") {
       useDawStore.getState().setHelpDialogOpen(true, "menu");
@@ -95,7 +95,7 @@ export function useHeaderProps(): Omit<
     onRedo: history.onRedo,
     onInvite: () => runPointerCommand("share.manage"),
     onPalette: () => runPointerCommand("ui.toggleCommandPalette"),
-    onRename: role === "host" ? onRename : undefined,
+    onRename: isHostRole(role) ? onRename : undefined,
     onHistory: history.history ? onHistory : undefined,
     appearance: {
       value: preference,

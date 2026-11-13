@@ -9,7 +9,7 @@ import {
 } from "../../hooks/useMediaQueryStore";
 import { useTimelineFocusRegion } from "../../hooks/useTimelineFocusRegion";
 import { useViewportClass } from "../../hooks/useViewportClass";
-import { canEditMix, canIngestMedia, commentRole } from "../../shareMode";
+import { canEditMix, canIngestMedia, isGuestSession } from "../../shareMode";
 import { useDawStore } from "../../state/dawStore";
 import { mediaKeyOf } from "../../state/jobMedia";
 import { Skeleton } from "../../system/Skeleton";
@@ -89,8 +89,7 @@ function EditWorkspaceAdapter({
       : shell === "tablet" && !wide
         ? "stacked"
         : "side";
-  const overviewGuest =
-    commentRole(projectPath, guestMode, guestShare) === "guest";
+  const overviewGuest = isGuestSession(projectPath, guestMode, guestShare);
   const size = useScriptSize();
   const [root, setRoot] = useState<HTMLDivElement | null>(null);
 

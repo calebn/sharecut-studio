@@ -12,6 +12,7 @@ import {
 } from "../../stages/guest/useGuestReading";
 import { useDawStore } from "../../state/dawStore";
 import { stageRoleOf } from "../../state/stageRoutes";
+import { isHostRole } from "../../utils/can";
 import { scriptGuestOf } from "../edit/script/scriptGuest";
 import { useScriptSelection } from "../edit/script/useScriptSelection";
 import { GuestSelectionBar } from "./GuestSelectionBar";
@@ -61,7 +62,7 @@ function GuestScriptHostAdapter({
       playheadWord: last === "" ? undefined : Number(last),
     };
   }, [positionKey]);
-  const hidden = role === "host" ? false : short || !mayRange;
+  const hidden = isHostRole(role) ? false : short || !mayRange;
   const wasHidden = useRef(hidden);
   useEffect(() => {
     const turnedOff = hidden && !wasHidden.current;
@@ -71,7 +72,7 @@ function GuestScriptHostAdapter({
     if (selection?.kind === "transcriptRange" || selection?.kind === "range")
       setSelection(null);
   }, [hidden]);
-  if (role === "host" || short) return null;
+  if (isHostRole(role) || short) return null;
   return (
     <div ref={setRoot} className="stage-host-guest-script">
       <GuestScript

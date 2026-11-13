@@ -1,6 +1,6 @@
 import { useCallback, useRef, useState } from "react";
 import { createComment } from "../api";
-import { commentRole } from "../shareMode";
+import { isGuestSession } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
 import type { TimelineComment } from "../types/project";
 import { errorMessage } from "../utils/apiError";
@@ -64,7 +64,7 @@ export function usePostComment(): {
     const started = state.commentDraft;
     setBusy(true);
     try {
-      if (commentRole(state.projectPath, state.guestMode) === "host") {
+      if (!isGuestSession(state.projectPath, state.guestMode)) {
         saveCommentAuthor(author);
       }
       const comment = await createComment(state.projectPath, {

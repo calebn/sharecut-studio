@@ -1,3 +1,4 @@
+import { REVIEW_ROLE_IDS } from "../../types/roles.generated";
 import {
   type HostShareRow,
   listenRowOf,
@@ -51,7 +52,7 @@ export function roleLabel(row: HostShareRow): string {
 
 /** The row's role as one of the three link roles, for its chip. */
 export function roleOf(row: HostShareRow): ShareRole {
-  return REVIEW_ROLES.find((r) => r.id === row.docs_role)?.id ?? "viewer";
+  return REVIEW_ROLE_IDS.find((id) => id === row.docs_role) ?? "viewer";
 }
 
 /** Follows latest or Frozen, the MCP, and the dates, as one line. */

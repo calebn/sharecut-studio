@@ -1,3 +1,5 @@
+import type { ReviewRole } from "./roles.generated";
+
 export const STAGE_IDS = [
   "record",
   "prepare",
@@ -32,4 +34,4 @@ export type StageView = {
   panelScroll: Record<string, number>;
 };
 
-export type StageRole = "host" | "editor" | "commenter" | "viewer";
+export type StageRole = "host" | ReviewRole;

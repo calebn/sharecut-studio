@@ -6,6 +6,7 @@ import { useDawStore } from "../../state/dawStore";
 import { stageRoleOf, stagesForRole } from "../../state/stageRoutes";
 import { Cover } from "../../system/Cover";
 import { stageLabel } from "../../system/verbs";
+import { isHostRole } from "../../utils/can";
 import { EditWorkspace } from "../edit/EditWorkspace";
 import type { ViewAnchorAvailability } from "../edit/useViewAnchor";
 import { DeliverStage } from "./DeliverStage";
@@ -94,7 +95,7 @@ function StageHostAdapter({
         />
       );
     case "deliver":
-      return role === "host" ? (
+      return isHostRole(role) ? (
         <DeliverStage loadFailure={loadFailure} />
       ) : (
         <GuestDeliver loadFailure={loadFailure} />
