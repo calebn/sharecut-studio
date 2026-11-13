@@ -14,7 +14,6 @@ client's tests read too.
 
 from __future__ import annotations
 
-import copy
 import json
 import shutil
 from collections.abc import Callable
@@ -28,7 +27,6 @@ from podcast_mcp.edits.range_target import build_range_target
 from podcast_mcp.edits.transcript_timing import WordTimingTarget
 from podcast_mcp.engines import source_proxy_audio
 from podcast_mcp.engines.ffmpeg import FFmpegEngine
-from podcast_mcp.engines.source_proxy_audio import SourceProxyInputs
 from podcast_mcp.gui.assembler import dump_project_projection
 from podcast_mcp.mcp.tools import timeline
 from podcast_mcp.models import (
@@ -66,9 +64,9 @@ from podcast_mcp.services.document_sync.commands import DocumentCommand
 from podcast_mcp.services.document_sync.projection_delta import split
 from podcast_mcp.services.document_sync.registry import COMMANDS
 from podcast_mcp.services.media import proxy_variants
+from podcast_mcp.util.batch_scope import batch_scope, frozen_state, unscoped
 from podcast_mcp.util.hashing import sha256_file
 from podcast_mcp.util.project_state import file_revision
-from podcast_mcp.util.tracks import dialogue_track_ids
 from test_bleed_alignment_surfaces import _workspace as _bleed_surfaces_workspace
 from test_room_tone_extract import SPEECH_THEN_ROOM, _host_audio, _project
 from test_segments_insert import _save
@@ -126,50 +124,28 @@ class Rig:
 
     def submit(self, command_type: str, payload: dict[str, Any], *, audience: str) -> dict:
         self.seq += 1
-        return DocumentSyncService(self.ws).submit(
-            DocumentCommand(
-                type=command_type,
-                payload=payload,
-                client_id="freshness",
-                role="host",
-                client_seq=self.seq,
-            ),
-            range_policy="apply",
-            audience=audience,
-        )
+        # The command runs as it would outside the test's batch scope.
+        with unscoped():
+            return DocumentSyncService(self.ws).submit(
+                DocumentCommand(
+                    type=command_type,
+                    payload=payload,
+                    client_id="freshness",
+                    role="host",
+                    client_seq=self.seq,
+                ),
+                range_policy="apply",
+                audience=audience,
+            )
 
     def head(self) -> str:
         return self.ws.project.history.head_id()
 
 
 def _artifacts(ws: ProjectWorkspace) -> Artifacts:
-    project = ws.project
     defaults = ws.effective_config()
-    engine = FFmpegEngine()
-    inputs = [
-        SourceProxyInputs.capture_legacy(project, tid, engine, defaults=defaults)
-        for tid in dialogue_track_ids(project)
-    ]
-    restored = {
-        clip.id for clip in project.clips if clip.bleed_restore and clip.bleed_restore.regions
-    }
-    inputs += [
-        SourceProxyInputs.capture_occurrence(project, clip_id, engine, defaults=defaults)
-        for clip_id in sorted(restored)
-    ]
-    keys = dict.fromkeys(
-        key
-        for clip in project.clips
-        if clip.id not in restored
-        and (key := proxy_variants._recording_key(project, clip)) is not None
-    )
-    inputs += [
-        SourceProxyInputs.capture_recording(project, *key, engine, defaults=defaults)
-        for key in keys
-    ]
-    return frozenset(
-        (i.context_track_id, proxy_variants._input_hash(project, i, defaults)) for i in inputs
-    )
+    inputs = proxy_variants.capture_manifest_inputs(ws.project, FFmpegEngine(), defaults)
+    return inputs.artifacts(ws.project, defaults)
 
 
 def _guest_sections(ws: ProjectWorkspace) -> Sections:
@@ -179,7 +155,8 @@ def _guest_sections(ws: ProjectWorkspace) -> Sections:
 
 
 def _apply_operations(sections: Sections, operations: list[dict[str, Any]]) -> Sections:
-    sections = copy.deepcopy(sections)
+    # Operations replace sections and rows whole, so the earlier sections stay as they were.
+    sections = dict(sections)
     for op in operations:
         key = (op["section"], op.get("parent"))
         if op["type"] == "replace":
@@ -239,6 +216,11 @@ def _manifest_key(ws: ProjectWorkspace) -> Key:
     return _key(hashes, clips)
 
 
+def _observe(ws: ProjectWorkspace) -> tuple[Artifacts, Key]:
+    with frozen_state():
+        return _artifacts(ws), _manifest_key(ws)
+
+
 @dataclass(frozen=True)
 class Step:
     label: str
@@ -250,7 +232,7 @@ class Guest:
     def __init__(self, rig: Rig) -> None:
         self.rig = rig
         self.sections = _guest_sections(rig.ws)
-        self.artifacts = _artifacts(rig.ws)
+        self.artifacts, self.manifest_key = _observe(rig.ws)
         self.assert_matches_manifest("before")
 
     def step(self, command_type: str, payload: dict[str, Any], label: str) -> Step:
@@ -265,11 +247,11 @@ class Guest:
         else:
             assert "project" in snapshot, sorted(snapshot)
             self.sections = split(snapshot["project"])
-        self.artifacts = _artifacts(self.rig.ws)
+        self.artifacts, self.manifest_key = _observe(self.rig.ws)
         return Step(label, self.artifacts != artifacts, _client_key(self.sections) != key)
 
     def assert_matches_manifest(self, label: str) -> None:
-        assert _client_key(self.sections) == _manifest_key(self.rig.ws), (
+        assert _client_key(self.sections) == self.manifest_key, (
             f"{label}: the guest's key differs from the manifest's"
         )
 
@@ -1024,6 +1006,12 @@ def test_the_manifest_key_reads_every_clip_field_the_manifest_carries() -> None:
 
 
 def run_case(template: Path, tmp_path: Path, command_type: str, role: TrackRole | None) -> list:
+    # The scope decodes each recording once for every artifact capture the case makes.
+    with batch_scope():
+        return _run_case(template, tmp_path, command_type, role)
+
+
+def _run_case(template: Path, tmp_path: Path, command_type: str, role: TrackRole | None) -> list:
     case = CASES[command_type]
     target = Target(role or TrackRole.DIALOGUE)
     rig = _open(template, tmp_path, case)

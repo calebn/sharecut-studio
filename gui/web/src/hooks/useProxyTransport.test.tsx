@@ -21,7 +21,6 @@ import {
 import { shareProjectKey } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
 import { minimalProject, sampleTrack } from "../test/fixtures";
-import type { ProjectView } from "../types/project";
 import { ApiError } from "../utils/apiError";
 import { useAudioTransport } from "./useAudioTransport";
 import { useProxyTransport } from "./useProxyTransport";
@@ -571,10 +570,38 @@ describe("useProxyTransport", () => {
     expect(useDawStore.getState().audioError).toBeNull();
   });
 
+  it("never matches a cached manifest whose hashes predate the per-track proxy basis", async () => {
+    const current = structuredClone(useDawStore.getState().project!);
+    current.render_status.tracks = { host: { render_hash: "stem-host" } };
+    current.render_status.proxy_hashes = {
+      host: "proxy-host",
+      music: "proxy-music",
+    };
+    useDawStore.getState().setProject(current);
+    const fresh = manifestFor(current);
+    const cached = {
+      ...fresh,
+      project_basis: {
+        ...fresh.project_basis,
+        render_hashes: { host: "stem-host" },
+      },
+    };
+    vi.mocked(loadProxyManifest).mockRejectedValue(new Error("offline"));
+    vi.mocked(loadOfflineSnapshot).mockResolvedValue({
+      manifest: cached,
+      saved_at: 1,
+    });
+    renderHook(() => useProxyTransport());
+    await vi.waitFor(() =>
+      expect(useDawStore.getState().audioError).toBeTruthy(),
+    );
+    expect(engine.setSnapshot).not.toHaveBeenCalled();
+  });
+
   it("refuses an older generation after the displayed project audio advances", async () => {
     const cached = manifestFor();
     const current = structuredClone(useDawStore.getState().project!);
-    current.render_status.tracks = { host: { render_hash: "after-restore" } };
+    current.render_status.proxy_hashes = { host: "after-restore" };
     useDawStore.getState().setProject(current);
     vi.mocked(loadProxyManifest).mockRejectedValue(new Error("offline"));
     vi.mocked(loadOfflineSnapshot).mockResolvedValue({
@@ -657,8 +684,7 @@ describe("useProxyTransport", () => {
       project.history.head_id = "after-edit" as typeof project.history.head_id;
       if (change === "clip timeline")
         project.clips.tracks = fixture.moved.clips.tracks;
-      else
-        project.render_status.tracks = { host: { render_hash: "new-render" } };
+      else project.render_status.proxy_hashes = { host: "new-render" };
       act(() => useDawStore.getState().setProject(project));
       await vi.waitFor(() =>
         expect(loadProxyManifest).toHaveBeenCalledTimes(2),
@@ -686,8 +712,7 @@ describe("useProxyTransport", () => {
       });
       const project = structuredClone(fixture.base);
       if (advance === "clip") project.clips.tracks = fixture.moved.clips.tracks;
-      else
-        project.render_status.tracks = { host: { render_hash: "new-render" } };
+      else project.render_status.proxy_hashes = { host: "new-render" };
       engine.setSnapshot.mockClear();
       const { projectPath } = useDawStore.getState();
       act(() => useDawStore.getState().setProject(project));
@@ -979,7 +1004,7 @@ describe("useProxyTransport", () => {
   it("uses document recovery for a newer manifest and admits the recovered pair", async () => {
     const old = useDawStore.getState().project!;
     const newer = structuredClone(old);
-    newer.render_status.tracks = { host: { render_hash: "new-render" } };
+    newer.render_status.proxy_hashes = { host: "new-render" };
     const manifest = manifestFor(newer);
     applyDocumentSnapshot({ project: old, server_seq: 1, state_token: "old" });
     vi.mocked(loadProxyManifest).mockResolvedValue(manifest);
@@ -1052,7 +1077,7 @@ describe("useProxyTransport", () => {
     );
     renderHook(() => useProxyTransport());
     const newer = structuredClone(useDawStore.getState().project!);
-    newer.render_status.tracks = { host: { render_hash: "new-render" } };
+    newer.render_status.proxy_hashes = { host: "new-render" };
     act(() => useDawStore.getState().setProject(newer));
     await ready();
     expect(
@@ -1120,7 +1145,7 @@ describe("useProxyTransport", () => {
         premix: { exists: false },
         tracks: { host: { render_hash: "stem-host" } },
         proxy_hashes: { host: "proxy-host", music: "proxy-music" },
-      } as ProjectView["render_status"],
+      },
     });
     const snapshot = { project: base, server_seq: 1, state_token: BEFORE };
     applyDocumentSnapshot(snapshot);
@@ -1129,7 +1154,7 @@ describe("useProxyTransport", () => {
     await ready();
     act(() => useDawStore.getState().setIsPlaying(true));
     engine.pause.mockClear();
-    act(() =>
+    act(() => {
       applyDocumentSnapshot({
         server_seq: 2,
         state_token: AFTER,
@@ -1187,8 +1212,8 @@ describe("useProxyTransport", () => {
             },
           ],
         },
-      }),
-    );
+      });
+    });
     expect(documentAuthority.token).toBe(AFTER);
     expect(useDawStore.getState().project?.effects_by_track.music).toHaveLength(
       1,

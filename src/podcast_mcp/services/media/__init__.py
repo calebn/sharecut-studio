@@ -49,6 +49,7 @@ if TYPE_CHECKING:
     from podcast_mcp.services.media.proxy_variants import (
         accepted_proxy_chunk_path,
         ensure_proxy_manifest,
+        proxy_basis_hashes,
         proxy_manifest_payload,
     )
     from podcast_mcp.services.media.range_audio import render_range_audio
@@ -140,6 +141,7 @@ __all__ = [
     "pcm_block",
     "presigned_proxy_urls",
     "presigned_review_audio_url",
+    "proxy_basis_hashes",
     "proxy_manifest_payload",
     "render_range_audio",
     "review_guest_audio_path",
@@ -166,6 +168,7 @@ _MODULE_BY_NAME = {
     "GeneratingWaveformEntry": "results",
     "accepted_proxy_chunk_path": "proxy_variants",
     "ensure_proxy_manifest": "proxy_variants",
+    "proxy_basis_hashes": "proxy_variants",
     "proxy_manifest_payload": "proxy_variants",
     "BounceRequest": "bounce",
     "BounceService": "bounce",

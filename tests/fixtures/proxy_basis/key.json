@@ -1,5 +1,5 @@
 {
-  "view_hashes": ["render_status", "tracks", "*", "render_hash"],
+  "view_hashes": ["render_status", "proxy_hashes"],
   "manifest_hashes": ["render_hashes"],
   "clip_fields": [
     "track_id",

@@ -33,7 +33,9 @@ export interface ProxyClipBasis {
 }
 
 /**
- * A manifest is matched on `render_hashes` and `clips` only. `history_head_id`
+ * A manifest is matched on `render_hashes` and `clips` only. `render_hashes` is,
+ * per track whose artifacts the manifest builds, a digest of what they are built
+ * from; the project carries it as `render_status.proxy_hashes`. `history_head_id`
  * moves on every save, audible or not, so it must not be compared.
  */
 export interface ProxyProjectBasis {
@@ -220,11 +222,7 @@ export function projectProxyBasis(project: ProjectView): ProxyProjectBasis {
     }
   return {
     history_head_id: project.history.head_id,
-    render_hashes: Object.fromEntries(
-      Object.entries(project.render_status.tracks ?? {}).flatMap(
-        ([id, track]) => (track.render_hash ? [[id, track.render_hash]] : []),
-      ),
-    ),
+    render_hashes: { ...project.render_status.proxy_hashes },
     clips,
   };
 }
