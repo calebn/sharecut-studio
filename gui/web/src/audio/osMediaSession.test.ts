@@ -405,7 +405,7 @@ describe("transport store projection", () => {
   it("is off outside a share link", () => {
     useDawStore.setState({ projectPath: "/tmp/test/episode.sharecut" });
     expect(
-      projectOsMediaSession(osTransportInput(useDawStore.getState(), 0)),
+      projectOsMediaSession(osTransportInput(useDawStore.getState(), 0, true)),
     ).toEqual(OS_SESSION_OFF);
   });
 
@@ -414,7 +414,7 @@ describe("transport store projection", () => {
       project: minimalProject({ tracks: [] }),
     });
     expect(
-      projectOsMediaSession(osTransportInput(useDawStore.getState(), 0))
+      projectOsMediaSession(osTransportInput(useDawStore.getState(), 0, true))
         .handlersOn,
     ).toBe(false);
   });
@@ -422,7 +422,7 @@ describe("transport store projection", () => {
   it("reads the title, duration and rate from the store", () => {
     useDawStore.setState({ playbackRate: 2, isPlaying: true });
     expect(
-      projectOsMediaSession(osTransportInput(useDawStore.getState(), 30)),
+      projectOsMediaSession(osTransportInput(useDawStore.getState(), 30, true)),
     ).toEqual({
       metadata: { title: "Episode 12" },
       playbackState: "playing",
@@ -443,7 +443,7 @@ describe("transport store projection", () => {
       }),
     });
     expect(
-      projectOsMediaSession(osTransportInput(useDawStore.getState(), 70))
+      projectOsMediaSession(osTransportInput(useDawStore.getState(), 70, true))
         .positionState,
     ).toEqual({ duration: 90, playbackRate: 1, position: 70 });
   });

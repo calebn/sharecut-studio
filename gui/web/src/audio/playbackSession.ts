@@ -80,7 +80,11 @@ function watch(element: KeepAliveElement): void {
   });
   element.addEventListener("play", () => {
     if (entry || element.paused) return;
-    events?.onSystemPlay();
+    if (!events) {
+      element.pause();
+      return;
+    }
+    events.onSystemPlay();
   });
 }
 
