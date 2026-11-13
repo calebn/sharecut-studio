@@ -10,7 +10,7 @@ import sys
 
 import pytest
 
-from podcast_mcp.services.collaboration import share_capabilities as sc
+import podcast_mcp.services.collaboration as sc
 from script_loader import load_script
 
 
