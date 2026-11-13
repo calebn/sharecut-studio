@@ -1,6 +1,7 @@
 import { useCallback, useRef, useState } from "react";
 import { createComment } from "../api";
 import { commentRole } from "../shareMode";
+import { isResumeDropped } from "../state/commentDraft";
 import { useDawStore } from "../state/dawStore";
 import type { TimelineComment } from "../types/project";
 import { errorMessage } from "../utils/apiError";
@@ -79,7 +80,8 @@ export function usePostComment(): {
         actionTexts: input.actionTexts ?? [],
       });
       // A newer draft (Escape, then C, while this was in flight) is not ours to drop.
-      if (useDawStore.getState().commentDraft === started)
+      const now = useDawStore.getState().commentDraft;
+      if (now === started || isResumeDropped(started, now))
         useDawStore.getState().setCommentDraft(null);
       return { ok: true, comment };
     } catch (e) {
