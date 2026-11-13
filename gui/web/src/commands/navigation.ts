@@ -1,5 +1,5 @@
 import { patchComment } from "../api";
-import { episodeDurationSec } from "../audio/proxyMath";
+import { seekLimitSec } from "../audio/proxyMath";
 import { followCapsOf, planGoTo } from "../presence/goToPlan";
 import { rosterEntry } from "../presence/roster";
 import { canManageProjects, guestHearsMixOnly } from "../shareMode";
@@ -58,10 +58,7 @@ export function registerNavigationCommands(): void {
       return { status: "disabled", reason: "sec must be a number" };
     }
     const s = useDawStore.getState();
-    const duration =
-      s.project?.timeline_duration_sec == null
-        ? Number.NaN
-        : episodeDurationSec(s.project);
+    const duration = seekLimitSec(s.project);
     s.setPlayheadSec(clampToSession(sec, duration));
     s.setPlayUntilSec(null);
     return { status: "ok" };

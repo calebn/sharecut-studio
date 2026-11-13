@@ -64,7 +64,10 @@ export function projectOsMediaSession(
     };
   }
   const playbackState = input.isPlaying ? "playing" : "paused";
-  const { durationSec, positionSec, playbackRate } = input;
+  const { durationSec, playbackRate } = input;
+  // The engine starts over when asked to play from the end.
+  const positionSec =
+    input.isPlaying && input.positionSec >= durationSec ? 0 : input.positionSec;
   if (!Number.isFinite(durationSec) || durationSec <= 0) {
     return { metadata, playbackState, positionState: null, handlersOn: true };
   }
@@ -109,6 +112,18 @@ export function osTransportInput(
  * playhead writes are not among them: the OS advances the position itself from
  * the declared rate.
  */
+/** True when no store field the change key reads has been replaced, so the key need not be built. */
+export function sameOsInputs(a: DawState, b: DawState): boolean {
+  return (
+    a.projectPath === b.projectPath &&
+    a.project === b.project &&
+    a.isPlaying === b.isPlaying &&
+    a.sourcePreview === b.sourcePreview &&
+    a.playheadSeekRevision === b.playheadSeekRevision &&
+    a.playbackRate === b.playbackRate
+  );
+}
+
 export function osDiscontinuityKey(state: DawState): string {
   return JSON.stringify([
     state.projectPath,
@@ -176,6 +191,8 @@ function setHandler(
 export type OsTransportCommands = Readonly<{
   isPlaying(): boolean;
   livePositionSec(): number;
+  previewActive(): boolean;
+  stopPreview(): void;
   syncPlayhead(sec: number): void;
   togglePlay(): void;
   skip(deltaSec: number): void;
@@ -194,6 +211,10 @@ export function osActionHandlers(cmd: OsTransportCommands): OsActionHandlers {
       if (!cmd.isPlaying()) cmd.togglePlay();
     },
     pause: () => {
+      if (cmd.previewActive()) {
+        cmd.stopPreview();
+        return;
+      }
       if (!cmd.isPlaying()) return;
       // A locked page paints no frames, so the store playhead is stale; the
       // pause effect would seek the paused engine back to it.

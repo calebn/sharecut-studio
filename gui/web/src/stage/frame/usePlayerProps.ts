@@ -1,4 +1,5 @@
 import { useCallback, useMemo, useRef } from "react";
+import { episodeDurationSec } from "../../audio/proxyMath";
 import { skipListen } from "../../commands/listenSeek";
 import { runPointerCommand } from "../../commands/pointer";
 import { seekTransport } from "../../commands/seek";
@@ -95,7 +96,7 @@ export function usePlayerProps(
   );
 
   const breakdown = useStaleRenderBreakdown(project);
-  const duration = project?.timeline_duration_sec ?? 0;
+  const duration = episodeDurationSec(project);
   const { onSeek, onScrub } = useSeekFraction(duration);
   const chapterMarkers = project?.chapters ?? NONE;
   const sortedMarkers = useMemo(

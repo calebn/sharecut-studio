@@ -163,8 +163,9 @@ describe("useOsMediaSession", () => {
     hydrateGuest();
     renderHook(() => useOsMediaSession());
     act(() => useDawStore.getState().setIsPlaying(true));
+    let engineSec = 10;
     const unbind = bindPlaybackClock(() =>
-      useDawStore.getState().isPlaying ? 10 : null,
+      useDawStore.getState().isPlaying ? engineSec : null,
     );
     act(() => handlers.get("seekto")?.(details({ seekTime: 40 })));
     expect(session.setPositionState).toHaveBeenLastCalledWith({
@@ -172,6 +173,7 @@ describe("useOsMediaSession", () => {
       playbackRate: 1,
       position: 40,
     });
+    engineSec = 40;
     act(() => handlers.get("seekforward")?.(details()));
     expect(session.setPositionState).toHaveBeenLastCalledWith({
       duration: 60,
@@ -197,17 +199,16 @@ describe("useOsMediaSession", () => {
   it("keeps Play working when the browser throws from setPositionState", () => {
     hydrateGuest();
     renderHook(() => useOsMediaSession());
+    const reportError = vi.fn();
+    vi.stubGlobal("reportError", reportError);
     session.setPositionState.mockImplementation(() => {
       throw new TypeError("rejected");
     });
-    const error = vi
-      .spyOn(console, "error")
-      .mockImplementation(() => undefined);
     expect(() =>
       act(() => useDawStore.getState().setIsPlaying(true)),
     ).not.toThrow();
     expect(useDawStore.getState().isPlaying).toBe(true);
-    error.mockRestore();
+    expect(reportError).toHaveBeenCalledTimes(1);
   });
 
   it("stops a source preview when the OS pauses and the transport is idle", () => {

@@ -84,11 +84,22 @@ describe("projectOsMediaSession", () => {
     [700, 600],
     [-4, 0],
     [Number.NaN, 0],
-  ])("clamps a position of %s to %s", (positionSec, position) => {
+  ])("clamps a paused position of %s to %s", (positionSec, position) => {
     expect(
-      projectOsMediaSession({ ...PLAYING, positionSec }).positionState,
+      projectOsMediaSession({ ...PLAYING, isPlaying: false, positionSec })
+        .positionState,
     ).toEqual({ duration: 600, playbackRate: 1, position });
   });
+
+  it.each([600, 700])(
+    "declares 0 when playing starts at %s s, where the engine wraps",
+    (positionSec) => {
+      expect(
+        projectOsMediaSession({ ...PLAYING, positionSec }).positionState
+          ?.position,
+      ).toBe(0);
+    },
+  );
 
   it.each([
     [2, 2],
@@ -312,6 +323,8 @@ describe("osActionHandlers", () => {
       cmd: {
         isPlaying: () => isPlaying,
         livePositionSec: () => 88,
+        previewActive: () => false,
+        stopPreview: () => calls.push("stopPreview"),
         syncPlayhead: (sec: number) => calls.push(`sync:${sec}`),
         togglePlay: () => {
           isPlaying = !isPlaying;

@@ -332,6 +332,13 @@ export function episodeDurationSec(project: ProjectView | null): number {
     : 0;
 }
 
+/** The upper bound for a seek: the episode end, or NaN (no bound) while the stored duration is unknown. */
+export function seekLimitSec(project: ProjectView | null): number {
+  return project?.timeline_duration_sec == null
+    ? Number.NaN
+    : episodeDurationSec(project);
+}
+
 export function chunkRefKey(ref: ImmutableChunkRef): string {
   return JSON.stringify([ref.kind, ref.artifactId, ref.hash, ref.index]);
 }

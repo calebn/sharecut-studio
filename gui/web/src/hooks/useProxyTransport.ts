@@ -10,6 +10,7 @@ import { loadProxyManifest } from "../api";
 import { cachedFetchArrayBuffer } from "../audio/chunkCache";
 import { bindPlaybackClock } from "../audio/playbackClock";
 import { bindPlaybackMeterSource } from "../audio/playbackMeterSource";
+import { leavePlaybackSession } from "../audio/playbackSession";
 import { ProxyEngine } from "../audio/proxyEngine";
 import {
   chunkRefKey,
@@ -182,11 +183,17 @@ export function useProxyTransport(): boolean {
 
   const handleSystemPlay = useEffectEvent(() => {
     const state = useDawStore.getState();
+    const current =
+      state.projectPath === projectPath && state.projectEpoch === projectEpoch;
     if (
-      !state.isPlaying &&
+      current &&
+      !state.sourcePreview &&
       transportAvailability(state).togglePlay === undefined
-    )
-      state.setIsPlaying(true);
+    ) {
+      if (!state.isPlaying) state.setIsPlaying(true);
+      return;
+    }
+    leavePlaybackSession();
   });
 
   // A blocked proxy (a failed chunk fetch, a missing manifest) leaves nothing to retry it,
