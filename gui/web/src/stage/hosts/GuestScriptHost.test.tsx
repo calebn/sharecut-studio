@@ -6,13 +6,16 @@ import { useDawStore } from "../../state/dawStore";
 import { CENTER, NEAREST, probeScript } from "../../system/scriptScrollProbe";
 import {
   COMMENTER_CAPABILITIES,
-  clipRow,
   EDITOR_CAPABILITIES,
   minimalProject,
   VIEWER_CAPABILITIES,
 } from "../../test/fixtures";
 import { drag, layout } from "../../test/scriptDrag";
-import { scriptUtterances, seedScript } from "../../test/scriptHostKit";
+import {
+  scriptUtterances,
+  seedScript,
+  TWO_LANE_CLIPS,
+} from "../../test/scriptHostKit";
 import { stubViewportShell } from "../../test/viewportShell";
 import type { CombinedUtterance } from "../../types/project";
 import { GuestScriptHost } from "./GuestScriptHost";
@@ -192,31 +195,6 @@ describe("GuestScriptHost", () => {
   });
 
   describe("selection", () => {
-    const CLIPS = {
-      tracks: {
-        host: [
-          clipRow({
-            id: "ch",
-            track_id: "host",
-            timeline_start: 0,
-            timeline_end: 30,
-            source_start: 0,
-            source_end: 30,
-          }),
-        ],
-        guest: [
-          clipRow({
-            id: "cg",
-            track_id: "guest",
-            timeline_start: 0,
-            timeline_end: 30,
-            source_start: 0,
-            source_end: 30,
-          }),
-        ],
-      },
-      clip_count: 2,
-    };
     const seed = (viewer: boolean) =>
       seedScript({
         projectPath: "share:abc",
@@ -227,7 +205,7 @@ describe("GuestScriptHost", () => {
         utterances: viewer
           ? readingCut(scriptUtterances())
           : scriptUtterances(),
-        project: { clips: CLIPS },
+        project: { clips: TWO_LANE_CLIPS },
       });
     const wordsOf = () =>
       useDawStore

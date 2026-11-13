@@ -448,9 +448,7 @@ def test_guest_transcript_fails_closed_on_a_non_enum_words_value(bad):
 
 
 @pytest.mark.parametrize("mode", ["NONE", "READING", "SELECTABLE"])
-def test_locked_word_indices_are_kept_on_guest_rows_in_every_mode_so_the_client_overlay_stays_valid(
-    mode,
-):
+def test_guest_rows_keep_locked_word_indices_in_every_mode(mode):
     from podcast_mcp.gui.mapper import guest_transcript
     from podcast_mcp.services.collaboration.share_capabilities import GuestWords
 
