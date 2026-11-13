@@ -29,6 +29,7 @@ import {
   commentRole,
 } from "../../shareMode";
 import { useDawStore } from "../../state/dawStore";
+import { listenLayoutOf } from "../../state/stageRoutes";
 import { useDaw } from "../../state/useDaw";
 import { CommentCard } from "../../system/CommentCard";
 import type { BodyEdit } from "../../system/Composer";
@@ -44,7 +45,6 @@ import {
   sessionDisplayName,
 } from "../../utils/commentAuthor";
 import { useStableCallback } from "../../utils/useStableCallback";
-import { listenLayoutOf } from "../frame/playerPlacement";
 import { ActionItemsField } from "./ActionItemsField";
 import { filledActions } from "./actionItems";
 import { ComposeAnchor } from "./ComposeAnchor";
