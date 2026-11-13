@@ -1,4 +1,5 @@
 import type { CommentRole } from "../shareMode";
+import { isGuestAudience } from "./can";
 import { readLocal, writeLocal } from "./storage";
 
 const STORAGE_KEY = "podcast-mcp-comment-author";
@@ -37,7 +38,7 @@ export function saveCommentAuthor(
   role: CommentRole = "host",
 ): void {
   const name = capCommentName(author);
-  if (role === "guest") {
+  if (isGuestAudience(role)) {
     writeLocal(GUEST_NAME_KEY, name);
     return;
   }
@@ -55,7 +56,7 @@ export function savedGuestName(): string {
  * `Host`, `Guest`) counts as unset.
  */
 export function sessionDisplayName(role: CommentRole): string {
-  if (role === "guest") {
+  if (isGuestAudience(role)) {
     return (
       capCommentName(readLocal(GUEST_NAME_KEY) ?? "") || GUEST_SESSION_LABEL
     );
@@ -91,6 +92,6 @@ export function commitCommentActor(
 ): string {
   const who = resolveCommentActor(explicit, role);
   show?.(who);
-  if (role === "host") saveCommentAuthor(who);
+  if (!isGuestAudience(role)) saveCommentAuthor(who);
   return who;
 }

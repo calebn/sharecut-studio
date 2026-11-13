@@ -1,6 +1,7 @@
+import type { ReviewRole } from "../types/roles.generated";
 import type { SystemIconName } from "./icons";
 
-export type LinkRole = "viewer" | "commenter" | "editor";
+export type LinkRole = ReviewRole;
 
 export const ROLES: readonly {
   id: LinkRole;

@@ -5,6 +5,7 @@ import { canReply, canSetAction, commentRole } from "../../shareMode";
 import { useDaw } from "../../state/useDaw";
 import { CommentCard } from "../../system/CommentCard";
 import { InlineError } from "../../ui";
+import { isGuestAudience } from "../../utils/can";
 import { commentCardOf } from "../hosts/commentCardData";
 
 /**
@@ -41,7 +42,7 @@ export function CommentThread({ commentId }: { commentId: string }) {
         )}
         onSelect={() => void seekTransport(comment.timeline_start)}
         onResolve={
-          role === "host" && comment.resolved
+          !isGuestAudience(role) && comment.resolved
             ? () => void resolve(comment, false)
             : undefined
         }

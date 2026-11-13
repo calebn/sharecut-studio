@@ -1,4 +1,5 @@
 import type { ProjectView } from "../types/project";
+import { type Audience, isAudience } from "../utils/can";
 
 const roots = [
   "project_path",
@@ -78,7 +79,7 @@ export type ProjectionDelta = {
   base_seq: number;
   base_token: string;
   projection: string;
-  audience: "host" | "guest";
+  audience: Audience;
   operations: Operation[];
 };
 
@@ -278,7 +279,7 @@ export function parseProjectionDelta(value: unknown): ProjectionDelta {
   if (operations.length > 4096) fail();
   const projection = string(delta.projection, 32);
   const audience = delta.audience;
-  if (audience !== "host" && audience !== "guest") fail();
+  if (!isAudience(audience)) fail();
   if (
     ![
       "shell",

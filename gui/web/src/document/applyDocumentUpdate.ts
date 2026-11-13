@@ -3,6 +3,7 @@ import { isShareProjectKey } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
 import { flushInbound } from "../sync/inboundQueue";
 import type { ProjectView, TimelineComment } from "../types/project";
+import { isGuestAudience } from "../utils/can";
 import {
   activateDocumentScope,
   type DocumentScope,
@@ -236,7 +237,7 @@ export function applyDocumentSnapshot(
         return invalidate(seq, scope);
       // Guest deltas diff word-free views, so they apply to a word-free basis.
       const basis =
-        delta.projection === "shell" || delta.audience === "guest"
+        delta.projection === "shell" || isGuestAudience(delta.audience)
           ? shellBasis(previous)
           : previous;
       next = projectFromDocumentSnapshot(previous, {

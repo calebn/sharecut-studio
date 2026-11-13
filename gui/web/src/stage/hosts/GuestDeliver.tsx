@@ -6,6 +6,7 @@ import { FeedPanel } from "../../stages/deliver/FeedPanel";
 import { feedAccessOf } from "../../stages/deliver/feedLogic";
 import { useDawStore } from "../../state/dawStore";
 import { stageRoleOf } from "../../state/stageRoutes";
+import { canEditStage } from "../../utils/can";
 import { useStageScroll } from "../useStageScroll";
 import { openFeedSource } from "./feedSource";
 import { HostBody } from "./HostBody";
@@ -33,7 +34,7 @@ export function GuestDeliver({ loadFailure }: Props) {
   const scrollRef = useStageScroll("deliver", "body", ".dv-page");
   const state = hostStateOf(project, loadFailure);
   const role = stageRoleOf(guestMode);
-  const canDownload = role === "editor";
+  const canDownload = canEditStage(role);
   const files = useDeliverFiles(
     canDownload ? projectPath : null,
     "download",

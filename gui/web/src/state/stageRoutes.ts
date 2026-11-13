@@ -7,18 +7,19 @@ import {
   type StageRole,
   type StageSheet,
 } from "../types/stage";
+import { canEditStage } from "../utils/can";
+
+/** No capability gates stage access, so it stays a role table; `can.test.ts` pins edit membership to the generated table, review and deliver are not pinned. */
+const STAGES_BY_ROLE: Readonly<Record<StageRole, readonly StageId[]>> = {
+  host: STAGE_IDS,
+  editor: ["edit", "review", "deliver"],
+  commenter: ["review"],
+  viewer: ["review"],
+};
 
 /** Stages a person may open: the host all five, a guest only what their link allows. */
 export function stagesForRole(role: StageRole): readonly StageId[] {
-  switch (role) {
-    case "host":
-      return STAGE_IDS;
-    case "editor":
-      return ["edit", "review", "deliver"];
-    case "commenter":
-    case "viewer":
-      return ["review"];
-  }
+  return STAGES_BY_ROLE[role];
 }
 
 /** The role a share link's mode gives; no mode is the host. */
@@ -51,7 +52,7 @@ export type LandingInput = {
  */
 export function landingStage(input: LandingInput): StageId {
   const allowed = stagesForRole(input.role);
-  if (input.role === "editor") return "edit";
+  if (canEditStage(input.role)) return "edit";
   if (allowed.length === 1) return allowed[0];
   if (input.trackCount === 0 || input.jobBusy) return "prepare";
   if (input.pendingReviewCount > 0) return "review";

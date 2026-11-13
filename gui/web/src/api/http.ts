@@ -32,11 +32,11 @@ export type ApiRoute =
   | { host?: undefined; guest: string }
   | { url: string };
 
-type Audience =
+type RouteAudience =
   | { kind: "host" }
   | { kind: "guest"; base: (token: string) => string; token: string };
 
-function audienceOf(projectKey: string): Audience {
+function routeAudienceOf(projectKey: string): RouteAudience {
   if (projectKey.startsWith(SHARE_PREFIX)) {
     return {
       kind: "guest",
@@ -56,7 +56,7 @@ function audienceOf(projectKey: string): Audience {
 
 /** True for a host project path or the host's own key; false for a share or recording guest. */
 export function isHostProjectKey(projectKey: string): boolean {
-  return audienceOf(projectKey).kind === "host";
+  return routeAudienceOf(projectKey).kind === "host";
 }
 
 function resolve(
@@ -64,7 +64,7 @@ function resolve(
   route: ApiRoute,
   init: RequestInit | undefined,
 ): [string, RequestInit | undefined] {
-  const audience = audienceOf(projectKey);
+  const audience = routeAudienceOf(projectKey);
   if ("url" in route) {
     return audience.kind === "host"
       ? [route.url, { ...init, headers: authHeaders(init?.headers) }]

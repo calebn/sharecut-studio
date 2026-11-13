@@ -1,6 +1,16 @@
 /** Virtual project keys for token-scoped guest ShareCut Studio (`share:{token}`). */
 
-export const SHARE_PREFIX = "share:";
+import type { Capability } from "./types/roles.generated";
+import {
+  type Audience,
+  audienceOf,
+  can,
+  holds,
+  isGuestAudience,
+  isHost,
+  isShareProjectKey,
+  SHARE_PREFIX,
+} from "./utils/can";
 
 /** Server ``guest_mode``: Editor ``edit``, Commenter ``comment``, Viewer ``view``. */
 export type GuestMode = "edit" | "comment" | "view" | "none";
@@ -9,9 +19,7 @@ export function shareProjectKey(token: string): string {
   return `${SHARE_PREFIX}${token}`;
 }
 
-export function isShareProjectKey(projectPath: string): boolean {
-  return projectPath.startsWith(SHARE_PREFIX);
-}
+export { isShareProjectKey, SHARE_PREFIX };
 
 export function shareTokenFromKey(projectPath: string): string | null {
   if (!isShareProjectKey(projectPath)) {
@@ -21,7 +29,7 @@ export function shareTokenFromKey(projectPath: string): string | null {
 }
 
 /** Who this session comments as. */
-export type CommentRole = "host" | "guest";
+export type CommentRole = Audience;
 
 /** `guest` on a share route, share project key or guest mode; else `host`. */
 export function commentRole(
@@ -29,9 +37,7 @@ export function commentRole(
   guestMode: string | null,
   guestShare = false,
 ): CommentRole {
-  return guestShare || Boolean(guestMode) || isShareProjectKey(projectPath)
-    ? "guest"
-    : "host";
+  return audienceOf(projectPath, guestMode, guestShare);
 }
 
 /** True on a share route, share key or guest mode: the session reads and comments as a guest. */
@@ -40,7 +46,7 @@ export function isGuestSession(
   guestMode: string | null,
   guestShare = false,
 ): boolean {
-  return commentRole(projectPath, guestMode, guestShare) === "guest";
+  return isGuestAudience(commentRole(projectPath, guestMode, guestShare));
 }
 
 export { reviewApiBase } from "./shareRoute";
@@ -58,28 +64,15 @@ export function hasShareCapability(
   capabilities: string[] | null | undefined,
   cap: string,
 ): boolean {
-  const s = new Set(capabilities ?? []);
-  if (cap === "play" && s.has("view")) {
-    return true;
-  }
-  if (cap === "reply" && s.has("comment")) {
-    return true;
-  }
-  return s.has(cap);
+  return holds(capabilities, cap);
 }
 
 function shareGranted(
   projectPath: string,
   capabilities: string[] | null | undefined,
-  cap: string,
+  cap: Capability,
 ): boolean {
-  if (!isShareProjectKey(projectPath)) {
-    return true;
-  }
-  if (capabilities == null) {
-    return false;
-  }
-  return hasShareCapability(capabilities, cap);
+  return can(cap, { projectPath, capabilities });
 }
 
 /** Share guests hear Full mix only — never Edited stems / Original. */
@@ -122,15 +115,9 @@ export function canSuggestStructural(
   _guestMode: string | null,
   capabilities?: string[] | null,
 ): boolean {
-  if (!isShareProjectKey(projectPath)) {
-    return true;
-  }
-  if (capabilities == null) {
-    return false;
-  }
   return (
-    hasShareCapability(capabilities, "suggest") ||
-    hasShareCapability(capabilities, "edit")
+    shareGranted(projectPath, capabilities, "suggest") ||
+    shareGranted(projectPath, capabilities, "edit")
   );
 }
 
@@ -171,7 +158,7 @@ export function canRetimePendingEdit(
 
 /** Host-only mutations (markers, transcript, FX). */
 export function canHostMutate(projectPath: string): boolean {
-  return !isShareProjectKey(projectPath);
+  return isHost({ projectPath });
 }
 
 /**
@@ -215,7 +202,7 @@ export function canIngestMedia(
 
 /** Host-only New/Open project (not share guests). */
 export function canManageProjects(projectPath: string): boolean {
-  return !isShareProjectKey(projectPath);
+  return isHost({ projectPath });
 }
 
 /** ``canSuggestStructural`` plus a loaded project (blade / delete / tool cluster). */
