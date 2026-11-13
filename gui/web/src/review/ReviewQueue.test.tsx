@@ -294,6 +294,27 @@ describe("ReviewQueue", () => {
     expect(screen.getByLabelText("In time order")).toBeInTheDocument();
   });
 
+  it("counts a guest queue of only suggestions as suggestions for a screen reader", () => {
+    render(
+      <ReviewQueue
+        items={[
+          { id: "a", kind: "suggestion", at: 9, savedSeconds: 0 },
+          { id: "b", kind: "suggestion", at: 2, savedSeconds: 0 },
+        ]}
+        content={reviewContent}
+        selectedId={null}
+        filter="all"
+        guest
+        onFilter={vi.fn()}
+        onSort={vi.fn()}
+        onSelect={vi.fn()}
+      />,
+    );
+    expect(document.querySelector(".rv-progress.sr-only")).toHaveTextContent(
+      /^2 suggestions$/,
+    );
+  });
+
   it("keeps the filter, the sort, the visible count and the group heading for a guest queue with more than one kind", () => {
     render(
       <ReviewQueue
