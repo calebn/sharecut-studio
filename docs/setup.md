@@ -770,7 +770,7 @@ read pipeline settings.
 | `PODCAST_GUI_OPENAPI` | `1` | Serve OpenAPI/Swagger; 0, false or no turns it off. |
 | `PODCAST_REVIEW_CORS_ORIGINS` |  | Extra exact CORS origins, comma-separated. |
 | `PODCAST_SESSION_AUTHZ` |  | Session authorization mode; 1, true or strict enforces the token. |
-| `PODCAST_SESSION_TOKEN` |  | Session token for remote clients (generated off-loopback when unset). |
+| `PODCAST_SESSION_TOKEN` |  | Session token for remote clients (generated off-loopback when unset). Not accepted on a host whose loopback is not trusted (iOS), which uses a session cookie. |
 | `PODCAST_SIDECAR_BOOT_TOKEN` |  | Boot token the desktop host requires on health checks. |
 | `PODCAST_SIDECAR_EPHEMERAL` |  | Bind an ephemeral port (1, true, yes, on). |
 | `PODCAST_SIDECAR_LISTEN_FILE` |  | File the bound port is written to. |
