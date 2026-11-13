@@ -150,6 +150,9 @@ addopts = [
 [tool.mypy]
 files = ["src/podcast_mcp"]
 python_version = "3.12"
+# Platform checks live in util/host_platform.py, which mypy cannot narrow on, so every
+# machine checks the Linux view CI checks (os.listxattr, fcntl and the like exist there).
+platform = "linux"
 ignore_missing_imports = true
 
 # Timebase-critical modules run strict-grade checks so mixed source/timeline
