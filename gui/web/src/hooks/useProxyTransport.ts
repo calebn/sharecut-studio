@@ -447,6 +447,8 @@ export function useProxyTransport(): boolean {
       useDawStore.getState().projectPath === projectPath &&
       !useDawStore.getState().sourcePreview &&
       useDawStore.getState().isPlaying &&
+      useDawStore.getState().playheadSeekRevision ===
+        appliedSeekRevision.current &&
       rafRef.current != null
         ? (engineRef.current?.currentTimeSec() ?? null)
         : null,

@@ -50,7 +50,6 @@ export function useOsMediaSession(): void {
       new MediaMetadata(metadata);
     let applied: OsMediaSessionState = OS_SESSION_OFF;
     let appliedKey = "";
-    let appliedRevision: number | null = null;
     let seen: ReturnType<typeof useDawStore.getState> | null = null;
     let reported = false;
     const write = (next: OsMediaSessionState) => {
@@ -69,13 +68,7 @@ export function useOsMediaSession(): void {
       const key = osDiscontinuityKey(state);
       if (key === appliedKey) return;
       appliedKey = key;
-      // After a seek the engine still reads the old clock: it moves in a
-      // later effect, so the store holds the position to declare.
-      const position =
-        state.playheadSeekRevision !== appliedRevision
-          ? state.playheadSec
-          : livePlayheadSec();
-      appliedRevision = state.playheadSeekRevision;
+      const position = livePlayheadSec();
       const next = projectOsMediaSession(osTransportInput(state, position));
       write(next);
     };

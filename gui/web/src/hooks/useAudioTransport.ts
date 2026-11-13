@@ -711,7 +711,9 @@ export function useAudioTransport(enabled = true): void {
       } = playbackInputs();
       if (
         currentPreview ||
-        useDawStore.getState().projectEpoch !== projectEpoch
+        useDawStore.getState().projectEpoch !== projectEpoch ||
+        useDawStore.getState().playheadSeekRevision !==
+          appliedSeekRevision.current
       )
         return null;
       const picked = pickMaster(playersRef.current);
