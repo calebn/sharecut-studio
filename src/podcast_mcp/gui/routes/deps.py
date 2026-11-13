@@ -185,6 +185,11 @@ def page_credential_query(request: Request) -> dict[str, str]:
     return {PAGE_TOKEN_PARAM: token} if token else {}
 
 
+def untrusted_without_session(request: Request) -> bool:
+    """True on a host whose loopback is not trusted when the request has no live owner session."""
+    return not host_platform.current().loopback_is_trusted and not host_credential(request).session
+
+
 def _is_host(request: Request) -> bool:
     credential = host_credential(request)
     return authorize_host(
