@@ -211,6 +211,11 @@ def using(row: HostPlatform) -> Iterator[HostPlatform]:
         _override = previous
 
 
+def data_roots() -> DataRoots:
+    """The default data locations for this host and this user's home."""
+    return current().data_roots(Path.home())
+
+
 def machine() -> str:
     """The CPU architecture, as reported data and for the Homebrew prefix."""
     return platform.machine()

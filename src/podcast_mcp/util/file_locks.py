@@ -5,7 +5,6 @@ from __future__ import annotations
 import os
 import re
 import stat
-import sys
 import threading
 from collections.abc import Iterator
 from contextlib import contextmanager, suppress
@@ -13,7 +12,9 @@ from pathlib import Path
 
 from filelock import FileLock, Timeout
 
-if os.name == "posix":
+from podcast_mcp.util import host_platform
+
+if host_platform.current().is_posix:
     import fcntl
 
 _LOCKS: dict[Path, FileLock] = {}
@@ -133,7 +134,7 @@ def _flock_owner_pid(snapshot: str, identity: tuple[int, int]) -> int | None:
 
 def file_lock_holder_pid(lock_path: Path) -> int | None:
     """Observe a granted whole-file Linux flock owner, or return unavailable."""
-    if sys.platform != "linux":
+    if host_platform.current().kernel != "linux":
         return None
     try:
         before = lock_path.lstat()
