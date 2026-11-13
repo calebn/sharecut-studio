@@ -22,6 +22,7 @@ from podcast_mcp import __version__, settings
 from podcast_mcp.config.runtime import normalize_exact_origin
 from podcast_mcp.extensions.loader import apply_gui_extensions, load_extensions
 from podcast_mcp.gui.audio import PENDING_PREVIEW_HEADER_NAMES
+from podcast_mcp.gui.host_session import HostSessions
 from podcast_mcp.gui.job_events import gui_agent_job_progress_sink, gui_sse_progress_sink
 from podcast_mcp.gui.middleware_host_binding import HostOriginBindingMiddleware
 from podcast_mcp.gui.middleware_security_headers import SecurityHeadersMiddleware
@@ -35,6 +36,7 @@ from podcast_mcp.gui.routes import (
     feed_routes,
     handoff,
     host,
+    host_session,
     media,
     pipeline,
     project,
@@ -272,6 +274,7 @@ def create_app(
 
     from podcast_mcp.services.session_sync import is_bind_loopback
 
+    loopback_is_trusted = host_platform.current().loopback_is_trusted
     jobs = shared_job_manager(reset=True)
     register_progress_sink(gui_sse_progress_sink)
     register_progress_sink(gui_agent_job_progress_sink)
@@ -295,6 +298,7 @@ def create_app(
         lifespan=_gui_lifespan,
     )
     app.state.jobs = jobs
+    app.state.host_sessions = None if loopback_is_trusted else HostSessions()
     app.state.diagnostics_bundles = {}
     app.state.studio_host = handoff.StudioHostState(bind_host)
     handoff.set_served_project(
@@ -329,6 +333,8 @@ def create_app(
     app.include_router(session.router)
     app.include_router(host.router)
     app.include_router(handoff.router)
+    if not loopback_is_trusted:
+        app.include_router(host_session.router)
     app.include_router(transcript.router, dependencies=[Depends(host_gate)])
     app.include_router(record_host.router, dependencies=[Depends(host_gate)])
     app.include_router(document.router)

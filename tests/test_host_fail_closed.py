@@ -8,6 +8,7 @@ from typing import Any
 import pytest
 from fastapi.testclient import TestClient
 
+from host_session_helpers import LOOPBACK_PEER, exchange
 from podcast_mcp.engines.models.registry import MODELS
 from podcast_mcp.gui.server import create_app
 from podcast_mcp.services.pipeline import bootstrap as boot
@@ -27,9 +28,14 @@ def _isolate(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 def _route_status() -> dict[str, Any]:
-    response = TestClient(create_app()).get(
-        "/api/bootstrap/status", headers={"X-Podcast-Token": "route-token"}
-    )
+    app = create_app()
+    client = TestClient(app, client=LOOPBACK_PEER)
+    headers: dict[str, str] = {}
+    if app.state.host_sessions is None:
+        headers["X-Podcast-Token"] = "route-token"
+    else:
+        exchange(client, app)
+    response = client.get("/api/bootstrap/status", headers=headers)
     assert response.status_code == 200
     return response.json()
 

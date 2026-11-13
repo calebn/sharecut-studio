@@ -24,12 +24,24 @@ ROOT = Path(__file__).resolve().parents[1]
 OUT = ROOT / "tests" / "fixtures" / "bootstrap_status" / "unsupported.json"
 
 
+def sign_in(client: Any, app: Any) -> None:
+    """Sign *client* in the way the web view does: one fresh code, one visit to the exchange route.
+
+    A host whose loopback is not trusted takes no header token, only the session cookie this sets.
+    """
+    from podcast_mcp.util.host_session_wire import EXCHANGE_PARAM, EXCHANGE_PATH, SESSION_COOKIE
+
+    code = app.state.host_sessions.issue_code()
+    client.get(EXCHANGE_PATH, params={EXCHANGE_PARAM: code}, follow_redirects=False)
+    if not client.cookies.get(SESSION_COOKIE):
+        raise RuntimeError("the exchange route did not set the owner session cookie")
+
+
 def payload() -> dict[str, Any]:
     sys.path.insert(0, str(ROOT / "src"))
     with tempfile.TemporaryDirectory() as scratch:
         os.environ["PODCAST_MCP_CACHE"] = str(Path(scratch) / "cache")
         os.environ["PODCAST_CONFIG_DIR"] = str(Path(scratch) / "config")
-        os.environ["PODCAST_SESSION_TOKEN"] = "contract-token"
         for name in ("PODCAST_WHISPER_MODEL", "PODCAST_BOOTSTRAP_CDN_BASE"):
             os.environ.pop(name, None)
         from fastapi.testclient import TestClient
@@ -38,9 +50,10 @@ def payload() -> dict[str, Any]:
         from podcast_mcp.util import host_platform
 
         with host_platform.using(host_platform.IOS):
-            response = TestClient(create_app()).get(
-                "/api/bootstrap/status", headers={"X-Podcast-Token": "contract-token"}
-            )
+            app = create_app()
+            client = TestClient(app, client=("127.0.0.1", 50000))
+            sign_in(client, app)
+            response = client.get("/api/bootstrap/status")
         response.raise_for_status()
         return response.json()
 
