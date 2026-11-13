@@ -197,7 +197,7 @@ describe("ModelNeedRowView, a model this device cannot run", () => {
       state: unsupported,
     });
     expect(document.querySelector(".sys-need-meta")?.textContent).toBe(
-      "Not available on this device yet",
+      "Not available",
     );
     expect(screen.getByText("Transcription")).toBeTruthy();
     expect(screen.queryByRole("button")).toBeNull();

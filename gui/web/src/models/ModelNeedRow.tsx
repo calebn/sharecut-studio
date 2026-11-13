@@ -50,7 +50,7 @@ const META: Record<Exclude<ModelState["kind"], "unsupported">, string> = {
 
 function listMeta(state: ModelState, size: string): string {
   if (state.kind === "unsupported") {
-    return "Not available on this device yet";
+    return "Not available";
   }
   if (state.kind === "downloading") {
     return bytesDetail(state, size);

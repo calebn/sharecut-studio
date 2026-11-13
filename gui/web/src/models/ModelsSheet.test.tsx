@@ -80,9 +80,7 @@ describe("ModelsSheet on a device without audio tools", () => {
         "ShareCut can't process audio on this device yet.",
       ),
     ).toBeVisible();
-    expect(
-      screen.getAllByText("Not available on this device yet"),
-    ).toHaveLength(4);
+    expect(screen.getAllByText("Not available")).toHaveLength(4);
     expect(screen.queryByText(/can't transcribe/)).toBeNull();
     expect(
       screen.queryByText("Reinstall ShareCut Studio to restore them."),

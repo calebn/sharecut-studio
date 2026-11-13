@@ -5,15 +5,10 @@ The in-process twin of ``gui/serve.py``: the same ``create_app`` and uvicorn wir
 and navigates its web view to the returned port.
 
 The app is built once per process, because ``create_app`` resets the shared job manager.
-Only the listener comes and goes: ``stop()`` then ``start()`` rebinds it around the same app,
-so jobs and sessions survive. The lifecycle is one of three states under one lock:
-
-    Stopped --start--> Serving(port) --stop--> Stopped
-       |
-       +--start fails--> Failed(reason) --start--> Serving(port)
-
-A failed start keeps its one-line reason in ``status()`` and the traceback in ``engine.log``
-under the host's first log directory.
+The port is bound once and held, so ``stop()`` then ``start()`` serves the same app on the
+same port and jobs survive. The state is ``Stopped``, ``Serving(port)`` or ``Failed(reason)``,
+under one lock. A failed start keeps its one-line reason in ``status()`` and the traceback in
+``engine.log`` under the host's first log directory.
 """
 
 from __future__ import annotations
@@ -84,9 +79,6 @@ class _Listener:
         except Exception:
             _write_engine_log("embedded server stopped with an error")
 
-    def alive(self) -> bool:
-        return self.thread.is_alive()
-
     def open(self) -> None:
         self.thread.start()
         deadline = time.monotonic() + START_TIMEOUT_SEC
@@ -147,7 +139,9 @@ class _Engine:
             _write_engine_log("embedded start failed")
             if listener is not None:
                 listener.close()
-            self._release_socket()
+            sock, self._socket = self._socket, None
+            if sock is not None:
+                sock.close()
             reason = _one_line(exc)
             self._state = Failed(reason)
             raise EmbeddedStartError(reason) from exc
@@ -156,13 +150,8 @@ class _Engine:
         self._state = Serving(port)
         return port
 
-    def _release_socket(self) -> None:
-        sock, self._socket = self._socket, None
-        if sock is not None:
-            sock.close()
-
     def _notice_dead_listener(self) -> None:
-        if self._listener is not None and not self._listener.alive():
+        if self._listener is not None and not self._listener.thread.is_alive():
             self._stop_listener()
             self._state = Failed("the server stopped unexpectedly")
 
@@ -203,7 +192,7 @@ def start() -> int:
 
 
 def stop() -> None:
-    """Stop serving. Safe to repeat. The app and the bound port stay, so ``start()`` serves again."""
+    """Stop serving. Safe to repeat. The app and the port stay for the next ``start()``."""
     _ENGINE.stop()
 
 
