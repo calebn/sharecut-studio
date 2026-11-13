@@ -1,6 +1,7 @@
 import { listensOn } from "../../state/stageRoutes";
 import type { ShellBreakpoint } from "../../state/types";
 import type { StageId, StageRole } from "../../types/stage";
+import { isHostRole } from "../../utils/can";
 
 /**
  * Which Player form a frame shows, and where.
@@ -24,5 +25,5 @@ export function playerPlacementOf(input: {
   if (stage === "record") return "none";
   if (stage !== "review") return "bar";
   if (shell === "phone") return listensOn(shell, role) ? "dock" : "bar";
-  return role !== "host" && !short ? "card" : "bar";
+  return !isHostRole(role) && !short ? "card" : "bar";
 }
