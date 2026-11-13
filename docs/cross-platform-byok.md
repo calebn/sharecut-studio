@@ -1,6 +1,6 @@
 # Cross-platform ShareCut Studio and bring-your-own agent
 
-**Status:** deferred long-horizon path, except stage 1 of the native iOS studio, which is in progress under [#3810](https://github.com/calebn/sharecut-studio/issues/3810): the engine's `HostPlatform` table ([architecture.md § Host platform](architecture.md#host-platform)) is the first part. Do **not** implement the rest of this as a project now. Use it to steer architecture so a later native iOS/Android app and in-app agent do not require a rewrite.
+**Status:** deferred long-horizon path, except stage 1 of the native iOS studio, which is in progress under [#3810](https://github.com/calebn/sharecut-studio/issues/3810): the engine's `HostPlatform` table ([contributing.md § Host platform](contributing.md#host-platform)) is the first part. Do **not** implement the rest of this as a project now. Use it to steer architecture so a later native iOS/Android app and in-app agent do not require a rewrite.
 
 Near-term work stays desktop packaging, episode format, MCP, and the existing phone **web** shell ([gui-mobile.md](gui-mobile.md)). This document is the detailed counterpart to the one-line pointers in [ROADMAP.md](../ROADMAP.md). When implementing, start at [When it is time to build](#when-it-is-time-to-build) so you do not re-run the 2026 research.
 

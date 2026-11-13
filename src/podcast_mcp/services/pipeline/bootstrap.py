@@ -63,10 +63,13 @@ def model_status(
 
     ``state`` is ``installed`` when the registry row reports no problem. A pin mismatch is
     ``update_needed`` with an ``--upgrade`` fix as ``bootstrap``; any other problem is
-    ``missing`` with ``hint`` and ``bootstrap``. An unexpected error is reported, never raised.
+    ``missing`` with ``hint`` and ``bootstrap``. A host that cannot transcribe reports whisper as
+    ``unsupported`` with a one-sentence ``hint``. An unexpected error is reported, never raised.
     """
     spec = model_spec(model_id)
     base = model_base(model_id, variant)
+    if model_id == "whisper" and host_platform.current().transcription == "unavailable":
+        return {**base, "state": "unsupported", "hint": host_platform.TRANSCRIPTION_UNAVAILABLE}
     try:
         record = model_record(model_id, variant, memoize=memoize)
         path = str(spec.location())
@@ -79,18 +82,6 @@ class UninstallModelResult(TypedDict):
     ok: Literal[True]
     freed_bytes: int
     model: dict[str, Any]
-
-
-def _model_row(
-    model_id: str, variant: str | None, host: host_platform.HostPlatform
-) -> dict[str, Any]:
-    if model_id == "whisper" and host.transcription == "unavailable":
-        return {
-            **model_base(model_id, variant),
-            "state": "unsupported",
-            "hint": host_platform.TRANSCRIPTION_UNAVAILABLE,
-        }
-    return model_status(model_id, variant)
 
 
 def uninstall_model(model_id: str, variant: str | None = None) -> UninstallModelResult:
@@ -125,7 +116,7 @@ def component_status(*, whisper_model: str | None = None) -> dict[str, Any]:
         if ffmpeg_ok
         else "missing"
     )
-    models = [_model_row(spec.id, model if spec.id == "whisper" else None, host) for spec in MODELS]
+    models = [model_status(spec.id, model if spec.id == "whisper" else None) for spec in MODELS]
     ready = ffmpeg_ok and all(
         row["state"] == "installed" for row in models if row["id"] in DEFAULT_FIRST_RUN_COMPONENTS
     )

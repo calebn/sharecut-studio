@@ -219,6 +219,7 @@ NATIVE_RULES = tuple(
                 "src/podcast_mcp/util/__init__.py",
                 "src/podcast_mcp/util/atomic_file.py",
                 "src/podcast_mcp/util/hashing.py",
+                "src/podcast_mcp/util/host_platform.py",
                 "src/podcast_mcp/util/ffmpeg_policy.py",
                 "src/podcast_mcp/util/contracts.py",
                 "src/podcast_mcp/util/review.py",
