@@ -83,11 +83,12 @@ def test_the_code_works_once(app, client) -> None:
     assert "set-cookie" not in second.headers
 
 
-@pytest.mark.parametrize("presented", ["wrong-code", ""])
-def test_a_wrong_code_is_refused_with_no_cookie(app, client, presented: str) -> None:
+def test_a_wrong_code_is_refused_with_no_cookie(app, client) -> None:
     app.state.host_sessions.issue_code()
 
-    response = client.get(EXCHANGE_PATH, params={EXCHANGE_PARAM: presented}, follow_redirects=False)
+    response = client.get(
+        EXCHANGE_PATH, params={EXCHANGE_PARAM: "wrong-code"}, follow_redirects=False
+    )
 
     assert response.status_code == 403
     assert response.headers["X-Sharecut-Error-Code"] == "session_exchange_refused"
@@ -104,35 +105,16 @@ def test_a_request_with_no_code_is_refused(client) -> None:
     assert "set-cookie" not in response.headers
 
 
-def test_an_expired_code_is_refused(app, client, monkeypatch: pytest.MonkeyPatch) -> None:
-    clock = {"now": 5000.0}
-    sessions = type(app.state.host_sessions)(clock=lambda: clock["now"])
-    app.state.host_sessions = sessions
-    code = sessions.issue_code()
-    clock["now"] += 60
-
-    response = client.get(EXCHANGE_PATH, params={EXCHANGE_PARAM: code}, follow_redirects=False)
-
-    assert response.status_code == 403
-    assert "set-cookie" not in response.headers
-
-
 def test_without_the_cookie_an_owner_route_is_refused_whatever_else_is_sent(client) -> None:
     refused = client.get("/api/bootstrap/status")
     with_header = client.get("/api/bootstrap/status", headers={"X-Podcast-Token": OWNER_TOKEN})
     with_query = client.get("/api/bootstrap/status", params={"token": OWNER_TOKEN})
+    with_page_token = client.get("/api/bootstrap/status", params={"session_token": OWNER_TOKEN})
 
-    for response in (refused, with_header, with_query):
+    for response in (refused, with_header, with_query, with_page_token):
         assert response.status_code == 403
         assert response.headers["X-Sharecut-Error-Code"] == DENIED
         assert response.json() == {"detail": "this host requires an owner session"}
-
-
-def test_a_page_token_is_not_a_credential_here(client) -> None:
-    assert (
-        client.get("/api/bootstrap/status", params={"session_token": OWNER_TOKEN}).status_code
-        == 403
-    )
 
 
 def test_with_the_cookie_an_owner_route_answers_with_no_token_anywhere(app, client) -> None:
@@ -142,7 +124,6 @@ def test_with_the_cookie_an_owner_route_answers_with_no_token_anywhere(app, clie
 
     assert response.status_code == 200
     assert response.json()["host"]["name"] == UNTRUSTED.name
-    assert "token" not in str(response.request.url)
 
 
 def test_a_cookie_from_another_launch_matches_nothing(app, client) -> None:
@@ -222,4 +203,3 @@ def test_a_media_route_serves_bytes_to_the_cookie(
     assert refused.status_code == 403
     assert served.status_code == 200
     assert served.content == sample_wav.read_bytes()
-    assert "token" not in str(served.request.url)

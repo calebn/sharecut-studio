@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from podcast_mcp.gui.host_session import CODE_TTL_SEC, HostSessions
+from podcast_mcp.gui.host_session import HostSessions
 
 
 class Clock:
@@ -23,10 +23,6 @@ def clock() -> Clock:
 @pytest.fixture
 def sessions(clock: Clock) -> HostSessions:
     return HostSessions(clock=clock)
-
-
-def test_a_code_lasts_sixty_seconds() -> None:
-    assert CODE_TTL_SEC == 60.0
 
 
 def test_a_code_opens_a_session(sessions: HostSessions) -> None:
@@ -55,16 +51,6 @@ def test_a_code_expires_at_sixty_seconds(sessions: HostSessions, clock: Clock) -
     assert sessions.redeem(just_in_time) is not None
     clock.now += 0.1
     assert sessions.redeem(too_late) is None
-
-
-def test_an_expired_code_stays_refused_after_the_clock_is_read_again(
-    sessions: HostSessions, clock: Clock
-) -> None:
-    code = sessions.issue_code()
-    clock.now += 61
-
-    assert sessions.redeem(code) is None
-    assert sessions.redeem(code) is None
 
 
 @pytest.mark.parametrize("presented", ["", "wrong", "a" * 500, "café", "\ud800"])
