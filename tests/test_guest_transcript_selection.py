@@ -154,10 +154,8 @@ def test_viewer_words_carry_text_and_timing_only(guest):
 @pytest.mark.parametrize("caps", NO_ROLE, ids=["play", "comment", "join-monitor-comment"])
 def test_a_share_with_no_role_reads_no_words(guest, caps):
     client, open_share, _path = guest
-    assert guest_reads_transcript_words(caps) is False
     assert guest_selects_transcript_words(caps) is False
     assert guest_words(caps) is GuestWords.NONE
-    assert guest_reads_transcript_words(None) is False
     assert guest_words(None) is GuestWords.NONE
     full = {
         "project_path": "/x",

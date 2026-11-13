@@ -12,7 +12,7 @@ export function reviewVersionAtBootstrap(token: string): string | null {
   return bootstrapVersionIds.get(token) ?? null;
 }
 
-export type ReviewBootstrap = {
+type ReviewBootstrap = {
   author?: string;
   capabilities: string[];
   guest_mode?: string;
