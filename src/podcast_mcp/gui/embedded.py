@@ -30,6 +30,7 @@ from typing import Any
 
 from podcast_mcp.gui.bind import build_gui_server, exclusive_listen_socket
 from podcast_mcp.util import host_platform
+from podcast_mcp.util.atomic_json import write_bytes_atomic
 
 log = logging.getLogger(__name__)
 
@@ -194,10 +195,9 @@ def _write_engine_log(headline: str) -> None:
     stamp = datetime.now(UTC).isoformat(timespec="seconds")
     entry = f"{stamp} {headline}\n{traceback.format_exc()}\n"
     try:
-        directory = host_platform.data_roots().log_dirs[0]
-        directory.mkdir(parents=True, exist_ok=True)
-        with (directory / ENGINE_LOG_NAME).open("a", encoding="utf-8") as handle:
-            handle.write(entry)
+        path = host_platform.data_roots().log_dirs[0] / ENGINE_LOG_NAME
+        earlier = path.read_bytes() if path.exists() else b""
+        write_bytes_atomic(path, earlier + entry.encode("utf-8"))
     except OSError:
         log.exception(headline)
 
