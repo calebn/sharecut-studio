@@ -370,3 +370,35 @@ def test_force_refresh_re_admits_a_cached_pair(tmp_path, monkeypatch):
     assert len(calls) == 4
     resolve_ffmpeg_pair(*pair)
     assert len(calls) == 4
+
+
+def test_homebrew_prefix_follows_the_machine_on_a_row_that_has_it(monkeypatch, host):
+    from podcast_mcp.util import binaries
+    from podcast_mcp.util.host_platform import MACOS
+
+    searched = []
+    monkeypatch.undo()
+    monkeypatch.setattr(binaries, "_pair_in", lambda directory: searched.append(directory))
+    host(MACOS)
+    for machine in ("arm64", "x86_64"):
+        monkeypatch.setattr("podcast_mcp.util.host_platform.platform.machine", lambda m=machine: m)
+        binaries._native_homebrew_pair()
+    assert searched == [Path("/opt/homebrew/opt/ffmpeg/bin"), Path("/usr/local/opt/ffmpeg/bin")]
+
+
+@pytest.mark.parametrize("row_name", ["LINUX", "WINDOWS", "IOS", "GENERIC_POSIX"])
+def test_a_row_without_homebrew_never_looks_for_it(monkeypatch, host, row_name):
+    from podcast_mcp.util import binaries, host_platform
+
+    monkeypatch.undo()
+    monkeypatch.setattr(binaries, "_pair_in", lambda directory: pytest.fail(str(directory)))
+    host(getattr(host_platform, row_name))
+    assert binaries._native_homebrew_pair() is None
+
+
+@pytest.mark.parametrize(("row_name", "suffix"), [("WINDOWS", ".exe"), ("MACOS", ""), ("IOS", "")])
+def test_the_executable_suffix_comes_from_the_row(host, row_name, suffix):
+    from podcast_mcp.util import binaries, host_platform
+
+    host(getattr(host_platform, row_name))
+    assert binaries._exe_suffix() == suffix

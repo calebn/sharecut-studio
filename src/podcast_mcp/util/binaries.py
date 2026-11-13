@@ -11,7 +11,6 @@ bounded version probes and never downloads tools.
 from __future__ import annotations
 
 import os
-import platform
 import re
 import shutil
 from collections.abc import Iterator
@@ -21,6 +20,7 @@ from typing import Literal
 
 from podcast_mcp import settings
 from podcast_mcp.config.defaults import bin_cache_dir
+from podcast_mcp.util import host_platform
 from podcast_mcp.util.bounded_cache import BoundedCache
 from podcast_mcp.util.ffmpeg_policy import ffmpeg_policy
 from podcast_mcp.util.process import TimeoutExpired, run
@@ -174,7 +174,7 @@ def _validate(ffmpeg: str, ffprobe: str, source: SelectionSource) -> FFmpegPair:
 
 
 def _exe_suffix() -> str:
-    return ".exe" if platform.system() == "Windows" else ""
+    return host_platform.current().executable_suffix
 
 
 def _pair_in(directory: Path) -> tuple[str, str] | None:
@@ -189,9 +189,11 @@ def _pair_in(directory: Path) -> tuple[str, str] | None:
 
 
 def _native_homebrew_pair() -> tuple[str, str] | None:
-    if platform.system() != "Darwin":
+    if not host_platform.current().homebrew_ffmpeg:
         return None
-    prefix = {"arm64": Path("/opt/homebrew"), "x86_64": Path("/usr/local")}.get(platform.machine())
+    prefix = {"arm64": Path("/opt/homebrew"), "x86_64": Path("/usr/local")}.get(
+        host_platform.machine()
+    )
     return _pair_in(prefix / "opt" / "ffmpeg" / "bin") if prefix else None
 
 

@@ -20,8 +20,12 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
 
+from podcast_mcp.util import host_platform
+
 ON_VALUES = frozenset({"1", "true", "yes", "on"})
 _RELAY_DEFAULT_BIND = "0.0.0.0"  # nosec B104
+# The setup docs show the desktop layout; ``HostPlatform.data_roots`` is the one definition of it.
+_DESKTOP_ROOTS = host_platform.MACOS.data_roots(Path("~"))
 
 
 @dataclass(frozen=True)
@@ -71,29 +75,29 @@ VARIABLES: tuple[Variable, ...] = (
         (
             "PODCAST_MCP_CACHE",
             "Base for downloaded models, FFmpeg and caches.",
-            "~/.cache/podcast_mcp",
+            _DESKTOP_ROOTS.cache.as_posix(),
         ),
         (
             "PODCAST_CONFIG_DIR",
             "Directory for the OAuth client files, the recent episodes list, the podcast show files (`shows/`), the segment library (`segments/`) and the show kit library (`kits/`, see [segments](segments.md#show-kit)).",
-            "~/.config/podcast_mcp",
+            _DESKTOP_ROOTS.config.as_posix(),
         ),
         (
             "PODCAST_WORKSPACE_ROOT",
             "Folder that holds episodes Home creates when no folder is named.",
-            "~/ShareCut",
+            _DESKTOP_ROOTS.workspace.as_posix(),
         ),
         ("PODCAST_MCP_PROJECT", "Project path the MCP tools use when none is passed."),
         ("PODCAST_MCP_PIPELINE_DEFAULTS", "Pipeline defaults YAML replacing the shipped one."),
         (
             "PODCAST_SHARE_REGISTRY",
             "Share registry database file.",
-            "~/.podcast_mcp/share_registry.sqlite",
+            (_DESKTOP_ROOTS.state / "share_registry.sqlite").as_posix(),
         ),
         (
             "PODCAST_SHARE_IDENTITY",
             "Share identity database file.",
-            "~/.podcast_mcp/share_identity.sqlite",
+            (_DESKTOP_ROOTS.state / "share_identity.sqlite").as_posix(),
         ),
         (
             "PODCAST_E2E_PROJECT",
@@ -229,7 +233,11 @@ VARIABLES: tuple[Variable, ...] = (
     ),
     *_group(
         "Relay and object store",
-        ("PODCAST_RELAY_CONFIG", "relay.yaml path.", "~/.config/podcast_mcp/relay.yaml"),
+        (
+            "PODCAST_RELAY_CONFIG",
+            "relay.yaml path.",
+            (_DESKTOP_ROOTS.config / "relay.yaml").as_posix(),
+        ),
         ("PODCAST_RELAY_URL", "Relay tunnel URL."),
         ("PODCAST_RELAY_HOST_TOKEN", "Relay host token."),
         ("PODCAST_RELAY_HOST_ID", "Relay host id (persisted next to relay.yaml when unset)."),
@@ -386,7 +394,7 @@ def config_dir() -> Path:
     override = text("PODCAST_CONFIG_DIR")
     if override:
         return Path(override).expanduser()
-    return Path.home() / ".config" / "podcast_mcp"
+    return host_platform.data_roots().config
 
 
 def export(name: str, value: str) -> None:

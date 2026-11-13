@@ -6,14 +6,13 @@ Callers must keep this loopback-only — the dialog is a privileged local agent.
 
 from __future__ import annotations
 
-import platform
 import shutil
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
 from podcast_mcp.project.io import EPISODE_PROJECT_FILENAME, resolve_project_path
-from podcast_mcp.util import process
+from podcast_mcp.util import host_platform, process
 
 _DIALOG_TIMEOUT_SEC = 600.0
 
@@ -28,41 +27,41 @@ class HostPickResult:
     detail: str | None = None
 
 
-def pick_episode_project_path(*, system: str | None = None) -> HostPickResult:
+def pick_episode_project_path() -> HostPickResult:
     """Show a native open dialog filtered toward episode.sharecut.
 
     Returns a path string when the user confirms, ``cancelled`` on dismiss,
     or ``unavailable`` when no dialog tool exists (e.g. headless Linux).
     Basename and existence are gated by the pick route, not here.
     """
-    os_name = (system or platform.system()).strip()
-    if os_name == "Darwin":
+    row = host_platform.current()
+    if row.file_dialog == "osascript":
         return _pick_macos()
-    if os_name == "Windows":
+    if row.file_dialog == "powershell":
         return _pick_windows()
-    if os_name == "Linux":
+    if row.file_dialog == "zenity":
         return _pick_linux()
     return HostPickResult(
         unavailable=True,
-        detail=f"No OS file dialog for platform {os_name!r}; paste the path instead.",
+        detail=f"No OS file dialog for platform {row.system_label!r}; paste the path instead.",
     )
 
 
-def pick_folder(*, system: str | None = None) -> HostPickResult:
+def pick_folder() -> HostPickResult:
     """Show a native choose-folder dialog and return the folder path in ``path``.
 
     Same outcomes as :func:`pick_episode_project_path`; the folder is not checked here.
     """
-    os_name = (system or platform.system()).strip()
-    if os_name == "Darwin":
+    row = host_platform.current()
+    if row.file_dialog == "osascript":
         return _pick_folder_macos()
-    if os_name == "Windows":
+    if row.file_dialog == "powershell":
         return _pick_folder_windows()
-    if os_name == "Linux":
+    if row.file_dialog == "zenity":
         return _pick_folder_linux()
     return HostPickResult(
         unavailable=True,
-        detail=f"No OS folder dialog for platform {os_name!r}; paste the path instead.",
+        detail=f"No OS folder dialog for platform {row.system_label!r}; paste the path instead.",
     )
 
 

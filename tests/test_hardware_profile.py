@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from podcast_mcp.util import hardware
+from podcast_mcp.util import hardware, host_platform
 from podcast_mcp.util.hardware import (
     COREML_PROVIDER,
     CPU_PROVIDER,
@@ -319,27 +319,32 @@ MEMINFO = "MemAvailable:    8000000 kB\n"
 HOST_AVAILABLE = 8_000_000 * 1024
 
 
-def _linux_ram(monkeypatch, tmp_path: Path, cgroup: dict[str, str] | None = None) -> None:
+def _linux_ram(monkeypatch, host, tmp_path: Path, cgroup: dict[str, str] | None = None) -> None:
     meminfo = tmp_path / "meminfo"
     meminfo.write_text(MEMINFO)
     root = tmp_path / "cgroup"
     for name, text in (cgroup or {}).items():
         (root / name).parent.mkdir(parents=True, exist_ok=True)
         (root / name).write_text(text)
-    monkeypatch.setattr(hardware.sys, "platform", "linux")
+    host(host_platform.LINUX)
     monkeypatch.setattr(hardware, "_MEMINFO", meminfo)
     monkeypatch.setattr(hardware, "_CGROUP_ROOT", root)
     monkeypatch.setattr(hardware, "_SELF_CGROUP", tmp_path / "no_self_cgroup")
 
 
-def test_linux_available_ram_reads_memavailable_without_a_cgroup(monkeypatch, tmp_path) -> None:
-    _linux_ram(monkeypatch, tmp_path)
+def test_linux_available_ram_reads_memavailable_without_a_cgroup(
+    monkeypatch, host, tmp_path
+) -> None:
+    _linux_ram(monkeypatch, host, tmp_path)
     assert hardware.available_ram_bytes() == HOST_AVAILABLE
 
 
-def test_linux_available_ram_is_capped_by_the_cgroup_v2_limit(monkeypatch, tmp_path) -> None:
+def test_linux_available_ram_is_capped_by_the_cgroup_v2_limit(monkeypatch, host, tmp_path) -> None:
     _linux_ram(
-        monkeypatch, tmp_path, {"memory.max": "4000000000\n", "memory.current": "1000000000\n"}
+        monkeypatch,
+        host,
+        tmp_path,
+        {"memory.max": "4000000000\n", "memory.current": "1000000000\n"},
     )
     assert hardware.available_ram_bytes() == 3_000_000_000
 
@@ -351,10 +356,11 @@ def _self_cgroup(monkeypatch, tmp_path: Path, line: str) -> None:
 
 
 def test_linux_available_ram_is_capped_by_a_nested_cgroup_below_an_unlimited_root(
-    monkeypatch, tmp_path
+    monkeypatch, host, tmp_path
 ) -> None:
     _linux_ram(
         monkeypatch,
+        host,
         tmp_path,
         {
             "memory.max": "max\n",
@@ -370,10 +376,11 @@ def test_linux_available_ram_is_capped_by_a_nested_cgroup_below_an_unlimited_roo
 
 
 def test_linux_available_ram_is_capped_by_a_tighter_parent_of_an_unlimited_leaf(
-    monkeypatch, tmp_path
+    monkeypatch, host, tmp_path
 ) -> None:
     _linux_ram(
         monkeypatch,
+        host,
         tmp_path,
         {
             "work/memory.max": "2000000000\n",
@@ -388,20 +395,24 @@ def test_linux_available_ram_is_capped_by_a_tighter_parent_of_an_unlimited_leaf(
 
 @pytest.mark.parametrize("line", ["", "garbage\n", "1:memory:/work\n", "0::/../escape\n"])
 def test_linux_available_ram_falls_back_to_the_root_when_the_own_cgroup_is_unreadable(
-    monkeypatch, tmp_path, line
+    monkeypatch, host, tmp_path, line
 ) -> None:
     _linux_ram(
-        monkeypatch, tmp_path, {"memory.max": "4000000000\n", "memory.current": "1000000000\n"}
+        monkeypatch,
+        host,
+        tmp_path,
+        {"memory.max": "4000000000\n", "memory.current": "1000000000\n"},
     )
     _self_cgroup(monkeypatch, tmp_path, line)
     assert hardware.available_ram_bytes() == 3_000_000_000
 
 
 def test_linux_available_ram_uses_the_tightest_limit_when_the_leaf_is_looser(
-    monkeypatch, tmp_path
+    monkeypatch, host, tmp_path
 ) -> None:
     _linux_ram(
         monkeypatch,
+        host,
         tmp_path,
         {
             "work/memory.max": "1500000000\n",
@@ -415,33 +426,39 @@ def test_linux_available_ram_uses_the_tightest_limit_when_the_leaf_is_looser(
 
 
 def test_linux_available_ram_falls_back_to_the_root_when_the_own_cgroup_file_is_missing(
-    monkeypatch, tmp_path
+    monkeypatch, host, tmp_path
 ) -> None:
     _linux_ram(
-        monkeypatch, tmp_path, {"memory.max": "4000000000\n", "memory.current": "1000000000\n"}
+        monkeypatch,
+        host,
+        tmp_path,
+        {"memory.max": "4000000000\n", "memory.current": "1000000000\n"},
     )
     assert not hardware._SELF_CGROUP.exists()
     assert hardware.available_ram_bytes() == 3_000_000_000
 
 
 def test_linux_available_ram_falls_back_to_the_root_when_the_own_cgroup_is_not_ascii(
-    monkeypatch, tmp_path
+    monkeypatch, host, tmp_path
 ) -> None:
     _linux_ram(
-        monkeypatch, tmp_path, {"memory.max": "4000000000\n", "memory.current": "1000000000\n"}
+        monkeypatch,
+        host,
+        tmp_path,
+        {"memory.max": "4000000000\n", "memory.current": "1000000000\n"},
     )
     hardware._SELF_CGROUP.write_bytes(b"0::/caf\xc3\xa9\n")
     assert hardware.available_ram_bytes() == 3_000_000_000
 
 
-def test_macos_physical_cores_go_through_the_process_runner(monkeypatch) -> None:
+def test_macos_physical_cores_go_through_the_process_runner(monkeypatch, host) -> None:
     calls: list[list[str]] = []
 
     def run(cmd, **_kw):
         calls.append(list(cmd))
         return subprocess.CompletedProcess(cmd, 0, "10\n", "")
 
-    monkeypatch.setattr(hardware.platform, "system", lambda: "Darwin")
+    host(host_platform.MACOS)
     monkeypatch.setattr(hardware.process, "run", run)
     assert hardware._physical_cores() == 10
     assert calls == [["sysctl", "-n", "hw.physicalcpu"]]
@@ -457,9 +474,10 @@ def test_nvidia_smi_defaults_to_the_process_runner(monkeypatch) -> None:
     assert hardware._nvidia_smi() == CudaDevice("RTX", 8000, "540.1")
 
 
-def test_linux_available_ram_is_capped_by_the_cgroup_v1_limit(monkeypatch, tmp_path) -> None:
+def test_linux_available_ram_is_capped_by_the_cgroup_v1_limit(monkeypatch, host, tmp_path) -> None:
     _linux_ram(
         monkeypatch,
+        host,
         tmp_path,
         {
             "memory/memory.limit_in_bytes": "2000000000\n",
@@ -481,10 +499,19 @@ def test_linux_available_ram_is_capped_by_the_cgroup_v1_limit(monkeypatch, tmp_p
     ],
 )
 def test_linux_available_ram_respects_nested_v1_memory_membership(
-    monkeypatch, tmp_path, controllers, leaf_limit, leaf_used, parent_limit, parent_used, expected
+    monkeypatch,
+    host,
+    tmp_path,
+    controllers,
+    leaf_limit,
+    leaf_used,
+    parent_limit,
+    parent_used,
+    expected,
 ) -> None:
     _linux_ram(
         monkeypatch,
+        host,
         tmp_path,
         {
             "memory/memory.limit_in_bytes": "9223372036854771712",
@@ -503,10 +530,11 @@ def test_linux_available_ram_respects_nested_v1_memory_membership(
 @pytest.mark.parametrize("v2_leaf_limit", ["1000000000", "max"])
 @pytest.mark.parametrize("v1_room", [0, 100_000_000, 900_000_000])
 def test_linux_available_ram_uses_the_minimum_across_hybrid_memory_layouts(
-    monkeypatch, tmp_path, v2_directory, v2_leaf_limit, v1_room
+    monkeypatch, host, tmp_path, v2_directory, v2_leaf_limit, v1_room
 ) -> None:
     _linux_ram(
         monkeypatch,
+        host,
         tmp_path,
         {
             f"{v2_directory}work/memory.max": "1000000000",
@@ -523,7 +551,7 @@ def test_linux_available_ram_uses_the_minimum_across_hybrid_memory_layouts(
 
 @pytest.mark.parametrize("leaf_limit", ["9223372036854771712", "junk", None])
 def test_linux_available_ram_keeps_a_valid_v1_parent_when_the_leaf_has_no_limit(
-    monkeypatch, tmp_path, leaf_limit
+    monkeypatch, host, tmp_path, leaf_limit
 ) -> None:
     files = {
         "memory/work/memory.limit_in_bytes": "2000000000",
@@ -532,7 +560,7 @@ def test_linux_available_ram_keeps_a_valid_v1_parent_when_the_leaf_has_no_limit(
     }
     if leaf_limit is not None:
         files["memory/work/job/memory.limit_in_bytes"] = leaf_limit
-    _linux_ram(monkeypatch, tmp_path, files)
+    _linux_ram(monkeypatch, host, tmp_path, files)
     _self_cgroup(monkeypatch, tmp_path, "7:memory:/work/job\n")
     assert hardware.available_ram_bytes() == 1_000_000_000
 
@@ -542,10 +570,11 @@ def test_linux_available_ram_keeps_a_valid_v1_parent_when_the_leaf_has_no_limit(
     ["7:notmemory:/work/job\n", "7:memory:work/job\n", "7:memory:/../escape\n", "garbage\n"],
 )
 def test_linux_available_ram_ignores_invalid_v1_membership(
-    monkeypatch, tmp_path, membership
+    monkeypatch, host, tmp_path, membership
 ) -> None:
     _linux_ram(
         monkeypatch,
+        host,
         tmp_path,
         {
             "memory/work/job/memory.limit_in_bytes": "1",
@@ -559,10 +588,11 @@ def test_linux_available_ram_ignores_invalid_v1_membership(
 
 
 def test_linux_available_ram_keeps_valid_membership_beside_malformed_lines(
-    monkeypatch, tmp_path
+    monkeypatch, host, tmp_path
 ) -> None:
     _linux_ram(
         monkeypatch,
+        host,
         tmp_path,
         {
             "memory/work/job:task/memory.limit_in_bytes": "1000",
@@ -586,26 +616,30 @@ def test_linux_available_ram_keeps_valid_membership_beside_malformed_lines(
     ],
 )
 def test_linux_available_ram_ignores_an_unlimited_or_unreadable_cgroup(
-    monkeypatch, tmp_path, files
+    monkeypatch, host, tmp_path, files
 ) -> None:
-    _linux_ram(monkeypatch, tmp_path, files)
+    _linux_ram(monkeypatch, host, tmp_path, files)
     assert hardware.available_ram_bytes() == HOST_AVAILABLE
 
 
 def test_linux_available_ram_keeps_the_host_figure_when_it_is_smaller(
-    monkeypatch, tmp_path
+    monkeypatch, host, tmp_path
 ) -> None:
-    _linux_ram(monkeypatch, tmp_path, {"memory.max": "99000000000\n", "memory.current": "0\n"})
+    _linux_ram(
+        monkeypatch, host, tmp_path, {"memory.max": "99000000000\n", "memory.current": "0\n"}
+    )
     assert hardware.available_ram_bytes() == HOST_AVAILABLE
 
 
-def test_linux_available_ram_clamps_a_cgroup_over_its_limit_to_zero(monkeypatch, tmp_path) -> None:
-    _linux_ram(monkeypatch, tmp_path, {"memory.max": "1000\n", "memory.current": "2000\n"})
+def test_linux_available_ram_clamps_a_cgroup_over_its_limit_to_zero(
+    monkeypatch, host, tmp_path
+) -> None:
+    _linux_ram(monkeypatch, host, tmp_path, {"memory.max": "1000\n", "memory.current": "2000\n"})
     assert hardware.available_ram_bytes() == 0
 
 
-def test_linux_available_ram_is_none_without_meminfo(monkeypatch, tmp_path) -> None:
-    monkeypatch.setattr(hardware.sys, "platform", "linux")
+def test_linux_available_ram_is_none_without_meminfo(monkeypatch, host, tmp_path) -> None:
+    host(host_platform.LINUX)
     monkeypatch.setattr(hardware, "_MEMINFO", tmp_path / "missing")
     assert hardware.available_ram_bytes() is None
 
@@ -619,8 +653,8 @@ Pages wired down:                         3000.
 """
 
 
-def test_macos_available_ram_sums_free_inactive_and_speculative_pages(monkeypatch) -> None:
-    monkeypatch.setattr(hardware.sys, "platform", "darwin")
+def test_macos_available_ram_sums_free_inactive_and_speculative_pages(monkeypatch, host) -> None:
+    host(host_platform.MACOS)
     monkeypatch.setattr(
         hardware.process,
         "run",
@@ -632,17 +666,17 @@ def test_macos_available_ram_sums_free_inactive_and_speculative_pages(monkeypatc
 @pytest.mark.parametrize(
     "failure", [FileNotFoundError("vm_stat"), subprocess.TimeoutExpired("vm_stat", 1)]
 )
-def test_macos_available_ram_is_none_when_vm_stat_fails(monkeypatch, failure) -> None:
+def test_macos_available_ram_is_none_when_vm_stat_fails(monkeypatch, host, failure) -> None:
     def boom(*a, **k):
         raise failure
 
-    monkeypatch.setattr(hardware.sys, "platform", "darwin")
+    host(host_platform.MACOS)
     monkeypatch.setattr(hardware.process, "run", boom)
     assert hardware.available_ram_bytes() is None
 
 
-def test_macos_available_ram_is_none_for_unparseable_output(monkeypatch) -> None:
-    monkeypatch.setattr(hardware.sys, "platform", "darwin")
+def test_macos_available_ram_is_none_for_unparseable_output(monkeypatch, host) -> None:
+    host(host_platform.MACOS)
     monkeypatch.setattr(
         hardware.process,
         "run",
@@ -651,9 +685,9 @@ def test_macos_available_ram_is_none_for_unparseable_output(monkeypatch) -> None
     assert hardware.available_ram_bytes() is None
 
 
-def test_windows_available_ram_reads_available_physical_memory(monkeypatch) -> None:
+def test_windows_available_ram_reads_available_physical_memory(monkeypatch, host) -> None:
     asked: list[str] = []
-    monkeypatch.setattr(hardware.sys, "platform", "win32")
+    host(host_platform.WINDOWS)
     monkeypatch.setattr(hardware, "_ram_bytes_win32", lambda field: asked.append(field) or 123)
     assert hardware.available_ram_bytes() == 123
     assert asked == ["ullAvailPhys"]

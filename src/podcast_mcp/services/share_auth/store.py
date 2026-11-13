@@ -12,6 +12,7 @@ from typing import Any
 
 from podcast_mcp import settings
 from podcast_mcp.services.share_auth.passwords import hash_password, verify_password
+from podcast_mcp.util import host_platform
 from podcast_mcp.util.coded_error import CodedValueError
 from podcast_mcp.util.sqlite_open import (
     close_sqlite_connection,
@@ -111,7 +112,7 @@ def default_identity_db_path() -> Path:
     override = settings.text("PODCAST_SHARE_IDENTITY")
     if override:
         return Path(override).expanduser()
-    return Path.home() / ".podcast_mcp" / "share_identity.sqlite"
+    return host_platform.data_roots().state / "share_identity.sqlite"
 
 
 class ShareIdentityStore:

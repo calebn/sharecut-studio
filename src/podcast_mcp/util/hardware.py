@@ -17,11 +17,9 @@ import ctypes
 import logging
 import math
 import os
-import platform
 import re
 import shutil
 import subprocess  # nosec B404
-import sys
 from collections.abc import Callable, Iterator, Mapping
 from contextlib import contextmanager
 from dataclasses import asdict, dataclass
@@ -30,7 +28,7 @@ from pathlib import Path
 from typing import Any, TypeVar
 
 from podcast_mcp import settings
-from podcast_mcp.util import process
+from podcast_mcp.util import host_platform, process
 
 log = logging.getLogger(__name__)
 
@@ -121,8 +119,8 @@ def cpu_only_profile(logical_cores: int | None = None) -> HardwareProfile:
     """A machine with no accelerator; the base the tests build their fake machines on."""
     logical = max(1, logical_cores or os.cpu_count() or 1)
     return HardwareProfile(
-        system=platform.system(),
-        machine=platform.machine(),
+        system=host_platform.current().system_label,
+        machine=host_platform.machine(),
         apple_silicon=False,
         cuda=None,
         directml=False,
@@ -204,11 +202,11 @@ def _linux_physical_cores(cpuinfo: Path = Path("/proc/cpuinfo")) -> int | None:
 
 
 def _physical_cores() -> int | None:
-    system = platform.system()
+    kernel = host_platform.current().kernel
     try:
-        if system == "Linux":
+        if kernel == "linux":
             return _linux_physical_cores()
-        if system == "Darwin":
+        if kernel == "darwin":
             out = process.run(
                 ["sysctl", "-n", "hw.physicalcpu"],
                 capture_output=True,
@@ -245,7 +243,7 @@ def _ram_bytes_win32(field: str) -> int | None:
 
 def _ram_bytes() -> int | None:
     try:
-        if sys.platform == "win32":
+        if host_platform.current().is_nt:
             return _ram_bytes_win32("ullTotalPhys")
         return int(os.sysconf("SC_PAGE_SIZE")) * int(os.sysconf("SC_PHYS_PAGES"))
     except (OSError, ValueError, AttributeError):
@@ -255,9 +253,10 @@ def _ram_bytes() -> int | None:
 def available_ram_bytes() -> int | None:
     """RAM that can be handed out now without swapping, or None when the platform will not say."""
     try:
-        if sys.platform == "win32":
+        kernel = host_platform.current().kernel
+        if kernel == "nt":
             return _ram_bytes_win32("ullAvailPhys")
-        if sys.platform == "darwin":
+        if kernel == "darwin":
             out = process.run(
                 ["vm_stat"], capture_output=True, text=True, timeout=_PROBE_TIMEOUT_SEC, check=True
             ).stdout
@@ -390,8 +389,8 @@ def probe_hardware() -> HardwareProfile:
     cuda = _part(_nvidia_smi, None)
     if cuda is None and cuda_devices > 0:
         cuda = CudaDevice()
-    system = _part(platform.system, "")
-    machine = _part(platform.machine, "")
+    system = host_platform.current().system_label
+    machine = _part(host_platform.machine, "")
     return HardwareProfile(
         system=system,
         machine=machine,

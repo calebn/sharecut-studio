@@ -20,6 +20,7 @@ from urllib.parse import urlparse
 import yaml
 
 from podcast_mcp import settings
+from podcast_mcp.util import host_platform
 
 DEFAULT_RELAY_URL = "ws://127.0.0.1:8080/tunnel"
 DEFAULT_PUBLIC_BASE_URL = "http://127.0.0.1:8080"
@@ -92,7 +93,7 @@ def default_relay_config_path() -> Path:
     override = settings.text("PODCAST_RELAY_CONFIG")
     if override:
         return Path(override).expanduser()
-    return Path.home() / ".config" / "podcast_mcp" / "relay.yaml"
+    return host_platform.data_roots().config / "relay.yaml"
 
 
 def relay_host_id_path(config_path: Path | None = None) -> Path:

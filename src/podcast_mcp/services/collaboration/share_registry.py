@@ -25,6 +25,7 @@ from typing import Any, Protocol, TypedDict, runtime_checkable
 from coolname import generate_slug
 
 from podcast_mcp import settings
+from podcast_mcp.util import host_platform
 from podcast_mcp.util.coded_error import CodedValueError
 from podcast_mcp.util.registry_backup import _anchor_path, publish_registry_backup
 from podcast_mcp.util.registry_cleanup import cleanup
@@ -181,7 +182,7 @@ def default_share_registry_db_path() -> Path:
     override = settings.value("PODCAST_SHARE_REGISTRY")
     if override:
         return _resolve_registry_path(override)
-    return _resolve_registry_path(Path.home() / ".podcast_mcp" / "share_registry.sqlite")
+    return _resolve_registry_path(host_platform.data_roots().state / "share_registry.sqlite")
 
 
 @runtime_checkable

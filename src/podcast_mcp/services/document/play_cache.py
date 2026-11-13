@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import os
-import platform
 import re
 import time
 from contextlib import suppress
@@ -11,6 +10,7 @@ from pathlib import Path
 
 from podcast_mcp.engines.ffmpeg import FFmpegEngine
 from podcast_mcp.services.app import ProjectWorkspace
+from podcast_mcp.util import host_platform
 from podcast_mcp.util.coded_error import CodedFileNotFoundError
 from podcast_mcp.util.file_locks import hold_shared_file_lock
 from podcast_mcp.util.fingerprint import file_stamp, mtime_ns_if_file
@@ -163,6 +163,6 @@ class _PlayCache:
     def _player_command(self, player: str | None, wav: Path) -> list[str]:
         if player:
             return [player, str(wav)]
-        if platform.system() == "Darwin":
+        if host_platform.current().audition_player == "afplay":
             return ["afplay", str(wav)]
         return ["ffplay", "-nodisp", "-autoexit", str(wav)]
