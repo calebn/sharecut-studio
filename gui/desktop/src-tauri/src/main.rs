@@ -358,13 +358,26 @@ fn cli_bin_and_tools() -> Result<(PathBuf, cli_links::Tools), String> {
 }
 
 #[cfg(unix)]
-fn cli_message(win: &tauri::WebviewWindow, title: &str, message: String) {
+fn cli_show(win: &tauri::WebviewWindow, result: Result<String, String>) {
+    let (title, message) = match result {
+        Ok(message) => ("Command Line Tools", message),
+        Err(err) => ("Command Line Tools Error", err),
+    };
     win.dialog()
         .message(message)
         .title(title)
         .buttons(MessageDialogButtons::Ok)
         .parent(win)
         .show(|_| {});
+}
+
+#[cfg(unix)]
+fn cli_summary(bin: &std::path::Path, body: &str) -> String {
+    format!(
+        "Command line tools in {} (ShareCut Studio {}):\n\n{body}",
+        bin.display(),
+        env!("CARGO_PKG_VERSION"),
+    )
 }
 
 #[cfg(unix)]
@@ -376,12 +389,7 @@ fn cli_finish(win: &tauri::WebviewWindow, install: bool, replace_foreign: bool) 
             cli_links::remove(&bin, &tools)
         }
         .map_err(|err| err.to_string())?;
-        let mut text = format!(
-            "Command line tools in {} (ShareCut Studio {}):\n\n{}",
-            bin.display(),
-            env!("CARGO_PKG_VERSION"),
-            cli_links::describe_reports(&reports)
-        );
+        let mut text = cli_summary(&bin, &cli_links::describe_reports(&reports));
         if install && !cli_links::bin_on_path(&bin, std::env::var_os("PATH").as_deref()) {
             text.push_str(&format!(
                 "\n\nAdd {} to your shell PATH and open a new terminal.",
@@ -390,15 +398,9 @@ fn cli_finish(win: &tauri::WebviewWindow, install: bool, replace_foreign: bool) 
         }
         Ok(text)
     });
-    match result {
-        Ok(message) => cli_message(win, "Command Line Tools", message),
-        Err(err) => cli_message(win, "Command Line Tools Error", err),
-    }
+    cli_show(win, result);
 }
 
-/// Install adds missing commands and refreshes ones ShareCut installed before.
-/// Commands something else owns are only replaced after the user agrees, and
-/// the original is kept beside it as `<name>.sharecut-backup`.
 #[cfg(unix)]
 fn cli_action(app: &tauri::AppHandle, install: bool) {
     let Some(win) = app.get_webview_window("main") else {
@@ -419,7 +421,7 @@ fn cli_action(app: &tauri::AppHandle, install: bool) {
         Ok(Vec::new())
     };
     match foreign {
-        Err(err) => cli_message(&win, "Command Line Tools Error", err),
+        Err(err) => cli_show(&win, Err(err)),
         Ok(names) if names.is_empty() => cli_finish(&win, install, false),
         Ok(names) => {
             let ask_win = win.clone();
@@ -441,21 +443,12 @@ fn cli_status(app: &tauri::AppHandle) {
     let Some(win) = app.get_webview_window("main") else {
         return;
     };
-    match cli_bin_and_tools().and_then(|(bin, tools)| {
+    let result = cli_bin_and_tools().and_then(|(bin, tools)| {
         cli_links::status(&bin, &tools)
-            .map(|all| {
-                format!(
-                    "Command line tools in {} (ShareCut Studio {}):\n\n{}",
-                    bin.display(),
-                    env!("CARGO_PKG_VERSION"),
-                    cli_links::describe_status(&all)
-                )
-            })
+            .map(|all| cli_summary(&bin, &cli_links::describe_status(&all)))
             .map_err(|err| err.to_string())
-    }) {
-        Ok(message) => cli_message(&win, "Command Line Tools", message),
-        Err(err) => cli_message(&win, "Command Line Tools Error", err),
-    }
+    });
+    cli_show(&win, result);
 }
 
 #[cfg(unix)]
