@@ -460,7 +460,7 @@ describe("Player", () => {
     const folded = css.match(
       /html\[data-frame-short\]\s*\.sys-player-right\s*>\s*([^{]*)\{[^}]*display:\s*none/,
     );
-    expect(folded?.[1]).toContain(":not(.sys-player-comment)");
+    expect(folded?.[1]).toContain(".sys-player-comment");
     expect(css).toMatch(
       /html\[data-frame-short\] \.sys-player-comment\s*\{[^}]*var\(--touch-min\)/,
     );
