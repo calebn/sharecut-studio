@@ -31,8 +31,12 @@ export type ComposerSession = {
 };
 
 export type ComposerEvent =
-  /** Any way to start a comment. `replacePin`: the anchor was chosen (a range, a time), not "here". */
-  | { type: "open"; anchor: CommentDraft; replacePin: boolean }
+  /**
+   * Any way to start a comment. `replacePin`: the anchor was chosen (a range,
+   * a time), not "here". `listen`: the phone Listen layout hosts the composer,
+   * so it pauses playback and keeps the pin with the text; elsewhere it does neither.
+   */
+  | { type: "open"; anchor: CommentDraft; replacePin: boolean; listen: boolean }
   | {
       type: "type";
       text: string;
@@ -107,7 +111,9 @@ export function reduceComposer(
   switch (e.type) {
     case "open": {
       const held = s.draft;
-      const keepPin = held !== null && held.text !== "" && !e.replacePin;
+      const keepPin =
+        e.listen && held !== null && held.text !== "" && !e.replacePin;
+      const pause = e.listen && ctx.playing;
       return {
         state: {
           ...s,
@@ -116,13 +122,13 @@ export function reduceComposer(
           draft: {
             text: held?.text ?? "",
             anchor: keepPin ? held.anchor : e.anchor,
-            resume: ctx.playing || held?.resume === true,
+            resume: pause || (e.listen && held?.resume === true),
             typed: false,
           },
           dropped: null,
-          pausing: ctx.playing || s.pausing,
+          pausing: pause || s.pausing,
         },
-        effects: ctx.playing ? ["pause"] : [],
+        effects: pause ? ["pause"] : [],
       };
     }
     case "type": {

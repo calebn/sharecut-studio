@@ -29,7 +29,6 @@ import {
   commentRole,
 } from "../../shareMode";
 import { useDawStore } from "../../state/dawStore";
-import { stageRoleOf } from "../../state/stageRoutes";
 import { useDaw } from "../../state/useDaw";
 import { CommentCard } from "../../system/CommentCard";
 import type { BodyEdit } from "../../system/Composer";
@@ -45,7 +44,7 @@ import {
   sessionDisplayName,
 } from "../../utils/commentAuthor";
 import { useStableCallback } from "../../utils/useStableCallback";
-import { playerPlacementOf } from "../frame/playerPlacement";
+import { listenLayoutOf } from "../frame/playerPlacement";
 import { ActionItemsField } from "./ActionItemsField";
 import { filledActions } from "./actionItems";
 import { ComposeAnchor } from "./ComposeAnchor";
@@ -107,13 +106,7 @@ export function useReviewComments(guest: boolean) {
     mayComment && (commentDraft !== null || (guest && shell !== "phone"));
   // The phone Viewer and Commenter page opens the field from the dock, closes
   // it without losing the text, and plays on again if the dock paused it.
-  const listen =
-    playerPlacementOf({
-      stage: "review",
-      shell,
-      role: stageRoleOf(guestMode),
-      short: false,
-    }) === "dock";
+  const listen = listenLayoutOf(shell, guestMode);
   const duration = project?.timeline_duration_sec ?? Number.NaN;
   const comments = project?.comments;
   const [flipped, setFlipped] = useState<ReadonlyMap<string, boolean>>(
@@ -303,6 +296,7 @@ export function useReviewComments(guest: boolean) {
         type: "open",
         anchor: draft,
         replacePin: source === "selection",
+        listen,
       });
     }
   };
