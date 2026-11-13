@@ -42,6 +42,11 @@
   cursor: pointer;
 }
 
+.gl-row:focus-visible {
+  outline: var(--focus-ring-width) solid var(--color-accent);
+  outline-offset: calc(var(--focus-ring-width) * -1);
+}
+
 .gl-row-text {
   flex: 1 1 auto;
   min-inline-size: 0;
