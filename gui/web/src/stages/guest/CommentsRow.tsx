@@ -9,7 +9,7 @@ export type CommentsRowPreview = {
 type CommentsRowProps = {
   /** "15 comments", "15 comments · 2 suggestions". */
   label: string;
-  /** The count the accessible name carries beside a preview. */
+  /** The count that sits beside the icon while the row shows something else. */
   comments: number;
   /** The comment the guest is listening past; the row shows it in place of the label. */
   preview?: CommentsRowPreview;
@@ -18,7 +18,7 @@ type CommentsRowProps = {
   onOpen: () => void;
 };
 
-/** The 3 rem row above the dock: the comment count, one tap from the Comments sheet. */
+/** The 3 rem row above the dock: the comment count, one tap from the Comments list. */
 export function CommentsRow({
   label,
   comments,
@@ -26,38 +26,29 @@ export function CommentsRow({
   flash,
   onOpen,
 }: CommentsRowProps) {
-  const shown = flash
-    ? flash
-    : preview
-      ? `${preview.author} · ${preview.time} ${preview.text}, ${comments}`
-      : label;
+  const shown = flash ?? preview;
   return (
-    <>
-      <button
-        type="button"
-        className="gl-row"
-        aria-label={`Show comments, ${shown}`}
-        onClick={onOpen}
-      >
-        <SystemIcon name="message-square" size={16} />
-        {flash ? (
-          <span className="gl-row-text">{flash}</span>
-        ) : preview ? (
-          <span className="gl-row-text">
-            <span className="gl-row-who">
-              {preview.author} · {preview.time}
-            </span>{" "}
-            {preview.text}
-          </span>
-        ) : (
-          <span className="gl-row-text">{label}</span>
-        )}
-        {preview ? <span className="gl-row-count">{comments}</span> : null}
-        <SystemIcon name="chevron-up" size={16} />
-      </button>
-      <span className="sr-only" aria-live="polite">
-        {flash}
-      </span>
-    </>
+    <button
+      type="button"
+      className="gl-row"
+      aria-label={`Show ${label}`}
+      onClick={onOpen}
+    >
+      <SystemIcon name="message-square" size={16} />
+      {shown ? <span className="gl-row-count">{comments}</span> : null}
+      {flash ? (
+        <span className="gl-row-text">{flash}</span>
+      ) : preview ? (
+        <span className="gl-row-text">
+          <span className="gl-row-who">
+            {preview.author} · {preview.time}
+          </span>{" "}
+          {preview.text}
+        </span>
+      ) : (
+        <span className="gl-row-text">{label}</span>
+      )}
+      <SystemIcon name="chevron-up" size={16} />
+    </button>
   );
 }

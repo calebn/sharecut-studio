@@ -23,6 +23,10 @@
   margin-block-end: 0;
 }
 
+.gl-list {
+  display: contents;
+}
+
 .gl-row {
   display: flex;
   align-items: center;
