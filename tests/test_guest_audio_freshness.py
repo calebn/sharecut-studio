@@ -65,8 +65,6 @@ Sections = dict[tuple[str, str | None], Any]
 
 @dataclass
 class Rig:
-    """One project copy, the guest's view of it, and a way to submit as the host."""
-
     ws: ProjectWorkspace
     root: Path
     seq: int = 0
@@ -170,8 +168,6 @@ def _same_clips(shown: dict[str, tuple], truth: dict[str, tuple]) -> bool:
 
 
 class Guest:
-    """A guest connected to ``rig``'s project."""
-
     def __init__(self, rig: Rig) -> None:
         self.rig = rig
         self.sections = _guest_sections(rig.ws)
