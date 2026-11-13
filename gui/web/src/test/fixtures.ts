@@ -19,6 +19,7 @@ import {
   type TimelineComment,
   type TrackView,
 } from "../types/project";
+import { REVIEW_ROLE_CAPABILITIES } from "../types/roles.generated";
 import type { SessionClient } from "../types/session";
 import type { HostShareRow } from "../types/shares";
 
@@ -306,23 +307,19 @@ export function pipelineJobSnapshot(
   };
 }
 
-/** A Commenter review link's capabilities (`REVIEW_ROLE_CAPABILITIES` on the server). */
+/** A Commenter review link's capabilities. */
 export const COMMENTER_CAPABILITIES: string[] = [
-  "play",
-  "view",
-  "comment",
-  "reply",
-  "action",
-  "suggest",
+  ...REVIEW_ROLE_CAPABILITIES.commenter,
 ];
 
 /** A Viewer review link's capabilities. */
-export const VIEWER_CAPABILITIES: string[] = ["play", "view"];
+export const VIEWER_CAPABILITIES: string[] = [
+  ...REVIEW_ROLE_CAPABILITIES.viewer,
+];
 
 /** An Editor review link's capabilities. */
 export const EDITOR_CAPABILITIES: string[] = [
-  ...COMMENTER_CAPABILITIES,
-  "edit",
+  ...REVIEW_ROLE_CAPABILITIES.editor,
 ];
 
 /** A fictional live review share row (never a real token or relay URL). */
