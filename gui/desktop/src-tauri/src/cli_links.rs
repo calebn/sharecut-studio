@@ -70,7 +70,6 @@ fn shell_wrapper(target: &Path, flag: Option<&str>) -> io::Result<Vec<u8>> {
     Ok(script)
 }
 
-/// The wrapper bytes each command should contain after installing.
 #[cfg(unix)]
 pub type Tools = [(String, Vec<u8>); 2];
 
@@ -102,9 +101,7 @@ pub fn appimage_tools(appimage: &Path) -> io::Result<Tools> {
 #[cfg(unix)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum State {
-    /// Nothing at that path.
     Missing,
-    /// Already exactly what this app would install.
     Current,
     /// Put there by a ShareCut app, but differs (moved app, old wrapper, lost execute bit).
     Stale,
@@ -274,7 +271,6 @@ pub fn install(bin: &Path, tools: &Tools, replace_foreign: bool) -> io::Result<V
     Ok(reports)
 }
 
-/// Removes only commands this app or an earlier ShareCut app installed.
 #[cfg(unix)]
 pub fn remove(bin: &Path, tools: &Tools) -> io::Result<Vec<ToolReport>> {
     let mut reports = Vec::new();
