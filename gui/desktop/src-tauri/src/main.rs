@@ -381,10 +381,10 @@ fn cli_summary(bin: &std::path::Path, body: &str) -> String {
 }
 
 #[cfg(unix)]
-fn cli_finish(win: &tauri::WebviewWindow, install: bool, replace_foreign: bool) {
+fn cli_finish(win: &tauri::WebviewWindow, install: bool, replace: Vec<String>) {
     let result = cli_bin_and_tools().and_then(|(bin, tools)| {
         let reports = if install {
-            cli_links::install(&bin, &tools, replace_foreign)
+            cli_links::install(&bin, &tools, &replace)
         } else {
             cli_links::remove(&bin, &tools)
         }
@@ -422,7 +422,7 @@ fn cli_action(app: &tauri::AppHandle, install: bool) {
     };
     match foreign {
         Err(err) => cli_show(&win, Err(err)),
-        Ok(names) if names.is_empty() => cli_finish(&win, install, false),
+        Ok(names) if names.is_empty() => cli_finish(&win, install, Vec::new()),
         Ok(names) => {
             let ask_win = win.clone();
             win.dialog()
@@ -433,7 +433,10 @@ fn cli_action(app: &tauri::AppHandle, install: bool) {
                 .title("Command Line Tools")
                 .buttons(MessageDialogButtons::OkCancelCustom("Replace".into(), "Skip".into()))
                 .parent(&win)
-                .show(move |replace| cli_finish(&ask_win, true, replace));
+                .show(move |replace| {
+                    let consented = if replace { names } else { Vec::new() };
+                    cli_finish(&ask_win, true, consented)
+                });
         }
     }
 }
