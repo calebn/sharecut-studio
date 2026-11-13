@@ -20,6 +20,8 @@ export type ModelState =
   | { kind: "installed" }
   | { kind: "missing" }
   | { kind: "update_needed" }
+  /** This device cannot run it, so there is nothing to get. `hint` is the server's plain sentence. */
+  | { kind: "unsupported"; hint: string }
   | { kind: "queued" }
   | { kind: "downloading"; bytes: number; total: number | null }
   | { kind: "failed"; failure: ModelFailure };

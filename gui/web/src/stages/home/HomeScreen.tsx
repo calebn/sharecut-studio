@@ -50,6 +50,7 @@ import {
   importStoppedLine,
   setupOf,
   toolsMissing,
+  toolsUnsupportedSentence,
   untitledEpisodeName,
 } from "./homeModel";
 import { NOT_AN_EPISODE, type OpenOtherProps } from "./OpenOther";
@@ -340,12 +341,14 @@ export function HomeScreen() {
     [guarded],
   );
 
-  const noTools = toolsMissing(models);
+  const noToolsNotice = toolsMissing(models)
+    ? NO_TOOLS
+    : toolsUnsupportedSentence(models);
 
   const startFromFiles = useCallback(
     (files: File[]) => {
-      if (files.length > 0 && noTools) {
-        setNotice(NO_TOOLS);
+      if (files.length > 0 && noToolsNotice !== null) {
+        setNotice(noToolsNotice);
         return Promise.resolve();
       }
       const name = episodeNameFromFiles(files, new Date());
@@ -381,22 +384,22 @@ export function HomeScreen() {
         importingLine(files.length),
       );
     },
-    [guarded, noTools],
+    [guarded, noToolsNotice],
   );
 
   const onImport = useCallback(() => {
-    if (noTools) {
-      setNotice(NO_TOOLS);
+    if (noToolsNotice !== null) {
+      setNotice(noToolsNotice);
       return;
     }
     void pickAudioFiles(true).then((files) => {
       if (files.length > 0) void startFromFiles(files);
     });
-  }, [startFromFiles, noTools]);
+  }, [startFromFiles, noToolsNotice]);
 
   const onRecord = useCallback(() => {
-    if (noTools) {
-      setNotice(NO_TOOLS);
+    if (noToolsNotice !== null) {
+      setNotice(noToolsNotice);
       return;
     }
     void guarded(
@@ -415,7 +418,7 @@ export function HomeScreen() {
       () => setNotice(NOT_STARTED),
       STARTING,
     );
-  }, [guarded, noTools]);
+  }, [guarded, noToolsNotice]);
 
   const reveal = useCallback(async (id: string) => {
     try {
@@ -479,7 +482,8 @@ export function HomeScreen() {
     setupDismissed &&
     setup?.state !== "downloading" &&
     setup?.state !== "failed" &&
-    setup?.state !== "tools-missing";
+    setup?.state !== "tools-missing" &&
+    setup?.state !== "tools-unsupported";
   const dismissSetup = useCallback(() => {
     setTab(SETUP_DISMISSED_KEY, "1");
     setSetupDismissed(true);

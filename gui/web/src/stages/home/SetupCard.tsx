@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useAfter } from "../../hooks/useAfter";
+import { NOT_ON_THIS_DEVICE } from "../../models";
 import { Card } from "../../system/Card";
 import { StatusRow } from "../../system/StatusRow";
 import { SystemIcon } from "../../system/SystemIcon";
@@ -11,7 +12,9 @@ export type SetupState =
   | "downloading"
   | "failed"
   | "check-error"
-  | "tools-missing";
+  | "tools-missing"
+  /** This device cannot have audio tools; `detail` is the server's sentence and nothing is offered. */
+  | "tools-unsupported";
 
 export type SetupCardProps = {
   state: SetupState;
@@ -188,6 +191,13 @@ function SetupBody({
             Setup guide for the audio tools
           </a>
         </p>
+      </Card>
+    );
+  }
+  if (state === "tools-unsupported") {
+    return (
+      <Card title="Audio tools">
+        <StatusRow state="queued" title={detail ?? NOT_ON_THIS_DEVICE} />
       </Card>
     );
   }

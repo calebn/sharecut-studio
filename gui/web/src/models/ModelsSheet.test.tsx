@@ -48,6 +48,54 @@ function mount(
 const names = () =>
   [...document.querySelectorAll(".sys-need-name")].map((el) => el.textContent);
 
+describe("ModelsSheet on a device without audio tools", () => {
+  const unsupportedRows = () =>
+    registryRows().map((r) =>
+      modelRow({
+        ...r,
+        state: "unsupported",
+        hint: "ShareCut can't transcribe audio on this device yet.",
+      }),
+    );
+
+  it("says the tools are not there yet and offers no Get, size or retry", async () => {
+    stubViewportShell("desktop");
+    const { baseElement } = render(<ModelsSheet open onClose={vi.fn()} />, {
+      wrapper: modelsWrapper(
+        modelsApi({
+          status: modelStatus(unsupportedRows(), {
+            tools: {
+              ffmpeg: {
+                state: "unsupported",
+                source: "not found",
+                hint: "ShareCut can't process audio on this device yet.",
+              },
+            },
+          }),
+        }),
+      ),
+    });
+    expect(
+      await screen.findByText(
+        "ShareCut can't process audio on this device yet.",
+      ),
+    ).toBeVisible();
+    expect(
+      screen.getAllByText("Not available on this device yet"),
+    ).toHaveLength(4);
+    expect(screen.queryByText(/can't transcribe/)).toBeNull();
+    expect(
+      screen.queryByText("Reinstall ShareCut Studio to restore them."),
+    ).toBeNull();
+    expect(screen.queryByRole("group", { name: "Size" })).toBeNull();
+    expect(
+      screen.queryByRole("button", { name: /^(Get|Try again)/ }),
+    ).toBeNull();
+    expect(screen.queryByRole("progressbar")).toBeNull();
+    await expectNoA11yViolations(baseElement);
+  });
+});
+
 describe("ModelsSheet", () => {
   it("does not reuse the previous size's Get while another size is being checked", async () => {
     let finish!: (status: BootstrapStatus) => void;

@@ -2,9 +2,35 @@ import { act, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useState } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { expectNoA11yViolations } from "../../test/a11y";
 import { SetupCard } from "./SetupCard";
 
 const noop = () => {};
+
+describe("SetupCard on a device without audio tools", () => {
+  it("shows the server's sentence and offers nothing to do", async () => {
+    const { container } = render(
+      <SetupCard
+        state="tools-unsupported"
+        sizeLabel=""
+        detail="ShareCut can't process audio on this device yet."
+        onGetReady={noop}
+        onChoose={noop}
+        onCancel={noop}
+        onRetry={noop}
+        onNotNow={noop}
+      />,
+    );
+    expect(screen.getByRole("heading", { name: "Audio tools" })).toBeVisible();
+    expect(
+      screen.getByText("ShareCut can't process audio on this device yet."),
+    ).toBeVisible();
+    expect(screen.queryByRole("button")).toBeNull();
+    expect(screen.queryByRole("link")).toBeNull();
+    expect(screen.queryByRole("progressbar")).toBeNull();
+    await expectNoA11yViolations(container);
+  });
+});
 
 describe("SetupCard checking", () => {
   beforeEach(() => vi.useFakeTimers());

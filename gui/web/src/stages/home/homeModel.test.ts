@@ -17,6 +17,7 @@ import {
   setupOf,
   timeLeftText,
   toolsMissing,
+  toolsUnsupportedSentence,
   untitledEpisodeName,
 } from "./homeModel";
 
@@ -262,6 +263,32 @@ describe("setupOf", () => {
     expect(toolsMissing({ tools, models })).toBe(true);
     expect(toolsMissing({ tools, models: null })).toBe(false);
     expect(toolsMissing({ tools: base.tools, models })).toBe(false);
+  });
+  it("names unsupported audio tools with the server's sentence and nothing to download", () => {
+    const models = [model({ state: { kind: "unsupported", hint: "x" } })];
+    const tools = {
+      ffmpeg: "unsupported" as const,
+      hint: "ShareCut can't process audio on this device yet.",
+    };
+    expect(setupOf(setupApi({ ...base, tools, models }))).toEqual({
+      state: "tools-unsupported",
+      sizeLabel: "",
+      detail: "ShareCut can't process audio on this device yet.",
+    });
+    expect(toolsMissing({ tools, models })).toBe(false);
+    expect(toolsUnsupportedSentence({ tools, models })).toBe(
+      "ShareCut can't process audio on this device yet.",
+    );
+    expect(toolsUnsupportedSentence({ tools, models: null })).toBeNull();
+    expect(
+      setupOf(
+        setupApi({
+          ...base,
+          tools: { ffmpeg: "unsupported", hint: null },
+          models,
+        }),
+      )?.detail,
+    ).toBe("Audio tools aren't available on this device yet.");
   });
   it("puts a running download ahead of missing audio tools", () => {
     const tools = { ffmpeg: "missing" as const, hint: null };

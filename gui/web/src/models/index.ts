@@ -32,6 +32,7 @@ export type {
   RemoveOutcome,
   WhisperChoice,
 } from "./types";
+export { NOT_ON_THIS_DEVICE, unsupportedSentence } from "./unsupported";
 export { useModelNeed } from "./useModelNeed";
 export { useModelNeedFocus } from "./useModelNeedFocus";
 export { useModelResume } from "./useModelResume";

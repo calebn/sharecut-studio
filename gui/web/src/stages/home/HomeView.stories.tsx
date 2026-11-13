@@ -76,6 +76,15 @@ export const SetupNeeded: Story = {
 export const SetupToolsMissing: Story = {
   args: { setup: { state: "tools-missing", sizeLabel: "" } },
 };
+export const SetupToolsUnsupported: Story = {
+  args: {
+    setup: {
+      state: "tools-unsupported",
+      sizeLabel: "",
+      detail: "ShareCut can't process audio on this device yet.",
+    },
+  },
+};
 export const SetupDownloading: Story = {
   args: {
     setup: {

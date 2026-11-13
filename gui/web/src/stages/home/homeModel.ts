@@ -1,5 +1,10 @@
 import type { RecentProject } from "../../api";
-import { formatBytes, type ModelView, type useModels } from "../../models";
+import {
+  formatBytes,
+  type ModelView,
+  unsupportedSentence,
+  type useModels,
+} from "../../models";
 import type { ProjectCardData } from "../../system/ProjectCard";
 import { STATUS_TEXT } from "../../system/statusText";
 import { plural } from "../../utils/format";
@@ -121,11 +126,24 @@ function sizeLabelOf(models: readonly ModelView[]): string {
   return `about ${Math.max(1, Math.round(total / 1_000_000))} MB`;
 }
 
-/** True once a status has arrived and says the audio tools are not there. */
+/** True once a status has arrived and says the audio tools are not there, though this device could have them. */
 export function toolsMissing(
   api: Pick<ReturnType<typeof useModels>, "models" | "tools">,
 ): boolean {
-  return api.models !== null && api.tools.ffmpeg !== "installed";
+  return (
+    api.models !== null &&
+    api.tools.ffmpeg !== "installed" &&
+    api.tools.ffmpeg !== "unsupported"
+  );
+}
+
+/** The server's sentence once a status says this device cannot have audio tools, else null. */
+export function toolsUnsupportedSentence(
+  api: Pick<ReturnType<typeof useModels>, "models" | "tools">,
+): string | null {
+  return api.models !== null && api.tools.ffmpeg === "unsupported"
+    ? unsupportedSentence(api.tools.hint)
+    : null;
 }
 
 function isRunning(model: ModelView): boolean {
@@ -235,6 +253,10 @@ export function setupOf(
   }
   if (models.some((model) => model.state.kind === "checking")) {
     return { state: "checking", sizeLabel: "" };
+  }
+  const unsupported = toolsUnsupportedSentence(api);
+  if (unsupported !== null) {
+    return { state: "tools-unsupported", sizeLabel: "", detail: unsupported };
   }
   if (toolsMissing(api)) return { state: "tools-missing", sizeLabel: "" };
   if (ready) return null;

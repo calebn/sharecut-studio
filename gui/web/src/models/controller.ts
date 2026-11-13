@@ -11,6 +11,7 @@ import type {
   ModelView,
   VariantStatuses,
 } from "./types";
+import { unsupportedSentence } from "./unsupported";
 
 export function failureKey(id: string, variant: string): ModelFailureKey {
   return `${id}/${id === "whisper" ? variant : ""}`;
@@ -176,6 +177,57 @@ export function reduce(
   }
 }
 
+type RowStateContext = {
+  live: BootstrapJobSnapshot | null;
+  foreign: boolean;
+  failure: ModelFailure | undefined;
+  starting: boolean;
+  readState: ModelObservation["kind"];
+  variant: string;
+  whisperModel: string;
+};
+
+function rowState(
+  row: BootstrapStatus["models"][number],
+  {
+    live,
+    foreign,
+    failure,
+    starting,
+    readState,
+    variant,
+    whisperModel,
+  }: RowStateContext,
+): ModelState {
+  if (row.state === "unsupported") {
+    return { kind: "unsupported", hint: unsupportedSentence(row.hint) };
+  }
+  if (
+    live?.components.includes(row.id) &&
+    (row.id !== "whisper" || live.whisper_model === variant)
+  ) {
+    return live.download?.component === row.id
+      ? {
+          kind: "downloading",
+          bytes: live.download.bytes,
+          total: live.download.total,
+        }
+      : { kind: "queued" };
+  }
+  if (starting) return { kind: "queued" };
+  if (readState !== "current") {
+    return { kind: readState === "checking" ? "checking" : "unavailable" };
+  }
+  if (
+    failure &&
+    (row.state !== "installed" ||
+      (row.id === "whisper" && whisperModel !== variant))
+  ) {
+    return { kind: "failed", failure };
+  }
+  return foreign ? { kind: "unavailable" } : { kind: row.state };
+}
+
 export function overlay(
   status: BootstrapStatus,
   job: BootstrapJobSnapshot | null,
@@ -188,32 +240,15 @@ export function overlay(
   return status.models.map((row) => {
     const foreign = row.id === "whisper" && status.whisper_model !== variant;
     const failure = failures[failureKey(row.id, variant)];
-    let state: ModelState = { kind: row.state };
-    if (
-      live?.components.includes(row.id) &&
-      (row.id !== "whisper" || live.whisper_model === variant)
-    ) {
-      state =
-        live.download?.component === row.id
-          ? {
-              kind: "downloading",
-              bytes: live.download.bytes,
-              total: live.download.total,
-            }
-          : { kind: "queued" };
-    } else if (startingModelIds.includes(row.id)) {
-      state = { kind: "queued" };
-    } else if (readState !== "current") {
-      state = { kind: readState === "checking" ? "checking" : "unavailable" };
-    } else if (
-      failure &&
-      (row.state !== "installed" ||
-        (row.id === "whisper" && status.whisper_model !== variant))
-    ) {
-      state = { kind: "failed", failure };
-    } else if (foreign) {
-      state = { kind: "unavailable" };
-    }
+    const state = rowState(row, {
+      live,
+      foreign,
+      failure,
+      starting: startingModelIds.includes(row.id),
+      readState,
+      variant,
+      whisperModel: status.whisper_model,
+    });
     return {
       id: row.id,
       label: row.label,

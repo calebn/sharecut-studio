@@ -6,6 +6,7 @@ import { modelActivity } from "./activity";
 import { inSheetOrder, WHISPER, WHISPER_SIZES } from "./capability";
 import { progressText } from "./format";
 import { ModelNeedRow } from "./ModelNeedRow";
+import { unsupportedSentence } from "./unsupported";
 import { useModels } from "./useModels";
 import { WhisperSize } from "./WhisperSize";
 
@@ -46,7 +47,13 @@ export function ModelsSheet({ open, onClose }: Props) {
       <div className="models-sheet-body">
         {observation.kind === "current" &&
         models !== null &&
-        tools.ffmpeg !== "installed" ? (
+        tools.ffmpeg === "unsupported" ? (
+          <StatusRow state="queued" title={unsupportedSentence(tools.hint)} />
+        ) : null}
+        {observation.kind === "current" &&
+        models !== null &&
+        tools.ffmpeg !== "installed" &&
+        tools.ffmpeg !== "unsupported" ? (
           <StatusRow
             state="failed"
             title="Audio tools are unavailable"
@@ -77,7 +84,9 @@ export function ModelsSheet({ open, onClose }: Props) {
               {inSheetOrder(models).map((m) => (
                 <li key={m.id}>
                   <ModelNeedRow model={m} placement="list">
-                    {m.id === WHISPER ? <WhisperSize disabled={busy} /> : null}
+                    {m.id === WHISPER && m.state.kind !== "unsupported" ? (
+                      <WhisperSize disabled={busy} />
+                    ) : null}
                   </ModelNeedRow>
                 </li>
               ))}

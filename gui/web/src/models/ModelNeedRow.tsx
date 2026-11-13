@@ -37,7 +37,7 @@ function NeedRow(props: Omit<ModelNeedRowViewProps, "placement" | "children">) {
   return <StatusRow {...needRowProps(props)} />;
 }
 
-const META: Record<ModelState["kind"], string> = {
+const META: Record<Exclude<ModelState["kind"], "unsupported">, string> = {
   checking: "Checking status",
   unavailable: "Status unavailable",
   installed: "Installed",
@@ -49,6 +49,9 @@ const META: Record<ModelState["kind"], string> = {
 };
 
 function listMeta(state: ModelState, size: string): string {
+  if (state.kind === "unsupported") {
+    return "Not available on this device yet";
+  }
   if (state.kind === "downloading") {
     return bytesDetail(state, size);
   }

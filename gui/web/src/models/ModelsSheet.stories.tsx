@@ -2,7 +2,12 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, userEvent, within } from "storybook/test";
 import { isolatedStoryParameters } from "../storybook/storyLayout";
 import { DialogLauncher } from "../test/DialogLauncher";
-import { registryModels, withModels } from "../test/modelsStory";
+import {
+  registryModels,
+  UNSUPPORTED_TOOLS,
+  unsupportedModels,
+  withModels,
+} from "../test/modelsStory";
 import { openDialogByLauncher } from "../test/storyDialog";
 import { ModelsSheet } from "./ModelsSheet";
 
@@ -55,6 +60,32 @@ export const FreshInstall: Story = {
       within(sheet).getByRole("button", { name: /^Balanced/ }),
     );
   },
+};
+
+export const UnsupportedDevice: Story = {
+  parameters: {
+    models: { models: unsupportedModels(), tools: UNSUPPORTED_TOOLS },
+  },
+  play: async ({ canvasElement, viewMode }) => {
+    if (viewMode === "docs") return;
+    const sheet = await openSheet(canvasElement);
+    await expect(
+      within(sheet).getByText(
+        "ShareCut can't process audio on this device yet.",
+      ),
+    ).toBeVisible();
+    await expect(
+      within(sheet).queryByRole("button", { name: /^Get / }),
+    ).toBeNull();
+    await expect(
+      within(sheet).queryByRole("group", { name: "Size" }),
+    ).toBeNull();
+  },
+};
+
+export const UnsupportedDevicePhone: Story = {
+  ...UnsupportedDevice,
+  globals: { viewport: { value: "mobile360", isRotated: false } },
 };
 
 export const Mixed: Story = {

@@ -1122,6 +1122,69 @@ describe("HomeScreen", () => {
       }
     });
 
+    describe("on a device that cannot have audio tools", () => {
+      const sentence = "ShareCut can't process audio on this device yet.";
+      const unsupported = () =>
+        modelsApi({
+          status: modelStatus(
+            registryRows().map((r) => ({
+              ...r,
+              state: "unsupported" as const,
+              hint: "ShareCut can't transcribe audio on this device yet.",
+            })),
+            {
+              ready: false,
+              tools: {
+                ffmpeg: {
+                  state: "unsupported",
+                  source: "not found",
+                  hint: sentence,
+                },
+              },
+            },
+          ),
+        });
+
+      it("says so on the card with no download, even after Not now", async () => {
+        window.sessionStorage.setItem(SETUP_DISMISSED_KEY, "1");
+        const models = unsupported();
+        rtlRender(
+          <ModelsContext.Provider value={models}>
+            <HomeScreen />
+          </ModelsContext.Provider>,
+        );
+        expect(await screen.findByText(sentence)).toBeInTheDocument();
+        expect(
+          screen.queryByRole("button", { name: /^(Get ready|Check again)/ }),
+        ).not.toBeInTheDocument();
+        expect(
+          screen.queryByText("Audio tools are missing."),
+        ).not.toBeInTheDocument();
+        expect(models.download).not.toHaveBeenCalled();
+      });
+
+      it("Import and Record give the same sentence instead of starting an episode", async () => {
+        const user = userEvent.setup();
+        pickFiles.mockResolvedValue([new File(["x"], "Rosa.wav")]);
+        rtlRender(
+          <ModelsContext.Provider value={unsupported()}>
+            <HomeScreen />
+          </ModelsContext.Provider>,
+        );
+        await user.click(
+          await screen.findByRole("button", { name: /^Import audio/ }),
+        );
+        expect(
+          await screen.findByText(sentence, {
+            selector: "[role=status], [role=alert], p, div",
+          }),
+        ).toBeInTheDocument();
+        await user.click(screen.getByRole("button", { name: /^Record/ }));
+        expect(create).not.toHaveBeenCalled();
+        expect(assign).not.toHaveBeenCalled();
+      });
+    });
+
     describe("with no audio tools", () => {
       const noTools = () =>
         modelsApi({
