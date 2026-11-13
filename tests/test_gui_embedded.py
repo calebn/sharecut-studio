@@ -141,6 +141,40 @@ def test_a_failed_start_records_the_reason_and_leaves_no_thread(
     assert "RuntimeError: the web bundle is missing" in log
 
 
+def test_a_second_failed_start_appends_to_the_engine_log(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    def broken(*, host_mcp: bool) -> None:
+        raise RuntimeError("attempt")
+
+    monkeypatch.setattr("podcast_mcp.gui.server.create_app", broken)
+    for _ in range(2):
+        with pytest.raises(embedded.EmbeddedStartError):
+            embedded.start()
+
+    log = (tmp_path / "home" / "Library" / "Logs" / "ShareCut Studio" / "engine.log").read_text()
+    assert log.count("embedded start failed") == 2
+
+
+def test_an_unwritable_log_directory_does_not_mask_the_start_failure(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    def broken(*, host_mcp: bool) -> None:
+        raise RuntimeError("the web bundle is missing")
+
+    monkeypatch.setattr("podcast_mcp.gui.server.create_app", broken)
+    logs = tmp_path / "home" / "Library" / "Logs"
+    logs.parent.mkdir(parents=True, exist_ok=True)
+    logs.write_text("a file where the log directory should be")
+
+    with pytest.raises(
+        embedded.EmbeddedStartError, match="RuntimeError: the web bundle is missing"
+    ):
+        embedded.start()
+
+    assert embedded.status() == embedded.Failed("RuntimeError: the web bundle is missing")
+
+
 def test_a_failed_start_can_be_retried(monkeypatch: pytest.MonkeyPatch) -> None:
     from podcast_mcp.gui import server
 
