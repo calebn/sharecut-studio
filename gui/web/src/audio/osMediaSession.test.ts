@@ -361,6 +361,11 @@ describe("osActionHandlers", () => {
     ["seekforward", undefined, 15],
     ["seekbackward", 10, -10],
     ["seekforward", 30, 30],
+    ["seekbackward", -5, -15],
+    ["seekforward", -5, 15],
+    ["seekforward", 0, 15],
+    ["seekbackward", Number.NaN, -15],
+    ["seekforward", Number.POSITIVE_INFINITY, 15],
   ] as const)("%s with offset %s skips %s s", (name, seekOffset, delta) => {
     const { cmd, calls } = fakeCommands(true);
     osActionHandlers(cmd)[name](details({ seekOffset }));
