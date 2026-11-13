@@ -1,6 +1,6 @@
 //! Pure helpers for the Sharecut Studio Tauri host (no WebView / sidecar IO).
 
-#[cfg(unix)]
+#[cfg(all(unix, not(target_os = "ios"), not(target_os = "android")))]
 pub mod cli_links;
 mod close_guard;
 mod share_url;
