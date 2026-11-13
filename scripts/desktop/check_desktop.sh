@@ -12,6 +12,7 @@ test -f gui/desktop/src-tauri/tauri.conf.json
 test -f gui/desktop/src-tauri/src/main.rs
 test -f gui/desktop/src-tauri/src/lib.rs
 test -f gui/desktop/src-tauri/src/share_url.rs
+test -f gui/desktop/src-tauri/src/engine.rs
 test -f gui/desktop/src-tauri/src/sidecar.rs
 test -f gui/desktop/src-tauri/src/media_capture.rs
 test -f gui/desktop/src-tauri/Info.plist
@@ -59,6 +60,16 @@ cargo clippy --lib --no-default-features -- -D warnings
 
 echo "==> cargo test --lib --no-default-features"
 cargo test --lib --no-default-features
+
+# The lib must keep building for the iOS host (#3810). CI's Ubuntu runner has no
+# iOS target, so this only runs where `rustup target add` was done.
+if command -v rustup >/dev/null 2>&1 \
+  && rustup target list --installed | grep -qx aarch64-apple-ios-sim; then
+  echo "==> cargo check --lib --no-default-features --target aarch64-apple-ios-sim"
+  cargo check --lib --no-default-features --target aarch64-apple-ios-sim
+else
+  echo "==> skip iOS lib check (rustup target aarch64-apple-ios-sim not installed)"
+fi
 
 # Ubuntu scaffold cannot compile WebView FFI (needs WebKitGTK / WebView2).
 # On macOS, typecheck the app binary so media_capture.rs is not an uncompiled island.

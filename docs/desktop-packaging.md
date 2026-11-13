@@ -175,6 +175,16 @@ The Python sidecar and bundled `ffmpeg` CLI are **desktop-only**. A later native
 iOS/Android app is not an `externalBin` port — in-process libav, same React UI.
 Deferred path and interim constraints: [cross-platform-byok.md](cross-platform-byok.md).
 
+**iOS target (in progress, #3810).** The `sharecut` lib builds as a `staticlib` and
+`cargo check --lib --no-default-features --target aarch64-apple-ios-sim` (and
+`aarch64-apple-ios`) passes; `scripts/desktop/check_desktop.sh` runs the simulator
+check when that rustup target is installed. Desktop-only code is gated by target
+(`cli_links`, and the updater and single-instance plugins live in a target table
+that excludes iOS and Android). `src/engine.rs` holds the helpers a mobile host
+shares with the desktop sidecar loop: the loopback health probe, the navigation
+allowlist, the packaged-engine environment and the splash script builders. There
+is no iOS app, entry point or Tauri iOS config yet.
+
 The public check workflow is deliberately limited:
 
 | Workflow | When it runs | What it does |
