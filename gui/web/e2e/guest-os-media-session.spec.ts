@@ -16,6 +16,7 @@ import {
   readOsRecorder,
   suspendContext,
 } from "./osMediaSessionRecorder";
+import { settle } from "./pendingActionbar";
 import { withShareableProject } from "./shareableProject";
 import { createReviewShare, openGuestShare } from "./shareNavigation";
 import { parseTimecodeSec } from "./timecode";
@@ -50,14 +51,6 @@ function playerSec(page: Page): Promise<number> {
     })
     .then(parseTimecodeSec);
 }
-
-const nextFrames = (page: Page) =>
-  page.evaluate(
-    () =>
-      new Promise<void>((resolve) =>
-        requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
-      ),
-  );
 
 /** The audio context clock: it keeps running while a locked page paints nothing. */
 const contextSec = (page: Page) =>
@@ -104,7 +97,7 @@ for (const [deviceName, phone] of PHONES) {
     }) => {
       await withPhoneGuest(browser, phone, async (page, title) => {
         await expect(play(page)).toBeVisible();
-        await nextFrames(page);
+        await settle(page);
         const idle = await readOsRecorder(page);
         expect(idle.metadata).toBeNull();
         expect(idle.playbackState).toBe("none");
