@@ -434,6 +434,41 @@ def test_sanitize_guest_words_modes(patch):
     assert selectable["pending_edits"][0]["unsure_words"][0]["text"] == "hello"
 
 
+@pytest.mark.parametrize("bad", [False, True, 0, None, "none"], ids=repr)
+def test_guest_transcript_fails_closed_on_a_non_enum_words_value(bad):
+    from podcast_mcp.gui.mapper import guest_transcript
+    from podcast_mcp.services.collaboration.share import sanitize_guest_project_view
+
+    shown = guest_transcript(_words_view(patch=True)["transcript"], words=bad)
+    assert "words" not in shown["utterances"][0]
+    out = sanitize_guest_project_view(_words_view(patch=False), words=bad)
+    assert "words" not in out["transcript"]["utterances"][0]
+    assert out["meta"]["hydration"]["transcript_words"] is False
+    assert "unsure_words" not in out["pending_edits"][0]
+
+
+def test_locked_word_indices_stay_only_on_selectable_rows():
+    from podcast_mcp.gui.mapper import guest_transcript
+    from podcast_mcp.services.collaboration.share_capabilities import GuestWords
+
+    transcript = {
+        "utterances": [
+            {
+                "text": "hello",
+                "words": [{"text": "hello", "word_index": 0}],
+                "locked_word_indices": [0],
+                "ignored_word_indices": [0],
+            }
+        ]
+    }
+    for mode in (GuestWords.NONE, GuestWords.READING):
+        row = guest_transcript(transcript, words=mode)["utterances"][0]
+        assert "locked_word_indices" not in row
+        assert row["ignored_word_indices"] == [0]
+    row = guest_transcript(transcript, words=GuestWords.SELECTABLE)["utterances"][0]
+    assert row["locked_word_indices"] == [0]
+
+
 def test_sanitize_guest_reading_words_still_null_an_absolute_path_text():
     from podcast_mcp.services.collaboration.share import sanitize_guest_project_view
     from podcast_mcp.services.collaboration.share_capabilities import GuestWords
