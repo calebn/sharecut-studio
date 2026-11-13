@@ -427,7 +427,7 @@ fn cli_action(app: &tauri::AppHandle, install: bool) {
             let ask_win = win.clone();
             win.dialog()
                 .message(format!(
-                    "{} already exist(s) in ~/.local/bin and were not installed by ShareCut Studio.\n\nReplace them? Each original is kept next to it as <name>.sharecut-backup. Choose Skip to install only the other tools.",
+                    "{} already exist(s) in ~/.local/bin and were not installed by ShareCut Studio.\n\nReplace them? Each original is kept next to it as <name>.sharecut-backup (numbered if one already exists). Choose Skip to install only the other tools.",
                     names.join(", ")
                 ))
                 .title("Command Line Tools")
