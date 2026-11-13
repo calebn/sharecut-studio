@@ -68,7 +68,14 @@ from podcast_mcp.util.batch_scope import batch_scope, frozen_state, unscoped
 from podcast_mcp.util.hashing import sha256_file
 from podcast_mcp.util.project_state import file_revision
 from test_bleed_alignment_surfaces import _workspace as _bleed_surfaces_workspace
-from test_room_tone_extract import SPEECH_THEN_ROOM, _host_audio, _project
+from test_room_tone_extract import (
+    FLOOR_DB,
+    SPEECH_THEN_ROOM,
+    _host_audio,
+    _noise,
+    _project,
+    _write_wav,
+)
 from test_segments_insert import _save
 
 Sections = dict[tuple[str, str | None], Any]
@@ -273,14 +280,17 @@ def _once(payload: Payload, setup: Setup | None = None, **kwargs: Any) -> Case:
     return Case(payload, setup, roles=(), **kwargs)
 
 
-def _template(root: Path) -> Path:
-    """A gated, transcribed host with a splittable pair of clips, an ungated guest, a bed to cut,
-    and per other track role a track whose two clips play a recording of their own."""
+def _template(root: Path, *, gated: bool = True) -> Path:
+    """A transcribed host (gated unless ``gated`` is off) with a splittable pair of clips, an
+    ungated guest, a bed to cut, and per other track role a track whose two clips play a
+    recording of their own. ``raw/replacement.wav`` differs in content from every track's media.
+    With ``gated`` off no track has a bleed gate, and the guest's one clip plays a recording."""
     project = _project(root, _host_audio(SPEECH_THEN_ROOM))
     shutil.copyfile(root / "raw" / "host.wav", root / "raw" / "guest.wav")
+    _write_wav(root / "raw" / "replacement.wav", _noise(FLOOR_DB, seed=2711))
     host = project.tracks[0]
     host.speaker = "Host"
-    host.transcript_gate = True
+    host.transcript_gate = gated
     project.tracks.append(
         Track(
             id="guest",
@@ -301,6 +311,18 @@ def _template(root: Path) -> Path:
             off_speaker_mute_regions=[ClipOffSpeakerMuteRegion(start_s=1.0, end_s=2.0)],
         ),
     ]
+    if not gated:
+        _write_wav(root / "raw" / "guest-take.wav", _noise(FLOOR_DB, seed=3319))
+        project.sources.append(
+            SourceRecording(
+                id="guest-src",
+                path="raw/guest-take.wav",
+                duration_sec=10.0,
+                sample_rate=16000,
+                channels=1,
+            )
+        )
+        project.clips[2].source_id = "guest-src"
     for role in ROLES:
         if role is TrackRole.DIALOGUE:
             continue
@@ -356,6 +378,11 @@ def _template(root: Path) -> Path:
 @pytest.fixture(scope="module")
 def template(tmp_path_factory: pytest.TempPathFactory) -> Path:
     return _template(tmp_path_factory.mktemp("template"))
+
+
+@pytest.fixture(scope="module")
+def ungated_template(tmp_path_factory: pytest.TempPathFactory) -> Path:
+    return _template(tmp_path_factory.mktemp("ungated"), gated=False)
 
 
 def _open(template: Path, tmp_path: Path, case: Case) -> Rig:
@@ -793,7 +820,7 @@ CASES: dict[str, Case] = {
         lambda r, t: {"session_id": "s" * 12, "name": "Cold open"}, _session
     ),
     "SetTrackFader": Case(lambda r, t: {"track_id": t.track, "fader_db": -3.0}),
-    "SetTrackMedia": Case(lambda r, t: {"track_id": t.track, "rel_path": "raw/guest.wav"}),
+    "SetTrackMedia": Case(lambda r, t: {"track_id": t.track, "rel_path": "raw/replacement.wav"}),
     "SetTrackMeta": Case(
         lambda r, t: {
             "track_id": t.track,
@@ -1050,4 +1077,49 @@ def test_a_guest_learns_of_every_proxy_artifact_change(
     else:
         assert not steps[0].artifacts_moved, (
             f"{command_type} is in CANNOT_MOVE_AUDIO ({cannot.reason}) but changed audio"
+        )
+
+
+# Without a bleed gate no track lists another as a peer, so a change to which artifacts exist
+# reaches the key only through the key's own reading of the selection. In ``ungated_template``
+# every non-dialogue track is listed through its recordings, and the dialogue guest is listed
+# through its one clip, which plays a recording, so its own media is read by its legacy artifact
+# alone.
+SELECTION_CHANGES = [
+    pytest.param(
+        "SetTrackMeta", {"track_id": role, "role": "dialogue"}, id=f"{role}-becomes-dialogue"
+    )
+    for role in ("music", "sfx", "intro", "outro")
+] + [
+    pytest.param(
+        "SetTrackMeta", {"track_id": "guest", "role": "music"}, id="dialogue-guest-becomes-music"
+    ),
+    pytest.param(
+        "SetTrackMedia",
+        {"track_id": "guest", "rel_path": "raw/replacement.wav"},
+        id="guest-media-differs-in-content",
+    ),
+]
+
+
+@pytest.mark.parametrize(("command_type", "payload"), SELECTION_CHANGES)
+def test_a_guest_learns_of_a_selection_change_on_a_project_without_a_gate(
+    ungated_template: Path, tmp_path: Path, command_type: str, payload: dict[str, Any]
+) -> None:
+    root = tmp_path / "ws"
+    shutil.copytree(ungated_template.parent, root)
+    rig = Rig(ProjectWorkspace.open(root / ungated_template.name), root)
+    track = payload["track_id"]
+    with batch_scope():
+        guest = Guest(rig)
+        assert track in proxy_variants.select_manifest(rig.ws.project).track_ids
+        steps = [guest.step(command_type, payload, command_type)]
+        guest.assert_matches_manifest(command_type)
+        for name in ("UndoHistory", "RedoHistory"):
+            steps.append(guest.step(name, {"expected_head_id": rig.head()}, name))
+            guest.assert_matches_manifest(name)
+    assert steps[0].artifacts_moved, f"{command_type} leaves every proxy artifact as it was"
+    for step in steps:
+        assert step.key_moved or not step.artifacts_moved, (
+            f"{step.label}: the proxy artifacts changed but the guest's key did not"
         )
