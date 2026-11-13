@@ -244,7 +244,7 @@ for (const profile of PROFILES) {
             "Forward 15 seconds",
           ])
             await expectTouchTarget(guest.getByRole("button", { name }));
-          await expectNoHorizontalScroll(guest, size.width);
+          await expectDockFits(guest, size.width);
           await expectPageAxeClean(guest);
         },
       );
