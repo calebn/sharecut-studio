@@ -9,8 +9,8 @@ import pytest
 
 from podcast_mcp.config.defaults import load_defaults
 from podcast_mcp.engines.ffmpeg import FFmpegEngine
-from podcast_mcp.engines.play_audit import proxy_render_hash
-from podcast_mcp.engines.source_proxy_audio import SourceProxyInputs
+from podcast_mcp.engines.play_audit import proxy_render_hash, track_render_hash
+from podcast_mcp.engines.source_proxy_audio import SourceProxyInputs, render_source_proxy_inputs
 from podcast_mcp.models import (
     Clip,
     ClipBleedRestore,
@@ -19,13 +19,14 @@ from podcast_mcp.models import (
     ProcessingEffect,
     Track,
 )
-from podcast_mcp.models.episode import SourceRecording, SourceSpan
+from podcast_mcp.models.episode import SourceRecording, SourceSpan, Transcript, TranscriptWord
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.media import proxy_media as pm
 from podcast_mcp.services.media import proxy_variants as pv
 from podcast_mcp.util.coded_error import CodedKeyError, CodedValueError
 from podcast_mcp.util.hashing import sha256_file
 from podcast_mcp.util.object_store import ObjectStoreConfig
+from podcast_mcp.util.wav import open_wav
 
 
 @pytest.fixture
@@ -601,6 +602,53 @@ def test_final_revalidation_preserves_external_edits_and_refs(
     if race == "saved_edit":
         assert saved.tracks[0].label == "External edit"
         assert ws.project.tracks[0].label == "External edit"
+
+
+def _transcribed_gate_project(ws, *, gate):
+    ws.project.tracks[0].transcript_gate = gate
+    ws.project.transcripts = [
+        Transcript(
+            track_id="host",
+            words=[
+                TranscriptWord(text="hello", start=0.1, end=0.5),
+                TranscriptWord(text="there", start=0.6, end=1.0),
+            ],
+        )
+    ]
+    ws.save()
+
+
+def _proxy_pcm(ws, tmp_path, name):
+    engine = FFmpegEngine()
+    defaults = load_defaults()
+    inputs = SourceProxyInputs.capture_legacy(ws.project, "host", engine, defaults=defaults)
+    output = tmp_path / name
+    render_source_proxy_inputs(ws.project, inputs, output, engine=engine, defaults=defaults)
+    with open_wav(output) as wav:
+        return wav.readframes(wav.getnframes())
+
+
+def test_suppressing_a_word_on_an_ungated_track_changes_no_proxy_sample(workspace, tmp_path):
+    ws = workspace
+    _transcribed_gate_project(ws, gate=False)
+    defaults = load_defaults()
+    before_pcm = _proxy_pcm(ws, tmp_path, "before.wav")
+    before = pv.project_basis(ws.project, defaults)
+    ws.project.transcripts[0].words[0].suppressed = True
+    after = pv.project_basis(ws.project, defaults)
+    assert _proxy_pcm(ws, tmp_path, "after.wav") == before_pcm
+    assert after.render_hashes == before.render_hashes
+
+
+def test_suppressing_a_word_on_a_gated_track_moves_both_render_hashes(workspace):
+    ws = workspace
+    _transcribed_gate_project(ws, gate=True)
+    defaults = load_defaults()
+    track_before = track_render_hash(ws.project, "host", defaults=defaults)
+    proxy_before = proxy_render_hash(ws.project, "host", defaults=defaults)
+    ws.project.transcripts[0].words[0].suppressed = True
+    assert track_render_hash(ws.project, "host", defaults=defaults) != track_before
+    assert proxy_render_hash(ws.project, "host", defaults=defaults) != proxy_before
 
 
 def test_existing_conflicting_content_destination_refuses_without_overwrite(
