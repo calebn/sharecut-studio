@@ -265,6 +265,8 @@ def resolve_ffmpeg_pair(
     *,
     force_refresh: bool = False,
 ) -> FFmpegPair:
+    if host_platform.current().media_tools == "unavailable":
+        raise FFmpegPairResolutionError(host_platform.MEDIA_UNAVAILABLE)
     with _PAIR_CACHE.lock:
         key = _admission_cache_key(ffmpeg, ffprobe)
         if not force_refresh:
