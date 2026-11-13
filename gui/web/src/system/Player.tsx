@@ -423,7 +423,7 @@ function Dock(props: PlayerProps & { statusId: string }) {
   const centre = status ?? chapters[chapter ?? -1]?.title;
   return (
     <div
-      role="group"
+      role="region"
       aria-label="Player"
       className="sys-player-host"
       data-state={state}

@@ -1233,7 +1233,7 @@ html[data-frame-short] .sys-player-right > :not(.sys-player-hear) {
   min-inline-size: var(--touch-min);
   margin-inline-start: auto;
   padding-inline: var(--space-4);
-  border: 1px solid var(--color-border-strong);
+  border: 1px solid var(--color-text-secondary);
   border-radius: var(--radius-xl);
   background: transparent;
   color: var(--color-text-primary);
@@ -1245,7 +1245,7 @@ html[data-frame-short] .sys-player-right > :not(.sys-player-hear) {
   background: var(--color-hover);
 }
 
-@container sys-player (max-width: 20rem) {
+@container sys-player (max-width: 23.5rem) {
   .sys-listen-dock-comment-label {
     position: absolute;
     inline-size: 1px;
