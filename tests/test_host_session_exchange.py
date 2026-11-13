@@ -43,20 +43,31 @@ def _attributes(set_cookie: str) -> set[str]:
     return {part.strip().lower() for part in set_cookie.split(";")[1:]}
 
 
-def test_a_valid_code_sets_the_session_cookie_and_redirects_to_a_clean_root(app, client) -> None:
+def test_a_valid_code_sets_the_session_cookie_and_hands_over_to_a_clean_root(app, client) -> None:
     code = app.state.host_sessions.issue_code()
 
     response = client.get(EXCHANGE_PATH, params={EXCHANGE_PARAM: code}, follow_redirects=False)
 
-    assert response.status_code == 303
-    assert response.headers["location"] == "/"
+    assert response.status_code == 200
+    assert "location" not in response.headers
+    assert response.headers["content-type"] == "text/html; charset=utf-8"
     assert response.headers["cache-control"] == "no-store"
+    assert response.text == (
+        "<!doctype html>\n"
+        '<html lang="en"><head><meta charset="utf-8">'
+        '<meta http-equiv="refresh" content="0; url=/">'
+        "<title>ShareCut</title></head>"
+        '<body><p>Opening ShareCut. <a href="/">Continue</a></p></body></html>\n'
+    )
     cookie = response.headers["set-cookie"]
     name, _, value = cookie.split(";")[0].partition("=")
     assert name == "sharecut_host_session"
     assert app.state.host_sessions.is_live(value) is True
     assert _attributes(cookie) == {"httponly", "path=/", "samesite=strict"}
-    assert code not in response.text + response.headers["location"] + cookie
+    assert code not in response.text + cookie
+    assert value not in response.text
+    assert "<script" not in response.text
+    assert "script-src 'self';" in response.headers["content-security-policy"]
 
 
 def test_the_code_works_once(app, client) -> None:
@@ -67,7 +78,7 @@ def test_the_code_works_once(app, client) -> None:
         EXCHANGE_PATH, params={EXCHANGE_PARAM: code}, follow_redirects=False
     )
 
-    assert first.status_code == 303
+    assert first.status_code == 200
     assert second.status_code == 403
     assert "set-cookie" not in second.headers
 

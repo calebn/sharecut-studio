@@ -7,7 +7,9 @@ typically have no browser ``Origin``.
 
 A host whose loopback is not trusted holds its credential in a cookie, and a cookie goes to every
 loopback port. So there an Origin or Referer must name this server's own port, every ``/api/``
-route is bound (not only the listed prefixes), and only the guest routes are left out.
+route is bound (not only the listed prefixes), and only the guest routes are left out. A browser
+that labels a request ``Sec-Fetch-Site: cross-site`` or ``same-site`` is refused on those routes
+as well, because a request with no Origin and no Referer would otherwise pass.
 """
 
 from __future__ import annotations
@@ -101,6 +103,20 @@ def origin_is_self(origin: str | None, listen_port: int | None) -> bool:
     return parsed.scheme == "http" and parsed.netloc == f"127.0.0.1:{listen_port}"
 
 
+def fetch_site_refused(headers) -> bool:
+    """True when a browser says the request is cross-site or same-site but not this origin.
+
+    Only a host whose loopback is not trusted asks. A request with no ``Origin`` and no
+    ``Referer`` passes the origin rule, and a browser still labels where it came from here. An
+    absent header (a non-browser client) is not refused; ``same-origin`` and ``none`` (the user
+    typing or opening the address) are admitted.
+    """
+    if host_platform.current().loopback_is_trusted:
+        return False
+    site = (headers.get("sec-fetch-site") or "").strip().lower()
+    return site in {"cross-site", "same-site"}
+
+
 def _origin_allowed(origin: str | None, connection) -> bool:
     if host_platform.current().loopback_is_trusted:
         return origin_is_loopback(origin)
@@ -140,6 +156,8 @@ def websocket_host_binding_denied(websocket) -> str | None:
     referer = websocket.headers.get("referer")
     if referer and not _origin_allowed(referer, websocket):
         return "Referer not allowed for host GUI"
+    if fetch_site_refused(websocket.headers):
+        return "Cross-site request not allowed for host GUI"
     return None
 
 
@@ -166,6 +184,11 @@ class HostOriginBindingMiddleware(BaseHTTPMiddleware):
                 if referer and not _origin_allowed(referer, request):
                     return JSONResponse(
                         {"detail": "Referer not allowed for host GUI"},
+                        status_code=403,
+                    )
+                if fetch_site_refused(request.headers):
+                    return JSONResponse(
+                        {"detail": "Cross-site request not allowed for host GUI"},
                         status_code=403,
                     )
         return await call_next(request)
