@@ -87,11 +87,16 @@ def project_basis(project: EpisodeProject, defaults: EffectiveConfig) -> ProxyPr
     """The project state a manifest's artifacts are built from.
 
     ``render_hashes`` holds, per track a manifest's artifacts read, a digest of
-    ``proxy_render_hash`` (a legacy artifact's own input) and ``track_render_hash`` (the clip
-    media, gate fill and restore state a recording or occurrence reads). File contents and
-    binaries are left to the artifacts' own input hashes.
+    ``proxy_render_hash`` (a legacy artifact's own input), ``track_render_hash`` (the clip
+    media, gate fill and restore state a recording or occurrence reads) and the part of
+    ``select_manifest`` that names the track as an artifact's context: whether it has a legacy
+    artifact, which recordings and which restored clips read it. File contents and binaries are
+    left to the artifacts' own input hashes.
     """
     origin = origin_resolver(project)
+    selection = select_manifest(project)
+    restored = set(selection.restored)
+    restored_by = {clip.id: origin(clip) for clip in project.clips if clip.id in restored}
     return ProxyProjectBasis(
         history_head_id=project.history.head_id(),
         render_hashes={
@@ -100,10 +105,13 @@ def project_basis(project: EpisodeProject, defaults: EffectiveConfig) -> ProxyPr
                     [
                         proxy_render_hash(project, tid, defaults=defaults),
                         track_render_hash(project, tid, defaults=defaults),
+                        tid in selection.legacy,
+                        sorted({key[1] for key in selection.recordings.values() if key[0] == tid}),
+                        sorted(cid for cid, context in restored_by.items() if context == tid),
                     ]
                 )
             )
-            for tid in select_manifest(project).track_ids
+            for tid in selection.track_ids
         },
         clips={
             clip.id: ProxyClipBasis(
