@@ -57,6 +57,14 @@ const CASES: [name: string, input: ListenInput, layout: ListenLayout][] = [
     },
   ],
   [
+    "a Viewer with a Script: the Script in the middle, no composer",
+    { ...BASE, mayComment: false, draft: DRAFT },
+    {
+      middle: { kind: "script" },
+      bottom: { kind: "row", label: "15 comments", comments: 15 },
+    },
+  ],
+  [
     "a refused edit and nothing else",
     {
       ...BASE,

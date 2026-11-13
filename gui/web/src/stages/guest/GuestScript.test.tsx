@@ -51,6 +51,11 @@ describe("GuestScript", () => {
     ).toBeNull();
   });
 
+  it("keeps a Viewer's Read only label on a phone, which has no Role chip to say it", () => {
+    setup({ guest: "viewer", layout: "phone" });
+    expect(screen.getByText("Read only")).toBeInTheDocument();
+  });
+
   it("reads only without selection props: no selected state", () => {
     setup({ selection: undefined });
     expect(document.querySelector("[aria-selected]")).toBeNull();
