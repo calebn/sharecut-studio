@@ -150,6 +150,18 @@ describe("playback session (#1764, #3785)", () => {
     expect(newer.onSystemPlay).toHaveBeenCalledTimes(1);
   });
 
+  it("pauses the element when the OS plays it with no engine registered", () => {
+    const el = new FakeElement();
+    const e = events();
+    enterPlaybackSession(e, {}, () => el, url);
+    leavePlaybackSession();
+    releasePlaybackSession(e);
+    el.pause.mockClear();
+    el.osPlay();
+    expect(el.pause).toHaveBeenCalledTimes(1);
+    expect(el.paused).toBe(true);
+  });
+
   it("still resumes from the OS after an ordinary pause", () => {
     const el = new FakeElement();
     const e = events();

@@ -248,6 +248,15 @@ def test_cors_origins_append_from_env(monkeypatch: pytest.MonkeyPatch) -> None:
     assert open_res.json() == {"ok": True}
     assert secret not in open_res.text
     assert open_res.headers.get("content-security-policy") == GUI_CSP
+    directives = {
+        name: sources
+        for name, *sources in (
+            part.split()
+            for part in open_res.headers["content-security-policy"].split(";")
+            if part.strip()
+        )
+    }
+    assert {"'self'", "blob:"} <= set(directives["media-src"])
     assert open_res.headers.get("x-frame-options") == "DENY"
     assert open_res.headers.get("x-content-type-options") == "nosniff"
     assert "frame-ancestors 'none'" in GUI_CSP

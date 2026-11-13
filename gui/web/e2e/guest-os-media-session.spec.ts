@@ -87,21 +87,13 @@ for (const [deviceName, phone] of PHONES) {
       browser,
     }) => {
       await withPhoneGuest(browser, phone, async (page, title) => {
-        await expect
-          .poll(async () => (await readOsRecorder(page)).metadata)
-          .not.toBeNull();
+        await expect(play(page)).toBeVisible();
+        await page.waitForTimeout(1000);
         const idle = await readOsRecorder(page);
-        expect(idle.metadata).toEqual({ title, artist: "", album: "" });
-        expect(idle.playbackState).toBe("paused");
-        expect(idle.handlers).toEqual({
-          play: "fn",
-          pause: "fn",
-          seekbackward: "fn",
-          seekforward: "fn",
-          seekto: "fn",
-          previoustrack: null,
-          nexttrack: null,
-        });
+        expect(idle.metadata).toBeNull();
+        expect(idle.playbackState).toBe("none");
+        expect(idle.handlers).toEqual({});
+        expect(idle.positionStates).toEqual([]);
         expect(idle.media.filter((media) => media.src !== "")).toEqual([]);
 
         await play(page).tap();
@@ -110,6 +102,16 @@ for (const [deviceName, phone] of PHONES) {
           .poll(async () => (await readOsRecorder(page)).playbackState)
           .toBe("playing");
         const playing = await readOsRecorder(page);
+        expect(playing.metadata).toEqual({ title, artist: "", album: "" });
+        expect(playing.handlers).toEqual({
+          play: "fn",
+          pause: "fn",
+          seekbackward: "fn",
+          seekforward: "fn",
+          seekto: "fn",
+          previoustrack: null,
+          nexttrack: null,
+        });
         expect(lastPosition(playing)).toEqual({
           duration: DURATION_SEC,
           playbackRate: 1,
