@@ -12,10 +12,9 @@ from typing import Any
 from podcast_mcp.config.defaults import EffectiveConfig
 from podcast_mcp.engines.ffmpeg import FFmpegEngine
 from podcast_mcp.engines.play_audit import proxy_render_hash, track_render_hash
-from podcast_mcp.engines.session_timeline import origin_resolver, origin_track_id_for_clip
+from podcast_mcp.engines.session_timeline import origin_resolver
 from podcast_mcp.engines.source_proxy_audio import SourceProxyInputs, render_source_proxy_inputs
 from podcast_mcp.models.episode import (
-    Clip,
     EpisodeProject,
     ProxyClipBasis,
     ProxyManifestGeneration,
@@ -28,6 +27,7 @@ from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.media import proxy_media
 from podcast_mcp.util import host_platform
 from podcast_mcp.util.atomic_directory import rename_noreplace
+from podcast_mcp.util.batch_scope import frozen
 from podcast_mcp.util.coded_error import CodedKeyError, CodedValueError
 from podcast_mcp.util.hashing import sha256_file, short_digest
 from podcast_mcp.util.project_state import file_revision, render_lock
@@ -87,10 +87,7 @@ def project_basis(project: EpisodeProject, defaults: EffectiveConfig) -> ProxyPr
     origin = origin_resolver(project)
     return ProxyProjectBasis(
         history_head_id=project.history.head_id(),
-        render_hashes={
-            tid: track_render_hash(project, tid, defaults=defaults)
-            for tid in dialogue_track_ids(project)
-        },
+        render_hashes=proxy_basis_hashes(project, defaults),
         clips={
             clip.id: ProxyClipBasis(
                 track_id=clip.track_id,
@@ -103,6 +100,117 @@ def project_basis(project: EpisodeProject, defaults: EffectiveConfig) -> ProxyPr
             )
             for clip in project.clips
         },
+    )
+
+
+@dataclass(frozen=True)
+class ManifestSelection:
+    """What a full manifest builds: a legacy artifact per dialogue track, an occurrence per
+    restored clip, and a recording per (origin track, source) another clip plays when that
+    source is not its origin track's own media."""
+
+    legacy: tuple[str, ...]
+    restored: tuple[str, ...]
+    recordings: dict[str, tuple[str, str]]
+    # Every track an artifact reads: each context track, and a restored clip's own lane.
+    track_ids: tuple[str, ...]
+
+
+def select_manifest(project: EpisodeProject) -> ManifestSelection:
+    """The selection for ``project``; a read-only block shares it between its readers."""
+    return frozen(("proxy_manifest", id(project)), lambda: _select(project), keep=project)
+
+
+def _select(project: EpisodeProject) -> ManifestSelection:
+    origin = origin_resolver(project)
+    legacy = tuple(dialogue_track_ids(project))
+    restored: list[str] = []
+    recordings: dict[str, tuple[str, str]] = {}
+    reads = list(legacy)
+    plays_primary: dict[tuple[str, str], bool] = {}
+    for clip in project.clips:
+        if clip.bleed_restore is not None and clip.bleed_restore.regions:
+            restored.append(clip.id)
+            reads += [origin(clip), clip.track_id]
+            continue
+        if clip.source_id is None:
+            continue
+        key = origin(clip), clip.source_id
+        if key not in plays_primary:
+            plays_primary[key] = None in project.equivalent_source_ids(*key)
+        if not plays_primary[key]:
+            recordings[clip.id] = key
+            reads.append(key[0])
+    return ManifestSelection(legacy, tuple(restored), recordings, tuple(dict.fromkeys(reads)))
+
+
+def proxy_basis_hashes(project: EpisodeProject, defaults: EffectiveConfig) -> dict[str, str]:
+    """Per track a manifest's artifacts read, a digest of the project state they are built from.
+
+    ``proxy_render_hash`` is a legacy artifact's own input; ``track_render_hash`` adds the
+    clip media, gate fill and restore state a recording or occurrence reads. File contents
+    and binaries are left to the artifacts' own input hashes.
+    """
+    return {
+        tid: short_digest(
+            json.dumps(
+                [
+                    proxy_render_hash(project, tid, defaults=defaults),
+                    track_render_hash(project, tid, defaults=defaults),
+                ]
+            )
+        )
+        for tid in select_manifest(project).track_ids
+    }
+
+
+@dataclass(frozen=True)
+class ManifestInputs:
+    legacy: dict[str, SourceProxyInputs]
+    occurrences: dict[str, SourceProxyInputs]
+    recordings: dict[tuple[str, str], SourceProxyInputs]
+    clip_keys: dict[str, tuple[str, str]]
+
+    def all(self) -> list[SourceProxyInputs]:
+        return [*self.legacy.values(), *self.occurrences.values(), *self.recordings.values()]
+
+    def artifacts(
+        self, project: EpisodeProject, defaults: EffectiveConfig
+    ) -> frozenset[tuple[str, str]]:
+        """The (context track, input hash) of every artifact these inputs build."""
+        return frozenset(
+            (inputs.context_track_id, _input_hash(project, inputs, defaults))
+            for inputs in self.all()
+        )
+
+
+def capture_manifest_inputs(
+    project: EpisodeProject,
+    engine: FFmpegEngine,
+    defaults: EffectiveConfig,
+    track_id: str | None = None,
+) -> ManifestInputs:
+    """Seal the inputs of a full manifest, or of one legacy track when ``track_id`` is set."""
+    if track_id is not None:
+        selection = ManifestSelection((track_id,), (), {}, (track_id,))
+    else:
+        selection = select_manifest(project)
+    return ManifestInputs(
+        legacy={
+            tid: SourceProxyInputs.capture_legacy(project, tid, engine, defaults=defaults)
+            for tid in selection.legacy
+        },
+        occurrences={
+            clip_id: SourceProxyInputs.capture_occurrence(
+                project, clip_id, engine, defaults=defaults
+            )
+            for clip_id in selection.restored
+        },
+        recordings={
+            key: SourceProxyInputs.capture_recording(project, *key, engine, defaults=defaults)
+            for key in dict.fromkeys(selection.recordings.values())
+        },
+        clip_keys=dict(selection.recordings),
     )
 
 
@@ -371,15 +479,6 @@ def _save_confirmed(ws: ProjectWorkspace, expected: EpisodeProject) -> None:
             raise
 
 
-def _recording_key(project: EpisodeProject, clip: Clip) -> tuple[str, str] | None:
-    if clip.source_id is None:
-        return None
-    origin = origin_track_id_for_clip(project, clip)
-    if None in project.equivalent_source_ids(origin, clip.source_id):
-        return None
-    return origin, clip.source_id
-
-
 def _ensure(ws: ProjectWorkspace, track_id: str | None) -> ProxyManifestGeneration | TrackProxy:
     with render_lock(ws.project):
         engine = FFmpegEngine()
@@ -394,41 +493,11 @@ def _ensure(ws: ProjectWorkspace, track_id: str | None) -> ProxyManifestGenerati
                     _safe_id(tid)
                     if snapshot.track_by_id(tid) is None:
                         raise CodedKeyError("Track is not available", code="track_not_found")
-                captures = [
-                    (
-                        tid,
-                        SourceProxyInputs.capture_legacy(
-                            snapshot, tid, engine, defaults=ws.effective_config()
-                        ),
-                    )
-                    for tid in ids
-                ]
-                choices = [
-                    (
-                        clip.id,
-                        SourceProxyInputs.capture_occurrence(
-                            snapshot, clip.id, engine, defaults=ws.effective_config()
-                        ),
-                    )
-                    for clip in snapshot.clips
-                    if track_id is None
-                    and clip.bleed_restore is not None
-                    and clip.bleed_restore.regions
-                ]
-                restored = {clip_id for clip_id, _ in choices}
-                clip_keys = {
-                    clip.id: key
-                    for clip in snapshot.clips
-                    if track_id is None
-                    and clip.id not in restored
-                    and (key := _recording_key(snapshot, clip)) is not None
-                }
-                recordings = {
-                    key: SourceProxyInputs.capture_recording(
-                        snapshot, *key, engine, defaults=ws.effective_config()
-                    )
-                    for key in dict.fromkeys(clip_keys.values())
-                }
+                sealed = capture_manifest_inputs(snapshot, engine, defaults, track_id)
+                captures = list(sealed.legacy.items())
+                choices = list(sealed.occurrences.items())
+                clip_keys = sealed.clip_keys
+                recordings = sealed.recordings
             with tempfile.TemporaryDirectory(prefix="proxy-wav-") as temporary:
                 tracks = {}
                 artifacts = {}
@@ -499,7 +568,7 @@ def _ensure(ws: ProjectWorkspace, track_id: str | None) -> ProxyManifestGenerati
                             "Proxy inputs changed; retry", code="proxy_inputs_changed"
                         )
                     for _, inputs in [*captures, *choices, *recordings.items()]:
-                        inputs.validate(current, engine, defaults=ws.effective_config())
+                        inputs.validate(current, engine, defaults=defaults)
                     for item in prepared:
                         item.publish(current)
                     before = current.model_dump(mode="json")

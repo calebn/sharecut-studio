@@ -3,7 +3,7 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { minimalProject } from "../test/fixtures";
 import { SRC_ROOT } from "../test/sourceFiles";
-import type { ClipRow, ProjectView } from "../types/project";
+import type { ClipRow } from "../types/project";
 import {
   buildSchedule,
   chunkFileStartSec,
@@ -864,7 +864,7 @@ describe("proxy audio identity", () => {
           needs_rerender: false,
           reconciliation: { stale: false },
           premix: { exists: false },
-          tracks: { host: { render_hash: "h1" }, guest: { render_hash: "g1" } },
+          proxy_hashes: { host: "h1", guest: "g1" },
         },
       }),
     );
@@ -1003,7 +1003,7 @@ describe("the proxy key reads what tests/fixtures/proxy_basis/key.json names", (
         guest: { render_hash: "" },
       },
       proxy_hashes: { host: "proxy-host", music: "proxy-music" },
-    } as ProjectView["render_status"],
+    },
   });
 
   it("takes the per-track hashes from the view path the contract names", () => {

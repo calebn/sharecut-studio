@@ -540,6 +540,11 @@ export interface ProjectView
         render_hash?: string;
       }
     >;
+    /**
+     * Per track whose proxy artifacts a manifest builds, a digest of what they are
+     * built from. A proxy manifest's `project_basis.render_hashes` is the same map.
+     */
+    proxy_hashes?: Record<string, string>;
   };
   edit_impact: {
     pending_review_count: number;
