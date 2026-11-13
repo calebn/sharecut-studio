@@ -1741,8 +1741,10 @@ matches on the render hashes and clip rows only. `select_manifest` names what a 
 manifest builds (a legacy artifact per dialogue track, an occurrence per restored clip,
 a recording per origin track and source that is not that track's own media), and
 `_ensure` captures exactly that selection for a full manifest. `project_basis` records in `render_hashes`, for every track
-those artifacts read, of any role, a digest of its `proxy_render_hash` and
-`track_render_hash`. An effect on a music
+those artifacts read, of any role, a digest of its `proxy_render_hash`, its
+`track_render_hash` and its part of the selection (whether it has a legacy artifact, which
+recordings and which restored clips read it), so a role change that adds or drops an
+artifact moves the key even when no hash input changed. An effect on a music
 track with its own sourced clips therefore moves the music entry. Suppressed words
 enter `proxy_render_hash` only on a gated track, since only the transcript gate reads
 them, so suppressing a word on an ungated track leaves its artifacts and the key as
