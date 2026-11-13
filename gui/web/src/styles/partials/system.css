@@ -1096,9 +1096,9 @@ button.sys-version-line {
 /* A folded frame (useShortFrame: it cannot hold the full header, the Player,
    the tab bar and the lanes' floor, so a phone held sideways at large text, or a
    small phone at 200% text) keeps the Player as one touch-height row: Play, the
-   clock and the hear menu, plus an icon-only Comment on the phone shell. The
-   skip buttons, the cuts, the A and B toggles, Comment off the phone and the
-   status chips give way. */
+   clock and the hear menu, plus, for a guest on the phone shell, an icon-only
+   Comment. The skip buttons, the cuts, the A and B toggles, Comment for a host
+   or off the phone and the status chips give way. */
 html[data-frame-short] .sys-player {
   min-block-size: var(--touch-min);
 }
@@ -1108,15 +1108,15 @@ html[data-frame-short] .sys-player-ab,
 html[data-frame-short] .sys-player-left > :not(.sys-player-time),
 html[data-frame-short]
   .sys-player-right
-  > :not(.sys-player-hear, .sys-player-comment) {
+  > :not(.sys-player-hear, .sys-player-comment--guest) {
   display: none;
 }
 
-html[data-frame-short]:not([data-shell="phone"]) .sys-player-comment {
+html[data-frame-short]:not([data-shell="phone"]) .sys-player-comment--guest {
   display: none;
 }
 
-html[data-frame-short][data-shell="phone"] .sys-player-comment {
+html[data-frame-short][data-shell="phone"] .sys-player-comment--guest {
   min-inline-size: var(--touch-min);
   min-block-size: var(--touch-min);
 }
