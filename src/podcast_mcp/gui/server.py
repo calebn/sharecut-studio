@@ -96,7 +96,11 @@ def _cors_origins() -> list[str]:
 
     Credentials are allowed, so every entry must be an exact origin: a wildcard
     or malformed entry raises ``RuntimeConfigError`` and the GUI does not start.
+    A host whose loopback is not trusted has none: its web view is same-origin, and a cookie
+    goes to every loopback port, so no other origin may read a credentialed response.
     """
+    if not host_platform.current().loopback_is_trusted:
+        return []
 
     defaults = [
         "http://127.0.0.1:5173",
@@ -316,7 +320,7 @@ def create_app(
     app.add_middleware(
         CORSMiddleware,
         allow_origins=_cors_origins(),
-        allow_credentials=True,
+        allow_credentials=loopback_is_trusted,
         allow_methods=["*"],
         allow_headers=["*"],
         expose_headers=[ERROR_CODE_HEADER, "Retry-After", *PENDING_PREVIEW_HEADER_NAMES],
