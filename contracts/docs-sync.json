@@ -1154,6 +1154,8 @@
           "src/podcast_mcp/services/document_sync/capabilities.py",
           "src/podcast_mcp/services/collaboration/share_capabilities.py",
           "src/podcast_mcp/services/collaboration/review_shares.py",
+          "src/podcast_mcp/services/collaboration/share.py",
+          "src/podcast_mcp/gui/routes/review_share.py",
           "gui/web/src/shareMode.ts"
         ]
       }
