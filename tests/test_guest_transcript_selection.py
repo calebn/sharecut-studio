@@ -363,11 +363,8 @@ def _mcp_project(token: str) -> dict:
 
 @pytest.mark.parametrize("role", ["viewer", "commenter", "editor"])
 def test_row_fields_the_client_overlay_compares_agree_on_every_route(guest, role):
-    """gui/web/src/document/projectPatch.ts keeps a loaded word overlay only while
-    ``text``, ``locked_word_indices``, ``ignored_word_indices``,
-    ``edge_suppressed_word_indices`` and ``suppressed_only`` match the previous row,
-    so a guest must get the same values from ``document/state`` as from every
-    route that sanitizes with the default word mode."""
+    """projectPatch.ts keeps a loaded word overlay only while these row fields match the
+    previous row, so every route must give a guest the same values as ``document/state``."""
     client, open_share, path = guest
     ws = ProjectWorkspace.open(path)
     ws.project.transcripts[0].words[1].audibility_locked = True

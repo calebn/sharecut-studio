@@ -500,10 +500,10 @@ review role reads no words. A Viewer's `ignored` flag is kept because the
 Script skips ignored words. Utterance rows keep their row-level fields
 (`locked_word_indices` among them) for every role on every route, because the
 client compares them to decide whether a loaded word overlay is still valid;
-cutting rows to an allowlist for guests is tracked in #3798. Reading follows the review role
-(`guest_reads_transcript_words`); selecting follows the document-command gate
-(`guest_selects_transcript_words`). Neither is a permission of its own. A share
-that holds no role in full runs no document command, on the browser route and the
+cutting rows to an allowlist for guests is tracked in #3798. Reading follows
+the review role (`guest_reads_transcript_words`); selecting follows the
+document-command gate (`guest_selects_transcript_words`). Neither is a
+permission of its own. A share that holds no role in full runs no document command, on the browser route and the
 guest MCP alike. The
 guest MCP derives its tool list from the same gate: `guest_submit_document_command`
 needs a command the gate allows, and the Editor tools (render preview, media
