@@ -49,6 +49,7 @@ from podcast_mcp.services.document import (
     TimelineService,
     TranscriptService,
 )
+from podcast_mcp.util.host_platform import LINUX, MACOS, using
 from podcast_mcp.util.project_state import RenderBusyError, render_lock, render_lock_held
 
 
@@ -1338,9 +1339,16 @@ def test_play_compare_invalid_range(minimal_project, sample_wav) -> None:
 
 def test_play_player_command_linux(minimal_project, sample_wav) -> None:
     ws = _dialogue_workspace(minimal_project, sample_wav)
-    with patch("platform.system", return_value="Linux"):
+    with using(LINUX):
         cmd = PlayService(ws)._player_command(None, Path("/tmp/x.wav"))
     assert cmd == ["ffplay", "-nodisp", "-autoexit", "/tmp/x.wav"]
+
+
+def test_play_player_command_macos(minimal_project, sample_wav) -> None:
+    ws = _dialogue_workspace(minimal_project, sample_wav)
+    with using(MACOS):
+        cmd = PlayService(ws)._player_command(None, Path("/tmp/x.wav"))
+    assert cmd == ["afplay", "/tmp/x.wav"]
 
 
 # --- EditService ---

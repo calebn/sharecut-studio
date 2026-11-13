@@ -33,6 +33,7 @@ from podcast_mcp.services.document import ExportFilesService, ServedFile, Transc
 from podcast_mcp.services.jobs import Job
 from podcast_mcp.services.remote_mcp.limits import reset_host_limiters_for_tests
 from podcast_mcp.util.coded_error import CodedFileNotFoundError
+from podcast_mcp.util.host_platform import GENERIC_POSIX, IOS, LINUX, MACOS, WINDOWS
 
 CODE = "x-sharecut-error-code"
 GUEST = "/api/review/{token}/daw/export/files"
@@ -854,14 +855,14 @@ def test_reveal_reports_a_computer_with_no_file_manager(ws, folder, local, monke
 
 
 @pytest.mark.parametrize(
-    ("system", "argv"),
+    ("row", "argv"),
     [
-        ("Darwin", ["open", "-R", "/x/e/a.mp3"]),
-        ("Windows", ["explorer", "/select,/x/e/a.mp3"]),
-        ("Linux", ["xdg-open", "/x/e"]),
+        (MACOS, ["open", "-R", "/x/e/a.mp3"]),
+        (WINDOWS, ["explorer", "/select,/x/e/a.mp3"]),
+        (LINUX, ["xdg-open", "/x/e"]),
     ],
 )
-def test_the_file_manager_is_launched_with_an_argv_list(monkeypatch, system, argv) -> None:
+def test_the_file_manager_is_launched_with_an_argv_list(monkeypatch, host, row, argv) -> None:
     calls: list[list[str]] = []
 
     def run(args, **_kw):
@@ -870,23 +871,27 @@ def test_the_file_manager_is_launched_with_an_argv_list(monkeypatch, system, arg
 
     monkeypatch.setattr("podcast_mcp.gui.host_reveal.process.run", run)
 
-    assert reveal_in_file_manager(Path("/x/e/a.mp3"), system=system) is True
+    host(row)
+    assert reveal_in_file_manager(Path("/x/e/a.mp3")) is True
     assert calls == [argv]
-    assert reveal_in_file_manager(Path("/x/e/a.mp3"), system="Plan9") is False
+    host(GENERIC_POSIX)
+    assert reveal_in_file_manager(Path("/x/e/a.mp3")) is False
+    host(IOS)
+    assert reveal_in_file_manager(Path("/x/e/a.mp3")) is False
+    assert calls == [argv]
 
 
-@pytest.mark.parametrize(
-    ("system", "opened"), [("Darwin", False), ("Linux", False), ("Windows", True)]
-)
+@pytest.mark.parametrize(("row", "opened"), [(MACOS, False), (LINUX, False), (WINDOWS, True)])
 def test_a_failed_file_manager_exit_is_reported_except_for_explorers_odd_code(
-    monkeypatch, system, opened
+    monkeypatch, host, row, opened
 ) -> None:
     monkeypatch.setattr(
         "podcast_mcp.gui.host_reveal.process.run",
         lambda args, **_kw: subprocess.CompletedProcess(args, 1),
     )
 
-    assert reveal_in_file_manager(Path("/x/e/a.mp3"), system=system) is opened
+    host(row)
+    assert reveal_in_file_manager(Path("/x/e/a.mp3")) is opened
 
 
 def test_a_name_with_a_control_or_bidi_character_is_not_listed(ws, folder) -> None:

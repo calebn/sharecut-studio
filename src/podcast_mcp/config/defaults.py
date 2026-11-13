@@ -9,6 +9,7 @@ from typing import Any
 import yaml
 
 from podcast_mcp import settings
+from podcast_mcp.util import host_platform
 from podcast_mcp.util.bounded_cache import BoundedCache
 
 EffectiveConfig = dict[str, Any]
@@ -31,7 +32,7 @@ def repo_root() -> Path:
 
 
 def _cache_root() -> Path:
-    return Path(settings.value("PODCAST_MCP_CACHE", str(Path.home() / ".cache" / "podcast_mcp")))
+    return Path(settings.value("PODCAST_MCP_CACHE", str(host_platform.data_roots().cache)))
 
 
 def cache_dir() -> Path:

@@ -7,7 +7,6 @@ from __future__ import annotations
 
 import json
 import os
-import platform
 import re
 import secrets
 import shutil
@@ -32,6 +31,7 @@ from podcast_mcp.services.support.doctor import (
     python_runtime_info,
     run_doctor_checks,
 )
+from podcast_mcp.util import host_platform
 from podcast_mcp.util.atomic_file import publish_completed_file
 from podcast_mcp.util.diagnostics_bundle_contract import (
     MAX_BUNDLE_BYTES,
@@ -118,7 +118,7 @@ class BundleReport:
 
 
 def default_bundle_dir() -> Path:
-    return Path.home() / "Downloads"
+    return host_platform.data_roots().exports
 
 
 def bundle_filename(*, when: datetime | None = None, nonce: str | None = None) -> str:
@@ -158,9 +158,7 @@ def sidecar_log_candidates() -> list[Path]:
     xdg = settings.text("XDG_STATE_HOME")
     if xdg:
         paths.append(Path(xdg) / "SharecutStudio" / "sidecar.log")
-    home = Path.home()
-    paths.append(home / "Library" / "Logs" / "ShareCut Studio" / "sidecar.log")
-    paths.append(home / ".local" / "state" / "SharecutStudio" / "sidecar.log")
+    paths.extend(log_dir / "sidecar.log" for log_dir in host_platform.data_roots().log_dirs)
     seen: set[Path] = set()
     unique: list[Path] = []
     for path in paths:
@@ -423,9 +421,9 @@ def _build_report_json(
         "app_version": podcast_mcp.__version__,
         "python": python_runtime_info(),
         "os": {
-            "system": platform.system(),
-            "release": platform.release(),
-            "machine": platform.machine(),
+            "system": host_platform.current().system_label,
+            "release": host_platform.release(),
+            "machine": host_platform.machine(),
         },
         "ffmpeg": ffmpeg_probe_info(),
         "whisper": {

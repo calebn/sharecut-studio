@@ -41,6 +41,7 @@ from podcast_mcp.project.io import (
     open_project,
     require_episode_project_file,
 )
+from podcast_mcp.util import host_platform
 from podcast_mcp.util.atomic_file import atomic_write
 from podcast_mcp.util.coded_error import CodedError
 from podcast_mcp.util.fingerprint import file_stamp
@@ -397,7 +398,7 @@ def default_workspace_dir(name: str) -> Path:
     ``com1``) is refused with ``project_name_reserved``, never renamed.
     """
     root = settings.text("PODCAST_WORKSPACE_ROOT")
-    base = (Path(root).expanduser() if root else Path.home() / "ShareCut").resolve()
+    base = (Path(root).expanduser() if root else host_platform.data_roots().workspace).resolve()
     clean = "".join(c for c in name if c not in '/\\:*?"<>|\0').strip(" .") or "episode"
     word = clean.split(".", 1)[0]
     if word.upper() in _WINDOWS_RESERVED:
