@@ -15,7 +15,10 @@ import {
   type ReviewQueueProps,
 } from "../../review/ReviewQueue";
 import type { ReviewStageProps } from "../../review/ReviewStage";
-import type { ReviewItem } from "../../review/reviewQueueModel";
+import {
+  attentionVisible,
+  type ReviewItem,
+} from "../../review/reviewQueueModel";
 import { canComment } from "../../shareMode";
 import { ChaptersList } from "../../stage/frame/ChaptersList";
 import { useDawStore } from "../../state/dawStore";
@@ -119,6 +122,7 @@ export function GuestListen({ review, script, scriptState }: GuestListenProps) {
       suggestions: items.length - commentItems.length,
     },
     hasChapters,
+    needsAttention: attentionVisible(review.attention, review.filter),
     draft,
   });
   const composing = layout.bottom.kind === "composer";
