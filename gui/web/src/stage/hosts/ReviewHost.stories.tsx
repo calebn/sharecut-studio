@@ -456,9 +456,7 @@ export const GuestCommenterEmpty: Story = {
     ).toBeNull();
     if (!onPhone(canvasElement))
       await expect(
-        (
-          await canvas.findAllByText(/^(No comments( yet)?|0 of 0 resolved)$/)
-        )[0],
+        (await canvas.findAllByText(/^(No comments( yet)?|0 comments)$/))[0],
       ).toBeVisible();
     await expect(canvas.queryByRole("button", { name: /Deliver/ })).toBeNull();
   },
