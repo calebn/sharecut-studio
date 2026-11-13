@@ -570,7 +570,7 @@ export function Player(props: PlayerProps) {
             {onComment ? (
               <VerbButton
                 verb="comment"
-                className="sys-player-comment"
+                className={`sys-player-comment${guest ? " sys-player-comment--guest" : ""}`}
                 onClick={onComment}
               />
             ) : null}
