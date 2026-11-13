@@ -331,3 +331,73 @@ def test_viewer_ws_hello_pump_and_command_reply_carry_no_words(guest):
                 break
         assert any(m.get("plane") == "document" for m in pumped)
         assert all('"words"' not in json.dumps(m) for m in pumped)
+
+
+ROW_OVERLAY_FIELDS = (
+    "text",
+    "locked_word_indices",
+    "ignored_word_indices",
+    "edge_suppressed_word_indices",
+    "suppressed_only",
+)
+
+
+def _overlay_rows(utterances: list[dict]) -> list[dict]:
+    return [{k: row.get(k) for k in ROW_OVERLAY_FIELDS} for row in utterances]
+
+
+def _mcp_project(token: str) -> dict:
+    from podcast_mcp.services.remote_mcp.protocol import handle_mcp_jsonrpc
+
+    out = handle_mcp_jsonrpc(
+        token,
+        {
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "tools/call",
+            "params": {"name": "guest_get_project", "arguments": {}},
+        },
+    )
+    return json.loads(out["result"]["content"][0]["text"])
+
+
+@pytest.mark.parametrize("role", ["viewer", "commenter", "editor"])
+def test_row_fields_the_client_overlay_compares_agree_on_every_route(guest, role):
+    """gui/web/src/document/projectPatch.ts keeps a loaded word overlay only while
+    ``text``, ``locked_word_indices``, ``ignored_word_indices``,
+    ``edge_suppressed_word_indices`` and ``suppressed_only`` match the previous row,
+    so a guest must get the same values from ``document/state`` as from every
+    route that sanitizes with the default word mode."""
+    client, open_share, path = guest
+    ws = ProjectWorkspace.open(path)
+    ws.project.transcripts[0].words[1].audibility_locked = True
+    rebuild_combined(ws.project, defaults=ws.effective_config())
+    ws.save()
+    token = open_share(capabilities_for_role(role, with_mcp=True))
+    base = f"/api/review/{token}/daw"
+
+    def state(phase: str) -> list[dict]:
+        body = client.get(f"{base}/document/state", params={"phase": phase})
+        assert body.status_code == 200
+        payload = body.json()
+        view = payload["patch"] if "patch" in payload else payload["project"]
+        return view["transcript"]["utterances"]
+
+    reference = _overlay_rows(state("detail"))
+    assert reference[0]["locked_word_indices"] == [1]
+    assert reference[0]["edge_suppressed_word_indices"] == [2]
+    assert _overlay_rows(state("full")) == reference
+
+    routes: dict[str, list[dict]] = {}
+    for name, params in (("project", {}), ("project-shell", {"phase": "shell"})):
+        body = client.get(f"{base}/project", params=params)
+        assert body.status_code == 200
+        routes[name] = body.json()["transcript"]["utterances"]
+    with client.websocket_connect(f"{base}/ws") as guest_ws:
+        hello = [guest_ws.receive_json(), guest_ws.receive_json()]
+    [document] = [m for m in hello if m["plane"] == "document"]
+    routes["ws-hello"] = document["snapshot"]["project"]["transcript"]["utterances"]
+    routes["remote-mcp"] = _mcp_project(token)["transcript"]["utterances"]
+
+    for name, utterances in routes.items():
+        assert _overlay_rows(utterances) == reference, name

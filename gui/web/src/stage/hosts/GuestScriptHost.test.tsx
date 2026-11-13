@@ -6,9 +6,13 @@ import { useDawStore } from "../../state/dawStore";
 import { CENTER, NEAREST, probeScript } from "../../system/scriptScrollProbe";
 import {
   COMMENTER_CAPABILITIES,
+  clipRow,
   EDITOR_CAPABILITIES,
   minimalProject,
+  VIEWER_CAPABILITIES,
 } from "../../test/fixtures";
+import { drag, layout } from "../../test/scriptDrag";
+import { scriptUtterances, seedScript } from "../../test/scriptHostKit";
 import { stubViewportShell } from "../../test/viewportShell";
 import type { CombinedUtterance } from "../../types/project";
 import { GuestScriptHost } from "./GuestScriptHost";
@@ -27,7 +31,34 @@ vi.mock("../../stages/guest/GuestScript", async (original) => {
   };
 });
 
-const UTTERANCES: CombinedUtterance[] = [
+const READING_WORD_FIELDS = [
+  "text",
+  "start",
+  "end",
+  "timeline_start",
+  "timeline_end",
+  "mappable",
+  "word_index",
+  "ignored",
+] as const;
+
+/** The words a Viewer receives: unsuppressed, cut to the server's eight READING fields. */
+function readingCut(utterances: CombinedUtterance[]): CombinedUtterance[] {
+  return utterances
+    .filter((u) => !u.suppressed_only)
+    .map((u) => ({
+      ...u,
+      words: (u.words ?? [])
+        .filter((w) => !w.suppressed)
+        .map((w) =>
+          Object.fromEntries(
+            READING_WORD_FIELDS.map((k) => [k, k === "ignored" ? false : w[k]]),
+          ),
+        ) as CombinedUtterance["words"],
+    }));
+}
+
+const COMMENTER_UTTERANCES: CombinedUtterance[] = [
   {
     track_id: "t1",
     source_id: "s1",
@@ -42,6 +73,9 @@ const UTTERANCES: CombinedUtterance[] = [
         end: 0,
         timeline_start: 10,
         timeline_end: 10.5,
+        mappable: true,
+        word_index: 0,
+        confidence: 0.9,
       },
       {
         text: "back",
@@ -49,16 +83,30 @@ const UTTERANCES: CombinedUtterance[] = [
         end: 0,
         timeline_start: 11,
         timeline_end: 11.5,
+        mappable: true,
+        word_index: 1,
+        confidence: 0.9,
       },
-      { text: "cut", start: 0, end: 0, timeline_start: 12, suppressed: true },
+      {
+        text: "cut",
+        start: 0,
+        end: 0,
+        timeline_start: 12,
+        mappable: true,
+        word_index: 2,
+        suppressed: true,
+      },
     ],
   },
 ];
+const UTTERANCES: CombinedUtterance[] = readingCut(COMMENTER_UTTERANCES);
 
 function as(
   mode: "view" | "comment" | "edit" | null,
   playheadSec: number,
-  utterances: CombinedUtterance[] = UTTERANCES,
+  utterances: CombinedUtterance[] = mode === "view"
+    ? UTTERANCES
+    : COMMENTER_UTTERANCES,
 ) {
   useDawStore
     .getState()
@@ -143,39 +191,111 @@ describe("GuestScriptHost", () => {
     expect(seekTransport).toHaveBeenCalledExactlyOnceWith(11);
   });
 
-  describe("a Viewer link", () => {
-    it("seeks to the clicked word and selects nothing", async () => {
-      as("view", 0);
-      render(<GuestScriptHost />);
-      await userEvent.click(screen.getByRole("button", { name: "back" }));
-      expect(seekTransport).toHaveBeenCalledExactlyOnceWith(11);
-      expect(useDawStore.getState().selection).toBeNull();
+  describe("selection", () => {
+    const CLIPS = {
+      tracks: {
+        host: [
+          clipRow({
+            id: "ch",
+            track_id: "host",
+            timeline_start: 0,
+            timeline_end: 30,
+            source_start: 0,
+            source_end: 30,
+          }),
+        ],
+        guest: [
+          clipRow({
+            id: "cg",
+            track_id: "guest",
+            timeline_start: 0,
+            timeline_end: 30,
+            source_start: 0,
+            source_end: 30,
+          }),
+        ],
+      },
+      clip_count: 2,
+    };
+    const seed = (viewer: boolean) =>
+      seedScript({
+        projectPath: "share:abc",
+        guestMode: viewer ? "view" : "comment",
+        shareCapabilities: viewer
+          ? VIEWER_CAPABILITIES
+          : COMMENTER_CAPABILITIES,
+        utterances: viewer
+          ? readingCut(scriptUtterances())
+          : scriptUtterances(),
+        project: { clips: CLIPS },
+      });
+    const wordsOf = () =>
+      useDawStore
+        .getState()
+        .project?.transcript?.utterances.flatMap((u) => u.words ?? []);
+
+    beforeEach(() => layout());
+    afterEach(() => {
+      vi.restoreAllMocks();
+      delete (document as { elementFromPoint?: unknown }).elementFromPoint;
     });
 
-    it("seeks to a focused word on Enter", async () => {
-      as("view", 0);
+    it("gives a Viewer the eight reading fields on every word, none suppressed", () => {
+      seed(true);
+      const words = wordsOf() ?? [];
+      expect(words.length).toBeGreaterThan(0);
+      for (const w of words) {
+        expect(Object.keys(w).sort()).toEqual([...READING_WORD_FIELDS].sort());
+      }
+      expect(words.map((w) => w.text)).not.toContain("mumble");
+    });
+
+    it("a Viewer's click and Shift+click seek and select nothing", async () => {
+      seed(true);
+      render(<GuestScriptHost />);
+      await userEvent.click(screen.getByRole("button", { name: "back" }));
+      expect(seekTransport).toHaveBeenLastCalledWith(10.5);
+      expect(useDawStore.getState().selection).toBeNull();
+      fireEvent.click(screen.getByRole("button", { name: "show" }), {
+        shiftKey: true,
+        detail: 1,
+      });
+      expect(useDawStore.getState().selection).toBeNull();
+      expect(document.querySelector("[data-selected]")).toBeNull();
+      expect(document.querySelector(".sys-handle")).toBeNull();
+      expect(screen.queryByLabelText("Selection actions")).toBeNull();
+    });
+
+    it("a Viewer's pointer drag across two words selects nothing and draws no grips or bar", () => {
+      seed(true);
+      render(<GuestScriptHost />);
+      drag(0, 3);
+      expect(useDawStore.getState().selection).toBeNull();
+      expect(document.querySelector("[data-selected]")).toBeNull();
+      expect(document.querySelector(".sys-handle")).toBeNull();
+      expect(screen.queryByLabelText("Selection actions")).toBeNull();
+    });
+
+    it("seeks to a focused word on Enter and still selects nothing", async () => {
+      seed(true);
       render(<GuestScriptHost />);
       screen.getByRole("button", { name: "back" }).focus();
       await userEvent.keyboard("{Enter}");
-      expect(seekTransport).toHaveBeenCalledExactlyOnceWith(11);
+      expect(seekTransport).toHaveBeenLastCalledWith(10.5);
       expect(useDawStore.getState().selection).toBeNull();
     });
 
-    it("leaves the selection empty under Shift+click and Shift+Arrow", async () => {
-      as("view", 0);
+    it("a Commenter on the same words does select, with grips", () => {
+      seed(false);
       render(<GuestScriptHost />);
-      await userEvent.click(screen.getByRole("button", { name: "Welcome" }));
-      await userEvent.keyboard("{Shift>}");
-      await userEvent.click(screen.getByRole("button", { name: "back" }));
-      await userEvent.keyboard("{ArrowRight}{/Shift}");
-      expect(useDawStore.getState().selection).toBeNull();
-      expect(document.querySelector("[data-selected]")).toBeNull();
-    });
-
-    it("draws no selection grips", () => {
-      as("view", 0);
-      render(<GuestScriptHost />);
-      expect(document.querySelector("[class*='grip']")).toBeNull();
+      drag(0, 3);
+      expect(useDawStore.getState().selection).toMatchObject({
+        kind: "transcriptRange",
+        trackId: "host",
+        startWordIndex: 0,
+        endWordIndex: 3,
+      });
+      expect(document.querySelector(".sys-handle")).not.toBeNull();
     });
   });
 
