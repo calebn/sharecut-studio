@@ -1,4 +1,4 @@
-import { act, render, screen, within } from "@testing-library/react";
+import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { clearRegisteredCommands } from "../../commands/execute";
@@ -7,7 +7,10 @@ import { PlayerBar } from "../../stage/frame/PlayerBar";
 import { SheetHost } from "../../stage/frame/SheetHost";
 import { ReviewHost } from "../../stage/hosts/ReviewHost";
 import { useDawStore } from "../../state/dawStore";
-import { expectNoA11yViolations } from "../../test/a11y";
+import {
+  expectNoA11yViolations,
+  expectOutsideLiveRegions,
+} from "../../test/a11y";
 import {
   minimalProject,
   sampleComment,
@@ -77,14 +80,19 @@ function mount() {
 
 const commentField = () => screen.getByRole("textbox", { name: "Comment" });
 
+const scrollIntoView = vi.fn();
+
 beforeEach(() => {
   localStorage.clear();
+  scrollIntoView.mockReset();
+  HTMLElement.prototype.scrollIntoView = scrollIntoView;
   stubViewportShell("phone");
   clearRegisteredCommands();
   registerDawCommands();
   createComment.mockReset().mockResolvedValue(sampleComment({ id: "new" }));
 });
 afterEach(() => {
+  Reflect.deleteProperty(HTMLElement.prototype, "scrollIntoView");
   vi.restoreAllMocks();
   useDawStore.setState({ shellBreakpoint: "desktop" });
 });
@@ -95,7 +103,7 @@ describe("the phone Commenter Listen layout", () => {
     mount();
     expect(screen.queryByRole("textbox")).toBeNull();
     expect(
-      screen.getByRole("button", { name: "Show comments, 3 comments" }),
+      screen.getByRole("button", { name: "Show 3 comments" }),
     ).toBeVisible();
     expect(
       screen.getByRole("slider", { name: "Episode overview" }),
@@ -112,7 +120,9 @@ describe("the phone Commenter Listen layout", () => {
     await user.click(screen.getByRole("button", { name: "Comment at 0:00" }));
     expect(commentField()).toHaveFocus();
     expect(screen.getByRole("textbox", { name: "Your name" })).toBeVisible();
-    expect(screen.queryByRole("button", { name: /Show comments/ })).toBeNull();
+    expect(
+      screen.queryByRole("button", { name: /^Show\b.*\bcomments?/ }),
+    ).toBeNull();
   });
 
   it("asks for no name when the browser already knows it", async () => {
@@ -140,7 +150,7 @@ describe("the phone Commenter Listen layout", () => {
     await act(async () => {});
     expect(screen.queryByRole("textbox")).toBeNull();
     expect(
-      screen.getByRole("button", { name: /^Show comments/ }),
+      screen.getByRole("button", { name: /^Show\b.*\bcomments?/ }),
     ).toBeVisible();
   });
 
@@ -186,9 +196,22 @@ describe("the phone Commenter Listen layout", () => {
     await user.type(commentField(), "Too long a pause");
     await user.click(screen.getByRole("button", { name: "Post" }));
     await act(async () => {});
-    expect(screen.getAllByText("Comment added at 1:26").length).toBeGreaterThan(
-      0,
+    expect(screen.getByText("Comment added at 1:26")).toBeVisible();
+  });
+
+  it("leaves the announcement of a post to the status line alone", async () => {
+    const user = userEvent.setup();
+    localStorage.setItem(NAME_KEY, "Maya");
+    createComment.mockResolvedValue(
+      sampleComment({ id: "new", timeline_start: 86 }),
     );
+    join("comment");
+    const { container } = mount();
+    await user.click(screen.getByRole("button", { name: "Comment at 0:00" }));
+    await user.type(commentField(), "Too long a pause");
+    await user.click(screen.getByRole("button", { name: "Post" }));
+    await act(async () => {});
+    expectOutsideLiveRegions(container, /Comment added at 1:26/);
   });
 
   describe("playback", () => {
@@ -257,9 +280,7 @@ describe("the phone Commenter Listen layout", () => {
     const user = userEvent.setup();
     join("comment");
     mount();
-    await user.click(
-      screen.getByRole("button", { name: "Show comments, 3 comments" }),
-    );
+    await user.click(screen.getByRole("button", { name: "Show 3 comments" }));
     const sheet = screen.getByRole("dialog", { name: "Comments" });
     await user.click(within(sheet).getByText("Note number 1"));
     expect(
@@ -274,23 +295,30 @@ describe("the phone Commenter Listen layout", () => {
     expect(screen.getByRole("dialog", { name: "Comments" })).toBeVisible();
   });
 
-  it("shows the comment being heard in the row, and opens its thread from there", async () => {
-    const user = userEvent.setup();
+  it("shows the comment being heard in the row, with the count beside the icon", () => {
     join("comment");
     mount();
     act(() => useDawStore.setState({ playheadSec: 5 }));
-    const row = screen.getByRole("button", { name: /^Show comments/ });
+    const row = screen.getByRole("button", { name: "Show 3 comments" });
     expect(row).toHaveTextContent("Claude · 0:03 Note number 1");
-    await user.click(row);
+    const count = within(row).getByText("3");
+    expect(count.previousElementSibling?.tagName.toLowerCase()).toBe("svg");
+  });
+
+  it("names the row in the singular for one comment", () => {
+    join("comment", 1);
+    mount();
     expect(
-      screen.getByRole("dialog", { name: "Comment from Claude" }),
+      screen.getByRole("button", { name: "Show 1 comment" }),
     ).toBeVisible();
   });
 
   it("has no comments row when there are no comments", () => {
     join("comment", 0);
     mount();
-    expect(screen.queryByRole("button", { name: /Show comments/ })).toBeNull();
+    expect(
+      screen.queryByRole("button", { name: /^Show\b.*\bcomments?/ }),
+    ).toBeNull();
     expect(
       screen.getByRole("button", { name: "Comment at 0:00" }),
     ).toBeVisible();
@@ -311,7 +339,254 @@ describe("the phone Viewer Listen layout", () => {
     expect(screen.queryByRole("button", { name: /^Comment at/ })).toBeNull();
     expect(screen.getByRole("list", { name: "Chapters" })).toBeVisible();
     expect(
-      screen.getByRole("button", { name: "Show comments, 3 comments" }),
+      screen.getByRole("button", { name: /^Show\b.*\bcomments?/ }),
     ).toBeVisible();
+  });
+});
+
+const playing = () => useDawStore.getState().isPlaying;
+const commentAt = () => screen.getByRole("button", { name: /^Comment at/ });
+const rowButton = () =>
+  screen.getByRole("button", { name: /^Show\b.*\bcomments?/ });
+const startPlaying = () =>
+  useDawStore.setState({ isPlaying: true, playStartSec: 0, playheadSec: 5 });
+
+describe("one surface owns the bottom", () => {
+  it("closes the Comments sheet when Comment opens the composer", async () => {
+    const user = userEvent.setup();
+    localStorage.setItem(NAME_KEY, "Maya");
+    join("comment");
+    mount();
+    await user.click(rowButton());
+    expect(screen.getByRole("dialog", { name: "Comments" })).toBeVisible();
+    await user.click(commentAt());
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(useDawStore.getState().openSheet).toBeNull();
+    expect(commentField()).toHaveFocus();
+  });
+
+  it("closes the Chapters sheet when Comment opens the composer", async () => {
+    const user = userEvent.setup();
+    localStorage.setItem(NAME_KEY, "Maya");
+    join("comment");
+    mount();
+    act(() => useDawStore.getState().setOpenSheet("chapters"));
+    expect(screen.getByRole("dialog", { name: "Chapters" })).toBeVisible();
+    await user.click(commentAt());
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(commentField()).toHaveFocus();
+  });
+
+  it("reopens on the list, not an old thread, after Comment closed the sheet", async () => {
+    const user = userEvent.setup();
+    localStorage.setItem(NAME_KEY, "Maya");
+    join("comment");
+    mount();
+    await user.click(rowButton());
+    await user.click(
+      within(screen.getByRole("dialog", { name: "Comments" })).getByText(
+        "Note number 1",
+      ),
+    );
+    expect(
+      screen.getByRole("dialog", { name: "Comment from Claude" }),
+    ).toBeVisible();
+    await user.click(commentAt());
+    await user.click(screen.getByRole("button", { name: "Close" }));
+    await user.click(rowButton());
+    expect(screen.getByRole("dialog", { name: "Comments" })).toBeVisible();
+  });
+
+  it("reopens on the list after another path closed the sheet on a thread", async () => {
+    const user = userEvent.setup();
+    join("comment");
+    mount();
+    await user.click(rowButton());
+    await user.click(
+      within(screen.getByRole("dialog", { name: "Comments" })).getByText(
+        "Note number 1",
+      ),
+    );
+    act(() => useDawStore.getState().setOpenSheet(null));
+    await user.click(rowButton());
+    expect(screen.getByRole("dialog", { name: "Comments" })).toBeVisible();
+  });
+});
+
+describe("the composer and playback", () => {
+  beforeEach(() => localStorage.setItem(NAME_KEY, "Maya"));
+
+  it("plays again after Close when Comment was tapped twice", async () => {
+    const user = userEvent.setup();
+    join("comment");
+    startPlaying();
+    mount();
+    await user.click(commentAt());
+    expect(playing()).toBe(false);
+    await user.click(commentAt());
+    await user.click(screen.getByRole("button", { name: "Close" }));
+    expect(playing()).toBe(true);
+  });
+
+  it("plays again after Post when Comment was tapped twice", async () => {
+    const user = userEvent.setup();
+    join("comment");
+    startPlaying();
+    mount();
+    await user.click(commentAt());
+    await user.click(commentAt());
+    await user.type(commentField(), "Too long a pause");
+    await user.click(screen.getByRole("button", { name: "Post" }));
+    await act(async () => {});
+    expect(playing()).toBe(true);
+  });
+
+  it("leaves the episode paused when the guest played and paused it on purpose", async () => {
+    const user = userEvent.setup();
+    join("comment");
+    startPlaying();
+    mount();
+    await user.click(commentAt());
+    act(() => useDawStore.getState().togglePlaying());
+    act(() => useDawStore.getState().togglePlaying());
+    await user.click(screen.getByRole("button", { name: "Close" }));
+    expect(playing()).toBe(false);
+  });
+
+  it("leaves the episode stopped when it played to its end", async () => {
+    const user = userEvent.setup();
+    join("comment");
+    startPlaying();
+    mount();
+    await user.click(commentAt());
+    act(() => useDawStore.getState().togglePlaying());
+    act(() => useDawStore.getState().setIsPlaying(false));
+    await user.type(commentField(), "Too long a pause");
+    await user.click(screen.getByRole("button", { name: "Post" }));
+    await act(async () => {});
+    expect(playing()).toBe(false);
+  });
+
+  it("does not post twice when Close came while Post was in flight", async () => {
+    const user = userEvent.setup();
+    join("comment");
+    let landed!: (comment: unknown) => void;
+    createComment.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          landed = resolve;
+        }),
+    );
+    mount();
+    await user.click(commentAt());
+    await user.type(commentField(), "Too long a pause");
+    await user.click(screen.getByRole("button", { name: "Post" }));
+    await user.click(screen.getByRole("button", { name: "Close" }));
+    await act(async () => landed(sampleComment({ id: "new" })));
+    await user.click(commentAt());
+    expect(commentField()).toHaveValue("");
+    expect(createComment).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("the Comments list", () => {
+  it("plays and seeks to a comment when its row is tapped", async () => {
+    const user = userEvent.setup();
+    join("comment");
+    mount();
+    await user.click(rowButton());
+    await user.click(
+      within(screen.getByRole("dialog", { name: "Comments" })).getByText(
+        "Note number 2",
+      ),
+    );
+    await waitFor(() =>
+      expect(useDawStore.getState().selection).toEqual({
+        kind: "comment",
+        id: "c2",
+      }),
+    );
+    expect(playing()).toBe(true);
+    expect(useDawStore.getState().playheadSec).toBeGreaterThanOrEqual(21);
+    expect(useDawStore.getState().playheadSec).toBeLessThanOrEqual(23);
+  });
+
+  it("opens from the row on the list, at the comment being heard", async () => {
+    const user = userEvent.setup();
+    join("comment");
+    mount();
+    act(() => useDawStore.setState({ playheadSec: 25 }));
+    await user.click(rowButton());
+    const sheet = screen.getByRole("dialog", { name: "Comments" });
+    const heard = within(sheet)
+      .getByText("Note number 2")
+      .closest("button") as HTMLElement;
+    expect(heard).toHaveAttribute("aria-current", "true");
+    expect(scrollIntoView.mock.contexts.at(-1)).toBe(heard);
+    expect(
+      screen.queryByRole("dialog", { name: "Comment from Rosa" }),
+    ).toBeNull();
+  });
+
+  it("puts the guest back on the row they came from when Back leaves a thread", async () => {
+    const user = userEvent.setup();
+    join("comment");
+    mount();
+    await user.click(rowButton());
+    await user.click(
+      within(screen.getByRole("dialog", { name: "Comments" })).getByText(
+        "Note number 3",
+      ),
+    );
+    scrollIntoView.mockClear();
+    await user.click(screen.getByRole("button", { name: "Back to comments" }));
+    const came = within(screen.getByRole("dialog", { name: "Comments" }))
+      .getByText("Note number 3")
+      .closest("button") as HTMLElement;
+    await waitFor(() => expect(came).toHaveFocus());
+    expect(scrollIntoView.mock.contexts).toContain(came);
+  });
+});
+
+describe("one source for who may comment", () => {
+  it("keeps the comments row when a Commenter link lacks the comment capability", () => {
+    useDawStore.getState().hydrate(
+      "share:tok",
+      minimalProject({
+        comments: comments(3),
+        tracks: [sampleTrack({ stem_is_fresh: true })],
+        timeline_duration_sec: 600,
+      }),
+      "comment",
+      ["view"],
+    );
+    useDawStore.setState({
+      stage: "review",
+      commentDraft: { startSec: 0, endSec: null },
+      openSheet: null,
+      shellBreakpoint: "phone",
+    });
+    mount();
+    expect(rowButton()).toBeVisible();
+    expect(screen.queryByRole("button", { name: /^Comment at/ })).toBeNull();
+  });
+});
+
+describe("a Viewer's thread", () => {
+  it("has no reply field and no Comment button", async () => {
+    const user = userEvent.setup();
+    join("view");
+    mount();
+    await user.click(rowButton());
+    await user.click(
+      within(screen.getByRole("dialog", { name: "Comments" })).getByText(
+        "Note number 1",
+      ),
+    );
+    expect(
+      screen.getByRole("dialog", { name: "Comment from Claude" }),
+    ).toBeVisible();
+    expect(screen.queryByRole("textbox")).toBeNull();
+    expect(screen.queryByRole("button", { name: /^Comment at/ })).toBeNull();
   });
 });
