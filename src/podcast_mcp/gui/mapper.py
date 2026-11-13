@@ -652,8 +652,6 @@ def guest_transcript(
             continue
         row = dict(utterance)
         timed = row.pop("words", None)
-        if words is not GuestWords.SELECTABLE:
-            row.pop("locked_word_indices", None)
         if words is not GuestWords.NONE and isinstance(timed, list):
             kept = [w for w in timed if not (isinstance(w, dict) and w.get("suppressed"))]
             row["words"] = (

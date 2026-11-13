@@ -480,6 +480,7 @@ enforced-by:
 - tests/test_guest_transcript_selection.py::test_detail_words_follow_capabilities_and_never_include_suppressed
 - tests/test_guest_transcript_selection.py::test_a_share_with_no_role_reads_no_words
 - tests/test_guest_transcript_selection.py::test_bootstrap_words_flag_matches_the_document_state_route
+- tests/test_guest_transcript_selection.py::test_row_fields_the_client_overlay_compares_agree_on_every_route
 - docs-sync: decision-sharing
 supersedes: D-exact-range-guests-propose
 -->
@@ -496,7 +497,10 @@ a tap on a word seeks; it receives no confidence or unsure-word detail, and
 selecting words, commenting and suggesting stay with the roles that hold them.
 Suppressed words never reach a guest of any role, and a share that holds no
 review role reads no words. A Viewer's `ignored` flag is kept because the
-Script skips ignored words. Reading follows the review role
+Script skips ignored words. Utterance rows keep their row-level fields
+(`locked_word_indices` among them) for every role on every route, because the
+client compares them to decide whether a loaded word overlay is still valid;
+cutting rows to an allowlist for guests is tracked in #3798. Reading follows the review role
 (`guest_reads_transcript_words`); selecting follows the document-command gate
 (`guest_selects_transcript_words`). Neither is a permission of its own. A share
 that holds no role in full runs no document command, on the browser route and the
