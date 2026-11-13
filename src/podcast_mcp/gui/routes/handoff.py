@@ -51,6 +51,7 @@ from podcast_mcp.services.app import (
 from podcast_mcp.services.document import queue_room_tone_pools
 from podcast_mcp.services.jobs import LIVE_JOB_STATUSES
 from podcast_mcp.services.session_sync import is_loopback_host
+from podcast_mcp.util import host_platform
 from podcast_mcp.util.proxy_paths import is_relayed_request
 
 log = logging.getLogger(__name__)
@@ -136,6 +137,9 @@ def _announce_locked(app: Any, state: StudioHostState) -> None:
         _withdraw(previous, state)
     address = state.address
     if served is None or state.port is None or address is None:
+        return
+    # Handed-off commands are not served here, so the announcement's token would only leak.
+    if not host_platform.current().loopback_is_trusted:
         return
     try:
         announce_studio_host(

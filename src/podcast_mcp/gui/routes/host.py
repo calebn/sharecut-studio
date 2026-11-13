@@ -77,7 +77,6 @@ async def host_ws(
     if denied is not None:
         await websocket.close(code=4403, reason=denied[:120])
         return
-    project_path = resolve_project(path, websocket)
     peer = websocket.client.host if websocket.client else None
     relayed = is_relayed_request(websocket.headers)
 
@@ -101,6 +100,7 @@ async def host_ws(
     if not decision.allowed:
         await websocket.close(code=4403, reason=decision.reason[:120])
         return
+    project_path = resolve_project(path, websocket)
 
     def open_services() -> tuple[ProjectWorkspace, SessionSyncService, DocumentSyncService]:
         document = DocumentSyncService.open(project_path)

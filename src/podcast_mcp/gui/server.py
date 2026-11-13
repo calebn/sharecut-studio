@@ -50,6 +50,7 @@ from podcast_mcp.gui.routes.deps import (
     ERROR_CODE_HEADER,
     NO_STORE,
     PAGE_QUERY,
+    PAGE_TOKEN_PARAM,
     coded_http_error,
     guard_exception_handler,
     host_gate,
@@ -60,6 +61,7 @@ from podcast_mcp.gui.routes.deps import (
     project_busy_exception_handler,
     project_unreadable_exception_handler,
     require_host,
+    untrusted_without_session,
 )
 from podcast_mcp.gui.routes.session import apply_ws_client_message, apply_ws_viewer_state
 from podcast_mcp.gui.static_assets import (
@@ -189,8 +191,11 @@ def _pinned_root_redirect(request: Request, served: Path) -> RedirectResponse | 
         require_host(request, sources=PAGE_QUERY)
     except GuardRefusal:
         return None
+    url = request.url
+    if not host_platform.current().loopback_is_trusted:
+        url = url.remove_query_params(PAGE_TOKEN_PARAM)
     try:
-        query = request.url.include_query_params(project=str(served)).query
+        query = url.include_query_params(project=str(served)).query
     except UnicodeEncodeError:
         return None
     # A query-only Location resolves against the URL the browser asked for, so a
@@ -287,12 +292,11 @@ def create_app(
     reset_guest_progress_hub()
     register_guest_progress_sink(guest_ws_progress_sink)
     # OpenAPI/Swagger stay available for local DX; set PODCAST_GUI_OPENAPI=0 to disable
-    # (recommended for any non-loopback bind). Public relay never serves Swagger.
-    enable_openapi = settings.text("PODCAST_GUI_OPENAPI", "1").lower() not in {
-        "0",
-        "false",
-        "no",
-    }
+    # (recommended for any non-loopback bind). Public relay never serves Swagger, and a host
+    # whose loopback is not trusted never does: any app on the device could read the route list.
+    enable_openapi = loopback_is_trusted and settings.text(
+        "PODCAST_GUI_OPENAPI", "1"
+    ).lower() not in {"0", "false", "no"}
     app = FastAPI(
         title="Podcast MCP Viewer",
         version=__version__,
@@ -336,8 +340,9 @@ def create_app(
     app.include_router(waveform.router)
     app.include_router(session.router)
     app.include_router(host.router)
-    app.include_router(handoff.router)
-    if not loopback_is_trusted:
+    if loopback_is_trusted:
+        app.include_router(handoff.router)
+    else:
         app.include_router(host_session.router)
     app.include_router(transcript.router, dependencies=[Depends(host_gate)])
     app.include_router(record_host.router, dependencies=[Depends(host_gate)])
@@ -373,7 +378,7 @@ def create_app(
         def index(request: Request) -> Any:
             index_path = static_root / "index.html"
             served = getattr(request.app.state, "served_project", None)
-            if served is None:
+            if served is None or untrusted_without_session(request):
                 return FileResponse(
                     index_path,
                     headers={"Cache-Control": "no-cache"},
