@@ -1245,7 +1245,6 @@ html[data-frame-short] .sys-player-right > :not(.sys-player-hear) {
   background: var(--color-hover);
 }
 
-/* A narrow phone keeps the icon and drops the word. */
 @container sys-player (max-width: 20rem) {
   .sys-listen-dock-comment-label {
     position: absolute;

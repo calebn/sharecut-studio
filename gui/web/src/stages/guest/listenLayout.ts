@@ -33,7 +33,6 @@ function plural(count: number, noun: string) {
   return `${count} ${noun}${count === 1 ? "" : "s"}`;
 }
 
-/** "1 comment", "15 comments", "15 comments · 2 suggestions". */
 function countLabel({ comments, suggestions }: ListenInput["counts"]): string {
   return [
     comments > 0 ? plural(comments, "comment") : "",
@@ -81,7 +80,6 @@ export function nearestBefore<T extends { at: number }>(
 export function listenScriptOf(input: {
   loadFailed: boolean;
   detail: TranscriptDetailView["kind"];
-  /** The project has utterances at all. */
   hasTranscript: boolean;
 }): ListenInput["script"] {
   if (input.loadFailed) return "failed";

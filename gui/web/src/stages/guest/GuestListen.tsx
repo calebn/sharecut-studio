@@ -21,7 +21,6 @@ import {
 
 /** How far back from the playhead a comment still counts as the one being heard. */
 const PREVIEW_WINDOW_SEC = 15;
-/** How long the row says a comment was added. */
 const FLASH_MS = 3000;
 
 type GuestListenProps = {
