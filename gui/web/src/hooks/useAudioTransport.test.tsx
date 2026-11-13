@@ -714,6 +714,48 @@ describe("useAudioTransport saved mix (#386)", () => {
     expect(volumes()).toEqual({ host: expect.closeTo(0.501, 3), guest: 0 });
     unmount();
   });
+
+  it.each([
+    ["premix", false],
+    ["stems", true],
+  ])(
+    "keeps a guest's %s players playing when only a comment and the history head change",
+    async (_name, staleVsMix) => {
+      const base = mixProject(
+        [sampleTrack({ id: "host" }), sampleTrack({ id: "guest" })],
+        staleVsMix,
+        { renderHash: { host: "h1", guest: "g1" } },
+      );
+      useDawStore
+        .getState()
+        .hydrate("share:guest", base, "comment", ["play", "comment"]);
+      const { unmount } = renderHook(() => useAudioTransport());
+      const players = [...FakeAudio.instances];
+      expect(players.length).toBeGreaterThan(0);
+      act(() => useDawStore.getState().setIsPlaying(true));
+      await vi.waitFor(() => {
+        expect(players.every((el) => !el.paused)).toBe(true);
+      });
+
+      act(() => {
+        const project = useDawStore.getState().project;
+        if (!project) throw new Error("no project");
+        useDawStore.getState().setProject({
+          ...project,
+          comments: [
+            ...project.comments,
+            { ...project.comments[0], id: "c-new", body: "hi" },
+          ].filter(Boolean),
+          history: { ...project.history, head_id: "after-comment" },
+        });
+      });
+
+      expect(FakeAudio.instances).toEqual(players);
+      expect(players.every((el) => !el.paused && el.src !== "")).toBe(true);
+      expect(useDawStore.getState().isPlaying).toBe(true);
+      unmount();
+    },
+  );
 });
 
 describe("exact raw source preview", () => {

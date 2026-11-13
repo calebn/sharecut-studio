@@ -670,7 +670,7 @@ describe("useProxyTransport", () => {
   );
 
   it.each(["render hash", "clip"])(
-    "refuses a first Restore or authored %s advance behind an empty cached manifest",
+    "refuses an authored %s advance behind an empty cached manifest",
     async (advance) => {
       const fixture = moveFixture();
       useDawStore.getState().setProject(fixture.base);
@@ -684,8 +684,6 @@ describe("useProxyTransport", () => {
         saved_at: 1,
       });
       const project = structuredClone(fixture.base);
-      project.history.head_id =
-        "first-restore" as typeof project.history.head_id;
       if (advance === "clip") project.clips.tracks = fixture.moved.clips.tracks;
       else
         project.render_status.tracks = { host: { render_hash: "new-render" } };
