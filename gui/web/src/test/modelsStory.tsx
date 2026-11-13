@@ -70,7 +70,6 @@ export const UNSUPPORTED_TOOLS = {
   hint: "ShareCut can't process audio on this device yet.",
 };
 
-/** The registry rows on a device that cannot run any of them. */
 export function unsupportedModels(): ModelView[] {
   const hint = "ShareCut can't transcribe audio on this device yet.";
   return registryModels().map((m) => ({
