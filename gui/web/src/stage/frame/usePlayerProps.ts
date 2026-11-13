@@ -1,4 +1,5 @@
 import { useCallback, useMemo, useRef } from "react";
+import { dispatchComposer } from "../../commands/composer";
 import { runPointerCommand } from "../../commands/pointer";
 import { useTranscriptDetail } from "../../document/useTranscriptDetail";
 import { useStaleRenderBreakdown } from "../../hooks/useStaleRenderBreakdown";
@@ -55,6 +56,7 @@ export function usePlayerProps(
     sessionClients,
     playbackRate,
     reviewPeaks,
+    loadFailed,
   } = useDaw((s) => ({
     project: s.project,
     projectPath: s.projectPath,
@@ -70,6 +72,7 @@ export function usePlayerProps(
     sessionClients: s.sessionClients,
     playbackRate: s.playbackRate,
     reviewPeaks: s.reviewPeaks,
+    loadFailed: s.listenLoadFailed,
   }));
   const playheadSec = useDawStore((s) => s.playheadSec);
   // What was playing when A was pressed, so letting go goes back to it.
@@ -99,7 +102,7 @@ export function usePlayerProps(
   const chaptersFillMiddle =
     listenMiddleOf(
       listenScriptOf({
-        loadFailed: false,
+        loadFailed,
         detail: detail.kind,
         hasTranscript: (project?.transcript?.utterances?.length ?? 0) > 0,
       }),
@@ -208,13 +211,12 @@ export function usePlayerProps(
       ? () =>
           runPointerCommand("comment.draftAt", {
             atTime: useDawStore.getState().playheadSec,
-            // The keyboard will hide Play, so the dock stops the audio first.
-            pause: form === "dock",
+            keepPin: true,
           })
       : undefined,
     onChapters:
       form === "dock" && chapters.length > 0 && !chaptersFillMiddle
-        ? () => useDawStore.getState().setOpenSheet("chapters")
+        ? () => dispatchComposer({ type: "show", surface: "chapters" })
         : undefined,
     onStatusInfo:
       form === "dock" && (unavailable ?? mixStatus)

@@ -1,5 +1,13 @@
-import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
+import {
+  type ReactNode,
+  type RefObject,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { useShallow } from "zustand/react/shallow";
+import { dispatchComposer } from "../../commands/composer";
 import { useKeyboardInset } from "../../hooks/useKeyboardInset";
 import {
   type ReviewContent,
@@ -35,16 +43,33 @@ type GuestListenProps = {
   scriptState: ListenInput["script"];
 };
 
-/** The queue, scrolled to the row the guest is on every time the list appears. */
-function CommentsList(props: ReviewQueueProps) {
-  const ref = useRef<HTMLDivElement>(null);
+const SCROLLER = ".sys-sheet-scroll";
+
+/**
+ * The queue, scrolled to the row the guest is on when the list opens, and to
+ * where they left it when they come back from a thread.
+ */
+function CommentsList({
+  listRef,
+  offset,
+  ...props
+}: ReviewQueueProps & {
+  listRef: RefObject<HTMLDivElement | null>;
+  /** The scroll offset to return to, once; null opens on the row being heard. */
+  offset: RefObject<number | null>;
+}) {
   useEffect(() => {
-    ref.current
-      ?.querySelector('[aria-current="true"]')
-      ?.scrollIntoView({ block: "center" });
-  }, []);
+    const back = offset.current;
+    offset.current = null;
+    const scroller = listRef.current?.closest<HTMLElement>(SCROLLER);
+    if (back !== null && scroller) scroller.scrollTop = back;
+    else
+      listRef.current
+        ?.querySelector('[aria-current="true"]')
+        ?.scrollIntoView({ block: "center" });
+  }, [listRef, offset]);
   return (
-    <div ref={ref} className="gl-list">
+    <div ref={listRef} className="gl-list">
       <ReviewQueue {...props} />
     </div>
   );
@@ -70,23 +95,17 @@ function previewOf(
  * queue's state.
  */
 export function GuestListen({ review, script, scriptState }: GuestListenProps) {
-  const {
-    mayComment,
-    draft,
-    openSheet,
-    setOpenSheet,
-    projectName,
-    hasChapters,
-  } = useDawStore(
-    useShallow((s) => ({
-      mayComment: canComment(s.projectPath, s.guestMode, s.shareCapabilities),
-      draft: s.commentDraft,
-      openSheet: s.openSheet,
-      setOpenSheet: s.setOpenSheet,
-      projectName: s.project?.meta.name ?? "",
-      hasChapters: (s.project?.chapters.length ?? 0) > 0,
-    })),
-  );
+  const { mayComment, draft, surface, threadId, projectName, hasChapters } =
+    useDawStore(
+      useShallow((s) => ({
+        mayComment: canComment(s.projectPath, s.guestMode, s.shareCapabilities),
+        draft: s.commentDraft,
+        surface: s.composer.surface,
+        threadId: s.composer.threadId,
+        projectName: s.project?.meta.name ?? "",
+        hasChapters: (s.project?.chapters.length ?? 0) > 0,
+      })),
+    );
   const { items, content, selectedId } = review;
   const commentItems = useMemo(
     () => items.filter((item) => item.kind === "comment"),
@@ -130,19 +149,26 @@ export function GuestListen({ review, script, scriptState }: GuestListenProps) {
       null,
   );
   const heard = items.find((item) => item.id === heardId);
-  const [step, setStep] = useState<string | null>(null);
-  if (openSheet !== "comments" && step !== null) setStep(null);
   const [detent, setDetent] = useState<DrawerDetent>("half");
-  const stepItem = step ? items.find((item) => item.id === step) : undefined;
-  const close = () => setOpenSheet(null);
+  const stepItem = threadId
+    ? items.find((item) => item.id === threadId)
+    : undefined;
+  const listRef = useRef<HTMLDivElement>(null);
+  const listOffset = useRef<number | null>(null);
+  const close = () => {
+    listOffset.current = null;
+    dispatchComposer({ type: "show", surface: "none" });
+  };
   const openList = () => {
     if (heardId) review.onSelect(heardId);
-    setOpenSheet("comments");
+    listOffset.current = null;
+    dispatchComposer({ type: "show", surface: "comments" });
   };
   const openThread = (id: string) => {
+    listOffset.current =
+      listRef.current?.closest<HTMLElement>(SCROLLER)?.scrollTop ?? null;
     review.onSelect(id);
-    setStep(id);
-    setOpenSheet("comments");
+    dispatchComposer({ type: "show", surface: "thread", threadId: id });
   };
 
   const middle =
@@ -175,7 +201,7 @@ export function GuestListen({ review, script, scriptState }: GuestListenProps) {
       <Sheet
         form="bottom"
         title="Comments"
-        open={openSheet === "comments"}
+        open={surface === "comments" || surface === "thread"}
         detent={detent}
         onDetentChange={setDetent}
         onClose={close}
@@ -183,7 +209,8 @@ export function GuestListen({ review, script, scriptState }: GuestListenProps) {
           stepItem && card
             ? {
                 title: card.title,
-                onBack: () => setStep(null),
+                onBack: () =>
+                  dispatchComposer({ type: "show", surface: "comments" }),
                 backLabel: "Back to comments",
                 children: (
                   <DecisionCard
@@ -208,6 +235,8 @@ export function GuestListen({ review, script, scriptState }: GuestListenProps) {
         }
       >
         <CommentsList
+          listRef={listRef}
+          offset={listOffset}
           items={items}
           content={content}
           selectedId={selectedId}

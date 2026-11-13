@@ -1,7 +1,6 @@
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useState } from "react";
 import { createComment } from "../api";
 import { commentRole } from "../shareMode";
-import { isResumeDropped } from "../state/commentDraft";
 import { useDawStore } from "../state/dawStore";
 import type { TimelineComment } from "../types/project";
 import { errorMessage } from "../utils/apiError";
@@ -29,29 +28,18 @@ export function commentPostedStatus(comment: TimelineComment | null): string {
 
 /**
  * Posts a comment at the anchor `resolveCommentAnchor` names at the moment of
- * posting, then drops the draft so the next one starts at the playhead again.
+ * posting. The composer session decides what becomes of the draft.
  * `comment` is null when an offline host queued it.
  */
 export function usePostComment(): {
   busy: boolean;
   error: string | null;
   setError: (message: string | null) => void;
-  /** Forgets a post in flight: its outcome no longer shows as busy or as an error. */
-  cancel: () => void;
   post: (input: CommentInput) => Promise<PostResult>;
 } {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const generation = useRef(0);
-
-  const cancel = useCallback(() => {
-    generation.current += 1;
-    setBusy(false);
-    setError(null);
-  }, []);
-
   const post = useCallback(async (input: CommentInput): Promise<PostResult> => {
-    const mine = generation.current;
     setError(null);
     const author = input.author.trim();
     const body = input.body.trim();
@@ -62,7 +50,6 @@ export function usePostComment(): {
     if (!body) return { ok: false };
     const state = useDawStore.getState();
     const { draft } = resolveCommentAnchor(state);
-    const started = state.commentDraft;
     setBusy(true);
     try {
       if (commentRole(state.projectPath, state.guestMode) === "host") {
@@ -79,18 +66,14 @@ export function usePostComment(): {
         timelineSpans: draft.intervals,
         actionTexts: input.actionTexts ?? [],
       });
-      // A newer draft (Escape, then C, while this was in flight) is not ours to drop.
-      const now = useDawStore.getState().commentDraft;
-      if (now === started || isResumeDropped(started, now))
-        useDawStore.getState().setCommentDraft(null);
       return { ok: true, comment };
     } catch (e) {
-      if (mine === generation.current) setError(errorMessage(e));
+      setError(errorMessage(e));
       return { ok: false };
     } finally {
-      if (mine === generation.current) setBusy(false);
+      setBusy(false);
     }
   }, []);
 
-  return { busy, error, setError, cancel, post };
+  return { busy, error, setError, post };
 }

@@ -14,6 +14,7 @@ import {
   writeScriptCollapsed,
   writeScriptFocus,
 } from "../utils/stagePref";
+import { composerPatch, initialSession } from "./composerSession";
 import { stageRoleOf, stagesForRole } from "./stageRoutes";
 import type { DawStore } from "./types";
 
@@ -181,7 +182,7 @@ export const createStageSlice: StateCreator<
       };
       return {
         // A comment draft belongs to the Review stage it opened.
-        ...(prev === "review" ? { commentDraft: null } : {}),
+        ...(prev === "review" ? composerPatch(initialSession) : {}),
         // The pending target waits for Record's room, not for a later visit.
         // So does the line to read: it lives only while Record is open.
         ...(next === "record"

@@ -12,6 +12,7 @@ import {
   studioViewports,
   viewportStoryParameters,
 } from "../../storybook/storyLayout";
+import { composing as composerAt } from "../../test/composerStore";
 import { episode, selections } from "../../test/episodeFixture";
 import { pipelineJobSnapshot } from "../../test/fixtures";
 import { episodeBeforeEach, withEpisode } from "../../test/withEpisode";
@@ -178,7 +179,7 @@ const composingPlay: Story["play"] = async ({ canvasElement }) => {
   await expect(useDawStore.getState().commentDraft).toBeNull();
 };
 
-const composing = running({ commentDraft: { startSec: 40.2, endSec: null } });
+const composing = running({ ...composerAt({ startSec: 40.2, endSec: null }) });
 
 export const Composing: Story = {
   parameters: composing,
