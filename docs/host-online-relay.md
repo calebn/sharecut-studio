@@ -243,7 +243,7 @@ Two axes (Google Docs–shaped):
 
 | Role | Caps | Guest UI |
 |------|------|----------|
-| **Viewer** | `play`, `view` | ShareCut Studio, read-only |
+| **Viewer** | `play`, `view` | ShareCut Studio, read-only; reads the transcript (text and timing) |
 | **Commenter** (default) | Viewer + `comment`, `reply`, `action`, `suggest` | ShareCut Studio with comments and Suggest cut. Suggestions wait for an Editor or the host. **No login** on link shares |
 | **Editor** | Commenter + `edit` | ShareCut Studio; edits directly and approves or rejects suggestions |
 | **Owner** | Host laptop only | full stdio MCP **or** GUI `http://127.0.0.1:8765/mcp` (not a guest share) |
@@ -333,7 +333,8 @@ All under `/api/review/{token}/…` (proxied by the relay; **no** `?project=` pa
 
 | Route | Cap | Notes |
 |-------|-----|--------|
-| `GET …/daw/project` | `view` | Sanitized ProjectView (no host filesystem paths) |
+| `GET …/daw/project` | `view` | Sanitized ProjectView (no host filesystem paths), never with timed words |
+| `GET …/daw/document/state?phase=` | `view` | Sanitized document snapshot. `phase=detail` and `full` carry timed words for every review role: a Viewer gets text and timing only, a Commenter or Editor the full word view (`GuestWords`). Suppressed words never leave the host |
 | `GET …/daw/meta` | `view` | mtime/size + document `server_seq` for poll reload (`server_seq` omitted when `document.db` is unreadable) |
 | `GET …/daw/waveform/status` | `view` | Waveform pyramid status for **raw** media only (`track:` / `source:` refs; stems stay host-only); `no-store`; read rate class. Same shape as host `GET /api/waveform/status` ([waveform.md § API](waveform.md#api)) |
 | `GET …/daw/waveform/tiles/{key}?ref=&level=&start=&count=` | `view` | Binary min/max/RMS pyramid tiles; `track:`/`source:` refs only and only the ref's live key (else 404). `Cache-Control: private, max-age=31536000, immutable`. **Audio** rate class (no RPM, holds an audio concurrency slot). There is no guest PCM route: raw samples never go to guests |

@@ -495,7 +495,8 @@ receives each heard word's text and timing, so its Script follows playback and
 a tap on a word seeks; it receives no confidence or unsure-word detail, and
 selecting words, commenting and suggesting stay with the roles that hold them.
 Suppressed words never reach a guest of any role, and a share that holds no
-review role reads no words. Reading follows the review role
+review role reads no words. A Viewer's `ignored` flag is kept because the
+Script skips ignored words. Reading follows the review role
 (`guest_reads_transcript_words`); selecting follows the document-command gate
 (`guest_selects_transcript_words`). Neither is a permission of its own. A share
 that holds no role in full runs no document command, on the browser route and the
@@ -512,7 +513,7 @@ everyone but an Editor.
 | Editor | Yes, with confidence and unsure words | Yes | **Cut** / **Mute** apply at once, one History step | Any pending edit | Any, exact range proposals included |
 | Commenter | Yes, with confidence and unsure words | Yes | **Suggest cut** / **Suggest mute** create a pending edit for review | Only its own suggestions (pending edits its share authored) | Refused |
 | Viewer | Yes: text and timing only, so the Script follows playback and a tap seeks | No | Refused by the document-command gate | Refused | Refused |
-| A share with no role | No (untimed utterance text only, and no document access) | No | Refused | Refused | Refused |
+| A share with no role | No (no document access, so no transcript route answers) | No | Refused | Refused | Refused |
 
 In ShareCut Studio an Editor link's Review queue lists the pending edits with **Cut** and **Keep** (the commands are `ApproveEdits` and `RejectEdits`). Unsure-word fixes stay host-only, and the transcript check has HTTP twins but no Editor control yet (below): a cut that covers an unsure word is shown held ("The host checks the unsure word first.") with no Cut, and while the transcript is unchecked the server refuses an Editor's Cut, which shows under Needs attention until the host, or an Editor through the check twins, checks or waives it. A Commenter or Viewer link's queue is comments only.
 
