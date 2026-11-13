@@ -6,7 +6,7 @@ export type CommentsRowPreview = {
   text: string;
 };
 
-export type CommentsRowProps = {
+type CommentsRowProps = {
   /** "15 comments", "15 comments · 2 suggestions". */
   label: string;
   /** The count the accessible name carries beside a preview. */

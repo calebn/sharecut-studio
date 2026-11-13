@@ -24,7 +24,7 @@ const PREVIEW_WINDOW_SEC = 15;
 /** How long the row says a comment was added. */
 const FLASH_MS = 3000;
 
-export type GuestListenProps = {
+type GuestListenProps = {
   /** `useReviewQueue(guest).stageProps`: the items, the selection, the thread and the composer. */
   review: ReviewStageProps;
   /** The Script, or the Skeleton or Cover that stands in for it. */
@@ -137,7 +137,7 @@ export function GuestListen({ review, script, scriptState }: GuestListenProps) {
   const card = stepItem ? content(stepItem).card : null;
 
   return (
-    <div className="gl" data-bottom={bottom.kind}>
+    <div className="gl">
       <div className="gl-middle">{middle}</div>
       {bottom.kind === "row" ? (
         <CommentsRow

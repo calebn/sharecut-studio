@@ -16,7 +16,7 @@ export type ListenInput = {
 };
 
 /** What fills the middle: the transcript (or its loading and failure stand-ins), else the chapters, else a Cover. */
-export type ListenMiddle =
+type ListenMiddle =
   | { kind: "script" }
   | { kind: "chapters" }
   | { kind: "empty" };
