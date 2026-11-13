@@ -528,7 +528,6 @@ export const GuestViewer: Story = {
   play: viewerPlay,
 };
 
-/** A Viewer link reads the transcript: the Script follows playback and a word seeks, with no selection or composer. */
 export const GuestViewerReadsTranscript: Story = {
   ...asGuest("viewer"),
   play: async ({ canvasElement }) => {

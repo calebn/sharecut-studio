@@ -199,8 +199,6 @@ def guest_reads_transcript_words(caps: list[str] | None) -> bool:
 
 
 class GuestWords(StrEnum):
-    """What timed transcript words a guest event carries."""
-
     NONE = "none"
     READING = "reading"
     SELECTABLE = "selectable"

@@ -1069,7 +1069,6 @@ def guest_selects_transcript_words(caps: Sequence[str] | None) -> bool:
 
 
 def guest_words(caps: Sequence[str] | None) -> GuestWords:
-    """The timed words a guest receives: selectable, readable only, or none."""
     if guest_selects_transcript_words(caps):
         return GuestWords.SELECTABLE
     if guest_reads_transcript_words(list(caps or [])):
