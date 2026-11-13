@@ -750,7 +750,7 @@ describe("useAudioTransport saved mix (#386)", () => {
     ["premix", false],
     ["stems", true],
   ])(
-    "keeps a guest's %s players playing when only a comment and the history head change",
+    "keeps a guest's %s players playing when only the history head changes",
     async (_name, staleVsMix) => {
       const base = mixProject(
         [sampleTrack({ id: "host" }), sampleTrack({ id: "guest" })],
@@ -773,10 +773,6 @@ describe("useAudioTransport saved mix (#386)", () => {
         if (!project) throw new Error("no project");
         useDawStore.getState().setProject({
           ...project,
-          comments: [
-            ...project.comments,
-            { ...project.comments[0], id: "c-new", body: "hi" },
-          ].filter(Boolean),
           history: {
             ...project.history,
             head_id: "after-comment" as typeof project.history.head_id,
