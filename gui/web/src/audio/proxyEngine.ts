@@ -6,7 +6,11 @@ import {
   gainBreakpoints,
   type VolumePoint,
 } from "./gainCurve";
-import { enterPlaybackSession, leavePlaybackSession } from "./playbackSession";
+import {
+  enterPlaybackSession,
+  leavePlaybackSession,
+  releasePlaybackSession,
+} from "./playbackSession";
 import {
   buildSchedule,
   chunkRefKey,
@@ -89,6 +93,10 @@ export class ProxyEngine {
   /** True once this play's `resume()` settled, so a late `statechange` from the previous pause reads as ours. */
   private sinkRunning = false;
   private playToken = 0;
+  private readonly sessionEvents = {
+    onSystemPause: () => this.events.onSinkStopped(),
+    onSystemPlay: () => this.events.onSystemPlay(),
+  };
   private horizon: Horizon | null = null;
   private sentinel: ConstantSourceNode | null = null;
   private playbackRate = 1;
@@ -193,10 +201,7 @@ export class ProxyEngine {
     this.originTimelineSec = fromTimelineSec;
     this.originCtxTime = this.ctx.currentTime;
     // iPhone mutes Web Audio on the silent switch unless the page is in a playback session.
-    enterPlaybackSession({
-      onSystemPause: this.events.onSinkStopped,
-      onSystemPlay: this.events.onSystemPlay,
-    });
+    enterPlaybackSession(this.sessionEvents);
     this.sinkRunning = false;
     const token = ++this.playToken;
     this.ctx
@@ -297,6 +302,7 @@ export class ProxyEngine {
   dispose(): void {
     this.ctx.removeEventListener("statechange", this.onContextStateChange);
     this.pause();
+    releasePlaybackSession(this.sessionEvents);
     for (const tap of this.meterTaps.values()) tap.dispose();
     this.meterTaps.clear();
     for (const gain of this.trackGains.values()) gain.disconnect();
