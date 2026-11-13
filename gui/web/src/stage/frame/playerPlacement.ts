@@ -1,3 +1,4 @@
+import { stageRoleOf } from "../../state/stageRoutes";
 import type { ShellBreakpoint } from "../../state/types";
 import type { StageId, StageRole } from "../../types/stage";
 
@@ -26,4 +27,19 @@ export function playerPlacementOf(input: {
     return role === "viewer" || role === "commenter" ? "dock" : "bar";
   }
   return role !== "host" && !short ? "card" : "bar";
+}
+
+/** Whether the phone Listen layout (the dock under a Script) hosts Review for this link. */
+export function listenLayoutOf(
+  shell: ShellBreakpoint,
+  guestMode: string | null,
+): boolean {
+  return (
+    playerPlacementOf({
+      stage: "review",
+      shell,
+      role: stageRoleOf(guestMode),
+      short: false,
+    }) === "dock"
+  );
 }

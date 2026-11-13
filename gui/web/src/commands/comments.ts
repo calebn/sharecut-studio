@@ -1,6 +1,7 @@
 import { commentDraftFromRange } from "../comments/commentAnchor";
 import { selectionSpan } from "../edit/editSelection";
 import { resolveSelectionRange } from "../edit/rangeSelection";
+import { listenLayoutOf } from "../stage/frame/playerPlacement";
 import { useDawStore } from "../state/dawStore";
 import type { CommentDraft, DawState } from "../state/types";
 import { clampToSession } from "../utils/time";
@@ -11,11 +12,17 @@ import type { ExecuteResult } from "./types";
 
 /**
  * Starts a comment at `draft` in the Review composer, pausing the episode if it
- * plays. `replacePin`: the anchor was chosen (a range, a time), so it replaces
+ * plays in the phone Listen layout. `replacePin`: the anchor was chosen (a range, a time), so it replaces
  * the pin of text already typed.
  */
 export function openCommentDraft(draft: CommentDraft, replacePin = true): void {
-  dispatchComposer({ type: "open", anchor: draft, replacePin });
+  const { shellBreakpoint, guestMode } = useDawStore.getState();
+  dispatchComposer({
+    type: "open",
+    anchor: draft,
+    replacePin,
+    listen: listenLayoutOf(shellBreakpoint, guestMode),
+  });
   useDawStore.getState().openStage("review", { section: "queue" });
 }
 

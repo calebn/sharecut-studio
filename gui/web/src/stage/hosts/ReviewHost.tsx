@@ -16,7 +16,7 @@ import { useDawStore } from "../../state/dawStore";
 import { stageRoleOf } from "../../state/stageRoutes";
 import { Skeleton } from "../../system/Skeleton";
 import { GuestPlayerCard } from "../frame/GuestPlayerCard";
-import { playerPlacementOf } from "../frame/playerPlacement";
+import { listenLayoutOf, playerPlacementOf } from "../frame/playerPlacement";
 import { useStageScroll } from "../useStageScroll";
 import { GuestScriptHost } from "./GuestScriptHost";
 import { LoadFailureCover } from "./HostBody";
@@ -86,7 +86,7 @@ function ReviewHostAdapter({
     role: stageRoleOf(guestMode),
     short,
   });
-  const listening = placement === "dock";
+  const listening = listenLayoutOf(shell, guestMode);
   // A sheet belongs to the Listen layout: it does not outlive it.
   useEffect(() => {
     if (!listening) dispatchComposer({ type: "sheetsGone" });
