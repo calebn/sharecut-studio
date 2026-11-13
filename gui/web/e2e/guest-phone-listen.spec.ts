@@ -39,7 +39,6 @@ const PORTRAITS = [
 
 const FOLDED = { width: 667, height: 375 } as const;
 
-/** A sheet rests exactly on the dock: its bottom edge meets the dock's top edge. */
 async function expectRestsOnDock(guest: Page, sheet: Locator) {
   await expect(sheet).toBeVisible();
   const dock = await guest.locator(".sys-listen-dock").boundingBox();
@@ -49,10 +48,6 @@ async function expectRestsOnDock(guest: Page, sheet: Locator) {
   expect(Math.abs(box.y + box.height - dock.y)).toBeLessThanOrEqual(1);
 }
 
-/**
- * The list reads at its default detent: `min` comment rows sit fully between
- * the sheet header and the dock, each at least 44 px tall, with author, time and text.
- */
 async function expectCommentsReadable(
   guest: Page,
   sheet: Locator,
@@ -91,7 +86,6 @@ async function expectCommentsReadable(
 type Profile = (typeof PROFILES)[number];
 type Size = { width: number; height: number };
 
-/** Two comments and two chapters, so the comments row and the Chapters button exist. */
 async function seedReview(host: Page, projectPath: string): Promise<void> {
   const send = (type: string, payload: Record<string, unknown>) =>
     postDocumentCommand(host, "e2e-seed", type, payload, projectPath);
@@ -162,7 +156,6 @@ async function expectTouchTarget(control: Locator) {
   expect(box?.width ?? 0).toBeGreaterThanOrEqual(TOUCH_MIN - 0.5);
 }
 
-/** Whether the topmost element at the control's centre is the control itself. */
 async function reached(control: Locator): Promise<boolean> {
   return control.evaluate((el) => {
     const r = el.getBoundingClientRect();

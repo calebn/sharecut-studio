@@ -6,7 +6,6 @@ import { chapterIndexAt, playerChapters, sortChapters } from "./playerModel";
 
 const NONE: ChapterMarker[] = [];
 
-/** The project's chapters in time order, the one the playhead is in, and the seek a row runs. */
 export function usePlayerChapters() {
   const markers = useDawStore((s) => s.project?.chapters) ?? NONE;
   const duration = useDawStore((s) => s.project?.timeline_duration_sec ?? 0);

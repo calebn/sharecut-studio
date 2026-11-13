@@ -66,7 +66,6 @@ async function openComposer(guest: Page, size: { width: number }) {
   await expect(composer(guest)).toBeVisible();
 }
 
-/** Posting closes the phone composer; a wide shell keeps its field. */
 async function expectPosted(
   guest: Page,
   size: { width: number },
