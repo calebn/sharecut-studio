@@ -93,8 +93,8 @@ def build_gui_server(
 
     Records the bound address on ``app.state`` and returns a ``uvicorn.Server`` for the caller
     to run on ``sockets=[sock]``. The caller keeps the socket and the thread it runs on.
-    ``access_log`` off keeps request URLs out of the log. ``graceful_shutdown_sec`` bounds how long a stop waits for open connections such as an
-    event stream; ``None`` waits for them.
+    ``access_log`` off keeps request URLs out of the log. ``graceful_shutdown_sec`` bounds how
+    long a stop waits for open connections such as an event stream; ``None`` waits for them.
     """
     import uvicorn
 

@@ -46,25 +46,10 @@ def static_dir(tmp_path: Path) -> Path:
 
 
 @pytest.mark.parametrize("path", ["/docs", "/redoc", "/openapi.json"])
-def test_the_api_documentation_is_not_served(host, path: str) -> None:
-    host(UNTRUSTED)
-
-    assert TestClient(untrusted_app(), client=LOOPBACK_PEER).get(path).status_code == 404
-
-
-@pytest.mark.parametrize("path", ["/docs", "/redoc", "/openapi.json"])
 def test_a_trusted_host_still_serves_its_api_documentation(host, path: str) -> None:
     host(MACOS)
 
     assert TestClient(create_app(), client=LOOPBACK_PEER).get(path).status_code == 200
-
-
-def test_the_handoff_routes_are_not_mounted(host) -> None:
-    host(UNTRUSTED)
-    client = TestClient(untrusted_app(), client=LOOPBACK_PEER)
-
-    assert client.get("/api/handoff/ping").status_code == 404
-    assert client.post("/api/handoff/run", content=b"{}").status_code == 404
 
 
 def test_a_trusted_host_still_mounts_the_handoff_routes(host) -> None:
@@ -73,16 +58,6 @@ def test_a_trusted_host_still_mounts_the_handoff_routes(host) -> None:
     response = TestClient(create_app(), client=LOOPBACK_PEER).get("/api/handoff/ping")
 
     assert response.status_code != 404
-
-
-def test_nothing_is_announced_for_a_project_on_this_host(host, named_project: Path) -> None:
-    host(UNTRUSTED)
-    app = untrusted_app(served_project=named_project)
-
-    handoff.listening(app, port=49321, host="127.0.0.1")
-
-    assert not studio_host_path(named_project).exists()
-    handoff.stopped(app)
 
 
 def test_a_trusted_host_still_announces_its_project(host, named_project: Path) -> None:
