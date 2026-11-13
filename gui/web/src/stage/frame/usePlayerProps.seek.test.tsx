@@ -65,5 +65,23 @@ describe("usePlayerProps onSeek", () => {
       result.current.onSkip?.(15);
       await waitFor(() => expect(useDawStore.getState().playheadSec).toBe(70));
     });
+
+    it("places the chapter ticks on the same scale as the playhead", () => {
+      useDawStore.getState().hydrate(
+        "/tmp/player-props/episode.sharecut",
+        minimalProject({
+          timeline_duration_sec: 60,
+          chapters: [{ title: "Outro", time: 45 }],
+          clips: {
+            tracks: { "mira-voice": [clipRow({ timeline_end: 90 })] },
+            clip_count: 1,
+          },
+        }),
+      );
+      const { result } = renderHook(() =>
+        usePlayerProps("expanded", () => undefined),
+      );
+      expect(result.current.chapters?.[0]?.at).toBe(0.5);
+    });
   });
 });
