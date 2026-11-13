@@ -309,7 +309,7 @@ Link out when a designer needs depth; keep **Partner terms** as the default hand
 **Wordbar:** the host's source-clock word timing editor. Its handles and numeric fields adjust a stored word's start and end against the original recording waveform. Drag release or Apply creates one undoable change; raw preview has its own local playhead.
 
 
-Audio tools are the bundled FFmpeg and FFprobe pair. Desktop setup checks their readiness and downloads speech models separately. Source installs supply a supported matching FFmpeg 9 pair.
+Audio tools are the bundled FFmpeg and FFprobe pair. Desktop setup checks their readiness and downloads speech models separately. Source installs supply a supported matching FFmpeg 9 pair. A device that cannot have them (an iPhone for now) says so in one sentence, "ShareCut can't process audio on this device yet.", and offers no install or retry.
 
 ## Restore an applied edit
 
