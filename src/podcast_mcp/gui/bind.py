@@ -86,13 +86,14 @@ def build_gui_server(
     sock: socket.socket,
     *,
     log_level: str = "info",
+    access_log: bool = True,
     graceful_shutdown_sec: int | None = None,
 ) -> Any:
     """The uvicorn server both entries run: the CLI sidecar and a host process that embeds Studio.
 
     Records the bound address on ``app.state`` and returns a ``uvicorn.Server`` for the caller
     to run on ``sockets=[sock]``. The caller keeps the socket and the thread it runs on.
-    ``graceful_shutdown_sec`` bounds how long a stop waits for open connections such as an
+    ``access_log`` off keeps request URLs out of the log. ``graceful_shutdown_sec`` bounds how long a stop waits for open connections such as an
     event stream; ``None`` waits for them.
     """
     import uvicorn
@@ -104,6 +105,7 @@ def build_gui_server(
     config = uvicorn.Config(
         app,
         log_level=log_level,
+        access_log=access_log,
         ws_per_message_deflate=True,
         timeout_graceful_shutdown=graceful_shutdown_sec,
     )
