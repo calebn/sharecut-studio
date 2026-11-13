@@ -19,9 +19,10 @@ const TITLES: Record<StageSheet, string> = {
 
 /**
  * Renders the open Stage sheet: a bottom Sheet on a phone, a centered one
- * elsewhere. History, Invite and (from the Listen dock) Chapters are hosted here; the
- * stage hosts hand in Mix and Tools. The Comments sheet is the Listen layout's own
- * (it needs the queue's state). The phone's Mix sheet closes when a dialog opens over it.
+ * elsewhere. History, Invite and Chapters (the composer session's surface, opened
+ * from the Listen dock) are hosted here; the stage hosts hand in Mix and Tools.
+ * The Comments sheet is the Listen layout's own (it needs the queue's state). The
+ * phone's Mix sheet closes when a dialog opens over it.
  */
 export function SheetHost({
   content,

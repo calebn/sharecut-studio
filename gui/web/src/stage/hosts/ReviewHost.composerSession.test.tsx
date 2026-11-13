@@ -405,7 +405,7 @@ describe("a layout that is not the phone Listen layout", () => {
     expect(playing()).toBe(true);
   });
 
-  it("gives a chosen time the pin even where text was typed, as it always did", async () => {
+  it("gives a chosen time the pin even where text was typed", async () => {
     const user = userEvent.setup();
     joinOn("desktop", "comment");
     render(<ReviewHost guestShare />);
