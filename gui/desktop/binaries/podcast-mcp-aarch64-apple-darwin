@@ -1,3 +1,0 @@
-#!/bin/sh
-echo 'Packaged CLI requires a frozen desktop build' >&2
-exit 2

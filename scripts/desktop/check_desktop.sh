@@ -61,15 +61,18 @@ cargo clippy --lib --no-default-features -- -D warnings
 echo "==> cargo test --lib --no-default-features"
 cargo test --lib --no-default-features
 
-# The lib must keep building for the iOS host (#3810). CI's Ubuntu runner has no
-# iOS target, so this only runs where `rustup target add` was done.
-if command -v rustup >/dev/null 2>&1 \
-  && rustup target list --installed | grep -qx aarch64-apple-ios-sim; then
-  echo "==> cargo check --lib --no-default-features --target aarch64-apple-ios-sim"
-  cargo check --lib --no-default-features --target aarch64-apple-ios-sim
-else
-  echo "==> skip iOS lib check (rustup target aarch64-apple-ios-sim not installed)"
-fi
+# The lib must keep building for the iOS simulator and device targets (#3810).
+# CI's Ubuntu runner has no iOS targets, so each check only runs where
+# `rustup target add` was done.
+for ios_target in aarch64-apple-ios-sim aarch64-apple-ios; do
+  if command -v rustup >/dev/null 2>&1 \
+    && rustup target list --installed | grep -qx "$ios_target"; then
+    echo "==> cargo check --lib --no-default-features --target $ios_target"
+    cargo check --lib --no-default-features --target "$ios_target"
+  else
+    echo "==> skip iOS lib check (rustup target $ios_target not installed)"
+  fi
+done
 
 # Ubuntu scaffold cannot compile WebView FFI (needs WebKitGTK / WebView2).
 # On macOS, typecheck the app binary so media_capture.rs is not an uncompiled island.
