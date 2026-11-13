@@ -107,11 +107,6 @@ export function osTransportInput(
   };
 }
 
-/**
- * The fields whose change is a jump in what the OS extrapolates. The 60 Hz
- * playhead writes are not among them: the OS advances the position itself from
- * the declared rate.
- */
 /** True when no store field the change key reads has been replaced, so the key need not be built. */
 export function sameOsInputs(a: DawState, b: DawState): boolean {
   return (
@@ -124,16 +119,17 @@ export function sameOsInputs(a: DawState, b: DawState): boolean {
   );
 }
 
+/**
+ * What the OS extrapolates from changes exactly when this key does: every
+ * projection input but the position, plus the seek revision. The 60 Hz
+ * playhead writes are not among them: the OS advances the position itself from
+ * the declared rate.
+ */
 export function osDiscontinuityKey(state: DawState): string {
   return JSON.stringify([
     state.projectPath,
-    guestCanPlay(state),
-    state.project?.meta.name ?? null,
-    episodeDurationSec(state.project),
-    state.isPlaying,
-    state.sourcePreview ? state.sourcePreview.playing : null,
     state.playheadSeekRevision,
-    state.playbackRate,
+    { ...osTransportInput(state, 0), positionSec: 0 },
   ]);
 }
 
