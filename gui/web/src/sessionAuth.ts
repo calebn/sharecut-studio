@@ -1,4 +1,10 @@
-/** Session token for host GUI when PODCAST_SESSION_AUTHZ=strict (LAN bind). */
+/**
+ * Session token for host GUI when PODCAST_SESSION_AUTHZ=strict (LAN bind).
+ *
+ * A host whose loopback is not trusted opens the page with no token: the engine signs the web
+ * view in with a cookie, so everything here returns null and no URL or header carries a token.
+ * Pinned by api/cookieSession.test.ts.
+ */
 
 // Read once per page load. hooks/useHostSync treats a 4403 WS close as terminal
 // because a retry would reuse this same token; if the token can ever refresh
