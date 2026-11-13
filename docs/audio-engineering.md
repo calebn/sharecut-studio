@@ -1740,9 +1740,9 @@ render hashes and complete clip rows to occurrence artifact references; the clie
 matches on the render hashes and clip rows only. `select_manifest` names what a full
 manifest builds (a legacy artifact per dialogue track, an occurrence per restored clip,
 a recording per origin track and source that is not that track's own media), and
-`_ensure` captures exactly that selection for a full manifest. `proxy_basis_hashes` gives, for every track
+`_ensure` captures exactly that selection for a full manifest. `project_basis` records in `render_hashes`, for every track
 those artifacts read, of any role, a digest of its `proxy_render_hash` and
-`track_render_hash`; this map is the basis's `render_hashes`. An effect on a music
+`track_render_hash`. An effect on a music
 track with its own sourced clips therefore moves the music entry. Suppressed words
 enter `proxy_render_hash` only on a gated track, since only the transcript gate reads
 them, so suppressing a word on an ungated track leaves its artifacts and the key as

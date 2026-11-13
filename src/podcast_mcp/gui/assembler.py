@@ -32,7 +32,7 @@ from podcast_mcp.services.document_sync import (
     ViewProjection,
     parse_view_projection,
 )
-from podcast_mcp.services.media import proxy_basis_hashes
+from podcast_mcp.services.media import project_basis
 from podcast_mcp.util.batch_scope import batch_scope, frozen_state
 
 __all__ = [
@@ -75,7 +75,7 @@ def _render_status(ws: ProjectWorkspace, edit: EditService) -> dict[str, Any]:
     """
     with frozen_state():
         status = edit.render_status()
-        status["proxy_hashes"] = proxy_basis_hashes(ws.project, ws.effective_config())
+        status["proxy_hashes"] = project_basis(ws.project, ws.effective_config()).render_hashes
     return status
 
 
