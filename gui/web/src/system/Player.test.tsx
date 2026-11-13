@@ -408,6 +408,11 @@ describe("Player", () => {
       expect(screen.getByText("Comment")).toBeVisible();
     });
 
+    it("is a labelled region, so a screen reader can jump to it", () => {
+      render(<Player {...dock} />);
+      expect(screen.getByRole("region", { name: "Player" })).toBeVisible();
+    });
+
     it("has no Comment button without a handler", () => {
       render(<Player {...dock} />);
       expect(screen.queryByRole("button", { name: /^Comment/ })).toBeNull();
