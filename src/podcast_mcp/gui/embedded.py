@@ -94,7 +94,11 @@ class _Listener:
     def __init__(self, app: Any, held: socket.socket) -> None:
         self.sock = held.dup()
         self.server = build_gui_server(
-            app, self.sock, log_level="warning", graceful_shutdown_sec=GRACEFUL_SHUTDOWN_SEC
+            app,
+            self.sock,
+            log_level="warning",
+            access_log=False,
+            graceful_shutdown_sec=GRACEFUL_SHUTDOWN_SEC,
         )
         self.thread = threading.Thread(target=self._serve, name="sharecut-embedded", daemon=True)
 
