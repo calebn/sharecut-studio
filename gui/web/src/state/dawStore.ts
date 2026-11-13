@@ -1,7 +1,6 @@
 import { create } from "zustand";
 import { selectionFromWire } from "../session/wire";
 import { createAfterCutSlice } from "./afterCutSlice";
-import { withoutResume } from "./commentDraft";
 import { createPresenceSlice } from "./presenceSlice";
 import { createProjectSlice } from "./projectSlice";
 import { createSelectionSlice } from "./selectionSlice";
@@ -49,12 +48,4 @@ useDawStore.subscribe((state, prev) => {
   if (selection) {
     state.adoptRemoteSelection(selection);
   }
-});
-
-// A Comment tap pauses the episode and promises to play it on afterwards; any
-// Play after that, and so the end of the episode, takes the promise back.
-useDawStore.subscribe((state, prev) => {
-  const { commentDraft } = state;
-  if (state.isPlaying && !prev.isPlaying && commentDraft?.resume)
-    state.setCommentDraft(withoutResume(commentDraft));
 });

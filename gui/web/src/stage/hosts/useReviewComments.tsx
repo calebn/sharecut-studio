@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { runPointerCommand } from "../../commands/pointer";
+import { dispatchComposer } from "../../commands/composer";
 import { resolveCommentAnchor } from "../../comments/commentAnchor";
 import { commentTimeLabel } from "../../comments/commentTimeLabel";
 import { playComment } from "../../comments/playComment";
@@ -28,10 +28,8 @@ import {
   canSetAction,
   commentRole,
 } from "../../shareMode";
-import { isResumeDropped } from "../../state/commentDraft";
 import { useDawStore } from "../../state/dawStore";
 import { stageRoleOf } from "../../state/stageRoutes";
-import type { CommentDraft } from "../../state/types";
 import { useDaw } from "../../state/useDaw";
 import { CommentCard } from "../../system/CommentCard";
 import type { BodyEdit } from "../../system/Composer";
@@ -80,15 +78,25 @@ export type CommentNav = {
  * and Undo.
  */
 export function useReviewComments(guest: boolean) {
-  const { project, projectPath, commentDraft, guestMode, capabilities, shell } =
-    useDaw((s) => ({
-      project: s.project,
-      projectPath: s.projectPath,
-      commentDraft: s.commentDraft,
-      guestMode: s.guestMode,
-      capabilities: s.shareCapabilities,
-      shell: s.shellBreakpoint,
-    }));
+  const {
+    project,
+    projectPath,
+    commentDraft,
+    body,
+    sending,
+    guestMode,
+    capabilities,
+    shell,
+  } = useDaw((s) => ({
+    project: s.project,
+    projectPath: s.projectPath,
+    commentDraft: s.commentDraft,
+    body: s.composer.draft?.text ?? "",
+    sending: s.composer.post !== null,
+    guestMode: s.guestMode,
+    capabilities: s.shareCapabilities,
+    shell: s.shellBreakpoint,
+  }));
   const role = commentRole(projectPath, guestMode, guest);
   const mayComment = canComment(projectPath, guestMode, capabilities);
   const mayReply = canReply(projectPath, guestMode, capabilities);
@@ -114,14 +122,13 @@ export function useReviewComments(guest: boolean) {
   const [replies, setReplies] = useState<Readonly<Record<string, string>>>({});
   const actions = useCommentActions({ role });
   const replyRef = useRef<HTMLTextAreaElement>(null);
-  const sending = useRef(
+  const inFlight = useRef(
     new Map<string, { to: boolean; done: Promise<boolean> }>(),
   );
   const posting = useRef(new Set<string>());
   const [postingIds, setPostingIds] = useState<ReadonlySet<string>>(new Set());
   const composeRef = useRef<HTMLTextAreaElement>(null);
   const postComment = usePostComment();
-  const [body, setBody] = useState("");
   const [name, setName] = useState(() =>
     guest ? savedGuestName() : sessionDisplayName(role),
   );
@@ -176,19 +183,14 @@ export function useReviewComments(guest: boolean) {
     });
   }, [comments]);
 
-  // A new draft, from C or the Edit verb, opens the field with focus. The
-  // transport letting go of the resume promise is not a new draft.
-  const focusedDraft = useRef<CommentDraft | null>(null);
+  // A new draft, from C or the Edit verb, opens the field with focus.
   useEffect(() => {
-    const previous = focusedDraft.current;
-    focusedDraft.current = commentDraft;
-    if (
-      showComposer &&
-      commentDraft &&
-      !isResumeDropped(previous, commentDraft)
-    )
-      composeRef.current?.focus();
+    if (showComposer && commentDraft) composeRef.current?.focus();
   }, [showComposer, commentDraft]);
+  // A link that can no longer comment leaves no draft behind, and no playback to resume.
+  useEffect(() => {
+    if (!mayComment) dispatchComposer({ type: "reset" });
+  }, [mayComment]);
 
   const entries = useMemo(
     () => commentEntriesOf(comments ?? [], flipped),
@@ -215,11 +217,11 @@ export function useReviewComments(guest: boolean) {
     const { announceStatus: say } = useDawStore.getState();
     if (!c) return;
     // Same target in flight: a duplicate. The opposite target waits its turn.
-    const flight = sending.current.get(c.id);
+    const flight = inFlight.current.get(c.id);
     if (flight) {
       if (flight.to === resolved || !(await flight.done)) return;
       // Another waiter may have sent its own by now.
-      if (sending.current.has(c.id)) return;
+      if (inFlight.current.has(c.id)) return;
     } else if ((flipped.get(c.id) ?? c.resolved) === resolved) return;
     const itemId = commentItemId(c.id);
     sent.current.delete(c.id);
@@ -247,7 +249,7 @@ export function useReviewComments(guest: boolean) {
         settle = r;
       }),
     };
-    sending.current.set(c.id, mine);
+    inFlight.current.set(c.id, mine);
     try {
       await setCommentResolved(c.id, resolved, by);
     } catch (error) {
@@ -257,7 +259,7 @@ export function useReviewComments(guest: boolean) {
       settle(false);
       return;
     } finally {
-      if (sending.current.get(c.id) === mine) sending.current.delete(c.id);
+      if (inFlight.current.get(c.id) === mine) inFlight.current.delete(c.id);
     }
     sent.current.add(c.id);
     settle(true);
@@ -292,14 +294,17 @@ export function useReviewComments(guest: boolean) {
     );
   };
 
-  const droppedDraft = useRef<CommentDraft | null>(null);
-  useEffect(() => {
-    if (commentDraft) droppedDraft.current = null;
-  }, [commentDraft]);
   const open = () => {
     const state = useDawStore.getState();
-    if (state.commentDraft) composeRef.current?.focus();
-    else state.setCommentDraft(resolveCommentAnchor(state).draft);
+    if (state.composer.surface === "composer") composeRef.current?.focus();
+    else {
+      const { draft, source } = resolveCommentAnchor(state);
+      dispatchComposer({
+        type: "open",
+        anchor: draft,
+        replacePin: source === "selection",
+      });
+    }
   };
 
   // The field unmounts when the draft clears, so focus goes back to the stage
@@ -307,35 +312,23 @@ export function useReviewComments(guest: boolean) {
   const stageOf = () =>
     composeRef.current?.closest<HTMLElement>(".rv-stage") ?? null;
 
-  // Playback the dock paused for Comment goes on, unless the store dropped `resume`.
-  const resumePlayback = (draft: CommentDraft | null) => {
-    if (draft?.resume && !useDawStore.getState().isPlaying)
-      runPointerCommand("transport.togglePlay");
-  };
-
-  const session = useRef(0);
-  const close = () => {
-    session.current += 1;
+  // A Post that fails after the field was left has nowhere to say so.
+  const leaves = useRef(0);
+  const leave = (event: "close" | "discard") => {
     const stage = stageOf();
-    droppedDraft.current = null;
-    setBody("");
-    setOptions((current) => ({ ...current, scope: [], actionLines: [] }));
-    postComment.cancel();
-    resumePlayback(useDawStore.getState().commentDraft);
-    useDawStore.getState().setCommentDraft(null);
+    leaves.current += 1;
+    postComment.setError(null);
+    dispatchComposer({ type: event });
     stage?.focus({ preventScroll: true });
   };
-
-  /** Listen layout: drop the draft, keep the typed text. */
-  const collapse = () => {
-    session.current += 1;
-    droppedDraft.current = null;
-    postComment.cancel();
-    resumePlayback(useDawStore.getState().commentDraft);
-    useDawStore.getState().setCommentDraft(null);
+  const close = () => {
+    setOptions((current) => ({ ...current, scope: [], actionLines: [] }));
+    leave("discard");
   };
+  /** Listen layout: the typed text and its time wait for the next Comment. */
+  const collapse = () => leave("close");
 
-  const postBusy = useRef(false);
+  const postIds = useRef(0);
   // A guest who blanks a saved name posts under it, so show it. The generic
   // "Guest" label stays out of the field: a first post never needs a name.
   const showGuestActor = (who: string) => {
@@ -343,83 +336,52 @@ export function useReviewComments(guest: boolean) {
   };
 
   const post = async () => {
-    if (postBusy.current) return;
-    postBusy.current = true;
+    const { composer: session } = useDawStore.getState();
+    if (session.post || !session.draft) return;
     const stage = stageOf();
-    const started = session.current;
-    // Posting clears the draft, so read what it says first.
-    const draft = useDawStore.getState().commentDraft;
-    try {
-      const result = await postComment.post({
-        body,
-        trackIds: chosen,
-        actionTexts: mayAct ? filledActions(actionLines) : [],
-        author: commitCommentActor(
-          name,
-          role,
-          guest ? showGuestActor : setName,
-        ),
-      });
-      // Escape closed the field while this was in flight: its outcome is moot.
-      if (started !== session.current) {
-        postComment.setError(null);
-        if (result.ok) setBody("");
-        return;
-      }
-      if (!result.ok) return;
-      if (guest && capCommentName(name)) {
-        saveCommentAuthor(name, role);
-        setNameKnown(capCommentName(savedGuestName()) !== "");
-      }
-      if (guest) {
-        setPostedRev((n) => n + 1);
-        // A blanked field posted under the saved name: show that name again.
-        setName((typed) => (capCommentName(typed) ? typed : savedGuestName()));
-      }
-      droppedDraft.current = null;
-      setBody("");
-      setOptions((current) => ({ ...current, scope: [], actionLines: [] }));
-      useDawStore
-        .getState()
-        .announceStatus(commentPostedStatus(result.comment));
-      setPosted({
-        text: result.comment
-          ? `Comment added at ${commentTimeLabel(result.comment)}`
-          : "Comment saved for later",
-      });
-      resumePlayback(draft);
-      stage?.focus({ preventScroll: true });
-    } finally {
-      postBusy.current = false;
+    const id = ++postIds.current;
+    const left = leaves.current;
+    dispatchComposer({ type: "postStart", id });
+    const result = await postComment.post({
+      body: session.draft.text,
+      trackIds: chosen,
+      actionTexts: mayAct ? filledActions(actionLines) : [],
+      author: commitCommentActor(name, role, guest ? showGuestActor : setName),
+    });
+    if (!result.ok) {
+      dispatchComposer({ type: "postFailed", id });
+      if (left !== leaves.current) postComment.setError(null);
+      return;
     }
+    if (guest && capCommentName(name)) {
+      saveCommentAuthor(name, role);
+      setNameKnown(capCommentName(savedGuestName()) !== "");
+    }
+    if (guest) {
+      setPostedRev((n) => n + 1);
+      // A blanked field posted under the saved name: show that name again.
+      setName((typed) => (capCommentName(typed) ? typed : savedGuestName()));
+    }
+    setOptions((current) => ({ ...current, scope: [], actionLines: [] }));
+    useDawStore.getState().announceStatus(commentPostedStatus(result.comment));
+    setPosted({
+      text: result.comment
+        ? `Comment added at ${commentTimeLabel(result.comment)}`
+        : "Comment saved for later",
+    });
+    dispatchComposer({ type: "postDone", id });
+    stage?.focus({ preventScroll: true });
   };
 
-  // The draft the first keystroke made. Emptying the field drops it, so the
-  // time follows the playhead (or the selected range) again, but only while it
-  // is still this object: C, Comment here or the range command each set a new
-  // draft, which stays. Undo of that emptying brings the dropped draft back, so
-  // the comment keeps the time its first keystroke pinned. A ref is enough: a
-  // later draft is always a different object.
-  const typedDraft = useRef<CommentDraft | null>(null);
   const type = (value: string, edit?: BodyEdit) => {
     const state = useDawStore.getState();
-    const composing = edit?.composing ?? false;
-    if (value && !state.commentDraft) {
-      const restored = edit?.undo ? droppedDraft.current : null;
-      typedDraft.current = restored ?? resolveCommentAnchor(state).draft;
-      droppedDraft.current = null;
-      state.setCommentDraft(typedDraft.current);
-    } else if (
-      !value &&
-      !composing &&
-      typedDraft.current &&
-      typedDraft.current === state.commentDraft
-    ) {
-      droppedDraft.current = typedDraft.current;
-      state.setCommentDraft(null);
-    }
-    if (!value && !composing) typedDraft.current = null;
-    setBody(value);
+    dispatchComposer({
+      type: "type",
+      text: value,
+      composing: edit?.composing ?? false,
+      undo: edit?.undo ?? false,
+      fresh: resolveCommentAnchor(state).draft,
+    });
   };
 
   const composer = showComposer ? (
@@ -442,7 +404,7 @@ export function useReviewComments(guest: boolean) {
               }
             : undefined
         }
-        state={postComment.busy ? "posting" : "idle"}
+        state={sending ? "posting" : "idle"}
         inputRef={composeRef}
       />
       {scopeTracks ? (
@@ -452,7 +414,7 @@ export function useReviewComments(guest: boolean) {
           onChange={(next) =>
             setOptions((current) => ({ ...current, scope: next }))
           }
-          disabled={postComment.busy}
+          disabled={sending}
         />
       ) : null}
       {mayAct ? (
@@ -461,7 +423,7 @@ export function useReviewComments(guest: boolean) {
           onChange={(next) =>
             setOptions((current) => ({ ...current, actionLines: next }))
           }
-          disabled={postComment.busy}
+          disabled={sending}
         />
       ) : null}
       <InlineError message={postComment.error} />

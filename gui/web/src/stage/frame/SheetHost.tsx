@@ -1,5 +1,6 @@
 import { type ReactNode, useEffect, useState } from "react";
 import { useShallow } from "zustand/react/shallow";
+import { dispatchComposer } from "../../commands/composer";
 import { HistoryPanel } from "../../panels/HistoryPanel";
 import { useDawStore } from "../../state/dawStore";
 import { Sheet } from "../../system/Sheet";
@@ -14,26 +15,25 @@ const TITLES: Record<StageSheet, string> = {
   mix: "Mix",
   tools: "Tools",
   invite: "Invite",
-  comments: "Comments",
-  chapters: "Chapters",
 };
 
 /**
  * Renders the open Stage sheet: a bottom Sheet on a phone, a centered one
- * elsewhere. History, Invite and Chapters are hosted here; the stage hosts hand in Mix and Tools.
- * The Comments sheet is the Listen layout's own (it needs the queue's state). The
- * phone's Mix sheet closes when a dialog opens over it.
+ * elsewhere. History, Invite and (from the Listen dock) Chapters are hosted here; the
+ * stage hosts hand in Mix and Tools. The Comments sheet is the Listen layout's own
+ * (it needs the queue's state). The phone's Mix sheet closes when a dialog opens over it.
  */
 export function SheetHost({
   content,
 }: {
   content?: Partial<Record<StageSheet, ReactNode>>;
 }) {
-  const { openSheet, setOpenSheet, shell } = useDawStore(
+  const { openSheet, setOpenSheet, shell, chaptersOpen } = useDawStore(
     useShallow((s) => ({
       openSheet: s.openSheet,
       setOpenSheet: s.setOpenSheet,
       shell: s.shellBreakpoint,
+      chaptersOpen: s.composer.surface === "chapters",
     })),
   );
   const [detent, setDetent] = useState<DrawerDetent>("half");
@@ -44,6 +44,19 @@ export function SheetHost({
   useEffect(() => {
     if (yieldsToDialog) setOpenSheet(null);
   }, [yieldsToDialog, setOpenSheet]);
+  if (chaptersOpen) {
+    const hide = () => dispatchComposer({ type: "show", surface: "none" });
+    return (
+      <Sheet
+        form={shell === "phone" ? "bottom" : "centered"}
+        title="Chapters"
+        detent="fit"
+        onClose={hide}
+      >
+        <ChaptersList onPicked={hide} />
+      </Sheet>
+    );
+  }
   if (!openSheet || yieldsToDialog) return null;
   if (openSheet === "invite") {
     return (
@@ -56,18 +69,13 @@ export function SheetHost({
     );
   }
   const body =
-    content?.[openSheet] ??
-    (openSheet === "history" ? (
-      <HistoryPanel />
-    ) : openSheet === "chapters" ? (
-      <ChaptersList onPicked={() => setOpenSheet(null)} />
-    ) : null);
+    content?.[openSheet] ?? (openSheet === "history" ? <HistoryPanel /> : null);
   if (!body) return null;
   return (
     <Sheet
       form={shell === "phone" ? "bottom" : "centered"}
       title={TITLES[openSheet]}
-      detent={openSheet === "chapters" ? "fit" : detent}
+      detent={detent}
       onDetentChange={setDetent}
       onClose={() => setOpenSheet(null)}
     >

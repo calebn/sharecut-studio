@@ -23,6 +23,7 @@ import type {
 import type { LaneHeightMode } from "../utils/laneHeightPref";
 import type { WaveformScaleMode } from "../waveform/types";
 import type { AfterCutSliceState } from "./afterCutSlice";
+import type { ComposerSession } from "./composerSession";
 import type {
   HeldTrimEvent,
   HeldTrimLayer,
@@ -120,8 +121,6 @@ export interface CommentDraft {
   endSec: number | null;
   trackIds?: string[];
   intervals?: { start: number; end: number }[];
-  /** The Listen dock's Comment paused playback: Post or Close plays again. */
-  resume?: true;
 }
 
 type SourcePreviewBase = {
@@ -336,7 +335,11 @@ export interface DawState {
   setRangeBusy: (busy: boolean) => void;
   userZoomed: boolean;
   layers: LayerVisibility;
+  /** The composer session; `commentDraft` is its anchor while the field is open. */
+  composer: ComposerSession;
   commentDraft: CommentDraft | null;
+  /** The project's load failed, so the Listen middle shows the failure. */
+  listenLoadFailed: boolean;
   transcriptFollowPlayhead: boolean;
   transcriptInlineEditRequest: TranscriptInlineEditRequest | null;
   /** Late failure of an inline word fix; outlives a Script remount. */
@@ -544,7 +547,7 @@ export interface DawState {
   /** Back to the current shell's estimate (the timeline unmounted). */
   resetTimelineViewportWidth: () => void;
   setLayerVisible: (key: keyof LayerVisibility, visible: boolean) => void;
-  setCommentDraft: (draft: CommentDraft | null) => void;
+  setListenLoadFailed: (failed: boolean) => void;
   selectTracks: (trackIds: readonly string[]) => void;
   commitRange: (target: ExactRangeTarget) => void;
   toggleTrackSelected: (trackId: string, additive: boolean) => void;
