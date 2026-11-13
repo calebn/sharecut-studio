@@ -130,7 +130,9 @@ export function QueueRow({
             <SystemIcon name={meta.icon} size={16} title={meta.label} />
           )}
         </span>
-        <span className="sys-queue-snippet">{snippet}</span>
+        <span className="sys-queue-snippet" dir="auto">
+          {snippet}
+        </span>
         {restricted ? (
           <>
             <SystemIcon

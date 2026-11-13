@@ -598,3 +598,20 @@ describe("a Viewer's thread", () => {
     expect(screen.queryByRole("button", { name: /^Comment at/ })).toBeNull();
   });
 });
+
+describe("a comment in another script", () => {
+  it("lets the preview and the list rows order their own text", async () => {
+    const user = userEvent.setup();
+    join("comment");
+    useDawStore.setState({ playheadSec: 4 });
+    mount();
+    const preview = rowButton().querySelector(".gl-row-text [dir=auto]");
+    expect(preview).not.toBeNull();
+    await user.click(rowButton());
+    expect(
+      screen
+        .getByRole("dialog", { name: "Comments" })
+        .querySelector(".sys-queue-snippet[dir=auto]"),
+    ).not.toBeNull();
+  });
+});

@@ -43,7 +43,7 @@ export function CommentsRow({
           <span className="gl-row-who">
             {preview.author} · {preview.time}
           </span>{" "}
-          {preview.text}
+          <span dir="auto">{preview.text}</span>
         </span>
       ) : (
         <span className="gl-row-text">{label}</span>
