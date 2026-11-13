@@ -5,6 +5,9 @@ import * as http from "../api/http";
 import { createHostPlaybackMeterMonitor } from "../audio/hostPlaybackMeterMonitor";
 import { playbackPositionSec } from "../audio/playbackClock";
 import { playbackMeterSource } from "../audio/playbackMeterSource";
+import { clearRegisteredCommands } from "../commands/execute";
+import { skipListen } from "../commands/listenSeek";
+import { registerDawCommands } from "../commands/register";
 import { patchTrackMix } from "../document/projectPatch";
 import { useDawStore } from "../state/dawStore";
 import { minimalProject, sampleTrack } from "../test/fixtures";
@@ -321,6 +324,34 @@ describe("useAudioTransport project transitions", () => {
     expect(playbackPositionSec() ?? 9).toBe(9);
     unmount();
     expect(playbackPositionSec() ?? 8).toBe(8);
+  });
+
+  it("reports no clock between a store seek and the players taking it, so skips stack on the target", async () => {
+    clearRegisteredCommands();
+    registerDawCommands();
+    useDawStore.getState().setProject(trackProject("raw/host.wav"));
+    useDawStore.getState().setAuditionMode("raw");
+    const { unmount } = renderHook(() => useAudioTransport());
+    const player = FakeAudio.instances[0];
+    player.readyState = 4;
+    act(() => useDawStore.getState().setIsPlaying(true));
+    await act(async () => {});
+    player.currentTime = 10;
+    expect(playbackPositionSec()).toBe(10);
+
+    await act(async () => {
+      useDawStore.getState().setPlayheadSec(20);
+      expect(playbackPositionSec()).toBeNull();
+      skipListen(15, 60);
+      await Promise.resolve();
+      skipListen(15, 60);
+      await Promise.resolve();
+    });
+    expect(useDawStore.getState().playheadSec).toBe(50);
+    expect(player.currentTime).toBe(50);
+    expect(playbackPositionSec()).toBe(50);
+    unmount();
+    clearRegisteredCommands();
   });
 
   it("withholds meter work until the primary has future data", async () => {

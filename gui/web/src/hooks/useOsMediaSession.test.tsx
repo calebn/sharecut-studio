@@ -100,6 +100,52 @@ describe("useOsMediaSession", () => {
     });
   });
 
+  it("claims nothing for a guest until playback has started", () => {
+    hydrateGuest();
+    renderHook(() => useOsMediaSession());
+    expect(session.metadata).toBeNull();
+    expect(session.playbackState).toBe("none");
+    expect(session.setActionHandler).not.toHaveBeenCalled();
+    expect(session.setPositionState).not.toHaveBeenCalled();
+  });
+
+  it("declares metadata, state, position and handlers in the write that starts playback", () => {
+    hydrateGuest();
+    renderHook(() => useOsMediaSession());
+    act(() => useDawStore.getState().setIsPlaying(true));
+    expect(session.metadata?.title).toBe("Episode 12");
+    expect(session.playbackState).toBe("playing");
+    expect(handlers.get("play")).not.toBeNull();
+    expect(handlers.get("seekto")).not.toBeNull();
+    expect(session.setPositionState).toHaveBeenLastCalledWith({
+      duration: 60,
+      playbackRate: 1,
+      position: 0,
+    });
+  });
+
+  it("stays declared through a pause and drops everything when the project changes", () => {
+    hydrateGuest();
+    renderHook(() => useOsMediaSession());
+    act(() => useDawStore.getState().setIsPlaying(true));
+    act(() => useDawStore.getState().setIsPlaying(false));
+    expect(session.playbackState).toBe("paused");
+    expect(handlers.get("play")).not.toBeNull();
+    act(() =>
+      useDawStore.getState().hydrate(
+        shareProjectKey("other"),
+        minimalProject({
+          meta: { name: "Episode 13", workspace_dir: "/tmp/x" },
+          timeline_duration_sec: 60,
+          tracks: [sampleTrack({ id: "host" })],
+        }),
+      ),
+    );
+    expect(session.metadata).toBeNull();
+    expect(session.playbackState).toBe("none");
+    expect(handlers.get("play")).toBeNull();
+  });
+
   it("declares the position again only when the transport jumps", () => {
     hydrateGuest();
     renderHook(() => useOsMediaSession());
