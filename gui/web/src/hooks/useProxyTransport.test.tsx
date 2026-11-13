@@ -7,7 +7,7 @@ import { playbackPositionSec } from "../audio/playbackClock";
 import { playbackMeterSource } from "../audio/playbackMeterSource";
 import { leavePlaybackSession } from "../audio/playbackSession";
 import { ProxyEngine } from "../audio/proxyEngine";
-import { type ProxyManifest, projectProxyBasis } from "../audio/proxyMath";
+import type { ProxyManifest } from "../audio/proxyMath";
 import { applyDocumentSnapshot } from "../document/applyDocumentUpdate";
 import {
   documentAuthority,
@@ -22,6 +22,7 @@ import {
 import { shareProjectKey } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
 import { minimalProject, sampleTrack } from "../test/fixtures";
+import { hostProxyManifest } from "../test/proxyManifest";
 import { ApiError } from "../utils/apiError";
 import { useAudioTransport } from "./useAudioTransport";
 import { useProxyTransport } from "./useProxyTransport";
@@ -68,22 +69,7 @@ vi.mock("../api/project", async (importOriginal) => ({
 vi.mock("../audio/chunkCache", () => ({ cachedFetchArrayBuffer: vi.fn() }));
 
 function manifestFor(project = useDawStore.getState().project!): ProxyManifest {
-  return {
-    revision: "revision",
-    project_basis: projectProxyBasis(project),
-    tracks: {
-      host: {
-        hash: "a".repeat(16),
-        chunk_sec: 60,
-        overlap_ms: 200,
-        chunk_count: 1,
-        duration_sec: 60,
-        urls: ["u0"],
-      },
-    },
-    artifacts: {},
-    occurrences: {},
-  };
+  return hostProxyManifest(project);
 }
 
 async function ready(): Promise<void> {
