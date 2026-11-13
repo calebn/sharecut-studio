@@ -17,7 +17,8 @@ Do not commit or push directly to `main` unless the user explicitly overrides.
 4. When the user authorizes commits or PR delivery, make focused Conventional
    Commits. Run `make docs-sync`. Read each changed doc beside the code it describes.
    Post issue-specific screenshots and receipts on the PR, never in `docs/issue-<n>/`.
-5. Push the branch and open a draft PR. Independent PRs target the base branch in `config/branches.json` (`develop`).
+5. Push the branch and open a draft PR. Draft PRs do not run CI, so batch fixes into one
+   head you believe is final, then mark the PR ready so CI runs once on that head. Independent PRs target the base branch in `config/branches.json` (`develop`).
    A native base-branch stack targets its parent until the parent lands.
    Report the issue selection and draft PR URL to the parent or operator immediately.
    A delegated owner waits for the parent's acknowledgment before any merge.
@@ -32,6 +33,12 @@ yourself per [Close issues](issue-claims.md#close-issues).
 
 Merge only under the user's current grant. Opening a PR, invoking the companion,
 or passing a helper does not grant merge authority.
+
+CI runs before the independent review lanes. Get the required checks green on the head
+first, then launch the lanes on that same head, so a CI failure never discards a finished
+review. A follow-up commit that changes only docs or tests (confirmed from the git diff
+against the fully reviewed head, never by judgment) needs only a gates lane plus one audit
+lane at the new head. Any app-code change and any rebase gets the full set of lanes again.
 
 Require successful `pytest`, `frontend`, `frontend-e2e`, and `gitleaks-history`
 checks for the exact final PR head. The Python-floor job is advisory.
