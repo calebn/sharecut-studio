@@ -629,8 +629,11 @@ def _prepare_for(ws: ProjectWorkspace, command_type: str) -> None:
         )
 
 
+_LEAVES_RENDER_HASH = frozenset({"CorrectTranscriptWord", "VerifyTranscript"})
+
+
 @pytest.mark.parametrize("command_type", sorted(commands_in_family("transcript")))
-def test_transcript_command_that_moves_a_render_hash_ships_it_to_a_guest(
+def test_transcript_command_ships_a_moved_render_hash_to_a_guest(
     minimal_project, command_type
 ) -> None:
     ws = _gated_workspace(minimal_project)
@@ -649,6 +652,7 @@ def test_transcript_command_that_moves_a_render_hash_ships_it_to_a_guest(
         )
     )
     after = _render_hashes(ws)
+    assert (after == before) == (command_type in _LEAVES_RENDER_HASH)
     if after == before:
         return
     patch = dump_project_projection(
