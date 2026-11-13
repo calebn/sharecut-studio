@@ -44,7 +44,7 @@ export function roleHolds(role: ReviewRole, cap: Capability): boolean {
 
 
 def _model() -> dict[str, Any]:
-    from podcast_mcp.services.collaboration import share_capabilities as sc
+    import podcast_mcp.services.collaboration as sc
 
     capabilities = list(sc.ALL_CAPABILITIES)
     review = {role.value: list(caps) for role, caps in sc.REVIEW_ROLE_CAPABILITIES.items()}
