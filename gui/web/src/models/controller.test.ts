@@ -125,7 +125,7 @@ describe("overlay", () => {
       { kind: "unsupported", hint: sentence },
       {
         kind: "unsupported",
-        hint: "Audio tools aren't available on this device yet.",
+        hint: "ShareCut can't process audio on this device yet.",
       },
     ]);
   });

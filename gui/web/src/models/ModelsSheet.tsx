@@ -47,18 +47,16 @@ export function ModelsSheet({ open, onClose }: Props) {
       <div className="models-sheet-body">
         {observation.kind === "current" &&
         models !== null &&
-        tools.ffmpeg === "unsupported" ? (
-          <StatusRow state="queued" title={unsupportedSentence(tools.hint)} />
-        ) : null}
-        {observation.kind === "current" &&
-        models !== null &&
-        tools.ffmpeg !== "installed" &&
-        tools.ffmpeg !== "unsupported" ? (
-          <StatusRow
-            state="failed"
-            title="Audio tools are unavailable"
-            detail="Reinstall ShareCut Studio to restore them."
-          />
+        tools.ffmpeg !== "installed" ? (
+          tools.ffmpeg === "unsupported" ? (
+            <StatusRow state="queued" title={unsupportedSentence(tools.hint)} />
+          ) : (
+            <StatusRow
+              state="failed"
+              title="Audio tools are unavailable"
+              detail="Reinstall ShareCut Studio to restore them."
+            />
+          )
         ) : null}
         <InlineError message={loadError} origin="state" />
         {models === null && loadError ? (

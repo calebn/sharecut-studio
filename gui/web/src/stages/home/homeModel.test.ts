@@ -288,7 +288,7 @@ describe("setupOf", () => {
           models,
         }),
       )?.detail,
-    ).toBe("Audio tools aren't available on this device yet.");
+    ).toBe("ShareCut can't process audio on this device yet.");
   });
   it("puts a running download ahead of missing audio tools", () => {
     const tools = { ffmpeg: "missing" as const, hint: null };
