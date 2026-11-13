@@ -37,6 +37,12 @@ const PORTRAITS = [
   { width: 375, height: 667 },
 ] as const;
 
+const NARROW = [
+  { width: 360, height: 800 },
+  { width: 340, height: 720 },
+  { width: 320, height: 568 },
+] as const;
+
 const FOLDED = { width: 667, height: 375 } as const;
 
 async function expectRestsOnDock(guest: Page, sheet: Locator) {
@@ -143,6 +149,41 @@ const commentButton = (guest: Page) =>
   guest.getByRole("button", { name: /^Comment at/ });
 const composer = (guest: Page) => guest.locator(".rv-compose");
 
+async function expectDockFits(guest: Page, width: number) {
+  const fit = await guest.evaluate(() => {
+    const dock = document.querySelector<HTMLElement>(".sys-listen-dock");
+    const transport = document.querySelector<HTMLElement>(
+      ".sys-listen-dock-transport",
+    );
+    if (!dock || !transport) return null;
+    const style = getComputedStyle(dock);
+    const controls = [...transport.querySelectorAll<HTMLElement>("button")]
+      .map((el) => el.getBoundingClientRect())
+      .filter((r) => r.width > 0);
+    const gap = parseFloat(getComputedStyle(transport).columnGap) || 0;
+    const used =
+      controls.reduce((sum, r) => sum + r.width, 0) +
+      gap * (controls.length - 1);
+    const box = dock.getBoundingClientRect();
+    return {
+      count: controls.length,
+      free: transport.clientWidth - used,
+      scrolls: transport.scrollWidth > transport.clientWidth,
+      left: Math.min(...controls.map((r) => r.left)) - box.left,
+      right: box.right - Math.max(...controls.map((r) => r.right)),
+      padding: parseFloat(style.paddingInlineStart),
+    };
+  });
+  expect(fit).not.toBeNull();
+  if (!fit) return;
+  expect(fit.count).toBe(5);
+  expect(fit.scrolls).toBe(false);
+  expect(fit.left).toBeGreaterThanOrEqual(fit.padding - 0.5);
+  expect(fit.right).toBeGreaterThanOrEqual(fit.padding - 0.5);
+  expect(fit.free).toBeGreaterThanOrEqual(8);
+  await expectNoHorizontalScroll(guest, width);
+}
+
 async function expectNoHorizontalScroll(guest: Page, width: number) {
   await expect
     .poll(() => guest.evaluate(() => document.documentElement.scrollWidth))
@@ -224,6 +265,9 @@ for (const profile of PROFILES) {
           await expect(
             guest.getByRole("button", { name: "Pause", exact: true }),
           ).toBeVisible();
+          await expect(
+            guest.locator(".sys-listen-dock-elapsed"),
+          ).not.toHaveText("0:00");
           await commentButton(guest).tap({ timeout: 10_000 });
           const field = composer(guest).getByRole("textbox", {
             name: "Comment",
@@ -247,9 +291,12 @@ for (const profile of PROFILES) {
           await post.tap({ timeout: 10_000 });
           await expect(composer(guest)).toHaveCount(0);
           await expect(
-            guest.getByRole("button", { name: /^Show comments/ }),
+            guest.getByRole("button", { name: /^Show\b.*\bcomments?/ }),
           ).toContainText("Comment added at");
           await expect(commentButton(guest)).toBeFocused();
+          await expect(
+            guest.getByRole("button", { name: "Pause", exact: true }),
+          ).toBeVisible();
         },
       );
     });
@@ -264,7 +311,7 @@ for (const profile of PROFILES) {
         "commenter",
         async (guest) => {
           await guest
-            .getByRole("button", { name: /^Show comments/ })
+            .getByRole("button", { name: /^Show\b.*\bcomments?/ })
             .tap({ timeout: 10_000 });
           const sheet = guest.getByRole("dialog", { name: "Comments" });
           await expectRestsOnDock(guest, sheet);
@@ -305,8 +352,13 @@ for (const profile of PROFILES) {
             .tap({ timeout: 10_000 });
           const sheet = guest.getByRole("dialog", { name: "Chapters" });
           await expectRestsOnDock(guest, sheet);
-          await sheet.getByRole("button").first().tap({ timeout: 10_000 });
+          await sheet
+            .getByRole("button", { name: /The long way round/ })
+            .tap({ timeout: 10_000 });
           await expect(sheet).toHaveCount(0);
+          await expect(guest.locator(".sys-listen-dock-elapsed")).toHaveText(
+            "0:30",
+          );
         },
       );
     });
@@ -323,6 +375,58 @@ for (const profile of PROFILES) {
         await expect(guest.getByRole("textbox")).toHaveCount(0);
         await expectNoHorizontalScroll(guest, size.width);
       });
+    });
+
+    test(`a Viewer reads the chapters in the middle, with no Chapters button, and a thread without a reply field on ${where}`, async ({
+      browser,
+    }) => {
+      await withPhoneGuest(browser, profile, size, "viewer", async (guest) => {
+        await expect(
+          guest.getByRole("list", { name: "Chapters" }),
+        ).toBeVisible();
+        await expect(
+          guest.getByRole("button", { name: "Chapters" }),
+        ).toHaveCount(0);
+        await guest
+          .getByRole("button", { name: /^Show\b.*\bcomments?/ })
+          .tap({ timeout: 10_000 });
+        const sheet = guest.getByRole("dialog", { name: "Comments" });
+        await sheet
+          .locator(".sys-queue-row")
+          .first()
+          .getByRole("button")
+          .tap({ timeout: 10_000 });
+        const thread = guest.getByRole("dialog", { name: /^Comment from/ });
+        await expect(thread).toBeVisible();
+        await expect(thread.getByRole("textbox")).toHaveCount(0);
+        await expect(guest.getByRole("textbox")).toHaveCount(0);
+      });
+    });
+  }
+
+  for (const size of NARROW) {
+    test(`the dock fits with room to spare and 44 px targets on ${profile.name} ${size.width}x${size.height}`, async ({
+      browser,
+    }) => {
+      await withPhoneGuest(
+        browser,
+        profile,
+        size,
+        "commenter",
+        async (guest) => {
+          await expectDockFits(guest, size.width);
+          for (const control of [
+            guest.getByRole("button", { name: "Play", exact: true }),
+            commentButton(guest),
+            guest.getByRole("button", { name: "Chapters" }),
+            guest.getByRole("button", { name: "Back 15 seconds" }),
+            guest.getByRole("button", { name: "Forward 15 seconds" }),
+          ]) {
+            await expectReached(control);
+            await expectTouchTarget(control);
+          }
+        },
+      );
     });
   }
 
@@ -395,7 +499,7 @@ for (const profile of PROFILES) {
       "commenter",
       async (guest) => {
         await guest
-          .getByRole("button", { name: /^Show comments/ })
+          .getByRole("button", { name: /^Show\b.*\bcomments?/ })
           .tap({ timeout: 10_000 });
         const comments = guest.getByRole("dialog", { name: "Comments" });
         await expectRestsOnDock(guest, comments);
