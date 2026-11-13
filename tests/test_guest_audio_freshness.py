@@ -900,6 +900,7 @@ PLACEMENT = (
     "and gains its clips from the clip rows"
 )
 METADATA = "review, chapter, social, feed or naming metadata; no audio input"
+WORD_TEXT = "word text and confidence only; the gate reads neither"
 PENDING = "stages or reviews edit decisions; nothing plays until one is applied"
 CANNOT_MOVE_AUDIO: dict[str, Cannot] = {
     **dict.fromkeys(
@@ -965,7 +966,7 @@ CANNOT_MOVE_AUDIO: dict[str, Cannot] = {
         Cannot(PLACEMENT, NON_DIALOGUE),
     ),
     "AddTrack": Cannot("a new track has no media and no clips, so no artifact reads it"),
-    "CorrectTranscriptWord": Cannot("word text and confidence only; the gate reads neither"),
+    "CorrectTranscriptWord": Cannot(WORD_TEXT),
     "ReorderTrack": Cannot("track order is no artifact's input"),
     "SetBleedAlignmentMode": Cannot(
         "records a choice the next bleed alignment pass reads; no render reads the record"
@@ -974,7 +975,7 @@ CANNOT_MOVE_AUDIO: dict[str, Cannot] = {
     "SetJoinFadeLimit": Cannot("caps only fades the automatic join writers pick later"),
     "SetTrackFader": Cannot("the player applies the mix fader"),
     "SetTrackMute": Cannot("the player applies the mix mute"),
-    "VerifyTranscript": Cannot("word text and confidence only; the gate reads neither"),
+    "VerifyTranscript": Cannot(WORD_TEXT),
 }
 
 
@@ -1008,10 +1009,10 @@ def test_the_manifest_key_reads_every_clip_field_the_manifest_carries() -> None:
 def run_case(template: Path, tmp_path: Path, command_type: str, role: TrackRole | None) -> list:
     # The scope decodes each recording once for every artifact capture the case makes.
     with batch_scope():
-        return _run_case(template, tmp_path, command_type, role)
+        return _steps(template, tmp_path, command_type, role)
 
 
-def _run_case(template: Path, tmp_path: Path, command_type: str, role: TrackRole | None) -> list:
+def _steps(template: Path, tmp_path: Path, command_type: str, role: TrackRole | None) -> list:
     case = CASES[command_type]
     target = Target(role or TrackRole.DIALOGUE)
     rig = _open(template, tmp_path, case)

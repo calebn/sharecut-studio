@@ -141,7 +141,12 @@ def _select(project: EpisodeProject) -> ManifestSelection:
         if not plays_primary[key]:
             recordings[clip.id] = key
             reads.append(key[0])
-    return ManifestSelection(legacy, tuple(restored), recordings, tuple(dict.fromkeys(reads)))
+    return ManifestSelection(
+        legacy=legacy,
+        restored=tuple(restored),
+        recordings=recordings,
+        track_ids=tuple(dict.fromkeys(reads)),
+    )
 
 
 def proxy_basis_hashes(project: EpisodeProject, defaults: EffectiveConfig) -> dict[str, str]:
@@ -192,7 +197,9 @@ def capture_manifest_inputs(
 ) -> ManifestInputs:
     """Seal the inputs of a full manifest, or of one legacy track when ``track_id`` is set."""
     if track_id is not None:
-        selection = ManifestSelection((track_id,), (), {}, (track_id,))
+        selection = ManifestSelection(
+            legacy=(track_id,), restored=(), recordings={}, track_ids=(track_id,)
+        )
     else:
         selection = select_manifest(project)
     return ManifestInputs(
@@ -494,21 +501,17 @@ def _ensure(ws: ProjectWorkspace, track_id: str | None) -> ProxyManifestGenerati
                     if snapshot.track_by_id(tid) is None:
                         raise CodedKeyError("Track is not available", code="track_not_found")
                 sealed = capture_manifest_inputs(snapshot, engine, defaults, track_id)
-                captures = list(sealed.legacy.items())
-                choices = list(sealed.occurrences.items())
-                clip_keys = sealed.clip_keys
-                recordings = sealed.recordings
             with tempfile.TemporaryDirectory(prefix="proxy-wav-") as temporary:
                 tracks = {}
                 artifacts = {}
                 occurrences = {}
-                for tid, inputs in captures:
+                for tid, inputs in sealed.legacy.items():
                     item = _prepare(
                         snapshot, inputs, engine, Path(temporary), legacy=True, defaults=defaults
                     )
                     prepared.append(item)
                     tracks[tid] = item.artifact
-                for clip_id, inputs in choices:
+                for clip_id, inputs in sealed.occurrences.items():
                     input_hash = _input_hash(snapshot, inputs, defaults)
                     candidate = next(
                         (
@@ -536,14 +539,14 @@ def _ensure(ws: ProjectWorkspace, track_id: str | None) -> ProxyManifestGenerati
                         bakes_mutes=inputs.bakes_mutes,
                     )
                 prepared_recordings = {}
-                for key, inputs in recordings.items():
+                for key, inputs in sealed.recordings.items():
                     item = _prepare(
                         snapshot, inputs, engine, Path(temporary), legacy=False, defaults=defaults
                     )
                     prepared.append(item)
                     prepared_recordings[key] = item.artifact
                     artifacts[item.artifact.hash] = item.artifact
-                for clip_id, key in clip_keys.items():
+                for clip_id, key in sealed.clip_keys.items():
                     occurrences[clip_id] = ProxyOccurrenceBinding(
                         artifact_id=prepared_recordings[key].hash,
                         output_track_id=key[0],
@@ -567,7 +570,7 @@ def _ensure(ws: ProjectWorkspace, track_id: str | None) -> ProxyManifestGenerati
                         raise CodedValueError(
                             "Proxy inputs changed; retry", code="proxy_inputs_changed"
                         )
-                    for _, inputs in [*captures, *choices, *recordings.items()]:
+                    for inputs in sealed.all():
                         inputs.validate(current, engine, defaults=defaults)
                     for item in prepared:
                         item.publish(current)
