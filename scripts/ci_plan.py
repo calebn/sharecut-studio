@@ -174,6 +174,7 @@ PATH_RULES: tuple[tuple[Glob, Scope], ...] = tuple(
         ("tests/fixtures/document_delta/**", Scope.GUI),
         ("tests/fixtures/gain_curve/**", Scope.GUI),
         ("tests/fixtures/render_clock/**", Scope.GUI),
+        ("tests/fixtures/proxy_basis/**", Scope.GUI),
         ("tests/fixtures/timing_map/**", Scope.GUI),
         ("tests/fixtures/edit_head/**", Scope.GUI),
         ("tests/**", Scope.OTHER),
