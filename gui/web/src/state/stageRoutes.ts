@@ -7,6 +7,7 @@ import {
   type StageRole,
   type StageSheet,
 } from "../types/stage";
+import type { ShellBreakpoint } from "./types";
 
 /** Stages a person may open: the host all five, a guest only what their link allows. */
 export function stagesForRole(role: StageRole): readonly StageId[] {
@@ -33,6 +34,18 @@ export function stageRoleOf(guestMode: string | null): StageRole {
     default:
       return "viewer";
   }
+}
+
+/** The phone Listen layout (the dock under a Script) hosts Review: a phone Viewer or Commenter. */
+export function listensOn(shell: ShellBreakpoint, role: StageRole): boolean {
+  return shell === "phone" && (role === "viewer" || role === "commenter");
+}
+
+export function listenLayoutOf(
+  shell: ShellBreakpoint,
+  guestMode: string | null,
+): boolean {
+  return listensOn(shell, stageRoleOf(guestMode));
 }
 
 export type LandingInput = {
