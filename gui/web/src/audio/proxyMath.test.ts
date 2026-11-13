@@ -894,7 +894,7 @@ describe("proxy audio identity", () => {
     for (const next of changed) expect(proxyBasisKey(next)).not.toBe(key);
   });
 
-  it("isQueuedMoveOverlay accepts a queued move over an equal-audio manifest with another head", () => {
+  it("isQueuedMoveOverlay ignores a differing history_head_id", () => {
     const basis = audible();
     const m = { ...manifest(), project_basis: basis };
     const moved = {

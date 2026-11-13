@@ -681,13 +681,12 @@ describe("useProxyTransport", () => {
     );
   });
 
-  it("keeps playing without a pause or manifest fetch when a refresh only moves history.head_id", async () => {
+  it("keeps playing when a refresh only moves history.head_id", async () => {
     renderHook(() => useProxyTransport());
     await ready();
     act(() => useDawStore.getState().setIsPlaying(true));
     expect(engine.play).toHaveBeenCalled();
     engine.pause.mockClear();
-    engine.setSnapshot.mockClear();
     const project = structuredClone(useDawStore.getState().project!);
     project.history.head_id = "after-comment" as typeof project.history.head_id;
     act(() => useDawStore.getState().setProject(project));
@@ -710,15 +709,7 @@ describe("useProxyTransport", () => {
       const project = structuredClone(fixture.base);
       project.history.head_id = "after-edit" as typeof project.history.head_id;
       if (change === "clip timeline")
-        project.clips.tracks = {
-          host: [
-            {
-              ...project.clips.tracks.host[0],
-              timeline_start: 3,
-              timeline_end: 8,
-            },
-          ],
-        };
+        project.clips.tracks = fixture.moved.clips.tracks;
       else
         project.render_status.tracks = { host: { render_hash: "new-render" } };
       act(() => useDawStore.getState().setProject(project));
@@ -777,7 +768,6 @@ describe("useProxyTransport", () => {
     });
     const project = structuredClone(useDawStore.getState().project!);
     project.history.head_id = "after-comment" as typeof project.history.head_id;
-    engine.setSnapshot.mockClear();
     engine.pause.mockClear();
     act(() => useDawStore.getState().setProject(project));
     await act(async () => {});
