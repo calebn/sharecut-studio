@@ -21,7 +21,6 @@ from __future__ import annotations
 
 import logging
 import math
-import os
 import tempfile
 import threading
 import time
@@ -53,6 +52,7 @@ from podcast_mcp.engines.level_profile import PROFILE_SAMPLE_RATE, LevelProfile,
 from podcast_mcp.engines.ungated_audio import ffmpeg_build_id
 from podcast_mcp.engines.windowed_rms import WindowedTrackRmsCache, resampled_window
 from podcast_mcp.models import EpisodeProject
+from podcast_mcp.util import host_platform
 from podcast_mcp.util.batch_scope import shared_while_batching, unscoped
 from podcast_mcp.util.coded_error import CodedValueError
 from podcast_mcp.util.fingerprint import FileStamp, file_stamp
@@ -652,7 +652,7 @@ class RetainedEvidence:
     ) -> Evidence | Declined | _Entry:
         """The kept evidence of ``key`` at ``rates``, else ``build()`` of those, kept when that is exact and fits."""
         cap = keep_bytes()
-        if cap == 0 or os.name == "nt":
+        if cap == 0 or host_platform.current().is_nt:
             self.clear()
             return build()
         with self._lock:

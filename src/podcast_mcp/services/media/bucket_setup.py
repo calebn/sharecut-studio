@@ -11,7 +11,6 @@ is left untouched, and any other rule on the bucket is kept as it is.
 
 from __future__ import annotations
 
-import os
 import stat
 from collections.abc import Mapping
 from dataclasses import dataclass, field
@@ -27,6 +26,7 @@ from podcast_mcp.services.media.object_store_cors import (
     cors_rule,
     probe_guest_cors,
 )
+from podcast_mcp.util import host_platform
 
 ADMIN_ID_ENV = "PODCAST_OBJECT_STORE_ADMIN_ACCESS_KEY_ID"
 ADMIN_SECRET_ENV = "PODCAST_OBJECT_STORE_ADMIN_SECRET_ACCESS_KEY"
@@ -98,7 +98,7 @@ def load_admin_credentials(
 
 
 def _read_admin_file(path: Path) -> AdminCredentials:
-    if os.name == "posix" and path.stat().st_mode & (stat.S_IRWXG | stat.S_IRWXO):
+    if host_platform.current().is_posix and path.stat().st_mode & (stat.S_IRWXG | stat.S_IRWXO):
         raise BucketSetupError(f"{path} is readable by other users. Run: chmod 600 {path}")
     import yaml
 

@@ -22,6 +22,7 @@ from podcast_mcp.engines import decoded_source, track_evidence
 from podcast_mcp.engines.audio import At, Audio, MixAudio, SequenceAudio, SourceAudio
 from podcast_mcp.engines.track_evidence import Declined, Evidence, EvidenceKey, _Entry
 from podcast_mcp.util.batch_scope import batch_scope
+from podcast_mcp.util.host_platform import WINDOWS, HostPlatform
 from test_audio_eval import _ffmpeg_or_skip, _project
 from test_windowed_approve import _approve, _Counts
 from test_windowed_approve import _project as _windowed_project
@@ -143,30 +144,37 @@ def test_a_later_read_gets_the_kept_evidence_as_plain_read_only_arrays_of_the_sa
     assert _spool_files() == []
 
 
-def _cap_of_zero(monkeypatch: pytest.MonkeyPatch) -> None:
+def _cap_of_zero(monkeypatch: pytest.MonkeyPatch, _host: Callable[[HostPlatform], None]) -> None:
     monkeypatch.setenv(track_evidence.KEEP_ENV, "0")
 
 
-def _ram_backed_directory(monkeypatch: pytest.MonkeyPatch) -> None:
+def _ram_backed_directory(
+    monkeypatch: pytest.MonkeyPatch, _host: Callable[[HostPlatform], None]
+) -> None:
     monkeypatch.setattr(decoded_source, "_in_memory_filesystem", lambda directory: True)
 
 
-def _little_free_disk(monkeypatch: pytest.MonkeyPatch) -> None:
+def _little_free_disk(
+    monkeypatch: pytest.MonkeyPatch, _host: Callable[[HostPlatform], None]
+) -> None:
     low = types.SimpleNamespace(free=decoded_source.SPILL_HEADROOM_BYTES)
     monkeypatch.setattr(decoded_source.shutil, "disk_usage", lambda directory: low)
 
 
-def _windows(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(track_evidence, "os", types.SimpleNamespace(name="nt"))
+def _windows(_monkeypatch: pytest.MonkeyPatch, host: Callable[[HostPlatform], None]) -> None:
+    host(WINDOWS)
 
 
 @pytest.mark.parametrize(
     "unsuitable", [_cap_of_zero, _ram_backed_directory, _little_free_disk, _windows]
 )
 def test_where_nothing_may_be_kept_every_read_evaluates_and_nothing_is_held(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, unsuitable: Callable[..., None]
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    host: Callable[[HostPlatform], None],
+    unsuitable: Callable[..., None],
 ) -> None:
-    unsuitable(monkeypatch)
+    unsuitable(monkeypatch, host)
     calls = Calls()
     tree = _tree(_tone(tmp_path / "a.wav"))
 

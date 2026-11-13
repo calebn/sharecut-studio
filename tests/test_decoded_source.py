@@ -16,6 +16,7 @@ from podcast_mcp.engines.decoded_source import decoded_sources
 from podcast_mcp.engines.ffmpeg import FFmpegEngine
 from podcast_mcp.engines.ungated_audio import load_mono_full
 from podcast_mcp.util.binaries import resolve_ffmpeg_pair
+from podcast_mcp.util.host_platform import WINDOWS
 
 posix_only = pytest.mark.skipif(os.name == "nt", reason="spools are unlinked once opened on POSIX")
 
@@ -121,7 +122,7 @@ def test_a_new_process_sweeps_spools_whose_owner_is_gone(tmp_path: Path) -> None
 
 
 def test_a_sweep_on_windows_asks_whether_the_owner_is_alive_not_how_old_the_directory_is(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, host
 ) -> None:
     dead = subprocess.Popen([sys.executable, "-c", "pass"])
     dead.wait()
@@ -134,7 +135,7 @@ def test_a_sweep_on_windows_asks_whether_the_owner_is_alive_not_how_old_the_dire
     os.utime(idle, (day_ago, day_ago))
     monkeypatch.setattr(decoded_source.tempfile, "gettempdir", lambda: str(tmp_path))
     monkeypatch.setattr(decoded_source, "pid_is_alive", lambda pid: pid == 4242)
-    monkeypatch.setattr(decoded_source, "os", types.SimpleNamespace(**{**vars(os), "name": "nt"}))
+    host(WINDOWS)
 
     decoded_source._sweep_orphans()
 
@@ -241,7 +242,7 @@ def test_a_temp_directory_on_tmpfs_is_a_memory_filesystem(
 
 @posix_only
 def test_a_spill_wants_disk_headroom_and_a_disk_backed_directory(
-    monkeypatch: pytest.MonkeyPatch,
+    monkeypatch: pytest.MonkeyPatch, host
 ) -> None:
     free = types.SimpleNamespace(free=decoded_source.SPILL_HEADROOM_BYTES + 1000)
     monkeypatch.setattr(decoded_source.shutil, "disk_usage", lambda path: free)
@@ -252,7 +253,7 @@ def test_a_spill_wants_disk_headroom_and_a_disk_backed_directory(
     monkeypatch.setattr(decoded_source, "_in_memory_filesystem", lambda directory: True)
     assert not decoded_source.spill_allowed(1)
     monkeypatch.setattr(decoded_source, "_in_memory_filesystem", lambda directory: False)
-    monkeypatch.setattr(decoded_source.os, "name", "nt")
+    host(WINDOWS)
     assert not decoded_source.spill_allowed(1)
 
 

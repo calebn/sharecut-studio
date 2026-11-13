@@ -48,6 +48,7 @@ from podcast_mcp.engines.room_tone import (
     track_floor,
 )
 from podcast_mcp.models import EpisodeProject, RoomToneOrigin
+from podcast_mcp.util import host_platform
 from podcast_mcp.util.dsp import DIGITAL_SILENCE_DB, rms_db
 from podcast_mcp.util.hashing import sha256_file
 from podcast_mcp.util.project_state import file_stamp
@@ -196,13 +197,13 @@ def _write_excerpt(source: Path, dest: Path, start: float, end: float) -> str | 
     try:
         FFmpegEngine().extract_segment(source, temp, start, end)
         sha = sha256_file(temp)
-        with temp.open("r+b" if os.name == "nt" else "rb") as handle:
+        with temp.open("r+b" if host_platform.current().is_nt else "rb") as handle:
             os.fsync(handle.fileno())
         try:
             os.link(temp, dest)
         except FileExistsError:
             return sha if sha256_file(dest) == sha else None
-        if os.name == "posix":
+        if host_platform.current().is_posix:
             with contextlib.suppress(OSError):
                 descriptor = os.open(dest.parent, os.O_RDONLY)
                 try:

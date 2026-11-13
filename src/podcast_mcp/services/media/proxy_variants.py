@@ -26,6 +26,7 @@ from podcast_mcp.models.episode import (
 )
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.media import proxy_media
+from podcast_mcp.util import host_platform
 from podcast_mcp.util.atomic_directory import rename_noreplace
 from podcast_mcp.util.coded_error import CodedKeyError, CodedValueError
 from podcast_mcp.util.hashing import sha256_file, short_digest
@@ -188,7 +189,7 @@ def _verify(project: EpisodeProject, artifact: ProxyPublishedArtifact) -> None:
 
 
 def _sync_directory(directory: Path) -> None:
-    if os.name == "posix":
+    if host_platform.current().is_posix:
         descriptor = os.open(directory, os.O_RDONLY)
         try:
             os.fsync(descriptor)
@@ -212,7 +213,7 @@ class _PreparedArtifact:
             artifact_directory(project, artifact.context_track_id, artifact.hash)
             if not destination.exists():
                 try:
-                    if os.name == "nt":
+                    if host_platform.current().is_nt:
                         os.rename(self.private_directory, destination)
                     else:
                         descriptor = os.open(

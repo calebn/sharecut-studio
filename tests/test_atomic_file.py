@@ -10,6 +10,7 @@ from unittest.mock import Mock, patch
 import pytest
 
 from podcast_mcp.util import atomic_file
+from podcast_mcp.util.host_platform import WINDOWS
 
 
 def test_atomic_write_uses_unique_siblings_and_replaces(tmp_path: Path) -> None:
@@ -136,7 +137,7 @@ def test_publish_directory_sync_failure_is_best_effort(tmp_path: Path) -> None:
 
 
 @pytest.mark.skipif(os.name != "posix", reason="requires POSIX descriptor flags")
-def test_windows_publication_syncs_writable_descriptor(tmp_path: Path) -> None:
+def test_windows_publication_syncs_writable_descriptor(tmp_path: Path, host) -> None:
     import fcntl
 
     temp = tmp_path / "completed.tmp"
@@ -149,8 +150,8 @@ def test_windows_publication_syncs_writable_descriptor(tmp_path: Path) -> None:
         real_fsync(fd)
 
     windows_os = Mock(wraps=os)
-    windows_os.name = "nt"
     windows_os.fsync = require_writable
+    host(WINDOWS)
     with patch.object(atomic_file, "os", windows_os):
         assert atomic_file.publish_completed_file(temp, dest) == dest
     assert dest.read_bytes() == b"new"

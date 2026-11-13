@@ -30,6 +30,7 @@ from podcast_mcp.services.collaboration import get_share_registry, rebase_sideca
 from podcast_mcp.services.jobs import LIVE_JOB_STATUSES
 from podcast_mcp.services.record import RecordSessionService
 from podcast_mcp.services.session_sync import cached_sync_store_if_exists, sync_db_path
+from podcast_mcp.util import host_platform
 from podcast_mcp.util.coded_error import CodedError
 from podcast_mcp.util.progress import CancelledProgress
 from podcast_mcp.util.project_state import (
@@ -129,7 +130,7 @@ def _reserve(parent: Path, name: str) -> Path:
 def _rename(source: Path, target: Path) -> None:
     """Rename ``source`` onto the empty reserved ``target``; a refusal leaves both as they were."""
     try:
-        if os.name == "nt":
+        if host_platform.current().is_nt:
             # Windows will not rename onto an existing folder; a squatter that appears in the
             # gap makes the rename fail instead.
             os.rmdir(target)

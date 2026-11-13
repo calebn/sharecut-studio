@@ -17,6 +17,7 @@ from podcast_mcp.edits.audio_cache import decode_track
 from podcast_mcp.engines import audio_audit, decode_memo, decoded_source
 from podcast_mcp.engines.audio_audit import TrackRmsCache
 from podcast_mcp.util import batch_scope
+from podcast_mcp.util.host_platform import WINDOWS
 
 RATE = 8000
 
@@ -997,8 +998,8 @@ def test_a_spill_that_cannot_happen_drops_the_entry_as_without_the_tier(
     _no_spill_file_or_fd_left(baseline)
 
 
-def test_windows_never_spills(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(decoded_source.os, "name", "nt")
+def test_windows_never_spills(host) -> None:
+    host(WINDOWS)
     assert not decoded_source.spill_allowed(1)
 
 

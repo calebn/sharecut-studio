@@ -23,6 +23,7 @@ from podcast_mcp.gui.bind import (
     write_listen_file,
 )
 from podcast_mcp.gui.middleware_security_headers import GUI_CSP
+from podcast_mcp.util.host_platform import WINDOWS
 
 
 def test_gui_server_deps_available() -> None:
@@ -52,11 +53,11 @@ def test_boot_token_compare_digest(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 def test_exclusive_listen_windows_without_exclusive_flag(
-    monkeypatch: pytest.MonkeyPatch,
+    monkeypatch: pytest.MonkeyPatch, host
 ) -> None:
     from unittest.mock import MagicMock
 
-    monkeypatch.setattr("podcast_mcp.gui.bind.sys.platform", "win32")
+    host(WINDOWS)
     monkeypatch.delattr("podcast_mcp.gui.bind.socket.SO_EXCLUSIVEADDRUSE", raising=False)
     sock = MagicMock()
     monkeypatch.setattr("podcast_mcp.gui.bind.socket.socket", lambda *_a, **_k: sock)
@@ -66,10 +67,10 @@ def test_exclusive_listen_windows_without_exclusive_flag(
     sock.bind.assert_not_called()
 
 
-def test_exclusive_listen_windows_exclusive_flag(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_exclusive_listen_windows_exclusive_flag(monkeypatch: pytest.MonkeyPatch, host) -> None:
     from unittest.mock import MagicMock
 
-    monkeypatch.setattr("podcast_mcp.gui.bind.sys.platform", "win32")
+    host(WINDOWS)
     monkeypatch.setattr("podcast_mcp.gui.bind.socket.SO_EXCLUSIVEADDRUSE", 14, raising=False)
     sock = MagicMock()
     monkeypatch.setattr("podcast_mcp.gui.bind.socket.socket", lambda *_a, **_k: sock)

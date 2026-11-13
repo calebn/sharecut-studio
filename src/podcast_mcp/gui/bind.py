@@ -11,11 +11,11 @@ import os
 import secrets
 import socket
 import stat
-import sys
 from pathlib import Path
 from typing import Any
 
 from podcast_mcp import settings
+from podcast_mcp.util import host_platform
 from podcast_mcp.util.atomic_json import write_json_atomic
 
 BOOT_TOKEN_ENV = "PODCAST_SIDECAR_BOOT_TOKEN"
@@ -58,7 +58,7 @@ def exclusive_listen_socket(host: str, port: int) -> socket.socket:
     """Bind ``(host, port)`` without ``SO_REUSEADDR`` (Windows exclusive)."""
     family = socket.AF_INET6 if ":" in host.strip("[]") else socket.AF_INET
     sock = socket.socket(family, socket.SOCK_STREAM)
-    if sys.platform == "win32":
+    if host_platform.current().is_nt:
         exclusive = getattr(socket, "SO_EXCLUSIVEADDRUSE", None)
         if exclusive is None:
             sock.close()

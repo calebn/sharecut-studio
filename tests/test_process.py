@@ -8,6 +8,7 @@ from typing import Any
 import pytest
 
 from podcast_mcp.util import process as process_module
+from podcast_mcp.util.host_platform import WINDOWS
 from podcast_mcp.util.process import (
     CalledProcessError,
     TimeoutExpired,
@@ -97,10 +98,10 @@ def test_windows_liveness_is_false_only_when_the_process_is_certainly_gone(
 
 
 def test_pid_is_alive_on_windows_asks_the_windows_probe_and_never_signals(
-    monkeypatch: pytest.MonkeyPatch,
+    monkeypatch: pytest.MonkeyPatch, host
 ) -> None:
     kernel32 = _Kernel32(exit_code=0)
-    monkeypatch.setattr(sys, "platform", "win32")
+    host(WINDOWS)
     monkeypatch.setattr(process_module, "_kernel32", lambda: (kernel32, lambda: 0))
     monkeypatch.setattr(os, "kill", lambda *_a: pytest.fail("os.kill terminates on Windows"))
 
@@ -116,18 +117,18 @@ def test_windows_liveness_a_ctypes_failure_is_unknown() -> None:
 
 
 def test_pid_is_alive_on_windows_leaves_a_pid_beyond_32_bits_unknown(
-    monkeypatch: pytest.MonkeyPatch,
+    monkeypatch: pytest.MonkeyPatch, host
 ) -> None:
-    monkeypatch.setattr(sys, "platform", "win32")
+    host(WINDOWS)
     monkeypatch.setattr(process_module, "_kernel32", lambda: pytest.fail("probed a 33-bit pid"))
 
     assert pid_is_alive(2**32) is True
 
 
 def test_pid_is_alive_on_windows_without_kernel32_is_unknown(
-    monkeypatch: pytest.MonkeyPatch,
+    monkeypatch: pytest.MonkeyPatch, host
 ) -> None:
-    monkeypatch.setattr(sys, "platform", "win32")
+    host(WINDOWS)
     monkeypatch.setattr(process_module, "_kernel32", lambda: None)
 
     assert pid_is_alive(4321) is True
