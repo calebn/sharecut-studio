@@ -1735,8 +1735,9 @@ reuse the accepted generation without saving or rendering. Preparation failures
 log a host warning and preserve best-effort sharing. Later edits can require a new
 generation. Standalone `ensure_track_proxy` still grants no aggregate authority.
 
-The manifest's project basis binds history head, render hashes and complete clip
-geometry to occurrence artifact references. The client admits one complete
+The manifest's project basis records the history head as provenance and binds
+render hashes and complete clip rows to occurrence artifact references; the client
+matches on the render hashes and clip rows only. The client admits one complete
 playback snapshot. Changed or unavailable variant generations pause timeline
 audio until a matching snapshot arrives. An offline legacy-only exception
 requires exact replay of validated, locally queued MoveClips geometry; an empty
