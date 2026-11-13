@@ -568,7 +568,11 @@ export function Player(props: PlayerProps) {
               />
             )}
             {onComment ? (
-              <VerbButton verb="comment" onClick={onComment} />
+              <VerbButton
+                verb="comment"
+                className="sys-player-comment"
+                onClick={onComment}
+              />
             ) : null}
             <StatusLine status={props.status} id={statusId} />
             <StatePills {...props} />

@@ -1105,8 +1105,15 @@ html[data-frame-short] .sys-player {
 html[data-frame-short] .sys-player-skip,
 html[data-frame-short] .sys-player-ab,
 html[data-frame-short] .sys-player-left > :not(.sys-player-time),
-html[data-frame-short] .sys-player-right > :not(.sys-player-hear) {
+html[data-frame-short]
+  .sys-player-right
+  > :not(.sys-player-hear):not(.sys-player-comment) {
   display: none;
+}
+
+html[data-frame-short] .sys-player-comment {
+  min-inline-size: var(--touch-min);
+  min-block-size: var(--touch-min);
 }
 
 /* The Listen dock (phone guest Review): the scrubber, the readout and the
