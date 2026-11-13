@@ -1280,6 +1280,22 @@
           "gui/web/src/system/scriptGesture.ts"
         ]
       }
+    },
+    {
+      "id": "host-platform",
+      "when": "Host platform (a platform check, a default data path, a `HostPlatform` row or field, or a fail-closed seam for a host that lacks a capability)",
+      "update": "`docs/architecture.md` § Host platform, `docs/persistence.md` § Data roots, `docs/contributing.md` § Host platform, `docs/cross-platform-byok.md`; ask `host_platform.current()`, never `sys.platform`, `os.name` or `platform.*` (Ruff TID251)",
+      "docs": [
+        "docs/architecture.md",
+        "docs/persistence.md",
+        "docs/contributing.md",
+        "docs/cross-platform-byok.md"
+      ],
+      "advisory": {
+        "include": [
+          "src/podcast_mcp/util/host_platform.py"
+        ]
+      }
     }
   ]
 }

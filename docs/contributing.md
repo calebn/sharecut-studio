@@ -89,9 +89,13 @@ ShareCut Studio is in beta and has no users. Breaking changes are allowed. Prefe
 6. Add tests under `tests/`; run the affected tests locally with `--no-cov`, plus `make lint-py` / `make format-py-check` / `make typecheck` for Python changes. GitHub Actions runs the pytest files the diff reaches on the PR (the full suite when a changed file is named by no test); the nightly promotion run and release PRs run the full `make test` suite and enforce **≥95%** coverage. For `gui/web/` changes, run focused Vitest tests and relevant static checks locally; CI runs the equivalent frontend checks (oxlint + Stylelint + Biome `format:check` + strict `typecheck` + Vitest + build). Use local `make test` / `make ci` for extensive changes or full-suite diagnosis.
 7. Update docs in the same change — see [AGENTS.md § Docs in sync](../AGENTS.md#docs-in-sync) (`README.md`, `docs/architecture.md`, feature docs, skills as needed).
 
+### Host platform
+
+Ask the table, never the platform. A site that needs a platform fact reads a field of `host_platform.current()` ([architecture.md § Host platform](architecture.md#host-platform)); `sys.platform`, `os.name`, `platform.system()` and the rest of the `platform` module's host queries are banned in `src/podcast_mcp` outside `util/host_platform.py` by Ruff TID251 (no `# noqa`). When a site needs a fact no field names, add the field to `HostPlatform` and give every row a value in the same change; add a row for a new host. Default data paths come from `host_platform.data_roots()`, not `Path.home() / ...`. A test selects a row with the `host` fixture (`host(WINDOWS)`) or `using(row)`, and asserts the literal behavior of that row.
+
 ### Python quality
 
-- **Ruff** lint (`E`, `F`, `I`, `UP`, `B`, `SIM`, `RUF`) + format (`make format-py` / `make format-py-check`). Commits format staged `*.py` via lint-staged in `.githooks` (`make hooks`; in a new worktree `make worktree-setup`, which the hook also runs automatically when `.venv` / `gui/web/node_modules` are missing).
+- **Ruff** lint (`E`, `F`, `I`, `UP`, `B`, `SIM`, `RUF`, `TID251` for the platform ban) + format (`make format-py` / `make format-py-check`). Commits format staged `*.py` via lint-staged in `.githooks` (`make hooks`; in a new worktree `make worktree-setup`, which the hook also runs automatically when `.venv` / `gui/web/node_modules` are missing).
 - **Bandit** (medium+ severity on `src/`), **Vulture** (dead code), **Deptry** (dependency hygiene).
 - **mypy** (`make typecheck`; strict on timebase-critical modules — see `[tool.mypy]`).
 - Do **not** add `# noqa` / `# nosec` / mass suppressions without **explicit user approval**. Prefer real fixes. For Bandit, fix findings or use a **line-level** `# nosec Bxxx` on audited call sites (put any rationale in a **separate** preceding comment — Bandit treats words after `# nosec` as test ids and warns). Do not globally skip security rules to greenwash CI.
