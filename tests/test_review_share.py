@@ -447,7 +447,10 @@ def test_guest_transcript_fails_closed_on_a_non_enum_words_value(bad):
     assert "unsure_words" not in out["pending_edits"][0]
 
 
-def test_locked_word_indices_stay_only_on_selectable_rows():
+@pytest.mark.parametrize("mode", ["NONE", "READING", "SELECTABLE"])
+def test_locked_word_indices_are_kept_on_guest_rows_in_every_mode_so_the_client_overlay_stays_valid(
+    mode,
+):
     from podcast_mcp.gui.mapper import guest_transcript
     from podcast_mcp.services.collaboration.share_capabilities import GuestWords
 
@@ -461,12 +464,9 @@ def test_locked_word_indices_stay_only_on_selectable_rows():
             }
         ]
     }
-    for mode in (GuestWords.NONE, GuestWords.READING):
-        row = guest_transcript(transcript, words=mode)["utterances"][0]
-        assert "locked_word_indices" not in row
-        assert row["ignored_word_indices"] == [0]
-    row = guest_transcript(transcript, words=GuestWords.SELECTABLE)["utterances"][0]
+    row = guest_transcript(transcript, words=GuestWords[mode])["utterances"][0]
     assert row["locked_word_indices"] == [0]
+    assert row["ignored_word_indices"] == [0]
 
 
 def test_sanitize_guest_reading_words_still_null_an_absolute_path_text():
