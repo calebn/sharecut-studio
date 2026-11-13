@@ -1,4 +1,6 @@
-import { expect, test } from "@playwright/test";
+import fs from "node:fs";
+import path from "node:path";
+import { expect, type Locator, type Page, test } from "@playwright/test";
 import { withShareableProject } from "./shareableProject";
 import {
   createReviewShare,
@@ -58,18 +60,110 @@ for (const size of SIZES) {
   });
 }
 
-test("a Viewer link shows no Script, because its guests are not sent word timings", async ({
+function viewerProof(guest: Page, name: string): Promise<Buffer> {
+  const dir = process.env.VIEWER_PROOF_DIR;
+  if (dir) fs.mkdirSync(dir, { recursive: true });
+  return guest.screenshot(dir ? { path: path.join(dir, `${name}.png`) } : {});
+}
+
+async function expectPlayheadOn(script: Locator, word: Locator) {
+  await expect(word).toHaveAttribute("aria-current", "true");
+  await expect(script.locator(".sys-script-word[data-playing]")).toHaveCount(1);
+}
+
+async function expectReadOnly(guest: Page, script: Locator) {
+  await expect(script).toContainText("Read only");
+  await expect(script.locator("[data-selected]")).toHaveCount(0);
+  await expect(
+    guest.getByRole("textbox", { name: "Comment", exact: true }),
+  ).toHaveCount(0);
+  await expect(
+    guest.getByRole("button", { name: "Suggest a cut" }),
+  ).toHaveCount(0);
+}
+
+test("a Viewer link shows a read-only Script that follows playback and seeks, with no selection, bar or composer", async ({
   browser,
 }) => {
   await withShareableProject(async (projectPath) => {
-    await withBrowserPages(browser, [{}, {}], async ([host, guest]) => {
-      await openHostShare(host, projectPath);
-      const token = await createReviewShare(host, projectPath, "viewer");
-      await openGuestShare(guest, token);
-      await expect(guest.locator(".rv-stage")).toBeVisible();
-      await expect(guest.locator(".stage-host-guest-script")).toHaveCount(0);
-      await expect(guest.getByText("Nothing to read yet")).toHaveCount(0);
-    });
+    await withBrowserPages(
+      browser,
+      [{}, { viewport: { width: 1280, height: 800 } }],
+      async ([host, guest]) => {
+        await openHostShare(host, projectPath);
+        const token = await createReviewShare(host, projectPath, "viewer");
+        await openGuestShare(guest, token);
+        const script = guest.locator(".stage-host-guest-script");
+        await expect(script).toBeVisible();
+        await expect(guest.getByText("Nothing to read yet")).toHaveCount(0);
+        await expectReadOnly(guest, script);
+
+        const words = script.locator(".sys-script-word");
+        const third = words.nth(2);
+        await third.click();
+        await expectPlayheadOn(script, third);
+
+        const fifth = words.nth(4);
+        await fifth.focus();
+        await guest.keyboard.press("Enter");
+        await expectPlayheadOn(script, fifth);
+
+        const first = (await words.nth(0).boundingBox())!;
+        const fourth = (await words.nth(3).boundingBox())!;
+        await guest.mouse.move(first.x + 2, first.y + first.height / 2);
+        await guest.mouse.down();
+        await guest.mouse.move(
+          fourth.x + fourth.width - 2,
+          fourth.y + fourth.height / 2,
+          { steps: 8 },
+        );
+        await guest.mouse.up();
+        await expectReadOnly(guest, script);
+        await viewerProof(guest, "viewer-desktop");
+      },
+    );
+  });
+});
+
+test("a Viewer link shows the Script on a phone and a tap on a word seeks", async ({
+  browser,
+}) => {
+  await withShareableProject(async (projectPath) => {
+    await withBrowserPages(
+      browser,
+      [
+        {},
+        {
+          viewport: { width: 390, height: 844 },
+          isMobile: true,
+          hasTouch: true,
+        },
+      ],
+      async ([host, guest]) => {
+        await openHostShare(host, projectPath);
+        const token = await createReviewShare(host, projectPath, "viewer");
+        await openGuestShare(guest, token);
+        const script = guest.locator(".stage-host-guest-script");
+        await expect(script).toBeVisible();
+        await expect(script).toBeInViewport();
+        await expectReadOnly(guest, script);
+        const third = script.locator(".sys-script-word").nth(2);
+        await third.tap();
+        await expectPlayheadOn(script, third);
+        await expectReadOnly(guest, script);
+        await viewerProof(guest, "viewer-phone");
+      },
+    );
+    await withBrowserPages(
+      browser,
+      [{}, { viewport: { width: 844, height: 390 }, hasTouch: true }],
+      async ([host, guest]) => {
+        await openHostShare(host, projectPath);
+        const token = await createReviewShare(host, projectPath, "viewer");
+        await openGuestShare(guest, token);
+        await expect(guest.locator(".stage-host-guest-script")).toHaveCount(0);
+      },
+    );
   });
 });
 
