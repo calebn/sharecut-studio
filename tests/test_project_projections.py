@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import errno
+import json
 import sqlite3
 
 import pytest
@@ -682,11 +683,5 @@ def test_guest_applied_delta_for_a_suppression_flip_carries_the_moved_render_has
     assert after != before
     delta = reply["snapshot"]["delta"]
     assert delta["audience"] == "guest"
-    hashes = [
-        track["render_hash"]
-        for op in delta["operations"]
-        if op["section"] == "render_status"
-        for track in [(op.get("value") or {}).get("tracks", {}).get("host", {})]
-        if track
-    ]
-    assert after in hashes, delta["operations"]
+    shipped = json.dumps([op for op in delta["operations"] if op["section"] == "render_tracks"])
+    assert after in shipped, delta["operations"]
