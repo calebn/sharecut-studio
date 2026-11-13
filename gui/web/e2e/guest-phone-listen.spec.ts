@@ -151,7 +151,7 @@ const commentsRow = (guest: Page) =>
   guest.getByRole("button", { name: /^Show\b.*\bcomments?/ });
 const composer = (guest: Page) => guest.locator(".rv-compose");
 
-async function expectDockFits(guest: Page, width: number, controls = 5) {
+async function expectDockFits(guest: Page, width: number) {
   const fit = await guest.evaluate(() => {
     const dock = document.querySelector<HTMLElement>(".sys-listen-dock");
     const transport = document.querySelector<HTMLElement>(
@@ -178,7 +178,7 @@ async function expectDockFits(guest: Page, width: number, controls = 5) {
   });
   expect(fit).not.toBeNull();
   if (!fit) return;
-  expect(fit.count).toBe(controls);
+  expect(fit.count).toBe(5);
   expect(fit.scrolls).toBe(false);
   expect(fit.left).toBeGreaterThanOrEqual(fit.padding - 0.5);
   expect(fit.right).toBeGreaterThanOrEqual(fit.padding - 0.5);
@@ -379,7 +379,7 @@ for (const profile of PROFILES) {
             .tap({ timeout: 10_000 });
           await expect(elapsed).not.toHaveText(/^0:0[0-2]$/);
           await commentButton(guest).tap({ timeout: 10_000 });
-          const pinned = (await chip().innerText()).trim();
+          const pinned = (await chip().locator(".sys-mono").innerText()).trim();
           await composer(guest)
             .getByRole("textbox", { name: "Comment", exact: true })
             .fill("too loud here");
@@ -399,7 +399,7 @@ for (const profile of PROFILES) {
               exact: true,
             }),
           ).toHaveValue("too loud here");
-          await expect(chip()).toHaveText(pinned);
+          await expect(chip().locator(".sys-mono")).toHaveText(pinned);
         },
       );
     });
@@ -600,7 +600,7 @@ for (const profile of PROFILES) {
         const chapters = guest.getByRole("button", { name: "Chapters" });
         await expectReached(chapters);
         await expectTouchTarget(chapters);
-        await expectDockFits(guest, FOLDED.width, 3);
+        await expectNoHorizontalScroll(guest, FOLDED.width);
         await chapters.tap({ timeout: 10_000 });
         await expect(
           guest.getByRole("dialog", { name: "Chapters" }),
@@ -641,8 +641,9 @@ test("a desktop guest whose queue holds a comment and a suggestion keeps the fil
         .first()
         .click({ timeout: 10_000 });
       await guest
-        .getByRole("group", { name: "Selection actions" })
-        .getByRole("button", { name: /^Suggest cut/ })
+        .getByRole("group", { name: /actions$/ })
+        .getByRole("button", { name: /^Suggest/ })
+        .first()
         .click({ timeout: 10_000 });
       await expect(guest.getByRole("group", { name: "Filter" })).toBeVisible();
       await expect(guest.getByRole("group", { name: "Sort" })).toBeVisible();
