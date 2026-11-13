@@ -278,13 +278,16 @@ def test_tauri_production_window_waits_on_splash() -> None:
     assert 'role="status"' in splash
     assert 'aria-live="polite"' in splash
     main_rs = (ROOT / "gui/desktop/src-tauri/src/main.rs").read_text(encoding="utf-8")
+    engine_rs = (ROOT / "gui/desktop/src-tauri/src/engine.rs").read_text(encoding="utf-8")
     assert "window.location.replace('http://127.0.0.1:8765/')" not in main_rs
-    assert "window.location.replace('http://127.0.0.1:{port}/')" in main_rs
+    assert "window.location.replace('http://127.0.0.1:8765/')" not in engine_rs
+    assert "window.location.replace('http://127.0.0.1:{port}/')" in engine_rs
+    assert "engine::engine_location_script(port)" in main_rs
     assert "sidecar_owns_listen" in main_rs
-    assert "X-Sharecut-Boot-Token" in main_rs
-    assert "PODCAST_SIDECAR_BOOT_TOKEN" in main_rs
-    assert "PODCAST_SIDECAR_EPHEMERAL" in main_rs
-    assert "PODCAST_GUI_OPENAPI" in main_rs
+    assert "X-Sharecut-Boot-Token" in engine_rs
+    assert "PODCAST_SIDECAR_BOOT_TOKEN" in engine_rs
+    assert "PODCAST_SIDECAR_EPHEMERAL" in engine_rs
+    assert "PODCAST_GUI_OPENAPI" in engine_rs
     assert "PODCAST_BOOTSTRAP_CDN_BASE" in main_rs
     assert "distribution::BOOTSTRAP_CDN_BASE" in main_rs
     assert "https://cdn.sharecut.studio/assets" not in main_rs
@@ -294,22 +297,23 @@ def test_tauri_production_window_waits_on_splash() -> None:
     assert "wait_for_engine" in main_rs
     assert "open_engine_window(&handle, port)" in main_rs
     owns_at = main_rs.find("sidecar_owns_listen")
-    token_at = main_rs.find("X-Sharecut-Boot-Token")
+    token_at = main_rs.find("engine::probe_health")
     open_at = main_rs.find("open_engine_window(&handle, port)")
     assert owns_at != -1 and token_at != -1 and open_at != -1
     assert owns_at < open_at
     assert token_at < open_at
     assert "if cfg!(debug_assertions)" in main_rs
     assert "spawn_fallback" in main_rs
-    assert "tcp_get_health" in main_rs
-    assert "read_health_response" in main_rs
+    assert "fn probe_health" in engine_rs
+    assert "engine::probe_health" in main_rs
+    assert "read_health_response" in engine_rs
     assert "ureq_get_health" not in main_rs
     assert "try_wait" in main_rs
     assert "PODCAST_MAGIC_LINK_PRINT" in main_rs
     assert "wait_for_main_window" in main_rs
-    assert "set_write_timeout" in main_rs
-    assert "HEALTH_READ_CAP" in main_rs
-    assert "Connection: close" in main_rs
+    assert "set_write_timeout" in engine_rs
+    assert "HEALTH_READ_CAP" in engine_rs
+    assert "Connection: close" in engine_rs
     assert '"remote"' not in json.dumps(conf.get("app", {}).get("security", {}))
     assert "remote.urls" not in TAURI_CONF.read_text(encoding="utf-8")
     csp = conf["app"]["security"]["csp"]
