@@ -115,7 +115,12 @@ export interface PipelineParamField {
   affects: string[];
 }
 
-export type ModelInstallState = "installed" | "missing" | "update_needed";
+/** `unsupported`: this device can never have it (no audio tools on a phone); the row's `hint` says so and no download is offered. */
+export type ModelInstallState =
+  | "installed"
+  | "missing"
+  | "update_needed"
+  | "unsupported";
 
 /** One component's readiness, as GET /api/pipeline/config lists it; the bootstrap `ModelStatus` is the same record. */
 export interface PipelineComponentStatus {

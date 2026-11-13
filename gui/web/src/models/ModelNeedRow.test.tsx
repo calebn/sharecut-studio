@@ -174,6 +174,37 @@ describe("ModelNeedRowView, need placement", () => {
   });
 });
 
+describe("ModelNeedRowView, a model this device cannot run", () => {
+  const unsupported: ModelState = {
+    kind: "unsupported",
+    hint: "ShareCut can't transcribe audio on this device yet.",
+  };
+
+  it("says so in a need row with no Get, Cancel or spinner", async () => {
+    const { container } = view({ state: unsupported });
+    expect(
+      screen.getByText("ShareCut can't transcribe audio on this device yet."),
+    ).toBeTruthy();
+    expect(screen.queryByRole("button")).toBeNull();
+    expect(screen.queryByRole("progressbar")).toBeNull();
+    await expectNoA11yViolations(container);
+  });
+
+  it("says so in a list row with no Get, Cancel or Try again", async () => {
+    const { container } = view({
+      placement: "list",
+      model: { ...WHISPER, size: "~360 MB" },
+      state: unsupported,
+    });
+    expect(document.querySelector(".sys-need-meta")?.textContent).toBe(
+      "Not available on this device yet",
+    );
+    expect(screen.getByText("Transcription")).toBeTruthy();
+    expect(screen.queryByRole("button")).toBeNull();
+    await expectNoA11yViolations(container);
+  });
+});
+
 describe("ModelNeedRowView, list placement", () => {
   const meta = (state: ModelState) => {
     const { unmount } = view({

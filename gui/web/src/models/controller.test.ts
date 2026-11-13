@@ -106,6 +106,30 @@ describe("overlay", () => {
     expect(views[1]!.variant).toBeNull();
   });
 
+  it("reports an unsupported row with the server's sentence, even while a job lists it", () => {
+    const sentence = "ShareCut can't transcribe audio on this device yet.";
+    const unsupported = status({
+      models: [
+        row({ id: "whisper", state: "unsupported", hint: sentence }),
+        row({ id: "rnnoise", state: "unsupported" }),
+      ],
+    });
+    const views = overlay(
+      unsupported,
+      job({ components: ["whisper"] }),
+      {},
+      undefined,
+      ["rnnoise"],
+    );
+    expect(views.map((v) => v.state)).toEqual([
+      { kind: "unsupported", hint: sentence },
+      {
+        kind: "unsupported",
+        hint: "Audio tools aren't available on this device yet.",
+      },
+    ]);
+  });
+
   it("shows the downloading component with bytes and total and queues the others", () => {
     const views = overlay(
       status(),

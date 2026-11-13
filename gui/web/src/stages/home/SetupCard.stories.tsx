@@ -82,6 +82,20 @@ export const Checking: Story = {
 };
 export const Failed: Story = { args: { state: "failed" } };
 export const CheckError: Story = { args: { state: "check-error" } };
+export const ToolsUnsupported: Story = {
+  args: {
+    state: "tools-unsupported",
+    sizeLabel: "",
+    detail: "ShareCut can't process audio on this device yet.",
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(
+      canvas.getByText("ShareCut can't process audio on this device yet."),
+    ).toBeVisible();
+    await expect(canvas.queryByRole("button")).toBeNull();
+  },
+};
 export const ToolsMissing: Story = {
   args: { state: "tools-missing", sizeLabel: "" },
   play: async ({ args, canvasElement }) => {

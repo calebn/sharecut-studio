@@ -35,6 +35,9 @@ export function needRowProps({
   const manage = onManage
     ? { label: "Manage", name: "Manage models", onAction: onManage }
     : undefined;
+  if (state.kind === "unsupported") {
+    return { state: "queued", title: state.hint };
+  }
   if (state.kind === "checking" || state.kind === "unavailable") {
     return {
       state: state.kind === "checking" ? "running" : "failed",

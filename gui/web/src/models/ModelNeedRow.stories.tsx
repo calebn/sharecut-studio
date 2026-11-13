@@ -100,3 +100,23 @@ export const ListDownloading: Story = {
     state: { kind: "downloading", bytes: 420_000_000, total: 1_600_000_000 },
   },
 };
+
+const UNSUPPORTED = {
+  kind: "unsupported",
+  hint: "ShareCut can't transcribe audio on this device yet.",
+} as const;
+
+export const Unsupported: Story = {
+  args: { state: UNSUPPORTED },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(
+      canvas.getByText("ShareCut can't transcribe audio on this device yet."),
+    ).toBeVisible();
+    await expect(canvas.queryByRole("button")).toBeNull();
+  },
+};
+
+export const ListUnsupported: Story = {
+  args: { placement: "list", state: UNSUPPORTED },
+};
