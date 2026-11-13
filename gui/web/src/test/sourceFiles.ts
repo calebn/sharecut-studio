@@ -7,12 +7,14 @@ export const SRC_ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 
 /**
  * Recursively list `.ts` / `.tsx` files under `dir` (skips `node_modules`,
- * `dist`). Each real directory is visited once, so symlink cycles terminate.
+ * `dist`); `extensions` widens the match. Each real directory is visited once,
+ * so symlink cycles terminate.
  */
 export function walkTsFiles(
   dir: string,
   out: string[] = [],
   seen: Set<string> = new Set(),
+  extensions: RegExp = /\.(ts|tsx)$/,
 ): string[] {
   const real = realpathSync(dir);
   if (seen.has(real)) {
@@ -25,8 +27,8 @@ export function walkTsFiles(
     }
     const p = join(dir, name);
     if (statSync(p).isDirectory()) {
-      walkTsFiles(p, out, seen);
-    } else if (/\.(ts|tsx)$/.test(name)) {
+      walkTsFiles(p, out, seen, extensions);
+    } else if (extensions.test(name)) {
       out.push(p);
     }
   }
@@ -38,11 +40,12 @@ export function srcRelative(file: string): string {
   return relative(SRC_ROOT, file).replace(/\\/g, "/");
 }
 
-/** Every `.ts`/`.tsx` file under `dir`, as its `SRC_ROOT`-relative path and contents. */
+/** Every `.ts`/`.tsx` file under `dir` (or `extensions` matches), as its `SRC_ROOT`-relative path and contents. */
 export function* sourceFiles(
   dir: string = SRC_ROOT,
+  extensions?: RegExp,
 ): Generator<{ rel: string; text: string }> {
-  for (const file of walkTsFiles(dir)) {
+  for (const file of walkTsFiles(dir, [], new Set(), extensions)) {
     yield { rel: srcRelative(file), text: readFileSync(file, "utf8") };
   }
 }

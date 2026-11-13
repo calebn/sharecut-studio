@@ -38,6 +38,17 @@ describe("walkTsFiles", () => {
     expect(listed()).toEqual(["a/x.ts", "a/y.tsx"]);
   });
 
+  it("honours the extensions parameter (.js)", () => {
+    root = mkdtempSync(join(tmpdir(), "walk-ts-"));
+    writeFileSync(join(root, "a.ts"), "");
+    writeFileSync(join(root, "b.js"), "");
+    expect(
+      walkTsFiles(root, [], new Set(), /\.js$/).map((f) =>
+        f.slice(root.length + 1),
+      ),
+    ).toEqual(["b.js"]);
+  });
+
   it("terminates on a symlinked directory cycle", () => {
     root = mkdtempSync(join(tmpdir(), "walk-ts-"));
     mkdirSync(join(root, "a"));
