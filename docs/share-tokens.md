@@ -465,17 +465,21 @@ Commenter set is a Viewer and runs no document command.
 <!-- decision
 id: D-guest-powers-follow-capabilities
 status: accepted
-date: 2026-10-06
+date: 2026-11-12
 decided-by: calebn
 evidence:
 - #6 owner: "`edit` guests can edit through every surface they have, including the DAW, MCP, and transcript word selection."
 - #1004 owner: "if someone has edit ability, they are trusted to approve." and "the host can undo it from History."
 - #1006, #1011: a 2026-10-03 Chromium run found no guest transcript Select and guest MCP cuts that only proposed; both fixed
+- #3786 owner (Caleb, 2026-11-12), asked "Tell me if listen-only guests should get the transcript too.": "Yes, I think it's useful still"
 enforced-by:
 - tests/test_guest_document_gate.py::test_only_editors_decide_pending_suggestions
 - tests/test_guest_document_gate.py::test_host_undoes_each_editor_mcp_change
 - tests/test_guest_document_gate.py::test_selected_range_mode_follows_the_role_on_every_surface
 - tests/test_selected_range.py::test_view_play_comment_guest_cannot_edit_or_suggest
+- tests/test_guest_transcript_selection.py::test_detail_words_follow_capabilities_and_never_include_suppressed
+- tests/test_guest_transcript_selection.py::test_a_share_with_no_role_reads_no_words
+- tests/test_guest_transcript_selection.py::test_bootstrap_words_flag_matches_the_document_state_route
 - docs-sync: decision-sharing
 supersedes: D-exact-range-guests-propose
 -->
@@ -485,8 +489,17 @@ neither, on every surface. The role is read from the share's capabilities
 (`review_role_for_capabilities`). No new permission level exists for this.
 
 Selected-range edits (transcript words or a timeline range) follow the share's
-role. No separate transcript permission exists. A share that holds no role in
-full runs no document command, on the browser route and the guest MCP alike. The
+role. Reading the transcript does not: every review role reads it, a Viewer
+included (owner, 2026-11-12: "Yes, I think it's useful still"). A Viewer
+receives each heard word's text and timing, so its Script follows playback and
+a tap on a word seeks; it receives no confidence or unsure-word detail, and
+selecting words, commenting and suggesting stay with the roles that hold them.
+Suppressed words never reach a guest of any role, and a share that holds no
+review role reads no words. Reading follows the review role
+(`guest_reads_transcript_words`); selecting follows the document-command gate
+(`guest_selects_transcript_words`). Neither is a permission of its own. A share
+that holds no role in full runs no document command, on the browser route and the
+guest MCP alike. The
 guest MCP derives its tool list from the same gate: `guest_submit_document_command`
 needs a command the gate allows, and the Editor tools (render preview, media
 upload) need every Editor command (`edit_commands_allowed`). The browser render
@@ -494,11 +507,12 @@ preview, render job, boundary context and media upload routes call the same
 `edit_commands_allowed` (through `require_share_edit`), so both surfaces refuse
 everyone but an Editor.
 
-| Role | Transcript **Select** and timed words | Range Cut / Mute (DAW, transcript, guest MCP) | Retime a pending edit | Approve / Reject pending edits |
-|--------------|----------------------------------------|-----------------------------------------------|-----------------------|--------------------------------|
-| Editor | Yes | **Cut** / **Mute** apply at once, one History step | Any pending edit | Any, exact range proposals included |
-| Commenter | Yes | **Suggest cut** / **Suggest mute** create a pending edit for review | Only its own suggestions (pending edits its share authored) | Refused |
-| Viewer, or a share with no role | No (untimed utterance text) | Refused by the document-command gate | Refused | Refused |
+| Role | Reads the transcript (timed words) | Transcript **Select** | Range Cut / Mute (DAW, transcript, guest MCP) | Retime a pending edit | Approve / Reject pending edits |
+|--------------|-----|-----|-----|-----|-----|
+| Editor | Yes, with confidence and unsure words | Yes | **Cut** / **Mute** apply at once, one History step | Any pending edit | Any, exact range proposals included |
+| Commenter | Yes, with confidence and unsure words | Yes | **Suggest cut** / **Suggest mute** create a pending edit for review | Only its own suggestions (pending edits its share authored) | Refused |
+| Viewer | Yes: text and timing only, so the Script follows playback and a tap seeks | No | Refused by the document-command gate | Refused | Refused |
+| A share with no role | No (untimed utterance text only, and no document access) | No | Refused | Refused | Refused |
 
 In ShareCut Studio an Editor link's Review queue lists the pending edits with **Cut** and **Keep** (the commands are `ApproveEdits` and `RejectEdits`). Unsure-word fixes stay host-only, and the transcript check has HTTP twins but no Editor control yet (below): a cut that covers an unsure word is shown held ("The host checks the unsure word first.") with no Cut, and while the transcript is unchecked the server refuses an Editor's Cut, which shows under Needs attention until the host, or an Editor through the check twins, checks or waives it. A Commenter or Viewer link's queue is comments only.
 
