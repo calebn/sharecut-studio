@@ -671,17 +671,26 @@ fn open_settings(app: &tauri::AppHandle) {
 
 fn show_sidecar_error(app: &tauri::AppHandle, detail: &str) {
     let log = sidecar_log_path();
-    let msg = engine::sidecar_error_message(detail, &log);
+    let msg = format!(
+        "Could not start the ShareCut engine ({detail}). Log: {}",
+        log.display()
+    );
     if let Some(win) = app.get_webview_window("main") {
         if let Ok(js) = serde_json::to_string(&msg) {
-            eval_js(&win, &engine::splash_status_script(&js));
+            eval_js(
+                &win,
+                &format!("var el=document.getElementById('status'); if(el) el.textContent={js};"),
+            );
         }
     }
 }
 
 fn open_engine_window(app: &tauri::AppHandle, port: u16) {
     if let Some(win) = app.get_webview_window("main") {
-        eval_js(&win, &engine::engine_location_script(port));
+        eval_js(
+            &win,
+            &format!("window.location.replace('http://127.0.0.1:{port}/')"),
+        );
     }
 }
 
