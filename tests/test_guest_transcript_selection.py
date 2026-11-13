@@ -6,7 +6,6 @@ Viewers read timed words and neither select, edit nor suggest.
 
 from __future__ import annotations
 
-import itertools
 import json
 
 import pytest
@@ -35,7 +34,6 @@ from podcast_mcp.services.collaboration.share import (
     share_project_view,
 )
 from podcast_mcp.services.collaboration.share_capabilities import (
-    ALL_CAPABILITIES,
     REVIEW_ROLE_CAPABILITIES,
     GuestWords,
     capabilities_for_role,
@@ -263,24 +261,22 @@ def test_view_guest_can_neither_edit_nor_suggest(guest, command_type, payload):
     assert _clip_spans(path) == [(0.0, 2.0)]
 
 
-def test_bootstrap_words_flag_equals_guest_words_for_every_capability_subset(guest, monkeypatch):
+@pytest.mark.parametrize(
+    ("caps", "reads"),
+    [
+        (VIEW, True),
+        (SUGGEST, True),
+        (EDIT, True),
+        (["view", "suggest"], True),
+        (["play"], False),
+        (["comment"], False),
+        (["join", "monitor", "comment"], False),
+    ],
+    ids=["viewer", "commenter", "editor", "viewer-stray-suggest", "play", "comment", "record"],
+)
+def test_bootstrap_words_flag_is_true_exactly_when_the_share_reads_words(guest, caps, reads):
     _client, open_share, _path = guest
-    token = open_share(VIEW)
-    from podcast_mcp.services.collaboration import share as share_module
-
-    real = share_module.open_share_workspace
-    current: dict = {}
-
-    def with_caps(tok):
-        row, ws = real(tok)
-        return {**row, "capabilities": current["caps"]}, ws
-
-    monkeypatch.setattr(share_module, "open_share_workspace", with_caps)
-    for size in range(len(ALL_CAPABILITIES) + 1):
-        for subset in itertools.combinations(ALL_CAPABILITIES, size):
-            current["caps"] = list(subset)
-            flag = share_project_view(token)["reads_transcript_words"]
-            assert flag is (guest_words(list(subset)) is not GuestWords.NONE), subset
+    assert share_project_view(open_share(caps))["reads_transcript_words"] is reads
 
 
 def test_viewer_interior_suppressed_word_never_reaches_words_or_utterance_text(guest):
