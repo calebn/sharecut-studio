@@ -161,4 +161,53 @@ describe("lock screen position against the real proxy transport clock", () => {
       position: 45,
     });
   });
+
+  /** Episode playing, then a source preview that ends by itself and is never released. */
+  function endedPreviewDuringPlay() {
+    act(() =>
+      useDawStore.getState().beginSourcePreview({
+        ownerId: "pending",
+        media: { kind: "rendered", url: "u" },
+        startSec: 0,
+        endSec: 5,
+      }),
+    );
+    const generation = useDawStore.getState().sourcePreview!.generation;
+    act(() =>
+      useDawStore
+        .getState()
+        .updateSourcePreview("pending", generation, 5, true),
+    );
+  }
+
+  it("lock-screen Play after a preview ended on its own puts the episode back on", async () => {
+    await playing();
+    endedPreviewDuringPlay();
+    expect(useDawStore.getState().isPlaying).toBe(true);
+    expect(session.playbackState).toBe("paused");
+    engine.play.mockClear();
+    session.setPositionState.mockClear();
+    act(() => handlers.get("play")?.({ action: "play" }));
+    expect(useDawStore.getState().sourcePreview).toBeNull();
+    expect(useDawStore.getState().isPlaying).toBe(true);
+    expect(engine.play).toHaveBeenLastCalledWith(10);
+    expect(session.playbackState).toBe("playing");
+    expect(session.setPositionState).toHaveBeenLastCalledWith({
+      duration: 60,
+      playbackRate: 1,
+      position: expect.any(Number),
+    });
+  });
+
+  it("lock-screen skip after a preview ended on its own leaves the OS and the audio agreeing", async () => {
+    await playing();
+    endedPreviewDuringPlay();
+    engine.play.mockClear();
+    act(() => handlers.get("seekforward")?.({ action: "seekforward" }));
+    const audible =
+      useDawStore.getState().isPlaying &&
+      useDawStore.getState().sourcePreview === null;
+    expect(session.playbackState).toBe(audible ? "playing" : "paused");
+    expect(engine.play).toHaveBeenCalledTimes(audible ? 1 : 0);
+  });
 });
