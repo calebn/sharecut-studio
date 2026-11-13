@@ -3,6 +3,7 @@ import { submitDocumentCommand } from "../api/documentEdits";
 import { getClipboard, setClipboard } from "../edit/clipboard";
 import { makeRangeTarget } from "../edit/rangeSelection";
 import { useDawStore } from "../state/dawStore";
+import { noComposer } from "../test/composerStore";
 import { deferred } from "../test/deferred";
 import { clipRow, minimalProject, sampleTrack } from "../test/fixtures";
 import { SPLIT_MICRO_FADE_MS } from "../types/limits.generated";
@@ -61,7 +62,7 @@ beforeEach(() => {
     selection: { kind: "range", target },
     rangeBusy: false,
     joinMutationInFlight: false,
-    commentDraft: null,
+    ...noComposer,
     sourcePreview: null,
   });
 });

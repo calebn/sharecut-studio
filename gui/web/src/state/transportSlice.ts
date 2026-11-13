@@ -2,6 +2,7 @@ import type { StateCreator } from "zustand";
 import { guestHearsMixOnly } from "../shareMode";
 import type { AuditionMode, SessionRegion } from "../types/session";
 import { clampToSession } from "../utils/time";
+import { afterTransport } from "./composerSession";
 import type { DawStore } from "./types";
 
 type TransportSlice = Pick<
@@ -163,6 +164,7 @@ export const createTransportSlice: StateCreator<
       sourcePreview: null,
       sourcePreviewGeneration: s.sourcePreviewGeneration + 1,
       isPlaying,
+      ...(isPlaying === s.isPlaying ? {} : afterTransport(s, isPlaying)),
       ...(isPlaying ? {} : unshuttledRate(s)),
       ...playStartPatch(s, isPlaying, s.playheadSec),
       // Local transport owns the clock — clear agent audition auto-stop.
@@ -175,6 +177,7 @@ export const createTransportSlice: StateCreator<
         sourcePreview: null,
         sourcePreviewGeneration: s.sourcePreviewGeneration + 1,
         isPlaying: next,
+        ...afterTransport(s, next),
         ...unshuttledRate(s),
         ...playStartPatch(s, next, s.playheadSec),
         playUntilSec: next ? null : s.playUntilSec,
@@ -185,6 +188,7 @@ export const createTransportSlice: StateCreator<
       sourcePreview: null,
       sourcePreviewGeneration: s.sourcePreviewGeneration + 1,
       isPlaying: false,
+      ...(s.isPlaying ? afterTransport(s, false) : {}),
       ...unshuttledRate(s),
       playheadSec: stopTargetSec(s),
       playheadSeekRevision: s.playheadSeekRevision + 1,
@@ -214,6 +218,7 @@ export const createTransportSlice: StateCreator<
       playheadSec,
       playheadSeekRevision: s.playheadSeekRevision + 1,
       isPlaying: true,
+      ...(s.isPlaying ? {} : afterTransport(s, true)),
       ...unshuttledRate(s),
       playStartSec: playheadSec,
       playUntilSec: untilSec,

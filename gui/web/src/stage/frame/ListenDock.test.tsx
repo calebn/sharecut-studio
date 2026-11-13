@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { clearRegisteredCommands } from "../../commands/execute";
 import { registerDawCommands } from "../../commands/register";
 import { useDawStore } from "../../state/dawStore";
+import { noComposer } from "../../test/composerStore";
 import { minimalProject, sampleTrack } from "../../test/fixtures";
 import { stubViewportShell } from "../../test/viewportShell";
 import type { ProjectView } from "../../types/project";
@@ -37,7 +38,7 @@ function join(
   useDawStore.setState({
     stage: "review",
     playheadSec: 0,
-    commentDraft: null,
+    ...noComposer,
     isPlaying: false,
     playStartSec: null,
     openSheet: null,
@@ -122,9 +123,7 @@ describe("the Listen dock on a phone guest link", () => {
     await user.click(screen.getByRole("button", { name: "Comment at 0:05" }));
     await act(async () => {});
     expect(useDawStore.getState().isPlaying).toBe(false);
-    expect(useDawStore.getState().commentDraft).toMatchObject({
-      startSec: 5,
-      resume: true,
-    });
+    expect(useDawStore.getState().commentDraft).toMatchObject({ startSec: 5 });
+    expect(useDawStore.getState().composer.draft?.resume).toBe(true);
   });
 });

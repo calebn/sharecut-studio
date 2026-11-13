@@ -33,6 +33,7 @@ import {
   noteZoomPointerClientX,
   peekZoomPointerClientX,
 } from "../utils/zoomPointer";
+import { composerPatch, initialSession } from "./composerSession";
 import { joinJobCopy } from "./jobCopy";
 import { inspectKeyOf } from "./selection";
 import { timelineViewportRegistry } from "./timelineViewportRegistry";
@@ -40,7 +41,6 @@ import type {
   AnnouncedJobKind,
   AnnounceOptions,
   ChromeFlags,
-  CommentDraft,
   DawStore,
   FeedbackToast,
   JobFeedback,
@@ -335,6 +335,8 @@ type UiSlice = Pick<
   | "userZoomed"
   | "layers"
   | "commentDraft"
+  | "composer"
+  | "listenLoadFailed"
   | "transcriptFollowPlayhead"
   | "transcriptInlineEditRequest"
   | "setTranscriptInlineEditRequest"
@@ -371,7 +373,7 @@ type UiSlice = Pick<
   | "applyAnchoredZoom"
   | "zoomToSpan"
   | "setLayerVisible"
-  | "setCommentDraft"
+  | "setListenLoadFailed"
   | "setShellBreakpoint"
   | "setPointerKind"
   | "setSelectionHit"
@@ -414,6 +416,7 @@ export function uiAlwaysInitial() {
 /** UI state tied to one project; `hydrate` clears it when the project path changes. */
 export function uiProjectInitial() {
   return {
+    ...composerPatch(initialSession),
     highlightStaleRender: false,
     renderPreviewBusy: false,
     chapterAddPending: false,
@@ -707,7 +710,7 @@ export const createUiSlice: StateCreator<DawStore, [], [], UiSlice> = (
       showSilence: true,
       showProsody: false,
     } satisfies LayerVisibility,
-    commentDraft: null as CommentDraft | null,
+    listenLoadFailed: false,
     transcriptFollowPlayhead: true,
     transcriptInlineEditFailure: null as TranscriptInlineEditFailure | null,
     showCutAwayUtterances: false,
@@ -865,7 +868,7 @@ export const createUiSlice: StateCreator<DawStore, [], [], UiSlice> = (
     },
     setLayerVisible: (key, visible) =>
       set((s) => ({ layers: { ...s.layers, [key]: visible } })),
-    setCommentDraft: (commentDraft) => set({ commentDraft }),
+    setListenLoadFailed: (listenLoadFailed) => set({ listenLoadFailed }),
     setShellBreakpoint: (shellBreakpoint) => {
       set({ shellBreakpoint });
       // Re-derive from the live timeline: a registered scrollport that measures

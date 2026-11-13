@@ -282,6 +282,7 @@ export function Composer(props: ComposerProps) {
           disabledReason={block}
           {...reason.describedBy}
           aria-busy={posting || undefined}
+          aria-disabled={posting || undefined}
           onClick={() => {
             onSubmit();
             bodyRef.current?.focus();
