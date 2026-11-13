@@ -451,4 +451,18 @@ describe("Player", () => {
       expect(onStatusInfo).toHaveBeenCalledTimes(1);
     });
   });
+
+  it("keeps the bar's Comment in a folded frame, as a 44 px target", () => {
+    render(<Player {...base} guest onComment={() => undefined} />);
+    const comment = screen.getByRole("button", { name: "Comment" });
+    expect(comment).toHaveClass("sys-player-comment");
+    const css = systemCss();
+    const folded = css.match(
+      /html\[data-frame-short\]\s*\.sys-player-right\s*>\s*([^{]*)\{[^}]*display:\s*none/,
+    );
+    expect(folded?.[1]).toContain(":not(.sys-player-comment)");
+    expect(css).toMatch(
+      /html\[data-frame-short\] \.sys-player-comment\s*\{[^}]*var\(--touch-min\)/,
+    );
+  });
 });
