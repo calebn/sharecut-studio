@@ -265,9 +265,6 @@ for (const profile of PROFILES) {
           await expect(
             guest.getByRole("button", { name: "Pause", exact: true }),
           ).toBeVisible();
-          await expect(
-            guest.locator(".sys-listen-dock-elapsed"),
-          ).not.toHaveText(/^0:0[0-2]$/);
           await commentButton(guest).tap({ timeout: 10_000 });
           const field = composer(guest).getByRole("textbox", {
             name: "Comment",
@@ -294,9 +291,38 @@ for (const profile of PROFILES) {
             guest.getByRole("button", { name: /^Show\b.*\bcomments?/ }),
           ).toContainText("Comment added at");
           await expect(commentButton(guest)).toBeFocused();
+        },
+      );
+    });
+
+    test(`Comment pauses the episode and Close plays it on from there on ${where}`, async ({
+      browser,
+    }) => {
+      await withPhoneGuest(
+        browser,
+        profile,
+        size,
+        "commenter",
+        async (guest) => {
+          const elapsed = guest.locator(".sys-listen-dock-elapsed");
+          await guest
+            .getByRole("button", { name: "Play", exact: true })
+            .tap({ timeout: 10_000 });
+          await expect(elapsed).not.toHaveText(/^0:0[0-2]$/);
+          await commentButton(guest).tap({ timeout: 10_000 });
+          await expect(
+            guest.getByRole("button", { name: "Play", exact: true }),
+          ).toBeVisible();
+          const pausedAt = await elapsed.textContent();
+          await composer(guest)
+            .getByRole("button", { name: "Close", exact: true })
+            .tap({ timeout: 10_000 });
+          await expect(composer(guest)).toHaveCount(0);
           await expect(
             guest.getByRole("button", { name: "Pause", exact: true }),
           ).toBeVisible();
+          await expect(elapsed).not.toHaveText(pausedAt ?? "");
+          await expect(commentButton(guest)).toBeFocused();
         },
       );
     });
