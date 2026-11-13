@@ -147,6 +147,8 @@ const scrubber = (guest: Page) =>
   guest.getByRole("slider", { name: "Episode overview" });
 const commentButton = (guest: Page) =>
   guest.getByRole("button", { name: /^Comment at/ });
+const commentsRow = (guest: Page) =>
+  guest.getByRole("button", { name: /^Show\b.*\bcomments?/ });
 const composer = (guest: Page) => guest.locator(".rv-compose");
 
 async function expectDockFits(guest: Page, width: number) {
@@ -287,9 +289,7 @@ for (const profile of PROFILES) {
           await expectNoHorizontalScroll(guest, size.width);
           await post.tap({ timeout: 10_000 });
           await expect(composer(guest)).toHaveCount(0);
-          await expect(
-            guest.getByRole("button", { name: /^Show\b.*\bcomments?/ }),
-          ).toContainText("Comment added at");
+          await expect(commentsRow(guest)).toContainText("Comment added at");
           await expect(commentButton(guest)).toBeFocused();
         },
       );
@@ -336,9 +336,7 @@ for (const profile of PROFILES) {
         size,
         "commenter",
         async (guest) => {
-          await guest
-            .getByRole("button", { name: /^Show\b.*\bcomments?/ })
-            .tap({ timeout: 10_000 });
+          await commentsRow(guest).tap({ timeout: 10_000 });
           const sheet = guest.getByRole("dialog", { name: "Comments" });
           await expectRestsOnDock(guest, sheet);
           await expectCommentsReadable(guest, sheet, 2);
@@ -413,9 +411,7 @@ for (const profile of PROFILES) {
         await expect(
           guest.getByRole("button", { name: "Chapters" }),
         ).toHaveCount(0);
-        await guest
-          .getByRole("button", { name: /^Show\b.*\bcomments?/ })
-          .tap({ timeout: 10_000 });
+        await commentsRow(guest).tap({ timeout: 10_000 });
         const sheet = guest.getByRole("dialog", { name: "Comments" });
         await sheet
           .locator(".sys-queue-row")
@@ -524,9 +520,7 @@ for (const profile of PROFILES) {
       FOLDED,
       "commenter",
       async (guest) => {
-        await guest
-          .getByRole("button", { name: /^Show\b.*\bcomments?/ })
-          .tap({ timeout: 10_000 });
+        await commentsRow(guest).tap({ timeout: 10_000 });
         const comments = guest.getByRole("dialog", { name: "Comments" });
         await expectRestsOnDock(guest, comments);
         await expectCommentsReadable(guest, comments, 1);
