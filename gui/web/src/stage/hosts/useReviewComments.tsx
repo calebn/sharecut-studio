@@ -28,6 +28,7 @@ import {
   canSetAction,
   commentRole,
 } from "../../shareMode";
+import { isResumeDropped } from "../../state/commentDraft";
 import { useDawStore } from "../../state/dawStore";
 import { stageRoleOf } from "../../state/stageRoutes";
 import type { CommentDraft } from "../../state/types";
@@ -175,9 +176,18 @@ export function useReviewComments(guest: boolean) {
     });
   }, [comments]);
 
-  // A new draft, from C or the Edit verb, opens the field with focus.
+  // A new draft, from C or the Edit verb, opens the field with focus. The
+  // transport letting go of the resume promise is not a new draft.
+  const focusedDraft = useRef<CommentDraft | null>(null);
   useEffect(() => {
-    if (showComposer && commentDraft) composeRef.current?.focus();
+    const previous = focusedDraft.current;
+    focusedDraft.current = commentDraft;
+    if (
+      showComposer &&
+      commentDraft &&
+      !isResumeDropped(previous, commentDraft)
+    )
+      composeRef.current?.focus();
   }, [showComposer, commentDraft]);
 
   const entries = useMemo(
@@ -297,7 +307,8 @@ export function useReviewComments(guest: boolean) {
   const stageOf = () =>
     composeRef.current?.closest<HTMLElement>(".rv-stage") ?? null;
 
-  // Playback the dock paused for Comment goes on, unless the guest has already moved it.
+  // Playback the dock paused for Comment goes on. The store drops `resume` once
+  // the guest or the episode's end has moved the transport.
   const resumePlayback = (draft: CommentDraft | null) => {
     if (draft?.resume && !useDawStore.getState().isPlaying)
       runPointerCommand("transport.togglePlay");
@@ -353,6 +364,7 @@ export function useReviewComments(guest: boolean) {
       // Escape closed the field while this was in flight: its outcome is moot.
       if (started !== session.current) {
         postComment.setError(null);
+        if (result.ok) setBody("");
         return;
       }
       if (!result.ok) return;
