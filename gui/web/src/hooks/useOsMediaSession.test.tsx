@@ -164,8 +164,12 @@ describe("useOsMediaSession", () => {
     renderHook(() => useOsMediaSession());
     act(() => useDawStore.getState().setIsPlaying(true));
     let engineSec = 10;
+    let engineRevision = useDawStore.getState().playheadSeekRevision;
     const unbind = bindPlaybackClock(() =>
-      useDawStore.getState().isPlaying ? engineSec : null,
+      useDawStore.getState().isPlaying &&
+      useDawStore.getState().playheadSeekRevision === engineRevision
+        ? engineSec
+        : null,
     );
     act(() => handlers.get("seekto")?.(details({ seekTime: 40 })));
     expect(session.setPositionState).toHaveBeenLastCalledWith({
@@ -174,6 +178,7 @@ describe("useOsMediaSession", () => {
       position: 40,
     });
     engineSec = 40;
+    engineRevision = useDawStore.getState().playheadSeekRevision;
     act(() => handlers.get("seekforward")?.(details()));
     expect(session.setPositionState).toHaveBeenLastCalledWith({
       duration: 60,
