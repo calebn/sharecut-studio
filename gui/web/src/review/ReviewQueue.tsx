@@ -493,6 +493,15 @@ function AttentionGroup({
   );
 }
 
+/** The screen-reader count of a one-kind guest queue: "2 suggestions" when every row is one, else comments. */
+function quietNoun(items: readonly ReviewItem[]): string {
+  const noun =
+    items.length > 0 && items.every((item) => item.kind === "suggestion")
+      ? "suggestion"
+      : "comment";
+  return items.length === 1 ? noun : `${noun}s`;
+}
+
 export function ReviewQueue({
   items,
   content,
@@ -569,7 +578,7 @@ export function ReviewQueue({
     ? (completeness.unavailableMessage ?? progressLine(items))
     : resolvedSome || !oneKind
       ? commentLine(items)
-      : `${items.length} ${items.length === 1 ? "comment" : "comments"}`;
+      : `${items.length} ${quietNoun(items)}`;
   const reason = useDisabledReasonNote(guest ? undefined : findMoreDisabled);
 
   if (state !== "ready") {
