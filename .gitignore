@@ -49,6 +49,9 @@ gui/desktop/node_modules/
 gui/desktop/src-tauri/target/
 gui/desktop/src-tauri/gen/
 gui/desktop/binaries/sharecut-sidecar-*
+# Dev stubs written by scripts/build_sidecar.py (--dev-stub) for each target triple.
+gui/desktop/binaries/podcast-*
+gui/desktop/binaries/podcast-mcp-*
 !gui/desktop/binaries/sharecut-sidecar
 gui/desktop/binaries/sharecut-runtime/**
 !gui/desktop/binaries/sharecut-runtime/.gitkeep

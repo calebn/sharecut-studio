@@ -177,8 +177,8 @@ Deferred path and interim constraints: [cross-platform-byok.md](cross-platform-b
 
 **iOS target (in progress, #3810).** The `sharecut` lib builds as a `staticlib` and
 `cargo check --lib --no-default-features --target aarch64-apple-ios-sim` (and
-`aarch64-apple-ios`) passes; `scripts/desktop/check_desktop.sh` runs the simulator
-check when that rustup target is installed. Desktop-only code is gated by target
+`aarch64-apple-ios`) passes; `scripts/desktop/check_desktop.sh` runs each of those
+two checks when its rustup target is installed and prints a skip note otherwise. Desktop-only code is gated by target
 (`cli_links`, and the updater and single-instance plugins live in a target table
 that excludes iOS and Android). `src/engine.rs` holds the helpers a mobile host
 shares with the desktop sidecar loop: the loopback health probe, the navigation
