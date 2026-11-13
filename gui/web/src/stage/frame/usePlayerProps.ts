@@ -2,6 +2,7 @@ import { useCallback, useMemo, useRef } from "react";
 import { episodeDurationSec } from "../../audio/proxyMath";
 import { skipListen } from "../../commands/listenSeek";
 import { runPointerCommand } from "../../commands/pointer";
+import { useTranscriptDetail } from "../../document/useTranscriptDetail";
 import { useStaleRenderBreakdown } from "../../hooks/useStaleRenderBreakdown";
 import { rosterDisplayName } from "../../presence/colors";
 import { followDetail } from "../../presence/followSync";
@@ -12,6 +13,10 @@ import {
   canReviewPendingEdit,
   isShareProjectKey,
 } from "../../shareMode";
+import {
+  listenMiddleOf,
+  listenScriptOf,
+} from "../../stages/guest/listenLayout";
 import { useDawStore } from "../../state/dawStore";
 import { transportAvailability } from "../../state/transportAvailability";
 import { useDaw } from "../../state/useDaw";
@@ -91,6 +96,16 @@ export function usePlayerProps(
   const duration = episodeDurationSec(project);
   const { onSeek, onScrub } = useSeekFraction(duration);
   const { chapters, current: chapter, seekTo } = usePlayerChapters();
+  const detail = useTranscriptDetail();
+  const chaptersFillMiddle =
+    listenMiddleOf(
+      listenScriptOf({
+        loadFailed: false,
+        detail: detail.kind,
+        hasTranscript: (project?.transcript?.utterances?.length ?? 0) > 0,
+      }),
+      chapters.length > 0,
+    ).kind === "chapters";
   const comments = project?.comments;
   const pendingEdits = project?.pending_edits;
   const suggestionsShown =
@@ -199,7 +214,7 @@ export function usePlayerProps(
           })
       : undefined,
     onChapters:
-      form === "dock" && chapters.length > 0
+      form === "dock" && chapters.length > 0 && !chaptersFillMiddle
         ? () => useDawStore.getState().setOpenSheet("chapters")
         : undefined,
     onStatusInfo:

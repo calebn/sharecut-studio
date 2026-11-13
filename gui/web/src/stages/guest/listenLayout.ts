@@ -1,11 +1,9 @@
 import type { TranscriptDetailView } from "../../document/useTranscriptDetail";
 import type { CommentDraft } from "../../state/types";
 
-/** Only links that read and comment get the Listen layout; an Editor keeps Review. */
-export type ListenRole = "viewer" | "commenter";
-
 export type ListenInput = {
-  role: ListenRole;
+  /** The link's `comment` capability: the one source for the Comment button and the composer. */
+  mayComment: boolean;
   /** The transcript's state, from the real transcript detail: `none` when this link carries no transcript. */
   script: "ready" | "pending" | "failed" | "none";
   /** What a guest sees in the queue: comments, and their own suggestions. */
@@ -42,16 +40,22 @@ function countLabel({ comments, suggestions }: ListenInput["counts"]): string {
     .join(" · ");
 }
 
+export function listenMiddleOf(
+  script: ListenInput["script"],
+  hasChapters: boolean,
+): ListenMiddle {
+  return script !== "none"
+    ? { kind: "script" }
+    : hasChapters
+      ? { kind: "chapters" }
+      : { kind: "empty" };
+}
+
 export function listenLayoutOf(input: ListenInput): ListenLayout {
-  const { role, script, counts, hasChapters, draft } = input;
-  const middle: ListenMiddle =
-    script !== "none"
-      ? { kind: "script" }
-      : hasChapters
-        ? { kind: "chapters" }
-        : { kind: "empty" };
+  const { mayComment, script, counts, hasChapters, draft } = input;
+  const middle = listenMiddleOf(script, hasChapters);
   const bottom: ListenBottom =
-    draft !== null && role === "commenter"
+    draft !== null && mayComment
       ? { kind: "composer" }
       : counts.comments + counts.suggestions > 0
         ? { kind: "row", label: countLabel(counts), comments: counts.comments }

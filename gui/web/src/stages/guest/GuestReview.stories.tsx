@@ -385,7 +385,7 @@ export const CommenterPhoneComposing: Story = {
   },
 };
 
-export const CommenterPhoneFirstComment: Story = {
+export const CommenterFirstComment: Story = {
   ...phoneShare("commenter", {
     beforeEach: () => {
       const hint = rememberLocal(HINT_KEY, "1");
@@ -473,6 +473,26 @@ export const ViewerPhone: Story = {
     await expect(
       canvas.queryByRole("button", { name: /^Comment at/ }),
     ).toBeNull();
+    await expect(canvas.getByRole("button", { name: "Play" })).toBeVisible();
+    await expect(
+      canvas.getByRole("button", { name: "Chapters" }),
+    ).toBeVisible();
+  },
+};
+
+/** A listen-only link that carries no words: the chapters fill the middle, so the dock has no Chapters button. */
+export const ViewerPhoneChapters: Story = {
+  ...phoneShare("viewer", { project: episode({ transcript: null }) }),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(
+      await canvas.findByRole("main", { name: "Review" }),
+    ).toBeVisible();
+    if (!onPhone(canvasElement)) return;
+    await expect(
+      await canvas.findByRole("list", { name: "Chapters" }),
+    ).toBeVisible();
+    await expect(canvas.queryByRole("button", { name: "Chapters" })).toBeNull();
     await expect(canvas.getByRole("button", { name: "Play" })).toBeVisible();
   },
 };

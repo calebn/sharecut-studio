@@ -9,10 +9,8 @@ const NONE: ChapterMarker[] = [];
 export function usePlayerChapters() {
   const markers = useDawStore((s) => s.project?.chapters) ?? NONE;
   const duration = useDawStore((s) => s.project?.timeline_duration_sec ?? 0);
-  const current = useDawStore((s) =>
-    chapterIndexAt(sortChapters(s.project?.chapters ?? NONE), s.playheadSec),
-  );
   const sorted = useMemo(() => sortChapters(markers), [markers]);
+  const current = useDawStore((s) => chapterIndexAt(sorted, s.playheadSec));
   const chapters = useMemo(
     () => playerChapters(sorted, duration),
     [sorted, duration],

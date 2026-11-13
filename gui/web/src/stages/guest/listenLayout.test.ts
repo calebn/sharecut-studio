@@ -8,7 +8,7 @@ import {
 } from "./listenLayout";
 
 const BASE: ListenInput = {
-  role: "commenter",
+  mayComment: true,
   script: "ready",
   counts: { comments: 15, suggestions: 0 },
   hasChapters: true,
@@ -73,7 +73,7 @@ const CASES: [name: string, input: ListenInput, layout: ListenLayout][] = [
   ],
   [
     "a Viewer with chapters reads the chapter list",
-    { ...BASE, role: "viewer", script: "none" },
+    { ...BASE, mayComment: false, script: "none" },
     {
       middle: { kind: "chapters" },
       bottom: { kind: "row", label: "15 comments", comments: 15 },
@@ -83,7 +83,7 @@ const CASES: [name: string, input: ListenInput, layout: ListenLayout][] = [
     "a Viewer with neither chapters nor comments gets the Cover",
     {
       ...BASE,
-      role: "viewer",
+      mayComment: false,
       script: "none",
       hasChapters: false,
       counts: { comments: 0, suggestions: 0 },
@@ -91,8 +91,8 @@ const CASES: [name: string, input: ListenInput, layout: ListenLayout][] = [
     { middle: { kind: "empty" }, bottom: { kind: "none" } },
   ],
   [
-    "a Viewer never gets the composer",
-    { ...BASE, role: "viewer", script: "none", draft: DRAFT },
+    "a link that may not comment never gets the composer",
+    { ...BASE, mayComment: false, script: "none", draft: DRAFT },
     {
       middle: { kind: "chapters" },
       bottom: { kind: "row", label: "15 comments", comments: 15 },
@@ -100,7 +100,15 @@ const CASES: [name: string, input: ListenInput, layout: ListenLayout][] = [
   ],
   [
     "a Viewer whose link carries the transcript reads it, and never gets the composer",
-    { ...BASE, role: "viewer", script: "ready", draft: DRAFT },
+    { ...BASE, mayComment: false, script: "ready", draft: DRAFT },
+    {
+      middle: { kind: "script" },
+      bottom: { kind: "row", label: "15 comments", comments: 15 },
+    },
+  ],
+  [
+    "a Commenter link without the comment capability never gets the composer",
+    { ...BASE, mayComment: false, draft: DRAFT },
     {
       middle: { kind: "script" },
       bottom: { kind: "row", label: "15 comments", comments: 15 },
