@@ -11,6 +11,7 @@ import {
   commentPostedStatus,
   usePostComment,
 } from "../../comments/usePostComment";
+import { useShortLayoutViewport } from "../../hooks/useShortLayoutViewport";
 import { stepUndecided } from "../../review/advance";
 import {
   commentEntriesOf,
@@ -100,13 +101,14 @@ export function useReviewComments(guest: boolean) {
   const mayComment = canComment(projectPath, guestMode, capabilities);
   const mayReply = canReply(projectPath, guestMode, capabilities);
   const mayAction = canSetAction(projectPath, capabilities);
-  // A guest on a wide shell always has the field. A phone guest opens it from
-  // the Player's Comment button, like a host.
-  const showComposer =
-    mayComment && (commentDraft !== null || (guest && shell !== "phone"));
   // The phone Viewer and Commenter page opens the field from the dock, closes
   // it without losing the text, and plays on again if the dock paused it.
   const listen = listenLayoutOf(shell, guestMode);
+  // Any other guest always has the field, docked at the foot on a phone.
+  const showComposer =
+    mayComment && (commentDraft !== null || (guest && !listen));
+  const short = useShortLayoutViewport();
+  const docked = shell === "phone" && guest && !listen && !short;
   const duration = project?.timeline_duration_sec ?? Number.NaN;
   const comments = project?.comments;
   const [flipped, setFlipped] = useState<ReadonlyMap<string, boolean>>(
@@ -180,7 +182,7 @@ export function useReviewComments(guest: boolean) {
   useEffect(() => {
     if (showComposer && commentDraft) composeRef.current?.focus();
   }, [showComposer, commentDraft]);
-  // A link that can no longer comment leaves no draft behind, and no playback to resume.
+  // A link that can no longer comment leaves no draft behind, and plays on what the composer paused.
   useEffect(() => {
     if (!mayComment) dispatchComposer({ type: "reset" });
   }, [mayComment]);
@@ -379,7 +381,7 @@ export function useReviewComments(guest: boolean) {
   };
 
   const composer = showComposer ? (
-    <div className="rv-compose">
+    <div className="rv-compose" data-docked={docked ? "" : undefined}>
       <ComposeAnchor
         compact
         explainEmpty
