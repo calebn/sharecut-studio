@@ -46,7 +46,7 @@ def _get(
 
 def _sign_in(started: embedded.Started) -> str:
     response = _get(started.port, f"{EXCHANGE_PATH}?{EXCHANGE_PARAM}={started.exchange_code}")
-    assert response.status == 303
+    assert response.status == 200
     cookie = response.getheader("Set-Cookie") or ""
     return cookie.split(";")[0].partition("=")[2]
 
@@ -93,7 +93,7 @@ def test_every_start_mints_a_fresh_code_on_the_same_port(host) -> None:
     assert second.port == first.port
     assert second.exchange_code and second.exchange_code != first.exchange_code
     assert _sign_in(second)
-    assert _get(first.port, f"{EXCHANGE_PATH}?{EXCHANGE_PARAM}={first.exchange_code}").status == 303
+    assert _get(first.port, f"{EXCHANGE_PATH}?{EXCHANGE_PARAM}={first.exchange_code}").status == 200
 
 
 def test_the_cookie_alone_opens_an_event_stream(host) -> None:
