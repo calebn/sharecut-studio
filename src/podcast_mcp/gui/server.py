@@ -267,6 +267,7 @@ def create_app(
     static_dir: Path | None = None,
     served_project: Path | None = None,
     bind_host: str = "127.0.0.1",
+    host_mcp: bool = True,
 ) -> FastAPI:
 
     from podcast_mcp.services.session_sync import is_bind_loopback
@@ -488,7 +489,7 @@ def create_app(
             return missing_bundle_response(static_root)
 
     # Exact ``/mcp`` last: guest ``/mcp/{token}`` stays on the share router.
-    if host_platform.current().loopback_is_trusted:
+    if host_mcp and host_platform.current().loopback_is_trusted:
         from podcast_mcp.gui.host_mcp import mount_host_mcp
 
         mount_host_mcp(app, enabled=is_bind_loopback(bind_host))

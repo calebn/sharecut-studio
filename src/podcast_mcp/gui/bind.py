@@ -81,6 +81,37 @@ def write_listen_file(path: Path, *, port: int, pid: int) -> None:
     )
 
 
+def build_gui_server(
+    app: Any,
+    sock: socket.socket,
+    *,
+    log_level: str = "info",
+    graceful_shutdown_sec: int | None = None,
+) -> Any:
+    """The uvicorn server both entries run: the CLI sidecar and a host process that embeds Studio.
+
+    Records the bound address on ``app.state`` and returns a ``uvicorn.Server`` for the caller
+    to run on ``sockets=[sock]``. The caller keeps the socket and the thread it runs on.
+    ``graceful_shutdown_sec`` bounds how long a stop waits for open connections such as an
+    event stream; ``None`` waits for them.
+    """
+    import uvicorn
+
+    state = getattr(app, "state", None)
+    if state is not None:
+        state.listen_port = int(sock.getsockname()[1])
+        state.listen_host = str(sock.getsockname()[0])
+    config = uvicorn.Config(
+        app,
+        log_level=log_level,
+        ws_per_message_deflate=True,
+        timeout_graceful_shutdown=graceful_shutdown_sec,
+    )
+    server = uvicorn.Server(config)
+    _cancel_handed_off_commands_on_exit(server, app)
+    return server
+
+
 def run_gui_server(
     app: Any,
     *,
@@ -89,30 +120,15 @@ def run_gui_server(
     log_level: str = "info",
 ) -> None:
     """Bind exclusively, optionally write the listen file, then run uvicorn."""
-    import uvicorn
-
-    bind_port = resolved_bind_port(port)
-    sock = exclusive_listen_socket(host, bind_port)
+    sock = exclusive_listen_socket(host, resolved_bind_port(port))
     listen_written: Path | None = None
     try:
-        bound_port = int(sock.getsockname()[1])
-        state = getattr(app, "state", None)
-        if state is not None:
-            state.listen_port = bound_port
-            state.listen_host = str(sock.getsockname()[0])
         listen = settings.text(LISTEN_FILE_ENV)
         if listen:
             dest = Path(listen)
-            write_listen_file(dest, port=bound_port, pid=os.getpid())
+            write_listen_file(dest, port=int(sock.getsockname()[1]), pid=os.getpid())
             listen_written = dest
-        config = uvicorn.Config(
-            app,
-            log_level=log_level,
-            ws_per_message_deflate=True,
-        )
-        server = uvicorn.Server(config)
-        _cancel_handed_off_commands_on_exit(server, app)
-        server.run(sockets=[sock])
+        build_gui_server(app, sock, log_level=log_level).run(sockets=[sock])
     finally:
         if listen_written is not None:
             listen_written.unlink(missing_ok=True)
