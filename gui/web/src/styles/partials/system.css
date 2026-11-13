@@ -1111,7 +1111,11 @@ html[data-frame-short]
   display: none;
 }
 
-html[data-frame-short] .sys-player-comment {
+html[data-frame-short]:not([data-shell="phone"]) .sys-player-comment {
+  display: none;
+}
+
+html[data-frame-short][data-shell="phone"] .sys-player-comment {
   min-inline-size: var(--touch-min);
   min-block-size: var(--touch-min);
 }
