@@ -78,6 +78,10 @@ test("an Editor link on a phone keeps the comment field docked at the foot, clea
         await openHostShare(host, projectPath);
         const token = await createReviewShare(host, projectPath, "editor");
         await openGuestShare(guest, token);
+        await guest
+          .getByRole("tablist", { name: "Stages" })
+          .getByRole("tab", { name: /^Review/ })
+          .tap();
         const field = guest
           .locator(".rv-compose")
           .getByRole("textbox", { name: "Comment", exact: true });
