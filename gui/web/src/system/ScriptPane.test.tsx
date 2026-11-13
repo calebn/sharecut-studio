@@ -711,6 +711,36 @@ describe("ScriptPane read only", () => {
     expect(screen.getByText("Read only")).toBeInTheDocument();
   });
 
+  it("draws a phone Viewer's label as one caption line, with no header row or pin, and describes the Script by it", () => {
+    render(
+      <ScriptPane
+        turns={MARKED}
+        guest="viewer"
+        layout="phone"
+        following={false}
+        onFollowChange={() => undefined}
+        playing={3}
+      />,
+    );
+    const caption = screen.getByText("Read only");
+    expect(caption.tagName).toBe("P");
+    expect(caption).toHaveClass("sys-script-caption");
+    expect(document.querySelector(".sys-script-header")).toBeNull();
+    expect(
+      screen.queryByRole("button", { name: "Follow the playhead" }),
+    ).toBeNull();
+    expect(
+      screen.getByRole("region", { name: "Script" }),
+    ).toHaveAccessibleDescription("Read only");
+  });
+
+  it("describes a wide guest's Script by its label too", () => {
+    render(<ScriptPane turns={MARKED} guest="commenter" playing={3} />);
+    expect(
+      screen.getByRole("region", { name: "Script" }),
+    ).toHaveAccessibleDescription("Read only · you can comment");
+  });
+
   it("takes the unsure count from the host when it shows only a window", () => {
     render(
       <ScriptPane

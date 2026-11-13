@@ -113,7 +113,7 @@ async function withPhoneGuest(
   browser: Browser,
   profile: Profile,
   size: Size,
-  role: "commenter" | "viewer",
+  role: "commenter" | "viewer" | "editor",
   run: (guest: Page) => Promise<void>,
 ): Promise<void> {
   await withShareableProject(async (projectPath) => {
@@ -484,6 +484,17 @@ for (const profile of PROFILES) {
       await withPhoneGuest(browser, profile, size, "viewer", async (guest) => {
         const script = guest.locator(".stage-host-guest-script");
         await expect(script).toContainText("Read only");
+        await expect(script.locator(".sys-script-header")).toHaveCount(0);
+        await expect(
+          script.getByRole("button", { name: "Follow the playhead" }),
+        ).toHaveCount(0);
+        const caption = await script
+          .locator(".sys-script-caption")
+          .boundingBox();
+        expect(caption?.height ?? 999).toBeLessThanOrEqual(32);
+        await expect(
+          script.getByRole("region", { name: "Script" }),
+        ).toHaveAccessibleDescription("Read only");
         const elapsed = guest.locator(".sys-listen-dock-elapsed");
         const before = await elapsed.textContent();
         await script
@@ -565,6 +576,24 @@ for (const profile of PROFILES) {
         expect(barBox.y + barBox.height).toBeLessThanOrEqual(dock.y + 0.5);
       },
     );
+  });
+
+  test(`an Editor on a short landscape phone can still comment from the bar on ${profile.name} 667x375`, async ({
+    browser,
+  }) => {
+    await withPhoneGuest(browser, profile, FOLDED, "editor", async (guest) => {
+      const comment = guest.getByRole("button", {
+        name: "Comment",
+        exact: true,
+      });
+      await expectReached(comment);
+      const box = await comment.boundingBox();
+      expect(box?.width ?? 0).toBeGreaterThanOrEqual(TOUCH_MIN);
+      expect(box?.height ?? 0).toBeGreaterThanOrEqual(TOUCH_MIN);
+      await comment.tap({ timeout: 10_000 });
+      await expect(composer(guest)).toBeVisible();
+      await expectNoHorizontalScroll(guest, FOLDED.width);
+    });
   });
 
   test(`a short landscape phone keeps the dock to one row under the scrubber on ${profile.name} 667x375`, async ({
