@@ -462,6 +462,41 @@ test.describe("Stage shell on a phone", () => {
     }
   });
 
+  test("a host's folded phone frame has no Comment in the Player bar", async ({
+    page,
+  }) => {
+    await openProject(page);
+    await page.setViewportSize({ width: 667, height: 375 });
+    await expect(page.locator("html")).toHaveAttribute("data-frame-short", "");
+    await expect(page.locator("html")).toHaveAttribute("data-shell", "phone");
+    await expect(
+      player(page).getByRole("button", { name: "Play", exact: true }),
+    ).toBeVisible();
+    await expect(
+      player(page).getByRole("button", { name: "Comment" }),
+    ).toBeHidden();
+  });
+
+  test("a host's phone sheet keeps the Expand button's link colour", async ({
+    page,
+  }) => {
+    await openProject(page);
+    await openProjectDialog(page, "share");
+    const sheet = page.getByRole("dialog", { name: "Invite", exact: true });
+    await expect(sheet).toBeVisible();
+    const resize = sheet.locator(".bottom-sheet-resize-action").first();
+    await expect(resize).toBeVisible();
+    const colours = await resize.evaluate((button) => {
+      const probe = document.createElement("span");
+      probe.style.color = "var(--color-accent-fg)";
+      document.body.append(probe);
+      const link = getComputedStyle(probe).color;
+      probe.remove();
+      return { button: getComputedStyle(button).color, link };
+    });
+    expect(colours.button).toBe(colours.link);
+  });
+
   test("shows the tab bar and switches Edit surfaces", async ({ page }) => {
     await openProject(page);
     await expect(page.locator(".stage-frame--phone")).toBeVisible();

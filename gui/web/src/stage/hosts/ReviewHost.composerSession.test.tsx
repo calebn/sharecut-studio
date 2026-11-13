@@ -195,6 +195,18 @@ describe("every way to open the composer", () => {
   });
 });
 
+describe("the composer in the Listen layout", () => {
+  it("is never docked at the foot: it opens from the dock's Comment and sits in the layout", async () => {
+    const user = userEvent.setup();
+    join("comment");
+    mount();
+    await user.click(commentAt());
+    const compose = field().closest(".rv-compose");
+    expect(compose).not.toBeNull();
+    expect(compose).not.toHaveAttribute("data-docked");
+  });
+});
+
 describe("a Post that lands after the composer was closed and reopened", () => {
   it("sends the text once, and closes the reopened field when it lands", async () => {
     const user = userEvent.setup();
