@@ -193,7 +193,7 @@ export type OsTransportCommands = Readonly<{
   /** The held source preview is audible. */
   previewPlaying(): boolean;
   stopPreview(): void;
-  /** Releases any source preview and turns the episode on, in one store write. */
+  /** Releases any source preview and plays the episode as the Player's Play does. */
   resumeEpisode(): void;
   syncPlayhead(sec: number): void;
   togglePlay(): void;

@@ -1,4 +1,5 @@
 import { useEffect } from "react";
+import { flushSync } from "react-dom";
 import { livePlayheadSec } from "../audio/livePlayhead";
 import {
   applyOsMediaSession,
@@ -23,8 +24,18 @@ const storeCommands: OsTransportCommands = {
   livePositionSec: livePlayheadSec,
   previewActive: () => useDawStore.getState().sourcePreview !== null,
   previewPlaying: () => useDawStore.getState().sourcePreview?.playing === true,
-  stopPreview: () => useDawStore.getState().setIsPlaying(false),
-  resumeEpisode: () => useDawStore.getState().setIsPlaying(true),
+  // The Player's button here runs `transport.togglePlay`, which breaks a Follow.
+  stopPreview: () => {
+    const state = useDawStore.getState();
+    state.setIsPlaying(false);
+    state.stopFollow("local");
+  },
+  // Releases the preview to a paused episode, rendered so that effects keyed on
+  // `isPlaying` see the change, then plays it as the Player's Play does.
+  resumeEpisode: () => {
+    flushSync(() => useDawStore.getState().setIsPlaying(false));
+    runPointerCommand("transport.togglePlay");
+  },
   syncPlayhead,
   togglePlay: () => runPointerCommand("transport.togglePlay"),
   skip: (deltaSec) =>
