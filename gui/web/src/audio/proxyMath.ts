@@ -33,10 +33,8 @@ export interface ProxyClipBasis {
 }
 
 /**
- * What a manifest was built from. `render_hashes` and `clips` are the audio
- * identity a manifest is matched on. `history_head_id` only records which
- * document state it came from: it moves on every save, audible or not, so it
- * takes no part in any comparison.
+ * A manifest is matched on `render_hashes` and `clips` only. `history_head_id`
+ * moves on every save, audible or not, so it must not be compared.
  */
 export interface ProxyProjectBasis {
   readonly history_head_id: string;
