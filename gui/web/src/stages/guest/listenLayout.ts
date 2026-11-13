@@ -9,6 +9,8 @@ export type ListenInput = {
   /** What a guest sees in the queue: comments, and their own suggestions. */
   counts: { comments: number; suggestions: number };
   hasChapters: boolean;
+  /** A refused or waiting edit lives in the queue's Needs attention group. */
+  needsAttention: boolean;
   /** `store.commentDraft`. A Viewer never has one. */
   draft: CommentDraft | null;
 };
@@ -31,10 +33,14 @@ function plural(count: number, noun: string) {
   return `${count} ${noun}${count === 1 ? "" : "s"}`;
 }
 
-function countLabel({ comments, suggestions }: ListenInput["counts"]): string {
+function countLabel(
+  { comments, suggestions }: ListenInput["counts"],
+  needsAttention: boolean,
+): string {
   return [
     comments > 0 ? plural(comments, "comment") : "",
     suggestions > 0 ? plural(suggestions, "suggestion") : "",
+    needsAttention ? "Needs attention" : "",
   ]
     .filter(Boolean)
     .join(" · ");
@@ -52,13 +58,18 @@ export function listenMiddleOf(
 }
 
 export function listenLayoutOf(input: ListenInput): ListenLayout {
-  const { mayComment, script, counts, hasChapters, draft } = input;
+  const { mayComment, script, counts, hasChapters, needsAttention, draft } =
+    input;
   const middle = listenMiddleOf(script, hasChapters);
   const bottom: ListenBottom =
     draft !== null && mayComment
       ? { kind: "composer" }
-      : counts.comments + counts.suggestions > 0
-        ? { kind: "row", label: countLabel(counts), comments: counts.comments }
+      : counts.comments + counts.suggestions > 0 || needsAttention
+        ? {
+            kind: "row",
+            label: countLabel(counts, needsAttention),
+            comments: counts.comments,
+          }
         : { kind: "none" };
   return { middle, bottom };
 }

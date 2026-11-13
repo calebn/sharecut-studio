@@ -12,6 +12,7 @@ const BASE: ListenInput = {
   script: "ready",
   counts: { comments: 15, suggestions: 0 },
   hasChapters: true,
+  needsAttention: false,
   draft: null,
 };
 const DRAFT = { startSec: 86, endSec: null };
@@ -52,6 +53,30 @@ const CASES: [name: string, input: ListenInput, layout: ListenLayout][] = [
         kind: "row",
         label: "15 comments · 2 suggestions",
         comments: 15,
+      },
+    },
+  ],
+  [
+    "a refused edit and nothing else",
+    {
+      ...BASE,
+      counts: { comments: 0, suggestions: 0 },
+      needsAttention: true,
+    },
+    {
+      middle: { kind: "script" },
+      bottom: { kind: "row", label: "Needs attention", comments: 0 },
+    },
+  ],
+  [
+    "comments and a refused edit",
+    { ...BASE, counts: { comments: 2, suggestions: 0 }, needsAttention: true },
+    {
+      middle: { kind: "script" },
+      bottom: {
+        kind: "row",
+        label: "2 comments · Needs attention",
+        comments: 2,
       },
     },
   ],
