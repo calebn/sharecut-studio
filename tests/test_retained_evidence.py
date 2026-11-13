@@ -161,8 +161,11 @@ def _little_free_disk(
     monkeypatch.setattr(decoded_source.shutil, "disk_usage", lambda directory: low)
 
 
-def _windows(_monkeypatch: pytest.MonkeyPatch, host: Callable[[HostPlatform], None]) -> None:
-    host(WINDOWS)
+def _windows(monkeypatch: pytest.MonkeyPatch, _host: Callable[[HostPlatform], None]) -> None:
+    """Only the retention decision sees Windows; the decoder still runs as on this machine."""
+    monkeypatch.setattr(
+        track_evidence, "host_platform", types.SimpleNamespace(current=lambda: WINDOWS)
+    )
 
 
 @pytest.mark.parametrize(
