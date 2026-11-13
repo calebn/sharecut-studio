@@ -8,6 +8,7 @@ import {
   type RefObject,
   useCallback,
   useEffect,
+  useId,
   useImperativeHandle,
   useLayoutEffect,
   useMemo,
@@ -2094,14 +2095,19 @@ export const ScriptPane = forwardRef<ScriptPaneHandle, ScriptPaneProps>(
       if (next) now.props.onSelect?.(next);
     };
 
-    // A phone Commenter or Editor's header would hold only the caption and the follow
-    // pin: the Role chip says what the link allows, and scrolling stops
-    // following. A Viewer's keeps its "Read only" label.
-    const showHeader =
-      (status.kind === "ready" ||
-        status.kind === "transcribing" ||
-        status.kind === "outOfDate") &&
-      !(guest && guest !== "viewer" && layout === "phone");
+    // On a phone the header would hold only the caption and the follow pin:
+    // the Role chip says what the link allows, and scrolling stops following
+    // (Back to playhead returns). A Viewer keeps the caption, as one line.
+    const phoneGuest = guest !== undefined && layout === "phone";
+    const readable =
+      status.kind === "ready" ||
+      status.kind === "transcribing" ||
+      status.kind === "outOfDate";
+    const showHeader = readable && !phoneGuest;
+    const captionOnly = readable && phoneGuest && guest === "viewer";
+    const guestLabelId = useId();
+    const describedBy =
+      guest && (showHeader || captionOnly) ? guestLabelId : undefined;
 
     if (status.kind === "empty") {
       return (
@@ -2134,7 +2140,17 @@ export const ScriptPane = forwardRef<ScriptPaneHandle, ScriptPaneProps>(
     const unsureShown = unsureCount ?? unsure;
 
     return (
-      <section className="sys-script" aria-label="Script" data-layout={layout}>
+      <section
+        className="sys-script"
+        aria-label="Script"
+        aria-describedby={describedBy}
+        data-layout={layout}
+      >
+        {captionOnly && guest ? (
+          <p id={guestLabelId} className="sys-script-caption">
+            {GUEST_SCRIPT_LABEL[guest]}
+          </p>
+        ) : null}
         {showHeader ? (
           <div className="sys-script-header">
             <div className="sys-script-tools">
@@ -2189,7 +2205,7 @@ export const ScriptPane = forwardRef<ScriptPaneHandle, ScriptPaneProps>(
               ) : null}
             </div>
             {guest ? (
-              <span className="sys-script-guest">
+              <span id={guestLabelId} className="sys-script-guest">
                 {GUEST_SCRIPT_LABEL[guest]}
               </span>
             ) : null}
