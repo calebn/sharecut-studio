@@ -63,6 +63,7 @@ let keepAlive: KeepAliveElement | null = null;
 let events: PlaybackSessionEvents | null = null;
 /** True from enter to leave; the element's own events count only against this. */
 let entered = false;
+let entries = 0;
 
 function defaultCreateElement(): KeepAliveElement | null {
   return typeof Audio === "undefined" ? null : new Audio();
@@ -105,6 +106,7 @@ export function enterPlaybackSession(
   }
   events = sessionEvents;
   entered = true;
+  const entry = ++entries;
   try {
     if (!keepAlive) {
       const element = createElement();
@@ -121,10 +123,13 @@ export function enterPlaybackSession(
     }
     const started = keepAlive?.play();
     if (started && typeof (started as Promise<void>).catch === "function") {
-      (started as Promise<void>).catch(() => undefined);
+      (started as Promise<void>).catch(() => {
+        if (entry === entries) entered = false;
+      });
     }
   } catch {
     // Autoplay rules can refuse the silent element; the Web Audio path still runs.
+    entered = false;
   }
 }
 
@@ -136,6 +141,13 @@ export function leavePlaybackSession(): void {
   } catch {
     // ignore
   }
+}
+
+/** Forget the events of an engine that is gone; a newer engine's events stay. */
+export function releasePlaybackSession(
+  sessionEvents: PlaybackSessionEvents,
+): void {
+  if (events === sessionEvents) events = null;
 }
 
 /** Test seam: forget the shared element. */
