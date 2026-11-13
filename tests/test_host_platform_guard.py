@@ -1,5 +1,3 @@
-"""The platform ban holds for the engine package and nowhere else."""
-
 from __future__ import annotations
 
 import subprocess

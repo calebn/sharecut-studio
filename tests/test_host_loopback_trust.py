@@ -1,5 +1,3 @@
-"""A host whose loopback other apps can reach requires the session token on every owner route."""
-
 from __future__ import annotations
 
 import subprocess
