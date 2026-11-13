@@ -93,9 +93,10 @@ const guestCanPlay = (state: DawState): boolean =>
 export function osTransportInput(
   state: DawState,
   positionSec: number,
+  started: boolean,
 ): OsTransportInput {
   return {
-    available: guestCanPlay(state),
+    available: started && guestCanPlay(state),
     title: state.project?.meta.name ?? null,
     durationSec: episodeDurationSec(state.project),
     isPlaying: state.isPlaying,
@@ -129,7 +130,7 @@ export function osDiscontinuityKey(state: DawState): string {
   return JSON.stringify([
     state.projectPath,
     state.playheadSeekRevision,
-    { ...osTransportInput(state, 0), positionSec: 0 },
+    { ...osTransportInput(state, 0, true), positionSec: 0 },
   ]);
 }
 

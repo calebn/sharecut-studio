@@ -50,6 +50,7 @@ export function useOsMediaSession(): void {
       new MediaMetadata(metadata);
     let applied: OsMediaSessionState = OS_SESSION_OFF;
     let appliedKey = "";
+    let startedPath: string | null = null;
     let seen: ReturnType<typeof useDawStore.getState> | null = null;
     let reported = false;
     const write = (next: OsMediaSessionState) => {
@@ -65,11 +66,15 @@ export function useOsMediaSession(): void {
     const sync = (state: ReturnType<typeof useDawStore.getState>) => {
       if (seen && sameOsInputs(seen, state)) return;
       seen = state;
+      if (state.isPlaying || state.sourcePreview?.playing)
+        startedPath = state.projectPath;
       const key = osDiscontinuityKey(state);
       if (key === appliedKey) return;
       appliedKey = key;
       const position = livePlayheadSec();
-      const next = projectOsMediaSession(osTransportInput(state, position));
+      const next = projectOsMediaSession(
+        osTransportInput(state, position, startedPath === state.projectPath),
+      );
       write(next);
     };
     sync(useDawStore.getState());

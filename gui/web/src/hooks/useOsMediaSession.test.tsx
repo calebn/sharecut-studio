@@ -33,6 +33,11 @@ function hydrateGuest() {
   );
 }
 
+function startThenPause() {
+  act(() => useDawStore.getState().setIsPlaying(true));
+  act(() => useDawStore.getState().setIsPlaying(false));
+}
+
 beforeEach(() => {
   handlers.clear();
   session.metadata = null;
@@ -77,27 +82,6 @@ describe("useOsMediaSession", () => {
     expect(session.setPositionState).not.toHaveBeenCalled();
     expect(session.metadata).toBeNull();
     expect(session.playbackState).toBe("none");
-  });
-
-  it("claims the title, the handlers and a paused state for a guest", () => {
-    hydrateGuest();
-    renderHook(() => useOsMediaSession());
-    expect(session.metadata?.title).toBe("Episode 12");
-    expect(session.playbackState).toBe("paused");
-    expect([...handlers].map(([action, fn]) => [action, fn !== null])).toEqual([
-      ["play", true],
-      ["pause", true],
-      ["seekbackward", true],
-      ["seekforward", true],
-      ["seekto", true],
-      ["previoustrack", false],
-      ["nexttrack", false],
-    ]);
-    expect(session.setPositionState).toHaveBeenLastCalledWith({
-      duration: 60,
-      playbackRate: 1,
-      position: 0,
-    });
   });
 
   it("claims nothing for a guest until playback has started", () => {
@@ -169,6 +153,7 @@ describe("useOsMediaSession", () => {
   it("drives the transport from the lock-screen handlers", () => {
     hydrateGuest();
     renderHook(() => useOsMediaSession());
+    startThenPause();
     act(() => handlers.get("play")?.(details()));
     expect(useDawStore.getState().isPlaying).toBe(true);
     act(() => handlers.get("pause")?.(details()));
@@ -194,6 +179,7 @@ describe("useOsMediaSession", () => {
       }),
     );
     renderHook(() => useOsMediaSession());
+    startThenPause();
     expect(session.setPositionState).toHaveBeenLastCalledWith({
       duration: 90,
       playbackRate: 1,
@@ -207,6 +193,7 @@ describe("useOsMediaSession", () => {
   it("declares 0 when Play starts at the end, where the engine wraps", () => {
     hydrateGuest();
     renderHook(() => useOsMediaSession());
+    startThenPause();
     act(() => useDawStore.getState().setPlayheadSec(60, "seek"));
     act(() => handlers.get("play")?.(details()));
     expect(useDawStore.getState().isPlaying).toBe(true);
@@ -265,6 +252,7 @@ describe("useOsMediaSession", () => {
   it("clears everything on unmount", () => {
     hydrateGuest();
     const { unmount } = renderHook(() => useOsMediaSession());
+    startThenPause();
     unmount();
     expect(session.metadata).toBeNull();
     expect(session.playbackState).toBe("none");
