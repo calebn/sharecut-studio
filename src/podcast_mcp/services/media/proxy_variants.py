@@ -84,10 +84,27 @@ def artifact_directory(project: EpisodeProject, context: str, hash_: str) -> Pat
 
 
 def project_basis(project: EpisodeProject, defaults: EffectiveConfig) -> ProxyProjectBasis:
+    """The project state a manifest's artifacts are built from.
+
+    ``render_hashes`` holds, per track a manifest's artifacts read, a digest of
+    ``proxy_render_hash`` (a legacy artifact's own input) and ``track_render_hash`` (the clip
+    media, gate fill and restore state a recording or occurrence reads). File contents and
+    binaries are left to the artifacts' own input hashes.
+    """
     origin = origin_resolver(project)
     return ProxyProjectBasis(
         history_head_id=project.history.head_id(),
-        render_hashes=proxy_basis_hashes(project, defaults),
+        render_hashes={
+            tid: short_digest(
+                json.dumps(
+                    [
+                        proxy_render_hash(project, tid, defaults=defaults),
+                        track_render_hash(project, tid, defaults=defaults),
+                    ]
+                )
+            )
+            for tid in select_manifest(project).track_ids
+        },
         clips={
             clip.id: ProxyClipBasis(
                 track_id=clip.track_id,
@@ -147,26 +164,6 @@ def _select(project: EpisodeProject) -> ManifestSelection:
         recordings=recordings,
         track_ids=tuple(dict.fromkeys(reads)),
     )
-
-
-def proxy_basis_hashes(project: EpisodeProject, defaults: EffectiveConfig) -> dict[str, str]:
-    """Per track a manifest's artifacts read, a digest of the project state they are built from.
-
-    ``proxy_render_hash`` is a legacy artifact's own input; ``track_render_hash`` adds the
-    clip media, gate fill and restore state a recording or occurrence reads. File contents
-    and binaries are left to the artifacts' own input hashes.
-    """
-    return {
-        tid: short_digest(
-            json.dumps(
-                [
-                    proxy_render_hash(project, tid, defaults=defaults),
-                    track_render_hash(project, tid, defaults=defaults),
-                ]
-            )
-        )
-        for tid in select_manifest(project).track_ids
-    }
 
 
 @dataclass(frozen=True)
