@@ -3,6 +3,7 @@ import {
   enterPlaybackSession,
   KEEP_ALIVE_SEC,
   leavePlaybackSession,
+  releasePlaybackSession,
   resetPlaybackSessionForTest,
   silentWavBytes,
 } from "./playbackSession";
@@ -109,6 +110,51 @@ describe("playback session (#1764, #3785)", () => {
     el.dispatchEvent(new Event("play"));
     expect(e.onSystemPlay).not.toHaveBeenCalled();
     el.osPause();
+    el.osPlay();
+    expect(e.onSystemPlay).toHaveBeenCalledTimes(1);
+  });
+
+  it("leaves the session not entered when the element refuses to play", async () => {
+    const el = new FakeElement();
+    const e = events();
+    enterPlaybackSession(e, {}, () => el, url);
+    leavePlaybackSession();
+    el.play.mockImplementationOnce(() => Promise.reject(new Error("blocked")));
+    enterPlaybackSession(e, {}, () => el, url);
+    await Promise.resolve();
+    await Promise.resolve();
+    el.dispatchEvent(new Event("pause"));
+    expect(e.onSystemPause).not.toHaveBeenCalled();
+  });
+
+  it("does not report to the events of a disposed engine", () => {
+    const el = new FakeElement();
+    const e = events();
+    enterPlaybackSession(e, {}, () => el, url);
+    leavePlaybackSession();
+    releasePlaybackSession(e);
+    el.osPlay();
+    expect(e.onSystemPlay).not.toHaveBeenCalled();
+  });
+
+  it("keeps the events of a newer engine when an older one is released", () => {
+    const el = new FakeElement();
+    const older = events();
+    const newer = events();
+    enterPlaybackSession(older, {}, () => el, url);
+    leavePlaybackSession();
+    enterPlaybackSession(newer, {}, () => el, url);
+    leavePlaybackSession();
+    releasePlaybackSession(older);
+    el.osPlay();
+    expect(newer.onSystemPlay).toHaveBeenCalledTimes(1);
+  });
+
+  it("still resumes from the OS after an ordinary pause", () => {
+    const el = new FakeElement();
+    const e = events();
+    enterPlaybackSession(e, {}, () => el, url);
+    leavePlaybackSession();
     el.osPlay();
     expect(e.onSystemPlay).toHaveBeenCalledTimes(1);
   });

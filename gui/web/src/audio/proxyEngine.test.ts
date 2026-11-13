@@ -1,6 +1,10 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { ClipRow } from "../types/project";
-import { leavePlaybackSession } from "./playbackSession";
+import {
+  enterPlaybackSession,
+  leavePlaybackSession,
+  releasePlaybackSession,
+} from "./playbackSession";
 import { ProxyEngine, type ProxyEngineEvents } from "./proxyEngine";
 import type { ImmutableChunkRef, ProxyManifest } from "./proxyMath";
 
@@ -18,6 +22,7 @@ interface FakeSentinel {
 vi.mock("./playbackSession", () => ({
   enterPlaybackSession: vi.fn(),
   leavePlaybackSession: vi.fn(),
+  releasePlaybackSession: vi.fn(),
 }));
 
 function engineEvents(
@@ -1440,6 +1445,20 @@ describe("playing a timeline longer than the first window", () => {
       expect(handle.listenerCount()).toBe(0);
     });
 
+    it("releases the session events it registered when disposed", () => {
+      const handle = makeCtx();
+      const engine = new ProxyEngine(
+        handle.ctx,
+        async () => new ArrayBuffer(64),
+        engineEvents(),
+      );
+      engine.play(0);
+      const registered = vi.mocked(enterPlaybackSession).mock.calls.at(-1)?.[0];
+      engine.dispose();
+      expect(registered).toBeDefined();
+      expect(releasePlaybackSession).toHaveBeenCalledWith(registered);
+    });
+
     it("a stale first resume does not arm the stop guard for the next play", async () => {
       const handle = makeCtx();
       const resumes: Array<() => void> = [];
@@ -1460,6 +1479,24 @@ describe("playing a timeline longer than the first window", () => {
       await settle();
       handle.changeState("suspended");
       expect(events.onSinkStopped).not.toHaveBeenCalled();
+    });
+
+    it("a resume that settles while the context is not running does not arm the stop guard", async () => {
+      for (const state of ["suspended", "interrupted"]) {
+        const handle = makeCtx();
+        Object.assign(handle.ctx, { resume: () => Promise.resolve() });
+        const events = engineEvents();
+        const engine = new ProxyEngine(
+          handle.ctx,
+          async () => new ArrayBuffer(64),
+          events,
+        );
+        handle.setState(state);
+        engine.play(0);
+        await settle();
+        handle.changeState("suspended");
+        expect(events.onSinkStopped).not.toHaveBeenCalled();
+      }
     });
 
     it("a resume that rejects is not an unhandled rejection", async () => {
