@@ -467,6 +467,42 @@ describe("the composer and playback", () => {
     expect(playing()).toBe(false);
   });
 
+  it("leaves the name field focused when the episode plays under the composer", async () => {
+    const user = userEvent.setup();
+    localStorage.removeItem(NAME_KEY);
+    join("comment");
+    startPlaying();
+    mount();
+    await user.click(commentAt());
+    const name = screen.getByRole("textbox", { name: "Your name" });
+    await user.click(name);
+    act(() => useDawStore.getState().togglePlaying());
+    expect(useDawStore.getState().commentDraft?.resume).toBeUndefined();
+    expect(name).toHaveFocus();
+  });
+
+  it("closes the composer after Post even when the guest pressed Play while it was in flight", async () => {
+    const user = userEvent.setup();
+    join("comment");
+    startPlaying();
+    let landed!: (comment: unknown) => void;
+    createComment.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          landed = resolve;
+        }),
+    );
+    mount();
+    await user.click(commentAt());
+    await user.type(commentField(), "Too long a pause");
+    await user.click(screen.getByRole("button", { name: "Post" }));
+    act(() => useDawStore.getState().togglePlaying());
+    await act(async () => landed(sampleComment({ id: "new" })));
+    expect(screen.queryByRole("textbox")).toBeNull();
+    expect(useDawStore.getState().commentDraft).toBeNull();
+    expect(playing()).toBe(true);
+  });
+
   it("does not post twice when Close came while Post was in flight", async () => {
     const user = userEvent.setup();
     join("comment");

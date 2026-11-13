@@ -61,13 +61,15 @@ export function registerCommentCommands(): void {
     }
     const trackId = typeof args.trackId === "string" ? args.trackId : null;
     // Through the transport's own toggle, the one path every play control uses.
-    const pause = args.pause === true && useDawStore.getState().isPlaying;
+    const { isPlaying, commentDraft } = useDawStore.getState();
+    const pause = args.pause === true && isPlaying;
     if (pause) void executePointerCommand("transport.togglePlay");
+    const resume = pause || commentDraft?.resume === true;
     openCommentDraft({
       startSec: clampToSession(raw, project.timeline_duration_sec),
       endSec: null,
       ...(trackId ? { trackIds: [trackId] } : {}),
-      ...(pause ? { resume: true as const } : {}),
+      ...(resume ? { resume: true as const } : {}),
     });
     return { status: "ok" };
   });
