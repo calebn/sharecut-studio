@@ -1,6 +1,5 @@
-//! Engine helpers shared by the desktop sidecar loop and a later embedded host:
-//! the loopback health probe, the navigation allowlist, the engine environment
-//! and the WebView script builders. No Tauri and no process spawning.
+//! Engine helpers shared by the desktop sidecar loop and a later embedded host.
+//! No Tauri and no process spawning.
 
 use std::ffi::OsString;
 use std::io::Write;
@@ -52,8 +51,6 @@ pub fn engine_navigation_allowed(url: &str, engine_port: Option<u16>) -> bool {
 }
 
 /// Variables that put a packaged engine on an ephemeral port behind a boot token.
-///
-/// `cdn_base` is the already-resolved bootstrap CDN override, if any.
 pub fn engine_environment(
     boot_token: &str,
     listen_file: &Path,
@@ -72,24 +69,6 @@ pub fn engine_environment(
         env.push(("PODCAST_BOOTSTRAP_CDN_BASE", OsString::from(base)));
     }
     env
-}
-
-/// Script that sends the splash WebView to the running engine.
-pub fn engine_location_script(port: u16) -> String {
-    format!("window.location.replace('http://127.0.0.1:{port}/')")
-}
-
-/// Text shown on the splash when the engine could not start.
-pub fn sidecar_error_message(detail: &str, log: &Path) -> String {
-    format!(
-        "Could not start the ShareCut engine ({detail}). Log: {}",
-        log.display()
-    )
-}
-
-/// Script that writes an already JSON-encoded string literal into the splash status line.
-pub fn splash_status_script(json_literal: &str) -> String {
-    format!("var el=document.getElementById('status'); if(el) el.textContent={json_literal};")
 }
 
 #[cfg(test)]
@@ -205,21 +184,5 @@ mod tests {
             ))
         );
         assert_eq!(env.len(), 5);
-    }
-
-    #[test]
-    fn script_builders_return_literal_text() {
-        assert_eq!(
-            engine_location_script(51234),
-            "window.location.replace('http://127.0.0.1:51234/')"
-        );
-        assert_eq!(
-            sidecar_error_message("exit 1 before health", Path::new("/var/log/s.log")),
-            "Could not start the ShareCut engine (exit 1 before health). Log: /var/log/s.log"
-        );
-        assert_eq!(
-            splash_status_script("\"hi\""),
-            "var el=document.getElementById('status'); if(el) el.textContent=\"hi\";"
-        );
     }
 }

@@ -182,7 +182,7 @@ check when that rustup target is installed. Desktop-only code is gated by target
 (`cli_links`, and the updater and single-instance plugins live in a target table
 that excludes iOS and Android). `src/engine.rs` holds the helpers a mobile host
 shares with the desktop sidecar loop: the loopback health probe, the navigation
-allowlist, the packaged-engine environment and the splash script builders. There
+allowlist and the packaged-engine environment. There
 is no iOS app, entry point or Tauri iOS config yet.
 
 The public check workflow is deliberately limited:
