@@ -2419,7 +2419,8 @@ html:not([data-shell="phone"])
   inline-size: 100%;
   max-inline-size: 65rem;
   margin-inline: auto;
-  padding-block-start: var(--space-8);
+  /* Home has no stage frame, so it clears the status bar itself (zero off a phone or tablet). */
+  padding-block-start: max(var(--space-8), env(safe-area-inset-top));
   padding-inline: var(--space-5);
 }
 
@@ -2561,7 +2562,7 @@ html:not([data-shell="phone"])
 }
 
 .sys-home[data-narrow] .sys-home-column {
-  padding-block-start: 0;
+  padding-block-start: env(safe-area-inset-top);
   padding-inline: var(--space-5);
 }
 

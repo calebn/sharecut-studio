@@ -191,4 +191,17 @@ describe("App styles", () => {
     const lastShell = frame.lastIndexOf("--frame-bottom-chrome: calc(");
     expect(reset).toBeGreaterThan(lastShell);
   });
+
+  it("Home clears the status bar with the top inset, wide and narrow", () => {
+    const here = dirname(fileURLToPath(import.meta.url));
+    const css = readFileSync(join(here, "styles/partials/system.css"), "utf8");
+    const rule = (selector: string) =>
+      css.match(new RegExp(`${selector}\\s*\\{([^}]*)}`))?.[1];
+    expect(rule("\\.sys-home-column")).toMatch(
+      /padding-block-start:\s*max\(var\(--space-8\),\s*env\(safe-area-inset-top\)\)/,
+    );
+    expect(rule("\\.sys-home\\[data-narrow\\] \\.sys-home-column")).toMatch(
+      /padding-block-start:\s*env\(safe-area-inset-top\)/,
+    );
+  });
 });
