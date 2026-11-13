@@ -307,8 +307,7 @@ export function useReviewComments(guest: boolean) {
   const stageOf = () =>
     composeRef.current?.closest<HTMLElement>(".rv-stage") ?? null;
 
-  // Playback the dock paused for Comment goes on. The store drops `resume` once
-  // the guest or the episode's end has moved the transport.
+  // Playback the dock paused for Comment goes on, unless the store dropped `resume`.
   const resumePlayback = (draft: CommentDraft | null) => {
     if (draft?.resume && !useDawStore.getState().isPlaying)
       runPointerCommand("transport.togglePlay");
