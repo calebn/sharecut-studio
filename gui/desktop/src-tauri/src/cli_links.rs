@@ -160,13 +160,14 @@ fn classify(path: &Path, name: &str, expected: &[u8]) -> io::Result<State> {
     }
     let content = match fs::read(path) {
         Ok(value) => value,
+        // Only a file of the wrapper's exact size can be ours that lost its read
+        // bit. Anything else unreadable is someone else's and must not be replaced.
         Err(err) if err.kind() == io::ErrorKind::PermissionDenied => {
-            use std::os::unix::fs::MetadataExt;
-            let ours = path
-                .parent()
-                .and_then(|dir| fs::metadata(dir).ok())
-                .is_some_and(|dir| dir.uid() == metadata.uid());
-            return Ok(if ours { State::Stale } else { State::Foreign });
+            return Ok(if metadata.len() == expected.len() as u64 {
+                State::Stale
+            } else {
+                State::Foreign
+            });
         }
         Err(err) => return Err(err),
     };
@@ -214,11 +215,10 @@ fn place(bin: &Path, name: &str, content: &[u8]) -> io::Result<()> {
         .create_new(true)
         .mode(0o755)
         .open(&temp)?;
-    let result = file
-        .write_all(content)
-        .and_then(|()| file.sync_all())
-        .and_then(|()| fs::rename(&temp, &path));
+    let written = file.write_all(content).and_then(|()| file.sync_all());
+    // A wrapper still open for writing makes exec fail with ETXTBSY, so close first.
     drop(file);
+    let result = written.and_then(|()| fs::rename(&temp, &path));
     if result.is_err() {
         let _ = fs::remove_file(&temp);
     }
@@ -519,6 +519,28 @@ mod tests {
         assert_eq!(reports[1].action, Action::SkippedForeign);
         assert!(fs::symlink_metadata(bin.join("podcast")).is_err());
         assert_eq!(fs::read(bin.join("podcast-mcp")).unwrap(), b"foreign");
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn unreadable_file_of_another_size_is_foreign_and_untouched() {
+        use std::os::unix::fs::PermissionsExt;
+        let root = scratch("unreadable");
+        let tools = app_tools(&root);
+        let bin = root.join("bin");
+        fs::create_dir_all(&bin).unwrap();
+        let foreign = bin.join("podcast");
+        fs::write(&foreign, b"someone else's tool").unwrap();
+        fs::set_permissions(&foreign, fs::Permissions::from_mode(0o000)).unwrap();
+        assert_ne!(tools[0].1.len(), b"someone else's tool".len());
+        assert_eq!(states(&bin, &tools)[0], State::Foreign);
+        let skipped = install(&bin, &tools, false).unwrap();
+        assert_eq!(skipped[0].action, Action::SkippedForeign);
+        let removed = remove(&bin, &tools).unwrap();
+        assert_eq!(removed[0].action, Action::SkippedForeign);
+        fs::set_permissions(&foreign, fs::Permissions::from_mode(0o644)).unwrap();
+        assert_eq!(fs::read(&foreign).unwrap(), b"someone else's tool");
         fs::remove_dir_all(root).unwrap();
     }
 
