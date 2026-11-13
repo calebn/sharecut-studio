@@ -529,8 +529,9 @@ export function ReviewQueue({
   // With one kind of item the grouping has nothing to separate, so a
   // comments-only queue (no bulk verbs on the groups) lists by time.
   const oneKind = new Set(items.map((item) => item.kind)).size <= 1;
+  const timeOnly = !canDecide && oneKind;
   const sortable = !!onSort && (canDecide || !oneKind);
-  const byTime = sort === "time" || (!canDecide && oneKind);
+  const byTime = sort === "time" || timeOnly;
   const groups = byTime ? [] : groupQueue(shown);
   const inTime = byTime ? timeQueue(shown) : [];
   const lowRisk = canDecide && !bulkRunning ? lowRiskBulk(shown) : null;
@@ -875,7 +876,7 @@ export function ReviewQueue({
       })}
       {inTime.length > 0 ? (
         <section className="rv-group" aria-label="In time order">
-          {!canDecide && oneKind ? null : (
+          {timeOnly ? null : (
             <div className="rv-group-head">
               <SystemIcon name="clock" size={16} />
               <span className="rv-group-name">In time order</span>
