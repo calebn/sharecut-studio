@@ -7,6 +7,7 @@ from unittest.mock import MagicMock
 import numpy as np
 import pytest
 
+from gated_track import transcribed_gate_project
 from podcast_mcp.config.defaults import load_defaults
 from podcast_mcp.engines.ffmpeg import FFmpegEngine
 from podcast_mcp.engines.play_audit import proxy_render_hash, track_render_hash
@@ -19,7 +20,7 @@ from podcast_mcp.models import (
     ProcessingEffect,
     Track,
 )
-from podcast_mcp.models.episode import SourceRecording, SourceSpan, Transcript, TranscriptWord
+from podcast_mcp.models.episode import SourceRecording, SourceSpan
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.media import proxy_media as pm
 from podcast_mcp.services.media import proxy_variants as pv
@@ -604,20 +605,6 @@ def test_final_revalidation_preserves_external_edits_and_refs(
         assert ws.project.tracks[0].label == "External edit"
 
 
-def _transcribed_gate_project(ws, *, gate):
-    ws.project.tracks[0].transcript_gate = gate
-    ws.project.transcripts = [
-        Transcript(
-            track_id="host",
-            words=[
-                TranscriptWord(text="hello", start=0.1, end=0.5),
-                TranscriptWord(text="there", start=0.6, end=1.0),
-            ],
-        )
-    ]
-    ws.save()
-
-
 def _proxy_pcm(ws, tmp_path, name):
     engine = FFmpegEngine()
     defaults = load_defaults()
@@ -630,7 +617,7 @@ def _proxy_pcm(ws, tmp_path, name):
 
 def test_suppressing_a_word_on_an_ungated_track_changes_no_proxy_sample(workspace, tmp_path):
     ws = workspace
-    _transcribed_gate_project(ws, gate=False)
+    transcribed_gate_project(ws, gate=False)
     defaults = load_defaults()
     before_pcm = _proxy_pcm(ws, tmp_path, "before.wav")
     before = pv.project_basis(ws.project, defaults)
@@ -642,7 +629,7 @@ def test_suppressing_a_word_on_an_ungated_track_changes_no_proxy_sample(workspac
 
 def test_suppressing_a_word_on_a_gated_track_moves_both_render_hashes(workspace):
     ws = workspace
-    _transcribed_gate_project(ws, gate=True)
+    transcribed_gate_project(ws, gate=True)
     defaults = load_defaults()
     track_before = track_render_hash(ws.project, "host", defaults=defaults)
     proxy_before = proxy_render_hash(ws.project, "host", defaults=defaults)
