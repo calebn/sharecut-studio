@@ -23,7 +23,6 @@ export type StatusRowState =
   /** The device or build cannot do this, and nothing will change that here. */
   | "unavailable";
 
-/** The glyph each status row state draws. */
 export const STATUS_ROW_GLYPH: Record<StatusRowState, StatusState> = {
   queued: "not-yet",
   running: "running",
