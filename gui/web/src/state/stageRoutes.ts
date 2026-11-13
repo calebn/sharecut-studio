@@ -7,7 +7,8 @@ import {
   type StageRole,
   type StageSheet,
 } from "../types/stage";
-import { canEditStage } from "../utils/can";
+import { canEditStage, isHostRole } from "../utils/can";
+import type { ShellBreakpoint } from "./types";
 
 /** No capability gates stage access, so it stays a role table; `can.test.ts` pins edit membership to the generated table, review and deliver are not pinned. */
 const STAGES_BY_ROLE: Readonly<Record<StageRole, readonly StageId[]>> = {
@@ -34,6 +35,18 @@ export function stageRoleOf(guestMode: string | null): StageRole {
     default:
       return "viewer";
   }
+}
+
+/** The phone Listen layout (the dock under a Script) hosts Review: a phone Viewer or Commenter. */
+export function listensOn(shell: ShellBreakpoint, role: StageRole): boolean {
+  return shell === "phone" && !isHostRole(role) && !canEditStage(role);
+}
+
+export function listenLayoutOf(
+  shell: ShellBreakpoint,
+  guestMode: string | null,
+): boolean {
+  return listensOn(shell, stageRoleOf(guestMode));
 }
 
 export type LandingInput = {
