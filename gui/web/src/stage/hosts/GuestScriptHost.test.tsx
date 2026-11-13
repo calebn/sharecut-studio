@@ -54,7 +54,7 @@ function readingCut(utterances: CombinedUtterance[]): CombinedUtterance[] {
           Object.fromEntries(
             READING_WORD_FIELDS.map((k) => [k, k === "ignored" ? false : w[k]]),
           ),
-        ) as CombinedUtterance["words"],
+        ) as unknown as CombinedUtterance["words"],
     }));
 }
 
