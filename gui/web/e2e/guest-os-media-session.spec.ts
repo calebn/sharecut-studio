@@ -51,6 +51,22 @@ function playerSec(page: Page): Promise<number> {
     .then(parseTimecodeSec);
 }
 
+const nextFrames = (page: Page) =>
+  page.evaluate(
+    () =>
+      new Promise<void>((resolve) =>
+        requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
+      ),
+  );
+
+/** The audio context clock: it keeps running while a locked page paints nothing. */
+const contextSec = (page: Page) =>
+  page.evaluate(
+    () =>
+      (window as unknown as { __os: { contexts: AudioContext[] } }).__os
+        .contexts[0]?.currentTime ?? 0,
+  );
+
 const lastPosition = (snapshot: OsRecorderSnapshot) =>
   snapshot.positionStates.at(-1);
 const keepAlive = (snapshot: OsRecorderSnapshot) =>
@@ -88,7 +104,7 @@ for (const [deviceName, phone] of PHONES) {
     }) => {
       await withPhoneGuest(browser, phone, async (page, title) => {
         await expect(play(page)).toBeVisible();
-        await page.waitForTimeout(1000);
+        await nextFrames(page);
         const idle = await readOsRecorder(page);
         expect(idle.metadata).toBeNull();
         expect(idle.playbackState).toBe("none");
@@ -130,7 +146,7 @@ for (const [deviceName, phone] of PHONES) {
         expect(playing.violations).toEqual([]);
 
         const calls = playing.positionStates.length;
-        await page.waitForTimeout(3000);
+        await expect.poll(() => playerSec(page)).toBeGreaterThan(2);
         expect((await readOsRecorder(page)).positionStates.length).toBe(calls);
       });
     });
@@ -141,7 +157,7 @@ for (const [deviceName, phone] of PHONES) {
       await withPhoneGuest(browser, phone, async (page) => {
         await play(page).tap();
         await expect(pause(page)).toBeVisible();
-        await page.waitForTimeout(1500);
+        await expect.poll(() => playerSec(page)).toBeGreaterThan(1);
 
         await fireOsAction(page, "pause");
         await expect(play(page)).toBeVisible();
@@ -189,7 +205,7 @@ for (const [deviceName, phone] of PHONES) {
       await withPhoneGuest(browser, phone, async (page) => {
         await play(page).tap();
         await expect(pause(page)).toBeVisible();
-        await page.waitForTimeout(1500);
+        await expect.poll(() => playerSec(page)).toBeGreaterThan(1);
 
         await fireOsAction(page, "seekto", { seekTime: 40 });
         await expect
@@ -208,19 +224,29 @@ for (const [deviceName, phone] of PHONES) {
       await withPhoneGuest(browser, phone, async (page) => {
         await play(page).tap();
         await expect(pause(page)).toBeVisible();
-        await page.waitForTimeout(1000);
+        await expect.poll(() => playerSec(page)).toBeGreaterThan(1);
         await page.evaluate(() => {
           window.requestAnimationFrame = () => 1;
         });
-        await page.waitForTimeout(500);
         const frozenAt = await playerSec(page);
-        await page.waitForTimeout(5000);
+        const frozenCtx = await contextSec(page);
+        await expect
+          .poll(async () => (await contextSec(page)) - frozenCtx)
+          .toBeGreaterThan(5);
+        const elapsed = (await contextSec(page)) - frozenCtx;
         await fireOsAction(page, "seekforward");
         const landed = await playerSec(page);
-        expect(landed).toBeGreaterThan(frozenAt + 5 + SKIP_SEC - NEAR_SEC);
-        expect(landed).toBeLessThan(frozenAt + 5 + SKIP_SEC + 2 * NEAR_SEC);
+        expect(landed).toBeGreaterThan(
+          frozenAt + elapsed + SKIP_SEC - NEAR_SEC,
+        );
+        expect(landed).toBeLessThan(
+          frozenAt + elapsed + SKIP_SEC + 2 * NEAR_SEC,
+        );
 
-        await page.waitForTimeout(2000);
+        const landedCtx = await contextSec(page);
+        await expect
+          .poll(async () => (await contextSec(page)) - landedCtx)
+          .toBeGreaterThan(2);
         await fireOsAction(page, "pause");
         await expect(play(page)).toBeVisible();
         expect(await playerSec(page)).toBeGreaterThan(landed + 1.5);
