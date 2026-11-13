@@ -265,7 +265,7 @@ def proxy_render_hash(project: EpisodeProject, track_id: str, *, defaults: Effec
     """16-hex fingerprint of FX source-clock render inputs.
 
     Includes: source media identity (path name, size, mtime_ns),
-    processing chain, transcript_gate + suppressed-word state.
+    processing chain, transcript_gate, and the suppressed words of a gated track.
     Excludes: clips, edit decisions, envelope, gain_db, muted.
     """
     from podcast_mcp.util.tracks import track_audio_path
@@ -286,25 +286,27 @@ def proxy_render_hash(project: EpisodeProject, track_id: str, *, defaults: Effec
             media_identity = {"name": src.name, "size": None, "mtime_ns": None}
     except ValueError:
         media_identity = None
+    gated = track is not None and bool(track.transcript_gate)
     tr = project.transcript_for_track(track_id)
+    # Only the transcript gate reads suppressed words, so an ungated track's are not inputs.
     suppressed = (
         [
             {"i": i, "s": round(w.start, 4), "e": round(w.end, 4)}
             for i, w in enumerate(tr.words)
             if w.suppressed
         ]
-        if tr
+        if tr and gated
         else []
     )
     payload: dict[str, Any] = {
         "track_id": track_id,
         "media": media_identity,
-        "transcript_gate": bool(track.transcript_gate) if track else False,
+        "transcript_gate": gated,
         "chain": chain.model_dump() if chain else None,
         "suppressed": suppressed,
         "stream": "0:a:0",
     }
-    if track is not None and track.transcript_gate:
+    if gated:
         from podcast_mcp.engines.bleed_gate import bleed_gate_payload
 
         payload["bleed_gate"] = bleed_gate_payload(project, track_id, defaults=defaults)
