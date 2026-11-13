@@ -13,7 +13,7 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any, TypeVar
 
-from fastapi import APIRouter, Header, HTTPException, Query, Request, Response
+from fastapi import APIRouter, HTTPException, Query, Request, Response
 from fastapi.responses import JSONResponse
 from filelock import Timeout
 from starlette.background import BackgroundTask
@@ -96,11 +96,9 @@ def binary_response(body: bytes, *, background: BackgroundTask | None = None) ->
     )
 
 
-def _host_project(
-    request: Request, path: str, token: str | None, x_podcast_token: str | None
-) -> Path:
+def _host_project(request: Request, path: str) -> Path:
     try:
-        require_host(request, token=token, x_podcast_token=x_podcast_token)
+        require_host(request)
         return resolve_project(path, request)
     except (HTTPException, GuardRefusal) as exc:
         raise no_store_error(exc) from exc
@@ -127,10 +125,8 @@ def get_waveform_status(
     request: Request,
     path: str = Query(..., description="Path to episode.sharecut"),
     kind: str = Query("raw", description="raw (track/source media) or stem"),
-    token: str | None = Query(None),
-    x_podcast_token: str | None = Header(None, alias="X-Podcast-Token"),
 ) -> JSONResponse:
-    project_path = _host_project(request, path, token, x_podcast_token)
+    project_path = _host_project(request, path)
     if kind not in ("raw", "stem"):
         raise coded_http_error(
             400, "kind must be raw or stem", code="waveform_kind_invalid", headers=NO_STORE
@@ -148,10 +144,8 @@ def get_waveform_tiles(
     level: int = Query(...),
     start: int = Query(..., description="First data tile"),
     count: int = Query(1, description="Data tiles (1..max_tiles_per_request)"),
-    token: str | None = Query(None),
-    x_podcast_token: str | None = Header(None, alias="X-Podcast-Token"),
 ) -> Response:
-    project_path = _host_project(request, path, token, x_podcast_token)
+    project_path = _host_project(request, path)
     body = waveform_call(lambda: tile_bytes(project_path, ref, key, level, start, count))
     return binary_response(body)
 
@@ -163,9 +157,7 @@ def get_waveform_pcm(
     path: str = Query(..., description="Path to episode.sharecut"),
     ref: str = Query(..., description="track:<id>, source:<id> or stem:<id>"),
     block: int = Query(..., description="PCM block (pcm_block_frames frames each)"),
-    token: str | None = Query(None),
-    x_podcast_token: str | None = Header(None, alias="X-Podcast-Token"),
 ) -> Response:
-    project_path = _host_project(request, path, token, x_podcast_token)
+    project_path = _host_project(request, path)
     body = waveform_call(lambda: pcm_block(project_path, ref, key, block))
     return binary_response(body)
