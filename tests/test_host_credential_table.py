@@ -197,3 +197,25 @@ def test_a_trusted_host_has_no_exchange_route_and_sets_no_cookie(
     shell = client.get("/")
     assert shell.headers.get("set-cookie") is None
     assert "set-cookie" not in client.get(f"/api/project?path={minimal_project}").headers
+
+
+@pytest.mark.parametrize("row", [MACOS, LINUX], ids=lambda row: row.name)
+def test_the_host_socket_refuses_a_bad_token_before_it_looks_for_the_project(
+    row, host, strict_app, tmp_path: Path
+) -> None:
+    host(row)
+    url = "/api/host/ws?" + urlencode(
+        {
+            "path": str(tmp_path / "missing" / "episode.sharecut"),
+            "client_id": "owner-a",
+            "document_client_id": "owner-b",
+            "token": "wrong",
+        }
+    )
+
+    with pytest.raises(WebSocketDisconnect) as refused:
+        with TestClient(strict_app, client=REMOTE).websocket_connect(url):
+            pass
+
+    assert refused.value.code == 4403
+    assert refused.value.reason == "remote client requires PODCAST_SESSION_TOKEN"
