@@ -108,6 +108,7 @@ export function GuestListen({ review, script, scriptState }: GuestListenProps) {
   );
   const heard = items.find((item) => item.id === heardId);
   const [step, setStep] = useState<string | null>(null);
+  if (openSheet !== "comments" && step !== null) setStep(null);
   const [detent, setDetent] = useState<DrawerDetent>("half");
   const stepItem = step ? items.find((item) => item.id === step) : undefined;
   const close = () => {
