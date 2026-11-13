@@ -59,6 +59,7 @@ export type ComposerEvent =
   | { type: "postStart"; id: number }
   | { type: "postDone"; id: number }
   | { type: "postFailed"; id: number }
+  /** The guest may no longer comment: leaves like discard, and drops a Post in flight. */
   | { type: "reset" };
 
 export type ComposerEffect = "pause" | "play";
@@ -122,7 +123,7 @@ export function reduceComposer(
           draft: {
             text: held?.text ?? "",
             anchor: keepPin ? held.anchor : e.anchor,
-            resume: pause || (e.listen && held?.resume === true),
+            resume: pause || held?.resume === true,
             typed: false,
           },
           dropped: null,
@@ -202,7 +203,7 @@ export function reduceComposer(
     case "postFailed":
       return s.post?.id === e.id ? same({ ...s, post: null }) : same(s);
     case "reset":
-      return same(initialSession);
+      return { ...leave(s, ctx, false), state: initialSession };
   }
 }
 
