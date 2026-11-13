@@ -812,14 +812,6 @@ describe("manifest boundary and occurrence scheduling", () => {
     expect(
       isQueuedMoveOverlay(
         m,
-        { ...moved, history_head_id: "first-restore" },
-        queue,
-        ["host", "guest"],
-      ),
-    ).toBe(false);
-    expect(
-      isQueuedMoveOverlay(
-        m,
         { ...moved, render_hashes: { host: "changed" } },
         queue,
         ["host", "guest"],
@@ -852,6 +844,81 @@ describe("manifest boundary and occurrence scheduling", () => {
         ["host", "guest"],
       ),
     ).toBe(false);
+  });
+});
+
+describe("proxy audio identity", () => {
+  function audible() {
+    return projectProxyBasis(
+      minimalProject({
+        clips: {
+          tracks: {
+            host: [clip({ id: "a", source_id: "src" }), clip({ id: "b" })],
+          },
+          clip_count: 2,
+        },
+        render_status: {
+          needs_rerender: false,
+          reconciliation: { stale: false },
+          premix: { exists: false },
+          tracks: { host: { render_hash: "h1" }, guest: { render_hash: "g1" } },
+        },
+      }),
+    );
+  }
+
+  it("proxyBasisKey ignores history_head_id", () => {
+    const basis = audible();
+    expect(proxyBasisKey({ ...basis, history_head_id: "after-comment" })).toBe(
+      proxyBasisKey(basis),
+    );
+  });
+
+  it("proxyBasisKey changes for each audible input", () => {
+    const basis = audible();
+    const key = proxyBasisKey(basis);
+    const changed = [
+      { ...basis, render_hashes: { ...basis.render_hashes, host: "h2" } },
+      {
+        ...basis,
+        clips: {
+          ...basis.clips,
+          a: { ...basis.clips.a, timeline_start: 1 },
+        },
+      },
+      {
+        ...basis,
+        clips: { ...basis.clips, a: { ...basis.clips.a, track_id: "guest" } },
+      },
+    ];
+    for (const next of changed) expect(proxyBasisKey(next)).not.toBe(key);
+  });
+
+  it("isQueuedMoveOverlay accepts a queued move over an equal-audio manifest with another head", () => {
+    const basis = audible();
+    const m = { ...manifest(), project_basis: basis };
+    const moved = {
+      ...basis,
+      history_head_id: "after-comment",
+      clips: {
+        ...basis.clips,
+        a: {
+          ...basis.clips.a,
+          track_id: "guest",
+          timeline_start: 12,
+          timeline_end: 22,
+        },
+      },
+    };
+    const queue = [
+      {
+        type: "MoveClips",
+        payload: {
+          clips: [{ clip_id: "a", track_id: "guest", timeline_start: 12 }],
+        },
+      },
+    ];
+    expect(isQueuedMoveOverlay(m, moved, queue, ["host", "guest"])).toBe(true);
   });
 });
 
