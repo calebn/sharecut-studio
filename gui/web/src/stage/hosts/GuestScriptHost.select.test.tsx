@@ -13,12 +13,11 @@ import { SHORT_VIEWPORT_MQ } from "../../hooks/useShortViewport";
 import { useDawStore } from "../../state/dawStore";
 import {
   COMMENTER_CAPABILITIES,
-  clipRow,
   EDITOR_CAPABILITIES,
   VIEWER_CAPABILITIES,
 } from "../../test/fixtures";
 import { drag, layout, stop } from "../../test/scriptDrag";
-import { seedScript } from "../../test/scriptHostKit";
+import { seedScript, TWO_LANE_CLIPS } from "../../test/scriptHostKit";
 import { stubViewportShell } from "../../test/viewportShell";
 import { BottomSheet } from "../../ui/BottomSheet";
 import { GuestScriptHost } from "./GuestScriptHost";
@@ -30,32 +29,6 @@ vi.mock("../../api/documentEdits", async (orig) => ({
 const seekTransport = vi.hoisted(() => vi.fn());
 vi.mock("../../commands/seek", () => ({ seekTransport }));
 
-const CLIPS = {
-  tracks: {
-    host: [
-      clipRow({
-        id: "ch",
-        track_id: "host",
-        timeline_start: 0,
-        timeline_end: 30,
-        source_start: 0,
-        source_end: 30,
-      }),
-    ],
-    guest: [
-      clipRow({
-        id: "cg",
-        track_id: "guest",
-        timeline_start: 0,
-        timeline_end: 30,
-        source_start: 0,
-        source_end: 30,
-      }),
-    ],
-  },
-  clip_count: 2,
-};
-
 const as = (
   guestMode: "view" | "comment" | "edit",
   shareCapabilities: string[],
@@ -64,7 +37,7 @@ const as = (
     projectPath: "share:abc",
     guestMode,
     shareCapabilities,
-    project: { clips: CLIPS },
+    project: { clips: TWO_LANE_CLIPS },
   });
 
 beforeEach(() => {

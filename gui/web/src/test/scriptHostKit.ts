@@ -6,7 +6,7 @@ import type {
   ProjectView,
   TranscriptWordView,
 } from "../types/project";
-import { minimalProject, sampleTrack } from "./fixtures";
+import { clipRow, minimalProject, sampleTrack } from "./fixtures";
 
 /** A timed word on the timeline (source and timeline times agree). */
 export function scriptWord(
@@ -82,6 +82,33 @@ export function scriptUtterances(): CombinedUtterance[] {
     ),
   ];
 }
+
+/** One 30 s clip per lane, host and guest, for drag-selection tests. */
+export const TWO_LANE_CLIPS = {
+  tracks: {
+    host: [
+      clipRow({
+        id: "ch",
+        track_id: "host",
+        timeline_start: 0,
+        timeline_end: 30,
+        source_start: 0,
+        source_end: 30,
+      }),
+    ],
+    guest: [
+      clipRow({
+        id: "cg",
+        track_id: "guest",
+        timeline_start: 0,
+        timeline_end: 30,
+        source_start: 0,
+        source_end: 30,
+      }),
+    ],
+  },
+  clip_count: 2,
+};
 
 export type ScriptSeed = {
   projectPath?: string;
