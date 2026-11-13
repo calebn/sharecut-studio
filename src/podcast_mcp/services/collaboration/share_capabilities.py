@@ -203,6 +203,11 @@ class GuestWords(StrEnum):
     READING = "reading"
     SELECTABLE = "selectable"
 
+    @classmethod
+    def of(cls, value: object) -> GuestWords:
+        """*value* when it is a member, else ``NONE``: words need an explicit grant."""
+        return value if isinstance(value, cls) else cls.NONE
+
 
 SHARE_ACTOR_PREFIX = "share:"
 
