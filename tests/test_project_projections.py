@@ -5,6 +5,9 @@ import sqlite3
 
 import pytest
 
+from gated_track import transcribed_gate_project
+from podcast_mcp.config.defaults import load_defaults
+from podcast_mcp.edits.transcript_timing import WordTimingTarget
 from podcast_mcp.gui.assembler import (
     VIEW_PROJECTION_QUERY_DESCRIPTION,
     ViewProjection,
@@ -15,10 +18,13 @@ from podcast_mcp.models import (
     Clip,
     CombinedTranscript,
     CombinedUtterance,
+    MediaAsset,
+    Track,
     Transcript,
     TranscriptWord,
 )
 from podcast_mcp.services.app import ProjectWorkspace
+from podcast_mcp.services.document import TranscriptService
 from podcast_mcp.services.document_sync import DocumentSyncService
 from podcast_mcp.services.document_sync.commands import DocumentCommand
 from podcast_mcp.services.document_sync.projection_types import (
@@ -28,6 +34,8 @@ from podcast_mcp.services.document_sync.projection_types import (
     parse_view_projection,
 )
 from podcast_mcp.services.document_sync.projections import projection_for_command
+from podcast_mcp.services.document_sync.registry import commands_in_family
+from podcast_mcp.services.media.proxy_variants import project_basis
 
 
 def _with_transcript(minimal_project):
@@ -544,3 +552,141 @@ def test_track_views_send_no_fade_cap(minimal_project, monkeypatch) -> None:
         lambda: {"render": {"join_fade_max_ms": 25}},
     )
     assert [t.id for t in build_track_views(ws) if "fade_max_ms" in t.model_dump()] == []
+
+
+def _gated_workspace(minimal_project) -> ProjectWorkspace:
+    ws = ProjectWorkspace.open(minimal_project)
+    ws.project.tracks = [
+        Track(id="host", label="Host", media=MediaAsset(path="raw/host.wav", duration_sec=3.0))
+    ]
+    ws.project.clips = [
+        Clip(id="c1", track_id="host", source_start=0.0, source_end=1.5, timeline_start=0.0)
+    ]
+    transcribed_gate_project(ws, gate=True)
+    return ws
+
+
+def _transcript_payloads(ws: ProjectWorkspace) -> dict[str, dict]:
+    target = {"track_id": "host", "source_id": None, "word_index": 0}
+    token = TranscriptService(ws).word_timing_context(WordTimingTarget(**target))["expected_token"]
+    preview = TranscriptService(ws).preview_transcript_replacement("hello", "hi there")
+    return {
+        "ReplaceTranscriptMatches": {
+            "search": "hello",
+            "replacement": "hi there",
+            "match_case": False,
+            "preview_token": preview["preview_token"],
+        },
+        "CorrectTranscriptWord": {"track_id": "host", "word_index": 0, "text": "howdy"},
+        "CorrectTranscriptPhrase": {
+            "track_id": "host",
+            "start_word_index": 0,
+            "end_word_index": 1,
+            "text": "howdy you",
+        },
+        "ApplyTranscriptCleanup": {
+            "track_id": "host",
+            "words": [{"word_index": 1, "text": "there!"}],
+            "phrases": [{"start_word_index": 0, "end_word_index": 0, "text": "hi there"}],
+        },
+        "VerifyTranscript": {
+            "track_id": "host",
+            "corrections": [{"word_index": 0, "text": "hello"}],
+        },
+        "SetTranscriptWordSuppressed": {"track_id": "host", "word_index": 0, "suppressed": True},
+        "SetTranscriptWordAutomatic": {"track_id": "host", "word_index": 0},
+        "SetTranscriptWordsIgnored": {
+            "track_id": "host",
+            "start_word_index": 0,
+            "end_word_index": 0,
+            "ignored": True,
+        },
+        "SetTranscriptWordTiming": {
+            "target": target,
+            "expected_token": token,
+            "start": 0.15,
+            "end": 0.45,
+        },
+    }
+
+
+def _render_hashes(ws: ProjectWorkspace) -> dict[str, str]:
+    return project_basis(ws.project, load_defaults()).render_hashes
+
+
+def _prepare_for(ws: ProjectWorkspace, command_type: str) -> None:
+    """Put the gated project in a state where ``command_type`` has something to change."""
+    if command_type == "SetTranscriptWordAutomatic":
+        DocumentSyncService(ws).submit(
+            DocumentCommand(
+                type="SetTranscriptWordSuppressed",
+                payload={"track_id": "host", "word_index": 0, "suppressed": True},
+                client_id="prep",
+                role="host",
+                client_seq=1,
+            )
+        )
+
+
+@pytest.mark.parametrize("command_type", sorted(commands_in_family("transcript")))
+def test_transcript_command_that_moves_a_render_hash_ships_it_to_a_guest(
+    minimal_project, command_type
+) -> None:
+    ws = _gated_workspace(minimal_project)
+    _prepare_for(ws, command_type)
+    payloads = _transcript_payloads(ws)
+    assert command_type in payloads, f"give {command_type} a representative payload"
+    before = _render_hashes(ws)
+    assert before["host"]
+    DocumentSyncService(ws).submit(
+        DocumentCommand(
+            type=command_type,
+            payload=payloads[command_type],
+            client_id="host-client",
+            role="host",
+            client_seq=2,
+        )
+    )
+    after = _render_hashes(ws)
+    if after == before:
+        return
+    patch = dump_project_projection(
+        ws, projection=projection_for_command(command_type), audience="guest"
+    )
+    shipped = {
+        track_id: track["render_hash"]
+        for track_id, track in patch.get("render_status", {}).get("tracks", {}).items()
+    }
+    assert shipped.get("host") == after["host"], (
+        f"{command_type} moved the host render hash but its "
+        f"{projection_for_command(command_type).value} guest slice does not carry it"
+    )
+
+
+def test_guest_applied_delta_for_a_suppression_flip_carries_the_moved_render_hash(
+    minimal_project,
+) -> None:
+    ws = _gated_workspace(minimal_project)
+    before = _render_hashes(ws)["host"]
+    reply = DocumentSyncService(ws).submit(
+        DocumentCommand(
+            type="SetTranscriptWordSuppressed",
+            payload={"track_id": "host", "word_index": 0, "suppressed": True},
+            client_id="guest-client",
+            role="host",
+            client_seq=1,
+        ),
+        audience="guest",
+    )
+    after = _render_hashes(ws)["host"]
+    assert after != before
+    delta = reply["snapshot"]["delta"]
+    assert delta["audience"] == "guest"
+    hashes = [
+        track["render_hash"]
+        for op in delta["operations"]
+        if op["section"] == "render_status"
+        for track in [(op.get("value") or {}).get("tracks", {}).get("host", {})]
+        if track
+    ]
+    assert after in hashes, delta["operations"]
