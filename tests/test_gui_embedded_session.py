@@ -128,3 +128,27 @@ def test_the_cookie_alone_opens_the_host_socket(host, minimal_project: Path) -> 
 
     assert (first["plane"], first["type"]) == ("session", "Snapshot")
     assert refused.value.response.status_code == 403
+
+
+def test_the_host_socket_answers_only_the_engines_own_origin(host, minimal_project: Path) -> None:
+    host(UNTRUSTED)
+    started = embedded.start()
+    cookie = f"{SESSION_COOKIE}={_sign_in(started)}"
+    url = (
+        f"ws://127.0.0.1:{started.port}/api/host/ws?path={minimal_project}"
+        "&client_id=owner-a&document_client_id=owner-b"
+    )
+    own = f"http://127.0.0.1:{started.port}"
+    other = f"http://127.0.0.1:{started.port + 1}"
+
+    with connect(url, additional_headers={"Cookie": cookie, "Origin": own}) as socket:
+        assert json.loads(socket.recv())["type"] == "Snapshot"
+    with pytest.raises(InvalidStatus) as foreign:
+        connect(url, additional_headers={"Cookie": cookie, "Origin": other})
+
+    assert foreign.value.response.status_code == 403
+    response = _get(started.port, "/api/bootstrap/status", cookie=cookie.partition("=")[2])
+    assert response.getheader("Referrer-Policy") == "no-referrer"
+    assert f"ws://127.0.0.1:{started.port};" in (
+        response.getheader("Content-Security-Policy") or ""
+    )
