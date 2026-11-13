@@ -36,10 +36,38 @@ function run(
   return { state, effects };
 }
 
+describe("open outside the phone Listen layout", () => {
+  it("leaves a playing episode playing and promises nothing", () => {
+    const { state, effects } = run(session(), [
+      [
+        { type: "open", anchor: at(7), replacePin: false, listen: false },
+        { playing: true },
+      ],
+    ]);
+    expect(effects).toEqual([]);
+    expect(state.draft).toMatchObject({ resume: false, anchor: at(7) });
+    expect(state.pausing).toBe(false);
+  });
+
+  it("gives the new anchor the pin even where text was typed", () => {
+    const { state } = run(
+      session({
+        surface: "composer",
+        draft: { text: "typed", anchor: at(5), resume: false, typed: false },
+      }),
+      [[{ type: "open", anchor: at(40), replacePin: false, listen: false }]],
+    );
+    expect(state.draft).toMatchObject({ text: "typed", anchor: at(40) });
+  });
+});
+
 describe("open", () => {
   it("pauses a playing episode and promises to play it on", () => {
     const { state, effects } = run(session(), [
-      [{ type: "open", anchor: at(7), replacePin: false }, { playing: true }],
+      [
+        { type: "open", anchor: at(7), replacePin: false, listen: true },
+        { playing: true },
+      ],
     ]);
     expect(effects).toEqual(["pause"]);
     expect(state.surface).toBe("composer");
@@ -52,7 +80,7 @@ describe("open", () => {
 
   it("leaves a paused episode alone and promises nothing", () => {
     const { state, effects } = run(session(), [
-      [{ type: "open", anchor: at(7), replacePin: false }],
+      [{ type: "open", anchor: at(7), replacePin: false, listen: true }],
     ]);
     expect(effects).toEqual([]);
     expect(state.draft?.resume).toBe(false);
@@ -61,7 +89,7 @@ describe("open", () => {
   it("keeps a resume that is already promised when opened again while paused", () => {
     const { state, effects } = run(
       session({ surface: "composer", draft: draft("", 5, true) }),
-      [[{ type: "open", anchor: at(9), replacePin: false }]],
+      [[{ type: "open", anchor: at(9), replacePin: false, listen: true }]],
     );
     expect(effects).toEqual([]);
     expect(state.draft?.resume).toBe(true);
@@ -70,35 +98,40 @@ describe("open", () => {
   it("keeps a resume that is already promised when opened again while playing", () => {
     const { state } = run(
       session({ surface: "composer", draft: draft("", 5, true) }),
-      [[{ type: "open", anchor: at(9), replacePin: false }, { playing: true }]],
+      [
+        [
+          { type: "open", anchor: at(9), replacePin: false, listen: true },
+          { playing: true },
+        ],
+      ],
     );
     expect(state.draft?.resume).toBe(true);
   });
 
   it("keeps the pin of a draft that still has text", () => {
     const { state } = run(session({ draft: draft("too loud", 5) }), [
-      [{ type: "open", anchor: at(40), replacePin: false }],
+      [{ type: "open", anchor: at(40), replacePin: false, listen: true }],
     ]);
     expect(state.draft).toMatchObject({ text: "too loud", anchor: at(5) });
   });
 
   it("pins an empty draft again", () => {
     const { state } = run(session({ draft: draft("", 5) }), [
-      [{ type: "open", anchor: at(40), replacePin: false }],
+      [{ type: "open", anchor: at(40), replacePin: false, listen: true }],
     ]);
     expect(state.draft?.anchor).toEqual(at(40));
   });
 
   it("takes the pin of an explicit anchor even over text", () => {
     const { state } = run(session({ draft: draft("too loud", 5) }), [
-      [{ type: "open", anchor: at(40), replacePin: true }],
+      [{ type: "open", anchor: at(40), replacePin: true, listen: true }],
     ]);
     expect(state.draft).toMatchObject({ text: "too loud", anchor: at(40) });
   });
 
   it("closes a sheet that was open", () => {
     const { state } = run(session({ surface: "thread", threadId: "c1" }), [
-      [{ type: "open", anchor: at(7), replacePin: false }],
+      [{ type: "open", anchor: at(7), replacePin: false, listen: true }],
     ]);
     expect(state.surface).toBe("composer");
     expect(state.threadId).toBeNull();
@@ -122,7 +155,10 @@ describe("transport", () => {
 
   it("does not take the composer's own pause for the guest's", () => {
     const { state } = run(session(), [
-      [{ type: "open", anchor: at(5), replacePin: false }, { playing: true }],
+      [
+        { type: "open", anchor: at(5), replacePin: false, listen: true },
+        { playing: true },
+      ],
       [{ type: "transport", playing: false }],
     ]);
     expect(state.draft?.resume).toBe(true);
@@ -130,7 +166,10 @@ describe("transport", () => {
 
   it("takes the next one for the guest's", () => {
     const { state } = run(session(), [
-      [{ type: "open", anchor: at(5), replacePin: false }, { playing: true }],
+      [
+        { type: "open", anchor: at(5), replacePin: false, listen: true },
+        { playing: true },
+      ],
       [{ type: "transport", playing: false }],
       [{ type: "transport", playing: true }],
     ]);
@@ -233,7 +272,7 @@ describe("type", () => {
 
   it("keeps an opened draft when it is emptied", () => {
     const { state } = run(session(), [
-      [{ type: "open", anchor: at(7), replacePin: false }],
+      [{ type: "open", anchor: at(7), replacePin: false, listen: true }],
       [{ type: "type", text: "a", fresh: at(30) }],
       [{ type: "type", text: "", fresh: at(30) }],
     ]);
@@ -295,7 +334,7 @@ describe("post", () => {
     const { state, effects } = run(typed, [
       [{ type: "postStart", id: 1 }],
       [{ type: "close" }],
-      [{ type: "open", anchor: at(40), replacePin: false }],
+      [{ type: "open", anchor: at(40), replacePin: false, listen: true }],
       [{ type: "type", text: "hello and more", fresh: at(40) }],
       [{ type: "postDone", id: 1 }],
     ]);
