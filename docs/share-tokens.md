@@ -994,6 +994,7 @@ stay.
 - Guest JSON never includes host absolute paths; episode JSON stores
   workspace-relative paths only (`workspace_dir: "."` on disk). Rate limits:
   [host-online-relay.md](host-online-relay.md) § Rate limiting.
+- The share-session cookie (`SESSION_COOKIE`, `SameSite=Lax`, 14 days, Restricted accounts) and the owner session cookie (`sharecut_host_session`, `SameSite=Strict`, session lifetime, a host whose loopback is not trusted) are different cookies with different names, stores and powers. A share token never admits an owner route, and the owner cookie never admits a share route ([host-online-relay.md](host-online-relay.md#security-notes)).
 - Coolname slugs are guessable in theory; the large namespace plus cooldown and
   rate limits are the practical controls. Do not publish token lists.
 - **Tunnel binding (not the mint registry):** when a host advertises a share to the

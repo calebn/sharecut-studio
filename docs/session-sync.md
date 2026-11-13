@@ -737,7 +737,7 @@ Phases 1–2 run the authority inside `podcast gui` (localhost). Remote humans a
 |------|--------|
 | `FollowUser` command | Shipped — presence meta `following`; GUI follow slaves viewport + tab + transcript + monitor state (when the follower is capable) |
 | Account-scoped presence | Deferred — person id vs connection id when an optional account provider is installed |
-| `authorize_client` | Default allow; `PODCAST_SESSION_AUTHZ=strict` + `PODCAST_SESSION_TOKEN` for non-loopback; denies relayed traffic (host role). Owner REST routes use the host role directly, `authorize_host` (#393). |
+| `authorize_client` | Default allow; `PODCAST_SESSION_AUTHZ=strict` + `PODCAST_SESSION_TOKEN` for non-loopback; denies relayed traffic (host role). Owner REST routes use the host role directly, `authorize_host` (#393). The credential comes from one resolver, `host_credential` (`gui/routes/deps.py`); a host whose loopback is not trusted accepts only the owner session cookie ([host-online-relay.md § Security notes](host-online-relay.md#security-notes)). |
 | Guest share WS | Shipped — inbound **Presence** only (`view`); unique `guest-{token[:8]}-…` ids |
 | Shared host / relay | Shipped MVP — see [host-online-relay.md](host-online-relay.md) |
 
