@@ -123,7 +123,7 @@ make typecheck        # mypy (strict on timebase modules)
 
 Do not silence findings with `# noqa` / `# nosec` without explicit approval — fix code or tighten tool config.
 
-`make lint-py` also enforces the platform ban: Ruff `TID251` rejects `sys.platform`, `os.name` and the `platform` module's host queries under `src/podcast_mcp` outside `util/host_platform.py` (`tests/test_host_platform_guard.py` pins its scope). A test chooses a host with the `host` fixture or `using(row)`, not by patching `sys` or `os`; see [architecture.md § Host platform](architecture.md#host-platform).
+`make lint-py` also enforces the platform ban (Ruff `TID251`; `tests/test_host_platform_guard.py` pins its scope). A test chooses a host with the `host` fixture or `using(row)`, never by patching `sys` or `os`. See [contributing.md § Host platform](contributing.md#host-platform).
 
 `scripts/check_level_literals.py` fails on a negative dB literal in `edits/` or `engines/`: every
 detection level is an offset from the track's `LevelProfile`. `tests/test_level_literals.py` runs

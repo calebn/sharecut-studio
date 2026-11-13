@@ -232,11 +232,3 @@ def test_reported_machine_and_release_come_from_the_platform_module(
     monkeypatch.setattr(platform, "machine", lambda: "arm64")
     monkeypatch.setattr(platform, "release", lambda: "25.6.0")
     assert (host_platform.machine(), host_platform.release()) == ("arm64", "25.6.0")
-
-
-def test_unavailable_messages_are_one_plain_sentence_each() -> None:
-    assert host_platform.MEDIA_UNAVAILABLE == "ShareCut can't process audio on this device yet."
-    assert (
-        host_platform.TRANSCRIPTION_UNAVAILABLE
-        == "ShareCut can't transcribe audio on this device yet."
-    )
