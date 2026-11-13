@@ -7,7 +7,7 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
-from host_session_helpers import exchange, untrusted_app
+from host_session_helpers import UNTRUSTED, exchange, untrusted_app
 from podcast_mcp.gui.server import create_app
 from podcast_mcp.services.session_sync.authz import authorize_host
 from podcast_mcp.util.host_platform import IOS, LINUX, MACOS, UNKNOWN
@@ -26,7 +26,7 @@ def test_a_loopback_peer_needs_a_session_where_loopback_is_not_trusted(
     host, monkeypatch: pytest.MonkeyPatch, session_token, strict: bool
 ) -> None:
     monkeypatch.setenv("PODCAST_SESSION_AUTHZ", "strict" if strict else "")
-    host(IOS)
+    host(UNTRUSTED)
     refused = authorize_host(peer_host="127.0.0.1")
     assert (refused.allowed, refused.reason) == (False, "this host requires an owner session")
     shared_token = authorize_host(peer_host="127.0.0.1", token=TOKEN)
@@ -83,11 +83,11 @@ def test_a_desktop_loopback_peer_is_still_admitted_without_a_token(host, row) ->
     assert authorize_host(peer_host="127.0.0.1").allowed is True
 
 
-def test_ios_owner_routes_need_the_session_and_host_mcp_is_not_mounted(
+def test_owner_routes_need_the_session_and_host_mcp_is_not_mounted_where_loopback_is_not_trusted(
     host, session_token, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     monkeypatch.setenv("PODCAST_MCP_CACHE", str(tmp_path / "cache"))
-    host(IOS)
+    host(UNTRUSTED)
     app = create_app()
     client = TestClient(app, client=LOOPBACK)
 
@@ -102,7 +102,7 @@ def test_ios_owner_routes_need_the_session_and_host_mcp_is_not_mounted(
     client.get("/api/session/exchange", params={"code": code})
     accepted = client.get("/api/bootstrap/status")
     assert accepted.status_code == 200
-    assert accepted.json()["host"]["name"] == "ios"
+    assert accepted.json()["host"]["name"] == UNTRUSTED.name
 
     assert app.state.host_mcp_session_manager is None
     assert client.post("/mcp", json={}).status_code == 404

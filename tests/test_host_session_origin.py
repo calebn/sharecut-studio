@@ -131,7 +131,7 @@ def test_the_exchange_route_answers_a_request_from_the_shell_that_launched_the_w
         follow_redirects=False,
     )
 
-    assert response.status_code == 303
+    assert response.status_code == 200
 
 
 def test_the_exchange_route_still_refuses_a_forged_host_header(app) -> None:
@@ -188,3 +188,85 @@ def test_share_guest_routes_keep_their_own_origins(client, path: str) -> None:
     response = client.get(path, headers={"Origin": "https://guest.example"})
 
     assert response.json() != ORIGIN_REFUSED
+
+
+CROSS_SITE_REFUSED = {"detail": "Cross-site request not allowed for host GUI"}
+
+
+@pytest.mark.parametrize("site", ["same-origin", "none"])
+def test_a_request_labelled_same_origin_or_a_typed_address_is_admitted(client, site: str) -> None:
+    assert client.get(STATUS, headers={"Sec-Fetch-Site": site}).status_code == 200
+
+
+@pytest.mark.parametrize("site", ["cross-site", "same-site"])
+def test_a_cookie_request_labelled_cross_site_or_same_site_is_refused_without_an_origin(
+    client, site: str
+) -> None:
+    response = client.get(STATUS, headers={"Sec-Fetch-Site": site})
+
+    assert (response.status_code, response.json()) == (403, CROSS_SITE_REFUSED)
+
+
+def test_a_request_with_no_fetch_metadata_is_admitted(client) -> None:
+    assert client.get(STATUS).status_code == 200
+
+
+def test_the_top_level_navigation_to_the_shell_is_not_a_bound_route(host, tmp_path: Path) -> None:
+    host(UNTRUSTED)
+    static = tmp_path / "static"
+    (static / "assets").mkdir(parents=True)
+    (static / "index.html").write_text("<!doctype html><title>shell</title>", encoding="utf-8")
+    shell = TestClient(untrusted_app(static_dir=static), client=LOOPBACK_PEER)
+
+    assert shell.get("/", headers={"Sec-Fetch-Site": "none"}).status_code == 200
+    assert shell.get("/", headers={"Sec-Fetch-Site": "cross-site"}).status_code == 200
+
+
+def test_the_exchange_route_and_the_guest_routes_ignore_fetch_metadata(app, client) -> None:
+    code = app.state.host_sessions.issue_code()
+    exchanged = TestClient(app, client=LOOPBACK_PEER).get(
+        EXCHANGE_PATH, params={EXCHANGE_PARAM: code}, headers={"Sec-Fetch-Site": "cross-site"}
+    )
+    guest = client.get(
+        "/api/review/unknown-share/project", headers={"Sec-Fetch-Site": "cross-site"}
+    )
+
+    assert exchanged.status_code == 200
+    assert guest.json() != CROSS_SITE_REFUSED
+
+
+@pytest.mark.parametrize(
+    ("site", "allowed"),
+    [
+        ("same-origin", True),
+        ("none", True),
+        (None, True),
+        ("cross-site", False),
+        ("same-site", False),
+    ],
+)
+def test_the_host_socket_follows_the_same_fetch_metadata_rule(
+    client, minimal_project: Path, site: str | None, allowed: bool
+) -> None:
+    url = "/api/host/ws?" + urlencode(
+        {"path": str(minimal_project), "client_id": "owner-a", "document_client_id": "owner-b"}
+    )
+    headers = {} if site is None else {"Sec-Fetch-Site": site}
+
+    if allowed:
+        with client.websocket_connect(url, headers=headers) as socket:
+            assert socket.receive_json()["type"] == "Snapshot"
+        return
+    with pytest.raises(WebSocketDisconnect) as refused:
+        with client.websocket_connect(url, headers=headers):
+            pass
+    assert refused.value.code == 4403
+    assert refused.value.reason == "Cross-site request not allowed for host GUI"
+
+
+@pytest.mark.parametrize("site", ["cross-site", "same-site"])
+def test_a_trusted_host_ignores_fetch_metadata(host, site: str) -> None:
+    host(MACOS)
+    client = TestClient(create_app(), client=LOOPBACK_PEER)
+
+    assert client.get(STATUS, headers={"Sec-Fetch-Site": site}).status_code == 200
