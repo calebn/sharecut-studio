@@ -49,7 +49,10 @@ export function ModelsSheet({ open, onClose }: Props) {
         models !== null &&
         tools.ffmpeg !== "installed" ? (
           tools.ffmpeg === "unsupported" ? (
-            <StatusRow state="queued" title={unsupportedSentence(tools.hint)} />
+            <StatusRow
+              state="unavailable"
+              title={unsupportedSentence(tools.hint)}
+            />
           ) : (
             <StatusRow
               state="failed"

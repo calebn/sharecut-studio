@@ -4,15 +4,21 @@ The in-process twin of ``gui/serve.py``: the same ``create_app`` and uvicorn wir
 (``bind.build_gui_server``), without argv or a listen file. The host calls ``start()``
 and navigates its web view to the returned port.
 
-The app is built once per process, because ``create_app`` resets the shared job manager.
-The port is bound once and held, so ``stop()`` then ``start()`` serves the same app on the
-same port and jobs survive. The state is ``Stopped``, ``Serving(port)`` or ``Failed(reason)``,
-under one lock. A failed start keeps its one-line reason in ``status()`` and the traceback in
-``engine.log`` under the host's first log directory.
+The engine starts once per process. The app is built once, because ``create_app`` resets the
+shared job manager, and it is served once, because serving the same app a second time reruns its
+lifespan, which stops the job leases and file watchers. So ``stop()`` is final: a later
+``start()`` is refused and the host reopens the app. The port is bound once and held until
+then, so a retry after a failed start (the app never served) gets the same port.
+
+The state is ``Idle``, ``Serving(port)``, ``Failed(reason)`` (never served, retry allowed) or
+``Stopped(reason)`` (served and ended, terminal), under one lock. A failed start keeps its
+one-line reason in ``status()`` and the traceback in ``engine.log`` under the host's first log
+directory.
 """
 
 from __future__ import annotations
 
+import contextlib
 import logging
 import socket
 import threading
@@ -31,13 +37,22 @@ LOOPBACK = "127.0.0.1"
 ENGINE_LOG_NAME = "engine.log"
 START_TIMEOUT_SEC = 60.0
 STOP_TIMEOUT_SEC = 5.0
+STOPPED_BY_HOST = "the engine was stopped; reopen the app"
+STOPPED_UNEXPECTEDLY = "the server stopped unexpectedly; reopen the app"
 GRACEFUL_SHUTDOWN_SEC = 2
 _POLL_SEC = 0.02
 
 
 @dataclass(frozen=True)
+class Idle:
+    """Nothing has served yet."""
+
+
+@dataclass(frozen=True)
 class Stopped:
-    pass
+    """The engine served and ended; it cannot serve again in this process."""
+
+    reason: str
 
 
 @dataclass(frozen=True)
@@ -50,18 +65,18 @@ class Failed:
     reason: str
 
 
-EmbeddedState = Stopped | Serving | Failed
+EmbeddedState = Idle | Serving | Failed | Stopped
 
 
 class EmbeddedStartError(RuntimeError):
-    """The listener did not come up; the message is the one-line reason in ``Failed``."""
+    """The listener did not come up, or the engine already ended; the message is the one-line reason."""
 
 
 class _Listener:
     """A uvicorn server thread serving the app on a duplicate of the held socket.
 
     uvicorn closes the socket it is given when it stops, so it gets a duplicate; the held
-    socket keeps the port bound and listening between runs.
+    socket keeps the port bound across a failed start.
     """
 
     def __init__(self, app: Any, held: socket.socket) -> None:
@@ -72,16 +87,12 @@ class _Listener:
         self.thread = threading.Thread(target=self._serve, name="sharecut-embedded", daemon=True)
 
     def _serve(self) -> None:
-        try:
+        with contextlib.suppress(SystemExit):
             self.server.run(sockets=[self.sock])
-        except SystemExit:
-            pass
-        except Exception:
-            _write_engine_log("embedded server stopped with an error")
 
-    def open(self) -> None:
+    def open(self, timeout_sec: float) -> None:
         self.thread.start()
-        deadline = time.monotonic() + START_TIMEOUT_SEC
+        deadline = time.monotonic() + timeout_sec
         while not self.server.started:
             if not self.thread.is_alive():
                 raise EmbeddedStartError("the server stopped while starting")
@@ -100,12 +111,13 @@ class _Listener:
 
 
 class _Engine:
-    def __init__(self) -> None:
+    def __init__(self, start_timeout_sec: float = START_TIMEOUT_SEC) -> None:
         self._lock = threading.Lock()
+        self._start_timeout_sec = start_timeout_sec
         self._app: Any = None
         self._socket: socket.socket | None = None
         self._listener: _Listener | None = None
-        self._state: EmbeddedState = Stopped()
+        self._state: EmbeddedState = Idle()
 
     def status(self) -> EmbeddedState:
         with self._lock:
@@ -117,12 +129,18 @@ class _Engine:
             self._notice_dead_listener()
             if isinstance(self._state, Serving):
                 return self._state.port
+            if isinstance(self._state, Stopped):
+                raise EmbeddedStartError(self._state.reason)
             return self._bind()
 
     def stop(self) -> None:
         with self._lock:
-            self._stop_listener()
-            self._state = Stopped()
+            self._notice_dead_listener()
+            if isinstance(self._state, Serving):
+                self._end(STOPPED_BY_HOST)
+            elif isinstance(self._state, Failed):
+                self._release_socket()
+                self._state = Idle()
 
     def _bind(self) -> int:
         listener: _Listener | None = None
@@ -134,14 +152,11 @@ class _Engine:
             if self._socket is None:
                 self._socket = exclusive_listen_socket(LOOPBACK, 0)
             listener = _Listener(self._app, self._socket)
-            listener.open()
+            listener.open(self._start_timeout_sec)
         except Exception as exc:
             _write_engine_log("embedded start failed")
             if listener is not None:
                 listener.close()
-            sock, self._socket = self._socket, None
-            if sock is not None:
-                sock.close()
             reason = _one_line(exc)
             self._state = Failed(reason)
             raise EmbeddedStartError(reason) from exc
@@ -152,16 +167,24 @@ class _Engine:
 
     def _notice_dead_listener(self) -> None:
         if self._listener is not None and not self._listener.thread.is_alive():
-            self._stop_listener()
-            self._state = Failed("the server stopped unexpectedly")
+            self._end(STOPPED_UNEXPECTEDLY)
 
-    def _stop_listener(self) -> None:
+    def _end(self, reason: str) -> None:
         listener, self._listener = self._listener, None
         if listener is not None:
             listener.close()
+        self._release_socket()
+        self._state = Stopped(reason)
+
+    def _release_socket(self) -> None:
+        sock, self._socket = self._socket, None
+        if sock is not None:
+            sock.close()
 
 
 def _one_line(exc: BaseException) -> str:
+    if isinstance(exc, EmbeddedStartError):
+        return str(exc)
     text = str(exc).strip().splitlines()
     detail = text[0] if text else ""
     return f"{type(exc).__name__}: {detail}" if detail else type(exc).__name__
@@ -186,13 +209,14 @@ def start() -> int:
     """Bind ``127.0.0.1:0``, serve the Studio on a daemon thread, return the bound port.
 
     Already serving: the same port. Raises ``EmbeddedStartError`` when the app or the
-    listener cannot come up; ``status()`` then says why.
+    listener cannot come up (``status()`` then says why; a retry is allowed) and after
+    ``stop()`` (the engine starts once per process).
     """
     return _ENGINE.start()
 
 
 def stop() -> None:
-    """Stop serving. Safe to repeat. The app and the port stay for the next ``start()``."""
+    """Stop serving for good and release the port. Safe to repeat; a later ``start()`` is refused."""
     _ENGINE.stop()
 
 

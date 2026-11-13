@@ -705,6 +705,7 @@ export const STATUS_GLYPHS = [
   { state: "offline", glyph: "cloud-off", tone: "warning" },
   { state: "queued", glyph: "clock", tone: "warning" },
   { state: "live", glyph: "record", tone: "record" },
+  { state: "unavailable", glyph: "ban", tone: "neutral" },
 ] as const satisfies readonly {
   state: string;
   glyph: SystemIconName;

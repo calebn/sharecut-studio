@@ -90,6 +90,17 @@ export const Failed: Story = {
     await expect(args.action?.onAction).toHaveBeenCalledOnce();
   },
 };
+export const Unavailable: Story = {
+  args: {
+    state: "unavailable",
+    title: "ShareCut can't process audio on this device yet.",
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(canvas.getByText("Not available")).toBeInTheDocument();
+    await expect(canvas.queryByRole("button")).toBeNull();
+  },
+};
 export const NeedsModel: Story = {
   args: {
     state: "needs-you",

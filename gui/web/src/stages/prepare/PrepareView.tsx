@@ -13,6 +13,7 @@ import { StartTile } from "../../system/StartTile";
 import { StatusGlyph } from "../../system/StatusGlyph";
 import type { StatusRowState } from "../../system/StatusRow";
 import { SystemIcon } from "../../system/SystemIcon";
+import { STATUS_ROW_GLYPH } from "../../system/statusText";
 import { useFocusRescue } from "../../system/useFocusRescue";
 import { Button, SegmentedControl, ToggleButton } from "../../ui";
 import { useResizeObserver } from "../../ui/useResizeObserver";
@@ -125,14 +126,6 @@ function summaryState(
     ? "done"
     : "queued";
 }
-
-const GLYPH = {
-  queued: "not-yet",
-  running: "running",
-  done: "done",
-  "needs-you": "needs-you",
-  failed: "failed",
-} as const;
 
 function dropLabel(
   count: number | undefined,
@@ -350,7 +343,7 @@ export function PrepareView({
           aria-controls={ids.readyBody}
           onClick={() => setReadyOpen((open) => !open)}
         >
-          <StatusGlyph state={GLYPH[state]} />
+          <StatusGlyph state={STATUS_ROW_GLYPH[state]} />
           <span className="sys-prepare-summary-text">{readySummary}</span>
           <span className="sys-prepare-chevron">
             <SystemIcon name="chevron-down" size={16} />
