@@ -72,8 +72,7 @@ class Rig:
     seq: int = 0
 
     def host(self, command_type: str, payload: dict[str, Any]) -> dict[str, Any]:
-        reply = self.submit(command_type, payload, audience="host")
-        return reply
+        return self.submit(command_type, payload, audience="host")
 
     def submit(self, command_type: str, payload: dict[str, Any], *, audience: str) -> dict:
         self.seq += 1
@@ -85,7 +84,7 @@ class Rig:
                 role="host",
                 client_seq=self.seq,
             ),
-            audience=audience,  # type: ignore[arg-type]
+            audience=audience,
         )
 
     def head(self) -> str:
@@ -176,12 +175,9 @@ class Guest:
     def __init__(self, rig: Rig) -> None:
         self.rig = rig
         self.sections = _guest_sections(rig.ws)
-        self.moved = False
 
     def step(self, command_type: str, payload: dict[str, Any]) -> str:
-        before = _truth(self.rig.ws)
         reply = self.rig.submit(command_type, payload, audience="guest")
-        self.moved = self.moved or before != _truth(self.rig.ws)
         snapshot = reply["snapshot"]
         if snapshot.get("resync"):
             self.sections = _guest_sections(self.rig.ws)
@@ -266,16 +262,37 @@ def _open(template: Path, tmp_path: Path, case: Case) -> Rig:
     return Rig(ProjectWorkspace.open(root / template.name), root)
 
 
+EFFECT = {"track_id": "host", "effect": "highpass"}
+COMMENT = {"body": "c", "author": "a", "timeline_start": 1.0}
+CHAPTER = {"time": 1.0, "title": "One"}
+SOCIAL_CLIP = {"track_id": "host", "start": 1.0, "end": 3.0}
+STAGE_CUT = {"track_id": "host", "start": 6.0, "end": 6.5, "review_required": True}
+
+
+def _add_comment(rig: Rig) -> None:
+    rig.host("AddComment", COMMENT)
+
+
+def _add_chapter(rig: Rig) -> None:
+    rig.host("AddChapter", CHAPTER)
+
+
+def _add_social_clip(rig: Rig) -> None:
+    rig.host("AddSocialClip", SOCIAL_CLIP)
+
+
+def _undone_chapter(rig: Rig) -> None:
+    _add_chapter(rig)
+    rig.host("UndoHistory", {"expected_head_id": rig.head()})
+
+
 def _pending(rig: Rig) -> list[str]:
     rig.ws.reload()
     return [d.id for d in rig.ws.project.editorial.edit_decisions if not d.applied]
 
 
 def _stage_cut(rig: Rig) -> None:
-    rig.host(
-        "StageTimeRangeCut",
-        {"track_id": "host", "start": 6.0, "end": 6.5, "review_required": True},
-    )
+    rig.host("StageTimeRangeCut", STAGE_CUT)
     assert _pending(rig)
 
 
@@ -285,7 +302,7 @@ def _applied_edit(rig: Rig) -> None:
 
 
 def _add_effect(rig: Rig) -> None:
-    rig.host("AddEffect", {"track_id": "host", "effect": "highpass"})
+    rig.host("AddEffect", EFFECT)
 
 
 def _bed(rig: Rig) -> None:
@@ -403,16 +420,16 @@ CASES: dict[str, Case] = {
     "AcceptSessionSuggestion": Case(lambda r: {"suggestion_id": "sug1"}, _session),
     "AddAction": Case(
         lambda r: {"comment_id": r.ws.project.comments[0].id, "text": "x"},
-        lambda r: r.host("AddComment", {"body": "c", "author": "a", "timeline_start": 1.0}),
+        _add_comment,
     ),
-    "AddChapter": Case(lambda r: {"time": 1.0, "title": "One"}),
-    "AddComment": Case(lambda r: {"body": "c", "author": "a", "timeline_start": 1.0}),
-    "AddEffect": Case(lambda r: {"track_id": "host", "effect": "highpass"}),
+    "AddChapter": Case(lambda r: CHAPTER),
+    "AddComment": Case(lambda r: COMMENT),
+    "AddEffect": Case(lambda r: EFFECT),
     "AddReply": Case(
         lambda r: {"comment_id": r.ws.project.comments[0].id, "body": "r", "author": "a"},
-        lambda r: r.host("AddComment", {"body": "c", "author": "a", "timeline_start": 1.0}),
+        _add_comment,
     ),
-    "AddSocialClip": Case(lambda r: {"track_id": "host", "start": 1.0, "end": 3.0}),
+    "AddSocialClip": Case(lambda r: SOCIAL_CLIP),
     "AddTrack": Case(lambda r: {"track_id": "t3", "label": "T3"}),
     "ApplyAutoEdits": Case(lambda r: {}),
     "ApplyEditPlan": Case(
@@ -452,16 +469,16 @@ CASES: dict[str, Case] = {
     "CutRange": Case(lambda r: {"start": 6.0, "end": 6.4, "mode": "gap", "track_ids": ["host"]}),
     "DeleteChapter": Case(
         lambda r: {"time": 1.0, "title": "One"},
-        lambda r: r.host("AddChapter", {"time": 1.0, "title": "One"}),
+        _add_chapter,
     ),
     "DeleteClip": Case(lambda r: {"clip_id": "h2", "mode": "gap", "override_audio_checks": True}),
     "DeleteComment": Case(
         lambda r: {"comment_id": r.ws.project.comments[0].id},
-        lambda r: r.host("AddComment", {"body": "c", "author": "a", "timeline_start": 1.0}),
+        _add_comment,
     ),
     "DeleteSocialClip": Case(
         lambda r: {"id": r.ws.project.social_clip_candidates[0].id},
-        lambda r: r.host("AddSocialClip", {"track_id": "host", "start": 1.0, "end": 3.0}),
+        _add_social_clip,
     ),
     "DuplicateSegment": Case(lambda r: {"source_start": 0.0, "source_end": 0.3, "insert_at": 3.0}),
     "EditSelectedRange": Case(
@@ -492,10 +509,10 @@ CASES: dict[str, Case] = {
     "ReconcileTranscript": Case(lambda r: {"track_id": "host"}),
     "RedoHistory": Case(
         lambda r: {"expected_head_id": r.head()},
-        lambda r: (r.host("AddChapter", {"time": 1.0, "title": "One"}), _undo(r)),
+        _undone_chapter,
     ),
     "RejectEdits": Case(lambda r: {"ids": _pending(r)}, _stage_cut),
-    "RemoveEffect": Case(lambda r: {"track_id": "host", "effect": "highpass"}, _add_effect),
+    "RemoveEffect": Case(lambda r: EFFECT, _add_effect),
     "RemoveTrack": Case(lambda r: {"track_id": "guest"}),
     "RenameProject": Case(lambda r: {"name": "renamed"}),
     "ReorderTrack": Case(lambda r: {"track_id": "guest", "index": 0}),
@@ -509,7 +526,7 @@ CASES: dict[str, Case] = {
     ),
     "ResolveComment": Case(
         lambda r: {"comment_id": r.ws.project.comments[0].id, "by": "a"},
-        lambda r: r.host("AddComment", {"body": "c", "author": "a", "timeline_start": 1.0}),
+        _add_comment,
     ),
     "RestoreAppliedEdit": Case(
         lambda r: {"ids": [r.ws.project.editorial.edit_log[-1].id]}, _applied_edit
@@ -632,9 +649,7 @@ CASES: dict[str, Case] = {
     "SkipSessionSuggestion": Case(lambda r: {"suggestion_id": "sug1"}, _session),
     "SplitAtTime": Case(lambda r: {"at_time": 0.5, "track_ids": ["host"]}),
     "StageTextMatchCut": Case(lambda r: {"query": "there", "review_required": True}),
-    "StageTimeRangeCut": Case(
-        lambda r: {"track_id": "host", "start": 6.0, "end": 6.5, "review_required": True}
-    ),
+    "StageTimeRangeCut": Case(lambda r: STAGE_CUT),
     "StageUtteranceCut": Case(lambda r: {"utterance_index": 0, "review_required": True}),
     "StageWordsCut": Case(
         lambda r: {
@@ -664,26 +679,26 @@ CASES: dict[str, Case] = {
     ),
     "UndoHistory": Case(
         lambda r: {"expected_head_id": r.head()},
-        lambda r: r.host("AddChapter", {"time": 1.0, "title": "One"}),
+        _add_chapter,
     ),
     "UpdateChapter": Case(
         lambda r: {"old_time": 1.0, "old_title": "One", "time": 2.0, "title": "Two"},
-        lambda r: r.host("AddChapter", {"time": 1.0, "title": "One"}),
+        _add_chapter,
     ),
     "UpdateComment": Case(
         lambda r: {"comment_id": r.ws.project.comments[0].id, "body": "edited"},
-        lambda r: r.host("AddComment", {"body": "c", "author": "a", "timeline_start": 1.0}),
+        _add_comment,
     ),
     "UpdatePendingEdit": Case(
         lambda r: {"id": _pending(r)[0], "start": 6.1, "end": 6.4}, _stage_cut
     ),
     "UpdateSocialClip": Case(
         lambda r: {"id": r.ws.project.social_clip_candidates[0].id, "start": 1.5, "end": 3.0},
-        lambda r: r.host("AddSocialClip", {"track_id": "host", "start": 1.0, "end": 3.0}),
+        _add_social_clip,
     ),
     "UpdateSocialClipDetails": Case(
         lambda r: {"id": r.ws.project.social_clip_candidates[0].id, "title": "T"},
-        lambda r: r.host("AddSocialClip", {"track_id": "host", "start": 1.0, "end": 3.0}),
+        _add_social_clip,
     ),
     "VerifyTranscript": Case(
         lambda r: {"track_id": "host", "corrections": [{"word_index": 0, "text": "hello"}]}
@@ -692,10 +707,6 @@ CASES: dict[str, Case] = {
 
 # Commands that cannot run on any fixture here. Empty on purpose: add a name only with a reason.
 EXCLUDED: dict[str, str] = {}
-
-
-def _undo(rig: Rig) -> None:
-    rig.host("UndoHistory", {"expected_head_id": rig.head()})
 
 
 def test_every_registry_command_has_a_case_and_exclusions_are_real() -> None:
