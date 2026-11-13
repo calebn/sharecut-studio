@@ -16,7 +16,15 @@ TRACK_SLICE_COMMANDS: frozenset[str] = frozenset(
 )
 
 TRANSCRIPT_AUDIO_COMMANDS: frozenset[str] = frozenset(
-    {"SetTranscriptWordsIgnored", "SetTranscriptWordTiming"}
+    {
+        "ApplyTranscriptCleanup",
+        "CorrectTranscriptPhrase",
+        "ReplaceTranscriptMatches",
+        "SetTranscriptWordAutomatic",
+        "SetTranscriptWordSuppressed",
+        "SetTranscriptWordsIgnored",
+        "SetTranscriptWordTiming",
+    }
 )
 TRANSCRIPT_WORD_COMMANDS: frozenset[str] = (
     commands_in_family("transcript") - TRANSCRIPT_AUDIO_COMMANDS
