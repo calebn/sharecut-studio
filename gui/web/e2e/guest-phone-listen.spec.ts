@@ -267,7 +267,7 @@ for (const profile of PROFILES) {
           ).toBeVisible();
           await expect(
             guest.locator(".sys-listen-dock-elapsed"),
-          ).not.toHaveText("0:00");
+          ).not.toHaveText(/^0:0[0-2]$/);
           await commentButton(guest).tap({ timeout: 10_000 });
           const field = composer(guest).getByRole("textbox", {
             name: "Comment",
