@@ -7,6 +7,7 @@ import {
   type Page,
   test,
 } from "@playwright/test";
+import { SKIP_SEC } from "../src/utils/time";
 import {
   driveKeepAlive,
   fireOsAction,
@@ -28,7 +29,6 @@ import { withBrowserPages } from "./twoBrowserPages";
  */
 
 const DURATION_SEC = 60;
-const SKIP_SEC = 15;
 const NEAR_SEC = 1;
 
 const { defaultBrowserType: _pixelEngine, ...pixel7 } = devices["Pixel 7"];

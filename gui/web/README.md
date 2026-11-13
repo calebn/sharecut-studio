@@ -223,7 +223,7 @@ consumer. The inline chapter caller in `timeline/MarkerLaneHost.tsx` uses the
 same terminal feedback boundary. Command errors reject the tool promise
 unchanged. DAW transport seeking uses `src/commands/seek.ts`, which returns the
 pointer command result for callers that need to await it. Listen skip math stays
-in `src/stage/frame/listenSeek.ts`;
+in `src/commands/listenSeek.ts`;
 timeline callers keep their selection and blade actions after the seek
 dispatch, and WebMCP awaits the shared helper.
 Clip edit completions check the initiating project path and epoch before changing
