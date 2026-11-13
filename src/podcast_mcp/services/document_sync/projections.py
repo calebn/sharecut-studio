@@ -7,13 +7,7 @@ from podcast_mcp.services.document_sync.registry import commands_in_family
 
 COMMENT_COMMANDS: frozenset[str] = commands_in_family("comments")
 
-TRACK_SLICE_COMMANDS: frozenset[str] = frozenset(
-    {
-        "ReorderTrack",
-        "ExtractRoomToneBed",
-        "ClearExtractedRoomToneBed",
-    }
-)
+TRACK_SLICE_COMMANDS: frozenset[str] = frozenset({"ReorderTrack"})
 
 TRANSCRIPT_AUDIO_COMMANDS: frozenset[str] = frozenset(
     {
@@ -51,7 +45,9 @@ FX_SLICE_COMMANDS: frozenset[str] = frozenset({"SetEffectBypass", "AddEffect", "
 
 ENVELOPE_SLICE_COMMANDS: frozenset[str] = frozenset({"SetEnvelope"})
 
-MIX_SLICE_COMMANDS: frozenset[str] = frozenset({"SetTrackFader", "SetTrackMute"})
+MIX_SLICE_COMMANDS: frozenset[str] = frozenset(
+    {"SetTrackFader", "SetTrackMute", "ExtractRoomToneBed", "ClearExtractedRoomToneBed"}
+)
 
 
 def projection_for_command(command_type: str) -> ViewProjection:

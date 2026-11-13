@@ -164,9 +164,9 @@ def test_the_cli_extracts_and_clears(tmp_path: Path) -> None:
     assert json.loads(out.output) == {"track_id": "host", "cleared": True}
 
 
-def test_both_commands_refresh_the_tracks_projection() -> None:
+def test_both_commands_refresh_tracks_with_render_freshness() -> None:
     for command in ("ExtractRoomToneBed", "ClearExtractedRoomToneBed"):
-        assert projection_for_command(command) is ViewProjection.TRACKS
+        assert projection_for_command(command) is ViewProjection.MIX
 
 
 def test_the_track_view_reports_none_recorded_and_extracted(tmp_path: Path) -> None:
