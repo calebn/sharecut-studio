@@ -35,6 +35,7 @@ import numpy as np
 
 from podcast_mcp.engines.mono_downmix import ffmpeg_mono_mean_layout
 from podcast_mcp.engines.ungated_audio import ffmpeg_build_id
+from podcast_mcp.util import host_platform
 from podcast_mcp.util.binaries import resolve_ffmpeg_pair
 from podcast_mcp.util.fingerprint import file_stamp
 from podcast_mcp.util.pcm_stream import NoAudioDecodedError
@@ -179,7 +180,7 @@ class DecodedSources:
             if entry is None:
                 target = _spool_directory() / f"{len(_entries)}-{abs(hash(key))}.f32"
                 entry = _Spool(target, _decode(path, self.sample_rate, target))
-                if os.name != "nt":
+                if host_platform.current().is_posix:
                     entry.fd = os.open(target, os.O_RDONLY)
                     target.unlink()
                 _entries[key] = entry
@@ -216,7 +217,7 @@ def spill_allowed(size: int) -> bool:
 
     That takes POSIX, a spool directory on disk, and ``size`` plus ``SPILL_HEADROOM_BYTES`` free.
     """
-    if os.name == "nt":
+    if host_platform.current().is_nt:
         return False
     try:
         with _lock:

@@ -11,6 +11,7 @@ from podcast_mcp.util import registry_backup as publisher
 from podcast_mcp.util import registry_backup_posix as posix
 from podcast_mcp.util import registry_backup_windows as windows
 from podcast_mcp.util.coded_error import HostSetupError
+from podcast_mcp.util.host_platform import WINDOWS
 
 
 def assert_refusal(error, path, problem, fix, code="registry_backup_integrity_changed"):
@@ -25,8 +26,8 @@ def assert_refusal(error, path, problem, fix, code="registry_backup_integrity_ch
     )
 
 
-def test_ambiguous_windows_anchor_is_coded(monkeypatch):
-    monkeypatch.setattr(publisher, "os", SimpleNamespace(fspath=os.fspath, name="nt"))
+def test_ambiguous_windows_anchor_is_coded(host):
+    host(WINDOWS)
     with pytest.raises(PermissionError) as caught:
         publisher._anchor_path("C:backup.sqlite")
     assert_refusal(
@@ -272,13 +273,13 @@ def test_windows_backup_identity_refusals(tmp_path, monkeypatch, site):
         "remove_workspace",
     ],
 )
-def test_every_windows_name_caller_supplies_full_path(monkeypatch, site):
+def test_every_windows_name_caller_supplies_full_path(host, site):
     path = PureWindowsPath("C:/private/NUL")
     directory = windows.BackupDirectory.__new__(windows.BackupDirectory)
     directory.path = path.parent
     with pytest.raises(PermissionError) as caught:
         if site == "anchor":
-            monkeypatch.setattr(publisher, "os", SimpleNamespace(fspath=os.fspath, name="nt"))
+            host(WINDOWS)
             publisher._anchor_path(str(path))
         elif site == "chain":
             windows._open_chain(None, path)

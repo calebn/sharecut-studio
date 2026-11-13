@@ -7,6 +7,8 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import IO
 
+from podcast_mcp.util import host_platform
+
 
 def atomic_write(
     dest: Path,
@@ -60,7 +62,7 @@ def publish_completed_file(
 ) -> Path:
     """Fsync a complete temp file, then replace its destination and fsync the directory."""
     try:
-        with temp.open("r+b" if os.name == "nt" else "rb") as handle:
+        with temp.open("r+b" if host_platform.current().is_nt else "rb") as handle:
             if prepare_temp is not None:
                 prepare_temp(temp)
             os.fsync(handle.fileno())
@@ -75,7 +77,7 @@ def publish_completed_file(
 
 
 def _fsync_directory(directory: Path) -> None:
-    if os.name != "posix":
+    if not host_platform.current().is_posix:
         return
     with contextlib.suppress(OSError):
         fd = os.open(directory, os.O_RDONLY)

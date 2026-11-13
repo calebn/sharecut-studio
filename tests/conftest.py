@@ -7,6 +7,7 @@ import threading
 import time
 import zlib
 from collections.abc import Callable, Iterator
+from contextlib import ExitStack
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -26,6 +27,7 @@ from podcast_mcp.services.remote_mcp.limits import reset_host_limiters_for_tests
 from podcast_mcp.util import object_store as object_store_util
 from podcast_mcp.util import pinned_media
 from podcast_mcp.util.binaries import resolve_ffmpeg
+from podcast_mcp.util.host_platform import WINDOWS, HostPlatform, using
 from process_caches import reset_isolated_caches
 
 _REPO_PIPELINE_DEFAULTS = repo_root() / ".agents" / "defaults" / "pipeline.yaml"
@@ -586,10 +588,23 @@ def published_share(
 
 
 @pytest.fixture
-def pinned_media_fallback(monkeypatch: pytest.MonkeyPatch) -> None:
+def host() -> Iterator[Callable[[HostPlatform], None]]:
+    """Select a ``HostPlatform`` row for the rest of the test: ``host(WINDOWS)``."""
+    with ExitStack() as stack:
+
+        def select(row: HostPlatform) -> None:
+            stack.enter_context(using(row))
+
+        yield select
+
+
+@pytest.fixture
+def pinned_media_fallback(
+    monkeypatch: pytest.MonkeyPatch, host: Callable[[HostPlatform], None]
+) -> None:
     """Route ``open_pinned_media`` through its Windows path fallback on any OS."""
     monkeypatch.setattr(os, "supports_dir_fd", set())
-    monkeypatch.setattr(pinned_media, "_PATH_FALLBACK_PLATFORM", True)
+    host(WINDOWS)
     assert not pinned_media.descriptor_walk_supported()
 
 

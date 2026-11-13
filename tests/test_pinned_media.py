@@ -17,6 +17,7 @@ from starlette.responses import FileResponse
 from podcast_mcp.gui.audio import audio_file_response
 from podcast_mcp.gui.pinned_file_response import PinnedFileResponse
 from podcast_mcp.util import pinned_media
+from podcast_mcp.util.host_platform import LINUX, WINDOWS, HostPlatform
 from podcast_mcp.util.pinned_media import open_pinned_media
 
 posix_only = pytest.mark.skipif(
@@ -124,36 +125,38 @@ async def test_pinned_response_ranges_head_and_cleanup(
     assert closed == [True, True, True]
 
 
-def _no_descriptor_walk(monkeypatch: pytest.MonkeyPatch, how: str) -> None:
+def _no_descriptor_walk(
+    monkeypatch: pytest.MonkeyPatch, host: Callable[[HostPlatform], None], how: str
+) -> None:
     """Make the platform look like Windows to the descriptor-walk probe."""
     if how == "dir_fd":
         monkeypatch.setattr(os, "supports_dir_fd", set())
     else:
         monkeypatch.delattr(os, how, raising=False)
-    monkeypatch.setattr(pinned_media, "_PATH_FALLBACK_PLATFORM", True)
+    host(WINDOWS)
     assert not pinned_media.descriptor_walk_supported()
 
 
 @pytest.mark.parametrize("how", ["dir_fd", "O_NOFOLLOW", "O_DIRECTORY"])
 def test_pinned_media_falls_back_where_descriptor_walk_is_missing(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, how: str
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, host: Callable[[HostPlatform], None], how: str
 ) -> None:
     media = tmp_path / "mix.mp3"
     media.write_bytes(b"published")
-    _no_descriptor_walk(monkeypatch, how)
+    _no_descriptor_walk(monkeypatch, host, how)
     with open_pinned_media(media) as source:
         assert source.read() == b"published"
 
 
 def test_fallback_rejects_links_directories_and_relative_paths(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, host: Callable[[HostPlatform], None]
 ) -> None:
     real = tmp_path / "real"
     real.mkdir()
     (real / "mix.mp3").write_bytes(b"x")
     (tmp_path / "linked").symlink_to(real, target_is_directory=True)
     (tmp_path / "alias.mp3").symlink_to(real / "mix.mp3")
-    _no_descriptor_walk(monkeypatch, "dir_fd")
+    _no_descriptor_walk(monkeypatch, host, "dir_fd")
     with pytest.raises(ValueError, match="links"):
         open_pinned_media(tmp_path / "linked" / "mix.mp3")
     with pytest.raises((OSError, ValueError)):  # POSIX: O_NOFOLLOW refuses; Windows: lstat check
@@ -172,11 +175,11 @@ def test_fallback_rejects_links_directories_and_relative_paths(
 
 
 def test_fallback_rejects_a_path_swapped_after_open(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, host: Callable[[HostPlatform], None]
 ) -> None:
     media = tmp_path / "mix.mp3"
     media.write_bytes(b"published")
-    _no_descriptor_walk(monkeypatch, "dir_fd")
+    _no_descriptor_walk(monkeypatch, host, "dir_fd")
     real_lstat = os.lstat
 
     def swapped(path: str | os.PathLike[str]) -> os.stat_result:
@@ -202,6 +205,7 @@ def test_fallback_rejects_a_path_swapped_after_open(
 async def test_pinned_response_reads_only_the_descriptor(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
+    host: Callable[[HostPlatform], None],
     asgi_spec_version: str,
     without_pread: bool,
     method: str,
@@ -214,7 +218,7 @@ async def test_pinned_response_reads_only_the_descriptor(
     media.write_bytes(b"0123456789")
     if without_pread:
         monkeypatch.delattr(os, "pread", raising=False)
-        _no_descriptor_walk(monkeypatch, "dir_fd")
+        _no_descriptor_walk(monkeypatch, host, "dir_fd")
 
     async def forbidden_open(*_args: object, **_kwargs: object) -> None:
         raise AssertionError("FileResponse opened the path instead of the pinned descriptor")
@@ -242,12 +246,12 @@ async def test_pinned_response_reads_only_the_descriptor(
 
 
 def test_other_platforms_without_descriptor_walk_fail_closed(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, host: Callable[[HostPlatform], None]
 ) -> None:
     media = tmp_path / "mix.mp3"
     media.write_bytes(b"published")
     monkeypatch.setattr(os, "supports_dir_fd", set())
-    monkeypatch.setattr(pinned_media, "_PATH_FALLBACK_PLATFORM", False)
+    host(LINUX)
     with pytest.raises(OSError) as caught:
         open_pinned_media(media)
     assert caught.value.errno == errno.ENOTSUP
@@ -255,7 +259,10 @@ def test_other_platforms_without_descriptor_walk_fail_closed(
 
 @pytest.mark.parametrize("blind_link_check", [False, True])
 def test_fallback_rejects_a_parent_swapped_before_open(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, blind_link_check: bool
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    host: Callable[[HostPlatform], None],
+    blind_link_check: bool,
 ) -> None:
     review = tmp_path / "review"
     review.mkdir()
@@ -264,7 +271,7 @@ def test_fallback_rejects_a_parent_swapped_before_open(
     outside = tmp_path / "outside"
     outside.mkdir()
     (outside / "mix.mp3").write_bytes(b"secret")
-    _no_descriptor_walk(monkeypatch, "dir_fd")
+    _no_descriptor_walk(monkeypatch, host, "dir_fd")
     if blind_link_check:  # a link the link checks cannot see; realpath must still catch it
         monkeypatch.setattr(pinned_media, "_is_link", lambda _path: False)
     real_open = os.open
@@ -281,11 +288,11 @@ def test_fallback_rejects_a_parent_swapped_before_open(
 
 
 def test_fallback_refuses_unverifiable_file_identity(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, host: Callable[[HostPlatform], None]
 ) -> None:
     media = tmp_path / "mix.mp3"
     media.write_bytes(b"published")
-    _no_descriptor_walk(monkeypatch, "dir_fd")
+    _no_descriptor_walk(monkeypatch, host, "dir_fd")
 
     def without_file_id(real):
         def stat_without_file_id(target):
@@ -301,13 +308,13 @@ def test_fallback_refuses_unverifiable_file_identity(
 
 
 def test_fallback_refuses_an_unresolved_spelling(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, host: Callable[[HostPlatform], None]
 ) -> None:
     """An 8.3 short name or subst drive realpaths elsewhere; the caller must pass a resolved path."""
     media = tmp_path / "LONGNA~1" / "mix.mp3"
     media.parent.mkdir()
     media.write_bytes(b"published")
-    _no_descriptor_walk(monkeypatch, "dir_fd")
+    _no_descriptor_walk(monkeypatch, host, "dir_fd")
     real_realpath = os.path.realpath
 
     def expand_short_name(path, *args, **kwargs):

@@ -17,7 +17,6 @@ import os
 import shutil
 import signal
 import subprocess  # nosec B404
-import sys
 import threading
 import weakref
 from collections.abc import Callable, Iterator, Mapping, Sequence
@@ -25,6 +24,8 @@ from contextlib import contextmanager
 from contextvars import ContextVar
 from pathlib import Path
 from typing import Any
+
+from podcast_mcp.util import host_platform
 
 DEVNULL = subprocess.DEVNULL
 PIPE = subprocess.PIPE
@@ -81,7 +82,7 @@ def pid_is_alive(pid: int) -> bool:
     """Return False only when a positive PID is certainly gone."""
     if pid <= 0:
         return True
-    if sys.platform == "win32":
+    if host_platform.current().is_nt:
         if pid > _MAX_WINDOWS_PID:
             return True
         probe = _kernel32()
@@ -185,7 +186,7 @@ def _with_niceness(cmd: list[str]) -> list[str]:
     Relative, so a child never runs above the server's own niceness.
     """
     niceness = _niceness.get()
-    nice = shutil.which("nice") if niceness and os.name == "posix" else None
+    nice = shutil.which("nice") if niceness and host_platform.current().is_posix else None
     return [nice, "-n", str(niceness), *cmd] if nice else cmd
 
 

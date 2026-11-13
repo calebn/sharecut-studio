@@ -7,6 +7,7 @@ from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from pathlib import Path, PureWindowsPath
 
+from podcast_mcp.util import host_platform
 from podcast_mcp.util.coded_error import CodedError
 from podcast_mcp.util.registry_backup_posix import BackupDirectory as PosixDirectory
 from podcast_mcp.util.registry_backup_windows import BackupDirectory as WindowsDirectory
@@ -21,7 +22,7 @@ _SQLITE_SIDECARS = SQLITE_SIDECARS
 
 def _anchor_path(path: str | os.PathLike[str]) -> Path:
     raw = os.fspath(path)
-    if os.name == "nt":
+    if host_platform.current().is_nt:
         windows_path = PureWindowsPath(raw)
         if bool(windows_path.drive) != bool(windows_path.root):
             raise RegistryPrivacyError(windows_path, RegistryPrivacyReason.AMBIGUOUS_ANCHOR)
@@ -32,7 +33,7 @@ def _anchor_path(path: str | os.PathLike[str]) -> Path:
 
 
 def _directory(path: Path) -> PosixDirectory | WindowsDirectory:
-    return WindowsDirectory(path) if os.name == "nt" else PosixDirectory(path)
+    return WindowsDirectory(path) if host_platform.current().is_nt else PosixDirectory(path)
 
 
 @contextmanager
@@ -114,7 +115,11 @@ def publish_registry_backup(
                                     ) from exc
     except CodedError as exc:
         if published:
-            shown = f'"{destination}"' if os.name == "nt" else shlex.quote(str(destination))
+            shown = (
+                f'"{destination}"'
+                if host_platform.current().is_nt
+                else shlex.quote(str(destination))
+            )
             exc.args = (f"registry backup was published at {shown}; {exc}",)
         raise
     return destination

@@ -8,11 +8,9 @@ import stat
 from pathlib import Path
 from typing import BinaryIO
 
-_NOFOLLOW_FLAGS = ("O_DIRECTORY", "O_NOFOLLOW")
+from podcast_mcp.util import host_platform
 
-# Only Windows takes the weaker path-based fallback; any other platform without the
-# descriptor walk fails closed. Tests set this to exercise the fallback on POSIX.
-_PATH_FALLBACK_PLATFORM = os.name == "nt"
+_NOFOLLOW_FLAGS = ("O_DIRECTORY", "O_NOFOLLOW")
 
 
 def descriptor_walk_supported() -> bool:
@@ -48,7 +46,9 @@ def open_pinned_media(path: Path) -> BinaryIO:
         raise ValueError("media path must name a file")
     if descriptor_walk_supported():
         return _open_by_descriptor_walk(absolute)
-    if _PATH_FALLBACK_PLATFORM:
+    # Only Windows takes the weaker path-based fallback; any other host without the descriptor
+    # walk fails closed.
+    if host_platform.current().is_nt:
         return _open_verified_by_path(absolute)
     raise OSError(errno.ENOTSUP, "pinned media reads require no-follow directory descriptors")
 
