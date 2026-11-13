@@ -327,6 +327,83 @@ for (const profile of PROFILES) {
       );
     });
 
+    test(`a selection bar's Comment pauses the episode and Close plays it on on ${where}`, async ({
+      browser,
+    }) => {
+      await withPhoneGuest(
+        browser,
+        profile,
+        size,
+        "commenter",
+        async (guest) => {
+          const elapsed = guest.locator(".sys-listen-dock-elapsed");
+          await guest
+            .getByRole("button", { name: "Play", exact: true })
+            .tap({ timeout: 10_000 });
+          await expect(elapsed).not.toHaveText(/^0:0[0-2]$/);
+          await guest
+            .locator(".sys-script-word")
+            .first()
+            .tap({ timeout: 10_000 });
+          await guest
+            .getByRole("group", { name: "Selection actions" })
+            .getByRole("button", { name: "Comment" })
+            .tap({ timeout: 10_000 });
+          await expect(composer(guest)).toBeVisible();
+          await expect(
+            guest.getByRole("button", { name: "Play", exact: true }),
+          ).toBeVisible();
+          await composer(guest)
+            .getByRole("button", { name: "Close", exact: true })
+            .tap({ timeout: 10_000 });
+          await expect(
+            guest.getByRole("button", { name: "Pause", exact: true }),
+          ).toBeVisible();
+        },
+      );
+    });
+
+    test(`text typed, Close and a seek leave the pin chip at the time it was typed at on ${where}`, async ({
+      browser,
+    }) => {
+      await withPhoneGuest(
+        browser,
+        profile,
+        size,
+        "commenter",
+        async (guest) => {
+          const elapsed = guest.locator(".sys-listen-dock-elapsed");
+          const chip = () => composer(guest).locator(".sys-composer-chip");
+          await guest
+            .getByRole("button", { name: "Play", exact: true })
+            .tap({ timeout: 10_000 });
+          await expect(elapsed).not.toHaveText(/^0:0[0-2]$/);
+          await commentButton(guest).tap({ timeout: 10_000 });
+          const pinned = (await chip().innerText()).trim();
+          await composer(guest)
+            .getByRole("textbox", { name: "Comment", exact: true })
+            .fill("too loud here");
+          await composer(guest)
+            .getByRole("button", { name: "Close", exact: true })
+            .tap({ timeout: 10_000 });
+          await guest
+            .getByRole("button", { name: "Pause", exact: true })
+            .tap({ timeout: 10_000 });
+          await scrubber(guest).focus();
+          await guest.keyboard.press("End");
+          await expect(elapsed).not.toHaveText(pinned);
+          await commentButton(guest).tap({ timeout: 10_000 });
+          await expect(
+            composer(guest).getByRole("textbox", {
+              name: "Comment",
+              exact: true,
+            }),
+          ).toHaveValue("too loud here");
+          await expect(chip()).toHaveText(pinned);
+        },
+      );
+    });
+
     test(`the Comments sheet lists the comments and a thread keeps its reply field uncovered on ${where}`, async ({
       browser,
     }) => {
@@ -511,6 +588,27 @@ for (const profile of PROFILES) {
     );
   });
 
+  test(`a short landscape phone keeps Chapters in reach on ${profile.name} 667x375`, async ({
+    browser,
+  }) => {
+    await withPhoneGuest(
+      browser,
+      profile,
+      FOLDED,
+      "commenter",
+      async (guest) => {
+        const chapters = guest.getByRole("button", { name: "Chapters" });
+        await expectReached(chapters);
+        await expectTouchTarget(chapters);
+        await expectDockFits(guest, FOLDED.width);
+        await chapters.tap({ timeout: 10_000 });
+        await expect(
+          guest.getByRole("dialog", { name: "Chapters" }),
+        ).toBeVisible();
+      },
+    );
+  });
+
   test(`the Comments sheet rests on the folded dock on ${profile.name} 667x375`, async ({
     browser,
   }) => {
@@ -528,3 +626,26 @@ for (const profile of PROFILES) {
     );
   });
 }
+
+test("a desktop guest whose queue holds a comment and a suggestion keeps the filter and the sort", async ({
+  browser,
+}) => {
+  await withPhoneGuest(
+    browser,
+    { name: "Desktop", device: {} } as unknown as Profile,
+    { width: 1280, height: 800 },
+    "commenter",
+    async (guest) => {
+      await guest
+        .locator(".sys-script-word")
+        .first()
+        .click({ timeout: 10_000 });
+      await guest
+        .getByRole("group", { name: "Selection actions" })
+        .getByRole("button", { name: /^Suggest cut/ })
+        .click({ timeout: 10_000 });
+      await expect(guest.getByRole("group", { name: "Filter" })).toBeVisible();
+      await expect(guest.getByRole("group", { name: "Sort" })).toBeVisible();
+    },
+  );
+});
