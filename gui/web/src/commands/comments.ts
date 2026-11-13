@@ -1,8 +1,8 @@
 import { commentDraftFromRange } from "../comments/commentAnchor";
 import { selectionSpan } from "../edit/editSelection";
 import { resolveSelectionRange } from "../edit/rangeSelection";
-import { listenLayoutOf } from "../stage/frame/playerPlacement";
 import { useDawStore } from "../state/dawStore";
+import { listenLayoutOf } from "../state/stageRoutes";
 import type { CommentDraft, DawState } from "../state/types";
 import { clampToSession } from "../utils/time";
 import { dispatchComposer } from "./composer";
