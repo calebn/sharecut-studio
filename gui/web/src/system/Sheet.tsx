@@ -8,7 +8,6 @@ type SheetStep = {
   title: string;
   children: ReactNode;
   onBack: () => void;
-  /** Accessible name of Back; "Back" when absent. */
   backLabel?: string;
 };
 

@@ -289,7 +289,6 @@ function PhoneShare({ guestShare }: { guestShare: boolean }) {
   );
 }
 
-/** A whole phone share link: the app header, the stage and the Player placed by the frame. */
 const phoneShare = (
   role: "commenter" | "viewer" | "editor",
   options: {
