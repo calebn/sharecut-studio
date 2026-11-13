@@ -1,5 +1,3 @@
-"""A project whose one track is transcribed, with the bleed gate on or off."""
-
 from __future__ import annotations
 
 from podcast_mcp.models.episode import Transcript, TranscriptWord

@@ -616,7 +616,6 @@ def _render_hashes(ws: ProjectWorkspace) -> dict[str, str]:
 
 
 def _prepare_for(ws: ProjectWorkspace, command_type: str) -> None:
-    """Put the gated project in a state where ``command_type`` has something to change."""
     if command_type == "SetTranscriptWordAutomatic":
         DocumentSyncService(ws).submit(
             DocumentCommand(
