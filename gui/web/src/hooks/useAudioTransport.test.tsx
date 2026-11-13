@@ -7,7 +7,7 @@ import { playbackPositionSec } from "../audio/playbackClock";
 import { playbackMeterSource } from "../audio/playbackMeterSource";
 import { patchTrackMix } from "../document/projectPatch";
 import { useDawStore } from "../state/dawStore";
-import { minimalProject, sampleTrack } from "../test/fixtures";
+import { minimalProject, sampleComment, sampleTrack } from "../test/fixtures";
 import type { ProjectView, TrackView } from "../types/project";
 import { NO_PREVIEW_ERROR } from "../utils/audioErrorLabel";
 import { useAudioTransport } from "./useAudioTransport";
@@ -719,7 +719,7 @@ describe("useAudioTransport saved mix (#386)", () => {
     ["premix", false],
     ["stems", true],
   ])(
-    "keeps a guest's %s players playing when only the history head changes",
+    "keeps a guest's %s players playing when only a comment and the history head change",
     async (_name, staleVsMix) => {
       const base = mixProject(
         [sampleTrack({ id: "host" }), sampleTrack({ id: "guest" })],
@@ -742,6 +742,7 @@ describe("useAudioTransport saved mix (#386)", () => {
         if (!project) throw new Error("no project");
         useDawStore.getState().setProject({
           ...project,
+          comments: [...project.comments, sampleComment({ id: "guest-note" })],
           history: {
             ...project.history,
             head_id: "after-comment" as typeof project.history.head_id,
@@ -749,6 +750,9 @@ describe("useAudioTransport saved mix (#386)", () => {
         });
       });
 
+      expect(
+        useDawStore.getState().project?.comments.map((c) => c.id),
+      ).toContain("guest-note");
       expect(FakeAudio.instances).toEqual(players);
       expect(players.every((el) => !el.paused && el.src !== "")).toBe(true);
       expect(useDawStore.getState().isPlaying).toBe(true);
