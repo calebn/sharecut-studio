@@ -1,6 +1,9 @@
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { minimalProject } from "../test/fixtures";
-import type { ClipRow } from "../types/project";
+import { SRC_ROOT } from "../test/sourceFiles";
+import type { ClipRow, ProjectView } from "../types/project";
 import {
   buildSchedule,
   chunkFileStartSec,
@@ -950,5 +953,108 @@ describe("episodeEndSec", () => {
     );
     expect(episodeEndSec(Number.NaN, lanes(30))).toBe(30);
     expect(episodeEndSec(20, lanes(Number.NaN, 25))).toBe(25);
+  });
+});
+
+const KEY = JSON.parse(
+  readFileSync(
+    join(SRC_ROOT, "../../../tests/fixtures/proxy_basis/key.json"),
+    "utf8",
+  ),
+) as {
+  view_hashes: string[];
+  manifest_hashes: string[];
+  clip_fields: string[];
+};
+
+function walk(value: unknown, path: readonly string[]): unknown {
+  if (path.length === 0) return value;
+  if (!value || typeof value !== "object") return undefined;
+  const [head, ...rest] = path;
+  const record = value as Record<string, unknown>;
+  if (head !== "*") return walk(record[head], rest);
+  return Object.fromEntries(
+    Object.entries(record).flatMap(([key, item]) => {
+      const found = walk(item, rest);
+      return found ? [[key, found]] : [];
+    }),
+  );
+}
+
+describe("the proxy key reads what tests/fixtures/proxy_basis/key.json names", () => {
+  const row = clip({
+    id: "a",
+    track_id: "guest",
+    origin_track_id: "host",
+    source_id: "src",
+    source_start: 1,
+    source_end: 4,
+    timeline_start: 2,
+    timeline_end: 5,
+  });
+  const project = minimalProject({
+    clips: { tracks: { guest: [row] }, clip_count: 1 },
+    render_status: {
+      needs_rerender: false,
+      reconciliation: { stale: false },
+      premix: { exists: false },
+      tracks: {
+        host: { render_hash: "stem-host" },
+        guest: { render_hash: "" },
+      },
+      proxy_hashes: { host: "proxy-host", music: "proxy-music" },
+    } as ProjectView["render_status"],
+  });
+
+  it("takes the per-track hashes from the view path the contract names", () => {
+    expect(projectProxyBasis(project).render_hashes).toEqual(
+      walk(project, KEY.view_hashes) ?? {},
+    );
+  });
+
+  it("matches the manifest's hashes at the path the contract names", () => {
+    const wire = {
+      revision: "r",
+      project_basis: {
+        history_head_id: "root",
+        render_hashes: { host: "proxy-host" },
+        clips: {},
+      },
+      tracks: {},
+      artifacts: {},
+      occurrences: {},
+    };
+    expect(parseProxyManifest(wire).project_basis.render_hashes).toEqual(
+      walk(wire.project_basis, KEY.manifest_hashes),
+    );
+  });
+
+  it("keys each clip on exactly the contract's fields", () => {
+    const basis = projectProxyBasis(project);
+    expect(Object.keys(basis.clips.a).sort()).toEqual(
+      [...KEY.clip_fields].sort(),
+    );
+    const key = proxyBasisKey(basis);
+    for (const field of KEY.clip_fields) {
+      const changed = {
+        ...basis,
+        clips: { a: { ...basis.clips.a, [field]: 99 } },
+      };
+      expect(proxyBasisKey(changed), field).not.toBe(key);
+    }
+    const unread = Object.keys(row).filter(
+      (field) => field !== "id" && !KEY.clip_fields.includes(field),
+    );
+    expect(unread.length).toBeGreaterThan(0);
+    for (const field of unread) {
+      const other = minimalProject({
+        ...project,
+        clips: {
+          tracks: { guest: [{ ...row, [field]: "changed" }] },
+          clip_count: 1,
+        },
+      });
+      expect(proxyBasisKey(projectProxyBasis(other)), field).toBe(key);
+    }
   });
 });

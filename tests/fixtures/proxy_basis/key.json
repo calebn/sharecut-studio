@@ -1,0 +1,13 @@
+{
+  "view_hashes": ["render_status", "tracks", "*", "render_hash"],
+  "manifest_hashes": ["render_hashes"],
+  "clip_fields": [
+    "track_id",
+    "origin_track_id",
+    "source_id",
+    "source_start",
+    "source_end",
+    "timeline_start",
+    "timeline_end"
+  ]
+}

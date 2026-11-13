@@ -21,6 +21,7 @@ import {
 import { shareProjectKey } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
 import { minimalProject, sampleTrack } from "../test/fixtures";
+import type { ProjectView } from "../types/project";
 import { ApiError } from "../utils/apiError";
 import { useAudioTransport } from "./useAudioTransport";
 import { useProxyTransport } from "./useProxyTransport";
@@ -1085,5 +1086,117 @@ describe("useProxyTransport", () => {
     ).toEqual({ artifactId: id, outputTrackId: "host", bakesMutes: true });
     expect(useDawStore.getState().audioError).toBe("Preview failed");
     expect(loadCommandQueue).not.toHaveBeenCalled();
+  });
+  it("stops and refetches when an effect lands on a music track", async () => {
+    const [BEFORE, AFTER] = ["a".repeat(64), "b".repeat(64)];
+    const music = sampleTrack({ id: "music", role: "music" });
+    const base = minimalProject({
+      tracks: [sampleTrack({ id: "host" }), music],
+      clips: {
+        tracks: {
+          music: [
+            {
+              id: "music1",
+              track_id: "music",
+              source_id: "music-src",
+              source_start: 0,
+              source_end: 5,
+              timeline_start: 0,
+              timeline_end: 5,
+              fade_in_ms: 0,
+              fade_out_ms: 0,
+              join_in_mode: "fade",
+              source_duration_sec: 10,
+              recording_key: null,
+            },
+          ],
+        },
+        clip_count: 1,
+      },
+      effects_by_track: { host: [], music: [] },
+      render_status: {
+        needs_rerender: false,
+        reconciliation: { stale: false },
+        premix: { exists: false },
+        tracks: { host: { render_hash: "stem-host" } },
+        proxy_hashes: { host: "proxy-host", music: "proxy-music" },
+      } as ProjectView["render_status"],
+    });
+    const snapshot = { project: base, server_seq: 1, state_token: BEFORE };
+    applyDocumentSnapshot(snapshot);
+    vi.mocked(loadDocumentState).mockResolvedValue(snapshot);
+    renderHook(() => useProxyTransport());
+    await ready();
+    act(() => useDawStore.getState().setIsPlaying(true));
+    engine.pause.mockClear();
+    act(() =>
+      applyDocumentSnapshot({
+        server_seq: 2,
+        state_token: AFTER,
+        delta: {
+          audience: "guest",
+          projection: "fx",
+          base_seq: 1,
+          base_token: BEFORE,
+          operations: [
+            {
+              type: "rows",
+              section: "effect_rows",
+              parent: "music",
+              before_count: 0,
+              splices: [
+                {
+                  index: 0,
+                  delete: 0,
+                  insert: [
+                    { index: 0, effect: "highpass", params: {}, bypass: false },
+                  ],
+                },
+              ],
+              updates: [],
+            },
+            {
+              type: "rows",
+              section: "tracks",
+              parent: null,
+              before_count: 2,
+              splices: [],
+              updates: [{ index: 1, value: { ...music, fx_count: 1 } }],
+            },
+            {
+              type: "replace",
+              section: "render_status",
+              parent: null,
+              value: {
+                needs_rerender: false,
+                reconciliation: { stale: false },
+                premix: { exists: false },
+                proxy_hashes: { host: "proxy-host", music: "proxy-music-fx" },
+              },
+            },
+            {
+              type: "replace",
+              section: "history",
+              parent: null,
+              value: {
+                cursor: 1,
+                head_id: "after-effect",
+                can_undo: true,
+                can_redo: false,
+              },
+            },
+          ],
+        },
+      }),
+    );
+    expect(documentAuthority.token).toBe(AFTER);
+    expect(useDawStore.getState().project?.effects_by_track.music).toHaveLength(
+      1,
+    );
+    await vi.waitFor(() => expect(loadProxyManifest).toHaveBeenCalledTimes(2));
+    await act(async () => {});
+    expect(engine.pause).toHaveBeenCalled();
+    expect(useDawStore.getState().isPlaying).toBe(false);
+    expect(useDawStore.getState().audioError).toBeNull();
   });
 });
