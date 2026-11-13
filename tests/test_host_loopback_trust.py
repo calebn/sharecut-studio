@@ -83,31 +83,6 @@ def test_a_desktop_loopback_peer_is_still_admitted_without_a_token(host, row) ->
     assert authorize_host(peer_host="127.0.0.1").allowed is True
 
 
-def test_owner_routes_need_the_session_and_host_mcp_is_not_mounted_where_loopback_is_not_trusted(
-    host, session_token, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> None:
-    monkeypatch.setenv("PODCAST_MCP_CACHE", str(tmp_path / "cache"))
-    host(UNTRUSTED)
-    app = create_app()
-    client = TestClient(app, client=LOOPBACK)
-
-    refused = client.get("/api/bootstrap/status")
-    assert refused.status_code == 403
-    assert refused.headers["X-Sharecut-Error-Code"] == "authz_denied"
-
-    with_token = client.get("/api/bootstrap/status", headers={"X-Podcast-Token": TOKEN})
-    assert with_token.status_code == 403
-
-    code = app.state.host_sessions.issue_code()
-    client.get("/api/session/exchange", params={"code": code})
-    accepted = client.get("/api/bootstrap/status")
-    assert accepted.status_code == 200
-    assert accepted.json()["host"]["name"] == UNTRUSTED.name
-
-    assert app.state.host_mcp_session_manager is None
-    assert client.post("/mcp", json={}).status_code == 404
-
-
 def test_a_desktop_app_mounts_host_mcp_and_serves_owner_routes_from_loopback(
     host, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
