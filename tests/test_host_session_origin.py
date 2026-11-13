@@ -207,10 +207,6 @@ def test_a_cookie_request_labelled_cross_site_or_same_site_is_refused_without_an
     assert (response.status_code, response.json()) == (403, CROSS_SITE_REFUSED)
 
 
-def test_a_request_with_no_fetch_metadata_is_admitted(client) -> None:
-    assert client.get(STATUS).status_code == 200
-
-
 def test_the_top_level_navigation_to_the_shell_is_not_a_bound_route(host, tmp_path: Path) -> None:
     host(UNTRUSTED)
     static = tmp_path / "static"

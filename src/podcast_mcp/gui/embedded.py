@@ -228,9 +228,9 @@ def start() -> Started:
     """Bind ``127.0.0.1:0``, serve the Studio on a daemon thread, return the port and an exchange code.
 
     The code is None on a host whose loopback is trusted. Already serving: the same port and
-    a new code. Raises ``EmbeddedStartError`` when the app or the
-    listener cannot come up (``status()`` then says why; a retry is allowed) and after
-    ``stop()`` (the engine starts once per process).
+    a new code. Raises ``EmbeddedStartError`` when the app or the listener cannot come up
+    (``status()`` then says why; a retry is allowed) and after ``stop()`` (the engine starts
+    once per process).
     """
     return _ENGINE.start()
 
