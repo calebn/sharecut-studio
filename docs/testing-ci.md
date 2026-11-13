@@ -504,6 +504,7 @@ with axe before the collected results are asserted.
 | holding A with nothing selected plays the original and restores on keyup | `gui/web/e2e-compat/hold-a-original.spec.ts` | Core flow | Pass | Pass | Not run |
 | A restores the original when the window loses focus | `gui/web/e2e-compat/hold-a-original.spec.ts` | Core flow | Pass | Pass | Not run |
 | A restores the original when the tab is hidden | `gui/web/e2e-compat/hold-a-original.spec.ts` | Core flow | Pass | Pass | Not run |
+| the guest keep-alive loads from a blob under the page CSP | `gui/web/e2e-compat/guest-keep-alive.spec.ts` | Audio playback | Pass | Pass | Not run |
 
 Two compat Chromium specs have exact main Chromium owners:
 
