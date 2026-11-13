@@ -443,6 +443,7 @@ export function useProxyTransport(): boolean {
 
   useEffect(() => {
     if (!timelineActive) return;
+    // Null while a store seek is pending: the engine still reports the pre-seek time.
     return bindPlaybackClock(() =>
       useDawStore.getState().projectPath === projectPath &&
       !useDawStore.getState().sourcePreview &&
