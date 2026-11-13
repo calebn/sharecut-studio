@@ -22,7 +22,9 @@ const storeCommands: OsTransportCommands = {
   isPlaying: () => useDawStore.getState().isPlaying,
   livePositionSec: livePlayheadSec,
   previewActive: () => useDawStore.getState().sourcePreview !== null,
+  previewPlaying: () => useDawStore.getState().sourcePreview?.playing === true,
   stopPreview: () => useDawStore.getState().setIsPlaying(false),
+  resumeEpisode: () => useDawStore.getState().setIsPlaying(true),
   syncPlayhead,
   togglePlay: () => runPointerCommand("transport.togglePlay"),
   skip: (deltaSec) =>

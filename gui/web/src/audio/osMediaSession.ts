@@ -188,8 +188,13 @@ function setHandler(
 export type OsTransportCommands = Readonly<{
   isPlaying(): boolean;
   livePositionSec(): number;
+  /** A source preview holds the transport, playing or ended. */
   previewActive(): boolean;
+  /** The held source preview is audible. */
+  previewPlaying(): boolean;
   stopPreview(): void;
+  /** Releases any source preview and turns the episode on, in one store write. */
+  resumeEpisode(): void;
   syncPlayhead(sec: number): void;
   togglePlay(): void;
   skip(deltaSec: number): void;
@@ -206,7 +211,12 @@ export function osActionHandlers(cmd: OsTransportCommands): OsActionHandlers {
   };
   return {
     play: () => {
-      if (!cmd.isPlaying()) cmd.togglePlay();
+      // The OS shows Pause while a preview plays: a stray Play leaves it be.
+      if (cmd.previewPlaying()) return;
+      // An ended preview still holds the transport; `isPlaying` says nothing
+      // audible then, so resume the episode instead of testing it.
+      if (cmd.previewActive()) cmd.resumeEpisode();
+      else if (!cmd.isPlaying()) cmd.togglePlay();
     },
     pause: () => {
       if (cmd.previewActive()) {
