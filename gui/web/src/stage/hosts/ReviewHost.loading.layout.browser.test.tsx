@@ -1,5 +1,5 @@
 import { composeStories } from "@storybook/react-vite";
-import { afterEach, beforeAll, describe, expect, it } from "vitest";
+import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { page } from "vitest/browser";
 import * as stories from "./ReviewHost.stories";
 
@@ -54,10 +54,18 @@ for (const theme of ["light", "dark"] as const) {
         await story.run({ canvasElement: host, globals: { theme } });
         await document.fonts.ready;
         expect(document.documentElement.dataset.theme).toBe(theme);
-        const field = host.querySelector<HTMLTextAreaElement>(
-          '.rv-compose textarea[aria-label="Comment"]',
+        const open = host.querySelector<HTMLButtonElement>(
+          ".sys-listen-dock-comment",
         );
-        if (!field) throw new Error("The Comment field is missing");
+        if (!open) throw new Error("The dock's Comment button is missing");
+        open.click();
+        const field = await vi.waitFor(() => {
+          const found = host?.querySelector<HTMLTextAreaElement>(
+            '.rv-compose textarea[aria-label="Comment"]',
+          );
+          if (!found) throw new Error("The Comment field is missing");
+          return found;
+        });
         const send = field
           .closest(".sys-composer")
           ?.querySelector<HTMLElement>(".sys-composer-submit");
