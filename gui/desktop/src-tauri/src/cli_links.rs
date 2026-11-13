@@ -5,7 +5,7 @@ use std::ffi::{OsStr, OsString};
 use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};
-#[cfg(test)]
+#[cfg(all(test, unix))]
 use std::process::Command;
 
 pub const INSTALL_MENU_ID: &str = "native-cli-install";
@@ -129,9 +129,10 @@ pub struct ToolReport {
 }
 
 /// A symlink is ShareCut's own only when a packaged app could have made it:
-/// inside a macOS `*sharecut*.app` bundle, or in a sharecut-named directory
-/// under a `.deb` root (`/usr/lib`, `/usr/bin`, `/opt`). A developer link into
-/// a checkout or venv is someone else's.
+/// inside a macOS `*sharecut*.app` bundle, exactly `/usr/bin/<name>` (the
+/// `.deb` launcher location), or below a sharecut-named directory that is a
+/// direct child of `/opt` or `/usr/lib`. A developer link into a checkout or
+/// venv is someone else's.
 #[cfg(unix)]
 fn owned_link_target(target: &Path, name: &str) -> bool {
     use std::path::Component;
@@ -149,13 +150,14 @@ fn owned_link_target(target: &Path, name: &str) -> bool {
         })
     };
     let in_bundle = target.components().any(|c| named(c, ".app"));
-    let in_package_root = ["/usr/lib", "/usr/bin", "/opt"].iter().any(|root| {
+    let is_deb_launcher = target == Path::new("/usr/bin").join(name);
+    let in_package_dir = ["/usr/lib", "/opt"].iter().any(|root| {
         target.strip_prefix(root).is_ok_and(|rest| {
-            rest.parent()
-                .is_some_and(|dirs| dirs.components().any(|c| named(c, "")))
+            let mut parts = rest.components();
+            parts.next().is_some_and(|c| named(c, "")) && rest.components().count() > 1
         })
     });
-    in_bundle || in_package_root
+    in_bundle || is_deb_launcher || in_package_dir
 }
 
 #[cfg(unix)]
@@ -632,11 +634,14 @@ mod tests {
         assert!(owned("/Users/a/Old sharecut.APP/podcast"));
         assert!(owned("/opt/sharecut-studio/podcast"));
         assert!(owned("/usr/lib/Sharecut Studio/podcast"));
-        assert!(owned("/usr/bin/sharecut/podcast"));
+        assert!(owned("/usr/lib/sharecut-studio/bin/podcast"));
+        assert!(owned("/usr/bin/podcast"));
+        assert!(!owned("/usr/bin/other"));
+        assert!(!owned("/usr/bin/sharecut/podcast"));
+        assert!(!owned("/opt/x/sharecut-venv/bin/podcast"));
         assert!(!owned("/home/a/src/sharecut-studio/.venv/bin/podcast"));
         assert!(!owned("/home/a/sharecut.app.bak/podcast"));
         assert!(!owned("/Applications/Other.app/Contents/MacOS/podcast"));
-        assert!(!owned("/usr/bin/podcast"));
         assert!(!owned("/opt/tools/podcast"));
         assert!(!owned("/opt/sharecut/../../home/a/bin/podcast"));
         assert!(!owned("/home/a/opt/sharecut/podcast"));

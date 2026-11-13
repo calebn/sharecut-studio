@@ -64,8 +64,16 @@ fn parse_mode(args: impl IntoIterator<Item = OsString>) -> LauncherMode {
 
 /// macOS reports the path the process was started through, so a symlink such as
 /// ~/.local/bin/podcast would look for the runtime beside the link. Follow it.
+/// Windows needs no fix, and its canonical form is a `\\?\` verbatim path that
+/// Python and ffmpeg handle badly.
+#[cfg(unix)]
 fn resolve_exe(exe: PathBuf) -> PathBuf {
     fs::canonicalize(&exe).unwrap_or(exe)
+}
+
+#[cfg(not(unix))]
+fn resolve_exe(exe: PathBuf) -> PathBuf {
+    exe
 }
 
 fn runtime_dir(exe: &Path) -> Option<PathBuf> {
