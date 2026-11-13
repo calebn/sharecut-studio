@@ -25,7 +25,11 @@ beforeEach(() => {
   });
 });
 
-describe("comment.draftAt pauses the episode it opens a comment on", () => {
+describe("comment.draftAt pauses the episode it opens a comment on in the phone Listen layout", () => {
+  beforeEach(() => {
+    useDawStore.setState({ shellBreakpoint: "phone", guestMode: "comment" });
+  });
+
   it("pauses playback and promises to play it on", async () => {
     useDawStore.setState({ isPlaying: true, playStartSec: 0 });
     await executePointerCommand("comment.draftAt", { atTime: 86 });
@@ -40,6 +44,17 @@ describe("comment.draftAt pauses the episode it opens a comment on", () => {
   it("leaves a paused transport alone and promises nothing", async () => {
     await executePointerCommand("comment.draftAt", { atTime: 86 });
     expect(useDawStore.getState().isPlaying).toBe(false);
+    expect(useDawStore.getState().composer.draft?.resume).toBe(false);
+  });
+
+  it("leaves a playing transport alone on a desktop", async () => {
+    useDawStore.setState({
+      shellBreakpoint: "desktop",
+      isPlaying: true,
+      playStartSec: 0,
+    });
+    await executePointerCommand("comment.draftAt", { atTime: 86 });
+    expect(useDawStore.getState().isPlaying).toBe(true);
     expect(useDawStore.getState().composer.draft?.resume).toBe(false);
   });
 
