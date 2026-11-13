@@ -5,6 +5,7 @@ from pathlib import Path
 import pytest
 
 from podcast_mcp.util.atomic_directory import rename_noreplace
+from podcast_mcp.util.host_platform import GENERIC_NT, GENERIC_POSIX, WINDOWS, using
 
 pytestmark = pytest.mark.skipif(
     not (sys.platform.startswith("linux") or sys.platform == "darwin"),
@@ -78,3 +79,15 @@ def test_two_descriptor_move_and_nested_restore_preserve_collision(tmp_path):
         os.close(destination_fd)
     assert (source / "nested/restored/keep").read_bytes() == b"owned"
     assert (source / "stage").is_dir()
+
+
+@pytest.mark.parametrize("row", [WINDOWS, GENERIC_POSIX, GENERIC_NT])
+def test_a_host_without_a_no_replace_rename_refuses(tmp_path: Path, row):
+    (tmp_path / "staged").mkdir()
+    root_fd = os.open(tmp_path, os.O_RDONLY | os.O_DIRECTORY)
+    try:
+        with using(row), pytest.raises(OSError, match="atomic no-replace rename is unavailable"):
+            rename_noreplace("staged", "published", root_fd)
+    finally:
+        os.close(root_fd)
+    assert (tmp_path / "staged").is_dir()

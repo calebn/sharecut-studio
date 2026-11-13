@@ -4,12 +4,12 @@ import ctypes
 import errno
 import os
 import stat
-import sys
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager, suppress
 from functools import partial
 from pathlib import Path
 
+from podcast_mcp.util import host_platform
 from podcast_mcp.util.pinned_media import descriptor_walk_supported, open_nofollow_dir
 from podcast_mcp.util.registry_cleanup import cleanup
 from podcast_mcp.util.registry_privacy_error import RegistryPrivacyError, RegistryPrivacyReason
@@ -22,7 +22,8 @@ def identity(value: os.stat_result) -> Identity:
 
 
 def _check_acl(target: int | str, path: Path) -> None:
-    if sys.platform == "darwin":
+    kernel = host_platform.current().kernel
+    if kernel == "darwin":
         libc = ctypes.CDLL(None, use_errno=True)
         get_acl = libc.acl_get_fd_np if isinstance(target, int) else libc.acl_get_link_np
         get_acl.argtypes = [
@@ -58,7 +59,7 @@ def _check_acl(target: int | str, path: Path) -> None:
                 selector = -1
         finally:
             cleanup([partial(libc.acl_free, acl)])
-    elif sys.platform.startswith("linux"):
+    elif kernel == "linux":
         names = (
             os.listxattr(target)
             if isinstance(target, int)
@@ -108,6 +109,12 @@ def _open_component(name: str, parent: int, path: Path) -> int:
         raise
 
 
+def _is_os_owned(directory: Path) -> bool:
+    """True for a proper ancestor of the host's trust root, whose permissions belong to the OS."""
+    trust_root = host_platform.data_roots().trust_root
+    return trust_root is not None and directory != trust_root and directory in trust_root.parents
+
+
 def _open_chain(
     path: Path, *, create: bool = False, tighten: bool = False
 ) -> list[tuple[int, str | None]]:
@@ -118,7 +125,9 @@ def _open_chain(
         chain.append((open_nofollow_dir(path.anchor), None))
         for depth, part in enumerate(path.parts[1:], start=2):
             parent = chain[-1][0]
-            _check_directory(parent, Path(*path.parts[: depth - 1]), private=False)
+            ancestor = Path(*path.parts[: depth - 1])
+            if not _is_os_owned(ancestor):
+                _check_directory(parent, ancestor, private=False)
             if create:
                 with suppress(FileExistsError):
                     os.mkdir(part, 0o700, dir_fd=parent)
@@ -133,7 +142,9 @@ def _open_chain(
 
 def _verify_chain(chain: list[tuple[int, str | None]], path: Path) -> None:
     for index, (fd, name) in enumerate(chain):
-        _check_directory(fd, Path(*path.parts[: index + 1]), private=index == len(chain) - 1)
+        prefix = Path(*path.parts[: index + 1])
+        if index == len(chain) - 1 or not _is_os_owned(prefix):
+            _check_directory(fd, prefix, private=index == len(chain) - 1)
         if name is not None:
             current = os.stat(name, dir_fd=chain[index - 1][0], follow_symlinks=False)
             if identity(current) != identity(os.fstat(fd)):

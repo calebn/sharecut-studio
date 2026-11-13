@@ -11,7 +11,6 @@ import logging
 import os
 import shutil
 import stat
-import sys
 import tempfile
 import time
 import uuid
@@ -20,9 +19,10 @@ from contextlib import suppress
 from pathlib import Path
 from threading import Lock
 
+from podcast_mcp.util import host_platform
 from podcast_mcp.util.fingerprint import file_stamp
 
-if os.name == "posix":
+if host_platform.current().is_posix:
     import fcntl
 
 from podcast_mcp.config.defaults import EffectiveConfig
@@ -608,7 +608,8 @@ def discard_created_version(
 def _clone_pinned_wav(source_fd: int, snapshot: Path) -> bool:
     """Clone from the pinned source descriptor into a separate inode when supported."""
     try:
-        if sys.platform == "darwin":
+        kernel = host_platform.current().kernel
+        if kernel == "darwin":
             libc = ctypes.CDLL(None, use_errno=True)
             clone = libc.fclonefileat
             clone.argtypes = (ctypes.c_int, ctypes.c_int, ctypes.c_char_p, ctypes.c_uint32)
@@ -620,7 +621,7 @@ def _clone_pinned_wav(source_fd: int, snapshot: Path) -> bool:
             finally:
                 os.close(directory_fd)
             return True
-        if sys.platform.startswith("linux"):
+        if kernel == "linux":
             with snapshot.open("xb") as output:
                 fcntl.ioctl(output.fileno(), 0x40049409, source_fd)  # FICLONE
             return True

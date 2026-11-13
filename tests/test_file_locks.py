@@ -13,6 +13,7 @@ from filelock import Timeout
 
 from podcast_mcp.util import file_locks
 from podcast_mcp.util.file_locks import hold_shared_file_lock, shared_file_lock
+from podcast_mcp.util.host_platform import GENERIC_POSIX, IOS, LINUX, MACOS, WINDOWS, using
 
 
 def test_shared_file_lock_is_one_reentrant_instance_per_path(tmp_path: Path) -> None:
@@ -165,7 +166,6 @@ def test_holder_observation_fails_to_unknown(tmp_path, monkeypatch, failure):
         f"1: FLOCK ADVISORY WRITE 42 "
         f"{os.major(stat.st_dev):x}:{os.minor(stat.st_dev):x}:{stat.st_ino} 0 EOF\n"
     ).encode()
-    monkeypatch.setattr(file_locks.sys, "platform", "linux")
 
     def open_snapshot(self, mode):
         assert self == Path("/proc/locks")
@@ -180,13 +180,14 @@ def test_holder_observation_fails_to_unknown(tmp_path, monkeypatch, failure):
         return io.BytesIO(b"\xff" if failure == "malformed" else row)
 
     monkeypatch.setattr(Path, "open", open_snapshot)
-    assert file_locks.file_lock_holder_pid(lock_path) is None
+    with using(LINUX):
+        assert file_locks.file_lock_holder_pid(lock_path) is None
 
 
-@pytest.mark.parametrize("platform", ["darwin", "win32"])
-def test_holder_observation_is_unavailable_off_linux(tmp_path, monkeypatch, platform):
-    monkeypatch.setattr(file_locks.sys, "platform", platform)
-    assert file_locks.file_lock_holder_pid(tmp_path / "absent.lock") is None
+@pytest.mark.parametrize("row", [MACOS, IOS, WINDOWS, GENERIC_POSIX])
+def test_holder_observation_is_unavailable_off_linux(tmp_path, row):
+    with using(row):
+        assert file_locks.file_lock_holder_pid(tmp_path / "absent.lock") is None
 
 
 @pytest.mark.parametrize(
@@ -199,8 +200,7 @@ def test_holder_observation_is_unavailable_off_linux(tmp_path, monkeypatch, plat
         "directory",
     ],
 )
-def test_holder_observation_requires_a_regular_lock_file(tmp_path, monkeypatch, kind):
-    monkeypatch.setattr(file_locks.sys, "platform", "linux")
+def test_holder_observation_requires_a_regular_lock_file(tmp_path, kind):
     lock_path = tmp_path / "x.lock"
     if kind == "symlink":
         target = tmp_path / "target.lock"
@@ -208,4 +208,5 @@ def test_holder_observation_requires_a_regular_lock_file(tmp_path, monkeypatch, 
         lock_path.symlink_to(target)
     else:
         lock_path.mkdir()
-    assert file_locks.file_lock_holder_pid(lock_path) is None
+    with using(LINUX):
+        assert file_locks.file_lock_holder_pid(lock_path) is None

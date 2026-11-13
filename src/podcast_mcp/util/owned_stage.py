@@ -10,18 +10,18 @@ import errno
 import os
 import shutil
 import stat
-import sys
 from contextlib import ExitStack, suppress
 from pathlib import Path
 from uuid import uuid4
 
+from podcast_mcp.util import host_platform
 from podcast_mcp.util.atomic_directory import rename_noreplace
 from podcast_mcp.util.pinned_media import descriptor_walk_supported, open_nofollow_dir
 
 
 def owned_stage_supported() -> bool:
     return (
-        (sys.platform.startswith("linux") or sys.platform == "darwin")
+        host_platform.current().kernel in ("linux", "darwin")
         and descriptor_walk_supported()
         and os.stat in os.supports_dir_fd
         and os.mkdir in os.supports_dir_fd
