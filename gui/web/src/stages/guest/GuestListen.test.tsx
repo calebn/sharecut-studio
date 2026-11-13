@@ -1,6 +1,7 @@
 import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { dispatchComposer } from "../../commands/composer";
 import { clearRegisteredCommands } from "../../commands/execute";
 import { registerDawCommands } from "../../commands/register";
 import { PlayerBar } from "../../stage/frame/PlayerBar";
@@ -11,6 +12,7 @@ import {
   expectNoA11yViolations,
   expectOutsideLiveRegions,
 } from "../../test/a11y";
+import { composing, noComposer } from "../../test/composerStore";
 import {
   minimalProject,
   sampleComment,
@@ -60,7 +62,7 @@ function join(mode: "view" | "comment", count = 3, caps = CAPS[mode]) {
     stage: "review",
     playheadSec: 0,
     selection: null,
-    commentDraft: null,
+    ...noComposer,
     isPlaying: false,
     playStartSec: null,
     openSheet: null,
@@ -374,7 +376,7 @@ describe("one surface owns the bottom", () => {
     localStorage.setItem(NAME_KEY, "Maya");
     join("comment");
     mount();
-    act(() => useDawStore.getState().setOpenSheet("chapters"));
+    act(() => dispatchComposer({ type: "show", surface: "chapters" }));
     expect(screen.getByRole("dialog", { name: "Chapters" })).toBeVisible();
     await user.click(commentAt());
     expect(screen.queryByRole("dialog")).toBeNull();
@@ -473,7 +475,7 @@ describe("the composer and playback", () => {
     const name = screen.getByRole("textbox", { name: "Your name" });
     await user.click(name);
     act(() => useDawStore.getState().togglePlaying());
-    expect(useDawStore.getState().commentDraft?.resume).toBeUndefined();
+    expect(useDawStore.getState().composer.draft?.resume).toBe(false);
     expect(name).toHaveFocus();
   });
 
@@ -568,14 +570,14 @@ describe("the Comments list", () => {
       .getByText("Note number 3")
       .closest("button") as HTMLElement;
     await waitFor(() => expect(came).toHaveFocus());
-    expect(scrollIntoView.mock.contexts).toContain(came);
+    expect(scrollIntoView).not.toHaveBeenCalled();
   });
 });
 
 describe("one source for who may comment", () => {
   it("keeps the comments row when a Commenter link lacks the comment capability", () => {
     join("comment", 3, ["view"]);
-    useDawStore.setState({ commentDraft: { startSec: 0, endSec: null } });
+    useDawStore.setState({ ...composing({ startSec: 0, endSec: null }) });
     mount();
     expect(rowButton()).toBeVisible();
     expect(screen.queryByRole("button", { name: /^Comment at/ })).toBeNull();

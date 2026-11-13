@@ -13,6 +13,7 @@ import { registerDawCommands } from "../../commands/register";
 import { resolveCommentAnchor } from "../../comments/commentAnchor";
 import { useDawStore } from "../../state/dawStore";
 import { expectNoA11yViolations } from "../../test/a11y";
+import { composing, noComposer } from "../../test/composerStore";
 import {
   minimalProject,
   pendingEditView,
@@ -66,7 +67,7 @@ function join(
     stage: "review",
     playheadSec: 0,
     selection: null,
-    commentDraft: null,
+    ...noComposer,
   });
 }
 
@@ -209,7 +210,7 @@ describe("Review queue for a guest", () => {
       "edit",
       null,
     );
-    useDawStore.setState({ stage: "review", commentDraft: null });
+    useDawStore.setState({ stage: "review", ...noComposer });
     render(<ReviewHost guestShare />);
     expect(screen.queryByText(PENDING_LABEL)).toBeNull();
     expect(
@@ -281,7 +282,7 @@ describe("Review queue for a guest", () => {
   it("keeps a draft that was set before typing when the field is emptied", async () => {
     const user = userEvent.setup();
     join("comment");
-    useDawStore.setState({ commentDraft: { startSec: 7, endSec: null } });
+    useDawStore.setState({ ...composing({ startSec: 7, endSec: null }) });
     render(<ReviewHost guestShare />);
     await user.type(field(), "a{Backspace}");
     expect(useDawStore.getState().commentDraft).toEqual({
@@ -296,7 +297,7 @@ describe("Review queue for a guest", () => {
     render(<ReviewHost guestShare />);
     await user.type(field(), "ab");
     const replacement = { startSec: 9, endSec: null };
-    act(() => useDawStore.setState({ commentDraft: replacement }));
+    act(() => useDawStore.setState({ ...composing(replacement) }));
     await user.type(field(), "c");
     await user.clear(field());
     expect(useDawStore.getState().commentDraft).toBe(replacement);
@@ -419,9 +420,9 @@ describe("Review queue for a guest", () => {
     fireEvent.change(field(), { target: { value: "a" } });
     fireEvent.change(field(), { target: { value: "" } });
     act(() =>
-      useDawStore.setState({ commentDraft: { startSec: 40, endSec: null } }),
+      useDawStore.setState({ ...composing({ startSec: 40, endSec: null }) }),
     );
-    act(() => useDawStore.setState({ commentDraft: null, playheadSec: 90 }));
+    act(() => useDawStore.setState({ ...noComposer, playheadSec: 90 }));
     fireEvent.input(field(), {
       target: { value: "a" },
       inputType: "historyUndo",
@@ -439,7 +440,7 @@ describe("Review queue for a guest", () => {
     const stage = container.querySelector(".rv-stage") as HTMLElement;
     fireEvent.keyDown(stage, { key: "c" });
     expect(useDawStore.getState().commentDraft?.startSec).toBe(90);
-    act(() => useDawStore.setState({ commentDraft: null }));
+    act(() => useDawStore.setState({ ...noComposer }));
     act(() => useDawStore.setState({ playheadSec: 200 }));
     fireEvent.input(field(), {
       target: { value: "a" },
@@ -630,7 +631,7 @@ describe("Review queue for a guest", () => {
       useDawStore.getState().hydrate("/p", minimalProject());
       useDawStore.setState({
         stage: "review",
-        commentDraft: { startSec: 1, endSec: null },
+        ...composing({ startSec: 1, endSec: null }),
       });
       render(<ReviewHost />);
       expect(above()).toBe(true);

@@ -5,6 +5,7 @@ import { openCommentDraft } from "../../commands/comments";
 import { clearRegisteredCommands } from "../../commands/execute";
 import { registerDawCommands } from "../../commands/register";
 import { useDawStore } from "../../state/dawStore";
+import { noComposer } from "../../test/composerStore";
 import {
   minimalProject,
   sampleComment,
@@ -62,7 +63,7 @@ function join(
     stage: "review",
     playheadSec: 0,
     selection: null,
-    commentDraft: null,
+    ...noComposer,
     openSheet: null,
     isPlaying: false,
     playStartSec: null,
@@ -194,7 +195,7 @@ describe("every way to open the composer", () => {
 });
 
 describe("a Post that lands after the composer was closed and reopened", () => {
-  it("keeps what the guest typed since", async () => {
+  it("sends the text once, and closes the reopened field when it lands", async () => {
     const user = userEvent.setup();
     join("comment");
     const post = inFlight();
@@ -204,9 +205,10 @@ describe("a Post that lands after the composer was closed and reopened", () => {
     await user.click(postButton());
     await user.click(screen.getByRole("button", { name: "Close" }));
     await user.click(commentAt());
-    await user.type(field(), " plus new thought");
+    expect(value()).toBe("first");
     await post.land();
-    expect(value()).toBe("first plus new thought");
+    expect(screen.queryByRole("textbox", { name: "Comment" })).toBeNull();
+    expect(useDawStore.getState().composer.draft).toBeNull();
     expect(createComment).toHaveBeenCalledTimes(1);
   });
 

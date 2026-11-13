@@ -1,5 +1,6 @@
-import { memo, type ReactNode } from "react";
+import { memo, type ReactNode, useEffect } from "react";
 import { useShallow } from "zustand/react/shallow";
+import { dispatchComposer } from "../../commands/composer";
 import { runPointerCommand } from "../../commands/pointer";
 import { useTranscriptDetail } from "../../document/useTranscriptDetail";
 import { useShortViewport } from "../../hooks/useShortViewport";
@@ -86,6 +87,16 @@ function ReviewHostAdapter({
     short,
   });
   const listening = placement === "dock";
+  // A sheet belongs to the Listen layout: it does not outlive it.
+  useEffect(() => {
+    if (!listening) dispatchComposer({ type: "sheetsGone" });
+  }, [listening]);
+  // The dock reads the same fact, so its Chapters button agrees with the middle.
+  const loadFailed = loadFailure != null;
+  useEffect(() => {
+    useDawStore.getState().setListenLoadFailed(loadFailed);
+    return () => useDawStore.getState().setListenLoadFailed(false);
+  }, [loadFailed]);
   const scrollRef = useStageScroll("review", "section:queue");
   const reading = useGuestReading();
   // The Listen layout keeps the transcript at any height, the keyboard's included.
@@ -117,7 +128,7 @@ function ReviewHostAdapter({
     <GuestListen
       review={queue.stageProps}
       scriptState={listenScriptOf({
-        loadFailed: loadFailure != null,
+        loadFailed,
         detail: detail.kind,
         hasTranscript: (project?.transcript?.utterances?.length ?? 0) > 0,
       })}

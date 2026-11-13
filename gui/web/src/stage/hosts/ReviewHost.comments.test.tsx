@@ -45,6 +45,7 @@ vi.mock("../edit/EditWorkspace", () => ({
 }));
 
 import { openCommentDraft } from "../../commands/comments";
+import { dispatchComposer } from "../../commands/composer";
 import { clearRegisteredCommands } from "../../commands/execute";
 import { registerDawCommands } from "../../commands/register";
 import { applyDocumentSnapshot } from "../../document/applyDocumentUpdate";
@@ -52,6 +53,7 @@ import { FeedbackToast } from "../../feedback/FeedbackToast";
 import { useDawKeymapListener } from "../../keymap/listener";
 import { useDawStore } from "../../state/dawStore";
 import { commandLocks } from "../../test/commandLocks";
+import { noComposer } from "../../test/composerStore";
 import {
   minimalProject,
   sampleComment,
@@ -201,7 +203,7 @@ const mount = (comments = [OPEN, LATER, DONE], picked?: string) => {
   useDawStore.setState({
     stage: "review",
     guestMode: null,
-    commentDraft: null,
+    ...noComposer,
     ...(picked ? { selection: { kind: "comment", id: picked } } : {}),
   });
   return render(<App />);
@@ -862,7 +864,7 @@ describe("Review host comments", () => {
         const action = screen.getByRole("textbox", { name: "Action item 1" });
         await userEvent.type(action, "Keep this action");
         if (clearFirst) {
-          act(() => useDawStore.getState().setCommentDraft(null));
+          act(() => dispatchComposer({ type: "close" }));
           expect(screen.queryByRole("textbox", { name: "Comment" })).toBeNull();
         }
         act(() => openCommentDraft({ startSec: 77, endSec: null }));
@@ -1097,19 +1099,15 @@ describe("Review host comments", () => {
     it("opens once on C: the card key and the window keymap do not both write a draft", async () => {
       mount();
       let writes = 0;
-      const original = useDawStore.getState().setCommentDraft;
-      useDawStore.setState({
-        setCommentDraft: (draft) => {
-          writes += 1;
-          original(draft);
-        },
+      const stop = useDawStore.subscribe((state, prev) => {
+        if (state.composer !== prev.composer) writes += 1;
       });
       act(() => {
         press("c");
       });
       await waitFor(() => expect(field()).toHaveFocus());
       await landed(() => {});
-      useDawStore.setState({ setCommentDraft: original });
+      stop();
       expect(writes).toBe(1);
     });
 
@@ -1177,7 +1175,7 @@ describe("Review host comments", () => {
       expect(field()).toBeVisible();
     });
 
-    it("does not show Posting when C reopens the field while the old post is in flight", async () => {
+    it("shows the reopened field as sending while the old post is in flight", async () => {
       let release!: () => void;
       const held = new Promise<void>((resolve) => {
         release = resolve;
@@ -1196,8 +1194,10 @@ describe("Review host comments", () => {
       act(() => {
         press("c");
       });
-      expect(screen.getByRole("button", { name: "Post" })).toBeVisible();
-      expect(screen.queryByRole("button", { name: "Posting…" })).toBeNull();
+      expect(screen.getByRole("button", { name: "Posting…" })).toHaveAttribute(
+        "aria-disabled",
+        "true",
+      );
       release();
     });
 
