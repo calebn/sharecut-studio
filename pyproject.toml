@@ -206,6 +206,7 @@ select = [
     "B",      # flake8-bugbear
     "SIM",    # flake8-simplify
     "RUF",    # ruff-specific
+    "TID251", # banned-api: platform questions go through util/host_platform.py
 ]
 ignore = [
     # Formatter owns wrapping; E501 still fires on long strings/URLs/comments.
@@ -227,7 +228,21 @@ extend-immutable-calls = [
     "fastapi.File",
 ]
 
+[tool.ruff.lint.flake8-tidy-imports.banned-api]
+"sys.platform".msg = "Ask podcast_mcp.util.host_platform.current() for a field; add a row or a field there."
+"platform.system".msg = "Ask podcast_mcp.util.host_platform.current().system_label."
+"platform.machine".msg = "Use podcast_mcp.util.host_platform.machine()."
+"platform.release".msg = "Use podcast_mcp.util.host_platform.release()."
+"platform.uname".msg = "Ask podcast_mcp.util.host_platform; add a field there."
+"platform.mac_ver".msg = "Ask podcast_mcp.util.host_platform; add a field there."
+"os.name".msg = "Use podcast_mcp.util.host_platform.current().is_nt or .is_posix."
+"os.uname".msg = "Ask podcast_mcp.util.host_platform; add a field there."
+"sysconfig.get_platform".msg = "Ask podcast_mcp.util.host_platform; add a field there."
+
 [tool.ruff.lint.per-file-ignores]
+# The platform ban covers only the engine package, and not its one reader of the platform.
+"!src/podcast_mcp/**" = ["TID251"]
+"src/podcast_mcp/util/host_platform.py" = ["TID251"]
 "tests/**" = [
     "B011",   # assert False is fine in tests
     "SIM117", # nested with + pytest.raises is often clearer
