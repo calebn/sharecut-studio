@@ -580,6 +580,22 @@ function deferred<T>() {
   return { promise, resolve, reject };
 }
 
+describe("ProxyEngine playback session", () => {
+  it("does not enter a playback session until the first play", () => {
+    vi.mocked(enterPlaybackSession).mockClear();
+    const { ctx } = makeCtx();
+    const engine = new ProxyEngine(
+      ctx,
+      async () => new ArrayBuffer(64),
+      engineEvents(),
+    );
+    engine.setSnapshot(snapshot());
+    expect(enterPlaybackSession).not.toHaveBeenCalled();
+    engine.play(0);
+    expect(enterPlaybackSession).toHaveBeenCalledTimes(1);
+  });
+});
+
 describe("immutable playback snapshots", () => {
   it("replaces a playing artifact at the current position and reuses unchanged bytes", async () => {
     const { ctx, created, setTime } = makeCtx();

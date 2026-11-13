@@ -315,16 +315,28 @@ describe("applyOsMediaSession", () => {
 });
 
 describe("osActionHandlers", () => {
-  function fakeCommands(playing: boolean) {
+  type PreviewState = "none" | "playing" | "ended";
+  function fakeCommands(playing: boolean, preview: PreviewState = "none") {
     const calls: string[] = [];
     let isPlaying = playing;
+    let previewNow = preview;
     return {
       calls,
       cmd: {
         isPlaying: () => isPlaying,
         livePositionSec: () => 88,
-        previewActive: () => false,
-        stopPreview: () => calls.push("stopPreview"),
+        previewActive: () => previewNow !== "none",
+        previewPlaying: () => previewNow === "playing",
+        stopPreview: () => {
+          previewNow = "none";
+          isPlaying = false;
+          calls.push("stopPreview");
+        },
+        resumeEpisode: () => {
+          previewNow = "none";
+          isPlaying = true;
+          calls.push("resume");
+        },
         syncPlayhead: (sec: number) => calls.push(`sync:${sec}`),
         togglePlay: () => {
           isPlaying = !isPlaying;
@@ -337,6 +349,36 @@ describe("osActionHandlers", () => {
   }
   const details = (extra: Partial<MediaSessionActionDetails> = {}) =>
     ({ action: "seekto", ...extra }) as MediaSessionActionDetails;
+
+  it.each([
+    ["no preview, playing", true, "none", "play", []],
+    ["no preview, playing", true, "none", "pause", ["sync:88", "toggle"]],
+    ["no preview, paused", false, "none", "play", ["toggle"]],
+    ["no preview, paused", false, "none", "pause", []],
+    ["preview playing", true, "playing", "play", []],
+    ["preview playing", true, "playing", "pause", ["stopPreview"]],
+    ["preview ended, episode playing", true, "ended", "play", ["resume"]],
+    ["preview ended, episode playing", true, "ended", "pause", ["stopPreview"]],
+    ["preview ended, episode paused", false, "ended", "play", ["resume"]],
+    ["preview ended, episode paused", false, "ended", "pause", ["stopPreview"]],
+  ] as const)(
+    "%s: OS %s issues the same command each time",
+    (_state, isPlaying, preview, action, expected) => {
+      const { cmd, calls } = fakeCommands(isPlaying, preview);
+      osActionHandlers(cmd)[action](details());
+      expect(calls).toEqual(expected);
+    },
+  );
+
+  it("play after a preview ended leaves the episode playing and a second play does nothing", () => {
+    const { cmd, calls } = fakeCommands(true, "ended");
+    const { play } = osActionHandlers(cmd);
+    play(details());
+    play(details());
+    expect(calls).toEqual(["resume"]);
+    expect(cmd.isPlaying()).toBe(true);
+    expect(cmd.previewActive()).toBe(false);
+  });
 
   it("play toggles only while paused", () => {
     const paused = fakeCommands(false);
