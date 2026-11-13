@@ -4,14 +4,6 @@ A site that needs a platform fact reads a field of ``current()``; it never reads
 ``sys.platform``, ``platform`` or ``os.name`` itself (Ruff bans them outside this module).
 A new host is one more row.
 
-Two axes, because the checks ask two different questions:
-
-- ``kernel`` decides syscalls. macOS and iOS share the Darwin kernel, so ``renameatx_np``,
-  ``fclonefileat`` and the ACL calls take one branch for both.
-- The capability fields decide features: whether processes can be spawned, which dialog,
-  reveal and player tools exist, whether media tools and transcription exist, and whether a
-  loopback peer is trusted.
-
 Pure: nothing here imports from ``podcast_mcp``, so ``settings`` can import it.
 """
 
@@ -212,15 +204,12 @@ def using(row: HostPlatform) -> Iterator[HostPlatform]:
 
 
 def data_roots() -> DataRoots:
-    """The default data locations for this host and this user's home."""
     return current().data_roots(Path.home())
 
 
 def machine() -> str:
-    """The CPU architecture, as reported data and for the Homebrew prefix."""
     return platform.machine()
 
 
 def release() -> str:
-    """The OS release string, as reported data."""
     return platform.release()

@@ -210,7 +210,7 @@ select = [
     "B",      # flake8-bugbear
     "SIM",    # flake8-simplify
     "RUF",    # ruff-specific
-    "TID251", # banned-api: platform questions go through util/host_platform.py
+    "TID251", # banned-api
 ]
 ignore = [
     # Formatter owns wrapping; E501 still fires on long strings/URLs/comments.
@@ -244,7 +244,6 @@ extend-immutable-calls = [
 "sysconfig.get_platform".msg = "Ask podcast_mcp.util.host_platform; add a field there."
 
 [tool.ruff.lint.per-file-ignores]
-# The platform ban covers only the engine package, and not its one reader of the platform.
 "!src/podcast_mcp/**" = ["TID251"]
 "src/podcast_mcp/util/host_platform.py" = ["TID251"]
 "tests/**" = [

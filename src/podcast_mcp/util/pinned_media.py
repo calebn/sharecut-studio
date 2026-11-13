@@ -46,8 +46,6 @@ def open_pinned_media(path: Path) -> BinaryIO:
         raise ValueError("media path must name a file")
     if descriptor_walk_supported():
         return _open_by_descriptor_walk(absolute)
-    # Only Windows takes the weaker path-based fallback; any other host without the descriptor
-    # walk fails closed.
     if host_platform.current().is_nt:
         return _open_verified_by_path(absolute)
     raise OSError(errno.ENOTSUP, "pinned media reads require no-follow directory descriptors")
