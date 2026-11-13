@@ -5,22 +5,9 @@ import type { SystemIconName } from "./icons";
 import { clampUnit, percentOf } from "./progress";
 import { StatusGlyph } from "./StatusGlyph";
 import { SystemIcon } from "./SystemIcon";
-import type { StatusState } from "./statusText";
+import { STATUS_ROW_GLYPH, type StatusRowState } from "./statusText";
 
-export type StatusRowState =
-  | "queued"
-  | "running"
-  | "done"
-  | "needs-you"
-  | "failed";
-
-const GLYPH: Record<StatusRowState, StatusState> = {
-  queued: "not-yet",
-  running: "running",
-  done: "done",
-  "needs-you": "needs-you",
-  failed: "failed",
-};
+export type { StatusRowState };
 
 export type StatusRowProps = {
   state: StatusRowState;
@@ -99,7 +86,11 @@ export function StatusRow({
   return (
     <div className={`sys-status sys-status--${density}`} data-state={state}>
       <div className="sys-status-line">
-        <StatusGlyph state={GLYPH[state]} progress={progress} colon />
+        <StatusGlyph
+          state={STATUS_ROW_GLYPH[state]}
+          progress={progress}
+          colon
+        />
         {expandable ? (
           <button
             type="button"

@@ -1,15 +1,18 @@
-"""The Studio served from inside a host process: one app, one held port, a listener that can stop."""
+"""The Studio served from inside a host process: one app, one held port, one start, a final stop."""
 
 from __future__ import annotations
 
+import asyncio
+import contextlib
 import http.client
 import json
 import threading
 import time
 import urllib.error
 import urllib.request
-from collections.abc import Iterator
+from collections.abc import AsyncIterator, Iterator
 from pathlib import Path
+from typing import Any
 
 import pytest
 from fastapi import FastAPI
@@ -64,23 +67,29 @@ def test_stop_is_safe_to_repeat_and_ends_the_server_thread() -> None:
     embedded.stop()
     embedded.stop()
 
-    assert embedded.status() == embedded.Stopped()
+    assert embedded.status() == embedded.Stopped("the engine was stopped; reopen the app")
     assert _listener_threads() == []
 
 
-def test_start_after_stop_keeps_the_port_the_app_and_its_jobs() -> None:
+def test_start_after_stop_is_refused_and_the_port_is_released() -> None:
     port = embedded.start()
-    app = embedded._ENGINE._app
-    manager = shared_job_manager()
-    job = manager.adopt_agent_job(tool_id="test", label="Test", claim="before-stop")
     embedded.stop()
 
-    assert embedded.start() == port
+    with pytest.raises(embedded.EmbeddedStartError) as refused:
+        embedded.start()
 
-    assert _health(port) == {"ok": True}
-    assert embedded._ENGINE._app is app
-    assert shared_job_manager() is manager
-    assert manager.get_job(job.id) is job
+    assert str(refused.value) == "the engine was stopped; reopen the app"
+    assert embedded.status() == embedded.Stopped("the engine was stopped; reopen the app")
+    assert _listener_threads() == []
+    with pytest.raises(OSError):
+        urllib.request.urlopen(f"http://127.0.0.1:{port}/api/health", timeout=2)
+
+
+def test_stop_before_any_start_leaves_the_engine_able_to_start() -> None:
+    embedded.stop()
+
+    assert embedded.status() == embedded.Idle()
+    assert _health(embedded.start()) == {"ok": True}
 
 
 def test_stop_returns_while_an_event_stream_is_open() -> None:
@@ -154,14 +163,76 @@ def test_a_failed_start_can_be_retried(monkeypatch: pytest.MonkeyPatch) -> None:
     assert len(calls) == 2
 
 
-def test_a_server_thread_that_died_is_reported_and_start_serves_again() -> None:
+def _app_with_lifespan(monkeypatch: pytest.MonkeyPatch, lifespan: Any) -> None:
+    def build(*, host_mcp: bool) -> FastAPI:
+        app = FastAPI(lifespan=lifespan)
+        app.add_api_route("/ping", lambda: {"pong": True})
+        return app
+
+    monkeypatch.setattr("podcast_mcp.gui.server.create_app", build)
+
+
+def test_a_lifespan_that_raises_fails_the_start_and_the_held_port_survives_a_retry(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    attempts: list[int] = []
+
+    @contextlib.asynccontextmanager
+    async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
+        attempts.append(1)
+        if len(attempts) == 1:
+            raise RuntimeError("lifespan failed")
+        yield
+
+    _app_with_lifespan(monkeypatch, lifespan)
+    with pytest.raises(embedded.EmbeddedStartError, match="the server stopped while starting"):
+        embedded.start()
+    held = embedded._ENGINE._socket
+    assert held is not None
+    port = held.getsockname()[1]
+    assert embedded.status() == embedded.Failed("the server stopped while starting")
+    assert _listener_threads() == []
+
+    assert embedded.start() == port
+
+    with urllib.request.urlopen(f"http://127.0.0.1:{port}/ping", timeout=10) as response:
+        assert json.loads(response.read()) == {"pong": True}
+
+
+def test_a_startup_that_outlives_the_deadline_fails_the_start(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    released = threading.Event()
+    real_close = embedded._Listener.close
+
+    def close_and_release(self: embedded._Listener) -> None:
+        released.set()
+        real_close(self)
+
+    @contextlib.asynccontextmanager
+    async def blocked(_app: FastAPI) -> AsyncIterator[None]:
+        await asyncio.to_thread(released.wait, 10)
+        yield
+
+    monkeypatch.setattr(embedded._Listener, "close", close_and_release)
+    _app_with_lifespan(monkeypatch, blocked)
+    monkeypatch.setattr(embedded, "_ENGINE", embedded._Engine(start_timeout_sec=0.1))
+
+    with pytest.raises(embedded.EmbeddedStartError, match="the server did not start in time"):
+        embedded.start()
+
+    assert embedded.status() == embedded.Failed("the server did not start in time")
+    assert _listener_threads() == []
+
+
+def test_a_server_thread_that_died_ends_the_engine_for_good() -> None:
     embedded.start()
     listener = embedded._ENGINE._listener
     assert listener is not None
     listener.server.should_exit = True
     listener.thread.join(10)
 
-    assert embedded.status() == embedded.Failed("the server stopped unexpectedly")
-    port = embedded.start()
-
-    assert _health(port) == {"ok": True}
+    stopped = embedded.Stopped("the server stopped unexpectedly; reopen the app")
+    assert embedded.status() == stopped
+    with pytest.raises(embedded.EmbeddedStartError, match="the server stopped unexpectedly"):
+        embedded.start()

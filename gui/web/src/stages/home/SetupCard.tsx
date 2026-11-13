@@ -197,7 +197,7 @@ function SetupBody({
   if (state === "tools-unsupported") {
     return (
       <Card title="Audio tools">
-        <StatusRow state="queued" title={detail ?? NOT_ON_THIS_DEVICE} />
+        <StatusRow state="unavailable" title={detail ?? NOT_ON_THIS_DEVICE} />
       </Card>
     );
   }

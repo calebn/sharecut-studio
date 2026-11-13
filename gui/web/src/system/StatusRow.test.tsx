@@ -1,6 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
+import { expectNoA11yViolations } from "../test/a11y";
 import { StatusGlyph } from "./StatusGlyph";
 import { StatusRow } from "./StatusRow";
 
@@ -232,4 +233,26 @@ describe("StatusGlyph progress", () => {
       expect(screen.queryByRole("button")).toBeNull();
     },
   );
+});
+
+describe("StatusRow unavailable", () => {
+  it("names the state, draws the ban glyph and offers nothing to do", async () => {
+    const { container } = render(
+      <StatusRow
+        state="unavailable"
+        title="ShareCut can't process audio on this device yet."
+      />,
+    );
+    expect(container).toHaveTextContent(
+      "Not available: ShareCut can't process audio on this device yet.",
+    );
+    expect(
+      screen.getByText("Not available", { selector: ".sr-only" }),
+    ).toBeTruthy();
+    expect(container.querySelector(".sys-tone-neutral svg")).not.toBeNull();
+    expect(container.querySelector("svg.lucide-ban")).not.toBeNull();
+    expect(screen.queryByRole("button")).toBeNull();
+    expect(screen.queryByRole("progressbar")).toBeNull();
+    await expectNoA11yViolations(container);
+  });
 });
