@@ -4,7 +4,10 @@ from __future__ import annotations
 
 import json
 import re
+from collections.abc import Callable
 from pathlib import Path
+
+import pytest
 
 from podcast_mcp.util.redact import redact_share_paths
 
@@ -30,3 +33,15 @@ def test_no_mounted_route_puts_a_token_where_the_redactor_cannot_see_it() -> Non
     ]
 
     assert uncovered == [], "add the route's prefix to util/redact.py _SHARE_PATH_ROOTS"
+
+
+@pytest.mark.parametrize("fold", [str.upper, str.title])
+def test_every_token_route_is_covered_in_upper_and_mixed_case(fold: Callable[[str], str]) -> None:
+    uncovered = [
+        path
+        for path in _token_routes()
+        if TOKEN
+        in redact_share_paths(TOKEN.join(fold(part) for part in TOKEN_PARAMETER.split(path)))
+    ]
+
+    assert uncovered == []
