@@ -635,7 +635,7 @@ def test_a_record_that_is_read_is_the_newest_and_outlives_an_unread_one(
 
 # Bump evidence_records.RECORD_REV and this pin together whenever the code that decides what the
 # evidence is changes: a record of the old code is otherwise read as if it were the new code's.
-EVIDENCE_CODE_PIN = "437234419c226895"
+EVIDENCE_CODE_PIN = "cac2b4b01d4d73e5"
 EVIDENCE_RECORD_REV_PIN = 2
 
 
