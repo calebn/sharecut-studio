@@ -52,6 +52,14 @@ class ReleaseRecord:
     def token(self) -> str:
         return f"{self.build_number}:{self.ipa_sha256[:TOKEN_HEX]}"
 
+    def unresolved_uploads(self, ipa_sha256: str) -> list[dict[str, Any]]:
+        """Attempts for this file that were started and never got an answer from Apple."""
+        return [
+            upload
+            for upload in self.uploads
+            if upload.get("ipa_sha256") == ipa_sha256 and upload.get("outcome") is None
+        ]
+
     def delivered(self) -> bool:
         uploaded = any(
             (upload.get("outcome") or {}).get("verdict") in BLOCKING for upload in self.uploads
@@ -66,6 +74,8 @@ def write_record(directory: Path, record: ReleaseRecord) -> None:
     descriptor = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
     with os.fdopen(descriptor, "w", encoding="utf-8") as handle:
         handle.write(text)
+        handle.flush()
+        os.fsync(handle.fileno())
     temporary.replace(directory / RECORD_NAME)
 
 
@@ -169,7 +179,9 @@ class GuardFacts:
     build_number_in_ipa: str
 
 
-def upload_preconditions(record: ReleaseRecord, confirm: str, facts: GuardFacts) -> list[str]:
+def upload_preconditions(
+    record: ReleaseRecord, confirm: str, facts: GuardFacts, *, retry_unknown: bool = False
+) -> list[str]:
     """Pure. An empty list means the upload may go on to its rechecks and revalidation."""
     expected = f"{facts.build_number_in_ipa}:{facts.sha256[:TOKEN_HEX]}"
     refusals = []
@@ -189,6 +201,11 @@ def upload_preconditions(record: ReleaseRecord, confirm: str, facts: GuardFacts)
         refusals.append("HEAD is not the commit this build was made from")
     if record.delivered():
         refusals.append("this build was already delivered or reported as a duplicate")
+    if record.unresolved_uploads(facts.sha256) and not retry_unknown:
+        refusals.append(
+            f"an earlier upload of this file has no recorded outcome; check TestFlight for build "
+            f"{record.build_number}, and pass --retry-unknown-upload only if it is not there"
+        )
     return refusals
 
 

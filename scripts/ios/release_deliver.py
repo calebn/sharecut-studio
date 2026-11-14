@@ -108,6 +108,7 @@ def plan_deliver(
     *,
     confirm: str | None,
     git_state: GitState,
+    retry_unknown_upload: bool = False,
 ) -> list[Step]:
     stage = Path(tempfile.gettempdir()) / f"sharecut-ios-stage-{secrets.token_hex(8)}"
     staged = stage / "app.ipa"
@@ -131,7 +132,14 @@ def plan_deliver(
         return outcome
 
     def start_attempt(ws: Workspace) -> None:
-        record.uploads.append({"ipa_sha256": ws.sha256, "started_at": now_iso(), "outcome": None})
+        attempt: dict[str, object] = {
+            "ipa_sha256": ws.sha256,
+            "started_at": now_iso(),
+            "outcome": None,
+        }
+        if retry_unknown_upload and record.unresolved_uploads(ws.sha256):
+            attempt["retried_unknown_upload"] = True
+        record.uploads.append(attempt)
         write_record(record_dir, record)
 
     def guard(ws: Workspace) -> checks.CheckReport:
@@ -140,6 +148,7 @@ def plan_deliver(
             record,
             confirm or "",
             GuardFacts(ws.sha256, ws.signing, not dirty, commit, ws.build_number),
+            retry_unknown=retry_unknown_upload,
         )
         return checks.CheckReport("upload guard", tuple(refusals))
 
