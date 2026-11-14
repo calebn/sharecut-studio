@@ -481,7 +481,7 @@ function DeliverStageAdapter({ loadFailure }: DeliverStageProps) {
     appliedEditCount: project.applied_edits.count,
     comments: project.comments ?? [],
     unsureWordsLeft:
-      wordDetail.kind === "ready"
+      wordDetail.kind === "ready" && !wordDetail.shown.refreshing
         ? lowConfidenceStops(project.transcript?.utterances ?? []).length
         : wordDetail.kind === "failed"
           ? "failed"

@@ -4,8 +4,15 @@ import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { clearRegisteredCommands } from "../../commands/execute";
 import { registerDawCommands } from "../../commands/register";
 import { applyDocumentSnapshot } from "../../document/applyDocumentUpdate";
-import { resetDocumentAuthority } from "../../document/authorityState";
+import {
+  documentAuthority,
+  resetDocumentAuthority,
+} from "../../document/authorityState";
 import type { DocumentSnapshot } from "../../document/projectPatch";
+import {
+  settledTranscriptOf,
+  transcriptGrantOf,
+} from "../../document/shownTranscript";
 import { useTranscriptDetail } from "../../document/useTranscriptDetail";
 import { useDawStore } from "../../state/dawStore";
 import { deferred } from "../../test/deferred";
@@ -180,4 +187,65 @@ it("does not retry a failed previous project's Detail", async () => {
     screen.queryByText("The transcript didn't load"),
   ).not.toBeInTheDocument();
   expect(screen.getByText("0 left", { exact: true })).toBeInTheDocument();
+});
+
+it("keeps the unsure-words row pending while a guest's remembered words are held", () => {
+  const word = {
+    text: "word",
+    start: 0,
+    end: 1,
+    word_index: 0,
+    confidence: 0.4,
+    unsure: true,
+    mappable: true,
+    timeline_start: 0,
+    timeline_end: 1,
+  };
+  const withRows = (words: boolean) => {
+    const base = project(words);
+    return minimalProject({
+      tracks: base.tracks,
+      meta: base.meta,
+      transcript: {
+        utterances: [
+          {
+            track_id: "t1",
+            source_id: "s",
+            speaker: "Host",
+            text: "word",
+            start: 0,
+            end: 1,
+            mappable: true,
+            timeline_start: 0,
+            timeline_end: 1,
+            ...(words ? { words: [word] } : {}),
+          },
+        ],
+      } as never,
+    });
+  };
+  const complete = withRows(true);
+  const key = "share:tok";
+  useDawStore
+    .getState()
+    .hydrate(key, complete, "edit", ["play", "view", "edit"], null, true);
+  resetDocumentAuthority(key);
+  documentAuthority.token = "a".repeat(64);
+  documentAuthority.phase = { kind: "ready" };
+  documentAuthority.project = complete;
+  documentAuthority.settled = settledTranscriptOf(
+    complete,
+    transcriptGrantOf(useDawStore.getState()),
+  );
+  useDawStore.setState({ stage: "deliver", guestMode: null });
+  wire.detail.mockReturnValue(new Promise(() => undefined));
+  render(<App />);
+  expect(screen.getByText("1 left", { exact: true })).toBeInTheDocument();
+  act(() => {
+    const shell = withRows(false);
+    documentAuthority.project = shell;
+    useDawStore.setState({ project: shell });
+  });
+  expect(screen.queryByText("0 left", { exact: true })).not.toBeInTheDocument();
+  expect(screen.queryByText("1 left", { exact: true })).not.toBeInTheDocument();
 });
