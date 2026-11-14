@@ -26,6 +26,8 @@ export type GuestScriptProps = {
   /** Some lines are still being refreshed: the pane says so and follow mode holds still. */
   refreshing?: boolean;
   onSeek: (seconds: number) => void;
+  /** A tap or Enter landed on a word whose time is not known yet. */
+  onHeldWord?: () => void;
   onUserScroll?: () => void;
   /** Given with `onSelect` to a guest who may suggest edits; left out, the pane only reads. */
   selection?: ScriptSelection | null;
@@ -44,6 +46,7 @@ export function GuestScript({
   empty = "none",
   refreshing = false,
   onSeek,
+  onHeldWord,
   onUserScroll,
   selection,
   onSelect,
@@ -101,6 +104,7 @@ export function GuestScript({
               const start =
                 wordStarts[Math.min(selection.anchor, selection.head)];
               if (start != null) onSeek(start);
+              else onHeldWord?.();
             }
           : undefined
       }
@@ -108,6 +112,7 @@ export function GuestScript({
       onSeek={(index) => {
         const start = wordStarts[index];
         if (start != null) onSeek(start);
+        else onHeldWord?.();
       }}
       onUserScroll={() => {
         reading.setFollowing(false);

@@ -2,6 +2,7 @@ import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useShallow } from "zustand/react/shallow";
 import { seekTransport } from "../../commands/seek";
 import type { ShownTranscript } from "../../document/shownTranscript";
+import { TRANSCRIPT_REFRESHING } from "../../edit/rangeSelection";
 import { useShortViewport } from "../../hooks/useShortViewport";
 import { useViewportClass } from "../../hooks/useViewportClass";
 import { rangeEditMode } from "../../shareMode";
@@ -25,6 +26,11 @@ import {
   playingWordsAt,
   touchesHeld,
 } from "./guestScript";
+import {
+  followSelection,
+  type RememberedSelection,
+  selectionEndOf,
+} from "./guestSelection";
 
 const NOOP = () => {};
 
@@ -56,12 +62,44 @@ function GuestScriptHostAdapter({
   const model = useMemo(() => guestScriptModelOf(script), [script]);
   const range = useScriptSelection(model, mayRange, NOOP);
   const selectRange = range.onSelect;
+  const remembered = useRef<RememberedSelection | null>(null);
+  const heldNotice = useCallback(() => {
+    useDawStore
+      .getState()
+      .announceStatus(TRANSCRIPT_REFRESHING, { tone: "error" });
+  }, []);
   const onSelect = useCallback(
     (selection: WordsSelection) => {
-      if (!touchesHeld(script, selection)) selectRange?.(selection);
+      if (touchesHeld(script, selection)) {
+        heldNotice();
+        return;
+      }
+      selectRange?.(selection);
+      const stored = useDawStore.getState().selection;
+      const anchor = selectionEndOf(turns, selection.anchor);
+      const head = selectionEndOf(turns, selection.head);
+      remembered.current =
+        stored && anchor && head ? { stored, anchor, head } : null;
     },
-    [script, selectRange],
+    [script, selectRange, turns, heldNotice],
   );
+  // An edit renumbers words: a selection of ours follows its words or goes.
+  useEffect(() => {
+    const mine = remembered.current;
+    if (!mine) return;
+    const state = useDawStore.getState();
+    if (state.selection !== mine.stored) {
+      remembered.current = null;
+      return;
+    }
+    const next = followSelection(mine, turns);
+    if (next.kind === "clear") {
+      remembered.current = null;
+      state.setSelection(null);
+    } else if (next.kind === "move") {
+      onSelect({ kind: "words", anchor: next.anchor, head: next.head });
+    }
+  }, [turns, onSelect]);
   const positionKey = useDawStore(
     useCallback(
       (s: { playheadSec: number }) =>
@@ -103,6 +141,7 @@ function GuestScriptHostAdapter({
         empty={empty}
         refreshing={shown.refreshing}
         onSeek={(seconds) => void seekTransport(seconds)}
+        onHeldWord={heldNotice}
         selection={mayRange ? range.selection : undefined}
         onSelect={range.onSelect ? onSelect : undefined}
         onClearSelection={mayRange ? range.onClearSelection : undefined}
