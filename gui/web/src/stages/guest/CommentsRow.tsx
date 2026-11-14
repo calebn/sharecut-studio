@@ -27,15 +27,20 @@ export function CommentsRow({
   onOpen,
 }: CommentsRowProps) {
   const replacesLabel = flash ?? preview;
+  // No aria-label: the name is the button's content, so it always holds the
+  // visible text. The hidden words add what the button does ("Show") and, while
+  // the row shows something else, the rest of the label after the visible count.
+  const afterCount = label.slice(String(comments).length).trim();
   return (
-    <button
-      type="button"
-      className="gl-row"
-      aria-label={`Show ${label}`}
-      onClick={onOpen}
-    >
+    <button type="button" className="gl-row" onClick={onOpen}>
       <SystemIcon name="message-square" size={16} />
-      {replacesLabel ? <span className="gl-row-count">{comments}</span> : null}
+      <span className="sr-only">Show</span>{" "}
+      {replacesLabel ? (
+        <>
+          <span className="gl-row-count">{comments}</span>{" "}
+          <span className="sr-only">{afterCount}</span>{" "}
+        </>
+      ) : null}
       {flash ? (
         <span className="gl-row-text">{flash}</span>
       ) : preview ? (

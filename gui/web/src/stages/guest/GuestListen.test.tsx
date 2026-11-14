@@ -301,10 +301,17 @@ describe("the phone Commenter Listen layout", () => {
     join("comment");
     mount();
     act(() => useDawStore.setState({ playheadSec: 5 }));
-    const row = screen.getByRole("button", { name: "Show 3 comments" });
+    const row = screen.getByRole("button", {
+      name: "Show 3 comments Claude · 0:03 Note number 1",
+    });
     expect(row).toHaveTextContent("Claude · 0:03 Note number 1");
-    const count = within(row).getByText("3");
-    expect(count.previousElementSibling?.tagName.toLowerCase()).toBe("svg");
+    const count = within(row).getByText("3", { selector: ".gl-row-count" });
+    const before = [...row.children].filter(
+      (el) => !el.classList.contains("sr-only"),
+    );
+    expect(before[before.indexOf(count) - 1]?.tagName.toLowerCase()).toBe(
+      "svg",
+    );
   });
 
   it("names the row in the singular for one comment", () => {
