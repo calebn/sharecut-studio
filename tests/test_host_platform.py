@@ -364,12 +364,27 @@ def test_a_path_outside_a_container_home_stays_as_written(container_home: Path) 
         assert host_platform.from_stored("/Volumes/Picked/Episode") == "/Volumes/Picked/Episode"
 
 
-@pytest.mark.parametrize("stored", ["../Other", "Documents/../../Other"])
+@pytest.mark.parametrize(
+    "stored", ["../Other", "Documents/../../Other", "Documents/../Documents/Episode"]
+)
 def test_a_stored_path_that_climbs_out_of_a_container_home_is_refused(
     container_home: Path, stored: str
 ) -> None:
     with using(dataclasses.replace(MACOS, app_container=True)):
         assert host_platform.from_stored(stored) is None
+
+
+@pytest.mark.parametrize("stored", ["", ".", "Documents/Epi\x00sode", "\x00"])
+def test_a_stored_value_that_names_no_folder_or_the_home_itself_is_refused(
+    container_home: Path, stored: str
+) -> None:
+    with using(dataclasses.replace(MACOS, app_container=True)):
+        assert host_platform.from_stored(stored) is None
+
+
+def test_a_nul_byte_is_refused_on_a_host_whose_paths_never_move() -> None:
+    with using(MACOS):
+        assert host_platform.from_stored("/Volumes/Pi\x00cked") is None
 
 
 def test_an_absolute_stored_path_under_a_container_home_is_refused(container_home: Path) -> None:
