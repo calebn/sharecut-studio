@@ -180,13 +180,13 @@ def test_holder_observation_fails_to_unknown(tmp_path, monkeypatch, failure):
         return io.BytesIO(b"\xff" if failure == "malformed" else row)
 
     monkeypatch.setattr(Path, "open", open_snapshot)
-    with using(LINUX):
+    with using(LINUX, real_syscalls=False):
         assert file_locks.file_lock_holder_pid(lock_path) is None
 
 
 @pytest.mark.parametrize("row", [MACOS, IOS, WINDOWS, GENERIC_POSIX])
 def test_holder_observation_is_unavailable_off_linux(tmp_path, row):
-    with using(row):
+    with using(row, real_syscalls=False):
         assert file_locks.file_lock_holder_pid(tmp_path / "absent.lock") is None
 
 
@@ -208,5 +208,5 @@ def test_holder_observation_requires_a_regular_lock_file(tmp_path, kind):
         lock_path.symlink_to(target)
     else:
         lock_path.mkdir()
-    with using(LINUX):
+    with using(LINUX, real_syscalls=False):
         assert file_locks.file_lock_holder_pid(lock_path) is None

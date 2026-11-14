@@ -608,7 +608,7 @@ def discard_created_version(
 def _clone_pinned_wav(source_fd: int, snapshot: Path) -> bool:
     """Clone from the pinned source descriptor into a separate inode when supported."""
     try:
-        kernel = host_platform.current().kernel
+        kernel = host_platform.syscall_kernel()
         if kernel == "darwin":
             libc = ctypes.CDLL(None, use_errno=True)
             clone = libc.fclonefileat

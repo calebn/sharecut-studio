@@ -202,7 +202,7 @@ def _linux_physical_cores(cpuinfo: Path = Path("/proc/cpuinfo")) -> int | None:
 
 
 def _physical_cores() -> int | None:
-    kernel = host_platform.current().kernel
+    kernel = host_platform.syscall_kernel()
     try:
         if kernel == "linux":
             return _linux_physical_cores()
@@ -253,7 +253,7 @@ def _ram_bytes() -> int | None:
 def available_ram_bytes() -> int | None:
     """RAM that can be handed out now without swapping, or None when the platform will not say."""
     try:
-        kernel = host_platform.current().kernel
+        kernel = host_platform.syscall_kernel()
         if kernel == "nt":
             return _ram_bytes_win32("ullAvailPhys")
         if kernel == "darwin":
