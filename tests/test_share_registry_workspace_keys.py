@@ -106,13 +106,14 @@ def _seed_review(folder: Path, token: str, **sidecar_only: object) -> dict:
     return row
 
 
-def _mint_record(project_file: Path) -> dict:
+def _mint_record(project_file: Path, expires_at: str | None = None) -> dict:
     return create_share(
         ProjectWorkspace.open(project_file).project,
         review_version_id=RECORD_REVIEW_VERSION_SENTINEL,
         kind="record",
         role="guest",
         session_id="room-1",
+        expires_at=expires_at,
     )
 
 
@@ -340,3 +341,41 @@ def _count(table: str) -> int:
     registry = get_share_registry()
     assert isinstance(registry, SqliteShareRegistry)
     return int(registry._conn.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0])
+
+
+def test_the_sweep_demotes_an_expired_unresolvable_active_row_to_the_cooldown(
+    container: Path,
+) -> None:
+    project_file = _project(container / "Documents" / "Episode")
+    row = _mint_record(project_file, expires_at="2029-12-01T00:00:00Z")
+    _set_raw("active_shares", row["token"], f"{OLDER_CONTAINER}/Documents/Episode")
+    registry = get_share_registry()
+
+    sweep_all_pending(now=T0)
+
+    assert _count("active_shares") == 0
+    assert registry.is_reserved(row["token"], now=T0 + timedelta(days=364))
+    assert not registry.is_reserved(row["token"], now=T0 + timedelta(days=366))
+
+
+def test_the_sweep_leaves_an_unexpired_unresolvable_active_row_reserved(container: Path) -> None:
+    project_file = _project(container / "Documents" / "Episode")
+    row = _mint_record(project_file, expires_at="2031-01-01T00:00:00Z")
+    _set_raw("active_shares", row["token"], f"{OLDER_CONTAINER}/Documents/Episode")
+    unlimited = _mint_record(project_file)
+    _set_raw("active_shares", unlimited["token"], f"{OLDER_CONTAINER}/Documents/Episode")
+
+    sweep_all_pending(now=T0)
+
+    assert _count("active_shares") == 2
+    assert get_share_registry().is_reserved(row["token"], now=T0)
+
+
+def test_the_sweep_never_touches_an_expired_resolvable_row(container: Path) -> None:
+    project_file = _project(container / "Documents" / "Episode")
+    row = _mint_record(project_file, expires_at="2029-12-01T00:00:00Z")
+
+    sweep_all_pending(now=T0)
+
+    assert _count("active_shares") == 1
+    assert _raw("active_shares", row["token"]) == "Documents/Episode"

@@ -264,6 +264,8 @@ class ShareRegistryProtocol(Protocol):
 
     def finalize_unresolvable_pending(self) -> int: ...
 
+    def demote_expired_unresolvable_active(self, *, now: datetime | None = None) -> int: ...
+
     def backup_to_new(self, dest: Path) -> Path: ...
 
 
@@ -299,7 +301,8 @@ class SqliteShareRegistry:
     row leaves the registry: :meth:`get_active`, :meth:`list_active_for_workspace`,
     :meth:`restore_group`, :meth:`list_pending` and :meth:`claim_due`. A row whose value cannot
     be decoded is unresolvable: an active one is invisible to those readers and keeps its slug
-    reserved, and a pending one is dropped by :meth:`finalize_unresolvable_pending`.
+    reserved until revoked or demoted by :meth:`demote_expired_unresolvable_active`, and a pending
+    one is dropped by :meth:`finalize_unresolvable_pending`.
     """
 
     def __init__(self, db_path: Path | None = None) -> None:
@@ -737,6 +740,25 @@ class SqliteShareRegistry:
             self._conn.executemany(
                 "DELETE FROM pending_revokes WHERE token = ?", [(token,) for token in dead]
             )
+            return len(dead)
+
+    def demote_expired_unresolvable_active(self, *, now: datetime | None = None) -> int:
+        """Demote active rows past their expiry whose workspace cannot be decoded.
+
+        Only a lookup demotes an expired link, and an unresolvable row is invisible to lookups,
+        so the sweep does it here. The slug then follows the normal cooldown. Returns the count.
+        """
+        moment = now or utc_now()
+        with self._ready_connection(), self._write_transaction():
+            dead = [
+                row
+                for row in self._conn.execute("SELECT * FROM active_shares").fetchall()
+                if _decode_workspace(row["project_workspace"]) is None
+                and (expires := parse_iso(row["expires_at"])) is not None
+                and expires <= moment
+            ]
+            for row in dead:
+                self._reserve_revoked(row, "expired", moment, SHARE_COOLDOWN_DAYS)
             return len(dead)
 
     def _active_row(self, token: str, project_workspace: str) -> sqlite3.Row | None:
