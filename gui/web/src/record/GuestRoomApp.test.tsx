@@ -1312,18 +1312,30 @@ describe("GuestRoomApp", () => {
           "Couldn't reach the server. Check your connection and try again.",
         ),
       ).toBeNull();
-      expect(document.title).toBe("Couldn't reach the room | ShareCut Studio");
+      await waitFor(() =>
+        expect(document.title).toBe(
+          "Couldn't reach the room | ShareCut Studio",
+        ),
+      );
       await userEvent.click(screen.getByRole("button", { name: "Try again" }));
       expect(
         await screen.findByRole("heading", { name: "Join the room" }),
       ).toBeInTheDocument();
-      expect(document.title).toBe("Join the room | Shot of Truth");
+      await waitFor(() =>
+        expect(document.title).toBe("Join the room | Shot of Truth"),
+      );
     });
 
     it("loads the room by itself when the browser comes back online", async () => {
       const bootstraps = stubUnreachableOnce();
+      const listen = vi.spyOn(window, "addEventListener");
       render(<GuestRoomApp token="guest-tok" />);
       await screen.findByRole("heading", { name: "Couldn't reach the room" });
+      await waitFor(() =>
+        expect(listen).toHaveBeenCalledWith("online", expect.any(Function), {
+          once: true,
+        }),
+      );
       act(() => {
         window.dispatchEvent(new Event("online"));
       });
