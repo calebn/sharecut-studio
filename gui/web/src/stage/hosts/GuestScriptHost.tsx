@@ -23,7 +23,7 @@ import {
   guestScriptModelOf,
   guestScriptOf,
   playingWordsAt,
-  spansHeldAcrossTracks,
+  touchesHeld,
 } from "./guestScript";
 
 const NOOP = () => {};
@@ -57,8 +57,7 @@ function GuestScriptHostAdapter({
   const range = useScriptSelection(model, mayRange, NOOP);
   const onSelect = useCallback(
     (selection: WordsSelection) => {
-      if (!spansHeldAcrossTracks(script, selection))
-        range.onSelect?.(selection);
+      if (!touchesHeld(script, selection)) range.onSelect?.(selection);
     },
     [script, range.onSelect],
   );
