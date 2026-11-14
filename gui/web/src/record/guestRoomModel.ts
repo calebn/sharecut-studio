@@ -298,18 +298,19 @@ export function guestViewerWidth(
   return landscape ? "phone-landscape" : "phone";
 }
 
+/** The guest and producer alerts. The host-offline alert is derived from the roster by roomViewModel. */
 export function guestRoomAlerts(
   source: Omit<RoomAlertSource, "hydrateError"> & {
-    dropped?: boolean;
+    phase: RoomPhase;
+    recorded: boolean;
     notice?: string | null;
   },
   actions: RoomAlertActions = {},
-  host?: string,
 ): RoomAlertInput[] {
-  const { dropped, notice, ...rest } = source;
+  const { phase, recorded, notice, ...rest } = source;
   const alerts = roomAlerts({ ...rest, hydrateError: null }, actions);
-  if (dropped) {
-    alerts.unshift({ kind: "host-offline", name: host });
+  if (recorded && phase.kind === "reconnecting" && !phase.paused) {
+    alerts.push({ kind: "connection-lost" });
   }
   if (notice) {
     alerts.push({ kind: "notice", message: notice });

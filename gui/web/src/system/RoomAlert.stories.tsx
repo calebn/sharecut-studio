@@ -136,6 +136,19 @@ export const Recovery: Story = {
   },
 };
 
+export const ConnectionLost: Story = {
+  args: ONE("connection-lost"),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(
+      canvas.getByText(
+        "Lost connection to the room. You're still recording on this device.",
+      ),
+    ).toBeVisible();
+    await expect(canvas.queryAllByRole("button")).toHaveLength(0);
+  },
+};
+
 export const HostOffline: Story = {
   args: ONE("host-offline", { name: "Rosa" }),
   play: async ({ canvasElement }) => {

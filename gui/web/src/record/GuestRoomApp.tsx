@@ -280,7 +280,6 @@ function GuestRoomSession({
     counting: state === "recording",
     onAir,
   });
-  const dropped = !connected && onAir && recorded;
   const micNeedsAttention =
     recorded && onAir && (mic.lost || mic.stream === null);
   const captureHealth = resolveCaptureHealth(
@@ -291,6 +290,12 @@ function GuestRoomSession({
   const clipped = takeClipping?.regions.length ?? 0;
   // A partial take's upload error only explains Finish saving; one action is enough.
   const recoverable = !producer && upload.recoverable && state === "stopped";
+  const phase = guestRoomPhase(snapshot, {
+    elapsedSinceSnapshotMs: elapsed,
+    upload: producer ? null : upload,
+    tookPart: producer ? undefined : tookPart(snapshot, me),
+    connected,
+  });
   const alerts = guestRoomAlerts(
     {
       state,
@@ -304,7 +309,8 @@ function GuestRoomSession({
       transportError: recordSyncErrorCopy(error),
       clipping: !producer && clippingGate(takeClipping?.regions ?? []),
       mutedSpeech,
-      dropped,
+      phase,
+      recorded,
       micCheckFailed: keeper.micCheckFailed,
       notice: keeperActions.notice,
     },
@@ -317,7 +323,6 @@ function GuestRoomSession({
       recover: keeperActions.recover,
       dismiss: clearError,
     },
-    host,
   ).map((alert) =>
     alert.kind === "saving-failed" && keeperActions.download
       ? { ...alert, onSecondaryAction: keeperActions.download }
@@ -344,18 +349,13 @@ function GuestRoomSession({
     youId: meId,
     youLevel: level,
     youSpeaking: level > SPEAKING_FRACTION && !me?.muted,
-    dropped,
+    dropped: !connected,
     clipped,
     peerLevels: monitor.levels,
     saving:
       meId && state === "stopped" && !producer
         ? { [meId]: ownSaving(upload) }
         : undefined,
-  });
-  const phase = guestRoomPhase(snapshot, {
-    elapsedSinceSnapshotMs: elapsed,
-    upload: producer ? null : upload,
-    tookPart: producer ? undefined : tookPart(snapshot, me),
   });
 
   const cover = guestCoverProps(room, onRetry);
@@ -504,7 +504,7 @@ function GuestRoomSession({
         {keeper.recordingLocally && !keeper.error && !keeper.noAudio ? (
           <p>{LOCAL_KEEPER_COPY}</p>
         ) : null}
-        {monitor.hearing && !dropped ? <p>{HEARING_COPY}</p> : null}
+        {monitor.hearing && connected ? <p>{HEARING_COPY}</p> : null}
         {keeperActions.notice ? <p>{keeperActions.notice}</p> : null}
         {announcement ? <p>{announcement}</p> : null}
         {toneAnnouncement ? (

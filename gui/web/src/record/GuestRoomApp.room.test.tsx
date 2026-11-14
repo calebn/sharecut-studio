@@ -308,12 +308,41 @@ describe("GuestRoomApp in the room", () => {
     expect(screen.getByRole("button", { name: "Leave room" })).toBeEnabled();
   });
 
-  it("names the host when this guest's own connection drops mid-take", () => {
+  it("says the room connection dropped, not the host, when this page's socket drops mid-take", () => {
     fakeRoom({ snapshot: { state: "recording" } });
     (current.room as { connected: boolean }).connected = false;
     render(<GuestRoomApp token="t" />);
-    expect(screen.getByText(/Hana dropped\./)).toBeInTheDocument();
-    expect(screen.getByText(/· Take 1/)).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "Lost connection to the room. You're still recording on this device.",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/Hana dropped/)).toBeNull();
+    expect(screen.getByText(/^\d+:\d{2} · Reconnecting…$/)).toBeInTheDocument();
+  });
+
+  it("names the host only when the host leaves while this guest is connected", () => {
+    fakeRoom({
+      snapshot: {
+        state: "recording",
+        participants: [{ ...host, connected: false }, me],
+      },
+    });
+    render(<GuestRoomApp token="t" />);
+    expect(
+      screen.getByText("Hana dropped. You're still recording on this device."),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/Lost connection to the room/)).toBeNull();
+  });
+
+  it("reads Reconnecting… on the guest's own tile when the socket drops while waiting", () => {
+    fakeRoom({ snapshot: { state: "lobby" } });
+    (current.room as { connected: boolean }).connected = false;
+    render(<GuestRoomApp token="t" />);
+    expect(screen.getByText("Waiting for Hana to start")).toBeInTheDocument();
+    expect(screen.getByText("Reconnecting…")).toBeInTheDocument();
+    expect(screen.queryByText(/Lost connection to the room/)).toBeNull();
+    expect(screen.queryByText(/dropped/)).toBeNull();
   });
 
   it("keeps chunk counts out of live regions and speaks only segment changes", async () => {

@@ -12,6 +12,7 @@ export const ROOM_ALERT_PRIORITY = [
   "saving-failed",
   "notice",
   "recovery",
+  "connection-lost",
   "host-offline",
   "monitor-failed",
   "room-tone",
@@ -63,6 +64,11 @@ export const ROOM_ALERT_TEXT: Record<RoomAlertKind, RoomAlertText> = {
     state: "needs-you",
     title: "We found part of your recording.",
     action: "Finish saving",
+  },
+  "connection-lost": {
+    state: "running",
+    title:
+      "Lost connection to the room. You're still recording on this device.",
   },
   "host-offline": {
     state: "needs-you",

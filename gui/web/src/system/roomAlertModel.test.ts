@@ -19,6 +19,7 @@ describe("ROOM_ALERT_PRIORITY", () => {
       "saving-failed",
       "notice",
       "recovery",
+      "connection-lost",
       "host-offline",
       "monitor-failed",
       "room-tone",
@@ -28,6 +29,20 @@ describe("ROOM_ALERT_PRIORITY", () => {
       "connecting",
       "generic",
     ]);
+  });
+
+  it("titles connection-lost and ranks it directly above host-offline", () => {
+    expect(ROOM_ALERT_TEXT["connection-lost"].title).toBe(
+      "Lost connection to the room. You're still recording on this device.",
+    );
+    expect(
+      sortRoomAlerts([{ kind: "host-offline" }, { kind: "connection-lost" }])
+        .top?.kind,
+    ).toBe("connection-lost");
+    expect(
+      ROOM_ALERT_PRIORITY.indexOf("host-offline") -
+        ROOM_ALERT_PRIORITY.indexOf("connection-lost"),
+    ).toBe(1);
   });
 
   it("has text for every kind", () => {
@@ -139,7 +154,12 @@ describe("roomAlertAction", () => {
 
   it("has no action for the kinds that only inform", () => {
     const onAction = vi.fn();
-    for (const kind of ["host-offline", "clipping", "muted"] as const) {
+    for (const kind of [
+      "connection-lost",
+      "host-offline",
+      "clipping",
+      "muted",
+    ] as const) {
       expect(roomAlertAction({ kind, onAction })).toBeUndefined();
     }
   });

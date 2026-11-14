@@ -38,10 +38,11 @@ import {
 import { withShareableProject } from "./shareableProject";
 import { withBrowserPages } from "./twoBrowserPages";
 
-/** The guest room's alert while the host's socket is down; the host's display name is "Host". */
-const HOST_OFFLINE_ALERT =
-  "Host dropped. You're still recording on this device.";
+/** The guest room's alert while this page's own room socket is down. */
+const ROOM_CONNECTION_LOST_ALERT =
+  "Lost connection to the room. You're still recording on this device.";
 const LIVE_PILL = /^\d+:\d{2} · Take \d+$/;
+const RECONNECTING_PILL = /^\d+:\d{2} · Reconnecting…$/;
 
 /** services/record/state.py HOST_OFFLINE_PAUSE_MS: a host return after this long forces PAUSED. */
 const HOST_OFFLINE_PAUSE_MS = 10_000;
@@ -183,7 +184,7 @@ test.describe("record host reconnect", () => {
           await expect(
             roomDlg.getByText(RECORD_ROOM_RECONNECTING_COPY),
           ).toBeHidden();
-          await expectNoRoomAlert(guest, HOST_OFFLINE_ALERT);
+          await expectNoRoomAlert(guest, ROOM_CONNECTION_LOST_ALERT);
           await expect(roomPill(guest)).toHaveText(LIVE_PILL);
 
           const beforeHost = await keeperSegmentWavBytes(host, hostKeeper, 0);
@@ -214,8 +215,8 @@ test.describe("record host reconnect", () => {
           const outageAt = Date.now();
           await dropBoth(outages);
 
-          await expectRoomAlert(guest, HOST_OFFLINE_ALERT);
-          await expect(roomPill(guest)).toHaveText(LIVE_PILL);
+          await expectRoomAlert(guest, ROOM_CONNECTION_LOST_ALERT);
+          await expect(roomPill(guest)).toHaveText(RECONNECTING_PILL);
 
           await expect(
             roomDlg.getByText(RECORD_ROOM_RECONNECTING_COPY),
@@ -239,7 +240,7 @@ test.describe("record host reconnect", () => {
             })
             .toBeGreaterThan(offline + ONE_SECOND_KEEPER_PCM_BYTES);
           // The growth above happened while still offline.
-          await expectRoomAlert(guest, HOST_OFFLINE_ALERT);
+          await expectRoomAlert(guest, ROOM_CONNECTION_LOST_ALERT);
 
           await host.waitForTimeout(
             Math.max(0, outageAt + HOST_OUTAGE_MS - Date.now()),
@@ -278,7 +279,7 @@ test.describe("record host reconnect", () => {
           ).toBeHidden();
 
           await expect(roomPill(guest)).toHaveText(/^Paused · \d+:\d{2}$/);
-          await expectNoRoomAlert(guest, HOST_OFFLINE_ALERT);
+          await expectNoRoomAlert(guest, ROOM_CONNECTION_LOST_ALERT);
           // Host-only reconnect-pause copy must not leak to the guest.
           await expect(guest.getByText(/the host was offline/)).toHaveCount(0);
 
