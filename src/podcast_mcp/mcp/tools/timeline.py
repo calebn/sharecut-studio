@@ -973,6 +973,35 @@ def apply_fade_recommendations_tool(
     )
 
 
+def set_retained_bleed_alignment_mode_tool(
+    project_path: str,
+    decision_id: str,
+    mode: Literal["auto", "manual", "declined"],
+    track_id: str | None = None,
+    start_sec: float | None = None,
+    end_sec: float | None = None,
+    override_placement_lock: bool = False,
+) -> str:
+    """Save a timing choice for an applied decision or a proposal from the same window.
+
+    Manual and declined choices prevent later automatic correction; auto resets that choice.
+    """
+    return to_json(
+        submit_host_command_result(
+            project_path,
+            "SetBleedAlignmentMode",
+            {
+                "decision_id": decision_id,
+                "mode": mode,
+                "track_id": track_id,
+                "start_sec": start_sec,
+                "end_sec": end_sec,
+                "override_placement_lock": override_placement_lock,
+            },
+        )
+    )
+
+
 def register(mcp: MCPServer) -> None:
     """Register timeline tools on the MCP server."""
     mutating = {
@@ -1001,6 +1030,7 @@ def register(mcp: MCPServer) -> None:
         remove_effect_tool,
         set_effect_bypass_tool,
         apply_fade_recommendations_tool,
+        set_retained_bleed_alignment_mode_tool,
     }
     mutating.discard(split_clip_tool)  # uses DocumentSyncService.submit
     mutating.discard(shorten_gaps_tool)
@@ -1059,5 +1089,6 @@ def register(mcp: MCPServer) -> None:
         audio_diagnostics_tool,
         recommend_fades_tool,
         apply_fade_recommendations_tool,
+        set_retained_bleed_alignment_mode_tool,
     ):
         mcp.tool()(notify_after_mutation(fn) if fn in mutating else fn)

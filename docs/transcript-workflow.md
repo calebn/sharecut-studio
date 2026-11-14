@@ -24,7 +24,7 @@ Agent skill hub: [.agents/skills/podcast-transcript-workflow/SKILL.md](../.agent
 | **3. Refine** | Agent context/grammar fixes from deferred queue | Yes (reviewed) | No | `podcast-transcript-refine` |
 | **4. Escalate** | Listen-first single-span decisions | Yes (one span) | No | `podcast-transcript-audition` |
 
-Layers 1-3 tools (transcribe, reconcile, suppress, correct, precorrect, refine) are registered from `mcp/tools/transcript.py`, except the bleed-clip tools `inspect_clip_bleed_tool` and `restore_clip_bleed_tool`, which are in `mcp/tools/timeline.py`. Layer 4 listens through `mcp/tools/play.py` and applies single-span fixes with `transcript.py` tools such as `correct_transcript_phrase_tool`.
+Layers 1-3 tools (transcribe, reconcile, suppress, correct, precorrect, refine) are registered from `mcp/tools/transcript.py`, except the bleed-clip tools (`inspect_clip_bleed_tool`, `restore_clip_bleed_tool`, `set_retained_bleed_alignment_mode_tool`), which are in `mcp/tools/timeline.py`. Layer 4 listens through `mcp/tools/play.py` and applies single-span fixes with `transcript.py` tools such as `correct_transcript_phrase_tool`.
 
 ## Pipeline order
 
