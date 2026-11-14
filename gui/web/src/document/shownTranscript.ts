@@ -98,9 +98,8 @@ function sameRow(
   return (
     settled?.words !== undefined &&
     settled.text === current.text &&
-    // The lists name words by their index in the track, which a cut shifts, so
-    // a list that is not exactly the one the words were read under cannot be
-    // applied to them: the row waits.
+    // A cut renumbers word_index, so a changed list cannot be applied to the
+    // old words: the row waits.
     sameIndices(settled.ignored_word_indices, current.ignored_word_indices) &&
     sameIndices(
       settled.edge_suppressed_word_indices,
@@ -171,7 +170,7 @@ let memo: {
  * come from the project when it has them, else from the rows last held with
  * words when the row's key and text still match; those words carry no times,
  * so nothing here can seek or highlight on a stale time. A `complete` project
- * has every word it will get: all its rows are live.
+ * draws every row live.
  */
 export function shownTranscriptOf(
   transcript: ProjectView["transcript"],

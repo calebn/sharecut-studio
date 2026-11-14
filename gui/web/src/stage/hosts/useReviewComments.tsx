@@ -376,9 +376,8 @@ export function useReviewComments(guest: boolean) {
   const type = (value: string, edit?: BodyEdit) => {
     const state = useDawStore.getState();
     const anchor = resolveCommentAnchor(state);
-    // Text is never dropped. While the selection's words are refreshing the
-    // draft has no pin (the playhead is not one); the next keystroke that
-    // resolves pins it, and Post refuses until then.
+    // While the selection's words are refreshing the draft has no pin; the
+    // next keystroke that resolves pins it, and Post refuses until then.
     dispatchComposer({
       type: "type",
       text: value,

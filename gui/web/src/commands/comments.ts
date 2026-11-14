@@ -26,11 +26,11 @@ export function openCommentDraft(draft: CommentDraft, replacePin = true): void {
   useDawStore.getState().openStage("review", { section: "queue" });
 }
 
-/** The draft a selection makes, and whether the selection chose it (else it is "here"). */
 type SelectionDraft =
   | { draft: CommentDraft; chosen: boolean }
   | { refreshing: string };
 
+/** The draft a selection makes, and whether the selection chose it (else it is "here"), or why it cannot be made yet. */
 function draftForSelection(
   state: Pick<DawState, "project" | "selection" | "playheadSec">,
 ): SelectionDraft {

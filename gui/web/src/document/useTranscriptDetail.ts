@@ -62,7 +62,6 @@ export function useTranscriptDetail(): TranscriptDetailView {
   const seq = currentDocumentSeq();
   const token = documentAuthority.token;
   const current = transcriptDetailStateFor(projectPath, scope, seq, token);
-  // A guest keeps drawing the rows it already has words for while detail loads.
   const pendingOrHeld = (retry: () => void): TranscriptDetailView => {
     if (!isShareProjectKey(projectPath)) return { kind: "pending", retry };
     const held = shown(false);
