@@ -42,7 +42,7 @@ Do **not** run focus, tighten, or narrative cuts until refine status is **done**
 
 Pipeline, CLI `podcast transcribe`, and MCP `transcribe_track` use the same
 `transcribe.language` setting, `en` by default. Set it to YAML `null` in pipeline
-configuration for auto-detection. Language remains part of the ASR cache key.
+configuration for auto-detection. Language remains part of the ASR cache key. An explicit language that differs from the one a transcript was made in (`asr_language`; an older transcript counts as its `language`, `en` by default) re-transcribes it on the next run; auto never does, and an edited transcript is kept until replacing it is confirmed. Quote `"no"` (Norwegian) in YAML, since unquoted `no` reads as false, which means auto.
 
 ASR reads only input-keyed caches and retains the new write plus one previous
 variant per recording job and audio hash. A pruned cache may require ASR again;
