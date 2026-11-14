@@ -23,6 +23,7 @@ from podcast_mcp.services.record.live_comments import (
     parse_comment_id,
 )
 from podcast_mcp.services.record.state import (
+    HOST_PARTICIPANT_ID,
     MAX_REPORTED_SEGMENTS,
     RecordRole,
     SessionTarget,
@@ -153,6 +154,13 @@ class SetGuestsSeeNotesPayload(BaseModel):
 class RemoveParticipantPayload(BaseModel):
     model_config = ConfigDict(extra="ignore")
     participant_id: str = Field(min_length=1)
+
+    @field_validator("participant_id")
+    @classmethod
+    def _not_the_host(cls, value: str) -> str:
+        if value == HOST_PARTICIPANT_ID:
+            raise ValueError("the host cannot be removed")
+        return value
 
 
 class UpdateNamePayload(BaseModel):
