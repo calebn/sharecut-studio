@@ -452,7 +452,7 @@ def test_the_raw_log_and_the_bundle_hold_no_link_token(
     deadline = time.monotonic() + 10
     while "guest presence rejected type" not in served.sidecar_log.read_text(encoding="utf-8"):
         assert time.monotonic() < deadline, "the guest frame was never handled"
-        time.sleep(0.05)
+        threading.Event().wait(0.05)
     raw = served.sidecar_log.read_text(encoding="utf-8")
     assert "<share-token>" in raw
     assert "failed to roll back record share" in raw
