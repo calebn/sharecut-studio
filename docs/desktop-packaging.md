@@ -319,7 +319,11 @@ check, and nobody is contacted. Each subcommand takes `--dry-run`, which prints 
   `APPLE_DEVELOPMENT_TEAM=`, `APPLE_API_KEY=`, `APPLE_API_ISSUER=`, `APPLE_API_KEY_PATH=` (the
   key path defaults to `~/.appstoreconnect/private_keys/AuthKey_<id>.p8`). The environment
   overrides the file. The tool checks the key file's mode and location and never opens it. Every
-  problem is reported together, before anything runs.
+  problem is reported together, before anything runs. When the file is missing and a value the
+  command needs is unset, the report starts with one line naming the file (the path
+  `SHARECUT_IOS_RELEASE_ENV` gave, or the default location and how to change it) and then lists each
+  unset value: the team for a signed `build`, the key id, issuer and key path for `validate` and
+  `upload`. `build --unsigned` needs none of them.
 - **Identity and build number.** A three-key overlay (`identifier`, `productName` from
   `short_name`, `bundle.iOS.bundleVersion`) goes to both `tauri ios init` and `tauri ios build`.
   Tauri's `--build-number` is never used: it appends a fourth component to the version. The build
