@@ -50,6 +50,9 @@ _RATE_FAMILIES: tuple[tuple[str, str, str, str], ...] = (
     ("PODCAST_GUEST_WS_RECORD_TOKEN", "recording messages per share token", "3000", "50"),
     ("PODCAST_GUEST_WS_RECORD_SIGNAL", "recording signal messages", "1800", "80"),
     ("PODCAST_GUEST_WS_RECORD_SIGNAL_TOKEN", "recording signals per share token", "6000", "200"),
+    ("PODCAST_AUTH_MAGIC_REQUEST", "magic-link requests per client address", "30", "10"),
+    ("PODCAST_AUTH_MAGIC_EMAIL", "magic-link requests per email address", "6", "3"),
+    ("PODCAST_AUTH_MAGIC_CONSUME", "magic-link sign-ins per client address", "60", "20"),
 )
 
 _RELAY_RATE_FAMILIES: tuple[tuple[str, str, str, str], ...] = (

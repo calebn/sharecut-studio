@@ -15,6 +15,7 @@ from podcast_mcp import settings
 from podcast_mcp.config.runtime import is_loopback_host
 from podcast_mcp.gui.routes.deps import coded_exception_error, coded_http_error, peer_host
 from podcast_mcp.gui.routes.guest_errors import guest_boundary
+from podcast_mcp.services.remote_mcp import get_host_limiters, host_rate_limit_enabled
 from podcast_mcp.services.share_auth import (
     SESSION_COOKIE,
     authorization_url,
@@ -28,6 +29,7 @@ from podcast_mcp.services.share_auth import (
     oauth_providers_available,
 )
 from podcast_mcp.util.proxy_paths import is_relayed_request
+from podcast_mcp.util.rate_limit_http import rate_limited_error
 from podcast_mcp.util.safe_redirect import safe_next_path
 
 log = logging.getLogger(__name__)
@@ -80,6 +82,14 @@ class PasskeyAuthFinish(BaseModel):
 class AgentCredentialRequest(BaseModel):
     share_token: str
     ttl_hours: int | None = Field(default=24 * 30, ge=1)
+
+
+def _limit_auth(limiter: str, key: str | None) -> None:
+    if not host_rate_limit_enabled():
+        return
+    decision = getattr(get_host_limiters(), limiter).allow(key or "unknown")
+    if not decision.allowed:
+        raise rate_limited_error(decision)
 
 
 def _secure_cookie() -> bool:
@@ -256,6 +266,8 @@ def auth_password_login(body: PasswordLoginRequest, response: Response) -> dict[
 
 @router.post("/auth/magic-link")
 def auth_magic_link(body: MagicLinkRequest, request: Request) -> dict[str, Any]:
+    _limit_auth("auth_magic_request", peer_host(request))
+    _limit_auth("auth_magic_email", body.email.strip().lower())
     with guest_boundary(log, "magic link"):
         store = get_identity_store()
         raw = store.create_magic_link(body.email, share_token=body.share_token)
@@ -278,7 +290,10 @@ def auth_magic_link(body: MagicLinkRequest, request: Request) -> dict[str, Any]:
 
 
 @router.get("/auth/magic-link/consume")
-def auth_magic_consume(token: str, response: Response, next: str = "/") -> RedirectResponse:
+def auth_magic_consume(
+    token: str, request: Request, response: Response, next: str = "/"
+) -> RedirectResponse:
+    _limit_auth("auth_magic_consume", peer_host(request))
     store = get_identity_store()
     result = store.consume_magic_link(token)
     if not result or not result.get("user"):

@@ -869,6 +869,12 @@ read pipeline settings.
 | `PODCAST_GUEST_WS_RECORD_SIGNAL_BURST` | `80` | Burst allowance for recording signal messages. |
 | `PODCAST_GUEST_WS_RECORD_SIGNAL_TOKEN_RPM` | `6000` | Requests per minute allowed for recording signals per share token. |
 | `PODCAST_GUEST_WS_RECORD_SIGNAL_TOKEN_BURST` | `200` | Burst allowance for recording signals per share token. |
+| `PODCAST_AUTH_MAGIC_REQUEST_RPM` | `30` | Requests per minute allowed for magic-link requests per client address. |
+| `PODCAST_AUTH_MAGIC_REQUEST_BURST` | `10` | Burst allowance for magic-link requests per client address. |
+| `PODCAST_AUTH_MAGIC_EMAIL_RPM` | `6` | Requests per minute allowed for magic-link requests per email address. |
+| `PODCAST_AUTH_MAGIC_EMAIL_BURST` | `3` | Burst allowance for magic-link requests per email address. |
+| `PODCAST_AUTH_MAGIC_CONSUME_RPM` | `60` | Requests per minute allowed for magic-link sign-ins per client address. |
+| `PODCAST_AUTH_MAGIC_CONSUME_BURST` | `20` | Burst allowance for magic-link sign-ins per client address. |
 | `PODCAST_RELAY_TOKEN_RPM` | `600` | Requests per minute allowed for relay requests per share token. |
 | `PODCAST_RELAY_TOKEN_BURST` | `80` | Burst allowance for relay requests per share token. |
 | `PODCAST_RELAY_IP_RPM` | `1200` | Requests per minute allowed for relay requests per client address. |

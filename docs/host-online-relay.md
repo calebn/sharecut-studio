@@ -633,6 +633,11 @@ Generous defaults (tighten via env if you see abuse). Philosophy: false 429s hur
 | Host | Mutate RPM | 60/min, burst 20 | share token |
 | Host | Audio concurrent | 8 | share token |
 | Host | Guest WS concurrent | 8 | share token |
+| Host | Magic-link request | 30/min, burst 10 | client address |
+| Host | Magic-link request | 6/min, burst 3 | email address |
+| Host | Magic-link sign-in | 60/min, burst 20 | client address |
+
+The three magic-link rows guard `POST /auth/magic-link` and `GET /auth/magic-link/consume` (`PODCAST_AUTH_MAGIC_*`). The client address is the peer uvicorn reports: the socket address, or the `X-Forwarded-For` client only when the request arrives from a `forwarded-allow-ips` address (`127.0.0.1` by default; the tunnel client strips `X-Forwarded-*`, and the relay never forwards `/auth`). Behind a reverse proxy that is not on that list, every caller shares the proxy's address and bucket until the proxy is listed. The email bucket is keyed on the submitted address with no sign-in, so a caller can use up a victim's budget; the cost is that magic-link requests for that address wait for the bucket to refill (6 per minute), and password and OAuth sign-in are not affected. A denied call answers `429` with `X-Sharecut-Error-Code: rate_limited` before any link is stored, the same for a known and an unknown email.
 
 Audio paths skip RPM and use concurrency limits. The host and relay use
 `util.rate_limit.is_review_audio_path`, which strips the query and case-folds
