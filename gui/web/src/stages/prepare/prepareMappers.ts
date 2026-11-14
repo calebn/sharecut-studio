@@ -44,10 +44,19 @@ const RUN_WINDOW_ROW: Readonly<Record<string, ReadyRowId>> = {
   extract_room_tone_beds: "align",
 };
 
-function windowRow(step: string): ReadyRowId | undefined {
-  return (
-    RUN_WINDOW_ROW[step] ?? ROW_ORDER.find((id) => ROW_STEPS[id].includes(step))
-  );
+function ownerRow(step: string): ReadyRowId | undefined {
+  return ROW_ORDER.find((id) => ROW_STEPS[id].includes(step));
+}
+
+function windowRow(
+  job: PipelineJobSnapshot,
+  step: string,
+): ReadyRowId | undefined {
+  const window = RUN_WINDOW_ROW[step];
+  const windowRan =
+    window !== undefined &&
+    job.steps.some((other) => ROW_STEPS[window].includes(other.name));
+  return windowRan ? window : ownerRow(step);
 }
 
 type PlanOperation = {
@@ -636,8 +645,10 @@ export function rowOutcome(
   row: ReadyRowId,
 ): Outcome | null {
   if (!job) return null;
-  const mine = job.steps.filter((step) => windowRow(step.name) === row);
-  const failed = mine.find((step) => step.status === "error");
+  const mine = job.steps.filter((step) => windowRow(job, step.name) === row);
+  const failed = job.steps.find(
+    (step) => step.status === "error" && ownerRow(step.name) === row,
+  );
   if (failed) {
     return {
       state: "failed",
@@ -665,7 +676,7 @@ export function rowOutcome(
   }
   const later = ROW_ORDER.slice(ROW_ORDER.indexOf(row) + 1);
   const movedOn = job.steps.some((step) =>
-    later.some((id) => windowRow(step.name) === id),
+    later.some((id) => windowRow(job, step.name) === id),
   );
   if (job.status === "ok" || movedOn) return { state: "done" };
   if (job.status === "error" || job.status === "cancelled") {
