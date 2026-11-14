@@ -90,8 +90,8 @@ NETWORK = re.compile(
 
 
 TRANSPORT = re.compile(
-    r"could not connect|network|timed out|offline|unreachable|connection (?:was )?(?:lost|reset)"
-    r"|\bssl\b|\btls\b|handshake|broken pipe|unexpected eof|could not resolve|nodename nor servname"
+    NETWORK.pattern
+    + r"|\bssl\b|\btls\b|handshake|broken pipe|unexpected eof|could not resolve|nodename nor servname"
     r"|name or service not known|\bdns\b|proxy|bad gateway|service unavailable|gateway time-?out"
     r"|nsurlerrordomain|nsposixerrordomain|nscocoaerrordomain|kcferrordomaincfnetwork|secure connection",
     re.I,
@@ -153,11 +153,11 @@ def apple_shaped(error: dict[str, object]) -> bool:
     """The allow-list: a structured error is Apple's own answer only when it carries an ITMS code,
     an App Store Connect API code in ``code``, or an Apple service domain."""
     info = error_info(error)
-    strings = [value for value in (*error.values(), *info.values()) if isinstance(value, str)]
+    text = error_text(error)
     code = error.get("code")
     domains = (error.get("domain"), info.get("domain"))
     return (
-        any(pattern.search(string) for pattern in APPLE_ANSWER_SHAPES for string in strings)
+        any(pattern.search(text) for pattern in APPLE_ANSWER_SHAPES)
         or (isinstance(code, str) and APPLE_API_CODE.fullmatch(code) is not None)
         or any(isinstance(d, str) and APPLE_DOMAIN_FIELD.match(d) for d in domains)
     )
