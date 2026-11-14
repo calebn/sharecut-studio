@@ -235,6 +235,7 @@ export const Phone: Story = {
 const RECORD_INVALID: Story = {
   args: {
     glyph: "octagon-alert",
+    headingLevel: "h1",
     title: "This link doesn't open a room",
     children: "Ask the person who invited you for a new link.",
     secondary: undefined,
@@ -254,6 +255,7 @@ export const InvalidPhone: Story = { ...RECORD_INVALID };
 const RECORD_CLOSED: Story = {
   args: {
     glyph: "door-open",
+    headingLevel: "h1",
     title: "Invite link closed",
     children:
       "The host closed this invite link to new participants. Ask the host for a new link.",
@@ -274,6 +276,7 @@ export const InviteClosedPhone: Story = { ...RECORD_CLOSED };
 export const InviteClosedWithLocalRecording: Story = {
   args: {
     glyph: "door-open",
+    headingLevel: "h1",
     title: "Invite link closed",
     children:
       "Maya closed this invite link. Your recording is safe on this device. Save it and send it to Maya, or ask for a new link.",
@@ -299,6 +302,7 @@ export const InviteClosedWithLocalRecording: Story = {
 const RECORD_FULL: Story = {
   args: {
     glyph: "user",
+    headingLevel: "h1",
     title: "The room is full",
     children: "Ask Maya to make space or send you a new link.",
     primary: { label: "Try again", onClick: fn() },
@@ -327,6 +331,7 @@ export const FullPhone: Story = { ...RECORD_FULL };
 const RECORD_ENDED: Story = {
   args: {
     glyph: "door-open",
+    headingLevel: "h1",
     title: "This session has ended",
     children: "Thanks for recording.",
     secondary: undefined,
@@ -343,6 +348,7 @@ export const Ended: Story = { ...RECORD_ENDED };
 const RECORD_LOCAL: Story = {
   args: {
     glyph: "door-open",
+    headingLevel: "h1",
     title: "Your recording didn't finish saving",
     children: "It's safe on this device. Save it and send it to Maya.",
     primary: { label: "Save my recording", onClick: fn() },
@@ -392,5 +398,48 @@ export const EndedDownloaded: Story = {
       canvas.getByRole("heading", { name: "Saved to Downloads" }),
     ).toBeVisible();
     await expect(canvas.getAllByRole("button")).toHaveLength(1);
+  },
+};
+
+const RECORD_UNREACHABLE: Story = {
+  args: {
+    glyph: "cloud-off",
+    headingLevel: "h1",
+    title: "Couldn't reach the room",
+    children: "Check your internet connection, then try again.",
+    primary: { label: "Try again", onClick: fn() },
+    secondary: undefined,
+  },
+  play: async ({ args, canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(
+      canvas.getByRole("heading", {
+        level: 1,
+        name: "Couldn't reach the room",
+      }),
+    ).toBeVisible();
+    await userEvent.click(canvas.getByRole("button", { name: "Try again" }));
+    await expect(args.primary?.onClick).toHaveBeenCalledTimes(1);
+  },
+};
+
+export const Unreachable: Story = { ...RECORD_UNREACHABLE };
+export const UnreachablePhone: Story = { ...RECORD_UNREACHABLE };
+
+export const NoAnswer: Story = {
+  args: {
+    ...RECORD_UNREACHABLE.args,
+    glyph: "triangle-alert",
+    title: "The room didn't answer",
+    children:
+      "Try again in a minute. If it keeps happening, let the person who invited you know.",
+  },
+  play: async ({ canvasElement }) => {
+    await expect(
+      within(canvasElement).getByRole("heading", {
+        level: 1,
+        name: "The room didn't answer",
+      }),
+    ).toBeVisible();
   },
 };

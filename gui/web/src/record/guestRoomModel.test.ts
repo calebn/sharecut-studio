@@ -6,7 +6,6 @@ import {
   guestRoomPhase,
   guestTakes,
   guestViewerWidth,
-  isNotFound,
   joinHere,
   joinMic,
   ownSaving,
@@ -466,30 +465,54 @@ describe("ownSaving", () => {
   });
 });
 
-describe("isNotFound", () => {
-  it("matches missing and revoked links", () => {
-    expect(isNotFound("HTTP 404")).toBe(true);
-    expect(isNotFound("Token revoked")).toBe(true);
-    expect(isNotFound("network down")).toBe(false);
-  });
-});
-
 describe("guestCovers", () => {
   it("is null for a healthy room", () => {
     expect(guestCovers(coverSource)).toBeNull();
   });
 
-  it("covers an invalid link and other boot failures", () => {
-    expect(guestCovers({ ...coverSource, bootError: "404" })).toMatchObject({
-      title: "This link doesn't open a room",
-    });
-    expect(
-      guestCovers({ ...coverSource, bootError: "network down" }),
-    ).toMatchObject({
-      title: "This link does not work",
-      children: "network down",
-    });
-  });
+  it.each([
+    [
+      "not-found",
+      {
+        glyph: "octagon-alert",
+        title: "This link doesn't open a room",
+        children: "Ask the person who invited you for a new link.",
+      },
+      false,
+    ],
+    [
+      "network",
+      {
+        glyph: "cloud-off",
+        title: "Couldn't reach the room",
+        children: "Check your internet connection, then try again.",
+      },
+      true,
+    ],
+    [
+      "server",
+      {
+        glyph: "triangle-alert",
+        title: "The room didn't answer",
+        children:
+          "Try again in a minute. If it keeps happening, let the person who invited you know.",
+      },
+      true,
+    ],
+  ] as const)(
+    "covers each boot failure with its own words and never the server's (%s)",
+    (bootError, copy, retries) => {
+      const onRetry = vi.fn();
+      const cover = guestCovers({ ...coverSource, bootError, onRetry });
+      expect(cover).toEqual({
+        size: "page",
+        ...copy,
+        primary: retries ? { label: "Try again", onClick: onRetry } : undefined,
+      });
+      cover?.primary?.onClick();
+      expect(onRetry).toHaveBeenCalledTimes(retries ? 1 : 0);
+    },
+  );
 
   it("covers a full room with a retry", () => {
     const onRetry = vi.fn();

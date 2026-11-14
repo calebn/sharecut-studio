@@ -1,6 +1,6 @@
 import { type Browser, expect, test } from "@playwright/test";
-import { expectSurfaceAxeClean } from "./axe";
-import { createRecordRoom, joinNameField } from "./recordRoom";
+import { expectReadingSurfaceAxeClean, expectSurfaceAxeClean } from "./axe";
+import { createRecordRoom, joinNameField, openRecordLink } from "./recordRoom";
 import { withShareableProject } from "./shareableProject";
 import { createReviewShare } from "./shareNavigation";
 import { withBrowserPages } from "./twoBrowserPages";
@@ -92,6 +92,39 @@ test.describe("record links", () => {
           expect(ended.ok(), await ended.text()).toBeTruthy();
         },
       );
+    });
+  });
+
+  test("a guest whose link can't reach the room gets Try again and lands in the Join sheet", async ({
+    browser,
+  }: {
+    browser: Browser;
+  }) => {
+    await withShareableProject(async (projectPath) => {
+      await withBrowserPages(browser, [{}, {}], async ([host, guest]) => {
+        await host.goto(`/?project=${encodeURIComponent(projectPath)}`);
+        const room = await createRecordRoom(host, projectPath);
+
+        await guest.route("**/api/rec/*/bootstrap", (route) =>
+          route.abort("internetdisconnected"),
+        );
+        await openRecordLink(guest, room.guest.token);
+        await expect(
+          guest.getByRole("heading", {
+            level: 1,
+            name: "Couldn't reach the room",
+          }),
+        ).toBeVisible();
+        await expect(guest.getByText("Couldn't reach the server")).toHaveCount(
+          0,
+        );
+        await expectReadingSurfaceAxeClean(guest);
+
+        await guest.unroute("**/api/rec/*/bootstrap");
+        await guest.getByRole("button", { name: "Try again" }).click();
+        await expect(guest.getByRole("dialog")).toBeVisible();
+        await expect(joinNameField(guest)).toBeVisible();
+      });
     });
   });
 });
