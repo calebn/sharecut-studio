@@ -1,4 +1,4 @@
-"""What one guest receives over the wire carries nothing derived from another link's token (#3873)."""
+"""What one guest receives over the wire carries nothing derived from another link's token."""
 
 from __future__ import annotations
 
