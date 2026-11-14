@@ -273,6 +273,45 @@ def data_roots() -> DataRoots:
     return current().data_roots(Path.home())
 
 
+def container_root() -> Path | None:
+    """The app container this process lives in, or None on a host whose paths never move."""
+    return Path.home().resolve() if current().app_container else None
+
+
+def to_stored(absolute: str) -> str:
+    """The form of an absolute path that survives the container moving.
+
+    On a container host a path under the home is stored relative to it; any other path, and every
+    path on a host whose paths never move, stays as written.
+    """
+    root = container_root()
+    if root is None:
+        return absolute
+    try:
+        return Path(absolute).relative_to(root).as_posix()
+    except ValueError:
+        return absolute
+
+
+def from_stored(stored: str) -> str | None:
+    """The absolute path a stored value names, or None for a value that must not be used.
+
+    On a container host a stored path is relative to the home, so one that climbs out of it
+    (a ``..`` segment, or a symlink that leaves it) is dropped, and so is an absolute path under
+    the home, which is never written that way. An absolute path elsewhere is a folder the person
+    picked outside the container and stays as written.
+    """
+    root = container_root()
+    if root is None:
+        return stored
+    if os.path.isabs(stored):
+        return None if Path(stored).is_relative_to(root) else stored
+    if ".." in Path(stored).parts:
+        return None
+    joined = root / stored
+    return str(joined) if joined.resolve().is_relative_to(root) else None
+
+
 def machine() -> str:
     return platform.machine()
 

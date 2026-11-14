@@ -19,8 +19,8 @@ written.
 A path is stored absolute, except on a host whose home is an app container (iOS), where the
 container's absolute path changes on every reinstall or update: a project under that home is
 stored relative to it and made absolute again on read; an entry that would leave the home is
-dropped at read. :func:`_stored_form` and
-:func:`_absolute_form` are the only two places that know this; everything else sees absolute paths.
+dropped at read. :func:`host_platform.to_stored` and :func:`host_platform.from_stored` are the
+only two places that know this; everything else sees absolute paths.
 """
 
 from __future__ import annotations
@@ -96,40 +96,6 @@ def recent_projects_path() -> Path:
     return settings.config_dir() / RECENT_FILENAME
 
 
-def _container_root() -> Path | None:
-    """The app container this process lives in, or None on a host whose paths never move."""
-    return Path.home().resolve() if host_platform.current().app_container else None
-
-
-def _stored_form(absolute: str) -> str:
-    root = _container_root()
-    if root is None:
-        return absolute
-    try:
-        return Path(absolute).relative_to(root).as_posix()
-    except ValueError:
-        return absolute
-
-
-def _absolute_form(stored: str) -> str | None:
-    """The absolute path a stored entry names, or None for an entry that must not be used.
-
-    On a container host a stored path is relative to the home, so one that climbs out of it
-    (a ``..`` segment, or a symlink that leaves it) is dropped, and so is an absolute path under
-    the home, which is never written that way. An absolute path elsewhere is a folder the person
-    picked outside the container and stays as written.
-    """
-    root = _container_root()
-    if root is None:
-        return stored
-    if os.path.isabs(stored):
-        return None if Path(stored).is_relative_to(root) else stored
-    if ".." in Path(stored).parts:
-        return None
-    joined = root / stored
-    return str(joined) if joined.resolve().is_relative_to(root) else None
-
-
 def _parse(raw: object) -> list[RecentEntry]:
     items = raw.get("projects") if isinstance(raw, dict) else None
     if not isinstance(items, list):
@@ -142,7 +108,7 @@ def _parse(raw: object) -> list[RecentEntry]:
         path, opened_at = item.get("path"), item.get("opened_at")
         if not isinstance(path, str) or not path or path != _clean(path):
             continue
-        path = _absolute_form(path)
+        path = host_platform.from_stored(path)
         if path is None or path in seen:
             continue
         seen.add(path)
@@ -183,7 +149,9 @@ def _write(entries: list[RecentEntry]) -> None:
     body = json.dumps(
         {
             "version": 1,
-            "projects": [{"path": _stored_form(e.path), "opened_at": e.opened_at} for e in entries],
+            "projects": [
+                {"path": host_platform.to_stored(e.path), "opened_at": e.opened_at} for e in entries
+            ],
         },
         indent=2,
     )

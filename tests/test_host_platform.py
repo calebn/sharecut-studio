@@ -338,3 +338,59 @@ def test_reported_machine_and_release_come_from_the_platform_module(
     monkeypatch.setattr(platform, "machine", lambda: "arm64")
     monkeypatch.setattr(platform, "release", lambda: "25.6.0")
     assert (host_platform.machine(), host_platform.release()) == ("arm64", "25.6.0")
+
+
+@pytest.fixture
+def container_home(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+    home = tmp_path.resolve() / "container-a"
+    (home / "Documents").mkdir(parents=True)
+    monkeypatch.setenv("HOME", str(home))
+    return home
+
+
+def test_a_path_under_a_container_home_is_stored_relative_and_read_back(
+    container_home: Path,
+) -> None:
+    absolute = str(container_home / "Documents" / "Episode")
+    with using(dataclasses.replace(MACOS, app_container=True)):
+        assert host_platform.container_root() == container_home
+        assert host_platform.to_stored(absolute) == "Documents/Episode"
+        assert host_platform.from_stored("Documents/Episode") == absolute
+
+
+def test_a_path_outside_a_container_home_stays_as_written(container_home: Path) -> None:
+    with using(dataclasses.replace(MACOS, app_container=True)):
+        assert host_platform.to_stored("/Volumes/Picked/Episode") == "/Volumes/Picked/Episode"
+        assert host_platform.from_stored("/Volumes/Picked/Episode") == "/Volumes/Picked/Episode"
+
+
+@pytest.mark.parametrize("stored", ["../Other", "Documents/../../Other"])
+def test_a_stored_path_that_climbs_out_of_a_container_home_is_refused(
+    container_home: Path, stored: str
+) -> None:
+    with using(dataclasses.replace(MACOS, app_container=True)):
+        assert host_platform.from_stored(stored) is None
+
+
+def test_an_absolute_stored_path_under_a_container_home_is_refused(container_home: Path) -> None:
+    with using(dataclasses.replace(MACOS, app_container=True)):
+        assert host_platform.from_stored(str(container_home / "Documents" / "Episode")) is None
+
+
+def test_a_symlink_that_leaves_a_container_home_is_refused(
+    container_home: Path, tmp_path: Path
+) -> None:
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    (container_home / "Documents" / "Link").symlink_to(outside)
+    with using(dataclasses.replace(MACOS, app_container=True)):
+        assert host_platform.from_stored("Documents/Link/Episode") is None
+
+
+def test_a_host_whose_paths_never_move_stores_every_path_as_written(container_home: Path) -> None:
+    absolute = str(container_home / "Documents" / "Episode")
+    with using(MACOS):
+        assert host_platform.container_root() is None
+        assert host_platform.to_stored(absolute) == absolute
+        assert host_platform.from_stored(absolute) == absolute
+        assert host_platform.from_stored("Documents/Episode") == "Documents/Episode"
