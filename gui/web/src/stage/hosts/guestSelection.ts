@@ -135,7 +135,8 @@ function findEnd(model: SelectionModel, end: SelectionEnd): Found {
   if (live.length === 1 && end.copies === 1)
     return { kind: "at", index: live[0]! };
   const same = live.filter((index) => holds(model, end, index));
-  return same.length === 1 ? { kind: "at", index: same[0]! } : { kind: "gone" };
+  // Copies that all hold are one thing to the store: any of them is the pick.
+  return same.length > 0 ? { kind: "at", index: same[0]! } : { kind: "gone" };
 }
 
 /** The store holds numbers and times, not window positions: those decide. */
