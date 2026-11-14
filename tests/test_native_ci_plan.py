@@ -287,6 +287,7 @@ def test_contract_inventory_is_explicit_and_unknown_additions_run_full() -> None
         "edit-surface.json",
         "ffmpeg-artifacts.json",
         "ffmpeg-build.json",
+        "ios-privacy.json",
         "ios-runtime.json",
         "join-length-limits.json",
         "project-writers.json",
