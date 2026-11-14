@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import wave
 from itertools import permutations
 from pathlib import Path
@@ -677,3 +678,30 @@ def test_full_track_levels_sliced_to_a_prefix_equal_the_prefix_levels() -> None:
     full = frame_rms_db(track, frame, frame)
     for n in (1, 5, full.size - 1, full.size):
         assert np.array_equal(full[:n], frame_rms_db(track[: n * frame], frame, frame))
+
+
+def test_copy_rows_peaks_match_the_values_develop_produced() -> None:
+    host = _speech_like(20.0, seed=3)
+    guest = _delayed_copy(host, delay_samples=24, gain_db=-18.0) + _speech_like(20.0, seed=4) * 0.05
+    (src, _), (bld, _) = _at_voice(host), _at_voice(guest)
+    cfg = EchoConfig()
+    frame = max(1, round(cfg.frame_sec * RATE))
+    dominated, rows = bleed_echo._copy_rows(
+        src,
+        bld,
+        frame_rms_db(src, frame, frame),
+        frame_rms_db(bld, frame, frame),
+        sample_rate=RATE,
+        frame=frame,
+        shift_frames=0,
+        cfg=cfg,
+        limit=None,
+        use_open=True,
+    )
+    assert (dominated, len(rows)) == (240, 225)
+    assert rows[0] == (13, 3.0, 0.5410046836724028)
+    assert rows[len(rows) // 2] == (196, 3.0, 0.9367954218157981)
+    assert rows[-1] == (396, 3.0, 0.9560011163847105)
+    assert hashlib.sha256(repr(rows).encode()).hexdigest() == (
+        "5142ac1812908b1d3326b48115ab89bead8bd3768e8bccaf4be0a319f4ef3cf3"
+    )
