@@ -298,8 +298,6 @@ def test_share_token_never_lands_in_the_workspace(
     assert _files_holding(workspace, token) == []
 
 
-# Link tokens in raw logs and the diagnostics bundle (#3877)
-
 MIN_PREFIX = 6
 CAPTURED_LOGGERS = ("uvicorn.access", "uvicorn.error", "podcast_mcp")
 
@@ -435,8 +433,11 @@ def test_the_raw_log_and_the_bundle_hold_no_link_token(
     served: Served, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     driven = _drive_every_link_flow(served, monkeypatch)
-    tokens = set(get_share_registry().known_tokens()) | set(driven.values())
-    assert len(tokens) >= 4
+    minted = set(driven.values())
+    known = set(get_share_registry().known_tokens())
+    assert len(minted) >= 4
+    assert minted <= known
+    tokens = known | minted
 
     deadline = time.monotonic() + 10
     while "guest presence rejected type" not in served.sidecar_log.read_text(encoding="utf-8"):
@@ -470,7 +471,8 @@ def test_the_scan_sees_a_token_that_a_logger_bypassing_the_filter_wrote(
     with served.sidecar_log.open("a", encoding="utf-8") as raw:
         raw.write(f"planted: GET /api/review/{token}/features?name=Ava\n")
 
-    assert leaks(served.sidecar_log.read_text(encoding="utf-8"), {token}) == [token]
+    assert token in set(driven.values())
+    assert leaks(served.sidecar_log.read_text(encoding="utf-8"), set(driven.values())) == [token]
     assert leaks(served.sidecar_log.read_text(encoding="utf-8"), {"unrelated-token-value"}) == []
 
 
