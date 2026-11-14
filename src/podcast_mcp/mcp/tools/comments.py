@@ -4,8 +4,7 @@ from mcp.server import MCPServer
 
 from podcast_mcp.mcp.serialize import to_json
 from podcast_mcp.services.app import ProjectWorkspace
-from podcast_mcp.services.document import CommentService
-from podcast_mcp.services.document.comment import with_comment_write_grant
+from podcast_mcp.services.document import CommentService, with_comment_write_grant
 
 
 def add_comment_tool(
