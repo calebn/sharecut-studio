@@ -89,6 +89,7 @@ describe("guestScriptOf", () => {
   it("is empty for no utterances and for utterances with no heard words", () => {
     expect(scriptOf([])).toEqual({
       turns: [],
+      spans: [],
       wordStarts: [],
       words: [],
       refs: [],
@@ -102,6 +103,7 @@ describe("guestScriptOf", () => {
       ]),
     ).toEqual({
       turns: [],
+      spans: [],
       wordStarts: [],
       words: [],
       refs: [],
