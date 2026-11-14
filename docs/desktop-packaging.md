@@ -337,9 +337,11 @@ check, and nobody is contacted. Each subcommand takes `--dry-run`, which prints 
   archive and export directories are deleted once the IPA is collected. Child processes get an
   explicit environment allowlist (`PATH` with the rustup toolchain first, `HOME`, `USER`,
   `LOGNAME`, `TMPDIR`, a UTF-8 `LANG`, `DEVELOPER_DIR`, `CARGO_HOME`, `RUSTUP_HOME`,
-  `CARGO_BUILD_JOBS`, proxy and CA variables when set, and the team; the proxy and CA variables stay because npm, cargo and altool must reach the network through a proxy, and a proxy URL can carry a password, so the dry run prints every variable except the path and count settings by name only, as `HTTPS_PROXY=<set>`): the App Store Connect key,
+  `CARGO_BUILD_JOBS`, proxy and CA variables when set, and the team): the App Store Connect key,
   manual-signing variables, `RUSTFLAGS` and the desktop release secrets are absent
-  (`tests/test_ios_release.py`). The team reaches `tauri ios init`, so it sits in the untracked
+  (`tests/test_ios_release.py`). A proxy URL can carry a password, so the dry run prints only the
+  path and count settings (`DEVELOPER_DIR`, `CARGO_HOME`, `RUSTUP_HOME`, `CARGO_BUILD_JOBS`) with
+  their values and every other variable by name, as `HTTPS_PROXY=<set>`. The team reaches `tauri ios init`, so it sits in the untracked
   `gen/apple` files and the archive; both stay local.
 - **Checks on the built IPA.** The path scan decompresses every member, opens nested archives and
   names the Mach-O section of each hit. The plist check wants the identifier, name, marketing
@@ -358,7 +360,12 @@ check, and nobody is contacted. Each subcommand takes `--dry-run`, which prints 
   and uploads that copy. It refuses unless the token matches the copy, the tree is clean and
   `HEAD` is the record's commit, signing and the build number are re-derived from the IPA, every
   local check passes again, Apple validates the copy, and no earlier attempt for that file
-  delivered or was reported as a duplicate. The attempt is written to the record and synced to disk before the upload command starts. An attempt with no recorded answer (the run was interrupted) blocks a later `upload` for that file with one sentence telling you to check TestFlight for that build number; `--retry-unknown-upload` goes past it and is recorded on the new attempt (`retried_unknown_upload`). A finished attempt that Apple rejected or could not be reached for does not block. The record can only block an upload, never allow one.
+  delivered or was reported as a duplicate. The attempt is written to the record and synced to disk
+  before the upload command starts. An attempt with no recorded answer (the run was interrupted)
+  blocks a later `upload` for that file with one sentence telling you to check TestFlight for that
+  build number. `--retry-unknown-upload` goes past it and is recorded on the new attempt
+  (`retried_unknown_upload`). A finished attempt that Apple rejected or could not be reached for
+  does not block. The record can only block an upload, never allow one.
   An "already uploaded" answer from Apple is recorded as `apple_reports_duplicate`; check
   TestFlight, and run `build` again for a new number if the build is not there. Exit codes: 3
   inputs, 4 signing, 5 a local check, 6 Apple rejected, 7 duplicate, 8 other tool failure, 9
@@ -367,8 +374,10 @@ check, and nobody is contacted. Each subcommand takes `--dry-run`, which prints 
   function, `release_run.spawn`, reveals it, and an AST test fails on a second caller. Output is
   redacted line by line with carry-over across reads, for each secret and private directory as
   written, JSON-escaped, percent-encoded and resolved, and by shape for signing identity names,
-  profile UUIDs, certificate fingerprints and the `user:password@` of any URL. `main()` prints a redacted one-line failure for any
-  exception. Private files made for a command (the export options) and the per-step logs are created without following links: a stale file or planted link at that path is replaced (files) or refused (logs) and the mode is set to `0600`. altool's argv shows the key id and issuer to the same user in `ps` for the length of
+  profile UUIDs, certificate fingerprints and the `user:password@` of any URL. `main()` prints a
+  redacted one-line failure for any exception. Private files made for a command (the export
+  options) and the per-step logs are created without following links. A stale file or planted link
+  at that path is replaced (files) or refused (logs), and the mode is set to `0600`. altool's argv shows the key id and issuer to the same user in `ps` for the length of
   one call; that is accepted.
 - **Rehearsal.** `make ios-release-rehearsal` with a profile shaped like the owner's passes every
   local check (`gui/desktop/src-tauri/target/ios-release/<build>/`). The unsigned archive signs
