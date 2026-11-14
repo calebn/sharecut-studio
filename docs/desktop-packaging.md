@@ -221,7 +221,7 @@ lib (a `staticlib`) with Python.xcframework linked into it; there is no sidecar 
   A recheck after returning to the foreground has 20 seconds (`RECHECK_DEADLINE`); the prototype's
   listener answered again about 5 seconds after the return.
 - **Not there yet.** Audio tools (FFmpeg), transcription, recording, Universal Links, signing,
-  TestFlight and a run on a device. Home's Import audio and Record are refused while audio tools are unavailable, so a project cannot yet be made in the UI; Recent entries store absolute container paths, which change when the app is reinstalled. Projects live in the app's Documents folder and show in the
+  TestFlight and a run on a device. Home's Import audio and Record are refused while audio tools are unavailable, so a project cannot yet be made in the UI. Recent entries under the app's home are stored relative to it, because the container's path changes on every reinstall or update ([persistence.md](persistence.md)). Projects live in the app's Documents folder and show in the
   Files app.
 - **Proof.** `make ios-sim-proof` launches the app and asserts what it can from the Mac; the
   Home screen, project and cookie checks are made in the Simulator UI
