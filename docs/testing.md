@@ -123,7 +123,7 @@ make typecheck        # mypy (strict on timebase modules)
 
 Do not silence findings with `# noqa` / `# nosec` without explicit approval — fix code or tighten tool config.
 
-`make lint-py` also enforces the platform ban (Ruff `TID251`; `tests/test_host_platform_guard.py` pins its scope). A test chooses a host with the `host` fixture or `using(row)`, never by patching `sys` or `os`. See [contributing.md § Host platform](contributing.md#host-platform).
+`make lint-py` also enforces the platform ban (Ruff `TID251`; `tests/test_host_platform_guard.py` pins its scope). A test chooses a host with the `host` fixture or `using(row)`, never by patching `sys` or `os`. A row of another kernel than the machine's raises `ForeignKernelError` at the first syscall site (`host_platform.syscall_kernel()`), so build the row with `dataclasses.replace(current(), ...)`; a test that replaces the syscall layer opts in with `using(row, real_syscalls=False)`. See [contributing.md § Host platform](contributing.md#host-platform).
 
 `scripts/check_level_literals.py` fails on a negative dB literal in `edits/` or `engines/`: every
 detection level is an offset from the track's `LevelProfile`. `tests/test_level_literals.py` runs

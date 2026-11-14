@@ -134,7 +134,7 @@ def _flock_owner_pid(snapshot: str, identity: tuple[int, int]) -> int | None:
 
 def file_lock_holder_pid(lock_path: Path) -> int | None:
     """Observe a granted whole-file Linux flock owner, or return unavailable."""
-    if host_platform.current().kernel != "linux":
+    if host_platform.syscall_kernel() != "linux":
         return None
     try:
         before = lock_path.lstat()

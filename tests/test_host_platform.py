@@ -18,8 +18,10 @@ from podcast_mcp.util.host_platform import (
     UNKNOWN,
     WINDOWS,
     DataRoots,
+    ForeignKernelError,
     HostPlatform,
     current,
+    syscall_kernel,
     using,
 )
 
@@ -281,6 +283,53 @@ def test_using_restores_the_previous_row_when_the_block_raises() -> None:
     with pytest.raises(RuntimeError), using(IOS):
         raise RuntimeError("boom")
     assert current() is outer
+
+
+def _a_row_of_another_kernel() -> HostPlatform:
+    return next(row for row in (MACOS, LINUX, WINDOWS) if row.kernel != current().kernel)
+
+
+def test_syscall_kernel_is_the_real_kernel_without_an_override() -> None:
+    assert syscall_kernel() == current().kernel
+
+
+def test_syscall_kernel_accepts_a_row_built_from_the_real_one() -> None:
+    row = dataclasses.replace(current(), name="app-container", app_container=True)
+    with using(row):
+        assert syscall_kernel() == current().kernel
+
+
+def test_syscall_kernel_refuses_a_row_of_another_kernel() -> None:
+    real = current()
+    foreign = _a_row_of_another_kernel()
+    with using(foreign), pytest.raises(ForeignKernelError) as refused:
+        syscall_kernel()
+    assert str(refused.value) == (
+        f"a test selected the {foreign.name} row and reached a {foreign.kernel} syscall on a "
+        f"{real.name} machine; build the row with dataclasses.replace(current(), ...), or pass "
+        "real_syscalls=False to using() when the test replaces the syscall layer"
+    )
+
+
+def test_syscall_kernel_lets_a_test_that_replaces_the_syscall_layer_opt_in() -> None:
+    foreign = _a_row_of_another_kernel()
+    with using(foreign, real_syscalls=False):
+        assert syscall_kernel() == foreign.kernel
+    with using(foreign), pytest.raises(ForeignKernelError):
+        syscall_kernel()
+
+
+def test_the_opt_in_does_not_leak_to_the_enclosing_block() -> None:
+    foreign = _a_row_of_another_kernel()
+    with using(foreign, real_syscalls=False):
+        with using(foreign), pytest.raises(ForeignKernelError):
+            syscall_kernel()
+        assert syscall_kernel() == foreign.kernel
+
+
+def test_the_other_kernel_has_no_syscall_branch_to_guard() -> None:
+    with using(GENERIC_POSIX):
+        assert syscall_kernel() == "other"
 
 
 def test_reported_machine_and_release_come_from_the_platform_module(

@@ -326,7 +326,7 @@ def _linux_ram(monkeypatch, host, tmp_path: Path, cgroup: dict[str, str] | None 
     for name, text in (cgroup or {}).items():
         (root / name).parent.mkdir(parents=True, exist_ok=True)
         (root / name).write_text(text)
-    host(host_platform.LINUX)
+    host(host_platform.LINUX, real_syscalls=False)
     monkeypatch.setattr(hardware, "_MEMINFO", meminfo)
     monkeypatch.setattr(hardware, "_CGROUP_ROOT", root)
     monkeypatch.setattr(hardware, "_SELF_CGROUP", tmp_path / "no_self_cgroup")
@@ -458,7 +458,7 @@ def test_macos_physical_cores_go_through_the_process_runner(monkeypatch, host) -
         calls.append(list(cmd))
         return subprocess.CompletedProcess(cmd, 0, "10\n", "")
 
-    host(host_platform.MACOS)
+    host(host_platform.MACOS, real_syscalls=False)
     monkeypatch.setattr(hardware.process, "run", run)
     assert hardware._physical_cores() == 10
     assert calls == [["sysctl", "-n", "hw.physicalcpu"]]
@@ -639,7 +639,7 @@ def test_linux_available_ram_clamps_a_cgroup_over_its_limit_to_zero(
 
 
 def test_linux_available_ram_is_none_without_meminfo(monkeypatch, host, tmp_path) -> None:
-    host(host_platform.LINUX)
+    host(host_platform.LINUX, real_syscalls=False)
     monkeypatch.setattr(hardware, "_MEMINFO", tmp_path / "missing")
     assert hardware.available_ram_bytes() is None
 
@@ -654,7 +654,7 @@ Pages wired down:                         3000.
 
 
 def test_macos_available_ram_sums_free_inactive_and_speculative_pages(monkeypatch, host) -> None:
-    host(host_platform.MACOS)
+    host(host_platform.MACOS, real_syscalls=False)
     monkeypatch.setattr(
         hardware.process,
         "run",
@@ -670,13 +670,13 @@ def test_macos_available_ram_is_none_when_vm_stat_fails(monkeypatch, host, failu
     def boom(*a, **k):
         raise failure
 
-    host(host_platform.MACOS)
+    host(host_platform.MACOS, real_syscalls=False)
     monkeypatch.setattr(hardware.process, "run", boom)
     assert hardware.available_ram_bytes() is None
 
 
 def test_macos_available_ram_is_none_for_unparseable_output(monkeypatch, host) -> None:
-    host(host_platform.MACOS)
+    host(host_platform.MACOS, real_syscalls=False)
     monkeypatch.setattr(
         hardware.process,
         "run",
@@ -687,7 +687,7 @@ def test_macos_available_ram_is_none_for_unparseable_output(monkeypatch, host) -
 
 def test_windows_available_ram_reads_available_physical_memory(monkeypatch, host) -> None:
     asked: list[str] = []
-    host(host_platform.WINDOWS)
+    host(host_platform.WINDOWS, real_syscalls=False)
     monkeypatch.setattr(hardware, "_ram_bytes_win32", lambda field: asked.append(field) or 123)
     assert hardware.available_ram_bytes() == 123
     assert asked == ["ullAvailPhys"]

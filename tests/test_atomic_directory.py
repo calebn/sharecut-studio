@@ -86,7 +86,10 @@ def test_a_host_without_a_no_replace_rename_refuses(tmp_path: Path, row):
     (tmp_path / "staged").mkdir()
     root_fd = os.open(tmp_path, os.O_RDONLY | os.O_DIRECTORY)
     try:
-        with using(row), pytest.raises(OSError, match="atomic no-replace rename is unavailable"):
+        with (
+            using(row, real_syscalls=False),
+            pytest.raises(OSError, match="atomic no-replace rename is unavailable"),
+        ):
             rename_noreplace("staged", "published", root_fd)
     finally:
         os.close(root_fd)
