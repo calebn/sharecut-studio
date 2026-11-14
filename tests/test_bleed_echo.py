@@ -501,7 +501,6 @@ def _pinned_tracks() -> dict[str, np.ndarray]:
 
 
 def test_profiles_pinned() -> None:
-    """Silent frames, a constant stretch, short and partial-frame tracks, both open policies."""
     read = {tid: _at_voice(samples) for tid, samples in _pinned_tracks().items()}
     cfg = EchoConfig()
     profiles = [
