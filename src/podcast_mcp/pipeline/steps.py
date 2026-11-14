@@ -128,6 +128,7 @@ def transcribe_tracks(project: EpisodeProject, defaults: dict[str, Any]) -> Step
         plan_retime,
         plan_transcription,
         refresh_reused_silence_flags,
+        repair_reused_loops,
         run_transcribe_plan,
     )
     from podcast_mcp.edits.word_spans import trim_project_word_spans
@@ -199,6 +200,7 @@ def transcribe_tracks(project: EpisodeProject, defaults: dict[str, Any]) -> Step
         language=language,
         max_word_sec=pol.max_word_audibility_sec,
     )
+    repaired_loops = repair_reused_loops(project, plan, defaults=defaults)
     # Word times are final here; trim before the reused-transcript silence flags read spans.
     span_trims = trim_project_word_spans(project, defaults)
     reflag_skipped = refresh_reused_silence_flags(project, plan, options)
@@ -214,7 +216,7 @@ def transcribe_tracks(project: EpisodeProject, defaults: dict[str, Any]) -> Step
         if options.forced_alignment_enabled
         else []
     )
-    asr_loops = [entry for e in engines for entry in e.asr_loop_drops]
+    asr_loops = [entry for e in engines for entry in e.asr_loop_drops] + repaired_loops
     forced_alignment: dict[str, Any] = {**options.forced_alignment.report(), "jobs": align_jobs}
     retime_ok = {j["label"] for j in align_jobs if forced_alignment_succeeded(j)}
     retimed = [j.label for j in plan.retime if j.label in retime_ok]
