@@ -38,19 +38,28 @@ describe("the sound scan's cost", () => {
 });
 
 describe("New projects start with this", () => {
-  it("is Off until the person turns it on", () => {
+  it.each([
+    [null, true],
+    ["off", false],
+    ["on", true],
+  ])("reads %s as %s", (stored, expected) => {
+    if (stored !== null)
+      localStorage.setItem("sharecut.soundScanForNewProjects", stored);
+    expect(readSoundScanStart()).toBe(expected);
+  });
+
+  it("remembers the person's choice", () => {
+    writeSoundScanStart(false);
     expect(readSoundScanStart()).toBe(false);
     writeSoundScanStart(true);
     expect(readSoundScanStart()).toBe(true);
-    writeSoundScanStart(false);
-    expect(readSoundScanStart()).toBe(false);
   });
 
-  it("reads as Off when storage cannot be read", () => {
+  it("reads as On when storage cannot be read", () => {
     vi.spyOn(Storage.prototype, "getItem").mockImplementation(() => {
       throw new Error("blocked");
     });
-    expect(readSoundScanStart()).toBe(false);
+    expect(readSoundScanStart()).toBe(true);
     vi.restoreAllMocks();
   });
 });
@@ -65,7 +74,25 @@ describe("applySoundScanStart", () => {
     enabled_steps: ["transcribe_tracks", "apply_sound_actions"],
   });
 
-  it("turns the scan off in a new project by default, keeping every other setting", async () => {
+  it("turns the scan on in a new project by default, keeping every other setting", async () => {
+    vi.mocked(loadPipelineConfig).mockResolvedValue(
+      pipelineConfig({
+        config: { transcribe: { language: "fr" } },
+        enabled_steps: ["transcribe_tracks"],
+      }),
+    );
+    await applySoundScanStart(path);
+    expect(putPipelineConfig).toHaveBeenCalledWith(path, {
+      config: {
+        transcribe: { language: "fr" },
+        tighten: { apply_non_speech: true },
+      },
+      enabled_steps: ["transcribe_tracks", "apply_sound_actions"],
+    });
+  });
+
+  it("turns it off when the person chose Off", async () => {
+    writeSoundScanStart(false);
     vi.mocked(loadPipelineConfig).mockResolvedValue(current);
     await applySoundScanStart(path);
     expect(putPipelineConfig).toHaveBeenCalledWith(path, {

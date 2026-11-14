@@ -18,6 +18,7 @@ import { ModelsContext, useModels } from "../../models/useModels";
 import { useDawStore } from "../../state/dawStore";
 import { expectNoA11yViolations } from "../../test/a11y";
 import { deferred } from "../../test/deferred";
+import { pipelineConfig } from "../../test/pipelineConfigFixture";
 import {
   modelStatus,
   modelsApi,
@@ -35,6 +36,7 @@ import {
   HOME_VISITS_KEY,
 } from "../../utils/homeScreenHint";
 import { takeAutoRun, takeOpenStage } from "../../utils/openIntent";
+import { writeSoundScanStart } from "../prepare/soundScan";
 import { HomeScreen, SETUP_DISMISSED_KEY } from "./HomeScreen";
 
 vi.mock("../../api", async (importOriginal) => ({
@@ -52,6 +54,8 @@ vi.mock("../../api", async (importOriginal) => ({
   addTrackCommand: vi.fn(),
   uploadMediaFile: vi.fn(),
   openEpisodeProject: vi.fn(),
+  loadPipelineConfig: vi.fn(),
+  putPipelineConfig: vi.fn(),
   pickEpisodeProject: vi.fn(),
   fetchDiagnosticsMeta: vi.fn(async () => ({
     report_available: false,
@@ -73,11 +77,28 @@ const reveal = vi.mocked(api.revealRecentProject);
 const duplicate = vi.mocked(api.duplicateRecentProject);
 const create = vi.mocked(api.createEpisodeProject);
 const open = vi.mocked(api.openEpisodeProject);
+const loadCfg = vi.mocked(api.loadPipelineConfig);
+const putCfg = vi.mocked(api.putPipelineConfig);
 const pick = vi.mocked(api.pickEpisodeProject);
 const pickFiles = vi.mocked(ingest.pickAudioFiles);
 const ingestInto = vi.mocked(ingest.ingestIntoNewProject);
 
 const EP = "/ws/rosa/episode.sharecut";
+
+function freshConfig() {
+  return pipelineConfig({
+    config: { transcribe: { language: "fr" } },
+    enabled_steps: ["transcribe_tracks"],
+  });
+}
+
+const SCAN_ON_BODY = {
+  config: {
+    transcribe: { language: "fr" },
+    tighten: { apply_non_speech: true },
+  },
+  enabled_steps: ["transcribe_tracks", "apply_sound_actions"],
+};
 
 function recent(overrides: Partial<RecentProject> = {}): RecentProject {
   return {
@@ -559,9 +580,12 @@ describe("HomeScreen", () => {
     it("Record creates an episode in the default folder and opens Record", async () => {
       const user = userEvent.setup();
       create.mockResolvedValue({ project_path: EP, name: "x" });
+      loadCfg.mockResolvedValue(freshConfig());
       render(<HomeScreen />);
       await user.click(await screen.findByRole("button", { name: /^Record/ }));
       await waitFor(() => expect(assign).toHaveBeenCalled());
+      expect(putCfg).toHaveBeenCalledWith(EP, SCAN_ON_BODY);
+      expect(localStorage.getItem("sharecut.soundScanStartFailed")).toBeNull();
       expect(create).toHaveBeenCalledWith(
         "",
         expect.stringMatching(/^Untitled episode · \d+ \w{3}$/),
@@ -576,15 +600,42 @@ describe("HomeScreen", () => {
       pickFiles.mockResolvedValue([file]);
       create.mockResolvedValue({ project_path: EP, name: "Rosa" });
       ingestInto.mockResolvedValue({ added: 1 });
+      loadCfg.mockResolvedValue(freshConfig());
       render(<HomeScreen />);
       await user.click(
         await screen.findByRole("button", { name: /^Import audio/ }),
       );
       await waitFor(() => expect(assign).toHaveBeenCalled());
       expect(create).toHaveBeenCalledWith("", "Rosa");
+      expect(putCfg).toHaveBeenCalledWith(EP, SCAN_ON_BODY);
+      expect(localStorage.getItem("sharecut.soundScanStartFailed")).toBeNull();
       expect(ingestInto).toHaveBeenCalledWith(EP, [file]);
       expect(takeOpenStage(EP)).toBe("prepare");
       expect(takeAutoRun(EP)).toBe(true);
+    });
+
+    it("Import keeps this browser's Off for the new episode", async () => {
+      const user = userEvent.setup();
+      writeSoundScanStart(false);
+      const file = new File(["x"], "Rosa.wav", { type: "audio/wav" });
+      pickFiles.mockResolvedValue([file]);
+      create.mockResolvedValue({ project_path: EP, name: "Rosa" });
+      ingestInto.mockResolvedValue({ added: 1 });
+      loadCfg.mockResolvedValue(
+        pipelineConfig({
+          config: { tighten: { apply_non_speech: true } },
+          enabled_steps: ["transcribe_tracks", "apply_sound_actions"],
+        }),
+      );
+      render(<HomeScreen />);
+      await user.click(
+        await screen.findByRole("button", { name: /^Import audio/ }),
+      );
+      await waitFor(() => expect(assign).toHaveBeenCalled());
+      expect(putCfg).toHaveBeenCalledWith(EP, {
+        config: { tighten: { apply_non_speech: false } },
+        enabled_steps: ["transcribe_tracks"],
+      });
     });
 
     it("Import with nothing chosen does nothing", async () => {

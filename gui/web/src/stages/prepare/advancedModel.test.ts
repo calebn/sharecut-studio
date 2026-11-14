@@ -135,12 +135,12 @@ describe("the sound scan row", () => {
     expect(advancedGroups(on, job)[3].steps[1].result).toBe("3 sounds lowered");
   });
 
-  it("carries the person's own start choice, off unless they turned it on", () => {
+  it("carries the person's own start choice, on unless they turned it off", () => {
     expect(scan().personal).toMatchObject({
       label: "New projects start with this",
-      on: false,
+      on: true,
     });
-    expect(scan(cfg, { soundScanStart: true }).personal?.on).toBe(true);
+    expect(scan(cfg, { soundScanStart: false }).personal?.on).toBe(false);
     expect(scan().help).toContain(
       "Applies suggested sound actions during processing",
     );
