@@ -9,10 +9,9 @@ import { hintOf, verbOf } from "./verbDisplay";
 export type DockSeat = "host" | "guest" | "producer";
 
 /**
- * What the dock shows. `status` replaces the secondaries after Stop ("Saving ·
- * 64% · keep this page open"); `done` is the same line over a Done primary in
- * place of Leave. `leaveHeld` keeps the exit pressable (aria-disabled) and a
- * press shows the reason briefly.
+ * `status` replaces the secondaries after Stop. `done` is the same line over a
+ * Done primary in place of Leave. `leaveHeld` is why the exit is held: it stays
+ * pressable and a press shows the reason.
  */
 export type RecordDockMode =
   | { kind: "controls"; leaveHeld?: string }
