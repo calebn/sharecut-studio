@@ -261,6 +261,69 @@ describe("rowOutcome", () => {
     expect(rowOutcome(job, "clean")?.state).toBe("queued");
   });
 
+  it("reads the room tone bed as part of Line up tracks while it runs", () => {
+    const job = pipelineJobSnapshot({
+      status: "running",
+      steps: [
+        step("ingest_tracks", "ok"),
+        step("transcribe_tracks", "ok"),
+        step("align_tracks", "ok"),
+        step("require_align_accept", "ok"),
+        step("extract_room_tone_beds", "running"),
+      ],
+    });
+    expect(rowOutcome(job, "align")?.state).toBe("running");
+    expect(rowOutcome(job, "clean")?.state).toBe("queued");
+  });
+
+  it("keeps Line up tracks running when the bed is done and the merge runs", () => {
+    const job = pipelineJobSnapshot({
+      status: "running",
+      steps: [
+        step("ingest_tracks", "ok"),
+        step("transcribe_tracks", "ok"),
+        step("align_tracks", "ok"),
+        step("require_align_accept", "ok"),
+        step("extract_room_tone_beds", "ok"),
+        step("merge_transcript", "running"),
+      ],
+    });
+    expect(rowOutcome(job, "align")?.state).toBe("running");
+    expect(rowOutcome(job, "clean")?.state).toBe("queued");
+  });
+
+  it("moves from Line up tracks to Clean once, when gate fill starts", () => {
+    const job = pipelineJobSnapshot({
+      status: "running",
+      steps: [
+        step("ingest_tracks", "ok"),
+        step("transcribe_tracks", "ok"),
+        step("align_tracks", "ok"),
+        step("require_align_accept", "ok"),
+        step("extract_room_tone_beds", "ok"),
+        step("merge_transcript", "ok"),
+        step("fill_gate_holes", "running"),
+      ],
+    });
+    expect(rowOutcome(job, "align")?.state).toBe("done");
+    expect(rowOutcome(job, "clean")?.state).toBe("running");
+  });
+
+  it("reads Clean done when only the bed ran in its group", () => {
+    const job = pipelineJobSnapshot({
+      status: "ok",
+      skip_steps: ["fill_gate_holes", "clean_audio", "compress_tracks"],
+      steps: [
+        step("ingest_tracks", "ok"),
+        step("transcribe_tracks", "ok"),
+        step("align_tracks", "ok"),
+        step("require_align_accept", "ok"),
+        step("extract_room_tone_beds", "ok"),
+      ],
+    });
+    expect(rowOutcome(job, "clean")?.state).toBe("done");
+  });
+
   it("fails the row whose step failed, with the step's error", () => {
     const job = pipelineJobSnapshot({
       status: "error",
@@ -1207,6 +1270,22 @@ describe("skipping for one run", () => {
     ]);
   });
 
+  it("skips the room tone bed with Clean and keeps it with Line up tracks", () => {
+    const withBed = {
+      step_names: [...cfg.step_names, "extract_room_tone_beds"],
+      enabled_steps: [...cfg.enabled_steps, "extract_room_tone_beds"],
+    };
+    expect(oneRunSkipSteps(withBed, new Set(["clean"]))).toEqual([
+      "clean_audio",
+      "apply_sound_actions",
+      "extract_room_tone_beds",
+    ]);
+    expect(oneRunSkipSteps(withBed, new Set(["align"]))).toEqual([
+      "align_tracks",
+      "apply_sound_actions",
+    ]);
+  });
+
   it("skips the analysis and the sound scan together when Find suggestions is skipped", () => {
     const on = {
       ...cfg,
@@ -1399,6 +1478,7 @@ describe("successful selected work", () => {
         [step("assemble_timeline", "ok", { summary: "stems assembled" })],
         {
           skip_steps: [
+            "extract_room_tone_beds",
             "fill_gate_holes",
             "clean_audio",
             "compress_tracks",

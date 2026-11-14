@@ -41,6 +41,7 @@ const { config, STEPS, SAVED } = vi.hoisted(() => {
       loadError: null as string | null,
       tighten: true,
       sounds: true,
+      roomToneBed: false,
     },
     STEPS,
     SAVED: STEPS.filter((id) => id !== "apply_sound_actions"),
@@ -59,6 +60,7 @@ vi.mock("../../hooks/usePipelineWorkingSet", () => ({
       enabled_steps: config.enabled ?? SAVED,
       config: {
         tighten: { enabled: config.tighten, apply_non_speech: config.sounds },
+        room_tone: { extract_bed: config.roomToneBed },
       },
     };
     return {
@@ -112,6 +114,7 @@ beforeEach(() => {
   config.loadError = null;
   config.tighten = true;
   config.sounds = true;
+  config.roomToneBed = false;
   start.mockResolvedValue(
     pipelineJobSnapshot({ id: "j-new", status: "running" }),
   );
@@ -498,6 +501,44 @@ describe("the plan's sound action and recovery controls", () => {
     expect(start.mock.calls[0][1]?.config).toMatchObject({
       tighten: { enabled: true, apply_non_speech: true },
     });
+  });
+
+  it("names the room tone bed first when its setting is on", async () => {
+    config.roomToneBed = true;
+    config.enabled = SAVED.filter((id) => id !== "clean_audio");
+    const { result } = render();
+    expect(result.current.view.rows.find((r) => r.id === "clean")?.detail).toBe(
+      "All 3 tracks · Room tone bed, fill gate holes, compress, balance",
+    );
+    act(() => result.current.view.onRowAction("clean", "skip"));
+    expect(result.current.view.rows.find((r) => r.id === "clean")?.detail).toBe(
+      "Skipped this time. Room tone bed, fill gate holes, compress, balance will not run.",
+    );
+  });
+
+  it("does not name the bed when its step is checked but the setting is off", () => {
+    config.roomToneBed = false;
+    const { result } = render();
+    expect(result.current.view.rows.find((r) => r.id === "clean")?.detail).toBe(
+      "All 3 tracks",
+    );
+  });
+
+  it("does not call a cleaning group with only the bed on off", () => {
+    config.roomToneBed = true;
+    config.enabled = SAVED.filter(
+      (id) =>
+        ![
+          "fill_gate_holes",
+          "clean_audio",
+          "compress_tracks",
+          "balance_tracks",
+        ].includes(id),
+    );
+    const { result } = render();
+    expect(result.current.view.rows.find((r) => r.id === "clean")?.detail).toBe(
+      "All 3 tracks · Room tone bed",
+    );
   });
 
   it("leaves a wholly disabled cleaning group off", async () => {

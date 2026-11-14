@@ -40,6 +40,16 @@ const ROW_STEPS: Readonly<Record<ReadyRowId, readonly string[]>> = {
   suggest: ["analyze_fillers_pauses", "apply_sound_actions"],
 };
 
+const RUN_WINDOW_ROW: Readonly<Record<string, ReadyRowId>> = {
+  extract_room_tone_beds: "align",
+};
+
+function windowRow(step: string): ReadyRowId | undefined {
+  return (
+    RUN_WINDOW_ROW[step] ?? ROW_ORDER.find((id) => ROW_STEPS[id].includes(step))
+  );
+}
+
 type PlanOperation = {
   step: string;
   label: string;
@@ -61,6 +71,11 @@ const PLAN_OPERATIONS: Readonly<Record<ReadyRowId, readonly PlanOperation[]>> =
       { step: "require_align_accept", label: "Check alignment" },
     ],
     clean: [
+      {
+        step: "extract_room_tone_beds",
+        label: "Room tone bed",
+        enabledPath: "room_tone.extract_bed",
+      },
       { step: "fill_gate_holes", label: "Fill gate holes" },
       { step: "clean_audio", label: "Clean" },
       { step: "compress_tracks", label: "Compress" },
@@ -80,6 +95,13 @@ type PlanSettings = Pick<
   "step_names" | "enabled_steps" | "config"
 >;
 
+function pathAllows(settings: PlanSettings, operation: PlanOperation) {
+  return (
+    !operation.enabledPath ||
+    getByPath(settings.config, operation.enabledPath) === true
+  );
+}
+
 function enabledPlanOperations(
   settings: PlanSettings,
   row: ReadyRowId,
@@ -87,8 +109,7 @@ function enabledPlanOperations(
   return PLAN_OPERATIONS[row].filter(
     (operation) =>
       settings.enabled_steps.includes(operation.step) &&
-      (!operation.enabledPath ||
-        getByPath(settings.config, operation.enabledPath) === true),
+      pathAllows(settings, operation),
   );
 }
 
@@ -409,7 +430,10 @@ function planRows(plan: RerunPlan): ReadyRowData[] {
         detail: "Off in Advanced",
       };
     }
-    const partial = operations.length < PLAN_OPERATIONS[id].length;
+    const configured = PLAN_OPERATIONS[id].filter((operation) =>
+      pathAllows(settings, operation),
+    );
+    const partial = operations.length < configured.length;
     const selected = operations
       .map((operation, index) =>
         index === 0 ? operation.label : operation.label.toLowerCase(),
@@ -606,7 +630,7 @@ export function rowOutcome(
   row: ReadyRowId,
 ): Outcome | null {
   if (!job) return null;
-  const mine = job.steps.filter((step) => ROW_STEPS[row].includes(step.name));
+  const mine = job.steps.filter((step) => windowRow(step.name) === row);
   const failed = mine.find((step) => step.status === "error");
   if (failed) {
     return {
@@ -635,7 +659,7 @@ export function rowOutcome(
   }
   const later = ROW_ORDER.slice(ROW_ORDER.indexOf(row) + 1);
   const movedOn = job.steps.some((step) =>
-    later.some((id) => ROW_STEPS[id].includes(step.name)),
+    later.some((id) => windowRow(step.name) === id),
   );
   if (job.status === "ok" || movedOn) return { state: "done" };
   if (job.status === "error" || job.status === "cancelled") {
