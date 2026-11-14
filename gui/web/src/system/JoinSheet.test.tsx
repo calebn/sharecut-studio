@@ -1,7 +1,7 @@
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useState } from "react";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { JoinSheet, type JoinSheetProps } from "./JoinSheet";
 
 const MAYA = { name: "Maya Okafor", colorIndex: 0 };
@@ -32,6 +32,15 @@ const READY = {
   mic: { status: "ready", input: "MacBook Mic", level: 0.3 },
   headphones: true,
 } as const;
+
+const touchScreen = () =>
+  vi.stubGlobal("matchMedia", (query: string) => ({
+    matches: query === "(any-pointer: coarse)",
+    addEventListener: vi.fn(),
+    removeEventListener: vi.fn(),
+  }));
+
+afterEach(() => vi.unstubAllGlobals());
 
 const primary = (name: string) => screen.getByRole("button", { name });
 
@@ -71,19 +80,14 @@ describe("JoinSheet guest", () => {
   it("joins on Enter in a ready name field", async () => {
     const onJoin = vi.fn();
     render(<Harness {...READY} onJoin={onJoin} />);
-    const field = screen.getByLabelText("Your name");
-    await waitFor(() => expect(field).toHaveFocus());
-    await userEvent.type(field, "{Enter}");
+    await userEvent.type(screen.getByLabelText("Your name"), "{Enter}");
     expect(onJoin).toHaveBeenCalledOnce();
   });
 
   it("moves Enter on the name to the mic row when it is not done", async () => {
     const onJoin = vi.fn();
     render(<Harness name="Jon" mic={{ status: "idle" }} onJoin={onJoin} />);
-    const field = screen.getByLabelText("Your name");
-    // The dialog takes its initial focus on the next frame; wait for it.
-    await waitFor(() => expect(field).toHaveFocus());
-    await userEvent.type(field, "{Enter}");
+    await userEvent.type(screen.getByLabelText("Your name"), "{Enter}");
     expect(onJoin).not.toHaveBeenCalled();
     expect(
       screen.getByRole("button", { name: "Allow microphone" }),
@@ -95,9 +99,7 @@ describe("JoinSheet guest", () => {
     render(
       <Harness name="Jon" mic={{ status: "prompting" }} onJoin={onJoin} />,
     );
-    const field = screen.getByLabelText("Your name");
-    await waitFor(() => expect(field).toHaveFocus());
-    await userEvent.type(field, "{Enter}");
+    await userEvent.type(screen.getByLabelText("Your name"), "{Enter}");
     expect(onJoin).not.toHaveBeenCalled();
     expect(document.querySelector('[data-step="mic"]')).toHaveFocus();
   });
@@ -182,16 +184,112 @@ describe("JoinSheet guest", () => {
     expect(join).toHaveAttribute("aria-busy", "true");
   });
 
-  it("declines from Not now and from Close", async () => {
+  it("declines from Not now, Close and Escape", async () => {
     const onDecline = vi.fn();
     render(<Harness {...READY} onDecline={onDecline} />);
     await userEvent.click(primary("Not now"));
     await userEvent.click(primary("Close"));
-    expect(onDecline).toHaveBeenCalledTimes(2);
+    await userEvent.keyboard("{Escape}");
+    expect(onDecline).toHaveBeenCalledTimes(3);
+  });
+
+  it("has one Close and no Sheet height, Collapse or Expand control", () => {
+    render(<Harness {...READY} />);
+    expect(screen.getAllByRole("button", { name: /^Close/ })).toHaveLength(1);
+    expect(screen.queryByRole("slider", { name: "Sheet height" })).toBeNull();
+    expect(
+      screen.queryByRole("button", { name: /^(Collapse|Expand)/ }),
+    ).toBeNull();
+  });
+
+  it("does not decline on a press beside the sheet", async () => {
+    const onDecline = vi.fn();
+    render(<Harness {...READY} onDecline={onDecline} />);
+    await userEvent.click(
+      document.querySelector(".command-palette-scrim") as Element,
+    );
+    expect(onDecline).not.toHaveBeenCalled();
+  });
+
+  it("sets the name field's keyboard hints", () => {
+    const { rerender } = render(<Harness name="Jon" />);
+    const field = screen.getByLabelText("Your name");
+    expect(field).toHaveAttribute("enterkeyhint", "next");
+    expect(field).toHaveAttribute("autocapitalize", "words");
+    expect(field).toHaveAttribute("autocorrect", "off");
+    expect(field).toHaveAttribute("spellcheck", "false");
+    expect(field).toHaveAttribute("maxlength", "40");
+    expect(field).toHaveAttribute("autocomplete", "name");
+    rerender(<Harness {...READY} />);
+    expect(screen.getByLabelText("Your name")).toHaveAttribute(
+      "enterkeyhint",
+      "go",
+    );
   });
 });
 
-describe("JoinSheet input, storage and rejoin", () => {
+describe("JoinSheet first focus", () => {
+  it("opens on the name field, never on Close", async () => {
+    render(<Harness />);
+    await waitFor(() =>
+      expect(screen.getByRole("textbox", { name: "Your name" })).toHaveFocus(),
+    );
+  });
+
+  it("opens on the name row without focusing the field on a touch screen", async () => {
+    touchScreen();
+    render(<Harness />);
+    await waitFor(() =>
+      expect(document.querySelector('[data-step="name"]')).toHaveFocus(),
+    );
+    expect(screen.getByLabelText("Your name")).not.toHaveFocus();
+  });
+
+  it("opens on Allow microphone when the name is already known", async () => {
+    render(<Harness name="Jon" mic={{ status: "idle" }} />);
+    await waitFor(() =>
+      expect(
+        screen.getByRole("button", { name: "Allow microphone" }),
+      ).toHaveFocus(),
+    );
+  });
+
+  it("opens on Join and record when every row is done", async () => {
+    render(<Harness {...READY} />);
+    await waitFor(() => expect(primary("Join and record")).toHaveFocus());
+  });
+
+  it("moves focus from the waiting mic row to Join and record when the prompt resolves", async () => {
+    const { rerender } = render(
+      <Harness {...READY} mic={{ status: "prompting" }} />,
+    );
+    await waitFor(() =>
+      expect(document.querySelector('[data-step="mic"]')).toHaveFocus(),
+    );
+    rerender(<Harness {...READY} />);
+    await waitFor(() => expect(primary("Join and record")).toHaveFocus());
+  });
+
+  it("moves focus on when the storage row it waited on goes away", async () => {
+    const { rerender } = render(
+      <Harness {...READY} blocker={{ text: "Checking this device…" }} />,
+    );
+    await waitFor(() =>
+      expect(document.querySelector('[data-step="storage"]')).toHaveFocus(),
+    );
+    rerender(<Harness {...READY} />);
+    await waitFor(() => expect(primary("Join and record")).toHaveFocus());
+  });
+
+  it("leaves focus in the name field while the guest types", async () => {
+    render(<Harness mic={{ status: "idle" }} />);
+    const field = screen.getByLabelText("Your name");
+    await userEvent.type(field, "Jon");
+    expect(field).toHaveFocus();
+  });
+});
+
+describe("JoinSheet input and storage", () => {
   const DEVICES = [
     { id: "usb", label: "USB Condenser" },
     { id: "built-in", label: "MacBook Mic" },
@@ -293,16 +391,6 @@ describe("JoinSheet input, storage and rejoin", () => {
     ).getByRole("status");
     expect(region).toHaveTextContent("Your saved microphone isn't available.");
   });
-
-  it("opens on the primary when rejoining, and on the name otherwise", async () => {
-    const { unmount } = render(<Harness {...READY} rejoin />);
-    await waitFor(() => expect(primary("Join and record")).toHaveFocus());
-    unmount();
-    render(<Harness {...READY} />);
-    await waitFor(() =>
-      expect(screen.getByLabelText("Your name")).toHaveFocus(),
-    );
-  });
 });
 
 describe("JoinSheet producer", () => {
@@ -323,15 +411,5 @@ describe("JoinSheet producer", () => {
     render(<Harness seat="producer" />);
     expect(primary("Join to listen")).toBeDisabled();
     expect(screen.getByText("Add your name first")).toBeVisible();
-  });
-});
-
-describe("JoinSheet phone", () => {
-  it("is a bottom sheet titled by who is here", () => {
-    render(<Harness {...READY} viewerWidth="phone" />);
-    expect(
-      screen.getByRole("dialog", { name: "Maya and Rosa are here" }),
-    ).toBeInTheDocument();
-    expect(document.querySelector(".sys-sheet-bottom")).not.toBeNull();
   });
 });

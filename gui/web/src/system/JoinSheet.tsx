@@ -1,18 +1,31 @@
-import { type FormEvent, type RefObject, useId, useRef, useState } from "react";
+import {
+  type FormEvent,
+  type RefObject,
+  useEffect,
+  useId,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
+import { initialPointerKind } from "../hooks/usePointerType";
 import { Button } from "../ui";
-import type { DrawerDetent } from "../ui/BottomSheet";
+import { Dialog } from "../ui/Dialog";
 import { BUSY_REASON } from "../ui/disabledReason";
+import { COMMENT_NAME_MAX } from "../utils/commentAuthor";
 import { HeadphonesToggle } from "./HeadphonesToggle";
 import {
   consentDetails,
   consentLine,
   JOIN_TEXT,
   type JoinBlocker,
+  type JoinFocus,
   type JoinMic,
   type JoinMicAction,
   type JoinPrimary,
   type JoinRow,
+  type JoinRowAction,
   type JoinStep,
+  joinFocus,
   joinGuestModel,
   joinHeadline,
   joinProducerModel,
@@ -21,7 +34,6 @@ import {
 import { MicRow } from "./MicRow";
 import { PersonAvatar, type PersonData } from "./Person";
 import type { RoomRole } from "./roomViewModel";
-import { Sheet } from "./Sheet";
 import { SheetRow } from "./SheetRow";
 import { SystemIcon } from "./SystemIcon";
 
@@ -29,8 +41,6 @@ type JoinHere = { person: PersonData; role: RoomRole };
 
 export type JoinSheetProps = {
   seat: "guest" | "producer";
-  /** `phone` is the bottom sheet at its large detent; `desktop` a centred card. */
-  viewerWidth?: "desktop" | "phone";
   /** Who is in the room now, the host included. */
   here: JoinHere[];
   host: string;
@@ -50,10 +60,8 @@ export type JoinSheetProps = {
   /** The input picked in the mic row; `mic.devices` fills the list. */
   onInputChange?: (inputId: string) => void;
   joining?: boolean;
-  /** Back from Not now: the sheet opens on the consent step, with Join recording focused. */
-  rejoin?: boolean;
   onJoin: () => void;
-  /** Not now, Escape and Close all decline. */
+  /** Not now, Escape and Close all decline. A press beside the sheet does not. */
   onDecline: () => void;
 };
 
@@ -69,15 +77,14 @@ function Consent({
   return (
     <div className="sys-join-consent">
       <p className="sys-join-line">{consentLine(host)}</p>
-      <button
-        type="button"
-        className="sys-text-btn"
+      <Button
+        variant="link"
         aria-expanded={open}
         aria-controls={open ? detailsId : undefined}
         onClick={() => setOpen((value) => !value)}
       >
         Details
-      </button>
+      </Button>
       {open ? (
         <div id={detailsId} className="sys-join-details">
           <p>{consentDetails(host)}</p>
@@ -127,15 +134,30 @@ function Footer({
   );
 }
 
+/** The element for a focus target: a row's first enabled control, else the row. */
+function focusElement(
+  form: HTMLFormElement | null,
+  name: HTMLInputElement | null,
+  primary: HTMLButtonElement | null,
+  focus: JoinFocus,
+): HTMLElement | null {
+  if (focus.kind === "name-field") return name;
+  if (focus.kind === "primary") return primary?.disabled ? null : primary;
+  const row = form?.querySelector<HTMLElement>(`[data-step="${focus.step}"]`);
+  if (!row || focus.step === "name") return row ?? null;
+  return row.querySelector<HTMLElement>("button:not(:disabled), input") ?? row;
+}
+
 /**
- * The pre-join sheet over a live room. Rows check themselves off as the
- * caller's state moves; the primary stays disabled and names the first row
- * still to do. Presentational: the caller owns the name, the mic and the
- * join itself. Not now, Escape and Close all decline.
+ * The pre-join sheet over a live room, one Dialog at every width: a card from
+ * 600 px, a bottom sheet under it (system-record.css decides). Rows check
+ * themselves off as the caller's state moves; the primary stays disabled and
+ * names the first row still to do. Presentational: the caller owns the name,
+ * the mic and the join itself. Not now, Escape and Close all decline; a press
+ * beside the sheet does not.
  */
 export function JoinSheet({
   seat,
-  viewerWidth = "desktop",
   here,
   host,
   name,
@@ -150,15 +172,13 @@ export function JoinSheet({
   onMicAction,
   onInputChange,
   joining = false,
-  rejoin = false,
   onJoin,
   onDecline,
 }: JoinSheetProps) {
   const nameRef = useRef<HTMLInputElement>(null);
   const formRef = useRef<HTMLFormElement>(null);
   const primaryRef = useRef<HTMLButtonElement>(null);
-  const [detent, setDetent] = useState<DrawerDetent>("full");
-  const phone = viewerWidth === "phone";
+  const [pointer] = useState(initialPointerKind);
   const guest = seat === "guest";
   const guestModel = joinGuestModel({
     name,
@@ -172,8 +192,43 @@ export function JoinSheet({
   const producerModel = joinProducerModel({ name, joining });
   const { next, ready, primary } = guest ? guestModel : producerModel;
 
-  // Enter on the name moves to the next row (its button, or the row itself
-  // while the browser's prompt is up); Enter on a ready sheet joins.
+  const nextRef = useRef(next);
+  const initialFocusRef = useMemo(
+    () => ({
+      get current() {
+        return focusElement(
+          formRef.current,
+          nameRef.current,
+          primaryRef.current,
+          joinFocus(nextRef.current, pointer),
+        );
+      },
+    }),
+    [pointer],
+  );
+
+  // A row the sheet parked focus on (a wait, such as the browser's prompt or
+  // the storage check) hands it on when the row resolves, including when the
+  // row itself unmounts and focus falls to the page. Focus the guest chose
+  // stays put.
+  useEffect(() => {
+    if (nextRef.current === next) return;
+    nextRef.current = next;
+    const active = document.activeElement;
+    const parked =
+      active instanceof HTMLElement && active.matches(".sys-join-row");
+    const dropped = !active || active === document.body;
+    if (!parked && !dropped) return;
+    focusElement(
+      formRef.current,
+      nameRef.current,
+      primaryRef.current,
+      joinFocus(next, pointer),
+    )?.focus();
+  }, [next, pointer]);
+
+  // Enter on the name moves to the next row; Enter on a ready sheet joins.
+  // "fine" because Enter means a keyboard is in use, so the field is right.
   const submit = (event: FormEvent) => {
     event.preventDefault();
     if (joining) return;
@@ -181,21 +236,17 @@ export function JoinSheet({
       onJoin();
       return;
     }
-    const target: JoinStep = next ?? "name";
-    if (target === "name") nameRef.current?.focus();
-    else {
-      const row = formRef.current?.querySelector<HTMLElement>(
-        `[data-step="${target}"]`,
-      );
-      (
-        row?.querySelector<HTMLElement>("button:not(:disabled)") ?? row
-      )?.focus();
-    }
+    focusElement(
+      formRef.current,
+      nameRef.current,
+      primaryRef.current,
+      joinFocus(next, "fine"),
+    )?.focus();
   };
 
   const rowOf = (key: JoinStep) =>
     guestModel.rows.find((row) => row.key === key) as JoinRow;
-  const act = (kind: NonNullable<JoinRow["action"]>["kind"]) =>
+  const act = (kind: JoinRowAction["kind"]) =>
     kind === "blocker" ? onBlockerAction?.() : onMicAction?.(kind);
   const nameField = (
     <input
@@ -204,19 +255,23 @@ export function JoinSheet({
       className="sys-join-input"
       aria-label="Your name"
       autoComplete="name"
+      autoCapitalize="words"
+      autoCorrect="off"
+      spellCheck={false}
+      maxLength={COMMENT_NAME_MAX}
+      enterKeyHint={ready ? "go" : "next"}
       value={name}
       onChange={(event) => onNameChange(event.target.value)}
     />
   );
 
   return (
-    <Sheet
-      form={phone ? "bottom" : "centered"}
+    <Dialog
+      open
       title={joinHeadline(here)}
-      panelClassName="sys-join-sheet"
-      detent={detent}
-      onDetentChange={setDetent}
-      initialFocusRef={phone ? undefined : rejoin ? primaryRef : nameRef}
+      panelClassName="sys-join-sheet sys-join-dialog"
+      initialFocusRef={initialFocusRef}
+      scrimDismisses={false}
       onClose={onDecline}
       footer={
         <Footer
@@ -275,6 +330,6 @@ export function JoinSheet({
           </>
         )}
       </form>
-    </Sheet>
+    </Dialog>
   );
 }
