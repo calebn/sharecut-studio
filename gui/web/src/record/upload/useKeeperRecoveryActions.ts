@@ -21,11 +21,7 @@ export type KeeperRecoveryActions = {
   error: string | null;
   /** Last successful recovery, for the upload status live region. */
   notice: string | null;
-  /**
-   * The whole zip of this take's recording went to the browser. It is bound to the
-   * session and take it was made for, so a later take is never covered by it; a
-   * repeat download keeps it until that run fails, and a recovery clears it.
-   */
+  /** The whole zip of this session and take went to the browser. A failed download or a recovery clears it. */
   downloaded: boolean;
 };
 
