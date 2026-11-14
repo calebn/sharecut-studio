@@ -61,3 +61,120 @@ def test_a_revoke_window_does_not_arm_a_real_timer() -> None:
     from podcast_mcp.services.collaboration import share_pending
 
     assert share_pending.start_sweep_timer(60.0, lambda: None) is None
+
+
+def test_the_sweep_timer_arms_no_thread() -> None:
+    import threading
+
+    from podcast_mcp.services.collaboration import share_pending
+
+    before = {t for t in threading.enumerate() if isinstance(t, threading.Timer)}
+    share_pending.start_sweep_timer(60.0, lambda: None)
+    assert {t for t in threading.enumerate() if isinstance(t, threading.Timer)} == before
+
+
+def test_an_identity_store_made_in_one_test_is_gone_in_the_next_part_one() -> None:
+    assert get_identity_store() is not None
+
+
+def test_an_identity_store_made_in_one_test_is_gone_in_the_next_part_two() -> None:
+    from podcast_mcp.services.share_auth import store
+
+    assert store._STORE is None
+
+
+def test_the_identity_pin_follows_the_job_only_when_it_chose_outside_the_home(
+    monkeypatch, tmp_path: Path
+) -> None:
+    from conftest import _job_chose_identity
+
+    monkeypatch.delenv("PODCAST_SHARE_IDENTITY", raising=False)
+    assert not _job_chose_identity()
+    monkeypatch.setenv("PODCAST_SHARE_IDENTITY", str(Path.home() / ".podcast_mcp" / "i.sqlite"))
+    assert not _job_chose_identity()
+    monkeypatch.setenv("PODCAST_SHARE_IDENTITY", str(tmp_path / "i.sqlite"))
+    assert _job_chose_identity()
+
+
+def test_a_file_outside_the_telemetry_folders_under_cache_is_reported(tmp_path: Path) -> None:
+    (tmp_path / ".cache" / "Microsoft").mkdir(parents=True)
+    (tmp_path / ".cache" / "Microsoft" / "t").write_bytes(b"x")
+    (tmp_path / ".cache" / "other").mkdir()
+    (tmp_path / ".cache" / "other" / "f").write_bytes(b"x")
+    assert stray_files(tmp_path) == [".cache/other/f"]
+
+
+def _run_session(tmp_path: Path, body: str, extra_env: dict[str, str] | None = None):
+    import subprocess
+    import sys
+
+    project = tmp_path / "proj"
+    project.mkdir()
+    here = Path(__file__).parent
+    (project / "conftest.py").write_text(
+        "import importlib.util\nimport sys\n"
+        f"sys.path.insert(0, {str(here)!r})\n"
+        f"spec = importlib.util.spec_from_file_location('real_conftest', {str(here / 'conftest.py')!r})\n"
+        "real = importlib.util.module_from_spec(spec)\n"
+        "sys.modules['real_conftest'] = real\n"
+        "spec.loader.exec_module(real)\n"
+        "_sentinel_home = real._sentinel_home\n"
+        "_isolate_share_identity = real._isolate_share_identity\n"
+    )
+    (project / "test_probe.py").write_text("import os\nfrom pathlib import Path\n\n" + body)
+    env = {
+        k: v
+        for k, v in os.environ.items()
+        if k not in {"PODCAST_SHARE_IDENTITY", "CARGO_HOME", "PODCAST_MCP_CACHE"}
+    }
+    env.update(extra_env or {})
+    return subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "pytest",
+            "-q",
+            "-p",
+            "no:cacheprovider",
+            "--no-cov",
+            "-c",
+            "/dev/null",
+        ],
+        cwd=project,
+        env=env,
+        capture_output=True,
+        text=True,
+        timeout=120,
+    )
+
+
+def test_the_session_fails_when_a_test_writes_into_the_home(tmp_path: Path) -> None:
+    result = _run_session(
+        tmp_path,
+        "def test_writes():\n"
+        "    target = Path.home() / '.podcast_mcp'\n"
+        "    target.mkdir()\n"
+        "    (target / 'x.sqlite').write_bytes(b'x')\n",
+    )
+    assert result.returncode != 0
+    assert "tests wrote outside their temp roots" in result.stdout + result.stderr
+
+
+def test_the_session_defaults_and_cache_passthrough_apply(tmp_path: Path) -> None:
+    real = tmp_path / "realhome"
+    (real / ".cargo").mkdir(parents=True)
+    result = _run_session(
+        tmp_path,
+        "def test_env():\n"
+        "    home = Path(os.environ['HOME'])\n"
+        "    for name in ('PODCAST_SHARE_IDENTITY', 'PODCAST_MCP_CACHE'):\n"
+        "        assert not Path(os.environ[name]).is_relative_to(home)\n"
+        f"    assert os.environ['CARGO_HOME'] == {str(real / '.cargo')!r}\n"
+        f"    assert os.environ['PODCAST_SHARE_REGISTRY'] == {str(tmp_path / 'job.sqlite')!r}\n",
+        {
+            "HOME": str(real),
+            "USERPROFILE": str(real),
+            "PODCAST_SHARE_REGISTRY": str(tmp_path / "job.sqlite"),
+        },
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
