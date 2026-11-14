@@ -646,6 +646,36 @@ def test_the_unsigned_rehearsal_records_the_arguments_xcodebuild_receives(tmp_pa
     assert not shim.exists()
 
 
+def test_url_userinfo_is_masked_in_output_and_exception_lines() -> None:
+    redactor = Redactor()
+    assert redactor.redact("fetch http://user:hunter2@proxy:8080/x and https://tok@host/y") == (
+        "fetch http://<userinfo>@proxy:8080/x and https://<userinfo>@host/y"
+    )
+    line = redactor.exception_line(OSError("tunnel via http://user:hunter2@proxy:8080 failed"))
+    assert "hunter2" not in line and "http://<userinfo>@proxy:8080" in line
+
+
+def test_a_dry_run_never_prints_a_proxy_password_or_an_unlisted_value(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    secrets_file = tmp_path / "ios.env"
+    secrets_file.write_text(f"APPLE_DEVELOPMENT_TEAM={TEAM}\n")
+    secrets_file.chmod(0o600)
+    monkeypatch.setenv("SHARECUT_IOS_RELEASE_ENV", str(secrets_file))
+    monkeypatch.setenv("PODCAST_DISTRIBUTION_PROFILE", str(write_profile(tmp_path / "p.json")))
+    monkeypatch.setenv("HTTPS_PROXY", "http://user:hunter2@proxy.example:8080")
+    monkeypatch.setenv("SSL_CERT_FILE", "/ca/CERTVALUE.pem")
+    monkeypatch.setenv("CARGO_BUILD_JOBS", "4")
+    monkeypatch.setattr(ios_release, "git_state", lambda root: ("c" * 40, False))
+    monkeypatch.setattr(ios_release, "toolchain", lambda: ("/rustup:/usr/bin", None))
+    monkeypatch.setattr(ios_release, "checkout_lock", lambda root: contextlib.nullcontext())
+    assert ios_release.main(["build", "--dry-run"]) == 0
+    out = capsys.readouterr().out
+    assert "user:hunter2" not in out and "hunter2" not in out and "CERTVALUE" not in out
+    assert "HTTPS_PROXY=<set>" in out and "SSL_CERT_FILE=<set>" in out
+    assert "CARGO_BUILD_JOBS=4" in out and "APPLE_DEVELOPMENT_TEAM=<team>" in out
+
+
 def test_a_device_id_is_masked_by_shape() -> None:
     assert Redactor().redact("id:00001111-AAAABBBBCCCCDDDD, name:x") == "id:<device-id>, name:x"
 

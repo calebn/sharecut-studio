@@ -5,8 +5,8 @@ the type in exactly one place, ``release_run.spawn``; a test walks the syntax tr
 ``scripts/ios`` and fails on a second caller. ``Redactor`` turns the secrets and the machine's
 private directories (in every spelling ``private_paths.text_forms`` knows) into tokens, line by
 line with carry-over so a value split across two reads is still caught, and applies shape rules
-for values nobody knows in advance: signing identity names, profile UUIDs and certificate
-fingerprints.
+for values nobody knows in advance: signing identity names, profile UUIDs, certificate
+fingerprints and the ``user:password@`` of a URL.
 """
 
 from __future__ import annotations
@@ -67,6 +67,7 @@ SHAPE_RULES: tuple[tuple[re.Pattern[str], str], ...] = (
     ),
     (re.compile(r"\b[0-9A-Fa-f]{40}\b"), "<fingerprint>"),
     (re.compile(r"\b[0-9A-F]{8}-[0-9A-F]{16}\b"), "<device-id>"),
+    (re.compile(r"(?<=://)[^\s/@]+@"), "<userinfo>@"),
 )
 HOLD = 256
 

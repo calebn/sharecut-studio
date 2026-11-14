@@ -1,8 +1,9 @@
 """Run the release's child processes. ``spawn`` is the only place a ``Secret`` is revealed.
 
 A ``Command`` is data: argv, working directory, the whole child environment (nothing is
-inherited) and private files written for the run. ``display`` renders it with secrets as tokens, so
-the dry run prints exactly what ``spawn`` would execute. ``capture`` runs a read-only tool with a
+inherited) and private files written for the run. ``display`` renders it with secrets as tokens and
+every variable but a few path and count settings by name only, so the dry run prints what
+``spawn`` would execute and never a proxy password. ``capture`` runs a read-only tool with a
 plain-string argv and no secrets.
 """
 
@@ -22,6 +23,7 @@ from scripts.ios.release_secrets import Redactor, Secret
 
 Part = str | Secret
 QUIET_ENV = frozenset({"PATH", "HOME", "TMPDIR", "LANG"})
+SHOWN_ENV = frozenset({"DEVELOPER_DIR", "CARGO_HOME", "RUSTUP_HOME", "CARGO_BUILD_JOBS"})
 TAIL_LINES = 40
 NOT_FOUND = 127
 OUTPUT_LIMIT = 1 << 20
@@ -45,7 +47,9 @@ class Command:
 
     def display(self, redactor: Redactor) -> str:
         shown = [
-            f"{name}={_shell(value)}" for name, value in self.env.items() if name not in QUIET_ENV
+            f"{name}={_shell(value) if isinstance(value, Secret) or name in SHOWN_ENV else '<set>'}"
+            for name, value in self.env.items()
+            if name not in QUIET_ENV
         ]
         line = " ".join([*shown, *(_shell(part) for part in self.argv)])
         return redactor.redact(f"(cd {shlex.quote(str(self.cwd))} && {line})")
