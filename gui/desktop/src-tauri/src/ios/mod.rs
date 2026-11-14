@@ -6,9 +6,12 @@
 
 mod driver;
 mod python;
+mod webview;
 
 use std::sync::mpsc;
 use std::sync::{Arc, Mutex};
+
+use tauri::Manager;
 
 use driver::Driver;
 
@@ -54,6 +57,9 @@ pub fn run() {
             }
         })
         .setup(move |app| {
+            if let Some(window) = app.get_webview_window("main") {
+                webview::lay_out_over_the_whole_screen(&window);
+            }
             Driver {
                 app: app.handle().clone(),
                 events,
