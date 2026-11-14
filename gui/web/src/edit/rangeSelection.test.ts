@@ -11,6 +11,7 @@ import {
   rangeIsCurrent,
   rangeTargetsEqual,
   resolveSelectionRange,
+  TRANSCRIPT_REFRESHING,
 } from "./rangeSelection";
 
 const selection: Selection = {
@@ -66,6 +67,68 @@ const placement = (
     timeline_start: timeline,
     timeline_end: timeline + end - start,
   });
+
+describe("a transcript range while the words are refreshing", () => {
+  const wordFree = (base: ProjectView): ProjectView => ({
+    ...base,
+    transcript: {
+      utterances: (base.transcript?.utterances ?? []).map(
+        ({ words: _words, ...header }) => header,
+      ),
+    },
+    meta: {
+      ...base.meta,
+      hydration: { ...base.meta.hydration, transcript_words: false },
+    },
+  });
+
+  it("is refused with a reason that says to try again, never as a range", () => {
+    const resolved = resolveSelectionRange(
+      wordFree(project([placement("a", 0, 8, 0)])),
+      selection,
+    );
+    expect(resolved).toEqual({
+      targets: [],
+      reason: TRANSCRIPT_REFRESHING,
+      refreshing: true,
+    });
+    expect(TRANSCRIPT_REFRESHING).toBe(
+      "Refreshing the transcript. Try again in a moment.",
+    );
+  });
+
+  it("resolves as usual once every selected word is in the project", () => {
+    const loaded = project([placement("a", 0, 8, 0)]);
+    const stillFlagged: ProjectView = {
+      ...loaded,
+      meta: {
+        ...loaded.meta,
+        hydration: { ...loaded.meta.hydration, transcript_words: false },
+      },
+    };
+    expect(
+      resolveSelectionRange(stillFlagged, selection).targets.map(
+        (t) => t.intervals,
+      ),
+    ).toEqual([[{ start: 1, end: 7 }]]);
+  });
+
+  it("keeps the old reason for a project that has all its words", () => {
+    const complete = wordFree(project([placement("a", 0, 8, 0)]));
+    const resolved = resolveSelectionRange(
+      {
+        ...complete,
+        meta: {
+          ...complete.meta,
+          hydration: { ...complete.meta.hydration, transcript_words: true },
+        },
+      },
+      selection,
+    );
+    expect(resolved.reason).toBe("No audible words in this selection");
+    expect(resolved.refreshing).toBeUndefined();
+  });
+});
 
 describe("exact transcript range resolution", () => {
   it("includes the phrase pause", () => {

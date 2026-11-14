@@ -170,6 +170,28 @@ export function guestScriptOf(rows: readonly ShownRow[]): GuestScriptModel {
   return { turns, wordStarts, words, refs, times, empty };
 }
 
+/**
+ * A selection across tracks becomes a time span, and a held word has no time,
+ * so such a span would silently leave it out. Within one track a selection is
+ * by word identity and needs no time.
+ */
+export function spansHeldAcrossTracks(
+  g: GuestScriptModel,
+  { anchor, head }: { anchor: number; head: number },
+): boolean {
+  const lo = Math.min(anchor, head);
+  const hi = Math.max(anchor, head);
+  const lanes = new Set<string>();
+  let held = false;
+  for (let at = lo; at <= hi; at++) {
+    const ref = g.refs[at];
+    if (!ref) continue;
+    lanes.add(`${ref.trackId}:${ref.sourceId ?? ""}`);
+    if (g.wordStarts[at] === null) held = true;
+  }
+  return held && lanes.size > 1;
+}
+
 export function playingWordsAt(
   words: readonly TranscriptWordView[],
   seconds: number,
