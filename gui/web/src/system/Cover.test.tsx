@@ -90,6 +90,27 @@ describe("Cover", () => {
     expect(onClick).not.toHaveBeenCalled();
   });
 
+  it("holds a busy secondary in place, aria-disabled and aria-busy, and keeps its focus", async () => {
+    const onClick = vi.fn();
+    render(
+      <Cover
+        size="region"
+        glyph="eye-off"
+        title="Title"
+        secondary={{ label: "Again", onClick, busy: true }}
+      >
+        Body.
+      </Cover>,
+    );
+    const again = screen.getByRole("button", { name: "Again" });
+    expect(again).toHaveAttribute("aria-disabled", "true");
+    expect(again).toHaveAttribute("aria-busy", "true");
+    again.focus();
+    expect(again).toHaveFocus();
+    await userEvent.click(again);
+    expect(onClick).not.toHaveBeenCalled();
+  });
+
   it("leaves a primary without busy enabled", () => {
     render(
       <Cover

@@ -76,7 +76,13 @@ export function Cover({
               </Button>
             ) : null}
             {secondary ? (
-              <Button variant="link" onClick={secondary.onClick}>
+              <Button
+                variant="link"
+                onClick={secondary.busy ? undefined : secondary.onClick}
+                aria-busy={secondary.busy || undefined}
+                aria-disabled={secondary.busy || undefined}
+                title={secondary.busy ? BUSY_REASON : undefined}
+              >
                 {secondary.label}
               </Button>
             ) : null}
