@@ -133,6 +133,10 @@ class TranscriptPrecorrectService:
 
         ``edited_stale_tracks`` is the subset with hand fixes, which a run keeps unless the
         person confirms replacing them. Judged with ``language_changed`` like the run itself.
+
+        Judged by language alone: a track whose audio also changed is still listed, though a run
+        refuses or replaces an edited one then. Several transcripts of one track (``source_id``)
+        collapse to one row, edited if any of them is, and the first recorded language is reported.
         """
         project = ProjectStore(resolve_project_path(project_path)).load()
         stale: dict[str, dict[str, str]] = {}

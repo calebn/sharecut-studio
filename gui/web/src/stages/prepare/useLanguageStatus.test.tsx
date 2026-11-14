@@ -93,6 +93,36 @@ describe("useLanguageStatus", () => {
     expect(result.current?.stale).toEqual([track("z")]);
   });
 
+  it("hides the old answer until the read after a run ends lands", async () => {
+    const { result, rerender } = renderHook(
+      ({ key }: { key: string }) => useLanguageStatus("/p", "es", key),
+      { initialProps: { key: "" } },
+    );
+    await waitFor(() => expect(result.current?.stale).toHaveLength(2));
+    let release: (value: TranscriptLanguageStatus) => void = () => undefined;
+    load.mockReturnValueOnce(
+      new Promise<TranscriptLanguageStatus>((resolve) => {
+        release = resolve;
+      }),
+    );
+    rerender({ key: "job-1:ok" });
+    expect(result.current).toBeNull();
+    release(answer({ stale_tracks: [track("a")] }));
+    await waitFor(() => expect(result.current?.stale).toEqual([track("a")]));
+  });
+
+  it("clears a good answer when the next read fails", async () => {
+    const { result, rerender } = renderHook(
+      ({ key }: { key: string }) => useLanguageStatus("/p", "es", key),
+      { initialProps: { key: "" } },
+    );
+    await waitFor(() => expect(result.current?.stale).toHaveLength(2));
+    load.mockRejectedValueOnce(new Error("down"));
+    rerender({ key: "job-1:ok" });
+    await waitFor(() => expect(load).toHaveBeenCalledTimes(2));
+    expect(result.current).toBeNull();
+  });
+
   it("makes no claim when the read fails", async () => {
     load.mockRejectedValue(new Error("down"));
     const { result } = renderHook(() => useLanguageStatus("/p", "es", ""));

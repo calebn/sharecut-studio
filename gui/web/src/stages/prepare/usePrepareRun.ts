@@ -31,9 +31,9 @@ import {
 } from "../../utils/apiError";
 import { takeAutoRun } from "../../utils/openIntent";
 import { isPipelineSlotBusy } from "../../utils/pipeline";
-import { stagedLanguage } from "./advancedModel";
 import { OVERWRITE_REFUSED, oneRunSkipSteps } from "./prepareMappers";
 import type { ReadyRowId } from "./ReadyList";
+import type { LanguageStatus } from "./useLanguageStatus";
 import { languageName } from "./whisperLanguages";
 
 const TRANSCRIBE_STEP = "transcribe_tracks";
@@ -82,6 +82,7 @@ type PrepareRunInput = {
   canRun: boolean;
   /** Names for a track id, for the keep-fixes line. */
   nameOf: (trackId: string) => string;
+  languageStatus?: LanguageStatus | null;
 };
 
 type RunRequest = {
@@ -119,18 +120,19 @@ function nameList(names: readonly string[]): string {
   return `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`;
 }
 
-export function keptFixesMessage(
+function keptFixesMessage(
   keep: KeepFixes,
-  stagedCode: string | null,
+  status: LanguageStatus | null,
 ): string {
   const kept = `Kept the hand fixes on ${nameList(keep.names)}.`;
   const nothing =
     keep.mode === "retranscribe"
       ? "Nothing was re-transcribed."
       : "No run started, so nothing was re-transcribed.";
-  const language = stagedCode
-    ? ` The Language edit stays staged on ${languageName(stagedCode)}.`
-    : "";
+  const language =
+    status?.language && status.edited.length > 0
+      ? ` The Language edit stays staged on ${languageName(status.language)}.`
+      : "";
   return `${kept} ${nothing}${language}`;
 }
 
@@ -569,11 +571,10 @@ export function usePrepareRun(input: PrepareRunInput) {
     keepMyFixes: () => {
       confirmation.current = null;
       if (keepFixes) {
-        const config = latest.current.workingSet.cfg?.config;
         useDawStore
           .getState()
           .announceStatus(
-            keptFixesMessage(keepFixes, config ? stagedLanguage(config) : null),
+            keptFixesMessage(keepFixes, latest.current.languageStatus ?? null),
           );
       }
       setKeepFixes(null);

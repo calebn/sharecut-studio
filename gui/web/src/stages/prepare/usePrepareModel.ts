@@ -146,6 +146,7 @@ export function usePrepareModel(): PrepareModel {
     mediaKey,
     ingestBusy,
     canRun: canIngest,
+    languageStatus,
     nameOf: (id) => {
       const track = allTracks?.find((t) => t.id === id);
       return track ? track.speaker?.trim() || trackLabel(track) : id;
