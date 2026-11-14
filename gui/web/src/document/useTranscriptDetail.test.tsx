@@ -331,9 +331,13 @@ describe("a refresh that stops moving", () => {
     const { result } = renderHook(useTranscriptDetail);
     showWordFree(wordFree());
     expect(result.current.kind).toBe("ready");
-    act(() => vi.advanceTimersByTime(STALL - 1));
+    act(() => {
+      vi.advanceTimersByTime(STALL - 1);
+    });
     expect(result.current.kind).toBe("ready");
-    act(() => vi.advanceTimersByTime(1));
+    act(() => {
+      vi.advanceTimersByTime(1);
+    });
     expect(result.current).toMatchObject({ kind: "failed", recovering: false });
   });
 
@@ -342,14 +346,20 @@ describe("a refresh that stops moving", () => {
     hold();
     const { result } = renderHook(useTranscriptDetail);
     showWordFree(wordFree());
-    act(() => vi.advanceTimersByTime(20_000));
+    act(() => {
+      vi.advanceTimersByTime(20_000);
+    });
     act(() => {
       documentAuthority.token = "b".repeat(64);
       useDawStore.setState({ project: guestProject(wordFree(), false) });
     });
-    act(() => vi.advanceTimersByTime(20_000));
+    act(() => {
+      vi.advanceTimersByTime(20_000);
+    });
     expect(result.current.kind).toBe("ready");
-    act(() => vi.advanceTimersByTime(STALL - 20_000));
+    act(() => {
+      vi.advanceTimersByTime(STALL - 20_000);
+    });
     expect(result.current.kind).toBe("failed");
   });
 
@@ -359,13 +369,19 @@ describe("a refresh that stops moving", () => {
     const { result } = renderHook(useTranscriptDetail);
     showWordFree(wordFree());
     act(() => scheduleTranscriptDetailHydrate(useDawStore.getState().project));
-    act(() => vi.advanceTimersByTime(STALL));
+    act(() => {
+      vi.advanceTimersByTime(STALL);
+    });
     if (result.current.kind !== "failed") throw new Error("expected failed");
     loadDetail.mockClear();
-    act(() => (result.current as { retry: () => void }).retry());
+    act(() => {
+      (result.current as { retry: () => void }).retry();
+    });
     expect(loadDetail).toHaveBeenCalledTimes(1);
     expect(result.current.kind).toBe("ready");
-    act(() => vi.advanceTimersByTime(STALL));
+    act(() => {
+      vi.advanceTimersByTime(STALL);
+    });
     expect(result.current.kind).toBe("failed");
   });
 
@@ -375,9 +391,13 @@ describe("a refresh that stops moving", () => {
     const { result } = renderHook(useTranscriptDetail);
     showWordFree(wordFree());
     documentAuthority.phase = { kind: "recovering", minimum: 1 };
-    act(() => vi.advanceTimersByTime(STALL));
+    act(() => {
+      vi.advanceTimersByTime(STALL);
+    });
     loadDetail.mockClear();
-    act(() => (result.current as { retry: () => void }).retry());
+    act(() => {
+      (result.current as { retry: () => void }).retry();
+    });
     expect(loadDetail).toHaveBeenCalledWith(
       "share:tok",
       "shell",
@@ -392,14 +412,20 @@ describe("a refresh that stops moving", () => {
     const b = renderHook(useTranscriptDetail);
     showWordFree(wordFree());
     const timers = vi.getTimerCount();
-    act(() => vi.advanceTimersByTime(STALL));
+    act(() => {
+      vi.advanceTimersByTime(STALL);
+    });
     expect(a.result.current.kind).toBe("failed");
     expect(b.result.current.kind).toBe("failed");
-    act(() => (a.result.current as { retry: () => void }).retry());
+    act(() => {
+      (a.result.current as { retry: () => void }).retry();
+    });
     expect(a.result.current.kind).toBe("ready");
     expect(b.result.current.kind).toBe("ready");
     expect(vi.getTimerCount()).toBeLessThanOrEqual(timers);
-    act(() => vi.advanceTimersByTime(STALL));
+    act(() => {
+      vi.advanceTimersByTime(STALL);
+    });
     expect(b.result.current.kind).toBe("failed");
   });
 
@@ -408,7 +434,9 @@ describe("a refresh that stops moving", () => {
     hold();
     const { result } = renderHook(useTranscriptDetail);
     showWordFree(wordFree());
-    act(() => vi.advanceTimersByTime(STALL));
+    act(() => {
+      vi.advanceTimersByTime(STALL);
+    });
     expect(result.current.kind).toBe("failed");
     act(() => {
       resetDocumentAuthority("share:tok");
@@ -423,7 +451,9 @@ describe("a refresh that stops moving", () => {
     hold();
     const { result } = renderHook(useTranscriptDetail);
     showWordFree([guestRow("one", 0, false)]);
-    act(() => vi.advanceTimersByTime(STALL * 2));
+    act(() => {
+      vi.advanceTimersByTime(STALL * 2);
+    });
     expect(result.current.kind).toBe("pending");
   });
 });
