@@ -21,7 +21,6 @@ export type GuestScriptModel = {
 };
 
 type Heard = {
-  text: string;
   start: number | null;
   word: TranscriptWordView;
   at: number;
@@ -33,7 +32,7 @@ function heardWords(utterance: CombinedUtterance): Heard[] {
     .flatMap((word, at) => {
       const start = wordSeekSec(word);
       if (word.suppressed || word.ignored || start === null) return [];
-      return [{ text: word.text, start, word, at }];
+      return [{ start, word, at }];
     })
     .sort((a, b) => (a.start ?? 0) - (b.start ?? 0));
 }
@@ -69,7 +68,6 @@ function entryOf(row: ShownRow): Entry | null {
   }
   if (row.kind === "held") {
     const heard = (utterance.words ?? []).map((word, at) => ({
-      text: word.text,
       start: null,
       word,
       at,
@@ -140,7 +138,7 @@ export function guestScriptOf(rows: readonly ShownRow[]): GuestScriptModel {
       return {
         index,
         key: repeat === 0 ? base : `${base}#${repeat + 1}`,
-        text: item.text,
+        text: item.word.text,
       };
     });
     const base = `${lane}:${utterance.start}`;

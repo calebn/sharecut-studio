@@ -149,7 +149,7 @@ test("a slow word detail leaves the same busy Script, whose held words do not se
       const swapped = seen.filter((f) => f.t >= from && f.words > 0 && !f.same);
       expect(
         swapped.length,
-        `the Script section was replaced in ${swapped.length} frame(s); first at +${swapped[0] ? (swapped[0].t - from).toFixed(0) : "-"}ms, busy=${swapped[0]?.busy} hostSame=${swapped[0]?.hostSame}\nGuest requests:\n${guest.log.join("\n")}`,
+        `the Script section was replaced in ${swapped.length} frame(s)\nGuest requests:\n${guest.log.join("\n")}`,
       ).toBe(0);
     },
   );

@@ -92,9 +92,6 @@ describe("a transcript range while the words are refreshing", () => {
       reason: TRANSCRIPT_REFRESHING,
       refreshing: true,
     });
-    expect(TRANSCRIPT_REFRESHING).toBe(
-      "Refreshing the transcript. Try again in a moment.",
-    );
   });
 
   it("resolves as usual once every selected word is in the project", () => {

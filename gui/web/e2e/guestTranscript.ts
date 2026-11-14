@@ -16,11 +16,11 @@ import { createReviewShare, openGuestShare } from "./shareNavigation";
  * between polls.
  */
 
-export const SCRIPT = ".stage-host-guest-script";
+const SCRIPT = ".stage-host-guest-script";
 export const SECTION = `${SCRIPT} .sys-script`;
 export const BODY = `${SCRIPT} .sys-script-body`;
 export const WORD = `${SCRIPT} .sys-script-word`;
-export const DETAIL = /\/daw\/document\/state\?phase=detail/;
+const DETAIL = /\/daw\/document\/state\?phase=detail/;
 export const REASON = "Refreshing the transcript. Try again in a moment.";
 export const WIDE = { width: 1280, height: 800, phone: false } as const;
 export const SIZES = [{ width: 390, height: 844, phone: true }, WIDE] as const;
@@ -38,19 +38,15 @@ export type Frame = {
   busy: boolean;
   /** The Script section is the element the watcher found when it started. */
   same: boolean;
-  hostSame: boolean;
   /** The failure cover that replaces the Script when the detail cannot be had. */
   cover: boolean;
-  scrollTop: number | null;
   /** The watched word's distance from the top of the Script body, if it is drawn. */
   offset: number | null;
-  shape: string;
 };
 export type Watched = Window & {
   __scriptFrames: Frame[];
   __stopScriptWatch: () => void;
   __scriptSection: Element | null;
-  __scriptHost: Element | null;
 };
 
 export function watcher(anchorKey: string | null): string {
@@ -60,12 +56,6 @@ export function watcher(anchorKey: string | null): string {
   const frames = [];
   window.__scriptFrames = frames;
   window.__scriptSection = document.querySelector(${JSON.stringify(SECTION)});
-  window.__scriptHost = document.querySelector(SCRIPT);
-  const describe = (list) =>
-    [...list]
-      .slice(0, 8)
-      .map((e) => e.tagName.toLowerCase() + "." + String(e.className).split(" ").join("."))
-      .join(" , ");
   const sample = () => {
     const root = document.querySelector(SCRIPT);
     const body = root && root.querySelector(".sys-script-body");
@@ -84,16 +74,8 @@ export function watcher(anchorKey: string | null): string {
       words,
       busy: !!section && section.getAttribute("aria-busy") === "true",
       same: !!section && section === window.__scriptSection,
-      hostSame: !!root && root === window.__scriptHost,
       cover: !!document.querySelector("[role='alert']"),
-      scrollTop: body ? body.scrollTop : null,
       offset: anchor && body ? anchor.getBoundingClientRect().top - body.getBoundingClientRect().top : null,
-      shape: words
-        ? ""
-        : root
-          ? describe(root.querySelectorAll("*"))
-          : "no Script host; document has: " +
-            describe(document.querySelectorAll("#root [class*='stage-frame'], #root [class*='skeleton']")),
     });
   };
   let alive = true;
@@ -112,7 +94,7 @@ export function watcher(anchorKey: string | null): string {
 })();`;
 }
 
-export const redact = (url: string) =>
+const redact = (url: string) =>
   url.replace(/\/api\/review\/[^/]+/, "/api/review/<token>");
 
 /** Request log kept only to explain a failure; the token never reaches it. */
@@ -252,22 +234,9 @@ export function expectNoBlankFrame(
   what: string,
 ) {
   const bad = frames.filter((f) => f.t >= from && blank(f));
-  const first = bad[0];
-  const around = first
-    ? frames
-        .slice(
-          Math.max(0, frames.indexOf(first) - 2),
-          frames.indexOf(first) + 4,
-        )
-        .map(
-          (f) =>
-            `  +${(f.t - from).toFixed(1)}ms skeleton=${f.skeleton} words=${f.words} ${f.shape}`,
-        )
-        .join("\n")
-    : "";
   expect(
     bad.length,
-    `the Script showed its skeleton or no words in ${bad.length} frame(s) ${what}.\n${around}\nGuest requests:\n${log.join("\n")}`,
+    `the Script showed its skeleton or no words in ${bad.length} frame(s) ${what}.\nGuest requests:\n${log.join("\n")}`,
   ).toBe(0);
 }
 
