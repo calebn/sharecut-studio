@@ -7,10 +7,8 @@ import { documentAuthority, resetDocumentAuthority } from "./authorityState";
 import { scheduleTranscriptDetailHydrate } from "./hydrateTranscriptDetail";
 import type { DocumentSnapshot } from "./projectPatch";
 import { settledTranscriptOf, transcriptGrantOf } from "./shownTranscript";
-import {
-  TRANSCRIPT_STALL_MS,
-  useTranscriptDetail,
-} from "./useTranscriptDetail";
+import { TRANSCRIPT_STALL_MS } from "./transcriptStall";
+import { useTranscriptDetail } from "./useTranscriptDetail";
 
 const { loadDetail } = vi.hoisted(() => ({ loadDetail: vi.fn() }));
 vi.mock("../api/project", async (importOriginal) => ({
@@ -385,6 +383,37 @@ describe("a refresh that stops moving", () => {
       "shell",
       expect.anything(),
     );
+  });
+
+  it("answers every caller alike, before and after Retry, on one clock", () => {
+    openGuest();
+    hold();
+    const a = renderHook(useTranscriptDetail);
+    const b = renderHook(useTranscriptDetail);
+    showWordFree(wordFree());
+    const timers = vi.getTimerCount();
+    act(() => vi.advanceTimersByTime(STALL));
+    expect(a.result.current.kind).toBe("failed");
+    expect(b.result.current.kind).toBe("failed");
+    act(() => (a.result.current as { retry: () => void }).retry());
+    expect(a.result.current.kind).toBe("ready");
+    expect(b.result.current.kind).toBe("ready");
+    expect(vi.getTimerCount()).toBeLessThanOrEqual(timers);
+    act(() => vi.advanceTimersByTime(STALL));
+    expect(b.result.current.kind).toBe("failed");
+  });
+
+  it("does not carry a stall into the next document", () => {
+    openGuest();
+    hold();
+    const { result } = renderHook(useTranscriptDetail);
+    showWordFree(wordFree());
+    act(() => vi.advanceTimersByTime(STALL));
+    expect(result.current.kind).toBe("failed");
+    act(() => {
+      resetDocumentAuthority("share:tok");
+    });
+    expect(result.current.kind).not.toBe("failed");
   });
 
   it("never fails a host", () => {

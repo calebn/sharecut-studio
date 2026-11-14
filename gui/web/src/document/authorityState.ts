@@ -1,5 +1,6 @@
 import type { HistoryEntryId, ProjectView } from "../types/project";
 import type { SettledTranscript } from "./shownTranscript";
+import { resetTranscriptStall } from "./transcriptStall";
 
 export type DocumentFileSignature = { mtime_ns: number; size: number };
 export type DocumentScope = {
@@ -54,6 +55,7 @@ export function resetDocumentAuthority(path = ""): DocumentScope {
     ownCommandHead: null,
     abort: new AbortController(),
   });
+  resetTranscriptStall();
   return documentScope();
 }
 export function activateDocumentScope(path: string): DocumentScope {
