@@ -35,6 +35,7 @@ import {
   joinMic,
   ownSaving,
   tookPart,
+  uploadInFlight,
 } from "./guestRoomModel";
 import { liveTakeOpen, NOTES_CLOSED_REASON } from "./liveCommentQueue";
 import {
@@ -438,6 +439,11 @@ function GuestRoomSession({
             : () => send("SetMuted", { muted: !me.muted })
         }
         onComment={liveComments.postMarker}
+        device={{
+          uploading: uploadInFlight(producer ? null : upload),
+          finishing: !room.captureSettled,
+          capturingTone: roomTone.status === "capturing",
+        }}
         onLeave={room.leave}
         onDone={() => {
           room.leave();

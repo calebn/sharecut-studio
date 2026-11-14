@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { expectNoA11yViolations, expectOutsideLiveRegions } from "../test/a11y";
 import { recordParticipant, recordSnapshot } from "../test/fixtures";
 import { GuestRoomApp } from "./GuestRoomApp";
+import { roomToneClock } from "./roomTone";
 import type { RecordUploadProgress } from "./upload/useRecordUpload";
 import type { GuestRoom } from "./useGuestRoom";
 import { NO_OUTPUT } from "./useOutputDevice";
@@ -55,6 +56,7 @@ type Overrides = {
   takeClippings?: GuestRoom["takeClippings"];
   keeperActions?: Partial<GuestRoom["keeperActions"]>;
   left?: boolean;
+  roomTone?: Partial<GuestRoom["roomTone"]>;
   captureSettled?: boolean;
   localRecording?: boolean;
 };
@@ -132,6 +134,10 @@ function fakeRoom(over: Overrides = {}) {
       error: null,
       captureReady: false,
       record: vi.fn(),
+      clock: roomToneClock(0),
+      endEarly: vi.fn(),
+      cancel: vi.fn(),
+      ...over.roomTone,
     },
     liveComments: {
       note: "",
@@ -818,6 +824,56 @@ describe("GuestRoomApp in the room", () => {
     };
     rerender(<GuestRoomApp token="t" />);
     expect(live()).toHaveTextContent("Nia joined");
+  });
+});
+
+describe("GuestRoomApp Leave holds", () => {
+  const rostered = {
+    ...stopped,
+    takes: [
+      {
+        take_index: 0,
+        session_start_wall_ms: 1000,
+        session_start_iso: "t",
+        stopped_wall_ms: 61_000,
+        pauses: [],
+        consented_participant_ids: ["p_g"],
+      },
+    ],
+  };
+
+  it("lets Leave go while the saving line has no upload behind it", () => {
+    fakeRoom({ snapshot: rostered });
+    render(<GuestRoomApp token="t" />);
+    expect(screen.getAllByText(/Saving · 0 of 1/).length).toBeGreaterThan(0);
+    expect(leave()).not.toHaveAttribute("aria-disabled");
+  });
+
+  it("holds Leave until capture has finished, even after an upload error", () => {
+    fakeRoom({
+      snapshot: rostered,
+      upload: { acked: 1, total: 3, error: "upload failed" },
+      captureSettled: false,
+    });
+    render(<GuestRoomApp token="t" />);
+    expect(leave()).toHaveAttribute("aria-disabled", "true");
+    expect(leave()).toHaveAttribute(
+      "title",
+      "Your recording is still finishing",
+    );
+  });
+
+  it("holds Leave while room tone records on this device", () => {
+    fakeRoom({
+      snapshot: { state: "lobby" },
+      roomTone: { status: "capturing" },
+    });
+    render(<GuestRoomApp token="t" />);
+    expect(leave()).toHaveAttribute("aria-disabled", "true");
+    expect(leave()).toHaveAttribute(
+      "title",
+      "Finish or cancel the room tone first",
+    );
   });
 });
 
