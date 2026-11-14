@@ -48,7 +48,8 @@ htmlcov/
 gui/desktop/node_modules/
 gui/desktop/src-tauri/target/
 gui/desktop/src-tauri/gen/
-gui/desktop/src-tauri/ios-payload/
+gui/desktop/src-tauri/ios-payload/*
+!gui/desktop/src-tauri/ios-payload/README.md
 gui/desktop/binaries/sharecut-sidecar-*
 # Dev stubs written by scripts/build_sidecar.py (--dev-stub) for each target triple.
 gui/desktop/binaries/podcast-*
