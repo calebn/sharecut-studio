@@ -54,6 +54,9 @@ type Overrides = {
   takeClipping?: GuestRoom["takeClipping"];
   takeClippings?: GuestRoom["takeClippings"];
   keeperActions?: Partial<GuestRoom["keeperActions"]>;
+  left?: boolean;
+  captureSettled?: boolean;
+  localRecording?: boolean;
 };
 
 function fakeRoom(over: Overrides = {}) {
@@ -137,7 +140,8 @@ function fakeRoom(over: Overrides = {}) {
       postNote: vi.fn(),
       submitNote: vi.fn(),
     },
-    captureSettled: true,
+    captureSettled: over.captureSettled ?? true,
+    localRecording: over.localRecording ?? false,
     name: "Ava",
     setName: vi.fn(),
     headphonesOk: true,
@@ -147,7 +151,7 @@ function fakeRoom(over: Overrides = {}) {
     producerJoined: true,
     setProducerJoined: vi.fn(),
     resumeUpload: vi.fn(),
-    left: false,
+    left: over.left ?? false,
     leave: vi.fn(),
   };
   current.room = room;
@@ -814,6 +818,68 @@ describe("GuestRoomApp in the room", () => {
     };
     rerender(<GuestRoomApp token="t" />);
     expect(live()).toHaveTextContent("Nia joined");
+  });
+});
+
+describe("GuestRoomApp after Leave", () => {
+  const failedSave = {
+    snapshot: {
+      ...stopped,
+      takes: [
+        {
+          take_index: 0,
+          session_start_wall_ms: 1000,
+          session_start_iso: "t",
+          stopped_wall_ms: 61_000,
+          pauses: [],
+          consented_participant_ids: ["p_g"],
+        },
+      ],
+    },
+    upload: { acked: 1, total: 3, error: "upload failed" },
+    left: true,
+  };
+
+  it("keeps Save my recording after a rejoin reset consent while a save failed", async () => {
+    const download = vi.fn();
+    fakeRoom({
+      ...failedSave,
+      me: { ...me, consented: null },
+      localRecording: true,
+      keeperActions: { download },
+    });
+    render(<GuestRoomApp token="t" />);
+    expect(
+      screen.getByRole("heading", {
+        name: "Your recording didn't finish saving",
+      }),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("You can close this page.")).toBeNull();
+    await userEvent.click(
+      screen.getByRole("button", { name: "Save my recording" }),
+    );
+    expect(download).toHaveBeenCalledOnce();
+  });
+
+  it("never says a guest can close the page while capture is still finishing", () => {
+    fakeRoom({ ...failedSave, captureSettled: false, localRecording: true });
+    render(<GuestRoomApp token="t" />);
+    expect(
+      screen.getByText("Finishing your full-quality recording…"),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/close this page/)).toBeNull();
+    expect(screen.queryByRole("button", { name: "Join again" })).toBeNull();
+  });
+
+  it("tells a producer who left they can close the page", () => {
+    fakeRoom({
+      producer: true,
+      me: { ...me, role: "producer" },
+      snapshot: { ...stopped, takes: failedSave.snapshot.takes },
+      left: true,
+    });
+    render(<GuestRoomApp token="t" />);
+    expect(screen.getByText("You can close this page.")).toBeInTheDocument();
   });
 });
 
