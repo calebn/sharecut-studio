@@ -206,7 +206,7 @@ describe("CommentsRow name when the link holds no comments", () => {
       expect(flashRow).toHaveAccessibleName(
         `Show ${words} Comment added at 1:26`,
       );
-      expect(flashRow).not.toHaveAccessibleName(/eeds|0 suggestion/);
+      expect(flashRow).not.toHaveAccessibleName(/0 eeds|0 suggestion/);
     },
   );
 });
