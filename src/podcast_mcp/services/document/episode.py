@@ -4,7 +4,6 @@ import math
 import re
 import unicodedata
 from pathlib import Path
-from typing import Any
 
 from podcast_mcp.engines.render_invalidations import record_invalidation
 from podcast_mcp.engines.room_tone import schedule_room_tone_pool
@@ -25,8 +24,12 @@ from podcast_mcp.models import (
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.document.episode_results import (
     EmptyTrackAddedResult,
+    EpisodeSummary,
     ProjectRenamedResult,
     RecordSessionRenamedResult,
+    StaleAudioStreams,
+    StaleEpisodeSummary,
+    StaleStreamFile,
     StreamsCurrentResult,
     TrackMediaSetResult,
     TrackMetaResult,
@@ -362,7 +365,7 @@ class EpisodeService:
         )
         return TrackRemovedResult(track_id=track_id, removed=True)
 
-    def summary(self) -> dict:
+    def summary(self) -> EpisodeSummary:
         """Compact project overview for ``podcast info`` (default output).
 
         ``podcast info`` used to dump the whole project JSON (2+ MB on a real
@@ -370,32 +373,34 @@ class EpisodeService:
         default now, with ``--json`` still available for the full dump.
         """
         p = self.ws.project
-        pending = sum(1 for d in p.edit_decisions if d.review_required)
-        summary: dict[str, Any] = {
-            "name": p.name,
-            "duration_sec": p.timeline.duration_sec,
-            "tracks": [t.id for t in p.tracks],
-            "clip_count": len(p.timeline.clips),
-            "pending_edits": pending,
-            "chapters": len(p.editorial.chapters),
-            "applied_edits": len(p.editorial.edit_log),
-            "reconciliation_stale": p.render.reconciliation_stale,
-        }
+        base = EpisodeSummary(
+            name=p.name,
+            duration_sec=p.timeline.duration_sec,
+            tracks=[t.id for t in p.tracks],
+            clip_count=len(p.timeline.clips),
+            pending_edits=sum(1 for d in p.edit_decisions if d.review_required),
+            chapters=len(p.editorial.chapters),
+            applied_edits=len(p.editorial.edit_log),
+            reconciliation_stale=p.render.reconciliation_stale,
+        )
         found = stale_stream_files(p)
-        if found:
-            summary["stale_audio_streams"] = {
-                "files": [
-                    {
-                        "path": f.path,
-                        "tracks": list(f.track_ids),
-                        "audio_streams": f.audio_streams,
-                        "old_pick": f.old_pick,
-                    }
+        if not found:
+            return base
+        return StaleEpisodeSummary(
+            **base.model_dump(),
+            stale_audio_streams=StaleAudioStreams(
+                files=[
+                    StaleStreamFile(
+                        path=f.path,
+                        tracks=list(f.track_ids),
+                        audio_streams=f.audio_streams,
+                        old_pick=f.old_pick,
+                    )
                     for f in found
                 ],
-                "rerun": stale_stream_lines(p, found)[0],
-            }
-        return summary
+                rerun=stale_stream_lines(p, found)[0],
+            ),
+        )
 
     def mark_streams_current(self) -> StreamsCurrentResult:
         """Record that the user re-ran the steps listed for stale multi-stream media."""

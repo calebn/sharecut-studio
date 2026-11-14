@@ -59,3 +59,30 @@ class TrackReorderedResult(_EpisodeResult):
     track_id: str
     index: int
     track_ids: list[str]
+
+
+class StaleStreamFile(_EpisodeResult):
+    path: str
+    tracks: list[str]
+    audio_streams: int
+    old_pick: int | None
+
+
+class StaleAudioStreams(_EpisodeResult):
+    files: list[StaleStreamFile]
+    rerun: str
+
+
+class EpisodeSummary(_EpisodeResult):
+    name: str
+    duration_sec: float | None
+    tracks: list[str]
+    clip_count: int
+    pending_edits: int
+    chapters: int
+    applied_edits: int
+    reconciliation_stale: bool
+
+
+class StaleEpisodeSummary(EpisodeSummary):
+    stale_audio_streams: StaleAudioStreams
