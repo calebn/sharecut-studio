@@ -1,11 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { type GuestLoadFailure, guestLoadCover } from "../../guestLoadFailure";
 import { Cover } from "../../system/Cover";
-import { useHeldBusy } from "../../system/useHeldBusy";
+import { HELD_BUSY_MS, useHeldBusy } from "../../system/useHeldBusy";
 import type { NotServed } from "../../utils/notServed";
-
-/** Long enough to see "Trying…" and for a screen reader to finish the word. */
-const HELD_BUSY_MS = 600;
 
 /**
  * A review link that did not open: the page's one `<main>` and its Cover.

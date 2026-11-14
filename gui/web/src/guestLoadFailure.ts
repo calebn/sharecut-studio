@@ -36,8 +36,8 @@ const AUTO_RETRY_MS = 30_000;
 const MIN_RETRY_AFTER_SEC = 5;
 const MAX_RETRY_AFTER_SEC = 120;
 
-export const BAD_LINK_TITLE = "This link doesn't open anything";
-export const BAD_LINK_SENTENCE = "Ask the person who sent it for a new link.";
+const BAD_LINK_TITLE = "This link doesn't open anything";
+const BAD_LINK_SENTENCE = "Ask the person who sent it for a new link.";
 
 const NOT_LOADED_TITLE = "This link did not load";
 const STILL_NOT_LOADING = "Still not loading.";

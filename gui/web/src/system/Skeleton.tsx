@@ -1,14 +1,11 @@
 import { useAfter } from "../hooks/useAfter";
 import { useViewportClass } from "../hooks/useViewportClass";
 import { Button } from "../ui";
-import { useHeldBusy } from "./useHeldBusy";
+import { HELD_BUSY_MS, useHeldBusy } from "./useHeldBusy";
 
 type Phase = "blank" | "blocks" | "slow";
 
 export const SKELETON_RETRY_MS = 4000;
-
-/** How long a pressed Retry reads "Trying…" when the page's own request carries on. */
-const RETRY_HELD_MS = 600;
 
 export function SkeletonBlock({
   circle = false,
@@ -78,7 +75,7 @@ export function Skeleton({
         : "blank";
   const shell = useViewportClass();
   // The skeleton stays mounted through a retry, so nothing else shows the press landed.
-  const { busy, press } = useHeldBusy(false, RETRY_HELD_MS);
+  const { busy, press } = useHeldBusy(false, HELD_BUSY_MS);
   return (
     <div
       className={`sys-skeleton${layout === "guest" ? " sys-skeleton--guest" : ""}`}
