@@ -402,7 +402,7 @@ def test_info_command_json_flag_dumps_full_project(tmp_path):
     )
     assert result.exit_code == 0
     payload = json.loads(result.stdout)
-    assert payload["version"] == "2.1"
+    assert payload["version"] == "2.2"
     assert "timeline" in payload
     assert "document_sync" not in payload
 

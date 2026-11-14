@@ -15,7 +15,7 @@ def test_v2_round_trip(tmp_path: Path):
     project.timeline.tracks.append(Track(id="host", label="Host", role=TrackRole.DIALOGUE))
     path = save_project(project)
     loaded = load_project(path)
-    assert loaded.version == "2.1"
+    assert loaded.version == "2.2"
     assert loaded.meta.name == "roundtrip"
     assert loaded.tracks[0].id == "host"
 
@@ -71,12 +71,12 @@ def test_a_2_0_document_opens_in_memory_and_is_written_as_2_1_only_by_a_save(tmp
     path = tmp_path / "episode.sharecut"
     before = path.read_bytes()
     project = load_project(path)
-    assert project.version == "2.1"
+    assert project.version == "2.2"
     assert project.timeline.join_fade_max_ms is None
     assert path.read_bytes() == before
     assert json.loads(before)["version"] == "2.0"
     save_project(project)
-    assert json.loads(path.read_text(encoding="utf-8"))["version"] == "2.1"
+    assert json.loads(path.read_text(encoding="utf-8"))["version"] == "2.2"
 
 
 @pytest.mark.parametrize(

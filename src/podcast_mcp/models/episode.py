@@ -612,6 +612,9 @@ class TranscriptWords(list[TranscriptWord]):
 class Transcript(BaseModel):
     track_id: str
     language: str = "en"
+    # Normalized code ASR decoded in: the explicit language, or the detected one on an auto run.
+    # None = never recorded (legacy, or an auto run that reported none).
+    asr_language: str | None = None
     words: list[TranscriptWord] = Field(default_factory=TranscriptWords)
     archived_words: list[ArchivedTranscriptWord] = Field(default_factory=list)
     # When set, words are source-media seconds for that sources[] row (multi-file

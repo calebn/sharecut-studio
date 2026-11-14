@@ -5,7 +5,7 @@ from typing import Any
 
 from podcast_mcp.util.coded_error import CodedValueError
 
-SUPPORTED_PROJECT_VERSION = "2.1"
+SUPPORTED_PROJECT_VERSION = "2.2"
 
 Step = Callable[[dict[str, Any]], None]
 
@@ -14,9 +14,16 @@ def _add_timeline_join_fade_limit(data: dict[str, Any]) -> None:
     """2.0 to 2.1: ``timeline.join_fade_max_ms`` is new and absent means the app default."""
 
 
+def _add_transcript_asr_language(data: dict[str, Any]) -> None:
+    """2.1 to 2.2: ``Transcript.asr_language`` is new and absent means no language was recorded."""
+
+
 # One entry per released format: the version it moves to, and the edit that moves a document
 # there. Shared by `podcast episode upgrade` and the in-memory migration in `load_project`.
-STEPS: dict[str, tuple[str, Step]] = {"2.0": ("2.1", _add_timeline_join_fade_limit)}
+STEPS: dict[str, tuple[str, Step]] = {
+    "2.0": ("2.1", _add_timeline_join_fade_limit),
+    "2.1": ("2.2", _add_transcript_asr_language),
+}
 
 
 class ProjectVersionNewerError(CodedValueError):

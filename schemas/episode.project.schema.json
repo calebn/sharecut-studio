@@ -5,7 +5,7 @@
   "type": "object",
   "required": ["version", "meta", "timeline", "editorial", "transcripts", "mix", "render"],
   "properties": {
-    "version": { "const": "2.1" },
+    "version": { "const": "2.2" },
     "meta": { "$ref": "#/$defs/ProjectMeta" },
     "sources": { "type": "array", "items": { "$ref": "#/$defs/SourceRecording" } },
     "timeline": { "$ref": "#/$defs/TimelineSection" },
@@ -923,6 +923,10 @@
       "properties": {
         "track_id": { "type": "string" },
         "language": { "type": "string" },
+        "asr_language": {
+          "type": ["string", "null"],
+          "description": "Normalized language code ASR decoded in: the explicit transcribe.language, or the detected one on an auto run. Null = never recorded."
+        },
         "source_id": {
           "type": ["string", "null"],
           "description": "When set, words are source-media seconds for that sources[] row (multi-file speaker)."

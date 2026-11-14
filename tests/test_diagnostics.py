@@ -141,7 +141,7 @@ def test_build_bundle_contents_and_doctor_reuse(
     assert "python" in body
     assert "os" in body
     assert body["ffmpeg"]["ffmpeg"]["path"] == "ffmpeg"
-    assert body["project"]["schema_version"] == "2.1"
+    assert body["project"]["schema_version"] == "2.2"
     assert body["project"]["tracks"] == 0
     assert "doctor" in body
     log_text = zipfile.ZipFile(report.path).read("sidecar.log").decode()

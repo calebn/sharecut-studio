@@ -27,6 +27,12 @@ from podcast_mcp.util.dicts import get_by_path
 DEFAULT_TEMPERATURE: tuple[float, ...] = (0.0, 0.2, 0.4)
 
 
+def normalize_language(language: str | None) -> str | None:
+    """Lowercase primary subtag of an ASR language code; None for unset, empty or ``auto``."""
+    code = (language or "").strip().lower().replace("_", "-").split("-")[0]
+    return None if code in ("", "auto") else code
+
+
 @dataclass(frozen=True)
 class ForcedAlignment:
     """``transcribe.forced_alignment.enabled`` resolved against the installed word aligner (#780).

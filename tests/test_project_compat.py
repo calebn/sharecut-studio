@@ -92,7 +92,7 @@ def test_format_2_0_fixture_is_a_2_0_document_without_the_2_1_field() -> None:
 def test_format_2_0_opens_through_load_project_and_stays_2_0_on_disk(v20_workspace) -> None:
     before = (v20_workspace / compat.PROJECT).read_bytes()
     project = compat.load_project(v20_workspace / compat.PROJECT)
-    assert project.version == "2.1"
+    assert project.version == "2.2"
     assert [t.id for t in project.timeline.tracks] == ["reference", "guest"]
     assert (v20_workspace / compat.PROJECT).read_bytes() == before
 
@@ -132,7 +132,7 @@ def test_format_2_0_is_read_by_the_cli(v20_workspace) -> None:
         app, ["info", "--project", str(v20_workspace / compat.PROJECT), "--json"]
     )
     assert result.exit_code == 0, result.output
-    assert json.loads(result.stdout)["version"] == "2.1"
+    assert json.loads(result.stdout)["version"] == "2.2"
     assert (v20_workspace / compat.PROJECT).read_bytes() == before
 
 
