@@ -1471,6 +1471,14 @@ test.describe("join sheet on a phone", () => {
                 .first(),
             ),
           ];
+          const consentText = await boxOf(panel.locator(".sys-join-line"));
+          const details = await boxOf(
+            panel.getByRole("button", { name: "Details" }),
+          );
+          expect(details.x, `${state} at ${width} details`).toBeCloseTo(
+            consentText.x,
+            0,
+          );
           for (const edge of edges) {
             expect(edge.x, `${state} at ${width}`).toBeCloseTo(28, 0);
             expect(edge.width, `${state} at ${width}`).toBeCloseTo(
@@ -1823,6 +1831,83 @@ test.describe("join sheet on a phone", () => {
               TOUCH_MIN,
             );
           }
+        },
+      );
+    }
+  });
+
+  test("the consent sentence is never clipped and Details is in view beside Join and record", async ({
+    browser,
+  }: {
+    browser: Browser;
+  }) => {
+    for (const [width, height] of [
+      [320, 568],
+      [390, 844],
+      [600, 900],
+      [700, 900],
+      [1280, 800],
+      [667, 375],
+    ] as const) {
+      await withJoinRoom(
+        browser,
+        { ...PHONE_GUEST, viewport: { width, height } },
+        async (guest, token) => {
+          const where = `${width}x${height}`;
+          await guest.addInitScript(() => {
+            localStorage.setItem("sharecut.recordName", "Ava Okafor");
+          });
+          await openRecordLink(guest, token);
+          const panel = await settledPanel(guest);
+          const allow = panel.getByRole("button", { name: "Allow microphone" });
+          const cut = await allow.evaluate((button) => {
+            let scroller: HTMLElement | null = button.parentElement;
+            while (
+              scroller &&
+              !/(auto|scroll)/.test(getComputedStyle(scroller).overflowY)
+            ) {
+              scroller = scroller.parentElement;
+            }
+            const area = (scroller ?? document.body).getBoundingClientRect();
+            const box = button.getBoundingClientRect();
+            return box.top < area.bottom && box.bottom > area.bottom + 0.5;
+          });
+          if (height >= 500) {
+            expect(
+              cut,
+              `${where} Allow microphone is not cut at first paint`,
+            ).toBe(false);
+          }
+          const join = panel.getByRole("button", { name: "Join and record" });
+          await join.scrollIntoViewIfNeeded();
+          const line = panel.locator(".sys-join-line");
+          const clipped = await line.evaluate(
+            (element) => element.scrollHeight - element.clientHeight,
+          );
+          expect(clipped, `${where} consent text clipped`).toBe(0);
+          const lineBox = await boxOf(line);
+          expect(lineBox.y, where).toBeGreaterThanOrEqual(-0.5);
+          expect(lineBox.y + lineBox.height, where).toBeLessThanOrEqual(
+            (await boxOf(join)).y + 0.5,
+          );
+          const detailsLink = panel.getByRole("button", { name: "Details" });
+          await expect(detailsLink).toBeVisible();
+          const detailsBox = await boxOf(detailsLink);
+          expect(detailsBox.y + detailsBox.height, where).toBeLessThanOrEqual(
+            height + 0.5,
+          );
+          expect(detailsBox.y, where).toBeGreaterThanOrEqual(-0.5);
+          const visibleHeight = await panel.evaluate((element) => {
+            const owner = element.querySelector(".command-palette-body");
+            const consent = element.querySelector(".sys-join-consent");
+            const body = owner?.getBoundingClientRect();
+            const box = consent?.getBoundingClientRect();
+            return body && box ? box.top - body.bottom : 0;
+          });
+          expect(
+            visibleHeight,
+            `${where} consent sits below the body`,
+          ).toBeGreaterThanOrEqual(-0.5);
         },
       );
     }

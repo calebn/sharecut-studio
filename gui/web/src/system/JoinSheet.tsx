@@ -1,8 +1,10 @@
 import {
   type FormEvent,
+  type ReactNode,
   type RefObject,
   useEffect,
   useId,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -100,15 +102,18 @@ function Footer({
   primaryRef,
   onJoin,
   onDecline,
+  consent,
 }: {
   primary: JoinPrimary;
   primaryRef: RefObject<HTMLButtonElement | null>;
   onJoin: () => void;
   onDecline: () => void;
+  consent: ReactNode;
 }) {
   const reasonId = useId();
   return (
     <div className="sys-join-footer">
+      {consent}
       <Button
         ref={primaryRef}
         variant="primary"
@@ -234,6 +239,10 @@ export function JoinSheet({
     [pointer],
   );
 
+  useLayoutEffect(() => {
+    initialFocusRef.current?.focus();
+  }, [initialFocusRef]);
+
   // A row the sheet parked focus on (a wait, such as the browser's prompt or
   // the storage check) hands it on when the row resolves, including when the
   // row itself unmounts and focus falls to the page. Focus the guest chose
@@ -305,6 +314,11 @@ export function JoinSheet({
           primaryRef={primaryRef}
           onJoin={onJoin}
           onDecline={onDecline}
+          consent={
+            guest ? (
+              <Consent host={host} listeners={listenersLine(here)} />
+            ) : null
+          }
         />
       }
     >
@@ -347,7 +361,6 @@ export function JoinSheet({
                 onChange={onHeadphonesChange}
               />
             </SheetRow>
-            <Consent host={host} listeners={listenersLine(here)} />
           </>
         ) : (
           <>

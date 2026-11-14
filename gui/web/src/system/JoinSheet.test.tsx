@@ -228,6 +228,20 @@ describe("JoinSheet guest", () => {
     );
   });
 
+  it("keeps the consent sentence and Details in the pinned footer beside Join and record", () => {
+    render(<Harness {...READY} />);
+    const footer = document.querySelector(".command-palette-footer");
+    expect(footer).toHaveTextContent("You'll be recorded in full quality");
+    expect(
+      within(footer as HTMLElement).getByRole("button", { name: "Details" }),
+    ).toBeInTheDocument();
+    expect(
+      within(footer as HTMLElement).getByRole("button", {
+        name: "Join and record",
+      }),
+    ).toBeInTheDocument();
+  });
+
   it("holds Allow microphone busy while the browser asks", async () => {
     const onMicAction = vi.fn();
     render(
@@ -328,6 +342,17 @@ describe("JoinSheet guest", () => {
 });
 
 describe("JoinSheet first focus", () => {
+  it("places first focus in the mount commit, before any animation frame", () => {
+    vi.stubGlobal("requestAnimationFrame", () => 1);
+    vi.stubGlobal("cancelAnimationFrame", vi.fn());
+    const { unmount } = render(<Harness />);
+    expect(screen.getByRole("textbox", { name: "Your name" })).toHaveFocus();
+    unmount();
+    touchScreen();
+    render(<Harness />);
+    expect(document.querySelector('[data-step="name"]')).toHaveFocus();
+  });
+
   it("opens on the name field, never on Close", async () => {
     render(<Harness />);
     await waitFor(() =>
