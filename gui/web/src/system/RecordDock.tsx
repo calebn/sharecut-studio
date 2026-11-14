@@ -73,6 +73,12 @@ export function RecordDock({
   const hint = usePressHint();
   const hintId = useId();
   const { leaveHeld } = dock;
+  const exit = (onExit?: () => void, title?: string) => ({
+    title: leaveHeld ?? title,
+    "aria-disabled": leaveHeld ? true : undefined,
+    "aria-describedby": leaveHeld ? hintId : undefined,
+    onClick: leaveHeld ? hint.show : onExit,
+  });
   const mute = (
     <button
       type="button"
@@ -186,43 +192,30 @@ export function RecordDock({
             size={20}
             onClick={onMore}
           />
+        ) : dock.kind === "done" ? (
+          <Button variant="primary" className="sys-dock-done" {...exit(onDone)}>
+            Done
+          </Button>
         ) : (
-          <>
-            {dock.kind === "done" ? (
-              <Button
-                variant="primary"
-                className="sys-dock-done"
-                aria-disabled={leaveHeld ? true : undefined}
-                aria-describedby={leaveHeld ? hintId : undefined}
-                onClick={leaveHeld ? hint.show : onDone}
-              >
-                Done
-              </Button>
-            ) : (
-              <button
-                type="button"
-                className="sys-dock-btn"
-                aria-label="Leave room"
-                title={leaveHeld ?? "Leave room"}
-                aria-disabled={leaveHeld ? true : undefined}
-                aria-describedby={leaveHeld ? hintId : undefined}
-                onClick={leaveHeld ? hint.show : onLeave}
-              >
-                <SystemIcon name="door-open" size={20} />
-              </button>
-            )}
-            {leaveHeld ? (
-              <span
-                id={hintId}
-                className="sys-dock-hint"
-                data-shown={hint.shown || undefined}
-              >
-                {leaveHeld}
-              </span>
-            ) : null}
-          </>
+          <button
+            type="button"
+            className="sys-dock-btn"
+            aria-label="Leave room"
+            {...exit(onLeave, "Leave room")}
+          >
+            <SystemIcon name="door-open" size={20} />
+          </button>
         )}
       </div>
+      {leaveHeld && seat !== "host" ? (
+        <span
+          id={hintId}
+          className="sys-dock-hint"
+          data-shown={hint.shown || undefined}
+        >
+          {leaveHeld}
+        </span>
+      ) : null}
     </div>
   );
 }
