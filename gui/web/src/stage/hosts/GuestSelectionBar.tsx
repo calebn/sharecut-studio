@@ -36,7 +36,8 @@ export function GuestSelectionBar({
     })),
   );
   const refreshing = useDawStore((s) =>
-    s.project && s.selection?.kind === "transcriptRange"
+    s.project?.meta?.hydration?.transcript_words === false &&
+    s.selection?.kind === "transcriptRange"
       ? resolveSelectionRange(s.project, s.selection).refreshing
         ? TRANSCRIPT_REFRESHING
         : undefined
