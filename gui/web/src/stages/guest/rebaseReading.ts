@@ -2,18 +2,14 @@ import type { ScriptPaneReadingPosition } from "../../system/ScriptPane";
 import type { ScriptTurn } from "../../system/scriptPieces";
 
 /**
- * The reading position of a word position captured in an earlier set of
- * turns, expressed in `turns`. A word's key is not the identity here: a cut
- * removes its words from the track's transcript and `word_index` is a word's
- * position in what is left (`engines/transcript_sync.py`
- * `apply_source_transcript_removes`, `gui/mapper.py` `_mapped_word_index`), so
- * the same word can wear a new key. A
- * line's id (track, source, start) is stable, so the reader's word is looked
- * for in that line: the word with the same key and text (a hydration that only
- * dropped a word), else the same place in the line. When the line is
- * gone, the first word of the next line of the old order that survived; when
- * none did, the position as it was (the pane then falls back to its pixel
- * offset).
+ * A word position captured in an earlier set of turns, expressed in `turns`.
+ * A word's key is not the identity: a cut removes words from the track's
+ * transcript, so `word_index` (a word's position in what is left) is
+ * renumbered. The line id (track, source, start) is stable, so the word is
+ * looked for in its line: same key and text, else the same place in the line.
+ * A line that is gone gives the first word of the next old line that survived;
+ * if none did, the position is returned as it was (the pane then falls back to
+ * its pixel offset).
  */
 export function rebaseReading(
   position: Extract<ScriptPaneReadingPosition, { kind: "word" }>,

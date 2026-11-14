@@ -736,10 +736,9 @@ type Actions = {
   speaker: (turnId: string, anchor: HTMLElement) => void;
 };
 
-const NO_CARETS: readonly ScriptCaret[] = [];
-
 /** A refresh that ends sooner than this shows no sign; a longer one draws the hairline. */
 const REFRESH_NOTICE_MS = 400;
+const NO_CARETS: readonly ScriptCaret[] = [];
 const NO_NUMBERS: readonly number[] = [];
 const NO_FOUND: readonly FoundHit[] = [];
 const NO_MATCHES: readonly FindHit[] = [];
@@ -1823,8 +1822,8 @@ export const ScriptPane = forwardRef<ScriptPaneHandle, ScriptPaneProps>(
           live.current.props.onUserScroll?.();
         } else if (result.effect === "restore") restoreReadingPosition();
         else if (!binding.restore && boundary.kind === "scroll")
-          // A follower has no bookmark, but where it is looking is noted aside,
-          // so a refresh that begins can hold it still (`restore` turns on).
+          // A follower has no bookmark: note where it looks, so a refresh can
+          // hold it still.
           serializeReadingPosition(undefined, true);
       },
       [

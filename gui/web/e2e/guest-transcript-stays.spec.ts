@@ -16,14 +16,6 @@ import {
 } from "./guestTranscript";
 import { parseTimecodeSec } from "./timecode";
 
-/**
- * A guest reading the transcript keeps its words on screen while the host
- * edits. The host edit is a real document command posted to the host API; the
- * guest receives it as a word-free delta over the review socket and then
- * refetches the word detail. A frame watcher records every animation frame and
- * DOM mutation so a gap of a few milliseconds cannot slip between polls.
- */
-
 for (const role of ROLES) {
   for (const size of SIZES) {
     test(`a ${role} at ${size.width}x${size.height} keeps the transcript on screen through a host cut`, async ({
@@ -99,8 +91,8 @@ test("a slow word detail leaves the same busy Script, whose held words do not se
       const { page: view } = guest;
       const section = view.locator(SECTION);
       const last = view.locator(WORD).last();
-      // A selection made before the edit is the one the bar acts on: a gesture
-      // on a held word is dropped, because a cut renumbers the words.
+      // Select before the edit: a gesture on a held word is dropped, since a
+      // cut renumbers word_index.
       await last.click();
       await expect(
         view.getByRole("group", { name: "Selection actions" }),

@@ -61,8 +61,7 @@ export function GuestScript({
           : position;
       },
       capture: reading.capture,
-      // A follower holds its view still while lines refresh: it is restored
-      // from where it was looking, as a reader is.
+      // A follower is restored from where it was looking while lines refresh.
       restore: !reading.following || refreshing,
     }),
     [reading, turns, refreshing],

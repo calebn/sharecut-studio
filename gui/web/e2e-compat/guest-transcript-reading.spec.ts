@@ -13,12 +13,6 @@ import {
   withGuest,
 } from "../e2e/guestTranscript";
 
-/**
- * A guest who is reading, or following, keeps their place while the host's
- * edit makes the Script refresh. Scroll anchoring is off, so the page's own
- * code has to do it, in Chromium and in WebKit.
- */
-
 test("a scrolled reader's word stays where it was through a host cut above it", async ({
   browser,
   page,
@@ -35,15 +29,12 @@ test("a scrolled reader's word stays where it was through a host cut above it", 
         "the Script must overflow to scroll",
       ).toBeGreaterThan(100);
       await anchoringOff(view);
-      // The playhead sits on the first word, so the pane has a place to go back to.
       await view.locator(WORD).first().click();
-      // Not at the end: when the lines above shrink, a browser that clamps the
-      // scroll to the shorter page would move the word, so only restoring the
-      // reader's place keeps it still.
+      // Not at the end: a browser clamping the scroll to a shorter page would
+      // move the word, so only restoring the reader's place keeps it still.
       const { over } = await bodyOverflows(body);
       const target = over - 60;
       await scrollByHand(view, target);
-      // The pane took it for the reader's: follow is off.
       await expect(
         view.getByRole("button", { name: "Back to playhead" }),
       ).toBeVisible();
@@ -96,7 +87,6 @@ for (const mode of ["paused", "playing"] as const) {
           "the Script must overflow to scroll",
         ).toBeGreaterThan(100);
         await anchoringOff(view);
-        // A tap on a late word moves the playhead there; following scrolls to it.
         const tapped = view.locator(WORD).nth(-26);
         const playheadPlace = await tapped.evaluate((el) => {
           const turn = el.closest("[data-turn-id]");
@@ -121,7 +111,6 @@ for (const mode of ["paused", "playing"] as const) {
         guest.detail.delayMs = 1_500;
         const seen = await frames(guest, page, "cut", 1, anchorKey, 0.5);
         expectNoBlankFrame(seen.frames, seen.from, guest.log, "for a follower");
-        // Every frame from the edit on, the delta and the swap included.
         const after = seen.frames.filter((f) => f.t >= seen.from);
         expect(after.some((f) => f.busy)).toBe(true);
         const offsets = after.map((f) => f.offset);

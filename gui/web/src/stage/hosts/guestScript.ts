@@ -26,7 +26,6 @@ type Heard = {
   at: number;
 };
 
-/** The words a live row draws, in time order. */
 function heardWords(utterance: CombinedUtterance): Heard[] {
   return (utterance.words ?? [])
     .flatMap((word, at) => {
@@ -169,10 +168,9 @@ export function guestScriptOf(rows: readonly ShownRow[]): GuestScriptModel {
 }
 
 /**
- * A held word is drawn with the numbering it had before the edit, and a cut
- * shifts the index of the words after it (see `rebaseReading`), so a selection stored from it would name other
- * words once the detail lands. A gesture that touches one is dropped; one
- * made before the edit stays, as it did.
+ * A held word keeps the word_index it had before the edit, and a cut renumbers
+ * the words after it, so a selection touching one would name other words once
+ * the detail lands. Such a gesture is dropped.
  */
 export function touchesHeld(
   g: GuestScriptModel,

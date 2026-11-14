@@ -160,10 +160,8 @@ function beginRequest(
       )
         return;
       if (documentAuthority.phase.kind === "recovering") {
-        // A drifted token sent the document to a shell recovery: the detail is
-        // being redone, not refused: the request stays pending and the shell
-        // that lands reschedules it. Only a recovery that fails is a failure
-        // the guest can retry.
+        // The document is recovering from a shell: stay pending, the shell's
+        // commit schedules the detail again. Only a failed recovery fails.
         void recoverDocument().catch(() => {
           if (isActiveAttempt(request))
             publish({ kind: "failed", request, recovering: false });
