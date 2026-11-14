@@ -19,10 +19,18 @@ function renderActions(
     recoverAllowed?: boolean;
     uploadAvailable?: boolean;
     onRecovered?: () => void;
+    localSegments?: number | null;
+    captureSettled?: boolean;
   } = {},
 ) {
   return renderHook(
-    ({ recoverAllowed, uploadAvailable, takeIndex }) =>
+    ({
+      recoverAllowed,
+      uploadAvailable,
+      takeIndex,
+      localSegments,
+      captureSettled,
+    }) =>
       useKeeperRecoveryActions({
         sink,
         sessionId: ids.sessionId,
@@ -30,6 +38,8 @@ function renderActions(
         takeIndex,
         recoverAllowed,
         uploadAvailable,
+        localSegments,
+        captureSettled,
         onRecovered: overrides.onRecovered ?? (() => undefined),
       }),
     {
@@ -37,6 +47,9 @@ function renderActions(
         recoverAllowed: overrides.recoverAllowed ?? true,
         uploadAvailable: overrides.uploadAvailable ?? true,
         takeIndex: overrides.takeIndex ?? ids.takeIndex,
+        localSegments:
+          overrides.localSegments === undefined ? 1 : overrides.localSegments,
+        captureSettled: overrides.captureSettled ?? true,
       },
     },
   );
@@ -186,6 +199,8 @@ describe("useKeeperRecoveryActions", () => {
       recoverAllowed: true,
       uploadAvailable: false,
       takeIndex: ids.takeIndex,
+      localSegments: 1,
+      captureSettled: true,
     });
     await act(async () => release());
     await waitFor(() => expect(result.current.busy).toBe(false));
@@ -255,6 +270,8 @@ describe("useKeeperRecoveryActions", () => {
       recoverAllowed: true,
       uploadAvailable: true,
       takeIndex: ids.takeIndex + 1,
+      localSegments: 1,
+      captureSettled: true,
     });
     expect(result.current.downloaded).toBe(false);
   });
@@ -284,5 +301,64 @@ describe("useKeeperRecoveryActions", () => {
     await waitFor(() => expect(result.current.busy).toBe(false));
     expect(result.current.downloaded).toBe(false);
     expect(result.current.error).toBe("Disk full.");
+  });
+
+  describe("downloaded names the audio the zip held", () => {
+    const held = {
+      recoverAllowed: true,
+      uploadAvailable: true,
+      takeIndex: ids.takeIndex,
+      captureSettled: true,
+    };
+
+    it("drops once the device holds a segment the zip lacks, even in the same take", async () => {
+      const sink = new MemorySink();
+      await seedPendingKeeper(sink, ids);
+      vi.spyOn(recovery, "downloadLocalKeepers").mockResolvedValue(undefined);
+      const { result, rerender } = renderActions(sink);
+      act(() => result.current.download?.());
+      await waitFor(() => expect(result.current.downloaded).toBe(true));
+      rerender({ ...held, localSegments: 2 });
+      expect(result.current.downloaded).toBe(false);
+      rerender({ ...held, localSegments: 1 });
+      expect(result.current.downloaded).toBe(true);
+    });
+
+    it("is false while capture is unsettled and while the device count is unknown", async () => {
+      const sink = new MemorySink();
+      await seedPendingKeeper(sink, ids);
+      vi.spyOn(recovery, "downloadLocalKeepers").mockResolvedValue(undefined);
+      const { result, rerender } = renderActions(sink);
+      act(() => result.current.download?.());
+      await waitFor(() => expect(result.current.downloaded).toBe(true));
+      rerender({ ...held, localSegments: 1, captureSettled: false });
+      expect(result.current.downloaded).toBe(false);
+      rerender({ ...held, localSegments: null });
+      expect(result.current.downloaded).toBe(false);
+    });
+
+    it("never counts a download taken while capture was still running", async () => {
+      const sink = new MemorySink();
+      await seedPendingKeeper(sink, ids);
+      vi.spyOn(recovery, "downloadLocalKeepers").mockResolvedValue(undefined);
+      const { result, rerender } = renderActions(sink, {
+        captureSettled: false,
+      });
+      act(() => result.current.download?.());
+      await waitFor(() => expect(result.current.busy).toBe(false));
+      rerender({ ...held, localSegments: 1 });
+      expect(result.current.downloaded).toBe(false);
+    });
+
+    it("does not count a download whose device scan threw", async () => {
+      const sink = new MemorySink();
+      await seedPendingKeeper(sink, ids);
+      vi.spyOn(recovery, "scanLocalKeeper").mockRejectedValue(new Error("io"));
+      vi.spyOn(recovery, "downloadLocalKeepers").mockResolvedValue(undefined);
+      const { result } = renderActions(sink);
+      act(() => result.current.download?.());
+      await waitFor(() => expect(result.current.busy).toBe(false));
+      expect(result.current.downloaded).toBe(false);
+    });
   });
 });

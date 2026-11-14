@@ -60,6 +60,7 @@ type Overrides = {
   roomTone?: Partial<GuestRoom["roomTone"]>;
   captureSettled?: boolean;
   localRecording?: boolean;
+  localSegments?: number | null;
 };
 
 function fakeRoom(over: Overrides = {}) {
@@ -150,6 +151,7 @@ function fakeRoom(over: Overrides = {}) {
     },
     captureSettled: over.captureSettled ?? true,
     localRecording: over.localRecording ?? false,
+    localSegments: over.localSegments === undefined ? 0 : over.localSegments,
     name: "Ava",
     setName: vi.fn(),
     headphonesOk: true,

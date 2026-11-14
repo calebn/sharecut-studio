@@ -8,6 +8,7 @@ import {
   downloadLocalKeepers,
   type KeeperRecoveryResult,
   recoverLocalKeepers,
+  scanLocalKeeper,
 } from "./recovery";
 
 /** Download / recover actions for retained local keepers, shared by host and guest. */
@@ -23,7 +24,11 @@ export type KeeperRecoveryActions = {
   error: string | null;
   /** Last successful recovery, for the upload status live region. */
   notice: string | null;
-  /** The whole zip of this session and take went to the browser. A failed download or a recovery clears it. */
+  /**
+   * The whole zip of this session and take went to the browser: it was saved
+   * once capture had settled, and the device holds no segment the zip lacks.
+   * A failed download or a recovery clears it.
+   */
   downloaded: boolean;
 };
 
@@ -52,8 +57,13 @@ export function useKeeperRecoveryActions(args: {
   takeIndex: number | null;
   /** Latest "room stopped and capture settled"; re-checked during recovery. */
   recoverAllowed: boolean;
+  /** Segments this device holds for the take now; null while unknown. */
+  localSegments: number | null;
+  captureSettled: boolean;
   uploadAvailable?: boolean;
   onRecovered: () => void;
+  /** After any download or recovery run ends, so the device count can be re-read. */
+  onRunEnd?: () => void;
 }): KeeperRecoveryActions {
   const { sink, sessionId, participantId, takeIndex } = args;
   const [error, setError] = useState<string | null>(null);
@@ -61,14 +71,17 @@ export function useKeeperRecoveryActions(args: {
   const [downloadedFor, setDownloadedFor] = useState<{
     sessionId: string;
     takeIndex: number;
+    segments: number;
   } | null>(null);
   const [running, setRunning] = useState<"download" | "recover" | null>(null);
   const { busy, run: runSingle } = useSingleFlight();
   const canRecover = useStableCallback(() => args.recoverAllowed);
+  const settledNow = useStableCallback(() => args.captureSettled);
   const recoveredNotice = useStableCallback((result: KeeperRecoveryResult) =>
     recoveryNotice(result, args.uploadAvailable ?? true),
   );
   const onRecovered = useStableCallback(args.onRecovered);
+  const onRunEnd = useStableCallback(() => args.onRunEnd?.());
   const mountedRef = useMountedRef();
 
   const run = useCallback(
@@ -92,11 +105,14 @@ export function useKeeperRecoveryActions(args: {
           // A partial run may still have recovered segments; re-poll.
           afterSuccess?.();
         } finally {
-          if (mountedRef.current) setRunning(null);
+          if (mountedRef.current) {
+            setRunning(null);
+            onRunEnd();
+          }
         }
       });
     },
-    [mountedRef, runSingle],
+    [mountedRef, runSingle, onRunEnd],
   );
 
   const ready =
@@ -107,16 +123,27 @@ export function useKeeperRecoveryActions(args: {
   const download = useCallback(() => {
     if (!sink || !sessionId || !participantId || takeIndex === null) return;
     run("download", async () => {
+      const settled = settledNow();
       try {
         await downloadLocalKeepers(sink, sessionId, participantId, takeIndex);
       } catch (failure: unknown) {
         setDownloadedFor(null);
         throw failure;
       }
-      setDownloadedFor({ sessionId, takeIndex });
+      const held = await scanLocalKeeper(
+        sink,
+        sessionId,
+        participantId,
+        takeIndex,
+      ).catch(() => null);
+      setDownloadedFor(
+        settled && held
+          ? { sessionId, takeIndex, segments: held.segments }
+          : null,
+      );
       return null;
     });
-  }, [run, sink, sessionId, participantId, takeIndex]);
+  }, [run, settledNow, sink, sessionId, participantId, takeIndex]);
   const recover = useCallback(() => {
     if (!sink || !sessionId || !participantId || takeIndex === null) return;
     if (!canRecover()) return;
@@ -157,6 +184,8 @@ export function useKeeperRecoveryActions(args: {
     downloaded:
       downloadedFor !== null &&
       downloadedFor.sessionId === sessionId &&
-      downloadedFor.takeIndex === takeIndex,
+      downloadedFor.takeIndex === takeIndex &&
+      args.captureSettled &&
+      args.localSegments === downloadedFor.segments,
   };
 }

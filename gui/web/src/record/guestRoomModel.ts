@@ -143,13 +143,18 @@ export function guestTakes(
 /**
  * Whether the server's acknowledgement covers everything this device holds. It
  * counts only for the segments its pass saw, and the pass already forgets an
- * acknowledgement given for another take.
+ * acknowledgement given for another take. An unknown device count covers
+ * nothing.
  */
 export function uploadAcknowledged(
   upload: Pick<RecordUploadProgress, "fileAck" | "seenSegments">,
-  localSegments: number,
+  localSegments: number | null,
 ): boolean {
-  return upload.fileAck && localSegments <= upload.seenSegments;
+  return (
+    upload.fileAck &&
+    localSegments !== null &&
+    localSegments <= upload.seenSegments
+  );
 }
 
 function uploadStuck(upload: RecordUploadProgress): boolean {
@@ -161,7 +166,7 @@ function uploadStuck(upload: RecordUploadProgress): boolean {
 
 export function uploadInFlight(
   upload: RecordUploadProgress | null,
-  localSegments: number,
+  localSegments: number | null,
 ): boolean {
   return (
     upload !== null &&
@@ -177,19 +182,18 @@ export function guestRoomPhase(
     elapsedSinceSnapshotMs?: number;
     upload?: RecordUploadProgress | null;
     /** Segments this device holds for the take. */
-    localSegments?: number;
+    localSegments: number | null;
     /** False for a guest who is not in the take: nothing of theirs is saving. */
     tookPart?: boolean;
     /** This page's room socket is open. Defaults to true. False on air reads reconnecting. */
     connected?: boolean;
-  } = {},
+  },
 ): RoomPhase {
   const phase = hostRoomPhase(snapshot, {
     elapsedSinceSnapshotMs: options.elapsedSinceSnapshotMs,
     dropped: options.connected === false,
   });
-  const { upload } = options;
-  const localSegments = options.localSegments ?? 0;
+  const { upload, localSegments } = options;
   const acknowledged =
     upload !== null &&
     upload !== undefined &&
@@ -458,7 +462,11 @@ export function guestCovers(source: CoverSource): CoverProps | null {
           : undefined,
     };
   }
-  if (source.accessEnded && source.keeperActions.downloaded) {
+  if (
+    source.accessEnded &&
+    source.stake !== "finishing" &&
+    source.keeperActions.downloaded
+  ) {
     return downloadedCover(source.keeperActions, host);
   }
   if (source.accessEnded) {
@@ -566,7 +574,7 @@ function capitalized(text: string): string {
 /** The guest's own tile after Stop: how far their upload has come. */
 export function ownSaving(
   upload: RecordUploadProgress | null | undefined,
-  localSegments: number,
+  localSegments: number | null,
 ): RoomSaving | null {
   if (!upload) {
     return null;

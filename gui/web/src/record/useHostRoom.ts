@@ -227,6 +227,8 @@ export function useHostRoom(
     participantId: "p_host",
     takeIndex: snapshot?.take_index ?? null,
     recoverAllowed: state === "stopped" && captureSettled,
+    localSegments: null,
+    captureSettled,
     uploadAvailable: uploadTransport !== null,
     onRecovered: () => setUploadRetryNonce((value) => value + 1),
   });

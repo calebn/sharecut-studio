@@ -86,9 +86,12 @@ describe("guestRoomPhase", () => {
     expect(
       guestRoomPhase(
         recordSnapshot({ state: "lobby", participants: [host, me] }),
+        { localSegments: 0 },
       ),
     ).toEqual({ kind: "waiting", host: "Hana" });
-    expect(guestRoomPhase(null)).toEqual({ kind: "waiting" });
+    expect(guestRoomPhase(null, { localSegments: 0 })).toEqual({
+      kind: "waiting",
+    });
   });
 
   it("keeps the running clock", () => {
@@ -98,7 +101,7 @@ describe("guestRoomPhase", () => {
       recording_ms: 4000,
       participants: [host, me],
     });
-    expect(guestRoomPhase(snapshot)).toMatchObject({
+    expect(guestRoomPhase(snapshot, { localSegments: 0 })).toMatchObject({
       kind: "live",
       take: 2,
     });
@@ -117,7 +120,10 @@ describe("guestRoomPhase", () => {
       participants: [host, me, other],
     });
     expect(
-      guestRoomPhase(snapshot, { upload: upload({ acked: 1, total: 3 }) }),
+      guestRoomPhase(snapshot, {
+        localSegments: 0,
+        upload: upload({ acked: 1, total: 3 }),
+      }),
     ).toEqual({
       kind: "saving",
       savedPeople: 0,
@@ -125,9 +131,14 @@ describe("guestRoomPhase", () => {
       percent: 33,
     });
     expect(
-      guestRoomPhase(snapshot, { upload: upload({ total: 3, fileAck: true }) }),
+      guestRoomPhase(snapshot, {
+        localSegments: 0,
+        upload: upload({ total: 3, fileAck: true }),
+      }),
     ).toEqual({ kind: "saved" });
-    expect(guestRoomPhase(snapshot)).toEqual({ kind: "saved" });
+    expect(guestRoomPhase(snapshot, { localSegments: 0 })).toEqual({
+      kind: "saved",
+    });
   });
 
   it("does not read a stale acknowledgement as saved when the device holds more", () => {
@@ -145,6 +156,18 @@ describe("guestRoomPhase", () => {
     ).toMatchObject({ kind: "saving" });
   });
 
+  it("never reads an unknown device count as saved", () => {
+    const snapshot = recordSnapshot({
+      state: "stopped",
+      take_index: 0,
+      participants: [host, me],
+    });
+    const acknowledged = upload({ total: 1, fileAck: true, seenSegments: 1 });
+    expect(
+      guestRoomPhase(snapshot, { upload: acknowledged, localSegments: null }),
+    ).toMatchObject({ kind: "saving" });
+  });
+
   it("reports a failed upload as a failed save, not as progress", () => {
     const snapshot = recordSnapshot({
       state: "stopped",
@@ -159,14 +182,19 @@ describe("guestRoomPhase", () => {
     };
     expect(
       guestRoomPhase(snapshot, {
+        localSegments: 0,
         upload: upload({ acked: 1, total: 3, error: "offline" }),
       }),
     ).toEqual(failed);
     expect(
-      guestRoomPhase(snapshot, { upload: upload({ recoverable: true }) }),
+      guestRoomPhase(snapshot, {
+        localSegments: 0,
+        upload: upload({ recoverable: true }),
+      }),
     ).toEqual(failed);
     expect(
       guestRoomPhase(snapshot, {
+        localSegments: 0,
         upload: upload({ total: 3, recoverable: true, uploading: true }),
       }),
     ).toMatchObject({ kind: "saving", percent: 0 });
@@ -180,17 +208,28 @@ describe("guestRoomPhase", () => {
       participants: [host, me, other],
     });
     expect(
-      guestRoomPhase(snapshot, { upload: upload(), tookPart: false }),
+      guestRoomPhase(snapshot, {
+        localSegments: 0,
+        upload: upload(),
+        tookPart: false,
+      }),
     ).toEqual({ kind: "waiting", host: "Hana" });
-    expect(guestRoomPhase(snapshot, { tookPart: false })).toEqual({
+    expect(
+      guestRoomPhase(snapshot, { localSegments: 0, tookPart: false }),
+    ).toEqual({
       kind: "waiting",
       host: "Hana",
     });
     expect(
-      guestRoomPhase(snapshot, { upload: upload(), tookPart: true }),
+      guestRoomPhase(snapshot, {
+        localSegments: 0,
+        upload: upload(),
+        tookPart: true,
+      }),
     ).toMatchObject({ kind: "saving" });
     expect(
       guestRoomPhase(snapshot, {
+        localSegments: 0,
         upload: upload({ pending: true }),
         tookPart: false,
       }),
@@ -204,10 +243,16 @@ describe("guestRoomPhase", () => {
       participants: [host, me],
     });
     expect(
-      guestRoomPhase(snapshot, { upload: upload({ pending: true }) }),
+      guestRoomPhase(snapshot, {
+        localSegments: 0,
+        upload: upload({ pending: true }),
+      }),
     ).toMatchObject({ kind: "saving" });
     expect(
-      guestRoomPhase(snapshot, { upload: upload({ total: 2, fileAck: true }) }),
+      guestRoomPhase(snapshot, {
+        localSegments: 0,
+        upload: upload({ total: 2, fileAck: true }),
+      }),
     ).toEqual({ kind: "saved" });
   });
 });
@@ -222,6 +267,7 @@ describe("guestRoomPhase when this page's socket drops", () => {
     });
     expect(
       guestRoomPhase(snapshot, {
+        localSegments: 0,
         connected: false,
         elapsedSinceSnapshotMs: 1000,
       }),
@@ -232,7 +278,7 @@ describe("guestRoomPhase when this page's socket drops", () => {
     expect(
       guestRoomPhase(
         recordSnapshot({ state: "lobby", participants: [host, me] }),
-        { connected: false },
+        { connected: false, localSegments: 0 },
       ),
     ).toEqual({ kind: "waiting", host: "Hana" });
   });
@@ -485,6 +531,11 @@ describe("ownSaving", () => {
     expect(ownSaving(upload({ total: 4, error: "x" }), 0)).toBe("failed");
   });
 
+  it("does not call an acknowledged take saved while the device count is unknown", () => {
+    const acknowledged = upload({ total: 2, fileAck: true, seenSegments: 1 });
+    expect(ownSaving(acknowledged, null)).toEqual({ done: 0, total: 2 });
+  });
+
   it("trusts an acknowledgement only for the segments its pass saw", () => {
     const acknowledged = upload({ total: 2, fileAck: true, seenSegments: 1 });
     expect(ownSaving(acknowledged, 1)).toBe("saved");
@@ -601,6 +652,20 @@ describe("guestCovers", () => {
           keeperActions: downloaded,
         }),
       ).toBeNull();
+    });
+
+    it("lets Finishing your full-quality recording win while capture is still settling", () => {
+      expect(
+        guestCovers({
+          ...coverSource,
+          accessEnded: true,
+          stake: "finishing",
+          keeperActions: downloaded,
+        }),
+      ).toMatchObject({
+        title: "This session has ended",
+        children: "Finishing your full-quality recording…",
+      });
     });
   });
 

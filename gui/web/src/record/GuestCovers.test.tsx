@@ -494,6 +494,8 @@ describe("after Save my recording handed the whole zip to the browser", () => {
       participantId: "p_g",
       takeIndex,
       recoverAllowed: true,
+      localSegments: 0,
+      captureSettled: true,
       onRecovered: () => undefined,
     });
     const cover = guestCoverProps(
@@ -583,6 +585,117 @@ describe("after Save my recording handed the whole zip to the browser", () => {
     expect(
       await screen.findByRole("button", { name: "Save it again" }),
     ).toBeInTheDocument();
+  });
+
+  describe("when the device holds audio the zip lacks", () => {
+    function Leaving({
+      localSegments,
+      accessEnded,
+      captureSettled = true,
+    }: {
+      localSegments: number;
+      accessEnded: boolean;
+      captureSettled?: boolean;
+    }) {
+      const keeperActions = useKeeperRecoveryActions({
+        sink: new MemorySink(),
+        sessionId: "room1",
+        participantId: "p_g",
+        takeIndex: 0,
+        recoverAllowed: true,
+        localSegments,
+        captureSettled,
+        onRecovered: () => undefined,
+      });
+      const cover = guestCoverProps(
+        room({
+          accessEnded,
+          left: !accessEnded,
+          localSegments,
+          captureSettled,
+          keeperActions,
+          snapshot: recordSnapshot({ participants: [host], take_index: 0 }),
+        }),
+        { onRetry: vi.fn(), phase: waiting },
+      );
+      return cover ? <GuestCovers cover={cover} /> : null;
+    }
+
+    it.each([
+      ["Leave", false],
+      ["access ended", true],
+    ])(
+      "offers Save my recording after %s, not Check your downloads",
+      async (_name, accessEnded) => {
+        vi.spyOn(recovery, "downloadLocalKeepers").mockResolvedValue(undefined);
+        vi.spyOn(recovery, "scanLocalKeeper").mockResolvedValue({
+          found: true,
+          segments: 1,
+        });
+        const view = render(
+          <Leaving localSegments={1} accessEnded={accessEnded} />,
+        );
+        await userEvent.click(
+          screen.getByRole("button", { name: "Save my recording" }),
+        );
+        expect(
+          await screen.findByRole("heading", {
+            level: 1,
+            name: "Check your downloads",
+          }),
+        ).toBeInTheDocument();
+        view.rerender(<Leaving localSegments={2} accessEnded={accessEnded} />);
+        expect(
+          screen.getByRole("heading", {
+            level: 1,
+            name: "Your recording didn't finish saving",
+          }),
+        ).toBeInTheDocument();
+        expect(
+          screen.getByRole("button", { name: "Save my recording" }),
+        ).toBeInTheDocument();
+      },
+    );
+
+    it("still says Check your downloads when nothing new was recorded after the download", async () => {
+      vi.spyOn(recovery, "downloadLocalKeepers").mockResolvedValue(undefined);
+      vi.spyOn(recovery, "scanLocalKeeper").mockResolvedValue({
+        found: true,
+        segments: 1,
+      });
+      render(<Leaving localSegments={1} accessEnded={false} />);
+      await userEvent.click(
+        screen.getByRole("button", { name: "Save my recording" }),
+      );
+      expect(
+        await screen.findByRole("heading", {
+          level: 1,
+          name: "Check your downloads",
+        }),
+      ).toBeInTheDocument();
+    });
+  });
+
+  it("does not call a guest who recorded nothing unsent while the device count is unknown", () => {
+    const cover = guestCoverProps(
+      room({
+        accessEnded: true,
+        localRecording: false,
+        localSegments: null,
+        snapshot: recordSnapshot({ participants: [host], take_index: 0 }),
+        keeperActions: {
+          busy: false,
+          error: null,
+          notice: null,
+          downloaded: false,
+          download: vi.fn(),
+          recover: vi.fn(),
+        },
+      }),
+      { onRetry: vi.fn(), phase: waiting },
+    );
+    expect(cover?.title).toBe("This session has ended");
+    expect(cover?.primary).toBeUndefined();
   });
 
   it("is not shown while the saved recording's local copy is still held", () => {
