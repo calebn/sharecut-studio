@@ -2,11 +2,11 @@ import { act, render, screen } from "@testing-library/react";
 import { StrictMode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { GuestRoomApp } from "./GuestRoomApp";
-import type { RecordBootstrap } from "./recordBootstrap";
+import type { BootOutcome, RecordBootstrap } from "./recordBootstrap";
 
 type Pending = {
   signal: AbortSignal | undefined;
-  resolve: (value: RecordBootstrap) => void;
+  resolve: (value: BootOutcome) => void;
   reject: (reason: unknown) => void;
 };
 
@@ -14,7 +14,7 @@ const pending = vi.hoisted((): Pending[] => []);
 vi.mock("./recordBootstrap", () => ({
   loadRecordBootstrap: vi.fn(
     (_token: string, signal?: AbortSignal) =>
-      new Promise<RecordBootstrap>((resolve, reject) => {
+      new Promise<BootOutcome>((resolve, reject) => {
         pending.push({ signal, resolve, reject });
       }),
   ),
@@ -126,7 +126,9 @@ describe("GuestRoomApp loading", () => {
   it("leaves no connecting alert when the lookup resolves early", async () => {
     const { container } = render(<GuestRoomApp token="guest-tok" />);
     await tick(1000);
-    await act(async () => pending[0]?.resolve(BOOTSTRAP));
+    await act(async () =>
+      pending[0]?.resolve({ bootstrap: BOOTSTRAP, failure: null }),
+    );
     expect(container.querySelector("[aria-busy]")).toBeNull();
     expect(
       screen.getByRole("heading", { level: 1, name: "Shot of Truth" }),
@@ -139,7 +141,7 @@ describe("GuestRoomApp loading", () => {
     const { container } = render(<GuestRoomApp token="guest-tok" />);
     await tick(3999);
     await act(async () => {
-      pending[0]?.resolve(BOOTSTRAP);
+      pending[0]?.resolve({ bootstrap: BOOTSTRAP, failure: null });
       await vi.advanceTimersByTimeAsync(1);
     });
     expect(container.querySelector("[aria-busy]")).toBeNull();
@@ -163,7 +165,9 @@ describe("GuestRoomApp loading", () => {
 
   it("shows the Cover, not the skeleton, when the lookup fails", async () => {
     const { container } = render(<GuestRoomApp token="guest-tok" />);
-    await act(async () => pending[0]?.reject(new Error("offline")));
+    await act(async () =>
+      pending[0]?.resolve({ bootstrap: null, failure: "network" }),
+    );
     expect(container.querySelector(".sys-room-view")).toBeNull();
     expect(container.querySelector(".sys-room-tile--skeleton")).toBeNull();
   });

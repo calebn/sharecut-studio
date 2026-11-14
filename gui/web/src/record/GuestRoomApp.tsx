@@ -365,6 +365,7 @@ function GuestRoomSession({
       <GuestCovers
         cover={cover}
         status={keeperActions.error ?? keeperActions.notice}
+        onOnline={room.bootError === "network" ? onRetry : undefined}
       />
     );
   }

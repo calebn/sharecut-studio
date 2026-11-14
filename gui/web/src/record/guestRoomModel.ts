@@ -10,6 +10,7 @@ import { dbToFraction } from "../ui/metering";
 import { hostRoomPhase } from "./hostRoomPhase";
 import type { TakeClipping } from "./keeper/clipRegions";
 import type { MicPermissionStatus } from "./micPermission";
+import type { BootFailure } from "./recordBootstrap";
 import {
   type RoomAlertActions,
   type RoomAlertSource,
@@ -20,16 +21,6 @@ import type { RecordParticipant, RecordSnapshot } from "./types";
 import type { KeeperRecoveryActions } from "./upload/useKeeperRecoveryActions";
 import type { RecordUploadProgress } from "./upload/useRecordUpload";
 import type { GuestRoom } from "./useGuestRoom";
-
-export function isNotFound(error: string): boolean {
-  const lower = error.toLowerCase();
-  return (
-    lower.includes("404") ||
-    lower.includes("invalid") ||
-    lower.includes("revoked") ||
-    lower.includes("not found")
-  );
-}
 
 const LOST_STATUSES: readonly MicPermissionStatus[] = [
   "lost",
@@ -354,7 +345,7 @@ function guestStake(
 }
 
 type CoverSource = {
-  bootError: string | null;
+  bootError: BootFailure | null;
   error: string | null;
   accessEnded: boolean;
   inviteClosed: boolean;
@@ -387,22 +378,44 @@ function unsentRecordingCover(source: CoverSource, host: string): CoverProps {
   };
 }
 
+type BootCover = Pick<CoverProps, "glyph" | "title" | "children"> & {
+  retry: boolean;
+};
+
+const BOOT_COVERS: Record<BootFailure, BootCover> = {
+  "not-found": {
+    glyph: "octagon-alert",
+    title: "This link doesn't open a room",
+    children: "Ask the person who invited you for a new link.",
+    retry: false,
+  },
+  network: {
+    glyph: "cloud-off",
+    title: "Couldn't reach the room",
+    children: "Check your internet connection, then try again.",
+    retry: true,
+  },
+  server: {
+    glyph: "triangle-alert",
+    title: "The room didn't answer",
+    children:
+      "Try again in a minute. If it keeps happening, let the person who invited you know.",
+    retry: true,
+  },
+};
+
 export function guestCovers(source: CoverSource): CoverProps | null {
   const host = source.host?.trim() || "the host";
   if (source.bootError) {
-    return isNotFound(source.bootError)
-      ? {
-          ...page,
-          glyph: "octagon-alert",
-          title: "This link doesn't open a room",
-          children: "Ask the person who invited you for a new link.",
-        }
-      : {
-          ...page,
-          glyph: "octagon-alert",
-          title: "This link does not work",
-          children: source.bootError,
-        };
+    const { retry, ...copy } = BOOT_COVERS[source.bootError];
+    return {
+      ...page,
+      ...copy,
+      primary:
+        retry && source.onRetry
+          ? { label: "Try again", onClick: source.onRetry }
+          : undefined,
+    };
   }
   if (source.accessEnded) {
     const { download, recover } = source.keeperActions;

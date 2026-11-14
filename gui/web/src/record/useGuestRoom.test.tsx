@@ -385,7 +385,7 @@ describe("useGuestRoom", () => {
       vi.fn(async () => new Response("not found", { status: 404 })),
     );
     const { result } = renderHook(() => useGuestRoom("gone"));
-    await waitFor(() => expect(result.current.bootError).toBe("not found"));
+    await waitFor(() => expect(result.current.bootError).toBe("not-found"));
     expect(result.current.bootstrap).toBeNull();
   });
 

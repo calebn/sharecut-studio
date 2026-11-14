@@ -59,7 +59,7 @@ describe("GuestCovers", () => {
   });
 
   it("covers an invalid link in the page's main", async () => {
-    const { container } = show({ bootError: "HTTP 404" });
+    const { container } = show({ bootError: "not-found" });
     expect(screen.getByRole("main")).toContainElement(
       screen.getByRole("heading", { name: "This link doesn't open a room" }),
     );
@@ -371,5 +371,53 @@ describe("GuestCovers", () => {
     expect(
       screen.getByRole("heading", { name: "This session has ended" }),
     ).toBeInTheDocument();
+  });
+});
+
+describe("GuestCovers headings and boot failures", () => {
+  it.each([
+    [{ bootError: "not-found" as const }, "This link doesn't open a room"],
+    [{ bootError: "network" as const }, "Couldn't reach the room"],
+    [{ bootError: "server" as const }, "The room didn't answer"],
+    [{ error: "room_full" }, "The room is full"],
+    [{ accessEnded: true }, "This session has ended"],
+  ])("gives every guest cover one level-one heading (%o)", (over, title) => {
+    show(over);
+    const headings = screen.getAllByRole("heading", { level: 1 });
+    expect(headings).toHaveLength(1);
+    expect(headings[0]).toHaveTextContent(title);
+  });
+
+  it("covers a network failure with Try again and no raw text", async () => {
+    const { onRetry, container } = show({ bootError: "network" });
+    expect(
+      screen.getByRole("heading", {
+        level: 1,
+        name: "Couldn't reach the room",
+      }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("Check your internet connection, then try again."),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText(
+        /Failed to fetch|network_error|Couldn't reach the server/,
+      ),
+    ).toBeNull();
+    await userEvent.click(screen.getByRole("button", { name: "Try again" }));
+    expect(onRetry).toHaveBeenCalledOnce();
+    await expectNoA11yViolations(container);
+  });
+
+  it("asks again once when the browser comes back online", () => {
+    const onOnline = vi.fn();
+    const cover = guestCoverProps(room({ bootError: "network" }), vi.fn());
+    if (!cover) {
+      throw new Error("no cover");
+    }
+    render(<GuestCovers cover={cover} onOnline={onOnline} />);
+    window.dispatchEvent(new Event("online"));
+    window.dispatchEvent(new Event("online"));
+    expect(onOnline).toHaveBeenCalledOnce();
   });
 });

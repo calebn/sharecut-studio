@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useDesktopCloseGuard } from "../desktop/useDesktopCloseGuard";
-import { errorMessage } from "../utils/apiError";
 import { readLocal, writeLocal } from "../utils/storage";
 import {
   type ByteSink,
@@ -9,7 +8,11 @@ import {
 } from "./keeper/store";
 import { useKeeperCapture } from "./keeper/useKeeperCapture";
 import { useRecordMonitor } from "./monitor/useRecordMonitor";
-import { loadRecordBootstrap, type RecordBootstrap } from "./recordBootstrap";
+import {
+  type BootFailure,
+  loadRecordBootstrap,
+  type RecordBootstrap,
+} from "./recordBootstrap";
 import { OPFS_UNAVAILABLE_COPY, UPLOAD_SINK_ERROR_COPY } from "./types";
 import { guestRecordUploadTransport } from "./upload/http";
 import { useKeeperRecoveryActions } from "./upload/useKeeperRecoveryActions";
@@ -39,13 +42,13 @@ export function useGuestRoom(
 ) {
   const [boot, setBoot] = useState<{
     owner: { token: string };
-    data: RecordBootstrap | null;
-    error: string | null;
-  }>(() => ({ owner: { token }, data: null, error: null }));
+    bootstrap: RecordBootstrap | null;
+    failure: BootFailure | null;
+  }>(() => ({ owner: { token }, bootstrap: null, failure: null }));
   if (boot.owner.token !== token) {
-    setBoot({ owner: { token }, data: null, error: null });
+    setBoot({ owner: { token }, bootstrap: null, failure: null });
   }
-  const { owner: bootOwner, data: bootstrap, error: bootError } = boot;
+  const { owner: bootOwner, bootstrap } = boot;
   const [name, setName] = useState(
     () => readLocal(storageKey(token, "name")) || "",
   );
@@ -59,25 +62,16 @@ export function useGuestRoom(
 
   useEffect(() => {
     const controller = new AbortController();
-    loadRecordBootstrap(token, controller.signal)
-      .then((data) => {
+    loadRecordBootstrap(token, controller.signal).then(
+      (outcome) => {
         if (!controller.signal.aborted) {
           setBoot((current) =>
-            current.owner === bootOwner ? { ...current, data } : current,
+            current.owner === bootOwner ? { ...current, ...outcome } : current,
           );
         }
-      })
-      .catch((e: unknown) => {
-        if (controller.signal.aborted) {
-          return;
-        }
-        const message = errorMessage(e);
-        setBoot((current) =>
-          current.owner === bootOwner
-            ? { ...current, error: message }
-            : current,
-        );
-      });
+      },
+      () => undefined,
+    );
     return () => {
       controller.abort();
     };
@@ -354,7 +348,7 @@ export function useGuestRoom(
 
   return {
     bootstrap,
-    bootError,
+    bootError: boot.failure,
     producer,
     heading,
     episodeName,

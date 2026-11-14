@@ -26,6 +26,8 @@ export type CoverProps = {
   secondary?: CoverAction;
   /** Room full: occupant avatars. */
   extra?: ReactNode;
+  /** The title's element. "h1" only where the cover is the page's only heading. Default "h2". */
+  headingLevel?: "h1" | "h2";
 };
 
 /** The one "nothing to show here" layout. A `<section>`: the page owns `<main>`. */
@@ -37,8 +39,10 @@ export function Cover({
   primary,
   secondary,
   extra,
+  headingLevel,
 }: CoverProps) {
   const titleId = useId();
+  const Heading = headingLevel ?? "h2";
   return (
     <section
       className={`sys-cover sys-cover--${size}`}
@@ -50,9 +54,9 @@ export function Cover({
           <span className="sys-cover-glyph">
             <SystemIcon name={glyph} size={48} />
           </span>
-          <h2 id={titleId} className="sys-cover-title">
+          <Heading id={titleId} className="sys-cover-title">
             {title}
-          </h2>
+          </Heading>
           <p className="sys-cover-text">{children}</p>
           {extra}
         </div>

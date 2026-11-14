@@ -20,6 +20,32 @@ describe("Cover", () => {
     );
   });
 
+  it.each(["page", "region"] as const)(
+    "titles every cover with a level-two heading by default (%s)",
+    (size) => {
+      render(
+        <Cover size={size} glyph="eye-off" title="Title">
+          Body.
+        </Cover>,
+      );
+      expect(
+        screen.getByRole("heading", { level: 2, name: "Title" }),
+      ).toBeInTheDocument();
+    },
+  );
+
+  it("titles a cover with a level-one heading when it is the page's only heading", () => {
+    render(
+      <Cover size="page" glyph="eye-off" title="Title" headingLevel="h1">
+        Body.
+      </Cover>,
+    );
+    expect(
+      screen.getByRole("heading", { level: 1, name: "Title" }),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { level: 2 })).toBeNull();
+  });
+
   it("fires the primary and secondary actions and renders extra", async () => {
     const primary = vi.fn();
     const secondary = vi.fn();

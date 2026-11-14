@@ -1279,6 +1279,73 @@ describe("GuestRoomApp", () => {
     expect(screen.getByRole("main")).toBeInTheDocument();
   });
 
+  describe("when the room does not open", () => {
+    function stubUnreachableOnce() {
+      let bootstraps = 0;
+      vi.stubGlobal(
+        "fetch",
+        vi.fn(async (input: RequestInfo | URL) => {
+          if (!urlOf(input).includes("/bootstrap")) {
+            return new Response("not found", { status: 404 });
+          }
+          bootstraps += 1;
+          if (bootstraps === 1) {
+            throw new TypeError("Failed to fetch");
+          }
+          return new Response(JSON.stringify(guestBootstrap), { status: 200 });
+        }),
+      );
+      return () => bootstraps;
+    }
+
+    it("shows a network failure as Try again, never the error text, and lands in the Join sheet", async () => {
+      stubUnreachableOnce();
+      render(<GuestRoomApp token="guest-tok" />);
+      expect(
+        await screen.findByRole("heading", {
+          level: 1,
+          name: "Couldn't reach the room",
+        }),
+      ).toBeInTheDocument();
+      expect(
+        screen.queryByText(
+          "Couldn't reach the server. Check your connection and try again.",
+        ),
+      ).toBeNull();
+      await userEvent.click(screen.getByRole("button", { name: "Try again" }));
+      expect(
+        await screen.findByRole("heading", { name: "Join the room" }),
+      ).toBeInTheDocument();
+    });
+
+    it("loads the room by itself when the browser comes back online", async () => {
+      const bootstraps = stubUnreachableOnce();
+      render(<GuestRoomApp token="guest-tok" />);
+      await screen.findByRole("heading", { name: "Couldn't reach the room" });
+      act(() => {
+        window.dispatchEvent(new Event("online"));
+      });
+      expect(
+        await screen.findByRole("heading", { name: "Join the room" }),
+      ).toBeInTheDocument();
+      expect(bootstraps()).toBe(2);
+    });
+
+    it("shows a sleeping host as The room didn't answer and waits for Try again", async () => {
+      const fetchMock = vi.fn(async () =>
+        Response.json({ detail: "host offline" }, { status: 503 }),
+      );
+      vi.stubGlobal("fetch", fetchMock);
+      render(<GuestRoomApp token="guest-tok" />);
+      await screen.findByRole("heading", { name: "The room didn't answer" });
+      expect(screen.queryByText(/Host offline|podcast tunnel/)).toBeNull();
+      act(() => {
+        window.dispatchEvent(new Event("online"));
+      });
+      expect(fetchMock).toHaveBeenCalledOnce();
+    });
+  });
+
   it("shows the invite-closed cover and is axe-clean", async () => {
     stubBootstrap();
     const { container } = render(<GuestRoomApp token="guest-tok" />);

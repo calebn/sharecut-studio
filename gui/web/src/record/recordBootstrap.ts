@@ -1,4 +1,9 @@
-import { apiFetch, recordProjectKey } from "../api/http";
+import { apiFetch, NETWORK_ERROR_CODE, recordProjectKey } from "../api/http";
+import {
+  ApiError,
+  isAbortError,
+  isPermanentRejection,
+} from "../utils/apiError";
 
 export type RecordBootstrap = {
   mode: "record";
@@ -13,14 +18,37 @@ export type RecordBootstrap = {
   expires_at: string | null;
 };
 
+/** Why `/rec/<token>` did not open. No payload: nothing here can be printed. */
+export type BootFailure = "not-found" | "network" | "server";
+
+/** One settled bootstrap request. Exactly one side is set. */
+export type BootOutcome =
+  | { bootstrap: RecordBootstrap; failure: null }
+  | { bootstrap: null; failure: BootFailure };
+
+/** Rejects only on abort. Every other failure comes back typed; no error text leaves this module. */
 export async function loadRecordBootstrap(
   token: string,
   signal?: AbortSignal,
-): Promise<RecordBootstrap> {
-  const res = await apiFetch(
-    recordProjectKey(token),
-    { guest: "/bootstrap" },
-    { signal },
-  );
-  return res.json() as Promise<RecordBootstrap>;
+): Promise<BootOutcome> {
+  try {
+    const res = await apiFetch(
+      recordProjectKey(token),
+      { guest: "/bootstrap" },
+      { signal },
+    );
+    return { bootstrap: (await res.json()) as RecordBootstrap, failure: null };
+  } catch (error) {
+    if (isAbortError(error)) {
+      throw error;
+    }
+    return { bootstrap: null, failure: failureOf(error) };
+  }
+}
+
+function failureOf(error: unknown): BootFailure {
+  if (error instanceof ApiError && error.code === NETWORK_ERROR_CODE) {
+    return "network";
+  }
+  return isPermanentRejection(error) ? "not-found" : "server";
 }
