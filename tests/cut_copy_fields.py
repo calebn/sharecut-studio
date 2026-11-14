@@ -114,7 +114,7 @@ SHARED_FIELDS: dict[str, str] = {
         "updated_at"
     ),
     "Transcript": (
-        "alignment_score_method archived_words audio_mtime_ns audio_sha256 audio_size "
+        "alignment_score_method archived_words asr_language audio_mtime_ns audio_sha256 audio_size "
         "language silence_filter_fingerprint source_id track_id user_edited "
         "vocabulary_revision word_aligner words"
     ),

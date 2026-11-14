@@ -93,6 +93,7 @@
       {
         "track_id": "host",
         "language": "en",
+        "asr_language": null,
         "words": [
           {
             "text": "Edited",

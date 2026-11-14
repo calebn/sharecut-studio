@@ -1,5 +1,5 @@
 {
-  "version": "2.1",
+  "version": "2.2",
   "meta": {
     "name": "DEVELOPMENT compatibility example, never shipped",
     "workspace_dir": ".",
@@ -107,6 +107,7 @@
       {
         "track_id": "host",
         "language": "en",
+        "asr_language": null,
         "words": [
           {
             "text": "Edited",

@@ -1,5 +1,5 @@
 {
-  "project_version": "2.1",
+  "project_version": "2.2",
   "schemas": {
     "serialization": {
       "$defs": {
@@ -1181,7 +1181,7 @@
               "$ref": "#/$defs/TranscriptsSection"
             },
             "version": {
-              "default": "2.1",
+              "default": "2.2",
               "type": "string"
             }
           },
@@ -3786,6 +3786,17 @@
                 "$ref": "#/$defs/ArchivedTranscriptWord"
               },
               "type": "array"
+            },
+            "asr_language": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
             },
             "audio_mtime_ns": {
               "anyOf": [
@@ -5333,7 +5344,7 @@
               "$ref": "#/$defs/TranscriptsSection"
             },
             "version": {
-              "default": "2.1",
+              "default": "2.2",
               "type": "string"
             }
           },
@@ -7938,6 +7949,17 @@
                 "$ref": "#/$defs/ArchivedTranscriptWord"
               },
               "type": "array"
+            },
+            "asr_language": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
             },
             "audio_mtime_ns": {
               "anyOf": [
