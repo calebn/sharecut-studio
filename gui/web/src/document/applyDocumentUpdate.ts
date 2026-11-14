@@ -31,6 +31,7 @@ import {
   projectFromDocumentSnapshot,
   snapshotFromResult,
 } from "./projectPatch";
+import { settledTranscriptOf, transcriptGrantOf } from "./shownTranscript";
 
 let recovery: {
   scope: DocumentScope;
@@ -271,6 +272,11 @@ export function applyDocumentSnapshot(
   if (!next) return invalidate(seq, scope);
   documentAuthority.token = snap.state_token ?? null;
   documentAuthority.project = next;
+  if (isShareProjectKey(scope.path)) {
+    documentAuthority.settled =
+      settledTranscriptOf(next, transcriptGrantOf(useDawStore.getState())) ??
+      documentAuthority.settled;
+  }
   documentAuthority.phase = { kind: "ready" };
   noteDocumentSeq(seq);
   releaseHeldDrafts(seq);

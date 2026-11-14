@@ -6,6 +6,7 @@ import { minimalProject } from "../test/fixtures";
 import { documentAuthority, resetDocumentAuthority } from "./authorityState";
 import { scheduleTranscriptDetailHydrate } from "./hydrateTranscriptDetail";
 import type { DocumentSnapshot } from "./projectPatch";
+import { settledTranscriptOf, transcriptGrantOf } from "./shownTranscript";
 import { useTranscriptDetail } from "./useTranscriptDetail";
 
 const { loadDetail } = vi.hoisted(() => ({ loadDetail: vi.fn() }));
@@ -119,4 +120,143 @@ it("a flag of false is hidden and never loads detail", () => {
   expect(result.current.kind).toBe("hidden");
   act(() => scheduleTranscriptDetailHydrate(project));
   expect(loadDetail).not.toHaveBeenCalled();
+});
+
+function guestRow(text: string, at: number, withWords: boolean) {
+  const word = {
+    text,
+    start: at,
+    end: at + 1,
+    word_index: at,
+    timeline_start: at,
+    timeline_end: at + 1,
+  };
+  return {
+    track_id: "a",
+    source_id: "s",
+    speaker: "Ann",
+    start: at,
+    end: at + 1,
+    text,
+    mappable: true,
+    timeline_start: at,
+    timeline_end: at + 1,
+    ...(withWords ? { words: [word] } : {}),
+  };
+}
+function guestProject(rows: ReturnType<typeof guestRow>[], complete: boolean) {
+  return minimalProject({
+    transcript: { utterances: rows } as never,
+    meta: {
+      name: "Test Episode",
+      workspace_dir: "/tmp/test",
+      hydration: { transcript_words: complete },
+    },
+  });
+}
+function openGuest() {
+  const complete = guestProject(
+    [guestRow("one", 0, true), guestRow("two", 4, true)],
+    true,
+  );
+  useDawStore
+    .getState()
+    .hydrate("share:tok", complete, "view", ["play", "view"], null, true);
+  resetDocumentAuthority("share:tok");
+  documentAuthority.token = "a".repeat(64);
+  documentAuthority.phase = { kind: "ready" };
+  documentAuthority.project = complete;
+  documentAuthority.settled = settledTranscriptOf(
+    complete,
+    transcriptGrantOf(useDawStore.getState()),
+  );
+}
+const showWordFree = (rows: ReturnType<typeof guestRow>[]) =>
+  act(() => {
+    const project = guestProject(rows, false);
+    documentAuthority.project = project;
+    useDawStore.setState({ project });
+  });
+const hold = () => {
+  loadDetail.mockReturnValue(new Promise(() => undefined));
+};
+
+it("a guest with remembered words stays ready and refreshing through word-free commits", () => {
+  openGuest();
+  hold();
+  const seen: string[] = [];
+  const { result } = renderHook(() => {
+    const view = useTranscriptDetail();
+    seen.push(view.kind);
+    return view;
+  });
+  expect(result.current.kind).toBe("ready");
+  showWordFree([
+    guestRow("one", 0, false),
+    { ...guestRow("two", 4, false), timeline_start: 7 },
+  ]);
+  const first = result.current;
+  if (first.kind !== "ready") throw new Error("expected ready");
+  expect(first.shown.refreshing).toBe(true);
+  expect(first.shown.rows.map((r) => r.kind)).toEqual(["held", "held"]);
+  showWordFree([guestRow("one", 0, false)]);
+  act(() => scheduleTranscriptDetailHydrate(useDawStore.getState().project));
+  expect(result.current.kind).toBe("ready");
+  expect(new Set(seen)).toEqual(new Set(["ready"]));
+});
+
+it("a guest with nothing remembered is pending as on first load", () => {
+  const first = guestProject([guestRow("one", 0, false)], false);
+  useDawStore
+    .getState()
+    .hydrate("share:tok", first, "view", ["play", "view"], null, true);
+  resetDocumentAuthority("share:tok");
+  documentAuthority.project = first;
+  documentAuthority.phase = { kind: "ready" };
+  const { result } = renderHook(useTranscriptDetail);
+  expect(result.current.kind).toBe("pending");
+});
+
+it("a failed refresh replaces held words with the failure", async () => {
+  openGuest();
+  const request = deferred<DocumentSnapshot>();
+  loadDetail.mockReturnValueOnce(request.promise);
+  const { result } = renderHook(useTranscriptDetail);
+  showWordFree([
+    guestRow("one", 0, false),
+    { ...guestRow("two", 4, false), timeline_start: 7 },
+  ]);
+  act(() => scheduleTranscriptDetailHydrate(useDawStore.getState().project));
+  expect(result.current.kind).toBe("ready");
+  await act(async () => request.reject(new Error("offline")));
+  expect(result.current).toMatchObject({ kind: "failed", recovering: false });
+});
+
+it("remembered words do not outlive a change of link or of grant", () => {
+  openGuest();
+  hold();
+  const { result } = renderHook(useTranscriptDetail);
+  showWordFree([guestRow("one", 0, false)]);
+  expect(result.current.kind).toBe("ready");
+  act(() => useDawStore.setState({ shareCapabilities: ["play"] }));
+  expect(result.current.kind).toBe("pending");
+  act(() => {
+    resetDocumentAuthority("share:other");
+    useDawStore.setState({ projectPath: "share:other" });
+  });
+  expect(result.current.kind).toBe("pending");
+});
+
+it("a host session never holds words", () => {
+  const complete = guestProject([guestRow("one", 0, true)], true);
+  useDawStore.getState().hydrate("/tmp/host.json", complete);
+  resetDocumentAuthority("/tmp/host.json");
+  documentAuthority.settled = settledTranscriptOf(
+    complete,
+    transcriptGrantOf(useDawStore.getState()),
+  );
+  hold();
+  const { result } = renderHook(useTranscriptDetail);
+  showWordFree([guestRow("one", 0, false)]);
+  expect(result.current.kind).toBe("pending");
 });
