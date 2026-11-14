@@ -124,28 +124,19 @@ describe("InspectorSeekFooterView", () => {
   it.each([
     ["an empty", ""],
     ["a whitespace-only", "   "],
-  ])("gates both modes with the generic note for %s reason", (_name, blank) => {
-    const onMode = vi.fn();
-    render(
+  ])("leaves both modes enabled with no note for %s reason", (_name, blank) => {
+    const { container } = render(
       <InspectorSeekFooterView
         onSeek={vi.fn()}
         onPlay={vi.fn()}
         previewMode="current"
-        onPreviewModeChange={onMode}
+        onPreviewModeChange={vi.fn()}
         suggestDisabledReason={blank}
       />,
     );
-    const notes = screen.getAllByText("This action is unavailable right now.", {
-      selector: "p",
-    });
-    expect(notes).toHaveLength(1);
-    for (const name of ["Suggested", "A/B"]) {
-      const mode = screen.getByRole("button", { name });
-      expect(mode).toHaveAttribute("aria-disabled", "true");
-      expect(mode).toHaveAttribute("aria-describedby", notes[0].id);
-      fireEvent.click(mode);
-    }
-    expect(onMode).not.toHaveBeenCalled();
+    expect(screen.getByRole("button", { name: "Suggested" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "A/B" })).toBeEnabled();
+    expect(container.querySelector("p")).toBeNull();
   });
 
   it("keeps a blocked mode focusable and ignores click, Enter and Space", async () => {
