@@ -456,8 +456,8 @@ def test_a_clean_tree_scans_clean_and_a_leak_names_the_file(tmp_path: Path) -> N
 
 
 def test_the_user_name_as_a_path_segment_is_a_needle() -> None:
-    needles = payload.private_needles(Path("/home/ci"), Path("/home/ci/.cache"))
-    assert needles == [b"/home/ci", b"/Users/ci/", b"/home/ci/.cache"]
+    needles = payload.private_needles(Path("/home/someone"), Path("/home/someone/.cache"))
+    assert needles == [b"/home/someone", b"/Users/someone/", b"/home/someone/.cache"]
 
 
 def test_dropping_sboms_removes_the_files_and_their_record_lines(tmp_path: Path) -> None:
