@@ -16,6 +16,7 @@ from collections import deque
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import TextIO
 
 from scripts.ios.release_secrets import Redactor, Secret
 
@@ -23,6 +24,7 @@ Part = str | Secret
 QUIET_ENV = frozenset({"PATH", "HOME", "TMPDIR", "LANG"})
 TAIL_LINES = 40
 NOT_FOUND = 127
+OUTPUT_LIMIT = 1 << 20
 
 
 @dataclass(frozen=True)
@@ -55,8 +57,11 @@ def _shell(part: Part) -> str:
 
 @dataclass(frozen=True)
 class SpawnResult:
+    """The exit code, the last lines and the whole output (its last mebibyte), all redacted."""
+
     exit_code: int
     tail: str
+    output: str = ""
 
 
 def spawn(command: Command, redactor: Redactor, log: Path | None = None) -> SpawnResult:
@@ -67,6 +72,7 @@ def spawn(command: Command, redactor: Redactor, log: Path | None = None) -> Spaw
     written: list[Path] = []
     sink = _open_log(log)
     lines: deque[str] = deque(maxlen=TAIL_LINES)
+    chunks: list[str] = []
     stream = redactor.stream()
     decoder = codecs.getincrementaldecoder("utf-8")("replace")
 
@@ -74,6 +80,10 @@ def spawn(command: Command, redactor: Redactor, log: Path | None = None) -> Spaw
         if sink is not None:
             sink.write(text)
         lines.extend(text.splitlines())
+        chunks.append(text)
+
+    def result(code: int) -> SpawnResult:
+        return SpawnResult(code, "\n".join(lines), "".join(chunks)[-OUTPUT_LIMIT:])
 
     try:
         for private in command.files:
@@ -93,12 +103,12 @@ def spawn(command: Command, redactor: Redactor, log: Path | None = None) -> Spaw
             )
         except OSError as error:
             take(redactor.exception_line(error) + "\n")
-            return SpawnResult(NOT_FOUND, "\n".join(lines))
+            return result(NOT_FOUND)
         assert process.stdout is not None
         while chunk := os.read(process.stdout.fileno(), 65536):
             take(stream.feed(decoder.decode(chunk)))
         take(stream.feed(decoder.decode(b"", final=True)) + stream.finish())
-        return SpawnResult(process.wait(), "\n".join(lines))
+        return result(process.wait())
     finally:
         for path in written:
             path.unlink(missing_ok=True)
@@ -112,7 +122,7 @@ def _write_private(path: Path, text: str) -> None:
         handle.write(text)
 
 
-def _open_log(log: Path | None):  # type: ignore[no-untyped-def]
+def _open_log(log: Path | None) -> TextIO | None:
     if log is None:
         return None
     log.parent.mkdir(parents=True, exist_ok=True)

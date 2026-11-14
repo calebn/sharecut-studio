@@ -1,0 +1,640 @@
+"""scripts/ios release tooling: inputs, plans, the upload guard, classifiers and the canary."""
+
+from __future__ import annotations
+
+import ast
+import contextlib
+import json
+import plistlib
+import sys
+from datetime import UTC, datetime, timedelta, timezone
+from pathlib import Path
+
+import pytest
+from scripts.ios import bundle_checks as checks
+from scripts.ios import ios_release, release_classify, release_deliver, release_inputs, release_plan
+from scripts.ios import release_record as record_module
+from scripts.ios.release_classify import Failure, Verdict
+from scripts.ios.release_inputs import BuildNumber, Checkout, Identity, InputError, Signing
+from scripts.ios.release_run import Command
+from scripts.ios.release_secrets import Redactor, Secret
+
+from script_loader import SCRIPTS
+
+TEAM = "BBBBBBBBBB"
+KEY_ID = "CCCCCCCCCC"
+ISSUER = "11111111-2222-3333-4444-555555555555"
+IDENTITY = Identity("studio.sharecut.app", "ShareCut")
+NOW = datetime(2026, 11, 14, 15, 30, 45, tzinfo=UTC)
+LAYOUT = release_plan.Layout(Path("/work/repo"))
+
+
+def test_the_build_number_is_three_integers_from_the_utc_clock() -> None:
+    assert str(BuildNumber.at(NOW)) == "2026.1114.153045"
+    assert str(BuildNumber.at(datetime(2027, 1, 5, 0, 5, 9, tzinfo=UTC))) == "2027.105.509"
+    local = datetime(2026, 11, 14, 8, 30, 45, tzinfo=timezone(timedelta(hours=-7)))
+    assert BuildNumber.at(local) == BuildNumber.at(NOW)
+    with pytest.raises(ValueError, match="timezone"):
+        BuildNumber.at(datetime(2026, 11, 14, 1, 2, 3))
+
+
+def test_build_numbers_order_by_time_across_day_month_and_year() -> None:
+    moments = [
+        datetime(2026, 11, 14, 23, 59, 59, tzinfo=UTC),
+        datetime(2026, 11, 15, 0, 0, 0, tzinfo=UTC),
+        datetime(2026, 12, 1, 0, 0, 1, tzinfo=UTC),
+        datetime(2027, 1, 1, 0, 0, 0, tzinfo=UTC),
+    ]
+    numbers = [BuildNumber.at(moment) for moment in moments]
+    assert numbers == sorted(numbers)
+    assert all(BuildNumber.parse(str(n)) == n for n in numbers)
+    for bad in ("1.2", "1.2.3.4", "01.2.3", "a.b.c", ""):
+        with pytest.raises(ValueError):
+            BuildNumber.parse(bad)
+
+
+def write_profile(path: Path, **changes: object) -> Path:
+    profile = json.loads((SCRIPTS.parent / "config/distribution.dev.json").read_text())
+    profile.pop("$schema")
+    profile.update({"bundle_identifier": "studio.sharecut.app", "short_name": "ShareCut"})
+    profile.update(changes)
+    path.write_text(json.dumps(profile))
+    return path
+
+
+def inputs_for(tmp_path: Path, **overrides: object):
+    profile = write_profile(tmp_path / "profile.json")
+    arguments = {
+        "environ": {"PODCAST_DISTRIBUTION_PROFILE": str(profile)},
+        "values": {"APPLE_DEVELOPMENT_TEAM": TEAM},
+        "file_problems": [],
+        "root": SCRIPTS.parent,
+        "now": NOW,
+        "signing": Signing.APP_STORE,
+        "checkout": Checkout("a" * 40, False),
+        "recorded": [],
+    }
+    arguments.update(overrides)
+    return release_inputs.resolve_build_inputs(**arguments)
+
+
+def test_inputs_resolve_into_frozen_values_with_the_team_as_a_secret(tmp_path: Path) -> None:
+    resolved = inputs_for(tmp_path)
+    assert resolved.identity == IDENTITY
+    assert (resolved.signing, str(resolved.build_number)) == (Signing.APP_STORE, "2026.1114.153045")
+    assert repr(resolved.team) == "<team>"
+    with pytest.raises(AttributeError):
+        resolved.signing = Signing.NONE
+
+
+def test_every_input_problem_is_reported_together(tmp_path: Path) -> None:
+    with pytest.raises(InputError) as caught:
+        inputs_for(
+            tmp_path,
+            environ={},
+            values={"APPLE_DEVELOPMENT_TEAM": "AAAAAAAAAA"},
+            checkout=Checkout("a" * 40, True),
+            recorded=[BuildNumber.parse("2026.1114.153045")],
+        )
+    assert [(p.name, p.why[:24]) for p in caught.value.problems] == [
+        ("PODCAST_DISTRIBUTION_PROFILE", "missing; the checked-in "),
+        ("APPLE_DEVELOPMENT_TEAM", "is the Simulator placeho"),
+        ("working tree", "has uncommitted changes;"),
+        ("clock", "2026.1114.153045 is not "),
+    ]
+
+
+def test_the_development_profile_and_a_long_name_are_refused(tmp_path: Path) -> None:
+    dev = write_profile(tmp_path / "dev.json", bundle_identifier="studio.sharecut.dev")
+    with pytest.raises(InputError, match="development identifier"):
+        inputs_for(tmp_path, environ={"PODCAST_DISTRIBUTION_PROFILE": str(dev)})
+    long = write_profile(tmp_path / "long.json", product_name="A Name Of Many Characters")
+    raw = json.loads(long.read_text())
+    raw.pop("short_name")
+    long.write_text(json.dumps(raw))
+    with pytest.raises(InputError, match="allows 15"):
+        inputs_for(tmp_path, environ={"PODCAST_DISTRIBUTION_PROFILE": str(long)})
+
+
+def test_an_unsigned_rehearsal_needs_no_team_and_allows_a_dirty_tree(tmp_path: Path) -> None:
+    resolved = inputs_for(
+        tmp_path, signing=Signing.NONE, values={}, checkout=Checkout("b" * 40, True)
+    )
+    assert resolved.team is None and resolved.checkout.dirty
+
+
+def test_the_private_file_must_be_private_outside_the_repo_and_known(tmp_path: Path) -> None:
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    secrets_file = tmp_path / "ios-release.env"
+    secrets_file.write_text(f"# note\nAPPLE_DEVELOPMENT_TEAM={TEAM}\nAPPLE_API_KEY='{KEY_ID}'\n")
+    secrets_file.chmod(0o644)
+    _, problems = release_inputs.read_private_file(secrets_file, repo)
+    assert [p.why for p in problems] == ["is readable by others; run chmod 600 on it"]
+    secrets_file.chmod(0o600)
+    values, problems = release_inputs.read_private_file(secrets_file, repo)
+    assert (values, problems) == ({"APPLE_DEVELOPMENT_TEAM": TEAM, "APPLE_API_KEY": KEY_ID}, [])
+    inside = repo / "ios.env"
+    inside.write_text("x")
+    inside.chmod(0o600)
+    assert [p.why for p in release_inputs.read_private_file(inside, repo)[1]] == [
+        "is inside the repository"
+    ]
+    secrets_file.write_text("TYPO_NAME=1\nnot a pair\n")
+    _, problems = release_inputs.read_private_file(secrets_file, repo)
+    assert len(problems) == 2 and "TYPO_NAME" not in "".join(p.name for p in problems)
+
+
+def test_the_environment_overrides_the_file_and_the_key_file_is_checked_by_metadata(
+    tmp_path: Path,
+) -> None:
+    secrets_file = tmp_path / "ios.env"
+    secrets_file.write_text(f"APPLE_API_KEY={KEY_ID}\n")
+    secrets_file.chmod(0o600)
+    environ = {"SHARECUT_IOS_RELEASE_ENV": str(secrets_file), "APPLE_API_ISSUER": ISSUER}
+    values, problems = release_inputs.private_values(environ, tmp_path / "repo", tmp_path)
+    assert values == {"APPLE_API_KEY": KEY_ID, "APPLE_API_ISSUER": ISSUER} and not problems
+    with pytest.raises(InputError, match="key file does not exist"):
+        release_inputs.resolve_asc_key(values, tmp_path, tmp_path / "repo")
+    key = tmp_path / ".appstoreconnect/private_keys" / f"AuthKey_{KEY_ID}.p8"
+    key.parent.mkdir(parents=True)
+    key.write_text("not read")
+    key.chmod(0o644)
+    with pytest.raises(InputError, match="readable by others"):
+        release_inputs.resolve_asc_key(values, tmp_path, tmp_path / "repo")
+    key.chmod(0o600)
+    resolved = release_inputs.resolve_asc_key(values, tmp_path, tmp_path / "repo")
+    assert [repr(resolved.key_id), repr(resolved.issuer), repr(resolved.key_path)] == [
+        "<key-id>",
+        "<issuer>",
+        "<key-path>",
+    ]
+
+
+NOISY = {
+    "HOME": "/Users/someone",
+    "PATH": "/caller/bin",
+    "TMPDIR": "/var/tmp/x/",
+    "LANG": "C",
+    "LC_ALL": "C",
+    "APPLE_API_KEY": KEY_ID,
+    "APPLE_API_ISSUER": ISSUER,
+    "APPLE_API_KEY_PATH": "/k.p8",
+    "IOS_CERTIFICATE": "x",
+    "IOS_CERTIFICATE_PASSWORD": "x",
+    "IOS_MOBILE_PROVISION": "x",
+    "RUSTFLAGS": "-C x",
+    "CARGO_ENCODED_RUSTFLAGS": "x",
+    "APPLE_ID": "x",
+    "APPLE_PASSWORD": "x",
+    "APPLE_CERTIFICATE": "x",
+    "TAURI_SIGNING_PRIVATE_KEY": "x",
+    "GITHUB_TOKEN": "x",
+    "HTTPS_PROXY": "http://proxy",
+    "SSL_CERT_FILE": "/ca.pem",
+    "DEVELOPER_DIR": "/Xcode",
+}
+
+
+def test_the_child_environment_is_an_allowlist() -> None:
+    env = release_plan.child_environment(NOISY, path="/rustup:/usr/bin", team=Secret(TEAM, "team"))
+    assert sorted(env) == [
+        "APPLE_DEVELOPMENT_TEAM",
+        "DEVELOPER_DIR",
+        "HOME",
+        "HTTPS_PROXY",
+        "LANG",
+        "PATH",
+        "SSL_CERT_FILE",
+        "TMPDIR",
+    ]
+    assert env["PATH"] == "/rustup:/usr/bin" and env["LANG"] == "en_US.UTF-8"
+    assert "APPLE_DEVELOPMENT_TEAM" not in release_plan.child_environment(NOISY, path="p")
+
+
+def test_the_overlay_has_three_keys_and_the_build_number_never_uses_the_cli_flag() -> None:
+    assert release_plan.ios_overlay(IDENTITY, "2026.1114.153045") == {
+        "identifier": "studio.sharecut.app",
+        "productName": "ShareCut",
+        "bundle": {"iOS": {"bundleVersion": "2026.1114.153045"}},
+    }
+    for path in sorted((SCRIPTS / "ios").glob("*.py")):
+        tree = ast.parse(path.read_text(encoding="utf-8"))
+        strings = [
+            n.value
+            for n in ast.walk(tree)
+            if isinstance(n, ast.Constant) and isinstance(n.value, str)
+        ]
+        assert "--build-number" not in strings, path.name
+
+
+def build_inputs(signing: Signing) -> release_inputs.BuildInputs:
+    return release_inputs.BuildInputs(
+        IDENTITY,
+        "0.1.4",
+        BuildNumber.parse("2026.1114.153045"),
+        signing,
+        Secret(TEAM, "team") if signing is Signing.APP_STORE else None,
+        Checkout("a" * 40, False),
+    )
+
+
+def steps_by_name(steps):
+    return {step.name: step for step in steps}
+
+
+def test_the_signed_plan_archives_only_exports_and_may_touch_apple() -> None:
+    steps = steps_by_name(
+        release_plan.plan_build(build_inputs(Signing.APP_STORE), LAYOUT, NOISY, "/rustup:/usr/bin")
+    )
+    assert list(steps) == [
+        "web dependencies",
+        "web build",
+        "desktop dependencies",
+        "device payload",
+        "reset generated project",
+        "xcode project",
+        "archive",
+        "export",
+        "collect ipa",
+        "path scan",
+        "info plist",
+        "bundle layout",
+        "privacy",
+        "signature",
+        "record",
+    ]
+    archive = steps["archive"].command
+    assert archive.argv[:6] == ("npx", "tauri", "ios", "build", "--ci", "-v")
+    assert archive.argv[-3:] == ("--archive-only", "--", "-allowProvisioningUpdates")
+    assert "--no-sign" not in archive.argv and "--build-number" not in archive.argv
+    assert steps["archive"].contacts_apple and steps["export"].contacts_apple
+    assert not steps["xcode project"].contacts_apple
+    assert repr(archive.env["APPLE_DEVELOPMENT_TEAM"]) == "<team>"
+    export = steps["export"].command
+    assert export.argv[:3] == ("xcodebuild", "-exportArchive", "-allowProvisioningUpdates")
+    options = plistlib.loads(
+        "".join(
+            TEAM if isinstance(part, Secret) else part for part in export.files[0].parts
+        ).encode()
+    )
+    assert options == {
+        "method": "app-store-connect",
+        "signingStyle": "automatic",
+        "teamID": TEAM,
+        "uploadSymbols": False,
+        "destination": "export",
+        "manageAppVersionAndBuildNumber": False,
+    }
+
+
+def test_the_unsigned_plan_signs_nothing_and_contacts_nobody() -> None:
+    steps = release_plan.plan_build(build_inputs(Signing.NONE), LAYOUT, NOISY, "/p")
+    names = [step.name for step in steps]
+    assert "export" not in names and "signature" not in names
+    assert not any(step.contacts_apple for step in steps)
+    archive = steps_by_name(steps)["archive"].command
+    assert archive.argv[-2:] == ("--archive-only", "--no-sign")
+    assert archive.env["APPLE_DEVELOPMENT_TEAM"] == "AAAAAAAAAA"
+
+
+def test_the_dry_run_prints_the_apple_notice_before_any_step(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    secrets_file = tmp_path / "ios.env"
+    secrets_file.write_text(f"APPLE_DEVELOPMENT_TEAM={TEAM}\n")
+    secrets_file.chmod(0o600)
+    profile = write_profile(tmp_path / "profile.json")
+    monkeypatch.setenv("SHARECUT_IOS_RELEASE_ENV", str(secrets_file))
+    monkeypatch.setenv("PODCAST_DISTRIBUTION_PROFILE", str(profile))
+    monkeypatch.setattr(ios_release, "git_state", lambda root: ("c" * 40, False))
+    monkeypatch.setattr(ios_release, "toolchain", lambda layout: ("/rustup:/usr/bin", None))
+    monkeypatch.setattr(ios_release, "checkout_lock", lambda root: contextlib.nullcontext())
+    assert ios_release.main(["build", "--dry-run"]) == 0
+    out = capsys.readouterr().out
+    assert out.index("may create an Apple Distribution certificate") < out.index(" 1 ")
+    assert TEAM not in out and "APPLE_DEVELOPMENT_TEAM=<team>" in out
+    assert out.endswith("dry run: nothing was run\n")
+
+
+def good_facts(record: record_module.ReleaseRecord, **changes: object) -> record_module.GuardFacts:
+    facts = {
+        "sha256": record.ipa_sha256,
+        "signing": Signing.APP_STORE,
+        "tree_clean": True,
+        "head": record.commit,
+        "build_number_in_ipa": record.build_number,
+    }
+    facts.update(changes)
+    return record_module.GuardFacts(**facts)
+
+
+def make_record(**changes: object) -> record_module.ReleaseRecord:
+    row = {
+        "build_number": "2026.1114.153045",
+        "marketing_version": "0.1.4",
+        "bundle_identifier": "studio.sharecut.app",
+        "signing": "app-store",
+        "commit": "a" * 40,
+        "ipa_sha256": "9f" * 32,
+        "ipa_name": "2026.1114.153045.ipa",
+    }
+    row.update(changes)
+    return record_module.ReleaseRecord(**row)
+
+
+def test_the_guard_passes_only_with_the_exact_token_and_a_matching_artifact() -> None:
+    record = make_record()
+    assert record.token() == "2026.1114.153045:" + "9f" * 6
+    assert record_module.upload_preconditions(record, record.token(), good_facts(record)) == []
+
+
+@pytest.mark.parametrize(
+    ("change", "refusal"),
+    [
+        ({"sha256": "00" * 32}, "hash changed"),
+        ({"signing": Signing.NONE}, "not signed for the App Store"),
+        ({"tree_clean": False}, "uncommitted changes"),
+        ({"head": "f" * 40}, "HEAD is not the commit"),
+        ({"build_number_in_ipa": "2026.1114.153046"}, "build number is not the recorded build"),
+    ],
+)
+def test_each_guard_clause_refuses_alone(change: dict[str, object], refusal: str) -> None:
+    record = make_record()
+    facts = good_facts(record, **change)
+    confirm = f"{facts.build_number_in_ipa}:{facts.sha256[:12]}"
+    refusals = record_module.upload_preconditions(record, confirm, facts)
+    assert len(refusals) == 1 and refusal in refusals[0]
+
+
+def test_a_wrong_token_or_a_delivered_build_is_refused() -> None:
+    record = make_record()
+    assert (
+        "--confirm must be"
+        in record_module.upload_preconditions(record, "2026.1114.153045", good_facts(record))[0]
+    )
+    record.uploads.append({"outcome": {"verdict": "ok"}})
+    assert (
+        "already delivered"
+        in record_module.upload_preconditions(record, record.token(), good_facts(record))[0]
+    )
+    duplicate = make_record()
+    duplicate.validations.append({"verdict": "apple_reports_duplicate"})
+    assert duplicate.delivered()
+    interrupted = make_record()
+    interrupted.uploads.append({"outcome": None})
+    assert not interrupted.delivered()
+
+
+def test_the_record_round_trips_holds_public_fields_and_refuses_a_secret(tmp_path: Path) -> None:
+    record = make_record(checks={"path scan": {"hits": 0}})
+    record_module.write_record(tmp_path, record)
+    assert oct((tmp_path / "release.json").stat().st_mode & 0o777) == "0o600"
+    assert record_module.read_record(tmp_path) == record
+    record.checks["leak"] = Secret(TEAM, "team")
+    with pytest.raises(TypeError):
+        record_module.write_record(tmp_path, record)
+    (tmp_path / "release.json").write_text('{"schema": 99}')
+    with pytest.raises(record_module.RecordError, match="unknown schema"):
+        record_module.read_record(tmp_path)
+
+
+def test_the_newest_build_is_keyed_by_version_and_partials_are_ignored(tmp_path: Path) -> None:
+    rows = [("2026.1114.153045", "0.1.4"), ("2026.1201.1", "0.1.4"), ("2026.1102.1", "0.2.0")]
+    for number, version in rows:
+        directory = tmp_path / number
+        directory.mkdir()
+        record_module.write_record(
+            directory, make_record(build_number=number, marketing_version=version)
+        )
+    (tmp_path / "2027.101.1.partial").mkdir()
+    found = record_module.newest(tmp_path)
+    assert found is not None and found[1].build_number == "2026.1102.1"
+    assert record_module.newest(tmp_path, "2026.1114.153045")[1].marketing_version == "0.1.4"
+    assert sorted(record_module.recorded_numbers(tmp_path, "0.1.4")) == [
+        BuildNumber.parse("2026.1114.153045"),
+        BuildNumber.parse("2026.1201.1"),
+    ]
+
+
+def test_the_lock_serializes_runs_and_the_stage_is_private_and_refuses_symlinks(
+    tmp_path: Path,
+) -> None:
+    with record_module.checkout_lock(tmp_path):
+        with pytest.raises(record_module.LockHeld), record_module.checkout_lock(tmp_path):
+            pass
+    ipa = tmp_path / "a.ipa"
+    ipa.write_bytes(b"ipa")
+    copy = record_module.stage_copy(ipa, tmp_path / "stage")
+    assert copy.read_bytes() == b"ipa"
+    assert oct((tmp_path / "stage").stat().st_mode & 0o777) == "0o700"
+    link = tmp_path / "link.ipa"
+    link.symlink_to(ipa)
+    with pytest.raises(record_module.RecordError, match="symlinks are refused"):
+        record_module.stage_copy(link, tmp_path / "stage2")
+
+
+ALTOOL_OK = json.dumps(
+    {"tool-version": "26.10.1", "success-message": "No errors validating archive."}
+)
+
+
+def altool_error(message: str) -> str:
+    return json.dumps({"product-errors": [{"code": -19232, "message": message}]})
+
+
+@pytest.mark.parametrize(
+    ("code", "text", "verdict"),
+    [
+        (0, ALTOOL_OK, Verdict.OK),
+        (
+            1,
+            altool_error("Redundant Binary Upload. There already exists a binary upload"),
+            Verdict.DUPLICATE,
+        ),
+        (
+            1,
+            altool_error("The bundle version must be higher than the previously uploaded version"),
+            Verdict.DUPLICATE,
+        ),
+        (1, altool_error("Authentication failed: 401 unauthorized"), Verdict.AUTH_FAILED),
+        (1, altool_error("Could not connect to the server"), Verdict.UNREACHABLE),
+        (1, altool_error("Invalid Bundle. The bundle is missing an icon"), Verdict.REJECTED),
+        (1, "plain text failure", Verdict.REJECTED),
+    ],
+)
+def test_altool_answers_are_classified(code: int, text: str, verdict: Verdict) -> None:
+    assert release_classify.classify_altool(code, text).verdict is verdict
+
+
+def test_the_app_record_lookup_reads_the_filtered_list() -> None:
+    listing = json.dumps(
+        {"applications": [{"BundleId": "studio.sharecut.app", "Name": "ShareCut"}]}
+    )
+    assert release_classify.app_record_exists(listing, "studio.sharecut.app")
+    assert not release_classify.app_record_exists(
+        json.dumps({"applications": []}), "studio.sharecut.app"
+    )
+    assert not release_classify.app_record_exists("not json", "studio.sharecut.app")
+
+
+@pytest.mark.parametrize(
+    ("tail", "fragment"),
+    [
+        ("error: No Accounts: Add a new account in Accounts settings", "no signed-in account"),
+        (
+            "error: You already have a current Apple Distribution certificate or a pending request",
+            "limit of distribution certificates",
+        ),
+        ("Missing private key for signing certificate", "private key is on another Mac"),
+        ("Forbidden: You are not allowed to create certificates", "role cannot create"),
+        (
+            "A required agreement is missing: Program License Agreement has been updated",
+            "agreement is waiting",
+        ),
+        (
+            "Your team has no devices from which to generate a provisioning profile",
+            "no registered device",
+        ),
+        ("error: No profiles for 'x' were found", "could not make a signing certificate"),
+    ],
+)
+def test_signing_failures_get_one_sentence(tail: str, fragment: str) -> None:
+    hint = release_classify.signing_hint(65, tail)
+    assert hint is not None and fragment in hint
+    assert release_classify.signing_hint(0, tail) is None
+    assert release_classify.signing_hint(65, "compiler error") is None
+
+
+def fake_key() -> release_inputs.AscKey:
+    return release_inputs.AscKey(
+        Secret(KEY_ID, "key-id"), Secret(ISSUER, "issuer"), Secret("/k.p8", "key-path")
+    )
+
+
+def test_validate_and_upload_plans_differ_by_the_guard_and_the_upload(tmp_path: Path) -> None:
+    record = make_record()
+    expect = checks.PlistExpectation(
+        "studio.sharecut.app", "ShareCut", "0.1.4", record.build_number
+    )
+    arguments = (tmp_path, record, fake_key(), LAYOUT, NOISY, "/p", expect)
+    validate = release_deliver.plan_deliver(
+        *arguments, confirm=None, git_state=lambda: ("a" * 40, False)
+    )
+    upload = release_deliver.plan_deliver(
+        *arguments, confirm=record.token(), git_state=lambda: ("a" * 40, False)
+    )
+    assert [s.name for s in validate] == [
+        "app record",
+        "stage ipa",
+        "path scan",
+        "info plist",
+        "bundle layout",
+        "privacy",
+        "signature",
+        "validate",
+    ]
+    assert [s.name for s in upload][-5:] == [
+        "signature",
+        "upload guard",
+        "validate",
+        "record upload attempt",
+        "upload",
+    ]
+    lookup = validate[0].command
+    assert lookup.argv[1:6] == (
+        "altool",
+        "--list-apps",
+        "--filter-bundle-id",
+        "studio.sharecut.app",
+        "--output-format",
+    )
+    assert lookup.env.keys().isdisjoint({"APPLE_API_KEY", "APPLE_API_ISSUER", "APPLE_API_KEY_PATH"})
+    shown = validate[-1].command.display(Redactor([Secret(KEY_ID, "key-id")]))
+    assert KEY_ID not in shown and "--api-key <key-id>" in shown
+
+
+def test_nothing_the_tool_can_run_before_the_guard_uploads(tmp_path: Path) -> None:
+    record = make_record()
+    expect = checks.PlistExpectation(
+        "studio.sharecut.app", "ShareCut", "0.1.4", record.build_number
+    )
+    steps = release_deliver.plan_deliver(
+        tmp_path,
+        record,
+        fake_key(),
+        LAYOUT,
+        NOISY,
+        "/p",
+        expect,
+        confirm="x:y",
+        git_state=lambda: ("a", False),
+    )
+    names = [s.name for s in steps]
+    assert names.index("upload guard") < names.index("upload")
+    uploads = [
+        s for s in steps if isinstance(s, release_plan.Run) and "--upload-app" in s.command.argv
+    ]
+    assert len(uploads) == 1
+
+
+def test_the_make_targets_never_upload() -> None:
+    makefile = (SCRIPTS.parent / "Makefile").read_text()
+    testflight = makefile.split("ios-testflight:\n", 1)[1].split("\n\n", 1)[0]
+    assert "upload" not in testflight and "build" in testflight and "validate" in testflight
+    rehearsal = makefile.split("ios-release-rehearsal:\n", 1)[1].split("\n\n", 1)[0]
+    assert "build --unsigned" in rehearsal and "validate" not in rehearsal
+
+
+CANARY = "CANARYSECRET42"
+
+
+def test_a_canary_secret_reaches_no_output_log_or_record(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    secret = Secret(CANARY, "team")
+    session = ios_release.Session(tmp_path, dry_run=False)
+    session.redactor = Redactor([secret], {"checkout": tmp_path})
+    code = (
+        "import json,sys,urllib.parse\n"
+        f"c='{CANARY}'\n"
+        "print('plain', c); print('json', json.dumps(c + '/'))\n"
+        "print('pct', urllib.parse.quote(c)); sys.stderr.write('err ' + c[:6]); sys.stderr.flush()\n"
+        "sys.stderr.write(c[6:] + '\\n'); sys.exit(1)\n"
+    )
+    failing = release_plan.Run(
+        "child",
+        Command((sys.executable, "-c", code), tmp_path, {"CANARY": secret}),
+        False,
+        release_plan.tool_outcome,
+    )
+    workspace = release_plan.Workspace(out=tmp_path)
+    assert (
+        ios_release.execute(session, [failing], workspace, tmp_path / "logs") == Failure.TOOL.value
+    )
+    shown = capsys.readouterr()
+    assert CANARY not in shown.out + shown.err
+    assert "<team>" in shown.out
+    for log in (tmp_path / "logs").iterdir():
+        assert CANARY not in log.read_text()
+
+    def explode(session: ios_release.Session, unsigned: bool) -> int:
+        session.redactor = Redactor([secret], {})
+        raise RuntimeError(f"bad value {CANARY} in {tmp_path}")
+
+    monkeypatch.setattr(ios_release, "build", explode)
+    monkeypatch.setattr(ios_release, "checkout_lock", lambda root: contextlib.nullcontext())
+    assert ios_release.main(["build", "--unsigned"]) == Failure.TOOL.value
+    out = capsys.readouterr().out
+    assert CANARY not in out and "Traceback" not in out and "<team>" in out
+    assert not any(CANARY in path.read_text() for path in tmp_path.rglob("*") if path.is_file())
+
+
+def test_the_environment_is_never_mentioned_by_value_in_an_input_error(tmp_path: Path) -> None:
+    with pytest.raises(InputError) as caught:
+        release_inputs.resolve_asc_key(
+            {"APPLE_API_KEY": "short", "APPLE_API_ISSUER": "nope"}, tmp_path, tmp_path
+        )
+    text = str(caught.value)
+    assert "short" not in text and "nope" not in text
+    assert "is not 10 capital letters or digits" in text and "is not a UUID" in text
