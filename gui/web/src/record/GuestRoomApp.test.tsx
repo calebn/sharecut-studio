@@ -450,6 +450,40 @@ describe("GuestRoomApp", () => {
     ).toHaveLength(2);
   });
 
+  it("raises no saving alert when the connection drops before this guest recorded anything", async () => {
+    const statusCalls = vi.fn();
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL) => {
+        const url = urlOf(input);
+        if (url.includes("/bootstrap")) {
+          return new Response(
+            JSON.stringify({
+              ...guestBootstrap,
+              build: { capture: true, monitor: false, upload: true },
+            }),
+            { status: 200 },
+          );
+        }
+        if (url.includes("/upload")) {
+          statusCalls();
+          throw new TypeError("Failed to fetch");
+        }
+        return new Response("not found", { status: 404 });
+      }),
+    );
+    render(<GuestRoomApp token="guest-tok" />);
+    await readyToJoin(getUserMedia);
+    await userEvent.click(joinButton());
+    await screen.findByRole("button", { name: "Leave room" });
+    await waitFor(() => expect(statusCalls).toHaveBeenCalled());
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(screen.queryByText("Saving stopped.")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Resume saving" })).toBeNull();
+  });
+
   it("closes the sheet and shows the room once consent lands", async () => {
     stubBootstrap();
     render(<GuestRoomApp token="guest-tok" />);
