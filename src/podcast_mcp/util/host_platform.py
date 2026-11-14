@@ -299,8 +299,12 @@ def from_stored(stored: str) -> str | None:
     On a container host a stored path is relative to the home, so one that climbs out of it
     (a ``..`` segment, or a symlink that leaves it) is dropped, and so is an absolute path under
     the home, which is never written that way. An absolute path elsewhere is a folder the person
-    picked outside the container and stays as written.
+    picked outside the container and stays as written. A value with a NUL byte, and ``""`` or
+    ``"."`` (which would name the home itself), fail closed on every host: a registry row is
+    untrusted input and one bad row must not raise out of a sweep.
     """
+    if "\x00" in stored or stored in {"", "."}:
+        return None
     root = container_root()
     if root is None:
         return stored

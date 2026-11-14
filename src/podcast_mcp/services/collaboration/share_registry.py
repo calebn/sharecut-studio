@@ -517,7 +517,7 @@ class SqliteShareRegistry:
             return int(cur.rowcount or 0) > 0
 
     def upsert_active_metadata(self, row: dict[str, Any]) -> None:
-        """Refresh active-row fields from the project sidecar (no-op if missing)."""
+        """Overwrite the active row's fields from ``row`` (no-op if the token is not active)."""
         token = str(row.get("token") or "")
         if not token:
             return
