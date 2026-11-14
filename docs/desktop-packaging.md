@@ -312,8 +312,9 @@ allowed, because the Tauri CLI binds a local WebSocket), and its steps, includin
 `xcodebuild archive`, contacted no outside host. The one step that run did not cover is the Swift
 package compile inside cargo's build, since SwiftPM applies its own sandbox and cannot run inside
 another; it needs its dependencies already built or fetched. A cold checkout needs the documented
-`uv sync` and dependency installs first, which do use the network. Each subcommand takes `--dry-run`, which prints the exact steps
-(secrets as `<team>` and so on, private directories as `<home>`, `<checkout>`) and runs none.
+`uv sync` and dependency installs first, which do use the network. Each subcommand takes
+`--dry-run`, which prints the exact steps (secrets as `<team>` and so on, private directories as
+`<home>`, `<checkout>`) and runs none.
 
 - **Inputs.** `PODCAST_DISTRIBUTION_PROFILE` names a distribution profile outside the repository
   (the checked-in dev profile is refused). Its `bundle_identifier` is the app's identifier and
@@ -375,8 +376,8 @@ another; it needs its dependencies already built or fetched. A cold checkout nee
   that file with one sentence telling you to check TestFlight for that build number. That covers a
   run that was interrupted and an upload that got no answer from Apple, because the bytes may
   already have left; the second keeps what Apple's tool said in `last_answer` on the attempt and
-  leaves its outcome empty. An upload attempt is finished only by an answer Apple itself gave: `altool` exits 0 with a JSON
-  object that has no `product-errors` (lines before the object, such as a stderr warning, are
+  leaves its outcome empty. An upload attempt is finished only by an answer Apple itself gave:
+  `altool` exits 0 with a JSON object that has no `product-errors` (lines before the object, such as a stderr warning, are
   skipped; text after it, or an object that does not parse whole, is no answer), or it prints
   structured `product-errors` and at least one entry has a known Apple shape and the output has
   no transport wording. The known shapes (`apple_shaped` in `scripts/ios/release_classify.py`)
