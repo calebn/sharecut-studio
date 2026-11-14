@@ -835,6 +835,7 @@ def sweep_all_pending(*, now: datetime | None = None, workspace: str | None = No
     done = 0
     if workspace is None:
         done += registry.finalize_unresolvable_pending()
+        registry.demote_expired_unresolvable_active(now=now)
     for key in keys:
         try:
             ws = workspace_from_share_row({"project_workspace": key})
