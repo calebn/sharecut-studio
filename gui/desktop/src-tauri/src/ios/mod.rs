@@ -15,7 +15,7 @@ use tauri::Manager;
 
 use driver::Driver;
 
-use crate::engine::{engine_navigation_allowed, ios_engine_environment};
+use crate::engine::{engine_navigation_allowed, ios_engine_environment, DEBUG_ONLY_VARIABLES};
 use crate::lifecycle::{Event, RETRY_SCHEME};
 
 /// Interpreter variables and the boot token go in before any thread exists, because setting the
@@ -26,7 +26,10 @@ fn set_engine_environment() -> String {
         .ok()
         .and_then(|exe| exe.parent().map(std::path::Path::to_path_buf))
         .expect("the app executable sits in its bundle");
-    for (name, value) in ios_engine_environment(&bundle, &token) {
+    for name in DEBUG_ONLY_VARIABLES {
+        std::env::remove_var(name);
+    }
+    for (name, value) in ios_engine_environment(&bundle, &token, cfg!(debug_assertions)) {
         std::env::set_var(name, value);
     }
     token

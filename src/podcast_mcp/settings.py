@@ -203,6 +203,14 @@ VARIABLES: tuple[Variable, ...] = (
     *_group(
         "Studio server",
         ("PODCAST_GUI_DIST", "Built web UI directory (frozen sidecars point it at web-dist)."),
+        (
+            "PODCAST_ENGINE_DEBUG_BUILD",
+            "Set to 1 by a debug build of the iOS app; the request audit refuses to run without it.",
+        ),
+        (
+            "PODCAST_ENGINE_REQUEST_AUDIT",
+            "Set to 1 by a debug build of the iOS app: log each request's method, path without query, status and whether the query was empty.",
+        ),
         ("PODCAST_GUI_OPENAPI", "Serve OpenAPI/Swagger; 0, false or no turns it off.", "1"),
         ("PODCAST_REVIEW_CORS_ORIGINS", "Extra exact CORS origins, comma-separated."),
         (

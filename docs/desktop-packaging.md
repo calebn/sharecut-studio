@@ -229,9 +229,23 @@ lib (a `staticlib`) with Python.xcframework linked into it; there is no sidecar 
 - **Not there yet.** Audio tools (FFmpeg), transcription, recording, Universal Links, signing,
   TestFlight and a run on a device. Home's Import audio and Record are refused while audio tools are unavailable, so a project cannot yet be made in the UI. Recent entries under the app's home are stored relative to it, because the container's path changes on every reinstall or update ([persistence.md](persistence.md)). Projects live in the app's Documents folder and show in the
   Files app.
-- **Proof.** `make ios-sim-proof` launches the app and asserts what it can from the Mac; the
-  Home screen, project and cookie checks are made in the Simulator UI
-  ([testing.md § iOS Simulator lane](testing.md#ios-simulator-lane)).
+- **Request audit (debug builds only).** `podcast_mcp.gui.request_audit` appends one JSON line per
+  HTTP response and WebSocket outcome to `Library/Logs/ShareCut/request-audit.jsonl`: the method,
+  the path without its query string, the status and whether the query was empty. It never reads a
+  query string, header, cookie or body, so the exchange code cannot reach it. It runs only when
+  `PODCAST_ENGINE_DEBUG_BUILD` and `PODCAST_ENGINE_REQUEST_AUDIT` are both `1`: the Rust host
+  clears both in every build and sets them only under `cfg!(debug_assertions)`
+  (`ios_engine_environment`), and Python ignores the request without the marker.
+- **Proof.** `make ios-sim-proof` launches the app and asserts what it can from the Mac, reading
+  the audit for the exchange (answered 200 once; made-up codes get 403 and no cookie), the page's
+  socket, event stream and media requests; the Home screen and project checks are made in the
+  Simulator UI ([testing.md § iOS Simulator lane](testing.md#ios-simulator-lane)).
+  `results.json` is `{"schema": 2, "device", "assertions": {key: {"status", "gap", ...}}}`; `status`
+  is `observed`, `partly_observed` (`gap` names what the script cannot see), `not_observed` (not
+  driven from here) or `failed`, and only `failed` makes the run exit non-zero. The audit shows
+  the page's socket and event-stream URLs carry non-secret parameters (project path, client ids,
+  job id), so `query_empty` is false for them; that no token is in them rests on the engine
+  accepting only the session cookie on this host (`tests/test_gui_embedded_session.py`).
 
 The public check workflow is deliberately limited:
 
