@@ -315,14 +315,14 @@ export function guestViewerWidth(
 export function guestRoomAlerts(
   source: Omit<RoomAlertSource, "hydrateError"> & {
     phase: RoomPhase;
-    recorded: boolean;
+    inTake: boolean;
     notice?: string | null;
   },
   actions: RoomAlertActions = {},
 ): RoomAlertInput[] {
-  const { phase, recorded, notice, ...rest } = source;
+  const { phase, inTake, notice, ...rest } = source;
   const alerts = roomAlerts({ ...rest, hydrateError: null }, actions);
-  if (recorded && phase.kind === "reconnecting" && !phase.paused) {
+  if (inTake && phase.kind === "reconnecting" && !phase.paused) {
     alerts.push({ kind: "connection-lost" });
   }
   if (notice) {
