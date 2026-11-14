@@ -92,6 +92,36 @@ export async function loadTranscriptVocabulary(
   return res.json() as Promise<TranscriptVocabulary>;
 }
 
+export type StaleTrack = {
+  track_id: string;
+  name: string;
+  recorded: string;
+};
+
+export type TranscriptLanguageStatus = {
+  language: string | null;
+  stale_tracks: StaleTrack[];
+  edited_stale_tracks: StaleTrack[];
+};
+
+export async function loadTranscriptLanguageStatus(
+  projectPath: string,
+  language: string | null,
+  init?: { signal?: AbortSignal },
+): Promise<TranscriptLanguageStatus> {
+  if (isShareProjectKey(projectPath)) {
+    throw new Error("Language status is not available for shared guests");
+  }
+  const params = new URLSearchParams({ path: projectPath });
+  if (language) params.set("language", language);
+  const res = await apiFetch(
+    "",
+    { host: `/api/transcript/language-status?${params}` },
+    { signal: init?.signal },
+  );
+  return res.json() as Promise<TranscriptLanguageStatus>;
+}
+
 export async function saveTranscriptVocabulary(
   projectPath: string,
   vocabulary: Pick<TranscriptVocabulary, "terms" | "guest_names"> & {

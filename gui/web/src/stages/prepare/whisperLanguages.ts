@@ -108,3 +108,9 @@ export const LANGUAGES: readonly LanguageOption[] = [
   { value: AUTO_LANGUAGE, label: "Detect automatically" },
   ...WHISPER.map(([value, label]) => ({ value, label })),
 ];
+
+const NAMES: ReadonlyMap<string, string> = new Map(WHISPER);
+
+export function languageName(code: string): string {
+  return NAMES.get(code) ?? code;
+}

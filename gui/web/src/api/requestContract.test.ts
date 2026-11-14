@@ -9,7 +9,11 @@ import {
 } from "./comments";
 import { postGuestDocumentCommand } from "./documentTransport";
 import { loadProxyManifest, loadSessionMeta } from "./mediaSession";
-import { loadPipelineSteps, startRenderPreview } from "./pipeline";
+import {
+  loadPipelineSteps,
+  loadTranscriptLanguageStatus,
+  startRenderPreview,
+} from "./pipeline";
 import {
   createEpisodeProject,
   loadDocumentState,
@@ -78,6 +82,7 @@ const GUEST = "share:tok/1";
 describe("host requests carry the session token", () => {
   it("sends X-Podcast-Token on every host route", async () => {
     await loadPipelineSteps();
+    await loadTranscriptLanguageStatus(HOST, "es");
     await loadProjectMeta(HOST);
     await createEpisodeProject("/ws", "Ep");
     await loadDocumentState(HOST, "full");
@@ -86,6 +91,11 @@ describe("host requests carry the session token", () => {
     await loadWaveformSnap(HOST, "t1", 1, 2);
     expect(seen).toEqual([
       { url: "/api/pipeline/steps", method: "GET", token: "host-secret" },
+      {
+        url: "/api/transcript/language-status?path=%2Ftmp%2Fep+one.project.json&language=es",
+        method: "GET",
+        token: "host-secret",
+      },
       {
         url: "/api/project/meta?path=%2Ftmp%2Fep%20one.project.json",
         method: "GET",
