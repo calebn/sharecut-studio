@@ -1,5 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
+/** How long a pressed button reads busy at least, so it is seen and heard. */
+export const HELD_BUSY_MS = 600;
+
 /**
  * A button that answers a press: busy from the press until the attempt ends,
  * and for at least `minMs` so a refusal that comes back at once is still seen
