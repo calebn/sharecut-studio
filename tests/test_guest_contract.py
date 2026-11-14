@@ -953,6 +953,7 @@ def test_record_signal_fault_crosses_the_registered_socket_boundary(
     secret = f"private Signal service path {PLANTED_SECRET}"
     row = {
         "token": token,
+        "id": "a1b2c3d4e5f6",
         "kind": "record",
         "role": "guest",
         "session_id": "session-signal-fault",
