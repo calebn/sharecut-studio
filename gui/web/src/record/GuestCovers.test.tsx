@@ -28,7 +28,8 @@ function room(over: Partial<Parameters<typeof guestCoverProps>[0]> = {}) {
     captureSettled: true,
     localRecording: true,
     producer: false,
-    upload: { fileAck: false },
+    localSegments: 1,
+    upload: { fileAck: false, seenSegments: 0 },
     keeperActions: {
       busy: false,
       error: null,
@@ -288,6 +289,7 @@ describe("GuestCovers", () => {
         accessEnded: true,
         keeperActions: {
           busy: true,
+          running: "download",
           downloaded: false,
           error: "locked by another tab",
           notice: "ignored",
@@ -373,7 +375,7 @@ describe("GuestCovers", () => {
   it("offers no recording actions for a recording the server acknowledged", () => {
     show({
       accessEnded: true,
-      upload: { fileAck: true },
+      upload: { fileAck: true, seenSegments: 1 },
       snapshot: recordSnapshot({ participants: [host], take_index: 0 }),
       keeperActions: {
         busy: false,
@@ -512,12 +514,11 @@ describe("after Save my recording handed the whole zip to the browser", () => {
     await userEvent.click(
       screen.getByRole("button", { name: "Save my recording" }),
     );
-    expect(
-      await screen.findByRole("heading", {
-        level: 1,
-        name: "Check your downloads",
-      }),
-    ).toBeInTheDocument();
+    const downloaded = await screen.findByRole("heading", {
+      level: 1,
+      name: "Check your downloads",
+    });
+    expect(downloaded).toHaveFocus();
 
     let fail: (reason: Error) => void = () => undefined;
     download.mockImplementationOnce(
@@ -539,12 +540,11 @@ describe("after Save my recording handed the whole zip to the browser", () => {
     expect(stillThere).toHaveFocus();
 
     await act(async () => fail(new Error("Disk full.")));
-    expect(
-      await screen.findByRole("heading", {
-        level: 1,
-        name: "Your recording didn't finish saving",
-      }),
-    ).toBeInTheDocument();
+    const unsent = await screen.findByRole("heading", {
+      level: 1,
+      name: "Your recording didn't finish saving",
+    });
+    expect(unsent).toHaveFocus();
     expect(screen.getByRole("status")).toHaveTextContent("Disk full.");
   });
 
@@ -571,7 +571,8 @@ describe("after Save my recording handed the whole zip to the browser", () => {
       room({
         accessEnded: true,
         localRecording: true,
-        upload: { fileAck: true },
+        localSegments: 1,
+        upload: { fileAck: true, seenSegments: 1 },
         keeperActions: {
           busy: false,
           error: null,
@@ -590,6 +591,29 @@ describe("after Save my recording handed the whole zip to the browser", () => {
     expect(cover?.secondary).toBeUndefined();
   });
 
+  it("offers Save when the device holds a segment the last acknowledged pass never saw", () => {
+    const cover = guestCoverProps(
+      room({
+        accessEnded: true,
+        localRecording: true,
+        localSegments: 2,
+        upload: { fileAck: true, seenSegments: 1 },
+        snapshot: recordSnapshot({ participants: [host], take_index: 0 }),
+        keeperActions: {
+          busy: false,
+          error: null,
+          notice: null,
+          downloaded: false,
+          download: vi.fn(),
+          recover: vi.fn(),
+        },
+      }),
+      vi.fn(),
+    );
+    expect(cover?.title).toBe("Your recording didn't finish saving");
+    expect(cover?.primary?.label).toBe("Save my recording");
+  });
+
   it("is not shown once the recording has since been saved to the project", () => {
     const cover = guestCoverProps(
       room({
@@ -606,5 +630,21 @@ describe("after Save my recording handed the whole zip to the browser", () => {
       { onRetry: vi.fn(), phase: waiting },
     );
     expect(cover?.title).toBe("This session has ended");
+  });
+
+  it("focuses the heading when the first cover mounts and each time its title changes", () => {
+    const first = guestCoverProps(room({ bootError: "network" }), vi.fn());
+    const next = guestCoverProps(room({ bootError: "server" }), vi.fn());
+    if (!first || !next) {
+      throw new Error("no cover");
+    }
+    const { rerender } = render(<GuestCovers cover={first} />);
+    expect(
+      screen.getByRole("heading", { name: "Couldn't reach the room" }),
+    ).toHaveFocus();
+    rerender(<GuestCovers cover={next} />);
+    expect(
+      screen.getByRole("heading", { name: "The room didn't answer" }),
+    ).toHaveFocus();
   });
 });

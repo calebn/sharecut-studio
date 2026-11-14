@@ -1,5 +1,6 @@
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { createRef } from "react";
 import { describe, expect, it, vi } from "vitest";
 import { partial, rule } from "../test/cssRules";
 import { Cover } from "./Cover";
@@ -44,6 +45,20 @@ describe("Cover", () => {
       screen.getByRole("heading", { level: 1, name: "Title" }),
     ).toBeInTheDocument();
     expect(screen.queryByRole("heading", { level: 2 })).toBeNull();
+  });
+
+  it("hands the title element to titleRef and lets script focus it", () => {
+    const titleRef = createRef<HTMLHeadingElement>();
+    render(
+      <Cover size="page" glyph="eye-off" title="Title" titleRef={titleRef}>
+        Body.
+      </Cover>,
+    );
+    const heading = screen.getByRole("heading", { name: "Title" });
+    expect(titleRef.current).toBe(heading);
+    expect(heading).toHaveAttribute("tabindex", "-1");
+    titleRef.current?.focus();
+    expect(heading).toHaveFocus();
   });
 
   it("fires the primary and secondary actions and renders extra", async () => {

@@ -1,4 +1,5 @@
 import {
+  useCallback,
   useEffect,
   useInsertionEffect,
   useMemo,
@@ -79,12 +80,26 @@ const SPEAKING_FRACTION = 0.2;
  */
 export function GuestRoomApp({ token }: { token: string }) {
   const [attempt, setAttempt] = useState(0);
+  const cameOnline = useRef(false);
+  useEffect(() => {
+    const mark = () => {
+      cameOnline.current = true;
+    };
+    window.addEventListener("online", mark);
+    return () => window.removeEventListener("online", mark);
+  }, []);
+  const onRetry = useCallback(() => {
+    cameOnline.current = false;
+    setAttempt((n) => n + 1);
+  }, []);
+  const onlineMissed = useCallback(() => cameOnline.current, []);
   return (
     <GuestRoomSession
       key={attempt}
       token={token}
       retried={attempt > 0}
-      onRetry={() => setAttempt((n) => n + 1)}
+      onRetry={onRetry}
+      onlineMissed={onlineMissed}
     />
   );
 }
@@ -93,10 +108,12 @@ function GuestRoomSession({
   token,
   retried,
   onRetry,
+  onlineMissed,
 }: {
   token: string;
   retried: boolean;
   onRetry: () => void;
+  onlineMissed: () => boolean;
 }) {
   const [rejoinOpen, setRejoinOpen] = useState(false);
   const [joining, setJoining] = useState(false);
@@ -383,6 +400,7 @@ function GuestRoomSession({
         cover={cover}
         status={keeperActions.error ?? keeperActions.notice}
         onOnline={room.bootError === "network" ? onRetry : undefined}
+        onlineMissed={onlineMissed}
       />
     );
   }

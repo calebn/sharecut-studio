@@ -15,6 +15,7 @@ function sheet(overrides: Partial<RecordMoreSheetProps> = {}) {
         fileAck: false,
         landed: false,
         landFailed: false,
+        seenSegments: 0,
         reclaimFailed: false,
         uploading: false,
         pending: false,

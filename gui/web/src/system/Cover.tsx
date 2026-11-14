@@ -1,4 +1,4 @@
-import { type ReactNode, useId } from "react";
+import { type ReactNode, type Ref, useId } from "react";
 import { BrandSymbol, Button } from "../ui";
 import { BUSY_REASON } from "../ui/disabledReason";
 import type { SystemIconName } from "./icons";
@@ -51,6 +51,8 @@ export type CoverProps = {
   extra?: ReactNode;
   /** The title's element. "h1" only where the cover is the page's only heading. Default "h2". */
   headingLevel?: "h1" | "h2";
+  /** The title element, so a page can move focus to it when the Cover changes. */
+  titleRef?: Ref<HTMLHeadingElement>;
 };
 
 /** The one "nothing to show here" layout. A `<section>`: the page owns `<main>`. */
@@ -63,6 +65,7 @@ export function Cover({
   secondary,
   extra,
   headingLevel: Heading = "h2",
+  titleRef,
 }: CoverProps) {
   const titleId = useId();
   return (
@@ -76,7 +79,12 @@ export function Cover({
           <span className="sys-cover-glyph">
             <SystemIcon name={glyph} size={48} />
           </span>
-          <Heading id={titleId} className="sys-cover-title">
+          <Heading
+            id={titleId}
+            ref={titleRef}
+            tabIndex={-1}
+            className="sys-cover-title"
+          >
             {title}
           </Heading>
           <p className="sys-cover-text">{children}</p>

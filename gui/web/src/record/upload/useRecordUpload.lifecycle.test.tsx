@@ -152,9 +152,45 @@ describe("useRecordUpload original lifecycle observations", () => {
       rerender({ ...args, enabled: false });
       expect(result.current).toMatchObject({
         fileAck: true,
+        seenSegments: 1,
         uploading: false,
         pending: false,
       });
+    });
+
+    it("does not count a segment written after the pass that acknowledged it", async () => {
+      const { args, result, rerender } = await savedTake();
+      const late = {
+        sessionId: "room",
+        takeIndex: 0,
+        participantId: "p_a",
+        segmentIndex: 1,
+      };
+      const path = keeperWavPath(late);
+      const wav = new Uint8Array(52);
+      wav.set(pcmWavHeader(8));
+      wav.fill(7, 44);
+      await args.sink!.write(path, wav);
+      await args.sink!.write(keeperMetaPath(path), keeperMetaBytes(late));
+      rerender({ ...args, enabled: false });
+      expect(result.current).toMatchObject({ fileAck: true, seenSegments: 1 });
+    });
+
+    it("does not carry it into a later take whose status calls all fail", async () => {
+      const { args, result, rerender } = await savedTake();
+      const down: RecordUploadTransport = {
+        status: () => Promise.reject(new Error("Network down.")),
+        put: () => Promise.reject(new Error("Network down.")),
+      };
+      rerender({
+        ...args,
+        transport: down,
+        takeIndex: 1,
+        roomState: "stopped",
+        captureSettled: true,
+      });
+      await waitFor(() => expect(result.current.error).toBe("Network down."));
+      expect(result.current).toMatchObject({ fileAck: false, seenSegments: 0 });
     });
 
     it("forgets it for another take", async () => {

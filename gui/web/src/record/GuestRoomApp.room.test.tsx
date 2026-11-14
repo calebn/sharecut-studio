@@ -33,6 +33,7 @@ const idleUpload: RecordUploadProgress = {
   acked: 0,
   total: 0,
   fileAck: false,
+  seenSegments: 0,
   landed: false,
   landFailed: false,
   reclaimFailed: false,

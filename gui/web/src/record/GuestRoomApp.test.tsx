@@ -1374,6 +1374,75 @@ describe("GuestRoomApp", () => {
       expect(bootstraps()).toBe(2);
     });
 
+    function stubSlowUnreachable(releases: Array<() => void>) {
+      let bootstraps = 0;
+      vi.stubGlobal(
+        "fetch",
+        vi.fn(async (input: RequestInfo | URL) => {
+          if (!urlOf(input).includes("/bootstrap")) {
+            return new Response("not found", { status: 404 });
+          }
+          bootstraps += 1;
+          if (bootstraps === 3) {
+            return new Response(JSON.stringify(guestBootstrap), {
+              status: 200,
+            });
+          }
+          await new Promise<void>((resolve) => releases.push(resolve));
+          throw new TypeError("Failed to fetch");
+        }),
+      );
+      return () => bootstraps;
+    }
+
+    it("retries once by itself when the browser came back online during a manual retry", async () => {
+      const releases: Array<() => void> = [];
+      const bootstraps = stubSlowUnreachable(releases);
+      render(<GuestRoomApp token="guest-tok" />);
+      await waitFor(() => expect(releases).toHaveLength(1));
+      await act(async () => releases[0]());
+      await screen.findByRole("heading", { name: "Couldn't reach the room" });
+      await userEvent.click(screen.getByRole("button", { name: "Try again" }));
+      await waitFor(() => expect(releases).toHaveLength(2));
+      act(() => {
+        window.dispatchEvent(new Event("online"));
+      });
+      await act(async () => releases[1]());
+      expect(
+        await screen.findByRole("heading", { name: "Join the room" }),
+      ).toBeInTheDocument();
+      expect(bootstraps()).toBe(3);
+    });
+
+    it("does not retry by itself when no online transition happened during the attempt", async () => {
+      const releases: Array<() => void> = [];
+      const bootstraps = stubSlowUnreachable(releases);
+      render(<GuestRoomApp token="guest-tok" />);
+      await waitFor(() => expect(releases).toHaveLength(1));
+      await act(async () => releases[0]());
+      await screen.findByRole("heading", { name: "Couldn't reach the room" });
+      await userEvent.click(screen.getByRole("button", { name: "Try again" }));
+      await waitFor(() => expect(releases).toHaveLength(2));
+      await act(async () => releases[1]());
+      await screen.findByRole("heading", { name: "Couldn't reach the room" });
+      expect(bootstraps()).toBe(2);
+    });
+
+    it("retries by itself at most once per online transition", async () => {
+      const releases: Array<() => void> = [];
+      const bootstraps = stubSlowUnreachable(releases);
+      render(<GuestRoomApp token="guest-tok" />);
+      await waitFor(() => expect(releases).toHaveLength(1));
+      act(() => {
+        window.dispatchEvent(new Event("online"));
+      });
+      await act(async () => releases[0]());
+      await waitFor(() => expect(releases).toHaveLength(2));
+      await act(async () => releases[1]());
+      await screen.findByRole("heading", { name: "Couldn't reach the room" });
+      expect(bootstraps()).toBe(2);
+    });
+
     it("shows a sleeping host as The room didn't answer and waits for Try again", async () => {
       const fetchMock = vi.fn(async () =>
         Response.json({ detail: "host offline" }, { status: 503 }),

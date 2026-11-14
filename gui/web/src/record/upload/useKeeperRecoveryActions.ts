@@ -17,6 +17,8 @@ export type KeeperRecoveryActions = {
   recover?: () => void;
   /** True while a download or recovery run is in flight. */
   busy: boolean;
+  /** Which action the run in flight belongs to; null while idle. */
+  running?: "download" | "recover" | null;
   /** Last action failure; never the OPFS storage error channel. */
   error: string | null;
   /** Last successful recovery, for the upload status live region. */
@@ -60,6 +62,7 @@ export function useKeeperRecoveryActions(args: {
     sessionId: string;
     takeIndex: number;
   } | null>(null);
+  const [running, setRunning] = useState<"download" | "recover" | null>(null);
   const { busy, run: runSingle } = useSingleFlight();
   const canRecover = useStableCallback(() => args.recoverAllowed);
   const recoveredNotice = useStableCallback((result: KeeperRecoveryResult) =>
@@ -69,8 +72,13 @@ export function useKeeperRecoveryActions(args: {
   const mountedRef = useMountedRef();
 
   const run = useCallback(
-    (action: () => Promise<string | null>, afterSuccess?: () => void) => {
+    (
+      kind: "download" | "recover",
+      action: () => Promise<string | null>,
+      afterSuccess?: () => void,
+    ) => {
       void runSingle(async () => {
+        setRunning(kind);
         setError(null);
         setNotice(null);
         try {
@@ -83,6 +91,8 @@ export function useKeeperRecoveryActions(args: {
           setError(errorMessage(failure));
           // A partial run may still have recovered segments; re-poll.
           afterSuccess?.();
+        } finally {
+          if (mountedRef.current) setRunning(null);
         }
       });
     },
@@ -96,7 +106,7 @@ export function useKeeperRecoveryActions(args: {
     takeIndex !== null;
   const download = useCallback(() => {
     if (!sink || !sessionId || !participantId || takeIndex === null) return;
-    run(async () => {
+    run("download", async () => {
       try {
         await downloadLocalKeepers(sink, sessionId, participantId, takeIndex);
       } catch (failure: unknown) {
@@ -110,18 +120,22 @@ export function useKeeperRecoveryActions(args: {
   const recover = useCallback(() => {
     if (!sink || !sessionId || !participantId || takeIndex === null) return;
     if (!canRecover()) return;
-    run(async () => {
-      setDownloadedFor(null);
-      return recoveredNotice(
-        await recoverLocalKeepers(
-          sink,
-          sessionId,
-          participantId,
-          takeIndex,
-          canRecover,
-        ),
-      );
-    }, onRecovered);
+    run(
+      "recover",
+      async () => {
+        setDownloadedFor(null);
+        return recoveredNotice(
+          await recoverLocalKeepers(
+            sink,
+            sessionId,
+            participantId,
+            takeIndex,
+            canRecover,
+          ),
+        );
+      },
+      onRecovered,
+    );
   }, [
     run,
     sink,
@@ -137,6 +151,7 @@ export function useKeeperRecoveryActions(args: {
     download: ready ? download : undefined,
     recover: ready ? recover : undefined,
     busy,
+    running,
     error,
     notice,
     downloaded:
