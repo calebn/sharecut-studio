@@ -187,7 +187,9 @@ export function JoinSheet({
       const row = formRef.current?.querySelector<HTMLElement>(
         `[data-step="${target}"]`,
       );
-      (row?.querySelector<HTMLElement>("button") ?? row)?.focus();
+      (
+        row?.querySelector<HTMLElement>("button:not(:disabled)") ?? row
+      )?.focus();
     }
   };
 

@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { BUSY_REASON } from "../ui/disabledReason";
 import type { JoinRow } from "./joinSheetModel";
 import { StatusRow } from "./StatusRow";
 
@@ -27,6 +28,7 @@ export function SheetRow({
                 label: action.label,
                 name: action.name,
                 onAction: () => onAction?.(action.kind),
+                disabledReason: action.busy ? BUSY_REASON : undefined,
               }
             : undefined
         }
