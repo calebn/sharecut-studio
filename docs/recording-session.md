@@ -1334,10 +1334,13 @@ the room list reloads. The CLI remains available:
 `podcast review share --kind record --session-id <id> --role guest` (or
 `--role producer` when a producer was removed).
 The rule is
-derived from `participants[].removed` (never cleared within a room) and
-`record_participants.token_hash` (kept by `revoke()`), both in `sync.db`, and is
-checked under the room authority lock in `_join_locked`, so it survives restarts
-and applies equally to direct and relayed joins. Nobody else is disconnected.
+derived from `participants[].removed` (never cleared within a room) and the
+share id each participant is bound to in `record_participant_leases` (kept by
+`revoke()`), both in `sync.db`, and is checked under the room authority lock in
+`_join_locked`, so it survives restarts and applies equally to direct and relayed
+joins. Nobody else is disconnected. See [Participant leases](#participant-leases)
+for the table, and for the invariant that closes every invite of a room when a
+removed guest has no lease row.
 
 - **Security boundary:** the link is still a bearer link; the host must share the
   replacement privately. A closure applies to that token only.
@@ -1347,7 +1350,7 @@ and applies equally to direct and relayed joins. Nobody else is disconnected.
   removed person omitting their lease, so they see a terminal "Invite link
   closed" Cover (with Save my recording and Try saving again once capture has settled and they hold an unsent local take) and need the
   replacement link. Guests who keep their lease are unaffected. The check only
-  queries `record_participants` once the room has a removal.
+  queries `record_participant_leases` once the room has a removal.
 - **Keeper recovery:** unaffected guests keep uploading and recovering through
   their lease; a removed participant stays refused. The stopped-take question stays
   with [#316](https://github.com/calebn/sharecut-studio/issues/316).
@@ -1723,7 +1726,8 @@ Token metadata: share registry + `artifacts/review/shares.json` hold `kind`,
 `session_id`, and role (the token itself only in the registry). Live-room state lives in existing
 `artifacts/session/sync.db` via `services/record/` on a prefixed `SyncStore`
 (`record_commands`, `record_snapshot`, `record_clients`) plus
-`record_participants` (lease **hashes** only). All record stores share the
+`record_participant_leases` (the share id and a lease **hash**, never a token or
+a digest of one; see [Participant leases](#participant-leases)). All record stores share the
 session-sync SQLite initializer so concurrent room startup cannot race while
 switching `sync.db` into WAL mode. **No new sqlite file, no new
 sidecar JSON.** Append, apply, snapshot write and the `Comment` live-comment row
@@ -1731,6 +1735,83 @@ are one `BEGIN IMMEDIATE` transaction on the record store's connection
 (`SyncStore.append_and_apply` with its `side_effect_fn` hook), so independent
 connections (other processes) serialize and a failed apply leaves no command
 row; `mutate_snapshot` and `reset` are transactional too (#332).
+
+### Participant leases
+
+A participant is bound to the **share id** of the link it joined through, not to
+the token. The share id is 12 hex characters of a `uuid4` (48 bits), is minted
+when the share is created, is already visible to guests as the author of an edit
+(`share:<id>`), is **not a credential**, and **never authorizes anything**: the
+registry lookup of the token on each request (the WebSocket admission and the
+upload routes alike) is the only proof of possession. The project folder
+therefore holds no token and nothing derived from one: no hash, prefix or
+suffix (the test `tests/test_share_tokens_at_rest.py` searches for all of them).
+
+`record_participant_leases` in `sync.db` has five columns:
+
+| Column | Holds |
+|--------|-------|
+| `participant_id` | `p_` plus 8 hex characters; the primary key |
+| `session_id` | The room the participant joined |
+| `share_id` | The registry id of the link it joined through |
+| `lease_hash` | SHA-256 of the 192-bit random lease the guest holds |
+| `lease_expires_ns` | Seven days after the join; `revoke()` sets it to 0 and keeps the row |
+
+`verify` checks, in order, that the row exists, the room matches, the lease has
+not expired, the share id equals the id of the link the request came through, and
+the lease hash matches (constant time). A lease presented through another link
+(a guest's lease on the producer link) therefore fails, and a recycled coolname,
+which gets a new share id, never matches an earlier room's rows. The host is not
+a participant of this table: it has no lease. The old `record_participants`
+table is never opened or written; a `sync.db` from before this change keeps it
+as dead bytes until the owner drops it (below).
+
+**Invariant: every removed non-host participant has a lease row.** If a
+participant the room marks `removed` has no row (the table lost it), no link can
+be trusted to be clear of that person, so `invite_closed` returns the reason
+`unknown_removal` and **every invite of the room is closed** until the host
+presses **Start new room**. **Replace guest invite** and **Replace producer
+invite** refuse with "Start a new room" in that case, because a replacement would
+be closed on arrival; they work as before for a removal whose link is known. The
+host is excluded from the rule, and the remove-participant payload rejects the
+host (`p_host`), so a healthy room cannot close itself.
+
+**Start new room** mints the new links, resets the room, then revokes the previous
+room's links. A non-host Join is refused with `invite_closed` when the snapshot's
+session id differs from the service's, before a participant is minted and again
+inside the transaction that applies the Join, so a guest on an old link cannot
+land in the new room in that window or when the revoke fails. The reset keeps
+only the new room's rows in the lease table.
+
+Guest client ids and labels carry no token text either: the record fallback
+client id is `rec-<connection id>` and an unnamed guest is called `Guest`
+(`guest_display_name`), so nothing token-derived reaches `clients`, the command
+journal, the snapshot, session summaries or landed clip labels.
+
+**One-time steps for an existing project (owner, once, before the first tester
+build).** Nothing runs automatically; the old digests only sit in the file.
+
+1. Before installing the update, in every project with a live room, stop the take
+   and land or save every take: wait until each guest's recording shows "Saved to
+   project". A take recorded before the upgrade cannot upload after it, because
+   its lease has no row in the new table. The guest's device still holds the
+   recording and "Download full-quality recording" still works. The documented
+   7-day resume on the same `/rec/` link is broken once by this upgrade.
+2. After installing, open each such project and press **Start new room**. This is
+   the security step: it revokes the old links.
+3. Optional hygiene, per project that ever had a record room, with ShareCut Studio
+   and any agent MCP or CLI process closed (`lsof` on the file prints nothing):
+   `sqlite3 -bail "<project>/artifacts/session/sync.db" "DROP TABLE IF EXISTS record_participants; DELETE FROM clients; PRAGMA wal_checkpoint(TRUNCATE); VACUUM; PRAGMA wal_checkpoint(TRUNCATE);"`.
+   The drop removes the old link digests, `DELETE FROM clients` removes the review
+   presence rows that name old guest ids (presence is ephemeral), and Start new
+   room in step 2 already emptied the record journal and its clients, whose freed
+   pages the `VACUUM` now overwrites. Then check that the `-wal` file is gone and that a search of the file for the
+   registry's tokens finds nothing ("gone from the file", not "gone from the
+   disk": Dropbox and Time Machine keep old copies). Never delete `sync.db` while a
+   room is live: it also holds who was removed, the upload rows and the land
+   rollbacks. The same applies once to the iPhone and simulator builds (uninstall
+   the app). Do not run an older build against an upgraded project: it would
+   reopen closed invites.
 
 Host-generated commands from CLI, MCP, and HTTP use
 `RecordControlService.submit_host` with `client_seq=None`. The ledger allocates a
@@ -1752,7 +1833,7 @@ ordering.
 | Roster, consent, take clock, `pauses[]`, `host_offline_since_wall_ms`, `host_last_beat_wall_ms`, live `pause_reason` | `RecordSessionService` + pure `apply_record_command` reducer; hub key `record:{workspace}`. `pause_reason: "host_reconnect"` is stored on the `PauseEntry` (pause log) and mirrored on the snapshot while that pause is open. Each take also stores `consented_participant_ids` (see "Locked for the lobby PR" below). |
 | WebRTC Signal | Ephemeral hub fanout (`type: "Signal"`); never written to `record_commands` |
 | Host Start/Pause/Resume/Stop/RoomToneCountdown/SetTarget/SetGuestsSeeNotes | HTTP `POST /api/record/command` (not the session WS; Signal burst must not block transport) |
-| Participant leases | `RecordParticipantStore` (`record_participants`); Echo-only plaintext lease |
+| Participant leases | `RecordParticipantStore` (`record_participant_leases`: participant id, session id, share id, lease hash, expiry); Echo-only plaintext lease |
 | Live comments | `record_live_comments` in the same sqlite (`sync.db`); PK `(session_id, comment_id)` |
 | Local keeper WAV | Guest/host OPFS `Sharecut Recordings/{session}/{take}/{participant}/{segment}.wav` (+ `.json` tags). Not a host sidecar. |
 | Room-tone bed | OPFS `Sharecut Recordings/{session}/room-tone/{participant}.wav` (local until the guest consents); upload `kind=room_tone` after consent (storage take `2147483647`); assembled `artifacts/record/acked/{session}/room_tone/{participant}.wav` until landing atomically copies `raw/room-tone/{session}/{participant}.wav` and sets `track.room_tone` |
@@ -1876,7 +1957,7 @@ Tone participants A=220 Hz, B=440 Hz, C=880 Hz, 48 kHz, −18 dBFS. No real
 | MM7 | Encoder does not duck monitor | Start "record": MM1 bars unchanged vs pre-roll. |
 | MM8 | Roster change does not glitch | Start N=2 (A, B); add C at t=1 s; remove B at t=2 s. A's bus: 880 Hz reaches its MM1 level within **20 ms** of add, 440 Hz falls ≥ 40 dB within 20 ms of remove, 220 Hz stays ≤ −50 dB throughout; no sample-to-sample step > **−30 dBFS** at either transition (ramped, not cut). A's keeper is **bit-identical** to a run with no roster change. Pause at t=3 s / Resume at t=4 s: MM1 bars on A's bus unchanged throughout (monitor is not paused). |
 | MM9 | Producer bus | Producer P joins N=3 (A, B, C): P's speaker bus has 220/440/880 each within **±1.5 dB** of the taps; P has **no** send track, **no** keeper file, and never called `getUserMedia`; A/B/C buses are unchanged vs MM1 (P adds nothing to anyone's mix). |
-| INV1 | Invite closure (#370) | `tests/test_record_ws.py` `test_removed_invite_*`, `test_invite_closure_*`, `test_expired_lease_on_closed_invite_cannot_mint`, `test_join_mint_raises_invite_closed`, `test_invite_closed_closes_the_socket_with_4403`; `useRecordSync.test.ts` (terminal `invite_closed`, including the `invalid_lease` → lease-less rejoin → `invite_closed` chain) and `GuestRoomApp.test.tsx` (axe-clean). |
+| INV1 | Invite closure (#370) | `tests/test_record_ws.py` `test_removed_invite_*`, `test_invite_closure_*`, `test_expired_lease_on_closed_invite_cannot_mint`, `test_join_mint_raises_invite_closed`, `test_invite_closed_closes_the_socket_with_4403`, `test_a_removal_with_no_known_link_closes_every_invite`, `test_the_host_is_never_the_unknown_removal`, `test_a_lease_does_not_cross_links`, `test_a_guest_on_an_old_link_cannot_land_in_the_new_room`; `tests/test_record_participants.py`; `tests/test_share_tokens_at_rest.py` (no token-derived byte in the project, exports or bundle); `useRecordSync.test.ts` (terminal `invite_closed`, including the `invalid_lease` → lease-less rejoin → `invite_closed` chain) and `GuestRoomApp.test.tsx` (axe-clean). |
 
 Ship MM1–MM9 **in the same PR as the graph** (`gui/web/src/audio/mixMinus.ts` +
 `mixMinus.test.ts`). Prefer rendered spectra over `connect()` spies alone —

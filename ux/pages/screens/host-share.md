@@ -24,7 +24,9 @@ Deliver checks current settings again before highlighting the Listen link.
 When a participant is removed, the Record stage directs the host to **Copy
 links…**. The Invite sheet marks the affected role's invite closed to new guests, disables
 copying its old link, and offers a same-room, same-role replacement. Existing
-leases remain valid. Guests never see the sheet (`canManageProjects` is false
+leases remain valid. If the removed guest's link cannot be identified, both
+invites show as closed and a replacement is refused with “Start a new room”:
+**Start new room** is the only way to reopen them. Guests never see the sheet (`canManageProjects` is false
 on `share:{token}`).
 
 Storybook `Stages/Frame/InviteSheet` previews the sheet with fictional links and `System/LinkRow` the row states; `Stages/Deliver/Deliver` the Listen link row in Deliver.
