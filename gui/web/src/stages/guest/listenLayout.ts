@@ -1,4 +1,5 @@
 import type { TranscriptDetailView } from "../../document/useTranscriptDetail";
+import { NEEDS_ATTENTION } from "../../stage/frame/attentionLabel";
 import type { CommentDraft } from "../../state/types";
 
 export type ListenInput = {
@@ -46,7 +47,7 @@ function countLabel(
   return [
     comments > 0 ? plural(comments, "comment") : "",
     suggestions > 0 ? plural(suggestions, "suggestion") : "",
-    needsAttention ? "Needs attention" : "",
+    needsAttention ? NEEDS_ATTENTION : "",
   ]
     .filter(Boolean)
     .join(" · ");
@@ -60,7 +61,7 @@ function wordsAfterCount(
   return [
     comments === 1 ? "comment" : "comments",
     suggestions > 0 ? plural(suggestions, "suggestion") : "",
-    needsAttention ? "Needs attention" : "",
+    needsAttention ? NEEDS_ATTENTION : "",
   ]
     .filter(Boolean)
     .join(" · ");
