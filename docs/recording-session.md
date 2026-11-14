@@ -1214,10 +1214,10 @@ link, "The room is full" (**Try again**), "Invite link closed", "You left the ro
 (**Join again**), "Your recording didn't finish saving" and "This session has ended". One
 rule decides what a leaving guest has at stake, from this device and not from consent: a
 capture still finishing reads "Finishing your full-quality recording…" with no "close this
-page" line and no Join again, a recording the keeper store can still save or recover shows
-the didn't-finish-saving Cover with **Save my recording** and **Try saving again**, a
-saved take says it is in the host's project, and anything else says "You can close this
-page."
+page" line and no Join again, a saved take says it is in the host's project even while
+its local copy waits to be reclaimed, a recording the keeper store can still save or
+recover shows the didn't-finish-saving Cover with **Save my recording** and **Try saving
+again**, and anything else says "You can close this page."
 
 The upload route enforces consent per take, not just per participant. Each
 take stores `consented_participant_ids`, captured from the currently-consented
