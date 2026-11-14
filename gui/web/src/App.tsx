@@ -31,7 +31,7 @@ import {
 import { HomeScreen } from "./stages/home/HomeScreen";
 import { DawProvider } from "./state/store";
 import type { ProjectView } from "./types/project";
-import { ErrorScreen, LoadingScreen } from "./ui";
+import { ErrorScreen } from "./ui";
 import { peekOpenStage } from "./utils/openIntent";
 import { projectNameFromPath } from "./utils/projectUrl";
 
@@ -150,7 +150,6 @@ function AppInner() {
   const shareRoute = shareRouteFromLocation();
   const reviewToken = shareRoute?.kind === "review" ? shareRoute.token : null;
   const recordToken = shareRoute?.kind === "record" ? shareRoute.token : null;
-  const guestToken = reviewToken ?? recordToken;
   const featuresReady = useFeaturesReady();
   const shareRoutesEnabled = useHasFeature(FEATURE_SHARE_UI_ROUTES);
   const projectPath = projectPathFromQuery();
@@ -177,7 +176,7 @@ function AppInner() {
   const shareAuthor = guest?.author ?? null;
   const shareBootstrapping = current.status === "pending";
   const projectLoading = () =>
-    guestToken || shareKey || isShareProjectKey(projectPath ?? "") ? (
+    reviewToken || shareKey || isShareProjectKey(projectPath ?? "") ? (
       <GuestLoadingScreen
         label="Loading project…"
         onRetry={() => setAttempt((n) => n + 1)}
@@ -309,6 +308,20 @@ function AppInner() {
     };
   }, [request]);
 
+  if (recordToken && !error) {
+    return (
+      <Suspense
+        fallback={
+          <GuestLoadingScreen
+            label="Joining the room…"
+            onRetry={() => window.location.reload()}
+          />
+        }
+      >
+        <GuestRoomApp token={recordToken} />
+      </Suspense>
+    );
+  }
   if (Boolean(reviewToken) && (!featuresReady || shareBootstrapping)) {
     return (
       <GuestLoadingScreen
@@ -340,14 +353,6 @@ function AppInner() {
   }
   if (error) {
     return <ErrorScreen message={error.message} hint={error.hint} />;
-  }
-
-  if (recordToken) {
-    return (
-      <Suspense fallback={<LoadingScreen label="Loading studio…" />}>
-        <GuestRoomApp token={recordToken} />
-      </Suspense>
-    );
   }
 
   if (shareKey) {
