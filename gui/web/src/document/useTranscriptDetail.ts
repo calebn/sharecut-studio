@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useSyncExternalStore } from "react";
 import { useShallow } from "zustand/react/shallow";
 import { isShareProjectKey, readsTranscriptWords } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
@@ -19,15 +19,17 @@ import {
   shownTranscriptOf,
   transcriptGrantOf,
 } from "./shownTranscript";
+import {
+  restartTranscriptStall,
+  useTranscriptStalled,
+  watchTranscriptStall,
+} from "./transcriptStall";
 
 export type TranscriptDetailView =
   | { kind: "hidden" }
   | { kind: "ready"; shown: ShownTranscript }
   | { kind: "pending"; retry: () => void }
   | { kind: "failed"; retry: () => void; recovering: boolean };
-
-/** How long a held refresh may sit on one commit before it counts as lost. */
-export const TRANSCRIPT_STALL_MS = 35_000;
 
 type Inputs = Pick<
   ReturnType<typeof useDawStore.getState>,
@@ -53,28 +55,20 @@ export function useTranscriptDetail(): TranscriptDetailView {
     subscribeTranscriptDetail,
     transcriptDetailSnapshot,
   );
-  const [stalled, setStalled] = useState<{ key: string; run: number } | null>(
-    null,
-  );
-  const [run, setRun] = useState(0);
   const { view, refreshKey, retry } = decide(inputs, observedSnapshot);
+  const stalled = useTranscriptStalled(refreshKey);
   useEffect(() => {
-    if (refreshKey === null) return;
-    const timer = window.setTimeout(
-      () => setStalled({ key: refreshKey, run }),
-      TRANSCRIPT_STALL_MS,
-    );
-    return () => window.clearTimeout(timer);
-  }, [refreshKey, run]);
+    if (refreshKey !== null) return watchTranscriptStall(refreshKey);
+  }, [refreshKey]);
   const retryStalled = useCallback(() => {
-    setStalled(null);
-    setRun((n) => n + 1);
+    if (refreshKey !== null) restartTranscriptStall(refreshKey);
     // A recovery that never answered is what held the commit: ask again first.
+    // One that is still running is joined, not restarted.
     if (documentAuthority.phase.kind === "recovering")
       void recoverDocument().catch(() => undefined);
     retry();
-  }, [retry]);
-  if (refreshKey !== null && stalled?.key === refreshKey && stalled.run === run)
+  }, [refreshKey, retry]);
+  if (stalled)
     return { kind: "failed", recovering: false, retry: retryStalled };
   return view;
 }
