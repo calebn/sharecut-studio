@@ -76,7 +76,8 @@ download; it is at most a lossy backup. Keepers must target WAV/PCM.
   Mitigation: keep recording locally + resume chunked upload; guest copy
   "{Host} dropped. You're still recording on this device." when the host leaves
   while the guest is connected, and "Lost connection to the room. You're still
-  recording on this device." when the guest's own page loses its connection.
+  recording on this device." when the guest's own page loses its connection while
+  they are in the take.
 - Video-first creators expect cameras on day one. **Audio-first MVP**; external
   import covers "recorded video elsewhere."
 - No cloud lossy backup (relay stores nothing on disk; keeper chunks may transit
@@ -463,9 +464,9 @@ Tunnel pass-through to the host only — no relay disk, no object-store
 keeper backup in MVP. Stop shows a **blocking saving panel** ("Saving to project…", then "Saved to project"; host sees all
 participants; guest sees own) until ACK or stall. An incomplete local segment
 after capture has settled is retained for recovery and reported separately;
-it cannot receive a file ACK and does not hold Leave after complete segments
-are acknowledged. While Stop is still finalizing the last segment, Leave stays
-held until its complete metadata lands or capture latches a failure (a latched
+it cannot receive a file ACK and does not hold Leave. A guest's Leave is held while
+their own upload is moving, and while Stop is still finalizing the last segment,
+until its complete metadata lands or capture latches a failure (a latched
 failure counts as settled so recovery and export appear). The room reads "Saving to project… N of M chunks"
 while finalized WAV totals are known, then "Saved to project" once the file is ACK'd. When a participant has
 several segments, a list shows one "Saving to project…" or "Saved to project" line per segment. Each segment's
@@ -479,7 +480,7 @@ A pending segment is never uploaded automatically; the More sheet offers
 **Download full-quality recording** for every failure mode.
 A stalled or zero-sample keeper remains in OPFS for a single ZIP download
 containing every retained take and segment. Surviving files still export if a
-segment is missing, and Leave is never held indefinitely by an errored upload.
+segment is missing, and neither an errored nor an idle upload holds Leave.
 Lossy host-side backup mix is **not** in audio MVP.
 
 After a fresh status response confirms both `file_ack` and successful timeline
@@ -643,7 +644,7 @@ A participant's keeper within one take is a list of **segments**.
 | Event | Segment | Monitor / upload |
 |-------|---------|------------------|
 | Tunnel / host offline (mic still held) | **Stays open**; WAV keeps growing | Monitor ends; closed segments retry upload; the open one uploads once it closes |
-| Intentional leave, tab close, or lost mic | **Ends** (file frozen, upload continues) | — |
+| Tab close or lost mic | **Ends** (file frozen, upload continues) | — |
 | Host pause | **Ends** for everyone | Monitor stays live |
 | Host returns after ≥ `HOST_OFFLINE_PAUSE_MS` (10 s) while REC | **Forced PAUSED** (`pause_reason: "host_reconnect"` on the `PauseEntry` and live snapshot); host must Resume | Mesh closes that peer's PC and re-offers |
 | Host returns within 10 s while REC | Take stays **recording** (brief WS blip) | Mesh re-offers |
@@ -1199,16 +1200,24 @@ fine." (**Retry**), "You're clipping. Move back a little." (after the third clip
 and "You're muted." (after 10 s of speech while muted). Hidden screen-reader lines
 announce "Recording in full quality on this device.", "Hearing the room.", joins, leaves
 and other people's new notes. **Leave** is held while a take runs ("You can leave after
-this take.") and while the recording saves ("Your recording is still saving"), and says
-why when pressed. A stopped save releases it. Once the file ACK lands the dock reads
-"Saved to project. You can close this page." with **Done**, which leaves the room and
-closes the page where the browser allows. Leave closes this page's room connection, which
+this take."), while this guest's own upload is moving ("Your recording is still
+saving"), while the keeper is still writing the take ("Your recording is still
+finishing") and while room tone records on this device ("Finish or cancel the room tone
+first"). The reason is the button's description at all times, and a press shows it. A
+failed save releases Leave, and so does a saving line with no upload behind it. Once the
+file ACK lands the dock reads "Saved to project. You can close this page." with
+**Done**, which leaves the room and closes the page where the browser allows, and is held
+for the same reasons. Leave closes this page's room connection, which
 the server records as the guest leaving (the host's tile reads Left), and the page shows
 the "You left the room" Cover with **Join again**. Covers replace the room for an invalid
 link, "The room is full" (**Try again**), "Invite link closed", "You left the room"
-(**Join again**), "Your recording didn't finish saving" and "This session has ended". The
-didn't-finish-saving Cover shows **Save my recording** and **Try saving again** only
-once capture has settled and the keeper store offers that action.
+(**Join again**), "Your recording didn't finish saving" and "This session has ended". One
+rule decides what a leaving guest has at stake, from this device and not from consent: a
+capture still finishing reads "Finishing your full-quality recording…" with no "close this
+page" line and no Join again, a recording the keeper store can still save or recover shows
+the didn't-finish-saving Cover with **Save my recording** and **Try saving again**, a
+saved take says it is in the host's project, and anything else says "You can close this
+page."
 
 The upload route enforces consent per take, not just per participant. Each
 take stores `consented_participant_ids`, captured from the currently-consented
