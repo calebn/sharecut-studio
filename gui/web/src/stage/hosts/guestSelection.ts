@@ -17,9 +17,11 @@ export type SelectionModel = {
 
 /**
  * One end of a selection. A word is the same word when its recording, its
- * place in that recording (source seconds, which no cut moves) and its text
- * are: its line and its `word_index` both change when a cut splits a line or
- * renumbers. `ref` and `time` are what the store was given for it.
+ * place in that recording (its source-time start, which a cut does not move)
+ * and its text are: its line and its `word_index` both change when a cut
+ * splits a line or renumbers. A retime, a phrase correction that re-splits, or
+ * the aligner changes the start, so such a word is not found and the selection
+ * is cleared, not followed. `ref` and `time` are what the store was given for it.
  */
 export type SelectionEnd = {
   index: number;
@@ -70,42 +72,63 @@ type Found =
 
 const SAME = 1e-6;
 
-function findEnd(model: SelectionModel, end: SelectionEnd): Found {
-  let held = false;
-  for (let index = 0; index < model.words.length; index++) {
-    const ref = model.refs[index];
-    const word = model.words[index];
-    if (
-      ref?.trackId !== end.trackId ||
-      ref.sourceId !== end.sourceId ||
-      !word ||
-      word.text !== end.text ||
-      Math.abs(word.start - end.start) > SAME
-    )
-      continue;
-    if (model.wordStarts[index] !== null) return { kind: "at", index };
-    held = true;
-  }
-  if (held) return { kind: "wait" };
-  const covered = model.turns.some((turn, at) => {
-    const span = model.spans[at];
-    return (
-      turn.words.length === 0 &&
-      span?.trackId === end.trackId &&
-      span.sourceId === end.sourceId &&
-      span.start - SAME <= end.start &&
-      end.start <= span.end + SAME
-    );
-  });
-  return covered ? { kind: "wait" } : { kind: "gone" };
-}
-
 const sameTime = (a: Time | undefined, b: Time | undefined) =>
   a === b ||
   (!!a &&
     !!b &&
     Math.abs(a.start - b.start) < SAME &&
     Math.abs(a.end - b.end) < SAME);
+
+function matches(
+  model: SelectionModel,
+  end: SelectionEnd,
+  index: number,
+): boolean {
+  const ref = model.refs[index];
+  const word = model.words[index];
+  return (
+    ref?.trackId === end.trackId &&
+    ref.sourceId === end.sourceId &&
+    !!word &&
+    word.text === end.text &&
+    Number.isFinite(word.start) &&
+    Number.isFinite(end.start) &&
+    Math.abs(word.start - end.start) <= SAME
+  );
+}
+
+/**
+ * The one word this end names, or what to do instead. The same recording can
+ * sit twice on the timeline, so the same track, source, start and text may
+ * match more than once: then only the copy that still has the numbers and
+ * times the store holds can be proven to be the one picked.
+ */
+function findEnd(model: SelectionModel, end: SelectionEnd): Found {
+  const live: number[] = [];
+  let held = false;
+  for (let index = 0; index < model.words.length; index++) {
+    if (!matches(model, end, index)) continue;
+    if (model.wordStarts[index] === null) held = true;
+    else live.push(index);
+  }
+  const barred =
+    Number.isFinite(end.start) &&
+    model.turns.some((turn, at) => {
+      const span = model.spans[at];
+      return (
+        turn.words.length === 0 &&
+        span?.trackId === end.trackId &&
+        span.sourceId === end.sourceId &&
+        span.start - SAME <= end.start &&
+        end.start <= span.end + SAME
+      );
+    });
+  // A copy may sit in a line not drawn yet: nothing can be counted.
+  if (barred || held) return { kind: "wait" };
+  if (live.length === 1) return { kind: "at", index: live[0]! };
+  const same = live.filter((index) => holds(model, end, index));
+  return same.length === 1 ? { kind: "at", index: same[0]! } : { kind: "gone" };
+}
 
 /** The store holds numbers and times, not window positions: those decide. */
 function holds(model: SelectionModel, end: SelectionEnd, index: number) {

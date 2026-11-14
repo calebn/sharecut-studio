@@ -250,6 +250,41 @@ describe("a selection is the same word, found by its place in the recording", ()
   });
 });
 
+describe("one recording placed twice on the timeline", () => {
+  const place = (shift: number) =>
+    scriptUtterance("host", "Maya", [
+      scriptWord("yes", 0, 5, {
+        timeline_start: 5 + shift,
+        timeline_end: 5.4 + shift,
+      }),
+      scriptWord("no", 1, 6, {
+        timeline_start: 6 + shift,
+        timeline_end: 6.4 + shift,
+      }),
+    ]);
+  const twice = (a: number, b: number) => [place(a), place(b)];
+
+  it("keeps a pick on the second copy through a refresh and clears it when a cut shifts both", () => {
+    seedScript({
+      projectPath: "share:abc",
+      guestMode: "comment",
+      shareCapabilities: COMMENTER_CAPABILITIES,
+      utterances: twice(0, 30),
+      project: { clips: TWO_LANE_CLIPS },
+    });
+    const rerender = mount(live(twice(0, 30)));
+    drag(2, 3);
+    const picked = stored();
+    expect(picked).toMatchObject({ kind: "transcriptRange" });
+    // Nothing changed for the words: a refresh of the same rows keeps the pick.
+    rerender(live(twice(0, 30)));
+    expect(stored()).toBe(picked);
+    // A cut elsewhere moves both copies on the timeline: which was picked is lost.
+    rerender(live(twice(-5, 25)));
+    expect(stored()).toBeNull();
+  });
+});
+
 describe("a selection over a line that is still held", () => {
   const w = (text: string, n: number, at: number) => scriptWord(text, n, at);
   const row = (words: ReturnType<typeof scriptWord>[]) =>
