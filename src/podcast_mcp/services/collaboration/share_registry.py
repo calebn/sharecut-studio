@@ -266,6 +266,8 @@ class ShareRegistryProtocol(Protocol):
 
     def demote_expired_unresolvable_active(self, *, now: datetime | None = None) -> int: ...
 
+    def known_tokens(self) -> frozenset[str]: ...
+
     def backup_to_new(self, dest: Path) -> Path: ...
 
 
@@ -757,6 +759,18 @@ class SqliteShareRegistry:
             for row in dead:
                 self._reserve_revoked(row, "expired", moment, SHARE_COOLDOWN_DAYS)
             return len(dead)
+
+    def known_tokens(self) -> frozenset[str]:
+        """Every token the registry holds: active, cooldown and pending revoke."""
+        queries = (
+            "SELECT token FROM active_shares",
+            "SELECT token FROM cooldown_shares",
+            "SELECT token FROM pending_revokes",
+        )
+        with self._ready_connection():
+            return frozenset(
+                str(row["token"]) for query in queries for row in self._conn.execute(query)
+            )
 
     def _active_row(self, token: str, project_workspace: str) -> sqlite3.Row | None:
         found: sqlite3.Row | None = self._conn.execute(

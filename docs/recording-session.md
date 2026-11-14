@@ -1484,7 +1484,8 @@ table above. Intentional leave /
 lost mic uses **segments** ([Roster changes](#roster-changes-join-leave-rejoin-pause-takes)).
 Producers simply lose audio and reconnect.
 Guest recording setup and unexpected command failures close with `1011` and
-fixed `internal error`, with the original traceback in host logs. The browser
+fixed `internal error`, with the original traceback in host logs. A host log line names
+the link by its share id (`share=<id>`), never by its token or a prefix of it. The browser
 can reconnect after this transient close. Explicit state and request refusals
 send `code=invalid_state`, safe `detail`, and the domain `error_code`; they leave
 the socket usable, including `project_busy` during command contention. Busy

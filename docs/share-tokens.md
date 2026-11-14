@@ -785,7 +785,7 @@ route answers 400.
   answers carry only `terms`, `guest_names`, `prompt_limit`, `revision` and
   `needs_retranscription`: the show title and the tracks with hand edits are not sent. The
   service stores no author, so only the host log says who saved: an INFO line naming the share
-  (`by=share:<id>`, on the HTTP route and the MCP tool alike; no token prefix is logged).
+  (`by=share:<id>`, on the HTTP route and the MCP tool alike; no token prefix is logged). Guest socket, pump and revoke log lines name a link by its share id the same way, and uvicorn's request and WebSocket lines pass through `gui/log_redaction.py` (#3877).
 - Transcript check: `GET …/refine/status`, `POST …/refine/done` (`notes`,
   `expected_fingerprint`; 409 `transcript_changed` when the transcript no longer matches) and
   `POST …/refine/waive` (`reason`). An Editor's mark clears the host's gate exactly as the
