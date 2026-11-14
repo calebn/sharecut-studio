@@ -22,7 +22,7 @@ def identity(value: os.stat_result) -> Identity:
 
 
 def _check_acl(target: int | str, path: Path) -> None:
-    kernel = host_platform.current().kernel
+    kernel = host_platform.syscall_kernel()
     if kernel == "darwin":
         libc = ctypes.CDLL(None, use_errno=True)
         get_acl = libc.acl_get_fd_np if isinstance(target, int) else libc.acl_get_link_np

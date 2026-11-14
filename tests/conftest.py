@@ -588,23 +588,25 @@ def published_share(
 
 
 @pytest.fixture
-def host() -> Iterator[Callable[[HostPlatform], None]]:
-    """Select a ``HostPlatform`` row for the rest of the test: ``host(WINDOWS)``."""
+def host() -> Iterator[Callable[..., None]]:
+    """Select a ``HostPlatform`` row for the rest of the test: ``host(WINDOWS)``.
+
+    ``host(row, real_syscalls=False)`` is for a test that replaces the syscall layer, so a row of
+    another kernel may reach ``host_platform.syscall_kernel()``.
+    """
     with ExitStack() as stack:
 
-        def select(row: HostPlatform) -> None:
-            stack.enter_context(using(row))
+        def select(row: HostPlatform, *, real_syscalls: bool = True) -> None:
+            stack.enter_context(using(row, real_syscalls=real_syscalls))
 
         yield select
 
 
 @pytest.fixture
-def pinned_media_fallback(
-    monkeypatch: pytest.MonkeyPatch, host: Callable[[HostPlatform], None]
-) -> None:
+def pinned_media_fallback(monkeypatch: pytest.MonkeyPatch, host: Callable[..., None]) -> None:
     """Route ``open_pinned_media`` through its Windows path fallback on any OS."""
     monkeypatch.setattr(os, "supports_dir_fd", set())
-    host(WINDOWS)
+    host(WINDOWS, real_syscalls=False)
     assert not pinned_media.descriptor_walk_supported()
 
 

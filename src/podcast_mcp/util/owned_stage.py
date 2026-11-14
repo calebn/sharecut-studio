@@ -21,7 +21,7 @@ from podcast_mcp.util.pinned_media import descriptor_walk_supported, open_nofoll
 
 def owned_stage_supported() -> bool:
     return (
-        host_platform.current().kernel in ("linux", "darwin")
+        host_platform.syscall_kernel() in ("linux", "darwin")
         and descriptor_walk_supported()
         and os.stat in os.supports_dir_fd
         and os.mkdir in os.supports_dir_fd

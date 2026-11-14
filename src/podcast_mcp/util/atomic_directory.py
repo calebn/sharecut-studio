@@ -11,7 +11,7 @@ def rename_noreplace(src: str, dst: str, root_fd: int, *, dst_root_fd: int | Non
     """Atomically promote or restore a directory without replacing its destination."""
     destination_fd = root_fd if dst_root_fd is None else dst_root_fd
     libc = ctypes.CDLL(None, use_errno=True)
-    kernel = host_platform.current().kernel
+    kernel = host_platform.syscall_kernel()
     if kernel == "linux":
         operation = getattr(libc, "renameat2", None)
         if operation is None:
