@@ -76,6 +76,8 @@ ASR_CACHE_LOCK_TIMEOUT_SEC = 10.0
 _T = TypeVar("_T")
 # A bare "out of memory" is left out: the host raises it too, and the CPU needs more host memory.
 _GPU_ERROR = re.compile(r"cuda|cublas|cudnn|\bgpu\b", re.IGNORECASE)
+# Seed for the fallback-temperature sampler, so decoding the same audio twice gives the same words (#2530).
+DECODE_SEED = 1
 # The probe's loop ratio is faster-whisper's own compression_ratio_threshold.
 _PROBE_MAX_NEW_TOKENS = 32
 _PROBE_LOOP_RATIO = 2.4
@@ -531,6 +533,7 @@ class TranscriptionEngine:
             options if options is not None else AsrOptions.from_defaults(defaults=defaults)
         )
         self._model = None
+        self._model_is_ours = False
         # Job labels whose silence filter could not decode the audio (step summary).
         self.silence_filter_skipped: list[str] = []
         # Per-job forced-alignment outcomes (transcribe.forced_alignment); read by the step summary.
@@ -549,8 +552,13 @@ class TranscriptionEngine:
 
     def _get_model(self):
         if self._model is None:
+            import ctranslate2
             from faster_whisper import WhisperModel
 
+            # The fallback sampler's generator lives in the model's worker threads and takes
+            # this seed when they start, so a model loaded now decodes the same way every time.
+            ctranslate2.set_random_seed(DECODE_SEED)
+            self._model_is_ours = True
             try:
                 model_path = resolve_whisper_model_path(self.model_size)
             except WhisperWeightsMissingError:
@@ -568,6 +576,12 @@ class TranscriptionEngine:
                 self._fall_back_to_cpu(f"the GPU model would not load ({exc})", exc)
                 self._model = self._load_model(WhisperModel, model_path, CPU_PLACEMENT)
         return self._model
+
+    def _release_decode_model(self) -> None:
+        """Drop a model this engine loaded, so the next file decodes from a freshly seeded one."""
+        if self._model_is_ours:
+            self._model = None
+            self._model_is_ours = False
 
     def _choose_placement(self) -> WhisperPlacement:
         if self.placement is None:
@@ -691,6 +705,7 @@ class TranscriptionEngine:
         """
         clone = copy.copy(self)
         clone._model = None
+        clone._model_is_ours = False
         clone._loop_drop = None
         if clone.cpu_threads is None:
             clone.cpu_threads = default_cpu_threads
@@ -879,16 +894,19 @@ class TranscriptionEngine:
         progress_label: str | None = None,
         progress_task_id: str = "transcribe_audio",
     ) -> Transcript:
-        return self._with_cpu_fallback(
-            lambda: self._transcribe_file(
-                audio_path,
-                language,
-                initial_prompt=initial_prompt,
-                max_word_sec=max_word_sec,
-                progress_label=progress_label,
-                progress_task_id=progress_task_id,
+        try:
+            return self._with_cpu_fallback(
+                lambda: self._transcribe_file(
+                    audio_path,
+                    language,
+                    initial_prompt=initial_prompt,
+                    max_word_sec=max_word_sec,
+                    progress_label=progress_label,
+                    progress_task_id=progress_task_id,
+                )
             )
-        )
+        finally:
+            self._release_decode_model()
 
     def _transcribe_file(
         self,
