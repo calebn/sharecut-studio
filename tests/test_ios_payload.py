@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import copy
 import io
+import os
 import struct
 import zipfile
 from pathlib import Path
@@ -499,3 +500,74 @@ def test_a_cached_tree_is_trusted_only_while_its_recorded_digest_matches(tmp_pat
     assert payload.intact(record, lambda: payload.tree_digest(tree))
     (tree / "lib/extra.py").write_text("y = 2\n")
     assert not payload.intact(record, lambda: payload.tree_digest(tree))
+
+
+def _fake_rustup(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, *, targets: list[str]) -> Path:
+    bin_dir = tmp_path / "toolchain" / "bin"
+    bin_dir.mkdir(parents=True)
+    for target in targets:
+        (tmp_path / "toolchain" / "lib" / "rustlib" / target).mkdir(parents=True)
+    rustc = bin_dir / "rustc"
+    rustc.write_text("#!/bin/sh\necho 'rustc 1.99.0 (rustup)'\n")
+    rustc.chmod(0o755)
+    shims = tmp_path / "shims"
+    shims.mkdir()
+    rustup = shims / "rustup"
+    rustup.write_text(f"#!/bin/sh\necho {rustc}\n")
+    rustup.chmod(0o755)
+    monkeypatch.setenv("PATH", str(shims))
+    return bin_dir
+
+
+def test_the_rustup_toolchain_is_found_when_it_has_the_ios_target(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    bin_dir = _fake_rustup(tmp_path, monkeypatch, targets=["aarch64-apple-ios-sim"])
+    assert payload.rustup_toolchain_bin("aarch64-apple-ios-sim") == bin_dir
+
+
+def test_a_toolchain_without_the_ios_target_names_the_command_that_adds_it(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _fake_rustup(tmp_path, monkeypatch, targets=["aarch64-apple-ios"])
+    with pytest.raises(payload.PayloadError, match=r"rustup target add aarch64-apple-ios-sim$"):
+        payload.rustup_toolchain_bin("aarch64-apple-ios-sim")
+
+
+def test_a_machine_without_rustup_gets_a_plain_error(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("PATH", str(tmp_path))
+    with pytest.raises(payload.PayloadError, match="rustup is not installed"):
+        payload.rustup_toolchain_bin("aarch64-apple-ios-sim")
+
+
+def test_a_build_runs_the_rustup_rustc_even_when_another_rustc_comes_first(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    toolchain = _fake_rustup(tmp_path, monkeypatch, targets=["aarch64-apple-ios-sim"])
+    homebrew = tmp_path / "homebrew"
+    homebrew.mkdir()
+    stale = homebrew / "rustc"
+    stale.write_text("#!/bin/sh\necho 'rustc 1.00.0 (homebrew)'\n")
+    stale.chmod(0o755)
+    monkeypatch.setenv("PATH", f"{homebrew}{os.pathsep}{os.environ['PATH']}")
+    seen: dict[str, str] = {}
+    monkeypatch.setattr(payload, "load_plan", lambda _contract: ("", object()))
+    monkeypatch.setattr(payload, "check_engine_requirements", lambda *_args: None)
+    monkeypatch.setattr(payload, "engine_requirements", lambda: [])
+    monkeypatch.setattr(payload, "read_manifest", lambda: None)
+    monkeypatch.setattr(
+        payload, "build", lambda _c, _s, _p, _d, rustc: seen.setdefault("rustc", rustc)
+    )
+    assert payload.main(["--ensure", "--sdk", "iphonesimulator"]) == 0
+    assert seen["rustc"] == "rustc 1.99.0 (rustup)"
+    assert os.environ["PATH"].split(os.pathsep)[0] == str(toolchain)
+
+
+def test_the_toolchain_bin_mode_prints_the_directory_for_the_shell_script(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    toolchain = _fake_rustup(tmp_path, monkeypatch, targets=["aarch64-apple-ios-sim"])
+    assert payload.main(["--toolchain-bin", "--sdk", "iphonesimulator"]) == 0
+    assert capsys.readouterr().out == f"{toolchain}\n"

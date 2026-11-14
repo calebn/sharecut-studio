@@ -3,7 +3,10 @@
 from __future__ import annotations
 
 import json
+import os
 import re
+import shutil
+import subprocess
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -80,3 +83,29 @@ def test_the_retry_control_is_never_displayed_while_hidden() -> None:
     rules = re.findall(r"([^{}]+)\{([^{}]*)\}", style.group(1))
     displaying = [sel.strip() for sel, body in rules if "display:" in body and "retry" in sel]
     assert displaying == [".retry:not([hidden])"]
+
+
+def test_the_simulator_script_ensures_the_payload_before_the_xcode_project_is_generated(
+    tmp_path: Path,
+) -> None:
+    root = tmp_path / "checkout"
+    script = root / "scripts/ios/ios_sim.sh"
+    script.parent.mkdir(parents=True)
+    shutil.copy(ROOT / "scripts/ios/ios_sim.sh", script)
+    for module in ("gui/web", "gui/desktop"):
+        (root / module / "node_modules").mkdir(parents=True)
+    calls = tmp_path / "calls.log"
+    fakes = tmp_path / "fakes"
+    fakes.mkdir()
+    for tool in ("uv", "npm"):
+        shim = fakes / tool
+        shim.write_text(f'#!/bin/sh\necho "{tool} $*" >> {calls}\necho "{fakes}"\n')
+        shim.chmod(0o755)
+    env = {**os.environ, "PATH": f"{fakes}{os.pathsep}{os.environ['PATH']}"}
+    subprocess.run(["bash", str(script), "build"], env=env, check=True, capture_output=True)
+    steps = calls.read_text().splitlines()
+    ensure = next(i for i, s in enumerate(steps) if "build_payload.py --ensure" in s)
+    init = next(i for i, s in enumerate(steps) if "ios init" in s)
+    build = next(i for i, s in enumerate(steps) if "ios build" in s)
+    assert ensure < init < build
+    assert all("--sdk iphonesimulator" in s for s in steps if "build_payload.py" in s)
