@@ -505,6 +505,10 @@ with axe before the collected results are asserted.
 | A restores the original when the window loses focus | `gui/web/e2e-compat/hold-a-original.spec.ts` | Core flow | Pass | Pass | Not run |
 | A restores the original when the tab is hidden | `gui/web/e2e-compat/hold-a-original.spec.ts` | Core flow | Pass | Pass | Not run |
 | the guest keep-alive loads from a blob under the page CSP | `gui/web/e2e-compat/guest-keep-alive.spec.ts` | Audio playback | Pass | Pass | Not run |
+| a scrolled reader's word stays where it was through a host cut above it | `gui/web/e2e-compat/guest-transcript-reading.spec.ts` | CSS / layout | Pass | Pass | Not run |
+| a following guest, paused, keeps its view still while the Script refreshes | `gui/web/e2e-compat/guest-transcript-reading.spec.ts` | CSS / layout | Pass | Pass | Not run |
+| a following guest, playing, keeps its view still while the Script refreshes | `gui/web/e2e-compat/guest-transcript-reading.spec.ts` | CSS / layout | Pass | Pass | Not run |
+| a following guest holds its view still through a second refresh, wherever the playhead went | `gui/web/e2e-compat/guest-transcript-reading.spec.ts` | CSS / layout | Pass | Pass | Not run |
 
 Two compat Chromium specs have exact main Chromium owners:
 
