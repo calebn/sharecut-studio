@@ -4,7 +4,7 @@ import json
 from pathlib import Path
 
 from podcast_mcp.config.defaults import load_defaults
-from podcast_mcp.mcp.tools import transcript
+from podcast_mcp.mcp.tools import timeline, transcript
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.document import AnalysisService
 from podcast_mcp.services.pipeline.preview import rerender_preview
@@ -43,7 +43,7 @@ def test_declining_mcp_preview_is_saved_and_respected_on_default_gate(tmp_path):
         )
     )
     decision_id = preview["proposals"][0]["decision_id"]
-    transcript.set_retained_bleed_alignment_mode_tool(
+    timeline.set_retained_bleed_alignment_mode_tool(
         str(ws.path), decision_id, "declined", track_id="uncertain", start_sec=0.8, end_sec=3.5
     )
     reopened = ProjectWorkspace.open(ws.path)

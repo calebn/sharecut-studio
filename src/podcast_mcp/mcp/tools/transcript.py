@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import asdict
-from typing import Any, Literal
+from typing import Any
 
 from mcp.server import MCPServer
 
@@ -694,35 +694,6 @@ def align_retained_bleed_tool(
     )
 
 
-def set_retained_bleed_alignment_mode_tool(
-    project_path: str,
-    decision_id: str,
-    mode: Literal["auto", "manual", "declined"],
-    track_id: str | None = None,
-    start_sec: float | None = None,
-    end_sec: float | None = None,
-    override_placement_lock: bool = False,
-) -> str:
-    """Save a timing choice for an applied decision or a proposal from the same window.
-
-    Manual and declined choices prevent later automatic correction; auto resets that choice.
-    """
-    return to_json(
-        submit_host_command_result(
-            project_path,
-            "SetBleedAlignmentMode",
-            {
-                "decision_id": decision_id,
-                "mode": mode,
-                "track_id": track_id,
-                "start_sec": start_sec,
-                "end_sec": end_sec,
-                "override_placement_lock": override_placement_lock,
-            },
-        )
-    )
-
-
 def register(mcp: MCPServer) -> None:
     """Register transcript tools on the MCP server."""
     mutating = {
@@ -736,7 +707,6 @@ def register(mcp: MCPServer) -> None:
         apply_low_audibility_suppression_tool,
         reconcile_transcript_tool,
         apply_bleed_suppression_tool,
-        set_retained_bleed_alignment_mode_tool,
     }
     mcp.tool()(transcribe_track)
     mcp.tool()(get_transcript)
@@ -773,6 +743,5 @@ def register(mcp: MCPServer) -> None:
         apply_transcript_gate_tool,
         mute_off_speaker_tool,
         align_retained_bleed_tool,
-        set_retained_bleed_alignment_mode_tool,
     ):
         mcp.tool()(notify_after_mutation(fn) if fn in mutating else fn)
