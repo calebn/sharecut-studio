@@ -1,4 +1,3 @@
-import type { SystemIconName } from "./system/icons";
 import { ApiError } from "./utils/apiError";
 
 /**
@@ -22,7 +21,7 @@ export type GuestLoadFailure =
   | { kind: "rate-limited"; retryAfterSec: number | null };
 
 export type GuestLoadCover = {
-  glyph: SystemIconName;
+  glyph: "moon" | "triangle-alert" | "unlink";
   title: string;
   sentence: string;
   /** The cover's one button, or null when nothing a guest does here helps. */
