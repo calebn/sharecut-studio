@@ -292,6 +292,21 @@ describe("rowOutcome", () => {
     expect(rowOutcome(job, "clean")?.state).toBe("queued");
   });
 
+  it("keeps Line up tracks running between the bed finishing and the merge starting", () => {
+    const job = pipelineJobSnapshot({
+      status: "running",
+      steps: [
+        step("ingest_tracks", "ok"),
+        step("transcribe_tracks", "ok"),
+        step("align_tracks", "ok"),
+        step("require_align_accept", "ok"),
+        step("extract_room_tone_beds", "ok"),
+      ],
+    });
+    expect(rowOutcome(job, "align")?.state).toBe("running");
+    expect(rowOutcome(job, "clean")?.state).toBe("queued");
+  });
+
   it("moves from Line up tracks to Clean once, when gate fill starts", () => {
     const job = pipelineJobSnapshot({
       status: "running",
@@ -1794,6 +1809,23 @@ describe("successful selected work", () => {
     });
     expect(readySummary(rows)).toBe("Getting ready: selected work finished");
     expect(phaseFor(rows).phase).toBe("done");
+  });
+
+  it("keeps the engine's bed summary out of the Clean detail", () => {
+    const rows = rowsFor(
+      selected([
+        step("extract_room_tone_beds", "ok", {
+          summary: "2 beds extracted (a 3.1 s, b 2.0 s); 0 kept; 0 absent",
+        }),
+        step("fill_gate_holes", "ok", { summary: "4 holes filled" }),
+        step("clean_audio", "ok"),
+        step("compress_tracks", "ok"),
+        step("balance_tracks", "ok"),
+        step("assemble_timeline", "ok"),
+      ]),
+      { approximateTiming: null },
+    );
+    expect(rows[3].detail).toBe("4 holes filled");
   });
 
   it("does not count a no-op bed as Clean work", () => {
