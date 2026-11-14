@@ -141,8 +141,7 @@ export async function withGuest(
       const log = logGuestRequests(page);
       await openGuestShare(page, token);
       await expect(page.locator(WORD).first()).toBeVisible({ timeout: 20_000 });
-      // Let the first detail hydrate and any follow-up settle.
-      await page.waitForTimeout(800);
+      await settled(page);
       await run({ page, projectPath, detail, log });
     } finally {
       await context.close();
@@ -234,6 +233,44 @@ export function expectNoBlankFrame(
   ).toBe(0);
 }
 
+/** Nothing is refreshing and what was last drawn has been painted (two frames). */
+export async function settled(page: Page): Promise<void> {
+  await expect(page.locator(SECTION)).not.toHaveAttribute("aria-busy", "true", {
+    timeout: 15_000,
+  });
+  await painted(page);
+}
+
+export async function painted(page: Page): Promise<void> {
+  await page.evaluate(
+    () =>
+      new Promise<void>((resolve) =>
+        requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
+      ),
+  );
+}
+
+/** The Script body has not scrolled for three animation frames. */
+export async function scrollIdle(page: Page): Promise<void> {
+  await page.evaluate(
+    (selector) =>
+      new Promise<void>((resolve) => {
+        const body = document.querySelector(selector);
+        let last = body?.scrollTop;
+        let still = 0;
+        const tick = () => {
+          const now = body?.scrollTop;
+          still = now === last ? still + 1 : 0;
+          last = now;
+          if (still >= 3) resolve();
+          else requestAnimationFrame(tick);
+        };
+        requestAnimationFrame(tick);
+      }),
+    BODY,
+  );
+}
+
 export async function frames(
   guest: Guest,
   host: Page,
@@ -250,7 +287,7 @@ export async function frames(
     await hostEdit(host, guest.projectPath, edit, n, startSec);
   }
   await detail;
-  await guest.page.waitForTimeout(800);
+  await settled(guest.page);
   return { frames: await stopWatch(guest.page), from };
 }
 
