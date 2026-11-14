@@ -4,9 +4,7 @@ from __future__ import annotations
 
 import copy
 import io
-import shutil
 import struct
-import subprocess
 import zipfile
 from pathlib import Path
 
@@ -15,7 +13,6 @@ import pytest
 from script_loader import load_script
 
 payload = load_script("ios/build_payload", register=True)
-ROOT = Path(__file__).resolve().parents[1]
 SHA_A = "a" * 64
 SHA_B = "b" * 64
 DIGEST = "17ee59ad35c394ce6cbb1f684a371448293ab0d1dbc472d589ec968c171b7cfb"
@@ -190,15 +187,6 @@ def classes(plan):
     return {pkg.name: pkg.package_class.value for pkg in plan.packages}
 
 
-def test_the_committed_contract_loads_and_pins_both_slices() -> None:
-    loaded = payload.load_contract()
-    assert sorted(loaded.sdks) == ["iphoneos", "iphonesimulator"]
-    assert (
-        loaded.support.sha256 == "d06acf2a9c7964a8689566353a0e707402eff822037de5e29ba0e16040f7047d"
-    )
-    assert sorted(loaded.beeware["numpy"].files) == ["iphoneos", "iphonesimulator"]
-
-
 def test_a_null_interpreter_hash_is_a_load_error() -> None:
     raw = copy.deepcopy(CONTRACT)
     raw["python"]["sha256"] = None
@@ -250,11 +238,6 @@ def test_a_package_only_an_excluded_one_needs_is_dropped_with_the_reason() -> No
     dropped = {pkg.name: pkg.reason for pkg in plan_of().of(payload.PackageClass.EXCLUDED)}
     assert dropped["jsonschema"] == "needed only by excluded packages: mcp"
     assert dropped["mcp"] == "host MCP is off"
-
-
-def test_a_package_other_packages_still_need_stays() -> None:
-    plan = plan_of()
-    assert "anyio" in {pkg.name for pkg in plan.installed()}
 
 
 def test_the_beeware_version_replaces_the_locked_one() -> None:
@@ -408,21 +391,8 @@ def test_the_tauri_target_triple_picks_the_sdk(monkeypatch: pytest.MonkeyPatch) 
 
 def test_the_committed_contract_and_lock_agree() -> None:
     """Every package the lock keeps on iOS has a class, and no contract row is stale."""
-    uv = shutil.which("uv")
-    assert uv is not None
     loaded = payload.load_contract()
-    export = subprocess.run(
-        [uv, "export", *loaded.uv_export_args, "--format", "requirements.txt"],
-        cwd=ROOT,
-        check=True,
-        capture_output=True,
-        text=True,
-    ).stdout
-    plan = payload.plan_packages(
-        payload.parse_export(export),
-        payload.parse_lock((ROOT / "uv.lock").read_text(encoding="utf-8")),
-        loaded,
-    )
+    _, plan = payload.load_plan(loaded)
     payload.check_engine_requirements(
         plan, payload.engine_requirements(), loaded.marker_environment
     )

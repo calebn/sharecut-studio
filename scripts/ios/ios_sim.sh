@@ -16,7 +16,7 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 DESKTOP="$ROOT/gui/desktop"
 TAURI="$DESKTOP/src-tauri"
 DEVICE="${IOS_SIM_DEVICE:-booted}"
-LOG_DIR="${IOS_SIM_LOG_DIR:-$ROOT/gui/desktop/src-tauri/target/ios-sim-logs}"
+LOG_DIR="$TAURI/target/ios-sim-logs"
 
 # Homebrew's rustc has no iOS standard library; the rustup toolchain must come first.
 if command -v rustup >/dev/null 2>&1; then
@@ -61,7 +61,6 @@ launch() {
 proof() {
   (cd "$ROOT" && uv run python scripts/ios/sim_proof.py --device "$DEVICE" \
     --app "$(app_path)" --bundle-id "$(bundle_identifier)" \
-    ${IOS_SIM_PROOF_DIR:+--evidence-dir "$IOS_SIM_PROOF_DIR"} \
     ${IOS_SIM_UI_WINDOW:+--ui-window "$IOS_SIM_UI_WINDOW"})
 }
 
@@ -70,5 +69,5 @@ case "${1:-run}" in
   build) build; app_path ;;
   launch) launch ;;
   run) build; launch ;;
-  *) echo "usage: ios_sim.sh run|build|launch" >&2; exit 2 ;;
+  *) echo "usage: ios_sim.sh run|build|launch|proof" >&2; exit 2 ;;
 esac
