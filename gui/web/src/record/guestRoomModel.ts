@@ -348,10 +348,12 @@ function guestStake(
   if (!device.captureSettled) {
     return "finishing";
   }
-  if (device.keeperActions.download || device.keeperActions.recover) {
-    return "unsent";
+  if (phase.kind === "saved") {
+    return "saved";
   }
-  return phase.kind === "saved" ? "saved" : "none";
+  return device.keeperActions.download || device.keeperActions.recover
+    ? "unsent"
+    : "none";
 }
 
 type CoverSource = {

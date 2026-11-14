@@ -142,6 +142,31 @@ describe("GuestCovers", () => {
     expect(download).toHaveBeenCalledOnce();
   });
 
+  it("tells a saved guest it is saved while the local copy waits to be reclaimed", () => {
+    show(
+      {
+        left: true,
+        snapshot: recordSnapshot({ participants: [host], take_index: 0 }),
+        keeperActions: {
+          busy: false,
+          error: null,
+          notice: null,
+          download: vi.fn(),
+          recover: vi.fn(),
+        },
+      },
+      { phase: { kind: "saved" } },
+    );
+    expect(
+      screen.getByText(
+        "Your recording is saved to Hana's project. You can close this page.",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Save my recording" }),
+    ).toBeNull();
+  });
+
   it("does not say the page can close while capture is still finishing", () => {
     show(
       { left: true, captureSettled: false },
