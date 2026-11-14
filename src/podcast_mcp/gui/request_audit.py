@@ -1,9 +1,9 @@
 """A debug-build request log for the embedded engine (#3810).
 
 One line per request: the method, the path without its query string and with any share-link
-token replaced, the response status and whether the query string was empty. A WebSocket accept is one line with the method ``WEBSOCKET``
-and status 101. No query string, header, cookie or body is read, so the single-use exchange code
-never reaches the file. It runs only when ``PODCAST_ENGINE_DEBUG_BUILD`` and
+token replaced, the response status and whether the query string was empty. A WebSocket accept
+is one line with the method ``WEBSOCKET`` and status 101. No query string, header, cookie or
+body is read, so the single-use exchange code never reaches the file. It runs only when ``PODCAST_ENGINE_DEBUG_BUILD`` and
 ``PODCAST_ENGINE_REQUEST_AUDIT`` are both ``1``, which the iOS host sets only in a debug build
 (docs/desktop-packaging.md § iOS app).
 """

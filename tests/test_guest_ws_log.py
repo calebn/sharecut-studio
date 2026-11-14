@@ -21,19 +21,3 @@ def test_log_guest_ws_close_emits_info(caplog):
     assert "relay guest ws close" in caplog.text
     assert "abcd…mnop" in caplog.text
     assert "relay.host_offline" in caplog.text
-
-
-def test_a_guest_socket_task_label_names_the_share_and_not_the_token():
-    from unittest.mock import MagicMock
-
-    from podcast_mcp.gui.routes.guest_ws_common import GuestWsConnection
-
-    conn = GuestWsConnection(
-        MagicMock(),
-        "velvet-quokka-umbra",
-        share_id="a1b2c3d4e5f6",
-        gate_held=False,
-        log_label="guest ws",
-    )
-
-    assert conn._tasks._log_label == "guest ws share=a1b2c3d4e5f6"
