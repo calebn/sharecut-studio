@@ -15,6 +15,11 @@ the last read parses nothing; only the job state and the delivered date
 are looked up per request. The list is read-modify-written under a process lock only: two
 processes that record at once can drop each other's entry, but the file is never left half
 written.
+
+A path is stored absolute, except on a host whose home is an app container (iOS), where the
+container's absolute path changes on every reinstall or update: a project under that home is
+stored relative to it and made absolute again on read. :func:`_stored_form` and
+:func:`_absolute_form` are the only two places that know this; everything else sees absolute paths.
 """
 
 from __future__ import annotations
@@ -90,6 +95,28 @@ def recent_projects_path() -> Path:
     return settings.config_dir() / RECENT_FILENAME
 
 
+def _container_root() -> Path | None:
+    """The app container this process lives in, or None on a host whose paths never move."""
+    return Path.home().resolve() if host_platform.current().app_container else None
+
+
+def _stored_form(absolute: str) -> str:
+    root = _container_root()
+    if root is None:
+        return absolute
+    try:
+        return Path(absolute).relative_to(root).as_posix()
+    except ValueError:
+        return absolute
+
+
+def _absolute_form(stored: str) -> str:
+    root = _container_root()
+    if root is None or os.path.isabs(stored):
+        return stored
+    return str(root / stored)
+
+
 def _parse(raw: object) -> list[RecentEntry]:
     items = raw.get("projects") if isinstance(raw, dict) else None
     if not isinstance(items, list):
@@ -100,7 +127,10 @@ def _parse(raw: object) -> list[RecentEntry]:
         if not isinstance(item, dict):
             continue
         path, opened_at = item.get("path"), item.get("opened_at")
-        if not isinstance(path, str) or not path or path in seen or path != _clean(path):
+        if not isinstance(path, str) or not path or path != _clean(path):
+            continue
+        path = _absolute_form(path)
+        if path in seen:
             continue
         seen.add(path)
         entries.append(RecentEntry(path, opened_at if isinstance(opened_at, str) else ""))
@@ -138,7 +168,10 @@ def read_recent() -> list[RecentEntry]:
 
 def _write(entries: list[RecentEntry]) -> None:
     body = json.dumps(
-        {"version": 1, "projects": [{"path": e.path, "opened_at": e.opened_at} for e in entries]},
+        {
+            "version": 1,
+            "projects": [{"path": _stored_form(e.path), "opened_at": e.opened_at} for e in entries],
+        },
         indent=2,
     )
     atomic_write(recent_projects_path(), lambda fh: fh.write(body.encode("utf-8")))
