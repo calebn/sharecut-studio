@@ -1,7 +1,6 @@
 import type { CoverProps } from "../system/Cover";
 import type { RoomPhase } from "../system/roomPhase";
 
-/** Tab text per pill phase. A new RoomPhase kind fails the build here. */
 const PHASE_TAB: Record<RoomPhase["kind"], string> = {
   waiting: "Waiting",
   countdown: "Stay quiet",

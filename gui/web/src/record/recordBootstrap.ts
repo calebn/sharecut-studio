@@ -21,7 +21,6 @@ export type RecordBootstrap = {
 /** Why `/rec/<token>` did not open. Carries no error text. */
 export type BootFailure = "not-found" | "network" | "server";
 
-/** One settled bootstrap request. Exactly one side is set. */
 export type BootOutcome =
   | { bootstrap: RecordBootstrap; failure: null }
   | { bootstrap: null; failure: BootFailure };
