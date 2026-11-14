@@ -11,6 +11,7 @@ import stat
 import sys
 from datetime import UTC, datetime, timedelta, timezone
 from pathlib import Path
+from typing import NamedTuple
 
 import pytest
 from scripts.ios import bundle_checks as checks
@@ -1226,81 +1227,68 @@ def test_an_unreachable_validate_records_a_finished_row_and_blocks_nothing(
     assert record.unresolved_uploads(record.ipa_sha256) == []
 
 
+class Answer(NamedTuple):
+    """What altool printed, and the verdict ``validate`` reads from it (it is looser than upload)."""
+
+    code: int
+    text: str
+    validate: str
+
+    @property
+    def altool(self) -> tuple[int, str]:
+        return self.code, self.text
+
+
 NO_ANSWER = {
-    "killed-9": (-9, ""),
-    "killed-15": (-15, ""),
-    "exit-137": (137, ""),
-    "ssl-handshake": (1, "SSL error: handshake failed"),
-    "broken-pipe": (1, "Broken pipe"),
-    "unexpected-eof": (1, "Unexpected EOF"),
-    "dns": (1, "nodename nor servname provided, or not known"),
-    "dns-resolve": (1, "Could not resolve host: contentdelivery.itunes.apple.com"),
-    "proxy-502-html": (1, "<html><body><h1>Proxy Error 502 Bad Gateway</h1></body></html>"),
-    "proxy-503-text": (1, "Service Unavailable (503)"),
-    "server-500": (1, "Server error 500"),
-    "network-with-403": (1, "network error contacting the server, status 403"),
-    "empty-nonzero": (1, ""),
-    "exit-0-no-answer": (0, ""),
-    "exit-0-text": (0, "uploading... done"),
-    "structured-transport": (1, altool_error("An SSL error occurred (NSURLErrorDomain -1200)")),
-    "structured-hostname": (
-        1,
-        altool_error("A server with the specified hostname could not be found."),
+    "killed-9": Answer(-9, "", "rejected"),
+    "killed-15": Answer(-15, "", "rejected"),
+    "exit-137": Answer(137, "", "rejected"),
+    "ssl-handshake": Answer(1, "SSL error: handshake failed", "rejected"),
+    "broken-pipe": Answer(1, "Broken pipe", "rejected"),
+    "unexpected-eof": Answer(1, "Unexpected EOF", "rejected"),
+    "dns": Answer(1, "nodename nor servname provided, or not known", "rejected"),
+    "dns-resolve": Answer(
+        1, "Could not resolve host: contentdelivery.itunes.apple.com", "rejected"
     ),
-    "structured-500": (1, altool_error("Internal Server Error (500)")),
-    "structured-posix": (
+    "proxy-502-html": Answer(
+        1, "<html><body><h1>Proxy Error 502 Bad Gateway</h1></body></html>", "rejected"
+    ),
+    "proxy-503-text": Answer(1, "Service Unavailable (503)", "rejected"),
+    "server-500": Answer(1, "Server error 500", "rejected"),
+    "network-with-403": Answer(1, "network error contacting the server, status 403", "auth_failed"),
+    "empty-nonzero": Answer(1, "", "rejected"),
+    "exit-0-no-answer": Answer(0, "", "ok"),
+    "exit-0-text": Answer(0, "uploading... done", "ok"),
+    "structured-transport": Answer(
+        1, altool_error("An SSL error occurred (NSURLErrorDomain -1200)"), "rejected"
+    ),
+    "structured-hostname": Answer(
+        1, altool_error("A server with the specified hostname could not be found."), "rejected"
+    ),
+    "structured-500": Answer(1, altool_error("Internal Server Error (500)"), "rejected"),
+    "structured-posix": Answer(
         1,
         altool_error("The operation couldn't be completed. (NSPOSIXErrorDomain error 54.)"),
+        "rejected",
     ),
-    "structured-apple-code-with-transport": (1, apple_error("ITMS-90000 proxy error")),
-    "empty-entry": (1, '{"product-errors": [{}]}'),
-    "malformed-string": (1, '{"product-errors": "boom"}'),
-    "malformed-int": (1, '{"product-errors": 5}'),
-    "malformed-int-exit-0": (0, '{"product-errors": 5}'),
-    "malformed-dict": (1, '{"product-errors": {"a": 1}}'),
-    "malformed-string-entry": (1, '{"product-errors": ["boom"]}'),
-    "malformed-null-entry": (1, '{"product-errors": [null]}'),
-    "malformed-user-info": (1, '{"product-errors": [{"userInfo": "x"}]}'),
-    "json-list": (0, "[]"),
-    "json-list-exit-1": (1, "[]"),
-    "json-scalar": (0, "5"),
-    "warning-before-truncated-json": (0, 'warning: slow\n{"tool-version": "26.10.1", "succ'),
-    "text-after-json": (0, ALTOOL_OK + "\nuploaded"),
-}
-VALIDATE_VERDICT = {
-    "killed-9": "rejected",
-    "killed-15": "rejected",
-    "exit-137": "rejected",
-    "ssl-handshake": "rejected",
-    "broken-pipe": "rejected",
-    "unexpected-eof": "rejected",
-    "dns": "rejected",
-    "dns-resolve": "rejected",
-    "proxy-502-html": "rejected",
-    "proxy-503-text": "rejected",
-    "server-500": "rejected",
-    "network-with-403": "auth_failed",
-    "empty-nonzero": "rejected",
-    "exit-0-no-answer": "ok",
-    "exit-0-text": "ok",
-    "structured-transport": "rejected",
-    "structured-hostname": "rejected",
-    "structured-500": "rejected",
-    "structured-posix": "rejected",
-    "structured-apple-code-with-transport": "rejected",
-    "empty-entry": "rejected",
-    "malformed-string": "rejected",
-    "malformed-int": "rejected",
-    "malformed-int-exit-0": "ok",
-    "malformed-dict": "rejected",
-    "malformed-string-entry": "rejected",
-    "malformed-null-entry": "rejected",
-    "malformed-user-info": "rejected",
-    "json-list": "ok",
-    "json-list-exit-1": "rejected",
-    "json-scalar": "ok",
-    "warning-before-truncated-json": "ok",
-    "text-after-json": "rejected",
+    "structured-apple-code-with-transport": Answer(
+        1, apple_error("ITMS-90000 proxy error"), "rejected"
+    ),
+    "empty-entry": Answer(1, '{"product-errors": [{}]}', "rejected"),
+    "malformed-string": Answer(1, '{"product-errors": "boom"}', "rejected"),
+    "malformed-int": Answer(1, '{"product-errors": 5}', "rejected"),
+    "malformed-int-exit-0": Answer(0, '{"product-errors": 5}', "ok"),
+    "malformed-dict": Answer(1, '{"product-errors": {"a": 1}}', "rejected"),
+    "malformed-string-entry": Answer(1, '{"product-errors": ["boom"]}', "rejected"),
+    "malformed-null-entry": Answer(1, '{"product-errors": [null]}', "rejected"),
+    "malformed-user-info": Answer(1, '{"product-errors": [{"userInfo": "x"}]}', "rejected"),
+    "json-list": Answer(0, "[]", "ok"),
+    "json-list-exit-1": Answer(1, "[]", "rejected"),
+    "json-scalar": Answer(0, "5", "ok"),
+    "warning-before-truncated-json": Answer(
+        0, 'warning: slow\n{"tool-version": "26.10.1", "succ', "ok"
+    ),
+    "text-after-json": Answer(0, ALTOOL_OK + "\nuploaded", "rejected"),
 }
 
 
@@ -1312,7 +1300,7 @@ def test_an_upload_with_no_answer_from_apple_stays_unresolved_until_retried(
     case: str,
 ) -> None:
     code, ran, record, _ = drive_upload(
-        tmp_path, monkeypatch, answers={"--upload-app": NO_ANSWER[case]}
+        tmp_path, monkeypatch, answers={"--upload-app": NO_ANSWER[case].altool}
     )
     out = capsys.readouterr().out
     assert code == Failure.TOOL.value and uploads_sent(ran) == 1
@@ -1336,16 +1324,18 @@ def test_validate_and_the_app_record_lookup_keep_their_answers_for_the_same_outp
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, case: str
 ) -> None:
     code, ran, record, _ = drive_upload(
-        tmp_path, monkeypatch, answers={"--validate-app": NO_ANSWER[case]}
+        tmp_path, monkeypatch, answers={"--validate-app": NO_ANSWER[case].altool}
     )
     row = record_module.read_record(tmp_path).validations[0]
-    assert row["verdict"] == VALIDATE_VERDICT[case]
+    assert row["verdict"] == NO_ANSWER[case].validate
     assert record.unresolved_uploads(record.ipa_sha256) == []
-    assert uploads_sent(ran) == (1 if VALIDATE_VERDICT[case] == "ok" else 0)
+    assert uploads_sent(ran) == (1 if NO_ANSWER[case].validate == "ok" else 0)
 
     tmp = tmp_path / "lookup"
     tmp.mkdir()
-    code, ran, _, _ = drive_upload(tmp, monkeypatch, answers={"--list-apps": NO_ANSWER[case]})
+    code, ran, _, _ = drive_upload(
+        tmp, monkeypatch, answers={"--list-apps": NO_ANSWER[case].altool}
+    )
     assert code == Failure.APPLE_REJECTED.value
     assert not any("--validate-app" in c.argv for c in ran)
     assert record_module.read_record(tmp).validations == []
