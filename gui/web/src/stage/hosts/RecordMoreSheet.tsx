@@ -58,6 +58,7 @@ export function RecordMoreSheet({
   const micHelpId = useId();
   const toneHelpId = useId();
   const end = useDisabledReasonNote(endReason, "stage-host-note");
+  const endGated = endReason !== undefined;
   return (
     <Sheet form="centered" title="More" open={open} onClose={onClose}>
       <div className="stack">
@@ -137,9 +138,10 @@ export function RecordMoreSheet({
           <>
             <Button
               variant="danger"
-              disabledReason={endReason}
+              aria-disabled={endGated || undefined}
               {...end.describedBy}
               onClick={() => {
+                if (endGated) return;
                 onClose();
                 onEndSession();
               }}
