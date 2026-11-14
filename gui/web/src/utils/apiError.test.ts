@@ -71,6 +71,28 @@ describe("readApiFailure", () => {
     expect(isPermanentRejection(error)).toBe(true);
   });
 
+  it.each([
+    ["30", 30],
+    [" 7 ", 7],
+    ["0", 0],
+    ["Wed, 21 Oct 2026 07:28:00 GMT", null],
+    ["-5", null],
+    ["1.5", null],
+  ])("reads a Retry-After of %j as %j seconds", async (header, seconds) => {
+    const error = await readApiFailure(
+      new Response("slow down", {
+        status: 429,
+        headers: { "Retry-After": header },
+      }),
+    );
+    expect(error.retryAfterSec).toBe(seconds);
+  });
+
+  it("has no retryAfterSec without the header", async () => {
+    const error = await readApiFailure(new Response("x", { status: 500 }));
+    expect(error.retryAfterSec).toBeNull();
+  });
+
   it("maps a bare JSON string host-offline body to the actionable copy", async () => {
     const error = await readApiFailure(
       new Response(JSON.stringify("Host offline"), { status: 502 }),
