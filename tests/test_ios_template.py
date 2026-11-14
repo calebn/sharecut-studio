@@ -62,3 +62,18 @@ def test_the_overlay_has_no_sidecar_and_runs_the_payload_script() -> None:
         "uv run --project ../.. --no-sync python ../../scripts/ios/build_payload.py --ensure"
     )
     assert "developmentTeam" not in OVERLAY["bundle"]["iOS"]
+
+
+def test_the_splash_paints_one_canvas_over_the_whole_screen() -> None:
+    splash = (TAURI.parent / "splash/index.html").read_text(encoding="utf-8")
+    assert "viewport-fit=cover" in splash
+    assert "      html {\n        background: var(--color-bg-canvas);\n      }\n" in splash
+    assert "min-height: 100vh;\n        min-height: 100dvh;" in splash
+    assert "max(var(--s1), env(safe-area-inset-bottom))" in splash
+
+
+def test_the_failure_sentence_does_not_repeat_the_retry_control() -> None:
+    lifecycle = (TAURI / "src/lifecycle.rs").read_text(encoding="utf-8")
+    assert 'Self::StartError(_) => "ShareCut couldn\'t start on this device."' in lifecycle
+    assert 'Self::StartTimedOut => "ShareCut took too long to start."' in lifecycle
+    assert 'Try again."' not in lifecycle
