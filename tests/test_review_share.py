@@ -3555,9 +3555,21 @@ def test_peaks_check_play_before_taking_the_rate_bucket_or_audio_slot(
     assert touched == []
 
 
+def next_frame(sock, predicate, *, limit: int = 20) -> dict:
+    for _ in range(limit):
+        frame = sock.receive_json()
+        if predicate(frame):
+            return frame
+    raise AssertionError(f"no matching frame in the first {limit}")
+
+
 def test_guest_daw_ws_names_the_guest_by_share_id_not_token(
     minimal_project, sample_wav, tmp_workspace, monkeypatch
 ):
+    monkeypatch.setattr(
+        "podcast_mcp.services.collaboration.share_registry.generate_slug",
+        lambda _words: "zephyr-nimbus-ocelot",
+    )
     ws = _seed_premix(minimal_project, sample_wav)
     ver = ReviewService(ws).publish(label="GuestWS")
     share = ShareService(ws).create(review_version_id=ver["id"], capabilities=["play", "view"])
@@ -3565,8 +3577,9 @@ def test_guest_daw_ws_names_the_guest_by_share_id_not_token(
     client = TestClient(create_app())
 
     with client.websocket_connect(f"/api/review/{token}/daw/ws") as guest_ws:
-        frames = [guest_ws.receive_json(), guest_ws.receive_json()]
-    session = next(frame for frame in frames if frame["plane"] == "session")
+        session = next_frame(
+            guest_ws, lambda f: f.get("plane") == "session" and f.get("type") == "Snapshot"
+        )
     guest_id = session["client_id"]
     assert guest_id.startswith(f"guest-{share['id']}-")
     assert not any(token[:size] in guest_id or token[:size] in str(session) for size in (4, 6, 8))
