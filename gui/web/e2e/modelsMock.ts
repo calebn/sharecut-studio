@@ -237,6 +237,14 @@ export async function mockBootstrap(
         cdn_base: false,
         whisper_model: variant ?? "large-v3-turbo",
         whisper_models: CATALOG,
+        host: {
+          name: "macos",
+          can_spawn_processes: true,
+          loopback_is_trusted: true,
+          media_tools: "executables",
+          transcription: "faster_whisper",
+          folder_picker: true,
+        },
         tools: {
           ffmpeg: {
             state: options.ffmpeg ?? "installed",
