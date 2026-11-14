@@ -140,6 +140,18 @@ export function guestTakes(
   return takes;
 }
 
+/**
+ * Whether the server's acknowledgement covers everything this device holds. It
+ * counts only for the segments its pass saw, and the pass already forgets an
+ * acknowledgement given for another take.
+ */
+export function uploadAcknowledged(
+  upload: Pick<RecordUploadProgress, "fileAck" | "seenSegments">,
+  localSegments: number,
+): boolean {
+  return upload.fileAck && localSegments <= upload.seenSegments;
+}
+
 function uploadStuck(upload: RecordUploadProgress): boolean {
   return (
     Boolean(upload.error) ||
@@ -147,10 +159,13 @@ function uploadStuck(upload: RecordUploadProgress): boolean {
   );
 }
 
-export function uploadInFlight(upload: RecordUploadProgress | null): boolean {
+export function uploadInFlight(
+  upload: RecordUploadProgress | null,
+  localSegments: number,
+): boolean {
   return (
     upload !== null &&
-    !upload.fileAck &&
+    !uploadAcknowledged(upload, localSegments) &&
     !uploadStuck(upload) &&
     (upload.pending || upload.uploading || upload.total > 0)
   );
@@ -161,6 +176,8 @@ export function guestRoomPhase(
   options: {
     elapsedSinceSnapshotMs?: number;
     upload?: RecordUploadProgress | null;
+    /** Segments this device holds for the take. */
+    localSegments?: number;
     /** False for a guest who is not in the take: nothing of theirs is saving. */
     tookPart?: boolean;
     /** This page's room socket is open. Defaults to true. False on air reads reconnecting. */
@@ -172,14 +189,19 @@ export function guestRoomPhase(
     dropped: options.connected === false,
   });
   const { upload } = options;
+  const localSegments = options.localSegments ?? 0;
+  const acknowledged =
+    upload !== null &&
+    upload !== undefined &&
+    uploadAcknowledged(upload, localSegments);
   if (snapshot?.state === "stopped" && upload) {
-    if (upload.fileAck) {
+    if (acknowledged) {
       return { kind: "saved" };
     }
     if (uploadStuck(upload)) {
       return { kind: "saving", savedPeople: 0, totalPeople: 1, failed: true };
     }
-    if (uploadInFlight(upload)) {
+    if (uploadInFlight(upload, localSegments)) {
       return {
         kind: "saving",
         savedPeople: 0,
@@ -197,7 +219,7 @@ export function guestRoomPhase(
     return host ? { kind: "waiting", host } : { kind: "waiting" };
   }
   if (phase.kind === "saving" || phase.kind === "saved") {
-    if (!upload || upload.fileAck) {
+    if (!upload || acknowledged) {
       return { kind: "saved" };
     }
     return { kind: "saving", savedPeople: 0, totalPeople: 1 };
@@ -361,6 +383,9 @@ const page = { size: "page" } as const;
 const SAVING_LABEL = "Saving…";
 
 function unsentRecordingCover(source: CoverSource, host: string): CoverProps {
+  if (source.keeperActions.downloaded) {
+    return downloadedCover(source.keeperActions, host);
+  }
   const { download, recover } = source.keeperActions;
   return {
     ...page,
@@ -541,11 +566,12 @@ function capitalized(text: string): string {
 /** The guest's own tile after Stop: how far their upload has come. */
 export function ownSaving(
   upload: RecordUploadProgress | null | undefined,
+  localSegments: number,
 ): RoomSaving | null {
   if (!upload) {
     return null;
   }
-  if (upload.fileAck) {
+  if (uploadAcknowledged(upload, localSegments)) {
     return "saved";
   }
   if (upload.error) {
@@ -578,12 +604,10 @@ export function guestCoverProps(
   // the device holds, there is nothing here to save: whatever the device still
   // holds (a copy kept for the reclaim grace after a download) is a duplicate.
   // An acknowledgement only covers the segments its pass saw.
-  const allAcknowledged =
-    room.upload.fileAck && room.localSegments <= room.upload.seenSegments;
   const hasLocalCopy =
     (room.snapshot?.take_index ?? -1) >= 0 &&
     room.localRecording &&
-    !allAcknowledged;
+    !uploadAcknowledged(room.upload, room.localSegments);
   const keeperActions = hasLocalCopy
     ? room.keeperActions
     : {
