@@ -93,7 +93,10 @@ TRANSPORT = re.compile(
     NETWORK.pattern
     + r"|\bssl\b|\btls\b|handshake|broken pipe|unexpected eof|could not resolve|nodename nor servname"
     r"|name or service not known|\bdns\b|proxy|bad gateway|service unavailable|gateway time-?out"
-    r"|nsurlerrordomain|nsposixerrordomain|nscocoaerrordomain|kcferrordomaincfnetwork|secure connection",
+    r"|nsurlerrordomain|nsposixerrordomain|nscocoaerrordomain|secure connection"
+    r"|host(?:name)? could not be found|cannot (?:connect to|find) host|connection (?:refused|closed)"
+    r"|socket (?:was )?closed|internal server error|temporarily unavailable"
+    r"|\b(?:http(?:/\d(?:\.\d)?)?|status(?: code)?|server error|error code)\W{0,3}5\d\d\b",
     re.I,
 )
 
@@ -217,11 +220,22 @@ def app_record_exists(text: str, bundle_identifier: str) -> bool:
 
 
 SENTENCES = {
-    Verdict.REJECTED: "Apple rejected the build:",
     Verdict.AUTH_FAILED: "Apple refused the App Store Connect key. Check the key id, issuer and key file in the private file; the key needs the Developer role.",
     Verdict.UNREACHABLE: "Apple could not be reached; nothing was changed. Check the network and run the same command again.",
     Verdict.DUPLICATE: "Apple reports it already has this build. Check TestFlight; if the build is not there, run build again for a new build number.",
 }
+
+
+def sentence(answer: AppleAnswer) -> str:
+    if answer.verdict is not Verdict.REJECTED:
+        return SENTENCES[answer.verdict]
+    detail = " ".join(message for message in answer.messages if message.strip())
+    return (
+        f"Apple rejected the build: {detail}"
+        if detail
+        else "Apple rejected the build and gave no readable reason; the step's log in the build's logs folder has what altool printed."
+    )
+
 
 UPLOAD_UNREACHABLE = (
     "Apple may or may not have received the build; check TestFlight for that build number, "

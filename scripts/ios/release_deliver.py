@@ -16,7 +16,6 @@ from pathlib import Path
 
 from scripts.ios import bundle_checks as checks
 from scripts.ios.release_classify import (
-    SENTENCES,
     UPLOAD_UNREACHABLE,
     AppleAnswer,
     Failure,
@@ -24,6 +23,7 @@ from scripts.ios.release_classify import (
     app_record_exists,
     classify_altool,
     classify_upload,
+    sentence,
 )
 from scripts.ios.release_inputs import AscKey
 from scripts.ios.release_plan import (
@@ -82,14 +82,13 @@ def answered(answer: AppleAnswer, ws: Workspace, verb: str) -> tuple[Outcome, Ap
         Verdict.DUPLICATE: Failure.DUPLICATE_BUILD,
         Verdict.UNREACHABLE: Failure.TOOL,
     }.get(answer.verdict, Failure.APPLE_REJECTED)
-    detail = " ".join(answer.messages) if answer.verdict is Verdict.REJECTED else ""
-    return (failure, f"{verb}: {SENTENCES[answer.verdict]} {detail}".strip()), answer
+    return (failure, f"{verb}: {sentence(answer)}"), answer
 
 
 def lookup_outcome(result: SpawnResult, bundle_identifier: str) -> Outcome:
     if result.exit_code != 0:
         answer = classify_altool(result.exit_code, result.output)
-        return Failure.APPLE_REJECTED, SENTENCES[answer.verdict]
+        return Failure.APPLE_REJECTED, sentence(answer)
     if not app_record_exists(result.output, bundle_identifier):
         return (
             Failure.APPLE_REJECTED,

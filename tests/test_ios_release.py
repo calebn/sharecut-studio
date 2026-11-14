@@ -1274,6 +1274,8 @@ NO_ANSWER = {
     "structured-apple-code-with-transport": Answer(
         1, apple_error("ITMS-90000 proxy error"), "rejected"
     ),
+    "apple-code-with-refused": Answer(1, apple_error("Connection refused"), "rejected"),
+    "apple-token-with-5xx": Answer(1, altool_error("HTTP status code 503 ITMS-90000"), "rejected"),
     "empty-entry": Answer(1, '{"product-errors": [{}]}', "rejected"),
     "malformed-string": Answer(1, '{"product-errors": "boom"}', "rejected"),
     "malformed-int": Answer(1, '{"product-errors": 5}', "rejected"),
@@ -1465,12 +1467,49 @@ def test_a_structured_error_without_an_apple_shape_leaves_the_attempt_unresolved
         "NSCocoaErrorDomain",
         "kCFErrorDomainCFNetwork",
         "secure connection",
+        "hostname could not be found",
+        "A server with the specified hostname could not be found",
+        "cannot connect to host",
+        "cannot find host",
+        "connection refused",
+        "connection closed unexpectedly",
+        "socket closed by remote peer",
+        "Internal Server Error (500)",
+        "HTTP status code 500",
+        "status code 503",
+        "HTTP/1.1 502",
+        "server error 500",
+        "service is temporarily unavailable",
     ],
 )
 def test_transport_wording_beside_an_apple_code_leaves_the_attempt_unresolved(
     wording: str,
 ) -> None:
-    answer = release_classify.classify_upload(1, apple_error(f"{wording} while uploading"))
+    in_code_field = apple_error(f"{wording} while uploading")
+    in_message = altool_error(f"{wording} while uploading ITMS-90022")
+    for text in (in_code_field, in_message):
+        assert release_classify.classify_upload(1, text).verdict is Verdict.UNREACHABLE
+
+
+@pytest.mark.parametrize(
+    "message",
+    [
+        "Invalid Bundle. The icon is 500 bytes",
+        "ITMS-90500: the bundle is missing an icon",
+        "Invalid Bundle, build 2026.1114.153045 ITMS-90022",
+        "Invalid Bundle. Error code 5000 ITMS-90022",
+        "The status of the bundle is 404 ITMS-90022",
+    ],
+)
+def test_a_three_digit_number_without_http_context_is_not_transport_wording(message: str) -> None:
+    answer = release_classify.classify_upload(1, apple_error(message))
+    assert answer.verdict is Verdict.REJECTED
+
+
+def test_the_cfnetwork_domain_is_caught_by_the_network_wording_so_it_needs_no_alternative() -> None:
+    assert "kcferrordomaincfnetwork" not in release_classify.TRANSPORT.pattern
+    assert release_classify.NETWORK.search("kCFErrorDomainCFNetwork")
+    answer = release_classify.classify_upload(1, apple_error("kCFErrorDomainCFNetwork 2"))
     assert answer.verdict is Verdict.UNREACHABLE
 
 
@@ -1632,3 +1671,33 @@ def test_main_needs_a_confirm_token_to_upload_and_validate_never_uploads(
     assert ios_release.main(["validate"]) == 0
     assert uploads_sent(ran) == 0 and any("--validate-app" in c.argv for c in ran)
     assert record_module.read_record(directory).uploads == []
+
+
+@pytest.mark.parametrize("flag", ["--validate-app", "--list-apps"])
+@pytest.mark.parametrize(
+    "text",
+    ['{"product-errors": "boom"}', '{"product-errors": [{}]}', '{"product-errors": [null]}'],
+)
+def test_an_answer_with_no_message_still_prints_a_complete_sentence(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    flag: str,
+    text: str,
+) -> None:
+    code, _, _, _ = drive_upload(tmp_path, monkeypatch, answers={flag: (1, text)})
+    out = capsys.readouterr().out
+    assert code == Failure.APPLE_REJECTED.value
+    assert "Apple rejected the build and gave no readable reason" in out
+    assert not any(line.rstrip().endswith(":") for line in out.splitlines())
+
+
+@pytest.mark.parametrize("flag", ["--validate-app", "--list-apps"])
+def test_a_rejection_with_a_message_prints_the_message(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    flag: str,
+) -> None:
+    drive_upload(tmp_path, monkeypatch, answers={flag: (1, apple_error("Invalid Bundle"))})
+    assert "Apple rejected the build: Invalid Bundle" in capsys.readouterr().out
