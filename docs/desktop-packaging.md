@@ -205,6 +205,12 @@ lib (a `staticlib`) with Python.xcframework linked into it; there is no sidecar 
   only they need (cryptography, rpds-py, cffi, botocore and others): host MCP is off on iOS and
   `tests/test_ios_boot_imports.py` boots the engine and creates a project with those modules
   unimportable. It keeps `numpy`, `pydantic-core` and PyYAML as the only non-wheel packages.
+  Nothing about the build machine ships: the cross-build remaps the home, cache, cargo and
+  source directories out of the compiled code (the flags are part of the cache key), the
+  binary's debug map and install name are rewritten, SBOMs are dropped, and every build and
+  `--ensure` scans the whole payload for the home directory, the user name as a path segment and
+  the cache directory. A hit fails the build; the manifest's `private_path_scan` records
+  `clean` and `files_scanned`.
 - **Lifecycle.** `src/lifecycle.rs` is a pure reducer (`Starting`, `Serving`, `Rechecking`,
   `Failed`; events `Bound`, `Healthy`, `Unhealthy`, `StartFailed`, `Tick`, `Resumed`,
   `RetryRequested`; effects `ProbeHealth`, `Navigate`, `ShowFailure`, `StartEngine`) with a total
