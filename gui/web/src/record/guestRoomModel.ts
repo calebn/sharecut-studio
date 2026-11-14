@@ -318,11 +318,26 @@ export function guestRoomAlerts(
   return alerts;
 }
 
+/** What a viewer who left still has at stake. */
+type LeftWith = "nothing" | "saved" | "unsaved";
+
+function leftWith(phase: RoomPhase, recorded: boolean): LeftWith {
+  if (!recorded) {
+    return "nothing";
+  }
+  if (phase.kind === "saved") {
+    return "saved";
+  }
+  return phase.kind === "saving" ? "unsaved" : "nothing";
+}
+
 type CoverSource = {
   bootError: string | null;
   error: string | null;
   accessEnded: boolean;
   inviteClosed: boolean;
+  /** Set once this viewer pressed Leave or Done. */
+  left: LeftWith | null;
   captureSettled: boolean;
   keeperActions: KeeperRecoveryActions;
   host?: string;
@@ -331,6 +346,38 @@ type CoverSource = {
 
 const page = { size: "page" } as const;
 
+function unsentRecordingCover(
+  source: CoverSource,
+  host: string,
+): CoverProps | null {
+  const { download, recover } = source.keeperActions;
+  if (!source.captureSettled || !(download || recover)) {
+    return null;
+  }
+  return {
+    ...page,
+    glyph: "door-open",
+    title: "Your recording didn't finish saving",
+    children: `It's safe on this device. Save it and send it to ${host}.`,
+    primary: download
+      ? {
+          label: "Save my recording",
+          onClick: download,
+          busy: source.keeperActions.busy,
+        }
+      : undefined,
+    secondary: recover
+      ? { label: "Try saving again", onClick: recover }
+      : undefined,
+  };
+}
+
+/**
+ * Precedence: boot error, access ended, left, room full. A viewer who left with
+ * an unsent local copy gets the unsent-recording cover; otherwise the left
+ * cover says what happened to their recording. Join again remounts the session,
+ * which rejoins through the cached lease.
+ */
 export function guestCovers(source: CoverSource): CoverProps | null {
   const host = source.host?.trim() || "the host";
   if (source.bootError) {
@@ -373,23 +420,9 @@ export function guestCovers(source: CoverSource): CoverProps | null {
             : undefined,
       };
     }
-    if (source.captureSettled && (download || recover)) {
-      return {
-        ...page,
-        glyph: "door-open",
-        title: "Your recording didn't finish saving",
-        children: `It's safe on this device. Save it and send it to ${host}.`,
-        primary: download
-          ? {
-              label: "Save my recording",
-              onClick: download,
-              busy: source.keeperActions.busy,
-            }
-          : undefined,
-        secondary: recover
-          ? { label: "Try saving again", onClick: recover }
-          : undefined,
-      };
+    const unsent = unsentRecordingCover(source, host);
+    if (unsent) {
+      return unsent;
     }
     return {
       ...page,
@@ -398,6 +431,25 @@ export function guestCovers(source: CoverSource): CoverProps | null {
       children: source.captureSettled
         ? "Thanks for recording."
         : "Finishing your full-quality recording…",
+    };
+  }
+  if (source.left) {
+    const unsent =
+      source.left === "unsaved" ? unsentRecordingCover(source, host) : null;
+    if (unsent) {
+      return unsent;
+    }
+    return {
+      ...page,
+      glyph: "door-open",
+      title: "You left the room",
+      children:
+        source.left === "saved"
+          ? `Your recording is saved to ${host}'s project. You can close this page.`
+          : "You can close this page.",
+      primary: source.onRetry
+        ? { label: "Join again", onClick: source.onRetry }
+        : undefined,
     };
   }
   if (source.error === "room_full") {
@@ -440,6 +492,7 @@ type CoverRoom = Pick<
   | "error"
   | "accessEnded"
   | "inviteClosed"
+  | "left"
   | "captureSettled"
   | "keeperActions"
   | "localRecording"
@@ -449,23 +502,24 @@ type CoverRoom = Pick<
 /** The page-sized Cover this room needs instead of the room, or null. */
 export function guestCoverProps(
   room: CoverRoom,
-  onRetry: () => void,
+  options: { onRetry: () => void; phase: RoomPhase; recorded: boolean },
 ): CoverProps | null {
   // Before the first take, or once every segment has landed and been cleared
   // from this device, there is nothing here to save.
-  const recorded =
+  const hasLocalCopy =
     (room.snapshot?.take_index ?? -1) >= 0 && room.localRecording;
   const cover = guestCovers({
     bootError: room.bootError,
     error: room.error,
     accessEnded: room.accessEnded,
     inviteClosed: room.inviteClosed,
+    left: room.left ? leftWith(options.phase, options.recorded) : null,
     captureSettled: room.captureSettled,
-    keeperActions: recorded
+    keeperActions: hasLocalCopy
       ? room.keeperActions
       : { ...room.keeperActions, download: undefined, recover: undefined },
     host: guestHostName(room.snapshot),
-    onRetry,
+    onRetry: options.onRetry,
   });
   if (!cover) {
     return null;
