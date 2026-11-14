@@ -283,8 +283,7 @@ lib (a `staticlib`) with Python.xcframework linked into it; there is no sidecar 
   generous multiple of the worst measurement; a start that passes it shows the retryable failure.
   A recheck after returning to the foreground has 20 seconds (`RECHECK_DEADLINE`); the prototype's
   listener answered again about 5 seconds after the return.
-- **Not there yet.** Audio tools (FFmpeg), transcription, recording, Universal Links, signing,
-  TestFlight and a run on a device. Home's Import audio and Record are refused while audio tools are unavailable, so a project cannot yet be made in the UI. Projects live in the app's Documents folder and show in the Files app. Recent entries are stored relative to it ([persistence.md](persistence.md)).
+- **Not there yet.** Audio tools (FFmpeg), transcription, recording, Universal Links and CI signing. A signed build in TestFlight is the release tool below; a run on a device is the owner's. Home's Import audio and Record are refused while audio tools are unavailable, so a project cannot yet be made in the UI. Projects live in the app's Documents folder and show in the Files app. Recent entries are stored relative to it ([persistence.md](persistence.md)).
 - **Request audit (debug builds only).** `podcast_mcp.gui.request_audit` appends one JSON line per
   HTTP response and WebSocket outcome to `Library/Logs/ShareCut/request-audit.jsonl`: the method,
   the path without its query string, the status and whether the query was empty. It never reads a
@@ -302,6 +301,102 @@ lib (a `staticlib`) with Python.xcframework linked into it; there is no sidecar 
   the page's socket and event-stream URLs carry non-secret parameters (project path, client ids,
   job id), so `query_empty` is false for them; that no token is in them rests on the engine
   accepting only the session cookie on this host (`tests/test_gui_embedded_session.py`).
+
+<a id="ios-release"></a>
+**iOS release (#3810, stage 2).** `scripts/ios/ios_release.py` builds a release `.ipa` for the
+owner's bundle identifier, checks it, validates it with App Store Connect and uploads it to
+TestFlight only with a confirmation bound to that file. `make ios-testflight` runs `build` then
+`validate` and can never upload. `make ios-release-rehearsal` is `build --unsigned`: every local
+check, and nobody is contacted. Each subcommand takes `--dry-run`, which prints the exact steps
+(secrets as `<team>` and so on, private directories as `<home>`, `<checkout>`) and runs none.
+
+- **Inputs.** `PODCAST_DISTRIBUTION_PROFILE` names a distribution profile outside the repository
+  (the checked-in dev profile is refused). Its `bundle_identifier` is the app's identifier and
+  its optional `short_name` (1 to 15 characters) is the name under the icon; with no
+  `short_name` the `product_name` must itself fit 15 characters. The team, App Store Connect key
+  id, issuer and key path come from a private file, mode `0600`, owned by you and outside the
+  repository: `SHARECUT_IOS_RELEASE_ENV`, else `~/.config/sharecut/ios-release.env`, lines
+  `APPLE_DEVELOPMENT_TEAM=`, `APPLE_API_KEY=`, `APPLE_API_ISSUER=`, `APPLE_API_KEY_PATH=` (the
+  key path defaults to `~/.appstoreconnect/private_keys/AuthKey_<id>.p8`). The environment
+  overrides the file. The tool checks the key file's mode and location and never opens it. Every
+  problem is reported together, before anything runs.
+- **Identity and build number.** A three-key overlay (`identifier`, `productName` from
+  `short_name`, `bundle.iOS.bundleVersion`) goes to both `tauri ios init` and `tauri ios build`.
+  Tauri's `--build-number` is never used: it appends a fourth component to the version. The build
+  number is `year.(month*100+day).(hour*10000+minute*100+second)` in UTC (`2026.1114.153045`),
+  three integers in time order, and must be newer than every number recorded for this marketing
+  version; a clock set into the future makes later numbers look older, and only a new marketing
+  version fixes that. The marketing version is the repository's own, after
+  `scripts/version_policy.py` agrees.
+- **What a build does.** Web build, payload for `iphoneos`, a fresh `gen/apple`, `tauri ios init`,
+  `tauri ios build --archive-only` (with `-allowProvisioningUpdates` when signed, `--no-sign`
+  for the rehearsal), then, signed, the tool's own `xcodebuild -exportArchive
+  -allowProvisioningUpdates` with a private `ExportOptions.plist` (method `app-store-connect`,
+  automatic signing, `uploadSymbols` false because dSYMs carry build paths, and
+  `manageAppVersionAndBuildNumber` false so Xcode cannot rewrite the build number). The
+  archive and export directories are deleted once the IPA is collected. Child processes get an
+  explicit environment allowlist (`PATH` with the rustup toolchain first, `HOME`, `USER`,
+  `LOGNAME`, `TMPDIR`, a UTF-8 `LANG`, `DEVELOPER_DIR`, `CARGO_HOME`, `RUSTUP_HOME`,
+  `CARGO_BUILD_JOBS`, proxy and CA variables when set, and the team): the App Store Connect key,
+  manual-signing variables, `RUSTFLAGS` and the desktop release secrets are absent
+  (`tests/test_ios_release.py`). The team reaches `tauri ios init`, so it sits in the untracked
+  `gen/apple` files and the archive; both stay local.
+- **Checks on the built IPA.** The path scan decompresses every member, opens nested archives and
+  names the Mach-O section of each hit. The plist check wants the identifier, name, marketing
+  version, three-part build number, `MinimumOSVersion` 17.0 and `ITSAppUsesNonExemptEncryption`
+  false (the microphone string is allowed). The layout check wants no `.a`, no loose `.so` or
+  `.dylib` and every Mach-O the main binary or inside a framework. The privacy check reads the
+  imported symbols of every Mach-O against the manifest inside the built bundle and the dated
+  table `contracts/ios-privacy.json`: used but undeclared fails, declared but unused warns. A
+  signed build also checks the signature and that the embedded profile is an App Store profile.
+  Each build lands in `gui/desktop/src-tauri/target/ios-release/<build>/` with redacted logs and
+  `release.json` (public facts only), built in `<build>.partial/` and renamed when every check
+  passed. One run at a time holds a lock on that directory.
+- **Upload guard.** `validate` prints `upload --confirm <build>:<first 12 hex of the IPA's
+  sha256>`. `upload` copies the IPA into a private `0700` directory (symlinks refused) and checks
+  and uploads that copy. It refuses unless the token matches the copy, the tree is clean and
+  `HEAD` is the record's commit, signing and the build number are re-derived from the IPA, every
+  local check passes again, Apple validates the copy, and no earlier attempt for that file
+  delivered or was reported as a duplicate. The record can only block an upload, never allow one.
+  An "already uploaded" answer from Apple is recorded as `apple_reports_duplicate`; check
+  TestFlight, and run `build` again for a new number if the build is not there. Exit codes: 3
+  inputs, 4 signing, 5 a local check, 6 Apple rejected, 7 duplicate, 8 other tool failure, 9
+  another run holds the lock, 10 the guard refused (argparse keeps 2).
+- **Secrets never print.** `Secret` cannot be printed, formatted, serialized or pickled; one
+  function, `release_run.spawn`, reveals it, and an AST test fails on a second caller. Output is
+  redacted line by line with carry-over across reads, for each secret and private directory as
+  written, JSON-escaped, percent-encoded and resolved, and by shape for signing identity names,
+  profile UUIDs and certificate fingerprints. `main()` prints a redacted one-line failure for any
+  exception. altool's argv shows the key id and issuer to the same user in `ps` for the length of
+  one call; that is accepted.
+- **Rehearsal.** `make ios-release-rehearsal` with a profile shaped like the owner's passes every
+  local check (`gui/desktop/src-tauri/target/ios-release/<build>/`). The unsigned archive signs
+  the Python frameworks ad hoc (the template's install phase). It proves the payload and the
+  checks, not signing.
+
+Owner runbook. A step marked Apple contacts Apple.
+
+1. Local. The rehearsal has passed on the merged code.
+2. Local. Write the private file with the team, key id, issuer and key path (`chmod 600`), then
+   `uv run python scripts/ios/ios_release.py build --dry-run` and read the plan. It says the real
+   build may create an Apple Distribution certificate and an App Store profile in the account
+   Xcode is signed in to.
+3. Apple (Xcode creates the certificate and profile): `ios_release.py build`.
+4. Apple, read-only: `ios_release.py validate`.
+5. Apple, writes: `ios_release.py upload --confirm <build>:<sha12>`.
+6. By hand in App Store Connect: wait for processing and assign the build to yourself as an
+   internal tester.
+7. On the device: install from TestFlight, run it, and write down what only a device shows.
+
+Honest limits. Remapping does not cover host-built build scripts and proc macros; the scan is the
+guarantee, and it covers the home, user name, build cache, cargo and rustup homes, the checkout
+and `TMPDIR`. DWARF and dSYMs are not scanned and are never uploaded. `Assets.car` (lzfse) is not
+readable and is listed as unseen. The privacy check sees C symbols only, not Objective-C selectors
+or `NSURL...Key` constants, so validate and Apple's processing mail are the second signal. The
+reason codes and the symbol table in `contracts/ios-privacy.json` are from memory, not from Apple's
+page. The altool JSON shapes and xcodebuild phrases the classifiers read are not yet seen against a
+signed run. A signed build, Apple's validation and a run on a device are unproven until the owner's
+session; the unsigned rehearsal does not touch them.
 
 The public check workflow is deliberately limited:
 

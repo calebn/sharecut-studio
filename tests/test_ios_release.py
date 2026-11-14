@@ -5,6 +5,7 @@ from __future__ import annotations
 import ast
 import contextlib
 import json
+import os
 import plistlib
 import sys
 from datetime import UTC, datetime, timedelta, timezone
@@ -193,6 +194,9 @@ NOISY = {
     "HTTPS_PROXY": "http://proxy",
     "SSL_CERT_FILE": "/ca.pem",
     "DEVELOPER_DIR": "/Xcode",
+    "CARGO_BUILD_JOBS": "4",
+    "USER": "someone",
+    "LOGNAME": "someone",
 }
 
 
@@ -200,13 +204,16 @@ def test_the_child_environment_is_an_allowlist() -> None:
     env = release_plan.child_environment(NOISY, path="/rustup:/usr/bin", team=Secret(TEAM, "team"))
     assert sorted(env) == [
         "APPLE_DEVELOPMENT_TEAM",
+        "CARGO_BUILD_JOBS",
         "DEVELOPER_DIR",
         "HOME",
         "HTTPS_PROXY",
         "LANG",
+        "LOGNAME",
         "PATH",
         "SSL_CERT_FILE",
         "TMPDIR",
+        "USER",
     ]
     assert env["PATH"] == "/rustup:/usr/bin" and env["LANG"] == "en_US.UTF-8"
     assert "APPLE_DEVELOPMENT_TEAM" not in release_plan.child_environment(NOISY, path="p")
@@ -638,3 +645,39 @@ def test_the_environment_is_never_mentioned_by_value_in_an_input_error(tmp_path:
     text = str(caught.value)
     assert "short" not in text and "nope" not in text
     assert "is not 10 capital letters or digits" in text and "is not a UUID" in text
+
+
+def test_the_unsigned_rehearsal_records_the_arguments_xcodebuild_receives(tmp_path: Path) -> None:
+    shim = tmp_path / "partial" / "xcodebuild-shim"
+    release_plan.write_shim(shim)
+    script = (shim / "xcodebuild").read_text()
+    assert script.endswith('exec /usr/bin/xcodebuild "$@"\n')
+    assert os.access(shim / "xcodebuild", os.X_OK)
+    (shim / release_plan.SHIM_LOG).write_text(
+        "xcodebuild archive -project /Users/someone/p.xcodeproj\n"
+    )
+    workspace = release_plan.Workspace(
+        out=tmp_path / "partial", redact=Redactor(directories={"home": "/Users/someone"}).redact
+    )
+    assert release_plan.keep_shim_log(workspace, shim) is None
+    assert (tmp_path / "partial/logs/xcodebuild-args.log").read_text() == (
+        "xcodebuild archive -project <home>/p.xcodeproj\n"
+    )
+    assert not shim.exists()
+
+
+def test_a_signed_build_never_installs_the_recording_shim() -> None:
+    names = [
+        step.name
+        for step in release_plan.plan_build(build_inputs(Signing.APP_STORE), LAYOUT, NOISY, "/p")
+    ]
+    assert "record xcodebuild arguments" not in names
+    unsigned = [
+        step.name
+        for step in release_plan.plan_build(build_inputs(Signing.NONE), LAYOUT, NOISY, "/p")
+    ]
+    assert unsigned.index("record xcodebuild arguments") < unsigned.index("archive")
+
+
+def test_a_device_id_is_masked_by_shape() -> None:
+    assert Redactor().redact("id:00001111-AAAABBBBCCCCDDDD, name:x") == "id:<device-id>, name:x"

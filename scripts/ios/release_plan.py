@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 import plistlib
+import re
 import shutil
 import tempfile
 from collections.abc import Callable, Mapping
@@ -25,9 +26,12 @@ from scripts.ios.release_run import Command, Part, PrivateFile, SpawnResult, cap
 from scripts.ios.release_secrets import Secret
 
 PASS_THROUGH = (
+    "USER",
+    "LOGNAME",
     "DEVELOPER_DIR",
     "CARGO_HOME",
     "RUSTUP_HOME",
+    "CARGO_BUILD_JOBS",
     "HTTP_PROXY",
     "HTTPS_PROXY",
     "ALL_PROXY",
@@ -87,6 +91,7 @@ class Workspace:
     signing: Signing = Signing.NONE
     record: ReleaseRecord | None = None
     answers: list[AppleAnswer] = field(default_factory=list)
+    redact: Callable[[str], str] = str
 
     def cleanup(self) -> None:
         for path in self.scratch:
@@ -238,6 +243,11 @@ def plan_build(
             tool_outcome,
         )
     )
+    shim = layout.release_root / f"{inputs.build_number}.partial" / "xcodebuild-shim"
+    archive_env = env
+    if not signed:
+        steps.append(Local("record xcodebuild arguments", lambda ws: write_shim(shim)))
+        archive_env = {**env, "PATH": f"{shim}:{path}"}
     archive_args: list[str] = ["--archive-only"]
     runner_args: list[str] = []
     if signed:
@@ -263,12 +273,14 @@ def plan_build(
                     *runner_args,
                 ),
                 layout.desktop,
-                env,
+                archive_env,
             ),
             signed,
             tool_outcome,
         )
     )
+    if not signed:
+        steps.append(Local("xcodebuild arguments", lambda ws: keep_shim_log(ws, shim)))
     export_dir = layout.tauri / "gen" / "apple" / "build" / "export"
     if signed and inputs.team is not None:
         options = layout.tauri / "gen" / "apple" / "build" / "ExportOptions.release.plist"
@@ -315,6 +327,38 @@ def plan_build(
     )
     steps.append(Local("record", lambda ws: write_build_record(ws, inputs)))
     return steps
+
+
+SHIM_LOG = "xcodebuild-args.raw"
+
+
+def write_shim(directory: Path) -> None:
+    """A stand-in ``xcodebuild`` for the unsigned rehearsal: it records the arguments Tauri passes
+    and runs the real one. Never used when signing, where the arguments could hold the team."""
+    directory.mkdir(parents=True, exist_ok=True)
+    script = directory / "xcodebuild"
+    script.write_text(
+        "#!/bin/sh\n"
+        f'{{ printf \'xcodebuild\'; for a in "$@"; do printf \' %s\' "$a"; done; echo; }} >> "{directory / SHIM_LOG}"\n'
+        'exec /usr/bin/xcodebuild "$@"\n',
+        encoding="utf-8",
+    )
+    script.chmod(0o755)
+
+
+def keep_shim_log(ws: Workspace, directory: Path) -> checks.CheckReport | None:
+    raw = directory / SHIM_LOG
+    calls = raw.read_text(encoding="utf-8").splitlines() if raw.is_file() else []
+    (ws.out / "logs").mkdir(parents=True, exist_ok=True)
+    (ws.out / "logs" / "xcodebuild-args.log").write_text(
+        ws.redact("\n".join(calls)) + "\n", encoding="utf-8"
+    )
+    shutil.rmtree(directory, ignore_errors=True)
+    return (
+        None
+        if calls
+        else checks.CheckReport("xcodebuild arguments", ("xcodebuild was never called",))
+    )
 
 
 def reset(directory: Path) -> None:
@@ -389,15 +433,16 @@ def scan_check(ws: Workspace, root: Path) -> checks.CheckReport:
         f"{count:5d}  {section:20s}  {context}"
         for count, section, context in report.attribution()[:12]
     )
+    unseen = sorted({re.sub(r"^Payload/[^/]+\.app/", "", name) for name in report.unseen})
     return checks.CheckReport(
         "path scan",
         problems,
-        tuple(f"not readable: {name}" for name in report.unseen),
+        (f"{len(unseen)} members not readable, e.g. {', '.join(unseen[:3])}",) if unseen else (),
         {
             "files_scanned": report.files_scanned,
             "archives_opened": report.archives_opened,
             "hits": len(report.hits),
-            "unseen": list(report.unseen),
+            "unseen": unseen,
         },
     )
 
