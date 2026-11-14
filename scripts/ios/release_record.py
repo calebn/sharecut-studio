@@ -53,7 +53,8 @@ class ReleaseRecord:
         return f"{self.build_number}:{self.ipa_sha256[:TOKEN_HEX]}"
 
     def unresolved_uploads(self, ipa_sha256: str) -> list[dict[str, Any]]:
-        """Attempts for this file that were started and never got an answer from Apple."""
+        """Attempts for this file with no outcome: interrupted, or ended without an answer Apple gave
+        (``last_answer`` holds what was seen)."""
         return [
             upload
             for upload in self.uploads

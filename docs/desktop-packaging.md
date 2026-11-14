@@ -322,8 +322,9 @@ check, and nobody is contacted. Each subcommand takes `--dry-run`, which prints 
   problem is reported together, before anything runs. When the file is missing and a value the
   command needs is unset, the report starts with one line naming the file (the path
   `SHARECUT_IOS_RELEASE_ENV` gave, or the default location and how to change it) and then lists each
-  unset value: the team for a signed `build`, the key id, issuer and key path for `validate` and
-  `upload`. `build --unsigned` needs none of them.
+  unset value: the team for a signed `build`, the key id and issuer for `validate` and
+  `upload` (a missing key id is one problem; the key path defaults from it and is checked once the
+  id is there). `build --unsigned` needs none of them.
 - **Identity and build number.** A three-key overlay (`identifier`, `productName` from
   `short_name`, `bundle.iOS.bundleVersion`) goes to both `tauri ios init` and `tauri ios build`.
   Tauri's `--build-number` is never used: it appends a fourth component to the version. The build
