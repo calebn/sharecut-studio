@@ -59,12 +59,34 @@ describe("loadRecordBootstrap", () => {
     [504, "timeout"],
     [429, "slow down"],
     [408, "timeout"],
-    [200, "<html>"],
   ])("types an answer that may change as server (%i)", async (status, body) => {
     stubFetch(reply(status, body));
     await expect(loadRecordBootstrap("rec-tok")).resolves.toEqual({
       bootstrap: null,
       failure: "server",
+    });
+  });
+
+  it("types a 2xx whose body is not JSON as network", async () => {
+    stubFetch(reply(200, "<html>"));
+    await expect(loadRecordBootstrap("rec-tok")).resolves.toEqual({
+      bootstrap: null,
+      failure: "network",
+    });
+  });
+
+  it("types a 2xx whose body stream breaks as network", async () => {
+    stubFetch(() => {
+      const body = new ReadableStream({
+        start(controller) {
+          controller.error(new TypeError("network error"));
+        },
+      });
+      return Promise.resolve(new Response(body, { status: 200 }));
+    });
+    await expect(loadRecordBootstrap("rec-tok")).resolves.toEqual({
+      bootstrap: null,
+      failure: "network",
     });
   });
 

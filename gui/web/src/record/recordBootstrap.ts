@@ -30,18 +30,26 @@ export async function loadRecordBootstrap(
   token: string,
   signal?: AbortSignal,
 ): Promise<BootOutcome> {
+  let res: Response;
   try {
-    const res = await apiFetch(
+    res = await apiFetch(
       recordProjectKey(token),
       { guest: "/bootstrap" },
       { signal },
     );
-    return { bootstrap: (await res.json()) as RecordBootstrap, failure: null };
   } catch (error) {
     if (isAbortError(error)) {
       throw error;
     }
     return { bootstrap: null, failure: failureOf(error) };
+  }
+  try {
+    return { bootstrap: (await res.json()) as RecordBootstrap, failure: null };
+  } catch (error) {
+    if (isAbortError(error)) {
+      throw error;
+    }
+    return { bootstrap: null, failure: "network" };
   }
 }
 
