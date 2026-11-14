@@ -29,15 +29,17 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from dataclasses import dataclass
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from filelock import Timeout
-from mcp.types import CallToolResult, TextContent
 
 from podcast_mcp.util.coded_error import coded_cause, guest_message_for_code
 from podcast_mcp.util.model_missing import ModelMissing
 from podcast_mcp.util.project_state import PROJECT_BUSY_CODE, PROJECT_BUSY_MESSAGE, busy_message
 from podcast_mcp.util.sqlite_tx import is_sqlite_busy
+
+if TYPE_CHECKING:
+    from mcp.types import CallToolResult
 
 
 @dataclass(frozen=True)
@@ -98,6 +100,8 @@ def guest_failure_detail(exc: BaseException) -> str | None:
 
 def refusal_tool_result(refusal: ToolRefusal) -> CallToolResult:
     """A structured ``is_error`` result: the message as text, plus ``error_code``."""
+    from mcp.types import CallToolResult, TextContent
+
     return CallToolResult(
         content=[TextContent(type="text", text=refusal.message)],
         structured_content={
@@ -112,6 +116,8 @@ def refusal_tool_result(refusal: ToolRefusal) -> CallToolResult:
 
 def crash_tool_result(name: str) -> CallToolResult:
     """The ``is_error`` result for a crash: the mcp SDK's own fixed text, nothing from ``exc``."""
+    from mcp.types import CallToolResult, TextContent
+
     return CallToolResult(
         content=[TextContent(type="text", text=f"Error executing tool {name}")],
         is_error=True,

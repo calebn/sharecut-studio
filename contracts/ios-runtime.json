@@ -1,0 +1,76 @@
+{
+  "version": 1,
+  "comment": "Pins for the iOS engine payload (scripts/ios/build_payload.py). Package versions and hashes come from uv.lock through `uv export`, evaluated against the marker environment below. This file holds only what uv.lock cannot say: the interpreter build, BeeWare wheels, cross-builds, a pure source copy and named exclusions. Every package that survives the markers must be a pure wheel in uv.lock or have exactly one row here; a row naming a package the lock no longer needs fails the script.",
+  "python": {
+    "version": "3.13",
+    "support_release": "3.13-b18",
+    "url": "https://github.com/beeware/Python-Apple-support/releases/download/3.13-b18/Python-3.13-iOS-support.b18.tar.gz",
+    "sha256": "d06acf2a9c7964a8689566353a0e707402eff822037de5e29ba0e16040f7047d"
+  },
+  "sdks": {
+    "iphoneos": {
+      "rust_target": "aarch64-apple-ios",
+      "xcframework_slice": "ios-arm64",
+      "platform_config": "arm64-iphoneos",
+      "macho_platform": 2
+    },
+    "iphonesimulator": {
+      "rust_target": "aarch64-apple-ios-sim",
+      "xcframework_slice": "ios-arm64_x86_64-simulator",
+      "platform_config": "arm64-iphonesimulator",
+      "macho_platform": 7
+    }
+  },
+  "cross_deployment_target": "13.0",
+  "marker_environment": {
+    "implementation_name": "cpython",
+    "implementation_version": "3.13.18",
+    "os_name": "posix",
+    "platform_machine": "arm64",
+    "platform_python_implementation": "CPython",
+    "platform_release": "17.0",
+    "platform_system": "iOS",
+    "platform_version": "17.0",
+    "python_full_version": "3.13.18",
+    "python_version": "3.13",
+    "sys_platform": "ios"
+  },
+  "uv_export_args": ["--locked", "--no-dev", "--extra", "gui", "--no-emit-project"],
+  "beeware_wheels": {
+    "numpy": {
+      "version": "2.5.2.post1",
+      "reason": "uv.lock pins 2.4.6, which BeeWare does not build for iOS; 2.5.2.post1 is its newest build and satisfies the engine's numpy>=1.26.0.",
+      "files": {
+        "iphoneos": {
+          "url": "https://pypi.anaconda.org/beeware/simple/numpy/2.5.2.post1/numpy-2.5.2.post1-cp313-cp313-ios_13_0_arm64_iphoneos.whl",
+          "sha256": "d451e3281b8e2709bb85c6857c83b3c1797f930971b6bbff7f57469d3958e16e"
+        },
+        "iphonesimulator": {
+          "url": "https://pypi.anaconda.org/beeware/simple/numpy/2.5.2.post1/numpy-2.5.2.post1-cp313-cp313-ios_13_0_arm64_iphonesimulator.whl",
+          "sha256": "154285250704dd82f8a5b53633eebe381f6eb56d232780291ac180e12a7ea0b1"
+        }
+      }
+    }
+  },
+  "cross_build": {
+    "pydantic-core": {
+      "tool": "maturin",
+      "tool_version": "1.16.0",
+      "reason": "No index builds pydantic-core for iOS; the locked sdist builds with maturin against the Python.xcframework cross venv."
+    }
+  },
+  "pure_source": {
+    "pyyaml": {
+      "package_dir": "lib/yaml",
+      "module": "yaml",
+      "reason": "No iOS wheel; the pure-Python yaml package from the locked sdist works without the _yaml C extension."
+    }
+  },
+  "excluded": {
+    "mcp": "Host MCP is off on iOS (the loopback is not trusted) and the engine imports mcp only inside the MCP adapters; dropping it also drops what only it needs (cryptography, rpds-py and the other packages the plan lists as orphans).",
+    "boto3": "The S3-compatible object store is imported on demand by host-online features that stage 1 does not ship; dropping it also drops the packages only it needs (s3transfer, jmespath, python-dateutil, six, urllib3).",
+    "botocore": "Same: the object store's client library, used only through boto3.",
+    "hf-xet": "Download accelerator with no iOS wheel; huggingface-hub falls back to plain HTTPS."
+  },
+  "engine_sources": ["src", "contracts", ".agents/defaults", "hatch_build.py", "pyproject.toml"]
+}
