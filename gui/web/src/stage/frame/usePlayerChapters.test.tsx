@@ -1,7 +1,7 @@
 import { act, renderHook } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { useDawStore } from "../../state/dawStore";
-import { minimalProject } from "../../test/fixtures";
+import { clipRow, minimalProject } from "../../test/fixtures";
 import { sortChapters } from "./playerModel";
 import { usePlayerChapters } from "./usePlayerChapters";
 
@@ -31,5 +31,21 @@ describe("usePlayerChapters", () => {
       act(() => useDawStore.setState({ playheadSec: sec }));
     expect(result.current.current).toBe(1);
     expect(sortChapters).toHaveBeenCalledTimes(1);
+  });
+
+  it("places each chapter on the episode end, not the stored duration", () => {
+    useDawStore.getState().hydrate(
+      "/tmp/test/episode.sharecut",
+      minimalProject({
+        timeline_duration_sec: 60,
+        chapters: [{ title: "Outro", time: 45 }],
+        clips: {
+          tracks: { "mira-voice": [clipRow({ timeline_end: 90 })] },
+          clip_count: 1,
+        },
+      }),
+    );
+    const { result } = renderHook(() => usePlayerChapters());
+    expect(result.current.chapters[0]?.at).toBe(0.5);
   });
 });

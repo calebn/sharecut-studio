@@ -294,6 +294,27 @@ describe("ReviewQueue", () => {
     expect(screen.getByLabelText("In time order")).toBeInTheDocument();
   });
 
+  it("keeps a host's Filter and Sort with one kind of item", () => {
+    render(
+      <ReviewQueue
+        items={[
+          { id: "a", kind: "comment", at: 9, savedSeconds: 0 },
+          { id: "b", kind: "comment", at: 2, savedSeconds: 0 },
+        ]}
+        content={reviewContent}
+        selectedId={null}
+        filter="all"
+        canDecide
+        onFilter={vi.fn()}
+        onSort={vi.fn()}
+        onSelect={vi.fn()}
+      />,
+    );
+    expect(screen.getByRole("group", { name: "Filter" })).toBeInTheDocument();
+    expect(screen.getByRole("group", { name: "Sort" })).toBeInTheDocument();
+    expect(document.querySelector(".rv-progress.sr-only")).toBeNull();
+  });
+
   it("counts a guest queue of only suggestions as suggestions for a screen reader", () => {
     render(
       <ReviewQueue
