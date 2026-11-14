@@ -16,6 +16,7 @@ export function recordedLanguageName(tracks: readonly StaleTrack[]): string {
 type Answer = {
   asked: string | null;
   projectPath: string;
+  refreshKey: string;
   value: LanguageStatus;
 };
 
@@ -36,6 +37,7 @@ export function useLanguageStatus(
         setAnswer({
           asked: language,
           projectPath,
+          refreshKey,
           value: {
             language: status.language,
             stale: status.stale_tracks,
@@ -51,7 +53,8 @@ export function useLanguageStatus(
 
   return answer &&
     answer.asked === language &&
-    answer.projectPath === projectPath
+    answer.projectPath === projectPath &&
+    answer.refreshKey === refreshKey
     ? answer.value
     : null;
 }

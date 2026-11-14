@@ -36,6 +36,7 @@ import {
 } from "../../test/renderWithModels";
 import { ApiError } from "../../utils/apiError";
 import { takeOpenStage, writeOpenIntent } from "../../utils/openIntent";
+import type { LanguageStatus } from "./useLanguageStatus";
 import { runOptions, usePrepareRun } from "./usePrepareRun";
 
 vi.mock("../../api", async (original) => ({
@@ -49,6 +50,14 @@ vi.mock("../../api", async (original) => ({
 const start = vi.mocked(startPipelineRun);
 const vocabulary = vi.mocked(loadTranscriptVocabulary);
 const cancel = vi.mocked(cancelPipelineRun);
+
+const maya = { track_id: "maya", name: "Maya", recorded: "en" };
+const differs: LanguageStatus = {
+  language: "es",
+  stale: [maya],
+  edited: [maya],
+};
+const same: LanguageStatus = { language: "en", stale: [], edited: [] };
 
 const WHISPER_NEEDED = new ApiError("model needed", "model_needed", 409, {
   id: "whisper",
@@ -86,7 +95,11 @@ type Props = {
   projectPath?: string;
 };
 
-function setup(models = modelsFor("missing"), cfg = pipelineConfig()) {
+function setup(
+  models = modelsFor("missing"),
+  cfg = pipelineConfig(),
+  languageStatus: LanguageStatus | null = null,
+) {
   const api = models;
   const modelContext = { current: models };
   const ws = workingSet(cfg);
@@ -111,6 +124,7 @@ function setup(models = modelsFor("missing"), cfg = pipelineConfig()) {
         ingestBusy,
         canRun,
         nameOf: (id) => id.toUpperCase(),
+        languageStatus,
       }),
     { wrapper, initialProps: { ingestBusy: false, mediaKey: "" } as Props },
   );
@@ -387,10 +401,7 @@ describe("usePrepareRun keep my fixes", () => {
       needs_retranscription: true,
       edited_tracks: ["maya", "joss"],
     });
-    const { result } = setup(
-      modelsFor("missing"),
-      pipelineConfig({ config: { transcribe: { language: "es" } } }),
-    );
+    const { result } = setup(modelsFor("missing"), pipelineConfig(), differs);
     await act(async () => result.current.retranscribe());
     act(() => result.current.keepMyFixes());
     expect(useDawStore.getState().statusAnnouncement).toBe(
@@ -399,6 +410,29 @@ describe("usePrepareRun keep my fixes", () => {
     expect(useDawStore.getState().feedbackToast).toMatchObject({
       tone: "status",
     });
+  });
+
+  it("leaves the Language clause out when the staged language is the one the transcripts were made in", async () => {
+    vocabulary.mockResolvedValue({
+      show_title: null,
+      prompt_limit: null,
+      prompt_primer: "",
+      terms: [],
+      guest_names: [],
+      revision: "r1",
+      needs_retranscription: true,
+      edited_tracks: ["maya"],
+    });
+    const { result } = setup(
+      modelsFor("missing"),
+      pipelineConfig({ config: { transcribe: { language: "en" } } }),
+      same,
+    );
+    await act(async () => result.current.retranscribe());
+    act(() => result.current.keepMyFixes());
+    expect(useDawStore.getState().statusAnnouncement).toBe(
+      "Kept the hand fixes on MAYA. Nothing was re-transcribed.",
+    );
   });
 
   it("leaves the Language clause out while the language detects automatically", async () => {
@@ -775,10 +809,7 @@ describe("usePrepareRun refused over hand fixes", () => {
 
   it("says no run started when Keep answers a refused run, and the Language edit stays", async () => {
     fixed(["maya"]);
-    const { result } = setup(
-      modelsFor("missing"),
-      pipelineConfig({ config: { transcribe: { language: "es" } } }),
-    );
+    const { result } = setup(modelsFor("missing"), pipelineConfig(), differs);
     act(() => useDawStore.setState({ pipelineJob: refused }));
     await waitFor(() => expect(result.current.keepFixes).not.toBeNull());
     act(() => result.current.keepMyFixes());
