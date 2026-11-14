@@ -106,8 +106,7 @@ def altool_document(text: str) -> dict[str, object] | None:
     return document if isinstance(document, dict) else None
 
 
-def altool_messages(text: str) -> tuple[str, ...]:
-    document = altool_document(text)
+def altool_messages(text: str, document: dict[str, object] | None) -> tuple[str, ...]:
     if document is None:
         return tuple(line.strip() for line in text.splitlines() if "error" in line.lower())[:5]
     errors = document.get("product-errors") or []
@@ -121,8 +120,8 @@ def classify_altool(exit_code: int, text: str, *, strict: bool = False) -> Apple
     """*strict* is for a step that changes something at Apple: only exit 0 with a JSON answer, or
     altool's own ``product-errors``, count as Apple's answer; anything else is UNREACHABLE (no
     answer), and a transport error wins over an auth or rejection pattern."""
-    messages = altool_messages(text)
     document = altool_document(text)
+    messages = altool_messages(text, document)
     if strict and not (document and document.get("product-errors")):
         if exit_code == 0 and document is not None:
             return AppleAnswer(Verdict.OK)
