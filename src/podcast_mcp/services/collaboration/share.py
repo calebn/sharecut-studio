@@ -350,9 +350,8 @@ class ShareService:
         session_id = str(row.get("session_id") or "")
         if not session_id:
             return False
-        return RecordSessionService(self.ws.project, session_id=session_id).invite_closed(
-            share_id_of(row)
-        )
+        record = RecordSessionService(self.ws.project, session_id=session_id)
+        return record.invite_closed(share_id_of(row)) is not None
 
     def create_for_host(
         self,
@@ -447,7 +446,11 @@ class ShareService:
         public_base_url: str | None = None,
     ) -> dict[str, Any]:
         """Mint a same-room, same-role invite only after its source was closed by removal."""
-        from podcast_mcp.services.record import RecordSessionService, RecordStateError
+        from podcast_mcp.services.record import (
+            InviteClosure,
+            RecordSessionService,
+            RecordStateError,
+        )
 
         source = next(
             (row for row in list_shares(self.ws.project) if row.get("token") == source_token),
@@ -481,8 +484,14 @@ class ShareService:
             raise KeyError("record invite not found or no longer usable")
 
         record = RecordSessionService(self.ws.project, session_id=session_id)
-        if not record.invite_closed(share_id_of(source)):
+        closure = record.invite_closed(share_id_of(source))
+        if closure is None:
             raise RecordStateError("record invite is not closed")
+        if closure is InviteClosure.UNKNOWN_REMOVAL:
+            raise RecordStateError(
+                "A guest was removed and their link is unknown, so every invite of this "
+                "room is closed. Start a new room."
+            )
         return self.create_record_token(
             role=role,
             session_id=session_id,
