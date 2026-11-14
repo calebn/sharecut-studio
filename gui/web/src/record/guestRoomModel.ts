@@ -331,8 +331,8 @@ export function guestRoomAlerts(
   return alerts;
 }
 
-/** What this device still holds for a guest, in the order a cover must say it. */
-type GuestStake = "finishing" | "unsent" | "saved" | "none";
+/** What this device still holds for a leaving guest. A cover reads it in this order. */
+type GuestStake = "finishing" | "saved" | "unsent" | "none";
 
 function guestStake(
   phase: RoomPhase,

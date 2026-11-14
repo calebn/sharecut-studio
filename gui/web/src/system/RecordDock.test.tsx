@@ -162,7 +162,7 @@ describe("RecordDock", () => {
       expect(document.getElementById(note ?? "")).toHaveTextContent("Not yet.");
     });
 
-    it("holds Done the same way", () => {
+    it("holds Done for the same reason as Leave", () => {
       const onDone = vi.fn();
       render(
         <RecordDock
