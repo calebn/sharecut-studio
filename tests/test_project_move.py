@@ -173,7 +173,7 @@ def test_shares_follow_the_move_and_still_resolve(episode, dest_parent) -> None:
     assert _registry_workspace("cooldown_shares", ended["token"]) == str(new_file.parent)
     listed = list_shares(ProjectWorkspace.open(new_file).project)
     assert [s["token"] for s in listed if s.get("token")] == [live["token"]]
-    assert {s["project_workspace"] for s in listed} == {str(new_file.parent)}
+    assert all("project_workspace" not in s for s in listed)
 
 
 def test_a_live_job_for_the_episode_blocks_the_move(episode, dest_parent) -> None:

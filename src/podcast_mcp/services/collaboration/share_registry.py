@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import contextlib
 import json
+import os
 import secrets
 import sqlite3
 import threading
@@ -261,6 +262,8 @@ class ShareRegistryProtocol(Protocol):
 
     def list_pending(self, project_workspace: str | None = None) -> list[PendingRevoke]: ...
 
+    def finalize_unresolvable_pending(self) -> int: ...
+
     def backup_to_new(self, dest: Path) -> Path: ...
 
 
@@ -269,8 +272,35 @@ def _apply_schema(connection: sqlite3.Connection) -> None:
     connection.executescript(_SCHEMA)
 
 
+def _decode_workspace(stored: str | None) -> str | None:
+    """The absolute workspace a stored value names, or None when it names no usable folder.
+
+    A relative value on a host whose paths never move, and an absolute value that is not under
+    the current container, are both unusable: neither is resolved against the working directory
+    or an older container.
+    """
+    if stored is None:
+        return None
+    path = host_platform.from_stored(stored)
+    if path is None or not os.path.isabs(path):
+        return None
+    root = host_platform.container_root()
+    if root is not None and not Path(path).is_relative_to(root):
+        return None
+    return path
+
+
 class SqliteShareRegistry:
-    """Sqlite active + cooldown pools for public share tokens."""
+    """Sqlite active + cooldown pools for public share tokens.
+
+    Callers pass and receive absolute resolved workspace paths. The table stores the form
+    :func:`host_platform.to_stored` gives, so a row survives the app container moving. Every
+    argument that names a workspace is encoded here, and a stored value is decoded only where a
+    row leaves the registry: :meth:`get_active`, :meth:`list_active_for_workspace`,
+    :meth:`restore_group`, :meth:`list_pending` and :meth:`claim_due`. A row whose value cannot
+    be decoded is unresolvable: an active one is invisible to those readers and keeps its slug
+    reserved, and a pending one is dropped by :meth:`finalize_unresolvable_pending`.
+    """
 
     def __init__(self, db_path: Path | None = None) -> None:
         self.db_path = (
@@ -388,18 +418,21 @@ class SqliteShareRegistry:
             row = self._conn.execute(
                 "SELECT * FROM active_shares WHERE token = ?", (token,)
             ).fetchone()
-            if row is None:
-                return None
-            return self._active_row_to_dict(row)
+            workspace = None if row is None else _decode_workspace(row["project_workspace"])
+            return None if workspace is None else self._active_row_to_dict(row, workspace)
 
     def list_active_for_workspace(self, project_workspace: str) -> list[dict[str, Any]]:
         """Active rows minted for one episode workspace (the host's share list)."""
         with self._ready_connection():
             rows = self._conn.execute(
                 "SELECT * FROM active_shares WHERE project_workspace = ?",
-                (project_workspace,),
+                (host_platform.to_stored(project_workspace),),
             ).fetchall()
-            return [self._active_row_to_dict(row) for row in rows]
+            return [
+                self._active_row_to_dict(row, workspace)
+                for row in rows
+                if (workspace := _decode_workspace(row["project_workspace"])) is not None
+            ]
 
     def claim_active(self, share: dict[str, Any]) -> None:
         """Insert an active share with its ``id``. Raises ``ValueError`` if token is reserved."""
@@ -435,7 +468,7 @@ class SqliteShareRegistry:
                     (
                         token,
                         str(share["id"]),
-                        str(share["project_workspace"]),
+                        host_platform.to_stored(str(share["project_workspace"])),
                         str(share["review_version_id"]),
                         created,
                         last_used,
@@ -458,18 +491,19 @@ class SqliteShareRegistry:
         Both tables change in one transaction, so a guest link never resolves to a folder that
         is gone while its cooldown row names the new one. Returns the rows changed.
         """
+        old_stored, new_stored = host_platform.to_stored(old), host_platform.to_stored(new)
         with self._ready_connection(), self._write_transaction():
             active = self._conn.execute(
                 "UPDATE active_shares SET project_workspace = ? WHERE project_workspace = ?",
-                (new, old),
+                (new_stored, old_stored),
             )
             cooldown = self._conn.execute(
                 "UPDATE cooldown_shares SET project_workspace = ? WHERE project_workspace = ?",
-                (new, old),
+                (new_stored, old_stored),
             )
             pending = self._conn.execute(
                 "UPDATE pending_revokes SET project_workspace = ? WHERE project_workspace = ?",
-                (new, old),
+                (new_stored, old_stored),
             )
             return (
                 int(active.rowcount or 0) + int(cooldown.rowcount or 0) + int(pending.rowcount or 0)
@@ -510,7 +544,7 @@ class SqliteShareRegistry:
                 WHERE token = ?
                 """,
                 (
-                    str(row["project_workspace"]),
+                    host_platform.to_stored(str(row["project_workspace"])),
                     str(row["review_version_id"]),
                     row.get("expires_at"),
                     json.dumps(caps),
@@ -585,9 +619,10 @@ class SqliteShareRegistry:
         """
         with self._ready_connection(), self._write_transaction():
             moment = now or utc_now()
+            stored = host_platform.to_stored(project_workspace)
             found = [
                 row
-                for row in (self._active_row(token, project_workspace) for token in tokens)
+                for row in (self._active_row(token, stored) for token in tokens)
                 if row is not None
             ]
             if not found:
@@ -600,7 +635,10 @@ class SqliteShareRegistry:
             )
             for row in found:
                 self._reserve_revoked(row, "revoked", moment, SHARE_COOLDOWN_DAYS)
-            return [self._park_active_row(row, group_id, moment, until) for row in found]
+            return [
+                self._park_active_row(row, project_workspace, group_id, moment, until)
+                for row in found
+            ]
 
     def restore_group(
         self,
@@ -617,16 +655,20 @@ class SqliteShareRegistry:
         """
         with self._ready_connection(), self._write_transaction():
             moment = now or utc_now()
-            rows = self._pending_rows(project_workspace, group_id)
+            rows = [
+                (row, workspace)
+                for row in self._pending_rows(project_workspace, group_id)
+                if (workspace := _decode_workspace(row["project_workspace"])) is not None
+            ]
             if not rows:
                 return []
-            self._require_restorable(rows, moment)
-            self._require_no_live_room(rows, moment)
-            for row in rows:
+            self._require_restorable([row for row, _ in rows], moment)
+            self._require_no_live_room([row for row, _ in rows], moment)
+            for row, _ in rows:
                 self._reinstate(row)
             return [
-                {**json.loads(row["snapshot_json"]), "project_workspace": row["project_workspace"]}
-                for row in rows
+                {**json.loads(row["snapshot_json"]), "project_workspace": workspace}
+                for row, workspace in rows
             ]
 
     def claim_due(
@@ -647,6 +689,9 @@ class SqliteShareRegistry:
             moment = now or utc_now()
             claimed = []
             for row in self._pending_rows(project_workspace, group_id):
+                workspace = _decode_workspace(row["project_workspace"])
+                if workspace is None:
+                    continue
                 if (not force and not self._window_ended(row, moment)) or lease_held(row, moment):
                     continue
                 leased_until = _iso(moment + lease)
@@ -655,7 +700,9 @@ class SqliteShareRegistry:
                     (leased_until, row["token"]),
                 )
                 claimed.append(
-                    self._pending_view({**dict(row), "finalize_lease_until": leased_until})
+                    self._pending_view(
+                        {**dict(row), "finalize_lease_until": leased_until}, workspace
+                    )
                 )
             return claimed
 
@@ -670,8 +717,27 @@ class SqliteShareRegistry:
     def list_pending(self, project_workspace: str | None = None) -> list[PendingRevoke]:
         with self._ready_connection():
             return [
-                self._pending_view(dict(row)) for row in self._pending_rows(project_workspace, None)
+                self._pending_view(dict(row), workspace)
+                for row in self._pending_rows(project_workspace, None)
+                if (workspace := _decode_workspace(row["project_workspace"])) is not None
             ]
+
+    def finalize_unresolvable_pending(self) -> int:
+        """Drop pending rows whose workspace cannot be decoded; their slugs stay in cooldown.
+
+        Such a row cannot be restored to a folder that does not exist, and its effects (media,
+        room end) have no workspace to run in, so the sweep finishes it here. Returns the count.
+        """
+        with self._ready_connection(), self._write_transaction():
+            dead = [
+                row["token"]
+                for row in self._pending_rows(None, None)
+                if _decode_workspace(row["project_workspace"]) is None
+            ]
+            self._conn.executemany(
+                "DELETE FROM pending_revokes WHERE token = ?", [(token,) for token in dead]
+            )
+            return len(dead)
 
     def _active_row(self, token: str, project_workspace: str) -> sqlite3.Row | None:
         found: sqlite3.Row | None = self._conn.execute(
@@ -681,6 +747,7 @@ class SqliteShareRegistry:
         return found
 
     def _pending_rows(self, workspace: str | None, group_id: str | None) -> list[sqlite3.Row]:
+        workspace = None if workspace is None else host_platform.to_stored(workspace)
         return list(
             self._conn.execute(
                 "SELECT * FROM pending_revokes"
@@ -716,13 +783,23 @@ class SqliteShareRegistry:
         )
 
     def _park_active_row(
-        self, row: sqlite3.Row, group_id: str, moment: datetime, until: datetime
+        self,
+        row: sqlite3.Row,
+        workspace: str,
+        group_id: str,
+        moment: datetime,
+        until: datetime,
     ) -> PendingRevoke:
+        snapshot = {
+            k: v
+            for k, v in self._active_row_to_dict(row, workspace).items()
+            if k != "project_workspace"
+        }
         parked = {
             "token": row["token"],
             "group_id": group_id,
             "project_workspace": row["project_workspace"],
-            "snapshot_json": json.dumps(self._active_row_to_dict(row)),
+            "snapshot_json": json.dumps(snapshot),
             "revoked_at": _iso(moment),
             "restorable_until": _iso(until),
             "finalize_lease_until": None,
@@ -736,7 +813,7 @@ class SqliteShareRegistry:
             """,
             parked,
         )
-        return self._pending_view(parked)
+        return self._pending_view(parked, workspace)
 
     @staticmethod
     def _window_ended(row: sqlite3.Row, moment: datetime) -> bool:
@@ -801,15 +878,15 @@ class SqliteShareRegistry:
             raise RestoreWindowClosedError() from exc
 
     @staticmethod
-    def _pending_view(row: Mapping[str, Any]) -> PendingRevoke:
+    def _pending_view(row: Mapping[str, Any], workspace: str) -> PendingRevoke:
         snap = json.loads(row["snapshot_json"])
         return {
             "token": row["token"],
             "id": snap.get("id"),
             "kind": snap.get("kind") or SHARE_KIND_REVIEW,
             "group_id": row["group_id"],
-            "project_workspace": row["project_workspace"],
-            "snapshot": {**snap, "project_workspace": row["project_workspace"]},
+            "project_workspace": workspace,
+            "snapshot": {**snap, "project_workspace": workspace},
             "revoked_at": row["revoked_at"],
             "restorable_until": row["restorable_until"],
             "finalize_lease_until": row["finalize_lease_until"],
@@ -831,7 +908,7 @@ class SqliteShareRegistry:
             cleanup([connection.close])
 
     @staticmethod
-    def _active_row_to_dict(row: sqlite3.Row) -> dict[str, Any]:
+    def _active_row_to_dict(row: sqlite3.Row, workspace: str) -> dict[str, Any]:
         caps_raw = row["capabilities"]
         try:
             caps = json.loads(caps_raw)
@@ -840,7 +917,7 @@ class SqliteShareRegistry:
         return {
             "token": row["token"],
             "id": row["id"],
-            "project_workspace": row["project_workspace"],
+            "project_workspace": workspace,
             "review_version_id": row["review_version_id"],
             "created_at": row["created_at"],
             "last_used_at": row["last_used_at"],
