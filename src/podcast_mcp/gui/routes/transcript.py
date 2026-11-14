@@ -39,6 +39,16 @@ def transcript_vocabulary_get(
     return TranscriptPrecorrectService.vocabulary_status(project_path)
 
 
+@router.get("/api/transcript/language-status")
+def transcript_language_status(
+    request: Request,
+    path: str = Query(...),
+    language: str | None = Query(None),
+) -> dict[str, Any]:
+    project_path = resolve_project(path, request)
+    return TranscriptPrecorrectService.language_status(project_path, language)
+
+
 @router.put("/api/transcript/vocabulary")
 def transcript_vocabulary_put(
     req: TranscriptVocabularyPutRequest,

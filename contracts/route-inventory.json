@@ -1018,6 +1018,12 @@
     },
     {
       "gate": "host",
+      "handler": "podcast_mcp.gui.routes.transcript:transcript_language_status",
+      "method": "GET",
+      "path": "/api/transcript/language-status"
+    },
+    {
+      "gate": "host",
       "handler": "podcast_mcp.gui.routes.transcript:transcript_refine_done",
       "method": "POST",
       "path": "/api/transcript/refine/done"
