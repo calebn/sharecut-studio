@@ -84,16 +84,25 @@ function GuestScriptHostAdapter({
     },
     [script],
   );
+  // Remembered only when the store took the selection: a write that changed
+  // nothing must not pair an older selection with this gesture's ends.
+  const write = useCallback(
+    (selection: WordsSelection) => {
+      const prior = useDawStore.getState().selection;
+      selectRange?.(selection);
+      if (useDawStore.getState().selection !== prior) remember(selection);
+    },
+    [selectRange, remember],
+  );
   const onSelect = useCallback(
     (selection: WordsSelection) => {
       if (touchesHeld(script, selection)) {
         heldNotice();
         return;
       }
-      selectRange?.(selection);
-      remember(selection);
+      write(selection);
     },
-    [script, selectRange, remember, heldNotice],
+    [script, write, heldNotice],
   );
   // An edit renumbers words: a selection of ours follows its words or goes.
   // It writes with no gesture, so it never announces and waits for live words.
@@ -110,19 +119,15 @@ function GuestScriptHostAdapter({
       remembered.current = null;
       state.setSelection(null);
     } else if (next.kind === "move") {
-      const moved: WordsSelection = {
-        kind: "words",
-        anchor: next.anchor,
-        head: next.head,
-      };
-      selectRange?.(moved);
-      remember(moved);
+      write({ kind: "words", anchor: next.anchor, head: next.head });
     }
-  }, [script, selectRange, remember]);
+  }, [script, write]);
   // The Script gives way to a cover mid-refresh: the words come back under new
   // numbers with nothing watching the selection, so it goes with the Script.
   const refreshingNow = useRef(shown.refreshing);
-  refreshingNow.current = shown.refreshing;
+  useEffect(() => {
+    refreshingNow.current = shown.refreshing;
+  }, [shown.refreshing]);
   useEffect(
     () => () => {
       const mine = remembered.current;

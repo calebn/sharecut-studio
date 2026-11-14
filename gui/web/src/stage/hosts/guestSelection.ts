@@ -1,26 +1,31 @@
 import type { ScriptTurn } from "../../system/scriptPieces";
 import type { ScriptWordRef } from "../edit/script/scriptModel";
+import type { TurnSpan } from "./guestScript";
 
 type Time = { start: number; end: number } | null;
 
 /** What the Script knows about its words, index for index. */
 export type SelectionModel = {
   turns: readonly ScriptTurn[];
+  spans: readonly TurnSpan[];
   refs: readonly ScriptWordRef[];
   times: readonly Time[];
   /** Null for a held word, whose time is not known yet. */
   wordStarts: readonly (number | null)[];
+  words: readonly { start: number; text: string }[];
 };
 
 /**
- * One end of a selection: the line (its id is stable across a cut, a word's
- * `word_index` is not), the place among the line's drawn words, the word, and
- * the numbers and times the store was given for it.
+ * One end of a selection. A word is the same word when its recording, its
+ * place in that recording (source seconds, which no cut moves) and its text
+ * are: its line and its `word_index` both change when a cut splits a line or
+ * renumbers. `ref` and `time` are what the store was given for it.
  */
 export type SelectionEnd = {
   index: number;
-  line: string;
-  at: number;
+  trackId: string;
+  sourceId: string | null;
+  start: number;
   text: string;
   ref: ScriptWordRef | undefined;
   time: Time | undefined;
@@ -37,24 +42,23 @@ export function selectionEndOf(
   model: SelectionModel,
   index: number,
 ): SelectionEnd | null {
-  for (const turn of model.turns) {
-    const at = turn.words.findIndex((word) => word.index === index);
-    if (at >= 0)
-      return {
-        index,
-        line: turn.id,
-        at,
-        text: turn.words[at]!.text,
-        ref: model.refs[index],
-        time: model.times[index],
-      };
-  }
-  return null;
+  const ref = model.refs[index];
+  const word = model.words[index];
+  if (!ref || !word) return null;
+  return {
+    index,
+    trackId: ref.trackId,
+    sourceId: ref.sourceId,
+    start: word.start,
+    text: word.text,
+    ref,
+    time: model.times[index],
+  };
 }
 
 export type SelectionFollow =
   | { kind: "keep" }
-  /** A line of the selection is bars or held: its words are not known yet. */
+  /** The word is held or inside a line drawn as bars: not known yet. */
   | { kind: "wait" }
   | { kind: "clear" }
   | { kind: "move"; anchor: number; head: number };
@@ -64,23 +68,44 @@ type Found =
   | { kind: "wait" }
   | { kind: "gone" };
 
+const SAME = 1e-6;
+
 function findEnd(model: SelectionModel, end: SelectionEnd): Found {
-  const turn = model.turns.find((t) => t.id === end.line);
-  if (!turn) return { kind: "gone" };
-  if (turn.words.length === 0) return { kind: "wait" };
-  const word = turn.words[end.at];
-  if (!word || word.text !== end.text) return { kind: "gone" };
-  return model.wordStarts[word.index] === null
-    ? { kind: "wait" }
-    : { kind: "at", index: word.index };
+  let held = false;
+  for (let index = 0; index < model.words.length; index++) {
+    const ref = model.refs[index];
+    const word = model.words[index];
+    if (
+      ref?.trackId !== end.trackId ||
+      ref.sourceId !== end.sourceId ||
+      !word ||
+      word.text !== end.text ||
+      Math.abs(word.start - end.start) > SAME
+    )
+      continue;
+    if (model.wordStarts[index] !== null) return { kind: "at", index };
+    held = true;
+  }
+  if (held) return { kind: "wait" };
+  const covered = model.turns.some((turn, at) => {
+    const span = model.spans[at];
+    return (
+      turn.words.length === 0 &&
+      span?.trackId === end.trackId &&
+      span.sourceId === end.sourceId &&
+      span.start - SAME <= end.start &&
+      end.start <= span.end + SAME
+    );
+  });
+  return covered ? { kind: "wait" } : { kind: "gone" };
 }
 
 const sameTime = (a: Time | undefined, b: Time | undefined) =>
   a === b ||
   (!!a &&
     !!b &&
-    Math.abs(a.start - b.start) < 1e-6 &&
-    Math.abs(a.end - b.end) < 1e-6);
+    Math.abs(a.start - b.start) < SAME &&
+    Math.abs(a.end - b.end) < SAME);
 
 /** The store holds numbers and times, not window positions: those decide. */
 function holds(model: SelectionModel, end: SelectionEnd, index: number) {
@@ -97,7 +122,7 @@ function holds(model: SelectionModel, end: SelectionEnd, index: number) {
  * The selection against the Script as it is now. After an edit the same words
  * sit under new `word_index` numbers: the selection follows them once they
  * are live, or it is cleared when they are not there any more. It never names
- * other words, and it waits while a line is not live.
+ * other words, and it waits while the word is not live.
  */
 export function followSelection(
   remembered: RememberedSelection,

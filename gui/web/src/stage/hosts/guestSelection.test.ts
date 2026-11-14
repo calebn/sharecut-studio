@@ -7,15 +7,32 @@ import {
   selectionEndOf,
 } from "./guestSelection";
 
-type W = { text: string; n: number; held?: true };
-type Line = { id: string; words: W[]; bars?: number };
+/** `n` is the word_index the store holds, `at` the source second: a cut moves `n`, never `at`. */
+type W = { text: string; n: number; at: number; held?: true };
+type Line = {
+  id: string;
+  words: W[];
+  /** A line drawn as bars: the source seconds it covers. */
+  bars?: [number, number];
+  track?: string;
+  source?: string | null;
+};
 
-/** A Script the way guestScriptOf lays it out: flat indices over the drawn words. */
 function modelOf(lines: Line[]): SelectionModel {
   const refs: SelectionModel["refs"][number][] = [];
   const times: SelectionModel["times"][number][] = [];
   const wordStarts: (number | null)[] = [];
+  const words: { start: number; text: string }[] = [];
+  const spans: SelectionModel["spans"][number][] = [];
   const turns = lines.map((line): ScriptTurn => {
+    const trackId = line.track ?? "a";
+    const sourceId = line.source ?? null;
+    spans.push({
+      trackId,
+      sourceId,
+      start: line.bars?.[0] ?? line.words[0]!.at,
+      end: line.bars?.[1] ?? line.words[line.words.length - 1]!.at + 0.4,
+    });
     return {
       id: line.id,
       speakerId: "a",
@@ -23,39 +40,48 @@ function modelOf(lines: Line[]): SelectionModel {
       time: "0:00",
       words: line.words.map((w) => {
         const index = refs.length;
-        refs.push({ trackId: "a", sourceId: null, wordIndex: w.n });
-        times.push(w.held ? null : { start: w.n, end: w.n + 0.5 });
-        wordStarts.push(w.held ? null : w.n);
-        return { index, key: `a::${w.n}`, text: w.text };
+        refs.push({ trackId, sourceId, wordIndex: w.n });
+        times.push(w.held ? null : { start: w.at, end: w.at + 0.4 });
+        wordStarts.push(w.held ? null : w.at);
+        words.push({ start: w.at, text: w.text });
+        return { index, key: `${trackId}::${w.n}`, text: w.text };
       }),
-      ...(line.bars ? { settling: Array(line.bars).fill(3) } : {}),
+      ...(line.bars ? { settling: [3, 3] } : {}),
     } as ScriptTurn;
   });
-  return { turns, refs, times, wordStarts };
+  return { turns, spans, refs, times, wordStarts, words };
 }
+
 const line = (
   id: string,
-  texts: string[],
-  first: number,
+  words: [string, number, number][],
+  extra: Partial<Line> = {},
   held = false,
 ): Line => ({
   id,
-  words: texts.map((text, i) => ({
+  words: words.map(([text, n, at]) => ({
     text,
-    n: first + i,
+    n,
+    at,
     ...(held ? { held: true as const } : {}),
   })),
+  ...extra,
 });
-const bars = (id: string): Line => ({ id, words: [], bars: 3 });
+const bars = (
+  id: string,
+  span: [number, number],
+  extra: Partial<Line> = {},
+): Line => ({
+  id,
+  words: [],
+  bars: span,
+  ...extra,
+});
 
-const before = modelOf([
-  line("a:s:0", ["one", "two", "three"], 0),
-  line("a:s:9", ["four", "five", "six"], 3),
-]);
 function remember(
   model: SelectionModel,
   anchor: number,
-  head: number,
+  head = anchor,
 ): RememberedSelection {
   const a = selectionEndOf(model, anchor);
   const h = selectionEndOf(model, head);
@@ -63,101 +89,209 @@ function remember(
   return { stored: {}, anchor: a, head: h };
 }
 
+// One line "a b a a" at source seconds 1..4, then another line.
+const abaa = line("a:0:1", [
+  ["a", 0, 1],
+  ["b", 1, 2],
+  ["a", 2, 3],
+  ["a", 3, 4],
+]);
+const next = line("a:0:9", [
+  ["four", 4, 9],
+  ["five", 5, 10],
+]);
+const before = modelOf([abaa, next]);
+
 describe("followSelection", () => {
   it("keeps a selection whose words did not move", () => {
-    expect(followSelection(remember(before, 1, 4), before)).toEqual({
+    expect(followSelection(remember(before, 2, 5), before)).toEqual({
       kind: "keep",
     });
   });
 
-  it("follows the same words to their new numbers after a cut before them", () => {
+  it("follows the same word when a cut takes an equal-text word before it, never the sibling", () => {
+    // "b" is cut: the third word (a at 3 s) is now number 1, not 2.
     const after = modelOf([
-      line("a:s:0", ["one", "two", "three"], 0),
-      line("a:s:9", ["four", "five", "six"], 1),
+      line("a:0:1", [
+        ["a", 0, 1],
+        ["a", 1, 3],
+        ["a", 2, 4],
+      ]),
+      next,
     ]);
-    expect(followSelection(remember(before, 3, 5), after)).toEqual({
+    expect(followSelection(remember(before, 2), after)).toEqual({
       kind: "move",
-      anchor: 3,
-      head: 5,
+      anchor: 1,
+      head: 1,
     });
   });
 
   it("moves when only the numbers changed and every flat position stayed", () => {
-    // A cut took struck words from before the selection: nothing drawn moved.
     const after = modelOf([
-      line("a:s:0", ["one", "two", "three"], 0),
-      line("a:s:9", ["four", "five", "six"], 1),
+      abaa,
+      line("a:0:9", [
+        ["four", 3, 9],
+        ["five", 4, 10],
+      ]),
     ]);
-    const picked = remember(before, 4, 5);
-    expect(after.turns[1]!.words[1]!.index).toBe(4);
-    expect(followSelection(picked, after)).toEqual({
+    expect(followSelection(remember(before, 5), after)).toEqual({
       kind: "move",
-      anchor: 4,
+      anchor: 5,
       head: 5,
     });
   });
 
-  it("waits while a line of the selection is bars or held, and never moves then", () => {
-    expect(
-      followSelection(
-        remember(before, 1, 4),
-        modelOf([line("a:s:0", ["one", "two", "three"], 0), bars("a:s:9")]),
-      ),
-    ).toEqual({ kind: "wait" });
-    const held = modelOf([
-      line("a:s:0", ["one", "two", "three"], 0),
-      line("a:s:9", ["four", "five", "six"], 1, true),
+  it("clears when the selected word is cut and an equal-text word takes its place", () => {
+    // The third word (a at 3 s) is cut; the fourth (a at 4 s) now sits where it was.
+    const after = modelOf([
+      line("a:0:1", [
+        ["a", 0, 1],
+        ["b", 1, 2],
+        ["a", 2, 4],
+      ]),
+      next,
     ]);
-    expect(followSelection(remember(before, 3, 5), held)).toEqual({
+    expect(followSelection(remember(before, 2), after)).toEqual({
+      kind: "clear",
+    });
+  });
+
+  it("follows a word into the second block when a cut splits its line", () => {
+    const after = modelOf([
+      line("a:0:1", [["a", 0, 1]]),
+      line("a:0:3", [
+        ["a", 1, 3],
+        ["a", 2, 4],
+      ]),
+      next,
+    ]);
+    expect(followSelection(remember(before, 3), after)).toEqual({
+      kind: "move",
+      anchor: 2,
+      head: 2,
+    });
+    expect(after.turns[1]!.words[1]!.index).toBe(2);
+  });
+
+  it("waits while the word is held or inside a line drawn as bars", () => {
+    const held = modelOf([
+      line(
+        "a:0:1",
+        [
+          ["a", 0, 1],
+          ["b", 1, 2],
+          ["a", 2, 3],
+          ["a", 3, 4],
+        ],
+        {},
+        true,
+      ),
+      next,
+    ]);
+    expect(followSelection(remember(before, 2), held)).toEqual({
+      kind: "wait",
+    });
+    const barred = modelOf([bars("a:0:1", [1, 4.4]), next]);
+    expect(followSelection(remember(before, 2), barred)).toEqual({
       kind: "wait",
     });
   });
 
-  it("clears when the words are not there: a cut through them, or their line gone", () => {
-    const cut = modelOf([
-      line("a:s:0", ["one", "two", "three"], 0),
-      line("a:s:9", ["four", "six"], 3),
+  it("holds through two cuts before the detail lands, then follows", () => {
+    const gap = modelOf([bars("a:0:1", [1, 4.4]), next]);
+    const picked = remember(before, 3);
+    expect(followSelection(picked, gap)).toEqual({ kind: "wait" });
+    expect(followSelection(picked, gap)).toEqual({ kind: "wait" });
+    const settled = modelOf([
+      line("a:0:1", [
+        ["a", 0, 1],
+        ["a", 1, 3],
+        ["a", 2, 4],
+      ]),
+      line("a:0:9", [
+        ["four", 3, 9],
+        ["five", 4, 10],
+      ]),
     ]);
-    expect(followSelection(remember(before, 3, 4), cut)).toEqual({
-      kind: "clear",
-    });
-    expect(followSelection(remember(before, 3, 5), cut)).toEqual({
-      kind: "clear",
-    });
-    expect(
-      followSelection(
-        remember(before, 3, 4),
-        modelOf([line("a:s:0", ["one", "two", "three"], 0)]),
-      ),
-    ).toEqual({ kind: "clear" });
-  });
-
-  it("leaves a selection alone when a correction re-draws another line as bars", () => {
-    const after = modelOf([
-      bars("a:s:0"),
-      line("a:s:9", ["four", "five", "six"], 3),
-    ]);
-    // The bars line draws no words, so the live line's flat indices shift down,
-    // but the numbers and times the store holds are the same: nothing to write.
-    const picked = remember(before, 3, 5);
-    expect(after.turns[1]!.words[0]!.index).toBe(0);
-    expect(followSelection(picked, after)).toEqual({ kind: "keep" });
-  });
-
-  it("tells duplicate takes apart by their line", () => {
-    const takes = modelOf([
-      line("a:s:0", ["yes", "yes"], 0),
-      line("a:s:0#2", ["yes", "yes"], 2),
-    ]);
-    const picked = remember(takes, 2, 3);
-    const shifted = modelOf([
-      line("a:s:0", ["yes", "yes"], 0),
-      line("a:s:0#2", ["yes", "yes"], 5),
-    ]);
-    expect(followSelection(picked, shifted)).toEqual({
+    expect(followSelection(picked, settled)).toEqual({
       kind: "move",
       anchor: 2,
-      head: 3,
+      head: 2,
     });
+  });
+
+  it("clears when the word is cut, or its text was corrected", () => {
+    const cut = modelOf([
+      line("a:0:1", [
+        ["a", 0, 1],
+        ["b", 1, 2],
+        ["a", 2, 4],
+      ]),
+      next,
+    ]);
+    expect(
+      followSelection(
+        remember(before, 3),
+        modelOf([
+          line("a:0:1", [
+            ["a", 0, 1],
+            ["b", 1, 2],
+            ["a", 2, 3],
+          ]),
+          next,
+        ]),
+      ),
+    ).toEqual({ kind: "clear" });
+    expect(followSelection(remember(before, 1), cut)).toEqual({ kind: "keep" });
+    const fixed = modelOf([
+      line("a:0:1", [
+        ["a", 0, 1],
+        ["b!", 1, 2],
+        ["a", 2, 3],
+        ["a", 3, 4],
+      ]),
+      next,
+    ]);
+    expect(followSelection(remember(before, 1), fixed)).toEqual({
+      kind: "clear",
+    });
+  });
+
+  it("never follows to the sibling when the first of two duplicate takes disappears", () => {
+    // The same words said twice in one recording, at 1 s and at 20 s.
+    const takes = modelOf([
+      line("a:0:1", [
+        ["yes", 0, 1],
+        ["no", 1, 2],
+      ]),
+      line("a:0:20", [
+        ["yes", 2, 20],
+        ["no", 3, 21],
+      ]),
+    ]);
+    const picked = remember(takes, 0, 1);
+    const gone = modelOf([
+      line("a:0:20", [
+        ["yes", 0, 20],
+        ["no", 1, 21],
+      ]),
+    ]);
+    expect(followSelection(picked, gone)).toEqual({ kind: "clear" });
+    // The second take is its own selection and follows by its source seconds.
+    expect(followSelection(remember(takes, 2, 3), gone)).toEqual({
+      kind: "move",
+      anchor: 0,
+      head: 1,
+    });
+  });
+
+  it("tells recordings apart by track and source", () => {
+    const two = modelOf([
+      line("a:s1:1", [["yes", 0, 1]], { source: "s1" }),
+      line("a:s2:1", [["yes", 0, 1]], { source: "s2" }),
+    ]);
+    const only = modelOf([line("a:s2:1", [["yes", 0, 1]], { source: "s2" })]);
+    expect(followSelection(remember(two, 0), only)).toEqual({ kind: "clear" });
+    expect(followSelection(remember(two, 1), only)).toEqual({ kind: "keep" });
   });
 });
