@@ -95,8 +95,8 @@ def redact_share_paths(text: str) -> str:
     The roots match in any letter case: the server answers ``/R/<token>`` with a 404, but
     uvicorn still logs the path.
 
-    The routes are the guest ``/r/``, ``/rec/``, ``/api/review/``, ``/api/rec/`` and ``/mcp/``
-    paths and the host ``/api/shares/<token>/revoke|restore`` and
+    The routes are the guest ``/r/``, ``/rec/``, ``/api/review/`` and ``/mcp/`` roots (so
+    ``/api/rec/`` too, through ``/rec/``) and the host ``/api/shares/<token>/revoke|restore`` and
     ``/api/shares/record/<token>/replace`` paths.
     ``tests/test_share_path_routes.py`` fails when a mounted route puts a token somewhere else.
     """
