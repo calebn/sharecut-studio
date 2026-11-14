@@ -71,11 +71,17 @@ class DistributionProfile:
     bootstrap_cdn_base: str | None
     updater_endpoint: str | None
     updater_public_key: str | None
+    short_name: str | None = None
 
 
 def compact_product_name(profile: DistributionProfile) -> str:
     """Return the filesystem-safe installer stem derived from a public profile."""
     return "".join(profile.product_name.split())
+
+
+def icon_name(profile: DistributionProfile) -> str:
+    """The name under the iOS icon: ``short_name`` when the profile sets one."""
+    return profile.short_name or profile.product_name
 
 
 def default_distribution_profile_path() -> Path:
@@ -235,6 +241,7 @@ def distribution_profile_from_mapping(raw: dict[str, Any]) -> DistributionProfil
         "bootstrap_cdn_base",
         "updater_endpoint",
         "updater_public_key",
+        "short_name",
     }
     unknown = sorted(set(raw) - allowed_keys)
     if unknown:
@@ -246,6 +253,13 @@ def distribution_profile_from_mapping(raw: dict[str, Any]) -> DistributionProfil
         raise DistributionProfileError("product_name must contain 1-64 characters")
     if _CONTROL_CHARACTER.search(product_name):
         raise DistributionProfileError("product_name must not contain control characters")
+    short_name: str | None = None
+    if "short_name" in raw:
+        short_name = str(raw["short_name"] or "").strip()
+        if not 1 <= len(short_name) <= 15:
+            raise DistributionProfileError("short_name must contain 1-15 characters")
+        if _CONTROL_CHARACTER.search(short_name):
+            raise DistributionProfileError("short_name must not contain control characters")
     bundle_id = str(raw.get("bundle_identifier") or "").strip()
     if not _BUNDLE_ID.fullmatch(bundle_id):
         raise DistributionProfileError("bundle_identifier must use reverse-DNS syntax")
@@ -313,6 +327,7 @@ def distribution_profile_from_mapping(raw: dict[str, Any]) -> DistributionProfil
             else None
         ),
         updater_public_key=(_validate_updater_public_key(key_raw) if key_raw is not None else None),
+        short_name=short_name,
     )
 
 

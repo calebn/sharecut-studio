@@ -36,6 +36,13 @@
       "maxLength": 64,
       "pattern": "^[^\\u0000-\\u001F\\u007F]+$"
     },
+    "short_name": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 15,
+      "pattern": "^[^\\u0000-\\u001F\\u007F]+$",
+      "description": "Optional. The name under the iOS icon; the iOS release uses it as the product name."
+    },
     "bundle_identifier": {
       "type": "string",
       "pattern": "^[A-Za-z][A-Za-z0-9-]*(\\.[A-Za-z0-9-]+)+$"
