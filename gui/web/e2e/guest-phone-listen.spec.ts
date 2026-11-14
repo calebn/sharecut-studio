@@ -115,6 +115,7 @@ async function withPhoneGuest(
   size: Size,
   role: "commenter" | "viewer" | "editor",
   run: (guest: Page) => Promise<void>,
+  colorScheme: "light" | "dark" = "light",
 ): Promise<void> {
   await withShareableProject(async (projectPath) => {
     await withBrowserPages(
@@ -126,6 +127,7 @@ async function withPhoneGuest(
           viewport: size,
           screen: size,
           reducedMotion: "reduce",
+          colorScheme,
         },
       ],
       async ([host, guest]) => {
@@ -277,6 +279,7 @@ for (const profile of PROFILES) {
             guest.getByRole("button", { name: "Play", exact: true }),
           ).toBeVisible();
           await field.fill("Tighten this pause");
+          await expectPageAxeClean(guest);
           const name = composer(guest).getByRole("textbox", {
             name: "Your name",
           });
@@ -290,6 +293,7 @@ for (const profile of PROFILES) {
           await post.tap({ timeout: 10_000 });
           await expect(composer(guest)).toHaveCount(0);
           await expect(commentsRow(guest)).toContainText("Comment added at");
+          await expectPageAxeClean(guest);
           await expect(commentButton(guest)).toBeFocused();
         },
       );
@@ -417,12 +421,14 @@ for (const profile of PROFILES) {
           const sheet = guest.getByRole("dialog", { name: "Comments" });
           await expectRestsOnDock(guest, sheet);
           await expectCommentsReadable(guest, sheet, 2);
+          await expectPageAxeClean(guest);
           await sheet
             .locator(".sys-queue-row")
             .first()
             .getByRole("button")
             .tap({ timeout: 10_000 });
           const thread = guest.getByRole("dialog", { name: /^Comment from/ });
+          await expectPageAxeClean(guest);
           const back = thread.getByRole("button", { name: "Back to comments" });
           await expect(back).toBeVisible();
           const backBox = await back.boundingBox();
@@ -453,6 +459,7 @@ for (const profile of PROFILES) {
             .tap({ timeout: 10_000 });
           const sheet = guest.getByRole("dialog", { name: "Chapters" });
           await expectRestsOnDock(guest, sheet);
+          await expectPageAxeClean(guest);
           await sheet
             .getByRole("button", { name: /The long way round/ })
             .tap({ timeout: 10_000 });
@@ -460,6 +467,11 @@ for (const profile of PROFILES) {
           await expect(guest.locator(".sys-listen-dock-elapsed")).toHaveText(
             "0:30",
           );
+          // The row now shows the comment being heard.
+          await expect(commentsRow(guest)).toContainText(
+            "Level feels low here",
+          );
+          await expectPageAxeClean(guest);
         },
       );
     });
@@ -475,6 +487,7 @@ for (const profile of PROFILES) {
         await expect(commentButton(guest)).toHaveCount(0);
         await expect(guest.getByRole("textbox")).toHaveCount(0);
         await expectNoHorizontalScroll(guest, size.width);
+        await expectPageAxeClean(guest);
       });
     });
 
@@ -629,6 +642,7 @@ for (const profile of PROFILES) {
           commentBox.y + commentBox.height,
         );
         await expectNoHorizontalScroll(guest, FOLDED.width);
+        await expectPageAxeClean(guest);
       },
     );
   });
@@ -667,7 +681,28 @@ for (const profile of PROFILES) {
         const comments = guest.getByRole("dialog", { name: "Comments" });
         await expectRestsOnDock(guest, comments);
         await expectCommentsReadable(guest, comments, 1);
+        await expectPageAxeClean(guest);
       },
+    );
+  });
+
+  test(`a Commenter on a dark phone has no axe violations at first load and with the Comments sheet open on ${profile.name} 390x844`, async ({
+    browser,
+  }) => {
+    await withPhoneGuest(
+      browser,
+      profile,
+      PORTRAITS[0],
+      "commenter",
+      async (guest) => {
+        await expectPageAxeClean(guest);
+        await commentsRow(guest).tap({ timeout: 10_000 });
+        await expect(
+          guest.getByRole("dialog", { name: "Comments" }),
+        ).toBeVisible();
+        await expectPageAxeClean(guest);
+      },
+      "dark",
     );
   });
 }
