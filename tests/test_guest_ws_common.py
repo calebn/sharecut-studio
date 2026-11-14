@@ -170,7 +170,7 @@ async def test_stop_tasks_cancels_and_logs_failures(caplog):
     with caplog.at_level(logging.ERROR):
         await conn.stop_tasks()
     assert sleeper_task.cancelled()
-    assert any("pump exit" in rec.message for rec in caplog.records)
+    assert any(rec.message == "test share=a1b2c3d4e5f6 pump exit" for rec in caplog.records)
 
     caplog.clear()
     await conn.stop_tasks()
