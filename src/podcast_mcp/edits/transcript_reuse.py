@@ -7,6 +7,8 @@ from collections.abc import Callable, Iterable
 from dataclasses import dataclass, field
 from typing import Any, Protocol
 
+from podcast_mcp.config.defaults import EffectiveConfig
+from podcast_mcp.engines.asr_loops import guard_transcript
 from podcast_mcp.engines.asr_options import AsrOptions, normalize_language
 from podcast_mcp.engines.asr_silence import (
     SpeechLevels,
@@ -18,6 +20,7 @@ from podcast_mcp.engines.ctc_forced_align import ALIGNMENT_SCORE_METHOD
 from podcast_mcp.engines.media_probe import has_several_audio_streams
 from podcast_mcp.engines.models.word_aligner import WordAlignerModel, word_aligner_model
 from podcast_mcp.engines.transcribe import TranscribeJob, TranscriptionEngine, cached_audio_keys
+from podcast_mcp.engines.transcript_sync import rebuild_combined
 from podcast_mcp.models import EpisodeProject, Transcript, TranscriptKey
 from podcast_mcp.project.transcript_context import TranscriptContext, load_transcript_context
 from podcast_mcp.util.coded_error import CodedError
@@ -446,6 +449,50 @@ def _refresh_silence_flags(
                 transcript.words, audio_hash, options, evidence=term, first_stream=first_stream
             )
     return skipped, refreshed
+
+
+def repair_reused_loops(
+    project: EpisodeProject, plan: TranscribePlan, *, defaults: EffectiveConfig
+) -> list[dict[str, Any]]:
+    """Drop a repetition loop from each stored, unedited ``plan.reused`` transcript.
+
+    A transcript stored before the loop guard existed (or by a run that kept a loop) is
+    reused as it is, so the loop would survive every plain re-run. This runs the guard's
+    own-text test on it (no window ratios are stored). Edited transcripts, transcripts
+    with archived words (their ordinals count the active words), transcripts holding a
+    person's decision on any word (locked, ignored or re-timed) and empty ones are left
+    alone. Returns one entry per repaired job in the shape of ``asr_loop_drops``; a
+    repaired transcript has no loop left, so a later run returns nothing.
+    """
+    stored = {t.key: t for t in project.transcripts}
+    entries: list[dict[str, Any]] = []
+    for job in plan.reused:
+        transcript = stored.get(job.key)
+        if (
+            transcript is None
+            or transcript.user_edited
+            or transcript.archived_words
+            or not transcript.words
+            or any(w.audibility_locked or w.ignored or w.timing_edited for w in transcript.words)
+        ):
+            continue
+        report = guard_transcript(transcript)
+        if report is None or not report.dropped:
+            continue
+        entries.append(
+            {
+                "label": job.label,
+                "track_id": job.track_id,
+                "dropped": len(report.dropped),
+                "start": report.start,
+                "end": report.end,
+                "dense_words": report.dense_words,
+                "looped_segments": report.looped_segments,
+            }
+        )
+    if entries and project.combined_transcript is not None:
+        rebuild_combined(project, defaults=defaults)
+    return entries
 
 
 def refresh_reused_silence_flags(
