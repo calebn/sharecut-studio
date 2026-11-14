@@ -2,6 +2,7 @@
   "cdn_base": false,
   "host": {
     "can_spawn_processes": false,
+    "folder_picker": false,
     "loopback_is_trusted": false,
     "media_tools": "unavailable",
     "name": "ios",

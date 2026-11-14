@@ -1,8 +1,17 @@
 import { act, type RenderResult, render } from "@testing-library/react";
 import { type ReactElement, type ReactNode, useMemo, useState } from "react";
 import { vi } from "vitest";
-import type { BootstrapJobSnapshot, BootstrapStatus } from "../api";
-import { downloadRows, overlay, toolsOf } from "../models/controller";
+import type {
+  BootstrapHost,
+  BootstrapJobSnapshot,
+  BootstrapStatus,
+} from "../api";
+import {
+  canPickFolderOf,
+  downloadRows,
+  overlay,
+  toolsOf,
+} from "../models/controller";
 import type {
   DownloadOutcome,
   ModelFailures,
@@ -40,6 +49,7 @@ export function modelsApi(fixture: ModelsFixture): ModelsApi {
     observe: () => api.refresh(),
     observation: { kind: "current", generation: ++observationGeneration },
     tools: toolsOf(status),
+    canPickFolder: canPickFolderOf(status),
     ready: status.ready,
     busy: job !== null,
     loadError: null,
@@ -113,6 +123,16 @@ export function renderWithLanding(
   });
 }
 
+/** What a Mac reports (`GET /api/bootstrap/status` `host`). */
+export const DESKTOP_HOST: BootstrapHost = {
+  name: "macos",
+  can_spawn_processes: true,
+  loopback_is_trusted: true,
+  media_tools: "executables",
+  transcription: "faster_whisper",
+  folder_picker: true,
+};
+
 export const WHISPER_CATALOG = [
   {
     id: "large-v3-turbo",
@@ -153,6 +173,7 @@ export function modelStatus(
     cdn_base: false,
     whisper_model: "large-v3-turbo",
     whisper_models: WHISPER_CATALOG,
+    host: DESKTOP_HOST,
     tools: { ffmpeg: { state: "installed", source: "bundled", hint: null } },
     models,
     ...over,

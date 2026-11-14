@@ -72,6 +72,8 @@ const NOT_REVEALED = "Studio couldn't show that folder. Try again.";
 const NOT_DUPLICATED = "That episode didn't copy. Try again.";
 const FOLDER_MOVED =
   "That episode's folder has moved. Find it with Open other…, or remove the card.";
+const FOLDER_MOVED_NO_PICKER =
+  "That episode's folder has moved. Remove the card.";
 const COPY_NAME_RESERVED =
   "Windows can't use this episode's name for a folder. Rename the episode, then copy it.";
 const NOT_REMOVED = "That episode is still listed. Try again.";
@@ -464,7 +466,7 @@ export function HomeScreen() {
   useHomeKeys({
     onImport,
     onRecord,
-    onOpenOther: () => void pick(),
+    onOpenOther: () => (models.canPickFolder ? void pick() : undefined),
     onPalette: () => openPalette(true),
   });
 
@@ -523,13 +525,18 @@ export function HomeScreen() {
         dropActive={drop.active}
         dropCount={drop.count}
         autoFocusPrimary
-        notice={notice}
+        notice={
+          !models.canPickFolder && notice === FOLDER_MOVED
+            ? FOLDER_MOVED_NO_PICKER
+            : notice
+        }
         working={working}
         busyId={busyId}
+        canOpenOther={models.canPickFolder}
         openOther={openOther}
         onRetryLoad={() => setReload((n) => n + 1)}
         onOpenProject={(id, stage) => void open(id, stage)}
-        onFindProject={(id) => void pick(id)}
+        onFindProject={models.canPickFolder ? (id) => void pick(id) : undefined}
         onRevealProject={(id) => void reveal(id)}
         onDuplicateProject={(id) => void duplicate(id)}
         onRemoveProject={(id) => void remove(id)}

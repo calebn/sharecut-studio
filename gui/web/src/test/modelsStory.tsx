@@ -98,6 +98,7 @@ function storyModelsApi(over: Partial<ModelsApi> = {}): ModelsApi {
       generation: 1,
     },
     tools: { ffmpeg: "installed", hint: null },
+    canPickFolder: true,
     ready: models?.every((m) => m.state.kind === "installed") ?? false,
     busy: false,
     loadError: null,
