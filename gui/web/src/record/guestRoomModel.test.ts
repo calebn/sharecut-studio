@@ -31,6 +31,7 @@ const upload = (over: Partial<RecordUploadProgress> = {}) =>
     acked: 0,
     total: 0,
     fileAck: false,
+    seenSegments: 0,
     uploading: false,
     pending: false,
     error: null,
@@ -127,6 +128,21 @@ describe("guestRoomPhase", () => {
       guestRoomPhase(snapshot, { upload: upload({ total: 3, fileAck: true }) }),
     ).toEqual({ kind: "saved" });
     expect(guestRoomPhase(snapshot)).toEqual({ kind: "saved" });
+  });
+
+  it("does not read a stale acknowledgement as saved when the device holds more", () => {
+    const snapshot = recordSnapshot({
+      state: "stopped",
+      take_index: 0,
+      participants: [host, me],
+    });
+    const acknowledged = upload({ total: 1, fileAck: true, seenSegments: 1 });
+    expect(
+      guestRoomPhase(snapshot, { upload: acknowledged, localSegments: 1 }),
+    ).toEqual({ kind: "saved" });
+    expect(
+      guestRoomPhase(snapshot, { upload: acknowledged, localSegments: 2 }),
+    ).toMatchObject({ kind: "saving" });
   });
 
   it("reports a failed upload as a failed save, not as progress", () => {
@@ -459,14 +475,20 @@ describe("guestRoomAlerts", () => {
 
 describe("ownSaving", () => {
   it("follows the guest's own upload", () => {
-    expect(ownSaving(null)).toBeNull();
-    expect(ownSaving(upload())).toBeNull();
-    expect(ownSaving(upload({ acked: 1, total: 4 }))).toEqual({
+    expect(ownSaving(null, 0)).toBeNull();
+    expect(ownSaving(upload(), 0)).toBeNull();
+    expect(ownSaving(upload({ acked: 1, total: 4 }), 0)).toEqual({
       done: 1,
       total: 4,
     });
-    expect(ownSaving(upload({ total: 4, fileAck: true }))).toBe("saved");
-    expect(ownSaving(upload({ total: 4, error: "x" }))).toBe("failed");
+    expect(ownSaving(upload({ total: 4, fileAck: true }), 0)).toBe("saved");
+    expect(ownSaving(upload({ total: 4, error: "x" }), 0)).toBe("failed");
+  });
+
+  it("trusts an acknowledgement only for the segments its pass saw", () => {
+    const acknowledged = upload({ total: 2, fileAck: true, seenSegments: 1 });
+    expect(ownSaving(acknowledged, 1)).toBe("saved");
+    expect(ownSaving(acknowledged, 2)).toEqual({ done: 0, total: 2 });
   });
 });
 
@@ -644,7 +666,11 @@ describe("guestCovers", () => {
   it("says Saving… only on the action that was pressed, and holds both while it runs", () => {
     const download = vi.fn();
     const recover = vi.fn();
-    const ended = { ...coverSource, accessEnded: true };
+    const ended = {
+      ...coverSource,
+      accessEnded: true,
+      stake: "unsent" as const,
+    };
     const recovering = guestCovers({
       ...ended,
       keeperActions: {
@@ -676,6 +702,26 @@ describe("guestCovers", () => {
       },
     });
     expect(downloading?.primary).toMatchObject({ busyLabel: "Saving…" });
+    const leftRunning = guestCovers({
+      ...coverSource,
+      left: true,
+      stake: "unsent",
+      keeperActions: {
+        ...actions,
+        busy: true,
+        running: "recover",
+        download,
+        recover,
+      },
+    });
+    expect(leftRunning?.primary).toMatchObject({
+      busy: true,
+      busyLabel: undefined,
+    });
+    expect(leftRunning?.secondary).toMatchObject({
+      busy: true,
+      busyLabel: "Saving…",
+    });
     expect(downloading?.secondary).toMatchObject({
       busy: true,
       busyLabel: undefined,
@@ -780,7 +826,7 @@ describe("guestCovers after leaving", () => {
 
   it("lets a boot error or ended access outrank having left", () => {
     expect(
-      guestCovers({ ...coverSource, left: true, bootError: "404" }),
+      guestCovers({ ...coverSource, left: true, bootError: "not-found" }),
     ).toMatchObject({ title: "This link doesn't open a room" });
     expect(
       guestCovers({ ...coverSource, left: true, accessEnded: true }),

@@ -9,7 +9,8 @@ const downloadedCover = guestCovers({
   error: null,
   accessEnded: true,
   inviteClosed: false,
-  captureSettled: true,
+  left: false,
+  stake: "unsent",
   keeperActions: {
     busy: false,
     error: null,

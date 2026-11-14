@@ -312,6 +312,7 @@ function GuestRoomSession({
   const phase = guestRoomPhase(snapshot, {
     elapsedSinceSnapshotMs: elapsed,
     upload: producer ? null : upload,
+    localSegments: room.localSegments,
     tookPart: producer ? undefined : inTake,
     connected,
   });
@@ -374,7 +375,7 @@ function GuestRoomSession({
     peerLevels: monitor.levels,
     saving:
       meId && state === "stopped" && !producer
-        ? { [meId]: ownSaving(upload) }
+        ? { [meId]: ownSaving(upload, room.localSegments) }
         : undefined,
   });
 
@@ -477,7 +478,10 @@ function GuestRoomSession({
         }
         onComment={liveComments.postMarker}
         device={{
-          uploading: uploadInFlight(producer ? null : upload),
+          uploading: uploadInFlight(
+            producer ? null : upload,
+            room.localSegments,
+          ),
           finishing: !room.captureSettled,
           capturingTone: roomTone.status === "capturing",
         }}

@@ -6,11 +6,15 @@ import type { RoomPhase } from "../system/roomPhase";
 import { expectNoA11yViolations } from "../test/a11y";
 import { recordParticipant, recordSnapshot } from "../test/fixtures";
 import { GuestCovers } from "./GuestCovers";
-import { guestCoverProps } from "./guestRoomModel";
+import { guestCoverProps, guestRoomPhase } from "./guestRoomModel";
 import { guestTabTitle } from "./guestTabTitle";
 import { MemorySink } from "./keeper/store";
 import * as recovery from "./upload/recovery";
-import { useKeeperRecoveryActions } from "./upload/useKeeperRecoveryActions";
+import {
+  type KeeperRecoveryActions,
+  useKeeperRecoveryActions,
+} from "./upload/useKeeperRecoveryActions";
+import type { RecordUploadProgress } from "./upload/useRecordUpload";
 
 const host = recordParticipant({
   participant_id: "p_host",
@@ -119,7 +123,13 @@ describe("GuestCovers", () => {
       {
         left: true,
         snapshot: recordSnapshot({ participants: [host], take_index: 0 }),
-        keeperActions: { busy: false, error: null, notice: null, download },
+        keeperActions: {
+          busy: false,
+          error: null,
+          notice: null,
+          downloaded: false,
+          download,
+        },
       },
       {
         phase: {
@@ -142,7 +152,13 @@ describe("GuestCovers", () => {
       {
         left: true,
         snapshot: recordSnapshot({ participants: [host], take_index: 0 }),
-        keeperActions: { busy: false, error: null, notice: null, download },
+        keeperActions: {
+          busy: false,
+          error: null,
+          notice: null,
+          downloaded: false,
+          download,
+        },
       },
       {
         phase: { kind: "saving", savedPeople: 0, totalPeople: 1, failed: true },
@@ -158,11 +174,14 @@ describe("GuestCovers", () => {
     show(
       {
         left: true,
+        localSegments: 1,
+        upload: { fileAck: true, seenSegments: 1 },
         snapshot: recordSnapshot({ participants: [host], take_index: 0 }),
         keeperActions: {
           busy: false,
           error: null,
           notice: null,
+          downloaded: false,
           download: vi.fn(),
           recover: vi.fn(),
         },
@@ -608,7 +627,7 @@ describe("after Save my recording handed the whole zip to the browser", () => {
           recover: vi.fn(),
         },
       }),
-      vi.fn(),
+      { onRetry: vi.fn(), phase: waiting },
     );
     expect(cover?.title).toBe("Your recording didn't finish saving");
     expect(cover?.primary?.label).toBe("Save my recording");
@@ -633,8 +652,14 @@ describe("after Save my recording handed the whole zip to the browser", () => {
   });
 
   it("focuses the heading when the first cover mounts and each time its title changes", () => {
-    const first = guestCoverProps(room({ bootError: "network" }), vi.fn());
-    const next = guestCoverProps(room({ bootError: "server" }), vi.fn());
+    const first = guestCoverProps(room({ bootError: "network" }), {
+      onRetry: vi.fn(),
+      phase: waiting,
+    });
+    const next = guestCoverProps(room({ bootError: "server" }), {
+      onRetry: vi.fn(),
+      phase: waiting,
+    });
     if (!first || !next) {
       throw new Error("no cover");
     }
@@ -647,4 +672,135 @@ describe("after Save my recording handed the whole zip to the browser", () => {
       screen.getByRole("heading", { name: "The room didn't answer" }),
     ).toHaveFocus();
   });
+});
+
+describe("the left-room cover and the download confirmation", () => {
+  const stopped = {
+    kind: "saving",
+    savedPeople: 0,
+    totalPeople: 1,
+    failed: true,
+  } as const;
+  const unsent = (over: Partial<KeeperRecoveryActions> = {}) => ({
+    left: true,
+    snapshot: recordSnapshot({ participants: [host], take_index: 0 }),
+    keeperActions: {
+      busy: false,
+      error: null,
+      notice: null,
+      downloaded: false,
+      download: vi.fn(),
+      recover: vi.fn(),
+      ...over,
+    },
+  });
+
+  it("is a level-one heading that takes focus", () => {
+    show({ left: true });
+    const heading = screen.getByRole("heading", {
+      level: 1,
+      name: "You left the room",
+    });
+    expect(screen.getAllByRole("heading", { level: 1 })).toHaveLength(1);
+    expect(heading).toHaveFocus();
+  });
+
+  it("offers Save my recording until the whole zip was handed to the browser", () => {
+    show(unsent(), { phase: stopped });
+    expect(
+      screen.getByRole("heading", {
+        level: 1,
+        name: "Your recording didn't finish saving",
+      }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Save my recording" }),
+    ).toBeInTheDocument();
+  });
+
+  it("says Check your downloads and offers Save it again once the zip was handed over", async () => {
+    const download = vi.fn();
+    show(unsent({ downloaded: true, download }), { phase: stopped });
+    const heading = screen.getByRole("heading", {
+      level: 1,
+      name: "Check your downloads",
+    });
+    expect(heading).toHaveFocus();
+    expect(
+      screen.queryByRole("button", { name: "Save my recording" }),
+    ).toBeNull();
+    await userEvent.click(
+      screen.getByRole("button", { name: "Save it again" }),
+    );
+    expect(download).toHaveBeenCalledOnce();
+  });
+
+  it.each([
+    ["download" as const, "Save my recording"],
+    ["recover" as const, "Try saving again"],
+  ])(
+    "shows busy and Saving… on the %s button while it runs",
+    (running, idle) => {
+      show(unsent({ busy: true, running }), { phase: stopped });
+      const button = screen.getByRole("button", { name: "Saving…" });
+      expect(button).toHaveAttribute("aria-busy", "true");
+      expect(screen.queryByRole("button", { name: idle })).toBeNull();
+    },
+  );
+
+  it("shows Saving… on Save it again while the repeat download runs", () => {
+    show(unsent({ downloaded: true, busy: true, running: "download" }), {
+      phase: stopped,
+    });
+    expect(screen.getByRole("button", { name: "Saving…" })).toHaveAttribute(
+      "aria-busy",
+      "true",
+    );
+  });
+
+  it.each([
+    [{ fileAck: true, seenSegments: 2 }, 2, "saved"],
+    [{ fileAck: true, seenSegments: 1 }, 2, "unsent"],
+    [{ fileAck: false, seenSegments: 0 }, 1, "unsent"],
+  ])(
+    "agrees with the dock phase on %o with %i local segments (%s)",
+    (acknowledgement, localSegments, outcome) => {
+      const progress = {
+        acked: 1,
+        total: 1,
+        pending: false,
+        uploading: false,
+        recoverable: false,
+        error: null,
+        ...acknowledgement,
+      } as RecordUploadProgress;
+      const snapshot = recordSnapshot({
+        participants: [host],
+        state: "stopped",
+        take_index: 0,
+      });
+      const phase = guestRoomPhase(snapshot, {
+        upload: progress,
+        localSegments,
+      });
+      show(
+        {
+          ...unsent(),
+          snapshot,
+          localSegments,
+          upload: progress,
+        },
+        { phase },
+      );
+      expect(phase.kind === "saved").toBe(outcome === "saved");
+      expect(
+        screen.queryByText(
+          "Your recording is saved to Hana's project. You can close this page.",
+        ) !== null,
+      ).toBe(outcome === "saved");
+      expect(
+        screen.queryByRole("button", { name: "Save my recording" }) !== null,
+      ).toBe(outcome === "unsent");
+    },
+  );
 });
