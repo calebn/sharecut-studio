@@ -8,10 +8,10 @@ import {
 } from "react";
 import { InlineConfirm } from "../ui";
 import { BUSY_REASON, disabledAttrs } from "../ui/disabledReason";
+import { usePressHint } from "./usePressHint";
 
 /** How long the stop is held. The ring fills in this time. */
 export const HOLD_TO_STOP_MS = 600;
-export const HINT_MS = 2000;
 export const STOP_TITLE = "Stop this take?";
 export const STOP_DETAIL = "Recording ends for everyone in the room.";
 const STOP_PROMPT = `${STOP_TITLE} ${STOP_DETAIL}`;
@@ -51,10 +51,9 @@ export function RecordButton({
   onStop,
 }: RecordButtonProps) {
   const [holding, setHolding] = useState(false);
-  const [hint, setHint] = useState(false);
+  const hint = usePressHint();
   const [confirming, setConfirming] = useState(false);
   const timer = useRef<number | undefined>(undefined);
-  const hintTimer = useRef<number | undefined>(undefined);
   const buttonRef = useRef<HTMLButtonElement>(null);
   const returnFocus = useRef(false);
   const [seenFace, setSeenFace] = useState(face);
@@ -69,7 +68,6 @@ export function RecordButton({
   useEffect(
     () => () => {
       window.clearTimeout(timer.current);
-      window.clearTimeout(hintTimer.current);
     },
     [],
   );
@@ -107,7 +105,7 @@ export function RecordButton({
       return;
     }
     event.currentTarget.setPointerCapture?.(event.pointerId);
-    setHint(false);
+    hint.hide();
     setHolding(true);
     timer.current = window.setTimeout(() => {
       setHolding(false);
@@ -123,9 +121,7 @@ export function RecordButton({
     }
     window.clearTimeout(timer.current);
     setHolding(false);
-    setHint(true);
-    window.clearTimeout(hintTimer.current);
-    hintTimer.current = window.setTimeout(() => setHint(false), HINT_MS);
+    hint.show();
   }
 
   function key(event: KeyboardEvent<HTMLButtonElement>) {
@@ -189,7 +185,7 @@ export function RecordButton({
       </button>
       {face === "live" ? (
         <span id={hintId} className="sys-record-hint" role="status">
-          {hint ? "Hold to stop" : " "}
+          {hint.shown ? "Hold to stop" : " "}
         </span>
       ) : null}
       {confirming ? (

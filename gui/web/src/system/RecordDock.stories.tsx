@@ -105,8 +105,11 @@ export const RecordGuestSaving: Story = {
   args: {
     seat: "guest",
     record: undefined,
-    status: "Saving · 64% · keep this page open",
-    leaveDisabledReason: "Your recording is still saving",
+    dock: {
+      kind: "status",
+      text: "Saving · 64% · keep this page open",
+      leaveHeld: "Your recording is still saving",
+    },
   },
 };
 
@@ -114,7 +117,7 @@ export const GuestSaved: Story = {
   args: {
     seat: "guest",
     record: undefined,
-    status: "Saved to project. You can close this page.",
+    dock: { kind: "done", text: "Saved to project. You can close this page." },
     onDone: fn(),
   },
   play: async ({ canvasElement }) => {
@@ -132,7 +135,7 @@ export const GuestLeaveHeld: Story = {
   args: {
     seat: "guest",
     record: undefined,
-    leaveDisabledReason: "You can leave after this take.",
+    dock: { kind: "controls", leaveHeld: "You can leave after this take." },
   },
   play: async ({ canvasElement }) => {
     const leave = within(canvasElement).getByRole("button", {
