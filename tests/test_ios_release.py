@@ -1071,3 +1071,71 @@ def test_an_unreachable_validate_records_a_finished_row_and_blocks_nothing(
     assert code == Failure.TOOL.value and uploads_sent(ran) == 0
     assert record_module.read_record(tmp_path).validations[0]["verdict"] == "unreachable"
     assert record.unresolved_uploads(record.ipa_sha256) == []
+
+
+def stage_main_upload(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, *, interrupted: bool
+) -> tuple[Path, list[Command]]:
+    """The `main` entry over a staged release directory, with the Mac-only checks and altool faked."""
+    stage_deliver(tmp_path, monkeypatch)
+    directory = tmp_path / "repo/gui/desktop/src-tauri/target/ios-release/2026.1114.153045"
+    ipa = directory / "2026.1114.153045.ipa"
+    ipa.write_bytes(b"the ipa")
+    sha256 = record_module.sha256_file(ipa)
+    record = make_record(ipa_sha256=sha256, ipa_name=ipa.name)
+    if interrupted:
+        record.uploads.append({"ipa_sha256": sha256, "started_at": "t", "outcome": None})
+    record_module.write_record(directory, record)
+    return directory, fake_apple(monkeypatch, directory)
+
+
+@pytest.mark.parametrize(
+    ("interrupted", "flags", "confirm", "code", "sent"),
+    [
+        (False, [], "token", 0, 1),
+        (False, ["--retry-unknown-upload"], "token", 0, 1),
+        (True, [], "token", GUARD_EXIT, 0),
+        (True, ["--retry-unknown-upload"], "token", 0, 1),
+        (False, [], "2026.1114.153045:000000000000", GUARD_EXIT, 0),
+        (True, ["--retry-unknown-upload"], "2026.1114.153045:000000000000", GUARD_EXIT, 0),
+    ],
+    ids=[
+        "fresh",
+        "fresh-with-flag",
+        "interrupted-without-flag",
+        "interrupted-with-flag",
+        "wrong-token",
+        "wrong-token-with-flag",
+    ],
+)
+def test_main_passes_the_confirm_token_and_the_retry_flag_to_the_upload(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    interrupted: bool,
+    flags: list[str],
+    confirm: str,
+    code: int,
+    sent: int,
+) -> None:
+    directory, ran = stage_main_upload(tmp_path, monkeypatch, interrupted=interrupted)
+    record = record_module.read_record(directory)
+    token = record.token() if confirm == "token" else confirm
+    assert ios_release.main(["upload", "--confirm", token, *flags]) == code
+    assert uploads_sent(ran) == sent
+    attempts = record_module.read_record(directory).uploads
+    assert len(attempts) == len(record.uploads) + sent
+    if sent:
+        assert attempts[-1].get("retried_unknown_upload", False) is (interrupted and bool(flags))
+        assert attempts[-1]["outcome"]["verdict"] == "ok"
+
+
+def test_main_needs_a_confirm_token_to_upload_and_validate_never_uploads(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    directory, ran = stage_main_upload(tmp_path, monkeypatch, interrupted=False)
+    with pytest.raises(SystemExit):
+        ios_release.main(["upload"])
+    assert ran == []
+    assert ios_release.main(["validate"]) == 0
+    assert uploads_sent(ran) == 0 and any("--validate-app" in c.argv for c in ran)
+    assert record_module.read_record(directory).uploads == []
