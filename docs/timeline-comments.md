@@ -192,11 +192,22 @@ use `GET /api/review/{token}/audio` (MP3; optional object storage 302 — see
 
 **Path containment**: `audio_relpath` and `mp3_relpath` must resolve inside `artifacts/review/`
 after symlinks are followed. A path that escapes it (`..`, an absolute path elsewhere, or an
-outward-pointing symlink) is refused with `ValueError`: guest `/audio` and
-`/daw/audio?kind=review` return 400, and host play with `kind=review` errors the same way.
-There is no WAV fallback when `mp3_relpath` is bad. Paths written by `stage_version` (via `ReviewService.publish`) always
-pass the check, and `./`-prefixed or absolute in-root spellings are still accepted; the
-`artifacts/review/` directory itself may be a symlink. See
+outward-pointing symlink) is refused with `ValueError` (`review_media_outside_workspace`). An
+escaping `audio_relpath` makes host play with `kind=review` and `/daw/audio?kind=review` return
+400, because both read only the WAV. Guest `/audio` prefers the MP3, so when it serves the file
+itself (a version already in object storage gets the redirect instead) it returns 400 only when
+the file it would serve escapes: an escaping `mp3_relpath` gives 400 even though the WAV is fine
+(there is no WAV fallback), while host play and `/daw/audio` are not affected by it.
+A symlink loop, a name too long for the filesystem, or a file that is not there counts as
+missing. An unresolvable `audio_relpath` makes host play and `/daw/audio?kind=review` return 404
+`review_media_not_found`, and guest `/audio` too when there is no usable MP3. An unresolvable
+`mp3_relpath` makes guest `/audio` fall back to the WAV, the same as an MP3 that is simply
+absent. Other filesystem errors, such as a permission or I/O error, are not treated as missing:
+they surface as a server error (500), and the guest does not fall back to the WAV. The review
+peaks route resolves the same file as guest `/audio` and returns an empty list when that file
+escapes, cannot be read, is missing or cannot be decoded. Paths written by `stage_version` (via
+`ReviewService.publish`) always pass the check, and `./`-prefixed or absolute in-root spellings
+are still accepted; the `artifacts/review/` directory itself may be a symlink. See
 `util/workspace_paths.resolve_within`.
 Once authorized, host and guest review reads walk the resolved path with no-follow
 directory descriptors and stream from the pinned regular file. HTTP ranges and HEAD
