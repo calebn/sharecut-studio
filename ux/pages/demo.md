@@ -5,7 +5,7 @@ Always-on reference for what ShareCut Studio shows. Two layers:
 1. **Screenshots on this site** (below) — visible without installing anything.
 2. **Live fixture in the repo** — open locally to click through the real shell.
 
-> Host screenshots cover phone Listen / Timeline / Text and desktop. Guest screenshots show **ShareCut Studio guest** on a Commenter link (the default role).
+> Host screenshots cover the phone's Review stage, Timeline and Script, and desktop. Guest screenshots show **ShareCut Studio guest** on a Commenter link (the default role).
 
 ## Open the live demo (local)
 
@@ -61,7 +61,7 @@ phrase correction.
 
 ## Screenshots — host
 
-![Phone Listen mode](../assets/screens/phone-listen.png)
+![Phone Review stage](../assets/screens/phone-listen.png)
 
 ![Phone Timeline mode](../assets/screens/phone-timeline.png)
 
