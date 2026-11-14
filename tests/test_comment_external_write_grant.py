@@ -195,3 +195,11 @@ def test_cli_missing_comment_still_exits_one(seeded) -> None:
     result = runner.invoke(comment_app, ["delete", "--project", project, "--id", "nope"])
 
     assert result.exit_code == 1
+
+
+def test_every_registered_comment_tool_except_the_reads_is_granted(tools) -> None:
+    reads = {"list_comments_tool", "get_comment_tool"}
+
+    ungranted = {name for name, fn in tools.items() if not hasattr(fn, "__wrapped__")}
+
+    assert ungranted == reads
