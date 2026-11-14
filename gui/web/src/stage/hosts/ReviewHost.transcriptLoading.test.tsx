@@ -506,7 +506,7 @@ describe("guest transcript detail loading in Review", () => {
       "detail",
     ]);
     expect(documentAuthority.token).toBe(refreshedToken);
-    // The redo is a refresh, not a failure: no cover while it runs.
+    // pending, not failed: no cover while the recovery redoes the detail
     expect(transcriptDetailSnapshot()).toMatchObject({ kind: "pending" });
     expect(
       useDawStore.getState().project?.meta.hydration?.transcript_words,

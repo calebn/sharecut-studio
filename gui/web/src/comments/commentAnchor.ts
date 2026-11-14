@@ -6,11 +6,7 @@ import { clampToSession, formatTimeShort } from "../utils/time";
 /** Where a new comment's time comes from, strongest first. */
 export type CommentAnchorSource = "draft" | "selection" | "playhead";
 
-/**
- * `refreshing`: a selection is chosen but its words are not in the project
- * until the transcript detail lands. Nothing may anchor, post or move to the
- * playhead meanwhile.
- */
+/** `refreshing`: the selected words are not in the project yet, so there is no time to anchor to. */
 type CommentAnchor =
   | Readonly<{ draft: CommentDraft; source: CommentAnchorSource }>
   | Readonly<{ source: "refreshing"; reason: string }>;

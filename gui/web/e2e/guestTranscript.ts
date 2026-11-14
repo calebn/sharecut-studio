@@ -9,12 +9,7 @@ import { postDocumentCommand } from "./documentCommand";
 import { withShareableProject } from "./shareableProject";
 import { createReviewShare, openGuestShare } from "./shareNavigation";
 
-/**
- * Shared by the guest transcript specs: a guest on a shared link, a host that
- * edits through the document API, and a frame watcher that records every
- * animation frame and DOM mutation so a gap of a few milliseconds cannot slip
- * between polls.
- */
+/** The frame watcher samples every animation frame and DOM mutation, so a gap of a few milliseconds cannot slip between polls. */
 
 const SCRIPT = ".stage-host-guest-script";
 export const SECTION = `${SCRIPT} .sys-script`;
@@ -61,7 +56,7 @@ export function watcher(anchorKey: string | null): string {
     const body = root && root.querySelector(".sys-script-body");
     const section = root && root.querySelector(".sys-script");
     const words = root ? root.querySelectorAll(".sys-script-word").length : 0;
-    // The anchor is a place in a line, "line id|nth word": a cut renumbers words.
+    // The anchor is "line id|nth word", not a word key: a cut renumbers word_index.
     const [turnId, nth] = ANCHOR ? ANCHOR.split("|") : [];
     const turn = body
       ? [...body.querySelectorAll("[data-turn-id]")].find((e) => e.getAttribute("data-turn-id") === turnId)
@@ -111,7 +106,6 @@ export function logGuestRequests(page: Page): string[] {
   return rows;
 }
 
-/** What the word-detail response does, set by the test while it runs. */
 export type Detail = { delayMs: number; status: number | null };
 
 export type Guest = {
@@ -240,7 +234,6 @@ export function expectNoBlankFrame(
   ).toBe(0);
 }
 
-/** Make the edits back to back and let the guest settle, then report what the watcher saw. */
 export async function frames(
   guest: Guest,
   host: Page,
@@ -272,11 +265,7 @@ export async function anchoringOff(page: Page): Promise<void> {
   });
 }
 
-/**
- * A reader's scroll as the pane reads one: the intent event it listens for
- * (a wheel, which a touch WebKit context cannot send through the mouse), then
- * the scroll itself. Without intent the pane takes a scroll for the page's own.
- */
+/** A reader's scroll as the pane reads one: a wheel event for intent, then the scroll. Without intent the pane does not attribute the scroll to the user. */
 export async function scrollByHand(
   page: Page,
   to: "end" | number,
