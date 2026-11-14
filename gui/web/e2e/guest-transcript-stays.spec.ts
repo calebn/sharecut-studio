@@ -97,6 +97,12 @@ test("a slow word detail leaves the same busy Script, whose held words do not se
       await expect(
         view.getByRole("group", { name: "Selection actions" }),
       ).toBeVisible();
+      const selectedWords = () =>
+        view
+          .locator(`${WORD}[data-selected]`)
+          .evaluateAll((els) => els.map((el) => el.textContent?.trim()));
+      const picked = await selectedWords();
+      expect(picked.length).toBeGreaterThan(0);
       const before = await seconds(view);
       const { from } = await startWatch(view);
       guest.detail.delayMs = 1_500;
@@ -131,6 +137,23 @@ test("a slow word detail leaves the same busy Script, whose held words do not se
         timeout: 15_000,
       });
       await view.waitForTimeout(500);
+      expect(
+        await selectedWords(),
+        "the same words are still selected after the swap",
+      ).toEqual(picked);
+      await view.locator(`${WORD}[data-selected]`).first().click();
+      await view.waitForTimeout(300);
+      const heard = await seconds(view);
+      await bar.getByRole("button", { name: "Comment" }).click();
+      const chip = await view
+        .locator(".rv-compose .sys-composer-chip .sys-mono")
+        .innerText();
+      // A range chip reads "start to end": the start is the words' first time.
+      const pinned = parseTimecodeSec(chip.split(" to ")[0] ?? "");
+      expect(
+        Math.abs(pinned - heard),
+        "Comment anchors to the words' new time",
+      ).toBeLessThan(1.5);
       const seen = await stopWatch(view);
       expectNoBlankFrame(
         seen,
