@@ -593,7 +593,10 @@ describe("RoomView as the host", () => {
   });
 
   it("holds a guest's Leave back while their recording saves", () => {
-    renderRoom({ phase: { kind: "saving", savedPeople: 1, totalPeople: 3 } });
+    renderRoom({
+      phase: { kind: "saving", savedPeople: 1, totalPeople: 3 },
+      device: { uploading: true },
+    });
     const leave = screen.getByRole("button", { name: "Leave room" });
     expect(leave).toHaveAttribute("aria-disabled", "true");
     expect(leave).toHaveAttribute("title", "Your recording is still saving");

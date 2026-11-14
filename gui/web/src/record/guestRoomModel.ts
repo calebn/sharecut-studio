@@ -149,6 +149,23 @@ export function guestTakes(
   return takes;
 }
 
+function uploadStuck(upload: RecordUploadProgress): boolean {
+  return (
+    Boolean(upload.error) ||
+    (upload.recoverable && !upload.uploading && !upload.pending)
+  );
+}
+
+/** This guest's own upload is moving, as the saving line shows it. */
+export function uploadInFlight(upload: RecordUploadProgress | null): boolean {
+  return (
+    upload !== null &&
+    !upload.fileAck &&
+    !uploadStuck(upload) &&
+    (upload.pending || upload.uploading || upload.total > 0)
+  );
+}
+
 export function guestRoomPhase(
   snapshot: RecordSnapshot | null,
   options: {
@@ -170,13 +187,10 @@ export function guestRoomPhase(
       return { kind: "saved" };
     }
     // Stopped on a failed upload, or on a partial take that needs Finish saving.
-    const stuck =
-      Boolean(upload.error) ||
-      (upload.recoverable && !upload.uploading && !upload.pending);
-    if (stuck) {
+    if (uploadStuck(upload)) {
       return { kind: "saving", savedPeople: 0, totalPeople: 1, failed: true };
     }
-    if (upload.pending || upload.uploading || upload.total > 0) {
+    if (uploadInFlight(upload)) {
       return {
         kind: "saving",
         savedPeople: 0,

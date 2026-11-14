@@ -26,6 +26,7 @@ import { RoomTileMenu } from "./RoomTileMenu";
 import type { RoomAlertInput } from "./roomAlertModel";
 import { clockText, type RoomPhase } from "./roomPhase";
 import {
+  type DeviceWork,
   gridColumns,
   type RoomPerson,
   type RoomRole,
@@ -69,6 +70,8 @@ export type RoomViewProps = {
   status?: ReactNode;
   /** A guest's Done once their take is saved. The view shows it only then. */
   onDone?: () => void;
+  /** A guest's own work that holds Leave until it is done. */
+  device?: DeviceWork;
   onMute?: () => void;
   onComment?: () => void;
   onPause?: () => void;
@@ -173,6 +176,7 @@ export function RoomView({
   recordBusy = false,
   status,
   onDone,
+  device,
   onMute,
   onComment,
   onPause,
@@ -218,6 +222,7 @@ export function RoomView({
     canRecord: onStartTake !== undefined && onStopTake !== undefined,
     notes,
     selfName,
+    device,
   });
   const pinned =
     phase.kind === "live" || phase.kind === "paused"
