@@ -16,11 +16,11 @@ import {
   EDITOR_CAPABILITIES,
   VIEWER_CAPABILITIES,
 } from "../../test/fixtures";
+import { StoredGuestScriptHost } from "../../test/StoredGuestScriptHost";
 import { drag, layout, stop } from "../../test/scriptDrag";
 import { seedScript, TWO_LANE_CLIPS } from "../../test/scriptHostKit";
 import { stubViewportShell } from "../../test/viewportShell";
 import { BottomSheet } from "../../ui/BottomSheet";
-import { GuestScriptHost } from "./GuestScriptHost";
 
 vi.mock("../../api/documentEdits", async (orig) => ({
   ...(await orig<typeof import("../../api/documentEdits")>()),
@@ -56,7 +56,7 @@ afterEach(() => {
 describe("GuestScriptHost range selection", () => {
   it("a suggesting commenter's drag within one lane sets a transcriptRange that can cut and mute", () => {
     as("comment", COMMENTER_CAPABILITIES);
-    render(<GuestScriptHost />);
+    render(<StoredGuestScriptHost />);
     drag(0, 3);
     expect(useDawStore.getState().selection).toMatchObject({
       kind: "transcriptRange",
@@ -82,7 +82,7 @@ describe("GuestScriptHost range selection", () => {
 
   it("a drag across two lanes sets a range over both tracks", () => {
     as("comment", COMMENTER_CAPABILITIES);
-    render(<GuestScriptHost />);
+    render(<StoredGuestScriptHost />);
     drag(0, 7);
     const selection = useDawStore.getState().selection;
     expect(selection?.kind).toBe("range");
@@ -92,7 +92,7 @@ describe("GuestScriptHost range selection", () => {
 
   it("a viewer's drag leaves the selection empty", () => {
     as("view", VIEWER_CAPABILITIES);
-    render(<GuestScriptHost />);
+    render(<StoredGuestScriptHost />);
     drag(0, 3);
     expect(useDawStore.getState().selection).toBeNull();
     expect(document.querySelector("[data-selected]")).toBeNull();
@@ -100,7 +100,7 @@ describe("GuestScriptHost range selection", () => {
 
   it("a click seeks and selects the one word", async () => {
     as("comment", COMMENTER_CAPABILITIES);
-    render(<GuestScriptHost />);
+    render(<StoredGuestScriptHost />);
     await userEvent.click(screen.getByRole("button", { name: "back" }));
     expect(seekTransport).toHaveBeenCalledExactlyOnceWith(10.5);
     expect(useDawStore.getState().selection).toMatchObject({
@@ -113,7 +113,7 @@ describe("GuestScriptHost range selection", () => {
 
   it("Shift+Arrow extends the selection", async () => {
     as("comment", COMMENTER_CAPABILITIES);
-    render(<GuestScriptHost />);
+    render(<StoredGuestScriptHost />);
     await userEvent.click(screen.getByRole("button", { name: "back" }));
     await userEvent.keyboard("{Shift>}{ArrowRight}{/Shift}");
     expect(useDawStore.getState().selection).toMatchObject({
@@ -124,7 +124,7 @@ describe("GuestScriptHost range selection", () => {
 
   it("a click on another word re-selects it, and Shift-click extends from the first", async () => {
     as("comment", COMMENTER_CAPABILITIES);
-    render(<GuestScriptHost />);
+    render(<StoredGuestScriptHost />);
     await userEvent.click(screen.getByRole("button", { name: "back" }));
     await userEvent.click(screen.getByRole("button", { name: "show" }));
     expect(useDawStore.getState().selection).toMatchObject({
@@ -143,7 +143,7 @@ describe("GuestScriptHost range selection", () => {
 
   it("Escape clears the selection and a click on a word selects again", async () => {
     as("comment", COMMENTER_CAPABILITIES);
-    render(<GuestScriptHost />);
+    render(<StoredGuestScriptHost />);
     drag(0, 3);
     fireEvent.keyDown(stop(1), {
       key: "Escape",
@@ -168,7 +168,7 @@ describe("GuestScriptHost range selection", () => {
           title="Script"
           backgroundPolicy="interactive"
         >
-          <GuestScriptHost />
+          <StoredGuestScriptHost />
         </BottomSheet>
       );
     }
@@ -188,7 +188,7 @@ describe("GuestScriptHost range selection", () => {
   it("a commenter's drag then Cut sends a suggestion and clears the selection", async () => {
     as("comment", COMMENTER_CAPABILITIES);
     vi.mocked(submitDocumentCommand).mockResolvedValue({} as never);
-    render(<GuestScriptHost />);
+    render(<StoredGuestScriptHost />);
     drag(0, 3);
     const target = resolveSelectionRange(
       useDawStore.getState().project!,
@@ -209,7 +209,7 @@ describe("GuestScriptHost range selection", () => {
     vi.mocked(submitDocumentCommand).mockResolvedValue({
       type: "Applied",
     } as never);
-    render(<GuestScriptHost />);
+    render(<StoredGuestScriptHost />);
     drag(0, 3);
     expect(useDawStore.getState().selection).toMatchObject({
       kind: "transcriptRange",
@@ -241,7 +241,7 @@ describe("GuestScriptHost range selection", () => {
       addEventListener: (_: string, fn: () => void) => listeners.add(fn),
       removeEventListener: (_: string, fn: () => void) => listeners.delete(fn),
     }));
-    render(<GuestScriptHost />);
+    render(<StoredGuestScriptHost />);
     drag(0, 3);
     expect(useDawStore.getState().selection).not.toBeNull();
     act(() => {
@@ -254,7 +254,7 @@ describe("GuestScriptHost range selection", () => {
 
   it("drops a stored selection when the link stops being able to suggest", () => {
     as("comment", COMMENTER_CAPABILITIES);
-    render(<GuestScriptHost />);
+    render(<StoredGuestScriptHost />);
     drag(0, 3);
     expect(useDawStore.getState().selection).not.toBeNull();
     act(() => useDawStore.setState({ shareCapabilities: VIEWER_CAPABILITIES }));

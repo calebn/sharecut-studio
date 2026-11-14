@@ -10,6 +10,7 @@ import {
   minimalProject,
   VIEWER_CAPABILITIES,
 } from "../../test/fixtures";
+import { StoredGuestScriptHost } from "../../test/StoredGuestScriptHost";
 import { drag, layout } from "../../test/scriptDrag";
 import {
   scriptUtterances,
@@ -18,7 +19,6 @@ import {
 } from "../../test/scriptHostKit";
 import { stubViewportShell } from "../../test/viewportShell";
 import type { CombinedUtterance } from "../../types/project";
-import { GuestScriptHost } from "./GuestScriptHost";
 
 const seekTransport = vi.hoisted(() => vi.fn());
 vi.mock("../../commands/seek", () => ({ seekTransport }));
@@ -135,7 +135,7 @@ beforeEach(() => {
 describe("GuestScriptHost", () => {
   it("shows nothing to the host", () => {
     as(null, 0);
-    const { container } = render(<GuestScriptHost />);
+    const { container } = render(<StoredGuestScriptHost />);
     expect(container).toBeEmptyDOMElement();
   });
 
@@ -151,7 +151,7 @@ describe("GuestScriptHost", () => {
       addEventListener: (_: string, fn: () => void) => listeners.add(fn),
       removeEventListener: (_: string, fn: () => void) => listeners.delete(fn),
     }));
-    const { container } = render(<GuestScriptHost />);
+    const { container } = render(<StoredGuestScriptHost />);
     expect(container).toBeEmptyDOMElement();
     act(() => {
       short = false;
@@ -166,7 +166,7 @@ describe("GuestScriptHost", () => {
     ["edit", null],
   ] as const)("a %s link reads the heard words, labelled %j", (mode, label) => {
     as(mode, 0);
-    render(<GuestScriptHost />);
+    render(<StoredGuestScriptHost />);
     if (label) expect(screen.getByText(label)).toBeInTheDocument();
     else expect(screen.queryByText(/Read only|suggest edits/)).toBeNull();
     expect(screen.getByRole("button", { name: "Welcome" })).toBeInTheDocument();
@@ -180,7 +180,7 @@ describe("GuestScriptHost", () => {
     [11.2, "back"],
   ])("the playhead at %s marks %j", (playheadSec, playing) => {
     as("view", playheadSec);
-    render(<GuestScriptHost />);
+    render(<StoredGuestScriptHost />);
     expect(
       document.querySelector(".sys-script-word[data-playing]")?.textContent ??
         null,
@@ -189,7 +189,7 @@ describe("GuestScriptHost", () => {
 
   it("seeks the transport to the clicked word's start", async () => {
     as("comment", 0);
-    render(<GuestScriptHost />);
+    render(<StoredGuestScriptHost />);
     await userEvent.click(screen.getByRole("button", { name: "back" }));
     expect(seekTransport).toHaveBeenCalledExactlyOnceWith(11);
   });
@@ -230,7 +230,7 @@ describe("GuestScriptHost", () => {
 
     it("a Viewer's click and Shift+click seek and select nothing", async () => {
       seed(true);
-      render(<GuestScriptHost />);
+      render(<StoredGuestScriptHost />);
       await userEvent.click(screen.getByRole("button", { name: "back" }));
       expect(seekTransport).toHaveBeenLastCalledWith(10.5);
       expect(useDawStore.getState().selection).toBeNull();
@@ -246,7 +246,7 @@ describe("GuestScriptHost", () => {
 
     it("a Viewer's pointer drag across two words selects nothing and draws no grips or bar", () => {
       seed(true);
-      render(<GuestScriptHost />);
+      render(<StoredGuestScriptHost />);
       drag(0, 3);
       expect(useDawStore.getState().selection).toBeNull();
       expect(document.querySelector("[data-selected]")).toBeNull();
@@ -256,7 +256,7 @@ describe("GuestScriptHost", () => {
 
     it("seeks to a focused word on Enter and still selects nothing", async () => {
       seed(true);
-      render(<GuestScriptHost />);
+      render(<StoredGuestScriptHost />);
       screen.getByRole("button", { name: "back" }).focus();
       await userEvent.keyboard("{Enter}");
       expect(seekTransport).toHaveBeenLastCalledWith(10.5);
@@ -265,7 +265,7 @@ describe("GuestScriptHost", () => {
 
     it("a Commenter on the same words does select, with grips", () => {
       seed(false);
-      render(<GuestScriptHost />);
+      render(<StoredGuestScriptHost />);
       drag(0, 3);
       expect(useDawStore.getState().selection).toMatchObject({
         kind: "transcriptRange",
@@ -280,7 +280,7 @@ describe("GuestScriptHost", () => {
   it("says so when there is no transcript", () => {
     useDawStore.getState().hydrate("share:abc", minimalProject());
     useDawStore.setState({ guestMode: "view" });
-    render(<GuestScriptHost />);
+    render(<StoredGuestScriptHost />);
     expect(
       screen.getByRole("heading", { name: "Nothing to read yet" }),
     ).toBeInTheDocument();
@@ -293,7 +293,7 @@ describe("GuestScriptHost", () => {
         words: [{ text: "lost", start: 0, end: 0, mappable: true }],
       } as CombinedUtterance,
     ]);
-    render(<GuestScriptHost />);
+    render(<StoredGuestScriptHost />);
     expect(
       screen.getByText(
         "The words of this version are not on the timeline yet.",
@@ -316,7 +316,7 @@ describe("GuestScriptHost", () => {
         ],
       } as CombinedUtterance,
     ]);
-    render(<GuestScriptHost />);
+    render(<StoredGuestScriptHost />);
     expect(
       screen.getByText("Every word of this version has been cut or ignored."),
     ).toBeInTheDocument();
@@ -331,7 +331,7 @@ describe("GuestScriptHost", () => {
     as("view", 0, [
       { ...UTTERANCES[0], words: undefined } as CombinedUtterance,
     ]);
-    render(<GuestScriptHost />);
+    render(<StoredGuestScriptHost />);
     expect(
       screen.getByText(
         "The transcript of this version has no word timings yet.",
@@ -346,7 +346,7 @@ describe("GuestScriptHost", () => {
         words: [{ text: "cut", start: 0, end: 0, suppressed: true }],
       } as CombinedUtterance,
     ]);
-    render(<GuestScriptHost />);
+    render(<StoredGuestScriptHost />);
     expect(
       screen.getByText("Every word of this version has been cut or ignored."),
     ).toBeInTheDocument();
@@ -357,7 +357,7 @@ describe("GuestScriptHost", () => {
 
   it("says the host made no transcript for an empty one", () => {
     as("view", 0, []);
-    render(<GuestScriptHost />);
+    render(<StoredGuestScriptHost />);
     expect(
       screen.getByText("The host has not made a transcript of this version."),
     ).toBeInTheDocument();
@@ -383,7 +383,7 @@ describe("GuestScriptHost", () => {
 
     it("marks the overlapped word while it is spoken", () => {
       as("view", 12.5, OVERLAP);
-      render(<GuestScriptHost />);
+      render(<StoredGuestScriptHost />);
       expect(
         [...document.querySelectorAll(".sys-script-word[data-playing]")].map(
           (el) => el.textContent,
@@ -400,7 +400,7 @@ describe("GuestScriptHost", () => {
           words: [word("with", 10.2)],
         } as CombinedUtterance,
       ]);
-      render(<GuestScriptHost />);
+      render(<StoredGuestScriptHost />);
       expect(
         [...document.querySelectorAll(".sys-script-word[data-playing]")].map(
           (el) => el.textContent,
@@ -410,7 +410,7 @@ describe("GuestScriptHost", () => {
 
     it("seeks to the overlapped word's own start", async () => {
       as("comment", 0, OVERLAP);
-      render(<GuestScriptHost />);
+      render(<StoredGuestScriptHost />);
       await userEvent.click(screen.getByRole("button", { name: "over" }));
       expect(seekTransport).toHaveBeenCalledExactlyOnceWith(12);
     });
@@ -435,7 +435,7 @@ describe("GuestScriptHost", () => {
         ],
       })) as CombinedUtterance[],
     );
-    const { container } = render(<GuestScriptHost />);
+    const { container } = render(<StoredGuestScriptHost />);
     const colors = [...container.querySelectorAll<HTMLElement>("[style]")]
       .map((el) => el.style.getPropertyValue("--sys-person-color"))
       .filter(Boolean);
@@ -462,7 +462,7 @@ describe("GuestScriptHost", () => {
         ],
       })) as CombinedUtterance[],
     );
-    const { container } = render(<GuestScriptHost />);
+    const { container } = render(<StoredGuestScriptHost />);
     const margins = [
       ...container.querySelectorAll<HTMLElement>(".sys-script-margin"),
     ].map((el) => el.style.getPropertyValue("--sys-person-color"));
@@ -475,7 +475,7 @@ describe("GuestScriptHost", () => {
 
   it("follows the store when its utterances change after mount", () => {
     as("view", 20.2);
-    render(<GuestScriptHost />);
+    render(<StoredGuestScriptHost />);
     expect(screen.queryByRole("button", { name: "Later" })).toBeNull();
     expect(document.querySelector(".sys-script-word[data-playing]")).toBeNull();
     act(() => {
@@ -514,7 +514,7 @@ describe("GuestScriptHost", () => {
 
   it("re-renders only when the playing word changes", () => {
     as("view", 10.1);
-    render(<GuestScriptHost />);
+    render(<StoredGuestScriptHost />);
     const before = scriptRenders.mock.calls.length;
     act(() => useDawStore.setState({ playheadSec: 10.3 }));
     expect(scriptRenders).toHaveBeenCalledTimes(before);
@@ -524,7 +524,7 @@ describe("GuestScriptHost", () => {
 
   it("stops following on scroll and Back to playhead follows again", async () => {
     as("view", 11.2);
-    render(<GuestScriptHost />);
+    render(<StoredGuestScriptHost />);
     const body = document.querySelector(".sys-script-body") as HTMLElement;
     const probe = probeScript(body);
     Object.defineProperty(body, "scrollHeight", {
@@ -562,7 +562,7 @@ describe("GuestScriptHost", () => {
       act(() => useDawStore.setState({ playheadSec }));
 
     const mount = () => {
-      render(<GuestScriptHost />);
+      render(<StoredGuestScriptHost />);
       probe = probeScript(
         document.querySelector(".sys-script-body") as HTMLElement,
       );
