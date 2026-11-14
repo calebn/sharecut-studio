@@ -1,3 +1,4 @@
+import type { PointerKind } from "../state/types";
 import type { PersonData } from "./Person";
 import type { RoomPhase } from "./roomPhase";
 import type { RoomRole } from "./roomViewModel";
@@ -50,6 +51,14 @@ export type JoinBlocker = {
   action?: { label: string; name?: string };
 };
 
+/** A row's control. `busy` holds its place, disabled, while the browser asks. */
+export type JoinRowAction = {
+  label: string;
+  name: string;
+  kind: JoinMicAction | "blocker";
+  busy?: boolean;
+};
+
 export type JoinRow = {
   key: JoinStep;
   state: StatusRowState;
@@ -57,7 +66,7 @@ export type JoinRow = {
   detail?: string;
   /** 0 to 1, a bar under a running row (the room-tone take's time used). */
   progress?: number;
-  action?: { label: string; name: string; kind: JoinMicAction | "blocker" };
+  action?: JoinRowAction;
 };
 
 export type JoinNote = { tone: "warning"; text: string };
@@ -181,6 +190,25 @@ export function consentDetails(host: string): string {
   return `Recording starts when ${owner} starts a take and stops when the take ends. Your audio is saved on this device first, then sent to ${possessive(owner)} project. Joining means you agree to be recorded.`;
 }
 
+/**
+ * Where the sheet puts focus: on open, on Enter in the name field, and when a
+ * waited-on row resolves. There is no Close variant, and `primary` exists only
+ * when the primary is enabled (a disabled button cannot take focus).
+ */
+export type JoinFocus =
+  | { kind: "name-field" }
+  | { kind: "row"; step: JoinStep }
+  | { kind: "primary" };
+
+export function joinFocus(
+  next: JoinStep | null,
+  pointer: PointerKind,
+): JoinFocus {
+  if (next === null) return { kind: "primary" };
+  if (next === "name" && pointer === "fine") return { kind: "name-field" };
+  return { kind: "row", step: next };
+}
+
 function nameRow(name: string): JoinRow {
   return {
     key: "name",
@@ -208,6 +236,12 @@ export function micRow(mic: JoinMic): JoinRow {
         state: "running",
         title: "Microphone",
         detail: "Waiting for your browser…",
+        action: {
+          label: "Allow microphone",
+          name: "Allow microphone",
+          kind: "allow",
+          busy: true,
+        },
       };
     case "denied":
       return {
