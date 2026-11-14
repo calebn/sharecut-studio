@@ -318,6 +318,25 @@ describe("followSelection", () => {
       });
     });
 
+    it("clears when the second placement was picked and that clip is removed, never moving to the first", () => {
+      const picked = remember(twoCopies([0, 30]), 1);
+      const only = modelOf([{ id: "c1", words: copy("c1", 0) }]);
+      expect(followSelection(picked, only)).toEqual({ kind: "clear" });
+    });
+
+    it("keeps the first placement when the second clip is removed and nothing else changed", () => {
+      const picked = remember(twoCopies([0, 30]), 0);
+      const only = modelOf([{ id: "c1", words: copy("c1", 0) }]);
+      expect(followSelection(picked, only)).toEqual({ kind: "keep" });
+    });
+
+    it("keeps a word picked when unique after the host duplicates its clip", () => {
+      const alone = modelOf([{ id: "c1", words: copy("c1", 0) }]);
+      expect(followSelection(remember(alone, 0), twoCopies([0, 30]))).toEqual({
+        kind: "keep",
+      });
+    });
+
     it("clears when a cut elsewhere shifts both copies' times, since the pick cannot be proven", () => {
       const picked = remember(twoCopies([0, 30]), 1);
       expect(followSelection(picked, twoCopies([-5, 25]))).toEqual({
