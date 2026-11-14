@@ -435,6 +435,36 @@ describe("show", () => {
       ]).state.surface,
     ).toBe("composer");
   });
+
+  it("sheetsGone makes a held draft with text the open composer at its own pin, and starts nothing", () => {
+    for (const surface of ["none", "comments", "thread", "chapters"] as const) {
+      const { state, effects } = run(
+        session({ surface, draft: draft("too loud", 5) }),
+        [[{ type: "sheetsGone" }], [{ type: "transport", playing: true }]],
+      );
+      expect(state.surface).toBe("composer");
+      expect(state.draft).toEqual(draft("too loud", 5));
+      expect(commentDraftOf(state)).toEqual(at(5));
+      expect(effects).toEqual([]);
+    }
+  });
+
+  it("sheetsGone puts no pin on a closed empty draft, and rotating back keeps the pin", () => {
+    const closed = run(
+      session({ surface: "composer", draft: draft("", 5, false, false) }),
+      [[{ type: "close" }], [{ type: "sheetsGone" }]],
+    ).state;
+    expect(closed.surface).toBe("none");
+    expect(commentDraftOf(closed)).toBeNull();
+    const back = run(
+      session({ surface: "none", draft: draft("too loud", 5) }),
+      [
+        [{ type: "sheetsGone" }],
+        [{ type: "open", anchor: at(40), replacePin: false, listen: true }],
+      ],
+    ).state;
+    expect(back.draft?.anchor).toEqual(at(5));
+  });
 });
 
 describe("reset: the guest may no longer comment", () => {

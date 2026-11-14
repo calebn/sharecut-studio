@@ -274,6 +274,65 @@ describe("the pin belongs with the text", () => {
   });
 });
 
+describe("text on screen posts at its pin when the layout changes", () => {
+  function setShell(shell: "desktop" | "phone") {
+    act(() => {
+      stubViewportShell(shell);
+      useDawStore.setState({ shellBreakpoint: shell });
+      window.dispatchEvent(new Event("resize"));
+    });
+  }
+
+  it("posts text closed in Listen at its pin once the layout stops being Listen", async () => {
+    const user = userEvent.setup();
+    join("comment");
+    startPlaying(5);
+    mount();
+    await user.click(commentAt());
+    await user.type(field(), "too loud here");
+    await user.click(screen.getByRole("button", { name: "Close" }));
+    act(() => useDawStore.setState({ playheadSec: 40 }));
+    setShell("desktop");
+    expect(value()).toBe("too loud here");
+    expect(useDawStore.getState().commentDraft?.startSec).toBe(5);
+    expect(playing()).toBe(true);
+    await user.click(postButton());
+    await act(async () => {});
+    expect(createComment.mock.calls[0]?.[1]).toMatchObject({
+      timelineStart: 5,
+    });
+  });
+
+  it("keeps the playhead for an empty field when the layout stops being Listen", async () => {
+    const user = userEvent.setup();
+    join("comment");
+    mount();
+    await user.click(commentAt());
+    await user.click(screen.getByRole("button", { name: "Close" }));
+    setShell("desktop");
+    expect(useDawStore.getState().commentDraft).toBeNull();
+  });
+
+  it("keeps text typed in the wider layout at its pin when the layout becomes Listen", async () => {
+    const user = userEvent.setup();
+    join("comment");
+    stubViewportShell("desktop");
+    useDawStore.setState({ shellBreakpoint: "desktop", playheadSec: 7 });
+    mount();
+    await user.type(field(), "too loud here");
+    act(() => useDawStore.setState({ playheadSec: 40 }));
+    setShell("phone");
+    expect(value()).toBe("too loud here");
+    expect(useDawStore.getState().commentDraft?.startSec).toBe(7);
+    expect(playing()).toBe(false);
+    await user.click(postButton());
+    await act(async () => {});
+    expect(createComment.mock.calls[0]?.[1]).toMatchObject({
+      timelineStart: 7,
+    });
+  });
+});
+
 describe("one surface at a time", () => {
   it("closes the composer, and plays on, when Chapters opens", async () => {
     const user = userEvent.setup();
