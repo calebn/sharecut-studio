@@ -27,9 +27,15 @@ from podcast_mcp.util.dicts import get_by_path
 DEFAULT_TEMPERATURE: tuple[float, ...] = (0.0, 0.2, 0.4)
 
 
-def normalize_language(language: str | None) -> str | None:
-    """Lowercase primary subtag of an ASR language code; None for unset, empty or ``auto``."""
-    code = (language or "").strip().lower().replace("_", "-").split("-")[0]
+def normalize_language(language: object) -> str | None:
+    """Lowercase primary subtag of an ASR language code.
+
+    None for unset, empty, ``auto`` and any non-string (YAML reads an unquoted ``no``, the
+    Norwegian code, as ``false``; quote it as ``"no"``).
+    """
+    if not isinstance(language, str):
+        return None
+    code = language.strip().lower().replace("_", "-").split("-")[0]
     return None if code in ("", "auto") else code
 
 
