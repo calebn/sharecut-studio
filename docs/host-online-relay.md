@@ -637,7 +637,7 @@ Generous defaults (tighten via env if you see abuse). Philosophy: false 429s hur
 | Host | Magic-link request | 6/min, burst 3 | email address |
 | Host | Magic-link sign-in | 60/min, burst 20 | client address |
 
-The three magic-link rows guard `POST /auth/magic-link` and `GET /auth/magic-link/consume` (`PODCAST_AUTH_MAGIC_*`). The client address is the peer uvicorn reports: the socket address, or the `X-Forwarded-For` client only when the request arrives from a `forwarded-allow-ips` address (`127.0.0.1` by default; the tunnel client strips `X-Forwarded-*`, and the relay never forwards `/auth`). Behind a reverse proxy that is not on that list, every caller shares the proxy's address and bucket until the proxy is listed. The email bucket is keyed on the submitted address with no sign-in, so a caller can use up a victim's budget; the cost is that magic-link requests for that address wait for the bucket to refill (6 per minute), and password and OAuth sign-in are not affected. A denied call answers `429` with `X-Sharecut-Error-Code: rate_limited` before any link is stored, the same for a known and an unknown email.
+The three magic-link rows guard `POST /auth/magic-link` and `GET /auth/magic-link/consume` (`PODCAST_AUTH_MAGIC_*`). The client address is the peer uvicorn reports: the socket address, or the `X-Forwarded-For` client only when the request arrives from a `forwarded-allow-ips` address (`127.0.0.1` by default, changed with uvicorn's `FORWARDED_ALLOW_IPS`; the tunnel client strips `X-Forwarded-*`, and the relay never forwards `/auth`). Behind a reverse proxy that is not on that list, every caller shares the proxy's address and bucket until the proxy is listed. The email bucket is keyed on the submitted address with no sign-in, so a caller can use up a victim's budget; the cost is that magic-link requests for that address wait for the bucket to refill (6 per minute), and password and OAuth sign-in are not affected. A denied call answers `429` with `X-Sharecut-Error-Code: rate_limited` before any link is stored, the same for a known and an unknown email.
 
 Audio paths skip RPM and use concurrency limits. The host and relay use
 `util.rate_limit.is_review_audio_path`, which strips the query and case-folds
@@ -657,7 +657,7 @@ or a `GateSpec` (attribute, bucket name, env name, default in-flight limit). The
 class builds one `KeyedLimiter` or `ConcurrencyGate` per row and `reset()` walks the
 rows, so a new limiter is one row plus one annotated attribute.
 `tests/test_limiter_table.py` pins every env name and default and fails when an
-attribute and its row disagree. The host table holds 20 env names, the relay table 14.
+attribute and its row disagree. The host table holds 26 env names, the relay table 14.
 `podcast_relay` is a separate deployable but already imports `podcast_mcp.util`, so
 both composites share the one `LimiterSet`.
 
