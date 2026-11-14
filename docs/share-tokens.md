@@ -379,24 +379,6 @@ replacement. Re-invite by minting a replacement for the same role with
 `podcast review share --kind record --session-id <id> --role guest` (or
 `--role producer`).
 
-**Addition to `D-tokens-stay-in-private-storage` (merge into that decision block
-when it lands; this PR does not create a second copy).** The project folder knows
-a link only by its share id. The share id is 12 hex characters of a `uuid4` (48
-bits), is not a credential, and a share id never authorizes anything: possession
-of a token is proven only by the registry lookup on each request. Record
-participants are bound to the share id in `record_participant_leases`, guest
-client ids are `guest-<share id>-<suffix>` and `rec-<connection id>`, and an
-unnamed guest is called `Guest`, so no byte of the project folder, the exports
-folder or the diagnostics bundle holds a token, a prefix or word of one, or a
-digest of any of those. Enforced by
-`tests/test_share_tokens_at_rest.py::test_a_used_project_and_its_exports_hold_nothing_derived_from_a_link`;
-the lease table, its closure invariant and the owner's one-time steps are in
-[recording-session.md § Participant leases](recording-session.md#participant-leases).
-The closure invariant is a guard on the model, not an upgrade feature: every
-removed non-host participant has a lease row, and a removal that cannot be
-attributed closes the room (`tests/test_record_ws.py::test_a_removal_with_no_known_link_closes_every_invite`).
-A host removing itself is refused at the payload and never closes invites.
-
 The host Invite sheet also identifies closed record invites, prevents copying
 them for new participants, and replaces one from its source token. The new link
 keeps the same room, role, and expiry; established leases on the old token keep
