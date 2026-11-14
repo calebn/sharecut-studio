@@ -116,6 +116,7 @@ for (const theme of ["light", "dark"] as const) {
             guest.getByRole("dialog", { name: "Inspector" }),
           ).toHaveCount(0);
           await expectNoHorizontalScroll(guest, 320);
+          await expectPageAxeClean(guest);
           await guest.screenshot({
             path: test.info().outputPath("commenter-phone-posted.png"),
           });
