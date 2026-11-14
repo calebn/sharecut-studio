@@ -1,6 +1,6 @@
 import { useSyncExternalStore } from "react";
 import { useShallow } from "zustand/react/shallow";
-import { readsTranscriptWords } from "../shareMode";
+import { isShareProjectKey, readsTranscriptWords } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
 import { documentAuthority, documentScope } from "./authorityState";
 import { currentDocumentSeq } from "./cursor";
@@ -12,21 +12,28 @@ import {
   transcriptDetailSnapshot,
   transcriptDetailStateFor,
 } from "./hydrateTranscriptDetail";
+import {
+  type ShownTranscript,
+  shownTranscriptOf,
+  transcriptGrantOf,
+} from "./shownTranscript";
 
 export type TranscriptDetailView =
   | { kind: "hidden" }
-  | { kind: "ready" }
+  | { kind: "ready"; shown: ShownTranscript }
   | { kind: "pending"; retry: () => void }
   | { kind: "failed"; retry: () => void; recovering: boolean };
 
 export function useTranscriptDetail(): TranscriptDetailView {
-  const { project, projectPath, shareTranscriptWords } = useDawStore(
-    useShallow((state) => ({
-      project: state.project,
-      projectPath: state.projectPath,
-      shareTranscriptWords: state.shareTranscriptWords,
-    })),
-  );
+  const { project, projectPath, shareTranscriptWords, shareCapabilities } =
+    useDawStore(
+      useShallow((state) => ({
+        project: state.project,
+        projectPath: state.projectPath,
+        shareTranscriptWords: state.shareTranscriptWords,
+        shareCapabilities: state.shareCapabilities,
+      })),
+    );
   const observedSnapshot = useSyncExternalStore(
     subscribeTranscriptDetail,
     transcriptDetailSnapshot,
@@ -36,12 +43,28 @@ export function useTranscriptDetail(): TranscriptDetailView {
   const reads = readsTranscriptWords(projectPath, shareTranscriptWords);
   const incomplete = project.meta?.hydration?.transcript_words === false;
   if (incomplete && !reads) return { kind: "hidden" };
-  if (!needsTranscriptDetailHydrate(project, reads)) return { kind: "ready" };
+  const grant = transcriptGrantOf({
+    projectPath,
+    shareTranscriptWords,
+    shareCapabilities,
+  });
+  const shown = () =>
+    shownTranscriptOf(project.transcript, documentAuthority.settled, grant);
+  if (!needsTranscriptDetailHydrate(project, reads))
+    return { kind: "ready", shown: shown() };
 
   const scope = documentScope();
   const seq = currentDocumentSeq();
   const token = documentAuthority.token;
   const current = transcriptDetailStateFor(projectPath, scope, seq, token);
+  // A guest keeps drawing the rows it already has words for while detail loads.
+  const pendingOrHeld = (retry: () => void): TranscriptDetailView => {
+    if (!isShareProjectKey(projectPath)) return { kind: "pending", retry };
+    const held = shown();
+    return held.drawn
+      ? { kind: "ready", shown: held }
+      : { kind: "pending", retry };
+  };
   const retryUntracked = () => {
     const state = useDawStore.getState();
     const now = documentScope();
@@ -61,10 +84,7 @@ export function useTranscriptDetail(): TranscriptDetailView {
     scheduleTranscriptDetailHydrate(state.project);
   };
   if (current.kind === "pending") {
-    return {
-      kind: "pending",
-      retry: () => retryTranscriptDetail(current.attempt),
-    };
+    return pendingOrHeld(() => retryTranscriptDetail(current.attempt));
   }
   if (current.kind === "failed") {
     return {
@@ -73,5 +93,5 @@ export function useTranscriptDetail(): TranscriptDetailView {
       retry: () => retryTranscriptDetail(current.attempt),
     };
   }
-  return { kind: "pending", retry: retryUntracked };
+  return pendingOrHeld(retryUntracked);
 }

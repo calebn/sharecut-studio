@@ -1144,7 +1144,10 @@ describe("ReviewStage host seams", () => {
           ...props.items,
           { id: "u2", kind: "unsure-word", at: 615, savedSeconds: 0 },
         ]}
-        wordDetail={{ kind: "ready" }}
+        wordDetail={{
+          kind: "ready",
+          shown: { rows: [], refreshing: false, drawn: false },
+        }}
       />,
     );
     const check = screen.getByRole("button", { name: "Check 2 words" });
