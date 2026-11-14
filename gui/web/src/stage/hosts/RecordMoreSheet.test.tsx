@@ -68,6 +68,8 @@ describe("RecordMoreSheet End session", () => {
       const onClose = vi.fn();
       const onEndSession = vi.fn();
       sheet({ endReason: "Stop the take first.", onClose, onEndSession });
+      await screen.findByRole("dialog");
+      await new Promise((resolve) => setTimeout(resolve, 0));
       screen.getByRole("button", { name: "End session" }).focus();
       await act();
       expect(onClose).not.toHaveBeenCalled();
