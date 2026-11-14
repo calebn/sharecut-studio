@@ -171,7 +171,7 @@ const ADVANCED_DEFS: readonly GroupDef[] = [
 ];
 
 const SOUND_SCAN_HELP =
-  "Applies suggested sound actions during processing. New projects start with it off unless you change that below.";
+  "Applies suggested sound actions during processing. New projects start with it on unless you change that below.";
 const SOUND_SCAN_START_NOTE =
   "Saved in this browser for new episodes. This episode's switch resets to its default when ShareCut restarts.";
 
@@ -213,7 +213,7 @@ export function soundScanResult(
 export function advancedGroups(
   cfg: PipelineConfigResponse,
   job: PipelineJobSnapshot | null,
-  personal: AdvancedPersonal = { soundScanStart: false },
+  personal: AdvancedPersonal = { soundScanStart: true },
 ): AdvancedGroup[] {
   return ADVANCED_DEFS.map((group) => ({
     id: group.id,

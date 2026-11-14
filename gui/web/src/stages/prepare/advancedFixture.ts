@@ -95,7 +95,7 @@ export const SCAN: AdvancedStep = {
   optional: true,
   enabled: false,
   params: [],
-  help: "Applies suggested sound actions during processing. New projects start with it off unless you change that below.",
+  help: "Applies suggested sound actions during processing. New projects start with it on unless you change that below.",
   personal: {
     label: "New projects start with this",
     on: false,

@@ -25,9 +25,9 @@ export function soundScanTime(audioSec: number): string {
 
 const START_KEY = "sharecut.soundScanForNewProjects";
 
-/** Off unless the person turned it on. */
+/** On unless the person chose Off in this browser, matching the server default. */
 export function readSoundScanStart(): boolean {
-  return readLocal(START_KEY) === "on";
+  return readLocal(START_KEY) !== "off";
 }
 
 export function writeSoundScanStart(on: boolean): void {
