@@ -48,6 +48,7 @@ from podcast_mcp.services.media.review_media import review_guest_audio_path
 from podcast_mcp.util import atomic_file
 from podcast_mcp.util.atomic_json import load_json_object
 from podcast_mcp.util.binaries import resolve_ffmpeg
+from podcast_mcp.util.coded_error import CodedFileNotFoundError
 from podcast_mcp.util.project_state import project_state_lock
 from podcast_mcp.util.review_privacy_error import ReviewPrivacyError
 from review_platform import (
@@ -1815,6 +1816,86 @@ def test_version_paths_reject_symlink_escape(minimal_project, sample_wav, tmp_wo
             version_audio_path(p, vid)
         else:
             version_mp3_path(p, vid)
+
+
+_UNRESOLVABLE = [OSError(40, "Too many levels of symbolic links"), RuntimeError("Symlink loop")]
+
+
+def _break_resolve(monkeypatch, name, exc):
+    real = Path.resolve
+
+    def resolve(self, *args, **kwargs):
+        if self.name == name:
+            raise exc
+        return real(self, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "resolve", resolve)
+
+
+@requires_safe_failed_cleanup
+@pytest.mark.parametrize("exc", _UNRESOLVABLE, ids=["oserror", "runtimeerror"])
+def test_unresolvable_review_media_audio_is_coded_not_found(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch, exc
+):
+    p, vid = _publish(minimal_project, sample_wav)
+    _break_resolve(monkeypatch, "mix.wav", exc)
+    with pytest.raises(CodedFileNotFoundError) as excinfo:
+        version_audio_path(p, vid)
+    assert excinfo.value.code == "review_media_not_found"
+    assert str(tmp_workspace) not in str(excinfo.value)
+
+
+@requires_safe_failed_cleanup
+@pytest.mark.parametrize("exc", _UNRESOLVABLE, ids=["oserror", "runtimeerror"])
+def test_unresolvable_review_mp3_is_none_and_guest_falls_back_to_wav(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch, exc
+):
+    p, vid = _publish(minimal_project, sample_wav)
+    assert get_version(p, vid).mp3_relpath
+    expected = version_audio_path(p, vid)
+    _break_resolve(monkeypatch, "mix.mp3", exc)
+    assert version_mp3_path(p, vid) is None
+    assert review_guest_audio_path(p, vid) == expected
+
+
+@requires_safe_failed_cleanup
+def test_over_long_relpath_is_not_found_not_oserror(minimal_project, sample_wav, tmp_workspace):
+    p, vid = _publish(minimal_project, sample_wav)
+    ver = get_version(p, vid)
+    wav_relpath = ver.audio_relpath
+    long_rel = f"{REVIEW_ARTIFACTS_RELDIR}/{vid}/" + "a" * 5000
+
+    ver.mp3_relpath = long_rel
+    assert version_mp3_path(p, vid) is None
+    assert review_guest_audio_path(p, vid) == version_audio_path(p, vid)
+
+    ver.audio_relpath = long_rel
+    with pytest.raises(CodedFileNotFoundError) as excinfo:
+        version_audio_path(p, vid)
+    assert excinfo.value.code == "review_media_not_found"
+    ver.audio_relpath = wav_relpath
+
+
+@requires_safe_failed_cleanup
+def test_real_symlink_loop_is_not_found(minimal_project, sample_wav, tmp_workspace):
+    p, vid = _publish(minimal_project, sample_wav)
+    target = Path(p.workspace_dir) / get_version(p, vid).audio_relpath
+    target.unlink()
+    try:
+        target.symlink_to(target.name)
+    except OSError as exc:
+        pytest.skip(f"symlinks unsupported: {exc}")
+    with pytest.raises(CodedFileNotFoundError) as excinfo:
+        version_audio_path(p, vid)
+    assert excinfo.value.code == "review_media_not_found"
+
+
+@requires_safe_failed_cleanup
+def test_escaping_relpath_still_raises_value_error(minimal_project, sample_wav, tmp_workspace):
+    p, vid = _publish(minimal_project, sample_wav)
+    get_version(p, vid).audio_relpath = "../outside.wav"
+    with pytest.raises(ValueError, match="artifacts/review/"):
+        version_audio_path(p, vid)
 
 
 def test_publish_refuses_a_stale_premix(minimal_project, sample_wav):

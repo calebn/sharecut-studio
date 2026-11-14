@@ -3110,6 +3110,99 @@ def test_peaks_a_path_that_cannot_be_resolved_gives_empty(
     assert r.json() == []
 
 
+_UNRESOLVABLE = [OSError(40, "Too many levels of symbolic links"), RuntimeError("Symlink loop")]
+_MISSING_MIX_BODY = {
+    "detail": "This review's audio isn't available right now; ask the host to republish."
+}
+
+
+def _break_resolve(monkeypatch, names, exc):
+    real = Path.resolve
+
+    def resolve(self, *args, **kwargs):
+        if self.name in names:
+            raise exc
+        return real(self, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "resolve", resolve)
+
+
+def _published_share(minimal_project, sample_wav):
+    from podcast_mcp.services.collaboration.review_versions import get_version
+
+    ws = _seed_premix(minimal_project, sample_wav)
+    version = ReviewService(ws).publish(label="Unresolvable")
+    token = ShareService(ws).create(review_version_id=version["id"], capabilities=["view", "play"])[
+        "token"
+    ]
+    project = load_project(minimal_project)
+    ver = get_version(project, version["id"])
+    return project, ver, token
+
+
+@pytest.mark.parametrize("exc", _UNRESOLVABLE, ids=["oserror", "runtimeerror"])
+def test_guest_audio_unresolvable_mix_is_coded_404(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch, exc
+):
+    _project, _ver, token = _published_share(minimal_project, sample_wav)
+    _break_resolve(monkeypatch, {"mix.wav", "mix.mp3"}, exc)
+    response = TestClient(create_app()).get(f"/api/review/{token}/audio")
+    assert response.status_code == 404
+    assert response.headers["x-sharecut-error-code"] == "review_media_not_found"
+    assert response.json() == _MISSING_MIX_BODY
+
+
+def test_guest_audio_looped_mp3_falls_back_to_wav(minimal_project, sample_wav, tmp_workspace):
+    project, ver, token = _published_share(minimal_project, sample_wav)
+    mp3 = project.workspace_path() / ver.mp3_relpath
+    mp3.unlink(missing_ok=True)
+    try:
+        mp3.symlink_to(mp3.name)
+    except OSError as exc:
+        pytest.skip(f"symlinks unsupported: {exc}")
+    response = TestClient(create_app()).get(f"/api/review/{token}/audio")
+    assert response.status_code == 200
+    assert response.headers["content-type"].startswith("audio/")
+
+
+def test_guest_audio_real_symlink_loop_mix_is_coded_404(minimal_project, sample_wav, tmp_workspace):
+    project, ver, token = _published_share(minimal_project, sample_wav)
+    wav = project.workspace_path() / ver.audio_relpath
+    if ver.mp3_relpath:
+        (project.workspace_path() / ver.mp3_relpath).unlink(missing_ok=True)
+    wav.unlink()
+    try:
+        wav.symlink_to(wav.name)
+    except OSError as exc:
+        pytest.skip(f"symlinks unsupported: {exc}")
+    response = TestClient(create_app()).get(f"/api/review/{token}/audio")
+    assert response.status_code == 404
+    assert response.headers["x-sharecut-error-code"] == "review_media_not_found"
+    assert response.json() == _MISSING_MIX_BODY
+
+
+@pytest.mark.parametrize("exc", _UNRESOLVABLE, ids=["oserror", "runtimeerror"])
+def test_daw_audio_review_unresolvable_is_coded_404(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch, exc
+):
+    _project, _ver, token = _published_share(minimal_project, sample_wav)
+    _break_resolve(monkeypatch, {"mix.wav"}, exc)
+    response = TestClient(create_app()).get(f"/api/review/{token}/daw/audio?kind=review")
+    assert response.status_code == 404
+    assert response.headers["x-sharecut-error-code"] == "review_media_not_found"
+
+
+@pytest.mark.parametrize("exc", _UNRESOLVABLE, ids=["oserror", "runtimeerror"])
+def test_peaks_real_resolver_unresolvable_gives_empty(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch, exc
+):
+    _ws, _ver, token = _peaks_published(minimal_project, sample_wav)
+    _break_resolve(monkeypatch, {"mix.wav", "mix.mp3"}, exc)
+    r = TestClient(create_app()).get(f"/api/review/{token}/peaks")
+    assert r.status_code == 200
+    assert r.json() == []
+
+
 @pytest.mark.parametrize("exc", [PermissionError("read-only"), ValueError("not serializable")])
 def test_peaks_a_sidecar_that_cannot_be_written_still_serves_the_peaks(
     minimal_project, sample_wav, tmp_workspace, monkeypatch, exc

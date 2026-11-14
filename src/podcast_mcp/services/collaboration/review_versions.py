@@ -320,6 +320,19 @@ def _resolve_review_media(
             f"review version {version_id}: {field} must stay under {REVIEW_ARTIFACTS_RELDIR}/",
             code="review_media_outside_workspace",
         ) from None
+    except (OSError, RuntimeError):
+        log.warning("Cannot resolve review version %s %s", version_id, field, exc_info=True)
+        raise CodedFileNotFoundError(
+            f"review version {version_id}: {field} cannot be resolved",
+            code="review_media_not_found",
+        ) from None
+
+
+def _is_file(path: Path) -> bool:
+    try:
+        return path.is_file()
+    except OSError:
+        return False
 
 
 def version_audio_path(project: EpisodeProject, version_id: str) -> Path:
@@ -328,7 +341,7 @@ def version_audio_path(project: EpisodeProject, version_id: str) -> Path:
     path = _resolve_review_media(
         project, ver.audio_relpath, version_id=version_id, field="audio_relpath"
     )
-    if not path.is_file():
+    if not _is_file(path):
         raise CodedFileNotFoundError(
             f"review mix missing: {path}",
             code="review_media_not_found",
@@ -337,14 +350,17 @@ def version_audio_path(project: EpisodeProject, version_id: str) -> Path:
 
 
 def version_mp3_path(project: EpisodeProject, version_id: str) -> Path | None:
-    """Return absolute mix.mp3 path when present on disk; ValueError if it escapes artifacts/review/."""
+    """Return absolute mix.mp3 path when present and resolvable, else None; ValueError if it escapes artifacts/review/."""
     ver = get_version(project, version_id)
     if not ver.mp3_relpath:
         return None
-    path = _resolve_review_media(
-        project, ver.mp3_relpath, version_id=version_id, field="mp3_relpath"
-    )
-    if not path.is_file():
+    try:
+        path = _resolve_review_media(
+            project, ver.mp3_relpath, version_id=version_id, field="mp3_relpath"
+        )
+    except CodedFileNotFoundError:
+        return None
+    if not _is_file(path):
         return None
     return path
 
