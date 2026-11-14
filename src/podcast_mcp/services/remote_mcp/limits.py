@@ -91,6 +91,13 @@ class HostLimiters(LimiterSet):
             6000.0,
             200.0,
         ),
+        RateSpec(
+            "auth_magic_request", "auth_magic_request", "PODCAST_AUTH_MAGIC_REQUEST", 30.0, 10.0
+        ),
+        RateSpec("auth_magic_email", "auth_magic_email", "PODCAST_AUTH_MAGIC_EMAIL", 6.0, 3.0),
+        RateSpec(
+            "auth_magic_consume", "auth_magic_consume", "PODCAST_AUTH_MAGIC_CONSUME", 60.0, 20.0
+        ),
     )
 
     read: KeyedLimiter
@@ -104,6 +111,9 @@ class HostLimiters(LimiterSet):
     guest_ws_record_token: KeyedLimiter
     guest_ws_record_signal: KeyedLimiter
     guest_ws_record_signal_token: KeyedLimiter
+    auth_magic_request: KeyedLimiter
+    auth_magic_email: KeyedLimiter
+    auth_magic_consume: KeyedLimiter
 
 
 _LIMITERS: HostLimiters | None = None

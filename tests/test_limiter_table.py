@@ -93,6 +93,30 @@ HOST_RATE_ROWS = [
         "PODCAST_GUEST_WS_RECORD_SIGNAL_TOKEN_BURST",
         200.0,
     ),
+    (
+        "auth_magic_request",
+        "auth_magic_request",
+        "PODCAST_AUTH_MAGIC_REQUEST_RPM",
+        30.0,
+        "PODCAST_AUTH_MAGIC_REQUEST_BURST",
+        10.0,
+    ),
+    (
+        "auth_magic_email",
+        "auth_magic_email",
+        "PODCAST_AUTH_MAGIC_EMAIL_RPM",
+        6.0,
+        "PODCAST_AUTH_MAGIC_EMAIL_BURST",
+        3.0,
+    ),
+    (
+        "auth_magic_consume",
+        "auth_magic_consume",
+        "PODCAST_AUTH_MAGIC_CONSUME_RPM",
+        60.0,
+        "PODCAST_AUTH_MAGIC_CONSUME_BURST",
+        20.0,
+    ),
 ]
 # (attribute, bucket, env, default limit)
 HOST_GATE_ROWS = [
@@ -174,7 +198,7 @@ def test_the_host_has_20_env_names_and_the_relay_has_14() -> None:
     host |= {r[2] for r in HOST_GATE_ROWS}
     relay = {r[2] for r in RELAY_RATE_ROWS} | {r[4] for r in RELAY_RATE_ROWS}
     relay |= {r[2] for r in RELAY_GATE_ROWS}
-    assert (len(host), len(relay)) == (20, 14)
+    assert (len(host), len(relay)) == (26, 14)
 
 
 @pytest.mark.parametrize(("attr", "bucket", "rpm_env", "rpm", "burst_env", "burst"), HOST_RATE_ROWS)

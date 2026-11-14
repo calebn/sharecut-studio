@@ -17,6 +17,7 @@ from podcast_mcp.models import load_project, save_project
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.collaboration.review import ReviewService
 from podcast_mcp.services.collaboration.share import ShareService
+from podcast_mcp.services.remote_mcp.limits import reset_host_limiters_for_tests
 from podcast_mcp.services.share_auth.access import access_required, normalize_general_access
 from podcast_mcp.services.share_auth.oauth_credentials import (
     load_github_oauth,
@@ -1641,3 +1642,88 @@ def test_oauth_callback_keeps_legit_next(identity_store, monkeypatch) -> None:
         follow_redirects=False,
     )
     assert cb.headers["location"] == "/r/demo"
+
+
+def _tight_auth_limits(monkeypatch, **burst: int) -> None:
+    monkeypatch.setenv("PODCAST_RATE_LIMIT", "1")
+    for name in ("REQUEST", "EMAIL", "CONSUME"):
+        monkeypatch.setenv(f"PODCAST_AUTH_MAGIC_{name}_RPM", "1")
+        monkeypatch.setenv(f"PODCAST_AUTH_MAGIC_{name}_BURST", str(burst.get(name.lower(), 1000)))
+    reset_host_limiters_for_tests()
+
+
+def _magic_post(client, email="m@example.com"):
+    return client.post("/auth/magic-link", json={"email": email})
+
+
+def test_magic_link_request_is_rate_limited_per_peer(identity_store, monkeypatch) -> None:
+    _tight_auth_limits(monkeypatch, request=2)
+    first = TestClient(create_app(), client=("127.0.0.1", 50000))
+    other = TestClient(create_app(), client=("127.0.0.2", 50000))
+
+    assert _magic_post(first, "a@example.com").status_code == 200
+    assert _magic_post(first, "b@example.com").status_code == 200
+    denied = _magic_post(first, "c@example.com")
+
+    assert denied.status_code == 429
+    assert denied.headers["X-Sharecut-Error-Code"] == "rate_limited"
+    assert int(denied.headers["Retry-After"]) >= 1
+    assert _magic_post(other, "d@example.com").status_code == 200
+
+
+def test_magic_link_request_is_rate_limited_per_email(identity_store, monkeypatch) -> None:
+    _tight_auth_limits(monkeypatch, email=2)
+    one = TestClient(create_app(), client=("127.0.0.1", 50000))
+    two = TestClient(create_app(), client=("127.0.0.2", 50000))
+    three = TestClient(create_app(), client=("127.0.0.3", 50000))
+
+    assert _magic_post(one, "Victim@Example.com").status_code == 200
+    assert _magic_post(two, " victim@example.com ").status_code == 200
+    denied = _magic_post(three, "victim@example.com")
+
+    assert denied.status_code == 429
+    assert denied.headers["X-Sharecut-Error-Code"] == "rate_limited"
+    assert _magic_post(three, "someone-else@example.com").status_code == 200
+
+
+def test_a_denied_magic_link_request_stores_no_link(identity_store, monkeypatch) -> None:
+    _tight_auth_limits(monkeypatch, request=1)
+    client = TestClient(create_app(), client=("127.0.0.1", 50000))
+    _magic_post(client)
+
+    assert _magic_post(client).status_code == 429
+
+    rows = identity_store._conn.execute("SELECT COUNT(*) FROM magic_links").fetchone()[0]
+    assert rows == 1
+
+
+def test_magic_link_consume_is_rate_limited_per_peer(identity_store, monkeypatch) -> None:
+    _tight_auth_limits(monkeypatch, consume=2)
+    client = TestClient(create_app(), client=("127.0.0.1", 50000))
+    other = TestClient(create_app(), client=("127.0.0.2", 50000))
+
+    for _ in range(2):
+        assert client.get("/auth/magic-link/consume?token=nope").status_code == 400
+    denied = client.get("/auth/magic-link/consume?token=nope")
+
+    assert denied.status_code == 429
+    assert denied.headers["X-Sharecut-Error-Code"] == "rate_limited"
+    assert other.get("/auth/magic-link/consume?token=nope").status_code == 400
+
+
+def test_the_auth_limits_follow_the_host_off_switch(identity_store, monkeypatch) -> None:
+    _tight_auth_limits(monkeypatch, request=1, consume=1)
+    monkeypatch.setenv("PODCAST_RATE_LIMIT", "0")
+    reset_host_limiters_for_tests()
+    client = TestClient(create_app(), client=("127.0.0.1", 50000))
+
+    for _ in range(3):
+        assert _magic_post(client).status_code == 200
+        assert client.get("/auth/magic-link/consume?token=nope").status_code == 400
+
+
+def test_default_auth_limits_leave_normal_sign_in_alone(identity_store) -> None:
+    client = TestClient(create_app(), client=("127.0.0.1", 50000))
+
+    for index in range(3):
+        assert _magic_post(client, f"user{index}@example.com").status_code == 200
