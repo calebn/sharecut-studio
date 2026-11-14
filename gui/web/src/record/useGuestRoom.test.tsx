@@ -130,7 +130,11 @@ class FakeSocket {
       .filter((row) => row.command_type === type);
   }
 
-  close() {}
+  closed = false;
+
+  close() {
+    this.closed = true;
+  }
 }
 
 describe("useGuestRoom", () => {
@@ -396,6 +400,26 @@ describe("useGuestRoom", () => {
       audio: { echoCancellation: false, channelCount: 1 },
     });
     await waitFor(() => expect(result.current.mic.stream).not.toBeNull());
+  });
+
+  it("leave closes the room socket and releases the microphone", async () => {
+    stubFetch(guestBootstrap);
+    const { result } = renderHook(() => useGuestRoom("guest-tok"));
+    await waitFor(() => expect(result.current.me).not.toBeNull());
+    act(() => result.current.mic.request());
+    await waitFor(() => expect(result.current.mic.stream).not.toBeNull());
+    const stream = await getUserMedia.mock.results[0]?.value;
+    expect(result.current.left).toBe(false);
+    expect(sockets[0]?.closed).toBe(false);
+
+    act(() => result.current.leave());
+    act(() => result.current.leave());
+
+    expect(result.current.left).toBe(true);
+    await waitFor(() => expect(sockets[0]?.closed).toBe(true));
+    expect(stream.getTracks()[0].stop).toHaveBeenCalled();
+    expect(result.current.mic.stream).toBeNull();
+    expect(result.current.connected).toBe(false);
   });
 
   it("falls back from a stale saved microphone and forgets it", async () => {

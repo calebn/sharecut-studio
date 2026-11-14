@@ -36,19 +36,6 @@ export type RecordUploadProgress = {
   segments: SegmentSave[];
 };
 
-export function leaveBlocked(
-  state: string,
-  upload?: RecordUploadProgress | null,
-): boolean {
-  if (state !== "stopped" || !upload || upload.error) {
-    return false;
-  }
-  if (upload.fileAck) {
-    return false;
-  }
-  return upload.pending || upload.uploading || upload.total > 0;
-}
-
 /**
  * Capture is settled once nothing more can be written: not recording and not
  * finalizing, or finalization latched a failure (it will not finish on its

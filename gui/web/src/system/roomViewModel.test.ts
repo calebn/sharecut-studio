@@ -556,11 +556,17 @@ describe("roomViewModel host", () => {
       percent,
     });
     expect(
-      roomViewModel(base({ role: "guest", phase: saving(64) })).dockStatus,
-    ).toBe("Saving · 64% · keep this page open");
+      roomViewModel(base({ role: "guest", phase: saving(64) })).dock,
+    ).toMatchObject({
+      kind: "status",
+      text: "Saving · 64% · keep this page open",
+    });
     expect(
-      roomViewModel(base({ role: "guest", phase: saving() })).dockStatus,
-    ).toBe("Saving · 1 of 3 · keep this page open");
+      roomViewModel(base({ role: "guest", phase: saving() })).dock,
+    ).toMatchObject({
+      kind: "status",
+      text: "Saving · 1 of 3 · keep this page open",
+    });
   });
 
   it("replaces the dock controls with a saving line while the take saves", () => {
@@ -570,10 +576,85 @@ describe("roomViewModel host", () => {
         phase: { kind: "saving", savedPeople: 2, totalPeople: 3 },
       }),
     );
-    expect(model.dockStatus).toBe("Saving · 2 of 3 · keep this page open");
-    expect(roomViewModel(base({ role: "host", phase: LIVE })).dockStatus).toBe(
-      null,
-    );
+    expect(model.dock).toEqual({
+      kind: "status",
+      text: "Saving · 2 of 3 · keep this page open",
+    });
+    expect(roomViewModel(base({ role: "host", phase: LIVE })).dock).toEqual({
+      kind: "controls",
+    });
+  });
+});
+
+describe("roomViewModel dock", () => {
+  const onAir: RoomPhase[] = [
+    LIVE,
+    { kind: "paused", clockSec: 4 },
+    { kind: "reconnecting", paused: false, clockSec: 43 },
+    { kind: "reconnecting", paused: true },
+  ];
+
+  it.each(onAir)("holds a guest's Leave on air (%j)", (phase) => {
+    expect(roomViewModel(base({ role: "guest", phase })).dock).toEqual({
+      kind: "controls",
+      leaveHeld: "You can leave after this take.",
+    });
+  });
+
+  it("holds a guest's Leave while saving with the spec's reason", () => {
+    expect(
+      roomViewModel(
+        base({
+          role: "guest",
+          phase: {
+            kind: "saving",
+            savedPeople: 0,
+            totalPeople: 1,
+            percent: 40,
+          },
+        }),
+      ).dock,
+    ).toEqual({
+      kind: "status",
+      text: "Saving · 40% · keep this page open",
+      leaveHeld: "Your recording is still saving",
+    });
+  });
+
+  it("releases Leave once saving stopped", () => {
+    expect(
+      roomViewModel(
+        base({
+          role: "guest",
+          phase: {
+            kind: "saving",
+            savedPeople: 0,
+            totalPeople: 1,
+            failed: true,
+          },
+        }),
+      ).dock,
+    ).toEqual({ kind: "controls" });
+  });
+
+  it("gives a saved guest the closing line and Done", () => {
+    expect(
+      roomViewModel(base({ role: "guest", phase: { kind: "saved" } })).dock,
+    ).toEqual({
+      kind: "done",
+      text: "Saved to project. You can close this page.",
+    });
+  });
+
+  it("never gives Done or a held Leave to a host or a producer", () => {
+    for (const role of ["host", "producer"] as const) {
+      expect(
+        roomViewModel(base({ role, phase: { kind: "saved" } })).dock,
+      ).toEqual({ kind: "controls" });
+      expect(roomViewModel(base({ role, phase: LIVE })).dock).toEqual({
+        kind: "controls",
+      });
+    }
   });
 });
 

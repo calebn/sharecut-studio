@@ -11,7 +11,7 @@ import { BUSY_REASON, disabledAttrs } from "../ui/disabledReason";
 
 /** How long the stop is held. The ring fills in this time. */
 export const HOLD_TO_STOP_MS = 600;
-const HINT_MS = 2000;
+export const HINT_MS = 2000;
 export const STOP_TITLE = "Stop this take?";
 export const STOP_DETAIL = "Recording ends for everyone in the room.";
 const STOP_PROMPT = `${STOP_TITLE} ${STOP_DETAIL}`;

@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, fn, within } from "storybook/test";
+import { expect, fn, userEvent, within } from "storybook/test";
 import { viewportStoryParameters } from "../storybook/storyLayout";
 import { RecordDock } from "./RecordDock";
 
@@ -107,6 +107,42 @@ export const RecordGuestSaving: Story = {
     record: undefined,
     status: "Saving · 64% · keep this page open",
     leaveDisabledReason: "Your recording is still saving",
+  },
+};
+
+export const GuestSaved: Story = {
+  args: {
+    seat: "guest",
+    record: undefined,
+    status: "Saved to project. You can close this page.",
+    onDone: fn(),
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(
+      canvas.getByRole("button", { name: "Done" }),
+    ).toBeInTheDocument();
+    await expect(
+      canvas.queryByRole("button", { name: "Leave room" }),
+    ).toBeNull();
+  },
+};
+
+export const GuestLeaveHeld: Story = {
+  args: {
+    seat: "guest",
+    record: undefined,
+    leaveDisabledReason: "You can leave after this take.",
+  },
+  play: async ({ canvasElement }) => {
+    const leave = within(canvasElement).getByRole("button", {
+      name: "Leave room",
+    });
+    await expect(leave).toHaveAttribute("aria-disabled", "true");
+    await userEvent.click(leave);
+    await expect(
+      within(canvasElement).getByText("You can leave after this take."),
+    ).toBeVisible();
   },
 };
 

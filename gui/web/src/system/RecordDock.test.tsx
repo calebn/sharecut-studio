@@ -1,6 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it, vi } from "vitest";
+import { act } from "react";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { RecordDock } from "./RecordDock";
 
 const record = { face: "idle", onStart: vi.fn(), onStop: vi.fn() } as const;
@@ -93,16 +94,56 @@ describe("RecordDock", () => {
     expect(screen.queryByRole("button", { name: "Mute" })).toBeNull();
   });
 
-  it("Leave is held back while saving, with the reason", () => {
+  it("Done replaces Leave beside the status line", async () => {
+    const onDone = vi.fn();
     render(
       <RecordDock
         seat="guest"
-        leaveDisabledReason="Your recording is still saving"
+        status="Saved to project. You can close this page."
+        onDone={onDone}
+        onLeave={vi.fn()}
       />,
     );
-    const leave = screen.getByRole("button", { name: "Leave room" });
-    expect(leave).toBeDisabled();
-    expect(leave).toHaveAttribute("title", "Your recording is still saving");
+    expect(screen.queryByRole("button", { name: "Leave room" })).toBeNull();
+    expect(screen.getByRole("button", { name: "Notes" })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Done" }));
+    expect(onDone).toHaveBeenCalledOnce();
+  });
+
+  describe("a held Leave", () => {
+    afterEach(() => vi.useRealTimers());
+
+    it("says why when pressed", () => {
+      vi.useFakeTimers();
+      const onLeave = vi.fn();
+      render(
+        <RecordDock
+          seat="guest"
+          leaveDisabledReason="You can leave after this take."
+          onLeave={onLeave}
+        />,
+      );
+      const leave = screen.getByRole("button", { name: "Leave room" });
+      expect(leave).toHaveAttribute("aria-disabled", "true");
+      expect(leave).toHaveAttribute("title", "You can leave after this take.");
+      expect(screen.getByRole("status")).toBeEmptyDOMElement();
+      act(() => leave.click());
+      expect(onLeave).not.toHaveBeenCalled();
+      expect(screen.getByRole("status")).toHaveTextContent(
+        "You can leave after this take.",
+      );
+      act(() => {
+        vi.advanceTimersByTime(2000);
+      });
+      expect(screen.getByRole("status")).toBeEmptyDOMElement();
+    });
+
+    it("stays focusable", () => {
+      render(<RecordDock seat="guest" leaveDisabledReason="Not yet." />);
+      expect(
+        screen.getByRole("button", { name: "Leave room" }),
+      ).not.toBeDisabled();
+    });
   });
 
   it("hides Comment while the room waits, for every seat", () => {

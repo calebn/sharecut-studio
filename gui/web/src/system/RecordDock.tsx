@@ -1,6 +1,6 @@
-import type { ReactNode } from "react";
+import { type ReactNode, useEffect, useId, useRef, useState } from "react";
 import { Button } from "../ui";
-import { RecordButton, type RecordButtonProps } from "./RecordButton";
+import { HINT_MS, RecordButton, type RecordButtonProps } from "./RecordButton";
 import { SystemIcon } from "./SystemIcon";
 import { VerbButton } from "./VerbButton";
 import { hintOf, verbOf } from "./verbDisplay";
@@ -22,7 +22,12 @@ export type RecordDockProps = {
   notesOpen?: boolean;
   /** Replaces the secondaries after Stop: "Saving · 64% · keep this page open". */
   status?: ReactNode;
-  /** The guest's Leave is held back while their recording saves. */
+  /** With `status`: a Done primary in the far slot in place of Leave. Ignored without `status`. */
+  onDone?: () => void;
+  /**
+   * Leave stays focusable and pressable but does nothing: aria-disabled, the reason as its title and
+   * aria-describedby, and a press shows the reason in a role="status" line under it for HINT_MS.
+   */
   leaveDisabledReason?: string;
   onMute?: () => void;
   onComment?: () => void;
@@ -49,6 +54,7 @@ export function RecordDock({
   unreadNotes = 0,
   notesOpen = false,
   status,
+  onDone,
   leaveDisabledReason,
   onMute,
   onComment,
@@ -58,6 +64,15 @@ export function RecordDock({
   onMore,
   onLeave,
 }: RecordDockProps) {
+  const [hinting, setHinting] = useState(false);
+  const hintTimer = useRef<number | undefined>(undefined);
+  const hintId = useId();
+  useEffect(() => () => window.clearTimeout(hintTimer.current), []);
+  const pressHeldLeave = () => {
+    setHinting(true);
+    window.clearTimeout(hintTimer.current);
+    hintTimer.current = window.setTimeout(() => setHinting(false), HINT_MS);
+  };
   const mute = (
     <button
       type="button"
@@ -104,7 +119,12 @@ export function RecordDock({
 
   let center: ReactNode;
   if (status !== undefined) {
-    center = <div className="sys-dock-status">{status}</div>;
+    center = (
+      <>
+        <div className="sys-dock-status">{status}</div>
+        {onDone && seat !== "host" ? notes : null}
+      </>
+    );
   } else if (seat === "host") {
     // The host dock is whole without a record prop; only the Record button and
     // its Pause depend on it.
@@ -166,16 +186,34 @@ export function RecordDock({
             size={20}
             onClick={onMore}
           />
-        ) : (
-          <Button
-            className="sys-dock-btn"
-            aria-label="Leave room"
-            title="Leave room"
-            disabledReason={leaveDisabledReason}
-            onClick={onLeave}
-          >
-            <SystemIcon name="door-open" size={20} />
+        ) : onDone && status !== undefined ? (
+          <Button variant="primary" className="sys-dock-done" onClick={onDone}>
+            Done
           </Button>
+        ) : (
+          <>
+            <button
+              type="button"
+              className="sys-dock-btn"
+              aria-label="Leave room"
+              title={leaveDisabledReason ?? "Leave room"}
+              aria-disabled={leaveDisabledReason ? true : undefined}
+              aria-describedby={leaveDisabledReason ? hintId : undefined}
+              onClick={leaveDisabledReason ? pressHeldLeave : onLeave}
+            >
+              <SystemIcon name="door-open" size={20} />
+            </button>
+            {leaveDisabledReason ? (
+              <span
+                id={hintId}
+                className="sys-dock-hint"
+                role="status"
+                data-shown={hinting || undefined}
+              >
+                {hinting ? leaveDisabledReason : null}
+              </span>
+            ) : null}
+          </>
         )}
       </div>
     </div>
