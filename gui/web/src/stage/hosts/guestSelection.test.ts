@@ -344,6 +344,19 @@ describe("followSelection", () => {
       });
     });
 
+    it("keeps a word listed under two lines when nothing changed", () => {
+      const straddle = modelOf([
+        { id: "l1", words: copy("l1", 0) },
+        { id: "l2", words: copy("l2", 0) },
+      ]);
+      expect(followSelection(remember(straddle, 0), straddle)).toEqual({
+        kind: "keep",
+      });
+      expect(followSelection(remember(straddle, 1), straddle)).toEqual({
+        kind: "keep",
+      });
+    });
+
     it("waits while one copy sits inside a line drawn as bars", () => {
       const picked = remember(twoCopies([0, 30]), 1);
       const gap = modelOf([
