@@ -10,6 +10,7 @@ import { COMMENTER_CAPABILITIES } from "../../test/fixtures";
 import { drag, layout } from "../../test/scriptDrag";
 import {
   scriptUtterance,
+  scriptUtterances,
   scriptWord,
   seedScript,
   TWO_LANE_CLIPS,
@@ -196,6 +197,125 @@ describe("a selection across an edit that only renumbers", () => {
     rerender(live(cut));
     expect(say).not.toHaveBeenCalled();
     expect(stored()).toMatchObject({ startWordIndex: 5, endWordIndex: 7 });
+  });
+});
+
+describe("a selection is the same word, found by its place in the recording", () => {
+  const word = (text: string, n: number, at: number, shift: number) =>
+    scriptWord(text, n, at, {
+      timeline_start: at + shift,
+      timeline_end: at + shift + 0.4,
+    });
+  const before = [
+    scriptUtterance("host", "Maya", [
+      word("a", 0, 10, 0),
+      word("b", 1, 10.5, 0),
+      word("a", 2, 11, 0),
+      word("a", 3, 11.5, 0),
+    ]),
+  ];
+  // "b" is cut and the line ripples up by half a second after it.
+  const after = [
+    scriptUtterance(
+      "host",
+      "Maya",
+      [word("a", 0, 10, 0), word("a", 1, 11, -0.5), word("a", 2, 11.5, -0.5)],
+      { start: 10 },
+    ),
+  ];
+
+  it("follows the third word, not the fourth that now sits in its place", () => {
+    seedScript({
+      projectPath: "share:abc",
+      guestMode: "comment",
+      shareCapabilities: COMMENTER_CAPABILITIES,
+      utterances: before,
+      project: { clips: TWO_LANE_CLIPS },
+    });
+    const memory = { grant: GRANT, utterances: before };
+    const rerender = mount(live(before));
+    drag(2, 2);
+    expect(stored()).toMatchObject({ startWordIndex: 2, endWordIndex: 2 });
+    rerender(
+      shownTranscriptOf(
+        { utterances: headers(after) } as never,
+        memory,
+        GRANT,
+        false,
+      ),
+    );
+    expect(stored()).toMatchObject({ startWordIndex: 2, endWordIndex: 2 });
+    rerender(live(after));
+    expect(stored()).toMatchObject({ startWordIndex: 1, endWordIndex: 1 });
+  });
+});
+
+describe("a selection over a line that is still held", () => {
+  const w = (text: string, n: number, at: number) => scriptWord(text, n, at);
+  const row = (words: ReturnType<typeof scriptWord>[]) =>
+    scriptUtterance("host", "Maya", words);
+  const before = [
+    row([w("x", 0, 10), w("p", 1, 11), w("q", 2, 12)]),
+    row([w("m", 3, 14), w("n", 4, 15)]),
+    row([w("r", 5, 20), w("s", 6, 21)]),
+  ];
+
+  it("moves its live ends once their words are live and says nothing, though a held line lies between", () => {
+    seedScript({
+      projectPath: "share:abc",
+      guestMode: "comment",
+      shareCapabilities: COMMENTER_CAPABILITIES,
+      utterances: before,
+      project: { clips: TWO_LANE_CLIPS },
+    });
+    const rerender = mount(live(before));
+    drag(1, 6);
+    expect(stored()).toMatchObject({ startWordIndex: 1, endWordIndex: 6 });
+    useDawStore.setState({ feedbackToast: null });
+    const say = vi.spyOn(useDawStore.getState(), "announceStatus");
+    // "x" is cut. The ends' lines are live again; the line between is not.
+    const first = row([w("p", 0, 11), w("q", 1, 12)]);
+    const last = row([w("r", 4, 20), w("s", 5, 21)]);
+    const middle = headers([before[1]!])[0]!;
+    rerender(
+      shownTranscriptOf(
+        { utterances: [first, middle, last] } as never,
+        { grant: GRANT, utterances: before },
+        GRANT,
+        false,
+      ),
+    );
+    expect(say).not.toHaveBeenCalled();
+    expect(useDawStore.getState().feedbackToast).toBeNull();
+    expect(stored()).toMatchObject({ startWordIndex: 0, endWordIndex: 5 });
+  });
+});
+
+describe("a gesture that the store did not take", () => {
+  it("does not hand an older selection to this gesture's words", () => {
+    const rows = scriptUtterances();
+    seedScript({
+      projectPath: "share:abc",
+      guestMode: "comment",
+      shareCapabilities: COMMENTER_CAPABILITIES,
+      utterances: rows,
+      project: { clips: TWO_LANE_CLIPS },
+    });
+    const rerender = mount(live(rows));
+    const mine = {
+      kind: "transcriptRange",
+      trackId: "host",
+      sourceId: null,
+      startWordIndex: 0,
+      endWordIndex: 1,
+    } as const;
+    // Words across two tracks need a project to become a range; with none the
+    // store takes nothing and keeps the selection it had.
+    useDawStore.setState({ selection: mine, project: null });
+    drag(3, 7);
+    expect(stored()).toBe(mine);
+    rerender(live(rows.filter((row) => row.track_id === "host")));
+    expect(stored()).toBe(mine);
   });
 });
 

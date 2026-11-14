@@ -29,7 +29,8 @@ export type ScriptSelectionProps = {
 
 /**
  * The pane's selection and caret against the store. The store is written only
- * from these handlers, never from an effect. Words on one track become a
+ * from these handlers, never from an effect, except the guest host's follow
+ * effect, which re-keys a selection after an edit (no gesture). Words on one track become a
  * `transcriptRange`; words across tracks become a `range` over that time on
  * every track they touch, which the pane draws back as its first to last word.
  */
