@@ -32,10 +32,17 @@ type SelectionDraft =
 
 /** The draft a selection makes, and whether the selection chose it (else it is "here"), or why it cannot be made yet. */
 function draftForSelection(
-  state: Pick<DawState, "project" | "selection" | "playheadSec">,
+  state: Pick<
+    DawState,
+    "project" | "selection" | "playheadSec" | "projectPath"
+  >,
 ): SelectionDraft {
   const project = state.project!;
-  const resolved = resolveSelectionRange(project, state.selection);
+  const resolved = resolveSelectionRange(
+    project,
+    state.selection,
+    state.projectPath,
+  );
   if (resolved.refreshing && resolved.reason)
     return { refreshing: resolved.reason };
   if (resolved.targets.length === 1)

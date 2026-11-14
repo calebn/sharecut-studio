@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { makeRangeTarget } from "../edit/rangeSelection";
 import { clipRow, minimalProject, sampleTrack } from "../test/fixtures";
 import type { ProjectView, Selection } from "../types/project";
 import { resolveCommentAnchor } from "./commentAnchor";
@@ -63,6 +64,7 @@ const inputs = (p: ProjectView, playheadSec: number) => ({
   selection,
   project: p,
   playheadSec,
+  projectPath: "/work/episode.sharecut",
 });
 
 describe("resolveCommentAnchor", () => {
@@ -92,5 +94,35 @@ describe("resolveCommentAnchor", () => {
     expect(
       resolveCommentAnchor({ ...inputs(project(false), 50), selection: null }),
     ).toEqual({ source: "playhead", draft: { startSec: 50, endSec: null } });
+  });
+});
+
+describe("resolveCommentAnchor with a stored timeline range", () => {
+  const complete = project(true);
+  const target = makeRangeTarget(
+    complete,
+    [{ start: 1, end: 7 }],
+    ["speaker"],
+  )!;
+  const range: Selection = { kind: "range", target };
+  const wordFree = project(false);
+  const at = (path: string) => ({
+    ...inputs(wordFree, 50),
+    selection: range,
+    projectPath: path,
+  });
+
+  it("names the refreshing range on a share link and never falls to the playhead", () => {
+    expect(resolveCommentAnchor(at("share:tok"))).toEqual({
+      source: "refreshing",
+      reason: "Refreshing the transcript. Try again in a moment.",
+    });
+  });
+
+  it("anchors a host's stored range as before", () => {
+    expect(resolveCommentAnchor(at("/work/episode.sharecut"))).toMatchObject({
+      source: "selection",
+      draft: { startSec: 1, endSec: 7 },
+    });
   });
 });

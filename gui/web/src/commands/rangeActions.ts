@@ -139,7 +139,7 @@ export async function runRangeAction(
   const resolved = override
     ? { targets: [override], reason: null }
     : state.project
-      ? resolveSelectionRange(state.project, state.selection)
+      ? resolveSelectionRange(state.project, state.selection, state.projectPath)
       : { targets: [], reason: "Open a project" };
   const target = resolved.targets.length === 1 ? resolved.targets[0]! : null;
   const descriptor = rangeActionDescriptors(state, target).find(

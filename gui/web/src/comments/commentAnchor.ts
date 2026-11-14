@@ -13,7 +13,7 @@ type CommentAnchor =
 
 type AnchorInputs = Pick<
   DawState,
-  "commentDraft" | "selection" | "project" | "playheadSec"
+  "commentDraft" | "selection" | "project" | "playheadSec" | "projectPath"
 >;
 
 export function commentDraftFromRange(target: ExactRangeTarget): CommentDraft {
@@ -36,6 +36,7 @@ export function resolveCommentAnchor(s: AnchorInputs): CommentAnchor {
     const { targets, reason, refreshing } = resolveSelectionRange(
       s.project,
       s.selection,
+      s.projectPath,
     );
     if (refreshing && reason) return { source: "refreshing", reason };
     if (targets.length === 1) {
