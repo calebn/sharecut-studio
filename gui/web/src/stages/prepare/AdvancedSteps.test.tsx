@@ -305,6 +305,45 @@ describe("AdvancedSteps", () => {
     ).toHaveAttribute("aria-valuetext", "1 second");
   });
 
+  it("shows the language note without focus and links it to the field", () => {
+    const [group] = GROUPS;
+    const [transcribe] = group.steps;
+    const [language] = transcribe.params;
+    const groups = [
+      {
+        ...group,
+        steps: [
+          {
+            ...transcribe,
+            params: [
+              {
+                ...language,
+                note: "3 transcripts were made in English. The next run re-transcribes them in Spanish.",
+              },
+            ],
+          },
+        ],
+      },
+    ] as unknown as AdvancedStepsProps["groups"];
+    const none = {
+      onSelect: vi.fn(),
+      onBack: vi.fn(),
+      onToggle: vi.fn(),
+      onParam: vi.fn(),
+      onReset: vi.fn(),
+      onRunFromHere: vi.fn(),
+      onCancel: vi.fn(),
+    };
+    render(<AdvancedSteps {...none} groups={groups} selectedId="transcribe" />);
+    const note = screen.getByText(
+      "3 transcripts were made in English. The next run re-transcribes them in Spanish.",
+    );
+    expect(note).toHaveClass("sys-adv-note");
+    expect(
+      screen.getByRole("combobox", { name: "Language" }),
+    ).toHaveAccessibleDescription(/re-transcribes them in Spanish/);
+  });
+
   it("offers language as a searchable picker with Detect automatically first", async () => {
     const user = userEvent.setup();
     const onParam = vi.fn();
