@@ -8,7 +8,6 @@ from __future__ import annotations
 
 import importlib.metadata as metadata
 import json
-import shutil
 import subprocess
 import sys
 import textwrap
@@ -17,7 +16,6 @@ from pathlib import Path
 from script_loader import load_script
 
 payload = load_script("ios/build_payload", register=True)
-ROOT = Path(__file__).resolve().parents[1]
 
 CHILD = textwrap.dedent(
     """
@@ -49,21 +47,7 @@ CHILD = textwrap.dedent(
 
 
 def dropped_modules() -> list[str]:
-    uv = shutil.which("uv")
-    assert uv is not None
-    contract = payload.load_contract()
-    export = subprocess.run(
-        [uv, "export", *contract.uv_export_args, "--format", "requirements.txt"],
-        cwd=ROOT,
-        check=True,
-        capture_output=True,
-        text=True,
-    ).stdout
-    plan = payload.plan_packages(
-        payload.parse_export(export),
-        payload.parse_lock((ROOT / "uv.lock").read_text(encoding="utf-8")),
-        contract,
-    )
+    _, plan = payload.load_plan(payload.load_contract())
     dropped = {pkg.name for pkg in plan.of(payload.PackageClass.EXCLUDED)}
     modules: set[str] = set()
     for top, distributions in metadata.packages_distributions().items():

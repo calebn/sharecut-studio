@@ -1,15 +1,11 @@
 """A debug-build request log for the embedded engine (#3810).
 
-The Simulator proof cannot see the WebView's traffic, so a debug build of the iOS app records, one
-line per request, only the method, the path without its query string, the response status and
+One line per request: the method, the path without its query string, the response status and
 whether the query string was empty. A WebSocket accept is one line with the method ``WEBSOCKET``
-and status 101. No query string, header, cookie or body is ever read here, which is how the proof
-shows the page's socket, event stream and media requests carry no token in their URLs while the
-single-use exchange code, which is in a query string, never reaches the file.
-
-Two variables must both be ``1`` (``PODCAST_ENGINE_DEBUG_BUILD`` and
-``PODCAST_ENGINE_REQUEST_AUDIT``). The iOS host sets them only when it was compiled with
-``debug_assertions`` and clears them first in every other build, so a release build cannot run it.
+and status 101. No query string, header, cookie or body is read, so the single-use exchange code
+never reaches the file. It runs only when ``PODCAST_ENGINE_DEBUG_BUILD`` and
+``PODCAST_ENGINE_REQUEST_AUDIT`` are both ``1``, which the iOS host sets only in a debug build
+(docs/desktop-packaging.md § iOS app).
 """
 
 from __future__ import annotations

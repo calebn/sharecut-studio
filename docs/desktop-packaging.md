@@ -215,11 +215,11 @@ lib (a `staticlib`) with Python.xcframework linked into it; there is no sidecar 
   if it stops answering the splash says to reopen the app. A start that failed shows its
   sentence on the splash with a Try again link.
 - **Layout.** `src/ios/webview.rs` sets the WebView's scroll view to
-  `contentInsetAdjustmentBehavior = never`. With WKWebView's default the layout viewport is the
-  screen minus the status bar and the home indicator (759 of 852 points on an iPhone 15 Pro) while
-  the page paints from the top edge, which left an empty band at the bottom. With `never`,
-  `innerHeight` is the full screen and the Studio pads itself with `env(safe-area-inset-*)`.
-  The proof checks that the last screen row is the colour of the first.
+  `contentInsetAdjustmentBehavior = never`. WKWebView's default lays the page out in the screen
+  minus the status bar and home indicator (759 of 852 points on an iPhone 15 Pro) while it paints
+  from the top edge, which left an empty band at the bottom. With `never` the Studio fills the
+  screen and pads itself with `env(safe-area-inset-*)`. The proof checks that the last screen row
+  is the colour of the first.
 - **Start time.** Measured on the Simulator, the engine reports Serving 4.5 to 5.5 seconds after
   launch on a quiet Mac, 20.7 seconds once while other work loaded it, and the earlier prototype
   saw about 40 seconds. The reducer's start deadline is 120 seconds (`START_DEADLINE`), a
@@ -227,8 +227,7 @@ lib (a `staticlib`) with Python.xcframework linked into it; there is no sidecar 
   A recheck after returning to the foreground has 20 seconds (`RECHECK_DEADLINE`); the prototype's
   listener answered again about 5 seconds after the return.
 - **Not there yet.** Audio tools (FFmpeg), transcription, recording, Universal Links, signing,
-  TestFlight and a run on a device. Home's Import audio and Record are refused while audio tools are unavailable, so a project cannot yet be made in the UI. Recent entries under the app's home are stored relative to it, because the container's path changes on every reinstall or update ([persistence.md](persistence.md)). Projects live in the app's Documents folder and show in the
-  Files app.
+  TestFlight and a run on a device. Home's Import audio and Record are refused while audio tools are unavailable, so a project cannot yet be made in the UI. Projects live in the app's Documents folder and show in the Files app. Recent entries are stored relative to it ([persistence.md](persistence.md)).
 - **Request audit (debug builds only).** `podcast_mcp.gui.request_audit` appends one JSON line per
   HTTP response and WebSocket outcome to `Library/Logs/ShareCut/request-audit.jsonl`: the method,
   the path without its query string, the status and whether the query was empty. It never reads a
