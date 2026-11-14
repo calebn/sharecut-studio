@@ -23,6 +23,7 @@ from scripts.ios.release_classify import (
     Verdict,
     app_record_exists,
     classify_altool,
+    classify_upload,
 )
 from scripts.ios.release_inputs import AscKey
 from scripts.ios.release_plan import (
@@ -73,10 +74,7 @@ def altool(
     )
 
 
-def answered(
-    result: SpawnResult, ws: Workspace, verb: str, *, strict: bool = False
-) -> tuple[Outcome, AppleAnswer]:
-    answer = classify_altool(result.exit_code, result.output, strict=strict)
+def answered(answer: AppleAnswer, ws: Workspace, verb: str) -> tuple[Outcome, AppleAnswer]:
     ws.answers.append(answer)
     if answer.verdict is Verdict.OK:
         return OK, answer
@@ -122,14 +120,14 @@ def plan_deliver(
         ws.sha256 = sha256_file(ws.ipa)
 
     def validated(result: SpawnResult, ws: Workspace) -> Outcome:
-        outcome, answer = answered(result, ws, "validate")
+        outcome, answer = answered(classify_altool(result.exit_code, result.output), ws, "validate")
         row = outcome_row(answer.verdict, now_iso(), answer.messages)
         record.validations.append({**row, "ipa_sha256": ws.sha256})
         write_record(record_dir, record)
         return outcome
 
     def uploaded(result: SpawnResult, ws: Workspace) -> Outcome:
-        outcome, answer = answered(result, ws, "upload", strict=True)
+        outcome, answer = answered(classify_upload(result.exit_code, result.output), ws, "upload")
         row = outcome_row(answer.verdict, now_iso(), answer.messages)
         if answer.verdict is Verdict.UNREACHABLE:
             record.uploads[-1]["last_answer"] = row

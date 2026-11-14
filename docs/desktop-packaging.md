@@ -307,7 +307,12 @@ lib (a `staticlib`) with Python.xcframework linked into it; there is no sidecar 
 owner's bundle identifier, checks it, validates it with App Store Connect and uploads it to
 TestFlight only with a confirmation bound to that file. `make ios-testflight` runs `build` then
 `validate` and can never upload. `make ios-release-rehearsal` is `build --unsigned`: every local
-check, and nobody is contacted. Each subcommand takes `--dry-run`, which prints the exact steps
+check, and it never contacts Apple. It was run with outside network access denied (loopback
+allowed, because the Tauri CLI binds a local WebSocket), and its steps, including the
+`xcodebuild archive`, contacted no outside host. The one step that run did not cover is the Swift
+package compile inside cargo's build, since SwiftPM applies its own sandbox and cannot run inside
+another; it needs its dependencies already built or fetched. A cold checkout needs the documented
+`uv sync` and dependency installs first, which do use the network. Each subcommand takes `--dry-run`, which prints the exact steps
 (secrets as `<team>` and so on, private directories as `<home>`, `<checkout>`) and runs none.
 
 - **Inputs.** `PODCAST_DISTRIBUTION_PROFILE` names a distribution profile outside the repository
@@ -370,13 +375,23 @@ check, and nobody is contacted. Each subcommand takes `--dry-run`, which prints 
   that file with one sentence telling you to check TestFlight for that build number. That covers a
   run that was interrupted and an upload that got no answer from Apple, because the bytes may
   already have left; the second keeps what Apple's tool said in `last_answer` on the attempt and
-  leaves its outcome empty. An upload attempt is finished only by an answer Apple itself gave:
-  `altool` exits 0 with a JSON answer, or it prints Apple's structured `product-errors` (a
-  duplicate build, an authentication refusal or a validation or processing rejection) and no
-  transport wording (SSL, DNS, proxy, 5xx, a lost connection) in them. Everything else leaves the
-  attempt unresolved: death by a signal, empty or unparseable output, plain-text errors, a broken
-  pipe, a failed TLS handshake, a proxy page, a timeout, an authentication failure that is not a
-  structured product error. `validate` and the app record lookup change nothing at Apple and keep
+  leaves its outcome empty. An upload attempt is finished only by an answer Apple itself gave: `altool` exits 0 with a JSON
+  object that has no `product-errors` (lines before the object, such as a stderr warning, are
+  skipped; text after it, or an object that does not parse whole, is no answer), or it prints
+  structured `product-errors` and at least one entry has a known Apple shape and the output has
+  no transport wording. The known shapes (`apple_shaped` in `scripts/ios/release_classify.py`)
+  are an `ITMS-<digits>` code, an App Store Connect API code in the entry's `code` field
+  (`ENTITY_ERROR`, `ENTITY_UNPROCESSABLE`, `STATE_ERROR`, `PARAMETER_ERROR`, `NOT_AUTHORIZED`,
+  `FORBIDDEN`, `UNAUTHORIZED`, `RESOURCE_NOT_FOUND`, `CONFLICT` and their dotted forms), and an
+  Apple service domain (`ITunes*`, `ContentDelivery*`, `AppStoreConnect*`). A duplicate build
+  (checked in the message and every text field of the entry) is always recorded, because it
+  blocks a second upload anyway. Everything else leaves the attempt unresolved: death by a
+  signal, an exit 0 whose output is not Apple's JSON answer (check TestFlight for that build
+  number, because the build may have arrived), empty or unparseable output, plain-text errors,
+  malformed or empty `product-errors`, a structured error with no Apple shape (a bare HTTP
+  status, a system error domain such as `NSURLErrorDomain` or `NSPOSIXErrorDomain`, an
+  authentication refusal with no Apple code), and a structured error that also carries
+  transport wording. `validate` and the app record lookup change nothing at Apple and keep
   their looser reading. `--retry-unknown-upload` goes past the block and is recorded on the new
   attempt (`retried_unknown_upload`). An unresolved attempt is never closed, so after a retry that
   Apple then rejects, the next plain `upload` still needs the flag. The record can only block an

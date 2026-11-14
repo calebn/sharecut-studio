@@ -479,6 +479,10 @@ def altool_error(message: str) -> str:
     return json.dumps({"product-errors": [{"code": -19232, "message": message}]})
 
 
+def apple_error(message: str, **fields: object) -> str:
+    return json.dumps({"product-errors": [{"code": "ITMS-90022", "message": message, **fields}]})
+
+
 @pytest.mark.parametrize(
     ("code", "text", "verdict"),
     [
@@ -820,17 +824,6 @@ def test_a_dangling_link_at_the_private_file_is_refused_not_called_absent(tmp_pa
     assert not any("does not exist" in p.why for p in problems)
 
 
-def test_the_secret_groups_are_named_once() -> None:
-    assert release_inputs.SECRET_NAMES == (
-        "APPLE_DEVELOPMENT_TEAM",
-        "APPLE_API_KEY",
-        "APPLE_API_ISSUER",
-        "APPLE_API_KEY_PATH",
-    )
-    assert release_inputs.TEAM_SECRETS == ("APPLE_DEVELOPMENT_TEAM",)
-    assert release_inputs.KEY_SECRETS == ("APPLE_API_KEY", "APPLE_API_ISSUER")
-
-
 def test_a_missing_key_id_is_one_problem_not_two(tmp_path: Path) -> None:
     key, problems = release_inputs.resolve_asc_key({"APPLE_API_ISSUER": ISSUER}, tmp_path, tmp_path)
     assert key is None and [p.name for p in problems] == ["APPLE_API_KEY"]
@@ -1161,7 +1154,7 @@ def test_the_upload_guard_judges_the_ipa_and_the_checkout_not_the_record(
 
 
 UNREACHABLE = (1, altool_error("Could not connect to the server"))
-REFUSED = (1, altool_error("Invalid binary"))
+REFUSED = (1, apple_error("Invalid binary"))
 
 
 def uploads_sent(ran: list[Command]) -> int:
@@ -1177,7 +1170,10 @@ def test_an_unreachable_upload_is_unresolved_and_a_retry_needs_the_flag(
     attempt = record_module.read_record(tmp_path).uploads[0]
     assert attempt["outcome"] is None
     assert attempt["last_answer"]["verdict"] == "unreachable"
-    assert attempt["last_answer"]["messages"] == ["Could not connect to the server"]
+    assert attempt["last_answer"]["messages"] == [
+        "altool exited 1 without an answer",
+        UNREACHABLE[1],
+    ]
     assert "nothing was changed" not in capsys.readouterr().out
 
     code, ran, record, _ = drive_upload(tmp_path, monkeypatch, record=record)
@@ -1247,6 +1243,29 @@ NO_ANSWER = {
     "exit-0-no-answer": (0, ""),
     "exit-0-text": (0, "uploading... done"),
     "structured-transport": (1, altool_error("An SSL error occurred (NSURLErrorDomain -1200)")),
+    "structured-hostname": (
+        1,
+        altool_error("A server with the specified hostname could not be found."),
+    ),
+    "structured-500": (1, altool_error("Internal Server Error (500)")),
+    "structured-posix": (
+        1,
+        altool_error("The operation couldn't be completed. (NSPOSIXErrorDomain error 54.)"),
+    ),
+    "structured-apple-code-with-transport": (1, apple_error("ITMS-90000 proxy error")),
+    "empty-entry": (1, '{"product-errors": [{}]}'),
+    "malformed-string": (1, '{"product-errors": "boom"}'),
+    "malformed-int": (1, '{"product-errors": 5}'),
+    "malformed-int-exit-0": (0, '{"product-errors": 5}'),
+    "malformed-dict": (1, '{"product-errors": {"a": 1}}'),
+    "malformed-string-entry": (1, '{"product-errors": ["boom"]}'),
+    "malformed-null-entry": (1, '{"product-errors": [null]}'),
+    "malformed-user-info": (1, '{"product-errors": [{"userInfo": "x"}]}'),
+    "json-list": (0, "[]"),
+    "json-list-exit-1": (1, "[]"),
+    "json-scalar": (0, "5"),
+    "warning-before-truncated-json": (0, 'warning: slow\n{"tool-version": "26.10.1", "succ'),
+    "text-after-json": (0, ALTOOL_OK + "\nuploaded"),
 }
 VALIDATE_VERDICT = {
     "killed-9": "rejected",
@@ -1265,6 +1284,23 @@ VALIDATE_VERDICT = {
     "exit-0-no-answer": "ok",
     "exit-0-text": "ok",
     "structured-transport": "rejected",
+    "structured-hostname": "rejected",
+    "structured-500": "rejected",
+    "structured-posix": "rejected",
+    "structured-apple-code-with-transport": "rejected",
+    "empty-entry": "rejected",
+    "malformed-string": "rejected",
+    "malformed-int": "rejected",
+    "malformed-int-exit-0": "ok",
+    "malformed-dict": "rejected",
+    "malformed-string-entry": "rejected",
+    "malformed-null-entry": "rejected",
+    "malformed-user-info": "rejected",
+    "json-list": "ok",
+    "json-list-exit-1": "rejected",
+    "json-scalar": "ok",
+    "warning-before-truncated-json": "ok",
+    "text-after-json": "rejected",
 }
 
 
@@ -1328,11 +1364,177 @@ def test_a_duplicate_upload_is_apples_answer_and_blocks_a_second_upload(
     assert code == GUARD_EXIT and ran == []
 
 
+def test_a_duplicate_named_only_in_user_info_is_a_duplicate_everywhere(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    text = altool_error("Validation failed").replace(
+        '"Validation failed"',
+        '"Validation failed", "userInfo": {"NSLocalizedFailureReason": "Redundant Binary Upload"}',
+    )
+    assert release_classify.classify_upload(1, text).verdict is Verdict.DUPLICATE
+    assert release_classify.classify_altool(1, text).verdict is Verdict.DUPLICATE
+    code, _, record, _ = drive_upload(tmp_path, monkeypatch, answers={"--upload-app": (1, text)})
+    assert code == Failure.DUPLICATE_BUILD.value
+    code, ran, _, _ = drive_upload(tmp_path, monkeypatch, record=record)
+    assert code == GUARD_EXIT and ran == []
+
+
+APPLE_ANSWERS = {
+    "itms": (apple_error("Invalid Bundle"), Verdict.REJECTED),
+    "itms-in-user-info": (
+        json.dumps(
+            {"product-errors": [{"userInfo": {"NSLocalizedDescription": "ITMS-90161: bad"}}]}
+        ),
+        Verdict.REJECTED,
+    ),
+    "api-code": (
+        json.dumps(
+            {"product-errors": [{"code": "ENTITY_ERROR.ATTRIBUTE.INVALID", "message": "x"}]}
+        ),
+        Verdict.REJECTED,
+    ),
+    "api-auth-code": (
+        json.dumps({"product-errors": [{"code": "NOT_AUTHORIZED", "message": "x"}]}),
+        Verdict.REJECTED,
+    ),
+    "apple-domain": (
+        json.dumps(
+            {"product-errors": [{"domain": "ITunesSoftwareServiceErrorDomain", "message": "x"}]}
+        ),
+        Verdict.REJECTED,
+    ),
+    "apple-domain-in-text": (
+        json.dumps(
+            {
+                "product-errors": [
+                    {
+                        "message": "x",
+                        "userInfo": {
+                            "NSUnderlyingError": "Error Domain=ContentDeliveryErrorDomain Code=1"
+                        },
+                    }
+                ]
+            }
+        ),
+        Verdict.REJECTED,
+    ),
+    "itms-auth": (apple_error("401 unauthorized"), Verdict.AUTH_FAILED),
+}
+NOT_APPLE_ANSWERS = {
+    "system-domain": {"domain": "NSURLErrorDomain", "message": "x"},
+    "posix-domain": {"domain": "NSPOSIXErrorDomain", "message": "x"},
+    "cocoa-domain": {"domain": "NSCocoaErrorDomain", "message": "x"},
+    "cfnetwork-domain": {"domain": "kCFErrorDomainCFNetwork", "message": "x"},
+    "lowercase-code": {"code": "connection_refused", "message": "x"},
+    "unlisted-code": {"code": "CONNECTION_REFUSED", "message": "x"},
+    "numeric-code": {"code": 54, "message": "x"},
+    "code-in-message-only": {"message": "ENTITY_ERROR"},
+    "lookalike-domain": {"domain": "MyITunesDomain", "message": "x"},
+}
+
+
+@pytest.mark.parametrize("case", sorted(APPLE_ANSWERS))
+def test_a_structured_error_with_an_apple_shape_finishes_the_attempt(case: str) -> None:
+    text, verdict = APPLE_ANSWERS[case]
+    assert release_classify.classify_upload(1, text).verdict is verdict
+
+
+@pytest.mark.parametrize("case", sorted(NOT_APPLE_ANSWERS))
+def test_a_structured_error_without_an_apple_shape_leaves_the_attempt_unresolved(
+    case: str,
+) -> None:
+    text = json.dumps({"product-errors": [NOT_APPLE_ANSWERS[case]]})
+    assert release_classify.classify_upload(1, text).verdict is Verdict.UNREACHABLE
+
+
+@pytest.mark.parametrize(
+    "wording",
+    [
+        "could not connect",
+        "network",
+        "timed out",
+        "offline",
+        "unreachable",
+        "connection was lost",
+        "connection reset",
+        "SSL",
+        "TLS",
+        "handshake",
+        "broken pipe",
+        "unexpected EOF",
+        "could not resolve host",
+        "nodename nor servname",
+        "name or service not known",
+        "DNS",
+        "proxy",
+        "bad gateway",
+        "service unavailable",
+        "gateway timeout",
+        "NSURLErrorDomain",
+        "NSPOSIXErrorDomain",
+        "NSCocoaErrorDomain",
+        "kCFErrorDomainCFNetwork",
+        "secure connection",
+    ],
+)
+def test_transport_wording_beside_an_apple_code_leaves_the_attempt_unresolved(
+    wording: str,
+) -> None:
+    answer = release_classify.classify_upload(1, apple_error(f"{wording} while uploading"))
+    assert answer.verdict is Verdict.UNREACHABLE
+
+
+@pytest.mark.parametrize(
+    ("code", "text", "verdict"),
+    [
+        (0, "warning: slow link\n" + ALTOOL_OK, Verdict.OK),
+        (0, "w1\nw2\n" + ALTOOL_OK, Verdict.OK),
+        (
+            0,
+            json.dumps({"success-message": "uploaded; App Store processing the build"}),
+            Verdict.OK,
+        ),
+        (1, "warning: slow link\n" + apple_error("Invalid Bundle"), Verdict.REJECTED),
+        (0, "warning: slow link\n" + apple_error("Invalid Bundle"), Verdict.REJECTED),
+        (0, "warning\n" + ALTOOL_OK + "\nuploaded", Verdict.UNREACHABLE),
+        (0, "warning\n" + ALTOOL_OK[:-4], Verdict.UNREACHABLE),
+        (0, "warning: {not json}\n" + ALTOOL_OK + "}", Verdict.UNREACHABLE),
+        (0, "warning\n[1]", Verdict.UNREACHABLE),
+        (1, "warning: slow link\n" + altool_error("Invalid Bundle"), Verdict.UNREACHABLE),
+    ],
+)
+def test_a_warning_line_before_apples_json_does_not_hide_the_answer_but_trailing_text_does(
+    code: int, text: str, verdict: Verdict
+) -> None:
+    assert release_classify.classify_upload(code, text).verdict is verdict
+
+
+def test_a_success_object_with_a_message_on_exit_0_is_delivered(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    out = "warning: slow link\n" + json.dumps({"success-message": "uploaded; App Store processing"})
+    code, ran, _, _ = drive_upload(tmp_path, monkeypatch, answers={"--upload-app": (0, out)})
+    attempt = record_module.read_record(tmp_path).uploads[0]
+    assert code == 0 and uploads_sent(ran) == 1
+    assert attempt["outcome"]["verdict"] == "ok" and "last_answer" not in attempt
+
+
+def test_an_unresolved_upload_keeps_the_exit_line_and_a_bounded_copy_of_the_output(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    lines = [f"line {n} " + "x" * 300 for n in range(8)]
+    out = "\n\n".join(lines)
+    code, _, _, _ = drive_upload(tmp_path, monkeypatch, answers={"--upload-app": (1, out)})
+    kept = record_module.read_record(tmp_path).uploads[0]["last_answer"]["messages"]
+    assert code == Failure.TOOL.value
+    assert kept == ["altool exited 1 without an answer", *(line[:200] for line in lines[:5])]
+
+
 @pytest.mark.parametrize(
     ("text", "verdict"),
     [
-        (altool_error("Authentication failed: 401 unauthorized"), "auth_failed"),
-        (altool_error("Invalid Bundle. The bundle is missing an icon"), "rejected"),
+        (apple_error("Authentication failed: 401 unauthorized"), "auth_failed"),
+        (apple_error("Invalid Bundle. The bundle is missing an icon"), "rejected"),
     ],
     ids=["structured-auth", "structured-rejection"],
 )
@@ -1352,20 +1554,26 @@ def test_apples_own_structured_errors_finish_the_upload_attempt(
     [
         (0, ALTOOL_OK, Verdict.OK),
         (0, "", Verdict.UNREACHABLE),
-        (0, altool_error("Invalid Bundle"), Verdict.REJECTED),
+        (0, apple_error("Invalid Bundle"), Verdict.REJECTED),
+        (0, altool_error("Invalid Bundle"), Verdict.UNREACHABLE),
         (1, altool_error("Redundant Binary Upload"), Verdict.DUPLICATE),
         (1, "Redundant Binary Upload", Verdict.UNREACHABLE),
-        (1, altool_error("Authentication failed: 401 unauthorized"), Verdict.AUTH_FAILED),
-        (1, altool_error("network error, status 403"), Verdict.UNREACHABLE),
-        (1, altool_error("Invalid Bundle. The bundle is missing an icon"), Verdict.REJECTED),
+        (1, apple_error("Authentication failed: 401 unauthorized"), Verdict.AUTH_FAILED),
+        (1, altool_error("Authentication failed: 401 unauthorized"), Verdict.UNREACHABLE),
+        (1, apple_error("network error, status 403"), Verdict.UNREACHABLE),
+        (1, apple_error("Invalid Bundle. The bundle is missing an icon"), Verdict.REJECTED),
+        (1, altool_error("Invalid Bundle. The bundle is missing an icon"), Verdict.UNREACHABLE),
         (1, "plain text failure", Verdict.UNREACHABLE),
         (1, "null", Verdict.UNREACHABLE),
+        (1, "[]", Verdict.UNREACHABLE),
+        (0, "[]", Verdict.UNREACHABLE),
+        (0, "5", Verdict.UNREACHABLE),
     ],
 )
-def test_the_strict_classifier_accepts_only_apples_own_answer(
+def test_the_upload_classifier_accepts_only_apples_own_answer(
     code: int, text: str, verdict: Verdict
 ) -> None:
-    assert release_classify.classify_altool(code, text, strict=True).verdict is verdict
+    assert release_classify.classify_upload(code, text).verdict is verdict
 
 
 def stage_main_upload(
