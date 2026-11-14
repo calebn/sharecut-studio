@@ -734,6 +734,20 @@ describe("ScriptPane read only", () => {
     ).toHaveAccessibleDescription("Read only");
   });
 
+  it("keeps the header row on a phone for a link or a host that carries no guest label", () => {
+    render(
+      <ScriptPane
+        {...props({
+          layout: "phone",
+          following: true,
+          onFollowChange: vi.fn(),
+        })}
+      />,
+    );
+    expect(document.querySelector(".sys-script-header")).not.toBeNull();
+    expect(document.querySelector(".sys-script-caption")).toBeNull();
+  });
+
   it("describes a wide guest's Script by its label too", () => {
     render(<ScriptPane turns={MARKED} guest="commenter" playing={3} />);
     expect(
