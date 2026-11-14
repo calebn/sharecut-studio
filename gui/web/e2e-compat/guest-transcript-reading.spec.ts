@@ -6,6 +6,7 @@ import {
   expectNoBlankFrame,
   frames,
   placeInView,
+  SECTION,
   SHORT_PHONE,
   scrollByHand,
   visiblePlace,
@@ -135,3 +136,58 @@ for (const mode of ["paused", "playing"] as const) {
     );
   });
 }
+
+test("a following guest holds its view still through a second refresh, wherever the playhead went", async ({
+  browser,
+  page,
+}) => {
+  await withGuest(
+    browser,
+    page,
+    { role: "viewer", size: SHORT_PHONE },
+    async (guest) => {
+      const { page: view } = guest;
+      const body = view.locator(BODY);
+      await anchoringOff(view);
+      await view.locator(WORD).nth(-26).click();
+      await expect
+        .poll(async () => (await bodyOverflows(body)).over)
+        .toBeGreaterThan(100);
+      guest.detail.delayMs = 1_000;
+      const firstCut = await frames(
+        guest,
+        page,
+        "cut",
+        1,
+        await visiblePlace(view, "first"),
+        0.5,
+      );
+      await expect(view.locator(SECTION)).not.toHaveAttribute(
+        "aria-busy",
+        "true",
+      );
+      // The playhead goes well down the transcript, and the follow with it.
+      await view.locator(WORD).nth(-3).click();
+      await view.waitForTimeout(500);
+      const place = await visiblePlace(view, "first");
+      expect(place, "a word is visible to anchor on").not.toBeNull();
+      const secondCut = await frames(guest, page, "cut", 1, place, 1);
+      for (const [name, seen] of [
+        ["first", firstCut],
+        ["second", secondCut],
+      ] as const) {
+        const after = seen.frames.filter((f) => f.t >= seen.from);
+        const offsets = after.map((f) => f.offset);
+        expect(
+          offsets.every((o) => o !== null),
+          `the ${name} refresh kept the word the follower looked at`,
+        ).toBe(true);
+        const start = offsets[0] as number;
+        expect(
+          Math.max(...offsets.map((o) => Math.abs((o as number) - start))),
+          `the follower's view moved in the ${name} refresh`,
+        ).toBeLessThan(2);
+      }
+    },
+  );
+});

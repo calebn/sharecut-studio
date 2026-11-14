@@ -15,7 +15,6 @@ import {
   useRef,
   useState,
 } from "react";
-import { useStillBusy } from "../hooks/useStillBusy";
 import {
   isScrollKey,
   USER_SCROLL_INTENT_MS,
@@ -737,7 +736,6 @@ type Actions = {
 };
 
 /** A refresh that ends sooner than this shows no sign; a longer one draws the hairline. */
-const REFRESH_NOTICE_MS = 400;
 const NO_CARETS: readonly ScriptCaret[] = [];
 const NO_NUMBERS: readonly number[] = [];
 const NO_FOUND: readonly FoundHit[] = [];
@@ -994,27 +992,6 @@ export const ScriptPane = forwardRef<ScriptPaneHandle, ScriptPaneProps>(
       },
       [],
     );
-    useLayoutEffect(() => {
-      const resumesFollowing =
-        readingPositionRef.current?.restore && !readingPosition?.restore;
-      const holdsStill =
-        readingPositionRef.current?.restore === false &&
-        readingPosition?.restore === true &&
-        readingPosition.getPosition() === null;
-      if (holdsStill && followerPlace.current)
-        readingPosition.capture(followerPlace.current);
-      readingPositionRef.current = readingPosition;
-      if (!readingPosition) {
-        readingOwnership.current = EMPTY_READING_OWNERSHIP;
-      } else if (resumesFollowing) {
-        const body = bodyRef.current;
-        if (body?.isConnected)
-          readingOwnership.current = acceptReadingPosition(
-            readingOwnership.current,
-            sampleReadingViewport(body, undefined),
-          );
-      }
-    }, [readingPosition]);
     const findButton = useRef<HTMLButtonElement>(null);
     const layoutCache = useRef<Measured | null>(null);
     const [dragging, setDragging] = useState(false);
@@ -1291,6 +1268,10 @@ export const ScriptPane = forwardRef<ScriptPaneHandle, ScriptPaneProps>(
           element?: HTMLElement,
           rect?: DOMRect,
         ) => {
+          if (aside) {
+            followerPlace.current = position;
+            return;
+          }
           const state = readingOwnership.current;
           if (state.physical)
             readingOwnership.current = {
@@ -1307,8 +1288,7 @@ export const ScriptPane = forwardRef<ScriptPaneHandle, ScriptPaneProps>(
                     : null,
               },
             };
-          if (aside) followerPlace.current = position;
-          else binding.capture(position);
+          binding.capture(position);
         };
         const preferred =
           preferredIndex === undefined
@@ -1372,6 +1352,30 @@ export const ScriptPane = forwardRef<ScriptPaneHandle, ScriptPaneProps>(
       },
       [],
     );
+
+    useLayoutEffect(() => {
+      const resumesFollowing =
+        readingPositionRef.current?.restore && !readingPosition?.restore;
+      const holdsStill =
+        readingPositionRef.current?.restore === false &&
+        readingPosition?.restore === true &&
+        readingPosition.getPosition() === null;
+      if (holdsStill && followerPlace.current)
+        readingPosition.capture(followerPlace.current);
+      readingPositionRef.current = readingPosition;
+      // The hold is over: note where the follower is now for the next one.
+      if (resumesFollowing) serializeReadingPosition(undefined, true);
+      if (!readingPosition) {
+        readingOwnership.current = EMPTY_READING_OWNERSHIP;
+      } else if (resumesFollowing) {
+        const body = bodyRef.current;
+        if (body?.isConnected)
+          readingOwnership.current = acceptReadingPosition(
+            readingOwnership.current,
+            sampleReadingViewport(body, undefined),
+          );
+      }
+    }, [readingPosition, serializeReadingPosition]);
 
     const captureReadingPosition = useCallback(
       (preferredIndex?: number) => {
@@ -2129,7 +2133,6 @@ export const ScriptPane = forwardRef<ScriptPaneHandle, ScriptPaneProps>(
       status.kind === "outOfDate";
     const showHeader = readable && !phoneGuest;
     const captionOnly = readable && phoneGuest && guest === "viewer";
-    const stillBusy = useStillBusy(busy, REFRESH_NOTICE_MS);
     const guestLabelId = useId();
     const describedBy =
       guest && (showHeader || captionOnly) ? guestLabelId : undefined;
@@ -2170,7 +2173,6 @@ export const ScriptPane = forwardRef<ScriptPaneHandle, ScriptPaneProps>(
         aria-label="Script"
         aria-describedby={describedBy}
         aria-busy={busy || undefined}
-        data-refreshing={busy ? (stillBusy ? "slow" : "") : undefined}
         data-layout={layout}
       >
         {captionOnly && guest ? (
@@ -2689,13 +2691,15 @@ const TurnView = memo(function TurnView({
       <p className="sys-script-text" dir="auto">
         {turn.settling ? (
           <>
-            <span className="sys-script-settling" aria-hidden="true">
-              {settlingBars(turn.settling).map(({ key, chars }) => (
-                <span
-                  key={key}
-                  className="sys-script-settling-bar"
-                  style={{ "--sys-settling-chars": chars } as CSSProperties}
-                />
+            <span aria-hidden="true">
+              {settlingBars(turn.settling).map(({ key, chars }, at) => (
+                <Fragment key={key}>
+                  {at > 0 ? " " : null}
+                  <span
+                    className="sys-script-settling-bar"
+                    style={{ "--sys-settling-chars": chars } as CSSProperties}
+                  />
+                </Fragment>
               ))}
             </span>
             <span className="sr-only">Updating this line</span>
