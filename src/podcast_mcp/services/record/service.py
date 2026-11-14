@@ -610,6 +610,8 @@ class RecordSessionService:
             lease_out = ""
         elif not share_id:
             raise RecordAuthzError("forbidden")
+        elif self._model().session_id != self.session_id:
+            raise RecordAuthzError("invite_closed")
         elif participant_id and lease:
             person = find_participant(self._model(), participant_id)
             if person is not None and person.removed:
@@ -729,6 +731,8 @@ class RecordSessionService:
                         if existing is not None:
                             return snap_dict
             current = RecordSnapshot.model_validate(snap_dict or self._empty())
+            if cmd.type == "Join" and cmd.role != "host" and current.session_id != self.session_id:
+                raise RecordAuthzError("invite_closed")
             if cmd.type == "Join" and cmd.role == "host":
                 since = host_offline_since
                 if since is None:

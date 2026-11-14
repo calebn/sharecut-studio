@@ -11,7 +11,11 @@ from starlette.websockets import WebSocketDisconnect
 from podcast_mcp.gui.server import create_app
 from podcast_mcp.models import Clip, Track, TrackRole, load_project, save_project
 from podcast_mcp.services.app import ProjectWorkspace
-from podcast_mcp.services.collaboration.share import ShareService
+from podcast_mcp.services.collaboration.share import (
+    RecordStaleLinksError,
+    ShareService,
+    lookup_share,
+)
 from podcast_mcp.services.record.commands import (
     CLIENT_VISIBLE_AUTHZ_CODES,
     RecordAuthzError,
@@ -2434,3 +2438,49 @@ def test_a_lease_does_not_cross_links(minimal_project, sample_wav, tmp_workspace
         headers={"X-Record-Participant": a["participant_id"], "X-Record-Lease": a["lease"]},
     )
     assert crossed.status_code == 403
+
+
+def test_a_guest_on_an_old_link_cannot_land_in_the_new_room(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch
+):
+    ws, old, client = _room(minimal_project, sample_wav, tmp_workspace, monkeypatch)
+    share = ShareService(ws)
+    stale_calls = []
+
+    def keep_old_links(self, session_id):
+        stale_calls.append(session_id)
+        return []
+
+    monkeypatch.setattr(ShareService, "_revoke_room_tokens", keep_old_links)
+    with pytest.raises(RecordStaleLinksError) as stale:
+        share.create_record_room()
+    new = stale.value.room
+    assert stale_calls == [old["session_id"]]
+    assert lookup_share(old["guest"]["token"], kind="record")["session_id"] == old["session_id"]
+
+    with client.websocket_connect(f"/api/rec/{old['guest']['token']}/ws") as late:
+        _join(late, name="Latecomer")
+        err = _refusal(late)
+        assert err["code"] == "invite_closed"
+    svc = RecordSessionService(ws.project, session_id=new["session_id"])
+    assert [p.display_name for p in svc._model().participants] == []
+    assert (
+        svc._participants.invites_of(
+            {p.participant_id for p in svc._model().participants}, session_id=new["session_id"]
+        )
+        == {}
+    )
+
+
+def test_a_new_room_forgets_the_old_rooms_participants(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch
+):
+    ws, old, client = _room(minimal_project, sample_wav, tmp_workspace, monkeypatch)
+    a, _b = _join_two(client, old["guest"]["token"])
+    new = ShareService(ws).create_record_room()
+    old_svc = RecordSessionService(ws.project, session_id=old["session_id"])
+    new_svc = RecordSessionService(ws.project, session_id=new["session_id"])
+    assert (
+        old_svc._participants.invites_of({a["participant_id"]}, session_id=old["session_id"]) == {}
+    )
+    assert not new_svc.verify_lease(a["participant_id"], a["lease"], share_id=new["guest"]["id"])
