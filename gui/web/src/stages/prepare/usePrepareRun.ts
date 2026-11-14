@@ -31,8 +31,10 @@ import {
 } from "../../utils/apiError";
 import { takeAutoRun } from "../../utils/openIntent";
 import { isPipelineSlotBusy } from "../../utils/pipeline";
+import { stagedLanguage } from "./advancedModel";
 import { OVERWRITE_REFUSED, oneRunSkipSteps } from "./prepareMappers";
 import type { ReadyRowId } from "./ReadyList";
+import { languageName } from "./whisperLanguages";
 
 const TRANSCRIBE_STEP = "transcribe_tracks";
 const modelKey = (model: Pick<NeedTarget, "id" | "variant">) =>
@@ -111,6 +113,26 @@ type KeepFixes = {
   mode: Exclude<RunMode, "run">;
   names: string[];
 };
+
+function nameList(names: readonly string[]): string {
+  if (names.length <= 1) return names[0] ?? "";
+  return `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`;
+}
+
+export function keptFixesMessage(
+  keep: KeepFixes,
+  stagedCode: string | null,
+): string {
+  const kept = `Kept the hand fixes on ${nameList(keep.names)}.`;
+  const nothing =
+    keep.mode === "retranscribe"
+      ? "Nothing was re-transcribed."
+      : "No run started, so nothing was re-transcribed.";
+  const language = stagedCode
+    ? ` The Language edit stays staged on ${languageName(stagedCode)}.`
+    : "";
+  return `${kept} ${nothing}${language}`;
+}
 
 /**
  * Runs the pipeline for Prepare. An initial import starts it once the files
@@ -546,6 +568,14 @@ export function usePrepareRun(input: PrepareRunInput) {
     retranscribe: () => void askToReplace("retranscribe"),
     keepMyFixes: () => {
       confirmation.current = null;
+      if (keepFixes) {
+        const config = latest.current.workingSet.cfg?.config;
+        useDawStore
+          .getState()
+          .announceStatus(
+            keptFixesMessage(keepFixes, config ? stagedLanguage(config) : null),
+          );
+      }
       setKeepFixes(null);
     },
     replaceFixes: () => {
