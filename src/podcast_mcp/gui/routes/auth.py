@@ -28,6 +28,7 @@ from podcast_mcp.services.share_auth import (
     oauth_providers_available,
 )
 from podcast_mcp.util.proxy_paths import is_relayed_request
+from podcast_mcp.util.safe_redirect import safe_next_path
 
 log = logging.getLogger(__name__)
 router = APIRouter(tags=["auth"])
@@ -175,7 +176,7 @@ def auth_login_start(provider: str, next: str | None = None) -> RedirectResponse
     _set_oauth_flow_cookie(response, _OAUTH_VERIFIER_COOKIE, verifier)
     _set_oauth_flow_cookie(response, _OAUTH_PROVIDER_COOKIE, provider)
     if next:
-        _set_oauth_flow_cookie(response, _OAUTH_NEXT_COOKIE, next)
+        _set_oauth_flow_cookie(response, _OAUTH_NEXT_COOKIE, safe_next_path(next))
     return response
 
 
@@ -196,7 +197,7 @@ def auth_callback(
     expect_state = request.cookies.get(_OAUTH_STATE_COOKIE)
     verifier = request.cookies.get(_OAUTH_VERIFIER_COOKIE)
     cookie_provider = request.cookies.get(_OAUTH_PROVIDER_COOKIE)
-    nxt = request.cookies.get(_OAUTH_NEXT_COOKIE) or "/"
+    nxt = safe_next_path(request.cookies.get(_OAUTH_NEXT_COOKIE))
     if not expect_state or not verifier or state != expect_state or cookie_provider != provider:
         raise coded_http_error(400, "invalid oauth state", code="oauth_state_invalid")
     try:
@@ -264,7 +265,7 @@ def auth_magic_link(body: MagicLinkRequest, request: Request) -> dict[str, Any]:
         and not is_relayed_request(request.headers)
     )
     origin = str(request.base_url).rstrip("/")
-    q = urlencode({"token": raw, "next": body.next or "/"})
+    q = urlencode({"token": raw, "next": safe_next_path(body.next)})
     link = f"{origin}/auth/magic-link/consume?{q}"
     if show_link:
         log.info("magic link for %s: %s", body.email, link)
@@ -283,7 +284,7 @@ def auth_magic_consume(token: str, response: Response, next: str = "/") -> Redir
     if not result or not result.get("user"):
         raise coded_http_error(400, "invalid or expired magic link", code="magic_link_invalid")
     session = store.create_session(result["user"]["id"])
-    dest = next or "/"
+    dest = safe_next_path(next)
     if result.get("share_token"):
         dest = f"/r/{result['share_token']}"
     redirect = RedirectResponse(dest, status_code=302)

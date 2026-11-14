@@ -7,6 +7,7 @@ import logging
 import threading
 from datetime import UTC
 from pathlib import Path
+from urllib.parse import parse_qs, urlsplit
 
 import pytest
 from fastapi.testclient import TestClient
@@ -693,6 +694,7 @@ def test_oauth_login_redirect_and_callback(identity_store, monkeypatch) -> None:
     start = client.get("/auth/login/google?next=/r/demo", follow_redirects=False)
     assert start.status_code == 302
     assert "accounts.google.com" in start.headers["location"]
+    assert start.cookies.get("podcast_oauth_next", "").strip('"') == "/r/demo"
 
     # Missing cookies → invalid state
     assert (
@@ -1538,3 +1540,104 @@ def test_register_normal_flow_returns_working_session(
     assert resp.status_code == 200
     assert resp.cookies
     assert identity_store.resolve_session(resp.json()["session"]) is not None
+
+
+_HOSTILE_NEXT = [
+    "https://evil.example",
+    "//evil.example",
+    "/\\evil.example",
+    "javascript:alert(1)",
+    "%2F%2Fevil.example",
+    "%5cevil",
+]
+_HOSTILE_NEXT_QUERY_ONLY = [" /evil.example", "/\u00e9vil"]
+
+
+@pytest.mark.parametrize("hostile", _HOSTILE_NEXT + _HOSTILE_NEXT_QUERY_ONLY)
+def test_magic_link_issue_drops_hostile_next(identity_store, monkeypatch, hostile) -> None:
+    monkeypatch.setenv("PODCAST_MAGIC_LINK_PRINT", "1")
+    client = TestClient(create_app(), client=("127.0.0.1", 50000))
+    ml = client.post("/auth/magic-link", json={"email": "nx@example.com", "next": hostile})
+    assert ml.status_code == 200
+    query = parse_qs(urlsplit(ml.json()["dev_link"]).query)
+    assert query["next"] == ["/"]
+
+
+@pytest.mark.parametrize("hostile", _HOSTILE_NEXT + _HOSTILE_NEXT_QUERY_ONLY)
+def test_magic_link_consume_redirects_hostile_next_to_root(identity_store, hostile) -> None:
+    client = TestClient(create_app(), client=("127.0.0.1", 50000))
+    raw = identity_store.create_magic_link("nx@example.com")
+    consumed = client.get(
+        "/auth/magic-link/consume",
+        params={"token": raw, "next": hostile},
+        follow_redirects=False,
+    )
+    assert consumed.status_code == 302
+    assert consumed.headers["location"] == "/"
+    assert client.get("/auth/me").status_code == 200
+
+
+def test_magic_link_consume_keeps_legit_next_and_share_override(identity_store) -> None:
+    client = TestClient(create_app(), client=("127.0.0.1", 50000))
+    for dest in ["/", "/?project=x", "/rec/tok_abc"]:
+        raw = identity_store.create_magic_link("ok@example.com")
+        r = client.get(f"/auth/magic-link/consume?token={raw}&next={dest}", follow_redirects=False)
+        assert r.status_code == 302
+        assert r.headers["location"] == dest
+    raw = identity_store.create_magic_link("ok@example.com", share_token="sharetok")
+    r = client.get(
+        f"/auth/magic-link/consume?token={raw}&next=https://evil.example",
+        follow_redirects=False,
+    )
+    assert r.headers["location"] == "/r/sharetok"
+
+
+@pytest.mark.parametrize("hostile", _HOSTILE_NEXT)
+def test_oauth_next_is_validated_on_login_and_callback(
+    identity_store, monkeypatch, hostile
+) -> None:
+    monkeypatch.setenv("PODCAST_GOOGLE_OAUTH_CLIENT_ID", "gid")
+    monkeypatch.setenv("PODCAST_GOOGLE_OAUTH_CLIENT_SECRET", "gsec")
+    monkeypatch.setenv(
+        "PODCAST_GOOGLE_OAUTH_REDIRECT_URI", "http://testserver/auth/callback/google"
+    )
+    client = TestClient(create_app())
+    start = client.get("/auth/login/google", params={"next": hostile}, follow_redirects=False)
+    assert start.status_code == 302
+    assert start.cookies.get("podcast_oauth_next", "").strip('"') in ("", "/")
+    state = start.cookies.get("podcast_oauth_state")
+    verifier = start.cookies.get("podcast_oauth_verifier")
+
+    # The next cookie is client-settable: a hostile value written directly must still fall back.
+    client.cookies.set("podcast_oauth_next", hostile)
+    client.cookies.set("podcast_oauth_verifier", verifier)
+    monkeypatch.setattr(
+        "podcast_mcp.gui.routes.auth.exchange_code",
+        lambda provider, **kw: {"sub": "g9", "email": "cb@ex.com", "email_verified": True},
+    )
+    cb = client.get(
+        f"/auth/callback/google?code=abc&state={state}",
+        follow_redirects=False,
+    )
+    assert cb.status_code == 302
+    assert cb.headers["location"] == "/"
+
+
+def test_oauth_callback_keeps_legit_next(identity_store, monkeypatch) -> None:
+    monkeypatch.setenv("PODCAST_GOOGLE_OAUTH_CLIENT_ID", "gid")
+    monkeypatch.setenv("PODCAST_GOOGLE_OAUTH_CLIENT_SECRET", "gsec")
+    monkeypatch.setenv(
+        "PODCAST_GOOGLE_OAUTH_REDIRECT_URI", "http://testserver/auth/callback/google"
+    )
+    client = TestClient(create_app())
+    start = client.get("/auth/login/google?next=/r/demo", follow_redirects=False)
+    state = start.cookies.get("podcast_oauth_state")
+    monkeypatch.setattr(
+        "podcast_mcp.gui.routes.auth.exchange_code",
+        lambda provider, **kw: {"sub": "g8", "email": "ok@ex.com", "email_verified": True},
+    )
+    cb = client.get(
+        f"/auth/callback/google?code=abc&state={state}",
+        follow_redirects=False,
+    )
+    assert cb.headers["location"] == "/r/demo"
