@@ -2,16 +2,17 @@ import { useEffect, useState } from "react";
 import type { ByteSink } from "../keeper/store";
 import { scanLocalKeeper } from "./recovery";
 
-export type LocalKeeper = { found: boolean; segments: number };
+/** `segments` is null while the device has not been read or the read failed. */
+export type LocalKeeper = { found: boolean; segments: number | null };
 
-const NONE: LocalKeeper = { found: false, segments: 0 };
+const UNKNOWN: LocalKeeper = { found: false, segments: null };
 
 /**
  * Whether a keeper WAV for this participant is still on the device, read from
  * the sink (so it survives a reload). False while the check is pending or
  * fails, and for a different session or participant than the last answer.
  * `segments` counts the segment slots the device holds, for comparing with
- * what the last upload pass saw. `recheck` changes when the answer may have
+ * what the last upload pass saw, and is null while that count is unknown. `recheck` changes when the answer may have
  * changed (a run finished).
  */
 export function useLocalKeeper(args: {
@@ -36,7 +37,7 @@ export function useLocalKeeper(args: {
     }
     let live = true;
     void scanLocalKeeper(sink, sessionId, participantId, takeIndex)
-      .catch(() => NONE)
+      .catch(() => UNKNOWN)
       .then((keeper) => {
         if (live) setAnswer({ sink, sessionId, participantId, keeper });
       });
@@ -50,5 +51,5 @@ export function useLocalKeeper(args: {
     answer.sessionId === sessionId &&
     answer.participantId === participantId
     ? answer.keeper
-    : NONE;
+    : UNKNOWN;
 }

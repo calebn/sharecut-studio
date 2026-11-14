@@ -270,6 +270,14 @@ export function useGuestRoom(
         : pastClipping,
     [pastClipping, takeClipping],
   );
+  const [keeperRuns, setKeeperRuns] = useState(0);
+  const localKeeper = useLocalKeeper({
+    sink,
+    sessionId: snapshot?.session_id ?? null,
+    participantId: me?.participant_id ?? null,
+    takeIndex: snapshot?.take_index ?? null,
+    recheck: `${accessEnded}:${captureSettled}:${keeperRuns}:${uploadRetryNonce}`,
+  });
   const keeperActions = useKeeperRecoveryActions({
     sink,
     sessionId: snapshot?.session_id ?? null,
@@ -278,14 +286,10 @@ export function useGuestRoom(
     uploadAvailable: uploadTransport !== null,
     recoverAllowed:
       (snapshot?.state === "stopped" || accessEnded) && captureSettled,
+    localSegments: localKeeper.segments,
+    captureSettled,
     onRecovered: () => setUploadRetryNonce((value) => value + 1),
-  });
-  const localKeeper = useLocalKeeper({
-    sink,
-    sessionId: snapshot?.session_id ?? null,
-    participantId: me?.participant_id ?? null,
-    takeIndex: snapshot?.take_index ?? null,
-    recheck: `${accessEnded}:${captureSettled}:${keeperActions.busy}:${uploadRetryNonce}`,
+    onRunEnd: () => setKeeperRuns((value) => value + 1),
   });
   const roomTone = useRoomToneCapture({
     enabled:
