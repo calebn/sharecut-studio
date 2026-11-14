@@ -69,7 +69,6 @@ export type RoomViewProps = {
   recordBusy?: boolean;
   /** A guest's Done once their take is saved. The view shows it only then. */
   onDone?: () => void;
-  /** A guest's own work that holds Leave until it is done. */
   device?: DeviceWork;
   onMute?: () => void;
   onComment?: () => void;

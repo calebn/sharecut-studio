@@ -56,11 +56,9 @@ export type RoomViewInput = {
 };
 
 export type DeviceWork = {
-  /** This guest's own upload is moving bytes. */
   uploading?: boolean;
   /** The keeper is still writing the take. */
   finishing?: boolean;
-  /** Room tone is recording on this device. */
   capturingTone?: boolean;
 };
 
