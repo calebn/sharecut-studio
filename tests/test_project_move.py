@@ -162,6 +162,7 @@ def test_shares_follow_the_move_and_still_resolve(episode, dest_parent) -> None:
     live = _seed_share(project, "live-slug")
     ended = _seed_share(project, "ended-slug")
     get_share_registry().demote_to_cooldown(ended["token"], reason="revoked")
+    sidecar_before = shares_path(project).read_bytes()
 
     res = _move(_client(_app(episode)), episode, dest_parent)
 
@@ -174,6 +175,9 @@ def test_shares_follow_the_move_and_still_resolve(episode, dest_parent) -> None:
     listed = list_shares(ProjectWorkspace.open(new_file).project)
     assert [s["token"] for s in listed if s.get("token")] == [live["token"]]
     assert all("project_workspace" not in s for s in listed)
+    sidecar_after = shares_path(ProjectWorkspace.open(new_file).project).read_bytes()
+    assert sidecar_after == sidecar_before
+    assert b"project_workspace" not in sidecar_after
 
 
 def test_a_live_job_for_the_episode_blocks_the_move(episode, dest_parent) -> None:
