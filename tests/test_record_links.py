@@ -1223,3 +1223,22 @@ def test_cli_share_record_target_flag(minimal_project, sample_wav, tmp_workspace
     assert ok.exit_code == 0, ok.output
     started = runner.invoke(cli_app, [*base, "--target", "start"])
     assert started.exit_code == 0, started.output
+
+
+def test_a_share_row_without_an_id_does_not_break_the_invite_sheet(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch
+):
+    from podcast_mcp.services.collaboration import share as share_module
+
+    ws = _seed_premix(minimal_project, sample_wav)
+    room = ShareService(ws).create_record_room()
+    real = share_module.list_shares
+
+    def without_ids(project):
+        return [{k: v for k, v in row.items() if k != "id"} for row in real(project)]
+
+    monkeypatch.setattr(share_module, "list_shares", without_ids)
+    presented = ShareService(ws).list_presented()
+    by_token = {row["token"]: row for row in presented}
+    assert set(by_token) == {room["guest"]["token"], room["producer"]["token"]}
+    assert all(row["invite_closed"] is True for row in by_token.values())
