@@ -299,6 +299,7 @@ export const GuestLiveFourPeople: Story = {
 export const GuestSaving: Story = {
   args: {
     phase: { kind: "saving", savedPeople: 1, totalPeople: 3, percent: 64 },
+    device: { uploading: true },
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
