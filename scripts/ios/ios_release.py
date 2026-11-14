@@ -99,6 +99,7 @@ class Session:
 
 
 def execute(session: Session, steps: Sequence[Step], ws: Workspace, log_dir: Path) -> int:
+    ws.redact = session.redactor.redact
     if session.dry_run:
         session.show(steps)
         session.say("dry run: nothing was run")

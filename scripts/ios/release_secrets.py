@@ -66,6 +66,7 @@ SHAPE_RULES: tuple[tuple[re.Pattern[str], str], ...] = (
         "<uuid>",
     ),
     (re.compile(r"\b[0-9A-Fa-f]{40}\b"), "<fingerprint>"),
+    (re.compile(r"\b[0-9A-F]{8}-[0-9A-F]{16}\b"), "<device-id>"),
 )
 HOLD = 256
 
