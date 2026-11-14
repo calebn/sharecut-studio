@@ -132,6 +132,25 @@ function sameRow(
   );
 }
 
+/**
+ * The characters of each bar a waiting row draws: one per word of its text,
+ * the struck ones not counted. A row with none draws nothing.
+ */
+export function settlingBarsOf(utterance: CombinedUtterance): number[] {
+  const tokens = utterance.text
+    .split(/\s+/)
+    .filter((token) => token.length > 0);
+  return tokens
+    .slice(
+      0,
+      Math.max(
+        0,
+        tokens.length - (utterance.ignored_word_indices?.length ?? 0),
+      ),
+    )
+    .map((token) => token.length);
+}
+
 function compute(
   transcript: ProjectView["transcript"],
   settled: SettledTranscript | null,
@@ -169,7 +188,7 @@ function compute(
           utterance: { ...utterance, words },
           lead,
         });
-    } else {
+    } else if (settlingBarsOf(utterance).length > 0) {
       rows.push({ kind: "waiting", utterance });
     }
   }

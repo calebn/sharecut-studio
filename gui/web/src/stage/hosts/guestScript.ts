@@ -1,4 +1,4 @@
-import type { ShownRow } from "../../document/shownTranscript";
+import { type ShownRow, settlingBarsOf } from "../../document/shownTranscript";
 import type { GuestEmpty } from "../../stages/guest/guestLogic";
 import type { ScriptTurn, ScriptWord } from "../../system/scriptPieces";
 import type {
@@ -78,20 +78,8 @@ function entryOf(row: ShownRow): Entry | null {
       until: rowEnd,
     };
   }
-  // The struck words are not drawn, so they are not counted: a row with none
-  // left is not drawn at all.
-  const tokens = utterance.text
-    .split(/\s+/)
-    .filter((token) => token.length > 0);
-  const settling = tokens
-    .slice(
-      0,
-      Math.max(
-        0,
-        tokens.length - (utterance.ignored_word_indices?.length ?? 0),
-      ),
-    )
-    .map((token) => token.length);
+  // The struck words are not drawn, so they are not counted.
+  const settling = settlingBarsOf(utterance);
   return settling.length === 0
     ? null
     : { utterance, heard: [], settling, first: rowStart, until: rowEnd };
