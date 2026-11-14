@@ -381,3 +381,26 @@ def test_share_pending_preview_pads_and_reports_each_side(
         b.headers["x-preview-end-sec"]
     )
     assert payload["timeline_start"] == 0.8 and payload["timeline_end"] == 1.2
+
+
+def test_a_cross_origin_review_page_may_read_the_placement_headers(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch
+):
+    from podcast_mcp.gui.audio import PENDING_PREVIEW_HEADER_NAMES
+
+    ws = _seed_pending_cut(minimal_project, sample_wav, tmp_workspace)
+    share = _share(ws, monkeypatch, tmp_workspace, ["play", "view", "mcp"])
+    monkeypatch.setenv("PODCAST_REVIEW_CORS_ORIGINS", "https://guest.example")
+    response = TestClient(create_app()).get(
+        f"/api/review/{share['token']}/daw/pending-preview",
+        params={"edit_id": "cut1", "mode": "current", "pad_sec": "3"},
+        headers={"Origin": "https://guest.example"},
+    )
+    assert response.status_code == 200, response.text
+    assert response.headers["access-control-allow-origin"] == "https://guest.example"
+    exposed = {
+        n.strip().lower() for n in response.headers["access-control-expose-headers"].split(",")
+    }
+    assert {n.lower() for n in PENDING_PREVIEW_HEADER_NAMES} <= exposed
+    assert len(PENDING_PREVIEW_HEADER_NAMES) == 7
+    assert all(name in response.headers for name in PENDING_PREVIEW_HEADER_NAMES)
