@@ -22,6 +22,8 @@ pub const START_DEADLINE: Duration = Duration::from_secs(120);
 /// The prototype's listener answered again about 5 seconds after the app came back.
 pub const RECHECK_DEADLINE: Duration = Duration::from_secs(20);
 
+/// The start error when the WebView cannot be sent to the engine; it holds no URL.
+const NAVIGATION_FAILED: &str = "the engine's page could not be opened";
 const EXCHANGE_PATH: &str = "/api/session/exchange";
 const EXCHANGE_PARAM: &str = "code";
 /// The splash page the packaged WebView starts on; it reads the failure from its query.
@@ -81,10 +83,25 @@ impl FailReason {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum State {
-    Starting { deadline: Instant },
-    Serving { port: u16 },
-    Rechecking { port: u16, deadline: Instant },
-    Failed { reason: FailReason },
+    Starting {
+        deadline: Instant,
+    },
+    /// `probes` counts the health probes asked for so far; each carries its number.
+    Serving {
+        port: u16,
+        probes: u64,
+    },
+    /// A result counts only when its generation is at least `first`, the number of the probe that
+    /// opened this recheck, so an answer to an earlier probe cannot satisfy it.
+    Rechecking {
+        port: u16,
+        deadline: Instant,
+        first: u64,
+        probes: u64,
+    },
+    Failed {
+        reason: FailReason,
+    },
 }
 
 impl State {
@@ -113,10 +130,12 @@ pub fn start(now: Instant) -> (State, Vec<Effect>) {
 pub enum Event {
     /// The engine is listening and handed back its single-use exchange code.
     Bound { port: u16, code: Secret },
-    /// The last health probe succeeded.
-    Healthy,
-    /// The last health probe failed.
-    Unhealthy,
+    /// A health probe succeeded; `generation` is the number its `ProbeHealth` carried.
+    Healthy { generation: u64 },
+    /// A health probe failed.
+    Unhealthy { generation: u64 },
+    /// The WebView could not be sent to the engine.
+    NavigationFailed,
     /// The engine could not start.
     StartFailed { reason: String },
     /// Time passed; the caller sends one at a steady interval.
@@ -129,17 +148,33 @@ pub enum Event {
 
 #[derive(Clone, Eq, PartialEq)]
 pub enum Effect {
-    ProbeHealth { port: u16 },
-    Navigate { url: Secret },
-    ShowFailure { sentence: &'static str },
+    ProbeHealth {
+        port: u16,
+        generation: u64,
+    },
+    /// Send the WebView to the engine; the host allows navigation to `port` from here on.
+    Navigate {
+        port: u16,
+        url: Secret,
+    },
+    ShowFailure {
+        sentence: &'static str,
+    },
     StartEngine,
 }
 
 impl fmt::Debug for Effect {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::ProbeHealth { port } => write!(f, "ProbeHealth {{ port: {port} }}"),
-            Self::Navigate { .. } => f.write_str("Navigate { url: Secret(..) }"),
+            Self::ProbeHealth { port, generation } => {
+                write!(
+                    f,
+                    "ProbeHealth {{ port: {port}, generation: {generation} }}"
+                )
+            }
+            Self::Navigate { port, .. } => {
+                write!(f, "Navigate {{ port: {port}, url: Secret(..) }}")
+            }
             Self::ShowFailure { sentence } => write!(f, "ShowFailure {{ sentence: {sentence:?} }}"),
             Self::StartEngine => f.write_str("StartEngine"),
         }
@@ -200,15 +235,29 @@ fn failed(reason: FailReason) -> (State, Vec<Effect>) {
     )
 }
 
+fn serve(port: u16, code: &Secret) -> (State, Vec<Effect>) {
+    (
+        State::Serving { port, probes: 0 },
+        vec![Effect::Navigate {
+            port,
+            url: exchange_url(port, code),
+        }],
+    )
+}
+
+fn probe(port: u16, generation: u64) -> Effect {
+    Effect::ProbeHealth { port, generation }
+}
+
 /// One row of the lifecycle table: the next state and what the host must do.
 pub fn step(state: &State, event: &Event, now: Instant) -> (State, Vec<Effect>) {
     match (state, event) {
-        (State::Starting { .. }, Event::Bound { port, code }) => (
-            State::Serving { port: *port },
-            vec![Effect::Navigate {
-                url: exchange_url(*port, code),
-            }],
-        ),
+        (State::Starting { .. }, Event::Bound { port, code }) => serve(*port, code),
+        // The engine can finish starting after the deadline passed; serving is better than the
+        // failure page, and only a failure that offers Try again leaves the engine possibly alive.
+        (State::Failed { reason }, Event::Bound { port, code }) if reason.retryable() => {
+            serve(*port, code)
+        }
         (State::Starting { .. }, Event::StartFailed { reason }) => {
             failed(FailReason::StartError(reason.clone()))
         }
@@ -216,30 +265,67 @@ pub fn step(state: &State, event: &Event, now: Instant) -> (State, Vec<Effect>) 
             failed(FailReason::StartTimedOut)
         }
 
-        (State::Serving { port }, Event::Resumed) => (
-            State::Rechecking {
-                port: *port,
-                deadline: now + RECHECK_DEADLINE,
-            },
-            vec![Effect::ProbeHealth { port: *port }],
-        ),
-
-        (State::Rechecking { port, .. }, Event::Healthy) => {
-            (State::Serving { port: *port }, vec![])
+        (State::Serving { .. }, Event::NavigationFailed) => {
+            failed(FailReason::StartError(NAVIGATION_FAILED.to_string()))
         }
-        (State::Rechecking { port, deadline }, Event::Tick | Event::Resumed) => {
+        (State::Serving { port, probes }, Event::Resumed) => {
+            let generation = probes + 1;
+            (
+                State::Rechecking {
+                    port: *port,
+                    deadline: now + RECHECK_DEADLINE,
+                    first: generation,
+                    probes: generation,
+                },
+                vec![probe(*port, generation)],
+            )
+        }
+
+        (
+            State::Rechecking {
+                port,
+                first,
+                probes,
+                ..
+            },
+            Event::Healthy { generation },
+        ) if generation >= first => (
+            State::Serving {
+                port: *port,
+                probes: *probes,
+            },
+            vec![],
+        ),
+        (
+            State::Rechecking {
+                port,
+                deadline,
+                first,
+                probes,
+            },
+            Event::Tick | Event::Resumed,
+        ) => {
             if matches!(event, Event::Tick) && now >= *deadline {
                 failed(FailReason::StoppedAnswering)
             } else {
-                (state.clone(), vec![Effect::ProbeHealth { port: *port }])
+                let generation = probes + 1;
+                (
+                    State::Rechecking {
+                        port: *port,
+                        deadline: *deadline,
+                        first: *first,
+                        probes: generation,
+                    },
+                    vec![probe(*port, generation)],
+                )
             }
         }
 
         (State::Failed { reason }, Event::RetryRequested) if reason.retryable() => start(now),
 
         // Everything else is a stale or irrelevant event: a probe result with no probe
-        // pending, a second Bound after the engine served, a Retry on a state that cannot
-        // retry. The state stays and nothing is done.
+        // pending or from before this recheck, a second Bound after the engine served, a Retry
+        // on a state that cannot retry. The state stays and nothing is done.
         _ => (state.clone(), vec![]),
     }
 }
@@ -268,7 +354,31 @@ mod tests {
 
     fn navigate() -> Effect {
         Effect::Navigate {
+            port: PORT,
             url: Secret::new(URL),
+        }
+    }
+
+    fn serving() -> State {
+        State::Serving {
+            port: PORT,
+            probes: 0,
+        }
+    }
+
+    fn rechecking(now: Instant) -> State {
+        State::Rechecking {
+            port: PORT,
+            deadline: now + RECHECK_DEADLINE,
+            first: 1,
+            probes: 1,
+        }
+    }
+
+    fn probe_effect(generation: u64) -> Effect {
+        Effect::ProbeHealth {
+            port: PORT,
+            generation,
         }
     }
 
@@ -287,14 +397,15 @@ mod tests {
     fn all_events() -> Vec<Event> {
         vec![
             bound(),
-            Event::Healthy,
-            Event::Unhealthy,
+            Event::Healthy { generation: 1 },
+            Event::Unhealthy { generation: 1 },
             Event::StartFailed {
                 reason: "boom".to_string(),
             },
             Event::Tick,
             Event::Resumed,
             Event::RetryRequested,
+            Event::NavigationFailed,
         ]
     }
 
@@ -303,11 +414,8 @@ mod tests {
             State::Starting {
                 deadline: now + START_DEADLINE,
             },
-            State::Serving { port: PORT },
-            State::Rechecking {
-                port: PORT,
-                deadline: now + RECHECK_DEADLINE,
-            },
+            serving(),
+            rechecking(now),
             failed_with(start_error()),
             failed_with(FailReason::StoppedAnswering),
         ]
@@ -317,7 +425,7 @@ mod tests {
     fn starting_bound_serves_and_navigates_to_the_exchange_url() {
         let now = t0();
         let (state, effects) = step(&starting(now), &bound(), now);
-        assert_eq!(state, State::Serving { port: PORT });
+        assert_eq!(state, serving());
         assert_eq!(effects, vec![navigate()]);
     }
 
@@ -368,63 +476,103 @@ mod tests {
     }
 
     #[test]
-    fn serving_resumed_rechecks_the_same_port_with_a_fresh_deadline() {
+    fn serving_resumed_rechecks_the_same_port_with_a_fresh_deadline_and_the_next_probe_number() {
         let now = t0();
-        let (state, effects) = step(&State::Serving { port: PORT }, &Event::Resumed, now);
-        assert_eq!(
-            state,
-            State::Rechecking {
-                port: PORT,
-                deadline: now + RECHECK_DEADLINE
-            }
-        );
-        assert_eq!(effects, vec![Effect::ProbeHealth { port: PORT }]);
+        let (state, effects) = step(&serving(), &Event::Resumed, now);
+        assert_eq!(state, rechecking(now));
+        assert_eq!(effects, vec![probe_effect(1)]);
     }
 
     #[test]
     fn rechecking_healthy_goes_back_to_serving_quietly() {
         let now = t0();
-        let rechecking = State::Rechecking {
-            port: PORT,
-            deadline: now + RECHECK_DEADLINE,
-        };
-        let (state, effects) = step(&rechecking, &Event::Healthy, now);
-        assert_eq!(state, State::Serving { port: PORT });
+        let (state, effects) = step(&rechecking(now), &Event::Healthy { generation: 1 }, now);
+        assert_eq!(
+            state,
+            State::Serving {
+                port: PORT,
+                probes: 1
+            }
+        );
         assert_eq!(effects, vec![]);
     }
 
     #[test]
     fn rechecking_tick_before_the_deadline_probes_again_without_moving_the_deadline() {
         let now = t0();
-        let rechecking = State::Rechecking {
-            port: PORT,
-            deadline: now + RECHECK_DEADLINE,
-        };
-        let (state, effects) = step(&rechecking, &Event::Tick, now + Duration::from_secs(5));
-        assert_eq!(state, rechecking);
-        assert_eq!(effects, vec![Effect::ProbeHealth { port: PORT }]);
+        let (state, effects) = step(&rechecking(now), &Event::Tick, now + Duration::from_secs(5));
+        assert_eq!(
+            state,
+            State::Rechecking {
+                port: PORT,
+                deadline: now + RECHECK_DEADLINE,
+                first: 1,
+                probes: 2
+            }
+        );
+        assert_eq!(effects, vec![probe_effect(2)]);
     }
 
     #[test]
     fn rechecking_resumed_probes_again_and_keeps_the_deadline() {
         let now = t0();
-        let rechecking = State::Rechecking {
-            port: PORT,
-            deadline: now + RECHECK_DEADLINE,
-        };
-        let (state, effects) = step(&rechecking, &Event::Resumed, now + RECHECK_DEADLINE * 2);
-        assert_eq!(state, rechecking);
-        assert_eq!(effects, vec![Effect::ProbeHealth { port: PORT }]);
+        let (state, effects) = step(
+            &rechecking(now),
+            &Event::Resumed,
+            now + RECHECK_DEADLINE * 2,
+        );
+        assert_eq!(
+            state,
+            State::Rechecking {
+                port: PORT,
+                deadline: now + RECHECK_DEADLINE,
+                first: 1,
+                probes: 2
+            }
+        );
+        assert_eq!(effects, vec![probe_effect(2)]);
+    }
+
+    #[test]
+    fn an_answer_to_a_later_probe_of_the_same_recheck_counts() {
+        let now = t0();
+        let (second, _) = step(&rechecking(now), &Event::Tick, now);
+        let (state, effects) = step(&second, &Event::Healthy { generation: 2 }, now);
+        assert_eq!(
+            state,
+            State::Serving {
+                port: PORT,
+                probes: 2
+            }
+        );
+        assert_eq!(effects, vec![]);
+    }
+
+    #[test]
+    fn a_probe_answer_from_an_earlier_recheck_cannot_satisfy_a_later_one() {
+        let now = t0();
+        let (first, _) = step(&serving(), &Event::Resumed, now);
+        let (served_again, _) = step(&first, &Event::Healthy { generation: 1 }, now);
+        let (second, effects) = step(&served_again, &Event::Resumed, now);
+        assert_eq!(
+            second,
+            State::Rechecking {
+                port: PORT,
+                deadline: now + RECHECK_DEADLINE,
+                first: 2,
+                probes: 2
+            }
+        );
+        assert_eq!(effects, vec![probe_effect(2)]);
+        let (state, effects) = step(&second, &Event::Healthy { generation: 1 }, now);
+        assert_eq!(state, second);
+        assert_eq!(effects, vec![]);
     }
 
     #[test]
     fn rechecking_tick_at_the_deadline_fails_without_a_retry() {
         let now = t0();
-        let rechecking = State::Rechecking {
-            port: PORT,
-            deadline: now + RECHECK_DEADLINE,
-        };
-        let (state, effects) = step(&rechecking, &Event::Tick, now + RECHECK_DEADLINE);
+        let (state, effects) = step(&rechecking(now), &Event::Tick, now + RECHECK_DEADLINE);
         assert_eq!(state, failed_with(FailReason::StoppedAnswering));
         assert_eq!(
             effects,
@@ -435,12 +583,8 @@ mod tests {
     #[test]
     fn unhealthy_while_rechecking_waits_for_the_next_tick_instead_of_spinning() {
         let now = t0();
-        let rechecking = State::Rechecking {
-            port: PORT,
-            deadline: now + RECHECK_DEADLINE,
-        };
-        let (state, effects) = step(&rechecking, &Event::Unhealthy, now);
-        assert_eq!(state, rechecking);
+        let (state, effects) = step(&rechecking(now), &Event::Unhealthy { generation: 1 }, now);
+        assert_eq!(state, rechecking(now));
         assert_eq!(effects, vec![]);
     }
 
@@ -464,17 +608,52 @@ mod tests {
     }
 
     #[test]
+    fn a_late_bound_in_a_retryable_failure_serves_and_navigates() {
+        let now = t0();
+        for reason in [FailReason::StartTimedOut, start_error()] {
+            let (state, effects) = step(&failed_with(reason), &bound(), now);
+            assert_eq!(state, serving());
+            assert_eq!(effects, vec![navigate()]);
+        }
+    }
+
+    #[test]
+    fn a_bound_after_a_failure_that_cannot_retry_is_ignored() {
+        let now = t0();
+        let terminal = failed_with(FailReason::StoppedAnswering);
+        let (state, effects) = step(&terminal, &bound(), now);
+        assert_eq!(state, terminal);
+        assert_eq!(effects, vec![]);
+    }
+
+    #[test]
+    fn a_navigation_that_fails_after_bound_fails_the_start_with_its_sentence() {
+        let now = t0();
+        let (state, effects) = step(&serving(), &Event::NavigationFailed, now);
+        assert_eq!(
+            state,
+            failed_with(FailReason::StartError(
+                "the engine's page could not be opened".to_string()
+            ))
+        );
+        assert_eq!(
+            effects,
+            vec![show("ShareCut couldn't start on this device.")]
+        );
+    }
+
+    #[test]
     fn the_table_is_total_and_acts_on_exactly_these_pairs() {
         let now = t0();
         // Rows: Starting, Serving, Rechecking, Failed (retryable), Failed (terminal).
-        // Columns follow `all_events`: Bound, Healthy, Unhealthy, StartFailed, Tick, Resumed, Retry.
-        // A Tick at `now` is before every deadline.
+        // Columns follow `all_events`: Bound, Healthy, Unhealthy, StartFailed, Tick, Resumed,
+        // Retry, NavigationFailed. A Tick at `now` is before every deadline.
         let acts = [
-            [true, false, false, true, false, false, false],
-            [false, false, false, false, false, true, false],
-            [false, true, false, false, true, true, false],
-            [false, false, false, false, false, false, true],
-            [false, false, false, false, false, false, false],
+            [true, false, false, true, false, false, false, false],
+            [false, false, false, false, false, true, false, true],
+            [false, true, false, false, true, true, false, false],
+            [true, false, false, false, false, false, true, false],
+            [false, false, false, false, false, false, false, false],
         ];
         for (row, state) in states(now).into_iter().enumerate() {
             for (column, event) in all_events().into_iter().enumerate() {
@@ -503,7 +682,7 @@ mod tests {
         let effect = format!("{:?}", navigate());
         assert!(!event.contains("abc-_123"), "{event}");
         assert!(!effect.contains("abc-_123"), "{effect}");
-        assert_eq!(effect, "Navigate { url: Secret(..) }");
+        assert_eq!(effect, "Navigate { port: 51234, url: Secret(..) }");
     }
 
     #[test]
