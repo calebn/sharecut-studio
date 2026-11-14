@@ -46,7 +46,7 @@ from podcast_mcp.services.collaboration.share_capabilities import (
     record_capabilities_for_role,
     review_role_for_capabilities,
     share_author,
-    share_id_of,
+    share_log_id,
 )
 from podcast_mcp.services.collaboration.share_registry import (
     RECORD_REVIEW_VERSION_SENTINEL,
@@ -622,7 +622,7 @@ class ShareService:
             try:
                 drop_share(self.ws.project, token)
             except Exception:
-                log.exception("failed to roll back record share %s", share_id_of(row))
+                log.exception("failed to roll back record share %s", share_log_id(row))
         invalidate_record_session_cache(self.ws.project)
 
     def _revoke_room_tokens(self, session_id: str) -> Sequence[str]:
@@ -640,7 +640,7 @@ class ShareService:
             except KeyError:
                 continue  # ended meanwhile (a sweep or another revoke): nothing left to do
             except Exception:
-                log.exception("failed to revoke record share %s", share_id_of(row))
+                log.exception("failed to revoke record share %s", share_log_id(row))
         if not revoked:
             raise KeyError(f"record room not found: {session_id}")
         return revoked
@@ -874,7 +874,7 @@ def lookup_share(token: str, *, kind: str | None = None) -> dict[str, Any]:
                 # pending revoke keeps its policy.
                 row = {**side, **row, "token": token, "revoked": False}
         except Exception:
-            log.debug("share last_used touch failed for %s", share_id_of(row), exc_info=True)
+            log.debug("share last_used touch failed for %s", share_log_id(row), exc_info=True)
             reg.touch_last_used(token)
     else:
         reg.touch_last_used(token)

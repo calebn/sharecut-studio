@@ -225,6 +225,11 @@ def share_id_of(share: Mapping[str, Any]) -> str:
     return str(share_id)
 
 
+def share_log_id(share: Mapping[str, Any]) -> str:
+    """The share's id for a log line: ``unknown`` instead of raising, so a handler can finish."""
+    return str(share.get("id") or "unknown")
+
+
 def share_author(share: Mapping[str, Any]) -> str:
     """``EditDecision.author`` for a share guest: ``share:`` plus the share's registry id."""
     return f"{SHARE_ACTOR_PREFIX}{share_id_of(share)}"
