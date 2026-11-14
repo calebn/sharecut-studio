@@ -51,7 +51,9 @@ describe("JoinSheet guest", () => {
     expect(
       screen.getByRole("dialog", { name: "Maya and Rosa are here" }),
     ).toBeInTheDocument();
-    expect(screen.getByLabelText("Your name")).toBeInTheDocument();
+    expect(
+      screen.getByRole("textbox", { name: "Your name" }),
+    ).toBeInTheDocument();
     expect(screen.getByText("Microphone")).toBeInTheDocument();
     expect(screen.getByText("Headphones")).toBeInTheDocument();
   });
@@ -67,7 +69,10 @@ describe("JoinSheet guest", () => {
   it("checks the name row off as you type and moves the reason on", async () => {
     render(<Harness />);
     expect(screen.getByText("Add your name first")).toBeInTheDocument();
-    await userEvent.type(screen.getByLabelText("Your name"), "Jon");
+    await userEvent.type(
+      screen.getByRole("textbox", { name: "Your name" }),
+      "Jon",
+    );
     expect(screen.getByText("Allow your microphone first")).toBeInTheDocument();
   });
 
@@ -81,14 +86,20 @@ describe("JoinSheet guest", () => {
   it("joins on Enter in a ready name field", async () => {
     const onJoin = vi.fn();
     render(<Harness {...READY} onJoin={onJoin} />);
-    await userEvent.type(screen.getByLabelText("Your name"), "{Enter}");
+    await userEvent.type(
+      screen.getByRole("textbox", { name: "Your name" }),
+      "{Enter}",
+    );
     expect(onJoin).toHaveBeenCalledOnce();
   });
 
   it("moves Enter on the name to the mic row when it is not done", async () => {
     const onJoin = vi.fn();
     render(<Harness name="Jon" mic={{ status: "idle" }} onJoin={onJoin} />);
-    await userEvent.type(screen.getByLabelText("Your name"), "{Enter}");
+    await userEvent.type(
+      screen.getByRole("textbox", { name: "Your name" }),
+      "{Enter}",
+    );
     expect(onJoin).not.toHaveBeenCalled();
     expect(
       screen.getByRole("button", { name: "Allow microphone" }),
@@ -100,7 +111,10 @@ describe("JoinSheet guest", () => {
     render(
       <Harness name="Jon" mic={{ status: "prompting" }} onJoin={onJoin} />,
     );
-    await userEvent.type(screen.getByLabelText("Your name"), "{Enter}");
+    await userEvent.type(
+      screen.getByRole("textbox", { name: "Your name" }),
+      "{Enter}",
+    );
     expect(onJoin).not.toHaveBeenCalled();
     expect(document.querySelector('[data-step="mic"]')).toHaveFocus();
   });
@@ -188,6 +202,14 @@ describe("JoinSheet guest", () => {
     expect(onJoin).not.toHaveBeenCalled();
   });
 
+  it("names the row focus lands on for a touch screen", async () => {
+    touchScreen();
+    render(<Harness />);
+    await waitFor(() =>
+      expect(screen.getByRole("group", { name: "Your name" })).toHaveFocus(),
+    );
+  });
+
   it("holds Allow microphone busy while the browser asks", async () => {
     const onMicAction = vi.fn();
     render(
@@ -272,7 +294,7 @@ describe("JoinSheet guest", () => {
 
   it("sets the name field's keyboard hints", () => {
     const { rerender } = render(<Harness name="Jon" />);
-    const field = screen.getByLabelText("Your name");
+    const field = screen.getByRole("textbox", { name: "Your name" });
     expect(field).toHaveAttribute("enterkeyhint", "next");
     expect(field).toHaveAttribute("autocapitalize", "words");
     expect(field).toHaveAttribute("autocorrect", "off");
@@ -280,7 +302,7 @@ describe("JoinSheet guest", () => {
     expect(field).toHaveAttribute("maxlength", "40");
     expect(field).toHaveAttribute("autocomplete", "name");
     rerender(<Harness {...READY} />);
-    expect(screen.getByLabelText("Your name")).toHaveAttribute(
+    expect(screen.getByRole("textbox", { name: "Your name" })).toHaveAttribute(
       "enterkeyhint",
       "go",
     );
@@ -301,7 +323,9 @@ describe("JoinSheet first focus", () => {
     await waitFor(() =>
       expect(document.querySelector('[data-step="name"]')).toHaveFocus(),
     );
-    expect(screen.getByLabelText("Your name")).not.toHaveFocus();
+    expect(
+      screen.getByRole("textbox", { name: "Your name" }),
+    ).not.toHaveFocus();
   });
 
   it("opens on Allow microphone when the name is already known", async () => {
@@ -342,7 +366,7 @@ describe("JoinSheet first focus", () => {
 
   it("leaves focus in the name field while the guest types", async () => {
     render(<Harness mic={{ status: "idle" }} />);
-    const field = screen.getByLabelText("Your name");
+    const field = screen.getByRole("textbox", { name: "Your name" });
     await userEvent.type(field, "Jon");
     expect(field).toHaveFocus();
   });

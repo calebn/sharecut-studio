@@ -624,7 +624,9 @@ describe("GuestRoomApp in the room", () => {
       const { unmount } = render(<GuestRoomApp token="t" />);
       await userEvent.click(screen.getByRole("button", { name: "Devices" }));
       const none = await screen.findByRole("dialog", { name: "Devices" });
-      expect(within(none).queryByLabelText("Speaker")).toBeNull();
+      expect(
+        within(none).queryByRole("combobox", { name: "Speaker" }),
+      ).toBeNull();
       unmount();
       const onChange = vi.fn();
       fakeRoom({
@@ -641,7 +643,7 @@ describe("GuestRoomApp in the room", () => {
       await userEvent.click(screen.getByRole("button", { name: "Devices" }));
       const dialog = await screen.findByRole("dialog", { name: "Devices" });
       await userEvent.selectOptions(
-        within(dialog).getByLabelText("Speaker"),
+        within(dialog).getByRole("combobox", { name: "Speaker" }),
         "hp",
       );
       expect(onChange).toHaveBeenCalledWith("hp");

@@ -284,7 +284,7 @@ export const WithSpeaker: Story = {
   play: async ({ args, viewMode }) => {
     if (viewMode === "docs") return;
     const dialog = await sheet();
-    const menu = dialog.getByLabelText("Speaker");
+    const menu = dialog.getByRole("combobox", { name: "Speaker" });
     await expect(menu).toHaveValue("headset");
     await userEvent.selectOptions(menu, "builtin");
     await expect(args.onOutputChange).toHaveBeenCalledWith("builtin");
@@ -303,7 +303,9 @@ export const SpeakerFellBack: Story = {
   play: async ({ viewMode }) => {
     if (viewMode === "docs") return;
     const dialog = await sheet();
-    await expect(dialog.getByLabelText("Speaker")).toHaveValue("");
+    await expect(dialog.getByRole("combobox", { name: "Speaker" })).toHaveValue(
+      "",
+    );
     await expect(
       dialog.getByText("Couldn't switch speakers. Using the default."),
     ).toBeVisible();
@@ -315,6 +317,8 @@ export const NoSpeakerMenu: Story = {
   play: async ({ viewMode }) => {
     if (viewMode === "docs") return;
     const dialog = await sheet();
-    await expect(dialog.queryByLabelText("Speaker")).toBeNull();
+    await expect(
+      dialog.queryByRole("combobox", { name: "Speaker" }),
+    ).toBeNull();
   },
 };

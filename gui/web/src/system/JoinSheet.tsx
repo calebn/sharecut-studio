@@ -320,14 +320,14 @@ export function JoinSheet({
             ) : null}
             <SheetRow row={rowOf("name")}>{nameField}</SheetRow>
             <SheetRow row={rowOf("mic")} onAction={act}>
-              <p className="sr-only" role="status">
-                {micStatusLine(rowOf("mic"))}
-              </p>
               <MicRow
                 mic={mic}
                 notes={guestModel.micNotes}
                 onInputChange={onInputChange}
               />
+              <p className="sr-only" role="status">
+                {micStatusLine(rowOf("mic"))}
+              </p>
             </SheetRow>
             <SheetRow row={rowOf("headphones")}>
               <HeadphonesToggle

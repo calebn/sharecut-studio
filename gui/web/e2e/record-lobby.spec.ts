@@ -314,7 +314,7 @@ test.describe("record lobby", () => {
             );
           expect(sheetControls.length).toBeGreaterThan(0);
           for (const height of sheetControls)
-            expect(height).toBeGreaterThanOrEqual(43.5);
+            expect(height).toBeGreaterThanOrEqual(TOUCH_MIN);
           const join = guest.getByRole("button", { name: "Join and record" });
           await expect(
             roomDlg.getByText("Ava", { exact: true }).first(),
@@ -550,9 +550,11 @@ test.describe("record lobby", () => {
           track.dispatchEvent(new Event("ended"));
         });
         await expect(
-          guest.getByText("Your microphone isn't available."),
+          guest.getByText("Your microphone isn't available.", { exact: true }),
         ).toBeVisible();
-        await expect(guest.getByText("Microphone disconnected.")).toBeVisible();
+        await expect(
+          guest.getByText("Microphone disconnected.", { exact: true }),
+        ).toBeVisible();
         await expect(join).toBeDisabled();
         await guest.getByRole("button", { name: "Retry microphone" }).click();
         await expect(join).toBeEnabled();
@@ -880,7 +882,11 @@ test.describe("record lobby", () => {
           await guest
             .getByRole("button", { name: "Allow microphone" })
             .click({ timeout: 15_000 });
-          await expect(guest.getByText("Microphone blocked")).toBeVisible({
+          await expect(
+            guest.locator(".sys-status-title", {
+              hasText: "Microphone blocked",
+            }),
+          ).toBeVisible({
             timeout: 15_000,
           });
           await expect(
@@ -1263,6 +1269,9 @@ test.describe("record lobby", () => {
   });
 });
 
+// 2.75rem is 44 px; a laid-out box can read a few millionths short in float.
+const TOUCH_MIN = 43.99;
+
 const PHONE_GUEST = {
   viewport: { width: 390, height: 844 },
   hasTouch: true,
@@ -1376,7 +1385,7 @@ async function reachJoinState(
         }
       });
       await expect(
-        page.getByText("Your microphone isn't available."),
+        page.getByText("Your microphone isn't available.", { exact: true }),
       ).toBeVisible();
       break;
     case "ready":
@@ -1484,7 +1493,7 @@ test.describe("join sheet on a phone", () => {
         for (const width of [390, 320]) {
           await reachJoinState(guest, token, state);
           await guest.setViewportSize({ width, height: 844 });
-          const heights = await guest
+          const sizes = await guest
             .locator(
               ".sys-join-dialog :is(button, input, [role=button], summary)",
             )
@@ -1492,18 +1501,17 @@ test.describe("join sheet on a phone", () => {
               elements
                 .map((element) => element.getBoundingClientRect())
                 .filter((box) => box.width > 0 && box.height > 0)
-                .map((box) => box.height),
+                .map((box) => ({ width: box.width, height: box.height })),
             );
-          expect(heights.length, `${state} at ${width}`).toBeGreaterThan(0);
-          for (const height of heights) {
-            expect(height, `${state} at ${width}`).toBeGreaterThanOrEqual(43.5);
+          expect(sizes.length, `${state} at ${width}`).toBeGreaterThan(0);
+          for (const size of sizes) {
+            expect(size.height, `${state} at ${width}`).toBeGreaterThanOrEqual(
+              TOUCH_MIN,
+            );
+            expect(size.width, `${state} at ${width}`).toBeGreaterThanOrEqual(
+              TOUCH_MIN,
+            );
           }
-          const close = await boxOf(
-            joinPanel(guest).getByRole("button", { name: /^Close/ }),
-          );
-          expect(close.width, `${state} at ${width}`).toBeGreaterThanOrEqual(
-            43.5,
-          );
         }
       }
     });
@@ -1621,7 +1629,7 @@ test.describe("join sheet on a phone", () => {
     });
   });
 
-  test("one way out besides Not now", async ({
+  test("one Close, a press beside the sheet keeps it, Escape declines", async ({
     browser,
   }: {
     browser: Browser;
@@ -1733,7 +1741,66 @@ test.describe("join sheet on a phone", () => {
     );
   });
 
-  test("the tapped name field stays in view over a keyboard-sized viewport", async ({
+  test("the form is usable on a short or narrow phone", async ({
+    browser,
+  }: {
+    browser: Browser;
+  }) => {
+    for (const [width, height] of [
+      [320, 568],
+      [667, 375],
+      [844, 390],
+    ] as const) {
+      await withJoinRoom(
+        browser,
+        { ...PHONE_GUEST, viewport: { width, height } },
+        async (guest, token) => {
+          const where = `${width}x${height}`;
+          await openRecordLink(guest, token);
+          const panel = joinPanel(guest);
+          const panelBox = await boxOf(await settledPanel(guest));
+          expect(panelBox.x, where).toBeGreaterThanOrEqual(0);
+          expect(panelBox.y, where).toBeGreaterThanOrEqual(0);
+          expect(panelBox.x + panelBox.width, where).toBeLessThanOrEqual(
+            width + 0.5,
+          );
+          expect(panelBox.y + panelBox.height, where).toBeLessThanOrEqual(
+            height + 0.5,
+          );
+          expect(
+            await guest.evaluate(() => document.documentElement.scrollWidth),
+            where,
+          ).toBeLessThanOrEqual(width);
+          const body = await boxOf(panel.locator(".command-palette-body"));
+          expect(body.height, `${where} body`).toBeGreaterThanOrEqual(180);
+          await joinNameField(guest).tap();
+          await expect(joinNameField(guest)).toBeFocused();
+          const field = await boxOf(joinNameField(guest));
+          const panelNow = await boxOf(panel);
+          expect(field.y, where).toBeGreaterThanOrEqual(
+            Math.max(0, panelNow.y) - 0.5,
+          );
+          expect(field.y + field.height, where).toBeLessThanOrEqual(
+            Math.min(height, panelNow.y + panelNow.height) + 0.5,
+          );
+          for (const name of ["Join and record", "Not now"]) {
+            const control = panel.getByRole("button", { name });
+            await control.scrollIntoViewIfNeeded();
+            const box = await boxOf(control);
+            expect(box.y, `${where} ${name}`).toBeGreaterThanOrEqual(-0.5);
+            expect(box.y + box.height, `${where} ${name}`).toBeLessThanOrEqual(
+              height + 0.5,
+            );
+            expect(box.height, `${where} ${name}`).toBeGreaterThanOrEqual(
+              TOUCH_MIN,
+            );
+          }
+        },
+      );
+    }
+  });
+
+  test("a tapped name field is in view at 390x508", async ({
     browser,
   }: {
     browser: Browser;
