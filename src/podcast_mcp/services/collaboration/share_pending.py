@@ -246,7 +246,7 @@ def _finalize_group(ws: ProjectWorkspace, group_id: str, rows: Sequence[PendingR
 
 def _review_version_id(ws: ProjectWorkspace, row: PendingRevoke) -> str:
     side = sidecar_share(ws.project.workspace_path(), str(row["id"])) or {}
-    return effective_review_version_id(ws.project, {**row["snapshot"], **side})
+    return effective_review_version_id(ws.project, {**side, **row["snapshot"]})
 
 
 def delete_review_effects(ws: ProjectWorkspace, version_ids: Iterable[str]) -> None:
