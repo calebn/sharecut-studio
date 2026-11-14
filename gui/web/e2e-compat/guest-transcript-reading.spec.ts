@@ -171,7 +171,8 @@ test("a following guest holds its view still through a second refresh, wherever 
       await view.waitForTimeout(500);
       const place = await visiblePlace(view, "first");
       expect(place, "a word is visible to anchor on").not.toBeNull();
-      const secondCut = await frames(guest, page, "cut", 1, place, 1);
+      // A correction: the line changes but nothing is removed, so the pane can hold its place.
+      const secondCut = await frames(guest, page, "correct", 1, place);
       for (const [name, seen] of [
         ["first", firstCut],
         ["second", secondCut],
