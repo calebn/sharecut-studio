@@ -74,9 +74,6 @@ class PayloadError(Exception):
     """The inputs cannot make a payload; the message says which input and why."""
 
 
-# --- contract ---------------------------------------------------------------------------------
-
-
 @dataclass(frozen=True)
 class SdkRow:
     rust_target: str
@@ -208,9 +205,6 @@ def load_contract(path: Path = CONTRACT_PATH) -> Contract:
     return parse_contract(json.loads(path.read_text(encoding="utf-8")))
 
 
-# --- the lock ---------------------------------------------------------------------------------
-
-
 @dataclass(frozen=True)
 class Locked:
     """One line of ``uv export``: a package at a version, its marker, hashes and parents."""
@@ -321,9 +315,6 @@ def pure_wheel(entry: LockEntry | None) -> LockFile | None:
         if all(tag.abi == "none" and tag.platform == "any" for tag in tags):
             return wheel
     return None
-
-
-# --- the plan ---------------------------------------------------------------------------------
 
 
 class PackageClass(enum.Enum):
@@ -470,9 +461,6 @@ def check_engine_requirements(
             )
 
 
-# --- digest and Mach-O -------------------------------------------------------------------------
-
-
 def digest_inputs(parts: Mapping[str, str]) -> str:
     """One sha256 over named input digests; the order of the mapping does not matter."""
     outer = hashlib.sha256()
@@ -613,9 +601,6 @@ def drop_sboms(site: Path) -> None:
             lines = record.read_text(encoding="utf-8").splitlines(keepends=True)
             kept = [line for line in lines if "/sboms/" not in line.split(",", 1)[0]]
             record.write_text("".join(kept), encoding="utf-8")
-
-
-# --- IO shell ---------------------------------------------------------------------------------
 
 
 def cache_dir() -> Path:

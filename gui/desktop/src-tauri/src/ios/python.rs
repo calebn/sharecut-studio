@@ -48,7 +48,6 @@ impl Interpreter {
         })
     }
 
-    /// Call `podcast_mcp.gui.embedded_boot.boot_line()` and return its line.
     pub fn boot_line(&self) -> String {
         // SAFETY: the GIL is held between Ensure and Release; each owned reference is released once.
         unsafe {
