@@ -228,7 +228,10 @@ lib (a `staticlib`) with Python.xcframework linked into it; there is no sidecar 
   cargo home and repository (appended to any `RUSTFLAGS` already set), and cargo's
   `CARGO_PROFILE_RELEASE_DEBUG=0` and `CARGO_PROFILE_RELEASE_STRIP=symbols` as environment, so the
   `[profile.release]` that desktop builds share is untouched. The phase is where it must live:
-  Xcode hands a script phase only its own build settings, never the caller's `RUSTFLAGS`. 94
+  Xcode hands a script phase only its own build settings, never the caller's `RUSTFLAGS`
+  (measured). This supersedes the stage 2 spec line that put the remap flags only in
+  `CARGO_TARGET_AARCH64_APPLE_IOS_RUSTFLAGS`; the release tool does not set that variable. A debug
+  or Simulator build skips the block (`CONFIGURATION` is `debug`) and is unchanged. 94
   strings remain in the static library, all DWARF written by Swift for tauri's own `ios-api`
   package (33 cargo registry paths, 61 build-directory paths); rustc's remap cannot reach them and
   the final link drops them. `python3 scripts/ios/private_paths.py scan <app-or-ipa>...` runs the
@@ -238,8 +241,9 @@ lib (a `staticlib`) with Python.xcframework linked into it; there is no sidecar 
   still names the machine and is not part of the app or the `.ipa`; never ship it. With no
   signing identity the `install_python` phase signs the frameworks it makes ad hoc, because
   `codesign` refuses an empty identity.
-- **Store metadata and privacy.** The template's Info.plist sets `CFBundleDisplayName` to
-  `ShareCut` and `ITSAppUsesNonExemptEncryption` to `false` (owner declaration, 2026-11-14: the
+- **Store metadata and privacy.** The template's Info.plist sets `ITSAppUsesNonExemptEncryption`
+  to `false`; the name under the icon is the build's `productName` (the release tool sets it from
+  the profile's `short_name`) (owner declaration, 2026-11-14: the
   app uses only the system and Python TLS stacks for HTTPS and ships no other cryptography). The
   minimum iOS version is 17.0 (the overlay). `src-tauri/ios/PrivacyInfo.xcprivacy` is the
   app-level privacy manifest: no tracking, no collected data, and three required-reason API
@@ -249,11 +253,11 @@ lib (a `staticlib`) with Python.xcframework linked into it; there is no sidecar 
   container), system boot time (`mach_absolute_time` in Python, behind `time.monotonic`; `35F9.1`,
   elapsed time between events) and disk space (`statfs`, `fstatfs` in Python, behind `os.statvfs`;
   `E174.1`). No UserDefaults or active-keyboard symbol is present. Neither Python.xcframework nor
-  any wheel ships its own `.xcprivacy`, so none is moved into a framework. The reason codes are
-  from Apple's "Describing use of required reason API"; that page would not load as text here, so
-  the codes come from memory and the first App Store Connect validate run must confirm them. The
-  desktop `Info.plist`'s `NSMicrophoneUsageDescription` is merged into the app by tauri, and the
-  post-build phase deletes it from the built plist until recording exists on the phone.
+  any wheel ships its own `.xcprivacy`, so none is moved into a framework. The reason codes were
+  written from memory; `contracts/ios-privacy.json` records that they are not confirmed against
+  Apple's page (it would not load as text), so validate and Apple's processing mail are the check.
+  The desktop `Info.plist`'s `NSMicrophoneUsageDescription` is merged into the iOS app by tauri and
+  ships: an unused usage string is harmless, and recording arrives in a later stage.
 - **Lifecycle.** `src/lifecycle.rs` is a pure reducer (`Starting`, `Serving`, `Rechecking`,
   `Failed`; events `Bound`, `Healthy`, `Unhealthy` (both carry the probe's generation, and a
   result older than the current recheck is ignored), `StartFailed`, `NavigationFailed`, `Tick`,

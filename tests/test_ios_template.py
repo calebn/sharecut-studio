@@ -128,18 +128,11 @@ def test_an_unsigned_build_signs_the_python_frameworks_ad_hoc() -> None:
     ) in TEMPLATE
 
 
-def test_the_plist_declares_the_name_under_the_icon_and_no_non_exempt_encryption() -> None:
-    assert "        CFBundleDisplayName: ShareCut\n" in TEMPLATE
+def test_the_plist_declares_no_non_exempt_encryption_and_the_name_comes_from_the_profile() -> None:
     assert "        ITSAppUsesNonExemptEncryption: false\n" in TEMPLATE
+    assert "CFBundleDisplayName" not in TEMPLATE
+    assert "      PRODUCT_NAME: {{app.stylized-name}}\n" in TEMPLATE
     assert OVERLAY["bundle"]["iOS"]["minimumSystemVersion"] == "17.0"
-
-
-def test_the_plist_asks_for_no_microphone_until_recording_exists() -> None:
-    assert (
-        '          /usr/libexec/PlistBuddy -c "Delete :NSMicrophoneUsageDescription" '
-        '"$CODESIGNING_FOLDER_PATH/Info.plist" 2>/dev/null || true\n'
-    ) in TEMPLATE
-    assert "NSMicrophoneUsageDescription:" not in TEMPLATE
 
 
 def test_the_privacy_manifest_ships_as_a_bundle_resource() -> None:
