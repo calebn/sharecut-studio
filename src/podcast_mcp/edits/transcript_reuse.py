@@ -481,7 +481,7 @@ def repair_reused_loops(
         if transcript.user_edited or any(
             w.audibility_locked or w.ignored or w.timing_edited for w in transcript.words
         ):
-            log.info("kept stored transcript on %s as is: it holds a person's edits", job.label)
+            log.warning("kept stored transcript on %s as is: it holds a person's edits", job.label)
             continue
         ordinals = {id(w): o for o, w in transcript.active_words_with_ordinals()}
         report = guard_transcript(transcript)
