@@ -18,10 +18,9 @@ TAURI="$DESKTOP/src-tauri"
 DEVICE="${IOS_SIM_DEVICE:-booted}"
 LOG_DIR="$TAURI/target/ios-sim-logs"
 
-# Homebrew's rustc has no iOS standard library; the rustup toolchain must come first.
-if command -v rustup >/dev/null 2>&1; then
-  export PATH="$(dirname "$(rustup which rustc)"):$PATH"
-fi
+payload() {
+  (cd "$ROOT" && uv run python scripts/ios/build_payload.py "$@" --sdk iphonesimulator)
+}
 # The Python.xcframework install phase calls rsync; Homebrew's rsync 3.5.1 hangs on it, Apple's does not.
 export PATH="/usr/bin:$PATH"
 export APPLE_DEVELOPMENT_TEAM="${APPLE_DEVELOPMENT_TEAM:-AAAAAAAAAA}"
@@ -32,10 +31,14 @@ bundle_identifier() {
 }
 
 build() {
+  local toolchain_bin
+  toolchain_bin="$(payload --toolchain-bin)"
+  export PATH="$toolchain_bin:$PATH"
   # The payload ships whatever gui/web/dist holds and does not rebuild it, so a stale build would
   # run the previous web UI. Rebuild it every time (gui/web/dist is not tracked).
   (cd "$ROOT/gui/web" && { [ -d node_modules ] || npm ci; } && npm run --silent build)
   (cd "$DESKTOP" && { [ -d node_modules ] || npm ci; })
+  payload --ensure
   rm -rf "$TAURI/gen/apple"
   (cd "$DESKTOP" && npm run --silent tauri -- ios init --ci </dev/null)
   (cd "$DESKTOP" && npm run --silent tauri -- ios build --target aarch64-sim --debug --ci </dev/null)

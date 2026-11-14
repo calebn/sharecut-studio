@@ -180,7 +180,8 @@ Deferred path and interim constraints: [cross-platform-byok.md](cross-platform-b
 Home screen says audio tools are not available on this device yet. The app is the `sharecut`
 lib (a `staticlib`) with Python.xcframework linked into it; there is no sidecar process.
 
-- **Build.** `scripts/ios/ios_sim.sh run` runs `tauri ios init`, then `tauri ios build --target
+- **Build.** `scripts/ios/ios_sim.sh run` first ensures the payload (`build_payload.py --ensure`,
+  because the generated Xcode project needs `ios-payload/` to exist at init), then runs `tauri ios init`, then `tauri ios build --target
   aarch64-sim --debug`; `launch` and `proof` take the product of this checkout's own generated
   Xcode project (`xcodebuild -showBuildSettings`), never the newest `sharecut-*` DerivedData
   folder, which can belong to another worktree. The overlay `src-tauri/tauri.ios.conf.json` drops the sidecar
@@ -194,7 +195,10 @@ lib (a `staticlib`) with Python.xcframework linked into it; there is no sidecar 
   the repo: the Simulator build takes the placeholder team `AAAAAAAAAA` from
   `APPLE_DEVELOPMENT_TEAM`.
 - **Payload.** `scripts/ios/build_payload.py --ensure|--rebuild|--plan --sdk
-  iphonesimulator|iphoneos` writes `src-tauri/ios-payload/` (untracked): the
+  iphonesimulator|iphoneos` (it puts the rustup toolchain ahead of other `rustc`s itself and
+  fails in one sentence when rustup or the SDK's Rust target is missing; `--toolchain-bin` prints
+  that directory for `ios_sim.sh`; `tauri.ios.conf.json` runs `--ensure` again before `ios build`,
+  so a hand-run `tauri ios build` never ships without a payload) writes `src-tauri/ios-payload/` (untracked): the
   `Python.xcframework`, `app_packages` and a `manifest.json` whose input-only digest makes
   `--ensure` a no-op when nothing changed. Pins live in `contracts/ios-runtime.json`: the
   Python-Apple-support release (url and sha256), the BeeWare numpy wheel per SDK (sha256), the
