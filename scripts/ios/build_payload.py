@@ -54,10 +54,20 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+
 from packaging.markers import Marker
 from packaging.requirements import Requirement
 from packaging.specifiers import SpecifierSet
 from packaging.utils import canonicalize_name, parse_wheel_filename
+from scripts.ios.private_paths import (
+    cache_dir,
+    cargo_home,
+    private_needles,
+    remap_flags,
+    scan_private_paths,
+    with_rustflags,
+)
 
 ROOT = Path(__file__).resolve().parents[2]
 CONTRACT_PATH = ROOT / "contracts" / "ios-runtime.json"
@@ -527,61 +537,6 @@ def check_site_packages(site: Path, sdk: SdkRow) -> None:
         raise PayloadError("payload check failed:\n  " + "\n  ".join(problems))
 
 
-REMAP_ROOTS = (("home", "/home"), ("cache", "/cache"), ("cargo", "/cargo"), ("source", "/source"))
-RUSTFLAGS_SEPARATOR = "\x1f"
-
-
-def remap_flags(directories: Mapping[str, Path]) -> list[str]:
-    """``--remap-path-prefix`` flags for the named directories, widest first (rustc takes the last
-    match, so the narrower directory inside the home wins)."""
-    return [
-        f"--remap-path-prefix={directories[name]}={target}"
-        for name, target in REMAP_ROOTS
-        if name in directories
-    ]
-
-
-def with_rustflags(environment: Mapping[str, str], flags: Sequence[str]) -> dict[str, str]:
-    """*environment* with *flags* appended to the Rust flags cargo will read.
-
-    Cargo reads ``CARGO_ENCODED_RUSTFLAGS`` before ``RUSTFLAGS``, so flags are added to whichever is
-    set. Either variable replaces ``build.rustflags`` from a cargo config file.
-    """
-    updated = dict(environment)
-    if "CARGO_ENCODED_RUSTFLAGS" in environment:
-        existing = environment["CARGO_ENCODED_RUSTFLAGS"]
-        updated["CARGO_ENCODED_RUSTFLAGS"] = RUSTFLAGS_SEPARATOR.join(
-            [*([existing] if existing else []), *flags]
-        )
-    else:
-        updated["RUSTFLAGS"] = " ".join([*environment.get("RUSTFLAGS", "").split(), *flags])
-    return updated
-
-
-def private_needles(home: Path, cache: Path) -> list[bytes]:
-    """The strings that must not appear in the payload: the home, its user name as a path segment
-    and the build cache."""
-    return [
-        str(home).encode(),
-        f"/Users/{home.name}/".encode(),
-        str(cache).encode(),
-    ]
-
-
-def scan_private_paths(root: Path, needles: Sequence[bytes]) -> tuple[int, list[str]]:
-    """Count the files under *root* and list those holding any needle; binaries and text alike."""
-    scanned = 0
-    offenders: list[str] = []
-    for path in sorted(root.rglob("*")):
-        if path.is_symlink() or not path.is_file():
-            continue
-        scanned += 1
-        data = path.read_bytes()
-        if any(needle in data for needle in needles):
-            offenders.append(path.relative_to(root).as_posix())
-    return scanned, offenders
-
-
 def binary_members(wheel: Path) -> list[str]:
     """Paths inside *wheel* of its dynamic libraries and extension modules."""
     with zipfile.ZipFile(wheel) as archive:
@@ -601,10 +556,6 @@ def drop_sboms(site: Path) -> None:
             lines = record.read_text(encoding="utf-8").splitlines(keepends=True)
             kept = [line for line in lines if "/sboms/" not in line.split(",", 1)[0]]
             record.write_text("".join(kept), encoding="utf-8")
-
-
-def cache_dir() -> Path:
-    return Path.home() / ".cache" / "sharecut-build" / "ios"
 
 
 def run(command: Sequence[str | Path], **kwargs: Any) -> str:
@@ -694,10 +645,6 @@ def scrub_binary(path: Path) -> None:
     """
     run(["xcrun", "strip", "-S", path])
     run(["xcrun", "install_name_tool", "-id", f"@rpath/{path.name}", path])
-
-
-def cargo_home() -> Path:
-    return Path(os.environ.get("CARGO_HOME") or Path.home() / ".cargo")
 
 
 def cross_venv(contract: Contract, sdk: str, framework: Path, cache: Path) -> Path:

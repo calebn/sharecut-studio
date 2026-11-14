@@ -50,7 +50,7 @@ def test_the_plist_lets_files_show_projects_and_loopback_work() -> None:
 def test_the_template_never_names_a_team_or_certificate() -> None:
     assert "DEVELOPMENT_TEAM: {{apple.development-team}}" in TEMPLATE
     assert not re.search(r"DEVELOPMENT_TEAM:\s*[A-Z0-9]{10}\b", TEMPLATE)
-    assert "CODE_SIGN_IDENTITY" not in TEMPLATE
+    assert not re.search(r"(?<!EXPANDED_)CODE_SIGN_IDENTITY", TEMPLATE)
     assert "PROVISIONING_PROFILE" not in TEMPLATE
 
 
@@ -109,3 +109,19 @@ def test_the_simulator_script_ensures_the_payload_before_the_xcode_project_is_ge
     build = next(i for i, s in enumerate(steps) if "ios build" in s)
     assert ensure < init < build
     assert all("--sdk iphonesimulator" in s for s in steps if "build_payload.py" in s)
+
+
+def test_a_release_build_keeps_builder_paths_out_of_the_rust_library() -> None:
+    assert (
+        '          if [ "${CONFIGURATION:?}" = release ]; then\n'
+        '            eval "$(python3 "$PROJECT_DIR/../../../../../scripts/ios/private_paths.py" rust-env)"\n'
+        "          fi\n"
+    ) in TEMPLATE
+    assert TEMPLATE.index("private_paths.py") < TEMPLATE.index("{{ shell-escape tauri-binary }}")
+
+
+def test_an_unsigned_build_signs_the_python_frameworks_ad_hoc() -> None:
+    assert (
+        '          if [ -z "${EXPANDED_CODE_SIGN_IDENTITY:-}" ]; then '
+        "export EXPANDED_CODE_SIGN_IDENTITY=-; fi\n"
+    ) in TEMPLATE

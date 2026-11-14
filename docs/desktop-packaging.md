@@ -221,6 +221,23 @@ lib (a `staticlib`) with Python.xcframework linked into it; there is no sidecar 
   The two cached artifacts the script makes itself, the unpacked `Python.xcframework` and the
   cross-built wheel, each have a sha256 recorded beside them and are rebuilt when it no longer
   matches.
+- **Release build hygiene.** A release build of the Rust library carried 1364 strings naming
+  the build machine's home directory (1303 cargo registry paths in tokio's panic locations, 61
+  Swift build paths). The template's "Build Rust Code" phase evals `scripts/ios/private_paths.py
+  rust-env` when `CONFIGURATION` is `release`: `--remap-path-prefix` for the home, build cache,
+  cargo home and repository (appended to any `RUSTFLAGS` already set), and cargo's
+  `CARGO_PROFILE_RELEASE_DEBUG=0` and `CARGO_PROFILE_RELEASE_STRIP=symbols` as environment, so the
+  `[profile.release]` that desktop builds share is untouched. The phase is where it must live:
+  Xcode hands a script phase only its own build settings, never the caller's `RUSTFLAGS`. 94
+  strings remain in the static library, all DWARF written by Swift for tauri's own `ios-api`
+  package (33 cargo registry paths, 61 build-directory paths); rustc's remap cannot reach them and
+  the final link drops them. `python3 scripts/ios/private_paths.py scan <app-or-ipa>...` runs the
+  payload's own scanner (the same module, `scripts/ios/private_paths.py`) over an `.app` folder
+  or an unpacked `.ipa` and fails on any hit; an unsigned device build (`tauri ios build --target
+  aarch64 --no-sign`) scans clean at 0 of 6099 files. The `dSYM` Xcode writes beside the archive
+  still names the machine and is not part of the app or the `.ipa`; never ship it. With no
+  signing identity the `install_python` phase signs the frameworks it makes ad hoc, because
+  `codesign` refuses an empty identity.
 - **Lifecycle.** `src/lifecycle.rs` is a pure reducer (`Starting`, `Serving`, `Rechecking`,
   `Failed`; events `Bound`, `Healthy`, `Unhealthy` (both carry the probe's generation, and a
   result older than the current recheck is ignored), `StartFailed`, `NavigationFailed`, `Tick`,

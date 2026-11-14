@@ -413,54 +413,6 @@ def test_the_committed_contract_and_lock_agree() -> None:
     }
 
 
-def test_rust_flags_are_appended_to_the_variable_cargo_reads() -> None:
-    flags = ["--remap-path-prefix=/a=/x"]
-    assert payload.with_rustflags({}, flags) == {"RUSTFLAGS": "--remap-path-prefix=/a=/x"}
-    assert payload.with_rustflags({"RUSTFLAGS": "-C debuginfo=0"}, flags) == {
-        "RUSTFLAGS": "-C debuginfo=0 --remap-path-prefix=/a=/x"
-    }
-    assert payload.with_rustflags(
-        {"RUSTFLAGS": "ignored", "CARGO_ENCODED_RUSTFLAGS": "-Cdebuginfo=0"}, flags
-    ) == {
-        "RUSTFLAGS": "ignored",
-        "CARGO_ENCODED_RUSTFLAGS": "-Cdebuginfo=0\x1f--remap-path-prefix=/a=/x",
-    }
-
-
-def test_the_remap_goes_widest_directory_first() -> None:
-    assert payload.remap_flags(
-        {
-            "source": Path("/h/c/s"),
-            "home": Path("/h"),
-            "cache": Path("/h/c"),
-            "cargo": Path("/h/.cargo"),
-        }
-    ) == [
-        "--remap-path-prefix=/h=/home",
-        "--remap-path-prefix=/h/c=/cache",
-        "--remap-path-prefix=/h/.cargo=/cargo",
-        "--remap-path-prefix=/h/c/s=/source",
-    ]
-
-
-def test_a_clean_tree_scans_clean_and_a_leak_names_the_file(tmp_path: Path) -> None:
-    home = Path("/Users/someone")
-    needles = payload.private_needles(home, home / ".cache/sharecut-build/ios")
-    tree = tmp_path / "tree"
-    (tree / "pkg").mkdir(parents=True)
-    (tree / "pkg/clean.py").write_text("print('hi')\n")
-    (tree / "pkg/clean.so").write_bytes(b"\xcf\xfa\xed\xfe/cargo/registry/src/x.rs\x00")
-    assert payload.scan_private_paths(tree, needles) == (2, [])
-    (tree / "pkg/leaky.so").write_bytes(b"\x00\x00/Users/someone/.cargo/registry/src/x.rs\x00")
-    (tree / "pkg/note.txt").write_text("see file:///Users/someone/code/Cargo.toml")
-    assert payload.scan_private_paths(tree, needles) == (4, ["pkg/leaky.so", "pkg/note.txt"])
-
-
-def test_the_user_name_as_a_path_segment_is_a_needle() -> None:
-    needles = payload.private_needles(Path("/home/someone"), Path("/home/someone/.cache"))
-    assert needles == [b"/home/someone", b"/Users/someone/", b"/home/someone/.cache"]
-
-
 def test_dropping_sboms_removes_the_files_and_their_record_lines(tmp_path: Path) -> None:
     dist = tmp_path / "pkg-1.0.dist-info"
     (dist / "sboms").mkdir(parents=True)
