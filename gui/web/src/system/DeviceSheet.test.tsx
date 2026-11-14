@@ -239,6 +239,14 @@ describe("DeviceSheet", () => {
     expect(onMicAction).toHaveBeenLastCalledWith("retry");
   });
 
+  it("puts the mic action under its label", () => {
+    render(
+      sheet({ mic: { status: "lost", detail: "Microphone disconnected." } }),
+    );
+    const retry = screen.getByRole("button", { name: "Retry microphone" });
+    expect(retry.closest('[data-step="mic"] .sys-join-control')).not.toBeNull();
+  });
+
   it("closes on Escape", async () => {
     const onClose = vi.fn();
     render(sheet({ onClose }));
