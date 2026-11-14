@@ -29,4 +29,11 @@ describe("advanced field help line", () => {
     const focused = rule(".sys-adv-field:focus-within .sys-adv-help");
     expect(focused).not.toMatch(layout);
   });
+
+  it("paints the language note in the secondary colour without focus", () => {
+    const note = rule(".sys-adv-help.sys-adv-note");
+    expect(note).toMatch(/color:\s*var\(--color-text-secondary\)/);
+    expect(note).toMatch(/user-select:\s*auto/);
+    expect(note).not.toMatch(layout);
+  });
 });

@@ -105,9 +105,17 @@ function unitFor(param: ScrubParam, value: number): string {
   return value === 1 ? one : many;
 }
 
-function Help({ id, children }: { id: string; children: ReactNode }) {
+function Help({
+  id,
+  note = false,
+  children,
+}: {
+  id: string;
+  note?: boolean;
+  children: ReactNode;
+}) {
   return (
-    <p id={id} className="sys-adv-help">
+    <p id={id} className={note ? "sys-adv-help sys-adv-note" : "sys-adv-help"}>
       {children}
     </p>
   );
@@ -208,7 +216,11 @@ function ParamField({
         }}
       />
       <Help id={helpId}>{param.help}</Help>
-      {param.note ? <Help id={noteId}>{param.note}</Help> : null}
+      {param.note ? (
+        <Help id={noteId} note>
+          {param.note}
+        </Help>
+      ) : null}
     </div>
   );
 }

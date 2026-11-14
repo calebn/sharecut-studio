@@ -131,7 +131,7 @@ function keptFixesMessage(
       : "No run started, so nothing was re-transcribed.";
   const language =
     status?.language && status.edited.length > 0
-      ? ` The Language edit stays staged on ${languageName(status.language)}.`
+      ? ` Language stays set to ${languageName(status.language)}.`
       : "";
   return `${kept} ${nothing}${language}`;
 }

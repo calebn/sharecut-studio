@@ -390,7 +390,7 @@ describe("usePrepareRun keep my fixes", () => {
     expect(start).not.toHaveBeenCalled();
   });
 
-  it("says Re-transcribe changed nothing and the staged Language edit stays", async () => {
+  it("says Re-transcribe changed nothing and Language stays set", async () => {
     vocabulary.mockResolvedValue({
       show_title: null,
       prompt_limit: null,
@@ -405,7 +405,7 @@ describe("usePrepareRun keep my fixes", () => {
     await act(async () => result.current.retranscribe());
     act(() => result.current.keepMyFixes());
     expect(useDawStore.getState().statusAnnouncement).toBe(
-      "Kept the hand fixes on MAYA and JOSS. Nothing was re-transcribed. The Language edit stays staged on Spanish.",
+      "Kept the hand fixes on MAYA and JOSS. Nothing was re-transcribed. Language stays set to Spanish.",
     );
     expect(useDawStore.getState().feedbackToast).toMatchObject({
       tone: "status",
@@ -807,14 +807,14 @@ describe("usePrepareRun refused over hand fixes", () => {
     });
   });
 
-  it("says no run started when Keep answers a refused run, and the Language edit stays", async () => {
+  it("says no run started when Keep answers a refused run, and Language stays set", async () => {
     fixed(["maya"]);
     const { result } = setup(modelsFor("missing"), pipelineConfig(), differs);
     act(() => useDawStore.setState({ pipelineJob: refused }));
     await waitFor(() => expect(result.current.keepFixes).not.toBeNull());
     act(() => result.current.keepMyFixes());
     expect(useDawStore.getState().statusAnnouncement).toBe(
-      "Kept the hand fixes on MAYA. No run started, so nothing was re-transcribed. The Language edit stays staged on Spanish.",
+      "Kept the hand fixes on MAYA. No run started, so nothing was re-transcribed. Language stays set to Spanish.",
     );
     expect(start).not.toHaveBeenCalled();
   });

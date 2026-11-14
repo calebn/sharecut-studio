@@ -4171,6 +4171,11 @@ button.sys-picker-option:focus-visible {
   user-select: auto;
 }
 
+.sys-adv-help.sys-adv-note {
+  color: var(--color-text-secondary);
+  user-select: auto;
+}
+
 @media (prefers-reduced-motion: no-preference) {
   .sys-adv-switch,
   .sys-adv-switch::before {

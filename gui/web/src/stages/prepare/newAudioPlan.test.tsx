@@ -215,6 +215,54 @@ describe("a language change with audio added to a project that already ran", () 
   });
 });
 
+describe("a staged language with hand-fixed transcripts in another language", () => {
+  const maya = { track_id: "maya", name: "Maya", recorded: "en" };
+
+  beforeEach(() => {
+    config.language = "es";
+    vi.mocked(loadTranscriptLanguageStatus).mockResolvedValue({
+      language: "es",
+      stale_tracks: [maya],
+      edited_stale_tracks: [maya],
+    });
+  });
+
+  it("hands the answer to Advanced as the Language note", async () => {
+    const { result } = render();
+    await waitFor(() => {
+      const [language] =
+        result.current.advanced.props.groups[0].steps[0].params;
+      expect(language).toMatchObject({
+        note: "Hand fixes kept in English.",
+      });
+    });
+  });
+
+  it("hands the answer to the run, so Keep my fixes names the Language", async () => {
+    vi.mocked(loadTranscriptVocabulary).mockResolvedValue({
+      show_title: null,
+      prompt_limit: null,
+      prompt_primer: "",
+      terms: [],
+      guest_names: [],
+      revision: "r",
+      needs_retranscription: true,
+      edited_tracks: ["maya"],
+    } as never);
+    const { result } = render();
+    await waitFor(() =>
+      expect(
+        result.current.advanced.props.groups[0].steps[0].params[0],
+      ).toHaveProperty("note"),
+    );
+    await act(async () => result.current.view.onRetranscribe?.());
+    act(() => result.current.view.onRowAction("transcribe", "keep-fixes"));
+    expect(useDawStore.getState().statusAnnouncement).toBe(
+      "Kept the hand fixes on Maya. Nothing was re-transcribed. Language stays set to Spanish.",
+    );
+  });
+});
+
 describe("audio added to a project that already ran", () => {
   it("shows the plan and starts nothing", () => {
     const { result } = render();
