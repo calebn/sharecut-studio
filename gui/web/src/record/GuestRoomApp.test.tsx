@@ -502,7 +502,7 @@ describe("GuestRoomApp", () => {
     expect(screen.queryByText("Microphone")).toBeNull();
     expect(getUserMedia).not.toHaveBeenCalled();
     await waitFor(() => {
-      expect(document.title).toBe("Producer (not recorded) | Shot of Truth");
+      expect(document.title).toBe("Join to listen | Shot of Truth");
     });
     expect(sockets).toHaveLength(0);
     expect(closeGuardSpy).toHaveBeenLastCalledWith(false, "guest", false);
@@ -629,7 +629,7 @@ describe("GuestRoomApp", () => {
     stubBootstrap(producerBootstrap);
     const { unmount } = render(<GuestRoomApp token="prod-tok" />);
     await waitFor(() => {
-      expect(document.title).toBe("Producer (not recorded) | Shot of Truth");
+      expect(document.title).toBe("Join to listen | Shot of Truth");
     });
     unmount();
     expect(document.title).toBe("ShareCut Studio");
@@ -1312,10 +1312,12 @@ describe("GuestRoomApp", () => {
           "Couldn't reach the server. Check your connection and try again.",
         ),
       ).toBeNull();
+      expect(document.title).toBe("Couldn't reach the room | ShareCut Studio");
       await userEvent.click(screen.getByRole("button", { name: "Try again" }));
       expect(
         await screen.findByRole("heading", { name: "Join the room" }),
       ).toBeInTheDocument();
+      expect(document.title).toBe("Join the room | Shot of Truth");
     });
 
     it("loads the room by itself when the browser comes back online", async () => {
@@ -1344,6 +1346,15 @@ describe("GuestRoomApp", () => {
       });
       expect(fetchMock).toHaveBeenCalledOnce();
     });
+  });
+
+  it("names the tab once the guest is in the room", async () => {
+    stubBootstrap();
+    render(<GuestRoomApp token="guest-tok" />);
+    await readyToJoin(getUserMedia);
+    await userEvent.click(joinButton());
+    await screen.findByRole("button", { name: "Leave room" });
+    await waitFor(() => expect(document.title).toBe("Waiting | Shot of Truth"));
   });
 
   it("shows the invite-closed cover and is axe-clean", async () => {

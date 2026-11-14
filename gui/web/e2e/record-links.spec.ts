@@ -115,6 +115,9 @@ test.describe("record links", () => {
             name: "Couldn't reach the room",
           }),
         ).toBeVisible();
+        await expect(guest).toHaveTitle(
+          "Couldn't reach the room | ShareCut Studio",
+        );
         await expect(guest.getByText("Couldn't reach the server")).toHaveCount(
           0,
         );
@@ -124,6 +127,7 @@ test.describe("record links", () => {
         await guest.getByRole("button", { name: "Try again" }).click();
         await expect(guest.getByRole("dialog")).toBeVisible();
         await expect(joinNameField(guest)).toBeVisible();
+        await expect(guest).toHaveTitle(/^Join the room \| /);
       });
     });
   });

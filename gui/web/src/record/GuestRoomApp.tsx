@@ -7,6 +7,7 @@ import {
 } from "react";
 import { flushSync } from "react-dom";
 import { useAfter } from "../hooks/useAfter";
+import { useDocumentTitle } from "../hooks/useDocumentTitle";
 import { useElapsedSince } from "../hooks/useElapsedSince";
 import {
   matchesMedia,
@@ -37,6 +38,7 @@ import {
   tookPart,
   uploadInFlight,
 } from "./guestRoomModel";
+import { guestTabTitle } from "./guestTabTitle";
 import { liveTakeOpen, NOTES_CLOSED_REASON } from "./liveCommentQueue";
 import {
   copyForMicStatus,
@@ -360,6 +362,21 @@ function GuestRoomSession({
   });
 
   const cover = guestCoverProps(room, { onRetry, phase });
+  useDocumentTitle(
+    guestTabTitle({
+      cover,
+      bootstrapped: bootstrap !== null,
+      seat: producer ? "producer" : "guest",
+      stance: sheetOpen
+        ? "joining"
+        : consented === false ||
+            (producer && producerDismissed && !producerJoined)
+          ? "declined"
+          : "in",
+      phase,
+      episode: episodeName,
+    }),
+  );
   if (cover) {
     return (
       <GuestCovers
