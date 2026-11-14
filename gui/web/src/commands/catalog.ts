@@ -1094,7 +1094,7 @@ export const COMMANDS: Record<string, CommandDef> = {
     label: "Add comment",
     when: "canComment",
     notes:
-      'C. Args: { atTime?: number, trackId?: string, keepPin?: boolean } → a comment draft anchored at that time (the create menu); keepPin: true opens it "here", so text already typed keeps the time it was typed at (the Player\'s Comment); in the phone Listen layout (a Viewer or Commenter guest on a phone) opening also pauses a playing episode and the draft remembers to play on, whatever the args; with no time, on the selection, else at the playhead',
+      "C. Args: { atTime?: number, trackId?: string, keepPin?: boolean } → a comment draft anchored at that time (the create menu); in the phone Listen layout (a Viewer or Commenter guest on a phone) opening also pauses a playing episode, the draft remembers to play on, and keepPin: true keeps the time of text already typed (the Player's Comment), whatever the other args; anywhere else opening replaces the pin; with no time, on the selection, else at the playhead",
   },
 };
 
