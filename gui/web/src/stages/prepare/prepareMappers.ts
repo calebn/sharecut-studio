@@ -54,6 +54,7 @@ type PlanOperation = {
   step: string;
   label: string;
   enabledPath?: string;
+  optional?: boolean;
 };
 
 const SOUND_OPERATION: PlanOperation = {
@@ -75,6 +76,7 @@ const PLAN_OPERATIONS: Readonly<Record<ReadyRowId, readonly PlanOperation[]>> =
         step: "extract_room_tone_beds",
         label: "Room tone bed",
         enabledPath: "room_tone.extract_bed",
+        optional: true,
       },
       { step: "fill_gate_holes", label: "Fill gate holes" },
       { step: "clean_audio", label: "Clean" },
@@ -548,7 +550,11 @@ function terminalRowResult(
     return {
       kind: "performed",
       work: [first, ...rest],
-      partial: work.length < operations.length,
+      partial: operations.some(
+        (operation) =>
+          !operation.optional &&
+          !work.some((done) => done.operation === operation),
+      ),
     };
   return {
     kind: "omitted",

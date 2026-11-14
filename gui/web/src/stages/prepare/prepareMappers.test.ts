@@ -335,6 +335,20 @@ describe("rowOutcome", () => {
     });
   });
 
+  it("fails Line up tracks when the room tone bed fails there", () => {
+    const job = pipelineJobSnapshot({
+      status: "error",
+      steps: [
+        step("align_tracks", "ok"),
+        step("extract_room_tone_beds", "error", { error: "No quiet stretch" }),
+      ],
+    });
+    expect(rowOutcome(job, "align")).toEqual({
+      state: "failed",
+      error: "No quiet stretch",
+    });
+  });
+
   it("does not mark omitted work done when the job finishes", () => {
     const job = pipelineJobSnapshot({
       status: "ok",
@@ -1754,6 +1768,20 @@ describe("successful selected work", () => {
     });
     expect(readySummary(rows)).toBe("Getting ready: selected work finished");
     expect(phaseFor(rows).phase).toBe("done");
+  });
+
+  it("reads a full Clean run as complete when the optional bed did not run", () => {
+    const rows = rowsFor(
+      selected([
+        step("fill_gate_holes", "ok"),
+        step("clean_audio", "ok"),
+        step("compress_tracks", "ok"),
+        step("balance_tracks", "ok"),
+        step("assemble_timeline", "ok"),
+      ]),
+      { approximateTiming: null },
+    );
+    expect(rows[3].runDisposition).not.toBe("partial");
   });
 
   it.each(["error", "cancelled"])(
