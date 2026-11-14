@@ -20,6 +20,8 @@ export type ModelsApi = {
   lookup: (target: Pick<NeedTarget, "id" | "variant">) => TargetObservation;
   observe: (target: Pick<NeedTarget, "id" | "variant">) => Promise<void>;
   tools: { ffmpeg: ModelInstallState; hint: string | null };
+  /** False on a device with no OS folder picker; Home then offers no Open other. */
+  canPickFolder: boolean;
   ready: boolean;
   /** True while any bootstrap download runs, ours or another tab's. */
   busy: boolean;
@@ -51,6 +53,7 @@ export const INERT_MODELS: ModelsApi = {
   downloads: [],
   observation: { kind: "checking", generation: 0 },
   tools: { ffmpeg: "missing", hint: null },
+  canPickFolder: true,
   ready: false,
   busy: false,
   loadError: null,

@@ -82,6 +82,7 @@ def test_bootstrap_status_reports_unsupported_components_and_the_host(host) -> N
         "loopback_is_trusted": False,
         "media_tools": "unavailable",
         "transcription": "unavailable",
+        "folder_picker": False,
     }
     assert status["tools"]["ffmpeg"] == {
         "state": "unsupported",
@@ -141,4 +142,5 @@ def test_bootstrap_status_on_a_desktop_host_reports_its_capabilities(host) -> No
         "loopback_is_trusted": True,
         "media_tools": "executables",
         "transcription": "faster_whisper",
+        "folder_picker": True,
     }

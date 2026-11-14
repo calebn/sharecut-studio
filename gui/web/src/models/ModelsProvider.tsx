@@ -25,6 +25,7 @@ import { isTerminalJobStatus } from "../utils/pipeline";
 import { plainError } from "../utils/plainError";
 import type { NeedTarget } from "./capability";
 import {
+  canPickFolderOf,
   downloadRows,
   failureKey,
   initialState,
@@ -453,6 +454,7 @@ export function ModelsProvider({ children }: { children: ReactNode }) {
             )
           : [],
       tools: toolsOf(state.status),
+      canPickFolder: canPickFolderOf(state.status),
       ready:
         state.observation.kind === "current" &&
         state.status?.whisper_model === state.variant &&

@@ -137,6 +137,7 @@ def component_status(*, whisper_model: str | None = None) -> dict[str, Any]:
             "loopback_is_trusted": host.loopback_is_trusted,
             "media_tools": host.media_tools,
             "transcription": host.transcription,
+            "folder_picker": host.file_dialog is not None,
         },
         "tools": {
             "ffmpeg": {

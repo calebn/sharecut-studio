@@ -32,12 +32,24 @@ export type BootstrapToolStatus = {
   hint: string | null;
 };
 
+/** What this device can do, as the engine reports it (`host_platform.HostPlatform`). */
+export type BootstrapHost = {
+  name: string;
+  can_spawn_processes: boolean;
+  loopback_is_trusted: boolean;
+  media_tools: "executables" | "unavailable";
+  transcription: "faster_whisper" | "unavailable";
+  /** False on a device with no OS folder picker (a phone): Home offers no Open other. */
+  folder_picker: boolean;
+};
+
 export type BootstrapStatus = {
   ready: boolean;
   /** True when a HTTPS funnel CDN base is configured (env or manifest default). Not the latest.json URL string. */
   cdn_base: boolean;
   whisper_model: string;
   whisper_models: WhisperModelChoice[];
+  host: BootstrapHost;
   tools: { ffmpeg: BootstrapToolStatus };
   /** Registry order: the only list of models. */
   models: ModelStatus[];

@@ -18,6 +18,7 @@ import type {
 import * as api from "../api";
 import { setupOf } from "../stages/home/homeModel";
 import { deferred } from "../test/deferred";
+import { DESKTOP_HOST } from "../test/renderWithModels";
 import { stubViewportShell } from "../test/viewportShell";
 import { ApiError } from "../utils/apiError";
 import type { NeedTarget } from "./capability";
@@ -63,6 +64,7 @@ function status(
   return {
     ready: false,
     cdn_base: false,
+    host: DESKTOP_HOST,
     whisper_model: "large-v3-turbo",
     whisper_models: [
       {

@@ -4,6 +4,7 @@ import type {
   BootstrapStatus,
   ModelStatus,
 } from "../api";
+import { DESKTOP_HOST } from "../test/renderWithModels";
 import {
   UNSUPPORTED_SENTENCE,
   UNSUPPORTED_STATUS,
@@ -44,6 +45,7 @@ function status(over: Partial<BootstrapStatus> = {}): BootstrapStatus {
     cdn_base: false,
     whisper_model: "large-v3-turbo",
     whisper_models: [],
+    host: DESKTOP_HOST,
     tools: { ffmpeg: { state: "installed", source: "bundled", hint: null } },
     models: ROWS,
     ...over,
