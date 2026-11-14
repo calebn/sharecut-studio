@@ -23,6 +23,11 @@ Output (gitignored): ``gui/desktop/src-tauri/ios-payload/`` with ``Python.xcfram
 inputs only, so ``--ensure`` does nothing when they are unchanged and finishes an interrupted run.
 Downloads and cross-builds are cached under ``~/.cache/sharecut-build/ios``.
 
+Nothing about the machine that built the payload may ship in it: cross-builds remap the home,
+cache, cargo and source directories out of the compiled code, SBOMs (which record where the build
+ran) are dropped, and every build and ``--ensure`` ends with a scan of the whole output for the
+home directory, the user name as a path segment and the cache directory. The manifest records it.
+
 The pure parts (parsing, markers, classification, digest, Mach-O check) take no IO so
 tests/test_ios_payload.py runs them anywhere; the rest needs macOS, Xcode and the iOS Rust targets.
 """
@@ -526,6 +531,82 @@ def check_site_packages(site: Path, sdk: SdkRow) -> None:
         raise PayloadError("payload check failed:\n  " + "\n  ".join(problems))
 
 
+REMAP_ROOTS = (("home", "/home"), ("cache", "/cache"), ("cargo", "/cargo"), ("source", "/source"))
+RUSTFLAGS_SEPARATOR = "\x1f"
+
+
+def remap_flags(directories: Mapping[str, Path]) -> list[str]:
+    """``--remap-path-prefix`` flags for the named directories, widest first (rustc takes the last
+    match, so the narrower directory inside the home wins)."""
+    return [
+        f"--remap-path-prefix={directories[name]}={target}"
+        for name, target in REMAP_ROOTS
+        if name in directories
+    ]
+
+
+def with_rustflags(environment: Mapping[str, str], flags: Sequence[str]) -> dict[str, str]:
+    """*environment* with *flags* appended to the Rust flags cargo will read.
+
+    Cargo reads ``CARGO_ENCODED_RUSTFLAGS`` before ``RUSTFLAGS``, so flags are added to whichever is
+    set. Either variable replaces ``build.rustflags`` from a cargo config file.
+    """
+    updated = dict(environment)
+    if "CARGO_ENCODED_RUSTFLAGS" in environment:
+        existing = environment["CARGO_ENCODED_RUSTFLAGS"]
+        updated["CARGO_ENCODED_RUSTFLAGS"] = RUSTFLAGS_SEPARATOR.join(
+            [*([existing] if existing else []), *flags]
+        )
+    else:
+        updated["RUSTFLAGS"] = " ".join([*environment.get("RUSTFLAGS", "").split(), *flags])
+    return updated
+
+
+def private_needles(home: Path, cache: Path) -> list[bytes]:
+    """The strings that must not appear in the payload: the home, its user name as a path segment
+    and the build cache."""
+    return [
+        str(home).encode(),
+        f"/Users/{home.name}/".encode(),
+        str(cache).encode(),
+    ]
+
+
+def scan_private_paths(root: Path, needles: Sequence[bytes]) -> tuple[int, list[str]]:
+    """Count the files under *root* and list those holding any needle; binaries and text alike."""
+    scanned = 0
+    offenders: list[str] = []
+    for path in sorted(root.rglob("*")):
+        if path.is_symlink() or not path.is_file():
+            continue
+        scanned += 1
+        data = path.read_bytes()
+        if any(needle in data for needle in needles):
+            offenders.append(path.relative_to(root).as_posix())
+    return scanned, offenders
+
+
+def binary_members(wheel: Path) -> list[str]:
+    """Paths inside *wheel* of its dynamic libraries and extension modules."""
+    with zipfile.ZipFile(wheel) as archive:
+        return [n for n in archive.namelist() if n.endswith((".so", ".dylib"))]
+
+
+def drop_sboms(site: Path) -> None:
+    """Remove ``*.dist-info/sboms`` and their RECORD lines.
+
+    A cargo SBOM records ``file://`` paths of the build host, which a compiler flag cannot remap,
+    and no licence in this payload asks for one to ship.
+    """
+    for sboms in site.glob("*.dist-info/sboms"):
+        shutil.rmtree(sboms)
+        record = sboms.parent / "RECORD"
+        if record.is_file():
+            lines = record.read_text(encoding="utf-8").splitlines(keepends=True)
+            kept = [line for line in lines if "/sboms/" not in line.split(",", 1)[0]]
+            record.write_text("".join(kept), encoding="utf-8")
+
+
 # --- IO shell ---------------------------------------------------------------------------------
 
 
@@ -595,6 +676,20 @@ def build_engine_wheel(out_dir: Path) -> Path:
     return wheels[0]
 
 
+def scrub_binary(path: Path) -> None:
+    """Drop the linker's debug map and point the install name at ``@rpath``.
+
+    Rust's linker records the object files and rlibs it read, and names the dylib by its output
+    path in the build directory. No ``--remap-path-prefix`` reaches either.
+    """
+    run(["xcrun", "strip", "-S", path])
+    run(["xcrun", "install_name_tool", "-id", f"@rpath/{path.name}", path])
+
+
+def cargo_home() -> Path:
+    return Path(os.environ.get("CARGO_HOME") or Path.home() / ".cargo")
+
+
 def cross_venv(contract: Contract, sdk: str, framework: Path, cache: Path) -> Path:
     venv = cache / "crossvenv" / f"{contract.support_release}-{sdk}"
     if (venv / "bin" / "python").is_file():
@@ -613,7 +708,12 @@ def cross_build(
     """maturin build --locked of the locked sdist against the cross venv; cached by toolchain."""
     assert pkg.file is not None
     row = contract.cross_build[pkg.name]
-    key = f"{pkg.name}-{pkg.version}-{sdk}-maturin{row.tool_version}-{sha256_bytes(rustc.encode())[:12]}"
+    fixed = {"home": Path.home(), "cache": cache, "cargo": cargo_home()}
+    remap_id = sha256_bytes("\n".join(remap_flags(fixed)).encode())[:12]
+    key = (
+        f"{pkg.name}-{pkg.version}-{sdk}-maturin{row.tool_version}"
+        f"-{sha256_bytes(rustc.encode())[:12]}-remap{remap_id}"
+    )
     out = cache / "cross" / key
     if list(out.glob("*.whl")):
         return next(out.glob("*.whl"))
@@ -625,7 +725,10 @@ def cross_build(
         (source,) = [p for p in source_root.iterdir() if p.is_dir()]
         venv = cross_venv(contract, sdk, framework, cache)
         out.mkdir(parents=True, exist_ok=True)
-        env = {**os.environ, "IPHONEOS_DEPLOYMENT_TARGET": contract.cross_deployment_target}
+        env = with_rustflags(
+            {**os.environ, "IPHONEOS_DEPLOYMENT_TARGET": contract.cross_deployment_target},
+            remap_flags({**fixed, "source": source}),
+        )
         run(
             [
                 "uv",
@@ -759,8 +862,10 @@ def build(contract: Contract, sdk: str, plan: Plan, digest: str, rustc: str) -> 
         wheels[pkg.name] = fetch(
             pin.url, pin.sha256, cache / "wheels" / Path(urlparse(pin.url).path).name
         )
+    cross_built: list[Path] = []
     for pkg in plan.of(PackageClass.CROSS_BUILD):
         wheels[pkg.name] = cross_build(pkg, contract, sdk, framework, cache, rustc)
+        cross_built.append(wheels[pkg.name])
     engine = build_engine_wheel(cache / "engine" / sdk)
 
     staging = output / "app_packages.tmp"
@@ -768,12 +873,16 @@ def build(contract: Contract, sdk: str, plan: Plan, digest: str, rustc: str) -> 
     staging.mkdir()
     for wheel in [*wheels.values(), engine]:
         extract_wheel(wheel, staging)
+    for wheel in cross_built:
+        for member in binary_members(wheel):
+            scrub_binary(staging / member)
     for pkg in plan.of(PackageClass.PURE_SOURCE):
         copy_pure_source(pkg, contract, cache, staging)
     for cache_dir_ in staging.rglob("__pycache__"):
         shutil.rmtree(cache_dir_)
     for static_library in staging.rglob("*.a"):
         static_library.unlink()
+    drop_sboms(staging)
     check_site_packages(staging, contract.sdks[sdk])
     shutil.rmtree(output / "app_packages", ignore_errors=True)
     staging.rename(output / "app_packages")
@@ -782,6 +891,8 @@ def build(contract: Contract, sdk: str, plan: Plan, digest: str, rustc: str) -> 
     ):
         shutil.rmtree(output / "Python.xcframework", ignore_errors=True)
         shutil.copytree(framework, output / "Python.xcframework", symlinks=True)
+
+    scanned = check_private_paths(output)
 
     manifest = {
         "version": MANIFEST_VERSION,
@@ -806,12 +917,24 @@ def build(contract: Contract, sdk: str, plan: Plan, digest: str, rustc: str) -> 
             {"name": pkg.name, "version": pkg.version, "reason": pkg.reason}
             for pkg in plan.of(PackageClass.EXCLUDED)
         ],
+        "private_path_scan": {"clean": True, "files_scanned": scanned},
         "bytes": {
             "app_packages": dir_bytes(output / "app_packages"),
             "python_xcframework": dir_bytes(output / "Python.xcframework"),
         },
     }
     (output / MANIFEST_NAME).write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
+
+
+def check_private_paths(output: Path) -> int:
+    """Fail when anything in *output* names the builder's home or cache; returns the files scanned."""
+    scanned, offenders = scan_private_paths(output, private_needles(Path.home(), cache_dir()))
+    if offenders:
+        raise PayloadError(
+            "payload names the build machine's home or cache directory in:\n  "
+            + "\n  ".join(offenders)
+        )
+    return scanned
 
 
 def sha_matches(copy: Path, original: Path) -> bool:
@@ -866,6 +989,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             and manifest.get("input_digest") == digest
             and (PAYLOAD_DIR / "app_packages").is_dir()
         ):
+            check_private_paths(PAYLOAD_DIR)
             print(f"ios payload up to date ({sdk})")
             return 0
         build(contract, sdk, plan, digest, rustc)
