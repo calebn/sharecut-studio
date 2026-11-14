@@ -47,6 +47,16 @@ OLDER_CONTAINER = "/var/mobile/Containers/Data/Application/OLD-UUID"
 
 
 @pytest.fixture(autouse=True)
+def private_state(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv(
+        "PODCAST_SHARE_IDENTITY", str(tmp_path / "identity" / "share_identity.sqlite")
+    )
+    monkeypatch.setenv(
+        "PODCAST_SHARE_REGISTRY", str(tmp_path / "registry" / "share_registry.sqlite")
+    )
+
+
+@pytest.fixture(autouse=True)
 def project_writes() -> Iterator[None]:
     with write_grant(WriteGrantKind.DISPATCHER):
         yield
