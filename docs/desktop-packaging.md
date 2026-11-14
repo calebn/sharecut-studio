@@ -367,11 +367,17 @@ check, and nobody is contacted. Each subcommand takes `--dry-run`, which prints 
   delivered or was reported as a duplicate. The attempt is written to the record and synced to disk
   before the upload command starts. An attempt with no recorded answer blocks a later `upload` for
   that file with one sentence telling you to check TestFlight for that build number. That covers a
-  run that was interrupted and an upload that could not reach Apple, because the bytes may already
-  have left; the second keeps what Apple's tool said in `last_answer` on the attempt and leaves its
-  outcome empty. `--retry-unknown-upload` goes past the block and is recorded on the new attempt
-  (`retried_unknown_upload`). A finished attempt that Apple rejected does not block. The record can
-  only block an upload, never allow one.
+  run that was interrupted and an upload that got no answer from Apple, because the bytes may
+  already have left; the second keeps what Apple's tool said in `last_answer` on the attempt and
+  leaves its outcome empty. An upload attempt is finished only by an answer Apple itself gave:
+  `altool` exits 0 with a JSON answer, or it prints Apple's structured `product-errors` (a
+  duplicate build, an authentication refusal or a validation or processing rejection) and no
+  transport wording (SSL, DNS, proxy, 5xx, a lost connection) in them. Everything else leaves the
+  attempt unresolved: death by a signal, empty or unparseable output, plain-text errors, a broken
+  pipe, a failed TLS handshake, a proxy page, a timeout, an authentication failure that is not a
+  structured product error. `validate` and the app record lookup change nothing at Apple and keep
+  their looser reading. `--retry-unknown-upload` goes past the block and is recorded on the new
+  attempt (`retried_unknown_upload`). The record can only block an upload, never allow one.
   An "already uploaded" answer from Apple is recorded as `apple_reports_duplicate`; check
   TestFlight, and run `build` again for a new number if the build is not there. Exit codes: 3
   inputs, 4 signing, 5 a local check, 6 Apple rejected, 7 duplicate, 8 other tool failure, 9
