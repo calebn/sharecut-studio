@@ -14,6 +14,15 @@ type CoverAction = {
   busy?: boolean;
 };
 
+function pressProps({ busy, onClick }: CoverAction) {
+  return {
+    onClick: busy ? undefined : onClick,
+    "aria-busy": busy || undefined,
+    "aria-disabled": busy || undefined,
+    title: busy ? BUSY_REASON : undefined,
+  };
+}
+
 export type CoverProps = {
   /** `page`: whole screen with the wordmark symbol. `region`: inside a surface. */
   size: "page" | "region";
@@ -62,13 +71,7 @@ export function Cover({
         {primary || secondary ? (
           <div className="sys-cover-actions">
             {primary ? (
-              <Button
-                variant="primary"
-                onClick={primary.busy ? undefined : primary.onClick}
-                aria-busy={primary.busy || undefined}
-                aria-disabled={primary.busy || undefined}
-                title={primary.busy ? BUSY_REASON : undefined}
-              >
+              <Button variant="primary" {...pressProps(primary)}>
                 {primary.busy ? (
                   <SystemIcon name="progress-ring" size={16} progress={0.3} />
                 ) : null}
@@ -76,13 +79,7 @@ export function Cover({
               </Button>
             ) : null}
             {secondary ? (
-              <Button
-                variant="link"
-                onClick={secondary.busy ? undefined : secondary.onClick}
-                aria-busy={secondary.busy || undefined}
-                aria-disabled={secondary.busy || undefined}
-                title={secondary.busy ? BUSY_REASON : undefined}
-              >
+              <Button variant="link" {...pressProps(secondary)}>
                 {secondary.label}
               </Button>
             ) : null}
