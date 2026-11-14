@@ -441,7 +441,6 @@ export function useRecordUpload(args: UploadArgs): RecordUploadProgress {
       new UploadPoller((event) => {
         switch (event.kind) {
           case "inactive": {
-            // The server's acknowledgement stays true once access ends.
             const acked = ackedTake.current === ackKey(argsRef.current);
             setProgress((prev) =>
               acked ? { ...prev, uploading: false, pending: false } : EMPTY,
