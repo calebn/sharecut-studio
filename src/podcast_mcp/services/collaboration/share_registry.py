@@ -274,15 +274,13 @@ def _apply_schema(connection: sqlite3.Connection) -> None:
     connection.executescript(_SCHEMA)
 
 
-def _decode_workspace(stored: str | None) -> str | None:
+def _decode_workspace(stored: str) -> str | None:
     """The absolute workspace a stored value names, or None when it names no usable folder.
 
     A relative value on a host whose paths never move, and an absolute value that is not under
     the current container, are both unusable: neither is resolved against the working directory
     or an older container.
     """
-    if stored is None:
-        return None
     path = host_platform.from_stored(stored)
     if path is None or not os.path.isabs(path):
         return None
@@ -754,8 +752,7 @@ class SqliteShareRegistry:
                 row
                 for row in self._conn.execute("SELECT * FROM active_shares").fetchall()
                 if _decode_workspace(row["project_workspace"]) is None
-                and (expires := parse_iso(row["expires_at"])) is not None
-                and expires <= moment
+                and share_hard_expired(dict(row), now=moment)
             ]
             for row in dead:
                 self._reserve_revoked(row, "expired", moment, SHARE_COOLDOWN_DAYS)
