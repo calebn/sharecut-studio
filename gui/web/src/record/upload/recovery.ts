@@ -328,41 +328,28 @@ export async function downloadLocalKeeper(
   });
 }
 
-/** True while at least one segment WAV of this participant is still on the device. */
-export async function hasLocalKeeper(
+/**
+ * What this participant still has on the device: whether any segment WAV is
+ * left, and how many segment slots exist, reclaimed ones included.
+ */
+export async function scanLocalKeeper(
   sink: ByteSink,
   sessionId: string,
   participantId: string,
   lastTakeIndex: number,
-): Promise<boolean> {
+): Promise<{ found: boolean; segments: number }> {
+  let found = false;
+  let segments = 0;
   for await (const { wavPath } of keeperSegmentPaths(
     sink,
     sessionId,
     participantId,
     lastTakeIndex,
   )) {
-    if (await keeperBlob(sink, wavPath)) return true;
+    segments += 1;
+    if (!found && (await keeperBlob(sink, wavPath))) found = true;
   }
-  return false;
-}
-
-/** How many segment slots this participant has on the device, reclaimed ones included. */
-export async function countKeeperSegments(
-  sink: ByteSink,
-  sessionId: string,
-  participantId: string,
-  lastTakeIndex: number,
-): Promise<number> {
-  let count = 0;
-  for await (const _ of keeperSegmentPaths(
-    sink,
-    sessionId,
-    participantId,
-    lastTakeIndex,
-  )) {
-    count += 1;
-  }
-  return count;
+  return { found, segments };
 }
 
 export async function downloadLocalKeepers(

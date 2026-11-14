@@ -23,9 +23,7 @@ export function GuestCovers({
   const titleRef = useRef<HTMLHeadingElement>(null);
   const { title } = cover;
   useEffect(() => {
-    if (title) {
-      titleRef.current?.focus();
-    }
+    titleRef.current?.focus();
   }, [title]);
   useEffect(() => {
     if (!onOnline) {
