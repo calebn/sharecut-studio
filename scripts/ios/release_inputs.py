@@ -28,6 +28,8 @@ from podcast_mcp.config.distribution import (
 PROFILE_VARIABLE = "PODCAST_DISTRIBUTION_PROFILE"
 FILE_VARIABLE = "SHARECUT_IOS_RELEASE_ENV"
 SECRET_NAMES = ("APPLE_DEVELOPMENT_TEAM", "APPLE_API_KEY", "APPLE_API_ISSUER", "APPLE_API_KEY_PATH")
+TEAM_SECRETS = SECRET_NAMES[:1]
+KEY_SECRETS = SECRET_NAMES[1:3]
 PLACEHOLDER_TEAM = "AAAAAAAAAA"
 DEV_IDENTIFIER = "studio.sharecut.dev"
 TEN = re.compile(r"^[A-Z0-9]{10}$")
@@ -200,7 +202,7 @@ def resolve_asc_key(
 ) -> tuple[AscKey | None, list[InputProblem]]:
     source = "private file or environment"
     problems = [
-        InputProblem(name, source, "missing") for name in SECRET_NAMES[1:3] if not values.get(name)
+        InputProblem(name, source, "missing") for name in KEY_SECRETS if not values.get(name)
     ]
     key_id, issuer = values.get("APPLE_API_KEY", ""), values.get("APPLE_API_ISSUER", "")
     if key_id and not TEN.fullmatch(key_id):

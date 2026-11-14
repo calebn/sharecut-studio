@@ -29,7 +29,8 @@ from scripts.ios.build_payload import PayloadError, rustup_toolchain_bin
 from scripts.ios.release_classify import Failure
 from scripts.ios.release_deliver import plan_deliver
 from scripts.ios.release_inputs import (
-    SECRET_NAMES,
+    KEY_SECRETS,
+    TEAM_SECRETS,
     Checkout,
     InputError,
     InputProblem,
@@ -140,7 +141,7 @@ def toolchain() -> tuple[str, InputProblem | None]:
 def build(session: Session, unsigned: bool) -> int:
     layout = session.layout
     signing = Signing.NONE if unsigned else Signing.APP_STORE
-    needs = SECRET_NAMES[:1] if signing is Signing.APP_STORE else ()
+    needs = TEAM_SECRETS if signing is Signing.APP_STORE else ()
     values, file_problems = private_values(os.environ, layout.root, Path.home(), needs)
     path, toolchain_problem = toolchain()
     commit, dirty = git_state(layout.root)
@@ -212,7 +213,7 @@ def deliver(
                 )
             ]
         )
-    values, file_problems = private_values(os.environ, layout.root, Path.home(), SECRET_NAMES[1:3])
+    values, file_problems = private_values(os.environ, layout.root, Path.home(), KEY_SECRETS)
     key, key_problems = resolve_asc_key(values, Path.home(), layout.root)
     identity, problems = load_identity(os.environ)
     version, version_problems = marketing_version(layout.root)
