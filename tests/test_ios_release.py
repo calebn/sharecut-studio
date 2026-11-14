@@ -13,7 +13,14 @@ from pathlib import Path
 
 import pytest
 from scripts.ios import bundle_checks as checks
-from scripts.ios import ios_release, release_classify, release_deliver, release_inputs, release_plan
+from scripts.ios import (
+    ios_release,
+    release_classify,
+    release_deliver,
+    release_inputs,
+    release_plan,
+    release_run,
+)
 from scripts.ios import release_record as record_module
 from scripts.ios.release_classify import Failure, Verdict
 from scripts.ios.release_inputs import BuildNumber, Checkout, Identity, InputError, Signing
@@ -837,3 +844,109 @@ def test_the_retry_flag_belongs_to_upload_only() -> None:
     assert parsed.retry_unknown_upload is True
     with pytest.raises(SystemExit):
         ios_release.parser().parse_args(["validate", "--retry-unknown-upload"])
+
+
+GUARD_EXIT = 10
+GOOD_LISTING = json.dumps({"applications": [{"BundleId": "studio.sharecut.app"}]})
+
+
+def drive_upload(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    *,
+    dirty: bool = False,
+    head: str = "a" * 40,
+    ipa_bytes: bytes = b"the ipa",
+    ipa_build: str = "2026.1114.153045",
+    signing: Signing = Signing.APP_STORE,
+) -> tuple[int, list[Command], record_module.ReleaseRecord, Path]:
+    """Run the real upload plan with the Mac-only checks and altool faked."""
+    ipa = tmp_path / "2026.1114.153045.ipa"
+    ipa.write_bytes(b"the ipa")
+    record = make_record(ipa_sha256=record_module.sha256_file(ipa), ipa_name=ipa.name)
+    ipa.write_bytes(ipa_bytes)
+    record_module.write_record(tmp_path, record)
+
+    def plist(ws: release_plan.Workspace, expect: object) -> checks.CheckReport:
+        ws.build_number = ipa_build
+        return checks.CheckReport("info plist")
+
+    def signature(ws: release_plan.Workspace) -> checks.CheckReport:
+        ws.signing = signing
+        return checks.CheckReport("signature")
+
+    monkeypatch.setattr(release_plan, "unpack", lambda ws: tmp_path)
+    monkeypatch.setattr(
+        release_plan, "scan_check", lambda ws, root: checks.CheckReport("path scan")
+    )
+    monkeypatch.setattr(release_plan, "plist_check", plist)
+    monkeypatch.setattr(release_plan, "privacy_check", lambda ws: checks.CheckReport("privacy"))
+    monkeypatch.setattr(release_plan, "signature_check", signature)
+    monkeypatch.setattr(checks, "check_layout", lambda app: checks.CheckReport("bundle layout"))
+
+    ran: list[Command] = []
+
+    def fake_spawn(command: Command, redactor: Redactor, log: Path | None = None):
+        ran.append(command)
+        assert all(isinstance(part, (str, Secret)) for part in command.argv)
+        text = GOOD_LISTING if "--list-apps" in command.argv else ALTOOL_OK
+        staged = [str(p) for p in command.argv if str(p).endswith("app.ipa")]
+        assert all(Path(p).read_bytes() == ipa_bytes for p in staged)
+        return release_run.SpawnResult(0, "", text)
+
+    monkeypatch.setattr(ios_release, "spawn", fake_spawn)
+    expect = checks.PlistExpectation(
+        "studio.sharecut.app", "ShareCut", "0.1.4", record.build_number
+    )
+    steps = release_deliver.plan_deliver(
+        tmp_path,
+        record,
+        fake_key(),
+        LAYOUT,
+        NOISY,
+        "/p",
+        expect,
+        confirm=f"{record.build_number}:{record.ipa_sha256[:12]}",
+        git_state=lambda: (head, dirty),
+    )
+    session = ios_release.Session(tmp_path, dry_run=False)
+    workspace = release_plan.Workspace(out=tmp_path, build_number=record.build_number)
+    try:
+        code = ios_release.execute(session, steps, workspace, tmp_path / "logs")
+    finally:
+        workspace.cleanup()
+    return code, ran, record, ipa
+
+
+def test_an_upload_that_agrees_everywhere_sends_the_staged_copy(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    code, ran, record, ipa = drive_upload(tmp_path, monkeypatch)
+    assert code == 0
+    sent = [c for c in ran if any(a in c.argv for a in ("--validate-app", "--upload-app"))]
+    assert [("--validate-app" in c.argv) for c in sent] == [True, False]
+    for command in sent:
+        file = Path(str(command.argv[command.argv.index("-f") + 1]))
+        assert file != ipa and file.name == "app.ipa"
+        assert file.parent.name.startswith("sharecut-ios-stage-")
+    attempt = record_module.read_record(tmp_path).uploads[0]
+    assert attempt["outcome"]["verdict"] == "ok" and attempt["ipa_sha256"] == record.ipa_sha256
+
+
+@pytest.mark.parametrize(
+    "change",
+    [
+        {"dirty": True},
+        {"head": "f" * 40},
+        {"ipa_bytes": b"another ipa"},
+        {"ipa_build": "2026.1114.153046"},
+        {"signing": Signing.NONE},
+    ],
+    ids=["dirty-tree", "other-head", "other-ipa-bytes", "other-ipa-build", "not-app-store"],
+)
+def test_the_upload_guard_judges_the_ipa_and_the_checkout_not_the_record(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, change: dict[str, object]
+) -> None:
+    code, ran, _, _ = drive_upload(tmp_path, monkeypatch, **change)
+    assert code == GUARD_EXIT != Failure.HYGIENE.value
+    assert ran == []
