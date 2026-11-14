@@ -28,6 +28,8 @@ See [episode-format-v2.md](episode-format-v2.md) § Review comments.
 
 ## Comment MCP tools
 
+Every tool here except `list_comments_tool` and `get_comment_tool` writes the project, and so does every `podcast comment` command except `list` and `get`. They run under the `legacy_comment` write grant, the same label the host comment routes and guest share comment functions use, so the strict write guard accepts them.
+
 | Tool | Purpose |
 |------|---------|
 | `add_comment_tool` | Create instant/span; `track_ids` / `action_texts` optional string lists; `edit_decision_id` opens the unique Ask thread for a pending cut |
