@@ -61,9 +61,11 @@ export function GuestScript({
           : position;
       },
       capture: reading.capture,
-      restore: !reading.following,
+      // A follower holds its view still while lines refresh: it is restored
+      // from where it was looking, as a reader is.
+      restore: !reading.following || refreshing,
     }),
-    [reading, turns],
+    [reading, turns, refreshing],
   );
   const first =
     (typeof playing === "number" ? playing : playing?.[0]) ?? playheadWord;
