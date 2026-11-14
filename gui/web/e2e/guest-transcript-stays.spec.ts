@@ -3,6 +3,7 @@ import {
   expectNoBlankFrame,
   frames,
   hostEdit,
+  painted,
   REASON,
   ROLES,
   SECTION,
@@ -123,7 +124,7 @@ test("a slow word detail leaves the same busy Script, whose held words do not se
       expect(await view.locator(WORD).count()).toBeGreaterThan(0);
 
       await view.locator(WORD).first().click();
-      await view.waitForTimeout(300);
+      await painted(view);
       expect(await seconds(view), "a tap on a held word does not seek").toBe(
         before,
       );
@@ -136,13 +137,13 @@ test("a slow word detail leaves the same busy Script, whose held words do not se
       await expect(section).not.toHaveAttribute("aria-busy", "true", {
         timeout: 15_000,
       });
-      await view.waitForTimeout(500);
+      await painted(view);
       expect(
         await selectedWords(),
         "the same words are still selected after the swap",
       ).toEqual(picked);
       await view.locator(`${WORD}[data-selected]`).first().click();
-      await view.waitForTimeout(300);
+      await painted(view);
       const heard = await seconds(view);
       await bar.getByRole("button", { name: "Comment" }).click();
       const chip = await view
@@ -194,7 +195,7 @@ test("a failed word detail shows the cover with Retry, and Retry brings the word
       await retry.click();
       await expect(view.locator(WORD).first()).toBeVisible({ timeout: 15_000 });
       await expect(retry).toHaveCount(0);
-      await view.waitForTimeout(500);
+      await painted(view);
       const seen = await stopWatch(view);
       expectNoBlankFrame(seen, from, guest.log, "around a failed word detail");
       await expect(view.locator(SECTION)).not.toHaveAttribute(
