@@ -15,7 +15,11 @@ describe("RoomStatusPill", () => {
       "Saving · 2 of 3",
     ],
     [{ kind: "saved" } as const, "Saved"],
-    [{ kind: "reconnecting" } as const, "Reconnecting…"],
+    [
+      { kind: "reconnecting", paused: false, clockSec: 43 } as const,
+      "0:43 · Reconnecting…",
+    ],
+    [{ kind: "reconnecting", paused: true } as const, "Paused · Reconnecting…"],
   ])("says %j in words", (phase, text) => {
     render(<RoomStatusPill phase={phase} />);
     expect(screen.getByText(text)).toBeInTheDocument();
@@ -32,6 +36,31 @@ describe("RoomStatusPill", () => {
     expect(screen.getByText("Paused").closest(".sys-pill")).toHaveClass(
       "sys-pill--compact",
     );
+  });
+
+  it("reads the take clock beside Reconnecting… while a live take reconnects", () => {
+    expect(
+      roomPillRendering({ kind: "reconnecting", paused: false, clockSec: 43 }),
+    ).toEqual({ state: "offline", text: "0:43 · Reconnecting…" });
+  });
+
+  it("reads Paused · Reconnecting… when a paused take reconnects", () => {
+    expect(roomPillRendering({ kind: "reconnecting", paused: true })).toEqual({
+      state: "offline",
+      text: "Paused · Reconnecting…",
+    });
+  });
+
+  it("keeps the compact badge to Reconnecting…", () => {
+    expect(
+      roomPillRendering(
+        { kind: "reconnecting", paused: false, clockSec: 43 },
+        true,
+      ).text,
+    ).toBe("Reconnecting…");
+    expect(
+      roomPillRendering({ kind: "reconnecting", paused: true }, true).text,
+    ).toBe("Reconnecting…");
   });
 
   it("never invents a take number: a live phase without one reads the clock alone", () => {

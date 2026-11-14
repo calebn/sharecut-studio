@@ -234,7 +234,9 @@ describe("roomViewModel dock and rail", () => {
         .showComment,
     ).toBe(true);
     expect(
-      roomViewModel(base({ phase: { kind: "reconnecting" } })).showComment,
+      roomViewModel(
+        base({ phase: { kind: "reconnecting", paused: false, clockSec: 43 } }),
+      ).showComment,
     ).toBe(true);
     expect(roomViewModel(base({ phase: { kind: "saved" } })).showComment).toBe(
       false,
@@ -517,7 +519,11 @@ describe("roomViewModel host", () => {
     const people = [host({ you: true })];
     expect(
       roomViewModel(
-        base({ role: "host", people, phase: { kind: "reconnecting" } }),
+        base({
+          role: "host",
+          people,
+          phase: { kind: "reconnecting", paused: false, clockSec: 43 },
+        }),
       ).record,
     ).toEqual({ face: "idle", disabledReason: "Reconnecting" });
   });

@@ -56,7 +56,10 @@ export const Saving: Story = {
 };
 export const Saved: Story = { args: { phase: { kind: "saved" } } };
 export const Reconnecting: Story = {
-  args: { phase: { kind: "reconnecting" } },
+  args: { phase: { kind: "reconnecting", paused: false, clockSec: 43 } },
+};
+export const ReconnectingPaused: Story = {
+  args: { phase: { kind: "reconnecting", paused: true } },
 };
 export const Compact: Story = {
   args: { phase: { kind: "live", take: 2, clockSec: 724 }, compact: true },

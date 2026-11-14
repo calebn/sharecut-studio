@@ -527,7 +527,7 @@ describe("RoomView as the host", () => {
   });
 
   it("disables Record while the room reconnects", () => {
-    hostRoom({ phase: { kind: "reconnecting" } });
+    hostRoom({ phase: { kind: "reconnecting", paused: false, clockSec: 43 } });
     const record = screen.getByRole("button", { name: "Record" });
     expect(record).toBeDisabled();
     expect(record).toHaveAttribute("title", "Reconnecting");
@@ -651,7 +651,10 @@ describe("RoomView as the host", () => {
         { kind: "saving", savedPeople: 1, totalPeople: 2 },
         "You can join after this take.",
       ],
-      [{ kind: "reconnecting" }, "You can join once the room reconnects."],
+      [
+        { kind: "reconnecting", paused: false, clockSec: 43 },
+        "You can join once the room reconnects.",
+      ],
     ] as const)("holds Join recording during %j", (phase, reason) => {
       renderRoom({ phase, declined: { onJoin: vi.fn() } });
       expect(

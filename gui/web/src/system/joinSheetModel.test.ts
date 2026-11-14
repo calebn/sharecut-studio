@@ -207,7 +207,10 @@ describe("declinedPeek", () => {
     [{ kind: "paused", clockSec: 5 }, DECLINED_TEXT.wait],
     [{ kind: "saving", savedPeople: 1, totalPeople: 2 }, DECLINED_TEXT.wait],
     [{ kind: "saved" }, DECLINED_TEXT.wait],
-    [{ kind: "reconnecting" }, DECLINED_TEXT.reconnecting],
+    [
+      { kind: "reconnecting", paused: false, clockSec: 43 },
+      DECLINED_TEXT.reconnecting,
+    ],
   ] as const)("%j gives %s", (phase, reason) => {
     expect(declinedPeek(phase).disabledReason).toBe(reason);
   });

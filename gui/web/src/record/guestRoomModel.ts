@@ -156,10 +156,13 @@ export function guestRoomPhase(
     upload?: RecordUploadProgress | null;
     /** False for a guest who is not in the take: nothing of theirs is saving. */
     tookPart?: boolean;
+    /** This page's room socket is open. Defaults to true. False on air reads reconnecting. */
+    connected?: boolean;
   } = {},
 ): RoomPhase {
   const phase = hostRoomPhase(snapshot, {
     elapsedSinceSnapshotMs: options.elapsedSinceSnapshotMs,
+    dropped: options.connected === false,
   });
   const { upload } = options;
   if (snapshot?.state === "stopped" && upload) {
