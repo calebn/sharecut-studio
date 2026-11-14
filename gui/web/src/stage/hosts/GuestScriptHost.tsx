@@ -1,6 +1,7 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useShallow } from "zustand/react/shallow";
 import { seekTransport } from "../../commands/seek";
+import type { ShownTranscript } from "../../document/shownTranscript";
 import { useShortViewport } from "../../hooks/useShortViewport";
 import { useViewportClass } from "../../hooks/useViewportClass";
 import { rangeEditMode } from "../../shareMode";
@@ -25,15 +26,18 @@ import {
 
 const NOOP = () => {};
 
-export type GuestScriptHostProps = { reading?: GuestReading };
+export type GuestScriptHostProps = {
+  reading?: GuestReading;
+  shown: ShownTranscript;
+};
 
 function GuestScriptHostAdapter({
   reading: providedReading,
+  shown,
 }: GuestScriptHostProps) {
   const reading = useGuestReading(providedReading);
-  const { utterances, guestMode, projectPath, capabilities } = useDawStore(
+  const { guestMode, projectPath, capabilities } = useDawStore(
     useShallow((s) => ({
-      utterances: s.project?.transcript?.utterances,
       guestMode: s.guestMode,
       projectPath: s.projectPath,
       capabilities: s.shareCapabilities,
@@ -43,7 +47,7 @@ function GuestScriptHostAdapter({
   const [root, setRoot] = useState<HTMLDivElement | null>(null);
   const short = useShortViewport();
   const role = stageRoleOf(guestMode);
-  const script = useMemo(() => guestScriptOf(utterances), [utterances]);
+  const script = useMemo(() => guestScriptOf(shown.rows), [shown.rows]);
   const { turns, wordStarts, words, empty } = script;
   const rangeMode = rangeEditMode(projectPath, capabilities);
   const mayRange = rangeMode !== "none";
@@ -88,6 +92,7 @@ function GuestScriptHostAdapter({
         playheadWord={playheadWord}
         reading={reading}
         empty={empty}
+        refreshing={shown.refreshing}
         onSeek={(seconds) => void seekTransport(seconds)}
         selection={mayRange ? range.selection : undefined}
         onSelect={range.onSelect}

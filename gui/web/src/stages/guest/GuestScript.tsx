@@ -11,16 +11,20 @@ import type {
   WordsSelection,
 } from "../../system/scriptPieces";
 import { GUEST_EMPTY_COPY, type GuestEmpty } from "./guestLogic";
+import { rebaseReading } from "./rebaseReading";
 import { type GuestReading, useGuestReading } from "./useGuestReading";
 
 export type GuestScriptProps = {
   guest?: ScriptGuest;
   layout: "desktop" | "phone";
   turns: readonly ScriptTurn[];
-  wordStarts: readonly number[];
+  /** Where a tap on each word seeks; null for a word whose time is not known yet. */
+  wordStarts: readonly (number | null)[];
   playing: number | readonly number[] | undefined;
   playheadWord?: number;
   empty?: GuestEmpty;
+  /** Some lines are still being refreshed: the pane says so and follow mode holds still. */
+  refreshing?: boolean;
   onSeek: (seconds: number) => void;
   onUserScroll?: () => void;
   /** Given with `onSelect` to a guest who may suggest edits; left out, the pane only reads. */
@@ -30,43 +34,6 @@ export type GuestScriptProps = {
   reading?: GuestReading;
 };
 
-function sameVisibleWords(
-  previous: readonly ScriptTurn[],
-  current: readonly ScriptTurn[],
-) {
-  let previousTurn = 0;
-  let currentTurn = 0;
-  let previousWord = 0;
-  let currentWord = 0;
-  while (true) {
-    while (
-      previousTurn < previous.length &&
-      previousWord === previous[previousTurn].words.length
-    ) {
-      previousTurn += 1;
-      previousWord = 0;
-    }
-    while (
-      currentTurn < current.length &&
-      currentWord === current[currentTurn].words.length
-    ) {
-      currentTurn += 1;
-      currentWord = 0;
-    }
-    const previousItem = previous[previousTurn]?.words[previousWord];
-    const currentItem = current[currentTurn]?.words[currentWord];
-    if (!previousItem || !currentItem) return previousItem === currentItem;
-    if (
-      previousItem.key !== currentItem.key ||
-      previousItem.index !== currentItem.index ||
-      previousItem.text !== currentItem.text
-    )
-      return false;
-    previousWord += 1;
-    currentWord += 1;
-  }
-}
-
 export function GuestScript({
   guest,
   layout,
@@ -75,6 +42,7 @@ export function GuestScript({
   playing,
   playheadWord,
   empty = "none",
+  refreshing = false,
   onSeek,
   onUserScroll,
   selection,
@@ -88,14 +56,8 @@ export function GuestScript({
     () => ({
       getPosition: () => {
         const position = reading.getPosition();
-        if (
-          position?.kind !== "word" ||
-          !position.turns ||
-          position.turns === turns
-        )
-          return position;
-        return sameVisibleWords(position.turns, turns)
-          ? { ...position, turns }
+        return position?.kind === "word"
+          ? rebaseReading(position, turns)
           : position;
       },
       capture: reading.capture,
@@ -106,9 +68,9 @@ export function GuestScript({
   const first =
     (typeof playing === "number" ? playing : playing?.[0]) ?? playheadWord;
   useEffect(() => {
-    if (reading.following && first !== undefined)
+    if (reading.following && !refreshing && first !== undefined)
       pane.current?.scrollToWord(first, "nearest");
-  }, [reading.following, first]);
+  }, [reading.following, refreshing, first]);
   if (turns.length === 0) {
     return (
       <Cover size="region" glyph="inbox" title="Nothing to read yet">
@@ -125,6 +87,7 @@ export function GuestScript({
       playing={playing}
       playheadWord={playheadWord}
       following={reading.following}
+      busy={refreshing}
       selection={selection}
       onSelect={onSelect}
       onPrimary={
@@ -132,14 +95,14 @@ export function GuestScript({
           ? () => {
               const start =
                 wordStarts[Math.min(selection.anchor, selection.head)];
-              if (start !== undefined) onSeek(start);
+              if (start != null) onSeek(start);
             }
           : undefined
       }
       onClearSelection={onClearSelection}
       onSeek={(index) => {
         const start = wordStarts[index];
-        if (start !== undefined) onSeek(start);
+        if (start != null) onSeek(start);
       }}
       onUserScroll={() => {
         reading.setFollowing(false);

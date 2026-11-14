@@ -10,7 +10,6 @@ import { reviewCompletenessOf } from "../../review/reviewCompleteness";
 import { isGuestSession, isShareProjectKey } from "../../shareMode";
 import { GuestListen } from "../../stages/guest/GuestListen";
 import { listenScriptOf } from "../../stages/guest/listenLayout";
-import type { GuestReading } from "../../stages/guest/useGuestReading";
 import { useGuestReading } from "../../stages/guest/useGuestReading";
 import { useDawStore } from "../../state/dawStore";
 import { listenLayoutOf, stageRoleOf } from "../../state/stageRoutes";
@@ -37,12 +36,11 @@ function panelFor(
   card: boolean,
   failure: ReactNode,
   detailRegion: ReactNode,
-  reading: GuestReading,
+  script: ReactNode,
 ) {
   // Guest on a wide shell: Player card, composer, transcript in one column.
   // Otherwise the transcript sits above the Queue; a load failure takes the
   // transcript's place (guest) or the queue's (host), never the whole body.
-  const script = scripted ? <GuestScriptHost reading={reading} /> : null;
   return (
     <>
       {card ? null : (detailRegion ?? (failure && scripted ? failure : script))}
@@ -124,6 +122,10 @@ function ReviewHostAdapter({
     <div className="stage-host-guest-feedback">{detailRegion}</div>
   ) : null;
   const scripted = guest && (loadFailure != null || detail.kind === "ready");
+  const script =
+    scripted && detail.kind === "ready" ? (
+      <GuestScriptHost reading={reading} shown={detail.shown} />
+    ) : null;
   const panel = listening ? (
     <GuestListen
       review={queue.stageProps}
@@ -132,7 +134,7 @@ function ReviewHostAdapter({
         detail: detail.kind,
         hasTranscript: (project?.transcript?.utterances?.length ?? 0) > 0,
       })}
-      script={feedback ?? failure ?? <GuestScriptHost reading={reading} />}
+      script={feedback ?? failure ?? script}
     />
   ) : (
     panelFor(
@@ -142,7 +144,7 @@ function ReviewHostAdapter({
       placement === "card",
       failure,
       feedback,
-      reading,
+      script,
     )
   );
   return (

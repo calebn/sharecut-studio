@@ -110,6 +110,24 @@ describe("GuestScript", () => {
     expect(document.querySelectorAll("[data-playing]")).toHaveLength(2);
   });
 
+  it("does nothing when a word with no known time is tapped", async () => {
+    const { onSeek } = setup({
+      wordStarts: WORD_STARTS.map((start, index) =>
+        index === 1 ? null : start,
+      ),
+    });
+    const held = SCRIPT_TURNS[0]?.words[1];
+    await userEvent.click(
+      screen.getByRole("button", { name: held?.text as string }),
+    );
+    expect(onSeek).not.toHaveBeenCalled();
+    const live = SCRIPT_TURNS[0]?.words[2];
+    await userEvent.click(
+      screen.getByRole("button", { name: live?.text as string }),
+    );
+    expect(onSeek).toHaveBeenCalledExactlyOnceWith(WORD_STARTS[2]);
+  });
+
   it("seeks to the start of the clicked word", async () => {
     const { onSeek } = setup();
     const first = SCRIPT_TURNS[0]?.words[1];
@@ -317,6 +335,19 @@ describe("GuestScript following", () => {
     await userEvent.click(toggle);
     expect(toggle).toHaveAttribute("aria-pressed", "true");
     expect(probe?.calls).toEqual([[textOf(1), NEAREST]]);
+  });
+
+  it("does not scroll while lines are refreshing, and scrolls to the playing word when they land", () => {
+    const { rerender } = view({ playing: undefined, refreshing: true });
+    probe?.clear();
+    rerender({ playing: 3, refreshing: true });
+    expect(probe?.calls).toEqual([]);
+    expect(
+      document.querySelector(".sys-script[aria-busy='true']"),
+    ).not.toBeNull();
+    rerender({ playing: 3, refreshing: false });
+    expect(probe?.calls).toEqual([[textOf(3), NEAREST]]);
+    expect(document.querySelector(".sys-script[aria-busy]")).toBeNull();
   });
 
   it("tells its host when the guest scrolls the Script themselves", () => {

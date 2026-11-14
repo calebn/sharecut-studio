@@ -9,9 +9,9 @@ import {
   EDITOR_CAPABILITIES,
   VIEWER_CAPABILITIES,
 } from "../../test/fixtures";
+import { StoredGuestScriptHost } from "../../test/StoredGuestScriptHost";
 import { seedScript } from "../../test/scriptHostKit";
 import { stubViewportShell } from "../../test/viewportShell";
-import { GuestScriptHost } from "./GuestScriptHost";
 
 vi.mock("../../api/documentEdits", async (orig) => ({
   ...(await orig<typeof import("../../api/documentEdits")>()),
@@ -72,7 +72,7 @@ afterEach(() => {
 describe("the guest selection bar", () => {
   it("offers a commenter Comment and Suggest a cut over a word selection", async () => {
     as("comment", COMMENTER_CAPABILITIES);
-    render(<GuestScriptHost />);
+    render(<StoredGuestScriptHost />);
     expect(bar()).toBeNull();
     select();
     expect(bar()).toBeInTheDocument();
@@ -84,7 +84,7 @@ describe("the guest selection bar", () => {
   it("sends the cut as a suggestion for review and says so", async () => {
     as("comment", COMMENTER_CAPABILITIES);
     vi.mocked(submitDocumentCommand).mockResolvedValue({} as never);
-    render(<GuestScriptHost />);
+    render(<StoredGuestScriptHost />);
     select();
     await userEvent.click(
       screen.getByRole("button", { name: "Suggest a cut" }),
@@ -98,14 +98,14 @@ describe("the guest selection bar", () => {
 
   it("gives a viewer no bar and no Comment control", () => {
     as("view", VIEWER_CAPABILITIES);
-    render(<GuestScriptHost />);
+    render(<StoredGuestScriptHost />);
     select();
     expect(bar()).toBeNull();
   });
 
   it("names an editor's cut Cut, since it applies", () => {
     as("edit", EDITOR_CAPABILITIES);
-    render(<GuestScriptHost />);
+    render(<StoredGuestScriptHost />);
     select();
     expect(screen.getByRole("button", { name: "Cut" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Suggest a cut" })).toBeNull();
