@@ -17,6 +17,7 @@ from sentinel_home import (
 def test_the_session_home_is_not_the_developers_home(_sentinel_home: Path) -> None:
     assert Path.home() == _sentinel_home
     assert Path(os.environ["HOME"]) == _sentinel_home
+    assert Path(os.environ["USERPROFILE"]) == _sentinel_home
     assert host_platform.data_roots().state.is_relative_to(_sentinel_home)
 
 
@@ -178,5 +179,20 @@ def test_the_session_defaults_and_cache_passthrough_apply(tmp_path: Path) -> Non
             "USERPROFILE": str(real),
             "PODCAST_SHARE_REGISTRY": str(tmp_path / "job.sqlite"),
         },
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+
+
+def test_a_default_preset_inside_the_real_home_is_replaced(tmp_path: Path) -> None:
+    real = tmp_path / "realhome"
+    real.mkdir()
+    inside = real / "mine.sqlite"
+    result = _run_session(
+        tmp_path,
+        "def test_env():\n"
+        "    home = Path(os.environ['HOME'])\n"
+        "    assert not Path(os.environ['PODCAST_SHARE_REGISTRY']).is_relative_to(home)\n"
+        f"    assert os.environ['PODCAST_SHARE_REGISTRY'] != {str(inside)!r}\n",
+        {"HOME": str(real), "USERPROFILE": str(real), "PODCAST_SHARE_REGISTRY": str(inside)},
     )
     assert result.returncode == 0, result.stdout + result.stderr
