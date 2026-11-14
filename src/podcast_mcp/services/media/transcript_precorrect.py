@@ -4,7 +4,7 @@ from collections.abc import Iterator
 from contextlib import contextmanager
 from copy import deepcopy
 from pathlib import Path
-from typing import Any
+from typing import Any, TypedDict
 
 from filelock import Timeout
 
@@ -30,6 +30,18 @@ from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.util.coded_error import CodedValueError
 from podcast_mcp.util.progress import ProgressReporter, resolve_progress
 from podcast_mcp.util.project_state import TRANSCRIPT_CONTEXT_BUSY_MESSAGE
+
+
+class StaleTrackRow(TypedDict):
+    track_id: str
+    name: str
+    recorded: str
+
+
+class LanguageStatus(TypedDict):
+    language: str | None
+    stale_tracks: list[StaleTrackRow]
+    edited_stale_tracks: list[StaleTrackRow]
 
 
 class VocabularyConflictError(RuntimeError):
@@ -128,7 +140,7 @@ class TranscriptPrecorrectService:
         return _vocabulary_response(load_transcript_context(state.workspace), state)
 
     @staticmethod
-    def language_status(project_path: Path | str, language: str | None) -> dict[str, Any]:
+    def language_status(project_path: Path | str, language: str | None) -> LanguageStatus:
         """Tracks whose transcript was made in a language other than ``language``.
 
         ``edited_stale_tracks`` is the subset with hand fixes, which a run keeps unless the
@@ -139,7 +151,7 @@ class TranscriptPrecorrectService:
         collapse to one row, edited if any of them is, and the first recorded language is reported.
         """
         project = ProjectStore(resolve_project_path(project_path)).load()
-        stale: dict[str, dict[str, str]] = {}
+        stale: dict[str, StaleTrackRow] = {}
         edited: set[str] = set()
         by_id = {t.id: t for t in project.tracks}
         for transcript in project.transcripts:
