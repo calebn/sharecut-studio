@@ -532,27 +532,32 @@ def test_validate_and_upload_plans_differ_by_the_guard_and_the_upload(tmp_path: 
         *arguments, confirm=record.token(), git_state=lambda: ("a" * 40, False)
     )
     assert [s.name for s in validate] == [
-        "app record",
         "stage ipa",
         "path scan",
         "info plist",
         "bundle layout",
         "privacy",
         "signature",
+        "app record",
         "validate",
     ]
-    assert [s.name for s in upload][-5:] == [
+    assert [s.name for s in upload][-6:] == [
         "signature",
         "upload guard",
+        "app record",
         "validate",
         "record upload attempt",
         "upload",
     ]
+    for plan in (validate, upload):
+        first = next(i for i, step in enumerate(plan) if step.contacts_apple)
+        assert not any(step.contacts_apple for step in plan[:first])
+        assert {s.name for s in plan[:first]} >= {"signature"}
     assert (
         sum("--upload-app" in s.command.argv for s in upload if isinstance(s, release_plan.Run))
         == 1
     )
-    lookup = validate[0].command
+    lookup = validate[-2].command
     assert lookup.argv[1:6] == (
         "altool",
         "--list-apps",
@@ -727,3 +732,23 @@ def test_validate_without_a_build_or_key_is_an_input_error(
     monkeypatch.setenv("SHARECUT_IOS_RELEASE_ENV", str(tmp_path / "missing.env"))
     assert ios_release.main(["validate", "--dry-run"]) == Failure.INPUT.value
     assert "APPLE_API_KEY (private file or environment): missing" in capsys.readouterr().out
+
+
+@pytest.mark.parametrize("command", [["validate"], ["upload", "--confirm", "x:y"]])
+def test_an_unsigned_rehearsal_is_refused_before_anything_is_run(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    command: list[str],
+) -> None:
+    record = stage_deliver(tmp_path, monkeypatch)
+    release_root = tmp_path / "repo/gui/desktop/src-tauri/target/ios-release"
+    rehearsal = make_record(build_number="2026.1115.1", signing="none")
+    (release_root / rehearsal.build_number).mkdir()
+    record_module.write_record(release_root / rehearsal.build_number, rehearsal)
+    ran: list[Command] = []
+    monkeypatch.setattr(ios_release, "spawn", lambda cmd, *rest: ran.append(cmd))
+    assert ios_release.main(command) == Failure.INPUT.value
+    out = capsys.readouterr().out
+    assert ran == [] and "unsigned rehearsal and cannot be sent to Apple" in out
+    assert "build (2026.1115.1)" in out and record.build_number not in out
