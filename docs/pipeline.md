@@ -229,7 +229,7 @@ Each step returns a short human-readable **summary** (counts of tracks, cuts, su
 
 ## Configurable run (GUI / MCP)
 
-Prepare stages these switches per episode in the current GUI/MCP host process. They reset to defaults when that process restarts and are not stored in the episode file. The browser's **New projects start with this** preference survives in localStorage and applies only when Home creates a new episode; it is not reapplied to an existing episode after a host restart.
+Prepare stages these switches per episode in the current GUI/MCP host process. They reset to defaults when that process restarts and are not stored in the episode file. The browser's **New projects start with this** preference is On unless the person chose Off. It survives in localStorage and applies only when Home creates a new episode; it is not reapplied to an existing episode after a host restart.
 
 Prepare calls `apply_sound_actions` **Apply sound actions**. Its switch controls automatic application, not all sound discovery. Turning it off leaves `analyze_fillers_pauses` free to discover acoustic suggestions when that analysis is enabled. It is the second step under **Find suggestions** in Advanced, so skipping the Find suggestions row on a plan skips both steps. Its cost hint is conditional because the step can reuse proposals generated earlier in the same run. The new-audio plan resolves each row against saved enabled steps and its config gate. Session-disabled rows say **Off in Advanced** without Skip or Include; partially enabled groups list only the operations that will run.
 
