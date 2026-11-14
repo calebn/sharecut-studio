@@ -25,9 +25,7 @@ from podcast_mcp.services.document_sync import (
     submit_host_document_command,
     submit_paste_segment,
 )
-from podcast_mcp.services.jobs import run_audio_edit
 from podcast_mcp.util.coded_error import CodedValueError
-from podcast_mcp.util.project_state import REQUEST_RENDER_LOCK_TIMEOUT_SEC
 from podcast_mcp.util.tracks import resolve_track
 
 
@@ -975,94 +973,6 @@ def apply_fade_recommendations_tool(
     )
 
 
-def mute_off_speaker_tool(
-    project_path: str,
-    track_id: str | None = None,
-    speaker: str | None = None,
-    apply: bool = True,
-    dry_run: bool = False,
-) -> str:
-    """Mute a track wherever another speaker is talking and its own speaker is not.
-
-    Use after transcript reconcile on a call recording whose track still carries another
-    person's voice. A stretch is muted when another dialogue track has words there, this
-    track has none, and this track holds nothing louder than a copy of that speaker.
-    Each stretch is a visible muted region in Studio (Restore brings it back); History
-    undoes the whole command. Preview with ``dry_run=true``.
-    """
-    ws = ProjectWorkspace.open(project_path)
-    if not apply or dry_run:
-        return to_json(
-            AnalysisService(ws).preview_off_speaker_mute(track_id=track_id, speaker=speaker)
-        )
-    return to_json(
-        run_audio_edit(
-            ws,
-            "mute_off_speaker",
-            {"track_id": track_id, "speaker": speaker},
-            lock_timeout=REQUEST_RENDER_LOCK_TIMEOUT_SEC,
-        )
-    )
-
-
-def align_retained_bleed_tool(
-    project_path: str,
-    track_id: str | None = None,
-    start_sec: float | None = None,
-    end_sec: float | None = None,
-    apply: bool = True,
-    override_placement_lock: bool = False,
-) -> str:
-    """Align supported complete direct phrases locally while keeping uncertain audio intact.
-
-    Preview with apply=False. Saved manual/declined decisions take priority.
-    Legacy placement overrides require an explicit timeline window.
-    """
-    ws = ProjectWorkspace.open(project_path)
-    params: dict[str, Any] = {
-        "track_id": track_id,
-        "start_sec": start_sec,
-        "end_sec": end_sec,
-        "override_placement_lock": override_placement_lock,
-    }
-    if not apply:
-        return to_json(AnalysisService(ws).preview_retained_bleed_alignment(**params))
-    return to_json(
-        run_audio_edit(
-            ws, "align_retained_bleed", params, lock_timeout=REQUEST_RENDER_LOCK_TIMEOUT_SEC
-        )
-    )
-
-
-def set_retained_bleed_alignment_mode_tool(
-    project_path: str,
-    decision_id: str,
-    mode: Literal["auto", "manual", "declined"],
-    track_id: str | None = None,
-    start_sec: float | None = None,
-    end_sec: float | None = None,
-    override_placement_lock: bool = False,
-) -> str:
-    """Save a timing choice for an applied decision or a proposal from the same window.
-
-    Manual and declined choices prevent later automatic correction; auto resets that choice.
-    """
-    return to_json(
-        submit_host_command_result(
-            project_path,
-            "SetBleedAlignmentMode",
-            {
-                "decision_id": decision_id,
-                "mode": mode,
-                "track_id": track_id,
-                "start_sec": start_sec,
-                "end_sec": end_sec,
-                "override_placement_lock": override_placement_lock,
-            },
-        )
-    )
-
-
 def register(mcp: MCPServer) -> None:
     """Register timeline tools on the MCP server."""
     mutating = {
@@ -1091,7 +1001,6 @@ def register(mcp: MCPServer) -> None:
         remove_effect_tool,
         set_effect_bypass_tool,
         apply_fade_recommendations_tool,
-        set_retained_bleed_alignment_mode_tool,
     }
     mutating.discard(split_clip_tool)  # uses DocumentSyncService.submit
     mutating.discard(shorten_gaps_tool)
@@ -1150,8 +1059,5 @@ def register(mcp: MCPServer) -> None:
         audio_diagnostics_tool,
         recommend_fades_tool,
         apply_fade_recommendations_tool,
-        mute_off_speaker_tool,
-        align_retained_bleed_tool,
-        set_retained_bleed_alignment_mode_tool,
     ):
         mcp.tool()(notify_after_mutation(fn) if fn in mutating else fn)

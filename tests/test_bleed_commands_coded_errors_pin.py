@@ -11,7 +11,6 @@ from typer.testing import CliRunner
 from podcast_mcp.cli.main import app
 from podcast_mcp.engines.lane_words import requested_word_keys
 from podcast_mcp.gui.server import create_app
-from podcast_mcp.mcp.tools import timeline
 from podcast_mcp.mcp.tools import transcript as mcp_transcript
 from podcast_mcp.services.document import AnalysisService
 from podcast_mcp.services.document_sync import (
@@ -163,7 +162,7 @@ def test_cli_malformed_words_json_is_a_coded_error(tmp_path, extra):
 @pytest.mark.parametrize(
     "call",
     [
-        lambda path: timeline.set_retained_bleed_alignment_mode_tool(str(path), "d", "x"),  # type: ignore[arg-type]
+        lambda path: mcp_transcript.set_retained_bleed_alignment_mode_tool(str(path), "d", "x"),  # type: ignore[arg-type]
         lambda path: submit_host_document_command(
             path, "SetBleedAlignmentMode", {"decision_id": "d", "mode": "x"}
         ),
@@ -290,11 +289,13 @@ def test_gap_fill_suppress_bleed_journals_one_row_through_the_plane(tmp_path):
 
 def test_gap_fill_set_bleed_alignment_mode_journals_one_row_through_the_plane(tmp_path):
     ws = _workspace(tmp_path)
-    preview = json.loads(timeline.align_retained_bleed_tool(str(ws.path), **WINDOW, apply=False))
+    preview = json.loads(
+        mcp_transcript.align_retained_bleed_tool(str(ws.path), **WINDOW, apply=False)
+    )
     assert _journal_types(ws.path) == []
     decision_id = preview["proposals"][0]["decision_id"]
     reply = json.loads(
-        timeline.set_retained_bleed_alignment_mode_tool(
+        mcp_transcript.set_retained_bleed_alignment_mode_tool(
             str(ws.path), decision_id, "declined", **WINDOW
         )
     )
