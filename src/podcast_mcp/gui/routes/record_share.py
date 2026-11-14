@@ -256,7 +256,7 @@ async def record_ws(
                         continue
                     echo, snap = await run_in_threadpool(
                         svc.join,
-                        token=token,
+                        share_id=share_id,
                         role=role,
                         display_name=str(
                             payload.get("display_name") or name or f"Guest {token[:6]}"
@@ -366,7 +366,7 @@ async def record_ws(
 
 def _guest_upload_ctx(
     token: str,
-) -> tuple[RecordUploadService, RecordSessionService, str, ProjectWorkspace]:
+) -> tuple[RecordUploadService, RecordSessionService, str, str, ProjectWorkspace]:
     row = lookup_share(token, kind=SHARE_KIND_RECORD)
     if not has_capability(row.get("capabilities"), CAP_JOIN):
         raise CodedPermissionError("join capability required", code="record_join_required")
@@ -378,15 +378,16 @@ def _guest_upload_ctx(
         RecordUploadService(ws.project),
         RecordSessionService(ws.project, session_id=session_id),
         session_id,
+        share_id_of(row),
         ws,
     )
 
 
 def _require_guest_lease(
-    svc: RecordSessionService, token: str, participant_id: str, lease: str
+    svc: RecordSessionService, share_id: str, participant_id: str, lease: str
 ) -> str:
     pid = parse_participant_id(participant_id)
-    if not lease or not svc.verify_lease(pid, lease, token=token):
+    if not lease or not svc.verify_lease(pid, lease, share_id=share_id):
         raise CodedPermissionError("invalid lease", code="invalid_lease")
     return pid
 
@@ -409,8 +410,8 @@ def get_record_upload_status(
     check_share_token(token, kind=SHARE_KIND_RECORD)
     rate_limit_share(token, "read")
     with guest_boundary(log, "record upload"):
-        uploader, session, session_id, _ws = _guest_upload_ctx(token)
-        pid = _require_guest_lease(session, token, x_record_participant, x_record_lease)
+        uploader, session, session_id, share_id, _ws = _guest_upload_ctx(token)
+        pid = _require_guest_lease(session, share_id, x_record_participant, x_record_lease)
         return uploader.status(session_id=session_id, participant_id=pid)
 
 
@@ -435,12 +436,12 @@ async def post_record_upload(
     check_share_token(token, kind=SHARE_KIND_RECORD)
     rate_limit_share(token, "mutate")
     with guest_boundary(log, "record upload"):
-        uploader, session, session_id, ws = _guest_upload_ctx(token)
-        pid = _require_guest_lease(session, token, x_record_participant, x_record_lease)
+        uploader, session, session_id, share_id, ws = _guest_upload_ctx(token)
+        pid = _require_guest_lease(session, share_id, x_record_participant, x_record_lease)
         _require_guest_upload_consent(session, pid, kind, take_index)
 
         def before_ingest() -> None:
-            _require_guest_lease(session, token, x_record_participant, x_record_lease)
+            _require_guest_lease(session, share_id, x_record_participant, x_record_lease)
             _require_guest_upload_consent(session, pid, kind, take_index)
 
         return await ingest_record_upload_request(
@@ -475,8 +476,8 @@ def delete_record_upload(
     check_share_token(token, kind=SHARE_KIND_RECORD)
     rate_limit_share(token, "mutate")
     with guest_boundary(log, "record upload"):
-        uploader, session, session_id, _ws = _guest_upload_ctx(token)
-        pid = _require_guest_lease(session, token, x_record_participant, x_record_lease)
+        uploader, session, session_id, share_id, _ws = _guest_upload_ctx(token)
+        pid = _require_guest_lease(session, share_id, x_record_participant, x_record_lease)
         parsed = parse_upload_kind(kind)
         if parsed != UPLOAD_KIND_ROOM_TONE:
             raise CodedValueError("only room_tone can be revoked", code="record_upload_refused")

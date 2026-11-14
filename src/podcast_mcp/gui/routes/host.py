@@ -213,7 +213,6 @@ async def host_ws(
         try:
             echo, snapshot = await run_in_threadpool(
                 record.join,
-                token="",
                 role="host",
                 display_name=label or "Host",
                 client_id=f"record-join:{client_id}",

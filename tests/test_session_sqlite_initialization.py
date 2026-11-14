@@ -69,8 +69,8 @@ def test_wal_initialization_does_not_disturb_active_writer(tmp_path: Path) -> No
     with closing(sqlite3.connect(path, isolation_level=None)) as writer:
         writer.execute("BEGIN IMMEDIATE")
         writer.execute(
-            "INSERT INTO record_participants VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-            ("p1", "s", "t", "guest", "A", "l", 1, 1, 1),
+            "INSERT INTO record_participant_leases VALUES (?, ?, ?, ?, ?)",
+            ("p1", "s", "share", "l", 1),
         )
         with closing(RecordParticipantStore(path)) as connection:
             assert connection._conn.execute("PRAGMA journal_mode").fetchone()[0] == "wal"

@@ -76,7 +76,7 @@ def _ack(ws, room, pid: str, take: int, *, seconds: float = 0.5) -> None:
 
 def _join_guest(svc, room, name: str, i: int) -> str:
     echo, _snap = svc.join(
-        token=room["guest"]["token"],
+        share_id=room["guest"]["id"],
         role="guest",
         display_name=name,
         client_id=f"rec-guest-{i}",

@@ -178,7 +178,7 @@ def test_guest_consent_seq_not_collapsed_by_host_cli_seq(
         ctrl.pause()
     svc = RecordSessionService(ws.project, session_id=room["session_id"])
     echo, _snap = svc.join(
-        token=room["guest"]["token"],
+        share_id=room["guest"]["id"],
         role="guest",
         display_name="Ava",
         client_id="rec-guest",
@@ -271,7 +271,7 @@ def test_removed_guest_signal_dispatch_rejected(
     ws, room, _client = _room(minimal_project, sample_wav, tmp_workspace, monkeypatch)
     svc = RecordSessionService(ws.project, session_id=room["session_id"])
     echo, _snap = svc.join(
-        token=room["guest"]["token"],
+        share_id=room["guest"]["id"],
         role="guest",
         display_name="Ava",
         client_id="rec-ava",
@@ -327,9 +327,9 @@ def test_signal_and_removal_share_one_room_decision(
 
     ws, room, _client = _room(minimal_project, sample_wav, tmp_workspace, monkeypatch)
     svc = RecordSessionService(ws.project, session_id=room["session_id"])
-    token = room["guest"]["token"]
+    share_id = room["guest"]["id"]
     ava, _ = svc.join(
-        token=token,
+        share_id=share_id,
         role="guest",
         display_name="Ava",
         client_id="ava",
@@ -338,7 +338,7 @@ def test_signal_and_removal_share_one_room_decision(
         client_seq=1,
     )
     bea, _ = svc.join(
-        token=token,
+        share_id=share_id,
         role="guest",
         display_name="Bea",
         client_id="bea",
@@ -858,7 +858,7 @@ def test_second_record_room_starts_in_lobby(
     ws, room, _client = _room(minimal_project, sample_wav, tmp_workspace, monkeypatch)
     svc = RecordSessionService(ws.project, session_id=room["session_id"])
     echo, _snap = svc.join(
-        token=room["guest"]["token"],
+        share_id=room["guest"]["id"],
         role="guest",
         display_name="Ava",
         client_id="rec-guest",
@@ -901,7 +901,7 @@ def test_stale_disconnect_does_not_leave_rejoined_guest(
     ws, room, _client = _room(minimal_project, sample_wav, tmp_workspace, monkeypatch)
     svc = RecordSessionService(ws.project, session_id=room["session_id"])
     echo, _snap = svc.join(
-        token=room["guest"]["token"],
+        share_id=room["guest"]["id"],
         role="guest",
         display_name="Ava",
         client_id="rec-guest",
@@ -913,7 +913,7 @@ def test_stale_disconnect_does_not_leave_rejoined_guest(
     lease = echo["lease"]
     release_connection(pid, "c1", hub_key=record_hub_key(ws.project))
     svc.join(
-        token=room["guest"]["token"],
+        share_id=room["guest"]["id"],
         role="guest",
         display_name="Ava",
         participant_id=pid,
@@ -1065,6 +1065,7 @@ def test_guest_ws_invalid_lease_and_room_full(
 ):
     ws, room, client = _room(minimal_project, sample_wav, tmp_workspace, monkeypatch)
     token = room["guest"]["token"]
+    share_id = room["guest"]["id"]
     with client.websocket_connect(f"/api/rec/{token}/ws") as sock:
         _join(sock, name="Ava", participant_id="p_nope", lease="not-a-lease")
         err = _drain_until(sock, lambda m: m.get("type") == "Error")
@@ -1072,7 +1073,7 @@ def test_guest_ws_invalid_lease_and_room_full(
     svc = RecordSessionService(ws.project, session_id=room["session_id"])
     for i in range(3):
         svc.join(
-            token=token,
+            share_id=share_id,
             role="guest",
             display_name=f"G{i}",
             client_id=f"fill-{i}",
@@ -1084,7 +1085,6 @@ def test_guest_ws_invalid_lease_and_room_full(
         err = _drain_until(fifth, lambda m: m.get("type") == "Error")
         assert err["code"] == "room_full"
     echo, _snap = svc.join(
-        token="",
         role="host",
         display_name="Host",
         client_id="host-after-guests",
@@ -1272,7 +1272,7 @@ def test_record_service_helpers(minimal_project, sample_wav, tmp_workspace, monk
     release_connection("p_grace", "c2", hub_key=hub)
     with pytest.raises(RecordAuthzError, match="invalid_lease"):
         svc.join(
-            token=room["guest"]["token"],
+            share_id=room["guest"]["id"],
             role="guest",
             display_name="Ava",
             participant_id="p_nope",
@@ -1324,9 +1324,9 @@ def test_join_lease_validation_and_removal_share_one_room_decision(
 
     ws, room, _client = _room(minimal_project, sample_wav, tmp_workspace, monkeypatch)
     svc = RecordSessionService(ws.project, session_id=room["session_id"])
-    token = room["guest"]["token"]
+    share_id = room["guest"]["id"]
     echo, _snap = svc.join(
-        token=token,
+        share_id=share_id,
         role="guest",
         display_name="Ava",
         client_id="first",
@@ -1340,16 +1340,16 @@ def test_join_lease_validation_and_removal_share_one_room_decision(
     removal_started = Event()
     real_verify = svc.verify_lease
 
-    def paused_verify(participant_id, lease, *, token):
+    def paused_verify(participant_id, lease, *, share_id):
         entered.set()
         assert release.wait(3)
-        return real_verify(participant_id, lease, token=token)
+        return real_verify(participant_id, lease, share_id=share_id)
 
     monkeypatch.setattr(svc, "verify_lease", paused_verify)
 
     def rejoin():
         return svc.join(
-            token=token,
+            share_id=share_id,
             role="guest",
             display_name="Ava",
             participant_id=echo["participant_id"],
@@ -1449,7 +1449,6 @@ def test_host_refcount_touch_stale_connection_and_sid_cache(
     assert first == again == room["session_id"]
 
     echo, _snap = svc.join(
-        token="",
         role="host",
         display_name="Host",
         client_id="host-ref",
@@ -1487,7 +1486,7 @@ def test_host_refcount_touch_stale_connection_and_sid_cache(
     assert release_connection(HOST_PARTICIPANT_ID, "ghost", hub_key="no-hub") is True
 
     guest, _ = svc.join(
-        token=room["guest"]["token"],
+        share_id=room["guest"]["id"],
         role="guest",
         display_name="Ava",
         client_id="g-ref",
@@ -1850,14 +1849,15 @@ def test_invite_closed_closes_the_socket_with_4403(
 def test_join_mint_raises_invite_closed(minimal_project, sample_wav, tmp_workspace, monkeypatch):
     ws, room, client = _room(minimal_project, sample_wav, tmp_workspace, monkeypatch)
     token = room["guest"]["token"]
+    share_id = room["guest"]["id"]
     a, _b = _join_two(client, token)
     _remove(client, ws, a["participant_id"])
     svc = RecordSessionService(ws.project, session_id=room["session_id"])
-    assert svc.invite_closed(token) is True
-    assert svc.invite_closed(room["producer"]["token"]) is False
+    assert svc.invite_closed(share_id) is True
+    assert svc.invite_closed(room["producer"]["id"]) is False
     with pytest.raises(RecordAuthzError, match="invite_closed"):
         svc.join(
-            token=token,
+            share_id=share_id,
             role="guest",
             display_name="Cy",
             client_id="c1",
@@ -2331,3 +2331,17 @@ def test_a_failed_record_pump_and_the_task_label_name_the_share_not_the_token(
     assert pump
     assert all(token not in r.getMessage() and "share=" in r.getMessage() for r in pump)
     assert token[:8] not in caplog.text
+
+
+def test_a_lease_does_not_cross_links(minimal_project, sample_wav, tmp_workspace, monkeypatch):
+    _ws, room, client = _room(minimal_project, sample_wav, tmp_workspace, monkeypatch)
+    a, _b = _join_two(client, room["guest"]["token"])
+    with client.websocket_connect(f"/api/rec/{room['producer']['token']}/ws") as sock:
+        _join(sock, name="Ava", participant_id=a["participant_id"], lease=a["lease"])
+        err = _drain_until(sock, lambda m: m.get("type") == "Error")
+        assert err["code"] == "invalid_lease"
+    crossed = client.get(
+        f"/api/rec/{room['producer']['token']}/upload",
+        headers={"X-Record-Participant": a["participant_id"], "X-Record-Lease": a["lease"]},
+    )
+    assert crossed.status_code == 403
