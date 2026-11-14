@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { type Browser, expect, type Page, test } from "@playwright/test";
 import {
   anchoringOff,
   BODY,
@@ -71,71 +71,85 @@ test("a scrolled reader's word stays where it was through a host cut above it", 
   );
 });
 
-for (const mode of ["paused", "playing"] as const) {
-  test(`a following guest, ${mode}, keeps its view still while the Script refreshes`, async ({
+async function followerHoldsStill(
+  browser: Browser,
+  page: Page,
+  mode: "paused" | "playing",
+) {
+  await withGuest(
     browser,
     page,
-  }) => {
-    await withGuest(
-      browser,
-      page,
-      { role: "viewer", size: SHORT_PHONE },
-      async (guest) => {
-        const { page: view } = guest;
-        const body = view.locator(BODY);
+    { role: "viewer", size: SHORT_PHONE },
+    async (guest) => {
+      const { page: view } = guest;
+      const body = view.locator(BODY);
+      expect(
+        (await bodyOverflows(body)).over,
+        "the Script must overflow to scroll",
+      ).toBeGreaterThan(100);
+      await anchoringOff(view);
+      const tapped = view.locator(WORD).nth(-26);
+      const playheadPlace = await tapped.evaluate((el) => {
+        const turn = el.closest("[data-turn-id]");
+        const nth = [
+          ...(turn?.querySelectorAll("[data-word-key]") ?? []),
+        ].indexOf(el);
+        return `${turn?.getAttribute("data-turn-id")}|${nth}`;
+      });
+      await tapped.click();
+      await expect
+        .poll(async () => (await bodyOverflows(body)).over)
+        .toBeGreaterThan(100);
+      if (mode === "playing") {
+        await view.getByRole("button", { name: "Play", exact: true }).click();
+        await expect(view.locator(`${WORD}[data-playing]`).first()).toHaveCount(
+          1,
+          { timeout: 10_000 },
+        );
+      }
+      await view.waitForTimeout(400);
+      const anchorKey = await visiblePlace(view, "first");
+      expect(anchorKey, "a word is visible to anchor on").not.toBeNull();
+      guest.detail.delayMs = 1_500;
+      const seen = await frames(guest, page, "cut", 1, anchorKey, 0.5);
+      expectNoBlankFrame(seen.frames, seen.from, guest.log, "for a follower");
+      const after = seen.frames.filter((f) => f.t >= seen.from);
+      expect(after.some((f) => f.busy)).toBe(true);
+      const offsets = after.map((f) => f.offset);
+      expect(
+        offsets.every((o) => o !== null),
+        "the word the follower was looking at stayed drawn",
+      ).toBe(true);
+      const first = offsets[0] as number;
+      expect(
+        Math.max(...offsets.map((o) => Math.abs((o as number) - first))),
+        "the follower's view moved while the Script refreshed",
+      ).toBeLessThan(2);
+      const playing = view.locator(`${WORD}[data-playing]`).first();
+      if (mode === "playing")
+        await expect(playing, "the playing word is in view").toBeInViewport();
+      else
         expect(
-          (await bodyOverflows(body)).over,
-          "the Script must overflow to scroll",
-        ).toBeGreaterThan(100);
-        await anchoringOff(view);
-        const tapped = view.locator(WORD).nth(-26);
-        const playheadPlace = await tapped.evaluate((el) => {
-          const turn = el.closest("[data-turn-id]");
-          const nth = [
-            ...(turn?.querySelectorAll("[data-word-key]") ?? []),
-          ].indexOf(el);
-          return `${turn?.getAttribute("data-turn-id")}|${nth}`;
-        });
-        await tapped.click();
-        await expect
-          .poll(async () => (await bodyOverflows(body)).over)
-          .toBeGreaterThan(100);
-        if (mode === "playing") {
-          await view.getByRole("button", { name: "Play", exact: true }).click();
-          await expect(
-            view.locator(`${WORD}[data-playing]`).first(),
-          ).toHaveCount(1, { timeout: 10_000 });
-        }
-        await view.waitForTimeout(400);
-        const anchorKey = await visiblePlace(view, "first");
-        expect(anchorKey, "a word is visible to anchor on").not.toBeNull();
-        guest.detail.delayMs = 1_500;
-        const seen = await frames(guest, page, "cut", 1, anchorKey, 0.5);
-        expectNoBlankFrame(seen.frames, seen.from, guest.log, "for a follower");
-        const after = seen.frames.filter((f) => f.t >= seen.from);
-        expect(after.some((f) => f.busy)).toBe(true);
-        const offsets = after.map((f) => f.offset);
-        expect(
-          offsets.every((o) => o !== null),
-          "the word the follower was looking at stayed drawn",
+          await placeInView(view, playheadPlace),
+          "the word at the playhead is in view",
         ).toBe(true);
-        const first = offsets[0] as number;
-        expect(
-          Math.max(...offsets.map((o) => Math.abs((o as number) - first))),
-          "the follower's view moved while the Script refreshed",
-        ).toBeLessThan(2);
-        const playing = view.locator(`${WORD}[data-playing]`).first();
-        if (mode === "playing")
-          await expect(playing, "the playing word is in view").toBeInViewport();
-        else
-          expect(
-            await placeInView(view, playheadPlace),
-            "the word at the playhead is in view",
-          ).toBe(true);
-      },
-    );
-  });
+    },
+  );
 }
+
+test("a following guest, paused, keeps its view still while the Script refreshes", async ({
+  browser,
+  page,
+}) => {
+  await followerHoldsStill(browser, page, "paused");
+});
+
+test("a following guest, playing, keeps its view still while the Script refreshes", async ({
+  browser,
+  page,
+}) => {
+  await followerHoldsStill(browser, page, "playing");
+});
 
 test("a following guest holds its view still through a second refresh, wherever the playhead went", async ({
   browser,
