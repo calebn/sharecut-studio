@@ -6,7 +6,7 @@ import pytest
 
 from model_pin_helpers import plant_pinned_word_aligner
 from podcast_mcp.config.defaults import load_defaults
-from podcast_mcp.engines.asr_options import AsrOptions, ForcedAlignment
+from podcast_mcp.engines.asr_options import AsrOptions, ForcedAlignment, normalize_language
 from podcast_mcp.util.model_missing import ModelMissing
 
 
@@ -199,3 +199,23 @@ def test_asr_options_resolve_transcription_language(language):
     options = AsrOptions.from_defaults({"transcribe": {"language": language}})
     assert options.language == language
     assert options.decode_key() == AsrOptions().decode_key()
+
+
+@pytest.mark.parametrize(
+    ("value", "expected"),
+    [
+        ("en", "en"),
+        ("EN-us", "en"),
+        ("zh_CN", "zh"),
+        (" Auto ", None),
+        ("", None),
+        (None, None),
+        (True, None),
+        (False, None),
+        (1, None),
+        (0.5, None),
+        (["en"], None),
+    ],
+)
+def test_normalize_language_treats_a_non_string_as_auto(value, expected):
+    assert normalize_language(value) == expected

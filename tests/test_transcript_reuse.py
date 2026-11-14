@@ -896,7 +896,8 @@ def test_language_changed_table(recorded, requested, changed):
         ("en", "en-US", False),
         ("en", "auto", False),
         ("en", None, False),
-        (None, "de", False),
+        (None, "de", True),
+        (None, "en", False),
     ],
 )
 def test_plan_transcription_reruns_only_on_a_language_change(job, recorded, requested, run):
@@ -905,20 +906,27 @@ def test_plan_transcription_reruns_only_on_a_language_change(job, recorded, requ
     assert (plan.run, plan.reused) == (([job], []) if run else ([], [job]))
 
 
-def test_plan_transcription_stamps_the_requested_language_on_a_legacy_transcript(job):
-    legacy = _tr()
+@pytest.mark.parametrize(
+    ("language_field", "requested", "run"),
+    [("en", "de", True), ("de", "de", False), ("en", "auto", False), ("de", "auto", False)],
+)
+def test_plan_transcription_compares_a_legacy_transcript_by_its_language_field(
+    job, language_field, requested, run
+):
+    legacy = _tr(language=language_field)
     p = _project(legacy)
-    plan = plan_transcription(p, [job], overwrite=False, unattended=False, language="DE-at")
+    plan = plan_transcription(p, [job], overwrite=False, unattended=False, language=requested)
     stamp_audio_identity(p, plan)
-    assert legacy.asr_language == "de"
-
-
-def test_plan_transcription_leaves_a_legacy_transcript_unstamped_on_auto(job):
-    legacy = _tr()
-    p = _project(legacy)
-    plan = plan_transcription(p, [job], overwrite=False, unattended=False, language="auto")
-    stamp_audio_identity(p, plan)
+    assert (plan.run, plan.reused) == (([job], []) if run else ([], [job]))
     assert legacy.asr_language is None
+
+
+def test_a_default_legacy_transcript_is_stale_for_an_explicit_other_language(job):
+    legacy = _tr()
+    assert legacy.language == "en" and legacy.asr_language is None
+    p = _project(legacy)
+    plan = plan_transcription(p, [job], overwrite=False, unattended=False, language="de")
+    assert plan.run == [job]
 
 
 def test_plan_transcription_keeps_an_edited_transcript_after_a_language_change(job):
