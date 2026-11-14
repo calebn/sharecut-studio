@@ -205,7 +205,7 @@ status: accepted
 date: 2026-11-14
 decided-by: calebn
 evidence:
-- #3871 owner: "Move review share tokens out of the Files-visible Documents folder and into private app storage ... and migrate any existing tokens."
+- #3871: the owner approved, on 2026-11-14 in the project chat, keeping review share tokens out of the Files-visible Documents folder and in private app storage
 - The #3810 audit found the registry already under Application Support on iOS, with absolute workspace keys that go stale when the container moves
 enforced-by:
 - tests/test_host_data_roots.py::test_no_private_root_sits_inside_a_folder_the_person_can_open
