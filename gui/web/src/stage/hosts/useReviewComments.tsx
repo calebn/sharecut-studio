@@ -293,11 +293,15 @@ export function useReviewComments(guest: boolean) {
     const state = useDawStore.getState();
     if (state.composer.surface === "composer") composeRef.current?.focus();
     else {
-      const { draft, source } = resolveCommentAnchor(state);
+      const anchor = resolveCommentAnchor(state);
+      if (anchor.source === "refreshing") {
+        state.announceStatus(anchor.reason, { tone: "error" });
+        return;
+      }
       dispatchComposer({
         type: "open",
-        anchor: draft,
-        replacePin: source === "selection",
+        anchor: anchor.draft,
+        replacePin: anchor.source === "selection",
         listen,
       });
     }
@@ -371,12 +375,15 @@ export function useReviewComments(guest: boolean) {
 
   const type = (value: string, edit?: BodyEdit) => {
     const state = useDawStore.getState();
+    const anchor = resolveCommentAnchor(state);
+    // While the selection's words are refreshing the draft has no pin; the
+    // next keystroke that resolves pins it, and Post refuses until then.
     dispatchComposer({
       type: "type",
       text: value,
       composing: edit?.composing ?? false,
       undo: edit?.undo ?? false,
-      fresh: resolveCommentAnchor(state).draft,
+      fresh: anchor.source === "refreshing" ? null : anchor.draft,
     });
   };
 

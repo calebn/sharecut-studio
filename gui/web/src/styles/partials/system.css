@@ -5409,6 +5409,18 @@ button.sys-script-speaker {
   overflow-wrap: anywhere;
 }
 
+/* A line whose words are not known yet: bars in the skeleton's colour, set in the text's own flow so each row of bars is one text line. No motion. */
+.sys-script-settling-bar {
+  display: inline-block;
+  box-sizing: border-box;
+  block-size: 0.75em;
+  inline-size: calc(var(--sys-settling-chars) * 1ch);
+  max-inline-size: 100%;
+  vertical-align: middle;
+  border-radius: var(--radius-xs);
+  background: var(--color-bg-sunken);
+}
+
 .sys-script-word,
 .sys-script-run {
   position: relative;

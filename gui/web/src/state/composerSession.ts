@@ -12,7 +12,8 @@ export type Surface = "none" | "composer" | "comments" | "thread" | "chapters";
  */
 export type ComposerDraft = {
   text: string;
-  anchor: CommentDraft;
+  /** Null while text was typed with a selection whose words are refreshing: the next keystroke that resolves pins it. */
+  anchor: CommentDraft | null;
   resume: boolean;
   typed: boolean;
 };
@@ -40,8 +41,8 @@ export type ComposerEvent =
   | {
       type: "type";
       text: string;
-      /** The anchor a draft made now would take. */
-      fresh: CommentDraft;
+      /** The anchor a draft made now would take; null while it cannot be known. */
+      fresh: CommentDraft | null;
       composing?: boolean;
       undo?: boolean;
     }
@@ -122,7 +123,7 @@ export function reduceComposer(
           threadId: null,
           draft: {
             text: held?.text ?? "",
-            anchor: keepPin ? held.anchor : e.anchor,
+            anchor: keepPin ? (held.anchor ?? e.anchor) : e.anchor,
             resume: pause || held?.resume === true,
             typed: false,
           },
@@ -156,7 +157,14 @@ export function reduceComposer(
           draft: null,
           dropped: draft.anchor,
         });
-      return same({ ...s, draft: { ...draft, text: e.text } });
+      return same({
+        ...s,
+        draft: {
+          ...draft,
+          text: e.text,
+          anchor: draft.anchor ?? e.fresh,
+        },
+      });
     }
     case "transport": {
       if (s.pausing) {

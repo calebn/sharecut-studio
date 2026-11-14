@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { submitDocumentCommand } from "../api/documentEdits";
 import { getClipboard, setClipboard } from "../edit/clipboard";
-import { makeRangeTarget } from "../edit/rangeSelection";
+import { makeRangeTarget, markScriptRange } from "../edit/rangeSelection";
 import { useDawStore } from "../state/dawStore";
 import { noComposer } from "../test/composerStore";
 import { deferred } from "../test/deferred";
@@ -586,5 +586,30 @@ describe("range.arm", () => {
     useDawStore.setState({ selection: { kind: "range", target: silent } });
     const result = await runRangeAction("cut");
     expect(result.status).toBe("disabled");
+  });
+});
+
+describe("a range made from Script words while the words refresh", () => {
+  const wordFree = (): typeof p => ({
+    ...p,
+    meta: { ...p.meta, hydration: { transcript_words: false } },
+  });
+  const choose = (marked: boolean) => {
+    const range = { kind: "range" as const, target };
+    if (marked) markScriptRange(range);
+    useDawStore.setState({ project: wordFree(), selection: range });
+  };
+
+  it("is refused by the action, as the bar shows it unavailable", async () => {
+    choose(true);
+    expect(await runRangeAction("comment")).toEqual({
+      status: "disabled",
+      reason: "Choose a range",
+    });
+  });
+
+  it("runs when it was drawn on the timeline", async () => {
+    choose(false);
+    expect(await runRangeAction("comment")).toEqual({ status: "ok" });
   });
 });

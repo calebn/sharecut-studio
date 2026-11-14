@@ -11,10 +11,10 @@ import {
   minimalProject,
   sampleTrack,
 } from "../../test/fixtures";
+import { StoredGuestScriptHost } from "../../test/StoredGuestScriptHost";
 import { seedScript } from "../../test/scriptHostKit";
 import { stubViewportShell } from "../../test/viewportShell";
 import type { HistoryEntryId } from "../../types/project";
-import { GuestScriptHost } from "./GuestScriptHost";
 
 vi.mock("../../api/documentEdits", async (original) => ({
   ...(await original<typeof import("../../api/documentEdits")>()),
@@ -60,7 +60,7 @@ describe.each([
         shareCapabilities: caps,
         project: { clips },
       });
-      render(createElement(GuestScriptHost));
+      render(createElement(StoredGuestScriptHost));
       act(() =>
         useDawStore.getState().setSelection({
           kind: "transcriptRange",

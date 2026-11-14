@@ -2,6 +2,10 @@ import { act, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { submitDocumentCommand } from "../../api/documentEdits";
+import {
+  settledTranscriptOf,
+  shownTranscriptOf,
+} from "../../document/shownTranscript";
 import { useDawStore } from "../../state/dawStore";
 import {
   COMMENTER_CAPABILITIES,
@@ -9,6 +13,7 @@ import {
   EDITOR_CAPABILITIES,
   VIEWER_CAPABILITIES,
 } from "../../test/fixtures";
+import { StoredGuestScriptHost } from "../../test/StoredGuestScriptHost";
 import { seedScript } from "../../test/scriptHostKit";
 import { stubViewportShell } from "../../test/viewportShell";
 import { GuestScriptHost } from "./GuestScriptHost";
@@ -72,7 +77,7 @@ afterEach(() => {
 describe("the guest selection bar", () => {
   it("offers a commenter Comment and Suggest a cut over a word selection", async () => {
     as("comment", COMMENTER_CAPABILITIES);
-    render(<GuestScriptHost />);
+    render(<StoredGuestScriptHost />);
     expect(bar()).toBeNull();
     select();
     expect(bar()).toBeInTheDocument();
@@ -84,7 +89,7 @@ describe("the guest selection bar", () => {
   it("sends the cut as a suggestion for review and says so", async () => {
     as("comment", COMMENTER_CAPABILITIES);
     vi.mocked(submitDocumentCommand).mockResolvedValue({} as never);
-    render(<GuestScriptHost />);
+    render(<StoredGuestScriptHost />);
     select();
     await userEvent.click(
       screen.getByRole("button", { name: "Suggest a cut" }),
@@ -98,16 +103,60 @@ describe("the guest selection bar", () => {
 
   it("gives a viewer no bar and no Comment control", () => {
     as("view", VIEWER_CAPABILITIES);
-    render(<GuestScriptHost />);
+    render(<StoredGuestScriptHost />);
     select();
     expect(bar()).toBeNull();
   });
 
   it("names an editor's cut Cut, since it applies", () => {
     as("edit", EDITOR_CAPABILITIES);
-    render(<GuestScriptHost />);
+    render(<StoredGuestScriptHost />);
     select();
     expect(screen.getByRole("button", { name: "Cut" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Suggest a cut" })).toBeNull();
+  });
+
+  it("lets a held word be selected and shows the verbs disabled with the reason until its words land", () => {
+    as("comment", COMMENTER_CAPABILITIES);
+    const complete = useDawStore.getState().project;
+    if (!complete) throw new Error("expected a project");
+    const settled = settledTranscriptOf(
+      {
+        ...complete,
+        meta: {
+          ...complete.meta,
+          hydration: { ...complete.meta.hydration, transcript_words: true },
+        },
+      },
+      "grant",
+    );
+    const wordFree = {
+      ...complete,
+      transcript: {
+        utterances: (complete.transcript?.utterances ?? []).map(
+          ({ words: _words, ...header }) => header,
+        ),
+      },
+      meta: {
+        ...complete.meta,
+        hydration: { ...complete.meta.hydration, transcript_words: false },
+      },
+    };
+    act(() => useDawStore.setState({ project: wordFree }));
+    render(
+      <GuestScriptHost
+        shown={shownTranscriptOf(wordFree.transcript, settled, "grant", false)}
+      />,
+    );
+    select();
+    const comment = screen.getByRole("button", { name: "Comment" });
+    expect(comment).toBeDisabled();
+    expect(comment).toHaveAttribute(
+      "title",
+      "Refreshing the transcript. Try again in a moment.",
+    );
+    expect(
+      screen.getByRole("button", { name: "Suggest a cut" }),
+    ).toBeDisabled();
   });
 });

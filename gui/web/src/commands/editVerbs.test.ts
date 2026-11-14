@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import * as api from "../api";
 import { playPendingPreview } from "../audio/pendingPreview";
 import type { EditFacts } from "../edit/editSelection";
+import { markScriptRange } from "../edit/rangeSelection";
 import { useDawStore } from "../state/dawStore";
 import { barDisplay } from "../system/editActionSets";
 import {
@@ -1883,5 +1884,29 @@ describe("comment, bleed and social verbs", () => {
     registerCommand("edit.restoreClipBleed", restore);
     await runEditVerb("keep", factsOf()!);
     expect(restore).toHaveBeenCalledOnce();
+  });
+});
+
+describe("a range made from Script words while the words refresh", () => {
+  const wordFree = () => {
+    const project = editFixtureProject();
+    return {
+      ...project,
+      meta: { ...project.meta, hydration: { transcript_words: false } },
+    };
+  };
+
+  it("shows its action unavailable, as the action refuses it", () => {
+    const range = { ...EDIT_SELECTIONS.rangeOnAllTracks };
+    markScriptRange(range);
+    host(range, { project: wordFree() });
+    const model = barModelOf(factsOf()!, useDawStore.getState(), false);
+    expect(model.primary?.disabledReason).toBe("Choose a range");
+  });
+
+  it("leaves a range drawn on the timeline as it was", () => {
+    host({ ...EDIT_SELECTIONS.rangeOnAllTracks }, { project: wordFree() });
+    const model = barModelOf(factsOf()!, useDawStore.getState(), false);
+    expect(model.primary?.disabledReason).not.toBe("Choose a range");
   });
 });

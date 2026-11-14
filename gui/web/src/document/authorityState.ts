@@ -1,4 +1,6 @@
 import type { HistoryEntryId, ProjectView } from "../types/project";
+import type { SettledTranscript } from "./shownTranscript";
+import { resetTranscriptStall } from "./transcriptStall";
 
 export type DocumentFileSignature = { mtime_ns: number; size: number };
 export type DocumentScope = {
@@ -21,6 +23,8 @@ export const documentAuthority = {
   token: null as string | null,
   file: null as DocumentFileSignature | null,
   project: null as ProjectView | null,
+  /** The rows of the last share commit that had every word; word-free commits leave it. */
+  settled: null as SettledTranscript | null,
   phase: { kind: "starting" } as DocumentPhase,
   ownCommandHead: null as OwnCommandHeadObservation | null,
   abort: new AbortController(),
@@ -46,10 +50,12 @@ export function resetDocumentAuthority(path = ""): DocumentScope {
     token: null,
     file: null,
     project: null,
+    settled: null,
     phase: { kind: "starting" },
     ownCommandHead: null,
     abort: new AbortController(),
   });
+  resetTranscriptStall();
   return documentScope();
 }
 export function activateDocumentScope(path: string): DocumentScope {

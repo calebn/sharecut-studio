@@ -26,12 +26,18 @@ export function openCommentDraft(draft: CommentDraft, replacePin = true): void {
   useDawStore.getState().openStage("review", { section: "queue" });
 }
 
-/** The draft a selection makes, and whether the selection chose it (else it is "here"). */
+type SelectionDraft =
+  | { draft: CommentDraft; chosen: boolean }
+  | { refreshing: string };
+
+/** The draft a selection makes, and whether the selection chose it (else it is "here"), or why it cannot be made yet. */
 function draftForSelection(
   state: Pick<DawState, "project" | "selection" | "playheadSec">,
-): { draft: CommentDraft; chosen: boolean } {
+): SelectionDraft {
   const project = state.project!;
   const resolved = resolveSelectionRange(project, state.selection);
+  if (resolved.refreshing && resolved.reason)
+    return { refreshing: resolved.reason };
   if (resolved.targets.length === 1)
     return { draft: commentDraftFromRange(resolved.targets[0]!), chosen: true };
   const span = selectionSpan(state.selection, project);
@@ -74,8 +80,10 @@ export function registerCommentCommands(): void {
     const { project } = useDawStore.getState();
     if (args.atTime === undefined || args.atTime === null) {
       if (!project) return { status: "disabled", reason: "No project loaded" };
-      const { draft, chosen } = draftForSelection(useDawStore.getState());
-      openCommentDraft(draft, chosen);
+      const made = draftForSelection(useDawStore.getState());
+      if ("refreshing" in made)
+        return { status: "disabled", reason: made.refreshing };
+      openCommentDraft(made.draft, made.chosen);
       return { status: "ok" };
     }
     const raw = Number(args.atTime);

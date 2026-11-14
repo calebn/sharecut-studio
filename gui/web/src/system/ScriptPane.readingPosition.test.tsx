@@ -3361,6 +3361,36 @@ describe("ScriptPane reading position", () => {
     },
   );
 
+  it("lets a follower's scrollbar drag end follow after its place was noted aside", () => {
+    scriptGeometry();
+    stubResizeObserver();
+    const clock = vi.spyOn(performance, "now").mockReturnValue(0);
+    const onUserScroll = vi.fn();
+    const { body, captured } = setup(null, false, onUserScroll, false);
+    // The follow's own scroll: noted aside, no bookmark, no user scroll.
+    body.scrollTop = 170;
+    fireEvent.scroll(body);
+    body.scrollTop = 180;
+    fireEvent.scroll(body);
+    expect(captured()).toBeNull();
+    expect(onUserScroll).not.toHaveBeenCalled();
+    const pointer = {
+      pointerId: 5,
+      pointerType: "mouse",
+      isPrimary: true,
+      button: 0,
+    };
+    fireEvent.pointerDown(body, pointer);
+    clock.mockReturnValue(100);
+    body.scrollTop = 260;
+    fireEvent.scroll(body);
+    clock.mockReturnValue(200);
+    body.scrollTop = 320;
+    fireEvent.scroll(body);
+    expect(captured()).toMatchObject({ kind: "word" });
+    expect(onUserScroll).toHaveBeenCalled();
+  });
+
   it.each(["child", "secondary", "touch", "non-primary"] as const)(
     "does not admit a %s pointer as a scrollbar",
     (input) => {

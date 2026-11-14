@@ -1,3 +1,4 @@
+import { type ShownRow, settlingBarsOf } from "../../document/shownTranscript";
 import type { GuestEmpty } from "../../stages/guest/guestLogic";
 import type { ScriptTurn, ScriptWord } from "../../system/scriptPieces";
 import type {
@@ -9,9 +10,19 @@ import { isWordActive, wordSeekSec } from "../../utils/transcript";
 import type { ScriptModel, ScriptWordRef } from "../edit/script/scriptModel";
 import { wordKey } from "../edit/script/scriptModel";
 
+export type TurnSpan = {
+  trackId: string;
+  sourceId: string | null;
+  start: number;
+  end: number;
+};
+
 export type GuestScriptModel = {
   turns: ScriptTurn[];
-  wordStarts: number[];
+  /** Where each turn sits in its recording, in source seconds; a cut does not move it. */
+  spans: TurnSpan[];
+  /** Where a tap seeks; null for a held word, whose time is not known yet. */
+  wordStarts: (number | null)[];
   words: TranscriptWordView[];
   refs: ScriptWordRef[];
   times: ({ start: number; end: number } | null)[];
@@ -19,59 +30,101 @@ export type GuestScriptModel = {
 };
 
 type Heard = {
-  text: string;
-  key: string;
-  start: number;
+  start: number | null;
   word: TranscriptWordView;
+  at: number;
 };
 
-function heardWords(utterance: CombinedUtterance, ordinal: number): Heard[] {
+function heardWords(utterance: CombinedUtterance): Heard[] {
   return (utterance.words ?? [])
     .flatMap((word, at) => {
       const start = wordSeekSec(word);
       if (word.suppressed || word.ignored || start === null) return [];
-      return [
-        {
-          text: word.text,
-          key: `${ordinal}:${utterance.track_id}:${utterance.source_id ?? ""}:${word.word_index ?? at}`,
-          start,
-          word,
-        },
-      ];
+      return [{ start, word, at }];
     })
-    .sort((a, b) => a.start - b.start);
+    .sort((a, b) => (a.start ?? 0) - (b.start ?? 0));
 }
 
-export function guestScriptOf(
-  utterances: readonly CombinedUtterance[] | undefined,
-): GuestScriptModel {
-  const all = (utterances ?? []).flatMap((utterance) => utterance.words ?? []);
+type Entry = {
+  utterance: CombinedUtterance;
+  heard: Heard[];
+  /** Characters of each word a waiting row will show; its words are not known yet. */
+  settling?: number[];
+  /** Where the row sits in reading order, and what its time label says. */
+  first: number;
+  /** When the row stops being heard, for the pause before the next turn. */
+  until: number;
+};
+
+function entryOf(row: ShownRow): Entry | null {
+  const { utterance } = row;
+  const rowStart = utterance.timeline_start ?? 0;
+  const rowEnd = utterance.timeline_end ?? rowStart;
+  if (row.kind === "live") {
+    const heard = heardWords(utterance);
+    if (heard.length === 0) return null;
+    return {
+      utterance,
+      heard,
+      first: heard[0].start ?? 0,
+      until: Math.max(
+        ...heard.map(
+          ({ word }) => word.timeline_end ?? word.timeline_start ?? 0,
+        ),
+      ),
+    };
+  }
+  if (row.kind === "held") {
+    const heard = (utterance.words ?? []).map((word, at) => ({
+      start: null,
+      word,
+      at,
+    }));
+    return {
+      utterance,
+      heard,
+      first: rowStart + row.lead,
+      until: rowEnd,
+    };
+  }
+  // The struck words are not drawn, so they are not counted.
+  const settling = settlingBarsOf(utterance);
+  return settling.length === 0
+    ? null
+    : { utterance, heard: [], settling, first: rowStart, until: rowEnd };
+}
+
+export function guestScriptOf(rows: readonly ShownRow[]): GuestScriptModel {
+  const live = rows.flatMap((row) =>
+    row.kind === "live" ? (row.utterance.words ?? []) : [],
+  );
   const cut = (word: TranscriptWordView) =>
     word.suppressed || word.ignored || word.mappable === false;
-  const unplaced = all.some((word) => !cut(word) && wordSeekSec(word) === null);
-  const anyCut = all.some(cut);
-  const spoken = (utterances ?? [])
-    .map((utterance, at) => {
-      const heard = heardWords(utterance, at);
-      return { utterance, heard, first: heard[0]?.start ?? 0 };
-    })
-    .filter(({ heard }) => heard.length > 0)
+  const unplaced = live.some(
+    (word) => !cut(word) && wordSeekSec(word) === null,
+  );
+  const anyCut = live.some(cut);
+  const spoken = rows
+    .flatMap((row) => entryOf(row) ?? [])
     .sort((a, b) => a.first - b.first);
   const colors = new Map<string, number>();
   const turns: ScriptTurn[] = [];
-  const taken = new Set<string>();
-  const wordStarts: number[] = [];
+  const spans: TurnSpan[] = [];
+  const turnIds = new Set<string>();
+  const wordKeys = new Map<string, number>();
+  const wordStarts: (number | null)[] = [];
   const words: TranscriptWordView[] = [];
   const refs: ScriptWordRef[] = [];
   const times: GuestScriptModel["times"] = [];
   let heardUntil: number | null = null;
-  for (const { utterance, heard, first } of spoken) {
+  for (const { utterance, heard, settling, first, until } of spoken) {
     const speaker = utterance.speaker;
     let colorIndex = colors.get(speaker);
     if (colorIndex === undefined) {
       colorIndex = colors.size;
       colors.set(speaker, colorIndex);
     }
+    const lane = `${utterance.track_id}:${utterance.source_id ?? ""}`;
     const scriptWords: ScriptWord[] = heard.map((item) => {
       const index = wordStarts.length;
       wordStarts.push(item.start);
@@ -82,16 +135,29 @@ export function guestScriptOf(
         wordIndex: item.word.word_index ?? null,
       });
       times.push(
-        item.word.timeline_end == null
+        item.start === null || item.word.timeline_end == null
           ? null
           : { start: item.start, end: item.word.timeline_end },
       );
-      return { index, key: item.key, text: item.text };
+      const base = `${lane}:${item.word.word_index ?? item.at}`;
+      const repeat = wordKeys.get(base) ?? 0;
+      wordKeys.set(base, repeat + 1);
+      return {
+        index,
+        key: repeat === 0 ? base : `${base}#${repeat + 1}`,
+        text: item.word.text,
+      };
     });
-    const base = `${utterance.track_id}@${first}`;
+    const base = `${lane}:${utterance.start}`;
     let id = base;
-    for (let n = 2; taken.has(id); n += 1) id = `${base}#${n}`;
-    taken.add(id);
+    for (let n = 2; turnIds.has(id); n += 1) id = `${base}#${n}`;
+    turnIds.add(id);
+    spans.push({
+      trackId: utterance.track_id,
+      sourceId: utterance.source_id ?? null,
+      start: utterance.start,
+      end: utterance.end,
+    });
     turns.push({
       id,
       speakerId: speaker,
@@ -100,21 +166,36 @@ export function guestScriptOf(
       pauseBefore:
         heardUntil === null ? undefined : Math.max(0, first - heardUntil),
       words: scriptWords,
+      ...(settling ? { settling } : {}),
     });
-    heardUntil = Math.max(
-      heardUntil ?? 0,
-      ...heard.map(({ word }) => word.timeline_end ?? word.timeline_start ?? 0),
-    );
+    heardUntil = Math.max(heardUntil ?? 0, until);
   }
   const empty: GuestEmpty =
-    (utterances?.length ?? 0) === 0
+    rows.length === 0
       ? "none"
       : unplaced
         ? "unplaced"
         : anyCut
           ? "cut"
           : "untimed";
-  return { turns, wordStarts, words, refs, times, empty };
+  return { turns, spans, wordStarts, words, refs, times, empty };
+}
+
+/**
+ * A held word keeps the word_index it had before the edit, and a cut renumbers
+ * the words after it, so a selection touching one would name other words once
+ * the detail lands. Such a gesture is dropped.
+ */
+export function touchesHeld(
+  g: GuestScriptModel,
+  { anchor, head }: { anchor: number; head: number },
+): boolean {
+  const lo = Math.min(anchor, head);
+  const hi = Math.max(anchor, head);
+  for (let at = lo; at <= hi; at++) {
+    if (g.refs[at] && g.wordStarts[at] === null) return true;
+  }
+  return false;
 }
 
 export function playingWordsAt(

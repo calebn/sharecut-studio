@@ -276,7 +276,7 @@ describe("guest Review transcript follow lifetime", () => {
     expect(back()).toBeVisible();
   });
 
-  it("uses the captured pixel fallback after same-project hydration reassigns an ordinal", () => {
+  it("keeps the reader's word at its captured offset after hydration removes a word before it", () => {
     const size = viewport("phone");
     join();
     render(<ReviewHost guestShare />);
@@ -302,16 +302,20 @@ describe("guest Review transcript follow lifetime", () => {
       "data-stop",
       "1",
     );
-    expect(body().scrollTop).toBe(1990);
+    expect(
+      screen.getByRole("button", { name: "two" }).getBoundingClientRect().top,
+    ).toBe(10);
+    expect(body().scrollTop).toBe(490);
     moveTo(11.1);
-    expect(body().scrollTop).toBe(1990);
+    expect(body().scrollTop).toBe(490);
     expect(back()).toBeVisible();
   });
 
-  it("uses the pixel fallback when a removed word lets another word reuse its fallback key", () => {
+  it("keeps the reader's word at its captured offset when a word before it is removed", () => {
     const size = viewport("phone");
     const original = Array.from({ length: 30 }, (_, index) => ({
       text: `word-${String(index + 1).padStart(2, "0")}`,
+      word_index: index,
       start: index,
       end: index + 0.5,
       timeline_start: 10 + index,
@@ -361,15 +365,15 @@ describe("guest Review transcript follow lifetime", () => {
     });
     size.short("layout", false);
 
-    expect(body().scrollTop).toBe(1090);
     expect(
       screen.getByRole("button", { name: "word-11" }).getBoundingClientRect()
         .top,
-    ).toBe(110);
+    ).toBe(10);
     expect(
       screen.getByRole("button", { name: "word-12" }).getBoundingClientRect()
         .top,
-    ).toBe(230);
+    ).toBe(130);
+    expect(body().scrollTop).toBe(1190);
   });
 
   it("retains a same-project hydration pause but starts following on a project replacement through StageHost", () => {

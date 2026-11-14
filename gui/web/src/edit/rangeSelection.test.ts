@@ -7,10 +7,13 @@ import type {
   Selection,
 } from "../types/project";
 import {
+  isScriptRange,
   makeRangeTarget,
+  markScriptRange,
   rangeIsCurrent,
   rangeTargetsEqual,
   resolveSelectionRange,
+  TRANSCRIPT_REFRESHING,
 } from "./rangeSelection";
 
 const selection: Selection = {
@@ -66,6 +69,65 @@ const placement = (
     timeline_start: timeline,
     timeline_end: timeline + end - start,
   });
+
+describe("a transcript range while the words are refreshing", () => {
+  const wordFree = (base: ProjectView): ProjectView => ({
+    ...base,
+    transcript: {
+      utterances: (base.transcript?.utterances ?? []).map(
+        ({ words: _words, ...header }) => header,
+      ),
+    },
+    meta: {
+      ...base.meta,
+      hydration: { ...base.meta.hydration, transcript_words: false },
+    },
+  });
+
+  it("is refused with a reason that says to try again, never as a range", () => {
+    const resolved = resolveSelectionRange(
+      wordFree(project([placement("a", 0, 8, 0)])),
+      selection,
+    );
+    expect(resolved).toEqual({
+      targets: [],
+      reason: TRANSCRIPT_REFRESHING,
+      refreshing: true,
+    });
+  });
+
+  it("resolves as usual once every selected word is in the project", () => {
+    const loaded = project([placement("a", 0, 8, 0)]);
+    const stillFlagged: ProjectView = {
+      ...loaded,
+      meta: {
+        ...loaded.meta,
+        hydration: { ...loaded.meta.hydration, transcript_words: false },
+      },
+    };
+    expect(
+      resolveSelectionRange(stillFlagged, selection).targets.map(
+        (t) => t.intervals,
+      ),
+    ).toEqual([[{ start: 1, end: 7 }]]);
+  });
+
+  it("keeps the old reason for a project that has all its words", () => {
+    const complete = wordFree(project([placement("a", 0, 8, 0)]));
+    const resolved = resolveSelectionRange(
+      {
+        ...complete,
+        meta: {
+          ...complete.meta,
+          hydration: { ...complete.meta.hydration, transcript_words: true },
+        },
+      },
+      selection,
+    );
+    expect(resolved.reason).toBe("No audible words in this selection");
+    expect(resolved.refreshing).toBeUndefined();
+  });
+});
 
 describe("exact transcript range resolution", () => {
   it("includes the phrase pause", () => {
@@ -305,5 +367,40 @@ describe("exact range wire seals", () => {
       ),
     };
     expect(rangeIsCurrent(changed, wire)).toBe(false);
+  });
+});
+
+describe("a stored timeline range while the words are refreshing", () => {
+  const base = project([placement("a", 0, 8, 0)]);
+  const stored = makeRangeTarget(base, [{ start: 1, end: 7 }], ["speaker"])!;
+  const wordFree: ProjectView = {
+    ...base,
+    meta: {
+      ...base.meta,
+      hydration: { ...base.meta.hydration, transcript_words: false },
+    },
+  };
+  const made = (): Selection => ({ kind: "range", target: stored });
+
+  it("is refused when it was made from Script words, until the words are back", () => {
+    const range = made();
+    markScriptRange(range);
+    expect(resolveSelectionRange(wordFree, range)).toEqual({
+      targets: [],
+      reason: TRANSCRIPT_REFRESHING,
+      refreshing: true,
+    });
+    expect(resolveSelectionRange(base, range).targets).toEqual([stored]);
+  });
+
+  it("resolves as before when it was drawn on the timeline, whoever draws it", () => {
+    expect(resolveSelectionRange(wordFree, made()).targets).toEqual([stored]);
+  });
+
+  it("belongs to the one object marked, not to an equal copy", () => {
+    const range = made();
+    markScriptRange(range);
+    expect(isScriptRange({ kind: "range", target: stored })).toBe(false);
+    expect(isScriptRange(null)).toBe(false);
   });
 });

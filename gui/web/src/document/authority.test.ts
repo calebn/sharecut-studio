@@ -261,3 +261,123 @@ describe("one document authority", () => {
     ]);
   });
 });
+
+describe("the settled transcript", () => {
+  const shareKey = "share:settled";
+  const row = {
+    track_id: "a",
+    speaker: "A",
+    start: 0,
+    end: 1,
+    text: "Um.",
+    mappable: true,
+    timeline_start: 2,
+    timeline_end: 3,
+  };
+  const word = {
+    text: "Um.",
+    start: 0,
+    end: 1,
+    timeline_start: 2,
+    timeline_end: 3,
+    word_index: 0,
+  };
+  const withWords = (complete: boolean) => ({
+    ...initial(),
+    meta: {
+      ...initial().meta,
+      hydration: { transcript_words: complete, history_groups: false },
+    },
+    transcript: {
+      utterances: [complete ? { ...row, words: [word] } : row],
+    },
+  });
+  const textDelta = (base: number): DocumentSnapshot => ({
+    server_seq: base + 1,
+    state_token: token,
+    file_before: { mtime_ns: base + 1, size: 1 },
+    file: { mtime_ns: base + 2, size: 1 },
+    delta: {
+      base_seq: base,
+      base_token: token,
+      projection: "detail",
+      audience: "guest",
+      operations: [
+        {
+          type: "rows",
+          section: "utterances",
+          parent: null,
+          before_count: 1,
+          splices: [],
+          updates: [
+            { index: 0, set: { ignored_word_indices: [base + 7] }, unset: [] },
+          ],
+          row_encoding: "predecessor-spans",
+        },
+      ],
+    },
+  });
+  const openShare = () => {
+    useDawStore
+      .getState()
+      .hydrate(shareKey, initial(), "view", ["play", "view"], null, true);
+    resetDocumentAuthority(shareKey);
+    applyDocumentSnapshot({
+      server_seq: 0,
+      state_token: token,
+      project: withWords(true),
+      file: { mtime_ns: 1, size: 1 },
+    });
+  };
+
+  it("is written by a commit that has every word", () => {
+    openShare();
+    expect(documentAuthority.settled?.utterances).toBe(
+      documentAuthority.project?.transcript?.utterances,
+    );
+    expect(documentAuthority.settled?.grant).toBe(
+      "share:settled|true|play,view",
+    );
+  });
+
+  it("is kept across word-free commits while the project loses its words", () => {
+    openShare();
+    const settled = documentAuthority.settled;
+    applyDocumentSnapshot(textDelta(0));
+    applyDocumentSnapshot(textDelta(1));
+    expect(
+      documentAuthority.project?.transcript?.utterances[0]?.words,
+    ).toBeUndefined();
+    expect(documentAuthority.settled).toBe(settled);
+  });
+
+  it("is replaced by the detail that follows", () => {
+    openShare();
+    const before = documentAuthority.settled;
+    applyDocumentSnapshot(textDelta(0));
+    applyDocumentSnapshot({
+      server_seq: 1,
+      state_token: token,
+      project: withWords(true),
+      file: { mtime_ns: 3, size: 1 },
+    });
+    expect(documentAuthority.settled).not.toBe(before);
+    expect(documentAuthority.settled?.utterances[0]?.words).toEqual([word]);
+  });
+
+  it("is never written for a host session", () => {
+    applyDocumentSnapshot({
+      server_seq: 1,
+      state_token: token,
+      project: withWords(true),
+      file: { mtime_ns: 2, size: 1 },
+    });
+    expect(documentAuthority.settled).toBeNull();
+  });
+
+  it("is cleared when the project or link changes", () => {
+    openShare();
+    resetDocumentAuthority("share:other");
+    expect(documentAuthority.settled).toBeNull();
+  });
+});

@@ -47,7 +47,12 @@ export function usePostComment(): {
     }
     if (!body) return { ok: false };
     const state = useDawStore.getState();
-    const { draft } = resolveCommentAnchor(state);
+    const anchor = resolveCommentAnchor(state);
+    if (anchor.source === "refreshing") {
+      setError(anchor.reason);
+      return { ok: false };
+    }
+    const { draft } = anchor;
     try {
       if (!isGuestSession(state.projectPath, state.guestMode)) {
         saveCommentAuthor(author);

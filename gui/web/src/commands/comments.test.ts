@@ -65,3 +65,49 @@ describe("comment.draftAt pauses the episode it opens a comment on in the phone 
     expect(useDawStore.getState().composer.draft?.resume).toBe(true);
   });
 });
+
+describe("comment.draftAt on a selection whose words are refreshing", () => {
+  it("is refused with the reason and opens no draft", async () => {
+    useDawStore.getState().hydrate(
+      "share:tok",
+      minimalProject({
+        timeline_duration_sec: 600,
+        transcript: {
+          utterances: [
+            {
+              track_id: "speaker",
+              speaker: "Speaker",
+              start: 1,
+              end: 7,
+              text: "one two",
+            },
+          ],
+        },
+        meta: {
+          name: "t",
+          workspace_dir: "/tmp",
+          hydration: { transcript_words: false },
+        },
+      }),
+      "comment",
+      ["view", "comment"],
+    );
+    useDawStore.setState({
+      stage: "review",
+      playheadSec: 90,
+      selection: {
+        kind: "transcriptRange",
+        trackId: "speaker",
+        sourceId: null,
+        startWordIndex: 0,
+        endWordIndex: 1,
+      },
+    });
+    const result = await executePointerCommand("comment.draftAt", {});
+    expect(result).toMatchObject({
+      status: "disabled",
+      reason: "Refreshing the transcript. Try again in a moment.",
+    });
+    expect(useDawStore.getState().commentDraft).toBeNull();
+  });
+});

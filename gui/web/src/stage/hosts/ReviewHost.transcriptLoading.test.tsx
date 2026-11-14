@@ -15,7 +15,12 @@ import {
 } from "../../document/hydrateTranscriptDetail";
 import type { DocumentSnapshot } from "../../document/projectPatch";
 import { useDawStore } from "../../state/dawStore";
-import { minimalProject, sampleComment } from "../../test/fixtures";
+import {
+  clipRow,
+  minimalProject,
+  sampleComment,
+  sampleTrack,
+} from "../../test/fixtures";
 import { stubViewportShell } from "../../test/viewportShell";
 import { ReviewHost } from "./ReviewHost";
 
@@ -501,10 +506,8 @@ describe("guest transcript detail loading in Review", () => {
       "detail",
     ]);
     expect(documentAuthority.token).toBe(refreshedToken);
-    expect(transcriptDetailSnapshot()).toMatchObject({
-      kind: "failed",
-      recovering: true,
-    });
+    // pending, not failed: no cover while the recovery redoes the detail
+    expect(transcriptDetailSnapshot()).toMatchObject({ kind: "pending" });
     expect(
       useDawStore.getState().project?.meta.hydration?.transcript_words,
     ).toBe(false);
@@ -650,5 +653,218 @@ describe("guest transcript detail loading in Review", () => {
       useDawStore.getState().project?.meta.hydration?.transcript_words,
     ).toBe(false);
     expect(transcriptDetailSnapshot().kind).toBe("pending");
+  });
+});
+
+function spoken(start: number, texts: string[], at: number) {
+  const words = texts.map((text, index) => ({
+    text,
+    start: start + index,
+    end: start + index + 1,
+    timeline_start: at + index,
+    timeline_end: at + index + 1,
+    mappable: true,
+    word_index: start + index,
+  }));
+  return {
+    track_id: "t1",
+    source_id: "s1",
+    speaker: "Maya",
+    start,
+    end: start + texts.length,
+    text: texts.join(" "),
+    mappable: true,
+    timeline_start: at,
+    timeline_end: at + texts.length,
+    words,
+  };
+}
+
+function guestProject(
+  rows: ReturnType<typeof spoken>[],
+  complete: boolean,
+): ReturnType<typeof minimalProject> {
+  return minimalProject({
+    transcript: {
+      utterances: complete
+        ? rows
+        : rows.map(({ words: _words, ...header }) => header),
+    } as never,
+    meta: {
+      name: "Test Episode",
+      workspace_dir: "/tmp/test",
+      hydration: { transcript_words: complete },
+    },
+  });
+}
+
+describe.each(["desktop", "phone"] as const)(
+  "a guest's Script through a host edit on a %s shell",
+  (shell) => {
+    beforeEach(() => {
+      resetDocumentAuthority();
+      loadDetail.mockReset();
+      localStorage.clear();
+      stubViewportShell(shell);
+    });
+    afterEach(() => {
+      resetDocumentAuthority();
+      vi.unstubAllGlobals();
+    });
+
+    it("stays the same element, marks itself busy and never shows the skeleton until detail lands", async () => {
+      const first = spoken(0, ["one", "two"], 0);
+      const second = spoken(10, ["three", "four"], 2);
+      const complete = guestProject([first, second], true);
+      useDawStore
+        .getState()
+        .hydrate("share:tok", complete, "view", ["view", "play"], null, true);
+      useDawStore.setState({ stage: "review" });
+      resetDocumentAuthority("share:tok");
+      applyDocumentSnapshot({
+        server_seq: 0,
+        state_token: TOKEN,
+        project: complete,
+        file: { mtime_ns: 1, size: 1 },
+      });
+      const landed = deferred<DocumentSnapshot>();
+      loadDetail.mockReturnValueOnce(landed.promise);
+      const { container } = render(<ReviewHost guestShare />);
+      const section = screen.getByRole("region", { name: "Script" });
+      expect(section).not.toHaveAttribute("aria-busy");
+      expect(screen.getByRole("button", { name: "four" })).toBeVisible();
+
+      const edited = spoken(10, ["three"], 2);
+      act(() => {
+        applyDocumentSnapshot({
+          server_seq: 1,
+          state_token: TOKEN,
+          project: guestProject([first, edited], false),
+          file: { mtime_ns: 2, size: 1 },
+        });
+      });
+
+      expect(screen.getByRole("region", { name: "Script" })).toBe(section);
+      expect(section).toHaveAttribute("aria-busy", "true");
+      expect(container.querySelector(".sys-skeleton")).toBeNull();
+      expect(screen.getByRole("button", { name: "two" })).toBeVisible();
+      expect(screen.getByText("Updating this line")).toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: "four" })).toBeNull();
+
+      await act(async () =>
+        landed.resolve({
+          server_seq: 1,
+          state_token: TOKEN,
+          project: guestProject([first, edited], true),
+        }),
+      );
+
+      expect(screen.getByRole("region", { name: "Script" })).toBe(section);
+      expect(section).not.toHaveAttribute("aria-busy");
+      expect(screen.queryByText("Updating this line")).toBeNull();
+      expect(screen.getByRole("button", { name: "three" })).toBeVisible();
+    });
+  },
+);
+
+describe("a Commenter's selection while its words are refreshing", () => {
+  beforeEach(() => {
+    resetDocumentAuthority();
+    loadDetail.mockReset();
+    localStorage.clear();
+    stubViewportShell("desktop");
+  });
+  afterEach(() => {
+    resetDocumentAuthority();
+    vi.unstubAllGlobals();
+  });
+
+  it("keeps typed text without pinning it to the playhead, then pins to the selection once the words land", async () => {
+    const first = spoken(0, ["one", "two"], 0);
+    const second = spoken(10, ["three", "four"], 2);
+    const withClips = (p: ReturnType<typeof minimalProject>) => ({
+      ...p,
+      timeline_duration_sec: 100,
+      tracks: [sampleTrack({ id: "t1", range_media_seal: "s" })],
+      clips: {
+        tracks: {
+          t1: [
+            clipRow({
+              id: "c",
+              track_id: "t1",
+              source_id: null,
+              source_start: 0,
+              source_end: 100,
+              timeline_start: 0,
+              timeline_end: 100,
+            }),
+          ],
+        },
+        clip_count: 1,
+      },
+    });
+    const complete = withClips(guestProject([first, second], true));
+    useDawStore
+      .getState()
+      .hydrate(
+        "share:tok",
+        complete,
+        "comment",
+        ["view", "play", "comment"],
+        null,
+        true,
+      );
+    useDawStore.setState({ stage: "review", playheadSec: 60 });
+    resetDocumentAuthority("share:tok");
+    applyDocumentSnapshot({
+      server_seq: 0,
+      state_token: TOKEN,
+      project: complete,
+      file: { mtime_ns: 1, size: 1 },
+    });
+    const landed = deferred<DocumentSnapshot>();
+    loadDetail.mockReturnValueOnce(landed.promise);
+    render(<ReviewHost guestShare />);
+    act(() =>
+      useDawStore.getState().setSelection({
+        kind: "transcriptRange",
+        trackId: "t1",
+        sourceId: "s1",
+        startWordIndex: 10,
+        endWordIndex: 11,
+      }),
+    );
+
+    expect(screen.getByText("Pinned")).toBeInTheDocument();
+    const edited = spoken(10, ["three", "four", "five"], 2);
+    act(() => {
+      applyDocumentSnapshot({
+        server_seq: 1,
+        state_token: TOKEN,
+        project: withClips(guestProject([first, edited], false)),
+        file: { mtime_ns: 2, size: 1 },
+      });
+    });
+    expect(screen.getByText("Pinned")).toBeInTheDocument();
+    const field = screen.getByRole("textbox", { name: "Comment" });
+    await userEvent.type(field, "H");
+    expect(screen.getByRole("textbox", { name: "Comment" })).toHaveValue("H");
+    expect(useDawStore.getState().composer.draft?.text).toBe("H");
+    expect(useDawStore.getState().commentDraft).toBeNull();
+    expect(useDawStore.getState().feedbackToast).toBeNull();
+
+    await act(async () =>
+      landed.resolve({
+        server_seq: 1,
+        state_token: TOKEN,
+        project: withClips(guestProject([first, edited], true)),
+      }),
+    );
+    await userEvent.type(screen.getByRole("textbox", { name: "Comment" }), "i");
+    expect(screen.getByRole("textbox", { name: "Comment" })).toHaveValue("Hi");
+    expect(useDawStore.getState().commentDraft).toMatchObject({
+      startSec: 10,
+      endSec: 12,
+    });
   });
 });

@@ -60,6 +60,7 @@ import {
   type ScriptStop,
   type ScriptTurn,
   type ScriptWord,
+  settlingBars,
   stopContaining,
   stopsOf,
   type WordFound,
@@ -589,6 +590,8 @@ export type ScriptPaneProps = {
   following?: boolean;
   /** Optional reader location owned by the host across pane lifetimes. */
   readingPosition?: ScriptPaneReadingPositionBinding;
+  /** Some lines are still being refreshed. The Script stays readable; assistive tech is told it is updating. */
+  busy?: boolean;
   /**
    * A bar between the header and the turns: the Find bar. The host opens it on
    * Mod+F or on `onFind` and keeps its own state; the pane only gives it room.
@@ -924,6 +927,7 @@ export const ScriptPane = forwardRef<ScriptPaneHandle, ScriptPaneProps>(
       showCutText = false,
       following = true,
       readingPosition,
+      busy = false,
       findBar,
       handles = true,
       handleHint,
@@ -987,21 +991,6 @@ export const ScriptPane = forwardRef<ScriptPaneHandle, ScriptPaneProps>(
       },
       [],
     );
-    useLayoutEffect(() => {
-      const resumesFollowing =
-        readingPositionRef.current?.restore && !readingPosition?.restore;
-      readingPositionRef.current = readingPosition;
-      if (!readingPosition) {
-        readingOwnership.current = EMPTY_READING_OWNERSHIP;
-      } else if (resumesFollowing) {
-        const body = bodyRef.current;
-        if (body?.isConnected)
-          readingOwnership.current = acceptReadingPosition(
-            readingOwnership.current,
-            sampleReadingViewport(body, undefined),
-          );
-      }
-    }, [readingPosition]);
     const findButton = useRef<HTMLButtonElement>(null);
     const layoutCache = useRef<Measured | null>(null);
     const [dragging, setDragging] = useState(false);
@@ -1265,93 +1254,127 @@ export const ScriptPane = forwardRef<ScriptPaneHandle, ScriptPaneProps>(
       return sampleReadingViewport(body, anchor);
     }, []);
 
-    const serializeReadingPosition = useCallback((preferredIndex?: number) => {
-      const body = bodyRef.current;
-      const binding = readingPositionRef.current;
-      if (!body || !binding || !body.isConnected) return;
-      const bounds = body.getBoundingClientRect();
-      const publish = (
-        position: ScriptPaneReadingPosition,
-        element?: HTMLElement,
-        rect?: DOMRect,
-      ) => {
-        const state = readingOwnership.current;
-        if (state.physical)
-          readingOwnership.current = {
-            ...state,
-            physical: {
-              ...state.physical,
-              reference:
-                element && rect
-                  ? {
-                      element,
-                      top: rect.top - bounds.top + body.scrollTop,
-                      height: rect.height,
-                    }
-                  : null,
-            },
-          };
-        binding.capture(position);
-      };
-      const preferred =
-        preferredIndex === undefined
-          ? undefined
-          : {
-              index: preferredIndex,
-              element: registry.current.get(preferredIndex),
+    /** Where a follower was last looking; handed to the binding if a refresh asks to restore it. */
+    const followerPlace = useRef<ScriptPaneReadingPosition | null>(null);
+    const serializeReadingPosition = useCallback(
+      (preferredIndex?: number, aside = false) => {
+        const body = bodyRef.current;
+        const binding = readingPositionRef.current;
+        if (!body || !binding || !body.isConnected) return;
+        const bounds = body.getBoundingClientRect();
+        const publish = (
+          position: ScriptPaneReadingPosition,
+          element?: HTMLElement,
+          rect?: DOMRect,
+        ) => {
+          if (aside) {
+            followerPlace.current = position;
+            return;
+          }
+          const state = readingOwnership.current;
+          if (state.physical)
+            readingOwnership.current = {
+              ...state,
+              physical: {
+                ...state.physical,
+                reference:
+                  element && rect
+                    ? {
+                        element,
+                        top: rect.top - bounds.top + body.scrollTop,
+                        height: rect.height,
+                      }
+                    : null,
+              },
             };
-      const preferredRect = preferred?.element?.getBoundingClientRect();
-      if (
-        preferred?.element &&
-        body.contains(preferred.element) &&
-        preferredRect &&
-        preferredRect.top < bounds.bottom &&
-        preferredRect.bottom > bounds.top
-      ) {
-        const position: ScriptPaneReadingPosition = {
-          kind: "word",
-          index: preferred.index,
-          intent: "focus",
-          offset: preferredRect.top - bounds.top,
-          fallbackTop: body.scrollTop,
-          turns: live.current.turns,
+          binding.capture(position);
         };
-        publish(position, preferred.element, preferredRect);
-        return;
-      }
-      const stops = live.current.stops;
-      let low = 0;
-      let high = stops.length;
-      while (low < high) {
-        const middle = (low + high) >>> 1;
-        const word = registry.current.get(stops[middle].start);
-        if (!word || !body.contains(word)) {
-          low = middle + 1;
-          continue;
+        const preferred =
+          preferredIndex === undefined
+            ? undefined
+            : {
+                index: preferredIndex,
+                element: registry.current.get(preferredIndex),
+              };
+        const preferredRect = preferred?.element?.getBoundingClientRect();
+        if (
+          preferred?.element &&
+          body.contains(preferred.element) &&
+          preferredRect &&
+          preferredRect.top < bounds.bottom &&
+          preferredRect.bottom > bounds.top
+        ) {
+          const position: ScriptPaneReadingPosition = {
+            kind: "word",
+            index: preferred.index,
+            intent: "focus",
+            offset: preferredRect.top - bounds.top,
+            fallbackTop: body.scrollTop,
+            turns: live.current.turns,
+          };
+          publish(position, preferred.element, preferredRect);
+          return;
         }
-        if (word.getBoundingClientRect().bottom <= bounds.top) low = middle + 1;
-        else high = middle;
-      }
-      const stop = stops[low];
-      const word = stop ? registry.current.get(stop.start) : undefined;
-      const rect = word?.getBoundingClientRect();
-      if (stop && rect && rect.top < bounds.bottom) {
+        const stops = live.current.stops;
+        let low = 0;
+        let high = stops.length;
+        while (low < high) {
+          const middle = (low + high) >>> 1;
+          const word = registry.current.get(stops[middle].start);
+          if (!word || !body.contains(word)) {
+            low = middle + 1;
+            continue;
+          }
+          if (word.getBoundingClientRect().bottom <= bounds.top)
+            low = middle + 1;
+          else high = middle;
+        }
+        const stop = stops[low];
+        const word = stop ? registry.current.get(stop.start) : undefined;
+        const rect = word?.getBoundingClientRect();
+        if (stop && rect && rect.top < bounds.bottom) {
+          const position: ScriptPaneReadingPosition = {
+            kind: "word",
+            index: stop.start,
+            offset: rect.top - bounds.top,
+            fallbackTop: body.scrollTop,
+            turns: live.current.turns,
+          };
+          publish(position, word, rect);
+          return;
+        }
         const position: ScriptPaneReadingPosition = {
-          kind: "word",
-          index: stop.start,
-          offset: rect.top - bounds.top,
-          fallbackTop: body.scrollTop,
-          turns: live.current.turns,
+          kind: "scroll",
+          top: body.scrollTop,
         };
-        publish(position, word, rect);
-        return;
+        publish(position);
+      },
+      [],
+    );
+
+    useLayoutEffect(() => {
+      const resumesFollowing =
+        readingPositionRef.current?.restore && !readingPosition?.restore;
+      const holdsStill =
+        readingPositionRef.current?.restore === false &&
+        readingPosition?.restore === true &&
+        readingPosition.getPosition() === null;
+      if (holdsStill && followerPlace.current)
+        readingPosition.capture(followerPlace.current);
+      readingPositionRef.current = readingPosition;
+      // The hold is over: note where the follower is now for the next one.
+      if (resumesFollowing) serializeReadingPosition(undefined, true);
+      if (!readingPosition) {
+        readingOwnership.current = EMPTY_READING_OWNERSHIP;
+      } else if (resumesFollowing) {
+        const body = bodyRef.current;
+        if (body?.isConnected)
+          readingOwnership.current = acceptReadingPosition(
+            readingOwnership.current,
+            sampleReadingViewport(body, undefined),
+          );
       }
-      const position: ScriptPaneReadingPosition = {
-        kind: "scroll",
-        top: body.scrollTop,
-      };
-      publish(position);
-    }, []);
+    }, [readingPosition, serializeReadingPosition]);
 
     const captureReadingPosition = useCallback(
       (preferredIndex?: number) => {
@@ -1801,6 +1824,10 @@ export const ScriptPane = forwardRef<ScriptPaneHandle, ScriptPaneProps>(
           serializeReadingPosition();
           live.current.props.onUserScroll?.();
         } else if (result.effect === "restore") restoreReadingPosition();
+        else if (!binding.restore && boundary.kind === "scroll")
+          // A follower has no bookmark: note where it looks, so a refresh can
+          // hold it still.
+          serializeReadingPosition(undefined, true);
       },
       [
         serializeReadingPosition,
@@ -2144,6 +2171,7 @@ export const ScriptPane = forwardRef<ScriptPaneHandle, ScriptPaneProps>(
         className="sys-script"
         aria-label="Script"
         aria-describedby={describedBy}
+        aria-busy={busy || undefined}
         data-layout={layout}
       >
         {captionOnly && guest ? (
@@ -2547,6 +2575,8 @@ const TurnView = memo(function TurnView({
     return byWord;
   }, [found]);
   const foundAt = (index: number) => foundWords.get(index);
+  // Piece keys are relative to the turn, so a turn that only moved keeps its nodes.
+  const turnBase = turn.words[0]?.index ?? 0;
   const word = (w: ScriptWord) => (
     <WordView
       word={w}
@@ -2595,7 +2625,7 @@ const TurnView = memo(function TurnView({
           <span className="sys-script-muted">
             <SystemIcon name="volume-x" size={14} />
             {piece.words.map((w, at) => (
-              <Fragment key={w.index}>
+              <Fragment key={w.index - turnBase}>
                 {at > 0 ? (
                   <Gap
                     selected={gapSelected(piece.words[at - 1].index, w.index)}
@@ -2658,11 +2688,27 @@ const TurnView = memo(function TurnView({
         )}
       </div>
       <p className="sys-script-text" dir="auto">
+        {turn.settling ? (
+          <>
+            <span aria-hidden="true">
+              {settlingBars(turn.settling).map(({ key, chars }, at) => (
+                <Fragment key={key}>
+                  {at > 0 ? " " : null}
+                  <span
+                    className="sys-script-settling-bar"
+                    style={{ "--sys-settling-chars": chars } as CSSProperties}
+                  />
+                </Fragment>
+              ))}
+            </span>
+            <span className="sr-only">Updating this line</span>
+          </>
+        ) : null}
         {pieces.map((piece, at) => {
           const start = pieceStart(piece);
           const previous = pieces[at - 1];
           return (
-            <Fragment key={start}>
+            <Fragment key={start - turnBase}>
               {previous ? (
                 <Gap selected={gapSelected(pieceEnd(previous), start)} />
               ) : null}

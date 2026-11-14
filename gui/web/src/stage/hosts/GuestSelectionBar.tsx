@@ -2,6 +2,10 @@ import { useCallback } from "react";
 import { useShallow } from "zustand/react/shallow";
 import { runRangeAction } from "../../commands/rangeActions";
 import { runAndAnnounceRefusal } from "../../commands/refusal";
+import {
+  resolveSelectionRange,
+  TRANSCRIPT_REFRESHING,
+} from "../../edit/rangeSelection";
 import { canComment, rangeEditMode } from "../../shareMode";
 import { useDawStore } from "../../state/dawStore";
 import { ActionBar, type BarItem } from "../../system/ActionBar";
@@ -31,6 +35,14 @@ export function GuestSelectionBar({
       guestMode: s.guestMode,
     })),
   );
+  const refreshing = useDawStore((s) =>
+    s.project?.meta?.hydration?.transcript_words === false &&
+    s.selection?.kind === "transcriptRange"
+      ? resolveSelectionRange(s.project, s.selection).refreshing
+        ? TRANSCRIPT_REFRESHING
+        : undefined
+      : undefined,
+  );
   const mode = rangeEditMode(projectPath, shareCapabilities);
   const mayComment = canComment(projectPath, guestMode, shareCapabilities);
   const anchor = useSelectionAnchor(
@@ -47,13 +59,16 @@ export function GuestSelectionBar({
     void runAndAnnounceRefusal(() => runRangeAction(action));
   }, []);
   if (selection?.kind !== "transcriptRange" || !anchor.visible) return null;
-  const items: BarItem[] = mayComment ? [{ id: "comment" }] : [];
+  const items: BarItem[] = mayComment
+    ? [{ id: "comment", disabledReason: refreshing }]
+    : [];
   const primary =
     mode === "none"
       ? undefined
       : {
           id: "cut" as const,
           label: mode === "suggest" ? "Suggest a cut" : "Cut",
+          disabledReason: refreshing,
         };
   if (!items.length && !primary) return null;
   return (
