@@ -205,6 +205,10 @@ def _sample_frame_expression(offset: int, source_rate: int) -> str:
     return f"{sign}floor({abs(offset)}*s/{source_rate}+0.5)"
 
 
+def _anullsrc(rate: int, layout: str) -> str:
+    return f"anullsrc=r={rate}:cl={layout}"
+
+
 def _delay_filter(delay_sec: float, sample_rate: int) -> str:
     """Silence of ``delay_sec`` in front of the audio, with timestamps renumbered by sample.
 
@@ -1572,7 +1576,7 @@ class FFmpegEngine:
                         node_labels.append(
                             emit(
                                 "",
-                                f"anullsrc=r={probe.sample_rate}:cl={layout},"
+                                f"{_anullsrc(probe.sample_rate, layout)},"
                                 f"atrim=end_sample={int(node.duration_sec * probe.sample_rate)}",
                             )
                         )
@@ -1856,7 +1860,7 @@ class FFmpegEngine:
                     "-f",
                     "lavfi",
                     "-i",
-                    f"anullsrc=r={rate}:cl={'mono' if channels <= 1 else 'stereo'}",
+                    _anullsrc(rate, "mono" if channels <= 1 else "stereo"),
                     "-t",
                     f"{gap_sec:.6f}",
                     "-acodec",
@@ -1987,7 +1991,7 @@ class FFmpegEngine:
                 "-f",
                 "lavfi",
                 "-i",
-                f"anullsrc=r={sample_rate}:cl={channels}c",
+                _anullsrc(sample_rate, f"{channels}c"),
                 "-t",
                 str(duration_sec),
                 "-c:a",
