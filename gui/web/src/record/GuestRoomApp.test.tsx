@@ -425,7 +425,10 @@ describe("GuestRoomApp", () => {
     const socket = sockets[0];
     socket.holdConsent = true;
     await userEvent.click(joinButton());
-    expect(screen.getByRole("button", { name: "Joining…" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Joining…" })).toHaveAttribute(
+      "aria-disabled",
+      "true",
+    );
     act(() =>
       socket.onmessage?.({
         data: JSON.stringify({
@@ -437,7 +440,10 @@ describe("GuestRoomApp", () => {
     );
     await waitFor(() => expect(joinButton()).toBeEnabled());
     await userEvent.click(joinButton());
-    expect(screen.getByRole("button", { name: "Joining…" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Joining…" })).toHaveAttribute(
+      "aria-disabled",
+      "true",
+    );
     act(() => socket.onmessage?.(snapshotMessage({}, true)));
     await screen.findByRole("button", { name: "Leave room" });
     expect(
@@ -482,6 +488,58 @@ describe("GuestRoomApp", () => {
     });
     expect(screen.queryByText("Saving stopped.")).toBeNull();
     expect(screen.queryByRole("button", { name: "Resume saving" })).toBeNull();
+  });
+
+  it("remembers the name on this device only after the room confirms the join", async () => {
+    stubBootstrap();
+    render(<GuestRoomApp token="guest-tok" />);
+    await readyToJoin(getUserMedia);
+    sockets[0].holdConsent = true;
+    await userEvent.click(joinButton());
+    expect(screen.getByRole("button", { name: "Joining…" })).toHaveAttribute(
+      "aria-disabled",
+      "true",
+    );
+    expect(localStorage.getItem("sharecut.recordName")).toBeNull();
+    act(() => sockets[0].onmessage?.(snapshotMessage({}, true)));
+    await screen.findByRole("button", { name: "Leave room" });
+    expect(localStorage.getItem("sharecut.recordName")).toBe("Ava");
+  });
+
+  it("holds a remembered name back until Join, then sends it just before Consent", async () => {
+    localStorage.setItem("sharecut.recordName", "Ava Okafor");
+    stubBootstrap();
+    render(<GuestRoomApp token="guest-tok" />);
+    await userEvent.click(
+      await screen.findByRole("button", { name: MIC_ALLOW_LABEL }),
+    );
+    await waitFor(() => expect(getUserMedia).toHaveBeenCalled());
+    await userEvent.click(
+      await screen.findByRole("button", { name: "I'm wearing headphones" }),
+    );
+    await waitFor(() => expect(joinButton()).toBeEnabled());
+    const commands = () =>
+      sockets[0].sent.map(
+        (row) =>
+          JSON.parse(row) as {
+            command_type: string;
+            payload: Record<string, unknown>;
+          },
+      );
+    expect(
+      commands().find((row) => row.command_type === "Join")?.payload
+        .display_name,
+    ).toBe("Guest");
+    expect(
+      commands().filter((row) => row.command_type === "UpdateName"),
+    ).toHaveLength(0);
+    await userEvent.click(joinButton());
+    const sent = commands().map((row) => row.command_type);
+    const consent = sent.indexOf("Consent");
+    expect(sent[consent - 1]).toBe("UpdateName");
+    expect(commands()[consent - 1].payload).toEqual({
+      display_name: "Ava Okafor",
+    });
   });
 
   it("closes the sheet and shows the room once consent lands", async () => {

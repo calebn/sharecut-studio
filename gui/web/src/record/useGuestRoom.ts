@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useDesktopCloseGuard } from "../desktop/useDesktopCloseGuard";
-import { readLocal, writeLocal } from "../utils/storage";
+import { readRecordName, writeRecordName } from "../utils/recordNamePref";
+import { readLocal, removeLocal, writeLocal } from "../utils/storage";
 import { tookAnyTake } from "./guestRoomModel";
 import {
   type ByteSink,
@@ -50,9 +51,12 @@ export function useGuestRoom(
     setBoot({ owner: { token }, bootstrap: null, failure: null });
   }
   const { owner: bootOwner, bootstrap } = boot;
-  const [name, setName] = useState(
-    () => readLocal(storageKey(token, "name")) || "",
-  );
+  const [name, setName] = useState(readRecordName);
+  const [nameTyped, setNameTyped] = useState(false);
+  const typeName = useCallback((value: string) => {
+    setNameTyped(true);
+    setName(value);
+  }, []);
   const [headphonesOk, setHeadphonesOk] = useState(false);
   const [deviceId, setDeviceId] = useState(
     () => readLocal(storageKey(token, "mic")) || "",
@@ -78,14 +82,12 @@ export function useGuestRoom(
     };
   }, [token, bootOwner]);
 
-  useEffect(() => {
-    writeLocal(storageKey(token, "name"), name);
-  }, [name, token]);
-
   const producer = bootstrap?.role === "producer";
   const episodeName = bootstrap?.episode.name.trim() ?? "";
 
-  const syncName = name.trim() || (producer ? "Producer" : "Guest");
+  const syncName =
+    (nameTyped || producerJoined ? name.trim() : "") ||
+    (producer ? "Producer" : "Guest");
   const { snapshot, me, send, error, clearError, connected, lease } =
     useRecordSync(
       token,
@@ -94,6 +96,12 @@ export function useGuestRoom(
     );
   const accessEnded = isRecordAccessEnded(error);
   const inviteClosed = error === RECORD_INVITE_CLOSED;
+  const joinedName = (producer ? producerJoined : me?.consented === true)
+    ? name.trim()
+    : "";
+  useEffect(() => {
+    if (joinedName) writeRecordName(joinedName);
+  }, [joinedName]);
   const liveComments = useRecordLiveComments({
     token,
     snapshot,
@@ -315,11 +323,24 @@ export function useGuestRoom(
   const meId = me?.participant_id;
   const myName = me?.display_name;
 
+  const nameShared = nameTyped || producerJoined || me?.consented === true;
   useEffect(() => {
-    if (meId && name.trim() && name.trim() !== myName) {
+    if (meId && nameShared && name.trim() && name.trim() !== myName) {
       send("UpdateName", { display_name: name.trim() });
     }
+  }, [meId, myName, name, nameShared, send]);
+
+  const shareName = useCallback(() => {
+    setNameTyped(true);
+    const trimmed = name.trim();
+    if (meId && trimmed && trimmed !== myName) {
+      send("UpdateName", { display_name: trimmed });
+    }
   }, [meId, myName, name, send]);
+
+  useEffect(() => {
+    removeLocal(storageKey(token, "name"));
+  }, [token]);
 
   useEffect(() => {
     if (meId && !producer) {
@@ -379,7 +400,8 @@ export function useGuestRoom(
     captureSettled,
     view,
     name,
-    setName,
+    setName: typeName,
+    shareName,
     headphonesOk,
     setHeadphonesOk,
     deviceId,

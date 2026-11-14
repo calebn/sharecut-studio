@@ -1260,7 +1260,9 @@ describe("Record stage capture and storage", () => {
     setRoom({ participants: [avaGuest()] });
     const { unmount } = mount({ stream: {} as MediaStream });
     const none = await openDevices();
-    expect(within(none).queryByLabelText("Speaker")).toBeNull();
+    expect(
+      within(none).queryByRole("combobox", { name: "Speaker" }),
+    ).toBeNull();
     unmount();
     const onChange = vi.fn();
     mount({
@@ -1275,7 +1277,7 @@ describe("Record stage capture and storage", () => {
     });
     const dialog = await openDevices();
     await userEvent.selectOptions(
-      within(dialog).getByLabelText("Speaker"),
+      within(dialog).getByRole("combobox", { name: "Speaker" }),
       "hp",
     );
     expect(onChange).toHaveBeenCalledWith("hp");

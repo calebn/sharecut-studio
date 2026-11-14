@@ -3,10 +3,12 @@ import {
   consentLine,
   DECLINED_TEXT,
   declinedPeek,
+  joinFocus,
   joinGuestModel,
   joinHeadline,
   joinProducerModel,
   listenersLine,
+  micRow,
 } from "./joinSheetModel";
 
 const MAYA = { name: "Maya Okafor", colorIndex: 0 };
@@ -119,7 +121,7 @@ describe("joinGuestModel", () => {
 
   it.each([
     ["idle", "queued", "Allow your microphone first", "allow"],
-    ["prompting", "running", "Answer your browser first", undefined],
+    ["prompting", "running", "Answer your browser first", "allow"],
     ["denied", "needs-you", "Unblock your microphone first", "how-to"],
     ["lost", "failed", "Reconnect your microphone first", "retry"],
   ] as const)("the %s mic is a %s row", (status, state, reason, action) => {
@@ -294,5 +296,47 @@ describe("joinGuestModel while the input switches", () => {
     });
     expect(model.ready).toBe(false);
     expect(model.primary.reason).toBe("Wait for your microphone first");
+  });
+});
+
+describe("joinFocus", () => {
+  it("puts a mouse on a first visit in the name field", () => {
+    expect(joinFocus("name", "fine")).toEqual({ kind: "name-field" });
+  });
+
+  it("puts a touch screen on the name row, not the field", () => {
+    expect(joinFocus("name", "coarse")).toEqual({ kind: "row", step: "name" });
+  });
+
+  it("goes to the first unmet row once the name is known", () => {
+    expect(joinFocus("mic", "fine")).toEqual({ kind: "row", step: "mic" });
+  });
+
+  it("goes to the storage row before the name", () => {
+    expect(joinFocus("storage", "fine")).toEqual({
+      kind: "row",
+      step: "storage",
+    });
+  });
+
+  it("goes to the primary only when every row is done", () => {
+    expect(joinFocus(null, "coarse")).toEqual({ kind: "primary" });
+  });
+});
+
+describe("micRow while the browser asks", () => {
+  it("keeps Allow microphone, busy, while the browser asks", () => {
+    expect(micRow({ status: "prompting" })).toEqual({
+      key: "mic",
+      state: "running",
+      title: "Microphone",
+      detail: "Waiting for your browser…",
+      action: {
+        label: "Allow microphone",
+        name: "Allow microphone",
+        kind: "allow",
+        busy: true,
+      },
+    });
   });
 });

@@ -36,7 +36,13 @@ const IN_ROOM = [HOST, ANNEKE_GUEST, ROSA_PRODUCER];
 const WAITING: RoomPhase = { kind: "waiting", host: "Maya" };
 const LIVE: RoomPhase = { kind: "live", take: 1, clockSec: 252 };
 
-type StoryArgs = JoinSheetProps & { phase: RoomPhase };
+type StoryArgs = JoinSheetProps & {
+  phase: RoomPhase;
+  /** The room behind the sheet; the sheet itself follows the viewport. */
+  roomWidth?: "desktop" | "phone";
+};
+
+const PHONE = { viewport: { value: "mobile360", isRotated: false } };
 
 const MIC_READY = {
   status: "ready",
@@ -45,7 +51,7 @@ const MIC_READY = {
 } as const;
 
 /** The room the sheet opens over: the people already here, no seat of the viewer's own. */
-function Join({ phase, ...args }: StoryArgs) {
+function Join({ phase, roomWidth = "desktop", ...args }: StoryArgs) {
   const [name, setName] = useArgState(args.name);
   const [headphones, setHeadphones] = useArgState(args.headphones ?? false);
   return (
@@ -55,7 +61,7 @@ function Join({ phase, ...args }: StoryArgs) {
         title="Episode 14: the one about the mic"
         people={IN_ROOM}
         phase={phase}
-        viewerWidth={args.viewerWidth === "phone" ? "phone" : "desktop"}
+        viewerWidth={roomWidth}
         notes={[]}
         selfName=""
         onSendNote={fn()}
@@ -78,7 +84,6 @@ const meta: Meta<StoryArgs> = {
   render: (args) => <Join {...args} />,
   args: {
     seat: "guest",
-    viewerWidth: "desktop",
     here: IN_ROOM.map(({ person, role }) => ({ person, role })),
     host: "Maya Okafor",
     name: "Jon",
@@ -97,7 +102,7 @@ const meta: Meta<StoryArgs> = {
       ...isolatedStoryParameters.docs,
       description: {
         component:
-          "The pre-join sheet over a live room: the title and a row of avatars say who is here, then rows that check themselves off (name, microphone, headphones, each a Status row), the consent line with a Details disclosure, one primary and Not now. The primary stays disabled and names the first row still to do. A producer sees one name row, the headphone glyph and \"You'll listen and take notes. You won't be recorded.\" with Join to listen. Desktop is a centred card 420 wide, 96 from the top, with the room visible around it; the phone is a bottom Sheet at its large detent. Presentational: the caller owns the name, the microphone and the join itself, and Not now, Escape and Close all decline.\n\n**Motion.** None yet. Later: a row's glyph turns into its check with `--motion-state`, the meter follows the live level, and the clip tick fades out after 2 s.",
+          "The pre-join sheet over a live room: the title and a row of avatars say who is here, then rows that check themselves off (name, microphone, headphones, each a Status row), the consent line with a Details disclosure, one primary and Not now. The primary stays disabled and names the first row still to do. A producer sees one name row, the headphone glyph and \"You'll listen and take notes. You won't be recorded.\" with Join to listen. One Dialog: a card from 600 px, a bottom sheet under it. The card is 400 wide, 96 from the top, with the room visible around it. The sheet rises from the bottom as tall as its rows, at most 88% of the screen, with the room's header showing above it. A press beside the sheet does nothing, and there is one Close. Presentational: the caller owns the name, the microphone and the join itself, and Not now, Escape and Close all decline.\n\n**Motion.** None yet. Later: a row's glyph turns into its check with `--motion-state`, the meter follows the live level, and the clip tick fades out after 2 s.",
       },
     },
   },
@@ -158,7 +163,9 @@ export const GuestPrompting: Story = {
   play: async ({ viewMode }) => {
     if (viewMode === "docs") return;
     const dialog = await sheet();
-    await expect(dialog.getByText("Waiting for your browser…")).toBeVisible();
+    await expect(
+      dialog.getAllByText("Waiting for your browser…")[0],
+    ).toBeVisible();
     await expect(rowState("mic")).toBe("running");
     await expect(dialog.getByText("Answer your browser first")).toBeVisible();
   },
@@ -296,7 +303,7 @@ export const GuestStaleInput: Story = {
 };
 
 export const GuestRejoin: Story = {
-  args: { mic: MIC_READY, headphones: true, rejoin: true },
+  args: { mic: MIC_READY, headphones: true },
   play: async ({ viewMode }) => {
     if (viewMode === "docs") return;
     const dialog = await sheet();
@@ -314,25 +321,67 @@ export const GuestJoining: Story = {
     if (viewMode === "docs") return;
     const dialog = await sheet();
     const join = dialog.getByRole("button", { name: "Joining…" });
-    await expect(join).toBeDisabled();
+    await expect(join).toHaveAttribute("aria-disabled", "true");
     await expect(join).toHaveAttribute("aria-busy", "true");
   },
 };
 
 export const GuestPhone: Story = {
-  args: { viewerWidth: "phone", name: "" },
+  args: { roomWidth: "phone", name: "" },
+  globals: PHONE,
   play: async ({ viewMode }) => {
     if (viewMode === "docs") return;
     const dialog = await sheet();
     await expect(dialog.getByText("Add your name first")).toBeVisible();
-    await userEvent.type(dialog.getByLabelText("Your name"), "Jon");
+    await userEvent.type(
+      dialog.getByRole("textbox", { name: "Your name" }),
+      "Jon",
+    );
     await waitFor(() => expect(rowState("name")).toBe("done"));
     await expect(dialog.getByText("Allow your microphone first")).toBeVisible();
   },
 };
 
+export const GuestPhoneDenied: Story = {
+  args: { roomWidth: "phone", mic: { status: "denied" } },
+  globals: PHONE,
+  play: async ({ viewMode }) => {
+    if (viewMode === "docs") return;
+    const dialog = await sheet();
+    await waitFor(() =>
+      expect(
+        dialog.getByRole("button", { name: "How to allow the microphone" }),
+      ).toHaveFocus(),
+    );
+    await expect(
+      dialog.getByRole("button", { name: "Join and record" }),
+    ).toBeDisabled();
+    await expect(
+      dialog.getByText("Unblock your microphone first"),
+    ).toBeVisible();
+  },
+};
+
+export const GuestReturnVisit: Story = {
+  args: { roomWidth: "phone", name: "Ava Okafor" },
+  globals: PHONE,
+  play: async ({ viewMode }) => {
+    if (viewMode === "docs") return;
+    const dialog = await sheet();
+    await expect(
+      dialog.getByRole("textbox", { name: "Your name" }),
+    ).toHaveValue("Ava Okafor");
+    await waitFor(() =>
+      expect(
+        dialog.getByRole("button", { name: "Allow microphone" }),
+      ).toHaveFocus(),
+    );
+  },
+};
+
 export const GuestPhoneReady: Story = {
-  args: { viewerWidth: "phone", mic: MIC_READY, headphones: true },
+  args: { roomWidth: "phone", mic: MIC_READY, headphones: true },
+  globals: PHONE,
   play: async ({ viewMode }) => {
     if (viewMode === "docs") return;
     const dialog = await sheet();
@@ -359,7 +408,8 @@ export const Producer: Story = {
 };
 
 export const ProducerPhone: Story = {
-  args: { seat: "producer", viewerWidth: "phone", name: "" },
+  args: { seat: "producer", roomWidth: "phone", name: "" },
+  globals: PHONE,
   play: async ({ viewMode }) => {
     if (viewMode === "docs") return;
     const dialog = await sheet();

@@ -166,7 +166,9 @@ There are three overlay primitives.
    `modalGate` (`shortcuts`), and Escape belongs to the overlay. The listener
    does not keep its own list of dialogs.
 4. **Dismissal is the same everywhere.** Escape, the Close button and a tap on
-   the scrim all cancel. Focus returns to the control that opened the overlay.
+   the scrim all cancel. A consent dialog answered with a button keeps its scrim
+   still (`Dialog scrimDismisses={false}`): the Join sheet declines from Not now,
+   Close and Escape only. Focus returns to the control that opened the overlay.
    Closing a selection Inspector leaves layout intent unchanged. Current intent
    and viewport determine whether editor panels return or remain stowed.
 5. **One confirm primitive each.** `askConfirm` is the confirm dialog and

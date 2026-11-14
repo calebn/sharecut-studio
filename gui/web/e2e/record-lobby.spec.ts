@@ -2,6 +2,7 @@ import { access, readFile } from "node:fs/promises";
 import path from "node:path";
 import {
   type Browser,
+  type BrowserContextOptions,
   expect,
   type Locator,
   type Page,
@@ -34,6 +35,7 @@ import {
   openRecordLink,
   openRoomNotes,
   readSavedProject,
+  recordLinkPath,
   recordParticipantId,
   roomAlertSlot,
   roomPill,
@@ -306,13 +308,13 @@ test.describe("record lobby", () => {
           releaseRoomFrames();
           await expect(joinNameField(guest)).toHaveValue("Ava");
           const sheetControls = await guest
-            .locator(".sys-join-sheet .ui-control:not(.linkish)")
+            .locator(".sys-join-sheet .ui-control")
             .evaluateAll((elements) =>
               elements.map((element) => element.getBoundingClientRect().height),
             );
           expect(sheetControls.length).toBeGreaterThan(0);
           for (const height of sheetControls)
-            expect(height).toBeGreaterThanOrEqual(43.5);
+            expect(height).toBeGreaterThanOrEqual(TOUCH_MIN);
           const join = guest.getByRole("button", { name: "Join and record" });
           await expect(
             roomDlg.getByText("Ava", { exact: true }).first(),
@@ -548,9 +550,11 @@ test.describe("record lobby", () => {
           track.dispatchEvent(new Event("ended"));
         });
         await expect(
-          guest.getByText("Your microphone isn't available."),
+          guest.getByText("Your microphone isn't available.", { exact: true }),
         ).toBeVisible();
-        await expect(guest.getByText("Microphone disconnected.")).toBeVisible();
+        await expect(
+          guest.getByText("Microphone disconnected.", { exact: true }),
+        ).toBeVisible();
         await expect(join).toBeDisabled();
         await guest.getByRole("button", { name: "Retry microphone" }).click();
         await expect(join).toBeEnabled();
@@ -878,7 +882,11 @@ test.describe("record lobby", () => {
           await guest
             .getByRole("button", { name: "Allow microphone" })
             .click({ timeout: 15_000 });
-          await expect(guest.getByText("Microphone blocked")).toBeVisible({
+          await expect(
+            guest.locator(".sys-status-title", {
+              hasText: "Microphone blocked",
+            }),
+          ).toBeVisible({
             timeout: 15_000,
           });
           await expect(
@@ -1258,5 +1266,716 @@ test.describe("record lobby", () => {
         },
       );
     });
+  });
+});
+
+// 2.75rem is 44 px; a laid-out box can read a few millionths short in float.
+const TOUCH_MIN = 43.99;
+
+const PHONE_GUEST = {
+  viewport: { width: 390, height: 844 },
+  hasTouch: true,
+  isMobile: true,
+};
+
+type JoinState =
+  | "idle"
+  | "prompting"
+  | "denied"
+  | "lost"
+  | "ready"
+  | "switching"
+  | "storage";
+
+const JOIN_STATES: JoinState[] = [
+  "idle",
+  "prompting",
+  "denied",
+  "lost",
+  "ready",
+  "switching",
+  "storage",
+];
+
+type MicMode = "pass" | "hold" | "ask" | "deny";
+type MicWindow = {
+  __mic: {
+    mode: MicMode;
+    tracks: MediaStreamTrack[];
+    denyAsked?: () => void;
+  };
+};
+
+const joinPanel = (page: Page): Locator =>
+  page.locator(".command-palette-panel.sys-join-dialog");
+
+const micRowState = (page: Page, state: string): Locator =>
+  page.locator(`[data-step="mic"] .sys-status[data-state="${state}"]`);
+
+async function stubJoinDevices(page: Page): Promise<void> {
+  await page.addInitScript(() => {
+    const w = window as unknown as MicWindow;
+    w.__mic = { mode: "pass", tracks: [] };
+    const devices = navigator.mediaDevices;
+    const original = devices.getUserMedia.bind(devices);
+    devices.getUserMedia = async (constraints) => {
+      if (w.__mic.mode === "deny") {
+        throw new DOMException("Permission denied", "NotAllowedError");
+      }
+      if (w.__mic.mode === "hold") await new Promise<never>(() => {});
+      if (w.__mic.mode === "ask") {
+        await new Promise<never>((_, reject) => {
+          w.__mic.denyAsked = () =>
+            reject(new DOMException("Permission denied", "NotAllowedError"));
+        });
+      }
+      const stream = await original(constraints);
+      w.__mic.tracks.push(...stream.getAudioTracks());
+      return stream;
+    };
+    if (sessionStorage.getItem("e2eStorage") === "blocked") {
+      navigator.storage.getDirectory = async () => {
+        throw new DOMException("blocked", "SecurityError");
+      };
+    }
+  });
+}
+
+async function setMicMode(page: Page, mode: MicMode): Promise<void> {
+  await page.evaluate((next) => {
+    (window as unknown as MicWindow).__mic.mode = next;
+  }, mode);
+}
+
+async function reachJoinState(
+  page: Page,
+  token: string,
+  state: JoinState,
+): Promise<void> {
+  await page.goto(recordLinkPath(token));
+  await page.evaluate((blocked) => {
+    if (blocked) sessionStorage.setItem("e2eStorage", "blocked");
+    else sessionStorage.removeItem("e2eStorage");
+  }, state === "storage");
+  await openRecordLink(page, token);
+  await fillDisplayNameField(page, "Ava");
+  const allow = page.getByRole("button", { name: "Allow microphone" });
+  switch (state) {
+    case "idle":
+      await expect(allow).toBeVisible();
+      break;
+    case "prompting":
+      await setMicMode(page, "hold");
+      await allow.click();
+      await expect(micRowState(page, "running")).toBeVisible();
+      await expect(allow).toHaveAttribute("aria-busy", "true");
+      break;
+    case "denied":
+      await setMicMode(page, "deny");
+      await allow.click();
+      await expect(micRowState(page, "needs-you")).toBeVisible();
+      break;
+    case "lost":
+      await allow.click();
+      await expect(page.locator(".sys-join-meter")).toBeAttached();
+      await page.evaluate(() => {
+        for (const track of (window as unknown as MicWindow).__mic.tracks) {
+          track.stop();
+          track.dispatchEvent(new Event("ended"));
+        }
+      });
+      await expect(
+        page.getByText("Your microphone isn't available.", { exact: true }),
+      ).toBeVisible();
+      break;
+    case "ready":
+      await allow.click();
+      await expect(page.locator(".sys-join-meter")).toBeAttached();
+      break;
+    case "switching":
+      await allow.click();
+      await expect(page.locator(".sys-join-meter")).toBeAttached();
+      await setMicMode(page, "hold");
+      await page.getByRole("button", { name: /^Input:/ }).click();
+      await page.getByRole("menuitemradio", { checked: false }).first().click();
+      await expect(micRowState(page, "running")).toBeVisible();
+      break;
+    case "storage":
+      await expect(page.locator('[data-step="storage"]')).toBeVisible();
+      break;
+  }
+}
+
+async function withJoinRoom(
+  browser: Browser,
+  guestOptions: BrowserContextOptions,
+  run: (guest: Page, token: string) => Promise<void>,
+): Promise<void> {
+  await withShareableProject(async (projectPath) => {
+    await withBrowserPages(
+      browser,
+      [{}, guestOptions],
+      async ([host, guest]) => {
+        await markSharecutE2e(host);
+        await host.goto(`/?project=${encodeURIComponent(projectPath)}&e2e=1`);
+        await expect(host.getByRole("heading", { level: 1 })).toBeVisible();
+        const room = await createRecordRoom(host, projectPath);
+        await markSharecutE2e(guest);
+        await stubJoinDevices(guest);
+        await run(guest, room.guest.token);
+      },
+    );
+  });
+}
+
+async function settledPanel(page: Page): Promise<Locator> {
+  const panel = joinPanel(page);
+  await expect(panel).toBeVisible();
+  await panel.evaluate((element) =>
+    Promise.all(element.getAnimations().map((animation) => animation.finished)),
+  );
+  return panel;
+}
+
+type Box = { x: number; y: number; width: number; height: number };
+
+async function boxOf(locator: Locator): Promise<Box> {
+  const box = await locator.boundingBox();
+  if (!box) throw new Error("element has no box");
+  return box;
+}
+
+test.describe("join sheet on a phone", () => {
+  test("the name, microphone and headphones controls share one left edge", async ({
+    browser,
+  }: {
+    browser: Browser;
+  }) => {
+    await withJoinRoom(browser, PHONE_GUEST, async (guest, token) => {
+      for (const state of JOIN_STATES) {
+        for (const [width, expectedWidth] of [
+          [390, 334],
+          [320, 264],
+        ] as const) {
+          await reachJoinState(guest, token, state);
+          await guest.setViewportSize({ width, height: 844 });
+          const panel = joinPanel(guest);
+          const edges = [
+            await boxOf(panel.getByRole("textbox", { name: "Your name" })),
+            await boxOf(
+              panel.locator('[data-step="mic"] .sys-join-control > *').first(),
+            ),
+            await boxOf(
+              panel
+                .locator('[data-step="headphones"] .sys-join-control > *')
+                .first(),
+            ),
+          ];
+          const consentText = await boxOf(panel.locator(".sys-join-line"));
+          const details = await boxOf(
+            panel.getByRole("button", { name: "Details" }),
+          );
+          expect(details.x, `${state} at ${width} details`).toBeCloseTo(
+            consentText.x,
+            0,
+          );
+          for (const edge of edges) {
+            expect(edge.x, `${state} at ${width}`).toBeCloseTo(28, 0);
+            expect(edge.width, `${state} at ${width}`).toBeCloseTo(
+              expectedWidth,
+              0,
+            );
+          }
+        }
+      }
+    });
+  });
+
+  test("every control in the Join sheet is 44 px or more in every mic state", async ({
+    browser,
+  }: {
+    browser: Browser;
+  }) => {
+    await withJoinRoom(browser, PHONE_GUEST, async (guest, token) => {
+      for (const state of JOIN_STATES) {
+        for (const width of [390, 320]) {
+          await reachJoinState(guest, token, state);
+          await guest.setViewportSize({ width, height: 844 });
+          const sizes = await guest
+            .locator(
+              ".sys-join-dialog :is(button, input, [role=button], summary)",
+            )
+            .evaluateAll((elements) =>
+              elements
+                .map((element) => element.getBoundingClientRect())
+                .filter((box) => box.width > 0 && box.height > 0)
+                .map((box) => ({ width: box.width, height: box.height })),
+            );
+          expect(sizes.length, `${state} at ${width}`).toBeGreaterThan(0);
+          for (const size of sizes) {
+            expect(size.height, `${state} at ${width}`).toBeGreaterThanOrEqual(
+              TOUCH_MIN,
+            );
+            expect(size.width, `${state} at ${width}`).toBeGreaterThanOrEqual(
+              TOUCH_MIN,
+            );
+          }
+        }
+      }
+    });
+  });
+
+  test("a touch phone opens on the name row and leaves the field unfocused", async ({
+    browser,
+  }: {
+    browser: Browser;
+  }) => {
+    await withJoinRoom(browser, PHONE_GUEST, async (guest, token) => {
+      await openRecordLink(guest, token);
+      await expect(joinNameField(guest)).toBeVisible();
+      await expect
+        .poll(() =>
+          guest.evaluate(
+            () => (document.activeElement as HTMLElement | null)?.dataset.step,
+          ),
+        )
+        .toBe("name");
+      await expect(joinNameField(guest)).not.toBeFocused();
+    });
+  });
+
+  test("a mouse opens on the name field", async ({
+    browser,
+  }: {
+    browser: Browser;
+  }) => {
+    await withJoinRoom(
+      browser,
+      { viewport: { width: 390, height: 844 } },
+      async (guest, token) => {
+        await openRecordLink(guest, token);
+        await expect(joinNameField(guest)).toBeFocused();
+      },
+    );
+  });
+
+  test("a return visit prefills the saved name and opens on Allow microphone", async ({
+    browser,
+  }: {
+    browser: Browser;
+  }) => {
+    await withJoinRoom(browser, PHONE_GUEST, async (guest, token) => {
+      await guest.addInitScript(() => {
+        localStorage.setItem("sharecut.recordName", "Ava Okafor");
+      });
+      await openRecordLink(guest, token);
+      await expect(joinNameField(guest)).toHaveValue("Ava Okafor");
+      await expect(
+        guest.getByRole("button", { name: "Allow microphone" }),
+      ).toBeFocused();
+    });
+  });
+
+  test("a remembered name stays off the host's lobby until the guest presses Join", async ({
+    browser,
+  }: {
+    browser: Browser;
+  }) => {
+    await withShareableProject(async (projectPath) => {
+      await withBrowserPages(
+        browser,
+        [{}, PHONE_GUEST],
+        async ([host, guest]) => {
+          await markSharecutE2e(host);
+          await host.goto(`/?project=${encodeURIComponent(projectPath)}&e2e=1`);
+          await expect(host.getByRole("heading", { level: 1 })).toBeVisible();
+          const room = await createRecordRoom(host, projectPath);
+          const roomDlg = await openHostRecordRoom(host);
+          await markSharecutE2e(guest);
+          await stubJoinDevices(guest);
+          await guest.addInitScript(() => {
+            localStorage.setItem("sharecut.recordName", "Ava Okafor");
+          });
+          await openRecordLink(guest, room.guest.token);
+          await expect(joinNameField(guest)).toHaveValue("Ava Okafor");
+          await expect(roomDlg.getByText("Guest").first()).toBeVisible();
+          await expect(roomDlg.getByText("Ava Okafor")).toHaveCount(0);
+          await guest.getByRole("button", { name: "Allow microphone" }).click();
+          await guest
+            .getByRole("button", { name: "I'm wearing headphones" })
+            .click();
+          await expect(roomDlg.getByText("Ava Okafor")).toHaveCount(0);
+          await guest.getByRole("button", { name: "Join and record" }).click();
+          await expect(roomDlg.getByText("Ava Okafor").first()).toBeVisible();
+        },
+      );
+    });
+  });
+
+  test("a denied prompt keeps focus on the mic action", async ({
+    browser,
+  }: {
+    browser: Browser;
+  }) => {
+    await withJoinRoom(browser, {}, async (guest, token) => {
+      await guest.addInitScript(() => {
+        localStorage.setItem("sharecut.recordName", "Ava Okafor");
+      });
+      await openRecordLink(guest, token);
+      const allow = guest.getByRole("button", { name: "Allow microphone" });
+      await expect(allow).toBeFocused();
+      await setMicMode(guest, "ask");
+      await guest.keyboard.press("Enter");
+      await expect(micRowState(guest, "running")).toBeVisible();
+      await expect(allow).toBeFocused();
+      await guest.evaluate(() =>
+        (window as unknown as MicWindow).__mic.denyAsked?.(),
+      );
+      await expect(
+        guest.getByRole("button", { name: "How to allow the microphone" }),
+      ).toBeFocused();
+    });
+  });
+
+  test("one Close, a press beside the sheet keeps it, Escape declines", async ({
+    browser,
+  }: {
+    browser: Browser;
+  }) => {
+    await withJoinRoom(browser, PHONE_GUEST, async (guest, token) => {
+      await openRecordLink(guest, token);
+      const dialog = guest.getByRole("dialog");
+      await expect(dialog.getByRole("button", { name: /^Close/ })).toHaveCount(
+        1,
+      );
+      await expect(
+        dialog.getByRole("slider", { name: "Sheet height" }),
+      ).toHaveCount(0);
+      await guest.mouse.click(195, 40);
+      await expect(dialog).toBeVisible();
+      // Not now sends the decline over the room's socket; press again until
+      // the room has registered this guest and answers.
+      await expect(async () => {
+        await guest.keyboard.press("Escape");
+        await expect(guest.getByText("You're not being recorded.")).toBeVisible(
+          { timeout: 2_000 },
+        );
+      }).toPass();
+    });
+  });
+
+  test("the room shows above the sheet and Join and record sits in thumb reach", async ({
+    browser,
+  }: {
+    browser: Browser;
+  }) => {
+    await withJoinRoom(browser, PHONE_GUEST, async (guest, token) => {
+      await openRecordLink(guest, token);
+      await expect(roomPill(guest)).toBeVisible();
+      const panel = await boxOf(await settledPanel(guest));
+      const pill = await boxOf(roomPill(guest));
+      expect(pill.y + pill.height).toBeLessThanOrEqual(panel.y);
+      expect(panel.y).toBeGreaterThanOrEqual(100);
+      expect(panel.y + panel.height).toBeCloseTo(844, 0);
+      const join = await boxOf(
+        guest.getByRole("button", { name: "Join and record" }),
+      );
+      expect(join.height).toBeCloseTo(52, 0);
+      expect(join.y + join.height).toBeGreaterThanOrEqual(664);
+    });
+  });
+
+  test("599 is a bottom sheet", async ({ browser }: { browser: Browser }) => {
+    await withJoinRoom(
+      browser,
+      { viewport: { width: 599, height: 844 } },
+      async (guest, token) => {
+        await openRecordLink(guest, token);
+        await expect(joinPanel(guest)).toBeVisible();
+        const panel = await boxOf(await settledPanel(guest));
+        expect(panel.width).toBeCloseTo(599, 0);
+        expect(panel.x).toBeCloseTo(0, 0);
+        expect(panel.y + panel.height).toBeCloseTo(844, 0);
+      },
+    );
+  });
+
+  test("600, 700 and 767 are a centred card over the visible room", async ({
+    browser,
+  }: {
+    browser: Browser;
+  }) => {
+    await withJoinRoom(
+      browser,
+      { viewport: { width: 600, height: 844 } },
+      async (guest, token) => {
+        await openRecordLink(guest, token);
+        for (const [width, left] of [
+          [600, 100],
+          [700, 150],
+          [767, 183.5],
+        ] as const) {
+          await guest.setViewportSize({ width, height: 844 });
+          const panel = await boxOf(await settledPanel(guest));
+          expect(panel.width, `${width}`).toBeCloseTo(400, 0);
+          expect(panel.x, `${width}`).toBeCloseTo(left, 0);
+          expect(width - (panel.x + panel.width), `${width}`).toBeCloseTo(
+            left,
+            0,
+          );
+          expect(panel.y, `${width}`).toBeCloseTo(96, 0);
+          await expect(roomPill(guest)).toBeVisible();
+        }
+      },
+    );
+  });
+
+  test("no horizontal scroll at 320", async ({
+    browser,
+  }: {
+    browser: Browser;
+  }) => {
+    await withJoinRoom(
+      browser,
+      { viewport: { width: 320, height: 844 } },
+      async (guest, token) => {
+        await openRecordLink(guest, token);
+        await expect(joinPanel(guest)).toBeVisible();
+        const scrollWidth = await guest.evaluate(
+          () => document.documentElement.scrollWidth,
+        );
+        expect(scrollWidth).toBeLessThanOrEqual(320);
+      },
+    );
+  });
+
+  test("the form is usable on a short or narrow phone", async ({
+    browser,
+  }: {
+    browser: Browser;
+  }) => {
+    for (const [width, height] of [
+      [320, 568],
+      [667, 375],
+      [844, 390],
+    ] as const) {
+      await withJoinRoom(
+        browser,
+        { ...PHONE_GUEST, viewport: { width, height } },
+        async (guest, token) => {
+          const where = `${width}x${height}`;
+          await openRecordLink(guest, token);
+          const panel = joinPanel(guest);
+          const panelBox = await boxOf(await settledPanel(guest));
+          expect(panelBox.x, where).toBeGreaterThanOrEqual(0);
+          expect(panelBox.y, where).toBeGreaterThanOrEqual(0);
+          expect(panelBox.x + panelBox.width, where).toBeLessThanOrEqual(
+            width + 0.5,
+          );
+          expect(panelBox.y + panelBox.height, where).toBeLessThanOrEqual(
+            height + 0.5,
+          );
+          expect(
+            await guest.evaluate(() => document.documentElement.scrollWidth),
+            where,
+          ).toBeLessThanOrEqual(width);
+          const ring = await guest.evaluate(() => {
+            const row = document.activeElement as HTMLElement;
+            const input = row.querySelector("input");
+            const spread = /(\d+(?:\.\d+)?)px inset/.exec(
+              getComputedStyle(row).boxShadow,
+            );
+            const rowBox = row.getBoundingClientRect();
+            const inputBox = input?.getBoundingClientRect();
+            return {
+              isRow: row.dataset.step === "name",
+              width: spread ? Number(spread[1]) : 0,
+              rowTop: rowBox.top,
+              rowBottom: rowBox.bottom,
+              inputBottom: inputBox?.bottom ?? Number.NaN,
+            };
+          });
+          expect(ring.isRow, `${where} ring`).toBe(true);
+          expect(ring.width, `${where} ring`).toBeGreaterThan(0);
+          expect(
+            ring.inputBottom + ring.width,
+            `${where} ring`,
+          ).toBeLessThanOrEqual(ring.rowBottom + 0.01);
+          expect(ring.rowTop, `${where} ring`).toBeGreaterThanOrEqual(
+            panelBox.y - 0.5,
+          );
+          expect(ring.rowBottom, `${where} ring`).toBeLessThanOrEqual(
+            panelBox.y + panelBox.height + 0.5,
+          );
+          const body = await boxOf(panel.locator(".command-palette-body"));
+          expect(body.height, `${where} body`).toBeGreaterThanOrEqual(180);
+          await joinNameField(guest).tap();
+          await expect(joinNameField(guest)).toBeFocused();
+          const field = await boxOf(joinNameField(guest));
+          const panelNow = await boxOf(panel);
+          expect(field.y, where).toBeGreaterThanOrEqual(
+            Math.max(0, panelNow.y) - 0.5,
+          );
+          expect(field.y + field.height, where).toBeLessThanOrEqual(
+            Math.min(height, panelNow.y + panelNow.height) + 0.5,
+          );
+          for (const name of ["Join and record", "Not now"]) {
+            const control = panel.getByRole("button", { name });
+            await control.scrollIntoViewIfNeeded();
+            const box = await boxOf(control);
+            expect(box.y, `${where} ${name}`).toBeGreaterThanOrEqual(-0.5);
+            expect(box.y + box.height, `${where} ${name}`).toBeLessThanOrEqual(
+              height + 0.5,
+            );
+            expect(box.height, `${where} ${name}`).toBeGreaterThanOrEqual(
+              TOUCH_MIN,
+            );
+          }
+        },
+      );
+    }
+  });
+
+  test("the consent sentence is never clipped and Details is in view beside Join and record", async ({
+    browser,
+  }: {
+    browser: Browser;
+  }) => {
+    for (const [width, height] of [
+      [320, 568],
+      [390, 844],
+      [600, 900],
+      [700, 900],
+      [1280, 800],
+      [667, 375],
+    ] as const) {
+      await withJoinRoom(
+        browser,
+        { ...PHONE_GUEST, viewport: { width, height } },
+        async (guest, token) => {
+          const where = `${width}x${height}`;
+          await guest.addInitScript(() => {
+            localStorage.setItem("sharecut.recordName", "Ava Okafor");
+          });
+          await openRecordLink(guest, token);
+          const panel = await settledPanel(guest);
+          const allow = panel.getByRole("button", { name: "Allow microphone" });
+          const cut = await allow.evaluate((button) => {
+            let scroller: HTMLElement | null = button.parentElement;
+            while (
+              scroller &&
+              !/(auto|scroll)/.test(getComputedStyle(scroller).overflowY)
+            ) {
+              scroller = scroller.parentElement;
+            }
+            const area = (scroller ?? document.body).getBoundingClientRect();
+            const box = button.getBoundingClientRect();
+            return box.top < area.bottom && box.bottom > area.bottom + 0.5;
+          });
+          if (height >= 500) {
+            expect(
+              cut,
+              `${where} Allow microphone is not cut at first paint`,
+            ).toBe(false);
+          }
+          const join = panel.getByRole("button", { name: "Join and record" });
+          await join.scrollIntoViewIfNeeded();
+          const line = panel.locator(".sys-join-line");
+          const clipped = await line.evaluate(
+            (element) => element.scrollHeight - element.clientHeight,
+          );
+          expect(clipped, `${where} consent text clipped`).toBe(0);
+          const lineBox = await boxOf(line);
+          expect(lineBox.y, where).toBeGreaterThanOrEqual(-0.5);
+          expect(lineBox.y + lineBox.height, where).toBeLessThanOrEqual(
+            (await boxOf(join)).y + 0.5,
+          );
+          const detailsLink = panel.getByRole("button", { name: "Details" });
+          await expect(detailsLink).toBeVisible();
+          const detailsBox = await boxOf(detailsLink);
+          expect(detailsBox.y + detailsBox.height, where).toBeLessThanOrEqual(
+            height + 0.5,
+          );
+          expect(detailsBox.y, where).toBeGreaterThanOrEqual(-0.5);
+          const visibleHeight = await panel.evaluate((element) => {
+            const owner = element.querySelector(".command-palette-body");
+            const consent = element.querySelector(".sys-join-consent");
+            const body = owner?.getBoundingClientRect();
+            const box = consent?.getBoundingClientRect();
+            return body && box ? box.top - body.bottom : 0;
+          });
+          expect(
+            visibleHeight,
+            `${where} consent sits below the body`,
+          ).toBeGreaterThanOrEqual(-0.5);
+        },
+      );
+    }
+  });
+
+  test("the whole form is in the body's view at first paint", async ({
+    browser,
+  }: {
+    browser: Browser;
+  }) => {
+    for (const [width, height, touch] of [
+      [1280, 800, false],
+      [600, 900, false],
+      [700, 900, false],
+      [767, 900, false],
+      [390, 844, true],
+    ] as const) {
+      await withJoinRoom(
+        browser,
+        { ...(touch ? PHONE_GUEST : {}), viewport: { width, height } },
+        async (guest, token) => {
+          const where = `${width}x${height}`;
+          await openRecordLink(guest, token);
+          const panel = await settledPanel(guest);
+          const fit = await panel.evaluate((element) => {
+            const body = element.querySelector(
+              ".command-palette-body",
+            ) as HTMLElement;
+            const toggle = element.querySelector(
+              '[data-step="headphones"] button',
+            ) as HTMLElement;
+            const view = body.getBoundingClientRect();
+            const box = toggle.getBoundingClientRect();
+            return {
+              needed: body.scrollHeight,
+              available: body.clientHeight,
+              over: box.bottom - view.bottom,
+            };
+          });
+          expect(
+            fit.over,
+            `${where} headphones button past the body's view (body needs ${fit.needed}, has ${fit.available})`,
+          ).toBeLessThanOrEqual(0.5);
+          expect(
+            fit.needed - fit.available,
+            `${where} body scrolls (needs ${fit.needed}, has ${fit.available})`,
+          ).toBeLessThanOrEqual(0.5);
+        },
+      );
+    }
+  });
+
+  test("a tapped name field is in view at 390x508", async ({
+    browser,
+  }: {
+    browser: Browser;
+  }) => {
+    await withJoinRoom(
+      browser,
+      { ...PHONE_GUEST, viewport: { width: 390, height: 508 } },
+      async (guest, token) => {
+        await openRecordLink(guest, token);
+        await joinNameField(guest).tap();
+        await expect(joinNameField(guest)).toBeFocused();
+        const field = await boxOf(joinNameField(guest));
+        expect(field.y).toBeGreaterThanOrEqual(0);
+        expect(field.y + field.height).toBeLessThanOrEqual(508);
+      },
+    );
   });
 });
