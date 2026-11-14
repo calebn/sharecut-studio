@@ -451,6 +451,14 @@ def _refresh_silence_flags(
     return skipped, refreshed
 
 
+def _renumber_archived(transcript: Transcript, kept_ordinals: list[int]) -> None:
+    """Move each archive slot to its place among the words that were kept."""
+    slots = sorted(entry.ordinal for entry in transcript.archived_words)
+    rank = {ordinal: i for i, ordinal in enumerate(slots)}
+    for entry in transcript.archived_words:
+        entry.ordinal = rank[entry.ordinal] + sum(1 for o in kept_ordinals if o < entry.ordinal)
+
+
 def repair_reused_loops(
     project: EpisodeProject, plan: TranscribePlan, *, defaults: EffectiveConfig
 ) -> list[dict[str, Any]]:
@@ -458,27 +466,28 @@ def repair_reused_loops(
 
     A transcript stored before the loop guard existed (or by a run that kept a loop) is
     reused as it is, so the loop would survive every plain re-run. This runs the guard's
-    own-text test on it (no window ratios are stored). Edited transcripts, transcripts
-    with archived words (their ordinals count the active words), transcripts holding a
-    person's decision on any word (locked, ignored or re-timed) and empty ones are left
-    alone. Returns one entry per repaired job in the shape of ``asr_loop_drops``; a
+    own-text test on it (no window ratios are stored). Archived words keep their place:
+    their ordinals count the active words, so they are renumbered around the dropped
+    ones. Edited transcripts, transcripts holding a person's decision on any word
+    (locked, ignored or re-timed) and empty ones are left alone (logged). Returns one entry per repaired job in the shape of ``asr_loop_drops``; a
     repaired transcript has no loop left, so a later run returns nothing.
     """
     stored = {t.key: t for t in project.transcripts}
     entries: list[dict[str, Any]] = []
     for job in plan.reused:
         transcript = stored.get(job.key)
-        if (
-            transcript is None
-            or transcript.user_edited
-            or transcript.archived_words
-            or not transcript.words
-            or any(w.audibility_locked or w.ignored or w.timing_edited for w in transcript.words)
-        ):
+        if transcript is None or not transcript.words:
             continue
+        if transcript.user_edited or any(
+            w.audibility_locked or w.ignored or w.timing_edited for w in transcript.words
+        ):
+            log.info("kept stored transcript on %s as is: it holds a person's edits", job.label)
+            continue
+        ordinals = {id(w): o for o, w in transcript.active_words_with_ordinals()}
         report = guard_transcript(transcript)
         if report is None or not report.dropped:
             continue
+        _renumber_archived(transcript, [ordinals[id(w)] for w in report.kept])
         entries.append(
             {
                 "label": job.label,

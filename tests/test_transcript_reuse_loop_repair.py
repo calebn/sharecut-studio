@@ -152,14 +152,21 @@ def test_a_clean_transcript_is_a_no_op(minimal_project, sample_wav, tmp_workspac
     assert words_revision() == revision
 
 
-def test_a_transcript_with_archived_words_is_left_alone(minimal_project, sample_wav, tmp_workspace):
-    archived = ArchivedTranscriptWord(
-        ordinal=0, word=TranscriptWord(text="gone", start=1.0, end=1.2)
-    )
-    proj = _project(minimal_project, sample_wav, tmp_workspace, _words(), archived_words=[archived])
+def test_archived_words_keep_their_place_around_a_repair(
+    minimal_project, sample_wav, tmp_workspace
+):
+    total = CLEAN + LOOPED
+    archived = [
+        ArchivedTranscriptWord(ordinal=o, word=TranscriptWord(text="gone", start=1.0, end=1.2))
+        for o in (0, 5, total + 2)
+    ]
+    proj = _project(minimal_project, sample_wav, tmp_workspace, _words(), archived_words=archived)
     _, loops = _run(proj)
-    assert len(proj.transcripts[0].words) == CLEAN + LOOPED
-    assert loops == []
+    transcript = proj.transcripts[0]
+    assert len(transcript.words) == CLEAN
+    assert [e.ordinal for e in transcript.archived_words] == [0, 5, CLEAN + 2]
+    assert len(transcript.active_words_with_ordinals()) == CLEAN
+    assert loops[0]["dropped"] == LOOPED
 
 
 def test_a_repair_entry_joins_the_engine_entries(minimal_project, sample_wav, tmp_workspace):
