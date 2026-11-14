@@ -289,10 +289,11 @@ function GuestRoomSession({
   const clipped = takeClipping?.regions.length ?? 0;
   // A partial take's upload error only explains Finish saving; one action is enough.
   const recoverable = !producer && upload.recoverable && state === "stopped";
+  const inTake = !producer && tookPart(snapshot, me);
   const phase = guestRoomPhase(snapshot, {
     elapsedSinceSnapshotMs: elapsed,
     upload: producer ? null : upload,
-    tookPart: producer ? undefined : tookPart(snapshot, me),
+    tookPart: producer ? undefined : inTake,
     connected,
   });
   const alerts = guestRoomAlerts(
@@ -309,7 +310,7 @@ function GuestRoomSession({
       clipping: !producer && clippingGate(takeClipping?.regions ?? []),
       mutedSpeech,
       phase,
-      recorded,
+      inTake,
       micCheckFailed: keeper.micCheckFailed,
       notice: keeperActions.notice,
     },

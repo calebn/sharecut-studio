@@ -389,7 +389,7 @@ describe("guestRoomAlerts", () => {
     clipping: false,
     mutedSpeech: false,
     phase: { kind: "live" as const, take: 1, clockSec: 5 },
-    recorded: true,
+    inTake: true,
   };
 
   it("is empty when nothing is wrong", () => {
@@ -442,11 +442,11 @@ describe("guestRoomAlerts", () => {
     ).toEqual([]);
   });
 
-  it("a producer's dropped socket raises no connection alert", () => {
+  it("a dropped socket raises no connection alert for a guest outside the take", () => {
     expect(
       guestRoomAlerts({
         ...source,
-        recorded: false,
+        inTake: false,
         phase: { kind: "reconnecting", paused: false, clockSec: 43 },
       }),
     ).toEqual([]);
