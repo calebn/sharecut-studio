@@ -119,12 +119,32 @@ def test_a_second_run_changes_nothing_and_reports_nothing(
     assert words_revision() == revision
 
 
-def test_an_edited_transcript_keeps_its_loop(minimal_project, sample_wav, tmp_workspace):
+def test_an_edited_transcript_keeps_its_loop_and_says_so(
+    minimal_project, sample_wav, tmp_workspace, caplog
+):
     proj = _project(minimal_project, sample_wav, tmp_workspace, _words(), user_edited=True)
-    summary, loops = _run(proj)
+    with caplog.at_level(logging.WARNING):
+        summary, loops = _run(proj)
     assert len(proj.transcripts[0].words) == CLEAN + LOOPED
     assert loops == []
     assert "looped" not in summary
+    assert sum("kept a loop in" in r.getMessage() for r in caplog.records) == 1
+
+
+@pytest.mark.parametrize("edit", ["user_edited", "audibility_locked"])
+def test_an_edited_transcript_without_a_loop_stays_quiet(
+    minimal_project, sample_wav, tmp_workspace, caplog, edit
+):
+    words = _clean_words()
+    fields = {}
+    if edit == "user_edited":
+        fields["user_edited"] = True
+    else:
+        words[3].audibility_locked = True
+    proj = _project(minimal_project, sample_wav, tmp_workspace, words, **fields)
+    with caplog.at_level(logging.WARNING):
+        _run(proj)
+    assert "kept a loop" not in caplog.text
 
 
 @pytest.mark.parametrize("flag", ["audibility_locked", "ignored", "timing_edited"])
@@ -167,6 +187,17 @@ def test_archived_words_keep_their_place_around_a_repair(
     assert [e.ordinal for e in transcript.archived_words] == [0, 5, CLEAN + 2]
     assert len(transcript.active_words_with_ordinals()) == CLEAN
     assert loops[0]["dropped"] == LOOPED
+
+
+def test_slots_sharing_an_ordinal_become_distinct(minimal_project, sample_wav, tmp_workspace):
+    total = CLEAN + LOOPED
+    archived = [
+        ArchivedTranscriptWord(ordinal=o, word=TranscriptWord(text="gone", start=1.0, end=1.2))
+        for o in (3, 3, total + 2)
+    ]
+    proj = _project(minimal_project, sample_wav, tmp_workspace, _words(), archived_words=archived)
+    _run(proj)
+    assert [e.ordinal for e in proj.transcripts[0].archived_words] == [3, 4, CLEAN + 2]
 
 
 def test_a_repair_entry_joins_the_engine_entries(minimal_project, sample_wav, tmp_workspace):

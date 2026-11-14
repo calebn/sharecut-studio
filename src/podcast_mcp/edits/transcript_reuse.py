@@ -8,7 +8,7 @@ from dataclasses import dataclass, field
 from typing import Any, Protocol
 
 from podcast_mcp.config.defaults import EffectiveConfig
-from podcast_mcp.engines.asr_loops import guard_transcript
+from podcast_mcp.engines.asr_loops import drop_looped_words, guard_transcript
 from podcast_mcp.engines.asr_options import AsrOptions, normalize_language
 from podcast_mcp.engines.asr_silence import (
     SpeechLevels,
@@ -453,24 +453,23 @@ def _refresh_silence_flags(
 
 def _renumber_archived(transcript: Transcript, kept_ordinals: list[int]) -> None:
     """Move each archive slot to its place among the words that were kept."""
-    slots = sorted(entry.ordinal for entry in transcript.archived_words)
-    rank = {ordinal: i for i, ordinal in enumerate(slots)}
-    for entry in transcript.archived_words:
-        entry.ordinal = rank[entry.ordinal] + sum(1 for o in kept_ordinals if o < entry.ordinal)
+    for rank, entry in enumerate(sorted(transcript.archived_words, key=lambda e: e.ordinal)):
+        entry.ordinal = rank + sum(1 for o in kept_ordinals if o < entry.ordinal)
 
 
 def repair_reused_loops(
     project: EpisodeProject, plan: TranscribePlan, *, defaults: EffectiveConfig
 ) -> list[dict[str, Any]]:
-    """Drop a repetition loop from each stored, unedited ``plan.reused`` transcript.
+    """Drop a repetition loop from each stored ``plan.reused`` transcript.
 
-    A transcript stored before the loop guard existed (or by a run that kept a loop) is
-    reused as it is, so the loop would survive every plain re-run. This runs the guard's
-    own-text test on it (no window ratios are stored). Archived words keep their place:
-    their ordinals count the active words, so they are renumbered around the dropped
-    ones. Edited transcripts, transcripts holding a person's decision on any word
-    (locked, ignored or re-timed) and empty ones are left alone (logged). Returns one entry per repaired job in the shape of ``asr_loop_drops``; a
-    repaired transcript has no loop left, so a later run returns nothing.
+    A transcript stored before the loop guard existed is reused as it is, so the loop
+    would survive every plain re-run. This runs the guard's own-text test on it (no
+    window ratios are stored). Archive slots keep their place: their ordinals count the
+    active words, so they are renumbered around the dropped ones. A transcript with
+    ``user_edited`` or a person's decision on any word (locked, ignored or re-timed) is
+    left alone, with a warning when it holds a loop. Returns one entry per repaired job
+    in the shape of ``asr_loop_drops``; a repaired transcript has no loop left, so a
+    later run returns nothing.
     """
     stored = {t.key: t for t in project.transcripts}
     entries: list[dict[str, Any]] = []
@@ -481,24 +480,15 @@ def repair_reused_loops(
         if transcript.user_edited or any(
             w.audibility_locked or w.ignored or w.timing_edited for w in transcript.words
         ):
-            log.warning("kept stored transcript on %s as is: it holds a person's edits", job.label)
+            if drop_looped_words(transcript.words).dropped:
+                log.warning("kept a loop in %s: it holds a person's edits", job.label)
             continue
         ordinals = {id(w): o for o, w in transcript.active_words_with_ordinals()}
         report = guard_transcript(transcript)
         if report is None or not report.dropped:
             continue
         _renumber_archived(transcript, [ordinals[id(w)] for w in report.kept])
-        entries.append(
-            {
-                "label": job.label,
-                "track_id": job.track_id,
-                "dropped": len(report.dropped),
-                "start": report.start,
-                "end": report.end,
-                "dense_words": report.dense_words,
-                "looped_segments": report.looped_segments,
-            }
-        )
+        entries.append(report.as_entry(job.label, job.track_id))
     if entries and project.combined_transcript is not None:
         rebuild_combined(project, defaults=defaults)
     return entries

@@ -31,6 +31,7 @@ import math
 import zlib
 from collections.abc import Sequence
 from dataclasses import dataclass
+from typing import Any
 
 from podcast_mcp.models import Transcript, TranscriptWord
 from podcast_mcp.models.words_revision import set_words
@@ -63,6 +64,17 @@ class LoopReport:
     @property
     def end(self) -> float | None:
         return max((w.end for w in self.dropped), default=None)
+
+    def as_entry(self, label: str, track_id: str) -> dict[str, Any]:
+        return {
+            "label": label,
+            "track_id": track_id,
+            "dropped": len(self.dropped),
+            "start": self.start,
+            "end": self.end,
+            "dense_words": self.dense_words,
+            "looped_segments": self.looped_segments,
+        }
 
 
 def zlib_ratio(text: str) -> float:

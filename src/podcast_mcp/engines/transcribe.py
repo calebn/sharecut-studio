@@ -1059,17 +1059,7 @@ class TranscriptionEngine:
     def _record_asr_loops(self, job: TranscribeJob) -> None:
         if (drop := self._loop_drop) is None:
             return
-        self.asr_loop_drops.append(
-            {
-                "label": job.label,
-                "track_id": job.track_id,
-                "dropped": len(drop.dropped),
-                "start": drop.start,
-                "end": drop.end,
-                "dense_words": drop.dense_words,
-                "looped_segments": drop.looped_segments,
-            }
-        )
+        self.asr_loop_drops.append(drop.as_entry(job.label, job.track_id))
 
     def _evidence_for(
         self, project: EpisodeProject, job: TranscribeJob, transcript: Transcript
