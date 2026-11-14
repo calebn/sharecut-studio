@@ -1288,9 +1288,13 @@ const JOIN_STATES: JoinState[] = [
   "storage",
 ];
 
-type MicMode = "pass" | "hold" | "deny";
+type MicMode = "pass" | "hold" | "ask" | "deny";
 type MicWindow = {
-  __mic: { mode: MicMode; tracks: MediaStreamTrack[] };
+  __mic: {
+    mode: MicMode;
+    tracks: MediaStreamTrack[];
+    denyAsked?: () => void;
+  };
 };
 
 const joinPanel = (page: Page): Locator =>
@@ -1310,6 +1314,12 @@ async function stubJoinDevices(page: Page): Promise<void> {
         throw new DOMException("Permission denied", "NotAllowedError");
       }
       if (w.__mic.mode === "hold") await new Promise<never>(() => {});
+      if (w.__mic.mode === "ask") {
+        await new Promise<never>((_, reject) => {
+          w.__mic.denyAsked = () =>
+            reject(new DOMException("Permission denied", "NotAllowedError"));
+        });
+      }
       const stream = await original(constraints);
       w.__mic.tracks.push(...stream.getAudioTracks());
       return stream;
@@ -1349,6 +1359,7 @@ async function reachJoinState(
       await setMicMode(page, "hold");
       await allow.click();
       await expect(micRowState(page, "running")).toBeVisible();
+      await expect(allow).toHaveAttribute("aria-busy", "true");
       break;
     case "denied":
       await setMicMode(page, "deny");
@@ -1582,6 +1593,31 @@ test.describe("join sheet on a phone", () => {
           await expect(roomDlg.getByText("Ava Okafor").first()).toBeVisible();
         },
       );
+    });
+  });
+
+  test("a denied prompt keeps focus on the mic action", async ({
+    browser,
+  }: {
+    browser: Browser;
+  }) => {
+    await withJoinRoom(browser, {}, async (guest, token) => {
+      await guest.addInitScript(() => {
+        localStorage.setItem("sharecut.recordName", "Ava Okafor");
+      });
+      await openRecordLink(guest, token);
+      const allow = guest.getByRole("button", { name: "Allow microphone" });
+      await expect(allow).toBeFocused();
+      await setMicMode(guest, "ask");
+      await guest.keyboard.press("Enter");
+      await expect(micRowState(guest, "running")).toBeVisible();
+      await expect(allow).toBeFocused();
+      await guest.evaluate(() =>
+        (window as unknown as MicWindow).__mic.denyAsked?.(),
+      );
+      await expect(
+        guest.getByRole("button", { name: "How to allow the microphone" }),
+      ).toBeFocused();
     });
   });
 
