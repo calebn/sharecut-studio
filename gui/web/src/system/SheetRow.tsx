@@ -16,7 +16,13 @@ export function SheetRow({
 }) {
   const { action } = row;
   return (
-    <div className="sys-join-row" data-step={row.key} tabIndex={-1}>
+    <div
+      className="sys-join-row"
+      data-step={row.key}
+      tabIndex={-1}
+      role="group"
+      aria-label={row.title}
+    >
       <StatusRow
         state={row.state}
         title={row.title}

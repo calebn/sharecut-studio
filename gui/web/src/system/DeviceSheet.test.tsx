@@ -286,15 +286,15 @@ describe("DeviceSheet", () => {
 
     it("draws no speaker row without support", () => {
       const { rerender } = render(sheet());
-      expect(screen.queryByLabelText("Speaker")).toBeNull();
+      expect(screen.queryByRole("combobox", { name: "Speaker" })).toBeNull();
       rerender(sheet({ output: { ...output, supported: false } }));
-      expect(screen.queryByLabelText("Speaker")).toBeNull();
+      expect(screen.queryByRole("combobox", { name: "Speaker" })).toBeNull();
     });
 
     it("lists the speakers and applies a pick at once", async () => {
       const onOutputChange = vi.fn();
       const { baseElement } = render(sheet({ output, onOutputChange }));
-      const menu = screen.getByLabelText("Speaker");
+      const menu = screen.getByRole("combobox", { name: "Speaker" });
       expect(menu).toHaveValue("hp");
       expect(menu).not.toHaveAttribute("aria-describedby");
       expect(menu).toBeEnabled();
@@ -324,8 +324,10 @@ describe("DeviceSheet", () => {
       expect(
         screen.getByText("Couldn't switch speakers. Using the default."),
       ).toBeVisible();
-      expect(screen.getByLabelText("Speaker")).toHaveValue("");
-      expect(screen.getByLabelText("Speaker")).toHaveAccessibleDescription(
+      expect(screen.getByRole("combobox", { name: "Speaker" })).toHaveValue("");
+      expect(
+        screen.getByRole("combobox", { name: "Speaker" }),
+      ).toHaveAccessibleDescription(
         "Couldn't switch speakers. Using the default.",
       );
       expect(

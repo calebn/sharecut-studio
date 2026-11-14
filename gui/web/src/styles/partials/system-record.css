@@ -1047,7 +1047,7 @@ html:not([data-shell="phone"], [data-shell="tablet"])
    600: it rises from the bottom as tall as its rows, at most 88%, so the
    room's header, pill and tile tops show above it. */
 .ui-dialog-root:has(> .sys-join-dialog) {
-  container: sys-join / inline-size;
+  container: sys-join / size;
 }
 
 .command-palette-panel.sys-join-dialog {
@@ -1071,6 +1071,20 @@ html:not([data-shell="phone"], [data-shell="tablet"])
     border-width: 1px 0 0;
     border-radius: var(--radius-xl) var(--radius-xl) 0 0;
     box-shadow: var(--shadow-floating-up);
+  }
+}
+
+/* A short screen (a phone on its side): the sheet scrolls as one, footer
+   included, so the rows keep their room. */
+@container sys-join (height < 30rem) {
+  .command-palette-panel.sys-join-dialog {
+    --sys-join-top: var(--space-3);
+    overflow-y: auto;
+  }
+
+  .command-palette-panel.sys-join-dialog > .command-palette-body {
+    flex: 0 0 auto;
+    overflow: visible;
   }
 }
 
@@ -1114,6 +1128,7 @@ html:not([data-shell="phone"], [data-shell="tablet"])
   display: flex;
   flex-direction: column;
   gap: var(--space-1);
+  border-radius: var(--radius-md);
 }
 
 .sys-join-control {

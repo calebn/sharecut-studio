@@ -331,7 +331,10 @@ export const GuestPhone: Story = {
     if (viewMode === "docs") return;
     const dialog = await sheet();
     await expect(dialog.getByText("Add your name first")).toBeVisible();
-    await userEvent.type(dialog.getByLabelText("Your name"), "Jon");
+    await userEvent.type(
+      dialog.getByRole("textbox", { name: "Your name" }),
+      "Jon",
+    );
     await waitFor(() => expect(rowState("name")).toBe("done"));
     await expect(dialog.getByText("Allow your microphone first")).toBeVisible();
   },
@@ -363,7 +366,9 @@ export const GuestReturnVisit: Story = {
   play: async ({ viewMode }) => {
     if (viewMode === "docs") return;
     const dialog = await sheet();
-    await expect(dialog.getByLabelText("Your name")).toHaveValue("Ava Okafor");
+    await expect(
+      dialog.getByRole("textbox", { name: "Your name" }),
+    ).toHaveValue("Ava Okafor");
     await waitFor(() =>
       expect(
         dialog.getByRole("button", { name: "Allow microphone" }),
