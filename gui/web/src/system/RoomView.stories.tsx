@@ -313,7 +313,7 @@ export const GuestSaving: Story = {
 };
 
 export const GuestSaved: Story = {
-  args: { phase: { kind: "saved" }, people: SAVED_GUESTS },
+  args: { phase: { kind: "saved" }, people: SAVED_GUESTS, onDone: fn() },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     await expect(
