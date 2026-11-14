@@ -208,6 +208,43 @@ describe("HistoryPanel list", () => {
     },
   );
 
+  it.each([
+    ["viewer", "view", ["play", "view"]],
+    ["commenter", "comment", ["play", "view", "comment"]],
+  ])("keeps Undo and Redo unavailable to a %s", (_role, guestMode, caps) => {
+    renderList();
+    act(() =>
+      useDawStore.setState({
+        projectPath: "share:tok",
+        guestMode,
+        shareCapabilities: caps,
+      }),
+    );
+    for (const name of ["Undo", "Redo"]) {
+      fireEvent.click(screen.getByRole("button", { name }));
+    }
+    expect(executePointerCommand).not.toHaveBeenCalled();
+    for (const name of ["Undo", "Redo"]) {
+      expect(screen.getByRole("button", { name })).toBeDisabled();
+    }
+  });
+
+  it("runs Undo for an Editor", async () => {
+    useDawStore.setState({
+      projectPath: "share:tok",
+      guestMode: "edit",
+      shareCapabilities: ["play", "view", "comment", "edit"],
+    });
+    vi.mocked(executePointerCommand).mockResolvedValue({
+      status: "ok",
+    } as never);
+    renderList();
+    fireEvent.click(screen.getByRole("button", { name: "Undo" }));
+    await waitFor(() =>
+      expect(executePointerCommand).toHaveBeenCalledWith("history.undo"),
+    );
+  });
+
   it("drops the diff when the selected step leaves the history", async () => {
     vi.mocked(loadHistoryDiff).mockResolvedValue(diffOf("fade changed"));
     const { container } = renderList();

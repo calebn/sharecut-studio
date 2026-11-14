@@ -1,6 +1,16 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { commandLocks } from "../test/commandLocks";
 
+const EDITOR_CAPABILITIES = [
+  "play",
+  "view",
+  "comment",
+  "reply",
+  "action",
+  "suggest",
+  "edit",
+];
+
 const enqueueHostCommand = vi.fn();
 const enqueueCommand = vi.fn();
 const loadHostCommandQueue = vi.fn();
@@ -92,6 +102,7 @@ describe("queued command identity and landed history", () => {
     const project = minimalProject();
     useDawStore.setState({
       projectPath: path,
+      shareCapabilities: EDITOR_CAPABILITIES,
       project: {
         ...project,
         history: { ...project.history, can_undo: true, can_redo: true },

@@ -6,6 +6,7 @@ import {
   ownCommandHead,
   retireOwnCommandHead,
 } from "../document/authorityState";
+import { canApplyPass12 } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
 import {
   documentActivityBusy,
@@ -28,6 +29,11 @@ const STALE_COPY = {
 const FAILED_COPY = {
   undo: "Undo did not run.",
   redo: "Redo did not run.",
+} as const;
+
+const NEEDS_EDITOR = {
+  undo: "Undo needs Editor access",
+  redo: "Redo needs Editor access",
 } as const;
 
 const NO_HEAD = "Open a project first.";
@@ -74,6 +80,13 @@ function moveHistory(
   projectPath: string,
   args: Record<string, unknown>,
 ): Promise<ExecuteResult> {
+  const daw = useDawStore.getState();
+  if (!canApplyPass12(daw.projectPath, daw.guestMode, daw.shareCapabilities)) {
+    return Promise.resolve({
+      status: "disabled",
+      reason: NEEDS_EDITOR[action],
+    });
+  }
   const explicit = parseHistoryEntryId(args.expectedHeadId);
   const scope = documentScope();
   const ahead =

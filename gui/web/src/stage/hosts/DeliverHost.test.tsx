@@ -47,6 +47,15 @@ vi.mock("../../services/offlineQueue/offlineStore", async (importOriginal) => ({
     wire.rows = wire.rows.filter((r) => !ids.includes(r.command_id));
   },
 }));
+const gate = vi.hoisted(() => ({ deny: false }));
+vi.mock("../../shareMode", async (importOriginal) => {
+  const real = await importOriginal<typeof import("../../shareMode")>();
+  return {
+    ...real,
+    canApplyPass12: (...args: Parameters<typeof real.canApplyPass12>) =>
+      !gate.deny && real.canApplyPass12(...args),
+  };
+});
 vi.mock("../../commands/seek", () => ({ seekTransport: wire.seek }));
 
 import { clearRegisteredCommands } from "../../commands/execute";
@@ -222,6 +231,7 @@ beforeEach(() => {
   PATH = `/tmp/deliver-host/${runs}/episode.sharecut`;
   OTHER = `/tmp/deliver-host/${runs}/other.project.json`;
   vi.clearAllMocks();
+  gate.deny = false;
   Object.defineProperty(navigator, "locks", {
     configurable: true,
     value: commandLocks(),
@@ -956,6 +966,19 @@ describe("Deliver host clip removal", () => {
     expect(sent()[1]?.[0]).toBe("UndoHistory");
     expect(sent()[1]?.[1]).toMatchObject({ expected_head_id: "s1" });
     expect(server.held.social_clips).toEqual([CLIP]);
+  });
+
+  it("refuses the history undo when the role lost Editor access", async () => {
+    render(<DeliverStage />);
+    await removeClip();
+    await waitFor(() => expect(wire.post).toHaveBeenCalledOnce());
+    gate.deny = true;
+    await userEvent.click(screen.getByRole("button", { name: "Undo" }));
+    expect(useDawStore.getState().statusAnnouncement).toBe(
+      "Undo needs Editor access",
+    );
+    expect(wire.post).toHaveBeenCalledOnce();
+    expect(sent().map(([type]) => type)).not.toContain("UndoHistory");
   });
 
   it("sends the removal alone when Undo is not pressed", async () => {
