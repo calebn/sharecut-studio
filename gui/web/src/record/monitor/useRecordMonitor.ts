@@ -1,4 +1,4 @@
-import { useEffect, useInsertionEffect, useState } from "react";
+import { useCallback, useEffect, useInsertionEffect, useState } from "react";
 import { MIX_MINUS_RAMP_S, MixMinusGraph } from "../../audio/mixMinus";
 import { errorMessage } from "../../utils/apiError";
 import { audioContextCtor } from "../../utils/audio";
@@ -69,6 +69,8 @@ type MonitorInputs = Pick<
 >;
 type Acquisition = Pick<Args, "enabled" | "localId" | "role"> & {
   sessionId: string | null;
+  /** A new value opens a fresh mesh and audio context for the same room. */
+  attempt: number;
 };
 type MonitorObservation =
   | { kind: "inactive" }
@@ -342,6 +344,8 @@ export function useRecordMonitor({
   contextGeneration: number;
   /** Route the room's audio to a speaker ("" is the default). False, and nothing done, without a context. */
   setSinkId: (deviceId: string) => Promise<boolean>;
+  /** Clears the failure and opens a fresh mesh and audio context. */
+  retry: () => void;
 } {
   const [remoteCount, setRemoteCount] = useState(0);
   const [levels, setLevels] = useState<Record<string, number>>({});
@@ -350,6 +354,7 @@ export function useRecordMonitor({
   }
   const [error, setError] = useState<string | null>(null);
   const [contextGeneration, setContextGeneration] = useState(0);
+  const [attempt, setAttempt] = useState(0);
   const sessionId = snapshot?.session_id ?? null;
   const [monitor] = useState(
     () =>
@@ -392,9 +397,13 @@ export function useRecordMonitor({
   }, [monitor, send, localStream, snapshot, localId]);
 
   useEffect(
-    () => monitor.acquire({ enabled, localId, role, sessionId }),
-    [monitor, enabled, localId, role, sessionId],
+    () => monitor.acquire({ enabled, localId, role, sessionId, attempt }),
+    [monitor, enabled, localId, role, sessionId, attempt],
   );
+  const retry = useCallback(() => {
+    setError(null);
+    setAttempt((n) => n + 1);
+  }, []);
   useEffect(() => monitor.watchLevels(remoteCount), [monitor, remoteCount]);
   useEffect(() => {
     monitor.connectLocal(localStream, role);
@@ -414,5 +423,6 @@ export function useRecordMonitor({
     outputSupported: outputSelectable(),
     contextGeneration,
     setSinkId: monitor.setSinkId,
+    retry,
   };
 }

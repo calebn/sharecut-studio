@@ -317,6 +317,7 @@ function GuestRoomSession({
       checkMic: keeper.checkMic,
       retryStorage,
       retryKeeper: state === "recording" ? keeper.retry : undefined,
+      retryMonitor: monitor.retry,
       resumeUpload,
       recover: keeperActions.recover,
       dismiss: clearError,
