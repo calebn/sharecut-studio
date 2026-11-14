@@ -309,9 +309,11 @@ def test_host_record_room_http(minimal_project, sample_wav, tmp_workspace, monke
 
 def _close_record_invite(ws, token: str, session_id: str, role: str) -> tuple[str, str]:
     record = RecordSessionService(ws.project, session_id=session_id)
-    capabilities = lookup_share(token, kind="record")["capabilities"]
+    share = lookup_share(token, kind="record")
+    capabilities = share["capabilities"]
+    share_id = share["id"]
     echo, _snapshot = record.join(
-        token=token,
+        share_id=share_id,
         role=role,
         display_name="Removed participant",
         client_id="invite-replacement-test",
@@ -320,7 +322,7 @@ def _close_record_invite(ws, token: str, session_id: str, role: str) -> tuple[st
     )
     survivor_connection_id = f"invite-replacement-survivor-{role}"
     survivor, _snapshot = record.join(
-        token=token,
+        share_id=share_id,
         role=role,
         display_name="Continuing participant",
         client_id="invite-replacement-survivor",
@@ -342,7 +344,7 @@ def _close_record_invite(ws, token: str, session_id: str, role: str) -> tuple[st
     )
     resumed_connection_id = f"invite-replacement-resume-{role}"
     resumed, _snapshot = record.join(
-        token=token,
+        share_id=share_id,
         role=role,
         display_name="Continuing participant",
         participant_id=survivor["participant_id"],
@@ -378,7 +380,7 @@ def test_replace_closed_record_invite_preserves_room_role_and_expiry(
 
     record = RecordSessionService(ws.project, session_id=room["session_id"])
     resumed, _snapshot = record.join(
-        token=original["token"],
+        share_id=original["id"],
         role=role,
         display_name="Continuing participant",
         participant_id=survivor_id,

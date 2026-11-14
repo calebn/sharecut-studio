@@ -74,7 +74,7 @@ def _comment_payload(cid: str, *, body: str = "Marker", pressed: int = 123_400) 
 def _consent_room(ws, room, *, name: str = "Ava", connection_id: str = "c1"):
     svc = RecordSessionService(ws.project, session_id=room["session_id"])
     echo, _snap = svc.join(
-        token=room["guest"]["token"],
+        share_id=room["guest"]["id"],
         role="guest",
         display_name=name,
         client_id=f"rec-{connection_id}",
@@ -173,7 +173,7 @@ def test_guest_visibility_is_host_enforced(minimal_project, sample_wav, tmp_work
     room = ShareService(ws).create_record_room()
     svc, guest_a = _consent_room(ws, room)
     echo_b, _ = svc.join(
-        token=room["guest"]["token"],
+        share_id=room["guest"]["id"],
         role="guest",
         display_name="Bea",
         client_id="rec-b",
@@ -198,7 +198,7 @@ def test_guest_visibility_is_host_enforced(minimal_project, sample_wav, tmp_work
         connection_id="c-b",
     )
     prod, _ = svc.join(
-        token=room["producer"]["token"],
+        share_id=room["producer"]["id"],
         role="producer",
         display_name="Pat",
         client_id="rec-p",
@@ -326,7 +326,7 @@ def test_guest_ws_snapshot_hides_other_guest_comments(
     room = ShareService(ws).create_record_room()
     svc, guest_a = _consent_room(ws, room)
     echo_b, _ = svc.join(
-        token=room["guest"]["token"],
+        share_id=room["guest"]["id"],
         role="guest",
         display_name="Bea",
         client_id="rec-b",
@@ -351,7 +351,7 @@ def test_guest_ws_snapshot_hides_other_guest_comments(
         connection_id="c-b",
     )
     prod_echo, _ = svc.join(
-        token=room["producer"]["token"],
+        share_id=room["producer"]["id"],
         role="producer",
         display_name="Pat",
         client_id="rec-p",
@@ -582,7 +582,7 @@ def test_producer_cannot_overwrite_guest_comment(
     room = ShareService(ws).create_record_room()
     svc, guest = _consent_room(ws, room)
     prod, _ = svc.join(
-        token=room["producer"]["token"],
+        share_id=room["producer"]["id"],
         role="producer",
         display_name="Pat",
         client_id="rec-p",

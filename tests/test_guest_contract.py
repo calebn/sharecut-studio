@@ -118,14 +118,13 @@ def _consented_guest(ws: ProjectWorkspace, room: dict[str, Any]) -> tuple[str, s
     svc = RecordSessionService(ws.project, session_id=room["session_id"])
     caps = ["join", "monitor"]
     svc.join(
-        token=room["guest"]["token"],
         role="host",
         display_name="Host",
         client_id="host",
         connection_id="h1",
     )
     echo, _snapshot = svc.join(
-        token=room["guest"]["token"],
+        share_id=room["guest"]["id"],
         role="guest",
         display_name="Ava",
         client_id="Ava",

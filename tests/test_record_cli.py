@@ -54,7 +54,7 @@ def _consented_room(ws) -> None:
     room = ShareService(ws).create_record_room()
     svc = RecordSessionService(ws.project, session_id=room["session_id"])
     echo, _snap = svc.join(
-        token=room["guest"]["token"],
+        share_id=room["guest"]["id"],
         role="guest",
         display_name="Ava",
         client_id="rec-guest",
@@ -108,7 +108,6 @@ def test_record_cli_and_mcp_state_with_room(
         ws.project, session_id=RecordSessionService.active_session_id(ws.project)
     )
     room.join(
-        token="",
         role="host",
         display_name="Host",
         client_id="record-join:host",
@@ -183,7 +182,7 @@ def test_record_state_reaches_agents_with_coded_start_blockers(
 
     svc = RecordSessionService(ws.project, session_id=room["session_id"])
     echo, _snap = svc.join(
-        token=room["guest"]["token"],
+        share_id=room["guest"]["id"],
         role="guest",
         display_name="Ava",
         client_id="rec-guest",
@@ -234,7 +233,6 @@ def test_record_room_tone_cli_and_mcp_announce_a_round(
         ws.project, session_id=RecordSessionService.active_session_id(ws.project)
     )
     host.join(
-        token="",
         role="host",
         display_name="Host",
         client_id="record-join:host",
@@ -263,7 +261,6 @@ def test_record_host_commands_from_separate_processes_are_not_deduped(minimal_pr
     room = ShareService(ws).create_record_room()
     host = RecordSessionService(ws.project, session_id=room["session_id"])
     host.join(
-        token="",
         role="host",
         display_name="Host",
         client_id="record-join:host",
@@ -397,7 +394,6 @@ def test_record_target_refused_once_a_take_exists(
         ws.project, session_id=RecordSessionService.active_session_id(ws.project)
     )
     host.join(
-        token="",
         role="host",
         display_name="Host",
         client_id="record-join:host",

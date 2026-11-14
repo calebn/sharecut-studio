@@ -401,7 +401,7 @@ def test_a_guest_who_rejoins_late_gets_a_fresh_window(
     old = ShareService(ws).create_record_room()
     svc = RecordSessionService(ws.project, session_id=old["session_id"])
     caps = ["join", "monitor", "comment"]
-    join = {"token": old["guest"]["token"], "role": "guest", "display_name": "Ava"}
+    join = {"share_id": old["guest"]["id"], "role": "guest", "display_name": "Ava"}
     echo, _ = svc.join(**join, client_id="rec-guest-0", connection_id="c0", capabilities=caps)
     ava = echo["participant_id"]
     _consented_before_start(svc, [ava])
