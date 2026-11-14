@@ -15,6 +15,10 @@
   cursor: pointer;
 }
 
+.command-palette-scrim--still {
+  cursor: default;
+}
+
 .command-palette-panel {
   position: relative;
   z-index: var(--z-content);
