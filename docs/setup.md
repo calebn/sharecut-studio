@@ -324,7 +324,8 @@ ahead of Homebrew's 3.5.1, which hangs in the Python.xcframework install phase. 
 
 A signed TestFlight build adds an Apple Developer team signed in to Xcode and, for validate and
 upload, an App Store Connect API key (Developer role). They go in a private `0600` file outside the
-repository, never in a shell export; `make ios-release-rehearsal` needs neither. See
+repository (the documented way); environment variables of the same names override the file, for
+automation. Nothing prints them. `make ios-release-rehearsal` needs neither. See
 [desktop-packaging.md § iOS release](desktop-packaging.md#ios-release).
 
 ## macOS (or any OS with a package manager)
