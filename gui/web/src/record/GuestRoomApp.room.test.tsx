@@ -413,6 +413,27 @@ describe("GuestRoomApp in the room", () => {
     expect(screen.getByText(/^\d+:\d{2} · Reconnecting…$/)).toBeInTheDocument();
   });
 
+  it("does not say a consented guest outside the take is still recording when the socket drops", () => {
+    fakeRoom({
+      snapshot: {
+        state: "recording",
+        takes: [
+          {
+            take_index: 0,
+            session_start_wall_ms: 1000,
+            session_start_iso: "t",
+            stopped_wall_ms: null,
+            pauses: [],
+            consented_participant_ids: ["p_other"],
+          },
+        ],
+      },
+    });
+    (current.room as { connected: boolean }).connected = false;
+    render(<GuestRoomApp token="t" />);
+    expect(screen.queryByText(/still recording on this device/)).toBeNull();
+  });
+
   it("names the host only when the host leaves while this guest is connected", () => {
     fakeRoom({
       snapshot: {
