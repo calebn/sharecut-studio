@@ -277,6 +277,13 @@ describe("roomAlerts", () => {
     expect(roomAlerts(quiet)).toEqual([]);
   });
 
+  it("offers Resume saving when an acknowledged upload cannot be confirmed against the device", () => {
+    const resumeUpload = vi.fn();
+    expect(
+      roomAlerts({ ...quiet, savingUnverified: true }, { resumeUpload }),
+    ).toEqual([{ kind: "saving-failed", onAction: resumeUpload }]);
+  });
+
   it("shows the muted alert only for muted speech while on air", () => {
     expect(roomAlerts({ ...quiet, mutedSpeech: true })).toEqual([
       { kind: "muted" },

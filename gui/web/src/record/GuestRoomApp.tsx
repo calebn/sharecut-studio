@@ -313,6 +313,7 @@ function GuestRoomSession({
     elapsedSinceSnapshotMs: elapsed,
     upload: producer ? null : upload,
     localSegments: room.localSegments,
+    localUnreadable: room.localUnreadable,
     tookPart: producer ? undefined : inTake,
     connected,
   });
@@ -324,6 +325,11 @@ function GuestRoomSession({
       micLost: micNeedsAttention,
       sinkError: sheetOpen || producer ? null : sinkError,
       uploadError: producer || recoverable ? null : upload.error,
+      savingUnverified:
+        !producer &&
+        state === "stopped" &&
+        room.localUnreadable &&
+        upload.fileAck,
       recoverable,
       monitorError: monitor.error,
       transportError: recordSyncErrorCopy(error),
@@ -375,7 +381,9 @@ function GuestRoomSession({
     peerLevels: monitor.levels,
     saving:
       meId && state === "stopped" && !producer
-        ? { [meId]: ownSaving(upload, room.localSegments) }
+        ? {
+            [meId]: ownSaving(upload, room.localSegments, room.localUnreadable),
+          }
         : undefined,
   });
 

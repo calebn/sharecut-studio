@@ -68,7 +68,11 @@ describe("useLocalKeeper", () => {
     vi.spyOn(recovery, "scanLocalKeeper").mockRejectedValue(new Error("io"));
     const { result } = renderKeeper(sink);
     await new Promise((resolve) => setTimeout(resolve, 20));
-    expect(result.current).toEqual({ found: false, segments: null });
+    expect(result.current).toMatchObject({
+      found: false,
+      segments: null,
+      failed: false,
+    });
     vi.restoreAllMocks();
   });
 
@@ -92,12 +96,13 @@ describe("useLocalKeeper", () => {
       await vi.advanceTimersByTimeAsync(2500);
     });
     expect(scan).toHaveBeenCalledTimes(2);
-    expect(result.current).toEqual({ found: true, segments: 2 });
+    expect(result.current).toEqual({ found: true, segments: 2, failed: false });
     scan.mockRejectedValue(new Error("io"));
     rerender({ sink: new MemorySink(), recheck: 1 });
     await act(async () => {
       await vi.advanceTimersByTimeAsync(10_000);
     });
     expect(scan).toHaveBeenCalledTimes(4);
+    expect(result.current).toMatchObject({ segments: null, failed: true });
   });
 });

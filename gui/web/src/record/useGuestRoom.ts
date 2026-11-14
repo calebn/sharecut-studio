@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useDesktopCloseGuard } from "../desktop/useDesktopCloseGuard";
 import { readLocal, writeLocal } from "../utils/storage";
+import { tookAnyTake } from "./guestRoomModel";
 import {
   type ByteSink,
   createOpfsSink,
@@ -271,9 +272,9 @@ export function useGuestRoom(
     [pastClipping, takeClipping],
   );
   const [keeperRuns, setKeeperRuns] = useState(0);
-  const [recordedHere, setRecordedHere] = useState(false);
+  const [recordedThisPage, setRecordedThisPage] = useState(false);
   useEffect(() => {
-    if (keeper.recordingLocally) setRecordedHere(true);
+    if (keeper.recordingLocally) setRecordedThisPage(true);
   }, [keeper.recordingLocally]);
   const localKeeper = useLocalKeeper({
     sink,
@@ -371,7 +372,8 @@ export function useGuestRoom(
     keeperActions,
     localRecording: localKeeper.found,
     localSegments: localKeeper.segments,
-    recordedHere,
+    recordedHere: recordedThisPage || tookAnyTake(snapshot, me),
+    localUnreadable: localKeeper.failed,
     roomTone,
     liveComments,
     captureSettled,
