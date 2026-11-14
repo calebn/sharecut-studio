@@ -13,6 +13,7 @@ import {
 } from "../../stages/guest/useGuestReading";
 import { useDawStore } from "../../state/dawStore";
 import { stageRoleOf } from "../../state/stageRoutes";
+import type { WordsSelection } from "../../system/scriptPieces";
 import { isHostRole } from "../../utils/can";
 import { scriptGuestOf } from "../edit/script/scriptGuest";
 import { useScriptSelection } from "../edit/script/useScriptSelection";
@@ -22,6 +23,7 @@ import {
   guestScriptModelOf,
   guestScriptOf,
   playingWordsAt,
+  spansHeldAcrossTracks,
 } from "./guestScript";
 
 const NOOP = () => {};
@@ -53,6 +55,13 @@ function GuestScriptHostAdapter({
   const mayRange = rangeMode !== "none";
   const model = useMemo(() => guestScriptModelOf(script), [script]);
   const range = useScriptSelection(model, mayRange, NOOP);
+  const onSelect = useCallback(
+    (selection: WordsSelection) => {
+      if (!spansHeldAcrossTracks(script, selection))
+        range.onSelect?.(selection);
+    },
+    [script, range.onSelect],
+  );
   const positionKey = useDawStore(
     useCallback(
       (s: { playheadSec: number }) =>
@@ -95,7 +104,7 @@ function GuestScriptHostAdapter({
         refreshing={shown.refreshing}
         onSeek={(seconds) => void seekTransport(seconds)}
         selection={mayRange ? range.selection : undefined}
-        onSelect={range.onSelect}
+        onSelect={range.onSelect ? onSelect : undefined}
         onClearSelection={mayRange ? range.onClearSelection : undefined}
       />
       {mayRange ? (

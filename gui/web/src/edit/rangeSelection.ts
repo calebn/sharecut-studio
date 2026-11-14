@@ -187,9 +187,14 @@ export function rangeTargetsEqual(
   );
 }
 
+export const TRANSCRIPT_REFRESHING =
+  "Refreshing the transcript. Try again in a moment.";
+
 export type RangeResolution = {
   targets: ExactRangeTarget[];
   reason: string | null;
+  /** The selected words are not in the project yet; they arrive with the transcript detail. */
+  refreshing?: true;
 };
 
 export function resolveSelectionRange(
@@ -201,6 +206,7 @@ export function resolveSelectionRange(
   if (selection?.kind !== "transcriptRange")
     return { targets: [], reason: "Select a timeline or transcript range" };
   const words = [];
+  let missing = false;
   for (
     let index = selection.startWordIndex;
     index <= selection.endWordIndex;
@@ -212,9 +218,12 @@ export function resolveSelectionRange(
       index,
       selection.sourceId,
     );
+    if (!word) missing = true;
     if (word && !word.ignored && !word.suppressed && word.mappable !== false)
       words.push(word);
   }
+  if (missing && project.meta?.hydration?.transcript_words === false)
+    return { targets: [], reason: TRANSCRIPT_REFRESHING, refreshing: true };
   if (!words.length)
     return { targets: [], reason: "No audible words in this selection" };
   const sources = new Map<string | null, TimelineSpan>();

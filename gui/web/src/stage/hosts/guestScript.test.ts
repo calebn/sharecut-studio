@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import type { ShownRow } from "../../document/shownTranscript";
 import { lastStartedWordAt } from "../../stages/guest/guestLogic";
 import type {
   CombinedUtterance,
@@ -9,6 +10,7 @@ import {
   guestScriptModelOf,
   guestScriptOf,
   playingWordsAt,
+  spansHeldAcrossTracks,
 } from "./guestScript";
 
 const word = (
@@ -339,6 +341,32 @@ describe("guestScriptOf over held and waiting rows", () => {
         .turns.flatMap((t) => t.words)
         .find((w) => w.text === "b")?.key;
     expect(keyOfB([first, second])).toBe(keyOfB([second]));
+  });
+
+  it("selects held words by identity within a lane, and refuses a span across lanes", () => {
+    const row = (track: string, indices: number[]): ShownRow => ({
+      kind: "held",
+      lead: 0,
+      utterance: {
+        ...header("Maya", "a b", 1, { track_id: track }),
+        words: indices.map((n) => untimed("w", n)),
+      },
+    });
+    const model = guestScriptModelOf(
+      guestScriptOf([row("t1", [4, 5]), row("t2", [0])]),
+    );
+    expect(wordsTargetOf(model, { kind: "words", anchor: 0, head: 1 })).toEqual(
+      {
+        kind: "track",
+        trackId: "t1",
+        sourceId: "s1",
+        startWordIndex: 4,
+        endWordIndex: 5,
+      },
+    );
+    const g = guestScriptOf([row("t1", [4, 5]), row("t2", [0])]);
+    expect(spansHeldAcrossTracks(g, { anchor: 0, head: 1 })).toBe(false);
+    expect(spansHeldAcrossTracks(g, { anchor: 2, head: 0 })).toBe(true);
   });
 
   it("says nothing is placed from live rows only", () => {

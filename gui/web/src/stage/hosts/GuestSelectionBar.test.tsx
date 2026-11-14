@@ -2,6 +2,10 @@ import { act, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { submitDocumentCommand } from "../../api/documentEdits";
+import {
+  settledTranscriptOf,
+  shownTranscriptOf,
+} from "../../document/shownTranscript";
 import { useDawStore } from "../../state/dawStore";
 import {
   COMMENTER_CAPABILITIES,
@@ -12,6 +16,7 @@ import {
 import { StoredGuestScriptHost } from "../../test/StoredGuestScriptHost";
 import { seedScript } from "../../test/scriptHostKit";
 import { stubViewportShell } from "../../test/viewportShell";
+import { GuestScriptHost } from "./GuestScriptHost";
 
 vi.mock("../../api/documentEdits", async (orig) => ({
   ...(await orig<typeof import("../../api/documentEdits")>()),
@@ -109,5 +114,49 @@ describe("the guest selection bar", () => {
     select();
     expect(screen.getByRole("button", { name: "Cut" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Suggest a cut" })).toBeNull();
+  });
+
+  it("lets a held word be selected and shows the verbs disabled with the reason until its words land", () => {
+    as("comment", COMMENTER_CAPABILITIES);
+    const complete = useDawStore.getState().project;
+    if (!complete) throw new Error("expected a project");
+    const settled = settledTranscriptOf(
+      {
+        ...complete,
+        meta: {
+          ...complete.meta,
+          hydration: { ...complete.meta.hydration, transcript_words: true },
+        },
+      },
+      "grant",
+    );
+    const wordFree = {
+      ...complete,
+      transcript: {
+        utterances: (complete.transcript?.utterances ?? []).map(
+          ({ words: _words, ...header }) => header,
+        ),
+      },
+      meta: {
+        ...complete.meta,
+        hydration: { ...complete.meta.hydration, transcript_words: false },
+      },
+    };
+    act(() => useDawStore.setState({ project: wordFree }));
+    render(
+      <GuestScriptHost
+        shown={shownTranscriptOf(wordFree.transcript, settled, "grant", false)}
+      />,
+    );
+    select();
+    const comment = screen.getByRole("button", { name: "Comment" });
+    expect(comment).toBeDisabled();
+    expect(comment).toHaveAttribute(
+      "title",
+      "Refreshing the transcript. Try again in a moment.",
+    );
+    expect(
+      screen.getByRole("button", { name: "Suggest a cut" }),
+    ).toBeDisabled();
   });
 });
