@@ -54,7 +54,7 @@ export type ComposerEvent =
       surface: "none" | "comments" | "thread" | "chapters";
       threadId?: string;
     }
-  /** The layout that hosted the sheets is gone. */
+  /** The layout that hosted the sheets is gone; text it held becomes the open composer. */
   | { type: "sheetsGone" }
   | { type: "postStart"; id: number }
   | { type: "postDone"; id: number }
@@ -176,10 +176,14 @@ export function reduceComposer(
         return leave(s, ctx, true, e.surface, threadId);
       return same({ ...s, surface: e.surface, threadId });
     }
-    case "sheetsGone":
+    case "sheetsGone": {
+      // Text the Listen layout held keeps its pin on the field that shows it.
+      if (s.draft?.text && s.surface !== "composer")
+        return same({ ...s, surface: "composer", threadId: null });
       return SHEETS.includes(s.surface)
         ? same({ ...s, surface: "none", threadId: null })
         : same(s);
+    }
     case "postStart":
       if (s.post || !s.draft) return same(s);
       return same({ ...s, post: { id: e.id, sentText: s.draft.text } });
