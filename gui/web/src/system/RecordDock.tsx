@@ -122,6 +122,7 @@ export function RecordDock({
     center = (
       <>
         <div className="sys-dock-status">{status}</div>
+        {/* A saved guest keeps Notes: the Takes tray with their clipping summary opens from it. */}
         {onDone && seat !== "host" ? notes : null}
       </>
     );
