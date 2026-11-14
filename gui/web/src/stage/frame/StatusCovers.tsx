@@ -1,39 +1,79 @@
+import { useEffect, useRef, useState } from "react";
+import { type GuestLoadFailure, guestLoadCover } from "../../guestLoadFailure";
 import { Cover } from "../../system/Cover";
+import { useHeldBusy } from "../../system/useHeldBusy";
 import type { NotServed } from "../../utils/notServed";
 
-const BAD_LINK_TITLE = "This link doesn't open anything";
-const BAD_LINK_HINT = "Ask the person who sent it for a new link.";
+/** Long enough to see "Trying…" and for a screen reader to finish the word. */
+const HELD_BUSY_MS = 600;
 
-export function BadLinkCover() {
-  return (
-    <Cover size="page" glyph="unlink" title={BAD_LINK_TITLE}>
-      {BAD_LINK_HINT}
-    </Cover>
-  );
-}
-
-/** The host's computer is asleep (or the link did not load): one way forward. */
-export function HostCover({
-  asleep,
-  message,
+/**
+ * A review link that did not open: the page's one `<main>` and its Cover.
+ * A press on the button is answered on that button ("Trying…") and in a status
+ * line, and the button keeps focus through a failure. The title is the page's
+ * `h1` and takes focus when it arrives or changes, unless focus is already in
+ * the cover, so a screen reader announces the title and sentence. `trying` is
+ * any attempt in flight; only a press is shown as busy, so the page's own
+ * retry stays silent.
+ */
+export function GuestPageCover({
+  failure,
+  trying,
   onRetry,
 }: {
-  asleep: boolean;
-  /** The sentence for a link that failed to load; unused while the host is asleep. */
-  message?: string;
+  failure: GuestLoadFailure;
+  trying: boolean;
   onRetry: () => void;
 }) {
+  const cover = guestLoadCover(failure);
+  const mainRef = useRef<HTMLElement>(null);
+  const titleRef = useRef<HTMLHeadingElement>(null);
+  const { busy, press } = useHeldBusy(trying, HELD_BUSY_MS);
+  const [answered, setAnswered] = useState(false);
+  const { title } = cover;
+
+  // A button that already has focus keeps it: moving focus to the title would
+  // take it from the person who just pressed.
+  useEffect(() => {
+    if (!mainRef.current?.contains(document.activeElement)) {
+      titleRef.current?.focus();
+    }
+  }, [title]);
+
+  const status = busy ? "Trying again…" : answered ? cover.stillFailing : "";
   return (
-    <Cover
-      size="page"
-      glyph={asleep ? "moon" : "triangle-alert"}
-      title={
-        asleep ? "The host's computer is asleep" : "This link did not load"
-      }
-      primary={{ label: asleep ? "Try now" : "Retry", onClick: onRetry }}
-    >
-      {asleep ? "This page tries again every 30 seconds." : message}
-    </Cover>
+    <main ref={mainRef} className="guest-page-cover">
+      <Cover
+        size="page"
+        glyph={cover.glyph}
+        title={title}
+        headingLevel="h1"
+        titleRef={titleRef}
+        primary={
+          cover.button
+            ? {
+                label: cover.button,
+                onClick: () => {
+                  press();
+                  setAnswered(true);
+                  onRetry();
+                },
+                busy,
+                busyLabel: "Trying…",
+              }
+            : undefined
+        }
+        extra={
+          cover.button ? (
+            <p className="sys-cover-text sys-cover-status" role="status">
+              {status}
+            </p>
+          ) : undefined
+        }
+      >
+        {cover.sentence}
+      </Cover>
+    </main>
   );
 }
 

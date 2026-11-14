@@ -1,4 +1,10 @@
-import { act, fireEvent, render, screen } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import App from "./App";
 import { resetFeaturesCache } from "./extensions/features";
@@ -274,7 +280,8 @@ describe("App review route", () => {
     expect(
       screen.getByText("This page tries again every 30 seconds."),
     ).toBeVisible();
-    expect(screen.getByRole("main")).toHaveFocus();
+    expect(screen.getByRole("heading", { level: 1 })).toHaveFocus();
+    expect(screen.getByRole("main")).not.toHaveAttribute("tabindex");
     reachable = true;
     fireEvent.click(screen.getByRole("button", { name: "Try now" }));
     expect(await screen.findByText("Cached guest studio")).toBeInTheDocument();
@@ -305,9 +312,12 @@ describe("App review route", () => {
     },
   );
 
-  it.each([[500], [429]])(
-    "shows This link did not load with Retry for a %i",
-    async (status) => {
+  it.each([
+    [500, "Try again, and if it keeps happening, tell the person who sent it."],
+    [429, "This link is busy right now; this page tries again in a moment."],
+  ])(
+    "shows This link did not load with Retry and one plain sentence for a %i",
+    async (status, sentence) => {
       window.history.pushState({}, "", "/r/failing");
       offline.load.mockResolvedValue(undefined);
       let calls = 0;
@@ -316,15 +326,205 @@ describe("App review route", () => {
         return new Response(JSON.stringify({ detail: "x" }), { status });
       });
       render(<App />);
-      expect(
-        await screen.findByRole("heading", { name: "This link did not load" }),
-      ).toBeInTheDocument();
-      expect(screen.getByRole("main")).toHaveFocus();
+      const title = await screen.findByRole("heading", {
+        level: 1,
+        name: "This link did not load",
+      });
+      expect(title).toHaveFocus();
+      expect(screen.getByRole("main")).not.toHaveAttribute("tabindex");
+      expect(screen.getByText(sentence)).toBeVisible();
       const before = calls;
       fireEvent.click(screen.getByRole("button", { name: "Retry" }));
       await vi.waitFor(() => expect(calls).toBeGreaterThan(before));
     },
   );
+
+  it.each([
+    [
+      "an HTML 500",
+      () =>
+        new Response("<html><body>Traceback SENTINEL-1</body></html>", {
+          status: 500,
+          headers: { "Content-Type": "text/html" },
+        }),
+      "Try again, and if it keeps happening, tell the person who sent it.",
+    ],
+    [
+      "a JSON 500 with a code",
+      () =>
+        new Response(JSON.stringify({ detail: "SENTINEL-1 internal error" }), {
+          status: 500,
+          headers: { "X-Sharecut-Error-Code": "internal_error" },
+        }),
+      "Try again, and if it keeps happening, tell the person who sent it.",
+    ],
+    [
+      "a 403",
+      () =>
+        new Response(JSON.stringify({ detail: "SENTINEL-1 mismatch" }), {
+          status: 403,
+          headers: { "X-Sharecut-Error-Code": "share_token_mismatch" },
+        }),
+      "This link is only for certain people; ask the person who sent it to check it was made for you.",
+    ],
+    [
+      "a 404 with another code",
+      () =>
+        new Response(JSON.stringify({ detail: "SENTINEL-1 missing" }), {
+          status: 404,
+          headers: { "X-Sharecut-Error-Code": "project_not_found" },
+        }),
+      "This link isn't available right now; ask the person who sent it to check it.",
+    ],
+    [
+      "a 200 that is not JSON",
+      () => new Response("<html>SENTINEL-1 sign in</html>", { status: 200 }),
+      "This network did not pass the page through; on public Wi-Fi, sign in to the Wi-Fi first, then try again.",
+    ],
+  ])(
+    "prints one plain sentence and none of the server's text for %s",
+    async (_name, respond, sentence) => {
+      window.history.pushState({}, "", "/r/plain");
+      offline.load.mockResolvedValue(undefined);
+      stubBootstrapFailure(respond);
+      render(<App />);
+      await screen.findByRole("heading", { name: "This link did not load" });
+      expect(screen.getByText(sentence)).toBeVisible();
+      expect(document.body).not.toHaveTextContent("SENTINEL-1");
+    },
+  );
+
+  it("does not call a busy host asleep, and retries it every 30 seconds", async () => {
+    window.history.pushState({}, "", "/r/busy");
+    offline.load.mockResolvedValue(undefined);
+    let calls = 0;
+    stubBootstrapFailure(() => {
+      calls += 1;
+      return new Response(
+        JSON.stringify({ detail: "This project is busy; try again." }),
+        { status: 503, headers: { "X-Sharecut-Error-Code": "project_busy" } },
+      );
+    });
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    render(<App />);
+    await screen.findByRole("heading", { name: "This link did not load" });
+    expect(screen.queryByText("The host's computer is asleep")).toBeNull();
+    expect(
+      screen.getByText(
+        "The host's computer is busy; this page tries again every 30 seconds.",
+      ),
+    ).toBeVisible();
+    expect(screen.getByRole("button", { name: "Retry" })).toBeVisible();
+    const before = calls;
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(31_000);
+    });
+    await vi.waitFor(() => expect(calls).toBe(before + 1), {
+      interval: 0,
+      timeout: 200,
+    });
+  });
+
+  it.each([
+    ["10", 10_000],
+    [null, 30_000],
+    ["1", 5_000],
+    ["900", 120_000],
+  ])(
+    "retries a 429 with Retry-After %s after %i ms",
+    async (retryAfter, delay) => {
+      window.history.pushState({}, "", "/r/limited");
+      offline.load.mockResolvedValue(undefined);
+      let calls = 0;
+      stubBootstrapFailure(() => {
+        calls += 1;
+        return new Response("{}", {
+          status: 429,
+          headers: retryAfter ? { "Retry-After": retryAfter } : {},
+        });
+      });
+      vi.useFakeTimers({ shouldAdvanceTime: true });
+      render(<App />);
+      await screen.findByRole("heading", { name: "This link did not load" });
+      const before = calls;
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(delay - 1_000);
+      });
+      expect(calls).toBe(before);
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(2_000);
+      });
+      await vi.waitFor(() => expect(calls).toBe(before + 1), {
+        interval: 0,
+        timeout: 200,
+      });
+    },
+  );
+
+  it("never retries a 500 on its own", async () => {
+    window.history.pushState({}, "", "/r/steady");
+    offline.load.mockResolvedValue(undefined);
+    let calls = 0;
+    stubBootstrapFailure(() => {
+      calls += 1;
+      return new Response("{}", { status: 500 });
+    });
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    render(<App />);
+    await screen.findByRole("heading", { name: "This link did not load" });
+    const before = calls;
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(300_000);
+    });
+    expect(calls).toBe(before);
+  });
+
+  it("answers a press on the cover, keeps focus on the button, and says it failed again", async () => {
+    window.history.pushState({}, "", "/r/press");
+    offline.load.mockResolvedValue(undefined);
+    let calls = 0;
+    stubBootstrapFailure(() => {
+      calls += 1;
+      throw new TypeError("Failed to fetch");
+    });
+    render(<App />);
+    const button = await screen.findByRole("button", { name: "Try now" });
+    expect(screen.getByRole("status")).toHaveTextContent("");
+    button.focus();
+    const before = calls;
+    fireEvent.click(button);
+    expect(screen.getByRole("button", { name: "Trying…" })).toBe(button);
+    expect(button).toHaveAttribute("aria-busy", "true");
+    expect(screen.getByRole("status")).toHaveTextContent("Trying again…");
+    await vi.waitFor(() => expect(calls).toBeGreaterThan(before));
+    await waitFor(() =>
+      expect(screen.getByRole("status")).toHaveTextContent("Still asleep."),
+    );
+    expect(screen.getByRole("button", { name: "Try now" })).toBe(button);
+    expect(button).toHaveFocus();
+  });
+
+  it("says This address cannot open review links when the host has no share routes", async () => {
+    window.history.pushState({}, "", "/r/noroutes");
+    resetFeaturesCache();
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(
+        async () =>
+          new Response(JSON.stringify({ api_version: 1, features: [] }), {
+            status: 200,
+          }),
+      ),
+    );
+    render(<App />);
+    await screen.findByRole("heading", { name: "This link did not load" });
+    expect(
+      screen.getByText(
+        "This address cannot open review links; ask the person who sent it to check the link.",
+      ),
+    ).toBeVisible();
+    expect(screen.queryByRole("button")).toBeNull();
+  });
 
   it("retries an asleep host on its own every 30 seconds", async () => {
     window.history.pushState({}, "", "/r/auto");
@@ -379,6 +579,7 @@ describe("App review route", () => {
 
 describe("App loading screens before the features answer", () => {
   afterEach(() => {
+    vi.useRealTimers();
     vi.unstubAllGlobals();
     window.history.pushState({}, "", "/");
     resetFeaturesCache();
@@ -399,6 +600,41 @@ describe("App loading screens before the features answer", () => {
     expect(container.querySelector("main.guest-loading")).not.toBeNull();
     expect(screen.getByRole("status")).toHaveTextContent("Loading project…");
     expect(container.querySelector(".loading-screen")).toBeNull();
+  });
+
+  it("asks for the features again when Retry is pressed after the first ask never answered", async () => {
+    window.history.pushState({}, "", "/r/hung");
+    resetFeaturesCache();
+    offline.load.mockResolvedValue(undefined);
+    let asked = 0;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL) => {
+        if (urlOf(input).includes("/features")) {
+          asked += 1;
+          return asked === 1
+            ? new Promise<Response>(() => {})
+            : new Response(
+                JSON.stringify({
+                  api_version: 1,
+                  features: ["share.ui.routes"],
+                }),
+                { status: 200 },
+              );
+        }
+        return new Response("{}", { status: 500 });
+      }),
+    );
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    render(<App />);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(4_000);
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Retry" }));
+    expect(asked).toBe(2);
+    expect(
+      await screen.findByRole("heading", { name: "This link did not load" }),
+    ).toBeInTheDocument();
   });
 
   it("shows the host the Loading cover, not the plain loading screen", () => {

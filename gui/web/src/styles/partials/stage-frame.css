@@ -103,6 +103,11 @@ html[data-surface="home"][data-shell] {
   grid-row: 2;
 }
 
+/* The review-link cover moves focus to its title so a screen reader announces it; the title is not a control, so it draws no ring. */
+.guest-page-cover .sys-cover-title:focus-visible {
+  outline: none;
+}
+
 /* The body takes programmatic focus after a stage switch (useAnnounceStageSwitch); it is a landmark, not a control, so it draws no ring. */
 .stage-frame-body:focus {
   outline: none;
