@@ -89,10 +89,26 @@ NETWORK = re.compile(
 )
 
 
-def altool_messages(text: str) -> tuple[str, ...]:
+TRANSPORT = re.compile(
+    NETWORK.pattern
+    + r"|\bssl\b|\btls\b|handshake|broken pipe|unexpected eof|could not resolve|nodename nor servname"
+    r"|name or service not known|\bdns\b|proxy|bad gateway|service unavailable|gateway time-?out"
+    r"|nsurlerrordomain|secure connection",
+    re.I,
+)
+
+
+def altool_document(text: str) -> dict[str, object] | None:
     try:
         document = json.loads(text)
     except json.JSONDecodeError:
+        return None
+    return document if isinstance(document, dict) else None
+
+
+def altool_messages(text: str) -> tuple[str, ...]:
+    document = altool_document(text)
+    if document is None:
         return tuple(line.strip() for line in text.splitlines() if "error" in line.lower())[:5]
     errors = document.get("product-errors") or []
     return tuple(
@@ -101,16 +117,30 @@ def altool_messages(text: str) -> tuple[str, ...]:
     )
 
 
-def classify_altool(exit_code: int, text: str) -> AppleAnswer:
+def classify_altool(exit_code: int, text: str, *, strict: bool = False) -> AppleAnswer:
+    """*strict* is for a step that changes something at Apple: only exit 0 with a JSON answer, or
+    altool's own ``product-errors``, count as Apple's answer; anything else is UNREACHABLE (no
+    answer), and a transport error wins over an auth or rejection pattern."""
     messages = altool_messages(text)
+    document = altool_document(text)
+    if strict and not (document and document.get("product-errors")):
+        if exit_code == 0 and document is not None:
+            return AppleAnswer(Verdict.OK)
+        seen = tuple(line.strip()[:200] for line in text.splitlines() if line.strip())[:5]
+        return AppleAnswer(
+            Verdict.UNREACHABLE, (f"altool exited {exit_code} without an answer", *seen)
+        )
     if exit_code == 0 and not messages:
         return AppleAnswer(Verdict.OK)
     haystack = " ".join(messages) or text
-    for pattern, verdict in (
+    patterns = [
         (DUPLICATE, Verdict.DUPLICATE),
         (AUTH, Verdict.AUTH_FAILED),
         (NETWORK, Verdict.UNREACHABLE),
-    ):
+    ]
+    if strict:
+        patterns.insert(1, (TRANSPORT, Verdict.UNREACHABLE))
+    for pattern, verdict in patterns:
         if pattern.search(haystack):
             return AppleAnswer(verdict, messages)
     return AppleAnswer(Verdict.REJECTED, messages)

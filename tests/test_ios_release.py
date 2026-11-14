@@ -1159,6 +1159,144 @@ def test_an_unreachable_validate_records_a_finished_row_and_blocks_nothing(
     assert record.unresolved_uploads(record.ipa_sha256) == []
 
 
+NO_ANSWER = {
+    "killed-9": (-9, ""),
+    "killed-15": (-15, ""),
+    "exit-137": (137, ""),
+    "ssl-handshake": (1, "SSL error: handshake failed"),
+    "broken-pipe": (1, "Broken pipe"),
+    "unexpected-eof": (1, "Unexpected EOF"),
+    "dns": (1, "nodename nor servname provided, or not known"),
+    "dns-resolve": (1, "Could not resolve host: contentdelivery.itunes.apple.com"),
+    "proxy-502-html": (1, "<html><body><h1>Proxy Error 502 Bad Gateway</h1></body></html>"),
+    "proxy-503-text": (1, "Service Unavailable (503)"),
+    "server-500": (1, "Server error 500"),
+    "network-with-403": (1, "network error contacting the server, status 403"),
+    "empty-nonzero": (1, ""),
+    "exit-0-no-answer": (0, ""),
+    "exit-0-text": (0, "uploading... done"),
+    "structured-transport": (1, altool_error("An SSL error occurred (NSURLErrorDomain -1200)")),
+}
+VALIDATE_VERDICT = {
+    "killed-9": "rejected",
+    "killed-15": "rejected",
+    "exit-137": "rejected",
+    "ssl-handshake": "rejected",
+    "broken-pipe": "rejected",
+    "unexpected-eof": "rejected",
+    "dns": "rejected",
+    "dns-resolve": "rejected",
+    "proxy-502-html": "rejected",
+    "proxy-503-text": "rejected",
+    "server-500": "rejected",
+    "network-with-403": "auth_failed",
+    "empty-nonzero": "rejected",
+    "exit-0-no-answer": "ok",
+    "exit-0-text": "ok",
+    "structured-transport": "rejected",
+}
+
+
+@pytest.mark.parametrize("case", sorted(NO_ANSWER))
+def test_an_upload_with_no_answer_from_apple_stays_unresolved_until_retried(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    case: str,
+) -> None:
+    code, ran, record, _ = drive_upload(
+        tmp_path, monkeypatch, answers={"--upload-app": NO_ANSWER[case]}
+    )
+    out = capsys.readouterr().out
+    assert code == Failure.TOOL.value and uploads_sent(ran) == 1
+    assert "Apple may or may not have received the build" in out
+    attempt = record_module.read_record(tmp_path).uploads[0]
+    assert attempt["outcome"] is None
+    assert attempt["last_answer"]["verdict"] == "unreachable" and attempt["last_answer"]["messages"]
+
+    code, ran, record, _ = drive_upload(tmp_path, monkeypatch, record=record)
+    assert code == GUARD_EXIT and uploads_sent(ran) == 0 and ran == []
+    assert "--retry-unknown-upload" in capsys.readouterr().out
+
+    code, ran, _, _ = drive_upload(tmp_path, monkeypatch, record=record, retry_unknown_upload=True)
+    assert code == 0 and uploads_sent(ran) == 1
+    retry = record_module.read_record(tmp_path).uploads[1]
+    assert retry["retried_unknown_upload"] is True and retry["outcome"]["verdict"] == "ok"
+
+
+@pytest.mark.parametrize("case", sorted(NO_ANSWER))
+def test_validate_and_the_app_record_lookup_keep_their_answers_for_the_same_output(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, case: str
+) -> None:
+    code, ran, record, _ = drive_upload(
+        tmp_path, monkeypatch, answers={"--validate-app": NO_ANSWER[case]}
+    )
+    row = record_module.read_record(tmp_path).validations[0]
+    assert row["verdict"] == VALIDATE_VERDICT[case]
+    assert record.unresolved_uploads(record.ipa_sha256) == []
+    assert uploads_sent(ran) == (1 if VALIDATE_VERDICT[case] == "ok" else 0)
+
+    tmp = tmp_path / "lookup"
+    tmp.mkdir()
+    code, ran, _, _ = drive_upload(tmp, monkeypatch, answers={"--list-apps": NO_ANSWER[case]})
+    assert code == Failure.APPLE_REJECTED.value
+    assert not any("--validate-app" in c.argv for c in ran)
+    assert record_module.read_record(tmp).validations == []
+
+
+def test_a_duplicate_upload_is_apples_answer_and_blocks_a_second_upload(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    duplicate = (1, altool_error("Redundant Binary Upload. There already exists a binary upload"))
+    code, _, record, _ = drive_upload(tmp_path, monkeypatch, answers={"--upload-app": duplicate})
+    assert code == Failure.DUPLICATE_BUILD.value
+    attempt = record_module.read_record(tmp_path).uploads[0]
+    assert attempt["outcome"]["verdict"] == "apple_reports_duplicate"
+    assert "last_answer" not in attempt
+    code, ran, _, _ = drive_upload(tmp_path, monkeypatch, record=record)
+    assert code == GUARD_EXIT and ran == []
+
+
+@pytest.mark.parametrize(
+    ("text", "verdict"),
+    [
+        (altool_error("Authentication failed: 401 unauthorized"), "auth_failed"),
+        (altool_error("Invalid Bundle. The bundle is missing an icon"), "rejected"),
+    ],
+    ids=["structured-auth", "structured-rejection"],
+)
+def test_apples_own_structured_errors_finish_the_upload_attempt(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, text: str, verdict: str
+) -> None:
+    code, _, record, _ = drive_upload(tmp_path, monkeypatch, answers={"--upload-app": (1, text)})
+    assert code == Failure.APPLE_REJECTED.value
+    attempt = record_module.read_record(tmp_path).uploads[0]
+    assert attempt["outcome"]["verdict"] == verdict and "last_answer" not in attempt
+    code, ran, _, _ = drive_upload(tmp_path, monkeypatch, record=record)
+    assert code == 0 and uploads_sent(ran) == 1
+
+
+@pytest.mark.parametrize(
+    ("code", "text", "verdict"),
+    [
+        (0, ALTOOL_OK, Verdict.OK),
+        (0, "", Verdict.UNREACHABLE),
+        (0, altool_error("Invalid Bundle"), Verdict.REJECTED),
+        (1, altool_error("Redundant Binary Upload"), Verdict.DUPLICATE),
+        (1, "Redundant Binary Upload", Verdict.UNREACHABLE),
+        (1, altool_error("Authentication failed: 401 unauthorized"), Verdict.AUTH_FAILED),
+        (1, altool_error("network error, status 403"), Verdict.UNREACHABLE),
+        (1, altool_error("Invalid Bundle. The bundle is missing an icon"), Verdict.REJECTED),
+        (1, "plain text failure", Verdict.UNREACHABLE),
+        (1, "null", Verdict.UNREACHABLE),
+    ],
+)
+def test_the_strict_classifier_accepts_only_apples_own_answer(
+    code: int, text: str, verdict: Verdict
+) -> None:
+    assert release_classify.classify_altool(code, text, strict=True).verdict is verdict
+
+
 def stage_main_upload(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, *, interrupted: bool
 ) -> tuple[Path, list[Command]]:

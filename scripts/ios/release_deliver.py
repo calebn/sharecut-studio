@@ -73,8 +73,10 @@ def altool(
     )
 
 
-def answered(result: SpawnResult, ws: Workspace, verb: str) -> tuple[Outcome, AppleAnswer]:
-    answer = classify_altool(result.exit_code, result.output)
+def answered(
+    result: SpawnResult, ws: Workspace, verb: str, *, strict: bool = False
+) -> tuple[Outcome, AppleAnswer]:
+    answer = classify_altool(result.exit_code, result.output, strict=strict)
     ws.answers.append(answer)
     if answer.verdict is Verdict.OK:
         return OK, answer
@@ -127,7 +129,7 @@ def plan_deliver(
         return outcome
 
     def uploaded(result: SpawnResult, ws: Workspace) -> Outcome:
-        outcome, answer = answered(result, ws, "upload")
+        outcome, answer = answered(result, ws, "upload", strict=True)
         row = outcome_row(answer.verdict, now_iso(), answer.messages)
         if answer.verdict is Verdict.UNREACHABLE:
             record.uploads[-1]["last_answer"] = row
