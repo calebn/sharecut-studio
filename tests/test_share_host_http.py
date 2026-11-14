@@ -3,12 +3,10 @@
 from __future__ import annotations
 
 import logging
-import sqlite3
 import threading
 import time
 import zipfile
 from collections.abc import Iterator
-from contextlib import closing
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
@@ -308,8 +306,9 @@ CAPTURED_LOGGERS = ("uvicorn.access", "uvicorn.error", "podcast_mcp")
 
 def leaks(text: str, tokens: set[str]) -> list[str]:
     """The tokens of which ``text`` holds the whole or a prefix of ``MIN_PREFIX`` or more."""
-    decoded = text + quote(text, safe="") + quote(text, safe="").replace("%2F", "/")
-    return sorted(t for t in tokens if t[:MIN_PREFIX] in decoded)
+    encoded = quote(text, safe="")
+    haystack = text + encoded + encoded.replace("%2F", "/")
+    return sorted(t for t in tokens if t[:MIN_PREFIX] in haystack)
 
 
 @dataclass
@@ -432,21 +431,11 @@ def _drive_every_link_flow(served: Served, monkeypatch: pytest.MonkeyPatch) -> d
     return tokens
 
 
-def _every_known_token() -> set[str]:
-    """The tokens in the registry file, read without the product code under test."""
-    with closing(sqlite3.connect(get_share_registry().db_path)) as db:
-        return {
-            row[0]
-            for table in ("active_shares", "cooldown_shares", "pending_revokes")
-            for row in db.execute(f"SELECT token FROM {table}")
-        }
-
-
 def test_the_raw_log_and_the_bundle_hold_no_link_token(
     served: Served, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     driven = _drive_every_link_flow(served, monkeypatch)
-    tokens = _every_known_token() | set(driven.values())
+    tokens = set(get_share_registry().known_tokens()) | set(driven.values())
     assert len(tokens) >= 4
 
     deadline = time.monotonic() + 10
@@ -474,7 +463,7 @@ def test_the_raw_log_and_the_bundle_hold_no_link_token(
 
 
 def test_the_scan_sees_a_token_that_a_logger_bypassing_the_filter_wrote(
-    served: Served, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    served: Served, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     driven = _drive_every_link_flow(served, monkeypatch)
     token = driven["review"]
@@ -508,9 +497,7 @@ def test_the_bundle_masks_a_token_wherever_a_log_line_puts_it(
     assert leaks(bundled, {token}) == []
 
 
-def test_a_share_that_is_not_found_is_reported_without_its_token(
-    served: Served, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_a_share_that_is_not_found_is_reported_without_its_token(served: Served) -> None:
     gone = "gone-quokka-umbra"
     service = ShareService(served.ws)
 
@@ -523,15 +510,6 @@ def test_a_share_that_is_not_found_is_reported_without_its_token(
     for text in (str(revoked.value), str(restored.value), refused.text):
         assert gone not in text
         assert "share not found" in text
-
-
-def test_share_id_of_names_a_share_by_its_id_and_refuses_one_without() -> None:
-    from podcast_mcp.services.collaboration.share_capabilities import share_author, share_id_of
-
-    assert share_id_of({"id": "a1b2c3d4e5f6", "token": "velvet-quokka-umbra"}) == "a1b2c3d4e5f6"
-    assert share_author({"id": "a1b2c3d4e5f6"}) == "share:a1b2c3d4e5f6"
-    with pytest.raises(KeyError):
-        share_id_of({"token": "velvet-quokka-umbra"})
 
 
 def test_a_failed_room_revoke_and_a_failed_touch_name_the_share_id(

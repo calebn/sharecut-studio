@@ -18,8 +18,9 @@ _SHARE_PATH_ROOTS = (
     "api/shares",
     "api/shares/record",
 )
+_SHARE_ROOTS = "|".join(root.replace("/", _SLASH) for root in _SHARE_PATH_ROOTS)
 _SHARE_TOKEN = re.compile(
-    rf"(?P<prefix>{_SLASH}(?:{'|'.join(r.replace('/', _SLASH) for r in _SHARE_PATH_ROOTS)}){_SLASH})"
+    rf"(?P<prefix>{_SLASH}(?:{_SHARE_ROOTS}){_SLASH})"
     r"(?P<token>[A-Za-z0-9_-]{8,}(?:-[A-Za-z0-9_-]+)*)"
 )
 _BOOT_TOKEN = re.compile(
@@ -164,8 +165,9 @@ def redact_secrets(text: str, secrets: Sequence[str] = (), *, min_prefix: int | 
         return text
     out = _mask_values(text, secrets, min_prefix)
     decoded = unquote(out)
-    if decoded != out and _mask_values(decoded, secrets, min_prefix) != decoded:
-        out = _mask_values(decoded, secrets, min_prefix)
+    decoded_masked = _mask_values(decoded, secrets, min_prefix)
+    if decoded_masked != decoded:
+        out = decoded_masked
     out = _AUTH_HEADER.sub(r"\1<redacted>", out)
     out = _SECRET_ASSIGN.sub(lambda m: f"{m.group(1)}=<redacted>", out)
     out = _HOST_SESSION.sub(r"\1<redacted>", out)
