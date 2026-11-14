@@ -4,11 +4,15 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import sqlite3
 import struct
 import sys
+from contextlib import closing
 from pathlib import Path
 
 import pytest
+
+from podcast_mcp.util import host_platform
 
 SCRIPT = Path(__file__).resolve().parents[1] / "scripts/ios/sim_proof.py"
 spec = importlib.util.spec_from_file_location("sim_proof", SCRIPT)
@@ -109,3 +113,82 @@ def test_page_traffic_is_observed_only_when_socket_stream_and_media_all_show() -
     assert no_media["5_page_traffic"]["gap"] == "not seen in the audit: media"
     assert home_only["5_page_traffic"]["status"] == "not_observed"
     assert home_only["3_bootstrap_status_under_session"]["status"] == "partly_observed"
+
+
+def _container(tmp_path: Path, *, registry: int | None = 0o600, directory: int = 0o700) -> Path:
+    (tmp_path / "Documents" / "Episode").mkdir(parents=True)
+    state = tmp_path / sim_proof.STATE_RELDIR
+    state.mkdir(parents=True)
+    state.chmod(directory)
+    if registry is not None:
+        file = state / "share_registry.sqlite"
+        _sqlite_with(file, "active_shares")
+        file.chmod(registry)
+    return tmp_path
+
+
+def _sqlite_with(path: Path, table: str) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with closing(sqlite3.connect(path)) as connection:
+        connection.execute(f"CREATE TABLE {table} (token TEXT)")
+        connection.commit()
+
+
+def test_the_proof_looks_where_the_engine_keeps_private_state(tmp_path: Path) -> None:
+    ios = host_platform.IOS.data_roots(tmp_path)
+
+    assert tmp_path / sim_proof.STATE_RELDIR == ios.state
+
+
+def test_a_registry_in_private_state_with_private_modes_is_observed(tmp_path: Path) -> None:
+    facts = sim_proof.private_storage_facts(_container(tmp_path))
+
+    assert facts["status"] == "observed"
+    assert (facts["registry_file_mode"], facts["state_directory_mode"]) == ("0o600", "0o700")
+    assert facts["visible_in_documents"] == []
+
+
+def test_a_container_whose_registry_was_never_opened_is_partly_observed(tmp_path: Path) -> None:
+    facts = sim_proof.private_storage_facts(_container(tmp_path, registry=None))
+
+    assert facts["status"] == "partly_observed"
+    assert facts["gap"]
+
+
+@pytest.mark.parametrize(
+    ("registry", "directory"), [(0o644, 0o700), (0o600, 0o755)], ids=["file", "directory"]
+)
+def test_a_registry_readable_by_others_fails(tmp_path: Path, registry: int, directory: int) -> None:
+    facts = sim_proof.private_storage_facts(
+        _container(tmp_path, registry=registry, directory=directory)
+    )
+
+    assert facts["status"] == "failed"
+
+
+@pytest.mark.parametrize(
+    "name",
+    ["share_registry.sqlite", "share_registry.sqlite-wal", "share_identity.sqlite", "relay.yaml"],
+)
+def test_a_registry_or_credential_file_in_documents_fails(tmp_path: Path, name: str) -> None:
+    container = _container(tmp_path)
+    (container / "Documents" / "Episode" / name).write_bytes(b"x")
+
+    facts = sim_proof.private_storage_facts(container)
+
+    assert facts["status"] == "failed"
+    assert facts["visible_in_documents"] == [f"Documents/Episode/{name}"]
+
+
+def test_any_sqlite_file_in_documents_with_an_active_shares_table_fails(tmp_path: Path) -> None:
+    container = _container(tmp_path)
+    _sqlite_with(container / "Documents" / "Episode" / "renamed.db", "active_shares")
+
+    assert sim_proof.private_storage_facts(container)["status"] == "failed"
+
+
+def test_an_unrelated_sqlite_file_in_documents_is_fine(tmp_path: Path) -> None:
+    container = _container(tmp_path)
+    _sqlite_with(container / "Documents" / "Episode" / "sync.db", "record_participants")
+
+    assert sim_proof.private_storage_facts(container)["status"] == "observed"
