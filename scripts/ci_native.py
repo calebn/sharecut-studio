@@ -134,6 +134,7 @@ NATIVE_CONTRACTS: dict[str, frozenset[NativeFamily]] = {
     "edit-surface.json": PYTHON_NATIVE,
     "ffmpeg-artifacts.json": PAYLOAD_NATIVE,
     "ffmpeg-build.json": PYTHON_NATIVE | PAYLOAD_NATIVE,
+    "ios-runtime.json": PYTHON_NATIVE,
     "join-length-limits.json": PYTHON_NATIVE,
     "project-writers.json": PYTHON_NATIVE,
     "ripple-scope.json": PYTHON_NATIVE,
@@ -196,6 +197,7 @@ NATIVE_RULES = tuple(
             ),
             frozenset((NativeFamily.CARGO,)),
         ),
+        (("scripts/ios/**",), PYTHON_NATIVE),
         (
             (
                 "src/podcast_mcp/**",
