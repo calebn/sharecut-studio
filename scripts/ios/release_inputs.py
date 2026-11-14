@@ -27,9 +27,15 @@ from podcast_mcp.config.distribution import (
 
 PROFILE_VARIABLE = "PODCAST_DISTRIBUTION_PROFILE"
 FILE_VARIABLE = "SHARECUT_IOS_RELEASE_ENV"
-SECRET_NAMES = ("APPLE_DEVELOPMENT_TEAM", "APPLE_API_KEY", "APPLE_API_ISSUER", "APPLE_API_KEY_PATH")
-TEAM_SECRETS = SECRET_NAMES[:1]
-KEY_SECRETS = SECRET_NAMES[1:3]
+TEAM_NAME, KEY_ID_NAME, ISSUER_NAME, KEY_PATH_NAME = (
+    "APPLE_DEVELOPMENT_TEAM",
+    "APPLE_API_KEY",
+    "APPLE_API_ISSUER",
+    "APPLE_API_KEY_PATH",
+)
+TEAM_SECRETS = (TEAM_NAME,)
+KEY_SECRETS = (KEY_ID_NAME, ISSUER_NAME)
+SECRET_NAMES = (*TEAM_SECRETS, *KEY_SECRETS, KEY_PATH_NAME)
 PLACEHOLDER_TEAM = "AAAAAAAAAA"
 DEV_IDENTIFIER = "studio.sharecut.dev"
 TEN = re.compile(r"^[A-Z0-9]{10}$")
@@ -120,9 +126,13 @@ class InputError(Exception):
         )
 
 
+def absent(path: Path) -> bool:
+    return not path.exists() and not path.is_symlink()
+
+
 def read_private_file(path: Path, checkout: Path) -> tuple[dict[str, str], list[InputProblem]]:
     """``NAME=value`` lines from the private file; never echoes a value."""
-    if not path.exists() and not path.is_symlink():
+    if absent(path):
         return {}, []
     source = "private file"
     try:
@@ -167,8 +177,7 @@ def private_values(
     location = Path(named or home / ".config" / "sharecut" / "ios-release.env")
     values, problems = read_private_file(location, checkout)
     values.update({name: environ[name] for name in SECRET_NAMES if environ.get(name)})
-    absent = not location.exists() and not location.is_symlink()
-    if absent and any(name not in values for name in needs):
+    if absent(location) and any(name not in values for name in needs):
         source, why = (
             ("private file", "does not exist")
             if named
@@ -183,17 +192,13 @@ def private_values(
 
 def resolve_team(values: Mapping[str, str]) -> tuple[Secret | None, list[InputProblem]]:
     source = "private file or environment"
-    team = values.get("APPLE_DEVELOPMENT_TEAM", "")
+    team = values.get(TEAM_NAME, "")
     if not team:
-        return None, [InputProblem("APPLE_DEVELOPMENT_TEAM", source, "missing")]
+        return None, [InputProblem(TEAM_NAME, source, "missing")]
     if team == PLACEHOLDER_TEAM:
-        return None, [
-            InputProblem("APPLE_DEVELOPMENT_TEAM", source, "is the Simulator placeholder")
-        ]
+        return None, [InputProblem(TEAM_NAME, source, "is the Simulator placeholder")]
     if not TEN.fullmatch(team):
-        return None, [
-            InputProblem("APPLE_DEVELOPMENT_TEAM", source, "is not 10 capital letters or digits")
-        ]
+        return None, [InputProblem(TEAM_NAME, source, "is not 10 capital letters or digits")]
     return Secret(team, "team"), []
 
 
@@ -204,20 +209,16 @@ def resolve_asc_key(
     problems = [
         InputProblem(name, source, "missing") for name in KEY_SECRETS if not values.get(name)
     ]
-    key_id, issuer = values.get("APPLE_API_KEY", ""), values.get("APPLE_API_ISSUER", "")
+    key_id, issuer = values.get(KEY_ID_NAME, ""), values.get(ISSUER_NAME, "")
     if key_id and not TEN.fullmatch(key_id):
-        problems.append(
-            InputProblem("APPLE_API_KEY", source, "is not 10 capital letters or digits")
-        )
+        problems.append(InputProblem(KEY_ID_NAME, source, "is not 10 capital letters or digits"))
     if issuer and not UUID.fullmatch(issuer):
-        problems.append(InputProblem("APPLE_API_ISSUER", source, "is not a UUID"))
-    path_text = values.get("APPLE_API_KEY_PATH") or (
+        problems.append(InputProblem(ISSUER_NAME, source, "is not a UUID"))
+    path_text = values.get(KEY_PATH_NAME) or (
         str(home / ".appstoreconnect" / "private_keys" / f"AuthKey_{key_id}.p8") if key_id else ""
     )
     if path_text:
         problems += key_file_problems(Path(path_text), checkout)
-    else:
-        problems.append(InputProblem("APPLE_API_KEY_PATH", source, "missing"))
     if problems:
         return None, problems
     key = AscKey(Secret(key_id, "key-id"), Secret(issuer, "issuer"), Secret(path_text, "key-path"))
@@ -226,7 +227,7 @@ def resolve_asc_key(
 
 def key_file_problems(path: Path, checkout: Path) -> list[InputProblem]:
     """The key file is checked by its metadata only; the tool never opens it."""
-    name, source = "APPLE_API_KEY_PATH", "private file or environment"
+    name, source = KEY_PATH_NAME, "private file or environment"
     try:
         info = path.lstat()
     except OSError:

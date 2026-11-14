@@ -239,7 +239,7 @@ def deliver(
         retry_unknown_upload=retry_unknown,
     )
     session.say(
-        f"ios_release {'upload' if confirm else 'validate'} {record.build_number} "
+        f"ios_release {'validate' if confirm is None else 'upload'} {record.build_number} "
         f"sha256 {record.ipa_sha256[:12]}"
     )
     ws = Workspace(out=record_dir, build_number=record.build_number)
@@ -250,7 +250,7 @@ def deliver(
     if code == 0 and not session.dry_run:
         session.say(
             "uploaded; App Store processing usually takes 5 to 30 minutes"
-            if confirm
+            if confirm is not None
             else f"to upload after the owner says so: ios_release.py upload --confirm {record.token()}"
         )
     return code

@@ -793,6 +793,75 @@ def test_a_missing_explicit_file_is_named_and_every_value_the_build_needs_is_lis
     out = capsys.readouterr().out
     assert "gone/ios.env (private file): does not exist" in out and str(missing) not in out
     assert "APPLE_DEVELOPMENT_TEAM (private file or environment): missing" in out
+    first = next(line for line in out.splitlines() if line.startswith("  "))
+    assert "gone/ios.env (private file): does not exist" in first
+
+
+def test_a_signed_build_needs_only_the_team_so_a_set_team_and_no_file_is_fine(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    stage_missing_file(tmp_path, monkeypatch, explicit=True)
+    monkeypatch.setenv("APPLE_DEVELOPMENT_TEAM", TEAM)
+    ios_release.main(["build", "--dry-run"])
+    assert "does not exist" not in capsys.readouterr().out
+
+
+def test_a_dangling_link_at_the_private_file_is_refused_not_called_absent(tmp_path: Path) -> None:
+    link = tmp_path / "ios.env"
+    link.symlink_to(tmp_path / "nowhere")
+    values, problems = release_inputs.private_values(
+        {"SHARECUT_IOS_RELEASE_ENV": str(link)},
+        tmp_path / "repo",
+        tmp_path,
+        release_inputs.TEAM_SECRETS,
+    )
+    assert values == {}
+    assert "is not a regular file" in [p.why for p in problems]
+    assert not any("does not exist" in p.why for p in problems)
+
+
+def test_the_secret_groups_are_named_once() -> None:
+    names = release_inputs
+    assert names.SECRET_NAMES == (
+        "APPLE_DEVELOPMENT_TEAM",
+        "APPLE_API_KEY",
+        "APPLE_API_ISSUER",
+        "APPLE_API_KEY_PATH",
+    )
+    assert names.TEAM_SECRETS == ("APPLE_DEVELOPMENT_TEAM",)
+    assert names.KEY_SECRETS == ("APPLE_API_KEY", "APPLE_API_ISSUER")
+
+
+def test_a_missing_key_id_is_one_problem_not_two(tmp_path: Path) -> None:
+    key, problems = release_inputs.resolve_asc_key({"APPLE_API_ISSUER": ISSUER}, tmp_path, tmp_path)
+    assert key is None and [p.name for p in problems] == ["APPLE_API_KEY"]
+    key, problems = release_inputs.resolve_asc_key(
+        {"APPLE_API_ISSUER": ISSUER, "APPLE_API_KEY": KEY_ID}, tmp_path, tmp_path
+    )
+    assert [(p.name, p.why) for p in problems] == [
+        ("APPLE_API_KEY_PATH", "the key file does not exist")
+    ]
+
+
+def test_key_problems_alone_are_an_input_error_not_a_crash(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    stage_deliver(tmp_path, monkeypatch)
+    monkeypatch.setenv("APPLE_API_KEY", "bad")
+    assert ios_release.main(["validate", "--dry-run"]) == Failure.INPUT.value
+    out = capsys.readouterr().out
+    assert "APPLE_API_KEY (private file or environment): is not 10 capital letters" in out
+    assert "private file): does not exist" not in out
+
+
+def test_the_banner_follows_the_subcommand_even_for_an_empty_token(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    stage_deliver(tmp_path, monkeypatch)
+    ios_release.main(["upload", "--dry-run", "--confirm", ""])
+    assert "ios_release upload 2026" in capsys.readouterr().out
+    ios_release.main(["validate", "--dry-run"])
+    assert "ios_release validate 2026" in capsys.readouterr().out
 
 
 def test_the_unsigned_rehearsal_needs_no_secrets_file_at_all(
@@ -820,8 +889,11 @@ def test_a_missing_explicit_file_lists_every_key_value_for_validate_and_upload(
     assert ios_release.main(command) == Failure.INPUT.value
     out = capsys.readouterr().out
     assert "gone/ios.env (private file): does not exist" in out and str(missing) not in out
-    for name in ("APPLE_API_KEY", "APPLE_API_ISSUER", "APPLE_API_KEY_PATH"):
+    first = next(line for line in out.splitlines() if line.startswith("  "))
+    assert "gone/ios.env (private file): does not exist" in first
+    for name in ("APPLE_API_KEY", "APPLE_API_ISSUER"):
         assert f"{name} (private file or environment): missing" in out
+    assert "APPLE_API_KEY_PATH" not in out
 
 
 def test_a_missing_default_file_says_where_it_is_expected(
