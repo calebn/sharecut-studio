@@ -86,10 +86,10 @@ type Props = {
   projectPath?: string;
 };
 
-function setup(models = modelsFor("missing")) {
+function setup(models = modelsFor("missing"), cfg = pipelineConfig()) {
   const api = models;
   const modelContext = { current: models };
-  const ws = workingSet();
+  const ws = workingSet(cfg);
   const wrapper = ({ children }: { children: ReactNode }) => (
     <ModelsContext.Provider value={modelContext.current}>
       {children}
@@ -374,6 +374,53 @@ describe("usePrepareRun keep my fixes", () => {
     act(() => result.current.keepMyFixes());
     expect(result.current.keepFixes).toBeNull();
     expect(start).not.toHaveBeenCalled();
+  });
+
+  it("says Re-transcribe changed nothing and the staged Language edit stays", async () => {
+    vocabulary.mockResolvedValue({
+      show_title: null,
+      prompt_limit: null,
+      prompt_primer: "",
+      terms: [],
+      guest_names: [],
+      revision: "r1",
+      needs_retranscription: true,
+      edited_tracks: ["maya", "joss"],
+    });
+    const { result } = setup(
+      modelsFor("missing"),
+      pipelineConfig({ config: { transcribe: { language: "es" } } }),
+    );
+    await act(async () => result.current.retranscribe());
+    act(() => result.current.keepMyFixes());
+    expect(useDawStore.getState().statusAnnouncement).toBe(
+      "Kept the hand fixes on MAYA and JOSS. Nothing was re-transcribed. The Language edit stays staged on Spanish.",
+    );
+    expect(useDawStore.getState().feedbackToast).toMatchObject({
+      tone: "status",
+    });
+  });
+
+  it("leaves the Language clause out while the language detects automatically", async () => {
+    vocabulary.mockResolvedValue({
+      show_title: null,
+      prompt_limit: null,
+      prompt_primer: "",
+      terms: [],
+      guest_names: [],
+      revision: "r1",
+      needs_retranscription: true,
+      edited_tracks: ["maya"],
+    });
+    const { result } = setup(
+      modelsFor("missing"),
+      pipelineConfig({ config: { transcribe: { language: null } } }),
+    );
+    await act(async () => result.current.retranscribe());
+    act(() => result.current.keepMyFixes());
+    expect(useDawStore.getState().statusAnnouncement).toBe(
+      "Kept the hand fixes on MAYA. Nothing was re-transcribed.",
+    );
   });
 
   it("Replace re-transcribes over the fixes", async () => {
@@ -724,6 +771,21 @@ describe("usePrepareRun refused over hand fixes", () => {
       forceTranscribe: false,
       overwriteEdited: true,
     });
+  });
+
+  it("says no run started when Keep answers a refused run, and the Language edit stays", async () => {
+    fixed(["maya"]);
+    const { result } = setup(
+      modelsFor("missing"),
+      pipelineConfig({ config: { transcribe: { language: "es" } } }),
+    );
+    act(() => useDawStore.setState({ pipelineJob: refused }));
+    await waitFor(() => expect(result.current.keepFixes).not.toBeNull());
+    act(() => result.current.keepMyFixes());
+    expect(useDawStore.getState().statusAnnouncement).toBe(
+      "Kept the hand fixes on MAYA. No run started, so nothing was re-transcribed. The Language edit stays staged on Spanish.",
+    );
+    expect(start).not.toHaveBeenCalled();
   });
 
   it("leaves a refusal already there as a failed row, and Try again asks", async () => {
