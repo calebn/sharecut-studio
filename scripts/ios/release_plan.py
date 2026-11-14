@@ -20,9 +20,9 @@ from typing import Literal
 from scripts.ios import bundle_checks as checks
 from scripts.ios import private_paths
 from scripts.ios.release_classify import AppleAnswer, Failure, signing_hint
-from scripts.ios.release_inputs import BuildInputs, Identity, Signing
+from scripts.ios.release_inputs import PLACEHOLDER_TEAM, BuildInputs, Identity, Signing
 from scripts.ios.release_record import ReleaseRecord, sha256_file, write_record
-from scripts.ios.release_run import Command, Part, PrivateFile, SpawnResult, capture
+from scripts.ios.release_run import Command, Part, PrivateFile, SpawnResult, ToolFailed, capture
 from scripts.ios.release_secrets import Secret
 
 PASS_THROUGH = (
@@ -51,7 +51,6 @@ APPLE_NOTICE = (
     "This step may create an Apple Distribution certificate and an App Store provisioning "
     "profile in the developer account that Xcode is signed in to."
 )
-SIMULATOR_TEAM = "AAAAAAAAAA"
 
 
 @dataclass(frozen=True)
@@ -178,7 +177,7 @@ def export_options_parts(team: Secret) -> tuple[Part, ...]:
 def tool_outcome(result: SpawnResult, _: Workspace) -> Outcome:
     if result.exit_code == 0:
         return OK
-    hint = signing_hint(result.exit_code, result.output)
+    hint = signing_hint(result.output)
     if hint:
         return Failure.SIGNING, hint
     return Failure.TOOL, f"exited {result.exit_code}"
@@ -188,7 +187,7 @@ def plan_build(
     inputs: BuildInputs, layout: Layout, environ: Mapping[str, str], path: str
 ) -> list[Step]:
     signed = inputs.signing is Signing.APP_STORE
-    team: Part = inputs.team if inputs.team is not None else SIMULATOR_TEAM
+    team: Part = inputs.team if inputs.team is not None else PLACEHOLDER_TEAM
     env = child_environment(environ, path=path, team=team)
     overlay = overlay_argument(inputs.identity, str(inputs.build_number))
     bare = child_environment(environ, path=path)
@@ -232,7 +231,12 @@ def plan_build(
             tool_outcome,
         )
     )
-    steps.append(Local("reset generated project", lambda ws: reset(layout.tauri / "gen" / "apple")))
+    steps.append(
+        Local(
+            "reset generated project",
+            lambda ws: shutil.rmtree(layout.tauri / "gen" / "apple", ignore_errors=True),
+        )
+    )
     steps.append(
         Run(
             "xcode project",
@@ -248,12 +252,7 @@ def plan_build(
     if not signed:
         steps.append(Local("record xcodebuild arguments", lambda ws: write_shim(shim)))
         archive_env = {**env, "PATH": f"{shim}:{path}"}
-    archive_args: list[str] = ["--archive-only"]
-    runner_args: list[str] = []
-    if signed:
-        runner_args = ["--", "-allowProvisioningUpdates"]
-    else:
-        archive_args.append("--no-sign")
+    archive_args = ["--archive-only"] if signed else ["--archive-only", "--no-sign"]
     steps.append(
         Run(
             "archive",
@@ -270,7 +269,6 @@ def plan_build(
                     "--config",
                     overlay,
                     *archive_args,
-                    *runner_args,
                 ),
                 layout.desktop,
                 archive_env,
@@ -361,10 +359,6 @@ def keep_shim_log(ws: Workspace, directory: Path) -> checks.CheckReport | None:
     )
 
 
-def reset(directory: Path) -> None:
-    shutil.rmtree(directory, ignore_errors=True)
-
-
 def collect_ipa(
     ws: Workspace, archive: Path, export_dir: Path, signed: bool, build_number: str
 ) -> checks.CheckReport | None:
@@ -403,7 +397,7 @@ def unpack(ws: Workspace) -> Path:
     capture(["ditto", "-x", "-k", str(ws.ipa), str(scratch)])
     apps = sorted((scratch / "Payload").glob("*.app"))
     if len(apps) != 1:
-        raise checks.ToolFailed(f"the IPA holds {len(apps)} apps")
+        raise ToolFailed(f"the IPA holds {len(apps)} apps")
     ws.app = apps[0]
     return apps[0]
 

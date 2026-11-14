@@ -20,7 +20,6 @@ from scripts import version_policy
 from scripts.ios.release_secrets import Secret
 
 from podcast_mcp.config.distribution import (
-    DistributionProfile,
     DistributionProfileError,
     icon_name,
     load_distribution_profile,
@@ -33,10 +32,6 @@ PLACEHOLDER_TEAM = "AAAAAAAAAA"
 DEV_IDENTIFIER = "studio.sharecut.dev"
 TEN = re.compile(r"^[A-Z0-9]{10}$")
 UUID = re.compile(r"^[0-9A-Fa-f]{8}(?:-[0-9A-Fa-f]{4}){3}-[0-9A-Fa-f]{12}$")
-
-
-def default_secrets_file(home: Path) -> Path:
-    return home / ".config" / "sharecut" / "ios-release.env"
 
 
 @dataclass(frozen=True, order=True)
@@ -164,7 +159,7 @@ def read_private_file(path: Path, checkout: Path) -> tuple[dict[str, str], list[
 def private_values(
     environ: Mapping[str, str], checkout: Path, home: Path
 ) -> tuple[dict[str, str], list[InputProblem]]:
-    location = Path(environ.get(FILE_VARIABLE) or default_secrets_file(home))
+    location = Path(environ.get(FILE_VARIABLE) or home / ".config" / "sharecut" / "ios-release.env")
     values, problems = read_private_file(location, checkout)
     values.update({name: environ[name] for name in SECRET_NAMES if environ.get(name)})
     return values, problems
@@ -225,27 +220,19 @@ def key_file_problems(path: Path, checkout: Path) -> list[InputProblem]:
     return [InputProblem(name, source, why) for why in problems]
 
 
-def load_identity(
-    environ: Mapping[str, str], root: Path
-) -> tuple[Identity | None, DistributionProfile | None, list[InputProblem]]:
+def load_identity(environ: Mapping[str, str]) -> tuple[Identity | None, list[InputProblem]]:
     where = PROFILE_VARIABLE
     named = environ.get(where)
     if not named:
-        return (
-            None,
-            None,
-            [
-                InputProblem(
-                    where,
-                    "environment",
-                    "missing; the checked-in dev profile cannot make a release",
-                )
-            ],
-        )
+        return None, [
+            InputProblem(
+                where, "environment", "missing; the checked-in dev profile cannot make a release"
+            )
+        ]
     try:
         profile = load_distribution_profile(Path(named))
     except DistributionProfileError as error:
-        return None, None, [InputProblem(where, "environment", str(error)[:200])]
+        return None, [InputProblem(where, "environment", str(error)[:200])]
     problems = []
     if profile.bundle_identifier == DEV_IDENTIFIER:
         problems.append(
@@ -263,8 +250,8 @@ def load_identity(
             )
         )
     if problems:
-        return None, profile, problems
-    return Identity(profile.bundle_identifier, name), profile, []
+        return None, problems
+    return Identity(profile.bundle_identifier, name), []
 
 
 def marketing_version(root: Path) -> tuple[str | None, list[InputProblem]]:
@@ -288,7 +275,7 @@ def resolve_build_inputs(
     toolchain_problem: InputProblem | None = None,
 ) -> BuildInputs:
     problems = list(file_problems)
-    identity, _, found = load_identity(environ, root)
+    identity, found = load_identity(environ)
     problems += found
     version, found = marketing_version(root)
     problems += found

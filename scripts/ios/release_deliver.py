@@ -22,7 +22,7 @@ from scripts.ios.release_classify import (
     app_record_exists,
     classify_altool,
 )
-from scripts.ios.release_inputs import AscKey, Signing
+from scripts.ios.release_inputs import AscKey
 from scripts.ios.release_plan import (
     OK,
     Layout,
@@ -84,7 +84,7 @@ def answered(result: SpawnResult, ws: Workspace, verb: str) -> tuple[Outcome, Ap
     return (failure, f"{verb}: {SENTENCES[answer.verdict]} {detail}".strip()), answer
 
 
-def lookup_outcome(result: SpawnResult, ws: Workspace, bundle_identifier: str) -> Outcome:
+def lookup_outcome(result: SpawnResult, bundle_identifier: str) -> Outcome:
     if result.exit_code != 0:
         answer = classify_altool(result.exit_code, result.output)
         return Failure.APPLE_REJECTED, SENTENCES[answer.verdict]
@@ -115,7 +115,6 @@ def plan_deliver(
         ws.scratch.append(stage)
         ws.ipa = stage_copy(record_dir / record.ipa_name, stage)
         ws.sha256 = sha256_file(ws.ipa)
-        ws.signing = Signing.NONE
 
     def validated(result: SpawnResult, ws: Workspace) -> Outcome:
         outcome, answer = answered(result, ws, "validate")
@@ -154,7 +153,7 @@ def plan_deliver(
                 environ,
             ),
             True,
-            lambda result, ws: lookup_outcome(result, ws, record.bundle_identifier),
+            lambda result, ws: lookup_outcome(result, record.bundle_identifier),
         ),
         Local("stage ipa", stage_step),
         *artifact_checks(expect, layout, True),

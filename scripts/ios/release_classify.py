@@ -62,9 +62,7 @@ SIGNING_HINTS: tuple[tuple[re.Pattern[str], str], ...] = (
 )
 
 
-def signing_hint(exit_code: int, tail: str) -> str | None:
-    if exit_code == 0:
-        return None
+def signing_hint(tail: str) -> str | None:
     return next((sentence for pattern, sentence in SIGNING_HINTS if pattern.search(tail)), None)
 
 

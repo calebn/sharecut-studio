@@ -78,6 +78,7 @@ def test_the_needles_cover_every_spelling_in_utf8_and_utf16() -> None:
     assert b"/home/someone" in needles
     assert "/Users/someone/".encode("utf-16-le") in needles
     assert b"/home/someone/.cache" in needles
+    assert b"/Users/someone/" in needles
 
 
 def test_a_clean_tree_scans_clean_and_a_leak_names_the_file(tmp_path: Path) -> None:
@@ -95,11 +96,6 @@ def test_a_clean_tree_scans_clean_and_a_leak_names_the_file(tmp_path: Path) -> N
     assert report.files_scanned == 5
     assert report.offenders == ["pkg/leaky.so", "pkg/note.txt", "pkg/wide.bin"]
     assert "someone" not in "".join(hit.context for hit in report.hits)
-
-
-def test_the_user_name_as_a_path_segment_is_a_needle() -> None:
-    needles = paths.private_needles(Path("/home/someone"), Path("/home/someone/.cache"))
-    assert b"/Users/someone/" in needles
 
 
 def test_a_hit_in_a_mach_o_names_its_section(tmp_path: Path) -> None:
