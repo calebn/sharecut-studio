@@ -10,6 +10,8 @@ from filelock import Timeout
 
 from podcast_mcp.config.defaults import EffectiveConfig
 from podcast_mcp.edits.transcript_precorrect import run_precorrect_transcript
+from podcast_mcp.edits.transcript_reuse import language_changed
+from podcast_mcp.engines.asr_options import normalize_language
 from podcast_mcp.engines.audio_audit import AnalysisPolicy
 from podcast_mcp.project.io import resolve_project_path
 from podcast_mcp.project.store import ProjectStore, TranscriptVocabularyState
@@ -124,6 +126,39 @@ class TranscriptPrecorrectService:
     def vocabulary_status(project_path: Path | str) -> dict[str, Any]:
         state = ProjectStore(resolve_project_path(project_path)).transcript_vocabulary_state()
         return _vocabulary_response(load_transcript_context(state.workspace), state)
+
+    @staticmethod
+    def language_status(project_path: Path | str, language: str | None) -> dict[str, Any]:
+        """Tracks whose transcript was made in a language other than ``language``.
+
+        ``edited_stale_tracks`` is the subset with hand fixes, which a run keeps unless the
+        person confirms replacing them. Judged with ``language_changed`` like the run itself.
+        """
+        project = ProjectStore(resolve_project_path(project_path)).load()
+        stale: dict[str, dict[str, str]] = {}
+        edited: set[str] = set()
+        by_id = {t.id: t for t in project.tracks}
+        for transcript in project.transcripts:
+            recorded = normalize_language(transcript.asr_language or transcript.language)
+            track = by_id.get(transcript.track_id)
+            if recorded is None or track is None or not language_changed(recorded, language):
+                continue
+            stale.setdefault(
+                track.id,
+                {
+                    "track_id": track.id,
+                    "name": (track.speaker or "").strip() or track.label,
+                    "recorded": recorded,
+                },
+            )
+            if transcript.user_edited:
+                edited.add(track.id)
+        rows = [stale[t.id] for t in project.tracks if t.id in stale]
+        return {
+            "language": normalize_language(language),
+            "stale_tracks": rows,
+            "edited_stale_tracks": [row for row in rows if row["track_id"] in edited],
+        }
 
     def set_vocabulary(
         self,
