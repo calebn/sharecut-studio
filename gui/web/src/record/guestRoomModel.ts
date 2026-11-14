@@ -156,7 +156,6 @@ function uploadStuck(upload: RecordUploadProgress): boolean {
   );
 }
 
-/** This guest's own upload is moving, as the saving line shows it. */
 export function uploadInFlight(upload: RecordUploadProgress | null): boolean {
   return (
     upload !== null &&
@@ -186,7 +185,6 @@ export function guestRoomPhase(
     if (upload.fileAck) {
       return { kind: "saved" };
     }
-    // Stopped on a failed upload, or on a partial take that needs Finish saving.
     if (uploadStuck(upload)) {
       return { kind: "saving", savedPeople: 0, totalPeople: 1, failed: true };
     }
@@ -331,7 +329,6 @@ export function guestRoomAlerts(
   return alerts;
 }
 
-/** What this device still holds for a leaving guest. A cover reads it in this order. */
 type GuestStake = "finishing" | "saved" | "unsent" | "none";
 
 function guestStake(

@@ -2,7 +2,6 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 const HINT_MS = 2000;
 
-/** A line that shows for two seconds after a press, for a control that cannot say it by itself. */
 export function usePressHint() {
   const [shown, setShown] = useState(false);
   const timer = useRef<number | undefined>(undefined);
