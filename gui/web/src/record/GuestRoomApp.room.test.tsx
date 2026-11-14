@@ -181,6 +181,23 @@ describe("GuestRoomApp in the room", () => {
     expect(room.leave).not.toHaveBeenCalled();
   });
 
+  it("Leave in the waiting room leaves the room", async () => {
+    const room = fakeRoom({ snapshot: { state: "lobby" } });
+    const { rerender } = render(<GuestRoomApp token="t" />);
+    expect(leave()).not.toHaveAttribute("aria-disabled");
+    await userEvent.click(leave());
+    expect(room.leave).toHaveBeenCalledOnce();
+    (current.room as { left: boolean }).left = true;
+    rerender(<GuestRoomApp token="t" />);
+    expect(
+      screen.getByRole("heading", { name: "You left the room" }),
+    ).toBeInTheDocument();
+    expect(screen.getByText("You can close this page.")).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Join again" }),
+    ).toBeInTheDocument();
+  });
+
   it("tells a saved guest they can close the page, and Done leaves", async () => {
     const room = fakeRoom({
       snapshot: stopped,
