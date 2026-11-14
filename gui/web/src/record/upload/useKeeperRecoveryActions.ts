@@ -21,7 +21,11 @@ export type KeeperRecoveryActions = {
   error: string | null;
   /** Last successful recovery, for the upload status live region. */
   notice: string | null;
-  /** The last run was a download that handed the whole file to the browser. Any new run clears it. */
+  /**
+   * The whole zip of this take's recording went to the browser. It is bound to the
+   * session and take it was made for, so a later take is never covered by it; a
+   * repeat download keeps it until that run fails, and a recovery clears it.
+   */
   downloaded: boolean;
 };
 
@@ -56,7 +60,10 @@ export function useKeeperRecoveryActions(args: {
   const { sink, sessionId, participantId, takeIndex } = args;
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
-  const [downloaded, setDownloaded] = useState(false);
+  const [downloadedFor, setDownloadedFor] = useState<{
+    sessionId: string;
+    takeIndex: number;
+  } | null>(null);
   const { busy, run: runSingle } = useSingleFlight();
   const canRecover = useStableCallback(() => args.recoverAllowed);
   const recoveredNotice = useStableCallback((result: KeeperRecoveryResult) =>
@@ -70,7 +77,6 @@ export function useKeeperRecoveryActions(args: {
       void runSingle(async () => {
         setError(null);
         setNotice(null);
-        setDownloaded(false);
         try {
           const message = await action();
           if (!mountedRef.current) return;
@@ -95,27 +101,31 @@ export function useKeeperRecoveryActions(args: {
   const download = useCallback(() => {
     if (!sink || !sessionId || !participantId || takeIndex === null) return;
     run(async () => {
-      await downloadLocalKeepers(sink, sessionId, participantId, takeIndex);
-      setDownloaded(true);
+      try {
+        await downloadLocalKeepers(sink, sessionId, participantId, takeIndex);
+      } catch (failure: unknown) {
+        setDownloadedFor(null);
+        throw failure;
+      }
+      setDownloadedFor({ sessionId, takeIndex });
       return null;
     });
   }, [run, sink, sessionId, participantId, takeIndex]);
   const recover = useCallback(() => {
     if (!sink || !sessionId || !participantId || takeIndex === null) return;
     if (!canRecover()) return;
-    run(
-      async () =>
-        recoveredNotice(
-          await recoverLocalKeepers(
-            sink,
-            sessionId,
-            participantId,
-            takeIndex,
-            canRecover,
-          ),
+    run(async () => {
+      setDownloadedFor(null);
+      return recoveredNotice(
+        await recoverLocalKeepers(
+          sink,
+          sessionId,
+          participantId,
+          takeIndex,
+          canRecover,
         ),
-      onRecovered,
-    );
+      );
+    }, onRecovered);
   }, [
     run,
     sink,
@@ -133,6 +143,9 @@ export function useKeeperRecoveryActions(args: {
     busy,
     error,
     notice,
-    downloaded,
+    downloaded:
+      downloadedFor !== null &&
+      downloadedFor.sessionId === sessionId &&
+      downloadedFor.takeIndex === takeIndex,
   };
 }

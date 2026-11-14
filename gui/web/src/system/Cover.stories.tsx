@@ -82,14 +82,14 @@ export const Empty: Story = {
 export const BadLink: Story = {
   args: {
     glyph: "octagon-alert",
-    title: "This link does not work",
-    children: "Ask the host for a new one.",
+    title: "This link doesn't open a room",
+    children: "Ask the person who invited you for a new link.",
     primary: undefined,
   },
   play: async ({ canvasElement }) => {
     await expectCover(
       canvasElement,
-      "This link does not work",
+      "This link doesn't open a room",
       ["Back to Edit"],
       true,
     );
@@ -389,7 +389,8 @@ export const EndedDownloaded: Story = {
     glyph: "download",
     headingLevel: "h1",
     title: "Check your downloads",
-    children: "Find the zip file of your recording and send it to Maya.",
+    children:
+      "Look for the zip file of your recording and send it to Maya. If it isn't there, save it again.",
     primary: undefined,
     secondary: { label: "Save it again", onClick: fn() },
   },
@@ -407,7 +408,8 @@ const RECORD_UNREACHABLE: Story = {
     glyph: "cloud-off",
     headingLevel: "h1",
     title: "Couldn't reach the room",
-    children: "Check your internet connection, then try again.",
+    children:
+      "Check your internet connection, then try again. If it keeps happening, let the person who invited you know.",
     primary: { label: "Try again", onClick: fn() },
     secondary: undefined,
   },

@@ -1,7 +1,22 @@
 import { describe, expect, it } from "vitest";
 import type { CoverProps } from "../system/Cover";
 import type { RoomPhase } from "../system/roomPhase";
+import { guestCovers } from "./guestRoomModel";
 import { guestTabTitle } from "./guestTabTitle";
+
+const downloadedCover = guestCovers({
+  bootError: null,
+  error: null,
+  accessEnded: true,
+  inviteClosed: false,
+  captureSettled: true,
+  keeperActions: {
+    busy: false,
+    error: null,
+    notice: null,
+    downloaded: true,
+  },
+});
 
 const cover = (title: string): CoverProps => ({
   size: "page",
@@ -42,7 +57,7 @@ describe("guestTabTitle", () => {
     ],
     [
       "downloaded cover",
-      { cover: cover("Check your downloads") },
+      { cover: downloadedCover },
       "Check your downloads | Shot of Truth",
     ],
     [

@@ -392,7 +392,8 @@ const BOOT_COVERS: Record<BootFailure, BootCover> = {
   network: {
     glyph: "cloud-off",
     title: "Couldn't reach the room",
-    children: "Check your internet connection, then try again.",
+    children:
+      "Check your internet connection, then try again. If it keeps happening, let the person who invited you know.",
     retry: true,
   },
   server: {
@@ -500,9 +501,13 @@ function downloadedCover(
     ...page,
     glyph: "download",
     title: "Check your downloads",
-    children: `Find the zip file of your recording and send it to ${host}.`,
+    children: `Look for the zip file of your recording and send it to ${host}. If it isn't there, save it again.`,
     secondary: actions.download
-      ? { label: "Save it again", onClick: actions.download }
+      ? {
+          label: "Save it again",
+          onClick: actions.download,
+          busy: actions.busy,
+        }
       : undefined,
   };
 }
@@ -552,7 +557,12 @@ export function guestCoverProps(
     (room.snapshot?.take_index ?? -1) >= 0 && room.localRecording;
   const keeperActions = hasLocalCopy
     ? room.keeperActions
-    : { ...room.keeperActions, download: undefined, recover: undefined };
+    : {
+        ...room.keeperActions,
+        download: undefined,
+        recover: undefined,
+        downloaded: false,
+      };
   return guestCovers({
     bootError: room.bootError,
     error: room.error,

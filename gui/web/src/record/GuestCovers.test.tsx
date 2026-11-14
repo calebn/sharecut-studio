@@ -1,11 +1,16 @@
-import { render, screen } from "@testing-library/react";
+import { act, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { useDocumentTitle } from "../hooks/useDocumentTitle";
 import type { RoomPhase } from "../system/roomPhase";
 import { expectNoA11yViolations } from "../test/a11y";
 import { recordParticipant, recordSnapshot } from "../test/fixtures";
 import { GuestCovers } from "./GuestCovers";
 import { guestCoverProps } from "./guestRoomModel";
+import { guestTabTitle } from "./guestTabTitle";
+import { MemorySink } from "./keeper/store";
+import * as recovery from "./upload/recovery";
+import { useKeeperRecoveryActions } from "./upload/useKeeperRecoveryActions";
 
 const host = recordParticipant({
   participant_id: "p_host",
@@ -409,7 +414,9 @@ describe("GuestCovers headings and boot failures", () => {
       }),
     ).toBeInTheDocument();
     expect(
-      screen.getByText("Check your internet connection, then try again."),
+      screen.getByText(
+        "Check your internet connection, then try again. If it keeps happening, let the person who invited you know.",
+      ),
     ).toBeInTheDocument();
     expect(
       screen.queryByText(
@@ -431,5 +438,108 @@ describe("GuestCovers headings and boot failures", () => {
     window.dispatchEvent(new Event("online"));
     window.dispatchEvent(new Event("online"));
     expect(onOnline).toHaveBeenCalledOnce();
+  });
+});
+
+describe("after Save my recording handed the whole zip to the browser", () => {
+  afterEach(() => vi.restoreAllMocks());
+
+  function Ended({ takeIndex = 0 }: { takeIndex?: number }) {
+    const keeperActions = useKeeperRecoveryActions({
+      sink: new MemorySink(),
+      sessionId: "room1",
+      participantId: "p_g",
+      takeIndex,
+      recoverAllowed: true,
+      onRecovered: () => undefined,
+    });
+    const cover = guestCoverProps(
+      room({
+        accessEnded: true,
+        keeperActions,
+        snapshot: recordSnapshot({
+          participants: [host],
+          take_index: takeIndex,
+        }),
+      }),
+      vi.fn(),
+    );
+    useDocumentTitle(
+      guestTabTitle({
+        cover,
+        bootstrapped: true,
+        seat: "guest",
+        stance: "in",
+        phase: { kind: "waiting" },
+        episode: "Shot of Truth",
+      }),
+    );
+    return cover ? (
+      <GuestCovers
+        cover={cover}
+        status={keeperActions.error ?? keeperActions.notice}
+      />
+    ) : null;
+  }
+
+  it("keeps the cover, the heading, the tab title and focus while Save it again runs, and falls back only if it fails", async () => {
+    const download = vi
+      .spyOn(recovery, "downloadLocalKeepers")
+      .mockResolvedValueOnce(undefined);
+    render(<Ended />);
+    await userEvent.click(
+      screen.getByRole("button", { name: "Save my recording" }),
+    );
+    expect(
+      await screen.findByRole("heading", {
+        level: 1,
+        name: "Check your downloads",
+      }),
+    ).toBeInTheDocument();
+
+    let fail: (reason: Error) => void = () => undefined;
+    download.mockImplementationOnce(
+      () =>
+        new Promise<void>((_resolve, reject) => {
+          fail = reject;
+        }),
+    );
+    const again = screen.getByRole("button", { name: "Save it again" });
+    await userEvent.click(again);
+
+    expect(
+      screen.getByRole("heading", { level: 1, name: "Check your downloads" }),
+    ).toBeInTheDocument();
+    expect(document.title).toBe("Check your downloads | Shot of Truth");
+    const stillThere = screen.getByRole("button", { name: "Save it again" });
+    expect(stillThere).toHaveAttribute("aria-busy", "true");
+    expect(stillThere).toHaveFocus();
+
+    await act(async () => fail(new Error("Disk full.")));
+    expect(
+      await screen.findByRole("heading", {
+        level: 1,
+        name: "Your recording didn't finish saving",
+      }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("status")).toHaveTextContent("Disk full.");
+  });
+
+  it("is not shown once the recording has since been saved to the project", () => {
+    const cover = guestCoverProps(
+      room({
+        accessEnded: true,
+        localRecording: false,
+        keeperActions: {
+          busy: false,
+          error: null,
+          notice: null,
+          downloaded: true,
+        },
+        snapshot: recordSnapshot({ participants: [host], take_index: 0 }),
+      }),
+      vi.fn(),
+    );
+    expect(cover?.title).toBe("This session has ended");
   });
 });

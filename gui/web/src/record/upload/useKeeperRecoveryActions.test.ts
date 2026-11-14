@@ -15,18 +15,19 @@ const ids = { sessionId: "room1", takeIndex: 0, participantId: "p_g" };
 function renderActions(
   sink: MemorySink | null,
   overrides: {
+    takeIndex?: number;
     recoverAllowed?: boolean;
     uploadAvailable?: boolean;
     onRecovered?: () => void;
   } = {},
 ) {
   return renderHook(
-    ({ recoverAllowed, uploadAvailable }) =>
+    ({ recoverAllowed, uploadAvailable, takeIndex }) =>
       useKeeperRecoveryActions({
         sink,
         sessionId: ids.sessionId,
         participantId: ids.participantId,
-        takeIndex: ids.takeIndex,
+        takeIndex,
         recoverAllowed,
         uploadAvailable,
         onRecovered: overrides.onRecovered ?? (() => undefined),
@@ -35,6 +36,7 @@ function renderActions(
       initialProps: {
         recoverAllowed: overrides.recoverAllowed ?? true,
         uploadAvailable: overrides.uploadAvailable ?? true,
+        takeIndex: overrides.takeIndex ?? ids.takeIndex,
       },
     },
   );
@@ -180,7 +182,11 @@ describe("useKeeperRecoveryActions", () => {
     const { result, rerender } = renderActions(sink);
     act(() => result.current.recover?.());
     await waitFor(() => expect(writing).toBe(true));
-    rerender({ recoverAllowed: true, uploadAvailable: false });
+    rerender({
+      recoverAllowed: true,
+      uploadAvailable: false,
+      takeIndex: ids.takeIndex,
+    });
     await act(async () => release());
     await waitFor(() => expect(result.current.busy).toBe(false));
     expect(result.current.notice).toBe(
@@ -214,5 +220,47 @@ describe("useKeeperRecoveryActions", () => {
     act(() => result.current.download?.());
     await waitFor(() => expect(result.current.error).toBe(loss));
     expect(result.current.downloaded).toBe(false);
+  });
+
+  it("stops counting a download once a later take exists", async () => {
+    const sink = new MemorySink();
+    await seedPendingKeeper(sink, ids);
+    vi.spyOn(recovery, "downloadLocalKeepers").mockResolvedValue(undefined);
+    const { result, rerender } = renderActions(sink);
+    act(() => result.current.download?.());
+    await waitFor(() => expect(result.current.downloaded).toBe(true));
+    rerender({
+      recoverAllowed: true,
+      uploadAvailable: true,
+      takeIndex: ids.takeIndex + 1,
+    });
+    expect(result.current.downloaded).toBe(false);
+  });
+
+  it("keeps downloaded while a second download runs and drops it only if that run fails", async () => {
+    const sink = new MemorySink();
+    await seedPendingKeeper(sink, ids);
+    const run = vi
+      .spyOn(recovery, "downloadLocalKeepers")
+      .mockResolvedValueOnce(undefined);
+    const { result } = renderActions(sink);
+    act(() => result.current.download?.());
+    await waitFor(() => expect(result.current.downloaded).toBe(true));
+    await waitFor(() => expect(result.current.busy).toBe(false));
+
+    let fail: (reason: Error) => void = () => undefined;
+    run.mockImplementationOnce(
+      () =>
+        new Promise<void>((_resolve, reject) => {
+          fail = reject;
+        }),
+    );
+    act(() => result.current.download?.());
+    expect(result.current.busy).toBe(true);
+    expect(result.current.downloaded).toBe(true);
+    await act(async () => fail(new Error("Disk full.")));
+    await waitFor(() => expect(result.current.busy).toBe(false));
+    expect(result.current.downloaded).toBe(false);
+    expect(result.current.error).toBe("Disk full.");
   });
 });

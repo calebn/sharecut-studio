@@ -490,7 +490,8 @@ describe("guestCovers", () => {
       {
         glyph: "cloud-off",
         title: "Couldn't reach the room",
-        children: "Check your internet connection, then try again.",
+        children:
+          "Check your internet connection, then try again. If it keeps happening, let the person who invited you know.",
       },
       true,
     ],
@@ -561,7 +562,8 @@ describe("guestCovers", () => {
       expect(cover).toMatchObject({
         glyph: "download",
         title: "Check your downloads",
-        children: "Find the zip file of your recording and send it to Hana.",
+        children:
+          "Look for the zip file of your recording and send it to Hana. If it isn't there, save it again.",
         secondary: { label: "Save it again" },
       });
       expect(cover?.primary).toBeUndefined();
