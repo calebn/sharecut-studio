@@ -6,7 +6,8 @@
 #   scripts/ios/ios_sim.sh launch    install and launch the last build
 #   scripts/ios/ios_sim.sh proof     assert what the app promises (make ios-sim-proof)
 #
-# IOS_SIM_DEVICE names the simulator (name or UDID; default: the booted one). Signing is never
+# IOS_SIM_DEVICE names the simulator (name or UDID; default: the booted one). IOS_SIM_UI_WINDOW=<seconds>
+# keeps the app open during the proof for a person to open a project (assertion 5). Signing is never
 # involved: the Simulator build takes a placeholder team from the environment, and the real team
 # stays outside the repository.
 set -euo pipefail
@@ -31,6 +32,9 @@ bundle_identifier() {
 }
 
 build() {
+  # The payload ships whatever gui/web/dist holds and does not rebuild it, so a stale build would
+  # run the previous web UI. Rebuild it every time (gui/web/dist is not tracked).
+  (cd "$ROOT/gui/web" && { [ -d node_modules ] || npm ci; } && npm run --silent build)
   (cd "$DESKTOP" && { [ -d node_modules ] || npm ci; })
   rm -rf "$TAURI/gen/apple"
   (cd "$DESKTOP" && npm run --silent tauri -- ios init --ci </dev/null)
@@ -57,7 +61,8 @@ launch() {
 proof() {
   (cd "$ROOT" && uv run python scripts/ios/sim_proof.py --device "$DEVICE" \
     --app "$(app_path)" --bundle-id "$(bundle_identifier)" \
-    ${IOS_SIM_PROOF_DIR:+--evidence-dir "$IOS_SIM_PROOF_DIR"})
+    ${IOS_SIM_PROOF_DIR:+--evidence-dir "$IOS_SIM_PROOF_DIR"} \
+    ${IOS_SIM_UI_WINDOW:+--ui-window "$IOS_SIM_UI_WINDOW"})
 }
 
 case "${1:-run}" in

@@ -945,13 +945,14 @@ Moved to [testing-e2e.md](testing-e2e.md): beta user stories, GUI surface regres
 Local only (CI has no Simulator). Needs macOS with Xcode, `xcodegen`, the rustup targets
 `aarch64-apple-ios-sim` and `aarch64-apple-ios`, and a rustup toolchain ahead of Homebrew's
 `rustc` on `PATH`. `make ios-sim` builds and launches; `make ios-sim-proof` (set
-`IOS_SIM_DEVICE`) launches cold and checks the engine's Serving state, the refusals an app on
-the same phone would meet, the background and return, and a deliberately broken payload.
-The UI checks (Audio tools card, creating and opening a project) are made by hand or with the
-Simulator tool and their screenshots kept with the proof. `cargo check --lib` for both iOS
-targets runs inside `make test-desktop` when the targets are installed. Python tests for the
-lane are `tests/test_ios_payload.py`, `tests/test_ios_boot_imports.py` and
-`tests/test_ios_template.py`.
+`IOS_SIM_DEVICE`; `IOS_SIM_UI_WINDOW=<seconds>` leaves time to open a project) launches cold and
+checks the Serving state, the full-screen layout, the refusals, the page's traffic from a
+debug-only request audit, the background and return, and a broken payload. Its `results.json`
+and the audit are described in [desktop-packaging.md § iOS app](desktop-packaging.md). The UI
+checks are made by hand or with the Simulator tool. `cargo check --lib` for both iOS targets
+runs inside `make test-desktop` when the targets are installed. Python tests for the lane:
+`tests/test_ios_payload.py`, `test_ios_boot_imports.py`, `test_ios_template.py`,
+`test_ios_sim_proof.py` and `test_gui_request_audit.py`.
 
 ## CI
 

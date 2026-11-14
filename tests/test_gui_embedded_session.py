@@ -13,7 +13,7 @@ from websockets.exceptions import InvalidStatus
 from websockets.sync.client import connect
 
 from host_session_helpers import OWNER_TOKEN, UNTRUSTED
-from podcast_mcp.gui import embedded
+from podcast_mcp.gui import embedded, request_audit
 from podcast_mcp.gui.bind import BOOT_TOKEN_ENV
 from podcast_mcp.services.jobs import shared_job_manager
 from podcast_mcp.util import host_platform
@@ -44,6 +44,22 @@ def _get(
     return connection.getresponse()
 
 
+def _post(port: int, path: str, body: dict[str, str], cookie: str) -> http.client.HTTPResponse:
+    """A POST the way the page sends it: its own origin and the session cookie."""
+    connection = http.client.HTTPConnection("127.0.0.1", port, timeout=10)
+    connection.request(
+        "POST",
+        path,
+        body=json.dumps(body),
+        headers={
+            "Content-Type": "application/json",
+            "Origin": f"http://127.0.0.1:{port}",
+            "Cookie": f"{SESSION_COOKIE}={cookie}",
+        },
+    )
+    return connection.getresponse()
+
+
 def _sign_in(started: embedded.Started) -> str:
     response = _get(started.port, f"{EXCHANGE_PATH}?{EXCHANGE_PARAM}={started.exchange_code}")
     assert response.status == 200
@@ -71,6 +87,64 @@ def test_an_untrusted_host_gets_a_code_that_signs_the_web_view_in_once(host) -> 
     assert _get(started.port, "/api/bootstrap/status").status == 403
     assert _get(started.port, "/api/bootstrap/status", cookie=cookie).status == 200
     assert again.status == 403
+
+
+def test_a_real_code_replayed_is_refused_and_sets_no_cookie(host) -> None:
+    host(UNTRUSTED)
+    started = embedded.start()
+    path = f"{EXCHANGE_PATH}?{EXCHANGE_PARAM}={started.exchange_code}"
+
+    first = _get(started.port, path)
+    replay = _get(started.port, path)
+    cookie = (first.getheader("Set-Cookie") or "").split(";")[0].partition("=")[2]
+
+    assert first.status == 200 and cookie
+    assert replay.status == 403
+    assert replay.getheader("Set-Cookie") is None
+    assert _get(started.port, "/api/bootstrap/status", cookie=cookie).status == 200
+
+
+def test_the_request_audit_records_the_real_traffic_without_a_query_or_the_code(
+    host, minimal_project: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv(request_audit.DEBUG_BUILD_VARIABLE, "1")
+    monkeypatch.setenv(request_audit.AUDIT_VARIABLE, "1")
+    host(UNTRUSTED)
+    started = embedded.start()
+    code = started.exchange_code
+    cookie = _sign_in(started)
+    _get(started.port, f"{EXCHANGE_PATH}?{EXCHANGE_PARAM}={code}")
+    job = shared_job_manager().adopt_agent_job(tool_id="test", label="Test", claim="streaming")
+    _get(started.port, f"/api/pipeline/events?job_id={job.id}", cookie=cookie).close()
+    url = (
+        f"ws://127.0.0.1:{started.port}/api/host/ws?path={minimal_project}"
+        "&client_id=owner-a&document_client_id=owner-b"
+    )
+    with connect(url, additional_headers={"Cookie": f"{SESSION_COOKIE}={cookie}"}) as socket:
+        socket.recv()
+
+    refused = _post(started.port, "/api/project/open", {"path": "/none/episode.sharecut"}, cookie)
+
+    text = request_audit.audit_path().read_text(encoding="utf-8")
+    lines = [json.loads(line) for line in text.splitlines()]
+    assert refused.status == 404  # the route answered; the Origin check still knows the port
+    assert code and code not in text and cookie not in text and str(minimal_project) not in text
+    assert {"method": "GET", "path": EXCHANGE_PATH, "status": 200, "query_empty": False} in lines
+    assert {"method": "GET", "path": EXCHANGE_PATH, "status": 403, "query_empty": False} in lines
+    assert sum(1 for line in lines if line["path"] == EXCHANGE_PATH and line["status"] == 200) == 1
+    assert {
+        "method": "GET",
+        "path": "/api/pipeline/events",
+        "status": 200,
+        "query_empty": False,
+    } in lines
+    assert job.id not in text
+    assert {
+        "method": "WEBSOCKET",
+        "path": "/api/host/ws",
+        "status": 101,
+        "query_empty": False,
+    } in lines
 
 
 @pytest.mark.parametrize("row", [IOS, UNKNOWN], ids=["ios", "unknown"])

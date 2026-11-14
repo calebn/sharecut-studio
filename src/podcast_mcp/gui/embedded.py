@@ -33,6 +33,7 @@ from datetime import UTC, datetime
 from typing import Any, NamedTuple
 
 from podcast_mcp.gui.bind import build_gui_server, exclusive_listen_socket
+from podcast_mcp.gui.request_audit import install as install_request_audit
 from podcast_mcp.util import host_platform
 from podcast_mcp.util.atomic_json import write_bytes_atomic
 
@@ -168,7 +169,9 @@ class _Engine:
             if self._app is None:
                 from podcast_mcp.gui.server import create_app
 
-                self._app = create_app(host_mcp=False)
+                app = create_app(host_mcp=False)
+                install_request_audit(app)
+                self._app = app
             if self._socket is None:
                 self._socket = exclusive_listen_socket(LOOPBACK, 0)
             listener = _Listener(self._app, self._socket)
