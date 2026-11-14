@@ -16,6 +16,7 @@ from podcast_mcp.config.distribution import (
     DistributionProfileError,
     compact_product_name,
     distribution_profile_from_mapping,
+    icon_name,
     load_distribution_profile,
     runtime_distribution_metadata,
     tauri_distribution_overlay,
@@ -213,6 +214,14 @@ def test_tauri_overlay_preserves_exact_hosts_and_custom_schemes() -> None:
     assert deep["mobile"][0]["pathPrefix"] == ["/r/", "/rec/"]
 
 
+def test_the_icon_name_is_the_short_name_when_the_profile_sets_one() -> None:
+    raw = _valid_profile()
+    assert icon_name(distribution_profile_from_mapping(raw)) == "Example Studio"
+    raw["short_name"] = "Example"
+    profile = distribution_profile_from_mapping(raw)
+    assert (profile.short_name, icon_name(profile)) == ("Example", "Example")
+
+
 def test_compact_product_name_is_shared_build_and_release_identity() -> None:
     profile = distribution_profile_from_mapping(_valid_profile())
     assert compact_product_name(profile) == "ExampleStudio"
@@ -248,6 +257,9 @@ def test_generator_check_only_uses_the_same_validator(tmp_path: Path) -> None:
     [
         ("version", 2, "version must be 1"),
         ("product_name", "", "1-64 characters"),
+        ("short_name", "", "1-15 characters"),
+        ("short_name", "A name past fifteen", "1-15 characters"),
+        ("short_name", "Bad\nName", "control characters"),
         ("deep_link_schemes", "example", "must be an array"),
         ("allowed_https_share_origins", "https://share.example.test", "must be an array"),
         ("support_url", "https://user@example.test", "user information"),
