@@ -105,7 +105,13 @@ function fakeRoom(over: Overrides = {}) {
       retry: vi.fn(),
       ...over.keeper,
     },
-    monitor: { hearing: false, remoteCount: 0, error: null, levels: {} },
+    monitor: {
+      hearing: false,
+      remoteCount: 0,
+      error: null as string | null,
+      levels: {},
+      retry: vi.fn(),
+    },
     output: { ...NO_OUTPUT, ...over.output },
     upload: { ...idleUpload, ...over.upload },
     takeClipping: over.takeClipping ?? null,
@@ -196,6 +202,17 @@ describe("GuestRoomApp in the room", () => {
     expect(
       screen.getByRole("button", { name: "Join again" }),
     ).toBeInTheDocument();
+  });
+
+  it("offers Retry when the guest can't hear the room", async () => {
+    const room = fakeRoom();
+    room.monitor.error = "Signal lost";
+    render(<GuestRoomApp token="t" />);
+    expect(
+      screen.getByText("You can't hear the room. Recording is fine."),
+    ).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Retry" }));
+    expect(room.monitor.retry).toHaveBeenCalledOnce();
   });
 
   it("tells a saved guest they can close the page, and Done leaves", async () => {
