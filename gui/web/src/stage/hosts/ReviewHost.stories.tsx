@@ -273,13 +273,25 @@ const asGuest = (role: "commenter" | "viewer", episodeState: object = {}) => ({
 });
 
 const NO_COMMENTS = episode({ comments: [] });
-const TRANSCRIPT_WORDS_PENDING = episode({
-  meta: {
-    name: "After Hours Almanac 12",
-    workspace_dir: "/episodes/after-hours",
-    hydration: { transcript_words: false },
-  },
-});
+// A shell has no words: a row that carries them would be live, not pending.
+const TRANSCRIPT_WORDS_PENDING = (() => {
+  const shell = episode({
+    meta: {
+      name: "After Hours Almanac 12",
+      workspace_dir: "/episodes/after-hours",
+      hydration: { transcript_words: false },
+    },
+  });
+  return {
+    ...shell,
+    transcript: shell.transcript && {
+      ...shell.transcript,
+      utterances: shell.transcript.utterances.map(
+        ({ words: _words, ...header }) => header,
+      ),
+    },
+  };
+})();
 
 const DETAIL_TOKEN = "b".repeat(64);
 const DETAIL_ROUTE = `${reviewApiBase("episode")}/daw/document/state`;

@@ -55,11 +55,12 @@ function GuestScriptHostAdapter({
   const mayRange = rangeMode !== "none";
   const model = useMemo(() => guestScriptModelOf(script), [script]);
   const range = useScriptSelection(model, mayRange, NOOP);
+  const selectRange = range.onSelect;
   const onSelect = useCallback(
     (selection: WordsSelection) => {
-      if (!touchesHeld(script, selection)) range.onSelect?.(selection);
+      if (!touchesHeld(script, selection)) selectRange?.(selection);
     },
-    [script, range.onSelect],
+    [script, selectRange],
   );
   const positionKey = useDawStore(
     useCallback(

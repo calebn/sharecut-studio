@@ -16,12 +16,7 @@ export function ComposeAnchor(props: Omit<ComposerProps, "anchor">) {
     useShallow((s): Chip => {
       const resolved = resolveCommentAnchor(s);
       if (resolved.source === "refreshing")
-        return (
-          shown.current ?? {
-            kind: "follow",
-            seconds: Math.floor(s.playheadSec),
-          }
-        );
+        return shown.current ?? { kind: "follow", seconds: 0 };
       const { draft, source } = resolved;
       return source === "playhead"
         ? { kind: "follow", seconds: Math.floor(draft.startSec) }
