@@ -28,7 +28,6 @@ pub struct Driver {
 }
 
 impl Driver {
-    /// Start the lifecycle on its own thread, plus the tick thread.
     pub fn spawn(self, inbox: Receiver<Event>) {
         let ticks = self.events.clone();
         thread::spawn(move || {
