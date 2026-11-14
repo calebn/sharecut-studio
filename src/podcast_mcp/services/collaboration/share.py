@@ -350,8 +350,12 @@ class ShareService:
         session_id = str(row.get("session_id") or "")
         if not session_id:
             return False
+        try:
+            share_id = share_id_of(row)
+        except KeyError:
+            return True
         record = RecordSessionService(self.ws.project, session_id=session_id)
-        return record.invite_closed(share_id_of(row)) is not None
+        return record.invite_closed(share_id) is not None
 
     def create_for_host(
         self,
