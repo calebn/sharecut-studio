@@ -5,7 +5,12 @@ from pathlib import Path
 import pytest
 
 from podcast_mcp.util.coded_error import CodedError
-from podcast_mcp.util.redact import mentions_host_path, sanitize
+from podcast_mcp.util.redact import (
+    mentions_host_path,
+    redact_secrets,
+    redact_share_paths,
+    sanitize,
+)
 
 
 @pytest.mark.parametrize(
@@ -264,3 +269,49 @@ def test_guest_message_conservatively_withholds_slash_bearing_prose(text: str) -
 @pytest.mark.parametrize("text", PATH_FREE_TEXTS)
 def test_mentions_host_path_leaves_prose_alone(text: str) -> None:
     assert not mentions_host_path(text)
+
+
+TOKEN = "velvet-quokka-umbra"
+
+
+@pytest.mark.parametrize(
+    "path",
+    [
+        f"/r/{TOKEN}/daw",
+        f"/rec/{TOKEN}",
+        f"/api/review/{TOKEN}/daw/ws",
+        f"/api/rec/{TOKEN}/ws",
+        f"/mcp/{TOKEN}/mcp",
+        f"/api/shares/{TOKEN}/revoke",
+        f"/api/shares/{TOKEN}/restore",
+        f"/api/shares/record/{TOKEN}/replace",
+        f"/auth/login/github?next=%2Fr%2F{TOKEN}%3Fa%3D1",
+        f"/auth/login/github?next=%2fapi%2freview%2f{TOKEN}",
+        f"/x?next=%252Fapi%252Fshares%252Frecord%252F{TOKEN}%252Freplace",
+    ],
+)
+def test_redact_share_paths_masks_the_token_of_every_share_route(path: str) -> None:
+    out = redact_share_paths(f"POST {path} HTTP/1.1")
+
+    assert TOKEN not in out
+    assert "<share-token>" in out
+
+
+def test_redact_share_paths_keeps_routes_that_carry_no_token() -> None:
+    line = "POST /api/shares/rooms/0123456789ab/revoke /api/shares/record /api/health"
+
+    assert redact_share_paths(line) == line
+
+
+def test_redact_secrets_masks_a_prefix_of_a_secret_from_the_minimum_length() -> None:
+    out = redact_secrets(f"{TOKEN} velvet-quok velvet velve {TOKEN[:12]}-x", [TOKEN], min_prefix=6)
+
+    assert "velvet" not in out
+    assert "velve" in out
+
+
+def test_redact_secrets_sees_a_secret_that_is_only_percent_encoded() -> None:
+    out = redact_secrets("next=%76elvet-quokka-umbra", [TOKEN], min_prefix=6)
+
+    assert "quokka" not in out
+    assert "umbra" not in out
