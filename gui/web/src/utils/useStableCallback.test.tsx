@@ -331,6 +331,7 @@ describe("stable callback source governance", () => {
       "record/storageQuota.ts:refresh",
       "record/upload/useKeeperRecoveryActions.ts:canRecover",
       "record/upload/useKeeperRecoveryActions.ts:onRecovered",
+      "record/upload/useKeeperRecoveryActions.ts:onRunEnd",
       "record/upload/useKeeperRecoveryActions.ts:recoveredNotice",
       "record/useRecordLiveComments.ts:sendComment",
       "record/useRecordSync.ts:currentName",
