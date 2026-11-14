@@ -20,6 +20,7 @@ from typing import Literal
 
 from scripts.ios import bundle_checks as checks
 from scripts.ios import private_paths
+from scripts.ios.private_file import write_private
 from scripts.ios.release_classify import AppleAnswer, Failure, signing_hint
 from scripts.ios.release_inputs import PLACEHOLDER_TEAM, BuildInputs, Identity, Signing
 from scripts.ios.release_record import ReleaseRecord, sha256_file, write_record
@@ -349,9 +350,7 @@ def keep_shim_log(ws: Workspace, directory: Path) -> checks.CheckReport | None:
     raw = directory / SHIM_LOG
     calls = raw.read_text(encoding="utf-8").splitlines() if raw.is_file() else []
     (ws.out / "logs").mkdir(parents=True, exist_ok=True)
-    (ws.out / "logs" / "xcodebuild-args.log").write_text(
-        ws.redact("\n".join(calls)) + "\n", encoding="utf-8"
-    )
+    write_private(ws.out / "logs" / "xcodebuild-args.log", ws.redact("\n".join(calls)) + "\n")
     shutil.rmtree(directory, ignore_errors=True)
     return (
         None
