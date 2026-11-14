@@ -840,3 +840,56 @@ def test_reveal_is_refused_when_the_request_has_no_peer_address(local, tmp_path,
     assert res.status_code == 403
     assert res.headers[CODE] == "reveal_not_allowed"
     assert shown == []
+
+
+@pytest.mark.parametrize("stored", ["../..", "Documents/../../etc", "../container-b/Documents/x"])
+def test_a_container_host_drops_a_stored_path_that_climbs_out_of_its_home(app_container, stored):
+    target = recent.recent_projects_path()
+    target.parent.mkdir(parents=True)
+    rows = [
+        {"path": stored, "opened_at": "2026-10-27T09:00:00+00:00"},
+        {"path": "Documents/Keep/episode.sharecut", "opened_at": ""},
+    ]
+    target.write_text(json.dumps({"version": 1, "projects": rows}), encoding="utf-8")
+    assert [e.path for e in recent.read_recent()] == [
+        str(app_container / "Documents/Keep/episode.sharecut")
+    ]
+
+
+def test_a_container_host_drops_an_absolute_path_under_its_home(app_container):
+    target = recent.recent_projects_path()
+    target.parent.mkdir(parents=True)
+    inside = str(app_container / "Documents" / "Old" / "episode.sharecut")
+    target.write_text(
+        json.dumps({"version": 1, "projects": [{"path": inside, "opened_at": ""}]}),
+        encoding="utf-8",
+    )
+    assert recent.read_recent() == []
+
+
+def test_a_container_host_drops_a_path_whose_symlink_leaves_its_home(app_container, tmp_path):
+    outside = tmp_path / "elsewhere"
+    outside.mkdir()
+    (app_container / "Documents" / "Link").symlink_to(outside)
+    target = recent.recent_projects_path()
+    target.parent.mkdir(parents=True)
+    target.write_text(
+        json.dumps(
+            {
+                "version": 1,
+                "projects": [{"path": "Documents/Link/episode.sharecut", "opened_at": ""}],
+            }
+        ),
+        encoding="utf-8",
+    )
+    assert recent.read_recent() == []
+
+
+def test_a_desktop_host_keeps_a_relative_path_with_dots_as_written(tmp_path):
+    target = recent.recent_projects_path()
+    target.parent.mkdir(parents=True)
+    target.write_text(
+        '{"version": 1, "projects": [{"path": "../x/episode.sharecut", "opened_at": ""}]}',
+        encoding="utf-8",
+    )
+    assert [e.path for e in recent.read_recent()] == ["../x/episode.sharecut"]
