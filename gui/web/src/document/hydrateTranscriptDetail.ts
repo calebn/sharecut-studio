@@ -2,7 +2,7 @@ import { loadDocumentState } from "../api/project";
 import { readsTranscriptWords } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
 import type { ProjectView } from "../types/project";
-import { applyDocumentSnapshot } from "./applyDocumentUpdate";
+import { applyDocumentSnapshot, recoverDocument } from "./applyDocumentUpdate";
 import {
   activateDocumentScope,
   type DocumentScope,
@@ -159,6 +159,17 @@ function beginRequest(
         (active.kind === "failed" && !active.recovering)
       )
         return;
+      if (documentAuthority.phase.kind === "recovering") {
+        // A drifted token sent the document to a shell recovery: the detail is
+        // being redone, not refused: the request stays pending and the shell
+        // that lands reschedules it. Only a recovery that fails is a failure
+        // the guest can retry.
+        void recoverDocument().catch(() => {
+          if (isActiveAttempt(request))
+            publish({ kind: "failed", request, recovering: false });
+        });
+        return;
+      }
       const current = useDawStore.getState().project;
       if (
         needsTranscriptDetailHydrate(

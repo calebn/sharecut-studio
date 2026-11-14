@@ -109,6 +109,41 @@ it("a Viewer with a granted flag and an incomplete shell loads detail once and b
   expect(result.current.kind).toBe("ready");
 });
 
+it("a detail with a drifted token waits for its shell recovery instead of failing", async () => {
+  const project = viewerShell();
+  useDawStore
+    .getState()
+    .hydrate("share:tok", project, "view", ["play", "view"], null, true);
+  resetDocumentAuthority("share:tok");
+  documentAuthority.project = project;
+  documentAuthority.token = "a".repeat(64);
+  documentAuthority.phase = { kind: "ready" };
+  const detail = deferred<DocumentSnapshot>();
+  const shell = deferred<DocumentSnapshot>();
+  loadDetail
+    .mockReturnValueOnce(detail.promise)
+    .mockReturnValueOnce(shell.promise);
+  const { result } = renderHook(useTranscriptDetail);
+  act(() => scheduleTranscriptDetailHydrate(project));
+
+  await act(async () =>
+    detail.resolve({
+      server_seq: 0,
+      state_token: "b".repeat(64),
+      project: minimalProject({
+        meta: {
+          name: "Test Episode",
+          workspace_dir: "/tmp/test",
+          hydration: { transcript_words: true },
+        },
+      }),
+    }),
+  );
+  // The recovery's shell fetch is the second call; no failure cover meanwhile.
+  expect(loadDetail.mock.calls[1]?.[1]).toBe("shell");
+  expect(result.current.kind).toBe("pending");
+});
+
 it("a flag of false is hidden and never loads detail", () => {
   const project = viewerShell();
   useDawStore
