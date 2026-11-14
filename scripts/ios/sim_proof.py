@@ -3,21 +3,38 @@
 
     make ios-sim-proof            # IOS_SIM_DEVICE=<name or UDID>, IOS_SIM_APP=<path to the .app>
 
-The Simulator shares the Mac's loopback, so the engine's port is reachable here. Checks:
+The Simulator shares the Mac's loopback, so the engine's port is reachable here. A debug build of
+the app also writes ``request-audit.jsonl`` in its log folder (``podcast_mcp.gui.request_audit``:
+method, path without its query string, status and whether the query was empty, never a value),
+which this script reads from the Mac. Assertions:
 
 1. the app launches and the engine reaches Serving (the lifecycle log, the listening port,
    the health route answering and refusing a caller without the boot token), and the page
    reaches the bottom edge of the screen (1b: the last row of a screenshot is the colour of the
    first);
 2. an owner route without a session is refused, the docs routes are absent, a code the engine
-   never issued is refused and sets no cookie;
+   never issued is refused and sets no cookie, and the audit shows the exchange answered 200
+   exactly once (the app's own first navigation). The script cannot see that code, so replaying
+   a real one is pinned by ``tests/test_gui_embedded_session.py``;
+3. the page read ``/api/bootstrap/status`` under its session (200 in the audit); the Audio
+   tools card text is on the screenshot;
+4. the UI (the card, creating and opening a project) is not driven from here;
+5. the page's host WebSocket was accepted (101), an event stream and a media request answered
+   200, from the audit. The page's socket and stream URLs carry non-secret parameters (the
+   project path, client ids, a job id), so ``query_empty`` is false for them and the audit,
+   which never records a value, cannot show their names; that no token is in them rests on the
+   engine accepting only the session cookie on this host, pinned by the same test file;
 6. after the app goes to the background and returns, the same port answers and the lifecycle
    rechecked it;
 7. a copy of the payload with a module removed shows the failure sentence and logs the reason.
 
-What needs a person in the UI (Home's Audio tools card, creating and opening a project, the
-event stream and media requests under the session cookie) is not driven from here. This script
-saves the screenshots and the connection table that evidence needs next to its own results.
+Assertion 5 needs a project open. ``--ui-window SECONDS`` keeps the app open that long (and
+stops early once a WebSocket accept shows) so a person or the Simulator tool can open one.
+
+``results.json`` is ``{"schema": 2, "device": ..., "assertions": {key: {"status": ..., ...}}}``.
+A status is ``observed`` (asserted in full and held), ``partly_observed`` (what the script can see
+held; ``gap`` names what it cannot), ``not_observed`` (not driven from here; ``gap`` says where
+the evidence is) or ``failed``. The exit code is non-zero only for ``failed``.
 
 Evidence goes to ``--evidence-dir`` (default: gui/desktop/src-tauri/target/ios-sim-proof).
 Nothing printed or saved contains the exchange code, a session id or a first-navigation URL:
@@ -36,6 +53,8 @@ import sys
 import time
 import urllib.error
 import urllib.request
+from collections.abc import Callable
+from dataclasses import dataclass
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -70,6 +89,100 @@ def bmp_pixel(data: bytes, x: int, y: int) -> tuple[int, int, int]:
     return red, green, blue
 
 
+EXCHANGE_PATH = "/api/session/exchange"
+HOST_SOCKET_PATH = "/api/host/ws"
+STATUS_PATH = "/api/bootstrap/status"
+MEDIA_PREFIXES = ("/api/waveform/tiles/", "/api/waveform/pcm/")
+AUDIT_FILE_NAME = "request-audit.jsonl"
+FAILED, OBSERVED, PARTLY, NOT_OBSERVED = "failed", "observed", "partly_observed", "not_observed"
+
+
+def parse_audit(text: str) -> list[dict[str, object]]:
+    """The audit's JSON lines; a line cut off by a read in the middle of a write is skipped."""
+    rows: list[dict[str, object]] = []
+    for line in text.splitlines():
+        try:
+            row = json.loads(line)
+        except ValueError:
+            continue
+        if isinstance(row, dict):
+            rows.append(row)
+    return rows
+
+
+@dataclass(frozen=True)
+class AuditFacts:
+    """What the audit shows, counted."""
+
+    requests: int
+    exchange_200: int
+    status_reads_200: int
+    host_socket_accepts: int
+    event_streams_200: tuple[str, ...]
+    media_requests_200: tuple[str, ...]
+
+
+def audit_facts(rows: list[dict[str, object]]) -> AuditFacts:
+    def count(method: str, path: str, status: int) -> int:
+        return sum(
+            1
+            for row in rows
+            if (row.get("method"), row.get("path"), row.get("status")) == (method, path, status)
+        )
+
+    def paths_answered(keep: Callable[[str], bool]) -> tuple[str, ...]:
+        return tuple(
+            sorted(
+                {
+                    str(row["path"])
+                    for row in rows
+                    if row.get("method") == "GET"
+                    and row.get("status") == 200
+                    and keep(str(row.get("path", "")))
+                }
+            )
+        )
+
+    return AuditFacts(
+        requests=len(rows),
+        exchange_200=count("GET", EXCHANGE_PATH, 200),
+        status_reads_200=count("GET", STATUS_PATH, 200),
+        host_socket_accepts=count("WEBSOCKET", HOST_SOCKET_PATH, 101),
+        event_streams_200=paths_answered(lambda path: path.endswith("/events")),
+        media_requests_200=paths_answered(lambda path: path.startswith(MEDIA_PREFIXES)),
+    )
+
+
+def traffic_assertions(facts: AuditFacts) -> dict[str, dict[str, object]]:
+    """Assertions 3 and 5 from the audit."""
+    seen = {
+        "socket": facts.host_socket_accepts > 0,
+        "stream": bool(facts.event_streams_200),
+        "media": bool(facts.media_requests_200),
+    }
+    missing = [name for name, ok in seen.items() if not ok]
+    if not missing:
+        outcome, gap = OBSERVED, None
+    elif len(missing) < len(seen):
+        outcome, gap = PARTLY, f"not seen in the audit: {', '.join(missing)}"
+    else:
+        outcome, gap = NOT_OBSERVED, "no page traffic beyond Home; open a project (--ui-window)"
+    return {
+        "3_bootstrap_status_under_session": {
+            "status": PARTLY if facts.status_reads_200 else NOT_OBSERVED,
+            "status_reads_200": facts.status_reads_200,
+            "gap": "the audit shows the read answered 200; the card's sentence is on the screenshot",
+        },
+        "5_page_traffic": {
+            "status": outcome,
+            "host_socket_accepts": facts.host_socket_accepts,
+            "event_streams_200": list(facts.event_streams_200),
+            "media_requests_200": list(facts.media_requests_200),
+            "gap": gap,
+        },
+    }
+
+
 def run(*command: str, check: bool = True) -> str:
     result = subprocess.run(command, capture_output=True, text=True, check=False)
     if check and result.returncode != 0:
@@ -99,9 +212,29 @@ class Proof:
         self.since = time.strftime("%Y-%m-%d %H:%M:%S")
         evidence.mkdir(parents=True, exist_ok=True)
 
-    def record(self, key: str, passed: bool, **detail: object) -> None:
-        self.results[key] = {"passed": passed, **detail}
-        print(f"{'PASS' if passed else 'FAIL'} {key} {json.dumps(detail, sort_keys=True)}")
+    def record(self, key: str, held: bool, *, partly: str | None = None, **detail: object) -> None:
+        """One assertion: it ``failed``, held in full (``observed``) or held for what the script sees."""
+        status = FAILED if not held else PARTLY if partly else OBSERVED
+        self.results[key] = {"status": status, "gap": partly, **detail}
+        print(f"{status} {key} {json.dumps(detail, sort_keys=True)}")
+
+    def record_row(self, key: str, row: dict[str, object]) -> None:
+        self.results[key] = row
+        print(f"{row['status']} {key} {json.dumps(row, sort_keys=True)}")
+
+    def audit_rows(self) -> list[dict[str, object]]:
+        """The engine's request audit from the app's log folder (a debug build writes it)."""
+        container = run("xcrun", "simctl", "get_app_container", self.device, self.bundle_id, "data")
+        path = Path(container.strip()) / "Library" / "Logs" / "ShareCut" / AUDIT_FILE_NAME
+        return parse_audit(path.read_text(encoding="utf-8")) if path.exists() else []
+
+    def ui_window(self, seconds: float) -> None:
+        """Leave the app open for a person to open a project; stop once the page's socket is accepted."""
+        deadline = time.monotonic() + seconds
+        while (
+            time.monotonic() < deadline and audit_facts(self.audit_rows()).host_socket_accepts == 0
+        ):
+            time.sleep(2)
 
     def stderr_log(self) -> str:
         """The app's stderr lines since this launch (the Simulator routes them to the unified log)."""
@@ -202,21 +335,27 @@ class Proof:
         return self.port
 
     def refusals(self) -> None:
+        facts = audit_facts(self.audit_rows())
         owner, _ = http(self.port, "/api/projects/recent")
         docs = {path: http(self.port, path)[0] for path in ("/docs", "/redoc", "/openapi.json")}
-        guesses = [
-            http(self.port, "/api/session/exchange?code=not-a-code-" + str(i)) for i in range(2)
-        ]
+        guesses = [http(self.port, f"{EXCHANGE_PATH}?code=not-a-code-{i}") for i in range(2)]
         self.record(
             "2_refusals",
             owner in (401, 403)
             and all(code == 404 for code in docs.values())
-            and all(code == 403 and "Set-Cookie" not in headers for code, headers in guesses),
+            and all(code == 403 and "Set-Cookie" not in headers for code, headers in guesses)
+            and facts.exchange_200 == 1,
+            partly="replaying the real code needs the code, which only the app sees; "
+            "tests/test_gui_embedded_session.py replays a real one and gets 403 with no cookie",
             owner_route_without_session=owner,
             docs_routes=docs,
-            unissued_code_statuses=[code for code, _ in guesses],
-            note="the real code is spent by the app's first navigation; this script never sees it",
+            made_up_code_statuses=[code for code, _ in guesses],
+            exchange_answered_200_times=facts.exchange_200,
         )
+
+    def page_traffic(self) -> None:
+        for key, row in traffic_assertions(audit_facts(self.audit_rows())).items():
+            self.record_row(key, row)
 
     def background_and_return(self) -> None:
         before = self.listen_port(self.pid, 5)[0]
@@ -271,6 +410,13 @@ class Proof:
         run("xcrun", "simctl", "install", self.device, str(self.app))
 
 
+UI_ASSERTION = {
+    "status": NOT_OBSERVED,
+    "gap": "needs the UI: Home's Audio tools card, creating and opening a project; "
+    "screenshots are kept with the proof",
+}
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--device", default="booted")
@@ -278,20 +424,25 @@ def main() -> int:
     parser.add_argument("--bundle-id", required=True)
     parser.add_argument("--evidence-dir", type=Path, default=DEFAULT_EVIDENCE)
     parser.add_argument("--skip-broken", action="store_true")
+    parser.add_argument("--ui-window", type=float, default=0, metavar="SECONDS")
     args = parser.parse_args()
     proof = Proof(args.device, args.app, args.bundle_id, args.evidence_dir)
-    if not proof.serving():
-        (args.evidence_dir / "results.json").write_text(json.dumps(proof.results, indent=2))
-        return 1
-    time.sleep(8)
-    proof.screenshot("1_serving")
-    proof.page_fills_screen()
-    proof.refusals()
-    proof.background_and_return()
-    if not args.skip_broken:
-        proof.broken_payload()
-    (args.evidence_dir / "results.json").write_text(json.dumps(proof.results, indent=2) + "\n")
-    return 0 if all(row["passed"] for row in proof.results.values()) else 1
+    served = proof.serving()
+    if served:
+        time.sleep(8)
+        proof.screenshot("1_serving")
+        proof.page_fills_screen()
+        proof.ui_window(args.ui_window)
+        proof.refusals()
+        proof.page_traffic()
+        proof.record_row("4_ui", dict(UI_ASSERTION))
+        proof.background_and_return()
+        if not args.skip_broken:
+            proof.broken_payload()
+    report = {"schema": 2, "device": args.device, "assertions": dict(sorted(proof.results.items()))}
+    (args.evidence_dir / "results.json").write_text(json.dumps(report, indent=2) + "\n")
+    failed = [key for key, row in proof.results.items() if row["status"] == FAILED]
+    return 0 if served and not failed else 1
 
 
 if __name__ == "__main__":
