@@ -180,6 +180,14 @@ MCP and CLI no longer auto-detect the language by default. Set
 `transcribe.language: null` to use Whisper auto-detection. Auto-detection and
 English remain distinct cache inputs.
 
+Each transcript records the language ASR decoded in as `asr_language` (the explicit
+code, or the detected one on an auto run; `Transcript.language` is unchanged and still
+read by the aligner and export). Changing `transcribe.language` to a different explicit
+language makes the next pipeline run re-transcribe the tracks made in another language;
+auto never does, transcripts without a recorded language adopt the explicit language,
+and an edited transcript is kept and reported until its replacement is confirmed. See
+[pipeline.md](pipeline.md) § `transcribe_tracks`.
+
 `TranscriptContext.transcription_vocabulary()` captures the prompt and revision
 together. A vocabulary save during ASR leaves that run stamped with its original
 revision, so Studio can still report it as stale. Vocabulary limits live in

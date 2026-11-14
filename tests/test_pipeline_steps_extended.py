@@ -582,6 +582,29 @@ def test_transcribe_tracks_mock(minimal_project, sample_wav, tmp_workspace):
     assert load_transcript_context(proj.workspace_path()).vocabulary_revision == "revision-one"
 
 
+def test_transcribe_tracks_reruns_a_transcript_made_in_another_language(
+    minimal_project, sample_wav, tmp_workspace
+):
+    from podcast_mcp.models import Transcript, TranscriptWord
+
+    proj = _dialogue_project(minimal_project, sample_wav, tmp_workspace)
+    proj.transcripts = [
+        Transcript(
+            track_id="host",
+            asr_language="en",
+            words=[TranscriptWord(text="hi", start=0, end=0.5)],
+        )
+    ]
+    defaults = load_defaults()
+    defaults["transcribe"]["language"] = "de"
+    with patch("podcast_mcp.pipeline.steps.TranscriptionEngine") as eng_cls:
+        eng_cls.return_value.transcribe_all_dialogue.return_value = []
+        summary = steps.transcribe_tracks(proj, defaults)
+    kwargs = eng_cls.return_value.transcribe_all_dialogue.call_args.kwargs
+    assert ([j.track_id for j in kwargs["jobs"]], kwargs["language"]) == (["host"], "de")
+    assert "0 reused" in summary
+
+
 def test_transcribe_keeps_revision_stale_when_vocabulary_changes_during_run(
     minimal_project, sample_wav, tmp_workspace
 ):

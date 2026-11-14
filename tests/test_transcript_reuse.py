@@ -13,6 +13,7 @@ from podcast_mcp.edits.transcript_reuse import (
     TranscribePlan,
     TranscriptOverwriteRefused,
     _refresh_silence_flags,
+    language_changed,
     merge_transcripts_by_key,
     needs_retime,
     plan_retime,
@@ -864,3 +865,80 @@ def test_a_retime_run_logs_and_records_a_cached_loop_once(job, tmp_path, caplog)
     assert len(transcript.words) == 20
     assert sum("dropped 221 looped" in r.getMessage() for r in caplog.records) == 1
     assert [e["dropped"] for e in engine.asr_loop_drops] == [221]
+
+
+@pytest.mark.parametrize(
+    ("recorded", "requested", "changed"),
+    [
+        (None, "de", False),
+        ("en", None, False),
+        ("en", "", False),
+        ("en", "auto", False),
+        ("en", "AUTO", False),
+        ("en", "en", False),
+        ("en", "EN", False),
+        ("en", "en-US", False),
+        ("en", "en_GB", False),
+        ("en-US", "en", False),
+        ("en", "de", True),
+        ("en", "de-AT", True),
+        ("EN", "fr", True),
+    ],
+)
+def test_language_changed_table(recorded, requested, changed):
+    assert language_changed(recorded, requested) is changed
+
+
+@pytest.mark.parametrize(
+    ("recorded", "requested", "run"),
+    [
+        ("en", "de", True),
+        ("en", "en-US", False),
+        ("en", "auto", False),
+        ("en", None, False),
+        (None, "de", False),
+    ],
+)
+def test_plan_transcription_reruns_only_on_a_language_change(job, recorded, requested, run):
+    p = _project(_tr(asr_language=recorded))
+    plan = plan_transcription(p, [job], overwrite=False, unattended=False, language=requested)
+    assert (plan.run, plan.reused) == (([job], []) if run else ([], [job]))
+
+
+def test_plan_transcription_stamps_the_requested_language_on_a_legacy_transcript(job):
+    legacy = _tr()
+    p = _project(legacy)
+    plan = plan_transcription(p, [job], overwrite=False, unattended=False, language="DE-at")
+    stamp_audio_identity(p, plan)
+    assert legacy.asr_language == "de"
+
+
+def test_plan_transcription_leaves_a_legacy_transcript_unstamped_on_auto(job):
+    legacy = _tr()
+    p = _project(legacy)
+    plan = plan_transcription(p, [job], overwrite=False, unattended=False, language="auto")
+    stamp_audio_identity(p, plan)
+    assert legacy.asr_language is None
+
+
+def test_plan_transcription_keeps_an_edited_transcript_after_a_language_change(job):
+    edited = _tr(asr_language="en", user_edited=True)
+    p = _project(edited)
+    plan = plan_transcription(p, [job], overwrite=False, unattended=True, language="de")
+    assert (plan.run, plan.reused, plan.language_kept_edited) == ([], [job], ["Track host"])
+    stamp_audio_identity(p, plan)
+    assert edited.asr_language == "en"
+
+
+def test_plan_transcription_replaces_an_edited_transcript_when_confirmed(job):
+    p = _project(_tr(asr_language="en", user_edited=True))
+    plan = plan_transcription(
+        p, [job], overwrite=False, unattended=True, allow_edited=True, language="de"
+    )
+    assert (plan.run, plan.overwrite_edited, plan.language_kept_edited) == ([job], ["host"], [])
+
+
+def test_plan_transcription_ignores_a_language_change_when_the_audio_changed(job):
+    p = _project(_tr(asr_language="en", audio_sha256="0" * 64))
+    plan = plan_transcription(p, [job], overwrite=False, unattended=False, language="en")
+    assert plan.run == [job]
