@@ -11,7 +11,7 @@ from podcast_mcp.services.app.recent_projects import default_workspace_dir
 from podcast_mcp.services.collaboration.share_registry import default_share_registry_db_path
 from podcast_mcp.services.share_auth.store import default_identity_db_path
 from podcast_mcp.services.support.diagnostics import default_bundle_dir, sidecar_log_candidates
-from podcast_mcp.util.host_platform import IOS, MACOS
+from podcast_mcp.util.host_platform import IOS, MACOS, ROWS
 
 OVERRIDES = (
     "PODCAST_CONFIG_DIR",
@@ -80,3 +80,18 @@ def test_the_documented_defaults_are_the_desktop_paths() -> None:
     assert defaults["PODCAST_SHARE_REGISTRY"] == "~/.podcast_mcp/share_registry.sqlite"
     assert defaults["PODCAST_SHARE_IDENTITY"] == "~/.podcast_mcp/share_identity.sqlite"
     assert defaults["PODCAST_RELAY_CONFIG"] == "~/.config/podcast_mcp/relay.yaml"
+
+
+@pytest.mark.parametrize("row", ROWS, ids=lambda row: row.name)
+def test_no_private_root_sits_inside_a_folder_the_person_can_open(row) -> None:
+    home = Path("/home/someone")
+    roots = row.data_roots(home)
+    visible = (roots.workspace, roots.exports)
+    private = (roots.state, roots.config, roots.cache, *roots.log_dirs)
+
+    assert not [
+        (inner, outer)
+        for inner in private
+        for outer in visible
+        if inner == outer or inner.is_relative_to(outer)
+    ]

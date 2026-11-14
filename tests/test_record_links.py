@@ -23,6 +23,7 @@ from podcast_mcp.services.collaboration.review_shares import (
     drop_share,
     list_room_shares,
     list_shares,
+    shares_path,
 )
 from podcast_mcp.services.collaboration.share import (
     RecordStaleLinksError,
@@ -398,6 +399,25 @@ def test_replace_closed_record_invite_preserves_room_role_and_expiry(
         lookup_share(replacement["token"], kind="record")["capabilities"]
         == original["capabilities"]
     )
+
+
+def test_replace_closed_record_invite_needs_no_workspace_in_the_sidecar(
+    minimal_project, sample_wav, tmp_workspace
+):
+    ws = _seed_premix(minimal_project, sample_wav)
+    room = ShareService(ws).create_record_room()
+    original = ShareService(ws).create_record_token(role="guest", session_id=room["session_id"])
+    path = shares_path(ws.project)
+    rows = json.loads(path.read_text(encoding="utf-8"))
+    for row in rows:
+        row.pop("project_workspace", None)
+    path.write_text(json.dumps(rows), encoding="utf-8")
+    _close_record_invite(ws, original["token"], room["session_id"], "guest")
+
+    replacement = ShareService(ws).replace_closed_record_invite(original["token"])
+
+    assert replacement["token"] != original["token"]
+    assert replacement["session_id"] == room["session_id"]
 
 
 def test_replace_closed_record_invite_requires_closed_usable_record_source(

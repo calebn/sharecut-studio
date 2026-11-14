@@ -188,12 +188,12 @@ Tables (portable schema contract for a future relay backend):
 - `pending_revokes(token PRIMARY KEY, group_id, project_workspace, snapshot_json, revoked_at, restorable_until, finalize_lease_until)`: one row per link revoked with `restorable_for` and not yet finalized. `snapshot_json` is the full active row, so a restore returns the same token and `id`; `group_id` is the token of a single share or the `session_id` of a record room. Additive: no existing table changed
 - `recording_key_secret(singleton=1, secret BLOB)`: one random 32-byte host installation secret
 
-`project_workspace` is the episode folder's resolved path. When the host moves the episode (`POST /api/project/move`), `rebase_workspace(old, new)` rewrites it on every active, cooldown and pending row in one transaction, and the folder's `shares.json` rows are rewritten to match, so existing links keep resolving.
+`project_workspace` names the episode folder. Callers pass its absolute resolved path and the registry stores `host_platform.to_stored` of it: the path relative to the home on an app-container host (iOS), so rows survive the container moving, and the resolved path elsewhere. It is decoded only where a row leaves the registry (`get_active`, `list_active_for_workspace`, `restore_group`, `list_pending`, `claim_due`), and a value that is not absolute or, in a container, not under the current home decodes to nothing. Such a row reads as absent: an active one stays invisible and keeps its slug reserved until it is revoked, and a pending one is finalized by the sweep (`sweep_all_pending` calls `finalize_unresolvable_pending`). When the host moves the episode (`POST /api/project/move`), `rebase_workspace(old, new)` rewrites it on every active, cooldown and pending row in one transaction. The folder's `shares.json` does not carry the field, so there is nothing to rewrite there.
 
 Access layer: `ShareRegistryProtocol` in `services/collaboration/share_registry.py` (`get_active`,
 `list_active_for_workspace`, `is_reserved`, `claim_active`, `rebase_workspace`, `release_claim`, `upsert_active_metadata`,
 `touch_last_used`, `demote_to_cooldown`, `purge_expired_cooldown`, `backup_to_new`,
-`begin_pending_revoke`, `restore_group`, `claim_due`, `complete_finalize`, `list_pending`,
+`begin_pending_revoke`, `restore_group`, `claim_due`, `complete_finalize`, `list_pending`, `finalize_unresolvable_pending`,
 `recording_key_secret`, `close`). Host backend: `SqliteShareRegistry` (WAL, `busy_timeout=5000`,
 `BEGIN IMMEDIATE` on registry writes and singleton secret initialization). Wired through `services/collaboration/review_shares.py`
 and `services/collaboration/share.py`. Do **not** hand-edit the DB or invent a third index.
@@ -348,8 +348,13 @@ explicit backups before OS upgrades.
 `artifacts/review/shares.json` — list of share rows for one episode, keyed by the
 share `id`: caps, version id, `general_access` / `require_sign_in`, record `kind` /
 `role` / `session_id`, revoked state and timestamps. It never holds a token, so a
-copied workspace (backup, collaborator, bug report) carries no working link. Every
-sidecar write drops a `token` field, and readers ignore one left in an older file.
+copied workspace (backup, collaborator, bug report) carries no working link, and no
+workspace path either: the registry alone says which folder a token opens, and
+`lookup_share` lays the registry row over the sidecar row, so an edited sidecar cannot
+redirect a link or change its capabilities, role or kind. Fields only the sidecar owns
+(`general_access`, `require_sign_in`, `follow_latest`, the revoke markers) still apply.
+Every sidecar write drops `token` and `project_workspace`, and readers ignore either
+left in an older file. See [persistence.md](persistence.md#decision-share-tokens-stay-in-private-storage).
 The registry is the **global UNIQUE(token)** authority on one laptop and the only
 place a token lives.
 

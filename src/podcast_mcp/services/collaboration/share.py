@@ -466,15 +466,13 @@ class ShareService:
 
         workspace = Path(self.ws.project.workspace_dir).resolve()
         try:
-            source_workspace = Path(str(source.get("project_workspace") or "")).resolve()
             active_workspace = Path(str(active.get("project_workspace") or "")).resolve()
         except OSError:
             raise KeyError("record invite not found or no longer usable") from None
         role = str(source.get("role") or "")
         session_id = str(source.get("session_id") or "")
         if (
-            source_workspace != workspace
-            or active_workspace != workspace
+            active_workspace != workspace
             or active.get("role") != role
             or active.get("session_id") != session_id
             or role not in {"guest", "producer"}
@@ -832,10 +830,11 @@ class ShareService:
 
 def sweep_all_pending(*, now: datetime | None = None, workspace: str | None = None) -> int:
     """Finalize every due revoked link the host registry holds (or one workspace's)."""
-    keys = sorted(
-        {str(p["project_workspace"]) for p in get_share_registry().list_pending(workspace)}
-    )
+    registry = get_share_registry()
+    keys = sorted({str(p["project_workspace"]) for p in registry.list_pending(workspace)})
     done = 0
+    if workspace is None:
+        done += registry.finalize_unresolvable_pending()
     for key in keys:
         try:
             ws = workspace_from_share_row({"project_workspace": key})
@@ -871,7 +870,7 @@ def lookup_share(token: str, *, kind: str | None = None) -> dict[str, Any]:
                 # Sidecar holds general_access / require_sign_in; the token lives only
                 # in the registry row. A restored link whose sidecar still carries the
                 # pending revoke keeps its policy.
-                row = {**row, **side, "token": token, "revoked": False}
+                row = {**side, **row, "token": token, "revoked": False}
         except Exception:
             log.debug("share last_used touch failed for %s", token, exc_info=True)
             reg.touch_last_used(token)

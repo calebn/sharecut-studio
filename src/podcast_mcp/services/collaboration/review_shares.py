@@ -38,6 +38,7 @@ from podcast_mcp.util.datetime_utils import now_iso as _now_iso
 
 _SHARES_NAME = "shares.json"
 _sidecar_lock = threading.Lock()
+_REGISTRY_ONLY_FIELDS = frozenset({"token", "project_workspace"})
 
 
 def shares_path(project: EpisodeProject) -> Path:
@@ -63,7 +64,7 @@ def _load(path: Path) -> list[dict[str, Any]]:
 
 
 def _save(path: Path, rows: list[dict[str, Any]]) -> None:
-    persisted = [{k: v for k, v in row.items() if k != "token"} for row in rows]
+    persisted = [{k: v for k, v in row.items() if k not in _REGISTRY_ONLY_FIELDS} for row in rows]
     write_json_atomic(path, persisted, ensure_ascii=False, creation_mode=0o666)
 
 
@@ -201,26 +202,6 @@ def list_shares_for_workspace(workspace: Path) -> list[dict[str, Any]]:
         token = tokens.get(str(row.get("id") or ""))
         rows.append({**row, "token": token} if token else row)
     return rows
-
-
-def rebase_sidecar_workspace(workspace: Path, old: str, new: str) -> None:
-    """Rewrite the workspace each sidecar row names, after the folder moved from ``old`` to ``new``.
-
-    The registry row and the sidecar row are compared when a record invite is redeemed and the
-    sidecar row is what re-registers a share, so a stale path would break a moved room's links.
-    """
-    path = shares_path_for_workspace(workspace)
-    with _sidecar_lock:
-        rows = _load(path)
-        if not any(row.get("project_workspace") == old for row in rows):
-            return
-        _save(
-            path,
-            [
-                {**row, "project_workspace": new} if row.get("project_workspace") == old else row
-                for row in rows
-            ],
-        )
 
 
 def sidecar_share(workspace: Path, share_id: str) -> dict[str, Any] | None:
