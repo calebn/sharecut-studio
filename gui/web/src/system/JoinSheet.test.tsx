@@ -116,6 +116,12 @@ describe("JoinSheet guest", () => {
     },
   );
 
+  it("puts the mic action under its label", () => {
+    render(<Harness {...READY} mic={{ status: "idle" }} />);
+    const allow = screen.getByRole("button", { name: "Allow microphone" });
+    expect(allow.closest('[data-step="mic"] .sys-join-control')).not.toBeNull();
+  });
+
   it("toggles the headphones row", async () => {
     const onHeadphonesChange = vi.fn();
     render(
