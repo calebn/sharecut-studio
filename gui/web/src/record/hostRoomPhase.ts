@@ -40,12 +40,14 @@ export function hostRoomPhase(
   if (!snapshot) {
     return { kind: "waiting" };
   }
-  const live = snapshot.state === "recording" || snapshot.state === "paused";
-  if (options.dropped && live) {
-    return { kind: "reconnecting" };
-  }
   const clockSec =
     recordingClockMs(snapshot, options.elapsedSinceSnapshotMs ?? 0) / 1000;
+  if (options.dropped && snapshot.state === "paused") {
+    return { kind: "reconnecting", paused: true };
+  }
+  if (options.dropped && snapshot.state === "recording") {
+    return { kind: "reconnecting", paused: false, clockSec };
+  }
   switch (snapshot.state) {
     case "lobby": {
       const left =

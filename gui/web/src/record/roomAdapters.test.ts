@@ -193,10 +193,27 @@ describe("hostRoomPhase", () => {
     ).toEqual({ kind: "paused", clockSec: 10 });
   });
 
-  it("reconnects only while on air", () => {
+  it("keeps the recording clock when the socket drops on air", () => {
+    const live = recordSnapshot({
+      state: "recording",
+      take_index: 0,
+      recording_ms: 42_000,
+    });
     expect(
-      hostRoomPhase(recordSnapshot({ state: "recording" }), { dropped: true }),
-    ).toEqual({ kind: "reconnecting" });
+      hostRoomPhase(live, { dropped: true, elapsedSinceSnapshotMs: 1000 }),
+    ).toEqual({ kind: "reconnecting", paused: false, clockSec: 43 });
+  });
+
+  it("a dropped paused take is reconnecting and paused", () => {
+    expect(
+      hostRoomPhase(recordSnapshot({ state: "paused", recording_ms: 42_000 }), {
+        dropped: true,
+        elapsedSinceSnapshotMs: 1000,
+      }),
+    ).toEqual({ kind: "reconnecting", paused: true });
+  });
+
+  it("reconnects only while on air", () => {
     expect(
       hostRoomPhase(recordSnapshot({ state: "lobby" }), { dropped: true }),
     ).toEqual({ kind: "waiting" });
