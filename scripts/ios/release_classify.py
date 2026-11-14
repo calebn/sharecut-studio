@@ -5,7 +5,9 @@ from __future__ import annotations
 import enum
 import json
 import re
+from collections.abc import Iterable
 from dataclasses import dataclass
+from itertools import islice
 
 from scripts.ios.release_run import OUTPUT_LIMIT
 
@@ -116,6 +118,8 @@ APPLE_API_CODE = re.compile(
 
 OBJECT_LINE = re.compile(r"^\{", re.M)
 JSON_LOOKING = re.compile(r"\s*[\[\]{}\"]")
+MESSAGE_LINES = 5
+MESSAGE_WIDTH = 200
 
 
 def altool_document(text: str) -> dict[str, object] | None:
@@ -148,10 +152,14 @@ def error_info(error: dict[str, object]) -> dict[str, object]:
     return info if isinstance(info, dict) else {}
 
 
+def clip(lines: Iterable[str]) -> tuple[str, ...]:
+    return tuple(line[:MESSAGE_WIDTH] for line in islice(lines, MESSAGE_LINES))
+
+
 def altool_messages(text: str, document: dict[str, object] | None) -> tuple[str, ...]:
     if document is None:
-        return tuple(line.strip() for line in text.splitlines() if "error" in line.lower())[:5]
-    return tuple(
+        return clip(line.strip() for line in text.splitlines() if "error" in line.lower())
+    return clip(
         str(error.get("message") or error_info(error).get("NSLocalizedDescription") or "")
         for error in product_errors(document)
     )
@@ -181,7 +189,7 @@ def error_haystack(text: str, document: dict[str, object] | None) -> str:
 
 
 def no_answer(exit_code: int, text: str) -> AppleAnswer:
-    seen = tuple(line.strip()[:200] for line in text.splitlines() if line.strip())[:5]
+    seen = clip(line.strip() for line in text.splitlines() if line.strip())
     return AppleAnswer(Verdict.UNREACHABLE, (f"altool exited {exit_code} without an answer", *seen))
 
 
