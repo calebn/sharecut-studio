@@ -5,6 +5,7 @@ from mcp.server import MCPServer
 from podcast_mcp.mcp.serialize import to_json
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.document import CommentService
+from podcast_mcp.services.document.comment import with_comment_write_grant
 
 
 def add_comment_tool(
@@ -148,6 +149,15 @@ def delete_comment_tool(project_path: str, comment_id: str) -> str:
 
 def register(mcp: MCPServer) -> None:
     """Register comment tools on the MCP server."""
+    mutating = {
+        add_comment_tool,
+        update_comment_tool,
+        resolve_comment_tool,
+        add_comment_action_tool,
+        add_comment_reply_tool,
+        set_comment_action_done_tool,
+        delete_comment_tool,
+    }
     for fn in (
         add_comment_tool,
         list_comments_tool,
@@ -159,4 +169,4 @@ def register(mcp: MCPServer) -> None:
         set_comment_action_done_tool,
         delete_comment_tool,
     ):
-        mcp.tool()(fn)
+        mcp.tool()(with_comment_write_grant(fn) if fn in mutating else fn)
