@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { RecordMoreSheet, type RecordMoreSheetProps } from "./RecordMoreSheet";
@@ -68,9 +68,13 @@ describe("RecordMoreSheet End session", () => {
       const onClose = vi.fn();
       const onEndSession = vi.fn();
       sheet({ endReason: "Stop the take first.", onClose, onEndSession });
-      await screen.findByRole("dialog");
-      await new Promise((resolve) => setTimeout(resolve, 0));
-      screen.getByRole("button", { name: "End session" }).focus();
+      const endSession = screen.getByRole("button", { name: "End session" });
+      const dialog = screen.getByRole("dialog");
+      await waitFor(() =>
+        expect(dialog).toContainElement(document.activeElement as HTMLElement),
+      );
+      endSession.focus();
+      expect(endSession).toHaveFocus();
       await act();
       expect(onClose).not.toHaveBeenCalled();
       expect(onEndSession).not.toHaveBeenCalled();
