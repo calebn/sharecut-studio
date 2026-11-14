@@ -1,7 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { apiFetch, HOST_KEY } from "./http";
 import { openJobStream } from "./jobStream";
-import { retryPipelineJob, waitForPipelineJob } from "./pipeline";
+import {
+  loadTranscriptLanguageStatus,
+  retryPipelineJob,
+  waitForPipelineJob,
+} from "./pipeline";
 
 vi.mock("./http", async (importOriginal) => ({
   ...(await importOriginal<typeof import("./http")>()),
@@ -13,6 +17,44 @@ vi.mock("./jobStream", () => ({
     throw new Error("A terminal status lookup must not open a stream");
   }),
 }));
+
+describe("loadTranscriptLanguageStatus", () => {
+  beforeEach(() => {
+    vi.mocked(apiFetch).mockReset();
+  });
+
+  it("asks for the staged language and returns the answer as sent", async () => {
+    const body = {
+      language: "es",
+      stale_tracks: [{ track_id: "host", name: "Priya", recorded: "en" }],
+      edited_stale_tracks: [],
+    };
+    vi.mocked(apiFetch).mockResolvedValue(
+      new Response(JSON.stringify(body), { status: 200 }),
+    );
+    await expect(
+      loadTranscriptLanguageStatus("/p/ep.json", "es"),
+    ).resolves.toEqual(body);
+    expect(vi.mocked(apiFetch).mock.calls[0][1]).toEqual({
+      host: "/api/transcript/language-status?path=%2Fp%2Fep.json&language=es",
+    });
+  });
+
+  it("sends no language for auto", async () => {
+    vi.mocked(apiFetch).mockResolvedValue(new Response("{}", { status: 200 }));
+    await loadTranscriptLanguageStatus("/p/ep.json", null);
+    expect(vi.mocked(apiFetch).mock.calls[0][1]).toEqual({
+      host: "/api/transcript/language-status?path=%2Fp%2Fep.json",
+    });
+  });
+
+  it("refuses share guests before making a request", async () => {
+    await expect(
+      loadTranscriptLanguageStatus("share:tok", "es"),
+    ).rejects.toThrow("not available for shared guests");
+    expect(apiFetch).not.toHaveBeenCalled();
+  });
+});
 
 describe("retryPipelineJob", () => {
   beforeEach(() => {

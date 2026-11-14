@@ -134,7 +134,11 @@ export {
   loadSessionState,
   postSessionState,
 } from "./api/mediaSession";
-export type { TranscriptVocabulary } from "./api/pipeline";
+export type {
+  StaleTrack,
+  TranscriptLanguageStatus,
+  TranscriptVocabulary,
+} from "./api/pipeline";
 export {
   cancelPipelineRun,
   followExportJob,
@@ -144,6 +148,7 @@ export {
   loadPipelineConfig,
   loadPipelineStatus,
   loadPipelineSteps,
+  loadTranscriptLanguageStatus,
   loadTranscriptVocabulary,
   pipelineEventsUrl,
   putPipelineConfig,
