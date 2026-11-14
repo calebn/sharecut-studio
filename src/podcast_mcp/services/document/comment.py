@@ -18,6 +18,7 @@ from podcast_mcp.edits.comments import (
     update_comment,
 )
 from podcast_mcp.models.episode import RangeInterval, TimelineComment
+from podcast_mcp.project.store import WriteGrantKind, write_grant
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.document.comment_results import (
     CommentActionItemResult,
@@ -34,7 +35,7 @@ def run_comment_mutation_with_file_revisions(
     ws: ProjectWorkspace,
     mutate: Callable[[], T],
 ) -> tuple[T, tuple[FileRevision | None, FileRevision | None, int | None]]:
-    with ws.transaction():
+    with write_grant(WriteGrantKind.LEGACY_COMMENT), ws.transaction():
         before = ws.loaded_file_revision
         result = mutate()
         after = ws.loaded_file_revision

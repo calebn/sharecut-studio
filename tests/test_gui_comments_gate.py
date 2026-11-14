@@ -8,7 +8,6 @@ from fastapi.testclient import TestClient
 from podcast_mcp.gui.routes import comments
 from podcast_mcp.gui.routes.deps import host_gate_for_client
 from podcast_mcp.gui.server import create_app
-from podcast_mcp.project import store
 from podcast_mcp.services.session_sync.authz import HOST_ROLE_RELAYED_REASON
 from podcast_mcp.util.proxy_paths import RELAYED_REQUEST_HEADER
 
@@ -32,11 +31,6 @@ def _relayed() -> TestClient:
 def strict(monkeypatch) -> None:
     monkeypatch.setenv("PODCAST_SESSION_AUTHZ", "strict")
     monkeypatch.setenv("PODCAST_SESSION_TOKEN", TOKEN)
-
-
-@pytest.fixture
-def writable(monkeypatch) -> None:
-    monkeypatch.setattr(store, "_guard_mode", "warn")
 
 
 def _comment(client: TestClient, path, **kwargs):
@@ -80,7 +74,7 @@ def test_every_route_carries_the_host_gate(method: str, path: str) -> None:
     assert found == [{host_gate_for_client}]
 
 
-def test_a_loopback_host_caller_creates_a_comment(writable, minimal_project) -> None:
+def test_a_loopback_host_caller_creates_a_comment(minimal_project) -> None:
     res = _comment(TestClient(create_app(), client=LOOPBACK), minimal_project)
 
     assert res.status_code == 200
@@ -99,7 +93,7 @@ def test_an_empty_client_id_is_refused(minimal_project) -> None:
     assert res.headers["X-Sharecut-Error-Code"] == "authz_denied"
 
 
-def test_a_remote_peer_with_the_token_header_is_allowed(strict, writable, minimal_project) -> None:
+def test_a_remote_peer_with_the_token_header_is_allowed(strict, minimal_project) -> None:
     res = _comment(
         TestClient(create_app(), client=REMOTE), minimal_project, headers={"X-Podcast-Token": TOKEN}
     )
