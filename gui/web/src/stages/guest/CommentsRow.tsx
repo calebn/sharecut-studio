@@ -11,6 +11,8 @@ type CommentsRowProps = {
   label: string;
   /** The count that sits beside the icon while the row shows something else. */
   comments: number;
+  /** What that count counts, for the name: "comments · 2 suggestions". */
+  afterCount: string;
   /** The comment the guest is listening past; the row shows it in place of the label. */
   preview?: CommentsRowPreview;
   /** "Comment added at 1:26", shown for a moment after a post. */
@@ -22,6 +24,7 @@ type CommentsRowProps = {
 export function CommentsRow({
   label,
   comments,
+  afterCount,
   preview,
   flash,
   onOpen,
@@ -29,8 +32,7 @@ export function CommentsRow({
   const replacesLabel = flash ?? preview;
   // No aria-label: the name is the button's content, so it always holds the
   // visible text. The hidden words add what the button does ("Show") and, while
-  // the row shows something else, the rest of the label after the visible count.
-  const afterCount = label.slice(String(comments).length).trim();
+  // the row shows something else, what the visible count counts.
   return (
     <button type="button" className="gl-row" onClick={onOpen}>
       <SystemIcon name="message-square" size={16} />

@@ -195,6 +195,7 @@ export function GuestListen({ review, script, scriptState }: GuestListenProps) {
         <CommentsRow
           label={bottom.label}
           comments={bottom.comments}
+          afterCount={bottom.afterCount}
           preview={heard ? previewOf(heard, content) : undefined}
           flash={flash ?? undefined}
           onOpen={openList}
