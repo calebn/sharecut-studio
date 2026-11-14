@@ -308,6 +308,18 @@ describe("guestScriptOf over held and waiting rows", () => {
     ).toEqual([]);
   });
 
+  it("counts no bar for a struck word, and draws no turn for a row struck whole", () => {
+    const struck = (indices: number[]) => ({
+      kind: "waiting" as const,
+      utterance: {
+        ...header("Maya", "Hello wide world", 3),
+        ignored_word_indices: indices,
+      },
+    });
+    expect(guestScriptOf([struck([7])]).turns[0]?.settling).toEqual([5, 4]);
+    expect(guestScriptOf([struck([1, 2, 3])]).turns).toEqual([]);
+  });
+
   it("gives a row the same turn id whether it is live, held or waiting", () => {
     const live = header("Maya", "a", 3, {
       words: [{ ...word("a", 3), word_index: 0 }],

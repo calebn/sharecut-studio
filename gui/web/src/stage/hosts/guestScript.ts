@@ -78,9 +78,19 @@ function entryOf(row: ShownRow): Entry | null {
       until: rowEnd,
     };
   }
-  const settling = utterance.text
+  // The struck words are not drawn, so they are not counted: a row with none
+  // left is not drawn at all.
+  const tokens = utterance.text
     .split(/\s+/)
-    .filter((token) => token.length > 0)
+    .filter((token) => token.length > 0);
+  const settling = tokens
+    .slice(
+      0,
+      Math.max(
+        0,
+        tokens.length - (utterance.ignored_word_indices?.length ?? 0),
+      ),
+    )
     .map((token) => token.length);
   return settling.length === 0
     ? null

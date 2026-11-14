@@ -265,6 +265,48 @@ describe("shownTranscriptOf", () => {
     expect(textsOf(shown.rows[2].utterance)).toEqual(["B1", "B2"]);
   });
 
+  it("draws all-waiting rows as bars once this guest has seen words", () => {
+    const struck = (r: CombinedUtterance) =>
+      header({ ...r, ignored_word_indices: [r.start] });
+    const shown = shownOf(
+      transcriptOf([struck(first), struck(second)]),
+      settledOf([first, second]),
+      GRANT,
+    );
+    expect(kinds(shown)).toEqual(["waiting", "waiting"]);
+    expect(shown.drawn).toBe(true);
+  });
+
+  it("holds a row that only moved and waits on one whose spans changed shape", () => {
+    const spans = (...d: number[]) => {
+      let at = 0;
+      return d.map((len) => {
+        const span = {
+          start: at,
+          end: at + len,
+          source_start: 0,
+          source_end: len,
+        };
+        at += len + 1;
+        return span;
+      });
+    };
+    const rigid = (r: CombinedUtterance, ...d: number[]) =>
+      ({ ...r, timeline_spans: spans(...d) }) as CombinedUtterance;
+    const settled = settledOf([rigid(first, 2), rigid(second, 2)]);
+    const shifted = header({
+      ...rigid(first, 2),
+      timeline_spans: spans(2).map((s) => ({
+        ...s,
+        start: s.start + 7,
+        end: s.end + 7,
+      })),
+    });
+    const gapCut = header(rigid(second, 1, 1));
+    const shown = shownOf(transcriptOf([shifted, gapCut]), settled, GRANT);
+    expect(kinds(shown)).toEqual(["held", "waiting"]);
+  });
+
   it("treats a memory kept under another grant as first load", () => {
     const shown = shownOf(
       transcriptOf([header(first)]),

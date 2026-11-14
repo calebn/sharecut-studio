@@ -7,7 +7,8 @@ import type { ScriptTurn } from "../../system/scriptPieces";
  * transcript, so `word_index` (a word's position in what is left) is
  * renumbered. The line id (track, source, start) is stable, so the word is
  * looked for in its line: same key and text, else the same place in the line.
- * A line that is gone gives the first word of the next old line that survived;
+ * A line that is there but drawn as bars keeps the position as it was. A line
+ * that is gone gives the first word of the next old line that survived;
  * if none did, the position is returned as it was (the pane then falls back to
  * its pixel offset).
  */
@@ -26,6 +27,8 @@ export function rebaseReading(
   const ordinal = before[from]!.words.indexOf(word);
   for (let at = from; at < before.length; at++) {
     const turn = byId.get(before[at]!.id);
+    // The reader's own line is still there but not drawn with words yet: stay.
+    if (at === from && turn && turn.words.length === 0) return position;
     if (!turn || turn.words.length === 0) continue;
     const found =
       at === from
