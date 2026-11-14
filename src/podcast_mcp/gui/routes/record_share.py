@@ -58,7 +58,7 @@ from podcast_mcp.services.record import (
     route_record_ws_message,
 )
 from podcast_mcp.services.remote_mcp import get_host_limiters, host_rate_limit_enabled
-from podcast_mcp.services.session_sync import get_hub
+from podcast_mcp.services.session_sync import get_hub, guest_display_name
 from podcast_mcp.util.coded_error import CodedKeyError, CodedPermissionError, CodedValueError
 from podcast_mcp.util.ws_limits import GUEST_FRAME_MAX_BYTES
 
@@ -124,10 +124,10 @@ async def record_ws(
         return
 
     caps = list(row.get("capabilities") or [])
-    guest_client_id = client_id or f"rec-{token[:8]}"
     hub = get_hub()
     hub_key = record_hub_key(ws_proj.project)
     connection_id = secrets.token_hex(8)
+    guest_client_id = client_id or f"rec-{connection_id}"
     participant_id: str | None = None
     svc: RecordSessionService | None = None
     joined = False
@@ -258,9 +258,7 @@ async def record_ws(
                         svc.join,
                         share_id=share_id,
                         role=role,
-                        display_name=str(
-                            payload.get("display_name") or name or f"Guest {token[:6]}"
-                        ),
+                        display_name=guest_display_name(payload.get("display_name") or name),
                         participant_id=payload.get("participant_id"),
                         lease=payload.get("lease"),
                         client_id=guest_client_id,
