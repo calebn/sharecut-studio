@@ -68,6 +68,8 @@ Chrome type/space is rem via theme tokens, and Studio color consumers use semant
 
 ## Browser chrome, safe areas and Home Screen (#1077)
 
+The native iOS app (Simulator today, [desktop-packaging.md](desktop-packaging.md#ios-app-3810)) loads the same phone shell in a WKWebView, so these rules apply to it too.
+
 On iPhone the owner found landscape close to unusable: Safari's bars and the
 bottom drawer left less than one whole 104px track. iPhone Safari gives a page
 no way to hide its bars: `minimal-ui` has been ignored since iOS 8, and the
