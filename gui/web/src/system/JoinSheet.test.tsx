@@ -210,6 +210,24 @@ describe("JoinSheet guest", () => {
     );
   });
 
+  it("ends each sentence of the microphone status line with one period", () => {
+    const status = (mic: JoinSheetProps["mic"]) => {
+      const { unmount } = render(<Harness name="Jon" mic={mic} />);
+      const text = document.querySelector<HTMLElement>(
+        '[data-step="mic"] p.sr-only[role="status"]',
+      )?.textContent;
+      unmount();
+      return text;
+    };
+    expect(status({ status: "denied" })).toBe("Microphone blocked.");
+    expect(status({ status: "lost", detail: "Microphone disconnected." })).toBe(
+      "Your microphone isn't available. Microphone disconnected.",
+    );
+    expect(status({ status: "lost", detail: "Unplugged" })).toBe(
+      "Your microphone isn't available. Unplugged.",
+    );
+  });
+
   it("holds Allow microphone busy while the browser asks", async () => {
     const onMicAction = vi.fn();
     render(
@@ -362,6 +380,22 @@ describe("JoinSheet first focus", () => {
     );
     rerender(<Harness {...READY} />);
     await waitFor(() => expect(primary("Join and record")).toHaveFocus());
+  });
+
+  it("keeps the name field focused when the guest starts typing before the sheet places focus", async () => {
+    const frames: FrameRequestCallback[] = [];
+    vi.stubGlobal("requestAnimationFrame", (callback: FrameRequestCallback) => {
+      frames.push(callback);
+      return frames.length;
+    });
+    vi.stubGlobal("cancelAnimationFrame", vi.fn());
+    render(<Harness mic={{ status: "idle" }} />);
+    const field = screen.getByRole("textbox", { name: "Your name" });
+    await userEvent.type(field, "A");
+    for (const frame of frames.splice(0)) frame(0);
+    await userEvent.keyboard("va");
+    expect(field).toHaveValue("Ava");
+    expect(field).toHaveFocus();
   });
 
   it("leaves focus in the name field while the guest types", async () => {

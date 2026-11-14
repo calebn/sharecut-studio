@@ -139,7 +139,10 @@ function Footer({
 function micStatusLine(row: JoinRow): string {
   if (row.state === "running") return row.detail ?? "";
   if (row.state === "needs-you" || row.state === "failed") {
-    return [row.title, row.detail].filter(Boolean).join(". ");
+    return [row.title, row.detail]
+      .filter((part): part is string => Boolean(part))
+      .map((part) => (/[.!?…]$/.test(part) ? part : `${part}.`))
+      .join(" ");
   }
   return "";
 }
@@ -207,9 +210,19 @@ export function JoinSheet({
   const { next, ready, primary } = guest ? guestModel : producerModel;
 
   const nextRef = useRef(next);
+  // Focus the guest already put in the form stays: typing can begin before the
+  // sheet's first frame places focus.
   const initialFocusRef = useMemo(
     () => ({
       get current() {
+        const active = document.activeElement;
+        if (
+          active instanceof HTMLElement &&
+          formRef.current?.contains(active) &&
+          !active.matches(".sys-join-row")
+        ) {
+          return active;
+        }
         return focusElement(
           formRef.current,
           nameRef.current,

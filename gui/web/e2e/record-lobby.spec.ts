@@ -1771,6 +1771,34 @@ test.describe("join sheet on a phone", () => {
             await guest.evaluate(() => document.documentElement.scrollWidth),
             where,
           ).toBeLessThanOrEqual(width);
+          const ring = await guest.evaluate(() => {
+            const row = document.activeElement as HTMLElement;
+            const input = row.querySelector("input");
+            const spread = /(\d+(?:\.\d+)?)px inset/.exec(
+              getComputedStyle(row).boxShadow,
+            );
+            const rowBox = row.getBoundingClientRect();
+            const inputBox = input?.getBoundingClientRect();
+            return {
+              isRow: row.dataset.step === "name",
+              width: spread ? Number(spread[1]) : 0,
+              rowTop: rowBox.top,
+              rowBottom: rowBox.bottom,
+              inputBottom: inputBox?.bottom ?? Number.NaN,
+            };
+          });
+          expect(ring.isRow, `${where} ring`).toBe(true);
+          expect(ring.width, `${where} ring`).toBeGreaterThan(0);
+          expect(
+            ring.inputBottom + ring.width,
+            `${where} ring`,
+          ).toBeLessThanOrEqual(ring.rowBottom + 0.01);
+          expect(ring.rowTop, `${where} ring`).toBeGreaterThanOrEqual(
+            panelBox.y - 0.5,
+          );
+          expect(ring.rowBottom, `${where} ring`).toBeLessThanOrEqual(
+            panelBox.y + panelBox.height + 0.5,
+          );
           const body = await boxOf(panel.locator(".command-palette-body"));
           expect(body.height, `${where} body`).toBeGreaterThanOrEqual(180);
           await joinNameField(guest).tap();

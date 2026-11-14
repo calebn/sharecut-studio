@@ -1128,6 +1128,7 @@ html:not([data-shell="phone"], [data-shell="tablet"])
   display: flex;
   flex-direction: column;
   gap: var(--space-1);
+  padding-block-end: var(--focus-ring-width);
   border-radius: var(--radius-md);
 }
 
