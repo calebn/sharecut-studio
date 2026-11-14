@@ -6,10 +6,14 @@ import { clampToSession, formatTimeShort } from "../utils/time";
 /** Where a new comment's time comes from, strongest first. */
 export type CommentAnchorSource = "draft" | "selection" | "playhead";
 
-type CommentAnchor = Readonly<{
-  draft: CommentDraft;
-  source: CommentAnchorSource;
-}>;
+/**
+ * `refreshing`: a selection is chosen but its words are not in the project
+ * until the transcript detail lands. Nothing may anchor, post or move to the
+ * playhead meanwhile.
+ */
+type CommentAnchor =
+  | Readonly<{ draft: CommentDraft; source: CommentAnchorSource }>
+  | Readonly<{ source: "refreshing"; reason: string }>;
 
 type AnchorInputs = Pick<
   DawState,
@@ -28,12 +32,16 @@ export function commentDraftFromRange(target: ExactRangeTarget): CommentDraft {
 /**
  * The time a comment posted now lands on: the draft that C, the Player bar's
  * comment button or the first keystroke set; else the one selected range; else
- * the playhead.
+ * the playhead. A selection that cannot be resolved yet is never the playhead.
  */
 export function resolveCommentAnchor(s: AnchorInputs): CommentAnchor {
   if (s.commentDraft) return { draft: s.commentDraft, source: "draft" };
   if (s.project) {
-    const { targets } = resolveSelectionRange(s.project, s.selection);
+    const { targets, reason, refreshing } = resolveSelectionRange(
+      s.project,
+      s.selection,
+    );
+    if (refreshing && reason) return { source: "refreshing", reason };
     if (targets.length === 1) {
       return { draft: commentDraftFromRange(targets[0]!), source: "selection" };
     }

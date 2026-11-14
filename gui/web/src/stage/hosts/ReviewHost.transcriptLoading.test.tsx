@@ -15,7 +15,12 @@ import {
 } from "../../document/hydrateTranscriptDetail";
 import type { DocumentSnapshot } from "../../document/projectPatch";
 import { useDawStore } from "../../state/dawStore";
-import { minimalProject, sampleComment } from "../../test/fixtures";
+import {
+  clipRow,
+  minimalProject,
+  sampleComment,
+  sampleTrack,
+} from "../../test/fixtures";
 import { stubViewportShell } from "../../test/viewportShell";
 import { ReviewHost } from "./ReviewHost";
 
@@ -763,3 +768,104 @@ describe.each(["desktop", "phone"] as const)(
     });
   },
 );
+
+describe("a Commenter's selection while its words are refreshing", () => {
+  beforeEach(() => {
+    resetDocumentAuthority();
+    loadDetail.mockReset();
+    localStorage.clear();
+    stubViewportShell("desktop");
+  });
+  afterEach(() => {
+    resetDocumentAuthority();
+    vi.unstubAllGlobals();
+  });
+
+  it("does not start a comment at the playhead, then anchors at the selection once the words land", async () => {
+    const first = spoken(0, ["one", "two"], 0);
+    const second = spoken(10, ["three", "four"], 2);
+    const withClips = (p: ReturnType<typeof minimalProject>) => ({
+      ...p,
+      timeline_duration_sec: 100,
+      tracks: [sampleTrack({ id: "t1", range_media_seal: "s" })],
+      clips: {
+        tracks: {
+          t1: [
+            clipRow({
+              id: "c",
+              track_id: "t1",
+              source_id: null,
+              source_start: 0,
+              source_end: 100,
+              timeline_start: 0,
+              timeline_end: 100,
+            }),
+          ],
+        },
+        clip_count: 1,
+      },
+    });
+    const complete = withClips(guestProject([first, second], true));
+    useDawStore
+      .getState()
+      .hydrate(
+        "share:tok",
+        complete,
+        "comment",
+        ["view", "play", "comment"],
+        null,
+        true,
+      );
+    useDawStore.setState({ stage: "review", playheadSec: 60 });
+    resetDocumentAuthority("share:tok");
+    applyDocumentSnapshot({
+      server_seq: 0,
+      state_token: TOKEN,
+      project: complete,
+      file: { mtime_ns: 1, size: 1 },
+    });
+    const landed = deferred<DocumentSnapshot>();
+    loadDetail.mockReturnValueOnce(landed.promise);
+    render(<ReviewHost guestShare />);
+    act(() =>
+      useDawStore.getState().setSelection({
+        kind: "transcriptRange",
+        trackId: "t1",
+        sourceId: "s1",
+        startWordIndex: 10,
+        endWordIndex: 11,
+      }),
+    );
+
+    expect(screen.getByText("Pinned")).toBeInTheDocument();
+    const edited = spoken(10, ["three", "four", "five"], 2);
+    act(() => {
+      applyDocumentSnapshot({
+        server_seq: 1,
+        state_token: TOKEN,
+        project: withClips(guestProject([first, edited], false)),
+        file: { mtime_ns: 2, size: 1 },
+      });
+    });
+    expect(screen.getByText("Pinned")).toBeInTheDocument();
+    const field = screen.getByRole("textbox", { name: "Comment" });
+    await userEvent.type(field, "H");
+    expect(useDawStore.getState().commentDraft).toBeNull();
+    expect(useDawStore.getState().feedbackToast?.message).toBe(
+      "Refreshing the transcript. Try again in a moment.",
+    );
+
+    await act(async () =>
+      landed.resolve({
+        server_seq: 1,
+        state_token: TOKEN,
+        project: withClips(guestProject([first, edited], true)),
+      }),
+    );
+    await userEvent.type(screen.getByRole("textbox", { name: "Comment" }), "H");
+    expect(useDawStore.getState().commentDraft).toMatchObject({
+      startSec: 10,
+      endSec: 12,
+    });
+  });
+});
