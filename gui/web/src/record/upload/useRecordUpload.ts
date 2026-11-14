@@ -427,17 +427,27 @@ class UploadPoller {
   }
 }
 
+function ackKey(args: UploadArgs): string {
+  return `${args.sessionId}:${args.participantId}:${args.takeIndex}`;
+}
+
 export function useRecordUpload(args: UploadArgs): RecordUploadProgress {
   const [progress, setProgress] = useState<RecordUploadProgress>(EMPTY);
   const argsRef = useRef(args);
+  const ackedTake = useRef<string | null>(null);
   const reclaim = useRef(createKeeperReclaimTracker());
   const [poller] = useState(
     () =>
       new UploadPoller((event) => {
         switch (event.kind) {
-          case "inactive":
-            setProgress(EMPTY);
+          case "inactive": {
+            // The server's acknowledgement stays true once access ends.
+            const acked = ackedTake.current === ackKey(argsRef.current);
+            setProgress((prev) =>
+              acked ? { ...prev, uploading: false, pending: false } : EMPTY,
+            );
             break;
+          }
           case "active":
             setProgress((prev) => ({ ...prev, pending: true, error: null }));
             break;
@@ -457,6 +467,9 @@ export function useRecordUpload(args: UploadArgs): RecordUploadProgress {
             }));
             break;
           case "pass-complete":
+            ackedTake.current = event.progress.fileAck
+              ? ackKey(argsRef.current)
+              : null;
             setProgress(event.progress);
             break;
           case "pass-failed":

@@ -125,6 +125,45 @@ describe("useRecordUpload original lifecycle observations", () => {
     });
   });
 
+  describe("when the upload is disabled after the server acknowledged the take", () => {
+    async function savedTake() {
+      const args = initialArgs(memoryUploadTransport());
+      const ids = {
+        sessionId: "room",
+        takeIndex: 0,
+        participantId: "p_a",
+        segmentIndex: 0,
+      };
+      const path = keeperWavPath(ids);
+      const wav = new Uint8Array(52);
+      wav.set(pcmWavHeader(8));
+      wav.fill(7, 44);
+      await args.sink!.write(path, wav);
+      await args.sink!.write(keeperMetaPath(path), keeperMetaBytes(ids));
+      const view = renderHook((input: Args) => useRecordUpload(input), {
+        initialProps: args,
+      });
+      await waitFor(() => expect(view.result.current.fileAck).toBe(true));
+      return { args, ...view };
+    }
+
+    it("keeps the acknowledgement for that take", async () => {
+      const { args, result, rerender } = await savedTake();
+      rerender({ ...args, enabled: false });
+      expect(result.current).toMatchObject({
+        fileAck: true,
+        uploading: false,
+        pending: false,
+      });
+    });
+
+    it("forgets it for another take", async () => {
+      const { args, result, rerender } = await savedTake();
+      rerender({ ...args, enabled: false, takeIndex: 1 });
+      expect(result.current.fileAck).toBe(false);
+    });
+  });
+
   it("retains failed history in layout, clears it at retry setup, then resets on disable", async () => {
     vi.useFakeTimers();
     const held = heldTransport();

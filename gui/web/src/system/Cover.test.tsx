@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { partial, rule } from "../test/cssRules";
@@ -109,6 +109,50 @@ describe("Cover", () => {
     expect(again).toHaveFocus();
     await userEvent.click(again);
     expect(onClick).not.toHaveBeenCalled();
+  });
+
+  it("names the work in words while busy, holds the idle label's width, and returns to the idle label", () => {
+    const action = { label: "Save it again", onClick: vi.fn() };
+    const { rerender } = render(
+      <Cover
+        size="region"
+        glyph="eye-off"
+        title="Title"
+        secondary={{ ...action, busyLabel: "Saving…" }}
+      >
+        Body.
+      </Cover>,
+    );
+    expect(
+      screen.getByRole("button", { name: "Save it again" }),
+    ).not.toHaveAttribute("aria-busy");
+    rerender(
+      <Cover
+        size="region"
+        glyph="eye-off"
+        title="Title"
+        secondary={{ ...action, busyLabel: "Saving…", busy: true }}
+      >
+        Body.
+      </Cover>,
+    );
+    const busy = screen.getByRole("button", { name: "Saving…" });
+    expect(busy).toHaveAttribute("aria-busy", "true");
+    expect(within(busy).getByText("Save it again")).toHaveAttribute(
+      "aria-hidden",
+      "true",
+    );
+    rerender(
+      <Cover
+        size="region"
+        glyph="eye-off"
+        title="Title"
+        secondary={{ ...action, busyLabel: "Saving…" }}
+      >
+        Body.
+      </Cover>,
+    );
+    expect(screen.getByRole("button", { name: "Save it again" })).toBeEnabled();
   });
 
   it("leaves a primary without busy enabled", () => {

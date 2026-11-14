@@ -1851,6 +1851,18 @@ html:not([data-shell="phone"])
   gap: var(--space-3);
 }
 
+.sys-cover-action-label {
+  display: inline-grid;
+}
+
+.sys-cover-action-label > * {
+  grid-area: 1 / 1;
+}
+
+.sys-cover-action-label > [aria-hidden] {
+  visibility: hidden;
+}
+
 @container sys-cover (max-width: 40rem) {
   .sys-cover--page .sys-cover-body {
     margin-block: var(--sys-cover-top) auto;
