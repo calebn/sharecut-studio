@@ -272,6 +272,7 @@ class WriteGrantKind(StrEnum):
     DISPATCHER = "dispatcher"
     LEGACY_CLI = "legacy_cli"
     LEGACY_MCP = "legacy_mcp"
+    LEGACY_COMMENT = "legacy_comment"
 
 
 class UnscopedProjectWriteError(RuntimeError):
