@@ -306,6 +306,9 @@ def review_artifacts_dir(project: EpisodeProject) -> Path:
     return project.workspace_path() / REVIEW_ARTIFACTS_RELDIR
 
 
+_MISSING_ERRNOS = frozenset({errno.ENOENT, errno.ENOTDIR, errno.ELOOP, errno.ENAMETOOLONG})
+
+
 def _resolve_review_media(
     project: EpisodeProject, stored: str, *, version_id: str, field: str
 ) -> Path:
@@ -320,19 +323,29 @@ def _resolve_review_media(
             f"review version {version_id}: {field} must stay under {REVIEW_ARTIFACTS_RELDIR}/",
             code="review_media_outside_workspace",
         ) from None
-    except (OSError, RuntimeError):
-        log.warning("Cannot resolve review version %s %s", version_id, field, exc_info=True)
-        raise CodedFileNotFoundError(
-            f"review version {version_id}: {field} cannot be resolved",
-            code="review_media_not_found",
-        ) from None
+    except RuntimeError as exc:
+        raise _unresolvable(version_id, field, exc) from None
+    except OSError as exc:
+        if exc.errno not in _MISSING_ERRNOS:
+            raise
+        raise _unresolvable(version_id, field, exc) from None
+
+
+def _unresolvable(version_id: str, field: str, exc: BaseException) -> CodedFileNotFoundError:
+    log.warning("Cannot resolve review version %s %s", version_id, field, exc_info=exc)
+    return CodedFileNotFoundError(
+        f"review version {version_id}: {field} cannot be resolved",
+        code="review_media_not_found",
+    )
 
 
 def _is_file(path: Path) -> bool:
     try:
         return path.is_file()
-    except OSError:
-        return False
+    except OSError as exc:
+        if exc.errno in _MISSING_ERRNOS:
+            return False
+        raise
 
 
 def version_audio_path(project: EpisodeProject, version_id: str) -> Path:

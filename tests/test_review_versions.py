@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import errno
 import hashlib
 import json
 import logging
@@ -1888,6 +1889,43 @@ def test_real_symlink_loop_is_not_found(minimal_project, sample_wav, tmp_workspa
     with pytest.raises(CodedFileNotFoundError) as excinfo:
         version_audio_path(p, vid)
     assert excinfo.value.code == "review_media_not_found"
+
+
+@requires_safe_failed_cleanup
+@pytest.mark.parametrize("code", [errno.EACCES, errno.EIO], ids=["eacces", "eio"])
+def test_host_fault_resolving_review_media_propagates(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch, code
+):
+    p, vid = _publish(minimal_project, sample_wav)
+    _break_resolve(monkeypatch, "mix.wav", OSError(code, "host fault"))
+    with pytest.raises(OSError) as excinfo:
+        version_audio_path(p, vid)
+    assert not isinstance(excinfo.value, CodedFileNotFoundError)
+    assert excinfo.value.errno == code
+
+
+@requires_safe_failed_cleanup
+@pytest.mark.parametrize("code", [errno.EACCES, errno.EIO], ids=["eacces", "eio"])
+def test_host_fault_on_existing_mp3_is_not_treated_as_missing(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch, code
+):
+    p, vid = _publish(minimal_project, sample_wav)
+    mp3 = Path(p.workspace_dir) / get_version(p, vid).mp3_relpath
+    before = mp3.read_bytes()
+    real = Path.is_file
+
+    def is_file(self):
+        if self.name == "mix.mp3":
+            raise OSError(code, "host fault")
+        return real(self)
+
+    monkeypatch.setattr(Path, "is_file", is_file)
+    with pytest.raises(OSError):
+        version_mp3_path(p, vid)
+    with pytest.raises(OSError):
+        review_guest_audio_path(p, vid)
+    monkeypatch.undo()
+    assert mp3.read_bytes() == before
 
 
 @requires_safe_failed_cleanup
