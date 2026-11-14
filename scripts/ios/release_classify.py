@@ -130,3 +130,8 @@ SENTENCES = {
     Verdict.UNREACHABLE: "Apple could not be reached; nothing was changed. Check the network and run the same command again.",
     Verdict.DUPLICATE: "Apple reports it already has this build. Check TestFlight; if the build is not there, run build again for a new build number.",
 }
+
+UPLOAD_UNREACHABLE = (
+    "Apple may or may not have received the build; check TestFlight for that build number, "
+    "and run upload again with --retry-unknown-upload only if it is not there."
+)
