@@ -197,6 +197,17 @@ def deliver(session: Session, confirm: str | None, build_number: str | None) -> 
             [InputProblem("build", "release directory", "no finished build; run build first")]
         )
     record_dir, record = found
+    if record.signing != Signing.APP_STORE.value:
+        raise InputError(
+            [
+                InputProblem(
+                    "build",
+                    record.build_number,
+                    "this build is an unsigned rehearsal and cannot be sent to Apple; "
+                    "run build without --unsigned first",
+                )
+            ]
+        )
     values, file_problems = private_values(os.environ, layout.root, Path.home())
     key = resolve_asc_key(values, Path.home(), layout.root)
     identity, problems = load_identity(os.environ)

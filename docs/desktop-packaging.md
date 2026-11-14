@@ -352,6 +352,7 @@ check, and nobody is contacted. Each subcommand takes `--dry-run`, which prints 
   Each build lands in `gui/desktop/src-tauri/target/ios-release/<build>/` with redacted logs and
   `release.json` (public facts only), built in `<build>.partial/` and renamed when every check
   passed. One run at a time holds a lock on that directory.
+- **Order and signing.** `validate` and `upload` take the newest build (or `--build`) and refuse an unsigned rehearsal with one sentence before any child process starts. Their plan runs every local step (stage, checks, the upload guard) before the first step that contacts Apple, so a local refusal never costs an Apple call; the app record lookup comes after them.
 - **Upload guard.** `validate` prints `upload --confirm <build>:<first 12 hex of the IPA's
   sha256>`. `upload` copies the IPA into a private `0700` directory (symlinks refused) and checks
   and uploads that copy. It refuses unless the token matches the copy, the tree is clean and

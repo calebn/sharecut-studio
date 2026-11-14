@@ -1,9 +1,10 @@
 """Validate and upload: the App Store Connect half of the release.
 
-One plan serves both. It looks up the app record (read-only), stages a private copy of the IPA,
-reruns every local check on that copy, and asks Apple to validate it. With a confirmation it also
-runs the upload guard and uploads the same copy. Apple's answers are recorded in the release
-record; the record can only block a later upload.
+One plan serves both. It stages a private copy of the IPA and reruns every local check on that
+copy (with a confirmation, the upload guard too), so every refusal that needs no answer from Apple
+comes before the first step that contacts Apple. Then it looks up the app record (read-only) and
+asks Apple to validate the copy. With a confirmation it uploads the same copy. Apple's answers
+are recorded in the release record; the record can only block a later upload.
 """
 
 from __future__ import annotations
@@ -143,6 +144,12 @@ def plan_deliver(
         return checks.CheckReport("upload guard", tuple(refusals))
 
     steps: list[Step] = [
+        Local("stage ipa", stage_step),
+        *artifact_checks(expect, layout, True),
+    ]
+    if confirm is not None:
+        steps.append(Local("upload guard", guard))
+    steps.append(
         Run(
             "app record",
             altool(
@@ -154,12 +161,8 @@ def plan_deliver(
             ),
             True,
             lambda result, ws: lookup_outcome(result, record.bundle_identifier),
-        ),
-        Local("stage ipa", stage_step),
-        *artifact_checks(expect, layout, True),
-    ]
-    if confirm is not None:
-        steps.append(Local("upload guard", guard))
+        )
+    )
     steps.append(
         Run(
             "validate",
