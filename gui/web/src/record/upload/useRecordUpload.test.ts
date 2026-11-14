@@ -499,7 +499,6 @@ describe("useRecordUpload", () => {
       { initialProps: { settled: false } },
     );
     await waitFor(() => expect(result.current.pending).toBe(false));
-    // Stop is still finalizing: the upload stays open until capture settles.
     expect(result.current.uploading).toBe(true);
 
     rerender({ settled: true });

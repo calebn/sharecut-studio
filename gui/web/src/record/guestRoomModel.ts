@@ -298,7 +298,6 @@ export function guestViewerWidth(
   return landscape ? "phone-landscape" : "phone";
 }
 
-/** The guest and producer alerts. The host-offline alert is derived from the roster by roomViewModel. */
 export function guestRoomAlerts(
   source: Omit<RoomAlertSource, "hydrateError"> & {
     phase: RoomPhase;
@@ -318,7 +317,6 @@ export function guestRoomAlerts(
   return alerts;
 }
 
-/** What a viewer who left still has at stake. */
 type LeftWith = "nothing" | "saved" | "unsaved";
 
 function leftWith(phase: RoomPhase, recorded: boolean): LeftWith {
@@ -336,7 +334,6 @@ type CoverSource = {
   error: string | null;
   accessEnded: boolean;
   inviteClosed: boolean;
-  /** Set once this viewer pressed Leave or Done. */
   left: LeftWith | null;
   captureSettled: boolean;
   keeperActions: KeeperRecoveryActions;
@@ -372,7 +369,6 @@ function unsentRecordingCover(
   };
 }
 
-/** Precedence: boot error, access ended, left, room full. Join again remounts the session. */
 export function guestCovers(source: CoverSource): CoverProps | null {
   const host = source.host?.trim() || "the host";
   if (source.bootError) {

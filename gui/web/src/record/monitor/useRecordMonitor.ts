@@ -69,8 +69,6 @@ type MonitorInputs = Pick<
 >;
 type Acquisition = Pick<Args, "enabled" | "localId" | "role"> & {
   sessionId: string | null;
-  /** A new value opens a fresh mesh and audio context for the same room. */
-  attempt: number;
 };
 type MonitorObservation =
   | { kind: "inactive" }
@@ -397,7 +395,7 @@ export function useRecordMonitor({
   }, [monitor, send, localStream, snapshot, localId]);
 
   useEffect(
-    () => monitor.acquire({ enabled, localId, role, sessionId, attempt }),
+    () => monitor.acquire({ enabled, localId, role, sessionId }),
     [monitor, enabled, localId, role, sessionId, attempt],
   );
   const retry = useCallback(() => {

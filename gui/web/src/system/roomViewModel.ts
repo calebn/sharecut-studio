@@ -83,13 +83,9 @@ type RoomViewModel = {
   alerts: RoomAlertInput[];
 };
 
-/** What the dock's centre holds for this seat and phase, and why Leave is held if it is. */
 type RoomDock =
-  /** Mute, Comment, Notes. `leaveHeld` is a guest's reason while their take is unsaved. */
   | { kind: "controls"; leaveHeld?: string }
-  /** A status line in place of the centre controls. */
   | { kind: "status"; text: string; leaveHeld?: string }
-  /** A guest's take is saved: the line, Done as the one primary, no Leave. */
   | { kind: "done"; text: string };
 
 const LEAVE_DURING_TAKE_REASON = "You can leave after this take.";
