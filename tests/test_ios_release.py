@@ -681,3 +681,53 @@ def test_a_signed_build_never_installs_the_recording_shim() -> None:
 
 def test_a_device_id_is_masked_by_shape() -> None:
     assert Redactor().redact("id:00001111-AAAABBBBCCCCDDDD, name:x") == "id:<device-id>, name:x"
+
+
+def stage_deliver(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> record_module.ReleaseRecord:
+    home = tmp_path / "home"
+    key = home / ".appstoreconnect/private_keys" / f"AuthKey_{KEY_ID}.p8"
+    key.parent.mkdir(parents=True)
+    key.write_text("not read")
+    key.chmod(0o600)
+    secrets_file = tmp_path / "ios.env"
+    secrets_file.write_text(f"APPLE_API_KEY={KEY_ID}\nAPPLE_API_ISSUER={ISSUER}\n")
+    secrets_file.chmod(0o600)
+    profile = write_profile(tmp_path / "profile.json")
+    release_root = tmp_path / "repo/gui/desktop/src-tauri/target/ios-release"
+    record = make_record()
+    (release_root / record.build_number).mkdir(parents=True)
+    record_module.write_record(release_root / record.build_number, record)
+    monkeypatch.setenv("HOME", str(home))
+    monkeypatch.setattr(Path, "home", lambda: home)
+    monkeypatch.setenv("SHARECUT_IOS_RELEASE_ENV", str(secrets_file))
+    monkeypatch.setenv("PODCAST_DISTRIBUTION_PROFILE", str(profile))
+    monkeypatch.setattr(ios_release, "ROOT", tmp_path / "repo")
+    monkeypatch.setattr(ios_release, "toolchain", lambda layout: ("/p", None))
+    monkeypatch.setattr(ios_release, "git_state", lambda root: (record.commit, False))
+    monkeypatch.setattr(release_inputs, "marketing_version", lambda root: ("0.1.4", []))
+    monkeypatch.setattr(ios_release, "marketing_version", lambda root: ("0.1.4", []))
+    return record
+
+
+def test_validate_and_upload_dry_runs_show_the_plan_and_the_token(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    record = stage_deliver(tmp_path, monkeypatch)
+    assert ios_release.main(["validate", "--dry-run"]) == 0
+    out = capsys.readouterr().out
+    assert KEY_ID not in out and ISSUER not in out and "--api-key <key-id>" in out
+    assert "upload --confirm" not in out.split("dry run")[0] and " 8 validate" in out
+    assert ios_release.main(["upload", "--dry-run", "--confirm", record.token()]) == 0
+    out = capsys.readouterr().out
+    assert " upload guard" in out and "--upload-app" in out
+
+
+def test_validate_without_a_build_or_key_is_an_input_error(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    stage_deliver(tmp_path, monkeypatch)
+    assert ios_release.main(["validate", "--dry-run", "--build", "2020.1.1"]) == Failure.INPUT.value
+    assert "no finished build" in capsys.readouterr().out
+    monkeypatch.setenv("SHARECUT_IOS_RELEASE_ENV", str(tmp_path / "missing.env"))
+    assert ios_release.main(["validate", "--dry-run"]) == Failure.INPUT.value
+    assert "APPLE_API_KEY (private file or environment): missing" in capsys.readouterr().out
