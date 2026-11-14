@@ -23,6 +23,7 @@ import { useNowSec } from "../../hooks/useNowSec";
 import { useStaleRenderBreakdown } from "../../hooks/useStaleRenderBreakdown";
 import { useViewportClass } from "../../hooks/useViewportClass";
 import { useOfflineAttention } from "../../services/offlineQueue/offlineAttention";
+import { canApplyPass12 } from "../../shareMode";
 import { DeliverStage as DeliverStageBody } from "../../stages/deliver/DeliverStage";
 import type { NamedExportFiles } from "../../stages/deliver/deliverFiles";
 import {
@@ -430,6 +431,13 @@ function DeliverStageAdapter({ loadFailure }: DeliverStageProps) {
   };
   const onClipRestore = (clip: Clip) => {
     if (!projectPath) return;
+    const daw = useDawStore.getState();
+    if (
+      !canApplyPass12(daw.projectPath, daw.guestMode, daw.shareCapabilities)
+    ) {
+      daw.announceStatus("Undo needs Editor access", { tone: "error" });
+      return;
+    }
     sendDeliverEdit(projectPath, async (path) => {
       const removal = removedAt.current.get(clip.id);
       removedAt.current.delete(clip.id);

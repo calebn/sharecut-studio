@@ -53,6 +53,7 @@ export type CommandContext = {
   /** Stages the open link's role may enter (all five for the host). */
   allowedStages: readonly StageId[];
   hasProject: boolean;
+  canApplyHistory: boolean;
   canUndo: boolean;
   canRedo: boolean;
   shellBreakpoint: string;
@@ -145,6 +146,11 @@ export function buildCommandContext(
           (track) => track.id === selection.trackId,
         ) ?? -1)
       : -1;
+  const historyAllowed = canApplyPass12(
+    s.projectPath,
+    s.guestMode,
+    s.shareCapabilities,
+  );
   return {
     stage: s.stage,
     focusedFadeHandle: focusedClipHandleKind() === "fade",
@@ -183,11 +189,15 @@ export function buildCommandContext(
     canManageProjects: canManageProjects(s.projectPath),
     allowedStages: stagesForRole(stageRoleOf(s.guestMode)),
     hasProject: s.project != null,
+    canApplyHistory: historyAllowed,
     canUndo:
-      s.guestMode != null ||
-      (s.project?.history?.can_undo ?? false) ||
-      editUnsaved(s.projectPath),
-    canRedo: s.guestMode != null || (s.project?.history?.can_redo ?? false),
+      historyAllowed &&
+      (s.guestMode != null ||
+        (s.project?.history?.can_undo ?? false) ||
+        editUnsaved(s.projectPath)),
+    canRedo:
+      historyAllowed &&
+      (s.guestMode != null || (s.project?.history?.can_redo ?? false)),
     shellBreakpoint: s.shellBreakpoint,
     playheadSec: s.playheadSec,
     timelineDurationSec: s.project?.timeline_duration_sec ?? Infinity,
@@ -312,12 +322,18 @@ export function evaluateWhen(
       if (!ctx.hasProject) {
         return { ok: false, reason: "No project loaded" };
       }
+      if (!ctx.canApplyHistory) {
+        return { ok: false, reason: "Undo needs Editor access" };
+      }
       return ctx.canUndo
         ? { ok: true }
         : { ok: false, reason: "Nothing to undo" };
     case "canRedo":
       if (!ctx.hasProject) {
         return { ok: false, reason: "No project loaded" };
+      }
+      if (!ctx.canApplyHistory) {
+        return { ok: false, reason: "Redo needs Editor access" };
       }
       return ctx.canRedo
         ? { ok: true }

@@ -12,6 +12,7 @@ import { executePointerCommand } from "../commands/pointer";
 import { useLatestRequest } from "../hooks/useLatestRequest";
 import { useProjectMutation } from "../hooks/useProjectMutation";
 import { useVirtualRows } from "../hooks/useVirtualRows";
+import { canApplyPass12 } from "../shareMode";
 import { useDaw } from "../state/useDaw";
 import type { HistoryDiff, HistoryGroup } from "../types/project";
 import { Button, InlineError } from "../ui";
@@ -35,10 +36,13 @@ type DiffView = {
   loading: boolean;
 };
 
+const NEEDS_EDITOR_REASON = "Undo and redo need Editor access.";
+
 export function HistoryPanel() {
-  const { project, projectPath } = useDaw((s) => ({
+  const { project, projectPath, canEdit } = useDaw((s) => ({
     project: s.project,
     projectPath: s.projectPath,
+    canEdit: canApplyPass12(s.projectPath, s.guestMode, s.shareCapabilities),
   }));
   const { busy, error, run, setError } = useProjectMutation();
   const [view, setView] = useState<DiffView>({
@@ -197,11 +201,13 @@ export function HistoryPanel() {
         <div className="history-toolbar-actions">
           <Button
             disabledReason={
-              busy
-                ? BUSY_REASON
-                : !can_undo
-                  ? "Make an edit to undo it."
-                  : undefined
+              !canEdit
+                ? NEEDS_EDITOR_REASON
+                : busy
+                  ? BUSY_REASON
+                  : !can_undo
+                    ? "Make an edit to undo it."
+                    : undefined
             }
             onClick={() => void runHistoryAction("undo")}
           >
@@ -209,11 +215,13 @@ export function HistoryPanel() {
           </Button>
           <Button
             disabledReason={
-              busy
-                ? BUSY_REASON
-                : !can_redo
-                  ? "Undo an edit first to redo it."
-                  : undefined
+              !canEdit
+                ? NEEDS_EDITOR_REASON
+                : busy
+                  ? BUSY_REASON
+                  : !can_redo
+                    ? "Undo an edit first to redo it."
+                    : undefined
             }
             onClick={() => void runHistoryAction("redo")}
           >

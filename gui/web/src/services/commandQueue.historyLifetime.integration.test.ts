@@ -3,6 +3,16 @@ import { commandLocks } from "../test/commandLocks";
 import type { HistoryEntryId } from "../types/project";
 import type { QueuedCommand } from "./offlineQueue/offlineStore";
 
+const EDITOR_CAPABILITIES = [
+  "play",
+  "view",
+  "comment",
+  "reply",
+  "action",
+  "suggest",
+  "edit",
+];
+
 const queue = vi.hoisted(() => ({
   enqueueHostCommand: vi.fn(),
   enqueueCommand: vi.fn(),
@@ -74,6 +84,7 @@ describe("history command lifetime at queue admission", () => {
       const project = minimalProject();
       useDawStore.setState({
         projectPath: path,
+        shareCapabilities: EDITOR_CAPABILITIES,
         project: {
           ...project,
           history: {
@@ -178,6 +189,7 @@ describe("history command lifetime at queue admission", () => {
       const project = minimalProject();
       useDawStore.setState({
         projectPath: path,
+        shareCapabilities: EDITOR_CAPABILITIES,
         project: {
           ...project,
           history: { ...project.history, can_undo: true, can_redo: false },
@@ -265,6 +277,7 @@ describe("history command lifetime at queue admission", () => {
       const project = minimalProject();
       useDawStore.setState({
         projectPath: path,
+        shareCapabilities: EDITOR_CAPABILITIES,
         project: {
           ...project,
           history: {
@@ -441,7 +454,11 @@ describe("history command lifetime at queue admission", () => {
       const { useDawStore } = await import("../state/dawStore");
       const { minimalProject } = await import("../test/fixtures");
       const authority = await import("../document/authorityState");
-      useDawStore.setState({ projectPath: path, project: minimalProject() });
+      useDawStore.setState({
+        projectPath: path,
+        shareCapabilities: EDITOR_CAPABILITIES,
+        project: minimalProject(),
+      });
       authority.resetDocumentAuthority(path);
       const command = {
         command_id: "history-live",
@@ -503,7 +520,11 @@ describe("history command lifetime at queue admission", () => {
     const { useDawStore } = await import("../state/dawStore");
     const { minimalProject } = await import("../test/fixtures");
     const authority = await import("../document/authorityState");
-    useDawStore.setState({ projectPath: path, project: minimalProject() });
+    useDawStore.setState({
+      projectPath: path,
+      shareCapabilities: EDITOR_CAPABILITIES,
+      project: minimalProject(),
+    });
     authority.resetDocumentAuthority(path);
     queue.enqueueHostCommand.mockResolvedValueOnce({
       persisted: true,
@@ -554,7 +575,11 @@ describe("history command lifetime at queue admission", () => {
     const { useDawStore } = await import("../state/dawStore");
     const { minimalProject } = await import("../test/fixtures");
     const authority = await import("../document/authorityState");
-    useDawStore.setState({ projectPath: path, project: minimalProject() });
+    useDawStore.setState({
+      projectPath: path,
+      shareCapabilities: EDITOR_CAPABILITIES,
+      project: minimalProject(),
+    });
     authority.resetDocumentAuthority(path);
     queue.enqueueCommand.mockImplementationOnce(async (_token, history) => {
       queue.loadCommandQueue.mockResolvedValueOnce([
@@ -595,7 +620,11 @@ describe("history command lifetime at queue admission", () => {
     const { useDawStore } = await import("../state/dawStore");
     const { minimalProject } = await import("../test/fixtures");
     const authority = await import("../document/authorityState");
-    useDawStore.setState({ projectPath: path, project: minimalProject() });
+    useDawStore.setState({
+      projectPath: path,
+      shareCapabilities: EDITOR_CAPABILITIES,
+      project: minimalProject(),
+    });
     authority.resetDocumentAuthority(path);
     queue.loadCommandQueue.mockResolvedValueOnce([]);
     const fetchSpy = vi.fn();
@@ -622,7 +651,11 @@ describe("history command lifetime at queue admission", () => {
     const { useDawStore } = await import("../state/dawStore");
     const { minimalProject } = await import("../test/fixtures");
     const authority = await import("../document/authorityState");
-    useDawStore.setState({ projectPath: path, project: minimalProject() });
+    useDawStore.setState({
+      projectPath: path,
+      shareCapabilities: EDITOR_CAPABILITIES,
+      project: minimalProject(),
+    });
     authority.resetDocumentAuthority(path);
     Object.defineProperty(navigator, "onLine", {
       configurable: true,
