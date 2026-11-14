@@ -150,4 +150,4 @@ def info_cmd(
             json.dumps(ws.project.model_dump(exclude={"document_sync"}), indent=2, default=str)
         )
         return
-    typer.echo(json.dumps(EpisodeService(ws).summary(), indent=2))
+    typer.echo(json.dumps(EpisodeService(ws).summary().model_dump(), indent=2))
