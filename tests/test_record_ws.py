@@ -2288,3 +2288,46 @@ def test_http_set_target_refusals_name_the_field(
     )
     assert ok.status_code == 200, ok.text
     assert ok.json()["target"] == far
+
+
+def test_a_failed_record_pump_and_the_task_label_name_the_share_not_the_token(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch, caplog
+):
+    from podcast_mcp.gui.routes import record_share
+
+    monkeypatch.setenv(
+        "PODCAST_SHARE_IDENTITY", str(tmp_workspace.parent / "share_identity.sqlite")
+    )
+    monkeypatch.setenv(
+        "PODCAST_SHARE_REGISTRY", str(tmp_workspace.parent / "share_registry.sqlite")
+    )
+    _ws, room, client = _room(minimal_project, sample_wav, tmp_workspace, monkeypatch)
+    token = room["guest"]["token"]
+
+    real = record_share.filter_record_event_for_guest
+
+    def fail_after_join(event, **kwargs):
+        if event.get("type") == "Snapshot":
+            return real(event, **kwargs)
+        raise RuntimeError("pump broke")
+
+    monkeypatch.setattr(record_share, "filter_record_event_for_guest", fail_after_join)
+    with pytest.raises(WebSocketDisconnect):
+        with client.websocket_connect(f"/api/rec/{token}/ws") as socket:
+            _join(socket, name="Ava")
+            _drain_until(socket, lambda msg: msg.get("type") == "Snapshot")
+            socket.send_json(
+                {
+                    "type": "Record",
+                    "command_type": "Consent",
+                    "payload": {"accepted": True},
+                    "client_seq": 2,
+                }
+            )
+            for _ in range(20):
+                socket.receive_json()
+
+    pump = [r for r in caplog.records if r.getMessage().startswith("record pump failed")]
+    assert pump
+    assert all(token not in r.getMessage() and "share=" in r.getMessage() for r in pump)
+    assert token[:8] not in caplog.text

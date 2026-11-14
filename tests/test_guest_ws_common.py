@@ -79,7 +79,7 @@ async def test_admit_guest_ws_rate_limit_disabled(monkeypatch):
 
     monkeypatch.setattr(gwc, "get_host_limiters", _boom)
     ws = _Ws()
-    conn = await admit_guest_ws(ws, "tok", log_label="test")
+    conn = await admit_guest_ws(ws, "tok", share_id="a1b2c3d4e5f6", log_label="test")
     assert conn is not None
     conn.release()
 
@@ -92,7 +92,7 @@ async def test_admit_guest_ws_rejects_when_full(monkeypatch):
     assert lim.guest_ws_concurrent.try_enter("tok").allowed
     try:
         ws = _Ws()
-        conn = await admit_guest_ws(ws, "tok", log_label="test")
+        conn = await admit_guest_ws(ws, "tok", share_id="a1b2c3d4e5f6", log_label="test")
         assert conn is None
         assert ws.closed == [(4429, GUEST_WS_CONCURRENCY_REASON)]
     finally:
@@ -106,7 +106,7 @@ async def test_admit_guest_ws_release_is_idempotent(monkeypatch):
     reset_host_limiters_for_tests()
     try:
         ws = _Ws()
-        conn = await admit_guest_ws(ws, "tok", log_label="test")
+        conn = await admit_guest_ws(ws, "tok", share_id="a1b2c3d4e5f6", log_label="test")
         assert conn is not None
         conn.release()
         conn.release()
@@ -122,7 +122,7 @@ async def test_start_accepts_and_rechecks(monkeypatch):
     monkeypatch.setattr(gwc, "host_rate_limit_enabled", lambda: False)
     monkeypatch.setattr(gwc, "GUEST_SHARE_RECHECK_S", 0.01)
     ws = _Ws()
-    conn = await admit_guest_ws(ws, "tok", log_label="test")
+    conn = await admit_guest_ws(ws, "tok", share_id="a1b2c3d4e5f6", log_label="test")
     assert conn is not None
     guard = await conn.start(lambda: False)
     assert ws.accepted is True
@@ -136,7 +136,7 @@ async def test_start_accepts_and_rechecks(monkeypatch):
 async def test_start_passes_send_gate(monkeypatch):
     monkeypatch.setattr(gwc, "host_rate_limit_enabled", lambda: False)
     ws = _Ws()
-    conn = await admit_guest_ws(ws, "tok", log_label="test")
+    conn = await admit_guest_ws(ws, "tok", share_id="a1b2c3d4e5f6", log_label="test")
     assert conn is not None
     guard = await conn.start(lambda: True, send_gate=lambda: False)
     try:
@@ -154,7 +154,7 @@ async def _until_cancelled() -> None:
 @pytest.mark.asyncio
 async def test_stop_tasks_cancels_and_logs_failures(caplog):
     ws = _Ws()
-    conn = await admit_guest_ws(ws, "tok", log_label="test")
+    conn = await admit_guest_ws(ws, "tok", share_id="a1b2c3d4e5f6", log_label="test")
     assert conn is not None
 
     boomed = asyncio.Event()
@@ -170,7 +170,7 @@ async def test_stop_tasks_cancels_and_logs_failures(caplog):
     with caplog.at_level(logging.ERROR):
         await conn.stop_tasks()
     assert sleeper_task.cancelled()
-    assert any("pump exit" in rec.message for rec in caplog.records)
+    assert any(rec.message == "test share=a1b2c3d4e5f6 pump exit" for rec in caplog.records)
 
     caplog.clear()
     await conn.stop_tasks()

@@ -46,6 +46,7 @@ from podcast_mcp.services.collaboration.share_capabilities import (
     record_capabilities_for_role,
     review_role_for_capabilities,
     share_author,
+    share_log_id,
 )
 from podcast_mcp.services.collaboration.share_registry import (
     RECORD_REVIEW_VERSION_SENTINEL,
@@ -621,7 +622,7 @@ class ShareService:
             try:
                 drop_share(self.ws.project, token)
             except Exception:
-                log.exception("failed to roll back record token %s", token)
+                log.exception("failed to roll back record share %s", share_log_id(row))
         invalidate_record_session_cache(self.ws.project)
 
     def _revoke_room_tokens(self, session_id: str) -> Sequence[str]:
@@ -639,7 +640,7 @@ class ShareService:
             except KeyError:
                 continue  # ended meanwhile (a sweep or another revoke): nothing left to do
             except Exception:
-                log.exception("failed to revoke record token %s", token)
+                log.exception("failed to revoke record share %s", share_log_id(row))
         if not revoked:
             raise KeyError(f"record room not found: {session_id}")
         return revoked
@@ -771,7 +772,7 @@ class ShareService:
             return {"restored": True, "token": token}
         if registry.is_reserved(token, now=now):
             raise RestoreWindowClosedError()
-        raise CodedKeyError(f"share not found: {token}", code="share_not_found")
+        raise CodedKeyError("share not found", code="share_not_found")
 
     def sweep_pending(self, *, now: datetime | None = None) -> int:
         return share_pending.sweep(self.ws, now=now)
@@ -809,7 +810,7 @@ class ShareService:
                 break
         ok = revoke_share(self.ws.project, token)
         if not ok:
-            raise KeyError(f"share not found: {token}")
+            raise KeyError("share not found")
         if kind != SHARE_KIND_RECORD:
             share_pending.delete_review_effects(self.ws, [version_id or ""])
         return {"revoked": True, "token": token}
@@ -823,7 +824,7 @@ class ShareService:
     def _park_share(self, token: str, window: float, now: datetime | None) -> ParkedShare:
         pending = share_pending.park(self.ws, [token], group_id=token, window_sec=window, now=now)
         if not pending:
-            raise KeyError(f"share not found: {token}")
+            raise KeyError("share not found")
         self._arm_sweep_timer(window)
         return {"revoked": True, "token": token, "restorable_until": pending[0]["restorable_until"]}
 
@@ -873,7 +874,7 @@ def lookup_share(token: str, *, kind: str | None = None) -> dict[str, Any]:
                 # pending revoke keeps its policy.
                 row = {**side, **row, "token": token, "revoked": False}
         except Exception:
-            log.debug("share last_used touch failed for %s", token, exc_info=True)
+            log.debug("share last_used touch failed for %s", share_log_id(row), exc_info=True)
             reg.touch_last_used(token)
     else:
         reg.touch_last_used(token)

@@ -1,10 +1,10 @@
 """A debug-build request log for the embedded engine (#3810).
 
-One line per request: the method, the path without its query string, the response status and
-whether the query string was empty. A WebSocket accept is one line with the method ``WEBSOCKET``
-and status 101. No query string, header, cookie or body is read, so the single-use exchange code
-never reaches the file. It runs only when ``PODCAST_ENGINE_DEBUG_BUILD`` and
-``PODCAST_ENGINE_REQUEST_AUDIT`` are both ``1``, which the iOS host sets only in a debug build
+One line per request: the method, the path without its query string and with any share-link
+token replaced, the response status and whether the query string was empty. A WebSocket accept
+is one line with the method ``WEBSOCKET`` and status 101. No query string, header, cookie or
+body is read, so the single-use exchange code never reaches the file. It runs only when
+``PODCAST_ENGINE_DEBUG_BUILD`` and ``PODCAST_ENGINE_REQUEST_AUDIT`` are both ``1``, which the iOS host sets only in a debug build
 (docs/desktop-packaging.md § iOS app).
 """
 
@@ -17,6 +17,7 @@ from typing import Any
 
 from podcast_mcp import settings
 from podcast_mcp.util import host_platform
+from podcast_mcp.util.redact import redact_share_paths
 
 log = logging.getLogger(__name__)
 
@@ -63,7 +64,7 @@ class RequestAudit:
             await self._app(scope, receive, send)
             return
         method = "WEBSOCKET" if kind == "websocket" else scope["method"]
-        path = scope["path"]
+        path = redact_share_paths(scope["path"])
         query_empty = not scope.get("query_string")
         accepted = False
 

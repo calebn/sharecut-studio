@@ -33,6 +33,7 @@ from podcast_mcp.services.collaboration.share import ShareService
 from podcast_mcp.services.collaboration.share_capabilities import (
     capabilities_for_role,
     share_author,
+    share_id_of,
 )
 from podcast_mcp.services.collaboration.share_registry import (
     SHARE_COOLDOWN_DAYS,
@@ -343,6 +344,12 @@ def test_a_share_without_a_registry_id_cannot_author_edits():
     assert share_author({"token": "a-b-c", "id": "0f3a9c21d4e7"}) == "share:0f3a9c21d4e7"
     with pytest.raises(KeyError):
         share_author({"token": "a-b-c", "id": None})
+
+
+def test_share_id_of_names_a_share_by_its_id_and_refuses_one_without():
+    assert share_id_of({"id": "a1b2c3d4e5f6", "token": "velvet-quokka-umbra"}) == "a1b2c3d4e5f6"
+    with pytest.raises(KeyError):
+        share_id_of({"token": "velvet-quokka-umbra"})
 
 
 def test_a_recycled_share_slug_does_not_inherit_the_old_author(

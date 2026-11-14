@@ -3,7 +3,7 @@
 Help creates a local diagnostics ZIP, then shows its path, size, file list, and
 app version before any upload. The user writes a description and, when a report
 relay is configured, explicitly accepts that the description and ZIP become
-public. The ZIP link lasts 30 days. Submit shows queued status, then the
+public. The ZIP link lasts 30 days. The ZIP is scrubbed on this computer before it can leave: it holds no share-link token, because tokens are masked by route path and by value. Submit shows queued status, then the
 published issue link and completed message when available. A submitted bundle cannot be submitted
 again; creating another bundle clears the prior publication link. An uncertain
 publication asks the user to check status later, and a failed publication

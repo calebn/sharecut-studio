@@ -212,17 +212,27 @@ class GuestWords(StrEnum):
 SHARE_ACTOR_PREFIX = "share:"
 
 
-def share_author(share: Mapping[str, Any]) -> str:
-    """``EditDecision.author`` for a share guest: ``share:`` plus the share's registry id.
+def share_id_of(share: Mapping[str, Any]) -> str:
+    """The share's registry id: what logs and edit authorship name a link by.
 
     The id is minted at random when the share is created, so it reveals nothing
     about the token, and a coolname recycled from cooldown gets a new one. A
-    share without an id cannot author edits.
+    share without an id has no safe name.
     """
     share_id = share.get("id")
     if not share_id:
         raise KeyError("invalid or revoked share token")
-    return f"{SHARE_ACTOR_PREFIX}{share_id}"
+    return str(share_id)
+
+
+def share_log_id(share: Mapping[str, Any]) -> str:
+    """The share's id for a log line: ``unknown`` instead of raising, so a handler can finish."""
+    return str(share.get("id") or "unknown")
+
+
+def share_author(share: Mapping[str, Any]) -> str:
+    """``EditDecision.author`` for a share guest: ``share:`` plus the share's registry id."""
+    return f"{SHARE_ACTOR_PREFIX}{share_id_of(share)}"
 
 
 def share_review_source(share: Mapping[str, Any]) -> ShareSource:

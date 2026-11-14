@@ -286,7 +286,7 @@ lib (a `staticlib`) with Python.xcframework linked into it; there is no sidecar 
 - **Not there yet.** Audio tools (FFmpeg), transcription, recording, Universal Links and CI signing. A signed build in TestFlight is the release tool below; a run on a device is the owner's. Home's Import audio and Record are refused while audio tools are unavailable, so a project cannot yet be made in the UI. Projects live in the app's Documents folder and show in the Files app. Recent entries are stored relative to it ([persistence.md](persistence.md)).
 - **Request audit (debug builds only).** `podcast_mcp.gui.request_audit` appends one JSON line per
   HTTP response and WebSocket outcome to `Library/Logs/ShareCut/request-audit.jsonl`: the method,
-  the path without its query string, the status and whether the query was empty. It never reads a
+  the path without its query string and with any share-link token replaced by `<share-token>`, the status and whether the query was empty. It never reads a
   query string, header, cookie or body, so the exchange code cannot reach it. It runs only when
   `PODCAST_ENGINE_DEBUG_BUILD` and `PODCAST_ENGINE_REQUEST_AUDIT` are both `1`: the Rust host
   clears both in every build and sets them only under `cfg!(debug_assertions)`

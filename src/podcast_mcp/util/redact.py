@@ -5,11 +5,23 @@ from __future__ import annotations
 import re
 from collections.abc import Sequence
 from pathlib import Path
+from urllib.parse import unquote
 
 from podcast_mcp.util.host_session_wire import EXCHANGE_PARAM, EXCHANGE_PATH, SESSION_COOKIE
 
+_SLASH = r"(?:/|%(?:25)?2[Ff])"
+_SHARE_PATH_ROOTS = (
+    "r",
+    "rec",
+    "api/review",
+    "mcp",
+    "api/shares",
+    "api/shares/record",
+)
+_SHARE_ROOTS = "|".join(root.replace("/", _SLASH) for root in _SHARE_PATH_ROOTS)
 _SHARE_TOKEN = re.compile(
-    r"(?P<prefix>/r/|/rec/|/api/review/|/mcp/)(?P<token>[A-Za-z0-9_-]{8,}(?:-[A-Za-z0-9_-]+)*)"
+    rf"(?P<prefix>{_SLASH}(?i:{_SHARE_ROOTS}){_SLASH})"
+    r"(?P<token>[A-Za-z0-9_-]{8,}(?:-[A-Za-z0-9_-]+)*)"
 )
 _BOOT_TOKEN = re.compile(
     r"(?i)(x-sharecut-boot-token)(\s*[:=]\s*)(\S+)",
@@ -77,6 +89,20 @@ def _sub_ipv6(match: re.Match[str]) -> str:
     return "<ip>"
 
 
+def redact_share_paths(text: str) -> str:
+    """Replace the link token in every share route path in ``text``, plain or percent-encoded.
+
+    The roots match in any letter case: the server answers ``/R/<token>`` with a 404, but
+    uvicorn still logs the path.
+
+    The routes are the guest ``/r/``, ``/rec/``, ``/api/review/`` and ``/mcp/`` roots (so
+    ``/api/rec/`` too, through ``/rec/``) and the host ``/api/shares/<token>/revoke|restore`` and
+    ``/api/shares/record/<token>/replace`` paths.
+    ``tests/test_share_path_routes.py`` fails when a mounted route puts a token somewhere else.
+    """
+    return _SHARE_TOKEN.sub(lambda m: f"{m.group('prefix')}<share-token>", text)
+
+
 def sanitize(
     text: str,
     *,
@@ -86,10 +112,9 @@ def sanitize(
 ) -> str:
     """Return ``text`` with host paths and secrets replaced by placeholders.
 
-    Share URLs redact the path segment after ``/r/``, ``/rec/``,
-    ``/api/review/``, or ``/mcp/`` (coolname, including four-word slugs). Bare coolnames in free text are not matched
-    (see ``docs/setup.md``). ``token=`` values are covered by the
-    secret-assignment rule.
+    Share routes go through ``redact_share_paths``. Bare coolnames in free text are not
+    matched here: the diagnostics bundle masks the registry's tokens by value on top
+    (``docs/setup.md``). ``token=`` values are covered by the secret-assignment rule.
     """
     if not text:
         return text
@@ -107,7 +132,7 @@ def sanitize(
     out = _COOKIE_HEADER.sub(r"\1<redacted>", out)
     out = _SECRET_ASSIGN.sub(lambda m: f"{m.group(1)}=<redacted>", out)
     out = _HOST_SESSION.sub(r"\1<redacted>", out)
-    out = _SHARE_TOKEN.sub(lambda m: f"{m.group('prefix')}<share-token>", out)
+    out = redact_share_paths(out)
     out = _EMAIL.sub("<email>", out)
     out = _IPV4.sub(_sub_ipv4, out)
     out = _IPV6.sub(_sub_ipv6, out)
@@ -116,23 +141,40 @@ def sanitize(
     return out
 
 
-def redact_secrets(text: str, secrets: Sequence[str] = ()) -> str:
+def _mask_values(text: str, secrets: Sequence[str], min_prefix: int | None) -> str:
+    out = text
+    for secret in sorted({s for s in secrets if s}, key=len, reverse=True):
+        if min_prefix is not None and len(secret) > min_prefix:
+            tail = "".join(f"(?:{re.escape(ch)}" for ch in secret[min_prefix:]) + ")?" * (
+                len(secret) - min_prefix
+            )
+            out = re.sub(re.escape(secret[:min_prefix]) + tail, "<redacted>", out)
+        else:
+            out = out.replace(secret, "<redacted>")
+    return out
+
+
+def redact_secrets(text: str, secrets: Sequence[str] = (), *, min_prefix: int | None = None) -> str:
     """Mask known literal secrets and share-token path segments, nothing else.
 
     Unlike ``sanitize`` this keeps hostnames, IP addresses and paths readable, for
     operator-facing status lines. ``secrets`` are exact values (a host token, share
     tokens) replaced wherever they appear, longest first so one that contains
-    another is not left half visible.
+    another is not left half visible. With ``min_prefix`` a leading run of a secret at
+    least that long is masked too, and text that holds a secret only once percent-decoded
+    is returned decoded and masked.
     """
     if not text:
         return text
-    out = text
-    for secret in sorted({s for s in secrets if s}, key=len, reverse=True):
-        out = out.replace(secret, "<redacted>")
+    out = _mask_values(text, secrets, min_prefix)
+    decoded = unquote(out)
+    decoded_masked = _mask_values(decoded, secrets, min_prefix)
+    if decoded_masked != decoded:
+        out = decoded_masked
     out = _AUTH_HEADER.sub(r"\1<redacted>", out)
     out = _SECRET_ASSIGN.sub(lambda m: f"{m.group(1)}=<redacted>", out)
     out = _HOST_SESSION.sub(r"\1<redacted>", out)
-    out = _SHARE_TOKEN.sub(lambda m: f"{m.group('prefix')}<share-token>", out)
+    out = redact_share_paths(out)
     return _HEX_RUN.sub("<hex>", out)
 
 
