@@ -438,13 +438,18 @@ describe("show", () => {
 
   it("sheetsGone makes a held draft with text the open composer at its own pin, and starts nothing", () => {
     for (const surface of ["none", "comments", "thread", "chapters"] as const) {
-      const { state, effects } = run(
-        session({ surface, draft: draft("too loud", 5) }),
-        [[{ type: "sheetsGone" }], [{ type: "transport", playing: true }]],
-      );
-      expect(state.surface).toBe("composer");
+      const converted = run(session({ surface, draft: draft("too loud", 5) }), [
+        [{ type: "sheetsGone" }],
+      ]);
+      expect(converted.state.surface).toBe("composer");
+      expect(converted.state.draft).toEqual(draft("too loud", 5));
+      expect(converted.state.draft?.resume).toBe(false);
+      expect(commentDraftOf(converted.state)).toEqual(at(5));
+      expect(converted.effects).toEqual([]);
+      const { state, effects } = run(converted.state, [
+        [{ type: "transport", playing: true }],
+      ]);
       expect(state.draft).toEqual(draft("too loud", 5));
-      expect(commentDraftOf(state)).toEqual(at(5));
       expect(effects).toEqual([]);
     }
   });

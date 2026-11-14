@@ -45,6 +45,13 @@ for (const theme of ["light", "dark"] as const) {
           await guest
             .getByRole("button", { name: "Post", exact: true })
             .click();
+          await expect(
+            guest.locator(".ui-toast-region--app .ui-toast"),
+          ).toContainText("Comment posted at");
+          await expect(guest.locator(".rv-stage")).toBeFocused();
+          await expect(
+            guest.getByRole("textbox", { name: "Comment", exact: true }),
+          ).not.toBeFocused();
           const comment = await selectCommentCard(guest, body);
           await comment
             .getByRole("textbox", { name: /^Reply/ })
@@ -105,6 +112,13 @@ for (const theme of ["light", "dark"] as const) {
           await expect(field).toBeInViewport();
           await expect(post).toBeInViewport();
           await expect(post).toBeDisabled();
+          await expect(dock.locator(".sys-composer-chip")).toHaveText(
+            /^0:00\s*Pinned$/,
+          );
+          await expect(dock.locator(".sys-composer-chip")).toHaveAttribute(
+            "data-pinned",
+            "true",
+          );
           await expectPageAxeClean(guest);
 
           const body = `Phone guest feedback in ${theme}`;

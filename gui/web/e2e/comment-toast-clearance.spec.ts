@@ -92,12 +92,7 @@ for (const { cell: phone, theme } of withAppearance(PHONES)) {
             });
 
           const comment = guest.getByRole("button", { name: /^Comment at/ });
-          // Only the phone Listen layout starts with no field.
-          const reopen = async () => {
-            if (await comment.count()) await comment.tap();
-            else await field.tap();
-          };
-          await reopen();
+          await comment.tap();
           await field.fill("Loved the intro");
           await dock.getByRole("textbox", { name: "Your name" }).fill("Riley");
           await dock.getByRole("button", { name: "Post", exact: true }).tap();
@@ -108,7 +103,7 @@ for (const { cell: phone, theme } of withAppearance(PHONES)) {
           await shot("posted");
           expect(await overlaps(guest)).toEqual([]);
 
-          await reopen();
+          await comment.tap();
           await expect(field).toBeFocused();
           await expect(toast).toBeVisible();
           await settle(guest);
