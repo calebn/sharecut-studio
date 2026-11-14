@@ -317,16 +317,27 @@ export function guestRoomAlerts(
   return alerts;
 }
 
-type LeftWith = "nothing" | "saved" | "unsaved";
+/** What this device still holds for a guest, in the order a cover must say it. */
+type GuestStake = "finishing" | "unsent" | "saved" | "none";
 
-function leftWith(phase: RoomPhase, recorded: boolean): LeftWith {
-  if (!recorded) {
-    return "nothing";
+function guestStake(
+  phase: RoomPhase,
+  device: {
+    producer: boolean;
+    captureSettled: boolean;
+    keeperActions: Pick<KeeperRecoveryActions, "download" | "recover">;
+  },
+): GuestStake {
+  if (device.producer) {
+    return "none";
   }
-  if (phase.kind === "saved") {
-    return "saved";
+  if (!device.captureSettled) {
+    return "finishing";
   }
-  return phase.kind === "saving" ? "unsaved" : "nothing";
+  if (device.keeperActions.download || device.keeperActions.recover) {
+    return "unsent";
+  }
+  return phase.kind === "saved" ? "saved" : "none";
 }
 
 type CoverSource = {
@@ -334,8 +345,8 @@ type CoverSource = {
   error: string | null;
   accessEnded: boolean;
   inviteClosed: boolean;
-  left: LeftWith | null;
-  captureSettled: boolean;
+  left: boolean;
+  stake: GuestStake;
   keeperActions: KeeperRecoveryActions;
   host?: string;
   onRetry?: () => void;
@@ -343,14 +354,8 @@ type CoverSource = {
 
 const page = { size: "page" } as const;
 
-function unsentRecordingCover(
-  source: CoverSource,
-  host: string,
-): CoverProps | null {
+function unsentRecordingCover(source: CoverSource, host: string): CoverProps {
   const { download, recover } = source.keeperActions;
-  if (!source.captureSettled || !(download || recover)) {
-    return null;
-  }
   return {
     ...page,
     glyph: "door-open",
@@ -389,7 +394,7 @@ export function guestCovers(source: CoverSource): CoverProps | null {
   if (source.accessEnded) {
     const { download, recover } = source.keeperActions;
     if (source.inviteClosed) {
-      const hasLocal = source.captureSettled && (download || recover);
+      const hasLocal = source.stake === "unsent";
       return {
         ...page,
         glyph: "door-open",
@@ -411,36 +416,37 @@ export function guestCovers(source: CoverSource): CoverProps | null {
             : undefined,
       };
     }
-    const unsent = unsentRecordingCover(source, host);
-    if (unsent) {
-      return unsent;
+    if (source.stake === "unsent") {
+      return unsentRecordingCover(source, host);
     }
     return {
       ...page,
       glyph: "door-open",
       title: "This session has ended",
-      children: source.captureSettled
-        ? "Thanks for recording."
-        : "Finishing your full-quality recording…",
+      children:
+        source.stake === "finishing"
+          ? "Finishing your full-quality recording…"
+          : "Thanks for recording.",
     };
   }
   if (source.left) {
-    const unsent =
-      source.left === "unsaved" ? unsentRecordingCover(source, host) : null;
-    if (unsent) {
-      return unsent;
+    if (source.stake === "unsent") {
+      return unsentRecordingCover(source, host);
     }
+    const finishing = source.stake === "finishing";
     return {
       ...page,
       glyph: "door-open",
       title: "You left the room",
-      children:
-        source.left === "saved"
+      children: finishing
+        ? "Finishing your full-quality recording…"
+        : source.stake === "saved"
           ? `Your recording is saved to ${host}'s project. You can close this page.`
           : "You can close this page.",
-      primary: source.onRetry
-        ? { label: "Join again", onClick: source.onRetry }
-        : undefined,
+      primary:
+        source.onRetry && !finishing
+          ? { label: "Join again", onClick: source.onRetry }
+          : undefined,
     };
   }
   if (source.error === "room_full") {
@@ -484,6 +490,7 @@ type CoverRoom = Pick<
   | "accessEnded"
   | "inviteClosed"
   | "left"
+  | "producer"
   | "captureSettled"
   | "keeperActions"
   | "localRecording"
@@ -493,27 +500,28 @@ type CoverRoom = Pick<
 /** The page-sized Cover this room needs instead of the room, or null. */
 export function guestCoverProps(
   room: CoverRoom,
-  options: { onRetry: () => void; phase: RoomPhase; recorded: boolean },
+  options: { onRetry: () => void; phase: RoomPhase },
 ): CoverProps | null {
   // Before the first take, or once every segment has landed and been cleared
   // from this device, there is nothing here to save.
   const hasLocalCopy =
     (room.snapshot?.take_index ?? -1) >= 0 && room.localRecording;
-  const cover = guestCovers({
+  const keeperActions = hasLocalCopy
+    ? room.keeperActions
+    : { ...room.keeperActions, download: undefined, recover: undefined };
+  return guestCovers({
     bootError: room.bootError,
     error: room.error,
     accessEnded: room.accessEnded,
     inviteClosed: room.inviteClosed,
-    left: room.left ? leftWith(options.phase, options.recorded) : null,
-    captureSettled: room.captureSettled,
-    keeperActions: hasLocalCopy
-      ? room.keeperActions
-      : { ...room.keeperActions, download: undefined, recover: undefined },
+    left: room.left,
+    stake: guestStake(options.phase, {
+      producer: room.producer,
+      captureSettled: room.captureSettled,
+      keeperActions,
+    }),
+    keeperActions,
     host: guestHostName(room.snapshot),
     onRetry: options.onRetry,
   });
-  if (!cover) {
-    return null;
-  }
-  return cover;
 }

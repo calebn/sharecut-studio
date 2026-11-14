@@ -22,6 +22,7 @@ function room(over: Partial<Parameters<typeof guestCoverProps>[0]> = {}) {
     left: false,
     captureSettled: true,
     localRecording: true,
+    producer: false,
     keeperActions: { busy: false, error: null, notice: null },
     snapshot: recordSnapshot({ participants: [host] }),
     ...over,
@@ -32,13 +33,12 @@ const waiting = { kind: "waiting" } as const;
 
 function show(
   over: Partial<Parameters<typeof guestCoverProps>[0]> = {},
-  options: { phase?: RoomPhase; recorded?: boolean } = {},
+  options: { phase?: RoomPhase } = {},
 ) {
   const onRetry = vi.fn();
   const cover = guestCoverProps(room(over), {
     onRetry,
     phase: options.phase ?? waiting,
-    recorded: options.recorded ?? true,
   });
   if (!cover) {
     throw new Error("no cover");
@@ -54,7 +54,6 @@ describe("GuestCovers", () => {
       guestCoverProps(room(), {
         onRetry: vi.fn(),
         phase: waiting,
-        recorded: true,
       }),
     ).toBeNull();
   });
@@ -97,8 +96,8 @@ describe("GuestCovers", () => {
     ).toBeInTheDocument();
   });
 
-  it("says nothing of a recording to a viewer who was not recorded", () => {
-    show({ left: true }, { phase: { kind: "saved" }, recorded: false });
+  it("says nothing of a recording to a producer", () => {
+    show({ left: true, producer: true }, { phase: { kind: "saved" } });
     expect(screen.getByText("You can close this page.")).toBeInTheDocument();
   });
 
@@ -123,6 +122,38 @@ describe("GuestCovers", () => {
       screen.getByRole("button", { name: "Save my recording" }),
     );
     expect(download).toHaveBeenCalledOnce();
+  });
+
+  it("keeps the unsent copy reachable whatever consent says after Stop", async () => {
+    const download = vi.fn();
+    show(
+      {
+        left: true,
+        snapshot: recordSnapshot({ participants: [host], take_index: 0 }),
+        keeperActions: { busy: false, error: null, notice: null, download },
+      },
+      {
+        phase: { kind: "saving", savedPeople: 0, totalPeople: 1, failed: true },
+      },
+    );
+    await userEvent.click(
+      screen.getByRole("button", { name: "Save my recording" }),
+    );
+    expect(download).toHaveBeenCalledOnce();
+  });
+
+  it("does not say the page can close while capture is still finishing", () => {
+    show(
+      { left: true, captureSettled: false },
+      {
+        phase: { kind: "saving", savedPeople: 0, totalPeople: 1, failed: true },
+      },
+    );
+    expect(
+      screen.getByText("Finishing your full-quality recording…"),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/close this page/)).toBeNull();
+    expect(screen.queryByRole("button", { name: "Join again" })).toBeNull();
   });
 
   it("covers a closed invite with the host's name", () => {

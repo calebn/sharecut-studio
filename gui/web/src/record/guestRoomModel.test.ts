@@ -45,8 +45,8 @@ const coverSource = {
   error: null,
   accessEnded: false,
   inviteClosed: false,
-  left: null,
-  captureSettled: true,
+  left: false,
+  stake: "none" as const,
   keeperActions: actions,
 };
 
@@ -533,6 +533,7 @@ describe("guestCovers", () => {
     };
     const cover = guestCovers({
       ...closed,
+      stake: "unsent",
       keeperActions: { ...actions, busy: true, download, recover },
     });
     expect(cover).toMatchObject({
@@ -549,7 +550,7 @@ describe("guestCovers", () => {
     expect(
       guestCovers({
         ...closed,
-        captureSettled: false,
+        stake: "finishing",
         keeperActions: { ...actions, download, recover },
       }),
     ).toMatchObject({
@@ -558,7 +559,11 @@ describe("guestCovers", () => {
       secondary: undefined,
     });
     expect(
-      guestCovers({ ...closed, keeperActions: { ...actions, recover } }),
+      guestCovers({
+        ...closed,
+        stake: "unsent",
+        keeperActions: { ...actions, recover },
+      }),
     ).toMatchObject({
       primary: undefined,
       secondary: { label: "Try saving again" },
@@ -572,11 +577,12 @@ describe("guestCovers", () => {
       title: "This session has ended",
     });
     expect(
-      guestCovers({ ...coverSource, accessEnded: true, captureSettled: false }),
+      guestCovers({ ...coverSource, accessEnded: true, stake: "finishing" }),
     ).toMatchObject({ children: "Finishing your full-quality recording…" });
     const cover = guestCovers({
       ...coverSource,
       accessEnded: true,
+      stake: "unsent",
       host: "Hana",
       keeperActions: { ...actions, download, recover },
     });
@@ -596,7 +602,7 @@ describe("guestCovers after leaving", () => {
     const onRetry = vi.fn();
     const cover = guestCovers({
       ...coverSource,
-      left: "nothing",
+      left: true,
       host: "Hana",
       onRetry,
     });
@@ -611,13 +617,20 @@ describe("guestCovers after leaving", () => {
 
   it("a guest who left after a saved take is told it is saved", () => {
     expect(
-      guestCovers({ ...coverSource, left: "saved", host: "Hana" }),
+      guestCovers({
+        ...coverSource,
+        left: true,
+        stake: "saved",
+        host: "Hana",
+      }),
     ).toMatchObject({
       title: "You left the room",
       children:
         "Your recording is saved to Hana's project. You can close this page.",
     });
-    expect(guestCovers({ ...coverSource, left: "saved" })?.children).toBe(
+    expect(
+      guestCovers({ ...coverSource, left: true, stake: "saved" })?.children,
+    ).toBe(
       "Your recording is saved to the host's project. You can close this page.",
     );
   });
@@ -627,7 +640,8 @@ describe("guestCovers after leaving", () => {
     const recover = vi.fn();
     const cover = guestCovers({
       ...coverSource,
-      left: "unsaved",
+      left: true,
+      stake: "unsent",
       host: "Hana",
       keeperActions: { ...actions, download, recover },
     });
@@ -638,18 +652,26 @@ describe("guestCovers after leaving", () => {
     });
   });
 
-  it("leaves unsaved without a local copy as a plain left room", () => {
-    expect(
-      guestCovers({ ...coverSource, left: "unsaved", host: "Hana" }),
-    ).toMatchObject({ title: "You left the room" });
+  it("a guest who left while capture finishes is told so, with no Join again", () => {
+    const cover = guestCovers({
+      ...coverSource,
+      left: true,
+      stake: "finishing",
+      onRetry: vi.fn(),
+    });
+    expect(cover).toMatchObject({
+      title: "You left the room",
+      children: "Finishing your full-quality recording…",
+      primary: undefined,
+    });
   });
 
   it("lets a boot error or ended access outrank having left", () => {
     expect(
-      guestCovers({ ...coverSource, left: "nothing", bootError: "404" }),
+      guestCovers({ ...coverSource, left: true, bootError: "404" }),
     ).toMatchObject({ title: "This link doesn't open a room" });
     expect(
-      guestCovers({ ...coverSource, left: "nothing", accessEnded: true }),
+      guestCovers({ ...coverSource, left: true, accessEnded: true }),
     ).toMatchObject({ title: "This session has ended" });
   });
 });
