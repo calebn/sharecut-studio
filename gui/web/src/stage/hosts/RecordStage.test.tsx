@@ -1935,6 +1935,7 @@ describe("Record stage End session", () => {
     const end = within(dialog).getByRole("button", { name: "End session" });
     expect(end).toHaveAccessibleDescription("Stop the take first.");
     await userEvent.click(end);
+    expect(dialog).toBeInTheDocument();
     expect(screen.queryByText(END_SESSION_PENDING_COPY)).toBeNull();
     expect(revokeHostRoom).not.toHaveBeenCalled();
   });
@@ -1948,6 +1949,7 @@ describe("Record stage End session", () => {
       "Wait for every take to reach the timeline before ending the session.",
     );
     await userEvent.click(end);
+    expect(dialog).toBeInTheDocument();
     expect(screen.queryByText(END_SESSION_PENDING_COPY)).toBeNull();
     expect(revokeHostRoom).not.toHaveBeenCalled();
   });
