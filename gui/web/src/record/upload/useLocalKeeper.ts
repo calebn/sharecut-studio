@@ -12,7 +12,7 @@ const UNKNOWN: LocalKeeper = { found: false, segments: null };
  * the sink (so it survives a reload). False while the check is pending or
  * fails, and for a different session or participant than the last answer.
  * `segments` counts the segment slots the device holds, for comparing with
- * what the last upload pass saw, and is null while that count is unknown. `recheck` changes when the answer may have
+ * what the last upload pass saw. `recheck` changes when the answer may have
  * changed (a run finished).
  */
 export function useLocalKeeper(args: {

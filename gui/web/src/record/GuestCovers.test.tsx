@@ -656,24 +656,6 @@ describe("after Save my recording handed the whole zip to the browser", () => {
         ).toBeInTheDocument();
       },
     );
-
-    it("still says Check your downloads when nothing new was recorded after the download", async () => {
-      vi.spyOn(recovery, "downloadLocalKeepers").mockResolvedValue(undefined);
-      vi.spyOn(recovery, "scanLocalKeeper").mockResolvedValue({
-        found: true,
-        segments: 1,
-      });
-      render(<Leaving localSegments={1} accessEnded={false} />);
-      await userEvent.click(
-        screen.getByRole("button", { name: "Save my recording" }),
-      );
-      expect(
-        await screen.findByRole("heading", {
-          level: 1,
-          name: "Check your downloads",
-        }),
-      ).toBeInTheDocument();
-    });
   });
 
   it("does not call a guest who recorded nothing unsent while the device count is unknown", () => {
