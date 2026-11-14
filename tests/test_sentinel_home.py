@@ -15,9 +15,10 @@ def test_the_session_home_is_not_the_developers_home(_sentinel_home: Path) -> No
 
 
 def test_the_identity_store_opens_inside_the_test_folder(tmp_path: Path) -> None:
-    assert default_identity_db_path() == tmp_path / "share_identity.sqlite"
-    store = get_identity_store()
-    assert store.path == tmp_path / "share_identity.sqlite"
+    chosen = Path(os.environ["PODCAST_SHARE_IDENTITY"])
+    assert default_identity_db_path() == chosen
+    assert get_identity_store().path == chosen
+    assert chosen.parent == tmp_path or chosen.parent != Path.home()
 
 
 def test_a_stray_file_in_the_session_home_is_reported_and_an_empty_folder_is_not(
@@ -38,10 +39,14 @@ def test_third_party_telemetry_is_not_reported(tmp_path: Path) -> None:
 
 
 def test_toolchain_caches_keep_their_real_place(tmp_path: Path) -> None:
+    for relative in TOOLCHAIN_CACHES.values():
+        (tmp_path / relative).mkdir(parents=True)
     env = passthrough_env(tmp_path, {"CARGO_HOME": "/elsewhere"})
     assert "CARGO_HOME" not in env
     assert env["UV_CACHE_DIR"] == str(tmp_path / ".cache" / "uv")
     assert set(env) == set(TOOLCHAIN_CACHES) - {"CARGO_HOME"}
+    assert "PIP_CACHE_DIR" not in passthrough_env(tmp_path, {"pip_cache_dir": "/elsewhere"})
+    assert passthrough_env(tmp_path / "empty", {}) == {}
 
 
 def test_the_model_cache_keeps_its_real_place_only_where_it_exists(tmp_path: Path) -> None:

@@ -172,7 +172,12 @@ def _serial_transcription(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr("podcast_mcp.engines.transcribe.transcribe_worker_count", lambda *_: 1)
 
 
-_JOB_IDENTITY = "PODCAST_SHARE_IDENTITY" in os.environ
+def _job_chose_identity() -> bool:
+    chosen = os.environ.get("PODCAST_SHARE_IDENTITY")
+    return bool(chosen) and not Path(chosen).expanduser().is_relative_to(Path.home())
+
+
+_JOB_IDENTITY = _job_chose_identity()
 
 
 def _default_env(patch_env: pytest.MonkeyPatch, name: str, value: str) -> None:
