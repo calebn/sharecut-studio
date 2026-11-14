@@ -37,7 +37,12 @@ const upload = (over: Partial<RecordUploadProgress> = {}) =>
     ...over,
   }) as RecordUploadProgress;
 
-const actions = { busy: false, error: null, notice: null };
+const actions = {
+  busy: false,
+  error: null,
+  notice: null,
+  downloaded: false,
+};
 
 const coverSource = {
   bootError: null,
@@ -531,6 +536,47 @@ describe("guestCovers", () => {
     expect(guestCovers({ ...coverSource, error: "room_full" })).toMatchObject({
       children: "Ask the host to make space or send you a new link.",
       primary: undefined,
+    });
+  });
+
+  describe("after Save my recording handed the whole zip to the browser", () => {
+    const downloaded = {
+      busy: false,
+      error: null,
+      notice: null,
+      download: vi.fn(),
+      downloaded: true,
+    };
+
+    it.each([
+      ["the ended cover", { accessEnded: true }],
+      ["the invite-closed cover", { accessEnded: true, inviteClosed: true }],
+    ])("says Check your downloads with Save it again on %s", (_name, over) => {
+      const cover = guestCovers({
+        ...coverSource,
+        ...over,
+        keeperActions: downloaded,
+        host: "Hana",
+      });
+      expect(cover).toMatchObject({
+        glyph: "download",
+        title: "Check your downloads",
+        children: "Find the zip file of your recording and send it to Hana.",
+        secondary: { label: "Save it again" },
+      });
+      expect(cover?.primary).toBeUndefined();
+      cover?.secondary?.onClick();
+      expect(downloaded.download).toHaveBeenCalledOnce();
+    });
+
+    it("shows no cover for a room still running", () => {
+      expect(
+        guestCovers({
+          ...coverSource,
+          accessEnded: false,
+          keeperActions: downloaded,
+        }),
+      ).toBeNull();
     });
   });
 

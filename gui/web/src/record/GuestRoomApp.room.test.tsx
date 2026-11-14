@@ -123,6 +123,7 @@ function fakeRoom(over: Overrides = {}) {
     takeClippings: over.takeClippings ?? {},
     keeperActions: {
       busy: false,
+      downloaded: false,
       error: null,
       notice: null,
       recover: vi.fn(),

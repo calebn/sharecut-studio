@@ -33,6 +33,7 @@ const meta: Meta<typeof UploadStatus> = {
     onResume: fn(),
     actions: {
       busy: false,
+      downloaded: false,
       error: null,
       notice: null,
       download: fn(),
@@ -91,6 +92,7 @@ export const RecoveryBusy: Story = {
     }),
     actions: {
       busy: true,
+      downloaded: false,
       error: null,
       notice: null,
       download: fn(),
@@ -114,6 +116,7 @@ export const RecoveryFailed: Story = {
     }),
     actions: {
       busy: false,
+      downloaded: false,
       error: "An incomplete PCM frame could not be recovered.",
       notice: null,
       download: fn(),

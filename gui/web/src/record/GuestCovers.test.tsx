@@ -23,7 +23,12 @@ function room(over: Partial<Parameters<typeof guestCoverProps>[0]> = {}) {
     captureSettled: true,
     localRecording: true,
     producer: false,
-    keeperActions: { busy: false, error: null, notice: null },
+    keeperActions: {
+      busy: false,
+      error: null,
+      notice: null,
+      downloaded: false,
+    },
     snapshot: recordSnapshot({ participants: [host] }),
     ...over,
   };
@@ -214,6 +219,7 @@ describe("GuestCovers", () => {
         accessEnded: true,
         keeperActions: {
           busy: false,
+          downloaded: false,
           error: null,
           notice: null,
           download,
@@ -245,6 +251,7 @@ describe("GuestCovers", () => {
         inviteClosed: true,
         keeperActions: {
           busy: false,
+          downloaded: false,
           error: null,
           notice: "Recovered 1 partial segment.",
           download,
@@ -275,6 +282,7 @@ describe("GuestCovers", () => {
         accessEnded: true,
         keeperActions: {
           busy: true,
+          downloaded: false,
           error: "locked by another tab",
           notice: "ignored",
           download: vi.fn(),
@@ -294,6 +302,7 @@ describe("GuestCovers", () => {
         accessEnded: true,
         keeperActions: {
           busy: false,
+          downloaded: false,
           error: null,
           notice: "Recovered 1 partial segment.",
           recover: vi.fn(),
@@ -319,6 +328,7 @@ describe("GuestCovers", () => {
       inviteClosed: true,
       keeperActions: {
         busy: false,
+        downloaded: false,
         error: null,
         notice: null,
         download: vi.fn(),
@@ -332,6 +342,7 @@ describe("GuestCovers", () => {
   it("offers no recording actions once nothing is left on this device", () => {
     const actions = {
       busy: false,
+      downloaded: false,
       error: null,
       notice: null,
       download: vi.fn(),
@@ -358,6 +369,7 @@ describe("GuestCovers", () => {
       accessEnded: true,
       keeperActions: {
         busy: false,
+        downloaded: false,
         error: null,
         notice: null,
         download: vi.fn(),

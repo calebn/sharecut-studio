@@ -187,4 +187,32 @@ describe("useKeeperRecoveryActions", () => {
       "Recovered 1 partial segment. Download your full-quality recording to keep a copy.",
     );
   });
+
+  it("a finished download sets downloaded, and the next run clears it", async () => {
+    const sink = new MemorySink();
+    await seedPendingKeeper(sink, ids);
+    vi.spyOn(recovery, "downloadLocalKeepers").mockResolvedValue(undefined);
+    const { result } = renderActions(sink);
+    expect(result.current.downloaded).toBe(false);
+    act(() => result.current.download?.());
+    await waitFor(() => expect(result.current.downloaded).toBe(true));
+    await waitFor(() => expect(result.current.busy).toBe(false));
+    act(() => result.current.recover?.());
+    expect(result.current.downloaded).toBe(false);
+    await waitFor(() => expect(result.current.busy).toBe(false));
+  });
+
+  it("a partial download leaves downloaded false and reports what was lost", async () => {
+    const sink = new MemorySink();
+    await seedPendingKeeper(sink, ids);
+    const loss =
+      "Downloaded 2 full-quality recordings; 1 missing segment could not be exported.";
+    vi.spyOn(recovery, "downloadLocalKeepers").mockRejectedValue(
+      new Error(loss),
+    );
+    const { result } = renderActions(sink);
+    act(() => result.current.download?.());
+    await waitFor(() => expect(result.current.error).toBe(loss));
+    expect(result.current.downloaded).toBe(false);
+  });
 });
