@@ -65,7 +65,7 @@ from scripts.ios.private_paths import (
     cargo_home,
     private_needles,
     remap_flags,
-    scan_private_paths,
+    scan_tree,
     with_rustflags,
 )
 
@@ -891,13 +891,13 @@ def build(contract: Contract, sdk: str, plan: Plan, digest: str, rustc: str) -> 
 
 def check_private_paths(output: Path) -> int:
     """Fail when anything in *output* names the builder's home or cache; returns the files scanned."""
-    scanned, offenders = scan_private_paths(output, private_needles(Path.home(), cache_dir()))
-    if offenders:
+    report = scan_tree(output, private_needles(Path.home(), cache_dir()))
+    if not report.clean:
         raise PayloadError(
             "payload names the build machine's home or cache directory in:\n  "
-            + "\n  ".join(offenders)
+            + "\n  ".join(report.offenders)
         )
-    return scanned
+    return report.files_scanned
 
 
 def sha_matches(copy: Path, original: Path) -> bool:
