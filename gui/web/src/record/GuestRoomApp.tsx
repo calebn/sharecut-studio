@@ -509,7 +509,6 @@ function GuestRoomSession({
       {sheetOpen ? (
         <JoinSheet
           seat={producer ? "producer" : "guest"}
-          viewerWidth={viewerWidth === "desktop" ? "desktop" : "phone"}
           here={joinHere(snapshot, me)}
           host={host}
           name={name}
@@ -524,7 +523,6 @@ function GuestRoomSession({
           onMicAction={micAction}
           onInputChange={setDeviceId}
           joining={joining && consented !== true}
-          rejoin={rejoinOpen}
           onJoin={join}
           onDecline={decline}
         />
