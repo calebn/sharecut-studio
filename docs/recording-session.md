@@ -1219,6 +1219,11 @@ its local copy waits to be reclaimed, a recording the keeper store can still sav
 recover shows the didn't-finish-saving Cover with **Save my recording** and **Try saving
 again**, and anything else says "You can close this page."
 
+**Join again** rejoins through the cached lease. From the saved Cover it returns to the
+room as the same person, with the saved take and **Done**. From the nothing-at-stake
+Cover it returns to the Join sheet, because the server cleared consent on the rejoin and
+nothing on this device keeps the room open.
+
 The upload route enforces consent per take, not just per participant. Each
 take stores `consented_participant_ids`, captured from the currently-consented
 roster at host Start and updated live by a mid-take Join and record (adds the
