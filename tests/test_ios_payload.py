@@ -475,3 +475,27 @@ def test_dropping_sboms_removes_the_files_and_their_record_lines(tmp_path: Path)
     assert (dist / "RECORD").read_text() == (
         "pkg-1.0.dist-info/METADATA,sha256=a,9\npkg-1.0.dist-info/RECORD,,\n"
     )
+
+
+def test_a_cached_artifact_is_trusted_only_while_its_recorded_digest_matches(
+    tmp_path: Path,
+) -> None:
+    artifact = tmp_path / "wheel.whl"
+    artifact.write_bytes(b"built once")
+    record = tmp_path / "wheel.sha256"
+    assert not payload.intact(record, lambda: payload.sha256_file(artifact))
+    record.write_text(payload.sha256_file(artifact) + "\n")
+    assert payload.intact(record, lambda: payload.sha256_file(artifact))
+    artifact.write_bytes(b"built once, then changed")
+    assert not payload.intact(record, lambda: payload.sha256_file(artifact))
+
+
+def test_a_cached_tree_is_trusted_only_while_its_recorded_digest_matches(tmp_path: Path) -> None:
+    tree = tmp_path / "Python.xcframework"
+    (tree / "lib").mkdir(parents=True)
+    (tree / "lib/os.py").write_text("x = 1\n")
+    record = tmp_path / "Python.xcframework.sha256"
+    record.write_text(payload.tree_digest(tree) + "\n")
+    assert payload.intact(record, lambda: payload.tree_digest(tree))
+    (tree / "lib/extra.py").write_text("y = 2\n")
+    assert not payload.intact(record, lambda: payload.tree_digest(tree))

@@ -48,7 +48,7 @@ import tempfile
 import tomllib
 import urllib.request
 import zipfile
-from collections.abc import Iterable, Mapping, Sequence
+from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -504,6 +504,14 @@ def tree_digest(root: Path) -> str:
     return outer.hexdigest()
 
 
+def intact(record: Path, digest: Callable[[], str]) -> bool:
+    """Whether the digest recorded next to a cached artifact still matches the artifact."""
+    try:
+        return record.read_text(encoding="utf-8").strip() == digest()
+    except OSError:
+        return False
+
+
 def macho_platform(data: bytes) -> int | None:
     """The Mach-O platform number (2 iOS, 7 iOS Simulator) of a thin 64-bit binary, else None."""
     if len(data) < 32 or struct.unpack_from("<I", data, 0)[0] != MH_MAGIC_64:
@@ -648,8 +656,11 @@ def ensure_support(contract: Contract, cache: Path) -> Path:
     """The verified Python-Apple-support release, unpacked; returns its Python.xcframework."""
     release = cache / "python" / contract.support_release
     framework = release / "Python.xcframework"
+    record = release / "Python.xcframework.sha256"
     if framework.is_dir():
-        return framework
+        if intact(record, lambda: tree_digest(framework)):
+            return framework
+        shutil.rmtree(framework)
     archive = fetch(contract.support.url, contract.support.sha256, release.with_suffix(".tar.gz"))
     staging = Path(tempfile.mkdtemp(dir=cache))
     try:
@@ -657,6 +668,7 @@ def ensure_support(contract: Contract, cache: Path) -> Path:
             tar.extractall(staging, filter="data")
         release.mkdir(parents=True, exist_ok=True)
         (staging / "Python.xcframework").rename(framework)
+        record.write_text(tree_digest(framework) + "\n", encoding="utf-8")
     finally:
         shutil.rmtree(staging, ignore_errors=True)
     return framework
@@ -715,8 +727,12 @@ def cross_build(
         f"-{sha256_bytes(rustc.encode())[:12]}-remap{remap_id}"
     )
     out = cache / "cross" / key
-    if list(out.glob("*.whl")):
-        return next(out.glob("*.whl"))
+    record = out / "wheel.sha256"
+    cached = sorted(out.glob("*.whl"))
+    if cached:
+        if intact(record, lambda: sha256_file(cached[0])):
+            return cached[0]
+        shutil.rmtree(out)
     sdist = fetch(pkg.file.url, pkg.file.sha256, cache / "sdist" / pkg.file.filename)
     source_root = Path(tempfile.mkdtemp(dir=cache))
     try:
@@ -752,7 +768,9 @@ def cross_build(
         )
     finally:
         shutil.rmtree(source_root, ignore_errors=True)
-    return next(out.glob("*.whl"))
+    wheel = next(out.glob("*.whl"))
+    record.write_text(sha256_file(wheel) + "\n", encoding="utf-8")
+    return wheel
 
 
 def extract_wheel(wheel: Path, site: Path) -> None:
