@@ -11,6 +11,10 @@ import {
   modelsWrapper,
   registryRows,
 } from "../test/renderWithModels";
+import {
+  UNSUPPORTED_SENTENCE,
+  UNSUPPORTED_STATUS,
+} from "../test/unsupportedStatus";
 import { stubViewportShell } from "../test/viewportShell";
 import { ModelsProvider } from "./ModelsProvider";
 import { ModelsSheet } from "./ModelsSheet";
@@ -49,42 +53,17 @@ const names = () =>
   [...document.querySelectorAll(".sys-need-name")].map((el) => el.textContent);
 
 describe("ModelsSheet on a device without audio tools", () => {
-  const unsupportedRows = () =>
-    registryRows().map((r) =>
-      modelRow({
-        ...r,
-        state: "unsupported",
-        hint: "ShareCut can't transcribe audio on this device yet.",
-      }),
-    );
-
-  it("says the tools are not there yet and offers no Get, size or retry", async () => {
+  it("says the tools are not there yet and offers no Get, size or retry on any row", async () => {
     stubViewportShell("desktop");
     const { baseElement } = render(<ModelsSheet open onClose={vi.fn()} />, {
-      wrapper: modelsWrapper(
-        modelsApi({
-          status: modelStatus(unsupportedRows(), {
-            tools: {
-              ffmpeg: {
-                state: "unsupported",
-                source: "not found",
-                hint: "ShareCut can't process audio on this device yet.",
-              },
-            },
-          }),
-        }),
-      ),
+      wrapper: modelsWrapper(modelsApi({ status: UNSUPPORTED_STATUS })),
     });
-    expect(
-      await screen.findByText(
-        "ShareCut can't process audio on this device yet.",
-      ),
-    ).toBeVisible();
+    expect(await screen.findByText(UNSUPPORTED_SENTENCE)).toBeVisible();
     expect(
       [...document.querySelectorAll(".sys-need-meta")].map(
         (meta) => meta.textContent,
       ),
-    ).toEqual(Array(4).fill("Not available"));
+    ).toEqual(Array(UNSUPPORTED_STATUS.models.length).fill("Not available"));
     expect(
       screen.getByText("Not available", { selector: ".sr-only" }),
     ).toBeTruthy();

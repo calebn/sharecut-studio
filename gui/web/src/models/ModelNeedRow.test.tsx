@@ -11,6 +11,7 @@ import {
   modelsWrapper,
   registryRows,
 } from "../test/renderWithModels";
+import { UNSUPPORTED_SENTENCE } from "../test/unsupportedStatus";
 import { ModelNeedRow, ModelNeedRowView } from "./ModelNeedRow";
 import type { DownloadOutcome, ModelState } from "./types";
 
@@ -177,14 +178,12 @@ describe("ModelNeedRowView, need placement", () => {
 describe("ModelNeedRowView, a model this device cannot run", () => {
   const unsupported: ModelState = {
     kind: "unsupported",
-    hint: "ShareCut can't transcribe audio on this device yet.",
+    hint: UNSUPPORTED_SENTENCE,
   };
 
   it("says so in a need row with no Get, Cancel or spinner", async () => {
     const { container } = view({ state: unsupported });
-    expect(
-      screen.getByText("ShareCut can't transcribe audio on this device yet."),
-    ).toBeTruthy();
+    expect(screen.getByText(UNSUPPORTED_SENTENCE)).toBeTruthy();
     expect(screen.queryByRole("button")).toBeNull();
     expect(screen.queryByRole("progressbar")).toBeNull();
     await expectNoA11yViolations(container);

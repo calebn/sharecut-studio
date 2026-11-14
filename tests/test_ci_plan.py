@@ -46,6 +46,7 @@ GUI_PATTERNS = [
     "tests/fixtures/render_clock/**",
     "tests/fixtures/timing_map/**",
     "tests/fixtures/edit_head/**",
+    "tests/fixtures/bootstrap_status/**",
     "scripts/ci_plan.py",
     "scripts/docs_sync.py",
     "scripts/path_vocab.py",
