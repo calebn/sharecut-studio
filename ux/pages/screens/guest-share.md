@@ -16,7 +16,21 @@ flowchart LR
 | Viewer, Commenter (default) or Editor | **ShareCut Studio guest** | Stages gated by role (a Commenter or Viewer link is Review alone, an Editor link has Edit, Review and Deliver). Role chip in the header. |
 | Any capability set without `view` (API only, no role mints one) | **Cover** | "This link doesn't open anything" with "Ask the person who sent it for a new link." beneath it. |
 
-A dead, revoked or no-`view` link, and a host that cannot be reached with no saved copy, each show a full-page cover instead of the studio: the link covers say "This link doesn't open anything" and "Ask the person who sent it for a new link."; "The host's computer is asleep" (a moon) (a down host, or a 502, 503 or 504 from the relay) says "This page tries again every 30 seconds." and offers **Try now**; any other load failure, such as a 429 or 500, shows "This link did not load" with **Retry**. The cover takes focus when it appears. When the host cannot be reached but this browser holds a saved copy, the studio opens read-only and the Save dot shows a hollow cloud and "Saved copy · N waiting" (the comments waiting to send, left out when none; the phone shows the cloud and the count); its tooltip and screen-reader text say "Showing a saved copy because the host can't be reached. It is read-only."
+A review link that cannot load shows a full-page cover instead of the studio, and each cover says one plain sentence chosen from the kind of failure; the page never prints the server's response text.
+
+| Why it did not load | Title | Sentence | Button | Tries again by itself |
+|---|---|---|---|---|
+| Dead, revoked or no-`view` link | This link doesn't open anything | Ask the person who sent it for a new link. | none | no |
+| The host cannot be reached (no connection, or a 502, 503 or 504 from the relay) | The host's computer is asleep (a moon) | This page tries again every 30 seconds. | **Try now** | every 30 seconds |
+| The host is up but busy | This link did not load | The host's computer is busy; this page tries again every 30 seconds. | **Retry** | every 30 seconds |
+| Too many requests (429) | This link did not load | This link is busy right now; this page tries again in a moment. | **Retry** | after the server's wait, 5 to 120 seconds, else 30 |
+| Sign-in or access refused (401, 403) | This link did not load | This link is only for certain people; ask the person who sent it to check it was made for you. | **Retry** | no |
+| The link's project is not available (a 404 that is not a dead link) | This link did not load | This link isn't available right now; ask the person who sent it to check it. | **Retry** | no |
+| A network answered with a page that is not the episode (a sign-in page on public Wi-Fi) | This link did not load | This network did not pass the page through; on public Wi-Fi, sign in to the Wi-Fi first, then try again. | **Retry** | no |
+| Any other failure, such as a 500 | This link did not load | Try again, and if it keeps happening, tell the person who sent it. | **Retry** | no |
+| The host does not serve review links at this address | This link did not load | This address cannot open review links; ask the person who sent it to check the link. | none | no |
+
+Pressing **Try now** or **Retry** answers on the same button: it reads "Trying…" for the length of the attempt and at least 0.6 seconds, keeps its place and its focus, and a status line under the sentence says "Trying again…", then "Still asleep." (the asleep cover) or "Still not loading." (every other cover) if the attempt fails. The page's own retries change nothing on screen. The cover's title is the page's heading and takes focus when the cover appears, so a screen reader reads the title and the sentence; no frame is drawn around the window. When the host cannot be reached but this browser holds a saved copy, the studio opens read-only and the Save dot shows a hollow cloud and "Saved copy · N waiting" (the comments waiting to send, left out when none; the phone shows the cloud and the count); its tooltip and screen-reader text say "Showing a saved copy because the host can't be reached. It is read-only."
 
 Step flows: [Guest journeys](#/journeys).
 

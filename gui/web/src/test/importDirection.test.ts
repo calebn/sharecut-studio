@@ -39,11 +39,12 @@ const LAYER_TABLE: readonly {
     entries: [
       "utils",
       "capabilities",
+      "guestLoadFailure",
       "shareMode",
       "shareRoute",
       "sessionAuth",
     ],
-    why: "Pure helpers. `capabilities` is copy strings. `shareMode`, `shareRoute` and `sessionAuth` read the URL and token with no React or store.",
+    why: "Pure helpers. `capabilities` is copy strings. `shareMode`, `shareRoute` and `sessionAuth` read the URL and token with no React or store. `guestLoadFailure` maps a failed request to cover copy.",
   },
   {
     layer: "state",
