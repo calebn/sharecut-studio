@@ -41,7 +41,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_EVIDENCE = ROOT / "gui" / "desktop" / "src-tauri" / "target" / "ios-sim-proof"
 PREFERENCES = "com.apple.Preferences"
-FAILURE_SENTENCE = "ShareCut couldn't start on this device. Try again."
+FAILURE_SENTENCE = "ShareCut couldn't start on this device."
 
 
 def parse_launch_pid(output: str) -> int:

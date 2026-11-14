@@ -2,10 +2,16 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, viewport-fit=cover"
+    />
     <title>ShareCut Studio</title>
     <link rel="stylesheet" href="./brand-tokens.css" />
     <style>
+      html {
+        background: var(--color-bg-canvas);
+      }
       body {
         font-family: var(--font-family-sans);
         background: var(--color-bg-canvas);
@@ -13,9 +19,13 @@
         display: grid;
         place-items: center;
         min-height: 100vh;
+        min-height: 100dvh;
         margin: 0;
         box-sizing: border-box;
-        padding: var(--s1);
+        padding: max(var(--s1), env(safe-area-inset-top))
+          max(var(--s1), env(safe-area-inset-right))
+          max(var(--s1), env(safe-area-inset-bottom))
+          max(var(--s1), env(safe-area-inset-left));
       }
       main {
         display: grid;

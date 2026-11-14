@@ -72,8 +72,8 @@ impl FailReason {
     /// The one sentence the splash shows.
     pub fn sentence(&self) -> &'static str {
         match self {
-            Self::StartTimedOut => "ShareCut is taking too long to start. Try again.",
-            Self::StartError(_) => "ShareCut couldn't start on this device. Try again.",
+            Self::StartTimedOut => "ShareCut took too long to start.",
+            Self::StartError(_) => "ShareCut couldn't start on this device.",
             Self::StoppedAnswering => "ShareCut stopped responding. Reopen the app.",
         }
     }
@@ -331,7 +331,7 @@ mod tests {
         assert_eq!(state, failed_with(start_error()));
         assert_eq!(
             effects,
-            vec![show("ShareCut couldn't start on this device. Try again.")]
+            vec![show("ShareCut couldn't start on this device.")]
         );
     }
 
@@ -353,10 +353,7 @@ mod tests {
         let now = t0();
         let (state, effects) = step(&starting(now), &Event::Tick, now + START_DEADLINE);
         assert_eq!(state, failed_with(FailReason::StartTimedOut));
-        assert_eq!(
-            effects,
-            vec![show("ShareCut is taking too long to start. Try again.")]
-        );
+        assert_eq!(effects, vec![show("ShareCut took too long to start.")]);
     }
 
     #[test]
@@ -584,8 +581,8 @@ mod tests {
     #[test]
     fn the_failure_page_carries_the_sentence_and_whether_to_offer_retry() {
         assert_eq!(
-            failure_page("ShareCut couldn't start on this device. Try again.", true).as_str(),
-            "tauri://localhost/?failure=ShareCut+couldn%27t+start+on+this+device.+Try+again.&retry=1"
+            failure_page("ShareCut couldn't start on this device.", true).as_str(),
+            "tauri://localhost/?failure=ShareCut+couldn%27t+start+on+this+device.&retry=1"
         );
         assert_eq!(
             failure_page("ShareCut stopped responding. Reopen the app.", false).as_str(),
