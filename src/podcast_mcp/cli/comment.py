@@ -7,11 +7,13 @@ import typer
 
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.document import CommentService
+from podcast_mcp.services.document.comment import with_comment_write_grant
 
 comment_app = typer.Typer(help="Timeline review comments and action items.")
 
 
 @comment_app.command("add")
+@with_comment_write_grant
 def comment_add_cmd(
     project: Path = typer.Option(..., "--project"),
     body: str = typer.Option(..., "--body"),
@@ -75,6 +77,7 @@ def comment_get_cmd(
 
 
 @comment_app.command("update")
+@with_comment_write_grant
 def comment_update_cmd(
     project: Path = typer.Option(..., "--project"),
     comment_id: str = typer.Option(..., "--id"),
@@ -100,6 +103,7 @@ def comment_update_cmd(
 
 
 @comment_app.command("add-action")
+@with_comment_write_grant
 def comment_add_action_cmd(
     project: Path = typer.Option(..., "--project"),
     comment_id: str = typer.Option(..., "--id"),
@@ -115,6 +119,7 @@ def comment_add_action_cmd(
 
 
 @comment_app.command("reply")
+@with_comment_write_grant
 def comment_reply_cmd(
     project: Path = typer.Option(..., "--project"),
     comment_id: str = typer.Option(..., "--id"),
@@ -131,6 +136,7 @@ def comment_reply_cmd(
 
 
 @comment_app.command("resolve")
+@with_comment_write_grant
 def comment_resolve_cmd(
     project: Path = typer.Option(..., "--project"),
     comment_id: str = typer.Option(..., "--id"),
@@ -147,6 +153,7 @@ def comment_resolve_cmd(
 
 
 @comment_app.command("done")
+@with_comment_write_grant
 def comment_done_cmd(
     project: Path = typer.Option(..., "--project"),
     comment_id: str = typer.Option(..., "--id"),
@@ -164,6 +171,7 @@ def comment_done_cmd(
 
 
 @comment_app.command("delete")
+@with_comment_write_grant
 def comment_delete_cmd(
     project: Path = typer.Option(..., "--project"),
     comment_id: str = typer.Option(..., "--id"),

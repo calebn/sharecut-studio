@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 import builtins
+import functools
 from collections.abc import Callable
-from typing import TypeVar
+from typing import Any, TypeVar
 
 from podcast_mcp.edits.comments import (
     add_action_item,
@@ -29,6 +30,16 @@ from podcast_mcp.util.coded_error import CodedKeyError
 from podcast_mcp.util.project_state import FileRevision
 
 T = TypeVar("T")
+F = TypeVar("F", bound=Callable[..., Any])
+
+
+def with_comment_write_grant(fn: F) -> F:
+    @functools.wraps(fn)
+    def wrapper(*args: Any, **kwargs: Any) -> Any:
+        with write_grant(WriteGrantKind.LEGACY_COMMENT):
+            return fn(*args, **kwargs)
+
+    return wrapper  # type: ignore[return-value]
 
 
 def run_comment_mutation_with_file_revisions(
