@@ -107,7 +107,26 @@ type UploadObservation =
       passSegments: readonly SegmentSave[];
     }
   | { kind: "pass-complete"; progress: RecordUploadProgress }
-  | { kind: "pass-failed"; cause: unknown };
+  | { kind: "pass-failed"; cause: unknown; holdsSegment: boolean };
+
+async function holdsKeeperSegment(
+  sink: ByteSink,
+  sessionId: string,
+  participantId: string,
+  takeIndex: number,
+): Promise<boolean> {
+  try {
+    const first = await keeperSegmentPaths(
+      sink,
+      sessionId,
+      participantId,
+      takeIndex,
+    ).next();
+    return !first.done;
+  } catch {
+    return true;
+  }
+}
 
 class UploadPoller {
   private readonly observe: (event: UploadObservation) => void;
@@ -380,7 +399,16 @@ class UploadPoller {
         if (cancelled || abort.signal.aborted) {
           return;
         }
-        this.observe({ kind: "pass-failed", cause: err });
+        this.observe({
+          kind: "pass-failed",
+          cause: err,
+          holdsSegment: await holdsKeeperSegment(
+            sink,
+            sessionId,
+            participantId,
+            takeIndex,
+          ),
+        });
       } finally {
         inFlight = false;
         if (refreshAfterCleanup && !cancelled) {
@@ -436,7 +464,7 @@ export function useRecordUpload(args: UploadArgs): RecordUploadProgress {
               ...prev,
               uploading: false,
               pending: false,
-              error: errorMessage(event.cause),
+              error: event.holdsSegment ? errorMessage(event.cause) : null,
             }));
             break;
         }

@@ -309,6 +309,55 @@ describe("useRecordUpload", () => {
     unmount();
   });
 
+  it("raises no upload error when the status call fails and this device holds nothing", async () => {
+    const transport = memoryUploadTransport();
+    const status = vi.fn(async () => {
+      throw new TypeError("Failed to fetch");
+    });
+    transport.status = status;
+    const sink = new MemorySink();
+    const { result, unmount } = renderHook(() =>
+      useRecordUpload({
+        enabled: true,
+        roomState: "idle",
+        captureSettled: true,
+        sessionId: "room1",
+        takeIndex: 0,
+        participantId: "p_a",
+        transport,
+        sink,
+      }),
+    );
+    await waitFor(() => expect(status).toHaveBeenCalled());
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(result.current.error).toBeNull();
+    unmount();
+  });
+
+  it("raises an upload error when the status call fails and this device holds a segment", async () => {
+    const transport = memoryUploadTransport();
+    transport.status = async () => {
+      throw new TypeError("Failed to fetch");
+    };
+    const sink = sinkForTakes();
+    const { result, unmount } = renderHook(() =>
+      useRecordUpload({
+        enabled: true,
+        roomState: "stopped",
+        captureSettled: true,
+        sessionId: "room1",
+        takeIndex: 0,
+        participantId: "p_a",
+        transport,
+        sink,
+      }),
+    );
+    await waitFor(() => expect(result.current.error).toBe("Failed to fetch"));
+    unmount();
+  });
+
   it("does not confirm landing when no local segment exists", async () => {
     const nextSegmentIndex = vi.fn(async () => 0);
     const transport = memoryUploadTransport();
