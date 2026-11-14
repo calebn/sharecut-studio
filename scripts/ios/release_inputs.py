@@ -132,8 +132,6 @@ def absent(path: Path) -> bool:
 
 def read_private_file(path: Path, checkout: Path) -> tuple[dict[str, str], list[InputProblem]]:
     """``NAME=value`` lines from the private file; never echoes a value."""
-    if absent(path):
-        return {}, []
     source = "private file"
     try:
         info = path.lstat()
@@ -172,12 +170,13 @@ def private_values(
     environ: Mapping[str, str], checkout: Path, home: Path, needs: Sequence[str] = ()
 ) -> tuple[dict[str, str], list[InputProblem]]:
     """The private file's values, overridden by the environment. When the file is absent and a
-    name in *needs* is still unset, the problems begin with where the file was expected."""
+    name in *needs* is still unset, the one problem is where the file was expected."""
     named = environ.get(FILE_VARIABLE)
     location = Path(named or home / ".config" / "sharecut" / "ios-release.env")
-    values, problems = read_private_file(location, checkout)
+    missing = absent(location)
+    values, problems = ({}, []) if missing else read_private_file(location, checkout)
     values.update({name: environ[name] for name in SECRET_NAMES if environ.get(name)})
-    if absent(location) and any(name not in values for name in needs):
+    if missing and any(name not in values for name in needs):
         source, why = (
             ("private file", "does not exist")
             if named
@@ -186,7 +185,7 @@ def private_values(
                 f"does not exist; create it there with mode 0600 or set {FILE_VARIABLE}",
             )
         )
-        problems.insert(0, InputProblem(str(location), source, why))
+        problems.append(InputProblem(str(location), source, why))
     return values, problems
 
 
