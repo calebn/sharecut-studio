@@ -2464,12 +2464,23 @@ def test_a_guest_on_an_old_link_cannot_land_in_the_new_room(
         assert err["code"] == "invite_closed"
     svc = RecordSessionService(ws.project, session_id=new["session_id"])
     assert [p.display_name for p in svc._model().participants] == []
-    assert (
-        svc._participants.invites_of(
-            {p.participant_id for p in svc._model().participants}, session_id=new["session_id"]
-        )
-        == {}
+    with svc._participants._lock:
+        minted = svc._participants._conn.execute(
+            "SELECT COUNT(*) FROM record_participant_leases"
+        ).fetchone()[0]
+    assert minted == 0
+
+    old_svc = RecordSessionService(ws.project, session_id=old["session_id"])
+    raced = RecordCommand.parse(
+        command_type="Join",
+        payload={"display_name": "Racer", "participant_id": "p_race"},
+        client_id="record-join:race:race",
+        role="guest",
+        participant_id="p_race",
+        client_seq=1,
     )
+    with pytest.raises(RecordAuthzError, match="invite_closed"):
+        old_svc.submit(raced, capabilities=["join", "monitor"])
 
 
 def test_a_new_room_forgets_the_old_rooms_participants(
