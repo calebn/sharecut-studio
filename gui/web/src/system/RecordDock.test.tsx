@@ -180,6 +180,10 @@ describe("RecordDock", () => {
       expect(done).toHaveAccessibleDescription(
         "Your recording is still finishing",
       );
+      expect(done).toHaveAttribute(
+        "title",
+        "Your recording is still finishing",
+      );
       act(() => done.click());
       expect(onDone).not.toHaveBeenCalled();
     });

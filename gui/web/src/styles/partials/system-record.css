@@ -128,28 +128,16 @@
 }
 
 .sys-dock-hint {
-  position: absolute;
-  inset-block-end: 100%;
-  inset-inline-end: 0;
-  inline-size: max-content;
-  max-inline-size: 16rem;
+  order: -1;
+  flex: 1 0 100%;
   color: var(--color-text-secondary);
   font-size: var(--font-size-ui);
   line-height: 1rem;
-  z-index: 1;
+  text-align: center;
 }
 
 .sys-dock-hint:not([data-shown]) {
   display: none;
-}
-
-.sys-dock-hint[data-shown] {
-  margin-block-end: var(--space-3);
-  padding: var(--space-3) var(--space-4);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-xl);
-  background: var(--color-bg-elevated);
-  box-shadow: var(--shadow-floating);
 }
 
 .sys-dock-btn {
@@ -981,6 +969,16 @@
   position: fixed;
   inset-block-end: var(--space-4);
   inset-inline-end: 6rem;
+  flex: none;
+  inline-size: max-content;
+  max-inline-size: 16rem;
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-xl);
+  background: var(--color-bg-elevated);
+  box-shadow: var(--shadow-floating);
+  text-align: start;
+  z-index: 1;
 }
 
 .sys-takes-tray {
