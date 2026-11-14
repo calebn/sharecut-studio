@@ -7,7 +7,7 @@ from collections.abc import Callable, Iterable
 from dataclasses import dataclass, field
 from typing import Any, Protocol
 
-from podcast_mcp.engines.asr_options import AsrOptions
+from podcast_mcp.engines.asr_options import AsrOptions, normalize_language
 from podcast_mcp.engines.asr_silence import (
     SpeechLevels,
     evidence_terms,
@@ -41,6 +41,8 @@ class TranscribePlan:
     run: list[TranscribeJob] = field(default_factory=list)
     reused: list[TranscribeJob] = field(default_factory=list)
     adopted: list[TranscriptKey] = field(default_factory=list)
+    language_adopted: dict[TranscriptKey, str] = field(default_factory=dict)
+    language_kept_edited: list[str] = field(default_factory=list)
     overwrite_edited: list[str] = field(default_factory=list)
     retime: list[TranscribeJob] = field(default_factory=list)
     retime_skipped_edited: list[str] = field(default_factory=list)
@@ -96,6 +98,19 @@ def _audio_matches(
     return not seen or sha[:16] in seen
 
 
+def language_changed(recorded: str | None, requested: str | None) -> bool:
+    """Whether ASR ran in a language other than the explicit one now requested.
+
+    Auto (None, "", "auto") never changes a language, and a transcript that recorded none
+    is reused; both fail open.
+    """
+    recorded_code = normalize_language(recorded)
+    requested_code = normalize_language(requested)
+    return (
+        recorded_code is not None and requested_code is not None and recorded_code != requested_code
+    )
+
+
 def _refusal_message(forced: list[str], changed: list[str]) -> str:
     reasons: list[str] = []
     if changed:
@@ -122,11 +137,15 @@ def plan_transcription(
     overwrite: bool,
     unattended: bool,
     allow_edited: bool = False,
+    language: str | None = None,
 ) -> TranscribePlan:
-    """Reuse stored transcripts unless overwrite is requested or the audio changed.
+    """Reuse stored transcripts unless overwrite is requested, the audio changed or the language did.
 
     Replacing a ``user_edited`` transcript is refused when ``unattended`` unless
-    ``allow_edited`` (an explicit confirmation such as Studio Re-transcribe).
+    ``allow_edited`` (an explicit confirmation such as Studio Re-transcribe). An explicit
+    ``language`` that differs from the one a transcript was made in re-runs it, except an
+    edited one, which is kept and listed on ``language_kept_edited`` unless ``allow_edited``.
+    A transcript that recorded no language is reused and adopts an explicit ``language``.
     """
     existing = {t.key: t for t in project.transcripts}
     plan = TranscribePlan(overwrite=overwrite)
@@ -141,10 +160,17 @@ def plan_transcription(
             plan.run.append(job)
             continue
         matches = _audio_matches(project, job, current, sha)
-        if matches and not overwrite:
+        stale_language = matches and language_changed(current.asr_language, language)
+        if stale_language and current.user_edited and not overwrite and not allow_edited:
+            plan.reused.append(job)
+            plan.language_kept_edited.append(job.label)
+            continue
+        if matches and not overwrite and not stale_language:
             plan.reused.append(job)
             if current.audio_sha256 is None:
                 plan.adopted.append(job.key)
+            if current.asr_language is None and (requested := normalize_language(language)):
+                plan.language_adopted[job.key] = requested
             continue
         if current.user_edited:
             if unattended and not allow_edited:
@@ -269,6 +295,8 @@ def stamp_audio_identity(project: EpisodeProject, plan: TranscribePlan) -> None:
             continue
         if t.key in adopted:
             t.audio_sha256 = sha
+        if t.key in plan.language_adopted:
+            t.asr_language = plan.language_adopted[t.key]
         if t.audio_sha256 == sha:
             t.audio_size, t.audio_mtime_ns = plan.audio_stats[t.key]
 

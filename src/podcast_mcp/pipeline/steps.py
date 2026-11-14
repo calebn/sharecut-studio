@@ -155,6 +155,7 @@ def transcribe_tracks(project: EpisodeProject, defaults: dict[str, Any]) -> Step
         overwrite=overwrite,
         unattended=is_unattended(defaults=defaults),
         allow_edited=bool(cfg.get("overwrite_edited", False)),
+        language=options.language,
     )
     engines: list[TranscriptionEngine] = []
 
@@ -246,6 +247,11 @@ def transcribe_tracks(project: EpisodeProject, defaults: dict[str, Any]) -> Step
     )
     if plan.overwrite_edited:
         summary += f", {len(plan.overwrite_edited)} edited overwritten"
+    if plan.language_kept_edited:
+        summary += (
+            f", {len(plan.language_kept_edited)} edited track(s) kept in their earlier language "
+            "(confirm replacing their edits to re-transcribe)"
+        )
     if trimmed := sum(c.trimmed for c in span_trims.values()):
         summary += f", {trimmed} implausible word span(s) trimmed"
     if timing_flags:
