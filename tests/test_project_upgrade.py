@@ -222,7 +222,7 @@ def test_the_source_must_be_a_project_file(tmp_path: Path) -> None:
     assert unreadable.value.code == "upgrade_source_invalid"
 
 
-@pytest.mark.parametrize("version", ["2.2", "3.0"])
+@pytest.mark.parametrize("version", ["2.3", "3.0"])
 def test_upgrading_a_newer_project_says_to_update_the_app(tmp_path: Path, version) -> None:
     source = synthetic_old(tmp_path, version)
     with pytest.raises(CodedValueError, match="Update the app") as refusal:
