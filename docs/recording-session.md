@@ -1115,6 +1115,31 @@ first", "Put on headphones first", "Fix storage first"). A producer sees the nam
 row and **Join to listen** ("You'll listen and take notes. You won't be
 recorded."); producers skip the mic, storage and headphones rows.
 
+The sheet is one `Dialog` at every width, and the room's 600 rule decides its shape
+(`system-record.css`, a container query on the dialog root): from 600 it is a centred
+400 px card 96 px from the top; under 600 it rises from the bottom edge as tall as its
+rows and at most 88dvh, with the room's header and status pill showing above it. On a
+screen under 30rem tall (a phone on its side) the sheet scrolls as one, footer
+included. The sheet has one **Close**, and **Not now**, Escape and Close all decline;
+a press on the scrim beside the sheet does nothing (`Dialog` with `scrimDismisses`
+false), because consent is answered with a button. Each row is its status line with
+its control full width underneath, on one left edge. Every control is at least 44 px.
+
+First focus is the control that unblocks **Join and record**: on a mouse the name
+field; on a touch screen the name row (the field is not focused, so no keyboard opens);
+once the name is known, **Allow microphone** or the next open row; **Join and record**
+only when every row is done. A waiting action (the browser's microphone prompt, a
+"Joining…" primary) is `aria-disabled` and keeps focus rather than becoming natively
+disabled, and the microphone row announces its state in a polite status line.
+
+The name is remembered on this device (`sharecut.recordName`, `utils/recordNamePref.ts`)
+once the room confirms the join, and prefills the field in the next room, editable. It
+stays off the wire until the guest acts in this room: the socket URL and the Join hello
+carry "Guest" until the guest edits the field or presses **Join and record**, which
+sends the name as `UpdateName` just before `Consent`. A guest who has not joined shows
+to the host as "Guest". The key the earlier build kept per link
+(`record:{token}:name`) is removed.
+
 The `/rec` route does not wait for the host's feature list. While the room code
 (`GuestRoomApp`) loads, the page shows the shared guest skeleton (`GuestLoadingScreen`:
 blank for 300 ms, then blocks, **Still loading…** with **Retry** at 4 s, which reloads the
