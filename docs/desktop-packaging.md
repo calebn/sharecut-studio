@@ -382,9 +382,11 @@ check, and nobody is contacted. Each subcommand takes `--dry-run`, which prints 
   written, JSON-escaped, percent-encoded and resolved, and by shape for signing identity names,
   profile UUIDs, certificate fingerprints and the `user:password@` of any URL. `main()` prints a
   redacted one-line failure for any exception. Private files made for a command (the export
-  options), the per-step logs and the rehearsal's recorded `xcodebuild` arguments (`logs/xcodebuild-args.log`) are created without following links. A stale file or planted link
-  at that path is replaced (files) or refused (logs), and the mode is set to `0600`. altool's argv shows the key id and issuer to the same user in `ps` for the length of
-  one call; that is accepted.
+  options), the per-step logs and the rehearsal's recorded `xcodebuild` arguments
+  (`logs/xcodebuild-args.log`) are created without following links. A stale file or planted link
+  at that path is replaced (files) or refused (logs), and the mode is set to `0600`. altool's argv
+  shows the key id and issuer to the same user in `ps` for the length of one call; that is
+  accepted.
 - **Rehearsal.** `make ios-release-rehearsal` with a profile shaped like the owner's passes every
   local check (`gui/desktop/src-tauri/target/ios-release/<build>/`). The unsigned archive signs
   the Python frameworks ad hoc (the template's install phase). It proves the payload and the
