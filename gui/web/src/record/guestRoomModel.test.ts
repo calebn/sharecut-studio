@@ -387,6 +387,8 @@ describe("guestRoomAlerts", () => {
     transportError: null,
     clipping: false,
     mutedSpeech: false,
+    phase: { kind: "live" as const, take: 1, clockSec: 5 },
+    recorded: true,
   };
 
   it("is empty when nothing is wrong", () => {
@@ -422,18 +424,31 @@ describe("guestRoomAlerts", () => {
     expect(guestRoomAlerts({ ...source, notice: null })).toEqual([]);
   });
 
-  it("adds host-offline for the guest's own dropped socket", () => {
-    expect(
-      guestRoomAlerts(
-        { ...source, dropped: true, mutedSpeech: true },
-        {},
-        "Hana",
-      ).map((alert) => alert.kind),
-    ).toEqual(["host-offline", "muted"]);
-    expect(guestRoomAlerts({ ...source, dropped: true })[0]).toEqual({
-      kind: "host-offline",
-      name: undefined,
+  it("a recorded guest's dropped socket raises connection-lost, never host-offline", () => {
+    const alerts = guestRoomAlerts({
+      ...source,
+      phase: { kind: "reconnecting", paused: false, clockSec: 43 },
     });
+    expect(alerts.map((alert) => alert.kind)).toEqual(["connection-lost"]);
+  });
+
+  it("a paused drop raises no connection alert", () => {
+    expect(
+      guestRoomAlerts({
+        ...source,
+        phase: { kind: "reconnecting", paused: true },
+      }),
+    ).toEqual([]);
+  });
+
+  it("a producer's dropped socket raises no connection alert", () => {
+    expect(
+      guestRoomAlerts({
+        ...source,
+        recorded: false,
+        phase: { kind: "reconnecting", paused: false, clockSec: 43 },
+      }),
+    ).toEqual([]);
   });
 });
 
