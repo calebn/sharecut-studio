@@ -20,7 +20,7 @@ _SHARE_PATH_ROOTS = (
 )
 _SHARE_ROOTS = "|".join(root.replace("/", _SLASH) for root in _SHARE_PATH_ROOTS)
 _SHARE_TOKEN = re.compile(
-    rf"(?P<prefix>{_SLASH}(?:{_SHARE_ROOTS}){_SLASH})"
+    rf"(?P<prefix>{_SLASH}(?i:{_SHARE_ROOTS}){_SLASH})"
     r"(?P<token>[A-Za-z0-9_-]{8,}(?:-[A-Za-z0-9_-]+)*)"
 )
 _BOOT_TOKEN = re.compile(
@@ -91,6 +91,9 @@ def _sub_ipv6(match: re.Match[str]) -> str:
 
 def redact_share_paths(text: str) -> str:
     """Replace the link token in every share route path in ``text``, plain or percent-encoded.
+
+    The roots match in any letter case: the server answers ``/R/<token>`` with a 404, but
+    uvicorn still logs the path.
 
     The routes are the guest ``/r/``, ``/rec/``, ``/api/review/``, ``/api/rec/`` and ``/mcp/``
     paths and the host ``/api/shares/<token>/revoke|restore`` and
