@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { cleanup, render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { CommentsRow } from "./CommentsRow";
 
@@ -65,6 +65,28 @@ describe("CommentsRow accessible name", () => {
     ).toHaveAccessibleName(
       "Show 3 comments · Needs attention Claude · 0:03 Note number 1",
     );
+  });
+
+  it("draws the same visible row in every state: icon, count, text, chevron", () => {
+    const parts = (button: HTMLElement) =>
+      [...button.children]
+        .filter((el) => !el.classList.contains("sr-only"))
+        .map((el) => (el.tagName === "svg" ? "svg" : el.className));
+    expect(parts(row())).toEqual(["svg", "gl-row-text", "svg"]);
+    cleanup();
+    expect(parts(row({ preview: heard }))).toEqual([
+      "svg",
+      "gl-row-count",
+      "gl-row-text",
+      "svg",
+    ]);
+    cleanup();
+    expect(parts(row({ flash: "Comment added at 1:26" }))).toEqual([
+      "svg",
+      "gl-row-count",
+      "gl-row-text",
+      "svg",
+    ]);
   });
 
   it("contains every piece of visible text in each state", () => {
