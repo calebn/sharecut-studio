@@ -109,6 +109,30 @@ def test_transcribe_file_segment_without_words_and_with_prompt(sample_wav):
     assert mock_model.transcribe.call_args.kwargs["initial_prompt"] == "podcast glossary"
 
 
+@pytest.mark.parametrize(
+    ("requested", "detected", "recorded"),
+    [
+        ("de", "fr", "de"),
+        ("EN-us", None, "en"),
+        (None, "fr", "fr"),
+        ("auto", "FR", "fr"),
+        (None, None, None),
+    ],
+)
+def test_transcribe_file_records_the_language_asr_decoded_in(
+    sample_wav, requested, detected, recorded
+):
+    from unittest.mock import MagicMock, patch
+
+    segment = MagicMock(words=[MagicMock(word=" hi ", start=0.0, end=0.2, probability=0.9)])
+    engine = TranscriptionEngine(defaults=load_defaults())
+    mock_model = MagicMock()
+    mock_model.transcribe.return_value = ([segment], MagicMock(language=detected, duration=None))
+    with patch.object(engine, "_get_model", return_value=mock_model):
+        transcript = engine.transcribe_file(sample_wav, language=requested)
+    assert transcript.asr_language == recorded
+
+
 def test_transcribe_file_stops_between_segments_once_cancelled(sample_wav):
     from unittest.mock import MagicMock, patch
 
