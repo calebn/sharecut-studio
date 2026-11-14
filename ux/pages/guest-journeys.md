@@ -380,8 +380,8 @@ flowchart TD
    until your full-quality recording finishes writing its final file, then
    clears. The guest's pill reads "Saving · N%" while the file uploads and "Saved"
    once the host holds the verified file; their own tile shows the same state. The
-   room asks the guest to keep the tab open (Leave is held until then and says why
-   when pressed). Once the host holds the file the dock reads "Saved to project. You
+   room asks the guest to keep the tab open (Leave is held while the upload moves or
+   the file finishes writing, and says why when pressed). Once the host holds the file the dock reads "Saved to project. You
    can close this page." with **Done**, which leaves the room. A screen
    reader hears each segment start and finish politely, not each chunk; the guest
    room shows no chunk counts. For an incomplete or stalled take the alerts offer
