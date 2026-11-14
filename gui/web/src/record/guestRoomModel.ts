@@ -68,6 +68,21 @@ export function tookPart(
   return roster.length === 0 || roster.includes(me.participant_id);
 }
 
+/** Whether the server's roster puts this guest in any take so far, so it survives a reload. */
+export function tookAnyTake(
+  snapshot: RecordSnapshot | null,
+  me: RecordParticipant | null,
+): boolean {
+  if (!snapshot || me?.consented !== true) {
+    return false;
+  }
+  return (snapshot.takes ?? []).some(
+    (take) =>
+      take.take_index <= snapshot.take_index &&
+      take.consented_participant_ids.includes(me.participant_id),
+  );
+}
+
 function ownLine(saves: readonly SegmentSave[]): TakeLineInput {
   if (saves.length > 0 && saves.every((save) => save.state === "saved")) {
     return { kind: "saved" };
@@ -184,6 +199,8 @@ export function guestRoomPhase(
     upload?: RecordUploadProgress | null;
     /** Segments this device holds for the take. */
     localSegments: number | null;
+    /** The device scan failed twice: an acknowledged upload cannot be confirmed. */
+    localUnreadable?: boolean;
     /** False for a guest who is not in the take: nothing of theirs is saving. */
     tookPart?: boolean;
     /** This page's room socket is open. Defaults to true. False on air reads reconnecting. */
@@ -215,7 +232,9 @@ export function guestRoomPhase(
       };
     }
     if (upload.fileAck && localSegments === null) {
-      return { kind: "saving", savedPeople: 0, totalPeople: 1 };
+      return options.localUnreadable
+        ? { kind: "saving", savedPeople: 0, totalPeople: 1, failed: true }
+        : { kind: "saving", savedPeople: 0, totalPeople: 1 };
     }
   }
   const idle =
@@ -579,6 +598,7 @@ function capitalized(text: string): string {
 export function ownSaving(
   upload: RecordUploadProgress | null | undefined,
   localSegments: number | null,
+  localUnreadable = false,
 ): RoomSaving | null {
   if (!upload) {
     return null;
@@ -586,7 +606,7 @@ export function ownSaving(
   if (uploadAcknowledged(upload, localSegments)) {
     return "saved";
   }
-  if (upload.error) {
+  if (upload.error || (localUnreadable && upload.fileAck)) {
     return "failed";
   }
   return upload.total > 0 ? { done: upload.acked, total: upload.total } : null;

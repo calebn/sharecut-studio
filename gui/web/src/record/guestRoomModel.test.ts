@@ -9,6 +9,7 @@ import {
   joinHere,
   joinMic,
   ownSaving,
+  tookAnyTake,
   tookPart,
   uploadInFlight,
 } from "./guestRoomModel";
@@ -179,6 +180,23 @@ describe("guestRoomPhase", () => {
     expect(uploadInFlight(upload({ total: 1, pending: true }), null)).toBe(
       true,
     );
+  });
+
+  it("reads an acknowledged upload as stopped once the device scan failed twice", () => {
+    const snapshot = recordSnapshot({
+      state: "stopped",
+      take_index: 0,
+      participants: [host, me],
+    });
+    const acknowledged = upload({ total: 1, fileAck: true, seenSegments: 1 });
+    expect(
+      guestRoomPhase(snapshot, {
+        upload: acknowledged,
+        localSegments: null,
+        localUnreadable: true,
+      }),
+    ).toMatchObject({ kind: "saving", failed: true });
+    expect(ownSaving(acknowledged, null, true)).toBe("failed");
   });
 
   it("reports a failed upload as a failed save, not as progress", () => {
@@ -529,6 +547,27 @@ describe("guestRoomAlerts", () => {
         phase: { kind: "reconnecting", paused: false, clockSec: 43 },
       }),
     ).toEqual([]);
+  });
+});
+
+describe("tookAnyTake", () => {
+  it("reads the server roster, so it holds after a reload", () => {
+    const roster = (ids: string[]) =>
+      recordSnapshot({
+        take_index: 1,
+        participants: [host, me],
+        takes: [
+          { take_index: 0, consented_participant_ids: ids },
+          { take_index: 1, consented_participant_ids: [] },
+        ] as never,
+      });
+    const consented = { ...me, consented: true };
+    expect(tookAnyTake(roster(["p_g"]), consented)).toBe(true);
+    expect(tookAnyTake(roster(["p_o"]), consented)).toBe(false);
+    expect(tookAnyTake(roster(["p_g"]), { ...me, consented: null })).toBe(
+      false,
+    );
+    expect(tookAnyTake(null, consented)).toBe(false);
   });
 });
 

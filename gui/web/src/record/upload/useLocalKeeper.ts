@@ -2,10 +2,18 @@ import { useEffect, useRef, useState } from "react";
 import type { ByteSink } from "../keeper/store";
 import { scanLocalKeeper } from "./recovery";
 
-/** `segments` is null while the device has not been read or the read failed. */
-export type LocalKeeper = { found: boolean; segments: number | null };
+/**
+ * `segments` is null while the device has not been read or the read failed;
+ * `failed` is true once the read and its retry both threw.
+ */
+export type LocalKeeper = {
+  found: boolean;
+  segments: number | null;
+  failed: boolean;
+};
 
-const UNKNOWN: LocalKeeper = { found: false, segments: null };
+const UNKNOWN: LocalKeeper = { found: false, segments: null, failed: false };
+const UNREADABLE: LocalKeeper = { found: false, segments: null, failed: true };
 
 const RETRY_AFTER_MS = 2000;
 
@@ -47,13 +55,18 @@ export function useLocalKeeper(args: {
       .catch(() => null)
       .then((keeper) => {
         if (!live) return;
+        const retried = retriedFor.current === recheck;
         setAnswer({
           sink,
           sessionId,
           participantId,
-          keeper: keeper ?? UNKNOWN,
+          keeper: keeper
+            ? { ...keeper, failed: false }
+            : retried
+              ? UNREADABLE
+              : UNKNOWN,
         });
-        if (keeper === null && retriedFor.current !== recheck) {
+        if (keeper === null && !retried) {
           retriedFor.current = recheck;
           timer = setTimeout(
             () => setRetry((count) => count + 1),

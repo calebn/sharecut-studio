@@ -6,7 +6,7 @@ import type { RoomPhase } from "../system/roomPhase";
 import { expectNoA11yViolations } from "../test/a11y";
 import { recordParticipant, recordSnapshot } from "../test/fixtures";
 import { GuestCovers } from "./GuestCovers";
-import { guestCoverProps, guestRoomPhase } from "./guestRoomModel";
+import { guestCoverProps, guestRoomPhase, tookAnyTake } from "./guestRoomModel";
 import { guestTabTitle } from "./guestTabTitle";
 import { MemorySink } from "./keeper/store";
 import * as recovery from "./upload/recovery";
@@ -725,6 +725,39 @@ describe("after Save my recording handed the whole zip to the browser", () => {
       expect(recorded?.secondary?.label).toBe("Try saving again");
     },
   );
+
+  it("keeps the unsent wording after a reload when the roster shows this guest recorded", () => {
+    const self = recordParticipant({
+      participant_id: "p_g",
+      role: "guest",
+      consented: true,
+    });
+    const snapshot = recordSnapshot({
+      take_index: 0,
+      participants: [host, self],
+      takes: [{ take_index: 0, consented_participant_ids: ["p_g"] }] as never,
+    });
+    const cover = guestCoverProps(
+      room({
+        left: true,
+        localRecording: false,
+        localSegments: null,
+        recordedHere: tookAnyTake(snapshot, self),
+        snapshot,
+        keeperActions: {
+          busy: false,
+          error: null,
+          notice: null,
+          downloaded: false,
+          download: vi.fn(),
+          recover: vi.fn(),
+        },
+      }),
+      { onRetry: vi.fn(), phase: waiting },
+    );
+    expect(cover?.title).toBe("Your recording didn't finish saving");
+    expect(cover?.secondary?.label).toBe("Try saving again");
+  });
 
   it("does not call a guest who recorded nothing unsent while the device count is unknown", () => {
     const cover = guestCoverProps(
