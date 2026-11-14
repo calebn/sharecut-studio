@@ -1,3 +1,4 @@
+import { isShareProjectKey } from "../shareMode";
 import { selectedTrackIdsOf } from "../state/selection";
 import type { RangeDraft } from "../state/types";
 import type {
@@ -200,9 +201,19 @@ export type RangeResolution = {
 export function resolveSelectionRange(
   project: ProjectView,
   selection: Selection,
+  projectPath?: string | null,
 ): RangeResolution {
-  if (selection?.kind === "range")
+  if (selection?.kind === "range") {
+    // A guest link only: its range may have been drawn from words whose times the
+    // host has since moved, and the project does not have them to check against.
+    if (
+      projectPath != null &&
+      isShareProjectKey(projectPath) &&
+      project.meta?.hydration?.transcript_words === false
+    )
+      return { targets: [], reason: TRANSCRIPT_REFRESHING, refreshing: true };
     return { targets: [selection.target], reason: null };
+  }
   if (selection?.kind !== "transcriptRange")
     return { targets: [], reason: "Select a timeline or transcript range" };
   const words = [];

@@ -367,3 +367,37 @@ describe("exact range wire seals", () => {
     expect(rangeIsCurrent(changed, wire)).toBe(false);
   });
 });
+
+describe("a stored timeline range while the words are refreshing", () => {
+  const base = project([placement("a", 0, 8, 0)]);
+  const stored = makeRangeTarget(base, [{ start: 1, end: 7 }], ["speaker"])!;
+  const range: Selection = { kind: "range", target: stored };
+  const wordFree: ProjectView = {
+    ...base,
+    meta: {
+      ...base.meta,
+      hydration: { ...base.meta.hydration, transcript_words: false },
+    },
+  };
+
+  it("is refused on a share link, as a transcript range is", () => {
+    expect(resolveSelectionRange(wordFree, range, "share:tok")).toEqual({
+      targets: [],
+      reason: TRANSCRIPT_REFRESHING,
+      refreshing: true,
+    });
+  });
+
+  it("resolves on a share link once the words are in", () => {
+    expect(resolveSelectionRange(base, range, "share:tok").targets).toEqual([
+      stored,
+    ]);
+  });
+
+  it("stays as it was for a host, with or without its path", () => {
+    expect(resolveSelectionRange(wordFree, range).targets).toEqual([stored]);
+    expect(
+      resolveSelectionRange(wordFree, range, "/work/episode.sharecut").targets,
+    ).toEqual([stored]);
+  });
+});

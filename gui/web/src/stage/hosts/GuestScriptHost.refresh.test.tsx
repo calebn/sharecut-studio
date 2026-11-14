@@ -1,10 +1,14 @@
 import { act, fireEvent, render } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { resolveCommentAnchor } from "../../comments/commentAnchor";
 import {
   type SettledTranscript,
   shownTranscriptOf,
 } from "../../document/shownTranscript";
-import { TRANSCRIPT_REFRESHING } from "../../edit/rangeSelection";
+import {
+  resolveSelectionRange,
+  TRANSCRIPT_REFRESHING,
+} from "../../edit/rangeSelection";
 import { useDawStore } from "../../state/dawStore";
 import { COMMENTER_CAPABILITIES } from "../../test/fixtures";
 import { drag, layout } from "../../test/scriptDrag";
@@ -398,5 +402,87 @@ describe("a gesture on a word that is still refreshing", () => {
       TRANSCRIPT_REFRESHING,
     );
     expect(stored()).toBeNull();
+  });
+});
+
+describe("a selection across two speakers, which the store keeps as a timeline range", () => {
+  const shift = (rows: CombinedUtterance[], by: number) =>
+    rows.map((row) => ({
+      ...row,
+      timeline_start: (row.timeline_start ?? 0) + by,
+      timeline_end: (row.timeline_end ?? 0) + by,
+      words: row.words?.map((w) => ({
+        ...w,
+        timeline_start: (w.timeline_start ?? 0) + by,
+        timeline_end: (w.timeline_end ?? 0) + by,
+      })),
+    }));
+  const spoken = scriptUtterances().filter((row) => !row.suppressed_only);
+  // The host's first word is cut and everything after it moves 0.5 s earlier.
+  const cut = shift(spoken, -0.5).map((row, at) =>
+    at === 0
+      ? {
+          ...row,
+          words: row.words
+            ?.slice(1)
+            .map((w) => ({ ...w, word_index: (w.word_index ?? 0) - 1 })),
+        }
+      : row,
+  );
+  const inProject = (rows: CombinedUtterance[], complete: boolean) =>
+    useDawStore.setState((s) => ({
+      project: {
+        ...s.project!,
+        transcript: {
+          utterances: complete ? rows : headers(rows),
+        },
+        meta: {
+          ...s.project!.meta,
+          hydration: { transcript_words: complete },
+        },
+      },
+    }));
+  const asSettled = { grant: GRANT, utterances: spoken };
+
+  it("is refused with the reason, never the playhead, while its words refresh, then takes the new times", () => {
+    const rerender = mount(live(spoken));
+    drag(2, 7);
+    const before = stored();
+    expect(before?.kind).toBe("range");
+    if (before?.kind !== "range") throw new Error("expected a range");
+    useDawStore.setState({ playheadSec: 3 });
+
+    inProject(cut, false);
+    rerender(
+      shownTranscriptOf(
+        { utterances: headers(cut) } as never,
+        asSettled,
+        GRANT,
+        false,
+      ),
+    );
+    const state = useDawStore.getState();
+    expect(resolveCommentAnchor(state)).toEqual({
+      source: "refreshing",
+      reason: TRANSCRIPT_REFRESHING,
+    });
+    expect(
+      resolveSelectionRange(state.project!, state.selection),
+    ).toMatchObject({ targets: [expect.anything()] });
+    expect(
+      resolveSelectionRange(state.project!, state.selection, state.projectPath),
+    ).toMatchObject({ targets: [], refreshing: true });
+
+    inProject(cut, true);
+    rerender(live(cut));
+    const after = stored();
+    expect(after?.kind).toBe("range");
+    if (after?.kind !== "range") throw new Error("expected a range");
+    expect(after.target.intervals[0]!.start).toBe(
+      before.target.intervals[0]!.start - 0.5,
+    );
+    expect(resolveCommentAnchor(useDawStore.getState())).toMatchObject({
+      source: "selection",
+    });
   });
 });
