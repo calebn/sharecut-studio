@@ -8,6 +8,7 @@ from typing import Any, Literal
 from podcast_mcp.edits.comments import comments_for_view
 from podcast_mcp.edits.speaker_split import split_for_track
 from podcast_mcp.effects.results import EffectTrackListResult
+from podcast_mcp.engines.timeline_render import timeline_duration_sec
 from podcast_mcp.gui.mapper import (
     map_applied_edits_to_timeline,
     map_edit_boundaries,
@@ -212,7 +213,7 @@ def build_project_view(
         is_unsure=TranscriptService(ws).unsure_predicate(),
     )
 
-    duration = float(clips.get("timeline_duration_sec") or project.timeline.duration_sec or 0.0)
+    duration = float(timeline_duration_sec(project))
 
     if include_words:
         listed = history if history is not None else history_svc.list_entries()
