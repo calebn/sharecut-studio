@@ -69,6 +69,8 @@ for ios_target in aarch64-apple-ios-sim aarch64-apple-ios; do
     && rustup target list --installed | grep -qx "$ios_target"; then
     echo "==> cargo check --lib --no-default-features --target $ios_target"
     cargo check --lib --no-default-features --target "$ios_target"
+    echo "==> cargo check --lib --target $ios_target (iOS app module)"
+    cargo check --lib --target "$ios_target"
   else
     echo "==> skip iOS lib check (rustup target $ios_target not installed)"
   fi

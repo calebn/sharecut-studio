@@ -24,6 +24,10 @@ pub const RECHECK_DEADLINE: Duration = Duration::from_secs(20);
 
 const EXCHANGE_PATH: &str = "/api/session/exchange";
 const EXCHANGE_PARAM: &str = "code";
+/// The splash page the packaged WebView starts on; it reads the failure from its query.
+const SPLASH_URL: &str = "tauri://localhost/";
+/// A navigation to this scheme is the splash's Try again link; the host handles it, nothing loads.
+pub const RETRY_SCHEME: &str = "sharecut-retry";
 
 /// A value that must never reach a log: `Debug` and `Display` hide it.
 #[derive(Clone, Eq, PartialEq)]
@@ -84,12 +88,25 @@ pub enum State {
 }
 
 impl State {
-    /// The state the host is in before it starts the engine thread.
-    pub fn starting(now: Instant) -> Self {
-        Self::Starting {
-            deadline: now + START_DEADLINE,
+    /// A label for the log: it never includes the port, a deadline or a failure's detail.
+    pub fn label(&self) -> &'static str {
+        match self {
+            Self::Starting { .. } => "Starting",
+            Self::Serving { .. } => "Serving",
+            Self::Rechecking { .. } => "Rechecking",
+            Self::Failed { .. } => "Failed",
         }
     }
+}
+
+/// The state the host is in when it starts the engine thread, and the effect that starts it.
+pub fn start(now: Instant) -> (State, Vec<Effect>) {
+    (
+        State::Starting {
+            deadline: now + START_DEADLINE,
+        },
+        vec![Effect::StartEngine],
+    )
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -138,6 +155,43 @@ pub fn exchange_url(port: u16, code: &Secret) -> Secret {
     Secret::new(url)
 }
 
+/// What the engine thread said, as the event it stands for.
+///
+/// The boot line is `ok <port> <code>` or `error <one line>` (`podcast_mcp.gui.embedded_boot`).
+pub fn parse_boot_line(line: &str) -> Event {
+    let start_failed = |reason: &str| Event::StartFailed {
+        reason: reason.to_string(),
+    };
+    let mut parts = line.trim().splitn(3, ' ');
+    match (parts.next(), parts.next(), parts.next()) {
+        (Some("ok"), Some(port), Some(code)) => match port.parse::<u16>() {
+            Ok(port) if port != 0 && !code.is_empty() => Event::Bound {
+                port,
+                code: Secret::new(code),
+            },
+            _ => start_failed("the engine answered with an unusable port"),
+        },
+        (Some("ok"), _, None) => start_failed("the engine returned no session code"),
+        (Some("error"), Some(first), rest) => {
+            let detail = [Some(first), rest]
+                .into_iter()
+                .flatten()
+                .collect::<Vec<_>>();
+            start_failed(&detail.join(" "))
+        }
+        _ => start_failed("the engine answered with something unreadable"),
+    }
+}
+
+/// The splash with the failure sentence in its query, and its Try again link when retryable.
+pub fn failure_page(sentence: &str, retryable: bool) -> Url {
+    let mut url = Url::parse(SPLASH_URL).expect("splash url is valid");
+    url.query_pairs_mut()
+        .append_pair("failure", sentence)
+        .append_pair("retry", if retryable { "1" } else { "0" });
+    url
+}
+
 fn failed(reason: FailReason) -> (State, Vec<Effect>) {
     let sentence = reason.sentence();
     (
@@ -181,9 +235,7 @@ pub fn step(state: &State, event: &Event, now: Instant) -> (State, Vec<Effect>) 
             }
         }
 
-        (State::Failed { reason }, Event::RetryRequested) if reason.retryable() => {
-            (State::starting(now), vec![Effect::StartEngine])
-        }
+        (State::Failed { reason }, Event::RetryRequested) if reason.retryable() => start(now),
 
         // Everything else is a stale or irrelevant event: a probe result with no probe
         // pending, a second Bound after the engine served, a Retry on a state that cannot
@@ -198,6 +250,10 @@ mod tests {
 
     const PORT: u16 = 51234;
     const URL: &str = "http://127.0.0.1:51234/api/session/exchange?code=abc-_123";
+
+    fn starting(now: Instant) -> State {
+        start(now).0
+    }
 
     fn t0() -> Instant {
         Instant::now()
@@ -260,7 +316,7 @@ mod tests {
     #[test]
     fn starting_bound_serves_and_navigates_to_the_exchange_url() {
         let now = t0();
-        let (state, effects) = step(&State::starting(now), &bound(), now);
+        let (state, effects) = step(&starting(now), &bound(), now);
         assert_eq!(state, State::Serving { port: PORT });
         assert_eq!(effects, vec![navigate()]);
     }
@@ -271,7 +327,7 @@ mod tests {
         let event = Event::StartFailed {
             reason: "ModuleNotFoundError: yaml".to_string(),
         };
-        let (state, effects) = step(&State::starting(now), &event, now);
+        let (state, effects) = step(&starting(now), &event, now);
         assert_eq!(state, failed_with(start_error()));
         assert_eq!(
             effects,
@@ -282,7 +338,7 @@ mod tests {
     #[test]
     fn starting_tick_before_the_deadline_waits() {
         let now = t0();
-        let starting = State::starting(now);
+        let starting = starting(now);
         let (state, effects) = step(
             &starting,
             &Event::Tick,
@@ -295,7 +351,7 @@ mod tests {
     #[test]
     fn starting_tick_at_the_deadline_fails_retryable() {
         let now = t0();
-        let (state, effects) = step(&State::starting(now), &Event::Tick, now + START_DEADLINE);
+        let (state, effects) = step(&starting(now), &Event::Tick, now + START_DEADLINE);
         assert_eq!(state, failed_with(FailReason::StartTimedOut));
         assert_eq!(
             effects,
@@ -306,7 +362,7 @@ mod tests {
     #[test]
     fn a_late_tick_still_uses_the_deadline_fixed_on_entry() {
         let now = t0();
-        let starting = State::starting(now);
+        let starting = starting(now);
         let far = now + START_DEADLINE * 10;
         assert_eq!(
             step(&starting, &Event::Tick, far).0,
@@ -396,7 +452,7 @@ mod tests {
         let now = t0();
         for reason in [FailReason::StartTimedOut, start_error()] {
             let (state, effects) = step(&failed_with(reason), &Event::RetryRequested, now);
-            assert_eq!(state, State::starting(now));
+            assert_eq!(state, starting(now));
             assert_eq!(effects, vec![Effect::StartEngine]);
         }
     }
@@ -467,5 +523,83 @@ mod tests {
         assert!(FailReason::StartTimedOut.retryable());
         assert!(start_error().retryable());
         assert!(!FailReason::StoppedAnswering.retryable());
+    }
+
+    #[test]
+    fn the_host_starts_in_starting_and_asks_for_the_engine() {
+        let now = t0();
+        assert_eq!(
+            start(now),
+            (
+                State::Starting {
+                    deadline: now + START_DEADLINE
+                },
+                vec![Effect::StartEngine]
+            )
+        );
+    }
+
+    #[test]
+    fn an_ok_boot_line_binds_the_port_and_code() {
+        assert_eq!(parse_boot_line("ok 51234 abc-_123\n"), bound());
+    }
+
+    #[test]
+    fn a_boot_line_without_a_code_fails_the_start() {
+        assert_eq!(
+            parse_boot_line("ok 51234"),
+            Event::StartFailed {
+                reason: "the engine returned no session code".to_string()
+            }
+        );
+    }
+
+    #[test]
+    fn an_error_boot_line_carries_its_one_line_reason() {
+        assert_eq!(
+            parse_boot_line("error ModuleNotFoundError: No module named 'yaml'"),
+            Event::StartFailed {
+                reason: "ModuleNotFoundError: No module named 'yaml'".to_string()
+            }
+        );
+    }
+
+    #[test]
+    fn an_unreadable_boot_line_fails_the_start() {
+        for line in [
+            "",
+            "ok",
+            "ok zero code",
+            "ok 0 code",
+            "ok 70000 code",
+            "hello 1 2",
+        ] {
+            assert!(
+                matches!(parse_boot_line(line), Event::StartFailed { .. }),
+                "{line:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn the_failure_page_carries_the_sentence_and_whether_to_offer_retry() {
+        assert_eq!(
+            failure_page("ShareCut couldn't start on this device. Try again.", true).as_str(),
+            "tauri://localhost/?failure=ShareCut+couldn%27t+start+on+this+device.+Try+again.&retry=1"
+        );
+        assert_eq!(
+            failure_page("ShareCut stopped responding. Reopen the app.", false).as_str(),
+            "tauri://localhost/?failure=ShareCut+stopped+responding.+Reopen+the+app.&retry=0"
+        );
+    }
+
+    #[test]
+    fn state_labels_name_the_state_and_nothing_else() {
+        let now = t0();
+        let labels: Vec<_> = states(now).iter().map(State::label).collect();
+        assert_eq!(
+            labels,
+            ["Starting", "Serving", "Rechecking", "Failed", "Failed"]
+        );
     }
 }

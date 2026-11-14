@@ -4,6 +4,8 @@
 pub mod cli_links;
 mod close_guard;
 pub mod engine;
+#[cfg(all(target_os = "ios", feature = "app"))]
+pub mod ios;
 pub mod lifecycle;
 mod share_url;
 mod sidecar;
