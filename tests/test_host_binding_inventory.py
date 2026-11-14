@@ -90,8 +90,9 @@ def test_no_guest_route_is_host_bound(row: dict[str, Any]) -> None:
     assert not path_requires_host_binding(row["path"]), f"{_id(row)} is a guest route"
 
 
-def test_the_new_prefixes_cover_nineteen_host_rows() -> None:
-    assert len(NEW_ROWS) == 19
+@pytest.mark.parametrize("prefix", NEW_PREFIXES)
+def test_every_new_prefix_has_a_host_row(prefix: str) -> None:
+    assert any(r["path"] == prefix or r["path"].startswith(prefix + "/") for r in NEW_ROWS)
 
 
 def _call(client: TestClient, row: dict[str, Any], headers: dict[str, str]):
