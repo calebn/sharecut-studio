@@ -68,21 +68,20 @@ function drawnBefore(word: TranscriptWordView): boolean {
   return !word.suppressed && !word.ignored && wordSeekSec(word) !== null;
 }
 
-/** The settled row's drawn words in drawn order, minus any ignored since, with no times. */
-function heldWords(
-  settled: CombinedUtterance,
-  current: CombinedUtterance,
-): { words: TranscriptWordView[]; lead: number } {
-  const ignored = new Set(current.ignored_word_indices);
+/** The settled row's drawn words in drawn order, with no times. */
+function heldWords(settled: CombinedUtterance): {
+  words: TranscriptWordView[];
+  lead: number;
+} {
   const drawn = (settled.words ?? [])
     .filter(drawnBefore)
     .sort((a, b) => (wordSeekSec(a) ?? 0) - (wordSeekSec(b) ?? 0));
   const first = drawn[0] ? wordSeekSec(drawn[0]) : null;
-  const words = drawn
-    .filter(
-      (word) => word.word_index === undefined || !ignored.has(word.word_index),
-    )
-    .map((word) => ({ ...word, timeline_start: null, timeline_end: null }));
+  const words = drawn.map((word) => ({
+    ...word,
+    timeline_start: null,
+    timeline_end: null,
+  }));
   return {
     words,
     lead:
@@ -99,6 +98,10 @@ function sameRow(
   return (
     settled?.words !== undefined &&
     settled.text === current.text &&
+    // The lists name words by their index in the track, which a cut shifts, so
+    // a list that is not exactly the one the words were read under cannot be
+    // applied to them: the row waits.
+    sameIndices(settled.ignored_word_indices, current.ignored_word_indices) &&
     sameIndices(
       settled.edge_suppressed_word_indices,
       current.edge_suppressed_word_indices,
@@ -137,7 +140,7 @@ function compute(
     ) {
       continue;
     } else if (sameRow(prior, utterance)) {
-      const { words, lead } = heldWords(prior, utterance);
+      const { words, lead } = heldWords(prior);
       if (words.length > 0)
         rows.push({
           kind: "held",
