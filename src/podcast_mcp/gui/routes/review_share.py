@@ -88,6 +88,7 @@ from podcast_mcp.services.collaboration import (
     share_daw_waveform_snap,
     share_daw_waveform_status,
     share_daw_waveform_tiles,
+    share_id_of,
     share_pending_preview_image,
     share_pending_preview_image_cached,
     share_pending_preview_span,
@@ -822,29 +823,30 @@ def _handle_guest_presence_frame(
     label: str,
     seq: int,
     token: str,
+    share_id: str,
     websocket: WebSocket,
     malformed: int,
 ) -> GuestFrameResult:
     """Parse one guest inbound frame (``Presence`` or ``RosterRequest``)."""
     if len(text) > GUEST_FRAME_MAX_BYTES:
-        log.info("guest presence rejected size token=%s", token[:8])
+        log.info("guest presence rejected size share=%s", share_id)
         return GuestFrameResult(seq, malformed + 1, None)
     try:
         msg = json.loads(text)
     except ValueError:
-        log.info("guest presence rejected malformed token=%s", token[:8])
+        log.info("guest presence rejected malformed share=%s", share_id)
         return GuestFrameResult(seq, malformed + 1, None)
     if not isinstance(msg, dict) or msg.get("type") not in GUEST_PRESENCE_FRAME_TYPES:
-        log.info("guest presence rejected type token=%s", token[:8])
+        log.info("guest presence rejected type share=%s", share_id)
         return GuestFrameResult(seq, malformed + 1, None)
     if host_rate_limit_enabled():
         lim = get_host_limiters()
         conn_key = f"{token}:{id(websocket)}"
         if not lim.guest_ws_presence.allow(conn_key).allowed:
-            log.info("guest presence rejected rate token=%s", token[:8])
+            log.info("guest presence rejected rate share=%s", share_id)
             return GuestFrameResult(seq, malformed, None)
         if not lim.guest_ws_presence_token.allow(token).allowed:
-            log.info("guest presence rejected token-rate token=%s", token[:8])
+            log.info("guest presence rejected token-rate share=%s", share_id)
             return GuestFrameResult(seq, malformed, None)
     if msg.get("type") == ROSTER_REQUEST:
         # Keyed by the assigned guest client id (stable across reconnects, like the host
@@ -863,7 +865,7 @@ def _handle_guest_presence_frame(
             seq=seq,
         )
     except (ValueError, TypeError, KeyError):
-        log.info("guest presence rejected validation token=%s", token[:8])
+        log.info("guest presence rejected validation share=%s", share_id)
         return GuestFrameResult(seq, malformed + 1, None)
     if malformed > GUEST_MALFORMED_LIMIT:
         return GuestFrameResult(seq, malformed, "too many malformed frames")
@@ -871,7 +873,7 @@ def _handle_guest_presence_frame(
 
 
 async def _pump_guest_progress(
-    token: str,
+    share_id: str,
     guard: GuestWsGuard,
     q: asyncio.Queue[dict[str, Any]],
 ) -> None:
@@ -882,7 +884,7 @@ async def _pump_guest_progress(
     except asyncio.CancelledError:
         raise
     except Exception:
-        log.exception("guest progress pump failed token=%s", token[:8])
+        log.exception("guest progress pump failed share=%s", share_id)
         with contextlib.suppress(Exception):
             await guard.close(1011, "progress pump failed")
         raise
@@ -924,8 +926,9 @@ async def daw_ws(
         restricted = await _admit_review_ws(websocket, token)
         if restricted is None:
             return
-        _row, ws_proj = await run_in_threadpool(require_share_cap, token, CAP_VIEW)
-        conn = await admit_guest_ws(websocket, token, log_label="guest ws")
+        row, ws_proj = await run_in_threadpool(require_share_cap, token, CAP_VIEW)
+        share_id = share_id_of(row)
+        conn = await admit_guest_ws(websocket, token, share_id=share_id, log_label="guest ws")
         if conn is None:
             return
     except Exception as exc:
@@ -1011,7 +1014,7 @@ async def daw_ws(
                 except asyncio.CancelledError:
                     raise
                 except Exception:
-                    log.exception("guest session pump failed token=%s", token[:8])
+                    log.exception("guest session pump failed share=%s", share_id)
                     with contextlib.suppress(Exception):
                         await guard.close(1011, "presence pump failed")
                     raise
@@ -1025,14 +1028,14 @@ async def daw_ws(
                 except asyncio.CancelledError:
                     raise
                 except Exception:
-                    log.exception("guest document pump failed token=%s", token[:8])
+                    log.exception("guest document pump failed share=%s", share_id)
                     with contextlib.suppress(Exception):
                         await guard.close(1011, "document pump failed")
                     raise
 
             conn.spawn(_pump_session())
             conn.spawn(_pump_document())
-            conn.spawn(_pump_guest_progress(token, guard, q_progress))
+            conn.spawn(_pump_guest_progress(share_id, guard, q_progress))
             while True:
                 try:
                     text = await websocket.receive_text()
@@ -1049,6 +1052,7 @@ async def daw_ws(
                     label=label,
                     seq=seq,
                     token=token,
+                    share_id=share_id,
                     websocket=websocket,
                     malformed=guard.malformed,
                 )
