@@ -171,8 +171,7 @@ def error_text(error: dict[str, object]) -> str:
 
 
 def apple_shaped(error: dict[str, object]) -> bool:
-    """The allow-list: a structured error is Apple's own answer only when it carries an ITMS code,
-    an App Store Connect API code in ``code``, or an Apple service domain."""
+    """An allow-list, because a proxy or the OS can print JSON in the same shape."""
     info = error_info(error)
     text = error_text(error)
     code = error.get("code")

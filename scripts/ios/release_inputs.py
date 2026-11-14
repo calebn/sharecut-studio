@@ -131,7 +131,10 @@ def absent(path: Path) -> bool:
 
 
 def read_private_file(path: Path, checkout: Path) -> tuple[dict[str, str], list[InputProblem]]:
-    """``NAME=value`` lines from the private file; never echoes a value."""
+    """``NAME=value`` lines from the private file; never echoes a value. A path that is not there
+    holds no values and is no problem here: the caller says where the file was expected."""
+    if absent(path):
+        return {}, []
     source = "private file"
     try:
         info = path.lstat()
@@ -173,10 +176,9 @@ def private_values(
     name in *needs* is still unset, the one problem is where the file was expected."""
     named = environ.get(FILE_VARIABLE)
     location = Path(named or home / ".config" / "sharecut" / "ios-release.env")
-    missing = absent(location)
-    values, problems = ({}, []) if missing else read_private_file(location, checkout)
+    values, problems = read_private_file(location, checkout)
     values.update({name: environ[name] for name in SECRET_NAMES if environ.get(name)})
-    if missing and any(name not in values for name in needs):
+    if absent(location) and any(name not in values for name in needs):
         source, why = (
             ("private file", "does not exist")
             if named
