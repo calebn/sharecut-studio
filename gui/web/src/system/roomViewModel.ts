@@ -79,9 +79,22 @@ type RoomViewModel = {
   notesOpen: boolean;
   peek: NotePeek | null;
   record: RoomRecord | null;
-  dockStatus: string | null;
+  dock: RoomDock;
   alerts: RoomAlertInput[];
 };
+
+/** What the dock's centre holds for this seat and phase, and why Leave is held if it is. */
+export type RoomDock =
+  /** Mute, Comment, Notes. `leaveHeld` is a guest's reason while their take is unsaved. */
+  | { kind: "controls"; leaveHeld?: string }
+  /** A status line in place of the centre controls. */
+  | { kind: "status"; text: string; leaveHeld?: string }
+  /** A guest's take is saved: the line, Done as the one primary, no Leave. */
+  | { kind: "done"; text: string };
+
+export const LEAVE_DURING_TAKE_REASON = "You can leave after this take.";
+export const LEAVE_WHILE_SAVING_REASON = "Your recording is still saving";
+export const SAVED_DOCK_LINE = "Saved to project. You can close this page.";
 
 export const isPhoneWidth = (width: ViewerWidth) => width !== "desktop";
 
@@ -183,12 +196,37 @@ function hostRecord(people: RoomPerson[], phase: RoomPhase): RoomRecord {
     : { face: "idle" };
 }
 
-function savingStatus(phase: RoomPhase): string | null {
-  if (phase.kind !== "saving" || phase.failed) return null;
+function savingLine(phase: Extract<RoomPhase, { kind: "saving" }>): string {
   const percent = savingPercent(phase);
   return percent === null
     ? `Saving · ${phase.savedPeople} of ${phase.totalPeople} · keep this page open`
     : `Saving · ${percent}% · keep this page open`;
+}
+
+function roomDock(role: RoomRole, phase: RoomPhase): RoomDock {
+  const saving = phase.kind === "saving" && !phase.failed ? phase : null;
+  if (role !== "guest") {
+    return saving
+      ? { kind: "status", text: savingLine(saving) }
+      : { kind: "controls" };
+  }
+  if (saving) {
+    return {
+      kind: "status",
+      text: savingLine(saving),
+      leaveHeld: LEAVE_WHILE_SAVING_REASON,
+    };
+  }
+  switch (phase.kind) {
+    case "live":
+    case "paused":
+    case "reconnecting":
+      return { kind: "controls", leaveHeld: LEAVE_DURING_TAKE_REASON };
+    case "saved":
+      return { kind: "done", text: SAVED_DOCK_LINE };
+    default:
+      return { kind: "controls" };
+  }
 }
 
 export function gridColumns(
@@ -262,7 +300,7 @@ export function roomViewModel(input: RoomViewInput): RoomViewModel {
       role === "host" && input.canRecord === true
         ? hostRecord(people, phase)
         : null,
-    dockStatus: savingStatus(phase),
+    dock: roomDock(role, phase),
     alerts: [...derived, ...(input.alerts ?? [])],
   };
 }

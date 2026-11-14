@@ -53,7 +53,6 @@ import {
   LOCAL_KEEPER_PENDING_COPY,
   resolveCaptureHealth,
 } from "./types";
-import { leaveBlocked } from "./upload/useRecordUpload";
 import { useGuestRoom } from "./useGuestRoom";
 import { useGuestRoomTone } from "./useGuestRoomTone";
 import { useInputPeakDb } from "./useInputPeakDb";
@@ -67,7 +66,6 @@ const subscribeLandscape = mediaQuerySubscription(["(orientation: landscape)"]);
 const readLandscape = () => matchesMedia("(orientation: landscape)");
 const notLandscape = () => false;
 
-const LEAVE_HELD_REASON = "Keep this tab open until your recording is saved.";
 const SPEAKING_FRACTION = 0.2;
 
 /**
@@ -415,7 +413,6 @@ function GuestRoomSession({
       mic.retry();
     }
   };
-  const heldLeave = !producer && leaveBlocked(state ?? "", upload);
 
   return (
     <>
@@ -440,9 +437,12 @@ function GuestRoomSession({
             : () => send("SetMuted", { muted: !me.muted })
         }
         onComment={liveComments.postMarker}
-        onLeave={() => send("Leave", {})}
+        onLeave={room.leave}
+        onDone={() => {
+          room.leave();
+          window.close();
+        }}
         onSelfPress={producer || !me ? undefined : () => setDeviceOpen(true)}
-        leaveDisabledReason={heldLeave ? LEAVE_HELD_REASON : undefined}
         declined={declined}
         takes={
           clippedTakes.length > 0 ? (

@@ -117,8 +117,35 @@
 }
 
 .sys-dock-far {
+  position: relative;
   display: flex;
   align-items: center;
+}
+
+.sys-dock-done {
+  min-block-size: 3rem;
+  padding-inline: var(--space-5);
+}
+
+.sys-dock-hint {
+  position: absolute;
+  inset-block-end: 100%;
+  inset-inline-end: 0;
+  inline-size: max-content;
+  max-inline-size: 16rem;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-ui);
+  line-height: 1rem;
+  z-index: 1;
+}
+
+.sys-dock-hint[data-shown] {
+  margin-block-end: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-xl);
+  background: var(--color-bg-elevated);
+  box-shadow: var(--shadow-floating);
 }
 
 .sys-dock-btn {
@@ -146,7 +173,8 @@
   border-color: var(--color-text-secondary);
 }
 
-.sys-dock-btn:disabled {
+.sys-dock-btn:disabled,
+.sys-dock-btn[aria-disabled="true"] {
   opacity: 0.5;
   cursor: not-allowed;
 }
@@ -943,6 +971,12 @@
 
 .sys-room-view[data-width="phone-landscape"] .sys-dock-far {
   margin-inline-start: 0;
+}
+
+.sys-room-view[data-width="phone-landscape"] .sys-dock-hint {
+  position: fixed;
+  inset-block-end: var(--space-4);
+  inset-inline-end: 6rem;
 }
 
 .sys-takes-tray {
