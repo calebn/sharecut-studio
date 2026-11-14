@@ -1,7 +1,24 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, fn, userEvent, within } from "storybook/test";
+import { useState } from "react";
+import { expect, fn, userEvent, waitFor, within } from "storybook/test";
+import type { GuestLoadFailure } from "../../guestLoadFailure";
 import { viewportStoryParameters } from "../../storybook/storyLayout";
-import { BadLinkCover, HostCover, NotServedCover } from "./StatusCovers";
+import { GuestPageCover, NotServedCover } from "./StatusCovers";
+
+/** A review-link cover whose button runs a pretend attempt that fails again after 300 ms. */
+function ReviewLinkCover({ failure }: { failure: GuestLoadFailure }) {
+  const [trying, setTrying] = useState(false);
+  return (
+    <GuestPageCover
+      failure={failure}
+      trying={trying}
+      onRetry={() => {
+        setTrying(true);
+        window.setTimeout(() => setTrying(false), 300);
+      }}
+    />
+  );
+}
 
 const meta: Meta<typeof NotServedCover> = {
   title: "Stages/Frame/StatusCover",
@@ -21,7 +38,7 @@ const meta: Meta<typeof NotServedCover> = {
       ...viewportStoryParameters.docs,
       description: {
         component:
-          "The Status cover for the three ways a page has nothing to open: a bad or revoked review link, a host whose computer is asleep, and a project this server does not serve. A 32 px symbol, a 48 px glyph for the case (broken link, moon, folder), a 20/24 title, one sentence, one primary button and at most one text button. The server answers the not-served case with the app (HTTP 403), never its own page.",
+          'The Status cover for the ways a page has nothing to open: a bad or revoked review link, a review link that did not load (the host\'s computer is asleep or busy, the link is busy, restricted, unavailable, behind a network sign-in, or failing), and a project this server does not serve. A press on the button is answered on the button ("Trying…") and in a status line that says whether it is still failing. A 32 px symbol, a 48 px glyph for the case (broken link, moon, folder), a 20/24 title, one sentence, one primary button and at most one text button. The server answers the not-served case with the app (HTTP 403), never its own page.',
       },
     },
   },
@@ -31,7 +48,13 @@ export default meta;
 type Story = StoryObj<typeof NotServedCover>;
 
 export const BadLink: Story = {
-  render: () => <BadLinkCover />,
+  render: () => (
+    <GuestPageCover
+      failure={{ kind: "bad-link" }}
+      trying={false}
+      onRetry={fn()}
+    />
+  ),
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     await expect(
@@ -45,13 +68,70 @@ export const BadLink: Story = {
 };
 
 export const HostAsleep: Story = {
-  render: () => <HostCover asleep onRetry={fn()} />,
+  render: () => <ReviewLinkCover failure={{ kind: "unreachable" }} />,
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     await expect(
       canvas.getByRole("heading", { name: "The host's computer is asleep" }),
     ).toBeVisible();
     await expect(canvas.getByRole("button", { name: "Try now" })).toBeVisible();
+  },
+};
+
+export const HostAsleepPressed: Story = {
+  render: () => <ReviewLinkCover failure={{ kind: "unreachable" }} />,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const button = canvas.getByRole("button", { name: "Try now" });
+    await userEvent.click(button);
+    await expect(button).toHaveAttribute("aria-busy", "true");
+    await expect(canvas.getByRole("status")).toHaveTextContent("Trying again…");
+    await waitFor(() =>
+      expect(canvas.getByRole("status")).toHaveTextContent("Still asleep."),
+    );
+    await expect(button).toHaveFocus();
+  },
+};
+
+export const HostBusy: Story = {
+  render: () => <ReviewLinkCover failure={{ kind: "busy" }} />,
+};
+
+export const LinkBusy: Story = {
+  render: () => (
+    <ReviewLinkCover failure={{ kind: "rate-limited", retryAfterSec: 30 }} />
+  ),
+};
+
+export const LinkRestricted: Story = {
+  render: () => <ReviewLinkCover failure={{ kind: "restricted" }} />,
+};
+
+export const LinkUnavailable: Story = {
+  render: () => <ReviewLinkCover failure={{ kind: "unavailable" }} />,
+};
+
+export const NetworkInTheWay: Story = {
+  render: () => <ReviewLinkCover failure={{ kind: "intercepted" }} />,
+};
+
+export const ServerFailure: Story = {
+  render: () => <ReviewLinkCover failure={{ kind: "server" }} />,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await userEvent.click(canvas.getByRole("button", { name: "Retry" }));
+    await waitFor(() =>
+      expect(canvas.getByRole("status")).toHaveTextContent(
+        "Still not loading.",
+      ),
+    );
+  },
+};
+
+export const NoReviewRoutes: Story = {
+  render: () => <ReviewLinkCover failure={{ kind: "no-review-routes" }} />,
+  play: async ({ canvasElement }) => {
+    await expect(within(canvasElement).queryByRole("button")).toBeNull();
   },
 };
 
