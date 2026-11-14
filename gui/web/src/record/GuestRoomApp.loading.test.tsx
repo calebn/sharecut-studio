@@ -123,6 +123,14 @@ describe("GuestRoomApp loading", () => {
     expect(screen.getAllByRole("status")).toHaveLength(1);
   });
 
+  it("titles the tab Joining the room while the room is looked up", () => {
+    document.title = "ShareCut Studio";
+    const { unmount } = render(<GuestRoomApp token="guest-tok" />);
+    expect(document.title).toBe("Joining the room | ShareCut Studio");
+    unmount();
+    expect(document.title).toBe("ShareCut Studio");
+  });
+
   it("leaves no connecting alert when the lookup resolves early", async () => {
     const { container } = render(<GuestRoomApp token="guest-tok" />);
     await tick(1000);

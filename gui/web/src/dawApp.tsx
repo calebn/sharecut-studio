@@ -5,6 +5,7 @@ import { useDesktopCloseGuard } from "./desktop/useDesktopCloseGuard";
 import { FeedbackToast } from "./feedback/FeedbackToast";
 import { HelpHost } from "./home/HelpHost";
 import { useAutoRefreshMix } from "./hooks/useAutoRefreshMix";
+import { useDocumentTitle } from "./hooks/useDocumentTitle";
 import { useGuestSyncAndProjectPoll } from "./hooks/useGuestSyncAndProjectPoll";
 import { useHostSync } from "./hooks/useHostSync";
 import { usePendingMixWarm } from "./hooks/usePendingMixWarm";
@@ -193,16 +194,7 @@ export function DawApp({ guestShare = false }: { guestShare?: boolean }) {
     { hydrate: syncEnabled && recordStageActive },
   );
 
-  useEffect(() => {
-    if (!projectName) {
-      return;
-    }
-    const previous = document.title;
-    document.title = projectName;
-    return () => {
-      document.title = previous;
-    };
-  }, [projectName]);
+  useDocumentTitle(projectName || null);
 
   const loadFailure = bootstrapError
     ? { message: bootstrapError, onRetry: retryBootstrap }

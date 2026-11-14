@@ -206,7 +206,6 @@ describe("useGuestRoom", () => {
     expect(result.current.name).toBe("Ava");
     await waitFor(() => expect(result.current.me?.participant_id).toBe("p_g"));
     expect(result.current.producer).toBe(false);
-    expect(result.current.heading).toBe("Join the room");
     expect(result.current.episodeName).toBe("Shot of Truth");
     expect(result.current.view).toBe("lobby");
     expect(sockets[0]?.commands("UpdateName")).toHaveLength(0);
@@ -700,10 +699,8 @@ describe("useGuestRoom", () => {
   describe("producer", () => {
     it("is listen-only: no mic, no sink, no socket until joined", async () => {
       stubFetch(producerBootstrap);
-      document.title = "ShareCut Studio";
-      const { result, unmount } = renderHook(() => useGuestRoom("prod-tok"));
+      const { result } = renderHook(() => useGuestRoom("prod-tok"));
       await waitFor(() => expect(result.current.producer).toBe(true));
-      expect(document.title).toBe("Producer (not recorded) | Shot of Truth");
       expect(sockets).toHaveLength(0);
       expect(createOpfsSink).not.toHaveBeenCalled();
       expect(getUserMedia).not.toHaveBeenCalled();
@@ -712,8 +709,6 @@ describe("useGuestRoom", () => {
       await waitFor(() => expect(sockets).toHaveLength(1));
       expect(result.current.uploadTransport).toBeNull();
       expect(sockets[0]?.commands("HeadphonesAck")).toHaveLength(0);
-      unmount();
-      expect(document.title).toBe("ShareCut Studio");
     });
   });
 

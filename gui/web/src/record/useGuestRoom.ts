@@ -82,19 +82,7 @@ export function useGuestRoom(
   }, [name, token]);
 
   const producer = bootstrap?.role === "producer";
-  const heading = producer ? "Producer (not recorded)" : "Join the room";
   const episodeName = bootstrap?.episode.name.trim() ?? "";
-
-  useEffect(() => {
-    if (!bootstrap) {
-      return;
-    }
-    const previous = document.title;
-    document.title = episodeName ? `${heading} | ${episodeName}` : heading;
-    return () => {
-      document.title = previous;
-    };
-  }, [bootstrap, episodeName, heading]);
 
   const syncName = name.trim() || (producer ? "Producer" : "Guest");
   const { snapshot, me, send, error, clearError, connected, lease } =
@@ -350,7 +338,6 @@ export function useGuestRoom(
     bootstrap,
     bootError: boot.failure,
     producer,
-    heading,
     episodeName,
     snapshot,
     me,
