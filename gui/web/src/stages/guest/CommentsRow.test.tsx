@@ -10,6 +10,7 @@ function row(props: Partial<Parameters<typeof CommentsRow>[0]> = {}) {
     <CommentsRow
       label="3 comments"
       comments={3}
+      afterCount="comments"
       onOpen={() => undefined}
       {...props}
     />,
@@ -30,9 +31,9 @@ describe("CommentsRow accessible name", () => {
   });
 
   it("says comment in the singular for one", () => {
-    expect(row({ label: "1 comment", comments: 1 })).toHaveAccessibleName(
-      "Show 1 comment",
-    );
+    expect(
+      row({ label: "1 comment", comments: 1, afterCount: "comment" }),
+    ).toHaveAccessibleName("Show 1 comment");
   });
 
   it("contains the comment being heard: its author, time and text", () => {
@@ -56,13 +57,20 @@ describe("CommentsRow accessible name", () => {
 
   it("contains Needs attention and the suggestion count", () => {
     expect(
-      row({ label: "3 comments · 2 suggestions · Needs attention" }),
+      row({
+        label: "3 comments · 2 suggestions · Needs attention",
+        afterCount: "comments · 2 suggestions · Needs attention",
+      }),
     ).toHaveAccessibleName("Show 3 comments · 2 suggestions · Needs attention");
   });
 
   it("keeps Needs attention beside the count while a comment is heard", () => {
     expect(
-      row({ label: "3 comments · Needs attention", preview: heard }),
+      row({
+        label: "3 comments · Needs attention",
+        afterCount: "comments · Needs attention",
+        preview: heard,
+      }),
     ).toHaveAccessibleName(
       "Show 3 comments · Needs attention Claude · 0:03 Note number 1",
     );
@@ -101,6 +109,7 @@ describe("CommentsRow accessible name", () => {
         <CommentsRow
           label="3 comments"
           comments={3}
+          afterCount="comments"
           onOpen={() => undefined}
           {...props}
         />,

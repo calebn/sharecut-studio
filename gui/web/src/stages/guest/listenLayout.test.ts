@@ -23,7 +23,12 @@ const CASES: [name: string, input: ListenInput, layout: ListenLayout][] = [
     BASE,
     {
       middle: { kind: "script" },
-      bottom: { kind: "row", label: "15 comments", comments: 15 },
+      bottom: {
+        kind: "row",
+        label: "15 comments",
+        comments: 15,
+        afterCount: "comments",
+      },
     },
   ],
   [
@@ -41,7 +46,12 @@ const CASES: [name: string, input: ListenInput, layout: ListenLayout][] = [
     { ...BASE, counts: { comments: 1, suggestions: 0 } },
     {
       middle: { kind: "script" },
-      bottom: { kind: "row", label: "1 comment", comments: 1 },
+      bottom: {
+        kind: "row",
+        label: "1 comment",
+        comments: 1,
+        afterCount: "comment",
+      },
     },
   ],
   [
@@ -53,6 +63,7 @@ const CASES: [name: string, input: ListenInput, layout: ListenLayout][] = [
         kind: "row",
         label: "15 comments · 2 suggestions",
         comments: 15,
+        afterCount: "comments · 2 suggestions",
       },
     },
   ],
@@ -61,7 +72,12 @@ const CASES: [name: string, input: ListenInput, layout: ListenLayout][] = [
     { ...BASE, mayComment: false, draft: DRAFT },
     {
       middle: { kind: "script" },
-      bottom: { kind: "row", label: "15 comments", comments: 15 },
+      bottom: {
+        kind: "row",
+        label: "15 comments",
+        comments: 15,
+        afterCount: "comments",
+      },
     },
   ],
   [
@@ -73,7 +89,12 @@ const CASES: [name: string, input: ListenInput, layout: ListenLayout][] = [
     },
     {
       middle: { kind: "script" },
-      bottom: { kind: "row", label: "Needs attention", comments: 0 },
+      bottom: {
+        kind: "row",
+        label: "Needs attention",
+        comments: 0,
+        afterCount: "comments · Needs attention",
+      },
     },
   ],
   [
@@ -85,6 +106,7 @@ const CASES: [name: string, input: ListenInput, layout: ListenLayout][] = [
         kind: "row",
         label: "2 comments · Needs attention",
         comments: 2,
+        afterCount: "comments · Needs attention",
       },
     },
   ],
@@ -93,7 +115,12 @@ const CASES: [name: string, input: ListenInput, layout: ListenLayout][] = [
     { ...BASE, counts: { comments: 0, suggestions: 1 } },
     {
       middle: { kind: "script" },
-      bottom: { kind: "row", label: "1 suggestion", comments: 0 },
+      bottom: {
+        kind: "row",
+        label: "1 suggestion",
+        comments: 0,
+        afterCount: "comments · 1 suggestion",
+      },
     },
   ],
   [
@@ -101,7 +128,12 @@ const CASES: [name: string, input: ListenInput, layout: ListenLayout][] = [
     { ...BASE, script: "pending" },
     {
       middle: { kind: "script" },
-      bottom: { kind: "row", label: "15 comments", comments: 15 },
+      bottom: {
+        kind: "row",
+        label: "15 comments",
+        comments: 15,
+        afterCount: "comments",
+      },
     },
   ],
   [
@@ -109,7 +141,12 @@ const CASES: [name: string, input: ListenInput, layout: ListenLayout][] = [
     { ...BASE, mayComment: false, script: "none" },
     {
       middle: { kind: "chapters" },
-      bottom: { kind: "row", label: "15 comments", comments: 15 },
+      bottom: {
+        kind: "row",
+        label: "15 comments",
+        comments: 15,
+        afterCount: "comments",
+      },
     },
   ],
   [
@@ -128,7 +165,12 @@ const CASES: [name: string, input: ListenInput, layout: ListenLayout][] = [
     { ...BASE, mayComment: false, script: "none", draft: DRAFT },
     {
       middle: { kind: "chapters" },
-      bottom: { kind: "row", label: "15 comments", comments: 15 },
+      bottom: {
+        kind: "row",
+        label: "15 comments",
+        comments: 15,
+        afterCount: "comments",
+      },
     },
   ],
   [
@@ -136,7 +178,12 @@ const CASES: [name: string, input: ListenInput, layout: ListenLayout][] = [
     { ...BASE, mayComment: false, script: "ready", draft: DRAFT },
     {
       middle: { kind: "script" },
-      bottom: { kind: "row", label: "15 comments", comments: 15 },
+      bottom: {
+        kind: "row",
+        label: "15 comments",
+        comments: 15,
+        afterCount: "comments",
+      },
     },
   ],
   [
@@ -144,7 +191,12 @@ const CASES: [name: string, input: ListenInput, layout: ListenLayout][] = [
     { ...BASE, mayComment: false, draft: DRAFT },
     {
       middle: { kind: "script" },
-      bottom: { kind: "row", label: "15 comments", comments: 15 },
+      bottom: {
+        kind: "row",
+        label: "15 comments",
+        comments: 15,
+        afterCount: "comments",
+      },
     },
   ],
   [
@@ -152,7 +204,12 @@ const CASES: [name: string, input: ListenInput, layout: ListenLayout][] = [
     { ...BASE, script: "none" },
     {
       middle: { kind: "chapters" },
-      bottom: { kind: "row", label: "15 comments", comments: 15 },
+      bottom: {
+        kind: "row",
+        label: "15 comments",
+        comments: 15,
+        afterCount: "comments",
+      },
     },
   ],
 ];
