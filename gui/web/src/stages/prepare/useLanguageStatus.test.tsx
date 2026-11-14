@@ -123,6 +123,13 @@ describe("useLanguageStatus", () => {
     expect(result.current).toBeNull();
   });
 
+  it("asks nothing and claims nothing without a project path", async () => {
+    const { result } = renderHook(() => useLanguageStatus("", "es", ""));
+    await Promise.resolve();
+    expect(load).not.toHaveBeenCalled();
+    expect(result.current).toBeNull();
+  });
+
   it("makes no claim when the read fails", async () => {
     load.mockRejectedValue(new Error("down"));
     const { result } = renderHook(() => useLanguageStatus("/p", "es", ""));

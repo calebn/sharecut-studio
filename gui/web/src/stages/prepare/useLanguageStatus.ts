@@ -28,6 +28,10 @@ export function useLanguageStatus(
   const [answer, setAnswer] = useState<Answer | null>(null);
 
   useEffect(() => {
+    if (!projectPath) {
+      setAnswer(null);
+      return;
+    }
     const controller = new AbortController();
     void loadTranscriptLanguageStatus(projectPath, language, {
       signal: controller.signal,
@@ -51,7 +55,8 @@ export function useLanguageStatus(
     return () => controller.abort();
   }, [projectPath, language, refreshKey]);
 
-  return answer &&
+  return projectPath &&
+    answer &&
     answer.asked === language &&
     answer.projectPath === projectPath &&
     answer.refreshKey === refreshKey
