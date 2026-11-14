@@ -58,6 +58,12 @@ async function enableRoomTonePcmHarness(page: Page): Promise<void> {
   });
 }
 
+async function keepTabOpen(page: Page): Promise<void> {
+  await page.evaluate(() => {
+    window.close = () => {};
+  });
+}
+
 async function beforeUnloadIsBlocked(page: Page): Promise<boolean> {
   return page.evaluate(() => {
     const event = new Event("beforeunload", { cancelable: true });
@@ -1234,10 +1240,7 @@ test.describe("record lobby", () => {
           await expect(host.getByText("Great answer").first()).toBeVisible();
           await expect(host.getByText("Producer note").first()).toBeVisible();
 
-          // A browser that keeps the tab open shows the Cover Done leaves behind.
-          await guest.evaluate(() => {
-            window.close = () => {};
-          });
+          await keepTabOpen(guest);
           await expect(
             guest.getByText("Saved to project. You can close this page."),
           ).toBeVisible();

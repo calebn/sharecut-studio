@@ -38,7 +38,6 @@ import {
 import { withShareableProject } from "./shareableProject";
 import { withBrowserPages } from "./twoBrowserPages";
 
-/** The guest room's alert while this page's own room socket is down. */
 const ROOM_CONNECTION_LOST_ALERT =
   "Lost connection to the room. You're still recording on this device.";
 const LIVE_PILL = /^\d+:\d{2} · Take \d+$/;

@@ -114,13 +114,13 @@ export function RecordDock({
     </button>
   );
 
+  const savedGuest = onDone !== undefined && seat !== "host";
   let center: ReactNode;
   if (status !== undefined) {
     center = (
       <>
         <div className="sys-dock-status">{status}</div>
-        {/* A saved guest keeps Notes: the Takes tray with their clipping summary opens from it. */}
-        {onDone && seat !== "host" ? notes : null}
+        {savedGuest ? notes : null}
       </>
     );
   } else if (seat === "host") {
