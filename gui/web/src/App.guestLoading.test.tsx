@@ -6,6 +6,7 @@ import { urlOf } from "./test/urlOf";
 
 // The studio chunk never arrives, so the lazy `DawApp` Suspense fallback stays up.
 vi.mock("./dawApp", () => new Promise(() => {}));
+vi.mock("./record/GuestRoomApp", () => new Promise(() => {}));
 
 const offline = vi.hoisted(() => ({ load: vi.fn(), clear: vi.fn() }));
 
@@ -38,13 +39,16 @@ describe("guest loading never shows host chrome", () => {
     resetFeaturesCache();
   });
 
-  it("shows a record-link guest the guest skeleton while features load", () => {
+  it("shows a record-link guest room wording while the room code loads", () => {
     window.history.pushState({}, "", "/rec/rec-tok");
     vi.stubGlobal(
       "fetch",
       vi.fn(() => new Promise<Response>(() => {})),
     );
     const { container } = render(<App />);
+    expect(screen.getByRole("status")).toHaveTextContent("Joining the room…");
+    expect(screen.queryByText("Loading project…")).toBeNull();
+    expect(screen.queryByText("Loading studio…")).toBeNull();
     expectGuestSkeleton(container);
   });
 
