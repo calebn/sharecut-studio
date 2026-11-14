@@ -2,6 +2,7 @@ import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useState } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { BUSY_REASON } from "../ui/disabledReason";
 import { JoinSheet, type JoinSheetProps } from "./JoinSheet";
 
 const MAYA = { name: "Maya Okafor", colorIndex: 0 };
@@ -150,7 +151,7 @@ describe("JoinSheet guest", () => {
       />,
     );
     const rows = document.querySelector('[data-step="mic"]') as HTMLElement;
-    const region = within(rows).getByRole("status");
+    const region = rows.querySelector(".sys-join-notes");
     expect(region).toHaveTextContent("Too loud. Move back a little.");
     expect(region).toHaveTextContent("Low space on this device.");
     expect(rows.querySelector(".sys-join-clip")).toHaveAttribute("data-lit");
@@ -177,11 +178,69 @@ describe("JoinSheet guest", () => {
     ).toBeInTheDocument();
   });
 
-  it("holds the primary in place with a busy state while joining", () => {
-    render(<Harness {...READY} joining />);
+  it("holds the primary in place with a busy state while joining", async () => {
+    const onJoin = vi.fn();
+    render(<Harness {...READY} joining onJoin={onJoin} />);
     const join = primary("Joining…");
-    expect(join).toBeDisabled();
+    expect(join).toHaveAttribute("aria-disabled", "true");
     expect(join).toHaveAttribute("aria-busy", "true");
+    await userEvent.click(join);
+    expect(onJoin).not.toHaveBeenCalled();
+  });
+
+  it("holds Allow microphone busy while the browser asks", async () => {
+    const onMicAction = vi.fn();
+    render(
+      <Harness
+        name="Jon"
+        mic={{ status: "prompting" }}
+        onMicAction={onMicAction}
+      />,
+    );
+    const allow = primary("Allow microphone");
+    expect(allow).toHaveAttribute("aria-busy", "true");
+    expect(allow).toHaveAttribute("aria-disabled", "true");
+    expect(allow).not.toBeDisabled();
+    expect(allow).toHaveAttribute("title", BUSY_REASON);
+    await userEvent.click(allow);
+    expect(onMicAction).not.toHaveBeenCalled();
+  });
+
+  it("keeps focus on the mic action when the prompt is denied", async () => {
+    const { rerender } = render(
+      <Harness name="Jon" mic={{ status: "idle" }} />,
+    );
+    await waitFor(() => expect(primary("Allow microphone")).toHaveFocus());
+    rerender(<Harness name="Jon" mic={{ status: "prompting" }} />);
+    expect(primary("Allow microphone")).toHaveFocus();
+    expect(primary("Allow microphone")).toHaveAttribute(
+      "aria-disabled",
+      "true",
+    );
+    rerender(<Harness name="Jon" mic={{ status: "denied" }} />);
+    expect(primary("How to allow the microphone")).toHaveFocus();
+    expect(
+      within(document.querySelector('[data-step="mic"]') as HTMLElement)
+        .getAllByRole("status")
+        .some((node) => node.textContent?.includes("Microphone blocked")),
+    ).toBe(true);
+  });
+
+  it("keeps focus on the mic action when the microphone is lost", async () => {
+    const { rerender } = render(
+      <Harness name="Jon" mic={{ status: "idle" }} />,
+    );
+    await waitFor(() => expect(primary("Allow microphone")).toHaveFocus());
+    rerender(<Harness name="Jon" mic={{ status: "prompting" }} />);
+    rerender(
+      <Harness name="Jon" mic={{ status: "lost", detail: "Unplugged" }} />,
+    );
+    expect(primary("Retry microphone")).toHaveFocus();
+    expect(
+      within(document.querySelector('[data-step="mic"]') as HTMLElement)
+        .getAllByRole("status")
+        .some((node) => node.textContent?.includes("isn't available")),
+    ).toBe(true);
   });
 
   it("declines from Not now, Close and Escape", async () => {
@@ -386,9 +445,7 @@ describe("JoinSheet input and storage", () => {
       />,
     );
     expect(screen.getByText("Microphone disconnected.")).toBeVisible();
-    const region = within(
-      document.querySelector('[data-step="mic"]') as HTMLElement,
-    ).getByRole("status");
+    const region = document.querySelector('[data-step="mic"] .sys-join-notes');
     expect(region).toHaveTextContent("Your saved microphone isn't available.");
   });
 });
