@@ -1,17 +1,19 @@
-import {
-  lazy,
-  Suspense,
-  useEffect,
-  useLayoutEffect,
-  useRef,
-  useState,
-} from "react";
+import { lazy, Suspense, useEffect, useState } from "react";
 import { loadReviewBootstrap } from "./api";
-import { ApiError, errorMessage } from "./utils/apiError";
+import {
+  classifyBootstrapFailure,
+  type GuestLoadFailure,
+  guestLoadCover,
+} from "./guestLoadFailure";
+import { ApiError } from "./utils/apiError";
 import { readNotServed } from "./utils/notServed";
 import "./styles/daw.css";
 import { FeatureProvider } from "./extensions/FeatureProvider";
-import { useFeaturesReady, useHasFeature } from "./extensions/FeaturesContext";
+import {
+  useFeaturesReady,
+  useHasFeature,
+  useRetryFeatures,
+} from "./extensions/FeaturesContext";
 import { FEATURE_SHARE_UI_ROUTES } from "./extensions/features";
 import { AskDialog } from "./feedback/AskDialog";
 import { ModelsProvider } from "./models";
@@ -23,11 +25,7 @@ import { isShareProjectKey, shareProjectKey } from "./shareMode";
 import { parseShareRoute } from "./shareRoute";
 import { GuestLoadingScreen } from "./stage/frame/GuestLoadingScreen";
 import { StageLoading } from "./stage/frame/StageLoading";
-import {
-  BadLinkCover,
-  HostCover,
-  NotServedCover,
-} from "./stage/frame/StatusCovers";
+import { GuestPageCover, NotServedCover } from "./stage/frame/StatusCovers";
 import { HomeScreen } from "./stages/home/HomeScreen";
 import { DawProvider } from "./state/store";
 import type { ProjectView } from "./types/project";
@@ -65,11 +63,8 @@ function shareRouteFromLocation(): {
 
 type BootstrapError =
   | { cover: "bad-link" }
-  | {
-      message: string;
-      hint?: string;
-      cover?: "offline" | "failed";
-    };
+  | { cover: "host"; failure: GuestLoadFailure }
+  | { message: string; hint?: string };
 type GuestAccess = {
   key: string;
   mode: string;
@@ -130,19 +125,27 @@ function admitBootstrap(
     return {
       ...retained,
       status: "settled",
-      error: {
-        message:
-          "Share / guest routes (review and record) are not available (online extension not loaded).",
-      },
+      error: request.reviewToken
+        ? { cover: "host", failure: { kind: "no-review-routes" } }
+        : {
+            message:
+              "Share / guest routes (review and record) are not available (online extension not loaded).",
+          },
     };
   }
   if (request.recordToken) {
     return { ...retained, status: "settled", guest: null, error: null };
   }
+  // A new attempt for the same review link keeps showing why the last one
+  // failed, so the cover and its button stay on screen while it runs.
+  const holdsError =
+    request.reviewToken !== null &&
+    previous?.request.reviewToken === request.reviewToken &&
+    previous.request.featuresReady === request.featuresReady;
   return {
     ...retained,
     status: request.reviewToken ? "pending" : "settled",
-    error: null,
+    error: holdsError ? retained.error : null,
   };
 }
 
@@ -151,6 +154,7 @@ function AppInner() {
   const reviewToken = shareRoute?.kind === "review" ? shareRoute.token : null;
   const recordToken = shareRoute?.kind === "record" ? shareRoute.token : null;
   const featuresReady = useFeaturesReady();
+  const retryFeatures = useRetryFeatures();
   const shareRoutesEnabled = useHasFeature(FEATURE_SHARE_UI_ROUTES);
   const projectPath = projectPathFromQuery();
   const [attempt, setAttempt] = useState(0);
@@ -175,12 +179,15 @@ function AppInner() {
   const shareTranscriptWords = guest?.transcriptWords ?? false;
   const shareAuthor = guest?.author ?? null;
   const shareBootstrapping = current.status === "pending";
+  const trying = shareBootstrapping && error !== null;
+  // A hung features call is not a dead button: asking again replaces it.
+  const retry = () => {
+    if (!featuresReady) retryFeatures();
+    setAttempt((n) => n + 1);
+  };
   const projectLoading = () =>
     reviewToken || shareKey || isShareProjectKey(projectPath ?? "") ? (
-      <GuestLoadingScreen
-        label="Loading project…"
-        onRetry={() => setAttempt((n) => n + 1)}
-      />
+      <GuestLoadingScreen label="Loading project…" onRetry={retry} />
     ) : (
       <StageLoading
         stage={
@@ -192,21 +199,21 @@ function AppInner() {
       />
     );
 
-  const coverRef = useRef<HTMLElement>(null);
-  const coverKind = error?.cover;
+  const autoRetryMs =
+    error && "cover" in error && error.cover === "host"
+      ? guestLoadCover(error.failure).autoRetryMs
+      : null;
 
+  // Counts only while the cover waits: a press or an attempt in flight cancels
+  // it, and a fresh one starts when the attempt settles.
   useEffect(() => {
-    if (coverKind === "offline") {
-      const timer = window.setTimeout(() => setAttempt((n) => n + 1), 30_000);
-      return () => window.clearTimeout(timer);
-    }
-  }, [coverKind, attempt]);
-
-  useLayoutEffect(() => {
-    if (coverKind) {
-      coverRef.current?.focus();
-    }
-  }, [coverKind]);
+    if (autoRetryMs === null || trying) return;
+    const timer = window.setTimeout(
+      () => setAttempt((n) => n + 1),
+      autoRetryMs,
+    );
+    return () => window.clearTimeout(timer);
+  }, [autoRetryMs, trying]);
 
   useEffect(() => {
     const { featuresReady, shareRoutesEnabled, reviewToken, recordToken } =
@@ -236,12 +243,9 @@ function AppInner() {
         };
       } catch (e: unknown) {
         if (cancelled) return;
-        if (
-          e instanceof ApiError &&
-          (e.code === "share_not_found" ||
-            (e.code === null && e.status === 404))
-        ) {
-          if (e.code === "share_not_found") {
+        const failure = classifyBootstrapFailure(e);
+        if (failure.kind === "bad-link") {
+          if (e instanceof ApiError && e.code === "share_not_found") {
             void clearOfflineSnapshot(reviewToken).catch(() => undefined);
           }
           outcome = { kind: "error", error: { cover: "bad-link" } };
@@ -265,26 +269,19 @@ function AppInner() {
           };
           return;
         }
-        const unreachable =
-          !(e instanceof ApiError) ||
-          e.status === null ||
-          e.status === 502 ||
-          e.status === 503 ||
-          e.status === 504;
-        outcome = {
-          kind: "error",
-          error: {
-            message: errorMessage(e),
-            cover: unreachable ? "offline" : "failed",
-          },
-        };
+        outcome = { kind: "error", error: { cover: "host", failure } };
       } finally {
         if (!cancelled) {
           const completed = outcome;
           setBootstrap((state) => {
             if (state.request !== request) return state;
             if (completed?.kind === "online") {
-              return { ...state, status: "settled", guest: completed.guest };
+              return {
+                ...state,
+                status: "settled",
+                guest: completed.guest,
+                error: null,
+              };
             }
             if (completed?.kind === "cached") {
               return {
@@ -322,33 +319,21 @@ function AppInner() {
       </Suspense>
     );
   }
-  if (Boolean(reviewToken) && (!featuresReady || shareBootstrapping)) {
-    return (
-      <GuestLoadingScreen
-        label="Loading project…"
-        onRetry={() => setAttempt((n) => n + 1)}
-      />
-    );
+  if (reviewToken && (!featuresReady || (shareBootstrapping && !error))) {
+    return <GuestLoadingScreen label="Loading project…" onRetry={retry} />;
   }
   if (!featuresReady) {
     return projectLoading();
   }
-  if (error?.cover === "bad-link") {
+  if (error && "cover" in error) {
     return (
-      <main ref={coverRef} tabIndex={-1}>
-        <BadLinkCover />
-      </main>
-    );
-  }
-  if (error?.cover === "offline" || error?.cover === "failed") {
-    return (
-      <main ref={coverRef} tabIndex={-1}>
-        <HostCover
-          asleep={error.cover === "offline"}
-          message={error.message}
-          onRetry={() => setAttempt((n) => n + 1)}
-        />
-      </main>
+      <GuestPageCover
+        failure={
+          error.cover === "bad-link" ? { kind: "bad-link" } : error.failure
+        }
+        trying={trying}
+        onRetry={retry}
+      />
     );
   }
   if (error) {

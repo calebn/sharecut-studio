@@ -285,10 +285,13 @@ describe("App bootstrap request lifetime", () => {
     });
     vi.useFakeTimers({ shouldAdvanceTime: true });
     render(<App />);
-    await screen.findByRole("button", { name: "Try now" });
-    fireEvent.click(screen.getByRole("button", { name: "Try now" }));
+    const button = await screen.findByRole("button", { name: "Try now" });
+    button.focus();
+    fireEvent.click(button);
     await waitFor(() => expect(calls).toBe(2));
-    expect(screen.queryByRole("button", { name: "Try now" })).toBeNull();
+    expect(screen.getByRole("button", { name: "Trying…" })).toBe(button);
+    expect(button).toHaveAttribute("aria-busy", "true");
+    expect(button).toHaveFocus();
     await act(async () => {
       await vi.advanceTimersByTimeAsync(60_000);
     });
@@ -297,5 +300,76 @@ describe("App bootstrap request lifetime", () => {
       retry.resolve(bootstrap("Alpha"));
     });
     expect(provider()).toHaveAttribute("data-author", "Alpha");
+  });
+
+  it("keeps the cover and its button through a retry, and pauses the timer until it settles", async () => {
+    const retry = deferred<Response>();
+    let calls = 0;
+    offline.load.mockResolvedValue(undefined);
+    serve(async () => {
+      if (++calls === 1) throw new TypeError("offline");
+      if (calls === 2) return retry.promise;
+      return bootstrap("Alpha");
+    });
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    render(<App />);
+    const button = await screen.findByRole("button", { name: "Try now" });
+    button.focus();
+    fireEvent.click(button);
+    await waitFor(() => expect(calls).toBe(2));
+    expect(screen.getByRole("button", { name: "Trying…" })).toBe(button);
+    expect(button).toHaveAttribute("aria-busy", "true");
+    expect(button).toHaveFocus();
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(60_000);
+    });
+    expect(calls).toBe(2);
+    await act(async () => {
+      retry.resolve(new Response("{}", { status: 503, headers: {} }));
+    });
+    expect(
+      screen.getByRole("heading", { name: "The host's computer is asleep" }),
+    ).toBeInTheDocument();
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(29_000);
+    });
+    expect(calls).toBe(2);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(2_000);
+    });
+    await waitFor(() => expect(calls).toBe(3));
+    expect(await screen.findByText("Studio body")).toBeInTheDocument();
+    expect(provider()).toHaveAttribute("data-author", "Alpha");
+  });
+
+  it("opens the episode at once when a retry succeeds, without holding the cover", async () => {
+    let calls = 0;
+    offline.load.mockResolvedValue(undefined);
+    serve(async () => {
+      if (++calls === 1) throw new TypeError("offline");
+      return bootstrap("Alpha");
+    });
+    render(<App />);
+    fireEvent.click(await screen.findByRole("button", { name: "Try now" }));
+    expect(await screen.findByText("Studio body")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Try/ })).toBeNull();
+  });
+
+  it("drops the held failure when the link changes", async () => {
+    const second = deferred<Response>();
+    offline.load.mockResolvedValue(undefined);
+    serve(async (token) => {
+      if (token === "alpha") throw new TypeError("offline");
+      return second.promise;
+    });
+    const { rerender } = render(<App />);
+    await screen.findByRole("button", { name: "Try now" });
+    window.history.pushState({}, "", "/r/beta");
+    rerender(<App />);
+    expect(screen.queryByRole("button", { name: /Try/ })).toBeNull();
+    await act(async () => {
+      second.resolve(bootstrap("Beta"));
+    });
+    expect(await screen.findByText("Studio body")).toBeInTheDocument();
   });
 });

@@ -1844,6 +1844,11 @@ html:not([data-shell="phone"])
   font-size: var(--font-size-body);
 }
 
+/* One line stays reserved so the status appearing does not move the button. */
+.sys-cover-status {
+  min-block-size: 1lh;
+}
+
 .sys-cover-actions {
   display: flex;
   flex-direction: column;
