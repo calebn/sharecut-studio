@@ -21,7 +21,9 @@ export type SelectionModel = {
  * and its text are: its line and its `word_index` both change when a cut
  * splits a line or renumbers. A retime, a phrase correction that re-splits, or
  * the aligner changes the start, so such a word is not found and the selection
- * is cleared, not followed. `ref` and `time` are what the store was given for it.
+ * is cleared, not followed. `ref` and `time` are what the store was given for
+ * it; `copies` is how many words matched it then, so a single match later
+ * proves it only for a word that was alone.
  */
 export type SelectionEnd = {
   index: number;
@@ -31,6 +33,7 @@ export type SelectionEnd = {
   text: string;
   ref: ScriptWordRef | undefined;
   time: Time | undefined;
+  copies: number;
 };
 
 export type RememberedSelection = {
@@ -47,7 +50,7 @@ export function selectionEndOf(
   const ref = model.refs[index];
   const word = model.words[index];
   if (!ref || !word) return null;
-  return {
+  const end = {
     index,
     trackId: ref.trackId,
     sourceId: ref.sourceId,
@@ -56,6 +59,10 @@ export function selectionEndOf(
     ref,
     time: model.times[index],
   };
+  let copies = 0;
+  for (let at = 0; at < model.words.length; at++)
+    if (matches(model, end, at)) copies += 1;
+  return { ...end, copies };
 }
 
 export type SelectionFollow =
@@ -81,7 +88,7 @@ const sameTime = (a: Time | undefined, b: Time | undefined) =>
 
 function matches(
   model: SelectionModel,
-  end: SelectionEnd,
+  end: Omit<SelectionEnd, "copies">,
   index: number,
 ): boolean {
   const ref = model.refs[index];
@@ -125,7 +132,8 @@ function findEnd(model: SelectionModel, end: SelectionEnd): Found {
     });
   // A copy may sit in a line not drawn yet: nothing can be counted.
   if (barred || held) return { kind: "wait" };
-  if (live.length === 1) return { kind: "at", index: live[0]! };
+  if (live.length === 1 && end.copies === 1)
+    return { kind: "at", index: live[0]! };
   const same = live.filter((index) => holds(model, end, index));
   return same.length === 1 ? { kind: "at", index: same[0]! } : { kind: "gone" };
 }
