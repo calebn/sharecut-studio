@@ -1115,9 +1115,12 @@ first", "Put on headphones first", "Fix storage first"). A producer sees the nam
 row and **Join to listen** ("You'll listen and take notes. You won't be
 recorded."); producers skip the mic, storage and headphones rows.
 
-While the link is looked up, the guest room shows the Room shell at once instead of a
-blank "Loading studio…" screen: placeholder tiles (`RoomView` with `loading`), a dimmed
-inert dock, no status pill or Notes rail. After 4 s (`SKELETON_RETRY_MS`) the alert slot
+The `/rec` route does not wait for the host's feature list. While the room code
+(`GuestRoomApp`) loads, the page shows the shared guest skeleton (`GuestLoadingScreen`:
+blank for 300 ms, then blocks, **Still loading…** with **Retry** at 4 s, which reloads the
+page) with the hidden status "Joining the room…". Once the code is loaded, the guest room
+shows the Room shell at once instead of a blank screen: placeholder tiles (`RoomView` with
+`loading`), a dimmed inert dock, no status pill or Notes rail. After 4 s (`SKELETON_RETRY_MS`) the alert slot
 adds "Still connecting…" with **Retry**, which looks the room up again, moves focus to the
 page title and restarts the 4 s count. This shell belongs to the guest and producer link; the host's own seat in the
 Record stage is unaffected.
@@ -1348,6 +1351,11 @@ stateDiagram-v2
 | Mic permission prompt in the Linux Tauri desktop app | "Waiting for the desktop webview microphone permission prompt…" |
 | No input device | "No microphone was found. Connect an input device, then Retry." |
 | Invite closed | Cover "Invite link closed"; "{Host} closed this invite link. Ask for a new link."; while a full-quality WAV of the take is still on the device (read from the keeper store, so it holds after a reload; not once every segment has landed and been cleared) it adds "Your recording is safe on this device. Save it and send it to {host}, or ask for a new link." with **Save my recording** / **Try saving again** |
+| Link refused (any 4xx except 408 and 429) | Cover "This link doesn't open a room"; "Ask the person who invited you for a new link."; no button, no retry |
+| No answer from the network (no response at all) | Cover "Couldn't reach the room"; "Check your internet connection, then try again."; **Try again** looks the room up again, and so does the browser's `online` event, once |
+| Server or host didn't answer (5xx including a sleeping host's 503, 408, 429, a reply that is not the room) | Cover "The room didn't answer"; "Try again in a minute. If it keeps happening, let the person who invited you know."; **Try again** |
+| After **Save my recording** handed the whole zip to the browser (ended or closed invite) | Cover "Check your downloads"; "Find the zip file of your recording and send it to {host}."; text button **Save it again**. A partial export keeps "Your recording didn't finish saving" |
+| Tab title | `{state} \| {episode}` (`{state} \| ShareCut Studio` while the episode is unknown). State: the shown cover's title; "Joining the room" before the room code is looked up; "Join to listen" (producer, before joining); "Join the room"; "Not being recorded"; then the pill's phase: Waiting, Stay quiet, Recording, Paused, Saving to project…, Saving stopped, Saved to project, Reconnecting… |
 | Room tone (host Record stage) | "Record 1 minute of room tone"; while capturing "Stay quiet · 0:42" with a bar, **End early** and **Cancel** |
 | Room tone for a guest who joined late (alert row) | "Record 1 minute of room tone." **Record room tone** / **Skip**; while capturing the row reads "Stay quiet · 0:42" with a bar, **End early** and **Cancel** (any capturing guest sees it, host-started or not) |
 | Room tone ended too early | "Too short, record at least 10 seconds" (the take is discarded; End early keeps a take of 10 s or more) |
