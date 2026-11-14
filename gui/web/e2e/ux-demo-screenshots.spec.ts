@@ -43,6 +43,20 @@ async function expectLoadedDemo(page: Page): Promise<void> {
   ).toBeEnabled();
 }
 
+/** The phone Commenter's Listen layout: the transcript, the dock and its Comment button, no field. */
+async function expectLoadedListenDemo(page: Page): Promise<void> {
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText(
+    "ShareCut Studio UX demo",
+  );
+  await expect(page.locator(".sys-listen-dock-total")).toContainText("1:00");
+  await expect(
+    page.getByRole("button", { name: "Play", exact: true }),
+  ).toBeEnabled();
+  await expect(page.getByRole("button", { name: /^Comment at/ })).toBeVisible();
+  await expect(page.locator(".sys-script-word").first()).toBeVisible();
+  await expect(page.locator(".rv-compose")).toHaveCount(0);
+}
+
 async function expectLoadedTimeline(page: Page): Promise<void> {
   await expect(
     page.locator('.lane-row[data-track-id="reference"]'),
@@ -123,7 +137,7 @@ test.describe("UX demo screenshots", () => {
       timeout: 30_000,
     });
     await expect(phone.locator(".sys-role")).toBeVisible();
-    await expectLoadedDemo(phone);
+    await expectLoadedListenDemo(phone);
     await phone.screenshot({
       path: path.join(screensDir, "guest-sharecut-phone.png"),
       fullPage: true,
