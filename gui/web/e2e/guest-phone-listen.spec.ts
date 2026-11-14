@@ -590,8 +590,14 @@ for (const profile of PROFILES) {
       const box = await comment.boundingBox();
       expect(box?.width ?? 0).toBeGreaterThanOrEqual(TOUCH_MIN);
       expect(box?.height ?? 0).toBeGreaterThanOrEqual(TOUCH_MIN);
+      await guest
+        .getByRole("button", { name: "Play", exact: true })
+        .tap({ timeout: 10_000 });
+      const pause = guest.getByRole("button", { name: "Pause", exact: true });
+      await expect(pause).toBeVisible();
       await comment.tap({ timeout: 10_000 });
       await expect(composer(guest)).toBeVisible();
+      await expect(pause).toBeVisible();
       await expectNoHorizontalScroll(guest, FOLDED.width);
     });
   });
