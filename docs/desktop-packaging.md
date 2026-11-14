@@ -211,6 +211,9 @@ lib (a `staticlib`) with Python.xcframework linked into it; there is no sidecar 
   `--ensure` scans the whole payload for the home directory, the user name as a path segment and
   the cache directory. A hit fails the build; the manifest's `private_path_scan` records
   `clean` and `files_scanned`.
+  The two cached artifacts the script makes itself, the unpacked `Python.xcframework` and the
+  cross-built wheel, each have a sha256 recorded beside them and are rebuilt when it no longer
+  matches.
 - **Lifecycle.** `src/lifecycle.rs` is a pure reducer (`Starting`, `Serving`, `Rechecking`,
   `Failed`; events `Bound`, `Healthy`, `Unhealthy` (both carry the probe's generation, and a
   result older than the current recheck is ignored), `StartFailed`, `NavigationFailed`, `Tick`,
