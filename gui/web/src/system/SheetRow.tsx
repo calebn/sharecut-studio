@@ -30,8 +30,9 @@ export function SheetRow({
             <Button
               aria-label={action.name}
               aria-busy={action.busy || undefined}
-              disabledReason={action.busy ? BUSY_REASON : undefined}
-              onClick={() => onAction?.(action.kind)}
+              aria-disabled={action.busy || undefined}
+              title={action.busy ? BUSY_REASON : undefined}
+              onClick={action.busy ? undefined : () => onAction?.(action.kind)}
             >
               {action.label}
             </Button>

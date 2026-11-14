@@ -425,7 +425,10 @@ describe("GuestRoomApp", () => {
     const socket = sockets[0];
     socket.holdConsent = true;
     await userEvent.click(joinButton());
-    expect(screen.getByRole("button", { name: "Joining…" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Joining…" })).toHaveAttribute(
+      "aria-disabled",
+      "true",
+    );
     act(() =>
       socket.onmessage?.({
         data: JSON.stringify({
@@ -437,7 +440,10 @@ describe("GuestRoomApp", () => {
     );
     await waitFor(() => expect(joinButton()).toBeEnabled());
     await userEvent.click(joinButton());
-    expect(screen.getByRole("button", { name: "Joining…" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Joining…" })).toHaveAttribute(
+      "aria-disabled",
+      "true",
+    );
     act(() => socket.onmessage?.(snapshotMessage({}, true)));
     await screen.findByRole("button", { name: "Leave room" });
     expect(
@@ -490,7 +496,10 @@ describe("GuestRoomApp", () => {
     await readyToJoin(getUserMedia);
     sockets[0].holdConsent = true;
     await userEvent.click(joinButton());
-    expect(screen.getByRole("button", { name: "Joining…" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Joining…" })).toHaveAttribute(
+      "aria-disabled",
+      "true",
+    );
     expect(localStorage.getItem("sharecut.recordName")).toBeNull();
     act(() => sockets[0].onmessage?.(snapshotMessage({}, true)));
     await screen.findByRole("button", { name: "Leave room" });

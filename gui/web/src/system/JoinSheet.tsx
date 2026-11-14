@@ -112,11 +112,13 @@ function Footer({
       <Button
         ref={primaryRef}
         variant="primary"
-        onClick={onJoin}
+        onClick={primary.busy ? undefined : onJoin}
         aria-busy={primary.busy || undefined}
+        aria-disabled={primary.busy || undefined}
+        title={primary.busy ? BUSY_REASON : undefined}
         aria-describedby={primary.reason ? reasonId : undefined}
         disabledReason={
-          primary.busy ? BUSY_REASON : (primary.reason ?? undefined)
+          primary.busy ? undefined : (primary.reason ?? undefined)
         }
       >
         {primary.busy ? (
@@ -134,6 +136,14 @@ function Footer({
   );
 }
 
+function micStatusLine(row: JoinRow): string {
+  if (row.state === "running") return row.detail ?? "";
+  if (row.state === "needs-you" || row.state === "failed") {
+    return [row.title, row.detail].filter(Boolean).join(". ");
+  }
+  return "";
+}
+
 /** The element for a focus target: a row's first enabled control, else the row. */
 function focusElement(
   form: HTMLFormElement | null,
@@ -145,7 +155,11 @@ function focusElement(
   if (focus.kind === "primary") return primary?.disabled ? null : primary;
   const row = form?.querySelector<HTMLElement>(`[data-step="${focus.step}"]`);
   if (!row || focus.step === "name") return row ?? null;
-  return row.querySelector<HTMLElement>("button:not(:disabled), input") ?? row;
+  return (
+    row.querySelector<HTMLElement>(
+      "button:not(:disabled, [aria-disabled='true']), input",
+    ) ?? row
+  );
 }
 
 /**
@@ -306,6 +320,9 @@ export function JoinSheet({
             ) : null}
             <SheetRow row={rowOf("name")}>{nameField}</SheetRow>
             <SheetRow row={rowOf("mic")} onAction={act}>
+              <p className="sr-only" role="status">
+                {micStatusLine(rowOf("mic"))}
+              </p>
               <MicRow
                 mic={mic}
                 notes={guestModel.micNotes}
