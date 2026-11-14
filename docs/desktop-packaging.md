@@ -301,6 +301,13 @@ lib (a `staticlib`) with Python.xcframework linked into it; there is no sidecar 
   the page's socket and event-stream URLs carry non-secret parameters (project path, client ids,
   job id), so `query_empty` is false for them; that no token is in them rests on the engine
   accepting only the session cookie on this host (`tests/test_gui_embedded_session.py`).
+- **Where share links live.** The share registry and the share identity store sit under
+  `Library/Application Support/ShareCut/state`, never in Documents (the Files-visible folder), and
+  the registry names a project relative to the container so links survive a reinstall that moves
+  it ([persistence.md](persistence.md#decision-share-tokens-stay-in-private-storage)). Assertion 8
+  of the proof reads the container from the Mac: Documents holds no registry, identity store or
+  relay config and no sqlite file with an `active_shares` table, and the registry file is mode
+  0600 in a 0700 directory. It is `partly_observed` until the engine has opened the registry.
 
 <a id="ios-release"></a>
 **iOS release (#3810, stage 2).** `scripts/ios/ios_release.py` builds a release `.ipa` for the

@@ -26,7 +26,11 @@ which this script reads from the Mac. Assertions:
    engine accepting only the session cookie on this host, pinned by the same test file;
 6. after the app goes to the background and returns, the same port answers and the lifecycle
    rechecked it;
-7. a copy of the payload with a module removed shows the failure sentence and logs the reason.
+7. a copy of the payload with a module removed shows the failure sentence and logs the reason;
+8. private storage: Documents (the Files-visible folder) holds no share registry, identity store
+   or relay config, and no sqlite file in it has an ``active_shares`` table; the registry sits
+   under the private state folder, file mode 0600 in a 0700 directory. The registry exists only
+   once the engine has opened it, so a run that never did is partly observed.
 
 Assertion 5 needs a project open. ``--ui-window SECONDS`` keeps the app open that long (and
 stops early once a WebSocket accept shows) so a person or the Simulator tool can open one.
@@ -45,6 +49,8 @@ import argparse
 import json
 import re
 import shutil
+import sqlite3
+import stat
 import struct
 import subprocess
 import sys
@@ -178,6 +184,60 @@ def traffic_assertions(facts: AuditFacts) -> dict[str, dict[str, object]]:
             "media_requests_200": list(facts.media_requests_200),
             "gap": gap,
         },
+    }
+
+
+STATE_RELDIR = Path("Library/Application Support/ShareCut/state")
+REGISTRY_NAME = "share_registry.sqlite"
+DOCUMENTS_FORBIDDEN_PREFIXES = (REGISTRY_NAME, "share_identity.sqlite", "relay.yaml")
+SQLITE_MAGIC = b"SQLite format 3\0"
+
+
+def _holds_registry_table(path: Path) -> bool:
+    try:
+        with path.open("rb") as handle:
+            if handle.read(len(SQLITE_MAGIC)) != SQLITE_MAGIC:
+                return False
+        connection = sqlite3.connect(f"{path.as_uri()}?mode=ro&immutable=1", uri=True)
+        try:
+            found = connection.execute(
+                "SELECT 1 FROM sqlite_master WHERE name = 'active_shares'"
+            ).fetchone()
+        finally:
+            connection.close()
+    except (OSError, sqlite3.Error):
+        return False
+    return found is not None
+
+
+def private_storage_facts(container: Path) -> dict[str, object]:
+    """Assertion 8 from the app's data container: where the share registry and its kin live."""
+    documents = container / "Documents"
+    visible = sorted(
+        str(path.relative_to(container))
+        for path in documents.rglob("*")
+        if path.is_file()
+        and (path.name.startswith(DOCUMENTS_FORBIDDEN_PREFIXES) or _holds_registry_table(path))
+    )
+    state = container / STATE_RELDIR
+    registry = state / REGISTRY_NAME
+    file_mode = directory_mode = None
+    if registry.is_file():
+        file_mode = stat.S_IMODE(registry.stat().st_mode)
+        directory_mode = stat.S_IMODE(state.stat().st_mode)
+    private = (file_mode, directory_mode) == (0o600, 0o700)
+    if visible or (registry.is_file() and not private):
+        status, gap = FAILED, None
+    elif registry.is_file():
+        status, gap = OBSERVED, None
+    else:
+        status, gap = PARTLY, "the engine never opened the registry, so its mode was not read"
+    return {
+        "status": status,
+        "gap": gap,
+        "visible_in_documents": visible,
+        "registry_file_mode": None if file_mode is None else oct(file_mode),
+        "state_directory_mode": None if directory_mode is None else oct(directory_mode),
     }
 
 
@@ -355,6 +415,10 @@ class Proof:
         for key, row in traffic_assertions(audit_facts(self.audit_rows())).items():
             self.record_row(key, row)
 
+    def private_storage(self) -> None:
+        container = run("xcrun", "simctl", "get_app_container", self.device, self.bundle_id, "data")
+        self.record_row("8_private_storage", private_storage_facts(Path(container.strip())))
+
     def background_and_return(self) -> None:
         before = self.listen_port(self.pid, 5)[0]
         run("xcrun", "simctl", "launch", self.device, PREFERENCES)
@@ -432,6 +496,7 @@ def main() -> int:
         proof.refusals()
         proof.page_traffic()
         proof.record_row("4_ui", dict(UI_ASSERTION))
+        proof.private_storage()
         proof.background_and_return()
         proof.broken_payload()
     report = {"schema": 2, "device": args.device, "assertions": dict(sorted(proof.results.items()))}
