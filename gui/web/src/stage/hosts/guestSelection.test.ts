@@ -8,7 +8,7 @@ import {
 } from "./guestSelection";
 
 /** `n` is the word_index the store holds, `at` the source second: a cut moves `n`, never `at`. */
-type W = { text: string; n: number; at: number; held?: true };
+type W = { text: string; n: number; at: number; held?: true; time?: number };
 type Line = {
   id: string;
   words: W[];
@@ -41,8 +41,9 @@ function modelOf(lines: Line[]): SelectionModel {
       words: line.words.map((w) => {
         const index = refs.length;
         refs.push({ trackId, sourceId, wordIndex: w.n });
-        times.push(w.held ? null : { start: w.at, end: w.at + 0.4 });
-        wordStarts.push(w.held ? null : w.at);
+        const when = w.time ?? w.at;
+        times.push(w.held ? null : { start: when, end: when + 0.4 });
+        wordStarts.push(w.held ? null : when);
         words.push({ start: w.at, text: w.text });
         return { index, key: `${trackId}::${w.n}`, text: w.text };
       }),
@@ -293,5 +294,95 @@ describe("followSelection", () => {
     const only = modelOf([line("a:s2:1", [["yes", 0, 1]], { source: "s2" })]);
     expect(followSelection(remember(two, 0), only)).toEqual({ kind: "clear" });
     expect(followSelection(remember(two, 1), only)).toEqual({ kind: "keep" });
+  });
+
+  describe("the same recording placed twice", () => {
+    const copy = (id: string, shift: number, n = 0) =>
+      line(id, [["yes", n, 5]], {}, false).words.map((w) => ({
+        ...w,
+        time: 5 + shift,
+      }));
+    const twoCopies = (shifts: [number, number]) =>
+      modelOf([
+        { id: "c1", words: copy("c1", shifts[0]) },
+        { id: "c2", words: copy("c2", shifts[1]) },
+      ]);
+
+    it("keeps the second copy when nothing changed, never moving to the first", () => {
+      const model = twoCopies([0, 30]);
+      expect(followSelection(remember(model, 1), model)).toEqual({
+        kind: "keep",
+      });
+      expect(followSelection(remember(model, 0), model)).toEqual({
+        kind: "keep",
+      });
+    });
+
+    it("clears when a cut elsewhere shifts both copies' times, since the pick cannot be proven", () => {
+      const picked = remember(twoCopies([0, 30]), 1);
+      expect(followSelection(picked, twoCopies([-5, 25]))).toEqual({
+        kind: "clear",
+      });
+    });
+
+    it("waits while one copy sits inside a line drawn as bars", () => {
+      const picked = remember(twoCopies([0, 30]), 1);
+      const gap = modelOf([
+        bars("c1", [4, 6]),
+        { id: "c2", words: copy("c2", 30) },
+      ]);
+      expect(followSelection(picked, gap)).toEqual({ kind: "wait" });
+    });
+
+    it("tells two equal-text words with one start in a line apart only while unchanged", () => {
+      const twin = (n2: number) =>
+        modelOf([
+          line("t", [
+            ["um", 0, 5],
+            ["um", n2, 5],
+          ]),
+        ]);
+      const model = twin(1);
+      expect(followSelection(remember(model, 1), model)).toEqual({
+        kind: "keep",
+      });
+      // Both renumbered: it cannot be told which was picked.
+      const both = modelOf([
+        line("t", [
+          ["um", 4, 5],
+          ["um", 5, 5],
+        ]),
+      ]);
+      expect(followSelection(remember(model, 1), both)).toEqual({
+        kind: "clear",
+      });
+    });
+  });
+
+  it("never picks a word whose start is not a number", () => {
+    const nan = line("n", [["a", 0, Number.NaN]]);
+    const real = line("r", [["a", 1, 7]]);
+    const model = modelOf([nan, real]);
+    expect(followSelection(remember(model, 1), model)).toEqual({
+      kind: "keep",
+    });
+    // A remembered end with no start matches nothing.
+    expect(followSelection(remember(model, 0), model)).toEqual({
+      kind: "clear",
+    });
+  });
+
+  it("clears a word that was retimed: its source start changed", () => {
+    const retimed = modelOf(
+      [abaa, next].map((l) => ({
+        ...l,
+        words: l.words.map((w) =>
+          w.text === "b" ? { ...w, at: w.at + 0.2 } : w,
+        ),
+      })),
+    );
+    expect(followSelection(remember(before, 1), retimed)).toEqual({
+      kind: "clear",
+    });
   });
 });
