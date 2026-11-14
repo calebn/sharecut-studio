@@ -1,11 +1,25 @@
-import { type ReactNode, useEffect, useId, useRef, useState } from "react";
+import { type ReactNode, useId } from "react";
 import { Button } from "../ui";
-import { HINT_MS, RecordButton, type RecordButtonProps } from "./RecordButton";
+import { RecordButton, type RecordButtonProps } from "./RecordButton";
 import { SystemIcon } from "./SystemIcon";
+import { usePressHint } from "./usePressHint";
 import { VerbButton } from "./VerbButton";
 import { hintOf, verbOf } from "./verbDisplay";
 
 export type DockSeat = "host" | "guest" | "producer";
+
+/**
+ * What the dock shows. `status` replaces the secondaries after Stop ("Saving ·
+ * 64% · keep this page open"); `done` is the same line over a Done primary in
+ * place of Leave. `leaveHeld` keeps the exit pressable (aria-disabled) and a
+ * press shows the reason briefly.
+ */
+export type RecordDockMode =
+  | { kind: "controls"; leaveHeld?: string }
+  | { kind: "status"; text: ReactNode; leaveHeld?: string }
+  | { kind: "done"; text: ReactNode; leaveHeld?: string };
+
+const CONTROLS: RecordDockMode = { kind: "controls" };
 
 export type RecordDockProps = {
   seat: DockSeat;
@@ -20,12 +34,9 @@ export type RecordDockProps = {
   /** Unread notes, shown as a count on the Notes button. */
   unreadNotes?: number;
   notesOpen?: boolean;
-  /** Replaces the secondaries after Stop: "Saving · 64% · keep this page open". */
-  status?: ReactNode;
-  /** With `status`: a Done primary in the far slot in place of Leave. Ignored without `status`. */
+  dock?: RecordDockMode;
+  /** The Done primary's handler, shown when `dock` is `done`. */
   onDone?: () => void;
-  /** Holds Leave: it stays pressable (aria-disabled) and a press shows this reason briefly. */
-  leaveDisabledReason?: string;
   onMute?: () => void;
   onComment?: () => void;
   onPause?: () => void;
@@ -50,9 +61,8 @@ export function RecordDock({
   showComment = true,
   unreadNotes = 0,
   notesOpen = false,
-  status,
+  dock = CONTROLS,
   onDone,
-  leaveDisabledReason,
   onMute,
   onComment,
   onPause,
@@ -61,15 +71,9 @@ export function RecordDock({
   onMore,
   onLeave,
 }: RecordDockProps) {
-  const [hinting, setHinting] = useState(false);
-  const hintTimer = useRef<number | undefined>(undefined);
+  const hint = usePressHint();
   const hintId = useId();
-  useEffect(() => () => window.clearTimeout(hintTimer.current), []);
-  const pressHeldLeave = () => {
-    setHinting(true);
-    window.clearTimeout(hintTimer.current);
-    hintTimer.current = window.setTimeout(() => setHinting(false), HINT_MS);
-  };
+  const { leaveHeld } = dock;
   const mute = (
     <button
       type="button"
@@ -114,13 +118,12 @@ export function RecordDock({
     </button>
   );
 
-  const savedGuest = onDone !== undefined && seat !== "host";
   let center: ReactNode;
-  if (status !== undefined) {
+  if (dock.kind !== "controls") {
     center = (
       <>
-        <div className="sys-dock-status">{status}</div>
-        {savedGuest ? notes : null}
+        <div className="sys-dock-status">{dock.text}</div>
+        {dock.kind === "done" ? notes : null}
       </>
     );
   } else if (seat === "host") {
@@ -184,31 +187,38 @@ export function RecordDock({
             size={20}
             onClick={onMore}
           />
-        ) : onDone && status !== undefined ? (
-          <Button variant="primary" className="sys-dock-done" onClick={onDone}>
-            Done
-          </Button>
         ) : (
           <>
-            <button
-              type="button"
-              className="sys-dock-btn"
-              aria-label="Leave room"
-              title={leaveDisabledReason ?? "Leave room"}
-              aria-disabled={leaveDisabledReason ? true : undefined}
-              aria-describedby={leaveDisabledReason ? hintId : undefined}
-              onClick={leaveDisabledReason ? pressHeldLeave : onLeave}
-            >
-              <SystemIcon name="door-open" size={20} />
-            </button>
-            {leaveDisabledReason ? (
+            {dock.kind === "done" ? (
+              <Button
+                variant="primary"
+                className="sys-dock-done"
+                aria-disabled={leaveHeld ? true : undefined}
+                aria-describedby={leaveHeld ? hintId : undefined}
+                onClick={leaveHeld ? hint.show : onDone}
+              >
+                Done
+              </Button>
+            ) : (
+              <button
+                type="button"
+                className="sys-dock-btn"
+                aria-label="Leave room"
+                title={leaveHeld ?? "Leave room"}
+                aria-disabled={leaveHeld ? true : undefined}
+                aria-describedby={leaveHeld ? hintId : undefined}
+                onClick={leaveHeld ? hint.show : onLeave}
+              >
+                <SystemIcon name="door-open" size={20} />
+              </button>
+            )}
+            {leaveHeld ? (
               <span
                 id={hintId}
                 className="sys-dock-hint"
-                role="status"
-                data-shown={hinting || undefined}
+                data-shown={hint.shown || undefined}
               >
-                {hinting ? leaveDisabledReason : null}
+                {leaveHeld}
               </span>
             ) : null}
           </>

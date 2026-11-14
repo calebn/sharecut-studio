@@ -6,7 +6,7 @@ import {
 } from "./notesRailModel";
 import type { PersonData } from "./Person";
 import type { RecordFace } from "./RecordButton";
-import type { DockSeat } from "./RecordDock";
+import type { DockSeat, RecordDockMode } from "./RecordDock";
 import type { RoomAlertInput } from "./roomAlertModel";
 import { type RoomPhase, savingPercent } from "./roomPhase";
 import {
@@ -90,14 +90,9 @@ type RoomViewModel = {
   notesOpen: boolean;
   peek: NotePeek | null;
   record: RoomRecord | null;
-  dock: RoomDock;
+  dock: RecordDockMode;
   alerts: RoomAlertInput[];
 };
-
-type RoomDock =
-  | { kind: "controls"; leaveHeld?: string }
-  | { kind: "status"; text: string; leaveHeld?: string }
-  | { kind: "done"; text: string; leaveHeld?: string };
 
 const LEAVE_DURING_TAKE_REASON = "You can leave after this take.";
 const LEAVE_WHILE_SAVING_REASON = "Your recording is still saving";
@@ -234,7 +229,7 @@ function roomDock(
   role: RoomRole,
   phase: RoomPhase,
   device: DeviceWork,
-): RoomDock {
+): RecordDockMode {
   const saving = phase.kind === "saving" && !phase.failed ? phase : null;
   if (role !== "guest") {
     return saving
