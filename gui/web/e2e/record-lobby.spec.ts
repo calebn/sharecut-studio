@@ -1126,8 +1126,8 @@ test.describe("record lobby", () => {
             HOST_PARTICIPANT_ID,
           ]);
           await expect(
-            guest.getByRole("button", { name: "Leave room" }),
-          ).toBeEnabled();
+            guest.getByRole("button", { name: "Done" }),
+          ).toBeVisible();
 
           // Producers never open a local keeper, so the recordings dir never exists.
           expect(await recordingWavs(producer)).toBeNull();
@@ -1233,6 +1233,25 @@ test.describe("record lobby", () => {
           await openPanel(host, "comments");
           await expect(host.getByText("Great answer").first()).toBeVisible();
           await expect(host.getByText("Producer note").first()).toBeVisible();
+
+          // A browser that keeps the tab open shows the Cover Done leaves behind.
+          await guest.evaluate(() => {
+            window.close = () => {};
+          });
+          await expect(
+            guest.getByText("Saved to project. You can close this page."),
+          ).toBeVisible();
+          await guest.getByRole("button", { name: "Done" }).click();
+          await expect(guest.getByText("You left the room")).toBeVisible();
+          await expect
+            .poll(
+              async () =>
+                (await hostRecordSnapshot(host, projectPath)).participants.find(
+                  (p) => p.participant_id === guestId,
+                )?.connected,
+              { timeout: 15_000 },
+            )
+            .toBe(false);
         },
       );
     });

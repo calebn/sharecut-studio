@@ -45,6 +45,7 @@ const coverSource = {
   error: null,
   accessEnded: false,
   inviteClosed: false,
+  left: null,
   captureSettled: true,
   keeperActions: actions,
 };
@@ -587,6 +588,69 @@ describe("guestCovers", () => {
     cover?.secondary?.onClick();
     expect(download).toHaveBeenCalledOnce();
     expect(recover).toHaveBeenCalledOnce();
+  });
+});
+
+describe("guestCovers after leaving", () => {
+  it("a guest who left with nothing at stake is told they can close the page", () => {
+    const onRetry = vi.fn();
+    const cover = guestCovers({
+      ...coverSource,
+      left: "nothing",
+      host: "Hana",
+      onRetry,
+    });
+    expect(cover).toMatchObject({
+      title: "You left the room",
+      children: "You can close this page.",
+      primary: { label: "Join again" },
+    });
+    cover?.primary?.onClick();
+    expect(onRetry).toHaveBeenCalledOnce();
+  });
+
+  it("a guest who left after a saved take is told it is saved", () => {
+    expect(
+      guestCovers({ ...coverSource, left: "saved", host: "Hana" }),
+    ).toMatchObject({
+      title: "You left the room",
+      children:
+        "Your recording is saved to Hana's project. You can close this page.",
+    });
+    expect(guestCovers({ ...coverSource, left: "saved" })?.children).toBe(
+      "Your recording is saved to the host's project. You can close this page.",
+    );
+  });
+
+  it("a guest who left while saving had stopped is offered Save my recording", () => {
+    const download = vi.fn();
+    const recover = vi.fn();
+    const cover = guestCovers({
+      ...coverSource,
+      left: "unsaved",
+      host: "Hana",
+      keeperActions: { ...actions, download, recover },
+    });
+    expect(cover).toMatchObject({
+      title: "Your recording didn't finish saving",
+      primary: { label: "Save my recording" },
+      secondary: { label: "Try saving again" },
+    });
+  });
+
+  it("leaves unsaved without a local copy as a plain left room", () => {
+    expect(
+      guestCovers({ ...coverSource, left: "unsaved", host: "Hana" }),
+    ).toMatchObject({ title: "You left the room" });
+  });
+
+  it("lets a boot error or ended access outrank having left", () => {
+    expect(
+      guestCovers({ ...coverSource, left: "nothing", bootError: "404" }),
+    ).toMatchObject({ title: "This link doesn't open a room" });
+    expect(
+      guestCovers({ ...coverSource, left: "nothing", accessEnded: true }),
+    ).toMatchObject({ title: "This session has ended" });
   });
 });
 

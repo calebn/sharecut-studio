@@ -356,7 +356,7 @@ function GuestRoomSession({
         : undefined,
   });
 
-  const cover = guestCoverProps(room, onRetry);
+  const cover = guestCoverProps(room, { onRetry, phase, recorded });
   if (cover) {
     return (
       <GuestCovers

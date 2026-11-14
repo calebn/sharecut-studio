@@ -1,6 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
+import type { RoomPhase } from "../system/roomPhase";
 import { expectNoA11yViolations } from "../test/a11y";
 import { recordParticipant, recordSnapshot } from "../test/fixtures";
 import { GuestCovers } from "./GuestCovers";
@@ -18,6 +19,7 @@ function room(over: Partial<Parameters<typeof guestCoverProps>[0]> = {}) {
     error: null,
     accessEnded: false,
     inviteClosed: false,
+    left: false,
     captureSettled: true,
     localRecording: true,
     keeperActions: { busy: false, error: null, notice: null },
@@ -26,9 +28,18 @@ function room(over: Partial<Parameters<typeof guestCoverProps>[0]> = {}) {
   };
 }
 
-function show(over: Partial<Parameters<typeof guestCoverProps>[0]> = {}) {
+const waiting = { kind: "waiting" } as const;
+
+function show(
+  over: Partial<Parameters<typeof guestCoverProps>[0]> = {},
+  options: { phase?: RoomPhase; recorded?: boolean } = {},
+) {
   const onRetry = vi.fn();
-  const cover = guestCoverProps(room(over), onRetry);
+  const cover = guestCoverProps(room(over), {
+    onRetry,
+    phase: options.phase ?? waiting,
+    recorded: options.recorded ?? true,
+  });
   if (!cover) {
     throw new Error("no cover");
   }
@@ -39,7 +50,13 @@ function show(over: Partial<Parameters<typeof guestCoverProps>[0]> = {}) {
 
 describe("GuestCovers", () => {
   it("has no cover for a healthy room", () => {
-    expect(guestCoverProps(room(), vi.fn())).toBeNull();
+    expect(
+      guestCoverProps(room(), {
+        onRetry: vi.fn(),
+        phase: waiting,
+        recorded: true,
+      }),
+    ).toBeNull();
   });
 
   it("covers an invalid link in the page's main", async () => {
@@ -58,6 +75,54 @@ describe("GuestCovers", () => {
     await userEvent.click(screen.getByRole("button", { name: "Try again" }));
     expect(onRetry).toHaveBeenCalledOnce();
     await expectNoA11yViolations(container);
+  });
+
+  it("covers a guest who left, and Join again hands back to the caller", async () => {
+    const { onRetry, container } = show({ left: true });
+    expect(
+      screen.getByRole("heading", { name: "You left the room" }),
+    ).toBeInTheDocument();
+    expect(screen.getByText("You can close this page.")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Join again" }));
+    expect(onRetry).toHaveBeenCalledOnce();
+    await expectNoA11yViolations(container);
+  });
+
+  it("tells a guest who left after Saved that the recording is in the host's project", () => {
+    show({ left: true }, { phase: { kind: "saved" } });
+    expect(
+      screen.getByText(
+        "Your recording is saved to Hana's project. You can close this page.",
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("says nothing of a recording to a viewer who was not recorded", () => {
+    show({ left: true }, { phase: { kind: "saved" }, recorded: false });
+    expect(screen.getByText("You can close this page.")).toBeInTheDocument();
+  });
+
+  it("keeps an unsent local copy reachable after leaving a stopped save", async () => {
+    const download = vi.fn();
+    show(
+      {
+        left: true,
+        snapshot: recordSnapshot({ participants: [host], take_index: 0 }),
+        keeperActions: { busy: false, error: null, notice: null, download },
+      },
+      {
+        phase: {
+          kind: "saving",
+          savedPeople: 0,
+          totalPeople: 1,
+          failed: true,
+        },
+      },
+    );
+    await userEvent.click(
+      screen.getByRole("button", { name: "Save my recording" }),
+    );
+    expect(download).toHaveBeenCalledOnce();
   });
 
   it("covers a closed invite with the host's name", () => {
