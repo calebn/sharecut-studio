@@ -827,10 +827,9 @@ def test_an_upload_with_no_recorded_outcome_blocks_a_retry_until_overridden(
 
 def test_a_finished_attempt_or_another_files_open_attempt_does_not_block(tmp_path: Path) -> None:
     record = make_record()
-    for verdict in ("apple_rejected", "apple_unreachable"):
-        record.uploads.append(
-            {"ipa_sha256": record.ipa_sha256, "outcome": {"verdict": verdict, "at": "t"}}
-        )
+    record.uploads.append(
+        {"ipa_sha256": record.ipa_sha256, "outcome": {"verdict": "rejected", "at": "t"}}
+    )
     record.uploads.append({"ipa_sha256": "00" * 32, "outcome": None})
     steps, workspace = upload_plan(tmp_path, record)
     assert steps["upload guard"].action(workspace).problems == ()
@@ -869,22 +868,18 @@ GUARD_EXIT = 10
 GOOD_LISTING = json.dumps({"applications": [{"BundleId": "studio.sharecut.app"}]})
 
 
-def drive_upload(
-    tmp_path: Path,
+def fake_apple(
     monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
     *,
-    dirty: bool = False,
-    head: str = "a" * 40,
     ipa_bytes: bytes = b"the ipa",
     ipa_build: str = "2026.1114.153045",
     signing: Signing = Signing.APP_STORE,
-) -> tuple[int, list[Command], record_module.ReleaseRecord, Path]:
-    """Run the real upload plan with the Mac-only checks and altool faked."""
-    ipa = tmp_path / "2026.1114.153045.ipa"
-    ipa.write_bytes(b"the ipa")
-    record = make_record(ipa_sha256=record_module.sha256_file(ipa), ipa_name=ipa.name)
-    ipa.write_bytes(ipa_bytes)
-    record_module.write_record(tmp_path, record)
+    answers: dict[str, tuple[int, str]] | None = None,
+) -> list[Command]:
+    """Fake the Mac-only checks and altool; *answers* maps an altool flag to its exit code and
+    output, and a flag without one gets a success."""
+    answers = {} if answers is None else answers
 
     def plist(ws: release_plan.Workspace, expect: object) -> checks.CheckReport:
         ws.build_number = ipa_build
@@ -908,12 +903,48 @@ def drive_upload(
     def fake_spawn(command: Command, redactor: Redactor, log: Path | None = None):
         ran.append(command)
         assert all(isinstance(part, (str, Secret)) for part in command.argv)
-        text = GOOD_LISTING if "--list-apps" in command.argv else ALTOOL_OK
+        flag = next(
+            (f for f in ("--list-apps", "--validate-app", "--upload-app") if f in command.argv), ""
+        )
+        default = (0, GOOD_LISTING if flag == "--list-apps" else ALTOOL_OK)
+        code, text = answers.get(flag, default)
         staged = [str(p) for p in command.argv if str(p).endswith("app.ipa")]
         assert all(Path(p).read_bytes() == ipa_bytes for p in staged)
-        return release_run.SpawnResult(0, "", text)
+        return release_run.SpawnResult(code, "", text)
 
     monkeypatch.setattr(ios_release, "spawn", fake_spawn)
+    return ran
+
+
+def drive_upload(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    *,
+    dirty: bool = False,
+    head: str = "a" * 40,
+    ipa_bytes: bytes = b"the ipa",
+    ipa_build: str = "2026.1114.153045",
+    signing: Signing = Signing.APP_STORE,
+    answers: dict[str, tuple[int, str]] | None = None,
+    record: record_module.ReleaseRecord | None = None,
+    retry_unknown_upload: bool = False,
+) -> tuple[int, list[Command], record_module.ReleaseRecord, Path]:
+    """Run the real upload plan with the Mac-only checks and altool faked; pass the returned
+    record back in to run a second attempt against what the first one wrote."""
+    ipa = tmp_path / "2026.1114.153045.ipa"
+    if record is None:
+        ipa.write_bytes(b"the ipa")
+        record = make_record(ipa_sha256=record_module.sha256_file(ipa), ipa_name=ipa.name)
+    ipa.write_bytes(ipa_bytes)
+    record_module.write_record(tmp_path, record)
+    ran = fake_apple(
+        monkeypatch,
+        tmp_path,
+        ipa_bytes=ipa_bytes,
+        ipa_build=ipa_build,
+        signing=signing,
+        answers=answers,
+    )
     expect = checks.PlistExpectation(
         "studio.sharecut.app", "ShareCut", "0.1.4", record.build_number
     )
@@ -927,6 +958,7 @@ def drive_upload(
         expect,
         confirm=f"{record.build_number}:{record.ipa_sha256[:12]}",
         git_state=lambda: (head, dirty),
+        retry_unknown_upload=retry_unknown_upload,
     )
     session = ios_release.Session(tmp_path, dry_run=False)
     workspace = release_plan.Workspace(out=tmp_path, build_number=record.build_number)
@@ -969,3 +1001,73 @@ def test_the_upload_guard_judges_the_ipa_and_the_checkout_not_the_record(
     code, ran, _, _ = drive_upload(tmp_path, monkeypatch, **change)
     assert code == GUARD_EXIT != Failure.HYGIENE.value
     assert ran == []
+
+
+UNREACHABLE = (1, altool_error("Could not connect to the server"))
+REFUSED = (1, altool_error("Invalid binary"))
+
+
+def uploads_sent(ran: list[Command]) -> int:
+    return sum("--upload-app" in command.argv for command in ran)
+
+
+def test_an_unreachable_upload_is_unresolved_and_a_retry_needs_the_flag(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    unreachable = {"--upload-app": UNREACHABLE}
+    code, ran, record, _ = drive_upload(tmp_path, monkeypatch, answers=unreachable)
+    assert code == Failure.TOOL.value and uploads_sent(ran) == 1
+    attempt = record_module.read_record(tmp_path).uploads[0]
+    assert attempt["outcome"] is None
+    assert attempt["last_answer"]["verdict"] == "unreachable"
+    assert attempt["last_answer"]["messages"] == ["Could not connect to the server"]
+    assert "nothing was changed" not in capsys.readouterr().out
+
+    code, ran, record, _ = drive_upload(tmp_path, monkeypatch, record=record)
+    assert code == GUARD_EXIT and ran == []
+    assert "--retry-unknown-upload" in capsys.readouterr().out
+
+    code, ran, record, _ = drive_upload(
+        tmp_path, monkeypatch, record=record, retry_unknown_upload=True
+    )
+    assert code == 0 and uploads_sent(ran) == 1
+    retry = record_module.read_record(tmp_path).uploads[1]
+    assert retry["retried_unknown_upload"] is True and retry["outcome"]["verdict"] == "ok"
+
+
+def test_a_rejected_upload_is_a_finished_attempt_that_does_not_block(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    code, _, record, _ = drive_upload(tmp_path, monkeypatch, answers={"--upload-app": REFUSED})
+    assert code == Failure.APPLE_REJECTED.value
+    attempt = record_module.read_record(tmp_path).uploads[0]
+    assert attempt["outcome"]["verdict"] == "rejected" and "last_answer" not in attempt
+
+    code, ran, _, _ = drive_upload(tmp_path, monkeypatch, record=record)
+    assert code == 0 and uploads_sent(ran) == 1
+
+
+def test_the_unreachable_sentence_says_the_upload_may_have_arrived(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    drive_upload(tmp_path, monkeypatch, answers={"--upload-app": UNREACHABLE})
+    uploaded = capsys.readouterr().out.split("upload failed: ")[1].splitlines()[0]
+    assert uploaded.count(".") == 1 and "nothing was changed" not in uploaded
+    assert "Apple may or may not have received the build" in uploaded
+    assert "TestFlight" in uploaded and "only if it is not there" in uploaded
+    assert "--retry-unknown-upload" in uploaded
+
+    drive_upload(tmp_path, monkeypatch, answers={"--validate-app": UNREACHABLE})
+    validated = capsys.readouterr().out
+    assert "validate: Apple could not be reached; nothing was changed." in validated
+
+
+def test_an_unreachable_validate_records_a_finished_row_and_blocks_nothing(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    code, ran, record, _ = drive_upload(
+        tmp_path, monkeypatch, answers={"--validate-app": UNREACHABLE}
+    )
+    assert code == Failure.TOOL.value and uploads_sent(ran) == 0
+    assert record_module.read_record(tmp_path).validations[0]["verdict"] == "unreachable"
+    assert record.unresolved_uploads(record.ipa_sha256) == []

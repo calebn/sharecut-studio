@@ -17,6 +17,7 @@ from pathlib import Path
 from scripts.ios import bundle_checks as checks
 from scripts.ios.release_classify import (
     SENTENCES,
+    UPLOAD_UNREACHABLE,
     AppleAnswer,
     Failure,
     Verdict,
@@ -127,7 +128,12 @@ def plan_deliver(
 
     def uploaded(result: SpawnResult, ws: Workspace) -> Outcome:
         outcome, answer = answered(result, ws, "upload")
-        record.uploads[-1]["outcome"] = outcome_row(answer.verdict, now_iso(), answer.messages)
+        row = outcome_row(answer.verdict, now_iso(), answer.messages)
+        if answer.verdict is Verdict.UNREACHABLE:
+            record.uploads[-1]["last_answer"] = row
+            outcome = Failure.TOOL, f"upload: {UPLOAD_UNREACHABLE}"
+        else:
+            record.uploads[-1]["outcome"] = row
         write_record(record_dir, record)
         return outcome
 
