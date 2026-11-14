@@ -465,7 +465,7 @@ keeper backup in MVP. Stop shows a **blocking saving panel** ("Saving to project
 participants; guest sees own) until ACK or stall. An incomplete local segment
 after capture has settled is retained for recovery and reported separately;
 it cannot receive a file ACK and does not hold Leave. A guest's Leave is held while
-their own upload is moving, and while Stop is still finalizing the last segment,
+their own upload is moving, and while Stop is still finalizing the last segment
 until its complete metadata lands or capture latches a failure (a latched
 failure counts as settled so recovery and export appear). The room reads "Saving to project… N of M chunks"
 while finalized WAV totals are known, then "Saved to project" once the file is ACK'd. When a participant has
