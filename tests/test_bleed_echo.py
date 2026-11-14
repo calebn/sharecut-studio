@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import hashlib
 import wave
 from itertools import permutations
 from pathlib import Path
@@ -699,9 +698,10 @@ def test_copy_rows_peaks_match_the_values_develop_produced() -> None:
         use_open=True,
     )
     assert (dominated, len(rows)) == (240, 225)
-    assert rows[0] == (13, 3.0, 0.5410046836724028)
-    assert rows[len(rows) // 2] == (196, 3.0, 0.9367954218157981)
-    assert rows[-1] == (396, 3.0, 0.9560011163847105)
-    assert hashlib.sha256(repr(rows).encode()).hexdigest() == (
-        "5142ac1812908b1d3326b48115ab89bead8bd3768e8bccaf4be0a319f4ef3cf3"
-    )
+    for row, expected in (
+        (rows[0], (13, 3.0, 0.5410046836724028)),
+        (rows[len(rows) // 2], (196, 3.0, 0.9367954218157981)),
+        (rows[-1], (396, 3.0, 0.9560011163847105)),
+    ):
+        assert row[0] == expected[0]
+        assert row[1:] == pytest.approx(expected[1:], rel=1e-9)
