@@ -53,10 +53,12 @@ function windowRow(
   step: string,
 ): ReadyRowId | undefined {
   const window = RUN_WINDOW_ROW[step];
-  const windowRan =
+  const windowSkipped =
     window !== undefined &&
-    job.steps.some((other) => ROW_STEPS[window].includes(other.name));
-  return windowRan ? window : ownerRow(step);
+    ownOperations(window).every((operation) =>
+      job.skip_steps?.includes(operation.step),
+    );
+  return window !== undefined && !windowSkipped ? window : ownerRow(step);
 }
 
 type PlanOperation = {
@@ -550,7 +552,10 @@ function terminalRowResult(
   const operations = ownOperations(row);
   const work = operations.flatMap((operation): RowWork[] => {
     const timing = job.steps.find(
-      (step) => step.name === operation.step && step.status === "ok",
+      (step) =>
+        step.name === operation.step &&
+        step.status === "ok" &&
+        !(operation.optional && step.summary?.startsWith("skipped")),
     );
     return timing ? [{ operation, timing }] : [];
   });

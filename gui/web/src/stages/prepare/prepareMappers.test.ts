@@ -350,17 +350,29 @@ describe("rowOutcome", () => {
     expect(rowOutcome(job, "align")?.state).toBe("done");
   });
 
-  it("reads the bed as Clean work while Line up tracks is skipped", () => {
-    const job = pipelineJobSnapshot({
+  it("keeps the bed with Clean through a run where Line up tracks is skipped", () => {
+    const skip = ["align_tracks", "require_align_accept"];
+    const bed = pipelineJobSnapshot({
       status: "running",
-      skip_steps: ["align_tracks", "require_align_accept"],
+      skip_steps: skip,
       steps: [
         step("ingest_tracks", "ok"),
         step("extract_room_tone_beds", "running"),
       ],
     });
-    expect(rowOutcome(job, "align")?.state).not.toBe("running");
-    expect(rowOutcome(job, "clean")?.state).toBe("running");
+    expect(rowOutcome(bed, "align")?.state).not.toBe("running");
+    expect(rowOutcome(bed, "clean")?.state).toBe("running");
+    const merge = pipelineJobSnapshot({
+      status: "running",
+      skip_steps: skip,
+      steps: [
+        step("ingest_tracks", "ok"),
+        step("extract_room_tone_beds", "ok"),
+        step("merge_transcript", "running"),
+      ],
+    });
+    expect(rowOutcome(merge, "align")?.state).toBe("running");
+    expect(rowOutcome(merge, "clean")?.state).toBe("running");
   });
 
   it("does not mark omitted work done when the job finishes", () => {
@@ -1782,6 +1794,24 @@ describe("successful selected work", () => {
     });
     expect(readySummary(rows)).toBe("Getting ready: selected work finished");
     expect(phaseFor(rows).phase).toBe("done");
+  });
+
+  it("does not count a no-op bed as Clean work", () => {
+    const rows = rowsFor(
+      selected([
+        step("extract_room_tone_beds", "ok", {
+          summary: "skipped (room_tone.extract_bed=false)",
+        }),
+        step("fill_gate_holes", "ok", { summary: "0 holes" }),
+        step("clean_audio", "ok"),
+        step("compress_tracks", "ok"),
+        step("balance_tracks", "ok"),
+        step("assemble_timeline", "ok"),
+      ]),
+      { approximateTiming: null },
+    );
+    expect(rows[3].runDisposition).not.toBe("partial");
+    expect(rows[3].detail).not.toContain("skipped (");
   });
 
   it("reads a full Clean run as complete when the optional bed did not run", () => {
