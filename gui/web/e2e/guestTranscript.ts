@@ -69,7 +69,7 @@ export function watcher(anchorKey: string | null): string {
       words,
       busy: !!section && section.getAttribute("aria-busy") === "true",
       same: !!section && section === window.__scriptSection,
-      cover: !!document.querySelector("[role='alert']"),
+      cover: [...document.querySelectorAll("[role='alert']")].some((e) => (e.textContent || "").includes("The transcript didn't load")),
       offset: anchor && body ? anchor.getBoundingClientRect().top - body.getBoundingClientRect().top : null,
     });
   };
@@ -280,15 +280,25 @@ export async function frames(
   startSec?: number,
 ) {
   const { from } = await startWatch(guest.page, anchorKey);
+  let detailSeen = false;
   const detail = guest.page
     .waitForResponse((r) => DETAIL.test(r.url()), { timeout: 15_000 })
-    .catch(() => null);
+    .then(() => {
+      detailSeen = true;
+    })
+    .catch(() => undefined);
   for (let n = 0; n < edits; n += 1) {
     await hostEdit(host, guest.projectPath, edit, n, startSec);
   }
   await detail;
   await settled(guest.page);
-  return { frames: await stopWatch(guest.page), from };
+  const seen = await stopWatch(guest.page);
+  // Without a refresh the checks over these frames would pass on nothing.
+  expect(
+    detailSeen || seen.some((f) => f.busy),
+    `the host edit never made the guest refresh its transcript.\nGuest requests:\n${guest.log.join("\n")}`,
+  ).toBe(true);
+  return { frames: seen, from };
 }
 
 /**
