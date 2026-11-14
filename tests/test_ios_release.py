@@ -1951,6 +1951,10 @@ def test_an_explicit_key_path_that_is_missing_is_not_replaced_by_the_default(
     assert key is None and [p.why for p in found] == ["the key file does not exist"]
 
 
+def test_reading_a_private_file_that_is_not_there_needs_no_check_first(tmp_path: Path) -> None:
+    assert release_inputs.read_private_file(tmp_path / "none.env", tmp_path) == ({}, [])
+
+
 def test_a_retry_that_apple_then_rejects_leaves_the_first_attempt_open_and_the_flag_needed(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:

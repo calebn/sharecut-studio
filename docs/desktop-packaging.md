@@ -376,23 +376,51 @@ another; it needs its dependencies already built or fetched. A cold checkout nee
   that file with one sentence telling you to check TestFlight for that build number. That covers a
   run that was interrupted and an upload that got no answer from Apple, because the bytes may
   already have left; the second keeps what Apple's tool said in `last_answer` on the attempt and
-  leaves its outcome empty. An upload attempt is finished only by an answer Apple itself gave:
-  `altool` exits 0 with a JSON object that has no `product-errors` (lines before the object, such as a stderr warning, are
-  skipped; text after it, or an object that does not parse whole, is no answer), or it prints
-  structured `product-errors` and at least one entry has a known Apple shape and the output has
-  no transport wording. The known shapes (`apple_shaped` in `scripts/ios/release_classify.py`)
-  are an `ITMS-<digits>` code, an App Store Connect API code in the entry's `code` field
-  (`ENTITY_ERROR`, `ENTITY_UNPROCESSABLE`, `STATE_ERROR`, `PARAMETER_ERROR`, `NOT_AUTHORIZED`,
-  `FORBIDDEN`, `UNAUTHORIZED`, `RESOURCE_NOT_FOUND`, `CONFLICT` and their dotted forms), and an
-  Apple service domain (`ITunes*`, `ContentDelivery*`, `AppStoreConnect*`). A duplicate build
-  (checked in the message and every text field of the entry) is always recorded, because it
-  blocks a second upload anyway. Everything else leaves the attempt unresolved: death by a
-  signal, an exit 0 whose output is not Apple's JSON answer (check TestFlight for that build
-  number, because the build may have arrived), empty or unparseable output, plain-text errors,
-  malformed or empty `product-errors`, a structured error with no Apple shape (a bare HTTP
-  status, a system error domain such as `NSURLErrorDomain` or `NSPOSIXErrorDomain`, an
-  authentication refusal with no Apple code), and a structured error that also carries
-  transport wording. `validate` and the app record lookup change nothing at Apple and keep
+  leaves its outcome empty. An upload attempt is finished only by an answer Apple itself gave.
+  Three things can finish it: `altool` exits 0 with a non-empty JSON object that has no
+  `product-errors` entries (`{"product-errors": []}` counts as none); `altool` prints a
+  duplicate answer; or it prints structured `product-errors` where at least one entry has a known Apple
+  shape and the output has no transport wording. The known shapes (`apple_shaped` in
+  `scripts/ios/release_classify.py`) are an `ITMS-<digits>` token in any string of the entry, an
+  App Store Connect API code that is the whole of the entry's `code` (`ENTITY_ERROR`,
+  `ENTITY_UNPROCESSABLE`, `STATE_ERROR`, `PARAMETER_ERROR`, `NOT_AUTHORIZED`, `FORBIDDEN`,
+  `UNAUTHORIZED`, `RESOURCE_NOT_FOUND`, `CONFLICT`, with an optional dotted suffix), and an Apple
+  service domain (`ITunes*`, `ContentDelivery*`, `AppStoreConnect*`) in the entry's `domain`,
+  its `userInfo.domain` or an `Error Domain=` text.
+  The JSON object is located one way. It starts at the first output line that begins with `{`
+  in column 0. Lines before it are tolerated only when none of them looks like JSON (a line
+  that begins, after spaces, with `{`, `}`, `[`, `]` or `"` refuses the output); altool's stderr
+  is merged into the output, so a warning line may come first. Everything from that line to the
+  end must parse as that one object: text after it, a truncated object, a second object, a
+  nested `{` on a later line of a truncated object and output as long as the captured tail
+  (1 MiB, which was cut at its head) are no document. There is one parse and no search, so
+  the cost is linear. Input the parser cannot take (nesting deep enough to exhaust the stack, an
+  integer past Python's digit limit) is no document, never a traceback.
+  What each exit-0 output counts as on `upload`: a non-empty object, finished; `{}`, `[]`, `null`
+  or any other scalar, a list, empty or unparseable output, or text around the object, none of
+  them an answer. An empty object carries no success evidence, so it stays unresolved. The
+  tool does not require altool's `success-message` key, because the key's presence in every
+  altool version could not be confirmed without running altool. Transport wording anywhere in
+  the output (a warning line before an exit-0 object included) leaves the attempt unresolved
+  and wins over every Apple shape. `TRANSPORT` lists network, SSL, TLS, DNS, proxy, gateway,
+  host, connection refused or closed, socket closed, "internal server error" and "temporarily
+  unavailable" wordings, the `NSURLErrorDomain`, `NSPOSIXErrorDomain` and `NSCocoaErrorDomain`
+  names, and an HTTP 5xx status when `HTTP`, `status`, `status code`, `server error` or
+  `error code` precedes it (a bare three-digit number never counts). The one exception is a
+  duplicate: duplicate wording is looked for in every string value of each entry and its
+  `userInfo`, and in the whole output when no entry has one (a malformed `product-errors`
+  included), and it is always recorded as a duplicate (a planted phrase can only block a second upload, never allow one). Everything
+  else leaves the attempt unresolved: death by a signal, an exit 0 whose output is not Apple's
+  JSON answer (check TestFlight for that build number, because the build may have arrived),
+  empty or unparseable output, plain-text errors, malformed or empty `product-errors`, a
+  structured error with no Apple shape (a bare HTTP status, a system error domain, an
+  authentication refusal with no Apple code), and a structured error that also carries transport
+  wording. What is stored of an answer, finished or not, is at most 5 messages of 200 characters
+  each. `validate` and the app record lookup change nothing at Apple and keep
+  their looser reading: exit 0 with no error message is fine whatever the output, any other exit
+  is a rejection, a duplicate or an authentication refusal by its wording, and only network
+  wording (the shorter `NETWORK` list) reads as unreachable. A rejection with no readable message
+  prints "Apple rejected the build and gave no readable reason" and names the step log.
   their looser reading. `--retry-unknown-upload` goes past the block and is recorded on the new
   attempt (`retried_unknown_upload`). An unresolved attempt is never closed, so after a retry that
   Apple then rejects, the next plain `upload` still needs the flag. The record can only block an
