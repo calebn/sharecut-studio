@@ -7,6 +7,7 @@ import contextlib
 import json
 import os
 import plistlib
+import stat
 import sys
 from datetime import UTC, datetime, timedelta, timezone
 from pathlib import Path
@@ -675,6 +676,23 @@ def test_the_unsigned_rehearsal_records_the_arguments_xcodebuild_receives(tmp_pa
         "xcodebuild archive -project <home>/p.xcodeproj\n"
     )
     assert not shim.exists()
+
+
+def test_the_kept_arguments_log_is_private_and_never_written_through_a_link(
+    tmp_path: Path,
+) -> None:
+    shim = tmp_path / "partial" / "xcodebuild-shim"
+    release_plan.write_shim(shim)
+    (shim / release_plan.SHIM_LOG).write_text("xcodebuild archive\n")
+    workspace = release_plan.Workspace(out=tmp_path / "partial")
+    log = tmp_path / "partial/logs/xcodebuild-args.log"
+    log.parent.mkdir(parents=True)
+    elsewhere = tmp_path / "elsewhere.txt"
+    elsewhere.write_text("untouched")
+    log.symlink_to(elsewhere)
+    assert release_plan.keep_shim_log(workspace, shim) is None
+    assert not log.is_symlink() and stat.S_IMODE(log.stat().st_mode) == 0o600
+    assert log.read_text() == "xcodebuild archive\n" and elsewhere.read_text() == "untouched"
 
 
 def test_url_userinfo_is_masked_in_output_and_exception_lines() -> None:
