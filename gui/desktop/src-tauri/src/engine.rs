@@ -71,6 +71,25 @@ pub fn engine_environment(
     env
 }
 
+/// Variables for the interpreter and engine inside the iOS app: where the bundled standard
+/// library and packages are, and the token `/api/health` asks for. Set once, before any thread.
+pub fn ios_engine_environment(
+    bundle_dir: &Path,
+    boot_token: &str,
+) -> Vec<(&'static str, OsString)> {
+    vec![
+        ("PYTHONHOME", bundle_dir.join("python").into_os_string()),
+        (
+            "PYTHONPATH",
+            bundle_dir.join("app_packages").into_os_string(),
+        ),
+        ("PYTHONDONTWRITEBYTECODE", OsString::from("1")),
+        ("PYTHONUTF8", OsString::from("1")),
+        ("PODCAST_SIDECAR_BOOT_TOKEN", OsString::from(boot_token)),
+        ("PODCAST_GUI_OPENAPI", OsString::from("0")),
+    ]
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -184,5 +203,24 @@ mod tests {
             ))
         );
         assert_eq!(env.len(), 5);
+    }
+
+    #[test]
+    fn ios_environment_points_python_at_the_bundle_and_sets_the_token() {
+        let env = ios_engine_environment(Path::new("/App/Sharecut.app"), "tok");
+        assert_eq!(
+            env,
+            vec![
+                ("PYTHONHOME", OsString::from("/App/Sharecut.app/python")),
+                (
+                    "PYTHONPATH",
+                    OsString::from("/App/Sharecut.app/app_packages")
+                ),
+                ("PYTHONDONTWRITEBYTECODE", OsString::from("1")),
+                ("PYTHONUTF8", OsString::from("1")),
+                ("PODCAST_SIDECAR_BOOT_TOKEN", OsString::from("tok")),
+                ("PODCAST_GUI_OPENAPI", OsString::from("0")),
+            ]
+        );
     }
 }

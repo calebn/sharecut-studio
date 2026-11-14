@@ -1,0 +1,15 @@
+{
+  "build": {
+    "beforeDevCommand": null,
+    "devUrl": null,
+    "beforeBuildCommand": "uv run --project ../.. --no-sync python ../../scripts/ios/build_payload.py --ensure"
+  },
+  "bundle": {
+    "externalBin": null,
+    "resources": null,
+    "iOS": {
+      "minimumSystemVersion": "17.0",
+      "template": "src-tauri/ios/project.yml"
+    }
+  }
+}

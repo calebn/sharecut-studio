@@ -1,4 +1,4 @@
-.PHONY: setup doctor hooks worktree-setup test test-fast test-quick test-e2e test-e2e-slow test-e2e-real test-web test-web-e2e profile-seek-trim test-desktop desktop-build desktop-linux-appimage-docker ci typecheck lint-py format-py format-py-check install ux-demo ux-demo-screens cheatsheet cheatsheet-check schema-export generated-check docs-sync docs-sync-table docs-sync-replay decisions-index golden-ear
+.PHONY: setup doctor hooks worktree-setup test test-fast test-quick test-e2e test-e2e-slow test-e2e-real test-web test-web-e2e profile-seek-trim test-desktop ios-sim ios-sim-proof desktop-build desktop-linux-appimage-docker ci typecheck lint-py format-py format-py-check install ux-demo ux-demo-screens cheatsheet cheatsheet-check schema-export generated-check docs-sync docs-sync-table docs-sync-replay decisions-index golden-ear
 
 BASE ?= $(shell python3 scripts/branches.py base)
 
@@ -68,6 +68,15 @@ profile-seek-trim:
 # Not part of `make ci` — desktop workflow is path-filtered and Rust is optional for Python-only work.
 test-desktop:
 	./scripts/desktop/check_desktop.sh
+
+# iOS Simulator app (macOS with Xcode, xcodegen, rustup iOS targets). IOS_SIM_DEVICE names the
+# simulator (default: the booted one). See docs/desktop-packaging.md § iOS.
+ios-sim:
+	./scripts/ios/ios_sim.sh run
+
+# Launch the app on the Simulator and assert what the iOS stage promises, saving evidence.
+ios-sim-proof:
+	./scripts/ios/ios_sim.sh proof
 
 # Optional full installer build (needs platform WebView deps). Not CI.
 # macOS signs+notarizes when APPLE_* env vars are set (see docs/desktop-packaging.md).
