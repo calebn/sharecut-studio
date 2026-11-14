@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import errno
 import json
 import struct
 import subprocess
@@ -3110,7 +3111,10 @@ def test_peaks_a_path_that_cannot_be_resolved_gives_empty(
     assert r.json() == []
 
 
-_UNRESOLVABLE = [OSError(40, "Too many levels of symbolic links"), RuntimeError("Symlink loop")]
+_UNRESOLVABLE = [
+    OSError(errno.ELOOP, "Too many levels of symbolic links"),
+    RuntimeError("Symlink loop"),
+]
 _MISSING_MIX_BODY = {
     "detail": "This review's audio isn't available right now; ask the host to republish."
 }
