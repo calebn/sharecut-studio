@@ -173,6 +173,7 @@ GUEST_MEDIA = "guest media replaced by different content"
 LANE_MUTE = "a mute region on the restored clip's lane"
 
 
+@pytest.mark.timeout(240)
 def test_the_guest_key_moves_with_every_project_leaf_that_moves_a_proxy_artifact(
     gated_template: Path, ungated_template: Path, tmp_path: Path
 ) -> None:
