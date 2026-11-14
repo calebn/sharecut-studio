@@ -207,7 +207,7 @@ def test_a_gpu_that_fails_mid_run_redoes_the_job_on_the_cpu(planted, tmp_path) -
         again = engine.transcribe_file(audio, language="en")
     assert [w.text for w in transcript.words] == ["hello"]
     assert [w.text for w in again.words] == ["hello"]
-    assert made == ["cuda", "cpu"]
+    assert made == ["cuda", "cpu", "cpu"]
 
 
 def test_samples_transcription_falls_back_too(planted) -> None:
