@@ -122,28 +122,23 @@ export function useKeeperRecoveryActions(args: {
   const download = useCallback(() => {
     if (!sink || !sessionId || !participantId || takeIndex === null) return;
     run("download", async () => {
-      const before = canRecover()
-        ? await scanLocalKeeper(
-            sink,
-            sessionId,
-            participantId,
-            takeIndex,
-          ).catch(() => null)
-        : null;
+      const heldNow = async () =>
+        canRecover()
+          ? await scanLocalKeeper(
+              sink,
+              sessionId,
+              participantId,
+              takeIndex,
+            ).catch(() => null)
+          : null;
+      const before = await heldNow();
       try {
         await downloadLocalKeepers(sink, sessionId, participantId, takeIndex);
       } catch (failure: unknown) {
         setDownloadedFor(null);
         throw failure;
       }
-      const after = canRecover()
-        ? await scanLocalKeeper(
-            sink,
-            sessionId,
-            participantId,
-            takeIndex,
-          ).catch(() => null)
-        : null;
+      const after = await heldNow();
       setDownloadedFor(
         before && after && canRecover() && before.segments === after.segments
           ? { sessionId, takeIndex, segments: before.segments }
