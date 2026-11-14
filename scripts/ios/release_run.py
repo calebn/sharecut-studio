@@ -19,6 +19,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TextIO
 
+from scripts.ios.private_file import write_private
 from scripts.ios.release_secrets import Redactor, Secret
 
 Part = str | Secret
@@ -91,7 +92,7 @@ def spawn(command: Command, redactor: Redactor, log: Path | None = None) -> Spaw
 
     try:
         for private in command.files:
-            _write_private(
+            write_private(
                 private.path,
                 "".join(p if isinstance(p, str) else p.reveal() for p in private.parts),
             )
@@ -118,17 +119,6 @@ def spawn(command: Command, redactor: Redactor, log: Path | None = None) -> Spaw
             path.unlink(missing_ok=True)
         if sink is not None:
             sink.close()
-
-
-def _write_private(path: Path, text: str) -> None:
-    """A fresh mode 0600 file. A stale file or planted link at *path* is removed first, never
-    followed, and the create refuses to reuse anything that appears in between."""
-    path.unlink(missing_ok=True)
-    flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW
-    descriptor = os.open(path, flags, 0o600)
-    os.fchmod(descriptor, 0o600)
-    with os.fdopen(descriptor, "w", encoding="utf-8") as handle:
-        handle.write(text)
 
 
 def _open_log(log: Path | None) -> TextIO | None:
