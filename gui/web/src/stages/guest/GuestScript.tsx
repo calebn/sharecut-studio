@@ -68,6 +68,10 @@ export function GuestScript({
   );
   const first =
     (typeof playing === "number" ? playing : playing?.[0]) ?? playheadWord;
+  // A follower has no bookmark outside a hold: the next one starts afresh.
+  useEffect(() => {
+    if (!refreshing && reading.following) reading.setFollowing(true);
+  }, [refreshing, reading]);
   useEffect(() => {
     if (reading.following && !refreshing && first !== undefined)
       pane.current?.scrollToWord(first, "nearest");

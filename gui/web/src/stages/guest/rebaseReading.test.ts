@@ -56,6 +56,16 @@ describe("rebaseReading", () => {
     expect(rebaseReading(at(2, before), after)).toMatchObject({ index: 1 });
   });
 
+  it("keeps the position as it was when the reader's own line is now bars", () => {
+    const before = turnsOf(["l1", "a", "b"], ["l2", "c"]);
+    const after: ScriptTurn[] = [
+      { ...before[0]!, words: [], settling: [1, 1] },
+      before[1]!,
+    ];
+    const position = at(1, before);
+    expect(rebaseReading(position, after)).toBe(position);
+  });
+
   it("keeps the position as it was when no line of the old order from there on survives", () => {
     const before = turnsOf(["l1", "a", "b"], ["l2", "c"]);
     const after = turnsOf(["l1", "a"], ["z", "z"]);

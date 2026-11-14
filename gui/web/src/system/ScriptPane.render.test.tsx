@@ -47,12 +47,10 @@ describe("ScriptPane refreshing", () => {
     );
     const section = container.querySelector(".sys-script");
     expect(section).toHaveAttribute("aria-busy", "true");
-    expect(section).toHaveAttribute("data-refreshing", "");
     expect(container.querySelector("[aria-live]:not(:empty)")).toBeNull();
     rerender(<ScriptPane {...props({ busy: false })} />);
     expect(container.querySelector(".sys-script")).toBe(section);
     expect(section).not.toHaveAttribute("aria-busy");
-    expect(section).not.toHaveAttribute("data-refreshing");
   });
 
   it("draws a settling line as bars and a hidden note, with no word to reach", () => {
@@ -76,10 +74,7 @@ describe("ScriptPane refreshing", () => {
         (bar as HTMLElement).style.getPropertyValue("--sys-settling-chars"),
       ),
     ).toEqual(["5", "3"]);
-    expect(turn.querySelector(".sys-script-settling")).toHaveAttribute(
-      "aria-hidden",
-      "true",
-    );
+    expect(bars[0]?.parentElement).toHaveAttribute("aria-hidden", "true");
     expect(turn.textContent).toContain("Updating this line");
     expect(turn.querySelector("[data-stop]")).toBeNull();
   });

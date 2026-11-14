@@ -24,7 +24,7 @@ export type ShownTranscript = {
   readonly rows: readonly ShownRow[];
   /** Some row is held or waiting for the word detail. */
   readonly refreshing: boolean;
-  /** Some row is live or held, so there is something to draw. */
+  /** There is something to draw: a live or held row, or any row once this guest has seen words. */
   readonly drawn: boolean;
 };
 
@@ -91,6 +91,23 @@ function heldWords(settled: CombinedUtterance): {
   };
 }
 
+/** The row only moved: the same spans, each as long as before. */
+function sameShape(
+  settled: CombinedUtterance,
+  current: CombinedUtterance,
+): boolean {
+  const before = settled.timeline_spans ?? [];
+  const now = current.timeline_spans ?? [];
+  return (
+    before.length === now.length &&
+    before.every(
+      (span, at) =>
+        Math.abs(span.end - span.start - (now[at]!.end - now[at]!.start)) <
+        1e-6,
+    )
+  );
+}
+
 function sameRow(
   settled: CombinedUtterance | undefined,
   current: CombinedUtterance,
@@ -98,6 +115,7 @@ function sameRow(
   return (
     settled?.words !== undefined &&
     settled.text === current.text &&
+    sameShape(settled, current) &&
     // A cut renumbers word_index, so a changed list cannot be applied to the
     // old words: the row waits.
     sameIndices(settled.ignored_word_indices, current.ignored_word_indices) &&
@@ -150,10 +168,15 @@ function compute(
       rows.push({ kind: "waiting", utterance });
     }
   }
+  const remembered = settled !== null && settled.grant === grant;
   return {
     rows,
     refreshing: rows.some((row) => row.kind !== "live"),
-    drawn: rows.some((row) => row.kind !== "waiting"),
+    // With memory the Script is drawn even as bars alone; the skeleton is for
+    // a first load.
+    drawn: remembered
+      ? rows.length > 0
+      : rows.some((row) => row.kind !== "waiting"),
   };
 }
 
