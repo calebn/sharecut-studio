@@ -6,6 +6,7 @@ import json
 import os
 import time
 from concurrent.futures import ThreadPoolExecutor
+from dataclasses import replace
 from datetime import UTC, datetime
 from functools import partial
 from pathlib import Path
@@ -17,6 +18,7 @@ from podcast_mcp.gui.server import create_app
 from podcast_mcp.models.episode import PROJECT_NAME_MAX_CHARS
 from podcast_mcp.services.app import recent_projects as recent
 from podcast_mcp.services.app.workspace import ProjectWorkspace
+from podcast_mcp.util import host_platform
 from podcast_mcp.util.atomic_file import atomic_write
 
 CODE = "X-Sharecut-Error-Code"
@@ -106,6 +108,81 @@ def test_forget_removes_only_the_named_entry(tmp_path):
     assert recent.forget_recent(a) is True
     assert recent.forget_recent(a) is False
     assert [e.path for e in recent.read_recent()] == [str(b.resolve())]
+
+
+def _stored_paths() -> list[str]:
+    raw = json.loads(recent.recent_projects_path().read_text(encoding="utf-8"))
+    return [row["path"] for row in raw["projects"]]
+
+
+@pytest.fixture
+def app_container(monkeypatch, tmp_path):
+    """An iOS-shaped host whose home is ``tmp_path/container-a`` (the app container)."""
+    home = tmp_path / "container-a"
+    (home / "Documents").mkdir(parents=True)
+    monkeypatch.setenv("HOME", str(home))
+    row = replace(host_platform.MACOS, name="app-container", app_container=True)
+    with host_platform.using(row):
+        yield home.resolve()
+
+
+def test_a_container_host_stores_a_project_under_its_home_relative_to_it(app_container):
+    project = _make(app_container / "Documents", "Episode")
+    recent.record_recent(project)
+    assert _stored_paths() == ["Documents/Episode/episode.sharecut"]
+    assert [e.path for e in recent.read_recent()] == [str(project.resolve())]
+
+
+def test_a_recent_entry_survives_the_container_moving(app_container, tmp_path, monkeypatch, local):
+    project = _make(app_container / "Documents", "Episode")
+    recent.record_recent(project)
+    moved = tmp_path / "container-b"
+    app_container.rename(moved)
+    monkeypatch.setenv("HOME", str(moved))
+    card = local.get("/api/projects/recent").json()["projects"][0]
+    assert card["path"] == str(moved.resolve() / "Documents" / "Episode" / "episode.sharecut")
+    assert card["folder_missing"] is False
+    assert card["name"] == "Episode"
+
+
+def test_a_container_host_keeps_a_path_outside_its_home_absolute(app_container, tmp_path):
+    outside = _make(tmp_path / "elsewhere", "Outside")
+    recent.record_recent(outside)
+    assert _stored_paths() == [str(outside.resolve())]
+    assert [e.path for e in recent.read_recent()] == [str(outside.resolve())]
+
+
+def test_forget_and_dedupe_work_on_the_relative_form(app_container):
+    project = _make(app_container / "Documents", "Episode")
+    recent.record_recent(project)
+    recent.record_recent(project)
+    assert _stored_paths() == ["Documents/Episode/episode.sharecut"]
+    assert recent.forget_recent(project) is True
+    assert recent.read_recent() == []
+
+
+def test_a_desktop_host_stores_absolute_paths_even_under_its_home(tmp_path, monkeypatch):
+    home = tmp_path / "home"
+    monkeypatch.setenv("HOME", str(home))
+    project = _make(home, "Episode")
+    recent.record_recent(project, now=datetime(2026, 10, 27, 9, 0, tzinfo=UTC))
+    absolute = str(project.resolve())
+    assert recent.recent_projects_path().read_text(encoding="utf-8") == (
+        '{\n  "version": 1,\n  "projects": [\n    {\n'
+        f'      "path": "{absolute}",\n'
+        '      "opened_at": "2026-10-27T09:00:00+00:00"\n    }\n  ]\n}'
+    )
+    assert [e.path for e in recent.read_recent()] == [absolute]
+
+
+def test_a_desktop_host_reads_a_relative_path_as_written(tmp_path):
+    target = recent.recent_projects_path()
+    target.parent.mkdir(parents=True)
+    target.write_text(
+        '{"version": 1, "projects": [{"path": "Documents/x/episode.sharecut", "opened_at": ""}]}',
+        encoding="utf-8",
+    )
+    assert [e.path for e in recent.read_recent()] == ["Documents/x/episode.sharecut"]
 
 
 def test_default_workspace_reserves_and_numbers_a_taken_folder(tmp_path):
