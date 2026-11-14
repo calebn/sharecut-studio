@@ -4,6 +4,7 @@
 pub mod cli_links;
 mod close_guard;
 pub mod engine;
+pub mod lifecycle;
 mod share_url;
 mod sidecar;
 mod update;
