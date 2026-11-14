@@ -1913,6 +1913,53 @@ test.describe("join sheet on a phone", () => {
     }
   });
 
+  test("the whole form is in the body's view at first paint", async ({
+    browser,
+  }: {
+    browser: Browser;
+  }) => {
+    for (const [width, height, touch] of [
+      [1280, 800, false],
+      [600, 900, false],
+      [700, 900, false],
+      [767, 900, false],
+      [390, 844, true],
+    ] as const) {
+      await withJoinRoom(
+        browser,
+        { ...(touch ? PHONE_GUEST : {}), viewport: { width, height } },
+        async (guest, token) => {
+          const where = `${width}x${height}`;
+          await openRecordLink(guest, token);
+          const panel = await settledPanel(guest);
+          const fit = await panel.evaluate((element) => {
+            const body = element.querySelector(
+              ".command-palette-body",
+            ) as HTMLElement;
+            const toggle = element.querySelector(
+              '[data-step="headphones"] button',
+            ) as HTMLElement;
+            const view = body.getBoundingClientRect();
+            const box = toggle.getBoundingClientRect();
+            return {
+              needed: body.scrollHeight,
+              available: body.clientHeight,
+              over: box.bottom - view.bottom,
+            };
+          });
+          expect(
+            fit.over,
+            `${where} headphones button past the body's view (body needs ${fit.needed}, has ${fit.available})`,
+          ).toBeLessThanOrEqual(0.5);
+          expect(
+            fit.needed - fit.available,
+            `${where} body scrolls (needs ${fit.needed}, has ${fit.available})`,
+          ).toBeLessThanOrEqual(0.5);
+        },
+      );
+    }
+  });
+
   test("a tapped name field is in view at 390x508", async ({
     browser,
   }: {
