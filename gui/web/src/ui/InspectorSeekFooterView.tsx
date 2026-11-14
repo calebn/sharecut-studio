@@ -11,7 +11,7 @@ export interface InspectorSeekFooterViewProps {
   showPlay?: boolean;
   previewMode?: PreviewMode;
   onPreviewModeChange?: (mode: PreviewMode) => void;
-  /** Why Suggested and A/B are unavailable; null or undefined leaves them enabled. */
+  /** Why Suggested and A/B are unavailable; null or undefined leaves them enabled, a blank string gates them with the generic note. */
   suggestDisabledReason?: string | null;
   /** Why the play action is unavailable (e.g. guests hear Full mix only); undefined leaves it enabled. */
   playDisabledReason?: string;
@@ -53,10 +53,12 @@ export function InspectorSeekFooterView({
   const playReason = unavailableReason(playDisabledReason);
   const { note: playNote, describedBy: playDescribedBy } =
     useDisabledReasonNote(busy ? undefined : playReason);
-  const modesReason = onPreviewModeChange
-    ? suggestDisabledReason?.trim() || null
-    : null;
-  const sharesPlayNote = !busy && playReason?.trim() === modesReason;
+  const modesReason =
+    onPreviewModeChange && suggestDisabledReason != null
+      ? (unavailableReason(suggestDisabledReason) ?? null)
+      : null;
+  const sharesPlayNote =
+    !busy && modesReason !== null && playReason?.trim() === modesReason.trim();
   const { note: modesNote, describedBy: ownModesDescribedBy } =
     useDisabledReasonNote(sharesPlayNote ? null : modesReason);
   return (
@@ -98,9 +100,11 @@ export function InspectorSeekFooterView({
                   key={m.id}
                   quiet
                   pressed={previewMode === m.id}
-                  disabledReason={blocked ? modesReason : undefined}
+                  aria-disabled={blocked || undefined}
                   {...(blocked ? describedBy : {})}
-                  onClick={() => onPreviewModeChange(m.id)}
+                  onClick={
+                    blocked ? undefined : () => onPreviewModeChange(m.id)
+                  }
                 >
                   {m.label}
                 </ToggleButton>

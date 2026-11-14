@@ -1,4 +1,5 @@
 import { fireEvent, render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { expectNoA11yViolations } from "../test/a11y";
 import {
@@ -86,13 +87,17 @@ describe("InspectorSeekFooterView", () => {
     );
     const suggested = screen.getByRole("button", { name: "Suggested" });
     const ab = screen.getByRole("button", { name: "A/B" });
-    expect(suggested).toBeDisabled();
-    expect(ab).toBeDisabled();
+    expect(suggested).toHaveAttribute("aria-disabled", "true");
+    expect(ab).toHaveAttribute("aria-disabled", "true");
+    expect(suggested).not.toBeDisabled();
+    expect(ab).not.toBeDisabled();
     expect(suggested).toHaveAccessibleDescription(reason);
     expect(ab).toHaveAccessibleDescription(reason);
-    expect(suggested).toHaveAttribute("title", reason);
-    expect(ab).toHaveAttribute("title", reason);
-    expect(screen.getByRole("button", { name: "Current" })).toBeEnabled();
+    expect(suggested).not.toHaveAttribute("title");
+    expect(ab).not.toHaveAttribute("title");
+    expect(screen.getByRole("button", { name: "Current" })).not.toHaveAttribute(
+      "aria-disabled",
+    );
     const note = screen.getByText(reason, { selector: "p" });
     expect(note).toBeVisible();
     expect(suggested).toHaveAttribute("aria-describedby", note.id);
@@ -116,32 +121,54 @@ describe("InspectorSeekFooterView", () => {
     expect(screen.getByRole("button", { name: "A/B" })).toBeEnabled();
   });
 
-  it("shows no mode note for a blank reason", () => {
-    const { container } = render(
-      <InspectorSeekFooterView
-        onSeek={vi.fn()}
-        onPlay={vi.fn()}
-        previewMode="current"
-        onPreviewModeChange={vi.fn()}
-        suggestDisabledReason=""
-      />,
-    );
-    expect(container.querySelector("p")).toBeNull();
-  });
-
-  it("treats a whitespace-only mode reason as no reason", () => {
+  it.each([
+    ["an empty", ""],
+    ["a whitespace-only", "   "],
+  ])("gates both modes with the generic note for %s reason", (_name, blank) => {
+    const onMode = vi.fn();
     render(
       <InspectorSeekFooterView
         onSeek={vi.fn()}
         onPlay={vi.fn()}
         previewMode="current"
-        onPreviewModeChange={vi.fn()}
-        suggestDisabledReason="   "
+        onPreviewModeChange={onMode}
+        suggestDisabledReason={blank}
       />,
     );
-    expect(screen.getByRole("button", { name: "Suggested" })).toBeEnabled();
-    expect(screen.getByRole("button", { name: "A/B" })).toBeEnabled();
-    expect(document.querySelector("p")).toBeNull();
+    const notes = screen.getAllByText("This action is unavailable right now.", {
+      selector: "p",
+    });
+    expect(notes).toHaveLength(1);
+    for (const name of ["Suggested", "A/B"]) {
+      const mode = screen.getByRole("button", { name });
+      expect(mode).toHaveAttribute("aria-disabled", "true");
+      expect(mode).toHaveAttribute("aria-describedby", notes[0].id);
+      fireEvent.click(mode);
+    }
+    expect(onMode).not.toHaveBeenCalled();
+  });
+
+  it("keeps a blocked mode focusable and ignores click, Enter and Space", async () => {
+    const onMode = vi.fn();
+    const reason = "A split does not change the mix until you delete a side.";
+    const { container } = render(
+      <InspectorSeekFooterView
+        onSeek={vi.fn()}
+        onPlay={vi.fn()}
+        previewMode="current"
+        onPreviewModeChange={onMode}
+        suggestDisabledReason={reason}
+      />,
+    );
+    const suggested = screen.getByRole("button", { name: "Suggested" });
+    suggested.focus();
+    expect(suggested).toHaveFocus();
+    await userEvent.keyboard("{Enter}");
+    await userEvent.keyboard(" ");
+    await userEvent.click(suggested);
+    expect(onMode).not.toHaveBeenCalled();
+    expect(screen.getByText(reason)).toBeVisible();
+    await expectNoA11yViolations(container);
   });
 
   it("shows one note when the modes reason differs only by padding", () => {
