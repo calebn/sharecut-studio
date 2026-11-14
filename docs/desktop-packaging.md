@@ -378,7 +378,9 @@ check, and nobody is contacted. Each subcommand takes `--dry-run`, which prints 
   pipe, a failed TLS handshake, a proxy page, a timeout, an authentication failure that is not a
   structured product error. `validate` and the app record lookup change nothing at Apple and keep
   their looser reading. `--retry-unknown-upload` goes past the block and is recorded on the new
-  attempt (`retried_unknown_upload`). The record can only block an upload, never allow one.
+  attempt (`retried_unknown_upload`). An unresolved attempt is never closed, so after a retry that
+  Apple then rejects, the next plain `upload` still needs the flag. The record can only block an
+  upload, never allow one.
   An "already uploaded" answer from Apple is recorded as `apple_reports_duplicate`; check
   TestFlight, and run `build` again for a new number if the build is not there. Exit codes: 3
   inputs, 4 signing, 5 a local check, 6 Apple rejected, 7 duplicate, 8 other tool failure, 9
@@ -415,8 +417,9 @@ Owner runbook. A step marked Apple contacts Apple.
 
 Honest limits. Remapping does not cover host-built build scripts and proc macros; the scan is the
 guarantee, and it covers the home, user name, build cache, cargo and rustup homes, the checkout
-and `TMPDIR`. DWARF and dSYMs are not scanned and are never uploaded. `Assets.car` (lzfse) is not
-readable and is listed as unseen. The privacy check sees C symbols only, not Objective-C selectors
+and `TMPDIR`. DWARF and dSYMs are not scanned and are never uploaded. What the scan cannot read is `Assets.car` (lzfse) and a few members inside bundled Python test
+archives (unreadable test certificates, a sparse archive part); they are listed as `unseen` in the
+record and shown as a warning. The privacy check sees C symbols only, not Objective-C selectors
 or `NSURL...Key` constants, so validate and Apple's processing mail are the second signal. The
 reason codes and the symbol table in `contracts/ios-privacy.json` are from memory, not from Apple's
 page. The altool JSON shapes and xcodebuild phrases the classifiers read are not yet seen against a
