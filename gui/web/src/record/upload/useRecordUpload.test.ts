@@ -18,11 +18,7 @@ import {
 import { RECORD_UPLOAD_PART_PCM_BYTES } from "./chunker";
 import { recoverLocalKeepers } from "./recovery";
 import { memoryUploadTransport, type RecordUploadTransport } from "./transport";
-import {
-  keeperCaptureSettled,
-  leaveBlocked,
-  useRecordUpload,
-} from "./useRecordUpload";
+import { keeperCaptureSettled, useRecordUpload } from "./useRecordUpload";
 
 function pendingMeta(
   ids: { sessionId: string; takeIndex: number; participantId: string },
@@ -310,7 +306,6 @@ describe("useRecordUpload", () => {
     );
     expect(result.current.recoverable).toBe(false);
     expect(result.current.uploading).toBe(false);
-    expect(leaveBlocked("stopped", result.current)).toBe(false);
     unmount();
   });
 
@@ -504,9 +499,8 @@ describe("useRecordUpload", () => {
       { initialProps: { settled: false } },
     );
     await waitFor(() => expect(result.current.pending).toBe(false));
-    // Stop is still finalizing: Leave stays held until capture settles.
+    // Stop is still finalizing: the upload stays open until capture settles.
     expect(result.current.uploading).toBe(true);
-    expect(leaveBlocked("stopped", result.current)).toBe(true);
 
     rerender({ settled: true });
     await waitFor(() =>
@@ -516,7 +510,6 @@ describe("useRecordUpload", () => {
     );
     expect(result.current.fileAck).toBe(false);
     expect(result.current.uploading).toBe(false);
-    expect(leaveBlocked("stopped", result.current)).toBe(false);
     expect(await sink.read(partialPath)).not.toBeNull();
     expect(transport.joinOffsets).toContain(4000);
     unmount();
@@ -568,7 +561,6 @@ describe("useRecordUpload", () => {
     expect(result.current.acked).toBe(1);
     expect(result.current.total).toBe(1);
     expect(result.current.error).toMatch(/stalled/i);
-    expect(leaveBlocked("stopped", result.current)).toBe(false);
 
     allowFileAck = true;
     rerender({ retryNonce: 1 });
@@ -716,7 +708,6 @@ describe("useRecordUpload", () => {
       expect(result.current.error).toMatch(/no full-quality recording/i),
     );
     expect(result.current.fileAck).toBe(false);
-    expect(leaveBlocked("stopped", result.current)).toBe(false);
     unmount();
   });
 
@@ -1096,7 +1087,6 @@ describe("useRecordUpload", () => {
       uploading: false,
       error: null,
     });
-    expect(leaveBlocked("stopped", result.current)).toBe(false);
     unmount();
   });
 
@@ -1186,7 +1176,7 @@ describe("useRecordUpload finalization and recovery", () => {
     );
   }
 
-  it("holds Leave for a lone segment that Stop is still finalizing", async () => {
+  it("keeps uploading for a lone segment that Stop is still finalizing", async () => {
     const sink = new MemorySink();
     const path = keeperWavPath({ ...ids, segmentIndex: 0 });
     await sink.write(path, wavWithPcm(8));
@@ -1195,14 +1185,13 @@ describe("useRecordUpload finalization and recovery", () => {
     await waitFor(() => expect(result.current.pending).toBe(false));
     expect(result.current.total).toBe(0);
     expect(result.current.error).toBeNull();
-    expect(leaveBlocked("stopped", result.current)).toBe(true);
+    expect(result.current.uploading).toBe(true);
 
     rerender({ roomState: "stopped", captureSettled: true });
     await waitFor(() => expect(result.current.recoverable).toBe(true));
     expect(result.current.error).toMatch(
       /Recover it before saving to the project/,
     );
-    expect(leaveBlocked("stopped", result.current)).toBe(false);
     unmount();
   });
 
@@ -1284,42 +1273,6 @@ describe("keeperCaptureSettled", () => {
     expect(
       keeperCaptureSettled({ ...idle, finalizing: true, error: "disk full" }),
     ).toBe(true);
-  });
-});
-
-describe("leaveBlocked", () => {
-  it("holds Leave only while a stopped take is still uploading", () => {
-    expect(leaveBlocked("stopped", undefined)).toBe(false);
-    expect(
-      leaveBlocked("stopped", {
-        acked: 0,
-        total: 0,
-        fileAck: false,
-        landed: false,
-        landFailed: false,
-        reclaimFailed: false,
-        uploading: false,
-        pending: true,
-        recoverable: false,
-        error: null,
-        segments: [],
-      }),
-    ).toBe(true);
-    expect(
-      leaveBlocked("stopped", {
-        acked: 1,
-        total: 3,
-        fileAck: false,
-        landed: false,
-        landFailed: false,
-        reclaimFailed: false,
-        uploading: false,
-        pending: false,
-        recoverable: false,
-        error: "fail",
-        segments: [],
-      }),
-    ).toBe(false);
   });
 });
 

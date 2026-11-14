@@ -308,7 +308,41 @@ export const GuestSaving: Story = {
     ).toBeInTheDocument();
     await expect(
       canvas.getByRole("button", { name: "Leave room" }),
-    ).toBeDisabled();
+    ).toHaveAttribute("aria-disabled", "true");
+  },
+};
+
+export const GuestSaved: Story = {
+  args: { phase: { kind: "saved" }, people: SAVED_GUESTS },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(
+      canvas.getByText("Saved to project. You can close this page."),
+    ).toBeInTheDocument();
+    await expect(
+      canvas.getByRole("button", { name: "Done" }),
+    ).toBeInTheDocument();
+    await expect(
+      canvas.queryByRole("button", { name: "Leave room" }),
+    ).toBeNull();
+  },
+};
+
+export const GuestDisconnected: Story = {
+  args: {
+    phase: { kind: "reconnecting", paused: false, clockSec: 43 },
+    people: [HOST, { ...JON_YOU, connection: "lost" }, ANNEKE_GUEST],
+    alerts: [{ kind: "connection-lost" }],
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(canvas.getByText("0:43 · Reconnecting…")).toBeInTheDocument();
+    await expect(
+      canvas.getByText(
+        "Lost connection to the room. You're still recording on this device.",
+      ),
+    ).toBeInTheDocument();
+    await expect(canvas.queryByText(/dropped/)).toBeNull();
   },
 };
 

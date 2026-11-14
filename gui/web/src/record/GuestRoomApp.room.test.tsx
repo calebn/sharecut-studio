@@ -141,6 +141,8 @@ function fakeRoom(over: Overrides = {}) {
     producerJoined: true,
     setProducerJoined: vi.fn(),
     resumeUpload: vi.fn(),
+    left: false,
+    leave: vi.fn(),
   };
   current.room = room;
   return room;
@@ -148,6 +150,7 @@ function fakeRoom(over: Overrides = {}) {
 
 const stopped = { state: "stopped" as const, take_index: 0 };
 beforeEach(() => {
+  vi.spyOn(window, "close").mockImplementation(() => undefined);
   speech.heard = false;
   speech.calls = [];
   current.room = null;
@@ -162,12 +165,56 @@ describe("GuestRoomApp in the room", () => {
       upload: { acked: 1, total: 3, uploading: true },
     });
     render(<GuestRoomApp token="t" />);
-    expect(leave()).toBeDisabled();
-    expect(leave()).toHaveAttribute(
-      "title",
-      "Keep this tab open until your recording is saved.",
-    );
+    expect(leave()).toHaveAttribute("aria-disabled", "true");
+    expect(leave()).toHaveAttribute("title", "Your recording is still saving");
     expect(screen.getByText("Saving · 33%")).toBeInTheDocument();
+  });
+
+  it("holds Leave during a take and says why on press", async () => {
+    const room = fakeRoom();
+    render(<GuestRoomApp token="t" />);
+    expect(leave()).toHaveAttribute("aria-disabled", "true");
+    await userEvent.click(leave());
+    expect(
+      screen.getByText("You can leave after this take."),
+    ).toBeInTheDocument();
+    expect(room.leave).not.toHaveBeenCalled();
+  });
+
+  it("tells a saved guest they can close the page, and Done leaves", async () => {
+    const room = fakeRoom({
+      snapshot: stopped,
+      upload: { acked: 3, total: 3, fileAck: true, landed: true },
+    });
+    render(<GuestRoomApp token="t" />);
+    expect(
+      screen.getByText("Saved to project. You can close this page."),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Leave room" })).toBeNull();
+    await userEvent.click(screen.getByRole("button", { name: "Done" }));
+    expect(room.leave).toHaveBeenCalledOnce();
+    expect(window.close).toHaveBeenCalledOnce();
+  });
+
+  it("brings the normal dock back when a later take starts", () => {
+    fakeRoom({
+      snapshot: stopped,
+      upload: { acked: 3, total: 3, fileAck: true, landed: true },
+    });
+    const { rerender } = render(<GuestRoomApp token="t" />);
+    expect(
+      screen.getByText("Saved to project. You can close this page."),
+    ).toBeInTheDocument();
+    fakeRoom({
+      snapshot: { state: "recording", take_index: 1 },
+      upload: { acked: 3, total: 3, fileAck: true, landed: true },
+    });
+    rerender(<GuestRoomApp token="t" />);
+    expect(screen.getByRole("button", { name: "Mute" })).toBeInTheDocument();
+    expect(leave()).toBeInTheDocument();
+    expect(
+      screen.queryByText("Saved to project. You can close this page."),
+    ).toBeNull();
   });
 
   it("lets Leave go after file ACK or an upload error", () => {
@@ -176,14 +223,15 @@ describe("GuestRoomApp in the room", () => {
       upload: { acked: 3, total: 3, fileAck: true, landed: true },
     });
     const { rerender } = render(<GuestRoomApp token="t" />);
-    expect(leave()).toBeEnabled();
+    expect(screen.queryByRole("button", { name: "Leave room" })).toBeNull();
+    expect(screen.getByRole("button", { name: "Done" })).toBeInTheDocument();
     expect(screen.getAllByText("Saved").length).toBeGreaterThan(0);
     fakeRoom({
       snapshot: stopped,
       upload: { acked: 1, total: 3, error: "upload failed" },
     });
     rerender(<GuestRoomApp token="t" />);
-    expect(leave()).toBeEnabled();
+    expect(leave()).not.toHaveAttribute("aria-disabled");
     expect(screen.getByText("Saving stopped")).toBeInTheDocument();
     expect(
       screen.getByRole("button", { name: "Resume saving" }),
@@ -791,17 +839,22 @@ describe("GuestRoomApp dock outside the saving phase", () => {
     expect(mute).toBeNull();
     expect(comment).toBeNull();
     expect(notes).toBeNull();
-    expect(leave()).toBeDisabled();
+    expect(leave()).toHaveAttribute("aria-disabled", "true");
   });
 
-  it("returns the controls once the stopped take is file-ACK'd", () => {
+  it("swaps the saving line for the saved line, Done and Notes once the stopped take is file-ACK'd", () => {
     fakeRoom({
       snapshot: stopped,
       upload: { acked: 3, total: 3, fileAck: true, landed: true },
     });
     render(<GuestRoomApp token="t" />);
     expect(screen.queryByText(SAVING)).toBeNull();
+    expect(
+      screen.getByText("Saved to project. You can close this page."),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Done" })).toBeInTheDocument();
     expect(dock().notes).toBeInTheDocument();
+    expect(dock().mute).toBeNull();
   });
 
   it("shows no saving line in the lobby with a leftover upload", () => {

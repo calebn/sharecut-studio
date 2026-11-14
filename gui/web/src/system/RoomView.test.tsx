@@ -143,7 +143,9 @@ describe("RoomView", () => {
       alerts: [{ kind: "mic-lost", onAction: vi.fn() }],
     });
     expect(screen.getByText("12:04 · Take 1")).toBeInTheDocument();
-    expect(screen.getByRole("status")).toBeInTheDocument();
+    expect(
+      document.querySelectorAll('.sys-room-alert-live[role="status"]'),
+    ).toHaveLength(1);
     expect(
       document.querySelectorAll(".sys-room-alert-live .sys-status"),
     ).toHaveLength(1);
@@ -593,7 +595,7 @@ describe("RoomView as the host", () => {
   it("holds a guest's Leave back while their recording saves", () => {
     renderRoom({ phase: { kind: "saving", savedPeople: 1, totalPeople: 3 } });
     const leave = screen.getByRole("button", { name: "Leave room" });
-    expect(leave).toBeDisabled();
+    expect(leave).toHaveAttribute("aria-disabled", "true");
     expect(leave).toHaveAttribute("title", "Your recording is still saving");
   });
 
@@ -801,7 +803,9 @@ describe("RoomView as the host", () => {
       expect(
         screen.getByText("Joining the room…").closest("[aria-busy]"),
       ).not.toBeNull();
-      expect(screen.getAllByRole("status")).toHaveLength(1);
+      expect(
+        document.querySelectorAll('.sys-room-alert-live[role="status"]'),
+      ).toHaveLength(1);
       expect(
         screen.getByRole("heading", { level: 1, name: "Episode 14" }),
       ).toBeInTheDocument();
@@ -847,7 +851,9 @@ describe("RoomView as the host", () => {
         screen.getByRole("button", { name: "Retry" }).closest("[aria-busy]"),
       ).toBeNull();
       expect(screen.queryByText("Joining the room…")).toBeNull();
-      expect(screen.getAllByRole("status")).toHaveLength(1);
+      expect(
+        document.querySelectorAll('.sys-room-alert-live[role="status"]'),
+      ).toHaveLength(1);
       await user.click(screen.getByRole("button", { name: "Retry" }));
       expect(onAction).toHaveBeenCalledOnce();
     });

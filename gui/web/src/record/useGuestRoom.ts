@@ -54,6 +54,8 @@ export function useGuestRoom(
     () => readLocal(storageKey(token, "mic")) || "",
   );
   const [producerJoined, setProducerJoined] = useState(false);
+  const [left, setLeft] = useState(false);
+  const leave = useCallback(() => setLeft(true), []);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -105,7 +107,7 @@ export function useGuestRoom(
     useRecordSync(
       token,
       syncName,
-      !!bootstrap && (!producer || producerJoined),
+      !!bootstrap && (!producer || producerJoined) && !left,
     );
   const accessEnded = isRecordAccessEnded(error);
   const inviteClosed = error === RECORD_INVITE_CLOSED;
@@ -122,6 +124,7 @@ export function useGuestRoom(
     !producer &&
     !accessEnded &&
     error !== "room_full" &&
+    !left &&
     (me?.consented !== false || rejoining);
   const mic = useMicPermission(micEnabled, deviceId);
   const staleMic = mic.staleDeviceId !== null;
@@ -391,6 +394,8 @@ export function useGuestRoom(
     producerJoined,
     setProducerJoined,
     resumeUpload,
+    left,
+    leave,
   };
 }
 
