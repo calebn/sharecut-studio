@@ -683,7 +683,7 @@ def test_a_dry_run_never_prints_a_proxy_password_or_an_unlisted_value(
     monkeypatch.setattr(ios_release, "checkout_lock", lambda root: contextlib.nullcontext())
     assert ios_release.main(["build", "--dry-run"]) == 0
     out = capsys.readouterr().out
-    assert "user:hunter2" not in out and "hunter2" not in out and "CERTVALUE" not in out
+    assert "hunter2" not in out and "CERTVALUE" not in out
     assert "HTTPS_PROXY=<set>" in out and "SSL_CERT_FILE=<set>" in out
     assert "CARGO_BUILD_JOBS=4" in out and "APPLE_DEVELOPMENT_TEAM=<team>" in out
 
