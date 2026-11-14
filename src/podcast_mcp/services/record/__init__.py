@@ -31,6 +31,7 @@ if TYPE_CHECKING:
         RoomFullError,
     )
     from podcast_mcp.services.record.service import (
+        InviteClosure,
         LeaseInUseError,
         RecordSessionService,
         assert_no_open_take,
@@ -73,6 +74,7 @@ __all__ = [
     "ROOM_TONE_SEGMENT_INDEX",
     "ROOM_TONE_TAKE_INDEX",
     "UPLOAD_KIND_ROOM_TONE",
+    "InviteClosure",
     "LeaseInUseError",
     "RecordAuthzError",
     "RecordControlService",
@@ -126,6 +128,7 @@ _MODULE_BY_NAME = {
     "RecordLandingService": "landing",
     "RecordTakeOpenError": "landing",
     "RecordRole": "state",
+    "InviteClosure": "service",
     "RecordSessionService": "service",
     "RecordStateError": "reducer",
     "RecordUploadError": "upload",

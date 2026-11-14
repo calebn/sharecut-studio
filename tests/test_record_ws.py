@@ -20,6 +20,7 @@ from podcast_mcp.services.record.commands import (
 from podcast_mcp.services.record.control import RecordControlService
 from podcast_mcp.services.record.reducer import RecordStateError
 from podcast_mcp.services.record.service import (
+    InviteClosure,
     RecordSessionService,
     apply_record_ws_message,
     reset_record_runtime_for_tests,
@@ -1853,8 +1854,8 @@ def test_join_mint_raises_invite_closed(minimal_project, sample_wav, tmp_workspa
     a, _b = _join_two(client, token)
     _remove(client, ws, a["participant_id"])
     svc = RecordSessionService(ws.project, session_id=room["session_id"])
-    assert svc.invite_closed(share_id) is True
-    assert svc.invite_closed(room["producer"]["id"]) is False
+    assert svc.invite_closed(share_id) is InviteClosure.REMOVED
+    assert svc.invite_closed(room["producer"]["id"]) is None
     with pytest.raises(RecordAuthzError, match="invite_closed"):
         svc.join(
             share_id=share_id,
@@ -2331,6 +2332,94 @@ def test_a_failed_record_pump_and_the_task_label_name_the_share_not_the_token(
     assert pump
     assert all(token not in r.getMessage() and "share=" in r.getMessage() for r in pump)
     assert token[:8] not in caplog.text
+
+
+def _refusal(sock) -> dict:
+    """The server's answer to a Join: the Error that refuses it, or the Echo that admitted it."""
+    answer = _drain_until(sock, lambda m: m.get("type") in ("Error", "Echo"))
+    assert answer["type"] == "Error", f"the join was admitted: {answer}"
+    return answer
+
+
+def _forget_binding(ws, room, participant_id: str) -> None:
+    svc = RecordSessionService(ws.project, session_id=room["session_id"])
+    with svc._participants._lock:
+        svc._participants._conn.execute(
+            "DELETE FROM record_participant_leases WHERE participant_id = ?", (participant_id,)
+        )
+
+
+def test_a_removal_with_no_known_link_closes_every_invite(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch
+):
+    ws, room, client = _room(minimal_project, sample_wav, tmp_workspace, monkeypatch)
+    host_client = TestClient(create_app(served_project=Path(ws.path)))
+    token = room["guest"]["token"]
+    a, b = _join_two(client, token)
+    _remove(client, ws, a["participant_id"])
+    _forget_binding(ws, room, a["participant_id"])
+
+    with client.websocket_connect(f"/api/rec/{token}/ws") as old:
+        _join(old, name="Ava", participant_id=a["participant_id"], lease=a["lease"])
+        err = _refusal(old)
+        assert err["code"] == "participant_removed"
+    for tok in (token, room["producer"]["token"]):
+        with client.websocket_connect(f"/api/rec/{tok}/ws") as fresh:
+            _join(fresh, name="Cy")
+            err = _refusal(fresh)
+            assert err["code"] == "invite_closed"
+            with pytest.raises(WebSocketDisconnect) as closed:
+                fresh.receive_json()
+            assert closed.value.code == 4403
+
+    listed = host_client.get("/api/shares", params={"path": str(ws.path)}).json()["shares"]
+    record_rows = [row for row in listed if row["kind"] == "record"]
+    assert len(record_rows) == 2
+    assert all(row["invite_closed"] is True for row in record_rows)
+
+    before = {row["token"] for row in record_rows}
+    refused = host_client.post(f"/api/shares/record/{token}/replace", json={"path": str(ws.path)})
+    assert refused.status_code == 409
+    assert "Start a new room" in refused.text
+    after = host_client.get("/api/shares", params={"path": str(ws.path)}).json()["shares"]
+    assert {row["token"] for row in after if row["kind"] == "record"} == before
+
+    fresh_room = ShareService(ws).create_record_room()
+    with client.websocket_connect(f"/api/rec/{fresh_room['guest']['token']}/ws") as sock:
+        _join(sock, name="Dee")
+        echo = _drain_until(sock, lambda m: m.get("type") == "Echo")
+        assert echo["participant_id"]
+    assert b["participant_id"] != echo["participant_id"]
+
+
+def test_the_host_is_never_the_unknown_removal(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch
+):
+    ws, room, client = _room(minimal_project, sample_wav, tmp_workspace, monkeypatch)
+    refused = client.post(
+        "/api/record/command",
+        json={
+            "path": str(ws.path),
+            "command_type": "RemoveParticipant",
+            "payload": {"participant_id": "p_host"},
+        },
+    )
+    assert refused.status_code >= 400
+
+    svc = RecordSessionService(ws.project, session_id=room["session_id"])
+    svc.join(role="host", display_name="Host", client_id="host", connection_id="h1")
+
+    def mark_host_removed(raw):
+        raw = dict(raw or {})
+        raw["participants"] = [
+            {**p, "removed": True} if p["participant_id"] == "p_host" else p
+            for p in raw["participants"]
+        ]
+        return raw
+
+    svc._store.mutate_snapshot(mark_host_removed)
+    assert svc.invite_closed(room["guest"]["id"]) is None
+    assert svc.invite_closed(room["producer"]["id"]) is None
 
 
 def test_a_lease_does_not_cross_links(minimal_project, sample_wav, tmp_workspace, monkeypatch):

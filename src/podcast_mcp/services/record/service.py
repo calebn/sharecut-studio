@@ -8,6 +8,7 @@ import threading
 import time
 from collections.abc import Callable
 from dataclasses import dataclass
+from enum import StrEnum
 from typing import Any
 
 from podcast_mcp.models import EpisodeProject
@@ -68,6 +69,14 @@ from podcast_mcp.services.session_sync import (
 )
 from podcast_mcp.util.bounded_cache import BoundedCache
 from podcast_mcp.util.coded_error import CodedValueError
+
+
+class InviteClosure(StrEnum):
+    """Why an invite is closed to new guests."""
+
+    REMOVED = "removed"
+    UNKNOWN_REMOVAL = "unknown_removal"
+
 
 LEASE_IN_USE_GRACE_S = 15.0
 _SID_TTL_S = 0.5
@@ -465,18 +474,30 @@ class RecordSessionService:
         with self._authority_lock:
             return (self.session_id, participant_id) not in self._removed_ids
 
-    def invite_closed(self, share_id: str) -> bool:
-        """True when a participant minted through ``share_id`` was removed (closes the invite).
+    def invite_closed(self, share_id: str) -> InviteClosure | None:
+        """Why the invite of ``share_id`` is closed, or ``None`` while it is open.
 
-        Takes the room authority lock (an ``RLock``, so ``_join_locked`` can call it
-        while holding the lock). The SQLite lookup only runs once a removal exists.
+        A removed guest closes the link they joined through. A removal with no lease
+        row (the link is unknown) closes every invite of the room, since no link can
+        be trusted to be clear of that guest; only a new room reopens them. The host
+        is never part of the rule. Takes the room authority lock (an ``RLock``, so
+        ``_join_locked`` can call it while holding the lock). SQLite is read only
+        once a removal exists.
         """
         with self._authority_lock:
-            removed = {p.participant_id for p in self._model().participants if p.removed}
+            removed = {
+                p.participant_id
+                for p in self._model().participants
+                if p.removed and p.participant_id != HOST_PARTICIPANT_ID
+            }
             if not removed:
-                return False
+                return None
             bound = self._participants.invites_of(removed, session_id=self.session_id)
-            return share_id in bound.values()
+            if not removed <= bound.keys():
+                return InviteClosure.UNKNOWN_REMOVAL
+            if share_id in bound.values():
+                return InviteClosure.REMOVED
+            return None
 
     def signal(
         self,
@@ -598,7 +619,7 @@ class RecordSessionService:
             pid = participant_id
             lease_out = lease
         else:
-            if self.invite_closed(share_id):
+            if self.invite_closed(share_id) is not None:
                 raise RecordAuthzError("invite_closed")
             pid, lease_out = self._participants.mint(session_id=self.session_id, share_id=share_id)
         inferred_since = None
