@@ -951,6 +951,8 @@ Backend stubs exist under `share_auth/` and `/auth/*`, but by default `/auth` is
 tokens still 401 via `ShareIdentityMiddleware`. Escape hatch:
 `PODCAST_SHARE_ACCOUNTS=1` remounts `/auth` and allows minting for tests.
 
+Every `/auth` handler that reads, stores, embeds or redirects to a `next` target passes it through `safe_next_path` (`util/safe_redirect.py`), which keeps only a same-origin absolute path (up to 2048 characters) and otherwise falls back to `/` without failing the sign-in.
+
 Host sqlite `~/.podcast_mcp/share_identity.sqlite` (override
 `PODCAST_SHARE_IDENTITY`) holds `users`, `share_acl`, sessions, magic-link tokens,
 passkeys, and agent credentials when accounts are enabled. See
