@@ -176,3 +176,49 @@ def test_a_command_displays_secrets_as_tokens_and_hides_the_quiet_environment() 
     assert command.display(Redactor(directories={"checkout": "/Users/someone/repo"})) == (
         "(cd <checkout> && APPLE_DEVELOPMENT_TEAM=<team> xcrun altool --api-key <key-id>)"
     )
+
+
+def test_a_private_file_replaces_a_planted_link_and_a_loose_older_file(tmp_path: Path) -> None:
+    target = tmp_path / "victim.txt"
+    target.write_text("untouched")
+    target.chmod(0o644)
+    link = tmp_path / "options.plist"
+    link.symlink_to(target)
+    probe = Command(
+        (sys.executable, "-c", f"print(open({str(link)!r}).read())"),
+        tmp_path,
+        {},
+        (PrivateFile(link, ("secret-text",)),),
+    )
+    assert spawn(probe, Redactor()).tail == "secret-text"
+    assert target.read_text() == "untouched" and oct(target.stat().st_mode & 0o777) == "0o644"
+    assert not link.exists()
+
+    loose = tmp_path / "loose.plist"
+    loose.write_text("old")
+    loose.chmod(0o644)
+    mode = Command(
+        (sys.executable, "-c", f"import os;print(oct(os.stat({str(loose)!r}).st_mode & 0o777))"),
+        tmp_path,
+        {},
+        (PrivateFile(loose, ("new",)),),
+    )
+    assert spawn(mode, Redactor()).tail == "0o600"
+
+
+def test_a_log_refuses_a_planted_link_and_tightens_an_older_file(tmp_path: Path) -> None:
+    target = tmp_path / "victim.log"
+    target.write_text("untouched")
+    link = tmp_path / "step.log"
+    link.symlink_to(target)
+    command = Command((sys.executable, "-c", "print('hello')"), tmp_path)
+    with pytest.raises(OSError):
+        spawn(command, Redactor(), link)
+    assert target.read_text() == "untouched"
+
+    older = tmp_path / "older.log"
+    older.write_text("first\n")
+    older.chmod(0o644)
+    spawn(command, Redactor(), older)
+    assert older.read_text() == "first\nhello\n"
+    assert oct(older.stat().st_mode & 0o777) == "0o600"

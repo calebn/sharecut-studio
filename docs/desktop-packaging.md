@@ -367,7 +367,7 @@ check, and nobody is contacted. Each subcommand takes `--dry-run`, which prints 
   redacted line by line with carry-over across reads, for each secret and private directory as
   written, JSON-escaped, percent-encoded and resolved, and by shape for signing identity names,
   profile UUIDs and certificate fingerprints. `main()` prints a redacted one-line failure for any
-  exception. altool's argv shows the key id and issuer to the same user in `ps` for the length of
+  exception. Private files made for a command (the export options) and the per-step logs are created without following links: a stale file or planted link at that path is replaced (files) or refused (logs) and the mode is set to `0600`. altool's argv shows the key id and issuer to the same user in `ps` for the length of
   one call; that is accepted.
 - **Rehearsal.** `make ios-release-rehearsal` with a profile shaped like the owner's passes every
   local check (`gui/desktop/src-tauri/target/ios-release/<build>/`). The unsigned archive signs
