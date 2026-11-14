@@ -3553,3 +3553,24 @@ def test_peaks_check_play_before_taking_the_rate_bucket_or_audio_slot(
     assert r.status_code == 403
     assert r.headers["cache-control"] == "no-store"
     assert touched == []
+
+
+def test_guest_daw_ws_names_the_guest_by_share_id_not_token(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch
+):
+    ws = _seed_premix(minimal_project, sample_wav)
+    ver = ReviewService(ws).publish(label="GuestWS")
+    share = ShareService(ws).create(review_version_id=ver["id"], capabilities=["play", "view"])
+    token = share["token"]
+    client = TestClient(create_app())
+
+    with client.websocket_connect(f"/api/review/{token}/daw/ws") as guest_ws:
+        frames = [guest_ws.receive_json(), guest_ws.receive_json()]
+    session = next(frame for frame in frames if frame["plane"] == "session")
+    guest_id = session["client_id"]
+    assert guest_id.startswith(f"guest-{share['id']}-")
+    assert not any(token[:size] in guest_id or token[:size] in str(session) for size in (4, 6, 8))
+    labels = [
+        c.get("label") for c in session["snapshot"].get("clients", []) if c["client_id"] == guest_id
+    ]
+    assert labels == ["Guest"]

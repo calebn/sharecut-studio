@@ -167,7 +167,7 @@ export function isLiveClient(
   return serverNowMs - seenMs <= maxAgeMs;
 }
 
-/** Share guests join session sync as `guest-<token8>-<id>` (`review_share._guest_client_id`). */
+/** Share guests join session sync as `guest-<share id>-<id>` (`review_share._guest_client_id`). */
 export const GUEST_CLIENT_ID_PREFIX = "guest-";
 
 export function isGuestClientId(clientId: string): boolean {

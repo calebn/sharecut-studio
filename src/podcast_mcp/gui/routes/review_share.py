@@ -129,8 +129,8 @@ from podcast_mcp.services.session_sync import (
     SyncCommand,
     authorize_share_token,
     get_hub,
+    guest_display_name,
     is_own_presence_echo,
-    sanitize_display_name,
 )
 from podcast_mcp.services.share_auth import access_required
 from podcast_mcp.util.coded_error import (
@@ -748,16 +748,11 @@ def post_review_action_done(
         )
 
 
-def _guest_client_id(token: str, client_id: str | None) -> str:
+def _guest_client_id(share_id: str, client_id: str | None) -> str:
     suffix = _GUEST_CLIENT_SUFFIX_RE.sub("", client_id or "")[:16]
     if not suffix:
         suffix = secrets.token_hex(4)
-    return f"{GUEST_CLIENT_ID_PREFIX}{token[:8]}-{suffix}"
-
-
-def _guest_label(name: str | None, token: str) -> str:
-    cleaned = sanitize_display_name(name, guest=True)
-    return cleaned or f"Guest {token[:6]}"
+    return f"{GUEST_CLIENT_ID_PREFIX}{share_id}-{suffix}"
 
 
 def guest_restricted_origin_allowed(origin: str | None) -> bool:
@@ -961,9 +956,9 @@ async def daw_ws(
         async with cross_process_lease(ws_proj):
             session_svc = await run_in_threadpool(SessionSyncService, ws_proj.project)
             doc_svc = await run_in_threadpool(DocumentSyncService, ws_proj)
-            guest_client_id = _guest_client_id(token, client_id)
+            guest_client_id = _guest_client_id(share_id, client_id)
             conn_gen = await run_in_threadpool(session_svc.claim_client, guest_client_id)
-            label = _guest_label(name, token)
+            label = guest_display_name(name)
             await run_in_threadpool(
                 session_svc.submit,
                 SyncCommand(

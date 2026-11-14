@@ -2484,3 +2484,45 @@ def test_a_new_room_forgets_the_old_rooms_participants(
         old_svc._participants.invites_of({a["participant_id"]}, session_id=old["session_id"]) == {}
     )
     assert not new_svc.verify_lease(a["participant_id"], a["lease"], share_id=new["guest"]["id"])
+
+
+def test_two_clients_without_a_client_id_do_not_collide(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch
+):
+    ws, room, client = _room(minimal_project, sample_wav, tmp_workspace, monkeypatch)
+    token = room["guest"]["token"]
+    with client.websocket_connect(f"/api/rec/{token}/ws") as ava:
+        _join(ava, name="Ava")
+        _drain_until(ava, lambda m: m.get("type") == "Echo")
+        with client.websocket_connect(f"/api/rec/{token}/ws") as bea:
+            _join(bea, name="Bea")
+            _drain_until(bea, lambda m: m.get("type") == "Echo")
+            for sock in (ava, bea):
+                sock.send_json(
+                    {
+                        "type": "Record",
+                        "command_type": "Consent",
+                        "payload": {"accepted": True},
+                        "client_seq": 2,
+                    }
+                )
+            _drain_until(ava, lambda m: m.get("command_type") == "Consent")
+            _drain_until(bea, lambda m: m.get("command_type") == "Consent")
+    svc = RecordSessionService(ws.project, session_id=room["session_id"])
+    consents = [row for row in svc._store.commands_after(0) if row["type"] == "Consent"]
+    assert len({row["client_id"] for row in consents}) == 2
+    assert all(row["client_id"].startswith("rec-") for row in consents)
+    assert all(token[:8] not in row["client_id"] for row in svc._store.commands_after(0))
+
+
+def test_unnamed_record_guests_are_called_guest(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch
+):
+    _ws, room, client = _room(minimal_project, sample_wav, tmp_workspace, monkeypatch)
+    token = room["guest"]["token"]
+    with client.websocket_connect(f"/api/rec/{token}/ws") as sock:
+        sock.send_json({"type": "Record", "command_type": "Join", "payload": {}, "client_seq": 1})
+        snap = _drain_until(sock, lambda m: m.get("type") == "Snapshot")
+    names = [p["display_name"] for p in snap["snapshot"]["participants"] if p["role"] == "guest"]
+    assert names == ["Guest"]
+    assert token[:6] not in str(snap)
