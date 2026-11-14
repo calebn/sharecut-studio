@@ -76,12 +76,16 @@ def approve_edits(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
 
 def apply_suggested_actions(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
     ids = p.get("ids")
-    return EditService(ws).apply_suggested_actions(
-        list(ids) if ids is not None else None,
-        overrides=dict(p.get("overrides") or {}),
-        revise=p.get("revise") is True,
-        application_intent=p["_boundary_intent"],
-        skip_unsure=p.get("skip_unsure") is True,
+    return (
+        EditService(ws)
+        .apply_suggested_actions(
+            list(ids) if ids is not None else None,
+            overrides=dict(p.get("overrides") or {}),
+            revise=p.get("revise") is True,
+            application_intent=p["_boundary_intent"],
+            skip_unsure=p.get("skip_unsure") is True,
+        )
+        .model_dump()
     )
 
 

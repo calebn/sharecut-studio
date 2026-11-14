@@ -29,8 +29,8 @@ def test_bulk_leaves_a_fresh_pause_review_pending_without_writing(
 
     result = EditService(ws).apply_suggested_actions(filtered_ids)
 
-    assert result["held"] == ["stored-remove"]
-    assert result["applied"] == {}
+    assert result.held == ["stored-remove"]
+    assert result.applied == {}
     assert ("host", pytest.approx(0.3), pytest.approx(4.45), "source") in observed
     assert (tmp_path / "raw/host.wav").read_bytes() == before_audio
     saved = load_project(ws.path)
@@ -49,8 +49,8 @@ def test_safe_bulk_approves_a_pause_that_passes_the_current_join_check(tmp_path,
     monkeypatch.setattr("podcast_mcp.edits.cut_safety.assess_proposed_cut", passed)
     ws = workspace(_stored_remove(tmp_path, seed=1512))
     result = EditService(ws).apply_suggested_actions()
-    assert result["applied"] == {"shorten": 1}
-    assert result["held"] == []
+    assert result.applied == {"shorten": 1}
+    assert result.held == []
     assert ("host", pytest.approx(0.3), pytest.approx(4.45), "source") in observed
     _assert_original_splice(load_project(ws.path), operation="approve_edits")
 
@@ -84,8 +84,8 @@ def test_bulk_applies_a_mute_and_leaves_the_pause_that_needs_fresh_review(tmp_pa
 
     out = EditService(ws).apply_suggested_actions(["safe-mute", "stored-remove"])
 
-    assert out["held"] == ["stored-remove"]
-    assert out["applied"] == {"cut": 1}
+    assert out.held == ["stored-remove"]
+    assert out.applied == {"cut": 1}
     saved = load_project(ws.path)
     assert primary_spans(saved) == [(0, 6, 0)]
     assert len(saved.clips[0].mute_regions) == 1
@@ -99,7 +99,7 @@ def test_bulk_mute_keeps_its_ordinary_timeline_behavior(tmp_path, monkeypatch):
     result.edit_decisions[0].reason = "filler:um"
     ws = workspace(result)
 
-    assert EditService(ws).apply_suggested_actions()["applied"] == {"cut": 1}
+    assert EditService(ws).apply_suggested_actions().applied == {"cut": 1}
 
     saved = load_project(ws.path)
     assert primary_spans(saved) == [(0, 6, 0)]
@@ -172,6 +172,6 @@ def test_bulk_applies_a_filler_cut_right_beside_a_pause_it_holds(tmp_path, monke
 
     out = EditService(ws).apply_suggested_actions()
 
-    assert out["held"] == ["stored-remove"]
-    assert out["applied"] == {"cut": 1}
+    assert out.held == ["stored-remove"]
+    assert out.applied == {"cut": 1}
     assert [e.id for e in load_project(ws.path).edit_decisions] == ["stored-remove"]

@@ -21,7 +21,7 @@ def test_apply_suggested_cannot_authorize_a_fresh_join_review(tmp_path, monkeypa
     ws = workspace(_stored_remove(tmp_path, seed=1512))
     assert ws.project.edit_decisions[0].review_required is False
     result = EditService(ws).apply_suggested_actions(["stored-remove"])
-    assert result["held"] == ["stored-remove"]
+    assert result.held == ["stored-remove"]
     assert observed
     assert [c.source_end for c in load_project(ws.path).clips] == [6.0]
     assert [e.id for e in load_project(ws.path).edit_decisions] == ["stored-remove"]

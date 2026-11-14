@@ -86,9 +86,9 @@ def test_one_step_cuts_lowers_and_leaves_each_by_its_own_action(
     path = _project(tmp_path, sample_wav)
     monkeypatch.setattr(suggested_actions, "another_speaker_over", lambda *_, **_kw: True)
     out = EditService(ProjectWorkspace.open(path)).apply_suggested_actions()
-    assert out["applied"] == {"lower": 1, "leave": 1, "cut": 1}
-    assert out["cut_over_speaker"] == 0
-    assert out["held"] == []
+    assert out.applied == {"lower": 1, "leave": 1, "cut": 1}
+    assert out.cut_over_speaker == 0
+    assert out.held == []
     assert _pending(path) == ["manual"]
     regions = {
         (r.start_s, r.end_s, r.gain_db)
@@ -106,8 +106,8 @@ def test_a_laugh_nobody_talks_over_is_left(tmp_path, sample_wav, monkeypatch) ->
     path = _project(tmp_path, sample_wav)
     monkeypatch.setattr(suggested_actions, "another_speaker_over", lambda *_, **_kw: False)
     out = EditService(ProjectWorkspace.open(path)).apply_suggested_actions()
-    assert out["lowered_to_leave"] == 1
-    assert "lower" not in out["applied"]
+    assert out.lowered_to_leave == 1
+    assert "lower" not in out.applied
     assert not any(c.mute_regions for c in load_project(Path(path)).clips)
 
 
@@ -124,8 +124,8 @@ def test_an_unreadable_peer_check_leaves_the_sound_pending_not_recorded(
 
     monkeypatch.setattr(cut_safety, "assess_cross_track_speech", unreadable)
     out = EditService(ProjectWorkspace.open(path)).apply_suggested_actions(["laugh"])
-    assert out["held"] == ["laugh"]
-    assert out["lowered_to_leave"] == 0
+    assert out.held == ["laugh"]
+    assert out.lowered_to_leave == 0
     assert "laugh" in _pending(path)
     saved = load_project(Path(path))
     assert saved.editorial.sound_actions == []
@@ -147,7 +147,7 @@ def test_lowering_a_pending_remove_uses_the_mute_policy_row(
     mute_policy = cut_policy.CUT_ACTION_TABLE[mute_key]
 
     held = service.apply_suggested_actions(["laugh"], overrides={"laugh": "lower"})
-    assert held["held"] == ["laugh"]
+    assert held.held == ["laugh"]
     assert "laugh" in _pending(path)
 
     with pytest.raises(KeyError, match="source_geometry"):
@@ -157,8 +157,8 @@ def test_lowering_a_pending_remove_uses_the_mute_policy_row(
     monkeypatch.setitem(cut_policy.CUT_ACTION_TABLE, mute_key, mute_policy)
     monkeypatch.setitem(cut_policy.CUT_ACTION_TABLE, mute_key, replace(mute_policy, action="cut"))
     applied = service.apply_suggested_actions(["laugh"], overrides={"laugh": "lower"})
-    assert applied["applied"] == {"lower": 1}
-    assert applied["held"] == []
+    assert applied.applied == {"lower": 1}
+    assert applied.held == []
     assert "laugh" not in _pending(path)
     assert cut_policy.CUT_ACTION_TABLE[("source_geometry", "ripple")] == ripple_policy
 
@@ -190,7 +190,7 @@ def test_an_override_changes_one_sound_and_ids_narrow_the_batch(
     out = EditService(ProjectWorkspace.open(path)).apply_suggested_actions(
         ["um", "word"], overrides={"um": "leave"}
     )
-    assert out["applied"] == {"leave": 2}
+    assert out.applied == {"leave": 2}
     assert _pending(path) == ["laugh", "manual"]
 
 
@@ -201,14 +201,14 @@ def test_one_sound_can_change_after_the_batch_without_undoing_the_others(
     monkeypatch.setattr(suggested_actions, "another_speaker_over", lambda *_, **_kw: True)
     ws = ProjectWorkspace.open(path)
     first = EditService(ws).apply_suggested_actions()
-    assert first["applied"] == {"lower": 1, "leave": 1, "cut": 1}
+    assert first.applied == {"lower": 1, "leave": 1, "cut": 1}
     cut_layout = _layout(path)
 
     out = EditService(ProjectWorkspace.open(path)).apply_suggested_actions(
         overrides={"um": "leave"}, revise=True
     )
 
-    assert out["applied"] == {"lower": 1, "leave": 2}
+    assert out.applied == {"lower": 1, "leave": 2}
     project = load_project(Path(path))
     assert _layout(path) != cut_layout
     assert _layout(path) == [(0.0, 0.0, 10.0)]
@@ -381,8 +381,8 @@ def test_a_cut_the_guard_holds_for_another_speaker_applies_as_a_session_ripple_a
     service.approve(["um"], held_out=[])  # the ordinary Approve still holds it
     assert "um" in _pending(path)
     automatic = service.apply_suggested_actions(["um"])
-    assert automatic["applied"] == {}
-    assert automatic["held"] == ["um"]
+    assert automatic.applied == {}
+    assert automatic.held == ["um"]
     assert "um" in _pending(path)
 
     key = ("peer_speech", "ripple")
@@ -398,15 +398,15 @@ def test_a_cut_the_guard_holds_for_another_speaker_applies_as_a_session_ripple_a
     monkeypatch.setitem(cut_policy.CUT_ACTION_TABLE, key, review)
     monkeypatch.setitem(cut_policy.CUT_ACTION_TABLE, key, replace(review, action="cut"))
     changed = service.apply_suggested_actions(["um"])
-    assert changed["applied"] == {"cut": 1}
+    assert changed.applied == {"cut": 1}
     assert "um" not in _pending(path)
 
     HistoryService(service.ws).undo()
     monkeypatch.setitem(cut_policy.CUT_ACTION_TABLE, key, review)
     out = service.apply_suggested_actions(["um"], application_intent=CutIntent.HUMAN_BOUNDARIES)
-    assert out["applied"] == {"cut": 1}
-    assert out["cut_over_speaker"] == 1
-    assert out["held"] == held_ids
+    assert out.applied == {"cut": 1}
+    assert out.cut_over_speaker == 1
+    assert out.held == held_ids
     assert "um" not in _pending(path)
 
 
@@ -455,8 +455,8 @@ def test_a_speaker_bleed_hold_also_applies_as_a_session_ripple(
     monkeypatch.setattr(guard, "resolve_cut_scope", lambda *a, **k: bleed)
     service = EditService(ProjectWorkspace.open(path))
     automatic = service.apply_suggested_actions(["um"])
-    assert automatic["applied"] == {}
-    assert automatic["held"] == ["um"]
+    assert automatic.applied == {}
+    assert automatic.held == ["um"]
     out = service.apply_suggested_actions(["um"], application_intent=CutIntent.HUMAN_BOUNDARIES)
-    assert out["applied"] == {"cut": 1}
-    assert out["cut_over_speaker"] == 1
+    assert out.applied == {"cut": 1}
+    assert out.cut_over_speaker == 1

@@ -71,6 +71,7 @@ from podcast_mcp.project.history.manager import (
     snapshot_from_project,
 )
 from podcast_mcp.project.history.rollback import RollbackOutcome
+from podcast_mcp.services.document.edit_results import SuggestedActionsApplied
 from podcast_mcp.services.document.service_base import CutMutatingService
 from podcast_mcp.services.document.suggested_actions import revise_suggested_actions
 from podcast_mcp.util.batch_scope import batch_scope
@@ -460,7 +461,7 @@ class EditService(CutMutatingService):
         revise: bool = False,
         application_intent: CutIntent = CutIntent.PROGRAMMATIC,
         skip_unsure: bool = False,
-    ) -> dict[str, Any]:
+    ) -> SuggestedActionsApplied:
         """Apply every pending sound's own suggested action in one undoable step.
 
         Cut and shorten cut (a cut the speech guard would hold for another speaker applies
@@ -477,10 +478,7 @@ class EditService(CutMutatingService):
         pending and is named in ``held`` and ``held_unsure``; when all are held nothing is saved.
         """
         from podcast_mcp.edits.cut_policy import SUGGESTED_ACTIONS, decision_policy
-        from podcast_mcp.edits.suggested_actions import (
-            SuggestedActionsResult,
-            describe_sounds,
-        )
+        from podcast_mcp.edits.suggested_actions import SuggestedActionsResult, describe_sounds
 
         wanted = None if ids is None else set(ids)
         overrides = dict(overrides or {})
@@ -524,7 +522,7 @@ class EditService(CutMutatingService):
             if cut_ids:
                 self._require_refine_clear()
             if result.held_unsure and not actions:
-                return {"operation": "apply_suggested_actions", **result.to_payload()}
+                return SuggestedActionsApplied.from_result(result)
             with batch_scope():
                 self.ws.mutate(
                     "before apply suggested actions",
@@ -545,7 +543,7 @@ class EditService(CutMutatingService):
                         ),
                     },
                 )
-        return {"operation": "apply_suggested_actions", **result.to_payload()}
+        return SuggestedActionsApplied.from_result(result)
 
     def reject(self, ids: list[str], *, allow_exact: bool = False) -> int:
         def mutate(p) -> int:

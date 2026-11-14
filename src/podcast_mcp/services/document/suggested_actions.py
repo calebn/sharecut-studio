@@ -3,20 +3,20 @@
 from __future__ import annotations
 
 from collections.abc import Callable
-from typing import Any
 
 from podcast_mcp.models import CutIntent
 from podcast_mcp.services.app import ProjectWorkspace
+from podcast_mcp.services.document.edit_results import SuggestedActionsApplied
 from podcast_mcp.util.coded_error import CodedValueError
 
 
 def revise_suggested_actions(
     ws: ProjectWorkspace,
-    apply: Callable[..., dict[str, Any]],
+    apply: Callable[..., SuggestedActionsApplied],
     overrides: dict[str, str],
     application_intent: CutIntent,
     skip_unsure: bool = False,
-) -> dict[str, Any]:
+) -> SuggestedActionsApplied:
     """Re-apply the latest Apply suggested actions batch with ``overrides`` on top."""
     from podcast_mcp.services.document.history import HistoryService
 
@@ -60,7 +60,7 @@ def revise_suggested_actions(
             history.goto(tip)
             raise CodedValueError(
                 "Nothing changed: none of the sounds could be applied with those actions "
-                f"({', '.join(result['held'])} stayed pending).",
+                f"({', '.join(result.held)} stayed pending).",
                 code="revise_held",
             )
         return result
