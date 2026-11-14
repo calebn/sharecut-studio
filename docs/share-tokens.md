@@ -519,7 +519,7 @@ everyone but an Editor.
 | Viewer | Yes: text and timing only, so the Script follows playback and a tap seeks | No | Refused by the document-command gate | Refused | Refused |
 | A share with no role | No (no document access, so no transcript route answers) | No | Refused | Refused | Refused |
 
-In ShareCut Studio an Editor link's Review queue lists the pending edits with **Cut** and **Keep** (the commands are `ApproveEdits` and `RejectEdits`). Unsure-word fixes stay host-only, and the transcript check has HTTP twins but no Editor control yet (below): a cut that covers an unsure word is shown held ("The host checks the unsure word first.") with no Cut, and while the transcript is unchecked the server refuses an Editor's Cut, which shows under Needs attention until the host, or an Editor through the check twins, checks or waives it. A Commenter or Viewer link's queue is comments only.
+In ShareCut Studio an Editor link's Review queue lists the pending edits with **Cut** and **Keep** (the commands are `ApproveEdits` and `RejectEdits`). Unsure-word fixes stay host-only, and the transcript check has HTTP twins but no Editor control yet (below): a cut that covers an unsure word is shown held ("The host checks the unsure word first.") with no Cut, and while the transcript is unchecked the server refuses an Editor's Cut, which shows under Needs attention until the host, or an Editor through the check twins, checks or waives it. A Viewer link's queue is comments only, and a Commenter link's also lists the guest's own suggestions.
 
 An Editor also edits volume envelopes as the host does: `SetEnvelope` is in
 the Editor command set, and the Studio's envelope overlay, envelope inspector
