@@ -1,10 +1,10 @@
 export function lastStartedWordAt(
-  wordStarts: readonly number[],
+  wordStarts: readonly (number | null)[],
   seconds: number,
 ): number | undefined {
   let best: number | undefined;
   wordStarts.forEach((start, index) => {
-    if (start > seconds) return;
+    if (start === null || start > seconds) return;
     if (best === undefined || start >= (wordStarts[best] ?? 0)) best = index;
   });
   return best;

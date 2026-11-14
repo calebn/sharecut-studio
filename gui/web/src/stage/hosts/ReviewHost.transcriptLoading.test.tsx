@@ -652,3 +652,114 @@ describe("guest transcript detail loading in Review", () => {
     expect(transcriptDetailSnapshot().kind).toBe("pending");
   });
 });
+
+function spoken(start: number, texts: string[], at: number) {
+  const words = texts.map((text, index) => ({
+    text,
+    start: start + index,
+    end: start + index + 1,
+    timeline_start: at + index,
+    timeline_end: at + index + 1,
+    mappable: true,
+    word_index: start + index,
+  }));
+  return {
+    track_id: "t1",
+    source_id: "s1",
+    speaker: "Maya",
+    start,
+    end: start + texts.length,
+    text: texts.join(" "),
+    mappable: true,
+    timeline_start: at,
+    timeline_end: at + texts.length,
+    words,
+  };
+}
+
+function guestProject(
+  rows: ReturnType<typeof spoken>[],
+  complete: boolean,
+): ReturnType<typeof minimalProject> {
+  return minimalProject({
+    transcript: {
+      utterances: complete
+        ? rows
+        : rows.map(({ words: _words, ...header }) => header),
+    } as never,
+    meta: {
+      name: "Test Episode",
+      workspace_dir: "/tmp/test",
+      hydration: { transcript_words: complete },
+    },
+  });
+}
+
+describe.each(["desktop", "phone"] as const)(
+  "a guest's Script through a host edit on a %s shell",
+  (shell) => {
+    beforeEach(() => {
+      resetDocumentAuthority();
+      loadDetail.mockReset();
+      localStorage.clear();
+      stubViewportShell(shell);
+    });
+    afterEach(() => {
+      resetDocumentAuthority();
+      vi.unstubAllGlobals();
+    });
+
+    it("stays the same element, marks itself busy and never shows the skeleton until detail lands", async () => {
+      const first = spoken(0, ["one", "two"], 0);
+      const second = spoken(10, ["three", "four"], 2);
+      const complete = guestProject([first, second], true);
+      useDawStore
+        .getState()
+        .hydrate("share:tok", complete, "view", ["view", "play"], null, true);
+      useDawStore.setState({ stage: "review" });
+      resetDocumentAuthority("share:tok");
+      applyDocumentSnapshot({
+        server_seq: 0,
+        state_token: TOKEN,
+        project: complete,
+        file: { mtime_ns: 1, size: 1 },
+      });
+      const landed = deferred<DocumentSnapshot>();
+      loadDetail.mockReturnValueOnce(landed.promise);
+      const { container } = render(<ReviewHost guestShare />);
+      const section = screen.getByRole("region", { name: "Script" });
+      expect(section).not.toHaveAttribute("aria-busy");
+      expect(screen.getByRole("button", { name: "four" })).toBeVisible();
+
+      const edited = spoken(10, ["three"], 2);
+      act(() => {
+        applyDocumentSnapshot({
+          server_seq: 1,
+          state_token: TOKEN,
+          project: guestProject([first, edited], false),
+          file: { mtime_ns: 2, size: 1 },
+        });
+      });
+
+      expect(screen.getByRole("region", { name: "Script" })).toBe(section);
+      expect(section).toHaveAttribute("aria-busy", "true");
+      expect(container.querySelector(".sys-skeleton")).toBeNull();
+      expect(screen.getByRole("button", { name: "two" })).toBeVisible();
+      expect(screen.getByText("Updating this line")).toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: "four" })).toBeNull();
+
+      await act(async () =>
+        landed.resolve({
+          server_seq: 1,
+          state_token: TOKEN,
+          project: guestProject([first, edited], true),
+        }),
+      );
+
+      expect(screen.getByRole("region", { name: "Script" })).toBe(section);
+      expect(section).not.toHaveAttribute("aria-busy");
+      expect(screen.queryByText("Updating this line")).toBeNull();
+      expect(screen.getByRole("button", { name: "three" })).toBeVisible();
+    });
+  },
+);

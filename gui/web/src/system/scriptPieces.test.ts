@@ -14,6 +14,7 @@ import {
   pieceEnd,
   pieceStart,
   piecesOf,
+  settlingBars,
   stopContaining,
   stopsOf,
   withEditing,
@@ -294,5 +295,16 @@ describe("wordLabel", () => {
     ).toBe(
       "word (suppression locked, unsure, possible transcription with no matching speech, selected)",
     );
+  });
+});
+
+describe("settlingBars", () => {
+  it("gives one bar per word, keyed by where it starts in the line", () => {
+    expect(settlingBars([5, 4, 5])).toEqual([
+      { key: 0, chars: 5 },
+      { key: 5, chars: 4 },
+      { key: 9, chars: 5 },
+    ]);
+    expect(settlingBars([])).toEqual([]);
   });
 });

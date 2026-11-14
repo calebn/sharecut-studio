@@ -14,6 +14,13 @@ import {
 
 const GRANT = "share:t|true|play";
 
+const shownOf = (
+  transcript: Parameters<typeof shownTranscriptOf>[0],
+  settled: SettledTranscript | null,
+  grant: string,
+  complete = false,
+) => shownTranscriptOf(transcript, settled, grant, complete);
+
 function word(
   index: number,
   text: string,
@@ -90,14 +97,20 @@ describe("shownTranscriptOf", () => {
   const third = row(20, ["five", "six"], 8);
 
   it("draws every row live when the project has its words", () => {
-    const shown = shownTranscriptOf(transcriptOf([first, second]), null, GRANT);
+    const shown = shownOf(transcriptOf([first, second]), null, GRANT, true);
     expect(kinds(shown)).toEqual(["live", "live"]);
     expect(shown.refreshing).toBe(false);
     expect(shown.drawn).toBe(true);
   });
 
+  it("draws a row without words live once the project is complete", () => {
+    const shown = shownOf(transcriptOf([header(first)]), null, GRANT, true);
+    expect(kinds(shown)).toEqual(["live"]);
+    expect(shown.refreshing).toBe(false);
+  });
+
   it("has nothing to draw on first load: every row waits", () => {
-    const shown = shownTranscriptOf(
+    const shown = shownOf(
       transcriptOf([header(first), header(second)]),
       null,
       GRANT,
@@ -121,7 +134,7 @@ describe("shownTranscriptOf", () => {
       cutRow,
       header({ ...third, timeline_start: 5 }),
     ]);
-    const shown = shownTranscriptOf(afterCut, settled, GRANT);
+    const shown = shownOf(afterCut, settled, GRANT);
     expect(kinds(shown)).toEqual(["held", "waiting", "held"]);
     expect(shown.refreshing).toBe(true);
     expect(shown.drawn).toBe(true);
@@ -140,7 +153,7 @@ describe("shownTranscriptOf", () => {
     const lead = row(0, ["um", "hello"], 2, {
       words: [word(0, "um", 2, { suppressed: true }), word(1, "hello", 3)],
     });
-    const shown = shownTranscriptOf(
+    const shown = shownOf(
       transcriptOf([header({ ...lead, timeline_start: 0 })]),
       settledOf([lead]),
       GRANT,
@@ -153,7 +166,7 @@ describe("shownTranscriptOf", () => {
 
   it("drops a row the cut removed entirely even though memory has it", () => {
     const settled = settledOf([first, second]);
-    const shown = shownTranscriptOf(
+    const shown = shownOf(
       transcriptOf([header(first), { ...header(second), mappable: false }]),
       settled,
       GRANT,
@@ -163,13 +176,13 @@ describe("shownTranscriptOf", () => {
 
   it("waits on a row whose text was corrected, and on a suppressed edge change", () => {
     const settled = settledOf([first, second]);
-    const corrected = shownTranscriptOf(
+    const corrected = shownOf(
       transcriptOf([header({ ...first, text: "won two" }), header(second)]),
       settled,
       GRANT,
     );
     expect(kinds(corrected)).toEqual(["waiting", "held"]);
-    const edge = shownTranscriptOf(
+    const edge = shownOf(
       transcriptOf([
         header({ ...first, edge_suppressed_word_indices: [3] }),
         header({ ...second, suppressed_only: true }),
@@ -187,7 +200,7 @@ describe("shownTranscriptOf", () => {
     });
     const settled = settledOf([struck, second]);
     // un-ignored after the edit: the word is not shown until detail lands
-    const unignored = shownTranscriptOf(
+    const unignored = shownOf(
       transcriptOf([
         header({ ...struck, ignored_word_indices: undefined }),
         header(second),
@@ -197,7 +210,7 @@ describe("shownTranscriptOf", () => {
     );
     expect(textsOf(unignored.rows[0].utterance)).toEqual(["two"]);
     // ignored after the edit: the word is gone at once
-    const ignoredNow = shownTranscriptOf(
+    const ignoredNow = shownOf(
       transcriptOf([
         header(first),
         header({ ...second, ignored_word_indices: [11] }),
@@ -218,7 +231,7 @@ describe("shownTranscriptOf", () => {
     const settledA = { ...takeA, words: taken(["A1", "A2"]) };
     const settledB = { ...takeB, words: taken(["B1", "B2"]) };
     const liveBetween = row(30, ["mid"], 3, {}, "b");
-    const shown = shownTranscriptOf(
+    const shown = shownOf(
       transcriptOf([
         header(takeA),
         liveBetween,
@@ -233,7 +246,7 @@ describe("shownTranscriptOf", () => {
   });
 
   it("treats a memory kept under another grant as first load", () => {
-    const shown = shownTranscriptOf(
+    const shown = shownOf(
       transcriptOf([header(first)]),
       settledOf([first]),
       "share:t|true|play,comment",
@@ -253,7 +266,7 @@ describe("shownTranscriptOf", () => {
         word(5, "f", 5),
       ],
     });
-    const shown = shownTranscriptOf(
+    const shown = shownOf(
       transcriptOf([header(messy)]),
       settledOf([messy]),
       GRANT,
@@ -294,11 +307,7 @@ describe("shownTranscriptOf", () => {
             ignored_word_indices: next() < 0.3 ? [u.start] : undefined,
           }),
         );
-      const shown = shownTranscriptOf(
-        transcriptOf(edited),
-        settledOf(memory),
-        GRANT,
-      );
+      const shown = shownOf(transcriptOf(edited), settledOf(memory), GRANT);
       for (const r of shown.rows) {
         for (const w of r.utterance.words ?? []) {
           expect(drawn.has(w.text)).toBe(true);
@@ -311,8 +320,8 @@ describe("shownTranscriptOf", () => {
   it("answers the same object for the same inputs", () => {
     const transcript = transcriptOf([header(first)]);
     const settled = settledOf([first]);
-    expect(shownTranscriptOf(transcript, settled, GRANT)).toBe(
-      shownTranscriptOf(transcript, settled, GRANT),
+    expect(shownOf(transcript, settled, GRANT)).toBe(
+      shownOf(transcript, settled, GRANT),
     );
   });
 
@@ -327,12 +336,12 @@ describe("shownTranscriptOf", () => {
       header(first),
       header({ ...second, text: "x" }),
     ]);
-    expect(kinds(shownTranscriptOf(afterOne, settled, GRANT))).toEqual([
+    expect(kinds(shownOf(afterOne, settled, GRANT))).toEqual([
       "held",
       "waiting",
       "held",
     ]);
-    expect(kinds(shownTranscriptOf(afterTwo, settled, GRANT))).toEqual([
+    expect(kinds(shownOf(afterTwo, settled, GRANT))).toEqual([
       "held",
       "waiting",
     ]);

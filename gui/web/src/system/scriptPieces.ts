@@ -45,7 +45,25 @@ export type ScriptTurn = {
   /** Seconds since the previous turn ended, measured by the host. Under 2 s and the same speaker id, the name is not repeated. */
   pauseBefore?: number;
   words: readonly ScriptWord[];
+  /**
+   * A line whose words are not known yet: the character count of each word it
+   * will show. The pane draws one bar per count and no words, so the line
+   * cannot be tapped, selected, found or reached by Tab.
+   */
+  settling?: readonly number[];
 };
+
+/** One bar per word of a settling line, keyed by where it starts in the line. */
+export function settlingBars(
+  counts: readonly number[],
+): { key: number; chars: number }[] {
+  let offset = 0;
+  return counts.map((chars) => {
+    const bar = { key: offset, chars };
+    offset += chars;
+    return bar;
+  });
+}
 
 /** Words `start` to `end`, both included. */
 export type ScriptSpan = { start: number; end: number };

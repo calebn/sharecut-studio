@@ -5409,6 +5409,37 @@ button.sys-script-speaker {
   overflow-wrap: anywhere;
 }
 
+/* A line whose words are not known yet: anonymous bars in the skeleton's colour, no motion. */
+.sys-script-settling {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-3);
+  align-items: center;
+  min-block-size: 1lh;
+}
+
+.sys-script-settling-bar {
+  display: block;
+  box-sizing: border-box;
+  block-size: 0.75em;
+  inline-size: calc(var(--sys-settling-chars) * 1ch);
+  max-inline-size: 100%;
+  border-radius: var(--radius-xs);
+  background: var(--color-bg-sunken);
+}
+
+/* A hairline for a refresh that outlasts a normal one; the pane sets "slow" after its delay. No motion. */
+.sys-script[data-refreshing="slow"]::before {
+  content: "";
+  position: absolute;
+  inset-block-start: 0;
+  inset-inline: 0;
+  z-index: 1;
+  block-size: 0.125rem;
+  background: var(--color-border-strong);
+  pointer-events: none;
+}
+
 .sys-script-word,
 .sys-script-run {
   position: relative;

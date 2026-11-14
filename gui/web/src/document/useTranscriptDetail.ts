@@ -48,10 +48,15 @@ export function useTranscriptDetail(): TranscriptDetailView {
     shareTranscriptWords,
     shareCapabilities,
   });
-  const shown = () =>
-    shownTranscriptOf(project.transcript, documentAuthority.settled, grant);
+  const shown = (complete: boolean) =>
+    shownTranscriptOf(
+      project.transcript,
+      documentAuthority.settled,
+      grant,
+      complete,
+    );
   if (!needsTranscriptDetailHydrate(project, reads))
-    return { kind: "ready", shown: shown() };
+    return { kind: "ready", shown: shown(true) };
 
   const scope = documentScope();
   const seq = currentDocumentSeq();
@@ -60,7 +65,7 @@ export function useTranscriptDetail(): TranscriptDetailView {
   // A guest keeps drawing the rows it already has words for while detail loads.
   const pendingOrHeld = (retry: () => void): TranscriptDetailView => {
     if (!isShareProjectKey(projectPath)) return { kind: "pending", retry };
-    const held = shown();
+    const held = shown(false);
     return held.drawn
       ? { kind: "ready", shown: held }
       : { kind: "pending", retry };

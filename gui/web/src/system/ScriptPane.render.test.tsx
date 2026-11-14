@@ -40,6 +40,80 @@ const props = (over: Partial<ScriptPaneProps> = {}): ScriptPaneProps => ({
   ...over,
 });
 
+describe("ScriptPane refreshing", () => {
+  it("marks the Script busy without an announcement, and clears it", () => {
+    const { container, rerender } = render(
+      <ScriptPane {...props({ busy: true })} />,
+    );
+    const section = container.querySelector(".sys-script");
+    expect(section).toHaveAttribute("aria-busy", "true");
+    expect(section).toHaveAttribute("data-refreshing", "");
+    expect(container.querySelector("[aria-live]:not(:empty)")).toBeNull();
+    rerender(<ScriptPane {...props({ busy: false })} />);
+    expect(container.querySelector(".sys-script")).toBe(section);
+    expect(section).not.toHaveAttribute("aria-busy");
+    expect(section).not.toHaveAttribute("data-refreshing");
+  });
+
+  it("draws a settling line as bars and a hidden note, with no word to reach", () => {
+    const settling = {
+      id: "settling",
+      speakerId: "x",
+      speaker: { name: "Sam", colorIndex: 2 },
+      time: "1:00",
+      words: [],
+      settling: [5, 3],
+    };
+    const { container } = render(
+      <ScriptPane {...props({ turns: [settling, ...TURNS] })} />,
+    );
+    const turn = container.querySelector(
+      '[data-turn-id="settling"]',
+    ) as HTMLElement;
+    const bars = turn.querySelectorAll(".sys-script-settling-bar");
+    expect(
+      [...bars].map((bar) =>
+        (bar as HTMLElement).style.getPropertyValue("--sys-settling-chars"),
+      ),
+    ).toEqual(["5", "3"]);
+    expect(turn.querySelector(".sys-script-settling")).toHaveAttribute(
+      "aria-hidden",
+      "true",
+    );
+    expect(turn.textContent).toContain("Updating this line");
+    expect(turn.querySelector("[data-stop]")).toBeNull();
+  });
+
+  it("keeps a turn's word nodes when an earlier turn is removed and its words are renumbered", () => {
+    const turn = (id: string, firstIndex: number, texts: string[]) => ({
+      id,
+      speakerId: "a",
+      speaker: { name: "Ann", colorIndex: 0 },
+      time: "0:00",
+      words: texts.map((text, at) => ({
+        index: firstIndex + at,
+        key: `${id}:${at}`,
+        text,
+      })),
+    });
+    const { rerender } = render(
+      <ScriptPane
+        {...props({
+          turns: [
+            turn("a", 0, ["one", "two"]),
+            turn("b", 2, ["three", "four"]),
+          ],
+        })}
+      />,
+    );
+    const three = document.querySelector('[data-word-key="b:0"]');
+    rerender(
+      <ScriptPane {...props({ turns: [turn("b", 0, ["three", "four"])] })} />,
+    );
+    expect(document.querySelector('[data-word-key="b:0"]')).toBe(three);
+  });
+});
+
 describe("ScriptPane renders", () => {
   it("draws every word of 54 once on mount", () => {
     labelled.calls = [];

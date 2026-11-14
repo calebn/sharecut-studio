@@ -111,7 +111,14 @@ function compute(
   transcript: ProjectView["transcript"],
   settled: SettledTranscript | null,
   grant: string,
+  complete: boolean,
 ): ShownTranscript {
+  if (complete) {
+    const rows = (transcript?.utterances ?? []).map(
+      (utterance): ShownRow => ({ kind: "live", utterance }),
+    );
+    return { rows, refreshing: false, drawn: rows.length > 0 };
+  }
   const candidates = new Map<string, CombinedUtterance[]>();
   if (settled && settled.grant === grant) {
     for (const row of settled.utterances) {
@@ -152,6 +159,7 @@ let memo: {
   transcript: ProjectView["transcript"];
   settled: SettledTranscript | null;
   grant: string;
+  complete: boolean;
   shown: ShownTranscript;
 } | null = null;
 
@@ -159,21 +167,24 @@ let memo: {
  * The rows to draw for a guest, in the order of the CURRENT project. Words
  * come from the project when it has them, else from the rows last held with
  * words when the row's key and text still match; those words carry no times,
- * so nothing here can seek or highlight on a stale time.
+ * so nothing here can seek or highlight on a stale time. A `complete` project
+ * has every word it will get: all its rows are live.
  */
 export function shownTranscriptOf(
   transcript: ProjectView["transcript"],
   settled: SettledTranscript | null,
   grant: string,
+  complete: boolean,
 ): ShownTranscript {
   if (
     memo &&
     memo.transcript === transcript &&
     memo.settled === settled &&
-    memo.grant === grant
+    memo.grant === grant &&
+    memo.complete === complete
   )
     return memo.shown;
-  const shown = compute(transcript, settled, grant);
-  memo = { transcript, settled, grant, shown };
+  const shown = compute(transcript, settled, grant, complete);
+  memo = { transcript, settled, grant, complete, shown };
   return shown;
 }
