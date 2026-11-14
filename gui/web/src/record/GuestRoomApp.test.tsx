@@ -451,7 +451,7 @@ describe("GuestRoomApp", () => {
   });
 
   it("raises no saving alert when the connection drops before this guest recorded anything", async () => {
-    const statusCalls = vi.fn();
+    const uploadCalls = vi.fn();
     vi.stubGlobal(
       "fetch",
       vi.fn(async (input: RequestInfo | URL) => {
@@ -466,7 +466,7 @@ describe("GuestRoomApp", () => {
           );
         }
         if (url.includes("/upload")) {
-          statusCalls();
+          uploadCalls();
           throw new TypeError("Failed to fetch");
         }
         return new Response("not found", { status: 404 });
@@ -476,7 +476,7 @@ describe("GuestRoomApp", () => {
     await readyToJoin(getUserMedia);
     await userEvent.click(joinButton());
     await screen.findByRole("button", { name: "Leave room" });
-    await waitFor(() => expect(statusCalls).toHaveBeenCalled());
+    await waitFor(() => expect(uploadCalls).toHaveBeenCalled());
     await act(async () => {
       await Promise.resolve();
     });
