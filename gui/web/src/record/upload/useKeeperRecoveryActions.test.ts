@@ -227,6 +227,9 @@ describe("useKeeperRecoveryActions", () => {
     );
     act(() => result.current.download?.());
     expect(result.current.running).toBe("download");
+    await waitFor(() =>
+      expect(recovery.downloadLocalKeepers).toHaveBeenCalled(),
+    );
     await act(async () => finish());
     await waitFor(() => expect(result.current.running).toBeNull());
   });
@@ -297,6 +300,7 @@ describe("useKeeperRecoveryActions", () => {
     act(() => result.current.download?.());
     expect(result.current.busy).toBe(true);
     expect(result.current.downloaded).toBe(true);
+    await waitFor(() => expect(run).toHaveBeenCalledTimes(2));
     await act(async () => fail(new Error("Disk full.")));
     await waitFor(() => expect(result.current.busy).toBe(false));
     expect(result.current.downloaded).toBe(false);
@@ -337,12 +341,33 @@ describe("useKeeperRecoveryActions", () => {
       expect(result.current.downloaded).toBe(false);
     });
 
-    it("never counts a download taken while capture was still running", async () => {
+    it("does not count a zip when a resume lands while it is being built", async () => {
+      const sink = new MemorySink();
+      await seedPendingKeeper(sink, ids);
+      let release: () => void = () => undefined;
+      vi.spyOn(recovery, "downloadLocalKeepers").mockImplementation(
+        () =>
+          new Promise<void>((resolve) => {
+            release = resolve;
+          }),
+      );
+      const { result, rerender } = renderActions(sink);
+      act(() => result.current.download?.());
+      await waitFor(() => expect(result.current.running).toBe("download"));
+      await seedPendingKeeper(sink, { ...ids, segmentIndex: 1 });
+      rerender({ ...held, recoverAllowed: false, localSegments: 2 });
+      await act(async () => release());
+      await waitFor(() => expect(result.current.busy).toBe(false));
+      rerender({ ...held, localSegments: 2 });
+      expect(result.current.downloaded).toBe(false);
+    });
+
+    it("does not count a download taken while a segment is still open", async () => {
       const sink = new MemorySink();
       await seedPendingKeeper(sink, ids);
       vi.spyOn(recovery, "downloadLocalKeepers").mockResolvedValue(undefined);
       const { result, rerender } = renderActions(sink, {
-        captureSettled: false,
+        recoverAllowed: false,
       });
       act(() => result.current.download?.());
       await waitFor(() => expect(result.current.busy).toBe(false));

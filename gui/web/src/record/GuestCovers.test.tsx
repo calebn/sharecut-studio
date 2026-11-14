@@ -33,6 +33,7 @@ function room(over: Partial<Parameters<typeof guestCoverProps>[0]> = {}) {
     localRecording: true,
     producer: false,
     localSegments: 1,
+    recordedHere: false,
     upload: { fileAck: false, seenSegments: 0 },
     keeperActions: {
       busy: false,
@@ -592,17 +593,19 @@ describe("after Save my recording handed the whole zip to the browser", () => {
       localSegments,
       accessEnded,
       captureSettled = true,
+      recoverAllowed = true,
     }: {
       localSegments: number;
       accessEnded: boolean;
       captureSettled?: boolean;
+      recoverAllowed?: boolean;
     }) {
       const keeperActions = useKeeperRecoveryActions({
         sink: new MemorySink(),
         sessionId: "room1",
         participantId: "p_g",
         takeIndex: 0,
-        recoverAllowed: true,
+        recoverAllowed,
         localSegments,
         captureSettled,
         onRecovered: () => undefined,
@@ -656,7 +659,72 @@ describe("after Save my recording handed the whole zip to the browser", () => {
         ).toBeInTheDocument();
       },
     );
+
+    it("offers Save my recording when a resume landed while the zip was building", async () => {
+      let release: () => void = () => undefined;
+      vi.spyOn(recovery, "downloadLocalKeepers").mockImplementation(
+        () =>
+          new Promise<void>((resolve) => {
+            release = resolve;
+          }),
+      );
+      vi.spyOn(recovery, "scanLocalKeeper")
+        .mockResolvedValueOnce({ found: true, segments: 1 })
+        .mockResolvedValue({ found: true, segments: 2 });
+      const view = render(<Leaving localSegments={1} accessEnded={false} />);
+      await userEvent.click(
+        screen.getByRole("button", { name: "Save my recording" }),
+      );
+      view.rerender(
+        <Leaving
+          localSegments={2}
+          accessEnded={false}
+          recoverAllowed={false}
+        />,
+      );
+      await act(async () => release());
+      view.rerender(<Leaving localSegments={2} accessEnded={false} />);
+      expect(
+        await screen.findByRole("button", { name: "Save my recording" }),
+      ).toBeInTheDocument();
+      expect(screen.queryByText("Check your downloads")).toBeNull();
+    });
   });
+
+  it.each([
+    ["ended", { accessEnded: true }, "This session has ended"],
+    ["left", { left: true }, "You left the room"],
+  ])(
+    "does not say %s with nothing to save when the scan failed after this page recorded",
+    (_name, over, plain) => {
+      const actions = {
+        busy: false,
+        error: null,
+        notice: null,
+        downloaded: false,
+        download: vi.fn(),
+        recover: vi.fn(),
+      };
+      const base = {
+        ...over,
+        localRecording: false,
+        localSegments: null,
+        keeperActions: actions,
+        snapshot: recordSnapshot({ participants: [host], take_index: 0 }),
+      };
+      const never = guestCoverProps(room({ ...base, recordedHere: false }), {
+        onRetry: vi.fn(),
+        phase: waiting,
+      });
+      expect(never?.title).toBe(plain);
+      const recorded = guestCoverProps(room({ ...base, recordedHere: true }), {
+        onRetry: vi.fn(),
+        phase: waiting,
+      });
+      expect(recorded?.title).toBe("Your recording didn't finish saving");
+      expect(recorded?.secondary?.label).toBe("Try saving again");
+    },
+  );
 
   it("does not call a guest who recorded nothing unsent while the device count is unknown", () => {
     const cover = guestCoverProps(

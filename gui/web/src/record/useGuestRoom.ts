@@ -271,12 +271,16 @@ export function useGuestRoom(
     [pastClipping, takeClipping],
   );
   const [keeperRuns, setKeeperRuns] = useState(0);
+  const [recordedHere, setRecordedHere] = useState(false);
+  useEffect(() => {
+    if (keeper.recordingLocally) setRecordedHere(true);
+  }, [keeper.recordingLocally]);
   const localKeeper = useLocalKeeper({
     sink,
     sessionId: snapshot?.session_id ?? null,
     participantId: me?.participant_id ?? null,
     takeIndex: snapshot?.take_index ?? null,
-    recheck: `${accessEnded}:${captureSettled}:${keeperRuns}:${uploadRetryNonce}`,
+    recheck: `${accessEnded}:${captureSettled}:${keeperRuns}:${uploadRetryNonce}:${upload.seenSegments}:${upload.fileAck}`,
   });
   const keeperActions = useKeeperRecoveryActions({
     sink,
@@ -367,6 +371,7 @@ export function useGuestRoom(
     keeperActions,
     localRecording: localKeeper.found,
     localSegments: localKeeper.segments,
+    recordedHere,
     roomTone,
     liveComments,
     captureSettled,

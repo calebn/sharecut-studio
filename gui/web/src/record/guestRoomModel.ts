@@ -171,6 +171,7 @@ export function uploadInFlight(
   return (
     upload !== null &&
     !uploadAcknowledged(upload, localSegments) &&
+    !(upload.fileAck && localSegments === null) &&
     !uploadStuck(upload) &&
     (upload.pending || upload.uploading || upload.total > 0)
   );
@@ -212,6 +213,9 @@ export function guestRoomPhase(
         totalPeople: 1,
         percent: uploadPercent(upload),
       };
+    }
+    if (upload.fileAck && localSegments === null) {
+      return { kind: "saving", savedPeople: 0, totalPeople: 1 };
     }
   }
   const idle =
@@ -600,6 +604,7 @@ type CoverRoom = Pick<
   | "keeperActions"
   | "localRecording"
   | "localSegments"
+  | "recordedHere"
   | "snapshot"
 > & { upload: Pick<RecordUploadProgress, "fileAck" | "seenSegments"> };
 
@@ -613,8 +618,9 @@ export function guestCoverProps(
   // holds (a copy kept for the reclaim grace after a download) is a duplicate.
   const hasLocalCopy =
     (room.snapshot?.take_index ?? -1) >= 0 &&
-    room.localRecording &&
-    !uploadAcknowledged(room.upload, room.localSegments);
+    ((room.localRecording &&
+      !uploadAcknowledged(room.upload, room.localSegments)) ||
+      (room.localSegments === null && room.recordedHere));
   const keeperActions = hasLocalCopy
     ? room.keeperActions
     : {
