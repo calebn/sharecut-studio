@@ -16,6 +16,9 @@ export const FeaturesContext = createContext<FeaturesState>({
   manifest: EMPTY_FEATURES,
 });
 
+/** Drops the features call in flight and asks again; for a call that never answers. */
+export const RetryFeaturesContext = createContext<() => void>(() => {});
+
 export function useFeaturesState(): FeaturesState {
   return useContext(FeaturesContext);
 }
@@ -30,4 +33,8 @@ export function useFeaturesReady(): boolean {
 
 export function useHasFeature(id: string): boolean {
   return hasFeature(useFeatures(), id);
+}
+
+export function useRetryFeatures(): () => void {
+  return useContext(RetryFeaturesContext);
 }

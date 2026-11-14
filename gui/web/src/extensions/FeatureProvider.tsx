@@ -1,16 +1,24 @@
-import { createElement, type ReactNode, useEffect, useState } from "react";
+import {
+  createElement,
+  type ReactNode,
+  useCallback,
+  useEffect,
+  useState,
+} from "react";
 import {
   EMPTY_FEATURES,
   FeaturesContext,
   type FeaturesState,
+  RetryFeaturesContext,
 } from "./FeaturesContext";
-import { fetchFeatures } from "./features";
+import { fetchFeatures, resetFeaturesCache } from "./features";
 
 export function FeatureProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<FeaturesState>({
     ready: false,
     manifest: EMPTY_FEATURES,
   });
+  const [asked, setAsked] = useState(0);
   useEffect(() => {
     let cancelled = false;
     void fetchFeatures().then((m) => {
@@ -21,6 +29,14 @@ export function FeatureProvider({ children }: { children: ReactNode }) {
     return () => {
       cancelled = true;
     };
+  }, [asked]);
+  const retry = useCallback(() => {
+    resetFeaturesCache();
+    setAsked((n) => n + 1);
   }, []);
-  return createElement(FeaturesContext.Provider, { value: state }, children);
+  return createElement(
+    RetryFeaturesContext.Provider,
+    { value: retry },
+    createElement(FeaturesContext.Provider, { value: state }, children),
+  );
 }

@@ -37,10 +37,13 @@ export const GUEST_SHARE_FEATURES: FeaturesManifest = {
 
 let cached: FeaturesManifest | null = null;
 let inflight: Promise<FeaturesManifest> | null = null;
+// Which ask is current, so a dropped ask that answers late cannot clear the new one.
+let generation = 0;
 
 export function resetFeaturesCache(): void {
   cached = null;
   inflight = null;
+  generation += 1;
 }
 
 /** Last successful features fetch, or null before the first cache write. */
@@ -66,6 +69,7 @@ export async function fetchFeatures(
   if (inflight) {
     return inflight;
   }
+  const asked = generation;
   inflight = (async () => {
     try {
       const route = parseShareRoute(
@@ -112,7 +116,9 @@ export async function fetchFeatures(
     } catch {
       return EMPTY;
     } finally {
-      inflight = null;
+      if (asked === generation) {
+        inflight = null;
+      }
     }
   })();
   return inflight;

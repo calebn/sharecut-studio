@@ -24,10 +24,11 @@ export function useHeldBusy(
 
   useEffect(() => () => window.clearTimeout(timer.current), []);
 
-  const over = pressed && !active && !holding;
-  useEffect(() => {
-    if (over) setPressed(false);
-  }, [over]);
+  // Over: the attempt ended and the floor passed, so a later attempt nobody
+  // pressed is not shown as busy.
+  if (pressed && !active && !holding) {
+    setPressed(false);
+  }
 
   return { busy: pressed && (active || holding), press };
 }

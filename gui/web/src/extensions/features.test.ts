@@ -33,4 +33,30 @@ describe("fetchFeatures", () => {
       "/api/rec/roomtok/features",
     ]);
   });
+
+  it("asks again after a reset while a hung ask is still out, and the hung one answering late does not end the new one", async () => {
+    const answers: Array<(res: Response) => void> = [];
+    const fetcher = vi.fn(
+      (_input: RequestInfo | URL) =>
+        new Promise<Response>((resolve) => answers.push(resolve)),
+    );
+    vi.stubGlobal("fetch", fetcher);
+    const hung = fetchFeatures("/r/tok");
+    void fetchFeatures("/r/tok");
+    expect(fetcher).toHaveBeenCalledTimes(1);
+    resetFeaturesCache();
+    const again = fetchFeatures("/r/tok");
+    expect(fetcher).toHaveBeenCalledTimes(2);
+    const reply = () =>
+      new Response(
+        JSON.stringify({ api_version: 1, features: ["share.ui.routes"] }),
+        { status: 200 },
+      );
+    answers[0]?.(reply());
+    await hung;
+    void fetchFeatures("/r/tok");
+    expect(fetcher).toHaveBeenCalledTimes(2);
+    answers[1]?.(reply());
+    expect((await again).features).toContain("share.ui.routes");
+  });
 });
