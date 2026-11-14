@@ -44,11 +44,6 @@ impl Driver {
         eprintln!("ShareCut lifecycle: {}", state.label());
         self.apply(&state, effects);
         for event in inbox {
-            if let Event::Bound { port, .. } = &event {
-                if let Ok(mut allowed) = self.engine_port.lock() {
-                    *allowed = Some(*port);
-                }
-            }
             let (next, effects) = step(&state, &event, Instant::now());
             if next.label() != state.label() {
                 eprintln!("ShareCut lifecycle: {} -> {}", state.label(), next.label());
@@ -62,11 +57,18 @@ impl Driver {
         for effect in effects {
             match effect {
                 Effect::StartEngine => self.start_engine(),
-                Effect::ProbeHealth { port } => self.probe(port),
-                Effect::Navigate { url } => self.navigate(&url_of(url.expose())),
+                Effect::ProbeHealth { port, generation } => self.probe(port, generation),
+                Effect::Navigate { port, url } => {
+                    if let Ok(mut allowed) = self.engine_port.lock() {
+                        *allowed = Some(port);
+                    }
+                    if !self.navigate(Url::parse(url.expose()).ok()) {
+                        let _ = self.events.send(Event::NavigationFailed);
+                    }
+                }
                 Effect::ShowFailure { sentence } => {
                     let retryable = matches!(state, State::Failed { reason } if reason.retryable());
-                    self.navigate(&Some(failure_page(sentence, retryable)));
+                    self.navigate(Some(failure_page(sentence, retryable)));
                 }
             }
         }
@@ -84,32 +86,33 @@ impl Driver {
         });
     }
 
-    fn probe(&self, port: u16) {
+    fn probe(&self, port: u16, generation: u64) {
         let events = self.events.clone();
         let token = self.boot_token.clone();
         thread::spawn(move || {
             let healthy = probe_health(port, Some(&token)).unwrap_or(false);
             let _ = events.send(if healthy {
-                Event::Healthy
+                Event::Healthy { generation }
             } else {
-                Event::Unhealthy
+                Event::Unhealthy { generation }
             });
         });
     }
 
-    fn navigate(&self, url: &Option<Url>) {
+    /// Whether the WebView was sent to `url`. The error text is never logged: it can carry the URL.
+    fn navigate(&self, url: Option<Url>) -> bool {
         let Some(url) = url else {
             eprintln!("ShareCut could not form a navigation url");
-            return;
+            return false;
         };
-        if let Some(window) = self.app.get_webview_window("main") {
-            if let Err(error) = window.navigate(url.clone()) {
-                eprintln!("ShareCut navigation failed: {error}");
-            }
+        let Some(window) = self.app.get_webview_window("main") else {
+            eprintln!("ShareCut has no window to navigate");
+            return false;
+        };
+        if window.navigate(url).is_err() {
+            eprintln!("ShareCut navigation failed");
+            return false;
         }
+        true
     }
-}
-
-fn url_of(text: &str) -> Option<Url> {
-    Url::parse(text).ok()
 }
