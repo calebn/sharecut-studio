@@ -17,9 +17,9 @@ export type RoomPhase =
       failed?: boolean;
     }
   | { kind: "saved" }
-  /** This page lost its room socket while a take was live: recording goes on, the clock keeps its place. */
+  /** This page's room socket dropped on a live take. Recording goes on. */
   | { kind: "reconnecting"; paused: false; clockSec: number }
-  /** This page lost its room socket while the take was paused: nothing is recording. */
+  /** This page's room socket dropped on a paused take. */
   | { kind: "reconnecting"; paused: true };
 
 export type Rendering = { state: StatusState; text: string; progress?: number };
@@ -50,7 +50,7 @@ export function savingPercent(
   return Math.round(Math.min(100, Math.max(0, phase.percent)));
 }
 
-/** `compact` is the Stage bar's form: the clock alone while live, the word while paused, "Reconnecting…" while reconnecting. */
+/** `compact` is the Stage bar's form: the clock alone while live, the word while paused or reconnecting. */
 export function roomPillRendering(
   phase: RoomPhase,
   compact = false,

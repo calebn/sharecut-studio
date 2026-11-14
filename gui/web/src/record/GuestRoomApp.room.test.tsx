@@ -251,7 +251,7 @@ describe("GuestRoomApp in the room", () => {
     ).toBeNull();
   });
 
-  it("lets Leave go after file ACK or an upload error", () => {
+  it("gives a saved guest Done and lets Leave go after an upload error", () => {
     fakeRoom({
       snapshot: stopped,
       upload: { acked: 3, total: 3, fileAck: true, landed: true },

@@ -84,7 +84,7 @@ type RoomViewModel = {
 };
 
 /** What the dock's centre holds for this seat and phase, and why Leave is held if it is. */
-export type RoomDock =
+type RoomDock =
   /** Mute, Comment, Notes. `leaveHeld` is a guest's reason while their take is unsaved. */
   | { kind: "controls"; leaveHeld?: string }
   /** A status line in place of the centre controls. */
@@ -92,9 +92,9 @@ export type RoomDock =
   /** A guest's take is saved: the line, Done as the one primary, no Leave. */
   | { kind: "done"; text: string };
 
-export const LEAVE_DURING_TAKE_REASON = "You can leave after this take.";
-export const LEAVE_WHILE_SAVING_REASON = "Your recording is still saving";
-export const SAVED_DOCK_LINE = "Saved to project. You can close this page.";
+const LEAVE_DURING_TAKE_REASON = "You can leave after this take.";
+const LEAVE_WHILE_SAVING_REASON = "Your recording is still saving";
+const SAVED_DOCK_LINE = "Saved to project. You can close this page.";
 
 export const isPhoneWidth = (width: ViewerWidth) => width !== "desktop";
 

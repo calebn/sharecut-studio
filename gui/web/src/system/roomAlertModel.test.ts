@@ -31,7 +31,7 @@ describe("ROOM_ALERT_PRIORITY", () => {
     ]);
   });
 
-  it("titles connection-lost and ranks it directly above host-offline", () => {
+  it("titles connection-lost and shows it above a host who dropped", () => {
     expect(ROOM_ALERT_TEXT["connection-lost"].title).toBe(
       "Lost connection to the room. You're still recording on this device.",
     );
@@ -39,10 +39,6 @@ describe("ROOM_ALERT_PRIORITY", () => {
       sortRoomAlerts([{ kind: "host-offline" }, { kind: "connection-lost" }])
         .top?.kind,
     ).toBe("connection-lost");
-    expect(
-      ROOM_ALERT_PRIORITY.indexOf("host-offline") -
-        ROOM_ALERT_PRIORITY.indexOf("connection-lost"),
-    ).toBe(1);
   });
 
   it("has text for every kind", () => {

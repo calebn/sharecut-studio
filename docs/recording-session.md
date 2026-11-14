@@ -1188,27 +1188,25 @@ alternate local sink path.
 `m:ss · Reconnecting…` while this page's own room connection is down on a live take,
 `Paused · Reconnecting…` on a paused one), a tile per person, the notes rail (a composer
 enabled while a take runs; the `M` key adds a marker), Mute and Leave, and alerts in one
-slot: "Your mic
-stopped." (**Reconnect mic**), "No sound is reaching the recorder." (**Check mic**),
-"This device couldn't save the recording.", "Saving stopped." (**Resume saving**,
-**Save a copy**), "We found part of your recording." (**Finish saving**),
-"Lost connection to the room. You're still recording on this device." (this page's
-connection dropped mid-take; nothing is raised while paused, and a producer gets none),
-"{Host} dropped. You're still recording on this device." (the host left or dropped while
-this page is connected), "You can't hear the room. Recording is fine." (**Retry**),
-"You're clipping. Move
-back a little." (after the third clip in 30 s) and "You're muted." (after 10 s of
-speech while muted). Hidden screen-reader lines announce
-"Recording in full quality on this device.", "Hearing the room.", joins, leaves and
-other people's new notes. **Leave** is held while a take runs ("You can leave after this
-take.") and while the recording saves ("Your recording is still saving"), and says why
-when pressed. A stopped save releases it. Once the file ACK lands the dock reads "Saved to
-project. You can close this page." with **Done**, which leaves the room and closes the page
-where the browser allows. Leave closes this page's room connection, which the server
-records as the guest leaving (the host's tile reads Left), and the page shows the "You
-left the room" Cover with **Join again**. Covers replace the
-room for an invalid link, "The room is full" (**Try again**), "Invite link
-closed", "You left the room" (**Join again**), "Your recording didn't finish saving" and "This session has ended". The
+slot: "Your mic stopped." (**Reconnect mic**), "No sound is reaching the recorder."
+(**Check mic**), "This device couldn't save the recording.", "Saving stopped."
+(**Resume saving**, **Save a copy**), "We found part of your recording."
+(**Finish saving**), "Lost connection to the room. You're still recording on this
+device." (this page's connection dropped mid-take; nothing is raised while paused, and a
+producer gets none), "{Host} dropped. You're still recording on this device." (the host
+left or dropped while this page is connected), "You can't hear the room. Recording is
+fine." (**Retry**), "You're clipping. Move back a little." (after the third clip in 30 s)
+and "You're muted." (after 10 s of speech while muted). Hidden screen-reader lines
+announce "Recording in full quality on this device.", "Hearing the room.", joins, leaves
+and other people's new notes. **Leave** is held while a take runs ("You can leave after
+this take.") and while the recording saves ("Your recording is still saving"), and says
+why when pressed. A stopped save releases it. Once the file ACK lands the dock reads
+"Saved to project. You can close this page." with **Done**, which leaves the room and
+closes the page where the browser allows. Leave closes this page's room connection, which
+the server records as the guest leaving (the host's tile reads Left), and the page shows
+the "You left the room" Cover with **Join again**. Covers replace the room for an invalid
+link, "The room is full" (**Try again**), "Invite link closed", "You left the room"
+(**Join again**), "Your recording didn't finish saving" and "This session has ended". The
 didn't-finish-saving Cover shows **Save my recording** and **Try saving again** only
 once capture has settled and the keeper store offers that action.
 
@@ -1458,9 +1456,8 @@ cannot. Every button runs the same `record.*` command as the palette.
 Guest keeps recording locally **when the segment is still open** (tunnel/host
 offline, mic held); monitor tracks end; closed segments retry upload (the
 open segment waits until it closes); rejoin the same
-token. Copy: "{Host} dropped. You're still recording on this device." (host gone while
-this page is connected) or "Lost connection to the room. You're still recording on this
-device." (this page's own connection dropped). Intentional leave /
+token. Copy: the "{Host} dropped." or "Lost connection to the room." alert, per the copy
+table above. Intentional leave /
 lost mic uses **segments** ([Roster changes](#roster-changes-join-leave-rejoin-pause-takes)).
 Producers simply lose audio and reconnect.
 Guest recording setup and unexpected command failures close with `1011` and
