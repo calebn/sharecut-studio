@@ -24,10 +24,7 @@ export type RecordDockProps = {
   status?: ReactNode;
   /** With `status`: a Done primary in the far slot in place of Leave. Ignored without `status`. */
   onDone?: () => void;
-  /**
-   * Leave stays focusable and pressable but does nothing: aria-disabled, the reason as its title and
-   * aria-describedby, and a press shows the reason in a role="status" line under it for HINT_MS.
-   */
+  /** Holds Leave: it stays pressable (aria-disabled) and a press shows this reason briefly. */
   leaveDisabledReason?: string;
   onMute?: () => void;
   onComment?: () => void;

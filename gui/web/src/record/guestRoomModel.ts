@@ -372,12 +372,7 @@ function unsentRecordingCover(
   };
 }
 
-/**
- * Precedence: boot error, access ended, left, room full. A viewer who left with
- * an unsent local copy gets the unsent-recording cover; otherwise the left
- * cover says what happened to their recording. Join again remounts the session,
- * which rejoins through the cached lease.
- */
+/** Precedence: boot error, access ended, left, room full. Join again remounts the session. */
 export function guestCovers(source: CoverSource): CoverProps | null {
   const host = source.host?.trim() || "the host";
   if (source.bootError) {
