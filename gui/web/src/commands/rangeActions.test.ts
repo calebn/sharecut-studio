@@ -1,11 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { submitDocumentCommand } from "../api/documentEdits";
 import { getClipboard, setClipboard } from "../edit/clipboard";
-import {
-  makeRangeTarget,
-  markScriptRange,
-  TRANSCRIPT_REFRESHING,
-} from "../edit/rangeSelection";
+import { makeRangeTarget, markScriptRange } from "../edit/rangeSelection";
 import { useDawStore } from "../state/dawStore";
 import { noComposer } from "../test/composerStore";
 import { deferred } from "../test/deferred";
