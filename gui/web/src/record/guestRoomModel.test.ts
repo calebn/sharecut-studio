@@ -191,6 +191,32 @@ describe("guestRoomPhase", () => {
   });
 });
 
+describe("guestRoomPhase when this page's socket drops", () => {
+  it("a dropped socket mid-take reads reconnecting and keeps the take clock", () => {
+    const snapshot = recordSnapshot({
+      state: "recording",
+      take_index: 0,
+      recording_ms: 42_000,
+      participants: [host, me],
+    });
+    expect(
+      guestRoomPhase(snapshot, {
+        connected: false,
+        elapsedSinceSnapshotMs: 1000,
+      }),
+    ).toEqual({ kind: "reconnecting", paused: false, clockSec: 43 });
+  });
+
+  it("a dropped socket while waiting stays waiting", () => {
+    expect(
+      guestRoomPhase(
+        recordSnapshot({ state: "lobby", participants: [host, me] }),
+        { connected: false },
+      ),
+    ).toEqual({ kind: "waiting", host: "Hana" });
+  });
+});
+
 describe("tookPart", () => {
   const stoppedWith = (ids: string[]) =>
     recordSnapshot({
