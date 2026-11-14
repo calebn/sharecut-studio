@@ -343,32 +343,34 @@ describe("a project with no earlier results", () => {
 });
 
 describe("the sound scan switch and the person's own start choice", () => {
-  it("lists the scan off, with the start choice off, in Advanced", () => {
+  it("lists the scan off, with the start choice on, in Advanced", () => {
     const { advanced } = render().result.current;
     const scan = advanced.props.groups
       .flatMap((g) => g.steps)
       .find((s) => s.id === "apply_sound_actions");
     expect(scan).toMatchObject({ enabled: false });
-    expect(scan?.personal?.on).toBe(false);
+    expect(scan?.personal?.on).toBe(true);
   });
 
   it("keeps the person's own start choice on this computer, apart from the project", () => {
     const { result } = render();
     act(() =>
-      result.current.advanced.props.onPersonal?.("apply_sound_actions", true),
+      result.current.advanced.props.onPersonal?.("apply_sound_actions", false),
     );
-    expect(readSoundScanStart()).toBe(true);
+    expect(readSoundScanStart()).toBe(false);
     const scan = result.current.advanced.props.groups
       .flatMap((g) => g.steps)
       .find((s) => s.id === "apply_sound_actions");
-    expect(scan?.personal?.on).toBe(true);
+    expect(scan?.personal?.on).toBe(false);
     expect(scan?.enabled).toBe(false);
   });
 
   it("ignores a personal choice for any other step", () => {
     const { result } = render();
-    act(() => result.current.advanced.props.onPersonal?.("align_tracks", true));
-    expect(readSoundScanStart()).toBe(false);
+    act(() =>
+      result.current.advanced.props.onPersonal?.("align_tracks", false),
+    );
+    expect(readSoundScanStart()).toBe(true);
   });
 });
 
