@@ -7,6 +7,8 @@ import json
 import re
 from dataclasses import dataclass
 
+from scripts.ios.release_run import OUTPUT_LIMIT
+
 
 class Failure(enum.Enum):
     INPUT = 3
@@ -112,20 +114,28 @@ APPLE_API_CODE = re.compile(
 )
 
 
+OBJECT_LINE = re.compile(r"^\{", re.M)
+JSON_LOOKING = re.compile(r"\s*[\[\]{}\"]")
+
+
 def altool_document(text: str) -> dict[str, object] | None:
-    """The JSON object altool printed. Lines before it (a stderr warning) are skipped; the rest of
-    the output from the object's first line must parse as that one object, so text after it, or a
-    truncated object, is no document."""
-    lines = text.splitlines()
-    for start, line in enumerate(lines):
-        if start and not line.lstrip().startswith("{"):
-            continue
-        try:
-            document = json.loads("\n".join(lines[start:]))
-        except json.JSONDecodeError:
-            continue
-        return document if isinstance(document, dict) else None
-    return None
+    """The JSON object altool printed, or None. It starts at the first line that begins with ``{``
+    and the output from there to the end must parse as that one object, so a truncated object, text
+    after it, a second object or a nested ``{`` is no document. altool's stderr is merged into the
+    output, so lines before the object are tolerated when none of them looks like JSON. One parse
+    and a cap at the captured tail (which was cut at its head) keep the cost linear."""
+    if len(text) >= OUTPUT_LIMIT:
+        return None
+    start = OBJECT_LINE.search(text)
+    if start is None or any(
+        JSON_LOOKING.match(line) for line in text[: start.start()].splitlines()
+    ):
+        return None
+    try:
+        document = json.loads(text[start.start() :])
+    except (ValueError, RecursionError):
+        return None
+    return document if isinstance(document, dict) else None
 
 
 def product_errors(document: dict[str, object] | None) -> tuple[dict[str, object], ...]:
@@ -176,14 +186,14 @@ def no_answer(exit_code: int, text: str) -> AppleAnswer:
 
 
 def classify_upload(exit_code: int, text: str) -> AppleAnswer:
-    """What an upload attempt may count as answered. Only Apple's own answer finishes it: exit 0
-    with a JSON object, a duplicate, or a ``product-errors`` entry that is ``apple_shaped`` and
-    carries no transport wording. Everything else is UNREACHABLE, however it is worded."""
+    """Closing an attempt lifts the block on a second upload, so only Apple's own answer closes it
+    and every doubt stays UNREACHABLE: transport wording anywhere in the output beats an exit-0
+    object and an Apple-shaped error alike, except a duplicate, which blocks anyway."""
     document = altool_document(text)
     if not (document and document.get("product-errors")):
         return (
             AppleAnswer(Verdict.OK)
-            if exit_code == 0 and document is not None
+            if exit_code == 0 and document and not TRANSPORT.search(text)
             else no_answer(exit_code, text)
         )
     messages = altool_messages(text, document)

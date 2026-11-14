@@ -1239,6 +1239,8 @@ class Answer(NamedTuple):
         return self.code, self.text
 
 
+DEEP = '{"a": ' + "[" * 200_000 + "]" * 200_000 + "}"
+HUGE_INT = '{"a": ' + "9" * 5000 + "}"
 NO_ANSWER = {
     "killed-9": Answer(-9, "", "rejected"),
     "killed-15": Answer(-15, "", "rejected"),
@@ -1287,10 +1289,23 @@ NO_ANSWER = {
     "json-list": Answer(0, "[]", "ok"),
     "json-list-exit-1": Answer(1, "[]", "rejected"),
     "json-scalar": Answer(0, "5", "ok"),
+    "empty-object-exit-0": Answer(0, "{}", "ok"),
     "warning-before-truncated-json": Answer(
         0, 'warning: slow\n{"tool-version": "26.10.1", "succ', "ok"
     ),
+    "truncated-outer-with-inner-object": Answer(
+        0, '{\n  "success-message": "ok",\n  "detail":\n{"inner": 1}\n', "ok"
+    ),
+    "json-list-before-object": Answer(0, "[1]\n" + ALTOOL_OK, "rejected"),
     "text-after-json": Answer(0, ALTOOL_OK + "\nuploaded", "rejected"),
+    "network-warning-before-success": Answer(
+        0, "network connection lost, retrying\n" + ALTOOL_OK, "ok"
+    ),
+    "deep-nesting-exit-0": Answer(0, DEEP, "ok"),
+    "deep-nesting-exit-1": Answer(1, DEEP, "rejected"),
+    "huge-integer-exit-0": Answer(0, HUGE_INT, "ok"),
+    "huge-integer-exit-1": Answer(1, HUGE_INT, "rejected"),
+    "braces-flood": Answer(0, "{}\n" * 32_000, "ok"),
 }
 
 
@@ -1529,6 +1544,10 @@ def test_the_cfnetwork_domain_is_caught_by_the_network_wording_so_it_needs_no_al
         (0, "warning\n" + ALTOOL_OK[:-4], Verdict.UNREACHABLE),
         (0, "warning: {not json}\n" + ALTOOL_OK + "}", Verdict.UNREACHABLE),
         (0, "warning\n[1]", Verdict.UNREACHABLE),
+        (0, "[1]\n" + ALTOOL_OK, Verdict.UNREACHABLE),
+        (0, '"warning"\n' + ALTOOL_OK, Verdict.UNREACHABLE),
+        (0, "  {\n" + ALTOOL_OK, Verdict.UNREACHABLE),
+        (0, "warning: network connection lost\n" + ALTOOL_OK, Verdict.UNREACHABLE),
         (1, "warning: slow link\n" + altool_error("Invalid Bundle"), Verdict.UNREACHABLE),
     ],
 )
@@ -1597,6 +1616,8 @@ def test_apples_own_structured_errors_finish_the_upload_attempt(
         (1, "[]", Verdict.UNREACHABLE),
         (0, "[]", Verdict.UNREACHABLE),
         (0, "5", Verdict.UNREACHABLE),
+        (0, "{}", Verdict.UNREACHABLE),
+        (1, "{}", Verdict.UNREACHABLE),
     ],
 )
 def test_the_upload_classifier_accepts_only_apples_own_answer(
@@ -1671,6 +1692,74 @@ def test_main_needs_a_confirm_token_to_upload_and_validate_never_uploads(
     assert ios_release.main(["validate"]) == 0
     assert uploads_sent(ran) == 0 and any("--validate-app" in c.argv for c in ran)
     assert record_module.read_record(directory).uploads == []
+
+
+TRUNCATED_OUTER = '{\n  "success-message": "ok",\n  "detail":\n{"inner": 1}\n'
+
+
+@pytest.mark.parametrize(
+    ("text", "found"),
+    [
+        (ALTOOL_OK, True),
+        ("warning: slow link\n" + ALTOOL_OK, True),
+        ("warning\n" + json.dumps({"a": {"b": 1}}, indent=2), True),
+        (ALTOOL_OK + "\n\n", True),
+        (TRUNCATED_OUTER, False),
+        ("warning\n" + TRUNCATED_OUTER, False),
+        ('{"a": 1}\n{"b": 2}', False),
+        ("{}\n{}", False),
+        ("[1]\n" + ALTOOL_OK, False),
+        ("  " + ALTOOL_OK, False),
+        ("{" + '"a": "' + "x" * release_run.OUTPUT_LIMIT + '"}', False),
+    ],
+    ids=[
+        "object",
+        "warning-then-object",
+        "pretty-object-with-a-nested-one",
+        "trailing-blank-lines",
+        "truncated-outer-with-an-inner-object-that-parses",
+        "warning-then-truncated-outer",
+        "two-objects",
+        "two-empty-objects",
+        "json-looking-line-before",
+        "indented-start",
+        "output-as-long-as-the-captured-tail",
+    ],
+)
+def test_the_document_is_the_one_object_that_ends_the_output(text: str, found: bool) -> None:
+    assert (release_classify.altool_document(text) is not None) is found
+
+
+@pytest.mark.parametrize("flood", ["{}\n" * 32_000, "{\n" * 32_000, ('{"a":\n' * 20_000)])
+def test_parsing_never_searches_the_output_for_a_start(
+    monkeypatch: pytest.MonkeyPatch, flood: str
+) -> None:
+    attempts = []
+    real = json.loads
+
+    def counting(*args: object, **kwargs: object) -> object:
+        attempts.append(1)
+        return real(*args, **kwargs)
+
+    monkeypatch.setattr(json, "loads", counting)
+    assert release_classify.altool_document(flood) is None
+    assert release_classify.classify_upload(0, flood).verdict is Verdict.UNREACHABLE
+    assert release_classify.classify_altool(0, flood).verdict is Verdict.OK
+    assert not release_classify.app_record_exists(flood, "studio.sharecut.app")
+    assert len(attempts) <= 4
+
+
+@pytest.mark.parametrize("text", [DEEP, HUGE_INT], ids=["deep-nesting", "huge-integer"])
+@pytest.mark.parametrize("code", [0, 1])
+def test_a_parser_limit_is_no_document_on_upload_validate_and_the_lookup(
+    text: str, code: int
+) -> None:
+    assert release_classify.altool_document(text) is None
+    assert release_classify.classify_upload(code, text).verdict is Verdict.UNREACHABLE
+    assert release_classify.classify_altool(code, text).verdict is (
+        Verdict.OK if code == 0 else Verdict.REJECTED
+    )
+    assert not release_classify.app_record_exists(text, "studio.sharecut.app")
 
 
 @pytest.mark.parametrize("flag", ["--validate-app", "--list-apps"])
