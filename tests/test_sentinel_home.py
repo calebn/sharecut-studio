@@ -5,7 +5,13 @@ from pathlib import Path
 
 from podcast_mcp.services.share_auth.store import default_identity_db_path, get_identity_store
 from podcast_mcp.util import host_platform
-from sentinel_home import THIRD_PARTY_PREFIXES, TOOLCHAIN_CACHES, passthrough_env, stray_files
+from sentinel_home import (
+    REAL_MODEL_CACHE_FLAG,
+    THIRD_PARTY_PREFIXES,
+    TOOLCHAIN_CACHES,
+    passthrough_env,
+    stray_files,
+)
 
 
 def test_the_session_home_is_not_the_developers_home(_sentinel_home: Path) -> None:
@@ -15,10 +21,12 @@ def test_the_session_home_is_not_the_developers_home(_sentinel_home: Path) -> No
 
 
 def test_the_identity_store_opens_inside_the_test_folder(tmp_path: Path) -> None:
+    from conftest import _JOB_IDENTITY
+
     chosen = Path(os.environ["PODCAST_SHARE_IDENTITY"])
     assert default_identity_db_path() == chosen
     assert get_identity_store().path == chosen
-    assert chosen.parent == tmp_path or chosen.parent != Path.home()
+    assert _JOB_IDENTITY or chosen == tmp_path / "share_identity.sqlite"
 
 
 def test_a_stray_file_in_the_session_home_is_reported_and_an_empty_folder_is_not(
@@ -49,18 +57,16 @@ def test_toolchain_caches_keep_their_real_place(tmp_path: Path) -> None:
     assert passthrough_env(tmp_path / "empty", {}) == {}
 
 
-def test_the_model_cache_keeps_its_real_place_only_where_it_exists(tmp_path: Path) -> None:
-    assert "PODCAST_MCP_CACHE" not in passthrough_env(tmp_path, {})
+def test_the_model_cache_keeps_its_real_place_only_when_asked_for_and_present(
+    tmp_path: Path,
+) -> None:
+    flag = {REAL_MODEL_CACHE_FLAG: "1"}
+    assert "PODCAST_MCP_CACHE" not in passthrough_env(tmp_path, flag)
     (tmp_path / ".cache" / "podcast_mcp").mkdir(parents=True)
-    assert passthrough_env(tmp_path, {})["PODCAST_MCP_CACHE"] == str(
+    assert "PODCAST_MCP_CACHE" not in passthrough_env(tmp_path, {})
+    assert passthrough_env(tmp_path, flag)["PODCAST_MCP_CACHE"] == str(
         tmp_path / ".cache" / "podcast_mcp"
     )
-
-
-def test_a_revoke_window_does_not_arm_a_real_timer() -> None:
-    from podcast_mcp.services.collaboration import share_pending
-
-    assert share_pending.start_sweep_timer(60.0, lambda: None) is None
 
 
 def test_the_sweep_timer_arms_no_thread() -> None:
@@ -83,17 +89,13 @@ def test_an_identity_store_made_in_one_test_is_gone_in_the_next_part_two() -> No
     assert store._STORE is None
 
 
-def test_the_identity_pin_follows_the_job_only_when_it_chose_outside_the_home(
-    monkeypatch, tmp_path: Path
-) -> None:
-    from conftest import _job_chose_identity
+def test_a_job_value_counts_only_when_it_points_outside_the_real_home(tmp_path: Path) -> None:
+    from conftest import REAL_HOME, _outside_real_home
 
-    monkeypatch.delenv("PODCAST_SHARE_IDENTITY", raising=False)
-    assert not _job_chose_identity()
-    monkeypatch.setenv("PODCAST_SHARE_IDENTITY", str(Path.home() / ".podcast_mcp" / "i.sqlite"))
-    assert not _job_chose_identity()
-    monkeypatch.setenv("PODCAST_SHARE_IDENTITY", str(tmp_path / "i.sqlite"))
-    assert _job_chose_identity()
+    assert not _outside_real_home(None)
+    assert not _outside_real_home("")
+    assert not _outside_real_home(str(REAL_HOME / ".podcast_mcp" / "i.sqlite"))
+    assert _outside_real_home(str(tmp_path / "i.sqlite"))
 
 
 def test_a_file_outside_the_telemetry_folders_under_cache_is_reported(tmp_path: Path) -> None:

@@ -172,17 +172,21 @@ def _serial_transcription(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr("podcast_mcp.engines.transcribe.transcribe_worker_count", lambda *_: 1)
 
 
-def _job_chose_identity() -> bool:
-    chosen = os.environ.get("PODCAST_SHARE_IDENTITY")
-    return bool(chosen) and not Path(chosen).expanduser().is_relative_to(Path.home())
+REAL_HOME = Path.home().resolve()
 
 
-_JOB_IDENTITY = _job_chose_identity()
+def _outside_real_home(value: str | None) -> bool:
+    if not value:
+        return False
+    return not Path(value).expanduser().resolve().is_relative_to(REAL_HOME)
+
+
+_JOB_IDENTITY = _outside_real_home(os.environ.get("PODCAST_SHARE_IDENTITY"))
 
 
 def _default_env(patch_env: pytest.MonkeyPatch, name: str, value: str) -> None:
-    """Set ``name`` unless the job that runs the suite already chose a value."""
-    if name not in os.environ:
+    """Set ``name`` unless the job that runs the suite chose a value outside the real home."""
+    if not _outside_real_home(os.environ.get(name)):
         patch_env.setenv(name, value)
 
 
@@ -191,7 +195,7 @@ def _sentinel_home(tmp_path_factory: pytest.TempPathFactory) -> Iterator[Path]:
     """Point HOME at an empty folder for the session; fail it if a test leaves ShareCut files there."""
     home = tmp_path_factory.mktemp("home")
     state = tmp_path_factory.mktemp("session_state")
-    keep = passthrough_env(Path.home(), dict(os.environ))
+    keep = passthrough_env(REAL_HOME, dict(os.environ))
     with pytest.MonkeyPatch.context() as patch_env:
         # Defaults for fixtures wider than one test, which run before the per-test isolation.
         _default_env(patch_env, "PODCAST_SHARE_REGISTRY", str(state / "share_registry.sqlite"))

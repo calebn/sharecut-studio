@@ -20,6 +20,7 @@ TOOLCHAIN_CACHES = {
 }
 
 MODEL_CACHE = ("PODCAST_MCP_CACHE", ".cache/podcast_mcp")
+REAL_MODEL_CACHE_FLAG = "PODCAST_TEST_REAL_MODEL_CACHE"
 
 # onnxruntime writes telemetry here; it is not ours and cannot be turned off from outside.
 THIRD_PARTY_PREFIXES = (
@@ -34,7 +35,9 @@ def passthrough_env(real_home: Path, environ: dict[str, str]) -> dict[str, str]:
     A cache that is absent stays absent, so a clean home stays clean. Names compare without case,
     because Windows upper-cases the environment.
     """
-    caches = {**TOOLCHAIN_CACHES, MODEL_CACHE[0]: MODEL_CACHE[1]}
+    caches = dict(TOOLCHAIN_CACHES)
+    if environ.get(REAL_MODEL_CACHE_FLAG) == "1":
+        caches[MODEL_CACHE[0]] = MODEL_CACHE[1]
     chosen = {name.lower() for name in environ}
     return {
         name: str(real_home / relative)
