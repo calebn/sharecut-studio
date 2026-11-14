@@ -601,7 +601,7 @@ describe("roomViewModel dock", () => {
     });
   });
 
-  it("holds a guest's Leave while saving with the spec's reason", () => {
+  it("holds a guest's Leave while their recording saves", () => {
     expect(
       roomViewModel(
         base({
