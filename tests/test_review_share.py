@@ -2050,6 +2050,7 @@ def test_handle_guest_presence_frame_invalid_playhead_not_malformed(minimal_proj
         label="A",
         seq=3,
         token="abcd1234token",
+        share_id="a1b2c3d4e5f6",
         websocket=MagicMock(),
         malformed=0,
     )
@@ -2087,6 +2088,7 @@ def test_handle_guest_presence_frame_rejects(minimal_project, monkeypatch) -> No
         "label": "A",
         "seq": 2,
         "token": "abcd1234token",
+        "share_id": "a1b2c3d4e5f6",
         "websocket": ws,
     }
 
@@ -2121,6 +2123,52 @@ def test_handle_guest_presence_frame_rejects(minimal_project, monkeypatch) -> No
     assert (result.seq, result.malformed, result.close_reason) == (2, 0, None)
 
 
+def test_presence_rejection_logs_name_the_share_and_not_its_token(minimal_project, caplog) -> None:
+    import logging
+
+    from podcast_mcp.gui.routes.review_share import _handle_guest_presence_frame
+    from podcast_mcp.services.session_sync.service import SessionSyncService
+
+    caplog.set_level(logging.INFO, logger="podcast_mcp.gui.routes.review_share")
+    svc = SessionSyncService(load_project(minimal_project))
+
+    _handle_guest_presence_frame(
+        "x" * 5000,
+        session_svc=svc,
+        guest_client_id="guest-tab",
+        label="A",
+        seq=1,
+        token="velvet-quokka-umbra",
+        share_id="a1b2c3d4e5f6",
+        websocket=MagicMock(),
+        malformed=0,
+    )
+
+    assert "guest presence rejected size share=a1b2c3d4e5f6" in caplog.text
+    assert "velvet" not in caplog.text
+
+
+def test_a_failed_progress_pump_names_the_share_and_not_its_token(caplog) -> None:
+    import asyncio
+
+    from podcast_mcp.gui.routes.review_share import _pump_guest_progress
+
+    class Guard:
+        async def send_json(self, _event: dict) -> None:
+            raise RuntimeError("socket gone")
+
+        async def close(self, _code: int, _reason: str) -> None:
+            return None
+
+    events: asyncio.Queue = asyncio.Queue()
+    events.put_nowait({"type": "progress"})
+
+    with pytest.raises(RuntimeError):
+        asyncio.run(_pump_guest_progress("a1b2c3d4e5f6", Guard(), events))
+
+    assert "guest progress pump failed share=a1b2c3d4e5f6" in caplog.text
+
+
 def test_handle_guest_presence_frame_rejects_viewer_state(minimal_project) -> None:
     from podcast_mcp.gui.routes.review_share import _handle_guest_presence_frame
     from podcast_mcp.services.session_sync.service import SessionSyncService
@@ -2133,6 +2181,7 @@ def test_handle_guest_presence_frame_rejects_viewer_state(minimal_project) -> No
         label="A",
         seq=2,
         token="abcd1234token",
+        share_id="a1b2c3d4e5f6",
         websocket=MagicMock(),
         malformed=0,
     )
@@ -2151,6 +2200,7 @@ def test_handle_guest_presence_frame_roster_request(minimal_project) -> None:
         "label": "A",
         "seq": 2,
         "token": "abcd1234token",
+        "share_id": "a1b2c3d4e5f6",
         "websocket": MagicMock(),
         "malformed": 0,
     }

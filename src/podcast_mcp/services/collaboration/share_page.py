@@ -197,7 +197,7 @@ def render_share_spa_html(
             except Exception:
                 audio_type = "audio/mpeg"
     except Exception:
-        log.debug("Share SPA meta fallback for token %s", token[:8], exc_info=True)
+        log.debug("Share SPA meta fallback", exc_info=True)
 
     head = build_share_head_tags(
         title=title,
@@ -232,7 +232,7 @@ def render_record_spa_html(
         if producer:
             description = "Silent producer link. You are not recorded in this stub."
     except Exception:
-        log.debug("Record SPA meta fallback for token %s", token[:8], exc_info=True)
+        log.debug("Record SPA meta fallback", exc_info=True)
 
     head = build_share_head_tags(
         title=title,

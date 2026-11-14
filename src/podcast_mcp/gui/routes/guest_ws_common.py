@@ -182,12 +182,12 @@ class GuestWsConnection:
     """
 
     def __init__(
-        self, websocket: WebSocket, token: str, *, gate_held: bool, log_label: str
+        self, websocket: WebSocket, token: str, *, share_id: str, gate_held: bool, log_label: str
     ) -> None:
         self.websocket = websocket
         self.token = token
         self._gate_held = gate_held
-        self._tasks = WsTaskSet(f"{log_label} token={token[:8]}")
+        self._tasks = WsTaskSet(f"{log_label} share={share_id}")
 
     async def start(
         self,
@@ -222,7 +222,7 @@ class GuestWsConnection:
 
 
 async def admit_guest_ws(
-    websocket: WebSocket, token: str, *, log_label: str
+    websocket: WebSocket, token: str, *, share_id: str, log_label: str
 ) -> GuestWsConnection | None:
     """Take the per-token ``PODCAST_GUEST_WS_CONCURRENT`` slot, or reject ``4429`` and return ``None``."""
     gate_held = False
@@ -231,4 +231,6 @@ async def admit_guest_ws(
             await guest_ws_reject(websocket, 4429, GUEST_WS_CONCURRENCY_REASON)
             return None
         gate_held = True
-    return GuestWsConnection(websocket, token, gate_held=gate_held, log_label=log_label)
+    return GuestWsConnection(
+        websocket, token, share_id=share_id, gate_held=gate_held, log_label=log_label
+    )
