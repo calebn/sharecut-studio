@@ -219,6 +219,7 @@ def plan_retime(
             language=language,
             initial_prompt=primed_prompt,
             audio_sha256=plan.audio_hashes[job.key],
+            guard=False,
         )
         used_fallback = False
         if cached is None and fallback_prompt != primed_prompt:
@@ -228,6 +229,7 @@ def plan_retime(
                 language=language,
                 initial_prompt=fallback_prompt,
                 audio_sha256=plan.audio_hashes[job.key],
+                guard=False,
             )
             used_fallback = cached is not None
         if cached is None:
@@ -312,6 +314,7 @@ def run_transcribe_plan(
                     language=asr_options.get("language"),
                     initial_prompt=fallback_prompt,
                     audio_sha256=plan.audio_hashes[job.key],
+                    guard=False,
                 )
                 if cached is not None:
                     fallback_jobs.append(job)

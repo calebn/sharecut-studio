@@ -1,12 +1,18 @@
 from __future__ import annotations
 
+import math
 import zlib
 from unittest.mock import MagicMock
 
 import pytest
 
-from podcast_mcp.engines.asr_loops import drop_looped_words, zlib_ratio
-from podcast_mcp.models import TranscriptWord
+from podcast_mcp.engines.asr_loops import (
+    CROWDED_GAP_SEC,
+    drop_looped_words,
+    guard_transcript,
+    zlib_ratio,
+)
+from podcast_mcp.models import Transcript, TranscriptWord
 
 LOOP_TEXT = ("And I know that " * 60).split()
 VARIED = [
@@ -254,3 +260,113 @@ def test_window_ratio_also_drops_a_dense_run_of_ordinary_words() -> None:
     assert zlib_ratio(" ".join(w.text for w in cluster)) < 2.4
     assert drop_looped_words(cluster, [2.5] * 18).dropped == cluster
     assert drop_looped_words(cluster).dropped == []
+
+
+EXACT_STEP = 1 / 256
+
+
+def _exact_cluster() -> list[TranscriptWord]:
+    return _words(["no"] * 17, 10.0, EXACT_STEP)
+
+
+def _word_at(start: float, text: str = "yes") -> TranscriptWord:
+    return TranscriptWord(text=text, start=start, end=start + 0.001)
+
+
+def test_crowded_gap_constant_is_exactly_62_5_ms() -> None:
+    assert CROWDED_GAP_SEC == 0.0625
+
+
+@pytest.mark.parametrize(
+    ("make_start", "dropped"),
+    [
+        pytest.param(lambda base: base, 18, id="exactly-62.5ms"),
+        pytest.param(lambda base: math.nextafter(base, math.inf), 17, id="one-ulp-over"),
+        pytest.param(lambda base: base + 0.001, 17, id="one-ms-over"),
+    ],
+)
+def test_a_trailing_word_joins_a_run_only_at_or_within_62_5_ms(make_start, dropped) -> None:
+    cluster = _exact_cluster()
+    tail = _word_at(make_start(cluster[-1].start + CROWDED_GAP_SEC))
+    assert (tail.start - cluster[-1].start == CROWDED_GAP_SEC) == (dropped == 18)
+    report = drop_looped_words([*cluster, tail])
+    assert report.dropped == ([*cluster, tail] if dropped == 18 else cluster)
+    assert report.kept == ([] if dropped == 18 else [tail])
+    assert report.dense_words == 0
+
+
+@pytest.mark.parametrize(
+    ("make_start", "dropped"),
+    [
+        pytest.param(lambda base: base, 18, id="exactly-62.5ms"),
+        pytest.param(lambda base: math.nextafter(base, -math.inf), 17, id="one-ulp-over"),
+        pytest.param(lambda base: base - 0.001, 17, id="one-ms-over"),
+    ],
+)
+def test_a_leading_word_joins_a_run_only_at_or_within_62_5_ms(make_start, dropped) -> None:
+    cluster = _exact_cluster()
+    lead = _word_at(make_start(cluster[0].start - CROWDED_GAP_SEC))
+    assert (cluster[0].start - lead.start == CROWDED_GAP_SEC) == (dropped == 18)
+    report = drop_looped_words([lead, *cluster])
+    assert report.dropped == ([lead, *cluster] if dropped == 18 else cluster)
+    assert report.kept == ([] if dropped == 18 else [lead])
+    assert report.dense_words == 0
+
+
+def _short_ratio_words() -> list[TranscriptWord]:
+    return [*_speech(5, 0.0, 0.3), *_words(VARIED[:18], 5.0, 0.05)]
+
+
+def test_window_ratios_shorter_than_words_do_not_raise() -> None:
+    words = _words(LOOP_TEXT[:20], 5.0, 0.03)
+    report = drop_looped_words(words, [3.0])
+    assert report.dropped == words
+    assert report.kept == []
+
+
+def test_short_window_ratios_stay_aligned_to_the_first_words() -> None:
+    words = _short_ratio_words()
+    report = drop_looped_words(words, [None] * 5 + [2.5] * 10)
+    assert report.dropped == words[5:]
+    assert report.kept == words[:5]
+
+
+def test_short_window_ratios_never_invent_evidence_for_the_padded_words() -> None:
+    words = _short_ratio_words()
+    report = drop_looped_words(words, [2.5] * 5)
+    assert report.dropped == []
+    assert report.dense_words == 18
+
+
+@pytest.mark.parametrize("ratios", [[], None])
+def test_empty_window_ratios_behave_as_none(ratios) -> None:
+    words = _short_ratio_words()
+    assert drop_looped_words(words, ratios) == drop_looped_words(words, [None] * len(words))
+
+
+def test_short_window_ratios_equal_explicit_none_padding() -> None:
+    words = _short_ratio_words()
+    assert drop_looped_words(words, [2.5] * 12) == drop_looped_words(
+        words, [2.5] * 12 + [None] * (len(words) - 12)
+    )
+
+
+def test_window_ratios_longer_than_words_are_ignored() -> None:
+    words = _short_ratio_words()
+    exact = drop_looped_words(words, [None] * 5 + [2.5] * 18)
+    assert drop_looped_words(words, [None] * 5 + [2.5] * 35) == exact
+    assert exact.dropped == words[5:]
+
+
+def test_short_window_ratios_count_looped_segments_only_for_covered_words() -> None:
+    words = [*_words(["a"] * 3, 0.0, 2.0), *_words(["b"] * 3, 10.0, 2.0)]
+    assert drop_looped_words(words, [3.0] * 3).looped_segments == 1
+
+
+def test_guard_transcript_survives_short_window_ratios() -> None:
+    words = _words(LOOP_TEXT[:20], 5.0, 0.03)
+    transcript = Transcript(track_id="host", words=list(words))
+    report = guard_transcript(transcript, [3.0])
+    assert report is not None
+    assert report.dropped == words
+    assert transcript.words == []

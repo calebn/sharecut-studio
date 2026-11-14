@@ -111,7 +111,7 @@ def ingest_tracks(project: EpisodeProject, defaults: dict[str, Any]) -> StepSumm
 
 def _dropped_loops_summary(entries: list[dict[str, Any]]) -> str:
     def span(entry: dict[str, Any]) -> str:
-        return f"at {entry['start']:.1f}-{entry['end']:.1f}s on {entry['track_id']}"
+        return f"at {entry['start']:.2f}-{entry['end']:.2f}s on {entry['track_id']}"
 
     if len(entries) > 3:
         total = sum(entry["dropped"] for entry in entries)

@@ -20,7 +20,8 @@ over-threshold windows that dropped nothing.
 The guard is a post-process on the model's output, so it is not part of
 ``AsrOptions.decode_key()``. ``read_asr_cache`` runs it too, without window ratios (a
 cache holds none), so a cache that already holds a loop gets the own-text test only and
-its words are dropped on every read; the cache file is not rewritten.
+its words are dropped on every read; the cache file is not rewritten. Callers that only
+test for a cache hit pass ``guard=False`` and get the words as stored.
 """
 
 from __future__ import annotations
@@ -133,11 +134,14 @@ def drop_looped_words(
     """Split ``words`` into kept and dropped.
 
     ``window_ratios`` holds, per word, the compression ratio of the decode window it came
-    from; anything that is not a real number is ignored.
+    from; anything that is not a real number is ignored. A list shorter than ``words`` is
+    padded with None, and extra entries are ignored.
     """
     order = sorted(range(len(words)), key=lambda i: words[i].start)
     starts = [words[i].start for i in order]
-    ratios = [_real_ratio(r) for r in window_ratios or [None] * len(words)]
+    raw = list(window_ratios or [])[: len(words)]
+    raw += [None] * (len(words) - len(raw))
+    ratios = [_real_ratio(r) for r in raw]
     dropped_at: set[int] = set()
     dense_words = 0
     zlib_peak: float | None = None

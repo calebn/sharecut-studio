@@ -641,10 +641,12 @@ class TranscriptionEngine:
         language: str | None,
         initial_prompt: str | None,
         audio_sha256: str,
+        guard: bool = True,
     ) -> tuple[Path, Transcript | None]:
         """This job's ASR cache path and its cached words.
 
-        The transcript is None on a miss; Whisper never runs here.
+        The transcript is None on a miss; Whisper never runs here. ``guard=False`` returns the
+        cached words as stored, for callers that only test for a hit.
         """
         cache = self.cache_path(
             project,
@@ -655,7 +657,7 @@ class TranscriptionEngine:
             audio_sha256=audio_sha256,
         )
         transcript = _read_cache(cache)
-        if transcript is not None:
+        if transcript is not None and guard:
             self._loop_drop = guard_transcript(transcript)
         return cache, transcript
 

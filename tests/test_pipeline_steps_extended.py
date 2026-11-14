@@ -2265,7 +2265,7 @@ def test_transcribe_tracks_reports_dropped_looped_words(minimal_project, sample_
         eng_cls.return_value.transcribe_all_dialogue.return_value = [_asr_result()]
         eng_cls.return_value.asr_loop_drops = [entry]
         summary = steps.transcribe_tracks(proj, load_defaults())
-    assert "dropped 221 looped word(s) at 299.8-300.0s on vicky" in summary
+    assert "dropped 221 looped word(s) at 299.84-299.96s on vicky" in summary
     data = json.loads((proj.artifacts_dir() / "transcript_timing.json").read_text("utf-8"))
     assert data["asr_loops"] == [entry]
 
@@ -2279,7 +2279,34 @@ def test_transcribe_tracks_collapses_looped_word_reports_past_three_tracks(
         eng_cls.return_value.transcribe_all_dialogue.return_value = [_asr_result()]
         eng_cls.return_value.asr_loop_drops = entries
         summary = steps.transcribe_tracks(proj, load_defaults())
-    assert "dropped 100 looped word(s) on 4 tracks, first at 299.8-300.0s on t0" in summary
+    assert "dropped 100 looped word(s) on 4 tracks, first at 299.84-299.96s on t0" in summary
+
+
+def test_dropped_loops_summary_shows_two_decimals() -> None:
+    entry = _loop_entry(dropped=5, start=299.85, end=299.96, track_id="t")
+    assert (
+        steps._dropped_loops_summary([entry]) == "dropped 5 looped word(s) at 299.85-299.96s on t"
+    )
+    entries = [_loop_entry(track_id=f"t{i}", dropped=1, start=299.85, end=299.96) for i in range(4)]
+    assert steps._dropped_loops_summary(entries) == (
+        "dropped 4 looped word(s) on 4 tracks, first at 299.85-299.96s on t0"
+    )
+
+
+def test_dropped_loops_summary_span_matches_the_log(caplog) -> None:
+    from podcast_mcp.engines.asr_loops import guard_transcript
+
+    words = [
+        TranscriptWord(text="no", start=299.84 + i * 0.0005, end=299.8405 + i * 0.0005)
+        for i in range(221)
+    ]
+    with caplog.at_level(logging.WARNING):
+        report = guard_transcript(Transcript(track_id="vicky", words=words))
+    assert report is not None
+    span = f"{report.start:.2f}-{report.end:.2f}s"
+    entry = _loop_entry(dropped=len(report.dropped), start=report.start, end=report.end)
+    assert span in caplog.text
+    assert f"at {span} on vicky" in steps._dropped_loops_summary([entry])
 
 
 def test_transcribe_tracks_keeps_dense_words_out_of_the_summary_but_in_the_timing_file(
