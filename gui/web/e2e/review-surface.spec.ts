@@ -90,6 +90,13 @@ for (const theme of ["light", "dark"] as const) {
           ).toHaveCount(0);
 
           const dock = guest.locator(".rv-compose");
+          const comment = guest.getByRole("button", { name: /^Comment at/ });
+          const row = guest.getByRole("button", {
+            name: /^Show\b.*\bcomments?/,
+          });
+          await expect(comment).toBeInViewport();
+          await expect(dock).toHaveCount(0);
+          await comment.tap();
           const field = dock.getByRole("textbox", {
             name: "Comment",
             exact: true,
@@ -98,29 +105,34 @@ for (const theme of ["light", "dark"] as const) {
           await expect(field).toBeInViewport();
           await expect(post).toBeInViewport();
           await expect(post).toBeDisabled();
-          await expect(dock.locator(".sys-composer-chip")).toContainText(
-            "Follows the playhead",
-          );
+          await expectPageAxeClean(guest);
 
           const body = `Phone guest feedback in ${theme}`;
-          await field.tap();
           await field.fill(body);
           await post.tap();
-          await expect(field).toHaveValue("");
-          const posted = await selectCommentCard(guest, body);
-          await expect(posted).toContainText("0:00");
+          await expect(dock).toHaveCount(0);
+          await expect(row).toContainText("Comment added at 0:00");
           await expect(
             guest.getByRole("dialog", { name: "Inspector" }),
           ).toHaveCount(0);
           await expectNoHorizontalScroll(guest, 320);
-          await expectPageAxeClean(guest);
           await guest.screenshot({
             path: test.info().outputPath("commenter-phone-posted.png"),
           });
 
+          await comment.tap();
           await expect(
             dock.getByRole("textbox", { name: "Your name" }),
           ).toHaveValue("");
+          await dock.getByRole("button", { name: "Close", exact: true }).tap();
+          await expect(dock).toHaveCount(0);
+
+          await row.tap();
+          const posted = guest
+            .getByRole("dialog", { name: "Comments" })
+            .locator(".sys-queue-row")
+            .filter({ hasText: body });
+          await expect(posted).toContainText("0:00");
           await expectNoHorizontalScroll(guest, 320);
         },
       );
