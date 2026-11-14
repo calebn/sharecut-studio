@@ -702,6 +702,10 @@ describe("guestCovers", () => {
       },
     });
     expect(downloading?.primary).toMatchObject({ busyLabel: "Saving…" });
+    expect(downloading?.secondary).toMatchObject({
+      busy: true,
+      busyLabel: undefined,
+    });
     const leftRunning = guestCovers({
       ...coverSource,
       left: true,
@@ -721,10 +725,6 @@ describe("guestCovers", () => {
     expect(leftRunning?.secondary).toMatchObject({
       busy: true,
       busyLabel: "Saving…",
-    });
-    expect(downloading?.secondary).toMatchObject({
-      busy: true,
-      busyLabel: undefined,
     });
   });
 

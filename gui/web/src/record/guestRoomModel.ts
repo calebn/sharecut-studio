@@ -603,7 +603,6 @@ export function guestCoverProps(
   // Before the first take, or once the server has acknowledged every segment
   // the device holds, there is nothing here to save: whatever the device still
   // holds (a copy kept for the reclaim grace after a download) is a duplicate.
-  // An acknowledgement only covers the segments its pass saw.
   const hasLocalCopy =
     (room.snapshot?.take_index ?? -1) >= 0 &&
     room.localRecording &&
