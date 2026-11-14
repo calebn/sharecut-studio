@@ -1,4 +1,3 @@
-import { isShareProjectKey } from "../shareMode";
 import { selectedTrackIdsOf } from "../state/selection";
 import type { RangeDraft } from "../state/types";
 import type {
@@ -198,17 +197,28 @@ export type RangeResolution = {
   refreshing?: true;
 };
 
+/**
+ * Stored ranges that were made from a guest's Script words. Their seconds came
+ * from words the host may since have moved, so they wait for the words like a
+ * word range does. A range drawn on the timeline needs no words and is not here.
+ */
+const fromScriptWords = new WeakSet<object>();
+
+export function markScriptRange(selection: Selection): void {
+  if (selection?.kind === "range") fromScriptWords.add(selection);
+}
+
+export function isScriptRange(selection: Selection): boolean {
+  return selection?.kind === "range" && fromScriptWords.has(selection);
+}
+
 export function resolveSelectionRange(
   project: ProjectView,
   selection: Selection,
-  projectPath?: string | null,
 ): RangeResolution {
   if (selection?.kind === "range") {
-    // A guest link only: its range may have been drawn from words whose times the
-    // host has since moved, and the project does not have them to check against.
     if (
-      projectPath != null &&
-      isShareProjectKey(projectPath) &&
+      isScriptRange(selection) &&
       project.meta?.hydration?.transcript_words === false
     )
       return { targets: [], reason: TRANSCRIPT_REFRESHING, refreshing: true };
