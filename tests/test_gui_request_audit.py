@@ -135,3 +135,16 @@ def test_install_adds_the_middleware_only_when_enabled(monkeypatch: pytest.Monke
 
     assert [m.cls for m in off.user_middleware] == []
     assert [m.cls for m in on.user_middleware] == [RequestAudit]
+
+
+def test_a_share_link_token_in_the_path_is_not_written(tmp_path: Path) -> None:
+    log = tmp_path / "request-audit.jsonl"
+    app = RequestAudit(_answer_200, log)
+    socket = {"type": "websocket", "path": "/api/rec/velvet-quokka-umbra/ws", "query_string": b""}
+
+    _call(app, _http("/api/shares/velvet-quokka-umbra/revoke", b"", method="POST"))
+    _call(RequestAudit(_accept_socket, tmp_path / "ws.jsonl"), socket)
+
+    assert "quokka" not in log.read_text(encoding="utf-8")
+    assert _lines(log)[0]["path"] == "/api/shares/<share-token>/revoke"
+    assert _lines(tmp_path / "ws.jsonl")[0]["path"] == "/api/rec/<share-token>/ws"
