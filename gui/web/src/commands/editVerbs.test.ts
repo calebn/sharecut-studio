@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import * as api from "../api";
 import { playPendingPreview } from "../audio/pendingPreview";
 import type { EditFacts } from "../edit/editSelection";
-import { markScriptRange, TRANSCRIPT_REFRESHING } from "../edit/rangeSelection";
+import { markScriptRange } from "../edit/rangeSelection";
 import { useDawStore } from "../state/dawStore";
 import { barDisplay } from "../system/editActionSets";
 import {

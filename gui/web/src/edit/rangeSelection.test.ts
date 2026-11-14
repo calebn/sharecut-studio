@@ -400,7 +400,7 @@ describe("a stored timeline range while the words are refreshing", () => {
   it("belongs to the one object marked, not to an equal copy", () => {
     const range = made();
     markScriptRange(range);
-    expect(isScriptRange({ ...range })).toBe(false);
+    expect(isScriptRange({ kind: "range", target: stored })).toBe(false);
     expect(isScriptRange(null)).toBe(false);
   });
 });
