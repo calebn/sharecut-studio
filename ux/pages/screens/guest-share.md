@@ -13,7 +13,7 @@ flowchart LR
 
 | Share setup | Surface | What the guest sees |
 |-------------|---------|---------------------|
-| Viewer, Commenter (default) or Editor | **ShareCut Studio guest** | Stages gated by role (a Commenter link is Review alone). Role chip in the header. |
+| Viewer, Commenter (default) or Editor | **ShareCut Studio guest** | Stages gated by role (a Commenter or Viewer link is Review alone, an Editor link has Edit, Review and Deliver). Role chip in the header. |
 | Any capability set without `view` (API only, no role mints one) | **Cover** | "This link doesn't open anything" with "Ask the person who sent it for a new link." beneath it. |
 
 A dead, revoked or no-`view` link, and a host that cannot be reached with no saved copy, each show a full-page cover instead of the studio: the link covers say "This link doesn't open anything" and "Ask the person who sent it for a new link."; "The host's computer is asleep" (a moon) (a down host, or a 502, 503 or 504 from the relay) says "This page tries again every 30 seconds." and offers **Try now**; any other load failure, such as a 429 or 500, shows "This link did not load" with **Retry**. The cover takes focus when it appears. When the host cannot be reached but this browser holds a saved copy, the studio opens read-only and the Save dot shows a hollow cloud and "Saved copy · N waiting" (the comments waiting to send, left out when none; the phone shows the cloud and the count); its tooltip and screen-reader text say "Showing a saved copy because the host can't be reached. It is read-only."
