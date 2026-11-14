@@ -1,5 +1,5 @@
 import { act, renderHook } from "@testing-library/react";
-import { afterEach, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useDawStore } from "../state/dawStore";
 import { deferred } from "../test/deferred";
 import { minimalProject } from "../test/fixtures";
@@ -7,7 +7,10 @@ import { documentAuthority, resetDocumentAuthority } from "./authorityState";
 import { scheduleTranscriptDetailHydrate } from "./hydrateTranscriptDetail";
 import type { DocumentSnapshot } from "./projectPatch";
 import { settledTranscriptOf, transcriptGrantOf } from "./shownTranscript";
-import { useTranscriptDetail } from "./useTranscriptDetail";
+import {
+  TRANSCRIPT_STALL_MS,
+  useTranscriptDetail,
+} from "./useTranscriptDetail";
 
 const { loadDetail } = vi.hoisted(() => ({ loadDetail: vi.fn() }));
 vi.mock("../api/project", async (importOriginal) => ({
@@ -294,4 +297,104 @@ it("a host session never holds words", () => {
   const { result } = renderHook(useTranscriptDetail);
   showWordFree([guestRow("one", 0, false)]);
   expect(result.current.kind).toBe("pending");
+});
+
+it("a guest with all rows waiting but a remembered grant is ready, drawn as bars", () => {
+  openGuest();
+  hold();
+  const { result } = renderHook(useTranscriptDetail);
+  showWordFree([
+    { ...guestRow("uno", 0, false), text: "uno" },
+    { ...guestRow("dos", 4, false), text: "dos" },
+  ]);
+  if (result.current.kind !== "ready") throw new Error("expected ready");
+  expect(result.current.shown.rows.map((r) => r.kind)).toEqual([
+    "waiting",
+    "waiting",
+  ]);
+});
+
+describe("a refresh that stops moving", () => {
+  const STALL = TRANSCRIPT_STALL_MS;
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+  const wordFree = () => [
+    guestRow("one", 0, false),
+    { ...guestRow("two", 4, false), timeline_start: 7 },
+  ];
+
+  it("becomes failed after 35 s on the same commit", () => {
+    openGuest();
+    hold();
+    const { result } = renderHook(useTranscriptDetail);
+    showWordFree(wordFree());
+    expect(result.current.kind).toBe("ready");
+    act(() => vi.advanceTimersByTime(STALL - 1));
+    expect(result.current.kind).toBe("ready");
+    act(() => vi.advanceTimersByTime(1));
+    expect(result.current).toMatchObject({ kind: "failed", recovering: false });
+  });
+
+  it("restarts the clock on a new commit", () => {
+    openGuest();
+    hold();
+    const { result } = renderHook(useTranscriptDetail);
+    showWordFree(wordFree());
+    act(() => vi.advanceTimersByTime(20_000));
+    act(() => {
+      documentAuthority.token = "b".repeat(64);
+      useDawStore.setState({ project: guestProject(wordFree(), false) });
+    });
+    act(() => vi.advanceTimersByTime(20_000));
+    expect(result.current.kind).toBe("ready");
+    act(() => vi.advanceTimersByTime(STALL - 20_000));
+    expect(result.current.kind).toBe("failed");
+  });
+
+  it("Retry from the stuck state schedules the detail again and restarts the clock", () => {
+    openGuest();
+    hold();
+    const { result } = renderHook(useTranscriptDetail);
+    showWordFree(wordFree());
+    act(() => scheduleTranscriptDetailHydrate(useDawStore.getState().project));
+    act(() => vi.advanceTimersByTime(STALL));
+    if (result.current.kind !== "failed") throw new Error("expected failed");
+    loadDetail.mockClear();
+    act(() => (result.current as { retry: () => void }).retry());
+    expect(loadDetail).toHaveBeenCalledTimes(1);
+    expect(result.current.kind).toBe("ready");
+    act(() => vi.advanceTimersByTime(STALL));
+    expect(result.current.kind).toBe("failed");
+  });
+
+  it("Retry starts a stalled recovery again", () => {
+    openGuest();
+    hold();
+    const { result } = renderHook(useTranscriptDetail);
+    showWordFree(wordFree());
+    documentAuthority.phase = { kind: "recovering", minimum: 1 };
+    act(() => vi.advanceTimersByTime(STALL));
+    loadDetail.mockClear();
+    act(() => (result.current as { retry: () => void }).retry());
+    expect(loadDetail).toHaveBeenCalledWith(
+      "share:tok",
+      "shell",
+      expect.anything(),
+    );
+  });
+
+  it("never fails a host", () => {
+    const complete = guestProject([guestRow("one", 0, true)], true);
+    useDawStore.getState().hydrate("/tmp/host.json", complete);
+    resetDocumentAuthority("/tmp/host.json");
+    hold();
+    const { result } = renderHook(useTranscriptDetail);
+    showWordFree([guestRow("one", 0, false)]);
+    act(() => vi.advanceTimersByTime(STALL * 2));
+    expect(result.current.kind).toBe("pending");
+  });
 });
