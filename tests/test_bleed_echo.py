@@ -638,3 +638,43 @@ def test_profiles_pinned() -> None:
         "null_consistent_rate=0.011888111888111888, "
         "long_delay_regions=())]"
     )
+
+
+def test_copy_rows_do_not_depend_on_the_chunk_size(monkeypatch: pytest.MonkeyPatch) -> None:
+    host = _speech_like(20.0, seed=3)
+    guest = _delayed_copy(host, delay_samples=24, gain_db=-18.0) + _speech_like(20.0, seed=4) * 0.05
+    (src, _), (bld, _) = _at_voice(host), _at_voice(guest)
+    cfg = EchoConfig()
+    frame = max(1, round(cfg.frame_sec * RATE))
+    src_db = frame_rms_db(src, frame, frame)
+    bld_db = frame_rms_db(bld, frame, frame)
+
+    def rows(shift_frames: int) -> tuple[int, list[tuple[int, float, float]]]:
+        return bleed_echo._copy_rows(
+            src,
+            bld,
+            src_db,
+            bld_db,
+            sample_rate=RATE,
+            frame=frame,
+            shift_frames=shift_frames,
+            cfg=cfg,
+            limit=None,
+            use_open=True,
+        )
+
+    for shift_frames in (0, 37):
+        batched = rows(shift_frames)
+        assert batched[0] > bleed_echo._COPY_CHUNK
+        assert batched[1]
+        with monkeypatch.context() as patch:
+            patch.setattr(bleed_echo, "_COPY_CHUNK", 1)
+            assert rows(shift_frames) == batched
+
+
+def test_full_track_levels_sliced_to_a_prefix_equal_the_prefix_levels() -> None:
+    track = _speech_like(7.3, seed=5)
+    frame = 400
+    full = frame_rms_db(track, frame, frame)
+    for n in (1, 5, full.size - 1, full.size):
+        assert np.array_equal(full[:n], frame_rms_db(track[: n * frame], frame, frame))

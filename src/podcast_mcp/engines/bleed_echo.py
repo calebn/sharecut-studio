@@ -38,7 +38,6 @@ from typing import Any
 import numpy as np
 
 from podcast_mcp.config.defaults import EffectiveConfig
-from podcast_mcp.engines.align import xcorr_lag_window
 from podcast_mcp.engines.bleed_delay import (
     LongDelayConfig,
     LongDelayEvidence,
@@ -232,6 +231,33 @@ def echo_dominated_frames(
     return idx[open_frames] if use_open else idx[dominated]
 
 
+_COPY_CHUNK = 128
+
+
+def _frame_samples(cfg: EchoConfig, sample_rate: int) -> int:
+    return max(1, round(cfg.frame_sec * sample_rate))
+
+
+def _track_levels(audio: Mapping[str, np.ndarray], frame: int) -> dict[str, np.ndarray]:
+    return {tid: frame_rms_db(samples, frame, frame) for tid, samples in audio.items()}
+
+
+def _pair_levels(
+    levels: Mapping[str, np.ndarray], source_id: str, bleed_id: str
+) -> tuple[np.ndarray, np.ndarray]:
+    """Both tracks' frame levels cut to their common frame count.
+
+    With ``hop == frame`` each frame is reduced on its own, so a prefix of a full-track
+    level array equals the levels of the same prefix of samples.
+    """
+    n = min(levels[source_id].size, levels[bleed_id].size)
+    return levels[source_id][:n], levels[bleed_id][:n]
+
+
+def _open_policy(src_db: np.ndarray, bld_db: np.ndarray, cfg: EchoConfig) -> bool:
+    return echo_open_fallback(src_db, bld_db, np.arange(src_db.size), cfg=cfg)
+
+
 def _copy_rows(
     source: np.ndarray,
     bleed: np.ndarray,
@@ -258,22 +284,36 @@ def _copy_rows(
     if limit is not None and selected.size > limit:
         selected = selected[np.linspace(0, selected.size - 1, limit).astype(int)]
     max_lag = max(1, round(cfg.max_lag_sec * sample_rate))
+    take = min(max_lag, frame - 1)
+    fft_n = 1 << int(np.ceil(np.log2(2 * frame - 1)))
+    source_frames = source[: n * frame].reshape(n, frame)
+    bleed_frames = bleed[: n * frame].reshape(n, frame)
     rows: list[tuple[int, float, float]] = []
-    for i in selected:
-        a = source[i * frame : (i + 1) * frame].astype(np.float64)
-        b = bleed[partner[i] * frame : (partner[i] + 1) * frame].astype(np.float64)
-        if a.size < frame or b.size < frame:
+    for lo in range(0, selected.size, _COPY_CHUNK):
+        chunk = selected[lo : lo + _COPY_CHUNK]
+        a = source_frames[chunk].astype(np.float64)
+        b = bleed_frames[partner[chunk]].astype(np.float64)
+        a -= a.mean(axis=1, keepdims=True)
+        b -= b.mean(axis=1, keepdims=True)
+        energy_a = np.array([np.dot(row, row) for row in a])
+        energy_b = np.array([np.dot(row, row) for row in b])
+        norm = np.sqrt(energy_a * energy_b)
+        live = norm > 0.0
+        if not live.all():
+            chunk, a, b, norm = chunk[live], a[live], b[live], norm[live]
+        if not chunk.size:
             continue
-        a -= a.mean()
-        b -= b.mean()
-        norm = float(np.sqrt(np.dot(a, a) * np.dot(b, b)))
-        if norm <= 0.0:
-            continue
-        corr, center = xcorr_lag_window(a, b, max_lag)
-        k = int(np.argmax(corr))
-        peak = float(corr[k]) / norm
-        if peak >= cfg.copy_ncc:
-            rows.append((int(i), (center - k) / sample_rate * 1000.0, peak))
+        spec = np.fft.rfft(a, fft_n, axis=1) * np.conj(np.fft.rfft(b, fft_n, axis=1))
+        circ = np.fft.irfft(spec, fft_n, axis=1)
+        corr = np.zeros((chunk.size, 2 * max_lag + 1))
+        corr[:, max_lag : max_lag + 1 + take] = circ[:, : 1 + take]
+        if take:
+            corr[:, max_lag - take : max_lag] = circ[:, -take:]
+        k = np.argmax(corr, axis=1)
+        peak = corr[np.arange(chunk.size), k] / norm
+        for i, ki, p in zip(chunk, k, peak, strict=True):
+            if p >= cfg.copy_ncc:
+                rows.append((int(i), (max_lag - int(ki)) / sample_rate * 1000.0, float(p)))
     return dominated, rows
 
 
@@ -351,12 +391,38 @@ def echo_pair_profile(
 ) -> EchoPairProfile:
     """Profile one direction of one mic pair from timeline-aligned samples starting at ``t0``."""
     cfg = config or EchoConfig()
-    frame = max(1, round(cfg.frame_sec * sample_rate))
+    frame = _frame_samples(cfg, sample_rate)
     n = min(source.size, bleed.size)
-    src_db = frame_rms_db(source[:n], frame, frame)
-    bld_db = frame_rms_db(bleed[:n], frame, frame)
-    n_frames = min(src_db.size, bld_db.size)
-    use_open = echo_open_fallback(src_db, bld_db, np.arange(n_frames), cfg=cfg)
+    return _profile_from_levels(
+        source,
+        bleed,
+        frame_rms_db(source[:n], frame, frame),
+        frame_rms_db(bleed[:n], frame, frame),
+        sample_rate=sample_rate,
+        t0=t0,
+        source_track_id=source_track_id,
+        bleed_track_id=bleed_track_id,
+        gap_db=gap_db,
+        cfg=cfg,
+    )
+
+
+def _profile_from_levels(
+    source: np.ndarray,
+    bleed: np.ndarray,
+    src_db: np.ndarray,
+    bld_db: np.ndarray,
+    *,
+    sample_rate: int,
+    t0: float,
+    source_track_id: str,
+    bleed_track_id: str,
+    gap_db: float,
+    cfg: EchoConfig,
+) -> EchoPairProfile:
+    frame = _frame_samples(cfg, sample_rate)
+    n = min(source.size, bleed.size)
+    use_open = _open_policy(src_db, bld_db, cfg)
     dominated, copies = _copy_rows(
         source,
         bleed,
@@ -473,7 +539,10 @@ def _cached_profiles(
         profile = file_level_profile(Path(path))
         audio[tid] = mono * np.float32(profile.voice_gain)
         voices[tid] = profile.path_reference_db
-    return _profile_pairs(audio, voices, sample_rate=cfg.sample_rate, t0=span_start, cfg=cfg)
+    levels = _track_levels(audio, _frame_samples(cfg, cfg.sample_rate))
+    return _profile_pairs(
+        audio, voices, sample_rate=cfg.sample_rate, t0=span_start, cfg=cfg, levels=levels
+    )
 
 
 def _profile_pairs(
@@ -483,51 +552,34 @@ def _profile_pairs(
     sample_rate: int,
     t0: float,
     cfg: EchoConfig,
+    levels: Mapping[str, np.ndarray],
 ) -> tuple[EchoPairProfile, ...]:
     return tuple(
-        echo_pair_profile(
+        _profile_from_levels(
             audio[a],
             audio[b],
+            *_pair_levels(levels, a, b),
             sample_rate=sample_rate,
             t0=t0,
             source_track_id=a,
             bleed_track_id=b,
             gap_db=voices[b] - voices[a],
-            config=cfg,
+            cfg=cfg,
         )
         for a, b in permutations(audio, 2)
     )
 
 
-def _uses_open(
-    source: np.ndarray,
-    bleed: np.ndarray,
-    *,
-    sample_rate: int,
-    cfg: EchoConfig,
-) -> bool:
-    frame = max(1, round(cfg.frame_sec * sample_rate))
-    n = min(source.size, bleed.size)
-    src_db = frame_rms_db(source[:n], frame, frame)
-    bld_db = frame_rms_db(bleed[:n], frame, frame)
-    n_frames = min(src_db.size, bld_db.size)
-    return echo_open_fallback(src_db, bld_db, np.arange(n_frames), cfg=cfg)
-
-
 def _drop_open_reverse(
     risks: list[EchoPairProfile],
-    audio: Mapping[str, np.ndarray],
+    levels: Mapping[str, np.ndarray],
     *,
-    sample_rate: int,
     cfg: EchoConfig,
 ) -> list[EchoPairProfile]:
     flagged = {(p.source_track_id, p.bleed_track_id) for p in risks}
     uses_open = {
-        (p.source_track_id, p.bleed_track_id): _uses_open(
-            audio[p.source_track_id],
-            audio[p.bleed_track_id],
-            sample_rate=sample_rate,
-            cfg=cfg,
+        (p.source_track_id, p.bleed_track_id): _open_policy(
+            *_pair_levels(levels, p.source_track_id, p.bleed_track_id), cfg
         )
         for p in risks
     }
@@ -557,12 +609,15 @@ def echo_risk_pairs(
     null shifts wrap inside it as in :func:`echo_profiles`.
     """
     cfg = config or EchoConfig()
+    levels = _track_levels(audio, _frame_samples(cfg, sample_rate))
     risks = [
         p
-        for p in _profile_pairs(audio, voices, sample_rate=sample_rate, t0=0.0, cfg=cfg)
+        for p in _profile_pairs(
+            audio, voices, sample_rate=sample_rate, t0=0.0, cfg=cfg, levels=levels
+        )
         if p.echo_risk(cfg)
     ]
-    return _drop_open_reverse(risks, audio, sample_rate=sample_rate, cfg=cfg)
+    return _drop_open_reverse(risks, levels, cfg=cfg)
 
 
 def echo_profiles(
