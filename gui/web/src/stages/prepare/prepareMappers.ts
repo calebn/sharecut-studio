@@ -1,3 +1,4 @@
+import type { StaleTrack } from "../../api";
 import { capabilityOf, type NeedTarget } from "../../models";
 import type { SourceCardProps } from "../../system/SourceCard";
 import type {
@@ -13,6 +14,8 @@ import type { CleanupSettings } from "./PrepareView";
 import type { PreparePhase } from "./prepareAnnouncement";
 import type { PrepareSession, PrepareSource } from "./prepareTypes";
 import type { ReadyRowData, ReadyRowId } from "./ReadyList";
+import { type LanguageStatus, recordedLanguageName } from "./useLanguageStatus";
+import { languageName } from "./whisperLanguages";
 
 export const TIGHTEN_INTENSITY_PATH = "tighten.intensity";
 const MASTER_LUFS_PATH = "master.integrated_lufs";
@@ -381,8 +384,9 @@ export type ReadyInput = {
 export type RerunPlan = {
   /** Who is new: speaker names, else track labels. */
   newNames: readonly string[];
-  /** Tracks that already have their results. */
   kept: number;
+  restale?: { count: number; language: string };
+  handFixes?: { language: string };
   /** Rows the person skipped for this run only. */
   skipped: ReadonlySet<ReadyRowId>;
   settings: PlanSettings | null;
@@ -390,6 +394,26 @@ export type RerunPlan = {
   /** How long sound actions take; set only while they are on. */
   soundScanTime?: string | null;
 };
+
+export function languagePlanOf(
+  status: LanguageStatus | null,
+  sourceIds: ReadonlySet<string>,
+  newIds: ReadonlySet<string>,
+): { restale: number; language: string; handFixes: string | null } | null {
+  if (!status?.language) return null;
+  const earlier = (t: StaleTrack) =>
+    sourceIds.has(t.track_id) && !newIds.has(t.track_id);
+  const editedIds = new Set(status.edited.map((t) => t.track_id));
+  const stale = status.stale.filter(earlier);
+  const kept = stale.filter((t) => editedIds.has(t.track_id));
+  const restale = stale.length - kept.length;
+  if (restale === 0 && kept.length === 0) return null;
+  return {
+    restale,
+    language: languageName(status.language),
+    handFixes: kept.length > 0 ? recordedLanguageName(kept) : null,
+  };
+}
 
 function joined(names: readonly string[]): string {
   return names.length === 2 ? `${names[0]} and ${names[1]}` : names[0];
@@ -411,17 +435,48 @@ export function planNote(plan: RerunPlan): string {
     names.length === 1
       ? `${names[0]}’s audio is new.`
       : `${names.length === 2 ? joined(names) : `${names.length} tracks`} have new audio.`;
-  const rest =
-    kept === 1
+  return `${first} ${restOfPlan(kept, plan.restale)}`;
+}
+
+function restOfPlan(kept: number, restale: RerunPlan["restale"]): string {
+  if (!restale || restale.count === 0) {
+    return kept === 1
       ? "The other track keeps its transcript."
       : `The other ${kept} tracks keep their transcripts.`;
-  return `${first} ${rest}`;
+  }
+  const { count, language } = restale;
+  if (kept === 0) {
+    return count === 1
+      ? `The other track will be re-transcribed in ${language}.`
+      : `The other ${count} tracks will be re-transcribed in ${language}.`;
+  }
+  return `${count} of the other ${count + kept} tracks will be re-transcribed in ${language}; the rest keep their transcripts.`;
+}
+
+function transcribeScope(plan: RerunPlan, who: string): string {
+  const { kept, restale } = plan;
+  const redone = restale?.count ?? 0;
+  const parts: string[] = [];
+  if (restale && redone > 0) {
+    const earlier = `${redone} earlier ${redone === 1 ? "track" : "tracks"}`;
+    const people = plan.newNames.length === 2 ? plan.newNames.join(", ") : who;
+    parts.push(
+      `${people} and ${earlier} · re-transcribing in ${restale.language}`,
+    );
+    if (kept > 0) parts.push(`${kept} kept`);
+  } else {
+    parts.push(`${who} only · ${kept} kept`);
+  }
+  if (plan.handFixes) {
+    parts.push(`Hand fixes kept in ${plan.handFixes.language}`);
+  }
+  return parts.join(" · ");
 }
 
 function planRows(plan: RerunPlan): ReadyRowData[] {
   const who = whoIsNew(plan.newNames);
-  const scope = `${who} only · ${plan.kept} kept`;
-  const total = plan.kept + plan.newNames.length;
+  const scope = transcribeScope(plan, who);
+  const total = plan.kept + (plan.restale?.count ?? 0) + plan.newNames.length;
   const joins = `All ${total} tracks, ${who} ${plan.newNames.length === 1 ? "joins" : "join"}`;
   // Only Transcribe skips tracks that already have results (#2890 covers the
   // rest), so only it says "kept"; the other rows say what runs on all.

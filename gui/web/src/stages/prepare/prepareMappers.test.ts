@@ -6,6 +6,7 @@ import {
   cleanupFromConfig,
   handoffProps,
   isWorking,
+  languagePlanOf,
   oneRunSkipSteps,
   PROCESS_NEW_AUDIO,
   planNote,
@@ -1029,6 +1030,93 @@ describe("the plan for audio added after a run", () => {
     expect(planNote(plan({ newNames: ["A", "B", "C"], kept: 1 }))).toBe(
       "3 tracks have new audio. The other track keeps its transcript.",
     );
+  });
+
+  describe("when earlier tracks re-transcribe in a new language", () => {
+    const restale = (count: number) => ({ count, language: "Spanish" });
+
+    it("does not call them kept", () => {
+      const p = plan({ kept: 0, restale: restale(3) });
+      expect(rows(p)[1].detail).toBe(
+        "Priya and 3 earlier tracks · re-transcribing in Spanish",
+      );
+      expect(rows(p)[2].detail).toBe("All 4 tracks, Priya joins");
+      expect(planNote(p)).toBe(
+        "Priya’s audio is new. The other 3 tracks will be re-transcribed in Spanish.",
+      );
+    });
+
+    it("uses the singular and names two new people", () => {
+      const one = plan({
+        newNames: ["Priya", "Joss"],
+        kept: 0,
+        restale: restale(1),
+      });
+      expect(rows(one)[1].detail).toBe(
+        "Priya, Joss and 1 earlier track · re-transcribing in Spanish",
+      );
+      expect(planNote(plan({ kept: 0, restale: restale(1) }))).toBe(
+        "Priya’s audio is new. The other track will be re-transcribed in Spanish.",
+      );
+    });
+
+    it("keeps the rest as kept", () => {
+      const p = plan({ kept: 1, restale: restale(2) });
+      expect(rows(p)[1].detail).toBe(
+        "Priya and 2 earlier tracks · re-transcribing in Spanish · 1 kept",
+      );
+      expect(planNote(p)).toBe(
+        "Priya’s audio is new. 2 of the other 3 tracks will be re-transcribed in Spanish; the rest keep their transcripts.",
+      );
+    });
+
+    it("says where hand fixes stay", () => {
+      expect(
+        rows(plan({ kept: 1, handFixes: { language: "English" } }))[1].detail,
+      ).toBe("Priya only · 1 kept · Hand fixes kept in English");
+      expect(
+        rows(
+          plan({
+            kept: 1,
+            restale: restale(1),
+            handFixes: { language: "English" },
+          }),
+        )[1].detail,
+      ).toBe(
+        "Priya and 1 earlier track · re-transcribing in Spanish · 1 kept · Hand fixes kept in English",
+      );
+    });
+  });
+
+  describe("languagePlanOf", () => {
+    const t = (id: string) => ({ track_id: id, name: id, recorded: "en" });
+    const sources = new Set(["a", "b", "c", "d"]);
+    const fresh = new Set(["d"]);
+
+    it("has nothing to say without a stale track", () => {
+      expect(languagePlanOf(null, sources, fresh)).toBeNull();
+      expect(
+        languagePlanOf(
+          { language: "es", stale: [], edited: [] },
+          sources,
+          fresh,
+        ),
+      ).toBeNull();
+    });
+
+    it("splits re-transcribed from hand-fixed tracks and skips new or unknown ones", () => {
+      expect(
+        languagePlanOf(
+          {
+            language: "es",
+            stale: [t("a"), t("b"), t("d"), t("gone")],
+            edited: [t("b")],
+          },
+          sources,
+          fresh,
+        ),
+      ).toEqual({ restale: 1, language: "Spanish", handFixes: "English" });
+    });
   });
 
   it("explains the plan in one line", () => {
