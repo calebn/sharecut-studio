@@ -245,10 +245,10 @@ def _track_levels(audio: Mapping[str, np.ndarray], frame: int) -> dict[str, np.n
 def _pair_levels(
     levels: Mapping[str, np.ndarray], source_id: str, bleed_id: str
 ) -> tuple[np.ndarray, np.ndarray]:
-    """Both tracks' frame levels cut to their common frame count.
+    """Cut both level arrays to their common length.
 
-    With ``hop == frame`` each frame is reduced on its own, so a prefix of a full-track
-    level array equals the levels of the same prefix of samples.
+    With ``hop == frame`` each frame is reduced alone, so slicing a full-track level array
+    matches the levels of the sliced samples.
     """
     n = min(levels[source_id].size, levels[bleed_id].size)
     return levels[source_id][:n], levels[bleed_id][:n]
