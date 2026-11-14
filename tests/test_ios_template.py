@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+import plistlib
 import re
 import shutil
 import subprocess
@@ -125,3 +126,46 @@ def test_an_unsigned_build_signs_the_python_frameworks_ad_hoc() -> None:
         '          if [ -z "${EXPANDED_CODE_SIGN_IDENTITY:-}" ]; then '
         "export EXPANDED_CODE_SIGN_IDENTITY=-; fi\n"
     ) in TEMPLATE
+
+
+def test_the_plist_declares_the_name_under_the_icon_and_no_non_exempt_encryption() -> None:
+    assert "        CFBundleDisplayName: ShareCut\n" in TEMPLATE
+    assert "        ITSAppUsesNonExemptEncryption: false\n" in TEMPLATE
+    assert OVERLAY["bundle"]["iOS"]["minimumSystemVersion"] == "17.0"
+
+
+def test_the_plist_asks_for_no_microphone_until_recording_exists() -> None:
+    assert (
+        '          /usr/libexec/PlistBuddy -c "Delete :NSMicrophoneUsageDescription" '
+        '"$CODESIGNING_FOLDER_PATH/Info.plist" 2>/dev/null || true\n'
+    ) in TEMPLATE
+    assert "NSMicrophoneUsageDescription:" not in TEMPLATE
+
+
+def test_the_privacy_manifest_ships_as_a_bundle_resource() -> None:
+    assert (
+        "      - path: ../../ios/PrivacyInfo.xcprivacy\n        buildPhase: resources\n"
+    ) in TEMPLATE
+
+
+def test_the_privacy_manifest_declares_the_required_reason_apis_the_binaries_call() -> None:
+    manifest = plistlib.loads((TAURI / "ios/PrivacyInfo.xcprivacy").read_bytes())
+    assert manifest == {
+        "NSPrivacyTracking": False,
+        "NSPrivacyTrackingDomains": [],
+        "NSPrivacyCollectedDataTypes": [],
+        "NSPrivacyAccessedAPITypes": [
+            {
+                "NSPrivacyAccessedAPIType": "NSPrivacyAccessedAPICategoryFileTimestamp",
+                "NSPrivacyAccessedAPITypeReasons": ["C617.1"],
+            },
+            {
+                "NSPrivacyAccessedAPIType": "NSPrivacyAccessedAPICategorySystemBootTime",
+                "NSPrivacyAccessedAPITypeReasons": ["35F9.1"],
+            },
+            {
+                "NSPrivacyAccessedAPIType": "NSPrivacyAccessedAPICategoryDiskSpace",
+                "NSPrivacyAccessedAPITypeReasons": ["E174.1"],
+            },
+        ],
+    }

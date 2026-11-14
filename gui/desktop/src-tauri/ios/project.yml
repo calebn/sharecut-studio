@@ -51,6 +51,8 @@ targets:
       - path: ../../ios-payload/app_packages
         buildPhase: resources
         type: folder
+      - path: ../../ios/PrivacyInfo.xcprivacy
+        buildPhase: resources
     info:
       path: {{app.name}}_iOS/Info.plist
       properties:
@@ -68,6 +70,8 @@ targets:
           - UIInterfaceOrientationLandscapeRight
         CFBundleShortVersionString: {{apple.bundle-version-short}}
         CFBundleVersion: "{{apple.bundle-version}}"
+        CFBundleDisplayName: ShareCut
+        ITSAppUsesNonExemptEncryption: false
         UIFileSharingEnabled: true
         LSSupportsOpeningDocumentsInPlace: true
         NSAppTransportSecurity:
@@ -154,6 +158,8 @@ targets:
           if [ -z "${EXPANDED_CODE_SIGN_IDENTITY:-}" ]; then export EXPANDED_CODE_SIGN_IDENTITY=-; fi
           source "$PROJECT_DIR/../../ios-payload/Python.xcframework/build/utils.sh"
           install_python ../../ios-payload/Python.xcframework app_packages
+          # tauri merges the desktop src-tauri/Info.plist into this app's; the phone has no recording yet.
+          /usr/libexec/PlistBuddy -c "Delete :NSMicrophoneUsageDescription" "$CODESIGNING_FOLDER_PATH/Info.plist" 2>/dev/null || true
         name: Process Python libraries
     {{~#if ios-post-compile-scripts}}
     postCompileScripts:

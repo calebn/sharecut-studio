@@ -238,6 +238,22 @@ lib (a `staticlib`) with Python.xcframework linked into it; there is no sidecar 
   still names the machine and is not part of the app or the `.ipa`; never ship it. With no
   signing identity the `install_python` phase signs the frameworks it makes ad hoc, because
   `codesign` refuses an empty identity.
+- **Store metadata and privacy.** The template's Info.plist sets `CFBundleDisplayName` to
+  `ShareCut` and `ITSAppUsesNonExemptEncryption` to `false` (owner declaration, 2026-11-14: the
+  app uses only the system and Python TLS stacks for HTTPS and ships no other cryptography). The
+  minimum iOS version is 17.0 (the overlay). `src-tauri/ios/PrivacyInfo.xcprivacy` is the
+  app-level privacy manifest: no tracking, no collected data, and three required-reason API
+  categories, each found by `nm -u` over every Mach-O file of an unsigned device release `.app`
+  (90 files): file timestamp (`stat`, `fstat`, `lstat`, `fstatat` in the app executable, Python
+  and the extension modules; reason `C617.1`, the app reads timestamps only inside its own
+  container), system boot time (`mach_absolute_time` in Python, behind `time.monotonic`; `35F9.1`,
+  elapsed time between events) and disk space (`statfs`, `fstatfs` in Python, behind `os.statvfs`;
+  `E174.1`). No UserDefaults or active-keyboard symbol is present. Neither Python.xcframework nor
+  any wheel ships its own `.xcprivacy`, so none is moved into a framework. The reason codes are
+  from Apple's "Describing use of required reason API"; that page would not load as text here, so
+  the codes come from memory and the first App Store Connect validate run must confirm them. The
+  desktop `Info.plist`'s `NSMicrophoneUsageDescription` is merged into the app by tauri, and the
+  post-build phase deletes it from the built plist until recording exists on the phone.
 - **Lifecycle.** `src/lifecycle.rs` is a pure reducer (`Starting`, `Serving`, `Rechecking`,
   `Failed`; events `Bound`, `Healthy`, `Unhealthy` (both carry the probe's generation, and a
   result older than the current recheck is ignored), `StartFailed`, `NavigationFailed`, `Tick`,
