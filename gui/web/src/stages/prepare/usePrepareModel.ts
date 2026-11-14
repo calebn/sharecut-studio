@@ -132,6 +132,10 @@ export function usePrepareModel(): PrepareModel {
     workingSet.cfg ? stagedLanguage(workingSet.cfg.config) : null,
     job && !running ? `${job.id}:${job.status}` : "",
   );
+  const redoStatus =
+    running || !workingSet.cfg?.enabled_steps.includes("transcribe_tracks")
+      ? null
+      : languageStatus;
   const sourcesNow = sourceTracks(allTracks ?? []);
   const untranscribed = sourcesNow.filter((t) => !transcribed.has(t.id));
   const mediaKey = mediaKeyOf(sourcesNow);
@@ -227,7 +231,7 @@ export function usePrepareModel(): PrepareModel {
   };
   const languagePlan = planShown
     ? languagePlanOf(
-        languageStatus,
+        redoStatus,
         new Set(sourcesNow.map((t) => t.id)),
         new Set(newTracks.map((t) => t.id)),
       )
@@ -348,9 +352,7 @@ export function usePrepareModel(): PrepareModel {
         tone: "error",
       });
   const advancedProps: AdvancedStepsProps = {
-    groups: cfg
-      ? advancedGroups(cfg, job, { soundScanStart }, languageStatus)
-      : [],
+    groups: cfg ? advancedGroups(cfg, job, { soundScanStart }, redoStatus) : [],
     selectedId: selectedStep,
     running: running
       ? { title: busyRow?.title ?? "Getting ready", detail: busyRow?.detail }

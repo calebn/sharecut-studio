@@ -263,6 +263,72 @@ describe("a staged language with hand-fixed transcripts in another language", ()
   });
 });
 
+describe("the language claims follow the run", () => {
+  const stale = [
+    { track_id: "maya", name: "Maya", recorded: "en" },
+    { track_id: "anneke", name: "Anneke", recorded: "en" },
+  ];
+  const note = () => {
+    const { result } = render();
+    return result;
+  };
+
+  beforeEach(() => {
+    config.language = "es";
+    vi.mocked(loadTranscriptLanguageStatus).mockResolvedValue({
+      language: "es",
+      stale_tracks: stale,
+      edited_stale_tracks: [],
+    });
+  });
+
+  it("claims no re-transcribe in the plan or Advanced while Transcribe is off", async () => {
+    config.enabled = STEPS.filter((id) => id !== "transcribe_tracks");
+    const result = note();
+    await waitFor(() =>
+      expect(loadTranscriptLanguageStatus).toHaveBeenCalled(),
+    );
+    await act(async () => undefined);
+    expect(result.current.view.readyNote).toBe(
+      "Priya’s audio is new. The other 2 tracks keep their transcripts.",
+    );
+    expect(
+      result.current.advanced.props.groups[0].steps[0].params[0],
+    ).not.toHaveProperty("note", expect.any(String));
+  });
+
+  it("hides the pre-run answer while a run is going, and reads again when it ends", async () => {
+    const result = note();
+    await waitFor(() =>
+      expect(
+        result.current.advanced.props.groups[0].steps[0].params[0],
+      ).toHaveProperty(
+        "note",
+        "2 transcripts were made in English. The next run re-transcribes them in Spanish.",
+      ),
+    );
+    const before = vi.mocked(loadTranscriptLanguageStatus).mock.calls.length;
+    act(() =>
+      useDawStore.setState({
+        pipelineJob: pipelineJobSnapshot({ id: "j-lang", status: "running" }),
+      }),
+    );
+    expect(
+      result.current.advanced.props.groups[0].steps[0].params[0],
+    ).not.toHaveProperty("note", expect.any(String));
+    act(() =>
+      useDawStore.setState({
+        pipelineJob: pipelineJobSnapshot({ id: "j-lang", status: "ok" }),
+      }),
+    );
+    await waitFor(() =>
+      expect(
+        vi.mocked(loadTranscriptLanguageStatus).mock.calls.length,
+      ).toBeGreaterThan(before),
+    );
+  });
+});
+
 describe("audio added to a project that already ran", () => {
   it("shows the plan and starts nothing", () => {
     const { result } = render();
