@@ -26,7 +26,7 @@ from podcast_mcp.project.io import ensure_utf8_path
 from podcast_mcp.services.app.recent_projects import forget_recent, record_recent
 from podcast_mcp.services.app.workspace import ProjectWorkspace
 from podcast_mcp.services.app.workspace_release import release_workspace
-from podcast_mcp.services.collaboration import get_share_registry, rebase_sidecar_workspace
+from podcast_mcp.services.collaboration import get_share_registry
 from podcast_mcp.services.jobs import LIVE_JOB_STATUSES
 from podcast_mcp.services.record import RecordSessionService
 from podcast_mcp.services.session_sync import cached_sync_store_if_exists, sync_db_path
@@ -213,7 +213,6 @@ def _move_locked(
 
 def _repoint(old: Path, new: Path, new_file: Path, serve: Callable[[Path], None]) -> None:
     get_share_registry().rebase_workspace(str(old), str(new))
-    rebase_sidecar_workspace(new, str(old), str(new))
     serve(new_file)
 
 
@@ -234,7 +233,6 @@ def _undo(
         # The folder stays at its new path: repoint what can be, so the move is at least whole.
         for step in (
             lambda: get_share_registry().rebase_workspace(str(source), str(target)),
-            lambda: rebase_sidecar_workspace(target, str(source), str(target)),
             lambda: serve(target_file),
         ):
             with contextlib.suppress(Exception):
@@ -246,7 +244,6 @@ def _undo(
         ) from cause
     for step in (
         lambda: get_share_registry().rebase_workspace(str(target), str(source)),
-        lambda: rebase_sidecar_workspace(source, str(target), str(source)),
         lambda: serve(source_file),
     ):
         with contextlib.suppress(Exception):

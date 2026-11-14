@@ -1282,6 +1282,20 @@
       }
     },
     {
+      "id": "decision-share-tokens",
+      "when": "Decision: share tokens stay in private storage",
+      "update": "The decision blocks in `docs/persistence.md`; a waiver names the decision it keeps",
+      "docs": [
+        "docs/persistence.md"
+      ],
+      "advisory": {
+        "include": [
+          "src/podcast_mcp/services/collaboration/share_registry.py",
+          "src/podcast_mcp/services/share_auth/store.py"
+        ]
+      }
+    },
+    {
       "id": "host-platform",
       "when": "Host platform (a platform check, a default data path, a `HostPlatform` row or field, or a fail-closed seam for a host that lacks a capability)",
       "update": "`docs/architecture.md` § Host platform, `docs/persistence.md` § Data roots, `docs/contributing.md` § Host platform, `docs/cross-platform-byok.md`; ask `host_platform.current()`, never `sys.platform`, `os.name` or `platform.*` (Ruff TID251)",

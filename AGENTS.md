@@ -126,6 +126,7 @@ Update documentation **in the same change** when behavior, layout, or workflows 
 | Decision: filler cut rules and mute mode | The decision blocks in `docs/filler-cut-quality.md`; a waiver names the decision it keeps |
 | Decision: alignment from bleed lag | The decision blocks in `docs/multitrack-ingest.md`; a waiver names the decision it keeps |
 | Decision: touch input grammar and visible equivalents | The decision blocks in `docs/touch-editor-decisions.md`; a waiver names the decision it keeps |
+| Decision: share tokens stay in private storage | The decision blocks in `docs/persistence.md`; a waiver names the decision it keeps |
 | Host platform (a platform check, a default data path, a `HostPlatform` row or field, or a fail-closed seam for a host that lacks a capability) | `docs/architecture.md` § Host platform, `docs/persistence.md` § Data roots, `docs/contributing.md` § Host platform, `docs/cross-platform-byok.md`; ask `host_platform.current()`, never `sys.platform`, `os.name` or `platform.*` (Ruff TID251) |
 <!-- /docs-sync:generated -->
 

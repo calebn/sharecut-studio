@@ -2375,11 +2375,12 @@ def test_guest_waveform_deleted_version_revokes_share(minimal_project, sample_wa
     assert "token" not in side
 
 
-def test_guest_waveform_live_sidecar_access_and_capability(minimal_project, sample_wav):
+def test_guest_waveform_live_sidecar_access_and_registry_capability(minimal_project, sample_wav):
     from podcast_mcp.services.collaboration.review_shares import (
         resolve_share,
         shares_path_for_workspace,
     )
+    from podcast_mcp.services.collaboration.share_registry import get_share_registry
 
     client, token = _waveform_share(minimal_project, sample_wav, ["play", "view"])
     key = client.get(f"/api/review/{token}/daw/waveform/status").json()["media"]["track:host"][
@@ -2399,8 +2400,8 @@ def test_guest_waveform_live_sidecar_access_and_capability(minimal_project, samp
 
     row = next(row for row in rows if row["id"] == share_id)
     row["require_sign_in"] = False
-    row["capabilities"] = ["play"]
     path.write_text(json.dumps(rows), encoding="utf-8")
+    get_share_registry().upsert_active_metadata({**resolve_share(token), "capabilities": ["play"]})
     denied = client.get(url, params=params)
     assert denied.status_code == 403
     assert denied.headers["cache-control"] == "no-store"
