@@ -963,19 +963,42 @@ def test_a_cross_origin_page_may_read_the_placement_headers(minimal_project, mon
     from podcast_mcp.gui.server import create_app
 
     _rendered_project(minimal_project, _session_cut("cut", 2.0, 2.6))
-    monkeypatch.setenv("PODCAST_REVIEW_CORS_ORIGINS", "https://guest.example")
+    monkeypatch.delenv("PODCAST_REVIEW_CORS_ORIGINS", raising=False)
     response = TestClient(create_app()).get(
         "/api/pending-preview",
         params={"path": str(minimal_project), "edit_id": "cut", "mode": "current", "pad_sec": "3"},
-        headers={"Origin": "https://guest.example"},
+        headers={"Origin": "http://localhost:5173"},
     )
     assert response.status_code == 200, response.text
+    assert response.headers["access-control-allow-origin"] == "http://localhost:5173"
     exposed = {
         n.strip().lower() for n in response.headers["access-control-expose-headers"].split(",")
     }
     assert {n.lower() for n in PENDING_PREVIEW_HEADER_NAMES} <= exposed
     assert len(PENDING_PREVIEW_HEADER_NAMES) == 7
     assert all(name in response.headers for name in PENDING_PREVIEW_HEADER_NAMES)
+
+
+@pytest.mark.parametrize(
+    ("method", "url"),
+    [("get", "/api/pending-preview"), ("post", "/api/pending-preview/warm")],
+)
+def test_the_host_binding_refuses_a_foreign_origin_even_when_cors_allows_it(
+    minimal_project, monkeypatch, method, url
+) -> None:
+    from fastapi.testclient import TestClient
+
+    from podcast_mcp.gui.server import create_app
+
+    _rendered_project(minimal_project, _session_cut("cut", 2.0, 2.6))
+    monkeypatch.setenv("PODCAST_REVIEW_CORS_ORIGINS", "https://evil.example")
+    response = getattr(TestClient(create_app()), method)(
+        url,
+        params={"path": str(minimal_project), "edit_id": "cut", "mode": "current", "pad_sec": "3"},
+        headers={"Origin": "https://evil.example"},
+    )
+    assert response.status_code == 403, response.text
+    assert response.json()["detail"] == "Origin not allowed for host GUI"
 
 
 def test_golden_ear_refuses_a_pad_the_audition_would_refuse() -> None:
