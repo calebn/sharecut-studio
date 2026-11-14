@@ -274,8 +274,11 @@ export function applyDocumentSnapshot(
   documentAuthority.project = next;
   if (isShareProjectKey(scope.path)) {
     documentAuthority.settled =
-      settledTranscriptOf(next, transcriptGrantOf(useDawStore.getState())) ??
-      documentAuthority.settled;
+      settledTranscriptOf(
+        next,
+        transcriptGrantOf(useDawStore.getState()),
+        documentAuthority.settled,
+      ) ?? documentAuthority.settled;
   }
   documentAuthority.phase = { kind: "ready" };
   noteDocumentSeq(seq);

@@ -419,6 +419,26 @@ describe("settledTranscriptOf", () => {
     });
     expect(settledTranscriptOf(projectOf(rows, false), GRANT)).toBeNull();
   });
+
+  it("keeps the same memory object while the rows and grant are the same", () => {
+    const rows = [row(0, ["a"], 0)];
+    const first = settledTranscriptOf(projectOf(rows, true), GRANT);
+    const again = settledTranscriptOf(projectOf(rows, true), GRANT, first);
+    expect(again).toBe(first);
+    expect(
+      settledTranscriptOf(projectOf([row(0, ["a"], 0)], true), GRANT, first),
+    ).not.toBe(first);
+  });
+
+  it("gives one shown transcript for two complete commits of the same rows", () => {
+    const rows = [row(0, ["a"], 0)];
+    const project = projectOf(rows, true);
+    const one = { grant: GRANT, utterances: rows };
+    const two = { grant: GRANT, utterances: rows };
+    expect(shownOf(project.transcript, one, GRANT, true)).toBe(
+      shownOf(project.transcript, two, GRANT, true),
+    );
+  });
 });
 
 describe("transcriptGrantOf", () => {

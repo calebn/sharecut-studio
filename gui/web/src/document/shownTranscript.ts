@@ -48,11 +48,16 @@ export function transcriptGrantOf(
 export function settledTranscriptOf(
   project: ProjectView,
   grant: string,
+  previous: SettledTranscript | null = null,
 ): SettledTranscript | null {
-  return project.meta?.hydration?.transcript_words === true &&
-    project.transcript
-    ? { grant, utterances: project.transcript.utterances }
-    : null;
+  if (project.meta?.hydration?.transcript_words !== true || !project.transcript)
+    return null;
+  const { utterances } = project.transcript;
+  // The same rows under the same grant are the same memory: a commit that
+  // changed something else must not look like a new one.
+  return previous?.grant === grant && previous.utterances === utterances
+    ? previous
+    : { grant, utterances };
 }
 
 function sameIndices(
@@ -181,10 +186,11 @@ function compute(
 }
 
 let memo: {
-  transcript: ProjectView["transcript"];
+  utterances: CombinedUtterance[] | undefined;
   settled: SettledTranscript | null;
   grant: string;
   complete: boolean;
+  transcript: ProjectView["transcript"];
   shown: ShownTranscript;
 } | null = null;
 
@@ -193,7 +199,7 @@ let memo: {
  * come from the project when it has them, else from the rows last held with
  * words when the row's key and text still match; those words carry no times,
  * so nothing here can seek or highlight on a stale time. A `complete` project
- * draws every row live.
+ * draws every row live, whatever was remembered.
  */
 export function shownTranscriptOf(
   transcript: ProjectView["transcript"],
@@ -201,15 +207,15 @@ export function shownTranscriptOf(
   grant: string,
   complete: boolean,
 ): ShownTranscript {
+  const utterances = transcript?.utterances;
   if (
     memo &&
-    memo.transcript === transcript &&
-    memo.settled === settled &&
-    memo.grant === grant &&
-    memo.complete === complete
+    memo.utterances === utterances &&
+    memo.complete === complete &&
+    (complete || (memo.settled === settled && memo.grant === grant))
   )
     return memo.shown;
   const shown = compute(transcript, settled, grant, complete);
-  memo = { transcript, settled, grant, complete, shown };
+  memo = { utterances, settled, grant, complete, transcript, shown };
   return shown;
 }
