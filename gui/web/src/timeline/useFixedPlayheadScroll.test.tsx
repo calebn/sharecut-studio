@@ -1,6 +1,8 @@
 import { act, cleanup, render, renderHook } from "@testing-library/react";
 import { type ReactNode, useLayoutEffect, useRef } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { clearRegisteredCommands } from "../commands/execute";
+import { registerNavigationCommands } from "../commands/navigation";
 import { useRecordHostStore } from "../record/hostStore";
 import { useDawStore } from "../state/dawStore";
 import { timelineViewportRegistry } from "../state/timelineViewportRegistry";
@@ -19,6 +21,7 @@ describe("useFixedPlayheadScroll", () => {
   let input: Parameters<typeof useFixedPlayheadScroll>[0];
 
   beforeEach(() => {
+    registerNavigationCommands();
     raf = stubRaf();
     el = document.createElement("div");
     Object.defineProperty(el, "clientWidth", {
@@ -46,6 +49,7 @@ describe("useFixedPlayheadScroll", () => {
 
   afterEach(() => {
     cleanup();
+    clearRegisteredCommands();
     useRecordHostStore.getState().setSnapshot(null);
     raf.fire(0);
     el.remove();
@@ -985,5 +989,58 @@ describe("useFixedPlayheadScroll", () => {
     act(() => useDawStore.getState().setPlayheadSec(0));
     expect(el.scrollLeft).toBe(200);
     expect(useDawStore.getState().scrollLeft).toBe(0);
+  });
+
+  describe("an audition's stop bound", () => {
+    beforeEach(() => {
+      useDawStore.getState().beginAudition({ playheadSec: 8, untilSec: 14 });
+      useDawStore.setState({ scrollLeft: 80 });
+    });
+
+    it("is ended by a scrub, which seeks through the shared path", () => {
+      const revision = useDawStore.getState().playheadSeekRevision;
+      render(<MountedTimeline />);
+      act(() => raf.fire(0));
+      el.scrollLeft = 500;
+      act(() => {
+        el.dispatchEvent(new Event("scroll"));
+      });
+      const state = useDawStore.getState();
+      expect.soft(state.playheadSec).toBe(30);
+      expect.soft(state.playUntilSec).toBeNull();
+      expect.soft(state.isPlaying).toBe(true);
+      expect.soft(state.playheadSeekRevision).toBe(revision + 1);
+      act(() => raf.fire(0));
+      expect(el.scrollLeft).toBe(500);
+    });
+
+    it("is kept by a pinch or pointer zoom", () => {
+      timelineViewportRegistry.setTimelineElement(el);
+      render(<MountedTimeline />);
+      act(() => useDawStore.getState().applyAnchoredZoom(20, 250));
+      const state = useDawStore.getState();
+      expect.soft(state.zoomPxPerSec).toBe(20);
+      expect.soft(state.playUntilSec).toBe(14);
+      expect(state.isPlaying).toBe(true);
+    });
+
+    it("stores the clamped playhead so a scrub past the episode end does not snap the view", () => {
+      useDawStore
+        .getState()
+        .hydrate(
+          "/tmp/scroll-hook.json",
+          minimalProject({ timeline_duration_sec: 20 }),
+        );
+      useDawStore.setState({ playheadSec: 8, scrollLeft: 80 });
+      render(<MountedTimeline />);
+      act(() => raf.fire(0));
+      el.scrollLeft = 500;
+      act(() => {
+        el.dispatchEvent(new Event("scroll"));
+      });
+      act(() => raf.fire(0));
+      expect.soft(useDawStore.getState().playheadSec).toBe(20);
+      expect(el.scrollLeft).toBe(500);
+    });
   });
 });

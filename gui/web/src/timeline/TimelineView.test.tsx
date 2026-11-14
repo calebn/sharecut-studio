@@ -6,6 +6,8 @@ import {
   loadClipBleedInspection,
 } from "../api/clipBleed";
 import { openCreateMenu } from "../commands/createMenuHost";
+import { clearRegisteredCommands } from "../commands/execute";
+import { registerNavigationCommands } from "../commands/navigation";
 import { resetDocumentAuthority } from "../document/authorityState";
 import { projectFromDocumentSnapshot } from "../document/projectPatch";
 import { bleedAttenuationRegionKey } from "../edit/bleedAttenuation";
@@ -56,7 +58,10 @@ vi.mock("../api/clipBleed", () => ({
 }));
 
 const execute = vi.hoisted(() => vi.fn());
-vi.mock("../commands/execute", () => ({ execute }));
+vi.mock("../commands/execute", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../commands/execute")>()),
+  execute,
+}));
 // Render counters: the real lane and clip, memoized as in production, with a
 // count of how often each actually renders.
 const renders = vi.hoisted(() => ({
@@ -385,6 +390,11 @@ describe("TimelineView fixed playhead (#385)", () => {
     await new Promise((resolve) =>
       requestAnimationFrame(() => requestAnimationFrame(resolve)),
     );
+    const actual = await vi.importActual<typeof import("../commands/execute")>(
+      "../commands/execute",
+    );
+    execute.mockImplementation(actual.execute);
+    registerNavigationCommands();
     stubResizeObserver();
     raf = stubRaf();
     stubElementSize(400, 600);
@@ -403,6 +413,8 @@ describe("TimelineView fixed playhead (#385)", () => {
     // Run the frames still queued, or followSync's module-level programmatic
     // counter stays raised for the next test.
     raf.fire(0);
+    clearRegisteredCommands();
+    execute.mockReset();
     vi.unstubAllGlobals();
     Reflect.deleteProperty(HTMLElement.prototype, "clientWidth");
     Reflect.deleteProperty(HTMLElement.prototype, "clientHeight");
