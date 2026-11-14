@@ -212,14 +212,18 @@ lib (a `staticlib`) with Python.xcframework linked into it; there is no sidecar 
   the cache directory. A hit fails the build; the manifest's `private_path_scan` records
   `clean` and `files_scanned`.
 - **Lifecycle.** `src/lifecycle.rs` is a pure reducer (`Starting`, `Serving`, `Rechecking`,
-  `Failed`; events `Bound`, `Healthy`, `Unhealthy`, `StartFailed`, `Tick`, `Resumed`,
-  `RetryRequested`; effects `ProbeHealth`, `Navigate`, `ShowFailure`, `StartEngine`) with a total
+  `Failed`; events `Bound`, `Healthy`, `Unhealthy` (both carry the probe's generation, and a
+  result older than the current recheck is ignored), `StartFailed`, `NavigationFailed`, `Tick`,
+  `Resumed`, `RetryRequested`; effects `ProbeHealth`, `Navigate`, `ShowFailure`, `StartEngine`) with a total
   table test. `src/ios/` wires it up: the interpreter environment and boot token are set before
   any thread exists, `podcast_mcp.gui.embedded_boot.boot_line()` runs on its own thread, the
   first navigation is `/api/session/exchange` (the single-use code; never logged), and
   `WindowEvent::Resumed` rechecks health on the same port. A served engine is never restarted:
   if it stops answering the splash says to reopen the app. A start that failed shows its
-  sentence on the splash with a Try again link.
+  sentence on the splash with a Try again link, and an engine that finishes starting after the
+  deadline still serves. The host allows navigation to the engine's port when it applies
+  `Navigate`, and a navigation that cannot be made fails the start instead of leaving the splash
+  on Starting.
 - **Layout.** `src/ios/webview.rs` sets the WebView's scroll view to
   `contentInsetAdjustmentBehavior = never`. WKWebView's default lays the page out in the screen
   minus the status bar and home indicator (759 of 852 points on an iPhone 15 Pro) while it paints
