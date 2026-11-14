@@ -134,9 +134,11 @@ def test_spawn_gives_the_child_exactly_its_environment_and_redacts_the_output(
 ) -> None:
     secret = Secret("SECRETVALUE123", "key")
     redactor = Redactor([secret], {"tmp": tmp_path})
+    # CoreFoundation adds __CF_USER_TEXT_ENCODING to a macOS process by itself (seen on Python 3.14).
     code = (
         "import os,sys,time\n"
-        "print(sorted(k for k in os.environ if k != 'LC_CTYPE'))\n"
+        "added = {'LC_CTYPE', '__CF_USER_TEXT_ENCODING'}\n"
+        "print(sorted(k for k in os.environ if k not in added))\n"
         "sys.stdout.write('part SECRETVAL'); sys.stdout.flush(); time.sleep(0.05)\n"
         "sys.stdout.write('UE123 end\\n'); print('dir', os.environ['WHERE'])\n"
         "print(open(os.environ['PRIV']).read()); sys.exit(3)\n"
