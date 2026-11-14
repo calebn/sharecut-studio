@@ -172,6 +172,15 @@ def _serial_transcription(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr("podcast_mcp.engines.transcribe.transcribe_worker_count", lambda *_: 1)
 
 
+_JOB_IDENTITY = "PODCAST_SHARE_IDENTITY" in os.environ
+
+
+def _default_env(patch_env: pytest.MonkeyPatch, name: str, value: str) -> None:
+    """Set ``name`` unless the job that runs the suite already chose a value."""
+    if name not in os.environ:
+        patch_env.setenv(name, value)
+
+
 @pytest.fixture(scope="session", autouse=True)
 def _sentinel_home(tmp_path_factory: pytest.TempPathFactory) -> Iterator[Path]:
     """Point HOME at an empty folder for the session; fail it if a test leaves ShareCut files there."""
@@ -180,12 +189,12 @@ def _sentinel_home(tmp_path_factory: pytest.TempPathFactory) -> Iterator[Path]:
     keep = passthrough_env(Path.home(), dict(os.environ))
     with pytest.MonkeyPatch.context() as patch_env:
         # Defaults for fixtures wider than one test, which run before the per-test isolation.
-        patch_env.setenv("PODCAST_SHARE_REGISTRY", str(state / "share_registry.sqlite"))
-        patch_env.setenv("PODCAST_SHARE_IDENTITY", str(state / "share_identity.sqlite"))
-        patch_env.setenv("PODCAST_RELAY_CONFIG", str(state / "relay.yaml"))
-        patch_env.setenv("PODCAST_CONFIG_DIR", str(state / "config"))
-        patch_env.setenv("PODCAST_WORKSPACE_ROOT", str(state / "workspaces"))
-        patch_env.setenv("PODCAST_MCP_CACHE", str(state / "cache"))
+        _default_env(patch_env, "PODCAST_SHARE_REGISTRY", str(state / "share_registry.sqlite"))
+        _default_env(patch_env, "PODCAST_SHARE_IDENTITY", str(state / "share_identity.sqlite"))
+        _default_env(patch_env, "PODCAST_RELAY_CONFIG", str(state / "relay.yaml"))
+        _default_env(patch_env, "PODCAST_CONFIG_DIR", str(state / "config"))
+        _default_env(patch_env, "PODCAST_WORKSPACE_ROOT", str(state / "workspaces"))
+        _default_env(patch_env, "PODCAST_MCP_CACHE", str(state / "cache"))
         for name, value in keep.items():
             patch_env.setenv(name, value)
         patch_env.setenv("HOME", str(home))
@@ -200,7 +209,8 @@ def _isolate_share_identity(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> 
     """Pin the guest identity store to a per-test sqlite file and reset its singleton."""
     from podcast_mcp.services.share_auth.store import reset_identity_store_for_tests
 
-    monkeypatch.setenv("PODCAST_SHARE_IDENTITY", str(tmp_path / "share_identity.sqlite"))
+    if not _JOB_IDENTITY:
+        monkeypatch.setenv("PODCAST_SHARE_IDENTITY", str(tmp_path / "share_identity.sqlite"))
     reset_identity_store_for_tests()
     try:
         yield

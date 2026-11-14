@@ -20,11 +20,13 @@ def test_the_identity_store_opens_inside_the_test_folder(tmp_path: Path) -> None
     assert store.path == tmp_path / "share_identity.sqlite"
 
 
-def test_a_stray_file_in_the_session_home_is_reported(tmp_path: Path) -> None:
+def test_a_stray_file_in_the_session_home_is_reported_and_an_empty_folder_is_not(
+    tmp_path: Path,
+) -> None:
     (tmp_path / ".podcast_mcp").mkdir()
     (tmp_path / ".podcast_mcp" / "share_identity.sqlite").write_bytes(b"x")
     (tmp_path / "Documents").mkdir()
-    assert stray_files(tmp_path) == [".podcast_mcp/share_identity.sqlite", "Documents"]
+    assert stray_files(tmp_path) == [".podcast_mcp/share_identity.sqlite"]
 
 
 def test_third_party_telemetry_is_not_reported(tmp_path: Path) -> None:

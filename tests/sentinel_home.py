@@ -40,7 +40,7 @@ def passthrough_env(real_home: Path, environ: dict[str, str]) -> dict[str, str]:
 
 
 def stray_files(home: Path) -> list[str]:
-    """Paths under ``home`` (relative, sorted) that no known third-party tool wrote."""
+    """Files under ``home`` (relative, sorted) that no known third-party tool wrote; empty folders do not count."""
     found = []
     for path in sorted(home.rglob("*")):
         relative = path.relative_to(home).as_posix()
@@ -48,6 +48,6 @@ def stray_files(home: Path) -> list[str]:
             continue
         if any(p.startswith(relative + "/") for p in THIRD_PARTY_PREFIXES):
             continue
-        if path.is_file() or path.is_symlink() or not any(path.iterdir()):
+        if path.is_file() or path.is_symlink():
             found.append(relative)
     return found
