@@ -71,7 +71,6 @@ impl FailReason {
         }
     }
 
-    /// The one sentence the splash shows.
     pub fn sentence(&self) -> &'static str {
         match self {
             Self::StartTimedOut => "ShareCut took too long to start.",
@@ -129,20 +128,24 @@ pub fn start(now: Instant) -> (State, Vec<Effect>) {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Event {
     /// The engine is listening and handed back its single-use exchange code.
-    Bound { port: u16, code: Secret },
+    Bound {
+        port: u16,
+        code: Secret,
+    },
     /// A health probe succeeded; `generation` is the number its `ProbeHealth` carried.
-    Healthy { generation: u64 },
-    /// A health probe failed.
-    Unhealthy { generation: u64 },
-    /// The WebView could not be sent to the engine.
+    Healthy {
+        generation: u64,
+    },
+    Unhealthy {
+        generation: u64,
+    },
     NavigationFailed,
-    /// The engine could not start.
-    StartFailed { reason: String },
+    StartFailed {
+        reason: String,
+    },
     /// Time passed; the caller sends one at a steady interval.
     Tick,
-    /// The app returned to the foreground.
     Resumed,
-    /// The person pressed Try again.
     RetryRequested,
 }
 
