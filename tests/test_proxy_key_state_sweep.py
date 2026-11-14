@@ -173,40 +173,38 @@ GUEST_MEDIA = "guest media replaced by different content"
 LANE_MUTE = "a mute region on the restored clip's lane"
 
 
+def _configuration(
+    name: str, gated_template: Path, ungated_template: Path, tmp_path: Path
+) -> tuple[ProjectWorkspace, dict[str, Callable[[Any], Callable[[], None]]]]:
+    if name == "restored":
+        return _restored(gated_template, tmp_path, ungated=False), {LANE_MUTE: _lane_mute}
+    if name == "ungated":
+        return _open(ungated_template, tmp_path, "ungated").ws, {GUEST_MEDIA: _guest_media_replaced}
+    return _restored(gated_template, tmp_path, ungated=True), {LANE_MUTE: _lane_mute}
+
+
+@pytest.mark.parametrize("configuration", CONFIGURATIONS)
 def test_the_guest_key_moves_with_every_project_leaf_that_moves_a_proxy_artifact(
-    gated_template: Path, ungated_template: Path, tmp_path: Path
+    configuration: str, gated_template: Path, ungated_template: Path, tmp_path: Path
 ) -> None:
-    runs: dict[str, tuple[ProjectWorkspace, dict[str, Any]]] = {
-        "restored": (_restored(gated_template, tmp_path, ungated=False), {LANE_MUTE: _lane_mute}),
-        "ungated": (
-            _open(ungated_template, tmp_path, "ungated").ws,
-            {GUEST_MEDIA: _guest_media_replaced},
-        ),
-        "restored-ungated": (
-            _restored(gated_template, tmp_path / "b", ungated=True),
-            {LANE_MUTE: _lane_mute},
-        ),
-    }
-    results: dict[str, Sweep] = {}
+    ws, extra = _configuration(configuration, gated_template, ungated_template, tmp_path)
     started = time.monotonic()
     with batch_scope():
-        for name in CONFIGURATIONS:
-            ws, extra = runs[name]
-            results[name] = _sweep(ws, extra)
-    for name, sweep in results.items():
-        print(
-            f"sweep {name}: tried {sweep.tried}, rejected {sweep.rejected}, "
-            f"moved both {len(sweep.both)}, key only {sweep.key_only}, gaps {len(sweep.gaps)}"
-        )
-    print(f"sweep seconds: {time.monotonic() - started:.1f}")
+        sweep = _sweep(ws, extra)
+    print(
+        f"sweep {configuration}: tried {sweep.tried}, rejected {sweep.rejected}, "
+        f"moved both {len(sweep.both)}, key only {sweep.key_only}, gaps {len(sweep.gaps)}, "
+        f"{time.monotonic() - started:.1f} s"
+    )
 
-    gaps = [f"{name}: {label}" for name, sweep in results.items() for label in sweep.gaps]
-    assert not gaps, "the proxy artifacts changed but the guest's key did not:\n" + "\n".join(gaps)
-    for name, sweep in results.items():
-        assert sweep.both, f"{name}: no leaf moved both the artifacts and the key"
-    assert GUEST_MEDIA in results["ungated"].both
-    assert LANE_MUTE in results["restored-ungated"].both
-    assert LANE_MUTE in results["restored"].both
-    # A role flip is in the sweep (enums are perturbed), and without a gate only the key's
-    # reading of the selection can see it.
-    assert any(".role = " in label for label in results["ungated"].both)
+    assert not sweep.gaps, "the proxy artifacts changed but the guest's key did not:\n" + "\n".join(
+        sweep.gaps
+    )
+    assert sweep.both, f"{configuration}: no leaf moved both the artifacts and the key"
+    if configuration == "ungated":
+        assert GUEST_MEDIA in sweep.both
+        # A role flip is in the sweep (enums are perturbed), and without a gate only the key's
+        # reading of the selection can see it.
+        assert any(".role = " in label for label in sweep.both)
+    else:
+        assert LANE_MUTE in sweep.both
