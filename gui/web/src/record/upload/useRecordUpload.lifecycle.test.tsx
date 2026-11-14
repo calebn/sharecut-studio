@@ -30,6 +30,21 @@ function initialArgs(transport: RecordUploadTransport): Args {
   };
 }
 
+async function argsHoldingSegment(transport: RecordUploadTransport) {
+  const args = initialArgs(transport);
+  const ids = {
+    sessionId: "room",
+    takeIndex: 0,
+    participantId: "p_a",
+    segmentIndex: 0,
+  };
+  await args.sink?.write(
+    keeperMetaPath(keeperWavPath(ids)),
+    keeperMetaBytes(ids),
+  );
+  return args;
+}
+
 function heldTransport() {
   const inner = memoryUploadTransport();
   const requests: {
@@ -113,7 +128,7 @@ describe("useRecordUpload original lifecycle observations", () => {
   it("retains failed history in layout, clears it at retry setup, then resets on disable", async () => {
     vi.useFakeTimers();
     const held = heldTransport();
-    const args = initialArgs(held.transport);
+    const args = await argsHoldingSegment(held.transport);
     const seen: Seen[] = [];
     const { result, rerender, unmount } = renderHook(
       (input: Args) => useObservedUpload(input, seen),
@@ -206,7 +221,7 @@ describe("useRecordUpload original lifecycle observations", () => {
     async (key) => {
       vi.useFakeTimers();
       const held = heldTransport();
-      const args = initialArgs(held.transport);
+      const args = await argsHoldingSegment(held.transport);
       const seen: Seen[] = [];
       const { result, rerender, unmount } = renderHook(
         (input: Args) => useObservedUpload(input, seen),
