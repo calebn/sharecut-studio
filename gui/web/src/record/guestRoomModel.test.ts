@@ -641,6 +641,47 @@ describe("guestCovers", () => {
     });
   });
 
+  it("says Saving… only on the action that was pressed, and holds both while it runs", () => {
+    const download = vi.fn();
+    const recover = vi.fn();
+    const ended = { ...coverSource, accessEnded: true };
+    const recovering = guestCovers({
+      ...ended,
+      keeperActions: {
+        ...actions,
+        busy: true,
+        running: "recover",
+        download,
+        recover,
+      },
+    });
+    expect(recovering?.primary).toMatchObject({
+      label: "Save my recording",
+      busy: true,
+      busyLabel: undefined,
+    });
+    expect(recovering?.secondary).toMatchObject({
+      label: "Try saving again",
+      busy: true,
+      busyLabel: "Saving…",
+    });
+    const downloading = guestCovers({
+      ...ended,
+      keeperActions: {
+        ...actions,
+        busy: true,
+        running: "download",
+        download,
+        recover,
+      },
+    });
+    expect(downloading?.primary).toMatchObject({ busyLabel: "Saving…" });
+    expect(downloading?.secondary).toMatchObject({
+      busy: true,
+      busyLabel: undefined,
+    });
+  });
+
   it("covers ended access, with local recording actions once settled", () => {
     const download = vi.fn();
     const recover = vi.fn();

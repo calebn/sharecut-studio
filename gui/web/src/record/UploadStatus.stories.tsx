@@ -11,6 +11,7 @@ function progress(
     acked: 2,
     total: 5,
     fileAck: false,
+    seenSegments: 0,
     landed: false,
     landFailed: false,
     reclaimFailed: false,

@@ -346,6 +346,25 @@ export async function hasLocalKeeper(
   return false;
 }
 
+/** How many segment slots this participant has on the device, reclaimed ones included. */
+export async function countKeeperSegments(
+  sink: ByteSink,
+  sessionId: string,
+  participantId: string,
+  lastTakeIndex: number,
+): Promise<number> {
+  let count = 0;
+  for await (const _ of keeperSegmentPaths(
+    sink,
+    sessionId,
+    participantId,
+    lastTakeIndex,
+  )) {
+    count += 1;
+  }
+  return count;
+}
+
 export async function downloadLocalKeepers(
   sink: ByteSink,
   sessionId: string,

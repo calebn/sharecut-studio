@@ -194,6 +194,28 @@ describe("useKeeperRecoveryActions", () => {
     );
   });
 
+  it("names the action in flight, and nothing once idle", async () => {
+    const sink = new MemorySink();
+    await seedPendingKeeper(sink, ids);
+    const { result } = renderActions(sink);
+    expect(result.current.running).toBeNull();
+    act(() => result.current.recover?.());
+    expect(result.current.running).toBe("recover");
+    await waitFor(() => expect(result.current.busy).toBe(false));
+    expect(result.current.running).toBeNull();
+    let finish: () => void = () => undefined;
+    vi.spyOn(recovery, "downloadLocalKeepers").mockImplementationOnce(
+      () =>
+        new Promise<void>((resolve) => {
+          finish = resolve;
+        }),
+    );
+    act(() => result.current.download?.());
+    expect(result.current.running).toBe("download");
+    await act(async () => finish());
+    await waitFor(() => expect(result.current.running).toBeNull());
+  });
+
   it("a finished download sets downloaded, and the next run clears it", async () => {
     const sink = new MemorySink();
     await seedPendingKeeper(sink, ids);

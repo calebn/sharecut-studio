@@ -280,7 +280,7 @@ export function useGuestRoom(
       (snapshot?.state === "stopped" || accessEnded) && captureSettled,
     onRecovered: () => setUploadRetryNonce((value) => value + 1),
   });
-  const localRecording = useLocalKeeper({
+  const localKeeper = useLocalKeeper({
     sink,
     sessionId: snapshot?.session_id ?? null,
     participantId: me?.participant_id ?? null,
@@ -361,7 +361,8 @@ export function useGuestRoom(
     takeClipping,
     takeClippings,
     keeperActions,
-    localRecording,
+    localRecording: localKeeper.found,
+    localSegments: localKeeper.segments,
     roomTone,
     liveComments,
     captureSettled,

@@ -22,6 +22,8 @@ export type RecordUploadProgress = {
   acked: number;
   total: number;
   fileAck: boolean;
+  /** Segments on the device when the last pass ran, acknowledged or not. */
+  seenSegments: number;
   landed: boolean;
   landFailed: boolean;
   /** Landed keeper WAVs could not be deleted after repeated attempts. */
@@ -66,6 +68,7 @@ const EMPTY: RecordUploadProgress = {
   acked: 0,
   total: 0,
   fileAck: false,
+  seenSegments: 0,
   landed: false,
   landFailed: false,
   reclaimFailed: false,
@@ -209,6 +212,7 @@ class UploadPoller {
         let allLanded = true;
         let landFailed = false;
         let saw = false;
+        let seen = 0;
         let awaitingAck = false;
         let finalizing = false;
         let abandoned = false;
@@ -223,6 +227,7 @@ class UploadPoller {
           wavPath,
         } of keeperSegmentPaths(sink, sessionId, participantId, takeIndex)) {
           saw = true;
+          seen += 1;
           const remoteSeg = remote.segments.find(
             (row) =>
               row.take_index === take &&
@@ -377,6 +382,7 @@ class UploadPoller {
               acked,
               total,
               fileAck: saw && allAcked,
+              seenSegments: seen,
               landed: saw && allAcked && allLanded && !landFailed,
               landFailed,
               reclaimFailed: keeperReclaimStuck(reclaim),
@@ -431,6 +437,17 @@ function ackKey(args: UploadArgs): string {
   return `${args.sessionId}:${args.participantId}:${args.takeIndex}`;
 }
 
+/** An acknowledgement belongs to the take it was given for; another take starts unsaved. */
+function forgetForeignAck(
+  prev: RecordUploadProgress,
+  ackedFor: string | null,
+  key: string,
+): RecordUploadProgress {
+  return ackedFor === key
+    ? prev
+    : { ...prev, fileAck: false, landed: false, seenSegments: 0 };
+}
+
 export function useRecordUpload(args: UploadArgs): RecordUploadProgress {
   const [progress, setProgress] = useState<RecordUploadProgress>(EMPTY);
   const argsRef = useRef(args);
@@ -448,7 +465,15 @@ export function useRecordUpload(args: UploadArgs): RecordUploadProgress {
             break;
           }
           case "active":
-            setProgress((prev) => ({ ...prev, pending: true, error: null }));
+            setProgress((prev) => ({
+              ...forgetForeignAck(
+                prev,
+                ackedTake.current,
+                ackKey(argsRef.current),
+              ),
+              pending: true,
+              error: null,
+            }));
             break;
           case "chunk-progress":
             setProgress((prev) => ({
@@ -473,7 +498,11 @@ export function useRecordUpload(args: UploadArgs): RecordUploadProgress {
             break;
           case "pass-failed":
             setProgress((prev) => ({
-              ...prev,
+              ...forgetForeignAck(
+                prev,
+                ackedTake.current,
+                ackKey(argsRef.current),
+              ),
               uploading: false,
               pending: false,
               error: event.holdsSegment ? errorMessage(event.cause) : null,

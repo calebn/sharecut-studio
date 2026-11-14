@@ -372,11 +372,16 @@ function unsentRecordingCover(source: CoverSource, host: string): CoverProps {
           label: "Save my recording",
           onClick: download,
           busy: source.keeperActions.busy,
-          busyLabel: SAVING_LABEL,
+          busyLabel: runningLabel(source.keeperActions, "download"),
         }
       : undefined,
     secondary: recover
-      ? { label: "Try saving again", onClick: recover }
+      ? {
+          label: "Try saving again",
+          onClick: recover,
+          busy: source.keeperActions.busy,
+          busyLabel: runningLabel(source.keeperActions, "recover"),
+        }
       : undefined,
   };
 }
@@ -407,6 +412,13 @@ const BOOT_COVERS: Record<BootFailure, BootCover> = {
     retry: true,
   },
 };
+
+function runningLabel(
+  actions: KeeperRecoveryActions,
+  kind: "download" | "recover",
+): string | undefined {
+  return actions.running === kind ? SAVING_LABEL : undefined;
+}
 
 export function guestCovers(source: CoverSource): CoverProps | null {
   const host = source.host?.trim() || "the host";
@@ -441,12 +453,17 @@ export function guestCovers(source: CoverSource): CoverProps | null {
                 label: "Save my recording",
                 onClick: download,
                 busy: source.keeperActions.busy,
-                busyLabel: SAVING_LABEL,
+                busyLabel: runningLabel(source.keeperActions, "download"),
               }
             : undefined,
         secondary:
           hasLocal && recover
-            ? { label: "Try saving again", onClick: recover }
+            ? {
+                label: "Try saving again",
+                onClick: recover,
+                busy: source.keeperActions.busy,
+                busyLabel: runningLabel(source.keeperActions, "recover"),
+              }
             : undefined,
       };
     }
@@ -511,7 +528,7 @@ function downloadedCover(
           label: "Save it again",
           onClick: actions.download,
           busy: actions.busy,
-          busyLabel: SAVING_LABEL,
+          busyLabel: runningLabel(actions, "download"),
         }
       : undefined,
   };
@@ -548,21 +565,25 @@ type CoverRoom = Pick<
   | "captureSettled"
   | "keeperActions"
   | "localRecording"
+  | "localSegments"
   | "snapshot"
-> & { upload: Pick<RecordUploadProgress, "fileAck"> };
+> & { upload: Pick<RecordUploadProgress, "fileAck" | "seenSegments"> };
 
 /** The page-sized Cover this room needs instead of the room, or null. */
 export function guestCoverProps(
   room: CoverRoom,
   options: { onRetry: () => void; phase: RoomPhase },
 ): CoverProps | null {
-  // Before the first take, or once the server has acknowledged every segment,
-  // there is nothing here to save: whatever the device still holds (a copy kept
-  // for the reclaim grace after a download) is a duplicate.
+  // Before the first take, or once the server has acknowledged every segment
+  // the device holds, there is nothing here to save: whatever the device still
+  // holds (a copy kept for the reclaim grace after a download) is a duplicate.
+  // An acknowledgement only covers the segments its pass saw.
+  const allAcknowledged =
+    room.upload.fileAck && room.localSegments <= room.upload.seenSegments;
   const hasLocalCopy =
     (room.snapshot?.take_index ?? -1) >= 0 &&
     room.localRecording &&
-    !room.upload.fileAck;
+    !allAcknowledged;
   const keeperActions = hasLocalCopy
     ? room.keeperActions
     : {

@@ -18,30 +18,40 @@ describe("useLocalKeeper", () => {
   it("claims nothing while pending or without a sink", async () => {
     const sink = new MemorySink();
     await seedPendingKeeper(sink, ids);
-    expect(renderKeeper(sink).result.current).toBe(false);
-    expect(renderKeeper(null).result.current).toBe(false);
+    expect(renderKeeper(sink).result.current.found).toBe(false);
+    expect(renderKeeper(null).result.current.found).toBe(false);
   });
 
   it("finds a WAV that is still on the device, as after a reload", async () => {
     const sink = new MemorySink();
     await seedPendingKeeper(sink, ids);
     const { result } = renderKeeper(sink);
-    await waitFor(() => expect(result.current).toBe(true));
+    await waitFor(() => expect(result.current.found).toBe(true));
+  });
+
+  it("counts the segment slots the device holds", async () => {
+    const sink = new MemorySink();
+    await seedPendingKeeper(sink, ids);
+    const { result, rerender } = renderKeeper(sink);
+    await waitFor(() => expect(result.current.segments).toBe(1));
+    await seedPendingKeeper(sink, { ...ids, segmentIndex: 1 });
+    rerender({ sink, recheck: 1 });
+    await waitFor(() => expect(result.current.segments).toBe(2));
   });
 
   it("is false when nothing was kept", async () => {
     const { result } = renderKeeper(new MemorySink());
     await new Promise((resolve) => setTimeout(resolve, 20));
-    expect(result.current).toBe(false);
+    expect(result.current.found).toBe(false);
   });
 
   it("drops to false once the keeper is reclaimed and rechecked", async () => {
     const sink = new MemorySink();
     const wavPath = await seedPendingKeeper(sink, ids);
     const { result, rerender } = renderKeeper(sink);
-    await waitFor(() => expect(result.current).toBe(true));
+    await waitFor(() => expect(result.current.found).toBe(true));
     await sink.remove(wavPath);
     rerender({ sink, recheck: 1 });
-    await waitFor(() => expect(result.current).toBe(false));
+    await waitFor(() => expect(result.current.found).toBe(false));
   });
 });
