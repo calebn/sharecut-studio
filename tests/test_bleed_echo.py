@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import wave
+from itertools import permutations
 from pathlib import Path
 
 import numpy as np
@@ -12,9 +13,11 @@ from podcast_mcp.config.defaults import load_defaults
 from podcast_mcp.engines import bleed_echo
 from podcast_mcp.engines.bleed_echo import (
     EchoConfig,
+    EchoPairProfile,
     echo_open_fallback,
     echo_pair_profile,
     echo_profiles,
+    echo_risk_pairs,
 )
 from podcast_mcp.engines.level_profile import track_profile
 from podcast_mcp.models import (
@@ -486,3 +489,152 @@ def test_audition_context_exposes_long_delay_without_claiming_owner_absence(tmp_
     assert hypothesis["evidence"]["long_delay_summary"]["lag_ms"] == pytest.approx(150, abs=1)
     assert hypothesis["next"]["fix"]["skill"] == "podcast-mute-bleed"
     assert "align_retained_bleed_tool" in hypothesis["next"]["tools"]
+
+
+def _pinned_tracks() -> dict[str, np.ndarray]:
+    host = _speech_like(24.0, seed=3)
+    guest = _delayed_copy(host, delay_samples=24, gain_db=-18.0) + _speech_like(24.0, seed=4) * 0.05
+    guest = guest[: int(23.37 * RATE)]
+    host[int(5 * RATE) : int(7 * RATE)] = 0.0
+    guest[int(10 * RATE) : int(11 * RATE)] = 0.05
+    return {"host": host, "guest": guest, "third": _speech_like(9.37, seed=8)}
+
+
+def test_profiles_pinned() -> None:
+    """Silent frames, a constant stretch, short and partial-frame tracks, both open policies."""
+    read = {tid: _at_voice(samples) for tid, samples in _pinned_tracks().items()}
+    cfg = EchoConfig()
+    profiles = [
+        echo_pair_profile(
+            read[a][0],
+            read[b][0],
+            sample_rate=RATE,
+            t0=0.0,
+            source_track_id=a,
+            bleed_track_id=b,
+            gap_db=read[b][1] - read[a][1],
+            config=cfg,
+        )
+        for a, b in permutations(read, 2)
+    ]
+    assert profiles == [
+        EchoPairProfile(
+            source_track_id="host",
+            bleed_track_id="guest",
+            span_start=0.0,
+            span_end=23.37,
+            dominated_frames=236,
+            copy_frames=236,
+            consistent_frames=236,
+            lag_ms=3.0,
+            level_db=-17.746742150034436,
+            examples=(7.45, 16.15, 7.4),
+            null_runs=8,
+            null_copy_rate=0.023076923076923078,
+            null_consistent_rate=0.011888111888111888,
+            long_delay_regions=(),
+        ),
+        EchoPairProfile(
+            source_track_id="host",
+            bleed_track_id="third",
+            span_start=0.0,
+            span_end=9.37,
+            dominated_frames=26,
+            copy_frames=0,
+            consistent_frames=0,
+            lag_ms=None,
+            level_db=None,
+            examples=(),
+            null_runs=7,
+            null_copy_rate=0.08064516129032258,
+            null_consistent_rate=0.07258064516129033,
+            long_delay_regions=(),
+        ),
+        EchoPairProfile(
+            source_track_id="guest",
+            bleed_track_id="host",
+            span_start=0.0,
+            span_end=23.37,
+            dominated_frames=229,
+            copy_frames=210,
+            consistent_frames=210,
+            lag_ms=-3.0,
+            level_db=17.814595245030805,
+            examples=(7.45, 16.15, 7.4),
+            null_runs=8,
+            null_copy_rate=0.010855683269476373,
+            null_consistent_rate=0.005747126436781609,
+            long_delay_regions=(),
+        ),
+        EchoPairProfile(
+            source_track_id="guest",
+            bleed_track_id="third",
+            span_start=0.0,
+            span_end=9.37,
+            dominated_frames=17,
+            copy_frames=0,
+            consistent_frames=0,
+            lag_ms=None,
+            level_db=None,
+            examples=(),
+            null_runs=4,
+            null_copy_rate=0.03278688524590164,
+            null_consistent_rate=0.06557377049180328,
+            long_delay_regions=(),
+        ),
+        EchoPairProfile(
+            source_track_id="third",
+            bleed_track_id="host",
+            span_start=0.0,
+            span_end=9.37,
+            dominated_frames=27,
+            copy_frames=1,
+            consistent_frames=1,
+            lag_ms=-35.5,
+            level_db=-20.466563962796965,
+            examples=(1.3,),
+            null_runs=7,
+            null_copy_rate=0.024193548387096774,
+            null_consistent_rate=0.056451612903225805,
+            long_delay_regions=(),
+        ),
+        EchoPairProfile(
+            source_track_id="third",
+            bleed_track_id="guest",
+            span_start=0.0,
+            span_end=9.37,
+            dominated_frames=69,
+            copy_frames=0,
+            consistent_frames=0,
+            lag_ms=None,
+            level_db=None,
+            examples=(),
+            null_runs=8,
+            null_copy_rate=0.009884678747940691,
+            null_consistent_rate=0.013179571663920923,
+            long_delay_regions=(),
+        ),
+    ]
+    risks = echo_risk_pairs(
+        {tid: r[0] for tid, r in read.items()},
+        {tid: r[1] for tid, r in read.items()},
+        sample_rate=RATE,
+    )
+    assert repr(risks) == (
+        "[EchoPairProfile(source_track_id='host', "
+        "bleed_track_id='guest', "
+        "span_start=0.0, "
+        "span_end=23.37, "
+        "dominated_frames=236, "
+        "copy_frames=236, "
+        "consistent_frames=236, "
+        "lag_ms=3.0, "
+        "level_db=-17.746742150034436, "
+        "examples=(7.45, "
+        "16.15, "
+        "7.4), "
+        "null_runs=8, "
+        "null_copy_rate=0.023076923076923078, "
+        "null_consistent_rate=0.011888111888111888, "
+        "long_delay_regions=())]"
+    )
