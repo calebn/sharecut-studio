@@ -24,6 +24,8 @@ export class ApiError extends Error {
   readonly model: ModelNeeded | null;
   /** The parsed JSON body of the failed response, or null when it had none. */
   readonly body: unknown;
+  /** Seconds from a `Retry-After` header in its whole-seconds form, else null. */
+  readonly retryAfterSec: number | null;
 
   constructor(
     message: string,
@@ -31,6 +33,7 @@ export class ApiError extends Error {
     status: number | null = null,
     model: ModelNeeded | null = null,
     body: unknown = null,
+    retryAfterSec: number | null = null,
   ) {
     super(message);
     this.name = "ApiError";
@@ -38,6 +41,7 @@ export class ApiError extends Error {
     this.status = status;
     this.model = model;
     this.body = body;
+    this.retryAfterSec = retryAfterSec;
   }
 }
 
@@ -248,5 +252,19 @@ export async function readApiFailure(res: Response): Promise<ApiError> {
     res.status === 409 && code === MODEL_NEEDED_CODE
       ? pickModelNeeded(body)
       : null;
-  return new ApiError(message, code, res.status, model, body);
+  return new ApiError(
+    message,
+    code,
+    res.status,
+    model,
+    body,
+    retryAfterSeconds(res.headers.get("Retry-After")),
+  );
+}
+
+/** The date form of the header is ignored: only a plain count of seconds is read. */
+function retryAfterSeconds(header: string | null): number | null {
+  return header !== null && /^\d+$/.test(header.trim())
+    ? Number(header.trim())
+    : null;
 }
