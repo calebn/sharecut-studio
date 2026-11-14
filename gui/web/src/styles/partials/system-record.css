@@ -1138,7 +1138,6 @@ html:not([data-shell="phone"], [data-shell="tablet"])
   align-items: stretch;
   gap: var(--space-3);
   padding-inline: var(--space-4);
-  margin-inline-start: 0;
 }
 
 .sys-join-control > .ui-control {

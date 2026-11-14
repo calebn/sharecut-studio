@@ -254,8 +254,7 @@ export function JoinSheet({
     )?.focus();
   }, [next, pointer]);
 
-  // Enter on the name moves to the next row; Enter on a ready sheet joins.
-  // "fine" because Enter means a keyboard is in use, so the field is right.
+  // "fine": Enter means a keyboard is in use, so the name field is the right target.
   const submit = (event: FormEvent) => {
     event.preventDefault();
     if (joining) return;

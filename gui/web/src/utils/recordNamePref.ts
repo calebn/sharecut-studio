@@ -8,7 +8,6 @@ export function readRecordName(): string {
   return capCommentName(readLocal(RECORD_NAME_KEY) ?? "");
 }
 
-/** Keep the name the room confirmed. A blank name is not written. */
 export function writeRecordName(name: string): void {
   const kept = capCommentName(name);
   if (kept) writeLocal(RECORD_NAME_KEY, kept);
