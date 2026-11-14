@@ -37,6 +37,14 @@ _PROTECTED_PREFIXES = (
     "/api/comments",
     "/api/shares",
     "/api/record",
+    "/api/feed",
+    "/api/speaker",
+    "/api/boundary",
+    "/api/session-suggestion",
+    "/api/pending-preview",
+    "/api/range-audio",
+    "/api/clips",
+    "/api/tunnel",
 )
 
 # Starlette TestClient default Host; not reachable via DNS rebind on a real bind.
