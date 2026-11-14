@@ -383,7 +383,7 @@ _PARAM_SPECS: tuple[_ParamSpec, ...] = (
     _ParamSpec(
         path="transcribe.language",
         label="Language",
-        description="ASR language code (e.g. en).",
+        description="ASR language code (e.g. en); changing it re-transcribes tracks made in another language.",
         group="common",
         section="transcribe",
         affects=("transcribe_tracks",),

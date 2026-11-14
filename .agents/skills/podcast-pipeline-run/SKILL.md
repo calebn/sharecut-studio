@@ -97,7 +97,10 @@ Forced word alignment is on by default when the word aligner is downloaded (`pod
 ASR caches retain two input variants per recording job and audio hash, the new
 write and one previous write. Legacy unkeyed cache files are not read. A pruned
 cache cannot support Re-time words until Re-transcribe regenerates it. Stored
-project transcripts still follow the reuse and edited-transcript guards above.
+project transcripts still follow the reuse and edited-transcript guards above, plus the
+language rule: an explicit `transcribe.language` that differs from the one a transcript was
+made in re-transcribes it on the next run, auto never does, and an edited transcript is kept
+until replacing it is confirmed.
 
 ## After automation
 
