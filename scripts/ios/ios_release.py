@@ -29,6 +29,7 @@ from scripts.ios.build_payload import PayloadError, rustup_toolchain_bin
 from scripts.ios.release_classify import Failure
 from scripts.ios.release_deliver import plan_deliver
 from scripts.ios.release_inputs import (
+    SECRET_NAMES,
     Checkout,
     InputError,
     InputProblem,
@@ -139,7 +140,8 @@ def toolchain() -> tuple[str, InputProblem | None]:
 def build(session: Session, unsigned: bool) -> int:
     layout = session.layout
     signing = Signing.NONE if unsigned else Signing.APP_STORE
-    values, file_problems = private_values(os.environ, layout.root, Path.home())
+    needs = SECRET_NAMES[:1] if signing is Signing.APP_STORE else ()
+    values, file_problems = private_values(os.environ, layout.root, Path.home(), needs)
     path, toolchain_problem = toolchain()
     commit, dirty = git_state(layout.root)
     version, _ = marketing_version(layout.root)
@@ -210,12 +212,12 @@ def deliver(
                 )
             ]
         )
-    values, file_problems = private_values(os.environ, layout.root, Path.home())
-    key = resolve_asc_key(values, Path.home(), layout.root)
+    values, file_problems = private_values(os.environ, layout.root, Path.home(), SECRET_NAMES[1:3])
+    key, key_problems = resolve_asc_key(values, Path.home(), layout.root)
     identity, problems = load_identity(os.environ)
     version, version_problems = marketing_version(layout.root)
-    if file_problems or problems or version_problems or identity is None:
-        raise InputError([*file_problems, *problems, *version_problems])
+    if key is None or identity is None or file_problems or problems or version_problems:
+        raise InputError([*file_problems, *key_problems, *problems, *version_problems])
     session.redactor = Redactor(
         [key.key_id, key.issuer, key.key_path], machine_directories(layout.root)
     )

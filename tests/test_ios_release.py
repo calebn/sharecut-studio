@@ -163,16 +163,17 @@ def test_the_environment_overrides_the_file_and_the_key_file_is_checked_by_metad
     environ = {"SHARECUT_IOS_RELEASE_ENV": str(secrets_file), "APPLE_API_ISSUER": ISSUER}
     values, problems = release_inputs.private_values(environ, tmp_path / "repo", tmp_path)
     assert values == {"APPLE_API_KEY": KEY_ID, "APPLE_API_ISSUER": ISSUER} and not problems
-    with pytest.raises(InputError, match="key file does not exist"):
-        release_inputs.resolve_asc_key(values, tmp_path, tmp_path / "repo")
+    _, found = release_inputs.resolve_asc_key(values, tmp_path, tmp_path / "repo")
+    assert [p.why for p in found] == ["the key file does not exist"]
     key = tmp_path / ".appstoreconnect/private_keys" / f"AuthKey_{KEY_ID}.p8"
     key.parent.mkdir(parents=True)
     key.write_text("not read")
     key.chmod(0o644)
-    with pytest.raises(InputError, match="readable by others"):
-        release_inputs.resolve_asc_key(values, tmp_path, tmp_path / "repo")
+    _, found = release_inputs.resolve_asc_key(values, tmp_path, tmp_path / "repo")
+    assert [p.why for p in found] == ["is readable by others; run chmod 600 on it"]
     key.chmod(0o600)
-    resolved = release_inputs.resolve_asc_key(values, tmp_path, tmp_path / "repo")
+    resolved, found = release_inputs.resolve_asc_key(values, tmp_path, tmp_path / "repo")
+    assert found == [] and resolved is not None
     assert [repr(resolved.key_id), repr(resolved.issuer), repr(resolved.key_path)] == [
         "<key-id>",
         "<issuer>",
@@ -650,11 +651,10 @@ def test_a_canary_secret_reaches_no_output_log_or_record(
 
 
 def test_the_environment_is_never_mentioned_by_value_in_an_input_error(tmp_path: Path) -> None:
-    with pytest.raises(InputError) as caught:
-        release_inputs.resolve_asc_key(
-            {"APPLE_API_KEY": "short", "APPLE_API_ISSUER": "nope"}, tmp_path, tmp_path
-        )
-    text = str(caught.value)
+    _, found = release_inputs.resolve_asc_key(
+        {"APPLE_API_KEY": "short", "APPLE_API_ISSUER": "nope"}, tmp_path, tmp_path
+    )
+    text = " ".join(p.why for p in found)
     assert "short" not in text and "nope" not in text
     assert "is not 10 capital letters or digits" in text and "is not a UUID" in text
 
@@ -765,6 +765,74 @@ def test_validate_and_upload_dry_runs_show_the_plan_and_the_token(
     assert ios_release.main(["upload", "--dry-run", "--confirm", record.token()]) == 0
     out = capsys.readouterr().out
     assert " upload guard" in out and "--upload-app" in out
+
+
+def stage_missing_file(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, explicit: bool) -> Path:
+    home = tmp_path / "home"
+    home.mkdir()
+    monkeypatch.setattr(Path, "home", lambda: home)
+    for name in release_inputs.SECRET_NAMES:
+        monkeypatch.delenv(name, raising=False)
+    monkeypatch.setenv("PODCAST_DISTRIBUTION_PROFILE", str(write_profile(tmp_path / "p.json")))
+    monkeypatch.setattr(ios_release, "toolchain", lambda: ("/p", None))
+    monkeypatch.setattr(ios_release, "git_state", lambda root: ("c" * 40, False))
+    monkeypatch.setattr(ios_release, "checkout_lock", lambda root: contextlib.nullcontext())
+    missing = tmp_path / "gone" / "ios.env"
+    if explicit:
+        monkeypatch.setenv("SHARECUT_IOS_RELEASE_ENV", str(missing))
+    else:
+        monkeypatch.delenv("SHARECUT_IOS_RELEASE_ENV", raising=False)
+    return missing
+
+
+def test_a_missing_explicit_file_is_named_and_every_value_the_build_needs_is_listed(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    missing = stage_missing_file(tmp_path, monkeypatch, explicit=True)
+    assert ios_release.main(["build", "--dry-run"]) == Failure.INPUT.value
+    out = capsys.readouterr().out
+    assert "gone/ios.env (private file): does not exist" in out and str(missing) not in out
+    assert "APPLE_DEVELOPMENT_TEAM (private file or environment): missing" in out
+
+
+def test_the_unsigned_rehearsal_needs_no_secrets_file_at_all(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    stage_missing_file(tmp_path, monkeypatch, explicit=True)
+    assert ios_release.main(["build", "--unsigned", "--dry-run"]) == 0
+    assert "does not exist" not in capsys.readouterr().out
+
+
+@pytest.mark.parametrize("command", [["validate"], ["upload", "--confirm", "x:y"]])
+def test_a_missing_explicit_file_lists_every_key_value_for_validate_and_upload(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    command: list[str],
+) -> None:
+    missing = stage_missing_file(tmp_path, monkeypatch, explicit=True)
+    monkeypatch.setattr(ios_release, "ROOT", tmp_path / "repo")
+    monkeypatch.setattr(ios_release, "marketing_version", lambda root: ("0.1.4", []))
+    release_root = tmp_path / "repo/gui/desktop/src-tauri/target/ios-release"
+    record = make_record()
+    (release_root / record.build_number).mkdir(parents=True)
+    record_module.write_record(release_root / record.build_number, record)
+    assert ios_release.main(command) == Failure.INPUT.value
+    out = capsys.readouterr().out
+    assert "gone/ios.env (private file): does not exist" in out and str(missing) not in out
+    for name in ("APPLE_API_KEY", "APPLE_API_ISSUER", "APPLE_API_KEY_PATH"):
+        assert f"{name} (private file or environment): missing" in out
+
+
+def test_a_missing_default_file_says_where_it_is_expected(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    stage_missing_file(tmp_path, monkeypatch, explicit=False)
+    assert ios_release.main(["build", "--dry-run"]) == Failure.INPUT.value
+    out = capsys.readouterr().out
+    assert ".config/sharecut/ios-release.env (default private file): does not exist" in out
+    assert "set SHARECUT_IOS_RELEASE_ENV" in out
+    assert ios_release.main(["build", "--unsigned", "--dry-run"]) == 0
 
 
 def test_validate_without_a_build_or_key_is_an_input_error(

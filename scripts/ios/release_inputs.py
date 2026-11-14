@@ -157,11 +157,25 @@ def read_private_file(path: Path, checkout: Path) -> tuple[dict[str, str], list[
 
 
 def private_values(
-    environ: Mapping[str, str], checkout: Path, home: Path
+    environ: Mapping[str, str], checkout: Path, home: Path, needs: Sequence[str] = ()
 ) -> tuple[dict[str, str], list[InputProblem]]:
-    location = Path(environ.get(FILE_VARIABLE) or home / ".config" / "sharecut" / "ios-release.env")
+    """The private file's values, overridden by the environment. When the file is absent and a
+    name in *needs* is still unset, the problems begin with where the file was expected."""
+    named = environ.get(FILE_VARIABLE)
+    location = Path(named or home / ".config" / "sharecut" / "ios-release.env")
     values, problems = read_private_file(location, checkout)
     values.update({name: environ[name] for name in SECRET_NAMES if environ.get(name)})
+    absent = not location.exists() and not location.is_symlink()
+    if absent and any(name not in values for name in needs):
+        source, why = (
+            ("private file", "does not exist")
+            if named
+            else (
+                "default private file",
+                f"does not exist; create it there with mode 0600 or set {FILE_VARIABLE}",
+            )
+        )
+        problems.insert(0, InputProblem(str(location), source, why))
     return values, problems
 
 
@@ -181,7 +195,9 @@ def resolve_team(values: Mapping[str, str]) -> tuple[Secret | None, list[InputPr
     return Secret(team, "team"), []
 
 
-def resolve_asc_key(values: Mapping[str, str], home: Path, checkout: Path) -> AscKey:
+def resolve_asc_key(
+    values: Mapping[str, str], home: Path, checkout: Path
+) -> tuple[AscKey | None, list[InputProblem]]:
     source = "private file or environment"
     problems = [
         InputProblem(name, source, "missing") for name in SECRET_NAMES[1:3] if not values.get(name)
@@ -198,9 +214,12 @@ def resolve_asc_key(values: Mapping[str, str], home: Path, checkout: Path) -> As
     )
     if path_text:
         problems += key_file_problems(Path(path_text), checkout)
+    else:
+        problems.append(InputProblem("APPLE_API_KEY_PATH", source, "missing"))
     if problems:
-        raise InputError(problems)
-    return AscKey(Secret(key_id, "key-id"), Secret(issuer, "issuer"), Secret(path_text, "key-path"))
+        return None, problems
+    key = AscKey(Secret(key_id, "key-id"), Secret(issuer, "issuer"), Secret(path_text, "key-path"))
+    return key, []
 
 
 def key_file_problems(path: Path, checkout: Path) -> list[InputProblem]:
