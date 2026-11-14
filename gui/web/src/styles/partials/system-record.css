@@ -1135,6 +1135,12 @@ html:not([data-shell="phone"], [data-shell="tablet"])
   border-radius: var(--radius-md);
 }
 
+/* The label line takes its own height; the control under it is the thumb
+   target, so the line needs no 3rem floor. */
+.sys-join-dialog .sys-join-row > .sys-status--list {
+  min-block-size: 0;
+}
+
 .sys-join-control {
   display: flex;
   flex-direction: column;
