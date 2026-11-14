@@ -390,3 +390,116 @@ def test_the_sweep_never_touches_an_expired_resolvable_row(container: Path) -> N
 
     assert _count("active_shares") == 1
     assert _raw("active_shares", row["token"]) == "Documents/Episode"
+
+
+@pytest.mark.parametrize("bad", ["Documents/Epi\x00sode", "", "."])
+def test_a_registry_row_naming_no_usable_folder_does_not_stop_the_sweep(
+    container: Path, bad: str
+) -> None:
+    project_file = _project(container / "Documents" / "Episode")
+    dead_pending = _seed_review(project_file.parent, "alpha-beta-gamma")
+    live_pending = _seed_review(project_file.parent, "delta-eps-zeta")
+    ShareService(ProjectWorkspace.open(project_file)).revoke(
+        dead_pending["token"], restorable_for=30, now=T0
+    )
+    ShareService(ProjectWorkspace.open(project_file)).revoke(
+        live_pending["token"], restorable_for=30, now=T0
+    )
+    expired = _mint_record(project_file, expires_at="2029-12-01T00:00:00Z")
+    _set_raw("pending_revokes", dead_pending["token"], bad)
+    _set_raw("active_shares", expired["token"], bad)
+    later = T0 + timedelta(seconds=120)
+
+    assert sweep_all_pending(now=later) == 2
+
+    registry = get_share_registry()
+    assert _count("pending_revokes") == 0
+    assert _count("active_shares") == 0
+    assert registry.is_reserved(expired["token"], now=later)
+    assert registry.is_reserved(live_pending["token"], now=later)
+
+
+def test_a_finalize_serves_the_registry_version_not_the_edited_sidecar_one(
+    container: Path,
+) -> None:
+    project_file = _project(container / "Documents" / "Episode")
+    parked = _seed_review(project_file.parent, "alpha-beta-gamma")
+    ShareService(ProjectWorkspace.open(project_file)).revoke(
+        parked["token"], restorable_for=30, now=T0
+    )
+    path = shares_path(ProjectWorkspace.open(project_file).project)
+    edited = json.loads(path.read_text(encoding="utf-8"))
+    edited[0]["review_version_id"] = "v-other"
+    path.write_text(json.dumps(edited), encoding="utf-8")
+
+    assert sweep_all_pending(now=T0 + timedelta(seconds=60)) == 1
+
+    removed = [
+        call.args[1] for call in share_pending.delete_object_store_object_if_unused.mock_calls
+    ]
+    assert removed == ["v1"]
+
+
+def test_rebase_rewrites_the_cooldown_and_pending_rows_as_encoded_keys(container: Path) -> None:
+    project_file = _project(container / "Documents" / "Episode")
+    parked = _seed_review(project_file.parent, "alpha-beta-gamma")
+    live = _mint_record(project_file)
+    ShareService(ProjectWorkspace.open(project_file)).revoke(
+        parked["token"], restorable_for=30, now=T0
+    )
+    registry = get_share_registry()
+    assert _raw("cooldown_shares", parked["token"]) == "Documents/Episode"
+    moved = container / "Documents" / "Archive" / "Episode"
+
+    assert registry.rebase_workspace(str(project_file.parent), str(moved)) == 3
+
+    assert _raw("active_shares", live["token"]) == "Documents/Archive/Episode"
+    assert _raw("cooldown_shares", parked["token"]) == "Documents/Archive/Episode"
+    assert _raw("pending_revokes", parked["token"]) == "Documents/Archive/Episode"
+
+
+def test_refreshing_an_active_row_keeps_its_workspace_encoded(container: Path) -> None:
+    project_file = _project(container / "Documents" / "Episode")
+    row = _mint_record(project_file)
+    registry = get_share_registry()
+
+    registry.upsert_active_metadata(registry.get_active(row["token"]))
+
+    assert _raw("active_shares", row["token"]) == "Documents/Episode"
+
+
+def test_restoring_a_group_returns_the_decoded_workspace(container: Path) -> None:
+    project_file = _project(container / "Documents" / "Episode")
+    parked = _seed_review(project_file.parent, "alpha-beta-gamma")
+    ShareService(ProjectWorkspace.open(project_file)).revoke(
+        parked["token"], restorable_for=30, now=T0
+    )
+    assert _raw("pending_revokes", parked["token"]) == "Documents/Episode"
+
+    restored = get_share_registry().restore_group(parked["token"], now=T0 + timedelta(seconds=3))
+
+    assert [row["project_workspace"] for row in restored] == [str(project_file.parent)]
+
+
+def test_a_closed_invite_whose_active_row_names_another_workspace_is_not_replaced(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from podcast_mcp.services.collaboration import share as share_module
+
+    project_file = _project(tmp_path / "real")
+    other = _project(tmp_path / "other")
+    source = _mint_record(project_file)
+    real_lookup = share_module.lookup_share
+    monkeypatch.setattr(
+        share_module,
+        "lookup_share",
+        lambda token, *, kind=None: {
+            **real_lookup(token, kind=kind),
+            "project_workspace": str(other.parent),
+        },
+    )
+
+    with pytest.raises(KeyError, match="no longer usable"):
+        ShareService(ProjectWorkspace.open(project_file)).replace_closed_record_invite(
+            source["token"]
+        )
