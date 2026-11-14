@@ -23,7 +23,13 @@ type ListenMiddle =
 
 /** The one surface above the dock. The type allows one, so two never show at once. */
 export type ListenBottom =
-  | { kind: "row"; label: string; comments: number }
+  | {
+      kind: "row";
+      label: string;
+      comments: number;
+      /** What the count beside the icon is a count of, for the row's name. */
+      afterCount: string;
+    }
   | { kind: "composer" }
   | { kind: "none" };
 
@@ -39,6 +45,20 @@ function countLabel(
 ): string {
   return [
     comments > 0 ? plural(comments, "comment") : "",
+    suggestions > 0 ? plural(suggestions, "suggestion") : "",
+    needsAttention ? "Needs attention" : "",
+  ]
+    .filter(Boolean)
+    .join(" · ");
+}
+
+/** The words that follow the count beside the icon: "comments · 2 suggestions · Needs attention". */
+function wordsAfterCount(
+  { comments, suggestions }: ListenInput["counts"],
+  needsAttention: boolean,
+): string {
+  return [
+    comments === 1 ? "comment" : "comments",
     suggestions > 0 ? plural(suggestions, "suggestion") : "",
     needsAttention ? "Needs attention" : "",
   ]
@@ -69,6 +89,7 @@ export function listenLayoutOf(input: ListenInput): ListenLayout {
             kind: "row",
             label: countLabel(counts, needsAttention),
             comments: counts.comments,
+            afterCount: wordsAfterCount(counts, needsAttention),
           }
         : { kind: "none" };
   return { middle, bottom };
