@@ -9,6 +9,7 @@ import {
   SECTION,
   SHORT_PHONE,
   scrollByHand,
+  scrollIdle,
   visiblePlace,
   WORD,
   withGuest,
@@ -107,7 +108,7 @@ async function followerHoldsStill(
           { timeout: 10_000 },
         );
       }
-      await view.waitForTimeout(400);
+      await scrollIdle(view);
       const anchorKey = await visiblePlace(view, "first");
       expect(anchorKey, "a word is visible to anchor on").not.toBeNull();
       guest.detail.delayMs = 1_500;
@@ -182,7 +183,7 @@ test("a following guest holds its view still through a second refresh, wherever 
       );
       // The playhead goes well down the transcript, and the follow with it.
       await view.locator(WORD).nth(-3).click();
-      await view.waitForTimeout(500);
+      await scrollIdle(view);
       const place = await visiblePlace(view, "first");
       expect(place, "a word is visible to anchor on").not.toBeNull();
       // A correction: the line changes but nothing is removed, so the pane can hold its place.
