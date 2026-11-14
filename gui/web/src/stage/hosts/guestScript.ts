@@ -171,25 +171,21 @@ export function guestScriptOf(rows: readonly ShownRow[]): GuestScriptModel {
 }
 
 /**
- * A selection across tracks becomes a time span, and a held word has no time,
- * so such a span would silently leave it out. Within one track a selection is
- * by word identity and needs no time.
+ * A held word is drawn with the numbering it had before the edit, and a cut
+ * renumbers a track's words, so a selection stored from it would name other
+ * words once the detail lands. A gesture that touches one is dropped; one
+ * made before the edit stays, as it did.
  */
-export function spansHeldAcrossTracks(
+export function touchesHeld(
   g: GuestScriptModel,
   { anchor, head }: { anchor: number; head: number },
 ): boolean {
   const lo = Math.min(anchor, head);
   const hi = Math.max(anchor, head);
-  const lanes = new Set<string>();
-  let held = false;
   for (let at = lo; at <= hi; at++) {
-    const ref = g.refs[at];
-    if (!ref) continue;
-    lanes.add(`${ref.trackId}:${ref.sourceId ?? ""}`);
-    if (g.wordStarts[at] === null) held = true;
+    if (g.refs[at] && g.wordStarts[at] === null) return true;
   }
-  return held && lanes.size > 1;
+  return false;
 }
 
 export function playingWordsAt(

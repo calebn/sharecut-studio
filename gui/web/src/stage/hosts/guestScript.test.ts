@@ -10,7 +10,7 @@ import {
   guestScriptModelOf,
   guestScriptOf,
   playingWordsAt,
-  spansHeldAcrossTracks,
+  touchesHeld,
 } from "./guestScript";
 
 const word = (
@@ -343,7 +343,7 @@ describe("guestScriptOf over held and waiting rows", () => {
     expect(keyOfB([first, second])).toBe(keyOfB([second]));
   });
 
-  it("selects held words by identity within a lane, and refuses a span across lanes", () => {
+  it("drops a selection that touches a held word, within a lane or across lanes", () => {
     const row = (track: string, indices: number[]): ShownRow => ({
       kind: "held",
       lead: 0,
@@ -365,8 +365,12 @@ describe("guestScriptOf over held and waiting rows", () => {
       },
     );
     const g = guestScriptOf([row("t1", [4, 5]), row("t2", [0])]);
-    expect(spansHeldAcrossTracks(g, { anchor: 0, head: 1 })).toBe(false);
-    expect(spansHeldAcrossTracks(g, { anchor: 2, head: 0 })).toBe(true);
+    expect(touchesHeld(g, { anchor: 0, head: 1 })).toBe(true);
+    expect(touchesHeld(g, { anchor: 2, head: 0 })).toBe(true);
+    const live = guestScriptOf([
+      { kind: "live", utterance: header("Maya", "a b", 1, { track_id: "t1" }) },
+    ]);
+    expect(touchesHeld(live, { anchor: 0, head: 0 })).toBe(false);
   });
 
   it("says nothing is placed from live rows only", () => {
