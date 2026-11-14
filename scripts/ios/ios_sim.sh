@@ -41,8 +41,16 @@ build() {
   (cd "$DESKTOP" && npm run --silent tauri -- ios build --target aarch64-sim --debug --ci </dev/null)
 }
 
+# The product of this checkout's own generated Xcode project: DerivedData folders are named by the
+# project's path, so another worktree's build never answers here.
 app_path() {
-  ls -dt "$HOME"/Library/Developer/Xcode/DerivedData/sharecut-*/Build/Products/debug-iphonesimulator/*.app 2>/dev/null | head -n 1
+  local settings products name
+  settings="$(xcodebuild -project "$TAURI/gen/apple/sharecut.xcodeproj" -scheme sharecut_iOS \
+    -configuration debug -sdk iphonesimulator -showBuildSettings 2>/dev/null)" || return 0
+  products="$(sed -n 's/^ *BUILT_PRODUCTS_DIR = //p' <<<"$settings")"
+  name="$(sed -n 's/^ *FULL_PRODUCT_NAME = //p' <<<"$settings")"
+  [ -d "$products/$name" ] && printf '%s\n' "$products/$name"
+  return 0
 }
 
 launch() {

@@ -181,7 +181,9 @@ Home screen says audio tools are not available on this device yet. The app is th
 lib (a `staticlib`) with Python.xcframework linked into it; there is no sidecar process.
 
 - **Build.** `scripts/ios/ios_sim.sh run` runs `tauri ios init`, then `tauri ios build --target
-  aarch64-sim --debug`. The overlay `src-tauri/tauri.ios.conf.json` drops the sidecar
+  aarch64-sim --debug`; `launch` and `proof` take the product of this checkout's own generated
+  Xcode project (`xcodebuild -showBuildSettings`), never the newest `sharecut-*` DerivedData
+  folder, which can belong to another worktree. The overlay `src-tauri/tauri.ios.conf.json` drops the sidecar
   `externalBin` and `resources`, sets the minimum iOS version to 17.0 and points
   `bundle.iOS.template` at `src-tauri/ios/project.yml` (tauri-cli's XcodeGen template plus the
   Python.xcframework dependency, the payload folder, `ENABLE_USER_SCRIPT_SANDBOXING: NO`, the
