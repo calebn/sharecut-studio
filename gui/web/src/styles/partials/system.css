@@ -1270,9 +1270,9 @@ html[data-frame-short][data-shell="phone"] .sys-player-comment--guest {
 }
 
 /* A folded frame (useShortFrame) keeps the dock as one touch-height row:
-   the clock, the strip, Play and an icon-only Comment. The skips, Chapters,
-   the readout and the status text give way; the status keeps a button that
-   says why in a toast. */
+   the clock, the strip, Chapters, Play and, on a Commenter link, an icon-only
+   Comment. The skips, the total, the chapter name and the status text give
+   way; the status keeps a button that says why in a toast. */
 html[data-frame-short] .sys-listen-dock {
   grid-template-columns: auto minmax(0, 1fr) auto auto;
   grid-template-rows: minmax(0, 1fr);
