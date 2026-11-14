@@ -1549,6 +1549,42 @@ test.describe("join sheet on a phone", () => {
     });
   });
 
+  test("a remembered name stays off the host's lobby until the guest presses Join", async ({
+    browser,
+  }: {
+    browser: Browser;
+  }) => {
+    await withShareableProject(async (projectPath) => {
+      await withBrowserPages(
+        browser,
+        [{}, PHONE_GUEST],
+        async ([host, guest]) => {
+          await markSharecutE2e(host);
+          await host.goto(`/?project=${encodeURIComponent(projectPath)}&e2e=1`);
+          await expect(host.getByRole("heading", { level: 1 })).toBeVisible();
+          const room = await createRecordRoom(host, projectPath);
+          const roomDlg = await openHostRecordRoom(host);
+          await markSharecutE2e(guest);
+          await stubJoinDevices(guest);
+          await guest.addInitScript(() => {
+            localStorage.setItem("sharecut.recordName", "Ava Okafor");
+          });
+          await openRecordLink(guest, room.guest.token);
+          await expect(joinNameField(guest)).toHaveValue("Ava Okafor");
+          await expect(roomDlg.getByText("Guest").first()).toBeVisible();
+          await expect(roomDlg.getByText("Ava Okafor")).toHaveCount(0);
+          await guest.getByRole("button", { name: "Allow microphone" }).click();
+          await guest
+            .getByRole("button", { name: "I'm wearing headphones" })
+            .click();
+          await expect(roomDlg.getByText("Ava Okafor")).toHaveCount(0);
+          await guest.getByRole("button", { name: "Join and record" }).click();
+          await expect(roomDlg.getByText("Ava Okafor").first()).toBeVisible();
+        },
+      );
+    });
+  });
+
   test("one way out besides Not now", async ({
     browser,
   }: {

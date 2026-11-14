@@ -148,6 +148,7 @@ function GuestRoomSession({
     liveComments,
     name,
     setName,
+    shareName,
     headphonesOk,
     setHeadphonesOk,
     deviceId,
@@ -272,6 +273,7 @@ function GuestRoomSession({
       setProducerJoined(true);
       return;
     }
+    shareName();
     setJoining(true);
     if (send("Consent", { accepted: true }) === false) {
       setJoining(false);
