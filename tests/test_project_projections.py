@@ -19,6 +19,7 @@ from podcast_mcp.models import (
     CombinedUtterance,
     MediaAsset,
     Track,
+    TrackRole,
     Transcript,
     TranscriptWord,
 )
@@ -580,3 +581,53 @@ def test_text_only_transcript_commands_leave_the_render_hash_and_stay_on_detail(
     )
     assert project_basis(ws.project, load_defaults()).render_hashes == before
     assert projection_for_command(command_type) is ViewProjection.DETAIL
+
+
+def _duration_workspace(minimal_project, stored, clips, media_sec):
+    ws = ProjectWorkspace.open(minimal_project)
+    ws.project.timeline.tracks = [
+        Track(
+            id="host",
+            label="Host",
+            role=TrackRole.DIALOGUE,
+            media=(
+                MediaAsset(path="raw/host.wav", duration_sec=media_sec)
+                if media_sec is not None
+                else None
+            ),
+        )
+    ]
+    ws.project.timeline.clips = clips
+    ws.project.timeline.duration_sec = stored
+    ws.save()
+    return ws
+
+
+def _late_clip() -> list[Clip]:
+    return [Clip(id="c1", track_id="host", source_start=0.0, source_end=2.0, timeline_start=10.0)]
+
+
+@pytest.mark.parametrize(
+    ("stored", "has_clips", "media_sec", "expected"),
+    [
+        (5.0, True, 2.0, 12.0),
+        (30.0, True, 2.0, 30.0),
+        (None, False, 2.0, 2.0),
+        (None, False, None, 0.0),
+    ],
+)
+def test_view_timeline_duration_uses_canonical_extent(
+    minimal_project, stored, has_clips, media_sec, expected
+) -> None:
+    ws = _duration_workspace(minimal_project, stored, _late_clip() if has_clips else [], media_sec)
+    assert build_project_view(ws).timeline_duration_sec == pytest.approx(expected)
+
+
+@pytest.mark.parametrize("audience", ["host", "guest"])
+@pytest.mark.parametrize("projection", [ViewProjection.SHELL, ViewProjection.FULL])
+def test_view_timeline_duration_not_filtered_by_audience_or_projection(
+    minimal_project, audience, projection
+) -> None:
+    ws = _duration_workspace(minimal_project, 5.0, _late_clip(), 2.0)
+    view = build_project_view(ws, audience=audience, projection=projection)
+    assert view.timeline_duration_sec == pytest.approx(12.0)
