@@ -74,10 +74,10 @@ def test_the_needles_cover_every_spelling_in_utf8_and_utf16() -> None:
     assert "/Users/someone/My%20Code" in forms
     assert "%2FUsers%2Fsomeone%2FMy%20Code" in forms
     assert "\\/Users\\/someone\\/My Code" in forms
-    needles = paths.private_needles(Path("/home/ci"), Path("/home/ci/.cache"))
-    assert b"/home/ci" in needles
-    assert "/Users/ci/".encode("utf-16-le") in needles
-    assert b"/home/ci/.cache" in needles
+    needles = paths.private_needles(Path("/home/someone"), Path("/home/someone/.cache"))
+    assert b"/home/someone" in needles
+    assert "/Users/someone/".encode("utf-16-le") in needles
+    assert b"/home/someone/.cache" in needles
 
 
 def test_a_clean_tree_scans_clean_and_a_leak_names_the_file(tmp_path: Path) -> None:
@@ -152,13 +152,13 @@ def test_the_attribution_groups_repeated_hits_by_section_and_folds_versions(tmp_
 
 
 def test_the_release_environment_remaps_and_turns_debug_info_off() -> None:
-    directories = {"home": Path("/Users/x"), "source": Path("/Users/x/repo")}
+    directories = {"home": Path("/Users/someone"), "source": Path("/Users/someone/repo")}
     assert paths.release_rust_environment(
         {"PATH": "/bin", "RUSTFLAGS": "-C opt-level=3"}, directories
     ) == {
         "PATH": "/bin",
-        "RUSTFLAGS": "-C opt-level=3 --remap-path-prefix=/Users/x=/home "
-        "--remap-path-prefix=/Users/x/repo=/source",
+        "RUSTFLAGS": "-C opt-level=3 --remap-path-prefix=/Users/someone=/home "
+        "--remap-path-prefix=/Users/someone/repo=/source",
         "CARGO_PROFILE_RELEASE_DEBUG": "0",
         "CARGO_PROFILE_RELEASE_STRIP": "symbols",
     }
@@ -167,25 +167,25 @@ def test_the_release_environment_remaps_and_turns_debug_info_off() -> None:
 def test_rust_env_prints_only_what_it_changes_as_shell_exports(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    monkeypatch.setenv("HOME", "/Users/x")
+    monkeypatch.setenv("HOME", "/Users/someone")
     monkeypatch.setenv("CARGO_HOME", "/opt/cargo")
     monkeypatch.setenv("PATH", "/bin")
     monkeypatch.delenv("RUSTFLAGS", raising=False)
-    monkeypatch.setattr(paths, "ROOT", Path("/Users/x/repo"))
+    monkeypatch.setattr(paths, "ROOT", Path("/Users/someone/repo"))
     assert paths.main(["rust-env"]) == 0
     assert capsys.readouterr().out.splitlines() == [
         "export CARGO_PROFILE_RELEASE_DEBUG=0",
         "export CARGO_PROFILE_RELEASE_STRIP=symbols",
-        "export RUSTFLAGS='--remap-path-prefix=/Users/x=/home "
-        "--remap-path-prefix=/Users/x/.cache/sharecut-build/ios=/cache "
-        "--remap-path-prefix=/opt/cargo=/cargo --remap-path-prefix=/Users/x/repo=/source'",
+        "export RUSTFLAGS='--remap-path-prefix=/Users/someone=/home "
+        "--remap-path-prefix=/Users/someone/.cache/sharecut-build/ios=/cache "
+        "--remap-path-prefix=/opt/cargo=/cargo --remap-path-prefix=/Users/someone/repo=/source'",
     ]
 
 
 def test_the_scan_command_fails_on_a_hit_and_reports_counts(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    monkeypatch.setenv("HOME", "/Users/x")
+    monkeypatch.setenv("HOME", "/Users/someone")
     app = tmp_path / "App.app"
     app.mkdir()
     (app / "App").write_bytes(b"clean")
@@ -193,7 +193,7 @@ def test_the_scan_command_fails_on_a_hit_and_reports_counts(
     assert capsys.readouterr().out == (
         "App.app: 1 files, 0 archives opened, 0 hits, 0 not readable\n"
     )
-    (app / "App").write_bytes(b"at /Users/x/code/main.rs")
+    (app / "App").write_bytes(b"at /Users/someone/code/main.rs")
     assert paths.main(["scan", str(app)]) == 1
     assert capsys.readouterr().out.splitlines() == [
         "App.app: 1 files, 0 archives opened, 1 hits, 0 not readable",
