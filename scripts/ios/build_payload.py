@@ -621,6 +621,19 @@ def tool_version(*command: str) -> str:
     return run(command).strip().splitlines()[0]
 
 
+def rustup_toolchain_bin(rust_target: str) -> Path:
+    """The rustup toolchain's ``bin``: Homebrew's rustc has no iOS standard library."""
+    try:
+        rustc = Path(run(["rustup", "which", "rustc"]).strip())
+    except FileNotFoundError:
+        raise PayloadError("rustup is not installed; get it from https://rustup.rs") from None
+    if not (rustc.parent.parent / "lib" / "rustlib" / rust_target).is_dir():
+        raise PayloadError(
+            f"the Rust target {rust_target} is not installed; run: rustup target add {rust_target}"
+        )
+    return rustc.parent
+
+
 def fetch(url: str, sha256: str, dest: Path) -> Path:
     """Download *url* once into the cache; a file whose hash differs is refused and removed."""
     if dest.is_file() and sha256_file(dest) == sha256:
@@ -973,16 +986,28 @@ def main(argv: Sequence[str] | None = None) -> int:
     mode.add_argument(
         "--rebuild", action="store_true", help="build even when the inputs are unchanged"
     )
+    mode.add_argument(
+        "--toolchain-bin",
+        action="store_true",
+        help="print the rustup toolchain bin directory that can build for the SDK",
+    )
     parser.add_argument("--sdk", choices=sorted(TRIPLE_SDKS.values()))
     args = parser.parse_args(argv)
     try:
         contract = load_contract()
         sdk = args.sdk or sdk_from_environment()
+        rust_target = contract.sdks[sdk].rust_target
+        if args.toolchain_bin:
+            print(rustup_toolchain_bin(rust_target))
+            return 0
         export_text, plan = load_plan(contract)
         check_engine_requirements(plan, engine_requirements(), contract.marker_environment)
         if args.plan:
             print(json.dumps(plan_summary(plan), indent=2))
             return 0
+        os.environ["PATH"] = os.pathsep.join(
+            [str(rustup_toolchain_bin(rust_target)), os.environ.get("PATH", "")]
+        )
         rustc = tool_version("rustc", "--version")
         digest = input_digest(contract, sdk, export_text, rustc)
         manifest = read_manifest()

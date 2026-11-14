@@ -318,7 +318,7 @@ Win/Linux/mac-x64 installers are produced by the reusable `release-desktop-build
 
 `make ios-sim` needs Xcode, `brew install xcodegen`, `rustup target add aarch64-apple-ios-sim
 aarch64-apple-ios`, Node (for the Tauri CLI) and `uv`. Put the rustup toolchain's `bin` ahead of
-Homebrew's `rustc` (`scripts/ios/ios_sim.sh` does this), because Homebrew's has no iOS standard
+Homebrew's `rustc` (`scripts/ios/build_payload.py` and `scripts/ios/ios_sim.sh` do this), because Homebrew's has no iOS standard
 library, and keep Apple's `/usr/bin/rsync` ahead of Homebrew's 3.5.1, which hangs in the
 Python.xcframework install phase. See [desktop-packaging.md](desktop-packaging.md#ios-app-3810).
 
