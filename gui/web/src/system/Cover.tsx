@@ -39,10 +39,9 @@ export function Cover({
   primary,
   secondary,
   extra,
-  headingLevel,
+  headingLevel: Heading = "h2",
 }: CoverProps) {
   const titleId = useId();
-  const Heading = headingLevel ?? "h2";
   return (
     <section
       className={`sys-cover sys-cover--${size}`}

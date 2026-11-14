@@ -1,7 +1,7 @@
 import type { CoverProps } from "../system/Cover";
 import type { RoomPhase } from "../system/roomPhase";
 
-/** One word per pill phase. Record<> makes a new RoomPhase kind fail the build. */
+/** Tab text per pill phase. A new RoomPhase kind fails the build here. */
 const PHASE_TAB: Record<RoomPhase["kind"], string> = {
   waiting: "Waiting",
   countdown: "Stay quiet",
@@ -12,7 +12,7 @@ const PHASE_TAB: Record<RoomPhase["kind"], string> = {
   reconnecting: "Reconnecting…",
 };
 
-/** The /rec tab title. A shown cover names the tab by its own title, so no cover list is repeated here. */
+/** The /rec tab title. A shown cover supplies its own title. */
 export function guestTabTitle(input: {
   cover: CoverProps | null;
   bootstrapped: boolean;
