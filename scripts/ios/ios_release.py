@@ -58,7 +58,6 @@ from scripts.ios.release_run import capture, spawn
 from scripts.ios.release_secrets import Redactor
 
 IOS_TARGET = "aarch64-apple-ios"
-TOKEN_MIN_LENGTH = 12
 
 
 def machine_directories(root: Path) -> dict[str, Path]:
@@ -132,7 +131,7 @@ def execute(session: Session, steps: Sequence[Step], ws: Workspace, log_dir: Pat
     return 0
 
 
-def toolchain(layout: Layout) -> tuple[str, InputProblem | None]:
+def toolchain() -> tuple[str, InputProblem | None]:
     try:
         return tool_path(rustup_toolchain_bin(IOS_TARGET), os.environ), None
     except PayloadError as error:
@@ -143,7 +142,7 @@ def build(session: Session, unsigned: bool) -> int:
     layout = session.layout
     signing = Signing.NONE if unsigned else Signing.APP_STORE
     values, file_problems = private_values(os.environ, layout.root, Path.home())
-    path, toolchain_problem = toolchain(layout)
+    path, toolchain_problem = toolchain()
     commit, dirty = git_state(layout.root)
     version, _ = marketing_version(layout.root)
     inputs = resolve_build_inputs(
@@ -202,14 +201,14 @@ def deliver(session: Session, confirm: str | None, build_number: str | None) -> 
     record_dir, record = found
     values, file_problems = private_values(os.environ, layout.root, Path.home())
     key = resolve_asc_key(values, Path.home(), layout.root)
-    identity, _, problems = load_identity(os.environ, layout.root)
+    identity, problems = load_identity(os.environ)
     version, version_problems = marketing_version(layout.root)
     if file_problems or problems or version_problems or identity is None:
         raise InputError([*file_problems, *problems, *version_problems])
     session.redactor = Redactor(
         [key.key_id, key.issuer, key.key_path], machine_directories(layout.root)
     )
-    path, _ = toolchain(layout)
+    path, _ = toolchain()
     expect = checks.PlistExpectation(
         identity.bundle_identifier, identity.name, version or "", record.build_number
     )

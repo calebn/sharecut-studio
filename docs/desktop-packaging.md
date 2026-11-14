@@ -329,7 +329,7 @@ check, and nobody is contacted. Each subcommand takes `--dry-run`, which prints 
   version fixes that. The marketing version is the repository's own, after
   `scripts/version_policy.py` agrees.
 - **What a build does.** Web build, payload for `iphoneos`, a fresh `gen/apple`, `tauri ios init`,
-  `tauri ios build --archive-only` (with `-allowProvisioningUpdates` when signed, `--no-sign`
+  `tauri ios build --archive-only` (Tauri adds `-allowProvisioningUpdates` itself; `--no-sign`
   for the rehearsal), then, signed, the tool's own `xcodebuild -exportArchive
   -allowProvisioningUpdates` with a private `ExportOptions.plist` (method `app-store-connect`,
   automatic signing, `uploadSymbols` false because dSYMs carry build paths, and

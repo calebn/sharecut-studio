@@ -273,7 +273,7 @@ def test_the_signed_plan_archives_only_exports_and_may_touch_apple() -> None:
     ]
     archive = steps["archive"].command
     assert archive.argv[:6] == ("npx", "tauri", "ios", "build", "--ci", "-v")
-    assert archive.argv[-3:] == ("--archive-only", "--", "-allowProvisioningUpdates")
+    assert archive.argv[-1] == "--archive-only"
     assert "--no-sign" not in archive.argv and "--build-number" not in archive.argv
     assert steps["archive"].contacts_apple and steps["export"].contacts_apple
     assert not steps["xcode project"].contacts_apple
@@ -302,6 +302,7 @@ def test_the_unsigned_plan_signs_nothing_and_contacts_nobody() -> None:
     assert not any(step.contacts_apple for step in steps)
     archive = steps_by_name(steps)["archive"].command
     assert archive.argv[-2:] == ("--archive-only", "--no-sign")
+    assert names.index("record xcodebuild arguments") < names.index("archive")
     assert archive.env["APPLE_DEVELOPMENT_TEAM"] == "AAAAAAAAAA"
 
 
@@ -315,7 +316,7 @@ def test_the_dry_run_prints_the_apple_notice_before_any_step(
     monkeypatch.setenv("SHARECUT_IOS_RELEASE_ENV", str(secrets_file))
     monkeypatch.setenv("PODCAST_DISTRIBUTION_PROFILE", str(profile))
     monkeypatch.setattr(ios_release, "git_state", lambda root: ("c" * 40, False))
-    monkeypatch.setattr(ios_release, "toolchain", lambda layout: ("/rustup:/usr/bin", None))
+    monkeypatch.setattr(ios_release, "toolchain", lambda: ("/rustup:/usr/bin", None))
     monkeypatch.setattr(ios_release, "checkout_lock", lambda root: contextlib.nullcontext())
     assert ios_release.main(["build", "--dry-run"]) == 0
     out = capsys.readouterr().out
@@ -507,10 +508,9 @@ def test_the_app_record_lookup_reads_the_filtered_list() -> None:
     ],
 )
 def test_signing_failures_get_one_sentence(tail: str, fragment: str) -> None:
-    hint = release_classify.signing_hint(65, tail)
+    hint = release_classify.signing_hint(tail)
     assert hint is not None and fragment in hint
-    assert release_classify.signing_hint(0, tail) is None
-    assert release_classify.signing_hint(65, "compiler error") is None
+    assert release_classify.signing_hint("compiler error") is None
 
 
 def fake_key() -> release_inputs.AscKey:
@@ -548,6 +548,10 @@ def test_validate_and_upload_plans_differ_by_the_guard_and_the_upload(tmp_path: 
         "record upload attempt",
         "upload",
     ]
+    assert (
+        sum("--upload-app" in s.command.argv for s in upload if isinstance(s, release_plan.Run))
+        == 1
+    )
     lookup = validate[0].command
     assert lookup.argv[1:6] == (
         "altool",
@@ -559,30 +563,6 @@ def test_validate_and_upload_plans_differ_by_the_guard_and_the_upload(tmp_path: 
     assert lookup.env.keys().isdisjoint({"APPLE_API_KEY", "APPLE_API_ISSUER", "APPLE_API_KEY_PATH"})
     shown = validate[-1].command.display(Redactor([Secret(KEY_ID, "key-id")]))
     assert KEY_ID not in shown and "--api-key <key-id>" in shown
-
-
-def test_nothing_the_tool_can_run_before_the_guard_uploads(tmp_path: Path) -> None:
-    record = make_record()
-    expect = checks.PlistExpectation(
-        "studio.sharecut.app", "ShareCut", "0.1.4", record.build_number
-    )
-    steps = release_deliver.plan_deliver(
-        tmp_path,
-        record,
-        fake_key(),
-        LAYOUT,
-        NOISY,
-        "/p",
-        expect,
-        confirm="x:y",
-        git_state=lambda: ("a", False),
-    )
-    names = [s.name for s in steps]
-    assert names.index("upload guard") < names.index("upload")
-    uploads = [
-        s for s in steps if isinstance(s, release_plan.Run) and "--upload-app" in s.command.argv
-    ]
-    assert len(uploads) == 1
 
 
 def test_the_make_targets_never_upload() -> None:
@@ -666,19 +646,6 @@ def test_the_unsigned_rehearsal_records_the_arguments_xcodebuild_receives(tmp_pa
     assert not shim.exists()
 
 
-def test_a_signed_build_never_installs_the_recording_shim() -> None:
-    names = [
-        step.name
-        for step in release_plan.plan_build(build_inputs(Signing.APP_STORE), LAYOUT, NOISY, "/p")
-    ]
-    assert "record xcodebuild arguments" not in names
-    unsigned = [
-        step.name
-        for step in release_plan.plan_build(build_inputs(Signing.NONE), LAYOUT, NOISY, "/p")
-    ]
-    assert unsigned.index("record xcodebuild arguments") < unsigned.index("archive")
-
-
 def test_a_device_id_is_masked_by_shape() -> None:
     assert Redactor().redact("id:00001111-AAAABBBBCCCCDDDD, name:x") == "id:<device-id>, name:x"
 
@@ -702,9 +669,8 @@ def stage_deliver(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> record_mod
     monkeypatch.setenv("SHARECUT_IOS_RELEASE_ENV", str(secrets_file))
     monkeypatch.setenv("PODCAST_DISTRIBUTION_PROFILE", str(profile))
     monkeypatch.setattr(ios_release, "ROOT", tmp_path / "repo")
-    monkeypatch.setattr(ios_release, "toolchain", lambda layout: ("/p", None))
+    monkeypatch.setattr(ios_release, "toolchain", lambda: ("/p", None))
     monkeypatch.setattr(ios_release, "git_state", lambda root: (record.commit, False))
-    monkeypatch.setattr(release_inputs, "marketing_version", lambda root: ("0.1.4", []))
     monkeypatch.setattr(ios_release, "marketing_version", lambda root: ("0.1.4", []))
     return record
 
