@@ -139,6 +139,7 @@ class FakeSocket {
 
 describe("useGuestRoom", () => {
   let sockets: FakeSocket[];
+  let socketUrls: string[];
   let getUserMedia: ReturnType<typeof vi.fn>;
 
   function stubFetch(bootstrap: object, extra?: typeof fetch) {
@@ -159,7 +160,8 @@ describe("useGuestRoom", () => {
     vi.stubGlobal(
       "WebSocket",
       Object.assign(
-        vi.fn(function () {
+        vi.fn(function (url: string) {
+          socketUrls.push(url);
           const ws = new FakeSocket();
           ws.reply = reply;
           sockets.push(ws);
@@ -173,6 +175,7 @@ describe("useGuestRoom", () => {
 
   beforeEach(() => {
     sockets = [];
+    socketUrls = [];
     stubSocket();
     getUserMedia = vi.fn(async () => {
       const track = {
@@ -506,6 +509,70 @@ describe("useGuestRoom", () => {
     );
     await waitFor(() => expect(result.current.me?.consented).toBe(false));
     expect(localStorage.getItem("sharecut.recordName")).toBeNull();
+  });
+
+  it("keeps a remembered name off the socket and the Join hello until the guest acts", async () => {
+    localStorage.setItem("sharecut.recordName", "Ava Okafor");
+    stubFetch(guestBootstrap);
+    const { result } = renderHook(() => useGuestRoom("guest-tok"));
+    expect(result.current.name).toBe("Ava Okafor");
+    await waitFor(() => expect(result.current.me).not.toBeNull());
+    expect(new URL(socketUrls[0]).searchParams.get("name")).toBe("Guest");
+    expect(sockets[0]?.commands("Join")[0]).toMatchObject({
+      payload: { display_name: "Guest" },
+    });
+    expect(sockets[0]?.commands("UpdateName")).toHaveLength(0);
+  });
+
+  it("sends the name typed in this room live", async () => {
+    localStorage.setItem("sharecut.recordName", "Ava Okafor");
+    stubFetch(guestBootstrap);
+    const { result } = renderHook(() => useGuestRoom("guest-tok"));
+    await waitFor(() => expect(result.current.me).not.toBeNull());
+    act(() => result.current.setName("Ava Okafor "));
+    await waitFor(() =>
+      expect(sockets[0]?.commands("UpdateName")).toEqual([
+        expect.objectContaining({ payload: { display_name: "Ava Okafor" } }),
+      ]),
+    );
+  });
+
+  it("sends the remembered name when Join shares it", async () => {
+    localStorage.setItem("sharecut.recordName", "Ava Okafor");
+    stubFetch(guestBootstrap);
+    const { result } = renderHook(() => useGuestRoom("guest-tok"));
+    await waitFor(() => expect(result.current.me).not.toBeNull());
+    act(() => result.current.shareName());
+    expect(sockets[0]?.commands("UpdateName")[0]).toMatchObject({
+      payload: { display_name: "Ava Okafor" },
+    });
+  });
+
+  it("sends the remembered name once the room already holds this guest as joined", async () => {
+    localStorage.setItem("sharecut.recordName", "Ava Okafor");
+    stubFetch(guestBootstrap);
+    const { result } = renderHook(() => useGuestRoom("guest-tok"));
+    await waitFor(() => expect(result.current.me).not.toBeNull());
+    act(() =>
+      sockets[0]?.emit({
+        type: "Snapshot",
+        snapshot: snapshotOf({
+          participants: [{ ...guest, consented: true }],
+        }),
+      }),
+    );
+    await waitFor(() =>
+      expect(sockets[0]?.commands("UpdateName")).toEqual([
+        expect.objectContaining({ payload: { display_name: "Ava Okafor" } }),
+      ]),
+    );
+  });
+
+  it("removes the name an older build stored under this link", () => {
+    localStorage.setItem("record:guest-tok:name", "Old");
+    stubFetch(guestBootstrap);
+    renderHook(() => useGuestRoom("guest-tok"));
+    expect(localStorage.getItem("record:guest-tok:name")).toBeNull();
   });
 
   it("sends consent once and moves to the room when it lands", async () => {
