@@ -6,7 +6,9 @@
 The Simulator shares the Mac's loopback, so the engine's port is reachable here. Checks:
 
 1. the app launches and the engine reaches Serving (the lifecycle log, the listening port,
-   the health route answering and refusing a caller without the boot token);
+   the health route answering and refusing a caller without the boot token), and the page
+   reaches the bottom edge of the screen (1b: the last row of a screenshot is the colour of the
+   first);
 2. an owner route without a session is refused, the docs routes are absent, a code the engine
    never issued is refused and sets no cookie;
 6. after the app goes to the background and returns, the same port answers and the lifecycle
@@ -28,6 +30,7 @@ import argparse
 import json
 import re
 import shutil
+import struct
 import subprocess
 import sys
 import time
@@ -53,6 +56,18 @@ def parse_listen_port(lsof_output: str) -> int | None:
     """The TCP port of the first `127.0.0.1:<port> (LISTEN)` line of `lsof -nP`."""
     match = re.search(r"127\.0\.0\.1:(\d+)\s+\(LISTEN\)", lsof_output)
     return int(match.group(1)) if match else None
+
+
+def bmp_pixel(data: bytes, x: int, y: int) -> tuple[int, int, int]:
+    """The (r, g, b) at column ``x``, row ``y`` from the top of a 32-bit BMP (`simctl io screenshot --type=bmp`)."""
+    offset = struct.unpack_from("<I", data, 10)[0]
+    width, height = struct.unpack_from("<ii", data, 18)
+    bits = struct.unpack_from("<H", data, 28)[0]
+    if bits != 32 or not (0 <= x < width and 0 <= y < abs(height)):
+        raise ValueError(f"no pixel ({x}, {y}) in a {width}x{height} {bits}-bit bitmap")
+    row = y if height < 0 else abs(height) - 1 - y
+    blue, green, red, _ = data[offset + row * width * 4 + x * 4 :][:4]
+    return red, green, blue
 
 
 def run(*command: str, check: bool = True) -> str:
@@ -113,6 +128,21 @@ class Proof:
 
     def screenshot(self, name: str) -> None:
         run("xcrun", "simctl", "io", self.device, "screenshot", str(self.evidence / f"{name}.png"))
+
+    def page_fills_screen(self) -> None:
+        """The page's canvas reaches the bottom edge: the last row is the colour of the first."""
+        shot = self.evidence / "screen.bmp"
+        run("xcrun", "simctl", "io", self.device, "screenshot", "--type=bmp", str(shot))
+        data = shot.read_bytes()
+        shot.unlink()
+        height = abs(struct.unpack_from("<i", data, 22)[0])
+        top, bottom = bmp_pixel(data, 20, 10), bmp_pixel(data, 20, height - 1)
+        self.record(
+            "1b_page_fills_screen",
+            top == bottom,
+            top_row_rgb=list(top),
+            bottom_row_rgb=list(bottom),
+        )
 
     def launch(self) -> int:
         run("xcrun", "simctl", "terminate", self.device, self.bundle_id, check=False)
@@ -255,6 +285,7 @@ def main() -> int:
         return 1
     time.sleep(8)
     proof.screenshot("1_serving")
+    proof.page_fills_screen()
     proof.refusals()
     proof.background_and_return()
     if not args.skip_broken:

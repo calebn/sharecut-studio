@@ -214,6 +214,12 @@ lib (a `staticlib`) with Python.xcframework linked into it; there is no sidecar 
   `WindowEvent::Resumed` rechecks health on the same port. A served engine is never restarted:
   if it stops answering the splash says to reopen the app. A start that failed shows its
   sentence on the splash with a Try again link.
+- **Layout.** `src/ios/webview.rs` sets the WebView's scroll view to
+  `contentInsetAdjustmentBehavior = never`. With WKWebView's default the layout viewport is the
+  screen minus the status bar and the home indicator (759 of 852 points on an iPhone 15 Pro) while
+  the page paints from the top edge, which left an empty band at the bottom. With `never`,
+  `innerHeight` is the full screen and the Studio pads itself with `env(safe-area-inset-*)`.
+  The proof checks that the last screen row is the colour of the first.
 - **Start time.** Measured on the Simulator, the engine reports Serving 4.5 to 5.5 seconds after
   launch on a quiet Mac, 20.7 seconds once while other work loaded it, and the earlier prototype
   saw about 40 seconds. The reducer's start deadline is 120 seconds (`START_DEADLINE`), a

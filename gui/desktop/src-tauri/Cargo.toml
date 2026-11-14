@@ -48,6 +48,9 @@ url = "2"
 tauri-plugin-updater = { version = "2", optional = true }
 tauri-plugin-single-instance = { version = "2", optional = true, features = ["deep-link"] }
 
+[target.'cfg(target_os = "ios")'.dependencies]
+objc2 = "0.6"
+
 [target.'cfg(windows)'.dependencies]
 webview2-com = "0.39"
 windows = "0.62"
