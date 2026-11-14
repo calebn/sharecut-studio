@@ -267,6 +267,11 @@ export function overlay(
   });
 }
 
+/** Whether this device has an OS folder picker; true until the first status says otherwise. */
+export function canPickFolderOf(status: BootstrapStatus | null): boolean {
+  return status?.host.folder_picker ?? true;
+}
+
 export function toolsOf(status: BootstrapStatus | null): {
   ffmpeg: ModelInstallState;
   hint: string | null;

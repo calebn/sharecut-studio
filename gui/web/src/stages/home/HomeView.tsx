@@ -50,7 +50,8 @@ export type HomeViewProps = {
   /** The skeleton's Retry once loading runs long, and Try again after a failed read. */
   onRetryLoad?: () => void;
   onOpenProject: (id: string, stage: ProjectCardData["stage"]) => void;
-  onFindProject: (id: string) => void;
+  /** Absent on a device with no folder picker: a moved episode then offers only Remove. */
+  onFindProject?: (id: string) => void;
   /** The card menu: Reveal in folder, Duplicate, Remove from list (also the phone swipe). */
   onRevealProject: (id: string) => void;
   onDuplicateProject: (id: string) => void;
@@ -68,6 +69,8 @@ export type HomeViewProps = {
   onSettings: () => void;
   onConnectAgent: () => void;
   onHelp: () => void;
+  /** False on a device with no folder picker (a phone): Home draws no Open other. */
+  canOpenOther?: boolean;
   /** The path form of Open other, for a browser with no OS folder picker. Default: the picker. */
   openOther?: Omit<OpenOtherProps, "onChooseFolder">;
   /** A refusal in plain words with its fix, under the Recent heading. */
@@ -201,6 +204,7 @@ export function HomeView({
   onSettings,
   onConnectAgent,
   onHelp,
+  canOpenOther = true,
   openOther = NO_OPEN_OTHER,
   notice,
   working,
@@ -308,7 +312,9 @@ export function HomeView({
                   {working}
                 </p>
               ) : null}
-              <OpenOther {...openOther} onChooseFolder={onOpenOther} />
+              {canOpenOther ? (
+                <OpenOther {...openOther} onChooseFolder={onOpenOther} />
+              ) : null}
             </div>
             <InlineError message={notice} />
             {showInstallHint ? (

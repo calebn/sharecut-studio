@@ -123,6 +123,19 @@ function render(ui: ReactElement, ready = true) {
   });
 }
 
+function renderOnAPhone(ui: ReactElement) {
+  return rtlRender(ui, {
+    wrapper: modelsWrapper(
+      modelsApi({
+        status: modelStatus(registryRows(), {
+          ready: true,
+          host: UNSUPPORTED_STATUS.host,
+        }),
+      }),
+    ),
+  });
+}
+
 async function chooseAppMenuRow(
   user: ReturnType<typeof userEvent.setup>,
   name: string,
@@ -484,6 +497,52 @@ describe("HomeScreen", () => {
       expect(
         await screen.findByRole("textbox", { name: "Folder of the episode" }),
       ).toBeInTheDocument();
+    });
+  });
+
+  describe("on a device with no folder picker", () => {
+    it("draws no Open other and no Find on a moved episode", async () => {
+      list.mockResolvedValue([recent({ folder_missing: true })]);
+      renderOnAPhone(<HomeScreen />);
+      expect(await screen.findByText("Rosa and Maya")).toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: "Open other…" })).toBeNull();
+      expect(screen.queryByRole("button", { name: /Find/ })).toBeNull();
+    });
+
+    it("leaves Mod+O alone", async () => {
+      const user = userEvent.setup();
+      renderOnAPhone(<HomeScreen />);
+      await screen.findByRole("list", { name: "Recent episodes" });
+      await user.keyboard("{Control>}o{/Control}");
+      expect(pick).not.toHaveBeenCalled();
+    });
+
+    it("tells the person to remove a moved card, not to use Open other", async () => {
+      const user = userEvent.setup();
+      duplicate.mockRejectedValueOnce(
+        new ApiError("gone", "project_file_missing", 404),
+      );
+      renderOnAPhone(<HomeScreen />);
+      const card = await screen.findByRole("button", { name: /Rosa/ });
+      await user.pointer({ keys: "[MouseRight]", target: card });
+      await user.click(
+        within(await screen.findByRole("menu", { name: /actions/ })).getByRole(
+          "menuitem",
+          { name: "Duplicate" },
+        ),
+      );
+      expect(await screen.findByRole("alert")).toHaveTextContent(
+        "That episode's folder has moved. Remove the card.",
+      );
+    });
+
+    it("keeps Open other and Find where a picker exists", async () => {
+      list.mockResolvedValue([recent({ folder_missing: true })]);
+      render(<HomeScreen />);
+      expect(
+        await screen.findByRole("button", { name: "Open other…" }),
+      ).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: /Find/ })).toBeInTheDocument();
     });
   });
 
