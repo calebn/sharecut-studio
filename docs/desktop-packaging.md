@@ -421,7 +421,7 @@ another; it needs its dependencies already built or fetched. A cold checkout nee
   is a rejection, a duplicate or an authentication refusal by its wording, and only network
   wording (the shorter `NETWORK` list) reads as unreachable. A rejection with no readable message
   prints "Apple rejected the build and gave no readable reason" and names the step log.
-  their looser reading. `--retry-unknown-upload` goes past the block and is recorded on the new
+  `--retry-unknown-upload` goes past the block and is recorded on the new
   attempt (`retried_unknown_upload`). An unresolved attempt is never closed, so after a retry that
   Apple then rejects, the next plain `upload` still needs the flag. The record can only block an
   upload, never allow one.
