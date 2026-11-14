@@ -576,9 +576,11 @@ class _FakeEngine:
     def __init__(self, cached: Transcript | None) -> None:
         self.cached = cached
         self.calls = 0
+        self.guards: list[bool] = []
 
-    def read_asr_cache(self, project, job, *, language, initial_prompt, audio_sha256):
+    def read_asr_cache(self, project, job, *, language, initial_prompt, audio_sha256, guard=True):
         self.calls += 1
+        self.guards.append(guard)
         return (job.audio, self.cached)
 
 
@@ -597,6 +599,26 @@ def test_plan_retime_moves_a_cached_unedited_job_to_run(job):
     assert plan.retime == [job]
     assert plan.reused == []
     assert plan.overwrite_edited == []
+
+
+def test_plan_retime_reads_the_cache_without_running_the_loop_guard(job):
+    cached = Transcript(track_id="host", words=[TranscriptWord(text="hi", start=0, end=0.5)])
+    p, plan = _reused_plan(job, _tr())
+    engine = _FakeEngine(cached)
+    plan_retime(p, plan, engine, language="en", allow_edited=False)
+    assert engine.guards == [False]
+
+
+def test_plan_retime_fallback_read_also_skips_the_loop_guard(job, tmp_path):
+    from podcast_mcp.project.transcript_context import TranscriptContext
+
+    p = _project(_tr(), workspace=str(tmp_path))
+    p.workspace_path().mkdir(parents=True, exist_ok=True)
+    TranscriptContext(terms=["Kaczynski"]).save(p.workspace_path())
+    plan = TranscribePlan(overwrite=False, reused=[job], audio_hashes={job.key: "sha"})
+    engine = _FakeEngine(None)
+    plan_retime(p, plan, engine, language="en", allow_edited=False)
+    assert engine.guards == [False, False]
 
 
 def test_plan_retime_skips_edited_without_confirmation(job):
@@ -671,6 +693,7 @@ def test_run_transcribe_plan_reuses_fallback_prompt_when_cache_still_present(job
     run_transcribe_plan(p, plan, lambda: engine, use_cache=True, language="en")
 
     assert engine.read_asr_cache.call_args.kwargs["initial_prompt"] == "Kaczynski"
+    assert engine.read_asr_cache.call_args.kwargs["guard"] is False
     engine.transcribe_all_dialogue.assert_called_once()
     kwargs = engine.transcribe_all_dialogue.call_args.kwargs
     assert kwargs["jobs"] == [job]
@@ -784,3 +807,60 @@ def test_main_era_silence_fingerprint_is_current_for_one_stream_only(
         bleed_check=False,
     )
     assert (skipped, count) == ([], refreshed)
+
+
+def _looped_cache_setup(tmp_path, job):
+    from podcast_mcp.engines.transcribe import TranscriptionEngine
+    from podcast_mcp.project.transcript_context import load_transcript_context
+
+    p = _project(_tr(), workspace=str(tmp_path))
+    p.workspace_path().mkdir(parents=True, exist_ok=True)
+    sha = sha256_file(job.audio)
+    primed = load_transcript_context(p.workspace_path()).transcription_vocabulary().initial_prompt
+    engine = TranscriptionEngine(defaults=load_defaults())
+    words = [
+        TranscriptWord(text=f"word{i}", start=294.0 + i * 0.3, end=294.2 + i * 0.3)
+        for i in range(20)
+    ]
+    words += [
+        TranscriptWord(text=t, start=299.84 + i * 0.0005, end=299.8405 + i * 0.0005)
+        for i, t in enumerate((["And", "I", "know", "that"] * 56)[:221])
+    ]
+    cache = engine.cache_path(
+        p, job.cache_id, job.audio, language="en", initial_prompt=primed, audio_sha256=sha
+    )
+    cache.parent.mkdir(parents=True, exist_ok=True)
+    cache.write_text(Transcript(track_id="host", words=words).model_dump_json(), encoding="utf-8")
+    plan = TranscribePlan(overwrite=False, reused=[job], audio_hashes={job.key: sha})
+    return p, plan, engine, cache, primed, sha
+
+
+def test_plan_retime_with_a_looped_asr_cache_neither_runs_nor_logs_the_guard(job, tmp_path, caplog):
+    import logging
+
+    p, plan, engine, cache, _, _ = _looped_cache_setup(tmp_path, job)
+    before = cache.read_bytes()
+    with caplog.at_level(logging.WARNING):
+        plan_retime(p, plan, engine, language="en", allow_edited=False)
+    assert plan.retime == [job]
+    assert engine._loop_drop is None
+    assert engine.asr_loop_drops == []
+    assert "looped word" not in caplog.text
+    assert cache.read_bytes() == before
+
+
+def test_a_retime_run_logs_and_records_a_cached_loop_once(job, tmp_path, caplog):
+    import logging
+    from unittest.mock import patch
+
+    p, plan, engine, _, primed, sha = _looped_cache_setup(tmp_path, job)
+    with caplog.at_level(logging.WARNING):
+        plan_retime(p, plan, engine, language="en", allow_edited=False)
+        with patch.object(engine, "transcribe_file") as asr:
+            transcript = engine.transcribe_job(
+                p, job, language="en", initial_prompt=primed, audio_sha256=sha
+            )
+    asr.assert_not_called()
+    assert len(transcript.words) == 20
+    assert sum("dropped 221 looped" in r.getMessage() for r in caplog.records) == 1
+    assert [e["dropped"] for e in engine.asr_loop_drops] == [221]
