@@ -307,28 +307,6 @@ describe("roomViewModel alerts", () => {
       { kind: "mic-lost" },
     ]);
   });
-
-  it("the named derived host-offline replaces a caller's nameless one", () => {
-    const model = roomViewModel(
-      base({
-        alerts: [{ kind: "host-offline" }],
-        people: [host({ presence: "left" })],
-      }),
-    );
-    expect(model.alerts).toEqual([
-      { kind: "host-offline", name: "Maya Okafor" },
-    ]);
-  });
-
-  it("keeps a caller's host-offline when nothing derives one", () => {
-    const model = roomViewModel(
-      base({
-        alerts: [{ kind: "host-offline", name: "Maya" }],
-        people: [host()],
-      }),
-    );
-    expect(model.alerts).toEqual([{ kind: "host-offline", name: "Maya" }]);
-  });
 });
 
 describe("tileProps", () => {

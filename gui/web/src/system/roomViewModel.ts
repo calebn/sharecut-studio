@@ -244,12 +244,7 @@ export function roomViewModel(input: RoomViewInput): RoomViewModel {
       : null;
   const columns = gridColumns(viewerWidth, tiles.length);
 
-  // The derived alert is named, so it replaces a caller's nameless host-offline:
-  // RoomAlert keeps the first alert of each kind.
   const derived = role === "guest" ? hostOffline(people) : [];
-  const callers = (input.alerts ?? []).filter(
-    (alert) => !(derived.length > 0 && alert.kind === "host-offline"),
-  );
   return {
     tiles,
     columns,
@@ -268,6 +263,6 @@ export function roomViewModel(input: RoomViewInput): RoomViewModel {
         ? hostRecord(people, phase)
         : null,
     dockStatus: savingStatus(phase),
-    alerts: [...derived, ...callers],
+    alerts: [...derived, ...(input.alerts ?? [])],
   };
 }
