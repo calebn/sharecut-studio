@@ -29,6 +29,7 @@ from podcast_mcp.util import pinned_media
 from podcast_mcp.util.binaries import resolve_ffmpeg
 from podcast_mcp.util.host_platform import WINDOWS, HostPlatform, using
 from process_caches import reset_isolated_caches
+from sentinel_home import passthrough_env, stray_files
 
 _REPO_PIPELINE_DEFAULTS = repo_root() / ".agents" / "defaults" / "pipeline.yaml"
 
@@ -169,6 +170,65 @@ def _isolate_host_limiters() -> None:
 def _serial_transcription(monkeypatch: pytest.MonkeyPatch) -> None:
     """Keep a host's core and RAM count from deciding whether a test's tracks run side by side."""
     monkeypatch.setattr("podcast_mcp.engines.transcribe.transcribe_worker_count", lambda *_: 1)
+
+
+def _job_chose_identity() -> bool:
+    chosen = os.environ.get("PODCAST_SHARE_IDENTITY")
+    return bool(chosen) and not Path(chosen).expanduser().is_relative_to(Path.home())
+
+
+_JOB_IDENTITY = _job_chose_identity()
+
+
+def _default_env(patch_env: pytest.MonkeyPatch, name: str, value: str) -> None:
+    """Set ``name`` unless the job that runs the suite already chose a value."""
+    if name not in os.environ:
+        patch_env.setenv(name, value)
+
+
+@pytest.fixture(scope="session", autouse=True)
+def _sentinel_home(tmp_path_factory: pytest.TempPathFactory) -> Iterator[Path]:
+    """Point HOME at an empty folder for the session; fail it if a test leaves ShareCut files there."""
+    home = tmp_path_factory.mktemp("home")
+    state = tmp_path_factory.mktemp("session_state")
+    keep = passthrough_env(Path.home(), dict(os.environ))
+    with pytest.MonkeyPatch.context() as patch_env:
+        # Defaults for fixtures wider than one test, which run before the per-test isolation.
+        _default_env(patch_env, "PODCAST_SHARE_REGISTRY", str(state / "share_registry.sqlite"))
+        _default_env(patch_env, "PODCAST_SHARE_IDENTITY", str(state / "share_identity.sqlite"))
+        _default_env(patch_env, "PODCAST_RELAY_CONFIG", str(state / "relay.yaml"))
+        _default_env(patch_env, "PODCAST_CONFIG_DIR", str(state / "config"))
+        _default_env(patch_env, "PODCAST_WORKSPACE_ROOT", str(state / "workspaces"))
+        _default_env(patch_env, "PODCAST_MCP_CACHE", str(state / "cache"))
+        for name, value in keep.items():
+            patch_env.setenv(name, value)
+        patch_env.setenv("HOME", str(home))
+        patch_env.setenv("USERPROFILE", str(home))
+        yield home
+        stray = stray_files(home)
+    assert not stray, f"tests wrote outside their temp roots, under the session home: {stray}"
+
+
+@pytest.fixture(autouse=True)
+def _isolate_share_identity(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> Iterator[None]:
+    """Pin the guest identity store to a per-test sqlite file and reset its singleton."""
+    from podcast_mcp.services.share_auth.store import reset_identity_store_for_tests
+
+    if not _JOB_IDENTITY:
+        monkeypatch.setenv("PODCAST_SHARE_IDENTITY", str(tmp_path / "share_identity.sqlite"))
+    reset_identity_store_for_tests()
+    try:
+        yield
+    finally:
+        reset_identity_store_for_tests()
+
+
+@pytest.fixture(autouse=True)
+def _no_sweep_timers(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A revoke with a restore window must not arm a real timer that fires in a later test."""
+    from podcast_mcp.services.collaboration import share_pending
+
+    monkeypatch.setattr(share_pending, "start_sweep_timer", lambda *_a: None)
 
 
 @pytest.fixture(autouse=True)
