@@ -1,11 +1,7 @@
-"""Ratchet for #1815: ffmpeg and ffprobe argv lists built outside the engine.
+"""Ratchet for #1815: per-file caps on ffmpeg/ffprobe argv lists built outside the engine.
 
-Counts ``ast.List`` literals under ``src/podcast_mcp`` whose first element is an ffmpeg or
-ffprobe binary: a name, an attribute, a ``resolve_ffmpeg``/``resolve_ffprobe`` call, a
-string constant, or a ``BoolOp``/``IfExp`` with such an operand. Tuples never count. A cap
-that is exceeded fails, so a file cannot gain an argv; a count below its cap does not fail;
-a cap with no argv left is reported as stale. Known gap: a binary reaching the list through
-a local alias, a helper parameter, or a later ``append``/``insert`` is not seen.
+Known gap: a binary reaching the list through a local alias, a helper parameter, or a later
+``append``/``insert`` is not seen.
 """
 
 from __future__ import annotations
