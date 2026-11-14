@@ -422,7 +422,7 @@ describe("a refresh that stops moving", () => {
     });
     expect(a.result.current.kind).toBe("ready");
     expect(b.result.current.kind).toBe("ready");
-    expect(vi.getTimerCount()).toBeLessThanOrEqual(timers);
+    expect(vi.getTimerCount()).toBe(timers);
     act(() => {
       vi.advanceTimersByTime(STALL);
     });

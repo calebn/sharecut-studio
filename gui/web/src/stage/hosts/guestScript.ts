@@ -10,8 +10,17 @@ import { isWordActive, wordSeekSec } from "../../utils/transcript";
 import type { ScriptModel, ScriptWordRef } from "../edit/script/scriptModel";
 import { wordKey } from "../edit/script/scriptModel";
 
+export type TurnSpan = {
+  trackId: string;
+  sourceId: string | null;
+  start: number;
+  end: number;
+};
+
 export type GuestScriptModel = {
   turns: ScriptTurn[];
+  /** Where each turn sits in its recording, in source seconds; a cut does not move it. */
+  spans: TurnSpan[];
   /** Where a tap seeks; null for a held word, whose time is not known yet. */
   wordStarts: (number | null)[];
   words: TranscriptWordView[];
@@ -100,6 +109,7 @@ export function guestScriptOf(rows: readonly ShownRow[]): GuestScriptModel {
     .sort((a, b) => a.first - b.first);
   const colors = new Map<string, number>();
   const turns: ScriptTurn[] = [];
+  const spans: TurnSpan[] = [];
   const turnIds = new Set<string>();
   const wordKeys = new Map<string, number>();
   const wordStarts: (number | null)[] = [];
@@ -142,6 +152,12 @@ export function guestScriptOf(rows: readonly ShownRow[]): GuestScriptModel {
     let id = base;
     for (let n = 2; turnIds.has(id); n += 1) id = `${base}#${n}`;
     turnIds.add(id);
+    spans.push({
+      trackId: utterance.track_id,
+      sourceId: utterance.source_id ?? null,
+      start: utterance.start,
+      end: utterance.end,
+    });
     turns.push({
       id,
       speakerId: speaker,
@@ -162,7 +178,7 @@ export function guestScriptOf(rows: readonly ShownRow[]): GuestScriptModel {
         : anyCut
           ? "cut"
           : "untimed";
-  return { turns, wordStarts, words, refs, times, empty };
+  return { turns, spans, wordStarts, words, refs, times, empty };
 }
 
 /**
