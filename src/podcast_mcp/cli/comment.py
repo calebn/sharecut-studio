@@ -6,8 +6,7 @@ from pathlib import Path
 import typer
 
 from podcast_mcp.services.app import ProjectWorkspace
-from podcast_mcp.services.document import CommentService
-from podcast_mcp.services.document.comment import with_comment_write_grant
+from podcast_mcp.services.document import CommentService, with_comment_write_grant
 
 comment_app = typer.Typer(help="Timeline review comments and action items.")
 

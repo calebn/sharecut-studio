@@ -20,6 +20,7 @@ if TYPE_CHECKING:
     from podcast_mcp.services.document.comment import (
         CommentService,
         run_comment_mutation_with_file_revisions,
+        with_comment_write_grant,
     )
     from podcast_mcp.services.document.cross_process_sync import (
         cross_process_bridge,
@@ -140,6 +141,7 @@ __all__ = [
     "submit_kit_apply",
     "warm_in_background",
     "with_audio_check",
+    "with_comment_write_grant",
 ]
 
 _MODULE_BY_NAME = {
@@ -159,6 +161,7 @@ _MODULE_BY_NAME = {
     "queue_room_tone_pools": "approval_warm",
     "EditService": "edit",
     "with_audio_check": "edit",
+    "with_comment_write_grant": "comment",
     "EpisodeService": "episode",
     "ExportFilesService": "export_files",
     "ExportedFile": "export_files",
