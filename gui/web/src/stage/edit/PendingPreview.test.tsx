@@ -311,8 +311,14 @@ describe("pending preview footer", () => {
           suggest_reason: SPLIT_REASON,
         }),
     });
-    expect(screen.getByRole("button", { name: "Suggested" })).toBeDisabled();
-    expect(screen.getByRole("button", { name: "A/B" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Suggested" })).toHaveAttribute(
+      "aria-disabled",
+      "true",
+    );
+    expect(screen.getByRole("button", { name: "A/B" })).toHaveAttribute(
+      "aria-disabled",
+      "true",
+    );
     expect(
       screen.getByRole("button", { name: "Suggested" }),
     ).toHaveAccessibleDescription(SPLIT_REASON);

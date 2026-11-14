@@ -111,8 +111,11 @@ export const SkipUnavailable: Story = {
     const canvas = within(canvasElement);
     await expect(
       canvas.getByRole("button", { name: "Suggested" }),
-    ).toBeDisabled();
-    await expect(canvas.getByRole("button", { name: "A/B" })).toBeDisabled();
+    ).toHaveAttribute("aria-disabled", "true");
+    await expect(canvas.getByRole("button", { name: "A/B" })).toHaveAttribute(
+      "aria-disabled",
+      "true",
+    );
   },
 };
 
