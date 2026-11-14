@@ -821,15 +821,14 @@ def test_a_dangling_link_at_the_private_file_is_refused_not_called_absent(tmp_pa
 
 
 def test_the_secret_groups_are_named_once() -> None:
-    names = release_inputs
-    assert names.SECRET_NAMES == (
+    assert release_inputs.SECRET_NAMES == (
         "APPLE_DEVELOPMENT_TEAM",
         "APPLE_API_KEY",
         "APPLE_API_ISSUER",
         "APPLE_API_KEY_PATH",
     )
-    assert names.TEAM_SECRETS == ("APPLE_DEVELOPMENT_TEAM",)
-    assert names.KEY_SECRETS == ("APPLE_API_KEY", "APPLE_API_ISSUER")
+    assert release_inputs.TEAM_SECRETS == ("APPLE_DEVELOPMENT_TEAM",)
+    assert release_inputs.KEY_SECRETS == ("APPLE_API_KEY", "APPLE_API_ISSUER")
 
 
 def test_a_missing_key_id_is_one_problem_not_two(tmp_path: Path) -> None:

@@ -417,9 +417,10 @@ Owner runbook. A step marked Apple contacts Apple.
 
 Honest limits. Remapping does not cover host-built build scripts and proc macros; the scan is the
 guarantee, and it covers the home, user name, build cache, cargo and rustup homes, the checkout
-and `TMPDIR`. DWARF and dSYMs are not scanned and are never uploaded. What the scan cannot read is `Assets.car` (lzfse) and a few members inside bundled Python test
-archives (unreadable test certificates, a sparse archive part); they are listed as `unseen` in the
-record and shown as a warning. The privacy check sees C symbols only, not Objective-C selectors
+and `TMPDIR`. DWARF and dSYMs are not scanned and are never uploaded. What the scan cannot read is
+`Assets.car` (lzfse) and a few members inside bundled Python test archives (unreadable test
+certificates, a sparse archive part); they are listed as `unseen` in the record and shown as a
+warning. The privacy check sees C symbols only, not Objective-C selectors
 or `NSURL...Key` constants, so validate and Apple's processing mail are the second signal. The
 reason codes and the symbol table in `contracts/ios-privacy.json` are from memory, not from Apple's
 page. The altool JSON shapes and xcodebuild phrases the classifiers read are not yet seen against a
