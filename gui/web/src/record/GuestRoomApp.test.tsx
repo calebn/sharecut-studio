@@ -484,6 +484,19 @@ describe("GuestRoomApp", () => {
     expect(screen.queryByRole("button", { name: "Resume saving" })).toBeNull();
   });
 
+  it("remembers the name on this device only after the room confirms the join", async () => {
+    stubBootstrap();
+    render(<GuestRoomApp token="guest-tok" />);
+    await readyToJoin(getUserMedia);
+    sockets[0].holdConsent = true;
+    await userEvent.click(joinButton());
+    expect(screen.getByRole("button", { name: "Joining…" })).toBeDisabled();
+    expect(localStorage.getItem("sharecut.recordName")).toBeNull();
+    act(() => sockets[0].onmessage?.(snapshotMessage({}, true)));
+    await screen.findByRole("button", { name: "Leave room" });
+    expect(localStorage.getItem("sharecut.recordName")).toBe("Ava");
+  });
+
   it("closes the sheet and shows the room once consent lands", async () => {
     stubBootstrap();
     render(<GuestRoomApp token="guest-tok" />);
