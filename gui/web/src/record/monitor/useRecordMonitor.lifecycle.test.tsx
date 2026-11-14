@@ -339,6 +339,25 @@ describe("monitor resource original lifecycle", () => {
     unmount();
   });
 
+  it("retry clears the failure and opens a new monitor", () => {
+    const { result, unmount } = renderHook(
+      (input: Args) => useRecordMonitor(input),
+      { initialProps: args() },
+    );
+    act(() => fixture.meshes[0]!.onError?.(new Error("Signal lost")));
+    expect(result.current.error).toBe("Signal lost");
+    expect(fixture.meshes).toHaveLength(1);
+    expect(fixture.contexts).toHaveLength(1);
+
+    act(() => result.current.retry());
+
+    expect(result.current.error).toBeNull();
+    expect(fixture.meshes).toHaveLength(2);
+    expect(fixture.contexts).toHaveLength(2);
+    expect(fixture.contexts[0]!.close).toHaveBeenCalledTimes(1);
+    unmount();
+  });
+
   it("routes the remembered actual output choice to each new context with a stable command", async () => {
     localStorage.setItem(OUTPUT_KEY, "headset");
     Object.defineProperty(navigator, "mediaDevices", {
