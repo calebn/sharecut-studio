@@ -40,6 +40,7 @@ from podcast_mcp.services.collaboration import (
     lookup_share,
     open_share_workspace,
     record_bootstrap,
+    share_id_of,
 )
 from podcast_mcp.services.record import (
     CLIENT_VISIBLE_AUTHZ_CODES,
@@ -113,7 +114,8 @@ async def record_ws(
             await guest_ws_reject(websocket, 4403, "record room missing")
             return
         _row, ws_proj = await run_in_threadpool(open_share_workspace, token, kind=SHARE_KIND_RECORD)
-        conn = await admit_guest_ws(websocket, token, log_label="record ws")
+        share_id = share_id_of(row)
+        conn = await admit_guest_ws(websocket, token, share_id=share_id, log_label="record ws")
         if conn is None:
             return
     except Exception as exc:
@@ -174,7 +176,7 @@ async def record_ws(
             except asyncio.CancelledError:
                 raise
             except Exception:
-                log.exception("record pump failed token=%s", token[:8])
+                log.exception("record pump failed share=%s", share_id)
                 with contextlib.suppress(Exception):
                     await guard.close(1011, "record pump failed")
                 raise

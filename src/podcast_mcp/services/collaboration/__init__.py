@@ -126,6 +126,7 @@ if TYPE_CHECKING:
         has_capability,
         review_role_for_capabilities,
         share_author,
+        share_id_of,
         share_review_source,
     )
     from podcast_mcp.services.collaboration.share_page import (
@@ -257,6 +258,7 @@ __all__ = [
     "share_daw_waveform_tiles",
     "share_episode_name",
     "share_holds_media",
+    "share_id_of",
     "share_is_usable",
     "share_pending_preview_image",
     "share_pending_preview_image_cached",
@@ -399,6 +401,7 @@ _MODULE_BY_NAME = {
     "has_capability": "share_capabilities",
     "review_role_for_capabilities": "share_capabilities",
     "share_author": "share_capabilities",
+    "share_id_of": "share_capabilities",
     "SHARE_ACTOR_PREFIX": "share_capabilities",
     "share_review_source": "share_capabilities",
 }
