@@ -27,9 +27,13 @@ export function openCommentDraft(draft: CommentDraft, replacePin = true): void {
 }
 
 /** The draft a selection makes, and whether the selection chose it (else it is "here"). */
+type SelectionDraft =
+  | { draft: CommentDraft; chosen: boolean }
+  | { refreshing: string };
+
 function draftForSelection(
   state: Pick<DawState, "project" | "selection" | "playheadSec">,
-): { draft: CommentDraft; chosen: boolean } | { refreshing: string } {
+): SelectionDraft {
   const project = state.project!;
   const resolved = resolveSelectionRange(project, state.selection);
   if (resolved.refreshing && resolved.reason)
