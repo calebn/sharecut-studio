@@ -28,7 +28,7 @@ from podcast_mcp.edits.transcript_timing import WordTimingTarget
 from podcast_mcp.engines import source_proxy_audio
 from podcast_mcp.engines.ffmpeg import FFmpegEngine
 from podcast_mcp.gui.assembler import dump_project_projection
-from podcast_mcp.mcp.tools import timeline
+from podcast_mcp.mcp.tools import transcript
 from podcast_mcp.models import (
     Clip,
     ClipOffSpeakerMuteRegion,
@@ -582,7 +582,7 @@ def _bleed_workspace(root: Path) -> ProjectWorkspace:
 def _applied_alignment(rig: Rig, t: Target) -> None:
     window = {"track_id": "uncertain", "start_sec": 0.8, "end_sec": 3.5}
     with write_grant(WriteGrantKind.LEGACY_MCP):
-        applied = json.loads(timeline.align_retained_bleed_tool(str(rig.ws.path), **window))
+        applied = json.loads(transcript.align_retained_bleed_tool(str(rig.ws.path), **window))
     assert applied["applied_count"] == 1
     rig.ws.reload()
 

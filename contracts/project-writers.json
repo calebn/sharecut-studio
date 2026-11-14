@@ -45,13 +45,13 @@
     {
       "module": "mcp/tools/timeline.py",
       "primitive": "notify_after_mutation",
-      "count": 15,
+      "count": 14,
       "reason": "MCP tools call service writes and notify after the fact through the legacy wrapper"
     },
     {
       "module": "mcp/tools/transcript.py",
       "primitive": "notify_after_mutation",
-      "count": 10,
+      "count": 11,
       "reason": "MCP tools call service writes and notify after the fact through the legacy wrapper"
     },
     {

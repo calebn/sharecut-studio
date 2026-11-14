@@ -4,7 +4,7 @@ import json
 from pathlib import Path
 
 from podcast_mcp.config.defaults import load_defaults
-from podcast_mcp.mcp.tools import timeline
+from podcast_mcp.mcp.tools import transcript
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.document import AnalysisService
 from podcast_mcp.services.pipeline.preview import rerender_preview
@@ -38,12 +38,12 @@ def test_gate_service_defaults_to_local_alignment_without_mutating_preview(tmp_p
 def test_declining_mcp_preview_is_saved_and_respected_on_default_gate(tmp_path):
     ws = _workspace(tmp_path)
     preview = json.loads(
-        timeline.align_retained_bleed_tool(
+        transcript.align_retained_bleed_tool(
             str(ws.path), track_id="uncertain", start_sec=0.8, end_sec=3.5, apply=False
         )
     )
     decision_id = preview["proposals"][0]["decision_id"]
-    timeline.set_retained_bleed_alignment_mode_tool(
+    transcript.set_retained_bleed_alignment_mode_tool(
         str(ws.path), decision_id, "declined", track_id="uncertain", start_sec=0.8, end_sec=3.5
     )
     reopened = ProjectWorkspace.open(ws.path)
@@ -60,7 +60,7 @@ def test_alignment_tool_applies_only_requested_region_and_repeat_converges(tmp_p
     ws = _workspace(tmp_path)
     before = [clip.model_dump() for clip in ws.project.clips if clip.track_id == "uncertain"]
     result = json.loads(
-        timeline.align_retained_bleed_tool(
+        transcript.align_retained_bleed_tool(
             str(ws.path), track_id="uncertain", start_sec=0.8, end_sec=3.5
         )
     )
@@ -71,7 +71,7 @@ def test_alignment_tool_applies_only_requested_region_and_repeat_converges(tmp_p
     ] == before
     snapshot = [clip.model_dump() for clip in reopened.project.clips]
     repeated = json.loads(
-        timeline.align_retained_bleed_tool(
+        transcript.align_retained_bleed_tool(
             str(ws.path), track_id="uncertain", start_sec=0.8, end_sec=3.5
         )
     )
