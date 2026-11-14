@@ -7,9 +7,9 @@ import plistlib
 from pathlib import Path
 
 import pytest
+from scripts.ios import bundle_checks as checks
 
 from script_loader import SCRIPTS
-from scripts.ios import bundle_checks as checks
 
 MACHO = b"\xcf\xfa\xed\xfe" + b"\0" * 12
 EXPECT = checks.PlistExpectation("studio.sharecut.app", "ShareCut", "0.1.4", "2026.1114.153045")

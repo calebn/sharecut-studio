@@ -11,10 +11,10 @@ import sys
 from pathlib import Path
 
 import pytest
-
-from script_loader import SCRIPTS
 from scripts.ios.release_run import Command, PrivateFile, spawn
 from scripts.ios.release_secrets import Redactor, Secret
+
+from script_loader import SCRIPTS
 
 IOS = SCRIPTS / "ios"
 
@@ -22,7 +22,7 @@ IOS = SCRIPTS / "ios"
 def test_a_secret_prints_as_its_label_in_every_format() -> None:
     secret = Secret("AAAAAAAAAA", "team")
     assert str(secret) == repr(secret) == f"{secret}" == operator.mod("%s", secret) == "<team>"
-    assert "{:>8}".format(secret) == "  <team>"
+    assert f"{secret:>8}" == "  <team>"
     assert str([secret]) == "[<team>]"
     assert copy.deepcopy(secret) is secret
 

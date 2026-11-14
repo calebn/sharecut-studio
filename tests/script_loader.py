@@ -9,8 +9,6 @@ from types import ModuleType
 from typing import cast
 
 SCRIPTS = Path(__file__).resolve().parents[1] / "scripts"
-if str(SCRIPTS.parent) not in sys.path:
-    sys.path.insert(0, str(SCRIPTS.parent))
 
 
 def load_script(name: str, *, register: bool = False) -> ModuleType:

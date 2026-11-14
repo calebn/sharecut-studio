@@ -12,6 +12,7 @@ import re
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Any
 
 from scripts.ios.release_run import capture
 
@@ -146,9 +147,9 @@ def used_categories(
     }
 
 
-def declared_categories(manifest: Mapping[str, object]) -> dict[str, list[str]]:
+def declared_categories(manifest: Mapping[str, Any]) -> dict[str, list[str]]:
     declared = {}
-    for entry in manifest.get("NSPrivacyAccessedAPITypes", []):  # type: ignore[attr-defined]
+    for entry in manifest.get("NSPrivacyAccessedAPITypes", []):
         declared[entry["NSPrivacyAccessedAPIType"]] = list(entry["NSPrivacyAccessedAPITypeReasons"])
     return declared
 

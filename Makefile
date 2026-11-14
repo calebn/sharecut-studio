@@ -1,4 +1,4 @@
-.PHONY: setup doctor hooks worktree-setup test test-fast test-quick test-e2e test-e2e-slow test-e2e-real test-web test-web-e2e profile-seek-trim test-desktop ios-sim ios-sim-proof desktop-build desktop-linux-appimage-docker ci typecheck lint-py format-py format-py-check install ux-demo ux-demo-screens cheatsheet cheatsheet-check schema-export generated-check docs-sync docs-sync-table docs-sync-replay decisions-index golden-ear
+.PHONY: setup doctor hooks worktree-setup test test-fast test-quick test-e2e test-e2e-slow test-e2e-real test-web test-web-e2e profile-seek-trim test-desktop ios-sim ios-sim-proof ios-testflight ios-release-rehearsal desktop-build desktop-linux-appimage-docker ci typecheck lint-py format-py format-py-check install ux-demo ux-demo-screens cheatsheet cheatsheet-check schema-export generated-check docs-sync docs-sync-table docs-sync-replay decisions-index golden-ear
 
 BASE ?= $(shell python3 scripts/branches.py base)
 
@@ -77,6 +77,18 @@ ios-sim:
 # Launch the app on the Simulator and assert what the iOS stage promises, saving evidence.
 ios-sim-proof:
 	./scripts/ios/ios_sim.sh proof
+
+# Signed iOS build, then App Store Connect validation. It can never upload: run
+# `scripts/ios/ios_release.py upload --confirm <build>:<sha12>` yourself afterwards.
+# docs/desktop-packaging.md § iOS release has the owner's runbook.
+ios-testflight:
+	uv run python scripts/ios/ios_release.py build
+	uv run python scripts/ios/ios_release.py validate
+
+# The same release build unsigned, with every local check. Contacts nobody. Needs
+# PODCAST_DISTRIBUTION_PROFILE to name a profile outside the repository.
+ios-release-rehearsal:
+	uv run python scripts/ios/ios_release.py build --unsigned
 
 # Optional full installer build (needs platform WebView deps). Not CI.
 # macOS signs+notarizes when APPLE_* env vars are set (see docs/desktop-packaging.md).

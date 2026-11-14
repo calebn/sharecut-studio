@@ -122,7 +122,7 @@ packages = ["src/podcast_mcp", "src/podcast_relay"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-pythonpath = ["src"]
+pythonpath = ["src", "."]
 markers = [
     "e2e: uses tests/fixtures/aligned_dialogue (or PODCAST_E2E_PROJECT override)",
     "e2e_slow: live transcribe / full pipeline (minutes)",
