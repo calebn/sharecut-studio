@@ -44,6 +44,10 @@ const RUN_WINDOW_ROW: Readonly<Record<string, ReadyRowId>> = {
   extract_room_tone_beds: "align",
 };
 
+function reportsInRow(row: ReadyRowId, step: string): boolean {
+  return ROW_STEPS[row].includes(step) && !(step in RUN_WINDOW_ROW);
+}
+
 function ownerRow(step: string): ReadyRowId | undefined {
   return ROW_ORDER.find((id) => ROW_STEPS[id].includes(step));
 }
@@ -525,7 +529,7 @@ function reuseDetail(
   row: ReadyRowId,
 ): string | undefined {
   return reuseFromSteps(
-    (job?.steps ?? []).filter((step) => ROW_STEPS[row].includes(step.name)),
+    (job?.steps ?? []).filter((step) => reportsInRow(row, step.name)),
   );
 }
 
@@ -598,6 +602,7 @@ function terminalWorkDetail(
   return (
     reuseFromSteps(result.work.map(({ timing }) => timing)) ??
     (result.work
+      .filter(({ operation }) => !operation.optional)
       .map(({ timing }) => timing.summary)
       .filter(Boolean)
       .join(" · ") ||
@@ -703,9 +708,7 @@ function stepSummary(
   job: PipelineJobSnapshot | null,
   row: ReadyRowId,
 ): string | undefined {
-  const step = job?.steps.find(
-    (s) => ROW_STEPS[row].includes(s.name) && s.summary,
-  );
+  const step = job?.steps.find((s) => reportsInRow(row, s.name) && s.summary);
   return step?.summary ?? undefined;
 }
 
