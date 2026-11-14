@@ -208,7 +208,8 @@ VARIABLES: tuple[Variable, ...] = (
         ),
         (
             "PODCAST_SESSION_TOKEN",
-            "Session token for remote clients (generated off-loopback when unset).",
+            "Session token for remote clients (generated off-loopback when unset). "
+            "Not accepted on a host whose loopback is not trusted (iOS), which uses a session cookie.",
         ),
         ("PODCAST_SIDECAR_BOOT_TOKEN", "Boot token the desktop host requires on health checks."),
         ("PODCAST_SIDECAR_EPHEMERAL", "Bind an ephemeral port (1, true, yes, on)."),
