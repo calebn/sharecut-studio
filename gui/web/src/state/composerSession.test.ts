@@ -253,6 +253,25 @@ describe("type", () => {
     expect(state.surface).toBe("composer");
   });
 
+  it("keeps text typed while no anchor can be known, and pins on the next keystroke that resolves", () => {
+    const first = run(session(), [[{ type: "type", text: "a", fresh: null }]]);
+    expect(first.state.draft).toMatchObject({ text: "a", anchor: null });
+    expect(commentDraftOf(first.state)).toBeNull();
+    const still = run(first.state, [
+      [{ type: "type", text: "ab", fresh: null }],
+    ]);
+    expect(still.state.draft).toMatchObject({ text: "ab", anchor: null });
+    const pinned = run(still.state, [
+      [{ type: "type", text: "abc", fresh: at(12) }],
+    ]);
+    expect(pinned.state.draft).toMatchObject({ text: "abc", anchor: at(12) });
+    // a pinned draft keeps its pin
+    const kept = run(pinned.state, [
+      [{ type: "type", text: "abcd", fresh: at(30) }],
+    ]);
+    expect(kept.state.draft?.anchor).toEqual(at(12));
+  });
+
   it("drops a typed draft when it is emptied, and brings it back on undo", () => {
     const { state } = run(session(), [
       [{ type: "type", text: "a", fresh: at(12) }],

@@ -779,7 +779,7 @@ describe("a Commenter's selection while its words are refreshing", () => {
     vi.unstubAllGlobals();
   });
 
-  it("does not start a comment at the playhead, then anchors at the selection once the words land", async () => {
+  it("keeps typed text without pinning it to the playhead, then pins to the selection once the words land", async () => {
     const first = spoken(0, ["one", "two"], 0);
     const second = spoken(10, ["three", "four"], 2);
     const withClips = (p: ReturnType<typeof minimalProject>) => ({
@@ -848,10 +848,10 @@ describe("a Commenter's selection while its words are refreshing", () => {
     expect(screen.getByText("Pinned")).toBeInTheDocument();
     const field = screen.getByRole("textbox", { name: "Comment" });
     await userEvent.type(field, "H");
+    expect(screen.getByRole("textbox", { name: "Comment" })).toHaveValue("H");
+    expect(useDawStore.getState().composer.draft?.text).toBe("H");
     expect(useDawStore.getState().commentDraft).toBeNull();
-    expect(useDawStore.getState().feedbackToast?.message).toBe(
-      "Refreshing the transcript. Try again in a moment.",
-    );
+    expect(useDawStore.getState().feedbackToast).toBeNull();
 
     await act(async () =>
       landed.resolve({
@@ -860,7 +860,8 @@ describe("a Commenter's selection while its words are refreshing", () => {
         project: withClips(guestProject([first, edited], true)),
       }),
     );
-    await userEvent.type(screen.getByRole("textbox", { name: "Comment" }), "H");
+    await userEvent.type(screen.getByRole("textbox", { name: "Comment" }), "i");
+    expect(screen.getByRole("textbox", { name: "Comment" })).toHaveValue("Hi");
     expect(useDawStore.getState().commentDraft).toMatchObject({
       startSec: 10,
       endSec: 12,

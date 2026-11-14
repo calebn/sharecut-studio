@@ -376,17 +376,15 @@ export function useReviewComments(guest: boolean) {
   const type = (value: string, edit?: BodyEdit) => {
     const state = useDawStore.getState();
     const anchor = resolveCommentAnchor(state);
-    // With no draft yet there is no anchor to keep, and the playhead is not it.
-    if (anchor.source === "refreshing") {
-      state.announceStatus(anchor.reason, { tone: "error" });
-      return;
-    }
+    // Text is never dropped. While the selection's words are refreshing the
+    // draft has no pin (the playhead is not one); the next keystroke that
+    // resolves pins it, and Post refuses until then.
     dispatchComposer({
       type: "type",
       text: value,
       composing: edit?.composing ?? false,
       undo: edit?.undo ?? false,
-      fresh: anchor.draft,
+      fresh: anchor.source === "refreshing" ? null : anchor.draft,
     });
   };
 
