@@ -950,9 +950,8 @@ Mac can see. The assertions, `results.json` and the request audit are described 
 the Simulator tool. `cargo check --lib` for both iOS targets runs inside `make test-desktop` when
 the targets are installed. Python tests for the lane:
 `tests/test_ios_payload.py`, `test_ios_boot_imports.py`, `test_ios_template.py`,
-`test_ios_sim_proof.py` and `test_gui_request_audit.py`. The release tool adds `test_ios_release*.py`,
-`test_ios_bundle_checks.py` and `test_ios_private_paths.py`; `make ios-release-rehearsal` is its
-local real-build check ([desktop-packaging.md § iOS release](desktop-packaging.md#ios-release)).
+`test_ios_sim_proof.py` and `test_gui_request_audit.py`. The release tool adds `test_ios_release*.py`, `test_ios_bundle_checks.py` and `test_ios_private_paths.py`; they prove the plans, parsers, classifiers and the upload guard with the Mac tools faked. The Mac-only wrappers (`decode_profile`, `check_signature`, `collect_ipa`, `unpack`, the signature, privacy and path scan steps, and a non-dry-run `build` or `validate`/`upload`) are proven only in the owner's signed session, not by CI; `make ios-release-rehearsal` is the local real-build check
+([desktop-packaging.md § iOS release](desktop-packaging.md#ios-release)).
 
 ## CI
 

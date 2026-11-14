@@ -1,8 +1,9 @@
 """The release as data: a list of steps that the dry run prints and the runner executes.
 
-``plan_build``, ``plan_validate`` and ``plan_upload`` are pure over their inputs and paths. A
-``Run`` is a child process (``contacts_apple`` says whether it talks to Apple); a ``Local`` is an
-in-process action over a ``Workspace`` that returns a ``CheckReport`` when it checks something.
+``plan_build`` here and ``release_deliver.plan_deliver`` (validate and upload) are pure over their
+inputs and paths. A ``Run`` is a child process (``contacts_apple`` says whether it talks to Apple);
+a ``Local`` is an in-process action over a ``Workspace`` that returns a ``CheckReport`` when it
+checks something.
 """
 
 from __future__ import annotations
