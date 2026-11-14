@@ -2295,6 +2295,12 @@ def test_a_failed_record_pump_and_the_task_label_name_the_share_not_the_token(
 ):
     from podcast_mcp.gui.routes import record_share
 
+    monkeypatch.setenv(
+        "PODCAST_SHARE_IDENTITY", str(tmp_workspace.parent / "share_identity.sqlite")
+    )
+    monkeypatch.setenv(
+        "PODCAST_SHARE_REGISTRY", str(tmp_workspace.parent / "share_registry.sqlite")
+    )
     _ws, room, client = _room(minimal_project, sample_wav, tmp_workspace, monkeypatch)
     token = room["guest"]["token"]
 

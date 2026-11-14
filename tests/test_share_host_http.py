@@ -349,6 +349,8 @@ def served(
     home.mkdir()
     monkeypatch.setattr(Path, "home", lambda: home)
     monkeypatch.setenv("PODCAST_MCP_CACHE", str(tmp_path / "cache"))
+    monkeypatch.setenv("PODCAST_SHARE_IDENTITY", str(tmp_path / "share_identity.sqlite"))
+    monkeypatch.setenv("PODCAST_SHARE_REGISTRY", str(tmp_path / "share_registry.sqlite"))
     monkeypatch.delenv("PODCAST_SESSION_AUTHZ", raising=False)
     reset_record_runtime_for_tests()
     project = load_project(minimal_project)
