@@ -1790,3 +1790,32 @@ def test_a_rejection_with_a_message_prints_the_message(
 ) -> None:
     drive_upload(tmp_path, monkeypatch, answers={flag: (1, apple_error("Invalid Bundle"))})
     assert "Apple rejected the build: Invalid Bundle" in capsys.readouterr().out
+
+
+def many_errors(count: int, message: str) -> str:
+    entries = [{"code": "ITMS-90022", "message": f"{n} {message}"} for n in range(count)]
+    return json.dumps({"product-errors": entries})
+
+
+@pytest.mark.parametrize(
+    ("text", "verdict"),
+    [
+        (apple_error("Invalid Bundle " + "x" * 1_000_000), "rejected"),
+        (many_errors(12, "Invalid Bundle " + "y" * 500), "rejected"),
+        (apple_error("401 unauthorized " + "z" * 1_000_000), "auth_failed"),
+        (altool_error("Redundant Binary Upload " + "d" * 1_000_000), "apple_reports_duplicate"),
+    ],
+    ids=["one-long-message", "many-long-messages", "long-auth-message", "long-duplicate"],
+)
+def test_a_finished_answer_is_stored_with_the_same_caps_as_an_unresolved_one(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, text: str, verdict: str
+) -> None:
+    drive_upload(tmp_path, monkeypatch, answers={"--upload-app": (1, text)})
+    messages = record_module.read_record(tmp_path).uploads[0]["outcome"]["messages"]
+    assert 1 <= len(messages) <= 5
+    assert all(len(message) <= 200 for message in messages)
+    validating = tmp_path / "validate"
+    validating.mkdir()
+    drive_upload(validating, monkeypatch, answers={"--validate-app": (1, text)})
+    stored = record_module.read_record(validating).validations[0]["messages"]
+    assert len(stored) <= 5 and all(len(message) <= 200 for message in stored)
