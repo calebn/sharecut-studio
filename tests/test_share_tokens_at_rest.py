@@ -37,6 +37,7 @@ from podcast_mcp.models import load_project, save_project
 from podcast_mcp.project.store import WriteGrantKind, write_grant
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.collaboration.review import ReviewService
+from podcast_mcp.services.collaboration.share import lookup_share
 from podcast_mcp.services.collaboration.share_registry import get_share_registry
 from podcast_mcp.services.record import RecordLandingService
 from podcast_mcp.services.record.service import reset_record_runtime_for_tests
@@ -267,7 +268,6 @@ class Scene:
     workspace: Path
     exports: Path
     needles: Needles
-    secret: bytes
 
     def host(self, method: str, path: str, **body: object):
         return self.client.request(method, path, json={"path": str(self.project), **body})
@@ -331,7 +331,6 @@ def scene(
         workspace=tmp_workspace,
         exports=exports,
         needles=build_needles(TOKENS, secret),
-        secret=secret,
     )
 
 
@@ -420,9 +419,7 @@ def _use_the_links(scene: Scene, *, between: Callable[[], None]) -> None:
     scene.host("POST", f"/api/shares/{review['token']}/revoke")
 
 
-def test_the_registry_outside_the_scanned_roots_holds_every_token(
-    scene: Scene, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_the_registry_outside_the_scanned_roots_holds_every_token(scene: Scene) -> None:
     _use_the_links(scene, between=lambda: None)
     registry = Path(os.environ["PODCAST_SHARE_REGISTRY"])
     assert scene.workspace not in registry.parents
@@ -453,6 +450,10 @@ def test_a_used_project_and_its_exports_hold_nothing_derived_from_a_link(scene: 
     reset_record_runtime_for_tests()
     _checkpoint(scene.workspace)
     seen_checkpointed = scene.scan()
+
+    share_id = lookup_share(GUEST_TOKEN, kind="record")["id"]
+    reached = scan_root(scene.workspace, {"share-id": share_id.encode()})
+    assert reached, "the scanned folder holds no trace of the record join it should have scanned"
 
     assert seen_while_open == {}, f"while sockets were open: {describe(seen_while_open)}"
     assert seen_closed == {}, f"after the sockets closed: {describe(seen_closed)}"
