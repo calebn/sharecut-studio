@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Launch the ShareCut app on the iOS Simulator and assert what it promises from the Mac.
 
-    make ios-sim-proof            # IOS_SIM_DEVICE=<name or UDID>, IOS_SIM_APP=<path to the .app>
+    make ios-sim-proof            # IOS_SIM_DEVICE=<name or UDID>
 
 The Simulator shares the Mac's loopback, so the engine's port is reachable here. A debug build of
 the app also writes ``request-audit.jsonl`` in its log folder (``podcast_mcp.gui.request_audit``:
@@ -31,12 +31,10 @@ which this script reads from the Mac. Assertions:
 Assertion 5 needs a project open. ``--ui-window SECONDS`` keeps the app open that long (and
 stops early once a WebSocket accept shows) so a person or the Simulator tool can open one.
 
-``results.json`` is ``{"schema": 2, "device": ..., "assertions": {key: {"status": ..., ...}}}``.
-A status is ``observed`` (asserted in full and held), ``partly_observed`` (what the script can see
-held; ``gap`` names what it cannot), ``not_observed`` (not driven from here; ``gap`` says where
-the evidence is) or ``failed``. The exit code is non-zero only for ``failed``.
+``results.json`` and its statuses are described in docs/desktop-packaging.md § iOS app. The exit
+code is non-zero only for ``failed``.
 
-Evidence goes to ``--evidence-dir`` (default: gui/desktop/src-tauri/target/ios-sim-proof).
+Evidence goes to gui/desktop/src-tauri/target/ios-sim-proof.
 Nothing printed or saved contains the exchange code, a session id or a first-navigation URL:
 this script never sees them.
 """
@@ -422,11 +420,9 @@ def main() -> int:
     parser.add_argument("--device", default="booted")
     parser.add_argument("--app", type=Path, required=True)
     parser.add_argument("--bundle-id", required=True)
-    parser.add_argument("--evidence-dir", type=Path, default=DEFAULT_EVIDENCE)
-    parser.add_argument("--skip-broken", action="store_true")
     parser.add_argument("--ui-window", type=float, default=0, metavar="SECONDS")
     args = parser.parse_args()
-    proof = Proof(args.device, args.app, args.bundle_id, args.evidence_dir)
+    proof = Proof(args.device, args.app, args.bundle_id, DEFAULT_EVIDENCE)
     served = proof.serving()
     if served:
         time.sleep(8)
@@ -437,10 +433,9 @@ def main() -> int:
         proof.page_traffic()
         proof.record_row("4_ui", dict(UI_ASSERTION))
         proof.background_and_return()
-        if not args.skip_broken:
-            proof.broken_payload()
+        proof.broken_payload()
     report = {"schema": 2, "device": args.device, "assertions": dict(sorted(proof.results.items()))}
-    (args.evidence_dir / "results.json").write_text(json.dumps(report, indent=2) + "\n")
+    (DEFAULT_EVIDENCE / "results.json").write_text(json.dumps(report, indent=2) + "\n")
     failed = [key for key, row in proof.results.items() if row["status"] == FAILED]
     return 0 if served and not failed else 1
 

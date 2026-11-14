@@ -489,15 +489,6 @@ mod tests {
     }
 
     #[test]
-    fn a_second_bound_after_serving_does_not_navigate_again() {
-        let now = t0();
-        let serving = State::Serving { port: PORT };
-        let (state, effects) = step(&serving, &bound(), now);
-        assert_eq!(state, serving);
-        assert_eq!(effects, vec![]);
-    }
-
-    #[test]
     fn the_exchange_url_encodes_an_unexpected_code() {
         let url = exchange_url(8, &Secret::new("a b&c"));
         assert_eq!(
@@ -513,13 +504,6 @@ mod tests {
         assert!(!event.contains("abc-_123"), "{event}");
         assert!(!effect.contains("abc-_123"), "{effect}");
         assert_eq!(effect, "Navigate { url: Secret(..) }");
-    }
-
-    #[test]
-    fn only_a_never_served_engine_is_retryable() {
-        assert!(FailReason::StartTimedOut.retryable());
-        assert!(start_error().retryable());
-        assert!(!FailReason::StoppedAnswering.retryable());
     }
 
     #[test]

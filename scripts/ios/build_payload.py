@@ -530,8 +530,7 @@ def check_site_packages(site: Path, sdk: SdkRow) -> None:
 
 
 def cache_dir() -> Path:
-    base = os.environ.get("SHARECUT_BUILD_CACHE") or str(Path.home() / ".cache" / "sharecut-build")
-    return Path(base) / "ios"
+    return Path.home() / ".cache" / "sharecut-build" / "ios"
 
 
 def run(command: Sequence[str | Path], **kwargs: Any) -> str:
@@ -582,7 +581,7 @@ def ensure_support(contract: Contract, cache: Path) -> Path:
     return framework
 
 
-def build_engine_wheel(contract: Contract, out_dir: Path) -> Path:
+def build_engine_wheel(out_dir: Path) -> Path:
     """The real engine wheel; hatch puts the web build, contracts and defaults into it."""
     sys.path.insert(0, str(ROOT / "scripts"))
     import build_sidecar
@@ -712,8 +711,13 @@ def input_digest(contract: Contract, sdk: str, export_text: str, rustc: str) -> 
     )
 
 
-def uv_export(contract: Contract) -> str:
-    return run(["uv", "export", *contract.uv_export_args, "--format", "requirements.txt"], cwd=ROOT)
+def load_plan(contract: Contract) -> tuple[str, Plan]:
+    """The `uv export` text and the classified plan for the locked packages."""
+    export_text = run(
+        ["uv", "export", *contract.uv_export_args, "--format", "requirements.txt"], cwd=ROOT
+    )
+    lock = parse_lock((ROOT / "uv.lock").read_text(encoding="utf-8"))
+    return export_text, plan_packages(parse_export(export_text), lock, contract)
 
 
 def engine_requirements() -> list[str]:
@@ -730,14 +734,15 @@ def sdk_from_environment() -> str:
     return TRIPLE_SDKS[triple]
 
 
-def read_manifest(output: Path) -> dict[str, Any] | None:
+def read_manifest() -> dict[str, Any] | None:
     try:
-        return json.loads((output / MANIFEST_NAME).read_text(encoding="utf-8"))
+        return json.loads((PAYLOAD_DIR / MANIFEST_NAME).read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return None
 
 
-def build(contract: Contract, sdk: str, plan: Plan, digest: str, output: Path, rustc: str) -> None:
+def build(contract: Contract, sdk: str, plan: Plan, digest: str, rustc: str) -> None:
+    output = PAYLOAD_DIR
     cache = cache_dir()
     cache.mkdir(parents=True, exist_ok=True)
     (output / MANIFEST_NAME).unlink(missing_ok=True)
@@ -756,7 +761,7 @@ def build(contract: Contract, sdk: str, plan: Plan, digest: str, output: Path, r
         )
     for pkg in plan.of(PackageClass.CROSS_BUILD):
         wheels[pkg.name] = cross_build(pkg, contract, sdk, framework, cache, rustc)
-    engine = build_engine_wheel(contract, cache / "engine" / sdk)
+    engine = build_engine_wheel(cache / "engine" / sdk)
 
     staging = output / "app_packages.tmp"
     shutil.rmtree(staging, ignore_errors=True)
@@ -842,35 +847,32 @@ def main(argv: Sequence[str] | None = None) -> int:
     mode.add_argument(
         "--rebuild", action="store_true", help="build even when the inputs are unchanged"
     )
-    parser.add_argument("--sdk", choices=sorted(("iphoneos", "iphonesimulator")))
-    parser.add_argument("--output", type=Path, default=PAYLOAD_DIR)
+    parser.add_argument("--sdk", choices=sorted(TRIPLE_SDKS.values()))
     args = parser.parse_args(argv)
     try:
         contract = load_contract()
         sdk = args.sdk or sdk_from_environment()
-        export_text = uv_export(contract)
-        lock = parse_lock((ROOT / "uv.lock").read_text(encoding="utf-8"))
-        plan = plan_packages(parse_export(export_text), lock, contract)
+        export_text, plan = load_plan(contract)
         check_engine_requirements(plan, engine_requirements(), contract.marker_environment)
         if args.plan:
             print(json.dumps(plan_summary(plan), indent=2))
             return 0
         rustc = tool_version("rustc", "--version")
         digest = input_digest(contract, sdk, export_text, rustc)
-        manifest = read_manifest(args.output)
+        manifest = read_manifest()
         if (
             args.ensure
             and manifest
             and manifest.get("input_digest") == digest
-            and (args.output / "app_packages").is_dir()
+            and (PAYLOAD_DIR / "app_packages").is_dir()
         ):
             print(f"ios payload up to date ({sdk})")
             return 0
-        build(contract, sdk, plan, digest, args.output, rustc)
+        build(contract, sdk, plan, digest, rustc)
     except PayloadError as error:
         print(f"build_payload: {error}", file=sys.stderr)
         return 1
-    print(f"ios payload built ({sdk}): {args.output}")
+    print(f"ios payload built ({sdk}): {PAYLOAD_DIR}")
     return 0
 
 
