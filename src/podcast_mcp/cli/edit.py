@@ -384,13 +384,13 @@ def edit_apply_suggested_cmd(
                 id_list, overrides=overrides, revise=revise, skip_unsure=bulk
             ),
         )
-    typer.echo(result["summary"])
-    if result["held_unsure"]:
+    typer.echo(result.summary)
+    if result.held_unsure:
         pending = {e.id: e for e in ws.project.edit_decisions}
         _echo_held(
             [
                 HeldEdit(i, cut_label(ws.project, pending[i]), UNSURE_WORD_REASON)
-                for i in result["held_unsure"]
+                for i in result.held_unsure
                 if i in pending
             ],
             [],
