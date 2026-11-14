@@ -735,7 +735,6 @@ type Actions = {
   speaker: (turnId: string, anchor: HTMLElement) => void;
 };
 
-/** A refresh that ends sooner than this shows no sign; a longer one draws the hairline. */
 const NO_CARETS: readonly ScriptCaret[] = [];
 const NO_NUMBERS: readonly number[] = [];
 const NO_FOUND: readonly FoundHit[] = [];
