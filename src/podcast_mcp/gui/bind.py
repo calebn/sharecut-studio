@@ -15,6 +15,7 @@ from pathlib import Path
 from typing import Any
 
 from podcast_mcp import settings
+from podcast_mcp.gui import log_redaction
 from podcast_mcp.util import host_platform
 from podcast_mcp.util.atomic_json import write_json_atomic
 
@@ -93,7 +94,8 @@ def build_gui_server(
 
     Records the bound address on ``app.state`` and returns a ``uvicorn.Server`` for the caller
     to run on ``sockets=[sock]``. The caller keeps the socket and the thread it runs on.
-    ``access_log`` off keeps request URLs out of the log. ``graceful_shutdown_sec`` bounds how
+    A filter on the uvicorn loggers masks share-link tokens in every request and WebSocket
+    line, so the log may stay on. ``graceful_shutdown_sec`` bounds how
     long a stop waits for open connections such as an event stream; ``None`` waits for them.
     """
     import uvicorn
@@ -109,6 +111,7 @@ def build_gui_server(
         ws_per_message_deflate=True,
         timeout_graceful_shutdown=graceful_shutdown_sec,
     )
+    log_redaction.install()
     server = uvicorn.Server(config)
     _cancel_handed_off_commands_on_exit(server, app)
     return server
