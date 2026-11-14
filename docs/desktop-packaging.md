@@ -358,7 +358,7 @@ check, and nobody is contacted. Each subcommand takes `--dry-run`, which prints 
   and uploads that copy. It refuses unless the token matches the copy, the tree is clean and
   `HEAD` is the record's commit, signing and the build number are re-derived from the IPA, every
   local check passes again, Apple validates the copy, and no earlier attempt for that file
-  delivered or was reported as a duplicate. The record can only block an upload, never allow one.
+  delivered or was reported as a duplicate. The attempt is written to the record and synced to disk before the upload command starts. An attempt with no recorded answer (the run was interrupted) blocks a later `upload` for that file with one sentence telling you to check TestFlight for that build number; `--retry-unknown-upload` goes past it and is recorded on the new attempt (`retried_unknown_upload`). A finished attempt that Apple rejected or could not be reached for does not block. The record can only block an upload, never allow one.
   An "already uploaded" answer from Apple is recorded as `apple_reports_duplicate`; check
   TestFlight, and run `build` again for a new number if the build is not there. Exit codes: 3
   inputs, 4 signing, 5 a local check, 6 Apple rejected, 7 duplicate, 8 other tool failure, 9
@@ -384,7 +384,7 @@ Owner runbook. A step marked Apple contacts Apple.
    Xcode is signed in to.
 3. Apple (Xcode creates the certificate and profile): `ios_release.py build`.
 4. Apple, read-only: `ios_release.py validate`.
-5. Apple, writes: `ios_release.py upload --confirm <build>:<sha12>`.
+5. Apple, writes: `ios_release.py upload --confirm <build>:<sha12>`. If a run was interrupted, check TestFlight for the build number before you use `--retry-unknown-upload`.
 6. By hand in App Store Connect: wait for processing and assign the build to yourself as an
    internal tester.
 7. On the device: install from TestFlight, run it, and write down what only a device shows.

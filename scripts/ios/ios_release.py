@@ -3,7 +3,7 @@
 
     uv run python scripts/ios/ios_release.py build [--unsigned] [--dry-run]
     uv run python scripts/ios/ios_release.py validate [--build N] [--dry-run]
-    uv run python scripts/ios/ios_release.py upload --confirm <build>:<sha12> [--build N] [--dry-run]
+    uv run python scripts/ios/ios_release.py upload --confirm <build>:<sha12> [--retry-unknown-upload] [--build N] [--dry-run]
 
 ``build --unsigned`` is the rehearsal: every local check, nothing sent to anyone. The secrets (team,
 key id, issuer, key path) come from a private ``0600`` file outside the repository or from the
@@ -189,7 +189,9 @@ def build(session: Session, unsigned: bool) -> int:
     return 0
 
 
-def deliver(session: Session, confirm: str | None, build_number: str | None) -> int:
+def deliver(
+    session: Session, confirm: str | None, build_number: str | None, retry_unknown: bool = False
+) -> int:
     layout = session.layout
     found = newest(layout.release_root, build_number)
     if found is None:
@@ -231,6 +233,7 @@ def deliver(session: Session, confirm: str | None, build_number: str | None) -> 
         expect,
         confirm=confirm,
         git_state=lambda: git_state(layout.root),
+        retry_unknown_upload=retry_unknown,
     )
     session.say(
         f"ios_release {'upload' if confirm else 'validate'} {record.build_number} "
@@ -266,6 +269,11 @@ def parser() -> argparse.ArgumentParser:
             sub.add_argument(
                 "--confirm", required=True, help="<build>:<sha12>, printed by validate"
             )
+            sub.add_argument(
+                "--retry-unknown-upload",
+                action="store_true",
+                help="upload again after an attempt that left no answer; check TestFlight first",
+            )
     return top
 
 
@@ -276,7 +284,12 @@ def main(argv: Sequence[str] | None = None) -> int:
         with checkout_lock(session.layout.release_root):
             if args.command == "build":
                 return build(session, args.unsigned)
-            return deliver(session, getattr(args, "confirm", None), args.build)
+            return deliver(
+                session,
+                getattr(args, "confirm", None),
+                args.build,
+                getattr(args, "retry_unknown_upload", False),
+            )
     except InputError as error:
         session.say(f"ios_release: {error}")
         return Failure.INPUT.value

@@ -752,3 +752,88 @@ def test_an_unsigned_rehearsal_is_refused_before_anything_is_run(
     out = capsys.readouterr().out
     assert ran == [] and "unsigned rehearsal and cannot be sent to Apple" in out
     assert "build (2026.1115.1)" in out and record.build_number not in out
+
+
+def upload_plan(tmp_path: Path, record: record_module.ReleaseRecord, **options: bool):
+    expect = checks.PlistExpectation(
+        "studio.sharecut.app", "ShareCut", "0.1.4", record.build_number
+    )
+    steps = release_deliver.plan_deliver(
+        tmp_path,
+        record,
+        fake_key(),
+        LAYOUT,
+        NOISY,
+        "/p",
+        expect,
+        confirm=record.token(),
+        git_state=lambda: (record.commit, False),
+        **options,
+    )
+    workspace = release_plan.Workspace(
+        out=tmp_path,
+        sha256=record.ipa_sha256,
+        build_number=record.build_number,
+        signing=Signing.APP_STORE,
+    )
+    return steps_by_name(steps), workspace
+
+
+def interrupted_record() -> record_module.ReleaseRecord:
+    record = make_record()
+    record.uploads.append({"ipa_sha256": record.ipa_sha256, "started_at": "t", "outcome": None})
+    return record
+
+
+def test_an_upload_with_no_recorded_outcome_blocks_a_retry_until_overridden(
+    tmp_path: Path,
+) -> None:
+    record = interrupted_record()
+    steps, workspace = upload_plan(tmp_path, record)
+    report = steps["upload guard"].action(workspace)
+    assert len(report.problems) == 1
+    assert "check TestFlight for build 2026.1114.153045" in report.problems[0]
+    assert "--retry-unknown-upload" in report.problems[0]
+
+    steps, workspace = upload_plan(tmp_path, record, retry_unknown_upload=True)
+    assert steps["upload guard"].action(workspace).problems == ()
+
+
+def test_a_finished_attempt_or_another_files_open_attempt_does_not_block(tmp_path: Path) -> None:
+    record = make_record()
+    for verdict in ("apple_rejected", "apple_unreachable"):
+        record.uploads.append(
+            {"ipa_sha256": record.ipa_sha256, "outcome": {"verdict": verdict, "at": "t"}}
+        )
+    record.uploads.append({"ipa_sha256": "00" * 32, "outcome": None})
+    steps, workspace = upload_plan(tmp_path, record)
+    assert steps["upload guard"].action(workspace).problems == ()
+
+
+def test_the_attempt_is_on_disk_before_the_upload_and_the_override_is_recorded(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    synced: list[int] = []
+    monkeypatch.setattr(os, "fsync", synced.append)
+    record = interrupted_record()
+    steps, workspace = upload_plan(tmp_path, record, retry_unknown_upload=True)
+    steps["record upload attempt"].action(workspace)
+    assert synced
+    on_disk = record_module.read_record(tmp_path).uploads
+    assert [row["outcome"] for row in on_disk] == [None, None]
+    assert on_disk[-1]["retried_unknown_upload"] is True
+    assert "retried_unknown_upload" not in on_disk[0]
+
+    fresh = make_record()
+    steps, workspace = upload_plan(tmp_path, fresh, retry_unknown_upload=True)
+    steps["record upload attempt"].action(workspace)
+    assert "retried_unknown_upload" not in record_module.read_record(tmp_path).uploads[-1]
+
+
+def test_the_retry_flag_belongs_to_upload_only() -> None:
+    parsed = ios_release.parser().parse_args(
+        ["upload", "--confirm", "x:y", "--retry-unknown-upload"]
+    )
+    assert parsed.retry_unknown_upload is True
+    with pytest.raises(SystemExit):
+        ios_release.parser().parse_args(["validate", "--retry-unknown-upload"])
