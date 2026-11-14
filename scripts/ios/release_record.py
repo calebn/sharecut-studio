@@ -10,7 +10,6 @@ from __future__ import annotations
 import fcntl
 import hashlib
 import json
-import os
 import shutil
 from collections.abc import Iterator, Mapping
 from contextlib import contextmanager
@@ -19,6 +18,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+from scripts.ios.private_file import write_private
 from scripts.ios.release_classify import Verdict
 from scripts.ios.release_inputs import BuildNumber, Signing
 
@@ -71,11 +71,7 @@ class ReleaseRecord:
 def write_record(directory: Path, record: ReleaseRecord) -> None:
     text = json.dumps({"schema": SCHEMA, **record.__dict__}, indent=2, sort_keys=True) + "\n"
     temporary = directory / f".{RECORD_NAME}.tmp"
-    descriptor = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
-    with os.fdopen(descriptor, "w", encoding="utf-8") as handle:
-        handle.write(text)
-        handle.flush()
-        os.fsync(handle.fileno())
+    write_private(temporary, text, durable=True)
     temporary.replace(directory / RECORD_NAME)
 
 

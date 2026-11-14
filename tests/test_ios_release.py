@@ -414,6 +414,25 @@ def test_the_record_round_trips_holds_public_fields_and_refuses_a_secret(tmp_pat
         record_module.read_record(tmp_path)
 
 
+def test_the_record_replaces_a_planted_link_and_a_loose_older_temp_file(tmp_path: Path) -> None:
+    target = tmp_path / "victim.txt"
+    target.write_text("untouched")
+    target.chmod(0o644)
+    temporary = tmp_path / ".release.json.tmp"
+    temporary.symlink_to(target)
+    record = make_record()
+    record_module.write_record(tmp_path, record)
+    assert target.read_text() == "untouched"
+    assert oct(target.stat().st_mode & 0o777) == "0o644"
+    assert not temporary.exists()
+
+    temporary.write_text("old")
+    temporary.chmod(0o644)
+    record_module.write_record(tmp_path, record)
+    assert oct((tmp_path / "release.json").stat().st_mode & 0o777) == "0o600"
+    assert record_module.read_record(tmp_path) == record
+
+
 def test_the_newest_build_is_keyed_by_version_and_partials_are_ignored(tmp_path: Path) -> None:
     rows = [("2026.1114.153045", "0.1.4"), ("2026.1201.1", "0.1.4"), ("2026.1102.1", "0.2.0")]
     for number, version in rows:
