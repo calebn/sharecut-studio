@@ -1,0 +1,28 @@
+{
+  "as_of": "2026-11-14",
+  "source": "https://developer.apple.com/documentation/bundleresources/describing-use-of-required-reason-api",
+  "confirmed_against_apple": false,
+  "note": "Written from memory on 2026-11-14: Apple's page returned only its title when fetched, so neither the symbol lists nor the reason codes were read from it. The symbols are the C and Objective-C entry points the page names; the reasons are the codes it is remembered to list. Treat both as unconfirmed until a person reads the page or App Store Connect validation accepts the manifest. Not visible to the symbol check: Objective-C selectors and NSURL...Key constants (file timestamp, disk space), which only show up when Apple processes the upload.",
+  "categories": {
+    "NSPrivacyAccessedAPICategoryFileTimestamp": {
+      "symbols": ["_stat", "_fstat", "_lstat", "_fstatat", "_getattrlist", "_fgetattrlist", "_getattrlistat"],
+      "reasons": ["C617.1", "3B52.1", "DDA9.1", "0A2A.1"]
+    },
+    "NSPrivacyAccessedAPICategorySystemBootTime": {
+      "symbols": ["_mach_absolute_time"],
+      "reasons": ["35F9.1", "8FFB.1", "3D61.1"]
+    },
+    "NSPrivacyAccessedAPICategoryDiskSpace": {
+      "symbols": ["_statfs", "_fstatfs", "_statvfs", "_fstatvfs"],
+      "reasons": ["85F4.1", "E174.1", "7D9E.1", "B728.1"]
+    },
+    "NSPrivacyAccessedAPICategoryUserDefaults": {
+      "symbols": ["_OBJC_CLASS_$_NSUserDefaults"],
+      "reasons": ["CA92.1", "1C8F.1", "C56D.1", "AC6B.1"]
+    },
+    "NSPrivacyAccessedAPICategoryActiveKeyboards": {
+      "symbols": ["_OBJC_CLASS_$_UITextInputMode"],
+      "reasons": ["3EC4.1", "54BD.1"]
+    }
+  }
+}
