@@ -1142,3 +1142,25 @@ def test_known_tokens_holds_the_active_cooldown_and_pending_pools(registry: Sqli
     )
 
     assert registry.known_tokens() == {"active-one-alpha", "cooled-two-beta", "parked-three-gamma"}
+
+
+def test_known_tokens_holds_a_token_that_only_the_pending_pool_remembers(
+    registry: SqliteShareRegistry,
+):
+    now = datetime.now(UTC)
+    registry.claim_active(
+        _share_template(token="parked-only-delta", project_workspace="/tmp/ws")
+        | {"capabilities": ["play"]}
+    )
+    registry.begin_pending_revoke(
+        ["parked-only-delta"],
+        project_workspace="/tmp/ws",
+        group_id="g1",
+        window=timedelta(minutes=5),
+        now=now,
+    )
+    with registry._lock:
+        registry._conn.execute("DELETE FROM active_shares")
+        registry._conn.execute("DELETE FROM cooldown_shares")
+
+    assert registry.known_tokens() == {"parked-only-delta"}
