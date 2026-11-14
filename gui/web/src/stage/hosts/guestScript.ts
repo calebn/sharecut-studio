@@ -172,7 +172,7 @@ export function guestScriptOf(rows: readonly ShownRow[]): GuestScriptModel {
 
 /**
  * A held word is drawn with the numbering it had before the edit, and a cut
- * renumbers a track's words, so a selection stored from it would name other
+ * shifts the index of the words after it (see `rebaseReading`), so a selection stored from it would name other
  * words once the detail lands. A gesture that touches one is dropped; one
  * made before the edit stays, as it did.
  */

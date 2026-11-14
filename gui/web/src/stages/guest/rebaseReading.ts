@@ -4,7 +4,10 @@ import type { ScriptTurn } from "../../system/scriptPieces";
 /**
  * The reading position of a word position captured in an earlier set of
  * turns, expressed in `turns`. A word's key is not the identity here: a cut
- * renumbers a track's `word_index`, so the same word can wear a new key. A
+ * removes its words from the track's transcript and `word_index` is a word's
+ * position in what is left (`engines/transcript_sync.py`
+ * `apply_source_transcript_removes`, `gui/mapper.py` `_mapped_word_index`), so
+ * the same word can wear a new key. A
  * line's id (track, source, start) is stable, so the reader's word is looked
  * for in that line: the word with the same key and text (a hydration that only
  * dropped a word), else the same place in the line. When the line is

@@ -193,14 +193,14 @@ describe("shownTranscriptOf", () => {
     expect(kinds(edge)).toEqual(["waiting", "waiting"]);
   });
 
-  it("hides a word ignored since, and does not resurrect one ignored before", () => {
+  it("waits on a row whose ignored list is not the one its words were read under", () => {
     const struck = row(0, ["one", "two"], 0, {
       words: [word(0, "one", 0, { ignored: true }), word(1, "two", 1)],
       ignored_word_indices: [0],
     });
     const settled = settledOf([struck, second]);
-    // un-ignored after the edit: the word is not shown until detail lands
-    const unignored = shownOf(
+    // ignore removed: the word is not drawn until the detail lands
+    const removed = shownOf(
       transcriptOf([
         header({ ...struck, ignored_word_indices: undefined }),
         header(second),
@@ -208,9 +208,10 @@ describe("shownTranscriptOf", () => {
       settled,
       GRANT,
     );
-    expect(textsOf(unignored.rows[0].utterance)).toEqual(["two"]);
-    // ignored after the edit: the word is gone at once
-    const ignoredNow = shownOf(
+    expect(kinds(removed)[0]).toBe("waiting");
+    expect(removed.rows[0].utterance.words).toBeUndefined();
+    // ignore added: the row waits, so no word is struck out by an old index
+    const added = shownOf(
       transcriptOf([
         header(first),
         header({ ...second, ignored_word_indices: [11] }),
@@ -218,7 +219,26 @@ describe("shownTranscriptOf", () => {
       settledOf([first, second]),
       GRANT,
     );
-    expect(textsOf(ignoredNow.rows[1].utterance)).toEqual(["three"]);
+    expect(kinds(added)).toEqual(["held", "waiting"]);
+    expect(added.rows[1].utterance.words).toBeUndefined();
+    // the same words with the list renumbered by a cut: waiting
+    const renumbered = shownOf(
+      transcriptOf([
+        header({ ...struck, ignored_word_indices: [3] }),
+        header(second),
+      ]),
+      settled,
+      GRANT,
+    );
+    expect(kinds(renumbered)[0]).toBe("waiting");
+    // an identical list is held
+    const same = shownOf(
+      transcriptOf([header(struck), header(second)]),
+      settled,
+      GRANT,
+    );
+    expect(kinds(same)[0]).toBe("held");
+    expect(textsOf(same.rows[0].utterance)).toEqual(["two"]);
   });
 
   it("consumes duplicate takes in order, with a live row between", () => {
