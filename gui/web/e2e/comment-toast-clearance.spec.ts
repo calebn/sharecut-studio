@@ -92,7 +92,10 @@ for (const { cell: phone, theme } of withAppearance(PHONES)) {
             });
 
           const comment = guest.getByRole("button", { name: /^Comment at/ });
-          await comment.tap();
+          // 768 px and wider is the tablet shell, where the field is always on screen.
+          const reopen = () =>
+            phone.width < 768 ? comment.tap() : field.tap();
+          await reopen();
           await field.fill("Loved the intro");
           await dock.getByRole("textbox", { name: "Your name" }).fill("Riley");
           await dock.getByRole("button", { name: "Post", exact: true }).tap();
@@ -103,7 +106,7 @@ for (const { cell: phone, theme } of withAppearance(PHONES)) {
           await shot("posted");
           expect(await overlaps(guest)).toEqual([]);
 
-          await comment.tap();
+          await reopen();
           await expect(field).toBeFocused();
           await expect(toast).toBeVisible();
           await settle(guest);
