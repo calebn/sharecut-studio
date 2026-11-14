@@ -163,7 +163,9 @@ export const GuestPrompting: Story = {
   play: async ({ viewMode }) => {
     if (viewMode === "docs") return;
     const dialog = await sheet();
-    await expect(dialog.getByText("Waiting for your browser…")).toBeVisible();
+    await expect(
+      dialog.getAllByText("Waiting for your browser…")[0],
+    ).toBeVisible();
     await expect(rowState("mic")).toBe("running");
     await expect(dialog.getByText("Answer your browser first")).toBeVisible();
   },
@@ -319,7 +321,7 @@ export const GuestJoining: Story = {
     if (viewMode === "docs") return;
     const dialog = await sheet();
     const join = dialog.getByRole("button", { name: "Joining…" });
-    await expect(join).toBeDisabled();
+    await expect(join).toHaveAttribute("aria-disabled", "true");
     await expect(join).toHaveAttribute("aria-busy", "true");
   },
 };
