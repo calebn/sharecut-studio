@@ -5,6 +5,10 @@ import type {
   ModelStatus,
 } from "../api";
 import {
+  UNSUPPORTED_SENTENCE,
+  UNSUPPORTED_STATUS,
+} from "../test/unsupportedStatus";
+import {
   downloadRows,
   initialState,
   jobFailures,
@@ -107,27 +111,19 @@ describe("overlay", () => {
   });
 
   it("reports an unsupported row with the server's sentence, even while a job lists it", () => {
-    const sentence = "ShareCut can't transcribe audio on this device yet.";
-    const unsupported = status({
-      models: [
-        row({ id: "whisper", state: "unsupported", hint: sentence }),
-        row({ id: "rnnoise", state: "unsupported" }),
-      ],
-    });
     const views = overlay(
-      unsupported,
+      UNSUPPORTED_STATUS,
       job({ components: ["whisper"] }),
       {},
       undefined,
       ["rnnoise"],
     );
-    expect(views.map((v) => v.state)).toEqual([
-      { kind: "unsupported", hint: sentence },
-      {
+    expect(views.map((v) => v.state)).toEqual(
+      UNSUPPORTED_STATUS.models.map(() => ({
         kind: "unsupported",
-        hint: "ShareCut can't process audio on this device yet.",
-      },
-    ]);
+        hint: UNSUPPORTED_SENTENCE,
+      })),
+    );
   });
 
   it("shows the downloading component with bytes and total and queues the others", () => {

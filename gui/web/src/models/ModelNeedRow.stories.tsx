@@ -1,6 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn, userEvent, within } from "storybook/test";
 import { viewportStoryParameters } from "../storybook/storyLayout";
+import { UNSUPPORTED_SENTENCE } from "../test/unsupportedStatus";
 import { ModelNeedRowView } from "./ModelNeedRow";
 
 const WHISPER = {
@@ -103,16 +104,14 @@ export const ListDownloading: Story = {
 
 const UNSUPPORTED = {
   kind: "unsupported",
-  hint: "ShareCut can't transcribe audio on this device yet.",
+  hint: UNSUPPORTED_SENTENCE,
 } as const;
 
 export const Unsupported: Story = {
   args: { state: UNSUPPORTED },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    await expect(
-      canvas.getByText("ShareCut can't transcribe audio on this device yet."),
-    ).toBeVisible();
+    await expect(canvas.getByText(UNSUPPORTED_SENTENCE)).toBeVisible();
     await expect(canvas.queryByRole("button")).toBeNull();
   },
 };

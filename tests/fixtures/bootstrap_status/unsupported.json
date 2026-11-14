@@ -1,0 +1,109 @@
+{
+  "cdn_base": false,
+  "host": {
+    "can_spawn_processes": false,
+    "loopback_is_trusted": false,
+    "media_tools": "unavailable",
+    "name": "ios",
+    "transcription": "unavailable"
+  },
+  "models": [
+    {
+      "hint": "ShareCut can't process audio on this device yet.",
+      "id": "whisper",
+      "label": "Whisper speech model",
+      "model": "large-v3-turbo",
+      "purpose": "transcription",
+      "size": "~1.6 GB",
+      "size_bytes": 1600000000,
+      "state": "unsupported",
+      "tier": "required"
+    },
+    {
+      "hint": "ShareCut can't process audio on this device yet.",
+      "id": "rnnoise",
+      "label": "Noise reduction (RNNoise)",
+      "model": "rnnoise",
+      "purpose": "noise reduction",
+      "size": "~0.3 MB",
+      "size_bytes": 297646,
+      "state": "unsupported",
+      "tier": "recommended"
+    },
+    {
+      "hint": "ShareCut can't process audio on this device yet.",
+      "id": "word-aligner",
+      "label": "wav2vec2 base (ONNX, English)",
+      "model": "onnx-base",
+      "purpose": "precise word boundaries",
+      "size": "~360 MB",
+      "size_bytes": 360000000,
+      "state": "unsupported",
+      "tier": "recommended"
+    },
+    {
+      "hint": "ShareCut can't process audio on this device yet.",
+      "id": "speaker-ecapa",
+      "label": "Speaker recognition (ECAPA, ONNX)",
+      "model": "speaker-ecapa",
+      "purpose": "speaker recognition and split",
+      "size": "~80 MB",
+      "size_bytes": 80000000,
+      "state": "unsupported",
+      "tier": "recommended"
+    }
+  ],
+  "ready": false,
+  "tools": {
+    "ffmpeg": {
+      "hint": "ShareCut can't process audio on this device yet.",
+      "source": "not found",
+      "state": "unsupported"
+    }
+  },
+  "whisper_model": "large-v3-turbo",
+  "whisper_models": [
+    {
+      "cached": false,
+      "description": "Lowest accuracy. Drafts only.",
+      "id": "tiny.en",
+      "label": "Fastest (English)",
+      "size": "~75 MB"
+    },
+    {
+      "cached": false,
+      "description": "Smaller download; more ASR holes on overlapping speech.",
+      "id": "base.en",
+      "label": "Lightweight (English)",
+      "size": "~150 MB"
+    },
+    {
+      "cached": false,
+      "description": "Good laptop default if disk is tight.",
+      "id": "small.en",
+      "label": "Balanced (English)",
+      "size": "~500 MB"
+    },
+    {
+      "cached": false,
+      "description": "Strong English WER; weaker on mixed-language episodes.",
+      "id": "medium.en",
+      "label": "High quality (English)",
+      "size": "~1.5 GB"
+    },
+    {
+      "cached": false,
+      "description": "Lowest practical error for podcasts (multilingual). Default.",
+      "id": "large-v3-turbo",
+      "label": "Recommended",
+      "size": "~1.6 GB"
+    },
+    {
+      "cached": false,
+      "description": "Slightly better than turbo; much slower and larger.",
+      "id": "large-v3",
+      "label": "Maximum accuracy",
+      "size": "~3 GB"
+    }
+  ]
+}

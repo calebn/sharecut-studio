@@ -24,6 +24,10 @@ import {
   modelsWrapper,
   registryRows,
 } from "../../test/renderWithModels";
+import {
+  UNSUPPORTED_SENTENCE,
+  UNSUPPORTED_STATUS,
+} from "../../test/unsupportedStatus";
 import { ApiError } from "../../utils/apiError";
 import {
   _resetHomeVisitCountForTests,
@@ -1123,27 +1127,8 @@ describe("HomeScreen", () => {
     });
 
     describe("on a device that cannot have audio tools", () => {
-      const sentence = "ShareCut can't process audio on this device yet.";
-      const unsupported = () =>
-        modelsApi({
-          status: modelStatus(
-            registryRows().map((r) => ({
-              ...r,
-              state: "unsupported" as const,
-              hint: "ShareCut can't transcribe audio on this device yet.",
-            })),
-            {
-              ready: false,
-              tools: {
-                ffmpeg: {
-                  state: "unsupported",
-                  source: "not found",
-                  hint: sentence,
-                },
-              },
-            },
-          ),
-        });
+      const sentence = UNSUPPORTED_SENTENCE;
+      const unsupported = () => modelsApi({ status: UNSUPPORTED_STATUS });
 
       it("says so on the card with no download, even after Not now", async () => {
         window.sessionStorage.setItem(SETUP_DISMISSED_KEY, "1");
@@ -1155,8 +1140,11 @@ describe("HomeScreen", () => {
         );
         expect(await screen.findByText(sentence)).toBeInTheDocument();
         expect(
-          screen.queryByRole("button", { name: /^(Get ready|Check again)/ }),
+          screen.queryByRole("button", {
+            name: /^(Get|Try again|Check again|Update)/,
+          }),
         ).not.toBeInTheDocument();
+        expect(screen.queryByRole("progressbar")).not.toBeInTheDocument();
         expect(
           screen.queryByText("Audio tools are missing."),
         ).not.toBeInTheDocument();

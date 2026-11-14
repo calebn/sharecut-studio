@@ -107,6 +107,7 @@ generated-check:
 	uv run python scripts/export_limit_contracts.py --check
 	uv run python scripts/export_project_types.py --check
 	uv run python scripts/export_pipeline_params.py --check
+	uv run python scripts/export_bootstrap_unsupported.py --check
 	uv run python scripts/export_roles.py --check
 
 # Docs-sync gate for this branch (the same check CI runs on the PR diff). Judges commits,

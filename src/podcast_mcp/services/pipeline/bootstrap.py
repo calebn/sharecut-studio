@@ -63,12 +63,18 @@ def model_status(
 
     ``state`` is ``installed`` when the registry row reports no problem. A pin mismatch is
     ``update_needed`` with an ``--upgrade`` fix as ``bootstrap``; any other problem is
-    ``missing`` with ``hint`` and ``bootstrap``. A host that cannot transcribe reports whisper as
-    ``unsupported`` with a one-sentence ``hint``. An unexpected error is reported, never raised.
+    ``missing`` with ``hint`` and ``bootstrap``. A host that cannot process audio reports every
+    model as ``unsupported`` with the one sentence the audio tools use: RNNoise runs through
+    FFmpeg and the other models need the transcription stack that host also lacks. A host that
+    can process audio but not transcribe reports whisper alone as ``unsupported``. An unexpected
+    error is reported, never raised.
     """
     spec = model_spec(model_id)
     base = model_base(model_id, variant)
-    if model_id == "whisper" and host_platform.current().transcription == "unavailable":
+    host = host_platform.current()
+    if host.media_tools == "unavailable":
+        return {**base, "state": "unsupported", "hint": host_platform.MEDIA_UNAVAILABLE}
+    if model_id == "whisper" and host.transcription == "unavailable":
         return {**base, "state": "unsupported", "hint": host_platform.TRANSCRIPTION_UNAVAILABLE}
     try:
         record = model_record(model_id, variant, memoize=memoize)

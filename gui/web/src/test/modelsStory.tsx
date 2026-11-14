@@ -1,6 +1,8 @@
 import type { Decorator } from "@storybook/react-vite";
+import { overlay, toolsOf } from "../models/controller";
 import type { ModelState, ModelView, WhisperChoice } from "../models/types";
 import { type ModelsApi, ModelsContext } from "../models/useModels";
+import { UNSUPPORTED_STATUS } from "./unsupportedStatus";
 
 const WHISPER: WhisperChoice = {
   variant: "large-v3-turbo",
@@ -65,17 +67,11 @@ export function registryModels(
   ];
 }
 
-export const UNSUPPORTED_TOOLS = {
-  ffmpeg: "unsupported" as const,
-  hint: "ShareCut can't process audio on this device yet.",
-};
+export const UNSUPPORTED_TOOLS = toolsOf(UNSUPPORTED_STATUS);
 
+/** The rows the engine reports on a host that cannot process audio. */
 export function unsupportedModels(): ModelView[] {
-  const hint = "ShareCut can't transcribe audio on this device yet.";
-  return registryModels().map((m) => ({
-    ...m,
-    state: { kind: "unsupported", hint },
-  }));
+  return overlay(UNSUPPORTED_STATUS, null, {});
 }
 
 function storyModelsApi(over: Partial<ModelsApi> = {}): ModelsApi {
