@@ -67,7 +67,6 @@ export type RoomViewProps = {
   onStartTake?: () => void;
   onStopTake?: () => void;
   recordBusy?: boolean;
-  status?: ReactNode;
   /** A guest's Done once their take is saved. The view shows it only then. */
   onDone?: () => void;
   /** A guest's own work that holds Leave until it is done. */
@@ -174,7 +173,6 @@ export function RoomView({
   onStartTake,
   onStopTake,
   recordBusy = false,
-  status,
   onDone,
   device,
   onMute,
@@ -443,11 +441,8 @@ export function RoomView({
           showComment={model.showComment}
           unreadNotes={unreadNotes}
           notesOpen={model.notesOpen}
-          status={status ?? (dock.kind === "controls" ? undefined : dock.text)}
-          onDone={dock.kind === "done" ? onDone : undefined}
-          leaveDisabledReason={
-            dock.kind === "done" ? undefined : dock.leaveHeld
-          }
+          dock={dock}
+          onDone={onDone}
           onMute={onMute}
           onComment={onComment}
           onPause={onPause}

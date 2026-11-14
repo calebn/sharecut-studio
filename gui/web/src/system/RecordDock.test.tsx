@@ -88,7 +88,10 @@ describe("RecordDock", () => {
 
   it("a status line replaces the secondaries after Stop", () => {
     render(
-      <RecordDock seat="guest" status="Saving · 64% · keep this page open" />,
+      <RecordDock
+        seat="guest"
+        dock={{ kind: "status", text: "Saving · 64% · keep this page open" }}
+      />,
     );
     expect(screen.getByText(/Saving · 64%/)).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Mute" })).toBeNull();
@@ -99,7 +102,10 @@ describe("RecordDock", () => {
     render(
       <RecordDock
         seat="guest"
-        status="Saved to project. You can close this page."
+        dock={{
+          kind: "done",
+          text: "Saved to project. You can close this page.",
+        }}
         onDone={onDone}
         onLeave={vi.fn()}
       />,
@@ -119,27 +125,72 @@ describe("RecordDock", () => {
       render(
         <RecordDock
           seat="guest"
-          leaveDisabledReason="You can leave after this take."
+          dock={{
+            kind: "controls",
+            leaveHeld: "You can leave after this take.",
+          }}
           onLeave={onLeave}
         />,
       );
       const leave = screen.getByRole("button", { name: "Leave room" });
       expect(leave).toHaveAttribute("aria-disabled", "true");
       expect(leave).toHaveAttribute("title", "You can leave after this take.");
-      expect(screen.getByRole("status")).toBeEmptyDOMElement();
+      const note = document.getElementById(
+        leave.getAttribute("aria-describedby") ?? "",
+      );
+      expect(note).toHaveTextContent("You can leave after this take.");
+      expect(note).not.toHaveAttribute("data-shown");
       act(() => leave.click());
       expect(onLeave).not.toHaveBeenCalled();
-      expect(screen.getByRole("status")).toHaveTextContent(
-        "You can leave after this take.",
-      );
+      expect(note).toHaveAttribute("data-shown");
       act(() => {
         vi.advanceTimersByTime(2000);
       });
-      expect(screen.getByRole("status")).toBeEmptyDOMElement();
+      expect(note).not.toHaveAttribute("data-shown");
+    });
+
+    it("gives the reason as its description at rest", () => {
+      render(
+        <RecordDock
+          seat="guest"
+          dock={{ kind: "controls", leaveHeld: "Not yet." }}
+        />,
+      );
+      const note = screen
+        .getByRole("button", { name: "Leave room" })
+        .getAttribute("aria-describedby");
+      expect(document.getElementById(note ?? "")).toHaveTextContent("Not yet.");
+    });
+
+    it("holds Done the same way", () => {
+      const onDone = vi.fn();
+      render(
+        <RecordDock
+          seat="guest"
+          dock={{
+            kind: "done",
+            text: "Saved to project. You can close this page.",
+            leaveHeld: "Your recording is still finishing",
+          }}
+          onDone={onDone}
+        />,
+      );
+      const done = screen.getByRole("button", { name: "Done" });
+      expect(done).toHaveAttribute("aria-disabled", "true");
+      expect(done).toHaveAccessibleDescription(
+        "Your recording is still finishing",
+      );
+      act(() => done.click());
+      expect(onDone).not.toHaveBeenCalled();
     });
 
     it("stays focusable", () => {
-      render(<RecordDock seat="guest" leaveDisabledReason="Not yet." />);
+      render(
+        <RecordDock
+          seat="guest"
+          dock={{ kind: "controls", leaveHeld: "Not yet." }}
+        />,
+      );
       expect(
         screen.getByRole("button", { name: "Leave room" }),
       ).not.toBeDisabled();

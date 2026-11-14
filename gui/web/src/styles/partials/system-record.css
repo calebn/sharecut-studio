@@ -139,6 +139,10 @@
   z-index: 1;
 }
 
+.sys-dock-hint:not([data-shown]) {
+  display: none;
+}
+
 .sys-dock-hint[data-shown] {
   margin-block-end: var(--space-3);
   padding: var(--space-3) var(--space-4);
