@@ -13,6 +13,7 @@ import shutil
 import stat
 import tempfile
 import zipfile
+from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
@@ -25,6 +26,7 @@ from podcast_mcp.config.distribution import runtime_distribution_metadata
 from podcast_mcp.engines.models.whisper import resolve_whisper_model, whisper_model_is_cached
 from podcast_mcp.models import EPISODE_PROJECT_FILENAME, EpisodeProject
 from podcast_mcp.services.app import resolve_gui_static_root
+from podcast_mcp.services.collaboration import get_share_registry
 from podcast_mcp.services.pipeline import component_status
 from podcast_mcp.services.support.doctor import (
     ffmpeg_probe_info,
@@ -41,8 +43,9 @@ from podcast_mcp.util.diagnostics_bundle_contract import (
 from podcast_mcp.util.hardware import accelerator_preference, hardware_profile
 from podcast_mcp.util.model_assets import rnnoise_model_path
 from podcast_mcp.util.progress import resolve_progress_task
-from podcast_mcp.util.redact import sanitize
+from podcast_mcp.util.redact import redact_secrets, sanitize
 
+TOKEN_PREFIX_MIN = 6
 LOG_TAIL_LINES = 500
 LOG_TAIL_MAX_BYTES = 256 * 1024
 MAX_LOG_FILES = 32
@@ -97,7 +100,8 @@ Contents
 Not included
 ------------
 Audio, transcripts, {EPISODE_PROJECT_FILENAME}, shares.json, sync.db, relay.yaml,
-or share tokens.
+or share tokens. Link tokens are masked twice before the zip is written: by share
+route path, and by value against every token this computer knows.
 
 How to report
 -------------
@@ -388,6 +392,15 @@ def _collect_logs(*, include_logs: bool, home: Path, workspace: Path | None) -> 
     return collected
 
 
+def _mask_share_tokens(text: str, tokens: Sequence[str]) -> str:
+    """Mask every link token the registry knows, and any prefix of one from 6 characters.
+
+    The path rules in ``sanitize`` see only a token inside a share route. This sees it
+    wherever it sits (a bare slug in an exception text, a cut-off prefix).
+    """
+    return redact_secrets(text, tokens, min_prefix=TOKEN_PREFIX_MIN)
+
+
 def _truncate_logs(logs: dict[str, str], *, budget: int) -> dict[str, str]:
     """Keep logs under ``budget`` bytes, dropping oldest lines first."""
     encoded = {name: body.encode("utf-8") for name, body in logs.items()}
@@ -487,6 +500,9 @@ class DiagnosticsService:
             task.set_phase("redacting", "Redacting logs…")
             logs = _collect_logs(include_logs=include_logs, home=home, workspace=workspace)
             README = sanitize(_README, **_redact_kwargs(home=home, workspace=workspace))
+            tokens = sorted(get_share_registry().known_tokens())
+            report_text = _mask_share_tokens(report_text, tokens)
+            logs = {name: _mask_share_tokens(body, tokens) for name, body in logs.items()}
             fixed = len(report_text.encode("utf-8")) + len(README.encode("utf-8"))
             log_budget = max(0, MAX_BUNDLE_BYTES - fixed - 64_000)
             logs = _truncate_logs(logs, budget=log_budget)
