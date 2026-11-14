@@ -23,7 +23,6 @@ from podcast_mcp.util.coded_error import (
     CodedFileNotFoundError,
     CodedKeyError,
     CodedValueError,
-    guest_message_for_code,
 )
 from podcast_mcp.util.project_state import PROJECT_BUSY_CODE, ProjectBusyError
 from podcast_mcp.util.tool_refusal import (
@@ -325,6 +324,4 @@ def test_every_guest_surface_reads_the_same_approved_message_for_a_code(
 def test_every_guest_surface_reads_the_fixed_busy_message_for_a_lock_timeout() -> None:
     exc = ProjectBusyError("/Users/host/Talkin' Shop/.lock")
 
-    _assert_every_guest_surface_reads(
-        exc, guest_message_for_code(PROJECT_BUSY_CODE), PROJECT_BUSY_CODE
-    )
+    _assert_every_guest_surface_reads(exc, "This project is busy; try again.", PROJECT_BUSY_CODE)
