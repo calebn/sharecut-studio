@@ -22,6 +22,12 @@ type Props = {
    * sheet. A phone still raises it from the bottom.
    */
   edge?: "end";
+  /**
+   * false: the scrim is a still layer, out of the accessibility tree, and a
+   * press on it does nothing. For a choice the person answers with a button
+   * (the Join sheet's consent). Default true.
+   */
+  scrimDismisses?: boolean;
   /** Initial focus; defaults to Close. */
   initialFocusRef?: React.RefObject<HTMLElement | null>;
   /** Keep the dialog open (no scrim/Escape/Close dismiss). */
@@ -73,6 +79,7 @@ export function Dialog({
   headerStart,
   headerEnd,
   fullScreen = false,
+  scrimDismisses = true,
   anchor,
   panelId,
   descriptionId,
@@ -143,7 +150,7 @@ export function Dialog({
       aria-labelledby={anchored ? undefined : titleId}
       aria-describedby={anchored ? undefined : descriptionId}
     >
-      {anchored ? null : (
+      {anchored ? null : scrimDismisses ? (
         <button
           type="button"
           className="command-palette-scrim"
@@ -152,6 +159,11 @@ export function Dialog({
           tabIndex={fullScreen ? -1 : undefined}
           onClick={dismiss}
           disabled={closeDisabled}
+        />
+      ) : (
+        <div
+          className="command-palette-scrim command-palette-scrim--still"
+          aria-hidden="true"
         />
       )}
       <div

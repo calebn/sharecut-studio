@@ -377,3 +377,20 @@ it("lets Tab reach the inner dialog's buttons when two modals are stacked", asyn
   expect(inner.contains(document.activeElement)).toBe(true);
   expect(outerFocus).not.toHaveBeenCalled();
 });
+
+it("a still scrim is no button and a press on it keeps the dialog open", () => {
+  const onClose = vi.fn();
+  render(
+    <Dialog open scrimDismisses={false} onClose={onClose} title="Join the room">
+      <p>Body</p>
+    </Dialog>,
+  );
+  expect(
+    screen.queryByRole("button", { name: "Close Join the room" }),
+  ).toBeNull();
+  const scrim = document.querySelector(".command-palette-scrim");
+  expect(scrim).toHaveAttribute("aria-hidden", "true");
+  fireEvent.click(scrim as Element);
+  expect(onClose).not.toHaveBeenCalled();
+  expect(screen.getAllByRole("button", { name: /^Close/ })).toHaveLength(1);
+});
