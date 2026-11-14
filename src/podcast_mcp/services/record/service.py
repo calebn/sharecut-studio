@@ -371,7 +371,7 @@ def begin_record_session(
 
         persist_session_summary(project, str(outgoing))
     store.reset(empty_record_snapshot(session_id, room_target).model_dump(), guard=guard)
-    _participants_for(project).clear_all()
+    _participants_for(project).clear_except(session_id)
     live_comment_store_for(project).clear_all()
     clear_connections_for_hub(hub)
     invalidate_record_session_cache(project)
@@ -439,7 +439,7 @@ class RecordSessionService:
     def set_track_choice(self, participant_id: str, track_id: str) -> None:
         self._participants.set_track_choice(self.session_id, participant_id, track_id)
 
-    def verify_lease(self, participant_id: str, lease: str, *, token: str) -> bool:
+    def verify_lease(self, participant_id: str, lease: str, *, share_id: str) -> bool:
         if participant_id == HOST_PARTICIPANT_ID:
             return False
         person = find_participant(self._model(), participant_id)
@@ -448,7 +448,7 @@ class RecordSessionService:
         return self._participants.verify(
             participant_id,
             lease,
-            token=token,
+            share_id=share_id,
             session_id=self.session_id,
         )
 
@@ -465,8 +465,8 @@ class RecordSessionService:
         with self._authority_lock:
             return (self.session_id, participant_id) not in self._removed_ids
 
-    def invite_closed(self, token: str) -> bool:
-        """True when a participant minted through ``token`` was removed (closes the invite).
+    def invite_closed(self, share_id: str) -> bool:
+        """True when a participant minted through ``share_id`` was removed (closes the invite).
 
         Takes the room authority lock (an ``RLock``, so ``_join_locked`` can call it
         while holding the lock). The SQLite lookup only runs once a removal exists.
@@ -475,11 +475,8 @@ class RecordSessionService:
             removed = {p.participant_id for p in self._model().participants if p.removed}
             if not removed:
                 return False
-            return not removed.isdisjoint(
-                self._participants.participant_ids_for_token(
-                    token=token, session_id=self.session_id
-                )
-            )
+            bound = self._participants.invites_of(removed, session_id=self.session_id)
+            return share_id in bound.values()
 
     def signal(
         self,
@@ -550,7 +547,7 @@ class RecordSessionService:
     def join(
         self,
         *,
-        token: str,
+        share_id: str | None = None,
         role: RecordRole,
         display_name: str,
         participant_id: str | None = None,
@@ -562,7 +559,7 @@ class RecordSessionService:
     ) -> tuple[dict[str, Any], dict[str, Any]]:
         with self._authority_lock:
             return self._join_locked(
-                token=token,
+                share_id=share_id,
                 role=role,
                 display_name=display_name,
                 participant_id=participant_id,
@@ -576,7 +573,7 @@ class RecordSessionService:
     def _join_locked(
         self,
         *,
-        token: str,
+        share_id: str | None,
         role: RecordRole,
         display_name: str,
         participant_id: str | None,
@@ -590,24 +587,20 @@ class RecordSessionService:
         if role == "host":
             pid = HOST_PARTICIPANT_ID
             lease_out = ""
+        elif not share_id:
+            raise RecordAuthzError("forbidden")
         elif participant_id and lease:
             person = find_participant(self._model(), participant_id)
             if person is not None and person.removed:
                 raise RecordAuthzError("participant_removed")
-            if not self.verify_lease(participant_id, lease, token=token):
+            if not self.verify_lease(participant_id, lease, share_id=share_id):
                 raise RecordAuthzError("invalid_lease")
             pid = participant_id
             lease_out = lease
-            self._participants.touch(pid)
         else:
-            if self.invite_closed(token):
+            if self.invite_closed(share_id):
                 raise RecordAuthzError("invite_closed")
-            pid, lease_out = self._participants.mint(
-                session_id=self.session_id,
-                token=token,
-                role=role,
-                display_name=display_name,
-            )
+            pid, lease_out = self._participants.mint(session_id=self.session_id, share_id=share_id)
         inferred_since = None
         now_wall_ms = time.time_ns() // 1_000_000
         if role == "host":

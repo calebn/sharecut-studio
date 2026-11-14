@@ -106,7 +106,7 @@ def _guest_join(
     svc, room, *, name: str, conn: str, pid: str | None = None, lease: str | None = None
 ) -> tuple[str, str]:
     echo, _snap = svc.join(
-        token=room["guest"]["token"],
+        share_id=room["guest"]["id"],
         role="guest",
         display_name=name,
         participant_id=pid,
@@ -136,7 +136,6 @@ def _guest_consent(svc, pid: str, *, name: str, accepted: bool, seq: int):
 def _consented_take(ws, room) -> tuple[str, str]:
     svc = RecordSessionService(ws.project, session_id=room["session_id"])
     svc.join(
-        token=room["guest"]["token"],
         role="host",
         display_name="Host",
         client_id="host",
@@ -629,7 +628,6 @@ def test_host_upload_acks_own_keeper(minimal_project, sample_wav, tmp_workspace,
     ws, room, client = _room(minimal_project, sample_wav, tmp_workspace, monkeypatch)
     path = str(minimal_project)
     RecordSessionService(ws.project, session_id=room["session_id"]).join(
-        token=room["guest"]["token"],
         role="host",
         display_name="Host",
         client_id="host",
@@ -979,7 +977,6 @@ def test_host_room_tone_upload_and_replace(minimal_project, sample_wav, tmp_work
     ws, room, client = _room(minimal_project, sample_wav, tmp_workspace, monkeypatch)
     path = str(minimal_project)
     RecordSessionService(ws.project, session_id=room["session_id"]).join(
-        token=room["guest"]["token"],
         role="host",
         display_name="Host",
         client_id="host",
@@ -1174,7 +1171,6 @@ def test_guest_keeper_upload_requires_take_consent(
     token = room["guest"]["token"]
     svc = RecordSessionService(_ws.project, session_id=room["session_id"])
     svc.join(
-        token=token,
         role="host",
         display_name="Host",
         client_id="host",
@@ -1244,9 +1240,9 @@ def test_guest_keeper_upload_rejected_after_host_removal(
 ):
     _ws, room, client = _room(minimal_project, sample_wav, tmp_workspace, monkeypatch)
     token = room["guest"]["token"]
+    share_id = room["guest"]["id"]
     svc = RecordSessionService(_ws.project, session_id=room["session_id"])
     svc.join(
-        token=token,
         role="host",
         display_name="Host",
         client_id="host",
@@ -1258,7 +1254,7 @@ def test_guest_keeper_upload_rejected_after_host_removal(
     ok = _post_keeper(client, token, pid, lease, take=0)
     assert ok.status_code == 200, ok.text
     _host_cmd(svc, "RemoveParticipant", now=1500, payload={"participant_id": pid})
-    assert not svc.verify_lease(pid, lease, token=token)
+    assert not svc.verify_lease(pid, lease, share_id=share_id)
     status = client.get(
         f"/api/rec/{token}/upload",
         headers={"X-Record-Participant": pid, "X-Record-Lease": lease},
@@ -1279,9 +1275,9 @@ def test_removed_guest_cannot_upload_stopped_take_after_next_take_starts(
 ):
     _ws, room, client = _room(minimal_project, sample_wav, tmp_workspace, monkeypatch)
     token = room["guest"]["token"]
+    share_id = room["guest"]["id"]
     svc = RecordSessionService(_ws.project, session_id=room["session_id"])
     svc.join(
-        token=token,
         role="host",
         display_name="Host",
         client_id="host",
@@ -1293,7 +1289,7 @@ def test_removed_guest_cannot_upload_stopped_take_after_next_take_starts(
     _host_cmd(svc, "Stop", now=2000)
 
     assert svc.upload_consented(pid, take_index=0) is True
-    assert svc._participants.verify(pid, lease, token=token, session_id=room["session_id"])
+    assert svc._participants.verify(pid, lease, share_id=share_id, session_id=room["session_id"])
     accepted = _post_keeper(client, token, pid, lease, take=0)
     assert accepted.status_code == 200, accepted.text
 
@@ -1311,7 +1307,9 @@ def test_removed_guest_cannot_upload_stopped_take_after_next_take_starts(
     assert svc.upload_consented(pid, take_index=0) is False
     assert svc.upload_consented(pid, take_index=1) is False
     assert svc.upload_consented(pid, take_index=None) is False
-    assert not svc._participants.verify(pid, lease, token=token, session_id=room["session_id"])
+    assert not svc._participants.verify(
+        pid, lease, share_id=share_id, session_id=room["session_id"]
+    )
 
     denied = _post_keeper(client, token, pid, lease, take=0, segment=1)
     assert denied.status_code == 403, denied.text
@@ -1325,11 +1323,12 @@ def test_removed_guest_fails_lease_check_if_revocation_is_interrupted(
 ):
     _ws, room, client = _room(minimal_project, sample_wav, tmp_workspace, monkeypatch)
     token = room["guest"]["token"]
+    share_id = room["guest"]["id"]
     svc = RecordSessionService(_ws.project, session_id=room["session_id"])
     pid, lease = _guest_join(svc, room, name="Ava", conn="a1")
     monkeypatch.setattr(svc._participants, "revoke", lambda *args, **kwargs: None)
     _host_cmd(svc, "RemoveParticipant", now=1500, payload={"participant_id": pid})
-    assert svc._participants.verify(pid, lease, token=token, session_id=room["session_id"])
+    assert svc._participants.verify(pid, lease, share_id=share_id, session_id=room["session_id"])
     denied = client.get(
         f"/api/rec/{token}/upload",
         headers={"X-Record-Participant": pid, "X-Record-Lease": lease},
@@ -1344,7 +1343,7 @@ def test_remove_replay_revokes_only_persisted_target(
     minimal_project, sample_wav, tmp_workspace, monkeypatch
 ):
     _ws, room, _client = _room(minimal_project, sample_wav, tmp_workspace, monkeypatch)
-    token = room["guest"]["token"]
+    share_id = room["guest"]["id"]
     svc = RecordSessionService(_ws.project, session_id=room["session_id"])
     ava, ava_lease = _guest_join(svc, room, name="Ava", conn="a1")
     bea, bea_lease = _guest_join(svc, room, name="Bea", conn="b1")
@@ -1363,12 +1362,12 @@ def test_remove_replay_revokes_only_persisted_target(
 
     host_command("Heartbeat", ava, 10)
     host_command("RemoveParticipant", bea, 10)
-    assert svc.verify_lease(bea, bea_lease, token=token)
+    assert svc.verify_lease(bea, bea_lease, share_id=share_id)
 
     host_command("RemoveParticipant", ava, 11)
     host_command("RemoveParticipant", bea, 11)
-    assert not svc.verify_lease(ava, ava_lease, token=token)
-    assert svc.verify_lease(bea, bea_lease, token=token)
+    assert not svc.verify_lease(ava, ava_lease, share_id=share_id)
+    assert svc.verify_lease(bea, bea_lease, share_id=share_id)
 
 
 def test_guest_keeper_upload_rechecks_consent_after_body_read(
@@ -1378,7 +1377,6 @@ def test_guest_keeper_upload_rechecks_consent_after_body_read(
     token = room["guest"]["token"]
     svc = RecordSessionService(_ws.project, session_id=room["session_id"])
     svc.join(
-        token=token,
         role="host",
         display_name="Host",
         client_id="host",
@@ -1411,7 +1409,6 @@ def test_guest_keeper_upload_rechecks_lease_after_body_read(
     token = room["guest"]["token"]
     svc = RecordSessionService(_ws.project, session_id=room["session_id"])
     svc.join(
-        token=token,
         role="host",
         display_name="Host",
         client_id="host",
@@ -1663,7 +1660,6 @@ def test_http_rejects_bad_clipping_with_400(
 ):
     ws, room, client = _room(minimal_project, sample_wav, tmp_workspace, monkeypatch)
     RecordSessionService(ws.project, session_id=room["session_id"]).join(
-        token=room["guest"]["token"],
         role="host",
         display_name="Host",
         client_id="host",

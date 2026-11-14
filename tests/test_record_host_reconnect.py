@@ -103,7 +103,7 @@ def _cmd(ctype: str, *, pid: str = "p_host", payload: dict | None = None, seq: i
 def _consent_room(ws, room):
     svc = RecordSessionService(ws.project, session_id=room["session_id"])
     echo, _snap = svc.join(
-        token=room["guest"]["token"],
+        share_id=room["guest"]["id"],
         role="guest",
         display_name="Ava",
         client_id="rec-guest",
@@ -172,7 +172,6 @@ def test_restart_empty_conns_still_pauses_on_host_join(
     fresh = RecordSessionService(ws.project, session_id=room["session_id"])
     assert fresh.snapshot()["host_offline_since_wall_ms"] == 20_000
     fresh.join(
-        token="",
         role="host",
         display_name="Host",
         client_id="host-restart",
@@ -351,7 +350,6 @@ def test_restart_without_leave_still_pauses_on_host_join(
     )
     assert ghost["connected"] is True
     fresh.join(
-        token="",
         role="host",
         display_name="Host",
         client_id="host-crash",
@@ -378,7 +376,6 @@ def test_observed_host_disconnect_uses_close_time_for_reconnect_threshold(
         lambda: clock["wall_ms"] * 1_000_000,
     )
     svc.join(
-        token="",
         role="host",
         display_name="Host",
         client_id="host-live",
@@ -394,7 +391,6 @@ def test_observed_host_disconnect_uses_close_time_for_reconnect_threshold(
 
     clock["wall_ms"] = return_wall_ms
     svc.join(
-        token="",
         role="host",
         display_name="Host",
         client_id="host-return",
@@ -407,7 +403,6 @@ def test_observed_host_disconnect_uses_close_time_for_reconnect_threshold(
     svc.disconnect(HOST_PARTICIPANT_ID, connection_id="h-return")
     clock["wall_ms"] = 21_100
     svc.join(
-        token="",
         role="host",
         display_name="Host",
         client_id="host-late-return",
@@ -432,7 +427,6 @@ def test_delayed_host_disconnect_uses_stale_beat_for_reconnect_threshold(
         lambda: clock["wall_ms"] * 1_000_000,
     )
     svc.join(
-        token="",
         role="host",
         display_name="Host",
         client_id="host-live",
@@ -446,7 +440,6 @@ def test_delayed_host_disconnect_uses_stale_beat_for_reconnect_threshold(
 
     clock["wall_ms"] = return_wall_ms
     svc.join(
-        token="",
         role="host",
         display_name="Host",
         client_id="host-return",
@@ -470,7 +463,6 @@ def test_new_take_ignores_stopped_interval_when_host_reconnects(
         lambda: clock["wall_ms"] * 1_000_000,
     )
     svc.join(
-        token="",
         role="host",
         display_name="Host",
         client_id="host-live",
@@ -485,7 +477,6 @@ def test_new_take_ignores_stopped_interval_when_host_reconnects(
     assert svc.snapshot()["host_last_beat_wall_ms"] == 100_000
     clock["wall_ms"] = 100_050
     svc.join(
-        token="",
         role="host",
         display_name="Host",
         client_id="host-second",
@@ -500,7 +491,6 @@ def test_new_take_ignores_stopped_interval_when_host_reconnects(
     assert svc.snapshot()["host_offline_since_wall_ms"] == 100_100
     clock["wall_ms"] = 100_200
     svc.join(
-        token="",
         role="host",
         display_name="Host",
         client_id="host-return",
@@ -523,7 +513,6 @@ def test_resumed_take_ignores_paused_interval_when_host_reconnects(
         lambda: clock["wall_ms"] * 1_000_000,
     )
     svc.join(
-        token="",
         role="host",
         display_name="Host",
         client_id="host-live",
@@ -541,7 +530,6 @@ def test_resumed_take_ignores_paused_interval_when_host_reconnects(
     assert svc.snapshot()["host_offline_since_wall_ms"] == 100_100
     clock["wall_ms"] = 100_200
     svc.join(
-        token="",
         role="host",
         display_name="Host",
         client_id="host-return",
@@ -616,7 +604,7 @@ def test_verify_lease_rejects_host(minimal_project, sample_wav, tmp_workspace, m
     ws = _seed(minimal_project, sample_wav)
     room = ShareService(ws).create_record_room()
     svc, _guest = _consent_room(ws, room)
-    assert svc.verify_lease(HOST_PARTICIPANT_ID, "lease", token=room["guest"]["token"]) is False
+    assert svc.verify_lease(HOST_PARTICIPANT_ID, "lease", share_id=room["guest"]["id"]) is False
 
 
 def test_failed_host_join_persists_last_conn_beat(
@@ -634,7 +622,6 @@ def test_failed_host_join_persists_last_conn_beat(
     monkeypatch.setattr(svc, "submit", boom)
     with pytest.raises(RecordStateError, match="join boom"):
         svc.join(
-            token="",
             role="host",
             display_name="Host",
             client_id="host-fail",

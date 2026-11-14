@@ -69,7 +69,7 @@ def _cmd(ctype: str, *, pid: str = "p_host", role: str = "host", payload: dict |
 
 def _join(svc: RecordSessionService, room, name: str, client: str, seq: int) -> str:
     echo, _snap = svc.join(
-        token=room["guest"]["token"],
+        share_id=room["guest"]["id"],
         role="guest",
         display_name=name,
         client_id=client,

@@ -46,6 +46,7 @@ from podcast_mcp.services.collaboration.share_capabilities import (
     record_capabilities_for_role,
     review_role_for_capabilities,
     share_author,
+    share_id_of,
     share_log_id,
 )
 from podcast_mcp.services.collaboration.share_registry import (
@@ -346,14 +347,12 @@ class ShareService:
     def _invite_closed(self, row: dict[str, Any]) -> bool:
         from podcast_mcp.services.record import RecordSessionService
 
-        token = str(row.get("token") or "")
         session_id = str(row.get("session_id") or "")
-        if not token or not session_id:
+        if not session_id:
             return False
-        return RecordSessionService(
-            self.ws.project,
-            session_id=session_id,
-        ).invite_closed(token)
+        return RecordSessionService(self.ws.project, session_id=session_id).invite_closed(
+            share_id_of(row)
+        )
 
     def create_for_host(
         self,
@@ -482,7 +481,7 @@ class ShareService:
             raise KeyError("record invite not found or no longer usable")
 
         record = RecordSessionService(self.ws.project, session_id=session_id)
-        if not record.invite_closed(source_token):
+        if not record.invite_closed(share_id_of(source)):
             raise RecordStateError("record invite is not closed")
         return self.create_record_token(
             role=role,

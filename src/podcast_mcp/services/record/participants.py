@@ -1,4 +1,4 @@
-"""Host-minted record participant ids and hashed leases."""
+"""Host-minted record participant ids, bound to the share they joined through."""
 
 from __future__ import annotations
 
@@ -7,24 +7,22 @@ import hmac
 import secrets
 import threading
 import time
+from collections.abc import Collection, Mapping
 from pathlib import Path
 
 from podcast_mcp.services.session_sync import connect_session_db
+from podcast_mcp.util.coded_error import CodedValueError
 from podcast_mcp.util.sqlite_open import close_sqlite_connection, sqlite_connection_finalizer
 
 LEASE_TTL_NS = 7 * 24 * 60 * 60 * 1_000_000_000
 
 _SCHEMA = """
-CREATE TABLE IF NOT EXISTS record_participants (
+CREATE TABLE IF NOT EXISTS record_participant_leases (
   participant_id TEXT PRIMARY KEY,
   session_id TEXT NOT NULL,
-  token_hash TEXT NOT NULL,
-  role TEXT NOT NULL,
-  display_name TEXT NOT NULL,
+  share_id TEXT NOT NULL,
   lease_hash TEXT NOT NULL,
-  lease_expires_ns INTEGER NOT NULL,
-  created_ns INTEGER NOT NULL,
-  last_seen_ns INTEGER NOT NULL
+  lease_expires_ns INTEGER NOT NULL
 );
 CREATE TABLE IF NOT EXISTS record_track_choices (
   session_id TEXT NOT NULL,
@@ -51,35 +49,27 @@ class RecordParticipantStore:
         with self._lock:
             close_sqlite_connection(self._conn, self._connection_finalizer)
 
-    def mint(
-        self,
-        *,
-        session_id: str,
-        token: str,
-        role: str,
-        display_name: str,
-    ) -> tuple[str, str]:
+    def mint(self, *, session_id: str, share_id: str) -> tuple[str, str]:
+        """A new participant id and its lease, bound to the share (link) it joined through."""
+        if not share_id:
+            raise CodedValueError(
+                "a participant needs the share it joined through", code="record_share_required"
+            )
         participant_id = "p_" + secrets.token_hex(4)
         lease = secrets.token_urlsafe(24)
-        now = time.time_ns()
         with self._lock:
             self._conn.execute(
                 """
-                INSERT INTO record_participants (
-                  participant_id, session_id, token_hash, role, display_name,
-                  lease_hash, lease_expires_ns, created_ns, last_seen_ns
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                INSERT INTO record_participant_leases (
+                  participant_id, session_id, share_id, lease_hash, lease_expires_ns
+                ) VALUES (?, ?, ?, ?, ?)
                 """,
                 (
                     participant_id,
                     session_id,
-                    hash_lease(token),
-                    role,
-                    display_name,
+                    share_id,
                     hash_lease(lease),
-                    now + LEASE_TTL_NS,
-                    now,
-                    now,
+                    time.time_ns() + LEASE_TTL_NS,
                 ),
             )
         return participant_id, lease
@@ -89,14 +79,15 @@ class RecordParticipantStore:
         participant_id: str,
         lease: str,
         *,
-        token: str,
+        share_id: str,
         session_id: str,
     ) -> bool:
+        """True when the lease is live, in this room, and was minted through this share."""
         with self._lock:
             row = self._conn.execute(
                 """
-                SELECT session_id, token_hash, lease_hash, lease_expires_ns
-                FROM record_participants
+                SELECT session_id, share_id, lease_hash, lease_expires_ns
+                FROM record_participant_leases
                 WHERE participant_id = ?
                 """,
                 (participant_id,),
@@ -107,31 +98,28 @@ class RecordParticipantStore:
             return False
         if int(row["lease_expires_ns"]) < time.time_ns():
             return False
-        token_ok = hmac.compare_digest(str(row["token_hash"]), hash_lease(token))
+        share_ok = bool(share_id) and hmac.compare_digest(str(row["share_id"]), share_id)
         lease_ok = hmac.compare_digest(str(row["lease_hash"]), hash_lease(lease))
-        return token_ok and lease_ok
-
-    def touch(self, participant_id: str) -> None:
-        now = time.time_ns()
-        with self._lock:
-            self._conn.execute(
-                "UPDATE record_participants SET last_seen_ns = ? WHERE participant_id = ?",
-                (now, participant_id),
-            )
+        return share_ok and lease_ok
 
     def revoke(self, participant_id: str, *, session_id: str) -> None:
         """Expire one participant's lease without changing the room roster."""
         with self._lock:
             self._conn.execute(
-                """UPDATE record_participants SET lease_expires_ns = 0
+                """UPDATE record_participant_leases SET lease_expires_ns = 0
                 WHERE participant_id = ? AND session_id = ?""",
                 (participant_id, session_id),
             )
 
-    def clear_all(self) -> None:
+    def clear_except(self, session_id: str) -> None:
+        """Forget every room's participants and track choices except ``session_id``'s."""
         with self._lock:
-            self._conn.execute("DELETE FROM record_participants")
-            self._conn.execute("DELETE FROM record_track_choices")
+            self._conn.execute(
+                "DELETE FROM record_participant_leases WHERE session_id != ?", (session_id,)
+            )
+            self._conn.execute(
+                "DELETE FROM record_track_choices WHERE session_id != ?", (session_id,)
+            )
 
     def set_track_choice(self, session_id: str, participant_id: str, track_id: str) -> None:
         """Remember the host's choice of track for one participant (host-only; never sent to guests)."""
@@ -151,32 +139,18 @@ class RecordParticipantStore:
             ).fetchall()
         return {str(row["participant_id"]): str(row["track_id"]) for row in rows}
 
-    def for_session(self, session_id: str) -> list[dict[str, str]]:
+    def invites_of(self, participant_ids: Collection[str], *, session_id: str) -> Mapping[str, str]:
+        """The share id each of ``participant_ids`` joined through (unbound ids are absent)."""
+        wanted = set(participant_ids)
+        if not wanted:
+            return {}
         with self._lock:
             rows = self._conn.execute(
-                """
-                SELECT participant_id, session_id, role, display_name
-                FROM record_participants
-                WHERE session_id = ?
-                ORDER BY created_ns
-                """,
+                "SELECT participant_id, share_id FROM record_participant_leases WHERE session_id = ?",
                 (session_id,),
             ).fetchall()
-        return [
-            {
-                "participant_id": str(row["participant_id"]),
-                "session_id": str(row["session_id"]),
-                "role": str(row["role"]),
-                "display_name": str(row["display_name"]),
-            }
+        return {
+            str(row["participant_id"]): str(row["share_id"])
             for row in rows
-        ]
-
-    def participant_ids_for_token(self, *, token: str, session_id: str) -> set[str]:
-        """Participant ids minted through ``token`` in ``session_id`` (revoked ones included)."""
-        with self._lock:
-            rows = self._conn.execute(
-                "SELECT participant_id FROM record_participants WHERE session_id = ? AND token_hash = ?",
-                (session_id, hash_lease(token)),
-            ).fetchall()
-        return {str(row["participant_id"]) for row in rows}
+            if str(row["participant_id"]) in wanted
+        }

@@ -169,7 +169,7 @@ def _join_as(ws, room, name: str):
     """Like ``_join`` for a guest with another name, so a returning-name match does not merge two rooms' guests."""
     svc = RecordSessionService(ws.project, session_id=room["session_id"])
     echo, _snap = svc.join(
-        token=room["guest"]["token"], role="guest", display_name=name, client_id=f"rec-{name}",
+        share_id=room["guest"]["id"], role="guest", display_name=name, client_id=f"rec-{name}",
         connection_id="c1", capabilities=CAPS, client_seq=1,
     )  # fmt: skip
     apply_record_ws_message(

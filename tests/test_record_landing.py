@@ -184,7 +184,7 @@ def _cmd(ctype: str, *, pid: str = "p_host", payload: dict | None = None, seq: i
 def _consent_guest(ws, room):
     svc = RecordSessionService(ws.project, session_id=room["session_id"])
     echo, _snap = svc.join(
-        token=room["guest"]["token"],
+        share_id=room["guest"]["id"],
         role="guest",
         display_name="Ava",
         client_id="rec-guest",
@@ -1056,7 +1056,7 @@ def test_producer_keeper_is_not_landed(minimal_project, sample_wav, tmp_workspac
     room = ShareService(ws).create_record_room()
     svc, guest = _consent_room(ws, room)
     prod, _snap = svc.join(
-        token=room["producer"]["token"],
+        share_id=room["producer"]["id"],
         role="producer",
         display_name="Pat",
         client_id="rec-prod",
