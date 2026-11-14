@@ -5,7 +5,8 @@ import type {
 import { getByPath, setByPath } from "../../utils/configPath";
 import type { AdvancedGroup, AdvancedStep } from "./AdvancedSteps";
 import { SOUND_SCAN_COST, SOUND_SCAN_PATH, SOUND_SCAN_STEP } from "./soundScan";
-import { AUTO_LANGUAGE, LANGUAGES } from "./whisperLanguages";
+import { type LanguageStatus, recordedLanguageName } from "./useLanguageStatus";
+import { AUTO_LANGUAGE, LANGUAGES, languageName } from "./whisperLanguages";
 
 /**
  * The four pipeline steps that have a row in the Prepare design, with the one
@@ -189,6 +190,32 @@ function languageValue(raw: unknown): string {
   return typeof raw === "string" && raw ? raw : AUTO_LANGUAGE;
 }
 
+export function stagedLanguage(config: Record<string, unknown>): string | null {
+  const value = languageValue(getByPath(config, LANGUAGE_PATH));
+  return value === AUTO_LANGUAGE ? null : value;
+}
+
+export function languageNote(
+  status: LanguageStatus | null,
+): string | undefined {
+  if (!status?.language || status.stale.length === 0) return undefined;
+  const editedIds = new Set(status.edited.map((t) => t.track_id));
+  const redone = status.stale.filter((t) => !editedIds.has(t.track_id));
+  const parts: string[] = [];
+  if (redone.length > 0) {
+    const was = redone.length === 1 ? "was" : "were";
+    const noun = redone.length === 1 ? "transcript" : "transcripts";
+    const them = redone.length === 1 ? "it" : "them";
+    parts.push(
+      `${redone.length} ${noun} ${was} made in ${recordedLanguageName(redone)}. The next run re-transcribes ${them} in ${languageName(status.language)}.`,
+    );
+  }
+  if (status.edited.length > 0) {
+    parts.push(`Hand fixes kept in ${recordedLanguageName(status.edited)}.`);
+  }
+  return parts.join(" ");
+}
+
 function stepResult(
   job: PipelineJobSnapshot | null,
   stepId: string,
@@ -214,6 +241,7 @@ export function advancedGroups(
   cfg: PipelineConfigResponse,
   job: PipelineJobSnapshot | null,
   personal: AdvancedPersonal = { soundScanStart: true },
+  languageStatus: LanguageStatus | null = null,
 ): AdvancedGroup[] {
   return ADVANCED_DEFS.map((group) => ({
     id: group.id,
@@ -256,6 +284,7 @@ export function advancedGroups(
               value: languageValue(value),
               defaultValue: languageValue(fallback),
               options: LANGUAGES,
+              note: languageNote(languageStatus),
             };
           }
           const defaultValue =

@@ -12,6 +12,7 @@ import {
   cancelBootstrap,
   fetchBootstrapJob,
   fetchBootstrapStatus,
+  loadTranscriptLanguageStatus,
   loadTranscriptVocabulary,
   runBootstrap,
   startPipelineRun,
@@ -42,6 +43,7 @@ vi.mock("../../api", async (original) => ({
   ...(await original<typeof import("../../api")>()),
   startPipelineRun: vi.fn(),
   loadTranscriptVocabulary: vi.fn(),
+  loadTranscriptLanguageStatus: vi.fn(),
   cancelBootstrap: vi.fn(),
   fetchBootstrapJob: vi.fn(),
   fetchBootstrapStatus: vi.fn(),
@@ -154,6 +156,11 @@ beforeEach(() => {
   start.mockResolvedValue(
     pipelineJobSnapshot({ id: "retimed", status: "running" }),
   );
+  vi.mocked(loadTranscriptLanguageStatus).mockResolvedValue({
+    language: null,
+    stale_tracks: [],
+    edited_stale_tracks: [],
+  });
   vi.mocked(loadTranscriptVocabulary).mockResolvedValue({
     show_title: null,
     prompt_limit: null,

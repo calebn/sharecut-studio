@@ -1,7 +1,11 @@
-import { act, renderHook } from "@testing-library/react";
+import { act, renderHook, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { loadTranscriptVocabulary, startPipelineRun } from "../../api";
+import {
+  loadTranscriptLanguageStatus,
+  loadTranscriptVocabulary,
+  startPipelineRun,
+} from "../../api";
 import { ModelsContext } from "../../models/useModels";
 import { useDawStore } from "../../state/dawStore";
 import {
@@ -42,6 +46,7 @@ const { config, STEPS, SAVED } = vi.hoisted(() => {
       tighten: true,
       sounds: true,
       roomToneBed: false,
+      language: null as string | null,
     },
     STEPS,
     SAVED: STEPS.filter((id) => id !== "apply_sound_actions"),
@@ -51,6 +56,7 @@ vi.mock("../../api", async (o) => ({
   ...(await o<typeof import("../../api")>()),
   startPipelineRun: vi.fn(),
   loadTranscriptVocabulary: vi.fn(),
+  loadTranscriptLanguageStatus: vi.fn(),
 }));
 vi.mock("../../hooks/usePipelineWorkingSet", () => ({
   usePipelineWorkingSet: () => {
@@ -61,6 +67,7 @@ vi.mock("../../hooks/usePipelineWorkingSet", () => ({
       config: {
         tighten: { enabled: config.tighten, apply_non_speech: config.sounds },
         room_tone: { extract_bed: config.roomToneBed },
+        transcribe: { language: config.language },
       },
     };
     return {
@@ -115,6 +122,12 @@ beforeEach(() => {
   config.tighten = true;
   config.sounds = true;
   config.roomToneBed = false;
+  config.language = null;
+  vi.mocked(loadTranscriptLanguageStatus).mockResolvedValue({
+    language: null,
+    stale_tracks: [],
+    edited_stale_tracks: [],
+  });
   start.mockResolvedValue(
     pipelineJobSnapshot({ id: "j-new", status: "running" }),
   );
@@ -138,6 +151,69 @@ beforeEach(() => {
 });
 
 const render = () => renderHook(() => usePrepareModel(), { wrapper });
+
+const stale = (id: string, name: string) => ({
+  track_id: id,
+  name,
+  recorded: "en",
+});
+
+describe("a language change with audio added to a project that already ran", () => {
+  beforeEach(() => {
+    config.language = "es";
+  });
+
+  it("says the earlier tracks will be re-transcribed, and counts none of them as kept", async () => {
+    vi.mocked(loadTranscriptLanguageStatus).mockResolvedValue({
+      language: "es",
+      stale_tracks: [stale("maya", "Maya"), stale("anneke", "Anneke")],
+      edited_stale_tracks: [],
+    });
+    const { result } = render();
+    await waitFor(() =>
+      expect(result.current.view.readyNote).toBe(
+        "Priya’s audio is new. The other 2 tracks will be re-transcribed in Spanish.",
+      ),
+    );
+    expect(result.current.view.rows.map((r) => r.detail)).toEqual([
+      "Priya added, 1 file",
+      "Priya and 2 earlier tracks · re-transcribing in Spanish",
+      "All 3 tracks, Priya joins",
+      "All 3 tracks",
+      "Whole episode",
+    ]);
+    expect(loadTranscriptLanguageStatus).toHaveBeenCalledWith(
+      P,
+      "es",
+      expect.anything(),
+    );
+  });
+
+  it("splits the earlier tracks into re-transcribed and kept, and says where hand fixes stay", async () => {
+    vi.mocked(loadTranscriptLanguageStatus).mockResolvedValue({
+      language: "es",
+      stale_tracks: [stale("maya", "Maya"), stale("anneke", "Anneke")],
+      edited_stale_tracks: [stale("maya", "Maya")],
+    });
+    const { result } = render();
+    await waitFor(() =>
+      expect(result.current.view.rows[1].detail).toBe(
+        "Priya and 1 earlier track · re-transcribing in Spanish · 1 kept · Hand fixes kept in English",
+      ),
+    );
+    expect(result.current.view.readyNote).toBe(
+      "Priya’s audio is new. 1 of the other 2 tracks will be re-transcribed in Spanish; the rest keep their transcripts.",
+    );
+  });
+
+  it("keeps the plain wording while the server has no stale track to report", async () => {
+    const { result } = render();
+    await waitFor(() =>
+      expect(loadTranscriptLanguageStatus).toHaveBeenCalled(),
+    );
+    expect(result.current.view.rows[1].detail).toBe("Priya only · 2 kept");
+  });
+});
 
 describe("audio added to a project that already ran", () => {
   it("shows the plan and starts nothing", () => {

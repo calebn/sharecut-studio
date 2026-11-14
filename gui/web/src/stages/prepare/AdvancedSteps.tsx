@@ -35,6 +35,7 @@ type LanguageParam = {
   value: string;
   defaultValue: string;
   options: readonly { value: string; label: string }[];
+  note?: string;
 };
 
 type StepParam = ScrubParam | LanguageParam;
@@ -132,7 +133,11 @@ function ParamField({
 }: FieldProps) {
   const id = useId();
   const helpId = `${id}-help`;
-  const describedBy = busyId ? `${helpId} ${busyId}` : helpId;
+  const noteId = `${id}-note`;
+  const hasNote = param.kind === "language" && Boolean(param.note);
+  const describedBy = [helpId, hasNote ? noteId : null, busyId]
+    .filter(Boolean)
+    .join(" ");
   const field = useRef<HTMLDivElement>(null);
   useFocusRescue(
     field,
@@ -203,6 +208,7 @@ function ParamField({
         }}
       />
       <Help id={helpId}>{param.help}</Help>
+      {param.note ? <Help id={noteId}>{param.note}</Help> : null}
     </div>
   );
 }

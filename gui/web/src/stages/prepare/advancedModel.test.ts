@@ -4,6 +4,7 @@ import { pipelineConfig } from "../../test/pipelineConfigFixture";
 import {
   advancedGroups,
   paramPath,
+  stagedLanguage,
   withParam,
   withStepSwitch,
 } from "./advancedModel";
@@ -67,6 +68,73 @@ describe("advancedGroups", () => {
     });
     const language = advancedGroups(auto, null)[0].steps[0].params[0];
     expect(language).toMatchObject({ value: "auto", defaultValue: "en" });
+  });
+
+  describe("the language note", () => {
+    const stale = (id: string, recorded = "en") => ({
+      track_id: id,
+      name: id,
+      recorded,
+    });
+    const note = (status: Parameters<typeof advancedGroups>[3]) =>
+      advancedGroups(cfg, null, undefined, status)[0].steps[0].params[0];
+
+    it("says nothing without a stale transcript", () => {
+      expect(note(null)).not.toHaveProperty("note", expect.any(String));
+      expect(
+        note({ language: "es", stale: [], edited: [] }),
+      ).not.toHaveProperty("note", expect.any(String));
+    });
+
+    it("counts the transcripts the next run re-transcribes", () => {
+      expect(
+        note({
+          language: "es",
+          stale: [stale("a"), stale("b"), stale("c")],
+          edited: [],
+        }),
+      ).toMatchObject({
+        note: "3 transcripts were made in English. The next run re-transcribes them in Spanish.",
+      });
+    });
+
+    it("uses the singular for one transcript", () => {
+      expect(
+        note({ language: "es", stale: [stale("a")], edited: [] }),
+      ).toMatchObject({
+        note: "1 transcript was made in English. The next run re-transcribes it in Spanish.",
+      });
+    });
+
+    it("names other languages when the transcripts differ", () => {
+      expect(
+        note({
+          language: "es",
+          stale: [stale("a"), stale("b", "de")],
+          edited: [],
+        }),
+      ).toMatchObject({
+        note: "2 transcripts were made in other languages. The next run re-transcribes them in Spanish.",
+      });
+    });
+
+    it("leaves edited transcripts out of the count and says their fixes stay", () => {
+      expect(
+        note({
+          language: "es",
+          stale: [stale("a"), stale("b")],
+          edited: [stale("b")],
+        }),
+      ).toMatchObject({
+        note: "1 transcript was made in English. The next run re-transcribes it in Spanish. Hand fixes kept in English.",
+      });
+    });
+  });
+
+  it("reads the staged language, with no language as null", () => {
+    expect(stagedLanguage({ transcribe: { language: "es" } })).toBe("es");
+    expect(stagedLanguage({ transcribe: { language: null } })).toBeNull();
+    expect(stagedLanguage({})).toBeNull();
   });
 
   it("carries the last result line of a step", () => {

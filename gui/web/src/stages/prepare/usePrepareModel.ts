@@ -15,6 +15,7 @@ import type { AdvancedStepsProps } from "./AdvancedSteps";
 import {
   advancedGroups,
   paramPath,
+  stagedLanguage,
   withParam,
   withStepSwitch,
 } from "./advancedModel";
@@ -23,6 +24,7 @@ import type { PrepareViewProps } from "./PrepareView";
 import {
   handoffProps,
   hasMedia,
+  languagePlanOf,
   planNote,
   prepareHandoff,
   preparePhase,
@@ -46,6 +48,7 @@ import {
 } from "./soundScan";
 import { useCleanup } from "./useCleanup";
 import { useJobCoverage } from "./useJobCoverage";
+import { useLanguageStatus } from "./useLanguageStatus";
 import { usePrepareDrop } from "./usePrepareDrop";
 import { usePrepareRun } from "./usePrepareRun";
 import { usePrepareSources } from "./usePrepareSources";
@@ -124,6 +127,11 @@ export function usePrepareModel(): PrepareModel {
     [project?.transcript],
   );
   const workingSet = usePipelineWorkingSet(projectPath, true);
+  const languageStatus = useLanguageStatus(
+    projectPath,
+    workingSet.cfg ? stagedLanguage(workingSet.cfg.config) : null,
+    job && !running ? `${job.id}:${job.status}` : "",
+  );
   const sourcesNow = sourceTracks(allTracks ?? []);
   const untranscribed = sourcesNow.filter((t) => !transcribed.has(t.id));
   const mediaKey = mediaKeyOf(sourcesNow);
@@ -216,10 +224,29 @@ export function usePrepareModel(): PrepareModel {
     const track = tracks.find((t) => t.id === id);
     return track ? track.speaker?.trim() || trackLabel(track) : id;
   };
+  const languagePlan = planShown
+    ? languagePlanOf(
+        languageStatus,
+        new Set(sourcesNow.map((t) => t.id)),
+        new Set(newTracks.map((t) => t.id)),
+      )
+    : null;
   const plan: RerunPlan | null = planShown
     ? {
         newNames: newTracks.map((t) => nameOfTrack(t.id)),
-        kept: sourcesNow.length - newTracks.length,
+        kept:
+          sourcesNow.length - newTracks.length - (languagePlan?.restale ?? 0),
+        ...(languagePlan?.restale
+          ? {
+              restale: {
+                count: languagePlan.restale,
+                language: languagePlan.language,
+              },
+            }
+          : {}),
+        ...(languagePlan?.handFixes
+          ? { handFixes: { language: languagePlan.handFixes } }
+          : {}),
         skipped: skippedRows,
         settings: cfg,
         settingsError: workingSet.loadError,
@@ -320,7 +347,9 @@ export function usePrepareModel(): PrepareModel {
         tone: "error",
       });
   const advancedProps: AdvancedStepsProps = {
-    groups: cfg ? advancedGroups(cfg, job, { soundScanStart }) : [],
+    groups: cfg
+      ? advancedGroups(cfg, job, { soundScanStart }, languageStatus)
+      : [],
     selectedId: selectedStep,
     running: running
       ? { title: busyRow?.title ?? "Getting ready", detail: busyRow?.detail }
