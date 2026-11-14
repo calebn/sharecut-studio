@@ -12,7 +12,21 @@ type CoverAction = {
    * (not natively disabled, so a focused button keeps focus), and ignores presses.
    */
   busy?: boolean;
+  /** What the button says while busy. The idle label keeps the width. */
+  busyLabel?: string;
 };
+
+function ActionLabel({ label, busy, busyLabel }: CoverAction) {
+  if (!busy || !busyLabel) {
+    return label;
+  }
+  return (
+    <span className="sys-cover-action-label">
+      <span aria-hidden="true">{label}</span>
+      <span>{busyLabel}</span>
+    </span>
+  );
+}
 
 function pressProps({ busy, onClick }: CoverAction) {
   return {
@@ -75,12 +89,12 @@ export function Cover({
                 {primary.busy ? (
                   <SystemIcon name="progress-ring" size={16} progress={0.3} />
                 ) : null}
-                {primary.label}
+                <ActionLabel {...primary} />
               </Button>
             ) : null}
             {secondary ? (
               <Button variant="link" {...pressProps(secondary)}>
-                {secondary.label}
+                <ActionLabel {...secondary} />
               </Button>
             ) : null}
           </div>

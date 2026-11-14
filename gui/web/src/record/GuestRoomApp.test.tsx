@@ -779,6 +779,35 @@ describe("GuestRoomApp", () => {
       expect(puts).toEqual([]);
     });
 
+    it("shows the plain ended cover when access ends after the upload landed and the local copy is still on the device", async () => {
+      const puts = stubUploadFetch();
+      const sink = new MemorySink();
+      await seedPendingKeeper(sink, {
+        sessionId: "room1",
+        takeIndex: 0,
+        participantId: "p_g",
+      });
+      await renderStoppedRoom(sink);
+      await userEvent.click(
+        await screen.findByRole(
+          "button",
+          { name: "Finish saving" },
+          { timeout: 4000 },
+        ),
+      );
+      await waitFor(() => expect(puts.length).toBeGreaterThan(0));
+      await screen.findAllByText("Saved");
+      sockets[0]?.onclose?.({ code: 4403 });
+      expect(
+        await screen.findByRole("heading", { name: "This session has ended" }),
+      ).toBeInTheDocument();
+      await act(async () => undefined);
+      expect(screen.getByText("Thanks for recording.")).toBeInTheDocument();
+      expect(
+        screen.queryByRole("button", { name: "Save my recording" }),
+      ).toBeNull();
+    });
+
     it("keeps Save and Recover on the closed-invite cover for an unsent local take", async () => {
       const puts = stubUploadFetch();
       const sink = new MemorySink();

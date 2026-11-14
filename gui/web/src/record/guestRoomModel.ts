@@ -358,6 +358,8 @@ type CoverSource = {
 
 const page = { size: "page" } as const;
 
+const SAVING_LABEL = "Saving…";
+
 function unsentRecordingCover(source: CoverSource, host: string): CoverProps {
   const { download, recover } = source.keeperActions;
   return {
@@ -370,6 +372,7 @@ function unsentRecordingCover(source: CoverSource, host: string): CoverProps {
           label: "Save my recording",
           onClick: download,
           busy: source.keeperActions.busy,
+          busyLabel: SAVING_LABEL,
         }
       : undefined,
     secondary: recover
@@ -438,6 +441,7 @@ export function guestCovers(source: CoverSource): CoverProps | null {
                 label: "Save my recording",
                 onClick: download,
                 busy: source.keeperActions.busy,
+                busyLabel: SAVING_LABEL,
               }
             : undefined,
         secondary:
@@ -507,6 +511,7 @@ function downloadedCover(
           label: "Save it again",
           onClick: actions.download,
           busy: actions.busy,
+          busyLabel: SAVING_LABEL,
         }
       : undefined,
   };
@@ -544,17 +549,20 @@ type CoverRoom = Pick<
   | "keeperActions"
   | "localRecording"
   | "snapshot"
->;
+> & { upload: Pick<RecordUploadProgress, "fileAck"> };
 
 /** The page-sized Cover this room needs instead of the room, or null. */
 export function guestCoverProps(
   room: CoverRoom,
   options: { onRetry: () => void; phase: RoomPhase },
 ): CoverProps | null {
-  // Before the first take, or once every segment has landed and been cleared
-  // from this device, there is nothing here to save.
+  // Before the first take, or once the server has acknowledged every segment,
+  // there is nothing here to save: whatever the device still holds (a copy kept
+  // for the reclaim grace after a download) is a duplicate.
   const hasLocalCopy =
-    (room.snapshot?.take_index ?? -1) >= 0 && room.localRecording;
+    (room.snapshot?.take_index ?? -1) >= 0 &&
+    room.localRecording &&
+    !room.upload.fileAck;
   const keeperActions = hasLocalCopy
     ? room.keeperActions
     : {

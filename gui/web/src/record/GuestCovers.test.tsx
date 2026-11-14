@@ -28,6 +28,7 @@ function room(over: Partial<Parameters<typeof guestCoverProps>[0]> = {}) {
     captureSettled: true,
     localRecording: true,
     producer: false,
+    upload: { fileAck: false },
     keeperActions: {
       busy: false,
       error: null,
@@ -293,7 +294,7 @@ describe("GuestCovers", () => {
           download: vi.fn(),
         },
       });
-      const save = screen.getByRole("button", { name: "Save my recording" });
+      const save = screen.getByRole("button", { name: "Saving…" });
       expect(save).toHaveAttribute("aria-disabled", "true");
       expect(save).toHaveAttribute("aria-busy", "true");
       expect(screen.getByRole("status")).toHaveTextContent(
@@ -369,6 +370,24 @@ describe("GuestCovers", () => {
     expect(screen.queryAllByRole("button")).toHaveLength(0);
   });
 
+  it("offers no recording actions for a recording the server acknowledged", () => {
+    show({
+      accessEnded: true,
+      upload: { fileAck: true },
+      snapshot: recordSnapshot({ participants: [host], take_index: 0 }),
+      keeperActions: {
+        busy: false,
+        downloaded: false,
+        error: null,
+        notice: null,
+        download: vi.fn(),
+        recover: vi.fn(),
+      },
+    });
+    expect(screen.getByText("Thanks for recording.")).toBeInTheDocument();
+    expect(screen.queryAllByRole("button")).toHaveLength(0);
+  });
+
   it("offers no recording actions before the first take", () => {
     show({
       accessEnded: true,
@@ -430,7 +449,10 @@ describe("GuestCovers headings and boot failures", () => {
 
   it("asks again once when the browser comes back online", () => {
     const onOnline = vi.fn();
-    const cover = guestCoverProps(room({ bootError: "network" }), vi.fn());
+    const cover = guestCoverProps(room({ bootError: "network" }), {
+      onRetry: vi.fn(),
+      phase: waiting,
+    });
     if (!cover) {
       throw new Error("no cover");
     }
@@ -462,7 +484,7 @@ describe("after Save my recording handed the whole zip to the browser", () => {
           take_index: takeIndex,
         }),
       }),
-      vi.fn(),
+      { onRetry: vi.fn(), phase: waiting },
     );
     useDocumentTitle(
       guestTabTitle({
@@ -511,7 +533,8 @@ describe("after Save my recording handed the whole zip to the browser", () => {
       screen.getByRole("heading", { level: 1, name: "Check your downloads" }),
     ).toBeInTheDocument();
     expect(document.title).toBe("Check your downloads | Shot of Truth");
-    const stillThere = screen.getByRole("button", { name: "Save it again" });
+    const stillThere = screen.getByRole("button", { name: "Saving…" });
+    expect(stillThere).toBe(again);
     expect(stillThere).toHaveAttribute("aria-busy", "true");
     expect(stillThere).toHaveFocus();
 
@@ -523,6 +546,48 @@ describe("after Save my recording handed the whole zip to the browser", () => {
       }),
     ).toBeInTheDocument();
     expect(screen.getByRole("status")).toHaveTextContent("Disk full.");
+  });
+
+  it("says Saving… on Save my recording while the first download runs, then offers Save it again", async () => {
+    let finish: () => void = () => undefined;
+    vi.spyOn(recovery, "downloadLocalKeepers").mockImplementationOnce(
+      () =>
+        new Promise<void>((resolve) => {
+          finish = resolve;
+        }),
+    );
+    render(<Ended />);
+    const save = screen.getByRole("button", { name: "Save my recording" });
+    await userEvent.click(save);
+    expect(screen.getByRole("button", { name: "Saving…" })).toBe(save);
+    await act(async () => finish());
+    expect(
+      await screen.findByRole("button", { name: "Save it again" }),
+    ).toBeInTheDocument();
+  });
+
+  it("is not shown while the saved recording's local copy is still held", () => {
+    const cover = guestCoverProps(
+      room({
+        accessEnded: true,
+        localRecording: true,
+        upload: { fileAck: true },
+        keeperActions: {
+          busy: false,
+          error: null,
+          notice: null,
+          downloaded: true,
+          download: vi.fn(),
+          recover: vi.fn(),
+        },
+        snapshot: recordSnapshot({ participants: [host], take_index: 0 }),
+      }),
+      { onRetry: vi.fn(), phase: waiting },
+    );
+    expect(cover?.title).toBe("This session has ended");
+    expect(cover?.children).toBe("Thanks for recording.");
+    expect(cover?.primary).toBeUndefined();
+    expect(cover?.secondary).toBeUndefined();
   });
 
   it("is not shown once the recording has since been saved to the project", () => {
@@ -538,7 +603,7 @@ describe("after Save my recording handed the whole zip to the browser", () => {
         },
         snapshot: recordSnapshot({ participants: [host], take_index: 0 }),
       }),
-      vi.fn(),
+      { onRetry: vi.fn(), phase: waiting },
     );
     expect(cover?.title).toBe("This session has ended");
   });
