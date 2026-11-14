@@ -468,9 +468,6 @@ describe("a selection across two speakers, which the store keeps as a timeline r
     });
     expect(
       resolveSelectionRange(state.project!, state.selection),
-    ).toMatchObject({ targets: [expect.anything()] });
-    expect(
-      resolveSelectionRange(state.project!, state.selection, state.projectPath),
     ).toMatchObject({ targets: [], refreshing: true });
 
     inProject(cut, true);

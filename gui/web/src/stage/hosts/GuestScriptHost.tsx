@@ -2,7 +2,10 @@ import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useShallow } from "zustand/react/shallow";
 import { seekTransport } from "../../commands/seek";
 import type { ShownTranscript } from "../../document/shownTranscript";
-import { TRANSCRIPT_REFRESHING } from "../../edit/rangeSelection";
+import {
+  markScriptRange,
+  TRANSCRIPT_REFRESHING,
+} from "../../edit/rangeSelection";
 import { useShortViewport } from "../../hooks/useShortViewport";
 import { useViewportClass } from "../../hooks/useViewportClass";
 import { rangeEditMode } from "../../shareMode";
@@ -90,7 +93,11 @@ function GuestScriptHostAdapter({
     (selection: WordsSelection) => {
       const prior = useDawStore.getState().selection;
       selectRange?.(selection);
-      if (useDawStore.getState().selection !== prior) remember(selection);
+      const taken = useDawStore.getState().selection;
+      if (taken === prior) return;
+      // The object the store holds is the one marked and the one remembered.
+      markScriptRange(taken);
+      remember(selection);
     },
     [selectRange, remember],
   );
