@@ -7,7 +7,9 @@ import type {
   Selection,
 } from "../types/project";
 import {
+  isScriptRange,
   makeRangeTarget,
+  markScriptRange,
   rangeIsCurrent,
   rangeTargetsEqual,
   resolveSelectionRange,
@@ -371,7 +373,6 @@ describe("exact range wire seals", () => {
 describe("a stored timeline range while the words are refreshing", () => {
   const base = project([placement("a", 0, 8, 0)]);
   const stored = makeRangeTarget(base, [{ start: 1, end: 7 }], ["speaker"])!;
-  const range: Selection = { kind: "range", target: stored };
   const wordFree: ProjectView = {
     ...base,
     meta: {
@@ -379,25 +380,27 @@ describe("a stored timeline range while the words are refreshing", () => {
       hydration: { ...base.meta.hydration, transcript_words: false },
     },
   };
+  const made = (): Selection => ({ kind: "range", target: stored });
 
-  it("is refused on a share link, as a transcript range is", () => {
-    expect(resolveSelectionRange(wordFree, range, "share:tok")).toEqual({
+  it("is refused when it was made from Script words, until the words are back", () => {
+    const range = made();
+    markScriptRange(range);
+    expect(resolveSelectionRange(wordFree, range)).toEqual({
       targets: [],
       reason: TRANSCRIPT_REFRESHING,
       refreshing: true,
     });
+    expect(resolveSelectionRange(base, range).targets).toEqual([stored]);
   });
 
-  it("resolves on a share link once the words are in", () => {
-    expect(resolveSelectionRange(base, range, "share:tok").targets).toEqual([
-      stored,
-    ]);
+  it("resolves as before when it was drawn on the timeline, whoever draws it", () => {
+    expect(resolveSelectionRange(wordFree, made()).targets).toEqual([stored]);
   });
 
-  it("stays as it was for a host, with or without its path", () => {
-    expect(resolveSelectionRange(wordFree, range).targets).toEqual([stored]);
-    expect(
-      resolveSelectionRange(wordFree, range, "/work/episode.sharecut").targets,
-    ).toEqual([stored]);
+  it("belongs to the one object marked, not to an equal copy", () => {
+    const range = made();
+    markScriptRange(range);
+    expect(isScriptRange({ ...range })).toBe(false);
+    expect(isScriptRange(null)).toBe(false);
   });
 });

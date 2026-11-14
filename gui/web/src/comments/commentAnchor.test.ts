@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { makeRangeTarget } from "../edit/rangeSelection";
+import { makeRangeTarget, markScriptRange } from "../edit/rangeSelection";
 import { clipRow, minimalProject, sampleTrack } from "../test/fixtures";
 import type { ProjectView, Selection } from "../types/project";
 import { resolveCommentAnchor } from "./commentAnchor";
@@ -64,7 +64,6 @@ const inputs = (p: ProjectView, playheadSec: number) => ({
   selection,
   project: p,
   playheadSec,
-  projectPath: "/work/episode.sharecut",
 });
 
 describe("resolveCommentAnchor", () => {
@@ -104,23 +103,22 @@ describe("resolveCommentAnchor with a stored timeline range", () => {
     [{ start: 1, end: 7 }],
     ["speaker"],
   )!;
-  const range: Selection = { kind: "range", target };
-  const wordFree = project(false);
-  const at = (path: string) => ({
-    ...inputs(wordFree, 50),
+  const at = (range: Selection) => ({
+    ...inputs(project(false), 50),
     selection: range,
-    projectPath: path,
   });
 
-  it("names the refreshing range on a share link and never falls to the playhead", () => {
-    expect(resolveCommentAnchor(at("share:tok"))).toEqual({
+  it("names a Script range as refreshing and never falls to the playhead", () => {
+    const range: Selection = { kind: "range", target };
+    markScriptRange(range);
+    expect(resolveCommentAnchor(at(range))).toEqual({
       source: "refreshing",
       reason: "Refreshing the transcript. Try again in a moment.",
     });
   });
 
-  it("anchors a host's stored range as before", () => {
-    expect(resolveCommentAnchor(at("/work/episode.sharecut"))).toMatchObject({
+  it("anchors a range drawn on the timeline as before", () => {
+    expect(resolveCommentAnchor(at({ kind: "range", target }))).toMatchObject({
       source: "selection",
       draft: { startSec: 1, endSec: 7 },
     });
