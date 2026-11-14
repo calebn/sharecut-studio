@@ -62,8 +62,9 @@ function draftForSelection(
 
 /**
  * `comment.draftAt`: a comment anchored at `atTime` (on `trackId`, if
- * given). The touch create menu runs it (#1051). `keepPin`: "here", so text
- * already typed keeps the time it was typed at.
+ * given). The touch create menu runs it (#1051). With `atTime`, `keepPin`
+ * says the time is "here", so in the phone Listen layout text already typed
+ * keeps the time it was typed at; anywhere else opening replaces the pin.
  */
 export function registerCommentCommands(): void {
   registerCommand("comment.draftAt", (args): ExecuteResult => {
