@@ -1290,6 +1290,7 @@ NO_ANSWER = {
     "json-list-exit-1": Answer(1, "[]", "rejected"),
     "json-scalar": Answer(0, "5", "ok"),
     "empty-object-exit-0": Answer(0, "{}", "ok"),
+    "object-without-errors-exit-1": Answer(1, ALTOOL_OK, "rejected"),
     "warning-before-truncated-json": Answer(
         0, 'warning: slow\n{"tool-version": "26.10.1", "succ', "ok"
     ),
@@ -1618,6 +1619,8 @@ def test_apples_own_structured_errors_finish_the_upload_attempt(
         (0, "5", Verdict.UNREACHABLE),
         (0, "{}", Verdict.UNREACHABLE),
         (1, "{}", Verdict.UNREACHABLE),
+        (1, ALTOOL_OK, Verdict.UNREACHABLE),
+        (0, '{"product-errors": []}', Verdict.OK),
     ],
 )
 def test_the_upload_classifier_accepts_only_apples_own_answer(
@@ -1819,3 +1822,174 @@ def test_a_finished_answer_is_stored_with_the_same_caps_as_an_unresolved_one(
     drive_upload(validating, monkeypatch, answers={"--validate-app": (1, text)})
     stored = record_module.read_record(validating).validations[0]["messages"]
     assert len(stored) <= 5 and all(len(message) <= 200 for message in stored)
+
+
+@pytest.mark.parametrize(
+    "field",
+    [
+        {"message": "Redundant Binary Upload"},
+        {"message": "x", "extra": "Redundant Binary Upload"},
+        {"message": "x", "userInfo": {"anything": "already been uploaded"}},
+    ],
+    ids=["message", "unknown-field", "unknown-user-info-field"],
+)
+def test_duplicate_wording_planted_in_any_field_is_a_duplicate_even_without_an_apple_shape(
+    field: dict[str, object],
+) -> None:
+    text = json.dumps({"product-errors": [{"code": -1, **field}]})
+    assert release_classify.classify_upload(1, text).verdict is Verdict.DUPLICATE
+
+
+@pytest.mark.parametrize(
+    ("entry", "shaped"),
+    [
+        ({"message": "ITMS-90062"}, True),
+        ({"message": "ITMS-1"}, True),
+        ({"message": "ITMS-"}, False),
+        ({"message": "ITMS-abc"}, False),
+        ({"message": "xITMS-90062"}, False),
+        ({"message": "ITMS-90062x"}, False),
+        ({"message": "itms-90062"}, False),
+        ({"code": "ITMS-90062"}, True),
+        ({"userInfo": {"NSLocalizedDescription": "ITMS-90062"}}, True),
+        ({"message": "Error Domain=ITunesConnectErrorDomain Code=1"}, True),
+        ({"message": "Error Domain=NSURLErrorDomain Code=-1"}, False),
+        ({"code": "ENTITY_ERROR"}, True),
+        ({"code": "ENTITY_ERROR.ATTRIBUTE.INVALID"}, True),
+        ({"code": "STATE_ERROR.FIRST_ERROR"}, True),
+        ({"code": "ENTITY_ERROR "}, False),
+        ({"code": " ENTITY_ERROR"}, False),
+        ({"code": "ENTITY_ERRORS"}, False),
+        ({"code": "ENTITY_ERROR."}, False),
+        ({"code": "CONFLICTING"}, False),
+        ({"code": "entity_error"}, False),
+        ({"code": ["ENTITY_ERROR"]}, False),
+        ({"code": 409}, False),
+        ({"message": "ENTITY_ERROR"}, False),
+        ({"userInfo": {"code": "ENTITY_ERROR"}}, False),
+        ({"domain": "ITunesSoftwareServiceErrorDomain"}, True),
+        ({"domain": "ContentDeliveryErrorDomain"}, True),
+        ({"domain": "AppStoreConnectError"}, True),
+        ({"domain": "NSURLErrorDomain"}, False),
+        ({"domain": "MyITunesDomain"}, False),
+        ({"domain": "itunes"}, False),
+        ({"userInfo": {"domain": "ContentDeliveryErrorDomain"}}, True),
+        ({"userInfo": {"domain": "NSPOSIXErrorDomain"}}, False),
+        ({"userInfo": {"domain": ["ITunesError"]}}, False),
+        ({"anything": "see ITMS-90062"}, True),
+        ({}, False),
+    ],
+)
+def test_the_apple_shape_allow_list_rows(entry: dict[str, object], shaped: bool) -> None:
+    assert release_classify.apple_shaped(entry) is shaped
+
+
+def key_files(tmp_path: Path) -> tuple[Path, Path, Path]:
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    keys = []
+    for name in ("named.p8", "from-env.p8"):
+        key = tmp_path / "keys" / name
+        key.parent.mkdir(exist_ok=True)
+        key.write_text("not read")
+        key.chmod(0o600)
+        keys.append(key)
+    return repo, keys[0], keys[1]
+
+
+def test_an_explicit_key_path_comes_from_the_private_file_and_the_environment_overrides_it(
+    tmp_path: Path,
+) -> None:
+    repo, named, from_env = key_files(tmp_path)
+    secrets_file = tmp_path / "ios.env"
+    secrets_file.write_text(
+        f"APPLE_API_KEY={KEY_ID}\nAPPLE_API_ISSUER={ISSUER}\nAPPLE_API_KEY_PATH={named}\n"
+    )
+    secrets_file.chmod(0o600)
+    environ = {"SHARECUT_IOS_RELEASE_ENV": str(secrets_file)}
+    values, problems = release_inputs.private_values(environ, repo, tmp_path)
+    key, found = release_inputs.resolve_asc_key(values, tmp_path, repo)
+    assert problems == [] and found == [] and key is not None
+    assert key.key_path.reveal() == str(named)
+
+    override = {**environ, "APPLE_API_KEY_PATH": str(from_env)}
+    values, _ = release_inputs.private_values(override, repo, tmp_path)
+    key, found = release_inputs.resolve_asc_key(values, tmp_path, repo)
+    assert found == [] and key is not None and key.key_path.reveal() == str(from_env)
+
+
+def test_an_explicit_key_path_from_the_environment_needs_no_private_file(tmp_path: Path) -> None:
+    repo, _, from_env = key_files(tmp_path)
+    environ = {
+        "SHARECUT_IOS_RELEASE_ENV": str(tmp_path / "absent.env"),
+        "APPLE_API_KEY": KEY_ID,
+        "APPLE_API_ISSUER": ISSUER,
+        "APPLE_API_KEY_PATH": str(from_env),
+    }
+    values, problems = release_inputs.private_values(
+        environ, repo, tmp_path, release_inputs.KEY_SECRETS
+    )
+    key, found = release_inputs.resolve_asc_key(values, tmp_path, repo)
+    assert problems == [] and found == [] and key is not None
+    assert key.key_path.reveal() == str(from_env)
+
+
+def test_an_explicit_key_path_that_is_missing_is_not_replaced_by_the_default(
+    tmp_path: Path,
+) -> None:
+    repo, named, _ = key_files(tmp_path)
+    default = tmp_path / ".appstoreconnect/private_keys" / f"AuthKey_{KEY_ID}.p8"
+    default.parent.mkdir(parents=True)
+    default.write_text("not read")
+    default.chmod(0o600)
+    values = {
+        "APPLE_API_KEY": KEY_ID,
+        "APPLE_API_ISSUER": ISSUER,
+        "APPLE_API_KEY_PATH": str(named.with_name("gone.p8")),
+    }
+    key, found = release_inputs.resolve_asc_key(values, tmp_path, repo)
+    assert key is None and [p.why for p in found] == ["the key file does not exist"]
+
+
+def test_a_retry_that_apple_then_rejects_leaves_the_first_attempt_open_and_the_flag_needed(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    _, _, record, _ = drive_upload(tmp_path, monkeypatch, answers={"--upload-app": UNREACHABLE})
+    code, ran, record, _ = drive_upload(
+        tmp_path,
+        monkeypatch,
+        record=record,
+        retry_unknown_upload=True,
+        answers={"--upload-app": REFUSED},
+    )
+    assert code == Failure.APPLE_REJECTED.value and uploads_sent(ran) == 1
+    first, retry = record_module.read_record(tmp_path).uploads
+    assert first["outcome"] is None and retry["outcome"]["verdict"] == "rejected"
+    assert retry["retried_unknown_upload"] is True
+    capsys.readouterr()
+
+    code, ran, record, _ = drive_upload(tmp_path, monkeypatch, record=record)
+    assert code == GUARD_EXIT and ran == []
+    assert "--retry-unknown-upload" in capsys.readouterr().out
+    assert record_module.read_record(tmp_path).uploads == [first, retry]
+
+
+def test_main_prints_the_success_banner_only_for_an_upload_apple_answered(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    directory, _ = stage_main_upload(tmp_path, monkeypatch, interrupted=False)
+    token = record_module.read_record(directory).token()
+    banner = "uploaded; App Store processing usually takes 5 to 30 minutes"
+
+    fake_apple(monkeypatch, directory, answers={"--upload-app": UNREACHABLE})
+    assert ios_release.main(["upload", "--confirm", token]) == Failure.TOOL.value
+    assert banner not in capsys.readouterr().out
+
+    assert ios_release.main(["validate"]) == 0
+    assert f"to upload after the owner says so: ios_release.py upload --confirm {token}" in (
+        capsys.readouterr().out
+    )
+
+    fake_apple(monkeypatch, directory)
+    assert ios_release.main(["upload", "--confirm", token, "--retry-unknown-upload"]) == 0
+    assert banner in capsys.readouterr().out
