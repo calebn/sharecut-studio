@@ -70,3 +70,13 @@ def test_the_splash_paints_one_canvas_over_the_whole_screen() -> None:
     assert "      html {\n        background: var(--color-bg-canvas);\n      }\n" in splash
     assert "min-height: 100vh;\n        min-height: 100dvh;" in splash
     assert "max(var(--s1), env(safe-area-inset-bottom))" in splash
+
+
+def test_the_retry_control_is_never_displayed_while_hidden() -> None:
+    splash = (TAURI.parent / "splash/index.html").read_text(encoding="utf-8")
+    assert '<a id="retry" class="retry" href="sharecut-retry:" hidden>' in splash
+    style = re.search(r"<style>(.*?)</style>", splash, re.S)
+    assert style is not None
+    rules = re.findall(r"([^{}]+)\{([^{}]*)\}", style.group(1))
+    displaying = [sel.strip() for sel, body in rules if "display:" in body and "retry" in sel]
+    assert displaying == [".retry:not([hidden])"]
