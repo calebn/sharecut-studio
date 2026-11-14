@@ -1819,7 +1819,10 @@ def test_version_paths_reject_symlink_escape(minimal_project, sample_wav, tmp_wo
             version_mp3_path(p, vid)
 
 
-_UNRESOLVABLE = [OSError(40, "Too many levels of symbolic links"), RuntimeError("Symlink loop")]
+_UNRESOLVABLE = [
+    OSError(errno.ELOOP, "Too many levels of symbolic links"),
+    RuntimeError("Symlink loop"),
+]
 
 
 def _break_resolve(monkeypatch, name, exc):
