@@ -1124,3 +1124,21 @@ def test_a_link_that_ends_after_a_long_idle_keeps_its_slug_reserved(
     registry.demote_to_cooldown("long-idle-slug", reason="revoked", now=now)
     assert registry.is_reserved("long-idle-slug", now=now + timedelta(days=364))
     assert not registry.is_reserved("long-idle-slug", now=now + timedelta(days=366))
+
+
+def test_known_tokens_holds_the_active_cooldown_and_pending_pools(registry: SqliteShareRegistry):
+    now = datetime.now(UTC)
+    for token in ("active-one-alpha", "cooled-two-beta", "parked-three-gamma"):
+        registry.claim_active(
+            _share_template(token=token, project_workspace="/tmp/ws") | {"capabilities": ["play"]}
+        )
+    registry.demote_to_cooldown("cooled-two-beta", reason="revoked", now=now)
+    registry.begin_pending_revoke(
+        ["parked-three-gamma"],
+        project_workspace="/tmp/ws",
+        group_id="g1",
+        window=timedelta(minutes=5),
+        now=now,
+    )
+
+    assert registry.known_tokens() == {"active-one-alpha", "cooled-two-beta", "parked-three-gamma"}
