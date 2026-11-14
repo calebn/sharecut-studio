@@ -201,13 +201,14 @@ DESKTOP_KERNEL_FAMILIES: tuple[str, ...] = (
 )
 
 _override: HostPlatform | None = None
+_syscalls_mocked = False
 
 
-def current() -> HostPlatform:
-    """The row for this process. An unlisted platform is a desktop family's generic row or the
-    fail-closed UNKNOWN row; this never raises."""
-    if _override is not None:
-        return _override
+class ForeignKernelError(RuntimeError):
+    """A test selected a row whose kernel is not this machine's and reached that kernel's syscall."""
+
+
+def _detect() -> HostPlatform:
     name = sys.platform
     if name == "darwin":
         return MACOS
@@ -224,16 +225,48 @@ def current() -> HostPlatform:
     return replace(generic, system_label=platform.system())
 
 
+def current() -> HostPlatform:
+    """The row for this process. An unlisted platform is a desktop family's generic row or the
+    fail-closed UNKNOWN row; this never raises."""
+    return _override if _override is not None else _detect()
+
+
+def syscall_kernel() -> Kernel:
+    """The kernel whose syscall, libc symbol or ``/proc`` file the caller is about to use.
+
+    A site that branches on the kernel to call ``ctypes``, ``fcntl``, ``os.listxattr``, ``/proc``
+    or a kernel-specific tool reads it here, never from ``current().kernel``. Production never
+    overrides the row, so this is ``current().kernel``. Under ``using(row)`` a row whose kernel
+    differs from the machine's would reach a symbol that is absent on this OS, and which OS
+    notices differs, so it raises on every OS. The ``other`` kernel has no syscall branch.
+    """
+    row = current()
+    if _override is None or _syscalls_mocked or row.kernel == "other":
+        return row.kernel
+    real = _detect()
+    if row.kernel != real.kernel:
+        raise ForeignKernelError(
+            f"a test selected the {row.name} row and reached a {row.kernel} syscall on a "
+            f"{real.name} machine; build the row with dataclasses.replace(current(), ...), or "
+            "pass real_syscalls=False to using() when the test replaces the syscall layer"
+        )
+    return row.kernel
+
+
 @contextmanager
-def using(row: HostPlatform) -> Iterator[HostPlatform]:
-    """Make ``current()`` return ``row`` inside the block. Tests select a row with this."""
-    global _override
-    previous = _override
-    _override = row
+def using(row: HostPlatform, *, real_syscalls: bool = True) -> Iterator[HostPlatform]:
+    """Make ``current()`` return ``row`` inside the block. Tests select a row with this.
+
+    ``real_syscalls=False`` says the test replaces the syscall layer, so a row of another kernel
+    may reach ``syscall_kernel()``.
+    """
+    global _override, _syscalls_mocked
+    previous = _override, _syscalls_mocked
+    _override, _syscalls_mocked = row, not real_syscalls
     try:
         yield row
     finally:
-        _override = previous
+        _override, _syscalls_mocked = previous
 
 
 def data_roots() -> DataRoots:
