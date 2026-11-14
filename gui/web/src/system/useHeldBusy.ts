@@ -27,8 +27,8 @@ export function useHeldBusy(
 
   useEffect(() => () => window.clearTimeout(timer.current), []);
 
-  // Over: the attempt ended and the floor passed, so a later attempt nobody
-  // pressed is not shown as busy.
+  // Forget the press once the attempt and the floor are both over, so a later
+  // attempt nobody pressed is not shown as busy.
   if (pressed && !active && !holding) {
     setPressed(false);
   }
