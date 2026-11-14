@@ -295,6 +295,19 @@ describe("shownTranscriptOf", () => {
     expect(shown.drawn).toBe(true);
   });
 
+  it("drops a waiting row that would draw no bar, so drawn counts only turns", () => {
+    const whole = (r: CombinedUtterance) =>
+      header({ ...r, text: "gone", ignored_word_indices: [r.start] });
+    const empty = header({ ...second, text: "" });
+    const shown = shownOf(
+      transcriptOf([whole(first), empty]),
+      settledOf([first, second]),
+      GRANT,
+    );
+    expect(shown.rows).toEqual([]);
+    expect(shown.drawn).toBe(false);
+  });
+
   it("holds a row that only moved and waits on one whose spans changed shape", () => {
     const spans = (...d: number[]) => {
       let at = 0;
