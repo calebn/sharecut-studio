@@ -7,6 +7,7 @@ reads as absent while its slug stays reserved.
 
 from __future__ import annotations
 
+import dataclasses
 import json
 from collections.abc import Callable, Iterator
 from datetime import UTC, datetime, timedelta
@@ -71,13 +72,13 @@ def finalize_effects(monkeypatch: pytest.MonkeyPatch) -> None:
 
 @pytest.fixture
 def container(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, host: Callable[..., None]) -> Path:
-    """An iOS host whose home is ``tmp_path/container-a``, with its registry at the real default."""
+    """An iOS row (on this machine's kernel) whose home is ``tmp_path/container-a``, with its registry at the real default."""
     home = tmp_path.resolve() / "container-a"
     (home / "Documents").mkdir(parents=True)
     monkeypatch.setenv("HOME", str(home))
     monkeypatch.delenv("PODCAST_SHARE_REGISTRY")
     reset_share_registry_for_tests()
-    host(host_platform.IOS)
+    host(dataclasses.replace(host_platform.IOS, kernel=host_platform.current().kernel))
     return home
 
 
