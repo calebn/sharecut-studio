@@ -537,6 +537,69 @@ def test_a_failed_room_revoke_and_a_failed_touch_name_the_share_id(
     assert token not in caplog.text
 
 
+def test_a_share_that_cannot_be_parked_is_reported_without_its_token(
+    served: Served, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    token = served.host_post("/api/shares", role="commenter").json()["share"]["token"]
+    monkeypatch.setattr(share_module.share_pending, "park", lambda *_a, **_k: [])
+
+    with pytest.raises(KeyError) as parked:
+        ShareService(served.ws).revoke(token, restorable_for=60)
+
+    assert parked.value.args == ("share not found",)
+
+
+def test_a_row_without_an_id_does_not_stop_the_room_rollback_or_revoke(
+    served: Served, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    rows = [
+        {"id": None, "token": "first-quokka-umbra", "session_id": "room-1"},
+        {"id": "a1b2c3d4e5f6", "token": "second-quokka-umbra", "session_id": "room-1"},
+    ]
+    dropped: list[str] = []
+
+    def refuse(_project: object, token: str) -> bool:
+        dropped.append(token)
+        raise OSError("disk gone")
+
+    service = ShareService(served.ws)
+    monkeypatch.setattr(share_module, "list_room_shares", lambda *_a: rows)
+    monkeypatch.setattr(share_module, "drop_share", refuse)
+    monkeypatch.setattr(service, "revoke", lambda token: refuse(None, token))
+    caplog.set_level(logging.DEBUG, logger="podcast_mcp.services.collaboration.share")
+
+    service._rollback_room("room-1")
+    with pytest.raises(KeyError):
+        service._revoke_room_tokens("room-1")
+
+    assert dropped == ["first-quokka-umbra", "second-quokka-umbra"] * 2
+    assert "failed to roll back record share unknown" in caplog.text
+    assert "failed to roll back record share a1b2c3d4e5f6" in caplog.text
+    assert "failed to revoke record share unknown" in caplog.text
+    assert "quokka" not in caplog.text
+
+
+def test_a_row_without_an_id_still_falls_back_to_touching_last_used(
+    served: Served, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    token = served.host_post("/api/shares", role="commenter").json()["share"]["token"]
+    real = share_module.resolve_share
+    monkeypatch.setattr(share_module, "resolve_share", lambda t: {**(real(t) or {}), "id": None})
+    touched: list[str] = []
+    monkeypatch.setattr(get_share_registry(), "touch_last_used", touched.append)
+
+    def fail(*_args: object, **_kwargs: object) -> None:
+        raise OSError("disk gone")
+
+    monkeypatch.setattr(share_module, "touch_share_last_used_for_workspace", fail)
+    caplog.set_level(logging.DEBUG, logger="podcast_mcp.services.collaboration.share")
+
+    share_module.lookup_share(token)
+
+    assert touched == [token]
+    assert "share last_used touch failed for unknown" in caplog.text
+
+
 def test_the_share_page_fallback_logs_without_the_token(
     caplog: pytest.LogCaptureFixture,
 ) -> None:

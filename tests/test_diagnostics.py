@@ -150,6 +150,38 @@ def test_build_bundle_contents_and_doctor_reuse(
     assert "secret=<redacted>" in log_text
 
 
+def test_build_bundle_masks_a_link_token_in_the_report_text(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(Path, "home", lambda: tmp_path / "home")
+    (tmp_path / "home").mkdir()
+    token = "velvet-quokka-umbra"
+    monkeypatch.setattr(
+        diagnostics_mod,
+        "get_share_registry",
+        lambda: SimpleNamespace(known_tokens=lambda: frozenset({token})),
+    )
+    monkeypatch.setattr(
+        "podcast_mcp.services.support.diagnostics.run_doctor_checks",
+        lambda _p=None: DoctorReport(checks=[DoctorCheck("warn", f"relay refused {token}")]),
+    )
+
+    report = DiagnosticsService().build_bundle(None, out_dir=tmp_path / "out", include_logs=False)
+
+    with zipfile.ZipFile(report.path) as zf:
+        text = zf.read("report.json").decode()
+    assert "relay refused <redacted>" in text
+    assert "quokka" not in text
+
+
+def test_a_log_prefix_of_a_link_token_is_masked_from_six_characters_only() -> None:
+    token = "velvet-quokka-umbra"
+
+    masked = diagnostics_mod._mask_share_tokens("velve! velvet!", [token])
+
+    assert masked == "velve! <redacted>!"
+
+
 def test_build_bundle_size_bound(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
         "podcast_mcp.services.support.diagnostics.run_doctor_checks",

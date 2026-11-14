@@ -2123,17 +2123,42 @@ def test_handle_guest_presence_frame_rejects(minimal_project, monkeypatch) -> No
     assert (result.seq, result.malformed, result.close_reason) == (2, 0, None)
 
 
-def test_presence_rejection_logs_name_the_share_and_not_its_token(minimal_project, caplog) -> None:
+@pytest.mark.parametrize(
+    ("rejection", "frame", "limited"),
+    [
+        ("size", "x" * 5000, None),
+        ("malformed", "{not json", None),
+        ("type", '{"type":"Nope"}', None),
+        ("validation", '{"type":"Presence","client_seq":"x"}', None),
+        ("rate", '{"type":"Presence"}', "guest_ws_presence"),
+        ("token-rate", '{"type":"Presence"}', "guest_ws_presence_token"),
+    ],
+)
+def test_presence_rejection_logs_name_the_share_and_not_its_token(
+    minimal_project, caplog, monkeypatch, rejection, frame, limited
+) -> None:
     import logging
+    from types import SimpleNamespace
 
     from podcast_mcp.gui.routes.review_share import _handle_guest_presence_frame
     from podcast_mcp.services.session_sync.service import SessionSyncService
 
     caplog.set_level(logging.INFO, logger="podcast_mcp.gui.routes.review_share")
     svc = SessionSyncService(load_project(minimal_project))
+    allow = SimpleNamespace(allow=lambda _key: SimpleNamespace(allowed=True))
+    deny = SimpleNamespace(allow=lambda _key: SimpleNamespace(allowed=False))
+    monkeypatch.setattr(review_share, "host_rate_limit_enabled", lambda: limited is not None)
+    monkeypatch.setattr(
+        review_share,
+        "get_host_limiters",
+        lambda: SimpleNamespace(
+            guest_ws_presence=deny if limited == "guest_ws_presence" else allow,
+            guest_ws_presence_token=deny if limited == "guest_ws_presence_token" else allow,
+        ),
+    )
 
     _handle_guest_presence_frame(
-        "x" * 5000,
+        frame,
         session_svc=svc,
         guest_client_id="guest-tab",
         label="A",
@@ -2144,8 +2169,44 @@ def test_presence_rejection_logs_name_the_share_and_not_its_token(minimal_projec
         malformed=0,
     )
 
-    assert "guest presence rejected size share=a1b2c3d4e5f6" in caplog.text
+    assert f"guest presence rejected {rejection} share=a1b2c3d4e5f6" in caplog.text
     assert "velvet" not in caplog.text
+
+
+@pytest.mark.parametrize(
+    ("plane", "pump"),
+    [("session", "session"), ("document", "document")],
+)
+def test_a_failed_guest_pump_names_the_share_and_not_its_token(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch, caplog, plane, pump
+) -> None:
+    from starlette.websockets import WebSocketDisconnect
+
+    from podcast_mcp.services.document_sync.service import document_hub_key
+    from podcast_mcp.services.session_sync.hub import get_hub
+
+    ws = _seed_premix(minimal_project, sample_wav)
+    ver = ReviewService(ws).publish(label="PumpFail")
+    share = ShareService(ws).create(review_version_id=ver["id"], capabilities=["play", "view"])
+    token = share["token"]
+    key = str(ws.project.workspace_path()) if plane == "session" else document_hub_key(ws.project)
+    client = TestClient(create_app())
+
+    with caplog.at_level("ERROR", logger="podcast_mcp.gui.routes.review_share"):
+        with client.websocket_connect(f"/api/review/{token}/daw/ws") as guest_ws:
+            guest_ws.receive_json()
+            guest_ws.receive_json()
+            get_hub().publish(key, {"type": "Applied", "plane": plane, "bad": object()})
+            with pytest.raises(WebSocketDisconnect):
+                for _ in range(20):
+                    guest_ws.receive_json()
+
+    lines = [
+        r.getMessage() for r in caplog.records if f"guest {pump} pump failed" in r.getMessage()
+    ]
+    assert lines
+    assert all("share=" in line and token not in line for line in lines)
+    assert token not in caplog.text
 
 
 def test_a_failed_progress_pump_names_the_share_and_not_its_token(caplog) -> None:
