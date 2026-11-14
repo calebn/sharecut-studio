@@ -337,7 +337,7 @@ check, and nobody is contacted. Each subcommand takes `--dry-run`, which prints 
   archive and export directories are deleted once the IPA is collected. Child processes get an
   explicit environment allowlist (`PATH` with the rustup toolchain first, `HOME`, `USER`,
   `LOGNAME`, `TMPDIR`, a UTF-8 `LANG`, `DEVELOPER_DIR`, `CARGO_HOME`, `RUSTUP_HOME`,
-  `CARGO_BUILD_JOBS`, proxy and CA variables when set, and the team): the App Store Connect key,
+  `CARGO_BUILD_JOBS`, proxy and CA variables when set, and the team; the proxy and CA variables stay because npm, cargo and altool must reach the network through a proxy, and a proxy URL can carry a password, so the dry run prints every variable except the path and count settings by name only, as `HTTPS_PROXY=<set>`): the App Store Connect key,
   manual-signing variables, `RUSTFLAGS` and the desktop release secrets are absent
   (`tests/test_ios_release.py`). The team reaches `tauri ios init`, so it sits in the untracked
   `gen/apple` files and the archive; both stay local.
@@ -366,7 +366,7 @@ check, and nobody is contacted. Each subcommand takes `--dry-run`, which prints 
   function, `release_run.spawn`, reveals it, and an AST test fails on a second caller. Output is
   redacted line by line with carry-over across reads, for each secret and private directory as
   written, JSON-escaped, percent-encoded and resolved, and by shape for signing identity names,
-  profile UUIDs and certificate fingerprints. `main()` prints a redacted one-line failure for any
+  profile UUIDs, certificate fingerprints and the `user:password@` of any URL. `main()` prints a redacted one-line failure for any
   exception. Private files made for a command (the export options) and the per-step logs are created without following links: a stale file or planted link at that path is replaced (files) or refused (logs) and the mode is set to `0600`. altool's argv shows the key id and issuer to the same user in `ps` for the length of
   one call; that is accepted.
 - **Rehearsal.** `make ios-release-rehearsal` with a profile shaped like the owner's passes every
