@@ -51,6 +51,17 @@ export type RoomViewInput = {
   canRecord?: boolean;
   notes?: NoteItem[];
   selfName?: string;
+  /** A guest's own work that leaving would cut off. */
+  device?: DeviceWork;
+};
+
+export type DeviceWork = {
+  /** This guest's own upload is moving bytes. */
+  uploading?: boolean;
+  /** The keeper is still writing the take. */
+  finishing?: boolean;
+  /** Room tone is recording on this device. */
+  capturingTone?: boolean;
 };
 
 export type NotePeek = {
@@ -86,10 +97,12 @@ type RoomViewModel = {
 type RoomDock =
   | { kind: "controls"; leaveHeld?: string }
   | { kind: "status"; text: string; leaveHeld?: string }
-  | { kind: "done"; text: string };
+  | { kind: "done"; text: string; leaveHeld?: string };
 
 const LEAVE_DURING_TAKE_REASON = "You can leave after this take.";
 const LEAVE_WHILE_SAVING_REASON = "Your recording is still saving";
+const LEAVE_WHILE_FINISHING_REASON = "Your recording is still finishing";
+const LEAVE_DURING_TONE_REASON = "Finish or cancel the room tone first";
 const SAVED_DOCK_LINE = "Saved to project. You can close this page.";
 
 export const isPhoneWidth = (width: ViewerWidth) => width !== "desktop";
@@ -199,30 +212,42 @@ function savingLine(phase: Extract<RoomPhase, { kind: "saving" }>): string {
     : `Saving · ${percent}% · keep this page open`;
 }
 
-function roomDock(role: RoomRole, phase: RoomPhase): RoomDock {
+function guestLeaveHeld(
+  phase: RoomPhase,
+  device: DeviceWork,
+): string | undefined {
+  if (
+    phase.kind === "live" ||
+    phase.kind === "paused" ||
+    phase.kind === "reconnecting"
+  ) {
+    return LEAVE_DURING_TAKE_REASON;
+  }
+  if (device.finishing) return LEAVE_WHILE_FINISHING_REASON;
+  if (device.uploading && phase.kind === "saving" && !phase.failed) {
+    return LEAVE_WHILE_SAVING_REASON;
+  }
+  return device.capturingTone ? LEAVE_DURING_TONE_REASON : undefined;
+}
+
+function roomDock(
+  role: RoomRole,
+  phase: RoomPhase,
+  device: DeviceWork,
+): RoomDock {
   const saving = phase.kind === "saving" && !phase.failed ? phase : null;
   if (role !== "guest") {
     return saving
       ? { kind: "status", text: savingLine(saving) }
       : { kind: "controls" };
   }
+  const leaveHeld = guestLeaveHeld(phase, device);
   if (saving) {
-    return {
-      kind: "status",
-      text: savingLine(saving),
-      leaveHeld: LEAVE_WHILE_SAVING_REASON,
-    };
+    return { kind: "status", text: savingLine(saving), leaveHeld };
   }
-  switch (phase.kind) {
-    case "live":
-    case "paused":
-    case "reconnecting":
-      return { kind: "controls", leaveHeld: LEAVE_DURING_TAKE_REASON };
-    case "saved":
-      return { kind: "done", text: SAVED_DOCK_LINE };
-    default:
-      return { kind: "controls" };
-  }
+  return phase.kind === "saved"
+    ? { kind: "done", text: SAVED_DOCK_LINE, leaveHeld }
+    : { kind: "controls", leaveHeld };
 }
 
 export function gridColumns(
@@ -296,7 +321,7 @@ export function roomViewModel(input: RoomViewInput): RoomViewModel {
       role === "host" && input.canRecord === true
         ? hostRecord(people, phase)
         : null,
-    dock: roomDock(role, phase),
+    dock: roomDock(role, phase, input.device ?? {}),
     alerts: [...derived, ...(input.alerts ?? [])],
   };
 }

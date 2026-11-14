@@ -601,11 +601,12 @@ describe("roomViewModel dock", () => {
     });
   });
 
-  it("holds a guest's Leave while their recording saves", () => {
+  it("holds a guest's Leave while their recording uploads", () => {
     expect(
       roomViewModel(
         base({
           role: "guest",
+          device: { uploading: true },
           phase: {
             kind: "saving",
             savedPeople: 0,
@@ -618,6 +619,59 @@ describe("roomViewModel dock", () => {
       kind: "status",
       text: "Saving · 40% · keep this page open",
       leaveHeld: "Your recording is still saving",
+    });
+  });
+
+  it("keeps Leave free while a saving line has no upload behind it", () => {
+    expect(
+      roomViewModel(
+        base({
+          role: "guest",
+          phase: { kind: "saving", savedPeople: 0, totalPeople: 1 },
+        }),
+      ).dock,
+    ).toEqual({
+      kind: "status",
+      text: "Saving · 0 of 1 · keep this page open",
+    });
+  });
+
+  it("holds Leave while capture finishes, in any phase after Stop", () => {
+    const device = { finishing: true };
+    const failed: RoomPhase = {
+      kind: "saving",
+      savedPeople: 0,
+      totalPeople: 1,
+      failed: true,
+    };
+    expect(
+      roomViewModel(base({ role: "guest", device, phase: failed })).dock,
+    ).toEqual({
+      kind: "controls",
+      leaveHeld: "Your recording is still finishing",
+    });
+    expect(
+      roomViewModel(base({ role: "guest", device, phase: { kind: "saved" } }))
+        .dock,
+    ).toEqual({
+      kind: "done",
+      text: "Saved to project. You can close this page.",
+      leaveHeld: "Your recording is still finishing",
+    });
+  });
+
+  it("holds Leave while this device records room tone", () => {
+    expect(
+      roomViewModel(
+        base({
+          role: "guest",
+          device: { capturingTone: true },
+          phase: WAITING,
+        }),
+      ).dock,
+    ).toEqual({
+      kind: "controls",
+      leaveHeld: "Finish or cancel the room tone first",
     });
   });
 
