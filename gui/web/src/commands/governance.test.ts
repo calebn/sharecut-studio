@@ -336,7 +336,7 @@ const PLAYHEAD_WRITERS: PlayheadWriter[] = [
   {
     prefix: "timeline/useFixedPlayheadScroll.ts",
     reason:
-      "writes the playhead with the default seek origin, bypassing the transport.seek command",
+      "pinch and pointer zoom move the playhead to the time under the line with setPlayheadSec so a bounded audition keeps its stop bound; scrub goes through seekTransport",
   },
   {
     prefix: "comments/playComment.ts",

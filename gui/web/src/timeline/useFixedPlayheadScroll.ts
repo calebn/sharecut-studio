@@ -6,6 +6,7 @@ import {
   useMemo,
   useRef,
 } from "react";
+import { seekTransport } from "../commands/seek";
 import {
   isProgrammaticScroll,
   withProgrammaticScroll,
@@ -109,7 +110,6 @@ export function useFixedPlayheadScroll({
   followingClientId,
 }: Inputs): ScrollResult {
   const setScrollLeft = useDawStore((s) => s.setScrollLeft);
-  const setPlayheadSec = useDawStore((s) => s.setPlayheadSec);
   const stopFollow = useDawStore((s) => s.stopFollow);
   const applyAnchoredZoom = useDawStore((s) => s.applyAnchoredZoom);
   // A scrub seeks the audio like any seek, but the view is already where the
@@ -245,10 +245,10 @@ export function useFixedPlayheadScroll({
           canvasSec,
         );
         if (!visualOnlyScroll && sec !== playheadSec) {
-          setPlayheadSec(sec);
-          scrubRevisionRef.current =
-            useDawStore.getState().playheadSeekRevision;
-          scrubSecRef.current = sec;
+          void seekTransport(sec);
+          const after = useDawStore.getState();
+          scrubRevisionRef.current = after.playheadSeekRevision;
+          scrubSecRef.current = after.playheadSec;
         }
       }
     }
