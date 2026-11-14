@@ -18,7 +18,7 @@ from filelock import FileLock, Timeout
 
 from podcast_mcp.config.defaults import EffectiveConfig, whisper_cache_dir
 from podcast_mcp.engines.asr_loops import LoopReport, guard_transcript
-from podcast_mcp.engines.asr_options import AsrOptions
+from podcast_mcp.engines.asr_options import AsrOptions, normalize_language
 from podcast_mcp.engines.asr_silence import (
     SpeechLevels,
     below_evidence_floor,
@@ -942,7 +942,13 @@ class TranscriptionEngine:
                 if total is not None and duration:
                     done = int(min(float(segment.end), duration))
                     task.advance_to(done, message=f"{label}: {done}s of {total}s", total=total)
-        transcript = Transcript(track_id="", language=language or "en", words=words)
+        transcript = Transcript(
+            track_id="",
+            language=language or "en",
+            asr_language=normalize_language(language)
+            or normalize_language(getattr(info, "language", None)),
+            words=words,
+        )
         self._loop_drop = guard_transcript(transcript, window_ratios)
         flag_anomalous_asr_durations(transcript.words, max_word_sec=max_word_sec)
         return transcript
@@ -991,6 +997,8 @@ class TranscriptionEngine:
         transcript.track_id = job.track_id
         transcript.source_id = job.source_id
         transcript.audio_sha256 = sha
+        if requested := normalize_language(language):
+            transcript.asr_language = requested
         self._record_asr_loops(job)
         # Whisper's own times until _align_words re-times them (the ASR cache never holds a marker).
         transcript.word_aligner = None
