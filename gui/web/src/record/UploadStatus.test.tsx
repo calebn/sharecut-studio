@@ -14,7 +14,13 @@ import type { KeeperRecoveryActions } from "./upload/useKeeperRecoveryActions";
 function keeperActions(
   overrides: Partial<KeeperRecoveryActions> = {},
 ): KeeperRecoveryActions {
-  return { busy: false, error: null, notice: null, ...overrides };
+  return {
+    busy: false,
+    error: null,
+    notice: null,
+    downloaded: false,
+    ...overrides,
+  };
 }
 
 describe("UploadStatus", () => {

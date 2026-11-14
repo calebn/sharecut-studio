@@ -417,6 +417,9 @@ export function guestCovers(source: CoverSource): CoverProps | null {
           : undefined,
     };
   }
+  if (source.accessEnded && source.keeperActions.downloaded) {
+    return downloadedCover(source.keeperActions, host);
+  }
   if (source.accessEnded) {
     const { download, recover } = source.keeperActions;
     if (source.inviteClosed) {
@@ -487,6 +490,21 @@ export function guestCovers(source: CoverSource): CoverProps | null {
     };
   }
   return null;
+}
+
+function downloadedCover(
+  actions: KeeperRecoveryActions,
+  host: string,
+): CoverProps {
+  return {
+    ...page,
+    glyph: "download",
+    title: "Check your downloads",
+    children: `Find the zip file of your recording and send it to ${host}.`,
+    secondary: actions.download
+      ? { label: "Save it again", onClick: actions.download }
+      : undefined,
+  };
 }
 
 function capitalized(text: string): string {

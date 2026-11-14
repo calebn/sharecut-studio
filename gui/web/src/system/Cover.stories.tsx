@@ -386,16 +386,17 @@ export const EndedBusy: Story = {
 
 export const EndedDownloaded: Story = {
   args: {
-    glyph: "circle-check",
-    title: "Saved to Downloads",
-    children: "Send the file to Maya.",
+    glyph: "download",
+    headingLevel: "h1",
+    title: "Check your downloads",
+    children: "Find the zip file of your recording and send it to Maya.",
     primary: undefined,
     secondary: { label: "Save it again", onClick: fn() },
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     await expect(
-      canvas.getByRole("heading", { name: "Saved to Downloads" }),
+      canvas.getByRole("heading", { name: "Check your downloads" }),
     ).toBeVisible();
     await expect(canvas.getAllByRole("button")).toHaveLength(1);
   },
