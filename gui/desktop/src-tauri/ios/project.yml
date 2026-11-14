@@ -137,6 +137,10 @@ targets:
       {{~/each}}
 
       - script: |
+          # A release build keeps the build machine's paths out of the Rust library.
+          if [ "${CONFIGURATION:?}" = release ]; then
+            eval "$(python3 "$PROJECT_DIR/../../../../../scripts/ios/private_paths.py" rust-env)"
+          fi
           {{ shell-escape tauri-binary }} {{ tauri-binary-args-str }} -v --platform "${PLATFORM_DISPLAY_NAME:?}" --sdk-root "${SDKROOT:?}" --framework-search-paths "${FRAMEWORK_SEARCH_PATHS:?}" --header-search-paths "${HEADER_SEARCH_PATHS:?}" --gcc-preprocessor-definitions "${GCC_PREPROCESSOR_DEFINITIONS:-}" --configuration "${CONFIGURATION:?}" ${FORCE_COLOR} ${ARCHS:?}
         name: Build Rust Code
         basedOnDependencyAnalysis: false
@@ -147,6 +151,7 @@ targets:
     postBuildScripts:
       - script: |
           set -e
+          if [ -z "${EXPANDED_CODE_SIGN_IDENTITY:-}" ]; then export EXPANDED_CODE_SIGN_IDENTITY=-; fi
           source "$PROJECT_DIR/../../ios-payload/Python.xcframework/build/utils.sh"
           install_python ../../ios-payload/Python.xcframework app_packages
         name: Process Python libraries
