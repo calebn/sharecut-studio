@@ -87,3 +87,20 @@ def test_a_forked_lane_loads_and_seeds_its_own_model(loads, sample_wav):
     lane.transcribe_file(sample_wav)
     assert loads.count(("seed", DECODE_SEED)) == 2
     assert lane._model is None
+
+
+def test_the_weights_are_checked_once_however_many_files_decode(loads, sample_wav, monkeypatch):
+    from podcast_mcp.engines import transcribe
+
+    resolved = []
+    real = transcribe.resolve_whisper_model_path
+    monkeypatch.setattr(
+        transcribe,
+        "resolve_whisper_model_path",
+        lambda size: resolved.append(size) or real(size),
+    )
+    engine = _engine()
+    for _ in range(3):
+        engine.transcribe_file(sample_wav)
+    assert len(resolved) == 1
+    assert loads.count(("load", None)) == 3

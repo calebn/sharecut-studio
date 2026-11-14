@@ -534,6 +534,7 @@ class TranscriptionEngine:
         )
         self._model = None
         self._model_is_ours = False
+        self._model_path: str | None = None
         # Job labels whose silence filter could not decode the audio (step summary).
         self.silence_filter_skipped: list[str] = []
         # Per-job forced-alignment outcomes (transcribe.forced_alignment); read by the step summary.
@@ -560,7 +561,9 @@ class TranscriptionEngine:
             ctranslate2.set_random_seed(DECODE_SEED)
             self._model_is_ours = True
             try:
-                model_path = resolve_whisper_model_path(self.model_size)
+                if self._model_path is None:
+                    self._model_path = resolve_whisper_model_path(self.model_size)
+                model_path = self._model_path
             except WhisperWeightsMissingError:
                 from podcast_mcp.engines.models.registry import require_model
 
