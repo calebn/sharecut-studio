@@ -940,6 +940,19 @@ Read-only tests can still use `e2e_project_file` directly, since they only load 
 
 Moved to [testing-e2e.md](testing-e2e.md): beta user stories, GUI surface regressions, committed fixtures, local lab verification and the browser profiles.
 
+## iOS Simulator lane
+
+Local only (CI has no Simulator). Needs macOS with Xcode, `xcodegen`, the rustup targets
+`aarch64-apple-ios-sim` and `aarch64-apple-ios`, and a rustup toolchain ahead of Homebrew's
+`rustc` on `PATH`. `make ios-sim` builds and launches; `make ios-sim-proof` (set
+`IOS_SIM_DEVICE`) launches cold and checks the engine's Serving state, the refusals an app on
+the same phone would meet, the background and return, and a deliberately broken payload.
+The UI checks (Audio tools card, creating and opening a project) are made by hand or with the
+Simulator tool and their screenshots kept with the proof. `cargo check --lib` for both iOS
+targets runs inside `make test-desktop` when the targets are installed. Python tests for the
+lane are `tests/test_ios_payload.py`, `tests/test_ios_boot_imports.py` and
+`tests/test_ios_template.py`.
+
 ## CI
 
 Moved to [testing-ci.md](testing-ci.md): the jobs each run needs and the browser acceptance matrix.

@@ -69,7 +69,9 @@ Snapshot of 2026-10-13. Run `gh issue list --label beta:blocker` and
 ## Not in beta
 
 - Video of any kind, including video ingest, multicam, MP4 export and video social clips.
-- Native iOS and Android apps, and the in-app bring-your-own-key agent.
+- Android apps and the in-app bring-your-own-key agent. Native iOS is in beta as an
+  owner-only TestFlight build that gains audio tools in stages. Android is planned for
+  beta and not started.
 - Word, pause and repetition auto-tighten. `tighten.enabled` stays false.
   The pipeline applies only non-speech suggested actions by default.
 - Multilingual transcription (#18) and legacy MCP cancellation (#151).

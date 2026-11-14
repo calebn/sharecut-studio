@@ -175,15 +175,57 @@ The Python sidecar and bundled `ffmpeg` CLI are **desktop-only**. A later native
 iOS/Android app is not an `externalBin` port — in-process libav, same React UI.
 Deferred path and interim constraints: [cross-platform-byok.md](cross-platform-byok.md).
 
-**iOS target (in progress, #3810).** The `sharecut` lib builds as a `staticlib` and
-`cargo check --lib --no-default-features --target aarch64-apple-ios-sim` (and
-`aarch64-apple-ios`) passes; `scripts/desktop/check_desktop.sh` runs each of those
-two checks when its rustup target is installed and prints a skip note otherwise. Desktop-only code is gated by target
-(`cli_links`, and the updater and single-instance plugins live in a target table
-that excludes iOS and Android). `src/engine.rs` holds the helpers a mobile host
-shares with the desktop sidecar loop: the loopback health probe, the navigation
-allowlist and the packaged-engine environment. There
-is no iOS app, entry point or Tauri iOS config yet.
+<a id="ios-app-3810"></a>
+**iOS app (#3810, stage 1).** `make ios-sim` builds the Simulator app and launches it; the
+Home screen says audio tools are not available on this device yet. The app is the `sharecut`
+lib (a `staticlib`) with Python.xcframework linked into it; there is no sidecar process.
+
+- **Build.** `scripts/ios/ios_sim.sh run` runs `tauri ios init`, then `tauri ios build --target
+  aarch64-sim --debug`. The overlay `src-tauri/tauri.ios.conf.json` drops the sidecar
+  `externalBin` and `resources`, sets the minimum iOS version to 17.0 and points
+  `bundle.iOS.template` at `src-tauri/ios/project.yml` (tauri-cli's XcodeGen template plus the
+  Python.xcframework dependency, the payload folder, `ENABLE_USER_SCRIPT_SANDBOXING: NO`, the
+  `install_python` phase that turns every binary module into its own framework, and the
+  Info.plist keys `UIFileSharingEnabled`, `LSSupportsOpeningDocumentsInPlace` and
+  `NSAllowsLocalNetworking`). `tests/test_ios_template.py` pins the entries the engine needs.
+  `gen/` is regenerated each run and stays untracked. No team ID, certificate or profile is in
+  the repo: the Simulator build takes the placeholder team `AAAAAAAAAA` from
+  `APPLE_DEVELOPMENT_TEAM`.
+- **Payload.** `scripts/ios/build_payload.py --ensure|--rebuild|--plan --sdk
+  iphonesimulator|iphoneos` writes `src-tauri/ios-payload/` (untracked): the
+  `Python.xcframework`, `app_packages` and a `manifest.json` whose input-only digest makes
+  `--ensure` a no-op when nothing changed. Pins live in `contracts/ios-runtime.json`: the
+  Python-Apple-support release (url and sha256), the BeeWare numpy wheel per SDK (sha256), the
+  pydantic-core cross-build (maturin `--locked`, versions recorded in the manifest) and a pure
+  copy of PyYAML's `yaml` package. Every other version and hash comes from `uv.lock` through
+  `uv export`, with markers evaluated against a complete iOS marker environment. Each package
+  lands in exactly one class (pure wheel, BeeWare wheel, cross-build, pure source, excluded) or
+  the script fails, as it does for a contract row the lock no longer needs. The engine goes in
+  as the real wheel (`uv build --wheel`). The payload drops `mcp` and `boto3` and the packages
+  only they need (cryptography, rpds-py, cffi, botocore and others): host MCP is off on iOS and
+  `tests/test_ios_boot_imports.py` boots the engine and creates a project with those modules
+  unimportable. It keeps `numpy`, `pydantic-core` and PyYAML as the only non-wheel packages.
+- **Lifecycle.** `src/lifecycle.rs` is a pure reducer (`Starting`, `Serving`, `Rechecking`,
+  `Failed`; events `Bound`, `Healthy`, `Unhealthy`, `StartFailed`, `Tick`, `Resumed`,
+  `RetryRequested`; effects `ProbeHealth`, `Navigate`, `ShowFailure`, `StartEngine`) with a total
+  table test. `src/ios/` wires it up: the interpreter environment and boot token are set before
+  any thread exists, `podcast_mcp.gui.embedded_boot.boot_line()` runs on its own thread, the
+  first navigation is `/api/session/exchange` (the single-use code; never logged), and
+  `WindowEvent::Resumed` rechecks health on the same port. A served engine is never restarted:
+  if it stops answering the splash says to reopen the app. A start that failed shows its
+  sentence on the splash with a Try again link.
+- **Start time.** Measured on the Simulator, the engine reports Serving 4.5 to 5.5 seconds after
+  launch on a quiet Mac, 20.7 seconds once while other work loaded it, and the earlier prototype
+  saw about 40 seconds. The reducer's start deadline is 120 seconds (`START_DEADLINE`), a
+  generous multiple of the worst measurement; a start that passes it shows the retryable failure.
+  A recheck after returning to the foreground has 20 seconds (`RECHECK_DEADLINE`); the prototype's
+  listener answered again about 5 seconds after the return.
+- **Not there yet.** Audio tools (FFmpeg), transcription, recording, Universal Links, signing,
+  TestFlight and a run on a device. Home's Import audio and Record are refused while audio tools are unavailable, so a project cannot yet be made in the UI; Recent entries store absolute container paths, which change when the app is reinstalled. Projects live in the app's Documents folder and show in the
+  Files app.
+- **Proof.** `make ios-sim-proof` launches the app and asserts what it can from the Mac; the
+  Home screen, project and cookie checks are made in the Simulator UI
+  ([testing.md § iOS Simulator lane](testing.md#ios-simulator-lane)).
 
 The public check workflow is deliberately limited:
 
