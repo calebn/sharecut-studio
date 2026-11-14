@@ -1,4 +1,4 @@
-import { useRef } from "react";
+import { useEffect, useRef } from "react";
 import { useShallow } from "zustand/react/shallow";
 import { resolveCommentAnchor } from "../../comments/commentAnchor";
 import { useDawStore } from "../../state/dawStore";
@@ -27,6 +27,8 @@ export function ComposeAnchor(props: Omit<ComposerProps, "anchor">) {
           };
     }),
   );
-  shown.current = anchor;
+  useEffect(() => {
+    shown.current = anchor;
+  }, [anchor]);
   return <Composer {...props} anchor={anchor} />;
 }
