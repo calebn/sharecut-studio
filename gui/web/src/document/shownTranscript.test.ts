@@ -277,6 +277,24 @@ describe("shownTranscriptOf", () => {
     expect(shown.drawn).toBe(true);
   });
 
+  it("draws every row as bars after one ripple cut at the start when every row has a struck word", () => {
+    const before = [first, second].map((r) => ({
+      ...r,
+      ignored_word_indices: [r.start],
+    }));
+    const cut = [first, second].map((r) =>
+      header({
+        ...r,
+        start: r.start - 1,
+        words: undefined,
+        ignored_word_indices: [r.start - 1],
+      }),
+    );
+    const shown = shownOf(transcriptOf(cut), settledOf(before), GRANT);
+    expect(kinds(shown)).toEqual(["waiting", "waiting"]);
+    expect(shown.drawn).toBe(true);
+  });
+
   it("holds a row that only moved and waits on one whose spans changed shape", () => {
     const spans = (...d: number[]) => {
       let at = 0;
