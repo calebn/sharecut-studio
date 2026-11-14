@@ -335,7 +335,7 @@ describe("rowOutcome", () => {
     });
   });
 
-  it("fails Line up tracks when the room tone bed fails there", () => {
+  it("fails Clean, not Line up tracks, when the room tone bed fails", () => {
     const job = pipelineJobSnapshot({
       status: "error",
       steps: [
@@ -343,10 +343,24 @@ describe("rowOutcome", () => {
         step("extract_room_tone_beds", "error", { error: "No quiet stretch" }),
       ],
     });
-    expect(rowOutcome(job, "align")).toEqual({
+    expect(rowOutcome(job, "clean")).toEqual({
       state: "failed",
       error: "No quiet stretch",
     });
+    expect(rowOutcome(job, "align")?.state).toBe("done");
+  });
+
+  it("reads the bed as Clean work while Line up tracks is skipped", () => {
+    const job = pipelineJobSnapshot({
+      status: "running",
+      skip_steps: ["align_tracks", "require_align_accept"],
+      steps: [
+        step("ingest_tracks", "ok"),
+        step("extract_room_tone_beds", "running"),
+      ],
+    });
+    expect(rowOutcome(job, "align")?.state).not.toBe("running");
+    expect(rowOutcome(job, "clean")?.state).toBe("running");
   });
 
   it("does not mark omitted work done when the job finishes", () => {
