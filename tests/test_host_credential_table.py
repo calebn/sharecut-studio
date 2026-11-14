@@ -8,6 +8,7 @@ or it does not. Every other combination (loopback peer, authz not strict) admits
 from __future__ import annotations
 
 from collections.abc import Callable
+from dataclasses import replace
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlencode
@@ -18,7 +19,11 @@ from starlette.websockets import WebSocketDisconnect
 
 from podcast_mcp.gui.server import create_app
 from podcast_mcp.project import store
-from podcast_mcp.util.host_platform import LINUX, MACOS
+from podcast_mcp.util.host_platform import current
+
+# The machine's own kernel with loopback trusted. The app reaches kernel-specific syscalls (the
+# registry ACL probe), so a row of another kernel would fail on the other OS.
+TRUSTED = replace(current(), name="trusted", loopback_is_trusted=True)
 
 TOKEN = "s3cret-token"
 REMOTE = ("203.0.113.9", 50000)
@@ -155,32 +160,29 @@ def observed(app: Any, project: Path, peer: tuple[str, int]) -> dict[str, tuple[
     }
 
 
-@pytest.mark.parametrize("row", [MACOS, LINUX], ids=lambda row: row.name)
 def test_a_strict_remote_peer_is_admitted_by_the_sources_each_route_names(
-    row, host, strict_app, minimal_project: Path
+    host, strict_app, minimal_project: Path
 ) -> None:
-    host(row)
+    host(TRUSTED)
 
     assert observed(strict_app, minimal_project, REMOTE) == ADMITTED
 
 
-@pytest.mark.parametrize("row", [MACOS, LINUX], ids=lambda row: row.name)
 def test_a_loopback_peer_is_admitted_with_no_credential(
-    row, host, strict_app, minimal_project: Path
+    host, strict_app, minimal_project: Path
 ) -> None:
-    host(row)
+    host(TRUSTED)
 
     assert observed(strict_app, minimal_project, LOOPBACK) == {
         name: (True,) * len(PRESENTATIONS) for name in ADMITTED
     }
 
 
-@pytest.mark.parametrize("row", [MACOS, LINUX], ids=lambda row: row.name)
 def test_every_peer_is_admitted_when_authz_is_not_strict(
-    row, host, strict_app, minimal_project: Path, monkeypatch: pytest.MonkeyPatch
+    host, strict_app, minimal_project: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.delenv("PODCAST_SESSION_AUTHZ")
-    host(row)
+    host(TRUSTED)
 
     assert observed(strict_app, minimal_project, REMOTE) == {
         name: (True,) * len(PRESENTATIONS) for name in ADMITTED
@@ -190,7 +192,7 @@ def test_every_peer_is_admitted_when_authz_is_not_strict(
 def test_a_trusted_host_has_no_exchange_route_and_sets_no_cookie(
     host, strict_app, minimal_project: Path
 ) -> None:
-    host(MACOS)
+    host(TRUSTED)
     client = TestClient(strict_app, client=LOOPBACK)
 
     assert client.get("/api/session/exchange?code=anything").status_code == 404
@@ -199,11 +201,10 @@ def test_a_trusted_host_has_no_exchange_route_and_sets_no_cookie(
     assert "set-cookie" not in client.get(f"/api/project?path={minimal_project}").headers
 
 
-@pytest.mark.parametrize("row", [MACOS, LINUX], ids=lambda row: row.name)
 def test_the_host_socket_refuses_a_bad_token_before_it_looks_for_the_project(
-    row, host, strict_app, tmp_path: Path
+    host, strict_app, tmp_path: Path
 ) -> None:
-    host(row)
+    host(TRUSTED)
     url = "/api/host/ws?" + urlencode(
         {
             "path": str(tmp_path / "missing" / "episode.sharecut"),
