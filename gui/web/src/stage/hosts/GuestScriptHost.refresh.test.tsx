@@ -61,8 +61,11 @@ const refreshing = (rows: CombinedUtterance[]) =>
 
 function mount(shown: ReturnType<typeof live>) {
   const view = render(<GuestScriptHost shown={shown} />);
-  return (next: ReturnType<typeof live>) =>
-    act(() => view.rerender(<GuestScriptHost shown={next} />));
+  return Object.assign(
+    (next: ReturnType<typeof live>) =>
+      act(() => view.rerender(<GuestScriptHost shown={next} />)),
+    { unmount: view.unmount },
+  );
 }
 const selected = () =>
   [...document.querySelectorAll("[data-selected]")].map((el) =>
@@ -145,7 +148,85 @@ describe("a selection across an edit", () => {
   });
 });
 
+describe("a selection across an edit that only renumbers", () => {
+  /** A struck "um" opens the first line: it takes no place in the Script. */
+  const struckOpening = (kept: boolean) => {
+    const rows = lines(
+      kept ? ["um", ...SPOKEN[0]!] : SPOKEN[0]!,
+      SPOKEN[1]!,
+      0,
+    );
+    if (kept) rows[0]!.words![0]!.ignored = true;
+    return rows;
+  };
+
+  it("follows its words when the cut took only a struck word before them", () => {
+    seedScript({
+      projectPath: "share:abc",
+      guestMode: "comment",
+      shareCapabilities: COMMENTER_CAPABILITIES,
+      utterances: struckOpening(true),
+      project: { clips: TWO_LANE_CLIPS },
+    });
+    const rerender = mount(live(struckOpening(true)));
+    drag(6, 8);
+    expect(stored()).toMatchObject({ startWordIndex: 7, endWordIndex: 9 });
+    useDawStore.setState({ feedbackToast: null });
+    const gone = struckOpening(false);
+    rerender(refreshing(gone));
+    expect(useDawStore.getState().feedbackToast).toBeNull();
+    expect(stored()).toMatchObject({ startWordIndex: 7, endWordIndex: 9 });
+    rerender(live(gone));
+    expect(stored()).toMatchObject({ startWordIndex: 6, endWordIndex: 8 });
+    expect(useDawStore.getState().feedbackToast).toBeNull();
+  });
+
+  it("announces nothing while a held line waits and at the swap, when the guest did nothing", () => {
+    const rerender = mount(live(COMPLETE));
+    drag(6, 8);
+    useDawStore.setState({ feedbackToast: null });
+    const say = vi.spyOn(useDawStore.getState(), "announceStatus");
+    const cut = lines(
+      ["Welcome", "to", "the", "show", "friends"],
+      SPOKEN[1]!,
+      -0.5,
+    );
+    rerender(refreshing(cut));
+    rerender(refreshing(cut));
+    rerender(live(cut));
+    expect(say).not.toHaveBeenCalled();
+    expect(stored()).toMatchObject({ startWordIndex: 5, endWordIndex: 7 });
+  });
+});
+
+describe("a selection when the Script goes away mid-refresh", () => {
+  it("is cleared when the Script unmounts while refreshing, kept when it is not", () => {
+    const cut = lines(
+      ["Welcome", "to", "the", "show", "friends"],
+      SPOKEN[1]!,
+      -0.5,
+    );
+    const first = mount(live(COMPLETE));
+    drag(6, 8);
+    first(refreshing(cut));
+    first.unmount();
+    expect(stored()).toBeNull();
+    const second = mount(live(COMPLETE));
+    drag(6, 8);
+    second.unmount();
+    expect(stored()).not.toBeNull();
+  });
+});
+
 describe("a gesture on a word that is still refreshing", () => {
+  it("announces a tap once", () => {
+    const cut = lines(SPOKEN[0]!, SPOKEN[1]!, 1);
+    mount(refreshing(cut));
+    const say = vi.spyOn(useDawStore.getState(), "announceStatus");
+    fireEvent.click(document.querySelector('[data-stop="7"]') as Element);
+    expect(say).toHaveBeenCalledTimes(1);
+  });
+
   it("says so for a tap and for a dropped selection", () => {
     const cut = lines(SPOKEN[0]!, SPOKEN[1]!, 1);
     mount(refreshing(cut));
@@ -154,6 +235,9 @@ describe("a gesture on a word that is still refreshing", () => {
     expect(toast?.message).toBe(TRANSCRIPT_REFRESHING);
     expect(toast?.tone).toBe("error");
     useDawStore.setState({ feedbackToast: null });
+    // A second gesture, later than the first.
+    const now = performance.now();
+    vi.spyOn(performance, "now").mockReturnValue(now + 5_000);
     drag(6, 8);
     expect(useDawStore.getState().feedbackToast?.message).toBe(
       TRANSCRIPT_REFRESHING,

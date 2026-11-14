@@ -33,6 +33,7 @@ import {
 } from "./guestSelection";
 
 const NOOP = () => {};
+const HELD_NOTICE_GAP_MS = 250;
 
 export type GuestScriptHostProps = {
   reading?: GuestReading;
@@ -63,11 +64,26 @@ function GuestScriptHostAdapter({
   const range = useScriptSelection(model, mayRange, NOOP);
   const selectRange = range.onSelect;
   const remembered = useRef<RememberedSelection | null>(null);
+  const lastNotice = useRef(Number.NEGATIVE_INFINITY);
   const heldNotice = useCallback(() => {
+    // One tap reaches both the seek and the select path: say it once.
+    const now = performance.now();
+    if (now - lastNotice.current < HELD_NOTICE_GAP_MS) return;
+    lastNotice.current = now;
     useDawStore
       .getState()
       .announceStatus(TRANSCRIPT_REFRESHING, { tone: "error" });
   }, []);
+  const remember = useCallback(
+    (selection: WordsSelection) => {
+      const stored = useDawStore.getState().selection;
+      const anchor = selectionEndOf(script, selection.anchor);
+      const head = selectionEndOf(script, selection.head);
+      remembered.current =
+        stored && anchor && head ? { stored, anchor, head } : null;
+    },
+    [script],
+  );
   const onSelect = useCallback(
     (selection: WordsSelection) => {
       if (touchesHeld(script, selection)) {
@@ -75,15 +91,12 @@ function GuestScriptHostAdapter({
         return;
       }
       selectRange?.(selection);
-      const stored = useDawStore.getState().selection;
-      const anchor = selectionEndOf(turns, selection.anchor);
-      const head = selectionEndOf(turns, selection.head);
-      remembered.current =
-        stored && anchor && head ? { stored, anchor, head } : null;
+      remember(selection);
     },
-    [script, selectRange, turns, heldNotice],
+    [script, selectRange, remember, heldNotice],
   );
   // An edit renumbers words: a selection of ours follows its words or goes.
+  // It writes with no gesture, so it never announces and waits for live words.
   useEffect(() => {
     const mine = remembered.current;
     if (!mine) return;
@@ -92,14 +105,33 @@ function GuestScriptHostAdapter({
       remembered.current = null;
       return;
     }
-    const next = followSelection(mine, turns);
+    const next = followSelection(mine, script);
     if (next.kind === "clear") {
       remembered.current = null;
       state.setSelection(null);
     } else if (next.kind === "move") {
-      onSelect({ kind: "words", anchor: next.anchor, head: next.head });
+      const moved: WordsSelection = {
+        kind: "words",
+        anchor: next.anchor,
+        head: next.head,
+      };
+      selectRange?.(moved);
+      remember(moved);
     }
-  }, [turns, onSelect]);
+  }, [script, selectRange, remember]);
+  // The Script gives way to a cover mid-refresh: the words come back under new
+  // numbers with nothing watching the selection, so it goes with the Script.
+  const refreshingNow = useRef(shown.refreshing);
+  refreshingNow.current = shown.refreshing;
+  useEffect(
+    () => () => {
+      const mine = remembered.current;
+      const state = useDawStore.getState();
+      if (mine && refreshingNow.current && state.selection === mine.stored)
+        state.setSelection(null);
+    },
+    [],
+  );
   const positionKey = useDawStore(
     useCallback(
       (s: { playheadSec: number }) =>
