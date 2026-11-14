@@ -1522,8 +1522,7 @@ def test_a_three_digit_number_without_http_context_is_not_transport_wording(mess
     assert answer.verdict is Verdict.REJECTED
 
 
-def test_the_cfnetwork_domain_is_caught_by_the_network_wording_so_it_needs_no_alternative() -> None:
-    assert "kcferrordomaincfnetwork" not in release_classify.TRANSPORT.pattern
+def test_the_cfnetwork_domain_is_transport_wording() -> None:
     assert release_classify.NETWORK.search("kCFErrorDomainCFNetwork")
     answer = release_classify.classify_upload(1, apple_error("kCFErrorDomainCFNetwork 2"))
     assert answer.verdict is Verdict.UNREACHABLE
