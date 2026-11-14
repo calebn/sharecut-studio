@@ -1120,10 +1120,11 @@ The `/rec` route does not wait for the host's feature list. While the room code
 blank for 300 ms, then blocks, **Still loading…** with **Retry** at 4 s, which reloads the
 page) with the hidden status "Joining the room…". Once the code is loaded, the guest room
 shows the Room shell at once instead of a blank screen: placeholder tiles (`RoomView` with
-`loading`), a dimmed inert dock, no status pill or Notes rail. After 4 s (`SKELETON_RETRY_MS`) the alert slot
-adds "Still connecting…" with **Retry**, which looks the room up again, moves focus to the
-page title and restarts the 4 s count. This shell belongs to the guest and producer link; the host's own seat in the
-Record stage is unaffected.
+`loading`), a dimmed inert dock, no status pill or Notes rail. After 4 s
+(`SKELETON_RETRY_MS`) the alert slot adds "Still connecting…" with **Retry**, which looks
+the room up again, moves focus to the page title and restarts the 4 s count. This shell
+belongs to the guest and producer link; the host's own seat in the Record stage is
+unaffected.
 
 Device permission is an **explicit grant step**: recorded clients click **Allow
 microphone**, which is the only `getUserMedia` call (`useMicPermission` →

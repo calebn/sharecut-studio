@@ -18,7 +18,7 @@ export type RecordBootstrap = {
   expires_at: string | null;
 };
 
-/** Why `/rec/<token>` did not open. No payload: nothing here can be printed. */
+/** Why `/rec/<token>` did not open. Carries no error text. */
 export type BootFailure = "not-found" | "network" | "server";
 
 /** One settled bootstrap request. Exactly one side is set. */
@@ -26,7 +26,7 @@ export type BootOutcome =
   | { bootstrap: RecordBootstrap; failure: null }
   | { bootstrap: null; failure: BootFailure };
 
-/** Rejects only on abort. Every other failure comes back typed; no error text leaves this module. */
+/** Rejects only on abort. Every other failure comes back as a `BootFailure`. */
 export async function loadRecordBootstrap(
   token: string,
   signal?: AbortSignal,
