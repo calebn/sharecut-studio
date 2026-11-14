@@ -80,8 +80,6 @@ def git_state(root: Path) -> tuple[str, bool]:
 
 
 class Session:
-    """What one invocation shares: the layout, the redactor, and a way to print through it."""
-
     def __init__(self, root: Path, dry_run: bool) -> None:
         self.layout = Layout(root)
         self.dry_run = dry_run

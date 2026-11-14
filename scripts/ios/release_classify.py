@@ -1,9 +1,4 @@
-"""What the tools said, in one sentence each. Pure functions over redacted output.
-
-The altool JSON shapes and the xcodebuild phrases are written from the tools' documented and
-observed behaviour, not from a signed run; the fixtures in ``tests/test_ios_release.py`` pin
-them, and the owner's first session is where they meet Apple's real words.
-"""
+"""What the tools said, in one sentence each. Pure functions over redacted output."""
 
 from __future__ import annotations
 
