@@ -152,6 +152,7 @@ function fakeRoom(over: Overrides = {}) {
     captureSettled: over.captureSettled ?? true,
     localRecording: over.localRecording ?? false,
     localSegments: over.localSegments === undefined ? 0 : over.localSegments,
+    recordedHere: false,
     name: "Ava",
     setName: vi.fn(),
     headphonesOk: true,

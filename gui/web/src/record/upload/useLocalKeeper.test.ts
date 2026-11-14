@@ -1,5 +1,5 @@
-import { renderHook, waitFor } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { act, renderHook, waitFor } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { seedPendingKeeper } from "../../test/keepers";
 import { MemorySink } from "../keeper/store";
 import * as recovery from "./recovery";
@@ -14,6 +14,11 @@ function renderKeeper(sink: MemorySink | null, recheck = 0) {
     { initialProps: { sink, recheck } },
   );
 }
+
+afterEach(() => {
+  vi.useRealTimers();
+  vi.restoreAllMocks();
+});
 
 describe("useLocalKeeper", () => {
   it("claims nothing while pending or without a sink", async () => {
@@ -70,5 +75,29 @@ describe("useLocalKeeper", () => {
   it("reports a known zero for a device with nothing kept", async () => {
     const { result } = renderKeeper(new MemorySink());
     await waitFor(() => expect(result.current.segments).toBe(0));
+  });
+
+  it("scans again after a short delay when a scan threw, once per recheck", async () => {
+    vi.useFakeTimers();
+    const scan = vi
+      .spyOn(recovery, "scanLocalKeeper")
+      .mockRejectedValueOnce(new Error("io"))
+      .mockResolvedValue({ found: true, segments: 2 });
+    const { result, rerender } = renderKeeper(new MemorySink());
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(result.current.segments).toBeNull();
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(2500);
+    });
+    expect(scan).toHaveBeenCalledTimes(2);
+    expect(result.current).toEqual({ found: true, segments: 2 });
+    scan.mockRejectedValue(new Error("io"));
+    rerender({ sink: new MemorySink(), recheck: 1 });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(10_000);
+    });
+    expect(scan).toHaveBeenCalledTimes(4);
   });
 });

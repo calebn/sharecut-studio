@@ -10,6 +10,7 @@ import {
   joinMic,
   ownSaving,
   tookPart,
+  uploadInFlight,
 } from "./guestRoomModel";
 import { roomPeople } from "./roomPeople";
 import type { RecordUploadProgress } from "./upload/useRecordUpload";
@@ -166,6 +167,18 @@ describe("guestRoomPhase", () => {
     expect(
       guestRoomPhase(snapshot, { upload: acknowledged, localSegments: null }),
     ).toMatchObject({ kind: "saving" });
+  });
+
+  it("neither says saved nor holds Leave for an acknowledged upload whose device count is unknown", () => {
+    expect(
+      uploadInFlight(
+        upload({ total: 1, fileAck: true, seenSegments: 1 }),
+        null,
+      ),
+    ).toBe(false);
+    expect(uploadInFlight(upload({ total: 1, pending: true }), null)).toBe(
+      true,
+    );
   });
 
   it("reports a failed upload as a failed save, not as progress", () => {

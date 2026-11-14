@@ -76,7 +76,6 @@ export function useKeeperRecoveryActions(args: {
   const [running, setRunning] = useState<"download" | "recover" | null>(null);
   const { busy, run: runSingle } = useSingleFlight();
   const canRecover = useStableCallback(() => args.recoverAllowed);
-  const settledNow = useStableCallback(() => args.captureSettled);
   const recoveredNotice = useStableCallback((result: KeeperRecoveryResult) =>
     recoveryNotice(result, args.uploadAvailable ?? true),
   );
@@ -123,27 +122,36 @@ export function useKeeperRecoveryActions(args: {
   const download = useCallback(() => {
     if (!sink || !sessionId || !participantId || takeIndex === null) return;
     run("download", async () => {
-      const settled = settledNow();
+      const before = canRecover()
+        ? await scanLocalKeeper(
+            sink,
+            sessionId,
+            participantId,
+            takeIndex,
+          ).catch(() => null)
+        : null;
       try {
         await downloadLocalKeepers(sink, sessionId, participantId, takeIndex);
       } catch (failure: unknown) {
         setDownloadedFor(null);
         throw failure;
       }
-      const held = await scanLocalKeeper(
-        sink,
-        sessionId,
-        participantId,
-        takeIndex,
-      ).catch(() => null);
+      const after = canRecover()
+        ? await scanLocalKeeper(
+            sink,
+            sessionId,
+            participantId,
+            takeIndex,
+          ).catch(() => null)
+        : null;
       setDownloadedFor(
-        settled && held
-          ? { sessionId, takeIndex, segments: held.segments }
+        before && after && canRecover() && before.segments === after.segments
+          ? { sessionId, takeIndex, segments: before.segments }
           : null,
       );
       return null;
     });
-  }, [run, settledNow, sink, sessionId, participantId, takeIndex]);
+  }, [run, canRecover, sink, sessionId, participantId, takeIndex]);
   const recover = useCallback(() => {
     if (!sink || !sessionId || !participantId || takeIndex === null) return;
     if (!canRecover()) return;
