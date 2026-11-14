@@ -18,7 +18,9 @@ An Undo or Redo belongs to the project opening where it was pressed. Studio
 sends it only while that opening is still current. Closing and reopening the
 same project or switching projects retires an unsent move before it can reach
 the server. A history command waiting behind older queued edits is refused
-until those edits are sent. Undo and Redo are unavailable offline.
+until those edits are sent. Undo and Redo are unavailable offline. On a share
+link only the host and an Editor can Undo or Redo: a Viewer or Commenter gets a
+disabled command ("Undo needs Editor access") and nothing is sent to the server.
 
 The browser may retain a history command briefly in its IndexedDB queue to
 reserve its place relative to other edits. History commands are never replayed.
