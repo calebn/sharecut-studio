@@ -329,7 +329,11 @@ describe("Record stage", () => {
           server_time_ns: 5,
         }),
       );
-      expect(await screen.findByText(text)).toBeInTheDocument();
+      await waitFor(() =>
+        expect(
+          document.querySelector(".sys-room-looking-in"),
+        ).toHaveTextContent(text),
+      );
       act(() =>
         setRoom({
           participants: [hostPerson(), avaGuest()],
@@ -337,9 +341,69 @@ describe("Record stage", () => {
           server_time_ns: 6,
         }),
       );
-      await waitFor(() => expect(screen.queryByText(text)).toBeNull());
+      await waitFor(() =>
+        expect(document.querySelector(".sys-room-looking-in")).toBeNull(),
+      );
     },
   );
+
+  it.each([-1, 2.5, 100, "2"])(
+    "shows no looking-in line for a count that is not a count: %s",
+    async (bad) => {
+      setRoom({ participants: [hostPerson(), avaGuest()] });
+      mount();
+      await waitFor(() => expect(record()).toBeEnabled());
+      act(() =>
+        setRoom({
+          participants: [hostPerson(), avaGuest()],
+          watchers: bad as unknown as number,
+          server_time_ns: 5,
+        }),
+      );
+      expect(document.querySelector(".sys-room-looking-in")).toBeNull();
+    },
+  );
+
+  it("announces the first looking-in arrival to the host once, politely, in the lobby only", async () => {
+    setRoom({ participants: [hostPerson(), avaGuest()], watchers: 0 });
+    mount();
+    await waitFor(() => expect(record()).toBeEnabled());
+    const line = "Someone with the producer link is looking in";
+    const polite = () =>
+      [...document.querySelectorAll("[aria-live='polite'] .sr-only")].map(
+        (el) => el.textContent,
+      );
+    expect(polite()).not.toContain(line);
+    act(() =>
+      setRoom({
+        participants: [hostPerson(), avaGuest()],
+        state: "recording",
+        take_index: 0,
+        watchers: 1,
+        server_time_ns: 5,
+      }),
+    );
+    expect(polite()).not.toContain(line);
+    act(() =>
+      setRoom({
+        participants: [hostPerson(), avaGuest()],
+        state: "lobby",
+        take_index: 0,
+        watchers: 0,
+        server_time_ns: 6,
+      }),
+    );
+    act(() =>
+      setRoom({
+        participants: [hostPerson(), avaGuest()],
+        state: "lobby",
+        take_index: 0,
+        watchers: 1,
+        server_time_ns: 7,
+      }),
+    );
+    expect(polite()).toContain(line);
+  });
 
   it("does not make a host alone in the room wait for a guest", async () => {
     setRoom({ participants: [hostPerson()] });

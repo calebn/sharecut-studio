@@ -40,6 +40,7 @@ const renderRoom = (rest: Partial<RoomViewProps> = {}) => {
     selfName: "Jon",
     onSendNote,
     ...rest,
+    lookingIn: rest.lookingIn ?? 0,
   };
   const view = render(<RoomView {...props} />);
   return { onSendNote, ...view };
@@ -78,6 +79,7 @@ describe("RoomView", () => {
     ).toBeVisible();
     rerender(
       <RoomView
+        lookingIn={0}
         seat="guest"
         title="Episode 14"
         people={[HOST, JON]}
@@ -98,6 +100,7 @@ describe("RoomView", () => {
       title: "Episode 14",
       sessionName: "Session 3",
       people: [HOST, JON],
+      lookingIn: 0,
       phase: LIVE,
       notes: [],
       selfName: "Host",
@@ -310,6 +313,7 @@ describe("RoomView", () => {
   it("the dock shows the seat's controls and hides Comment while waiting", () => {
     const { rerender } = render(
       <RoomView
+        lookingIn={0}
         seat="guest"
         title="Episode 14"
         people={[HOST, JON]}
@@ -322,6 +326,7 @@ describe("RoomView", () => {
     expect(names()).toEqual(["Mute", "Comments", "Leave room"]);
     rerender(
       <RoomView
+        lookingIn={0}
         seat="guest"
         title="Episode 14"
         people={[HOST, JON]}
@@ -357,9 +362,12 @@ describe("RoomView", () => {
       const row = screen.getByText(text);
       expect(row.tagName).toBe("P");
       expect(row.closest("ul")).toBeNull();
-      const list = screen.getByRole("list", { name: "Listening" });
-      expect(list).not.toContainElement(row);
-      expect(list.compareDocumentPosition(row)).toBe(
+      expect(
+        screen.getByRole("list", { name: "Listening" }),
+      ).not.toContainElement(row);
+      const stage = container.querySelector(".sys-room-view-stage");
+      expect(stage).not.toContainElement(row);
+      expect(row.compareDocumentPosition(stage as Element)).toBe(
         Node.DOCUMENT_POSITION_FOLLOWING,
       );
       const glyph = row.querySelector("svg");
@@ -368,6 +376,14 @@ describe("RoomView", () => {
       expect(row).not.toHaveAttribute("role");
       await expectNoA11yViolations(container);
     });
+
+    it.each([-1, 2.5, 100, Number.NaN, Number.MAX_SAFE_INTEGER])(
+      "shows nothing for %s",
+      (lookingIn) => {
+        renderRoom({ lookingIn });
+        expect(document.querySelector(".sys-room-looking-in")).toBeNull();
+      },
+    );
 
     it("shows nothing for nobody, and still shows the line with no listeners", () => {
       const { rerender } = renderRoom({ people: [HOST, JON], lookingIn: 0 });
@@ -429,6 +445,7 @@ describe("RoomView", () => {
     );
     rerender(
       <RoomView
+        lookingIn={0}
         seat="producer"
         title="Episode 14"
         people={[HOST, ROSA]}
@@ -441,6 +458,7 @@ describe("RoomView", () => {
     expect(screen.queryByRole("button", { name: /clear time/ })).toBeNull();
     rerender(
       <RoomView
+        lookingIn={0}
         seat="producer"
         title="Episode 14"
         people={[HOST, ROSA]}
@@ -622,6 +640,7 @@ describe("RoomView as the host", () => {
     ]);
     rerender(
       <RoomView
+        lookingIn={0}
         seat="host"
         title="Episode 14"
         people={[HOST_YOU]}
@@ -726,6 +745,7 @@ describe("RoomView as the host", () => {
       screen.getByRole("button", { name: "Mute" }).focus();
       rerender(
         <RoomView
+          lookingIn={0}
           seat="guest"
           title="Episode 14"
           people={[HOST, JON]}
@@ -756,6 +776,7 @@ describe("RoomView as the host", () => {
         seat: "guest",
         title: "Episode 14",
         people: [HOST, JON],
+        lookingIn: 0,
         phase: LIVE,
         notes: [],
         selfName: "Jon",
@@ -882,6 +903,7 @@ describe("RoomView as the host", () => {
     expect(h1).not.toHaveFocus();
     rerender(
       <RoomView
+        lookingIn={0}
         seat="producer"
         title="Episode 14"
         people={[HOST, JON]}

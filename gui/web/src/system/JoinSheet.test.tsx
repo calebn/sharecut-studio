@@ -24,6 +24,7 @@ function Harness(props: Partial<JoinSheetProps>) {
       onJoin={vi.fn()}
       onDecline={vi.fn()}
       {...props}
+      lookingIn={props.lookingIn ?? 0}
       name={name}
       onNameChange={setName}
     />

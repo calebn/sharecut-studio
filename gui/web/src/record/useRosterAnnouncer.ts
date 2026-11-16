@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { lookingInLine } from "../system/roomViewModel";
+import { lookingInCount, lookingInLine } from "../system/roomViewModel";
 import { MARKER_BODY } from "./liveCommentQueue";
 import type { RecordParticipant, RecordSnapshot } from "./types";
 
@@ -11,14 +11,44 @@ function liveIds(participants: readonly RecordParticipant[], meId: string) {
   );
 }
 
+type LookingInWatch = {
+  watchers: number | null;
+  /** The room whose first looking-in arrival was already announced. */
+  announcedRoom: string | null;
+};
+
+const NO_LOOKING_IN: LookingInWatch = { watchers: null, announcedRoom: null };
+
+/**
+ * The one polite line for people looking in: the first rise from none to some
+ * in a room, seen while it is waiting or stopped, never during a take.
+ */
+function watchLookingIn(
+  before: LookingInWatch,
+  snapshot: RecordSnapshot,
+): { watch: LookingInWatch; line: string | null } {
+  const watchers = lookingInCount(snapshot.watchers);
+  const rose =
+    before.watchers === 0 &&
+    watchers > 0 &&
+    before.announcedRoom !== snapshot.session_id &&
+    (snapshot.state === "lobby" || snapshot.state === "stopped");
+  if (rose) {
+    return {
+      watch: { watchers, announcedRoom: snapshot.session_id },
+      line: lookingInLine(watchers),
+    };
+  }
+  return before.watchers === watchers
+    ? { watch: before, line: null }
+    : { watch: { ...before, watchers }, line: null };
+}
+
 type RosterObservation = {
   people: ReadonlySet<string> | null;
   names: ReadonlyMap<string, string>;
   comments: ReadonlySet<string> | null;
-  /** The last count of people looking in, null before a snapshot. */
-  watchers: number | null;
-  /** The room whose first looking-in arrival was already announced. */
-  lookedInRoom: string | null;
+  lookingIn: LookingInWatch;
   announcement: string;
 };
 
@@ -52,18 +82,8 @@ function observeRoster(
       if (!people.has(id)) lines.push(`${nameOf(id)} left`);
     }
   }
-  const watchers = snapshot.watchers ?? 0;
-  let lookedInRoom = before.lookedInRoom;
-  if (
-    before.watchers === 0 &&
-    watchers > 0 &&
-    lookedInRoom !== snapshot.session_id &&
-    (snapshot.state === "lobby" || snapshot.state === "stopped")
-  ) {
-    const line = lookingInLine(watchers);
-    if (line) lines.push(line);
-    lookedInRoom = snapshot.session_id;
-  }
+  const looking = watchLookingIn(before.lookingIn, snapshot);
+  if (looking.line) lines.push(looking.line);
   const rows = snapshot.comments ?? [];
   const comments = new Set(rows.map((row) => row.id));
   if (before.comments) {
@@ -83,8 +103,7 @@ function observeRoster(
     names.size === before.names.size &&
     [...names].every(([id, name]) => before.names.get(id) === name) &&
     before.comments !== null &&
-    before.watchers === watchers &&
-    before.lookedInRoom === lookedInRoom &&
+    before.lookingIn === looking.watch &&
     comments.size === before.comments.size &&
     [...comments].every((id) => before.comments?.has(id))
   ) {
@@ -94,8 +113,7 @@ function observeRoster(
     people,
     names,
     comments,
-    watchers,
-    lookedInRoom,
+    lookingIn: looking.watch,
     announcement: lines.length ? lines.join(". ") : before.announcement,
   };
 }
@@ -113,8 +131,7 @@ export function useRosterAnnouncer(
     people: null,
     names: new Map(),
     comments: null,
-    watchers: null,
-    lookedInRoom: null,
+    lookingIn: NO_LOOKING_IN,
     announcement: "",
   }));
   const next = useMemo(
@@ -123,4 +140,25 @@ export function useRosterAnnouncer(
   );
   if (next !== observation) setObservation(next);
   return observation.announcement;
+}
+
+/**
+ * The host page's one polite line, for people looking in only: the host sees
+ * the people and the comments, so nothing else is read out.
+ */
+export function useLookingInAnnouncer(snapshot: RecordSnapshot | null): string {
+  const [seen, setSeen] = useState({
+    watch: NO_LOOKING_IN,
+    announcement: "",
+  });
+  if (snapshot) {
+    const looking = watchLookingIn(seen.watch, snapshot);
+    if (looking.watch !== seen.watch || looking.line) {
+      setSeen({
+        watch: looking.watch,
+        announcement: looking.line ?? seen.announcement,
+      });
+    }
+  }
+  return seen.announcement;
 }

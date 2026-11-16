@@ -74,3 +74,4 @@ export { useLastEndedSession } from "./useLastEndedSession";
 export { useMutedSpeech } from "./useMutedSpeech";
 export { useOpenSessionName } from "./useOpenSessionName";
 export { useRoomToneAnnouncement } from "./useRoomToneAnnouncement";
+export { useLookingInAnnouncer } from "./useRosterAnnouncer";

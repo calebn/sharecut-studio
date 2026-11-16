@@ -57,6 +57,7 @@ function Join({ phase, roomWidth = "desktop", ...args }: StoryArgs) {
   return (
     <div style={{ blockSize: "44rem", inlineSize: "100%" }}>
       <RoomView
+        lookingIn={0}
         seat={args.seat}
         title="Episode 14: the one about the mic"
         people={IN_ROOM}
@@ -86,6 +87,7 @@ const meta: Meta<StoryArgs> = {
     seat: "guest",
     here: IN_ROOM.map(({ person, role }) => ({ person, role })),
     host: "Maya Okafor",
+    lookingIn: 0,
     name: "Jon",
     mic: { status: "idle" },
     headphones: "off",

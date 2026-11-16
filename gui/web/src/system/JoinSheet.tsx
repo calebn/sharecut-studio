@@ -50,8 +50,7 @@ export type JoinSheetProps = {
   /** Who is in the room now, the host included. */
   here: JoinHere[];
   host: string;
-  /** People with the producer link looking in; the guest Details says so. */
-  lookingIn?: number;
+  lookingIn: number;
   name: string;
   onNameChange: (name: string) => void;
   /** Guest only. */
@@ -203,7 +202,7 @@ export function JoinSheet({
   seat,
   here,
   host,
-  lookingIn = 0,
+  lookingIn,
   name,
   onNameChange,
   mic = { status: "idle" },
