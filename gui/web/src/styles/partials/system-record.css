@@ -981,6 +981,12 @@
   aspect-ratio: 1;
 }
 
+/* Tiles start under the header; the freed space stays empty instead of
+   splitting into bands above and below. The embedded host studio keeps its centring. */
+.sys-room-view[data-width="phone"]:not([data-embedded]) .sys-room-view-grid {
+  margin-block: 0;
+}
+
 .sys-room-view-peek {
   display: flex;
   flex: none;
