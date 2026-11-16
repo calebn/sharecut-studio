@@ -1118,7 +1118,7 @@ html:not([data-shell="phone"], [data-shell="tablet"])
 
 /* A row still to do reads as a checklist bullet, not a control. */
 .sys-join-row .sys-status[data-state="queued"] .sys-glyph {
-  color: var(--color-border);
+  color: var(--color-text-secondary);
 }
 
 .sys-join-here {
