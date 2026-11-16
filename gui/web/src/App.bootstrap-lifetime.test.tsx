@@ -80,7 +80,10 @@ function bootstrap(author: string, flag: boolean | "absent" = true) {
   );
 }
 
-function serve(load: (token: string) => Promise<Response>) {
+function serve(
+  load: (token: string) => Promise<Response>,
+  { ignoreAbort = false }: { ignoreAbort?: boolean } = {},
+) {
   const fetchMock = vi.fn(
     async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = urlOf(input);
@@ -94,9 +97,11 @@ function serve(load: (token: string) => Promise<Response>) {
       if (!token) return new Response("not found", { status: 404 });
       // Like a real fetch, an aborted request rejects with an AbortError.
       return new Promise<Response>((answer, fail) => {
-        init?.signal?.addEventListener("abort", () =>
-          fail(new DOMException("Aborted", "AbortError")),
-        );
+        if (!ignoreAbort) {
+          init?.signal?.addEventListener("abort", () =>
+            fail(new DOMException("Aborted", "AbortError")),
+          );
+        }
         load(token).then(answer, fail);
       });
     },
@@ -488,6 +493,43 @@ describe("App bootstrap request lifetime", () => {
       expect(offline.load).toHaveBeenCalledTimes(reads);
       expect(provider()).toHaveAttribute("data-author", "Alpha");
       expect(screen.queryByText(/saved copy/i)).toBeNull();
+    });
+
+    it("aborts the older attempts when the newest one opens the saved copy", async () => {
+      const { third, fetchMock } = await replacedWhileHung();
+      offline.load.mockResolvedValue({ project: cachedProject(), saved_at: 1 });
+      await act(async () => {
+        third.resolve(new Response("{}", { status: 500 }));
+      });
+      expect(await screen.findByText("Studio body")).toBeInTheDocument();
+      expect(projectSignals(fetchMock)[1]?.aborted).toBe(true);
+    });
+
+    it("ignores an attempt for a link the page left and came back to, even if its request was never cancelled", async () => {
+      const old = deferred<Response>();
+      let calls = 0;
+      const fetchMock = serve(
+        (token) => {
+          calls += 1;
+          return calls === 1 && token === "alpha"
+            ? old.promise
+            : new Promise<Response>(() => {});
+        },
+        { ignoreAbort: true },
+      );
+      const { rerender } = render(<App />);
+      await waitFor(() => expect(calls).toBe(1));
+      window.history.pushState({}, "", "/r/beta");
+      rerender(<App />);
+      await waitFor(() => expect(calls).toBe(2));
+      window.history.pushState({}, "", "/r/alpha");
+      rerender(<App />);
+      await waitFor(() => expect(calls).toBe(3));
+      await act(async () => {
+        old.resolve(bootstrap("Alpha"));
+      });
+      expect(screen.queryByText("Studio body")).toBeNull();
+      expect(projectSignals(fetchMock)).toHaveLength(3);
     });
 
     it("aborts every attempt in flight when the page leaves", async () => {

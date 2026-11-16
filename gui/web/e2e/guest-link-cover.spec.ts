@@ -129,6 +129,27 @@ for (const size of SIZES) {
       });
     });
 
+    test("the loading screen's Retry keeps its size and stays readable while it says Trying…", async ({
+      browser,
+    }) => {
+      await withGuestLink(browser, size, async (guest, token) => {
+        await guest.clock.install();
+        // The host never answers, so the screen offers Retry after 4 seconds.
+        await guest.route(`**/api/review/${token}/project`, () => {});
+        await guest.goto(`/r/${token}`);
+        await guest.clock.runFor(4_500);
+        const retry = guest.getByRole("button", { name: "Retry" });
+        await expect(retry).toBeVisible();
+        const rest = await retry.boundingBox();
+        await press(retry, size.touch);
+        const busy = guest.getByRole("button", { name: "Trying…" });
+        await expect(busy).toHaveAttribute("aria-busy", "true");
+        expect(await busy.boundingBox()).toEqual(rest);
+        await expect(busy).toHaveCSS("opacity", "1");
+        await expect(busy).toHaveCSS("cursor", "progress");
+      });
+    });
+
     test("the status line never touches the sentence, even with the text at 200%", async ({
       browser,
     }) => {
