@@ -9,6 +9,10 @@
 | **Empty / loading** | No transcript yet, with **Transcribe this episode** when the episode has source audio (opens Prepare and starts the run) · **Transcribing** (no percent) while a run makes the transcript; Fix text, speaker rename and Replace wait for it (Find still opens, without Cut all) · low-confidence chips when present |
 | **Out of scope** | The Review queue and Prepare (their own stages) |
 
+Cut previews belong to their own recording. A cut does not hide an equal-index
+word from another recording, even when its text is identical. Find excludes cut
+previews and does not join a phrase across an applied cut.
+
 An applied cut seam shares the Timeline selection and highlight. Tapping it again closes the join and keeps the applied selection.
 
 From Review, **Open in Edit** opens Script and reveals the exact unsure word,
