@@ -3,7 +3,7 @@ import { Button } from "../ui";
 import { RecordButton, type RecordButtonProps } from "./RecordButton";
 import { SystemIcon } from "./SystemIcon";
 import { usePressHint } from "./usePressHint";
-import { VerbButton } from "./VerbButton";
+import { DockLabel, VerbButton } from "./VerbButton";
 import { hintOf, verbOf } from "./verbDisplay";
 
 export type DockSeat = "host" | "guest" | "producer";
@@ -86,11 +86,7 @@ export function RecordDock({
     onClick: leaveHeld ? hint.show : onExit,
   });
   const word = (text: string) =>
-    labelled ? (
-      <span className="sys-dock-label" aria-hidden="true">
-        {text}
-      </span>
-    ) : null;
+    labelled ? <DockLabel>{text}</DockLabel> : null;
   const mute = (
     <button
       type="button"

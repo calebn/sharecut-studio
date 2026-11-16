@@ -18,6 +18,15 @@ type Props = Omit<
   caption?: string;
 };
 
+/** The word under a dock disc. Decorative: the button's accessible name says it. */
+export function DockLabel({ children }: { children: string }) {
+  return (
+    <span className="sys-dock-label" aria-hidden="true">
+      {children}
+    </span>
+  );
+}
+
 /** An icon-only button named from the verb table, with the key in its tooltip. */
 export function VerbButton({
   verb,
@@ -40,11 +49,7 @@ export function VerbButton({
       {...rest}
     >
       {icon ? <SystemIcon name={icon} size={size} /> : null}
-      {caption ? (
-        <span className="sys-dock-label" aria-hidden="true">
-          {caption}
-        </span>
-      ) : null}
+      {caption ? <DockLabel>{caption}</DockLabel> : null}
     </button>
   );
 }

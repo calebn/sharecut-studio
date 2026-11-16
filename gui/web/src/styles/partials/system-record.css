@@ -170,12 +170,9 @@
   cursor: not-allowed;
 }
 
-/* A labelled dock (a guest or producer on a phone, which has no tooltip to hover):
-   the word hangs in the margin under its disc, bottom-aligned so the 64 and 48 px
-   discs share one baseline of words. */
+/* Bottom-aligned so the 64 and 48 px discs share one baseline of words. */
 .sys-dock[data-labelled] {
   align-items: flex-end;
-  min-block-size: 6.75rem;
 }
 
 .sys-dock[data-labelled] .sys-dock-center,
@@ -475,7 +472,7 @@
    top-start, where only the host's Record glyph ever goes. */
 .sys-room-devices {
   position: absolute;
-  inset-block-start: var(--space-3);
+  inset-block-start: calc(var(--space-3) + var(--space-0));
   inset-inline-start: var(--space-3);
   display: inline-flex;
   align-items: center;
@@ -485,13 +482,12 @@
   background: var(--color-bg-sunken);
   color: var(--color-text-secondary);
   font-size: var(--font-size-small);
-  line-height: 1.25rem;
+  line-height: 1rem;
 }
 
-/* Every guest-page tile on a phone clears the own tile's Devices cue, so the
-   avatars stay level and a 140 px tile at 320 does not draw the cue over its avatar. */
+/* Every tile, not just the own one, so the avatars stay level. */
 .sys-room-view[data-width="phone"]:not([data-embedded]) .sys-room-main {
-  margin-block-start: var(--space-5);
+  margin-block-start: calc(var(--space-5) + var(--space-1));
 }
 
 .sys-room-name {
@@ -986,7 +982,6 @@
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
   line-clamp: 2;
-  flex: 1 1 0;
   min-inline-size: 5rem;
   line-height: 1rem;
   overflow-wrap: anywhere;
@@ -1019,8 +1014,7 @@
   aspect-ratio: 1;
 }
 
-/* Tiles start under the header; the freed space stays empty instead of
-   splitting into bands above and below. The embedded host studio keeps its centring. */
+/* The embedded host studio keeps its centring. */
 .sys-room-view[data-width="phone"]:not([data-embedded]) .sys-room-view-grid {
   margin-block: 0;
 }
@@ -1114,6 +1108,11 @@
 
 .sys-room-view[data-width="phone-landscape"] .sys-dock-far {
   margin-inline-start: 0;
+}
+
+/* Landscape tiles are too small for the cue beside the avatar. */
+.sys-room-view[data-width="phone-landscape"] .sys-room-devices {
+  display: none;
 }
 
 .sys-room-view[data-width="phone-landscape"] .sys-dock-hint {
