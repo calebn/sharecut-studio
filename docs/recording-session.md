@@ -1116,8 +1116,10 @@ row and **Join to listen** ("You'll listen and take notes. You won't be
 recorded."); producers skip the mic, storage and headphones rows.
 
 The sheet is one `Dialog` at every width, and the room's 600 rule decides its shape
-(`system-record.css`, a container query on the dialog root): from 600 it is a centred
-400 px card whose top is 12% of the screen height from the top (at least 12 px and at most 96 px, so 96 px from 800 px high up; 8 px when the sheet scrolls as one); under 600 it rises from the bottom edge as tall as its
+(`system-record.css`, a container query on the dialog root). The sizes below are rem
+values written as pixels at the default 16 px text size (the 600 break is 37.5rem, the
+card 25rem, a control 2.75rem), so a larger text size moves every one of them, the
+break included. From 600 it is a centred 400 px card whose top is 12% of the screen height from the top (at least 12 px and at most 96 px, so 96 px from 800 px high up; 8 px when the sheet scrolls as one); under 600 it rises from the bottom edge as tall as its
 rows and at most 88dvh, with the room's header and status pill showing above it. On a
 screen under 30rem tall at any width (a phone on its side), or under 37.5rem wide and
 44rem tall (a small phone upright), the sheet scrolls as one, footer included, with
@@ -1127,9 +1129,12 @@ a press on the scrim beside the sheet does nothing (`Dialog` with `scrimDismisse
 false), because consent is answered with a button. Each row is its status line with
 its control full width underneath, on one left edge. Every control is at least 44 px.
 
-First focus is the control that unblocks **Join and record**: on a mouse the name
-field; on a touch screen the name row (the field is not focused, so no keyboard opens);
-once the name is known, **Allow microphone** or the next open row; **Join and record**
+First focus is the control that unblocks **Join and record**. When the storage check
+has a problem or is still running, that row comes first and takes focus (its action, or
+the row itself while the check runs). Otherwise, with a fine primary pointer (a mouse or
+trackpad; a laptop with a touchscreen counts as fine) it is the name field; with a
+coarse primary pointer (a phone) it is the name row, and the field is not focused, so no
+keyboard opens. Once the name is known, **Allow microphone** or the next open row; **Join and record**
 only when every row is done. A waiting action (the browser's microphone prompt, a
 "Joining…" primary) is `aria-disabled` and keeps focus rather than becoming natively
 disabled, and the microphone row announces its state in a polite status line.
@@ -1147,7 +1152,8 @@ known yet, and the name follows in `UpdateName` once it is. A producer's socket 
 after **Join to listen**, so its first hello already carries the name. A guest who has
 neither typed a name nor joined shows to the host as "Guest"; a guest who typed shows under
 what they typed, even after **Not now**. The key the earlier build kept per link
-(`record:{token}:name`) is removed.
+(`record:{token}:name`) is removed for the link that is opened, when it is opened;
+other links' old keys stay on the device unread.
 
 The `/rec` route does not wait for the host's feature list. While the room code
 (`GuestRoomApp`) loads, the page shows the shared guest skeleton (`GuestLoadingScreen`:
