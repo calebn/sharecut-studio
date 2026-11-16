@@ -107,7 +107,7 @@ class FakeSocket {
   onmessage: ((ev: { data: string }) => void) | null = null;
   onclose: ((ev: { code: number }) => void) | null = null;
   sent: string[] = [];
-  reply: "join" | "full" | "declined" | "invalid" = "join";
+  reply: "join" | "full" | "declined" | "invalid" | "silent" = "join";
   holdConsent = false;
 
   send(data: string) {
@@ -141,7 +141,7 @@ class FakeSocket {
       });
       return;
     }
-    if (msg.command_type !== "Join") {
+    if (msg.command_type !== "Join" || this.reply === "silent") {
       return;
     }
     queueMicrotask(() => {
@@ -539,6 +539,35 @@ describe("GuestRoomApp", () => {
     expect(sent[consent - 1]).toBe("UpdateName");
     expect(commands()[consent - 1].payload).toEqual({
       display_name: "Ava Okafor",
+    });
+  });
+
+  it("sends the remembered name right before Consent when Join is pressed before the first Echo", async () => {
+    localStorage.setItem("sharecut.recordName", "Ava Okafor");
+    stubWebSocket(sockets, "silent");
+    stubBootstrap();
+    render(<GuestRoomApp token="guest-tok" />);
+    await userEvent.click(
+      await screen.findByRole("button", { name: MIC_ALLOW_LABEL }),
+    );
+    await waitFor(() => expect(getUserMedia).toHaveBeenCalled());
+    await userEvent.click(
+      await screen.findByRole("button", { name: "I'm wearing headphones" }),
+    );
+    await waitFor(() => expect(joinButton()).toBeEnabled());
+    await userEvent.click(joinButton());
+    const frames = sockets[0].sent.map(
+      (row) =>
+        JSON.parse(row) as {
+          command_type: string;
+          payload: Record<string, unknown>;
+        },
+    );
+    const consent = frames.findIndex((row) => row.command_type === "Consent");
+    expect(consent).toBeGreaterThan(0);
+    expect(frames[consent - 1]).toMatchObject({
+      command_type: "UpdateName",
+      payload: { display_name: "Ava Okafor" },
     });
   });
 
