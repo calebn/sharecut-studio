@@ -12,7 +12,7 @@ import { nextSeq } from "../utils/monotonicSeq";
 import { useStableCallback } from "../utils/useStableCallback";
 import { isTerminalWsClose } from "../utils/wsClose";
 import { emitRecordSignal, isRecordSignal } from "./monitor/signalBus";
-import type { RecordSnapshot } from "./types";
+import { type RecordSnapshot, shouldApplyRecordSnapshot } from "./types";
 
 function recordWsUrl(token: string, clientId: string, name: string): string {
   const proto = window.location.protocol === "https:" ? "wss" : "ws";
@@ -251,7 +251,10 @@ export function useRecordSync(
             });
           }
           if (msg.snapshot) {
-            setSnapshot(msg.snapshot);
+            const incoming = msg.snapshot;
+            setSnapshot((current) =>
+              shouldApplyRecordSnapshot(incoming, current) ? incoming : current,
+            );
           }
         },
       },

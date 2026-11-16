@@ -587,4 +587,58 @@ describe("useRecordSync", () => {
     });
     expect(result.current.error).toBe("room_full");
   });
+
+  describe("snapshot ordering", () => {
+    const snapshot = (state: string, serverTimeNs?: number) => ({
+      type: "Snapshot",
+      plane: "record",
+      snapshot: {
+        session_id: "room1",
+        state,
+        take_index: 0,
+        participants: [],
+        caps: { recorded: 4, producers: 2 },
+        ...(serverTimeNs === undefined ? {} : { server_time_ns: serverTimeNs }),
+      },
+    });
+
+    async function open() {
+      const hook = renderHook(() => useRecordSync("tok", "Ava"));
+      await act(async () => {
+        await Promise.resolve();
+        await Promise.resolve();
+      });
+      return { ...hook, ws: FakeWebSocket.instances[0] };
+    }
+
+    it("keeps the held snapshot when an older one arrives later", async () => {
+      const { result, ws } = await open();
+      await act(async () => {
+        ws.emit(snapshot("recording", 200));
+        ws.emit(snapshot("lobby", 100));
+      });
+      expect(result.current.snapshot?.state).toBe("recording");
+    });
+
+    it("accepts a snapshot with the same timestamp", async () => {
+      const { result, ws } = await open();
+      await act(async () => {
+        ws.emit(snapshot("lobby", 200));
+        ws.emit(snapshot("recording", 200));
+      });
+      expect(result.current.snapshot?.state).toBe("recording");
+    });
+
+    it("accepts a newer snapshot and a first one without a timestamp", async () => {
+      const { result, ws } = await open();
+      await act(async () => {
+        ws.emit(snapshot("lobby"));
+      });
+      expect(result.current.snapshot?.state).toBe("lobby");
+      await act(async () => {
+        ws.emit(snapshot("recording", 300));
+      });
+      expect(result.current.snapshot?.state).toBe("recording");
+    });
+  });
 });
