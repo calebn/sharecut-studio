@@ -40,7 +40,7 @@ import {
   uploadInFlight,
 } from "./guestRoomModel";
 import { guestTabTitle } from "./guestTabTitle";
-import { liveTakeOpen, NOTES_CLOSED_REASON } from "./liveCommentQueue";
+import { COMMENTS_CLOSED_REASON, liveTakeOpen } from "./liveCommentQueue";
 import {
   copyForMicStatus,
   MIC_SAVED_DEVICE_MISSING_COPY,
@@ -478,7 +478,7 @@ function GuestRoomSession({
         selfName={me?.display_name ?? name}
         onSendNote={(note) => liveComments.postNote(note.text)}
         notesDisabledReason={
-          liveTakeOpen(state) ? undefined : NOTES_CLOSED_REASON
+          liveTakeOpen(state) ? undefined : COMMENTS_CLOSED_REASON
         }
         muted={me?.muted ?? false}
         onMute={

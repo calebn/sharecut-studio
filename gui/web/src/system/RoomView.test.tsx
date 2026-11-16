@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
+import { readableText } from "../test/readableText";
 import { SRC_ROOT } from "../test/sourceFiles";
 import type { NoteItem } from "./notesRailModel";
 import { RoomView, type RoomViewProps } from "./RoomView";
@@ -61,7 +62,7 @@ describe("RoomView", () => {
   it("keeps room-panel keyboard navigation after a padding click", async () => {
     renderRoom({ takes: <p>Saved take list</p>, defaultNotesOpen: true });
     await userEvent.click(screen.getByRole("tablist", { name: "Room panels" }));
-    expect(screen.getByRole("tab", { name: "Notes" })).toHaveFocus();
+    expect(screen.getByRole("tab", { name: "Comments" })).toHaveFocus();
     await userEvent.keyboard("{ArrowRight}");
     expect(screen.getByRole("tab", { name: "Takes" })).toHaveFocus();
     expect(screen.getByRole("tabpanel")).toHaveTextContent("Saved take list");
@@ -151,12 +152,12 @@ describe("RoomView", () => {
     ).toHaveLength(1);
   });
 
-  it("a guest's Notes rail starts closed and the Notes button opens it", async () => {
+  it("a guest's Comments rail starts closed and the Comments button opens it", async () => {
     renderRoom();
-    expect(screen.queryByLabelText("Add a note")).toBeNull();
-    await userEvent.click(screen.getByRole("button", { name: "Notes" }));
-    expect(screen.getByLabelText("Add a note")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Notes" })).toHaveAttribute(
+    expect(screen.queryByLabelText("Add a comment")).toBeNull();
+    await userEvent.click(screen.getByRole("button", { name: "Comments" }));
+    expect(screen.getByLabelText("Add a comment")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Comments" })).toHaveAttribute(
       "aria-pressed",
       "true",
     );
@@ -168,7 +169,7 @@ describe("RoomView", () => {
       people: [HOST, JON, ROSA],
       selfName: "Rosa Diaz",
     });
-    expect(screen.getByLabelText("Add a note")).toBeInTheDocument();
+    expect(screen.getByLabelText("Add a comment")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Everyone" })).toBeNull();
     unmount();
     renderRoom({
@@ -199,11 +200,13 @@ describe("RoomView", () => {
   it("disables the composer with the reason and sends nothing", async () => {
     const { onSendNote } = renderRoom({
       defaultNotesOpen: true,
-      notesDisabledReason: "Notes open when the take starts.",
+      notesDisabledReason: "Comments open when the take starts.",
     });
-    expect(screen.getByLabelText("Add a note")).toBeDisabled();
-    expect(screen.getByText("Notes open when the take starts.")).toBeVisible();
-    const send = screen.getByRole("button", { name: "Send note" });
+    expect(screen.getByLabelText("Add a comment")).toBeDisabled();
+    expect(
+      screen.getByText("Comments open when the take starts."),
+    ).toBeVisible();
+    const send = screen.getByRole("button", { name: "Post" });
     expect(send).toHaveAttribute("aria-disabled", "true");
     await userEvent.click(send);
     expect(onSendNote).not.toHaveBeenCalled();
@@ -256,18 +259,18 @@ describe("RoomView", () => {
 
   it("a guest gets no Everyone toggle", async () => {
     renderRoom();
-    await userEvent.click(screen.getByRole("button", { name: "Notes" }));
+    await userEvent.click(screen.getByRole("button", { name: "Comments" }));
     expect(screen.queryByRole("button", { name: "Everyone" })).toBeNull();
   });
 
-  it("sends the draft with the live clock time, and a cleared chip sends a session note", async () => {
+  it("sends the draft with the live clock time, and a cleared chip sends a session comment", async () => {
     const { onSendNote } = renderRoom({
       seat: "producer",
       people: [HOST, ROSA],
     });
-    const field = screen.getByLabelText("Add a note");
+    const field = screen.getByLabelText("Add a comment");
     await userEvent.type(field, "Start with the cold open");
-    await userEvent.click(screen.getByRole("button", { name: "Send note" }));
+    await userEvent.click(screen.getByRole("button", { name: "Post" }));
     expect(onSendNote).toHaveBeenLastCalledWith({
       text: "Start with the cold open",
       time: "12:04",
@@ -275,29 +278,32 @@ describe("RoomView", () => {
     });
     await userEvent.click(
       screen.getByRole("button", {
-        name: "12:04, clear time to make this a session note",
+        name: "12:04, clear time to make this a session comment",
       }),
     );
-    await userEvent.type(field, "Session note");
-    await userEvent.click(screen.getByRole("button", { name: "Send note" }));
+    await userEvent.type(field, "Session comment");
+    await userEvent.click(screen.getByRole("button", { name: "Post" }));
     expect(onSendNote).toHaveBeenLastCalledWith({
-      text: "Session note",
+      text: "Session comment",
       time: null,
       everyone: false,
     });
   });
 
-  it("keeps an unsent note draft when the rail switches to Takes and back", async () => {
+  it("keeps an unsent comment draft when the rail switches to Takes and back", async () => {
     renderRoom({
       seat: "producer",
       people: [HOST, ROSA],
       takes: <p>Take 1 saved</p>,
     });
-    await userEvent.type(screen.getByLabelText("Add a note"), "Cut the intro");
+    await userEvent.type(
+      screen.getByLabelText("Add a comment"),
+      "Cut the intro",
+    );
     await userEvent.click(screen.getByRole("tab", { name: "Takes" }));
     expect(screen.getByText("Take 1 saved")).toBeVisible();
-    await userEvent.click(screen.getByRole("tab", { name: "Notes" }));
-    expect(screen.getByLabelText("Add a note")).toHaveValue("Cut the intro");
+    await userEvent.click(screen.getByRole("tab", { name: "Comments" }));
+    expect(screen.getByLabelText("Add a comment")).toHaveValue("Cut the intro");
   });
 
   it("the dock shows the seat's controls and hides Comment while waiting", () => {
@@ -312,7 +318,7 @@ describe("RoomView", () => {
         onSendNote={vi.fn()}
       />,
     );
-    expect(names()).toEqual(["Mute", "Notes", "Leave room"]);
+    expect(names()).toEqual(["Mute", "Comments", "Leave room"]);
     rerender(
       <RoomView
         seat="guest"
@@ -324,7 +330,7 @@ describe("RoomView", () => {
         onSendNote={vi.fn()}
       />,
     );
-    expect(names()).toEqual(["Mute", "Comment", "Notes", "Leave room"]);
+    expect(names()).toEqual(["Mute", "Comment", "Comments", "Leave room"]);
   });
 
   it("lists the producer as listening, with You for the viewer", () => {
@@ -342,17 +348,17 @@ describe("RoomView", () => {
     expect(screen.queryByRole("button", { name: "Invite" })).toBeNull();
   });
 
-  it("keeps the draft and cleared time chip when the note could not be sent", async () => {
+  it("keeps the draft and cleared time chip when the comment could not be sent", async () => {
     const onSendNote = vi.fn(() => false);
     renderRoom({ seat: "producer", people: [HOST, ROSA], onSendNote });
-    const field = screen.getByLabelText("Add a note");
+    const field = screen.getByLabelText("Add a comment");
     await userEvent.type(field, "Do not lose me");
     await userEvent.click(
       screen.getByRole("button", {
-        name: "12:04, clear time to make this a session note",
+        name: "12:04, clear time to make this a session comment",
       }),
     );
-    await userEvent.click(screen.getByRole("button", { name: "Send note" }));
+    await userEvent.click(screen.getByRole("button", { name: "Post" }));
     expect(onSendNote).toHaveBeenCalledOnce();
     expect(screen.queryByRole("button", { name: /clear time/ })).toBeNull();
     expect(field).toHaveValue("Do not lose me");
@@ -365,7 +371,7 @@ describe("RoomView", () => {
     });
     await userEvent.click(
       screen.getByRole("button", {
-        name: "12:04, clear time to make this a session note",
+        name: "12:04, clear time to make this a session comment",
       }),
     );
     rerender(
@@ -418,7 +424,7 @@ const NOTES: NoteItem[] = [
 ];
 
 describe("RoomView on a phone", () => {
-  it("shows the latest note as one peek line and no rail", () => {
+  it("shows the latest comment as one peek line and no rail", () => {
     renderRoom({ viewerWidth: "phone", notes: NOTES });
     const peek = document.querySelector(".sys-room-view-peek") as HTMLElement;
     expect(peek).toHaveTextContent("Rosa Diaz: Lift Jon before the break.");
@@ -427,35 +433,39 @@ describe("RoomView on a phone", () => {
     expect(screen.queryByRole("dialog")).toBeNull();
   });
 
-  it("says there are no notes yet when the list is empty", () => {
+  it("says there are no comments yet when the list is empty", () => {
     renderRoom({ viewerWidth: "phone" });
     expect(document.querySelector(".sys-room-view-peek")).toHaveTextContent(
-      "No notes yet",
+      "No comments yet",
     );
   });
 
-  it("the peek line opens the notes sheet", async () => {
+  it("the peek line opens the comments sheet", async () => {
     renderRoom({ viewerWidth: "phone", notes: NOTES });
     const peek = document.querySelector(".sys-room-view-peek") as HTMLElement;
     expect(peek).toHaveAttribute("aria-expanded", "false");
     await userEvent.click(peek);
-    expect(screen.getByRole("dialog", { name: "Notes" })).toBeInTheDocument();
-    expect(screen.getByLabelText("Add a note")).toBeInTheDocument();
+    expect(
+      screen.getByRole("dialog", { name: "Comments" }),
+    ).toBeInTheDocument();
+    expect(screen.getByLabelText("Add a comment")).toBeInTheDocument();
   });
 
-  it("the dock's Notes button opens the sheet and shows it pressed", async () => {
+  it("the dock's Comments button opens the sheet and shows it pressed", async () => {
     renderRoom({ viewerWidth: "phone", notes: NOTES });
-    const button = screen.getByRole("button", { name: "Notes" });
+    const button = screen.getByRole("button", { name: "Comments" });
     expect(button).toHaveAttribute("aria-pressed", "false");
     await userEvent.click(button);
-    expect(screen.getByRole("dialog", { name: "Notes" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("dialog", { name: "Comments" }),
+    ).toBeInTheDocument();
     expect(button).toHaveAttribute("aria-pressed", "true");
   });
 
-  it("sends a note from the sheet with the live clock time", async () => {
+  it("posts a comment from the sheet with the live clock time", async () => {
     const { onSendNote } = renderRoom({ viewerWidth: "phone" });
-    await userEvent.click(screen.getByRole("button", { name: "Notes" }));
-    const dialog = await screen.findByRole("dialog", { name: "Notes" });
+    await userEvent.click(screen.getByRole("button", { name: "Comments" }));
+    const dialog = await screen.findByRole("dialog", { name: "Comments" });
     // The sheet moves focus to Close on the next frame; typing before that loses the field.
     await waitFor(() =>
       expect(
@@ -463,11 +473,11 @@ describe("RoomView on a phone", () => {
       ).toHaveFocus(),
     );
     await userEvent.type(
-      within(dialog).getByLabelText("Add a note"),
+      within(dialog).getByLabelText("Add a comment"),
       "From the sheet",
     );
     await userEvent.click(
-      await within(dialog).findByRole("button", { name: "Send note" }),
+      await within(dialog).findByRole("button", { name: "Post" }),
     );
     expect(onSendNote).toHaveBeenCalledWith({
       text: "From the sheet",
@@ -478,18 +488,20 @@ describe("RoomView on a phone", () => {
 
   it("keeps the same dock buttons as the desktop for the seat", () => {
     renderRoom({ viewerWidth: "phone" });
-    expect(names()).toEqual(["Mute", "Comment", "Notes", "Leave room"]);
+    expect(names()).toEqual(["Mute", "Comment", "Comments", "Leave room"]);
   });
 
-  it("has no peek line and no rail in landscape, and the Notes button still opens the sheet", async () => {
+  it("has no peek line and no rail in landscape, and the Comments button still opens the sheet", async () => {
     renderRoom({ viewerWidth: "phone-landscape", notes: NOTES });
     expect(document.querySelector(".sys-room-view-peek")).toBeNull();
     expect(document.querySelector(".sys-room-view")).toHaveAttribute(
       "data-width",
       "phone-landscape",
     );
-    await userEvent.click(screen.getByRole("button", { name: "Notes" }));
-    expect(screen.getByRole("dialog", { name: "Notes" })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Comments" }));
+    expect(
+      screen.getByRole("dialog", { name: "Comments" }),
+    ).toBeInTheDocument();
   });
 
   it("renders no sheet on the desktop", () => {
@@ -514,7 +526,7 @@ describe("RoomView as the host", () => {
 
   it("shows the host's dock with Record and fills the empty seats with Invite tiles", () => {
     hostRoom();
-    expect(names()).toEqual(["Mute", "Record", "Notes", "More"]);
+    expect(names()).toEqual(["Mute", "Record", "Comments", "More"]);
     expect(screen.getAllByRole("button", { name: "Invite" })).toHaveLength(3);
   });
 
@@ -565,7 +577,7 @@ describe("RoomView as the host", () => {
       "Comment",
       "Stop take",
       "Pause take",
-      "Notes",
+      "Comments",
       "More",
     ]);
     rerender(
@@ -706,7 +718,7 @@ describe("RoomView as the host", () => {
       ).toHaveFocus();
     });
 
-    it("closes the phone Notes sheet when the viewer declines", async () => {
+    it("closes the phone Comments sheet when the viewer declines", async () => {
       const props: RoomViewProps = {
         seat: "guest",
         title: "Episode 14",
@@ -718,12 +730,12 @@ describe("RoomView as the host", () => {
         viewerWidth: "phone",
       };
       const { rerender } = render(<RoomView {...props} />);
-      await userEvent.click(screen.getByRole("button", { name: "Notes" }));
+      await userEvent.click(screen.getByRole("button", { name: "Comments" }));
       expect(
-        await screen.findByRole("dialog", { name: "Notes" }),
+        await screen.findByRole("dialog", { name: "Comments" }),
       ).toBeInTheDocument();
       rerender(<RoomView {...props} declined={{ onJoin: vi.fn() }} />);
-      expect(screen.queryByRole("dialog", { name: "Notes" })).toBeNull();
+      expect(screen.queryByRole("dialog", { name: "Comments" })).toBeNull();
     });
 
     it("adds nothing to a room that has not declined", () => {
@@ -767,7 +779,7 @@ describe("RoomView as the host", () => {
       );
     });
 
-    it("pairs Notes with a Takes tab when takes are given", async () => {
+    it("pairs Comments with a Takes tab when takes are given", async () => {
       const user = userEvent.setup();
       renderRoom({
         seat: "host",
@@ -776,7 +788,7 @@ describe("RoomView as the host", () => {
         defaultNotesOpen: true,
         takes: <p>take list</p>,
       });
-      expect(screen.getByRole("tab", { name: "Notes" })).toHaveAttribute(
+      expect(screen.getByRole("tab", { name: "Comments" })).toHaveAttribute(
         "aria-selected",
         "true",
       );
@@ -860,5 +872,82 @@ describe("RoomView as the host", () => {
       await user.click(screen.getByRole("button", { name: "Retry" }));
       expect(onAction).toHaveBeenCalledOnce();
     });
+  });
+});
+
+describe("RoomView comments naming", () => {
+  const phases: RoomViewProps["phase"][] = [
+    { kind: "waiting" },
+    LIVE,
+    { kind: "paused", clockSec: 724 },
+    { kind: "saved" },
+  ];
+
+  it.each([
+    ["host", [{ ...HOST, you: true }]],
+    ["guest", [HOST, JON]],
+    ["producer", [HOST, ROSA]],
+  ] as const)("reads Comments and never Notes for the %s", (seat, people) => {
+    for (const viewerWidth of ["desktop", "phone"] as const) {
+      for (const phase of phases) {
+        for (const takes of [undefined, <p key="t">Take 1 saved</p>]) {
+          const { unmount } = renderRoom({
+            seat,
+            people: [...people],
+            phase,
+            viewerWidth,
+            takes,
+            defaultNotesOpen: true,
+            notes: NOTES,
+          });
+          const text = readableText(document.body);
+          expect(text.filter((t) => /\bnotes?\b/i.test(t))).toEqual([]);
+          expect(text).toContain("Comments");
+          unmount();
+        }
+      }
+    }
+  });
+
+  it("opens on the Comments tab when the dock button reopens a rail left on Takes", async () => {
+    renderRoom({
+      seat: "producer",
+      people: [HOST, ROSA],
+      takes: <p>Take 1 saved</p>,
+      defaultNotesOpen: true,
+    });
+    await userEvent.click(screen.getByRole("tab", { name: "Takes" }));
+    const toggle = screen.getByRole("button", { name: "Comments" });
+    await userEvent.click(toggle);
+    await userEvent.click(toggle);
+    expect(screen.getByRole("tab", { name: "Comments" })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+  });
+
+  it("opens the phone sheet on the Comments tab from the peek line", async () => {
+    renderRoom({
+      seat: "producer",
+      people: [HOST, ROSA],
+      viewerWidth: "phone",
+      takes: <p>Take 1 saved</p>,
+    });
+    const peek = document.querySelector(".sys-room-view-peek") as HTMLElement;
+    await userEvent.click(peek);
+    await userEvent.click(screen.getByRole("tab", { name: "Takes" }));
+    await userEvent.click(
+      within(screen.getByRole("dialog", { name: "Comments" })).getByRole(
+        "button",
+        { name: "Close" },
+      ),
+    );
+    await userEvent.click(
+      document.querySelector(".sys-room-view-peek") as HTMLElement,
+    );
+    expect(screen.getByRole("tab", { name: "Comments" })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
   });
 });

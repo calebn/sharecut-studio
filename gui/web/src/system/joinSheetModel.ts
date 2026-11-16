@@ -114,7 +114,7 @@ export const JOIN_TEXT = {
   producerPrimary: "Join to listen",
   joining: "Joining…",
   decline: "Not now",
-  producerLine: "You'll listen and take notes. You won't be recorded.",
+  producerLine: "You'll listen and comment. You won't be recorded.",
   headphones: "I'm wearing headphones",
   tooLoud: "Too loud. Move back a little.",
   defaultInput: "Default",

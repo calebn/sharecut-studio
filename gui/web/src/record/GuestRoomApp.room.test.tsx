@@ -755,7 +755,7 @@ describe("GuestRoomApp in the room", () => {
     };
     const stoppedTake = { ...stopped, takes: [takeOne] };
     const openTakes = async () => {
-      await userEvent.click(screen.getByRole("button", { name: /^Notes/ }));
+      await userEvent.click(screen.getByRole("button", { name: /^Comments/ }));
       await userEvent.click(screen.getByRole("tab", { name: "Takes" }));
     };
 
@@ -973,8 +973,8 @@ describe("GuestRoomApp dock outside the saving phase", () => {
   const open = { acked: 3, total: 3, fileAck: false, uploading: false };
   const dock = () => ({
     mute: screen.queryByRole("button", { name: /^(Mute|Unmute)/ }),
-    comment: screen.queryByRole("button", { name: /^Comment/ }),
-    notes: screen.queryByRole("button", { name: /^Notes/ }),
+    comment: screen.queryByRole("button", { name: /^Comment$/ }),
+    notes: screen.queryByRole("button", { name: /^Comments/ }),
   });
   const expectControls = () => {
     const { mute, comment, notes } = dock();
@@ -1027,7 +1027,7 @@ describe("GuestRoomApp dock outside the saving phase", () => {
     expect(leave()).toHaveAttribute("aria-disabled", "true");
   });
 
-  it("swaps the saving line for the saved line, Done and Notes once the stopped take is file-ACK'd", () => {
+  it("swaps the saving line for the saved line, Done and Comments once the stopped take is file-ACK'd", () => {
     fakeRoom({
       snapshot: stopped,
       upload: { acked: 3, total: 3, fileAck: true, landed: true },

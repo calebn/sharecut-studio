@@ -122,7 +122,7 @@ export function endGate(
     return {
       enabled: false,
       reason:
-        "Wait for the live notes to reach the timeline before ending the session.",
+        "Wait for the live comments to reach the timeline before ending the session.",
     };
   }
   return { enabled: true };

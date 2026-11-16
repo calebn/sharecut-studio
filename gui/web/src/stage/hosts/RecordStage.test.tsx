@@ -1772,9 +1772,9 @@ describe("Record stage Record my mic", () => {
   });
 });
 
-describe("Record stage Guests see notes", () => {
+describe("Record stage Guests see comments", () => {
   const row = (dialog: HTMLElement) =>
-    within(dialog).getByRole("button", { name: "Guests see notes" });
+    within(dialog).getByRole("button", { name: "Guests see comments" });
 
   it("reflects the snapshot setting", async () => {
     setRoom({ guests_see_notes: true });
@@ -1795,7 +1795,7 @@ describe("Record stage Guests see notes", () => {
     const dialog = await openMore();
     expect(row(dialog)).toHaveAttribute("aria-pressed", "false");
     expect(
-      within(dialog).getByText(/Off: guests see their own notes/),
+      within(dialog).getByText(/Off: guests see their own comments/),
     ).toBeVisible();
   });
 
@@ -1904,7 +1904,7 @@ describe("Record stage Guests see notes", () => {
     mount();
     const dialog = await openMore();
     expect(row(dialog)).toHaveAccessibleDescription(
-      /Off: guests see their own notes/,
+      /Off: guests see their own comments/,
     );
   });
 });
@@ -2083,7 +2083,7 @@ describe("Record stage take controls", () => {
     );
   });
 
-  it("posts a typed note to the room from the Notes rail", async () => {
+  it("posts a typed note to the room from the Comments rail", async () => {
     send.mockReturnValue(true);
     setRoom({
       state: "recording",
@@ -2093,7 +2093,7 @@ describe("Record stage take controls", () => {
     });
     mount();
     await userEvent.type(screen.getByRole("textbox"), "Redo the intro");
-    await userEvent.click(screen.getByRole("button", { name: "Send note" }));
+    await userEvent.click(screen.getByRole("button", { name: "Post" }));
     expect(send).toHaveBeenCalledWith(
       "Comment",
       expect.objectContaining({ body: "Redo the intro", author: "p_host" }),
@@ -2118,7 +2118,7 @@ describe("Record stage take controls", () => {
         throw new Error("quota");
       });
     try {
-      await userEvent.click(screen.getByRole("button", { name: "Send note" }));
+      await userEvent.click(screen.getByRole("button", { name: "Post" }));
       expect(send).toHaveBeenCalledWith(
         "Comment",
         expect.objectContaining({ body: "Keep this draft" }),
@@ -2130,14 +2130,14 @@ describe("Record stage take controls", () => {
     }
   });
 
-  it("holds the Notes field with a reason outside a running take", async () => {
+  it("holds the Comments field with a reason outside a running take", async () => {
     send.mockReturnValue(true);
     setRoom({ state: "lobby", participants: [hostPerson()] });
     mount();
-    const field = await screen.findByLabelText("Add a note");
+    const field = await screen.findByLabelText("Add a comment");
     expect(field).toBeDisabled();
     expect(
-      screen.getAllByText("Notes open while a take is running.").length,
+      screen.getAllByText("You can comment while a take is running.").length,
     ).toBeGreaterThan(0);
     expect(send).not.toHaveBeenCalledWith(
       "Comment",

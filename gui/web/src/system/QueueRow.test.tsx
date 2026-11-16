@@ -150,7 +150,7 @@ describe("QueueRow", () => {
     render(
       <QueueRow kind="comment" author={{ name: "Rosa" }} snippet="Open cold" />,
     );
-    expect(screen.getByText("session note")).toBeInTheDocument();
+    expect(screen.getByText("session comment")).toBeInTheDocument();
     expect(screen.queryByText(/\d:\d\d/)).toBeNull();
   });
 

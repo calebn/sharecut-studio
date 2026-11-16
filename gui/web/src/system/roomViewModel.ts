@@ -42,7 +42,7 @@ export type RoomViewInput = {
   people: RoomPerson[];
   phase: RoomPhase;
   viewerWidth: ViewerWidth;
-  /** The viewer's Notes choice. Undefined keeps the role's default. */
+  /** The viewer's Comments choice. Undefined keeps the role's default. */
   notesOpen?: boolean;
   /** Alerts the caller already knows about. The slot sorts and de-duplicates them. */
   alerts?: RoomAlertInput[];

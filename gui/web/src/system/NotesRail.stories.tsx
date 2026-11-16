@@ -96,7 +96,7 @@ const meta: Meta<typeof NotesRail> = {
       ...viewportStoryParameters.docs,
       description: {
         component:
-          'The Notes rail: a 320 px column in the Record room. Markers and notes are one chronological list of QueueRow comment rows (the same row Review uses, so a note looks the same before and after it lands). A marker reads "Marker" with the comment-pin glyph; a note shows its text, clamped to one line with the full text as its title. A session-level note has no time chip. A hosts-only note carries a lock. The composer is one field with the time chip at its left (clear it to make a session note) and the send glyph inside: Enter sends, Shift+Enter starts a new line. Send is off until the draft has words, and says why. The "Everyone" toggle appears for host and producers only; guests see markers, everyone-notes and their own.\n\n**Motion.** None in this slice. The new row settling into the list and the send glyph come later.',
+          'The Comments rail: a 320 px column in the Record room. Markers and comments are one chronological list of QueueRow comment rows (the same row Review uses, so a comment looks the same before and after it lands). A marker reads "Marker" with the comment-pin glyph; a comment shows its text, clamped to one line with the full text as its title. A session-level comment has no time chip. A hosts-only comment carries a lock. The composer is one field with the time chip at its left (clear it to make a session comment) and the post arrow inside: Enter posts, Shift+Enter starts a new line. Post is off until the draft has words, and says why. The "Everyone" toggle appears for host and producers only; guests see markers, everyone-comments and their own.\n\n**Motion.** None in this slice. The new row settling into the list and the post arrow come later.',
       },
     },
   },
@@ -166,11 +166,11 @@ export const Empty: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     await expect(
-      canvas.getByText("No notes yet. Notes pin to the recording time."),
+      canvas.getByText("No comments yet. Comments pin to the recording time."),
     ).toBeVisible();
-    await expect(
-      canvas.getAllByRole("button", { name: "Send note" }),
-    ).toHaveLength(1);
+    await expect(canvas.getAllByRole("button", { name: "Post" })).toHaveLength(
+      1,
+    );
   },
 };
 
@@ -184,9 +184,9 @@ export const WithNotesAndMarkers: Story = {
     await expect(
       canvas.getByText("Can we keep the laugh in this take?"),
     ).toBeVisible();
-    await expect(
-      canvas.getAllByRole("button", { name: "Send note" }),
-    ).toHaveLength(1);
+    await expect(canvas.getAllByRole("button", { name: "Post" })).toHaveLength(
+      1,
+    );
   },
 };
 
@@ -199,13 +199,13 @@ export const Drafting: Story = {
   render: (args) => <LiveRail {...args} />,
   play: async ({ args, canvasElement }) => {
     const canvas = within(canvasElement);
-    // The row for the 12:04 note shares the time, so scope to the composer's chip.
+    // The row for the 12:04 comment shares the time, so scope to the composer's chip.
     const chip = canvas.getByRole("button", {
-      name: "12:04, clear time to make this a session note",
+      name: "12:04, clear time to make this a session comment",
     });
     await expect(within(chip).getByText("12:04")).toBeVisible();
     await userEvent.type(
-      canvas.getByRole("textbox", { name: "Add a note" }),
+      canvas.getByRole("textbox", { name: "Add a comment" }),
       "Is this under three seconds of dead air?{enter}",
     );
     await expect(args.onSend).toHaveBeenCalledWith({
@@ -214,7 +214,7 @@ export const Drafting: Story = {
       everyone: false,
     });
     await expect(
-      canvas.getByRole("textbox", { name: "Add a note" }),
+      canvas.getByRole("textbox", { name: "Add a comment" }),
     ).toHaveValue("");
   },
 };
@@ -225,12 +225,12 @@ export const Paused: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     await expect(
-      canvas.getByText("Paused. Notes land at the pause."),
+      canvas.getByText("Paused. Comments land at the pause."),
     ).toBeVisible();
     // The composer still works while paused.
-    await expect(
-      canvas.getAllByRole("button", { name: "Send note" }),
-    ).toHaveLength(1);
+    await expect(canvas.getAllByRole("button", { name: "Post" })).toHaveLength(
+      1,
+    );
   },
 };
 
@@ -285,10 +285,10 @@ function PhoneRail({
   const [detent, setDetent] = useState<DrawerDetent>(startAt);
   return (
     <>
-      <Button onClick={() => setOpen(true)}>Open notes</Button>
+      <Button onClick={() => setOpen(true)}>Open comments</Button>
       <Sheet
         form="bottom"
-        title="Notes"
+        title="Comments"
         open={open}
         onClose={() => setOpen(false)}
         detent={detent}
@@ -310,11 +310,11 @@ function phoneStory(startAt: DrawerDetent): Story {
     play: async ({ canvasElement, viewMode }) => {
       if (viewMode === "docs") return;
       const dialog = await openDialogByLauncher(canvasElement, {
-        launcherName: "Open notes",
-        dialogName: "Notes",
+        launcherName: "Open comments",
+        dialogName: "Comments",
       });
       await expect(
-        within(dialog).getAllByRole("button", { name: "Send note" }),
+        within(dialog).getAllByRole("button", { name: "Post" }),
       ).toHaveLength(1);
       await expect(
         within(dialog).getByText("Can we keep the laugh in this take?"),
