@@ -96,7 +96,7 @@ download; it is at most a lossy backup. Keepers must target WAV/PCM.
 | **Recording clock** vs **wall offset** | `recording_ms = wall_ms − Σ(resume − pause)`. `join_offset_ms` is always recording-clock. |
 | **Participant** | Anyone in the room (guest, producer, or host-as-talent). |
 | **Guest** | Recorded role: `join monitor comment`. |
-| **Producer** | Listen + comment, not recorded; shown in the "Not recorded" roster group. |
+| **Producer** | Listen + comment, not recorded; shown in the listener row of every roster. |
 | **Host** | Owns the episode; starts/stops/pauses; is also a recorded participant. |
 | **Live marker (comment)** | Same `TimelineComment` as review notes. `C` (host; a guest keeps `M`) posts `body` `"Marker"` — a live marker comment, **not** a `ChapterMarker` or a second type. Lands in `review.comments[]`. |
 | **Full-quality recording** (code: *keeper*) | Local dry WAV per recorded participant. UI status per participant and segment: "Saving to project…", then "Saved to project". |
@@ -334,10 +334,19 @@ model. Riverside's heard-by-guests producer and Descript push-to-talk are later
 rows. A producer opens the **producer** `/rec/{token}` as a **receive-only**
 mesh peer — no `getUserMedia`, no send track, no keeper. **Transparency is
 mandatory:**
-every client's roster shows a **"Not recorded"** group listing producers; the
-consent copy says "producers/listeners may be present and are shown in the
-roster"; a producer joining mid-take triggers the same join notification as a
-guest.
+every client's roster shows the **listener row** (the producers who have
+joined, each with an ear glyph) and, when the server reports that people
+with the producer link are looking in without having joined, the **looking-in
+line** after it ("Someone with the producer link is looking in", or "3 people
+with the producer link are looking in"). The line names nobody. The host,
+guest and producer pages show it, and the guest's consent **Details** repeats
+it with "They can see the room but can't hear it." A guest page announces it
+once per room, politely, when the first one arrives while the room is waiting
+or stopped, never during a take. The count is the snapshot's runtime
+`watchers` field. A client reads a missing `watchers` as 0 and shows no line;
+no server sends the field yet. The consent copy says "producers/listeners may be
+present and are shown in the roster"; a producer joining mid-take triggers the
+same join notification as a guest.
 
 When the host or a recorded guest is running or finalizing a local keeper in
 the Tauri desktop shell, native window close and the macOS app menu/Cmd+Q
@@ -2082,7 +2091,7 @@ the written WAV within 1 ms), `keeper/takeClipping.test.ts`, `alertGates.test.ts
 | Pause / Resume | Host pauses at recording 60 s (wall 60 s), resumes at wall 70 s: every participant has segment 1 ending at 60 s and segment 2 starting at recording **60 s ± 1 frame** (clips abut, no gap, no zeros); keeper bytes written during the pause = **0**; PAUSED indicator asserted on all clients; a guest joining during the pause consents and gets `join_offset_ms` = 60 s; a late `pause` (or reconnect) truncates/discards samples ≥ `pause_wall_ms` from the versioned pause log; a drop that intersects a pause does **not** resume the same segment. Guest cannot trigger pause. |
 | Takes | Stop then Start: take 2 lands after take 1 + `take_gap_ms` (2 s) **even if take 1 is still uploading**; a participant absent from take 2 has no clip there; tracks = union; no re-consent prompt shown to already-consented clients; deleting take 1 is refused while its manifest is non-terminal; a tombstone voids in-flight ACK and leaves take 2 at offset 0. |
 | Cap / decline | 5th guest (or 3rd producer) gets the full-room page and never calls `getUserMedia`; a client that declines consent (Not now) sees the declined scrim and cannot rejoin as a guest until the room waits for a take. |
-| Producer transparency | With one producer present, every guest's roster shows a "Not recorded" group containing the producer; the consent copy contains the listeners sentence; producer joining mid-take fires the same join notification as a guest; roles cannot change during a take. |
+| Producer transparency | With one producer present, every guest's roster shows the listener row containing the producer; the consent copy contains the listeners sentence; producer joining mid-take fires the same join notification as a guest; roles cannot change during a take. |
 | Live comments | Guest adds a comment (`body` `"Marker"` or a typed comment) at host recording clock 123.4 s in take 1: after landing, `review.comments[]` has one `TimelineComment` at `123.4 s ± 0.25 s` (no lead, no `title`/`metadata`) created through `add_comment` under `ProjectWorkspace.mutate()` (undo removes it); host rewrote `recording_ms` from `pressed_wall_ms` + `pauses[]`; a comment during PAUSED lands at the pause point; before landing the host and producer lists contain it, the other guest's list contains a `Marker` but not a typed comment unless the host turned on `guests_see_notes` (host-enforced); deleting take 1 deletes its comments; a comment queued while a client was disconnected upserts once on reconnect (no duplicate); browser end-to-end in the Playwright US-1 scenario (`e2e/record-lobby.spec.ts`). |
 
 ## Next PR: recording links (checklist)
