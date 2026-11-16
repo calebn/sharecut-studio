@@ -275,13 +275,14 @@ describe("App bootstrap request lifetime", () => {
     );
   });
 
-  it("retires the offline retry timer while a new request is pending", async () => {
-    const retry = deferred<Response>();
+  it("replaces a retry that never answers after 30 seconds, and ignores the replaced one's late answer", async () => {
+    const hung = deferred<Response>();
     let calls = 0;
     offline.load.mockResolvedValue(undefined);
     serve(async () => {
       if (++calls === 1) throw new TypeError("offline");
-      return retry.promise;
+      if (calls === 2) return hung.promise;
+      return bootstrap("Beta");
     });
     vi.useFakeTimers({ shouldAdvanceTime: true });
     render(<App />);
@@ -293,43 +294,36 @@ describe("App bootstrap request lifetime", () => {
     expect(button).toHaveAttribute("aria-busy", "true");
     expect(button).toHaveFocus();
     await act(async () => {
-      await vi.advanceTimersByTimeAsync(60_000);
+      await vi.advanceTimersByTimeAsync(29_000);
     });
     expect(calls).toBe(2);
     await act(async () => {
-      retry.resolve(bootstrap("Alpha"));
+      await vi.advanceTimersByTimeAsync(2_000);
     });
-    expect(provider()).toHaveAttribute("data-author", "Alpha");
+    await waitFor(() => expect(calls).toBe(3));
+    expect(await screen.findByText("Studio body")).toBeInTheDocument();
+    expect(provider()).toHaveAttribute("data-author", "Beta");
+    await act(async () => {
+      hung.resolve(bootstrap("Alpha"));
+    });
+    expect(provider()).toHaveAttribute("data-author", "Beta");
   });
 
-  it("keeps the cover and its button through a retry, and pauses the timer until it settles", async () => {
-    const retry = deferred<Response>();
+  it("counts the 30 seconds from the start of each attempt, so a press restarts them", async () => {
     let calls = 0;
     offline.load.mockResolvedValue(undefined);
     serve(async () => {
-      if (++calls === 1) throw new TypeError("offline");
-      if (calls === 2) return retry.promise;
+      if (++calls <= 2) throw new TypeError("offline");
       return bootstrap("Alpha");
     });
     vi.useFakeTimers({ shouldAdvanceTime: true });
     render(<App />);
     const button = await screen.findByRole("button", { name: "Try now" });
-    button.focus();
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(20_000);
+    });
     fireEvent.click(button);
     await waitFor(() => expect(calls).toBe(2));
-    expect(screen.getByRole("button", { name: "Trying…" })).toBe(button);
-    expect(button).toHaveAttribute("aria-busy", "true");
-    expect(button).toHaveFocus();
-    await act(async () => {
-      await vi.advanceTimersByTimeAsync(60_000);
-    });
-    expect(calls).toBe(2);
-    await act(async () => {
-      retry.resolve(new Response("{}", { status: 503, headers: {} }));
-    });
-    expect(
-      screen.getByRole("heading", { name: "The host's computer is asleep" }),
-    ).toBeInTheDocument();
     await act(async () => {
       await vi.advanceTimersByTimeAsync(29_000);
     });
@@ -342,16 +336,20 @@ describe("App bootstrap request lifetime", () => {
     expect(provider()).toHaveAttribute("data-author", "Alpha");
   });
 
-  it("opens the episode at once when a retry succeeds, without holding the cover", async () => {
+  it("opens the episode at once when a retry succeeds, without holding the cover for the 600 ms floor", async () => {
     let calls = 0;
     offline.load.mockResolvedValue(undefined);
     serve(async () => {
       if (++calls === 1) throw new TypeError("offline");
       return bootstrap("Alpha");
     });
+    vi.useFakeTimers({ shouldAdvanceTime: true });
     render(<App />);
     fireEvent.click(await screen.findByRole("button", { name: "Try now" }));
-    expect(await screen.findByText("Studio body")).toBeInTheDocument();
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(100);
+    });
+    expect(screen.getByText("Studio body")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /Try/ })).toBeNull();
   });
 

@@ -203,16 +203,18 @@ function AppInner() {
       ? guestLoadCover(error.failure).autoRetryMs
       : null;
 
-  // Counts only while the cover waits: a press or an attempt in flight cancels
-  // it, and a fresh one starts when the attempt settles.
+  // Counts from the start of each attempt and keeps counting while one is in
+  // flight: the request has no timeout, so a hung attempt is replaced after the
+  // delay instead of ending the retries. A press starts a new attempt, and so
+  // a new count.
   useEffect(() => {
-    if (autoRetryMs === null || trying) return;
+    if (autoRetryMs === null) return;
     const timer = window.setTimeout(
       () => setAttempt((n) => n + 1),
       autoRetryMs,
     );
     return () => window.clearTimeout(timer);
-  }, [autoRetryMs, trying]);
+  }, [autoRetryMs, attempt]);
 
   useEffect(() => {
     const { featuresReady, shareRoutesEnabled, reviewToken, recordToken } =
