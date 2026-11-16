@@ -11,8 +11,11 @@ import {
   type NudgeField,
   nudgeAxis,
   nudgeStep,
+  previewsAsDraft,
   sameNudgeBase,
   withNudge,
+  withNudgeIfUnchanged,
+  withNudgeReverted,
 } from "./nudge";
 import { softBoundaries } from "./nudgeBoundaries";
 
@@ -413,5 +416,22 @@ describe("sameNudgeBase on a fade", () => {
         field,
       ),
     ).toBe(false);
+  });
+});
+
+describe("a pending edge, as the draft helpers treat it today", () => {
+  it("is not previewed as a draft and has no base to compare", () => {
+    expect(previewsAsDraft(pendingEnd)).toBe(false);
+    expect(previewsAsDraft(trimIn)).toBe(false);
+    const moved = withNudge(project, pendingEnd, 24.05);
+    expect(sameNudgeBase(moved, project, pendingEnd)).toBe(true);
+  });
+
+  it("reverts nothing and applies over any base", () => {
+    const moved = withNudge(project, pendingEnd, 24.05);
+    expect(withNudgeReverted(moved, project, pendingEnd)).toBe(moved);
+    expect(withNudgeIfUnchanged(moved, project, pendingEnd, 24.1)).toEqual(
+      withNudge(moved, pendingEnd, 24.1),
+    );
   });
 });
