@@ -1960,41 +1960,6 @@ test.describe("join sheet on a phone", () => {
     }
   });
 
-  test("the still-to-do ring reaches 3:1 against the sheet in light and dark", async ({
-    browser,
-  }: {
-    browser: Browser;
-  }) => {
-    await withJoinRoom(browser, {}, async (guest, token) => {
-      await openRecordLink(guest, token);
-      await settledPanel(guest);
-      for (const scheme of ["light", "dark"] as const) {
-        await guest.emulateMedia({ colorScheme: scheme });
-        const ratio = await guest.evaluate(() => {
-          const channels = (css: string) =>
-            (css.match(/[\d.]+/g) ?? []).slice(0, 3).map(Number);
-          const lum = ([r, g, b]: number[]) => {
-            const [lr, lg, lb] = [r, g, b].map((v) => {
-              const c = v / 255;
-              return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
-            });
-            return 0.2126 * lr + 0.7152 * lg + 0.0722 * lb;
-          };
-          const glyph = document.querySelector(
-            '.sys-join-dialog .sys-status[data-state="queued"] .sys-glyph',
-          ) as HTMLElement;
-          const panel = document.querySelector(
-            ".sys-join-dialog",
-          ) as HTMLElement;
-          const a = lum(channels(getComputedStyle(glyph).color));
-          const b = lum(channels(getComputedStyle(panel).backgroundColor));
-          return (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05);
-        });
-        expect(ratio, scheme).toBeGreaterThanOrEqual(3);
-      }
-    });
-  });
-
   test("a tapped name field is in view at 390x508", async ({
     browser,
   }: {

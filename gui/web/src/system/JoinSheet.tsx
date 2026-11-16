@@ -244,56 +244,36 @@ export function JoinSheet({
   }, [initialFocusRef]);
 
   // A row the sheet parked focus on (a wait, such as the browser's prompt or
-  // the storage check) hands it on when the row resolves, including when the
-  // row itself unmounts and focus falls to the page. Focus the guest chose
-  // stays put.
-  useEffect(() => {
-    if (nextRef.current === next) return;
-    nextRef.current = next;
-    const active = document.activeElement;
-    const parked =
-      active instanceof HTMLElement && active.matches(".sys-join-row");
-    const dropped = !active || active === document.body;
-    if (!parked && !dropped) return;
-    focusElement(
-      formRef.current,
-      nameRef.current,
-      primaryRef.current,
-      joinFocus(next, pointer),
-    )?.focus();
-  }, [next, pointer]);
-
-  // A control the guest pressed that then leaves the sheet (an action that
-  // resolves, a retry that starts) drops focus to the page even when the step
-  // is unchanged. Hand it to the current target; a control that is still
-  // connected, such as one the guest blurred on purpose, is left alone.
+  // the storage check) hands it on when the row resolves, and so does a control
+  // the guest pressed that then leaves the sheet (an action that resolves, a
+  // retry that starts), even when the step is unchanged: both drop focus to
+  // the page. Focus the guest chose, including a control they blurred on
+  // purpose, stays put.
   const lastFocused = useRef<HTMLElement | null>(null);
   useEffect(() => {
+    const inSheet = (node: unknown): node is HTMLElement =>
+      node instanceof HTMLElement &&
+      !!formRef.current?.closest(".sys-join-dialog")?.contains(node);
     const track = (event: FocusEvent) => {
-      const target = event.target;
-      if (
-        target instanceof HTMLElement &&
-        formRef.current?.closest(".sys-join-dialog")?.contains(target)
-      ) {
-        lastFocused.current = target;
-      }
+      if (inSheet(event.target)) lastFocused.current = event.target;
     };
-    const seeded = document.activeElement;
-    if (
-      seeded instanceof HTMLElement &&
-      formRef.current?.closest(".sys-join-dialog")?.contains(seeded)
-    ) {
-      lastFocused.current = seeded;
+    if (inSheet(document.activeElement)) {
+      lastFocused.current = document.activeElement;
     }
     document.addEventListener("focusin", track);
     return () => document.removeEventListener("focusin", track);
   }, []);
   useEffect(() => {
+    const nextChanged = nextRef.current !== next;
+    nextRef.current = next;
     const last = lastFocused.current;
+    const left = !!last && !last.isConnected;
+    if (left) lastFocused.current = null;
     const active = document.activeElement;
-    if (!last || last.isConnected) return;
-    lastFocused.current = null;
-    if (active && active !== document.body) return;
+    const parked =
+      active instanceof HTMLElement && active.matches(".sys-join-row");
+    const dropped = !active || active === document.body;
+    if (!((nextChanged && (parked || dropped)) || (left && dropped))) return;
     focusElement(
       formRef.current,
       nameRef.current,

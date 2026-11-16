@@ -558,21 +558,13 @@ describe("useGuestRoom", () => {
     const { result } = renderHook(() => useGuestRoom("guest-tok"));
     await waitFor(() => expect(sockets[0]?.commands("Join")).toHaveLength(1));
     expect(result.current.me).toBeNull();
+    expect(sockets[0]?.commands("UpdateName")).toHaveLength(0);
     act(() => {
       result.current.shareName();
     });
     expect(sockets[0]?.commands("UpdateName")).toEqual([
       expect.objectContaining({ payload: { display_name: "Ava Okafor" } }),
     ]);
-  });
-
-  it("sends nothing before the first Echo until the guest acts", async () => {
-    localStorage.setItem("sharecut.recordName", "Ava Okafor");
-    stubSocket("silent");
-    stubFetch(guestBootstrap);
-    renderHook(() => useGuestRoom("guest-tok"));
-    await waitFor(() => expect(sockets[0]?.commands("Join")).toHaveLength(1));
-    expect(sockets[0]?.commands("UpdateName")).toHaveLength(0);
   });
 
   it("sends the remembered name once the room already holds this guest as joined", async () => {
