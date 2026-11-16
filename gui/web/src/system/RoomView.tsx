@@ -7,7 +7,7 @@ import {
   useRef,
   useState,
 } from "react";
-import { BrandLockup } from "../ui";
+import { BrandLockup, BrandSymbol } from "../ui";
 import type { DrawerDetent } from "../ui/BottomSheet";
 import { Tab, TabList } from "../ui/Tabs";
 import { DeclinedScrim } from "./DeclinedScrim";
@@ -311,6 +311,7 @@ export function RoomView({
           className="sys-room-view-header"
           aria-busy={loading ? true : undefined}
         >
+          <BrandSymbol className="sys-room-view-symbol" />
           <BrandLockup name="ShareCut" className="sys-room-view-wordmark" />
           <h1
             className="sys-room-view-title"

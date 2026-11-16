@@ -839,6 +839,10 @@
   block-size: 1.5rem;
 }
 
+.sys-room-view-symbol {
+  display: none;
+}
+
 .sys-room-view-title {
   flex: 1 1 0;
   min-inline-size: 0;
@@ -918,6 +922,46 @@
 .sys-room-view[data-width="phone-landscape"] .sys-room-view-header {
   min-block-size: 2.75rem;
   padding-inline: var(--space-4);
+}
+
+/* On a portrait phone the symbol stands for the brand so the episode title, which
+   proves the guest is in the right room, gets the width: up to two lines inside
+   the same 44 px, and only a pill too long for the rest gives way. */
+.sys-room-view[data-width="phone"]:not([data-embedded]) .sys-room-view-header {
+  flex-wrap: nowrap;
+}
+
+.sys-room-view[data-width="phone"]:not([data-embedded]) .sys-room-view-symbol {
+  display: block;
+  flex: none;
+  inline-size: 1.25rem;
+  block-size: 1.25rem;
+}
+
+.sys-room-view[data-width="phone"]:not([data-embedded])
+  .sys-room-view-wordmark {
+  display: none;
+}
+
+.sys-room-view[data-width="phone"]:not([data-embedded]) .sys-room-view-title {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  flex: 1 1 0;
+  min-inline-size: 5rem;
+  line-height: 1rem;
+  overflow-wrap: anywhere;
+  white-space: normal;
+}
+
+.sys-room-view[data-width="phone"]:not([data-embedded]) .sys-pill {
+  flex: 0 1 auto;
+  min-inline-size: 0;
+}
+
+.sys-room-view[data-width="phone"]:not([data-embedded]) .sys-pill-text {
+  min-inline-size: 0;
 }
 
 .sys-room-view[data-width="phone"] .sys-room-view-stage,
