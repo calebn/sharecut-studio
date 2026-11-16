@@ -20,7 +20,7 @@ _SHARE_PATH_ROOTS = (
 )
 _SHARE_ROOTS = "|".join(root.replace("/", _SLASH) for root in _SHARE_PATH_ROOTS)
 _SHARE_TOKEN = re.compile(
-    rf"(?P<prefix>{_SLASH}(?i:{_SHARE_ROOTS}){_SLASH})"
+    rf"(?P<prefix>{_SLASH}(?i:{_SHARE_ROOTS}){_SLASH}+)"
     r"(?P<token>[A-Za-z0-9_-]{8,}(?:-[A-Za-z0-9_-]+)*)"
 )
 _BOOT_TOKEN = re.compile(

@@ -460,3 +460,24 @@ def test_a_token_with_an_encoded_character_after_plain_ones_leaves_no_tail(query
 
     for word in ("velvet", "quokka", "umbra", "venomous", "cheetah", "rational"):
         assert word not in line
+
+
+_ROOTS = ("/r", "/rec", "/api/review", "/api/rec", "/mcp", "/api/shares")
+_SEPARATORS = ("//", "/%2F", "/%252F", "%2F/", "///")
+
+
+@pytest.mark.parametrize("separator", _SEPARATORS)
+@pytest.mark.parametrize("root", _ROOTS)
+def test_a_repeated_or_encoded_separator_before_the_token_does_not_hide_it(
+    root: str, separator: str
+) -> None:
+    path = f"{root}{separator}{TOKEN}/daw/ws"
+    lines = [
+        _format('%s - "%s %s HTTP/%s" %d', "1.2.3.4:5", "GET", f"{path}?name=Ann", "1.1", 200),
+        _format('%s - "WebSocket %s" [accepted]', "1.2.3.4:5", f"{path}?name=Ann"),
+        _format('%s - "WebSocket %s" 403', "1.2.3.4:5", path),
+    ]
+
+    for line in lines:
+        assert "quokka" not in line
+        assert "Ann" not in line
