@@ -67,6 +67,18 @@ export async function loadReviewVersionStatus(
   };
 }
 
+/**
+ * The server answered, and what it sent is not a document the page can open.
+ * A class of its own, so a failure screen can tell "the host did answer" from
+ * "no answer" without reading the message.
+ */
+export class UnusableAnswerError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "UnusableAnswerError";
+  }
+}
+
 export async function loadDocumentState(
   projectPath: string,
   phase: "shell" | "detail" | "full" = "shell",
@@ -93,14 +105,14 @@ export async function loadDocumentState(
         !Number.isSafeInteger(value.server_seq) ||
         Number(value.server_seq) < 0
       )
-        throw new Error("Invalid document state");
+        throw new UnusableAnswerError("Invalid document state");
       if (
         !("resync" in value && value.resync === true) &&
         (!("state_token" in value) ||
           typeof value.state_token !== "string" ||
           !/^[a-f0-9]{64}$/.test(value.state_token))
       )
-        throw new Error("Invalid document basis");
+        throw new UnusableAnswerError("Invalid document basis");
       return value as DocumentSnapshot;
     },
     signal,
