@@ -1843,6 +1843,8 @@ html:not([data-shell="phone"])
   color: var(--color-text-secondary);
   font-size: var(--font-size-body);
   text-wrap: balance;
+  /* A long name has no spaces to break at; wrap it rather than widen the cover. */
+  overflow-wrap: anywhere;
 }
 
 .sys-cover-actions {
