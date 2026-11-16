@@ -2036,6 +2036,75 @@ describe("GuestRoomApp", () => {
       );
     });
 
+    const bea = {
+      ...guestSnap.participants[0],
+      participant_id: "p_b",
+      display_name: "Bea",
+      consented: true,
+      headphones_ack: false,
+    };
+
+    it("shows a guest only their own marker, never another guest's", async () => {
+      joinedAs = { consented: true, headphones_ack: true };
+      stubBootstrap();
+      render(<GuestRoomApp token="guest-tok" />);
+      await screen.findByText("Waiting");
+      const me = { ...guestSnap.participants[0], consented: true };
+      sockets[0]?.onmessage?.(
+        snapshotMessage({
+          participants: [{ ...me, headphones_ack: true }, bea],
+        }),
+      );
+      await screen.findByRole("group", { name: /^Bea/ });
+      expect(
+        screen.getByRole("group", { name: /^Bea/ }),
+      ).not.toHaveAccessibleName(/not wearing headphones/);
+      sockets[0]?.onmessage?.(
+        snapshotMessage({
+          participants: [{ ...me, headphones_ack: false }, bea],
+        }),
+      );
+      await waitFor(() =>
+        expect(
+          screen.getByRole("group", { name: /^Ava/ }),
+        ).toHaveAccessibleName(/not wearing headphones/),
+      );
+      expect(
+        screen.getByRole("group", { name: /^Bea/ }),
+      ).not.toHaveAccessibleName(/not wearing headphones/);
+    });
+
+    it("shows a producer who is not wearing headphones", async () => {
+      stubBootstrap(producerBootstrap);
+      render(<GuestRoomApp token="prod-tok" />);
+      await enterName("Pat");
+      await userEvent.click(
+        await screen.findByRole("button", { name: "Join to listen" }),
+      );
+      await screen.findByRole("button", { name: "Leave room" });
+      sockets[0]?.onmessage?.(
+        snapshotMessage(
+          {
+            participants: [
+              {
+                ...guestSnap.participants[0],
+                role: "producer",
+                display_name: "Pat",
+                consented: null,
+              },
+              bea,
+            ],
+          },
+          null,
+        ),
+      );
+      expect(
+        await screen.findByRole("group", {
+          name: /^Bea.*not wearing headphones/,
+        }),
+      ).toBeInTheDocument();
+    });
+
     it("sends no HeadphonesAck when a consented guest reloads", async () => {
       joinedAs = { consented: true, headphones_ack: true };
       stubBootstrap();

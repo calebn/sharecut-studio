@@ -1169,7 +1169,6 @@ html:not([data-shell="phone"], [data-shell="tablet"])
 
 .sys-headphones-choice > .ui-control {
   justify-content: flex-start;
-  min-block-size: var(--touch-min);
   border: 1px solid var(--color-text-secondary);
   background: transparent;
   color: var(--color-text-primary);
@@ -1184,6 +1183,17 @@ html:not([data-shell="phone"], [data-shell="tablet"])
 
 .sys-headphones-choice-mark {
   margin-inline-start: auto;
+}
+
+.sys-join-notes.sys-headphones-note:empty {
+  display: block;
+  position: absolute;
+}
+
+@media (forced-colors: active) {
+  .sys-headphones-choice > .ui-control[aria-pressed="true"] {
+    border-width: var(--focus-ring-width);
+  }
 }
 
 .sys-join-control:empty {

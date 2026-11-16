@@ -24,7 +24,6 @@ export type RoomTileProps =
       level?: number;
       speaking?: boolean;
       muted?: boolean;
-      /** A recorded guest who said they are not wearing headphones. */
       notWearingHeadphones?: boolean;
       connection?: RoomConnection;
       /** Listeners show an ear glyph and no level ring. */

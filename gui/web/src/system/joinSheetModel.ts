@@ -103,7 +103,6 @@ export type JoinGuestModel = {
   rows: JoinRow[];
   /** The mic row's lines under the meter: the caller's, too loud, low space. */
   micNotes: JoinNote[];
-  /** The headphones row's line while the guest joins without them. */
   headphonesNote: JoinNote | null;
   /** The first row still to do, so a ready sheet has none. */
   next: JoinStep | null;
@@ -127,7 +126,7 @@ export const JOIN_TEXT = {
   producerLine: "You'll listen and comment. You won't be recorded.",
   headphones: "I'm wearing headphones",
   notWearingHeadphones: "I'm not wearing headphones",
-  headphonesGroup: "Headphones",
+  headphonesGroup: "Wearing headphones",
   noHeadphonesNote:
     "Without headphones, the others may hear an echo and be heard in your recording. Keep your volume low.",
   tooLoud: "Too loud. Move back a little.",
@@ -318,7 +317,6 @@ export function headphonesRow(
   };
 }
 
-/** The line under the row: joining without headphones, on a phone only. */
 export function headphonesNoteFor(
   choice: HeadphonesChoice,
   rule: HeadphonesRule,

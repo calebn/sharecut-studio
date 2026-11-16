@@ -682,10 +682,7 @@ function PhoneHarness({ onChange }: { onChange?: (choice: string) => void }) {
 describe("JoinSheet headphones on a phone", () => {
   it("offers two unpressed answers and holds Join until one is pressed", async () => {
     const { baseElement } = render(<PhoneHarness />);
-    const [row] = screen.getAllByRole("group", { name: "Headphones" });
-    const group = within(row as HTMLElement).getByRole("group", {
-      name: "Headphones",
-    });
+    const group = screen.getByRole("group", { name: "Wearing headphones" });
     expect(within(group).getAllByRole("button")).toHaveLength(2);
     expect(
       within(group).getByRole("button", { name: "I'm wearing headphones" }),
@@ -715,6 +712,33 @@ describe("JoinSheet headphones on a phone", () => {
     ).toBeNull();
     expect(screen.getByText(NOTE)).toBeVisible();
     expect(primary("Join and record")).toBeEnabled();
+  });
+
+  it("marks only the pressed answer and announces the warning through the group", async () => {
+    const { baseElement } = render(<PhoneHarness />);
+    const group = screen.getByRole("group", { name: "Wearing headphones" });
+    const status = group.nextElementSibling as HTMLElement;
+    expect(status).toHaveAttribute("role", "status");
+    expect(group).toHaveAttribute("aria-describedby", status.id);
+    await userEvent.click(primary(NOT_WEARING));
+    expect(status).toHaveTextContent(NOTE);
+    expect(group).toHaveAccessibleDescription(NOTE);
+    expect(primary("I'm wearing headphones")).toHaveAttribute(
+      "aria-pressed",
+      "false",
+    );
+    await expectNoA11yViolations(baseElement);
+    await userEvent.click(primary("I'm wearing headphones"));
+    expect(primary("I'm wearing headphones")).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    expect(primary(NOT_WEARING)).toHaveAttribute("aria-pressed", "false");
+    expect(
+      primary("I'm wearing headphones").querySelector(".lucide-check"),
+    ).not.toBeNull();
+    expect(primary(NOT_WEARING).querySelector(".lucide-check")).toBeNull();
+    expect(status).toBeEmptyDOMElement();
   });
 
   it("drops the warning when the guest says they are wearing them", async () => {

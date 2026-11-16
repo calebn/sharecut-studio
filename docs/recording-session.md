@@ -43,7 +43,7 @@ not mint `record` URLs).
 
 Category SOTA is **Riverside / Zencastr / SquadCast / Descript Rooms**, not Zoom:
 
-- Live conversation over **WebRTC** (lossy; no echo cancellation, so headphones matter).
+- Live conversation over **WebRTC** (lossy; the page asks for no echo cancellation, so headphones matter).
 - Keeper stems recorded **locally per participant** as uncompressed **PCM/WAV**
   (Riverside: 16-bit linear PCM, 44.1/48 kHz), independent of the network.
 - **Segment upload** during the session: each keeper segment uploads in chunks
@@ -382,8 +382,9 @@ Keeper `getUserMedia` requests:
 
 and asserts `track.getSettings()` matches. Chromium defaults those **on** and
 they run WebRTC APM on the capture track. The send path uses this same
-unprocessed track today, so no echo cancellation runs anywhere; a processed send
-track is a follow-up. The WAV tap must never be processed.
+unprocessed track today, so the page asks for no echo cancellation anywhere (a
+browser that applies it anyway is caught by the `getSettings()` check, which warns);
+a processed send track is a follow-up. The WAV tap must never be processed.
 
 ## Mix-minus (mesh N−1)
 
@@ -1124,7 +1125,8 @@ title is "Join the room", or "{Names} is here" (one person) / "{Names} are here"
 (several) once others are in. It holds the rows in order: **Storage** (only when the storage check has a
 problem), **Your name**, **Microphone** and **Headphones**. **Join and record** stays disabled and names the first
 row still open as its reason ("Add your name first", "Allow your microphone
-first", "Put on headphones first", "Fix storage first"). A producer sees the name
+first", "Put on headphones first" (on a phone, "Say if you're wearing headphones first"),
+"Fix storage first"). A producer sees the name
 row and **Join to listen** ("You'll listen and comment. You won't be
 recorded."); producers skip the mic, storage and headphones rows.
 
@@ -1956,7 +1958,7 @@ routing matrix, not a model.
 | Concern | Science / spec | FOSS to use | Do not |
 |---------|----------------|-------------|--------|
 | **Mix-minus / IFB (N−1)** | Broadcast foldback: each talent hears program minus self. Mesh equivalent: play only remote tracks. Phase inversion (OpenStudio) is for a **single program bus**. Reference impl of the matrix idea: [oximedia-routing mix_minus](https://docs.rs/oximedia-routing/latest/oximedia_routing/mix_minus/index.html). W3C [Web Audio](https://www.w3.org/TR/webaudio-1.1/). **Not** same-room bleed removal. | Own `mixMinus.ts` (O(N) GainNode matrix, ~20 lines). OpenStudio is a reference, not a dependency. | Invert-against-delayed-self; "DSP mix-minus" nets; N−1 to clean keepers. |
-| **Acoustic echo (speakers → mic)** | Adaptive filter + residual suppression. Production FOSS: **WebRTC AEC3** (`modules/audio_processing/aec3`, 10 ms frames). Packaged as webrtc-audio-processing / Chromium APM. | None today: the send path is the keeper's own track. A processed send track (browser APM) is the planned follow-up. Keeper constraints all `false`; verify `getSettings()`. Headphones are the only defense. | Python AEC; AEC/NS/AGC on the WAV tap; WASM-porting AEC3. |
+| **Acoustic echo (speakers → mic)** | Adaptive filter + residual suppression. Production FOSS: **WebRTC AEC3** (`modules/audio_processing/aec3`, 10 ms frames). Packaged as webrtc-audio-processing / Chromium APM. | None requested today: the send path is the keeper's own track, so the page asks for no echo cancellation and a browser that applies it anyway is caught by the `getSettings()` check. A processed send track (browser APM) is the planned follow-up. Keeper constraints all `false`; verify `getSettings()`. Headphones are the only defense. | Python AEC; AEC/NS/AGC on the WAV tap; WASM-porting AEC3. |
 | **Noise suppression (monitor)** | Valin, *A Hybrid DSP/Deep Learning Approach to Real-Time Full-Band Speech Enhancement*, MMSP 2018 ([arXiv:1709.08243](https://arxiv.org/pdf/1709.08243.pdf)); [xiph/rnnoise](https://github.com/xiph/rnnoise) BSD-3. | Post already has FFmpeg `arnndn` ([audio-engineering.md](audio-engineering.md)). Live monitor only: [jitsi/rnnoise-wasm](https://github.com/jitsi/rnnoise-wasm) in a Worklet **after** the dry tap. | RNNoise on keepers; rewriting the GRU in TS. |
 | **Keeper PCM/WAV** | Linear PCM 16-bit 48 kHz. Worklet quantum 128 samples (~2.7 ms). | MIT [extendable-media-recorder](https://github.com/chrisguttandin/extendable-media-recorder) + [wav-encoder](https://github.com/chrisguttandin/extendable-media-recorder-wav-encoder), or a ~100-line owned Worklet → Int16 chunks ([wavtools](https://github.com/keithwhor/wavtools) idea). Tauri: cpal/coreaudio. | Default `MediaRecorder` Opus/WebM as primary. |
 | **Live transport** | DTLS-SRTP [RFC 3711](https://www.rfc-editor.org/rfc/rfc3711.html) + [RFC 5764](https://www.rfc-editor.org/info/rfc5764). Cáceres & Chafe, *JackTrip* (ICMC 2009) is tighter than podcast talk needs. | Browser `RTCPeerConnection`; signaling on the existing session WS. NAT fallback: [coturn](https://github.com/coturn/coturn) as ops. Scale-up later: [LiveKit](https://github.com/livekit/livekit) / mediasoup — never on the guest laptop for beta. | Reimplement ICE/DTLS; JackTrip as the monitor. |

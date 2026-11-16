@@ -38,11 +38,11 @@ Prefix `/rec/` with a review token opens the recording invalid-link cover: “Th
 4. Focus goes to the control that unblocks the primary button, and to the primary only when it is enabled. A disabled button cannot take focus.
 5. **Allow microphone** stays a full-width secondary button at 44 px, so the sheet keeps one primary.
 6. The card uses the shared centred-card width (400 px), not the spec's 420 px.
-7. Headphones are "Required to join" (spec-record.md:136) on a laptop or tablet only. On a phone the row is a two-answer choice (Q6, spec-record.md:379, decided by the owner), and either answer joins. Q6's premise, that the phone earpiece and echo cancellation make speaker use workable, does not hold: no echo cancellation runs.
+7. Headphones are "Required to join" (spec-record.md:136) on a laptop or tablet only. On a phone the row is a two-answer choice (Q6, spec-record.md:379, decided by the owner), and either answer joins. Q6's premise, that the phone earpiece and echo cancellation make speaker use workable, does not hold: the page asks for no echo cancellation.
 8. The spec's preset from a connected headphone device (spec-record.md:136) is not built on any device: a connected headset is not a worn one.
 9. The Device sheet's "headphone toggle" (spec-record.md:213 and :350) is the same two buttons on a phone.
 10. The person tile's glyph cluster gains a crossed-out headphones glyph (spec-record.md:338), for a guest who said they are not wearing headphones.
 11. "Phone" for the headphones rule is a device test (coarse primary pointer, screen short side under 600 px), not the Join sheet's 600 container query or the 767 layout class.
-7. The back gesture leaves the page, as before.
-8. The Device sheet's **Retry** is a secondary button now, not primary, so each sheet keeps one primary.
-9. The card is not a fixed 96 px from the top: its top is 12% of the screen height, at least 12 px and at most 96 px, and 8 px when the sheet scrolls as one.
+12. The back gesture leaves the page, as before.
+13. The Device sheet's **Retry** is a secondary button now, not primary, so each sheet keeps one primary.
+14. The card is not a fixed 96 px from the top: its top is 12% of the screen height, at least 12 px and at most 96 px, and 8 px when the sheet scrolls as one.

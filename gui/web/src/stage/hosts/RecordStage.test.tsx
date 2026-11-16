@@ -252,6 +252,28 @@ describe("Record stage", () => {
     await expectNoA11yViolations(baseElement);
   });
 
+  it("marks a guest who said they are not wearing headphones on their tile", async () => {
+    setRoom({
+      participants: [
+        hostPerson(),
+        avaGuest(),
+        recordParticipant({
+          participant_id: "p_b",
+          display_name: "Bea",
+          headphones_ack: false,
+        }),
+      ],
+    });
+    mount();
+    await waitFor(() => expect(record()).toBeEnabled());
+    expect(
+      screen.getByRole("group", { name: /^Bea.*not wearing headphones/ }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("group", { name: /^Ava/ }),
+    ).not.toHaveAccessibleName(/not wearing headphones/);
+  });
+
   it("removes a guest from the tile menu after a confirm, and keeps them on Keep", async () => {
     setRoom({ participants: [hostPerson(), avaGuest()] });
     mount();

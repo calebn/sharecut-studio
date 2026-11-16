@@ -351,19 +351,19 @@ export function useGuestRoom(
 
   if (meId && meId !== seededFor) {
     setSeededFor(meId);
-    if (me?.consented === true) {
+    if (me?.consented === true && headphones === "unset") {
       setHeadphones(me.headphones_ack ? "on" : "off");
     }
   }
   const ackedOn = me?.headphones_ack;
   useEffect(() => {
-    if (meId && !producer && headphones !== "unset") {
+    if (connected && meId && !producer && headphones !== "unset") {
       const on = headphones === "on";
       if (on !== ackedOn) {
         send("HeadphonesAck", { ok: on });
       }
     }
-  }, [ackedOn, headphones, meId, producer, send]);
+  }, [ackedOn, connected, headphones, meId, producer, send]);
 
   const view = useMemo(() => {
     if (error === "room_full") {

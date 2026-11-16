@@ -11,6 +11,8 @@ import {
   createRecordRoom,
   ensureHostRecordCommand,
   fillDisplayNameField,
+  hostRecordSnapshot,
+  joinAsProducer,
   markSharecutE2e,
   openHostRecordRoom,
   openRecordLink,
@@ -169,8 +171,61 @@ test.describe("headphones in the record room", () => {
           await expect(roomTile(host as Page, "Noor")).toHaveAccessibleName(
             MARKER,
           );
+          await expect
+            .poll(async () => {
+              const snapshot = await hostRecordSnapshot(
+                host as Page,
+                projectPath,
+              );
+              const yara = snapshot.participants.find(
+                (person) => person.display_name === "Yara",
+              );
+              return yara && [yara.connected, yara.headphones_ack];
+            })
+            .toEqual([true, true]);
           await expect(roomTile(host as Page, "Yara")).toBeVisible();
           await expect(roomTile(host as Page, "Yara")).not.toHaveAccessibleName(
+            MARKER,
+          );
+        },
+      );
+    });
+  });
+
+  test("a producer sees the marker and another guest does not", async ({
+    browser,
+  }: {
+    browser: Browser;
+  }) => {
+    test.slow();
+    await withShareableProject(async (projectPath) => {
+      await withBrowserPages(
+        browser,
+        [HOST, iPhone, iPhone, HOST],
+        async ([host, maya, gus, pat]) => {
+          const room = await openHost(host as Page, projectPath);
+          await phoneGuestAtHeadphones(maya as Page, room.guest.token, "Maya");
+          await (maya as Page)
+            .getByRole("button", { name: NOT_WEARING })
+            .click();
+          await join(maya as Page, "Maya");
+          await phoneGuestAtHeadphones(gus as Page, room.guest.token, "Gus");
+          await (gus as Page).getByRole("button", { name: WEARING }).click();
+          await join(gus as Page, "Gus");
+          await markSharecutE2e(pat as Page);
+          await joinAsProducer(pat as Page, room.producer.token, "Pat");
+
+          await expect(roomTile(host as Page, "Maya")).toHaveAccessibleName(
+            MARKER,
+          );
+          await expect(roomTile(pat as Page, "Maya")).toHaveAccessibleName(
+            MARKER,
+          );
+          await expect(roomTile(gus as Page, "Maya")).toBeVisible();
+          await expect(roomTile(gus as Page, "Maya")).not.toHaveAccessibleName(
+            MARKER,
+          );
+          await expect(roomTile(gus as Page, "Gus")).not.toHaveAccessibleName(
             MARKER,
           );
         },

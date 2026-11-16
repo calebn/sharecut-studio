@@ -55,7 +55,6 @@ export type JoinSheetProps = {
   /** Guest only. */
   mic?: JoinMic;
   headphones?: HeadphonesChoice;
-  /** `choice` on a phone: either answer joins. Defaults to `required`. */
   headphonesRule?: HeadphonesRule;
   onHeadphonesChange?: (choice: HeadphonesChoice) => void;
   lowStorage?: boolean;
