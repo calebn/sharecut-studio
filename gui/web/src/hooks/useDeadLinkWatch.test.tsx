@@ -133,7 +133,7 @@ describe("useDeadLinkWatch", () => {
     expect(String(spy.mock.calls[0]?.[0])).toBe("/api/review/w1/project");
   });
 
-  it("ends nothing on a doubt the check does not confirm, and keeps nothing", async () => {
+  it("ends nothing when the confirming check finds the link alive", async () => {
     stubFetch(ALIVE);
     const ended = vi.fn();
     renderHook(() => useDeadLinkWatch("w2", ended));

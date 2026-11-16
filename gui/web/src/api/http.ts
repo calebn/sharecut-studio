@@ -8,7 +8,12 @@
 import { authHeaders } from "../sessionAuth";
 import { reviewApiBase, SHARE_PREFIX } from "../shareMode";
 import { recordApiBase } from "../shareRoute";
-import { ApiError, isAbortError, readApiFailure } from "../utils/apiError";
+import {
+  ApiError,
+  ERROR_CODE_HEADER,
+  isAbortError,
+  readApiFailure,
+} from "../utils/apiError";
 import {
   endedRequestError,
   isDeadLinkAnswer,
@@ -22,8 +27,6 @@ const RECORD_PREFIX = "record:";
 export const HOST_KEY = "";
 
 export const NETWORK_ERROR_CODE = "network_error";
-
-const ERROR_CODE_HEADER = "X-Sharecut-Error-Code";
 
 /** A key for a recording guest, whose routes live under `/api/rec/{token}`. */
 export function recordProjectKey(token: string): string {

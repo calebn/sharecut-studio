@@ -60,7 +60,6 @@ function useUnsentBlock(unsent: UnsentText[] | undefined) {
   const copy = async () => {
     window.clearTimeout(timer.current);
     try {
-      if (!navigator.clipboard) throw new Error("no clipboard");
       await navigator.clipboard.writeText(words.text);
       setCopyStatus("Copied");
       // A second press may have set its timer while this one was waiting.

@@ -3,7 +3,7 @@
  * React: the request layer reports into it and one hook listens.
  */
 
-export { isDeadLinkAnswer, SHARE_NOT_FOUND_CODE } from "../utils/apiError";
+export { isDeadLinkAnswer } from "../utils/apiError";
 export { isLinkEnded, markLinkEnded } from "../utils/linkEnded";
 
 type Listener = (token: string) => void;
