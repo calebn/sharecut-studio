@@ -1782,7 +1782,7 @@ html:not([data-shell="phone"])
 /* Cover */
 
 .sys-cover {
-  --sys-cover-top: clamp(0px, 100dvh - 23rem, 30dvh);
+  --sys-cover-top: clamp(0rem, 100dvh - 23rem, 30dvh);
   container: sys-cover / inline-size;
   background: var(--color-bg-canvas);
   color: var(--color-text-primary);
