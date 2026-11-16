@@ -117,7 +117,7 @@ export function GuestPageCover({
   const mainRef = useRef<HTMLElement>(null);
   const titleRef = useRef<HTMLHeadingElement>(null);
   const { busy, press } = useHeldBusy(trying, HELD_BUSY_MS);
-  const [answered, setAnswered] = useState(false);
+  const [pressedTitle, setPressedTitle] = useState<string | null>(null);
   const { title } = cover;
   const handBack = useUnsentBlock(unsent);
   const shortWindow = useShortLayoutViewport();
@@ -132,10 +132,14 @@ export function GuestPageCover({
 
   // The status speaks only about the press it answers: an attempt nobody
   // pressed starting forgets it.
-  if (answered && trying && !busy) {
-    setAnswered(false);
+  if (pressedTitle !== null && trying && !busy) {
+    setPressedTitle(null);
   }
-  const status = busy ? "Trying again…" : answered ? cover.stillFailing : "";
+  // "Still" is true only while the cover is the one that was pressed; a press
+  // answered by a different cover says what that cover is, since focus stays
+  // on the button and this line is all a screen reader hears.
+  const answer = pressedTitle === title ? cover.stillFailing : `${title}.`;
+  const status = busy ? "Trying again…" : pressedTitle !== null ? answer : "";
   return (
     <main
       ref={mainRef}
@@ -156,7 +160,7 @@ export function GuestPageCover({
                   label: cover.button,
                   onClick: () => {
                     press();
-                    setAnswered(true);
+                    setPressedTitle(title);
                     onRetry();
                   },
                   busy,

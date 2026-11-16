@@ -197,6 +197,36 @@ describe("GuestPageCover", () => {
     expect(button).toHaveFocus();
   });
 
+  it.each([
+    ["unreachable", "offline", "You're offline."],
+    ["offline", "unreachable", "The host's computer is asleep."],
+    ["unreachable", "server", "This link did not load."],
+  ] as const)(
+    "says the new title, not Still, when a press on the %s cover is answered by the %s cover",
+    (from, to, sentence) => {
+      const { again } = renderCover({ kind: from });
+      const status = screen.getByRole("status");
+      fireEvent.click(screen.getAllByRole("button")[0]!);
+      again({ trying: true });
+      again({ trying: false, failure: { kind: to } });
+      act(() => void vi.advanceTimersByTime(600));
+      expect(status).toBe(screen.getByRole("status"));
+      expect(status).toHaveTextContent(sentence);
+      expect(status).not.toHaveTextContent(/still/i);
+      expect(status).toHaveAttribute("role", "status");
+    },
+  );
+
+  it("says Still again when the cover returns to the title that was pressed", () => {
+    const { again } = renderCover({ kind: "unreachable" });
+    fireEvent.click(screen.getByRole("button", { name: "Try now" }));
+    again({ trying: true });
+    again({ trying: false, failure: { kind: "offline" } });
+    again({ failure: { kind: "unreachable" } });
+    act(() => void vi.advanceTimersByTime(600));
+    expect(screen.getByRole("status")).toHaveTextContent("Still asleep.");
+  });
+
   it("does not take focus from the button when the title changes", () => {
     const { again } = renderCover({ kind: "unreachable" });
     const button = screen.getByRole("button", { name: "Try now" });
