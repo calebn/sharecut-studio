@@ -402,7 +402,12 @@ function AppInner() {
         outcome = { kind: "error", error: { failure } };
       } finally {
         tracker.flight = tracker.flight.filter((one) => one !== controller);
-        if (outcome?.kind === "online" && standing() !== "gone") {
+        // The episode opening, live or as the saved copy, makes the other
+        // attempts pointless: stop them rather than let them hold connections.
+        if (
+          (outcome?.kind === "online" || outcome?.kind === "cached") &&
+          standing() !== "gone"
+        ) {
           abortAll(tracker.flight);
         }
         if (standing() !== "gone") {
