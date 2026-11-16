@@ -16,6 +16,7 @@ from podcast_mcp.gui.bind import (
     EPHEMERAL_ENV,
     LISTEN_FILE_ENV,
     boot_token_accepted,
+    build_gui_server,
     exclusive_listen_socket,
     gui_server_deps_available,
     resolved_bind_port,
@@ -28,6 +29,15 @@ from podcast_mcp.util.host_platform import WINDOWS
 
 def test_gui_server_deps_available() -> None:
     assert gui_server_deps_available() is True
+
+
+def test_gui_server_pins_the_websocket_keepalive() -> None:
+    import socket
+
+    with socket.socket() as sock:
+        server = build_gui_server(object(), sock)
+    assert server.config.ws_ping_interval == 20.0
+    assert server.config.ws_ping_timeout == 20.0
 
 
 def test_resolved_bind_port_ephemeral(monkeypatch: pytest.MonkeyPatch) -> None:
