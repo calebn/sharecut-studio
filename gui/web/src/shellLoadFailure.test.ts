@@ -260,7 +260,6 @@ describe("the words", () => {
         title: STAGE,
         sentence,
         ...buttons,
-        autoRetryMs: null,
         stillFailing: still,
         changed,
       });
@@ -275,7 +274,6 @@ describe("the words", () => {
       sentence: "This computer is open on a different episode.",
       retry: null,
       home: true,
-      autoRetryMs: null,
     });
   });
 
@@ -344,7 +342,7 @@ describe("the words", () => {
       expect(shell.glyph).toBe(page.glyph);
       expect(shell.retry).toBe(button);
       expect(shell.home).toBe(false);
-      expect(shell.autoRetryMs).toBe(auto);
+      expect(autoRetryMsOf({ audience: "guest", failure })).toBe(auto);
       expect(shell.stillFailing).toBe(page.stillFailing);
       expect(shell.key).toBe(title);
       expect(shell.changed).toBe(`${title}.`);
@@ -360,7 +358,6 @@ describe("the words", () => {
       sentence: LINK_DOUBT_MESSAGE,
       retry: "Try again",
       home: false,
-      autoRetryMs: null,
       stillFailing: "Still not loading.",
     });
   });

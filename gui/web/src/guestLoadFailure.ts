@@ -42,7 +42,7 @@ const BAD_LINK_TITLE = "This link doesn't open anything";
 const BAD_LINK_SENTENCE = "Ask the person who sent it for a new link.";
 
 const NOT_LOADED_TITLE = "This link did not load";
-const STILL_NOT_LOADING = "Still not loading.";
+export const STILL_NOT_LOADING = "Still not loading.";
 
 const retryAfterMs = (seconds: number | null): number =>
   seconds === null
