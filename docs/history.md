@@ -482,3 +482,17 @@ Proxy manifest generations are derived render metadata outside editable History
 snapshots. Their history-free publication preserves entries, cursor and head.
 Undo can reuse a retained complete generation, but a directory left on disk does
 not authorize an evicted artifact or a different manifest/project pair.
+
+## History move results
+
+`HistoryService.undo()`, `redo()` and `goto()` return `HistoryMoveResult`, or
+`HistoryMoveRerenderedResult` when `rerender=True`, through the document
+service facade. Both carry the status fields `cursor`, `total`, `can_undo`,
+`can_redo`, `current_label` and `head_id`, in that order. The rerendered result
+adds `preview` last, the preview render's decoded JSON object, which keeps its
+own shape. The plain result has no `preview` field, so the key is absent from
+its JSON rather than null.
+
+Adapters dump the model with `model_dump()` before serializing, so the MCP
+tools and the document-plane `undo_history` / `redo_history` replies keep their
+existing JSON, byte for byte. The CLI `history goto` reads the attributes.
