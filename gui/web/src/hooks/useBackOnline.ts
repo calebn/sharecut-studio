@@ -39,6 +39,9 @@ export function useBackOnline(
   useEffect(() => {
     if (armed && missedRef.current && navigator.onLine !== false) {
       missedRef.current = false;
+      // The page disarms only on its next render; a live event before that
+      // must not start a second attempt.
+      armedRef.current = false;
       onBackRef.current();
     }
   }, [armed]);
