@@ -72,11 +72,25 @@ def write_profile(path: Path, **changes: object) -> Path:
     return path
 
 
+def stage_key_file(home: Path, key_id: str = KEY_ID, mode: int = 0o600) -> Path:
+    key = home / ".appstoreconnect/private_keys" / f"AuthKey_{key_id}.p8"
+    key.parent.mkdir(parents=True, exist_ok=True)
+    key.write_text("not read")
+    key.chmod(mode)
+    return key
+
+
+KEY_VALUES = {"APPLE_API_KEY": KEY_ID, "APPLE_API_ISSUER": ISSUER}
+
+
 def inputs_for(tmp_path: Path, **overrides: object):
     profile = write_profile(tmp_path / "profile.json")
+    if not (tmp_path / "home").exists():
+        stage_key_file(tmp_path / "home")
     arguments = {
         "environ": {"PODCAST_DISTRIBUTION_PROFILE": str(profile)},
-        "values": {"APPLE_DEVELOPMENT_TEAM": TEAM},
+        "values": {"APPLE_DEVELOPMENT_TEAM": TEAM, **KEY_VALUES},
+        "home": tmp_path / "home",
         "file_problems": [],
         "root": SCRIPTS.parent,
         "now": NOW,
@@ -93,6 +107,12 @@ def test_inputs_resolve_into_frozen_values_with_the_team_as_a_secret(tmp_path: P
     assert resolved.identity == IDENTITY
     assert (resolved.signing, str(resolved.build_number)) == (Signing.APP_STORE, "2026.1114.153045")
     assert repr(resolved.team) == "<team>"
+    assert resolved.key is not None
+    assert [repr(resolved.key.key_id), repr(resolved.key.issuer), repr(resolved.key.key_path)] == [
+        "<key-id>",
+        "<issuer>",
+        "<key-path>",
+    ]
     with pytest.raises(AttributeError):
         resolved.signing = Signing.NONE
 
@@ -109,6 +129,8 @@ def test_every_input_problem_is_reported_together(tmp_path: Path) -> None:
     assert [(p.name, p.why[:24]) for p in caught.value.problems] == [
         ("PODCAST_DISTRIBUTION_PROFILE", "missing; the checked-in "),
         ("APPLE_DEVELOPMENT_TEAM", "is the Simulator placeho"),
+        ("APPLE_API_KEY", "missing"),
+        ("APPLE_API_ISSUER", "missing"),
         ("working tree", "has uncommitted changes;"),
         ("clock", "2026.1114.153045 is not "),
     ]
@@ -130,7 +152,32 @@ def test_an_unsigned_rehearsal_needs_no_team_and_allows_a_dirty_tree(tmp_path: P
     resolved = inputs_for(
         tmp_path, signing=Signing.NONE, values={}, checkout=Checkout("b" * 40, True)
     )
-    assert resolved.team is None and resolved.checkout.dirty
+    assert resolved.team is None and resolved.checkout.dirty and resolved.key is None
+
+
+def test_a_signed_build_resolves_the_key_in_the_same_pass_as_every_other_input(
+    tmp_path: Path,
+) -> None:
+    with pytest.raises(InputError) as caught:
+        inputs_for(tmp_path, values={"APPLE_DEVELOPMENT_TEAM": TEAM, "APPLE_API_KEY": "bad"})
+    assert [(p.name, p.why[:12]) for p in caught.value.problems] == [
+        ("APPLE_API_ISSUER", "missing"),
+        ("APPLE_API_KEY", "is not 10 ca"),
+        ("APPLE_API_KEY_PATH", "the key file"),
+    ]
+    stage_key_file(tmp_path / "home", mode=0o644)
+    with pytest.raises(InputError, match="readable by others"):
+        inputs_for(tmp_path)
+    inside = SCRIPTS.parent / "pyproject.toml"
+    with pytest.raises(InputError, match="inside the repository"):
+        inputs_for(
+            tmp_path,
+            values={
+                "APPLE_DEVELOPMENT_TEAM": TEAM,
+                **KEY_VALUES,
+                "APPLE_API_KEY_PATH": str(inside),
+            },
+        )
 
 
 def test_the_private_file_must_be_private_outside_the_repo_and_known(tmp_path: Path) -> None:
@@ -253,6 +300,7 @@ def build_inputs(signing: Signing) -> release_inputs.BuildInputs:
         signing,
         Secret(TEAM, "team") if signing is Signing.APP_STORE else None,
         Checkout("a" * 40, False),
+        fake_key() if signing is Signing.APP_STORE else None,
     )
 
 
@@ -290,6 +338,7 @@ def test_the_signed_plan_archives_only_exports_and_may_touch_apple() -> None:
     assert repr(archive.env["APPLE_DEVELOPMENT_TEAM"]) == "<team>"
     export = steps["export"].command
     assert export.argv[:3] == ("xcodebuild", "-exportArchive", "-allowProvisioningUpdates")
+    assert "APPLE_API_KEY" not in export.env
     options = plistlib.loads(
         "".join(
             TEAM if isinstance(part, Secret) else part for part in export.files[0].parts
@@ -303,6 +352,120 @@ def test_the_signed_plan_archives_only_exports_and_may_touch_apple() -> None:
         "destination": "export",
         "manageAppVersionAndBuildNumber": False,
     }
+
+
+KEY_NAMES = ("APPLE_API_KEY", "APPLE_API_ISSUER", "APPLE_API_KEY_PATH")
+
+
+def signed_steps():
+    return steps_by_name(
+        release_plan.plan_build(build_inputs(Signing.APP_STORE), LAYOUT, NOISY, "/rustup:/usr/bin")
+    )
+
+
+def test_the_signed_archive_env_carries_the_key_as_the_resolved_secrets() -> None:
+    env = signed_steps()["archive"].command.env
+    assert [repr(env[name]) for name in KEY_NAMES] == ["<key-id>", "<issuer>", "<key-path>"]
+    assert all(isinstance(env[name], Secret) for name in KEY_NAMES)
+    assert env["APPLE_API_KEY"].reveal() == KEY_ID and env["APPLE_API_KEY_PATH"].reveal() == "/k.p8"
+    assert repr(env["APPLE_DEVELOPMENT_TEAM"]) == "<team>"
+
+
+def test_only_the_signed_archive_gets_the_key_in_its_environment() -> None:
+    steps = signed_steps()
+    for name, step in steps.items():
+        if name != "archive" and isinstance(step, release_plan.Run):
+            assert not set(KEY_NAMES) & set(step.command.env), name
+    unsigned = release_plan.plan_build(build_inputs(Signing.NONE), LAYOUT, NOISY, "/p")
+    for step in unsigned:
+        if isinstance(step, release_plan.Run):
+            assert not set(KEY_NAMES) & set(step.command.env), step.name
+
+
+def test_the_export_argv_carries_the_three_authentication_flags_as_secrets() -> None:
+    argv = signed_steps()["export"].command.argv
+    assert argv[:3] == ("xcodebuild", "-exportArchive", "-allowProvisioningUpdates")
+    for flag, label in (
+        ("-authenticationKeyPath", "key-path"),
+        ("-authenticationKeyID", "key-id"),
+        ("-authenticationKeyIssuerID", "issuer"),
+    ):
+        value = argv[argv.index(flag) + 1]
+        assert isinstance(value, Secret) and repr(value) == f"<{label}>"
+    assert not any(part in (KEY_ID, ISSUER, "/k.p8") for part in argv)
+
+
+def test_the_signed_commands_display_tokens_and_never_the_key_values() -> None:
+    steps = signed_steps()
+    shown = steps["archive"].command.display(Redactor())
+    for fragment in (
+        "APPLE_API_KEY=<key-id>",
+        "APPLE_API_ISSUER=<issuer>",
+        "APPLE_API_KEY_PATH=<key-path>",
+    ):
+        assert fragment in shown
+    exported = steps["export"].command.display(Redactor())
+    for fragment in (
+        "-authenticationKeyPath <key-path>",
+        "-authenticationKeyID <key-id>",
+        "-authenticationKeyIssuerID <issuer>",
+    ):
+        assert fragment in exported
+    for text in (shown, exported):
+        assert KEY_ID not in text and ISSUER not in text and "/k.p8" not in text
+
+
+def test_the_redactor_of_a_signed_build_holds_the_team_and_all_three_key_values() -> None:
+    redactor = ios_release.build_redactor(build_inputs(Signing.APP_STORE), Path("/work/repo"))
+    assert (
+        redactor.redact(f"{TEAM} {KEY_ID} {ISSUER} /k.p8") == "<team> <key-id> <issuer> <key-path>"
+    )
+    assert (
+        ios_release.build_redactor(build_inputs(Signing.NONE), Path("/work/repo")).redact(KEY_ID)
+        == KEY_ID
+    )
+
+
+def fake_tool(path: Path, exit_code: int, extra: str = "") -> None:
+    path.write_text(f'#!/bin/sh\necho "argv: $@"\nenv\n{extra}exit {exit_code}\n')
+    path.chmod(0o755)
+
+
+def test_a_signed_archive_and_export_leak_the_key_into_no_log_tail_output_or_record(
+    tmp_path: Path,
+) -> None:
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    fake_tool(bin_dir / "npx", 0)
+    fake_tool(bin_dir / "xcodebuild", 1, "echo 'error: No Accounts'\n")
+    layout = release_plan.Layout(tmp_path / "repo")
+    (layout.tauri / "gen/apple/build").mkdir(parents=True)
+    inputs = build_inputs(Signing.APP_STORE)
+    steps = steps_by_name(
+        release_plan.plan_build(inputs, layout, NOISY, f"{bin_dir}:/usr/bin:/bin")
+    )
+    redactor = ios_release.build_redactor(inputs, layout.root)
+    logs = tmp_path / "logs"
+    texts = []
+    for name in ("archive", "export"):
+        step = steps[name]
+        result = release_run.spawn(step.command, redactor, logs / f"{name}.log")
+        failure, sentence = step.interpret(result, release_plan.Workspace(out=tmp_path / "out"))
+        texts += [(logs / f"{name}.log").read_text(), result.tail, result.output, sentence]
+        assert (failure is None) is (name == "archive")
+    joined = "\n".join(texts)
+    for raw in (KEY_ID, ISSUER, "/k.p8"):
+        assert raw not in joined
+    assert "APPLE_API_KEY=<key-id>" in joined and "APPLE_API_ISSUER=<issuer>" in joined
+    assert "-authenticationKeyID <key-id>" in joined
+    out = tmp_path / "out"
+    out.mkdir()
+    ws = release_plan.Workspace(out=out, ipa=out / "a.ipa", sha256="0" * 64)
+    release_plan.write_build_record(ws, inputs)
+    for written in out.rglob("*"):
+        if written.is_file():
+            body = written.read_text()
+            assert KEY_ID not in body and ISSUER not in body and "/k.p8" not in body
 
 
 def test_the_unsigned_plan_signs_nothing_and_contacts_nobody() -> None:
@@ -319,20 +482,90 @@ def test_the_unsigned_plan_signs_nothing_and_contacts_nobody() -> None:
 def test_the_dry_run_prints_the_apple_notice_before_any_step(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    secrets_file = tmp_path / "ios.env"
-    secrets_file.write_text(f"APPLE_DEVELOPMENT_TEAM={TEAM}\n")
-    secrets_file.chmod(0o600)
-    profile = write_profile(tmp_path / "profile.json")
-    monkeypatch.setenv("SHARECUT_IOS_RELEASE_ENV", str(secrets_file))
-    monkeypatch.setenv("PODCAST_DISTRIBUTION_PROFILE", str(profile))
-    monkeypatch.setattr(ios_release, "git_state", lambda root: ("c" * 40, False))
-    monkeypatch.setattr(ios_release, "toolchain", lambda: ("/rustup:/usr/bin", None))
-    monkeypatch.setattr(ios_release, "checkout_lock", lambda root: contextlib.nullcontext())
+    stage_signed_build(tmp_path, monkeypatch)
     assert ios_release.main(["build", "--dry-run"]) == 0
     out = capsys.readouterr().out
     assert out.index("may create an Apple Distribution certificate") < out.index(" 1 ")
     assert TEAM not in out and "APPLE_DEVELOPMENT_TEAM=<team>" in out
     assert out.endswith("dry run: nothing was run\n")
+
+
+def stage_signed_build(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+    home = tmp_path / "home"
+    key = stage_key_file(home)
+    secrets_file = tmp_path / "ios.env"
+    secrets_file.write_text(
+        f"APPLE_DEVELOPMENT_TEAM={TEAM}\nAPPLE_API_KEY={KEY_ID}\nAPPLE_API_ISSUER={ISSUER}\n"
+    )
+    secrets_file.chmod(0o600)
+    monkeypatch.setattr(Path, "home", lambda: home)
+    for name in release_inputs.SECRET_NAMES:
+        monkeypatch.delenv(name, raising=False)
+    monkeypatch.setenv("SHARECUT_IOS_RELEASE_ENV", str(secrets_file))
+    monkeypatch.setenv(
+        "PODCAST_DISTRIBUTION_PROFILE", str(write_profile(tmp_path / "profile.json"))
+    )
+    monkeypatch.setattr(ios_release, "git_state", lambda root: ("c" * 40, False))
+    monkeypatch.setattr(ios_release, "toolchain", lambda: ("/rustup:/usr/bin", None))
+    monkeypatch.setattr(ios_release, "checkout_lock", lambda root: contextlib.nullcontext())
+    return key
+
+
+def test_the_signed_dry_run_shows_the_key_as_tokens_only(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    key = stage_signed_build(tmp_path, monkeypatch)
+    assert ios_release.main(["build", "--dry-run"]) == 0
+    out = capsys.readouterr().out
+    for raw in (KEY_ID, ISSUER, str(key)):
+        assert raw not in out
+    for token in (
+        "APPLE_API_KEY=<key-id>",
+        "APPLE_API_ISSUER=<issuer>",
+        "APPLE_API_KEY_PATH=<key-path>",
+        "-authenticationKeyPath <key-path>",
+        "-authenticationKeyID <key-id>",
+        "-authenticationKeyIssuerID <issuer>",
+    ):
+        assert token in out
+
+
+def test_a_signed_build_without_key_values_reports_them_once_with_the_missing_file(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    stage_missing_file(tmp_path, monkeypatch, explicit=True)
+    monkeypatch.setenv("APPLE_DEVELOPMENT_TEAM", TEAM)
+    assert ios_release.main(["build", "--dry-run"]) == Failure.INPUT.value
+    out = capsys.readouterr().out
+    assert out.count("gone/ios.env (private file): does not exist") == 1
+    assert out.count("APPLE_API_KEY (private file or environment): missing") == 1
+    assert out.count("APPLE_API_ISSUER (private file or environment): missing") == 1
+    assert "APPLE_DEVELOPMENT_TEAM (private file" not in out
+
+
+def test_a_signed_build_refuses_a_key_file_others_can_read_without_printing_the_key_id(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    key = stage_signed_build(tmp_path, monkeypatch)
+    key.chmod(0o644)
+    assert ios_release.main(["build", "--dry-run"]) == Failure.INPUT.value
+    out = capsys.readouterr().out
+    assert "is readable by others" in out and KEY_ID not in out and ISSUER not in out
+
+
+def test_the_unsigned_rehearsal_never_resolves_or_passes_the_key(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    stage_missing_file(tmp_path, monkeypatch, explicit=True)
+    monkeypatch.setenv("APPLE_API_KEY", KEY_ID)
+    monkeypatch.setenv("APPLE_API_ISSUER", ISSUER)
+    assert ios_release.main(["build", "--unsigned", "--dry-run"]) == 0
+    out = capsys.readouterr().out
+    assert "APPLE_API" not in out and "-authentication" not in out and KEY_ID not in out
+    archive = steps_by_name(
+        release_plan.plan_build(build_inputs(Signing.NONE), LAYOUT, NOISY, "/p")
+    )["archive"].command
+    assert archive.argv[-2:] == ("--archive-only", "--no-sign")
 
 
 def good_facts(record: record_module.ReleaseRecord, **changes: object) -> record_module.GuardFacts:
@@ -522,7 +755,16 @@ def test_the_app_record_lookup_reads_the_filtered_list() -> None:
 @pytest.mark.parametrize(
     ("tail", "fragment"),
     [
-        ("error: No Accounts: Add a new account in Accounts settings", "no signed-in account"),
+        (
+            "error: No Accounts: Add a new account in Accounts settings",
+            "App Store Connect API key",
+        ),
+        (
+            'error: No signing certificate "iOS Distribution" found',
+            "Apple Distribution certificate",
+        ),
+        ("error: Cloud signing permission error", "Apple Distribution certificate"),
+        ("error: No profiles for 'studio.sharecut.app' were found", "API key"),
         (
             "error: You already have a current Apple Distribution certificate or a pending request",
             "limit of distribution certificates",
@@ -544,6 +786,14 @@ def test_signing_failures_get_one_sentence(tail: str, fragment: str) -> None:
     hint = release_classify.signing_hint(tail)
     assert hint is not None and fragment in hint
     assert release_classify.signing_hint("compiler error") is None
+
+
+def test_the_certificate_and_key_hints_name_both_fixes_whichever_line_comes_first() -> None:
+    cloud = "error: Cloud signing permission error"
+    certificate = 'error: No signing certificate "iOS Distribution" found'
+    for tail in (f"{certificate}\n{cloud}", f"{cloud}\n{certificate}"):
+        hint = release_classify.signing_hint(tail)
+        assert hint is not None and "API key" in hint and "Apple Distribution certificate" in hint
 
 
 def fake_key() -> release_inputs.AscKey:
@@ -712,17 +962,10 @@ def test_url_userinfo_is_masked_in_output_and_exception_lines() -> None:
 def test_a_dry_run_never_prints_a_proxy_password_or_an_unlisted_value(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    secrets_file = tmp_path / "ios.env"
-    secrets_file.write_text(f"APPLE_DEVELOPMENT_TEAM={TEAM}\n")
-    secrets_file.chmod(0o600)
-    monkeypatch.setenv("SHARECUT_IOS_RELEASE_ENV", str(secrets_file))
-    monkeypatch.setenv("PODCAST_DISTRIBUTION_PROFILE", str(write_profile(tmp_path / "p.json")))
+    stage_signed_build(tmp_path, monkeypatch)
     monkeypatch.setenv("HTTPS_PROXY", "http://user:hunter2@proxy.example:8080")
     monkeypatch.setenv("SSL_CERT_FILE", "/ca/CERTVALUE.pem")
     monkeypatch.setenv("CARGO_BUILD_JOBS", "4")
-    monkeypatch.setattr(ios_release, "git_state", lambda root: ("c" * 40, False))
-    monkeypatch.setattr(ios_release, "toolchain", lambda: ("/rustup:/usr/bin", None))
-    monkeypatch.setattr(ios_release, "checkout_lock", lambda root: contextlib.nullcontext())
     assert ios_release.main(["build", "--dry-run"]) == 0
     out = capsys.readouterr().out
     assert "hunter2" not in out and "CERTVALUE" not in out
@@ -798,16 +1041,21 @@ def test_a_missing_explicit_file_is_named_and_every_value_the_build_needs_is_lis
     out = capsys.readouterr().out
     assert "gone/ios.env (private file): does not exist" in out and str(missing) not in out
     assert "APPLE_DEVELOPMENT_TEAM (private file or environment): missing" in out
+    for name in ("APPLE_API_KEY", "APPLE_API_ISSUER"):
+        assert f"{name} (private file or environment): missing" in out
     first = next(line for line in out.splitlines() if line.startswith("  "))
     assert "gone/ios.env (private file): does not exist" in first
 
 
-def test_a_signed_build_needs_only_the_team_so_a_set_team_and_no_file_is_fine(
+def test_a_signed_build_with_every_value_in_the_environment_needs_no_private_file(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
     stage_missing_file(tmp_path, monkeypatch, explicit=True)
+    stage_key_file(tmp_path / "home")
     monkeypatch.setenv("APPLE_DEVELOPMENT_TEAM", TEAM)
-    ios_release.main(["build", "--dry-run"])
+    monkeypatch.setenv("APPLE_API_KEY", KEY_ID)
+    monkeypatch.setenv("APPLE_API_ISSUER", ISSUER)
+    assert ios_release.main(["build", "--dry-run"]) == 0
     assert "does not exist" not in capsys.readouterr().out
 
 

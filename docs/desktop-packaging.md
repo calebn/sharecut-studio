@@ -335,9 +335,10 @@ another; it needs its dependencies already built or fetched. A cold checkout nee
   problem is reported together, before anything runs. When the file is missing and a value the
   command needs is unset, the report starts with one line naming the file (the path
   `SHARECUT_IOS_RELEASE_ENV` gave, or the default location and how to change it) and then lists each
-  unset value: the team for a signed `build`, the key id and issuer for `validate` and
-  `upload` (a missing key id is one problem; the key path defaults from it and is checked once the
-  id is there). `build --unsigned` needs none of them.
+  unset value: the team, key id and issuer for a signed `build`, the key id and issuer for
+  `validate` and `upload` (a missing key id is one problem; the key path defaults from it and is
+  checked once the id is there, in the same report as every other input). `build --unsigned` needs
+  none of them and never reads the key.
 - **Identity and build number.** A three-key overlay (`identifier`, `productName` from
   `short_name`, `bundle.iOS.bundleVersion`) goes to both `tauri ios init` and `tauri ios build`.
   Tauri's `--build-number` is never used: it appends a fourth component to the version. The build
@@ -348,19 +349,25 @@ another; it needs its dependencies already built or fetched. A cold checkout nee
   `scripts/version_policy.py` agrees.
 - **What a build does.** Web build, payload for `iphoneos`, a fresh `gen/apple`, `tauri ios init`,
   `tauri ios build --archive-only` (Tauri adds `-allowProvisioningUpdates` itself; `--no-sign`
-  for the rehearsal), then, signed, the tool's own `xcodebuild -exportArchive
-  -allowProvisioningUpdates` with a private `ExportOptions.plist` (method `app-store-connect`,
+  for the rehearsal). A signed archive gets `APPLE_API_KEY`, `APPLE_API_ISSUER` and
+  `APPLE_API_KEY_PATH` in its environment, which Tauri turns into the `-authentication*` flags;
+  without them Xcode needs a signed-in account and fails with "No Accounts". Then, signed, the
+  tool's own `xcodebuild -exportArchive -allowProvisioningUpdates -authenticationKeyPath
+  -authenticationKeyID -authenticationKeyIssuerID` with a private `ExportOptions.plist` (method `app-store-connect`,
   automatic signing, `uploadSymbols` false because dSYMs carry build paths, and
   `manageAppVersionAndBuildNumber` false so Xcode cannot rewrite the build number). The
   archive and export directories are deleted once the IPA is collected. Child processes get an
   explicit environment allowlist (`PATH` with the rustup toolchain first, `HOME`, `USER`,
   `LOGNAME`, `TMPDIR`, a UTF-8 `LANG`, `DEVELOPER_DIR`, `CARGO_HOME`, `RUSTUP_HOME`,
-  `CARGO_BUILD_JOBS`, proxy and CA variables when set, and the team): the App Store Connect key,
-  manual-signing variables, `RUSTFLAGS` and the desktop release secrets are absent
+  `CARGO_BUILD_JOBS`, proxy and CA variables when set, and the team): manual-signing variables,
+  `RUSTFLAGS` and the desktop release secrets are absent, and the App Store Connect key is added
+  to the signed archive step alone, from the resolved key and never from the caller's environment
   (`tests/test_ios_release.py`). A proxy URL can carry a password, so the dry run prints only the
   path and count settings (`DEVELOPER_DIR`, `CARGO_HOME`, `RUSTUP_HOME`, `CARGO_BUILD_JOBS`) with
   their values and every other variable by name, as `HTTPS_PROXY=<set>`. The team reaches `tauri ios init`, so it sits in the untracked
-  `gen/apple` files and the archive; both stay local.
+  `gen/apple` files and the archive; both stay local. The key id, issuer and key path reach the
+  archive step and Xcode, which may record them in its own build logs under `DerivedData` and
+  `gen/apple/build`; the tool's logs and recorded arguments hold only redacted tokens.
 - **Checks on the built IPA.** The path scan decompresses every member, opens nested archives and
   names the Mach-O section of each hit. The plist check wants the identifier, name, marketing
   version, three-part build number, `MinimumOSVersion` 17.0 and `ITSAppUsesNonExemptEncryption`
@@ -444,9 +451,14 @@ another; it needs its dependencies already built or fetched. A cold checkout nee
   redacted one-line failure for any exception. Private files made for a command (the export
   options), the per-step logs and the rehearsal's recorded `xcodebuild` arguments
   (`logs/xcodebuild-args.log`) are created without following links. A stale file or planted link
-  at that path is replaced (files) or refused (logs), and the mode is set to `0600`. altool's argv
-  shows the key id and issuer to the same user in `ps` for the length of one call; that is
-  accepted.
+  at that path is replaced (files) or refused (logs), and the mode is set to `0600`. The argv of
+  altool and of the export shows the key id, issuer and key path to the same user in `ps` for the
+  length of one call; that is accepted.
+- **Signing failures.** An export that fails with `No signing certificate "iOS Distribution"
+  found` or `Cloud signing permission error` is an account problem: the API key's role cannot use
+  cloud-managed distribution certificates and the login keychain has none. Create the Apple
+  Distribution certificate once in Xcode (Settings > Accounts > Manage Certificates), or raise the
+  key's role; the tool prints this as its one-sentence hint.
 - **Rehearsal.** `make ios-release-rehearsal` with a profile shaped like the owner's passes every
   local check (`gui/desktop/src-tauri/target/ios-release/<build>/`). The unsigned archive signs
   the Python frameworks ad hoc (the template's install phase). It proves the payload and the

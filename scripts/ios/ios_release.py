@@ -31,6 +31,7 @@ from scripts.ios.release_deliver import plan_deliver
 from scripts.ios.release_inputs import (
     KEY_SECRETS,
     TEAM_SECRETS,
+    BuildInputs,
     Checkout,
     InputError,
     InputProblem,
@@ -138,10 +139,17 @@ def toolchain() -> tuple[str, InputProblem | None]:
         return os.environ.get("PATH", ""), InputProblem("rust toolchain", "rustup", str(error))
 
 
+def build_redactor(inputs: BuildInputs, root: Path) -> Redactor:
+    secrets = [inputs.team] if inputs.team is not None else []
+    if inputs.key is not None:
+        secrets += [inputs.key.key_id, inputs.key.issuer, inputs.key.key_path]
+    return Redactor(secrets, machine_directories(root))
+
+
 def build(session: Session, unsigned: bool) -> int:
     layout = session.layout
     signing = Signing.NONE if unsigned else Signing.APP_STORE
-    needs = TEAM_SECRETS if signing is Signing.APP_STORE else ()
+    needs = (*TEAM_SECRETS, *KEY_SECRETS) if signing is Signing.APP_STORE else ()
     values, file_problems = private_values(os.environ, layout.root, Path.home(), needs)
     path, toolchain_problem = toolchain()
     commit, dirty = git_state(layout.root)
@@ -157,8 +165,7 @@ def build(session: Session, unsigned: bool) -> int:
         recorded=recorded_numbers(layout.release_root, version or ""),
         toolchain_problem=toolchain_problem,
     )
-    if inputs.team is not None:
-        session.redactor = Redactor([inputs.team], machine_directories(layout.root))
+    session.redactor = build_redactor(inputs, layout.root)
     steps = plan_build(inputs, layout, os.environ, path)
     session.say(
         f"ios_release build {inputs.marketing_version} ({inputs.build_number}) "

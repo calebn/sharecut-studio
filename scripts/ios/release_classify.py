@@ -26,7 +26,7 @@ class Failure(enum.Enum):
 SIGNING_HINTS: tuple[tuple[re.Pattern[str], str], ...] = (
     (
         re.compile(r"no accounts|no account for team|add an account", re.I),
-        "Xcode has no signed-in account for this team. Open Xcode > Settings > Accounts, add the Apple ID, and run again.",
+        "Xcode has no account to sign with. Set the App Store Connect API key (APPLE_API_KEY, APPLE_API_ISSUER and the AuthKey_<id>.p8 file, default ~/.appstoreconnect/private_keys) and run again; or sign in to Xcode > Settings > Accounts.",
     ),
     (
         re.compile(r"maximum number of .*certificates|already have a current .*certificate", re.I),
@@ -52,11 +52,15 @@ SIGNING_HINTS: tuple[tuple[re.Pattern[str], str], ...] = (
         "The team has no registered device, and automatic signing needs one. Register an iPhone in the developer account or connect it once.",
     ),
     (
+        re.compile(r"cloud signing permission", re.I),
+        "The App Store Connect API key's role cannot use cloud-managed distribution certificates. Create the Apple Distribution certificate once in Xcode (Settings > Accounts > Manage Certificates), or give the API key the Admin role, then run again.",
+    ),
+    (
         re.compile(
             r"no signing certificate|no profiles for|requires a provisioning profile|provisioning profile .*doesn't",
             re.I,
         ),
-        "Xcode could not make a signing certificate or App Store profile for this identifier and team. Open the project's Signing settings once in Xcode, or check the identifier is registered.",
+        "Xcode could not make a signing certificate or App Store profile for this identifier and team. Check the App Store Connect API key's role, create the Apple Distribution certificate once in Xcode (Settings > Accounts > Manage Certificates), and check the identifier is registered.",
     ),
 )
 

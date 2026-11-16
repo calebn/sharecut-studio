@@ -22,7 +22,15 @@ from scripts.ios import bundle_checks as checks
 from scripts.ios import private_paths
 from scripts.ios.private_file import write_private
 from scripts.ios.release_classify import AppleAnswer, Failure, signing_hint
-from scripts.ios.release_inputs import PLACEHOLDER_TEAM, BuildInputs, Identity, Signing
+from scripts.ios.release_inputs import (
+    ISSUER_NAME,
+    KEY_ID_NAME,
+    KEY_PATH_NAME,
+    PLACEHOLDER_TEAM,
+    BuildInputs,
+    Identity,
+    Signing,
+)
 from scripts.ios.release_record import ReleaseRecord, sha256_file, write_record
 from scripts.ios.release_run import Command, Part, PrivateFile, SpawnResult, ToolFailed, capture
 from scripts.ios.release_secrets import Secret
@@ -251,6 +259,13 @@ def plan_build(
     )
     shim = layout.release_root / f"{inputs.build_number}.partial" / "xcodebuild-shim"
     archive_env = env
+    if signed and inputs.key is not None:
+        archive_env = {
+            **env,
+            KEY_ID_NAME: inputs.key.key_id,
+            ISSUER_NAME: inputs.key.issuer,
+            KEY_PATH_NAME: inputs.key.key_path,
+        }
     if not signed:
         steps.append(Local("record xcodebuild arguments", lambda ws: write_shim(shim)))
         archive_env = {**env, "PATH": f"{shim}:{path}"}
@@ -282,7 +297,8 @@ def plan_build(
     if not signed:
         steps.append(Local("xcodebuild arguments", lambda ws: keep_shim_log(ws, shim)))
     export_dir = layout.tauri / "gen" / "apple" / "build" / "export"
-    if signed and inputs.team is not None:
+    if signed and inputs.team is not None and inputs.key is not None:
+        key = inputs.key
         options = layout.tauri / "gen" / "apple" / "build" / "ExportOptions.release.plist"
         steps.append(
             Run(
@@ -292,6 +308,12 @@ def plan_build(
                         "xcodebuild",
                         "-exportArchive",
                         "-allowProvisioningUpdates",
+                        "-authenticationKeyPath",
+                        key.key_path,
+                        "-authenticationKeyID",
+                        key.key_id,
+                        "-authenticationKeyIssuerID",
+                        key.issuer,
                         "-archivePath",
                         str(layout.archive),
                         "-exportPath",
