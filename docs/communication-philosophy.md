@@ -150,7 +150,12 @@ to UX partners; for UI copy, this table wins.
 | Review files need attention | The guest's line when the host's review files are not private to the host's account, so publishing a review mix refuses to run: "The host's review files need attention; ask the host to check them." The host sees the folder and fix on their own computer (CLI, owner tools). Never a path, `chmod` or command in guest copy | "internal error", "permissions", "staging", a raw path or `chmod` line |
 | Isn't available right now | The guest's line when the host's review audio or project is missing: "This review's audio isn't available right now; ask the host to republish." or "This link isn't available right now; ask the host to check it." A refusal that would name a host path and has no line of its own reads "That didn't work; ask the host to check this episode." Fixed copy, never a path, folder name or part of one | "not found", "missing", "internal error", a raw path |
 | Online sharing is off | Set up but not running, or stopped on purpose. Neutral, not an error. A host with no online sharing set up sees no line at all | "Offline", "Disconnected" |
-| You're offline | A review-link page that failed to load while this device reports no connection. Title "You're offline", sentence "This page opens the episode by itself when your connection is back.", with **Try now**, which answers "Still offline." while the same cover stays up, or the new cover's title as a sentence when a different cover answers. Never says who or what is down | "No internet", "You are offline", "Network error", "Your connection dropped" |
+| You're offline | A review-link page that failed to load while this device reports no connection. Title "You're offline", sentence "This page opens the episode by itself when your connection is back.", with **Try now**, which answers "Still offline." while the same cover stays up, or the new cover's title as a sentence when a different cover answers. After the studio has opened, the same words, with **Try now**, are the transcript region's cover. Never says who or what is down | "No internet", "You are offline", "Network error", "Your connection dropped" |
+| Episode can't be found | The host's line when the studio's first read finds no file: `ShareCut can't find "{name}". Its folder may have been moved, renamed or deleted.` with **All projects** first and **Try again**. Names the episode, never its path | "not found", "file missing", a raw path |
+| Episode can't be read | The host's line when the file is damaged: `ShareCut can't read "{name}" because its file is damaged. Restore the file from a backup, or open a copy of the episode.` with **All projects** first and **Try again** | "corrupt file", "parse error", a raw path |
+| Episode in use | The host's line when something else holds the episode: "Something else is using this episode for a moment." with **Try again**. It does not guess who | "lock timeout", "locked by another process" |
+| ShareCut isn't answering | The host's line when the studio's own server gives no answer: "ShareCut isn't answering. Check that it is still running on this computer." with **Try again** | "server error", "connection refused" |
+| Couldn't open the episode | The host's line for any other failure of the first read, which includes an episode saved by a newer version: `ShareCut couldn't open "{name}". If a newer version of ShareCut saved it, update ShareCut first.` with **Try again** and **All projects**. The same words are said whatever the server answered | "internal error", "Internal Server Error" |
 
 Why this matters: Surface 2's audit found users confusing producer
 (a record-room link) with the review-role dropdown — the table above
@@ -405,9 +410,19 @@ the empty state, not a separate discovery task.
   waiting on it says "The server didn't answer. Nothing was saved." The
   Seam pill rolls a join with a pointer drag and saves on release, so a hung
   save says the same and leaves the join where it was. While a project's load has failed, the stage body (on every stage, with or without a
-  project already open) says "Could not load the project" and the
-  reason, for example "The server didn't answer.", with a **Try again** button, announced as an alert (Review says "The transcript didn't load").
-  Pressing **Try again** keeps the button in place, busy, so focus stays on it.
+  project already open) says one fixed sentence chosen from the kind of failure,
+  never the server's words, announced as an alert. A guest reads the sentence the
+  review-link page reads for the same cause (see `ux/pages/screens/guest-share.md`);
+  a host reads the sentence for an episode that can't be found, can't be read, is
+  in use, is open elsewhere, isn't answering or couldn't be opened (Terminology).
+  The title is "Could not load the project" ("The transcript didn't load" on
+  Review), except "The host's computer is asleep", "You're offline" and "This
+  episode isn't open on this computer", which keep the title of the same cause
+  elsewhere. **Try again** (a guest's **Try now** under those two titles) keeps its
+  place and focus and reads "Trying…" while it runs; a status line says "Trying
+  again…" and then "Still …" for the same failure or the new cause, and the sentence
+  does not change. A host whose episode can't be found, can't be read or couldn't be
+  opened also has **All projects**, first where trying again cannot help.
 - **Form errors are wired, not just shown.** `Field` sets
   `aria-describedby` to its error; `InlineError` carries
   `role="alert"`. Fix the primitives once; every caller inherits it.
@@ -638,6 +653,7 @@ shipped at the port; #1031 shipped it. The adjacent MCP note shipped in #1027.
 ## Changelog
 
 - 2026-11-16 The record room fits a portrait phone (#3834): the header gives its width to the episode title (the ShareCut symbol, the title on up to two lines), the dock says its words under its buttons (a guest's: Mute or Unmute, Comment while a take runs or is paused, Leave; a producer's: Comment while a take runs or is paused, Leave) and drops the Comments toggle for the strip above it, tiles start under the header, and the guest's own tile reads "Ava (you)" with a Devices cue (a landscape phone keeps the wordmark, the icon-only dock and the toggle, and up to 767 px wide has no cue). Added the (you) term.
+- 2026-11-16 The studio's own load failure says a fixed sentence (#3891, the studio's first read): the cover in the stage body (the transcript region on Review) no longer prints what the server answered, for a guest or a host. A guest reads the review-link covers' words for the same cause, and the page tries again by itself where those words say it does; a host reads one sentence per kind (can't be found, can't be read, in use, open elsewhere, isn't answering, couldn't open) with **All projects** where trying again cannot help. A press on **Try again** no longer swaps the sentence for "Trying again…": the button reads "Trying…" and a status line says "Trying again…", then "Still …". The unsent-text box takes its direction from the text.
 - 2026-11-16 Headphones are an honest choice on a phone (#3834): on a phone the Join and Device sheets offer "I'm wearing headphones" and "I'm not wearing headphones", Join works after either answer, and not wearing shows "Others may hear their own echo and be heard in your recording. Keep your volume low."; the host, producers and the guest see a crossed-out headphones glyph on that guest's tile ("Maya, not wearing headphones"). A laptop or tablet keeps the toggle and "Put on headphones first". Terminology rows added.
 - 2026-11-16 The recording room says Comments, not Notes (#3834): the rail tab, the phone sheet and peek, the dock toggle, the field ("Add a comment", sent with Post), the waiting line ("You can comment while a take is running."), "Guests see comments" and the producer line ("You'll listen and comment.") use one name. The dock keeps Comment (drops a marker) and Comments (opens the list), and the toggle opens on the Comments tab. Added the Comments (Record room) term.
 - 2026-11-16 The producer lobby says where the producer stands (#3834): after Not now the bar reads "You're not in the room yet. You won't be recorded." with Join to listen, the region and tab say "Not in the room", Joining… holds until the room lists the producer (with "Still connecting to the room. Choose Not now to stop trying." after 4 seconds), and the Comments field reads "You can comment once you're in the room." before then.
