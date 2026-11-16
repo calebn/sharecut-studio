@@ -19,7 +19,7 @@ import {
   sampleTrack,
 } from "../../test/fixtures";
 import type { PendingEditView, ProjectView } from "../../types/project";
-import { precisionDriver } from "./precisionDrivers";
+import { nudgeDriver, precisionDriver } from "./precisionDrivers";
 
 const api = vi.hoisted(() => ({ updatePendingEdit: vi.fn() }));
 vi.mock("../../api", async (importOriginal) => ({
@@ -385,5 +385,36 @@ describe("pending nudge preview, as it behaves today", () => {
     drag.cancel();
     expect(edit().source_end).toBe(24.05);
     finishDocumentDraft("cmd1");
+  });
+
+  it("does not drive a trim, and writes nothing", () => {
+    const before = useDawStore.getState().project;
+    const trim: NudgeField = {
+      kind: "trim",
+      trackId: "host",
+      clipId: "c",
+      edge: "out",
+    };
+    expect(nudgeDriver(trim, "Trim").begin()).toBe(false);
+    expect(useDawStore.getState().project).toBe(before);
+  });
+
+  it("skips a frame it cannot hold instead of throwing, and saves only a value that was shown", async () => {
+    const ids: string[] = [];
+    for (let i = 0; i < 256; i += 1) {
+      const id = `fill-${i}`;
+      ids.push(id);
+      beginDocumentDraft(id, "SetTrackMute", {
+        track_id: `t${i}`,
+        muted: true,
+      });
+    }
+    const drag = driver(END);
+    drag.begin();
+    expect(() => drag.show(24.05)).not.toThrow();
+    expect(edit()).toEqual(clipped);
+    await drag.commit();
+    expect(api.updatePendingEdit).not.toHaveBeenCalled();
+    for (const id of ids) finishDocumentDraft(id);
   });
 });

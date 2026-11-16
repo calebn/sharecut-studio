@@ -38,17 +38,11 @@ function outsideCalls(files: Iterable<Source>): Record<string, number> {
 }
 
 /** Files allowed to call `setProject(` today, and how many calls each makes. */
-const ALLOWLIST: readonly { file: string; calls: number; reason: string }[] = [
-  {
-    file: "timeline/precision/precisionDrivers.ts",
-    calls: 1,
-    reason:
-      "Pending-edit precision preview; fade and envelope previews are drafts (#2009).",
-  },
-];
+const ALLOWLIST: readonly { file: string; calls: number; reason: string }[] =
+  [];
 
-const ALLOWLIST_FILES = 1;
-const ALLOWLIST_CALLS = 1;
+const ALLOWLIST_FILES = 0;
+const ALLOWLIST_CALLS = 0;
 
 const allowedCalls = Object.fromEntries(
   ALLOWLIST.map(({ file, calls }) => [file, calls]),
@@ -118,7 +112,7 @@ describe("setProject write governance", () => {
       });
     });
 
-    it("flags an extra call in an allowlisted file", () => {
+    it("flags a call added to a file that had none", () => {
       const sabotaged = [...sourceFiles()].map((file) =>
         file.rel === "timeline/precision/precisionDrivers.ts"
           ? { ...file, text: `${file.text}\ns.setProject(extra);` }
@@ -126,7 +120,7 @@ describe("setProject write governance", () => {
       );
       expect(outsideCalls(sabotaged)).toEqual({
         ...allowedCalls,
-        "timeline/precision/precisionDrivers.ts": 2,
+        "timeline/precision/precisionDrivers.ts": 1,
       });
     });
 
