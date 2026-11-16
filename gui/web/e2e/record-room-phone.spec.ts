@@ -362,6 +362,9 @@ test.describe("record room on a phone", () => {
       { guest: phoneAt(390) },
       async ({ host, guest, projectPath, room }) => {
         await joinAsProducer(guest, room.producer.token, "Pat");
+        // Only Leave shows while waiting; the dock must not jump when the take starts.
+        await expectLabelledDock(guest);
+        await expect(dockButtons(guest)).toHaveText(["Leave"]);
         await ensureHostRecordCommand(host, projectPath, "Start", "recording");
         await expect(roomPill(guest)).toHaveText(/^\d+:\d{2} · Take \d+$/);
         await expectBrandSymbol(guest);
