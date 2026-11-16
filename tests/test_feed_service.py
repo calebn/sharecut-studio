@@ -389,7 +389,7 @@ def test_a_host_clear_sees_a_pin_set_after_the_service_opened(episode: Path) -> 
     assert view.item["item.intro"].source.kind != "pinned"
 
 
-# Wire pin for pin and clear (#1811): the exact reply text at every edge before the results are typed.
+# The pin and clear replies: the exact reply text at every edge.
 NON_ASCII = "café — 日本 \U0001f399"
 NON_ASCII_ESCAPED = "caf\\u00e9 \\u2014 \\u65e5\\u672c \\ud83c\\udf99"
 PIN_RESULT = {"key": "item.intro", "pinned": True}
@@ -421,6 +421,23 @@ def test_service_clear_of_a_key_with_no_pin_still_returns_the_same_result(episod
 
     assert type(cleared) is FeedFieldPinResult
     assert json.dumps(cleared.model_dump()) == CLEAR_RESULT_TEXT
+
+
+def test_a_blank_set_unsets_and_replies_pinned_false_through_the_service_and_the_doc_plane(
+    episode: Path,
+) -> None:
+    service = _service(episode)
+    service.set_field("item.intro", "A walk.", "person")
+
+    blank = service.set_field("item.intro", "  ", "person")
+
+    assert type(blank) is FeedFieldPinResult and blank.model_dump() == CLEAR_RESULT
+    assert "item.intro" not in load_project(episode).feed.pins
+    submit_host_document_command(episode, "SetFeedField", {"key": "item.intro", "value": "A walk."})
+    wired = submit_host_document_command(
+        episode, "SetFeedField", {"key": "item.intro", "value": ""}
+    )
+    assert json.dumps(_wire_result(wired)) == CLEAR_RESULT_TEXT
 
 
 def test_feed_field_pin_result_is_frozen_strict_and_bool_only() -> None:
