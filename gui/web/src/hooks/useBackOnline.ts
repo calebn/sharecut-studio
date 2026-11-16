@@ -2,11 +2,11 @@ import { useEffect, useRef } from "react";
 
 /**
  * Calls `onBack` once when the browser reports the connection back while
- * `armed`. The listener lives for the page, so an `online` event that comes
- * while the page is not armed (the failing attempt is still reading the saved
- * copy, or the cover has not mounted) is remembered and acted on when it arms,
- * if the browser still reports a connection. A new `attempt` owns its own
- * events and forgets one that came before it.
+ * `armed`. An `online` event that comes while the page is not armed (the
+ * failing attempt is still reading the saved copy, or the cover has not
+ * mounted) is remembered and acted on when it arms, if the browser still
+ * reports a connection. A new `attempt` owns its own events and forgets one
+ * that came before it.
  */
 export function useBackOnline(
   armed: boolean,
