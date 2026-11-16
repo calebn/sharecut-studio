@@ -31,13 +31,23 @@ def test_gui_server_deps_available() -> None:
     assert gui_server_deps_available() is True
 
 
-def test_gui_server_pins_the_websocket_keepalive() -> None:
+def test_gui_server_pins_the_websocket_keepalive(monkeypatch: pytest.MonkeyPatch) -> None:
     import socket
 
+    import uvicorn
+
+    seen: dict[str, Any] = {}
+    real_config = uvicorn.Config
+
+    def capture(*args: Any, **kwargs: Any) -> Any:
+        seen.update(kwargs)
+        return real_config(*args, **kwargs)
+
+    monkeypatch.setattr(uvicorn, "Config", capture)
     with socket.socket() as sock:
-        server = build_gui_server(object(), sock)
-    assert server.config.ws_ping_interval == 20.0
-    assert server.config.ws_ping_timeout == 20.0
+        build_gui_server(object(), sock)
+    assert seen["ws_ping_interval"] == 20.0
+    assert seen["ws_ping_timeout"] == 20.0
 
 
 def test_resolved_bind_port_ephemeral(monkeypatch: pytest.MonkeyPatch) -> None:

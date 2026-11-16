@@ -83,6 +83,12 @@ def get_record_features(token: str, request: Request) -> dict[str, Any]:
         return share_features_manifest(request)
 
 
+def _stamp_of(event: dict[str, Any]) -> int:
+    snapshot = event.get("snapshot")
+    stamp = snapshot.get("server_time_ns") if isinstance(snapshot, dict) else None
+    return stamp if isinstance(stamp, int) else 0
+
+
 def _record_still_valid(token: str) -> bool:
     try:
         row = lookup_share(token, kind=SHARE_KIND_RECORD)
@@ -159,8 +165,11 @@ async def record_ws(
         # signaling); `podcast record land` writes the session journal, which the session
         # and daw sockets' watcher already follows.
         q = hub.subscribe(hub_key, loop)
+        counted_at = 0
         if watching:
-            counted = await run_in_threadpool(svc.watch, connection_id)
+            stamp = await run_in_threadpool(svc.watch, connection_id)
+            counted = stamp is not None
+            counted_at = stamp or 0
             if not counted:
                 if await run_in_threadpool(svc.is_current_room):
                     await guard.close(4429, "too many looking in")
@@ -189,7 +198,9 @@ async def record_ws(
                                 role=role,
                             )
                         elif watching:
-                            view = observer_view(event)
+                            # Never show a room that has not been told: frames built before
+                            # this socket was counted carry a count without it.
+                            view = None if _stamp_of(event) < counted_at else observer_view(event)
                         else:
                             view = None
                         if view is None:
@@ -283,19 +294,30 @@ async def record_ws(
                     # The pump filters by who this socket is, so it waits out the Join:
                     # nothing else goes out between the Join and the Snapshot that follows.
                     async with send_lock:
-                        echo, snap = await run_in_threadpool(
-                            svc.join,
-                            share_id=share_id,
-                            role=role,
-                            display_name=guest_display_name(payload.get("display_name") or name),
-                            participant_id=payload.get("participant_id"),
-                            lease=payload.get("lease"),
-                            client_id=guest_client_id,
-                            connection_id=connection_id,
-                            capabilities=caps,
-                            client_seq=client_seq,
-                            watching_connection_id=connection_id if counted else None,
-                        )
+                        try:
+                            echo, snap = await run_in_threadpool(
+                                svc.join,
+                                share_id=share_id,
+                                role=role,
+                                display_name=guest_display_name(
+                                    payload.get("display_name") or name
+                                ),
+                                participant_id=payload.get("participant_id"),
+                                lease=payload.get("lease"),
+                                client_id=guest_client_id,
+                                connection_id=connection_id,
+                                capabilities=caps,
+                                client_seq=client_seq,
+                                watching_connection_id=connection_id if counted else None,
+                            )
+                        except Exception:
+                            if counted and not await run_in_threadpool(
+                                svc.is_watching, connection_id
+                            ):
+                                # A refused Join could not put the count back: never leave
+                                # an uncounted looker.
+                                await guard.close(4403, "record room ended")
+                            raise
                         participant_id = str(echo["participant_id"])
                         joined = True
                         filtered_join = filter_record_event_for_guest(
