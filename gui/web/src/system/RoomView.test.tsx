@@ -1057,3 +1057,88 @@ describe("RoomView comments naming", () => {
     );
   });
 });
+
+describe("RoomView phone layout (3834 PR 7)", () => {
+  const commentsButtons = () =>
+    screen.queryAllByRole("button", { name: /^Comments/ });
+
+  it("a phone guest has one door to Comments, the peek, and a labelled dock", () => {
+    renderRoom({ viewerWidth: "phone" });
+    expect(commentsButtons()).toHaveLength(1);
+    expect(commentsButtons()[0]).toHaveClass("sys-room-view-peek");
+    expect(document.querySelector(".sys-dock")).toHaveAttribute(
+      "data-labelled",
+    );
+    expect(names()).toEqual(["Mute", "Comment", "Leave room"]);
+  });
+
+  it("a phone producer has the peek only and Comment, Leave", () => {
+    renderRoom({
+      seat: "producer",
+      people: [HOST, ROSA],
+      selfName: "Rosa Diaz",
+      viewerWidth: "phone",
+    });
+    expect(commentsButtons()).toHaveLength(1);
+    expect(commentsButtons()[0]).toHaveClass("sys-room-view-peek");
+    expect(names()).toEqual(["Comment", "Leave room"]);
+  });
+
+  it("an embedded host on a phone keeps the dock's Comments toggle, unlabelled", () => {
+    renderRoom({
+      seat: "host",
+      people: [HOST_YOU],
+      embedded: true,
+      viewerWidth: "phone",
+    });
+    expect(commentsButtons()).toHaveLength(2);
+    expect(
+      within(document.querySelector(".sys-dock") as HTMLElement).getByRole(
+        "button",
+        { name: "Comments" },
+      ),
+    ).toBeInTheDocument();
+    expect(document.querySelector(".sys-dock-label")).toBeNull();
+  });
+
+  it("a desktop guest keeps the dock's Comments toggle", () => {
+    renderRoom({ viewerWidth: "desktop" });
+    expect(commentsButtons()).toHaveLength(1);
+    expect(commentsButtons()[0]).not.toHaveClass("sys-room-view-peek");
+    expect(document.querySelector(".sys-dock-label")).toBeNull();
+  });
+
+  it("a landscape phone keeps the toggle too", () => {
+    renderRoom({ viewerWidth: "phone-landscape" });
+    expect(
+      within(document.querySelector(".sys-dock") as HTMLElement).getByRole(
+        "button",
+        { name: "Comments" },
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("the page header holds the brand symbol and the name ShareCut once", () => {
+    renderRoom({ viewerWidth: "phone" });
+    const header = screen.getByRole("banner");
+    expect(header.querySelector(".sys-room-view-symbol")).not.toBeNull();
+    expect(within(header).getAllByText("ShareCut")).toHaveLength(1);
+  });
+
+  it("the guest's own tile says you, the embedded host's does not", () => {
+    const { unmount } = renderRoom({ onSelfPress: vi.fn() });
+    expect(screen.getByRole("group", { name: "Jon, you" })).toBeVisible();
+    expect(screen.getByRole("button", { name: "Devices" })).toBeVisible();
+    unmount();
+    renderRoom({
+      seat: "host",
+      people: [HOST_YOU],
+      embedded: true,
+      onSelfPress: vi.fn(),
+    });
+    expect(
+      screen.getByRole("group", { name: "Maya Okafor, host" }),
+    ).toBeVisible();
+    expect(screen.queryByText("(you)")).toBeNull();
+  });
+});
