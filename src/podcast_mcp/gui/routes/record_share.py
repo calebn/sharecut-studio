@@ -299,7 +299,6 @@ async def record_ws(
                         )
                         participant_id = str(echo["participant_id"])
                         joined = True
-                        watching = False
                         filtered_join = filter_record_event_for_guest(
                             {"plane": "record", "type": "Snapshot", "snapshot": snap},
                             participant_id=participant_id,
