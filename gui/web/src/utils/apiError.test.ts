@@ -33,6 +33,61 @@ describe("errorMessage", () => {
   });
 });
 
+describe("readApiFailure for a dead review link", () => {
+  const answered = (url: string, detail: string, code: string | null) => {
+    const response = new Response(JSON.stringify({ detail }), {
+      status: 404,
+      headers: code ? { "X-Sharecut-Error-Code": code } : {},
+    });
+    Object.defineProperty(response, "url", { value: url });
+    return response;
+  };
+  const SENTENCE = "That didn't go through. Try again in a moment.";
+
+  it.each([
+    "invalid or revoked share token",
+    "This share was revoked. Ask the host for a new link.",
+  ])(
+    "never repeats the server's wording (%s) on a guest route",
+    async (detail) => {
+      const error = await readApiFailure(
+        answered(
+          "http://host/api/review/tok/comments",
+          detail,
+          "share_not_found",
+        ),
+      );
+      expect(error.message).toBe(SENTENCE);
+      expect(error.code).toBe("share_not_found");
+      expect(error.status).toBe(404);
+    },
+  );
+
+  it("keeps the server's text for the host's own share routes", async () => {
+    const error = await readApiFailure(
+      answered(
+        "http://host/api/shares/tok/revoke",
+        "invalid or revoked share token",
+        "share_not_found",
+      ),
+    );
+    expect(error.message).toBe("invalid or revoked share token");
+  });
+
+  it("keeps the text of a 404 that carries another code or none", async () => {
+    for (const code of ["comment_not_found", null]) {
+      const error = await readApiFailure(
+        answered(
+          "http://host/api/review/tok/comments",
+          "No such comment",
+          code,
+        ),
+      );
+      expect(error.message).toBe("No such comment");
+    }
+  });
+});
+
 describe("readApiFailure", () => {
   it("retains the stable code and human-readable message", async () => {
     const response = new Response(
