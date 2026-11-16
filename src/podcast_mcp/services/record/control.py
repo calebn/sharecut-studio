@@ -15,6 +15,14 @@ from podcast_mcp.services.record.state import HOST_PARTICIPANT_ID, parse_session
 from podcast_mcp.services.record.track_choice import RecordTrackService
 
 
+def _agent_view(snapshot: dict[str, Any]) -> dict[str, Any]:
+    """The snapshot an MCP tool or the CLI reports: no looking-in count.
+
+    The count lives in the GUI process only, so another process would report a false 0.
+    """
+    return {key: value for key, value in snapshot.items() if key != "watchers"}
+
+
 class RecordControlService:
     def __init__(self, workspace: ProjectWorkspace) -> None:
         self.workspace = workspace
@@ -28,7 +36,7 @@ class RecordControlService:
         ``land_first_possible`` (the mint preflight: true when a land can save a finished recording, nothing is still
         saving and the room's session was not already accepted or skipped). ``unlanded_saving`` counts takes,
         ``unlanded_stalled`` counts recordings."""
-        return with_unsaved_takes(self.workspace.project, self._svc.snapshot())
+        return with_unsaved_takes(self.workspace.project, _agent_view(self._svc.snapshot()))
 
     def roster(self) -> list[dict[str, Any]]:
         return list(self._svc.snapshot().get("participants") or [])
@@ -97,4 +105,4 @@ class RecordControlService:
         return self._svc.submit(cmd)
 
     def _host(self, command_type: str, payload: dict[str, Any] | None = None) -> dict[str, Any]:
-        return self.submit_host(command_type, payload)
+        return _agent_view(self.submit_host(command_type, payload))

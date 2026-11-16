@@ -2537,3 +2537,360 @@ def test_unnamed_record_guests_are_called_guest(
     names = [p["display_name"] for p in snap["snapshot"]["participants"] if p["role"] == "guest"]
     assert names == ["Guest"]
     assert token[:6] not in str(snap)
+
+
+# --- producer look-in (observe=1) -------------------------------------------------------------
+
+
+def _observe(client, room, *, client_id: str = "obs-1", token: str | None = None):
+    tok = token or room["producer"]["token"]
+    return client.websocket_connect(f"/api/rec/{tok}/ws?client_id={client_id}&observe=1")
+
+
+def _room_svc(ws, room) -> RecordSessionService:
+    return RecordSessionService(ws.project, session_id=room["session_id"])
+
+
+def _wait_watchers(svc: RecordSessionService, n: int, *, secs: float = 5.0) -> None:
+    import time
+
+    deadline = time.monotonic() + secs
+    while time.monotonic() < deadline:
+        if svc.snapshot()["watchers"] == n:
+            return
+        time.sleep(0.02)
+    raise AssertionError(f"watchers never reached {n}: {svc.snapshot()['watchers']}")
+
+
+def _record_command(msg_type: str, payload=None, seq: int = 2) -> dict:
+    return {"type": "Record", "command_type": msg_type, "payload": payload or {}, "client_seq": seq}
+
+
+def _start_take_with_notes(ws, room) -> RecordSessionService:
+    svc = _room_svc(ws, room)
+    svc.join(
+        role="host",
+        display_name="Host",
+        client_id="record-join:host",
+        connection_id="host-conn",
+    )
+    ctrl = RecordControlService(ws)
+    ctrl.submit_host("SetGuestsSeeNotes", {"enabled": True})
+    ctrl.start()
+    ctrl.submit_host("Comment", {"id": "live-note1", "body": "private note for the host"})
+    ctrl.marker()
+    return svc
+
+
+def test_observer_gets_only_the_filtered_snapshot_mid_take(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch
+):
+    ws, room, client = _room(minimal_project, sample_wav, tmp_workspace, monkeypatch)
+    svc = _start_take_with_notes(ws, room)
+    with _observe(client, room) as obs:
+        first = obs.receive_json()
+        assert set(first) == {"plane", "type", "snapshot"}
+        assert first["type"] == "Snapshot"
+        snap = first["snapshot"]
+        assert snap["state"] == "recording"
+        assert snap["watchers"] == 1
+        assert "target" not in snap
+        assert snap["comments"] == []
+        assert "private note" not in str(first)
+        assert not [key for key in str(first).lower().split("'") if key.startswith("lease")]
+        assert svc.snapshot()["watchers"] == 1
+
+
+def test_observer_may_only_join(minimal_project, sample_wav, tmp_workspace, monkeypatch):
+    ws, room, client = _room(minimal_project, sample_wav, tmp_workspace, monkeypatch)
+    svc = _room_svc(ws, room)
+    with _observe(client, room) as obs:
+        assert obs.receive_json()["snapshot"]["watchers"] == 1
+        for kind in ("Heartbeat", "Comment", "Consent", "Signal"):
+            obs.send_json(_record_command(kind))
+            assert obs.receive_json() == {"plane": "record", "type": "Error", "code": "join_first"}
+        obs.send_json({"type": "ping"})
+        assert obs.receive_json()["code"] == "join_first"
+        assert svc.snapshot()["watchers"] == 1
+
+
+def test_observer_never_sees_a_signal_or_other_frame_types(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch
+):
+    from podcast_mcp.services.record.service import record_hub_key
+    from podcast_mcp.services.session_sync import get_hub
+
+    ws, room, client = _room(minimal_project, sample_wav, tmp_workspace, monkeypatch)
+    svc = _room_svc(ws, room)
+    hub_key = record_hub_key(ws.project)
+    with _observe(client, room) as obs:
+        obs.receive_json()
+        hub = get_hub()
+        hub.publish(hub_key, {"plane": "record", "type": "Signal", "to": "p_x", "payload": {}})
+        hub.publish(hub_key, {"plane": "record", "type": "Echo", "participant_id": "p_x"})
+        hub.publish(hub_key, {"plane": "record", "type": "Heartbeat"})
+        svc.join(
+            role="host",
+            display_name="Host",
+            client_id="record-join:host",
+            connection_id="host-conn",
+        )
+        RecordControlService(ws).submit_host("SetGuestsSeeNotes", {"enabled": True})
+        seen = []
+        for _ in range(10):
+            frame = obs.receive_json()
+            seen.append(frame)
+            if frame["snapshot"].get("guests_see_notes") is True:
+                break
+        assert {frame["type"] for frame in seen} == {"Snapshot"}
+        assert seen[-1]["snapshot"]["guests_see_notes"] is True
+
+
+def _listed(frame: dict, participant_id: str) -> bool:
+    return any(p["participant_id"] == participant_id for p in frame["snapshot"]["participants"])
+
+
+def test_observer_join_swaps_watcher_for_producer_in_one_frame_and_keeps_one_pump(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch
+):
+    ws, room, client = _room(minimal_project, sample_wav, tmp_workspace, monkeypatch)
+    ctrl = RecordControlService(ws)
+    with client.websocket_connect(f"/api/rec/{room['guest']['token']}/ws") as witness:
+        _join(witness, name="Ava")
+        _drain_until(witness, lambda m: m.get("type") == "Echo")
+        with _observe(client, room) as obs:
+            assert obs.receive_json()["snapshot"]["watchers"] == 1
+            _join(obs, name="Pat")
+            echo = _drain_until(obs, lambda m: m.get("type") == "Echo")
+            producer_id = echo["participant_id"]
+            frames = []
+            entered = False
+            for _ in range(12):
+                frame = witness.receive_json()
+                if frame.get("type") not in ("Snapshot", "Applied"):
+                    continue
+                entered = entered or frame["snapshot"]["watchers"] == 1
+                if entered:
+                    frames.append(frame)
+                if entered and _listed(frame, producer_id):
+                    break
+            assert len(frames) >= 2
+            for frame in frames[:-1]:
+                assert frame["snapshot"]["watchers"] == 1
+                assert not _listed(frame, producer_id)
+            assert frames[-1]["snapshot"]["watchers"] == 0
+            assert [p["participant_id"] for p in frames[-1]["snapshot"]["participants"]].count(
+                producer_id
+            ) == 1
+            ctrl.submit_host("SetGuestsSeeNotes", {"enabled": True})
+            ctrl.submit_host("SetGuestsSeeNotes", {"enabled": False})
+            on_frames = 0
+            for _ in range(20):
+                frame = obs.receive_json()
+                if frame.get("type") not in ("Snapshot", "Applied"):
+                    continue
+                if frame["snapshot"]["guests_see_notes"]:
+                    on_frames += 1
+                elif on_frames:
+                    break
+            assert on_frames == 1
+
+
+def test_join_never_slips_an_observer_frame_after_the_producer_snapshot(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch
+):
+    from podcast_mcp.services.session_sync import get_hub
+
+    _ws, room, client = _room(minimal_project, sample_wav, tmp_workspace, monkeypatch)
+    original = RecordSessionService.join
+
+    def join_then_publish(self, **kwargs):
+        out = original(self, **kwargs)
+        get_hub().publish(
+            self._hub_key,
+            {
+                "plane": "record",
+                "type": "Applied",
+                "command": {"type": "SetGuestsSeeNotes", "participant_id": "p_host"},
+                "snapshot": self.snapshot(),
+            },
+        )
+        return out
+
+    monkeypatch.setattr(RecordSessionService, "join", join_then_publish)
+    with _observe(client, room) as obs:
+        obs.receive_json()
+        _join(obs, name="Pat")
+        _drain_until(obs, lambda m: m.get("type") == "Echo")
+        after = [obs.receive_json() for _ in range(3)]
+        assert [frame["type"] for frame in after] == ["Snapshot", "Applied", "Applied"]
+        for frame in after:
+            assert "target" in frame["snapshot"]
+
+
+def test_observer_join_refused_when_producers_are_full_keeps_the_look(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch
+):
+    ws, room, client = _room(minimal_project, sample_wav, tmp_workspace, monkeypatch)
+    svc = _room_svc(ws, room)
+    for i in range(2):
+        svc.join(
+            share_id=room["producer"]["id"],
+            role="producer",
+            display_name=f"Prod {i}",
+            client_id=f"fill-{i}",
+            connection_id=f"fill-conn-{i}",
+            capabilities=["join", "monitor"],
+        )
+    with _observe(client, room) as obs:
+        assert obs.receive_json()["snapshot"]["watchers"] == 1
+        _join(obs, name="Pat")
+        err = _drain_until(obs, lambda m: m.get("type") == "Error")
+        assert err["code"] == "room_full"
+        again = _drain_until(obs, lambda m: m.get("type") == "Snapshot")
+        assert again["snapshot"]["watchers"] == 1
+        obs.send_json(_record_command("Heartbeat"))
+        assert obs.receive_json()["code"] == "join_first"
+        assert svc.snapshot()["watchers"] == 1
+
+
+def test_guest_token_with_observe_is_a_plain_connect(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch
+):
+    ws, room, client = _room(minimal_project, sample_wav, tmp_workspace, monkeypatch)
+    svc = _room_svc(ws, room)
+    with _observe(client, room, token=room["guest"]["token"]) as sock:
+        sock.send_json(_record_command("Heartbeat"))
+        assert sock.receive_json() == {"plane": "record", "type": "Error", "code": "join_first"}
+        assert svc.snapshot()["watchers"] == 0
+
+
+def test_closing_the_observer_drops_the_count(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch
+):
+    ws, room, client = _room(minimal_project, sample_wav, tmp_workspace, monkeypatch)
+    svc = _room_svc(ws, room)
+    with _observe(client, room) as obs:
+        obs.receive_json()
+        assert svc.snapshot()["watchers"] == 1
+    _wait_watchers(svc, 0)
+
+
+def test_unwatch_twice_publishes_once(minimal_project, sample_wav, tmp_workspace, monkeypatch):
+    from podcast_mcp.services.session_sync import get_hub
+
+    ws, room, _client = _room(minimal_project, sample_wav, tmp_workspace, monkeypatch)
+    svc = _room_svc(ws, room)
+    published: list[dict] = []
+    monkeypatch.setattr(get_hub(), "publish", lambda _key, event: published.append(event))
+    assert svc.watch("c1") is True
+    svc.unwatch("c1")
+    svc.unwatch("c1")
+    assert [e["snapshot"]["watchers"] for e in published] == [1, 0]
+    assert svc.snapshot()["watchers"] == 0
+
+
+def test_remint_closes_old_observer_and_guest_sockets_without_leaking_the_new_room(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch
+):
+    from podcast_mcp.gui.routes import guest_ws_common
+
+    monkeypatch.setattr(guest_ws_common, "GUEST_SHARE_RECHECK_S", 1000.0)
+    monkeypatch.setattr(guest_ws_common, "GUEST_SHARE_RECHECK_ON_FRAME_S", 1000.0)
+    ws, room, client = _room(minimal_project, sample_wav, tmp_workspace, monkeypatch)
+    with (
+        _observe(client, room) as obs,
+        client.websocket_connect(f"/api/rec/{room['guest']['token']}/ws") as guest,
+    ):
+        obs.receive_json()
+        _join(guest, name="Ava")
+        _drain_until(guest, lambda m: m.get("type") == "Echo")
+        fresh = ShareService(ws).create_record_room()
+        new_svc = _room_svc(ws, fresh)
+        new_svc.join(
+            role="host",
+            display_name="Host",
+            client_id="record-join:host",
+            connection_id="host-conn",
+        )
+        for sock in (obs, guest):
+            with pytest.raises(WebSocketDisconnect) as closed:
+                for _ in range(50):
+                    frame = sock.receive_json()
+                    assert fresh["session_id"] not in str(frame)
+            assert closed.value.code == 4403
+        assert new_svc.snapshot()["watchers"] == 0
+
+
+def test_revoked_producer_link_closes_the_observer_and_drops_the_count(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch
+):
+    from podcast_mcp.gui.routes import guest_ws_common
+
+    monkeypatch.setattr(guest_ws_common, "GUEST_SHARE_RECHECK_S", 0.2)
+    ws, room, client = _room(minimal_project, sample_wav, tmp_workspace, monkeypatch)
+    svc = _room_svc(ws, room)
+    with _observe(client, room) as obs:
+        obs.receive_json()
+        ShareService(ws).revoke_room(room["session_id"])
+        with pytest.raises(WebSocketDisconnect) as closed:
+            for _ in range(200):
+                obs.receive_json()
+        assert closed.value.code == 4403
+    _wait_watchers(svc, 0)
+
+
+def test_fifth_observer_is_closed_4429(minimal_project, sample_wav, tmp_workspace, monkeypatch):
+    from contextlib import ExitStack
+
+    ws, room, client = _room(minimal_project, sample_wav, tmp_workspace, monkeypatch)
+    svc = _room_svc(ws, room)
+    with ExitStack() as stack:
+        for i in range(4):
+            sock = stack.enter_context(_observe(client, room, client_id=f"obs-{i}"))
+            assert sock.receive_json()["snapshot"]["watchers"] == i + 1
+        with _observe(client, room, client_id="obs-4") as fifth:
+            with pytest.raises(WebSocketDisconnect) as closed:
+                fifth.receive_json()
+            assert closed.value.code == 4429
+        assert svc.snapshot()["watchers"] == 4
+
+
+def test_watchers_stay_out_of_the_log_saved_data_and_agent_views(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch
+):
+    import json
+
+    from typer.testing import CliRunner
+
+    from podcast_mcp.cli.main import app as cli_app
+    from podcast_mcp.mcp.tools.record import record_state_tool
+    from podcast_mcp.services.record.state import RecordSnapshot
+
+    ws, room, client = _room(minimal_project, sample_wav, tmp_workspace, monkeypatch)
+    svc = _start_take_with_notes(ws, room)
+    with _observe(client, room) as obs:
+        assert obs.receive_json()["snapshot"]["watchers"] == 1
+        ctrl_snap = RecordControlService(ws).snapshot()
+        assert "watchers" not in ctrl_snap
+        assert "watchers" not in json.loads(record_state_tool(str(ws.path)))
+        out = CliRunner().invoke(cli_app, ["record", "state", "--project", str(ws.path)])
+        assert out.exit_code == 0, out.output
+        assert "watchers" not in out.output
+        assert "watchers" not in RecordControlService(ws).marker()
+        posted = client.post(
+            "/api/record/command",
+            json={
+                "path": str(ws.path),
+                "command_type": "SetGuestsSeeNotes",
+                "payload": {"enabled": False},
+            },
+        )
+        assert posted.status_code == 200, posted.text
+        assert posted.json()["watchers"] == 1
+        state = client.get("/api/record/state", params={"path": str(ws.path)})
+        assert state.json()["watchers"] == 1
+        stored = svc._store.get_snapshot()
+        assert "watchers" not in stored
+        assert "watchers" not in RecordSnapshot.model_validate(svc.snapshot()).model_dump()
+        assert "watchers" not in json.dumps(svc._store.commands_after(0))

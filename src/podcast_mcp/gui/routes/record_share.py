@@ -52,6 +52,7 @@ from podcast_mcp.services.record import (
     RecordUploadService,
     RoomFullError,
     filter_record_event_for_guest,
+    observer_view,
     parse_participant_id,
     parse_upload_kind,
     record_hub_key,
@@ -96,6 +97,7 @@ async def record_ws(
     token: str,
     client_id: str | None = Query(None),
     name: str | None = Query(None),
+    observe: str | None = Query(None),
 ) -> None:
     try:
         row = await guest_ws_share_row(websocket, token, kind=SHARE_KIND_RECORD)
@@ -131,6 +133,10 @@ async def record_ws(
     participant_id: str | None = None
     svc: RecordSessionService | None = None
     joined = False
+    # A producer link opened with ?observe=1 looks in until it joins. Guests never do.
+    watching = observe == "1" and role == "producer"
+    counted = False
+    send_lock = asyncio.Lock()
     q = None
     guard = None
 
@@ -154,6 +160,14 @@ async def record_ws(
         # signaling); `podcast record land` writes the session journal, which the session
         # and daw sockets' watcher already follows.
         q = hub.subscribe(hub_key, loop)
+        if watching:
+            counted = await run_in_threadpool(svc.watch, connection_id)
+            if not counted:
+                if await run_in_threadpool(svc.is_current_room):
+                    await guard.close(4429, "too many looking in")
+                else:
+                    await guard.close(4403, "record room ended")
+                return
 
         async def _pump() -> None:
             assert q is not None
@@ -163,14 +177,25 @@ async def record_ws(
                     if not await guard.share_ok_on_frame() or not _participant_runtime_valid():
                         await guard.close(4403, "participant removed or share revoked")
                         return
-                    filtered = filter_record_event_for_guest(
-                        event,
-                        participant_id=participant_id or "",
-                        role=role,
-                    )
-                    if filtered is None:
-                        continue
-                    await guard.send_json(filtered)
+                    snap_in = event.get("snapshot")
+                    if isinstance(snap_in, dict) and snap_in.get("session_id") != session_id:
+                        # A remint swaps the room under an open socket: never relay the new one.
+                        await guard.close(4403, "record room ended")
+                        return
+                    async with send_lock:
+                        if joined:
+                            view = filter_record_event_for_guest(
+                                event,
+                                participant_id=participant_id or "",
+                                role=role,
+                            )
+                        elif watching:
+                            view = observer_view(event)
+                        else:
+                            view = None
+                        if view is None:
+                            continue
+                        await guard.send_json(view)
                     if guard.closed:
                         return
             except asyncio.CancelledError:
@@ -180,6 +205,8 @@ async def record_ws(
                 with contextlib.suppress(Exception):
                     await guard.close(1011, "record pump failed")
                 raise
+
+        conn.spawn(_pump())
 
         while True:
             try:
@@ -254,41 +281,45 @@ async def record_ws(
                             {"plane": "record", "type": "Error", "code": "join_first"}
                         )
                         continue
-                    echo, snap = await run_in_threadpool(
-                        svc.join,
-                        share_id=share_id,
-                        role=role,
-                        display_name=guest_display_name(payload.get("display_name") or name),
-                        participant_id=payload.get("participant_id"),
-                        lease=payload.get("lease"),
-                        client_id=guest_client_id,
-                        connection_id=connection_id,
-                        capabilities=caps,
-                        client_seq=client_seq,
-                    )
-                    participant_id = str(echo["participant_id"])
-                    joined = True
-                    filtered_join = filter_record_event_for_guest(
-                        {"plane": "record", "type": "Snapshot", "snapshot": snap},
-                        participant_id=participant_id,
-                        role=role,
-                    )
-                    snap_out = (filtered_join or {}).get("snapshot", snap)
-                    await guard.send_json(
-                        {
-                            "plane": "record",
-                            "type": "Echo",
-                            **echo,
-                        }
-                    )
-                    await guard.send_json(
-                        {
-                            "plane": "record",
-                            "type": "Snapshot",
-                            "snapshot": snap_out,
-                        }
-                    )
-                    conn.spawn(_pump())
+                    # The pump filters by who this socket is, so it waits out the Join:
+                    # nothing else goes out between the Join and the Snapshot that follows.
+                    async with send_lock:
+                        echo, snap = await run_in_threadpool(
+                            svc.join,
+                            share_id=share_id,
+                            role=role,
+                            display_name=guest_display_name(payload.get("display_name") or name),
+                            participant_id=payload.get("participant_id"),
+                            lease=payload.get("lease"),
+                            client_id=guest_client_id,
+                            connection_id=connection_id,
+                            capabilities=caps,
+                            client_seq=client_seq,
+                            watching_connection_id=connection_id if counted else None,
+                        )
+                        participant_id = str(echo["participant_id"])
+                        joined = True
+                        watching = False
+                        filtered_join = filter_record_event_for_guest(
+                            {"plane": "record", "type": "Snapshot", "snapshot": snap},
+                            participant_id=participant_id,
+                            role=role,
+                        )
+                        snap_out = (filtered_join or {}).get("snapshot", snap)
+                        await guard.send_json(
+                            {
+                                "plane": "record",
+                                "type": "Echo",
+                                **echo,
+                            }
+                        )
+                        await guard.send_json(
+                            {
+                                "plane": "record",
+                                "type": "Snapshot",
+                                "snapshot": snap_out,
+                            }
+                        )
                     continue
                 echo, _seq = await run_in_threadpool(
                     route_record_ws_message,
@@ -354,12 +385,16 @@ async def record_ws(
                 await conn.stop_tasks()
             finally:
                 try:
-                    if svc is not None and participant_id is not None:
-                        await run_in_threadpool(
-                            svc.disconnect, participant_id, connection_id=connection_id
-                        )
+                    if svc is not None and counted:
+                        await run_in_threadpool(svc.unwatch, connection_id)
                 finally:
-                    conn.release()
+                    try:
+                        if svc is not None and participant_id is not None:
+                            await run_in_threadpool(
+                                svc.disconnect, participant_id, connection_id=connection_id
+                            )
+                    finally:
+                        conn.release()
 
 
 def _guest_upload_ctx(
