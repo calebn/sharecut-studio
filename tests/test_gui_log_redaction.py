@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import logging
+from collections import OrderedDict, defaultdict
+from collections.abc import Iterator, Mapping
 from types import MappingProxyType
 
 import pytest
@@ -210,3 +212,54 @@ def test_an_argument_whose_text_raises_is_left_alone() -> None:
 
     assert ShareTokenFilter().filter(record)
     assert record.args == (arg,)
+
+
+class _Shown(Mapping[str, int]):
+    def __getitem__(self, key: str) -> int:
+        return 1
+
+    def __iter__(self) -> Iterator[str]:
+        return iter(["a"])
+
+    def __len__(self) -> int:
+        return 1
+
+    def __str__(self) -> str:
+        return "shown"
+
+
+@pytest.mark.parametrize(
+    "arg",
+    [OrderedDict(a=1), defaultdict(lambda: "dflt", a="x"), _Shown()],
+    ids=["ordered", "default", "custom-str"],
+)
+def test_a_mapping_argument_without_a_token_stays_the_same_object(
+    arg: Mapping[str, object],
+) -> None:
+    record = logging.LogRecord("uvicorn.error", logging.INFO, __file__, 1, "%s", (arg,), None)
+    before = record.getMessage()
+
+    ShareTokenFilter().filter(record)
+
+    assert record.args is arg
+    assert record.getMessage() == before
+
+
+def test_a_default_mapping_keeps_serving_a_missing_key() -> None:
+    arg = defaultdict(lambda: "dflt", a="x")
+    record = logging.LogRecord(
+        "uvicorn.error", logging.INFO, __file__, 1, "%(missing)s", (arg,), None
+    )
+
+    ShareTokenFilter().filter(record)
+
+    assert record.getMessage() == "dflt"
+
+
+def test_a_tuple_without_a_token_stays_the_same_object() -> None:
+    args = ("GET", 200)
+    record = logging.LogRecord("uvicorn.error", logging.INFO, __file__, 1, "%s %d", args, None)
+
+    ShareTokenFilter().filter(record)
+
+    assert record.args is args

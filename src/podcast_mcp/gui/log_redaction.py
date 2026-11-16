@@ -49,12 +49,15 @@ class ShareTokenFilter(logging.Filter):
     def filter(self, record: logging.LogRecord) -> bool:
         record.msg = _scrub(record.msg)
         if isinstance(record.args, tuple):
-            record.args = tuple(_scrub(arg) for arg in record.args)
+            scrubbed_args = tuple(_scrub(arg) for arg in record.args)
+            if scrubbed_args != record.args:
+                record.args = scrubbed_args
         elif isinstance(record.args, Mapping):
             scrubbed = {key: _scrub(arg) for key, arg in record.args.items()}
-            if "query_string" in scrubbed and scrubbed != record.args:
-                scrubbed["query_string"] = b""
-            record.args = scrubbed
+            if any(scrubbed[key] != arg for key, arg in record.args.items()):
+                if "query_string" in scrubbed:
+                    scrubbed["query_string"] = b""
+                record.args = scrubbed
         return True
 
 
