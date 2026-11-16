@@ -13,9 +13,11 @@ import { useGuestSync } from "./useGuestSync";
 
 const loadProject = vi.fn();
 const loadProjectMeta = vi.fn();
+const reportLinkDoubt = vi.fn();
 
 vi.mock("../api", () => ({
   loadProjectMeta: (...args: unknown[]) => loadProjectMeta(...args),
+  reportLinkDoubt: (...args: unknown[]) => reportLinkDoubt(...args),
 }));
 
 vi.mock("../api/project", () => ({
@@ -36,6 +38,7 @@ describe("useGuestSync", () => {
     resetDocumentSeqForTests();
     loadProject.mockReset();
     loadProjectMeta.mockReset();
+    reportLinkDoubt.mockReset();
     loadProjectMeta.mockResolvedValue({ mtime_ns: 1, size: 1, server_seq: 0 });
     loadProject.mockResolvedValue({ server_seq: 0, project: minimalProject() });
     useDawStore.getState().hydrate("share:tok123", minimalProject());
@@ -411,6 +414,25 @@ describe("useGuestSync", () => {
     expect(loadProject).not.toHaveBeenCalled();
     expect(useDawStore.getState().project?.meta.name).toBe("from-ws");
   });
+
+  it("reports a doubt about the link when the server closes the socket with 4403", async () => {
+    renderHook(() => useGuestSync("share:tok123", vi.fn(), vi.fn(), true));
+    await act(async () => {
+      FakeWebSocket.instances[0].close(4403);
+    });
+    expect(reportLinkDoubt).toHaveBeenCalledExactlyOnceWith("tok123");
+  });
+
+  it.each([1000, 1001, 1006, 1011])(
+    "reports nothing when the socket closes with %s",
+    async (code) => {
+      renderHook(() => useGuestSync("share:tok123", vi.fn(), vi.fn(), true));
+      await act(async () => {
+        FakeWebSocket.instances[0].close(code);
+      });
+      expect(reportLinkDoubt).not.toHaveBeenCalled();
+    },
+  );
 
   it("does not connect when disabled or non-share path", () => {
     renderHook(() => useGuestSync("/local/path.json", vi.fn(), vi.fn(), false));
