@@ -102,12 +102,15 @@ class FakeSocket {
   onmessage: ((ev: { data: string }) => void) | null = null;
   onclose: ((ev: { code: number }) => void) | null = null;
   sent: string[] = [];
-  reply: "join" | "full" = "join";
+  reply: "join" | "full" | "silent" = "join";
 
   send(data: string) {
     this.sent.push(data);
     const msg = JSON.parse(data) as { command_type?: string };
     if (msg.command_type !== "Join") {
+      return;
+    }
+    if (this.reply === "silent") {
       return;
     }
     queueMicrotask(() => {
@@ -546,6 +549,30 @@ describe("useGuestRoom", () => {
     expect(sockets[0]?.commands("UpdateName")[0]).toMatchObject({
       payload: { display_name: "Ava Okafor" },
     });
+  });
+
+  it("sends the remembered name before Consent when Join is pressed before the first Echo", async () => {
+    localStorage.setItem("sharecut.recordName", "Ava Okafor");
+    stubSocket("silent");
+    stubFetch(guestBootstrap);
+    const { result } = renderHook(() => useGuestRoom("guest-tok"));
+    await waitFor(() => expect(sockets[0]?.commands("Join")).toHaveLength(1));
+    expect(result.current.me).toBeNull();
+    act(() => {
+      result.current.shareName();
+    });
+    expect(sockets[0]?.commands("UpdateName")).toEqual([
+      expect.objectContaining({ payload: { display_name: "Ava Okafor" } }),
+    ]);
+  });
+
+  it("sends nothing before the first Echo until the guest acts", async () => {
+    localStorage.setItem("sharecut.recordName", "Ava Okafor");
+    stubSocket("silent");
+    stubFetch(guestBootstrap);
+    renderHook(() => useGuestRoom("guest-tok"));
+    await waitFor(() => expect(sockets[0]?.commands("Join")).toHaveLength(1));
+    expect(sockets[0]?.commands("UpdateName")).toHaveLength(0);
   });
 
   it("sends the remembered name once the room already holds this guest as joined", async () => {
