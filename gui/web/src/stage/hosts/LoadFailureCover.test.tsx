@@ -199,6 +199,70 @@ describe("a press on the cover's button", () => {
   });
 });
 
+describe("focus after a press answered by a different cover", () => {
+  beforeEach(() => vi.useFakeTimers());
+  afterEach(() => vi.useRealTimers());
+
+  /** Press Try again on `first`, then let `next` answer it. */
+  function pressThenAnswer(first: Shell, next: Shell) {
+    const { again } = show(first);
+    const retry = screen.getByRole("button", { name: "Try again" });
+    retry.focus();
+    act(() => retry.click());
+    again({ ...first, trying: true });
+    act(() => void vi.advanceTimersByTime(HELD_BUSY_MS));
+    again({ ...next, trying: false });
+    return again;
+  }
+
+  it("stays on Try again when the new cover still offers it, in another place", () => {
+    pressThenAnswer(shell(hostCause("missing")), shell(hostCause("other")));
+    expectButtons(["Try again", "All projects"]);
+    expect(screen.getByRole("button", { name: "Try again" })).toHaveFocus();
+  });
+
+  it("stays on Try again when the same cover answers", () => {
+    pressThenAnswer(
+      shell(hostCause("not-answering")),
+      shell(hostCause("not-answering")),
+    );
+    expect(screen.getByRole("button", { name: "Try again" })).toHaveFocus();
+  });
+
+  it("moves to the title when the new cover has no Try again", () => {
+    pressThenAnswer(shell(hostCause("other")), shell(hostCause("elsewhere")));
+    expect(screen.getByRole("heading")).toHaveFocus();
+  });
+
+  it("moves a guest to the title when the new cover has no button at all", () => {
+    pressThenAnswer(
+      shell({ audience: "guest", failure: { kind: "server" } }, { name: "" }),
+      shell({ audience: "guest", failure: { kind: "sign-in" } }, { name: "" }),
+    );
+    expect(screen.getByRole("heading")).toHaveFocus();
+  });
+
+  it("leaves focus alone when the cover changes without a press", () => {
+    const first = shell(
+      { audience: "guest", failure: { kind: "unreachable" } },
+      { name: "" },
+    );
+    const { again } = show(first);
+    const elsewhere = document.createElement("button");
+    document.body.append(elsewhere);
+    elsewhere.focus();
+    again({ ...first, trying: true });
+    again(
+      shell(
+        { audience: "guest", failure: { kind: "restricted" } },
+        { name: "", trying: false },
+      ),
+    );
+    expect(elsewhere).toHaveFocus();
+    elsewhere.remove();
+  });
+});
+
 describe("the transcript's own failure (#3884)", () => {
   it("reads as it always did", async () => {
     const onRetry = vi.fn();

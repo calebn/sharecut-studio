@@ -1,6 +1,11 @@
+import { useRef } from "react";
 import { shellFailureCover } from "../../shellLoadFailure";
 import { Cover } from "../../system/Cover";
-import { useCoverPress } from "../../system/useCoverPress";
+import {
+  RETRY_ACTION,
+  TRYING_LABEL,
+  useCoverPress,
+} from "../../system/useCoverPress";
 import type { LoadFailure } from "./hostModels";
 
 const ALL_PROJECTS = "All projects";
@@ -22,7 +27,11 @@ export function ShellFailureCover({
     stageTitle: title,
     name: failure.name,
   });
+  const scope = useRef<HTMLDivElement>(null);
+  const titleRef = useRef<HTMLHeadingElement>(null);
   const { busy, status, press } = useCoverPress({
+    scope,
+    title: titleRef,
     key: cover.key,
     trying: failure.trying ?? false,
     stillFailing: cover.stillFailing,
@@ -36,7 +45,8 @@ export function ShellFailureCover({
           failure.onRetry();
         },
         busy,
-        busyLabel: "Trying…",
+        busyLabel: TRYING_LABEL,
+        actionId: RETRY_ACTION,
       }
     : undefined;
   const home =
@@ -47,11 +57,12 @@ export function ShellFailureCover({
     cover.lead === "home" ? [home, retry] : [retry, home]
   ).filter((action) => action !== undefined);
   return (
-    <div role="alert">
+    <div role="alert" ref={scope}>
       <Cover
         size="region"
         glyph={cover.glyph}
         title={cover.title}
+        titleRef={titleRef}
         primary={primary}
         secondary={secondary}
         status={retry ? status : undefined}

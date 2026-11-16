@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { GuestLoadFailure } from "../../guestLoadFailure";
 import type { UnsentText } from "../../state/unsentText";
+import { HELD_BUSY_MS } from "../../system/useHeldBusy";
 import { expectNoA11yViolations } from "../../test/a11y";
 import { GuestPageCover, NotServedCover } from "./StatusCovers";
 
@@ -252,6 +253,30 @@ describe("GuestPageCover", () => {
     expect(
       screen.getByText("Ask the person who sent it for a new link."),
     ).toBeInTheDocument();
+  });
+
+  it("moves focus to the new title when a press is answered by a cover with no button", () => {
+    const { again } = renderCover({ kind: "unreachable" });
+    const retry = screen.getByRole("button", { name: "Try now" });
+    retry.focus();
+    fireEvent.click(retry);
+    again({ trying: true });
+    act(() => void vi.advanceTimersByTime(HELD_BUSY_MS));
+    again({ failure: { kind: "restricted" }, trying: false });
+    expect(
+      screen.getByRole("heading", { name: "This link did not load" }),
+    ).toHaveFocus();
+  });
+
+  it("keeps focus on the button when the same kind of cover answers", () => {
+    const { again } = renderCover({ kind: "unreachable" });
+    const retry = screen.getByRole("button", { name: "Try now" });
+    retry.focus();
+    fireEvent.click(retry);
+    again({ trying: true });
+    act(() => void vi.advanceTimersByTime(HELD_BUSY_MS));
+    again({ trying: false });
+    expect(screen.getByRole("button", { name: "Try now" })).toHaveFocus();
   });
 
   it("has no accessibility violations at rest or while busy", async () => {

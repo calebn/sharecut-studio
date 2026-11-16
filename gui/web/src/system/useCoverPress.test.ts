@@ -3,6 +3,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useCoverPress } from "./useCoverPress";
 import { HELD_BUSY_MS } from "./useHeldBusy";
 
+const scope = { current: null };
+const title = { current: null };
+
 type Props = { key: string; trying: boolean };
 
 function setup(initial: Props = { key: "asleep", trying: false }) {
@@ -10,6 +13,8 @@ function setup(initial: Props = { key: "asleep", trying: false }) {
     (props: Props) =>
       useCoverPress({
         ...props,
+        scope,
+        title,
         stillFailing: "Still asleep.",
         changed: `${props.key}.`,
       }),
