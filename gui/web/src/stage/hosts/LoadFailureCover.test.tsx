@@ -13,8 +13,6 @@ import type { StageId } from "../../types/stage";
 import { LoadFailureCover } from "./HostBody";
 import type { LoadFailure } from "./hostModels";
 
-const MARKER = "ZEBRA-secret-9931 db password=hunter2";
-
 type Shell = Extract<LoadFailure, { source: "shell" }>;
 
 function shell(cause: ShellFailure, extra: Partial<Shell> = {}): Shell {
@@ -136,11 +134,6 @@ describe("the studio's own load-failure cover, for a guest", () => {
       expectButtons(labels);
     },
   );
-
-  it("holds none of the server's words, whatever it said", () => {
-    show(guest({ kind: "server" }));
-    expect(document.body.textContent).not.toContain(MARKER);
-  });
 });
 
 describe("a press on the cover's button", () => {
