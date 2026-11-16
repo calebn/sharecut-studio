@@ -33,7 +33,7 @@ import {
   openHostMore,
   openHostRecordRoom,
   openRecordLink,
-  openRoomNotes,
+  openRoomComments,
   readSavedProject,
   recordLinkPath,
   recordParticipantId,
@@ -1069,18 +1069,20 @@ test.describe("record lobby", () => {
             timeout: 15_000,
           });
 
-          // The Notes rail's list, not the live region that also reads new notes out.
+          // The Comments rail's list, not the live region that also reads new comments out.
           const notesOf = (scope: Page) =>
             scope
-              .getByRole("region", { name: "Notes", exact: true })
+              .getByRole("region", { name: "Comments", exact: true })
               .getByRole("listitem");
           const noteWith = (scope: Page, text: string) =>
             notesOf(scope).filter({ hasText: text });
           const addNote = async (scope: Page, text: string) => {
-            await scope.getByRole("textbox", { name: "Add a note" }).fill(text);
-            await scope.getByRole("button", { name: "Send note" }).click();
+            await scope
+              .getByRole("textbox", { name: "Add a comment" })
+              .fill(text);
+            await scope.getByRole("button", { name: "Post" }).click();
           };
-          await openRoomNotes(guest);
+          await openRoomComments(guest);
           await guest.evaluate(() => {
             (document.activeElement as HTMLElement | null)?.blur();
           });
@@ -1101,7 +1103,7 @@ test.describe("record lobby", () => {
           await expect(noteWith(guest, "Great answer")).toBeVisible();
           const noteTo = (await hostRecordSnapshot(host, projectPath))
             .recording_ms;
-          await openRoomNotes(producer);
+          await openRoomComments(producer);
           const producerFrom = (await hostRecordSnapshot(host, projectPath))
             .recording_ms;
           await addNote(producer, "Producer note");
@@ -1111,7 +1113,7 @@ test.describe("record lobby", () => {
 
           const hostNote = (text: string) =>
             roomDlg
-              .getByRole("region", { name: "Notes" })
+              .getByRole("region", { name: "Comments" })
               .getByRole("listitem")
               .filter({ hasText: text });
           await expect(hostNote("Marker")).toBeVisible();

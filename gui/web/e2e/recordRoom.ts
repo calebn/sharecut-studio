@@ -217,14 +217,14 @@ export async function expectNoRoomAlert(
   }).toPass();
 }
 
-/** Open the Notes rail (closed by default for a guest) and return its section. */
-export async function openRoomNotes(page: Page): Promise<Locator> {
-  const notes = page.getByRole("region", { name: "Notes", exact: true });
-  if (!(await notes.isVisible())) {
-    await page.getByRole("button", { name: "Notes", exact: true }).click();
+/** Open the Comments rail (closed by default for a guest) and return its section. */
+export async function openRoomComments(page: Page): Promise<Locator> {
+  const comments = page.getByRole("region", { name: "Comments", exact: true });
+  if (!(await comments.isVisible())) {
+    await page.getByRole("button", { name: "Comments", exact: true }).click();
   }
-  await expect(notes).toBeVisible();
-  return notes;
+  await expect(comments).toBeVisible();
+  return comments;
 }
 
 /**
