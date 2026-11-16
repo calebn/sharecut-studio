@@ -2597,7 +2597,7 @@ def test_observer_gets_only_the_filtered_snapshot_mid_take(
         assert "target" not in snap
         assert snap["comments"] == []
         assert "private note" not in str(first)
-        assert not [key for key in str(first).lower().split("'") if key.startswith("lease")]
+        assert "lease" not in str(first).lower()
         assert svc.snapshot()["watchers"] == 1
 
 
