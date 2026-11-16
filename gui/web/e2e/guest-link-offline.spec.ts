@@ -196,7 +196,14 @@ for (const size of SIZES) {
         await expect(guest.locator(".stage-frame--guest")).toBeVisible();
         await expect(guest.getByText("Saved copy").first()).toBeVisible();
         await expect(guest.locator("main h1")).toHaveCount(0);
-        expect((await wordsSeen(guest)).offline).toBe(false);
+        // The studio's own first read fails too, with no connection: its
+        // region says so in the page cover's words, over the saved copy.
+        await expect(
+          guest.getByRole("alert").getByRole("heading", {
+            level: 2,
+            name: OFFLINE_TITLE,
+          }),
+        ).toBeVisible();
       });
     });
 
