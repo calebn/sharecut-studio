@@ -20,7 +20,6 @@ from websockets.exceptions import WebSocketException
 from websockets.sync.client import connect
 
 from podcast_mcp.gui import bind
-from podcast_mcp.gui.log_redaction import UVICORN_LOGGERS, ShareTokenFilter
 from podcast_mcp.gui.server import create_app
 from podcast_mcp.models import MediaAsset, Track, TrackRole, load_project, save_project
 from podcast_mcp.services.app import ProjectWorkspace
@@ -341,7 +340,11 @@ class Served:
 
 @pytest.fixture
 def served(
-    minimal_project: Path, sample_wav: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    minimal_project: Path,
+    sample_wav: Path,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    bare_uvicorn_loggers: None,
 ) -> Iterator[Served]:
     home = tmp_path / "home"
     home.mkdir()
@@ -358,10 +361,6 @@ def served(
     save_project(project, minimal_project)
 
     sock = bind.exclusive_listen_socket("127.0.0.1", 0)
-    for name in UVICORN_LOGGERS:
-        uvicorn_logger = logging.getLogger(name)
-        for stale in [f for f in uvicorn_logger.filters if isinstance(f, ShareTokenFilter)]:
-            uvicorn_logger.removeFilter(stale)
     server = bind.build_gui_server(
         create_app(served_project=minimal_project), sock, log_level="info", access_log=True
     )

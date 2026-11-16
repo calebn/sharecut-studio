@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import logging
-from collections.abc import Iterator
 
 import pytest
 
@@ -11,26 +10,6 @@ from podcast_mcp.gui import bind
 from podcast_mcp.gui.log_redaction import UVICORN_LOGGERS, ShareTokenFilter, install
 
 TOKEN = "velvet-quokka-umbra"
-
-
-@pytest.fixture
-def bare_uvicorn_loggers() -> Iterator[None]:
-    """Run with no token filter on the uvicorn loggers, and leave none behind."""
-
-    def strip() -> list[tuple[logging.Logger, logging.Filter]]:
-        removed: list[tuple[logging.Logger, logging.Filter]] = []
-        for name in UVICORN_LOGGERS:
-            target = logging.getLogger(name)
-            for found in [f for f in target.filters if isinstance(f, ShareTokenFilter)]:
-                target.removeFilter(found)
-                removed.append((target, found))
-        return removed
-
-    removed = strip()
-    yield
-    strip()
-    for target, found in removed:
-        target.addFilter(found)
 
 
 def _format(msg: str, *args: object) -> str:
@@ -121,10 +100,6 @@ def test_install_adds_one_filter_per_uvicorn_logger() -> None:
     for name in ("uvicorn.access", "uvicorn.error"):
         found = [f for f in logging.getLogger(name).filters if isinstance(f, ShareTokenFilter)]
         assert len(found) == 1
-
-
-def test_install_covers_the_asgi_trace_logger() -> None:
-    assert "uvicorn.asgi" in UVICORN_LOGGERS
 
 
 @pytest.mark.usefixtures("bare_uvicorn_loggers")

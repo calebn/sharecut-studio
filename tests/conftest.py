@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import os
 import subprocess
 import tempfile
@@ -717,3 +718,24 @@ def skip_run_preflight(monkeypatch: pytest.MonkeyPatch) -> None:
     for check in ("ensure_whisper_cached_for_run", "ensure_word_aligner_for_run"):
         for module in ("gui.routes.pipeline_jobs", "services.collaboration.guest_project_ops"):
             monkeypatch.setattr(f"podcast_mcp.{module}.{check}", lambda *_a, **_k: None)
+
+
+@pytest.fixture
+def bare_uvicorn_loggers() -> Iterator[None]:
+    """Run with no token filter on the uvicorn loggers, and leave none behind."""
+    from podcast_mcp.gui.log_redaction import UVICORN_LOGGERS, ShareTokenFilter
+
+    def strip() -> list[tuple[logging.Logger, logging.Filter]]:
+        removed: list[tuple[logging.Logger, logging.Filter]] = []
+        for name in UVICORN_LOGGERS:
+            target = logging.getLogger(name)
+            for found in [f for f in target.filters if isinstance(f, ShareTokenFilter)]:
+                target.removeFilter(found)
+                removed.append((target, found))
+        return removed
+
+    removed = strip()
+    yield
+    strip()
+    for target, found in removed:
+        target.addFilter(found)
