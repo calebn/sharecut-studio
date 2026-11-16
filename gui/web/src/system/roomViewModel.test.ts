@@ -728,3 +728,16 @@ describe("gridColumns", () => {
     },
   );
 });
+
+describe("phoneDock", () => {
+  it.each([
+    ["guest", "phone", true],
+    ["producer", "phone", true],
+    ["host", "phone", false],
+    ["guest", "phone-landscape", false],
+    ["guest", "desktop", false],
+    ["producer", "desktop", false],
+  ] as const)("%s on %s is %s", (role, viewerWidth, expected) => {
+    expect(roomViewModel(base({ role, viewerWidth })).phoneDock).toBe(expected);
+  });
+});
