@@ -2783,7 +2783,7 @@ def test_unwatch_twice_publishes_once(minimal_project, sample_wav, tmp_workspace
     svc = _room_svc(ws, room)
     published: list[dict] = []
     monkeypatch.setattr(get_hub(), "publish", lambda _key, event: published.append(event))
-    assert svc.watch("c1") is True
+    assert isinstance(svc.watch("c1"), int)
     svc.unwatch("c1")
     svc.unwatch("c1")
     assert [e["snapshot"]["watchers"] for e in published] == [1, 0]
@@ -2894,3 +2894,92 @@ def test_watchers_stay_out_of_the_log_saved_data_and_agent_views(
         assert "watchers" not in stored
         assert "watchers" not in RecordSnapshot.model_validate(svc.snapshot()).model_dump()
         assert "watchers" not in json.dumps(svc._store.commands_after(0))
+
+
+def test_observer_is_never_sent_a_frame_built_before_it_was_counted(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch
+):
+    from podcast_mcp.services.session_sync import get_hub
+
+    _ws, room, client = _room(minimal_project, sample_wav, tmp_workspace, monkeypatch)
+    original = RecordSessionService.watch
+
+    def host_acts_then_watch(self, connection_id):
+        get_hub().publish(
+            self._hub_key,
+            {
+                "plane": "record",
+                "type": "Applied",
+                "command": {"type": "SetGuestsSeeNotes", "participant_id": "p_host"},
+                "snapshot": self.snapshot(),
+            },
+        )
+        return original(self, connection_id)
+
+    monkeypatch.setattr(RecordSessionService, "watch", host_acts_then_watch)
+    with _observe(client, room) as obs:
+        first = obs.receive_json()
+        assert first["snapshot"]["watchers"] == 1
+
+
+def test_guest_token_with_observe_gets_no_frame_before_join(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch
+):
+    import time
+
+    ws, room, client = _room(minimal_project, sample_wav, tmp_workspace, monkeypatch)
+    with _observe(client, room, token=room["guest"]["token"]) as sock:
+        time.sleep(0.2)
+        RecordControlService(ws).submit_host("SetGuestsSeeNotes", {"enabled": True})
+        time.sleep(0.5)
+        sock.send_json(_record_command("Heartbeat"))
+        assert sock.receive_json() == {"plane": "record", "type": "Error", "code": "join_first"}
+
+
+def test_a_join_that_cannot_restore_the_count_closes_the_observer(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch
+):
+    ws, room, client = _room(minimal_project, sample_wav, tmp_workspace, monkeypatch)
+    svc = _room_svc(ws, room)
+    for i in range(2):
+        svc.join(
+            share_id=room["producer"]["id"],
+            role="producer",
+            display_name=f"Prod {i}",
+            client_id=f"fill-{i}",
+            connection_id=f"fill-conn-{i}",
+            capabilities=["join", "monitor"],
+        )
+    monkeypatch.setattr(RecordSessionService, "_resume_watching", lambda self, cid: None)
+    with _observe(client, room) as obs:
+        obs.receive_json()
+        _join(obs, name="Pat")
+        with pytest.raises(WebSocketDisconnect) as closed:
+            for _ in range(10):
+                obs.receive_json()
+        assert closed.value.code == 4403
+
+
+def test_remint_clears_the_watcher_registry_and_only_state_frames_reach_an_observer(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch
+):
+    from podcast_mcp.services.record.service import (
+        clear_connections_for_hub,
+        observer_view,
+        record_hub_key,
+        watcher_count,
+    )
+
+    ws, room, _client = _room(minimal_project, sample_wav, tmp_workspace, monkeypatch)
+    svc = _room_svc(ws, room)
+    hub_key = record_hub_key(ws.project)
+    assert svc.watch("c1") is not None
+    assert watcher_count(hub_key, room["session_id"]) == 1
+    clear_connections_for_hub(hub_key)
+    assert watcher_count(hub_key, room["session_id"]) == 0
+    snap = svc.snapshot()
+    for kind in ("Echo", "Heartbeat", "Signal", "Error"):
+        assert observer_view({"plane": "record", "type": kind, "snapshot": snap}) is None
+    assert observer_view({"plane": "record", "type": "Applied", "snapshot": snap})["type"] == (
+        "Snapshot"
+    )

@@ -615,30 +615,35 @@ class RecordSessionService:
         ]
         return drop_absolute_path_strings(out)
 
-    def _publish_snapshot(self) -> None:
-        get_hub().publish(
-            self._hub_key,
-            {"plane": "record", "type": "Snapshot", "snapshot": self.snapshot()},
-        )
+    def _publish_snapshot(self) -> int:
+        """Publish the room's snapshot; return its ``server_time_ns`` stamp."""
+        snap = self.snapshot()
+        get_hub().publish(self._hub_key, {"plane": "record", "type": "Snapshot", "snapshot": snap})
+        return int(snap["server_time_ns"])
 
     def is_current_room(self) -> bool:
         return self._model().session_id == self.session_id
 
-    def watch(self, connection_id: str) -> bool:
-        """Count this socket as looking in and tell the room. False: room over or looks full."""
+    def is_watching(self, connection_id: str) -> bool:
+        with _CONN_LOCK:
+            return connection_id in _WATCHERS.get((self._hub_key, self.session_id), ())
+
+    def watch(self, connection_id: str) -> int | None:
+        """Count this socket as looking in and tell the room.
+
+        Returns the ``server_time_ns`` of the snapshot that counts it (frames stamped
+        earlier do not), or None when the room is over or the looks are full.
+        """
         with self._authority_lock:
             if self._model().session_id != self.session_id:
-                return False
+                return None
             key = (self._hub_key, self.session_id)
             with _CONN_LOCK:
                 ids = _WATCHERS.get(key, set())
-                if connection_id in ids:
-                    return True
-                if len(ids) >= WATCHERS_PER_ROOM:
-                    return False
+                if len(ids) >= WATCHERS_PER_ROOM and connection_id not in ids:
+                    return None
                 _WATCHERS[key] = ids | {connection_id}
-            self._publish_snapshot()
-            return True
+            return self._publish_snapshot()
 
     def unwatch(self, connection_id: str) -> None:
         with self._authority_lock:
@@ -719,9 +724,7 @@ class RecordSessionService:
                 self._hub_key, self._model(), now_wall_ms=now_wall_ms
             )
         claim_connection(pid, connection_id, hub_key=self._hub_key)
-        stopped_watching = watching_connection_id is not None and _discard_watcher(
-            self._hub_key, self.session_id, watching_connection_id
-        )
+        stopped_watching = False
         # Per-connection id so a tab reload (stable guest client_id, seq 1)
         # is not collapsed as the original Join.
         cmd = RecordCommand.parse(
@@ -739,6 +742,10 @@ class RecordSessionService:
         # Lease stays on the Echo only — never persist it on the snapshot.
         cmd.payload.pop("lease", None)
         try:
+            if watching_connection_id is not None:
+                stopped_watching = _discard_watcher(
+                    self._hub_key, self.session_id, watching_connection_id
+                )
             snap = self.submit(
                 cmd,
                 capabilities=capabilities,
