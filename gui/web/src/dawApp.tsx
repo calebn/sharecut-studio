@@ -1,10 +1,12 @@
 import { useEffect } from "react";
 import { registerDawWebMcpTools } from "./agentic/webmcp";
+import { runPointerCommand } from "./commands/pointer";
 import { registerDawCommands } from "./commands/register";
 import { useDesktopCloseGuard } from "./desktop/useDesktopCloseGuard";
 import { FeedbackToast } from "./feedback/FeedbackToast";
 import { HelpHost } from "./home/HelpHost";
 import { useAutoRefreshMix } from "./hooks/useAutoRefreshMix";
+import { useBackOnline } from "./hooks/useBackOnline";
 import { useDocumentTitle } from "./hooks/useDocumentTitle";
 import { useGuestSyncAndProjectPoll } from "./hooks/useGuestSyncAndProjectPoll";
 import { useHostSync } from "./hooks/useHostSync";
@@ -23,6 +25,7 @@ import { useHostRoom } from "./record/useHostRoom";
 import { useOutputDevice } from "./record/useOutputDevice";
 import { SettingsHost } from "./settings/SettingsHost";
 import { isShareProjectKey } from "./shareMode";
+import type { ShellFailure } from "./shellLoadFailure";
 import { CommandPalette } from "./stage/dialogs/CommandPalette";
 import { HostMcpDialog } from "./stage/dialogs/HostMcpDialog";
 import { EDIT_SHEETS } from "./stage/edit/editSheets";
@@ -33,6 +36,7 @@ import { useLandingStage } from "./stage/frame/useLandingStage";
 import { BounceRunnerProvider } from "./stage/hosts/bounceRunner";
 import { ExportFlowProvider } from "./stage/hosts/exportFlow";
 import { FindMoreFlowProvider } from "./stage/hosts/findMoreFlow";
+import type { LoadFailure } from "./stage/hosts/hostModels";
 import { StageHost } from "./stage/hosts/StageHost";
 import { ShareFlowProvider } from "./stage/hosts/shareFlow";
 import { useDawStore } from "./state/dawStore";
@@ -41,6 +45,7 @@ import type { DawState } from "./state/types";
 import { pickDaw, useDaw } from "./state/useDaw";
 import { FollowEngine, TransportEngine } from "./TransportEngine";
 import { usePressedControl } from "./ui";
+import { homeUrl, projectNameFromPath } from "./utils/projectUrl";
 
 let commandsRegistered = false;
 
@@ -67,6 +72,38 @@ const selectDawAppDerived = (s: DawState) => ({
   suppressPublish: s.suppressPublish || s.sourcePreview !== null,
 });
 
+/**
+ * All projects from the cover for a failed first read. When this computer is
+ * open on a different episode, closing the project would close that one, so
+ * that case only goes to Home.
+ */
+function goHome(cause: ShellFailure) {
+  if (cause.audience === "host" && cause.kind === "elsewhere") {
+    window.location.assign(homeUrl(window.location.href));
+    return;
+  }
+  runPointerCommand("project.home");
+}
+
+function shellLoadFailure(
+  cause: ShellFailure | null,
+  projectPath: string,
+  trying: boolean,
+  onRetry: () => void,
+): LoadFailure | null {
+  if (!cause) return null;
+  const host = cause.audience === "host";
+  return {
+    source: "shell",
+    cause,
+    // A guest's path is a share key, which is no name to print.
+    name: host ? projectNameFromPath(projectPath) : "",
+    onRetry,
+    trying,
+    onHome: host ? () => goHome(cause) : undefined,
+  };
+}
+
 export function DawApp({ guestShare = false }: { guestShare?: boolean }) {
   const {
     projectPath,
@@ -91,10 +128,17 @@ export function DawApp({ guestShare = false }: { guestShare?: boolean }) {
   const publishKey = useDawStore(selectPublishKey);
 
   const {
-    error: bootstrapError,
+    failure: bootstrapFailure,
     retrying: bootstrapRetrying,
+    attempt: bootstrapAttempt,
     retry: retryBootstrap,
   } = useProjectBootstrap(projectPath);
+  useBackOnline(
+    bootstrapFailure?.audience === "guest" &&
+      bootstrapFailure.failure.kind === "offline",
+    bootstrapAttempt,
+    retryBootstrap,
+  );
 
   const syncEnabled = !guestShare && !isShareProjectKey(projectPath);
   const guestSyncEnabled = guestShare || isShareProjectKey(projectPath);
@@ -196,15 +240,12 @@ export function DawApp({ guestShare = false }: { guestShare?: boolean }) {
 
   useDocumentTitle(projectName || null);
 
-  const loadFailure = bootstrapError
-    ? { message: bootstrapError, onRetry: retryBootstrap }
-    : bootstrapRetrying
-      ? {
-          message: "Trying again…",
-          onRetry: retryBootstrap,
-          recovering: true,
-        }
-      : null;
+  const loadFailure = shellLoadFailure(
+    bootstrapFailure,
+    projectPath,
+    bootstrapRetrying,
+    retryBootstrap,
+  );
 
   const engines = (
     <>

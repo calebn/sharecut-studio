@@ -66,7 +66,12 @@ const phone = {
   globals: { viewport: { value: "mobile360", isRotated: false } },
 } as const;
 
-const FAILURE = { message: "The server did not answer.", onRetry: fn() };
+const FAILURE = {
+  source: "shell",
+  cause: { audience: "host", kind: "not-answering" },
+  name: "Rosa and Maya",
+  onRetry: fn(),
+} as const;
 
 export const Default: Story = {
   play: async ({ canvasElement }) => {
@@ -243,16 +248,19 @@ export const LoadError: Story = {
 };
 
 export const LoadRetrying: Story = {
-  args: {
-    loadFailure: { ...FAILURE, message: "Trying again…", recovering: true },
-  },
+  args: { loadFailure: { ...FAILURE, trying: true } },
   parameters: { episode: { state: { stage: "review", project: null } } },
   play: async ({ canvasElement }) => {
-    const retry = await within(canvasElement).findByRole("button", {
-      name: "Try again",
-    });
+    const canvas = within(canvasElement);
+    await userEvent.click(
+      await canvas.findByRole("button", { name: "Try again" }),
+    );
+    const retry = await canvas.findByRole("button", { name: "Trying…" });
     await expect(retry).toHaveAttribute("aria-busy", "true");
     await expect(retry).toHaveAttribute("aria-disabled", "true");
+    await expect(await canvas.findByRole("status")).toHaveTextContent(
+      "Trying again…",
+    );
   },
 };
 
@@ -598,7 +606,14 @@ export const GuestCommenterSelection: Story = {
 export const GuestRegionFailure: Story = {
   ...wideGuest("commenter"),
   tags: ["wide-only"],
-  args: { guestShare: true, loadFailure: FAILURE },
+  args: {
+    guestShare: true,
+    loadFailure: {
+      ...FAILURE,
+      cause: { audience: "guest", failure: { kind: "server" } },
+      name: "",
+    },
+  },
   play: async ({ args, canvasElement }) => {
     const canvas = within(canvasElement);
     await expect(

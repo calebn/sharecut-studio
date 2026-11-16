@@ -791,7 +791,12 @@ describe("Review queue for a guest", () => {
       render(
         <ReviewHost
           guestShare
-          loadFailure={{ message: "No answer.", onRetry }}
+          loadFailure={{
+            source: "shell",
+            cause: { audience: "guest", failure: { kind: "server" } },
+            name: "",
+            onRetry,
+          }}
         />,
       );
       const alert = screen.getByRole("alert");

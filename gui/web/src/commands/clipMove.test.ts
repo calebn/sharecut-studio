@@ -250,7 +250,7 @@ describe("edit.moveClips", () => {
     await act(async () => {
       await Promise.resolve();
     });
-    await waitFor(() => expect(hook.result.current.error).toBeNull());
+    await waitFor(() => expect(hook.result.current.failure).toBeNull());
     return hook;
   }
   it.each(["switch", "reopen"])(

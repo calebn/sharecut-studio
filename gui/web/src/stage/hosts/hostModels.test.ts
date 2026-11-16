@@ -21,7 +21,10 @@ describe("stageAvailable", () => {
 });
 
 describe("hostStateOf", () => {
-  const failure = { message: "No answer.", onRetry: () => {} };
+  const failure = {
+    source: "detail" as const,
+    onRetry: () => {},
+  };
 
   it("is loading with no project and no failure", () => {
     expect(hostStateOf(null, null)).toBe("loading");
