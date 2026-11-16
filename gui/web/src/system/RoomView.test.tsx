@@ -834,6 +834,25 @@ describe("RoomView as the host", () => {
     });
   });
 
+  it("focuses the title when focusTitle turns true on a loaded room", () => {
+    const { rerender } = renderRoom();
+    const h1 = screen.getByRole("heading", { level: 1 });
+    expect(h1).not.toHaveFocus();
+    rerender(
+      <RoomView
+        seat="producer"
+        title="Episode 14"
+        people={[HOST, JON]}
+        phase={LIVE}
+        notes={[]}
+        selfName="Jon"
+        onSendNote={vi.fn()}
+        focusTitle
+      />,
+    );
+    expect(screen.getByRole("heading", { level: 1 })).toHaveFocus();
+  });
+
   describe("loading", () => {
     it("draws the shell with placeholders, a busy root and one status line", () => {
       const { container } = renderRoom({ loading: true, people: [] });

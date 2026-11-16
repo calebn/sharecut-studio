@@ -107,7 +107,7 @@ export type RoomViewProps = {
   statusKnown?: boolean;
   /** Placeholder tiles and title, an inert dock, no pill, rail or Comments sheet. */
   loading?: boolean;
-  /** Focus the title when this turns true: after a Retry remount, or when the Join sheet closes on the room. */
+  /** Focus the title when this turns true. */
   focusTitle?: boolean;
 };
 
