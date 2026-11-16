@@ -67,6 +67,72 @@ export const BadLink: Story = {
   },
 };
 
+const LONG_TEXT = "A long thought about the second act. ".repeat(140);
+
+export const BadLinkWithUnsentComment: Story = {
+  render: () => (
+    <GuestPageCover
+      failure={{ kind: "bad-link" }}
+      trying={false}
+      onRetry={fn()}
+      unsent={[{ label: "Your comment", text: "Cut the pause at 1:05." }]}
+    />
+  ),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(
+      canvas.getByRole("heading", { name: "This link doesn't open anything" }),
+    ).toBeVisible();
+    await expect(
+      canvas.getByRole("textbox", { name: "Your comment was not posted" }),
+    ).toHaveValue("Cut the pause at 1:05.");
+    await expect(
+      canvas.getByRole("button", { name: "Copy your comment" }),
+    ).toBeVisible();
+  },
+};
+
+export const BadLinkWithSeveralUnsentTexts: Story = {
+  render: () => (
+    <GuestPageCover
+      failure={{ kind: "bad-link" }}
+      trying={false}
+      onRetry={fn()}
+      unsent={[
+        { label: "Your comment", text: "Cut the pause at 1:05." },
+        { label: "Your reply", text: "Agreed, trim it." },
+        { label: "Your note", text: "Please keep the laugh." },
+      ]}
+    />
+  ),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(
+      canvas.getByRole("textbox", { name: "These were not posted" }),
+    ).toBeVisible();
+    await expect(
+      canvas.getByRole("button", { name: "Copy all" }),
+    ).toBeVisible();
+  },
+};
+
+export const BadLinkWithVeryLongUnsentText: Story = {
+  render: () => (
+    <GuestPageCover
+      failure={{ kind: "bad-link" }}
+      trying={false}
+      onRetry={fn()}
+      unsent={[{ label: "Your comment", text: LONG_TEXT }]}
+    />
+  ),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(
+      canvas.getByRole("button", { name: "Copy your comment" }),
+    ).toBeVisible();
+  },
+};
+
 export const HostAsleep: Story = {
   render: () => <ReviewLinkCover failure={{ kind: "unreachable" }} />,
   play: async ({ canvasElement }) => {

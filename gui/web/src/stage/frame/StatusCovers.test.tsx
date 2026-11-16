@@ -2,6 +2,7 @@ import { act, fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { GuestLoadFailure } from "../../guestLoadFailure";
+import type { UnsentText } from "../../state/unsentText";
 import { expectNoA11yViolations } from "../../test/a11y";
 import { GuestPageCover, NotServedCover } from "./StatusCovers";
 
@@ -184,6 +185,218 @@ describe("GuestPageCover", () => {
     await expectNoA11yViolations(container);
     fireEvent.click(screen.getByRole("button", { name: "Retry" }));
     again({ trying: true });
+    await expectNoA11yViolations(container);
+  });
+});
+
+describe("GuestPageCover with text the guest had not sent", () => {
+  const comment = { label: "Your comment", text: "Cut the pause at 1:05" };
+  const reply = { label: "Your reply", text: "Agreed, trim it." };
+  const note = { label: "Your note", text: "Please keep the laugh." };
+
+  function renderUnsent(unsent: UnsentText[]) {
+    return render(
+      <GuestPageCover
+        failure={{ kind: "bad-link" }}
+        trying={false}
+        onRetry={vi.fn()}
+        unsent={unsent}
+      />,
+    );
+  }
+  function stubClipboard(write: (text: string) => Promise<void>) {
+    const writeText = vi.fn(write);
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: { writeText },
+    });
+    return writeText;
+  }
+  afterEach(() => {
+    Reflect.deleteProperty(navigator, "clipboard");
+  });
+
+  it("keeps the words of the cover and adds nothing to it when nothing was typed", () => {
+    for (const unsent of [undefined, []]) {
+      const { container, unmount } = render(
+        <GuestPageCover
+          failure={{ kind: "bad-link" }}
+          trying={false}
+          onRetry={vi.fn()}
+          unsent={unsent}
+        />,
+      );
+      expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent(
+        "This link doesn't open anything",
+      );
+      expect(screen.queryByRole("textbox")).toBeNull();
+      expect(screen.queryByRole("button")).toBeNull();
+      expect(screen.queryByRole("status")).toBeNull();
+      expect(container.querySelector(".guest-page-cover--unsent")).toBeNull();
+      unmount();
+    }
+  });
+
+  it.each([
+    [comment, "Your comment was not posted", "Copy your comment"],
+    [reply, "Your reply was not posted", "Copy your reply"],
+    [note, "Your note was not posted", "Copy your note"],
+  ])("names one text by its label (%#)", (one, heading, button) => {
+    renderUnsent([one]);
+    expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent(
+      "This link doesn't open anything",
+    );
+    expect(
+      screen.getByText("Ask the person who sent it for a new link."),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: heading, level: 2 }),
+    ).toBeVisible();
+    const area = screen.getByRole("textbox", { name: heading });
+    expect(area).toHaveValue(one.text);
+    expect(area).toHaveAttribute("readonly");
+    expect(screen.getAllByRole("button")).toHaveLength(1);
+    expect(screen.getByRole("button", { name: button })).toBeVisible();
+  });
+
+  it("puts several texts in one box with their labels, a blank line between, and one Copy all", () => {
+    renderUnsent([comment, reply, note]);
+    expect(
+      screen.getByRole("textbox", { name: "These were not posted" }),
+    ).toHaveValue(
+      "Your comment:\nCut the pause at 1:05\n\nYour reply:\nAgreed, trim it.\n\nYour note:\nPlease keep the laugh.",
+    );
+    expect(screen.getAllByRole("button")).toHaveLength(1);
+    expect(screen.getByRole("button", { name: "Copy all" })).toBeVisible();
+  });
+
+  it("copies the text exactly, says Copied, and clears it after three seconds", async () => {
+    vi.useFakeTimers();
+    const writeText = stubClipboard(async () => {});
+    renderUnsent([{ label: "Your comment", text: "  keep\n  spacing " }]);
+    const button = screen.getByRole("button", { name: "Copy your comment" });
+    button.focus();
+    await act(async () => {
+      fireEvent.click(button);
+    });
+    expect(writeText).toHaveBeenCalledExactlyOnceWith("  keep\n  spacing ");
+    expect(screen.getByRole("status")).toHaveTextContent("Copied");
+    expect(button).toHaveFocus();
+    act(() => {
+      vi.advanceTimersByTime(2_900);
+    });
+    expect(screen.getByRole("status")).toHaveTextContent("Copied");
+    act(() => {
+      vi.advanceTimersByTime(200);
+    });
+    expect(screen.getByRole("status")).toHaveTextContent(/^$/);
+    vi.useRealTimers();
+  });
+
+  it("keeps Copied for three seconds after the last press when two presses overlap", async () => {
+    vi.useFakeTimers();
+    let release: () => void = () => {};
+    let presses = 0;
+    stubClipboard(() => {
+      presses += 1;
+      return presses === 1
+        ? new Promise<void>((done) => {
+            release = done;
+          })
+        : Promise.resolve();
+    });
+    renderUnsent([comment]);
+    const button = screen.getByRole("button", { name: "Copy your comment" });
+    // The first press is still waiting for the clipboard when the second one answers.
+    await act(async () => {
+      fireEvent.click(button);
+    });
+    await act(async () => {
+      fireEvent.click(button);
+    });
+    expect(screen.getByRole("status")).toHaveTextContent("Copied");
+    act(() => {
+      vi.advanceTimersByTime(1_000);
+    });
+    await act(async () => {
+      release();
+    });
+    act(() => {
+      vi.advanceTimersByTime(2_500);
+    });
+    // Three seconds after the second press, but only 2.5 s after the later answer.
+    expect(screen.getByRole("status")).toHaveTextContent("Copied");
+    act(() => {
+      vi.advanceTimersByTime(600);
+    });
+    expect(screen.getByRole("status")).toHaveTextContent(/^$/);
+    vi.useRealTimers();
+  });
+
+  it("selects the text and says so when the clipboard refuses", async () => {
+    stubClipboard(() =>
+      Promise.reject(new DOMException("no", "NotAllowedError")),
+    );
+    renderUnsent([comment]);
+    await userEvent.click(
+      screen.getByRole("button", { name: "Copy your comment" }),
+    );
+    const area = screen.getByRole("textbox", {
+      name: "Your comment was not posted",
+    }) as HTMLTextAreaElement;
+    expect(area).toHaveFocus();
+    expect([area.selectionStart, area.selectionEnd]).toEqual([
+      0,
+      comment.text.length,
+    ]);
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "Couldn't copy. The text is selected, so you can copy it by hand.",
+    );
+  });
+
+  it("does the same when the page has no clipboard at all", async () => {
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: undefined,
+    });
+    renderUnsent([comment]);
+    await userEvent.click(
+      screen.getByRole("button", { name: "Copy your comment" }),
+    );
+    expect(screen.getByRole("status")).toHaveTextContent(/Couldn't copy/);
+    expect(
+      screen.getByRole("textbox", { name: "Your comment was not posted" }),
+    ).toHaveFocus();
+  });
+
+  it("holds the refusal line until the next press", async () => {
+    vi.useFakeTimers();
+    stubClipboard(() => Promise.reject(new Error("no")));
+    renderUnsent([comment]);
+    await act(async () => {
+      fireEvent.click(
+        screen.getByRole("button", { name: "Copy your comment" }),
+      );
+    });
+    act(() => {
+      vi.advanceTimersByTime(10_000);
+    });
+    expect(screen.getByRole("status")).toHaveTextContent(/Couldn't copy/);
+    vi.useRealTimers();
+  });
+
+  it("takes focus to the title when it arrives", () => {
+    renderUnsent([comment]);
+    expect(screen.getByRole("heading", { level: 1 })).toHaveFocus();
+  });
+
+  it("holds a very long text in its box and has no accessibility violations", async () => {
+    vi.useRealTimers();
+    const long = "A long thought. ".repeat(320);
+    const { container } = renderUnsent([{ label: "Your comment", text: long }]);
+    expect(
+      screen.getByRole("textbox", { name: "Your comment was not posted" }),
+    ).toHaveValue(long);
     await expectNoA11yViolations(container);
   });
 });
