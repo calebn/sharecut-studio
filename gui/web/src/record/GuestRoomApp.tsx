@@ -483,6 +483,7 @@ function GuestRoomSession({
         seat={producer ? "producer" : "guest"}
         title={episodeName || "Recording"}
         people={people}
+        lookingIn={snapshot?.watchers ?? 0}
         phase={phase}
         viewerWidth={viewerWidth}
         alerts={alerts}
@@ -531,6 +532,7 @@ function GuestRoomSession({
           seat={producer ? "producer" : "guest"}
           here={joinHere(snapshot, me)}
           host={host}
+          lookingIn={snapshot?.watchers ?? 0}
           name={name}
           onNameChange={setName}
           mic={joinMic(sheetMic.input, sheetMic.options)}

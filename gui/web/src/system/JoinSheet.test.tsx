@@ -194,6 +194,29 @@ describe("JoinSheet guest", () => {
     ).toBeInTheDocument();
   });
 
+  it.each([
+    [
+      0,
+      "Rosa is listening and won't be recorded",
+      "Someone with the producer link is looking in",
+    ],
+    [
+      1,
+      "Rosa is listening and won't be recorded. Someone with the producer link is looking in. They can see the room but can't hear it.",
+      null,
+    ],
+    [
+      2,
+      "Rosa is listening and won't be recorded. 2 people with the producer link are looking in. They can see the room but can't hear it.",
+      null,
+    ],
+  ])("words Details for %i looking in", async (lookingIn, text, absent) => {
+    render(<Harness {...READY} lookingIn={lookingIn} />);
+    await userEvent.click(screen.getByRole("button", { name: "Details" }));
+    expect(screen.getByText(text)).toBeInTheDocument();
+    if (absent) expect(screen.queryByText(new RegExp(absent))).toBeNull();
+  });
+
   it("holds the primary in place with a busy state while joining", async () => {
     const onJoin = vi.fn();
     render(<Harness {...READY} joining onJoin={onJoin} />);

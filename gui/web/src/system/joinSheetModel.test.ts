@@ -64,6 +64,31 @@ describe("listenersLine", () => {
   });
 });
 
+describe("listenersLine with people looking in", () => {
+  const here = [
+    { person: MAYA, role: "host" as const },
+    { person: ROSA, role: "producer" as const },
+  ];
+
+  it("is unchanged with nobody looking in", () => {
+    expect(listenersLine(here, 0)).toBe(
+      "Rosa is listening and won't be recorded",
+    );
+  });
+
+  it("adds the one who is looking in and says they cannot hear", () => {
+    expect(listenersLine(here, 1)).toBe(
+      "Rosa is listening and won't be recorded. Someone with the producer link is looking in. They can see the room but can't hear it.",
+    );
+  });
+
+  it("counts several, and stands alone with no listener", () => {
+    expect(listenersLine([{ person: MAYA, role: "host" }], 2)).toBe(
+      "2 people with the producer link are looking in. They can see the room but can't hear it.",
+    );
+  });
+});
+
 describe("consentLine", () => {
   it("names the host's project, or the host when unnamed", () => {
     expect(consentLine("Maya Okafor")).toContain("saves to Maya's project");
