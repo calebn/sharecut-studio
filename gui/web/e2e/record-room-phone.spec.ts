@@ -25,10 +25,8 @@ import { openProject } from "./stageNav";
 import { withBrowserPages } from "./twoBrowserPages";
 
 /**
- * The record room on a phone (issue 3834, PR 7): the episode title keeps two
- * lines in a 44 px header, every dock control is told apart by a word and a
- * 44 px target, tiles start under the header, and the guest's own tile reads
- * as theirs and leads to Devices. The laptop keeps its wordmark and dock.
+ * The laptop and the host studio on a phone must keep their old header, grid
+ * and dock, so every phone rule is checked next to what it must not change.
  */
 
 const { defaultBrowserType: _iphoneBrowser, ...iPhone } = devices["iPhone 13"];
