@@ -3,8 +3,8 @@ import { type GuestLoadFailure, guestLoadCover } from "../../guestLoadFailure";
 import { useShortLayoutViewport } from "../../hooks/useShortLayoutViewport";
 import type { UnsentText } from "../../state/unsentText";
 import { Cover } from "../../system/Cover";
-import { HELD_BUSY_MS, useHeldBusy } from "../../system/useHeldBusy";
-import type { NotServed } from "../../utils/notServed";
+import { useCoverPress } from "../../system/useCoverPress";
+import { NOT_SERVED_TITLE, type NotServed } from "../../utils/notServed";
 
 const COPIED_MS = 3_000;
 const COPY_FAILED =
@@ -116,9 +116,13 @@ export function GuestPageCover({
   const cover = guestLoadCover(failure);
   const mainRef = useRef<HTMLElement>(null);
   const titleRef = useRef<HTMLHeadingElement>(null);
-  const { busy, press } = useHeldBusy(trying, HELD_BUSY_MS);
-  const [pressedTitle, setPressedTitle] = useState<string | null>(null);
   const { title } = cover;
+  const { busy, status, press } = useCoverPress({
+    key: title,
+    trying,
+    stillFailing: cover.stillFailing,
+    changed: `${title}.`,
+  });
   const handBack = useUnsentBlock(unsent);
   const shortWindow = useShortLayoutViewport();
 
@@ -130,16 +134,6 @@ export function GuestPageCover({
     }
   }, [title]);
 
-  // The status speaks only about the press it answers: an attempt nobody
-  // pressed starting forgets it.
-  if (pressedTitle !== null && trying && !busy) {
-    setPressedTitle(null);
-  }
-  // "Still" is true only while the cover is the one that was pressed; a press
-  // answered by a different cover says what that cover is, since focus stays
-  // on the button and this line is all a screen reader hears.
-  const answer = pressedTitle === title ? cover.stillFailing : `${title}.`;
-  const status = busy ? "Trying again…" : pressedTitle !== null ? answer : "";
   return (
     <main
       ref={mainRef}
@@ -160,7 +154,6 @@ export function GuestPageCover({
                   label: cover.button,
                   onClick: () => {
                     press();
-                    setPressedTitle(title);
                     onRetry();
                   },
                   busy,
@@ -189,7 +182,7 @@ export function NotServedCover({
     <Cover
       size="page"
       glyph="folder-open"
-      title="This episode isn't open on this computer"
+      title={NOT_SERVED_TITLE}
       primary={{
         label: `Open ${notServed.name}`,
         onClick: () => onNavigate(notServed.openHref),

@@ -3,6 +3,7 @@ import {
   classifyBootstrapFailure,
   type GuestLoadFailure,
   guestLoadCover,
+  noAnswerStatus,
 } from "./guestLoadFailure";
 import { ApiError } from "./utils/apiError";
 
@@ -244,5 +245,67 @@ describe("guestLoadCover", () => {
     )) {
       expect(guestLoadCover(kind).stillFailing).toBe("Still not loading.");
     }
+  });
+});
+
+describe("noAnswerStatus", () => {
+  it.each<[number | null, string | null, boolean]>([
+    [null, null, true],
+    [null, "network_error", true],
+    [502, null, true],
+    [504, null, true],
+    [503, null, true],
+    [503, "project_busy", false],
+    [500, null, false],
+    [404, null, false],
+    [429, null, false],
+  ])("status %s, code %s: no answer is %s", (status, code, expected) => {
+    expect(noAnswerStatus(status, code)).toBe(expected);
+  });
+});
+
+describe("guestLoadCover inside a region of the studio", () => {
+  const title = "The transcript didn't load";
+
+  it("puts the region's title and button on the causes that have none of their own", () => {
+    for (const kind of [
+      "busy",
+      "unavailable",
+      "intercepted",
+      "server",
+    ] as const) {
+      const cover = guestLoadCover({ kind }, title, "Try again");
+      expect(cover.title).toBe(title);
+      expect(cover.button).toBe("Try again");
+      expect(cover.sentence).toBe(guestLoadCover({ kind }).sentence);
+    }
+    expect(
+      guestLoadCover(
+        { kind: "rate-limited", retryAfterSec: null },
+        title,
+        "Try again",
+      ),
+    ).toMatchObject({ title, button: "Try again" });
+  });
+
+  it("keeps its own title and button for asleep and offline, and no button for a sign-in", () => {
+    expect(
+      guestLoadCover({ kind: "unreachable" }, title, "Try again"),
+    ).toMatchObject({
+      title: "The host's computer is asleep",
+      button: "Try now",
+    });
+    expect(
+      guestLoadCover({ kind: "offline" }, title, "Try again"),
+    ).toMatchObject({
+      title: "You're offline",
+      button: "Try now",
+    });
+    expect(
+      guestLoadCover({ kind: "sign-in" }, title, "Try again").button,
+    ).toBeNull();
+    expect(
+      guestLoadCover({ kind: "restricted" }, title, "Try again").button,
+    ).toBeNull();
   });
 });
