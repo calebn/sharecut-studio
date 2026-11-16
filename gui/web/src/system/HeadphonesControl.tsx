@@ -7,6 +7,12 @@ import {
 } from "./joinSheetModel";
 import { SystemIcon } from "./SystemIcon";
 
+function PressedMark() {
+  return (
+    <SystemIcon name="check" size={16} className="sys-headphones-choice-mark" />
+  );
+}
+
 /**
  * Where the headphones answer is given. On `required` it is one toggle that
  * must be on; on `choice` two buttons, neither pressed until the guest
@@ -44,6 +50,7 @@ export function HeadphonesControl({
         >
           <SystemIcon name="headphones" size={16} />
           {JOIN_TEXT.headphones}
+          {choice === "on" ? <PressedMark /> : null}
         </ToggleButton>
         <ToggleButton
           pressed={choice === "off"}
@@ -51,6 +58,7 @@ export function HeadphonesControl({
         >
           <SystemIcon name="headphone-off" size={16} />
           {JOIN_TEXT.notWearingHeadphones}
+          {choice === "off" ? <PressedMark /> : null}
         </ToggleButton>
       </SegmentedControl>
       <div role="status" className="sys-join-notes">

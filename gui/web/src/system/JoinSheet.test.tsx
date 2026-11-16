@@ -693,6 +693,7 @@ describe("JoinSheet headphones on a phone", () => {
     expect(
       within(group).getByRole("button", { name: NOT_WEARING }),
     ).toHaveAttribute("aria-pressed", "false");
+    expect(group.querySelector(".lucide-check")).toBeNull();
     const join = primary("Join and record");
     expect(join).toBeDisabled();
     expect(join).toHaveAccessibleDescription(
@@ -708,6 +709,10 @@ describe("JoinSheet headphones on a phone", () => {
     await userEvent.click(primary(NOT_WEARING));
     expect(onChange).toHaveBeenCalledWith("off");
     expect(primary(NOT_WEARING)).toHaveAttribute("aria-pressed", "true");
+    expect(primary(NOT_WEARING).querySelector(".lucide-check")).not.toBeNull();
+    expect(
+      primary("I'm wearing headphones").querySelector(".lucide-check"),
+    ).toBeNull();
     expect(screen.getByText(NOTE)).toBeVisible();
     expect(primary("Join and record")).toBeEnabled();
   });
