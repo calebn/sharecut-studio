@@ -359,6 +359,15 @@ describe("App review route", () => {
       "Try again, and if it keeps happening, tell the person who sent it.",
     ],
     [
+      "a 401",
+      () =>
+        new Response(JSON.stringify({ detail: "SENTINEL-1 sign in" }), {
+          status: 401,
+          headers: { "X-Sharecut-Error-Code": "authentication_required" },
+        }),
+      "This link needs a sign-in; ask the person who sent it how to sign in.",
+    ],
+    [
       "a 403",
       () =>
         new Response(JSON.stringify({ detail: "SENTINEL-1 mismatch" }), {
@@ -382,7 +391,7 @@ describe("App review route", () => {
       "This network did not pass the page through; on public Wi-Fi, sign in to the Wi-Fi first, then try again.",
     ],
   ])(
-    "prints one plain sentence and none of the server's text for %s",
+    "never prints the server's response text, only the table's sentence, for %s",
     async (_name, respond, sentence) => {
       window.history.pushState({}, "", "/r/plain");
       offline.load.mockResolvedValue(undefined);
@@ -391,6 +400,18 @@ describe("App review route", () => {
       await screen.findByRole("heading", { name: "This link did not load" });
       expect(screen.getByText(sentence)).toBeVisible();
       expect(document.body).not.toHaveTextContent("SENTINEL-1");
+    },
+  );
+
+  it.each([[401], [403]])(
+    "offers no button for a %i, because pressing cannot change the answer",
+    async (status) => {
+      window.history.pushState({}, "", "/r/refused");
+      offline.load.mockResolvedValue(undefined);
+      stubBootstrapFailure(() => new Response("{}", { status }));
+      render(<App />);
+      await screen.findByRole("heading", { name: "This link did not load" });
+      expect(screen.queryByRole("button")).toBeNull();
     },
   );
 
@@ -411,7 +432,7 @@ describe("App review route", () => {
     expect(screen.queryByText("The host's computer is asleep")).toBeNull();
     expect(
       screen.getByText(
-        "The host's computer is busy; this page tries again every 30 seconds.",
+        "This episode is busy for a moment; this page tries again every 30 seconds.",
       ),
     ).toBeVisible();
     expect(screen.getByRole("button", { name: "Retry" })).toBeVisible();

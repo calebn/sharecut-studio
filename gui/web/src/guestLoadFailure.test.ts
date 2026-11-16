@@ -45,7 +45,7 @@ describe("classifyBootstrapFailure", () => {
       failure(429, null),
       { kind: "rate-limited", retryAfterSec: null },
     ],
-    ["401", failure(401, "authentication_required"), { kind: "restricted" }],
+    ["401", failure(401, "authentication_required"), { kind: "sign-in" }],
     ["403", failure(403, "share_acl_denied"), { kind: "restricted" }],
     ["500 with a code", failure(500, "internal_error"), { kind: "server" }],
     ["500 without one", failure(500, null), { kind: "server" }],
@@ -90,7 +90,7 @@ describe("guestLoadCover", () => {
     [
       { kind: "busy" },
       NOT_LOADED,
-      "The host's computer is busy; this page tries again every 30 seconds.",
+      "This episode is busy for a moment; this page tries again every 30 seconds.",
       "Retry",
       30_000,
     ],
@@ -98,7 +98,14 @@ describe("guestLoadCover", () => {
       { kind: "restricted" },
       NOT_LOADED,
       "This link is only for certain people; ask the person who sent it to check it was made for you.",
-      "Retry",
+      null,
+      null,
+    ],
+    [
+      { kind: "sign-in" },
+      NOT_LOADED,
+      "This link needs a sign-in; ask the person who sent it how to sign in.",
+      null,
       null,
     ],
     [
@@ -143,7 +150,7 @@ describe("guestLoadCover", () => {
     },
   );
 
-  it("answers a rate limit in a moment, at the clamped Retry-After", () => {
+  it("retries a rate limit at the clamped Retry-After", () => {
     const at = (retryAfterSec: number | null) =>
       guestLoadCover({ kind: "rate-limited", retryAfterSec });
     expect(at(null).autoRetryMs).toBe(30_000);
@@ -152,10 +159,22 @@ describe("guestLoadCover", () => {
     expect(at(9_999).autoRetryMs).toBe(120_000);
     expect(at(20)).toMatchObject({
       title: NOT_LOADED,
-      sentence:
-        "This link is busy right now; this page tries again in a moment.",
       button: "Retry",
     });
+  });
+
+  it.each([
+    [null, "in a moment"],
+    [1, "in a moment"],
+    [30, "in a moment"],
+    [31, "in about a minute"],
+    [90, "in about a minute"],
+    [91, "in about two minutes"],
+    [9_999, "in about two minutes"],
+  ])("names a rate limit's wait for Retry-After %s as %s", (sec, words) => {
+    expect(
+      guestLoadCover({ kind: "rate-limited", retryAfterSec: sec }).sentence,
+    ).toBe(`This link is busy right now; this page tries again ${words}.`);
   });
 
   it("says Still asleep. only for the asleep cover", () => {
@@ -165,21 +184,5 @@ describe("guestLoadCover", () => {
     for (const [kind] of rows.filter(([k]) => k.kind !== "unreachable")) {
       expect(guestLoadCover(kind).stillFailing).toBe("Still not loading.");
     }
-  });
-
-  it("never carries response text, whatever the failure", () => {
-    for (const status of [null, 401, 403, 404, 429, 500, 502, 503, 504, 418]) {
-      for (const code of [null, "share_not_found", "project_busy", "other"]) {
-        const cover = guestLoadCover(
-          classifyBootstrapFailure(failure(status, code)),
-        );
-        expect(JSON.stringify(cover)).not.toContain(SENTINEL);
-      }
-    }
-    expect(
-      JSON.stringify(
-        guestLoadCover(classifyBootstrapFailure(new Error(SENTINEL))),
-      ),
-    ).not.toContain(SENTINEL);
   });
 });
