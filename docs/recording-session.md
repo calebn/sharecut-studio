@@ -824,8 +824,9 @@ comes from the participant's role (`RoomPerson.role`), not from who is viewing.
 
 A recorded guest who has accepted recording and said they are not wearing headphones has a
 crossed-out headphones glyph on their live tile, and "not wearing headphones" in its accessible
-name ("Maya Okafor, not wearing headphones"). The host, producers and the guest's own tile show
-it; other guests do not. It clears when the guest says they are wearing them, or when the tile
+name ("Maya Okafor, not wearing headphones"; on the guest's own page "Maya Okafor, you, not wearing
+headphones", since that tile also reads "(you)" and leads to Devices). The host, producers and the
+guest's own tile show it; other guests do not. It clears when the guest says they are wearing them, or when the tile
 is no longer live. It is a display choice, not a privacy boundary: the room's snapshot carries
 every participant's answer (`roomPeople.ts`).
 
