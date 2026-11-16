@@ -1852,6 +1852,16 @@ html:not([data-shell="phone"])
   gap: var(--space-3);
 }
 
+.sys-cover-actions--status {
+  --sys-cover-status-line: calc(var(--font-size-body) * 1.4);
+}
+
+/* A button that is working is not unavailable: the shared disabled look would drop its label below readable contrast, so the spinner, the label and the cursor carry the state instead. */
+.sys-cover-actions .ui-control[aria-busy="true"] {
+  opacity: 1;
+  cursor: progress;
+}
+
 /* Out of flow, so the text appearing moves nothing: below the actions, or above them where the button is pinned to the bottom of a phone. */
 .sys-cover-action-status {
   position: absolute;
@@ -1863,6 +1873,7 @@ html:not([data-shell="phone"])
   padding-block-start: var(--space-3);
   color: var(--color-text-secondary);
   font-size: var(--font-size-body);
+  line-height: 1.4;
   text-align: center;
 }
 
@@ -1887,11 +1898,15 @@ html:not([data-shell="phone"])
     margin-block: var(--sys-cover-top) auto;
   }
 
+  /* The block reserves the line's height above the button as its own padding and the status sits in it, so the line cannot touch the sentence. With free space nothing moves (the block is pinned to the bottom); without it the page scrolls and the line still has its room. */
+  .sys-cover--page .sys-cover-actions--status {
+    padding-block-start: calc(var(--sys-cover-status-line) + var(--space-3));
+  }
+
   .sys-cover--page .sys-cover-action-status {
-    inset-block-start: auto;
-    inset-block-end: 100%;
+    inset-block-start: 0;
+    inset-block-end: auto;
     padding-block-start: 0;
-    padding-block-end: var(--space-3);
   }
 
   .sys-cover--page .sys-cover-actions {
