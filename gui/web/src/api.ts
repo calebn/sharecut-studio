@@ -129,7 +129,6 @@ export { loadFeed, sendFeedEdit, sendFeedWrite } from "./api/feed";
 export { apiSend, HOST_KEY, isHostProjectKey } from "./api/http";
 export { openJobStream } from "./api/jobStream";
 export {
-  endedRequestError,
   isDeadLinkAnswer,
   isLinkEnded,
   markLinkEnded,

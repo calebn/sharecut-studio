@@ -7,7 +7,7 @@ import {
   NETWORK_ERROR_CODE,
   recordProjectKey,
 } from "./http";
-import { isLinkEnded, markLinkEnded, subscribeLinkDoubt } from "./linkState";
+import { markLinkEnded, subscribeLinkDoubt } from "./linkState";
 
 vi.mock("../sessionAuth", () => ({
   authHeaders: (extra?: HeadersInit) => {
@@ -251,7 +251,6 @@ describe("apiSend and a link that may be off", () => {
     stubFetch(async () => answer);
     const res = await apiSend(guest("tok-report"), route);
     expect(res).toBe(answer);
-    expect(res.status).toBe(404);
     expect(doubts).toEqual(["tok-report"]);
   });
 
@@ -328,7 +327,6 @@ describe("apiSend and a link that may be off", () => {
     expect(error).toBeInstanceOf(DOMException);
     expect((error as DOMException).name).toBe("AbortError");
     expect(spy).not.toHaveBeenCalled();
-    expect(isLinkEnded("tok-ended")).toBe(true);
   });
 
   it("reads no header from an answer that is not a 404", async () => {

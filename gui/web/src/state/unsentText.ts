@@ -6,34 +6,31 @@ export type UnsentText = { label: string; text: string };
 
 const COMMENT_LABEL = "Your comment";
 
-const readers = new Map<symbol, { label: string; read: () => string[] }>();
+type Reader = { label: string; read: () => string[] };
+
+const readers = new Set<Reader>();
 
 /**
- * Registers a reader for a draft that lives in a component. It returns what
- * to take back: one string per unsent text, which may be empty. Readers keep
- * their registration order.
+ * Keeps a component's draft collectable for as long as the component is
+ * mounted. `text` may be several drafts; each non-blank one is its own entry.
+ * Readers keep their registration order.
  */
-function registerUnsent(label: string, read: () => string[]): () => void {
-  const id = Symbol(label);
-  readers.set(id, { label, read });
-  return () => {
-    readers.delete(id);
-  };
-}
-
-/** Keeps a component's draft collectable for as long as the component is mounted. */
 export function useUnsentText(label: string, text: string | string[]): void {
   const latest = useRef(text);
   useEffect(() => {
     latest.current = text;
   });
-  useEffect(
-    () =>
-      registerUnsent(label, () =>
+  useEffect(() => {
+    const reader: Reader = {
+      label,
+      read: () =>
         Array.isArray(latest.current) ? latest.current : [latest.current],
-      ),
-    [label],
-  );
+    };
+    readers.add(reader);
+    return () => {
+      readers.delete(reader);
+    };
+  }, [label]);
 }
 
 /**
@@ -49,7 +46,7 @@ export function collectUnsent(): UnsentText[] {
     if (text !== undefined && text.trim() !== "") found.push({ label, text });
   };
   add(COMMENT_LABEL, composer.draft?.text || composer.post?.sentText);
-  for (const { label, read } of [...readers.values()]) {
+  for (const { label, read } of readers) {
     for (const text of read()) add(label, text);
   }
   return found;

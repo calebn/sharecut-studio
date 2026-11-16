@@ -152,7 +152,7 @@ export async function readApiError(res: Response): Promise<string> {
   const text = await res.text().catch(() => "");
   return guestSafeMessage(
     res,
-    res.headers.get("X-Sharecut-Error-Code"),
+    res.headers.get(ERROR_CODE_HEADER),
     parseFailureText(text, res.status).message,
   );
 }
@@ -247,7 +247,9 @@ function asRecord(value: unknown): Record<string, unknown> | null {
     : null;
 }
 
-export const SHARE_NOT_FOUND_CODE = "share_not_found";
+export const ERROR_CODE_HEADER = "X-Sharecut-Error-Code";
+
+const SHARE_NOT_FOUND_CODE = "share_not_found";
 
 /** The server's one answer for a link that is off, unknown or expired. */
 export function isDeadLinkAnswer(
@@ -268,13 +270,9 @@ export const LINK_DOUBT_MESSAGE =
 /** True for a dead-link answer from a guest route, never from the host's share management. */
 function isGuestDeadLinkAnswer(res: Response, code: string | null): boolean {
   if (!isDeadLinkAnswer(res.status, code) || !res.url) return false;
-  try {
-    return new URL(res.url, "http://localhost").pathname.startsWith(
-      "/api/review/",
-    );
-  } catch {
-    return false;
-  }
+  return new URL(res.url, "http://localhost").pathname.startsWith(
+    "/api/review/",
+  );
 }
 
 function guestSafeMessage(
@@ -290,7 +288,7 @@ export async function readApiFailure(res: Response): Promise<ApiError> {
   const text = await res.text().catch(() => "");
   const parsed = parseFailureText(text, res.status);
   const { body } = parsed;
-  const code = res.headers.get("X-Sharecut-Error-Code");
+  const code = res.headers.get(ERROR_CODE_HEADER);
   const message = guestSafeMessage(res, code, parsed.message);
   const model =
     res.status === 409 && code === MODEL_NEEDED_CODE
