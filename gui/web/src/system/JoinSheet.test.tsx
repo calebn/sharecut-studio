@@ -438,6 +438,26 @@ describe("JoinSheet first focus", () => {
     await waitFor(() => expect(primary("Join and record")).toHaveFocus());
   });
 
+  it("hands a later step to the name row, not the field, on a touch screen", async () => {
+    touchScreen();
+    const { rerender } = render(
+      <Harness
+        mic={{ status: "idle" }}
+        blocker={{ text: "Checking this device…" }}
+      />,
+    );
+    await waitFor(() =>
+      expect(document.querySelector('[data-step="storage"]')).toHaveFocus(),
+    );
+    rerender(<Harness mic={{ status: "idle" }} />);
+    await waitFor(() =>
+      expect(document.querySelector('[data-step="name"]')).toHaveFocus(),
+    );
+    expect(
+      screen.getByRole("textbox", { name: "Your name" }),
+    ).not.toHaveFocus();
+  });
+
   it("moves focus on when the storage row it waited on goes away", async () => {
     const { rerender } = render(
       <Harness {...READY} blocker={{ text: "Checking this device…" }} />,
