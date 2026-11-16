@@ -31,6 +31,7 @@ import {
 } from "../../shareMode";
 import { useDawStore } from "../../state/dawStore";
 import { listenLayoutOf } from "../../state/stageRoutes";
+import { useUnsentText } from "../../state/unsentText";
 import { useDaw } from "../../state/useDaw";
 import { CommentCard } from "../../system/CommentCard";
 import type { BodyEdit } from "../../system/Composer";
@@ -115,6 +116,7 @@ export function useReviewComments(guest: boolean) {
     new Map(),
   );
   const [replies, setReplies] = useState<Readonly<Record<string, string>>>({});
+  useUnsentText("Your reply", Object.values(replies));
   const actions = useCommentActions({ role });
   const replyRef = useRef<HTMLTextAreaElement>(null);
   const inFlight = useRef(
