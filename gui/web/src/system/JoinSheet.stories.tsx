@@ -415,9 +415,7 @@ export const ProducerJoining: Story = {
     const join = dialog.getByRole("button", { name: "Joining…" });
     await expect(join).toHaveAttribute("aria-disabled", "true");
     await expect(join).toHaveAttribute("aria-busy", "true");
-    await expect(
-      dialog.getByRole("button", { name: "Not now" }),
-    ).toBeDisabled();
+    await expect(dialog.getByRole("button", { name: "Not now" })).toBeEnabled();
   },
 };
 
