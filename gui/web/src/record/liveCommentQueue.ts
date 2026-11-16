@@ -142,4 +142,5 @@ export function liveTakeOpen(state: string | undefined): boolean {
   return state === "recording" || state === "paused";
 }
 
-export const NOTES_CLOSED_REASON = "Notes open while a take is running.";
+export const COMMENTS_CLOSED_REASON =
+  "You can comment while a take is running.";

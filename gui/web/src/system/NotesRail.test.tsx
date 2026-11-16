@@ -58,13 +58,15 @@ function setup(over: Partial<NotesRailProps> = {}) {
   return { ...utils, props };
 }
 
-const field = () => screen.getByRole("textbox", { name: "Add a note" });
-const send = () => screen.getByRole("button", { name: "Send note" });
+const field = () => screen.getByRole("textbox", { name: "Add a comment" });
+const send = () => screen.getByRole("button", { name: "Post" });
 
 describe("NotesRail", () => {
-  it("is a labelled Notes landmark", () => {
+  it("is a labelled Comments landmark", () => {
     setup();
-    expect(screen.getByRole("region", { name: "Notes" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("region", { name: "Comments" }),
+    ).toBeInTheDocument();
   });
 
   it("lists markers and notes chronologically as rows, with no live region", () => {
@@ -82,7 +84,7 @@ describe("NotesRail", () => {
   it("gives a session-level note no time and reads it as one", () => {
     setup();
     expect(
-      screen.getByRole("button", { name: /Cold open first.*session note/ }),
+      screen.getByRole("button", { name: /Cold open first.*session comment/ }),
     ).toBeInTheDocument();
   });
 
@@ -114,7 +116,7 @@ describe("NotesRail", () => {
   it("shows the empty line when a guest sees nothing", () => {
     setup({ items: [], viewer: "guest" });
     expect(
-      screen.getByText("No notes yet. Notes pin to the recording time."),
+      screen.getByText("No comments yet. Comments pin to the recording time."),
     ).toBeVisible();
     expect(screen.queryByRole("list")).toBeNull();
   });
@@ -127,7 +129,9 @@ describe("NotesRail", () => {
 
   it("shows the paused line under the list and keeps the composer", () => {
     setup({ paused: true });
-    expect(screen.getByText("Paused. Notes land at the pause.")).toBeVisible();
+    expect(
+      screen.getByText("Paused. Comments land at the pause."),
+    ).toBeVisible();
     expect(field()).toBeEnabled();
   });
 
@@ -194,8 +198,8 @@ describe("NotesRail", () => {
     const onSend = vi.fn();
     setup({ draft: "   ", onSend });
     expect(send()).toHaveAttribute("aria-disabled", "true");
-    expect(send()).toHaveAttribute("title", "Write a note to send");
-    expect(screen.getByText("Write a note to send")).toBeVisible();
+    expect(send()).toHaveAttribute("title", "Write a comment to post.");
+    expect(screen.getByText("Write a comment to post.")).toBeVisible();
     await user.click(send());
     field().focus();
     await user.keyboard("{Enter}");
@@ -209,7 +213,7 @@ describe("NotesRail", () => {
     expect(screen.getByText("12:08")).toBeVisible();
     await user.click(
       screen.getByRole("button", {
-        name: "12:08, clear time to make this a session note",
+        name: "12:08, clear time to make this a session comment",
       }),
     );
     expect(onClearTime).toHaveBeenCalledOnce();
@@ -253,7 +257,7 @@ describe("NotesRail", () => {
 
   it("keeps the composer label and placeholder on one field", () => {
     setup();
-    expect(field()).toHaveAttribute("placeholder", "Add a note");
+    expect(field()).toHaveAttribute("placeholder", "Add a comment");
   });
 
   it("keeps the send rule in the record stylesheet and the lock rule in the review one", () => {

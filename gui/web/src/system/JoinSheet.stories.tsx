@@ -102,7 +102,7 @@ const meta: Meta<StoryArgs> = {
       ...isolatedStoryParameters.docs,
       description: {
         component:
-          "The pre-join sheet over a live room: the title and a row of avatars say who is here, then rows that check themselves off (name, microphone, headphones, each a Status row), the consent line with a Details disclosure, one primary and Not now. The primary stays disabled and names the first row still to do. A producer sees one name row, the headphone glyph and \"You'll listen and take notes. You won't be recorded.\" with Join to listen. One Dialog: a card from 600 px, a bottom sheet under it. The card is 400 wide, 96 from the top, with the room visible around it. The sheet rises from the bottom as tall as its rows, at most 88% of the screen, with the room's header showing above it. A press beside the sheet does nothing, and there is one Close. Presentational: the caller owns the name, the microphone and the join itself, and Not now, Escape and Close all decline.\n\n**Motion.** None yet. Later: a row's glyph turns into its check with `--motion-state`, the meter follows the live level, and the clip tick fades out after 2 s.",
+          "The pre-join sheet over a live room: the title and a row of avatars say who is here, then rows that check themselves off (name, microphone, headphones, each a Status row), the consent line with a Details disclosure, one primary and Not now. The primary stays disabled and names the first row still to do. A producer sees one name row, the headphone glyph and \"You'll listen and comment. You won't be recorded.\" with Join to listen. One Dialog: a card from 600 px, a bottom sheet under it. The card is 400 wide, 96 from the top, with the room visible around it. The sheet rises from the bottom as tall as its rows, at most 88% of the screen, with the room's header showing above it. A press beside the sheet does nothing, and there is one Close. Presentational: the caller owns the name, the microphone and the join itself, and Not now, Escape and Close all decline.\n\n**Motion.** None yet. Later: a row's glyph turns into its check with `--motion-state`, the meter follows the live level, and the clip tick fades out after 2 s.",
       },
     },
   },
@@ -397,7 +397,7 @@ export const Producer: Story = {
     if (viewMode === "docs") return;
     const dialog = await sheet();
     await expect(
-      dialog.getByText("You'll listen and take notes. You won't be recorded."),
+      dialog.getByText("You'll listen and comment. You won't be recorded."),
     ).toBeVisible();
     await expect(dialog.queryByText("Microphone")).toBeNull();
     await userEvent.click(

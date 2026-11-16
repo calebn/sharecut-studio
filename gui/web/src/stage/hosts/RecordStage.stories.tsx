@@ -324,7 +324,7 @@ export const MoreSheetGuestsSeeNotes: Story = {
       name: "More",
     });
     await expect(
-      within(dialog).getByRole("button", { name: "Guests see notes" }),
+      within(dialog).getByRole("button", { name: "Guests see comments" }),
     ).toHaveAttribute("aria-pressed", "true");
   },
 };

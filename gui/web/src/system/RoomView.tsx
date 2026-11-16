@@ -54,12 +54,12 @@ export type RoomViewProps = {
   phase: RoomPhase;
   viewerWidth?: ViewerWidth;
   alerts?: RoomAlertInput[];
-  /** Whether the Notes rail starts open. The Notes button flips it after that. */
+  /** Whether the Comments rail starts open. The Comments button flips it after that. */
   defaultNotesOpen?: boolean;
   notes: NoteItem[];
-  /** The viewer's own name, so a guest keeps their own notes. */
+  /** The viewer's own name, so a guest keeps their own comments. */
   selfName: string;
-  /** `false` keeps the draft: the note could not be sent (say, the take just ended). */
+  /** `false` keeps the draft: the comment could not be sent (say, the take just ended). */
   onSendNote: (note: NoteDraft) => boolean | void;
   unreadNotes?: number;
   onInvite?: () => void;
@@ -91,24 +91,24 @@ export type RoomViewProps = {
   alertsInFrame?: boolean;
   recordDisabledReason?: string;
   takes?: ReactNode;
-  /** Why notes cannot be sent now (no take is open); the composer is disabled with this reason. */
+  /** Why comments cannot be posted now (no take is open); the composer is disabled with this reason. */
   notesDisabledReason?: string;
   /**
    * Whether the Everyone toggle shows. Defaults on for the host and off for a
-   * producer, whose notes carry no visibility on the wire.
+   * producer, whose comments carry no visibility on the wire.
    */
   noteVisibility?: boolean;
   /** The Session target chip, shown in the header beside the status pill. */
   target?: ReactNode;
   /** A bare page: the room fills 100dvh and clears the top safe area. */
   page?: boolean;
-  /** Placeholder tiles and title, an inert dock, no pill, rail or Notes sheet. */
+  /** Placeholder tiles and title, an inert dock, no pill, rail or Comments sheet. */
   loading?: boolean;
   /** With `loading`: focus the title when this shell mounts (after a Retry remount). */
   focusTitle?: boolean;
 };
 
-type RailTab = "notes" | "takes";
+type RailTab = "comments" | "takes";
 
 function Stage({
   embedded,
@@ -151,8 +151,8 @@ function Dockbar({
 /**
  * The one Room surface for every seat. The header, the alert slot, the tile
  * grid with its listener row and the dock form a fixed-height column; the
- * Notes rail sits beside the grid on the desktop. Presentational: the caller
- * owns people, phase and the notes list; the composer's draft is local.
+ * Comments rail sits beside the grid on the desktop. Presentational: the caller
+ * owns people, phase and the comments list; the composer's draft is local.
  */
 export function RoomView({
   seat,
@@ -199,14 +199,14 @@ export function RoomView({
     if (loading && focusTitle) titleRef.current?.focus();
   }, [loading, focusTitle]);
   const tabId = useId();
-  const [railTab, setRailTab] = useState<RailTab>("notes");
+  const [railTab, setRailTab] = useState<RailTab>("comments");
   const [notesChoice, setNotesChoice] = useState<boolean | undefined>(
     defaultNotesOpen,
   );
   const [draft, setDraft] = useState("");
   const [everyone, setEveryone] = useState(false);
   const [detent, setDetent] = useState<DrawerDetent>("half");
-  // The chip pins the live clock; clearing it makes the next note a session note.
+  // The chip pins the live clock; clearing it makes the next comment a session comment.
   const [timeCleared, setTimeCleared] = useState<string | null>(null);
   const model = roomViewModel({
     role: seat,
@@ -226,7 +226,7 @@ export function RoomView({
       ? clockText(phase.clockSec)
       : null;
   // Clearing holds until the phase changes (a new take, a pause, a save) or the
-  // note is sent, so a cleared chip never comes back on its own mid-take.
+  // comment is sent, so a cleared chip never comes back on its own mid-take.
   const draftTime = timeCleared === phaseKey(phase) ? null : pinned;
   const paused = phase.kind === "paused";
 
@@ -258,7 +258,7 @@ export function RoomView({
     ) : (
       <div className="sys-room-view-railtabs">
         <TabList label="Room panels" className="sys-room-view-tabs">
-          {(["notes", "takes"] as const).map((id) => (
+          {(["comments", "takes"] as const).map((id) => (
             <Tab
               key={id}
               id={`${tabId}-${id}`}
@@ -266,7 +266,7 @@ export function RoomView({
               selected={railTab === id}
               onClick={() => setRailTab(id)}
             >
-              {id === "notes" ? "Notes" : "Takes"}
+              {id === "comments" ? "Comments" : "Takes"}
             </Tab>
           ))}
         </TabList>
@@ -276,7 +276,7 @@ export function RoomView({
           aria-labelledby={`${tabId}-${railTab}`}
           className="sys-room-view-tabpanel"
         >
-          {railTab === "notes" ? rail : takes}
+          {railTab === "comments" ? rail : takes}
         </div>
       </div>
     );
@@ -390,7 +390,7 @@ export function RoomView({
           ) : null}
         </Stage>
         {!loading && model.railOpen ? (
-          <aside className="sys-room-view-rail" aria-label="Notes and takes">
+          <aside className="sys-room-view-rail" aria-label="Comments and takes">
             {railContent}
           </aside>
         ) : null}
@@ -402,14 +402,17 @@ export function RoomView({
           inert={declined ? true : undefined}
           aria-haspopup="dialog"
           aria-expanded={model.sheetOpen}
-          onClick={() => setNotesChoice(true)}
+          onClick={() => {
+            setRailTab("comments");
+            setNotesChoice(true);
+          }}
         >
           <SystemIcon name="chevron-up" size={16} />
-          <span className="sys-room-view-peek-label">Notes</span>
+          <span className="sys-room-view-peek-label">Comments</span>
           <span className="sys-room-view-peek-text">
             {model.peek
               ? `${model.peek.author}: ${model.peek.text}`
-              : "No notes yet"}
+              : "No comments yet"}
           </span>
           {model.peek?.time ? (
             <span className="sys-mono sys-room-view-peek-time">
@@ -446,7 +449,10 @@ export function RoomView({
           onComment={onComment}
           onPause={onPause}
           onStop={onStopPaused}
-          onNotes={() => setNotesChoice(!model.notesOpen)}
+          onNotes={() => {
+            if (!model.notesOpen) setRailTab("comments");
+            setNotesChoice(!model.notesOpen);
+          }}
           onMore={onMore}
           onLeave={onLeave}
         />
@@ -457,7 +463,7 @@ export function RoomView({
       {viewerWidth === "desktop" || loading ? null : (
         <Sheet
           form="bottom"
-          title="Notes"
+          title="Comments"
           open={model.sheetOpen && !declined}
           onClose={closeSheet}
           detent={detent}

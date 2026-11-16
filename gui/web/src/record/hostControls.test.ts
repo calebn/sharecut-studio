@@ -160,14 +160,18 @@ describe("endGate", () => {
     expect(endGate(stopped, []).enabled).toBe(false);
   });
 
-  it("blocks while live notes are waiting to land", () => {
+  it("blocks while live comments are waiting to land", () => {
     const withNote = recordSnapshot({
       state: "stopped",
       take_index: 0,
       comments: [{ id: "c1" } as never],
     });
     const gate = endGate(withNote, [segment({ file_ack: true, landed: true })]);
-    expect(gate.enabled).toBe(false);
+    expect(gate).toEqual({
+      enabled: false,
+      reason:
+        "Wait for the live comments to reach the timeline before ending the session.",
+    });
   });
 
   it("allows ending once every take has landed", () => {

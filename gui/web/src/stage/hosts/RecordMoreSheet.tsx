@@ -88,11 +88,11 @@ export function RecordMoreSheet({
             }
           }}
         >
-          Guests see notes
+          Guests see comments
         </ToggleButton>
         <p id={helpId} className="stage-host-note">
-          Off: guests see their own notes and everyone’s markers. On: they also
-          see other people’s notes.
+          Off: guests see their own comments and everyone’s markers. On: they
+          also see other people’s comments.
         </p>
         <div role="status">
           {guestsSeeNotesError ? (

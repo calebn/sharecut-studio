@@ -9,6 +9,7 @@ import { useElapsedSince } from "../../hooks/useElapsedSince";
 import { useViewportClass } from "../../hooks/useViewportClass";
 import { slugText, uniqueTrackId } from "../../ingest/ingestFiles";
 import {
+  COMMENTS_CLOSED_REASON,
   clippingFromRows,
   clippingGate,
   copyForMicStatus,
@@ -24,7 +25,6 @@ import {
   MIC_RETRY_LABEL,
   MIC_SAVED_DEVICE_MISSING_COPY,
   moreRoomToneReason,
-  NOTES_CLOSED_REASON,
   noteItems,
   RECORD_ROOM_RECONNECTING_COPY,
   roomAlerts,
@@ -491,7 +491,7 @@ function RecordStageBody({
         noteVisibility: false,
         notesDisabledReason: liveTakeOpen(state)
           ? undefined
-          : NOTES_CLOSED_REASON,
+          : COMMENTS_CLOSED_REASON,
         selfName: host?.display_name ?? "Host",
         onSendNote: (note) => room.liveComments.postNote(note.text),
         onInvite: () => runPointerCommand("share.manage", { at: "record" }),

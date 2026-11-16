@@ -2,6 +2,7 @@ import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useState } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { readableText } from "../test/readableText";
 import { BUSY_REASON } from "../ui/disabledReason";
 import { JoinSheet, type JoinSheetProps } from "./JoinSheet";
 
@@ -600,11 +601,14 @@ describe("JoinSheet producer", () => {
     const onJoin = vi.fn();
     render(<Harness seat="producer" name="Rosa" onJoin={onJoin} />);
     expect(
-      screen.getByText("You'll listen and take notes. You won't be recorded."),
+      screen.getByText("You'll listen and comment. You won't be recorded."),
     ).toBeInTheDocument();
     expect(screen.queryByText("Microphone")).toBeNull();
     expect(screen.queryByText("Headphones")).toBeNull();
     expect(screen.queryByRole("button", { name: "Details" })).toBeNull();
+    expect(
+      readableText(document.body).filter((t) => /\bnotes?\b/i.test(t)),
+    ).toEqual([]);
     await userEvent.click(primary("Join to listen"));
     expect(onJoin).toHaveBeenCalledOnce();
   });

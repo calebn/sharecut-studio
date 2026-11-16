@@ -20,10 +20,10 @@ export { useRecordHostStore } from "./hostStore";
 export { submitHostRecordTransport } from "./hostTransport";
 export { bindRecordHostSend, sendRecordHostCommand } from "./hostWire";
 export {
+  COMMENTS_CLOSED_REASON,
   HOST_COMMENT_QUEUE_TOKEN,
   liveTakeOpen,
   MARKER_BODY,
-  NOTES_CLOSED_REASON,
   postLiveComment,
 } from "./liveCommentQueue";
 export {

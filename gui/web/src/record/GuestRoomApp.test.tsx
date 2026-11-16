@@ -1002,19 +1002,19 @@ describe("GuestRoomApp", () => {
     await readyToJoin(getUserMedia);
     await userEvent.click(joinButton());
     await screen.findByText("Waiting");
-    await userEvent.click(screen.getByRole("button", { name: "Notes" }));
-    expect(screen.getByPlaceholderText("Add a note")).toBeDisabled();
+    await userEvent.click(screen.getByRole("button", { name: "Comments" }));
+    expect(screen.getByPlaceholderText("Add a comment")).toBeDisabled();
     sockets[0].onmessage?.(
       snapshotMessage({ state: "recording", take_index: 0, recording_ms: 800 }),
     );
     await waitFor(() =>
-      expect(screen.getByPlaceholderText("Add a note")).toBeEnabled(),
+      expect(screen.getByPlaceholderText("Add a comment")).toBeEnabled(),
     );
     await userEvent.type(
-      screen.getByPlaceholderText("Add a note"),
+      screen.getByPlaceholderText("Add a comment"),
       "Retake that",
     );
-    await userEvent.click(screen.getByRole("button", { name: "Send note" }));
+    await userEvent.click(screen.getByRole("button", { name: "Post" }));
     await waitFor(() => {
       expect(
         sockets[0].sent.some(

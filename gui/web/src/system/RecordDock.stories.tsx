@@ -55,13 +55,13 @@ export const RecordHost: Story = {
       (dock?.clientWidth ?? 0) -
       Number.parseFloat(style?.paddingLeft ?? "0") -
       Number.parseFloat(style?.paddingRight ?? "0");
-    // jsdom has no layout (width 0) and no container query, so Notes shows there;
+    // jsdom has no layout (width 0) and no container query, so Comments shows there;
     // a browser measures the dock's content box, as the container query does.
     const narrow = content > 0 && content <= 40 * rem;
     await expect(buttonNames(canvasElement)).toEqual(
       narrow
         ? ["Mute", "Comment", "Record", "More"]
-        : ["Mute", "Comment", "Record", "Notes", "More"],
+        : ["Mute", "Comment", "Record", "Comments", "More"],
     );
   },
 };
@@ -91,7 +91,7 @@ export const RecordGuest: Story = {
     await expect(buttonNames(canvasElement)).toEqual([
       "Mute",
       "Comment",
-      "Notes",
+      "Comments",
       "Leave room",
     ]);
   },
@@ -154,7 +154,7 @@ export const RecordProducer: Story = {
   play: async ({ canvasElement }) => {
     await expect(buttonNames(canvasElement)).toEqual([
       "Comment",
-      "Notes",
+      "Comments",
       "Leave room",
     ]);
   },

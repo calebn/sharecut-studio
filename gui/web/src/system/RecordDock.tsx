@@ -30,7 +30,7 @@ export type RecordDockProps = {
   muted?: boolean;
   /** Comment is hidden until a take is live; a waiting room has nothing to mark. */
   showComment?: boolean;
-  /** Unread notes, shown as a count on the Notes button. */
+  /** Unread comments, shown as a count on the Comments button. */
   unreadNotes?: number;
   notesOpen?: boolean;
   dock?: RecordDockMode;
@@ -109,9 +109,11 @@ export function RecordDock({
     <button
       type="button"
       className="sys-dock-btn sys-dock-notes"
-      aria-label={unreadNotes > 0 ? `Notes, ${unreadNotes} unread` : "Notes"}
+      aria-label={
+        unreadNotes > 0 ? `Comments, ${unreadNotes} unread` : "Comments"
+      }
       aria-pressed={notesOpen}
-      title="Notes"
+      title="Comments"
       onClick={onNotes}
     >
       <SystemIcon name="panel-right" size={20} />

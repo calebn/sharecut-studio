@@ -15,7 +15,7 @@ export type QueueRowProps = {
   kind: DecisionKind;
   /** The Suggestion drawing for a proposal, or the quoted comment. */
   snippet: ReactNode;
-  /** "18:36". A session-level note has none: no time chip, read as "session note". */
+  /** "18:36". A session-level note has none: no time chip, read as "session comment". */
   time?: string;
   /** Saved seconds ("0.8 s") or a reply count ("2 replies"). */
   value?: string;
@@ -147,7 +147,7 @@ export function QueueRow({
           {time !== undefined ? (
             <span className="sys-mono sys-queue-time">{time}</span>
           ) : (
-            <span className="sr-only">session note</span>
+            <span className="sr-only">session comment</span>
           )}
           {value ? (
             <span className="sys-mono sys-queue-value">{value}</span>
