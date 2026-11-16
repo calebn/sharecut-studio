@@ -31,6 +31,7 @@ from scripts.ios.release_deliver import plan_deliver
 from scripts.ios.release_inputs import (
     KEY_SECRETS,
     TEAM_SECRETS,
+    AscKey,
     BuildInputs,
     Checkout,
     InputError,
@@ -58,7 +59,7 @@ from scripts.ios.release_record import (
     recorded_numbers,
 )
 from scripts.ios.release_run import capture, spawn
-from scripts.ios.release_secrets import Redactor
+from scripts.ios.release_secrets import Redactor, Secret
 
 IOS_TARGET = "aarch64-apple-ios"
 
@@ -139,11 +140,13 @@ def toolchain() -> tuple[str, InputProblem | None]:
         return os.environ.get("PATH", ""), InputProblem("rust toolchain", "rustup", str(error))
 
 
+def key_secrets(key: AscKey | None) -> list[Secret]:
+    return [key.key_id, key.issuer, key.key_path] if key is not None else []
+
+
 def build_redactor(inputs: BuildInputs, root: Path) -> Redactor:
-    secrets = [inputs.team] if inputs.team is not None else []
-    if inputs.key is not None:
-        secrets += [inputs.key.key_id, inputs.key.issuer, inputs.key.key_path]
-    return Redactor(secrets, machine_directories(root))
+    team = [inputs.team] if inputs.team is not None else []
+    return Redactor([*team, *key_secrets(inputs.key)], machine_directories(root))
 
 
 def build(session: Session, unsigned: bool) -> int:
@@ -226,9 +229,7 @@ def deliver(
     version, version_problems = marketing_version(layout.root)
     if key is None or identity is None or file_problems or problems or version_problems:
         raise InputError([*file_problems, *key_problems, *problems, *version_problems])
-    session.redactor = Redactor(
-        [key.key_id, key.issuer, key.key_path], machine_directories(layout.root)
-    )
+    session.redactor = Redactor(key_secrets(key), machine_directories(layout.root))
     path, _ = toolchain()
     expect = checks.PlistExpectation(
         identity.bundle_identifier, identity.name, version or "", record.build_number
