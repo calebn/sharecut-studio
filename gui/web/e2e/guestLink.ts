@@ -1,4 +1,4 @@
-import type { Locator, Page } from "@playwright/test";
+import { expect, type Locator, type Page } from "@playwright/test";
 import { withShareableProject } from "./shareableProject";
 import { createReviewShare, openHostShare } from "./shareNavigation";
 import { withBrowserPages } from "./twoBrowserPages";
@@ -38,7 +38,7 @@ export async function failBootstrap(
 
 export async function withGuestLink(
   browser: Parameters<typeof withBrowserPages>[0],
-  size: (typeof SIZES)[number],
+  size: Size,
   run: (guest: Page, token: string) => Promise<void>,
 ) {
   await withShareableProject(async (projectPath) => {
@@ -58,4 +58,28 @@ export async function withGuestLink(
       },
     );
   });
+}
+
+/** A window too short for the cover's usual offset: a desktop at 200% zoom. */
+export const SHORT_WINDOW = {
+  name: "short",
+  width: 640,
+  height: 400,
+  touch: false,
+} as const;
+
+/** The cover's title, sentence and whole button sit inside the window and the page does not scroll. */
+export async function expectCoverInWindow(page: Page) {
+  const fit = await page.evaluate(() => {
+    const parts = ["main h1", ".sys-cover-text", "main button"].map((sel) => {
+      const box = document.querySelector(sel)!.getBoundingClientRect();
+      return { sel, top: box.top, bottom: box.bottom };
+    });
+    return {
+      outside: parts.filter((p) => p.top < 0 || p.bottom > window.innerHeight),
+      overflow: document.documentElement.scrollHeight - window.innerHeight,
+    };
+  });
+  expect(fit.outside, JSON.stringify(fit)).toEqual([]);
+  expect(fit.overflow, JSON.stringify(fit)).toBeLessThanOrEqual(0);
 }
