@@ -482,7 +482,6 @@ for (const size of SIZES) {
         for (const scale of ["100%", "200%"]) {
           await guest.addStyleTag({ content: `html { font-size: ${scale} }` });
           await expectInViewport(guest, copy);
-          // At the end of the page the box ends above the button.
           await guest.evaluate(() =>
             window.scrollTo(0, document.documentElement.scrollHeight),
           );
@@ -492,7 +491,6 @@ for (const size of SIZES) {
           if (size.touch) {
             expect(button!.height).toBeGreaterThanOrEqual(43.5);
           }
-          // A draft this long fills the box up to its cap, never a short strip.
           const limits = await text.evaluate((el) => {
             const css = getComputedStyle(el);
             return {
@@ -502,12 +500,10 @@ for (const size of SIZES) {
           });
           expect(area!.height).toBeGreaterThan(limits.min * 2);
           expect(area!.height).toBeGreaterThanOrEqual(limits.max - 1);
-          // The whole box can be reached by scrolling, never left under the button.
           await text.scrollIntoViewIfNeeded();
           await expectInViewport(guest, text);
           await expectInViewport(guest, copy);
           if (!size.touch && scale === "100%") {
-            // A fine pointer keeps the height of every other cover button.
             expect(button!.height).toBeLessThan(48);
           }
         }
