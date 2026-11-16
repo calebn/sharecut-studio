@@ -258,6 +258,32 @@ for (const size of SIZES) {
       });
     }
 
+    test("a host's long project name wraps inside the cover and the page does not scroll sideways", async ({
+      page,
+    }) => {
+      test.setTimeout(90_000);
+      const long = createRelocatedE2eProject(`${"long-name-".repeat(6)}`);
+      try {
+        await failShell(page, "host", MARKER_500);
+        await openHostWithoutProject(page, long.projectPath);
+        const cover = page.getByRole("alert");
+        await expect(cover.getByText(hostName(long.projectPath))).toBeVisible();
+        const reach = await page.evaluate(() => ({
+          page: document.documentElement.scrollWidth,
+          view: document.documentElement.clientWidth,
+          cover: Math.max(
+            ...[
+              ...document.querySelectorAll('[role="alert"] .sys-cover-text'),
+            ].map((el) => el.getBoundingClientRect().right),
+          ),
+        }));
+        expect(reach.page).toBeLessThanOrEqual(reach.view);
+        expect(reach.cover).toBeLessThanOrEqual(reach.view);
+      } finally {
+        removeRelocatedE2eProject(long.workspaceDir);
+      }
+    });
+
     test("a guest's press is answered on the same button and in a status line, and the sentence never changes", async ({
       browser,
     }) => {
