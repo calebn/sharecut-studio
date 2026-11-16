@@ -290,6 +290,7 @@ function GuestRoomSession({
     if (producer) {
       setProducerJoined(false);
       setProducerDismissed(true);
+      clearError();
       return;
     }
     setRejoinOpen(false);
@@ -342,7 +343,7 @@ function GuestRoomSession({
         upload.fileAck,
       recoverable,
       monitorError: monitor.error,
-      transportError: recordSyncErrorCopy(error),
+      transportError: producer && !me ? null : recordSyncErrorCopy(error),
       clipping: !producer && clippingGate(takeClipping?.regions ?? []),
       mutedSpeech,
       phase,
@@ -443,7 +444,12 @@ function GuestRoomSession({
 
   const declined = producer
     ? producerDismissed
-      ? { onJoin: () => setProducerDismissed(false) }
+      ? {
+          onJoin: () => {
+            clearError();
+            setProducerDismissed(false);
+          },
+        }
       : undefined
     : consented === false && !rejoinOpen
       ? { onJoin: rejoin }
@@ -483,6 +489,7 @@ function GuestRoomSession({
         alerts={alerts}
         notes={noteItems(snapshot)}
         selfName={me?.display_name ?? name}
+        focusTitle={producer && !!me}
         onSendNote={(note) => liveComments.postNote(note.text)}
         notesDisabledReason={
           !me

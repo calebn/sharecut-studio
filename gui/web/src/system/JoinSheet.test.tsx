@@ -644,10 +644,14 @@ describe("JoinSheet producer", () => {
       expect(screen.getByRole("alert")).toHaveTextContent("Try again soon.");
       expect(screen.queryByText(/Still connecting/)).toBeNull();
       await act(async () => {
-        await vi.advanceTimersByTimeAsync(4000);
+        await vi.advanceTimersByTimeAsync(3999);
+      });
+      expect(screen.queryByRole("status")).toBeNull();
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(1);
       });
       expect(screen.getByRole("status")).toHaveTextContent(
-        "Still connecting to the room. Not now stops it.",
+        "Still connecting to the room. Choose Not now to stop trying.",
       );
     } finally {
       vi.useRealTimers();

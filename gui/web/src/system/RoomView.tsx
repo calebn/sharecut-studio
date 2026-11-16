@@ -107,7 +107,7 @@ export type RoomViewProps = {
   statusKnown?: boolean;
   /** Placeholder tiles and title, an inert dock, no pill, rail or Comments sheet. */
   loading?: boolean;
-  /** With `loading`: focus the title when this shell mounts (after a Retry remount). */
+  /** Focus the title when this turns true: after a Retry remount, or when the Join sheet closes on the room. */
   focusTitle?: boolean;
 };
 
@@ -200,8 +200,8 @@ export function RoomView({
 }: RoomViewProps) {
   const titleRef = useRef<HTMLHeadingElement>(null);
   useEffect(() => {
-    if (loading && focusTitle) titleRef.current?.focus();
-  }, [loading, focusTitle]);
+    if (focusTitle) titleRef.current?.focus();
+  }, [focusTitle]);
   const tabId = useId();
   const [railTab, setRailTab] = useState<RailTab>("comments");
   const [notesChoice, setNotesChoice] = useState<boolean | undefined>(
@@ -315,7 +315,7 @@ export function RoomView({
           <h1
             className="sys-room-view-title"
             ref={titleRef}
-            tabIndex={loading && focusTitle ? -1 : undefined}
+            tabIndex={focusTitle ? -1 : undefined}
           >
             {loading ? (
               <>

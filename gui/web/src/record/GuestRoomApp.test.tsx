@@ -854,18 +854,31 @@ describe("GuestRoomApp", () => {
     ).toBeEnabled();
   });
 
-  it("leaves focus on the page, not a removed control, when the room confirms the producer", async () => {
+  it("moves focus to the room's title when the sheet closes on the confirmed room", async () => {
     await pressJoinToListen();
     act(() => sockets[0].onmessage?.(producerEcho));
     act(() =>
       sockets[0].onmessage?.(producerSnapshot({ server_time_ns: 100 })),
     );
     await waitFor(() => {
-      expect(
-        screen.queryByRole("heading", { name: "Join the room" }),
-      ).toBeNull();
+      expect(screen.getByRole("heading", { level: 1 })).toHaveFocus();
     });
-    expect(document.activeElement?.isConnected).toBe(true);
+  });
+
+  it("shows a failed Join's reason once, in the sheet, and clears it on Not now and on reopen", async () => {
+    await pressJoinToListen();
+    await sendError("rate_limited");
+    const reason = "Too many requests. Wait a moment and try again.";
+    expect(await screen.findAllByText(reason)).toHaveLength(1);
+    expect(screen.getByRole("alert")).toHaveTextContent(reason);
+    await userEvent.click(screen.getByRole("button", { name: "Not now" }));
+    await screen.findByRole("region", { name: "Not in the room" });
+    expect(screen.queryByText(reason)).toBeNull();
+    await userEvent.click(
+      screen.getByRole("button", { name: "Join to listen" }),
+    );
+    await screen.findByRole("heading", { name: "Join the room" });
+    expect(screen.queryByText(reason)).toBeNull();
   });
 
   it("keeps the producer in the room when an older snapshot arrives after the live one", async () => {

@@ -113,7 +113,7 @@ export const JOIN_TEXT = {
   guestPrimary: "Join and record",
   producerPrimary: "Join to listen",
   joining: "Joining…",
-  producerSlow: "Still connecting to the room. Not now stops it.",
+  producerSlow: "Still connecting to the room. Choose Not now to stop trying.",
   decline: "Not now",
   producerLine: "You'll listen and comment. You won't be recorded.",
   headphones: "I'm wearing headphones",
