@@ -289,7 +289,8 @@ for (const size of SIZES) {
       await withGuestLink(browser, size, async (guest, token) => {
         const held = await holdFirstRequest(guest, token);
         await guest.goto(`/r/${token}`);
-        (await held.first).abort("connectionrefused");
+        const route = await held.first;
+        await route.abort("connectionrefused");
         const main = guest.getByRole("main");
         await expect(
           main.getByRole("heading", { name: ASLEEP_TITLE }),
