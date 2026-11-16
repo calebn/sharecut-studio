@@ -8,9 +8,11 @@ import {
   resetDocumentAuthority,
 } from "../document/authorityState";
 import type { DocumentSnapshot } from "../document/projectPatch";
+import { waitsForConnection } from "../shellLoadFailure";
 import { useDawStore } from "../state/dawStore";
 import { minimalProject, sampleTrack } from "../test/fixtures";
 import { ApiError } from "../utils/apiError";
+import { useBackOnline } from "./useBackOnline";
 import { useProjectBootstrap } from "./useProjectBootstrap";
 
 vi.mock("../api/project", async (importOriginal) => ({
@@ -423,6 +425,55 @@ describe("sequenced project bootstrap", () => {
         await vi.advanceTimersByTimeAsync(30_000);
       });
       expect(calls()).toBe(2);
+    });
+
+    it("tries again by itself after 30 seconds when the host answered busy", async () => {
+      await failedGuest(new ApiError("x", "project_busy", 503));
+      vi.mocked(loadDocumentState).mockResolvedValue(ok);
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(29_999);
+      });
+      expect(calls()).toBe(1);
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(1);
+      });
+      expect(calls()).toBe(2);
+    });
+
+    it("makes one attempt, not two, when the connection returns while an attempt is out", async () => {
+      const onLine = vi
+        .spyOn(navigator, "onLine", "get")
+        .mockReturnValue(false);
+      vi.mocked(loadDocumentState).mockRejectedValueOnce(down());
+      const hook = renderHook(() => {
+        const read = useProjectBootstrap(GUEST);
+        useBackOnline(
+          waitsForConnection(read.failure, read.retrying),
+          read.attempt,
+          read.retry,
+        );
+        return read;
+      });
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(0);
+      });
+      expect(hook.result.current.failure).toMatchObject({
+        failure: { kind: "offline" },
+      });
+
+      vi.mocked(loadDocumentState).mockReturnValue(new Promise(() => {}));
+      act(() => hook.result.current.retry());
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(0);
+      });
+      expect(calls()).toBe(2);
+      onLine.mockReturnValue(true);
+      act(() => void window.dispatchEvent(new Event("online")));
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(0);
+      });
+      expect(calls()).toBe(2);
+      onLine.mockRestore();
     });
 
     it.each([

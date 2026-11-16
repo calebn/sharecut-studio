@@ -25,7 +25,7 @@ import { useHostRoom } from "./record/useHostRoom";
 import { useOutputDevice } from "./record/useOutputDevice";
 import { SettingsHost } from "./settings/SettingsHost";
 import { isShareProjectKey } from "./shareMode";
-import type { ShellFailure } from "./shellLoadFailure";
+import { type ShellFailure, waitsForConnection } from "./shellLoadFailure";
 import { CommandPalette } from "./stage/dialogs/CommandPalette";
 import { HostMcpDialog } from "./stage/dialogs/HostMcpDialog";
 import { EDIT_SHEETS } from "./stage/edit/editSheets";
@@ -134,8 +134,7 @@ export function DawApp({ guestShare = false }: { guestShare?: boolean }) {
     retry: retryBootstrap,
   } = useProjectBootstrap(projectPath);
   useBackOnline(
-    bootstrapFailure?.audience === "guest" &&
-      bootstrapFailure.failure.kind === "offline",
+    waitsForConnection(bootstrapFailure, bootstrapRetrying),
     bootstrapAttempt,
     retryBootstrap,
   );
