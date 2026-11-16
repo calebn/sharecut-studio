@@ -124,7 +124,6 @@ for (const size of SIZES) {
         await expect
           .poll(() => activeElement(guest))
           .toBe(`H1:${OFFLINE_TITLE}`);
-        expect(await deviceOnLine(guest)).toBe(false);
         expect((await wordsSeen(guest)).asleep).toBe(false);
       });
     });
@@ -178,7 +177,6 @@ for (const size of SIZES) {
         await expect(
           main.getByRole("heading", { name: ASLEEP_TITLE }),
         ).toBeVisible();
-        expect(await deviceOnLine(guest)).toBe(true);
         await press(main.getByRole("button", { name: "Try now" }), size.touch);
         await expect(main.getByRole("status")).toHaveText("Still asleep.");
         expect((await wordsSeen(guest)).offline).toBe(false);

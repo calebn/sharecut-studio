@@ -24,16 +24,6 @@ export function useBackOnline(
 
   useEffect(() => {
     missedRef.current = false;
-  }, [attempt]);
-
-  useEffect(() => {
-    if (armed && missedRef.current && navigator.onLine !== false) {
-      missedRef.current = false;
-      onBackRef.current();
-    }
-  }, [armed]);
-
-  useEffect(() => {
     const onOnline = () => {
       if (armedRef.current) {
         armedRef.current = false;
@@ -44,5 +34,12 @@ export function useBackOnline(
     };
     window.addEventListener("online", onOnline);
     return () => window.removeEventListener("online", onOnline);
-  }, []);
+  }, [attempt]);
+
+  useEffect(() => {
+    if (armed && missedRef.current && navigator.onLine !== false) {
+      missedRef.current = false;
+      onBackRef.current();
+    }
+  }, [armed]);
 }

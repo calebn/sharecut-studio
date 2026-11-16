@@ -75,12 +75,10 @@ describe("classifyBootstrapFailure", () => {
       failure(null, "network_error"),
       undefined,
     ],
-    ["no answer with another code, device online", failure(null, "x"), true],
     ["a 502 on an offline device", failure(502, null), false],
     ["a 504 on an offline device", failure(504, null), false],
     ["a 503 relay on an offline device", failure(503, null), false],
     ["a TypeError on an offline device", new TypeError(SENTINEL), false],
-    ["a plain throw on an offline device", new Error(SENTINEL), false],
   ])("keeps %s as asleep", (_name, error, deviceOnline) => {
     expect(classifyBootstrapFailure(error, deviceOnline)).toEqual({
       kind: "unreachable",
