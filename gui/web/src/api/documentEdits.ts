@@ -277,7 +277,7 @@ export async function updatePendingEdit(
   trackIds?: string[] | null,
   expected?: PendingEditBaseline,
 ): Promise<{ queued: false } | { queued: true; commandId: string }> {
-  const result = await submitDocumentCommand(
+  const sent = submitDocumentCommand(
     projectPath,
     DocumentCommand.UpdatePendingEdit,
     {
@@ -289,6 +289,8 @@ export async function updatePendingEdit(
       ...(expected ? { expected } : {}),
     },
   );
+  if (useDawStore.getState().projectPath === projectPath) redisplayDrafts();
+  const result = await sent;
   if (result.queued !== true) return { queued: false };
   if (typeof result.command_id !== "string" || !result.command_id) {
     throw new Error("Queued timing command is missing its identity");

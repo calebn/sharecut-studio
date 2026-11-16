@@ -706,8 +706,10 @@ export function patchPendingEdit(
     !edit ||
     edit.exact_range ||
     edit.type === "split" ||
+    edit.applied ||
     edit.source_start == null ||
-    edit.source_end == null
+    edit.source_end == null ||
+    (start ?? edit.source_start) >= (end ?? edit.source_end)
   )
     return project;
   const moves: ["start" | "end", number, number][] = [];
