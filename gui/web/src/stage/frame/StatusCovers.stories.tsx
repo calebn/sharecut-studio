@@ -38,7 +38,7 @@ const meta: Meta<typeof NotServedCover> = {
       ...viewportStoryParameters.docs,
       description: {
         component:
-          'The Status cover for the ways a page has nothing to open: a bad or revoked review link, a review link that did not load (the host\'s computer is asleep or busy, the link is busy, restricted, unavailable, behind a network sign-in, or failing), and a project this server does not serve. A press on the button is answered on the button ("Trying…") and in a status line that says whether it is still failing. A 32 px symbol, a 48 px glyph for the case (broken link, moon, folder), a 20/24 title, one sentence, one primary button and at most one text button. The server answers the not-served case with the app (HTTP 403), never its own page.',
+          'The Status cover for the ways a page has nothing to open: a bad or revoked review link, a review link that did not load (the host\'s computer is asleep or busy, the link is busy, restricted, unavailable, needing a sign-in, behind a network sign-in page, or failing), and a project this server does not serve. A press on the button is answered on the button ("Trying…") and in a status line that says whether it is still failing. A 32 px symbol, a 48 px glyph for the case (broken link, moon, folder), a 20/24 title, one sentence, one primary button and at most one text button. The server answers the not-served case with the app (HTTP 403), never its own page.',
       },
     },
   },
@@ -105,6 +105,10 @@ export const LinkBusy: Story = {
 
 export const LinkRestricted: Story = {
   render: () => <ReviewLinkCover failure={{ kind: "restricted" }} />,
+};
+
+export const SignInRequired: Story = {
+  render: () => <ReviewLinkCover failure={{ kind: "sign-in" }} />,
 };
 
 export const LinkUnavailable: Story = {
