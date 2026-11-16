@@ -75,8 +75,9 @@ export function Skeleton({
         : "blank";
   const shell = useViewportClass();
   // The skeleton stays mounted through a retry, so nothing else shows the press
-  // landed. The replacement request gets the time the first one had before the
-  // person is asked again.
+  // landed. The hold lasts `retryMs`, the time the skeleton waits before it
+  // offers Retry again; it does not claim a request started, because that
+  // depends on the caller.
   const { busy, press } = useHeldBusy(false, retryMs);
   return (
     <div
