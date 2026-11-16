@@ -335,18 +335,21 @@ rows. A producer opens the **producer** `/rec/{token}` as a **receive-only**
 mesh peer — no `getUserMedia`, no send track, no keeper. **Transparency is
 mandatory:**
 every client's roster shows the **listener row** (the producers who have
-joined, each with an ear glyph) and, when the server reports that people
-with the producer link are looking in without having joined, the **looking-in
-line** after it ("Someone with the producer link is looking in", or "3 people
-with the producer link are looking in"). The line names nobody. The host,
-guest and producer pages show it, and the guest's consent **Details** repeats
-it with "They can see the room but can't hear it." A guest page announces it
+joined, each with an ear glyph) and, when the server reports that people with
+the producer link are looking in without having joined, the **looking-in
+line** ("Someone with the producer link is looking in", or "3 people with the
+producer link are looking in"). The line names nobody. It sits in its own row at the foot
+of the header, outside the scrolling roster, so the host (on a
+laptop or a phone with Comments open), a guest and a producer see it without
+scrolling. The guest's consent **Details** repeats it with "They can see the
+room but can't hear it." The host, guest and producer pages each announce it
 once per room, politely, when the first one arrives while the room is waiting
 or stopped, never during a take. The count is the snapshot's runtime
-`watchers` field. A client reads a missing `watchers` as 0 and shows no line;
-no server sends the field yet. The consent copy says "producers/listeners may be
-present and are shown in the roster"; a producer joining mid-take triggers the
-same join notification as a guest.
+`watchers` field. A client shows the line only for a whole number from 1 to 99
+and reads anything else, or a missing field, as nobody; no server sends the
+field yet. The consent copy says "producers/listeners may be present and are
+shown in the roster"; a producer joining mid-take triggers the same join
+notification as a guest.
 
 When the host or a recorded guest is running or finalizing a local keeper in
 the Tauri desktop shell, native window close and the macOS app menu/Cmd+Q
