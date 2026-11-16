@@ -35,7 +35,9 @@ async function proveHungLoadRecovers(
 
   const cover = page.getByRole("alert");
   await expect(cover).toContainText("Could not load the project");
-  await expect(cover).toContainText("The server didn't answer.");
+  await expect(cover).toContainText(
+    "ShareCut isn't answering. Check that it is still running on this computer.",
+  );
   await expect(cover).toBeInViewport();
   const attempts = stateRequests.length;
 
