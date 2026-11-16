@@ -62,8 +62,7 @@ function shareRouteFromLocation(): {
 }
 
 type BootstrapError =
-  | { cover: "bad-link" }
-  | { cover: "host"; failure: GuestLoadFailure }
+  | { failure: GuestLoadFailure }
   | { message: string; hint?: string };
 type GuestAccess = {
   key: string;
@@ -126,7 +125,7 @@ function admitBootstrap(
       ...retained,
       status: "settled",
       error: request.reviewToken
-        ? { cover: "host", failure: { kind: "no-review-routes" } }
+        ? { failure: { kind: "no-review-routes" } }
         : {
             message:
               "Share / guest routes (review and record) are not available (online extension not loaded).",
@@ -200,7 +199,7 @@ function AppInner() {
     );
 
   const autoRetryMs =
-    error && "cover" in error && error.cover === "host"
+    error && "failure" in error
       ? guestLoadCover(error.failure).autoRetryMs
       : null;
 
@@ -228,7 +227,7 @@ function AppInner() {
         const caps = bootstrap.capabilities ?? [];
         if (cancelled) return;
         if (!caps.includes("view")) {
-          outcome = { kind: "error", error: { cover: "bad-link" } };
+          outcome = { kind: "error", error: { failure: { kind: "bad-link" } } };
           return;
         }
         outcome = {
@@ -248,7 +247,7 @@ function AppInner() {
           if (e instanceof ApiError && e.code === "share_not_found") {
             void clearOfflineSnapshot(reviewToken).catch(() => undefined);
           }
-          outcome = { kind: "error", error: { cover: "bad-link" } };
+          outcome = { kind: "error", error: { failure } };
           return;
         }
         const saved = await loadOfflineSnapshot(reviewToken);
@@ -269,7 +268,7 @@ function AppInner() {
           };
           return;
         }
-        outcome = { kind: "error", error: { cover: "host", failure } };
+        outcome = { kind: "error", error: { failure } };
       } finally {
         if (!cancelled) {
           const completed = outcome;
@@ -325,15 +324,9 @@ function AppInner() {
   if (!featuresReady) {
     return projectLoading();
   }
-  if (error && "cover" in error) {
+  if (error && "failure" in error) {
     return (
-      <GuestPageCover
-        failure={
-          error.cover === "bad-link" ? { kind: "bad-link" } : error.failure
-        }
-        trying={trying}
-        onRetry={retry}
-      />
+      <GuestPageCover failure={error.failure} trying={trying} onRetry={retry} />
     );
   }
   if (error) {
