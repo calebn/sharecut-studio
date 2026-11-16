@@ -1161,11 +1161,29 @@ html:not([data-shell="phone"], [data-shell="tablet"])
 .sys-headphones-choice {
   display: flex;
   flex-direction: column;
+  gap: var(--space-2);
+  padding: 0;
+  border: 0;
+  background: transparent;
 }
 
 .sys-headphones-choice > .ui-control {
   justify-content: flex-start;
   min-block-size: var(--touch-min);
+  border: 1px solid var(--color-text-secondary);
+  background: transparent;
+  color: var(--color-text-primary);
+}
+
+.sys-headphones-choice > .ui-control[aria-pressed="true"] {
+  border-color: var(--color-text-primary);
+  box-shadow: inset 0 0 0 1px var(--color-text-primary);
+  background: var(--color-chip-selected);
+  font-weight: 600;
+}
+
+.sys-headphones-choice-mark {
+  margin-inline-start: auto;
 }
 
 .sys-join-control:empty {
@@ -1257,6 +1275,10 @@ html:not([data-shell="phone"], [data-shell="tablet"])
   margin: 0;
   color: var(--color-warning-on-surface);
   font-size: var(--font-size-ui);
+}
+
+.sys-join-note > svg {
+  flex: none;
 }
 
 .sys-join-consent {
