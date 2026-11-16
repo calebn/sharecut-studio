@@ -257,6 +257,32 @@ for (const size of SIZES) {
       });
     });
 
+    if (!size.touch) {
+      test("never leaves one word alone on the sentence's last line", async ({
+        browser,
+      }) => {
+        await withGuestLink(browser, size, async (guest, token) => {
+          await loseConnectionOnLoad(guest, token);
+          const sentence = guest.getByRole("main").locator(".sys-cover-text");
+          await expect(sentence).toHaveText(OFFLINE_SENTENCE);
+          await fontsReady(guest);
+          const lastLine = await sentence.evaluate((el) => {
+            const text = el.firstChild as Text;
+            const words = [...text.data.matchAll(/\S+/g)];
+            const top = (word: RegExpMatchArray) => {
+              const range = document.createRange();
+              range.setStart(text, word.index ?? 0);
+              range.setEnd(text, (word.index ?? 0) + word[0].length);
+              return range.getBoundingClientRect().top;
+            };
+            const lastTop = top(words[words.length - 1]!);
+            return words.filter((word) => top(word) === lastTop).length;
+          });
+          expect(lastLine).toBeGreaterThan(1);
+        });
+      });
+    }
+
     for (const colorScheme of ["light", "dark"] as const) {
       test(`passes axe in the ${colorScheme} theme`, async ({ browser }) => {
         await withGuestLink(browser, size, async (guest, token) => {
