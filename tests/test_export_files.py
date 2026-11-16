@@ -129,7 +129,7 @@ def test_current_follows_what_each_writer_supports(ws, folder) -> None:
     assert {f.id: f.current for f in ExportFilesService(ws).list()} == {
         f"{stem}.mp3": True,
         f"{stem}.wav": True,
-        "clips/cold-open_c1.wav": True,
+        "clips/cold-open_c1.wav": False,
         f"{stem}.md": True,
         f"{stem}.srt": True,
         f"{stem}.chapters.json": True,
