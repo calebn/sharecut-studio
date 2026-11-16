@@ -1151,9 +1151,11 @@ right after a reload still says "Guest", because the room's record of the guest 
 known yet, and the name follows in `UpdateName` once it is. A producer's socket opens only
 after **Join to listen**, so its first hello already carries the name. The sheet stays on
 "Joining…" until the room confirms the producer. A non-terminal error before then returns
-the sheet to **Join to listen** with the reason under the listen line, and a second press
-opens a new connection; after 4 seconds with no answer the sheet adds "Still connecting to
-the room. Not now stops it." The room behind the sheet shows no status pill until the page
+the sheet to **Join to listen** with the reason under the listen line (the room's alert
+slot does not repeat it, and **Not now** clears it), and a second press opens a new
+connection; after 4 seconds on Joining… the sheet adds "Still connecting to the room.
+Choose Not now to stop trying." When the sheet closes on the confirmed room, focus moves to
+the room's title. The room behind the sheet shows no status pill until the page
 holds a snapshot, and its Comments field reads "You can comment once you're in the room."
 until the producer is listed. A guest who has
 neither typed a name nor joined shows to the host as "Guest"; a guest who typed shows under

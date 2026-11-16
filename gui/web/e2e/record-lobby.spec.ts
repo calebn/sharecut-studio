@@ -1572,11 +1572,13 @@ test.describe("join sheet on a phone", () => {
           bar.getByRole("button", { name: "Join to listen" }),
         );
         expect(join.height).toBeGreaterThanOrEqual(44);
-        expect(
-          (await hostRecordSnapshot(host, projectPath)).participants.map(
-            (p) => p.display_name,
-          ),
-        ).not.toContain("Pat");
+        await expect
+          .poll(async () =>
+            (await hostRecordSnapshot(host, projectPath)).participants.map(
+              (p) => p.display_name,
+            ),
+          )
+          .not.toContain("Pat");
         await expectSurfaceAxeClean(producer, "body");
       },
       PHONE_GUEST,
