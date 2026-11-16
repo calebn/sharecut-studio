@@ -1390,3 +1390,19 @@ async def test_guest_ws_identity_survives_relay_reconnect(monkeypatch):
                 await asyncio.gather(run, return_exceptions=True)
     expected = {"client_id": "viewer-abc", "name": "Ada L"}
     assert frames == [expected, expected]
+
+
+def test_record_ws_observe_query_rides_ws_open(monkeypatch):
+    with _live_relay(monkeypatch) as base:
+        with _tunnel_hello_register(
+            base,
+            host_id="host-rec-observe",
+            token="rtok",
+            capabilities=["join", "monitor", "comment"],
+        ) as tunnel:
+            url = f"{base}/api/rec/rtok/ws?client_id=prod-1&observe=1"
+            with ws_connect(url, open_timeout=5, close_timeout=5):
+                open_msg = _ws_recv(tunnel)
+                assert open_msg["type"] == "ws_open"
+                assert open_msg["path"] == "api/rec/ws"
+                assert open_msg["query"] == "client_id=prod-1&observe=1"
