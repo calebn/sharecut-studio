@@ -722,7 +722,6 @@ def skip_run_preflight(monkeypatch: pytest.MonkeyPatch) -> None:
 
 @pytest.fixture
 def bare_uvicorn_loggers() -> Iterator[None]:
-    """Run with no token filter on the uvicorn loggers, and leave none behind."""
     from podcast_mcp.gui.log_redaction import UVICORN_LOGGERS, ShareTokenFilter
 
     def strip() -> list[tuple[logging.Logger, logging.Filter]]:
