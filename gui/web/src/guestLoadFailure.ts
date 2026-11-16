@@ -61,8 +61,8 @@ const waitInWords = (ms: number): string =>
 /**
  * `deviceOnline` is what the browser said when the attempt failed. A request
  * that got no answer while it says there is no connection is the guest's own
- * device; every other failure, with no answer or with one, is read as before:
- * something answered, or the page cannot tell, and says nothing it cannot know.
+ * device. Every other failure keeps its cover: something answered, or the page
+ * cannot tell, and it says nothing it cannot know.
  */
 export function classifyBootstrapFailure(
   error: unknown,

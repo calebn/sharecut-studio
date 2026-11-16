@@ -13,7 +13,7 @@ const ASLEEP_TITLE = "The host's computer is asleep";
 
 type Seen = { asleep: boolean; offline: boolean };
 
-/** Notes, from before the page's own scripts run, any moment its text names the host asleep or the device offline. */
+/** A cover can show for a moment and be replaced, so a poll afterwards would miss it: record from before the page's scripts run. */
 async function watchWords(page: Page) {
   await page.addInitScript(() => {
     const seen = { asleep: false, offline: false };
@@ -34,7 +34,7 @@ async function watchWords(page: Page) {
 const wordsSeen = (page: Page) =>
   page.evaluate(() => (window as unknown as { __seen: Seen }).__seen);
 
-/** The browser's `online` event never reaches the page: a browser that sends none. */
+/** Capture phase, so the page's own listener never runs: shows the 30 second retry needs no `online` event. */
 async function swallowOnlineEvent(page: Page) {
   await page.addInitScript(() => {
     window.addEventListener(
@@ -47,11 +47,7 @@ async function swallowOnlineEvent(page: Page) {
 
 type Answer = "offline" | "refused" | "through";
 
-/**
- * Holds the episode request the page makes on load, so the device can lose its
- * connection while that request is out. Every later request is answered the
- * way `answer` says.
- */
+/** Holds the episode request the page makes on load, so the device can lose its connection while it is out. */
 async function holdFirstRequest(page: Page, token: string) {
   let answer: Answer = "offline";
   let asked = 0;
@@ -78,7 +74,6 @@ async function holdFirstRequest(page: Page, token: string) {
 
 const deviceOnLine = (page: Page) => page.evaluate(() => navigator.onLine);
 
-/** Loads the link, loses the connection while the episode request is out, and lets that request fail. */
 async function loseConnectionOnLoad(page: Page, token: string) {
   const held = await holdFirstRequest(page, token);
   await page.goto(`/r/${token}`);
