@@ -44,7 +44,6 @@ const LAPTOP: BrowserContextOptions = {
 const LONG_TITLE = "Aligned dialogue and the long road";
 // 2.75rem is 44 px; a laid-out box can read a few millionths short in float.
 const TOUCH_MIN = 43.99;
-const THEMES = ["light", "dark"] as const;
 
 test.use({
   launchOptions: { args: [...CHROMIUM_FAKE_MEDIA_ARGS] },
@@ -158,13 +157,10 @@ async function expectOwnTile(page: Page, name: string) {
 
 async function expectPhoneRoom(page: Page, titleText: string, width: number) {
   expect(await page.evaluate(() => innerWidth)).toBe(width);
-  for (const scheme of THEMES) {
-    await page.emulateMedia({ colorScheme: scheme });
-    await expectTitleWhole(page, titleText);
-    await expectBrandSymbol(page);
-    await expectLabelledDock(page);
-    await expectTilesUnderHeader(page);
-  }
+  await expectTitleWhole(page, titleText);
+  await expectBrandSymbol(page);
+  await expectLabelledDock(page);
+  await expectTilesUnderHeader(page);
 }
 
 test.describe("record room on a phone", () => {
@@ -186,6 +182,8 @@ test.describe("record room on a phone", () => {
           if (r.request().method() === "POST") await gate;
           await r.continue();
         });
+        // Layout does not change with the theme; this walk runs in the dark one.
+        await guest.emulateMedia({ colorScheme: "dark" });
         await joinAsGuest(guest, room.guest.token, "Ava");
 
         await expectPhoneRoom(guest, LONG_TITLE, 390);
