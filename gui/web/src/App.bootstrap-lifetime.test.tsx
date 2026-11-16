@@ -469,6 +469,77 @@ describe("App bootstrap request lifetime", () => {
       expect(provider()).toHaveAttribute("data-path", "share:beta");
     });
 
+    /**
+     * Attempt 1 is rate-limited (retry in 5 s), attempt 2 hangs, attempt 3
+     * (replacing it) gets `third` at once and settles. The slow attempt 2 is
+     * still in flight while nothing is pending.
+     */
+    async function replacedAfterNewerSettled(third: () => Response) {
+      const second = deferred<Response>();
+      let calls = 0;
+      offline.load.mockResolvedValue(undefined);
+      serve(async () => {
+        calls += 1;
+        if (calls === 1) {
+          return new Response("{}", {
+            status: 429,
+            headers: { "Retry-After": "5" },
+          });
+        }
+        return calls === 2 ? second.promise : third();
+      });
+      vi.useFakeTimers({ shouldAdvanceTime: true });
+      render(<App />);
+      await screen.findByRole("heading", { name: "This link did not load" });
+      for (let tick = 0; tick < 11; tick += 1) {
+        await act(async () => {
+          await vi.advanceTimersByTimeAsync(1_000);
+        });
+      }
+      await waitFor(() => expect(calls).toBe(3));
+      return { second, calls: () => calls };
+    }
+
+    it("opens the episode when it answers after a newer attempt failed with a 429, and stops retrying", async () => {
+      const { second, calls } = await replacedAfterNewerSettled(
+        () =>
+          new Response("{}", {
+            status: 429,
+            headers: { "Retry-After": "30" },
+          }),
+      );
+      await act(async () => {
+        second.resolve(bootstrap("Alpha"));
+      });
+      expect(await screen.findByText("Studio body")).toBeInTheDocument();
+      expect(provider()).toHaveAttribute("data-author", "Alpha");
+      const seen = calls();
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(120_000);
+      });
+      expect(calls()).toBe(seen);
+      expect(screen.getByText("Studio body")).toBeInTheDocument();
+    });
+
+    it("keeps the dead-link cover when it answers after a newer attempt got share_not_found", async () => {
+      const { second } = await replacedAfterNewerSettled(
+        () =>
+          new Response("gone", {
+            status: 404,
+            headers: { "X-Sharecut-Error-Code": "share_not_found" },
+          }),
+      );
+      await act(async () => {
+        second.resolve(bootstrap("Alpha"));
+      });
+      expect(
+        screen.getByRole("heading", {
+          name: "This link doesn't open anything",
+        }),
+      ).toBeInTheDocument();
+      expect(screen.queryByText("Studio body")).toBeNull();
+    });
+
     it("lets a host that takes 12 s open the episode under a 5 s rate-limit delay", async () => {
       let calls = 0;
       offline.load.mockResolvedValue(undefined);
