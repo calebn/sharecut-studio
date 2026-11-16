@@ -381,7 +381,11 @@ function AppInner() {
           outcome = { kind: "error", error: { failure } };
           return;
         }
-        const saved = await loadOfflineSnapshot(reviewToken);
+        // A saved copy that cannot be read is no saved copy: the guest still
+        // gets the cover for the failure, never the host's Home.
+        const saved = await loadOfflineSnapshot(reviewToken).catch(
+          () => undefined,
+        );
         if (standing() !== "newest") return;
         const cachedProject = saved?.project as ProjectView | undefined;
         if (cachedProject && typeof cachedProject === "object") {
