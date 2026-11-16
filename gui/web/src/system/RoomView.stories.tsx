@@ -114,6 +114,7 @@ const meta: Meta<typeof RoomView> = {
     seat: "guest",
     title: TITLE,
     people: [HOST, JON_YOU, ANNEKE_GUEST],
+    lookingIn: 0,
     phase: LIVE,
     notes: [],
     selfName: "Jon",

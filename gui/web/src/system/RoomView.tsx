@@ -52,8 +52,7 @@ export type RoomViewProps = {
   /** The session's own name, shown first in the embedded header; omitted until known. */
   sessionName?: string;
   people: RoomPerson[];
-  /** People with the producer link looking in; a line under the listeners, nameless. */
-  lookingIn?: number;
+  lookingIn: number;
   phase: RoomPhase;
   viewerWidth?: ViewerWidth;
   alerts?: RoomAlertInput[];
@@ -165,7 +164,7 @@ export function RoomView({
   title,
   sessionName,
   people,
-  lookingIn = 0,
+  lookingIn,
   phase,
   viewerWidth = "desktop",
   alerts,
@@ -229,7 +228,14 @@ export function RoomView({
     selfName,
     device,
   });
-  const lookingInText = lookingInLine(lookingIn);
+  const lookingInText = loading ? null : lookingInLine(lookingIn);
+  const lookingInRow =
+    lookingInText === null ? null : (
+      <p className="sys-room-looking-in">
+        <SystemIcon name="eye" size={16} />
+        {lookingInText}
+      </p>
+    );
   const pinned =
     phase.kind === "live" || phase.kind === "paused"
       ? clockText(phase.clockSec)
@@ -310,6 +316,7 @@ export function RoomView({
           ) : null}
           {target ? <div className="sys-room-view-target">{target}</div> : null}
           <RoomStatusPill phase={phase} />
+          {lookingInRow}
         </div>
       ) : (
         <header
@@ -334,6 +341,7 @@ export function RoomView({
           </h1>
           {target ? <div className="sys-room-view-target">{target}</div> : null}
           {loading || !statusKnown ? null : <RoomStatusPill phase={phase} />}
+          {lookingInRow}
         </header>
       )}
       <div className="sys-room-view-body" inert={declined ? true : undefined}>
@@ -401,12 +409,6 @@ export function RoomView({
                 />
               ))}
             </ListenerRow>
-          ) : null}
-          {!loading && lookingInText !== null ? (
-            <p className="sys-room-looking-in">
-              <SystemIcon name="eye" size={16} />
-              {lookingInText}
-            </p>
           ) : null}
         </Stage>
         {!loading && model.railOpen ? (

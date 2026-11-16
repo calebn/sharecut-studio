@@ -37,6 +37,7 @@ import {
   useHostRoomContext,
   useInputPeakDb,
   useLastEndedSession,
+  useLookingInAnnouncer,
   useMutedSpeech,
   useOpenSessionName,
   useRecordHostStore,
@@ -49,6 +50,7 @@ import { setRoomKeys } from "../../state/roomKeys";
 import { DeviceSheet } from "../../system/DeviceSheet";
 import { STOP_DETAIL, STOP_TITLE } from "../../system/RecordButton";
 import type { RoomViewProps } from "../../system/RoomView";
+import { lookingInCount } from "../../system/roomViewModel";
 import { TakesTray } from "../../system/TakesTray";
 import { Toast } from "../../ui";
 import { BUSY_REASON } from "../../ui/disabledReason";
@@ -117,6 +119,7 @@ function RecordStageBody({
   const [moreOpen, setMoreOpen] = useState(false);
   const [deviceOpen, setDeviceOpen] = useState(false);
   const { snapshot, state, host, capture: cap } = room;
+  const lookingInAnnouncement = useLookingInAnnouncer(snapshot);
   const lookup = lookupOf(room);
   const autoRoomChecked = useRef(false);
   useEffect(() => {
@@ -484,7 +487,7 @@ function RecordStageBody({
         title: project?.meta.name ?? "",
         sessionName: sessionName ?? undefined,
         people,
-        lookingIn: snapshot.watchers ?? 0,
+        lookingIn: lookingInCount(snapshot.watchers),
         phase,
         viewerWidth: viewerWidthOf(shell),
         alerts,
@@ -558,6 +561,9 @@ function RecordStageBody({
   }
   if (cap.hearing) {
     srNotes.push(HEARING_COPY);
+  }
+  if (lookingInAnnouncement) {
+    srNotes.push(lookingInAnnouncement);
   }
   const notices: RecordNotice[] = [];
   const note = (text: string) => notices.push({ text });

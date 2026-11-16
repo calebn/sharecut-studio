@@ -10,7 +10,10 @@ import { describe, expect, it, vi } from "vitest";
 import { recordParticipant, recordSnapshot } from "../test/fixtures";
 import { MARKER_BODY } from "./liveCommentQueue";
 import type { RecordSnapshot } from "./types";
-import { useRosterAnnouncer } from "./useRosterAnnouncer";
+import {
+  useLookingInAnnouncer,
+  useRosterAnnouncer,
+} from "./useRosterAnnouncer";
 
 const host = recordParticipant({
   participant_id: "p_host",
@@ -302,6 +305,27 @@ describe("useRosterAnnouncer", () => {
       expect(result.current).toBe(ROW);
     });
 
+    it("announces a lobby rise after a rise that was seen during a take", () => {
+      const { result, rerender } = setup(at(0, "recording"));
+      rerender({ snapshot: at(1, "recording"), meId: "p_g" });
+      expect(result.current).toBe("");
+      rerender({ snapshot: at(0, "lobby"), meId: "p_g" });
+      rerender({ snapshot: at(1, "lobby"), meId: "p_g" });
+      expect(result.current).toBe(ROW);
+    });
+
+    it.each([-1, 2.5, 100, Number.NaN, "2"])(
+      "is silent for a count that is not a count: %s",
+      (bad) => {
+        const { result, rerender } = setup(at(0));
+        rerender({
+          snapshot: at(bad as unknown as number),
+          meId: "p_g",
+        });
+        expect(result.current).toBe("");
+      },
+    );
+
     it("announces again for a new room, not for a second rise in the same one", () => {
       const { result, rerender } = setup(at(0));
       rerender({ snapshot: at(1), meId: "p_g" });
@@ -314,5 +338,54 @@ describe("useRosterAnnouncer", () => {
         "3 people with the producer link are looking in",
       );
     });
+  });
+});
+
+describe("useLookingInAnnouncer", () => {
+  const ROW = "Someone with the producer link is looking in";
+  const at = (
+    watchers: number,
+    state: RecordSnapshot["state"] = "lobby",
+    session_id = "room1",
+  ) => recordSnapshot({ watchers, state, session_id });
+  const setupHost = (snapshot: RecordSnapshot | null) =>
+    renderHook(({ snapshot }) => useLookingInAnnouncer(snapshot), {
+      initialProps: { snapshot },
+    });
+
+  it("is silent without a snapshot and for who is already looking in", () => {
+    const { result, rerender } = setupHost(null);
+    expect(result.current).toBe("");
+    rerender({ snapshot: at(1) });
+    expect(result.current).toBe("");
+    rerender({ snapshot: at(2) });
+    expect(result.current).toBe("");
+  });
+
+  it("announces the first rise in the lobby, once, and says nothing about people", () => {
+    const { result, rerender } = setupHost(at(0));
+    rerender({ snapshot: at(1) });
+    expect(result.current).toBe(ROW);
+    rerender({ snapshot: at(0) });
+    rerender({ snapshot: at(3) });
+    expect(result.current).toBe(ROW);
+  });
+
+  it("holds its tongue during a take, then announces a lobby rise", () => {
+    const { result, rerender } = setupHost(at(0, "recording"));
+    rerender({ snapshot: at(1, "recording") });
+    expect(result.current).toBe("");
+    rerender({ snapshot: at(0, "lobby") });
+    rerender({ snapshot: at(2, "lobby") });
+    expect(result.current).toBe(
+      "2 people with the producer link are looking in",
+    );
+  });
+
+  it("ignores a count that is not a count", () => {
+    const { result, rerender } = setupHost(at(0));
+    rerender({ snapshot: at(2.5) });
+    rerender({ snapshot: at(-3) });
+    expect(result.current).toBe("");
   });
 });

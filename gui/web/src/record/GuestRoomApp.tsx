@@ -20,6 +20,7 @@ import { DeviceSheet } from "../system/DeviceSheet";
 import { JoinSheet } from "../system/JoinSheet";
 import type { JoinMicAction } from "../system/joinSheetModel";
 import { RoomView } from "../system/RoomView";
+import { lookingInCount } from "../system/roomViewModel";
 import { SKELETON_RETRY_MS } from "../system/Skeleton";
 import { TakesTray } from "../system/TakesTray";
 import { dbToFraction } from "../ui/metering";
@@ -430,6 +431,7 @@ function GuestRoomSession({
   if (!bootstrap) {
     return (
       <RoomView
+        lookingIn={0}
         loading
         focusTitle={retried}
         page
@@ -483,7 +485,7 @@ function GuestRoomSession({
         seat={producer ? "producer" : "guest"}
         title={episodeName || "Recording"}
         people={people}
-        lookingIn={snapshot?.watchers ?? 0}
+        lookingIn={lookingInCount(snapshot?.watchers)}
         phase={phase}
         viewerWidth={viewerWidth}
         alerts={alerts}
@@ -532,7 +534,7 @@ function GuestRoomSession({
           seat={producer ? "producer" : "guest"}
           here={joinHere(snapshot, me)}
           host={host}
-          lookingIn={snapshot?.watchers ?? 0}
+          lookingIn={lookingInCount(snapshot?.watchers)}
           name={name}
           onNameChange={setName}
           mic={joinMic(sheetMic.input, sheetMic.options)}
