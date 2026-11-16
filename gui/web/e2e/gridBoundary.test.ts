@@ -29,6 +29,11 @@ const AXIS_LOOPS: Record<string, { loops: number; reason: string }> = {
     reason:
       "the Model need row acceptance asks for contrast-enabled axe on the row at three viewports in both themes (#2046)",
   },
+  "record-lobby.spec.ts": {
+    loops: 1,
+    reason:
+      "the still-to-do ring's contrast differs per theme, so both are the subject (#3834)",
+  },
   "guest-seek.spec.ts": {
     loops: 1,
     reason:
