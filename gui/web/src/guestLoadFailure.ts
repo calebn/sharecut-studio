@@ -59,6 +59,22 @@ const waitInWords = (ms: number): string =>
       : "in about two minutes";
 
 /**
+ * No reply came back from the host: nothing answered, or a relay in between
+ * said the host did not. A busy host (`project_busy`) did answer.
+ */
+export function noAnswerStatus(
+  status: number | null,
+  code: string | null,
+): boolean {
+  return (
+    status === null ||
+    status === 502 ||
+    status === 504 ||
+    (status === 503 && code !== "project_busy")
+  );
+}
+
+/**
  * `deviceOnline` is what the browser said when the attempt failed. A request
  * that got no answer while it says there is no connection is the guest's own
  * device. Every other failure keeps its cover: something answered, or the page
@@ -77,12 +93,7 @@ export function classifyBootstrapFailure(
   if (status === null && !deviceOnline) {
     return { kind: "offline" };
   }
-  if (
-    status === null ||
-    status === 502 ||
-    status === 504 ||
-    (status === 503 && code !== "project_busy")
-  ) {
+  if (noAnswerStatus(status, code)) {
     return { kind: "unreachable" };
   }
   if (status === 503) {
@@ -105,11 +116,20 @@ export function classifyBootstrapFailure(
   return { kind: "server" };
 }
 
-export function guestLoadCover(failure: GuestLoadFailure): GuestLoadCover {
+/**
+ * The words for a failure. A cover that sits inside a region of the studio
+ * passes that region's own title and button for the causes that have none of
+ * their own; the defaults are the full-page cover's.
+ */
+export function guestLoadCover(
+  failure: GuestLoadFailure,
+  genericTitle: string = NOT_LOADED_TITLE,
+  genericButton: string = "Retry",
+): GuestLoadCover {
   const notLoaded = {
     glyph: "triangle-alert",
-    title: NOT_LOADED_TITLE,
-    button: "Retry",
+    title: genericTitle,
+    button: genericButton,
     autoRetryMs: null,
     stillFailing: STILL_NOT_LOADING,
   } as const;

@@ -6,6 +6,9 @@
  */
 export const NOT_SERVED_ELEMENT_ID = "sharecut-not-served";
 
+/** The title of the cover for an episode this computer is not open on, wherever that cover shows. */
+export const NOT_SERVED_TITLE = "This episode isn't open on this computer";
+
 export type NotServed = {
   name: string;
   openHref: string;
