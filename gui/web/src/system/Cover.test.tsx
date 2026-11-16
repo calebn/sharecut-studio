@@ -270,23 +270,20 @@ describe("Cover", () => {
     expect(screen.queryByRole("status")).toBeNull();
   });
 
-  it("takes the status out of flow, above the button on a phone page cover and below it elsewhere", () => {
+  it("takes the status out of flow, in the reserved room above the button on a phone page cover and below it elsewhere", () => {
     const css = partial("system.css");
     expect(rule(css, ".sys-cover-action-status")).toContain(
       "position: absolute",
     );
     expect(css).toMatch(
-      /@container sys-cover \(max-width: 40rem\) \{[\s\S]*?\.sys-cover--page \.sys-cover-action-status \{[^}]*inset-block-end: 100%/,
+      /@container sys-cover \(max-width: 40rem\) \{[\s\S]*?\.sys-cover--page \.sys-cover-action-status \{[^}]*inset-block-start: 0/,
     );
   });
 
-  it("reserves the status line's height above a pinned button as the actions' own padding, and seats the status there", () => {
+  it("reserves the status line's height above a pinned button as the actions' own padding", () => {
     const css = partial("system.css");
     expect(css).toMatch(
       /@container sys-cover \(max-width: 40rem\) \{[\s\S]*?\.sys-cover--page \.sys-cover-actions--status \{[^}]*padding-block-start:\s*calc\(var\(--sys-cover-status-line\) \+ var\(--space-3\)\)/,
-    );
-    expect(css).toMatch(
-      /@container sys-cover \(max-width: 40rem\) \{[\s\S]*?\.sys-cover--page \.sys-cover-action-status \{[^}]*inset-block-start:\s*0/,
     );
   });
 

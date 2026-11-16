@@ -121,7 +121,9 @@ export function Cover({
           {extra}
         </div>
         {primary || secondary ? (
-          <div className="sys-cover-actions">
+          <div
+            className={`sys-cover-actions${status !== undefined ? " sys-cover-actions--status" : ""}`}
+          >
             {primary ? (
               <Button variant="primary" {...pressProps(primary)}>
                 <ActionLabel {...primary} spinner />
