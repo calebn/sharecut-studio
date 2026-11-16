@@ -2074,7 +2074,7 @@ describe("GuestRoomApp", () => {
       ).not.toHaveAccessibleName(/not wearing headphones/);
     });
 
-    it("shows a producer who is not wearing headphones", async () => {
+    it("shows a producer the marker on a guest who is not wearing headphones", async () => {
       stubBootstrap(producerBootstrap);
       render(<GuestRoomApp token="prod-tok" />);
       await enterName("Pat");
