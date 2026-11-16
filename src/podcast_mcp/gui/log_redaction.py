@@ -26,28 +26,36 @@ def _decoded(text: str) -> str:
     return text
 
 
-def _text(value: object) -> str | None:
-    try:
-        return _decoded(str(value))
-    except Exception:
-        return None
-
-
-def _redact_route(text: str) -> str:
+def _cut(text: str) -> str:
     kept: list[str] = []
     position = 0
+    cut = False
     while (mark := text.find("?", position)) >= 0:
         start = max((m.end() for m in _BOUNDARY.finditer(text, position, mark)), default=position)
-        route = text[start:mark]
+        route = _decoded(text[start:mark])
         if redact_share_paths(route) == route:
             kept.append(text[position : mark + 1])
             position = mark + 1
             continue
+        cut = True
         kept.append(text[position:mark])
         end = _BOUNDARY.search(text, mark)
         position = end.start() if end else len(text)
+    if not cut:
+        return text
     kept.append(text[position:])
-    return redact_share_paths("".join(kept))
+    return "".join(kept)
+
+
+def _redact_route(text: str) -> str:
+    return redact_share_paths(_cut(text))
+
+
+def _text(value: object) -> str | None:
+    try:
+        return _decoded(_cut(str(value)))
+    except Exception:
+        return None
 
 
 def _without_query(value: Any) -> Any:
@@ -59,7 +67,7 @@ def _without_query(value: Any) -> Any:
 def _scrub(value: Any) -> Any:
     """The redacted text of ``value``; a route that carries a token also loses its query."""
     if isinstance(value, str):
-        plain = str.__str__(value)
+        plain = _cut(str.__str__(value))
         decoded = _decoded(plain)
         from_decoded = _redact_route(decoded)
         from_plain = _redact_route(plain)
@@ -84,8 +92,9 @@ def _fail_closed(record: logging.LogRecord) -> None:
     try:
         text = record.getMessage()
     except Exception:
-        if isinstance(record.msg, str):
-            record.msg = _redact_route(record.msg)
+        msg = record.msg
+        if type(msg) is str and (redacted := _redact_route(msg)) != msg:
+            record.msg = redacted
             record.args = ()
         return
     redacted = _redact_route(text)

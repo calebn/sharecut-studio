@@ -605,3 +605,60 @@ def test_a_record_whose_message_cannot_be_built_leaves_no_token_on_stderr(
     err = capsys.readouterr().err
     assert TOKEN not in err
     assert "Ann" not in err
+
+
+@pytest.mark.parametrize(
+    "query",
+    [
+        "name=Ava%20Lee&client_id=c1",
+        "name=Jo%20Smith&accept=1",
+        "name=%27Neil&client_id=c1",
+        "name=a%2Cb&x=1",
+        "name=%22Ann%5D%20x&y=2",
+    ],
+)
+def test_a_percent_encoded_separator_in_a_query_does_not_end_it(query: str) -> None:
+    line = _format(
+        '%s - "%s %s HTTP/%s" %d', "127.0.0.1:5000", "GET", f"/r/{TOKEN}?{query}", "1.1", 200
+    )
+    assert line == '127.0.0.1:5000 - "GET /r/<share-token> HTTP/1.1" 200'
+    assert _format(f"GET /r/{TOKEN}?{query} HTTP/1.1") == "GET /r/<share-token> HTTP/1.1"
+    assert _format("%s", f"GET /r/{TOKEN}?{query} HTTP/1.1") == "GET /r/<share-token> HTTP/1.1"
+
+
+class _ClassRaises:
+    @property
+    def __class__(self) -> type:
+        raise RuntimeError("class")
+
+    def __str__(self) -> str:
+        return "%s"
+
+
+def test_a_message_whose_class_raises_never_escapes_the_filter() -> None:
+    record = logging.LogRecord(
+        "uvicorn.error", logging.INFO, __file__, 1, _ClassRaises(), (_UnreadableMapping(), 2), None
+    )
+
+    assert ShareTokenFilter().filter(record) is True
+
+
+def test_a_token_free_record_that_cannot_be_built_keeps_its_message_and_arguments() -> None:
+    arg = _UnreadableMapping()
+    record = logging.LogRecord(
+        "uvicorn.error", logging.INFO, __file__, 1, "plain %(p)s", (arg,), None
+    )
+
+    assert ShareTokenFilter().filter(record) is True
+    assert record.msg == "plain %(p)s"
+    assert record.args is arg
+
+
+def test_a_token_free_encoded_query_argument_stays_the_same_object() -> None:
+    arg = "/x?a=b%20c"
+    record = logging.LogRecord("uvicorn.error", logging.INFO, __file__, 1, "%s", (arg,), None)
+
+    ShareTokenFilter().filter(record)
+
+    assert isinstance(record.args, tuple)
+    assert record.args[0] is arg
