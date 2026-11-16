@@ -1,7 +1,14 @@
 import { expect, type Page, type Route, test } from "@playwright/test";
 import { expectReadingSurfaceAxeClean } from "./axe";
 import { fontsReady } from "./fontsReady";
-import { failBootstrap, press, SIZES, withGuestLink } from "./guestLink";
+import {
+  expectCoverInWindow,
+  failBootstrap,
+  press,
+  SHORT_WINDOW,
+  SIZES,
+  withGuestLink,
+} from "./guestLink";
 import { guestSavedCopy } from "./offlineQueue";
 import { openGuestShare } from "./shareNavigation";
 import { setTheme } from "./theme";
@@ -316,3 +323,25 @@ for (const size of SIZES) {
     }
   });
 }
+
+test.describe(`the offline cover in a short window, ${SHORT_WINDOW.width}x${SHORT_WINDOW.height}`, () => {
+  test("keeps the title, sentence and whole button in view, before and after a failed press", async ({
+    browser,
+  }) => {
+    await withGuestLink(browser, SHORT_WINDOW, async (guest, token) => {
+      await loseConnectionOnLoad(guest, token);
+      const main = guest.getByRole("main");
+      await expect(
+        main.getByRole("heading", { name: OFFLINE_TITLE }),
+      ).toBeVisible();
+      await fontsReady(guest);
+      await expectCoverInWindow(guest);
+      await press(
+        main.getByRole("button", { name: "Try now" }),
+        SHORT_WINDOW.touch,
+      );
+      await expect(main.getByRole("status")).toHaveText("Still offline.");
+      await expectCoverInWindow(guest);
+    });
+  });
+});
