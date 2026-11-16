@@ -1,19 +1,22 @@
 """Keep link tokens out of uvicorn's request and WebSocket log lines.
 
 uvicorn writes the full path and query of every request to ``uvicorn.access`` and of every
-WebSocket accept, refusal and close to ``uvicorn.error``, whatever ``access_log`` says. Both
-the desktop sidecar log and the embedded engine log are bundled for support, so the filter
-rewrites the line before any handler formats it.
+WebSocket accept, refusal and close to ``uvicorn.error``, whatever ``access_log`` says; at the
+trace level ``uvicorn.asgi`` logs every request's full scope, path and query. The desktop
+sidecar log and the embedded engine log are bundled for support, so the filter on all three
+loggers rewrites the line before any handler formats it.
 """
 
 from __future__ import annotations
 
 import logging
+import re
 from typing import Any
 
 from podcast_mcp.util.redact import redact_share_paths
 
-UVICORN_LOGGERS = ("uvicorn.access", "uvicorn.error")
+_SCOPE_QUERY = re.compile(r"'query_string': b(?:'[^']*'|\"[^\"]*\")")
+UVICORN_LOGGERS = ("uvicorn.access", "uvicorn.error", "uvicorn.asgi")
 
 
 def _scrub(value: Any) -> Any:
@@ -22,7 +25,13 @@ def _scrub(value: Any) -> Any:
     The query of a guest WebSocket holds the guest's name and client id.
     """
     if not isinstance(value, str):
-        return value
+        if isinstance(value, bool | int | float | None):
+            return value
+        text = str(value)
+        scrubbed = _scrub(text)
+        if scrubbed == text:
+            return value
+        return _SCOPE_QUERY.sub("'query_string': b''", scrubbed)
     path, separator, _query = value.partition("?")
     redacted_path = redact_share_paths(path)
     if separator and redacted_path != path:

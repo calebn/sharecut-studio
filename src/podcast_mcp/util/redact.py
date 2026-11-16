@@ -142,16 +142,39 @@ def sanitize(
 
 
 def _mask_values(text: str, secrets: Sequence[str], min_prefix: int | None) -> str:
-    out = text
+    """Replace every secret, and with ``min_prefix`` every leading run of one, by one marker.
+
+    Spans from different secrets are merged before replacing, so two secrets that share a
+    leading run cannot leave the rest of the other one in the text.
+    """
+    spans: list[tuple[int, int]] = []
     for secret in sorted({s for s in secrets if s}, key=len, reverse=True):
         if min_prefix is not None and len(secret) > min_prefix:
             tail = "".join(f"(?:{re.escape(ch)}" for ch in secret[min_prefix:]) + ")?" * (
                 len(secret) - min_prefix
             )
-            out = re.sub(re.escape(secret[:min_prefix]) + tail, "<redacted>", out)
+            pattern = re.escape(secret[:min_prefix]) + tail
         else:
-            out = out.replace(secret, "<redacted>")
-    return out
+            pattern = re.escape(secret)
+        spans.extend(m.span() for m in re.finditer(pattern, text))
+    if not spans:
+        return text
+    spans.sort()
+    merged = [spans[0]]
+    for start, end in spans[1:]:
+        last_start, last_end = merged[-1]
+        if start <= last_end:
+            merged[-1] = (last_start, max(last_end, end))
+        else:
+            merged.append((start, end))
+    out: list[str] = []
+    cursor = 0
+    for start, end in merged:
+        out.append(text[cursor:start])
+        out.append("<redacted>")
+        cursor = end
+    out.append(text[cursor:])
+    return "".join(out)
 
 
 def redact_secrets(text: str, secrets: Sequence[str] = (), *, min_prefix: int | None = None) -> str:

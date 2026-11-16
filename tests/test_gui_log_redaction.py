@@ -3,12 +3,34 @@
 from __future__ import annotations
 
 import logging
+from collections.abc import Iterator
 
 import pytest
 
-from podcast_mcp.gui.log_redaction import ShareTokenFilter, install
+from podcast_mcp.gui import bind
+from podcast_mcp.gui.log_redaction import UVICORN_LOGGERS, ShareTokenFilter, install
 
 TOKEN = "velvet-quokka-umbra"
+
+
+@pytest.fixture
+def bare_uvicorn_loggers() -> Iterator[None]:
+    """Run with no token filter on the uvicorn loggers, and leave none behind."""
+
+    def strip() -> list[tuple[logging.Logger, logging.Filter]]:
+        removed: list[tuple[logging.Logger, logging.Filter]] = []
+        for name in UVICORN_LOGGERS:
+            target = logging.getLogger(name)
+            for found in [f for f in target.filters if isinstance(f, ShareTokenFilter)]:
+                target.removeFilter(found)
+                removed.append((target, found))
+        return removed
+
+    removed = strip()
+    yield
+    strip()
+    for target, found in removed:
+        target.addFilter(found)
 
 
 def _format(msg: str, *args: object) -> str:
@@ -99,3 +121,45 @@ def test_install_adds_one_filter_per_uvicorn_logger() -> None:
     for name in ("uvicorn.access", "uvicorn.error"):
         found = [f for f in logging.getLogger(name).filters if isinstance(f, ShareTokenFilter)]
         assert len(found) == 1
+
+
+def test_install_covers_the_asgi_trace_logger() -> None:
+    assert "uvicorn.asgi" in UVICORN_LOGGERS
+
+
+@pytest.mark.usefixtures("bare_uvicorn_loggers")
+def test_building_the_gui_server_installs_the_filter() -> None:
+    async def app(scope: object, receive: object, send: object) -> None:
+        return None
+
+    sock = bind.exclusive_listen_socket("127.0.0.1", 0)
+    try:
+        bind.build_gui_server(app, sock, log_level="info", access_log=True)
+    finally:
+        sock.close()
+
+    for name in UVICORN_LOGGERS:
+        found = [f for f in logging.getLogger(name).filters if isinstance(f, ShareTokenFilter)]
+        assert len(found) == 1
+
+
+def test_an_asgi_scope_argument_loses_the_token_and_the_query() -> None:
+    scope = {
+        "type": "websocket",
+        "path": f"/r/{TOKEN}/ws",
+        "raw_path": f"/r/{TOKEN}/ws".encode(),
+        "query_string": b"name=Ann&client=guest-1",
+    }
+    line = _format("%s [%d] Started scope=%s", "ws", 1, scope)
+
+    assert TOKEN not in line
+    assert "Ann" not in line
+    assert "'type': 'websocket'" in line
+
+
+def test_a_non_string_argument_without_a_token_is_passed_on_unchanged() -> None:
+    scope = {"path": "/api/health"}
+    record = logging.LogRecord("uvicorn.asgi", 5, __file__, 1, "%s %s", ("x", scope), None)
+    ShareTokenFilter().filter(record)
+
+    assert record.args == ("x", scope)
