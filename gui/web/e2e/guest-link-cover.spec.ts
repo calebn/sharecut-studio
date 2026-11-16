@@ -119,11 +119,34 @@ for (const size of SIZES) {
         const busy = main.getByRole("button", { name: "Trying…" });
         await expect(busy).toHaveAttribute("aria-busy", "true");
         expect(await busy.boundingBox()).toEqual(rest);
+        await expect(busy).toHaveCSS("opacity", "1");
+        await expect(busy).toHaveCSS("cursor", "progress");
 
         open();
         await expect(main.getByRole("status")).toHaveText("Still asleep.");
         await expect(button).not.toHaveAttribute("aria-busy", "true");
         expect(await button.boundingBox()).toEqual(rest);
+      });
+    });
+
+    test("the status line never touches the sentence, even with the text at 200%", async ({
+      browser,
+    }) => {
+      await withGuestLink(browser, size, async (guest, token) => {
+        await failBootstrap(guest, token, "abort");
+        await guest.goto(`/r/${token}`);
+        await guest.addStyleTag({ content: "html { font-size: 200% }" });
+        const main = guest.getByRole("main");
+        const button = main.getByRole("button", { name: "Try now" });
+        await expect(button).toBeVisible();
+        await press(button, size.touch);
+        const status = main.getByRole("status").getByText("Still asleep.");
+        await expect(status).toBeVisible();
+        const text = await main.locator(".sys-cover-text").boundingBox();
+        const line = await status.boundingBox();
+        expect(text).not.toBeNull();
+        expect(line).not.toBeNull();
+        expect(line!.y).toBeGreaterThanOrEqual(text!.y + text!.height);
       });
     });
 

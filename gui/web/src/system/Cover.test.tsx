@@ -280,6 +280,50 @@ describe("Cover", () => {
     );
   });
 
+  it("reserves the status line's height above a pinned button as the actions' own padding, and seats the status there", () => {
+    const css = partial("system.css");
+    expect(css).toMatch(
+      /@container sys-cover \(max-width: 40rem\) \{[\s\S]*?\.sys-cover--page \.sys-cover-actions--status \{[^}]*padding-block-start:\s*calc\(var\(--sys-cover-status-line\) \+ var\(--space-3\)\)/,
+    );
+    expect(css).toMatch(
+      /@container sys-cover \(max-width: 40rem\) \{[\s\S]*?\.sys-cover--page \.sys-cover-action-status \{[^}]*inset-block-start:\s*0/,
+    );
+  });
+
+  it("marks the actions block only when the cover has a status line", () => {
+    const { container, rerender } = render(
+      <Cover
+        size="page"
+        glyph="eye-off"
+        title="Title"
+        primary={{ label: "Go", onClick: vi.fn() }}
+        status="Still asleep."
+      >
+        Body.
+      </Cover>,
+    );
+    const actions = () => container.querySelector(".sys-cover-actions");
+    expect(actions()).toHaveClass("sys-cover-actions--status");
+    rerender(
+      <Cover
+        size="page"
+        glyph="eye-off"
+        title="Title"
+        primary={{ label: "Go", onClick: vi.fn() }}
+      >
+        Body.
+      </Cover>,
+    );
+    expect(actions()).not.toHaveClass("sys-cover-actions--status");
+  });
+
+  it("keeps a busy cover button at full opacity with the progress cursor, so its label stays readable", () => {
+    const css = partial("system.css");
+    const busy = rule(css, '.sys-cover-actions .ui-control[aria-busy="true"]');
+    expect(busy).toContain("opacity: 1");
+    expect(busy).toContain("cursor: progress");
+  });
+
   it("leaves a primary without busy enabled", () => {
     render(
       <Cover
