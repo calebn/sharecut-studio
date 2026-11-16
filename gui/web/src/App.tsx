@@ -1,5 +1,6 @@
 import { lazy, Suspense, useEffect, useRef, useState } from "react";
-import { loadReviewBootstrap } from "./api";
+import { flushSync } from "react-dom";
+import { isLinkEnded, loadReviewBootstrap, markLinkEnded } from "./api";
 import {
   classifyBootstrapFailure,
   type GuestLoadFailure,
@@ -16,10 +17,12 @@ import {
 } from "./extensions/FeaturesContext";
 import { FEATURE_SHARE_UI_ROUTES } from "./extensions/features";
 import { AskDialog } from "./feedback/AskDialog";
+import { useDeadLinkWatch } from "./hooks/useDeadLinkWatch";
 import { ModelsProvider } from "./models";
 import {
   clearOfflineSnapshot,
   loadOfflineSnapshot,
+  retireOfflineSnapshot,
 } from "./services/offlineQueue/offlineStore";
 import { isShareProjectKey, shareProjectKey } from "./shareMode";
 import { parseShareRoute } from "./shareRoute";
@@ -27,7 +30,10 @@ import { GuestLoadingScreen } from "./stage/frame/GuestLoadingScreen";
 import { StageLoading } from "./stage/frame/StageLoading";
 import { GuestPageCover, NotServedCover } from "./stage/frame/StatusCovers";
 import { HomeScreen } from "./stages/home/HomeScreen";
+import { composerPatch, initialSession } from "./state/composerSession";
+import { useDawStore } from "./state/dawStore";
 import { DawProvider } from "./state/store";
+import { collectUnsent, type UnsentText } from "./state/unsentText";
 import type { ProjectView } from "./types/project";
 import { ErrorScreen } from "./ui";
 import { peekOpenStage } from "./utils/openIntent";
@@ -62,7 +68,7 @@ function shareRouteFromLocation(): {
 }
 
 type BootstrapError =
-  | { failure: GuestLoadFailure }
+  | { failure: GuestLoadFailure; unsent?: UnsentText[] }
   | { message: string; hint?: string };
 type GuestAccess = {
   key: string;
@@ -134,6 +140,8 @@ function settleBootstrap(
 ): BootstrapObservation {
   const token = request.reviewToken;
   if (standing === "gone" || token === null) return state;
+  // An ended link stays ended: no answer, even a late 200, reopens it.
+  if (isLinkEnded(token)) return state;
   const open = state.guest?.key === shareProjectKey(token);
   if (standing === "replaced") {
     const gone =
@@ -178,6 +186,9 @@ function admitBootstrap(
         error: null,
       };
   if (!request.featuresReady) return retained;
+  if (request.reviewToken && isLinkEnded(request.reviewToken)) {
+    return { ...retained, status: "settled" };
+  }
   if (
     (request.reviewToken || request.recordToken) &&
     !request.shareRoutesEnabled
@@ -333,6 +344,7 @@ function AppInner() {
       request;
     if (!featuresReady || !shareRoutesEnabled || !reviewToken || recordToken)
       return;
+    if (isLinkEnded(reviewToken)) return;
     const tracker = attempts.current;
     const generation = tracker.generation;
     const controller = new AbortController();
@@ -425,6 +437,37 @@ function AppInner() {
     })();
   }, [request]);
 
+  // The host turned the link off while the episode is open: one confirmed
+  // answer replaces the studio with the cover, and what the guest had typed
+  // and not sent goes with it, collected just before the studio unmounts.
+  const endSession = (token: string) => {
+    if (attempts.current.newest?.reviewToken !== token) return;
+    markLinkEnded(token);
+    abortAll(attempts.current.flight);
+    // Collecting what was typed and unmounting the studio is one step: a key
+    // pressed between the two would land in a field that is about to go.
+    // This runs in a promise callback, never during a render.
+    const unsent = collectUnsent();
+    flushSync(() => {
+      const store = useDawStore.getState();
+      store.setIsPlaying(false);
+      useDawStore.setState(composerPatch(initialSession));
+      setBootstrap((state) =>
+        state.guest?.key === shareProjectKey(token)
+          ? {
+              ...state,
+              status: "settled",
+              guest: null,
+              cached: null,
+              error: { failure: { kind: "bad-link" }, unsent },
+            }
+          : state,
+      );
+    });
+    void retireOfflineSnapshot(token);
+  };
+  useDeadLinkWatch(shareKey ? reviewToken : null, endSession);
+
   if (recordToken && !error) {
     return (
       <Suspense
@@ -447,7 +490,12 @@ function AppInner() {
   }
   if (error && "failure" in error) {
     return (
-      <GuestPageCover failure={error.failure} trying={trying} onRetry={retry} />
+      <GuestPageCover
+        failure={error.failure}
+        trying={trying}
+        onRetry={retry}
+        unsent={error.unsent}
+      />
     );
   }
   if (error) {

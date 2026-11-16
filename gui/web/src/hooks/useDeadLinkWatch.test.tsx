@@ -185,6 +185,30 @@ describe("useDeadLinkWatch", () => {
     expect(ended).toHaveBeenCalledOnce();
   });
 
+  it("drops a doubt that falls in the quiet period, and ends on the next one after it when the link has been turned off", async () => {
+    let answer: () => Response = ALIVE;
+    const spy = stubFetch(() => answer());
+    const ended = vi.fn();
+    renderHook(() => useDeadLinkWatch("w6b", ended));
+    act(() => reportLinkDoubt("w6b"));
+    await flush();
+    expect(spy).toHaveBeenCalledOnce();
+    // The host turns the link off now; the doubt that comes next is inside the quiet period.
+    answer = DEAD;
+    await act(async () =>
+      vi.advanceTimersByTimeAsync(QUIET_AFTER_ALIVE_MS - 1_000),
+    );
+    act(() => reportLinkDoubt("w6b"));
+    await flush();
+    expect(spy).toHaveBeenCalledOnce();
+    expect(ended).not.toHaveBeenCalled();
+    await act(async () => vi.advanceTimersByTimeAsync(1_000));
+    act(() => reportLinkDoubt("w6b"));
+    await flush();
+    expect(spy).toHaveBeenCalledTimes(2);
+    expect(ended).toHaveBeenCalledExactlyOnceWith("w6b");
+  });
+
   it("stays quiet for a few seconds after a check found the link alive", async () => {
     const spy = stubFetch(ALIVE);
     renderHook(() => useDeadLinkWatch("w6", vi.fn()));

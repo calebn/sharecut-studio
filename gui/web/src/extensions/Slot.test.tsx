@@ -109,7 +109,9 @@ describe("extensions features", () => {
   });
 
   it("falls back to guest share defaults when scoped features 404", async () => {
-    const fetchMock = vi.fn().mockResolvedValue({ ok: false, status: 404 });
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(new Response("", { status: 404 }));
     vi.stubGlobal("fetch", fetchMock);
     const manifest = await fetchFeatures("/r/cool-token");
     expect(manifest.features).toContain("share.ui.routes");
