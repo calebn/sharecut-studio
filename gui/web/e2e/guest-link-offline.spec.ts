@@ -283,6 +283,30 @@ for (const size of SIZES) {
       });
     }
 
+    test("answers a press on the asleep cover that lands on the offline cover with the new title, not Still", async ({
+      browser,
+    }) => {
+      await withGuestLink(browser, size, async (guest, token) => {
+        const held = await holdFirstRequest(guest, token);
+        await guest.goto(`/r/${token}`);
+        (await held.first).abort("connectionrefused");
+        const main = guest.getByRole("main");
+        await expect(
+          main.getByRole("heading", { name: ASLEEP_TITLE }),
+        ).toBeVisible();
+        held.answerWith("offline");
+        await guest.context().setOffline(true);
+        await expect.poll(() => deviceOnLine(guest)).toBe(false);
+
+        await press(main.getByRole("button", { name: "Try now" }), size.touch);
+
+        await expect(
+          main.getByRole("heading", { name: OFFLINE_TITLE }),
+        ).toBeVisible();
+        await expect(main.getByRole("status")).toHaveText(`${OFFLINE_TITLE}.`);
+      });
+    });
+
     for (const colorScheme of ["light", "dark"] as const) {
       test(`passes axe in the ${colorScheme} theme`, async ({ browser }) => {
         await withGuestLink(browser, size, async (guest, token) => {
