@@ -1,6 +1,7 @@
 import { expect, type Locator, type Page, test } from "@playwright/test";
 import { postDocumentCommand } from "./documentCommand";
 import { fontsReady } from "./fontsReady";
+import { press, SIZES, type Size } from "./guestLink";
 import { guestSavedCopy } from "./offlineQueue";
 import { withShareableProject } from "./shareableProject";
 import {
@@ -17,10 +18,6 @@ import { withBrowserPages } from "./twoBrowserPages";
  * back what the guest had typed, and never ends on any other answer.
  */
 
-const SIZES = [
-  { name: "phone", width: 390, height: 844, touch: true },
-  { name: "desktop", width: 1280, height: 800, touch: false },
-] as const;
 /** A phone held sideways: wider than a phone cover, and only 390 px tall. */
 const LANDSCAPE = {
   name: "landscape",
@@ -28,7 +25,6 @@ const LANDSCAPE = {
   height: 390,
   touch: true,
 } as const;
-type Size = { name: string; width: number; height: number; touch: boolean };
 
 const DEAD_TITLE = "This link doesn't open anything";
 const DEAD_SENTENCE = "Ask the person who sent it for a new link.";
@@ -98,14 +94,6 @@ const serverWordsSeen = (page: Page) =>
   page.evaluate(
     () => (window as unknown as { __probe: Probe }).__probe.serverWords,
   );
-
-async function press(button: Locator, size: Size) {
-  if (size.touch) {
-    await button.tap();
-  } else {
-    await button.click();
-  }
-}
 
 type Link = { token: string; projectPath: string; host: Page };
 
@@ -306,7 +294,7 @@ for (const size of SIZES) {
           }
         });
         const copy = guest.getByRole("button", { name: "Copy all" });
-        await press(copy, size);
+        await press(copy, size.touch);
         await expect(guest.getByRole("status")).toHaveText("Copied");
         expect(await guest.evaluate(() => navigator.clipboard.readText())).toBe(
           both,
@@ -330,7 +318,7 @@ for (const size of SIZES) {
         await revoke(link);
         await press(
           guest.getByRole("button", { name: "Post", exact: true }),
-          size,
+          size.touch,
         );
 
         await expect(title(guest)).toBeVisible({ timeout: 30_000 });
@@ -522,7 +510,7 @@ for (const size of SIZES) {
 
         await press(
           guest.getByRole("button", { name: "Copy your comment" }),
-          size,
+          size.touch,
         );
         const text = guest.getByRole("textbox", {
           name: "Your comment was not posted",

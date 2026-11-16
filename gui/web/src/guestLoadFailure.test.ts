@@ -91,6 +91,17 @@ describe("classifyBootstrapFailure", () => {
     ["503 project_busy", failure(503, "project_busy"), { kind: "busy" }],
     ["404", failure(404, "share_not_found"), { kind: "bad-link" }],
     ["500", failure(500, null), { kind: "server" }],
+    ["403", failure(403, "share_acl_denied"), { kind: "restricted" }],
+    [
+      "429",
+      failure(429, "rate_limited", 12),
+      { kind: "rate-limited", retryAfterSec: 12 },
+    ],
+    [
+      "an abort",
+      new DOMException("aborted", "AbortError"),
+      { kind: "unreachable" },
+    ],
     ["a non-JSON 200", new SyntaxError(SENTINEL), { kind: "intercepted" }],
   ])("reads %s the same on an offline device", (_name, error, expected) => {
     expect(classifyBootstrapFailure(error, false)).toEqual(expected);

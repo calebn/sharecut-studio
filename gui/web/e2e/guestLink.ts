@@ -3,6 +3,13 @@ import { withShareableProject } from "./shareableProject";
 import { createReviewShare, openHostShare } from "./shareNavigation";
 import { withBrowserPages } from "./twoBrowserPages";
 
+export type Size = {
+  name: string;
+  width: number;
+  height: number;
+  touch: boolean;
+};
+
 export const SIZES = [
   { name: "phone", width: 390, height: 844, touch: true },
   { name: "desktop", width: 1280, height: 800, touch: false },
