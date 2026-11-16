@@ -1,6 +1,7 @@
 import { type ReactNode, type Ref, useId } from "react";
 import { BrandSymbol, Button } from "../ui";
 import { BUSY_REASON } from "../ui/disabledReason";
+import { BusyLabel } from "./BusyLabel";
 import type { SystemIconName } from "./icons";
 import { SystemIcon } from "./SystemIcon";
 
@@ -41,18 +42,24 @@ function ActionLabel({
     );
   }
   return (
-    <span className="sys-cover-action-label">
-      <span aria-hidden={busy ? "true" : undefined}>{label}</span>
-      <span aria-hidden={busy ? undefined : "true"}>
-        {spinner ? <Spinner /> : null}
-        {busyLabel}
-      </span>
-    </span>
+    <BusyLabel
+      idle={label}
+      working={Boolean(busy)}
+      busy={
+        <>
+          {spinner ? <Spinner /> : null}
+          {busyLabel}
+        </>
+      }
+    />
   );
 }
 
-function pressProps({ busy, onClick }: CoverAction) {
+function pressProps({ busy, busyLabel, onClick }: CoverAction) {
   return {
+    // Only a button that shows its busy label looks like it is working; one
+    // that is busy without a label keeps the shared disabled look.
+    "data-working": busy && busyLabel ? "true" : undefined,
     onClick: busy ? undefined : onClick,
     "aria-busy": busy || undefined,
     "aria-disabled": busy || undefined,
