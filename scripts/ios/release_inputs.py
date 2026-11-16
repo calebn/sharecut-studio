@@ -101,6 +101,7 @@ class BuildInputs:
     signing: Signing
     team: Secret | None
     checkout: Checkout
+    key: AscKey | None = None
 
 
 @dataclass(frozen=True)
@@ -296,6 +297,7 @@ def resolve_build_inputs(
     checkout: Checkout,
     recorded: Sequence[BuildNumber],
     toolchain_problem: InputProblem | None = None,
+    home: Path | None = None,
 ) -> BuildInputs:
     problems = list(file_problems)
     identity, found = load_identity(environ)
@@ -303,8 +305,11 @@ def resolve_build_inputs(
     version, found = marketing_version(root)
     problems += found
     team: Secret | None = None
+    key: AscKey | None = None
     if signing is Signing.APP_STORE:
         team, found = resolve_team(values)
+        problems += found
+        key, found = resolve_asc_key(values, home or Path.home(), root)
         problems += found
         if checkout.dirty:
             problems.append(
@@ -325,4 +330,4 @@ def resolve_build_inputs(
         )
     if problems or identity is None or version is None:
         raise InputError(problems)
-    return BuildInputs(identity, version, number, signing, team, checkout)
+    return BuildInputs(identity, version, number, signing, team, checkout, key)
