@@ -368,7 +368,7 @@ def test_history_diff_models_reject_incomplete_or_mixed_variants():
             adapter.validate_python(invalid)
 
 
-# Wire pin for history undo, redo and goto (#1811): what develop emits before the results are typed.
+# Wire pin for history undo, redo and goto (#1811): the exact JSON text at each edge.
 STATUS_KEYS = ["cursor", "total", "can_undo", "can_redo", "current_label", "head_id"]
 PREVIEW_JSON = '{"ready": true, "stems": ["host"], "nested": {"n": 1}}'
 PREVIEW = {"ready": True, "stems": ["host"], "nested": {"n": 1}}
@@ -521,3 +521,76 @@ def test_cli_goto_output(history_project, stub_render, rerender):
     assert result.exit_code == 0, result.output
     assert result.stdout == "Goto → [0] one (3 snapshots)\n"
     assert result.stderr == ""
+
+
+UNICODE_LABELS = ("caf\u00e9", "dash \u2014 \u65e5\u672c", "mic \U0001f399")
+UNICODE_PREVIEW_JSON = (
+    '{"title": "caf\\u00e9 \\u65e5\\u672c \\ud83c\\udf99", '
+    '"ratio": 0.30000000000000004, "whole": 1.0, "nested": {"say": "\\u00e9"}}'
+)
+UNICODE_TWO = "dash \\u2014 \\u65e5\\u672c"
+UNICODE_THREE = "mic \\ud83c\\udf99"
+UNICODE_ONE = "caf\\u00e9"
+
+
+def _unicode_status(cursor, can_undo, can_redo, label, head, rerender):
+    tail = (
+        ',\n  "preview": {\n    "title": "caf\\u00e9 \\u65e5\\u672c \\ud83c\\udf99",\n'
+        '    "ratio": 0.30000000000000004,\n    "whole": 1.0,\n'
+        '    "nested": {\n      "say": "\\u00e9"\n    }\n  }'
+        if rerender
+        else ""
+    )
+    return (
+        f'{{\n  "cursor": {cursor},\n  "total": 3,\n  "can_undo": {can_undo},\n'
+        f'  "can_redo": {can_redo},\n  "current_label": "{label}",\n  "head_id": "{head}"'
+        f"{tail}\n}}"
+    )
+
+
+@pytest.fixture
+def unicode_project(minimal_project, monkeypatch):
+    counter = itertools.count(1)
+    monkeypatch.setattr(
+        "podcast_mcp.project.history.manager.uuid.uuid4",
+        lambda: types.SimpleNamespace(hex=f"{next(counter):012x}" + "0" * 20),
+    )
+    ws = ProjectWorkspace.open(minimal_project)
+    for label in UNICODE_LABELS:
+        with ws.transaction():
+            ws.record_snapshot(label, force=True)
+    with (
+        patch("podcast_mcp.services.document.history.rerender_preview"),
+        patch(
+            "podcast_mcp.services.document.history.render_preview_result",
+            return_value=UNICODE_PREVIEW_JSON,
+        ),
+    ):
+        yield minimal_project
+
+
+@pytest.mark.parametrize("rerender", [False, True])
+def test_mcp_move_wire_json_escapes_non_ascii(unicode_project, rerender):
+    path = str(unicode_project)
+    assert history_undo(path, rerender=rerender) == _unicode_status(
+        1, "true", "true", UNICODE_TWO, "000000000002", rerender
+    )
+    assert history_redo(path, rerender=rerender) == _unicode_status(
+        2, "true", "false", UNICODE_THREE, "000000000003", rerender
+    )
+    assert history_goto_tool(path, 0, rerender=rerender) == _unicode_status(
+        0, "false", "true", UNICODE_ONE, "000000000001", rerender
+    )
+
+
+@pytest.mark.parametrize("rerender", [False, True])
+def test_document_plane_wire_json_escapes_non_ascii(unicode_project, rerender):
+    ws = ProjectWorkspace.open(unicode_project)
+    undone = undo_history(ws, {"rerender": rerender, "expected_head_id": "000000000003"})
+    assert type(undone) is dict
+    text = json.dumps(undone)
+    assert text == json.dumps(
+        json.loads(_unicode_status(1, "true", "true", UNICODE_TWO, "000000000002", rerender))
+    )
+    assert "\\u2014" in text
+    assert "\u2014" not in text
