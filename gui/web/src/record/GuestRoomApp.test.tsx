@@ -654,12 +654,144 @@ describe("GuestRoomApp", () => {
       await screen.findByRole("button", { name: "Not now" }),
     );
     expect(sockets).toHaveLength(0);
-    await userEvent.click(
-      await screen.findByRole("button", { name: "Join recording" }),
-    );
     expect(
-      await screen.findByRole("button", { name: "Join to listen" }),
+      screen.getByRole("region", { name: "Not in the room" }),
+    ).toBeVisible();
+    expect(
+      screen.getByText("You're not in the room yet. You won't be recorded."),
+    ).toBeVisible();
+    await waitFor(() => {
+      expect(document.title).toBe("Not in the room | Shot of Truth");
+    });
+    expect(screen.queryByText("Waiting")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Join recording" })).toBeNull();
+    const back = screen.getByRole("button", { name: "Join to listen" });
+    expect(back).toBeEnabled();
+    await userEvent.click(back);
+    expect(
+      await screen.findByRole("heading", { name: "Join the room" }),
     ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Join to listen" }),
+    ).toBeInTheDocument();
+  });
+
+  const producerSnapshot = (patch: Record<string, unknown> = {}) => ({
+    data: JSON.stringify({
+      plane: "record",
+      type: "Snapshot",
+      snapshot: {
+        ...guestSnap,
+        start_blockers: [],
+        participants: [
+          {
+            ...guestSnap.participants[0],
+            participant_id: "p_prod",
+            role: "producer",
+            display_name: "Pat",
+          },
+        ],
+        ...patch,
+      },
+    }),
+  });
+  const producerEcho = {
+    data: JSON.stringify({
+      plane: "record",
+      type: "Echo",
+      participant_id: "p_prod",
+      lease: "lease-prod",
+    }),
+  };
+
+  it("holds Joining until the room lists the producer, and never says Waiting", async () => {
+    stubBootstrap(producerBootstrap);
+    stubWebSocket(sockets, "silent");
+    const { container } = render(<GuestRoomApp token="prod-tok" />);
+    const pills = new Set<string>();
+    const watch = new MutationObserver(() => {
+      for (const el of container.querySelectorAll(".sys-pill-text")) {
+        pills.add(el.textContent ?? "");
+      }
+    });
+    watch.observe(container, { childList: true, subtree: true });
+    await enterName("Pat");
+    await userEvent.click(
+      await screen.findByRole("button", { name: "Join to listen" }),
+    );
+    await waitFor(() => {
+      expect(sockets[0]?.sent.some((raw) => raw.includes('"Join"'))).toBe(true);
+    });
+    expect(sockets).toHaveLength(1);
+    const joins = sockets[0].sent.filter((raw) => raw.includes('"Join"'));
+    expect(joins).toHaveLength(1);
+    expect(JSON.parse(joins[0]).payload.display_name).toBe("Pat");
+    const joining = screen.getByRole("button", { name: /Joining/ });
+    expect(joining).toHaveAttribute("aria-busy", "true");
+    expect(screen.getByRole("button", { name: "Not now" })).toBeDisabled();
+    expect(screen.queryByText("Waiting")).toBeNull();
+
+    act(() => sockets[0].onmessage?.(producerEcho));
+    expect(
+      screen.getByRole("heading", { name: "Join the room" }),
+    ).toBeVisible();
+
+    act(() =>
+      sockets[0].onmessage?.(
+        producerSnapshot({
+          state: "recording",
+          take_index: 0,
+          recording_ms: 5000,
+          server_time_ns: 100,
+        }),
+      ),
+    );
+    await waitFor(() => {
+      expect(
+        screen.queryByRole("heading", { name: "Join the room" }),
+      ).toBeNull();
+    });
+    expect(screen.getByText("0:05 · Take 1")).toBeVisible();
+    expect(document.title).toBe("Recording | Shot of Truth");
+    watch.disconnect();
+    expect(pills.has("Waiting")).toBe(false);
+  });
+
+  it("keeps the producer in the room when an older snapshot arrives after the live one", async () => {
+    stubBootstrap(producerBootstrap);
+    stubWebSocket(sockets, "silent");
+    render(<GuestRoomApp token="prod-tok" />);
+    await enterName("Pat");
+    await userEvent.click(
+      await screen.findByRole("button", { name: "Join to listen" }),
+    );
+    await waitFor(() => expect(sockets).toHaveLength(1));
+    act(() => sockets[0].onmessage?.(producerEcho));
+    act(() =>
+      sockets[0].onmessage?.(
+        producerSnapshot({
+          state: "recording",
+          take_index: 0,
+          recording_ms: 5000,
+          server_time_ns: 200,
+        }),
+      ),
+    );
+    await waitFor(() => {
+      expect(
+        screen.queryByRole("heading", { name: "Join the room" }),
+      ).toBeNull();
+    });
+    act(() =>
+      sockets[0].onmessage?.(
+        producerSnapshot({
+          participants: [],
+          server_time_ns: 100,
+        }),
+      ),
+    );
+    expect(screen.queryByRole("heading", { name: "Join the room" })).toBeNull();
+    expect(screen.getByText("0:05 · Take 1")).toBeVisible();
   });
 
   it("blocks joining when local backup storage is unavailable", async () => {

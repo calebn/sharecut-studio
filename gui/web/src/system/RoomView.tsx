@@ -82,8 +82,9 @@ export type RoomViewProps = {
   /** The host can take another person out of the room; their tile gets a menu. */
   onRemovePerson?: (id: string, name: string) => void;
   /**
-   * The viewer declined to be recorded: the room dims behind a peek bar with
-   * Join recording, and the rest of the room goes inert.
+   * The viewer said Not now: the room dims behind a peek bar with Join
+   * recording (a producer's reads Join to listen), and the rest of the room
+   * goes inert.
    */
   declined?: { onJoin: () => void };
   embedded?: boolean;
@@ -102,6 +103,8 @@ export type RoomViewProps = {
   target?: ReactNode;
   /** A bare page: the room fills 100dvh and clears the top safe area. */
   page?: boolean;
+  /** `false` leaves the status pill out: the viewer has no snapshot of the room yet. */
+  statusKnown?: boolean;
   /** Placeholder tiles and title, an inert dock, no pill, rail or Comments sheet. */
   loading?: boolean;
   /** With `loading`: focus the title when this shell mounts (after a Retry remount). */
@@ -191,6 +194,7 @@ export function RoomView({
   noteVisibility,
   target,
   page = false,
+  statusKnown = true,
   loading = false,
   focusTitle = false,
 }: RoomViewProps) {
@@ -323,7 +327,7 @@ export function RoomView({
             )}
           </h1>
           {target ? <div className="sys-room-view-target">{target}</div> : null}
-          {loading ? null : <RoomStatusPill phase={phase} />}
+          {loading || !statusKnown ? null : <RoomStatusPill phase={phase} />}
         </header>
       )}
       <div className="sys-room-view-body" inert={declined ? true : undefined}>
@@ -458,7 +462,11 @@ export function RoomView({
         />
       </Dockbar>
       {declined && !loading ? (
-        <DeclinedScrim phase={phase} onJoin={declined.onJoin} />
+        <DeclinedScrim
+          phase={phase}
+          seat={seat === "producer" ? "producer" : "guest"}
+          onJoin={declined.onJoin}
+        />
       ) : null}
       {viewerWidth === "desktop" || loading ? null : (
         <Sheet

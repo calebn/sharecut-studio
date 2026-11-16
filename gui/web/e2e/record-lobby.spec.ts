@@ -1408,6 +1408,46 @@ async function reachJoinState(
   }
 }
 
+async function withLiveTake(
+  browser: Browser,
+  run: (room: {
+    host: Page;
+    producer: Page;
+    token: string;
+    projectPath: string;
+  }) => Promise<void>,
+): Promise<void> {
+  await withShareableProject(async (projectPath) => {
+    await withBrowserPages(
+      browser,
+      [{}, {}, {}],
+      async ([host, guest, producer]) => {
+        await markSharecutE2e(host);
+        await host.goto(`/?project=${encodeURIComponent(projectPath)}&e2e=1`);
+        await expect(host.getByRole("heading", { level: 1 })).toBeVisible();
+        const room = await createRecordRoom(host, projectPath);
+        const roomDlg = await openHostRecordRoom(host);
+        await markSharecutE2e(guest);
+        await joinAsGuest(guest, room.guest.token, "Ava");
+        await clickHostTransport(
+          host,
+          roomDlg.getByRole("button", { name: "Record", exact: true }),
+          projectPath,
+          "Start",
+          "recording",
+        );
+        await expect(roomPill(guest)).toHaveText(LIVE_PILL);
+        await run({
+          host,
+          producer: producer!,
+          token: room.producer.token,
+          projectPath,
+        });
+      },
+    );
+  });
+}
+
 async function withJoinRoom(
   browser: Browser,
   guestOptions: BrowserContextOptions,
@@ -1448,6 +1488,94 @@ async function boxOf(locator: Locator): Promise<Box> {
 }
 
 test.describe("join sheet on a phone", () => {
+  test("a producer who joins mid-take never sees Waiting and is listed only once they join", async ({
+    browser,
+  }: {
+    browser: Browser;
+  }) => {
+    test.slow();
+    await withLiveTake(
+      browser,
+      async ({ host, producer, token, projectPath }) => {
+        await producer.addInitScript(() => {
+          const seen: string[] = [];
+          (window as unknown as { __pillTexts: string[] }).__pillTexts = seen;
+          new MutationObserver(() => {
+            for (const el of document.querySelectorAll(
+              ".sys-room-view-header .sys-pill-text",
+            )) {
+              seen.push(el.textContent ?? "");
+            }
+          }).observe(document, { childList: true, subtree: true });
+        });
+        await markSharecutE2e(producer);
+        await openRecordLink(producer, token);
+        await fillDisplayNameField(producer, "Pat");
+        await expect(
+          producer.getByRole("button", { name: "Join to listen" }),
+        ).toBeEnabled();
+        await expect(roomPill(producer)).toHaveCount(0);
+        expect(
+          (await hostRecordSnapshot(host, projectPath)).participants.map(
+            (p) => p.display_name,
+          ),
+        ).not.toContain("Pat");
+
+        await producer.getByRole("button", { name: "Join to listen" }).click();
+        await expect(
+          producer.getByRole("button", { name: "Join to listen" }),
+        ).toBeHidden();
+        await expect(roomPill(producer)).toHaveText(LIVE_PILL);
+        await expect(producer).toHaveTitle(/^Recording \| .+/);
+        const texts = await producer.evaluate(
+          () => (window as unknown as { __pillTexts: string[] }).__pillTexts,
+        );
+        expect(texts.filter((text) => /waiting/i.test(text))).toEqual([]);
+        await expect
+          .poll(
+            async () =>
+              (await hostRecordSnapshot(host, projectPath)).participants.filter(
+                (p) => p.display_name === "Pat",
+              ).length,
+          )
+          .toBe(1);
+        await expectSurfaceAxeClean(producer, "body");
+      },
+    );
+  });
+
+  test("a producer who says Not now during a take is told they are not in the room and can still join", async ({
+    browser,
+  }: {
+    browser: Browser;
+  }) => {
+    test.slow();
+    await withLiveTake(
+      browser,
+      async ({ host, producer, token, projectPath }) => {
+        await markSharecutE2e(producer);
+        await openRecordLink(producer, token);
+        await producer.getByRole("button", { name: "Not now" }).click();
+        const bar = producer.getByRole("region", { name: "Not in the room" });
+        await expect(bar).toBeVisible();
+        await expect(
+          bar.getByText("You're not in the room yet. You won't be recorded."),
+        ).toBeVisible();
+        await expect(
+          bar.getByRole("button", { name: "Join to listen" }),
+        ).toBeEnabled();
+        await expect(producer).toHaveTitle(/^Not in the room \| .+/);
+        await expect(roomPill(producer)).toHaveCount(0);
+        expect(
+          (await hostRecordSnapshot(host, projectPath)).participants.map(
+            (p) => p.display_name,
+          ),
+        ).not.toContain("Pat");
+        await expectSurfaceAxeClean(producer, "body");
+      },
+    );
+  });
+
   test("the name, microphone and headphones controls share one left edge", async ({
     browser,
   }: {

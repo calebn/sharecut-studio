@@ -202,19 +202,38 @@ describe("joinProducerModel", () => {
 });
 
 describe("declinedPeek", () => {
+  const { wait, reconnecting } = DECLINED_TEXT.guest;
   it.each([
     [{ kind: "waiting", host: "Maya" }, null],
-    [{ kind: "countdown", secondsLeft: 3 }, DECLINED_TEXT.wait],
-    [{ kind: "live", take: 1, clockSec: 5 }, DECLINED_TEXT.wait],
-    [{ kind: "paused", clockSec: 5 }, DECLINED_TEXT.wait],
-    [{ kind: "saving", savedPeople: 1, totalPeople: 2 }, DECLINED_TEXT.wait],
-    [{ kind: "saved" }, DECLINED_TEXT.wait],
-    [
-      { kind: "reconnecting", paused: false, clockSec: 43 },
-      DECLINED_TEXT.reconnecting,
-    ],
-  ] as const)("%j gives %s", (phase, reason) => {
-    expect(declinedPeek(phase).disabledReason).toBe(reason);
+    [{ kind: "countdown", secondsLeft: 3 }, wait],
+    [{ kind: "live", take: 1, clockSec: 5 }, wait],
+    [{ kind: "paused", clockSec: 5 }, wait],
+    [{ kind: "saving", savedPeople: 1, totalPeople: 2 }, wait],
+    [{ kind: "saved" }, wait],
+    [{ kind: "reconnecting", paused: false, clockSec: 43 }, reconnecting],
+  ] as const)("holds a guest's %j with %s", (phase, reason) => {
+    expect(declinedPeek(phase, "guest").disabledReason).toBe(reason);
+  });
+
+  it.each([
+    { kind: "waiting", host: "Maya" },
+    { kind: "countdown", secondsLeft: 3 },
+    { kind: "live", take: 1, clockSec: 5 },
+    { kind: "paused", clockSec: 5 },
+    { kind: "saving", savedPeople: 1, totalPeople: 2 },
+    { kind: "saved" },
+    { kind: "reconnecting", paused: false, clockSec: 43 },
+  ] as const)("never holds a producer's %j", (phase) => {
+    expect(declinedPeek(phase, "producer").disabledReason).toBeNull();
+  });
+
+  it("says the producer is not in the room, with the way in", () => {
+    expect(DECLINED_TEXT.producer).toEqual({
+      line: "You're not in the room yet. You won't be recorded.",
+      join: "Join to listen",
+      label: "Not in the room",
+      glyph: "headphones",
+    });
   });
 });
 

@@ -74,7 +74,15 @@ describe("guestTabTitle", () => {
     [
       "producer declined",
       { seat: "producer" as const, stance: "declined" as const },
-      "Join to listen | Shot of Truth",
+      "Not in the room | Shot of Truth",
+    ],
+    [
+      "producer in a live take",
+      {
+        seat: "producer" as const,
+        phase: { kind: "live", clockSec: 12, take: 1 } as RoomPhase,
+      },
+      "Recording | Shot of Truth",
     ],
     [
       "guest declined",
