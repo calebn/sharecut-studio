@@ -1117,7 +1117,7 @@ recorded."); producers skip the mic, storage and headphones rows.
 
 The sheet is one `Dialog` at every width, and the room's 600 rule decides its shape
 (`system-record.css`, a container query on the dialog root): from 600 it is a centred
-400 px card 96 px from the top; under 600 it rises from the bottom edge as tall as its
+400 px card whose top is 12% of the screen height from the top (at least 12 px and at most 96 px, so 96 px from 800 px high up; 8 px when the sheet scrolls as one); under 600 it rises from the bottom edge as tall as its
 rows and at most 88dvh, with the room's header and status pill showing above it. On a
 screen under 30rem tall at any width (a phone on its side), or under 37.5rem wide and
 44rem tall (a small phone upright), the sheet scrolls as one, footer included, with
@@ -1135,11 +1135,18 @@ only when every row is done. A waiting action (the browser's microphone prompt, 
 disabled, and the microphone row announces its state in a polite status line.
 
 The name is remembered on this device (`sharecut.recordName`, `utils/recordNamePref.ts`)
-once the room confirms the join, and prefills the field in the next room, editable. It
-stays off the wire until the guest acts in this room: the socket URL and the Join hello
-carry "Guest" until the guest edits the field or presses **Join and record**, which
-sends the name as `UpdateName` just before `Consent`. A guest who has not joined shows
-to the host as "Guest". The key the earlier build kept per link
+once the room confirms the guest's consent, or once a producer presses **Join to listen**
+(that needs no server confirmation), and it prefills the field in the next room, editable.
+It stays off the wire until the person acts in this room. For a guest the socket URL and
+the Join hello carry "Guest" until one of these is true: the guest has edited the field,
+pressed **Join and record** (which sends the name as `UpdateName` just before `Consent`,
+even before the first reply from the room), or the room already holds the guest as joined.
+The last case covers a reconnect after joining, including after a reload; the first hello
+right after a reload still says "Guest", because the room's record of the guest is not
+known yet, and the name follows in `UpdateName` once it is. A producer's socket opens only
+after **Join to listen**, so its first hello already carries the name. A guest who has
+neither typed a name nor joined shows to the host as "Guest"; a guest who typed shows under
+what they typed, even after **Not now**. The key the earlier build kept per link
 (`record:{token}:name`) is removed.
 
 The `/rec` route does not wait for the host's feature list. While the room code
