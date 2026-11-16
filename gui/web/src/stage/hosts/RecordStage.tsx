@@ -365,6 +365,7 @@ function RecordStageBody({
     clipped: room.takeClipping?.regions.length ?? 0,
     peerLevels,
     peerClipped,
+    seesHeadphones: true,
   });
   const mutedSpeech = useMutedSpeech(cap.stream ?? null, {
     muted: host?.muted ?? false,

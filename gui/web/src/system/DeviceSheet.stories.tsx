@@ -51,7 +51,7 @@ const TONE_IDLE = {
 
 /** The room the sheet opens over, with the viewer's own tile in it. */
 function Devices(args: DeviceSheetProps) {
-  const [headphones, setHeadphones] = useArgState(args.headphones ?? false);
+  const [headphones, setHeadphones] = useArgState(args.headphones ?? "unset");
   return (
     <div style={{ blockSize: "44rem", inlineSize: "100%" }}>
       <RoomView
@@ -128,7 +128,7 @@ const state = () =>
   document.querySelector("[data-state].sys-join")?.getAttribute("data-state");
 
 export const Ready: Story = {
-  args: { headphones: true },
+  args: { headphones: "on" },
   play: async ({ args, viewMode }) => {
     if (viewMode === "docs") return;
     const dialog = await sheet();
@@ -261,7 +261,7 @@ export const RoomToneCapturing: Story = {
 };
 
 export const Phone: Story = {
-  args: { viewerWidth: "phone", headphones: true },
+  args: { viewerWidth: "phone", headphones: "on" },
   globals: { viewport: { value: "mobile360", isRotated: false } },
   play: async ({ viewMode }) => {
     if (viewMode === "docs") return;
@@ -276,6 +276,25 @@ export const Phone: Story = {
     await expect(
       within(menu).getAllByRole("menuitemradio").length,
     ).toBeGreaterThan(0);
+  },
+};
+
+export const PhoneNotWearingHeadphones: Story = {
+  args: {
+    viewerWidth: "phone",
+    headphones: "off",
+    headphonesRule: "choice",
+  },
+  globals: { viewport: { value: "mobile360", isRotated: false } },
+  play: async ({ viewMode }) => {
+    if (viewMode === "docs") return;
+    const dialog = await sheet();
+    await expect(
+      dialog.getByRole("button", { name: "I'm not wearing headphones" }),
+    ).toHaveAttribute("aria-pressed", "true");
+    await expect(
+      dialog.getByText(/Without headphones, the others may hear an echo/),
+    ).toBeVisible();
   },
 };
 

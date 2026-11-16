@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { expectNoA11yViolations } from "../test/a11y";
 import { seedPendingKeeper } from "../test/keepers";
+import { stubMatchMedia } from "../test/matchMedia";
 import { urlOf } from "../test/urlOf";
 import { GuestRoomApp } from "./GuestRoomApp";
 import {
@@ -100,6 +101,8 @@ const guestSnap = {
   ],
 };
 
+let joinedAs: Record<string, unknown> = {};
+
 class FakeSocket {
   static OPEN = 1;
   readyState = FakeSocket.OPEN;
@@ -181,7 +184,9 @@ class FakeSocket {
           snapshot: {
             ...guestSnap,
             state,
-            participants: [{ ...guestSnap.participants[0], consented }],
+            participants: [
+              { ...guestSnap.participants[0], consented, ...joinedAs },
+            ],
           },
         }),
       });
@@ -271,6 +276,7 @@ describe("GuestRoomApp", () => {
   });
 
   beforeEach(() => {
+    joinedAs = {};
     closeGuardSpy.mockClear();
     sockets = [];
     stubWebSocket(sockets);
@@ -1935,5 +1941,112 @@ describe("GuestRoomApp", () => {
       false,
       true,
     ]);
+  });
+
+  describe("headphones on a phone", () => {
+    const commands = (socket: FakeSocket) =>
+      socket.sent.map(
+        (row) =>
+          JSON.parse(row) as { command_type?: string; payload?: unknown },
+      );
+    const phone = () => {
+      stubMatchMedia(true);
+      vi.stubGlobal("screen", { width: 390, height: 844 });
+    };
+    const answerMic = async () => {
+      await enterName();
+      await userEvent.click(allowMic());
+      await waitFor(() => expect(getUserMedia).toHaveBeenCalled());
+    };
+
+    it("lets a guest join after saying they are not wearing headphones", async () => {
+      phone();
+      stubBootstrap();
+      render(<GuestRoomApp token="guest-tok" />);
+      await answerMic();
+      expect(
+        await screen.findByRole("button", {
+          name: "I'm not wearing headphones",
+        }),
+      ).toHaveAttribute("aria-pressed", "false");
+      expect(joinButton()).toBeDisabled();
+      expect(joinButton()).toHaveAccessibleDescription(
+        "Say if you're wearing headphones first",
+      );
+      await userEvent.click(
+        screen.getByRole("button", { name: "I'm not wearing headphones" }),
+      );
+      expect(screen.getByText(/Without headphones, the others/)).toBeVisible();
+      await waitFor(() => expect(joinButton()).toBeEnabled());
+      await userEvent.click(joinButton());
+      await waitFor(() =>
+        expect(
+          commands(sockets[0] as FakeSocket).filter(
+            (row) => row.command_type === "Consent",
+          ),
+        ).toHaveLength(1),
+      );
+      expect(
+        commands(sockets[0] as FakeSocket).filter(
+          (row) => row.command_type === "HeadphonesAck",
+        ),
+      ).toEqual([]);
+    });
+
+    it("sends the yes before the consent", async () => {
+      phone();
+      stubBootstrap();
+      render(<GuestRoomApp token="guest-tok" />);
+      await answerMic();
+      await userEvent.click(
+        await screen.findByRole("button", { name: "I'm wearing headphones" }),
+      );
+      await waitFor(() => expect(joinButton()).toBeEnabled());
+      await userEvent.click(joinButton());
+      await waitFor(() =>
+        expect(
+          commands(sockets[0] as FakeSocket).some(
+            (row) => row.command_type === "Consent",
+          ),
+        ).toBe(true),
+      );
+      const order = commands(sockets[0] as FakeSocket)
+        .map((row) => row.command_type)
+        .filter((type) => type === "HeadphonesAck" || type === "Consent");
+      expect(order).toEqual(["HeadphonesAck", "Consent"]);
+      expect(
+        commands(sockets[0] as FakeSocket).find(
+          (row) => row.command_type === "HeadphonesAck",
+        )?.payload,
+      ).toEqual({ ok: true });
+    });
+
+    it("keeps the laptop's single toggle where the screen is not a phone's", async () => {
+      stubMatchMedia(true);
+      vi.stubGlobal("screen", { width: 1440, height: 900 });
+      stubBootstrap();
+      render(<GuestRoomApp token="guest-tok" />);
+      await answerMic();
+      await screen.findByRole("button", { name: "I'm wearing headphones" });
+      expect(
+        screen.queryByRole("button", { name: "I'm not wearing headphones" }),
+      ).toBeNull();
+      expect(joinButton()).toHaveAccessibleDescription(
+        "Put on headphones first",
+      );
+    });
+
+    it("sends no HeadphonesAck when a consented guest reloads", async () => {
+      joinedAs = { consented: true, headphones_ack: true };
+      stubBootstrap();
+      render(<GuestRoomApp token="guest-tok" />);
+      await screen.findByText("Waiting");
+      await act(async () => undefined);
+      expect(
+        commands(sockets[0] as FakeSocket).filter(
+          (row) => row.command_type === "HeadphonesAck",
+        ),
+      ).toEqual([]);
+    });
   });
 });

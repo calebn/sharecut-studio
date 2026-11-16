@@ -40,6 +40,7 @@ import {
   uploadInFlight,
 } from "./guestRoomModel";
 import { guestTabTitle } from "./guestTabTitle";
+import { headphonesRule, readHeadphonesEnv } from "./headphonesRule";
 import {
   COMMENTS_CLOSED_REASON,
   COMMENTS_NOT_IN_ROOM_REASON,
@@ -123,6 +124,7 @@ function GuestRoomSession({
   const [joining, setJoining] = useState(false);
   const [producerDismissed, setProducerDismissed] = useState(false);
   const [deviceOpen, setDeviceOpen] = useState(false);
+  const [headphonesGate] = useState(() => headphonesRule(readHeadphonesEnv()));
   const room = useGuestRoom(token, { rejoining: rejoinOpen });
   const {
     bootstrap,
@@ -153,8 +155,8 @@ function GuestRoomSession({
     name,
     setName,
     shareName,
-    headphonesOk,
-    setHeadphonesOk,
+    headphones,
+    setHeadphones,
     deviceId,
     setDeviceId,
     producerJoined,
@@ -391,6 +393,7 @@ function GuestRoomSession({
     dropped: !connected,
     clipped,
     peerLevels: monitor.levels,
+    seesHeadphones: producer,
     saving:
       meId && state === "stopped" && !producer
         ? {
@@ -532,8 +535,9 @@ function GuestRoomSession({
           onNameChange={setName}
           mic={joinMic(sheetMic.input, sheetMic.options)}
           micNotes={micNotes}
-          headphones={headphonesOk}
-          onHeadphonesChange={setHeadphonesOk}
+          headphones={headphones}
+          headphonesRule={headphonesGate}
+          onHeadphonesChange={setHeadphones}
           lowStorage={headroom.status === "low"}
           blocker={storageBlocker}
           onBlockerAction={retryStorage}
@@ -556,8 +560,9 @@ function GuestRoomSession({
           micNotes={micNotes}
           onMicAction={micAction}
           onInputChange={setDeviceId}
-          headphones={headphonesOk}
-          onHeadphonesChange={setHeadphonesOk}
+          headphones={headphones}
+          headphonesRule={headphonesGate}
+          onHeadphonesChange={setHeadphones}
           output={output}
           onOutputChange={output.onChange}
           onOutputRefresh={output.refresh}

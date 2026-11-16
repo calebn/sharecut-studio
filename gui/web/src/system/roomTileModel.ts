@@ -24,6 +24,8 @@ export type RoomTileProps =
       level?: number;
       speaking?: boolean;
       muted?: boolean;
+      /** A recorded guest who said they are not wearing headphones. */
+      notWearingHeadphones?: boolean;
       connection?: RoomConnection;
       /** Listeners show an ear glyph and no level ring. */
       listener?: boolean;
@@ -121,6 +123,9 @@ export function roomTileLabel(props: RoomTileProps): string {
   if (props.saving) parts.push(savingText(props.saving));
   if (props.listener) parts.push("listening");
   if (props.muted) parts.push("muted");
+  if (props.notWearingHeadphones) {
+    parts.push(ROOM_TILE_TEXT.notWearingHeadphones);
+  }
   if (speaking) parts.push("speaking");
   if (props.connection === "weak") parts.push(ROOM_TILE_TEXT.weak);
   if (clips) parts.push(`${clips} ${clips === 1 ? "clip" : "clips"}`);

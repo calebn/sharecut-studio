@@ -45,6 +45,19 @@ describe("RoomTile states in words", () => {
     expect(roomTileLabel(live({ clipped: 1 }))).toContain("1 clip");
   });
 
+  it("names a guest who is not wearing headphones, and draws the glyph", () => {
+    const props = live({ notWearingHeadphones: true });
+    expect(roomTileLabel(props)).toBe("Maya Okafor, not wearing headphones");
+    expect(
+      roomTileLabel(live({ muted: true, notWearingHeadphones: true })),
+    ).toBe("Maya Okafor, muted, not wearing headphones");
+    render(<RoomTile {...props} />);
+    expect(
+      within(screen.getByRole("group")).getByTitle("Not wearing headphones"),
+    ).toBeInTheDocument();
+    expect(roomTileLabel(live({}))).toBe("Maya Okafor");
+  });
+
   it("names the host after the name, live or away", () => {
     expect(roomTileLabel(live({ host: true }))).toBe("Maya Okafor, host");
     expect(

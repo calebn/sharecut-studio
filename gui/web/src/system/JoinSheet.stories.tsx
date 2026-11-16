@@ -53,7 +53,7 @@ const MIC_READY = {
 /** The room the sheet opens over: the people already here, no seat of the viewer's own. */
 function Join({ phase, roomWidth = "desktop", ...args }: StoryArgs) {
   const [name, setName] = useArgState(args.name);
-  const [headphones, setHeadphones] = useArgState(args.headphones ?? false);
+  const [headphones, setHeadphones] = useArgState(args.headphones ?? "unset");
   return (
     <div style={{ blockSize: "44rem", inlineSize: "100%" }}>
       <RoomView
@@ -88,7 +88,7 @@ const meta: Meta<StoryArgs> = {
     host: "Maya Okafor",
     name: "Jon",
     mic: { status: "idle" },
-    headphones: false,
+    headphones: "off",
     phase: WAITING,
     onNameChange: fn(),
     onHeadphonesChange: fn(),
@@ -185,7 +185,7 @@ export const GuestDenied: Story = {
 };
 
 export const GuestInputLost: Story = {
-  args: { mic: { status: "lost" }, headphones: true },
+  args: { mic: { status: "lost" }, headphones: "on" },
   play: async ({ args, viewMode }) => {
     if (viewMode === "docs") return;
     const dialog = await sheet();
@@ -198,7 +198,7 @@ export const GuestInputLost: Story = {
 };
 
 export const GuestReady: Story = {
-  args: { mic: MIC_READY, headphones: true },
+  args: { mic: MIC_READY, headphones: "on" },
   play: async ({ args, viewMode }) => {
     if (viewMode === "docs") return;
     const dialog = await sheet();
@@ -218,7 +218,7 @@ export const GuestReady: Story = {
 export const GuestClippedDuringCheck: Story = {
   args: {
     mic: { ...MIC_READY, level: 1, clipped: true },
-    headphones: true,
+    headphones: "on",
   },
   play: async ({ viewMode }) => {
     if (viewMode === "docs") return;
@@ -233,7 +233,7 @@ export const GuestClippedDuringCheck: Story = {
 };
 
 export const GuestLowStorage: Story = {
-  args: { mic: MIC_READY, headphones: true, lowStorage: true },
+  args: { mic: MIC_READY, headphones: "on", lowStorage: true },
   play: async ({ viewMode }) => {
     if (viewMode === "docs") return;
     const dialog = await sheet();
@@ -246,7 +246,7 @@ export const GuestLowStorage: Story = {
 export const GuestStorageBlocked: Story = {
   args: {
     mic: MIC_READY,
-    headphones: true,
+    headphones: "on",
     blocker: {
       text: "This browser can't keep a recording on this device.",
       action: { label: "Retry storage check" },
@@ -281,7 +281,7 @@ export const GuestStaleInput: Story = {
     micNotes: [
       "Your saved microphone isn't available, so the default input is in use.",
     ],
-    headphones: true,
+    headphones: "on",
     onInputChange: fn(),
   },
   play: async ({ args, viewMode }) => {
@@ -303,7 +303,7 @@ export const GuestStaleInput: Story = {
 };
 
 export const GuestRejoin: Story = {
-  args: { mic: MIC_READY, headphones: true },
+  args: { mic: MIC_READY, headphones: "on" },
   play: async ({ viewMode }) => {
     if (viewMode === "docs") return;
     const dialog = await sheet();
@@ -316,7 +316,7 @@ export const GuestRejoin: Story = {
 };
 
 export const GuestJoining: Story = {
-  args: { mic: MIC_READY, headphones: true, joining: true, phase: LIVE },
+  args: { mic: MIC_READY, headphones: "on", joining: true, phase: LIVE },
   play: async ({ viewMode }) => {
     if (viewMode === "docs") return;
     const dialog = await sheet();
@@ -380,11 +380,51 @@ export const GuestReturnVisit: Story = {
 };
 
 export const GuestPhoneReady: Story = {
-  args: { roomWidth: "phone", mic: MIC_READY, headphones: true },
+  args: { roomWidth: "phone", mic: MIC_READY, headphones: "on" },
   globals: PHONE,
   play: async ({ viewMode }) => {
     if (viewMode === "docs") return;
     const dialog = await sheet();
+    await expect(
+      dialog.getByRole("button", { name: "Join and record" }),
+    ).toBeEnabled();
+  },
+};
+
+export const PhoneHeadphonesUnset: Story = {
+  args: {
+    roomWidth: "phone",
+    mic: MIC_READY,
+    headphones: "unset",
+    headphonesRule: "choice",
+  },
+  globals: PHONE,
+  play: async ({ viewMode }) => {
+    if (viewMode === "docs") return;
+    const dialog = await sheet();
+    await expect(
+      dialog.getByRole("button", { name: "I'm not wearing headphones" }),
+    ).toHaveAttribute("aria-pressed", "false");
+    await expect(
+      dialog.getByRole("button", { name: "Join and record" }),
+    ).toBeDisabled();
+  },
+};
+
+export const PhoneNotWearingHeadphones: Story = {
+  args: {
+    roomWidth: "phone",
+    mic: MIC_READY,
+    headphones: "off",
+    headphonesRule: "choice",
+  },
+  globals: PHONE,
+  play: async ({ viewMode }) => {
+    if (viewMode === "docs") return;
+    const dialog = await sheet();
+    await expect(
+      dialog.getByText(/Without headphones, the others may hear an echo/),
+    ).toBeVisible();
     await expect(
       dialog.getByRole("button", { name: "Join and record" }),
     ).toBeEnabled();

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useDesktopCloseGuard } from "../desktop/useDesktopCloseGuard";
+import type { HeadphonesChoice } from "../system/joinSheetModel";
 import { readRecordName, writeRecordName } from "../utils/recordNamePref";
 import { readLocal, removeLocal, writeLocal } from "../utils/storage";
 import { tookAnyTake } from "./guestRoomModel";
@@ -57,7 +58,8 @@ export function useGuestRoom(
     setNameTyped(true);
     setName(value);
   }, []);
-  const [headphonesOk, setHeadphonesOk] = useState(false);
+  const [headphones, setHeadphones] = useState<HeadphonesChoice>("unset");
+  const [seededFor, setSeededFor] = useState<string | null>(null);
   const [deviceId, setDeviceId] = useState(
     () => readLocal(storageKey(token, "mic")) || "",
   );
@@ -347,11 +349,21 @@ export function useGuestRoom(
     removeLocal(storageKey(token, "name"));
   }, [token]);
 
-  useEffect(() => {
-    if (meId && !producer) {
-      send("HeadphonesAck", { ok: headphonesOk });
+  if (meId && meId !== seededFor) {
+    setSeededFor(meId);
+    if (me?.consented === true) {
+      setHeadphones(me.headphones_ack ? "on" : "off");
     }
-  }, [headphonesOk, meId, producer, send]);
+  }
+  const ackedOn = me?.headphones_ack;
+  useEffect(() => {
+    if (meId && !producer && headphones !== "unset") {
+      const on = headphones === "on";
+      if (on !== ackedOn) {
+        send("HeadphonesAck", { ok: on });
+      }
+    }
+  }, [ackedOn, headphones, meId, producer, send]);
 
   const view = useMemo(() => {
     if (error === "room_full") {
@@ -407,8 +419,8 @@ export function useGuestRoom(
     name,
     setName: typeName,
     shareName,
-    headphonesOk,
-    setHeadphonesOk,
+    headphones,
+    setHeadphones,
     deviceId,
     setDeviceId,
     producerJoined,

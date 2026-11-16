@@ -185,6 +185,13 @@ function LiveTile(props: LiveProps) {
           {props.muted ? (
             <SystemIcon name="mic-off" size={16} title="Muted" />
           ) : null}
+          {props.notWearingHeadphones ? (
+            <SystemIcon
+              name="headphone-off"
+              size={16}
+              title="Not wearing headphones"
+            />
+          ) : null}
           {props.listener ? (
             <>
               {/* Quiet when fine: a listener's good signal is not worth a glyph. */}

@@ -74,7 +74,7 @@ describe("DeviceSheet", () => {
     await userEvent.click(
       screen.getByRole("button", { name: "I'm wearing headphones" }),
     );
-    expect(onHeadphonesChange).toHaveBeenCalledWith(true);
+    expect(onHeadphonesChange).toHaveBeenCalledWith("on");
     rerender(sheet());
     expect(screen.queryByText("Headphones")).toBeNull();
   });
@@ -335,5 +335,38 @@ describe("DeviceSheet", () => {
       ).toHaveAttribute("role", "status");
       await expectNoA11yViolations(baseElement);
     });
+  });
+
+  it("on a phone shows the warning while not wearing, and a press says on", async () => {
+    const onHeadphonesChange = vi.fn();
+    render(
+      sheet({
+        headphones: "off",
+        headphonesRule: "choice",
+        onHeadphonesChange,
+      }),
+    );
+    expect(
+      screen.getByRole("button", { name: "I'm not wearing headphones" }),
+    ).toHaveAttribute("aria-pressed", "true");
+    expect(
+      screen.getByText(
+        "Without headphones, the others may hear an echo and be heard in your recording. Keep your volume low.",
+      ),
+    ).toBeVisible();
+    await userEvent.click(
+      screen.getByRole("button", { name: "I'm wearing headphones" }),
+    );
+    expect(onHeadphonesChange).toHaveBeenCalledWith("on");
+  });
+
+  it("on a laptop an unpress says off and shows no warning", async () => {
+    const onHeadphonesChange = vi.fn();
+    render(sheet({ headphones: "on", onHeadphonesChange }));
+    await userEvent.click(
+      screen.getByRole("button", { name: "I'm wearing headphones" }),
+    );
+    expect(onHeadphonesChange).toHaveBeenCalledWith("off");
+    expect(screen.queryByText(/Without headphones/)).toBeNull();
   });
 });
