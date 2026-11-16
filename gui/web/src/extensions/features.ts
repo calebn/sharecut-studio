@@ -70,8 +70,18 @@ export async function fetchFeatures(
     return inflight;
   }
   const asked = generation;
-  // A dropped ask answering late must not fill the cache the new ask owns.
+  // A dropped ask answering late may not replace what the current ask owns,
+  // but the host's real answer is still an answer: while nothing has filled
+  // the cache it fills it, so a slow first ask is not wasted by a Retry. Its
+  // fallbacks (guest defaults, EMPTY) are never kept; only the current ask may
+  // fall back.
   const keep = (manifest: FeaturesManifest): FeaturesManifest => {
+    if (asked === generation || cached === null) {
+      cached = manifest;
+    }
+    return manifest;
+  };
+  const fallback = (manifest: FeaturesManifest): FeaturesManifest => {
     if (asked === generation) {
       cached = manifest;
     }
@@ -105,7 +115,7 @@ export async function fetchFeatures(
         } catch {
           // ignore and use guest defaults
         }
-        return keep(GUEST_SHARE_FEATURES);
+        return fallback(GUEST_SHARE_FEATURES);
       }
       const res = await apiSend(HOST_KEY, { host: "/api/features" });
       if (!res.ok) {
