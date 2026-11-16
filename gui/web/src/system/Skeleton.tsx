@@ -2,6 +2,7 @@ import { useAfter } from "../hooks/useAfter";
 import { useViewportClass } from "../hooks/useViewportClass";
 import { Button } from "../ui";
 import { BusyLabel } from "./BusyLabel";
+import { TRYING_LABEL } from "./useCoverPress";
 import { useHeldBusy } from "./useHeldBusy";
 
 type Phase = "blank" | "blocks" | "slow";
@@ -123,7 +124,7 @@ export function Skeleton({
                   }
             }
           >
-            <BusyLabel idle="Retry" working={busy} busy="Trying…" />
+            <BusyLabel idle="Retry" working={busy} busy={TRYING_LABEL} />
           </Button>
         </p>
       ) : null}

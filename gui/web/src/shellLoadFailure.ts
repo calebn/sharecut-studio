@@ -3,11 +3,14 @@ import {
   type GuestLoadFailure,
   guestLoadCover,
   noAnswerStatus,
+  STILL_NOT_LOADING,
 } from "./guestLoadFailure";
 import {
   ApiError,
   isDeadLinkAnswer,
   LINK_DOUBT_MESSAGE,
+  PROJECT_NOT_FOUND_CODE,
+  PROJECT_UNREADABLE_CODE,
 } from "./utils/apiError";
 import { NOT_SERVED_TITLE } from "./utils/notServed";
 
@@ -35,7 +38,7 @@ export type ShellFailure =
 export type ShellCover = {
   /** What makes two failures "the same cover" for the status line after a press. */
   key: string;
-  glyph: "moon" | "cloud-off" | "triangle-alert" | "folder-open";
+  glyph: "moon" | "cloud-off" | "triangle-alert" | "folder-open" | "unlink";
   title: string;
   sentence: string;
   /** The button that tries again, or null when trying again cannot help. */
@@ -44,20 +47,21 @@ export type ShellCover = {
   home: boolean;
   /** Which of the two buttons is the primary one. */
   lead: "retry" | "home";
-  /** Milliseconds until the page tries again by itself; null never does. */
-  autoRetryMs: number | null;
-  /** The status line when a press got the same failure. */
+  /** The status line when a press got the same failure; empty when there is no retry. */
   stillFailing: string;
-  /** The status line when a press got a different cover. */
+  /** The status line when a press got a different cover; empty when there is no retry. */
   changed: string;
 };
 
 /** The server's own codes for an episode that cannot be opened, on a route a guest reads. */
 const UNOPENABLE_CODES = new Set([
-  "project_unreadable",
+  PROJECT_UNREADABLE_CODE,
   "project_version_newer",
   "project_version_unsupported",
 ]);
+
+const PROJECT_BUSY_CODE = "project_busy";
+const PROJECT_PATH_NOT_ALLOWED_CODE = "project_path_not_allowed";
 
 const isTimeout = (error: unknown): boolean =>
   error instanceof DOMException && error.name === "TimeoutError";
@@ -88,13 +92,13 @@ function classifyGuest(
 function classifyHost(error: unknown): HostLoadKind {
   if (error instanceof ApiError) {
     switch (error.code) {
-      case "project_unreadable":
+      case PROJECT_UNREADABLE_CODE:
         return "damaged";
-      case "project_not_found":
+      case PROJECT_NOT_FOUND_CODE:
         return "missing";
-      case "project_busy":
+      case PROJECT_BUSY_CODE:
         return "busy";
-      case "project_path_not_allowed":
+      case PROJECT_PATH_NOT_ALLOWED_CODE:
         return "elsewhere";
     }
     return noAnswerStatus(error.status, error.code) ? "not-answering" : "other";
@@ -119,12 +123,11 @@ type HostWords = {
   retry: string | null;
   home: boolean;
   lead: "retry" | "home";
-  stillFailing: string;
-  changed: string;
+  stillFailing?: string;
+  changed?: string;
 };
 
 const TRY_AGAIN = "Try again";
-const STILL_NOT_LOADING = "Still not loading.";
 
 const HOST_WORDS: Record<HostLoadKind, HostWords> = {
   missing: {
@@ -160,8 +163,6 @@ const HOST_WORDS: Record<HostLoadKind, HostWords> = {
     retry: null,
     home: true,
     lead: "home",
-    stillFailing: STILL_NOT_LOADING,
-    changed: `${NOT_SERVED_TITLE}.`,
   },
   "not-answering": {
     sentence: () =>
@@ -204,13 +205,12 @@ export function shellFailureCover(
         : guestLoadCover(guest, stageTitle, TRY_AGAIN);
     return {
       key: cover.title,
-      glyph: cover.glyph === "unlink" ? "triangle-alert" : cover.glyph,
+      glyph: cover.glyph,
       title: cover.title,
       sentence: cover.sentence,
       retry: cover.button,
       home: false,
       lead: "retry",
-      autoRetryMs: cover.autoRetryMs,
       stillFailing: cover.stillFailing,
       changed: `${cover.title}.`,
     };
@@ -224,9 +224,8 @@ export function shellFailureCover(
     retry: words.retry,
     home: words.home,
     lead: words.lead,
-    autoRetryMs: null,
-    stillFailing: words.stillFailing,
-    changed: words.changed,
+    stillFailing: words.stillFailing ?? "",
+    changed: words.changed ?? "",
   };
 }
 
