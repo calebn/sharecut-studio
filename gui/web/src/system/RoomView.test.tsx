@@ -3,7 +3,7 @@ import { join } from "node:path";
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
-import { readableText } from "../test/readableText";
+import { notesNaming, readableText } from "../test/readableText";
 import { SRC_ROOT } from "../test/sourceFiles";
 import type { NoteItem } from "./notesRailModel";
 import { RoomView, type RoomViewProps } from "./RoomView";
@@ -891,28 +891,103 @@ describe("RoomView comments naming", () => {
     for (const viewerWidth of ["desktop", "phone"] as const) {
       for (const phase of phases) {
         for (const takes of [undefined, <p key="t">Take 1 saved</p>]) {
-          const { unmount } = renderRoom({
-            seat,
-            people: [...people],
-            phase,
-            viewerWidth,
-            takes,
-            defaultNotesOpen: true,
-            notes: NOTES,
-          });
-          const text = readableText(document.body);
-          expect(text.filter((t) => /\bnotes?\b/i.test(t))).toEqual([]);
-          expect(text).toContain("Comments");
-          unmount();
+          for (const open of [true, false]) {
+            const { unmount } = renderRoom({
+              seat,
+              people: [...people],
+              phase,
+              viewerWidth,
+              takes,
+              defaultNotesOpen: open,
+              notes: NOTES,
+            });
+            expect(notesNaming(document.body)).toEqual([]);
+            const text = readableText(document.body);
+            if (viewerWidth === "phone" && !open) {
+              expect(
+                document.querySelector(".sys-room-view-peek-label"),
+              ).toHaveTextContent("Comments");
+            } else if (viewerWidth === "phone") {
+              expect(text).toContain("Comments");
+              screen.getByRole("dialog", { name: "Comments" });
+            } else if (open) {
+              screen.getByRole("complementary", {
+                name: "Comments and takes",
+              });
+            }
+            unmount();
+          }
         }
       }
     }
   });
 
-  it("opens on the Comments tab when the dock button reopens a rail left on Takes", async () => {
+  it("says no comments yet on the closed phone peek", () => {
+    renderRoom({ viewerWidth: "phone", notes: [] });
+    const peek = document.querySelector(".sys-room-view-peek") as HTMLElement;
+    expect(peek).toHaveTextContent("CommentsNo comments yet");
+  });
+
+  it.each([
+    ["host", [{ ...HOST, you: true }]],
+    ["producer", [HOST, ROSA]],
+  ] as const)(
+    "the %s's dock button reopens a rail left on Takes on the Comments tab",
+    async (seat, people) => {
+      renderRoom({
+        seat,
+        people: [...people],
+        takes: <p>Take 1 saved</p>,
+        defaultNotesOpen: true,
+      });
+      await userEvent.click(screen.getByRole("tab", { name: "Takes" }));
+      const toggle = screen.getByRole("button", { name: "Comments" });
+      await userEvent.click(toggle);
+      await userEvent.click(toggle);
+      expect(screen.getByRole("tab", { name: "Comments" })).toHaveAttribute(
+        "aria-selected",
+        "true",
+      );
+    },
+  );
+
+  it.each([
+    ["host", [{ ...HOST, you: true }]],
+    ["producer", [HOST, ROSA]],
+  ] as const)(
+    "the %s's phone peek opens the sheet on the Comments tab",
+    async (seat, people) => {
+      renderRoom({
+        seat,
+        people: [...people],
+        viewerWidth: "phone",
+        takes: <p>Take 1 saved</p>,
+      });
+      await userEvent.click(
+        document.querySelector(".sys-room-view-peek") as HTMLElement,
+      );
+      await userEvent.click(screen.getByRole("tab", { name: "Takes" }));
+      await userEvent.click(
+        within(screen.getByRole("dialog", { name: "Comments" })).getByRole(
+          "button",
+          { name: "Close" },
+        ),
+      );
+      await userEvent.click(
+        document.querySelector(".sys-room-view-peek") as HTMLElement,
+      );
+      expect(screen.getByRole("tab", { name: "Comments" })).toHaveAttribute(
+        "aria-selected",
+        "true",
+      );
+    },
+  );
+
+  it("the phone dock button reopens the sheet on the Comments tab", async () => {
     renderRoom({
       seat: "producer",
       people: [HOST, ROSA],
+      viewerWidth: "phone",
       takes: <p>Take 1 saved</p>,
       defaultNotesOpen: true,
     });
@@ -920,31 +995,6 @@ describe("RoomView comments naming", () => {
     const toggle = screen.getByRole("button", { name: "Comments" });
     await userEvent.click(toggle);
     await userEvent.click(toggle);
-    expect(screen.getByRole("tab", { name: "Comments" })).toHaveAttribute(
-      "aria-selected",
-      "true",
-    );
-  });
-
-  it("opens the phone sheet on the Comments tab from the peek line", async () => {
-    renderRoom({
-      seat: "producer",
-      people: [HOST, ROSA],
-      viewerWidth: "phone",
-      takes: <p>Take 1 saved</p>,
-    });
-    const peek = document.querySelector(".sys-room-view-peek") as HTMLElement;
-    await userEvent.click(peek);
-    await userEvent.click(screen.getByRole("tab", { name: "Takes" }));
-    await userEvent.click(
-      within(screen.getByRole("dialog", { name: "Comments" })).getByRole(
-        "button",
-        { name: "Close" },
-      ),
-    );
-    await userEvent.click(
-      document.querySelector(".sys-room-view-peek") as HTMLElement,
-    );
     expect(screen.getByRole("tab", { name: "Comments" })).toHaveAttribute(
       "aria-selected",
       "true",

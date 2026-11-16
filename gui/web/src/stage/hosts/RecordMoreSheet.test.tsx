@@ -1,7 +1,7 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
-import { readableText } from "../../test/readableText";
+import { notesNaming } from "../../test/readableText";
 import { RecordMoreSheet, type RecordMoreSheetProps } from "./RecordMoreSheet";
 
 function sheet(overrides: Partial<RecordMoreSheetProps> = {}) {
@@ -116,8 +116,6 @@ describe("RecordMoreSheet Guests see comments", () => {
         "Off: guests see their own comments and everyone’s markers. On: they also see other people’s comments.",
       ),
     ).toBeInTheDocument();
-    expect(
-      readableText(document.body).filter((text) => /\bnotes?\b/i.test(text)),
-    ).toEqual([]);
+    expect(notesNaming(document.body)).toEqual([]);
   });
 });
