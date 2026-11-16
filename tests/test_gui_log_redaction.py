@@ -138,3 +138,50 @@ def test_a_non_string_argument_without_a_token_is_passed_on_unchanged() -> None:
     ShareTokenFilter().filter(record)
 
     assert record.args == ("x", scope)
+
+
+def test_a_lone_mapping_argument_loses_the_token() -> None:
+    record = logging.LogRecord(
+        "uvicorn.error", logging.INFO, __file__, 1, "%(p)s", ({"p": f"/r/{TOKEN}/ws"},), None
+    )
+    ShareTokenFilter().filter(record)
+
+    assert TOKEN not in record.getMessage()
+
+
+@pytest.mark.parametrize(
+    "arg",
+    [
+        f"/r/{TOKEN}/ws".encode(),
+        [f"/r/{TOKEN}/ws"],
+        (f"/r/{TOKEN}/ws",),
+        ValueError(f"/r/{TOKEN}/ws"),
+    ],
+)
+def test_a_non_text_argument_holding_a_token_loses_it(arg: object) -> None:
+    assert TOKEN not in _format("seen %s", arg)
+
+
+def test_a_bytes_message_loses_the_token() -> None:
+    record = logging.LogRecord(
+        "uvicorn.error", logging.INFO, __file__, 1, f"/r/{TOKEN}/ws".encode(), (), None
+    )
+    ShareTokenFilter().filter(record)
+
+    assert TOKEN not in str(record.msg)
+
+
+@pytest.mark.parametrize(
+    ("path", "raw_path"),
+    [
+        ("/r/velvet-quokka-umbra/ws", b"/r/velvet%2Dquokka%2Dumbra/ws"),
+        (f"/r/{TOKEN}%2Fws", b"/r/x"),
+    ],
+)
+def test_a_percent_encoded_token_in_a_scope_is_scrubbed(path: str, raw_path: bytes) -> None:
+    scope = {"path": path, "raw_path": raw_path, "query_string": b"name=Ann"}
+    line = _format("%s", scope)
+
+    assert "quokka" not in line
+    assert "%2D" not in line
+    assert "Ann" not in line
