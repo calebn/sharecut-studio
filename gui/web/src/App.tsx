@@ -111,8 +111,11 @@ type Standing = "newest" | "replaced" | "gone";
 /**
  * What an attempt's outcome does to the observation. A replaced attempt (a
  * later attempt for the same link took over) is not thrown away: its answer
- * with the episode opens it while the link is still waiting, and nothing else
- * it says counts. Once the episode is open, a newer success refreshes it but a
+ * with the episode opens it, unless the episode is already open or the
+ * failure now held says the link is gone (an older answer must not reopen what
+ * the newest one found dead), and nothing else it says counts. Pending or
+ * settled does not matter: a newer attempt that failed fast leaves nothing
+ * pending while an older, slower one is still on its way. Once the episode is open, a newer success refreshes it but a
  * failure or saved copy never covers it.
  */
 function settleBootstrap(
@@ -125,7 +128,11 @@ function settleBootstrap(
   if (standing === "gone" || token === null) return state;
   const open = state.guest?.key === shareProjectKey(token);
   if (standing === "replaced") {
-    return completed?.kind === "online" && state.status === "pending" && !open
+    const gone =
+      state.error !== null &&
+      "failure" in state.error &&
+      state.error.failure.kind === "bad-link";
+    return completed?.kind === "online" && !open && !gone
       ? { ...state, status: "settled", guest: completed.guest, error: null }
       : state;
   }
