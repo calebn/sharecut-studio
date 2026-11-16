@@ -258,9 +258,9 @@ export const LoadRetrying: Story = {
     const retry = await canvas.findByRole("button", { name: "Trying…" });
     await expect(retry).toHaveAttribute("aria-busy", "true");
     await expect(retry).toHaveAttribute("aria-disabled", "true");
-    await expect(await canvas.findByRole("status")).toHaveTextContent(
-      "Trying again…",
-    );
+    await expect(
+      await within(await canvas.findByRole("alert")).findByRole("status"),
+    ).toHaveTextContent("Trying again…");
   },
 };
 

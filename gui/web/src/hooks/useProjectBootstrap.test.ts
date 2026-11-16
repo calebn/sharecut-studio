@@ -13,7 +13,18 @@ import { minimalProject, sampleTrack } from "../test/fixtures";
 import { ApiError } from "../utils/apiError";
 import { useProjectBootstrap } from "./useProjectBootstrap";
 
-vi.mock("../api/project", () => ({ loadDocumentState: vi.fn() }));
+vi.mock("../api/project", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../api/project")>()),
+  loadDocumentState: vi.fn(),
+}));
+vi.mock("../document/applyDocumentUpdate", async (importOriginal) => {
+  const real =
+    await importOriginal<typeof import("../document/applyDocumentUpdate")>();
+  return {
+    ...real,
+    applyDocumentSnapshot: vi.fn(real.applyDocumentSnapshot),
+  };
+});
 const token = "a".repeat(64);
 const shell = () =>
   minimalProject({
@@ -318,11 +329,15 @@ describe("sequenced project bootstrap", () => {
     ["host", "/tmp/p.json", { audience: "host", kind: "other" }],
     ["guest", "share:abc", { audience: "guest", failure: { kind: "server" } }],
   ])(
-    "reads an answer it cannot apply as the host answering for a %s, never as no answer",
+    "reads an answer the page cannot apply as the host answering for a %s, never as no answer",
     async (_who, key, expected) => {
       vi.mocked(loadDocumentState).mockResolvedValue({
         server_seq: 0,
         state_token: token,
+        project: minimalProject(),
+      });
+      vi.mocked(applyDocumentSnapshot).mockImplementationOnce(() => {
+        throw new TypeError("x is undefined");
       });
       const hook = renderHook(() => useProjectBootstrap(key));
       await waitFor(() =>
