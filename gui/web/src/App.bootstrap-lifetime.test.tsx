@@ -454,6 +454,42 @@ describe("App bootstrap request lifetime", () => {
       expect(screen.getByText("Studio body")).toBeInTheDocument();
     });
 
+    it("aborts the attempt in flight for the old link when the link changes", async () => {
+      const fetchMock = serve((token) =>
+        token === "alpha"
+          ? new Promise<Response>(() => {})
+          : new Promise<Response>(() => {}),
+      );
+      const { rerender } = render(<App />);
+      await waitFor(() => expect(projectSignals(fetchMock)).toHaveLength(1));
+      const [forAlpha] = projectSignals(fetchMock);
+      expect(forAlpha?.aborted).toBe(false);
+      window.history.pushState({}, "", "/r/beta");
+      rerender(<App />);
+      // Beta never answers, so only the link change can have aborted alpha's.
+      await waitFor(() => expect(projectSignals(fetchMock)).toHaveLength(2));
+      expect(forAlpha?.aborted).toBe(true);
+      expect(projectSignals(fetchMock)[1]?.aborted).toBe(false);
+    });
+
+    it("reads no saved copy and shows nothing for the newest attempt that an older one's episode aborted", async () => {
+      const { second, third, fetchMock } = await replacedWhileHung();
+      offline.load.mockResolvedValue({ project: cachedProject(), saved_at: 1 });
+      const reads = offline.load.mock.calls.length;
+      await act(async () => {
+        second.resolve(bootstrap("Alpha"));
+      });
+      await screen.findByText("Studio body");
+      // The abort already rejected the newest attempt like a real fetch does.
+      expect(projectSignals(fetchMock)[2]?.aborted).toBe(true);
+      await act(async () => {
+        third.resolve(bootstrap("Never"));
+      });
+      expect(offline.load).toHaveBeenCalledTimes(reads);
+      expect(provider()).toHaveAttribute("data-author", "Alpha");
+      expect(screen.queryByText(/saved copy/i)).toBeNull();
+    });
+
     it("aborts every attempt in flight when the page leaves", async () => {
       const { fetchMock } = await replacedWhileHung();
       cleanup();
