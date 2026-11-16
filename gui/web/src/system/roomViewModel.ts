@@ -247,6 +247,17 @@ function roomDock(
     : { kind: "controls", leaveHeld };
 }
 
+/**
+ * What the room says about people looking in through the producer link, or
+ * null for nobody. The row, the consent Details and the announcer share it.
+ */
+export function lookingInLine(count: number): string | null {
+  if (count < 1) return null;
+  return count === 1
+    ? "Someone with the producer link is looking in"
+    : `${count} people with the producer link are looking in`;
+}
+
 export function gridColumns(
   viewerWidth: ViewerWidth,
   tiles: number,

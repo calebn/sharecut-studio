@@ -484,6 +484,7 @@ function RecordStageBody({
         title: project?.meta.name ?? "",
         sessionName: sessionName ?? undefined,
         people,
+        lookingIn: snapshot.watchers ?? 0,
         phase,
         viewerWidth: viewerWidthOf(shell),
         alerts,

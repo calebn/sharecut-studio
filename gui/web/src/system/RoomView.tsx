@@ -28,6 +28,7 @@ import { clockText, type RoomPhase } from "./roomPhase";
 import {
   type DeviceWork,
   gridColumns,
+  lookingInLine,
   type RoomPerson,
   type RoomRole,
   roomViewModel,
@@ -51,6 +52,8 @@ export type RoomViewProps = {
   /** The session's own name, shown first in the embedded header; omitted until known. */
   sessionName?: string;
   people: RoomPerson[];
+  /** People with the producer link looking in; a line under the listeners, nameless. */
+  lookingIn?: number;
   phase: RoomPhase;
   viewerWidth?: ViewerWidth;
   alerts?: RoomAlertInput[];
@@ -162,6 +165,7 @@ export function RoomView({
   title,
   sessionName,
   people,
+  lookingIn = 0,
   phase,
   viewerWidth = "desktop",
   alerts,
@@ -225,6 +229,7 @@ export function RoomView({
     selfName,
     device,
   });
+  const lookingInText = lookingInLine(lookingIn);
   const pinned =
     phase.kind === "live" || phase.kind === "paused"
       ? clockText(phase.clockSec)
@@ -396,6 +401,12 @@ export function RoomView({
                 />
               ))}
             </ListenerRow>
+          ) : null}
+          {!loading && lookingInText !== null ? (
+            <p className="sys-room-looking-in">
+              <SystemIcon name="eye" size={16} />
+              {lookingInText}
+            </p>
           ) : null}
         </Stage>
         {!loading && model.railOpen ? (

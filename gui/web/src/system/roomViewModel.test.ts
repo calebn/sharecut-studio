@@ -4,6 +4,7 @@ import type { RoomPhase } from "./roomPhase";
 import type { RoomPerson, RoomViewInput } from "./roomViewModel";
 import {
   gridColumns,
+  lookingInLine,
   notePeek,
   roomViewModel,
   tileProps,
@@ -739,5 +740,16 @@ describe("phoneDock", () => {
     ["producer", "desktop", false],
   ] as const)("%s on %s is %s", (role, viewerWidth, expected) => {
     expect(roomViewModel(base({ role, viewerWidth })).phoneDock).toBe(expected);
+  });
+});
+
+describe("lookingInLine", () => {
+  it.each([
+    [0, null],
+    [-1, null],
+    [1, "Someone with the producer link is looking in"],
+    [3, "3 people with the producer link are looking in"],
+  ])("%i reads %j", (count, line) => {
+    expect(lookingInLine(count)).toBe(line);
   });
 });

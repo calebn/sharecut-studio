@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
+import { expectNoA11yViolations } from "../test/a11y";
 import { notesNaming, readableText } from "../test/readableText";
 import { SRC_ROOT } from "../test/sourceFiles";
 import type { NoteItem } from "./notesRailModel";
@@ -341,6 +342,58 @@ describe("RoomView", () => {
     });
     expect(screen.getByText("You, listening")).toBeInTheDocument();
     expect(screen.getByRole("list", { name: "Listening" })).toBeInTheDocument();
+  });
+
+  describe("looking in", () => {
+    it.each([
+      [1, "Someone with the producer link is looking in"],
+      [3, "3 people with the producer link are looking in"],
+    ])("shows %i as a line beside the listeners", async (lookingIn, text) => {
+      const { container } = renderRoom({
+        seat: "host",
+        people: [HOST, JON, { ...ROSA, you: false }],
+        lookingIn,
+      });
+      const row = screen.getByText(text);
+      expect(row.tagName).toBe("P");
+      expect(row.closest("ul")).toBeNull();
+      const list = screen.getByRole("list", { name: "Listening" });
+      expect(list).not.toContainElement(row);
+      expect(list.compareDocumentPosition(row)).toBe(
+        Node.DOCUMENT_POSITION_FOLLOWING,
+      );
+      const glyph = row.querySelector("svg");
+      expect(glyph).not.toBeNull();
+      expect(glyph?.closest("[aria-hidden='true']")).not.toBeNull();
+      expect(row).not.toHaveAttribute("role");
+      await expectNoA11yViolations(container);
+    });
+
+    it("shows nothing for nobody, and still shows the line with no listeners", () => {
+      const { rerender } = renderRoom({ people: [HOST, JON], lookingIn: 0 });
+      expect(document.querySelector(".sys-room-looking-in")).toBeNull();
+      rerender(
+        <RoomView
+          seat="guest"
+          title="Episode 14"
+          people={[HOST, JON]}
+          phase={LIVE}
+          notes={[]}
+          selfName="Jon"
+          onSendNote={vi.fn()}
+          lookingIn={1}
+        />,
+      );
+      expect(
+        screen.getByText("Someone with the producer link is looking in"),
+      ).toBeInTheDocument();
+      expect(screen.queryByRole("list", { name: "Listening" })).toBeNull();
+    });
+
+    it("leaves the line out while the room loads", () => {
+      renderRoom({ loading: true, people: [], lookingIn: 2 });
+      expect(document.querySelector(".sys-room-looking-in")).toBeNull();
+    });
   });
 
   it("shows no Invite button for a host without an invite handler", () => {

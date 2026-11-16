@@ -65,6 +65,7 @@ export type HostRecordTake = {
 
 export type HostRecordSnapshot = {
   state?: string;
+  watchers?: number;
   session_id: string;
   take_index: number;
   recording_ms: number;
