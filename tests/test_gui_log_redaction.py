@@ -6,6 +6,7 @@ import io
 import logging
 from collections import OrderedDict, defaultdict
 from collections.abc import Iterator, Mapping
+from enum import Enum
 from types import MappingProxyType
 
 import pytest
@@ -361,3 +362,30 @@ def test_an_unreadable_token_free_mapping_is_logged_as_it_was() -> None:
 
 def test_a_tuple_holding_an_unreadable_mapping_does_not_raise() -> None:
     assert _logged("%s %s", f"/r/{TOKEN}/ws", _UnreadableMapping()) != ""
+
+
+class _Kind(str, Enum):  # noqa: UP042
+    A = "hello"
+
+
+class _TaggedStr(str):
+    __slots__ = ()
+
+    def __repr__(self) -> str:
+        return "TAG"
+
+
+@pytest.mark.parametrize(
+    ("fmt", "arg", "expected"),
+    [
+        ("%s", _Kind.A, "hello"),
+        ("%r", _Kind.A, "'hello'"),
+        ("%r", _TaggedStr("x"), "'x'"),
+        ("%s", _TaggedStr("x"), "x"),
+    ],
+    ids=["enum-s", "enum-r", "repr-r", "repr-s"],
+)
+def test_a_str_subclass_argument_prints_as_its_plain_text(
+    fmt: str, arg: str, expected: str
+) -> None:
+    assert _format(fmt, arg) == expected

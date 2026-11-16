@@ -32,12 +32,13 @@ def _scrub(value: Any) -> Any:
     text is kept as it is unless its text, once percent-decoded, holds a token.
     """
     if isinstance(value, str):
-        path, separator, _query = value.partition("?")
+        plain = str.__str__(value)
+        path, separator, _query = plain.partition("?")
         redacted_path = redact_share_paths(path)
         if separator and redacted_path != path:
             return redacted_path
-        redacted = redact_share_paths(value)
-        return value if str.__eq__(redacted, value) else redacted
+        redacted = redact_share_paths(plain)
+        return value if type(value) is str and redacted == plain else redacted
     text = _text(value)
     if text is None or redact_share_paths(text) == text:
         return value
