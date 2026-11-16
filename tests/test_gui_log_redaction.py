@@ -669,3 +669,35 @@ def test_a_mapping_whose_only_token_is_in_a_list_loses_it() -> None:
 
     assert TOKEN not in line
     assert "Ann" not in line
+
+
+@pytest.mark.parametrize(
+    "query",
+    [
+        "name=O'Neil&client_id=c1",
+        'name="Lee"&x=1',
+        "name=Ava%20(Lee)&x=1",
+        "name=Ava(Lee&x=1",
+        "name=Ava)Lee&x=1",
+        "name=[Lee]&x=1",
+        "name=Ava[Lee&x=1",
+        "name=Ava]Lee&x=1",
+        "name={Lee}&x=1",
+        "name=Ava{Lee&x=1",
+        "name=Ava}Lee&x=1",
+        "name=Ava,Lee&x=1",
+        "name=O'Neil's%20Smith&accept=1",
+    ],
+)
+def test_raw_punctuation_in_a_query_does_not_end_it(query: str) -> None:
+    line = _format(
+        '%s - "%s %s HTTP/%s" %d', "127.0.0.1:5000", "GET", f"/rec/{TOKEN}?{query}", "1.1", 200
+    )
+    assert line == '127.0.0.1:5000 - "GET /rec/<share-token> HTTP/1.1" 200'
+    socket_line = _format('%s - "WebSocket %s" [accepted]', "h", f"/api/rec/{TOKEN}/ws?{query}")
+    assert socket_line == 'h - "WebSocket /api/rec/<share-token>/ws" [accepted]'
+
+
+def test_a_quote_before_the_route_ends_its_query_and_nothing_else_does() -> None:
+    assert _format(f"['/r/{TOKEN}?x=(a,b)', 'y']") == "['/r/<share-token>', 'y']"
+    assert _format(f'["/r/{TOKEN}?x=O\'N", "y"]') == '["/r/<share-token>", "y"]'
