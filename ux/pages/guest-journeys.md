@@ -216,14 +216,14 @@ landing fails stays saved for a later landing attempt.
 ## 6. Join a recording session (full-quality recording + mix-minus + saving)
 
 **Setup:** Host mints a record link (`/rec/{token}`, guest role). Guest opens it
-on a laptop with headphones. Spec:
+on a laptop with headphones, or a phone with or without them. Spec:
 [recording-session.md](../../docs/recording-session.md).
 
 ```mermaid
 flowchart TD
   open[Open record link] --> sheet[Join sheet over the room: name]
   sheet --> devices[Allow microphone, device chip and menu, own level]
-  devices --> phones[Headphones toggle + storage check]
+  devices --> phones[Headphones answer + storage check]
   phones --> join[Join and record = consent]
   join --> wait[Pill: Waiting for host to start]
   wait --> rec[Live pill: full-quality recording + mix-minus]
@@ -252,11 +252,14 @@ flowchart TD
 2. **Your name**, then browser **Allow microphone** (explicit grant, a direct
    click), then the device chip and menu and your own level with a clip light; nobody
    else's meter is shown. A blocked microphone reads "Microphone blocked" with
-   **How to allow**, which retries; a lost device offers **Retry**. Then the
-   **I'm wearing headphones** toggle. A **Storage** row comes first when the storage
+   **How to allow**, which retries; a lost device offers **Retry**. Then
+   headphones: the **I'm wearing headphones** toggle on a laptop or tablet; on a
+   phone **I'm wearing headphones** or **I'm not wearing headphones**, with a
+   warning about echo under the second. A **Storage** row comes first when the storage
    check has a problem. **Join and record**
    stays disabled and names the first open row ("Add your name first", "Allow your
-   microphone first", "Put on headphones first", "Fix storage first").
+   microphone first", "Put on headphones first" (on a phone, "Say if you're wearing
+   headphones first"), "Fix storage first").
    The desktop host's Record stage also shows microphone permission
    status and **Retry** after denial. macOS and Windows point to system
    microphone privacy settings; Linux identifies its WebKit prompt and directs
