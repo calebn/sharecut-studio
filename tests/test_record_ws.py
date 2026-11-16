@@ -2400,6 +2400,8 @@ def test_the_host_is_never_the_unknown_removal(
     minimal_project, sample_wav, tmp_workspace, monkeypatch
 ):
     ws, room, client = _room(minimal_project, sample_wav, tmp_workspace, monkeypatch)
+    svc = RecordSessionService(ws.project, session_id=room["session_id"])
+    svc.join(role="host", display_name="Host", client_id="host", connection_id="h1")
     refused = client.post(
         "/api/record/command",
         json={
@@ -2408,10 +2410,8 @@ def test_the_host_is_never_the_unknown_removal(
             "payload": {"participant_id": "p_host"},
         },
     )
-    assert refused.status_code >= 400
-
-    svc = RecordSessionService(ws.project, session_id=room["session_id"])
-    svc.join(role="host", display_name="Host", client_id="host", connection_id="h1")
+    assert refused.status_code == 400
+    assert refused.json() == {"detail": "invalid record payload"}
 
     def mark_host_removed(raw):
         raw = dict(raw or {})

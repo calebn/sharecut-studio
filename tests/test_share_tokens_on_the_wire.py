@@ -81,11 +81,19 @@ def _names(frame: dict, prefix: str) -> set[str]:
 
 
 def _playhead_of(client_id: str, seconds: float) -> Callable[[dict], bool]:
-    return lambda frame: (
-        frame.get("type") == "PresenceDelta"
-        and frame.get("author_client_id") == client_id
-        and (frame.get("changes") or {}).get("playhead_sec") == seconds
-    )
+    def arrived(frame: dict) -> bool:
+        if frame.get("type") == "Presence":
+            return any(
+                row.get("client_id") == client_id and row.get("playhead_sec") == seconds
+                for row in frame.get("clients") or []
+            )
+        return (
+            frame.get("type") == "PresenceDelta"
+            and frame.get("author_client_id") == client_id
+            and (frame.get("changes") or {}).get("playhead_sec") == seconds
+        )
+
+    return arrived
 
 
 def _carries(prefix: str) -> Callable[[dict], bool]:
