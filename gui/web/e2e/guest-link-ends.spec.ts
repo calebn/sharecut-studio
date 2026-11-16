@@ -1,5 +1,6 @@
 import { expect, type Locator, type Page, test } from "@playwright/test";
 import { postDocumentCommand } from "./documentCommand";
+import { fontsReady } from "./fontsReady";
 import { withShareableProject } from "./shareableProject";
 import {
   createReviewShare,
@@ -479,6 +480,7 @@ for (const size of SIZES) {
           name: "Your comment was not posted",
         });
         await expect(text).toHaveValue(draft);
+        await fontsReady(guest);
         for (const scale of ["100%", "200%"]) {
           await guest.addStyleTag({ content: `html { font-size: ${scale} }` });
           await expectInViewport(guest, copy);
