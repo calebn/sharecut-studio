@@ -37,6 +37,11 @@ export function GuestPageCover({
     }
   }, [title]);
 
+  // The status speaks only about the press it answers: an attempt nobody
+  // pressed starting forgets it.
+  if (answered && trying && !busy) {
+    setAnswered(false);
+  }
   const status = busy ? "Trying again…" : answered ? cover.stillFailing : "";
   return (
     <main ref={mainRef} className="guest-page-cover">
@@ -60,13 +65,7 @@ export function GuestPageCover({
               }
             : undefined
         }
-        extra={
-          cover.button ? (
-            <p className="sys-cover-text sys-cover-status" role="status">
-              {status}
-            </p>
-          ) : undefined
-        }
+        status={cover.button ? status : undefined}
       >
         {cover.sentence}
       </Cover>

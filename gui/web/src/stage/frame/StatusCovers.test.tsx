@@ -125,17 +125,28 @@ describe("GuestPageCover", () => {
     expect(screen.getByRole("status")).toHaveTextContent("");
   });
 
-  it("keeps the line of the last press through the page's own retry", () => {
+  it("empties the status when an attempt nobody pressed starts, and keeps it empty", () => {
     const { again } = renderCover({ kind: "unreachable" });
     fireEvent.click(screen.getByRole("button", { name: "Try now" }));
     again({ trying: true });
     again({ trying: false });
     act(() => void vi.advanceTimersByTime(600));
-    again({ trying: true });
     expect(screen.getByRole("status")).toHaveTextContent("Still asleep.");
+    again({ trying: true });
+    expect(screen.getByRole("status")).toHaveTextContent("");
     expect(screen.getByRole("button", { name: "Try now" })).not.toHaveAttribute(
       "aria-busy",
     );
+    again({ trying: false });
+    expect(screen.getByRole("status")).toHaveTextContent("");
+  });
+
+  it("puts the status in the cover's actions, not in its body", () => {
+    renderCover({ kind: "unreachable" });
+    expect(
+      screen.getByRole("status").closest(".sys-cover-actions"),
+    ).not.toBeNull();
+    expect(screen.getByRole("status").closest(".sys-cover-body")).toBeNull();
   });
 
   it("does not take focus from the button when the title changes", () => {

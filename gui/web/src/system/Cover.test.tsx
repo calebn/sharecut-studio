@@ -170,6 +170,116 @@ describe("Cover", () => {
     expect(screen.getByRole("button", { name: "Save it again" })).toBeEnabled();
   });
 
+  it.each([
+    ["primary", { primary: true }],
+    ["secondary", { primary: false }],
+  ] as const)(
+    "keeps both contents of a %s in the DOM at rest and while busy, hiding the one not shown, so the button keeps its size",
+    (_name, { primary }) => {
+      const action = {
+        label: "Try now",
+        onClick: vi.fn(),
+        busyLabel: "Trying…",
+      };
+      const props = (busy: boolean) =>
+        primary
+          ? { primary: { ...action, busy } }
+          : { secondary: { ...action, busy } };
+      const { rerender } = render(
+        <Cover size="region" glyph="eye-off" title="Title" {...props(false)}>
+          Body.
+        </Cover>,
+      );
+      const hidden = () =>
+        Array.from(
+          document.querySelectorAll(".sys-cover-action-label > [aria-hidden]"),
+        ).map((el) => el.textContent);
+      expect(screen.getByText("Try now")).toBeInTheDocument();
+      expect(screen.getByText("Trying…")).toBeInTheDocument();
+      expect(hidden()).toEqual(["Trying…"]);
+      expect(screen.getByRole("button", { name: "Try now" })).toBeVisible();
+      rerender(
+        <Cover size="region" glyph="eye-off" title="Title" {...props(true)}>
+          Body.
+        </Cover>,
+      );
+      expect(screen.getByText("Try now")).toBeInTheDocument();
+      expect(screen.getByText("Trying…")).toBeInTheDocument();
+      expect(hidden()).toEqual(["Try now"]);
+      expect(screen.getByRole("button", { name: "Trying…" })).toBeVisible();
+    },
+  );
+
+  it("puts the spinner in the busy content of a primary, so it takes room at rest too", () => {
+    render(
+      <Cover
+        size="region"
+        glyph="eye-off"
+        title="Title"
+        primary={{ label: "Go", onClick: vi.fn(), busyLabel: "Going…" }}
+      >
+        Body.
+      </Cover>,
+    );
+    const busyContent = screen.getByText("Going…");
+    expect(busyContent.querySelector("svg")).not.toBeNull();
+    expect(busyContent).toHaveAttribute("aria-hidden", "true");
+  });
+
+  it("renders a status line as a role=status inside the actions, empty until it has text", () => {
+    const { rerender } = render(
+      <Cover
+        size="page"
+        glyph="eye-off"
+        title="Title"
+        primary={{ label: "Go", onClick: vi.fn() }}
+        status=""
+      >
+        Body.
+      </Cover>,
+    );
+    const status = screen.getByRole("status");
+    expect(status).toHaveTextContent("");
+    expect(status.closest(".sys-cover-actions")).not.toBeNull();
+    rerender(
+      <Cover
+        size="page"
+        glyph="eye-off"
+        title="Title"
+        primary={{ label: "Go", onClick: vi.fn() }}
+        status="Still asleep."
+      >
+        Body.
+      </Cover>,
+    );
+    expect(screen.getByRole("status")).toBe(status);
+    expect(status).toHaveTextContent("Still asleep.");
+  });
+
+  it("renders no status element when no status is passed", () => {
+    render(
+      <Cover
+        size="page"
+        glyph="eye-off"
+        title="Title"
+        primary={{ label: "Go", onClick: vi.fn() }}
+      >
+        Body.
+      </Cover>,
+    );
+    expect(screen.queryByRole("status")).toBeNull();
+  });
+
+  it("takes the status out of flow, above the button on a phone page cover and below it elsewhere", () => {
+    const css = partial("system.css");
+    expect(rule(css, ".sys-cover-action-status")).toContain(
+      "position: absolute",
+    );
+    expect(css).toMatch(
+      /@container sys-cover \(max-width: 40rem\) \{[\s\S]*?\.sys-cover--page \.sys-cover-action-status \{[^}]*inset-block-end: 100%/,
+    );
+  });
+
   it("leaves a primary without busy enabled", () => {
     render(
       <Cover
