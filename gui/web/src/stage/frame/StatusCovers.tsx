@@ -82,6 +82,7 @@ function useUnsentBlock(unsent: UnsentText[] | undefined) {
       <textarea
         ref={areaRef}
         className="guest-unsent-text"
+        dir="auto"
         readOnly
         aria-labelledby={headingId}
         value={words.text}

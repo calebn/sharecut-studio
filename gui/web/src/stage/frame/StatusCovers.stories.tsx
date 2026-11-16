@@ -92,6 +92,24 @@ export const BadLinkWithUnsentComment: Story = {
   },
 };
 
+export const BadLinkWithUnsentRtlComment: Story = {
+  render: () => (
+    <GuestPageCover
+      failure={{ kind: "bad-link" }}
+      trying={false}
+      onRetry={fn()}
+      unsent={[{ label: "Your comment", text: "לחתוך את ההפסקה בדקה 1:05" }]}
+    />
+  ),
+  play: async ({ canvasElement }) => {
+    await expect(
+      within(canvasElement).getByRole("textbox", {
+        name: "Your comment was not posted",
+      }),
+    ).toHaveAttribute("dir", "auto");
+  },
+};
+
 export const BadLinkWithSeveralUnsentTexts: Story = {
   render: () => (
     <GuestPageCover
