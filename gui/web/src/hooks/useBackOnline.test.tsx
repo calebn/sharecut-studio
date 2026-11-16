@@ -42,6 +42,15 @@ describe("useBackOnline", () => {
     expect(onBack).toHaveBeenCalledOnce();
   });
 
+  it("calls back once for a missed event even when a live one follows before the page disarms", () => {
+    deviceOnline(true);
+    const { onBack, rerender } = mount(false);
+    online();
+    rerender({ armed: true, attempt: 0, onBack });
+    online();
+    expect(onBack).toHaveBeenCalledOnce();
+  });
+
   it("does not call back on arming when the browser still reports no connection", () => {
     deviceOnline(false);
     const { onBack, rerender } = mount(false);
