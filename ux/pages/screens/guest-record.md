@@ -51,7 +51,7 @@ Prefix `/rec/` with a review token opens the recording invalid-link cover: “Th
 
 1. The portrait phone header shows the ShareCut symbol, not the wordmark (spec-record.md:89, :171-172). The name "ShareCut" stays in the page as text. A landscape phone keeps the wordmark.
 2. The portrait phone title may take two lines inside the 44 px header.
-3. The portrait phone guest and producer dock labels each control with a word, so the dock is 101 px tall, not 88 (spec-record.md:172, :340; design-system.md:171). Icons still carry the meaning; the words are an addition. A landscape phone's dock is unchanged and icon only.
+3. The portrait phone guest and producer dock labels each control with a word, so the dock is 101 px tall, not 88, while waiting, live and paused with no bottom inset (spec-record.md:172, :340; design-system.md:171). While saving it is taller, about 110 px, because the "Saving · N% · keep this page open" line sits above the buttons; a bottom inset adds to either height. Icons still carry the meaning; the words are an addition. A landscape phone's dock is unchanged and icon only.
 4. The portrait phone guest and producer dock drops the Rail button; the Comments strip is the one door to the list (design-system.md:171). The host studio's dock, and a landscape phone's, a tablet's and a laptop's, keep the toggle.
 5. The own tile reads "(you)" and shows a Devices cue on the guest page (spec-record.md:338); on a landscape phone the tile reads "(you)" without the cue. The host studio's own tile is unchanged.
 6. "Phone" for these rules is the portrait 767 layout class, including portrait widths from 600 to 767 (spec-record.md:172 says under 600), as Join sheet departure 2 already says.
