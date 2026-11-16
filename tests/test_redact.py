@@ -325,6 +325,20 @@ def test_redact_secrets_masks_a_prefix_of_a_secret_from_the_minimum_length() -> 
     assert "velve" in out
 
 
+def test_redact_secrets_leaves_nothing_of_a_secret_that_shares_its_start_with_another() -> None:
+    other = "velvet-heron-pine"
+    out = redact_secrets(f"a {other} b", [TOKEN, other], min_prefix=6)
+
+    assert out == "a <redacted> b"
+
+
+def test_redact_secrets_masks_two_adjacent_secrets_as_one_run() -> None:
+    out = redact_secrets(f"{TOKEN}{TOKEN}", [TOKEN], min_prefix=6)
+
+    assert "velvet" not in out
+    assert "umbra" not in out
+
+
 def test_redact_secrets_sees_a_secret_that_is_only_percent_encoded() -> None:
     out = redact_secrets("next=%76elvet-quokka-umbra", [TOKEN], min_prefix=6)
 
