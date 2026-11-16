@@ -392,7 +392,7 @@ describe("joinGuestModel headphones rule", () => {
     expect(model.next).toBeNull();
     expect(model.headphonesNote).toEqual({
       tone: "warning",
-      text: "Without headphones, the others may hear an echo and be heard in your recording. Keep your volume low.",
+      text: "Others may hear their own echo and be heard in your recording. Keep your volume low.",
     });
   });
 

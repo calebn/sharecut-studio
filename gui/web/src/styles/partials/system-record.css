@@ -1111,6 +1111,12 @@ html:not([data-shell="phone"], [data-shell="tablet"])
   gap: var(--space-5);
 }
 
+@container sys-join (width < 37.5rem) {
+  .sys-join[data-seat] {
+    gap: var(--space-4);
+  }
+}
+
 /* Every control in the Join sheet is a thumb target, Not now and Details included. */
 .sys-join-dialog .ui-control {
   min-block-size: var(--touch-min);
@@ -1160,7 +1166,6 @@ html:not([data-shell="phone"], [data-shell="tablet"])
 
 .sys-headphones-choice {
   display: flex;
-  flex-direction: column;
   gap: var(--space-3);
   padding: 0;
   border: 0;
@@ -1168,7 +1173,11 @@ html:not([data-shell="phone"], [data-shell="tablet"])
 }
 
 .sys-headphones-choice > .ui-control {
-  justify-content: flex-start;
+  flex: 1 1 0;
+  min-inline-size: 0;
+  justify-content: center;
+  padding-inline: var(--space-3);
+  white-space: nowrap;
   border: 1px solid var(--color-text-secondary);
   background: transparent;
   color: var(--color-text-primary);
@@ -1179,10 +1188,6 @@ html:not([data-shell="phone"], [data-shell="tablet"])
   box-shadow: inset 0 0 0 1px var(--color-text-primary);
   background: var(--color-chip-selected);
   font-weight: 600;
-}
-
-.sys-headphones-choice-mark {
-  margin-inline-start: auto;
 }
 
 .sys-join-notes.sys-headphones-note:empty {

@@ -1,4 +1,4 @@
-import { useId } from "react";
+import { useEffect, useId, useRef } from "react";
 import { SegmentedControl, ToggleButton } from "../ui";
 import {
   type HeadphonesChoice,
@@ -7,12 +7,6 @@ import {
   type JoinNote,
 } from "./joinSheetModel";
 import { SystemIcon } from "./SystemIcon";
-
-function PressedMark() {
-  return (
-    <SystemIcon name="check" size={16} className="sys-headphones-choice-mark" />
-  );
-}
 
 /** On `choice` neither button is pressed until the guest answers. */
 export function HeadphonesControl({
@@ -27,6 +21,12 @@ export function HeadphonesControl({
   onChange?: (choice: HeadphonesChoice) => void;
 }) {
   const noteId = useId();
+  const noteRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (choice === "off") {
+      noteRef.current?.scrollIntoView?.({ block: "nearest" });
+    }
+  }, [choice]);
   if (rule === "required") {
     const on = choice === "on";
     return (
@@ -45,22 +45,29 @@ export function HeadphonesControl({
       >
         <ToggleButton
           pressed={choice === "on"}
+          aria-label={JOIN_TEXT.headphones}
           onClick={() => onChange?.("on")}
         >
-          <SystemIcon name="headphones" size={16} />
-          {JOIN_TEXT.headphones}
-          {choice === "on" ? <PressedMark /> : null}
+          <SystemIcon
+            name={choice === "on" ? "check" : "headphones"}
+            size={16}
+          />
+          {JOIN_TEXT.wearingShort}
         </ToggleButton>
         <ToggleButton
           pressed={choice === "off"}
+          aria-label={JOIN_TEXT.notWearingHeadphones}
           onClick={() => onChange?.("off")}
         >
-          <SystemIcon name="headphone-off" size={16} />
-          {JOIN_TEXT.notWearingHeadphones}
-          {choice === "off" ? <PressedMark /> : null}
+          <SystemIcon
+            name={choice === "off" ? "check" : "headphone-off"}
+            size={16}
+          />
+          {JOIN_TEXT.notWearingShort}
         </ToggleButton>
       </SegmentedControl>
       <div
+        ref={noteRef}
         id={noteId}
         role="status"
         className="sys-join-notes sys-headphones-note"

@@ -423,7 +423,7 @@ export const PhoneNotWearingHeadphones: Story = {
     if (viewMode === "docs") return;
     const dialog = await sheet();
     await expect(
-      dialog.getByText(/Without headphones, the others may hear an echo/),
+      dialog.getByText(/Others may hear their own echo/),
     ).toBeVisible();
     await expect(
       dialog.getByRole("button", { name: "Join and record" }),

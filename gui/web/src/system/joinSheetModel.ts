@@ -126,9 +126,11 @@ export const JOIN_TEXT = {
   producerLine: "You'll listen and comment. You won't be recorded.",
   headphones: "I'm wearing headphones",
   notWearingHeadphones: "I'm not wearing headphones",
+  wearingShort: "Wearing",
+  notWearingShort: "Not wearing",
   headphonesGroup: "Wearing headphones",
   noHeadphonesNote:
-    "Without headphones, the others may hear an echo and be heard in your recording. Keep your volume low.",
+    "Others may hear their own echo and be heard in your recording. Keep your volume low.",
   tooLoud: "Too loud. Move back a little.",
   defaultInput: "Default",
   inputLocked: "Can't change while a take is running.",

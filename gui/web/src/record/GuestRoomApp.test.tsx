@@ -1976,7 +1976,7 @@ describe("GuestRoomApp", () => {
       await userEvent.click(
         screen.getByRole("button", { name: "I'm not wearing headphones" }),
       );
-      expect(screen.getByText(/Without headphones, the others/)).toBeVisible();
+      expect(screen.getByText(/Others may hear their own echo/)).toBeVisible();
       await waitFor(() => expect(joinButton()).toBeEnabled());
       await userEvent.click(joinButton());
       await waitFor(() =>

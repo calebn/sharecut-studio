@@ -43,7 +43,7 @@ const HOST = LAPTOP;
 const NOT_WEARING = "I'm not wearing headphones";
 const WEARING = "I'm wearing headphones";
 const NOTE =
-  "Without headphones, the others may hear an echo and be heard in your recording. Keep your volume low.";
+  "Others may hear their own echo and be heard in your recording. Keep your volume low.";
 const MARKER = /not wearing headphones/;
 
 test.use({
@@ -191,6 +191,76 @@ test.describe("headphones in the record room", () => {
       );
     });
   });
+
+  test("the phone Join sheet fits 390x844 without scrolling in every state", async ({
+    browser,
+  }: {
+    browser: Browser;
+  }) => {
+    await withShareableProject(async (projectPath) => {
+      await withBrowserPages(
+        browser,
+        [HOST, { ...iPhone, viewport: { width: 390, height: 844 } }],
+        async ([host, guest]) => {
+          const room = await createRecordRoomFor(host as Page, projectPath);
+          const phone = guest as Page;
+          await phoneGuestAtHeadphones(phone, room.guest.token, "Maya");
+          const overflow = () =>
+            phone.evaluate(() => {
+              const rows = document.querySelector(".command-palette-body");
+              return rows ? rows.scrollHeight - rows.clientHeight : null;
+            });
+          expect(await overflow()).toBe(0);
+          await phone.getByRole("button", { name: NOT_WEARING }).click();
+          await expect(phone.getByText(NOTE)).toBeInViewport({ ratio: 1 });
+          expect(await overflow()).toBe(0);
+          await phone.getByRole("button", { name: WEARING }).click();
+          expect(await overflow()).toBe(0);
+        },
+      );
+    });
+  });
+
+  for (const size of [
+    { width: 390, height: 664 },
+    { width: 320, height: 568 },
+  ]) {
+    test(`on ${size.width}x${size.height} choosing not wearing brings the warning into view`, async ({
+      browser,
+    }: {
+      browser: Browser;
+    }) => {
+      await withShareableProject(async (projectPath) => {
+        await withBrowserPages(
+          browser,
+          [HOST, { ...iPhone, viewport: size, screen: size }],
+          async ([host, guest]) => {
+            const room = await createRecordRoomFor(host as Page, projectPath);
+            const phone = guest as Page;
+            await markSharecutE2e(phone);
+            await openRecordLink(phone, room.guest.token);
+            expect(await environment(phone)).toEqual({
+              coarse: true,
+              shortSide: size.width,
+            });
+            await fillDisplayNameField(phone, "Maya");
+            await phone
+              .getByRole("button", { name: "Allow microphone" })
+              .click();
+            const notWearing = phone.getByRole("button", { name: NOT_WEARING });
+            await notWearing.click();
+            await expect(phone.getByText(NOTE)).toBeInViewport({ ratio: 1 });
+            const box = await notWearing.boundingBox();
+            expect(box?.width).toBeGreaterThan(100);
+            expect(box?.height).toBeGreaterThanOrEqual(44);
+            await expect(
+              notWearing.getByText("Not wearing", { exact: true }),
+            ).toBeVisible();
+          },
+        );
+      });
+    });
+  }
 
   test("a producer sees the marker and another guest does not", async ({
     browser,

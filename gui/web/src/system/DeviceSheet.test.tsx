@@ -351,7 +351,7 @@ describe("DeviceSheet", () => {
     ).toHaveAttribute("aria-pressed", "true");
     expect(
       screen.getByText(
-        "Without headphones, the others may hear an echo and be heard in your recording. Keep your volume low.",
+        "Others may hear their own echo and be heard in your recording. Keep your volume low.",
       ),
     ).toBeVisible();
     await userEvent.click(
@@ -367,6 +367,6 @@ describe("DeviceSheet", () => {
       screen.getByRole("button", { name: "I'm wearing headphones" }),
     );
     expect(onHeadphonesChange).toHaveBeenCalledWith("off");
-    expect(screen.queryByText(/Without headphones/)).toBeNull();
+    expect(screen.queryByText(/Others may hear their own echo/)).toBeNull();
   });
 });
