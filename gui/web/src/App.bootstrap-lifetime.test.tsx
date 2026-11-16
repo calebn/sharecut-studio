@@ -526,16 +526,17 @@ describe("App bootstrap request lifetime", () => {
       ).toBeNull();
     });
 
-    it("lets the newest attempt's success refresh what the replaced one opened", async () => {
-      const { second, third } = await replacedWhileHung();
+    it("abandons the newest attempt when a replaced one opens the episode, so what opened stays", async () => {
+      const { second, third, fetchMock } = await replacedWhileHung();
       await act(async () => {
         second.resolve(bootstrap("Alpha"));
       });
       await screen.findByText("Studio body");
+      expect(projectSignals(fetchMock)[2]?.aborted).toBe(true);
       await act(async () => {
         third.resolve(bootstrap("Fresher"));
       });
-      expect(provider()).toHaveAttribute("data-author", "Fresher");
+      expect(provider()).toHaveAttribute("data-author", "Alpha");
     });
 
     it("is ignored when it answers after the link changed", async () => {

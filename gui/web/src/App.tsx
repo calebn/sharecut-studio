@@ -106,6 +106,13 @@ function sameRequest(a: BootstrapRequest, b: BootstrapRequest) {
 /** How long a cover with no automatic retry counts an unanswered attempt as trying. */
 const ATTEMPT_PATIENCE_MS = 30_000;
 
+/** Attempts for one link kept in flight: the newest and the two before it. */
+const MAX_ATTEMPTS_IN_FLIGHT = 3;
+
+function abortAll(flight: AbortController[]) {
+  for (const controller of flight.splice(0)) controller.abort();
+}
+
 type Standing = "newest" | "replaced" | "gone";
 
 /**
@@ -115,8 +122,9 @@ type Standing = "newest" | "replaced" | "gone";
  * failure now held says the link is gone (an older answer must not reopen what
  * the newest one found dead), and nothing else it says counts. Pending or
  * settled does not matter: a newer attempt that failed fast leaves nothing
- * pending while an older, slower one is still on its way. Once the episode is open, a newer success refreshes it but a
- * failure or saved copy never covers it.
+ * pending while an older, slower one is still on its way. Once the episode is
+ * open the other attempts are aborted, but one that answers anyway can only
+ * refresh it (the newest) and a failure or saved copy never covers it.
  */
 function settleBootstrap(
   state: BootstrapObservation,
@@ -290,17 +298,24 @@ function AppInner() {
   // link changed or the page left (the effect's cleanup runs for both, so it
   // cannot tell them apart). The generation moves whenever the link does, so an
   // attempt for a link the guest left and came back to stays gone.
+  // It also owns each attempt's AbortController. A request has no timeout, so
+  // a host that hangs would otherwise collect one open request per retry and
+  // use up the browser's connections to it, and a host that came back would
+  // stay unreachable. At most MAX_ATTEMPTS_IN_FLIGHT are kept: the newest and
+  // the ones before it, so a slow host can still answer a replaced attempt.
   const attempts = useRef<{
     newest: BootstrapRequest | null;
     link: string;
     generation: number;
-  }>({ newest: null, link: "", generation: 0 });
+    flight: AbortController[];
+  }>({ newest: null, link: "", generation: 0, flight: [] });
   useEffect(() => {
     const link = `${request.reviewToken}|${request.recordToken}|${request.featuresReady}|${request.shareRoutesEnabled}`;
     const now = attempts.current;
     if (link !== now.link) {
       now.link = link;
       now.generation += 1;
+      abortAll(now.flight);
     }
     now.newest = request;
     return () => {
@@ -309,12 +324,22 @@ function AppInner() {
   }, [request]);
 
   useEffect(() => {
+    const tracker = attempts.current;
+    return () => abortAll(tracker.flight);
+  }, []);
+
+  useEffect(() => {
     const { featuresReady, shareRoutesEnabled, reviewToken, recordToken } =
       request;
     if (!featuresReady || !shareRoutesEnabled || !reviewToken || recordToken)
       return;
     const tracker = attempts.current;
     const generation = tracker.generation;
+    const controller = new AbortController();
+    tracker.flight.push(controller);
+    while (tracker.flight.length > MAX_ATTEMPTS_IN_FLIGHT) {
+      tracker.flight.shift()?.abort();
+    }
     const standing = (): Standing =>
       tracker.newest === request
         ? "newest"
@@ -324,7 +349,10 @@ function AppInner() {
     void (async () => {
       let outcome: BootstrapOutcome | null = null;
       try {
-        const bootstrap = await loadReviewBootstrap(reviewToken);
+        const bootstrap = await loadReviewBootstrap(
+          reviewToken,
+          controller.signal,
+        );
         const caps = bootstrap.capabilities ?? [];
         if (standing() === "gone") return;
         if (!caps.includes("view")) {
@@ -342,7 +370,9 @@ function AppInner() {
           },
         };
       } catch (e: unknown) {
-        if (standing() !== "newest") return;
+        // Abandoned on purpose (the episode opened elsewhere, or the link or
+        // page went away): there is nothing to show or to save.
+        if (controller.signal.aborted || standing() !== "newest") return;
         const failure = classifyBootstrapFailure(e);
         if (failure.kind === "bad-link") {
           if (e instanceof ApiError && e.code === "share_not_found") {
@@ -371,6 +401,10 @@ function AppInner() {
         }
         outcome = { kind: "error", error: { failure } };
       } finally {
+        tracker.flight = tracker.flight.filter((one) => one !== controller);
+        if (outcome?.kind === "online" && standing() !== "gone") {
+          abortAll(tracker.flight);
+        }
         if (standing() !== "gone") {
           const completed = outcome;
           const now = standing();

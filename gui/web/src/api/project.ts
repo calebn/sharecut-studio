@@ -23,8 +23,13 @@ type ReviewBootstrap = {
 
 export async function loadReviewBootstrap(
   token: string,
+  signal?: AbortSignal,
 ): Promise<ReviewBootstrap> {
-  const res = await apiFetch(shareProjectKey(token), { guest: "/project" });
+  const res = await apiFetch(
+    shareProjectKey(token),
+    { guest: "/project" },
+    { signal },
+  );
   const body = (await res.json()) as ReviewBootstrap;
   const versionId = body.review_version?.id;
   if (versionId) bootstrapVersionIds.set(token, versionId);
