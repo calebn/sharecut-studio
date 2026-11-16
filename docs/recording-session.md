@@ -1119,8 +1119,10 @@ The sheet is one `Dialog` at every width, and the room's 600 rule decides its sh
 (`system-record.css`, a container query on the dialog root): from 600 it is a centred
 400 px card 96 px from the top; under 600 it rises from the bottom edge as tall as its
 rows and at most 88dvh, with the room's header and status pill showing above it. On a
-screen under 30rem tall (a phone on its side) the sheet scrolls as one, footer
-included. The sheet has one **Close**, and **Not now**, Escape and Close all decline;
+screen under 30rem tall at any width (a phone on its side), or under 37.5rem wide and
+44rem tall (a small phone upright), the sheet scrolls as one, footer included, with
+the consent sentence directly above **Join and record**; on taller screens the consent
+sentence and the buttons stay pinned and only the rows scroll. The sheet has one **Close**, and **Not now**, Escape and Close all decline;
 a press on the scrim beside the sheet does nothing (`Dialog` with `scrimDismisses`
 false), because consent is answered with a button. Each row is its status line with
 its control full width underneath, on one left edge. Every control is at least 44 px.
