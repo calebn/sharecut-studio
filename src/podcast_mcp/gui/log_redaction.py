@@ -47,13 +47,14 @@ def _scrub(value: Any) -> Any:
     """
     if isinstance(value, str):
         plain = str.__str__(value)
-        redacted = _redact_route(plain)
-        if redacted == plain:
-            decoded = _decoded(plain)
-            redacted = _redact_route(decoded)
-            if redacted == decoded:
-                return value if type(value) is str else plain
-        return redacted
+        decoded = _decoded(plain)
+        from_decoded = _redact_route(decoded)
+        from_plain = _redact_route(plain)
+        if from_decoded != decoded and _decoded(from_plain) != from_decoded:
+            return from_decoded
+        if from_plain != plain:
+            return from_plain
+        return value if type(value) is str else plain
     text = _text(value)
     if text is None or redact_share_paths(text) == text:
         return value
