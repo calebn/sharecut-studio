@@ -1092,6 +1092,25 @@ def test_host_can_turn_their_own_mic_off_and_a_reconnect_keeps_it() -> None:
     assert out.takes[0].consented_participant_ids == ["p_g"]
 
 
+def test_a_guest_reconnecting_mid_take_keeps_consent_and_a_no_on_headphones() -> None:
+    snap = empty_record_snapshot("sess")
+    snap = _join(snap, pid="p_host", role="host", name="Host", now=0)
+    snap = _join(snap, pid="p_g", role="guest", name="Ava", now=1, seq=2)
+    snap = apply_record_command(
+        snap, _cmd("HeadphonesAck", pid="p_g", payload={"ok": False}, seq=3), now_wall_ms=2
+    )
+    snap = apply_record_command(
+        snap, _cmd("Consent", pid="p_g", payload={"accepted": True}, seq=4), now_wall_ms=3
+    )
+    snap = apply_record_command(snap, _cmd("Start", role="host", pid="p_host"), now_wall_ms=10)
+    assert snap.state == "recording"
+    snap = _join(snap, pid="p_g", role="guest", name="Ava", now=20, seq=5)
+    ava = find_participant(snap, "p_g")
+    assert ava is not None
+    assert ava.consented is True
+    assert ava.headphones_ack is False
+
+
 def test_host_with_their_mic_off_and_no_accepting_guest_cannot_start() -> None:
     snap = empty_record_snapshot("sess")
     snap = _join(snap, pid="p_host", role="host", name="Host", now=0)
