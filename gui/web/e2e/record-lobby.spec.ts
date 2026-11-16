@@ -308,7 +308,7 @@ test.describe("record lobby", () => {
           releaseRoomFrames();
           await expect(joinNameField(guest)).toHaveValue("Ava");
           const sheetControls = await guest
-            .locator(".sys-join-sheet .ui-control")
+            .locator(".sys-join-dialog .ui-control")
             .evaluateAll((elements) =>
               elements.map((element) => element.getBoundingClientRect().height),
             );

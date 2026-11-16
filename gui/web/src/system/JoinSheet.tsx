@@ -323,7 +323,7 @@ export function JoinSheet({
     <Dialog
       open
       title={joinHeadline(here)}
-      panelClassName="sys-join-sheet sys-join-dialog"
+      panelClassName="sys-join-dialog"
       initialFocusRef={initialFocusRef}
       scrimDismisses={false}
       onClose={onDecline}

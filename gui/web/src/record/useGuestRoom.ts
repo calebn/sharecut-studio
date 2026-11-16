@@ -85,8 +85,9 @@ export function useGuestRoom(
   const producer = bootstrap?.role === "producer";
   const episodeName = bootstrap?.episode.name.trim() ?? "";
 
+  const [heldAsJoined, setHeldAsJoined] = useState(false);
   const syncName =
-    (nameTyped || producerJoined ? name.trim() : "") ||
+    (nameTyped || producerJoined || heldAsJoined ? name.trim() : "") ||
     (producer ? "Producer" : "Guest");
   const { snapshot, me, send, error, clearError, connected, lease } =
     useRecordSync(
@@ -324,6 +325,10 @@ export function useGuestRoom(
   const myName = me?.display_name;
 
   const nameShared = nameTyped || producerJoined || me?.consented === true;
+  const roomHoldsJoined = me?.consented === true;
+  useEffect(() => {
+    setHeldAsJoined(roomHoldsJoined);
+  }, [roomHoldsJoined]);
   useEffect(() => {
     if (meId && nameShared && name.trim() && name.trim() !== myName) {
       send("UpdateName", { display_name: name.trim() });

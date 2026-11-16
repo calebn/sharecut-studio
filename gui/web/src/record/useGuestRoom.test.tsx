@@ -567,6 +567,42 @@ describe("useGuestRoom", () => {
     ]);
   });
 
+  it("keeps the real name on every reconnect once the room holds this guest as joined", async () => {
+    localStorage.setItem("sharecut.recordName", "Ava Okafor");
+    stubFetch(guestBootstrap);
+    const { result } = renderHook(() => useGuestRoom("guest-tok"));
+    await waitFor(() => expect(result.current.me).not.toBeNull());
+    act(() =>
+      sockets[0]?.emit({
+        type: "Snapshot",
+        snapshot: snapshotOf({
+          participants: [{ ...guest, consented: true }],
+        }),
+      }),
+    );
+    await waitFor(() => expect(result.current.me?.consented).toBe(true));
+    act(() => sockets[0]?.onclose?.({ code: 1006 }));
+    await waitFor(() => expect(sockets).toHaveLength(2));
+    expect(new URL(socketUrls[1]).searchParams.get("name")).toBe("Ava Okafor");
+    expect(sockets[1]?.commands("Join")[0]).toMatchObject({
+      payload: { display_name: "Ava Okafor" },
+    });
+  });
+
+  it("keeps a remembered name off a reconnect when the guest never acted", async () => {
+    localStorage.setItem("sharecut.recordName", "Ava Okafor");
+    stubFetch(guestBootstrap);
+    const { result } = renderHook(() => useGuestRoom("guest-tok"));
+    await waitFor(() => expect(result.current.me).not.toBeNull());
+    act(() => sockets[0]?.onclose?.({ code: 1006 }));
+    await waitFor(() => expect(sockets).toHaveLength(2));
+    expect(new URL(socketUrls[1]).searchParams.get("name")).toBe("Guest");
+    expect(sockets[1]?.commands("Join")[0]).toMatchObject({
+      payload: { display_name: "Guest" },
+    });
+    expect(sockets[1]?.commands("UpdateName")).toHaveLength(0);
+  });
+
   it("sends the remembered name once the room already holds this guest as joined", async () => {
     localStorage.setItem("sharecut.recordName", "Ava Okafor");
     stubFetch(guestBootstrap);

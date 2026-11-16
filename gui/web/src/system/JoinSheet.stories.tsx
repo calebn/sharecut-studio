@@ -129,7 +129,7 @@ const sheet = async () => {
     name: "Maya, Anneke and Rosa are here",
   });
   // The fade is on the panel inside the dialog root, so check from there up.
-  const panel = dialog.querySelector(".sys-join-sheet") ?? dialog;
+  const panel = dialog.querySelector(".sys-join-dialog") ?? dialog;
   await waitFor(() => expect(opaque(panel)).toBe(true));
   await waitFor(() =>
     expect(dialog.contains(document.activeElement)).toBe(true),
