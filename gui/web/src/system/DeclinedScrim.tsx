@@ -19,9 +19,9 @@ export type DeclinedScrimProps = {
  * The Declined phase over the room: a dim layer and a bottom peek bar. The
  * room stays visible behind it, and the bar says the viewer is not being
  * recorded. A guest's Join recording waits for the room to be waiting again; a
- * producer's Join to listen never waits. When the
- * scrim appears it takes focus, because the room behind it goes inert: the
- * Join button when it works, the bar itself while it is held.
+ * producer's Join to listen never waits. When the scrim appears it takes
+ * focus, because the room behind it goes inert: the Join button when it works,
+ * the bar itself while it is held.
  */
 export function DeclinedScrim({ phase, seat, onJoin }: DeclinedScrimProps) {
   const text = DECLINED_TEXT[seat];

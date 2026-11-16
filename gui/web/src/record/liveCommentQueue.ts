@@ -144,3 +144,5 @@ export function liveTakeOpen(state: string | undefined): boolean {
 
 export const COMMENTS_CLOSED_REASON =
   "You can comment while a take is running.";
+export const COMMENTS_NOT_IN_ROOM_REASON =
+  "You can comment once you're in the room.";

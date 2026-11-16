@@ -1120,11 +1120,11 @@ The sheet is one `Dialog` at every width, and the room's 600 rule decides its sh
 values written as pixels at the default 16 px text size (the 600 break is 37.5rem, the
 card 25rem, a control 2.75rem), so a larger text size moves every one of them, the
 break included. From 600 it is a centred 400 px card whose top is 12% of the screen height from the top (at least 12 px and at most 96 px, so 96 px from 800 px high up; 8 px when the sheet scrolls as one); under 600 it rises from the bottom edge as tall as its
-rows and at most 88dvh, with the room's header and status pill showing above it. On a
+rows and at most 88dvh, with the room's header above it (and the status pill once the page holds a snapshot). On a
 screen under 30rem tall at any width (a phone on its side), or under 37.5rem wide and
 44rem tall (a small phone upright), the sheet scrolls as one, footer included, with
 the consent sentence directly above **Join and record**; on taller screens the consent
-sentence and the buttons stay pinned and only the rows scroll. The sheet has one **Close**, and **Not now**, Escape and Close all decline;
+sentence and the buttons stay pinned and only the rows scroll. The sheet has one **Close**, and **Not now**, Escape and Close all decline, a producer's also while the sheet reads Joining… (the connection is closed, the Not now bar shows, and a producer the room had already listed shows to the host as left);
 a press on the scrim beside the sheet does nothing (`Dialog` with `scrimDismisses`
 false), because consent is answered with a button. Each row is its status line with
 its control full width underneath, on one left edge. Every control is at least 44 px.
@@ -1150,8 +1150,12 @@ The last case covers a reconnect after joining, including after a reload; the fi
 right after a reload still says "Guest", because the room's record of the guest is not
 known yet, and the name follows in `UpdateName` once it is. A producer's socket opens only
 after **Join to listen**, so its first hello already carries the name. The sheet stays on
-"Joining…" until the room confirms the producer, and the room behind it shows no status pill
-until the page holds a snapshot. A guest who has
+"Joining…" until the room confirms the producer. A non-terminal error before then returns
+the sheet to **Join to listen** with the reason under the listen line, and a second press
+opens a new connection; after 4 seconds with no answer the sheet adds "Still connecting to
+the room. Not now stops it." The room behind the sheet shows no status pill until the page
+holds a snapshot, and its Comments field reads "You can comment once you're in the room."
+until the producer is listed. A guest who has
 neither typed a name nor joined shows to the host as "Guest"; a guest who typed shows under
 what they typed, even after **Not now**. The key the earlier build kept per link
 (`record:{token}:name`) is removed for the link that is opened, when it is opened;
@@ -1398,7 +1402,7 @@ stateDiagram-v2
 | No answer from the network (no response at all, or a reply whose body could not be read) | Cover "Couldn't reach the room"; "Check your internet connection, then try again. If it keeps happening, let the person who invited you know."; **Try again** looks the room up again, and so does the browser's `online` event, once |
 | Server or host didn't answer (5xx including a sleeping host's 503, 408, 429, an error reply) | Cover "The room didn't answer"; "Try again in a minute. If it keeps happening, let the person who invited you know."; **Try again** |
 | After **Save my recording** handed the whole zip to the browser (ended, closed invite, or left the room) | Cover "Check your downloads"; "Look for the zip file of your recording and send it to {host}. If it isn't there, save it again."; text button **Save it again**, which reads "Saving…" at the same width and keeps focus while it runs (**Save my recording** and **Try saving again** read "Saving…" only on the one pressed, and both ignore presses meanwhile); the cover, heading and tab stay unless that run fails. Whenever a guest cover appears or its title changes, focus moves to the cover heading so a screen reader reads the new message. The cover offers Save while the device holds any segment the last upload pass did not see, whatever an earlier acknowledgement said, and an acknowledgement never carries into a later take. A "Couldn't reach the room" cover retries once by itself when the browser came back online during the attempt before it. It belongs to the audio that was downloaded: a zip saved while the room was live or paused, or while capture was still running, or one that a resume overlapped, or any segment the device holds that the zip lacked (a later segment, a later take, or a device count that could not be read), shows "Your recording didn't finish saving" with **Save my recording** instead, and "Finishing your full-quality recording…" outranks it while capture settles. A recording the server acknowledged shows the ended cover instead, even while the device still holds its copy for the reclaim grace. "Saved" and "unsent" read one acknowledgement rule in every cover and in the dock: the server's acknowledgement counts only for the take it was given for and only while the device holds no more segments than that pass saw; an unreadable device count is never read as saved. A failed device scan is tried once more after a short delay and again on the next upload pass; meanwhile an acknowledged upload shows "Saving…" without holding Leave, and once the retry also fails it reads as "Saving stopped." with **Resume saving** (which re-scans) and **Save a copy**. A guest the server's take roster lists as recorded, or whose page recorded, shows "Your recording didn't finish saving" with **Try saving again** instead of "Thanks for recording." or "You can close this page." A partial export keeps "Your recording didn't finish saving" |
-| Tab title | `{state} \| {episode}` (`{state} \| ShareCut Studio` while the episode is unknown). State: the shown cover's title; "Joining the room" before the room code is looked up; "Join to listen" (producer, before joining); "Join the room"; "Not being recorded" (guest after Not now); "Not in the room" (producer after Not now); then the pill's phase: Waiting, Stay quiet, Recording, Paused, Saving to project…, Saving stopped, Saved to project, Reconnecting… |
+| Tab title | `{state} \| {episode}` (`{state} \| ShareCut Studio` while the episode is unknown). State: the shown cover's title; "Joining the room" before the room code is looked up; "Join to listen" (producer, until the room lists them); "Join the room"; "Not being recorded" (guest after Not now); "Not in the room" (producer after Not now); then the pill's phase: Waiting, Stay quiet, Recording, Paused, Saving to project…, Saving stopped, Saved to project, Reconnecting… |
 | Room tone (host Record stage) | "Record 1 minute of room tone"; while capturing "Stay quiet · 0:42" with a bar, **End early** and **Cancel** |
 | Room tone for a guest who joined late (alert row) | "Record 1 minute of room tone." **Record room tone** / **Skip**; while capturing the row reads "Stay quiet · 0:42" with a bar, **End early** and **Cancel** (any capturing guest sees it, host-started or not) |
 | Room tone ended too early | "Too short, record at least 10 seconds" (the take is discarded; End early keeps a take of 10 s or more) |

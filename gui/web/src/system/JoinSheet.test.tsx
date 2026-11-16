@@ -1,4 +1,4 @@
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useState } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -615,5 +615,42 @@ describe("JoinSheet producer", () => {
     render(<Harness seat="producer" />);
     expect(primary("Join to listen")).toBeDisabled();
     expect(screen.getByText("Add your name first")).toBeVisible();
+  });
+
+  it("lets Not now, Close and Escape decline while joining", async () => {
+    const onDecline = vi.fn();
+    render(
+      <Harness seat="producer" name="Rosa" joining onDecline={onDecline} />,
+    );
+    const notNow = screen.getByRole("button", { name: "Not now" });
+    expect(notNow).toBeEnabled();
+    await userEvent.click(notNow);
+    await userEvent.click(screen.getByRole("button", { name: "Close" }));
+    await userEvent.keyboard("{Escape}");
+    expect(onDecline).toHaveBeenCalledTimes(3);
+  });
+
+  it("shows the notice, and says when nothing has answered for a while", async () => {
+    vi.useFakeTimers();
+    try {
+      render(
+        <Harness
+          seat="producer"
+          name="Rosa"
+          joining
+          notice="Try again soon."
+        />,
+      );
+      expect(screen.getByRole("alert")).toHaveTextContent("Try again soon.");
+      expect(screen.queryByText(/Still connecting/)).toBeNull();
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(4000);
+      });
+      expect(screen.getByRole("status")).toHaveTextContent(
+        "Still connecting to the room. Not now stops it.",
+      );
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
