@@ -63,6 +63,9 @@ async function inRoom(
   browser: Browser,
   options: {
     guest?: BrowserContextOptions;
+    host?: BrowserContextOptions;
+    /** Other guests who join first, so the room holds the host, them and the viewer. */
+    crowd?: string[];
     title?: string;
   },
   run: (ctx: {
@@ -76,14 +79,22 @@ async function inRoom(
     async (projectPath) => {
       await withBrowserPages(
         browser,
-        [LAPTOP, options.guest ?? phoneAt(390)],
-        async ([host, guest]) => {
+        [
+          options.host ?? LAPTOP,
+          options.guest ?? phoneAt(390),
+          ...(options.crowd ?? []).map(() => LAPTOP),
+        ],
+        async ([host, guest, ...others]) => {
           await markSharecutE2e(host!);
           await openProject(host!, projectPath, { query: "&e2e=1" });
           await expect(host!.getByRole("heading", { level: 1 })).toBeVisible();
           const room = await createRecordRoom(host!, projectPath);
           await openHostRecordRoom(host!);
           await markSharecutE2e(guest!);
+          for (const [index, name] of (options.crowd ?? []).entries()) {
+            await markSharecutE2e(others[index]!);
+            await joinAsGuest(others[index]!, room.guest.token, name);
+          }
           await run({ host: host!, guest: guest!, projectPath, room });
         },
       );
@@ -118,6 +129,15 @@ async function expectTitleWhole(page: Page, text: string) {
 async function expectBrandSymbol(page: Page) {
   await expect(page.locator(".sys-room-view-symbol")).toBeVisible();
   await expect(page.locator(".sys-room-view-wordmark")).toBeHidden();
+  const name = page.locator(".brand-lockup-name");
+  await expect(name).toHaveText("ShareCut");
+  expect(
+    await name.evaluate((node) => {
+      const style = getComputedStyle(node);
+      return style.display !== "none" && style.visibility !== "hidden";
+    }),
+    "the name stays in the accessibility tree",
+  ).toBe(true);
 }
 
 async function expectLabelledDock(page: Page) {
@@ -140,12 +160,34 @@ async function expectLabelledDock(page: Page) {
   expect(new Set(names).size).toBe(names.length);
   await expect(page.getByRole("button", { name: /^Comments/ })).toHaveCount(1);
   await expect(page.locator(".sys-room-view-peek")).toBeVisible();
+  if (
+    (await page
+      .locator(".sys-dock-status, .sys-dock-hint[data-shown]")
+      .count()) === 0
+  ) {
+    // 1 border + 8 padding + 64 disc + 4 gap + 16 word + 8 padding.
+    expect((await box(page.locator(".sys-dock"))).height).toBeCloseTo(101, 0);
+  }
 }
 
 async function expectTilesUnderHeader(page: Page) {
   const top = (await box(page.locator(".sys-room-tile").first())).y;
   const bottom = (await box(header(page))).y + (await box(header(page))).height;
   expect(top - bottom).toBeLessThanOrEqual(25);
+}
+
+/** The level ring grows to 8 px past the avatar when the guest speaks. */
+const RING_PX = 8;
+
+async function expectCueClearsAvatar(page: Page) {
+  const cue = page.locator(".sys-room-devices");
+  if ((await cue.count()) === 0 || !(await cue.isVisible())) return;
+  const cueBox = await box(cue);
+  const face = await box(roomTile(page, "Ava").locator(".sys-room-face"));
+  expect(
+    face.y - (cueBox.y + cueBox.height),
+    "the Devices cue clears the avatar and its level ring",
+  ).toBeGreaterThanOrEqual(RING_PX);
 }
 
 async function expectOwnTile(page: Page, name: string) {
@@ -161,94 +203,151 @@ async function expectPhoneRoom(page: Page, titleText: string, width: number) {
   await expectBrandSymbol(page);
   await expectLabelledDock(page);
   await expectTilesUnderHeader(page);
+  await expectCueClearsAvatar(page);
 }
 
 test.describe("record room on a phone", () => {
-  test("390: every state keeps the title, the labelled dock, top tiles and the own tile", async ({
-    browser,
-  }: {
-    browser: Browser;
-  }) => {
-    test.slow();
-    await inRoom(
-      browser,
-      { title: LONG_TITLE },
-      async ({ host, guest, projectPath, room }) => {
-        let release: () => void = () => {};
-        const gate = new Promise<void>((resolve) => {
-          release = resolve;
-        });
-        await guest.context().route(/\/api\/rec\/[^/]+\/upload/, async (r) => {
-          if (r.request().method() === "POST") await gate;
-          await r.continue();
-        });
-        // Layout does not change with the theme; this walk runs in the dark one.
-        await guest.emulateMedia({ colorScheme: "dark" });
-        await joinAsGuest(guest, room.guest.token, "Ava");
-
-        await expectPhoneRoom(guest, LONG_TITLE, 390);
-        await expectOwnTile(guest, "Ava");
-        const pillWaiting = await box(roomPill(guest));
-        expect(pillWaiting.x + pillWaiting.width).toBeLessThanOrEqual(390);
-
-        await ensureHostRecordCommand(host, projectPath, "Start", "recording");
-        await expect(roomPill(guest)).toHaveText(/^\d+:\d{2} · Take \d+$/);
-        await expectPhoneRoom(guest, LONG_TITLE, 390);
-        await expectOwnTile(guest, "Ava");
-        await roomTile(guest, "Ava").getByRole("button").tap();
-        await expect(
-          guest.getByRole("dialog", { name: "Devices" }),
-        ).toBeVisible();
-        await guest.keyboard.press("Escape");
-        await expect(
-          guest.getByRole("dialog", { name: "Devices" }),
-        ).toBeHidden();
-
-        const leave = guest.getByRole("button", { name: "Leave room" });
-        await expect(leave).toHaveAttribute("aria-disabled", "true");
-        await expect(leave.locator(".sys-dock-label")).toBeVisible();
-        // Playwright treats aria-disabled as not enabled; a held Leave stays pressable on purpose.
-        await leave.tap({ force: true });
-        await expect(
-          guest.getByText("You can leave after this take."),
-        ).toBeVisible();
-
-        await ensureHostRecordCommand(host, projectPath, "Pause", "paused");
-        await expect(roomPill(guest)).toContainText(/Paused/);
-        await expectPhoneRoom(guest, LONG_TITLE, 390);
-
-        await ensureHostRecordCommand(host, projectPath, "Resume", "recording");
-        await ensureHostRecordCommand(host, projectPath, "Stop", "stopped");
-        await expect(roomPill(guest)).toHaveText(/Saving/);
-        await expectPhoneRoom(guest, LONG_TITLE, 390);
-
-        release();
-        await expect(roomPill(guest)).toHaveText("Saved", { timeout: 60_000 });
-        await expectTitleWhole(guest, LONG_TITLE);
-        await expectBrandSymbol(guest);
-        await expectTilesUnderHeader(guest);
-        const done = guest.getByRole("button", { name: "Done" });
-        expect((await box(done)).height).toBeGreaterThanOrEqual(TOUCH_MIN);
-        await expect(
-          guest.getByRole("button", { name: /^Comments/ }),
-        ).toHaveCount(1);
-      },
-    );
-  });
-
-  for (const width of [320, 599]) {
-    test(`${width} wide: the short title is whole and the targets hold`, async ({
+  for (const [width, titleText] of [
+    [390, LONG_TITLE],
+    [320, "aligned dialogue"],
+  ] as const) {
+    test(`${width}: every state keeps the title, the labelled dock, top tiles and the own tile`, async ({
       browser,
     }: {
       browser: Browser;
     }) => {
+      test.slow();
       await inRoom(
         browser,
-        { guest: phoneAt(width, 900) },
-        async ({ guest, room }) => {
+        {
+          guest: phoneAt(width, width === 320 ? 640 : 844),
+          title: width === 390 ? LONG_TITLE : undefined,
+        },
+        async ({ host, guest, projectPath, room }) => {
+          let release: () => void = () => {};
+          const gate = new Promise<void>((resolve) => {
+            release = resolve;
+          });
+          await guest
+            .context()
+            .route(/\/api\/rec\/[^/]+\/upload/, async (r) => {
+              if (r.request().method() === "POST") await gate;
+              await r.continue();
+            });
+          // Layout does not change with the theme; this walk runs in the dark one.
+          await guest.emulateMedia({ colorScheme: "dark" });
           await joinAsGuest(guest, room.guest.token, "Ava");
-          await expectPhoneRoom(guest, "aligned dialogue", width);
+
+          await expectPhoneRoom(guest, titleText, width);
           await expectOwnTile(guest, "Ava");
+          const pillWaiting = await box(roomPill(guest));
+          expect(pillWaiting.x + pillWaiting.width).toBeLessThanOrEqual(width);
+
+          await ensureHostRecordCommand(
+            host,
+            projectPath,
+            "Start",
+            "recording",
+          );
+          await expect(roomPill(guest)).toHaveText(/^\d+:\d{2} · Take \d+$/);
+          await expectPhoneRoom(guest, titleText, width);
+          await expectOwnTile(guest, "Ava");
+          await roomTile(guest, "Ava").getByRole("button").tap();
+          await expect(
+            guest.getByRole("dialog", { name: "Devices" }),
+          ).toBeVisible();
+          await guest.keyboard.press("Escape");
+          await expect(
+            guest.getByRole("dialog", { name: "Devices" }),
+          ).toBeHidden();
+
+          const leave = guest.getByRole("button", { name: "Leave room" });
+          await expect(leave).toHaveAttribute("aria-disabled", "true");
+          await expect(leave.locator(".sys-dock-label")).toBeVisible();
+          // Playwright treats aria-disabled as not enabled; a held Leave stays pressable on purpose.
+          await leave.tap({ force: true });
+          await expect(
+            guest.getByText("You can leave after this take."),
+          ).toBeVisible();
+
+          await ensureHostRecordCommand(host, projectPath, "Pause", "paused");
+          await expect(roomPill(guest)).toContainText(/Paused/);
+          await expectPhoneRoom(guest, titleText, width);
+
+          await ensureHostRecordCommand(
+            host,
+            projectPath,
+            "Resume",
+            "recording",
+          );
+          await ensureHostRecordCommand(host, projectPath, "Stop", "stopped");
+          await expect(roomPill(guest)).toHaveText(/Saving/);
+          await expectPhoneRoom(guest, titleText, width);
+
+          release();
+          await expect(roomPill(guest)).toHaveText("Saved", {
+            timeout: 60_000,
+          });
+          await expectTitleWhole(guest, titleText);
+          await expectBrandSymbol(guest);
+          await expectTilesUnderHeader(guest);
+          await expectCueClearsAvatar(guest);
+          const done = guest.getByRole("button", { name: "Done" });
+          expect((await box(done)).height).toBeGreaterThanOrEqual(TOUCH_MIN);
+          await expect(
+            guest.getByRole("button", { name: /^Comments/ }),
+          ).toHaveCount(1);
+        },
+      );
+    });
+  }
+
+  for (const [width, height] of [
+    [320, 640],
+    [390, 844],
+    [667, 375],
+    [568, 320],
+  ] as const) {
+    test(`${width}x${height} with four people: the Devices cue never meets the avatar`, async ({
+      browser,
+    }: {
+      browser: Browser;
+    }) => {
+      test.slow();
+      await inRoom(
+        browser,
+        { guest: phoneAt(width, height), crowd: ["Bo", "Cy"] },
+        async ({ host, guest, projectPath, room }) => {
+          await joinAsGuest(guest, room.guest.token, "Ava");
+          expect(await guest.locator(".sys-room-tile").count()).toBe(4);
+          const landscape = width > height;
+          await expect(guest.locator(".sys-room-view")).toHaveAttribute(
+            "data-width",
+            landscape ? "phone-landscape" : "phone",
+          );
+          for (const phase of ["waiting", "live"]) {
+            if (phase === "live") {
+              await ensureHostRecordCommand(
+                host,
+                projectPath,
+                "Start",
+                "recording",
+              );
+              await expect(roomPill(guest)).toHaveText(
+                /^\d+:\d{2} · Take \d+$/,
+              );
+            }
+            await expect(
+              roomTile(guest, "Ava").getByText("(you)"),
+            ).toBeVisible();
+            if (landscape) {
+              // The tiles are too small for a cue beside the avatar.
+              await expect(guest.locator(".sys-room-devices")).toBeHidden();
+            } else {
+              await expect(guest.locator(".sys-room-devices")).toBeVisible();
+            }
+            await expectCueClearsAvatar(guest);
+          }
         },
       );
     });
@@ -270,6 +369,34 @@ test.describe("record room on a phone", () => {
         await expectBrandSymbol(guest);
         await expectLabelledDock(guest);
         await expect(dockButtons(guest)).toHaveText(["Comment", "Leave"]);
+      },
+    );
+  });
+
+  test("the host studio on a phone keeps its own header, dock and centred tiles", async ({
+    browser,
+  }: {
+    browser: Browser;
+  }) => {
+    await inRoom(
+      browser,
+      { host: phoneAt(390) },
+      async ({ host, guest, room }) => {
+        await joinAsGuest(guest, room.guest.token, "Ava");
+        const view = host.locator(".sys-room-view[data-embedded]");
+        await expect(view).toBeVisible();
+        await expect(view.locator(".sys-dock-label")).toHaveCount(0);
+        await expect(view.locator(".sys-room-view-symbol")).toHaveCount(0);
+        await expect(view.locator(".sys-room-devices")).toHaveCount(0);
+        const gap = await view
+          .locator(".sys-room-view-grid")
+          .evaluate((grid) =>
+            Number.parseFloat(getComputedStyle(grid).marginTop),
+          );
+        expect(
+          gap,
+          "the host grid keeps its vertical centring",
+        ).toBeGreaterThan(0);
       },
     );
   });
