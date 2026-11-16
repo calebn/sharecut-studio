@@ -12,6 +12,7 @@ export type GuestLoadFailure =
         | "bad-link"
         | "unreachable"
         | "busy"
+        | "sign-in"
         | "restricted"
         | "unavailable"
         | "intercepted"
@@ -48,6 +49,14 @@ const retryAfterMs = (seconds: number | null): number =>
     : Math.min(Math.max(seconds, MIN_RETRY_AFTER_SEC), MAX_RETRY_AFTER_SEC) *
       1000;
 
+/** The wait, in words a guest can plan around, for the delay the page will use. */
+const waitInWords = (ms: number): string =>
+  ms <= 30_000
+    ? "in a moment"
+    : ms <= 90_000
+      ? "in about a minute"
+      : "in about two minutes";
+
 export function classifyBootstrapFailure(error: unknown): GuestLoadFailure {
   if (!(error instanceof ApiError)) {
     return error instanceof SyntaxError
@@ -74,7 +83,10 @@ export function classifyBootstrapFailure(error: unknown): GuestLoadFailure {
   if (status === 429) {
     return { kind: "rate-limited", retryAfterSec: error.retryAfterSec };
   }
-  if (status === 401 || status === 403) {
+  if (status === 401) {
+    return { kind: "sign-in" };
+  }
+  if (status === 403) {
     return { kind: "restricted" };
   }
   return { kind: "server" };
@@ -111,21 +123,30 @@ export function guestLoadCover(failure: GuestLoadFailure): GuestLoadCover {
       return {
         ...notLoaded,
         sentence:
-          "The host's computer is busy; this page tries again every 30 seconds.",
+          "This episode is busy for a moment; this page tries again every 30 seconds.",
         autoRetryMs: AUTO_RETRY_MS,
       };
-    case "rate-limited":
+    case "rate-limited": {
+      const autoRetryMs = retryAfterMs(failure.retryAfterSec);
+      return {
+        ...notLoaded,
+        sentence: `This link is busy right now; this page tries again ${waitInWords(autoRetryMs)}.`,
+        autoRetryMs,
+      };
+    }
+    case "sign-in":
       return {
         ...notLoaded,
         sentence:
-          "This link is busy right now; this page tries again in a moment.",
-        autoRetryMs: retryAfterMs(failure.retryAfterSec),
+          "This link needs a sign-in; ask the person who sent it how to sign in.",
+        button: null,
       };
     case "restricted":
       return {
         ...notLoaded,
         sentence:
           "This link is only for certain people; ask the person who sent it to check it was made for you.",
+        button: null,
       };
     case "unavailable":
       return {
