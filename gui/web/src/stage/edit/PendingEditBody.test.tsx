@@ -25,6 +25,7 @@ import {
 import { QUEUED_NOTICE_POLL_MS } from "../../inspector/useQueuedReviewNotice";
 import { shareProjectKey } from "../../shareMode";
 import { useDawStore } from "../../state/dawStore";
+import { collectUnsent } from "../../state/unsentText";
 import { expectNoA11yViolations } from "../../test/a11y";
 import {
   COMMENTER_CAPABILITIES,
@@ -550,6 +551,27 @@ describe("PendingEditBody", () => {
         timelineEnd: 12,
       }),
     );
+  });
+
+  it("hands the unsent Ask to collectUnsent as a note, until it is sent or the card goes", async () => {
+    const user = userEvent.setup();
+    createComment.mockResolvedValue(
+      sampleComment({ edit_decision_id: "ed1", body: "Why this cut?" }),
+    );
+    const view = render(<PendingEditBody edit={sessionCut} />);
+    const field = () =>
+      screen.getByPlaceholderText("Ask for more context before deciding…");
+    expect(collectUnsent()).toEqual([]);
+    await user.type(field(), " Why this cut? ");
+    expect(collectUnsent()).toEqual([
+      { label: "Your note", text: " Why this cut? " },
+    ]);
+    await user.click(screen.getByRole("button", { name: "Ask" }));
+    await waitFor(() => expect(collectUnsent()).toEqual([]));
+    await user.type(field(), "one more");
+    expect(collectUnsent()).toHaveLength(1);
+    view.unmount();
+    expect(collectUnsent()).toEqual([]);
   });
 
   it("prefills a saved real name for the Ask", async () => {

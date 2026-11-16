@@ -11,6 +11,7 @@ import { clearRegisteredCommands } from "../../commands/execute";
 import { registerDawCommands } from "../../commands/register";
 import { resolveCommentAnchor } from "../../comments/commentAnchor";
 import { useDawStore } from "../../state/dawStore";
+import { collectUnsent } from "../../state/unsentText";
 import { expectNoA11yViolations } from "../../test/a11y";
 import { composing, noComposer } from "../../test/composerStore";
 import {
@@ -563,6 +564,21 @@ describe("Review queue for a guest", () => {
       body: "thanks",
       author: "Guest",
     });
+  });
+
+  it("hands the unsent replies of the queue to collectUnsent, until each is sent or the queue goes", async () => {
+    const user = userEvent.setup();
+    join("comment", [sampleComment({ id: "c1" })]);
+    const view = render(<ReviewHost guestShare />);
+    expect(collectUnsent()).toEqual([]);
+    await user.type(screen.getByRole("textbox", { name: /^Reply/ }), "thanks ");
+    expect(collectUnsent()).toEqual([{ label: "Your reply", text: "thanks " }]);
+    await user.click(screen.getByRole("button", { name: /^Reply/ }));
+    expect(collectUnsent()).toEqual([]);
+    await user.type(screen.getByRole("textbox", { name: /^Reply/ }), "again");
+    expect(collectUnsent()).toEqual([{ label: "Your reply", text: "again" }]);
+    view.unmount();
+    expect(collectUnsent()).toEqual([]);
   });
 
   describe("comment field placement", () => {
