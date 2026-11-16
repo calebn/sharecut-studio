@@ -150,7 +150,11 @@ const MAX_MESSAGE_DEPTH = 3;
 /** Parse a failed fetch Response into a short user-facing message. */
 export async function readApiError(res: Response): Promise<string> {
   const text = await res.text().catch(() => "");
-  return parseFailureText(text, res.status).message;
+  return guestSafeMessage(
+    res,
+    res.headers.get("X-Sharecut-Error-Code"),
+    parseFailureText(text, res.status).message,
+  );
 }
 
 function parseFailureText(
@@ -243,11 +247,51 @@ function asRecord(value: unknown): Record<string, unknown> | null {
     : null;
 }
 
+export const SHARE_NOT_FOUND_CODE = "share_not_found";
+
+/** The server's one answer for a link that is off, unknown or expired. */
+export function isDeadLinkAnswer(
+  status: number | null,
+  code: string | null,
+): boolean {
+  return status === 404 && code === SHARE_NOT_FOUND_CODE;
+}
+
+/**
+ * What a guest reads when a review route answers that its link is gone. True
+ * whether the link is off (the page replaces the studio with its cover within
+ * a moment) or the answer was a stray (trying again works).
+ */
+export const LINK_DOUBT_MESSAGE =
+  "That didn't go through. Try again in a moment.";
+
+/** True for a dead-link answer from a guest route, never from the host's share management. */
+function isGuestDeadLinkAnswer(res: Response, code: string | null): boolean {
+  if (!isDeadLinkAnswer(res.status, code) || !res.url) return false;
+  try {
+    return new URL(res.url, "http://localhost").pathname.startsWith(
+      "/api/review/",
+    );
+  } catch {
+    return false;
+  }
+}
+
+function guestSafeMessage(
+  res: Response,
+  code: string | null,
+  message: string,
+): string {
+  return isGuestDeadLinkAnswer(res, code) ? LINK_DOUBT_MESSAGE : message;
+}
+
 /** Preserve a stable server error code and HTTP status alongside its message. */
 export async function readApiFailure(res: Response): Promise<ApiError> {
   const text = await res.text().catch(() => "");
-  const { message, body } = parseFailureText(text, res.status);
+  const parsed = parseFailureText(text, res.status);
+  const { body } = parsed;
   const code = res.headers.get("X-Sharecut-Error-Code");
+  const message = guestSafeMessage(res, code, parsed.message);
   const model =
     res.status === 409 && code === MODEL_NEEDED_CODE
       ? pickModelNeeded(body)
