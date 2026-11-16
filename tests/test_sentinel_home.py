@@ -196,3 +196,18 @@ def test_a_default_preset_inside_the_real_home_is_replaced(tmp_path: Path) -> No
         {"HOME": str(real), "USERPROFILE": str(real), "PODCAST_SHARE_REGISTRY": str(inside)},
     )
     assert result.returncode == 0, result.stdout + result.stderr
+
+
+def test_a_module_that_loads_defaults_at_import_leaves_the_real_home_alone(tmp_path: Path) -> None:
+    real = tmp_path / "realhome"
+    real.mkdir()
+    result = _run_session(
+        tmp_path,
+        "from podcast_mcp.config.defaults import load_defaults\n\n"
+        "DEFAULTS = load_defaults()\n\n\n"
+        "def test_collected():\n"
+        "    assert DEFAULTS\n",
+        {"HOME": str(real), "USERPROFILE": str(real)},
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert list(real.iterdir()) == []
