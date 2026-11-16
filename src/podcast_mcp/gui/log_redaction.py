@@ -74,7 +74,7 @@ def _fail_closed(record: logging.LogRecord) -> None:
         text = record.getMessage()
     except Exception:
         return
-    redacted = redact_share_paths(text)
+    redacted = _redact_route(text)
     if redacted != text:
         record.msg = redacted
         record.args = ()

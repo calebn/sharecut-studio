@@ -99,6 +99,10 @@ def test_a_line_without_a_token_is_unchanged() -> None:
     assert _format("GET %s", "/api/health?marker=keep") == "GET /api/health?marker=keep"
 
 
+def test_the_filtered_loggers_are_the_three_uvicorn_ones() -> None:
+    assert UVICORN_LOGGERS == ("uvicorn.access", "uvicorn.error", "uvicorn.asgi")
+
+
 def test_install_adds_one_filter_per_uvicorn_logger() -> None:
     install()
     install()
@@ -153,19 +157,6 @@ def test_a_lone_mapping_argument_loses_the_token() -> None:
     ShareTokenFilter().filter(record)
 
     assert TOKEN not in record.getMessage()
-
-
-@pytest.mark.parametrize(
-    "arg",
-    [
-        f"/r/{TOKEN}/ws".encode(),
-        [f"/r/{TOKEN}/ws"],
-        (f"/r/{TOKEN}/ws",),
-        ValueError(f"/r/{TOKEN}/ws"),
-    ],
-)
-def test_a_non_text_argument_holding_a_token_loses_it(arg: object) -> None:
-    assert TOKEN not in _format("seen %s", arg)
 
 
 def test_a_bytes_message_loses_the_token() -> None:
@@ -354,11 +345,7 @@ def test_a_str_whose_comparison_raises_is_logged_as_it_was() -> None:
 
 
 def test_an_unreadable_token_free_mapping_is_logged_as_it_was() -> None:
-    class Quiet(_UnreadableMapping):
-        def __str__(self) -> str:
-            return "quiet"
-
-    assert _logged("%s", Quiet()) == "quiet\n"
+    assert _logged("%s", _Quiet()) == "quiet\n"
 
 
 def test_a_tuple_holding_an_unreadable_mapping_loses_the_token() -> None:
@@ -501,7 +488,7 @@ def test_a_mapping_whose_copy_cannot_be_printed_still_loses_its_token() -> None:
     assert line == "x /r/<share-token>/ws"
 
 
-def test_a_str_subclass_is_plain_text_in_a_tuple_and_kept_as_it_was_in_a_mapping() -> None:
+def test_a_str_subclass_prints_as_it_did_before_in_a_tuple_and_in_a_mapping() -> None:
     assert _logged("%s", _StrOverride("v")) == "v\n"
     assert _logged("%(a)s", {"a": _StrOverride("v")}) == "STR-OVERRIDE\n"
 
@@ -536,11 +523,12 @@ def test_a_token_free_mapping_is_never_compared_by_value() -> None:
     [
         f"/r/{TOKEN}/ws?name=Ann&client=guest-1".encode(),
         [f"/r/{TOKEN}/ws?name=Ann&client=guest-1"],
+        (f"/r/{TOKEN}/ws?name=Ann&client=guest-1",),
         ValueError(f"/r/{TOKEN}/ws?name=Ann&client=guest-1"),
         {"path": f"/r/{TOKEN}/ws", "query_string": b"name=Ann&client=guest-1"},
         f"/r/{TOKEN}/ws?name=Ann&client=guest-1",
     ],
-    ids=["bytes", "list", "exception", "mapping", "str"],
+    ids=["bytes", "list", "tuple", "exception", "mapping", "str"],
 )
 def test_a_token_route_loses_its_query_whatever_the_argument_type(arg: object) -> None:
     line = _format("seen %s", arg)
@@ -579,3 +567,10 @@ def test_an_unreadable_argument_in_a_token_free_record_is_left_as_it_was() -> No
     assert record.msg == "%s"
     assert record.args is arg
     assert record.getMessage() == "quiet"
+
+
+def test_an_unreadable_argument_next_to_a_token_route_loses_the_guest_name_too() -> None:
+    line = _logged("%s %s", f"/r/{TOKEN}/ws?name=Ann", _UnreadableMapping())
+
+    assert TOKEN not in line
+    assert "Ann" not in line
