@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import atexit
 import logging
 import os
+import shutil
 import subprocess
 import tempfile
 import threading
@@ -192,26 +194,47 @@ def _default_env(patch_env: pytest.MonkeyPatch, name: str, value: str) -> None:
         patch_env.setenv(name, value)
 
 
-@pytest.fixture(scope="session", autouse=True)
-def _sentinel_home(tmp_path_factory: pytest.TempPathFactory) -> Iterator[Path]:
-    """Point HOME at an empty folder for the session; fail it if a test leaves ShareCut files there."""
-    home = tmp_path_factory.mktemp("home")
-    state = tmp_path_factory.mktemp("session_state")
+def _enter_session_home() -> tuple[Path, pytest.MonkeyPatch]:
+    """Point HOME at an empty folder before any test module is imported.
+
+    Test modules call ``load_defaults()`` at import, which reads and creates folders in the model
+    cache, so the redirect has to be in place at collection and not only when the first test runs.
+    """
+    root = Path(tempfile.mkdtemp(prefix="sharecut-session-")).resolve()
+    home = root / "home"
+    state = root / "state"
+    home.mkdir()
+    state.mkdir()
     keep = passthrough_env(REAL_HOME, dict(os.environ))
-    with pytest.MonkeyPatch.context() as patch_env:
-        # Defaults for fixtures wider than one test, which run before the per-test isolation.
-        _default_env(patch_env, "PODCAST_SHARE_REGISTRY", str(state / "share_registry.sqlite"))
-        _default_env(patch_env, "PODCAST_SHARE_IDENTITY", str(state / "share_identity.sqlite"))
-        _default_env(patch_env, "PODCAST_RELAY_CONFIG", str(state / "relay.yaml"))
-        _default_env(patch_env, "PODCAST_CONFIG_DIR", str(state / "config"))
-        _default_env(patch_env, "PODCAST_WORKSPACE_ROOT", str(state / "workspaces"))
-        _default_env(patch_env, "PODCAST_MCP_CACHE", str(state / "cache"))
-        for name, value in keep.items():
-            patch_env.setenv(name, value)
-        patch_env.setenv("HOME", str(home))
-        patch_env.setenv("USERPROFILE", str(home))
-        yield home
-        stray = stray_files(home)
+    patch_env = pytest.MonkeyPatch()
+    # Defaults for fixtures wider than one test, which run before the per-test isolation.
+    _default_env(patch_env, "PODCAST_SHARE_REGISTRY", str(state / "share_registry.sqlite"))
+    _default_env(patch_env, "PODCAST_SHARE_IDENTITY", str(state / "share_identity.sqlite"))
+    _default_env(patch_env, "PODCAST_RELAY_CONFIG", str(state / "relay.yaml"))
+    _default_env(patch_env, "PODCAST_CONFIG_DIR", str(state / "config"))
+    _default_env(patch_env, "PODCAST_WORKSPACE_ROOT", str(state / "workspaces"))
+    _default_env(patch_env, "PODCAST_MCP_CACHE", str(state / "cache"))
+    for name, value in keep.items():
+        patch_env.setenv(name, value)
+    patch_env.setenv("HOME", str(home))
+    patch_env.setenv("USERPROFILE", str(home))
+
+    def _leave() -> None:
+        patch_env.undo()
+        shutil.rmtree(root, ignore_errors=True)
+
+    atexit.register(_leave)
+    return home, patch_env
+
+
+_SESSION_HOME, _SESSION_ENV = _enter_session_home()
+
+
+@pytest.fixture(scope="session", autouse=True)
+def _sentinel_home() -> Iterator[Path]:
+    """Fail the session if a test leaves ShareCut files in the session home."""
+    yield _SESSION_HOME
+    stray = stray_files(_SESSION_HOME)
     assert not stray, f"tests wrote outside their temp roots, under the session home: {stray}"
 
 
