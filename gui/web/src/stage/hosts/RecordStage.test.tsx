@@ -2083,7 +2083,7 @@ describe("Record stage take controls", () => {
     );
   });
 
-  it("posts a typed note to the room from the Comments rail", async () => {
+  it("posts a typed comment to the room from the Comments rail", async () => {
     send.mockReturnValue(true);
     setRoom({
       state: "recording",
@@ -2101,7 +2101,7 @@ describe("Record stage take controls", () => {
     );
   });
 
-  it("keeps the typed note when storage and transport both refuse it", async () => {
+  it("keeps the typed comment when storage and transport both refuse it", async () => {
     send.mockReturnValue(false);
     setRoom({
       state: "recording",
