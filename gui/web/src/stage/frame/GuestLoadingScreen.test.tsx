@@ -66,11 +66,11 @@ describe("GuestLoadingScreen (the recording room's)", () => {
     expect(onRetry).toHaveBeenCalledTimes(2);
   });
 
-  it("does not say Trying… when no retry is wired, because nothing is being tried", () => {
+  it("keeps the loading status and omits Retry when no retry is wired", () => {
     render(<GuestLoadingScreen label={ROOM} />);
     act(() => void vi.advanceTimersByTime(4000));
-    fireEvent.click(screen.getByRole("button", { name: "Retry" }));
-    expect(screen.queryByRole("button", { name: "Trying…" })).toBeNull();
+    expect(screen.getByText("Still loading…")).toBeVisible();
+    expect(screen.queryByRole("button", { name: "Retry" })).toBeNull();
   });
 
   it("gives Retry the touch-min target at every size and the status row the block gutter", () => {
