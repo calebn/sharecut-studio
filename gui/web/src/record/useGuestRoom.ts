@@ -333,10 +333,10 @@ export function useGuestRoom(
   const shareName = useCallback(() => {
     setNameTyped(true);
     const trimmed = name.trim();
-    if (meId && trimmed && trimmed !== myName) {
+    if (trimmed && trimmed !== myName) {
       send("UpdateName", { display_name: trimmed });
     }
-  }, [meId, myName, name, send]);
+  }, [myName, name, send]);
 
   useEffect(() => {
     removeLocal(storageKey(token, "name"));
