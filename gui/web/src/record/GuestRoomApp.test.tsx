@@ -587,6 +587,99 @@ describe("GuestRoomApp", () => {
     expect(screen.getByText("Waiting")).toBeInTheDocument();
   });
 
+  describe("people looking in", () => {
+    const ROW = "Someone with the producer link is looking in";
+    const polite = () =>
+      document.querySelector('[aria-live="polite"].sr-only') as HTMLElement;
+    const rowText = () =>
+      document.querySelector(".sys-room-looking-in")?.textContent ?? null;
+
+    it("names them in the consent Details, and after the room has people looking in", async () => {
+      stubBootstrap();
+      render(<GuestRoomApp token="guest-tok" />);
+      await screen.findByRole("heading", { name: "Join the room" });
+      await waitFor(() => expect(sockets).toHaveLength(1));
+      act(() =>
+        sockets[0].onmessage?.(
+          snapshotMessage({ watchers: 1, server_time_ns: 5 }, null),
+        ),
+      );
+      await userEvent.click(
+        await screen.findByRole("button", { name: "Details" }),
+      );
+      expect(
+        screen.getByText(`${ROW}. They can see the room but can't hear it.`),
+      ).toBeInTheDocument();
+      expect(rowText()).toBe(ROW);
+    });
+
+    it("shows the row on the guest seat, updates it and announces the first arrival once", async () => {
+      stubBootstrap();
+      render(<GuestRoomApp token="guest-tok" />);
+      await readyToJoin(getUserMedia);
+      await userEvent.click(joinButton());
+      await screen.findByRole("button", { name: "Leave room" });
+      expect(rowText()).toBeNull();
+      act(() =>
+        sockets[0].onmessage?.(
+          snapshotMessage({ watchers: 1, server_time_ns: 10 }, true),
+        ),
+      );
+      expect(rowText()).toBe(ROW);
+      expect(polite()).toHaveTextContent(ROW);
+      act(() =>
+        sockets[0].onmessage?.(
+          snapshotMessage({ watchers: 3, server_time_ns: 11 }, true),
+        ),
+      );
+      expect(rowText()).toBe("3 people with the producer link are looking in");
+      expect(polite()).toHaveTextContent(ROW);
+      act(() =>
+        sockets[0].onmessage?.(
+          snapshotMessage({ watchers: 0, server_time_ns: 12 }, true),
+        ),
+      );
+      expect(rowText()).toBeNull();
+    });
+
+    it("shows nothing for a count that is not a count", async () => {
+      stubBootstrap();
+      render(<GuestRoomApp token="guest-tok" />);
+      await readyToJoin(getUserMedia);
+      await userEvent.click(joinButton());
+      await screen.findByRole("button", { name: "Leave room" });
+      for (const [i, bad] of [-1, 2.5, "2", 1000].entries()) {
+        act(() =>
+          sockets[0].onmessage?.(
+            snapshotMessage({ watchers: bad, server_time_ns: 10 + i }, true),
+          ),
+        );
+        expect(rowText()).toBeNull();
+      }
+    });
+
+    it("stays silent for a rise during a take, then announces a lobby rise", async () => {
+      stubBootstrap();
+      render(<GuestRoomApp token="guest-tok" />);
+      await readyToJoin(getUserMedia);
+      await userEvent.click(joinButton());
+      await screen.findByRole("button", { name: "Leave room" });
+      const send = (patch: Record<string, unknown>, ns: number) =>
+        act(() =>
+          sockets[0].onmessage?.(
+            snapshotMessage({ ...patch, server_time_ns: ns }, true),
+          ),
+        );
+      send({ state: "recording", take_index: 0, watchers: 0 }, 10);
+      send({ state: "recording", take_index: 0, watchers: 1 }, 11);
+      expect(rowText()).toBe(ROW);
+      expect(polite()).not.toHaveTextContent(ROW);
+      send({ state: "lobby", take_index: 0, watchers: 0 }, 12);
+      send({ state: "lobby", take_index: 0, watchers: 1 }, 13);
+      expect(polite()).toHaveTextContent(ROW);
+    });
+  });
+
   it("shows producer copy without a microphone prompt", async () => {
     stubBootstrap(producerBootstrap);
     const { container } = render(<GuestRoomApp token="prod-tok" />);
@@ -709,6 +802,40 @@ describe("GuestRoomApp", () => {
       lease: "lease-prod",
     }),
   };
+
+  it("shows the row and announces it on the producer seat", async () => {
+    stubBootstrap(producerBootstrap);
+    stubWebSocket(sockets, "silent");
+    render(<GuestRoomApp token="prod-tok" />);
+    await enterName("Pat");
+    await userEvent.click(
+      await screen.findByRole("button", { name: "Join to listen" }),
+    );
+    await waitFor(() => expect(sockets).toHaveLength(1));
+    act(() => sockets[0].onmessage?.(producerEcho));
+    act(() =>
+      sockets[0].onmessage?.(
+        producerSnapshot({ watchers: 0, server_time_ns: 10 }),
+      ),
+    );
+    await waitFor(() => {
+      expect(
+        screen.queryByRole("heading", { name: "Join the room" }),
+      ).toBeNull();
+    });
+    expect(document.querySelector(".sys-room-looking-in")).toBeNull();
+    act(() =>
+      sockets[0].onmessage?.(
+        producerSnapshot({ watchers: 2, server_time_ns: 11 }),
+      ),
+    );
+    expect(document.querySelector(".sys-room-looking-in")).toHaveTextContent(
+      "2 people with the producer link are looking in",
+    );
+    expect(
+      document.querySelector('[aria-live="polite"].sr-only'),
+    ).toHaveTextContent("2 people with the producer link are looking in");
+  });
 
   it("holds Joining until the room lists the producer, and never says Waiting", async () => {
     stubBootstrap(producerBootstrap);
