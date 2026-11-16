@@ -45,8 +45,10 @@ export function useCoverPress({
   const { busy } = held;
   useEffect(() => {
     if (pressedKey === null || busy) return;
-    const lost =
-      !document.activeElement || document.activeElement === document.body;
+    const active = document.activeElement;
+    const lost = !active || active === document.body;
+    // Focus the person moved elsewhere in the meantime is theirs to keep.
+    if (!lost && !scope.current?.contains(active)) return;
     if (pressedKey === key && !lost) return;
     const retry = scope.current?.querySelector<HTMLElement>(
       `[data-cover-action="${RETRY_ACTION}"]`,
