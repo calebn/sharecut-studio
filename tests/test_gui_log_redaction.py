@@ -574,3 +574,23 @@ def test_an_unreadable_argument_next_to_a_token_route_loses_the_guest_name_too()
 
     assert TOKEN not in line
     assert "Ann" not in line
+
+
+@pytest.mark.parametrize(
+    ("raw", "expected"),
+    [
+        (f"/r/{TOKEN}?name=Ava /r/{TOKEN}?name=Ava", "/r/<share-token> /r/<share-token>"),
+        (
+            f"GET /api/review/{TOKEN}?x=/r/{TOKEN} HTTP/1.1",
+            "GET /api/review/<share-token> HTTP/1.1",
+        ),
+        (f"b'/r/{TOKEN}?n=1'", "b'/r/<share-token>'"),
+        (f"b'/mcp/{TOKEN}?x=/r/{TOKEN}' - plain", "b'/mcp/<share-token>' - plain"),
+        (f"['/r/{TOKEN}', 'a?b']", "['/r/<share-token>', 'a?b']"),
+        (f"GET /r/{TOKEN}?name=Ava HTTP/1.1", "GET /r/<share-token> HTTP/1.1"),
+        ("see a?b=c and d", "see a?b=c and d"),
+    ],
+)
+def test_only_the_query_of_a_token_route_is_dropped(raw: str, expected: str) -> None:
+    assert _format("%s", raw) == expected
+    assert _format(raw) == expected
