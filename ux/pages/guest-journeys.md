@@ -305,10 +305,10 @@ flowchart TD
 6. While a take is live, the guest sees the pill (`m:ss · Take N`), a tile per
    person, and hears "Recording in full quality on this device." and **Hearing the
    room.** from the screen-reader lines. Press **M** for a Marker or type a
-   note (other guests see a Marker but not a typed note unless the host turned on Guests see notes; after land it is an
+   comment (other guests see a Marker but not a typed comment unless the host turned on Guests see comments; after land it is an
    ordinary timeline comment on the host). The recorder notes where your mic
    clipped (sample peak) with your full-quality recording, so the flags can
-   survive a reload. After Stop, if your mic clipped in a take, the room's Notes
+   survive a reload. After Stop, if your mic clipped in a take, the room's Comments
    rail gains a **Takes** tab listing that take with "Ava clipped 2 times" and,
    expanded, the times; a clean take adds nothing, and you never see anyone
    else's clipping. While your full-quality recording is being written, a refresh
@@ -514,17 +514,17 @@ flowchart TD
   note --> stop[Host Stop]
 ```
 
-1. Producer lands on the same room with the Join sheet (name, **Join to listen**: "You'll listen and take notes. You won't be recorded."); the Join sheet lists them as listening.
+1. Producer lands on the same room with the Join sheet (name, **Join to listen**: "You'll listen and comment. You won't be recorded."); the Join sheet lists them as listening.
 2. No `getUserMedia`, no consent, no room tone, no full-quality recording, no saving panel,
    no mic meter or clip alert.
 3. Host Start does not wait on the producer.
 4. During REC/PAUSED they see the tiles and pill and **Hearing the room.**
-   Press **M** for a Marker comment, or type a note — the host and producer see
-   all live comments; other guests see their own notes and every marker, and other notes only if the host turned on Guests see notes.
+   Press **M** for a Marker comment, or type a comment — the host and producer see
+   all live comments; other guests see their own comments and every marker, and other comments only if the host turned on Guests see comments.
 5. If the host drops, they reconnect — they are not recording.
 
 **Success:** Talent sees the producer among the people in the room; the producer never appears
 as a recorded track. Live comments from the producer are visible to the host.
-Guests see the producer's markers, but not the producer's text notes unless the host turns on Guests see notes.
+Guests see the producer's markers, but not the producer's text comments unless the host turns on Guests see comments.
 
 ---
