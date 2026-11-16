@@ -389,3 +389,56 @@ def test_a_str_subclass_argument_prints_as_its_plain_text(
     fmt: str, arg: str, expected: str
 ) -> None:
     assert _format(fmt, arg) == expected
+
+
+class _Mode(str, Enum):  # noqa: UP042
+    A = "alpha"
+
+
+class _StrOverride(str):
+    __slots__ = ()
+
+    def __str__(self) -> str:
+        return "STR-OVERRIDE"
+
+
+@pytest.mark.parametrize(
+    ("fmt", "arg", "expected"),
+    [
+        ("%(a)s", {"a": _Mode.A}, "_Mode.A"),
+        ("%(a)r", {"a": _Mode.A}, "<_Mode.A: 'alpha'>"),
+        ("%(a)s", {"a": _StrOverride("v")}, "STR-OVERRIDE"),
+        (
+            "%(a)s %(zz)s",
+            defaultdict(lambda: "DEF", a=_StrOverride("x")),
+            "STR-OVERRIDE DEF",
+        ),
+    ],
+    ids=["enum-s", "enum-r", "str-override", "defaultdict"],
+)
+def test_a_mapping_with_a_str_subclass_value_and_no_token_prints_as_it_did(
+    fmt: str, arg: Mapping[str, object], expected: str
+) -> None:
+    assert _logged(fmt, arg) == expected + "\n"
+
+
+@pytest.mark.parametrize(
+    "query",
+    [
+        "next=/rec/%76elvet-quokka-umbra",
+        "next=%2Frec%2F%76elvet-quokka-umbra",
+        "next=%252Frec%252F%2576elvet-quokka-umbra",
+    ],
+)
+def test_a_token_percent_encoded_inside_a_raw_query_is_redacted(query: str) -> None:
+    line = _format(
+        '%s - "%s %s HTTP/%s" %d', "1.2.3.4:5", "GET", f"/api/health?{query}", "1.1", 200
+    )
+
+    assert "quokka" not in line
+    assert "umbra" not in line
+    assert "/api/health" in line
+
+
+def test_a_query_without_a_token_is_kept_even_when_it_is_percent_encoded() -> None:
+    assert _format("%s", "/api/health?next=%2Fhome") == "/api/health?next=%2Fhome"

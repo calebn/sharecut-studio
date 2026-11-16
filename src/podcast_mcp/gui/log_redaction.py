@@ -18,11 +18,25 @@ from podcast_mcp.util.redact import redact_share_paths
 UVICORN_LOGGERS = ("uvicorn.access", "uvicorn.error", "uvicorn.asgi")
 
 
+def _decoded(text: str) -> str:
+    for _ in range(3):
+        text = unquote(text)
+    return text
+
+
 def _text(value: object) -> str | None:
     try:
-        return unquote(str(value))
+        return _decoded(str(value))
     except Exception:
         return None
+
+
+def _redact_route(text: str) -> str:
+    path, separator, _query = text.partition("?")
+    redacted_path = redact_share_paths(path)
+    if separator and redacted_path != path:
+        return redacted_path
+    return redact_share_paths(text)
 
 
 def _scrub(value: Any) -> Any:
@@ -33,18 +47,24 @@ def _scrub(value: Any) -> Any:
     """
     if isinstance(value, str):
         plain = str.__str__(value)
-        path, separator, _query = plain.partition("?")
-        redacted_path = redact_share_paths(path)
-        if separator and redacted_path != path:
-            return redacted_path
-        redacted = redact_share_paths(plain)
-        return value if type(value) is str and redacted == plain else redacted
+        redacted = _redact_route(plain)
+        if redacted == plain:
+            decoded = _decoded(plain)
+            redacted = _redact_route(decoded)
+            if redacted == decoded:
+                return value if type(value) is str else plain
+        return redacted
     text = _text(value)
     if text is None or redact_share_paths(text) == text:
         return value
     if isinstance(value, Mapping) and "query_string" in value:
         text = _text({**value, "query_string": b""}) or text
     return redact_share_paths(text)
+
+
+def _holds_token(value: Any) -> bool:
+    text = _decoded(str.__str__(value)) if isinstance(value, str) else _text(value)
+    return text is not None and redact_share_paths(text) != text
 
 
 class ShareTokenFilter(logging.Filter):
@@ -57,12 +77,11 @@ class ShareTokenFilter(logging.Filter):
                 scrubbed_args = tuple(_scrub(arg) for arg in args)
                 if any(new is not old for new, old in zip(scrubbed_args, args, strict=True)):
                     args = scrubbed_args
-            elif isinstance(args, Mapping):
+            elif isinstance(args, Mapping) and any(_holds_token(a) for a in args.values()):
                 scrubbed = {key: _scrub(arg) for key, arg in args.items()}
-                if any(scrubbed[key] is not arg for key, arg in args.items()):
-                    if "query_string" in scrubbed:
-                        scrubbed["query_string"] = b""
-                    args = scrubbed
+                if "query_string" in scrubbed:
+                    scrubbed["query_string"] = b""
+                args = scrubbed
         except Exception:
             return True
         record.msg = msg
