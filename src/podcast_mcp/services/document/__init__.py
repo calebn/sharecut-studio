@@ -39,6 +39,7 @@ if TYPE_CHECKING:
         FeedViewKind,
         describe_fields,
     )
+    from podcast_mcp.services.document.feed_results import FeedFieldPinResult
     from podcast_mcp.services.document.golden_ear import (
         DEFAULT_LIMIT,
         LISTEN_DIRNAME,
@@ -104,6 +105,7 @@ __all__ = [
     "ExportBusyError",
     "ExportFilesService",
     "ExportedFile",
+    "FeedFieldPinResult",
     "FeedService",
     "FeedViewKind",
     "HistoryDiffResult",
@@ -170,6 +172,7 @@ _MODULE_BY_NAME = {
     "ExportFilesService": "export_files",
     "ExportedFile": "export_files",
     "ServedFile": "export_files",
+    "FeedFieldPinResult": "feed_results",
     "FeedService": "feed",
     "FeedViewKind": "feed",
     "SHOW_KEY": "feed",

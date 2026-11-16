@@ -40,7 +40,7 @@ DICT_RETURNS: dict[str, int] = {
     "document/bleed_inspection.py": 1,
     "document/cross_process_sync.py": 2,
     "document/edit.py": 8,
-    "document/feed.py": 6,
+    "document/feed.py": 2,
     "document/golden_ear.py": 8,
     "document/play_compose.py": 2,
     "document/play_pending.py": 1,
