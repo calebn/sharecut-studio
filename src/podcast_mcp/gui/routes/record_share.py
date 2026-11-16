@@ -133,7 +133,6 @@ async def record_ws(
     participant_id: str | None = None
     svc: RecordSessionService | None = None
     joined = False
-    # A producer link opened with ?observe=1 looks in until it joins. Guests never do.
     watching = observe == "1" and role == "producer"
     counted = False
     send_lock = asyncio.Lock()
