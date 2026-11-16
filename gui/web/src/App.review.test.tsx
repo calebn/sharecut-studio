@@ -583,7 +583,6 @@ describe("App review route", () => {
     let deviceOnline = true;
     let hostUp = false;
     let hostStatus: number | null = null;
-    let projectCalls = 0;
 
     const comesBack = () => {
       deviceOnline = true;
@@ -607,7 +606,6 @@ describe("App review route", () => {
       deviceOnline = false;
       hostUp = false;
       hostStatus = null;
-      projectCalls = 0;
       projectUrls = [];
       gate = null;
       vi.spyOn(navigator, "onLine", "get").mockImplementation(
@@ -615,7 +613,6 @@ describe("App review route", () => {
       );
       offline.load.mockResolvedValue(undefined);
       stubBootstrapFailure(async (url) => {
-        projectCalls += 1;
         projectUrls.push(url);
         if (gate) await gate;
         if (hostUp) {
@@ -662,13 +659,13 @@ describe("App review route", () => {
     it("opens the episode by itself when the connection is back, without a press", async () => {
       render(<App />);
       await offlineCover();
-      const before = projectCalls;
+      const before = projectUrls.length;
       hostUp = true;
       comesBack();
       expect(
         await screen.findByText("Cached guest studio"),
       ).toBeInTheDocument();
-      expect(projectCalls).toBe(before + 1);
+      expect(projectUrls.length).toBe(before + 1);
     });
 
     it("says the host is asleep, never offline, when the connection is back and the host is down", async () => {
@@ -691,22 +688,22 @@ describe("App review route", () => {
       await vi.waitFor(() => expect(offline.load).toHaveBeenCalled());
       hostUp = true;
       comesBack();
-      const before = projectCalls;
+      const before = projectUrls.length;
       await act(async () => finishRead(undefined));
       expect(
         await screen.findByText("Cached guest studio"),
       ).toBeInTheDocument();
-      expect(projectCalls).toBe(before + 1);
+      expect(projectUrls.length).toBe(before + 1);
     });
 
     it("starts one attempt for two events that arrive while it runs", async () => {
       render(<App />);
       await offlineCover();
-      const before = projectCalls;
+      const before = projectUrls.length;
       comesBack();
       comesBack();
       await asleepCover().catch(() => undefined);
-      await vi.waitFor(() => expect(projectCalls).toBe(before + 1));
+      await vi.waitFor(() => expect(projectUrls.length).toBe(before + 1));
     });
 
     it("moves from asleep to offline only when a retry fails with the device offline, never on the offline event", async () => {
@@ -747,10 +744,10 @@ describe("App review route", () => {
       deviceOnline = true;
       render(<App />);
       await asleepCover();
-      const before = projectCalls;
+      const before = projectUrls.length;
       comesBack();
       await settle();
-      expect(projectCalls).toBe(before);
+      expect(projectUrls.length).toBe(before);
       expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent(
         "The host's computer is asleep",
       );
@@ -760,40 +757,40 @@ describe("App review route", () => {
       vi.useFakeTimers({ shouldAdvanceTime: true });
       render(<App />);
       await offlineCover();
-      const before = projectCalls;
+      const before = projectUrls.length;
       const release = holdAttempts();
       fireEvent.click(screen.getByRole("button", { name: "Try now" }));
-      await vi.waitFor(() => expect(projectCalls).toBe(before + 1));
+      await vi.waitFor(() => expect(projectUrls.length).toBe(before + 1));
       comesBack();
       release();
       await asleepCover();
-      expect(projectCalls).toBe(before + 1);
+      expect(projectUrls.length).toBe(before + 1);
       await act(async () => {
         await vi.advanceTimersByTimeAsync(31_000);
       });
-      await vi.waitFor(() => expect(projectCalls).toBe(before + 2));
+      await vi.waitFor(() => expect(projectUrls.length).toBe(before + 2));
     });
 
     it("keeps the offline cover and starts nothing extra when an attempt that met an online event fails offline again, and the next event retries once", async () => {
       render(<App />);
       await offlineCover();
-      const before = projectCalls;
+      const before = projectUrls.length;
       const release = holdAttempts();
       fireEvent.click(screen.getByRole("button", { name: "Try now" }));
-      await vi.waitFor(() => expect(projectCalls).toBe(before + 1));
+      await vi.waitFor(() => expect(projectUrls.length).toBe(before + 1));
       act(() => void window.dispatchEvent(new Event("online")));
       release();
       await settle();
       await vi.waitFor(() =>
         expect(screen.getByText("Still offline.")).toBeInTheDocument(),
       );
-      expect(projectCalls).toBe(before + 1);
+      expect(projectUrls.length).toBe(before + 1);
       hostUp = true;
       comesBack();
       expect(
         await screen.findByText("Cached guest studio"),
       ).toBeInTheDocument();
-      expect(projectCalls).toBe(before + 2);
+      expect(projectUrls.length).toBe(before + 2);
     });
 
     it("starts no bootstrap on a later online event once the episode is open", async () => {
@@ -802,11 +799,11 @@ describe("App review route", () => {
       hostUp = true;
       fireEvent.click(screen.getByRole("button", { name: "Try now" }));
       await screen.findByText("Cached guest studio");
-      const before = projectCalls;
+      const before = projectUrls.length;
       comesBack();
       comesBack();
       await settle();
-      expect(projectCalls).toBe(before);
+      expect(projectUrls.length).toBe(before);
     });
 
     it("starts nothing for the old link when the link changed while the offline cover was up", async () => {
@@ -832,39 +829,41 @@ describe("App review route", () => {
       render(<App />);
       await offlineCover();
       markLinkEnded("ended-offline-link");
-      const before = projectCalls;
+      const before = projectUrls.length;
       comesBack();
       await settle();
-      expect(projectCalls).toBe(before);
+      expect(projectUrls.length).toBe(before);
     });
 
     it("sends one request when the 30 second timer and the online event come in the same moment", async () => {
       vi.useFakeTimers({ shouldAdvanceTime: true });
       render(<App />);
       await offlineCover();
-      const before = projectCalls;
+      const before = projectUrls.length;
       deviceOnline = true;
       await act(async () => {
         window.dispatchEvent(new Event("online"));
         await vi.advanceTimersByTimeAsync(31_000);
       });
       await settle();
-      expect(projectCalls).toBe(before + 1);
+      expect(projectUrls.length).toBe(before + 1);
     });
 
     it("sends one request when Try now and the online event come in the same moment", async () => {
       render(<App />);
       await offlineCover();
-      const before = projectCalls;
+      const before = projectUrls.length;
       deviceOnline = true;
       act(() => {
         fireEvent.click(screen.getByRole("button", { name: "Try now" }));
         window.dispatchEvent(new Event("online"));
       });
       await settle();
-      await vi.waitFor(() => expect(projectCalls).toBeGreaterThan(before));
+      await vi.waitFor(() =>
+        expect(projectUrls.length).toBeGreaterThan(before),
+      );
       await settle();
-      expect(projectCalls).toBe(before + 1);
+      expect(projectUrls.length).toBe(before + 1);
     });
 
     it("opens the saved copy instead of the cover", async () => {

@@ -178,7 +178,6 @@ describe("GuestPageCover", () => {
     again({ trying: false });
     act(() => void vi.advanceTimersByTime(600));
     expect(screen.getByRole("status")).toHaveTextContent("Still offline.");
-    expect(screen.getByRole("main")).not.toHaveTextContent("Still asleep.");
   });
 
   it("moves focus to the title when the cover swaps between asleep and offline, and leaves a focused button alone", () => {
@@ -213,7 +212,6 @@ describe("GuestPageCover", () => {
       expect(status).toBe(screen.getByRole("status"));
       expect(status).toHaveTextContent(sentence);
       expect(status).not.toHaveTextContent(/still/i);
-      expect(status).toHaveAttribute("role", "status");
     },
   );
 

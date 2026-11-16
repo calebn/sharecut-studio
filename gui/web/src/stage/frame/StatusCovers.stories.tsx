@@ -184,11 +184,6 @@ export const YouAreOfflinePressed: Story = {
   },
 };
 
-export const YouAreOfflinePhone: Story = {
-  ...YouAreOffline,
-  globals: { viewport: { value: "phone", isRotated: false } },
-};
-
 export const HostBusy: Story = {
   render: () => <ReviewLinkCover failure={{ kind: "busy" }} />,
 };
