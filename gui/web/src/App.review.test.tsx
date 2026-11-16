@@ -576,6 +576,164 @@ describe("App review route", () => {
     });
   });
 
+  describe("a guest whose device reports no connection", () => {
+    let deviceOnline = true;
+    let hostUp = false;
+    let hostStatus: number | null = null;
+    let projectCalls = 0;
+
+    const comesBack = () => {
+      deviceOnline = true;
+      act(() => void window.dispatchEvent(new Event("online")));
+    };
+
+    beforeEach(() => {
+      deviceOnline = false;
+      hostUp = false;
+      hostStatus = null;
+      projectCalls = 0;
+      vi.spyOn(navigator, "onLine", "get").mockImplementation(
+        () => deviceOnline,
+      );
+      offline.load.mockResolvedValue(undefined);
+      stubBootstrapFailure(() => {
+        projectCalls += 1;
+        if (hostUp) {
+          return new Response(
+            JSON.stringify({
+              capabilities: ["view"],
+              meta: { name: "Episode" },
+            }),
+            { status: 200 },
+          );
+        }
+        if (hostStatus !== null) {
+          return new Response("{}", { status: hostStatus });
+        }
+        throw new TypeError("Failed to fetch");
+      });
+      window.history.pushState({}, "", "/r/nolink");
+    });
+
+    const offlineCover = () =>
+      screen.findByRole("heading", { name: "You're offline" });
+    const asleepCover = () =>
+      screen.findByRole("heading", { name: "The host's computer is asleep" });
+
+    it("is told so, with the page's words, when the first load fails", async () => {
+      render(<App />);
+      expect(await offlineCover()).toHaveFocus();
+      expect(
+        screen.getByText(
+          "This page opens the episode by itself when your connection is back.",
+        ),
+      ).toBeVisible();
+      expect(screen.getByRole("button", { name: "Try now" })).toBeVisible();
+      expect(screen.queryByText(/asleep/)).toBeNull();
+    });
+
+    it("is told the host is asleep when the browser says the device is online", async () => {
+      deviceOnline = true;
+      render(<App />);
+      await asleepCover();
+      expect(screen.queryByText("You're offline")).toBeNull();
+    });
+
+    it("opens the episode by itself when the connection is back, without a press", async () => {
+      render(<App />);
+      await offlineCover();
+      const before = projectCalls;
+      hostUp = true;
+      comesBack();
+      expect(
+        await screen.findByText("Cached guest studio"),
+      ).toBeInTheDocument();
+      expect(projectCalls).toBe(before + 1);
+    });
+
+    it("says the host is asleep, never offline, when the connection is back and the host is down", async () => {
+      render(<App />);
+      await offlineCover();
+      hostStatus = 503;
+      comesBack();
+      await asleepCover();
+      expect(screen.queryByText("You're offline")).toBeNull();
+    });
+
+    it("tries again once the saved-copy read finishes when the connection came back during it", async () => {
+      let finishRead: (value: undefined) => void = () => {};
+      offline.load.mockReturnValue(
+        new Promise<undefined>((resolve) => {
+          finishRead = resolve;
+        }),
+      );
+      render(<App />);
+      await vi.waitFor(() => expect(offline.load).toHaveBeenCalled());
+      hostUp = true;
+      comesBack();
+      const before = projectCalls;
+      await act(async () => finishRead(undefined));
+      expect(
+        await screen.findByText("Cached guest studio"),
+      ).toBeInTheDocument();
+      expect(projectCalls).toBe(before + 1);
+    });
+
+    it("starts one attempt for two events that arrive while it runs", async () => {
+      render(<App />);
+      await offlineCover();
+      const before = projectCalls;
+      comesBack();
+      comesBack();
+      await asleepCover().catch(() => undefined);
+      await vi.waitFor(() => expect(projectCalls).toBe(before + 1));
+    });
+
+    it("moves from asleep to offline only when a retry fails with the device offline, never on the offline event", async () => {
+      deviceOnline = true;
+      vi.useFakeTimers({ shouldAdvanceTime: true });
+      render(<App />);
+      await asleepCover();
+      deviceOnline = false;
+      act(() => void window.dispatchEvent(new Event("offline")));
+      expect(screen.queryByText("You're offline")).toBeNull();
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(31_000);
+      });
+      expect(await offlineCover()).toBeInTheDocument();
+    });
+
+    it("moves from offline to asleep when the 30 second retry fails with the device online", async () => {
+      vi.useFakeTimers({ shouldAdvanceTime: true });
+      render(<App />);
+      await offlineCover();
+      deviceOnline = true;
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(31_000);
+      });
+      expect(await asleepCover()).toBeInTheDocument();
+    });
+
+    it("answers Try now on the offline cover with Still offline.", async () => {
+      render(<App />);
+      await offlineCover();
+      fireEvent.click(screen.getByRole("button", { name: "Try now" }));
+      expect(await screen.findByText("Still offline.")).toBeInTheDocument();
+    });
+
+    it("opens the saved copy instead of the cover", async () => {
+      offline.load.mockResolvedValue({
+        project: { meta: { name: "Stale episode" } },
+        saved_at: 1,
+      });
+      render(<App />);
+      expect(
+        await screen.findByText("Cached guest studio"),
+      ).toBeInTheDocument();
+      expect(screen.queryByText("You're offline")).toBeNull();
+    });
+  });
+
   it.each([
     ["a coded project_not_found 404", 404, "project_not_found"],
     ["a 5xx", 503, null],

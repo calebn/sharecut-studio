@@ -61,6 +61,40 @@ describe("classifyBootstrapFailure", () => {
   ])("reads %s", (_name, error, expected) => {
     expect(classifyBootstrapFailure(error)).toEqual(expected);
   });
+
+  it("reads a request that got no answer on a device with no connection as offline", () => {
+    expect(
+      classifyBootstrapFailure(failure(null, "network_error"), false),
+    ).toEqual({ kind: "offline" });
+  });
+
+  it.each<[string, unknown, boolean | undefined]>([
+    ["no answer with the device online", failure(null, "network_error"), true],
+    [
+      "no answer with the device state left out",
+      failure(null, "network_error"),
+      undefined,
+    ],
+    ["no answer with another code, device online", failure(null, "x"), true],
+    ["a 502 on an offline device", failure(502, null), false],
+    ["a 504 on an offline device", failure(504, null), false],
+    ["a 503 relay on an offline device", failure(503, null), false],
+    ["a TypeError on an offline device", new TypeError(SENTINEL), false],
+    ["a plain throw on an offline device", new Error(SENTINEL), false],
+  ])("keeps %s as asleep", (_name, error, deviceOnline) => {
+    expect(classifyBootstrapFailure(error, deviceOnline)).toEqual({
+      kind: "unreachable",
+    });
+  });
+
+  it.each<[string, unknown, GuestLoadFailure]>([
+    ["503 project_busy", failure(503, "project_busy"), { kind: "busy" }],
+    ["404", failure(404, "share_not_found"), { kind: "bad-link" }],
+    ["500", failure(500, null), { kind: "server" }],
+    ["a non-JSON 200", new SyntaxError(SENTINEL), { kind: "intercepted" }],
+  ])("reads %s the same on an offline device", (_name, error, expected) => {
+    expect(classifyBootstrapFailure(error, false)).toEqual(expected);
+  });
 });
 
 const NOT_LOADED = "This link did not load";
@@ -177,11 +211,28 @@ describe("guestLoadCover", () => {
     ).toBe(`This link is busy right now; this page tries again ${words}.`);
   });
 
-  it("says Still asleep. only for the asleep cover", () => {
+  it("tells a guest whose own device has no connection so, with the page opening by itself", () => {
+    expect(guestLoadCover({ kind: "offline" })).toEqual({
+      glyph: "cloud-off",
+      title: "You're offline",
+      sentence:
+        "This page opens the episode by itself when your connection is back.",
+      button: "Try now",
+      autoRetryMs: 30_000,
+      stillFailing: "Still offline.",
+    });
+  });
+
+  it("says Still asleep. only for the asleep cover and Still offline. only for the offline one", () => {
     expect(guestLoadCover({ kind: "unreachable" }).stillFailing).toBe(
       "Still asleep.",
     );
-    for (const [kind] of rows.filter(([k]) => k.kind !== "unreachable")) {
+    expect(guestLoadCover({ kind: "offline" }).stillFailing).toBe(
+      "Still offline.",
+    );
+    for (const [kind] of rows.filter(
+      ([k]) => k.kind !== "unreachable" && k.kind !== "offline",
+    )) {
       expect(guestLoadCover(kind).stillFailing).toBe("Still not loading.");
     }
   });

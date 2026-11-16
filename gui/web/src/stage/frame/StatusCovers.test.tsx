@@ -150,6 +150,53 @@ describe("GuestPageCover", () => {
     expect(screen.getByRole("status").closest(".sys-cover-body")).toBeNull();
   });
 
+  it("tells a guest whose device has no connection so, in the cover's own words", async () => {
+    const { container } = renderCover({ kind: "offline" });
+    const title = screen.getByRole("heading", {
+      level: 1,
+      name: "You're offline",
+    });
+    expect(title).toHaveFocus();
+    expect(screen.getByRole("main")).toHaveTextContent(
+      "This page opens the episode by itself when your connection is back.",
+    );
+    expect(container.querySelector("svg.lucide-cloud-off")).not.toBeNull();
+    expect(screen.getAllByRole("button")).toHaveLength(1);
+    expect(screen.getByRole("button", { name: "Try now" })).toBeInTheDocument();
+    expect(screen.getByRole("main")).not.toHaveTextContent(/asleep|host/i);
+    vi.useRealTimers();
+    await expectNoA11yViolations(container);
+  });
+
+  it("answers a press on the offline cover with Trying again… and then Still offline.", () => {
+    const { again, onRetry } = renderCover({ kind: "offline" });
+    const button = screen.getByRole("button", { name: "Try now" });
+    fireEvent.click(button);
+    expect(onRetry).toHaveBeenCalledOnce();
+    again({ trying: true });
+    expect(screen.getByRole("status")).toHaveTextContent("Trying again…");
+    again({ trying: false });
+    act(() => void vi.advanceTimersByTime(600));
+    expect(screen.getByRole("status")).toHaveTextContent("Still offline.");
+    expect(screen.getByRole("main")).not.toHaveTextContent("Still asleep.");
+  });
+
+  it("moves focus to the title when the cover swaps between asleep and offline, and leaves a focused button alone", () => {
+    const { again } = renderCover({ kind: "unreachable" });
+    again({ failure: { kind: "offline" } });
+    expect(
+      screen.getByRole("heading", { name: "You're offline" }),
+    ).toHaveFocus();
+    again({ failure: { kind: "unreachable" } });
+    expect(
+      screen.getByRole("heading", { name: "The host's computer is asleep" }),
+    ).toHaveFocus();
+    const button = screen.getByRole("button", { name: "Try now" });
+    button.focus();
+    again({ failure: { kind: "offline" } });
+    expect(button).toHaveFocus();
+  });
+
   it("does not take focus from the button when the title changes", () => {
     const { again } = renderCover({ kind: "unreachable" });
     const button = screen.getByRole("button", { name: "Try now" });
