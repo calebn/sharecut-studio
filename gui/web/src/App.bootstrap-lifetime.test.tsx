@@ -52,6 +52,13 @@ vi.mock("./services/offlineQueue/offlineStore", async (importOriginal) => ({
   clearOfflineSnapshot: offline.clear,
 }));
 
+/** The signal each bootstrap request was sent with, oldest first. */
+function projectSignals(fetchMock: ReturnType<typeof serve>) {
+  return fetchMock.mock.calls
+    .filter(([input]) => urlOf(input).endsWith("/project"))
+    .map(([, init]) => init?.signal as AbortSignal);
+}
+
 function deferred<T>() {
   let resolve: (value: T) => void = () => {};
   const promise = new Promise<T>((done) => {
@@ -74,17 +81,26 @@ function bootstrap(author: string, flag: boolean | "absent" = true) {
 }
 
 function serve(load: (token: string) => Promise<Response>) {
-  const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
-    const url = urlOf(input);
-    if (url.includes("/features")) {
-      return new Response(
-        JSON.stringify({ api_version: 1, features: ["share.ui.routes"] }),
-        { status: 200 },
-      );
-    }
-    const token = url.match(/\/api\/review\/([^/]+)\/project$/)?.[1];
-    return token ? load(token) : new Response("not found", { status: 404 });
-  });
+  const fetchMock = vi.fn(
+    async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = urlOf(input);
+      if (url.includes("/features")) {
+        return new Response(
+          JSON.stringify({ api_version: 1, features: ["share.ui.routes"] }),
+          { status: 200 },
+        );
+      }
+      const token = url.match(/\/api\/review\/([^/]+)\/project$/)?.[1];
+      if (!token) return new Response("not found", { status: 404 });
+      // Like a real fetch, an aborted request rejects with an AbortError.
+      return new Promise<Response>((answer, fail) => {
+        init?.signal?.addEventListener("abort", () =>
+          fail(new DOMException("Aborted", "AbortError")),
+        );
+        load(token).then(answer, fail);
+      });
+    },
+  );
   vi.stubGlobal("fetch", fetchMock);
   return fetchMock;
 }
@@ -382,7 +398,7 @@ describe("App bootstrap request lifetime", () => {
       const third = deferred<Response>();
       let calls = 0;
       offline.load.mockResolvedValue(undefined);
-      serve(async () => {
+      const fetchMock = serve(async () => {
         if (++calls === 1) throw new TypeError("offline");
         return calls === 2 ? second.promise : third.promise;
       });
@@ -394,8 +410,81 @@ describe("App bootstrap request lifetime", () => {
         await vi.advanceTimersByTimeAsync(31_000);
       });
       await waitFor(() => expect(calls).toBe(3));
-      return { second, third };
+      return { second, third, fetchMock };
     }
+
+    it("aborts the oldest attempt in flight when a fourth starts, never the newest three", async () => {
+      let calls = 0;
+      offline.load.mockResolvedValue(undefined);
+      const fetchMock = serve(async () => {
+        if (++calls === 1) throw new TypeError("offline");
+        return new Promise<Response>(() => {});
+      });
+      vi.useFakeTimers({ shouldAdvanceTime: true });
+      render(<App />);
+      await screen.findByRole("button", { name: "Try now" });
+      for (let tick = 0; tick < 125; tick += 1) {
+        await act(async () => {
+          await vi.advanceTimersByTimeAsync(1_000);
+        });
+      }
+      await waitFor(() => expect(calls).toBe(5));
+      const [, first, second, third, fourth] = projectSignals(fetchMock).map(
+        (signal) => signal.aborted,
+      );
+      expect([first, second, third, fourth]).toEqual([
+        true,
+        false,
+        false,
+        false,
+      ]);
+      expect(
+        screen.getByRole("heading", { name: "The host's computer is asleep" }),
+      ).toBeInTheDocument();
+    });
+
+    it("aborts the other attempts when a replaced one opens the episode", async () => {
+      const { second, fetchMock } = await replacedWhileHung();
+      await act(async () => {
+        second.resolve(bootstrap("Alpha"));
+      });
+      await screen.findByText("Studio body");
+      const signals = projectSignals(fetchMock);
+      expect(signals[2]?.aborted).toBe(true);
+      expect(screen.getByText("Studio body")).toBeInTheDocument();
+    });
+
+    it("aborts every attempt in flight when the page leaves", async () => {
+      const { fetchMock } = await replacedWhileHung();
+      cleanup();
+      const signals = projectSignals(fetchMock);
+      expect(signals[1]?.aborted).toBe(true);
+      expect(signals[2]?.aborted).toBe(true);
+    });
+
+    it("still opens when the attempt before last answers under a 5 s delay", async () => {
+      let calls = 0;
+      offline.load.mockResolvedValue(undefined);
+      serve(async () => {
+        if (++calls === 1) {
+          return new Response("{}", {
+            status: 429,
+            headers: { "Retry-After": "5" },
+          });
+        }
+        await new Promise((done) => setTimeout(done, 14_000));
+        return bootstrap("Alpha");
+      });
+      vi.useFakeTimers({ shouldAdvanceTime: true });
+      render(<App />);
+      await screen.findByRole("heading", { name: "This link did not load" });
+      for (let second = 0; second < 22; second += 1) {
+        await act(async () => {
+          await vi.advanceTimersByTimeAsync(1_000);
+        });
+      }
+      expect(await screen.findByText("Studio body")).toBeInTheDocument();
+    });
 
     it("opens the episode when it answers late with the episode", async () => {
       const { second } = await replacedWhileHung();

@@ -127,6 +127,19 @@ describe("project API facade", () => {
     });
   });
 
+  it("hands the caller's abort signal to the bootstrap request", async () => {
+    const fetchSpy = vi.fn(
+      async (_url: string, _init?: RequestInit) =>
+        new Response(JSON.stringify({ capabilities: ["view"], meta: {} }), {
+          status: 200,
+        }),
+    );
+    vi.stubGlobal("fetch", fetchSpy);
+    const controller = new AbortController();
+    await loadReviewBootstrap("tok", controller.signal);
+    expect(fetchSpy.mock.calls[0]?.[1]?.signal).toBe(controller.signal);
+  });
+
   it("routes a share project through the guest endpoint", async () => {
     const fetchSpy = vi.fn(
       async (_url: string) =>
