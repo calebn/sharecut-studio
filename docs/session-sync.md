@@ -705,7 +705,7 @@ Share guests with the `view` capability connect to:
 
 `WS /api/review/{token}/daw/ws`
 
-- **Auth:** opaque share token (`lookup_share` + `authorize_share_token`); `view` required. Close `4403` on failure; `4429` when `PODCAST_GUEST_WS_CONCURRENT` is exceeded.
+- **Auth:** opaque share token (`lookup_share` + `authorize_share_token`); `view` required. Close `4403` on failure; `4429` when `PODCAST_GUEST_WS_CONCURRENT` is exceeded. A guest page that gets `4403` on an open episode asks the share once more over HTTP (`GET /api/review/{token}/project`); only that second answer being the dead-link answer (404 with `share_not_found`) ends the session on the dead-link cover. The close alone never ends it.
 - **Service failures:** Admission, setup, and foreground crashes close with `1011`
   and fixed `internal error`, with a host traceback. Deliberate capability refusals
   keep `4403` and the refusal's path-free guest message. `gui/routes/guest_errors.py` uses the same
