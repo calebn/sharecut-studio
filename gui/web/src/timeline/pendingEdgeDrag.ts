@@ -1,46 +1,21 @@
 import { MIN_EDGE_SPAN_SEC } from "../types/limits.generated";
-import type { ClipRow } from "../types/project";
+import {
+  ENDPOINT_EPSILON_SEC,
+  type PendingEdgePlacement,
+  pendingEdgePlacement,
+} from "../utils/pendingEdgePlacement";
 import { sourceSecInClipToTimeline } from "../utils/timebase";
 import { magnetSec } from "./snapOverlay";
 
-const ENDPOINT_EPSILON_SEC = 1e-5;
+export { type PendingEdgePlacement, pendingEdgePlacement };
 
 export type PendingDragEdge = "start" | "end";
-
-export type PendingEdgePlacement =
-  | { kind: "identity" }
-  | { kind: "clip"; clip: ClipRow };
 
 export type PendingEdgePreview = {
   sourceStart: number;
   sourceEnd: number;
   timelinePoint: number;
 };
-
-/** Match the unique real placement that projects a stored source endpoint. */
-export function pendingEdgePlacement(
-  clips: readonly ClipRow[],
-  sourceSec: number,
-  timelineSec: number,
-): PendingEdgePlacement | null {
-  if (clips.length === 0) {
-    return { kind: "identity" };
-  }
-  const matches = clips.filter((clip) => {
-    if (
-      sourceSec < clip.source_start - ENDPOINT_EPSILON_SEC ||
-      sourceSec > clip.source_end + ENDPOINT_EPSILON_SEC
-    ) {
-      return false;
-    }
-    const projected = sourceSecInClipToTimeline(clip, sourceSec);
-    return (
-      projected != null &&
-      Math.abs(projected - timelineSec) <= ENDPOINT_EPSILON_SEC
-    );
-  });
-  return matches.length === 1 ? { kind: "clip", clip: matches[0] } : null;
-}
 
 /** Move one stored source edge at unit rate, snapping and clamping to its placement. */
 export function pendingEdgePreview(opts: {
