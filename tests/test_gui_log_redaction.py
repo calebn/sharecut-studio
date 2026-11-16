@@ -442,3 +442,21 @@ def test_a_token_percent_encoded_inside_a_raw_query_is_redacted(query: str) -> N
 
 def test_a_query_without_a_token_is_kept_even_when_it_is_percent_encoded() -> None:
     assert _format("%s", "/api/health?next=%2Fhome") == "/api/health?next=%2Fhome"
+
+
+@pytest.mark.parametrize(
+    "query",
+    [
+        "next=%2Fr%2Fvelvet-quokka-umbra%252Dvenomous-cheetah",
+        "next=%252Fr%252Fvelvet-quokka-umbra%2Dvenomous-cheetah",
+        "next=%2Fr%2Frational-%76enomous-cheetah",
+        "next=/rec/velvet-quokka%2Dumbra",
+    ],
+)
+def test_a_token_with_an_encoded_character_after_plain_ones_leaves_no_tail(query: str) -> None:
+    line = _format(
+        '%s - "%s %s HTTP/%s" %d', "1.2.3.4:5", "GET", f"/auth/login/github?{query}", "1.1", 200
+    )
+
+    for word in ("velvet", "quokka", "umbra", "venomous", "cheetah", "rational"):
+        assert word not in line
