@@ -637,17 +637,6 @@ class SourceProxyInputs:
         return bool(self.regions and self.gate.attenuation_spans and self.gate.floor_gain < 1)
 
     @classmethod
-    def capture_legacy(
-        cls,
-        project: EpisodeProject,
-        track_id: str,
-        engine: FFmpegEngine,
-        *,
-        defaults: EffectiveConfig,
-    ) -> SourceProxyInputs:
-        return cls._capture(project, engine, track_id=track_id, defaults=defaults)
-
-    @classmethod
     def capture_occurrence(
         cls,
         project: EpisodeProject,
@@ -656,26 +645,15 @@ class SourceProxyInputs:
         *,
         defaults: EffectiveConfig,
     ) -> SourceProxyInputs:
-        return cls._capture(project, engine, clip_id=clip_id, defaults=defaults)
+        return capture_source_proxy_inputs(
+            project, SourceProxySelection(occurrences=(clip_id,)), engine, defaults=defaults
+        ).occurrences[clip_id]
 
     @classmethod
-    def capture_recording(
+    def _seal(
         cls,
         project: EpisodeProject,
-        track_id: str,
-        source_id: str,
-        engine: FFmpegEngine,
-        *,
-        defaults: EffectiveConfig,
-    ) -> SourceProxyInputs:
-        return cls._capture(
-            project, engine, track_id=track_id, source_id=source_id, defaults=defaults
-        )
-
-    @classmethod
-    def _capture(
-        cls,
-        project: EpisodeProject,
+        snapshot: EpisodeProject,
         engine: FFmpegEngine,
         *,
         track_id: str | None = None,
@@ -683,7 +661,6 @@ class SourceProxyInputs:
         source_id: str | None = None,
         defaults: EffectiveConfig,
     ) -> SourceProxyInputs:
-        snapshot = snapshot_project(project)
         clip = next((c for c in snapshot.clips if c.id == clip_id), None)
         if clip_id is not None and clip is None:
             raise CodedValueError(
@@ -927,6 +904,50 @@ class SourceProxyInputs:
             raise _inputs_changed() from error
         if recipe != self.recipe or fill != self.fill:
             raise _inputs_changed()
+
+
+@dataclass(frozen=True)
+class SourceProxySelection:
+    legacy: tuple[str, ...] = ()
+    occurrences: tuple[str, ...] = ()
+    recordings: tuple[tuple[str, str], ...] = ()
+
+
+@dataclass(frozen=True)
+class CapturedSourceProxyInputs:
+    legacy: dict[str, SourceProxyInputs]
+    occurrences: dict[str, SourceProxyInputs]
+    recordings: dict[tuple[str, str], SourceProxyInputs]
+
+
+def capture_source_proxy_inputs(
+    project: EpisodeProject,
+    selection: SourceProxySelection,
+    engine: FFmpegEngine,
+    *,
+    defaults: EffectiveConfig,
+) -> CapturedSourceProxyInputs:
+    if not (selection.legacy or selection.occurrences or selection.recordings):
+        return CapturedSourceProxyInputs(legacy={}, occurrences={}, recordings={})
+    snapshot = snapshot_project(project)
+    return CapturedSourceProxyInputs(
+        legacy={
+            tid: SourceProxyInputs._seal(project, snapshot, engine, track_id=tid, defaults=defaults)
+            for tid in selection.legacy
+        },
+        occurrences={
+            clip_id: SourceProxyInputs._seal(
+                project, snapshot, engine, clip_id=clip_id, defaults=defaults
+            )
+            for clip_id in selection.occurrences
+        },
+        recordings={
+            key: SourceProxyInputs._seal(
+                project, snapshot, engine, track_id=key[0], source_id=key[1], defaults=defaults
+            )
+            for key in selection.recordings
+        },
+    )
 
 
 def render_source_proxy_inputs(
