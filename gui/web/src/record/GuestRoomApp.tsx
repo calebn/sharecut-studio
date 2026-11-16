@@ -173,6 +173,7 @@ function GuestRoomSession({
   const state = snapshot?.state;
   const onAir = state === "recording" || state === "paused";
   const consented = me?.consented ?? null;
+  const producerOutside = producer && !me;
   const recorded = !producer && consented === true;
   const host = guestHostName(snapshot);
 
@@ -251,7 +252,7 @@ function GuestRoomSession({
     if (consented !== null || error) {
       setJoining(false);
     }
-    if (error && producer && !me) {
+    if (error && producerOutside) {
       setProducerJoined(false);
     }
     if (consented === true) {
@@ -268,7 +269,7 @@ function GuestRoomSession({
   const guestSheet =
     !producer &&
     ((consented === null && !recovering) || (rejoinOpen && consented !== true));
-  const producerSheet = producer && !producerDismissed && !me;
+  const producerSheet = producerOutside && !producerDismissed;
   const sheetOpen = guestSheet || producerSheet;
   if (sheetOpen && deviceOpen) {
     setDeviceOpen(false);
@@ -343,7 +344,7 @@ function GuestRoomSession({
         upload.fileAck,
       recoverable,
       monitorError: monitor.error,
-      transportError: producer && !me ? null : recordSyncErrorCopy(error),
+      transportError: producerOutside ? null : recordSyncErrorCopy(error),
       clipping: !producer && clippingGate(takeClipping?.regions ?? []),
       mutedSpeech,
       phase,
@@ -444,12 +445,7 @@ function GuestRoomSession({
 
   const declined = producer
     ? producerDismissed
-      ? {
-          onJoin: () => {
-            clearError();
-            setProducerDismissed(false);
-          },
-        }
+      ? { onJoin: () => setProducerDismissed(false) }
       : undefined
     : consented === false && !rejoinOpen
       ? { onJoin: rejoin }
