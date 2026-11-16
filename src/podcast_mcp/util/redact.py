@@ -169,8 +169,8 @@ def redact_secrets(text: str, secrets: Sequence[str] = (), *, min_prefix: int | 
 
     Unlike ``sanitize`` this keeps hostnames, IP addresses and paths readable, for
     operator-facing status lines. ``secrets`` are exact values (a host token, share
-    tokens) replaced wherever they appear, longest first so one that contains
-    another is not left half visible. With ``min_prefix`` a leading run of a secret at
+    tokens) replaced wherever they appear, overlapping matches merged into one so no
+    secret is left half visible. With ``min_prefix`` a leading run of a secret at
     least that long is masked too, and text that holds a secret only once percent-decoded
     is returned decoded and masked.
     """
