@@ -14,7 +14,7 @@ const meta: Meta<typeof Skeleton> = {
       ...viewportStoryParameters.docs,
       description: {
         component:
-          'Nothing for 300 ms, then static grey blocks in the destination\'s real layout, then at 4 s the line "Still loading…" with Retry. The times are props; pass `elapsedMs` to freeze a phase.\n\n**Motion.** No shimmer until the animation pass, then `--motion-loop-skeleton` (1.6 s). The 300 ms and 4 s timings are state, not animation.',
+          'Nothing for 300 ms, then static grey blocks in the destination\'s real layout, then at 4 s the line "Still loading…" with Retry when a retry handler is provided. The times are props; pass `elapsedMs` to freeze a phase.\n\n**Motion.** No shimmer until the animation pass, then `--motion-loop-skeleton` (1.6 s). The 300 ms and 4 s timings are state, not animation.',
       },
     },
   },
@@ -63,6 +63,17 @@ export const StillLoading: Story = {
     await expect(blocksIn(canvasElement)).toHaveLength(4);
     await userEvent.click(canvas.getByRole("button", { name: "Retry" }));
     await expect(args.onRetry).toHaveBeenCalledOnce();
+  },
+};
+
+export const StillLoadingWithoutRetry: Story = {
+  args: { elapsedMs: 5000, onRetry: undefined },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(canvas.getByRole("status")).toHaveTextContent(
+      "Still loading…",
+    );
+    await expect(canvas.queryByRole("button", { name: "Retry" })).toBeNull();
   },
 };
 
