@@ -1856,8 +1856,8 @@ html:not([data-shell="phone"])
   --sys-cover-status-line: calc(var(--font-size-body) * 1.4);
 }
 
-/* A button that is working is not unavailable: the shared disabled look would drop its label below readable contrast, so the spinner, the label and the cursor carry the state instead. */
-.sys-cover-actions .ui-control[aria-busy="true"] {
+/* A button that is showing its busy label is working, not unavailable: the shared disabled look would drop the label below readable contrast, so the spinner, the label and the cursor carry the state instead. A busy button with no busy label keeps the disabled look. */
+.sys-cover-actions .ui-control[data-working="true"] {
   opacity: 1;
   cursor: progress;
 }
@@ -1877,11 +1877,11 @@ html:not([data-shell="phone"])
   text-align: center;
 }
 
-.sys-cover-action-label {
+.sys-busy-label {
   display: inline-grid;
 }
 
-.sys-cover-action-label > * {
+.sys-busy-label > * {
   display: inline-flex;
   grid-area: 1 / 1;
   align-items: center;
@@ -1889,7 +1889,7 @@ html:not([data-shell="phone"])
   gap: var(--space-3);
 }
 
-.sys-cover-action-label > [aria-hidden] {
+.sys-busy-label > [aria-hidden] {
   visibility: hidden;
 }
 
@@ -2022,6 +2022,12 @@ html:not([data-shell="phone"])
 .sys-skeleton-retry {
   min-block-size: var(--touch-min);
   min-inline-size: var(--touch-min);
+}
+
+/* A press is working, not unavailable: full colour and the progress cursor keep "Trying…" readable. */
+.sys-skeleton-slow .sys-skeleton-retry[aria-busy="true"] {
+  opacity: 1;
+  cursor: progress;
 }
 
 /* The guest status row sits in the same gutter and width as the blocks: the grid's two columns and gap, centered. */
