@@ -658,6 +658,40 @@ describe("App loading screens before the features answer", () => {
     ).toBeInTheDocument();
   });
 
+  it("leaves the loading screen when the first features call answers after Retry, without waiting for the second", async () => {
+    window.history.pushState({}, "", "/r/slow");
+    resetFeaturesCache();
+    offline.load.mockResolvedValue(undefined);
+    const answers: Array<(res: Response) => void> = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL) => {
+        if (urlOf(input).includes("/features")) {
+          return new Promise<Response>((resolve) => answers.push(resolve));
+        }
+        return new Response("{}", { status: 500 });
+      }),
+    );
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    render(<App />);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(4_000);
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Retry" }));
+    expect(answers).toHaveLength(2);
+    await act(async () => {
+      answers[0]?.(
+        new Response(
+          JSON.stringify({ api_version: 1, features: ["share.ui.routes"] }),
+          { status: 200 },
+        ),
+      );
+    });
+    expect(
+      await screen.findByRole("heading", { name: "This link did not load" }),
+    ).toBeInTheDocument();
+  });
+
   it("shows the host the Loading cover, not the plain loading screen", () => {
     window.history.pushState({}, "", "/");
     stall();

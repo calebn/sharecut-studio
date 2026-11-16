@@ -192,7 +192,7 @@ describe("Cover", () => {
       );
       const hidden = () =>
         Array.from(
-          document.querySelectorAll(".sys-cover-action-label > [aria-hidden]"),
+          document.querySelectorAll(".sys-busy-label > [aria-hidden]"),
         ).map((el) => el.textContent);
       expect(screen.getByText("Try now")).toBeInTheDocument();
       expect(screen.getByText("Trying…")).toBeInTheDocument();
@@ -314,12 +314,44 @@ describe("Cover", () => {
     expect(actions()).not.toHaveClass("sys-cover-actions--status");
   });
 
-  it("keeps a busy cover button at full opacity with the progress cursor, so its label stays readable", () => {
+  it("keeps a busy cover button that shows its busy label at full opacity with the progress cursor", () => {
     const css = partial("system.css");
-    const busy = rule(css, '.sys-cover-actions .ui-control[aria-busy="true"]');
+    const busy = rule(
+      css,
+      '.sys-cover-actions .ui-control[data-working="true"]',
+    );
     expect(busy).toContain("opacity: 1");
     expect(busy).toContain("cursor: progress");
+    expect(css).not.toContain(
+      '.sys-cover-actions .ui-control[aria-busy="true"]',
+    );
   });
+
+  it.each([
+    ["idle", { busy: false, busyLabel: "Trying…" }, false],
+    ["busy with a busy label", { busy: true, busyLabel: "Trying…" }, true],
+    ["busy without a busy label", { busy: true }, false],
+  ] as const)(
+    "marks a %s button as working only when it shows its busy label",
+    (_name, extra, marked) => {
+      render(
+        <Cover
+          size="region"
+          glyph="eye-off"
+          title="Title"
+          primary={{ label: "Save", onClick: vi.fn(), ...extra }}
+        >
+          Body.
+        </Cover>,
+      );
+      const button = screen.getByRole("button");
+      if (marked) {
+        expect(button).toHaveAttribute("data-working", "true");
+      } else {
+        expect(button).not.toHaveAttribute("data-working");
+      }
+    },
+  );
 
   it("leaves a primary without busy enabled", () => {
     render(
