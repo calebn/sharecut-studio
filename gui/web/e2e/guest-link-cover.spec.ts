@@ -150,6 +150,35 @@ for (const size of SIZES) {
       });
     });
 
+    test("a pressed Retry that nothing answers returns to Retry after 30 seconds", async ({
+      browser,
+    }) => {
+      await withGuestLink(browser, size, async (guest, token) => {
+        await guest.clock.install();
+        let asked = 0;
+        await guest.route(`**/api/review/${token}/project`, async (route) => {
+          asked += 1;
+          if (asked === 1) {
+            await route.fulfill({ status: 500, body: "" });
+          }
+          // Later requests are held: the host never answers.
+        });
+        await guest.goto(`/r/${token}`);
+        const main = guest.getByRole("main");
+        const retry = main.getByRole("button", { name: "Retry" });
+        await press(retry, size.touch);
+        const busy = main.getByRole("button", { name: "Trying…" });
+        await expect(busy).toBeVisible();
+        await guest.clock.runFor(29_000);
+        await expect(busy).toBeVisible();
+        await guest.clock.runFor(1_500);
+        await expect(retry).toBeVisible();
+        await expect(main.getByRole("status")).toHaveText("Still not loading.");
+        await press(retry, size.touch);
+        await expect.poll(() => asked).toBe(3);
+      });
+    });
+
     test("focus lands on the title, not on a framed page", async ({
       browser,
     }) => {
