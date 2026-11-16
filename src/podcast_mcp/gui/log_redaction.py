@@ -9,12 +9,14 @@ rewrites the line before any handler formats it.
 from __future__ import annotations
 
 import logging
+import re
 from collections.abc import Mapping
 from typing import Any
 from urllib.parse import unquote
 
 from podcast_mcp.util.redact import redact_share_paths
 
+_BOUNDARY = re.compile(r"[\s'\"()\[\]{},]")
 UVICORN_LOGGERS = ("uvicorn.access", "uvicorn.error", "uvicorn.asgi")
 
 
@@ -32,11 +34,20 @@ def _text(value: object) -> str | None:
 
 
 def _redact_route(text: str) -> str:
-    path, separator, _query = text.partition("?")
-    redacted_path = redact_share_paths(path)
-    if separator and redacted_path != path:
-        return redacted_path
-    return redact_share_paths(text)
+    kept: list[str] = []
+    position = 0
+    while (mark := text.find("?", position)) >= 0:
+        start = max((m.end() for m in _BOUNDARY.finditer(text, position, mark)), default=position)
+        route = text[start:mark]
+        if redact_share_paths(route) == route:
+            kept.append(text[position : mark + 1])
+            position = mark + 1
+            continue
+        kept.append(text[position:mark])
+        end = _BOUNDARY.search(text, mark)
+        position = end.start() if end else len(text)
+    kept.append(text[position:])
+    return redact_share_paths("".join(kept))
 
 
 def _without_query(value: Any) -> Any:
