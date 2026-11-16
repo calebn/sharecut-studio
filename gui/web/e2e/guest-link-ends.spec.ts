@@ -20,7 +20,14 @@ const SIZES = [
   { name: "phone", width: 390, height: 844, touch: true },
   { name: "desktop", width: 1280, height: 800, touch: false },
 ] as const;
-type Size = (typeof SIZES)[number];
+/** A phone held sideways: wider than a phone cover, and only 390 px tall. */
+const LANDSCAPE = {
+  name: "landscape",
+  width: 844,
+  height: 390,
+  touch: true,
+} as const;
+type Size = { name: string; width: number; height: number; touch: boolean };
 
 const DEAD_TITLE = "This link doesn't open anything";
 const DEAD_SENTENCE = "Ask the person who sent it for a new link.";
@@ -190,7 +197,7 @@ const commentField = (guest: Page) =>
   guest.getByRole("textbox", { name: "Comment", exact: true });
 
 async function typeComment(guest: Page, size: Size, text: string) {
-  if (size.touch) {
+  if (size.touch && size.width < 600) {
     await guest.getByRole("button", { name: /^Comment at/ }).tap();
   }
   await commentField(guest).fill(text);
@@ -650,5 +657,63 @@ test.describe("the cover with unsent text in the dark theme", () => {
       },
       { colorScheme: "dark" },
     );
+  });
+});
+
+test.describe(`a long draft on a phone held sideways at ${LANDSCAPE.width}x${LANDSCAPE.height}`, () => {
+  test("keeps the words and the copy button in view at 100% text, and leaves the whole box reachable at 200%", async ({
+    browser,
+  }) => {
+    const draft = "A long thought about the second act. "
+      .repeat(136)
+      .slice(0, 5_000);
+    await withOpenGuest(browser, LANDSCAPE, async (guest, link) => {
+      await typeComment(guest, LANDSCAPE, draft);
+      await revoke(link);
+      await expect(title(guest)).toBeVisible({ timeout: 30_000 });
+
+      const copy = guest.getByRole("button", { name: "Copy your comment" });
+      const text = guest.getByRole("textbox", {
+        name: "Your comment was not posted",
+      });
+      const heading = guest.getByRole("heading", {
+        name: "Your comment was not posted",
+      });
+      const bar = guest.locator(".sys-cover-actions");
+      await expect(text).toHaveValue(draft);
+      await fontsReady(guest);
+      const toTop = () => guest.evaluate(() => window.scrollTo(0, 0));
+      const toEnd = () =>
+        guest.evaluate(() =>
+          window.scrollTo(0, document.documentElement.scrollHeight),
+        );
+
+      await toTop();
+      await expectInViewport(guest, title(guest));
+      await expectInViewport(guest, heading);
+      await expectInViewport(guest, copy);
+      const first = await text.boundingBox();
+      const bar100 = await bar.boundingBox();
+      const line = await text.evaluate((el) =>
+        Number.parseFloat(getComputedStyle(el).lineHeight),
+      );
+      expect(first!.y + 2 * line).toBeLessThanOrEqual(bar100!.y);
+
+      await guest.addStyleTag({ content: "html { font-size: 200% }" });
+      await toTop();
+      await expectInViewport(guest, copy);
+      const titleBox = await title(guest).boundingBox();
+      const bar200 = await bar.boundingBox();
+      expect(titleBox!.y).toBeGreaterThanOrEqual(0);
+      expect(titleBox!.y + titleBox!.height).toBeLessThanOrEqual(bar200!.y);
+      await toEnd();
+      const area = await text.boundingBox();
+      const bar200End = await bar.boundingBox();
+      expect(area!.y + area!.height).toBeLessThanOrEqual(bar200End!.y + 0.5);
+      await expectInViewport(guest, copy);
+      expect(
+        await guest.evaluate(() => document.documentElement.scrollWidth),
+      ).toBeLessThanOrEqual(LANDSCAPE.width);
+    });
   });
 });
