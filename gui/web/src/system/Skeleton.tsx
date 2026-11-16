@@ -1,7 +1,7 @@
 import { useAfter } from "../hooks/useAfter";
 import { useViewportClass } from "../hooks/useViewportClass";
 import { Button } from "../ui";
-import { HELD_BUSY_MS, useHeldBusy } from "./useHeldBusy";
+import { useHeldBusy } from "./useHeldBusy";
 
 type Phase = "blank" | "blocks" | "slow";
 
@@ -74,8 +74,10 @@ export function Skeleton({
         ? "blocks"
         : "blank";
   const shell = useViewportClass();
-  // The skeleton stays mounted through a retry, so nothing else shows the press landed.
-  const { busy, press } = useHeldBusy(false, HELD_BUSY_MS);
+  // The skeleton stays mounted through a retry, so nothing else shows the press
+  // landed. The replacement request gets the time the first one had before the
+  // person is asked again.
+  const { busy, press } = useHeldBusy(false, retryMs);
   return (
     <div
       className={`sys-skeleton${layout === "guest" ? " sys-skeleton--guest" : ""}`}
@@ -113,8 +115,9 @@ export function Skeleton({
               busy
                 ? undefined
                 : () => {
+                    if (!onRetry) return;
                     press();
-                    onRetry?.();
+                    onRetry();
                   }
             }
           >

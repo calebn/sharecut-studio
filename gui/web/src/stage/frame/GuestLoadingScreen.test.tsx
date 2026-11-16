@@ -28,7 +28,7 @@ describe("GuestLoadingScreen", () => {
     await expectNoA11yViolations(container);
   });
 
-  it("answers a press on the 4 s Retry with Trying… for a moment, then offers Retry again", () => {
+  it("answers a press on the 4 s Retry with Trying… for as long as the screen waited before offering it, then offers Retry again", () => {
     const onRetry = vi.fn();
     render(<GuestLoadingScreen onRetry={onRetry} />);
     act(() => void vi.advanceTimersByTime(4000));
@@ -42,11 +42,20 @@ describe("GuestLoadingScreen", () => {
     fireEvent.click(busy);
     expect(onRetry).toHaveBeenCalledOnce();
     expect(screen.getByText("Still loading…")).toBeVisible();
-    act(() => void vi.advanceTimersByTime(600));
+    act(() => void vi.advanceTimersByTime(3999));
+    expect(screen.getByRole("button", { name: "Trying…" })).toBe(retry);
+    act(() => void vi.advanceTimersByTime(1));
     const again = screen.getByRole("button", { name: "Retry" });
     expect(again).not.toHaveAttribute("aria-busy");
     fireEvent.click(again);
     expect(onRetry).toHaveBeenCalledTimes(2);
+  });
+
+  it("does not say Trying… when no retry is wired, because nothing is being tried", () => {
+    render(<GuestLoadingScreen />);
+    act(() => void vi.advanceTimersByTime(4000));
+    fireEvent.click(screen.getByRole("button", { name: "Retry" }));
+    expect(screen.queryByRole("button", { name: "Trying…" })).toBeNull();
   });
 
   it("gives Retry the touch-min target at every size and the status row the block gutter", () => {
