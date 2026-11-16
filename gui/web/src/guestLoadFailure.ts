@@ -11,6 +11,7 @@ export type GuestLoadFailure =
       kind:
         | "bad-link"
         | "unreachable"
+        | "offline"
         | "busy"
         | "sign-in"
         | "restricted"
@@ -22,7 +23,7 @@ export type GuestLoadFailure =
   | { kind: "rate-limited"; retryAfterSec: number | null };
 
 export type GuestLoadCover = {
-  glyph: "moon" | "triangle-alert" | "unlink";
+  glyph: "moon" | "triangle-alert" | "unlink" | "cloud-off";
   title: string;
   sentence: string;
   /** The cover's one button, or null when nothing a guest does here helps. */
@@ -57,13 +58,25 @@ const waitInWords = (ms: number): string =>
       ? "in about a minute"
       : "in about two minutes";
 
-export function classifyBootstrapFailure(error: unknown): GuestLoadFailure {
+/**
+ * `deviceOnline` is what the browser said when the attempt failed. A request
+ * that got no answer while it says there is no connection is the guest's own
+ * device; every other failure, with no answer or with one, is read as before:
+ * something answered, or the page cannot tell, and says nothing it cannot know.
+ */
+export function classifyBootstrapFailure(
+  error: unknown,
+  deviceOnline = true,
+): GuestLoadFailure {
   if (!(error instanceof ApiError)) {
     return error instanceof SyntaxError
       ? { kind: "intercepted" }
       : { kind: "unreachable" };
   }
   const { status, code } = error;
+  if (status === null && !deviceOnline) {
+    return { kind: "offline" };
+  }
   if (
     status === null ||
     status === 502 ||
@@ -118,6 +131,16 @@ export function guestLoadCover(failure: GuestLoadFailure): GuestLoadCover {
         button: "Try now",
         autoRetryMs: AUTO_RETRY_MS,
         stillFailing: "Still asleep.",
+      };
+    case "offline":
+      return {
+        glyph: "cloud-off",
+        title: "You're offline",
+        sentence:
+          "This page opens the episode by itself when your connection is back.",
+        button: "Try now",
+        autoRetryMs: AUTO_RETRY_MS,
+        stillFailing: "Still offline.",
       };
     case "busy":
       return {

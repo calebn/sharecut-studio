@@ -17,6 +17,7 @@ import {
 } from "./extensions/FeaturesContext";
 import { FEATURE_SHARE_UI_ROUTES } from "./extensions/features";
 import { AskDialog } from "./feedback/AskDialog";
+import { useBackOnline } from "./hooks/useBackOnline";
 import { useDeadLinkWatch } from "./hooks/useDeadLinkWatch";
 import { ModelsProvider } from "./models";
 import {
@@ -269,6 +270,15 @@ function AppInner() {
       />
     );
 
+  useBackOnline(
+    error !== null &&
+      "failure" in error &&
+      error.failure.kind === "offline" &&
+      !shareBootstrapping,
+    attempt,
+    retry,
+  );
+
   const autoRetryMs =
     error && "failure" in error
       ? guestLoadCover(error.failure).autoRetryMs
@@ -385,7 +395,7 @@ function AppInner() {
         // Abandoned on purpose (the episode opened elsewhere, or the link or
         // page went away): there is nothing to show or to save.
         if (controller.signal.aborted || standing() !== "newest") return;
-        const failure = classifyBootstrapFailure(e);
+        const failure = classifyBootstrapFailure(e, navigator.onLine !== false);
         if (failure.kind === "bad-link") {
           if (e instanceof ApiError && e.code === "share_not_found") {
             void clearOfflineSnapshot(reviewToken).catch(() => undefined);

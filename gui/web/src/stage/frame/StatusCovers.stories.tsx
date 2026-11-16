@@ -38,7 +38,7 @@ const meta: Meta<typeof NotServedCover> = {
       ...viewportStoryParameters.docs,
       description: {
         component:
-          'The Status cover for the ways a page has nothing to open: a bad or revoked review link, a review link that did not load (the host\'s computer is asleep or busy, the link is busy, restricted, unavailable, needing a sign-in, behind a network sign-in page, or failing), and a project this server does not serve. A press on the button is answered on the button ("Trying…") and in a status line that says whether it is still failing. A 32 px symbol, a 48 px glyph for the case (broken link, moon, folder), a 20/24 title, one sentence, one primary button and at most one text button. The server answers the not-served case with the app (HTTP 403), never its own page.',
+          'The Status cover for the ways a page has nothing to open: a bad or revoked review link, a review link that did not load (the host\'s computer is asleep or busy, this device has no connection, the link is busy, restricted, unavailable, needing a sign-in, behind a network sign-in page, or failing), and a project this server does not serve. A press on the button is answered on the button ("Trying…") and in a status line that says whether it is still failing. A 32 px symbol, a 48 px glyph for the case (broken link, moon, cloud with a slash, folder), a 20/24 title, one sentence, one primary button and at most one text button. The server answers the not-served case with the app (HTTP 403), never its own page.',
       },
     },
   },
@@ -157,6 +157,36 @@ export const HostAsleepPressed: Story = {
     );
     await expect(button).toHaveFocus();
   },
+};
+
+export const YouAreOffline: Story = {
+  render: () => <ReviewLinkCover failure={{ kind: "offline" }} />,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(
+      canvas.getByRole("heading", { name: "You're offline" }),
+    ).toBeVisible();
+    await expect(canvas.getByRole("button", { name: "Try now" })).toBeVisible();
+  },
+};
+
+export const YouAreOfflinePressed: Story = {
+  render: () => <ReviewLinkCover failure={{ kind: "offline" }} />,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const button = canvas.getByRole("button", { name: "Try now" });
+    await userEvent.click(button);
+    await expect(button).toHaveAttribute("aria-busy", "true");
+    await waitFor(() =>
+      expect(canvas.getByRole("status")).toHaveTextContent("Still offline."),
+    );
+    await expect(button).toHaveFocus();
+  },
+};
+
+export const YouAreOfflinePhone: Story = {
+  ...YouAreOffline,
+  globals: { viewport: { value: "phone", isRotated: false } },
 };
 
 export const HostBusy: Story = {
