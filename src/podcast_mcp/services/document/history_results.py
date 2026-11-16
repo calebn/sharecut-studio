@@ -18,6 +18,14 @@ class HistoryStatusResult(_HistoryResult):
     head_id: str
 
 
+class HistoryMoveResult(HistoryStatusResult):
+    pass
+
+
+class HistoryMoveRerenderedResult(HistoryStatusResult):
+    preview: dict[str, Any]
+
+
 class HistoryEntryResult(_HistoryResult):
     index: int
     id: str
