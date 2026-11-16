@@ -448,23 +448,15 @@ describe("RoomView on a phone", () => {
     expect(
       screen.getByRole("dialog", { name: "Comments" }),
     ).toBeInTheDocument();
+    expect(peek).toHaveAttribute("aria-expanded", "true");
     expect(screen.getByLabelText("Add a comment")).toBeInTheDocument();
-  });
-
-  it("the dock's Comments button opens the sheet and shows it pressed", async () => {
-    renderRoom({ viewerWidth: "phone", notes: NOTES });
-    const button = screen.getByRole("button", { name: "Comments" });
-    expect(button).toHaveAttribute("aria-pressed", "false");
-    await userEvent.click(button);
-    expect(
-      screen.getByRole("dialog", { name: "Comments" }),
-    ).toBeInTheDocument();
-    expect(button).toHaveAttribute("aria-pressed", "true");
   });
 
   it("posts a comment from the sheet with the live clock time", async () => {
     const { onSendNote } = renderRoom({ viewerWidth: "phone" });
-    await userEvent.click(screen.getByRole("button", { name: "Comments" }));
+    await userEvent.click(
+      document.querySelector(".sys-room-view-peek") as HTMLElement,
+    );
     const dialog = await screen.findByRole("dialog", { name: "Comments" });
     // The sheet moves focus to Close on the next frame; typing before that loses the field.
     await waitFor(() =>
@@ -484,11 +476,6 @@ describe("RoomView on a phone", () => {
       time: "12:04",
       everyone: false,
     });
-  });
-
-  it("keeps the same dock buttons as the desktop for the seat", () => {
-    renderRoom({ viewerWidth: "phone" });
-    expect(names()).toEqual(["Mute", "Comment", "Comments", "Leave room"]);
   });
 
   it("has no peek line and no rail in landscape, and the Comments button still opens the sheet", async () => {
@@ -723,7 +710,9 @@ describe("RoomView as the host", () => {
         viewerWidth: "phone",
       };
       const { rerender } = render(<RoomView {...props} />);
-      await userEvent.click(screen.getByRole("button", { name: "Comments" }));
+      await userEvent.click(
+        document.querySelector(".sys-room-view-peek") as HTMLElement,
+      );
       expect(
         await screen.findByRole("dialog", { name: "Comments" }),
       ).toBeInTheDocument();
@@ -1038,24 +1027,6 @@ describe("RoomView comments naming", () => {
       );
     },
   );
-
-  it("the phone dock button reopens the sheet on the Comments tab", async () => {
-    renderRoom({
-      seat: "producer",
-      people: [HOST, ROSA],
-      viewerWidth: "phone",
-      takes: <p>Take 1 saved</p>,
-      defaultNotesOpen: true,
-    });
-    await userEvent.click(screen.getByRole("tab", { name: "Takes" }));
-    const toggle = screen.getByRole("button", { name: "Comments" });
-    await userEvent.click(toggle);
-    await userEvent.click(toggle);
-    expect(screen.getByRole("tab", { name: "Comments" })).toHaveAttribute(
-      "aria-selected",
-      "true",
-    );
-  });
 });
 
 describe("RoomView phone layout (3834 PR 7)", () => {

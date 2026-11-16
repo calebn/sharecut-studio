@@ -83,6 +83,8 @@ type RoomViewModel = {
   columns: 1 | 2 | 3 | 4;
   listeners: RoomListener[];
   dockSeat: DockSeat;
+  /** A guest or producer on the portrait phone layout: the peek is their one door to Comments and the dock words its buttons. */
+  phoneDock: boolean;
   showComment: boolean;
   railOpen: boolean;
   sheetOpen: boolean;
@@ -304,6 +306,7 @@ export function roomViewModel(input: RoomViewInput): RoomViewModel {
     columns,
     listeners,
     dockSeat: role,
+    phoneDock: viewerWidth === "phone" && role !== "host",
     showComment:
       phase.kind === "live" ||
       phase.kind === "paused" ||

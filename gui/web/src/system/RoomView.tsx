@@ -446,6 +446,7 @@ export function RoomView({
           muted={muted}
           showComment={model.showComment}
           unreadNotes={unreadNotes}
+          notes={!model.phoneDock}
           notesOpen={model.notesOpen}
           dock={dock}
           onDone={onDone}
