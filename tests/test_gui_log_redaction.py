@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import io
 import logging
 from collections import OrderedDict, defaultdict
 from collections.abc import Iterator, Mapping
@@ -302,3 +303,61 @@ def test_a_tuple_is_never_compared_to_decide_whether_it_changed() -> None:
     ShareTokenFilter().filter(record)
 
     assert record.args is args
+
+
+class _RaisingEqStr(str):
+    __slots__ = ()
+
+    def __eq__(self, other: object) -> bool:
+        raise RuntimeError("compared")
+
+    def __ne__(self, other: object) -> bool:
+        raise RuntimeError("compared")
+
+    __hash__ = str.__hash__
+
+
+class _UnreadableMapping(Mapping[str, object]):
+    def __getitem__(self, key: str) -> object:
+        raise RuntimeError("unreadable")
+
+    def __iter__(self) -> Iterator[str]:
+        raise RuntimeError("unreadable")
+
+    def __len__(self) -> int:
+        return 1
+
+    def __str__(self) -> str:
+        return f"unreadable /r/{TOKEN}/ws"
+
+
+def _logged(msg: object, *args: object) -> str:
+    stream = io.StringIO()
+    handler = logging.StreamHandler(stream)
+    logger = logging.getLogger("tests.filter_never_raises")
+    logger.propagate = False
+    logger.setLevel(logging.INFO)
+    logger.addHandler(handler)
+    logger.addFilter(ShareTokenFilter())
+    try:
+        logger.info(msg, *args)
+    finally:
+        logger.handlers.clear()
+        logger.filters.clear()
+    return stream.getvalue()
+
+
+def test_a_str_whose_comparison_raises_is_logged_as_it_was() -> None:
+    assert _logged(_RaisingEqStr("plain %s"), _RaisingEqStr("x")) == "plain x\n"
+
+
+def test_an_unreadable_token_free_mapping_is_logged_as_it_was() -> None:
+    class Quiet(_UnreadableMapping):
+        def __str__(self) -> str:
+            return "quiet"
+
+    assert _logged("%s", Quiet()) == "quiet\n"
+
+
+def test_a_tuple_holding_an_unreadable_mapping_does_not_raise() -> None:
+    assert _logged("%s %s", f"/r/{TOKEN}/ws", _UnreadableMapping()) != ""
