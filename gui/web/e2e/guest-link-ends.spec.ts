@@ -1,6 +1,7 @@
 import { expect, type Locator, type Page, test } from "@playwright/test";
 import { postDocumentCommand } from "./documentCommand";
 import { fontsReady } from "./fontsReady";
+import { guestSavedCopy } from "./offlineQueue";
 import { withShareableProject } from "./shareableProject";
 import {
   createReviewShare,
@@ -96,28 +97,6 @@ const soundNow = (page: Page) =>
 const serverWordsSeen = (page: Page) =>
   page.evaluate(
     () => (window as unknown as { __probe: Probe }).__probe.serverWords,
-  );
-
-const savedCopy = (page: Page, token: string) =>
-  page.evaluate(
-    (key) =>
-      new Promise<unknown>((resolve, reject) => {
-        const opened = indexedDB.open("podcast-daw-offline", 1);
-        opened.onerror = () => reject(opened.error);
-        opened.onsuccess = () => {
-          const db = opened.result;
-          const read = db
-            .transaction("kv", "readonly")
-            .objectStore("kv")
-            .get(key);
-          read.onsuccess = () => {
-            db.close();
-            resolve(read.result ?? null);
-          };
-          read.onerror = () => reject(read.error);
-        };
-      }),
-    `snap:${token}`,
   );
 
 async function press(button: Locator, size: Size) {
@@ -299,7 +278,9 @@ for (const size of SIZES) {
         await typeReply(guest, size, REPLY);
         await typeComment(guest, size, COMMENT);
         await startPlaying(guest);
-        await expect.poll(() => savedCopy(guest, link.token)).not.toBeNull();
+        await expect
+          .poll(() => guestSavedCopy(guest, link.token))
+          .not.toBeNull();
 
         await revoke(link);
 
@@ -334,7 +315,7 @@ for (const size of SIZES) {
 
         await guest.clock.runFor(120_000);
         expect(asked).toEqual([]);
-        expect(await savedCopy(guest, link.token)).toBeNull();
+        expect(await guestSavedCopy(guest, link.token)).toBeNull();
         expect(await serverWordsSeen(guest)).toBe(false);
       });
     });
@@ -562,10 +543,12 @@ for (const size of SIZES) {
       browser,
     }) => {
       await withOpenGuest(browser, size, async (guest, link) => {
-        await expect.poll(() => savedCopy(guest, link.token)).not.toBeNull();
+        await expect
+          .poll(() => guestSavedCopy(guest, link.token))
+          .not.toBeNull();
         await revoke(link);
         await expect(title(guest)).toBeVisible({ timeout: 30_000 });
-        expect(await savedCopy(guest, link.token)).toBeNull();
+        expect(await guestSavedCopy(guest, link.token)).toBeNull();
 
         await guest.reload();
         await expect(title(guest)).toBeVisible();
@@ -574,7 +557,7 @@ for (const size of SIZES) {
         await expect(
           guest.getByRole("textbox", { name: /not posted/ }),
         ).toHaveCount(0);
-        expect(await savedCopy(guest, link.token)).toBeNull();
+        expect(await guestSavedCopy(guest, link.token)).toBeNull();
       });
     });
 

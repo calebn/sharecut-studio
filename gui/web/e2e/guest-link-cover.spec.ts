@@ -1,62 +1,10 @@
-import { expect, type Locator, type Page, test } from "@playwright/test";
+import { expect, test } from "@playwright/test";
 import { fontsReady } from "./fontsReady";
-import { withShareableProject } from "./shareableProject";
-import { createReviewShare, openHostShare } from "./shareNavigation";
-import { withBrowserPages } from "./twoBrowserPages";
-
-const SIZES = [
-  { name: "phone", width: 390, height: 844, touch: true },
-  { name: "desktop", width: 1280, height: 800, touch: false },
-] as const;
+import { failBootstrap, press, SIZES, withGuestLink } from "./guestLink";
 
 const ASLEEP_TITLE = "The host's computer is asleep";
 const FAILED_TITLE = "This link did not load";
 const TRACE_TEXT = "internal-trace-7c41e9";
-
-async function press(button: Locator, touch: boolean) {
-  if (touch) {
-    await button.tap();
-  } else {
-    await button.click();
-  }
-}
-
-/** Every review request for the episode itself fails the way `fail` says. */
-async function failBootstrap(
-  page: Page,
-  token: string,
-  fail:
-    | "abort"
-    | { status: number; headers?: Record<string, string>; body: string },
-) {
-  await page.route(`**/api/review/${token}/project`, (route) =>
-    fail === "abort" ? route.abort("connectionrefused") : route.fulfill(fail),
-  );
-}
-
-async function withGuestLink(
-  browser: Parameters<typeof withBrowserPages>[0],
-  size: (typeof SIZES)[number],
-  run: (guest: Page, token: string) => Promise<void>,
-) {
-  await withShareableProject(async (projectPath) => {
-    await withBrowserPages(
-      browser,
-      [
-        {},
-        {
-          viewport: { width: size.width, height: size.height },
-          hasTouch: size.touch,
-        },
-      ],
-      async ([host, guest]) => {
-        await openHostShare(host!, projectPath);
-        const token = await createReviewShare(host!, projectPath, "commenter");
-        await run(guest!, token);
-      },
-    );
-  });
-}
 
 for (const size of SIZES) {
   test.describe(`a review link that cannot load at ${size.width}x${size.height}`, () => {
