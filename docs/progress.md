@@ -21,6 +21,14 @@ Export on the Deliver stage renders its progress as a `StatusRow` built in
 unit count, elapsed time, and stale status. The Episode file section owns its
 starting and cancel copy, errors, and outcomes.
 
+## Loading placeholders
+
+The shared `Skeleton` keeps its "Still loading…" status after the slow-load
+threshold. It offers Retry only when the caller supplies a retry handler.
+A retry press invokes that handler and holds "Trying…" for the retry interval,
+blocking duplicate presses until Retry returns. The hold confirms the press;
+it does not claim that loading succeeded.
+
 ## Reviewed edit batches
 
 A group's **Cut all N** in the Review Queue shows `Cutting N…` in place of the
