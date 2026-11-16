@@ -42,7 +42,6 @@ DICT_RETURNS: dict[str, int] = {
     "document/edit.py": 8,
     "document/feed.py": 6,
     "document/golden_ear.py": 8,
-    "document/history.py": 4,
     "document/play_compose.py": 2,
     "document/play_pending.py": 1,
     "document/play_session.py": 5,

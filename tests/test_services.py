@@ -166,10 +166,10 @@ def test_history_service_status_goto_diff_undo(minimal_project):
     listing = svc.list_entries()
     assert listing.groups
     goto = svc.goto(0)
-    assert goto["cursor"] == 0
+    assert goto.cursor == 0
     ws.record_snapshot("three", force=True)
     undo = svc.undo()
-    assert "can_redo" in undo
+    assert undo.can_redo is True
     reloaded = ProjectWorkspace.open(minimal_project)
     # the snapshots hold the same audio, so the move marks nothing stale (#424)
     assert reloaded.project.reconciliation_stale is False
@@ -244,7 +244,7 @@ def test_history_service_mutation_groups_and_rerender(minimal_project):
         ),
     ):
         out = HistoryService(ws).undo(rerender=True)
-    assert "preview" in out
+    assert out.preview == {"ok": True}
     with (
         patch("podcast_mcp.services.document.history.rerender_preview"),
         patch(
@@ -253,7 +253,7 @@ def test_history_service_mutation_groups_and_rerender(minimal_project):
         ),
     ):
         out = HistoryService(ws).redo(rerender=True)
-    assert "preview" in out
+    assert out.preview == {"ok": True}
 
 
 def test_history_goto_rerender_flag(minimal_project) -> None:
@@ -269,8 +269,8 @@ def test_history_goto_rerender_flag(minimal_project) -> None:
     ):
         out = HistoryService(ws).goto(0, rerender=True)
     rr.assert_called_once()
-    assert out["cursor"] == 0
-    assert "preview" in out
+    assert out.cursor == 0
+    assert out.preview == {"ok": True}
 
 
 def test_transcript_service_get_formats(minimal_project):

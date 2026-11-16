@@ -36,6 +36,10 @@ from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.app.workspace import MERGED_HISTORY_LABEL
 from podcast_mcp.services.document import EpisodeService
 from podcast_mcp.services.document.history import HistoryRerenderError, HistoryService
+from podcast_mcp.services.document.history_results import (
+    HistoryMoveRerenderedResult,
+    HistoryMoveResult,
+)
 from podcast_mcp.services.jobs.job import short_fail_message
 from podcast_mcp.services.pipeline import PipelineService
 from podcast_mcp.util.atomic_json import load_json_object
@@ -647,7 +651,9 @@ def _with_undoable_gain(minimal_project: Path) -> ProjectWorkspace:
     return ws
 
 
-def _move_history_with_rerender(ws: ProjectWorkspace, move: str) -> dict:
+def _move_history_with_rerender(
+    ws: ProjectWorkspace, move: str
+) -> HistoryMoveResult | HistoryMoveRerenderedResult:
     svc = HistoryService(ws)
     if move == "undo":
         return svc.undo(rerender=True)
@@ -674,8 +680,8 @@ def test_history_move_rerender_keeps_an_edit_saved_mid_render(minimal_project, m
         assert proj.track_by_id("guest").gain_db == guest_gain
     assert saved.reconciliation_stale is True
     assert saved.history.entries[-1].label == MERGED_HISTORY_LABEL
-    assert out["cursor"] == saved.history.cursor
-    assert "preview" in out
+    assert out.cursor == saved.history.cursor
+    assert isinstance(out, HistoryMoveRerenderedResult)
     _index_matches_file(minimal_project)
 
 

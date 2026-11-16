@@ -169,15 +169,15 @@ def test_history_move_results_validate_preview_presence():
         HistoryMoveRerenderedResult.model_validate({**status, "preview": None})
 
 
-def test_history_moves_keep_dictionary_status_and_optional_preview(minimal_project):
+def test_history_moves_return_status_models_with_optional_preview(minimal_project):
     service = HistoryService(ProjectWorkspace.open(minimal_project))
     service.ws.record_snapshot("one", force=True)
     service.ws.record_snapshot("two", force=True)
 
     undone = service.undo()
     status_keys = {"cursor", "total", "can_undo", "can_redo", "current_label", "head_id"}
-    assert type(undone) is dict
-    assert set(undone) == status_keys
+    assert type(undone) is HistoryMoveResult
+    assert set(undone.model_dump()) == status_keys
     with (
         patch("podcast_mcp.services.document.history.rerender_preview"),
         patch(
@@ -186,9 +186,9 @@ def test_history_moves_keep_dictionary_status_and_optional_preview(minimal_proje
         ),
     ):
         redone = service.redo(rerender=True)
-    assert type(redone) is dict
-    assert set(redone) == status_keys | {"preview"}
-    assert redone["preview"] == {"ready": True}
+    assert type(redone) is HistoryMoveRerenderedResult
+    assert set(redone.model_dump()) == status_keys | {"preview"}
+    assert redone.preview == {"ready": True}
 
 
 def test_history_mcp_retains_unicode_and_nested_params(minimal_project):
@@ -460,14 +460,15 @@ def test_mcp_move_default_is_not_rerendered(history_project):
 
 
 @pytest.mark.parametrize("rerender", [False, True])
-def test_service_move_dict_shape(history_project, stub_render, rerender):
+def test_service_move_result_shape(history_project, stub_render, rerender):
     service = HistoryService(ProjectWorkspace.open(history_project))
     extra = ["preview"] if rerender else []
+    model = HistoryMoveRerenderedResult if rerender else HistoryMoveResult
 
     undone = service.undo(rerender=rerender)
-    assert type(undone) is dict
-    assert list(undone) == STATUS_KEYS + extra
-    assert undone == {
+    assert type(undone) is model
+    assert list(undone.model_dump()) == STATUS_KEYS + extra
+    assert undone.model_dump() == {
         "cursor": 1,
         "total": 3,
         "can_undo": True,
@@ -477,15 +478,16 @@ def test_service_move_dict_shape(history_project, stub_render, rerender):
         **({"preview": PREVIEW} if rerender else {}),
     }
     redone = service.redo(rerender=rerender)
-    assert type(redone) is dict
-    assert list(redone) == STATUS_KEYS + extra
-    assert redone["cursor"] == 2 and redone["head_id"] == "000000000003"
+    assert type(redone) is model
+    assert list(redone.model_dump()) == STATUS_KEYS + extra
+    assert redone.cursor == 2 and redone.head_id == "000000000003"
     moved = service.goto(0, rerender=rerender)
-    assert type(moved) is dict
-    assert list(moved) == STATUS_KEYS + extra
-    assert (moved["cursor"], moved["current_label"], moved["can_undo"]) == (0, "one", False)
+    assert type(moved) is model
+    assert list(moved.model_dump()) == STATUS_KEYS + extra
+    assert (moved.cursor, moved.current_label, moved.can_undo) == (0, "one", False)
     if rerender:
-        assert moved["preview"] == PREVIEW
+        assert isinstance(moved, HistoryMoveRerenderedResult)
+        assert moved.preview == PREVIEW
 
 
 @pytest.mark.parametrize("rerender", [False, True])
@@ -494,10 +496,12 @@ def test_document_plane_handlers_wire_json(history_project, stub_render, rerende
     payload = {"rerender": rerender, "expected_head_id": "000000000003"}
 
     undone = undo_history(ws, payload)
+    assert type(undone) is dict
     assert json.dumps(undone) == json.dumps(_dict(UNDO_RR if rerender else UNDO))
     assert list(undone) == STATUS_KEYS + (["preview"] if rerender else [])
 
     redone = redo_history(ws, {**payload, "expected_head_id": "000000000002"})
+    assert type(redone) is dict
     assert json.dumps(redone) == json.dumps(_dict(REDO_RR if rerender else REDO))
     assert json.dumps(redone) == (
         '{"cursor": 2, "total": 3, "can_undo": true, "can_redo": false, '

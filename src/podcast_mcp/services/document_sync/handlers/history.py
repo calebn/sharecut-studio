@@ -9,12 +9,16 @@ from podcast_mcp.services.document import HistoryService
 
 
 def undo_history(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
-    return HistoryService(ws).undo(
-        rerender=bool(p.get("rerender", False)), expected_head_id=str(p["expected_head_id"])
+    return (
+        HistoryService(ws)
+        .undo(rerender=bool(p.get("rerender", False)), expected_head_id=str(p["expected_head_id"]))
+        .model_dump()
     )
 
 
 def redo_history(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
-    return HistoryService(ws).redo(
-        rerender=bool(p.get("rerender", False)), expected_head_id=str(p["expected_head_id"])
+    return (
+        HistoryService(ws)
+        .redo(rerender=bool(p.get("rerender", False)), expected_head_id=str(p["expected_head_id"]))
+        .model_dump()
     )

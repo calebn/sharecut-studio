@@ -18,7 +18,9 @@ def history_undo(
     history_stale and nothing changes.
     """
     ws = ProjectWorkspace.open(project_path)
-    return to_json(HistoryService(ws).undo(rerender=rerender, expected_head_id=expected_head_id))
+    return to_json(
+        HistoryService(ws).undo(rerender=rerender, expected_head_id=expected_head_id).model_dump()
+    )
 
 
 def history_redo(
@@ -29,7 +31,9 @@ def history_redo(
     expected_head_id guards it like history_undo (error_code history_stale).
     """
     ws = ProjectWorkspace.open(project_path)
-    return to_json(HistoryService(ws).redo(rerender=rerender, expected_head_id=expected_head_id))
+    return to_json(
+        HistoryService(ws).redo(rerender=rerender, expected_head_id=expected_head_id).model_dump()
+    )
 
 
 def history_list(project_path: str) -> str:
@@ -47,7 +51,7 @@ def history_status_tool(project_path: str) -> str:
 def history_goto_tool(project_path: str, index: int, rerender: bool = False) -> str:
     """Jump the project state to a history index."""
     ws = ProjectWorkspace.open(project_path)
-    return to_json(HistoryService(ws).goto(index, rerender=rerender))
+    return to_json(HistoryService(ws).goto(index, rerender=rerender).model_dump())
 
 
 def history_diff_tool(

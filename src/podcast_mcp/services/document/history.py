@@ -16,6 +16,8 @@ from podcast_mcp.services.document.history_results import (
     HistoryEntryResult,
     HistoryGroup,
     HistoryListResult,
+    HistoryMoveRerenderedResult,
+    HistoryMoveResult,
     HistoryStatusResult,
     MutationHistoryGroup,
     PopulatedHistoryDiffResult,
@@ -99,7 +101,9 @@ class HistoryService:
         self.ws = workspace
         self._mgr = workspace.history()
 
-    def undo(self, *, rerender: bool = False, expected_head_id: str | None = None) -> dict:
+    def undo(
+        self, *, rerender: bool = False, expected_head_id: str | None = None
+    ) -> HistoryMoveResult | HistoryMoveRerenderedResult:
         """Undo the head entry. ``expected_head_id`` refuses with ``StaleHistoryError``
         (``history_stale``) unless that entry is still the head, so an edit that landed
         after the caller looked is never the one reverted. An Approve all pass that asked Cut
@@ -110,7 +114,9 @@ class HistoryService:
             rerender=rerender,
         )
 
-    def redo(self, *, rerender: bool = False, expected_head_id: str | None = None) -> dict:
+    def redo(
+        self, *, rerender: bool = False, expected_head_id: str | None = None
+    ) -> HistoryMoveResult | HistoryMoveRerenderedResult:
         """Redo the next entry, guarded by ``expected_head_id`` like ``undo``."""
         return self._move(
             "redo",
@@ -118,14 +124,16 @@ class HistoryService:
             rerender=rerender,
         )
 
-    def goto(self, index: int, *, rerender: bool = False) -> dict:
+    def goto(
+        self, index: int, *, rerender: bool = False
+    ) -> HistoryMoveResult | HistoryMoveRerenderedResult:
         return self._move(
             "goto", lambda project: self._mgr.apply_goto(project, index), rerender=rerender
         )
 
     def _move(
         self, action: str, move: Callable[[EpisodeProject], object], *, rerender: bool
-    ) -> dict:
+    ) -> HistoryMoveResult | HistoryMoveRerenderedResult:
         """Commit a history move with its stale marks; optionally re-render the preview.
 
         The move and its stale marks are saved in one step inside ``ProjectWorkspace.transaction()``,
@@ -147,7 +155,7 @@ class HistoryService:
             mark_history_move_stale(project, before, defaults=self.ws.effective_config())
             self.ws.save()
         if not rerender:
-            return self.status().model_dump()
+            return HistoryMoveResult(**self.status().model_dump())
         # save() recorded the revision it wrote, so checkpoint() keeps this copy (equal to the
         # saved file) and uses that file, stale marks included, as the merge base.
         project = self.ws.checkpoint()
@@ -175,7 +183,7 @@ class HistoryService:
                 "preview rendered; check history_status before re-rendering the preview",
             )
         )
-        return {**self.status().model_dump(), "preview": preview}
+        return HistoryMoveRerenderedResult(**self.status().model_dump(), preview=preview)
 
     def status(self) -> HistoryStatusResult:
         status = self._mgr.status(self.ws.project)
