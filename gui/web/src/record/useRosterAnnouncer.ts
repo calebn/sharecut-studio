@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { lookingInLine } from "../system/roomViewModel";
 import { MARKER_BODY } from "./liveCommentQueue";
 import type { RecordParticipant, RecordSnapshot } from "./types";
 
@@ -14,6 +15,10 @@ type RosterObservation = {
   people: ReadonlySet<string> | null;
   names: ReadonlyMap<string, string>;
   comments: ReadonlySet<string> | null;
+  /** The last count of people looking in, null before a snapshot. */
+  watchers: number | null;
+  /** The room whose first looking-in arrival was already announced. */
+  lookedInRoom: string | null;
   announcement: string;
 };
 
@@ -47,6 +52,18 @@ function observeRoster(
       if (!people.has(id)) lines.push(`${nameOf(id)} left`);
     }
   }
+  const watchers = snapshot.watchers ?? 0;
+  let lookedInRoom = before.lookedInRoom;
+  if (
+    before.watchers === 0 &&
+    watchers > 0 &&
+    lookedInRoom !== snapshot.session_id &&
+    (snapshot.state === "lobby" || snapshot.state === "stopped")
+  ) {
+    const line = lookingInLine(watchers);
+    if (line) lines.push(line);
+    lookedInRoom = snapshot.session_id;
+  }
   const rows = snapshot.comments ?? [];
   const comments = new Set(rows.map((row) => row.id));
   if (before.comments) {
@@ -66,6 +83,8 @@ function observeRoster(
     names.size === before.names.size &&
     [...names].every(([id, name]) => before.names.get(id) === name) &&
     before.comments !== null &&
+    before.watchers === watchers &&
+    before.lookedInRoom === lookedInRoom &&
     comments.size === before.comments.size &&
     [...comments].every((id) => before.comments?.has(id))
   ) {
@@ -75,6 +94,8 @@ function observeRoster(
     people,
     names,
     comments,
+    watchers,
+    lookedInRoom,
     announcement: lines.length ? lines.join(". ") : before.announcement,
   };
 }
@@ -92,6 +113,8 @@ export function useRosterAnnouncer(
     people: null,
     names: new Map(),
     comments: null,
+    watchers: null,
+    lookedInRoom: null,
     announcement: "",
   }));
   const next = useMemo(

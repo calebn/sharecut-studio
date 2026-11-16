@@ -245,4 +245,74 @@ describe("useRosterAnnouncer", () => {
     const { result } = setup(null);
     expect(result.current).toBe("");
   });
+  describe("someone looking in", () => {
+    const ROW = "Someone with the producer link is looking in";
+    const at = (
+      watchers: number | undefined,
+      state: RecordSnapshot["state"] = "lobby",
+      session_id = "room1",
+    ) =>
+      recordSnapshot({
+        participants: [host, me],
+        watchers,
+        state,
+        session_id,
+      });
+
+    it("announces the first rise from none in the lobby, once", () => {
+      const { result, rerender } = setup(at(0));
+      rerender({ snapshot: at(1), meId: "p_g" });
+      expect(result.current).toBe(ROW);
+      rerender({ snapshot: at(0), meId: "p_g" });
+      expect(result.current).toBe(ROW);
+      rerender({ snapshot: at(2), meId: "p_g" });
+      expect(result.current).toBe(ROW);
+    });
+
+    it("announces a rise in a stopped room, and from a server that sends no count", () => {
+      const { result, rerender } = setup(at(undefined, "stopped"));
+      rerender({ snapshot: at(3, "stopped"), meId: "p_g" });
+      expect(result.current).toBe(
+        "3 people with the producer link are looking in",
+      );
+    });
+
+    it("is silent for who is already looking in on first render", () => {
+      const { result, rerender } = setup(at(1));
+      expect(result.current).toBe("");
+      rerender({ snapshot: at(2), meId: "p_g" });
+      expect(result.current).toBe("");
+    });
+
+    it("stays silent while recording, paused or counting down", () => {
+      const { result, rerender } = setup(at(0, "recording"));
+      rerender({ snapshot: at(1, "recording"), meId: "p_g" });
+      expect(result.current).toBe("");
+      rerender({ snapshot: at(0, "paused"), meId: "p_g" });
+      rerender({ snapshot: at(1, "paused"), meId: "p_g" });
+      expect(result.current).toBe("");
+    });
+
+    it("stays silent on a leave and on a change from one to more", () => {
+      const { result, rerender } = setup(at(0));
+      rerender({ snapshot: at(1), meId: "p_g" });
+      rerender({ snapshot: at(2), meId: "p_g" });
+      rerender({ snapshot: at(1), meId: "p_g" });
+      rerender({ snapshot: at(0), meId: "p_g" });
+      expect(result.current).toBe(ROW);
+    });
+
+    it("announces again for a new room, not for a second rise in the same one", () => {
+      const { result, rerender } = setup(at(0));
+      rerender({ snapshot: at(1), meId: "p_g" });
+      rerender({ snapshot: at(0), meId: "p_g" });
+      rerender({ snapshot: at(2), meId: "p_g" });
+      expect(result.current).toBe(ROW);
+      rerender({ snapshot: at(0, "lobby", "room2"), meId: "p_g" });
+      rerender({ snapshot: at(3, "lobby", "room2"), meId: "p_g" });
+      expect(result.current).toBe(
+        "3 people with the producer link are looking in",
+      );
+    });
+  });
 });
