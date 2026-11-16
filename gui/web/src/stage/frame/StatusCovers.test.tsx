@@ -523,4 +523,19 @@ describe("GuestPageCover with text the guest had not sent", () => {
     ).toHaveValue(long);
     await expectNoA11yViolations(container);
   });
+
+  it("lets the text's own first letter set its direction, and copies it unchanged (a single text only: with several, the label comes first)", async () => {
+    const hebrew = { label: "Your comment", text: "לחתוך את ההפסקה בדקה 1:05" };
+    const writeText = stubClipboard(async () => {});
+    renderUnsent([hebrew]);
+    const box = screen.getByRole("textbox", {
+      name: "Your comment was not posted",
+    });
+    expect(box).toHaveAttribute("dir", "auto");
+    expect(box).toHaveValue(hebrew.text);
+    await userEvent.click(
+      screen.getByRole("button", { name: "Copy your comment" }),
+    );
+    expect(writeText).toHaveBeenCalledWith(hebrew.text);
+  });
 });
