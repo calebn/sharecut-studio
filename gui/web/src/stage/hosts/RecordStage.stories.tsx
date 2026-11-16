@@ -68,7 +68,12 @@ const phone = {
   globals: { viewport: { value: "mobile360", isRotated: false } },
 } as const;
 
-const FAILURE = { message: "The server did not answer.", onRetry: fn() };
+const FAILURE = {
+  source: "shell",
+  cause: { audience: "host", kind: "not-answering" },
+  name: "Rosa and Maya",
+  onRetry: fn(),
+} as const;
 
 const STATE = "GET /api/record/state";
 

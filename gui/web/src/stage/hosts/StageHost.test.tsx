@@ -408,14 +408,23 @@ describe("Prepare host", () => {
     }
   });
 
+  const cause = { audience: "host", kind: "other" } as const;
+  const shellFailure = (
+    onRetry: () => void,
+    extra: { trying?: boolean } = {},
+  ) => ({ source: "shell" as const, cause, name: "Rosa", onRetry, ...extra });
+
   it("says the project could not load and retries", async () => {
     asHost("prepare");
     useDawStore.setState({ project: null });
     const onRetry = vi.fn();
-    render(<StageHost loadFailure={{ message: "No answer.", onRetry }} />);
+    render(<StageHost loadFailure={shellFailure(onRetry)} />);
     expect(
       within(screen.getByRole("alert")).getByRole("heading"),
     ).toHaveTextContent("Could not load the project");
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      `ShareCut couldn't open "Rosa". If a newer version of ShareCut saved it, update ShareCut first.`,
+    );
     await userEvent.click(screen.getByRole("button", { name: "Try again" }));
     expect(onRetry).toHaveBeenCalledOnce();
   });
@@ -423,9 +432,7 @@ describe("Prepare host", () => {
   it("announces that the Review transcript did not load", () => {
     asHost("review");
     useDawStore.setState({ project: null });
-    render(
-      <StageHost loadFailure={{ message: "No answer.", onRetry: vi.fn() }} />,
-    );
+    render(<StageHost loadFailure={shellFailure(vi.fn())} />);
     expect(
       within(screen.getByRole("alert")).getByRole("heading"),
     ).toHaveTextContent("The transcript didn't load");
@@ -433,9 +440,7 @@ describe("Prepare host", () => {
 
   it("covers a stage whose project is already open when the load failed", () => {
     asHost("prepare");
-    render(
-      <StageHost loadFailure={{ message: "No answer.", onRetry: vi.fn() }} />,
-    );
+    render(<StageHost loadFailure={shellFailure(vi.fn())} />);
     expect(
       within(screen.getByRole("alert")).getByRole("button", {
         name: "Try again",
@@ -443,21 +448,26 @@ describe("Prepare host", () => {
     ).toBeInTheDocument();
   });
 
-  it("keeps the focused Try again button mounted while the retry runs", () => {
+  it("keeps the focused Try again button and the sentence in place while the retry runs", async () => {
     asHost("prepare");
     useDawStore.setState({ project: null });
-    const failure = { message: "No answer.", onRetry: vi.fn() };
+    const onRetry = vi.fn();
+    const failure = shellFailure(onRetry);
     const { rerender } = render(<StageHost loadFailure={failure} />);
     const retry = screen.getByRole("button", { name: "Try again" });
+    const sentence = screen.getByRole("alert").querySelector(".sys-cover-text");
+    const before = sentence?.textContent;
     retry.focus();
-    rerender(
-      <StageHost
-        loadFailure={{ ...failure, message: "Trying again…", recovering: true }}
-      />,
-    );
-    expect(screen.getByRole("button", { name: "Try again" })).toBe(retry);
+    await userEvent.click(retry);
+    rerender(<StageHost loadFailure={{ ...failure, trying: true }} />);
+    expect(onRetry).toHaveBeenCalledOnce();
+    expect(screen.getByRole("button", { name: "Trying…" })).toBe(retry);
     expect(retry).toHaveFocus();
     expect(retry).toHaveAttribute("aria-busy", "true");
+    expect(screen.getByRole("status")).toHaveTextContent("Trying again…");
+    expect(
+      screen.getByRole("alert").querySelector(".sys-cover-text")?.textContent,
+    ).toBe(before);
   });
 });
 

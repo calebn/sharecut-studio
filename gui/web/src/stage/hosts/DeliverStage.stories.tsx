@@ -84,7 +84,12 @@ const NO_TRACKS = episode({
   transcript: { utterances: [] },
 });
 
-const FAILURE = { message: "The server did not answer.", onRetry: fn() };
+const FAILURE = {
+  source: "shell",
+  cause: { audience: "host", kind: "not-answering" },
+  name: "Rosa and Maya",
+  onRetry: fn(),
+} as const;
 
 export const Ready: Story = {
   parameters: {
