@@ -5,7 +5,7 @@ const NAMING_ATTRIBUTES = [
   "aria-description",
 ];
 
-/** Everything a person reads or hears in `root`: its text and its naming attributes. */
+/** A screen reader speaks the naming attributes and a tooltip shows `title`, so a copy rule has to read them as well as the text. */
 export function readableText(root: HTMLElement): string[] {
   const out: string[] = [];
   const text = root.textContent?.trim();
@@ -17,4 +17,9 @@ export function readableText(root: HTMLElement): string[] {
     }
   }
   return out;
+}
+
+/** The strings in `root` that still name the room list "Notes". */
+export function notesNaming(root: HTMLElement): string[] {
+  return readableText(root).filter((text) => /\bnotes?\b/i.test(text));
 }

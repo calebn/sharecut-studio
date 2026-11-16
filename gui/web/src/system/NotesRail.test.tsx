@@ -185,6 +185,8 @@ describe("NotesRail", () => {
     const user = userEvent.setup();
     const onSend = vi.fn();
     setup({ draft: "Keep it", draftTime: null, onSend });
+    expect(send()).toHaveAttribute("title", "Post");
+    expect(send().querySelector("svg.lucide-arrow-up")).not.toBeNull();
     await user.click(send());
     expect(onSend).toHaveBeenCalledWith({
       text: "Keep it",
@@ -239,18 +241,21 @@ describe("NotesRail", () => {
     expect(screen.queryByRole("button", { name: "Everyone" })).toBeNull();
   });
 
-  it("disables the composer and names the reason when notes cannot be sent", async () => {
+  it("disables the composer and names the reason when comments cannot be posted", async () => {
     const user = userEvent.setup();
     const { props } = setup({
       draft: "A real note",
-      disabledReason: "Notes open when the take starts.",
+      disabledReason: "Comments open when the take starts.",
     });
     expect(field()).toBeDisabled();
     expect(field()).toHaveAccessibleDescription(
-      "Notes open when the take starts.",
+      "Comments open when the take starts.",
     );
     expect(send()).toHaveAttribute("aria-disabled", "true");
-    expect(send()).toHaveAttribute("title", "Notes open when the take starts.");
+    expect(send()).toHaveAttribute(
+      "title",
+      "Comments open when the take starts.",
+    );
     await user.click(send());
     expect(props.onSend).not.toHaveBeenCalled();
   });
