@@ -343,3 +343,18 @@ def test_redact_secrets_sees_a_secret_that_is_only_percent_encoded() -> None:
 
     assert "quokka" not in out
     assert "umbra" not in out
+
+
+@pytest.mark.parametrize(
+    ("text", "expected"),
+    [
+        (f"/r/{TOKEN}/ws", "/r/<share-token>/ws"),
+        (f"/api/review/{TOKEN}/daw/ws", "/api/review/<share-token>/daw/ws"),
+        (f"%2Fr%2F{TOKEN}", "%2Fr%2F<share-token>"),
+        (f"/r//{TOKEN}/ws", "/r//<share-token>/ws"),
+    ],
+)
+def test_redact_share_paths_keeps_the_separators_around_the_masked_token(
+    text: str, expected: str
+) -> None:
+    assert redact_share_paths(text) == expected
