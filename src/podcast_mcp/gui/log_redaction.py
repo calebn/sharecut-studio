@@ -65,7 +65,7 @@ def _without_query(value: Any) -> Any:
 
 
 def _scrub(value: Any) -> Any:
-    """The redacted text of ``value``; a route that carries a token also loses its query."""
+    """``value`` with every token route masked and, in its own text, the query of each such route dropped."""
     if isinstance(value, str):
         plain = _cut(str.__str__(value))
         decoded = _decoded(plain)
