@@ -255,7 +255,7 @@ flowchart TD
    **How to allow**, which retries; a lost device offers **Retry**. Then
    headphones: the **I'm wearing headphones** toggle on a laptop or tablet; on a
    phone **I'm wearing headphones** or **I'm not wearing headphones**, with a
-   warning about echo under the second. A **Storage** row comes first when the storage
+   warning about echo under the pair. A **Storage** row comes first when the storage
    check has a problem. **Join and record**
    stays disabled and names the first open row ("Add your name first", "Allow your
    microphone first", "Put on headphones first" (on a phone, "Say if you're wearing

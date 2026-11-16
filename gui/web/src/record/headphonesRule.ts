@@ -6,8 +6,7 @@ export const PHONE_SCREEN_MAX_SHORT_SIDE = 599;
 export type HeadphonesEnv = { coarsePrimary: boolean; screenShortSide: number };
 
 /**
- * A phone is a device with a coarse primary pointer and a screen whose short
- * side is under 600 CSS px. The screen, unlike the window, does not change with
+ * The screen, unlike the window, does not change with
  * resizing or rotation, so a narrow laptop window keeps the gate. A zero
  * screen (jsdom, no display) is not a phone.
  */

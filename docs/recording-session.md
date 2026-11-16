@@ -100,7 +100,7 @@ download; it is at most a lossy backup. Keepers must target WAV/PCM.
 | **Host** | Owns the episode; starts/stops/pauses; is also a recorded participant. |
 | **Live marker (comment)** | Same `TimelineComment` as review notes. `C` (host; a guest keeps `M`) posts `body` `"Marker"` — a live marker comment, **not** a `ChapterMarker` or a second type. Lands in `review.comments[]`. |
 | **Full-quality recording** (code: *keeper*) | Local dry WAV per recorded participant. UI status per participant and segment: "Saving to project…", then "Saved to project". |
-| **Monitor** | WebRTC send/receive graph (lossy, may use AEC). |
+| **Monitor** | WebRTC send/receive graph (lossy; the page asks for no echo cancellation). |
 | **Mix-minus** | Speaker bus plays remotes only; local capture never to destination. |
 | **Sidetone** | Optional 0 ms dry tap into headphones (gain-limited), never the WebRTC round-trip. |
 | **Chunk** | Upload unit of a closed keeper segment (30 s of PCM, the final part shorter). |
@@ -1988,8 +1988,8 @@ Python-side WAV assertions reuse
 
 **Why mix-minus is the hard one.** Electrical leak (local mic → own speakers,
 or subtracting a delayed self from a program mix) is a graph bug and **must
-fail CI**. Acoustic leak (speakers → room mic) is AEC on the monitor and
-cannot be fully automated. The mesh rule "never play local" makes the
+fail CI**. Acoustic leak (speakers → room mic) is not something the page cancels
+(it asks for no echo cancellation) and cannot be fully automated. The mesh rule "never play local" makes the
 electrical case a **connectivity assertion**.
 
 ### Mix-minus + keeper bars (CI, `OfflineAudioContext`, synthetic tones)
