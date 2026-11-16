@@ -662,7 +662,7 @@ describe("JoinSheet producer", () => {
 
 const NOT_WEARING = "I'm not wearing headphones";
 const NOTE =
-  "Without headphones, the others may hear an echo and be heard in your recording. Keep your volume low.";
+  "Others may hear their own echo and be heard in your recording. Keep your volume low.";
 
 function PhoneHarness({ onChange }: { onChange?: (choice: string) => void }) {
   const [headphones, setHeadphones] = useState<"unset" | "on" | "off">("unset");
@@ -691,6 +691,11 @@ describe("JoinSheet headphones on a phone", () => {
       within(group).getByRole("button", { name: NOT_WEARING }),
     ).toHaveAttribute("aria-pressed", "false");
     expect(group.querySelector(".lucide-check")).toBeNull();
+    expect(
+      within(group)
+        .getAllByRole("button")
+        .map((button) => button.textContent),
+    ).toEqual(["Wearing", "Not wearing"]);
     const join = primary("Join and record");
     expect(join).toBeDisabled();
     expect(join).toHaveAccessibleDescription(

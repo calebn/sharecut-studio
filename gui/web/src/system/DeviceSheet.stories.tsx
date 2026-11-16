@@ -293,7 +293,7 @@ export const PhoneNotWearingHeadphones: Story = {
       dialog.getByRole("button", { name: "I'm not wearing headphones" }),
     ).toHaveAttribute("aria-pressed", "true");
     await expect(
-      dialog.getByText(/Without headphones, the others may hear an echo/),
+      dialog.getByText(/Others may hear their own echo/),
     ).toBeVisible();
   },
 };

@@ -1146,8 +1146,10 @@ enforced-by:
 
 The Headphones row follows the device. On a laptop or a tablet it is the single toggle
 "I'm wearing headphones", and until it is on the reason reads "Put on headphones first". On a
-phone it is a pair of buttons, "I'm wearing headphones" and "I'm not wearing headphones",
-neither pressed until the guest answers; until then the reason reads "Say if you're wearing
+phone it is a pair of buttons side by side, labelled "Wearing" and "Not wearing" (their
+names for assistive tech are "I'm wearing headphones" and "I'm not wearing headphones"), each
+at least 44 px tall, neither pressed until the guest answers; the pressed one shows a check
+in place of its headphones glyph, and choosing "Not wearing" scrolls the warning into view; until then the reason reads "Say if you're wearing
 headphones first", and either answer lets **Join and record** work. "I'm not wearing headphones"
 shows, under the pair, "Without headphones, the others may hear an echo and be heard in your
 recording. Keep your volume low." The Device sheet holds the same control, and a press applies
@@ -1443,7 +1445,7 @@ stateDiagram-v2
 | Situation | Copy |
 |-----------|------|
 | Headphones, laptop or tablet | Toggle "I'm wearing headphones"; until it is on, Join and record reads "Put on headphones first" |
-| Headphones, phone | Buttons "I'm wearing headphones" and "I'm not wearing headphones"; until one is pressed, Join and record reads "Say if you're wearing headphones first"; not wearing shows "Without headphones, the others may hear an echo and be heard in your recording. Keep your volume low." |
+| Headphones, phone | Buttons "I'm wearing headphones" and "I'm not wearing headphones"; until one is pressed, Join and record reads "Say if you're wearing headphones first"; not wearing shows "Others may hear their own echo and be heard in your recording. Keep your volume low." |
 | Mic grant | "Allow microphone" |
 | Mic blocked | Row title "Microphone blocked", **How to allow** (retries), and "Microphone is blocked for this site. Allow it in your browser's site settings, then Retry." |
 | Mic blocked in the macOS or Windows Tauri desktop app | "Microphone access is blocked by your operating system. Allow ShareCut Studio in your system microphone privacy settings, then Retry." |
