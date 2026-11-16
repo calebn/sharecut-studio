@@ -82,7 +82,7 @@ function observeRoster(
 /**
  * The one polite line a screen reader hears from the room: who joined or left,
  * and what someone else just wrote. What is already there on first render, and
- * your own notes, stay silent. Render the text in a `PoliteAnnouncer`.
+ * your own comments, stay silent. Render the text in a `PoliteAnnouncer`.
  */
 export function useRosterAnnouncer(
   snapshot: RecordSnapshot | null,
