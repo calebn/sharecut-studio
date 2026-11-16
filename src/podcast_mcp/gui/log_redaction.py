@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import logging
 from typing import Any
+from urllib.parse import unquote
 
 from podcast_mcp.util.redact import redact_share_paths
 
@@ -19,26 +20,23 @@ UVICORN_LOGGERS = ("uvicorn.access", "uvicorn.error", "uvicorn.asgi")
 def _scrub(value: Any) -> Any:
     """The redacted text of ``value``; a route that carries a token also loses its query.
 
-    The query of a guest WebSocket holds the guest's name and client id.
+    The query of a guest WebSocket holds the guest's name and client id. A value that is not
+    text is kept as it is unless its text, once percent-decoded, holds a token.
     """
-    if isinstance(value, dict):
-        return _scrub_scope(value)
-    if not isinstance(value, str):
+    if isinstance(value, str):
+        path, separator, _query = value.partition("?")
+        redacted_path = redact_share_paths(path)
+        if separator and redacted_path != path:
+            return redacted_path
+        return redact_share_paths(value)
+    if value is None or isinstance(value, int | float):
         return value
-    path, separator, _query = value.partition("?")
-    redacted_path = redact_share_paths(path)
-    if separator and redacted_path != path:
-        return redacted_path
-    return redact_share_paths(value)
-
-
-def _scrub_scope(scope: dict[Any, Any]) -> Any:
-    """An ASGI scope (logged at trace level) as text without its token, or itself if clean."""
-    text = repr(scope)
-    redacted = redact_share_paths(text)
-    if redacted == text:
-        return scope
-    return redact_share_paths(repr({**scope, "query_string": b""}))
+    text = unquote(str(value))
+    if redact_share_paths(text) == text:
+        return value
+    if isinstance(value, dict) and "query_string" in value:
+        text = unquote(str({**value, "query_string": b""}))
+    return redact_share_paths(text)
 
 
 class ShareTokenFilter(logging.Filter):
@@ -46,6 +44,11 @@ class ShareTokenFilter(logging.Filter):
         record.msg = _scrub(record.msg)
         if isinstance(record.args, tuple):
             record.args = tuple(_scrub(arg) for arg in record.args)
+        elif isinstance(record.args, dict):
+            scrubbed = {key: _scrub(arg) for key, arg in record.args.items()}
+            if "query_string" in scrubbed and scrubbed != record.args:
+                scrubbed["query_string"] = b""
+            record.args = scrubbed
         return True
 
 
