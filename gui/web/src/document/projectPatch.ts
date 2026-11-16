@@ -627,6 +627,7 @@ export function commentFromCommandResult(
   return null;
 }
 
+/** Bounds this close are the same bound (float noise); placing an endpoint on a clip uses the looser `ENDPOINT_EPSILON_SEC`. */
 const PENDING_BOUND_EPSILON = 1e-9;
 
 /** One edge of a pending edit put at `sourceSec` on the source clock and `timelineSec` on the timeline. */

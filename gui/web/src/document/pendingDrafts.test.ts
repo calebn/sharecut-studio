@@ -352,6 +352,38 @@ describe("a queued pending-edit range draft", () => {
     clearPreviewDraft("start", owner);
   });
 
+  it("holds both bounds of two queued saves on alternating edges until each command finishes", () => {
+    save("c1", { end: 25, expected });
+    save("c2", {
+      start: 19,
+      end: 25,
+      expected: { ...expected, end: 25 },
+    });
+    expect(range(overlayDocumentDrafts(base))).toEqual([19, 25, 25]);
+    finishDocumentDraft("c1");
+    expect(range(overlayDocumentDrafts(base))).toEqual([19, 24, 24]);
+    finishDocumentDraft("c2");
+    expect(overlayDocumentDrafts(base)).toBe(base);
+  });
+
+  it("drops a failed first save's bound and keeps the second save's", () => {
+    save("c1", { end: 25, expected });
+    save("c2", { start: 19, expected: { ...expected, end: 25 } });
+    finishDocumentDraft("c1");
+    expect(range(overlayDocumentDrafts(base))).toEqual([19, 24, 24]);
+  });
+
+  it("keeps a replayed older save of one edge beside a newer save of the other", () => {
+    save("newer", { start: 19, expected });
+    beginDocumentDraft(
+      "older",
+      "UpdatePendingEdit",
+      { id: "p1", start: 20, end: 25, snap: false, expected },
+      true,
+    );
+    expect(range(overlayDocumentDrafts(base))).toEqual([19, 25, 25]);
+  });
+
   it("is cleared by a scope change", () => {
     save("c1", { end: 25, expected });
     resetDocumentAuthority("/tmp/other.json");

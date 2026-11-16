@@ -25,6 +25,11 @@ type Draft =
       curves: ClipFadeCurves;
     }
   | { kind: "gain"; clipId: string; gainDb: number }
+  /**
+   * One saved bound of a pending edit, keyed per edge so a save of the other
+   * edge never replaces it. A save that sends no baseline (the overlay drag)
+   * holds both bounds.
+   */
   | { kind: "pendingRange"; editId: string; start?: number; end?: number }
   /** A held control's local preview, a function of the latest project (not a copy of one). */
   | {
@@ -164,11 +169,12 @@ export function beginDocumentDraft(
       if (typeof value !== "number" || !Number.isFinite(value)) return;
       bounds[key] = value;
     }
-    if (bounds.start !== undefined || bounds.end !== undefined)
-      entries.push([
-        `pendingRange:${payload.id}`,
-        { kind: "pendingRange", editId: payload.id, ...bounds },
-      ]);
+    for (const key of ["start", "end"] as const)
+      if (bounds[key] !== undefined)
+        entries.push([
+          `pendingRange:${payload.id}:${key}`,
+          { kind: "pendingRange", editId: payload.id, [key]: bounds[key] },
+        ]);
   } else if (typeof track === "string") {
     if (
       type === DocumentCommand.ReorderTrack &&
