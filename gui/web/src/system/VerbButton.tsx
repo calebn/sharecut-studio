@@ -14,6 +14,8 @@ type Props = Omit<
   /** Overrides the verb label as the accessible name. */
   label?: string;
   size?: number;
+  /** A visible word under the icon. The accessible name stays the verb's label. */
+  caption?: string;
 };
 
 /** An icon-only button named from the verb table, with the key in its tooltip. */
@@ -22,6 +24,7 @@ export function VerbButton({
   alt,
   label,
   size = 16,
+  caption,
   className,
   ...rest
 }: Props) {
@@ -37,6 +40,11 @@ export function VerbButton({
       {...rest}
     >
       {icon ? <SystemIcon name={icon} size={size} /> : null}
+      {caption ? (
+        <span className="sys-dock-label" aria-hidden="true">
+          {caption}
+        </span>
+      ) : null}
     </button>
   );
 }

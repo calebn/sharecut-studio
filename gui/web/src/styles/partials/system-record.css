@@ -170,6 +170,43 @@
   cursor: not-allowed;
 }
 
+/* A labelled dock (a guest or producer on a phone, which has no tooltip to hover):
+   the word hangs in the margin under its disc, bottom-aligned so the 64 and 48 px
+   discs share one baseline of words. */
+.sys-dock[data-labelled] {
+  min-block-size: 6.75rem;
+}
+
+.sys-dock[data-labelled] .sys-dock-center,
+.sys-dock[data-labelled] .sys-dock-far {
+  align-items: flex-end;
+}
+
+.sys-dock[data-labelled] .sys-dock-btn:has(> .sys-dock-label) {
+  margin-block-end: calc(var(--space-1) + 1rem);
+}
+
+.sys-dock-label {
+  position: absolute;
+  inset-block-start: calc(100% + var(--space-1));
+  inset-inline-start: 50%;
+  translate: -50% 0;
+  color: var(--color-text-primary);
+  font-size: var(--font-size-small);
+  line-height: 1rem;
+  white-space: nowrap;
+}
+
+/* A held Leave dims its disc and glyph but keeps the word at full strength. */
+.sys-dock[data-labelled] .sys-dock-btn[aria-disabled="true"] {
+  opacity: 1;
+  border-color: var(--color-border-subtle);
+}
+
+.sys-dock[data-labelled] .sys-dock-btn[aria-disabled="true"] > svg {
+  opacity: 0.5;
+}
+
 .sys-dock-badge {
   position: absolute;
   inset-block-start: calc(-1 * var(--space-1));

@@ -34,6 +34,8 @@ export type RecordDockProps = {
   unreadNotes?: number;
   /** False drops the Comments toggle where another control already opens the list. */
   notes?: boolean;
+  /** Prints a word under each round control, for a dock with no tooltips to hover. */
+  labelled?: boolean;
   notesOpen?: boolean;
   dock?: RecordDockMode;
   /** The Done primary's handler, shown when `dock` is `done`. */
@@ -62,6 +64,7 @@ export function RecordDock({
   showComment = true,
   unreadNotes = 0,
   notes: showNotes = true,
+  labelled = false,
   notesOpen = false,
   dock = CONTROLS,
   onDone,
@@ -82,6 +85,12 @@ export function RecordDock({
     "aria-describedby": leaveHeld ? hintId : undefined,
     onClick: leaveHeld ? hint.show : onExit,
   });
+  const word = (text: string) =>
+    labelled ? (
+      <span className="sys-dock-label" aria-hidden="true">
+        {text}
+      </span>
+    ) : null;
   const mute = (
     <button
       type="button"
@@ -94,6 +103,7 @@ export function RecordDock({
         name={muted ? "mic-off" : "mic"}
         size={seat === "guest" ? 24 : 20}
       />
+      {word(muted ? "Unmute" : "Mute")}
     </button>
   );
   const comment = showComment ? (
@@ -105,6 +115,7 @@ export function RecordDock({
           : "sys-dock-btn"
       }
       size={seat === "producer" ? 24 : 20}
+      caption={labelled ? "Comment" : undefined}
       onClick={onComment}
     />
   ) : null;
@@ -185,6 +196,7 @@ export function RecordDock({
     <div
       className="sys-dock"
       data-seat={seat}
+      data-labelled={labelled ? "" : undefined}
       role="group"
       aria-label="Recording controls"
     >
@@ -209,6 +221,7 @@ export function RecordDock({
             {...exit(onLeave, "Leave room")}
           >
             <SystemIcon name="door-open" size={20} />
+            {word("Leave")}
           </button>
         )}
       </div>
