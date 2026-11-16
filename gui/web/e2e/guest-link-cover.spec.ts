@@ -1,4 +1,5 @@
 import { expect, type Locator, type Page, test } from "@playwright/test";
+import { fontsReady } from "./fontsReady";
 import { withShareableProject } from "./shareableProject";
 import { createReviewShare, openHostShare } from "./shareNavigation";
 import { withBrowserPages } from "./twoBrowserPages";
@@ -112,6 +113,7 @@ for (const size of SIZES) {
         const main = guest.getByRole("main");
         const button = main.getByRole("button", { name: "Try now" });
         await expect(button).toBeVisible();
+        await fontsReady(guest);
         const rest = await button.boundingBox();
 
         holding = true;
@@ -140,6 +142,7 @@ for (const size of SIZES) {
         await guest.clock.runFor(4_500);
         const retry = guest.getByRole("button", { name: "Retry" });
         await expect(retry).toBeVisible();
+        await fontsReady(guest);
         const rest = await retry.boundingBox();
         await press(retry, size.touch);
         const busy = guest.getByRole("button", { name: "Trying…" });
@@ -160,6 +163,7 @@ for (const size of SIZES) {
         const main = guest.getByRole("main");
         const button = main.getByRole("button", { name: "Try now" });
         await expect(button).toBeVisible();
+        await fontsReady(guest);
         await press(button, size.touch);
         const status = main.getByRole("status").getByText("Still asleep.");
         await expect(status).toBeVisible();
