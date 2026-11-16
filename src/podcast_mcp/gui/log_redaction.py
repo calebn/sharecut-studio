@@ -36,7 +36,8 @@ def _scrub(value: Any) -> Any:
         redacted_path = redact_share_paths(path)
         if separator and redacted_path != path:
             return redacted_path
-        return redact_share_paths(value)
+        redacted = redact_share_paths(value)
+        return value if redacted == value else redacted
     text = _text(value)
     if text is None or redact_share_paths(text) == text:
         return value
@@ -50,11 +51,11 @@ class ShareTokenFilter(logging.Filter):
         record.msg = _scrub(record.msg)
         if isinstance(record.args, tuple):
             scrubbed_args = tuple(_scrub(arg) for arg in record.args)
-            if scrubbed_args != record.args:
+            if any(new is not old for new, old in zip(scrubbed_args, record.args, strict=True)):
                 record.args = scrubbed_args
         elif isinstance(record.args, Mapping):
             scrubbed = {key: _scrub(arg) for key, arg in record.args.items()}
-            if any(scrubbed[key] != arg for key, arg in record.args.items()):
+            if any(scrubbed[key] is not arg for key, arg in record.args.items()):
                 if "query_string" in scrubbed:
                     scrubbed["query_string"] = b""
                 record.args = scrubbed

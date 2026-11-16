@@ -263,3 +263,42 @@ def test_a_tuple_without_a_token_stays_the_same_object() -> None:
     ShareTokenFilter().filter(record)
 
     assert record.args is args
+
+
+class _NoEquality:
+    def __eq__(self, other: object) -> bool:
+        raise RuntimeError("compared")
+
+    def __ne__(self, other: object) -> bool:
+        raise RuntimeError("compared")
+
+    __hash__ = None  # type: ignore[assignment]
+
+    def __repr__(self) -> str:
+        return "opaque"
+
+
+@pytest.mark.parametrize(
+    "arg",
+    [OrderedDict(a=float("nan")), OrderedDict(a=_NoEquality())],
+    ids=["nan", "raising-eq"],
+)
+def test_a_mapping_is_never_compared_to_decide_whether_it_changed(
+    arg: Mapping[str, object],
+) -> None:
+    record = logging.LogRecord("uvicorn.error", logging.INFO, __file__, 1, "%s", (arg,), None)
+    before = record.getMessage()
+
+    ShareTokenFilter().filter(record)
+
+    assert record.args is arg
+    assert record.getMessage() == before
+
+
+def test_a_tuple_is_never_compared_to_decide_whether_it_changed() -> None:
+    args = (_NoEquality(), "x")
+    record = logging.LogRecord("uvicorn.error", logging.INFO, __file__, 1, "%s %s", args, None)
+
+    ShareTokenFilter().filter(record)
+
+    assert record.args is args
