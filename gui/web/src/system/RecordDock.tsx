@@ -32,6 +32,8 @@ export type RecordDockProps = {
   showComment?: boolean;
   /** Unread comments, shown as a count on the Comments button. */
   unreadNotes?: number;
+  /** False drops the Comments toggle where another control already opens the list. */
+  notes?: boolean;
   notesOpen?: boolean;
   dock?: RecordDockMode;
   /** The Done primary's handler, shown when `dock` is `done`. */
@@ -59,6 +61,7 @@ export function RecordDock({
   muted = false,
   showComment = true,
   unreadNotes = 0,
+  notes: showNotes = true,
   notesOpen = false,
   dock = CONTROLS,
   onDone,
@@ -105,7 +108,7 @@ export function RecordDock({
       onClick={onComment}
     />
   ) : null;
-  const notes = (
+  const notes = showNotes ? (
     <button
       type="button"
       className="sys-dock-btn sys-dock-notes"
@@ -123,7 +126,7 @@ export function RecordDock({
         </span>
       ) : null}
     </button>
-  );
+  ) : null;
 
   let center: ReactNode;
   if (dock.kind !== "controls") {
