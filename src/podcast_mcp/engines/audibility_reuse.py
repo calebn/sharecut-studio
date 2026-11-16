@@ -125,7 +125,7 @@ def shared_rows(
     config = {k: v for k, v in defaults.items() if not k.startswith(_RUNTIME_HOOK_PREFIX)}
     with run.lock:
         if run.defaults is None:
-            run.defaults = config
+            run.defaults = copy.deepcopy(config)
         else:
             try:
                 same = bool(run.defaults == config)
