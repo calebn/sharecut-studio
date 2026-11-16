@@ -3,7 +3,11 @@ import { type GuestLoadFailure, guestLoadCover } from "../../guestLoadFailure";
 import { useShortLayoutViewport } from "../../hooks/useShortLayoutViewport";
 import type { UnsentText } from "../../state/unsentText";
 import { Cover } from "../../system/Cover";
-import { useCoverPress } from "../../system/useCoverPress";
+import {
+  RETRY_ACTION,
+  TRYING_LABEL,
+  useCoverPress,
+} from "../../system/useCoverPress";
 import { NOT_SERVED_TITLE, type NotServed } from "../../utils/notServed";
 
 const COPIED_MS = 3_000;
@@ -119,6 +123,8 @@ export function GuestPageCover({
   const titleRef = useRef<HTMLHeadingElement>(null);
   const { title } = cover;
   const { busy, status, press } = useCoverPress({
+    scope: mainRef,
+    title: titleRef,
     key: title,
     trying,
     stillFailing: cover.stillFailing,
@@ -158,7 +164,8 @@ export function GuestPageCover({
                     onRetry();
                   },
                   busy,
-                  busyLabel: "Trying…",
+                  busyLabel: TRYING_LABEL,
+                  actionId: RETRY_ACTION,
                 }
               : undefined
         }
