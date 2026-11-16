@@ -101,7 +101,7 @@ class BuildInputs:
     signing: Signing
     team: Secret | None
     checkout: Checkout
-    key: AscKey | None = None
+    key: AscKey | None
 
 
 @dataclass(frozen=True)

@@ -462,10 +462,10 @@ def test_a_signed_archive_and_export_leak_the_key_into_no_log_tail_output_or_rec
     out.mkdir()
     ws = release_plan.Workspace(out=out, ipa=out / "a.ipa", sha256="0" * 64)
     release_plan.write_build_record(ws, inputs)
-    for written in out.rglob("*"):
-        if written.is_file():
-            body = written.read_text()
-            assert KEY_ID not in body and ISSUER not in body and "/k.p8" not in body
+    record_file = out / "release.json"
+    assert record_file.is_file()
+    body = record_file.read_text()
+    assert KEY_ID not in body and ISSUER not in body and "/k.p8" not in body
 
 
 def test_the_unsigned_plan_signs_nothing_and_contacts_nobody() -> None:
@@ -788,7 +788,7 @@ def test_signing_failures_get_one_sentence(tail: str, fragment: str) -> None:
     assert release_classify.signing_hint("compiler error") is None
 
 
-def test_the_certificate_and_key_hints_name_both_fixes_whichever_line_comes_first() -> None:
+def test_the_certificate_and_cloud_signing_hints_name_both_fixes_in_either_line_order() -> None:
     cloud = "error: Cloud signing permission error"
     certificate = 'error: No signing certificate "iOS Distribution" found'
     for tail in (f"{certificate}\n{cloud}", f"{cloud}\n{certificate}"):
