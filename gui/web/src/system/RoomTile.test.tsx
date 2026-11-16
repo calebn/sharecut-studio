@@ -193,6 +193,12 @@ describe("your own tile", () => {
     expect(onPress).toHaveBeenCalledOnce();
   });
 
+  it("hides the (you) and the Devices cue from assistive tech, the group name and button say them", () => {
+    render(<RoomTile {...live({ you: true, onPress: vi.fn() })} />);
+    expect(screen.getByText("(you)")).toHaveAttribute("aria-hidden", "true");
+    expect(screen.getByText("Devices")).toHaveAttribute("aria-hidden", "true");
+  });
+
   it("without a handler says (you) and shows no Devices cue", () => {
     render(<RoomTile {...live({ you: true })} />);
     expect(screen.getByText("(you)")).toBeInTheDocument();
