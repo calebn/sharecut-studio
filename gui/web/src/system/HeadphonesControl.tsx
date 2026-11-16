@@ -8,7 +8,6 @@ import {
 } from "./joinSheetModel";
 import { SystemIcon } from "./SystemIcon";
 
-/** On `choice` neither button is pressed until the guest answers. */
 export function HeadphonesControl({
   rule,
   choice,
