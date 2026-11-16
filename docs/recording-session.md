@@ -244,9 +244,9 @@ is). If an insert or replace room's staging land is undone from History, its upl
 read as landed, so no warning appears; `podcast record land` stages it again.
 
 Shipped record caps: `join` (be recorded), `monitor` (hear the room), `comment`
-(live notes — **same create path as review comments**, kind-scoped ACL: guests
-see every marker and their own notes until landing, plus other people's text
-notes when the host turns on the room setting `guests_see_notes`, set with the
+(live comments — **same create path as review comments**, kind-scoped ACL: guests
+see every marker and their own comments until landing, plus other people's text
+comments when the host turns on the room setting `guests_see_notes`, set with the
 host-only `SetGuestsSeeNotes` command from the Record More sheet; off by
 default, reset to off for each new room, producers cannot change it yet). Later:
 `control` (start/stop/pause), `talk` (producer push-to-talk), `video`. Roles are a
@@ -890,7 +890,7 @@ Saving:
   that guest clipped. Nothing is added to the record wire.
 - *Guest:* only their own clipping, read from their OPFS keeper metadata for every
   finished take (`useTakeClipping` for the current take, `usePastTakeClipping` for
-  earlier ones). The guest room gets a Takes tab in its Notes rail only once one of
+  earlier ones). The guest room gets a Takes tab in its Comments rail only once one of
   their takes clipped; it lists the clipped takes with their own line and no Hear.
   A producer has none.
 
@@ -937,7 +937,7 @@ Host-only `SetTarget` (payload `{"target": {"kind": "end"}}`, or a bare `"end"` 
 `POST /api/record/command`, `RecordControlService.set_target()`, `podcast record target end` and
 `record_target_tool` (`daw.record.setTarget`, command `record.setTarget`).
 
-**Guests see notes.** Host-only `SetGuestsSeeNotes` (payload `{"enabled": true}` or `{"enabled": false}`; `enabled` must be a real boolean, anything else is `invalid_record_request`) sets the snapshot field `guests_see_notes` (default `false`). It is accepted in every state (lobby, recording, paused, stopped), is idempotent, and reaches the room through `POST /api/record/command` and `RecordControlService.set_guests_see_notes()` (no CLI command or MCP tool yet; tracked in #3068). A guest always sees their own live comments and every marker, including other guests' markers; other people's text notes only while the setting is on. A comment whose stored body is exactly `Marker` counts as a marker (the server trims surrounding spaces when it stores a comment, so a typed `Marker` with spaces counts too), even when typed as text. The filter applies to every guest-facing record event and snapshot (WebSocket join snapshot, `Applied` fanout and echoes); the host and producers always see all comments.
+**Guests see comments.** Host-only `SetGuestsSeeNotes` (payload `{"enabled": true}` or `{"enabled": false}`; `enabled` must be a real boolean, anything else is `invalid_record_request`) sets the snapshot field `guests_see_notes` (default `false`). It is accepted in every state (lobby, recording, paused, stopped), is idempotent, and reaches the room through `POST /api/record/command` and `RecordControlService.set_guests_see_notes()` (no CLI command or MCP tool yet; tracked in #3068). A guest always sees their own live comments and every marker, including other guests' markers; other people's text comments only while the setting is on. A comment whose stored body is exactly `Marker` counts as a marker (the server trims surrounding spaces when it stores a comment, so a typed `Marker` with spaces counts too), even when typed as text. The filter applies to every guest-facing record event and snapshot (WebSocket join snapshot, `Applied` fanout and echoes); the host and producers always see all comments.
 
 | Rule | Behavior |
 |------|----------|
@@ -1112,7 +1112,7 @@ title is "Join the room", or "{Names} is here" (one person) / "{Names} are here"
 problem), **Your name**, **Microphone** and **Headphones** ("I'm wearing headphones"). **Join and record** stays disabled and names the first
 row still open as its reason ("Add your name first", "Allow your microphone
 first", "Put on headphones first", "Fix storage first"). A producer sees the name
-row and **Join to listen** ("You'll listen and take notes. You won't be
+row and **Join to listen** ("You'll listen and comment. You won't be
 recorded."); producers skip the mic, storage and headphones rows.
 
 The sheet is one `Dialog` at every width, and the room's 600 rule decides its shape
@@ -1160,7 +1160,7 @@ The `/rec` route does not wait for the host's feature list. While the room code
 blank for 300 ms, then blocks, **Still loading…** with **Retry** at 4 s, which reloads the
 page) with the hidden status "Joining the room…". Once the code is loaded, the guest room
 shows the Room shell at once instead of a blank screen: placeholder tiles (`RoomView` with
-`loading`), a dimmed inert dock, no status pill or Notes rail. After 4 s
+`loading`), a dimmed inert dock, no status pill or Comments rail. After 4 s
 (`SKELETON_RETRY_MS`) the alert slot adds "Still connecting…" with **Retry**, which looks
 the room up again, moves focus to the page title and restarts the 4 s count. This shell
 belongs to the guest and producer link; the host's own seat in the Record stage is
@@ -1231,7 +1231,7 @@ alternate local sink path.
 **In the room** a guest sees the status pill (`Waiting for {host} to start`,
 `Stay quiet · m:ss`, `m:ss · Take N`, `Paused · m:ss`, `Saving · N%`, `Saved`,
 `m:ss · Reconnecting…` while this page's own room connection is down on a live take,
-`Paused · Reconnecting…` on a paused one), a tile per person, the notes rail (a composer
+`Paused · Reconnecting…` on a paused one), a tile per person, the Comments rail (a composer
 enabled while a take runs; the `M` key adds a marker), Mute and Leave, and alerts in one
 slot: "Your mic stopped." (**Reconnect mic**), "No sound is reaching the recorder."
 (**Check mic**), "This device couldn't save the recording.", "Saving stopped."
@@ -1243,7 +1243,7 @@ left or dropped while this page is connected), "You can't hear the room. Recordi
 fine." (**Retry**), "You're clipping. Move back a little." (after the third clip in 30 s)
 and "You're muted." (after 10 s of speech while muted). Hidden screen-reader lines
 announce "Recording in full quality on this device.", "Hearing the room.", joins, leaves
-and other people's new notes. **Leave** is held while a take runs ("You can leave after
+and other people's new comments. **Leave** is held while a take runs ("You can leave after
 this take."), while this guest's own upload is moving ("Your recording is still
 saving"), while the keeper is still writing the take ("Your recording is still
 finishing") and while room tone records on this device ("Finish or cancel the room tone
