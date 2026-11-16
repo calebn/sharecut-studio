@@ -209,7 +209,7 @@ export const GuestLiveMuted: Story = {
       "Leave room",
     ]);
     await expect(
-      within(canvasElement).getByRole("group", { name: /Jon, muted/ }),
+      within(canvasElement).getByRole("group", { name: /Jon, you, muted/ }),
     ).toBeInTheDocument();
   },
 };
@@ -446,11 +446,7 @@ export const GuestWaitingPhone: Story = {
   play: async ({ canvasElement }) => {
     await expect(tileCount(canvasElement)).toBe(2);
     await expect(peekText(canvasElement)).toContain("No comments yet");
-    await expect(dockNames(canvasElement)).toEqual([
-      "Mute",
-      "Comments",
-      "Leave room",
-    ]);
+    await expect(dockNames(canvasElement)).toEqual(["Mute", "Leave room"]);
   },
 };
 
@@ -495,6 +491,25 @@ export const LoadingPhone: Story = {
   },
 };
 
+const LONG_TITLE = "Aligned dialogue and the long road";
+
+export const GuestWaitingPhoneLongTitle: Story = {
+  args: {
+    ...phone,
+    title: LONG_TITLE,
+    people: [HOST, JON_YOU],
+    phase: WAITING,
+    notes: [],
+  },
+  play: async ({ canvasElement }) => {
+    const title = within(canvasElement).getByRole("heading", { level: 1 });
+    await expect(title).toHaveTextContent(LONG_TITLE);
+    await expect(title.scrollHeight).toBeLessThanOrEqual(
+      title.clientHeight + 1,
+    );
+  },
+};
+
 export const GuestLivePhone: Story = {
   args: {
     ...phone,
@@ -509,7 +524,6 @@ export const GuestLivePhone: Story = {
     await expect(dockNames(canvasElement)).toEqual([
       "Mute",
       "Comment",
-      "Comments",
       "Leave room",
     ]);
   },
@@ -521,7 +535,7 @@ export const GuestLivePhoneNotesSheet: Story = {
   play: async ({ canvasElement, viewMode }) => {
     if (viewMode === "docs") return;
     const dialog = await openDialogByLauncher(canvasElement, {
-      launcherName: "Comments",
+      launcherName: /^Comments/,
       dialogName: "Comments",
     });
     await expect(
@@ -547,11 +561,7 @@ export const ProducerPhone: Story = {
     await expect(peekText(canvasElement)).toContain(
       "Jon: My own note, kept for me.",
     );
-    await expect(dockNames(canvasElement)).toEqual([
-      "Comment",
-      "Comments",
-      "Leave room",
-    ]);
+    await expect(dockNames(canvasElement)).toEqual(["Comment", "Leave room"]);
   },
 };
 

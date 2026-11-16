@@ -376,7 +376,11 @@ export function RoomView({
                     <RoomTile
                       key={tile.key}
                       {...(tile.props.presence === "live" && tile.props.isMe
-                        ? { ...tile.props, onPress: onSelfPress }
+                        ? {
+                            ...tile.props,
+                            onPress: onSelfPress,
+                            you: !embedded,
+                          }
                         : tile.props)}
                     />
                   ),

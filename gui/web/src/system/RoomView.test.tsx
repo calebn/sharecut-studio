@@ -55,7 +55,7 @@ describe("RoomView", () => {
     expect(
       screen.getByRole("group", { name: "Maya Okafor, host" }),
     ).toBeVisible();
-    expect(screen.getByRole("group", { name: "Jon" })).toBeVisible();
+    expect(screen.getByRole("group", { name: "Jon, you" })).toBeVisible();
     expect(document.querySelectorAll(".sys-room-host")).toHaveLength(1);
   });
 

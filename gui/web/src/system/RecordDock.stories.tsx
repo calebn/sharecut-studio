@@ -159,3 +159,22 @@ export const RecordProducer: Story = {
     ]);
   },
 };
+
+export const GuestPhoneLabelled: Story = {
+  args: { seat: "guest", record: undefined, labelled: true, notes: false },
+  play: async ({ canvasElement }) => {
+    await expect(buttonNames(canvasElement)).toEqual([
+      "Mute",
+      "Comment",
+      "Leave room",
+    ]);
+    await expect(within(canvasElement).getByText("Leave")).toBeVisible();
+  },
+};
+
+export const ProducerPhoneLabelled: Story = {
+  args: { seat: "producer", record: undefined, labelled: true, notes: false },
+  play: async ({ canvasElement }) => {
+    await expect(buttonNames(canvasElement)).toEqual(["Comment", "Leave room"]);
+  },
+};

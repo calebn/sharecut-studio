@@ -16,7 +16,10 @@ const isRunning = (animation: Animation) =>
  */
 export async function openDialogByLauncher(
   canvasElement: HTMLElement,
-  { launcherName, dialogName }: { launcherName: string; dialogName: string },
+  {
+    launcherName,
+    dialogName,
+  }: { launcherName: string | RegExp; dialogName: string },
 ): Promise<HTMLElement> {
   if (!within(document.body).queryByRole("dialog", { name: dialogName })) {
     await userEvent.click(
