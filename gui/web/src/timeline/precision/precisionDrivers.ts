@@ -4,7 +4,6 @@ import {
   supersedePreview,
 } from "../../document/applyDocumentUpdate";
 import { currentDocumentSeq } from "../../document/cursor";
-import { revertOptimisticIfUnchanged } from "../../document/optimisticRevert";
 import {
   NUDGE_KINDS,
   type NudgeField,
@@ -55,7 +54,6 @@ export function nudgeDriver(field: NudgeField, name: string): PrecisionDriver {
   let seq = 0;
   let preview: ProjectView | null = null;
   let value = Number.NaN;
-  const asDraft = previewsAsDraft(field);
   const key = nudgeKey(field);
   const end = () => {
     const ended = { from: origin, shown: preview, owner: token };
@@ -64,29 +62,22 @@ export function nudgeDriver(field: NudgeField, name: string): PrecisionDriver {
     token = null;
     return ended;
   };
-  const revert = (
-    from: ProjectView | null,
-    shown: ProjectView | null,
-    owner: symbol | null,
-  ) => {
-    if (asDraft) {
-      if (!owner) return;
-      const shown = useDawStore.getState().project;
-      if (
-        from &&
-        currentDocumentSeq() <= seq &&
-        shown &&
-        nudgeAxis(shown, field)?.value === value
-      )
-        endPreview(key, owner, (p) => withNudgeReverted(p, from, field));
-      else supersedePreview(key, owner);
-    } else if (from && shown)
-      revertOptimisticIfUnchanged(from, seq, path, shown);
+  const revert = (from: ProjectView | null, owner: symbol | null) => {
+    if (!owner) return;
+    const shown = useDawStore.getState().project;
+    if (
+      from &&
+      currentDocumentSeq() <= seq &&
+      shown &&
+      nudgeAxis(shown, field)?.value === value
+    )
+      endPreview(key, owner, (p) => withNudgeReverted(p, from, field));
+    else supersedePreview(key, owner);
   };
   return {
     begin() {
       const s = useDawStore.getState();
-      if (!s.project) return false;
+      if (!previewsAsDraft(field) || !s.project) return false;
       origin = s.project;
       path = s.projectPath;
       seq = currentDocumentSeq();
@@ -98,28 +89,27 @@ export function nudgeDriver(field: NudgeField, name: string): PrecisionDriver {
     show(next) {
       if (!origin) return;
       const shown = withNudge(origin, field, next);
-      if (asDraft && token) {
-        const from = origin;
-        try {
-          showPreview(
-            key,
-            token,
-            (p) => withNudgeIfUnchanged(p, from, field, next),
-            (p) => withNudge(p, field, next),
-            (p) => sameNudgeBase(p, from, field),
-          );
-        } catch {
-          // Too many pending drafts: this frame is not shown, so it is not the value to save.
-          return;
-        }
-      } else useDawStore.getState().setProject(shown);
+      if (!token) return;
+      const from = origin;
+      try {
+        showPreview(
+          key,
+          token,
+          (p) => withNudgeIfUnchanged(p, from, field, next),
+          (p) => withNudge(p, field, next),
+          (p) => sameNudgeBase(p, from, field),
+        );
+      } catch {
+        // Too many pending drafts: this frame is not shown, so it is not the value to save.
+        return;
+      }
       value = next;
       preview = shown;
     },
     async commit() {
       const { from, shown, owner } = end();
       if (!from || !shown) {
-        revert(from, shown, owner);
+        revert(from, owner);
         return;
       }
       const store = useDawStore.getState();
@@ -134,15 +124,15 @@ export function nudgeDriver(field: NudgeField, name: string): PrecisionDriver {
         );
         if (saved) {
           // A queued save keeps the value shown through its own command draft.
-          if (asDraft && owner) endPreview(key, owner);
+          if (owner) endPreview(key, owner);
           store.announceStatus(NUDGE_KINDS[field.kind].saved, {
             undo: saved.undo,
           });
         } else {
-          revert(from, shown, owner);
+          revert(from, owner);
         }
       } catch (error) {
-        revert(from, shown, owner);
+        revert(from, owner);
         // A refusal for a project that is no longer open is not news in this one.
         if (useDawStore.getState().projectPath === path)
           store.announceStatus(`${name} not saved: ${errorMessage(error)}`, {
@@ -151,8 +141,8 @@ export function nudgeDriver(field: NudgeField, name: string): PrecisionDriver {
       }
     },
     cancel() {
-      const { from, shown, owner } = end();
-      revert(from, shown, owner);
+      const { from, owner } = end();
+      revert(from, owner);
     },
   };
 }
