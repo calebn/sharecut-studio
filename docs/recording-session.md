@@ -1151,8 +1151,8 @@ names for assistive tech are "I'm wearing headphones" and "I'm not wearing headp
 at least 44 px tall, neither pressed until the guest answers; the pressed one shows a check
 in place of its headphones glyph, and choosing "Not wearing" scrolls the warning into view; until then the reason reads "Say if you're wearing
 headphones first", and either answer lets **Join and record** work. "I'm not wearing headphones"
-shows, under the pair, "Without headphones, the others may hear an echo and be heard in your
-recording. Keep your volume low." The Device sheet holds the same control, and a press applies
+shows, under the pair, "Others may hear their own echo and be heard in your recording. Keep your
+volume low." The Device sheet holds the same control, and a press applies
 at once, during a take too. A phone is a device test, read once when the page opens
 (`record/headphonesRule.ts`): a coarse primary pointer and a screen whose short side is over
 0 and under 600 CSS px. The screen, not the window, decides, so a narrow laptop window or a

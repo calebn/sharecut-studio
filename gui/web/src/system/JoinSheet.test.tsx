@@ -1,7 +1,7 @@
 import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useState } from "react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { expectNoA11yViolations } from "../test/a11y";
 import { notesNaming } from "../test/readableText";
 import { BUSY_REASON } from "../ui/disabledReason";
@@ -752,6 +752,59 @@ describe("JoinSheet headphones on a phone", () => {
     await userEvent.click(primary("I'm wearing headphones"));
     expect(screen.queryByText(NOTE)).toBeNull();
     expect(primary("Join and record")).toBeEnabled();
+  });
+
+  describe("scrolling the warning into view", () => {
+    const original = Object.getOwnPropertyDescriptor(
+      HTMLElement.prototype,
+      "scrollIntoView",
+    );
+    const scrollIntoView = vi.fn();
+
+    beforeEach(() => {
+      scrollIntoView.mockClear();
+      Object.defineProperty(HTMLElement.prototype, "scrollIntoView", {
+        configurable: true,
+        value: scrollIntoView,
+      });
+    });
+
+    afterEach(() => {
+      if (original) {
+        Object.defineProperty(
+          HTMLElement.prototype,
+          "scrollIntoView",
+          original,
+        );
+      } else {
+        Reflect.deleteProperty(HTMLElement.prototype, "scrollIntoView");
+      }
+    });
+
+    it("scrolls the warning into view when the guest chooses not wearing", async () => {
+      render(<PhoneHarness />);
+      expect(scrollIntoView).not.toHaveBeenCalled();
+      await userEvent.click(primary(NOT_WEARING));
+      expect(scrollIntoView).toHaveBeenCalledTimes(1);
+      expect(scrollIntoView).toHaveBeenCalledWith({ block: "nearest" });
+      expect(scrollIntoView.mock.contexts[0]).toBe(
+        screen.getByText(NOTE).closest('[role="status"]'),
+      );
+    });
+
+    it("scrolls the warning into view when the sheet opens with not wearing chosen", () => {
+      render(<Harness {...READY} headphones="off" headphonesRule="choice" />);
+      expect(scrollIntoView).toHaveBeenCalledTimes(1);
+      expect(scrollIntoView.mock.contexts[0]).toBe(
+        screen.getByText(NOTE).closest('[role="status"]'),
+      );
+    });
+
+    it("does not scroll when the guest says they are wearing headphones", async () => {
+      render(<PhoneHarness />);
+      await userEvent.click(primary("I'm wearing headphones"));
+      expect(scrollIntoView).not.toHaveBeenCalled();
+    });
   });
 
   it("keeps one toggle and the gate on a laptop", () => {
