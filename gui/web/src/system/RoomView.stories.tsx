@@ -441,6 +441,41 @@ const landscapeParameters = {
     "The landscape phone layout needs more than 360 px of width for four tiles beside the dock bar.",
 } as const;
 
+export const LookingInOne: Story = {
+  args: {
+    seat: "guest",
+    people: [HOST, JON_YOU, ROSA_PRODUCER],
+    phase: WAITING,
+    lookingIn: 1,
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(
+      canvas.getByText("Someone with the producer link is looking in"),
+    ).toBeVisible();
+  },
+};
+
+export const LookingInSeveral: Story = {
+  args: { ...LookingInOne.args, seat: "host", lookingIn: 3 },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(
+      canvas.getByText("3 people with the producer link are looking in"),
+    ).toBeVisible();
+  },
+};
+
+export const LookingInPhone: Story = {
+  args: { ...phone, ...LookingInOne.args, lookingIn: 3 },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(
+      canvas.getByText("3 people with the producer link are looking in"),
+    ).toBeVisible();
+  },
+};
+
 export const GuestWaitingPhone: Story = {
   args: { ...phone, people: [HOST, JON_YOU], phase: WAITING, notes: [] },
   play: async ({ canvasElement }) => {

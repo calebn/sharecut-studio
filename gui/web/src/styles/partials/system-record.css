@@ -624,6 +624,20 @@
   list-style: none;
 }
 
+.sys-room-looking-in {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin: 0;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-ui);
+  overflow-wrap: anywhere;
+}
+
+.sys-room-looking-in > svg {
+  flex: none;
+}
+
 .sys-room-listener {
   position: relative;
   display: inline-flex;
@@ -1531,7 +1545,8 @@ html:not([data-shell="phone"], [data-shell="tablet"])
 /* Declined: tiles dim to 40%, a light layer takes the pointer, and a 72 px
    peek bar docks at the bottom edge above the safe area. */
 .sys-room-view[data-declined] .sys-room-view-grid,
-.sys-room-view[data-declined] .sys-room-listeners {
+.sys-room-view[data-declined] .sys-room-listeners,
+.sys-room-view[data-declined] .sys-room-looking-in {
   opacity: 0.4;
 }
 

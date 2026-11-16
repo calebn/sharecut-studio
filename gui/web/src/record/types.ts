@@ -100,6 +100,8 @@ export type RecordSnapshot = {
   participants: RecordParticipant[];
   caps: { recorded: number; producers: number };
   server_time_ns?: number;
+  /** Runtime only: how many people with the producer link are looking in. Absent from an older server. */
+  watchers?: number;
   comments?: LiveComment[];
   takes?: TakeState[];
   pause_reason?: PauseReason | null;

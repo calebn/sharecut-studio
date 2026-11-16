@@ -312,6 +312,35 @@ describe("Record stage", () => {
     );
   });
 
+  it.each([
+    [1, "Someone with the producer link is looking in"],
+    [3, "3 people with the producer link are looking in"],
+  ])(
+    "shows %i looking in on the host roster, and nothing for none",
+    async (watchers, text) => {
+      setRoom({ participants: [hostPerson(), avaGuest()] });
+      mount();
+      await waitFor(() => expect(record()).toBeEnabled());
+      expect(document.querySelector(".sys-room-looking-in")).toBeNull();
+      act(() =>
+        setRoom({
+          participants: [hostPerson(), avaGuest()],
+          watchers,
+          server_time_ns: 5,
+        }),
+      );
+      expect(await screen.findByText(text)).toBeInTheDocument();
+      act(() =>
+        setRoom({
+          participants: [hostPerson(), avaGuest()],
+          watchers: 0,
+          server_time_ns: 6,
+        }),
+      );
+      await waitFor(() => expect(screen.queryByText(text)).toBeNull());
+    },
+  );
+
   it("does not make a host alone in the room wait for a guest", async () => {
     setRoom({ participants: [hostPerson()] });
     const { baseElement } = mount();
