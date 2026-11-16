@@ -15,6 +15,8 @@ type RoomPeopleOptions = {
   peerLevels?: Record<string, number>;
   /** Other people's clip counts in the take, from their uploaded segments. */
   peerClipped?: Record<string, number>;
+  /** Host and producers see who is not wearing headphones. */
+  seesHeadphones?: boolean;
 };
 
 const SPEAKING_FRACTION = 0.2;
@@ -57,6 +59,15 @@ export function roomPeople(
       muted: participant.muted,
       saving: options.saving?.[participant.participant_id] ?? null,
     };
+    if (
+      entry.presence === "live" &&
+      (you || options.seesHeadphones) &&
+      participant.role === "guest" &&
+      participant.consented === true &&
+      !participant.headphones_ack
+    ) {
+      entry.notWearingHeadphones = true;
+    }
     if (you) {
       entry.you = true;
       entry.level = options.youLevel;

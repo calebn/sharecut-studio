@@ -156,8 +156,8 @@ function fakeRoom(over: Overrides = {}) {
     localUnreadable: false,
     name: "Ava",
     setName: vi.fn(),
-    headphonesOk: true,
-    setHeadphonesOk: vi.fn(),
+    headphones: "on",
+    setHeadphones: vi.fn(),
     deviceId: over.deviceId ?? "",
     setDeviceId: vi.fn(),
     producerJoined: true,
@@ -609,7 +609,7 @@ describe("GuestRoomApp in the room", () => {
           name: "I'm wearing headphones",
         }),
       );
-      expect(room.setHeadphonesOk).toHaveBeenCalledWith(false);
+      expect(room.setHeadphones).toHaveBeenCalledWith("off");
       await userEvent.click(
         within(dialog).getByRole("button", {
           name: "Record 1 minute of room tone",

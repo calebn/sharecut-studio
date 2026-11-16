@@ -15,10 +15,12 @@ import { Button } from "../ui";
 import { Dialog } from "../ui/Dialog";
 import { BUSY_REASON } from "../ui/disabledReason";
 import { COMMENT_NAME_MAX } from "../utils/commentAuthor";
-import { HeadphonesToggle } from "./HeadphonesToggle";
+import { HeadphonesControl } from "./HeadphonesControl";
 import {
   consentDetails,
   consentLine,
+  type HeadphonesChoice,
+  type HeadphonesRule,
   JOIN_TEXT,
   type JoinBlocker,
   type JoinFocus,
@@ -52,8 +54,10 @@ export type JoinSheetProps = {
   onNameChange: (name: string) => void;
   /** Guest only. */
   mic?: JoinMic;
-  headphones?: boolean;
-  onHeadphonesChange?: (on: boolean) => void;
+  headphones?: HeadphonesChoice;
+  /** `choice` on a phone: either answer joins. Defaults to `required`. */
+  headphonesRule?: HeadphonesRule;
+  onHeadphonesChange?: (choice: HeadphonesChoice) => void;
   lowStorage?: boolean;
   /** Extra lines under the mic meter, such as "your saved microphone is gone". */
   micNotes?: string[];
@@ -201,7 +205,8 @@ export function JoinSheet({
   name,
   onNameChange,
   mic = { status: "idle" },
-  headphones = false,
+  headphones = "unset",
+  headphonesRule = "required",
   onHeadphonesChange,
   lowStorage = false,
   micNotes,
@@ -223,6 +228,7 @@ export function JoinSheet({
     name,
     mic,
     headphones,
+    headphonesRule,
     lowStorage,
     micNotes,
     blocker,
@@ -392,8 +398,10 @@ export function JoinSheet({
               </p>
             </SheetRow>
             <SheetRow row={rowOf("headphones")}>
-              <HeadphonesToggle
-                pressed={headphones}
+              <HeadphonesControl
+                rule={headphonesRule}
+                choice={headphones}
+                note={guestModel.headphonesNote}
                 onChange={onHeadphonesChange}
               />
             </SheetRow>

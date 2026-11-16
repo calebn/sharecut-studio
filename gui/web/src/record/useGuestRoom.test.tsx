@@ -95,6 +95,8 @@ const snapshotOf = (over: Record<string, unknown> = {}) => ({
   ...over,
 });
 
+let joinedAs: Partial<typeof guest> = {};
+
 class FakeSocket {
   static OPEN = 1;
   readyState = FakeSocket.OPEN;
@@ -119,7 +121,10 @@ class FakeSocket {
         return;
       }
       this.emit({ type: "Echo", participant_id: "p_g", lease: "lease-1" });
-      this.emit({ type: "Snapshot", snapshot: snapshotOf() });
+      this.emit({
+        type: "Snapshot",
+        snapshot: snapshotOf({ participants: [{ ...guest, ...joinedAs }] }),
+      });
     });
   }
 
@@ -177,6 +182,7 @@ describe("useGuestRoom", () => {
   }
 
   beforeEach(() => {
+    joinedAs = {};
     sockets = [];
     socketUrls = [];
     stubSocket();
@@ -445,22 +451,65 @@ describe("useGuestRoom", () => {
     expect(MIC_SAVED_DEVICE_MISSING_COPY).toBeTruthy();
   });
 
-  it("sends headphones and name once the participant is known", async () => {
+  it("sends the headphones choice once and the name once the participant is known", async () => {
     stubFetch(guestBootstrap);
     const { result } = renderHook(() => useGuestRoom("guest-tok"));
     await waitFor(() => expect(result.current.me).not.toBeNull());
+    expect(result.current.headphones).toBe("unset");
+    expect(sockets[0]?.commands("HeadphonesAck")).toHaveLength(0);
+    act(() => result.current.setHeadphones("off"));
+    await act(async () => undefined);
+    expect(sockets[0]?.commands("HeadphonesAck")).toHaveLength(0);
+    act(() => result.current.setHeadphones("on"));
     await waitFor(() =>
       expect(sockets[0]?.commands("HeadphonesAck")).toHaveLength(1),
     );
-    act(() => result.current.setHeadphonesOk(true));
-    await waitFor(() =>
-      expect(sockets[0]?.commands("HeadphonesAck")).toHaveLength(2),
-    );
+    expect(sockets[0]?.commands("HeadphonesAck")[0]).toMatchObject({
+      payload: { ok: true },
+    });
     act(() => result.current.setName("Bea"));
     await waitFor(() =>
       expect(sockets[0]?.commands("UpdateName")).toHaveLength(1),
     );
     expect(localStorage.getItem("sharecut.recordName")).toBeNull();
+  });
+
+  it("sends a no only when the room does not already hold it", async () => {
+    joinedAs = { headphones_ack: true };
+    stubFetch(guestBootstrap);
+    const { result } = renderHook(() => useGuestRoom("guest-tok"));
+    await waitFor(() => expect(result.current.me).not.toBeNull());
+    act(() => result.current.setHeadphones("off"));
+    await waitFor(() =>
+      expect(sockets[0]?.commands("HeadphonesAck")).toHaveLength(1),
+    );
+    expect(sockets[0]?.commands("HeadphonesAck")[0]).toMatchObject({
+      payload: { ok: false },
+    });
+  });
+
+  it.each([
+    [true, "on"],
+    [false, "off"],
+  ] as const)(
+    "seeds the choice from a consented guest's ack %s without sending",
+    async (ack, choice) => {
+      joinedAs = { consented: true, headphones_ack: ack };
+      stubFetch(guestBootstrap);
+      const { result } = renderHook(() => useGuestRoom("guest-tok"));
+      await waitFor(() => expect(result.current.headphones).toBe(choice));
+      await act(async () => undefined);
+      expect(sockets[0]?.commands("HeadphonesAck")).toHaveLength(0);
+    },
+  );
+
+  it("leaves the choice unset for a guest who has not consented", async () => {
+    joinedAs = { consented: null, headphones_ack: true };
+    stubFetch(guestBootstrap);
+    const { result } = renderHook(() => useGuestRoom("guest-tok"));
+    await waitFor(() => expect(result.current.me).not.toBeNull());
+    expect(result.current.headphones).toBe("unset");
+    expect(sockets[0]?.commands("HeadphonesAck")).toHaveLength(0);
   });
 
   it("prefills the name this device joined another room with", () => {

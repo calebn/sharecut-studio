@@ -10,7 +10,13 @@ const TONE: DeviceTone = { state: "idle", label: "Record room tone" };
 const READY: DeviceMic = { status: "ready", input: "USB Mic", level: 0.3 };
 
 const build = (mic: DeviceMic, tone: DeviceTone = TONE, micNotes?: string[]) =>
-  deviceSheetModel({ mic, headphones: false, tone, micNotes });
+  deviceSheetModel({
+    mic,
+    headphones: "off",
+    headphonesRule: "required",
+    tone,
+    micNotes,
+  });
 
 describe("deviceSheetModel", () => {
   it.each([
@@ -65,7 +71,8 @@ describe("deviceSheetModel", () => {
     const withOutput = (output: DeviceOutput) =>
       deviceSheetModel({
         mic: READY,
-        headphones: false,
+        headphones: "off",
+        headphonesRule: "required",
         tone: TONE,
         output,
       });

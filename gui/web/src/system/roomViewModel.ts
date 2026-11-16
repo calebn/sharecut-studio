@@ -31,6 +31,7 @@ export type RoomPerson = {
   level?: number;
   speaking?: boolean;
   muted?: boolean;
+  notWearingHeadphones?: boolean;
   connection?: RoomConnection;
   clipped?: number;
   alert?: boolean;
@@ -144,6 +145,7 @@ export function tileProps(entry: RoomPerson): RoomTileProps {
     level: entry.level,
     speaking: entry.speaking,
     muted: entry.muted,
+    notWearingHeadphones: entry.notWearingHeadphones,
     connection: entry.connection,
     listener: entry.role === "producer",
     clipped: entry.clipped,

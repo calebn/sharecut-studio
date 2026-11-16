@@ -2,6 +2,7 @@ import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useState } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { expectNoA11yViolations } from "../test/a11y";
 import { notesNaming } from "../test/readableText";
 import { BUSY_REASON } from "../ui/disabledReason";
 import { JoinSheet, type JoinSheetProps } from "./JoinSheet";
@@ -32,7 +33,7 @@ function Harness(props: Partial<JoinSheetProps>) {
 const READY = {
   name: "Jon",
   mic: { status: "ready", input: "MacBook Mic", level: 0.3 },
-  headphones: true,
+  headphones: "on",
 } as const;
 
 const touchScreen = () =>
@@ -145,7 +146,7 @@ describe("JoinSheet guest", () => {
     render(
       <Harness
         {...READY}
-        headphones={false}
+        headphones="off"
         onHeadphonesChange={onHeadphonesChange}
       />,
     );
@@ -154,7 +155,7 @@ describe("JoinSheet guest", () => {
     });
     expect(toggle).toHaveAttribute("aria-pressed", "false");
     await userEvent.click(toggle);
-    expect(onHeadphonesChange).toHaveBeenCalledWith(true);
+    expect(onHeadphonesChange).toHaveBeenCalledWith("on");
   });
 
   it("says too loud and low space in the mic row's status region", () => {
@@ -656,5 +657,78 @@ describe("JoinSheet producer", () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+});
+
+const NOT_WEARING = "I'm not wearing headphones";
+const NOTE =
+  "Without headphones, the others may hear an echo and be heard in your recording. Keep your volume low.";
+
+function PhoneHarness({ onChange }: { onChange?: (choice: string) => void }) {
+  const [headphones, setHeadphones] = useState<"unset" | "on" | "off">("unset");
+  return (
+    <Harness
+      {...READY}
+      headphones={headphones}
+      headphonesRule="choice"
+      onHeadphonesChange={(choice) => {
+        setHeadphones(choice);
+        onChange?.(choice);
+      }}
+    />
+  );
+}
+
+describe("JoinSheet headphones on a phone", () => {
+  it("offers two unpressed answers and holds Join until one is pressed", async () => {
+    const { baseElement } = render(<PhoneHarness />);
+    const [row] = screen.getAllByRole("group", { name: "Headphones" });
+    const group = within(row as HTMLElement).getByRole("group", {
+      name: "Headphones",
+    });
+    expect(within(group).getAllByRole("button")).toHaveLength(2);
+    expect(
+      within(group).getByRole("button", { name: "I'm wearing headphones" }),
+    ).toHaveAttribute("aria-pressed", "false");
+    expect(
+      within(group).getByRole("button", { name: NOT_WEARING }),
+    ).toHaveAttribute("aria-pressed", "false");
+    const join = primary("Join and record");
+    expect(join).toBeDisabled();
+    expect(join).toHaveAccessibleDescription(
+      "Say if you're wearing headphones first",
+    );
+    expect(screen.queryByText(NOTE)).toBeNull();
+    await expectNoA11yViolations(baseElement);
+  });
+
+  it("joins without headphones after the answer, with the warning shown", async () => {
+    const onChange = vi.fn();
+    render(<PhoneHarness onChange={onChange} />);
+    await userEvent.click(primary(NOT_WEARING));
+    expect(onChange).toHaveBeenCalledWith("off");
+    expect(primary(NOT_WEARING)).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByText(NOTE)).toBeVisible();
+    expect(primary("Join and record")).toBeEnabled();
+  });
+
+  it("drops the warning when the guest says they are wearing them", async () => {
+    render(<PhoneHarness />);
+    await userEvent.click(primary(NOT_WEARING));
+    await userEvent.click(primary("I'm wearing headphones"));
+    expect(screen.queryByText(NOTE)).toBeNull();
+    expect(primary("Join and record")).toBeEnabled();
+  });
+
+  it("keeps one toggle and the gate on a laptop", () => {
+    render(<Harness {...READY} headphones="unset" />);
+    expect(screen.queryByRole("button", { name: NOT_WEARING })).toBeNull();
+    expect(
+      screen.getByRole("button", { name: "I'm wearing headphones" }),
+    ).toHaveAttribute("aria-pressed", "false");
+    expect(primary("Join and record")).toBeDisabled();
+    expect(primary("Join and record")).toHaveAccessibleDescription(
+      "Put on headphones first",
+    );
   });
 });

@@ -90,6 +90,18 @@ export const Muted: Story = {
   },
 };
 
+export const NotWearingHeadphones: Story = {
+  args: { ...LIVE, notWearingHeadphones: true },
+  play: async ({ canvasElement }) => {
+    await expect(
+      within(canvasElement).getByTitle("Not wearing headphones"),
+    ).toBeInTheDocument();
+    await expect(
+      tileByName(canvasElement, /not wearing headphones/),
+    ).toBeVisible();
+  },
+};
+
 export const Clipping: Story = {
   args: {
     ...LIVE,

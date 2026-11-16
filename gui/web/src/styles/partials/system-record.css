@@ -1158,6 +1158,16 @@ html:not([data-shell="phone"], [data-shell="tablet"])
   min-block-size: var(--touch-min);
 }
 
+.sys-headphones-choice {
+  display: flex;
+  flex-direction: column;
+}
+
+.sys-headphones-choice > .ui-control {
+  justify-content: flex-start;
+  min-block-size: var(--touch-min);
+}
+
 .sys-join-control:empty {
   display: none;
 }
