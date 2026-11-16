@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   fetchFeatures,
+  peekCachedFeatures,
   resetFeaturesCache,
   reviewTokenFromPathname,
 } from "./features";
@@ -34,7 +35,7 @@ describe("fetchFeatures", () => {
     ]);
   });
 
-  it("asks again after a reset while a hung ask is still out, and the hung one answering late does not end the new one", async () => {
+  it("asks again after a reset while a hung ask is still out, and the hung one answering late neither ends the new one nor fills the cache", async () => {
     const answers: Array<(res: Response) => void> = [];
     const fetcher = vi.fn(
       (_input: RequestInfo | URL) =>
@@ -54,9 +55,11 @@ describe("fetchFeatures", () => {
       );
     answers[0]?.(reply());
     await hung;
+    expect(peekCachedFeatures()).toBeNull();
     void fetchFeatures("/r/tok");
     expect(fetcher).toHaveBeenCalledTimes(2);
     answers[1]?.(reply());
     expect((await again).features).toContain("share.ui.routes");
+    expect(peekCachedFeatures()?.features).toContain("share.ui.routes");
   });
 });

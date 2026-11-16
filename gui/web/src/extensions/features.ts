@@ -70,6 +70,13 @@ export async function fetchFeatures(
     return inflight;
   }
   const asked = generation;
+  // A dropped ask answering late must not fill the cache the new ask owns.
+  const keep = (manifest: FeaturesManifest): FeaturesManifest => {
+    if (asked === generation) {
+      cached = manifest;
+    }
+    return manifest;
+  };
   inflight = (async () => {
     try {
       const route = parseShareRoute(
@@ -88,19 +95,17 @@ export async function fetchFeatures(
           );
           if (scoped.ok) {
             const data = (await scoped.json()) as FeaturesManifest;
-            cached = {
+            return keep({
               api_version: Number(data.api_version) || 1,
               features: Array.isArray(data.features)
                 ? data.features.map(String)
                 : [],
-            };
-            return cached;
+            });
           }
         } catch {
           // ignore and use guest defaults
         }
-        cached = GUEST_SHARE_FEATURES;
-        return cached;
+        return keep(GUEST_SHARE_FEATURES);
       }
       const res = await apiSend(HOST_KEY, { host: "/api/features" });
       if (!res.ok) {
@@ -108,11 +113,10 @@ export async function fetchFeatures(
         return EMPTY;
       }
       const data = (await res.json()) as FeaturesManifest;
-      cached = {
+      return keep({
         api_version: Number(data.api_version) || 1,
         features: Array.isArray(data.features) ? data.features.map(String) : [],
-      };
-      return cached;
+      });
     } catch {
       return EMPTY;
     } finally {
