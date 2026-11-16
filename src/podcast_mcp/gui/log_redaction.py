@@ -84,6 +84,9 @@ def _fail_closed(record: logging.LogRecord) -> None:
     try:
         text = record.getMessage()
     except Exception:
+        if isinstance(record.msg, str):
+            record.msg = _redact_route(record.msg)
+            record.args = ()
         return
     redacted = _redact_route(text)
     if redacted != text:

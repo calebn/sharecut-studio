@@ -594,3 +594,14 @@ def test_an_unreadable_argument_next_to_a_token_route_loses_the_guest_name_too()
 def test_only_the_query_of_a_token_route_is_dropped(raw: str, expected: str) -> None:
     assert _format("%s", raw) == expected
     assert _format(raw) == expected
+
+
+def test_a_record_whose_message_cannot_be_built_leaves_no_token_on_stderr(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    logged = _logged(f"/r/{TOKEN}/ws?name=Ann %(p)s", _UnreadableMapping())
+    assert logged == "/r/<share-token>/ws %(p)s\n"
+
+    err = capsys.readouterr().err
+    assert TOKEN not in err
+    assert "Ann" not in err
