@@ -2,7 +2,11 @@ import { describe, expect, it } from "vitest";
 import { findMatches } from "../../../stages/edit/findMatches";
 import { clipRow, minimalProject, sampleTrack } from "../../../test/fixtures";
 import { scriptUtterance, scriptWord } from "../../../test/scriptHostKit";
-import type { CombinedUtterance, ProjectView } from "../../../types/project";
+import type {
+  CombinedUtterance,
+  EditBoundaryView,
+  ProjectView,
+} from "../../../types/project";
 import { cutAllMessage, cutKey, matchCutOf } from "./findCut";
 import { buildScriptModel } from "./scriptModel";
 
@@ -50,6 +54,102 @@ const spans = (cut: ReturnType<typeof matchCutOf>) =>
   cut.targets.map((t) => [t.track_ids, t.intervals]);
 
 describe("matchCutOf", () => {
+  it("keeps a canonical primary cut as a Find barrier and targets another recording", () => {
+    const utterances = [
+      scriptUtterance("host", "Maya", [
+        scriptWord("one", 0, 1),
+        scriptWord("uh", 1, 2, {
+          mappable: false,
+          timeline_start: null,
+          timeline_end: null,
+        }),
+        scriptWord("two", 2, 3),
+      ]),
+      scriptUtterance(
+        "host",
+        "Maya",
+        [
+          scriptWord("ordinary", 0, 10, {
+            timing_target: {
+              track_id: "host",
+              source_id: "other",
+              word_index: 0,
+            },
+          }),
+          scriptWord("phrase", 1, 10.5, {
+            timing_target: {
+              track_id: "host",
+              source_id: "other",
+              word_index: 1,
+            },
+          }),
+        ],
+        { source_id: "other" },
+      ),
+    ];
+    const boundary = {
+      id: "cut-primary",
+      track_id: "host",
+      timeline_join_sec: 2,
+      has_cutaway: true,
+      cutaway_source_start: 2,
+      cutaway_source_end: 3,
+      cutaway_word_ids: [
+        {
+          track_id: "host",
+          source_id: null,
+          word_index: -2,
+          text: "uh",
+          start: 2,
+          end: 2.4,
+        },
+      ],
+    } as unknown as EditBoundaryView;
+    const model = buildScriptModel({
+      utterances,
+      boundaries: [boundary],
+      pending: [],
+      person,
+    });
+    const project = minimalProject({
+      tracks: [sampleTrack({ id: "host" })],
+      clips: {
+        clip_count: 2,
+        tracks: {
+          host: [
+            clipRow({
+              id: "primary",
+              track_id: "host",
+              source_end: 5,
+              timeline_end: 5,
+            }),
+            clipRow({
+              id: "other",
+              track_id: "host",
+              source_id: "other",
+              source_end: 20,
+              timeline_end: 20,
+            }),
+          ],
+        },
+      },
+      transcript: { utterances },
+    });
+    expect(findMatches(model.turns, "one two", false)).toEqual([]);
+    expect(findMatches(model.turns, "uh", false)).toEqual([]);
+    const hits = findMatches(model.turns, "ordinary phrase", false);
+    expect(hits).toHaveLength(1);
+    expect(
+      hits[0]?.indices.map((index) => model.refs[index]?.sourceId),
+    ).toEqual(["other", "other"]);
+    const cut = matchCutOf(project, model, hits);
+    expect({ cut: cut.cut, skipped: cut.skipped, spans: spans(cut) }).toEqual({
+      cut: 1,
+      skipped: 0,
+      spans: [[["host"], [{ start: 10, end: 10.9 }]]],
+    });
+  });
+
   it("gives each speaker their own target when the speakers overlap", () => {
     const { project, model, hits } = setup(
       [
