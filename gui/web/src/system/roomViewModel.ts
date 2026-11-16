@@ -247,15 +247,32 @@ function roomDock(
     : { kind: "controls", leaveHeld };
 }
 
+/** The producer link holds a handful of sockets; a count past this is not one the server sent. */
+export const LOOKING_IN_MAX = 99;
+
+/**
+ * The count of people looking in from a snapshot's `watchers`, which crosses
+ * the wire unchecked: a whole number from 1 to `LOOKING_IN_MAX`, else 0.
+ */
+export function lookingInCount(raw: unknown): number {
+  return typeof raw === "number" &&
+    Number.isInteger(raw) &&
+    raw >= 1 &&
+    raw <= LOOKING_IN_MAX
+    ? raw
+    : 0;
+}
+
 /**
  * What the room says about people looking in through the producer link, or
  * null for nobody. The row, the consent Details and the announcer share it.
  */
 export function lookingInLine(count: number): string | null {
-  if (count < 1) return null;
-  return count === 1
+  const people = lookingInCount(count);
+  if (people === 0) return null;
+  return people === 1
     ? "Someone with the producer link is looking in"
-    : `${count} people with the producer link are looking in`;
+    : `${people} people with the producer link are looking in`;
 }
 
 export function gridColumns(

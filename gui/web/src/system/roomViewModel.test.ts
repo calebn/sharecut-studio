@@ -4,6 +4,8 @@ import type { RoomPhase } from "./roomPhase";
 import type { RoomPerson, RoomViewInput } from "./roomViewModel";
 import {
   gridColumns,
+  LOOKING_IN_MAX,
+  lookingInCount,
   lookingInLine,
   notePeek,
   roomViewModel,
@@ -751,5 +753,32 @@ describe("lookingInLine", () => {
     [3, "3 people with the producer link are looking in"],
   ])("%i reads %j", (count, line) => {
     expect(lookingInLine(count)).toBe(line);
+  });
+});
+
+describe("lookingInCount", () => {
+  it.each<[unknown, number]>([
+    [1, 1],
+    [4, 4],
+    [LOOKING_IN_MAX, LOOKING_IN_MAX],
+    [LOOKING_IN_MAX + 1, 0],
+    [Number.MAX_SAFE_INTEGER, 0],
+    [Number.POSITIVE_INFINITY, 0],
+    [0, 0],
+    [-2, 0],
+    [2.5, 0],
+    [Number.NaN, 0],
+    ["3", 0],
+    [true, 0],
+    [null, 0],
+    [undefined, 0],
+  ])("reads %j from the wire as %i", (raw, count) => {
+    expect(lookingInCount(raw)).toBe(count);
+  });
+
+  it("gives no line for a value that is not a count", () => {
+    expect(lookingInLine(2.5)).toBeNull();
+    expect(lookingInLine(LOOKING_IN_MAX + 1)).toBeNull();
+    expect(lookingInLine(Number.NaN)).toBeNull();
   });
 });
