@@ -94,9 +94,9 @@ the implementation modules.
 The projection guard remains in
 `tests/test_import_direction.py`.
 
-The document facade exposes `HistoryDiffResult`, `HistoryMoveResult` and
-`HistoryMoveRerenderedResult`; the media facade, `WaveformStatusResult`. Adapters preserve replies.
-See [diff](history.md#history-diff-results), [moves](history.md#history-move-results), [waveform](waveform.md).
+The document facade exposes `HistoryDiffResult`, `HistoryMoveResult`,
+`HistoryMoveRerenderedResult` and `FeedFieldPinResult`; the media facade, `WaveformStatusResult`.
+Adapters preserve replies. See [diff](history.md#history-diff-results), [moves](history.md#history-move-results), [waveform](waveform.md).
 
 ### Jobs
 
