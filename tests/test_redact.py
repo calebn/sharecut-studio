@@ -1,11 +1,14 @@
 from __future__ import annotations
 
+import re
+import time
 from pathlib import Path
 
 import pytest
 
 from podcast_mcp.util.coded_error import CodedError
 from podcast_mcp.util.redact import (
+    _mask_values,
     mentions_host_path,
     redact_secrets,
     redact_share_paths,
@@ -358,3 +361,62 @@ def test_redact_share_paths_keeps_the_separators_around_the_masked_token(
     text: str, expected: str
 ) -> None:
     assert redact_share_paths(text) == expected
+
+
+def _reference_mask(text: str, secrets: list[str], min_prefix: int | None) -> str:
+    spans: list[tuple[int, int]] = []
+    for secret in set(secrets):
+        keep = len(secret) if min_prefix is None else min(len(secret), min_prefix)
+        pattern = (
+            re.escape(secret[:keep])
+            + "".join(f"(?:{re.escape(ch)}" for ch in secret[keep:])
+            + ")?" * (len(secret) - keep)
+        )
+        spans.extend(m.span() for m in re.finditer(pattern, text))
+    merged: list[list[int]] = []
+    for start, end in sorted(spans):
+        if merged and start <= merged[-1][1]:
+            merged[-1][1] = max(merged[-1][1], end)
+        else:
+            merged.append([start, end])
+    out = text
+    for start, end in reversed(merged):
+        out = out[:start] + "<redacted>" + out[end:]
+    return out
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        TOKEN,
+        f"{TOKEN}{TOKEN}",
+        f"{TOKEN} {TOKEN}",
+        f"x{TOKEN}y",
+        "velvet-quokka-umbra-heron velvet-quokka",
+        "velvet-heron-pine-quokka-umbra",
+        "velvet velve velvet-q",
+        "no secret here",
+        "",
+    ],
+)
+@pytest.mark.parametrize("min_prefix", [None, 6])
+def test_mask_values_matches_the_one_span_at_a_time_reference(
+    text: str, min_prefix: int | None
+) -> None:
+    secrets = [TOKEN, "velvet-heron-pine", "quokka-umbra-x"]
+
+    assert _mask_values(text, secrets, min_prefix) == _reference_mask(text, secrets, min_prefix)
+
+
+def test_redact_secrets_masks_dense_hits_in_linear_time() -> None:
+    secrets = [f"tok{i}-alpha-beta-gamma" for i in range(10)]
+    chunk = " ".join(secrets) + " plain words between the hits "
+    text = chunk * (1_000_000 // len(chunk))
+
+    start = time.perf_counter()
+    out = redact_secrets(text, secrets, min_prefix=6)
+    elapsed = time.perf_counter() - start
+
+    assert out.count("<redacted>") == 10 * (len(text) // len(chunk))
+    assert "alpha" not in out
+    assert elapsed < 1.0
