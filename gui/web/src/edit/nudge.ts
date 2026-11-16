@@ -10,6 +10,7 @@
 import { setClipFade, setEnvelope, updatePendingEdit } from "../api";
 import { clipFadeBaseline, pendingEditBaseline } from "../api/documentEdits";
 import { ENVELOPE_UPDATING, envelopeSettling } from "../commands/envelopes";
+import { patchPendingEdge } from "../document/projectPatch";
 import {
   pendingEdgePlacement,
   pendingEdgePreview,
@@ -379,35 +380,7 @@ export function withNudge(
       const axis = nudgeAxis(project, field);
       const at = axis?.at(value);
       if (at == null) return project;
-      const start = field.edge === "start";
-      return {
-        ...project,
-        pending_edits: project.pending_edits.map((e) => {
-          if (e.id !== field.editId) return e;
-          const spans = e.timeline_spans.map((s, i, all) =>
-            start && i === 0
-              ? { ...s, start: at }
-              : !start && i === all.length - 1
-                ? { ...s, end: at }
-                : s,
-          );
-          return start
-            ? {
-                ...e,
-                source_start: value,
-                source_start_timeline: at,
-                timeline_start: at,
-                timeline_spans: spans,
-              }
-            : {
-                ...e,
-                source_end: value,
-                source_end_timeline: at,
-                timeline_end: at,
-                timeline_spans: spans,
-              };
-        }),
-      };
+      return patchPendingEdge(project, field.editId, field.edge, value, at);
     }
     case "envelope-time":
     case "envelope-level": {

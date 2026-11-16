@@ -2,12 +2,18 @@ import type {
   ClipRow,
   CombinedUtterance,
   FadeCurve,
+  PendingEditView,
   ProjectView,
   TimelineComment,
   TrackView,
   TranscriptWordView,
 } from "../types/project";
 import type { ClipFadeCurves } from "../utils/fadeCurves";
+import { pendingEdgePlacement } from "../utils/pendingEdgePlacement";
+import {
+  clipsForOriginTrack,
+  sourceSecInClipToTimeline,
+} from "../utils/timebase";
 import type { DocumentFileSignature } from "./cursor";
 import { reuseUnchanged, sameItems } from "./reuseUnchanged";
 
@@ -619,4 +625,104 @@ export function commentFromCommandResult(
     return comments[comments.length - 1] ?? null;
   }
   return null;
+}
+
+const PENDING_BOUND_EPSILON = 1e-9;
+
+/** One edge of a pending edit put at `sourceSec` on the source clock and `timelineSec` on the timeline. */
+export function patchPendingEdge(
+  project: ProjectView,
+  editId: string,
+  edge: "start" | "end",
+  sourceSec: number,
+  timelineSec: number,
+): ProjectView {
+  const start = edge === "start";
+  let changed = false;
+  const pending_edits = project.pending_edits.map((e) => {
+    if (e.id !== editId) return e;
+    const spans = e.timeline_spans.map((s, i, all) =>
+      start && i === 0
+        ? { ...s, start: timelineSec }
+        : !start && i === all.length - 1
+          ? { ...s, end: timelineSec }
+          : s,
+    );
+    changed = true;
+    return start
+      ? {
+          ...e,
+          source_start: sourceSec,
+          source_start_timeline: timelineSec,
+          timeline_start: timelineSec,
+          timeline_spans: spans,
+        }
+      : {
+          ...e,
+          source_end: sourceSec,
+          source_end_timeline: timelineSec,
+          timeline_end: timelineSec,
+          timeline_spans: spans,
+        };
+  });
+  return changed ? { ...project, pending_edits } : project;
+}
+
+function pendingEdgeTimeline(
+  project: ProjectView,
+  edit: PendingEditView,
+  edge: "start" | "end",
+  sourceSec: number,
+): number | null {
+  const current = edge === "start" ? edit.source_start : edit.source_end;
+  const timeline =
+    edge === "start" ? edit.source_start_timeline : edit.source_end_timeline;
+  if (current == null || timeline == null) return null;
+  const placement = pendingEdgePlacement(
+    clipsForOriginTrack(project.clips.tracks, edit.track_id),
+    current,
+    timeline,
+  );
+  if (!placement) return null;
+  return placement.kind === "identity"
+    ? sourceSec
+    : sourceSecInClipToTimeline(placement.clip, sourceSec);
+}
+
+/**
+ * A pending edit's saved source range, placed on the timeline from its
+ * current endpoints. A bound that already holds changes nothing; an edit that
+ * is gone, split, an exact range or cannot be placed is left as it is.
+ */
+export function patchPendingEdit(
+  project: ProjectView,
+  editId: string,
+  start?: number,
+  end?: number,
+): ProjectView {
+  const edit = project.pending_edits.find((e) => e.id === editId);
+  if (
+    !edit ||
+    edit.exact_range ||
+    edit.type === "split" ||
+    edit.source_start == null ||
+    edit.source_end == null
+  )
+    return project;
+  const moves: ["start" | "end", number, number][] = [];
+  for (const [edge, want, have] of [
+    ["start", start, edit.source_start],
+    ["end", end, edit.source_end],
+  ] as const) {
+    if (want === undefined || Math.abs(want - have) <= PENDING_BOUND_EPSILON)
+      continue;
+    const at = pendingEdgeTimeline(project, edit, edge, want);
+    if (at == null) return project;
+    moves.push([edge, want, at]);
+  }
+  return moves.reduce(
+    (result, [edge, want, at]) =>
+      patchPendingEdge(result, editId, edge, want, at),
+    project,
+  );
 }
