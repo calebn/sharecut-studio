@@ -236,3 +236,15 @@ export function autoRetryMsOf(failure: ShellFailure): number | null {
   }
   return guestLoadCover(failure.failure).autoRetryMs;
 }
+
+/** Whether the studio's cover is waiting for the connection to come back, with no attempt out. */
+export function waitsForConnection(
+  failure: ShellFailure | null,
+  retrying: boolean,
+): boolean {
+  return (
+    !retrying &&
+    failure?.audience === "guest" &&
+    failure.failure.kind === "offline"
+  );
+}
