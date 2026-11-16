@@ -9,12 +9,20 @@ rewrites the line before any handler formats it.
 from __future__ import annotations
 
 import logging
+from collections.abc import Mapping
 from typing import Any
 from urllib.parse import unquote
 
 from podcast_mcp.util.redact import redact_share_paths
 
 UVICORN_LOGGERS = ("uvicorn.access", "uvicorn.error", "uvicorn.asgi")
+
+
+def _text(value: object) -> str | None:
+    try:
+        return unquote(str(value))
+    except Exception:
+        return None
 
 
 def _scrub(value: Any) -> Any:
@@ -29,13 +37,11 @@ def _scrub(value: Any) -> Any:
         if separator and redacted_path != path:
             return redacted_path
         return redact_share_paths(value)
-    if value is None or isinstance(value, int | float):
+    text = _text(value)
+    if text is None or redact_share_paths(text) == text:
         return value
-    text = unquote(str(value))
-    if redact_share_paths(text) == text:
-        return value
-    if isinstance(value, dict) and "query_string" in value:
-        text = unquote(str({**value, "query_string": b""}))
+    if isinstance(value, Mapping) and "query_string" in value:
+        text = _text({**value, "query_string": b""}) or text
     return redact_share_paths(text)
 
 
@@ -44,7 +50,7 @@ class ShareTokenFilter(logging.Filter):
         record.msg = _scrub(record.msg)
         if isinstance(record.args, tuple):
             record.args = tuple(_scrub(arg) for arg in record.args)
-        elif isinstance(record.args, dict):
+        elif isinstance(record.args, Mapping):
             scrubbed = {key: _scrub(arg) for key, arg in record.args.items()}
             if "query_string" in scrubbed and scrubbed != record.args:
                 scrubbed["query_string"] = b""
