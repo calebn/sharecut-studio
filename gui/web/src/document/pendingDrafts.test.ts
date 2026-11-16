@@ -384,6 +384,45 @@ describe("a queued pending-edit range draft", () => {
     expect(range(overlayDocumentDrafts(base))).toEqual([19, 25, 25]);
   });
 
+  it.each([
+    [
+      "start, end, start",
+      [
+        ["start", 21],
+        ["end", 30],
+        ["start", 26],
+      ],
+      [26, 30],
+    ],
+    [
+      "end, start, end",
+      [
+        ["end", 30],
+        ["start", 26],
+        ["end", 27],
+      ],
+      [26, 27],
+    ],
+    [
+      "a final range that is inverted",
+      [
+        ["end", 30],
+        ["start", 26],
+        ["end", 25],
+      ],
+      [20, 24],
+    ],
+  ] as const)(
+    "judges the combined range whatever order the saves queued: %s",
+    (_name, steps, want) => {
+      steps.forEach(([edge, value], i) => {
+        save(`c${i}`, { [edge]: value, expected });
+      });
+      const shown = overlayDocumentDrafts(base).pending_edits[0];
+      expect([shown.source_start, shown.source_end]).toEqual(want);
+    },
+  );
+
   it("is cleared by a scope change", () => {
     save("c1", { end: 25, expected });
     resetDocumentAuthority("/tmp/other.json");

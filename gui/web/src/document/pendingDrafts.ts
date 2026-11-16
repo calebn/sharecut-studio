@@ -314,6 +314,14 @@ export function overlayDocumentDrafts(
         ...drafts.filter((d) => d.kind === "preview"),
       ]
     : drafts.filter((d) => d.kind !== "preview");
+  const ranges = new Map<string, { start?: number; end?: number }>();
+  for (const draft of ordered)
+    if (draft.kind === "pendingRange")
+      ranges.set(draft.editId, {
+        ...ranges.get(draft.editId),
+        ...(draft.start !== undefined ? { start: draft.start } : {}),
+        ...(draft.end !== undefined ? { end: draft.end } : {}),
+      });
   for (const draft of ordered) {
     switch (draft.kind) {
       case "move":
@@ -331,9 +339,19 @@ export function overlayDocumentDrafts(
       case "gain":
         result = patchClipGain(result, draft.clipId, draft.gainDb);
         break;
-      case "pendingRange":
-        result = patchPendingEdit(result, draft.editId, draft.start, draft.end);
+      case "pendingRange": {
+        const range = ranges.get(draft.editId);
+        if (range) {
+          ranges.delete(draft.editId);
+          result = patchPendingEdit(
+            result,
+            draft.editId,
+            range.start,
+            range.end,
+          );
+        }
         break;
+      }
       case "preview":
         result = draft.apply(result);
         break;

@@ -1,6 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { applyDocumentSnapshot } from "../document/applyDocumentUpdate";
+import {
+  applyDocumentSnapshot,
+  refreshDocumentDisplay,
+} from "../document/applyDocumentUpdate";
+
 import { resetDocumentAuthority } from "../document/authorityState";
+import { beginDocumentDraft } from "../document/pendingDrafts";
 import { useDawStore } from "../state/dawStore";
 import { deferred } from "../test/deferred";
 import { minimalProject, pendingEditView } from "../test/fixtures";
@@ -79,6 +84,44 @@ describe("a pending-edit range save shows its value before the server answers", 
       new Response(JSON.stringify({ detail: "refused" }), { status: 409 }),
     );
     await expect(saving).rejects.toBeDefined();
+    expect(shown()).toEqual([20, 24, 24]);
+  });
+
+  it("keeps a start save held after a refresh when an end save queued after it", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => {
+        throw new TypeError("offline");
+      }),
+    );
+    await updatePendingEdit(path, "p1", 21, 24, false);
+    await updatePendingEdit(path, "p1", 21, 30, false);
+    await updatePendingEdit(path, "p1", 26, 30, false);
+    expect(shown()).toEqual([26, 30, 30]);
+    refreshDocumentDisplay();
+    expect(shown()).toEqual([26, 30, 30]);
+  });
+
+  it("does not redisplay for a project that is not the open one", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => {
+        throw new TypeError("offline");
+      }),
+    );
+    beginDocumentDraft("held", "UpdatePendingEdit", {
+      id: "p1",
+      start: 20,
+      end: 25,
+      snap: false,
+    });
+    await updatePendingEdit(
+      "/projects/other.project.json",
+      "p1",
+      20,
+      25,
+      false,
+    );
     expect(shown()).toEqual([20, 24, 24]);
   });
 });
