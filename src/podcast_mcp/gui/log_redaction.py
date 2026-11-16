@@ -13,7 +13,7 @@ from typing import Any
 
 from podcast_mcp.util.redact import redact_share_paths
 
-UVICORN_LOGGERS = ("uvicorn.access", "uvicorn.error")
+UVICORN_LOGGERS = ("uvicorn.access", "uvicorn.error", "uvicorn.asgi")
 
 
 def _scrub(value: Any) -> Any:
@@ -21,6 +21,8 @@ def _scrub(value: Any) -> Any:
 
     The query of a guest WebSocket holds the guest's name and client id.
     """
+    if isinstance(value, dict):
+        return _scrub_scope(value)
     if not isinstance(value, str):
         return value
     path, separator, _query = value.partition("?")
@@ -28,6 +30,15 @@ def _scrub(value: Any) -> Any:
     if separator and redacted_path != path:
         return redacted_path
     return redact_share_paths(value)
+
+
+def _scrub_scope(scope: dict[Any, Any]) -> Any:
+    """An ASGI scope (logged at trace level) as text without its token, or itself if clean."""
+    text = repr(scope)
+    redacted = redact_share_paths(text)
+    if redacted == text:
+        return scope
+    return redact_share_paths(repr({**scope, "query_string": b""}))
 
 
 class ShareTokenFilter(logging.Filter):

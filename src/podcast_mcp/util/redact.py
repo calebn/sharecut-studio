@@ -142,15 +142,25 @@ def sanitize(
 
 
 def _mask_values(text: str, secrets: Sequence[str], min_prefix: int | None) -> str:
-    out = text
-    for secret in sorted({s for s in secrets if s}, key=len, reverse=True):
+    spans: list[tuple[int, int]] = []
+    for secret in {s for s in secrets if s}:
         if min_prefix is not None and len(secret) > min_prefix:
             tail = "".join(f"(?:{re.escape(ch)}" for ch in secret[min_prefix:]) + ")?" * (
                 len(secret) - min_prefix
             )
-            out = re.sub(re.escape(secret[:min_prefix]) + tail, "<redacted>", out)
+            pattern = re.escape(secret[:min_prefix]) + tail
         else:
-            out = out.replace(secret, "<redacted>")
+            pattern = re.escape(secret)
+        spans.extend(m.span() for m in re.finditer(pattern, text))
+    merged: list[list[int]] = []
+    for start, end in sorted(spans):
+        if merged and start <= merged[-1][1]:
+            merged[-1][1] = max(merged[-1][1], end)
+        else:
+            merged.append([start, end])
+    out = text
+    for start, end in reversed(merged):
+        out = out[:start] + "<redacted>" + out[end:]
     return out
 
 
