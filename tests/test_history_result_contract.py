@@ -29,7 +29,12 @@ from podcast_mcp.services.document import (
     HistoryService,
     PopulatedHistoryDiffResult,
 )
-from podcast_mcp.services.document.history_results import HistoryGroup, HistoryStatusResult
+from podcast_mcp.services.document.history_results import (
+    HistoryGroup,
+    HistoryMoveRerenderedResult,
+    HistoryMoveResult,
+    HistoryStatusResult,
+)
 from podcast_mcp.services.document_sync import DocumentSyncService
 from podcast_mcp.services.document_sync.handlers.history import redo_history, undo_history
 from podcast_mcp.util.coded_error import CodedValueError
@@ -141,6 +146,27 @@ def test_history_group_models_reject_missing_or_mixed_fields():
         HistoryStatusResult.model_validate(
             {"cursor": -1, "total": 0, "can_undo": False, "can_redo": False, "head_id": "root"}
         )
+
+
+def test_history_move_results_validate_preview_presence():
+    status = {
+        "cursor": 1,
+        "total": 2,
+        "can_undo": True,
+        "can_redo": False,
+        "current_label": None,
+        "head_id": "root",
+    }
+    plain = HistoryMoveResult.model_validate(status)
+    assert list(plain.model_dump()) == list(status)
+    with pytest.raises(ValidationError):
+        HistoryMoveResult.model_validate({**status, "preview": {}})
+    with pytest.raises(ValidationError):
+        HistoryMoveRerenderedResult.model_validate(status)
+    rerendered = HistoryMoveRerenderedResult.model_validate({**status, "preview": {"ready": True}})
+    assert list(rerendered.model_dump()) == [*status, "preview"]
+    with pytest.raises(ValidationError):
+        HistoryMoveRerenderedResult.model_validate({**status, "preview": None})
 
 
 def test_history_moves_keep_dictionary_status_and_optional_preview(minimal_project):

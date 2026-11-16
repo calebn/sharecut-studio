@@ -50,6 +50,8 @@ if TYPE_CHECKING:
         EmptyHistoryDiffResult,
         HistoryDiffResult,
         HistoryListResult,
+        HistoryMoveRerenderedResult,
+        HistoryMoveResult,
         PopulatedHistoryDiffResult,
     )
     from podcast_mcp.services.document.kit_apply import KitApplyReport, submit_kit_apply
@@ -106,6 +108,8 @@ __all__ = [
     "FeedViewKind",
     "HistoryDiffResult",
     "HistoryListResult",
+    "HistoryMoveRerenderedResult",
+    "HistoryMoveResult",
     "HistoryService",
     "KitApplyReport",
     "PendingPreviewSpan",
@@ -179,6 +183,8 @@ _MODULE_BY_NAME = {
     "EmptyHistoryDiffResult": "history_results",
     "HistoryDiffResult": "history_results",
     "HistoryListResult": "history_results",
+    "HistoryMoveRerenderedResult": "history_results",
+    "HistoryMoveResult": "history_results",
     "PopulatedHistoryDiffResult": "history_results",
     "PENDING_PREVIEW_PAD_DEFAULT_SEC": "play_pending",
     "PENDING_PREVIEW_PAD_MAX_SEC": "play_pending",
