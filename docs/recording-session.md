@@ -43,7 +43,7 @@ not mint `record` URLs).
 
 Category SOTA is **Riverside / Zencastr / SquadCast / Descript Rooms**, not Zoom:
 
-- Live conversation over **WebRTC** (lossy, echo-cancelled, headphones).
+- Live conversation over **WebRTC** (lossy; no echo cancellation, so headphones matter).
 - Keeper stems recorded **locally per participant** as uncompressed **PCM/WAV**
   (Riverside: 16-bit linear PCM, 44.1/48 kHz), independent of the network.
 - **Segment upload** during the session: each keeper segment uploads in chunks
@@ -381,8 +381,9 @@ Keeper `getUserMedia` requests:
 ```
 
 and asserts `track.getSettings()` matches. Chromium defaults those **on** and
-they run WebRTC APM on the capture track. The monitor/send path may use a
-processed clone or browser AEC; the WAV tap must not.
+they run WebRTC APM on the capture track. The send path uses this same
+unprocessed track today, so no echo cancellation runs anywhere; a processed send
+track is a follow-up. The WAV tap must never be processed.
 
 ## Mix-minus (mesh N−1)
 
@@ -394,7 +395,12 @@ inversion (OpenStudio invert-against-program-bus is for a single summed mix /
 SFU). Optional **sidetone**: 0 ms dry tap, gain-limited (−12 dB default, max
 0 dB), labeled in the graph — never the WebRTC round-trip. Headphones
 recommended; open speakers + open mic is acoustic echo and is why the Join sheet asks for headphones,
-not something mix-minus can fix.
+not something mix-minus can fix. On a phone a guest can join without headphones
+(see Join sheet). Their speaker plays the others into their microphone. The others
+may hear themselves echo, and that guest's full-quality recording holds the others'
+voices. Transcript reconcile and
+[`podcast-mute-bleed`](../.agents/skills/podcast-mute-bleed/SKILL.md) reduce that
+bleed after the take but cannot promise to remove it.
 
 If an SFU ever lands, server mix-minus is specified then, and MM1–MM9 bars
 still apply.
@@ -815,6 +821,13 @@ from assistive tech so it is not announced twice. A joining, left, declined or l
 the glyph and gets a dimmed ring, like the dimmed avatar, so away does not read as live. Host-ness
 comes from the participant's role (`RoomPerson.role`), not from who is viewing.
 
+A recorded guest who has accepted recording and said they are not wearing headphones has a
+crossed-out headphones glyph on their live tile, and "not wearing headphones" in its accessible
+name ("Maya Okafor, not wearing headphones"). The host, producers and the guest's own tile show
+it; other guests do not. It clears when the guest says they are wearing them, or when the tile
+is no longer live. It is a display choice, not a privacy boundary: the room's snapshot carries
+every participant's answer (`roomPeople.ts`).
+
 Surfaces: the Join sheet's microphone row, the person's own room tile and the
 host Record stage. The room-full Cover never calls `getUserMedia`, so it has no
 meter. Producers have no meter and no clipping alert.
@@ -1109,11 +1122,44 @@ A guest opening a `/rec/` link sees the shared Record room (`system/RoomView`,
 mounted by `record/GuestRoomApp.tsx`) with the **Join sheet** over it. The sheet's
 title is "Join the room", or "{Names} is here" (one person) / "{Names} are here"
 (several) once others are in. It holds the rows in order: **Storage** (only when the storage check has a
-problem), **Your name**, **Microphone** and **Headphones** ("I'm wearing headphones"). **Join and record** stays disabled and names the first
+problem), **Your name**, **Microphone** and **Headphones**. **Join and record** stays disabled and names the first
 row still open as its reason ("Add your name first", "Allow your microphone
 first", "Put on headphones first", "Fix storage first"). A producer sees the name
 row and **Join to listen** ("You'll listen and comment. You won't be
 recorded."); producers skip the mic, storage and headphones rows.
+
+### Decision: Headphones are an honest choice on a phone
+
+<!-- decision
+id: D-headphones-honest-choice-on-phone
+status: accepted
+date: 2026-11-14
+decided-by: calebn
+evidence:
+- #3834 owner decision, 2026-11-14: on a phone headphones stop being a hard gate; the guest chooses, sees a warning, and the host sees a marker; a laptop keeps the gate
+enforced-by:
+- gui/web/src/record/headphonesRule.test.ts::a touch laptop with a fine primary pointer
+- gui/web/e2e/record-headphones.spec.ts::a phone guest joins without headphones after a choice and the host sees it until they switch
+-->
+
+The Headphones row follows the device. On a laptop or a tablet it is the single toggle
+"I'm wearing headphones", and until it is on the reason reads "Put on headphones first". On a
+phone it is a pair of buttons, "I'm wearing headphones" and "I'm not wearing headphones",
+neither pressed until the guest answers; until then the reason reads "Say if you're wearing
+headphones first", and either answer lets **Join and record** work. "I'm not wearing headphones"
+shows, under the pair, "Without headphones, the others may hear an echo and be heard in your
+recording. Keep your volume low." The Device sheet holds the same control, and a press applies
+at once, during a take too. A phone is a device test, read once when the page opens
+(`record/headphonesRule.ts`): a coarse primary pointer and a screen whose short side is over
+0 and under 600 CSS px. The screen, not the window, decides, so a narrow laptop window or a
+touch laptop keeps the gate, and rotating a phone does not change it. No preset comes from the
+name of a connected device, because a connected headset is not a worn one.
+
+The answer is `HeadphonesAck` on the existing wire. The page sends it only when the guest's
+choice differs from what the room holds, so connecting or reloading sends nothing, and a
+guest who is already joined when the page opens (a reload mid-take) starts from the room's
+value. A guest still asked to join starts unanswered. A laptop guest who turns the toggle off
+mid-session sends "off" like a phone guest does.
 
 The sheet is one `Dialog` at every width, and the room's 600 rule decides its shape
 (`system-record.css`, a container query on the dialog root). The sizes below are rem
@@ -1394,7 +1440,8 @@ stateDiagram-v2
 
 | Situation | Copy |
 |-----------|------|
-| Headphones | Toggle "I'm wearing headphones"; until it is on, Join and record reads "Put on headphones first" |
+| Headphones, laptop or tablet | Toggle "I'm wearing headphones"; until it is on, Join and record reads "Put on headphones first" |
+| Headphones, phone | Buttons "I'm wearing headphones" and "I'm not wearing headphones"; until one is pressed, Join and record reads "Say if you're wearing headphones first"; not wearing shows "Without headphones, the others may hear an echo and be heard in your recording. Keep your volume low." |
 | Mic grant | "Allow microphone" |
 | Mic blocked | Row title "Microphone blocked", **How to allow** (retries), and "Microphone is blocked for this site. Allow it in your browser's site settings, then Retry." |
 | Mic blocked in the macOS or Windows Tauri desktop app | "Microphone access is blocked by your operating system. Allow ShareCut Studio in your system microphone privacy settings, then Retry." |
@@ -1909,7 +1956,7 @@ routing matrix, not a model.
 | Concern | Science / spec | FOSS to use | Do not |
 |---------|----------------|-------------|--------|
 | **Mix-minus / IFB (N−1)** | Broadcast foldback: each talent hears program minus self. Mesh equivalent: play only remote tracks. Phase inversion (OpenStudio) is for a **single program bus**. Reference impl of the matrix idea: [oximedia-routing mix_minus](https://docs.rs/oximedia-routing/latest/oximedia_routing/mix_minus/index.html). W3C [Web Audio](https://www.w3.org/TR/webaudio-1.1/). **Not** same-room bleed removal. | Own `mixMinus.ts` (O(N) GainNode matrix, ~20 lines). OpenStudio is a reference, not a dependency. | Invert-against-delayed-self; "DSP mix-minus" nets; N−1 to clean keepers. |
-| **Acoustic echo (speakers → mic)** | Adaptive filter + residual suppression. Production FOSS: **WebRTC AEC3** (`modules/audio_processing/aec3`, 10 ms frames). Packaged as webrtc-audio-processing / Chromium APM. | Browser APM on the **monitor/send path only**. Keeper constraints all `false`; verify `getSettings()`. Headphones are the primary defense. | Python AEC; AEC/NS/AGC on the WAV tap; WASM-porting AEC3. |
+| **Acoustic echo (speakers → mic)** | Adaptive filter + residual suppression. Production FOSS: **WebRTC AEC3** (`modules/audio_processing/aec3`, 10 ms frames). Packaged as webrtc-audio-processing / Chromium APM. | None today: the send path is the keeper's own track. A processed send track (browser APM) is the planned follow-up. Keeper constraints all `false`; verify `getSettings()`. Headphones are the only defense. | Python AEC; AEC/NS/AGC on the WAV tap; WASM-porting AEC3. |
 | **Noise suppression (monitor)** | Valin, *A Hybrid DSP/Deep Learning Approach to Real-Time Full-Band Speech Enhancement*, MMSP 2018 ([arXiv:1709.08243](https://arxiv.org/pdf/1709.08243.pdf)); [xiph/rnnoise](https://github.com/xiph/rnnoise) BSD-3. | Post already has FFmpeg `arnndn` ([audio-engineering.md](audio-engineering.md)). Live monitor only: [jitsi/rnnoise-wasm](https://github.com/jitsi/rnnoise-wasm) in a Worklet **after** the dry tap. | RNNoise on keepers; rewriting the GRU in TS. |
 | **Keeper PCM/WAV** | Linear PCM 16-bit 48 kHz. Worklet quantum 128 samples (~2.7 ms). | MIT [extendable-media-recorder](https://github.com/chrisguttandin/extendable-media-recorder) + [wav-encoder](https://github.com/chrisguttandin/extendable-media-recorder-wav-encoder), or a ~100-line owned Worklet → Int16 chunks ([wavtools](https://github.com/keithwhor/wavtools) idea). Tauri: cpal/coreaudio. | Default `MediaRecorder` Opus/WebM as primary. |
 | **Live transport** | DTLS-SRTP [RFC 3711](https://www.rfc-editor.org/rfc/rfc3711.html) + [RFC 5764](https://www.rfc-editor.org/info/rfc5764). Cáceres & Chafe, *JackTrip* (ICMC 2009) is tighter than podcast talk needs. | Browser `RTCPeerConnection`; signaling on the existing session WS. NAT fallback: [coturn](https://github.com/coturn/coturn) as ops. Scale-up later: [LiveKit](https://github.com/livekit/livekit) / mediasoup — never on the guest laptop for beta. | Reimplement ICE/DTLS; JackTrip as the monitor. |
@@ -2015,7 +2062,7 @@ the written WAV within 1 ms), `keeper/takeClipping.test.ts`, `alertGates.test.ts
 
 | Area | How |
 |------|-----|
-| Consent vs Join sheet | Explicit **Allow microphone** before the meter (`useMicPermission`; one `getUserMedia` path). Join and record disabled with `aria-describedby` until the name, mic, storage and headphones rows are done. WAV tap + keeper chunks **and** room-tone PUT **zero bytes** to the host until consent (the room-tone bed is captured only after consent, on the host's countdown); Start disabled while any **recorded** in-room client lacks consent; producers skip the gate and never call `getUserMedia`. Host Start does not require any room tone. The upload route re-checks server-side: a keeper chunk requires the uploader in that take's `consented_participant_ids`, room tone requires current `consented is True`, both returning `403 consent required` (`tests/test_record_upload.py::test_guest_keeper_upload_requires_take_consent`, `::test_guest_room_tone_upload_rejected_after_decline`, `::test_guest_keeper_upload_rechecks_consent_after_body_read`). |
+| Consent vs Join sheet | Explicit **Allow microphone** before the meter (`useMicPermission`; one `getUserMedia` path). Join and record disabled with `aria-describedby` until the name, mic, storage and headphones rows are done (on a phone the headphones row is done once answered). WAV tap + keeper chunks **and** room-tone PUT **zero bytes** to the host until consent (the room-tone bed is captured only after consent, on the host's countdown); Start disabled while any **recorded** in-room client lacks consent; producers skip the gate and never call `getUserMedia`. Host Start does not require any room tone. The upload route re-checks server-side: a keeper chunk requires the uploader in that take's `consented_participant_ids`, room tone requires current `consented is True`, both returning `403 consent required` (`tests/test_record_upload.py::test_guest_keeper_upload_requires_take_consent`, `::test_guest_room_tone_upload_rejected_after_decline`, `::test_guest_keeper_upload_rechecks_consent_after_body_read`). |
 | Removed guest | The host stops consented take 0, starts take 1, then removes the guest. Take 0 retains its historical consent roster, but both take indices and room tone deny upload consent. The guest lease is revoked, so retrying take 0 returns `403 invalid lease`. Reducer coverage is `tests/test_record_reducer.py::test_remove_participant_revokes_stopped_and_current_take_upload_consent`; HTTP coverage is `tests/test_record_upload.py::test_removed_guest_cannot_upload_stopped_take_after_next_take_starts`. Current-take removal is covered by `::test_guest_keeper_upload_rejected_after_host_removal`. |
 | Room tone | Host-started only: a consented guest's browser records one minute of keeper-constraint PCM→WAV when a new `room_tone.round` names it (`useGuestRoomTone`; a round already in the first snapshot is ignored, #2490); RMS > −35 dBFS warns "Too loud: is something playing?" and does not upload; guest PUT `kind=room_tone` only after consent (403 before consent), 403 for producer, sent as 30 s parts, rejected above 70 s of 48 kHz mono (`ROOM_TONE_MAX_DURATION_SEC`, the minute plus slack); Retry replaces the prior ACK; landing sets `track.room_tone` under the land lock; `filler_pad_mode: room_tone` prefers the bed then stem-steal; undo restores and re-lands. Producers never record it. |
 | Late-join pad | Joiner at T+10 s → clip at `join_offset_ms` = 10 s ± 1 frame (default, no in-file pad). Optional origin encoding of **segment 0 only**: leading zeros 10 s ± 1 frame at 48 kHz. Later segments never padded in-file. |
