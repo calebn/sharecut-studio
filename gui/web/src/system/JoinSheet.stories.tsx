@@ -215,6 +215,18 @@ export const GuestReady: Story = {
   },
 };
 
+export const GuestLookingIn: Story = {
+  args: { mic: MIC_READY, headphones: true, lookingIn: 1 },
+  play: async ({ viewMode }) => {
+    if (viewMode === "docs") return;
+    const dialog = await sheet();
+    await userEvent.click(dialog.getByRole("button", { name: "Details" }));
+    await expect(
+      dialog.getByText(/Someone with the producer link is looking in/),
+    ).toBeVisible();
+  },
+};
+
 export const GuestClippedDuringCheck: Story = {
   args: {
     mic: { ...MIC_READY, level: 1, clipped: true },

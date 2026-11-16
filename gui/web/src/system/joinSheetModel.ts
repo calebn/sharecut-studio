@@ -1,7 +1,7 @@
 import type { PointerKind } from "../state/types";
 import type { PersonData } from "./Person";
 import type { RoomPhase } from "./roomPhase";
-import type { RoomRole } from "./roomViewModel";
+import { lookingInLine, type RoomRole } from "./roomViewModel";
 import type { StatusRowState } from "./StatusRow";
 
 /** Where the microphone is, from the first look to a working input. */
@@ -180,16 +180,26 @@ export function joinHeadline(here: { person: PersonData }[]): string {
   return `${nameList(names)} ${names.length === 1 ? "is" : "are"} here`;
 }
 
-/** "Rosa is listening and won't be recorded", for the Details disclosure. */
+/**
+ * "Rosa is listening and won't be recorded", for the Details disclosure,
+ * followed by who is looking in and that they cannot hear the room.
+ */
 export function listenersLine(
   here: { person: PersonData; role: RoomRole }[],
+  lookingIn = 0,
 ): string | null {
   const names = here
     .filter((entry) => entry.role === "producer")
     .map((entry) => firstName(entry.person.name))
     .filter((name) => name !== "");
-  if (names.length === 0) return null;
-  return `${nameList(names)} ${names.length === 1 ? "is" : "are"} listening and won't be recorded`;
+  const listening =
+    names.length === 0
+      ? null
+      : `${nameList(names)} ${names.length === 1 ? "is" : "are"} listening and won't be recorded`;
+  const looking = lookingInLine(lookingIn);
+  if (looking === null) return listening;
+  const cannotHear = `${looking}. They can see the room but can't hear it.`;
+  return listening === null ? cannotHear : `${listening}. ${cannotHear}`;
 }
 
 /** The host's first name, or "the host" when the room has not named one. */
