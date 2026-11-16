@@ -39,12 +39,14 @@ def _redact_route(text: str) -> str:
     return redact_share_paths(text)
 
 
-def _scrub(value: Any) -> Any:
-    """The redacted text of ``value``; a route that carries a token also loses its query.
+def _without_query(value: Any) -> Any:
+    if isinstance(value, Mapping) and "query_string" in value:
+        return {**value, "query_string": b""}
+    return value
 
-    The query of a guest WebSocket holds the guest's name and client id. A value that is not
-    text is kept as it is unless its text, once percent-decoded, holds a token.
-    """
+
+def _scrub(value: Any) -> Any:
+    """The redacted text of ``value``; a route that carries a token also loses its query."""
     if isinstance(value, str):
         plain = str.__str__(value)
         decoded = _decoded(plain)
@@ -54,23 +56,21 @@ def _scrub(value: Any) -> Any:
             return from_decoded
         if from_plain != plain:
             return from_plain
-        return value if type(value) is str else plain
+        return plain
     text = _text(value)
     if text is None or redact_share_paths(text) == text:
         return value
-    if isinstance(value, Mapping) and "query_string" in value:
-        text = _text({**value, "query_string": b""}) or text
-    return redact_share_paths(text)
+    return redact_share_paths(_text(_without_query(value)) or text)
 
 
-def _holds_token(value: Any) -> bool:
-    text = _decoded(str.__str__(value)) if isinstance(value, str) else _text(value)
-    return text is not None and redact_share_paths(text) != text
+def _changed(new: Any, old: Any) -> bool:
+    if isinstance(old, str):
+        return new != str.__str__(old)
+    return new is not old
 
 
 class ShareTokenFilter(logging.Filter):
     def filter(self, record: logging.LogRecord) -> bool:
-        """Scrub the record in place; a record that cannot be read is left as it was."""
         try:
             msg = _scrub(record.msg)
             args = record.args
@@ -78,11 +78,10 @@ class ShareTokenFilter(logging.Filter):
                 scrubbed_args = tuple(_scrub(arg) for arg in args)
                 if any(new is not old for new, old in zip(scrubbed_args, args, strict=True)):
                     args = scrubbed_args
-            elif isinstance(args, Mapping) and any(_holds_token(a) for a in args.values()):
+            elif isinstance(args, Mapping):
                 scrubbed = {key: _scrub(arg) for key, arg in args.items()}
-                if "query_string" in scrubbed:
-                    scrubbed["query_string"] = b""
-                args = scrubbed
+                if any(_changed(scrubbed[key], arg) for key, arg in args.items()):
+                    args = _without_query(scrubbed)
         except Exception:
             return True
         record.msg = msg

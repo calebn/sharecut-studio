@@ -285,7 +285,7 @@ class _NoEquality:
     [OrderedDict(a=float("nan")), OrderedDict(a=_NoEquality())],
     ids=["nan", "raising-eq"],
 )
-def test_a_mapping_is_never_compared_to_decide_whether_it_changed(
+def test_a_token_free_mapping_keeps_its_identity_whatever_its_values_compare_as(
     arg: Mapping[str, object],
 ) -> None:
     record = logging.LogRecord("uvicorn.error", logging.INFO, __file__, 1, "%s", (arg,), None)
@@ -297,7 +297,7 @@ def test_a_mapping_is_never_compared_to_decide_whether_it_changed(
     assert record.getMessage() == before
 
 
-def test_a_tuple_is_never_compared_to_decide_whether_it_changed() -> None:
+def test_a_token_free_tuple_keeps_its_identity_whatever_its_items_compare_as() -> None:
     args = (_NoEquality(), "x")
     record = logging.LogRecord("uvicorn.error", logging.INFO, __file__, 1, "%s %s", args, None)
 
@@ -481,3 +481,22 @@ def test_a_repeated_or_encoded_separator_before_the_token_does_not_hide_it(
     for line in lines:
         assert "quokka" not in line
         assert "Ann" not in line
+
+
+def test_a_mapping_whose_copy_cannot_be_printed_still_loses_its_token() -> None:
+    class Opaque:
+        def __repr__(self) -> str:
+            raise RuntimeError("no repr")
+
+    class Route(dict[str, object]):
+        def __str__(self) -> str:
+            return f"/r/{TOKEN}/ws"
+
+    line = _format("%s %s", "x", Route(a=Opaque(), query_string=b"name=Ann"))
+
+    assert line == "x /r/<share-token>/ws"
+
+
+def test_a_str_subclass_is_plain_text_in_a_tuple_and_kept_as_it_was_in_a_mapping() -> None:
+    assert _logged("%s", _StrOverride("v")) == "v\n"
+    assert _logged("%(a)s", {"a": _StrOverride("v")}) == "STR-OVERRIDE\n"
