@@ -152,16 +152,22 @@ def _mask_values(text: str, secrets: Sequence[str], min_prefix: int | None) -> s
         else:
             pattern = re.escape(secret)
         spans.extend(m.span() for m in re.finditer(pattern, text))
-    merged: list[list[int]] = []
+    pieces: list[str] = []
+    pos = 0
+    run_start = run_end = -1
     for start, end in sorted(spans):
-        if merged and start <= merged[-1][1]:
-            merged[-1][1] = max(merged[-1][1], end)
-        else:
-            merged.append([start, end])
-    out = text
-    for start, end in reversed(merged):
-        out = out[:start] + "<redacted>" + out[end:]
-    return out
+        if start <= run_end:
+            run_end = max(run_end, end)
+            continue
+        if run_start >= 0:
+            pieces += (text[pos:run_start], "<redacted>")
+            pos = run_end
+        run_start, run_end = start, end
+    if run_start >= 0:
+        pieces += (text[pos:run_start], "<redacted>")
+        pos = run_end
+    pieces.append(text[pos:])
+    return "".join(pieces)
 
 
 def redact_secrets(text: str, secrets: Sequence[str] = (), *, min_prefix: int | None = None) -> str:
