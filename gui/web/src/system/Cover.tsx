@@ -12,18 +12,41 @@ type CoverAction = {
    * (not natively disabled, so a focused button keeps focus), and ignores presses.
    */
   busy?: boolean;
-  /** What the button says while busy. The idle label keeps the width. */
+  /** What the button says while busy. The wider of it and the idle label sets the width. */
   busyLabel?: string;
 };
 
-function ActionLabel({ label, busy, busyLabel }: CoverAction) {
-  if (!busy || !busyLabel) {
-    return label;
+const Spinner = () => (
+  <SystemIcon name="progress-ring" size={16} progress={0.3} />
+);
+
+/**
+ * With a busy label, the idle and the busy content share one grid cell and the
+ * one not shown is hidden, so the button is as wide as the wider of the two
+ * and does not move at a press. Without one, a busy primary shows its spinner
+ * before the label.
+ */
+function ActionLabel({
+  label,
+  busy,
+  busyLabel,
+  spinner,
+}: CoverAction & { spinner?: boolean }) {
+  if (!busyLabel) {
+    return (
+      <>
+        {busy && spinner ? <Spinner /> : null}
+        {label}
+      </>
+    );
   }
   return (
     <span className="sys-cover-action-label">
-      <span aria-hidden="true">{label}</span>
-      <span>{busyLabel}</span>
+      <span aria-hidden={busy ? "true" : undefined}>{label}</span>
+      <span aria-hidden={busy ? undefined : "true"}>
+        {spinner ? <Spinner /> : null}
+        {busyLabel}
+      </span>
     </span>
   );
 }
@@ -49,6 +72,12 @@ export type CoverProps = {
   secondary?: CoverAction;
   /** Room full: occupant avatars. */
   extra?: ReactNode;
+  /**
+   * What the primary action's last press came to, as a polite status line
+   * beside the button, out of flow so nothing moves when it fills. Present
+   * (and empty) whenever it is passed, so its first text is announced.
+   */
+  status?: string;
   /** The title's element. "h1" only where the cover is the page's only heading. Default "h2". */
   headingLevel?: "h1" | "h2";
   /** The title element, so a page can move focus to it when the Cover changes. */
@@ -64,6 +93,7 @@ export function Cover({
   primary,
   secondary,
   extra,
+  status,
   headingLevel: Heading = "h2",
   titleRef,
 }: CoverProps) {
@@ -94,16 +124,18 @@ export function Cover({
           <div className="sys-cover-actions">
             {primary ? (
               <Button variant="primary" {...pressProps(primary)}>
-                {primary.busy ? (
-                  <SystemIcon name="progress-ring" size={16} progress={0.3} />
-                ) : null}
-                <ActionLabel {...primary} />
+                <ActionLabel {...primary} spinner />
               </Button>
             ) : null}
             {secondary ? (
               <Button variant="link" {...pressProps(secondary)}>
                 <ActionLabel {...secondary} />
               </Button>
+            ) : null}
+            {status !== undefined ? (
+              <p className="sys-cover-action-status" role="status">
+                {status}
+              </p>
             ) : null}
           </div>
         ) : null}

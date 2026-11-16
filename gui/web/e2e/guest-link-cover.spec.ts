@@ -95,6 +95,38 @@ for (const size of SIZES) {
       });
     });
 
+    test("the button keeps its place and size at rest, while busy and with the status showing", async ({
+      browser,
+    }) => {
+      await withGuestLink(browser, size, async (guest, token) => {
+        let open: () => void = () => {};
+        const held = new Promise<void>((resolve) => {
+          open = resolve;
+        });
+        let holding = false;
+        await guest.route(`**/api/review/${token}/project`, async (route) => {
+          if (holding) await held;
+          await route.abort("connectionrefused");
+        });
+        await guest.goto(`/r/${token}`);
+        const main = guest.getByRole("main");
+        const button = main.getByRole("button", { name: "Try now" });
+        await expect(button).toBeVisible();
+        const rest = await button.boundingBox();
+
+        holding = true;
+        await press(button, size.touch);
+        const busy = main.getByRole("button", { name: "Trying…" });
+        await expect(busy).toHaveAttribute("aria-busy", "true");
+        expect(await busy.boundingBox()).toEqual(rest);
+
+        open();
+        await expect(main.getByRole("status")).toHaveText("Still asleep.");
+        await expect(button).not.toHaveAttribute("aria-busy", "true");
+        expect(await button.boundingBox()).toEqual(rest);
+      });
+    });
+
     test("an HTTP 500 shows one plain sentence and none of the server's text", async ({
       browser,
     }) => {
