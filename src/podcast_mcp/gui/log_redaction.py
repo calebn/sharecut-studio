@@ -16,7 +16,7 @@ from urllib.parse import unquote
 
 from podcast_mcp.util.redact import redact_share_paths
 
-_BOUNDARY = re.compile(r"[\s'\"()\[\]{},]")
+_SPACE = re.compile(r"\s")
 UVICORN_LOGGERS = ("uvicorn.access", "uvicorn.error", "uvicorn.asgi")
 
 
@@ -26,21 +26,33 @@ def _decoded(text: str) -> str:
     return text
 
 
+def _is_route(text: str) -> bool:
+    decoded = _decoded(text)
+    return redact_share_paths(decoded) != decoded
+
+
+def _query_end(text: str, run: str, mark: int) -> int:
+    quote = max(run.rfind("'"), run.rfind('"'))
+    ends = r"\s"
+    if quote >= 0 and _is_route(run[quote + 1 :]):
+        ends = re.escape(run[quote]) + "|" + ends
+    found = re.compile(ends).search(text, mark)
+    return found.start() if found else len(text)
+
+
 def _cut(text: str) -> str:
     kept: list[str] = []
     position = 0
     cut = False
     while (mark := text.find("?", position)) >= 0:
-        start = max((m.end() for m in _BOUNDARY.finditer(text, position, mark)), default=position)
-        route = _decoded(text[start:mark])
-        if redact_share_paths(route) == route:
+        start = max((m.end() for m in _SPACE.finditer(text, position, mark)), default=position)
+        if not _is_route(text[start:mark]):
             kept.append(text[position : mark + 1])
             position = mark + 1
             continue
         cut = True
         kept.append(text[position:mark])
-        end = _BOUNDARY.search(text, mark)
-        position = end.start() if end else len(text)
+        position = _query_end(text, text[start:mark], mark)
     if not cut:
         return text
     kept.append(text[position:])
