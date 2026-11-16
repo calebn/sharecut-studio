@@ -108,6 +108,64 @@ html[data-surface="home"][data-shell] {
   outline: none;
 }
 
+/* What the guest typed and did not send, handed back under the cover's sentence. The text scrolls inside its own box, and on a phone the copy button stays pinned to the bottom of the screen, so a very long draft or large text never pushes the button out of reach. */
+.guest-page-cover--unsent .sys-cover {
+  --sys-cover-top: var(--space-6);
+}
+
+/* A touch pointer on a wide screen still gets the phone's primary-button height (48 px); a fine pointer keeps the height of every other cover button. */
+@media (pointer: coarse) {
+  .guest-page-cover--unsent .sys-cover--page .sys-cover-actions .primary {
+    min-block-size: var(--target-primary-phone);
+  }
+}
+
+@container sys-cover (max-width: 40rem) {
+  .guest-page-cover--unsent .sys-cover--page .sys-cover-actions {
+    position: sticky;
+    inset-block-end: 0;
+    background: var(--color-bg-canvas);
+  }
+}
+
+.guest-page-cover--unsent .sys-cover-body {
+  inline-size: 100%;
+}
+
+.guest-unsent {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  inline-size: 100%;
+  text-align: start;
+}
+
+.guest-unsent-heading {
+  margin: 0;
+  font-size: var(--font-size-body);
+  line-height: 1.3;
+}
+
+.guest-unsent-text {
+  box-sizing: border-box;
+  inline-size: 100%;
+  min-block-size: calc(2lh + 2 * var(--space-3));
+  max-block-size: min(40dvh, 18rem);
+  resize: none;
+  overflow: auto;
+  padding: var(--space-3);
+  font-size: var(--font-size-body);
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+/* As tall as the text, between two lines and the cap; browsers without this size the box from its rows instead. */
+@supports (field-sizing: content) {
+  .guest-unsent-text {
+    field-sizing: content;
+  }
+}
+
 /* The body takes programmatic focus after a stage switch (useAnnounceStageSwitch); it is a landmark, not a control, so it draws no ring. */
 .stage-frame-body:focus {
   outline: none;
