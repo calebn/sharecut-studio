@@ -385,6 +385,48 @@ describe("JoinSheet first focus", () => {
     await waitFor(() => expect(primary("Join and record")).toHaveFocus());
   });
 
+  it("hands focus on when the pressed mic action unmounts and the next step does not change", async () => {
+    vi.stubGlobal("requestAnimationFrame", () => 1);
+    vi.stubGlobal("cancelAnimationFrame", vi.fn());
+    const { rerender } = render(<Harness mic={{ status: "idle" }} />);
+    const allow = primary("Allow microphone");
+    allow.focus();
+    rerender(<Harness mic={{ status: "prompting" }} />);
+    expect(primary("Allow microphone")).toHaveFocus();
+    rerender(<Harness mic={{ status: "ready", input: "Mic", level: 0.2 }} />);
+    await waitFor(() =>
+      expect(screen.getByRole("textbox", { name: "Your name" })).toHaveFocus(),
+    );
+  });
+
+  it("hands focus to the storage row when Retry storage check unmounts and keeps it off the page", async () => {
+    vi.stubGlobal("requestAnimationFrame", () => 1);
+    vi.stubGlobal("cancelAnimationFrame", vi.fn());
+    const retry = {
+      text: "Can't save here.",
+      action: { label: "Retry storage check" },
+    };
+    const { rerender } = render(<Harness {...READY} blocker={retry} />);
+    primary("Retry storage check").focus();
+    rerender(
+      <Harness {...READY} blocker={{ text: "Checking this device…" }} />,
+    );
+    await waitFor(() =>
+      expect(document.querySelector('[data-step="storage"]')).toHaveFocus(),
+    );
+  });
+
+  it("does not take focus from a control the guest left connected", async () => {
+    vi.stubGlobal("requestAnimationFrame", () => 1);
+    vi.stubGlobal("cancelAnimationFrame", vi.fn());
+    const { rerender } = render(<Harness mic={{ status: "idle" }} />);
+    primary("Not now").focus();
+    (document.activeElement as HTMLElement).blur();
+    rerender(<Harness mic={{ status: "prompting" }} />);
+    rerender(<Harness mic={{ status: "idle" }} />);
+    expect(document.body).toHaveFocus();
+  });
+
   it("moves focus from the waiting mic row to Join and record when the prompt resolves", async () => {
     const { rerender } = render(
       <Harness {...READY} mic={{ status: "prompting" }} />,

@@ -263,6 +263,45 @@ export function JoinSheet({
     )?.focus();
   }, [next, pointer]);
 
+  // A control the guest pressed that then leaves the sheet (an action that
+  // resolves, a retry that starts) drops focus to the page even when the step
+  // is unchanged. Hand it to the current target; a control that is still
+  // connected, such as one the guest blurred on purpose, is left alone.
+  const lastFocused = useRef<HTMLElement | null>(null);
+  useEffect(() => {
+    const track = (event: FocusEvent) => {
+      const target = event.target;
+      if (
+        target instanceof HTMLElement &&
+        formRef.current?.closest(".sys-join-dialog")?.contains(target)
+      ) {
+        lastFocused.current = target;
+      }
+    };
+    const seeded = document.activeElement;
+    if (
+      seeded instanceof HTMLElement &&
+      formRef.current?.closest(".sys-join-dialog")?.contains(seeded)
+    ) {
+      lastFocused.current = seeded;
+    }
+    document.addEventListener("focusin", track);
+    return () => document.removeEventListener("focusin", track);
+  }, []);
+  useEffect(() => {
+    const last = lastFocused.current;
+    const active = document.activeElement;
+    if (!last || last.isConnected) return;
+    lastFocused.current = null;
+    if (active && active !== document.body) return;
+    focusElement(
+      formRef.current,
+      nameRef.current,
+      primaryRef.current,
+      joinFocus(next, pointer),
+    )?.focus();
+  });
+
   // "fine": Enter means a keyboard is in use, so the name field is the right target.
   const submit = (event: FormEvent) => {
     event.preventDefault();
