@@ -488,3 +488,23 @@ def test_host_http_command_reply_text_pins_the_pin_and_clear_results(episode: Pa
         '"type":"ClearFeedField","payload":{"key":"item.intro",'
         '"result":{"key":"item.intro","pinned":false}},"causation_id"'
     ) in cleared.text
+
+
+def test_a_non_ascii_person_key_is_escaped_in_the_reply_and_the_journal(episode: Path) -> None:
+    key = "item.person[Zoë Müller].role"
+    project = load_project(episode)
+    project.tracks = [
+        Track(id="guest", label="Guest", role=TrackRole.DIALOGUE, speaker="Zoë Müller")
+    ]
+    save_project(project, episode)
+    pinned = submit_host_document_command(episode, "SetFeedField", {"key": key, "value": "host"})
+    cleared = submit_host_document_command(episode, "ClearFeedField", {"key": key})
+
+    escaped = '{"key": "item.person[Zo\\u00eb M\\u00fcller].role", "pinned": %s}'
+    assert json.dumps(_wire_result(pinned)) == escaped % "true"
+    assert json.dumps(_wire_result(cleared)) == escaped % "false"
+    assert _wire_result(pinned)["key"] == key
+
+    rows = DocumentSyncService.open(episode).store.commands_after(0)
+    assert json.dumps(rows[0]["payload"]["result"]) == escaped % "true"
+    assert json.dumps(rows[1]["payload"]["result"]) == escaped % "false"
