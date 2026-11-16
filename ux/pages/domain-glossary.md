@@ -111,7 +111,7 @@ Clips are the bridge. The product should rarely ask users to convert clocks manu
 | **Producer** | Joins to listen and comment; not recorded | record role `producer`; "Not recorded" roster group | Record room roster |
 | **Live marker (comment)** | Comment added during recording (C on the host, M for a guest → `body` `"Marker"`); not a chapter marker | session sync until landing → `review.comments[]` | Record room; then Listen / Comments; stored with its record command in one step, so a failed marker never half-applies |
 | **Segment** | One continuous stretch of a full-quality recording; leave/rejoin/pause → one clip each | `segments[]` per participant per take | Timeline clips after landing |
-| **Headphones (record room)** | The Join and Device sheet row for a recorded guest. On a laptop or tablet the toggle "I'm wearing headphones" must be on to join. On a phone the guest answers "I'm wearing headphones" or "I'm not wearing headphones" and either lets them join; not wearing shows a warning about echo and bleed |
+| **Headphones (record room)** | The Join and Device sheet row for a recorded guest. On a laptop or tablet the toggle "I'm wearing headphones" must be on to join. On a phone (a touch device whose screen is under 600 px on its short side, a small tablet included) the guest answers "I'm wearing headphones" or "I'm not wearing headphones" and either lets them join; not wearing shows a warning about echo and bleed |
 | **Not wearing headphones** | The crossed-out headphones glyph on a recorded guest's tile after they said so. The host, producers and the guest see it; other guests do not |
 
 ---

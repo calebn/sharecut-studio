@@ -72,6 +72,7 @@ export type HostRecordSnapshot = {
     participant_id: string;
     display_name: string;
     connected?: boolean;
+    headphones_ack?: boolean;
   }>;
   comments?: Array<{
     id: string;

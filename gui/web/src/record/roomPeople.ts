@@ -15,7 +15,6 @@ type RoomPeopleOptions = {
   peerLevels?: Record<string, number>;
   /** Other people's clip counts in the take, from their uploaded segments. */
   peerClipped?: Record<string, number>;
-  /** Host and producers see who is not wearing headphones. */
   seesHeadphones?: boolean;
 };
 

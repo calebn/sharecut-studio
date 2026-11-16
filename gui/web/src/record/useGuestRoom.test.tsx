@@ -503,6 +503,38 @@ describe("useGuestRoom", () => {
     },
   );
 
+  it("resends an answer pressed while the socket was down", async () => {
+    joinedAs = { consented: true, headphones_ack: false };
+    stubFetch(guestBootstrap);
+    const { result } = renderHook(() => useGuestRoom("guest-tok"));
+    await waitFor(() => expect(result.current.headphones).toBe("off"));
+    act(() => {
+      sockets[0]?.onclose?.({ code: 1006 });
+    });
+    act(() => result.current.setHeadphones("on"));
+    await waitFor(() => expect(sockets).toHaveLength(2));
+    await waitFor(() =>
+      expect(sockets[1]?.commands("HeadphonesAck")).toEqual([
+        expect.objectContaining({ payload: { ok: true } }),
+      ]),
+    );
+    expect(sockets[0]?.commands("HeadphonesAck")).toHaveLength(0);
+  });
+
+  it("keeps a press made before the first snapshot over the seed", async () => {
+    joinedAs = { consented: true, headphones_ack: false };
+    stubFetch(guestBootstrap);
+    const { result } = renderHook(() => useGuestRoom("guest-tok"));
+    act(() => result.current.setHeadphones("on"));
+    await waitFor(() => expect(result.current.me).not.toBeNull());
+    expect(result.current.headphones).toBe("on");
+    await waitFor(() =>
+      expect(sockets[0]?.commands("HeadphonesAck")).toEqual([
+        expect.objectContaining({ payload: { ok: true } }),
+      ]),
+    );
+  });
+
   it("leaves the choice unset for a guest who has not consented", async () => {
     joinedAs = { consented: null, headphones_ack: true };
     stubFetch(guestBootstrap);

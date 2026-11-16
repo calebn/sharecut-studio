@@ -1,3 +1,4 @@
+import { useId } from "react";
 import { SegmentedControl, ToggleButton } from "../ui";
 import {
   type HeadphonesChoice,
@@ -13,11 +14,7 @@ function PressedMark() {
   );
 }
 
-/**
- * Where the headphones answer is given. On `required` it is one toggle that
- * must be on; on `choice` two buttons, neither pressed until the guest
- * answers, with the note for joining without them under the pair.
- */
+/** On `choice` neither button is pressed until the guest answers. */
 export function HeadphonesControl({
   rule,
   choice,
@@ -29,6 +26,7 @@ export function HeadphonesControl({
   note: JoinNote | null;
   onChange?: (choice: HeadphonesChoice) => void;
 }) {
+  const noteId = useId();
   if (rule === "required") {
     const on = choice === "on";
     return (
@@ -43,6 +41,7 @@ export function HeadphonesControl({
       <SegmentedControl
         label={JOIN_TEXT.headphonesGroup}
         className="sys-headphones-choice"
+        describedBy={noteId}
       >
         <ToggleButton
           pressed={choice === "on"}
@@ -61,7 +60,11 @@ export function HeadphonesControl({
           {choice === "off" ? <PressedMark /> : null}
         </ToggleButton>
       </SegmentedControl>
-      <div role="status" className="sys-join-notes">
+      <div
+        id={noteId}
+        role="status"
+        className="sys-join-notes sys-headphones-note"
+      >
         {note ? (
           <p className="sys-join-note">
             <SystemIcon name="triangle-alert" size={16} />
