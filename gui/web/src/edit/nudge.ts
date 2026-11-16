@@ -513,6 +513,20 @@ export function sameNudgeBase(
         ? sameEnvelopePoints(now.points, was.points)
         : now === was;
     }
+    case "pending": {
+      const now = pendingEdit(project, field.editId);
+      const was = pendingEdit(origin, field.editId);
+      return (
+        !!now &&
+        !!was &&
+        now.source_start === was.source_start &&
+        now.source_end === was.source_end &&
+        now.source_start_timeline === was.source_start_timeline &&
+        now.source_end_timeline === was.source_end_timeline &&
+        now.timeline_start === was.timeline_start &&
+        now.timeline_end === was.timeline_end
+      );
+    }
     default:
       return true;
   }
@@ -573,6 +587,23 @@ export function withNudgeReverted(
             ),
       };
     }
+    case "pending": {
+      const was = pendingEdit(origin, field.editId);
+      if (!was || !pendingEdit(project, field.editId)) return project;
+      const start = field.edge === "start";
+      const source = start ? was.source_start : was.source_end;
+      const timeline = start
+        ? was.source_start_timeline
+        : was.source_end_timeline;
+      if (source == null || timeline == null) return project;
+      return patchPendingEdge(
+        project,
+        field.editId,
+        field.edge,
+        source,
+        timeline,
+      );
+    }
     default:
       return project;
   }
@@ -580,12 +611,13 @@ export function withNudgeReverted(
 
 /**
  * Previews that live as a local draft over the latest project. A pending-edit
- * nudge still sets the project: its save registers no draft to hold the value
- * while a queued save waits, and trim is held by `heldTrim`.
+ * nudge is one: its save registers a `pendingRange` draft that holds the value
+ * while a queued save waits. Trim is held by `heldTrim`.
  */
 export function previewsAsDraft(field: NudgeField): boolean {
   return (
     field.kind === "fade" ||
+    field.kind === "pending" ||
     field.kind === "envelope-level" ||
     field.kind === "envelope-time"
   );

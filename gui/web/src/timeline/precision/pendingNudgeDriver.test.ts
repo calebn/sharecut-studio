@@ -281,7 +281,42 @@ describe("pending nudge preview, as it behaves today", () => {
     expect(api.updatePendingEdit).not.toHaveBeenCalled();
   });
 
-  it("today: a queued save snaps back to the saved range on the next refresh", async () => {
+  it("keeps a queued save on screen through its own draft until the command finishes", async () => {
+    api.updatePendingEdit.mockImplementationOnce(
+      async (_path: string, id: string, start: number, end: number) => {
+        beginDocumentDraft("cmd1", "UpdatePendingEdit", {
+          id,
+          start,
+          end,
+          snap: false,
+          expected: {
+            track_id: "host",
+            type: "remove",
+            timebase: "source",
+            start: 20,
+            end: 23.95,
+          },
+        });
+        return { queued: true, commandId: "cmd1" };
+      },
+    );
+    const drag = driver(END);
+    drag.begin();
+    drag.show(24.05);
+    await drag.commit();
+    expect(edit().source_end).toBe(24.05);
+    refreshDocumentDisplay();
+    expect(edit().source_end).toBe(24.05);
+    expect(edit().timeline_end).toBe(24.05);
+    push(withLabel("renamed"));
+    expect(edit().source_end).toBe(24.05);
+    expect(useDawStore.getState().project?.tracks[0].label).toBe("renamed");
+    finishDocumentDraft("cmd1");
+    refreshDocumentDisplay();
+    expect(edit().source_end).toBe(23.95);
+  });
+
+  it("holds the range through an offline-queued save and drops it when the save fails", async () => {
     api.updatePendingEdit.mockImplementationOnce(
       async (_path: string, id: string, start: number, end: number) => {
         beginDocumentDraft("cmd1", "UpdatePendingEdit", {
@@ -297,21 +332,58 @@ describe("pending nudge preview, as it behaves today", () => {
     drag.begin();
     drag.show(24.05);
     await drag.commit();
+    refreshDocumentDisplay();
     expect(edit().source_end).toBe(24.05);
+    finishDocumentDraft("cmd1");
     refreshDocumentDisplay();
     expect(edit()).toEqual(clipped);
-    finishDocumentDraft("cmd1");
   });
 
-  it("today: a push during the drag is overwritten by the next frame", () => {
+  it("shows a push during the drag, and keeps the held value over it", () => {
     const drag = driver(END);
     drag.begin();
     drag.show(24.05);
     push(withLabel("renamed"));
     expect(useDawStore.getState().project?.tracks[0].label).toBe("renamed");
+    expect(edit().source_end).toBe(24.05);
     drag.show(24.1);
-    expect(useDawStore.getState().project?.tracks[0].label).toBe("host");
+    expect(useDawStore.getState().project?.tracks[0].label).toBe("renamed");
     expect(edit().source_end).toBe(24.1);
     drag.cancel();
+    expect(useDawStore.getState().project?.tracks[0].label).toBe("renamed");
+    expect(edit()).toEqual(clipped);
+  });
+
+  it("shows a peer's retime of the edit instead of the held value", () => {
+    const drag = driver(END);
+    drag.begin();
+    drag.show(24.05);
+    const peer = {
+      ...clipped,
+      source_start: 19,
+      source_start_timeline: 19,
+      timeline_start: 19,
+      timeline_spans: [{ start: 19, end: 23.95 }],
+    };
+    push(withLabel("host", [peer, bare]));
+    drag.show(24.1);
+    expect(edit()).toEqual(peer);
+    drag.cancel();
+    expect(edit()).toEqual(peer);
+  });
+
+  it("leaves the draft of a queued save when a later drag ends", async () => {
+    const drag = driver(END);
+    beginDocumentDraft("cmd1", "UpdatePendingEdit", {
+      id: "p1",
+      start: 20,
+      end: 24.05,
+      snap: false,
+    });
+    drag.begin();
+    drag.show(24.2);
+    drag.cancel();
+    expect(edit().source_end).toBe(24.05);
+    finishDocumentDraft("cmd1");
   });
 });
