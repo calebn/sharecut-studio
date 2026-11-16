@@ -226,3 +226,69 @@ describe("the labelled dock on a portrait phone", () => {
     expect(heights[1]).toBeCloseTo(heights[0] as number, 0);
   });
 });
+
+// What develop measured for the embedded host studio at a phone container width:
+// below 673 px the dock container is narrow, so the host's dock closes its gap
+// to 16 px and stacks the saving line under the button; above it, 24 px and one row.
+describe("the host studio's phone dock stays as develop had it", () => {
+  const HOST: RoomPerson = {
+    role: "host",
+    person: { name: "Maya", colorIndex: 1 },
+    you: true,
+    presence: "live",
+    connection: "good",
+  };
+  const phases = {
+    waiting: { kind: "waiting", host: "Maya" },
+    live: LIVE,
+    saving: { kind: "saving", savedPeople: 0, totalPeople: 2, percent: 10 },
+  } as const;
+  const height = { waiting: 88, live: 101, saving: 88 } as const;
+
+  for (const width of [560, 650, 680, 700, 767]) {
+    const narrow = width <= 672;
+    for (const name of ["waiting", "live", "saving"] as const) {
+      it(`at ${width} while ${name}`, async () => {
+        const room = await render(width, 844, {
+          seat: "host",
+          embedded: true,
+          viewerWidth: "phone",
+          phase: phases[name],
+          people: [HOST, OTHERS[1] as RoomPerson],
+          onStartTake: noop,
+          onStopTake: noop,
+          onMore: noop,
+        });
+        const dock = room.querySelector(".sys-dock") as Element;
+        const buttons = [...dock.querySelectorAll("button")].filter(
+          (b) => getComputedStyle(b).display !== "none",
+        );
+        const status = dock.querySelector(".sys-dock-status");
+        if (name === "saving") {
+          expect(dock.getBoundingClientRect().height).toBeCloseTo(
+            narrow ? 90 : 88,
+            0,
+          );
+          const last = buttons[buttons.length - 1] as Element;
+          expect(
+            (status as Element).getBoundingClientRect().top >=
+              last.getBoundingClientRect().bottom,
+            "saving line stacked under the button",
+          ).toBe(narrow);
+          return;
+        }
+        expect(dock.getBoundingClientRect().height).toBeCloseTo(
+          height[name],
+          0,
+        );
+        const [a, b] = buttons
+          .slice(-2)
+          .map((el) => el.getBoundingClientRect());
+        expect(
+          (b as DOMRect).left - (a as DOMRect).right,
+          "Comments to More",
+        ).toBeCloseTo(narrow ? 16 : 24, 0);
+      });
+    }
+  }
+});
