@@ -1,11 +1,16 @@
 import { useEffect, useId, useRef } from "react";
 import { Button } from "../ui";
-import { DECLINED_TEXT, declinedPeek } from "./joinSheetModel";
+import {
+  DECLINED_TEXT,
+  type DeclinedSeat,
+  declinedPeek,
+} from "./joinSheetModel";
 import type { RoomPhase } from "./roomPhase";
 import { SystemIcon } from "./SystemIcon";
 
 export type DeclinedScrimProps = {
   phase: RoomPhase;
+  seat: DeclinedSeat;
   /** Opens the Join sheet at the consent step. */
   onJoin: () => void;
 };
@@ -13,12 +18,15 @@ export type DeclinedScrimProps = {
 /**
  * The Declined phase over the room: a dim layer and a bottom peek bar. The
  * room stays visible behind it, and the bar says the viewer is not being
- * recorded. Join recording waits for the room to be waiting again. When the
+ * recorded. A guest's Join recording waits for the room to be waiting again; a
+ * producer's Join to listen never waits. When the
  * scrim appears it takes focus, because the room behind it goes inert: the
  * Join button when it works, the bar itself while it is held.
  */
-export function DeclinedScrim({ phase, onJoin }: DeclinedScrimProps) {
-  const { disabledReason } = declinedPeek(phase);
+export function DeclinedScrim({ phase, seat, onJoin }: DeclinedScrimProps) {
+  const text = DECLINED_TEXT[seat];
+  const { disabledReason } = declinedPeek(phase, seat);
+  const lineId = useId();
   const reasonId = useId();
   const barRef = useRef<HTMLElement>(null);
   // Only on entry: a phase change while declined must not pull focus back.
@@ -35,11 +43,13 @@ export function DeclinedScrim({ phase, onJoin }: DeclinedScrimProps) {
         ref={barRef}
         tabIndex={-1}
         className="sys-declined-bar"
-        aria-label="Not being recorded"
+        aria-label={text.label}
       >
-        <SystemIcon name="mic-off" size={20} />
+        <SystemIcon name={text.glyph} size={20} />
         <div className="sys-declined-text">
-          <p className="sys-declined-line">{DECLINED_TEXT.line}</p>
+          <p id={lineId} className="sys-declined-line">
+            {text.line}
+          </p>
           {disabledReason ? (
             <p id={reasonId} className="sys-declined-reason">
               {disabledReason}
@@ -49,10 +59,10 @@ export function DeclinedScrim({ phase, onJoin }: DeclinedScrimProps) {
         <Button
           variant="primary"
           disabledReason={disabledReason ?? undefined}
-          aria-describedby={disabledReason ? reasonId : undefined}
+          aria-describedby={disabledReason ? `${lineId} ${reasonId}` : lineId}
           onClick={onJoin}
         >
-          {DECLINED_TEXT.join}
+          {text.join}
         </Button>
       </section>
     </div>

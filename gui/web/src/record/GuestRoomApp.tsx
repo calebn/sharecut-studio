@@ -261,7 +261,7 @@ function GuestRoomSession({
   const guestSheet =
     !producer &&
     ((consented === null && !recovering) || (rejoinOpen && consented !== true));
-  const producerSheet = producer && !producerJoined && !producerDismissed;
+  const producerSheet = producer && !producerDismissed && !me;
   const sheetOpen = guestSheet || producerSheet;
   if (sheetOpen && deviceOpen) {
     setDeviceOpen(false);
@@ -281,7 +281,7 @@ function GuestRoomSession({
   };
   const decline = () => {
     if (producer) {
-      setProducerDismissed(true);
+      if (!producerJoined) setProducerDismissed(true);
       return;
     }
     setRejoinOpen(false);
@@ -397,8 +397,7 @@ function GuestRoomSession({
       seat: producer ? "producer" : "guest",
       stance: sheetOpen
         ? "joining"
-        : consented === false ||
-            (producer && producerDismissed && !producerJoined)
+        : consented === false || (producer && producerDismissed)
           ? "declined"
           : "in",
       phase,
@@ -435,7 +434,7 @@ function GuestRoomSession({
   }
 
   const declined = producer
-    ? producerDismissed && !producerJoined
+    ? producerDismissed
       ? { onJoin: () => setProducerDismissed(false) }
       : undefined
     : consented === false && !rejoinOpen
@@ -502,6 +501,7 @@ function GuestRoomSession({
         }}
         onSelfPress={producer || !me ? undefined : () => setDeviceOpen(true)}
         declined={declined}
+        statusKnown={snapshot !== null}
         takes={
           clippedTakes.length > 0 ? (
             <TakesTray takes={clippedTakes} />
@@ -524,7 +524,7 @@ function GuestRoomSession({
           onBlockerAction={retryStorage}
           onMicAction={micAction}
           onInputChange={setDeviceId}
-          joining={joining && consented !== true}
+          joining={producer ? producerJoined : joining && consented !== true}
           onJoin={join}
           onDecline={decline}
         />

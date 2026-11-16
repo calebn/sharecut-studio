@@ -368,27 +368,46 @@ export function joinProducerModel(input: {
   };
 }
 
-/** The Declined state: tiles dim, a peek bar offers Join recording. */
+/** The Declined state: tiles dim, a peek bar offers the seat's way back in. */
 export const DECLINED_TEXT = {
-  line: "You're not being recorded.",
-  join: "Join recording",
-  wait: "You can join after this take.",
-  reconnecting: "You can join once the room reconnects.",
+  guest: {
+    line: "You're not being recorded.",
+    join: "Join recording",
+    label: "Not being recorded",
+    glyph: "mic-off",
+    wait: "You can join after this take.",
+    reconnecting: "You can join once the room reconnects.",
+  },
+  producer: {
+    line: "You're not in the room yet. You won't be recorded.",
+    join: JOIN_TEXT.producerPrimary,
+    label: "Not in the room",
+    glyph: "headphones",
+  },
 } as const;
+
+export type DeclinedSeat = keyof typeof DECLINED_TEXT;
 
 type DeclinedPeek = { disabledReason: string | null };
 
 /**
- * Join recording works only while the room waits for a take: not through the
- * countdown, a live or paused take, saving, saved or a reconnect.
+ * A guest's Join recording works only while the room waits for a take: not
+ * through the countdown, a live or paused take, saving, saved or a reconnect.
+ * A producer adds nothing to a take, so Join to listen is never held.
  */
-export function declinedPeek(phase: RoomPhase): DeclinedPeek {
+export function declinedPeek(
+  phase: RoomPhase,
+  seat: DeclinedSeat,
+): DeclinedPeek {
+  if (seat === "producer") {
+    return { disabledReason: null };
+  }
   switch (phase.kind) {
     case "waiting":
       return { disabledReason: null };
     case "reconnecting":
-      return { disabledReason: DECLINED_TEXT.reconnecting };
+      return { disabledReason: DECLINED_TEXT.guest.reconnecting };
     default:
-      return { disabledReason: DECLINED_TEXT.wait };
+      return { disabledReason: DECLINED_TEXT.guest.wait };
   }
 }

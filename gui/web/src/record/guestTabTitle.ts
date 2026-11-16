@@ -26,14 +26,16 @@ export function guestTabTitle(input: {
     ? cover.title
     : !bootstrapped
       ? "Joining the room"
-      : seat === "producer" && stance !== "in"
-        ? "Join to listen"
-        : stance === "joining"
-          ? "Join the room"
-          : stance === "declined"
-            ? "Not being recorded"
-            : phase.kind === "saving" && phase.failed
-              ? "Saving stopped"
-              : PHASE_TAB[phase.kind];
+      : stance === "joining"
+        ? seat === "producer"
+          ? "Join to listen"
+          : "Join the room"
+        : stance === "declined"
+          ? seat === "producer"
+            ? "Not in the room"
+            : "Not being recorded"
+          : phase.kind === "saving" && phase.failed
+            ? "Saving stopped"
+            : PHASE_TAB[phase.kind];
   return `${state} | ${episode.trim() || "ShareCut Studio"}`;
 }

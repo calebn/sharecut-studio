@@ -407,6 +407,20 @@ export const Producer: Story = {
   },
 };
 
+export const ProducerJoining: Story = {
+  args: { seat: "producer", name: "Rosa Diaz", joining: true },
+  play: async ({ viewMode }) => {
+    if (viewMode === "docs") return;
+    const dialog = await sheet();
+    const join = dialog.getByRole("button", { name: "Joining…" });
+    await expect(join).toHaveAttribute("aria-disabled", "true");
+    await expect(join).toHaveAttribute("aria-busy", "true");
+    await expect(
+      dialog.getByRole("button", { name: "Not now" }),
+    ).toBeDisabled();
+  },
+};
+
 export const ProducerPhone: Story = {
   args: { seat: "producer", roomWidth: "phone", name: "" },
   globals: PHONE,

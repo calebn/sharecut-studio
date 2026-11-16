@@ -102,12 +102,14 @@ function Footer({
   primaryRef,
   onJoin,
   onDecline,
+  declineHeld,
   consent,
 }: {
   primary: JoinPrimary;
   primaryRef: RefObject<HTMLButtonElement | null>;
   onJoin: () => void;
   onDecline: () => void;
+  declineHeld: boolean;
   consent: ReactNode;
 }) {
   const reasonId = useId();
@@ -134,7 +136,11 @@ function Footer({
       <p id={reasonId} className="sys-join-reason">
         {primary.reason}
       </p>
-      <Button variant="link" onClick={onDecline}>
+      <Button
+        variant="link"
+        disabledReason={declineHeld ? BUSY_REASON : undefined}
+        onClick={onDecline}
+      >
         {JOIN_TEXT.decline}
       </Button>
     </div>
@@ -333,6 +339,7 @@ export function JoinSheet({
           primaryRef={primaryRef}
           onJoin={onJoin}
           onDecline={onDecline}
+          declineHeld={!guest && joining}
           consent={
             guest ? (
               <Consent host={host} listeners={listenersLine(here)} />
