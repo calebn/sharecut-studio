@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import itertools
 import json
+import types
 from unittest.mock import patch
 
 import pytest
@@ -9,7 +11,14 @@ from typer.testing import CliRunner
 
 from podcast_mcp.cli.history import history_app
 from podcast_mcp.cli.main import app
-from podcast_mcp.mcp.tools.history import history_diff_tool, history_list, history_status_tool
+from podcast_mcp.mcp.tools.history import (
+    history_diff_tool,
+    history_goto_tool,
+    history_list,
+    history_redo,
+    history_status_tool,
+    history_undo,
+)
 from podcast_mcp.models import Track
 from podcast_mcp.project.history import HistoryManager
 from podcast_mcp.project.store import ProjectStore
@@ -22,6 +31,7 @@ from podcast_mcp.services.document import (
 )
 from podcast_mcp.services.document.history_results import HistoryGroup, HistoryStatusResult
 from podcast_mcp.services.document_sync import DocumentSyncService
+from podcast_mcp.services.document_sync.handlers.history import redo_history, undo_history
 from podcast_mcp.util.coded_error import CodedValueError
 
 
@@ -330,3 +340,154 @@ def test_history_diff_models_reject_incomplete_or_mixed_variants():
     ):
         with pytest.raises(ValidationError):
             adapter.validate_python(invalid)
+
+
+# Wire pin for history undo, redo and goto (#1811): what develop emits before the results are typed.
+STATUS_KEYS = ["cursor", "total", "can_undo", "can_redo", "current_label", "head_id"]
+PREVIEW_JSON = '{"ready": true, "stems": ["host"], "nested": {"n": 1}}'
+PREVIEW = {"ready": True, "stems": ["host"], "nested": {"n": 1}}
+
+
+@pytest.fixture
+def history_project(minimal_project, monkeypatch):
+    """Three snapshots (one, two, three) with ids 000000000001..3, cursor at the tip."""
+    counter = itertools.count(1)
+    monkeypatch.setattr(
+        "podcast_mcp.project.history.manager.uuid.uuid4",
+        lambda: types.SimpleNamespace(hex=f"{next(counter):012x}" + "0" * 20),
+    )
+    ws = ProjectWorkspace.open(minimal_project)
+    for label in ("one", "two", "three"):
+        with ws.transaction():
+            ws.record_snapshot(label, force=True)
+    return minimal_project
+
+
+@pytest.fixture
+def stub_render():
+    with (
+        patch("podcast_mcp.services.document.history.rerender_preview"),
+        patch(
+            "podcast_mcp.services.document.history.render_preview_result",
+            return_value=PREVIEW_JSON,
+        ),
+    ):
+        yield
+
+
+def _status_text(cursor, total, can_undo, can_redo, label, head, preview=None):
+    lines = [
+        "{",
+        f'  "cursor": {cursor},',
+        f'  "total": {total},',
+        f'  "can_undo": {can_undo},',
+        f'  "can_redo": {can_redo},',
+        f'  "current_label": "{label}",',
+        f'  "head_id": "{head}"' + ("," if preview else ""),
+    ]
+    if preview:
+        lines += [
+            '  "preview": {',
+            '    "ready": true,',
+            '    "stems": [',
+            '      "host"',
+            "    ],",
+            '    "nested": {',
+            '      "n": 1',
+            "    }",
+            "  }",
+        ]
+    lines.append("}")
+    return "\n".join(lines)
+
+
+UNDO = _status_text(1, 3, "true", "true", "two", "000000000002")
+REDO = _status_text(2, 3, "true", "false", "three", "000000000003")
+GOTO0 = _status_text(0, 3, "false", "true", "one", "000000000001")
+UNDO_RR = _status_text(1, 3, "true", "true", "two", "000000000002", preview=True)
+REDO_RR = _status_text(2, 3, "true", "false", "three", "000000000003", preview=True)
+GOTO0_RR = _status_text(0, 3, "false", "true", "one", "000000000001", preview=True)
+
+
+def _dict(text: str) -> dict:
+    return json.loads(text)
+
+
+@pytest.mark.parametrize("rerender", [False, True])
+def test_mcp_undo_redo_goto_wire_json(history_project, stub_render, rerender):
+    path = str(history_project)
+    undo, redo, goto = (UNDO, REDO, GOTO0) if not rerender else (UNDO_RR, REDO_RR, GOTO0_RR)
+
+    assert history_undo(path, rerender=rerender) == undo
+    assert history_redo(path, rerender=rerender) == redo
+    assert history_goto_tool(path, 0, rerender=rerender) == goto
+    assert history_goto_tool(path, 2, rerender=rerender) == (REDO_RR if rerender else REDO)
+
+    expected_keys = STATUS_KEYS + (["preview"] if rerender else [])
+    assert list(_dict(undo)) == expected_keys
+
+
+def test_mcp_move_default_is_not_rerendered(history_project):
+    path = str(history_project)
+    assert history_undo(path) == UNDO
+    assert "preview" not in _dict(history_redo(path))
+
+
+@pytest.mark.parametrize("rerender", [False, True])
+def test_service_move_dict_shape(history_project, stub_render, rerender):
+    service = HistoryService(ProjectWorkspace.open(history_project))
+    extra = ["preview"] if rerender else []
+
+    undone = service.undo(rerender=rerender)
+    assert type(undone) is dict
+    assert list(undone) == STATUS_KEYS + extra
+    assert undone == {
+        "cursor": 1,
+        "total": 3,
+        "can_undo": True,
+        "can_redo": True,
+        "current_label": "two",
+        "head_id": "000000000002",
+        **({"preview": PREVIEW} if rerender else {}),
+    }
+    redone = service.redo(rerender=rerender)
+    assert type(redone) is dict
+    assert list(redone) == STATUS_KEYS + extra
+    assert redone["cursor"] == 2 and redone["head_id"] == "000000000003"
+    moved = service.goto(0, rerender=rerender)
+    assert type(moved) is dict
+    assert list(moved) == STATUS_KEYS + extra
+    assert (moved["cursor"], moved["current_label"], moved["can_undo"]) == (0, "one", False)
+    if rerender:
+        assert moved["preview"] == PREVIEW
+
+
+@pytest.mark.parametrize("rerender", [False, True])
+def test_document_plane_handlers_wire_json(history_project, stub_render, rerender):
+    ws = ProjectWorkspace.open(history_project)
+    payload = {"rerender": rerender, "expected_head_id": "000000000003"}
+
+    undone = undo_history(ws, payload)
+    assert json.dumps(undone) == json.dumps(_dict(UNDO_RR if rerender else UNDO))
+    assert list(undone) == STATUS_KEYS + (["preview"] if rerender else [])
+
+    redone = redo_history(ws, {**payload, "expected_head_id": "000000000002"})
+    assert json.dumps(redone) == json.dumps(_dict(REDO_RR if rerender else REDO))
+    assert json.dumps(redone) == (
+        '{"cursor": 2, "total": 3, "can_undo": true, "can_redo": false, '
+        '"current_label": "three", "head_id": "000000000003"'
+        + (
+            ', "preview": {"ready": true, "stems": ["host"], "nested": {"n": 1}}}'
+            if rerender
+            else "}"
+        )
+    )
+
+
+@pytest.mark.parametrize("rerender", [False, True])
+def test_cli_goto_output(history_project, stub_render, rerender):
+    args = ["goto", "--project", str(history_project), "--index", "0"]
+    result = CliRunner().invoke(history_app, args + (["--rerender"] if rerender else []))
+    assert result.exit_code == 0, result.output
+    assert result.stdout == "Goto → [0] one (3 snapshots)\n"
+    assert result.stderr == ""
