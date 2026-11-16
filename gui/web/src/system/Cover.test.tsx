@@ -174,7 +174,7 @@ describe("Cover", () => {
     ["primary", { primary: true }],
     ["secondary", { primary: false }],
   ] as const)(
-    "keeps both contents of a %s in the DOM at rest and while busy, hiding the one not shown, so the button keeps its size",
+    "keeps both contents of a %s in the DOM at rest and while busy, hiding the one not shown from assistive tech (the e2e rect test proves the size)",
     (_name, { primary }) => {
       const action = {
         label: "Try now",
