@@ -125,7 +125,7 @@ beforeEach(() => {
 });
 afterEach(() => vi.restoreAllMocks());
 
-describe("pending nudge preview, as it behaves today", () => {
+describe("pending nudge preview", () => {
   it.each([
     ["clip end", END, 24.05],
     ["clip start", START, 20.5],

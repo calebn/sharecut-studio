@@ -2202,6 +2202,14 @@ describe("patchPendingEdit", () => {
       expect(patchPendingEdit(project, "p1", 20, 25)).toBe(project);
   });
 
+  it("shows nothing for a range that would end before it starts, or for an edit a peer applied", () => {
+    expect(patchPendingEdit(base, "p1", 25, undefined)).toBe(base);
+    expect(patchPendingEdit(base, "p1", undefined, 20)).toBe(base);
+    expect(patchPendingEdit(base, "p1", 24, 24)).toBe(base);
+    const applied = { ...base, pending_edits: [{ ...edit, applied: true }] };
+    expect(patchPendingEdit(applied, "p1", 20, 25)).toBe(applied);
+  });
+
   it("moves neither bound when one cannot be placed", () => {
     const stuck = {
       ...base,
