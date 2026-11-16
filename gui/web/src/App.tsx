@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useState } from "react";
+import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import { loadReviewBootstrap } from "./api";
 import {
   classifyBootstrapFailure,
@@ -103,6 +103,52 @@ function sameRequest(a: BootstrapRequest, b: BootstrapRequest) {
   );
 }
 
+/** How long a cover with no automatic retry counts an unanswered attempt as trying. */
+const ATTEMPT_PATIENCE_MS = 30_000;
+
+type Standing = "newest" | "replaced" | "gone";
+
+/**
+ * What an attempt's outcome does to the observation. A replaced attempt (a
+ * later attempt for the same link took over) is not thrown away: its answer
+ * with the episode opens it while the link is still waiting, and nothing else
+ * it says counts. Once the episode is open, a newer success refreshes it but a
+ * failure or saved copy never covers it.
+ */
+function settleBootstrap(
+  state: BootstrapObservation,
+  request: BootstrapRequest,
+  standing: Standing,
+  completed: BootstrapOutcome | null,
+): BootstrapObservation {
+  const token = request.reviewToken;
+  if (standing === "gone" || token === null) return state;
+  const open = state.guest?.key === shareProjectKey(token);
+  if (standing === "replaced") {
+    return completed?.kind === "online" && state.status === "pending" && !open
+      ? { ...state, status: "settled", guest: completed.guest, error: null }
+      : state;
+  }
+  if (state.request !== request) return state;
+  if (completed?.kind === "online") {
+    return { ...state, status: "settled", guest: completed.guest, error: null };
+  }
+  if (open) return { ...state, status: "settled" };
+  if (completed?.kind === "cached") {
+    return {
+      ...state,
+      status: "settled",
+      guest: completed.guest,
+      cached: completed.cached,
+      error: null,
+    };
+  }
+  if (completed?.kind === "error") {
+    return { ...state, status: "settled", error: completed.error };
+  }
+  return { ...state, status: "settled" };
+}
+
 function admitBootstrap(
   request: BootstrapRequest,
   previous: BootstrapObservation | null,
@@ -178,7 +224,6 @@ function AppInner() {
   const shareTranscriptWords = guest?.transcriptWords ?? false;
   const shareAuthor = guest?.author ?? null;
   const shareBootstrapping = current.status === "pending";
-  const trying = shareBootstrapping && error !== null;
   // A hung features call is not a dead button: asking again replaces it.
   const retry = () => {
     if (!featuresReady) retryFeatures();
@@ -203,6 +248,24 @@ function AppInner() {
       ? guestLoadCover(error.failure).autoRetryMs
       : null;
 
+  // A cover that retries by itself replaces a hung attempt at its delay. One
+  // that does not would leave a pressed button "Trying…" for good, so an
+  // attempt still unanswered after the patience stops counting as trying: the
+  // button returns and can be pressed again. The attempt stays in flight and is
+  // judged like any other when it answers.
+  const [stalledAttempt, setStalledAttempt] = useState<number | null>(null);
+  const waiting = shareBootstrapping && error !== null && autoRetryMs === null;
+  useEffect(() => {
+    if (!waiting) return;
+    const timer = window.setTimeout(
+      () => setStalledAttempt(attempt),
+      ATTEMPT_PATIENCE_MS,
+    );
+    return () => window.clearTimeout(timer);
+  }, [waiting, attempt]);
+  const trying =
+    shareBootstrapping && error !== null && stalledAttempt !== attempt;
+
   // Counts from the start of each attempt and keeps counting while one is in
   // flight: the request has no timeout, so a hung attempt is replaced after the
   // delay instead of ending the retries. A press starts a new attempt, and so
@@ -216,18 +279,47 @@ function AppInner() {
     return () => window.clearTimeout(timer);
   }, [autoRetryMs, attempt]);
 
+  // Tells an attempt whether a later one for the same link replaced it, or the
+  // link changed or the page left (the effect's cleanup runs for both, so it
+  // cannot tell them apart). The generation moves whenever the link does, so an
+  // attempt for a link the guest left and came back to stays gone.
+  const attempts = useRef<{
+    newest: BootstrapRequest | null;
+    link: string;
+    generation: number;
+  }>({ newest: null, link: "", generation: 0 });
+  useEffect(() => {
+    const link = `${request.reviewToken}|${request.recordToken}|${request.featuresReady}|${request.shareRoutesEnabled}`;
+    const now = attempts.current;
+    if (link !== now.link) {
+      now.link = link;
+      now.generation += 1;
+    }
+    now.newest = request;
+    return () => {
+      now.newest = null;
+    };
+  }, [request]);
+
   useEffect(() => {
     const { featuresReady, shareRoutesEnabled, reviewToken, recordToken } =
       request;
     if (!featuresReady || !shareRoutesEnabled || !reviewToken || recordToken)
       return;
-    let cancelled = false;
+    const tracker = attempts.current;
+    const generation = tracker.generation;
+    const standing = (): Standing =>
+      tracker.newest === request
+        ? "newest"
+        : tracker.newest !== null && tracker.generation === generation
+          ? "replaced"
+          : "gone";
     void (async () => {
       let outcome: BootstrapOutcome | null = null;
       try {
         const bootstrap = await loadReviewBootstrap(reviewToken);
         const caps = bootstrap.capabilities ?? [];
-        if (cancelled) return;
+        if (standing() === "gone") return;
         if (!caps.includes("view")) {
           outcome = { kind: "error", error: { failure: { kind: "bad-link" } } };
           return;
@@ -243,7 +335,7 @@ function AppInner() {
           },
         };
       } catch (e: unknown) {
-        if (cancelled) return;
+        if (standing() !== "newest") return;
         const failure = classifyBootstrapFailure(e);
         if (failure.kind === "bad-link") {
           if (e instanceof ApiError && e.code === "share_not_found") {
@@ -253,7 +345,7 @@ function AppInner() {
           return;
         }
         const saved = await loadOfflineSnapshot(reviewToken);
-        if (cancelled) return;
+        if (standing() !== "newest") return;
         const cachedProject = saved?.project as ProjectView | undefined;
         if (cachedProject && typeof cachedProject === "object") {
           const key = shareProjectKey(reviewToken);
@@ -272,38 +364,15 @@ function AppInner() {
         }
         outcome = { kind: "error", error: { failure } };
       } finally {
-        if (!cancelled) {
+        if (standing() !== "gone") {
           const completed = outcome;
-          setBootstrap((state) => {
-            if (state.request !== request) return state;
-            if (completed?.kind === "online") {
-              return {
-                ...state,
-                status: "settled",
-                guest: completed.guest,
-                error: null,
-              };
-            }
-            if (completed?.kind === "cached") {
-              return {
-                ...state,
-                status: "settled",
-                guest: completed.guest,
-                cached: completed.cached,
-                error: null,
-              };
-            }
-            if (completed?.kind === "error") {
-              return { ...state, status: "settled", error: completed.error };
-            }
-            return { ...state, status: "settled" };
-          });
+          const now = standing();
+          setBootstrap((state) =>
+            settleBootstrap(state, request, now, completed),
+          );
         }
       }
     })();
-    return () => {
-      cancelled = true;
-    };
   }, [request]);
 
   if (recordToken && !error) {
