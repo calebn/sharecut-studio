@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+from types import MappingProxyType
 
 import pytest
 
@@ -97,7 +98,7 @@ def test_install_adds_one_filter_per_uvicorn_logger() -> None:
     install()
     install()
 
-    for name in ("uvicorn.access", "uvicorn.error"):
+    for name in UVICORN_LOGGERS:
         found = [f for f in logging.getLogger(name).filters if isinstance(f, ShareTokenFilter)]
         assert len(found) == 1
 
@@ -172,16 +173,40 @@ def test_a_bytes_message_loses_the_token() -> None:
 
 
 @pytest.mark.parametrize(
-    ("path", "raw_path"),
+    ("path", "raw_path", "leaked"),
     [
-        ("/r/velvet-quokka-umbra/ws", b"/r/velvet%2Dquokka%2Dumbra/ws"),
-        (f"/r/{TOKEN}%2Fws", b"/r/x"),
+        ("/r/velvet-quokka-umbra/ws", b"/r/velvet%2Dquokka%2Dumbra/ws", "%2Dquokka"),
+        (f"/r/{TOKEN}%2Fws", b"/r/x", "umbra%2Fws"),
     ],
 )
-def test_a_percent_encoded_token_in_a_scope_is_scrubbed(path: str, raw_path: bytes) -> None:
+def test_a_percent_encoded_token_in_a_scope_is_scrubbed(
+    path: str, raw_path: bytes, leaked: str
+) -> None:
     scope = {"path": path, "raw_path": raw_path, "query_string": b"name=Ann"}
     line = _format("%s", scope)
 
     assert "quokka" not in line
-    assert "%2D" not in line
+    assert "umbra" not in line
+    assert leaked not in line
     assert "Ann" not in line
+
+
+def test_a_read_only_mapping_argument_loses_the_token_and_the_query() -> None:
+    scope = MappingProxyType({"path": f"/r/{TOKEN}/ws", "query_string": b"name=Ann"})
+
+    line = _format("%s", scope)
+
+    assert TOKEN not in line
+    assert "Ann" not in line
+
+
+def test_an_argument_whose_text_raises_is_left_alone() -> None:
+    class Broken:
+        def __str__(self) -> str:
+            raise RuntimeError("no text")
+
+    arg = Broken()
+    record = logging.LogRecord("uvicorn.error", logging.INFO, __file__, 1, "%s", (arg,), None)
+
+    assert ShareTokenFilter().filter(record)
+    assert record.args == (arg,)

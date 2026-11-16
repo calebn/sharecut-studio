@@ -335,8 +335,7 @@ def test_redact_secrets_leaves_nothing_of_a_secret_that_shares_its_start_with_an
 def test_redact_secrets_masks_two_adjacent_secrets_as_one_run() -> None:
     out = redact_secrets(f"{TOKEN}{TOKEN}", [TOKEN], min_prefix=6)
 
-    assert "velvet" not in out
-    assert "umbra" not in out
+    assert out == "<redacted>"
 
 
 def test_redact_secrets_sees_a_secret_that_is_only_percent_encoded() -> None:
