@@ -37,7 +37,7 @@ def _scrub(value: Any) -> Any:
         if separator and redacted_path != path:
             return redacted_path
         redacted = redact_share_paths(value)
-        return value if redacted == value else redacted
+        return value if str.__eq__(redacted, value) else redacted
     text = _text(value)
     if text is None or redact_share_paths(text) == text:
         return value
@@ -48,17 +48,24 @@ def _scrub(value: Any) -> Any:
 
 class ShareTokenFilter(logging.Filter):
     def filter(self, record: logging.LogRecord) -> bool:
-        record.msg = _scrub(record.msg)
-        if isinstance(record.args, tuple):
-            scrubbed_args = tuple(_scrub(arg) for arg in record.args)
-            if any(new is not old for new, old in zip(scrubbed_args, record.args, strict=True)):
-                record.args = scrubbed_args
-        elif isinstance(record.args, Mapping):
-            scrubbed = {key: _scrub(arg) for key, arg in record.args.items()}
-            if any(scrubbed[key] is not arg for key, arg in record.args.items()):
-                if "query_string" in scrubbed:
-                    scrubbed["query_string"] = b""
-                record.args = scrubbed
+        """Scrub the record in place; a record that cannot be read is left as it was."""
+        try:
+            msg = _scrub(record.msg)
+            args = record.args
+            if isinstance(args, tuple):
+                scrubbed_args = tuple(_scrub(arg) for arg in args)
+                if any(new is not old for new, old in zip(scrubbed_args, args, strict=True)):
+                    args = scrubbed_args
+            elif isinstance(args, Mapping):
+                scrubbed = {key: _scrub(arg) for key, arg in args.items()}
+                if any(scrubbed[key] is not arg for key, arg in args.items()):
+                    if "query_string" in scrubbed:
+                        scrubbed["query_string"] = b""
+                    args = scrubbed
+        except Exception:
+            return True
+        record.msg = msg
+        record.args = args
         return True
 
 
