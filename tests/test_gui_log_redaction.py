@@ -114,7 +114,7 @@ def test_install_adds_one_filter_per_uvicorn_logger() -> None:
 
 @pytest.mark.usefixtures("bare_uvicorn_loggers")
 def test_building_the_gui_server_installs_the_filter() -> None:
-    async def app(scope: object, receive: object, send: object) -> None:
+    async def app(*_: object) -> None:
         return None
 
     sock = bind.exclusive_listen_socket("127.0.0.1", 0)
@@ -662,3 +662,10 @@ def test_a_token_free_encoded_query_argument_stays_the_same_object() -> None:
 
     assert isinstance(record.args, tuple)
     assert record.args[0] is arg
+
+
+def test_a_mapping_whose_only_token_is_in_a_list_loses_it() -> None:
+    line = _format("%(raw)s", {"raw": [f"/r/{TOKEN}/ws?name=Ann"]})
+
+    assert TOKEN not in line
+    assert "Ann" not in line
