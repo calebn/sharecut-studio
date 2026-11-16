@@ -197,12 +197,17 @@ describe("focus after a press answered by a different cover", () => {
   afterEach(() => vi.useRealTimers());
 
   /** Press Try again on `first`, then let `next` answer it. */
-  function pressThenAnswer(first: Shell, next: Shell) {
+  function pressThenAnswer(
+    first: Shell,
+    next: Shell,
+    whileBusy: () => void = () => {},
+  ) {
     const { again } = show(first);
     const retry = screen.getByRole("button", { name: "Try again" });
     retry.focus();
     act(() => retry.click());
     again({ ...first, trying: true });
+    whileBusy();
     act(() => void vi.advanceTimersByTime(HELD_BUSY_MS));
     again({ ...next, trying: false });
     return again;
@@ -220,6 +225,18 @@ describe("focus after a press answered by a different cover", () => {
       shell(hostCause("not-answering")),
     );
     expect(screen.getByRole("button", { name: "Try again" })).toHaveFocus();
+  });
+
+  it("does not take focus back from a button outside the cover", () => {
+    const outside = document.createElement("button");
+    document.body.append(outside);
+    pressThenAnswer(
+      shell(hostCause("other")),
+      shell(hostCause("elsewhere")),
+      () => outside.focus(),
+    );
+    expect(outside).toHaveFocus();
+    outside.remove();
   });
 
   it("moves to the title when the new cover has no Try again", () => {
