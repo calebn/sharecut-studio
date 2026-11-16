@@ -629,6 +629,15 @@ describe("useRecordSync", () => {
       expect(result.current.snapshot?.state).toBe("recording");
     });
 
+    it("drops a snapshot without a timestamp once a stamped one is held", async () => {
+      const { result, ws } = await open();
+      await act(async () => {
+        ws.emit(snapshot("recording", 200));
+        ws.emit(snapshot("lobby"));
+      });
+      expect(result.current.snapshot?.state).toBe("recording");
+    });
+
     it("accepts a newer snapshot and a first one without a timestamp", async () => {
       const { result, ws } = await open();
       await act(async () => {

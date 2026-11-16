@@ -9,6 +9,7 @@ import {
   useRef,
   useState,
 } from "react";
+import { useAfter } from "../hooks/useAfter";
 import { initialPointerKind } from "../hooks/usePointerType";
 import { Button } from "../ui";
 import { Dialog } from "../ui/Dialog";
@@ -37,6 +38,7 @@ import { MicRow } from "./MicRow";
 import { PersonAvatar, type PersonData } from "./Person";
 import type { RoomRole } from "./roomViewModel";
 import { SheetRow } from "./SheetRow";
+import { SKELETON_RETRY_MS } from "./Skeleton";
 import { SystemIcon } from "./SystemIcon";
 
 type JoinHere = { person: PersonData; role: RoomRole };
@@ -63,7 +65,12 @@ export type JoinSheetProps = {
   onInputChange?: (inputId: string) => void;
   joining?: boolean;
   onJoin: () => void;
-  /** Not now, Escape and Close all decline. A press beside the sheet does not. */
+  /**
+   * A producer's reason the join has not gone through; shown under the line
+   * and cleared by the next press.
+   */
+  notice?: string;
+  /** Not now, Escape and Close all decline, also while joining. A press beside the sheet does not. */
   onDecline: () => void;
 };
 
@@ -102,14 +109,12 @@ function Footer({
   primaryRef,
   onJoin,
   onDecline,
-  declineHeld,
   consent,
 }: {
   primary: JoinPrimary;
   primaryRef: RefObject<HTMLButtonElement | null>;
   onJoin: () => void;
   onDecline: () => void;
-  declineHeld: boolean;
   consent: ReactNode;
 }) {
   const reasonId = useId();
@@ -136,15 +141,20 @@ function Footer({
       <p id={reasonId} className="sys-join-reason">
         {primary.reason}
       </p>
-      <Button
-        variant="link"
-        disabledReason={declineHeld ? BUSY_REASON : undefined}
-        onClick={onDecline}
-      >
+      <Button variant="link" onClick={onDecline}>
         {JOIN_TEXT.decline}
       </Button>
     </div>
   );
+}
+
+function SlowJoinNote() {
+  const slow = useAfter(SKELETON_RETRY_MS);
+  return slow ? (
+    <p role="status" className="sys-join-reason">
+      {JOIN_TEXT.producerSlow}
+    </p>
+  ) : null;
 }
 
 function micStatusLine(row: JoinRow): string {
@@ -181,8 +191,8 @@ function focusElement(
  * 600 px, a bottom sheet under it (system-record.css decides). Rows check
  * themselves off as the caller's state moves; the primary stays disabled and
  * names the first row still to do. Presentational: the caller owns the name,
- * the mic and the join itself. Not now, Escape and Close all decline; a press
- * beside the sheet does not.
+ * the mic and the join itself. Not now, Escape and Close all decline, also while
+ * joining; a press beside the sheet does not.
  */
 export function JoinSheet({
   seat,
@@ -200,6 +210,7 @@ export function JoinSheet({
   onMicAction,
   onInputChange,
   joining = false,
+  notice,
   onJoin,
   onDecline,
 }: JoinSheetProps) {
@@ -339,7 +350,6 @@ export function JoinSheet({
           primaryRef={primaryRef}
           onJoin={onJoin}
           onDecline={onDecline}
-          declineHeld={!guest && joining}
           consent={
             guest ? (
               <Consent host={host} listeners={listenersLine(here)} />
@@ -395,6 +405,12 @@ export function JoinSheet({
               <SystemIcon name="headphones" size={24} />
               {JOIN_TEXT.producerLine}
             </p>
+            {notice ? (
+              <p role="alert" className="sys-join-reason">
+                {notice}
+              </p>
+            ) : null}
+            {joining ? <SlowJoinNote /> : null}
           </>
         )}
       </form>

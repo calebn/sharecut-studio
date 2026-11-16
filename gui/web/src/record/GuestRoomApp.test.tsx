@@ -728,7 +728,11 @@ describe("GuestRoomApp", () => {
     expect(JSON.parse(joins[0]).payload.display_name).toBe("Pat");
     const joining = screen.getByRole("button", { name: /Joining/ });
     expect(joining).toHaveAttribute("aria-busy", "true");
-    expect(screen.getByRole("button", { name: "Not now" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Not now" })).toBeEnabled();
+    expect(
+      screen.getByText("You can comment once you're in the room."),
+    ).toBeVisible();
+    expect(screen.queryByText(/while a take is running/)).toBeNull();
     expect(screen.queryByText("Waiting")).toBeNull();
 
     act(() => sockets[0].onmessage?.(producerEcho));
@@ -755,6 +759,113 @@ describe("GuestRoomApp", () => {
     expect(document.title).toBe("Recording | Shot of Truth");
     watch.disconnect();
     expect(pills.has("Waiting")).toBe(false);
+  });
+
+  async function pressJoinToListen() {
+    stubBootstrap(producerBootstrap);
+    stubWebSocket(sockets, "silent");
+    render(<GuestRoomApp token="prod-tok" />);
+    await enterName("Pat");
+    await userEvent.click(
+      await screen.findByRole("button", { name: "Join to listen" }),
+    );
+    await waitFor(() => expect(sockets).toHaveLength(1));
+    sockets[0].close = vi.fn();
+    await screen.findByRole("button", { name: /Joining/ });
+  }
+  const sendError = (code: string) =>
+    act(() =>
+      sockets[0].onmessage?.({
+        data: JSON.stringify({ plane: "record", type: "Error", code }),
+      }),
+    );
+
+  it.each(["invalid_state", "rate_limited", "something_new"])(
+    "returns the sheet with the reason when Join fails with %s, and a second press tries again",
+    async (code) => {
+      await pressJoinToListen();
+      await sendError(code);
+      const again = await screen.findByRole("button", {
+        name: "Join to listen",
+      });
+      expect(again).toBeEnabled();
+      expect(screen.getByRole("alert")).toBeVisible();
+      expect(sockets[0].close).toHaveBeenCalled();
+      await userEvent.click(again);
+      await waitFor(() => expect(sockets).toHaveLength(2));
+      await waitFor(() => {
+        expect(sockets[1].sent.some((raw) => raw.includes('"Join"'))).toBe(
+          true,
+        );
+      });
+    },
+  );
+
+  it("does not hang on a second tab's lease_in_use: Not now still cancels", async () => {
+    await pressJoinToListen();
+    await sendError("lease_in_use");
+    expect(screen.getByRole("button", { name: /Joining/ })).toBeVisible();
+    await userEvent.click(screen.getByRole("button", { name: "Not now" }));
+    expect(
+      await screen.findByRole("region", { name: "Not in the room" }),
+    ).toBeVisible();
+    expect(sockets[0].close).toHaveBeenCalled();
+  });
+
+  it.each([
+    [
+      "Not now",
+      () => userEvent.click(screen.getByRole("button", { name: "Not now" })),
+    ],
+    [
+      "Close",
+      () => userEvent.click(screen.getByRole("button", { name: "Close" })),
+    ],
+    ["Escape", () => userEvent.keyboard("{Escape}")],
+  ])("cancels a Joining producer with %s", async (_name, cancel) => {
+    await pressJoinToListen();
+    await cancel();
+    expect(
+      await screen.findByRole("region", { name: "Not in the room" }),
+    ).toBeVisible();
+    expect(screen.queryByRole("heading", { name: "Join the room" })).toBeNull();
+    expect(sockets[0].close).toHaveBeenCalled();
+    await waitFor(() => {
+      expect(document.title).toBe("Not in the room | Shot of Truth");
+    });
+  });
+
+  it("stays out of the room when an Echo and snapshot arrive after the cancel", async () => {
+    await pressJoinToListen();
+    await userEvent.click(screen.getByRole("button", { name: "Not now" }));
+    await screen.findByRole("region", { name: "Not in the room" });
+    act(() => sockets[0].onmessage?.(producerEcho));
+    act(() =>
+      sockets[0].onmessage?.(
+        producerSnapshot({ state: "recording", server_time_ns: 100 }),
+      ),
+    );
+    expect(
+      screen.getByRole("region", { name: "Not in the room" }),
+    ).toBeVisible();
+    expect(screen.queryByRole("heading", { name: "Join the room" })).toBeNull();
+    expect(
+      screen.getByRole("button", { name: "Join to listen" }),
+    ).toBeEnabled();
+  });
+
+  it("leaves focus on the page, not a removed control, when the room confirms the producer", async () => {
+    await pressJoinToListen();
+    act(() => sockets[0].onmessage?.(producerEcho));
+    act(() =>
+      sockets[0].onmessage?.(producerSnapshot({ server_time_ns: 100 })),
+    );
+    await waitFor(() => {
+      expect(
+        screen.queryByRole("heading", { name: "Join the room" }),
+      ).toBeNull();
+    });
+    expect(document.activeElement?.isConnected).toBe(true);
   });
 
   it("keeps the producer in the room when an older snapshot arrives after the live one", async () => {

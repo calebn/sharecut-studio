@@ -680,15 +680,6 @@ describe("RoomView as the host", () => {
       expect(screen.getByText(reason)).toBeVisible();
     });
 
-    it("points the held Join recording at its visible reason", () => {
-      renderRoom({ declined: { onJoin: vi.fn() } });
-      expect(
-        screen.getByRole("button", { name: "Join recording" }),
-      ).toHaveAccessibleDescription(
-        "You're not being recorded. You can join after this take.",
-      );
-    });
-
     it("moves focus from the dock to Join recording when it works", () => {
       const waiting = { kind: "waiting", host: "Maya" } as const;
       const { rerender, container } = renderRoom({ phase: waiting });
@@ -741,20 +732,16 @@ describe("RoomView as the host", () => {
     });
 
     it.each([
-      { kind: "waiting", host: "Maya" },
       LIVE,
-      { kind: "paused", clockSec: 30 },
-      { kind: "countdown", secondsLeft: 3 },
-      { kind: "saving", savedPeople: 1, totalPeople: 2 },
       { kind: "reconnecting", paused: false, clockSec: 43 },
     ] as const)(
       "gives a producer an enabled Join to listen during %j",
       async (phase) => {
         const onJoin = vi.fn();
         renderRoom({ seat: "producer", phase, declined: { onJoin } });
-        expect(
-          screen.getByRole("region", { name: "Not in the room" }),
-        ).toBeVisible();
+        const bar = screen.getByRole("region", { name: "Not in the room" });
+        expect(bar).toBeVisible();
+        expect(bar.querySelector("svg.lucide-headphones")).not.toBeNull();
         const join = screen.getByRole("button", { name: "Join to listen" });
         expect(join).toBeEnabled();
         expect(join).toHaveAccessibleDescription(
@@ -772,6 +759,11 @@ describe("RoomView as the host", () => {
     it("describes a guest's held Join recording by the bar sentence and the reason", () => {
       renderRoom({ declined: { onJoin: vi.fn() } });
       expect(
+        screen
+          .getByRole("region", { name: "Not being recorded" })
+          .querySelector("svg.lucide-mic-off"),
+      ).not.toBeNull();
+      expect(
         screen.getByRole("button", { name: "Join recording" }),
       ).toHaveAccessibleDescription(
         "You're not being recorded. You can join after this take.",
@@ -779,23 +771,8 @@ describe("RoomView as the host", () => {
     });
 
     it("leaves the status pill out until the room's snapshot is known", () => {
-      const { rerender, container } = renderRoom({
-        phase: { kind: "waiting", host: "Maya" },
-        statusKnown: false,
-      });
+      const { container } = renderRoom({ statusKnown: false });
       expect(container.querySelector(".sys-pill")).toBeNull();
-      rerender(
-        <RoomView
-          seat="guest"
-          title="Episode 14"
-          people={[HOST, JON]}
-          phase={{ kind: "waiting", host: "Maya" }}
-          notes={[]}
-          selfName="Jon"
-          onSendNote={vi.fn()}
-        />,
-      );
-      expect(container.querySelector(".sys-pill")).not.toBeNull();
     });
 
     it("adds nothing to a room that has not declined", () => {

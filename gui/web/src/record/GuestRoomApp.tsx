@@ -40,7 +40,11 @@ import {
   uploadInFlight,
 } from "./guestRoomModel";
 import { guestTabTitle } from "./guestTabTitle";
-import { COMMENTS_CLOSED_REASON, liveTakeOpen } from "./liveCommentQueue";
+import {
+  COMMENTS_CLOSED_REASON,
+  COMMENTS_NOT_IN_ROOM_REASON,
+  liveTakeOpen,
+} from "./liveCommentQueue";
 import {
   copyForMicStatus,
   MIC_SAVED_DEVICE_MISSING_COPY,
@@ -247,6 +251,9 @@ function GuestRoomSession({
     if (consented !== null || error) {
       setJoining(false);
     }
+    if (error && producer && !me) {
+      setProducerJoined(false);
+    }
     if (consented === true) {
       setRejoinOpen(false);
     }
@@ -281,7 +288,8 @@ function GuestRoomSession({
   };
   const decline = () => {
     if (producer) {
-      if (!producerJoined) setProducerDismissed(true);
+      setProducerJoined(false);
+      setProducerDismissed(true);
       return;
     }
     setRejoinOpen(false);
@@ -477,7 +485,11 @@ function GuestRoomSession({
         selfName={me?.display_name ?? name}
         onSendNote={(note) => liveComments.postNote(note.text)}
         notesDisabledReason={
-          liveTakeOpen(state) ? undefined : COMMENTS_CLOSED_REASON
+          !me
+            ? COMMENTS_NOT_IN_ROOM_REASON
+            : liveTakeOpen(state)
+              ? undefined
+              : COMMENTS_CLOSED_REASON
         }
         muted={me?.muted ?? false}
         onMute={
@@ -525,6 +537,11 @@ function GuestRoomSession({
           onMicAction={micAction}
           onInputChange={setDeviceId}
           joining={producer ? producerJoined : joining && consented !== true}
+          notice={
+            producer && !producerJoined
+              ? (recordSyncErrorCopy(error) ?? undefined)
+              : undefined
+          }
           onJoin={join}
           onDecline={decline}
         />

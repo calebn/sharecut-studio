@@ -1416,11 +1416,12 @@ async function withLiveTake(
     token: string;
     projectPath: string;
   }) => Promise<void>,
+  producerOptions: BrowserContextOptions = {},
 ): Promise<void> {
   await withShareableProject(async (projectPath) => {
     await withBrowserPages(
       browser,
-      [{}, {}, {}],
+      [{}, {}, producerOptions],
       async ([host, guest, producer]) => {
         await markSharecutE2e(host);
         await host.goto(`/?project=${encodeURIComponent(projectPath)}&e2e=1`);
@@ -1522,10 +1523,10 @@ test.describe("join sheet on a phone", () => {
         ).not.toContain("Pat");
 
         await producer.getByRole("button", { name: "Join to listen" }).click();
-        await expect(
-          producer.getByRole("button", { name: "Join to listen" }),
-        ).toBeHidden();
         await expect(roomPill(producer)).toHaveText(LIVE_PILL);
+        await expect(
+          producer.getByRole("heading", { name: "Join the room" }),
+        ).toBeHidden();
         await expect(producer).toHaveTitle(/^Recording \| .+/);
         const texts = await producer.evaluate(
           () => (window as unknown as { __pillTexts: string[] }).__pillTexts,
@@ -1555,6 +1556,7 @@ test.describe("join sheet on a phone", () => {
       async ({ host, producer, token, projectPath }) => {
         await markSharecutE2e(producer);
         await openRecordLink(producer, token);
+        await fillDisplayNameField(producer, "Pat");
         await producer.getByRole("button", { name: "Not now" }).click();
         const bar = producer.getByRole("region", { name: "Not in the room" });
         await expect(bar).toBeVisible();
@@ -1566,6 +1568,10 @@ test.describe("join sheet on a phone", () => {
         ).toBeEnabled();
         await expect(producer).toHaveTitle(/^Not in the room \| .+/);
         await expect(roomPill(producer)).toHaveCount(0);
+        const join = await boxOf(
+          bar.getByRole("button", { name: "Join to listen" }),
+        );
+        expect(join.height).toBeGreaterThanOrEqual(44);
         expect(
           (await hostRecordSnapshot(host, projectPath)).participants.map(
             (p) => p.display_name,
@@ -1573,6 +1579,7 @@ test.describe("join sheet on a phone", () => {
         ).not.toContain("Pat");
         await expectSurfaceAxeClean(producer, "body");
       },
+      PHONE_GUEST,
     );
   });
 
