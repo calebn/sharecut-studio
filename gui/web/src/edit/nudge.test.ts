@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { patchPendingEdit } from "../document/projectPatch";
 import {
   clipRow,
   minimalProject,
@@ -432,6 +433,20 @@ describe("a pending edge, as the draft helpers treat it today", () => {
     expect(withNudgeReverted(moved, project, pendingEnd)).toBe(moved);
     expect(withNudgeIfUnchanged(moved, project, pendingEnd, 24.1)).toEqual(
       withNudge(moved, pendingEnd, 24.1),
+    );
+  });
+});
+
+describe("the pending preview and the saved-range patch agree", () => {
+  const start: NudgeField = { ...pendingEnd, edge: "start" };
+  it.each([
+    [pendingEnd, 24.05, undefined, 24.05],
+    [pendingEnd, 23.5, undefined, 23.5],
+    [start, 20.5, 20.5, undefined],
+    [start, 19.5, 19.5, undefined],
+  ])("%j at %d", (field, value, from, to) => {
+    expect(patchPendingEdit(project, "p1", from, to)).toEqual(
+      withNudge(project, field, value),
     );
   });
 });

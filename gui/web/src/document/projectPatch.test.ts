@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   clipRow,
   minimalProject,
+  pendingEditView,
   sampleComment,
   sampleTrack,
 } from "../test/fixtures";
@@ -12,6 +13,8 @@ import {
   mergeProjectPatch,
   patchClipFade,
   patchClipGain,
+  patchPendingEdge,
+  patchPendingEdit,
   patchTrackMeta,
   patchTracksOrder,
   projectFromDocumentSnapshot,
@@ -2055,5 +2058,159 @@ describe("patchClipFade curves", () => {
     expect(patchClipFade(base, "c1", 0, 0, { fade_in_curve: "linear" })).toBe(
       base,
     );
+  });
+});
+
+describe("patchPendingEdit", () => {
+  const edit = pendingEditView({
+    id: "p1",
+    track_id: "host",
+    track_ids: ["host"],
+    source_start: 20,
+    source_end: 24,
+    source_start_timeline: 20,
+    source_end_timeline: 24,
+    timeline_start: 20,
+    timeline_end: 24,
+    timeline_spans: [
+      { start: 20, end: 22 },
+      { start: 23, end: 24 },
+    ],
+  });
+  const lane = [
+    clipRow({
+      id: "c",
+      track_id: "host",
+      source_start: 12,
+      source_end: 40,
+      timeline_start: 12,
+      timeline_end: 40,
+    }),
+  ];
+  const base = minimalProject({
+    tracks: [sampleTrack({ id: "host" })],
+    clips: { tracks: { host: lane }, clip_count: 1 },
+    pending_edits: [edit, pendingEditView({ id: "p2", track_id: "host" })],
+  });
+  const first = (project: ProjectView) => project.pending_edits[0];
+
+  it("moves the end bound, its timeline fields and the last span only", () => {
+    expect(first(patchPendingEdit(base, "p1", undefined, 25))).toEqual({
+      ...edit,
+      source_end: 25,
+      source_end_timeline: 25,
+      timeline_end: 25,
+      timeline_spans: [
+        { start: 20, end: 22 },
+        { start: 23, end: 25 },
+      ],
+    });
+  });
+
+  it("moves the start bound and the first span only, and leaves other edits alone", () => {
+    const next = patchPendingEdit(base, "p1", 19, undefined);
+    expect(first(next)).toEqual({
+      ...edit,
+      source_start: 19,
+      source_start_timeline: 19,
+      timeline_start: 19,
+      timeline_spans: [
+        { start: 19, end: 22 },
+        { start: 23, end: 24 },
+      ],
+    });
+    expect(next.pending_edits[1]).toBe(base.pending_edits[1]);
+  });
+
+  it("places a bound through its clip when the clip is offset on the timeline", () => {
+    const shifted = minimalProject({
+      ...base,
+      clips: {
+        tracks: {
+          host: [
+            clipRow({
+              id: "c",
+              track_id: "host",
+              source_start: 12,
+              source_end: 40,
+              timeline_start: 2,
+              timeline_end: 30,
+            }),
+          ],
+        },
+        clip_count: 1,
+      },
+      pending_edits: [
+        {
+          ...edit,
+          source_start_timeline: 10,
+          source_end_timeline: 14,
+          timeline_start: 10,
+          timeline_end: 14,
+          timeline_spans: [{ start: 10, end: 14 }],
+        },
+      ],
+    });
+    const next = first(patchPendingEdit(shifted, "p1", undefined, 25));
+    expect([next.source_end, next.timeline_end, next.timeline_spans]).toEqual([
+      25,
+      15,
+      [{ start: 10, end: 15 }],
+    ]);
+  });
+
+  it("places on the source clock when the track has no clips", () => {
+    const empty = minimalProject({
+      ...base,
+      clips: { tracks: { host: [] }, clip_count: 0 },
+    });
+    expect(
+      first(patchPendingEdit(empty, "p1", undefined, 25)).timeline_end,
+    ).toBe(25);
+  });
+
+  it("is the same project when the range already holds", () => {
+    expect(patchPendingEdit(base, "p1", 20, 24)).toBe(base);
+    expect(patchPendingEdit(base, "p1")).toBe(base);
+    const once = patchPendingEdit(base, "p1", 20, 25);
+    expect(patchPendingEdit(once, "p1", 20, 25)).toBe(once);
+  });
+
+  it("shows nothing for an edit that is gone, split, exact, unbounded or unplaceable", () => {
+    expect(patchPendingEdit(base, "gone", 20, 25)).toBe(base);
+    const variants: ProjectView[] = [
+      { ...base, pending_edits: [{ ...edit, type: "split" }] },
+      {
+        ...base,
+        pending_edits: [
+          {
+            ...edit,
+            exact_range: {
+              kind: "exact_range",
+              intervals: [],
+              track_ids: ["host"],
+              clips: [],
+              media_seals: {},
+            },
+          },
+        ],
+      },
+      { ...base, pending_edits: [{ ...edit, source_end: null }] },
+      { ...base, pending_edits: [{ ...edit, source_end_timeline: 33 }] },
+    ];
+    for (const project of variants)
+      expect(patchPendingEdit(project, "p1", 20, 25)).toBe(project);
+  });
+
+  it("moves neither bound when one cannot be placed", () => {
+    const stuck = {
+      ...base,
+      pending_edits: [{ ...edit, source_end_timeline: 33 }],
+    };
+    expect(patchPendingEdit(stuck, "p1", 19, 25)).toBe(stuck);
+  });
+
+  it("patchPendingEdge leaves the project alone for an unknown edit", () => {
+    expect(patchPendingEdge(base, "gone", "end", 25, 25)).toBe(base);
   });
 });
