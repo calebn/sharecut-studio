@@ -1,5 +1,6 @@
 import { useEffect, useId, useRef, useState } from "react";
 import { type GuestLoadFailure, guestLoadCover } from "../../guestLoadFailure";
+import { useShortLayoutViewport } from "../../hooks/useShortLayoutViewport";
 import type { UnsentText } from "../../state/unsentText";
 import { Cover } from "../../system/Cover";
 import { HELD_BUSY_MS, useHeldBusy } from "../../system/useHeldBusy";
@@ -119,6 +120,7 @@ export function GuestPageCover({
   const [answered, setAnswered] = useState(false);
   const { title } = cover;
   const handBack = useUnsentBlock(unsent);
+  const shortWindow = useShortLayoutViewport();
 
   // A button that already has focus keeps it: moving focus to the title would
   // take it from the person who just pressed.
@@ -137,7 +139,7 @@ export function GuestPageCover({
   return (
     <main
       ref={mainRef}
-      className={`guest-page-cover${handBack ? " guest-page-cover--unsent" : ""}`}
+      className={`guest-page-cover${handBack ? " guest-page-cover--unsent" : ""}${handBack && shortWindow ? " guest-page-cover--short" : ""}`}
     >
       <Cover
         size="page"

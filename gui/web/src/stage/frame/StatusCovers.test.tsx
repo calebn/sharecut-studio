@@ -237,6 +237,55 @@ describe("GuestPageCover with text the guest had not sent", () => {
     }
   });
 
+  it("marks a cover with unsent text as short only in a short window, and a cover without text never", () => {
+    const query = "(max-height: 30rem)";
+    const stub = (short: boolean) =>
+      vi.stubGlobal("matchMedia", (asked: string) => ({
+        matches: short && asked === query,
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+      }));
+    stub(true);
+    const withText = render(
+      <GuestPageCover
+        failure={{ kind: "bad-link" }}
+        trying={false}
+        onRetry={vi.fn()}
+        unsent={[comment]}
+      />,
+    );
+    expect(withText.container.querySelector("main")).toHaveClass(
+      "guest-page-cover--unsent",
+      "guest-page-cover--short",
+    );
+    withText.unmount();
+    const without = render(
+      <GuestPageCover
+        failure={{ kind: "bad-link" }}
+        trying={false}
+        onRetry={vi.fn()}
+      />,
+    );
+    expect(without.container.querySelector("main")).not.toHaveClass(
+      "guest-page-cover--short",
+    );
+    without.unmount();
+    stub(false);
+    const tall = render(
+      <GuestPageCover
+        failure={{ kind: "bad-link" }}
+        trying={false}
+        onRetry={vi.fn()}
+        unsent={[comment]}
+      />,
+    );
+    expect(tall.container.querySelector("main")).not.toHaveClass(
+      "guest-page-cover--short",
+    );
+    tall.unmount();
+    vi.unstubAllGlobals();
+  });
+
   it.each([
     [comment, "Your comment was not posted", "Copy your comment"],
     [reply, "Your reply was not posted", "Copy your reply"],

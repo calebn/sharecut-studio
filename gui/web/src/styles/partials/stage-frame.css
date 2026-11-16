@@ -108,9 +108,15 @@ html[data-surface="home"][data-shell] {
   outline: none;
 }
 
-/* What the guest typed and did not send, handed back under the cover's sentence. The text scrolls inside its own box, and on a phone the copy button stays pinned to the bottom of the screen, so a very long draft or large text never pushes the button out of reach. */
+/* What the guest typed and did not send, handed back under the cover's sentence. The text scrolls inside its own box and the copy button's block is pinned to the bottom of the screen at every width, so a very long draft or large text never pushes the button out of reach. With room to spare nothing moves: a pinned block only shifts once the page scrolls. */
 .guest-page-cover--unsent .sys-cover {
   --sys-cover-top: var(--space-6);
+}
+
+.guest-page-cover--unsent .sys-cover--page .sys-cover-actions {
+  position: sticky;
+  inset-block-end: 0;
+  background: var(--color-bg-canvas);
 }
 
 /* A touch pointer on a wide screen still gets the phone's primary-button height (48 px); a fine pointer keeps the height of every other cover button. */
@@ -120,11 +126,54 @@ html[data-surface="home"][data-shell] {
   }
 }
 
-@container sys-cover (max-width: 40rem) {
+/* Wider than a phone: the block spans the page so the text cannot show beside the button, and it holds the status line in the gap above the button (the gap and the padding are the same size, so the resting layout is the one a cover without a block has). It stops a little above the bottom edge, and the strip below it is painted with the page colour. */
+@container sys-cover (width > 40rem) {
   .guest-page-cover--unsent .sys-cover--page .sys-cover-actions {
-    position: sticky;
-    inset-block-end: 0;
-    background: var(--color-bg-canvas);
+    --guest-unsent-bar-gap: max(var(--space-5), env(safe-area-inset-bottom));
+    inset-block-end: var(--guest-unsent-bar-gap);
+    align-self: stretch;
+    padding-block-start: var(--space-6);
+    margin-block-start: calc(-1 * var(--space-6));
+    box-shadow: 0 var(--guest-unsent-bar-gap) 0 var(--color-bg-canvas);
+  }
+
+  .guest-page-cover--unsent .sys-cover--page .sys-cover-action-status {
+    inset-block-start: 0;
+    inset-block-end: auto;
+    padding-block-start: 0;
+  }
+}
+
+/* A short window (a phone held sideways, or text so large that little height is left): the pinned block must not take the words' place. The page marks the cover `--short` (`useShortLayoutViewport`, a window 30rem tall or less, in rem of the browser's default size, ignoring the keyboard and pinch zoom) because the style rules do not use viewport-size media queries. The logo and the large symbol go, the offsets shrink, and a touch button's height follows the window (never under 44 px down to a window 340 px tall) instead of the text size; `dvh` does that when only the page's own text size is raised, which a media query cannot see either. */
+.guest-page-cover--short .sys-cover {
+  --sys-cover-top: 0;
+}
+
+.guest-page-cover--short .sys-cover-mark,
+.guest-page-cover--short .sys-cover-glyph {
+  display: none;
+}
+
+.guest-page-cover--short .sys-cover--page .sys-cover-inner {
+  gap: var(--space-3);
+  padding-block: var(--space-4) 0;
+}
+
+.guest-page-cover--unsent.guest-page-cover--short
+  .sys-cover--page
+  .sys-cover-actions {
+  inset-block-end: 0;
+  margin-block-start: 0;
+  padding-block: var(--sys-cover-status-line) var(--space-3);
+  box-shadow: none;
+}
+
+@media (pointer: coarse) {
+  .guest-page-cover--unsent.guest-page-cover--short
+    .sys-cover--page
+    .sys-cover-actions
+    .primary {
+    min-block-size: min(var(--target-primary-phone), 13dvh);
   }
 }
 
