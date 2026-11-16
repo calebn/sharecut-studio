@@ -514,7 +514,7 @@ flowchart TD
   note --> stop[Host Stop]
 ```
 
-1. Producer lands on the same room with the Join sheet (name, **Join to listen**: "You'll listen and comment. You won't be recorded."); the Join sheet lists them as listening.
+1. Producer lands on the same room with the Join sheet (name, **Join to listen**: "You'll listen and comment. You won't be recorded."); they appear in the room's listening row once they press **Join to listen**.
 2. No `getUserMedia`, no consent, no room tone, no full-quality recording, no saving panel,
    no mic meter or clip alert.
 3. Host Start does not wait on the producer.
