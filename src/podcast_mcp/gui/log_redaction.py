@@ -60,13 +60,24 @@ def _scrub(value: Any) -> Any:
     text = _text(value)
     if text is None or redact_share_paths(text) == text:
         return value
-    return redact_share_paths(_text(_without_query(value)) or text)
+    return _redact_route(_text(_without_query(value)) or text)
 
 
 def _changed(new: Any, old: Any) -> bool:
     if isinstance(old, str):
         return new != str.__str__(old)
     return new is not old
+
+
+def _fail_closed(record: logging.LogRecord) -> None:
+    try:
+        text = record.getMessage()
+    except Exception:
+        return
+    redacted = redact_share_paths(text)
+    if redacted != text:
+        record.msg = redacted
+        record.args = ()
 
 
 class ShareTokenFilter(logging.Filter):
@@ -83,6 +94,7 @@ class ShareTokenFilter(logging.Filter):
                 if any(_changed(scrubbed[key], arg) for key, arg in args.items()):
                     args = _without_query(scrubbed)
         except Exception:
+            _fail_closed(record)
             return True
         record.msg = msg
         record.args = args

@@ -8,6 +8,7 @@ from collections import OrderedDict, defaultdict
 from collections.abc import Iterator, Mapping
 from enum import Enum
 from types import MappingProxyType
+from typing import ClassVar
 
 import pytest
 
@@ -360,8 +361,11 @@ def test_an_unreadable_token_free_mapping_is_logged_as_it_was() -> None:
     assert _logged("%s", Quiet()) == "quiet\n"
 
 
-def test_a_tuple_holding_an_unreadable_mapping_does_not_raise() -> None:
-    assert _logged("%s %s", f"/r/{TOKEN}/ws", _UnreadableMapping()) != ""
+def test_a_tuple_holding_an_unreadable_mapping_loses_the_token() -> None:
+    line = _logged("%s %s", f"/r/{TOKEN}/ws", _UnreadableMapping())
+
+    assert TOKEN not in line
+    assert "<share-token>" in line
 
 
 class _Kind(str, Enum):  # noqa: UP042
@@ -500,3 +504,78 @@ def test_a_mapping_whose_copy_cannot_be_printed_still_loses_its_token() -> None:
 def test_a_str_subclass_is_plain_text_in_a_tuple_and_kept_as_it_was_in_a_mapping() -> None:
     assert _logged("%s", _StrOverride("v")) == "v\n"
     assert _logged("%(a)s", {"a": _StrOverride("v")}) == "STR-OVERRIDE\n"
+
+
+class _CountingStr(str):
+    calls: ClassVar[list[str]] = []
+
+    def __eq__(self, other: object) -> bool:
+        self.calls.append("eq")
+        return str.__eq__(self, other)
+
+    def __ne__(self, other: object) -> bool:
+        self.calls.append("ne")
+        return str.__ne__(self, other)
+
+    __hash__ = str.__hash__
+
+
+def test_a_token_free_mapping_is_never_compared_by_value() -> None:
+    _CountingStr.calls.clear()
+    arg = OrderedDict(a=_CountingStr("x"))
+    record = logging.LogRecord("uvicorn.error", logging.INFO, __file__, 1, "%(a)s", (arg,), None)
+
+    ShareTokenFilter().filter(record)
+
+    assert _CountingStr.calls == []
+    assert record.args is arg
+
+
+@pytest.mark.parametrize(
+    "arg",
+    [
+        f"/r/{TOKEN}/ws?name=Ann&client=guest-1".encode(),
+        [f"/r/{TOKEN}/ws?name=Ann&client=guest-1"],
+        ValueError(f"/r/{TOKEN}/ws?name=Ann&client=guest-1"),
+        {"path": f"/r/{TOKEN}/ws", "query_string": b"name=Ann&client=guest-1"},
+        f"/r/{TOKEN}/ws?name=Ann&client=guest-1",
+    ],
+    ids=["bytes", "list", "exception", "mapping", "str"],
+)
+def test_a_token_route_loses_its_query_whatever_the_argument_type(arg: object) -> None:
+    line = _format("seen %s", arg)
+
+    assert TOKEN not in line
+    assert "Ann" not in line
+    assert "guest-1" not in line
+
+
+class _Quiet(_UnreadableMapping):
+    def __str__(self) -> str:
+        return "quiet"
+
+
+@pytest.mark.parametrize(
+    ("msg", "args"),
+    [
+        ("%s", (_UnreadableMapping(),)),
+        ("%s %s", (f"/r/{TOKEN}/ws", _UnreadableMapping())),
+        (f"/r/{TOKEN}/ws %s", (_Quiet(),)),
+    ],
+    ids=["lone", "in-a-tuple", "elsewhere"],
+)
+def test_an_unreadable_argument_in_a_token_bearing_record_leaves_no_token(
+    msg: str, args: tuple[object, ...]
+) -> None:
+    assert TOKEN not in _logged(msg, *args)
+
+
+def test_an_unreadable_argument_in_a_token_free_record_is_left_as_it_was() -> None:
+    arg = _Quiet()
+    record = logging.LogRecord("uvicorn.error", logging.INFO, __file__, 1, "%s", (arg,), None)
+
+    ShareTokenFilter().filter(record)
+
+    assert record.msg == "%s"
+    assert record.args is arg
+    assert record.getMessage() == "quiet"
