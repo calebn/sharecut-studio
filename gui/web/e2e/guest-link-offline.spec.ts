@@ -185,7 +185,7 @@ for (const size of SIZES) {
       });
     });
 
-    test("opens the saved copy instead of a cover when the connection is lost on load", async ({
+    test("opens the saved copy, with the region saying it is offline, when the connection is lost on load", async ({
       browser,
     }) => {
       await withGuestLink(browser, size, async (guest, token) => {
