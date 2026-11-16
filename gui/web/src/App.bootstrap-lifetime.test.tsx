@@ -1,5 +1,6 @@
 import {
   act,
+  cleanup,
   fireEvent,
   render,
   screen,
@@ -304,9 +305,12 @@ describe("App bootstrap request lifetime", () => {
     expect(await screen.findByText("Studio body")).toBeInTheDocument();
     expect(provider()).toHaveAttribute("data-author", "Beta");
     await act(async () => {
-      hung.resolve(bootstrap("Alpha"));
+      hung.resolve(new Response("{}", { status: 500 }));
     });
     expect(provider()).toHaveAttribute("data-author", "Beta");
+    expect(
+      screen.queryByRole("heading", { name: "This link did not load" }),
+    ).toBeNull();
   });
 
   it("counts the 30 seconds from the start of each attempt, so a press restarts them", async () => {
@@ -369,5 +373,162 @@ describe("App bootstrap request lifetime", () => {
       second.resolve(bootstrap("Beta"));
     });
     expect(await screen.findByText("Studio body")).toBeInTheDocument();
+  });
+
+  describe("a replaced attempt for the same link", () => {
+    /** Attempt 1 fails (asleep), attempt 2 (pressed) and attempt 3 (the 30 s replacement) both hang. */
+    async function replacedWhileHung() {
+      const second = deferred<Response>();
+      const third = deferred<Response>();
+      let calls = 0;
+      offline.load.mockResolvedValue(undefined);
+      serve(async () => {
+        if (++calls === 1) throw new TypeError("offline");
+        return calls === 2 ? second.promise : third.promise;
+      });
+      vi.useFakeTimers({ shouldAdvanceTime: true });
+      render(<App />);
+      fireEvent.click(await screen.findByRole("button", { name: "Try now" }));
+      await waitFor(() => expect(calls).toBe(2));
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(31_000);
+      });
+      await waitFor(() => expect(calls).toBe(3));
+      return { second, third };
+    }
+
+    it("opens the episode when it answers late with the episode", async () => {
+      const { second } = await replacedWhileHung();
+      await act(async () => {
+        second.resolve(bootstrap("Alpha"));
+      });
+      expect(await screen.findByText("Studio body")).toBeInTheDocument();
+      expect(provider()).toHaveAttribute("data-author", "Alpha");
+      expect(screen.queryByRole("button", { name: /Try/ })).toBeNull();
+    });
+
+    it("changes nothing when it fails late", async () => {
+      const { second } = await replacedWhileHung();
+      await act(async () => {
+        second.resolve(new Response("{}", { status: 500 }));
+      });
+      expect(
+        screen.getByRole("heading", { name: "The host's computer is asleep" }),
+      ).toBeInTheDocument();
+      expect(screen.queryByText("Studio body")).toBeNull();
+      expect(offline.load).toHaveBeenCalledTimes(1);
+    });
+
+    it("leaves the open episode open when the newest attempt then fails", async () => {
+      const { second, third } = await replacedWhileHung();
+      await act(async () => {
+        second.resolve(bootstrap("Alpha"));
+      });
+      await screen.findByText("Studio body");
+      await act(async () => {
+        third.resolve(new Response("{}", { status: 500 }));
+      });
+      expect(screen.getByText("Studio body")).toBeInTheDocument();
+      expect(provider()).toHaveAttribute("data-author", "Alpha");
+      expect(
+        screen.queryByRole("heading", {
+          name: "The host's computer is asleep",
+        }),
+      ).toBeNull();
+    });
+
+    it("lets the newest attempt's success refresh what the replaced one opened", async () => {
+      const { second, third } = await replacedWhileHung();
+      await act(async () => {
+        second.resolve(bootstrap("Alpha"));
+      });
+      await screen.findByText("Studio body");
+      await act(async () => {
+        third.resolve(bootstrap("Fresher"));
+      });
+      expect(provider()).toHaveAttribute("data-author", "Fresher");
+    });
+
+    it("is ignored when it answers after the link changed", async () => {
+      const { second } = await replacedWhileHung();
+      const beta = deferred<Response>();
+      serve(async (token) =>
+        token === "beta" ? beta.promise : bootstrap("Alpha"),
+      );
+      window.history.pushState({}, "", "/r/beta");
+      cleanup();
+      render(<App />);
+      await act(async () => {
+        second.resolve(bootstrap("Alpha"));
+      });
+      expect(screen.queryByText("Studio body")).toBeNull();
+      await act(async () => {
+        beta.resolve(bootstrap("Beta"));
+      });
+      expect(await screen.findByText("Studio body")).toBeInTheDocument();
+      expect(provider()).toHaveAttribute("data-path", "share:beta");
+    });
+
+    it("lets a host that takes 12 s open the episode under a 5 s rate-limit delay", async () => {
+      let calls = 0;
+      offline.load.mockResolvedValue(undefined);
+      serve(async () => {
+        if (++calls === 1) {
+          return new Response("{}", {
+            status: 429,
+            headers: { "Retry-After": "5" },
+          });
+        }
+        await new Promise((done) => setTimeout(done, 12_000));
+        return bootstrap("Alpha");
+      });
+      vi.useFakeTimers({ shouldAdvanceTime: true });
+      render(<App />);
+      await screen.findByRole("heading", { name: "This link did not load" });
+      // One act per second: React applies the retry's state change when an act
+      // ends, and each attempt must start before the next delay is counted.
+      for (let second = 0; second < 20; second += 1) {
+        await act(async () => {
+          await vi.advanceTimersByTimeAsync(1_000);
+        });
+      }
+      expect(calls).toBeGreaterThan(2);
+      expect(screen.getByText("Studio body")).toBeInTheDocument();
+    });
+  });
+
+  it("returns a pressed Retry to idle 30 s after it started when nothing answers, and takes a new press", async () => {
+    const first = deferred<Response>();
+    let calls = 0;
+    offline.load.mockResolvedValue(undefined);
+    serve(async () => {
+      if (++calls === 1) return new Response("{}", { status: 500 });
+      if (calls === 2) return first.promise;
+      return new Promise<Response>(() => {});
+    });
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    render(<App />);
+    const button = await screen.findByRole("button", { name: "Retry" });
+    fireEvent.click(button);
+    await waitFor(() => expect(calls).toBe(2));
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(29_900);
+    });
+    expect(screen.getByRole("button", { name: "Trying…" })).toBe(button);
+    expect(button).toHaveAttribute("aria-busy", "true");
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(100);
+    });
+    expect(screen.getByRole("button", { name: "Retry" })).toBe(button);
+    expect(button).not.toHaveAttribute("aria-busy");
+    expect(screen.getByRole("status")).toHaveTextContent("Still not loading.");
+    fireEvent.click(button);
+    await waitFor(() => expect(calls).toBe(3));
+    expect(screen.getByRole("button", { name: "Trying…" })).toBe(button);
+    await act(async () => {
+      first.resolve(bootstrap("Alpha"));
+    });
+    expect(await screen.findByText("Studio body")).toBeInTheDocument();
+    expect(provider()).toHaveAttribute("data-author", "Alpha");
   });
 });
