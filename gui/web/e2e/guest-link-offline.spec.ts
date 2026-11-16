@@ -4,6 +4,7 @@ import { fontsReady } from "./fontsReady";
 import { failBootstrap, press, SIZES, withGuestLink } from "./guestLink";
 import { guestSavedCopy } from "./offlineQueue";
 import { openGuestShare } from "./shareNavigation";
+import { setTheme } from "./theme";
 
 const OFFLINE_TITLE = "You're offline";
 const OFFLINE_SENTENCE =
@@ -259,11 +260,11 @@ for (const size of SIZES) {
     for (const colorScheme of ["light", "dark"] as const) {
       test(`passes axe in the ${colorScheme} theme`, async ({ browser }) => {
         await withGuestLink(browser, size, async (guest, token) => {
-          await guest.emulateMedia({ colorScheme });
           await loseConnectionOnLoad(guest, token);
           await expect(
             guest.getByRole("heading", { name: OFFLINE_TITLE }),
           ).toBeVisible();
+          await setTheme(guest, colorScheme);
           await fontsReady(guest);
           await expectReadingSurfaceAxeClean(guest);
         });
