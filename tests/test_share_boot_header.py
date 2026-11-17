@@ -8,6 +8,7 @@ page it was.
 from __future__ import annotations
 
 import json
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pytest
@@ -219,6 +220,10 @@ def test_dead_and_wrong_kind_links_name_nothing_and_answer_alike(
     live = service.create(review_version_id=ver["id"])["token"]
     room = service.create_record_room()["guest"]["token"]
     service.revoke(revoked)
+    expired = service.create(
+        review_version_id=ver["id"],
+        expires_at=(datetime.now(UTC) - timedelta(hours=1)).isoformat(),
+    )["token"]
     calls = _never_writes_a_header(monkeypatch)
     client = TestClient(create_app(static_dir=_dist(tmp_path)))
     answers = [
@@ -227,12 +232,26 @@ def test_dead_and_wrong_kind_links_name_nothing_and_answer_alike(
         client.get(f"/r/{revoked}"),
         client.get(f"/r/{room}"),
         client.get(f"/rec/{live}"),
+        client.get(f"/r/{expired}"),
     ]
     for answer in answers:
         _assert_unnamed(answer)
         assert "Pilot episode" not in answer.text
     assert len({answer.text for answer in answers[:1] + answers[2:]}) == 1
     assert calls == []
+
+
+def test_a_name_with_edge_whitespace_is_carried_without_it(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch, tmp_path
+):
+    _quiet_audio(monkeypatch)
+    token = _review(_seed(minimal_project, sample_wav, "  Pilot episode \n"))
+    client = TestClient(create_app(static_dir=_dist(tmp_path)))
+    text = client.get(f"/r/{token}").text
+    assert "<title>Pilot episode</title>" in text
+    assert text.count('<h1 class="sr-only">Pilot episode</h1>') == 1
+    assert text.count('role="status" class="sr-only">Loading Pilot episode…</p>') == 1
+    assert text.count('aria-hidden="true">Pilot episode</span>') == 1
 
 
 def test_the_recording_room_and_the_host_page_name_nothing(
