@@ -654,6 +654,31 @@ describe("JoinSheet producer", () => {
     );
   });
 
+  it("speaks the sentence once when it appears after the sheet opened, and not again", () => {
+    const SEEN = "The room can see that someone is looking in.";
+    const { rerender } = render(<Harness seat="producer" name="Rosa" />);
+    const status = () =>
+      document.querySelector('[aria-live="polite"]') as HTMLElement;
+    expect(status()).toBeEmptyDOMElement();
+    rerender(<Harness seat="producer" name="Rosa" seenByRoom />);
+    expect(status()).toHaveTextContent(SEEN);
+    expect(screen.getAllByText(SEEN)).toHaveLength(2);
+    rerender(<Harness seat="producer" name="Rosa" seenByRoom />);
+    expect(status()).toHaveTextContent(SEEN);
+  });
+
+  it("leaves the status empty when the sentence was there at open, so it is read once, as the description", () => {
+    const SEEN = "The room can see that someone is looking in.";
+    render(<Harness seat="producer" name="Rosa" seenByRoom />);
+    expect(
+      document.querySelector('[aria-live="polite"]'),
+    ).toBeEmptyDOMElement();
+    expect(screen.getAllByText(SEEN)).toHaveLength(1);
+    expect(screen.getByRole("dialog")).toHaveAccessibleDescription(
+      `You'll listen and comment. You won't be recorded. ${SEEN}`,
+    );
+  });
+
   it("never says it on the guest seat", () => {
     render(<Harness seenByRoom />);
     expect(
