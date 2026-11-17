@@ -1,3 +1,5 @@
+import type { PointerKind } from "../types/pointerKind";
+
 export const PRIMARY_FINE_QUERY = "(pointer: fine)";
 export const ANY_COARSE_QUERY = "(any-pointer: coarse)";
 
@@ -8,7 +10,7 @@ export const ANY_COARSE_QUERY = "(any-pointer: coarse)";
  * choose coarse. Falls back to "fine" outside a browser (SSR/tests without
  * matchMedia).
  */
-export function initialPointerKind(): "fine" | "coarse" {
+export function initialPointerKind(): PointerKind {
   if (
     typeof window === "undefined" ||
     typeof window.matchMedia !== "function"

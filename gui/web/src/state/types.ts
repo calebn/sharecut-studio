@@ -2,6 +2,7 @@ import type { RippleTrim } from "../edit/ripplePreview";
 import type { PresenceDeltaChanges, SessionRoster } from "../presence/roster";
 import type { RoutedTarget } from "../timeline/hitRouting";
 import type { PipelineJobSnapshot } from "../types/pipeline";
+import type { PointerKind } from "../types/pointerKind";
 import type {
   ClipRow,
   ExactRangeTarget,
@@ -109,12 +110,7 @@ export type DawTab = PresenceTab;
 
 export type ShellBreakpoint = "phone" | "tablet" | "desktop";
 
-/**
- * Last-used pointing device kind: fine (mouse/pen) vs coarse (touch).
- * Tracked live from Pointer Events; drives input-mode adaptation (e.g. the
- * presence `mobile_mode` payload), never presence visibility.
- */
-export type PointerKind = "fine" | "coarse";
+export type { PointerKind };
 
 export interface CommentDraft {
   startSec: number;
