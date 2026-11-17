@@ -864,13 +864,8 @@ describe("RoomView as the host", () => {
       expect(
         container.querySelector(".sys-room-view-body"),
       ).not.toHaveAttribute("inert");
-      for (const selector of [
-        ".sys-room-view-grid",
-        ".sys-room-listeners",
-        ".sys-room-view-alert",
-      ]) {
-        const part = container.querySelector(selector);
-        if (part) expect(part).toHaveAttribute("inert");
+      for (const selector of [".sys-room-view-grid", ".sys-room-listeners"]) {
+        expect(container.querySelector(selector)).toHaveAttribute("inert");
       }
       expect(container.querySelector(".sys-room-view-rail")).toBeNull();
     });
