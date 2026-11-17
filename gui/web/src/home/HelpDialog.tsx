@@ -12,10 +12,26 @@ import {
   fetchDiagnosticsReportStatus,
   submitDiagnosticsReport,
 } from "../api";
+import { noAnswerStatus } from "../guestLoadFailure";
 import type { HelpStep } from "../state/types";
-import { errorMessage } from "../utils/apiError";
+import { ApiError, errorMessage } from "../utils/apiError";
 import { useStableCallback } from "../utils/useStableCallback";
 import { HelpDialogView } from "./HelpDialogView";
+
+const BUNDLE_WRITE_FAILED_CODE = "bundle_write_failed";
+
+/** The one line the report step says when the export fails: chosen by what failed, never the server's text. */
+function exportFailureSentence(error: unknown): string {
+  if (error instanceof ApiError) {
+    if (noAnswerStatus(error.status, error.code)) {
+      return "ShareCut isn't answering. Check that it is still running on this computer.";
+    }
+    if (error.code === BUNDLE_WRITE_FAILED_CODE) {
+      return "ShareCut couldn't save the report. Check that this computer has free space, then try again.";
+    }
+  }
+  return "ShareCut couldn't make the report. Try again.";
+}
 
 type Props = {
   open: boolean;
@@ -151,7 +167,7 @@ export function HelpDialog({
       ) {
         return;
       }
-      setError(errorMessage(err));
+      setError(exportFailureSentence(err));
     } finally {
       if (
         acceptsSession(session.epoch) &&

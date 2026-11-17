@@ -82,6 +82,8 @@ export function writeFailureReason(failure: ApiError): string | null {
 
 export const PROJECT_NOT_FOUND_CODE = "project_not_found";
 export const PROJECT_UNREADABLE_CODE = "project_unreadable";
+export const PROJECT_VERSION_NEWER_CODE = "project_version_newer";
+export const PROJECT_VERSION_UNSUPPORTED_CODE = "project_version_unsupported";
 
 export function projectUnavailableReason(
   failure: ApiError,
