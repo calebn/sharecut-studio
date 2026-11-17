@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import time
+
 import pytest
 
 from podcast_mcp.services.jobs.job import short_fail_message
@@ -29,6 +31,9 @@ from podcast_mcp.services.jobs.job import short_fail_message
         ),
         ("cannot open /Users/host/My Show/a b.wav", "cannot open"),
         ("path=/Users/host/My Show/a b.wav: refused", "path=: refused"),
+        # a colon inside the quoted path does not end it: the closing quote does
+        ("Could not read '/Users/host/My Show: v2/a.wav' twice", "Could not read twice"),
+        ("Could not read [/Users/host/My Show: v2/a.wav] twice", "Could not read twice"),
     ],
 )
 def test_an_absolute_path_is_removed_whole_with_its_spaces(line, expected):
@@ -119,17 +124,31 @@ def test_a_closer_only_closes_where_it_is_not_inside_a_word_and_brackets_nest(li
         assert word not in (out or "")
 
 
-def test_a_huge_first_line_is_only_examined_for_its_first_2000_characters():
-    import time
-
+def test_a_huge_first_line_stays_short_and_fast():
+    # The bound is loose on purpose (a loaded CI runner must pass; milliseconds unloaded). The
+    # last shape is quadratic without the 2000-character cap (minutes); the others are linear
+    # either way and only pin the length.
     shapes = [
         ("'/a' " * 60000) + ": x",
         "'/a b' " * 40000,
         "(/a (b) " * 40000,
         "x " + ("/a b " * 60000),
+        "x (/a: " * 50000,
     ]
     for shape in shapes:
         start = time.perf_counter()
         out = short_fail_message(shape)
-        assert time.perf_counter() - start < 0.5
+        assert time.perf_counter() - start < 5
         assert out is None or len(out) <= 200
+
+
+def test_a_path_that_starts_after_character_2000_is_not_examined_so_the_line_is_not_tidied():
+    # Only the first 2000 characters are looked at. The path below starts at 2520+, so nothing
+    # is removed and the line is cut to 200 as it is, spaces before punctuation included. Were
+    # the whole line examined (no cap, or a much larger one), the path would count as removed
+    # and the tidy step would pull " ," and " ;" together in the first 200 characters too.
+    words = "alpha , beta ; gamma " * 120
+    assert len(words) > 2500
+    out = short_fail_message(words + "/Users/host/My Show/a.wav")
+    assert out == words[:200]
+    assert " , " in out

@@ -7,7 +7,8 @@ import time
 from pathlib import Path
 
 import pytest
-from pydantic import BaseModel, ValidationError
+from pydantic import BaseModel, ValidationError, field_validator
+from pydantic_core import PydanticCustomError
 
 from podcast_mcp.util.coded_error import CodedError
 from podcast_mcp.util.redact import (
@@ -767,12 +768,15 @@ def test_a_header_with_no_entry_leaves_the_lines_after_it_unchanged() -> None:
     assert sanitize(text, field_names=_NAMES) == text
 
 
-def test_thousands_of_bare_headers_are_fast() -> None:
-    text = ("1 validation error for Outer\n" + "some ordinary line. with dots\n") * 4500
-    text = text[: 256 * 1024]
+def test_tens_of_thousands_of_bare_headers_are_fast() -> None:
+    # The bound is loose on purpose (a loaded CI runner must pass; about 0.4 s unloaded). It
+    # guards a block rule whose work per bare header grows with the text after it (a rescan of
+    # the rest of the input): 36000 headers in 2 MB would then take far longer than the bound.
+    text = ("1 validation error for Outer\n" + "some ordinary line. with dots\n") * 40000
+    text = text[: 2 * 1024 * 1024]
     start = time.perf_counter()
     assert sanitize(text, field_names=_NAMES) == text
-    assert time.perf_counter() - start < 5
+    assert time.perf_counter() - start < 10
 
 
 # --- the exact block rule: a header, then at most N entries of one location line each ---------
@@ -937,11 +941,14 @@ def test_ordinary_log_text_without_an_entry_is_returned_byte_for_byte(text: str)
     assert sanitize(text, field_names=_REAL_NAMES) == text
 
 
-def test_one_line_of_256_kb_of_headers_is_fast() -> None:
-    text = ("1 validation errors for " * 10000)[: 256 * 1024]
+def test_one_line_of_2_mb_of_headers_is_fast() -> None:
+    # The bound is loose on purpose (about 1.3 s unloaded, so a loaded CI runner passes). It
+    # guards the title cap: a header with no line end must not make the regex read to the end
+    # of the 2 MB line again for every header (quadratic, tens of seconds).
+    text = ("1 validation errors for " * (2 * 1024 * 1024 // 23 + 1))[: 2 * 1024 * 1024]
     start = time.perf_counter()
     out = sanitize(text, field_names=_REAL_NAMES)
-    assert time.perf_counter() - start < 0.5
+    assert time.perf_counter() - start < 10
     assert out == text
 
 
@@ -960,3 +967,58 @@ def test_many_blocks_with_ordinary_lines_between_stay_fast() -> None:
     assert time.perf_counter() - start < 5
     assert "Secretname" not in out
     assert out.count("INFO:x:ordinary\n") == text.count("INFO:x:ordinary\n")
+
+
+# --- a block whose entries carry no ``For further information`` line --------------------------
+
+
+class _NoUrlInner(BaseModel):
+    align_method: str
+
+    @field_validator("align_method")
+    @classmethod
+    def _always_wrong(cls, value: str) -> str:
+        raise PydanticCustomError("no_url_error", "this value is not allowed")
+
+
+class _NoUrlKeyed(BaseModel):
+    tags: dict[str, _NoUrlInner]
+
+
+def test_a_block_whose_entries_have_no_further_information_line_masks_both_locations() -> None:
+    first, second = "Dani" + "ela Secret" + "name", "Zel" + "da Quim" + "by"
+    try:
+        _NoUrlKeyed.model_validate(
+            {"tags": {first: {"align_method": "a"}, second: {"align_method": "b"}}}
+        )
+    except ValidationError as exc:
+        raw = str(exc)
+    else:
+        raise AssertionError("accepted")
+    # a custom error type has no documentation page: real pydantic prints no URL line
+    assert "For further information" not in raw
+    assert raw.count("[type=no_url_error") == 2
+    assert f"tags.{first}.align_method\n" in raw
+    assert f"tags.{second}.align_method\n" in raw
+    out = sanitize(raw, field_names=_REAL_NAMES)
+    # nothing else changes but the two location lines and the quoted input values
+    expected = re.sub(r"input_value='.'", "input_value=<hidden>", raw)
+    expected = expected.replace(f"tags.{first}.", "tags.*.").replace(f"tags.{second}.", "tags.*.")
+    assert out == expected
+    assert out.count("tags.*.align_method\n") == 2
+
+
+def test_a_location_of_non_ascii_digits_is_masked() -> None:
+    # ``str.isdecimal`` is true for Arabic-Indic digits; they are no index, so they could be
+    # a key of the document (a speaker's name written in digits).
+    block = "1 validation error for X\ntags.\u0663\u0664.a\n  m [type=x]\n"
+    out = sanitize(block, field_names=frozenset({"tags", "a"}))
+    assert out == block.replace("\u0663\u0664", "*")
+
+
+def test_a_seven_digit_count_is_no_header() -> None:
+    # The count is at most six digits and not the tail of a longer number: without the
+    # look-behind "234567 validation errors for X" would be read as a header.
+    speaker = "Dani" + "ela Secret" + "name"
+    text = f"1234567 validation errors for X\ntags.{speaker}.align_method\n  m [type=x]\n"
+    assert sanitize(text, field_names=_REAL_NAMES) == text
