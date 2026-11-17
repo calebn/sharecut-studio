@@ -137,8 +137,11 @@ export async function readProbes(page: Page): Promise<Probes> {
 
 /**
  * Waits for what arrives after the studio has landed, each on its own state:
- * the transcript's first word, the guest's own avatar in the header's right
- * side (the presence answer), and on a phone the Listen strip's scrubber. Then
+ * the transcript's first word and the guest's own avatar in the header's right
+ * side (the presence answer). On a phone it also checks that the Listen
+ * strip's scrubber is in the page: the strip is part of the studio frame and
+ * is there from its first paint, so this is not a late arrival and is met at
+ * once; it makes the test fail at its time-out if a phone has no strip. Then
  * two animation frames pass in the page, so the shifts those arrivals cause
  * have been laid out and recorded. Each is a locator wait that fails at the
  * test timeout if the thing never comes; none is a pause.
