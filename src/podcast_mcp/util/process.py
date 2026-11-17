@@ -9,6 +9,10 @@ stops through its ``cancel_check`` instead of each child dying on its own (#1164
 ``kill_detached_children()`` kills those children's process groups, so leaving early
 never orphans one.
 
+An argv whose first item is exactly an in-process tool sentinel never reaches ``Popen``: on a
+``media_tools == "in_process"`` row with a backend installed by ``using_in_process_backend`` it
+runs on an ``InProcessChild``, anywhere else it raises ``SpawnUnavailableError``.
+
 Both are properties of the desktop ``_spawn``. A runner installed with ``using_runner``
 replaces ``_spawn``, so its children are not niceness-wrapped, not registered by
 ``detached_children`` and not seen by ``kill_detached_children``, and the host gate
@@ -19,19 +23,23 @@ This module also owns the ``subprocess`` error types; see docs/contributing.md.
 
 from __future__ import annotations
 
+import contextlib
 import ctypes
 import errno
+import locale
+import logging
 import os
 import shutil
 import signal
 import subprocess  # nosec B404
 import threading
+import time
 import weakref
 from collections.abc import Callable, Iterator, Mapping, Sequence
 from contextlib import contextmanager
 from contextvars import ContextVar
 from pathlib import Path
-from typing import Any, Protocol, runtime_checkable
+from typing import Any, BinaryIO, NamedTuple, Protocol, runtime_checkable
 
 from podcast_mcp.util import host_platform
 
@@ -43,6 +51,13 @@ CompletedProcess = subprocess.CompletedProcess
 SubprocessError = subprocess.SubprocessError
 TimeoutExpired = subprocess.TimeoutExpired
 Popen = subprocess.Popen
+
+IN_PROCESS_FFMPEG = "in-process:ffmpeg"
+IN_PROCESS_FFPROBE = "in-process:ffprobe"
+_IN_PROCESS_TOOLS = frozenset({IN_PROCESS_FFMPEG, IN_PROCESS_FFPROBE})
+KILL_GRACE_SEC = 5.0
+
+_log = logging.getLogger(__name__)
 
 # Niceness for children started in this context (and in pool threads that copy it).
 _niceness: ContextVar[int] = ContextVar("process_niceness", default=0)
@@ -243,6 +258,207 @@ class SpawnUnavailableError(OSError):
     """This host cannot start other programs (``ENOSYS``). Callers that already catch ``OSError`` report it."""
 
 
+class Streams(NamedTuple):
+    """The backend's ends of the three streams; ``None`` is /dev/null."""
+
+    stdin: BinaryIO | None
+    stdout: BinaryIO | None
+    stderr: BinaryIO | None
+
+
+class InProcessBackend(Protocol):
+    """Runs one ffmpeg or ffprobe argv inside this process (a Kit adapter, or a test fake)."""
+
+    def run(self, argv: list[str], streams: Streams, cancel: threading.Event) -> int:
+        """Read stdin to EOF, write stdout and stderr, return the exit code.
+
+        Must return soon after ``cancel`` is set; ``cancel`` may be set more than once.
+        """
+        ...
+
+
+_in_process_backend: InProcessBackend | None = None
+
+
+@contextmanager
+def using_in_process_backend(backend: InProcessBackend) -> Iterator[None]:
+    """Serve in-process tool argv from ``backend`` while inside this block.
+
+    Process-wide. Raises ``RuntimeError`` when one is already installed.
+    """
+    global _in_process_backend
+    with _runner_lock:
+        if _in_process_backend is not None:
+            raise RuntimeError("an in-process backend is already installed")
+        _in_process_backend = backend
+    try:
+        yield
+    finally:
+        with _runner_lock:
+            _in_process_backend = None
+
+
+_PIPES_OUT = ("stdout", "stderr")
+
+
+def _encoding() -> str:
+    return locale.getpreferredencoding(False)
+
+
+class InProcessChild:
+    """A :class:`Child` whose program is ``backend.run`` on a daemon thread.
+
+    A PIPE stream is an ``os.pipe`` pair, a file object is handed to the backend as is, and
+    DEVNULL or ``None`` give the backend ``None``. ``pid`` is ``None``. A ``kill`` that the
+    backend ignores for ``KILL_GRACE_SEC`` ends the child with ``-9`` and abandons its thread;
+    one the backend honours leaves the backend's own return code, and a ``None`` stream is
+    ``/dev/null`` here, never inherited from the parent as ``Popen`` would.
+    """
+
+    pid = None
+
+    def __init__(
+        self,
+        argv: list[str],
+        backend: InProcessBackend,
+        *,
+        stdin: Any = None,
+        stdout: Any = None,
+        stderr: Any = None,
+        text: bool | None = None,
+    ) -> None:
+        self.args = argv
+        self.returncode: int | None = None
+        self.stdin: Any = None
+        self.stdout: Any = None
+        self.stderr: Any = None
+        self._text = bool(text)
+        self._cancel = threading.Event()
+        self._done = threading.Event()
+        self._lock = threading.Lock()
+        self._grace: threading.Timer | None = None
+        self._owned: list[BinaryIO] = []
+        try:
+            stdin_end = self._end("stdin", stdin)
+            stdout_end = self._end("stdout", stdout)
+            stderr_end = stdout_end if stderr == STDOUT else self._end("stderr", stderr)
+            ends = Streams(stdin_end, stdout_end, stderr_end)
+        except BaseException:
+            self._close_owned()
+            raise
+        self._thread = threading.Thread(
+            target=self._main, args=(backend, ends), daemon=True, name="in-process-child"
+        )
+        self._thread.start()
+
+    def _end(self, name: str, spec: Any) -> Any:
+        if spec is None or spec == DEVNULL:
+            return None
+        if spec != PIPE:
+            return spec
+        read_fd, write_fd = os.pipe()
+        reading = name == "stdin"
+        ours = os.fdopen(write_fd if reading else read_fd, "wb" if reading else "rb")
+        theirs = os.fdopen(read_fd if reading else write_fd, "rb" if reading else "wb")
+        setattr(self, name, ours)
+        self._owned.append(theirs)
+        return theirs
+
+    def _close_owned(self) -> None:
+        for end in self._owned:
+            with contextlib.suppress(OSError):
+                end.close()
+
+    def _finish(self, code: int) -> None:
+        with self._lock:
+            if self.returncode is None:
+                self.returncode = code
+        self._close_owned()
+        self._done.set()
+        if self._grace is not None:
+            self._grace.cancel()
+
+    def _main(self, backend: InProcessBackend, ends: Streams) -> None:
+        try:
+            code = backend.run(self.args, ends, self._cancel)
+        except BaseException:
+            _log.exception("in-process backend failed: %s", self.args[0])
+            code = 1
+        self._finish(code)
+
+    def poll(self) -> int | None:
+        return self.returncode
+
+    def wait(self, timeout: float | None = None) -> int:
+        if not self._done.wait(timeout):
+            raise TimeoutExpired(self.args, timeout or 0.0)
+        assert self.returncode is not None
+        return self.returncode
+
+    def kill(self) -> None:
+        if self._done.is_set() or self._cancel.is_set():
+            return
+        self._cancel.set()
+        self._grace = threading.Timer(KILL_GRACE_SEC, self._abandon)
+        self._grace.daemon = True
+        self._grace.start()
+
+    def _abandon(self) -> None:
+        if not self._done.is_set():
+            _log.error("in-process backend ignored kill: %s", self.args[0])
+            self._finish(-9)
+
+    def communicate(self, input: Any = None, timeout: float | None = None) -> tuple[Any, Any]:
+        deadline = None if timeout is None else time.monotonic() + timeout
+        results: dict[str, Any] = {}
+
+        def feed() -> None:
+            data = input.encode(_encoding()) if isinstance(input, str) else input
+            with contextlib.suppress(OSError):
+                if data:
+                    self.stdin.write(data)
+            with contextlib.suppress(OSError):
+                self.stdin.close()
+
+        def drain(name: str) -> None:
+            results[name] = getattr(self, name).read()
+
+        jobs = [
+            threading.Thread(target=drain, args=(n,), daemon=True)
+            for n in _PIPES_OUT
+            if getattr(self, n)
+        ]
+        if self.stdin is not None:
+            jobs.append(threading.Thread(target=feed, daemon=True))
+        for job in jobs:
+            job.start()
+        for job in jobs:
+            job.join(None if deadline is None else max(0.0, deadline - time.monotonic()))
+            if job.is_alive():
+                raise TimeoutExpired(self.args, timeout or 0.0)
+        self.wait(None if deadline is None else max(0.0, deadline - time.monotonic()))
+        out, err = results.get("stdout"), results.get("stderr")
+        for name in _PIPES_OUT:
+            if getattr(self, name) is not None:
+                getattr(self, name).close()
+        if self._text:
+            out = out.decode(_encoding()) if out is not None else None
+            err = err.decode(_encoding()) if err is not None else None
+        return out, err
+
+    def __enter__(self) -> InProcessChild:
+        return self
+
+    def __exit__(self, *exc: Any) -> None:
+        for end in (self.stdin, self.stdout, self.stderr):
+            if end is not None:
+                with contextlib.suppress(OSError):
+                    end.close()
+        if self.returncode is None:
+            self.kill()
+        self.wait()
+
+
 def _spawn(
     cmd: list[str],
     *,
@@ -254,6 +470,13 @@ def _spawn(
     env: Mapping[str, str] | None = None,
     start_new_session: bool = False,
 ) -> subprocess.Popen[Any]:
+    if cmd[0] in _IN_PROCESS_TOOLS:
+        backend = _in_process_backend
+        if host_platform.current().media_tools != "in_process" or backend is None:
+            raise SpawnUnavailableError(errno.ENOSYS, "In-process media tools are not available.")
+        return InProcessChild(  # type: ignore[return-value]
+            cmd, backend, stdin=stdin, stdout=stdout, stderr=stderr, text=text
+        )
     if not host_platform.current().can_spawn_processes:
         raise SpawnUnavailableError(errno.ENOSYS, "This device can't start other programs.")
     cmd = _with_niceness(cmd)

@@ -68,7 +68,7 @@ from podcast_mcp.util.atomic_file import publish_completed_file
 from podcast_mcp.util.coded_error import CodedValueError
 from podcast_mcp.util.ffmpeg_policy import ffmpeg_policy
 from podcast_mcp.util.hashing import sha256_file, short_digest
-from podcast_mcp.util.process import run
+from podcast_mcp.util.process import IN_PROCESS_FFMPEG, IN_PROCESS_FFPROBE, run
 from podcast_mcp.util.project_state import (
     FileRevision,
     file_revision,
@@ -602,6 +602,10 @@ def _canonical(value: Any) -> str:
     return json.dumps(value, sort_keys=True, separators=(",", ":"), allow_nan=False)
 
 
+def _is_in_process_tool(command: str) -> bool:
+    return command in (IN_PROCESS_FFMPEG, IN_PROCESS_FFPROBE)
+
+
 @dataclass(frozen=True)
 class SourceProxyInputs:
     """Sealed source inputs shared by semantic identity, rendering, and publication."""
@@ -777,14 +781,12 @@ class SourceProxyInputs:
                     paths += (sealed,)
                     bindings += ((logical, sealed),)
                     models.append((semantic_effect, sealed))
-        binaries = tuple(
-            Path(shutil.which(command) or command).resolve()
-            for command in (engine.ffmpeg, engine.ffprobe)
-        )
+        tools = tuple(c for c in (engine.ffmpeg, engine.ffprobe) if not _is_in_process_tool(c))
+        binaries = tuple(Path(shutil.which(command) or command).resolve() for command in tools)
         paths += binaries
         bindings += tuple(
             (Path(shutil.which(command) or command).absolute(), sealed)
-            for command, sealed in zip((engine.ffmpeg, engine.ffprobe), binaries, strict=True)
+            for command, sealed in zip(tools, binaries, strict=True)
         )
         ordinary = (
             mute_spans_for_source_window(
@@ -848,7 +850,10 @@ class SourceProxyInputs:
             "restore_revision": RESTORE_RENDER_REV,
             "baseline_encoding": "pcm_s16le",
             "ffmpeg_policy": ffmpeg_policy(),
-            "binaries": [content(path) for path in binaries],
+            "binaries": [
+                *(c for c in (engine.ffmpeg, engine.ffprobe) if _is_in_process_tool(c)),
+                *(content(path) for path in binaries),
+            ],
             "context_track_id": context.id,
             "recording": {
                 "source_id": recording_id,
