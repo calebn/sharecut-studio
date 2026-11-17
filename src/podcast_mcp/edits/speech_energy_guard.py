@@ -8,7 +8,6 @@ from __future__ import annotations
 
 import logging
 import math
-import subprocess
 from collections.abc import Callable, Collection, Iterable, Sequence
 from dataclasses import dataclass, field
 from itertools import pairwise
@@ -63,6 +62,7 @@ from podcast_mcp.models import Clip, CutSpeechWord, EpisodeProject
 from podcast_mcp.util.coded_error import CodedValueError
 from podcast_mcp.util.dsp import DIGITAL_SILENCE_DB, bool_runs, frame_rms_db
 from podcast_mcp.util.intervals import intersect_intervals, merge_intervals, subtract_intervals
+from podcast_mcp.util.process import CalledProcessError
 from podcast_mcp.util.tracks import dialogue_track_ids
 
 log = logging.getLogger(__name__)
@@ -623,7 +623,7 @@ def _peer_speaks_near_span(
     if track is not None and (track.media is not None or cache is not None):
         try:
             audible = _peer_profile(project, peer_track_id, caches).audibility_floor_db + gain
-        except (OSError, CodedValueError, subprocess.CalledProcessError):
+        except (OSError, CodedValueError, CalledProcessError):
             audible = -math.inf
     audible = audible if math.isfinite(audible) else -math.inf
     blocks: list[tuple[float, float]] = []
@@ -723,7 +723,7 @@ def _track_voice_db(
         return cache.profile.path_reference_db if cache is not None else None
     try:
         return _peer_profile(project, track_id, caches).path_reference_db
-    except (OSError, CodedValueError, subprocess.CalledProcessError):
+    except (OSError, CodedValueError, CalledProcessError):
         return None
 
 
@@ -833,7 +833,7 @@ def _peer_voice_in_level(
         for tid in dialogue_track_ids(project):
             try:
                 other = _voice_reach_db(project, tid, caches)
-            except (OSError, CodedValueError, subprocess.CalledProcessError):
+            except (OSError, CodedValueError, CalledProcessError):
                 continue
             if math.isfinite(other):
                 session.append(other)
