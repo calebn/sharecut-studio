@@ -309,7 +309,6 @@ export function RoomView({
       data-declined={declined ? "" : undefined}
       data-page={page ? "" : undefined}
       data-loading={loading ? "" : undefined}
-      data-looking-in={lookingInText === null ? undefined : ""}
       data-line-outside={lineOutside ? "" : undefined}
     >
       {embedded ? (
