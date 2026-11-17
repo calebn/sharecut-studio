@@ -381,7 +381,7 @@ for (const size of SIZES) {
           });
           const middle = (b: { y: number; h: number } | null) =>
             (b?.y ?? 0) + (b?.h ?? 0) / 2;
-          // The name's 18 px line and the 24 px line under it.
+          // 42 px: the name's 18 px line and the 24 px line under it.
           expect(boxes.column?.h).toBeCloseTo(42, 0);
           expect(boxes.title?.h).toBeCloseTo(18, 0);
           for (const control of [

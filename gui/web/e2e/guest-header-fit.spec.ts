@@ -45,7 +45,6 @@ const THEMES = ["light", "dark"] as const;
 /** Short enough to fit the room an Editor's name has beside Undo and Redo on the narrowest phone. */
 const SHORT_NAME = "Pilot";
 
-/** The web fonts the page has loaded, by family and weight. */
 const loadedFontFaces = (page: Page) =>
   page.evaluate(() =>
     [...document.fonts]
@@ -95,7 +94,7 @@ for (const size of [PHONE, NARROW_PHONE, DESKTOP]) {
 }
 
 for (const size of [PHONE, NARROW_PHONE]) {
-  test(`at ${at(size)} every press target in a guest's header is ${TOUCH_MIN} px square, inside the bar, and clear of the next, and nothing in the header answers a press just under the bar`, async ({
+  test(`at ${at(size)} every press target in a guest's header answers over ${TOUCH_MIN} x ${TOUCH_MIN} px inside the bar, clear of the next, and nothing in the header answers a press just under the bar`, async ({
     browser,
   }) => {
     await withGuestLinks(browser, async (links, host) => {
@@ -124,7 +123,7 @@ for (const size of [PHONE, NARROW_PHONE]) {
   });
 }
 
-test(`at ${at(DESKTOP)} the role button answers a press over 32 px of height, inside the bar, keeps the chip's weight 500, and nothing in the header answers a press just under the bar`, async ({
+test(`at ${at(DESKTOP)} the role button answers a press over 32 x 32 px inside the bar, keeps the chip's weight 500, and nothing in the header answers a press just under the bar`, async ({
   browser,
 }) => {
   await withGuestLinks(browser, async (links, host) => {
@@ -144,7 +143,7 @@ test(`at ${at(DESKTOP)} the role button answers a press over 32 px of height, in
           expect
             .soft(targetProblems(report), `${role}: the role button's area`)
             .toEqual([]);
-          // The word in the chip is weight 500, as the button's own styles gave it on develop.
+          // The chip's word is weight 500, which it takes from the role button's styles.
           expect
             .soft(
               await guest
@@ -215,7 +214,7 @@ for (const size of [PHONE, NARROW_PHONE]) {
   });
 }
 
-test(`at ${at(PHONE)} the name's place does not depend on which font has loaded`, async ({
+test(`at ${at(PHONE)} the name's top and height do not depend on which font has loaded`, async ({
   browser,
 }) => {
   await withGuestLinks(browser, async (links, host) => {
@@ -302,7 +301,7 @@ for (const size of [PHONE, NARROW_PHONE]) {
   });
 }
 
-test(`at ${at(PHONE)} and ${at(NARROW_PHONE)} at 200% text nothing in the header overlaps or is cut without an ellipsis`, async ({
+test(`at ${at(PHONE)} and ${at(NARROW_PHONE)} at 200% text nothing in the header reaches the rule or overlaps, and the name and the version are not cut without an ellipsis`, async ({
   browser,
 }) => {
   test.setTimeout(120_000);
@@ -555,7 +554,7 @@ for (const size of [PHONE, DESKTOP]) {
   });
 }
 
-test(`at ${at(DESKTOP)} a guest's controls keep the boxes they have on develop, to the pixel their row grew`, async ({
+test(`at ${at(DESKTOP)} a guest's controls keep their boxes on develop, except the x of Undo and Redo`, async ({
   browser,
 }) => {
   await withGuestLinks(browser, async (links, host) => {
@@ -575,8 +574,8 @@ test(`at ${at(DESKTOP)} a guest's controls keep the boxes they have on develop, 
               `${role}: the bar`,
             )
             .toEqual([]);
-          // Undo and Redo follow the role button, which is as wide as its
-          // chip now, so only their row and size are held.
+          // Undo and Redo sit after the role button, whose width is its chip's,
+          // so only their row and size are held.
           for (const label of ["undo", "redo"] as const)
             if (controls[label] && was[label]) controls[label].x = was[label].x;
           expect
@@ -593,7 +592,7 @@ test.describe("pictures of the header for a person to judge", () => {
   test.skip(!SHOTS_ON, "set GUEST_LOADING_SHOTS to a folder to save them");
 
   for (const size of [PHONE, NARROW_PHONE]) {
-    test(`the top of the header at ${at(size)}, three roles, both themes, first and returning, and at 200% text`, async ({
+    test(`pictures of the top of the header at ${at(size)}, three roles, both themes, first and returning, and at 200% text are filed`, async ({
       browser,
     }) => {
       test.setTimeout(300_000);

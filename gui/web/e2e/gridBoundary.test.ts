@@ -37,7 +37,7 @@ const AXIS_LOOPS: Record<string, { loops: number; reason: string }> = {
   "guest-header-fit.spec.ts": {
     loops: 2,
     reason:
-      "the axe check of the landed guest header reads color, so it runs in both themes; the second loop only files the optional pictures, which are skipped unless a folder is named (#3891)",
+      "the axe check of the landed guest header reads color, so it runs in both themes; the second loop only files the optional pictures, which are skipped unless a folder is named",
   },
   "guest-link-offline.spec.ts": {
     loops: 1,

@@ -187,7 +187,6 @@ export async function afterFrames(page: Page): Promise<void> {
   );
 }
 
-/** The studio has landed and its header has everything it will hold. */
 export async function landedSettled(page: Page, name: string) {
   await landed(page, name);
   await rightSideArrived(page);
@@ -289,7 +288,6 @@ export async function shot(page: Page, name: string, clip?: Rect) {
 
 export const SHOTS_ON = SHOTS !== undefined;
 
-/** Every visible thing in the header bar, with its box, and the bar's own box and rule. */
 type Inventory = {
   bar: Rect;
   /** The bar's bottom border: the last pixel row of its box. */
@@ -330,7 +328,6 @@ export async function headerInventory(page: Page): Promise<Inventory> {
   });
 }
 
-/** What of the header lies above the bar or reaches its rule, each with how far. */
 export function reachingPast(inventory: Inventory): string[] {
   const inner = inventory.bar.y + inventory.bar.h - inventory.rule;
   const past: { by: number; text: string }[] = [];
@@ -365,20 +362,16 @@ type TargetReport = {
 };
 
 /**
- * Where a press would land. For each visible button in the header bar (the
- * coach tip's own Dismiss left out), the longest stretch inside the bar over
- * which it answers `elementFromPoint` down its middle column is found, and
- * the area at least `side` px wide and tall that holds its box and lies on
- * that stretch (or, when the stretch is shorter, as near its centre as the bar
- * allows), and across the stretch it answers along its own row, is tried on a
- * grid of points: every point must answer the control or something in it. The
- * four rounded corners of the area are not tried. A press 1 px under the bar's
- * box, in the control's middle column, is also asked: `under` names what
- * answers it when that is part of the header. An area that runs to the
- * screen's edge is as wide as the screen leaves it. `shared` lists the points
- * of the bar that lie under two controls at once, which `elementFromPoint`
- * alone cannot show, since it names only the one on top. `only` narrows the
- * controls to those matching the selector.
+ * Where a press would land on each visible button in the header bar (the coach
+ * tip's own Dismiss left out). The area at least `side` px wide and tall that
+ * holds the button's box and lies where the button answers `elementFromPoint`
+ * is tried on a grid of points: every point must answer the button or
+ * something in it (the area's rounded corners are not tried, and an area at
+ * the screen's edge is as wide as the screen leaves it). `under` names what
+ * answers a press 1 px under the bar's box when that is part of the header.
+ * `shared` lists the points under two controls at once, which
+ * `elementFromPoint` cannot show, since it names only the top one. `only`
+ * narrows the buttons to those matching the selector.
  */
 export async function pressTargets(
   page: Page,
