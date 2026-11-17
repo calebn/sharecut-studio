@@ -749,6 +749,79 @@ describe("useRecordSync", () => {
       expect(FakeWebSocket.instances).toHaveLength(1);
     });
 
+    describe("a look refused with 4403", () => {
+      const held = { participant_id: "p_prod", lease: "kept" };
+
+      it("is access ended when no lease is cached", async () => {
+        vi.useFakeTimers();
+        const hook = watching("watch");
+        await settle();
+        await act(async () => {
+          FakeWebSocket.instances[0].close(4403);
+        });
+        expect(hook.result.current.error).toBe("access_removed");
+        await act(async () => {
+          await vi.advanceTimersByTimeAsync(5000);
+        });
+        expect(FakeWebSocket.instances).toHaveLength(1);
+      });
+
+      it("only ends the look when a lease is cached, then Join carries the lease", async () => {
+        vi.useFakeTimers();
+        loadRecordParticipant.mockResolvedValue(held);
+        const hook = watching("watch");
+        await settle();
+        await act(async () => {
+          FakeWebSocket.instances[0].open();
+          FakeWebSocket.instances[0].emit(lobby(1, 10));
+        });
+        await act(async () => {
+          FakeWebSocket.instances[0].close(4403);
+        });
+        expect(hook.result.current.error).toBeNull();
+        expect(hook.result.current.snapshot).toBeNull();
+        await act(async () => {
+          await vi.advanceTimersByTimeAsync(10_000);
+        });
+        expect(FakeWebSocket.instances).toHaveLength(1);
+        hook.rerender({ m: "join" });
+        await settle();
+        expect(FakeWebSocket.instances).toHaveLength(2);
+        const joining = FakeWebSocket.instances[1];
+        expect(new URL(joining.url).searchParams.has("observe")).toBe(false);
+        await act(async () => {
+          joining.open();
+        });
+        expect(commands(joining)[0]).toMatchObject({
+          command_type: "Join",
+          payload: expect.objectContaining(held),
+        });
+        await act(async () => {
+          joining.close(4403);
+        });
+        expect(hook.result.current.error).toBe("access_removed");
+      });
+
+      it("lets the press that came first retry as a join", async () => {
+        vi.useFakeTimers();
+        loadRecordParticipant.mockResolvedValue(held);
+        const hook = watching("watch");
+        await settle();
+        hook.rerender({ m: "join" });
+        await act(async () => {
+          FakeWebSocket.instances[0].close(4403);
+        });
+        expect(hook.result.current.error).toBeNull();
+        await act(async () => {
+          await vi.advanceTimersByTimeAsync(300);
+        });
+        expect(FakeWebSocket.instances).toHaveLength(2);
+        expect(
+          new URL(FakeWebSocket.instances[1].url).searchParams.has("observe"),
+        ).toBe(false);
+      });
+    });
+
     it("opens a joining socket at once when the mode turns to join during a backoff", async () => {
       vi.useFakeTimers();
       const hook = watching("watch");
