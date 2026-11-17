@@ -10,6 +10,7 @@ import { useState } from "react";
 import { describe, expect, it, vi } from "vitest";
 import { ScriptDivider } from "../stage/edit/ScriptDivider";
 import { expectNoA11yViolations } from "../test/a11y";
+import { systemCss } from "../test/systemCss";
 import { AppHeader, type AppHeaderProps } from "./AppHeader";
 import { ROLES } from "./linkRoles";
 import { ScrubField } from "./ScrubField";
@@ -962,5 +963,45 @@ describe("AppHeader undo hint", () => {
   it("has no accessibility violations while shown", async () => {
     const { container } = setup({ undoHint: HINT });
     await expectNoA11yViolations(container);
+  });
+});
+
+describe("the guest header's second line, in the styles", () => {
+  const css = systemCss().replace(/\s+/g, " ");
+
+  it("lets the role button, the New version pill and the folded line press over 44 px without growing the line", () => {
+    const area = css.match(/\.sys-role-trigger::after,[^{]*\{([^}]*)\}/)?.[1];
+    expect(area).toContain("position: absolute");
+    // Up over the name, which is not pressable, and a hairline down: never under the bar.
+    expect(area).toContain(
+      "inset-block: calc(100% - var(--press-target) + 1px) -1px",
+    );
+    expect(css).toMatch(
+      /\.sys-header-sub \{ --press-target: var\(--control-height\);/,
+    );
+    expect(css).toMatch(
+      /@container sys-app-header \(max-width: 40rem\) \{ \.sys-header-sub \{ --press-target: var\(--touch-min\); \} \}/,
+    );
+    expect(css).toMatch(
+      /@media \(pointer: coarse\) \{ \.sys-header-sub \{ --press-target: var\(--touch-min\); \} \}/,
+    );
+  });
+
+  it("keeps the pill and the folded line as tall as the line, whatever the pointer", () => {
+    expect(css).toMatch(
+      /\.sys-version-pill \{[^}]*block-size: var\(--pill-height\)/,
+    );
+    expect(css).toMatch(
+      /button\.sys-version-line \{[^}]*block-size: var\(--pill-height\)/,
+    );
+    expect(css).not.toMatch(
+      /\.sys-version-pill,\s*button\.sys-version-line \{ min-block-size/,
+    );
+  });
+
+  it("gives the role button no box of its own beyond its chip", () => {
+    const rule = css.match(/\.sys-role-trigger \{([^}]*)\}/)?.[1];
+    expect(rule).toContain("padding: 0");
+    expect(rule).not.toContain("min-block-size");
   });
 });

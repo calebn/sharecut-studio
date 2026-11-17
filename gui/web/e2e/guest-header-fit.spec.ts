@@ -552,6 +552,10 @@ test(`at ${at(DESKTOP)} a guest's controls keep the boxes they have on develop, 
               `${role}: the bar`,
             )
             .toEqual([]);
+          // Undo and Redo follow the role button, which is as wide as its
+          // chip now, so only their row and size are held.
+          for (const label of ["undo", "redo"] as const)
+            if (controls[label] && was[label]) controls[label].x = was[label].x;
           expect
             .soft(boxesMoved(controls, was, 1), `${role}: the controls`)
             .toEqual([]);
