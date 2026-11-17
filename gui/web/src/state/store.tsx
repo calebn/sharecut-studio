@@ -1,6 +1,7 @@
 import { type ReactNode, useEffect } from "react";
 import type { ProjectView } from "../types/project";
 import { useDawStore } from "./dawStore";
+import { ShareNameContext } from "./shareName";
 
 /**
  * Thin provider: hydrates the Zustand DAW store from App bootstrap props.
@@ -34,7 +35,6 @@ export function DawProvider({
       shareCapabilities,
       shareAuthor,
       shareTranscriptWords,
-      shareName,
     );
   }, [
     hydrate,
@@ -44,7 +44,10 @@ export function DawProvider({
     shareCapabilities,
     shareAuthor,
     shareTranscriptWords,
-    shareName,
   ]);
-  return <>{children}</>;
+  return (
+    <ShareNameContext.Provider value={shareName}>
+      {children}
+    </ShareNameContext.Provider>
+  );
 }

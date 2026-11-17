@@ -1,8 +1,10 @@
 import { renderHook } from "@testing-library/react";
+import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it } from "vitest";
 import { clearRegisteredCommands } from "../../commands/execute";
 import { registerDawCommands } from "../../commands/register";
 import { useDawStore } from "../../state/dawStore";
+import { DawProvider } from "../../state/store";
 import { minimalProject } from "../../test/fixtures";
 import { useHeaderProps } from "./useHeaderProps";
 
@@ -39,28 +41,47 @@ describe("useHeaderProps title", () => {
     expect(result.current.loading).toBe(false);
   });
 
+  const guestShell =
+    (shareName: string | null) =>
+    ({ children }: { children: ReactNode }) => (
+      <DawProvider
+        projectPath="share:tok"
+        initialProject={null}
+        guestMode="comment"
+        shareCapabilities={["view"]}
+        shareName={shareName}
+      >
+        {children}
+      </DawProvider>
+    );
+
   it("is the name the link answered with, for a guest, until the project is read", () => {
-    useDawStore
-      .getState()
-      .hydrate(
-        "share:tok",
-        null,
-        "comment",
-        ["view"],
-        null,
-        false,
-        "From the link",
-      );
-    const { result } = renderHook(() => useHeaderProps());
+    const { result } = renderHook(() => useHeaderProps(), {
+      wrapper: guestShell("From the link"),
+    });
     expect(result.current.title).toBe("From the link");
     expect(result.current.loading).toBe(true);
   });
 
+  it("is the link's name in the very first render, before the store is filled", () => {
+    useDawStore.getState().hydrate("/tmp/host.sharecut", null);
+    const titles: string[] = [];
+    renderHook(
+      () => {
+        const props = useHeaderProps();
+        titles.push(props.title);
+        return props;
+      },
+      { wrapper: guestShell("From the link") },
+    );
+    expect(titles[0]).toBe("From the link");
+    expect(new Set(titles)).toEqual(new Set(["From the link"]));
+  });
+
   it("is Episode for a guest with no name, and Project for a host", () => {
-    useDawStore
-      .getState()
-      .hydrate("share:tok", null, "comment", ["view"], null, false, null);
-    const guest = renderHook(() => useHeaderProps());
+    const guest = renderHook(() => useHeaderProps(), {
+      wrapper: guestShell(null),
+    });
     expect(guest.result.current.title).toBe("Episode");
     guest.unmount();
     useDawStore.getState().hydrate("/tmp/host.sharecut", null);

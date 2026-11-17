@@ -1,5 +1,5 @@
 import type { StateCreator } from "zustand";
-import { cssViewportWidth } from "../hooks/useViewportClass";
+import { cssViewportWidth, readShell } from "../hooks/useViewportClass";
 import type { HistoryEntryId } from "../types/project";
 import {
   readLaneHeightPref,
@@ -7,6 +7,7 @@ import {
   writeLaneHeightPref,
 } from "../utils/laneHeightPref";
 import { plainError } from "../utils/plainError";
+import { initialPointerKind } from "../utils/pointerCapability";
 import { readSnapPref, writeSnapPref } from "../utils/snapPref";
 import {
   fixedLineOffsetPx,
@@ -675,7 +676,7 @@ export const createUiSlice: StateCreator<DawStore, [], [], UiSlice> = (
       }
     },
     scrollLeft: 0,
-    // The desktop estimate (shellBreakpoint starts at desktop) until the
+    // The desktop estimate until the
     // timeline measures, so first-render readers never see 0.
     timelineViewportWidth: estimateTimelineViewportWidth("desktop"),
     setTimelineViewportWidth: (px) => {
@@ -715,10 +716,10 @@ export const createUiSlice: StateCreator<DawStore, [], [], UiSlice> = (
     transcriptInlineEditFailure: null as TranscriptInlineEditFailure | null,
     showCutAwayUtterances: false,
     timelineFocused: true,
-    shellBreakpoint: "desktop" as ShellBreakpoint,
-    // Capability baseline; usePointerType() corrects this from matchMedia
-    // before first paint and keeps it live from pointer events.
-    pointerKind: "fine" as PointerKind,
+    shellBreakpoint: readShell(),
+    // The capability baseline, so the first render has nothing to correct;
+    // usePointerType() keeps it live from pointer events.
+    pointerKind: initialPointerKind() as PointerKind,
     snapEnabled: readSnapPref(),
     laneHeightMode: lanePref.mode,
     laneHeightPx: lanePref.px,
