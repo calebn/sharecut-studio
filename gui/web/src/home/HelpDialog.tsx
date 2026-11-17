@@ -20,7 +20,7 @@ import { HelpDialogView } from "./HelpDialogView";
 
 const BUNDLE_WRITE_FAILED_CODE = "bundle_write_failed";
 
-/** The one line the report step says when the export fails: chosen by what failed, never the server's text. */
+/** Fixed words, never the server's text: it can carry a path. */
 function exportFailureSentence(error: unknown): string {
   if (error instanceof ApiError) {
     if (noAnswerStatus(error.status, error.code)) {
