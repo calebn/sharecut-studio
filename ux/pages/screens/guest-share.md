@@ -22,9 +22,12 @@ The bar and the name hold still between the loading screen and the studio: the s
 
 | When | What the guest sees | What a screen reader hears |
 |---|---|---|
+| Before the script has loaded, on a link that has a named episode | The page itself carries the header bar with the name and a quiet "Loading…" under it, in the system's light or dark, with nothing else; when the script runs the same header is drawn again from the same name, so nothing moves and no frame is empty | "Loading <name>…" |
 | The link has answered with the episode's name (or the saved copy has it) | The header with the name and a quiet "Loading…" under it, at once; the grey blocks of the guest frame from 300 ms | "Loading <name>…" |
-| The name is not known yet | Nothing for 300 ms, then the header bar with one grey block where the name goes, and the grey blocks; no words | "Loading the episode…" |
+| The name is not known yet (a link the page does not name: unknown, turned off, restricted, or an episode with no name) | Nothing for 300 ms, then the header bar with one grey block where the name goes, and the grey blocks; no words | "Loading the episode…" |
 | Still waiting at 4 s, counted from the first screen | "Still loading…" and **Retry** under the blocks | the same line |
+
+The page names the episode only where the browser tab already does. A link that is unknown, turned off, restricted or malformed, and an episode with no name, show a blank page until the script runs, as before.
 
 The studio then opens on the same header: "Loading…" gives way to "Shared link" and the role, then the version label. A guest's header never reads "Project"; if no name ever arrives it reads "Episode". The recording room has its own loading screen ("Joining the room…").
 
