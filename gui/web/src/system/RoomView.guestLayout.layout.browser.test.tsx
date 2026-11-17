@@ -447,6 +447,21 @@ describe("the looking-in line hides nothing develop showed", () => {
         }),
       ),
     ),
+    ...(["guest", "producer"] as const).flatMap((seat) =>
+      [320, 390].map(
+        (width): Case => ({
+          name: `${seat} at ${width} portrait with four people: the dock never moves`,
+          width,
+          height: 844,
+          props: {
+            seat,
+            phase: LIVE,
+            viewerWidth: "phone",
+            people: guestPeople(4),
+          },
+        }),
+      ),
+    ),
     {
       name: "guest at 767 portrait with four people",
       width: 767,
@@ -480,6 +495,7 @@ describe("the looking-in line hides nothing develop showed", () => {
     const before = {
       hidden: hidden(without),
       dock: dockBottom(without),
+      dockTop: rect(without.querySelector(".sys-dock") as Element).top,
       tile: tileHeight(without),
     };
     root?.unmount();
@@ -492,6 +508,10 @@ describe("the looking-in line hides nothing develop showed", () => {
     expect(line).not.toBeNull();
     expect(hidden(room)).toBeLessThanOrEqual(before.hidden + 0.5);
     expect(dockBottom(room)).toBeCloseTo(before.dock, 0);
+    expect(rect(room.querySelector(".sys-dock") as Element).top).toBeCloseTo(
+      before.dockTop,
+      0,
+    );
     expect(tileHeight(room)).toBeLessThanOrEqual(before.tile + 0.5);
     const stage = rect(room.querySelector(".sys-room-view-stage") as Element);
     expect(rect(line).top).toBeGreaterThanOrEqual(stage.top);
