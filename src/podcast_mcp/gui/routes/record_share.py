@@ -155,6 +155,9 @@ async def record_ws(
             svc is not None
             and _record_still_valid(token)
             and (participant_id is None or svc.participant_active(participant_id))
+            # A look that has not joined follows its invite: the pump closes it on the
+            # removal event, and this recheck catches the event if the queue lost it.
+            and (not watching or joined or svc.invite_closed(share_id) is None)
         )
 
     def _participant_runtime_valid() -> bool:
