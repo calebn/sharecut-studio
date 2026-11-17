@@ -242,7 +242,6 @@ export async function withGuestLink(
   );
 }
 
-/** One shared project with a link for each role and the host's page open on it. */
 export async function withGuestLinks(
   browser: Parameters<typeof withBrowserPages>[0],
   run: (
@@ -336,7 +335,6 @@ export const focusWhenSeen = (page: Page) =>
     () => (window as unknown as { __focusSeen: Promise<string> }).__focusSeen,
   );
 
-/** A guest who has read every role's first-visit hint already. */
 export async function seeEveryHint(page: Page) {
   await page.addInitScript(() => {
     for (const role of ["viewer", "commenter", "editor"])
