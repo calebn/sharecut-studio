@@ -43,7 +43,7 @@ leaves the file as it was until the next normal save. A newer or unknown version
 fails with the coded errors `project_version_newer` (update the app) and
 `project_version_unsupported` (open it with the version that saved it, or restore
 a backup). The studio's HTTP routes answer both as a 400 with that code and the
-same sentence; `POST /api/project/open` and the CLI say the same words.
+same sentence; `POST /api/project/open` and the CLI's open paths use the error's sentence too, and `podcast episode upgrade` has its own.
 
 `scripts/project_compat.py` owns the developer guard. Its generated
 `schemas/episode.project.shape.lock.json` records both validation and serialization
