@@ -1,6 +1,7 @@
 import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { loadRecordParticipant } from "../services/offlineQueue/offlineStore";
 import { expectNoA11yViolations } from "../test/a11y";
 import { seedPendingKeeper } from "../test/keepers";
 import { stubMatchMedia } from "../test/matchMedia";
@@ -888,6 +889,49 @@ describe("GuestRoomApp", () => {
       expect(dialog.getAttribute("aria-describedby")?.split(" ")).toContain(
         sentence.id,
       );
+    });
+
+    it("keeps the sheet and no room when a look is refused for a producer who holds a lease, and joins with it", async () => {
+      vi.mocked(loadRecordParticipant).mockResolvedValue({
+        participant_id: "p_prod",
+        lease: "kept",
+      });
+      await lookIn();
+      look({ watchers: 1 });
+      await screen.findByRole("heading", { name: "Hana and Ava are here" });
+      act(() => sockets[0].onclose?.({ code: 4403 }));
+      expect(
+        screen.queryByRole("heading", { name: "This session has ended" }),
+      ).toBeNull();
+      expect(
+        screen.queryByRole("heading", { name: "Hana and Ava are here" }),
+      ).toBeNull();
+      await enterName("Pat");
+      await userEvent.click(
+        screen.getByRole("button", { name: "Join to listen" }),
+      );
+      await waitFor(() => expect(sockets).toHaveLength(2));
+      expect(
+        new URL(sockets[1].url, "http://x").searchParams.has("observe"),
+      ).toBe(false);
+      await waitFor(() => expect(sockets[1].sent.length).toBeGreaterThan(0));
+      expect(sockets[1].sent.join("")).toContain('"lease":"kept"');
+      act(() => sockets[1].onclose?.({ code: 4403 }));
+      expect(
+        await screen.findByRole("heading", { name: "This session has ended" }),
+      ).toBeInTheDocument();
+    });
+
+    afterEach(() => {
+      vi.mocked(loadRecordParticipant).mockResolvedValue(undefined);
+    });
+
+    it("shows the ended cover when a look is refused for a producer without a lease", async () => {
+      await lookIn();
+      act(() => sockets[0].onclose?.({ code: 4403 }));
+      expect(
+        await screen.findByRole("heading", { name: "This session has ended" }),
+      ).toBeInTheDocument();
     });
 
     it("does not tell a lone producer that someone is looking in", async () => {
