@@ -116,14 +116,6 @@ export function recordSyncErrorCopy(error: string | null): string | null {
   return RECORD_SYNC_ERROR_COPY.get(error) ?? RECORD_SYNC_ERROR_FALLBACK_COPY;
 }
 
-/** A terminal error ends the socket: a full room or ended access keeps no look at the room. */
-export function effectiveRecordMode(
-  mode: RecordSocketMode,
-  error: string | null,
-): RecordSocketMode {
-  return error !== null && isTerminalRecordError(error) ? "off" : mode;
-}
-
 export function useRecordSync(
   token: string,
   displayName: string,
@@ -144,7 +136,8 @@ export function useRecordSync(
   const joinSentRef = useRef(false);
   const phaseRef = useRef<"idle" | "connecting" | "open" | "backoff">("idle");
   const [restart, setRestart] = useState(0);
-  const mode = effectiveRecordMode(requestedMode, error);
+  const mode =
+    error !== null && isTerminalRecordError(error) ? "off" : requestedMode;
   const modeRef = useRef(mode);
   useInsertionEffect(() => {
     modeRef.current = mode;
@@ -363,5 +356,14 @@ export function useRecordSync(
 
   const me =
     snapshot?.participants.find((p) => p.participant_id === meId) ?? null;
-  return { snapshot, me, send, error, clearError, connected, lease };
+  return {
+    snapshot,
+    me,
+    send,
+    error,
+    clearError,
+    connected,
+    lease,
+    socketMode: mode,
+  };
 }

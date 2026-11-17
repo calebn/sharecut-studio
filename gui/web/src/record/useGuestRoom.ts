@@ -28,7 +28,6 @@ import { useMicPermission } from "./useMicPermission";
 import { useOutputDevice } from "./useOutputDevice";
 import { useRecordLiveComments } from "./useRecordLiveComments";
 import {
-  effectiveRecordMode,
   isRecordAccessEnded,
   RECORD_INVITE_CLOSED,
   type RecordSocketMode,
@@ -121,9 +120,16 @@ export function useGuestRoom(
     producerDismissed,
     left,
   });
-  const { snapshot, me, send, error, clearError, connected, lease } =
-    useRecordSync(token, syncName, requestedMode);
-  const socketMode = effectiveRecordMode(requestedMode, error);
+  const {
+    snapshot,
+    me,
+    send,
+    error,
+    clearError,
+    connected,
+    lease,
+    socketMode,
+  } = useRecordSync(token, syncName, requestedMode);
   const accessEnded = isRecordAccessEnded(error);
   const inviteClosed = error === RECORD_INVITE_CLOSED;
   const joinedName = (producer ? producerJoined : me?.consented === true)
