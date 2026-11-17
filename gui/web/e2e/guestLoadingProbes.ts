@@ -349,29 +349,43 @@ export function reachingPast(inventory: Inventory): string[] {
 export type TargetReport = {
   name: string;
   box: Rect;
-  /** The `side` x `side` area (or the control's own box when that is larger) that must press the control. */
+  /** The area, `side` wide and tall at least, that must press the control: it holds the control's box and lies where the control answers. */
   area: Rect;
   /** The longest stretch, in px, over which the control answers a press in its middle column, inside the bar. */
   tall: number;
   answered: number;
   asked: number;
+  /** What answers a press 1 px under the bar's box, in the control's middle column, when it is in the header; null when it is not. */
+  under: string | null;
 };
 
 /**
  * Where a press would land. For each visible button in the header bar (the
  * coach tip's own Dismiss left out), the longest stretch inside the bar over
  * which it answers `elementFromPoint` down its middle column is found, and
- * the `side` px square that holds its box and lies on that stretch (or, when
- * the stretch is shorter, as near its centre as the bar allows) is tried on a
+ * the area at least `side` px wide and tall that holds its box and lies on
+ * that stretch (or, when the stretch is shorter, as near its centre as the bar
+ * allows), and across the stretch it answers along its own row, is tried on a
  * grid of points: every point must answer the control or something in it. The
- * four rounded corners of the square are not tried. `only` narrows the
+ * four rounded corners of the area are not tried. A press 1 px under the bar's
+ * box, in the control's middle column, is also asked: `under` names what
+ * answers it when that is part of the header. An area that runs to the
+ * screen's edge is as wide as the screen leaves it. `shared` lists the points
+ * of the bar that lie under two controls at once, which `elementFromPoint`
+ * alone cannot show, since it names only the one on top. `only` narrows the
  * controls to those matching the selector.
  */
 export async function pressTargets(
   page: Page,
   side: number,
   only?: string,
-): Promise<{ bar: Rect; rule: number; controls: TargetReport[] }> {
+): Promise<{
+  bar: Rect;
+  rule: number;
+  controls: TargetReport[];
+  /** Two controls that both lie under the same point of the bar, one line each. */
+  shared: string[];
+}> {
   return page.evaluate(
     ({ side: want, only: selector }) => {
       const host = document.querySelector(".sys-app-header-host");
@@ -382,17 +396,22 @@ export async function pressTargets(
       const clamp = (v: number, low: number, high: number) =>
         Math.min(Math.max(v, low), Math.max(low, high));
       const controls = [] as TargetReport[];
+      const kept: HTMLElement[] = [];
+      const nameOf = (el: Element) =>
+        el.getAttribute("aria-label") ??
+        (el.textContent ?? "").trim().slice(0, 30);
       for (const el of host.querySelectorAll<HTMLElement>(
         selector ?? "button, [role=button], a[href]",
       )) {
         if (el.closest(".sys-coach-tip")) continue;
         const box = el.getBoundingClientRect();
         if (box.width <= 1 || box.height <= 1) continue;
+        kept.push(el);
         const answers = (px: number, py: number) => {
           const hit = document.elementFromPoint(px, py);
           return hit !== null && (hit === el || el.contains(hit));
         };
-        const w = Math.max(want, box.width);
+        const wide = Math.max(want, box.width);
         const h = Math.max(want, box.height);
         const cx = box.x + box.width / 2;
         const cy = box.y + box.height / 2;
@@ -411,7 +430,25 @@ export async function pressTargets(
           tall >= h - 0.5
             ? clamp(cy - h / 2, run.from, run.to - h)
             : clamp(cy - h / 2, bar.top, inner - h);
-        const x = clamp(cx - w / 2, 0, window.innerWidth - w);
+        // A control that grows its area toward one side only answers over a
+        // run that is not centred on it.
+        const across = { from: cx, to: cx };
+        while (across.from > 0 && answers(across.from - 0.5, cy))
+          across.from -= 1;
+        while (across.to < window.innerWidth && answers(across.to + 0.5, cy))
+          across.to += 1;
+        // An area cannot reach past the screen's edge, so a run that starts
+        // there is as wide as the screen leaves it.
+        const atEdge =
+          across.from <= 0 &&
+          across.to - across.from < wide - 0.5 &&
+          across.to >= box.right - 0.5;
+        const w = atEdge ? across.to : wide;
+        const x = atEdge
+          ? 0
+          : across.to - across.from >= w - 0.5
+            ? clamp(cx - w / 2, across.from, across.to - w)
+            : clamp(cx - w / 2, 0, window.innerWidth - w);
         let answered = 0;
         let asked = 0;
         for (let i = 0; i < 5; i += 1) {
@@ -424,20 +461,50 @@ export async function pressTargets(
             if (answers(px, py)) answered += 1;
           }
         }
-        const label = el.getAttribute("aria-label");
+        const hitUnder = document.elementFromPoint(cx, bar.bottom + 0.5);
         controls.push({
-          name: label ?? (el.textContent ?? "").trim().slice(0, 30),
+          name: nameOf(el),
           box: { x: box.x, y: box.y, w: box.width, h: box.height },
           area: { x, y, w, h },
           tall,
           answered,
           asked,
+          under:
+            hitUnder && host.contains(hitUnder)
+              ? `${hitUnder.tagName.toLowerCase()}${hitUnder.className && typeof hitUnder.className === "string" ? `.${hitUnder.className.split(" ")[0]}` : ""}`
+              : null,
         });
+      }
+      // elementFromPoint names only the control on top; the stack names every
+      // control whose area lies under the point.
+      const shared: string[] = [];
+      const pairs = new Set<string>();
+      for (let py = Math.ceil(bar.top) + 0.5; py < inner; py += 2) {
+        for (let px = 0.5; px < window.innerWidth; px += 1) {
+          const stack = document.elementsFromPoint(px, py);
+          const under = kept.filter((el) => stack.includes(el));
+          // Boxes that abut share a sub-pixel edge; an area is what reaches past a box.
+          const pastBox = (el: Element) => {
+            const b = el.getBoundingClientRect();
+            return (
+              px < b.left - 1 ||
+              px > b.right + 1 ||
+              py < b.top - 1 ||
+              py > b.bottom + 1
+            );
+          };
+          if (under.length < 2 || !under.some(pastBox)) continue;
+          const names = under.map(nameOf).join('" and "');
+          if (pairs.has(names)) continue;
+          pairs.add(names);
+          shared.push(`"${names}" both lie under x ${px}, y ${py}`);
+        }
       }
       return {
         bar: { x: bar.x, y: bar.y, w: bar.width, h: bar.height },
         rule,
         controls,
+        shared,
       };
     },
     { side, only },
@@ -451,7 +518,7 @@ const overlap = (a: Rect, b: Rect) =>
 const fmt = (r: Rect) =>
   `x ${r.x.toFixed(1)}..${(r.x + r.w).toFixed(1)}, y ${r.y.toFixed(1)}..${(r.y + r.h).toFixed(1)}`;
 
-/** What is wrong with the press targets: one that does not answer in full, one under the bar, two that cross. */
+/** What is wrong with the press targets: one that does not answer in full, a control's box that ends under the bar's inner edge, a press under the bar that the header answers, two areas that cross. */
 export function targetProblems(
   report: Awaited<ReturnType<typeof pressTargets>>,
 ) {
@@ -466,12 +533,16 @@ export function targetProblems(
       problems.push(
         `"${c.name}" ends ${(c.box.y + c.box.h - inner).toFixed(1)} px past the bar's inner edge`,
       );
+    if (c.under !== null)
+      problems.push(
+        `"${c.name}": a press 1 px under the bar, in its middle column, lands on ${c.under} in the header`,
+      );
   }
   for (const [i, a] of report.controls.entries())
     for (const b of report.controls.slice(i + 1))
       if (overlap(a.area, b.area))
         problems.push(`"${a.name}" and "${b.name}" press over the same area`);
-  return problems;
+  return [...problems, ...report.shared];
 }
 
 /**
