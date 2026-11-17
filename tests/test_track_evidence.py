@@ -9,6 +9,7 @@ import logging
 import os
 import typing
 from pathlib import Path
+from types import SimpleNamespace
 
 import numpy as np
 import pytest
@@ -36,6 +37,7 @@ from podcast_mcp.models import (
 )
 from podcast_mcp.models.episode import SourceSpan
 from podcast_mcp.util import batch_scope as scope_module
+from podcast_mcp.util import process
 from podcast_mcp.util.batch_scope import batch_scope
 from podcast_mcp.util.process import CalledProcessError
 from test_audio_eval import (
@@ -763,3 +765,12 @@ def test_a_chained_track_reads_from_a_pool_worker_while_the_project_lock_is_held
         assert not thread.is_alive(), "the pool worker waits on the project lock"
 
     assert read and read[0] is not None and read[0].samples.size > 0
+
+
+def test_in_process_record_name_is_none_without_statting_the_sentinel(monkeypatch) -> None:
+    monkeypatch.setattr(
+        track_evidence, "file_stamp", lambda *_a: pytest.fail("stat of the sentinel")
+    )
+    key = SimpleNamespace(curve=None, revisions=())
+    build_id = (process.IN_PROCESS_FFMPEG, (0, 0, 0), "in-process:unlinked")
+    assert track_evidence._record_name(key, None, (), build_id) is None  # type: ignore[arg-type]

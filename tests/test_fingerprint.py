@@ -6,6 +6,8 @@ import os
 import re
 from pathlib import Path
 
+import pytest
+
 from podcast_mcp.util.fingerprint import FileStamp, file_stamp, mtime_ns_if_file
 from podcast_mcp.util.project_state import file_revision
 
@@ -116,3 +118,11 @@ def test_the_modules_that_use_the_stamp_are_pinned() -> None:
 
 def test_the_modules_that_read_mtime_from_stat_themselves_are_pinned() -> None:
     assert _modules(r"st_mtime_ns") == OWN_STAT
+
+
+def test_file_revision_still_raises_for_a_missing_path(tmp_path: Path) -> None:
+    missing = tmp_path / "in-process:ffprobe"
+    with pytest.raises(FileNotFoundError):
+        file_revision(missing)
+    with pytest.raises(FileNotFoundError):
+        file_stamp(missing)
