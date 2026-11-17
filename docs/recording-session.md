@@ -338,13 +338,15 @@ every client's roster shows the **listener row** (the producers in the room,
 each with an ear glyph) and, when the server reports that people with the
 producer link are looking in without having joined, the **looking-in line**
 ("Someone with the producer link is looking in", or "3 people with the producer
-link are looking in"). The line names nobody. It is the first line of the
-room's main area, directly under the header and above the tiles. The dock never
-moves. Where the column has no spare room, the tile grid gives up the line's
-height and the tiles get shorter; where it has spare room, as on a portrait
-phone, the tiles and the listener row sit lower by the line and one gap. Under
-the Declined bar the line sits above the scrim's veil, so it is not greyed, and
-the tiles and listeners stay dimmed. The guest's consent **Details** repeats it
+link are looking in"). The line names nobody. It sits directly under the
+header and above the tiles. The dock never
+moves. The tiles and the listener row sit lower by the line and one gap, and
+where the column is short, such as a small window or a full room on a narrow
+phone, the tile grid also gets shorter so that nothing the room showed without
+the line is pushed out of view, until the room already had to scroll. Under the
+Declined bar the room behind stays inert and dimmed; the line is drawn in its own
+strip under the header, above the scrim's veil, so it stays readable and is
+still read out by a screen reader. The guest's consent **Details** repeats it
 with "They can see the room but can't hear it." The host page announces the
 first arrival in each room, once and politely, while the room is waiting or
 stopped. The guest and producer pages do the same, and a later room's arrival is
