@@ -870,13 +870,19 @@ describe("GuestRoomApp", () => {
 
     it("tells the producer the room can see them only once the server has counted them", async () => {
       await lookIn();
-      expect(screen.queryByText(SEEN)).toBeNull();
+      expect(
+        screen.queryByText(SEEN, { selector: ".sys-join-seen" }),
+      ).toBeNull();
       look({ server_time_ns: 100 });
-      expect(screen.queryByText(SEEN)).toBeNull();
+      expect(
+        screen.queryByText(SEEN, { selector: ".sys-join-seen" }),
+      ).toBeNull();
       look({ watchers: 0, server_time_ns: 101 });
-      expect(screen.queryByText(SEEN)).toBeNull();
+      expect(
+        screen.queryByText(SEEN, { selector: ".sys-join-seen" }),
+      ).toBeNull();
       look({ watchers: 1, server_time_ns: 102 });
-      const sentence = screen.getByText(SEEN);
+      const sentence = screen.getByText(SEEN, { selector: ".sys-join-seen" });
       expect(sentence).toBeVisible();
       const dialog = screen.getByRole("dialog");
       expect(dialog.getAttribute("aria-describedby")?.split(" ")).toContain(
@@ -887,7 +893,9 @@ describe("GuestRoomApp", () => {
     it("does not tell a lone producer that someone is looking in", async () => {
       await lookIn();
       look({ watchers: 1, server_time_ns: 101 });
-      expect(screen.getByText(SEEN)).toBeVisible();
+      expect(
+        screen.getByText(SEEN, { selector: ".sys-join-seen" }),
+      ).toBeVisible();
       expect(rowText()).toBeNull();
       expect(
         document.querySelector('[aria-live="polite"].sr-only'),
@@ -915,6 +923,49 @@ describe("GuestRoomApp", () => {
       expect(rowText()).toBeNull();
     });
 
+    it("drops the room and the sentence when the look's socket closes, and shows neither on the next socket until it is counted", async () => {
+      await lookIn();
+      look({ watchers: 1, server_time_ns: 101 });
+      expect(
+        screen.getByText(SEEN, { selector: ".sys-join-seen" }),
+      ).toBeVisible();
+      expect(document.querySelector(".sys-pill-text")).not.toBeNull();
+      act(() => sockets[0].onclose?.({ code: 4429 }));
+      expect(
+        screen.queryByText(SEEN, { selector: ".sys-join-seen" }),
+      ).toBeNull();
+      expect(document.querySelector(".sys-pill-text")).toBeNull();
+      expect(rowText()).toBeNull();
+    });
+
+    it("keeps the count right when the Echo and the snapshot that lists the producer follow one another", async () => {
+      await lookIn();
+      look({ watchers: 2, server_time_ns: 101 });
+      expect(rowText()).toBe("Someone with the producer link is looking in");
+      await enterName("Pat");
+      await userEvent.click(
+        screen.getByRole("button", { name: "Join to listen" }),
+      );
+      await waitFor(() => {
+        expect(
+          sockets[0].sent.filter((raw) => raw.includes('"Join"')),
+        ).toHaveLength(1);
+      });
+      expect(rowText()).toBe("Someone with the producer link is looking in");
+      act(() => {
+        sockets[0].onmessage?.(producerEcho);
+        sockets[0].onmessage?.(
+          producerSnapshot({
+            state: "recording",
+            take_index: 0,
+            watchers: 1,
+            server_time_ns: 102,
+          }),
+        );
+      });
+      expect(rowText()).toBe("Someone with the producer link is looking in");
+    });
+
     it("joins on the same socket and stops saying it is looking in", async () => {
       await lookIn();
       look({ watchers: 1, server_time_ns: 101 });
@@ -928,7 +979,9 @@ describe("GuestRoomApp", () => {
         ).toHaveLength(1);
       });
       expect(sockets).toHaveLength(1);
-      expect(screen.queryByText(SEEN)).toBeNull();
+      expect(
+        screen.queryByText(SEEN, { selector: ".sys-join-seen" }),
+      ).toBeNull();
       expect(rowText()).toBeNull();
     });
   });

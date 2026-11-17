@@ -128,6 +128,7 @@ export function useGuestRoom(
     clearError,
     connected,
     lease,
+    counted,
     socketMode,
   } = useRecordSync(token, syncName, requestedMode);
   const accessEnded = isRecordAccessEnded(error);
@@ -461,6 +462,7 @@ export function useGuestRoom(
     producerDismissed,
     setProducerDismissed,
     socketMode,
+    counted,
     resumeUpload,
     left,
     leave,
