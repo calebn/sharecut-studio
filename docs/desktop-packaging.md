@@ -460,11 +460,9 @@ another; it needs its dependencies already built or fetched. A cold checkout nee
   Distribution certificate once in Xcode (Settings > Accounts > Manage Certificates), or raise the
   key's role; the tool prints this as its one-sentence hint. When the certificate already exists
   and the export still fails with `Cloud signing permission error` and `No profiles for '<bundle
-  id>' were found`, the key's role most likely cannot create the App Store profile (Apple answers
-  `FORBIDDEN_ERROR` in the Xcode log). Give the key the Admin role. If it cannot have that role,
-  create the App Store profile for the bundle id by hand at developer.apple.com and install it, but
-  the export may not pick up a profile installed by hand, so check the next run. The tool prints
-  this as its two-sentence hint.
+  id>' were found`, the key's role most likely cannot create the App Store profile (Apple usually
+  answers `FORBIDDEN_ERROR` in the Xcode log). The tool prints the fix as a two-sentence hint
+  (`scripts/ios/release_classify.py`).
 - **Rehearsal.** `make ios-release-rehearsal` with a profile shaped like the owner's passes every
   local check (`gui/desktop/src-tauri/target/ios-release/<build>/`). The unsigned archive signs
   the Python frameworks ad hoc (the template's install phase). It proves the payload and the
