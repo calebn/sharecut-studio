@@ -240,16 +240,23 @@ def test_who_may_export_is_unchanged_for_an_unopenable_episode(
     assert _no_bundle_written(bundle_env)
 
 
+def _lower_hex_escapes(encoded: str) -> str:
+    return re.sub(r"%[0-9A-F]{2}", lambda m: m.group(0).lower(), encoded)
+
+
 def test_the_percent_encoded_folder_in_a_server_log_line_is_replaced(
     minimal_project, bundle_env, monkeypatch, tmp_path
 ):
     folder = minimal_project.parent
     encoded = quote(str(minimal_project), safe="")
+    # Only the hex digits of the escapes change case: lowercasing the whole line would
+    # also change the folder's own letters and name a different path.
+    lower_hex = _lower_hex_escapes(encoded)
     log = tmp_path / "state" / "sidecar.log"
     log.parent.mkdir()
     log.write_text(
         f'INFO:     127.0.0.1:34074 - "WebSocket /api/host/ws?path={encoded}&client_id=v" 403\n'
-        f'INFO:     127.0.0.1:34075 - "GET /api/document/state?path={encoded.lower()} HTTP/1.1" 400\n'
+        f'INFO:     127.0.0.1:34075 - "GET /api/document/state?path={lower_hex} HTTP/1.1" 400\n'
     )
     monkeypatch.setattr(diagnostics_mod, "sidecar_log_candidates", lambda: [log])
     for state in ("healthy", "newer"):
@@ -264,7 +271,7 @@ def test_the_percent_encoded_folder_in_a_server_log_line_is_replaced(
             assert str(folder) not in text
             assert folder.name not in text
             assert quote(str(folder), safe="") not in text
-            assert quote(str(folder), safe="").lower() not in text
+            assert _lower_hex_escapes(quote(str(folder), safe="")) not in text
 
 
 class _Rows(logging.Handler):
