@@ -27,7 +27,10 @@ describe("useHeaderProps Project menu", () => {
 });
 
 describe("useHeaderProps title", () => {
-  const project = () => ({ ...minimalProject(), meta: { name: "Real name" } });
+  const project = () => {
+    const base = minimalProject();
+    return { ...base, meta: { ...base.meta, name: "Real name" } };
+  };
 
   it("is the episode's name once the project is read", () => {
     useDawStore.getState().hydrate("/tmp/x.sharecut", project());

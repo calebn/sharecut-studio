@@ -5,11 +5,7 @@ import { expectNoA11yViolations } from "../../test/a11y";
 import { systemCss } from "../../test/systemCss";
 import { ReviewLoadingScreen } from "./ReviewLoadingScreen";
 
-let day = 0;
-beforeEach(() => {
-  vi.useFakeTimers();
-  vi.setSystemTime(new Date(Date.UTC(2026, 3, 1) + ++day * 86_400_000));
-});
+beforeEach(() => vi.useFakeTimers());
 afterEach(() => vi.useRealTimers());
 
 const advance = (ms: number) => act(() => void vi.advanceTimersByTime(ms));
