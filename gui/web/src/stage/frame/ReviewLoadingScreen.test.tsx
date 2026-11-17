@@ -156,11 +156,50 @@ describe("one loading clock across the Suspense swap", () => {
 });
 
 describe("the loading header's styles", () => {
-  it("fixes the bar height with a rule that outranks the data-shell rule, 44 px when its container is narrow", () => {
-    const css = systemCss();
-    expect(css).toMatch(/\.sys-app-header--loading/);
-    expect(css).toMatch(
+  const squash = (css: string) => css.replace(/\s+/g, " ");
+
+  it("sets the bar to the phone height in a narrow container, after the data-shell rule that would let it grow", () => {
+    const css = squash(systemCss());
+    const loadingRule = css.indexOf(
+      ".sys-app-header-host .sys-app-header.sys-app-header--loading { block-size: var(--app-header-height-phone); }",
+    );
+    const growRule = css.indexOf(
+      ':root:not([data-shell="phone"]) .sys-app-header { grid-template-columns: 1fr auto; block-size: auto; }',
+    );
+    expect(growRule).toBeGreaterThan(-1);
+    expect(loadingRule).toBeGreaterThan(growRule);
+    const container = css.lastIndexOf(
+      "@container sys-app-header (max-width: 40rem)",
+      loadingRule,
+    );
+    expect(container).toBeGreaterThan(growRule);
+  });
+
+  it("lets the title be as wide as its own text", () => {
+    expect(systemCss()).toMatch(
       /\.sys-header-guest > \.sys-header-title \{[^}]*align-self: flex-start;[^}]*max-inline-size: 100%/,
     );
+  });
+
+  it("aligns only the guest column to the bar's top, and stretches its cell so the controls beside it stay centred", () => {
+    const css = squash(systemCss());
+    expect(css).toContain(
+      ".sys-header-left:has(> .sys-header-guest) { align-self: stretch; }",
+    );
+    expect(css).toContain(
+      ".sys-header-left > .sys-header-guest { align-self: start; }",
+    );
+    expect(css).not.toMatch(/\.sys-header-left\s*(,|\{ align-self: start)/);
+  });
+
+  it("keeps the grey title block's 18 px line box and draws a shorter grey inside it, off the bar's edge", () => {
+    const css = squash(systemCss());
+    const rule = css.match(
+      /\.sys-header-guest > \.sys-skeleton-block--title \{([^}]*)\}/,
+    );
+    expect(rule?.[1]).toContain("block-size: 1.125rem");
+    expect(rule?.[1]).toContain("border-block: 0.25rem solid transparent");
+    expect(rule?.[1]).toContain("background-clip: padding-box");
+    expect(rule?.[1]).toContain("box-sizing: border-box");
   });
 });

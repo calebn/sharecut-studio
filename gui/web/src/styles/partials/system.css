@@ -690,9 +690,12 @@ button.sys-version-line {
   }
 }
 
-/* A guest's title line sits at the bar's top whatever the sub line under it holds (its role button is a touch target, taller than what is left of the bar), in the studio's header and in the loading header alike. */
-.sys-app-header--loading .sys-header-left,
+/* A guest's title line sits at the bar's top whatever the sub line under it holds (its role button is a touch target, taller than what is left of the bar), in the studio's header and in the loading header alike. Only that column aligns to the start: the cell stretches to the bar, so the controls beside it (Undo, Redo, the save mark) stay centred where they always were. */
 .sys-header-left:has(> .sys-header-guest) {
+  align-self: stretch;
+}
+
+.sys-header-left > .sys-header-guest {
   align-self: start;
 }
 
@@ -2055,11 +2058,14 @@ html:not([data-shell="phone"])
   display: none;
 }
 
-/* The grey block that stands in for the name in the loading header: one line of the title's size. */
+/* The grey block that stands in for the name in the loading header: it has the title's line box, so nothing moves when the name arrives, and draws the height of the name's capitals inside it, clear of the bar's top edge. */
 .sys-header-guest > .sys-skeleton-block--title {
+  box-sizing: border-box;
   inline-size: 8rem;
   block-size: 1.125rem;
+  border-block: 0.25rem solid transparent;
   border-radius: var(--radius-sm);
+  background-clip: padding-box;
 }
 
 .sys-skeleton-slow {
