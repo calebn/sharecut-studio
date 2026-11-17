@@ -10,6 +10,8 @@ from urllib.parse import unquote
 from podcast_mcp.util.host_session_wire import EXCHANGE_PARAM, EXCHANGE_PATH, SESSION_COOKIE
 
 _SLASH = r"(?:/|%(?:25)?2[Ff])"
+_DOT = r"(?:\.|%(?:25)?2[Ee])"
+_SEP = rf"(?:{_SLASH}(?:{_DOT}{{1,2}}{_SLASH})*)+"
 _SHARE_PATH_ROOTS = (
     "r",
     "rec",
@@ -18,9 +20,9 @@ _SHARE_PATH_ROOTS = (
     "api/shares",
     "api/shares/record",
 )
-_SHARE_ROOTS = "|".join(root.replace("/", _SLASH) for root in _SHARE_PATH_ROOTS)
+_SHARE_ROOTS = "|".join(root.replace("/", _SEP) for root in _SHARE_PATH_ROOTS)
 _SHARE_TOKEN = re.compile(
-    rf"(?P<prefix>{_SLASH}(?i:{_SHARE_ROOTS}){_SLASH}+)"
+    rf"(?P<prefix>{_SLASH}(?i:{_SHARE_ROOTS}){_SEP})"
     r"(?P<token>[A-Za-z0-9_-]{8,}(?:-[A-Za-z0-9_-]+)*)"
 )
 _BOOT_TOKEN = re.compile(
@@ -98,6 +100,9 @@ def redact_share_paths(text: str) -> str:
     The routes are the guest ``/r/``, ``/rec/``, ``/api/review/`` and ``/mcp/`` roots (so
     ``/api/rec/`` too, through ``/rec/``) and the host ``/api/shares/<token>/revoke|restore`` and
     ``/api/shares/record/<token>/replace`` paths.
+    A ``.`` or ``..`` segment (also ``%2e``) or a doubled separator before the token is skipped,
+    so ``/r/../<token>`` and ``/api//review//<token>`` are masked; a walk-out through a named
+    segment such as ``/r/x/../<token>`` is not.
     ``tests/test_share_path_routes.py`` fails when a mounted route puts a token somewhere else.
     """
     return _SHARE_TOKEN.sub(lambda m: f"{m.group('prefix')}<share-token>", text)
