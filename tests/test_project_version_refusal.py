@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from urllib.parse import urlencode
 
 import pytest
 from fastapi.testclient import TestClient
@@ -83,8 +84,6 @@ def test_a_version_the_build_cannot_read_is_a_coded_400_on_host_routes(
 def test_the_host_socket_refuses_before_accept_with_the_code(minimal_project, code_version):
     version, code = code_version
     _set_version(minimal_project, version)
-    from urllib.parse import urlencode
-
     url = "/api/host/ws?" + urlencode(
         {
             "path": str(minimal_project),
