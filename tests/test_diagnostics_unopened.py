@@ -292,10 +292,15 @@ def _wrong_shape(project_file: Path) -> None:
     data["transcripts"]["per_track"] = [
         {"track_id": "t", "words": [{"text": {"v": MARKERS["word"]}, "start": MARKERS["word"]}]}
     ]
+    data["meta"]["ingest_alignment"] = {MARKERS["key"]: {"align_method": 7}}
+    data.setdefault("editorial", {})["session_suggestions"] = [
+        {"track_follows": {MARKERS["key"]: [7]}}
+    ]
     project_file.write_text(json.dumps(data))
 
 
 MARKERS = {
+    "key": "ZQKEY85",
     "name": "ZQNAME81",
     "track": "ZQTRACK82",
     "word": "ZQWORD83",
@@ -449,3 +454,177 @@ def test_an_interrupt_is_not_swallowed_by_the_export(minimal_project, monkeypatc
     request = SimpleNamespace(app=SimpleNamespace(state=SimpleNamespace(served_project=None)))
     with pytest.raises(KeyboardInterrupt):
         diagnostics_route._load_project(request, str(minimal_project))
+
+
+def test_the_statement_says_what_is_provable():
+    assert STATEMENT == (
+        "The episode could not be opened, so this report has no project counts. "
+        "Job messages and log tails are sanitized, as in every report."
+    )
+
+
+def test_a_speaker_name_in_a_damaged_dict_does_not_reach_the_bundle_through_a_guest_call(
+    minimal_project, published_share, bundle_env, monkeypatch, tmp_path
+):
+    with write_grant(WriteGrantKind.DISPATCHER):
+        token = published_share()[2]["token"]
+    data = json.loads(minimal_project.read_text())
+    speaker = "ZQSPEAKER9182 Quimby"
+    data["meta"]["ingest_alignment"] = {speaker: {"align_method": 7}}
+    minimal_project.write_text(json.dumps(data))
+    log = tmp_path / "state" / "sidecar.log"
+    log.parent.mkdir()
+    handler = logging.FileHandler(log)
+    handler.setLevel(logging.WARNING)
+    logging.getLogger().addHandler(handler)
+    monkeypatch.setattr(diagnostics_mod, "sidecar_log_candidates", lambda: [log])
+    try:
+        with _client(minimal_project) as client:
+            client.post(
+                f"/mcp/{token}/mcp",
+                headers={"Accept": "application/json, text/event-stream"},
+                json={"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {}},
+            )
+            handler.flush()
+            assert "Resolving a guest MCP share" in log.read_text()
+            response = client.post("/api/diagnostics/bundle", json={})
+    finally:
+        logging.getLogger().removeHandler(handler)
+        handler.close()
+    assert response.status_code == 200, response.text
+    members = _members(response.json()["path"])
+    assert "sidecar.log" in members
+    for name, text in members.items():
+        assert "ZQSPEAKER9182" not in text, name
+        assert "Quimby" not in text, name
+
+
+def test_a_log_written_before_the_fix_is_masked_at_the_bundle(
+    minimal_project, bundle_env, monkeypatch, tmp_path
+):
+    log = tmp_path / "state" / "sidecar.log"
+    log.parent.mkdir()
+    log.write_text(
+        "1 validation error for EpisodeProject\n"
+        "meta.ingest_alignment.ZQOLD771 Quimby.align_method\n"
+        "  Input should be a valid string [type=string_type]\n"
+        "    For further information visit https://errors.pydantic.dev/2.14/v/string_type\n"
+        "ProjectUnreadableError: The project file is damaged and could not be read "
+        "(unexpected contents at meta.ingest_alignment.ZQOLD771 Quimby.align_method). "
+        "Restore it from a backup, or open a copy of the project.\n"
+    )
+    monkeypatch.setattr(diagnostics_mod, "sidecar_log_candidates", lambda: [log])
+    with _client(minimal_project) as client:
+        response = client.post("/api/diagnostics/bundle", json={})
+    members = _members(response.json()["path"])
+    assert "ZQOLD771" not in members["sidecar.log"]
+    assert "meta.ingest_alignment.*" in members["sidecar.log"]
+    assert "align_method" in members["sidecar.log"]
+
+
+def test_another_model_validation_error_in_the_log_holds_no_value_in_the_bundle(
+    minimal_project, bundle_env, monkeypatch, tmp_path
+):
+    # ProjectHistory does not hide its input, so only the bundle's rule keeps the value out.
+    from pydantic import ValidationError
+
+    from podcast_mcp.models.episode import ProjectHistory
+
+    marker = "ZQHIST" + "6612"  # not spelled out: a traceback quotes the line of code
+    log = tmp_path / "state" / "sidecar.log"
+    log.parent.mkdir()
+    handler = logging.FileHandler(log)
+    logging.getLogger().addHandler(handler)
+    try:
+        try:
+            ProjectHistory.model_validate({"entries": [{"label": [marker]}]})
+        except ValidationError:
+            logging.getLogger("podcast_mcp.test").error("history failed", exc_info=True)
+        handler.flush()
+    finally:
+        logging.getLogger().removeHandler(handler)
+        handler.close()
+    assert marker in log.read_text()
+    monkeypatch.setattr(diagnostics_mod, "sidecar_log_candidates", lambda: [log])
+    with _client(minimal_project) as client:
+        response = client.post("/api/diagnostics/bundle", json={})
+    members = _members(response.json()["path"])
+    assert "input_value=<hidden>" in members["sidecar.log"]
+    for name, text in members.items():
+        assert marker not in text, name
+
+
+class _Failing(Exception):
+    def __init__(self, message, code=None):
+        super().__init__(message)
+        if code is not None:
+            self.code = code
+
+
+def test_the_warning_for_an_unopened_episode_names_the_class_and_the_code_only(
+    minimal_project, bundle_env, monkeypatch, caplog
+):
+    def fails(_path):
+        raise _Failing("ZQMSG5521 words of the file", code="odd_failure")
+
+    monkeypatch.setattr("podcast_mcp.gui.routes.diagnostics.ProjectWorkspace.open", fails)
+    with caplog.at_level(logging.DEBUG):
+        with _client(minimal_project) as client:
+            response = client.post("/api/diagnostics/bundle", json={})
+    assert response.status_code == 200, response.text
+    assert all("ZQMSG5521" not in r.getMessage() for r in caplog.records)
+    # Only this route's own records: the app's startup warm-up logs a failed open with its
+    # traceback too, and that text is what the bundle's sanitizing is for.
+    own = [r for r in caplog.records if r.name == diagnostics_route.__name__]
+    assert own
+    assert all("ZQMSG5521" not in r.getMessage() and not r.exc_info for r in own)
+    named = [r.getMessage() for r in own if "did not open" in r.getMessage()]
+    assert len(named) == 1
+    assert "_Failing" in named[0]
+    assert "odd_failure" in named[0]
+
+
+@pytest.mark.parametrize(
+    ("code", "expected"),
+    [
+        ("Upper_Case", "project_open_failed"),
+        ("has space", "project_open_failed"),
+        ("/etc/passwd", "project_open_failed"),
+        ("a" * 70, "project_open_failed"),
+        ("ab", "project_open_failed"),
+        (7, "project_open_failed"),
+        (None, "project_open_failed"),
+        ("fine_code_2", "fine_code_2"),
+    ],
+)
+def test_a_failed_open_is_reported_under_its_own_code_only_when_it_is_a_fixed_identifier(
+    code, expected
+):
+    exc = _Failing("x")
+    exc.code = code
+    assert diagnostics_route._failure_code(exc) == expected
+    assert diagnostics_route.PROJECT_OPEN_FAILED_CODE == "project_open_failed"
+
+
+def test_a_failed_job_message_with_a_folder_that_has_spaces_is_not_in_the_bundle(
+    tmp_path, bundle_env
+):
+    from podcast_mcp.services.jobs.job import short_fail_message
+
+    folder = tmp_path / "Episode 12 with ZQDani"
+    folder.mkdir()
+    project_file = folder / "episode.sharecut"
+    project_file.write_text("{not json")
+    message = short_fail_message(f"ffmpeg failed: {folder}/raw/dani.wav: No such file or directory")
+    jobs = MagicMock()
+    jobs.recent_snapshots.return_value = [
+        {"kind": "pipeline", "status": "failed", "message": message}
+    ]
+    with _client(project_file, jobs) as client:
+        response = client.post("/api/diagnostics/bundle", json={})
+    assert response.status_code == 200, response.text
+    members = _members(response.json()["path"])
+    assert json.loads(members["report.json"])["jobs"][0]["message"]
+    for name, text in members.items():
+        assert "ZQDani" not in text, name
+        assert "dani.wav" not in text, name
