@@ -2948,24 +2948,32 @@ def test_guest_token_with_observe_gets_no_frame_before_join(
 
     ws, room, client = _room(minimal_project, sample_wav, tmp_workspace, monkeypatch)
     pumped = threading.Condition()
-    events_seen = [0]
+    events_seen = 0
     original = GuestWsGuard.share_ok_on_frame
 
     async def counted(self):
+        nonlocal events_seen
         out = await original(self)
         with pumped:
-            events_seen[0] += 1
+            events_seen += 1
             pumped.notify_all()
         return out
 
     monkeypatch.setattr(GuestWsGuard, "share_ok_on_frame", counted)
     with _observe(client, room, token=room["guest"]["token"]) as sock:
+        # The reply proves the receive loop runs, and the pump is subscribed before that loop starts.
+        sock.send_json(_record_command("Heartbeat"))
+        assert sock.receive_json()["code"] == "join_first"
+        with pumped:
+            before = events_seen
         ctrl = RecordControlService(ws)
         ctrl.submit_host("SetGuestsSeeNotes", {"enabled": True})
         ctrl.submit_host("SetGuestsSeeNotes", {"enabled": False})
         # The pump takes events in order, so once it has taken both it is done with the first.
         with pumped:
-            assert pumped.wait_for(lambda: events_seen[0] >= 2, 5.0)
+            assert pumped.wait_for(lambda: events_seen >= before + 2, 5.0), (
+                f"the pump took {events_seen - before} of 2 host events"
+            )
         sock.send_json(_record_command("Heartbeat"))
         assert sock.receive_json() == {"plane": "record", "type": "Error", "code": "join_first"}
 
