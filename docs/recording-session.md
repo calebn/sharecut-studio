@@ -334,24 +334,29 @@ model. Riverside's heard-by-guests producer and Descript push-to-talk are later
 rows. A producer opens the **producer** `/rec/{token}` as a **receive-only**
 mesh peer — no `getUserMedia`, no send track, no keeper. **Transparency is
 mandatory:**
-every client's roster shows the **listener row** (the producers who have
-joined, each with an ear glyph) and, when the server reports that people with
-the producer link are looking in without having joined, the **looking-in
-line** ("Someone with the producer link is looking in", or "3 people with the
-producer link are looking in"). The line names nobody. It is the first line of
-the room's main area, directly under the header and above the tiles. When the line shows, the
-tile grid makes room for it: the tiles get a little shorter, so the listener
-row and the dock stay where they were. The line keeps full strength under the Declined bar. The guest's consent **Details** repeats it with
-"They can see the room but can't hear it." Each of the host, guest and
-producer pages announces the first arrival in each room, once and politely, while
-the room is waiting or stopped. An arrival during a take is not spoken then, and
-one during the room-tone countdown is spoken at the next room update after it,
-if the room is still waiting and the person is still looking in. The host page drops its spoken note when nobody is
-looking in. The count is the snapshot's
-runtime `watchers` field. A client shows the line only for a whole number from
-1 to 99 and reads anything else, or a missing field, as nobody; no server sends
-the field yet. The consent copy says "producers/listeners may be present and are
-shown in the roster"; a producer joining mid-take triggers the same join
+every client's roster shows the **listener row** (the producers in the room,
+each with an ear glyph) and, when the server reports that people with the
+producer link are looking in without having joined, the **looking-in line**
+("Someone with the producer link is looking in", or "3 people with the producer
+link are looking in"). The line names nobody. It is the first line of the
+room's main area, directly under the header and above the tiles. The dock never
+moves. Where the column has no spare room, the tile grid gives up the line's
+height and the tiles get shorter; where it has spare room, as on a portrait
+phone, the tiles and the listener row sit lower by the line and one gap. Under
+the Declined bar the line sits above the scrim's veil, so it is not greyed, and
+the tiles and listeners stay dimmed. The guest's consent **Details** repeats it
+with "They can see the room but can't hear it." The host page announces the
+first arrival in each room, once and politely, while the room is waiting or
+stopped. The guest and producer pages do the same, and a later room's arrival is
+spoken again even when its words match an earlier one. An arrival during a take is never
+spoken. One during the room-tone countdown is spoken at the next room update
+after it, only if the room is then waiting and the person is still looking in.
+The host page drops its spoken note when nobody is looking in. The count is the
+snapshot's runtime `watchers` field. A client shows the line only for a whole
+number from 1 to 99 and reads anything else, or a missing field, as nobody; no
+server sends the field yet. A guest's consent **Details** names the producers who
+have joined ("Rosa is listening and won't be recorded") and, once a count is
+sent, the looking-in line; a producer joining mid-take triggers the same join
 notification as a guest.
 
 When the host or a recorded guest is running or finalizing a local keeper in
@@ -2097,7 +2102,7 @@ the written WAV within 1 ms), `keeper/takeClipping.test.ts`, `alertGates.test.ts
 | Pause / Resume | Host pauses at recording 60 s (wall 60 s), resumes at wall 70 s: every participant has segment 1 ending at 60 s and segment 2 starting at recording **60 s ± 1 frame** (clips abut, no gap, no zeros); keeper bytes written during the pause = **0**; PAUSED indicator asserted on all clients; a guest joining during the pause consents and gets `join_offset_ms` = 60 s; a late `pause` (or reconnect) truncates/discards samples ≥ `pause_wall_ms` from the versioned pause log; a drop that intersects a pause does **not** resume the same segment. Guest cannot trigger pause. |
 | Takes | Stop then Start: take 2 lands after take 1 + `take_gap_ms` (2 s) **even if take 1 is still uploading**; a participant absent from take 2 has no clip there; tracks = union; no re-consent prompt shown to already-consented clients; deleting take 1 is refused while its manifest is non-terminal; a tombstone voids in-flight ACK and leaves take 2 at offset 0. |
 | Cap / decline | 5th guest (or 3rd producer) gets the full-room page and never calls `getUserMedia`; a client that declines consent (Not now) sees the declined scrim and cannot rejoin as a guest until the room waits for a take. |
-| Producer transparency | With one producer present, every guest's roster shows the listener row containing the producer; the consent copy contains the listeners sentence; producer joining mid-take fires the same join notification as a guest; roles cannot change during a take. |
+| Producer transparency | With one producer present, every guest's roster shows the listener row containing the producer; the guest's consent Details names the producer who has joined (`JoinSheet.test.tsx`); producer joining mid-take fires the same join notification as a guest; roles cannot change during a take. |
 | Live comments | Guest adds a comment (`body` `"Marker"` or a typed comment) at host recording clock 123.4 s in take 1: after landing, `review.comments[]` has one `TimelineComment` at `123.4 s ± 0.25 s` (no lead, no `title`/`metadata`) created through `add_comment` under `ProjectWorkspace.mutate()` (undo removes it); host rewrote `recording_ms` from `pressed_wall_ms` + `pauses[]`; a comment during PAUSED lands at the pause point; before landing the host and producer lists contain it, the other guest's list contains a `Marker` but not a typed comment unless the host turned on `guests_see_notes` (host-enforced); deleting take 1 deletes its comments; a comment queued while a client was disconnected upserts once on reconnect (no duplicate); browser end-to-end in the Playwright US-1 scenario (`e2e/record-lobby.spec.ts`). |
 
 ## Next PR: recording links (checklist)
