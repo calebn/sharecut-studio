@@ -2551,15 +2551,30 @@ def _room_svc(ws, room) -> RecordSessionService:
     return RecordSessionService(ws.project, session_id=room["session_id"])
 
 
-def _wait_watchers(svc: RecordSessionService, n: int, *, secs: float = 5.0) -> None:
-    import time
+def _watchers_waiter(svc: RecordSessionService, monkeypatch, *, secs: float = 5.0):
+    """Return ``wait(n)``, which blocks on the room's own publishes until the count is ``n``."""
+    import threading
 
-    deadline = time.monotonic() + secs
-    while time.monotonic() < deadline:
-        if svc.snapshot()["watchers"] == n:
-            return
-        time.sleep(0.02)
-    raise AssertionError(f"watchers never reached {n}: {svc.snapshot()['watchers']}")
+    from podcast_mcp.services.record.service import watcher_count
+    from podcast_mcp.services.session_sync import get_hub
+
+    hub = get_hub()
+    original = hub.publish
+    changed = threading.Condition()
+
+    def publish(key, event):
+        original(key, event)
+        with changed:
+            changed.notify_all()
+
+    monkeypatch.setattr(hub, "publish", publish)
+
+    def wait(n: int) -> None:
+        with changed:
+            ok = changed.wait_for(lambda: watcher_count(svc._hub_key, svc.session_id) == n, secs)
+        assert ok, f"watchers never reached {n}"
+
+    return wait
 
 
 def _record_command(msg_type: str, payload=None, seq: int = 2) -> dict:
@@ -2770,10 +2785,11 @@ def test_closing_the_observer_drops_the_count(
 ):
     ws, room, client = _room(minimal_project, sample_wav, tmp_workspace, monkeypatch)
     svc = _room_svc(ws, room)
+    wait_for_count = _watchers_waiter(svc, monkeypatch)
     with _observe(client, room) as obs:
         obs.receive_json()
         assert svc.snapshot()["watchers"] == 1
-    _wait_watchers(svc, 0)
+    wait_for_count(0)
 
 
 def test_unwatch_twice_publishes_once(minimal_project, sample_wav, tmp_workspace, monkeypatch):
@@ -2830,6 +2846,7 @@ def test_revoked_producer_link_closes_the_observer_and_drops_the_count(
     monkeypatch.setattr(guest_ws_common, "GUEST_SHARE_RECHECK_S", 0.2)
     ws, room, client = _room(minimal_project, sample_wav, tmp_workspace, monkeypatch)
     svc = _room_svc(ws, room)
+    wait_for_count = _watchers_waiter(svc, monkeypatch)
     with _observe(client, room) as obs:
         obs.receive_json()
         ShareService(ws).revoke_room(room["session_id"])
@@ -2837,7 +2854,7 @@ def test_revoked_producer_link_closes_the_observer_and_drops_the_count(
             for _ in range(200):
                 obs.receive_json()
         assert closed.value.code == 4403
-    _wait_watchers(svc, 0)
+    wait_for_count(0)
 
 
 def test_fifth_observer_is_closed_4429(minimal_project, sample_wav, tmp_workspace, monkeypatch):
@@ -2925,13 +2942,30 @@ def test_observer_is_never_sent_a_frame_built_before_it_was_counted(
 def test_guest_token_with_observe_gets_no_frame_before_join(
     minimal_project, sample_wav, tmp_workspace, monkeypatch
 ):
-    import time
+    import threading
+
+    from podcast_mcp.gui.routes.guest_ws_common import GuestWsGuard
 
     ws, room, client = _room(minimal_project, sample_wav, tmp_workspace, monkeypatch)
+    pumped = threading.Condition()
+    events_seen = [0]
+    original = GuestWsGuard.share_ok_on_frame
+
+    async def counted(self):
+        out = await original(self)
+        with pumped:
+            events_seen[0] += 1
+            pumped.notify_all()
+        return out
+
+    monkeypatch.setattr(GuestWsGuard, "share_ok_on_frame", counted)
     with _observe(client, room, token=room["guest"]["token"]) as sock:
-        time.sleep(0.2)
-        RecordControlService(ws).submit_host("SetGuestsSeeNotes", {"enabled": True})
-        time.sleep(0.5)
+        ctrl = RecordControlService(ws)
+        ctrl.submit_host("SetGuestsSeeNotes", {"enabled": True})
+        ctrl.submit_host("SetGuestsSeeNotes", {"enabled": False})
+        # The pump takes events in order, so once it has taken both it is done with the first.
+        with pumped:
+            assert pumped.wait_for(lambda: events_seen[0] >= 2, 5.0)
         sock.send_json(_record_command("Heartbeat"))
         assert sock.receive_json() == {"plane": "record", "type": "Error", "code": "join_first"}
 
