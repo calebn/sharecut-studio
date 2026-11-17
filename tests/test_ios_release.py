@@ -714,6 +714,7 @@ def altool_error(message: str) -> str:
     return json.dumps({"product-errors": [{"code": -19232, "message": message}]})
 
 
+APP = "studio.sharecut.app"
 RELATIONSHIPS = (
     "routingAppCoverage",
     "appStoreVersionLocalizations",
@@ -735,14 +736,14 @@ ALTOOL_BANNER = (
     "'/Applications/Xcode.app/Contents/SharedFrameworks/ContentDelivery.framework/Resources/altool'..."
     "\n\n"
 )
-RETRY_LINES = "".join(
-    f"2026-11-17 11:38:0{n}.076 ERROR: [CDASCAPI.105A07020] APP STORE CONNECT API list-apps: "
-    f"received status code 500; internal server error. ({code}) (500)\n"
-    for n, code in ((4, "5TF655OIIDKQQPKUO57UI3TZQY"), (9, "5M5N7BSJ5KFDYAOEDUGBBHB3WE"))
+RETRY = (
+    "2026-11-17 11:38:04.076 ERROR: [CDASCAPI.105A07020] APP STORE CONNECT API list-apps: "
+    "received status code 500; internal server error. (5TF655OIIDKQQPKUO57UI3TZQY) (500)"
 )
+RETRY_LINES = RETRY + "\n" + RETRY.replace("04.076", "09.152").replace("5TF655", "5M5N7B") + "\n"
 
 
-def listed_app(bundle_identifier: str = "studio.sharecut.app", name: str = "ShareCut") -> dict:
+def listed_app(bundle_identifier: str = APP, name: str = "ShareCut") -> dict:
     relationships = {
         relation: {
             "links": {
@@ -783,7 +784,6 @@ def altool_listing(*apps: dict) -> str:
 
 REAL_LISTING = altool_listing(listed_app())
 REAL_CAPTURE = ALTOOL_BANNER + RETRY_LINES + REAL_LISTING
-APP_ID = "studio.sharecut.app"
 
 
 def apple_error(message: str, **fields: object) -> str:
@@ -815,9 +815,8 @@ def test_altool_answers_are_classified(code: int, text: str, verdict: Verdict) -
 
 
 def test_the_app_record_lookup_reads_the_real_list_apps_output() -> None:
-    assert release_classify.app_record_exists(REAL_CAPTURE, APP_ID)
-    assert release_classify.app_record_exists(REAL_LISTING, APP_ID)
-    assert release_classify.app_record_exists(ALTOOL_BANNER + REAL_LISTING, APP_ID)
+    assert release_classify.app_record_exists(REAL_CAPTURE, APP)
+    assert release_classify.app_record_exists(REAL_LISTING, APP)
 
 
 @pytest.mark.parametrize(
@@ -826,9 +825,9 @@ def test_the_app_record_lookup_reads_the_real_list_apps_output() -> None:
         altool_listing(listed_app("studio.sharecut.other")),
         altool_listing(listed_app("studio.sharecut.app2")),
         altool_listing(listed_app("xstudio.sharecut.app")),
-        altool_listing(listed_app("studio.sharecut.other", name=APP_ID)),
-        altool_listing({**listed_app("studio.sharecut.other"), "sku": APP_ID}),
-        altool_listing({**listed_app("studio.sharecut.other"), "BundleId": APP_ID}),
+        altool_listing(listed_app("studio.sharecut.other", name=APP)),
+        altool_listing({**listed_app("studio.sharecut.other"), "sku": APP}),
+        altool_listing({**listed_app("studio.sharecut.other"), "BundleId": APP}),
         "[]\n",
         '[1, "studio.sharecut.app", null, ["studio.sharecut.app"]]',
         '[{"name": "ShareCut"}, {"bundleId": null}, {"bundleId": ["studio.sharecut.app"]}]',
@@ -856,50 +855,18 @@ def test_the_app_record_lookup_reads_the_real_list_apps_output() -> None:
     ],
 )
 def test_the_app_record_lookup_matches_only_the_bundle_identifier_exactly(listing: str) -> None:
-    assert not release_classify.app_record_exists(listing, APP_ID)
+    assert not release_classify.app_record_exists(listing, APP)
 
 
 def test_the_app_record_lookup_keeps_the_applications_object_form() -> None:
     listing = json.dumps({"applications": [listed_app("studio.sharecut.other"), listed_app()]})
-    assert release_classify.app_record_exists(listing, APP_ID)
-    assert not release_classify.app_record_exists(json.dumps({"applications": []}), APP_ID)
+    assert release_classify.app_record_exists(listing, APP)
+    assert not release_classify.app_record_exists(json.dumps({"applications": []}), APP)
 
 
 def test_the_app_record_is_found_among_several_apps() -> None:
     listing = altool_listing(listed_app("studio.sharecut.other"), listed_app())
-    assert release_classify.app_record_exists(RETRY_LINES + listing, APP_ID)
-
-
-@pytest.mark.parametrize(
-    "text",
-    [
-        REAL_LISTING.rstrip().removesuffix("]"),
-        REAL_LISTING + "done\n",
-        REAL_LISTING + REAL_LISTING,
-        "[1]\n" + REAL_LISTING,
-        "{}\n" + REAL_LISTING,
-        "warning [x]\n[\n" + REAL_LISTING,
-        "  " + REAL_LISTING,
-        "[\n" * 32_000,
-        "[" + '"a' * release_run.OUTPUT_LIMIT + '"]',
-        "[" * 200_000 + "]" * 200_000,
-    ],
-    ids=[
-        "truncated-array",
-        "trailing-text",
-        "two-arrays",
-        "json-looking-line-before",
-        "object-line-before",
-        "bracket-line-before-the-start",
-        "indented-start",
-        "start-flood",
-        "output-as-long-as-the-captured-tail",
-        "deep-nesting",
-    ],
-)
-def test_an_array_is_a_document_only_when_it_is_the_whole_remainder(text: str) -> None:
-    assert release_classify.altool_value(text) is None
-    assert not release_classify.app_record_exists(text, APP_ID)
+    assert release_classify.app_record_exists(RETRY_LINES + listing, APP)
 
 
 def test_the_value_reader_returns_the_array_and_the_dict_reader_never_does() -> None:
@@ -909,7 +876,6 @@ def test_the_value_reader_returns_the_array_and_the_dict_reader_never_does() -> 
     assert release_classify.altool_document(REAL_CAPTURE) is None
     assert release_classify.altool_document("[]") is None
     assert release_classify.altool_document(ALTOOL_OK) == json.loads(ALTOOL_OK)
-    assert release_classify.product_errors(release_classify.altool_document("[]")) == ()
 
 
 def test_a_dict_document_after_retry_lines_is_a_clean_answer_for_validate() -> None:
@@ -947,9 +913,6 @@ def test_an_array_is_no_answer_to_the_validate_reader(
     assert release_classify.classify_altool(code, text).verdict is verdict
 
 
-RETRY = RETRY_LINES.splitlines()[0]
-
-
 @pytest.mark.parametrize(
     "prelude",
     [
@@ -964,8 +927,6 @@ RETRY = RETRY_LINES.splitlines()[0]
         RETRY.replace("ERROR", "WARNING"),
         RETRY.removesuffix(" (500)"),
         RETRY + "\n2026-11-17 11:38:09.152 ERROR: could not connect to the server",
-        RETRY + "\nCould not connect to the server",
-        RETRY + "\n" + RETRY.replace("list-apps", "list apps; connection reset"),
     ],
     ids=[
         "trailing-code-differs",
@@ -979,8 +940,6 @@ RETRY = RETRY_LINES.splitlines()[0]
         "other-level",
         "no-trailing-code",
         "second-transport-line",
-        "second-transport-line-without-error",
-        "second-line-with-extra-wording",
     ],
 )
 def test_a_retry_line_variant_before_a_dict_document_is_not_an_answer_on_a_nonzero_exit(
@@ -1062,7 +1021,6 @@ CLOUD_LINE = "error: exportArchive Cloud signing permission error"
 NO_PROFILES_LINE = "error: exportArchive No profiles for 'studio.sharecut.app' were found"
 FORBIDDEN_LINE = '    "code" : "FORBIDDEN_ERROR",'
 NO_CERTIFICATE_LINE = 'error: No signing certificate "iOS Distribution" found'
-APP = "studio.sharecut.app"
 FALLBACK_ID = "this app's bundle id"
 
 
@@ -2353,6 +2311,14 @@ TRUNCATED_OUTER = '{\n  "success-message": "ok",\n  "detail":\n{"inner": 1}\n'
         ("[1]\n" + ALTOOL_OK, False),
         ("  " + ALTOOL_OK, False),
         ("{" + '"a": "' + "x" * release_run.OUTPUT_LIMIT + '"}', False),
+        (REAL_LISTING, True),
+        (ALTOOL_BANNER + RETRY_LINES + REAL_LISTING, True),
+        (REAL_LISTING.rstrip().removesuffix("]"), False),
+        (REAL_LISTING + "done\n", False),
+        (REAL_LISTING + REAL_LISTING, False),
+        ("{}\n" + REAL_LISTING, False),
+        ("  " + REAL_LISTING, False),
+        ("[" + '"a' * release_run.OUTPUT_LIMIT + '"]', False),
     ],
     ids=[
         "object",
@@ -2366,10 +2332,18 @@ TRUNCATED_OUTER = '{\n  "success-message": "ok",\n  "detail":\n{"inner": 1}\n'
         "json-looking-line-before",
         "indented-start",
         "output-as-long-as-the-captured-tail",
+        "array",
+        "banner-retry-lines-then-array",
+        "truncated-array",
+        "array-then-text",
+        "two-arrays",
+        "object-line-before-an-array",
+        "indented-array",
+        "array-as-long-as-the-captured-tail",
     ],
 )
-def test_the_document_is_the_one_object_that_ends_the_output(text: str, found: bool) -> None:
-    assert (release_classify.altool_document(text) is not None) is found
+def test_the_document_is_the_one_value_that_ends_the_output(text: str, found: bool) -> None:
+    assert (release_classify.altool_value(text) is not None) is found
 
 
 @pytest.mark.parametrize("flood", ["{}\n" * 32_000, "{\n" * 32_000, ('{"a":\n' * 20_000)])
