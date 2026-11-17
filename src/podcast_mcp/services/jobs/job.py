@@ -7,6 +7,7 @@ the snapshot's shape, so each SSE/poll payload keeps the fields its consumer alr
 
 from __future__ import annotations
 
+import re
 import threading
 import time
 from collections.abc import Collection, Mapping
@@ -47,6 +48,51 @@ def _token_looks_like_abs_path(token: str) -> bool:
     return len(s) >= 3 and s[1] == ":" and s[2] in ("\\", "/")
 
 
+# Where an absolute path starts in a line: a ``/`` that begins a token or follows a quote, a
+# bracket, ``=``, ``,`` or ``;`` (not ``//``, not the ``/`` inside a URL or a relative path), a
+# drive such as ``C:\`` or ``C:/``, or a ``\\server`` share.
+_PATH_START = re.compile(
+    r"(?:(?<![^\s'\"(\[{<=,;])/(?!/)|(?<![A-Za-z0-9])[A-Za-z]:[\\/]|(?<![^\s'\"(\[{<=,;])\\\\)"
+)
+_PATH_END_COLON = re.compile(r":(?:\s|$)")
+_CLOSERS = {"'": "'", '"': '"', "(": ")", "[": "]", "{": "}", "<": ">"}
+
+
+def _drop_abs_paths(line: str) -> tuple[str, bool]:
+    """``line`` without its absolute paths, spaces in them included, and whether any went.
+
+    A path with spaces has no end this can know, so it is cut from its start to the first
+    of: the quote or bracket that closes the one opened just before it, a colon followed by a
+    space or the end (an error's own separator), or the end of the line. When unsure it
+    removes more: the promise is no host path.
+    """
+    pieces: list[str] = []
+    pos = 0
+    removed = False
+    while (start := _PATH_START.search(line, pos)) is not None:
+        begin = start.start()
+        opener = line[begin - 1] if begin > 0 and line[begin - 1] in _CLOSERS else ""
+        end = len(line)
+        colon = _PATH_END_COLON.search(line, begin + 1)
+        if colon is not None:
+            end = colon.start()
+        if opener:
+            close = line.find(_CLOSERS[opener], begin + 1)
+            if close != -1:
+                end = close + 1
+        pieces.append(line[pos : begin - 1 if opener else begin])
+        pos = end
+        removed = True
+    pieces.append(line[pos:])
+    return "".join(pieces), removed
+
+
+def _tidy(line: str) -> str:
+    line = re.sub(r":\s*:", ":", line)
+    line = re.sub(r"\s+([:;,)\]}>])", r"\1", line)
+    return " ".join(line.split())
+
+
 def short_fail_message(message: str | None, phase: str | None = None) -> str | None:
     """First non-traceback line for the GUI; never a stack trace or host path."""
     if message is None:
@@ -54,7 +100,13 @@ def short_fail_message(message: str | None, phase: str | None = None) -> str | N
     line = message.strip().splitlines()[0] if message.strip() else ""
     if line.lower().startswith("traceback"):
         line = ""
+    line = " ".join(line.split())
+    line, removed = _drop_abs_paths(line)
     line = " ".join(tok for tok in line.split() if not _token_looks_like_abs_path(tok))
+    if removed:
+        line = _tidy(line)
+        if not any(ch.isalnum() for ch in line):
+            line = ""
     if not line and phase:
         line = phase
     if not line:

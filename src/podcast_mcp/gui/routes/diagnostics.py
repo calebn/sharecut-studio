@@ -92,7 +92,7 @@ def _register_bundle(request: Request, filename: str, directory: Path) -> None:
 def _load_project(
     request: Request, path: str | None
 ) -> tuple[EpisodeProject | None, UnopenedEpisode | None]:
-    """The opened episode, or what is known about one that will not open (nothing is read from it)."""
+    """The opened episode, or what is known about one that will not open (no counts are read from it)."""
     raw = (path or "").strip()
     served = getattr(request.app.state, "served_project", None)
     if not raw:
@@ -115,7 +115,8 @@ def _load_project(
     except Exception as exc:
         # The export exists for the day the episode is broken, so whatever stopped the open
         # (a damaged history index, a file the app may not read, a lock held elsewhere) still
-        # gets a bundle that holds nothing from the episode. Only a fixed code is kept.
+        # gets a bundle with no project counts (its job messages and logs are sanitized as always).
+        # Only a fixed code is kept.
         return None, _unopened(_failure_code(exc), project_path, exc)
 
 

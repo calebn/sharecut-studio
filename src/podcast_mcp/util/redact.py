@@ -60,8 +60,56 @@ _HOST_PATH = re.compile(
 # runs to the last one on the line (or to the end of the line when there is none).
 _INPUT_VALUE = re.compile(r"input_value=(?:[^\r\n]*(?=, input_type=)|[^\r\n]*)")
 _INPUT_VALUE_HIDDEN = "input_value=<hidden>"
+# Where a validation failed is printed as dotted segments, and a segment may be a dict key of
+# the document (a speaker's name). Two shapes carry it: pydantic's block (a header, then per error
+# the location and an indented line that ends in ``[type=...]``; a key with a newline makes the
+# location run over several lines) and the sentence older builds wrote for a damaged project file.
+_VALIDATION_HEADER = re.compile(r"(?m)^\d+ validation errors? for [^\n]*\n")
+_VALIDATION_ENTRY = re.compile(
+    r"(?P<loc>.*?)(?P<rest>\n  [^\n]*\[type=[^\n]*\](?:\n    For further information[^\n]*)?)",
+    re.DOTALL,
+)
+_UNREADABLE_PLACE = re.compile(
+    r"(?P<head>\(unexpected contents at )"
+    r"(?P<loc>(?s:.{0,2000}?)(?=\)\. Restore it from a backup)|[^\n]*)"
+)
 _LOOPBACK_V4 = re.compile(r"^127\.")
 _LOOPBACK_V6 = frozenset({"::1", "0:0:0:0:0:0:0:1"})
+
+
+def _mask_location(location: str, names: frozenset[str] | None) -> str:
+    """``location`` with every segment that is not a number or a known field name as ``*``."""
+    kept = names or frozenset()
+    return ".".join(
+        seg if seg == "*" or (seg.isdecimal() and seg.isascii()) or seg in kept else "*"
+        for seg in location.split(".")
+    )
+
+
+def _mask_validation_locations(text: str, names: frozenset[str] | None) -> str:
+    if "validation error" in text:
+        pieces: list[str] = []
+        pos = 0
+        for header in _VALIDATION_HEADER.finditer(text):
+            if header.start() < pos:
+                continue
+            at = header.end()
+            pieces.append(text[pos:at])
+            while (entry := _VALIDATION_ENTRY.match(text, at)) is not None:
+                pieces.append(_mask_location(entry.group("loc"), names) + entry.group("rest"))
+                at = entry.end()
+                if not text.startswith("\n", at):
+                    break
+                pieces.append("\n")
+                at += 1
+            pos = at
+        pieces.append(text[pos:])
+        text = "".join(pieces)
+    if "(unexpected contents at " in text:
+        text = _UNREADABLE_PLACE.sub(
+            lambda m: m.group("head") + _mask_location(m.group("loc"), names), text
+        )
+    return text
 
 
 def _path_forms(path: Path) -> list[str]:
@@ -138,8 +186,12 @@ def sanitize(
     home: Path | None = None,
     workspace: Path | None = None,
     extra: Sequence[tuple[Path, str]] | None = None,
+    field_names: frozenset[str] | None = None,
 ) -> str:
     """Return ``text`` with host paths and secrets replaced by placeholders.
+
+    A validation error's location keeps its numbers and the ``field_names`` (the names the
+    models declare); any other segment is a key of the document and becomes ``*``.
 
     Share routes go through ``redact_share_paths``. Bare coolnames in free text are not
     matched here: the diagnostics bundle masks the registry's tokens by value on top
@@ -148,6 +200,7 @@ def sanitize(
     if not text:
         return text
     out = _INPUT_VALUE.sub(_INPUT_VALUE_HIDDEN, text)
+    out = _mask_validation_locations(out, field_names)
     extras = sorted(extra or (), key=lambda pair: len(str(pair[0])), reverse=True)
     for path, token in extras:
         out = _replace_path(out, path, token)

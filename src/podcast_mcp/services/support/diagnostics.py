@@ -19,6 +19,8 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+from pydantic import BaseModel
+
 import podcast_mcp
 from podcast_mcp import settings
 from podcast_mcp.config.defaults import cache_dir, whisper_cache_dir
@@ -113,7 +115,10 @@ How to report
 """
 
 
-NOT_OPENED_STATEMENT = "The episode could not be opened, so this report holds nothing from it."
+NOT_OPENED_STATEMENT = (
+    "The episode could not be opened, so this report has no project counts. "
+    "Job messages and log tails are sanitized, as in every report."
+)
 
 
 @dataclass(frozen=True)
@@ -270,6 +275,37 @@ def _disk_free_bytes(path: Path) -> int | None:
         return None
 
 
+_NAMES_CACHE: tuple[int, frozenset[str]] | None = None
+
+
+def _model_field_names() -> frozenset[str]:
+    """The field names and aliases of every pydantic model this package defines.
+
+    ``sanitize`` keeps these in a validation error's location and masks the rest, which are
+    keys of the document. Read from the models loaded now (a model nobody imported cannot be in
+    a log), and kept until another model is defined.
+    """
+    global _NAMES_CACHE
+    models: list[type[BaseModel]] = []
+    pending = [BaseModel]
+    while pending:
+        for sub in pending.pop().__subclasses__():
+            pending.append(sub)
+            if sub.__module__.split(".")[0] == "podcast_mcp":
+                models.append(sub)
+    if _NAMES_CACHE is not None and _NAMES_CACHE[0] == len(models):
+        return _NAMES_CACHE[1]
+    names: set[str] = set()
+    for model in models:
+        for name, field in model.model_fields.items():
+            names.add(name)
+            for alias in (field.alias, field.validation_alias, field.serialization_alias):
+                if isinstance(alias, str):
+                    names.add(alias)
+    _NAMES_CACHE = (len(models), frozenset(names))
+    return _NAMES_CACHE[1]
+
+
 def _redact_kwargs(*, home: Path, workspace: Path | None) -> dict[str, Any]:
     extra: list[tuple[Path, str]] = []
     for path, token in (
@@ -284,7 +320,12 @@ def _redact_kwargs(*, home: Path, workspace: Path | None) -> dict[str, Any]:
     raw = settings.text("PODCAST_MCP_CACHE")
     if raw:
         extra.append((Path(raw).expanduser(), "<cache>"))
-    return {"home": home, "workspace": workspace, "extra": extra}
+    return {
+        "home": home,
+        "workspace": workspace,
+        "extra": extra,
+        "field_names": _model_field_names(),
+    }
 
 
 def _gui_dist_present() -> bool:

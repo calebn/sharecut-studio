@@ -209,7 +209,7 @@ def test_no_dict_key_of_the_episode_model_reaches_an_error_text(minimal_project)
     ("loc", "expected"),
     [
         (("meta", "name"), "meta.name"),
-        (("timeline", "clips", 3, "start"), "timeline.clips.3.start"),
+        (("timeline", "clips", 3, "track_id"), "timeline.clips.3.track_id"),
         (
             ("meta", "ingest_alignment", "Zelda", "align_method"),
             "meta.ingest_alignment.*.align_method",
