@@ -18,6 +18,7 @@ from filelock import Timeout
 from podcast_mcp.edits.comments import comments_for_view
 from podcast_mcp.edits.pending_preview import DEFAULT_PAD_SEC, PendingPreviewSpan
 from podcast_mcp.engines.play_audit import premix_path
+from podcast_mcp.engines.timeline_render import timeline_duration_sec
 from podcast_mcp.models.episode import ExactRangeTarget
 from podcast_mcp.project.io import EPISODE_PROJECT_FILENAME, adopt_retired_entry_file, open_project
 from podcast_mcp.services.app import ProjectWorkspace
@@ -1407,7 +1408,7 @@ def share_project_view(token: str) -> dict[str, Any]:
             newer = None
     ver_dump.pop("object_store_key", None)
     ver_dump.pop("object_store_uploaded_at", None)
-    duration = project.timeline.duration_sec or 0.0
+    duration = timeline_duration_sec(project)
     caps = list(row.get("capabilities") or [])
     return {
         "mode": "review",
