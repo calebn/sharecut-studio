@@ -970,11 +970,21 @@ describe("the guest header's second line, in the styles", () => {
   const css = systemCss().replace(/\s+/g, " ");
 
   it("lets the role button, the New version pill and the folded line press over 44 px without growing the line", () => {
-    const area = css.match(/\.sys-role-trigger::after,[^{]*\{([^}]*)\}/)?.[1];
-    expect(area).toContain("position: absolute");
+    const group = css.match(/(\.sys-role-trigger::after,[^{]*)\{([^}]*)\}/);
+    expect(group?.[1]).toContain(".sys-role-trigger::after");
+    expect(group?.[1]).toContain(".sys-version-pill::after");
+    expect(group?.[1]).toContain("button.sys-version-line::after");
+    expect(group?.[2]).toContain("position: absolute");
     // Up over the name, which is not pressable, and a hairline down: never under the bar.
-    expect(area).toContain(
+    expect(group?.[2]).toContain(
       "inset-block: calc(100% - var(--press-target) + 1px) -1px",
+    );
+    // The role button grows to both sides, the version buttons toward the line's start.
+    expect(css).toMatch(
+      /\.sys-role-trigger::after \{ inset-inline: min\(0rem, calc\(\(100% - var\(--press-target\)\) \/ 2\)\); \}/,
+    );
+    expect(css).toMatch(
+      /\.sys-version-pill::after,\s*button\.sys-version-line::after \{ inset-inline: min\(0rem, calc\(100% - var\(--press-target\)\)\) 0; \}/,
     );
     expect(css).toMatch(
       /\.sys-header-sub \{ --press-target: var\(--control-height\);/,
@@ -1002,6 +1012,7 @@ describe("the guest header's second line, in the styles", () => {
   it("gives the role button no box of its own beyond its chip", () => {
     const rule = css.match(/\.sys-role-trigger \{([^}]*)\}/)?.[1];
     expect(rule).toContain("padding: 0");
+    expect(rule).toContain("font-weight: 500");
     expect(rule).not.toContain("min-block-size");
   });
 });
