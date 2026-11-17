@@ -158,9 +158,9 @@ async def record_ws(
         )
 
     def _closed_invite_frame() -> dict[str, Any] | None:
-        # Worker thread. Only a look whose own link is still good and whose invite closed
-        # gets the frame; a revoked or reminted link, a guest or a seat gets none.
-        if svc is None or not watching or joined:
+        # Worker thread. A socket that has not joined fails its share check only on its link
+        # or, for a look, its invite, so a good link plus a closed invite means a look.
+        if svc is None or joined:
             return None
         if not _record_still_valid(token) or svc.invite_closed(share_id) is None:
             return None
