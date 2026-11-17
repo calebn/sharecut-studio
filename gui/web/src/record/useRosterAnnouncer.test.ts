@@ -309,6 +309,12 @@ describe("useRosterAnnouncer", () => {
       expect(result.current.seq).toBe(1);
       rerender({ snapshot: at(3), meId: "p_g" });
       expect(result.current.seq).toBe(1);
+      rerender({
+        snapshot: { ...at(3), comments: [comment("c1", "p_s", "Nice take")] },
+        meId: "p_g",
+      });
+      expect(result.current.text).toBe("Sam: Nice take");
+      expect(result.current.seq).toBe(1);
       rerender({ snapshot: at(0), meId: "p_g" });
       expect(result.current.seq).toBe(1);
       rerender({ snapshot: at(0, "lobby", "room2"), meId: "p_g" });
