@@ -2024,7 +2024,6 @@ html:not([data-shell="phone"])
   block-size: 15rem;
 }
 
-/* With the header drawn by the caller, the grid starts below it. */
 .sys-skeleton-blocks--guest.sys-skeleton-blocks--headed {
   padding-block-start: var(--space-4);
 }

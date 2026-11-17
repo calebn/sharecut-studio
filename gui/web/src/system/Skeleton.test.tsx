@@ -66,7 +66,7 @@ describe("Skeleton guest layout with a head", () => {
     );
   });
 
-  it("keeps today's grey header block without a head", () => {
+  it("keeps the grey header block when no head is given", () => {
     const { container } = render(<Skeleton layout="guest" elapsedMs={500} />);
     expect(
       container.querySelector(".sys-skeleton-block--header"),
@@ -105,7 +105,7 @@ describe("Skeleton waitedMs", () => {
     );
   });
 
-  it("draws what it always did when no time was carried in: blank on the first frame even with a zero blank time, blocks a tick later", () => {
+  it("is blank on its first frame, even with a zero blank time, and shows blocks a tick later, when no time was carried in", () => {
     vi.useFakeTimers();
     const { container } = render(<Skeleton blankMs={0} />);
     const root = container.querySelector(".sys-skeleton");
@@ -115,7 +115,7 @@ describe("Skeleton waitedMs", () => {
     expect(root).toHaveAttribute("data-phase", "blocks");
   });
 
-  it("keeps the retry time the same way: no Still loading… on the first frame of a zero retry time", () => {
+  it("has no Still loading… on the first frame of a zero retry time when no time was carried in", () => {
     vi.useFakeTimers();
     const { container } = render(<Skeleton blankMs={0} retryMs={0} />);
     expect(container.querySelector(".sys-skeleton")).toHaveAttribute(
