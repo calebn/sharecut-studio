@@ -2,15 +2,19 @@ import path from "node:path";
 import { expect, type Locator, type Page, test } from "@playwright/test";
 import { expectPageAxeClean } from "./axe";
 import { assertDisposableE2eProject, e2eProjectPath } from "./env";
+import { fontsReady } from "./fontsReady";
 import {
   expectServerWordsAbsent,
   type FailedAnswer,
   failShell,
+  focusWhenSeen,
+  lastLineWordCount,
   MARKER_500,
   press,
   SERVER_MARKER,
   SIZES,
   type Size,
+  watchFocusWhenSeen,
   withGuestLink,
 } from "./guestLink";
 import {
@@ -258,6 +262,52 @@ for (const size of SIZES) {
       });
     }
 
+    test("a host's press answered by a different cover puts focus on Try again as the new sentence appears", async ({
+      page,
+    }) => {
+      const name = hostName(e2eProjectPath);
+      const shell = await failShell(
+        page,
+        "host",
+        json(404, { detail: SERVER_MARKER }, "project_not_found"),
+      );
+      await openHostWithoutProject(page, e2eProjectPath);
+      const cover = page.getByRole("alert");
+      await expect(cover.getByRole("button").first()).toHaveAccessibleName(
+        "All projects",
+      );
+
+      shell.answerWith(MARKER_500);
+      await watchFocusWhenSeen(page, "update ShareCut first");
+      await cover.getByRole("button", { name: "Try again" }).focus();
+      await pressOn(cover, "Try again", size);
+      expect(await focusWhenSeen(page)).toBe("retry");
+      await expect(cover).toContainText(`couldn't open "${name}"`);
+    });
+
+    if (!size.touch) {
+      test("a guest on Review whose press is answered by a sign-in has focus on the cover's title", async ({
+        browser,
+      }) => {
+        test.setTimeout(90_000);
+        await withGuestLink(browser, size, async (guest, token) => {
+          const shell = await failShell(guest, { token }, MARKER_500);
+          await guest.goto(`/r/${token}`);
+          const cover = await expectCover(guest, {
+            title: GUEST_TITLE,
+            sentence: SERVER_SENTENCE,
+            buttons: ["Try again"],
+          });
+
+          shell.answerWith(json(401, { detail: SERVER_MARKER }));
+          await watchFocusWhenSeen(guest, "needs a sign-in");
+          await cover.getByRole("button", { name: "Try again" }).focus();
+          await pressOn(cover, "Try again", size);
+          expect(await focusWhenSeen(guest)).toBe(`h2:${GUEST_TITLE}`);
+        });
+      });
+    }
+
     test("a host's long project name wraps inside the cover and the page does not scroll sideways", async ({
       page,
     }) => {
@@ -461,6 +511,25 @@ for (const size of SIZES) {
 }
 
 test.describe("a host whose computer is open on another episode", () => {
+  test.describe("at phone width", () => {
+    test.use({ viewport: { width: 390, height: 844 }, hasTouch: true });
+
+    test("the title keeps more than one word on its last line", async ({
+      page,
+    }) => {
+      await failShell(
+        page,
+        "host",
+        json(403, { detail: SERVER_MARKER }, "project_path_not_allowed"),
+      );
+      await openHostWithoutProject(page, e2eProjectPath);
+      const title = page.getByRole("alert").getByRole("heading");
+      await expect(title).toHaveText(NOT_SERVED_TITLE);
+      await fontsReady(page);
+      expect(await lastLineWordCount(title)).toBeGreaterThan(1);
+    });
+  });
+
   test("reads that, and All projects goes Home without closing the other episode", async ({
     page,
   }) => {
