@@ -37,7 +37,7 @@ test.describe("Chrome-first bootstrap", () => {
     await expect(page.getByRole("tablist", { name: "Stages" })).toBeVisible();
     await expect(play).toBeVisible();
     await expect(play).toBeDisabled();
-    await expect(play).toHaveAccessibleDescription("Loading project…");
+    await expect(play).toHaveAccessibleDescription("Loading…");
     await expect(page.getByLabel("Loading timeline")).toBeVisible();
     await expect(page.getByRole("region", { name: "Start" })).toHaveCount(0);
     await expectPageAxeClean(page);
