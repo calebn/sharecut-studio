@@ -62,6 +62,7 @@ import {
   type RecordLookup,
   type RecordNotice,
   RecordStageView,
+  type SrNote,
 } from "./RecordStageView";
 import { RecordTargetChip } from "./RecordTargetChip";
 import {
@@ -555,15 +556,18 @@ function RecordStageBody({
 
   // Failures live in the Alert slot (roomAlerts); the two always-on lines
   // are for screen readers only, as on the guest page.
-  const srNotes: string[] = [];
+  const srNotes: SrNote[] = [];
   if (cap.recordingLocally && !cap.keeperError && !room.noAudioNeedsAttention) {
-    srNotes.push(LOCAL_KEEPER_COPY);
+    srNotes.push({ key: LOCAL_KEEPER_COPY, text: LOCAL_KEEPER_COPY });
   }
   if (cap.hearing) {
-    srNotes.push(HEARING_COPY);
+    srNotes.push({ key: HEARING_COPY, text: HEARING_COPY });
   }
-  if (lookingInAnnouncement) {
-    srNotes.push(lookingInAnnouncement);
+  if (lookingInAnnouncement.text) {
+    srNotes.push({
+      key: `looking-in-${lookingInAnnouncement.seq}`,
+      text: lookingInAnnouncement.text,
+    });
   }
   const notices: RecordNotice[] = [];
   const note = (text: string) => notices.push({ text });

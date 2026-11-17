@@ -308,13 +308,17 @@ describe("useRosterAnnouncer", () => {
       expect(result.current).toBe("");
     });
 
-    it("holds an arrival during the room-tone countdown and speaks it when the countdown ends", () => {
+    it("holds an arrival during the room-tone countdown and speaks it at the next update after the countdown", () => {
       const { result, rerender } = setup(at(0));
       rerender({ snapshot: counting(at(1)), meId: "p_g" });
       expect(result.current).toBe("");
       rerender({ snapshot: counting(at(1)), meId: "p_g" });
       expect(result.current).toBe("");
-      rerender({ snapshot: at(1), meId: "p_g" });
+      // The server keeps room_tone set once the round is over.
+      rerender({
+        snapshot: { ...counting(at(1)), countdown_left_ms: 0 },
+        meId: "p_g",
+      });
       expect(result.current).toBe(LINE);
     });
 
@@ -377,59 +381,60 @@ describe("useLookingInAnnouncer", () => {
 
   it("is silent without a snapshot and about who is already looking in", () => {
     const { result, rerender } = setupHost(null);
-    expect(result.current).toBe("");
+    expect(result.current.text).toBe("");
     rerender({ snapshot: at(1) });
-    expect(result.current).toBe("");
+    expect(result.current.text).toBe("");
     rerender({ snapshot: at(2) });
-    expect(result.current).toBe("");
+    expect(result.current.text).toBe("");
   });
 
   it("announces the first rise in the lobby, once, and says nothing about people", () => {
     const { result, rerender } = setupHost(at(0));
     rerender({ snapshot: at(1) });
-    expect(result.current).toBe(LINE);
+    expect(result.current.text).toBe(LINE);
     rerender({ snapshot: at(0) });
-    expect(result.current).toBe("");
+    expect(result.current.text).toBe("");
     rerender({ snapshot: at(3) });
-    expect(result.current).toBe("");
+    expect(result.current.text).toBe("");
   });
 
   it("announces the first arrival in each room, even when the words repeat, and clears the note between", () => {
     const { result, rerender } = setupHost(at(0));
     rerender({ snapshot: at(1) });
-    expect(result.current).toBe(LINE);
+    expect(result.current.text).toBe(LINE);
     rerender({ snapshot: at(0) });
-    expect(result.current).toBe("");
+    expect(result.current.text).toBe("");
     rerender({ snapshot: at(0, "lobby", "room2") });
-    expect(result.current).toBe("");
+    expect(result.current.text).toBe("");
     rerender({ snapshot: at(1, "lobby", "room2") });
-    expect(result.current).toBe(LINE);
+    expect(result.current.text).toBe(LINE);
   });
 
   it("announces a new room's arrival when the last room ended with someone looking in", () => {
     const { result, rerender } = setupHost(at(0));
     rerender({ snapshot: at(1) });
     rerender({ snapshot: at(1, "lobby", "room2") });
-    expect(result.current).toBe(LINE);
+    expect(result.current.text).toBe(LINE);
     rerender({ snapshot: at(2, "recording", "room3") });
-    expect(result.current).toBe("");
+    expect(result.current.text).toBe("");
   });
 
-  it("holds an arrival during the room-tone countdown and speaks it when the countdown ends", () => {
+  it("holds an arrival during the room-tone countdown and speaks it at the next update after the countdown", () => {
     const { result, rerender } = setupHost(at(0));
     rerender({ snapshot: counting(at(1)) });
-    expect(result.current).toBe("");
-    rerender({ snapshot: at(1) });
-    expect(result.current).toBe(LINE);
+    expect(result.current.text).toBe("");
+    // The server keeps room_tone set once the round is over.
+    rerender({ snapshot: { ...counting(at(1)), countdown_left_ms: 0 } });
+    expect(result.current.text).toBe(LINE);
   });
 
   it("holds its tongue during a take, then announces a lobby rise", () => {
     const { result, rerender } = setupHost(at(0, "recording"));
     rerender({ snapshot: at(1, "recording") });
-    expect(result.current).toBe("");
+    expect(result.current.text).toBe("");
     rerender({ snapshot: at(0, "lobby") });
     rerender({ snapshot: at(2, "lobby") });
-    expect(result.current).toBe(
+    expect(result.current.text).toBe(
       "2 people with the producer link are looking in",
     );
   });
@@ -438,6 +443,6 @@ describe("useLookingInAnnouncer", () => {
     const { result, rerender } = setupHost(at(0));
     rerender({ snapshot: at(2.5) });
     rerender({ snapshot: at(-3) });
-    expect(result.current).toBe("");
+    expect(result.current.text).toBe("");
   });
 });
