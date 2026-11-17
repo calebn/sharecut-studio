@@ -337,3 +337,136 @@ def test_host_mcp_stale_expected_text_is_conflict(minimal_project):
             "CorrectTranscriptWord",
             {"track_id": "host", "word_index": 0, "text": "the", "expected_text": "tea"},
         )
+
+
+def _history_command(kind: str, head: str | None) -> dict:
+    return {
+        "type": kind,
+        "payload": {"rerender": True, "expected_head_id": head},
+        "client_id": "c",
+        "client_seq": 1,
+    }
+
+
+def _history_project(minimal_project, *, undone: bool) -> tuple[ProjectWorkspace, str]:
+    from podcast_mcp.services.document import HistoryService
+
+    ws = ProjectWorkspace.open(minimal_project)
+    for label in ("one", "two"):
+        with ws.transaction():
+            ws.record_snapshot(label, force=True)
+    if undone:
+        HistoryService(ws).undo()
+    return ws, HistoryService(ws).status().head_id
+
+
+def _history_cursor(minimal_project) -> int:
+    from podcast_mcp.services.document import HistoryService
+
+    return HistoryService(ProjectWorkspace.open(minimal_project)).status().cursor
+
+
+@pytest.mark.parametrize("kind", ["UndoHistory", "RedoHistory"])
+def test_host_http_undo_history_rerender_takes_render_lock_before_commit_lock(
+    minimal_project, monkeypatch, kind
+):
+    import json
+
+    from podcast_mcp.util.project_state import render_lock_held
+
+    _ws, head = _history_project(minimal_project, undone=kind == "RedoHistory")
+    cursor_before = _history_cursor(minimal_project)
+    seen: list[bool] = []
+
+    class _Runner:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        def run(self, project, *args, **kwargs):
+            seen.append(render_lock_held(project))
+
+        def __getattr__(self, name):
+            return lambda *args, **kwargs: None
+
+    monkeypatch.setattr("podcast_mcp.services.pipeline.preview.PipelineRunner", _Runner)
+    monkeypatch.setattr(
+        "podcast_mcp.services.document.history.render_preview_result",
+        lambda *a, **k: json.dumps({"stub": "preview"}),
+    )
+    client = TestClient(create_app())
+    r = client.post(
+        f"/api/document/command?path={quote(str(minimal_project))}",
+        json=_history_command(kind, head),
+    )
+    assert r.status_code == 200, r.text
+    result = r.json()["command"]["payload"]["result"]
+    assert result["preview"] == {"stub": "preview"}
+    assert seen and all(seen)
+    expected = cursor_before - 1 if kind == "UndoHistory" else cursor_before + 1
+    assert _history_cursor(minimal_project) == expected
+
+
+def test_host_http_undo_history_rerender_render_failure_is_conflict_with_rerender_advice(
+    minimal_project, monkeypatch
+):
+    _ws, head = _history_project(minimal_project, undone=False)
+
+    def _boom(*args, **kwargs):
+        raise OSError("render exploded")
+
+    monkeypatch.setattr("podcast_mcp.services.pipeline.preview.PipelineRunner", _boom)
+    client = TestClient(create_app())
+    r = client.post(
+        f"/api/document/command?path={quote(str(minimal_project))}",
+        json=_history_command("UndoHistory", head),
+    )
+    assert r.status_code == 409, r.text
+    assert r.headers["X-Sharecut-Error-Code"] == "document_conflict"
+    assert "re-rendering the preview failed" in r.json()["detail"]["detail"]
+    assert "render_lock taken while holding" not in r.text
+
+
+def test_host_http_undo_history_rerender_stale_head_never_renders(minimal_project, monkeypatch):
+    _ws, head = _history_project(minimal_project, undone=False)
+    calls: list[int] = []
+
+    def _runner(*args, **kwargs):
+        calls.append(1)
+        raise AssertionError("render must not run")
+
+    monkeypatch.setattr("podcast_mcp.services.pipeline.preview.PipelineRunner", _runner)
+    cursor_before = _history_cursor(minimal_project)
+    client = TestClient(create_app())
+    r = client.post(
+        f"/api/document/command?path={quote(str(minimal_project))}",
+        json=_history_command("UndoHistory", "not-the-head"),
+    )
+    assert r.status_code == 409, r.text
+    assert r.headers["X-Sharecut-Error-Code"] == "history_stale"
+    assert calls == []
+    assert _history_cursor(minimal_project) == cursor_before
+
+
+@pytest.mark.parametrize("kind", ["UndoHistory", "RedoHistory"])
+def test_host_http_undo_history_rerender_busy_render_saves_nothing(
+    minimal_project, monkeypatch, kind
+):
+    from podcast_mcp.util.project_state import RenderBusyError
+
+    _ws, head = _history_project(minimal_project, undone=kind == "RedoHistory")
+    cursor_before = _history_cursor(minimal_project)
+
+    def _busy(*args, **kwargs):
+        raise RenderBusyError("render.lock")
+
+    monkeypatch.setattr(
+        "podcast_mcp.services.document_sync.service.render_lock", _busy, raising=False
+    )
+    client = TestClient(create_app())
+    r = client.post(
+        f"/api/document/command?path={quote(str(minimal_project))}",
+        json=_history_command(kind, head),
+    )
+    assert r.status_code == 503, r.text
+    assert r.headers["X-Sharecut-Error-Code"] == "project_busy"
+    assert _history_cursor(minimal_project) == cursor_before
