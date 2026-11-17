@@ -174,7 +174,13 @@ def speaker_split_cmd(
     speakers: int | None = typer.Option(
         None, "--speakers", help="How many people talk (else the count set-speaker-count saved)"
     ),
-    name: list[str] | None = typer.Option(None, "--name", help="Speaker name, in order"),
+    name: list[str] | None = typer.Option(
+        None,
+        "--name",
+        help="Speaker name (repeat). Names go to voices in the order they first speak. "
+        "A name given to --enroll is seeded from its own sample, and the others "
+        "take the remaining voices in that order",
+    ),
     enroll: list[str] | None = typer.Option(
         None, "--enroll", help="NAME=START:END of only that speaker (repeat; some or all speakers)"
     ),
