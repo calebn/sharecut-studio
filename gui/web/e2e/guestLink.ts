@@ -169,6 +169,7 @@ export async function withGuestLink(
     host: Page,
     projectPath: string,
   ) => Promise<void>,
+  role: "commenter" | "editor" = "commenter",
 ) {
   await withShareableProject(async (projectPath) => {
     await withBrowserPages(
@@ -182,7 +183,7 @@ export async function withGuestLink(
       ],
       async ([host, guest]) => {
         await openHostShare(host!, projectPath);
-        const token = await createReviewShare(host!, projectPath, "commenter");
+        const token = await createReviewShare(host!, projectPath, role);
         await run(guest!, token, host!, projectPath);
       },
     );

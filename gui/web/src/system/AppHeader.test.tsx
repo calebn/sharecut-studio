@@ -42,6 +42,14 @@ describe("AppHeader as a guest", () => {
     },
   );
 
+  it("lets the guest's title read from its own side, as the loading header's does", () => {
+    setup({ guest: { version: "v3", role: "commenter" } });
+    const title = document.querySelector(
+      ".sys-header-guest > .sys-header-title",
+    );
+    expect(title).toHaveAttribute("dir", "auto");
+  });
+
   it.each(EDITORS)("an $id has Undo and Redo but no Invite", ({ id }) => {
     setup({ guest: { version: "v3", role: id } });
     for (const name of GUEST_EDIT_CONTROLS) {
