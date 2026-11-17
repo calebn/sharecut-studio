@@ -1412,6 +1412,7 @@ async function withLiveTake(
   browser: Browser,
   run: (room: {
     host: Page;
+    guest: Page;
     producer: Page;
     token: string;
     projectPath: string;
@@ -1440,6 +1441,7 @@ async function withLiveTake(
         await expect(roomPill(guest)).toHaveText(LIVE_PILL);
         await run({
           host,
+          guest,
           producer: producer!,
           token: room.producer.token,
           projectPath,
@@ -1488,6 +1490,133 @@ async function boxOf(locator: Locator): Promise<Box> {
   return box;
 }
 
+const LOOKING_IN = "Someone with the producer link is looking in";
+const SEEN_BY_ROOM = "The room can see that someone is looking in.";
+
+function lookingInRow(page: Page, text = LOOKING_IN): Locator {
+  return page.locator(".sys-room-looking-in", { hasText: text });
+}
+
+async function watcherCount(host: Page, projectPath: string): Promise<number> {
+  return (await hostRecordSnapshot(host, projectPath)).watchers ?? 0;
+}
+
+test.describe("a producer looks in before joining", () => {
+  test("the room is shown the look, the producer sees the room, and joining ends the look", async ({
+    browser,
+  }: {
+    browser: Browser;
+  }) => {
+    test.slow();
+    await withLiveTake(
+      browser,
+      async ({ host, guest, producer, token, projectPath }) => {
+        await expect(lookingInRow(host)).toHaveCount(0);
+        await markSharecutE2e(producer);
+        await openRecordLink(producer, token);
+        await expect(roomPill(producer)).toHaveText(LIVE_PILL);
+        await expect(
+          producer.getByRole("dialog", { name: /Ava/ }),
+        ).toBeVisible();
+        await expect(producer.getByText(SEEN_BY_ROOM)).toBeVisible();
+        await expect(
+          producer.getByRole("group", { name: /, you$/ }),
+        ).toHaveCount(0);
+        await expect(lookingInRow(producer)).toHaveCount(0);
+        await expect(lookingInRow(host)).toBeVisible();
+        await expect(lookingInRow(guest)).toBeVisible();
+        await expect.poll(() => watcherCount(host, projectPath)).toBe(1);
+        const snapshot = await hostRecordSnapshot(host, projectPath);
+        expect(snapshot.participants.map((p) => p.display_name)).not.toContain(
+          "Pat",
+        );
+        await expectSurfaceAxeClean(producer, "body");
+
+        await host.evaluate(() => {
+          const seen = window as unknown as { __rowWithPat: boolean };
+          seen.__rowWithPat = false;
+          new MutationObserver(() => {
+            const row = document.querySelector(".sys-room-looking-in") !== null;
+            const pat = document.body.textContent?.includes("Pat") ?? false;
+            if (row && pat) seen.__rowWithPat = true;
+          }).observe(document, {
+            childList: true,
+            subtree: true,
+            characterData: true,
+          });
+        });
+        await fillDisplayNameField(producer, "Pat");
+        await producer.getByRole("button", { name: "Join to listen" }).click();
+        await expect(
+          producer.getByRole("heading", { name: "Join the room" }),
+        ).toBeHidden();
+        await expect(roomPill(producer)).toHaveText(LIVE_PILL);
+        await expect(lookingInRow(host)).toHaveCount(0);
+        await expect(lookingInRow(guest)).toHaveCount(0);
+        await expect
+          .poll(
+            async () =>
+              (await hostRecordSnapshot(host, projectPath)).participants.filter(
+                (p) => p.display_name === "Pat",
+              ).length,
+          )
+          .toBe(1);
+        expect(await watcherCount(host, projectPath)).toBe(0);
+        expect(
+          await host.evaluate(
+            () => (window as unknown as { __rowWithPat: boolean }).__rowWithPat,
+          ),
+        ).toBe(false);
+      },
+    );
+  });
+
+  test("another producer page comes and goes in the room's line, and Not now ends the look", async ({
+    browser,
+  }: {
+    browser: Browser;
+  }) => {
+    test.slow();
+    await withLiveTake(
+      browser,
+      async ({ host, guest, producer, token, projectPath }) => {
+        await markSharecutE2e(producer);
+        await openRecordLink(producer, token);
+        await expect(lookingInRow(host)).toBeVisible();
+        const second = await browser.newContext();
+        try {
+          const other = await second.newPage();
+          await markSharecutE2e(other);
+          await openRecordLink(other, token);
+          await expect(roomPill(other)).toHaveText(LIVE_PILL);
+          await expect(
+            lookingInRow(
+              host,
+              "2 people with the producer link are looking in",
+            ),
+          ).toBeVisible();
+          await expect(lookingInRow(other)).toBeVisible();
+          await expect(lookingInRow(producer)).toBeVisible();
+          await other.getByRole("button", { name: "Not now" }).click();
+          await expect(
+            other.getByRole("region", { name: "Not in the room" }),
+          ).toBeVisible();
+          await expect(roomPill(other)).toHaveCount(0);
+          await expect(lookingInRow(other)).toHaveCount(0);
+          await expect(lookingInRow(host)).toBeVisible();
+          await expect.poll(() => watcherCount(host, projectPath)).toBe(1);
+        } finally {
+          await second.close();
+        }
+        await producer.close();
+        await expect(lookingInRow(host)).toHaveCount(0);
+        await expect(lookingInRow(guest)).toHaveCount(0);
+        await expect.poll(() => watcherCount(host, projectPath)).toBe(0);
+      },
+    );
+  });
+});
+
 test.describe("join sheet on a phone", () => {
   test("a producer who joins mid-take never sees Waiting and is listed only once they join", async ({
     browser,
@@ -1515,7 +1644,7 @@ test.describe("join sheet on a phone", () => {
         await expect(
           producer.getByRole("button", { name: "Join to listen" }),
         ).toBeEnabled();
-        await expect(roomPill(producer)).toHaveCount(0);
+        await expect(roomPill(producer)).toHaveText(LIVE_PILL);
         expect(
           (await hostRecordSnapshot(host, projectPath)).participants.map(
             (p) => p.display_name,
@@ -1557,6 +1686,7 @@ test.describe("join sheet on a phone", () => {
         await markSharecutE2e(producer);
         await openRecordLink(producer, token);
         await fillDisplayNameField(producer, "Pat");
+        await expect(roomPill(producer)).toHaveText(LIVE_PILL);
         await producer.getByRole("button", { name: "Not now" }).click();
         const bar = producer.getByRole("region", { name: "Not in the room" });
         await expect(bar).toBeVisible();
