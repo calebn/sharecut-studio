@@ -8,6 +8,11 @@ thread) in its own session, so a terminal Ctrl+C reaches only this process and t
 stops through its ``cancel_check`` instead of each child dying on its own (#1164).
 ``kill_detached_children()`` kills those children's process groups, so leaving early
 never orphans one.
+
+Both are properties of the desktop ``_spawn``. A runner installed with ``using_runner``
+replaces ``_spawn``, so its children are not niceness-wrapped, not registered by
+``detached_children`` and not seen by ``kill_detached_children``, and the host gate
+(``can_spawn_processes``) is the runner's job.
 """
 
 from __future__ import annotations
@@ -274,6 +279,7 @@ def _spawn(
     return proc
 
 
+_DESKTOP_SPAWN = _spawn
 _runner_lock = threading.Lock()
 
 
@@ -281,18 +287,26 @@ _runner_lock = threading.Lock()
 def using_runner(runner: Runner) -> Iterator[None]:
     """Make ``run`` and ``popen`` start children through ``runner`` while inside this block.
 
-    Process-wide, so worker threads see it too. For host startup and serial tests: do not
-    swap while other threads are spawning.
+    Process-wide, so worker threads see it too; for host startup and serial tests, not for
+    swapping while other threads are spawning. Raises ``RuntimeError`` when a runner is
+    already installed, and restores the desktop spawn on exit.
+
+    The installer owns what ``_spawn`` does on desktop: the ``can_spawn_processes`` gate,
+    niceness and the ``detached_children`` registry do not apply to a runner's children, and
+    ``kill_detached_children`` does not see them.
+
+    The ``type: ignore`` exists because a runner returns a ``Child``, not a ``Popen``.
     """
     global _spawn
     with _runner_lock:
-        previous = _spawn
+        if _spawn is not _DESKTOP_SPAWN:
+            raise RuntimeError("a runner is already installed")
         _spawn = runner  # type: ignore[assignment]
     try:
         yield
     finally:
         with _runner_lock:
-            _spawn = previous
+            _spawn = _DESKTOP_SPAWN
 
 
 def run(
