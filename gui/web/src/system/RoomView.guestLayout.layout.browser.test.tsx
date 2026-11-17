@@ -684,6 +684,48 @@ describe("the looking-in line under the Declined bar", () => {
     }
   }
 
+  for (const seat of ["guest", "producer"] as const) {
+    for (const [width, height] of [
+      [667, 375],
+      [568, 320],
+    ] as const) {
+      it(`gives the strip one line of height and starts the body and dock under it for a ${seat} at ${width}x${height}`, async () => {
+        const stripHeight = async (
+          w: number,
+          h: number,
+          viewerWidth: "phone-landscape" | "desktop",
+        ) => {
+          const room = await declinedRoom(seat, w, h, viewerWidth, 3);
+          const measured = rect(
+            room.querySelector(".sys-room-looking-in-strip") as Element,
+          ).height;
+          root?.unmount();
+          host?.remove();
+          return measured;
+        };
+        const oneLine = await stripHeight(768, 1024, "desktop");
+        const room = await declinedRoom(
+          seat,
+          width,
+          height,
+          "phone-landscape",
+          3,
+        );
+        const strip = rect(
+          room.querySelector(".sys-room-looking-in-strip") as Element,
+        );
+        const body = rect(room.querySelector(".sys-room-view-body") as Element);
+        const dock = rect(room.querySelector(".sys-room-view-dock") as Element);
+        expect(strip.height).toBeCloseTo(oneLine, 0);
+        expect(body.top).toBeCloseTo(strip.bottom, 0);
+        expect(dock.top).toBeCloseTo(strip.bottom, 0);
+        expect(overlap(strip, body)).toBe(false);
+        expect(overlap(strip, dock)).toBe(false);
+        expect(overlap(body, dock)).toBe(false);
+      });
+    }
+  }
+
   it("keeps the alert slot, grid, listener row and rail inside the inert body", async () => {
     const room = await declinedRoom("guest", 1280, 800, "desktop", 2);
     const body = room.querySelector(".sys-room-view-body") as Element;
