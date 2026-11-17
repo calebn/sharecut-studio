@@ -3183,7 +3183,7 @@ def test_a_look_open_when_its_invite_closes_gets_the_error_then_the_close_and_is
     wait_for_count(0)
 
 
-def test_a_look_whose_join_is_refused_while_the_invite_closes_gets_no_frame_after_it(
+def test_a_look_whose_join_is_refused_while_the_invite_closes_gets_no_room_frame_after_it(
     minimal_project, sample_wav, tmp_workspace, monkeypatch
 ):
     import threading
@@ -3225,9 +3225,9 @@ def test_a_look_whose_join_is_refused_while_the_invite_closes_gets_no_frame_afte
         code, reason, frames = _close_within(obs, 5.0)
         assert (code, reason) == (4403, "invite closed")
         errors = [f for f in frames if f.get("type") == "Error"]
-        assert [e["code"] for e in errors] == ["participant_removed"]
+        assert [e["code"] for e in errors] == ["participant_removed", "invite_closed"]
         after = frames[frames.index(errors[0]) + 1 :]
-        assert after == []
+        assert after == [INVITE_CLOSED_ERROR]
 
 
 def test_a_look_that_joins_with_a_lease_on_a_closed_invite_stays_open_as_a_seat(
