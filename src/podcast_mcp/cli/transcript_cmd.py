@@ -245,16 +245,22 @@ def transcript_suppress_word_cmd(
         )
     ws = ProjectWorkspace.open(project)
     if automatic:
-        result = TranscriptService(ws).set_word_automatic(
-            track, word_index, expected_text=expected_text, source_id=source
+        result = (
+            TranscriptService(ws)
+            .set_word_automatic(track, word_index, expected_text=expected_text, source_id=source)
+            .model_dump()
         )
     else:
-        result = TranscriptService(ws).set_word_suppressed(
-            track,
-            word_index,
-            suppressed if suppressed is not None else True,
-            expected_text=expected_text,
-            source_id=source,
+        result = (
+            TranscriptService(ws)
+            .set_word_suppressed(
+                track,
+                word_index,
+                suppressed if suppressed is not None else True,
+                expected_text=expected_text,
+                source_id=source,
+            )
+            .model_dump()
         )
     typer.echo(json.dumps(result, indent=2))
 

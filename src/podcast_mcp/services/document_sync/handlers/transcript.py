@@ -68,32 +68,44 @@ def correct_transcript_phrase(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[s
 
 
 def set_transcript_word_suppressed(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
-    return TranscriptService(ws).set_word_suppressed(
-        track_id=str(p["track_id"]),
-        word_index=int(p["word_index"]),
-        suppressed=bool(p["suppressed"]),
-        expected_text=_expected_text(p),
-        source_id=_source_id(p),
+    return (
+        TranscriptService(ws)
+        .set_word_suppressed(
+            track_id=str(p["track_id"]),
+            word_index=int(p["word_index"]),
+            suppressed=bool(p["suppressed"]),
+            expected_text=_expected_text(p),
+            source_id=_source_id(p),
+        )
+        .model_dump()
     )
 
 
 def set_transcript_word_automatic(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
-    return TranscriptService(ws).set_word_automatic(
-        track_id=str(p["track_id"]),
-        word_index=int(p["word_index"]),
-        expected_text=_expected_text(p),
-        source_id=_source_id(p),
+    return (
+        TranscriptService(ws)
+        .set_word_automatic(
+            track_id=str(p["track_id"]),
+            word_index=int(p["word_index"]),
+            expected_text=_expected_text(p),
+            source_id=_source_id(p),
+        )
+        .model_dump()
     )
 
 
 def set_transcript_words_ignored(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
-    return TranscriptService(ws).set_words_ignored(
-        track_id=str(p["track_id"]),
-        start_word_index=int(p["start_word_index"]),
-        end_word_index=int(p["end_word_index"]),
-        ignored=bool(p["ignored"]),
-        expected_text=_expected_text(p),
-        source_id=_source_id(p),
+    return (
+        TranscriptService(ws)
+        .set_words_ignored(
+            track_id=str(p["track_id"]),
+            start_word_index=int(p["start_word_index"]),
+            end_word_index=int(p["end_word_index"]),
+            ignored=bool(p["ignored"]),
+            expected_text=_expected_text(p),
+            source_id=_source_id(p),
+        )
+        .model_dump()
     )
 
 
