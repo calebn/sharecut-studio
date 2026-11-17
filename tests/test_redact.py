@@ -745,7 +745,7 @@ def _entry(key: str) -> str:
     "prefix",
     [
         "pydantic_core._pydantic_core.ValidationError: ",
-        "2026-11-17 10:00:00,885 ERROR probe: failed: ",
+        "Nov 17 ERROR probe: failed: ",
         "RuntimeError: wrapped: ",
         "ERROR:    ",
         "",

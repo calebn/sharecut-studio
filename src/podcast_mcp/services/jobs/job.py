@@ -52,7 +52,7 @@ def _token_looks_like_abs_path(token: str) -> bool:
 # bracket, ``=``, ``,`` or ``;`` (not ``//``, not the ``/`` inside a URL or a relative path), a
 # drive such as ``C:\`` or ``C:/``, or a ``\\server`` share.
 _PATH_START = re.compile(
-    r"(?:(?<![^\s'\"(\[{<=,;])/(?!/)|(?<![A-Za-z0-9])[A-Za-z]:[\\/]|(?<![^\s'\"(\[{<=,;])\\\\)"
+    r"(?:(?<![^\s'\"(\[{<=,;])/(?![/\s]|$)|(?<![A-Za-z0-9])[A-Za-z]:[\\/]|(?<![^\s'\"(\[{<=,;])\\\\)"
 )
 _PATH_END_COLON = re.compile(r":(?:\s|$)")
 _CLOSERS = {"'": "'", '"': '"', "(": ")", "[": "]", "{": "}", "<": ">"}
@@ -105,6 +105,7 @@ def short_fail_message(message: str | None, phase: str | None = None) -> str | N
     line = " ".join(tok for tok in line.split() if not _token_looks_like_abs_path(tok))
     if removed:
         line = _tidy(line)
+        line = line.lstrip(" :;,-")
         if not any(ch.isalnum() for ch in line):
             line = ""
     if not line and phase:
