@@ -84,7 +84,9 @@ podcast record assign-track --project episode.sharecut --participant p_ab12cd34 
    Send the **guest** `/rec/` URL to talent and the **producer** URL only to the
    silent listener. A producer link shows the live room behind its Join sheet before the
    press (the page looks in over the same connection), and the host and guests see
-   "Someone with the producer link is looking in" while it does.
+   "Someone with the producer link is looking in" while it does. Once the host removes
+   someone who joined through that link, the invite is closed and a look on it is refused
+   (a producer who is already in the room can still join again with their saved place).
 2. Open the **Record** stage in the Stage bar (or Invite → **Open Record stage**). The host browser will ask for a mic; that dry tap is
    the host's full-quality recording (`p_host`).
 3. Guests enter a name, check headphones and click **Allow microphone**, then
