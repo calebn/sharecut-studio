@@ -33,11 +33,7 @@ def _loads_subprocess(node: ast.Call) -> bool:
 def _offences(source: str) -> list[tuple[int, str]]:
     """Line and text of each way a module can reach subprocess or start a program.
 
-    Covers imports of subprocess, ``os`` spawn calls (also through an ``import os as x``
-    alias or ``from os import ...``), ``from os import *``, a literal-name
-    ``importlib.import_module`` / ``__import__`` of subprocess, and asyncio's subprocess
-    starters. A name computed at run time (``getattr(os, name)``) is an accepted limit:
-    this is a regression tripwire, not a sandbox.
+    A name computed at run time is an accepted limit: this is a tripwire, not a sandbox.
     """
     tree = ast.parse(source)
     aliases: dict[str, set[str]] = {"os": set(), "asyncio": set(), "importlib": set()}
