@@ -93,15 +93,14 @@ def _load_project(
 ) -> tuple[EpisodeProject | None, UnopenedEpisode | None]:
     """The opened episode, or what is known about one that will not open (nothing is read from it)."""
     raw = (path or "").strip()
+    served = getattr(request.app.state, "served_project", None)
     if not raw:
-        served = getattr(request.app.state, "served_project", None)
         if served is None:
             return None, None
         raw = str(served)
     try:
         project_path = resolve_project(raw, request)
     except HTTPException as exc:
-        served = getattr(request.app.state, "served_project", None)
         if (
             exc.status_code != 404
             or (exc.headers or {}).get(ERROR_CODE_HEADER) != PROJECT_NOT_FOUND_CODE
