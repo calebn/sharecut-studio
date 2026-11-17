@@ -155,9 +155,21 @@ def test_the_route_serves_the_header_for_a_named_open_link(
     assert "<title>Pilot episode</title>" in text
 
 
+def _never_writes_a_header(monkeypatch: pytest.MonkeyPatch) -> list[str]:
+    """Make a call to the writer visible: a hook that raises is swallowed by the route."""
+    calls: list[str] = []
+
+    def writer(*_args: object, **_kwargs: object) -> str:
+        calls.append("called")
+        raise RuntimeError("no header for this answer")
+
+    monkeypatch.setattr(share_page, "inject_share_boot_header", writer)
+    return calls
+
+
 def _assert_unnamed(response) -> None:
     assert response.status_code == 200
-    assert ROOT in response.text
+    assert response.text.count(ROOT) == 1
     assert "guest-loading" not in response.text
     assert "sys-header-title" not in response.text
 
@@ -169,10 +181,12 @@ def test_a_restricted_link_names_nothing(
     _quiet_audio(monkeypatch)
     ws = _seed(minimal_project, sample_wav, "Pilot episode")
     token = _review(ws, general_access="restricted")
+    calls = _never_writes_a_header(monkeypatch)
     client = TestClient(create_app(static_dir=_dist(tmp_path)))
     response = client.get(f"/r/{token}")
     _assert_unnamed(response)
     assert "Pilot episode" not in response.text
+    assert calls == []
 
 
 def test_an_episode_with_no_name_gets_no_header(
@@ -180,8 +194,28 @@ def test_an_episode_with_no_name_gets_no_header(
 ):
     _quiet_audio(monkeypatch)
     token = _review(_seed(minimal_project, sample_wav, "  "))
+    calls = _never_writes_a_header(monkeypatch)
     client = TestClient(create_app(static_dir=_dist(tmp_path)))
     _assert_unnamed(client.get(f"/r/{token}"))
+    assert calls == []
+
+
+def test_a_failed_lookup_names_nothing(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch, tmp_path
+):
+    _quiet_audio(monkeypatch)
+    token = _review(_seed(minimal_project, sample_wav, "Pilot episode"))
+    calls = _never_writes_a_header(monkeypatch)
+
+    def failing(_token: str):
+        raise RuntimeError("workspace cannot be opened")
+
+    monkeypatch.setattr("podcast_mcp.services.collaboration.share.open_share_workspace", failing)
+    client = TestClient(create_app(static_dir=_dist(tmp_path)))
+    response = client.get(f"/r/{token}")
+    _assert_unnamed(response)
+    assert "<title>Podcast review</title>" in response.text
+    assert calls == []
 
 
 def test_dead_and_wrong_kind_links_name_nothing_and_answer_alike(
@@ -195,6 +229,7 @@ def test_dead_and_wrong_kind_links_name_nothing_and_answer_alike(
     live = service.create(review_version_id=ver["id"])["token"]
     room = service.create_record_room()["guest"]["token"]
     service.revoke(revoked)
+    calls = _never_writes_a_header(monkeypatch)
     client = TestClient(create_app(static_dir=_dist(tmp_path)))
     answers = [
         client.get("/r/definitely-missing"),
@@ -207,6 +242,7 @@ def test_dead_and_wrong_kind_links_name_nothing_and_answer_alike(
         _assert_unnamed(answer)
         assert "Pilot episode" not in answer.text
     assert len({answer.text for answer in answers[:1] + answers[2:]}) == 1
+    assert calls == []
 
 
 def test_the_recording_room_and_the_host_page_name_nothing(
@@ -215,13 +251,15 @@ def test_the_recording_room_and_the_host_page_name_nothing(
     _quiet_audio(monkeypatch)
     ws = _seed(minimal_project, sample_wav, "Pilot episode")
     room = ShareService(ws).create_record_room()["guest"]["token"]
+    calls = _never_writes_a_header(monkeypatch)
     client = TestClient(create_app(static_dir=_dist(tmp_path)))
     recording = client.get(f"/rec/{room}")
     _assert_unnamed(recording)
     assert "Join the recording" in recording.text
     host = client.get("/")
     assert host.status_code == 200
-    assert ROOT in host.text and "guest-loading" not in host.text
+    assert host.text.count(ROOT) == 1 and "guest-loading" not in host.text
+    assert calls == []
 
 
 def test_a_raising_hook_serves_the_plain_page_without_a_header(
