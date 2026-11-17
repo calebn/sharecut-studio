@@ -340,9 +340,9 @@ producer link are looking in without having joined, the **looking-in line**
 ("Someone with the producer link is looking in", or "3 people with the producer
 link are looking in"). The line names nobody. It sits directly under the
 header and above the tiles. Under the
-Declined bar the room behind stays inert and dimmed; the line is drawn in its own
-strip under the header, above the scrim's veil, so it stays readable and is
-still read out by a screen reader. The guest's consent **Details** repeats it
+Declined bar the room stays inert and dimmed as before, and the line sits directly
+on top of the Declined bar, above the veil, so it is not greyed and a screen
+reader still reads it. The guest's consent **Details** repeats it
 with "They can see the room but can't hear it." The host page announces the
 first arrival in each room, once and politely, while the room is waiting or
 stopped. The guest and producer pages do the same, and a later room's arrival is

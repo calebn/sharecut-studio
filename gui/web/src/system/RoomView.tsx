@@ -229,16 +229,15 @@ export function RoomView({
     device,
   });
   const lookingInText = loading ? null : lookingInLine(lookingIn);
-  // Declined makes the whole body inert, so the line is shown from outside it,
-  // under the header, where it stays readable and above the scrim.
+  // Under Declined the body is inert and dimmed as on develop; the line moves
+  // into the Declined layer, on top of its bar.
   const lookingInNote =
-    lookingInText === null ? null : (
+    lookingInText === null || declined ? null : (
       <p className="sys-room-looking-in">
         <SystemIcon name="eye" size={16} />
         {lookingInText}
       </p>
     );
-  const lineOutside = Boolean(declined) && lookingInText !== null;
   const pinned =
     phase.kind === "live" || phase.kind === "paused"
       ? clockText(phase.clockSec)
@@ -309,7 +308,6 @@ export function RoomView({
       data-declined={declined ? "" : undefined}
       data-page={page ? "" : undefined}
       data-loading={loading ? "" : undefined}
-      data-line-outside={lineOutside ? "" : undefined}
     >
       {embedded ? (
         <div className="sys-room-view-header sys-room-view-header--embedded">
@@ -346,14 +344,9 @@ export function RoomView({
           {loading || !statusKnown ? null : <RoomStatusPill phase={phase} />}
         </header>
       )}
-      {lineOutside ? (
-        <section className="sys-room-looking-in-strip" aria-label="Looking in">
-          {lookingInNote}
-        </section>
-      ) : null}
       <div className="sys-room-view-body" inert={declined ? true : undefined}>
         <Stage embedded={embedded} title={title}>
-          {lineOutside ? null : lookingInNote}
+          {lookingInNote}
           {alertsInFrame ? null : (
             <div className="sys-room-view-alert">
               <RoomAlert alerts={model.alerts} />
@@ -494,6 +487,7 @@ export function RoomView({
           phase={phase}
           seat={seat === "producer" ? "producer" : "guest"}
           onJoin={declined.onJoin}
+          lookingIn={lookingInText}
         />
       ) : null}
       {viewerWidth === "desktop" || loading ? null : (
