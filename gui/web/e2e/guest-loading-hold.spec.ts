@@ -21,8 +21,8 @@ import {
 import { createRecordRoom } from "./recordRoom";
 
 const HEADER_HEIGHT = { phone: 45, desktop: 49 } as const;
-/** The entries that are not the header's (right-hand controls, Listen strip) can merge into one frame and count about 0.0035. */
-const SHIFT_BUDGET_RACE = 0.005;
+const SHIFT_BUDGET = 0.002;
+const LANDINGS = 5;
 const SHOTS = process.env.GUEST_LOADING_SHOTS;
 
 const ALL = ["x", "y", "w", "h"] as const;
@@ -33,6 +33,7 @@ const near = (
   want: Rect | null,
   tolerance = 1,
   keys: readonly (keyof Rect)[] = ALL,
+  state = "",
 ) => {
   expect.soft(got, "the title has a box").not.toBeNull();
   expect.soft(want, "the title has a box to compare with").not.toBeNull();
@@ -41,7 +42,7 @@ const near = (
     expect
       .soft(
         Math.abs(got[key] - want[key]),
-        `${key}: ${JSON.stringify(got)} against ${JSON.stringify(want)}`,
+        `${state} ${key}: ${JSON.stringify(got)} against ${JSON.stringify(want)}`,
       )
       .toBeLessThanOrEqual(tolerance);
 };
@@ -155,7 +156,7 @@ for (const size of SIZES) {
             expect
               .soft(probes.titles.map((t) => t.text))
               .not.toContain("Project");
-            expect(probes.titles.at(-1)?.text).toBe(name);
+            expect(probes.titles.map((t) => t.text)).toEqual([name]);
           });
           await test.step("once the grey blocks are up they never go until the studio mounts", () => {
             const first = probes.blocks.findIndex((b) => b.count > 0);
@@ -167,43 +168,30 @@ for (const size of SIZES) {
         });
       });
 
-      test(`the landing moves nothing (${theme}): no layout shift from the header, total under ${SHIFT_BUDGET_RACE}`, async ({
+      test(`the landing moves nothing (${theme}): layout shift under ${SHIFT_BUDGET} in each of ${LANDINGS} landings`, async ({
         browser,
       }) => {
         await withGuestLink(browser, size, async (guest, token) => {
           const name = await episodeName(guest, token);
           await guest.emulateMedia({ colorScheme: theme });
           await installProbes(guest);
-          await holdFirstProject(guest, token, 3000);
-          await guest.goto(`/r/${token}`, { waitUntil: "commit" });
-          await landed(guest, name);
-          await guest.waitForTimeout(1500);
-          const probes = await readProbes(guest);
+          const runs: { sum: number; entries: unknown }[] = [];
+          for (let run = 0; run < LANDINGS; run += 1) {
+            await holdFirstProject(guest, token, 1500);
+            await guest.goto(`/r/${token}`, { waitUntil: "commit" });
+            await landed(guest, name);
+            await guest.waitForTimeout(1000);
+            const probes = await readProbes(guest);
+            runs.push({ sum: shiftSum(probes), entries: probes.shifts });
+          }
           test.info().annotations.push({
             type: "layout-shift",
-            description: JSON.stringify({
-              sum: shiftSum(probes),
-              entries: probes.shifts,
-            }),
+            description: JSON.stringify(runs),
           });
-          // What the header's own height moved: the body under it, the
-          // first-visit hint and the title. The sum is a race with the first
-          // paint, and the controls that arrive on the right of the header and
-          // the Listen strip are not the header's height.
-          const moved = probes.shifts.flatMap((entry) =>
-            entry.sources.map((source) => source.node),
-          );
-          for (const node of [
-            "main.stage-frame-body",
-            "span.sys-coach-tip",
-            "span.sys-header-title",
-            "div.sys-header-guest",
-            "div.sys-header-left",
-          ])
-            expect(moved, JSON.stringify(probes.shifts)).not.toContain(node);
-          expect(shiftSum(probes), JSON.stringify(probes.shifts)).toBeLessThan(
-            SHIFT_BUDGET_RACE,
-          );
+          for (const run of runs)
+            expect(run.sum, JSON.stringify(run.entries)).toBeLessThan(
+              SHIFT_BUDGET,
+            );
         });
       });
     }
@@ -266,6 +254,50 @@ for (const size of SIZES) {
         });
         await expectReadingSurfaceAxeClean(guest);
         studio.release();
+      });
+    });
+
+    test("the title's box is the same in every state of the sub line under it", async ({
+      browser,
+    }) => {
+      await withGuestLink(browser, size, async (guest, token) => {
+        const name = await episodeName(guest, token);
+        const open = async () => {
+          await holdFirstProject(guest, token, 800);
+          const studio = await holdChunk(guest, "dawApp");
+          await guest.goto(`/r/${token}`, { waitUntil: "commit" });
+          await expect(status(guest)).toHaveText(`Loading ${name}…`, {
+            timeout: 8000,
+          });
+          await fontsReady(guest);
+          const loading = await headerBoxes(guest);
+          studio.release();
+          await landed(guest, name);
+          return { loading, landed: await headerBoxes(guest) };
+        };
+        const states: Record<string, Rect | null> = {};
+        const first = await open();
+        states["loading, first visit"] = first.loading.title;
+        states["landed, with the hint"] = first.landed.title;
+        const hint = guest.getByRole("note");
+        await expect(hint).toBeVisible();
+        await hint.getByRole("button", { name: "Dismiss hint" }).click();
+        await expect(hint).toBeHidden();
+        const dismissed = await headerBoxes(guest);
+        states["landed, hint dismissed"] = dismissed.title;
+        await guest.addInitScript(() => {
+          localStorage.setItem("sharecut.roleHintSeen.commenter", "1");
+        });
+        const returning = await open();
+        await expect(guest.getByRole("note")).toHaveCount(0);
+        states["loading, returning"] = returning.loading.title;
+        states["landed, returning"] = returning.landed.title;
+        test.info().annotations.push({
+          type: "title-boxes",
+          description: JSON.stringify(states),
+        });
+        for (const [state, box] of Object.entries(states))
+          near(box, first.loading.title, 1, ALL, state);
       });
     });
 
