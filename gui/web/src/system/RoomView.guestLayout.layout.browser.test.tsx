@@ -648,6 +648,65 @@ describe("the looking-in line under the Declined bar", () => {
     }
   }
 
+  for (const [width, height] of [
+    [390, 844],
+    [320, 568],
+  ] as const) {
+    it(`draws the held bar's focus ring inside the bar when the line is there at ${width}x${height}`, async () => {
+      const bareRoom = await declinedRoom("guest", width, height, "phone", 0);
+      const bare = bareRoom.querySelector(".sys-declined-bar") as HTMLElement;
+      expect(document.activeElement).toBe(bare);
+      const was = getComputedStyle(bare);
+      const develop = {
+        style: was.outlineStyle,
+        width: was.outlineWidth,
+        offset: was.outlineOffset,
+      };
+      // With no line the bar keeps develop's ring: the shared focus ring, the
+      // token's width, drawn the token's offset outside the bar.
+      const token = (name: string) =>
+        Number.parseFloat(
+          getComputedStyle(document.documentElement).getPropertyValue(name),
+        ) *
+        Number.parseFloat(getComputedStyle(document.documentElement).fontSize);
+      expect(develop.style).toBe("solid");
+      expect(Number.parseFloat(develop.width)).toBeCloseTo(
+        token("--focus-ring-width"),
+        1,
+      );
+      expect(Number.parseFloat(develop.offset)).toBeCloseTo(
+        token("--focus-ring-offset"),
+        1,
+      );
+      root?.unmount();
+      host?.remove();
+      const room = await declinedRoom("guest", width, height, "phone", 1);
+      const barEl = room.querySelector(".sys-declined-bar") as HTMLElement;
+      expect(document.activeElement).toBe(barEl);
+      const style = getComputedStyle(barEl);
+      expect(style.outlineStyle).toBe("solid");
+      const ringPx = Number.parseFloat(style.outlineWidth);
+      expect(ringPx).toBeCloseTo(token("--focus-ring-width"), 1);
+      const border = barEl.clientTop;
+      expect(Number.parseFloat(style.outlineOffset)).toBeLessThanOrEqual(
+        -(ringPx + border) + 0.01,
+      );
+      // The ring's top band lies inside the bar, below the line.
+      const bar = rect(barEl);
+      const line = rect(
+        room.querySelector(".sys-declined-looking-in") as Element,
+      );
+      expect(line.bottom).toBeLessThanOrEqual(bar.top + border + 0.5);
+      const text = rect(room.querySelector(".sys-declined-text") as Element);
+      const button = rect(
+        room.querySelector(".sys-declined-bar button") as Element,
+      );
+      const inner = bar.top + border + ringPx;
+      expect(text.top).toBeGreaterThanOrEqual(inner - 0.5);
+      expect(button.top).toBeGreaterThanOrEqual(inner - 0.5);
+    });
+  }
+
   it("keeps the alert slot, grid, listener row and rail inside the inert body", async () => {
     const room = await declinedRoom("guest", 1280, 800, "desktop", 2);
     const body = room.querySelector(".sys-room-view-body") as Element;
