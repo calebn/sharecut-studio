@@ -9,43 +9,82 @@ import pytest
 from podcast_mcp.util import process
 
 ROOT = Path(__file__).resolve().parents[1]
-ENGINE = ROOT / "src" / "podcast_mcp"
-OWNER = ENGINE / "util" / "process.py"
+SRC = ROOT / "src"
+OWNER = SRC / "podcast_mcp" / "util" / "process.py"
 
-SPAWNERS = ("system", "popen", "exec", "spawn", "posix_spawn")
+OS_SPAWNERS = ("system", "popen", "exec", "spawn", "posix_spawn")
+ASYNCIO_SPAWNERS = ("create_subprocess_exec", "create_subprocess_shell")
+LOADERS = ("import_module", "__import__")
 
 
-def _is_spawner(name: str) -> bool:
-    return name.startswith(SPAWNERS)
+def _os_spawner(name: str) -> bool:
+    return name.startswith(OS_SPAWNERS)
+
+
+def _loads_subprocess(node: ast.Call) -> bool:
+    return (
+        bool(node.args)
+        and isinstance(node.args[0], ast.Constant)
+        and isinstance(node.args[0].value, str)
+        and node.args[0].value.split(".")[0] == "subprocess"
+    )
 
 
 def _offences(source: str) -> list[tuple[int, str]]:
-    """Line and text of each subprocess import and each os spawn call."""
+    """Line and text of each way a module can reach subprocess or start a program.
+
+    Covers imports of subprocess, ``os`` spawn calls (also through an ``import os as x``
+    alias or ``from os import ...``), ``from os import *``, a literal-name
+    ``importlib.import_module`` / ``__import__`` of subprocess, and asyncio's subprocess
+    starters. A name computed at run time (``getattr(os, name)``) is an accepted limit:
+    this is a regression tripwire, not a sandbox.
+    """
+    tree = ast.parse(source)
+    aliases: dict[str, set[str]] = {"os": set(), "asyncio": set(), "importlib": set()}
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            for alias in node.names:
+                if alias.name in aliases:
+                    aliases[alias.name].add(alias.asname or alias.name)
     found = []
-    for node in ast.walk(ast.parse(source)):
+    for node in ast.walk(tree):
         if isinstance(node, ast.Import):
             found += [
                 (node.lineno, f"import {alias.name}")
                 for alias in node.names
                 if alias.name.split(".")[0] == "subprocess"
             ]
-        elif isinstance(node, ast.ImportFrom):
-            if node.level == 0 and (node.module or "").split(".")[0] == "subprocess":
-                found.append((node.lineno, f"from {node.module} import ..."))
-            elif node.level == 0 and node.module == "os":
-                found += [
-                    (node.lineno, f"from os import {alias.name}")
-                    for alias in node.names
-                    if _is_spawner(alias.name)
-                ]
-        elif (
-            isinstance(node, ast.Call)
-            and isinstance(node.func, ast.Attribute)
-            and isinstance(node.func.value, ast.Name)
-            and node.func.value.id == "os"
-            and _is_spawner(node.func.attr)
-        ):
-            found.append((node.lineno, f"os.{node.func.attr}(...)"))
+        elif isinstance(node, ast.ImportFrom) and node.level == 0:
+            module = node.module or ""
+            if module.split(".")[0] == "subprocess":
+                found.append((node.lineno, f"from {module} import ..."))
+            for alias in node.names:
+                if (module == "os" and (alias.name == "*" or _os_spawner(alias.name))) or (
+                    module == "asyncio" and alias.name in ASYNCIO_SPAWNERS
+                ):
+                    found.append((node.lineno, f"from {module} import {alias.name}"))
+        elif isinstance(node, ast.Call):
+            func = node.func
+            if (
+                isinstance(func, ast.Attribute)
+                and isinstance(func.value, ast.Name)
+                and (
+                    (func.value.id in aliases["os"] and _os_spawner(func.attr))
+                    or (func.value.id in aliases["asyncio"] and func.attr in ASYNCIO_SPAWNERS)
+                )
+            ):
+                found.append((node.lineno, f"{func.value.id}.{func.attr}(...)"))
+            name = (
+                func.attr
+                if isinstance(func, ast.Attribute)
+                and isinstance(func.value, ast.Name)
+                and func.value.id in aliases["importlib"]
+                else func.id
+                if isinstance(func, ast.Name)
+                else ""
+            )
+            if name in LOADERS and _loads_subprocess(node):
+                found.append((node.lineno, f"{name}('subprocess')"))
     return sorted(found)
 
 
@@ -63,6 +102,32 @@ def _offences(source: str) -> list[tuple[int, str]]:
         ("from os import system\n", [(1, "from os import system")]),
         ("import os\nos.path.join('a')\nos.getpid()\n", []),
         ("from podcast_mcp.util.process import CalledProcessError\n", []),
+        ("import os as o\no.system('x')\n", [(2, "o.system(...)")]),
+        ("import os as o\no.path.join('a')\n", []),
+        ("from os import *\n", [(1, "from os import *")]),
+        (
+            "import importlib\nimportlib.import_module('subprocess')\n",
+            [(2, "import_module('subprocess')")],
+        ),
+        (
+            "from importlib import import_module\nimport_module('subprocess.x')\n",
+            [(2, "import_module('subprocess')")],
+        ),
+        ("__import__('subprocess')\n", [(1, "__import__('subprocess')")]),
+        ("import importlib\nimportlib.import_module('json')\n", []),
+        (
+            "import asyncio\nasyncio.create_subprocess_exec('x')\n",
+            [(2, "asyncio.create_subprocess_exec(...)")],
+        ),
+        (
+            "import asyncio as a\na.create_subprocess_shell('x')\n",
+            [(2, "a.create_subprocess_shell(...)")],
+        ),
+        (
+            "from asyncio import create_subprocess_exec\n",
+            [(1, "from asyncio import create_subprocess_exec")],
+        ),
+        ("import asyncio\nasyncio.sleep(0)\n", []),
     ],
 )
 def test_the_detector_finds_every_way_to_spawn(
@@ -74,7 +139,7 @@ def test_the_detector_finds_every_way_to_spawn(
 def test_only_util_process_may_import_subprocess_or_spawn() -> None:
     found = [
         f"{path.relative_to(ROOT)}:{line}: {what}"
-        for path in sorted(ENGINE.rglob("*.py"))
+        for path in sorted(SRC.rglob("*.py"))
         if path != OWNER
         for line, what in _offences(path.read_text(encoding="utf-8"))
     ]
