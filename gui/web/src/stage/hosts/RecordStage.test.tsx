@@ -466,6 +466,18 @@ describe("Record stage", () => {
     await Promise.resolve();
     watch.disconnect();
     expect(added).toEqual(["Someone with the producer link is looking in"]);
+    added.length = 0;
+    const again = new MutationObserver((records) => {
+      for (const record of records) {
+        for (const node of record.addedNodes)
+          added.push(node.textContent ?? "");
+      }
+    });
+    again.observe(region, { childList: true, subtree: true });
+    room("room2", 3, 7);
+    await Promise.resolve();
+    again.disconnect();
+    expect(added).toEqual([]);
   });
 
   it("does not make a host alone in the room wait for a guest", async () => {
