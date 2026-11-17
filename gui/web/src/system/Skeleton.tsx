@@ -80,17 +80,17 @@ export function Skeleton({
   onRetry,
 }: SkeletonProps) {
   const controlled = elapsedMs !== undefined;
-  const blocks = useAfter(
-    controlled || waitedMs >= blankMs ? null : blankMs - waitedMs,
-  );
-  const slow = useAfter(
-    controlled || waitedMs >= retryMs ? null : retryMs - waitedMs,
-  );
+  // Only time carried in from another screen skips ahead; a screen that starts
+  // its own count is blank on its first frame, whatever its blank time.
+  const pastBlank = waitedMs > 0 && waitedMs >= blankMs;
+  const pastRetry = waitedMs > 0 && waitedMs >= retryMs;
+  const blocks = useAfter(controlled || pastBlank ? null : blankMs - waitedMs);
+  const slow = useAfter(controlled || pastRetry ? null : retryMs - waitedMs);
   const phase: SkeletonPhase = controlled
     ? phaseOf(elapsedMs, blankMs, retryMs)
-    : slow || waitedMs >= retryMs
+    : slow || pastRetry
       ? "slow"
-      : blocks || waitedMs >= blankMs
+      : blocks || pastBlank
         ? "blocks"
         : "blank";
   const headed = layout === "guest" && head !== undefined;

@@ -104,4 +104,23 @@ describe("Skeleton waitedMs", () => {
       "slow",
     );
   });
+
+  it("draws what it always did when no time was carried in: blank on the first frame even with a zero blank time, blocks a tick later", () => {
+    vi.useFakeTimers();
+    const { container } = render(<Skeleton blankMs={0} />);
+    const root = container.querySelector(".sys-skeleton");
+    expect(root).toHaveAttribute("data-phase", "blank");
+    expect(container.querySelectorAll(".sys-skeleton-block")).toHaveLength(0);
+    act(() => void vi.advanceTimersByTime(0));
+    expect(root).toHaveAttribute("data-phase", "blocks");
+  });
+
+  it("keeps the retry time the same way: no Still loading… on the first frame of a zero retry time", () => {
+    vi.useFakeTimers();
+    const { container } = render(<Skeleton blankMs={0} retryMs={0} />);
+    expect(container.querySelector(".sys-skeleton")).toHaveAttribute(
+      "data-phase",
+      "blank",
+    );
+  });
 });
