@@ -9,6 +9,7 @@ from fastapi.testclient import TestClient
 
 from podcast_mcp.gui.server import create_app
 from podcast_mcp.models import Transcript, TranscriptWord, load_project, save_project
+from podcast_mcp.models.project_format import ProjectVersionUnsupportedError
 from podcast_mcp.project.store import ProjectStore
 from podcast_mcp.project.transcript_context import TranscriptContext
 from podcast_mcp.services.app import ProjectWorkspace
@@ -150,7 +151,13 @@ def test_changed_invalid_project_preserves_endpoint_failure(minimal_project, cor
     minimal_project.write_text("{broken" if corrupt == "json" else json.dumps(data))
     with pytest.raises(ValueError):
         _expected(minimal_project)
-    assert _get(client, minimal_project).status_code == 500
+    response = _get(client, minimal_project)
+    if corrupt != "version":
+        assert response.status_code == 500
+        return
+    assert response.status_code == 400
+    assert response.headers["x-sharecut-error-code"] == ProjectVersionUnsupportedError.code
+    assert str(minimal_project.parent) not in response.json()["detail"]
 
 
 def test_history_index_appearance_change_and_removal_invalidate(minimal_project):
