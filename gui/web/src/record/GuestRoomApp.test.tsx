@@ -1638,6 +1638,72 @@ describe("GuestRoomApp", () => {
       });
     });
 
+    it("keeps the looking-in note and the room-tone note apart in the polite region", async () => {
+      stubUploadFetch([]);
+      let finish: (value: unknown) => void = () => undefined;
+      encodeRoomTone.mockReset();
+      encodeRoomTone.mockImplementation(
+        () => new Promise((resolve) => (finish = resolve)),
+      );
+      await joinRoom();
+      const region = () =>
+        document.querySelector('[aria-live="polite"].sr-only') as HTMLElement;
+      const notes = () =>
+        [...region().querySelectorAll("p")].map((p) => p.textContent);
+      const LINE = "Someone with the producer link is looking in";
+      const send = (extra: Record<string, unknown>) =>
+        act(() =>
+          sockets[0].onmessage?.(
+            snapshotMessage(
+              { room_tone: round(["p_other"]), countdown_left_ms: 0, ...extra },
+              true,
+            ),
+          ),
+        );
+      send({ watchers: 0, server_time_ns: 20 });
+      send({ watchers: 1, server_time_ns: 21 });
+      expect(notes().filter((text) => text === LINE)).toHaveLength(1);
+      const added: string[] = [];
+      const watch = new MutationObserver((records) => {
+        for (const record of records) {
+          for (const node of record.addedNodes) {
+            added.push(node.textContent ?? "");
+          }
+        }
+      });
+      watch.observe(region(), { childList: true, subtree: true });
+      await userEvent.click(
+        await screen.findByRole("button", { name: "Record room tone" }),
+      );
+      await screen.findByText("Recording room tone, one minute, stay quiet");
+      act(() =>
+        finish({
+          wav: bed,
+          samples: new Float32Array(4).fill(0.001),
+          durationSec: 60,
+        }),
+      );
+      await waitFor(() => expect(notes()).toContain("Room tone recorded"));
+      expect(added).not.toContain(LINE);
+      expect(
+        notes().filter((text) => text === LINE),
+        "one looking-in node, not a stale copy",
+      ).toHaveLength(1);
+      expect(notes()).toHaveLength(new Set(notes()).size);
+      watch.disconnect();
+      added.length = 0;
+      send({ session_id: "room2", watchers: 0, server_time_ns: 22 });
+      watch.observe(region(), { childList: true, subtree: true });
+      send({ session_id: "room2", watchers: 1, server_time_ns: 23 });
+      await Promise.resolve();
+      watch.disconnect();
+      expect(added.filter((text) => text === LINE)).toHaveLength(1);
+      expect(notes().filter((text) => text === LINE)).toHaveLength(1);
+      expect(
+        notes().filter((text) => text === "Room tone recorded"),
+      ).toHaveLength(1);
+    });
+
     it("uploads exactly what a host-started round uploads", async () => {
       const onTime: Put[] = [];
       stubUploadFetch(onTime);
