@@ -355,7 +355,7 @@ reader still reads it. The guest's consent **Details** repeats it
 with "They can see the room but can't hear it." The host page announces the
 first arrival in each room, once and politely, while the room is waiting or
 stopped. The guest page does the same, and so does a producer page once it has joined
-(a producer page that has not joined announces nothing; its sheet says the room can see it instead), and a later room's arrival is
+(a producer page that has not joined announces nothing about other people looking in; its own sheet tells it the room can see it, in words, and speaks that once when it appears), and a later room's arrival is
 spoken again even when its words match an earlier one. An arrival during a take is never
 spoken. One during the room-tone countdown is spoken at the next room update
 after it, only if the room is then waiting or stopped and the person is still looking in.
@@ -365,7 +365,7 @@ number from 1 to 99 and reads anything else, or a missing field, as nobody. The
 GUI server puts it in every snapshot it sends (its sockets, `GET /api/record/state`
 and the host page's commands; the MCP record state tool and `podcast record state`
 leave it out): `0` when nobody is looking, and it rises when a producer link's socket connects with `observe=1` (see
-[Looking in on a room](#looking-in-on-a-room-observe1)), which every page opened on a
+[Looking in on a room](#looking-in-on-a-room-observe1)), which every page that loads the room on a
 producer link does as soon as the room code is loaded, until the person presses **Join to listen**
 or **Not now**. The page that looks in takes its own socket out of the count it shows, so a
 lone producer looking in sees no line, while the host and the guests do. A guest's consent
@@ -1167,10 +1167,15 @@ recorded."); producers skip the mic, storage and headphones rows. Behind a produ
 sheet is the live room, not a blank one: the title names the people who are there, and the room
 shows its tiles, the real status pill and the looking-in line for other producer pages,
 out of reach while the sheet is open. Once the room has counted this page as looking in,
-the sheet adds "The room can see that someone is looking in." under the listen line, and both
-sentences are the dialog's description, read after its title when the sheet opens. The sentence
-is left out when the room sends no count, as an older server does. Nobody in the room is
-named, and no tile is marked as the producer's own until they have joined.
+the sheet adds "The room can see that someone is looking in." under the listen line. The count
+comes from the current socket's own first snapshot, so a snapshot kept from an earlier socket never
+shows it. A screen reader hears the sentence once, when it appears: the sheet holds a polite
+live region from the moment it opens, and the sentence is put in it only if it arrived after the sheet
+opened. A sentence already there when the sheet opens is read as part of the dialog's description,
+after its title, together with the listen line, and the live region stays empty so it is not read
+twice. The sentence is left out when the room sends no count, as an older server does. The room
+never names the producer who is looking, and no tile is marked as the producer's own until they
+have joined.
 
 ### Decision: Headphones are an honest choice on a phone
 
@@ -1245,13 +1250,15 @@ soon as the room code is loaded, with `observe=1` and no name, so the name stays
 until the press, and it sends nothing: no Join, no Heartbeat and no queued comment. **Join to
 listen** sends Join on that same socket, with the name and the lease kept on this device,
 and Heartbeats start once the room has answered the Join; a press made while the socket is still
-connecting sends on open, and one made while it waits to reconnect opens a joining socket at
+connecting sends on open (if the server then refuses that look with 4429, the page retries at once with a
+joining socket, not after the usual wait), and one made while it waits to reconnect opens a joining socket at
 once. The sheet stays on "Joining…" until the room confirms the producer. A non-terminal error
 before then returns the sheet to **Join to listen** with the reason under the listen line (the
 room's alert slot does not repeat it, and **Not now** clears it), and a second press sends Join
 again on the same socket; after 4 seconds on Joining… the sheet adds "Still connecting to the
-room. Choose Not now to stop trying." A look the room refuses with 4429 (more than four are looking in)
-is retried quietly and the sheet shows no room, and a server that does not know
+room. Choose Not now to stop trying." A look that closes for any reason, such as the room refusing it with 4429 (more than four are looking in),
+drops the room the sheet was showing, with its pill and its sentence, and is retried quietly after the usual wait; the
+room comes back with the first snapshot of the next socket that the room has counted. A server that does not know
 `observe` stays silent, so the sheet shows no room and no sentence and the press still joins.
 **Not now** closes the socket: the room behind the bar shows no status pill, no people and no
 looking-in line, and the page counts as no longer looking in. The bar's **Join to listen** brings
@@ -2257,7 +2264,7 @@ A producer link may open `WS /api/rec/{token}/ws?observe=1` (plus the usual `cli
 - **Closed invite.** A look follows the same invite rule as Join. On an invite that is closed (the host removed someone who joined through that link, or removed someone whose link is unknown, which closes every invite of the room), a look is refused with 4403 and reason `invite closed`: no frame is sent and it is not counted. A look already open when its invite closes is closed with 4403 before any frame that shows the room after the closure: at its next room event, before that event's frame is sent (reason `invite closed`), or earlier by the socket's share check, on a frame its page sends (checked at most every 5 s) or at the periodic 30 s recheck (a generic reason). A look that closes this way leaves the count with its socket. A look refused at admission is never counted.
 - **Leaving.** A clean close removes the count at once. A revoked link or an ended room closes within one share recheck (30 s). A tab that dies without closing is dropped by the websocket keepalive, which the GUI server pins at a 20 s ping and a 20 s pong timeout (`podcast_mcp/gui/bind.py`), so about 40 s on a direct connection. A guest through the public relay is dropped by the relay's own keepalive, which is not pinned here.
 - **Old servers.** A server without this feature ignores the query and stays silent until Join, and the snapshot has no `watchers`.
-- **Who opens it.** The record page on a producer link, as soon as the room code is loaded: `observe=1` and `client_id`, no `name`. It sends nothing while it looks. **Join to listen** sends Join on the same socket, **Not now** closes it, and a refused look (4429) or a silent old server leaves the page with no preview. A page that looks in subtracts its own socket from `watchers` before it shows the line, and says so on its sheet only once `watchers` is 1 or more.
+- **Who opens it.** The record page on a producer link, once it has loaded the room (a page that shows a cover instead never does): `observe=1` and `client_id`, no `name`. It sends nothing while it looks. **Join to listen** sends Join on the same socket, **Not now** closes it, and a refused look (4429) or a silent old server leaves the page with no preview. A page that looks in subtracts its own socket from `watchers` before it shows the line, and says so on its sheet only once `watchers` is 1 or more.
 
 ## Recording UI consistency checks
 
