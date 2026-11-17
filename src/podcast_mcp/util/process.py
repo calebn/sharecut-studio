@@ -310,8 +310,9 @@ class InProcessChild:
 
     A PIPE stream is an ``os.pipe`` pair, a file object is handed to the backend as is, and
     DEVNULL or ``None`` give the backend ``None``. ``pid`` is ``None``. A ``kill`` that the
-    backend ignores for ``KILL_GRACE_SEC`` ends the child with ``-9`` and abandons its thread;
-    one the backend honours leaves the backend's own return code, and a ``None`` stream is
+    backend ignores for ``KILL_GRACE_SEC`` ends the child with ``-9`` and abandons its thread.
+    A ``kill`` before the backend finishes always reports ``-9``, whatever the backend returns,
+    as a SIGKILLed ``Popen`` does; one after completion changes nothing. A ``None`` stream is
     ``/dev/null`` here, never inherited from the parent as ``Popen`` would.
     """
 
@@ -384,6 +385,8 @@ class InProcessChild:
         except BaseException:
             _log.exception("in-process backend failed: %s", self.args[0])
             code = 1
+        if self._cancel.is_set():
+            code = -9
         self._finish(code)
 
     def poll(self) -> int | None:
