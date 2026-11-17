@@ -265,3 +265,28 @@ def test_a_dict_key_under_a_validation_alias_field_is_still_a_star(minimal_proje
     with pytest.raises(ProjectUnreadableError) as caught:
         load_project(minimal_project)
     assert MARK not in str(caught.value)
+
+
+def _damaged(minimal_project, shape):
+    data = json.loads(minimal_project.read_text())
+    marker = "ZQVALUE" + "MARK" + "8812"
+    if shape == "top_level":
+        data["version"] = [marker]
+    elif shape == "nested_model":
+        data["meta"]["name"] = [marker]
+    else:
+        data["sources"] = [marker]
+    return data, marker
+
+
+@pytest.mark.parametrize("shape", ["top_level", "nested_model", "list_item"])
+def test_an_episode_files_validation_error_quotes_no_value_of_the_file(minimal_project, shape):
+    # ``hide_input_in_errors`` on ``EpisodeProject`` keeps the file's own values out of the
+    # error text for callers that print or chain the pydantic error directly (project/merge.py).
+    data, marker = _damaged(minimal_project, shape)
+    with pytest.raises(ValidationError) as caught:
+        EpisodeProject.model_validate(data)
+    text = str(caught.value)
+    assert "validation error" in text
+    assert "input_value" not in text
+    assert marker not in text
