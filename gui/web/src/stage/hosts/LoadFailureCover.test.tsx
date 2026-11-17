@@ -279,6 +279,17 @@ describe("focus after a press answered by a different cover", () => {
     expect(screen.getByRole("button", { name: "Trying…" })).toHaveFocus();
   });
 
+  it("puts focus on Try again at once when other is answered by missing, where it is now second", () => {
+    pressThenAnswerAtOnce(
+      shell(hostCause("other")),
+      shell(hostCause("missing")),
+    );
+    expect(screen.getAllByRole("button")[0]).toHaveAccessibleName(
+      "All projects",
+    );
+    expect(screen.getByRole("button", { name: "Trying…" })).toHaveFocus();
+  });
+
   it("does not take focus back from a button outside the cover", () => {
     const outside = document.createElement("button");
     document.body.append(outside);
@@ -304,7 +315,7 @@ describe("focus after a press answered by a different cover", () => {
     expect(screen.getByRole("heading")).toHaveFocus();
   });
 
-  it("leaves focus alone when the cover changes without a press", () => {
+  it("leaves focus on a button outside the cover when the cover changes without a press", () => {
     const first = shell(
       { audience: "guest", failure: { kind: "unreachable" } },
       { name: "" },
@@ -322,6 +333,29 @@ describe("focus after a press answered by a different cover", () => {
     );
     expect(elsewhere).toHaveFocus();
     elsewhere.remove();
+  });
+
+  it("does not move focus that fell to the body when a cover with no button replaces the one it was on, with no press", () => {
+    const first = shell(
+      { audience: "guest", failure: { kind: "server" } },
+      { name: "" },
+    );
+    const { again } = show(first);
+    screen.getByRole("button", { name: "Try again" }).focus();
+    again(
+      shell({ audience: "guest", failure: { kind: "sign-in" } }, { name: "" }),
+    );
+    expect(screen.queryByRole("button")).toBeNull();
+    expect(document.body).toHaveFocus();
+  });
+
+  it("does not move focus that is inside the cover when a different cover answers with no press", () => {
+    const { again } = show(shell(hostCause("missing")));
+    const focused = screen.getAllByRole("button")[1]!;
+    focused.focus();
+    again(shell(hostCause("other")));
+    expect(document.activeElement).toBe(focused);
+    expect(focused).toHaveAccessibleName("All projects");
   });
 });
 

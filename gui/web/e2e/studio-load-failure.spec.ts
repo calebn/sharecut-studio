@@ -285,6 +285,28 @@ for (const size of SIZES) {
       await expect(cover).toContainText(`couldn't open "${name}"`);
     });
 
+    test("a host's press answered by missing after other puts focus on Try again as the new sentence appears", async ({
+      page,
+    }) => {
+      const shell = await failShell(page, "host", MARKER_500);
+      await openHostWithoutProject(page, e2eProjectPath);
+      const cover = page.getByRole("alert");
+      await expect(cover.getByRole("button").first()).toHaveAccessibleName(
+        "Try again",
+      );
+
+      shell.answerWith(
+        json(404, { detail: SERVER_MARKER }, "project_not_found"),
+      );
+      await watchFocusWhenSeen(page, "Its folder may have been moved");
+      await cover.getByRole("button", { name: "Try again" }).focus();
+      await pressOn(cover, "Try again", size);
+      expect(await focusWhenSeen(page)).toBe("retry");
+      await expect(cover.getByRole("button").first()).toHaveAccessibleName(
+        "All projects",
+      );
+    });
+
     if (!size.touch) {
       test("a guest on Review whose press is answered by a sign-in has focus on the cover's title", async ({
         browser,
