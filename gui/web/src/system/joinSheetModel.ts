@@ -180,10 +180,7 @@ export function joinHeadline(here: { person: PersonData }[]): string {
   return `${nameList(names)} ${names.length === 1 ? "is" : "are"} here`;
 }
 
-/**
- * "Rosa is listening and won't be recorded", for the Details disclosure,
- * followed by who is looking in and that they cannot hear the room.
- */
+/** "Rosa is listening and won't be recorded", for the Details disclosure. */
 export function listenersLine(
   here: { person: PersonData; role: RoomRole }[],
   lookingIn = 0,
