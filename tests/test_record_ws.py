@@ -2806,17 +2806,22 @@ def test_unwatch_twice_publishes_once(minimal_project, sample_wav, tmp_workspace
     assert svc.snapshot()["watchers"] == 0
 
 
-def test_remint_closes_old_observer_and_guest_sockets_without_leaking_the_new_room(
-    minimal_project, sample_wav, tmp_workspace, monkeypatch
+@pytest.mark.parametrize(
+    ("window", "reason"),
+    [(1000.0, "record room ended"), (0.0, "participant removed or share revoked")],
+)
+def test_remint_closes_old_sockets_without_leaking_the_new_room(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch, window, reason
 ):
     from podcast_mcp.gui.routes import guest_ws_common
 
     monkeypatch.setattr(guest_ws_common, "GUEST_SHARE_RECHECK_S", 1000.0)
-    monkeypatch.setattr(guest_ws_common, "GUEST_SHARE_RECHECK_ON_FRAME_S", 1000.0)
+    monkeypatch.setattr(guest_ws_common, "GUEST_SHARE_RECHECK_ON_FRAME_S", window)
     ws, room, client = _room(minimal_project, sample_wav, tmp_workspace, monkeypatch)
     with (
         _observe(client, room) as obs,
         client.websocket_connect(f"/api/rec/{room['guest']['token']}/ws") as guest,
+        client.websocket_connect(f"/api/rec/{room['guest']['token']}/ws?client_id=plain") as plain,
     ):
         obs.receive_json()
         _join(guest, name="Ava")
@@ -2829,12 +2834,10 @@ def test_remint_closes_old_observer_and_guest_sockets_without_leaking_the_new_ro
             client_id="record-join:host",
             connection_id="host-conn",
         )
-        for sock in (obs, guest):
-            with pytest.raises(WebSocketDisconnect) as closed:
-                for _ in range(50):
-                    frame = sock.receive_json()
-                    assert fresh["session_id"] not in str(frame)
-            assert closed.value.code == 4403
+        for sock in (obs, guest, plain):
+            code, why, frames = _close_within(sock, 5.0)
+            assert (code, why) == (4403, reason)
+            assert fresh["session_id"] not in str(frames)
         assert new_svc.snapshot()["watchers"] == 0
 
 
@@ -2860,6 +2863,8 @@ def test_revoked_producer_link_closes_the_observer_and_drops_the_count(
 def test_fifth_observer_is_closed_4429(minimal_project, sample_wav, tmp_workspace, monkeypatch):
     from contextlib import ExitStack
 
+    # The reason is the look cap's own while the per-token socket limit has room for five.
+    monkeypatch.setenv("PODCAST_GUEST_WS_CONCURRENT", "8")
     ws, room, client = _room(minimal_project, sample_wav, tmp_workspace, monkeypatch)
     svc = _room_svc(ws, room)
     with ExitStack() as stack:
@@ -2869,7 +2874,7 @@ def test_fifth_observer_is_closed_4429(minimal_project, sample_wav, tmp_workspac
         with _observe(client, room, client_id="obs-4") as fifth:
             with pytest.raises(WebSocketDisconnect) as closed:
                 fifth.receive_json()
-            assert closed.value.code == 4429
+            assert (closed.value.code, closed.value.reason) == (4429, "too many looking in")
         assert svc.snapshot()["watchers"] == 4
 
 
@@ -3064,10 +3069,34 @@ def test_a_look_on_a_closed_invite_is_refused_like_a_join(
     ws, room, client = _room(minimal_project, sample_wav, tmp_workspace, monkeypatch)
     svc = _close_the_producer_invite(ws, room)
     with _observe(client, room) as obs:
-        with pytest.raises(WebSocketDisconnect) as closed:
-            obs.receive_json()
-        assert closed.value.code == 4403
+        code, reason, frames = _close_within(obs, 5.0)
+        assert (code, reason, frames) == (4403, "invite closed", [])
     assert svc.snapshot()["watchers"] == 0
+
+
+def test_a_refused_look_is_never_counted_from_the_rooms_side(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch
+):
+    ws, room, client = _room(minimal_project, sample_wav, tmp_workspace, monkeypatch)
+    with client.websocket_connect(f"/api/rec/{room['guest']['token']}/ws") as guest:
+        _join(guest, name="Ava")
+        _drain_until(guest, lambda m: m.get("type") == "Echo")
+        _close_the_producer_invite(ws, room)
+        with _observe(client, room) as obs:
+            assert _close_within(obs, 5.0)[:2] == (4403, "invite closed")
+        # The refusal is over; the next event is a known one, and nothing between raised the count.
+        RecordControlService(ws).submit_host("SetGuestsSeeNotes", {"enabled": True})
+        frames = []
+        for _ in range(50):
+            frame = guest.receive_json()
+            frames.append(frame)
+            if frame.get("snapshot", {}).get("guests_see_notes") is True:
+                break
+        else:
+            raise AssertionError("the known event never arrived")
+        counts = [f["snapshot"]["watchers"] for f in frames if "snapshot" in f]
+        assert counts
+        assert max(counts) == 0
 
 
 def _drop_room_events(monkeypatch, *, only_removals: bool):
@@ -3114,7 +3143,7 @@ def test_a_look_open_when_its_invite_closes_is_closed_with_no_frame_and_uncounte
     wait_for_count(0)
 
 
-def test_a_look_that_joins_with_a_lease_while_its_invite_check_runs_stays_open(
+def test_a_look_whose_join_is_refused_while_the_invite_closes_gets_no_frame_after_it(
     minimal_project, sample_wav, tmp_workspace, monkeypatch
 ):
     import threading
@@ -3124,20 +3153,51 @@ def test_a_look_that_joins_with_a_lease_while_its_invite_check_runs_stays_open(
     entered = threading.Event()
     release = threading.Event()
     armed = threading.Event()
-    original = RecordSessionService.invite_closed
+    original = RecordSessionService.join
 
-    def gated(self, share_id):
-        # The first check made off the test thread after arming (the pump's) waits for the test.
+    def gated(self, **kwargs):
+        # The look's Join (off the test thread) waits, so the removal commits while it is in flight.
         if armed.is_set() and threading.get_ident() != test_thread and not entered.is_set():
             entered.set()
             assert release.wait(5.0)
-        return original(self, share_id)
+        return original(self, **kwargs)
 
-    monkeypatch.setattr(RecordSessionService, "invite_closed", gated)
+    monkeypatch.setattr(RecordSessionService, "join", gated)
     svc = _room_svc(ws, room)
     with _observe(client, room) as obs:
         assert obs.receive_json()["snapshot"]["watchers"] == 1
+        pat, _snap = svc.join(
+            share_id=room["producer"]["id"],
+            role="producer",
+            display_name="Pat",
+            client_id="pat",
+            connection_id="pat-conn",
+            capabilities=["join", "monitor"],
+        )
+        svc.disconnect(pat["participant_id"], connection_id="pat-conn")
         armed.set()
+        _join(obs, name="Pat", participant_id=pat["participant_id"], lease=pat["lease"])
+        assert entered.wait(5.0)
+        RecordControlService(ws).submit_host(
+            "RemoveParticipant", payload={"participant_id": pat["participant_id"]}
+        )
+        release.set()
+        code, reason, frames = _close_within(obs, 5.0)
+        assert (code, reason) == (4403, "invite closed")
+        errors = [f for f in frames if f.get("type") == "Error"]
+        assert [e["code"] for e in errors] == ["participant_removed"]
+        after = frames[frames.index(errors[0]) + 1 :]
+        assert after == []
+
+
+def test_a_look_that_joins_with_a_lease_on_a_closed_invite_stays_open_as_a_seat(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch
+):
+    ws, room, client = _room(minimal_project, sample_wav, tmp_workspace, monkeypatch)
+    lose = _drop_room_events(monkeypatch, only_removals=False)
+    svc = _room_svc(ws, room)
+    with _observe(client, room) as obs:
+        assert obs.receive_json()["snapshot"]["watchers"] == 1
         keeper, _snap = svc.join(
             share_id=room["producer"]["id"],
             role="producer",
@@ -3147,12 +3207,13 @@ def test_a_look_that_joins_with_a_lease_while_its_invite_check_runs_stays_open(
             capabilities=["join", "monitor"],
         )
         svc.disconnect(keeper["participant_id"], connection_id="kay-conn")
-        _svc, gone = _join_through_the_producer_invite(ws, room)
-        _remove_that_producer(ws, room, svc, gone)
-        assert entered.wait(5.0)
+        # The look hears nothing of the closure, then rejoins with a valid lease.
+        lose["dropping"] = True
+        _close_the_producer_invite(ws, room)
         _join(obs, name="Kay", participant_id=keeper["participant_id"], lease=keeper["lease"])
         _drain_until(obs, lambda m: m.get("type") == "Echo")
-        release.set()
+        lose["dropping"] = False
+        RecordControlService(ws).submit_host("SetGuestsSeeNotes", {"enabled": True})
         obs.send_json(_record_command("Heartbeat"))
         _drain_until(obs, lambda m: m.get("command_type") == "Heartbeat")
 
