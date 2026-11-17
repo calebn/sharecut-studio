@@ -576,3 +576,147 @@ def test_sanitize_replaces_the_percent_encoded_home_and_extra_paths() -> None:
         extra=[(Path("/opt/podcast-cache"), "<cache>")],
     )
     assert out == "a ~%2F.cache b <cache>%2Fx"
+
+
+# A validation error prints where it failed, and a dict key of the document (a speaker's name)
+# is part of that place. Only numbers and the model's own field names may stay.
+_NAMES = frozenset({"meta", "ingest_alignment", "align_method", "entries", "label", "name"})
+
+
+def _pydantic_block(*locations: str) -> str:
+    rows = [f"{len(locations)} validation error{'s' if len(locations) != 1 else ''} for X"]
+    for loc in locations:
+        rows.append(loc)
+        rows.append("  Input should be a valid string [type=string_type]")
+        rows.append(
+            "    For further information visit https://errors.pydantic.dev/2.14/v/string_type"
+        )
+    return "\n".join(rows)
+
+
+def _block_after(locations: list[str], expected: list[str]) -> tuple[str, str]:
+    return (
+        sanitize(_pydantic_block(*locations), field_names=_NAMES),
+        _pydantic_block(*expected),
+    )
+
+
+def test_sanitize_masks_a_dict_key_in_a_validation_location() -> None:
+    out, expected = _block_after(
+        ["meta.ingest_alignment.Zelda Quimby.align_method"],
+        ["meta.ingest_alignment.*.align_method"],
+    )
+    assert out == expected
+
+
+def test_sanitize_masks_every_error_of_one_block() -> None:
+    out, expected = _block_after(
+        ["meta.ingest_alignment.Zelda.align_method", "entries.3.label", "meta.ingest_alignment.Bo"],
+        ["meta.ingest_alignment.*.align_method", "entries.3.label", "meta.ingest_alignment.*"],
+    )
+    assert out == expected
+
+
+@pytest.mark.parametrize(
+    "key",
+    ["Zelda Quimby", "a)b", "é日本", "a\nb", "a\nx\ny", "a:b", "a/b", "[key]", "`q`", "a b)c\nd"],
+)
+def test_sanitize_covers_every_part_of_an_odd_key(key: str) -> None:
+    loc = f"meta.ingest_alignment.{key}.align_method"
+    out = sanitize(_pydantic_block(loc), field_names=_NAMES)
+    for part in re.split(r"[\n.:/ )`\[\]]", key):
+        if part:
+            assert part not in out, (key, out)
+    assert "meta.ingest_alignment." in out
+    assert out.count("[type=string_type]") == 1
+    assert "https://errors.pydantic.dev/2.14/v/string_type" in out
+
+
+def test_sanitize_masks_a_key_with_a_dot_as_several_stars() -> None:
+    out = sanitize(_pydantic_block("meta.ingest_alignment.`a.b`.align_method"), field_names=_NAMES)
+    assert "meta.ingest_alignment.*.*.align_method" in out
+    assert "`" not in out
+
+
+def test_sanitize_masks_a_key_with_a_newline_that_ends_in_the_next_line() -> None:
+    # pydantic prints the key raw, so its second line stands where a location line would.
+    out = sanitize(
+        _pydantic_block("meta.ingest_alignment.Zelda\nQuimby.align_method"), field_names=_NAMES
+    )
+    assert "Zelda" not in out
+    assert "Quimby" not in out
+
+
+def test_sanitize_keeps_a_location_of_indexes_and_field_names() -> None:
+    block = _pydantic_block("entries.0.label", "meta.name", "entries.12.label")
+    assert sanitize(block, field_names=_NAMES) == block
+
+
+def test_sanitize_keeps_a_key_that_equals_a_field_name() -> None:
+    # Accepted: the text of the location cannot tell this key from the field, and the name is
+    # public (it is in the code).
+    block = _pydantic_block("meta.ingest_alignment.label.align_method")
+    assert sanitize(block, field_names=_NAMES) == block
+
+
+def test_sanitize_without_field_names_masks_every_word_but_numbers() -> None:
+    out = sanitize(_pydantic_block("entries.0.label", "meta.ingest_alignment.Zelda.align_method"))
+    assert "entries.0.label" not in out
+    assert "*.0.*" in out
+    assert "*.*.*.*" in out
+    assert "Zelda" not in out
+
+
+@pytest.mark.parametrize("key", ["Zelda", "a)b", "Zelda\nQuimby", "a b", "é"])
+def test_sanitize_masks_the_key_in_the_old_unreadable_sentence(key: str) -> None:
+    text = (
+        "ProjectUnreadableError: The project file is damaged and could not be read "
+        f"(unexpected contents at meta.ingest_alignment.{key}.align_method). "
+        "Restore it from a backup, or open a copy of the project."
+    )
+    out = sanitize(text, field_names=_NAMES)
+    assert key not in out
+    assert "(unexpected contents at meta.ingest_alignment.*" in out
+    assert out.endswith("). Restore it from a backup, or open a copy of the project.")
+    assert out.count("align_method") == 1
+
+
+def test_sanitize_keeps_the_old_unreadable_sentence_when_it_names_fields_only() -> None:
+    text = "(unexpected contents at entries.0.label). Restore it from a backup"
+    assert sanitize(text, field_names=_NAMES) == text
+
+
+def test_sanitize_cuts_the_old_sentence_to_the_end_of_the_line_when_its_tail_is_missing() -> None:
+    out = sanitize(
+        "x (unexpected contents at meta.ingest_alignment.Zelda.align_method\nnext",
+        field_names=_NAMES,
+    )
+    assert out == "x (unexpected contents at meta.ingest_alignment.*.align_method\nnext"
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "3 validation errors were counted in the nightly run",
+        "no validation error for meta.name.Zelda here",
+        "unexpected contents at the door",
+        "GET /api/x?q=unexpected+contents+at+meta HTTP/1.1 200",
+        "validation error for Zelda.Quimby",
+        'INFO:     127.0.0.1:1 - "GET /api/project HTTP/1.1" 200 OK',
+        "Percent 50% done + more; a+b=3; 100%25 sure",
+    ],
+)
+def test_sanitize_leaves_other_shapes_that_use_the_words_alone(text: str) -> None:
+    # Only a header "N validation error(s) for X" followed by location lines, or the sentence
+    # with its "unexpected contents at <place>" followed by a closing parenthesis, is rewritten.
+    assert sanitize(text, field_names=_NAMES) == text
+
+
+def test_sanitize_of_two_megabytes_with_locations_stays_fast() -> None:
+    block = _pydantic_block("meta.ingest_alignment.Zelda Quimby.align_method", "entries.0.label")
+    text = (block + "\n" + "INFO: 127.0.0.1 GET /api/x 200\n" * 20) * 2000
+    text = text[: 2 * 1024 * 1024]
+    start = time.perf_counter()
+    out = sanitize(text, field_names=_NAMES)
+    assert time.perf_counter() - start < 10
+    assert "Zelda" not in out
