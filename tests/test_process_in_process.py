@@ -16,6 +16,7 @@ import pytest
 from podcast_mcp.engines.ffmpeg import FFmpegEngine
 from podcast_mcp.engines.source_proxy_audio import _is_in_process_tool
 from podcast_mcp.util import process
+from podcast_mcp.util.hashing import sha256_file
 from podcast_mcp.util.host_platform import IOS, MACOS
 from podcast_mcp.util.process import IN_PROCESS_FFMPEG, IN_PROCESS_FFPROBE, Streams
 from process_child_contract import CASES, run_case
@@ -59,6 +60,14 @@ class FakeBackend:
         if behaviour == "block":
             cancel.wait()
             return -9
+        if behaviour == "cancel_zero":
+            cancel.wait()
+            return 0
+        if behaviour == "pcm_short":
+            streams.stdout.write(b"\0" * 400)
+            streams.stdout.flush()
+            cancel.wait()
+            return 0
         if behaviour == "ignore_kill":
             threading.Event().wait(30)
             return 0
@@ -158,6 +167,31 @@ def test_kill_is_cooperative_and_a_backend_that_ignores_it_is_abandoned(
     child.kill()
     assert child.wait(5) == -9
     assert child.stdout.read() == b""
+
+
+def test_a_kill_before_the_backend_finishes_reports_sigkill_whatever_it_returns(
+    backend: FakeBackend,
+) -> None:
+    child = process.popen([IN_PROCESS_FFMPEG, "cancel_zero"], stdout=process.PIPE)
+    child.kill()
+    assert child.wait(5) == -9
+    assert child.poll() == -9
+
+
+def test_a_kill_after_completion_keeps_the_real_return_code(backend: FakeBackend) -> None:
+    backend.params = {"code": 3}
+    child = process.popen([IN_PROCESS_FFMPEG], stdout=process.PIPE)
+    assert child.wait(5) == 3
+    child.kill()
+    assert child.wait() == 3
+
+
+def test_the_pcm_watchdog_raises_on_a_killed_in_process_child(backend: FakeBackend) -> None:
+    reads = FFmpegEngine._read_pcm_f32(
+        [IN_PROCESS_FFMPEG, "pcm_short"], 1, chunk_frames=1000, timeout_sec=0.3, max_frames=1000
+    )
+    with pytest.raises(RuntimeError, match=r"exit -9.*watchdog"):
+        list(reads)
 
 
 def test_a_backend_that_raises_ends_the_child_with_a_failure(backend: FakeBackend) -> None:
@@ -301,5 +335,5 @@ def test_the_proxy_identity_of_a_desktop_pair_is_content_hashed(
         project, clip.id, engine, defaults=load_defaults()
     )
     binaries = captured.identity_payload["binaries"]
-    assert len(binaries) == 2
+    assert binaries == [sha256_file(Path(tool)) for tool in tools]
     assert not {IN_PROCESS_FFMPEG, IN_PROCESS_FFPROBE} & set(binaries)
