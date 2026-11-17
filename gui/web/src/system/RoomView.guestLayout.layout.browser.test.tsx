@@ -657,24 +657,24 @@ describe("the looking-in line under the Declined bar", () => {
       const bare = bareRoom.querySelector(".sys-declined-bar") as HTMLElement;
       expect(document.activeElement).toBe(bare);
       const was = getComputedStyle(bare);
-      const develop = {
+      const bareRing = {
         style: was.outlineStyle,
         width: was.outlineWidth,
         offset: was.outlineOffset,
       };
-      // With no line the bar keeps develop's ring: the shared focus ring, the
-      // token's width, drawn the token's offset outside the bar.
+      // With no line the bar keeps the shared focus ring: the token's width,
+      // drawn the token's offset outside the bar.
       const token = (name: string) =>
         Number.parseFloat(
           getComputedStyle(document.documentElement).getPropertyValue(name),
         ) *
         Number.parseFloat(getComputedStyle(document.documentElement).fontSize);
-      expect(develop.style).toBe("solid");
-      expect(Number.parseFloat(develop.width)).toBeCloseTo(
+      expect(bareRing.style).toBe("solid");
+      expect(Number.parseFloat(bareRing.width)).toBeCloseTo(
         token("--focus-ring-width"),
         1,
       );
-      expect(Number.parseFloat(develop.offset)).toBeCloseTo(
+      expect(Number.parseFloat(bareRing.offset)).toBeCloseTo(
         token("--focus-ring-offset"),
         1,
       );
