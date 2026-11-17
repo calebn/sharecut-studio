@@ -150,10 +150,10 @@ def build_redactor(inputs: BuildInputs, root: Path) -> Redactor:
     return Redactor([*team, *profile, *key_secrets(inputs.key)], machine_directories(root))
 
 
-def installed_profiles(signing: Signing) -> list[provisioning.ProfileFacts]:
-    """The profiles Xcode has installed; only a signed build looks, the rehearsal never does."""
+def installed_profiles(signing: Signing) -> tuple[list[provisioning.ProfileFacts], int]:
+    """Only a signed build looks; the rehearsal never does."""
     if signing is not Signing.APP_STORE:
-        return []
+        return [], 0
     return provisioning.discover(provisioning.default_directories(Path.home()))
 
 
@@ -165,6 +165,7 @@ def build(session: Session, unsigned: bool) -> int:
     path, toolchain_problem = toolchain()
     commit, dirty = git_state(layout.root)
     version, _ = marketing_version(layout.root)
+    profiles, unreadable_profiles = installed_profiles(signing)
     inputs = resolve_build_inputs(
         environ=os.environ,
         values=values,
@@ -175,7 +176,8 @@ def build(session: Session, unsigned: bool) -> int:
         checkout=Checkout(commit, dirty),
         recorded=recorded_numbers(layout.release_root, version or ""),
         toolchain_problem=toolchain_problem,
-        profiles=installed_profiles(signing),
+        profiles=profiles,
+        unreadable_profiles=unreadable_profiles,
     )
     session.redactor = build_redactor(inputs, layout.root)
     steps = plan_build(inputs, layout, os.environ, path)
