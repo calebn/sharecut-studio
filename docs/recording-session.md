@@ -355,7 +355,7 @@ reader still reads it. The guest's consent **Details** repeats it
 with "They can see the room but can't hear it." The host page announces the
 first arrival in each room, once and politely, while the room is waiting or
 stopped. The guest page does the same, and so does a producer page once it has joined
-(a producer page that has not joined announces nothing about other people looking in; its own sheet tells it the room can see it, in words, and speaks that once when it appears), and a later room's arrival is
+(a producer page that has not joined announces nothing about other people looking in; its own sheet tells it the room can see it, in words, and speaks that once for each time the sheet is opened), and a later room's arrival is
 spoken again even when its words match an earlier one. An arrival during a take is never
 spoken. One during the room-tone countdown is spoken at the next room update
 after it, only if the room is then waiting or stopped and the person is still looking in.
@@ -1169,11 +1169,13 @@ shows its tiles, the real status pill and the looking-in line for other producer
 out of reach while the sheet is open. Once the room has counted this page as looking in,
 the sheet adds "The room can see that someone is looking in." under the listen line. The count
 comes from the current socket's own first snapshot, so a snapshot kept from an earlier socket never
-shows it. A screen reader hears the sentence once, when it appears: the sheet holds a polite
-live region from the moment it opens, and the sentence is put in it only if it arrived after the sheet
-opened. A sentence already there when the sheet opens is read as part of the dialog's description,
+shows it. A screen reader hears the sentence once for each time the sheet is opened: the sheet holds a polite
+live region from the moment it opens, and the first time the sentence arrives after the sheet
+opened it is put in the region and stays there. If the sentence goes (a look that closes, a failed Join) and
+comes back while the sheet is still open, only the visible line changes and nothing is spoken again.
+A sentence already there when the sheet opens is read as part of the dialog's description,
 after its title, together with the listen line, and the live region stays empty so it is not read
-twice. The sentence is left out when the room sends no count, as an older server does. The room
+twice. Reopening the sheet from the Not now bar starts again. The sentence is left out when the room sends no count, as an older server does. The room
 never names the producer who is looking, and no tile is marked as the producer's own until they
 have joined.
 
@@ -1250,8 +1252,8 @@ soon as the room code is loaded, with `observe=1` and no name, so the name stays
 until the press, and it sends nothing: no Join, no Heartbeat and no queued comment. **Join to
 listen** sends Join on that same socket, with the name and the lease kept on this device,
 and Heartbeats start once the room has answered the Join; a press made while the socket is still
-connecting sends on open (if the server then refuses that look with 4429, the page retries after a quarter of a second with a
-joining socket, not after the usual wait), and one made while it waits to reconnect opens a joining socket at
+connecting sends on open (if that socket closes for any reason before the room answers the Join, the page
+retries after a quarter of a second with a joining socket, not after the usual wait), and one made while it waits to reconnect opens a joining socket at
 once. The sheet stays on "Joining…" until the room confirms the producer. A non-terminal error
 before then returns the sheet to **Join to listen** with the reason under the listen line (the
 room's alert slot does not repeat it, and **Not now** clears it), and a second press sends Join
