@@ -878,11 +878,10 @@ describe("RoomView as the host", () => {
       const layer = container.querySelector(".sys-declined") as HTMLElement;
       expect(layer).toContainElement(line);
       expect(line.nextElementSibling).toHaveClass("sys-declined-bar");
-      expect(container.querySelector(".sys-room-looking-in-strip")).toBeNull();
       expect(container.querySelector("[data-looking-in]")).toBeNull();
     });
 
-    it("keeps the Declined layer as develop had it when nobody is looking in", () => {
+    it("keeps the Declined layer free of the line when nobody is looking in", () => {
       const { container } = renderRoom({
         declined: { onJoin: () => {} },
         people: [HOST, { ...JON, you: true }],

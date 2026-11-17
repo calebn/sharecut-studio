@@ -229,8 +229,8 @@ export function RoomView({
     device,
   });
   const lookingInText = loading ? null : lookingInLine(lookingIn);
-  // Under Declined the body is inert and dimmed as on develop; the line moves
-  // into the Declined layer, on top of its bar.
+  // Under Declined the body is inert and dimmed, so the line is drawn by the
+  // Declined layer on top of its bar instead.
   const lookingInNote =
     lookingInText === null || declined ? null : (
       <p className="sys-room-looking-in">
