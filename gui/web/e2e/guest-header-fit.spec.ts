@@ -309,6 +309,8 @@ test(`at ${at(PHONE)} and ${at(NARROW_PHONE)} at 200% text nothing in the header
         async (guest) => {
           await openLanded(guest, links.commenter, name);
           await setRootFontSize(guest, 32);
+          // Both phones are under 20 rem at 200%: the right side folds into More.
+          await expect(guest.locator(".sys-header-short")).toBeVisible();
           await afterFrames(guest);
           const inventory = await headerInventory(guest);
           const where = `commenter at ${at(size)}, root 32 px`;
