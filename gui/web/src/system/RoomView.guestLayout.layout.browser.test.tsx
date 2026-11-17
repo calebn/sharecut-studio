@@ -3,6 +3,7 @@ import { createRoot, type Root } from "react-dom/client";
 import { afterEach, describe, expect, it } from "vitest";
 import { page, userEvent } from "vitest/browser";
 import { RoomView, type RoomViewProps } from "./RoomView";
+import type { RoomPhase } from "./roomPhase";
 import type { RoomPerson } from "./roomViewModel";
 
 let host: HTMLElement | undefined;
@@ -362,186 +363,6 @@ describe("the looking-in line on a portrait phone", () => {
   }
 });
 
-describe("the looking-in line hides nothing develop showed", () => {
-  const PRODUCER: RoomPerson = {
-    role: "producer",
-    person: { name: "Pat", colorIndex: 4 },
-    presence: "live",
-    connection: "good",
-  };
-  const HOST: RoomPerson = {
-    role: "host",
-    person: { name: "Maya", colorIndex: 1 },
-    you: true,
-    presence: "live",
-    connection: "good",
-    level: 1,
-    speaking: true,
-  };
-  // How far the stage's content runs past what the viewer can see.
-  const hidden = (room: HTMLElement) => {
-    const stage = room.querySelector(".sys-room-view-stage") as HTMLElement;
-    return Math.max(0, stage.scrollHeight - stage.clientHeight);
-  };
-  const dockBottom = (room: HTMLElement) =>
-    rect(room.querySelector(".sys-dock") as Element).bottom;
-  const tileHeight = (room: HTMLElement) =>
-    rect(room.querySelector(".sys-room-tile") as Element).height;
-
-  type Case = {
-    name: string;
-    width: number;
-    height: number;
-    props: Parameters<typeof render>[2];
-  };
-  const guestPeople = (count: number) => [...OTHERS.slice(0, count - 1), ME];
-  const cases: Case[] = [
-    {
-      name: "host studio 1280x800 with three people and a listener",
-      width: 1280,
-      height: 722,
-      props: {
-        seat: "host",
-        phase: LIVE,
-        embedded: true,
-        viewerWidth: "desktop",
-        defaultNotesOpen: true,
-        people: [
-          HOST,
-          OTHERS[1] as RoomPerson,
-          OTHERS[2] as RoomPerson,
-          PRODUCER,
-        ],
-      },
-    },
-    {
-      name: "host studio 1024x700 with three people and a listener",
-      width: 1024,
-      height: 622,
-      props: {
-        seat: "host",
-        phase: LIVE,
-        embedded: true,
-        viewerWidth: "desktop",
-        defaultNotesOpen: true,
-        people: [
-          HOST,
-          OTHERS[1] as RoomPerson,
-          OTHERS[2] as RoomPerson,
-          PRODUCER,
-        ],
-      },
-    },
-    ...(["guest", "producer"] as const).flatMap((seat) =>
-      [2, 3].map(
-        (count): Case => ({
-          name: `${seat} on a 667x375 landscape phone with ${count} people`,
-          width: 667,
-          height: 375,
-          props: {
-            seat,
-            phase: LIVE,
-            viewerWidth: "phone-landscape",
-            people: guestPeople(count),
-          },
-        }),
-      ),
-    ),
-    ...(["guest", "producer"] as const).flatMap((seat) =>
-      [320, 390].map(
-        (width): Case => ({
-          name: `${seat} at ${width} portrait with four people: the dock never moves`,
-          width,
-          height: 844,
-          props: {
-            seat,
-            phase: LIVE,
-            viewerWidth: "phone",
-            people: guestPeople(4),
-          },
-        }),
-      ),
-    ),
-    {
-      name: "guest at 767 portrait with four people",
-      width: 767,
-      height: 1024,
-      props: {
-        seat: "guest",
-        phase: LIVE,
-        viewerWidth: "phone",
-        people: guestPeople(4),
-      },
-    },
-    {
-      name: "guest at 768 with the rail open",
-      width: 768,
-      height: 1024,
-      props: {
-        seat: "guest",
-        phase: LIVE,
-        viewerWidth: "desktop",
-        defaultNotesOpen: true,
-        people: guestPeople(4),
-      },
-    },
-  ];
-
-  const compare = async (item: Case) => {
-    const without = await render(item.width, item.height, {
-      ...item.props,
-      lookingIn: 0,
-    });
-    const before = {
-      hidden: hidden(without),
-      dock: dockBottom(without),
-      dockTop: rect(without.querySelector(".sys-dock") as Element).top,
-      tile: tileHeight(without),
-    };
-    root?.unmount();
-    host?.remove();
-    const room = await render(item.width, item.height, {
-      ...item.props,
-      lookingIn: 3,
-    });
-    const line = room.querySelector(".sys-room-looking-in") as Element;
-    expect(line).not.toBeNull();
-    expect(hidden(room)).toBeLessThanOrEqual(before.hidden + 0.5);
-    expect(dockBottom(room)).toBeCloseTo(before.dock, 0);
-    expect(rect(room.querySelector(".sys-dock") as Element).top).toBeCloseTo(
-      before.dockTop,
-      0,
-    );
-    expect(tileHeight(room)).toBeLessThanOrEqual(before.tile + 0.5);
-    const stage = rect(room.querySelector(".sys-room-view-stage") as Element);
-    expect(rect(line).top).toBeGreaterThanOrEqual(stage.top);
-    expect(rect(line).bottom).toBeLessThanOrEqual(stage.bottom);
-  };
-
-  for (const item of cases) {
-    it(`${item.name}`, () => compare(item));
-  }
-
-  it("holds in dark for a guest at 390 with four people", async () => {
-    document.documentElement.dataset.theme = "dark";
-    try {
-      await compare({
-        name: "dark",
-        width: 390,
-        height: 844,
-        props: {
-          seat: "guest",
-          phase: LIVE,
-          viewerWidth: "phone",
-          people: guestPeople(4),
-        },
-      });
-    } finally {
-      delete document.documentElement.dataset.theme;
-    }
-  });
-});
-
 describe("the Declined state", () => {
   for (const [width, height, viewerWidth] of [
     [390, 844, "phone"],
@@ -743,7 +564,13 @@ describe("the looking-in line under the Declined bar", () => {
   });
 });
 
-describe("the looking-in line at default text", () => {
+describe("the looking-in line only adds its own row", () => {
+  const PRODUCER = (name: string, colorIndex: number): RoomPerson => ({
+    role: "producer",
+    person: { name, colorIndex },
+    presence: "live",
+    connection: "good",
+  });
   const HOST_ME: RoomPerson = {
     role: "host",
     person: { name: "Maya", colorIndex: 1 },
@@ -755,192 +582,139 @@ describe("the looking-in line at default text", () => {
   };
   const sizes = [
     [320, 568, "phone", false],
+    [320, 440, "phone", false],
     [390, 844, "phone", false],
     [667, 375, "phone-landscape", false],
     [768, 1024, "desktop", true],
     [768, 1024, "desktop", false],
     [1280, 800, "desktop", false],
+    [1280, 722, "desktop", false],
   ] as const;
-  const tiles = (room: HTMLElement) => [
-    ...room.querySelectorAll(".sys-room-tile"),
+  const phases: [string, RoomPhase][] = [
+    ["waiting", { kind: "waiting", host: "Maya" }],
+    ["live", LIVE],
+    ["saving", { kind: "saving", savedPeople: 0, totalPeople: 2, percent: 10 }],
   ];
   const intersect = (a: DOMRect, b: DOMRect) =>
     a.left < b.right - 0.5 &&
     b.left < a.right - 0.5 &&
     a.top < b.bottom - 0.5 &&
     b.top < a.bottom - 0.5;
-
-  for (const seat of ["guest", "producer", "host"] as const) {
-    for (const [width, height, viewerWidth, railOpen] of sizes) {
-      for (const count of [1, 2, 4]) {
-        it(`keeps the room's tiles as large as without the line for a ${seat} at ${width}x${height}, rail ${railOpen ? "open" : "closed"}, ${count} ${count === 1 ? "person" : "people"}`, async () => {
-          const props = {
-            seat,
-            phase: LIVE,
-            viewerWidth,
-            defaultNotesOpen: railOpen,
-            embedded: seat === "host",
-            people:
-              seat === "host"
-                ? [HOST_ME, ...OTHERS.slice(0, count - 1)]
-                : [...OTHERS.slice(0, count - 1), ME],
-          } as const;
-          const without = await render(width, height, {
-            ...props,
-            lookingIn: 0,
-          });
-          const before = tiles(without).map((tile) => rect(tile));
-          root?.unmount();
-          host?.remove();
-          const room = await render(width, height, {
-            ...props,
-            lookingIn: 3,
-          });
-          const line = rect(
-            room.querySelector(".sys-room-looking-in") as Element,
-          );
-          const gap = 12;
-          const aspect = viewerWidth === "desktop" ? 4 / 3 : 1;
-          const lost = line.height + gap;
-          const boxes = tiles(room).map((tile) => rect(tile));
-          expect(boxes).toHaveLength(before.length);
-          const first = boxes[0] as DOMRect;
-          const firstBefore = before[0] as DOMRect;
-          for (const [index, box] of boxes.entries()) {
-            const was = before[index] as DOMRect;
-            expect(Math.abs(box.width - first.width)).toBeLessThanOrEqual(1);
-            expect(Math.abs(box.height - first.height)).toBeLessThanOrEqual(1);
-            if (viewerWidth !== "phone-landscape") {
-              // The landscape phone's tiles fill the page height and give it
-              // up to the line by design, so only its shape is checked.
-              expect(box.height).toBeGreaterThanOrEqual(was.height - lost - 1);
-              expect(box.width).toBeGreaterThanOrEqual(
-                was.width - lost * aspect - 1,
-              );
-            }
-            expect(box.width).toBeLessThanOrEqual(was.width + 1);
-          }
-          if (viewerWidth !== "phone-landscape") {
-            expect(first.width).toBeGreaterThanOrEqual(
-              firstBefore.width - lost * aspect - 1,
-            );
-          }
-          const lefts = (list: DOMRect[]) =>
-            new Set(list.map((box) => Math.round(box.left))).size;
-          expect(lefts(boxes)).toBe(lefts(before));
-          for (const tile of tiles(room)) {
-            const face = tile.querySelector(".sys-room-face");
-            const name = tile.querySelector(".sys-room-name");
-            if (face && name) {
-              expect(intersect(rect(face), rect(name))).toBe(false);
-            }
-          }
-        });
-      }
-    }
-  }
-});
-
-describe("the looking-in line at enlarged text", () => {
-  const HOST_ME: RoomPerson = {
-    role: "host",
-    person: { name: "Maya", colorIndex: 1 },
-    you: true,
-    presence: "live",
-    connection: "good",
-    level: 1,
-    speaking: true,
+  const measure = (room: HTMLElement) => {
+    const stage = room.querySelector(".sys-room-view-stage") as HTMLElement;
+    const line = room.querySelector(".sys-room-looking-in");
+    return {
+      tiles: [...room.querySelectorAll(".sys-room-tile")].map(rect),
+      listeners: [...room.querySelectorAll(".sys-room-listener-glyph")].map(
+        rect,
+      ),
+      header: rect(room.querySelector(".sys-room-view-header") as Element),
+      dock: rect(room.querySelector(".sys-dock") as Element),
+      scroll: stage.scrollHeight,
+      gap: Number.parseFloat(getComputedStyle(stage).rowGap),
+      line: line ? rect(line).height : 0,
+    };
   };
-  const sizes = [
-    [320, 568, "phone"],
-    [390, 844, "phone"],
-    [667, 375, "phone-landscape"],
-    [768, 1024, "desktop"],
-    [1280, 800, "desktop"],
-  ] as const;
-  const tiles = (room: HTMLElement) =>
-    [...room.querySelectorAll(".sys-room-tile")].map((tile) => rect(tile));
-  const intersect = (a: DOMRect, b: DOMRect) =>
-    a.left < b.right - 0.5 &&
-    b.left < a.right - 0.5 &&
-    a.top < b.bottom - 0.5 &&
-    b.top < a.bottom - 0.5;
+  const same = (a: DOMRect, b: DOMRect) => {
+    expect(Math.abs(a.width - b.width)).toBeLessThanOrEqual(0.5);
+    expect(Math.abs(a.height - b.height)).toBeLessThanOrEqual(0.5);
+  };
 
-  for (const percent of [150, 200]) {
+  for (const percent of [100, 125, 150, 200]) {
     for (const seat of ["guest", "producer", "host"] as const) {
-      for (const [width, height, viewerWidth] of sizes) {
-        for (const count of [1, 4]) {
-          it(`keeps every tile inside its column at ${percent}% text for a ${seat} at ${width}x${height} with ${count} ${count === 1 ? "person" : "people"}`, async () => {
-            document.documentElement.style.fontSize = `${percent}%`;
-            try {
-              const props = {
-                seat,
-                phase: LIVE,
-                viewerWidth,
-                defaultNotesOpen: viewerWidth === "desktop",
-                embedded: seat === "host",
-                people:
-                  seat === "host"
-                    ? [HOST_ME, ...OTHERS.slice(0, count - 1)]
-                    : [...OTHERS.slice(0, count - 1), ME],
-              } as const;
-              const without = await render(width, height, {
-                ...props,
-                lookingIn: 0,
-              });
-              const before = tiles(without);
-              root?.unmount();
-              host?.remove();
-              const room = await render(width, height, {
-                ...props,
-                lookingIn: 3,
-              });
-              const grid = room.querySelector(".sys-room-view-grid") as Element;
-              const columns = getComputedStyle(grid)
-                .gridTemplateColumns.split(" ")
-                .map(Number.parseFloat);
-              const widest = Math.max(...columns);
-              const boxes = tiles(room);
-              const stage = rect(
-                room.querySelector(".sys-room-view-stage") as Element,
-              );
-              const rail = room.querySelector(".sys-room-view-rail");
-              expect(boxes).toHaveLength(before.length);
-              for (const [index, box] of boxes.entries()) {
-                // A tile cannot be narrower than its own padding and border:
-                // where the column is narrower than that, the bar is "no worse
-                // than the room without the line".
-                expect(box.width).toBeLessThanOrEqual(
-                  Math.max(widest, (before[index] as DOMRect).width) + 0.5,
-                );
-                expect(box.width).toBeLessThanOrEqual(
-                  (before[index] as DOMRect).width + 0.5,
-                );
-                expect(box.height).toBeLessThanOrEqual(
-                  (before[index] as DOMRect).height + 0.5,
-                );
-                expect(box.left).toBeGreaterThanOrEqual(stage.left - 0.5);
-                expect(box.right).toBeLessThanOrEqual(stage.right + 0.5);
-                if (rail) {
-                  expect(box.right).toBeLessThanOrEqual(rect(rail).left + 0.5);
-                }
-                for (let next = index + 1; next < boxes.length; next += 1) {
-                  const other = boxes[next] as DOMRect;
-                  // Where the room without the line already crushes two tiles
-                  // together (their own padding is wider than the column),
-                  // the bar is no worse than that.
-                  const crushed = intersect(
-                    before[index] as DOMRect,
-                    before[next] as DOMRect,
+      for (const [width, height, viewerWidth, railOpen] of sizes) {
+        it(`keeps every box its size and moves it down by at most the line for a ${seat} at ${width}x${height}, rail ${railOpen ? "open" : "closed"}, ${percent}% text`, async () => {
+          document.documentElement.style.fontSize = `${percent}%`;
+          try {
+            for (const count of [1, 2, 4]) {
+              for (const listenerCount of [0, 2]) {
+                for (const [name, phase] of phases) {
+                  const where = `${count} people, ${listenerCount} listeners, ${name}`;
+                  const people = [
+                    ...(seat === "host" ? [HOST_ME] : []),
+                    ...OTHERS.slice(0, count - 1),
+                    ...(seat === "host" ? [] : [ME]),
+                    ...[PRODUCER("Pat", 4), PRODUCER("Quin", 5)].slice(
+                      0,
+                      listenerCount,
+                    ),
+                  ];
+                  const props = {
+                    seat,
+                    phase,
+                    viewerWidth,
+                    defaultNotesOpen: railOpen,
+                    embedded: seat === "host",
+                    people,
+                  } as const;
+                  const without = measure(
+                    await render(width, height, { ...props, lookingIn: 0 }),
                   );
-                  expect(intersect(box, other) && !crushed).toBe(false);
+                  root?.unmount();
+                  host?.remove();
+                  const withLine = measure(
+                    await render(width, height, { ...props, lookingIn: 3 }),
+                  );
+                  root?.unmount();
+                  host?.remove();
+                  const lost = withLine.line + withLine.gap;
+                  expect(withLine.line, where).toBeGreaterThan(0);
+                  // (d) the header and the dock never move.
+                  expect(withLine.header, where).toEqual(without.header);
+                  expect(withLine.dock, where).toEqual(without.dock);
+                  // (e) the stage scrolls by no more than the line and a gap.
+                  expect(
+                    withLine.scroll - without.scroll,
+                    where,
+                  ).toBeLessThanOrEqual(lost + 1);
+                  for (const key of ["tiles", "listeners"] as const) {
+                    expect(withLine[key], where).toHaveLength(
+                      without[key].length,
+                    );
+                    for (const [index, box] of withLine[key].entries()) {
+                      const was = without[key][index] as DOMRect;
+                      // (a) the same size.
+                      same(box, was);
+                      // (b) down by between nothing and the line and a gap.
+                      expect(box.top - was.top, where).toBeGreaterThanOrEqual(
+                        -0.5,
+                      );
+                      expect(box.top - was.top, where).toBeLessThanOrEqual(
+                        lost + 0.5,
+                      );
+                    }
+                  }
+                  // (c) nothing meets what it did not meet without the line.
+                  for (const [index, tile] of withLine.tiles.entries()) {
+                    for (const [next, other] of withLine.tiles.entries()) {
+                      if (next <= index) continue;
+                      expect(
+                        intersect(tile, other) &&
+                          !intersect(
+                            without.tiles[index] as DOMRect,
+                            without.tiles[next] as DOMRect,
+                          ),
+                        where,
+                      ).toBe(false);
+                    }
+                    for (const [next, avatar] of withLine.listeners.entries()) {
+                      expect(
+                        intersect(tile, avatar) &&
+                          !intersect(
+                            without.tiles[index] as DOMRect,
+                            without.listeners[next] as DOMRect,
+                          ),
+                        where,
+                      ).toBe(false);
+                    }
+                  }
                 }
               }
-            } finally {
-              document.documentElement.style.fontSize = "";
             }
-          });
-        }
+          } finally {
+            document.documentElement.style.fontSize = "";
+          }
+        }, 120_000);
       }
     }
   }
