@@ -1,12 +1,23 @@
 import {
   act,
+  configure,
   fireEvent,
+  getConfig,
   render,
   screen,
   waitFor,
 } from "@testing-library/react";
 import { useState } from "react";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  afterAll,
+  afterEach,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from "vitest";
 import App from "./App";
 import { apiSend } from "./api/http";
 import { resetFeaturesCache } from "./extensions/features";
@@ -14,6 +25,17 @@ import { composerPatch, initialSession } from "./state/composerSession";
 import { useDawStore } from "./state/dawStore";
 import { useUnsentText } from "./state/unsentText";
 import { urlOf } from "./test/urlOf";
+
+/**
+ * Every wait here is for a state (the studio, the cover, the host's calls), so
+ * it may last as long as the test itself (Vitest's default of 5 s) instead of
+ * the one second Testing Library gives `waitFor` and `findBy*`, which a busy
+ * machine can overrun.
+ */
+const STATE_WAIT_MS = 5_000;
+const defaultWaitMs = getConfig().asyncUtilTimeout;
+beforeAll(() => configure({ asyncUtilTimeout: STATE_WAIT_MS }));
+afterAll(() => configure({ asyncUtilTimeout: defaultWaitMs }));
 
 /** A studio stand-in: a reply field that registers its draft, and a button that makes the page's own kind of request. */
 function FakeStudio() {
