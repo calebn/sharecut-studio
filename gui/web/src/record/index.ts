@@ -40,7 +40,7 @@ export {
   STALE_ROOM_LINKS_WARNING,
 } from "./recordLinks";
 export { roomAlerts } from "./roomAlerts";
-export { roomPeople } from "./roomPeople";
+export { HOST_PARTICIPANT_ID, roomPeople } from "./roomPeople";
 export { type RoomToneDelivery, type RoomToneStatus } from "./roomTone";
 export { StorageHeadroomWarning } from "./StorageHeadroomWarning";
 export { SAVE_STATE_COPY, type SegmentAckRow } from "./saveStatus";

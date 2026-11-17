@@ -388,7 +388,7 @@ function GuestRoomSession({
 
   const meId = me?.participant_id;
   const people = roomPeople(snapshot, {
-    youId: meId,
+    youId: meId ?? null,
     youLevel: level,
     youSpeaking: level > SPEAKING_FRACTION && !me?.muted,
     dropped: !connected,

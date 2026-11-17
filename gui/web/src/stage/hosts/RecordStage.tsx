@@ -17,6 +17,7 @@ import {
   deviceTone,
   END_SESSION_PENDING_COPY,
   HEARING_COPY,
+  HOST_PARTICIPANT_ID,
   type HostRoom,
   hostMicStatus,
   hostRoomPhase,
@@ -363,6 +364,7 @@ function RecordStageBody({
     return counts;
   }, [room.hostSegments, snapshot, host?.participant_id]);
   const people = roomPeople(snapshot, {
+    youId: HOST_PARTICIPANT_ID,
     youLevel: level,
     youSpeaking: level > SPEAKING_FRACTION && !host?.muted,
     dropped: room.offline,
