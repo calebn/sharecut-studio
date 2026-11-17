@@ -7,6 +7,7 @@ import contextlib
 import json
 import os
 import plistlib
+import re
 import stat
 import sys
 from datetime import UTC, datetime, timedelta, timezone
@@ -794,6 +795,136 @@ def test_the_certificate_and_cloud_signing_hints_name_both_fixes_in_either_line_
     for tail in (f"{certificate}\n{cloud}", f"{cloud}\n{certificate}"):
         hint = release_classify.signing_hint(tail)
         assert hint is not None and "API key" in hint and "Apple Distribution certificate" in hint
+
+
+CLOUD_LINE = "error: exportArchive Cloud signing permission error"
+NO_PROFILES_LINE = "error: exportArchive No profiles for 'studio.sharecut.app' were found"
+FORBIDDEN_LINE = '    "code" : "FORBIDDEN_ERROR",'
+NO_CERTIFICATE_LINE = 'error: No signing certificate "iOS Distribution" found'
+APP = "studio.sharecut.app"
+FALLBACK_ID = "this app's bundle id"
+
+
+def old_hint(tail: str) -> str:
+    hint = release_classify.signing_hint(tail)
+    assert hint is not None
+    return hint
+
+
+def profile_hint(tail: str, bundle_identifier: str | None = APP) -> str:
+    hint = release_classify.signing_hint(tail, bundle_identifier)
+    assert hint is not None
+    return hint
+
+
+def assert_profile_hint(hint: str) -> None:
+    assert "App Store provisioning profile" in hint and "Admin role" in hint
+    assert "Settings > Accounts" not in hint and "Sign in to Xcode" not in hint
+
+
+@pytest.mark.parametrize(
+    "tail",
+    [
+        f"{CLOUD_LINE}\n{NO_PROFILES_LINE}",
+        f"{NO_PROFILES_LINE}\n{CLOUD_LINE}",
+        f"{CLOUD_LINE}\n{NO_PROFILES_LINE}\n{FORBIDDEN_LINE}",
+        f"{FORBIDDEN_LINE}\n{NO_PROFILES_LINE}",
+        f"{NO_PROFILES_LINE}\n{FORBIDDEN_LINE}",
+        "ERROR: CLOUD SIGNING PERMISSION ERROR\n"
+        "error: no profiles for 'studio.sharecut.app' were FOUND",
+    ],
+    ids=[
+        "cloud-first",
+        "profiles-first",
+        "with-forbidden",
+        "forbidden-only",
+        "forbidden-after",
+        "case",
+    ],
+)
+def test_a_forbidden_app_store_profile_names_the_admin_role_and_the_bundle_id(tail: str) -> None:
+    hint = profile_hint(tail)
+    assert_profile_hint(hint)
+    assert APP in hint
+    assert hint.index("Admin role") < hint.index("by hand")
+
+
+def test_the_certificate_story_wins_when_there_is_no_certificate_at_all() -> None:
+    tail = f"{NO_CERTIFICATE_LINE}\n{CLOUD_LINE}\n{NO_PROFILES_LINE}"
+    hint = old_hint(tail)
+    assert "Apple Distribution certificate" in hint
+    assert "App Store provisioning profile" not in hint
+    assert "Sign in to Xcode with an Admin" in old_hint(f"{tail}\n{FORBIDDEN_LINE}")
+
+
+def test_the_cloud_error_alone_and_the_profile_line_alone_keep_their_hints() -> None:
+    cloud = old_hint(CLOUD_LINE)
+    assert "Apple Distribution certificate" in cloud
+    assert "App Store provisioning profile" not in cloud
+    generic = old_hint("error: No profiles for 'x' were found")
+    assert "could not make a signing certificate" in generic
+    assert "role cannot create" in old_hint(FORBIDDEN_LINE)
+
+
+@pytest.mark.parametrize("identifier", ["com.my-co.app2", APP])
+def test_the_bundle_id_is_named_in_both_sentences(identifier: str) -> None:
+    hint = profile_hint(f"{CLOUD_LINE}\n{NO_PROFILES_LINE}", identifier)
+    assert hint.count(identifier) == 2
+
+
+@pytest.mark.parametrize("identifier", [None, "bad id'x", "a/b", "x" * 156, ""])
+def test_an_unusable_bundle_id_is_never_echoed(identifier: str | None) -> None:
+    hint = profile_hint(f"{CLOUD_LINE}\n{NO_PROFILES_LINE}", identifier)
+    assert_profile_hint(hint)
+    assert hint.count(FALLBACK_ID) == 2
+    assert not identifier or identifier not in hint
+    assert "studio.sharecut" not in hint
+
+
+def test_the_profile_hint_is_two_sentences_and_other_text_gets_none() -> None:
+    hint = profile_hint(f"{CLOUD_LINE}\n{NO_PROFILES_LINE}")
+    assert len(re.split(r"(?<=\.)\s+", hint.strip())) == 2
+    assert "export may not pick up" in hint
+    assert release_classify.signing_hint("compiler error", APP) is None
+
+
+def test_the_export_outcome_carries_the_bundle_id_and_a_clean_exit_stays_quiet() -> None:
+    workspace = release_plan.Workspace(out=Path("/out"))
+    failed = release_run.SpawnResult(4, "", f"{CLOUD_LINE}\n{NO_PROFILES_LINE}")
+    failure, sentence = release_plan.tool_outcome(failed, workspace, bundle_identifier=APP)
+    assert failure is Failure.SIGNING and APP in sentence
+    assert_profile_hint(sentence)
+    clean = release_run.SpawnResult(0, "", "")
+    assert release_plan.tool_outcome(clean, workspace, bundle_identifier=APP) == release_plan.OK
+    _, bare = release_plan.tool_outcome(failed, workspace)
+    assert bare.count(FALLBACK_ID) == 2
+
+
+def test_the_export_step_names_the_bundle_id_and_leaks_no_secret(tmp_path: Path) -> None:
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    fake_tool(bin_dir / "npx", 0)
+    private_key = f"/Users/x/.appstoreconnect/private_keys/AuthKey_{KEY_ID}.p8"
+    fake_tool(
+        bin_dir / "xcodebuild",
+        4,
+        f'echo "{CLOUD_LINE}"\necho "{NO_PROFILES_LINE}"\n'
+        f'echo "{FORBIDDEN_LINE} key {KEY_ID} issuer {ISSUER} {private_key}"\n',
+    )
+    layout = release_plan.Layout(tmp_path / "repo")
+    (layout.tauri / "gen/apple/build").mkdir(parents=True)
+    inputs = build_inputs(Signing.APP_STORE)
+    steps = steps_by_name(
+        release_plan.plan_build(inputs, layout, NOISY, f"{bin_dir}:/usr/bin:/bin")
+    )
+    redactor = ios_release.build_redactor(inputs, layout.root)
+    step = steps["export"]
+    result = release_run.spawn(step.command, redactor, tmp_path / "export.log")
+    failure, sentence = step.interpret(result, release_plan.Workspace(out=tmp_path / "out"))
+    assert failure is Failure.SIGNING and APP in sentence
+    assert_profile_hint(sentence)
+    for raw in (KEY_ID, ISSUER, "/k.p8", "private_keys"):
+        assert raw not in sentence
 
 
 def fake_key() -> release_inputs.AscKey:
