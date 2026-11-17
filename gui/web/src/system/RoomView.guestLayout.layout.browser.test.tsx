@@ -743,6 +743,104 @@ describe("the looking-in line under the Declined bar", () => {
   });
 });
 
+describe("the looking-in line at default text", () => {
+  const HOST_ME: RoomPerson = {
+    role: "host",
+    person: { name: "Maya", colorIndex: 1 },
+    you: true,
+    presence: "live",
+    connection: "good",
+    level: 1,
+    speaking: true,
+  };
+  const sizes = [
+    [320, 568, "phone", false],
+    [390, 844, "phone", false],
+    [667, 375, "phone-landscape", false],
+    [768, 1024, "desktop", true],
+    [768, 1024, "desktop", false],
+    [1280, 800, "desktop", false],
+  ] as const;
+  const tiles = (room: HTMLElement) => [
+    ...room.querySelectorAll(".sys-room-tile"),
+  ];
+  const intersect = (a: DOMRect, b: DOMRect) =>
+    a.left < b.right - 0.5 &&
+    b.left < a.right - 0.5 &&
+    a.top < b.bottom - 0.5 &&
+    b.top < a.bottom - 0.5;
+
+  for (const seat of ["guest", "producer", "host"] as const) {
+    for (const [width, height, viewerWidth, railOpen] of sizes) {
+      for (const count of [1, 2, 4]) {
+        it(`keeps the room's tiles as large as without the line for a ${seat} at ${width}x${height}, rail ${railOpen ? "open" : "closed"}, ${count} ${count === 1 ? "person" : "people"}`, async () => {
+          const props = {
+            seat,
+            phase: LIVE,
+            viewerWidth,
+            defaultNotesOpen: railOpen,
+            embedded: seat === "host",
+            people:
+              seat === "host"
+                ? [HOST_ME, ...OTHERS.slice(0, count - 1)]
+                : [...OTHERS.slice(0, count - 1), ME],
+          } as const;
+          const without = await render(width, height, {
+            ...props,
+            lookingIn: 0,
+          });
+          const before = tiles(without).map((tile) => rect(tile));
+          root?.unmount();
+          host?.remove();
+          const room = await render(width, height, {
+            ...props,
+            lookingIn: 3,
+          });
+          const line = rect(
+            room.querySelector(".sys-room-looking-in") as Element,
+          );
+          const gap = 12;
+          const aspect = viewerWidth === "desktop" ? 4 / 3 : 1;
+          const lost = line.height + gap;
+          const boxes = tiles(room).map((tile) => rect(tile));
+          expect(boxes).toHaveLength(before.length);
+          const first = boxes[0] as DOMRect;
+          const firstBefore = before[0] as DOMRect;
+          for (const [index, box] of boxes.entries()) {
+            const was = before[index] as DOMRect;
+            expect(Math.abs(box.width - first.width)).toBeLessThanOrEqual(1);
+            expect(Math.abs(box.height - first.height)).toBeLessThanOrEqual(1);
+            if (viewerWidth !== "phone-landscape") {
+              // The landscape phone's tiles fill the page height and give it
+              // up to the line by design, so only its shape is checked.
+              expect(box.height).toBeGreaterThanOrEqual(was.height - lost - 1);
+              expect(box.width).toBeGreaterThanOrEqual(
+                was.width - lost * aspect - 1,
+              );
+            }
+            expect(box.width).toBeLessThanOrEqual(was.width + 1);
+          }
+          if (viewerWidth !== "phone-landscape") {
+            expect(first.width).toBeGreaterThanOrEqual(
+              firstBefore.width - lost * aspect - 1,
+            );
+          }
+          const lefts = (list: DOMRect[]) =>
+            new Set(list.map((box) => Math.round(box.left))).size;
+          expect(lefts(boxes)).toBe(lefts(before));
+          for (const tile of tiles(room)) {
+            const face = tile.querySelector(".sys-room-face");
+            const name = tile.querySelector(".sys-room-name");
+            if (face && name) {
+              expect(intersect(rect(face), rect(name))).toBe(false);
+            }
+          }
+        });
+      }
+    }
+  }
+});
+
 describe("the looking-in line at enlarged text", () => {
   const HOST_ME: RoomPerson = {
     role: "host",
@@ -809,7 +907,12 @@ describe("the looking-in line at enlarged text", () => {
               const rail = room.querySelector(".sys-room-view-rail");
               expect(boxes).toHaveLength(before.length);
               for (const [index, box] of boxes.entries()) {
-                expect(box.width).toBeLessThanOrEqual(widest + 0.5);
+                // A tile cannot be narrower than its own padding and border:
+                // where the column is narrower than that, the bar is "no worse
+                // than the room without the line".
+                expect(box.width).toBeLessThanOrEqual(
+                  Math.max(widest, (before[index] as DOMRect).width) + 0.5,
+                );
                 expect(box.width).toBeLessThanOrEqual(
                   (before[index] as DOMRect).width + 0.5,
                 );
@@ -821,8 +924,16 @@ describe("the looking-in line at enlarged text", () => {
                 if (rail) {
                   expect(box.right).toBeLessThanOrEqual(rect(rail).left + 0.5);
                 }
-                for (const other of boxes.slice(index + 1)) {
-                  expect(intersect(box, other)).toBe(false);
+                for (let next = index + 1; next < boxes.length; next += 1) {
+                  const other = boxes[next] as DOMRect;
+                  // Where the room without the line already crushes two tiles
+                  // together (their own padding is wider than the column),
+                  // the bar is no worse than that.
+                  const crushed = intersect(
+                    before[index] as DOMRect,
+                    before[next] as DOMRect,
+                  );
+                  expect(intersect(box, other) && !crushed).toBe(false);
                 }
               }
             } finally {
