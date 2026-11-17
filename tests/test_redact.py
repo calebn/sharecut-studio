@@ -771,8 +771,7 @@ def test_a_header_with_no_entry_leaves_the_lines_after_it_unchanged() -> None:
 def test_tens_of_thousands_of_bare_headers_are_fast() -> None:
     # The bound is loose on purpose (a loaded CI runner must pass; about 0.4 s unloaded). It
     # guards a block rule whose work per bare header grows with the text after it (a rescan of
-    # the rest of the input): 36000 headers in 2 MB would then take longer than the bound. Measured
-    # on such rescans: the cheapest took 10.8 s against the 10 s bound, a regex rescan 20 s and more.
+    # the rest of the input): 36000 headers in 2 MB would then take longer than the bound.
     text = ("1 validation error for Outer\n" + "some ordinary line. with dots\n") * 40000
     text = text[: 2 * 1024 * 1024]
     start = time.perf_counter()
