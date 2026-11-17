@@ -55,6 +55,11 @@ _HOST_PATH = re.compile(
     r"|/"
     r"|(?i:%2f|%5c)"
 )
+# pydantic prints the offending value of a failed field as ``input_value=<repr>, input_type=<type>``
+# on one line; the repr is the document's own data and may hold ``, input_type=`` itself, so it
+# runs to the last one on the line (or to the end of the line when there is none).
+_INPUT_VALUE = re.compile(r"input_value=(?:[^\r\n]*(?=, input_type=)|[^\r\n]*)")
+_INPUT_VALUE_HIDDEN = "input_value=<hidden>"
 _LOOPBACK_V4 = re.compile(r"^127\.")
 _LOOPBACK_V6 = frozenset({"::1", "0:0:0:0:0:0:0:1"})
 
@@ -70,10 +75,29 @@ def _path_forms(path: Path) -> list[str]:
     return sorted((f for f in forms if f), key=len, reverse=True)
 
 
+def _encoded_form(form: str) -> re.Pattern[str]:
+    """Match ``form`` as a browser or server writes it in a URL: any character of it may be
+    percent-encoded (UTF-8 bytes, hex in either case), and a space may be ``+``."""
+    parts: list[str] = []
+    for char in form:
+        spellings = [re.escape(char)]
+        escaped = "".join(f"%(?i:{byte:02x})" for byte in char.encode("utf-8"))
+        spellings.append(escaped)
+        if char == " ":
+            spellings.append(r"\+")
+        parts.append("(?:" + "|".join(spellings) + ")")
+    return re.compile("".join(parts))
+
+
 def _replace_path(text: str, path: Path, token: str) -> str:
-    for form in _path_forms(path):
+    forms = _path_forms(path)
+    for form in forms:
         if form and form in text:
             text = text.replace(form, token)
+    if "%" in text or "+" in text:
+        for form in forms:
+            if form:
+                text = _encoded_form(form).sub(lambda _m: token, text)
     return text
 
 
@@ -123,7 +147,7 @@ def sanitize(
     """
     if not text:
         return text
-    out = text
+    out = _INPUT_VALUE.sub(_INPUT_VALUE_HIDDEN, text)
     extras = sorted(extra or (), key=lambda pair: len(str(pair[0])), reverse=True)
     for path, token in extras:
         out = _replace_path(out, path, token)

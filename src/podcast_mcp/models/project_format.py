@@ -55,10 +55,11 @@ def version_label(version: object) -> str:
     if isinstance(version, bool) or version is None:
         return ""
     if isinstance(version, int | float):
-        return repr(version)
-    if _version_key(version) is None:
+        text = repr(version)
+    elif _version_key(version) is None:
         return ""
-    text = str(version)
+    else:
+        text = str(version)
     return text if len(text) <= _MAX_SHOWN else text[:_MAX_SHOWN] + "…"
 
 

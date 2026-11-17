@@ -1414,6 +1414,10 @@ class DocumentSyncSection(BaseModel):
 class EpisodeProject(BaseModel):
     """Episode Project Format v2 - canonical on-disk representation."""
 
+    # A validation error's text goes to logs and bug reports; it must not repeat the file's own
+    # words (names, transcript text). The setting reaches every nested model.
+    model_config = {"hide_input_in_errors": True}
+
     version: str = SUPPORTED_PROJECT_VERSION
     meta: ProjectMeta
     sources: list[SourceRecording] = Field(default_factory=list)
