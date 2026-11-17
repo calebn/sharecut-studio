@@ -1607,6 +1607,14 @@ html:not([data-shell="phone"], [data-shell="tablet"])
   overflow-wrap: anywhere;
 }
 
+/* The line covers the bar's top border, which is where the shared focus ring
+   falls, so with a line the ring is drawn inside the bar instead, its outer
+   edge on the padding box. */
+.sys-declined-bar:has(> .sys-declined-looking-in):focus-visible {
+  outline: var(--focus-ring-width) solid var(--color-accent);
+  outline-offset: calc(-1 * (var(--focus-ring-width) + 1px));
+}
+
 .sys-declined-looking-in > svg {
   flex: none;
 }
