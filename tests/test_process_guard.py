@@ -124,6 +124,15 @@ def _offences(source: str) -> list[tuple[int, str]]:
             [(1, "from asyncio import create_subprocess_exec")],
         ),
         ("import asyncio\nasyncio.sleep(0)\n", []),
+        ("import subprocess.x\n", [(1, "import subprocess.x")]),
+        ("from subprocess.x import y\n", [(1, "from subprocess.x import ...")]),
+        ("from .subprocess import z\n", []),
+        ("from . import subprocess\n", []),
+        ("import importlib\nimportlib.import_module()\n__import__()\n", []),
+        (
+            "import os\nos.system('a')\nimport subprocess\n__import__('subprocess')\n",
+            [(2, "os.system(...)"), (3, "import subprocess"), (4, "__import__('subprocess')")],
+        ),
     ],
 )
 def test_the_detector_finds_every_way_to_spawn(
@@ -132,13 +141,41 @@ def test_the_detector_finds_every_way_to_spawn(
     assert _offences(source) == expected
 
 
-def test_only_util_process_may_import_subprocess_or_spawn() -> None:
-    found = [
-        f"{path.relative_to(ROOT)}:{line}: {what}"
-        for path in sorted(SRC.rglob("*.py"))
-        if path != OWNER
-        for line, what in _offences(path.read_text(encoding="utf-8"))
-    ]
+def _scan(root: Path, exempt: Path) -> tuple[list[str], int]:
+    """Offences under ``root`` outside ``exempt``, and how many files were read."""
+    found = []
+    paths = [path for path in sorted(root.rglob("*.py")) if path != exempt]
+    for path in paths:
+        found += [
+            f"{path.relative_to(root)}:{line}: {what}"
+            for line, what in _offences(path.read_text(encoding="utf-8"))
+        ]
+    return found, len(paths)
+
+
+def test_the_scan_reports_a_planted_offender_and_passes_a_clean_tree(tmp_path: Path) -> None:
+    owner = tmp_path / "pkg" / "owner.py"
+    owner.parent.mkdir()
+    owner.write_text("import subprocess\n", encoding="utf-8")
+    (tmp_path / "pkg" / "clean.py").write_text("import os\nos.getpid()\n", encoding="utf-8")
+    assert _scan(tmp_path, owner) == ([], 1)
+    deep = tmp_path / "pkg" / "deep" / "bad.py"
+    deep.parent.mkdir()
+    deep.write_text("import os\n\nos.system('x')\n", encoding="utf-8")
+    assert _scan(tmp_path, owner) == (["pkg/deep/bad.py:3: os.system(...)"], 2)
+
+
+def test_the_real_scan_reaches_every_package_under_src() -> None:
+    found, count = _scan(SRC, OWNER)
+    scanned = {path.relative_to(SRC).as_posix() for path in SRC.rglob("*.py") if path != OWNER}
+    assert {
+        "podcast_mcp/util/hardware.py",
+        "podcast_mcp/edits/cut_safety.py",
+        "podcast_mcp/engines/render_clock.py",
+        "podcast_relay/app.py",
+    } <= scanned
+    assert "podcast_mcp/util/process.py" not in scanned
+    assert count > 500
     assert found == [], "only src/podcast_mcp/util/process.py may spawn; offenders:\n" + "\n".join(
         found
     )
