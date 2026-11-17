@@ -508,7 +508,7 @@ describe("what the server said never reaches a sentence", () => {
     },
   );
 
-  it("never tells a host to update ShareCut for a failure that is not a newer file", () => {
+  it("never says a newer version for a failure that is not a newer file", () => {
     for (const error of everyError()) {
       const failure = host(error);
       const { sentence } = shellFailureCover(failure, {
