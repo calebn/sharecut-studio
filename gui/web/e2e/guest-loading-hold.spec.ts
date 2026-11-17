@@ -16,6 +16,7 @@ import {
   installProbes,
   type Rect,
   readProbes,
+  type ShiftEntry,
   shiftSum,
 } from "./guestLoadingProbes";
 import { createRecordRoom } from "./recordRoom";
@@ -175,7 +176,7 @@ for (const size of SIZES) {
           const name = await episodeName(guest, token);
           await guest.emulateMedia({ colorScheme: theme });
           await installProbes(guest);
-          const runs: { sum: number; entries: unknown }[] = [];
+          const runs: { sum: number; entries: ShiftEntry[] }[] = [];
           for (let run = 0; run < LANDINGS; run += 1) {
             await holdFirstProject(guest, token, 1500);
             await guest.goto(`/r/${token}`, { waitUntil: "commit" });
@@ -188,10 +189,22 @@ for (const size of SIZES) {
             type: "layout-shift",
             description: JSON.stringify(runs),
           });
-          for (const run of runs)
+          for (const run of runs) {
             expect(run.sum, JSON.stringify(run.entries)).toBeLessThan(
               SHIFT_BUDGET,
             );
+            // The role button, the Listen strip and the header's right side
+            // have their final size at the studio frame's first paint on a
+            // phone; none of them is a source of any shift.
+            const moved = run.entries.flatMap((entry) =>
+              entry.sources.map((source) => source.node),
+            );
+            expect(moved).not.toContain("span.sys-role");
+            if (size.touch) {
+              expect(moved).not.toContain("div.sys-overview");
+              expect(moved).not.toContain("div.sys-header-right");
+            }
+          }
         });
       });
     }
@@ -301,6 +314,53 @@ for (const size of SIZES) {
       });
     });
 
+    test("an Editor link keeps Undo, Redo and the save mark centred while only the guest column sits at the bar's top", async ({
+      browser,
+    }) => {
+      await withGuestLink(
+        browser,
+        size,
+        async (guest, token) => {
+          const name = await episodeName(guest, token);
+          await guest.addInitScript(() => {
+            localStorage.setItem("sharecut.roleHintSeen.editor", "1");
+          });
+          await guest.goto(`/r/${token}`);
+          await landed(guest, name);
+          await expect(
+            guest.locator(".sys-header-history button").first(),
+          ).toBeVisible();
+          const boxes = await guest.evaluate(() => {
+            const box = (el: Element | null | undefined) => {
+              const r = el?.getBoundingClientRect();
+              return r ? { y: r.y, h: r.height } : null;
+            };
+            const cell = document.querySelector(".sys-header-left");
+            const buttons = cell?.querySelectorAll(
+              ".sys-header-history button",
+            );
+            return {
+              cell: box(cell),
+              title: box(cell?.querySelector(".sys-header-title")),
+              undo: box(buttons?.[0]),
+              redo: box(buttons?.[1]),
+              save: box(cell?.querySelector(".sys-save")),
+            };
+          });
+          const middle = (b: { y: number; h: number } | null) =>
+            (b?.y ?? 0) + (b?.h ?? 0) / 2;
+          expect(boxes.title?.y).toBeCloseTo(0, 0);
+          for (const control of [boxes.undo, boxes.redo, boxes.save]) {
+            expect(control).not.toBeNull();
+            expect(
+              Math.abs(middle(control) - middle(boxes.cell)),
+            ).toBeLessThanOrEqual(0.5);
+          }
+        },
+        "editor",
+      );
+    });
+
     const NAMES = {
       "120 unbroken characters": "x".repeat(120),
       Arabic: "الحلقة الأولى من البودكاست",
@@ -352,7 +412,7 @@ for (const size of SIZES) {
       });
     }
 
-    test("a link the server does not know shows the same loading frame with no name, then the cover", async ({
+    test("a link the server does not know shows the loading frame with no name, and never the episode's name", async ({
       browser,
     }) => {
       await withGuestLink(browser, size, async (guest, token) => {
@@ -373,7 +433,7 @@ for (const size of SIZES) {
       });
     });
 
-    test("the host's own header still begins on Project, and Home still sets its shell", async ({
+    test("the host's own header still begins on Project", async ({
       browser,
     }) => {
       await withGuestLink(browser, size, async (_guest, _token, host) => {
