@@ -458,11 +458,14 @@ another; it needs its dependencies already built or fetched. A cold checkout nee
   authentication refusal with no Apple code), and a structured error that also carries transport
   wording. What is stored of an answer, finished or not, is at most 5 messages of 200 characters
   each. `validate` and the app record lookup change nothing at Apple and keep
-  their looser reading: exit 0 with no error message is fine whatever the output, any other exit
+  their looser reading: for `validate`, exit 0 with no error message is fine whatever the output; for both, any other exit
   is a rejection, a duplicate or an authentication refusal by its wording, and only network
   wording (the shorter `NETWORK` list) reads as unreachable. The lookup reads the top-level array
-  `altool --list-apps` prints (or an object with an `applications` array) and needs an entry
-  whose `bundleId` equals the bundle identifier exactly. Real list-apps output begins
+  `altool --list-apps` prints (or an object whose only key is an `applications` array) and needs an entry
+  whose `bundleId` equals the bundle identifier exactly. A lookup that exits 0 but prints no
+  parsed list of apps (an error object such as Apple's 500, a list of anything but app objects, an object with keys besides `applications`, or unreadable output)
+  got no answer: it stops with exit 8 and the unreachable sentence and changes nothing. Only a
+  parsed list without the bundle identifier means no app record (exit 6). Real list-apps output begins
   with a banner line and may include altool's own retry `ERROR` lines before the array; the
   lookup reads past them. A rejection with no readable message
   prints "Apple rejected the build and gave no readable reason" and names the step log.
@@ -472,8 +475,9 @@ another; it needs its dependencies already built or fetched. A cold checkout nee
   upload, never allow one.
   An "already uploaded" answer from Apple is recorded as `apple_reports_duplicate`; check
   TestFlight, and run `build` again for a new number if the build is not there. Exit codes: 3
-  inputs, 4 signing, 5 a local check, 6 Apple rejected, 7 duplicate, 8 other tool failure, 9
-  another run holds the lock, 10 the guard refused (argparse keeps 2).
+  inputs, 4 signing, 5 a local check, 6 Apple rejected, 7 duplicate, 8 other tool failure or no
+  answer from Apple to the app record lookup, 9 another run holds the lock, 10 the guard refused
+  (argparse keeps 2).
 - **Secrets never print.** `Secret` cannot be printed, formatted, serialized or pickled; one
   function, `release_run.spawn`, reveals it, and an AST test fails on a second caller. Output is
   redacted line by line with carry-over across reads, for each secret and private directory as
