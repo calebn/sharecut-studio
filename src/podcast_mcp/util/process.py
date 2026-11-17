@@ -38,6 +38,7 @@ PIPE = subprocess.PIPE
 STDOUT = subprocess.STDOUT
 CalledProcessError = subprocess.CalledProcessError
 CompletedProcess = subprocess.CompletedProcess
+SubprocessError = subprocess.SubprocessError
 TimeoutExpired = subprocess.TimeoutExpired
 Popen = subprocess.Popen
 
