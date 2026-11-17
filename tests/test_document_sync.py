@@ -1934,7 +1934,7 @@ def test_document_snapshot_omits_file_when_revision_unknown(minimal_project, mon
     assert "file_before" not in result["snapshot"]
 
 
-def test_hub_fanout_document_applied(minimal_project):
+def test_hub_fanout_document_applied(minimal_project, monkeypatch):
     import asyncio
 
     from podcast_mcp.models import (
@@ -1988,18 +1988,18 @@ def test_hub_fanout_document_applied(minimal_project):
     q1 = get_hub().subscribe(key, loop)
     q2 = get_hub().subscribe(key, loop)
     try:
-        svc = DocumentSyncService.open(minimal_project)
-        svc.submit(
-            DocumentCommand(
-                type="ApproveEdits",
-                payload={"ids": ["d-fanout"]},
-                client_id="fanout-a",
-                role="viewer",
-                client_seq=1,
+        with _hub_delivery_fence(loop, monkeypatch) as delivered:
+            svc = DocumentSyncService.open(minimal_project)
+            svc.submit(
+                DocumentCommand(
+                    type="ApproveEdits",
+                    payload={"ids": ["d-fanout"]},
+                    client_id="fanout-a",
+                    role="viewer",
+                    client_seq=1,
+                )
             )
-        )
-        loop.call_soon(lambda: None)
-        loop.run_until_complete(asyncio.sleep(0))
+            delivered()
         e1 = q1.get_nowait()
         e2 = q2.get_nowait()
         assert e1["type"] == "Applied"
@@ -2014,7 +2014,7 @@ def test_hub_fanout_document_applied(minimal_project):
         loop.close()
 
 
-def test_notify_document_changed_after_mcp_cut(minimal_project):
+def test_notify_document_changed_after_mcp_cut(minimal_project, monkeypatch):
     import asyncio
 
     from podcast_mcp.mcp.tools.edits import cut_time_range_tool
@@ -2054,9 +2054,9 @@ def test_notify_document_changed_after_mcp_cut(minimal_project):
     loop = asyncio.new_event_loop()
     queue = get_hub().subscribe(key, loop)
     try:
-        cut_time_range_tool(str(minimal_project), "host", 0.5, 1.0, reason="pass6")
-        loop.call_soon(lambda: None)
-        loop.run_until_complete(asyncio.sleep(0))
+        with _hub_delivery_fence(loop, monkeypatch) as delivered:
+            cut_time_range_tool(str(minimal_project), "host", 0.5, 1.0, reason="pass6")
+            delivered()
         event = queue.get_nowait()
         assert event["type"] == "Applied"
         assert event["command"]["type"] == "StageTimeRangeCut"
@@ -2200,7 +2200,6 @@ def test_external_mutate_comments_event_carries_comments_at_the_new_seq(
         )
         with _hub_delivery_fence(loop, monkeypatch) as delivered:
             notify_comments_changed(minimal_project, file_revisions=file_revisions)
-            loop.call_soon(lambda: None)
             delivered()
         event = queue.get_nowait()
         assert event["server_seq"] == 1

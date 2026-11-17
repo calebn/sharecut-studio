@@ -6,7 +6,6 @@ import errno
 import json
 import struct
 import subprocess
-import time
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from unittest.mock import MagicMock, patch
@@ -1841,6 +1840,36 @@ def test_guest_restricted_origin_helper(monkeypatch) -> None:
     assert guest_restricted_origin_allowed("https://evil.example") is False
 
 
+def _await_fanout_cursor(peer, *, t_sec, suffix=None, max_frames=50):
+    """Block on a peer guest socket until a fan-out frame carries ``cursor.t_sec``.
+
+    The peer only sees a client's presence after the server has committed it, and a socket
+    never receives its own cursor delta, so this is the commit barrier for a sender's frame.
+    """
+    for _ in range(max_frames):
+        frame = peer.receive_json()
+        if frame.get("type") == "PresenceDelta":
+            rows = [
+                (
+                    str(frame.get("author_client_id") or ""),
+                    ((frame.get("changes") or {}).get("meta") or {}).get("cursor") or {},
+                )
+            ]
+        elif frame.get("type") == "Presence":
+            rows = [
+                (str(c.get("client_id") or ""), (c.get("meta") or {}).get("cursor") or {})
+                for c in frame.get("clients") or []
+            ]
+        else:
+            continue
+        if any(
+            (suffix is None or who.endswith(suffix)) and cursor.get("t_sec") == t_sec
+            for who, cursor in rows
+        ):
+            return
+    raise AssertionError(f"no fan-out carried cursor t_sec={t_sec}")
+
+
 def test_guest_daw_ws_presence_inbound(minimal_project, sample_wav, tmp_workspace, monkeypatch):
     ws = _seed_premix(minimal_project, sample_wav)
     ver = ReviewService(ws).publish(label="GuestPresence")
@@ -1853,9 +1882,12 @@ def test_guest_daw_ws_presence_inbound(minimal_project, sample_wav, tmp_workspac
     from podcast_mcp.services.session_sync.service import SessionSyncService
 
     url = f"/api/review/{token}/daw/ws?client_id=tab-one&name=Alice"
-    with client.websocket_connect(url) as sock:
+    peer_url = f"/api/review/{token}/daw/ws?client_id=tab-peer&name=Peer"
+    with client.websocket_connect(url) as sock, client.websocket_connect(peer_url) as peer:
         sock.receive_json()
         sock.receive_json()
+        peer.receive_json()
+        peer.receive_json()
         sock.send_json(
             {
                 "type": "Presence",
@@ -1864,17 +1896,9 @@ def test_guest_daw_ws_presence_inbound(minimal_project, sample_wav, tmp_workspac
                 "meta": {"cursor": {"t_sec": 1.5, "track_id": "host"}},
             }
         )
-        alice = None
-        deadline = time.monotonic() + 2.0
-        while time.monotonic() < deadline:
-            clients = SessionSyncService(ws.project).snapshot()["clients"]
-            alice = next(
-                (c for c in clients if str(c["client_id"]).endswith("-tab-one")),
-                None,
-            )
-            if (alice or {}).get("meta", {}).get("cursor", {}).get("t_sec") == 1.5:
-                break
-            time.sleep(0.05)
+        _await_fanout_cursor(peer, t_sec=1.5, suffix="-tab-one")
+        clients = SessionSyncService(ws.project).snapshot()["clients"]
+        alice = next((c for c in clients if str(c["client_id"]).endswith("-tab-one")), None)
         assert alice is not None
         assert alice["client_id"].startswith("guest-")
         assert (alice.get("meta") or {}).get("cursor", {}).get("t_sec") == 1.5
@@ -2007,9 +2031,15 @@ def test_guest_daw_ws_drops_invalid_playhead(
     )
     token = share["token"]
     client = TestClient(create_app())
-    with client.websocket_connect(f"/api/review/{token}/daw/ws") as guest_ws:
+    peer_url = f"/api/review/{token}/daw/ws?client_id=tab-peer&name=Peer"
+    with (
+        client.websocket_connect(f"/api/review/{token}/daw/ws") as guest_ws,
+        client.websocket_connect(peer_url) as peer,
+    ):
         guest_ws.receive_json()
         guest_ws.receive_json()
+        peer.receive_json()
+        peer.receive_json()
         guest_ws.send_json({"type": "Presence", "client_seq": 2, "playhead_sec": 1.5})
         guest_ws.send_text('{"type":"Presence","client_seq":3,"playhead_sec":NaN}')
         guest_ws.send_json({"type": "Presence", "client_seq": 4, "playhead_sec": -9})
@@ -2021,19 +2051,16 @@ def test_guest_daw_ws_drops_invalid_playhead(
                 "meta": {"cursor": {"t_sec": 7.25}},
             }
         )
+        _await_fanout_cursor(peer, t_sec=7.25)
         mine = None
-        for _ in range(50):
-            with client.websocket_connect(f"/api/review/{token}/daw/ws") as obs:
-                snaps = [obs.receive_json(), obs.receive_json()]
-            for frame in snaps:
-                for c in (frame.get("snapshot") or {}).get("clients") or []:
-                    if c.get("client_id", "").startswith("guest-") and (c.get("meta") or {}).get(
-                        "cursor"
-                    ):
-                        mine = c
-            if mine:
-                break
-            time.sleep(0.05)
+        with client.websocket_connect(f"/api/review/{token}/daw/ws") as obs:
+            snaps = [obs.receive_json(), obs.receive_json()]
+        for frame in snaps:
+            for c in (frame.get("snapshot") or {}).get("clients") or []:
+                if c.get("client_id", "").startswith("guest-") and (c.get("meta") or {}).get(
+                    "cursor"
+                ):
+                    mine = c
         assert mine is not None
         assert mine["playhead_sec"] == 1.5
 
