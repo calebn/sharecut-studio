@@ -254,7 +254,8 @@ function AppInner({ bootName }: { bootName: string | null }) {
   const shareCapabilities = guest?.capabilities ?? null;
   const shareTranscriptWords = guest?.transcriptWords ?? false;
   const shareAuthor = guest?.author ?? null;
-  // The page's own name stands in until the link's answer or its saved copy has one.
+  // The page's own name stands in until the link's answer or its saved copy has one,
+  // and stays when neither carries a name.
   const shareName = guest?.name ?? (reviewToken ? bootName : null);
   const shareBootstrapping = current.status === "pending";
   // A hung features call is not a dead button: asking again replaces it.
