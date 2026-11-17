@@ -249,7 +249,7 @@ describe("useRosterAnnouncer", () => {
     expect(result.current).toBe("");
   });
   describe("someone looking in", () => {
-    const ROW = "Someone with the producer link is looking in";
+    const LINE = "Someone with the producer link is looking in";
     const at = (
       watchers: number | undefined,
       state: RecordSnapshot["state"] = "lobby",
@@ -265,11 +265,11 @@ describe("useRosterAnnouncer", () => {
     it("announces the first rise from none in the lobby, once", () => {
       const { result, rerender } = setup(at(0));
       rerender({ snapshot: at(1), meId: "p_g" });
-      expect(result.current).toBe(ROW);
+      expect(result.current).toBe(LINE);
       rerender({ snapshot: at(0), meId: "p_g" });
-      expect(result.current).toBe(ROW);
+      expect(result.current).toBe(LINE);
       rerender({ snapshot: at(2), meId: "p_g" });
-      expect(result.current).toBe(ROW);
+      expect(result.current).toBe(LINE);
     });
 
     it("announces a rise in a stopped room, and from a server that sends no count", () => {
@@ -302,7 +302,7 @@ describe("useRosterAnnouncer", () => {
       rerender({ snapshot: at(2), meId: "p_g" });
       rerender({ snapshot: at(1), meId: "p_g" });
       rerender({ snapshot: at(0), meId: "p_g" });
-      expect(result.current).toBe(ROW);
+      expect(result.current).toBe(LINE);
     });
 
     it("announces a lobby rise after a rise that was seen during a take", () => {
@@ -311,7 +311,7 @@ describe("useRosterAnnouncer", () => {
       expect(result.current).toBe("");
       rerender({ snapshot: at(0, "lobby"), meId: "p_g" });
       rerender({ snapshot: at(1, "lobby"), meId: "p_g" });
-      expect(result.current).toBe(ROW);
+      expect(result.current).toBe(LINE);
     });
 
     it.each([-1, 2.5, 100, Number.NaN, "2"])(
@@ -331,7 +331,7 @@ describe("useRosterAnnouncer", () => {
       rerender({ snapshot: at(1), meId: "p_g" });
       rerender({ snapshot: at(0), meId: "p_g" });
       rerender({ snapshot: at(2), meId: "p_g" });
-      expect(result.current).toBe(ROW);
+      expect(result.current).toBe(LINE);
       rerender({ snapshot: at(0, "lobby", "room2"), meId: "p_g" });
       rerender({ snapshot: at(3, "lobby", "room2"), meId: "p_g" });
       expect(result.current).toBe(
@@ -342,7 +342,7 @@ describe("useRosterAnnouncer", () => {
 });
 
 describe("useLookingInAnnouncer", () => {
-  const ROW = "Someone with the producer link is looking in";
+  const LINE = "Someone with the producer link is looking in";
   const at = (
     watchers: number,
     state: RecordSnapshot["state"] = "lobby",
@@ -365,10 +365,10 @@ describe("useLookingInAnnouncer", () => {
   it("announces the first rise in the lobby, once, and says nothing about people", () => {
     const { result, rerender } = setupHost(at(0));
     rerender({ snapshot: at(1) });
-    expect(result.current).toBe(ROW);
+    expect(result.current).toBe(LINE);
     rerender({ snapshot: at(0) });
     rerender({ snapshot: at(3) });
-    expect(result.current).toBe(ROW);
+    expect(result.current).toBe(LINE);
   });
 
   it("holds its tongue during a take, then announces a lobby rise", () => {
