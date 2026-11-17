@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import traceback
 
 import pytest
 from fastapi.testclient import TestClient
@@ -70,11 +71,12 @@ def test_a_validation_error_of_the_project_file_holds_no_input_value(minimal_pro
     _damaged_deep(minimal_project, marker)
     with pytest.raises(ProjectUnreadableError) as caught:
         load_project(minimal_project)
-    chain = caught.value.__cause__
-    assert chain is not None
-    text = str(chain)
+    # The error is not chained to pydantic's: its text prints the file's own keys.
+    assert caught.value.__cause__ is None
+    text = "".join(traceback.format_exception_only(caught.value))
     assert marker not in text
-    assert "input_value" not in text
-    assert "transcripts.per_track.0.words.0.start" in text
-    assert "meta.name" in text
-    assert "type=" in text
+    assert "input_value=" not in text
+    assert "validation error" not in text
+    assert caught.value.__suppress_context__
+    assert "unexpected contents at " in str(caught.value)
+    assert marker not in str(caught.value)

@@ -619,7 +619,18 @@ def test_sanitize_masks_every_error_of_one_block() -> None:
 
 @pytest.mark.parametrize(
     "key",
-    ["Zelda Quimby", "a)b", "é日本", "a\nb", "a\nx\ny", "a:b", "a/b", "[key]", "`q`", "a b)c\nd"],
+    [
+        "Zelda Quimby",
+        "Zelda)Quimby",
+        "Zéldá日本Quimby",
+        "Zelda\nQuimby",
+        "Zelda\nQuimby\nBorgo",
+        "Zelda:Quimby",
+        "Zelda/Quimby",
+        "[Zelda]",
+        "`Zelda`",
+        "Zelda Quimby)Borgo\nWilma",
+    ],
 )
 def test_sanitize_covers_every_part_of_an_odd_key(key: str) -> None:
     loc = f"meta.ingest_alignment.{key}.align_method"
@@ -667,7 +678,7 @@ def test_sanitize_without_field_names_masks_every_word_but_numbers() -> None:
     assert "Zelda" not in out
 
 
-@pytest.mark.parametrize("key", ["Zelda", "a)b", "Zelda\nQuimby", "a b", "é"])
+@pytest.mark.parametrize("key", ["Zelda", "Zel)da", "Zelda\nQuimby", "Zelda Quimby", "Zéldá"])
 def test_sanitize_masks_the_key_in_the_old_unreadable_sentence(key: str) -> None:
     text = (
         "ProjectUnreadableError: The project file is damaged and could not be read "

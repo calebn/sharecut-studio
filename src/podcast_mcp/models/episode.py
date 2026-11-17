@@ -1,7 +1,10 @@
 from __future__ import annotations
 
+import collections.abc
 import json
 import logging
+import types
+import typing
 from collections.abc import Callable, Iterable
 from datetime import UTC, datetime
 from enum import StrEnum
@@ -1756,6 +1759,55 @@ def _unreadable_project(reason: str) -> ProjectUnreadableError:
     )
 
 
+def _step_into(ann: Any, part: str | int) -> tuple[Any, bool]:
+    """Where ``part`` leads from the type ``ann``: the type there (``None`` when unknown) and
+    whether the segment is safe to print (an index or a name the code declares)."""
+    while True:
+        origin = typing.get_origin(ann)
+        args = typing.get_args(ann)
+        if origin is typing.Annotated:
+            ann = args[0]
+            continue
+        if origin in (typing.Union, types.UnionType):
+            rest = [a for a in args if a is not type(None)]
+            if len(rest) != 1:
+                return None, isinstance(part, int)
+            ann = rest[0]
+            continue
+        break
+    if isinstance(ann, type) and issubclass(ann, BaseModel):
+        if isinstance(part, str):
+            for name, field in ann.model_fields.items():
+                if part == name or part == field.alias:
+                    return field.annotation, True
+        return None, False
+    if origin in (list, set, frozenset, tuple, collections.abc.Sequence, collections.abc.Set):
+        if not isinstance(part, int):
+            return None, False
+        if origin is tuple and args and args[-1] is not Ellipsis:
+            return (args[part] if 0 <= part < len(args) else None), True
+        return (args[0] if args else None), True
+    if origin is dict or (isinstance(origin, type) and issubclass(origin, collections.abc.Mapping)):
+        return (args[1] if len(args) == 2 else None), False
+    return None, isinstance(part, int)
+
+
+def _safe_location(model: type[BaseModel], loc: tuple[int | str, ...]) -> str:
+    """``loc`` of a validation error with every dict key, and every segment it cannot place, as ``*``.
+
+    A key of the file (a speaker's name under ``meta.ingest_alignment``) must not reach an
+    error text or a log: only list indexes and the field names or aliases the models declare
+    are kept. Past a position this cannot resolve (a union, ``Any``), a segment that is not a
+    number is ``*``.
+    """
+    ann: Any = model
+    out: list[str] = []
+    for part in loc:
+        ann, keep = _step_into(ann, part) if ann is not None else (None, isinstance(part, int))
+        out.append(str(part) if keep else "*")
+    return ".".join(out)
+
+
 def load_project(path: Path) -> EpisodeProject:
     path = Path(path)
     try:
@@ -1774,10 +1826,12 @@ def load_project(path: Path) -> EpisodeProject:
     try:
         project = EpisodeProject.model_validate(data)
     except ValidationError as exc:
-        where = ".".join(str(part) for part in exc.errors()[0]["loc"])
+        where = _safe_location(EpisodeProject, exc.errors()[0]["loc"])
+        # Not chained: pydantic's own text prints the location with the file's dict keys in
+        # it (a speaker's name), and a log of the exception would carry that text.
         raise _unreadable_project(
             f"unexpected contents at {where}" if where else "unexpected contents"
-        ) from exc
+        ) from None
     # Workspace is always the directory that contains episode.sharecut.
     # Do not trust committed absolute paths (machine-specific / portable clones).
     project.meta.workspace_dir = str(path.parent.resolve())
