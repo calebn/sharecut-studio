@@ -14,6 +14,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+from scripts.ios.framework_plists import check as check_framework_plists
 from scripts.ios.release_run import capture
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -71,7 +72,7 @@ def is_macho(path: Path) -> bool:
 
 def check_layout(app: Path) -> CheckReport:
     """No static libraries, no loose shared object, and every Mach-O is the main executable or
-    inside a framework."""
+    inside a framework, and every nested framework carries a framework Info.plist."""
     problems: list[str] = []
     machos = 0
     for path in sorted(app.rglob("*")):
@@ -92,6 +93,7 @@ def check_layout(app: Path) -> CheckReport:
             machos += 1
             if not in_framework and len(parts) != 1:
                 problems.append(f"Mach-O outside the executable and Frameworks: {relative}")
+    problems += check_framework_plists(app)
     return CheckReport("bundle layout", tuple(problems), facts={"mach_o_files": machos})
 
 

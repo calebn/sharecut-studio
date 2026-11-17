@@ -56,14 +56,26 @@ def make_app(root: Path, files: dict[str, bytes]) -> Path:
     return app
 
 
+APP_ID = "studio.sharecut.app"
+
+
+def framework_plist(module: str, **overrides: object) -> bytes:
+    plist = {
+        "CFBundleExecutable": module,
+        "CFBundleIdentifier": f"{APP_ID}.{module}",
+        "CFBundlePackageType": "FMWK",
+    }
+    return plistlib.dumps({**plist, **overrides})
+
+
 def test_a_clean_layout_passes(tmp_path: Path) -> None:
     app = make_app(
         tmp_path,
         {
             "ShareCut": MACHO,
-            "Info.plist": b"x",
+            "Info.plist": plistlib.dumps({"CFBundleIdentifier": APP_ID}),
             "Frameworks/numpy.framework/numpy": MACHO,
-            "Frameworks/numpy.framework/Info.plist": b"x",
+            "Frameworks/numpy.framework/Info.plist": framework_plist("numpy"),
             "app_packages/pure.py": b"x",
         },
     )
@@ -93,6 +105,57 @@ def test_every_layout_violation_is_named(tmp_path: Path) -> None:
             "Mach-O outside the executable and Frameworks: Other/tool",
         )
     )
+
+
+def framework_app(tmp_path: Path, plists: dict[str, bytes | None]) -> Path:
+    files = {"ShareCut": MACHO, "Info.plist": plistlib.dumps({"CFBundleIdentifier": APP_ID})}
+    for module, data in plists.items():
+        files[f"Frameworks/{module}.framework/{module}"] = MACHO
+        if data is not None:
+            files[f"Frameworks/{module}.framework/Info.plist"] = data
+    return make_app(tmp_path, files)
+
+
+def test_a_nested_framework_packaged_as_an_app_fails_the_layout(tmp_path: Path) -> None:
+    app = framework_app(
+        tmp_path,
+        {"numpy.random._pcg64": framework_plist("numpy.random._pcg64", CFBundlePackageType="APPL")},
+    )
+    problems = checks.check_layout(app).problems
+    assert any(
+        "numpy.random._pcg64.framework" in problem and "APPL" in problem for problem in problems
+    )
+
+
+def test_a_framework_with_no_plist_fails_the_layout(tmp_path: Path) -> None:
+    app = framework_app(tmp_path, {"numpy": None})
+    assert any("numpy.framework" in problem for problem in checks.check_layout(app).problems)
+
+
+def test_a_malformed_identifier_fails_the_layout(tmp_path: Path) -> None:
+    bad = framework_plist("numpy", CFBundleIdentifier=f"{APP_ID}.numpy.-pcg64")
+    problems = checks.check_layout(framework_app(tmp_path, {"numpy": bad})).problems
+    assert any("numpy.framework" in problem and "identifier" in problem for problem in problems)
+
+
+def test_duplicate_and_app_identifiers_fail_the_layout(tmp_path: Path) -> None:
+    shared = f"{APP_ID}.shared"
+    app = framework_app(
+        tmp_path,
+        {
+            "one": framework_plist("one", CFBundleIdentifier=shared),
+            "two": framework_plist("two", CFBundleIdentifier=shared),
+            "three": framework_plist("three", CFBundleIdentifier=APP_ID),
+        },
+    )
+    problems = checks.check_layout(app).problems
+    assert any("duplicate" in problem for problem in problems)
+    assert any("three.framework" in problem for problem in problems)
+
+
+def test_an_unreadable_framework_plist_is_a_problem_not_an_exception(tmp_path: Path) -> None:
+    app = framework_app(tmp_path, {"numpy": b"x"})
+    assert any("unreadable" in problem for problem in checks.check_layout(app).problems)
 
 
 def test_an_app_store_profile_has_no_devices_and_no_debugging() -> None:
