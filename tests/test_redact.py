@@ -492,3 +492,73 @@ def test_redact_share_paths_handles_many_dot_segments_in_linear_time() -> None:
 
     assert out == text
     assert elapsed < 1.0
+
+
+def test_sanitize_hides_a_validation_input_value() -> None:
+    text = "  Field required [type=missing, input_value={'name': 'MARK-A'}, input_type=dict]"
+    out = sanitize(text, home=Path("/Users/host"))
+    assert "MARK-A" not in out
+    assert out.startswith("  Field required [type=missing, input_value=")
+    assert out.endswith(", input_type=dict]")
+
+
+def test_sanitize_hides_a_value_that_holds_the_input_type_text() -> None:
+    text = "x [type=string_type, input_value='a, input_type=str MARK-B', input_type=str]"
+    out = sanitize(text, home=Path("/Users/host"))
+    assert "MARK-B" not in out
+    assert out.endswith(", input_type=str]")
+
+
+def test_sanitize_hides_every_validation_error_on_its_own_line() -> None:
+    text = (
+        "a.b\n  bad [type=x, input_value={'n': 'MARK-C'}, input_type=dict]\n"
+        "c.d\n  bad [type=x, input_value=['MARK-D'], input_type=list]\nafter MARK-E"
+    )
+    out = sanitize(text, home=Path("/Users/host"))
+    assert "MARK-C" not in out
+    assert "MARK-D" not in out
+    assert out.endswith("after MARK-E")
+    assert out.count("input_type=") == 2
+
+
+def test_sanitize_cuts_an_input_value_with_no_input_type_to_the_end_of_the_line() -> None:
+    text = "bad [type=x, input_value={'n': 'MARK-F'}\nnext MARK-G line"
+    out = sanitize(text, home=Path("/Users/host"))
+    assert "MARK-F" not in out
+    assert out.endswith("\nnext MARK-G line")
+
+
+def test_sanitize_leaves_text_without_an_input_value_alone() -> None:
+    text = "input_type=dict and input value 3 [type=x]"
+    assert sanitize(text, home=Path("/Users/host")) == text
+
+
+@pytest.mark.parametrize(
+    ("folder", "encoded"),
+    [
+        (
+            "/tmp/ep one/raw",
+            ["%2Ftmp%2Fep%20one%2Fraw", "%2ftmp%2fep%20one%2fraw", "%2Ftmp%2Fep+one%2Fraw"],
+        ),
+        ("/tmp/Épisode", ["%2Ftmp%2F%C3%89pisode", "/tmp/%C3%89pisode", "%2Ftmp%2F%c3%89pisode"]),
+        ("C:\\Users\\me\\ep", ["C%3A%5CUsers%5Cme%5Cep", "C%3a%5cUsers%5cme%5cep"]),
+        ("/tmp/ep(1)!", ["%2Ftmp%2Fep%281%29%21", "%2Ftmp%2Fep(1)!"]),
+    ],
+)
+def test_sanitize_replaces_the_percent_encoded_workspace(folder: str, encoded: list[str]) -> None:
+    for spelling in encoded:
+        line = f'"WebSocket /api/host/ws?path={spelling}%2Fepisode.sharecut&client_id=v 403'
+        out = sanitize(line, home=Path("/Users/host"), workspace=Path(folder))
+        assert (
+            out == '"WebSocket /api/host/ws?path=<workspace>%2Fepisode.sharecut&client_id=v 403'
+        ), spelling
+
+
+def test_sanitize_replaces_the_percent_encoded_home_and_extra_paths() -> None:
+    line = "a %2FUsers%2Fhost%2F.cache b %2Fopt%2Fpodcast-cache%2Fx"
+    out = sanitize(
+        line,
+        home=Path("/Users/host"),
+        extra=[(Path("/opt/podcast-cache"), "<cache>")],
+    )
+    assert out == "a ~%2F.cache b <cache>%2Fx"
