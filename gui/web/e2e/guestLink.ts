@@ -16,6 +16,17 @@ export const SIZES = [
   { name: "desktop", width: 1280, height: 800, touch: false },
 ] as const;
 
+/** The narrowest phone the app supports: the header folds its right side at exactly this width (20 rem). */
+export const NARROW_PHONE = {
+  name: "narrow",
+  width: 320,
+  height: 568,
+  touch: true,
+} as const;
+
+export const ROLES = ["viewer", "commenter", "editor"] as const;
+export type GuestRole = (typeof ROLES)[number];
+
 export async function press(button: Locator, touch: boolean) {
   if (touch) {
     await button.tap();
@@ -280,3 +291,57 @@ export const focusWhenSeen = (page: Page) =>
   page.evaluate(
     () => (window as unknown as { __focusSeen: Promise<string> }).__focusSeen,
   );
+
+/**
+ * One shared project with a link for each role and the host's own page open on
+ * it, so a guest finds a person in the header's people slot as a real one does.
+ */
+export async function withGuestLinks(
+  browser: Parameters<typeof withBrowserPages>[0],
+  run: (
+    links: Record<GuestRole, string>,
+    host: Page,
+    projectPath: string,
+  ) => Promise<void>,
+) {
+  await withShareableProject(async (projectPath) => {
+    await withBrowserPages(browser, [{}], async ([host]) => {
+      await openHostShare(host!, projectPath);
+      const links = {} as Record<GuestRole, string>;
+      for (const role of ROLES)
+        links[role] = await createReviewShare(host!, projectPath, role);
+      await run(links, host!, projectPath);
+    });
+  });
+}
+
+/** A guest who has read every role's first-visit hint already. */
+export async function seeEveryHint(page: Page) {
+  await page.addInitScript(() => {
+    for (const role of ["viewer", "commenter", "editor"])
+      localStorage.setItem(`sharecut.roleHintSeen.${role}`, "1");
+  });
+}
+
+/** A guest's own browser window of `size`: a first visit shows the role hint, a returning guest has seen it. */
+export async function withGuestPage(
+  browser: Parameters<typeof withBrowserPages>[0],
+  size: Size,
+  run: (guest: Page) => Promise<void>,
+  options: { visit?: "first" | "returning"; scale?: number } = {},
+) {
+  await withBrowserPages(
+    browser,
+    [
+      {
+        viewport: { width: size.width, height: size.height },
+        hasTouch: size.touch,
+        deviceScaleFactor: options.scale ?? 1,
+      },
+    ],
+    async ([guest]) => {
+      if (options.visit === "returning") await seeEveryHint(guest!);
+      await run(guest!);
+    },
+  );
+}

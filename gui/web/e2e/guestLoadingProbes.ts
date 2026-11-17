@@ -1,6 +1,13 @@
 import { mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { expect, type Page } from "@playwright/test";
+import { fontsReady } from "./fontsReady";
+import {
+  holdScripts,
+  installBootProbes,
+  reactDrewLoadingHeader,
+} from "./guestBootProbes";
+import { holdFirstProject } from "./guestLink";
 
 export type Rect = { x: number; y: number; w: number; h: number };
 
@@ -138,6 +145,57 @@ export async function readProbes(page: Page): Promise<Probes> {
 }
 
 /**
+ * The studio has replaced the loading screen: the frame is up, the bar is not
+ * busy, the title holds the episode's name and the version line is read.
+ */
+export async function landed(page: Page, name: string) {
+  await expect(page.locator(".stage-frame--guest")).toBeVisible();
+  await expect(page.locator(".sys-app-header-host")).not.toHaveAttribute(
+    "aria-busy",
+    "true",
+  );
+  await expect(page.locator(".sys-header-title")).toHaveText(name);
+  await expect(page.locator(".sys-header-sub")).not.toContainText(
+    "Shared link",
+  );
+  await fontsReady(page);
+}
+
+/**
+ * The header's right side has what presence brings: the host's avatar. A bar
+ * that folds its right side into a menu (a phone 320 px wide) has none to wait
+ * for.
+ */
+export async function rightSideArrived(page: Page): Promise<void> {
+  await page.waitForFunction(() => {
+    const right = document.querySelector(".sys-header-right");
+    return (
+      !right ||
+      getComputedStyle(right).display === "none" ||
+      right.querySelector(".avatar-face") !== null
+    );
+  });
+}
+
+/** Two animation frames in the page, so what an arrival moved has been laid out. */
+export async function afterFrames(page: Page): Promise<void> {
+  await page.evaluate(
+    () =>
+      new Promise<void>((resolve) =>
+        requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
+      ),
+  );
+}
+
+/** Opens a review link and waits until its header has everything it will hold. */
+export async function openLanded(page: Page, token: string, name: string) {
+  await page.goto(`/r/${token}`);
+  await landed(page, name);
+  await rightSideArrived(page);
+  await afterFrames(page);
+}
+
+/**
  * Waits for what arrives after the studio has landed, each on its own state:
  * the transcript's first word and the guest's own avatar in the header's right
  * side (the presence answer). On a phone it also checks that the Listen
@@ -153,21 +211,13 @@ export async function lateArrivals(page: Page, touch: boolean): Promise<void> {
     .locator(".stage-host-guest-script .sys-script-word")
     .first()
     .waitFor({ state: "attached" });
-  await page
-    .locator(".sys-header-right .avatar-face")
-    .first()
-    .waitFor({ state: "attached" });
+  await rightSideArrived(page);
   if (touch)
     await page
       .locator(".sys-listen-dock-strip .sys-overview")
       .first()
       .waitFor({ state: "attached" });
-  await page.evaluate(
-    () =>
-      new Promise<void>((resolve) =>
-        requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
-      ),
-  );
+  await afterFrames(page);
 }
 
 export const shiftSum = (probes: Probes) =>
@@ -221,9 +271,236 @@ export const status = (page: Page) =>
 
 const SHOTS = process.env.GUEST_LOADING_SHOTS;
 
-/** Saves a screenshot under `GUEST_LOADING_SHOTS` when it is set. */
-export async function shot(page: Page, name: string) {
+/** Saves a screenshot under `GUEST_LOADING_SHOTS` when it is set; `clip` keeps only that part of the page. */
+export async function shot(page: Page, name: string, clip?: Rect) {
   if (!SHOTS) return;
   mkdirSync(SHOTS, { recursive: true });
-  await page.screenshot({ path: join(SHOTS, `${name}.png`) });
+  await page.screenshot({
+    path: join(SHOTS, `${name}.png`),
+    clip: clip && { x: clip.x, y: clip.y, width: clip.w, height: clip.h },
+    animations: "disabled",
+  });
+}
+
+export const SHOTS_ON = SHOTS !== undefined;
+
+/** Every visible thing in the header bar, with its box, and the bar's own box and rule. */
+export type Inventory = {
+  bar: Rect;
+  /** The bar's bottom border: the last pixel row of its box. */
+  rule: number;
+  items: { name: string; box: Rect }[];
+};
+
+/**
+ * What the header bar holds now. The coach tip's bubble is a popup meant to
+ * hang under the bar and is left out, as are an icon's own strokes and the
+ * screen-reader-only text.
+ */
+export async function headerInventory(page: Page): Promise<Inventory> {
+  return page.evaluate(() => {
+    const host = document.querySelector(".sys-app-header-host");
+    if (!host) throw new Error("the page has no header bar");
+    const rect = (b: DOMRect) => ({ x: b.x, y: b.y, w: b.width, h: b.height });
+    const items: Inventory["items"] = [];
+    for (const el of host.querySelectorAll("*")) {
+      if (el.closest(".sys-coach-tip")) continue;
+      const svg = el.closest("svg");
+      if (svg && svg !== el) continue;
+      const box = el.getBoundingClientRect();
+      if (box.width <= 1 || box.height <= 1) continue;
+      if (getComputedStyle(el).visibility === "hidden") continue;
+      const cls = typeof el.className === "string" ? el.className : "";
+      const label = el.getAttribute("aria-label");
+      items.push({
+        name: `${el.tagName.toLowerCase()}${cls ? `.${cls.split(" ")[0]}` : ""}${label ? ` "${label}"` : ""}`,
+        box: rect(box),
+      });
+    }
+    return {
+      bar: rect(host.getBoundingClientRect()),
+      rule: Number.parseFloat(getComputedStyle(host).borderBottomWidth),
+      items,
+    };
+  });
+}
+
+/** What of the header lies above the bar or reaches its rule, each with how far. */
+export function reachingPast(inventory: Inventory): string[] {
+  const inner = inventory.bar.y + inventory.bar.h - inventory.rule;
+  const past: { by: number; text: string }[] = [];
+  for (const { name, box } of inventory.items) {
+    const under = box.y + box.h - inner;
+    if (under > 0.05)
+      past.push({
+        by: under,
+        text: `${name} ends ${under.toFixed(1)} px past the bar's inner edge`,
+      });
+    const over = inventory.bar.y - box.y;
+    if (over > 0.05)
+      past.push({
+        by: over,
+        text: `${name} begins ${over.toFixed(1)} px above the bar`,
+      });
+  }
+  return past.sort((a, b) => b.by - a.by).map((p) => p.text);
+}
+
+export type TargetReport = {
+  name: string;
+  box: Rect;
+  /** The `side` x `side` area (or the control's own box when that is larger) that must press the control. */
+  area: Rect;
+  answered: number;
+  asked: number;
+};
+
+/**
+ * Where a press would land. For each visible button in the header bar (the
+ * coach tip's own Dismiss left out), the `side` px square that holds its box
+ * and sits as near its centre as the bar allows is tried on a grid of points
+ * with `elementFromPoint`: every point must answer the control or something in
+ * it. `only` narrows the controls to those matching the selector.
+ */
+export async function pressTargets(
+  page: Page,
+  side: number,
+  only?: string,
+): Promise<{ bar: Rect; rule: number; controls: TargetReport[] }> {
+  return page.evaluate(
+    ({ side: want, only: selector }) => {
+      const host = document.querySelector(".sys-app-header-host");
+      if (!host) throw new Error("the page has no header bar");
+      const bar = host.getBoundingClientRect();
+      const rule = Number.parseFloat(getComputedStyle(host).borderBottomWidth);
+      const inner = bar.bottom - rule;
+      const clamp = (v: number, low: number, high: number) =>
+        Math.min(Math.max(v, low), Math.max(low, high));
+      const controls = [] as TargetReport[];
+      for (const el of host.querySelectorAll<HTMLElement>(
+        selector ?? "button, [role=button], a[href]",
+      )) {
+        if (el.closest(".sys-coach-tip")) continue;
+        const box = el.getBoundingClientRect();
+        if (box.width <= 1 || box.height <= 1) continue;
+        const w = Math.max(want, box.width);
+        const h = Math.max(want, box.height);
+        const x = clamp(
+          box.x + box.width / 2 - w / 2,
+          0,
+          window.innerWidth - w,
+        );
+        const y = clamp(box.y + box.height / 2 - h / 2, bar.top, inner - h);
+        let answered = 0;
+        let asked = 0;
+        for (let i = 0; i < 5; i += 1) {
+          for (let j = 0; j < 5; j += 1) {
+            // A rounded corner is not the control's to answer for.
+            if ((i === 0 || i === 4) && (j === 0 || j === 4)) continue;
+            const px = x + 1 + ((w - 2) * i) / 4;
+            const py = y + 1 + ((h - 2) * j) / 4;
+            const hit = document.elementFromPoint(px, py);
+            asked += 1;
+            if (hit && (hit === el || el.contains(hit))) answered += 1;
+          }
+        }
+        const label = el.getAttribute("aria-label");
+        controls.push({
+          name: label ?? (el.textContent ?? "").trim().slice(0, 30),
+          box: { x: box.x, y: box.y, w: box.width, h: box.height },
+          area: { x, y, w, h },
+          answered,
+          asked,
+        });
+      }
+      return {
+        bar: { x: bar.x, y: bar.y, w: bar.width, h: bar.height },
+        rule,
+        controls,
+      };
+    },
+    { side, only },
+  );
+}
+
+const overlap = (a: Rect, b: Rect) =>
+  Math.min(a.x + a.w, b.x + b.w) - Math.max(a.x, b.x) > 0.5 &&
+  Math.min(a.y + a.h, b.y + b.h) - Math.max(a.y, b.y) > 0.5;
+
+const fmt = (r: Rect) =>
+  `x ${r.x.toFixed(1)}..${(r.x + r.w).toFixed(1)}, y ${r.y.toFixed(1)}..${(r.y + r.h).toFixed(1)}`;
+
+/** What is wrong with the press targets: one that does not answer in full, one under the bar, two that cross. */
+export function targetProblems(
+  report: Awaited<ReturnType<typeof pressTargets>>,
+) {
+  const problems: string[] = [];
+  const inner = report.bar.y + report.bar.h - report.rule;
+  for (const c of report.controls) {
+    if (c.answered < c.asked)
+      problems.push(
+        `"${c.name}" (${fmt(c.box)}) answers ${c.answered} of ${c.asked} points of its ${c.area.w.toFixed(0)} x ${c.area.h.toFixed(0)} area (${fmt(c.area)})`,
+      );
+    if (c.box.y + c.box.h > inner + 0.05)
+      problems.push(
+        `"${c.name}" ends ${(c.box.y + c.box.h - inner).toFixed(1)} px past the bar's inner edge`,
+      );
+  }
+  for (const [i, a] of report.controls.entries())
+    for (const b of report.controls.slice(i + 1))
+      if (overlap(a.area, b.area))
+        problems.push(`"${a.name}" and "${b.name}" press over the same area`);
+  return problems;
+}
+
+/**
+ * The header's title box as the page the server wrote has it, as React's
+ * loading header has it, and as the landed studio has it. The script is held
+ * after the page's own HTML, then the episode's read is held, so each state
+ * lasts long enough to measure with the fonts loaded.
+ */
+export async function headerAcrossLanding(
+  page: Page,
+  token: string,
+  name: string,
+) {
+  await installBootProbes(page, name);
+  await holdScripts(page, 3000);
+  await holdFirstProject(page, token, 2000);
+  await page.goto(`/r/${token}`, { waitUntil: "commit" });
+  await expect(page.locator(".sys-header-title")).toHaveText(name);
+  await expect(status(page)).toHaveText(`Loading ${name}…`);
+  await fontsReady(page);
+  const written = await headerBoxes(page);
+  await expect.poll(() => reactDrewLoadingHeader(page)).toBe(true);
+  await expect(status(page)).toHaveText(`Loading ${name}…`);
+  await fontsReady(page);
+  const drawn = await headerBoxes(page);
+  await landed(page, name);
+  await rightSideArrived(page);
+  await afterFrames(page);
+  return { written, drawn, landed: await headerBoxes(page) };
+}
+
+/** Where a box in `got` is more than `tolerance` px from the same one in `want` on any side, or is missing, one line each. */
+export function boxesMoved(
+  got: Record<string, Rect>,
+  want: Record<string, Rect>,
+  tolerance: number,
+): string[] {
+  const moved: string[] = [];
+  for (const label of new Set([...Object.keys(got), ...Object.keys(want)])) {
+    const a = got[label];
+    const b = want[label];
+    if (!a || !b) {
+      moved.push(`${label} is ${a ? "new" : "missing"}`);
+      continue;
+    }
+    for (const side of ALL)
+      if (Math.abs(a[side] - b[side]) > tolerance)
+        moved.push(
+          `${label} ${side} is ${a[side].toFixed(1)}, was ${b[side].toFixed(1)}`,
+        );
+  }
+  return moved;
 }

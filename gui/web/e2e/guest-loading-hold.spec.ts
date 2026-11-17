@@ -1,4 +1,4 @@
-import { expect, type Page, test } from "@playwright/test";
+import { expect, test } from "@playwright/test";
 import { expectReadingSurfaceAxeClean } from "./axe";
 import { postDocumentCommand } from "./documentCommand";
 import { fontsReady } from "./fontsReady";
@@ -15,6 +15,7 @@ import {
   HEADER_HEIGHT,
   headerBoxes,
   installProbes,
+  landed,
   lateArrivals,
   NOT_WIDTH,
   near,
@@ -29,19 +30,6 @@ import {
 import { createRecordRoom } from "./recordRoom";
 
 const LANDINGS = 5;
-
-async function landed(page: Page, name: string) {
-  await expect(page.locator(".stage-frame--guest")).toBeVisible();
-  await expect(page.locator(".sys-app-header-host")).not.toHaveAttribute(
-    "aria-busy",
-    "true",
-  );
-  await expect(page.locator(".sys-header-title")).toHaveText(name);
-  await expect(page.locator(".sys-header-sub")).not.toContainText(
-    "Shared link",
-  );
-  await fontsReady(page);
-}
 
 for (const size of SIZES) {
   const height = HEADER_HEIGHT[size.name];

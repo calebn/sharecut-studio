@@ -34,6 +34,11 @@ const AXIS_LOOPS: Record<string, { loops: number; reason: string }> = {
     reason:
       "the header the server writes is painted by the stylesheet alone before any script has chosen a theme, so its colors, boxes and axe contrast are asked in both themes (#3891)",
   },
+  "guest-header-fit.spec.ts": {
+    loops: 2,
+    reason:
+      "axe contrast on the guest header reads color, and the pictures of it for a person to judge are filed per theme, so both are the subject (#3891)",
+  },
   "guest-link-offline.spec.ts": {
     loops: 1,
     reason:
