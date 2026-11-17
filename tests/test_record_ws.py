@@ -3070,6 +3070,25 @@ def test_a_look_on_a_closed_invite_is_refused_like_a_join(
     assert svc.snapshot()["watchers"] == 0
 
 
+def _drop_room_events(monkeypatch, *, only_removals: bool):
+    """Make the hub lose events, as a full socket queue would; returns a switch (a dict)."""
+    from podcast_mcp.services.session_sync import get_hub
+
+    hub = get_hub()
+    original = hub.publish
+    state = {"dropping": False}
+
+    def publish(key, event):
+        command = event.get("command")
+        removal = isinstance(command, dict) and command.get("type") == "RemoveParticipant"
+        if state["dropping"] and (removal or not only_removals):
+            return
+        original(key, event)
+
+    monkeypatch.setattr(hub, "publish", publish)
+    return state
+
+
 def test_a_look_open_when_its_invite_closes_is_closed_with_no_frame_and_uncounted(
     minimal_project, sample_wav, tmp_workspace, monkeypatch
 ):
@@ -3077,11 +3096,11 @@ def test_a_look_open_when_its_invite_closes_is_closed_with_no_frame_and_uncounte
 
     ws, room, client = _room(minimal_project, sample_wav, tmp_workspace, monkeypatch)
 
-    async def always_ok(self):
-        # Switch the share recheck off so only the removal check can close the look.
-        return True
+    async def checked_every_time(self):
+        # A real share check on every event, so the look is always past the on-frame window.
+        return await self._validate(force=True)
 
-    monkeypatch.setattr(GuestWsGuard, "share_ok_on_frame", always_ok)
+    monkeypatch.setattr(GuestWsGuard, "share_ok_on_frame", checked_every_time)
     svc = _room_svc(ws, room)
     wait_for_count = _watchers_waiter(svc, monkeypatch)
     with _observe(client, room) as obs:
@@ -3090,51 +3109,75 @@ def test_a_look_open_when_its_invite_closes_is_closed_with_no_frame_and_uncounte
         joined = obs.receive_json()
         assert joined["snapshot"]["watchers"] == 1
         _remove_that_producer(ws, room, svc, participant_id)
-        # The very next thing on the socket is the close: no frame follows the removal.
-        with pytest.raises(WebSocketDisconnect) as closed:
-            obs.receive_json()
-        assert closed.value.code == 4403
+        code, reason, frames = _close_within(obs, 5.0)
+        assert (code, reason, frames) == (4403, "invite closed", [])
+    wait_for_count(0)
+
+
+def test_the_next_event_closes_a_look_whose_removal_event_was_lost_and_is_not_sent(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch
+):
+    ws, room, client = _room(minimal_project, sample_wav, tmp_workspace, monkeypatch)
+    lose = _drop_room_events(monkeypatch, only_removals=True)
+    svc = _room_svc(ws, room)
+    wait_for_count = _watchers_waiter(svc, monkeypatch)
+    with _observe(client, room) as obs:
+        assert obs.receive_json()["snapshot"]["watchers"] == 1
+        svc, participant_id = _join_through_the_producer_invite(ws, room)
+        assert obs.receive_json()["snapshot"]["watchers"] == 1
+        lose["dropping"] = True
+        _remove_that_producer(ws, room, svc, participant_id)
+        lose["dropping"] = False
+        RecordControlService(ws).submit_host("SetGuestsSeeNotes", {"enabled": True})
+        code, reason, frames = _close_within(obs, 5.0)
+        assert (code, reason, frames) == (4403, "invite closed", [])
     wait_for_count(0)
 
 
 def test_the_share_recheck_closes_a_look_whose_removal_event_was_lost(
     minimal_project, sample_wav, tmp_workspace, monkeypatch
 ):
-    from podcast_mcp.gui.routes import guest_ws_common, record_share
+    from podcast_mcp.gui.routes import guest_ws_common
 
     monkeypatch.setattr(guest_ws_common, "GUEST_SHARE_RECHECK_S", 0.2)
-    # The pump never notices the removal, as if its event had been dropped from the queue.
-    monkeypatch.setattr(record_share, "_removes_someone", lambda _event: False)
     ws, room, client = _room(minimal_project, sample_wav, tmp_workspace, monkeypatch)
+    lose = _drop_room_events(monkeypatch, only_removals=False)
     svc = _room_svc(ws, room)
     wait_for_count = _watchers_waiter(svc, monkeypatch)
     with _observe(client, room) as obs:
         assert obs.receive_json()["snapshot"]["watchers"] == 1
+        # No event reaches the look at all: only the periodic recheck can close it.
+        lose["dropping"] = True
         _close_the_producer_invite(ws, room)
-        assert _close_code_within(obs, 5.0) == 4403
+        code, reason, frames = _close_within(obs, 5.0)
+        assert (code, reason, frames) == (4403, "share revoked or expired", [])
     wait_for_count(0)
 
 
-def _close_code_within(sock, secs: float) -> int:
-    """Read ``sock`` in a worker until it closes; fail in ``secs`` if it never does."""
+def _close_within(sock, secs: float) -> tuple[int, str, list[dict]]:
+    """Read ``sock`` in a worker until it closes; return (code, reason, frames before it).
+
+    Fails in ``secs`` if it never closes.
+    """
     import threading
 
     done = threading.Event()
-    code: list[int] = []
+    frames: list[dict] = []
+    closed_with: list[tuple[int, str]] = []
 
     def read() -> None:
         try:
             while True:
-                sock.receive_json()
+                frames.append(sock.receive_json())
         except WebSocketDisconnect as closed:
-            code.append(closed.code)
+            closed_with.append((closed.code, closed.reason))
         finally:
             done.set()
 
     threading.Thread(target=read, daemon=True).start()
     assert done.wait(secs), "the socket was never closed"
-    assert code, "the socket ended without a close code"
-    return code[0]
+    assert closed_with, "the socket ended without a close code"
+    return closed_with[0][0], closed_with[0][1], frames
 
 
 def _recheck_counter(monkeypatch):

@@ -89,11 +89,6 @@ def _stamp_of(event: dict[str, Any]) -> int:
     return stamp if isinstance(stamp, int) else 0
 
 
-def _removes_someone(event: dict[str, Any]) -> bool:
-    command = event.get("command")
-    return isinstance(command, dict) and command.get("type") == "RemoveParticipant"
-
-
 def _record_still_valid(token: str) -> bool:
     try:
         row = lookup_share(token, kind=SHARE_KIND_RECORD)
@@ -192,6 +187,14 @@ async def record_ws(
             try:
                 while True:
                     event = await q.get()
+                    if (
+                        watching
+                        and not joined
+                        and await run_in_threadpool(svc.invite_closed, share_id) is not None
+                    ):
+                        # The invite closed: a look gets what a Join gets, before any frame.
+                        await guard.close(4403, "invite closed")
+                        return
                     if not await guard.share_ok_on_frame() or not _participant_runtime_valid():
                         await guard.close(4403, "participant removed or share revoked")
                         return
@@ -208,12 +211,6 @@ async def record_ws(
                                 role=role,
                             )
                         elif watching:
-                            if _removes_someone(event) and (
-                                await run_in_threadpool(svc.invite_closed, share_id) is not None
-                            ):
-                                # A removal closed this link's invite: it gets what a Join gets.
-                                await guard.close(4403, "invite closed")
-                                return
                             # Never show a room that has not been told: frames built before
                             # this socket was counted carry a count without it.
                             frame = None if _stamp_of(event) < counted_at else observer_view(event)
