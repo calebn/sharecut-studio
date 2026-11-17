@@ -158,12 +158,10 @@ MESSAGE_WIDTH = 200
 
 
 def locate_document(text: str) -> tuple[int, dict[str, object] | list[object]] | None:
-    """Where the JSON document altool printed starts, and its value, or None. It starts at the
+    """The offset and value of the JSON object or array altool printed, or None. It starts at the
     first line that begins with ``{`` or ``[`` and the output from there to the end must parse as
-    that one value, so a truncated document, text after it, a second document or a nested bracket
-    is no document. altool's stderr is merged into the output, so lines before the document are
-    tolerated when none of them looks like JSON. One parse and a cap at the captured tail (which
-    was cut at its head) keep the cost linear."""
+    that one value; lines before it are tolerated when none looks like JSON. One parse and a cap
+    at the captured tail (which was cut at its head) keep the cost linear."""
     if len(text) >= OUTPUT_LIMIT:
         return None
     start = DOCUMENT_LINE.search(text)
@@ -185,7 +183,6 @@ def altool_value(text: str) -> dict[str, object] | list[object] | None:
 
 
 def altool_document(text: str) -> dict[str, object] | None:
-    """The document when it is an object; every reader of an altool answer expects a dict."""
     value = altool_value(text)
     return value if isinstance(value, dict) else None
 
@@ -260,23 +257,15 @@ def classify_upload(exit_code: int, text: str) -> AppleAnswer:
     return AppleAnswer(Verdict.AUTH_FAILED if AUTH.search(haystack) else Verdict.REJECTED, messages)
 
 
-def without_retry_lines(prelude: str) -> str:
-    """altool retries an Apple API 500 itself and prints one such line per retry before an answer
-    that still succeeds, so exactly those lines, and only before the document, are not an error."""
-    return RETRY_LINE.sub("", prelude)
-
-
 def classify_altool(exit_code: int, text: str) -> AppleAnswer:
     """The reading for steps that change nothing at Apple (validate, app record lookup)."""
     located = locate_document(text)
-    value = located[1] if located else None
-    listing = isinstance(value, list)
-    document = value if isinstance(value, dict) else None
-    if exit_code == 0 and located:
-        prelude = without_retry_lines(text[: located[0]])
-        text = prelude if listing else prelude + text[located[0] :]
+    document = located[1] if located and isinstance(located[1], dict) else None
+    if exit_code == 0 and located and document is not None:
+        # altool retries an Apple 5xx itself and prints a line per retry before an answer that succeeds
+        text = RETRY_LINE.sub("", text[: located[0]]) + text[located[0] :]
     messages = altool_messages(text, document)
-    if exit_code == 0 and not messages and not (listing and TRANSPORT.search(text)):
+    if exit_code == 0 and not messages:
         return AppleAnswer(Verdict.OK)
     haystack = error_haystack(text, document)
     for pattern, verdict in (
@@ -290,8 +279,7 @@ def classify_altool(exit_code: int, text: str) -> AppleAnswer:
 
 
 def app_record_exists(text: str, bundle_identifier: str) -> bool:
-    """Whether ``altool --list-apps --filter-bundle-id`` printed an app with exactly this bundle
-    identifier: a top-level array of apps, or an object holding that array as ``applications``."""
+    """Whether the list-apps output has an app with exactly this bundle identifier."""
     value = altool_value(text)
     apps = value.get("applications") if isinstance(value, dict) else value
     return isinstance(apps, list) and any(
