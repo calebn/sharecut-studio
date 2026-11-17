@@ -667,14 +667,18 @@ describe("JoinSheet producer", () => {
     expect(status()).toHaveTextContent(SEEN);
   });
 
-  it("speaks the sentence once per open sheet, however often it comes and goes", async () => {
+  it("speaks the sentence once per open sheet, empties the region when it goes, and never refills it", async () => {
     const SEEN = "The room can see that someone is looking in.";
     const { rerender } = render(<Harness seat="producer" name="Rosa" />);
     const region = document.querySelector(
       '[aria-live="polite"]',
     ) as HTMLElement;
+    expect(region).toBeEmptyDOMElement();
     rerender(<Harness seat="producer" name="Rosa" seenByRoom />);
     expect(region).toHaveTextContent(SEEN);
+    rerender(<Harness seat="producer" name="Rosa" />);
+    expect(region).toBeEmptyDOMElement();
+    expect(screen.queryAllByText(SEEN)).toHaveLength(0);
     let changes = 0;
     const watch = new MutationObserver((records) => {
       changes += records.length;
@@ -684,16 +688,14 @@ describe("JoinSheet producer", () => {
       subtree: true,
       characterData: true,
     });
-    rerender(<Harness seat="producer" name="Rosa" />);
-    expect(screen.queryAllByText(SEEN)).toHaveLength(1);
     rerender(<Harness seat="producer" name="Rosa" seenByRoom />);
+    expect(screen.getAllByText(SEEN)).toHaveLength(1);
     rerender(<Harness seat="producer" name="Rosa" />);
     rerender(<Harness seat="producer" name="Rosa" seenByRoom />);
     await Promise.resolve();
     watch.disconnect();
     expect(changes).toBe(0);
-    expect(region).toHaveTextContent(SEEN);
-    expect(screen.getAllByText(SEEN)).toHaveLength(2);
+    expect(region).toBeEmptyDOMElement();
   });
 
   it("leaves the status empty when the sentence was there at open, so it is read once, as the description", () => {

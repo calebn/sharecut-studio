@@ -225,10 +225,13 @@ export function JoinSheet({
 }: JoinSheetProps) {
   const producerLineId = useId();
   const producerSeenId = useId();
-  const [openedSeen] = useState(seenByRoom);
-  const [spoken, setSpoken] = useState(false);
-  if (seenByRoom && !openedSeen && !spoken) {
-    setSpoken(true);
+  const [seenPhase, setSeenPhase] = useState<"waiting" | "speaking" | "done">(
+    seenByRoom ? "done" : "waiting",
+  );
+  if (seenByRoom && seenPhase === "waiting") {
+    setSeenPhase("speaking");
+  } else if (!seenByRoom && seenPhase === "speaking") {
+    setSeenPhase("done");
   }
   const nameRef = useRef<HTMLInputElement>(null);
   const formRef = useRef<HTMLFormElement>(null);
@@ -441,7 +444,7 @@ export function JoinSheet({
               </p>
             ) : null}
             <p className="sr-only" aria-live="polite">
-              {spoken ? JOIN_TEXT.producerSeen : ""}
+              {seenByRoom && seenPhase !== "done" ? JOIN_TEXT.producerSeen : ""}
             </p>
             {notice ? (
               <p role="alert" className="sys-join-reason">

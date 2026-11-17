@@ -926,6 +926,24 @@ describe("GuestRoomApp", () => {
       vi.mocked(loadRecordParticipant).mockResolvedValue(undefined);
     });
 
+    it("shows the invite link closed cover when a look is refused with that error and no lease", async () => {
+      await lookIn();
+      act(() => {
+        sockets[0].onmessage?.({
+          data: JSON.stringify({
+            plane: "record",
+            type: "Error",
+            code: "invite_closed",
+          }),
+        });
+        sockets[0].onclose?.({ code: 4403 });
+      });
+      expect(
+        await screen.findByRole("heading", { name: "Invite link closed" }),
+      ).toBeInTheDocument();
+      expect(screen.queryByText(/Thanks for recording/)).toBeNull();
+    });
+
     it("shows the ended cover when a look is refused for a producer without a lease", async () => {
       await lookIn();
       act(() => sockets[0].onclose?.({ code: 4403 }));
