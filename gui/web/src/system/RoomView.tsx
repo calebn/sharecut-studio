@@ -229,10 +229,16 @@ export function RoomView({
     device,
   });
   const lookingInText = loading ? null : lookingInLine(lookingIn);
-  // Declined makes the body inert; the looking-in line is the one part that
-  // stays readable, so then the inert goes on its neighbours instead.
-  const lineStaysLive = Boolean(declined) && lookingInText !== null;
-  const partInert = lineStaysLive ? true : undefined;
+  // Declined makes the whole body inert, so the line is shown from outside it,
+  // under the header, where it stays readable and above the scrim.
+  const lookingInNote =
+    lookingInText === null ? null : (
+      <p className="sys-room-looking-in">
+        <SystemIcon name="eye" size={16} />
+        {lookingInText}
+      </p>
+    );
+  const lineOutside = Boolean(declined) && lookingInText !== null;
   const pinned =
     phase.kind === "live" || phase.kind === "paused"
       ? clockText(phase.clockSec)
@@ -304,6 +310,7 @@ export function RoomView({
       data-page={page ? "" : undefined}
       data-loading={loading ? "" : undefined}
       data-looking-in={lookingInText === null ? undefined : ""}
+      data-line-outside={lineOutside ? "" : undefined}
     >
       {embedded ? (
         <div className="sys-room-view-header sys-room-view-header--embedded">
@@ -340,25 +347,21 @@ export function RoomView({
           {loading || !statusKnown ? null : <RoomStatusPill phase={phase} />}
         </header>
       )}
-      <div
-        className="sys-room-view-body"
-        inert={declined && !lineStaysLive ? true : undefined}
-      >
+      {lineOutside ? (
+        <section className="sys-room-looking-in-strip" aria-label="Looking in">
+          {lookingInNote}
+        </section>
+      ) : null}
+      <div className="sys-room-view-body" inert={declined ? true : undefined}>
         <Stage embedded={embedded} title={title}>
-          {lookingInText === null ? null : (
-            <p className="sys-room-looking-in">
-              <SystemIcon name="eye" size={16} />
-              {lookingInText}
-            </p>
-          )}
+          {lineOutside ? null : lookingInNote}
           {alertsInFrame ? null : (
-            <div className="sys-room-view-alert" inert={partInert}>
+            <div className="sys-room-view-alert">
               <RoomAlert alerts={model.alerts} />
             </div>
           )}
           <div
             className="sys-room-view-grid"
-            inert={partInert}
             aria-busy={loading ? true : undefined}
             style={
               {
@@ -406,7 +409,7 @@ export function RoomView({
                 )}
           </div>
           {!loading && model.listeners.length > 0 ? (
-            <ListenerRow inert={partInert}>
+            <ListenerRow>
               {model.listeners.map((listener) => (
                 <ListenerAvatar
                   key={listener.key}
@@ -418,11 +421,7 @@ export function RoomView({
           ) : null}
         </Stage>
         {!loading && model.railOpen ? (
-          <aside
-            className="sys-room-view-rail"
-            aria-label="Comments and takes"
-            inert={partInert}
-          >
+          <aside className="sys-room-view-rail" aria-label="Comments and takes">
             {railContent}
           </aside>
         ) : null}

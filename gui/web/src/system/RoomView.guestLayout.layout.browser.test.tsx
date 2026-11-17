@@ -1,7 +1,7 @@
 import { createElement } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, describe, expect, it } from "vitest";
-import { page } from "vitest/browser";
+import { page, userEvent } from "vitest/browser";
 import { RoomView, type RoomViewProps } from "./RoomView";
 import type { RoomPerson } from "./roomViewModel";
 
@@ -578,38 +578,124 @@ describe("the Declined state", () => {
 });
 
 describe("the looking-in line under the Declined bar", () => {
+  const PRODUCER_LISTENER: RoomPerson = {
+    role: "producer",
+    person: { name: "Pat", colorIndex: 4 },
+    presence: "live",
+    connection: "good",
+  };
   const sizes = [
-    [320, 640, "phone"],
-    [390, 844, "phone"],
+    [320, 568, "phone"],
+    [320, 380, "phone"],
     [667, 375, "phone-landscape"],
     [768, 1024, "desktop"],
-    [1280, 800, "desktop"],
+    [1280, 380, "desktop"],
   ] as const;
+  const overlap = (a: DOMRect, b: DOMRect) =>
+    a.left < b.right - 0.5 &&
+    b.left < a.right - 0.5 &&
+    a.top < b.bottom - 0.5 &&
+    b.top < a.bottom - 0.5;
+  const declinedRoom = (
+    seat: "guest" | "producer",
+    width: number,
+    height: number,
+    viewerWidth: "phone" | "phone-landscape" | "desktop",
+    lookingIn: number,
+  ) =>
+    render(width, height, {
+      seat,
+      phase: LIVE,
+      viewerWidth,
+      declined: { onJoin: noop },
+      alerts: [{ kind: "mic-lost", onAction: noop }],
+      people: [...OTHERS, ME, PRODUCER_LISTENER],
+      defaultNotesOpen: viewerWidth === "desktop",
+      lookingIn,
+    });
+
   for (const seat of ["guest", "producer"] as const) {
     for (const [width, height, viewerWidth] of sizes) {
-      it(`sits above the scrim for a ${seat} at ${width}x${height}`, async () => {
-        const room = await render(width, height, {
-          seat,
-          phase: LIVE,
-          viewerWidth,
-          declined: { onJoin: noop },
-          people: [OTHERS[0] as RoomPerson, ME],
-          lookingIn: 3,
-        });
-        const line = room.querySelector(".sys-room-looking-in") as Element;
-        const scrim = room.querySelector(".sys-declined-scrim") as Element;
-        const box = rect(line);
-        expect(rect(scrim).top).toBeLessThanOrEqual(box.top);
-        expect(rect(scrim).bottom).toBeGreaterThanOrEqual(box.bottom);
-        const top = document.elementFromPoint(
-          box.left + box.width / 2,
-          box.top + box.height / 2,
+      const name = `a ${seat} at ${width}x${height}`;
+
+      it(`keeps the body inert and out of the Tab order for ${name}`, async () => {
+        const room = await declinedRoom(seat, width, height, viewerWidth, 3);
+        const body = room.querySelector(".sys-room-view-body") as HTMLElement;
+        expect(body).toHaveAttribute("inert");
+        const button = room.querySelector(
+          ".sys-declined-bar button",
+        ) as HTMLElement;
+        button.focus();
+        for (let step = 0; step < 5; step += 1) {
+          await userEvent.tab();
+          expect(body.contains(document.activeElement)).toBe(false);
+        }
+        const stage = room.querySelector(".sys-room-view-stage") as Element;
+        const grid = rect(room.querySelector(".sys-room-view-grid") as Element);
+        const at = document.elementFromPoint(
+          grid.left + grid.width / 2,
+          Math.min(grid.top + grid.height / 2, height - 1),
         );
-        expect(top === line || line.contains(top)).toBe(true);
-        expect(Number(getComputedStyle(line).zIndex)).toBeGreaterThan(
-          Number(getComputedStyle(scrim.parentElement as Element).zIndex),
+        expect(stage.contains(at), "the stage takes no pointer or wheel").toBe(
+          false,
+        );
+      });
+
+      it(`shows the line outside the inert body, on top and clear of the bar for ${name}`, async () => {
+        const room = await declinedRoom(seat, width, height, viewerWidth, 3);
+        const line = room.querySelector(".sys-room-looking-in") as Element;
+        expect(line.closest("[inert]")).toBeNull();
+        expect(line.closest(".sys-room-view-body")).toBeNull();
+        const box = rect(line);
+        const spots = [
+          [box.left + 1, box.top + 1],
+          [box.right - 1, box.top + 1],
+          [box.left + 1, box.bottom - 1],
+          [box.right - 1, box.bottom - 1],
+          [box.left + box.width / 2, box.top + box.height / 2],
+        ] as const;
+        for (const [x, y] of spots) {
+          const top = document.elementFromPoint(x, y);
+          expect(top === line || line.contains(top)).toBe(true);
+        }
+        for (const selector of [
+          ".sys-declined-bar",
+          ".sys-declined-bar button",
+          ".sys-room-view-peek",
+          ".sys-dock",
+        ]) {
+          const other = room.querySelector(selector);
+          if (other) expect(overlap(box, rect(other)), selector).toBe(false);
+        }
+        expect(box.top).toBeGreaterThanOrEqual(
+          rect(room.querySelector("header") as Element).bottom,
+        );
+        expect(box.right).toBeLessThanOrEqual(width);
+        expect(
+          Number(getComputedStyle(line.closest("section") ?? line).zIndex),
+        ).toBeGreaterThan(
+          Number(
+            getComputedStyle(room.querySelector(".sys-declined") as Element)
+              .zIndex,
+          ),
         );
       });
     }
   }
+
+  it("keeps the alert slot, grid, listener row and rail inside the inert body", async () => {
+    const room = await declinedRoom("guest", 1280, 800, "desktop", 2);
+    const body = room.querySelector(".sys-room-view-body") as Element;
+    for (const selector of [
+      ".sys-room-view-stage",
+      ".sys-room-view-alert",
+      ".sys-room-view-grid",
+      ".sys-room-listeners",
+      ".sys-room-view-rail",
+    ]) {
+      const part = room.querySelector(selector);
+      expect(part, selector).not.toBeNull();
+      expect((part as Element).closest("[inert]"), selector).toBe(body);
+    }
+  });
 });

@@ -853,21 +853,31 @@ describe("RoomView as the host", () => {
       );
     });
 
-    it("leaves only the looking-in line live when declined, and everything else inert", () => {
+    it("shows the looking-in line from outside the inert body when declined", () => {
       const { container } = renderRoom({
         declined: { onJoin: () => {} },
         people: [HOST, { ...JON, you: true }, { ...ROSA, role: "producer" }],
         lookingIn: 2,
       });
-      const line = container.querySelector(".sys-room-looking-in") as Element;
+      const body = container.querySelector(
+        ".sys-room-view-body",
+      ) as HTMLElement;
+      expect(body).toHaveAttribute("inert");
+      const line = container.querySelector(
+        ".sys-room-looking-in",
+      ) as HTMLElement;
       expect(line.closest("[inert]")).toBeNull();
+      expect(body).not.toContainElement(line);
       expect(
-        container.querySelector(".sys-room-view-body"),
-      ).not.toHaveAttribute("inert");
-      for (const selector of [".sys-room-view-grid", ".sys-room-listeners"]) {
-        expect(container.querySelector(selector)).toHaveAttribute("inert");
-      }
-      expect(container.querySelector(".sys-room-view-rail")).toBeNull();
+        container.querySelector("section[aria-label='Looking in']"),
+      ).toContainElement(line);
+    });
+
+    it("keeps the looking-in line first in the stage when not declined", () => {
+      const { container } = renderRoom({ lookingIn: 2 });
+      const stage = container.querySelector(".sys-room-view-stage");
+      expect(stage?.firstElementChild).toHaveClass("sys-room-looking-in");
+      expect(container.querySelector("[inert]")).toBeNull();
     });
 
     it("adds nothing to a room that has not declined", () => {
