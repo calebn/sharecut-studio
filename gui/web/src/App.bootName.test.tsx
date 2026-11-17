@@ -123,6 +123,22 @@ describe("the name the server wrote into the page", () => {
     );
   });
 
+  it("stays when /project answers without a name", async () => {
+    window.history.pushState({}, "", "/r/named");
+    const spy = answers(projectNamed("   "));
+    vi.stubGlobal("fetch", spy);
+    render(<App bootName="Pilot episode" />);
+    await vi.waitFor(() => {
+      expect(
+        spy.mock.calls.some(([input]) => urlOf(input).endsWith("/project")),
+      ).toBe(true);
+    });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "Loading Pilot episode…",
+    );
+  });
+
   it("is not shown on a share project key, which is no review route", () => {
     window.history.pushState({}, "", "/?project=share:direct-token");
     vi.stubGlobal("fetch", never());
