@@ -123,7 +123,6 @@ function GuestRoomSession({
 }) {
   const [rejoinOpen, setRejoinOpen] = useState(false);
   const [joining, setJoining] = useState(false);
-  const [producerDismissed, setProducerDismissed] = useState(false);
   const [deviceOpen, setDeviceOpen] = useState(false);
   const [headphonesGate] = useState(() => headphonesRule(readHeadphonesEnv()));
   const room = useGuestRoom(token, { rejoining: rejoinOpen });
@@ -162,6 +161,9 @@ function GuestRoomSession({
     setDeviceId,
     producerJoined,
     setProducerJoined,
+    producerDismissed,
+    setProducerDismissed,
+    socketMode,
     resumeUpload,
   } = room;
 
@@ -387,6 +389,11 @@ function GuestRoomSession({
   }
 
   const meId = me?.participant_id;
+  const watchers = lookingInCount(snapshot?.watchers);
+  const ownLook = producerOutside && watchers > 0 ? 1 : 0;
+  const lookingIn = watchers - ownLook;
+  const seenByRoom =
+    producer && socketMode === "watch" && connected && ownLook > 0;
   const people = roomPeople(snapshot, {
     youId: meId ?? null,
     youLevel: level,
@@ -485,7 +492,7 @@ function GuestRoomSession({
         seat={producer ? "producer" : "guest"}
         title={episodeName || "Recording"}
         people={people}
-        lookingIn={lookingInCount(snapshot?.watchers)}
+        lookingIn={lookingIn}
         phase={phase}
         viewerWidth={viewerWidth}
         alerts={alerts}
@@ -534,7 +541,8 @@ function GuestRoomSession({
           seat={producer ? "producer" : "guest"}
           here={joinHere(snapshot, me)}
           host={host}
-          lookingIn={lookingInCount(snapshot?.watchers)}
+          lookingIn={lookingIn}
+          seenByRoom={seenByRoom}
           name={name}
           onNameChange={setName}
           mic={joinMic(sheetMic.input, sheetMic.options)}

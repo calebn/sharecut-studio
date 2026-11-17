@@ -110,6 +110,7 @@ class FakeSocket {
   onmessage: ((ev: { data: string }) => void) | null = null;
   onclose: ((ev: { code: number }) => void) | null = null;
   sent: string[] = [];
+  url = "";
   reply: "join" | "full" | "declined" | "invalid" | "silent" = "join";
   holdConsent = false;
 
@@ -202,8 +203,9 @@ function stubWebSocket(
 ) {
   const ctor = Object.assign(
     // `function`, not an arrow: Vitest >= 4 requires a constructible mock for `new`.
-    vi.fn(function () {
+    vi.fn(function (url: string) {
       const ws = new FakeSocket();
+      ws.url = url;
       ws.reply = reply;
       sockets.push(ws);
       queueMicrotask(() => ws.onopen?.());
@@ -722,7 +724,9 @@ describe("GuestRoomApp", () => {
     await waitFor(() => {
       expect(document.title).toBe("Join to listen | Shot of Truth");
     });
-    expect(sockets).toHaveLength(0);
+    await waitFor(() => expect(sockets).toHaveLength(1));
+    expect(new URL(sockets[0].url).searchParams.get("observe")).toBe("1");
+    expect(sockets[0].sent).toEqual([]);
     expect(closeGuardSpy).toHaveBeenLastCalledWith(false, "guest", false);
     await expectNoA11yViolations(container);
   });
@@ -781,10 +785,12 @@ describe("GuestRoomApp", () => {
   it("lets a producer who closed the sheet open it again", async () => {
     stubBootstrap(producerBootstrap);
     render(<GuestRoomApp token="prod-tok" />);
+    await waitFor(() => expect(sockets).toHaveLength(1));
+    sockets[0].close = vi.fn();
     await userEvent.click(
       await screen.findByRole("button", { name: "Not now" }),
     );
-    expect(sockets).toHaveLength(0);
+    expect(sockets[0].close).toHaveBeenCalled();
     expect(
       screen.getByRole("region", { name: "Not in the room" }),
     ).toBeVisible();
@@ -805,6 +811,126 @@ describe("GuestRoomApp", () => {
     expect(
       screen.getByRole("button", { name: "Join to listen" }),
     ).toBeInTheDocument();
+    await waitFor(() => expect(sockets).toHaveLength(2));
+    expect(new URL(sockets[1].url).searchParams.get("observe")).toBe("1");
+  });
+
+  describe("a producer looking in before the press", () => {
+    const hana = {
+      participant_id: "p_host",
+      role: "host" as const,
+      display_name: "Hana",
+      connected: true,
+      consented: true,
+      muted: false,
+      headphones_ack: true,
+    };
+    const ava = { ...guestSnap.participants[0], consented: true };
+    const look = (patch: Record<string, unknown> = {}) =>
+      act(() =>
+        sockets[0].onmessage?.(
+          snapshotMessage(
+            {
+              state: "recording",
+              take_index: 0,
+              recording_ms: 5000,
+              participants: [hana, ava],
+              server_time_ns: 100,
+              ...patch,
+            },
+            true,
+          ),
+        ),
+      );
+    const SEEN = "The room can see that someone is looking in.";
+    const rowText = () =>
+      document.querySelector(".sys-room-looking-in")?.textContent ?? null;
+
+    async function lookIn() {
+      stubBootstrap(producerBootstrap);
+      stubWebSocket(sockets, "silent");
+      render(<GuestRoomApp token="prod-tok" />);
+      await waitFor(() => expect(sockets).toHaveLength(1));
+      await screen.findByRole("button", { name: "Join to listen" });
+    }
+
+    it("shows who is there, the live pill and the real tiles behind the sheet", async () => {
+      await lookIn();
+      look({ watchers: 1 });
+      expect(
+        await screen.findByRole("heading", { name: "Hana and Ava are here" }),
+      ).toBeVisible();
+      expect(document.querySelector(".sys-pill-text")?.textContent).toBe(
+        "0:05 · Take 1",
+      );
+      expect(sockets[0].sent).toEqual([]);
+      expect(document.title).toBe("Join to listen | Shot of Truth");
+      expect(screen.queryByText("You")).toBeNull();
+    });
+
+    it("tells the producer the room can see them only once the server has counted them", async () => {
+      await lookIn();
+      expect(screen.queryByText(SEEN)).toBeNull();
+      look({ server_time_ns: 100 });
+      expect(screen.queryByText(SEEN)).toBeNull();
+      look({ watchers: 0, server_time_ns: 101 });
+      expect(screen.queryByText(SEEN)).toBeNull();
+      look({ watchers: 1, server_time_ns: 102 });
+      const sentence = screen.getByText(SEEN);
+      expect(sentence).toBeVisible();
+      const dialog = screen.getByRole("dialog");
+      expect(dialog.getAttribute("aria-describedby")?.split(" ")).toContain(
+        sentence.id,
+      );
+    });
+
+    it("does not tell a lone producer that someone is looking in", async () => {
+      await lookIn();
+      look({ watchers: 1, server_time_ns: 101 });
+      expect(screen.getByText(SEEN)).toBeVisible();
+      expect(rowText()).toBeNull();
+      expect(
+        document.querySelector('[aria-live="polite"].sr-only'),
+      ).not.toHaveTextContent("looking in");
+    });
+
+    it("counts only the others when more than one is looking in", async () => {
+      await lookIn();
+      look({ watchers: 3, server_time_ns: 101 });
+      expect(rowText()).toBe("2 people with the producer link are looking in");
+      look({ watchers: 2, server_time_ns: 102 });
+      expect(rowText()).toBe("Someone with the producer link is looking in");
+    });
+
+    it("ends the look on Not now: no pill, no people, no row", async () => {
+      await lookIn();
+      sockets[0].close = vi.fn();
+      look({ watchers: 2, server_time_ns: 101 });
+      expect(rowText()).not.toBeNull();
+      await userEvent.click(screen.getByRole("button", { name: "Not now" }));
+      await screen.findByRole("region", { name: "Not in the room" });
+      expect(sockets[0].close).toHaveBeenCalled();
+      expect(document.querySelector(".sys-pill-text")).toBeNull();
+      expect(screen.queryByText("Hana")).toBeNull();
+      expect(rowText()).toBeNull();
+    });
+
+    it("joins on the same socket and stops saying it is looking in", async () => {
+      await lookIn();
+      look({ watchers: 1, server_time_ns: 101 });
+      await enterName("Pat");
+      await userEvent.click(
+        screen.getByRole("button", { name: "Join to listen" }),
+      );
+      await waitFor(() => {
+        expect(
+          sockets[0].sent.filter((raw) => raw.includes('"Join"')),
+        ).toHaveLength(1);
+      });
+      expect(sockets).toHaveLength(1);
+      expect(screen.queryByText(SEEN)).toBeNull();
+      expect(rowText()).toBeNull();
+    });
   });
 
   const producerSnapshot = (patch: Record<string, unknown> = {}) => ({
@@ -955,14 +1081,14 @@ describe("GuestRoomApp", () => {
       });
       expect(again).toBeEnabled();
       expect(screen.getByRole("alert")).toBeVisible();
-      expect(sockets[0].close).toHaveBeenCalled();
+      expect(sockets[0].close).not.toHaveBeenCalled();
       await userEvent.click(again);
-      await waitFor(() => expect(sockets).toHaveLength(2));
       await waitFor(() => {
-        expect(sockets[1].sent.some((raw) => raw.includes('"Join"'))).toBe(
-          true,
-        );
+        expect(
+          sockets[0].sent.filter((raw) => raw.includes('"Join"')),
+        ).toHaveLength(2);
       });
+      expect(sockets).toHaveLength(1);
     },
   );
 

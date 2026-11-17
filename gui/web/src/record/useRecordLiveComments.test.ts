@@ -60,6 +60,36 @@ describe("useRecordLiveComments", () => {
     ).toBe(true);
   });
 
+  it("holds a queued comment until the page is in the room, then sends it once", () => {
+    enqueueComment("tok-held", {
+      id: "live-held",
+      take_index: 0,
+      recording_ms: 10,
+      pressed_wall_ms: 1,
+      author: "p_g",
+      body: MARKER_BODY,
+    });
+    const send = vi.fn(() => true);
+    const { rerender } = renderHook(
+      ({ who }: { who: typeof me | null }) =>
+        useRecordLiveComments({
+          token: "tok-held",
+          snapshot: recording,
+          me: who,
+          connected: true,
+          send,
+        }),
+      { initialProps: { who: null as typeof me | null } },
+    );
+    expect(send).not.toHaveBeenCalled();
+    rerender({ who: me });
+    expect(send).toHaveBeenCalledTimes(1);
+    expect(send).toHaveBeenCalledWith(
+      "Comment",
+      expect.objectContaining({ id: "live-held" }),
+    );
+  });
+
   it("refuses a note when neither storage nor transport accepts it", () => {
     const send = vi.fn(() => false);
     const { result } = renderHook(() =>

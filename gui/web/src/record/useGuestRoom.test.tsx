@@ -13,7 +13,7 @@ import {
 } from "./keeper/store";
 import { MIC_SAVED_DEVICE_MISSING_COPY } from "./micPermission";
 import { OPFS_UNAVAILABLE_COPY, UPLOAD_SINK_ERROR_COPY } from "./types";
-import { useGuestRoom } from "./useGuestRoom";
+import { requestedRecordMode, useGuestRoom } from "./useGuestRoom";
 
 vi.mock("./encodeRoomTone", () => ({
   encodeRoomToneWav: (
@@ -951,21 +951,69 @@ describe("useGuestRoom", () => {
   });
 
   describe("producer", () => {
-    it("is listen-only: no mic, no sink, no socket until joined", async () => {
+    it("is listen-only: no mic, no sink, one silent look at the room until joined", async () => {
       stubFetch(producerBootstrap);
       const { result } = renderHook(() => useGuestRoom("prod-tok"));
       await waitFor(() => expect(result.current.producer).toBe(true));
-      expect(sockets).toHaveLength(0);
+      await waitFor(() => expect(sockets).toHaveLength(1));
+      const looking = new URL(socketUrls[0]);
+      expect(looking.searchParams.get("observe")).toBe("1");
+      expect(looking.searchParams.has("name")).toBe(false);
+      expect(sockets[0]?.sent).toEqual([]);
+      expect(result.current.socketMode).toBe("watch");
       expect(createOpfsSink).not.toHaveBeenCalled();
       expect(getUserMedia).not.toHaveBeenCalled();
       expect(result.current.view).toBe("lobby");
       act(() => result.current.setName("Rosa"));
       expect(localStorage.getItem("sharecut.recordName")).toBeNull();
       act(() => result.current.setProducerJoined(true));
-      await waitFor(() => expect(sockets).toHaveLength(1));
+      await waitFor(() => expect(sockets[0]?.commands("Join")).toHaveLength(1));
+      expect(sockets).toHaveLength(1);
+      expect(result.current.socketMode).toBe("join");
       expect(localStorage.getItem("sharecut.recordName")).toBe("Rosa");
       expect(result.current.uploadTransport).toBeNull();
       expect(sockets[0]?.commands("HeadphonesAck")).toHaveLength(0);
+    });
+
+    it("ends the look on Not now and looks again when the sheet comes back", async () => {
+      stubFetch(producerBootstrap);
+      const { result } = renderHook(() => useGuestRoom("prod-tok"));
+      await waitFor(() => expect(result.current.socketMode).toBe("watch"));
+      await waitFor(() => expect(sockets).toHaveLength(1));
+      act(() => result.current.setProducerDismissed(true));
+      expect(result.current.socketMode).toBe("off");
+      expect(sockets[0]?.closed).toBe(true);
+      act(() => result.current.setProducerDismissed(false));
+      await waitFor(() => expect(sockets).toHaveLength(2));
+      expect(new URL(socketUrls[1]).searchParams.get("observe")).toBe("1");
+    });
+  });
+
+  describe("requestedRecordMode", () => {
+    const base = {
+      bootstrapped: true,
+      producer: false,
+      producerJoined: false,
+      producerDismissed: false,
+      left: false,
+    };
+    it.each([
+      ["a guest", {}, "join"],
+      ["a producer before the press", { producer: true }, "watch"],
+      [
+        "a producer who pressed Join to listen",
+        { producer: true, producerJoined: true },
+        "join",
+      ],
+      [
+        "a producer who pressed Not now",
+        { producer: true, producerDismissed: true },
+        "off",
+      ],
+      ["a page that was left", { left: true }, "off"],
+      ["a page with no room code yet", { bootstrapped: false }, "off"],
+    ] as const)("is %s", (_who, patch, mode) => {
+      expect(requestedRecordMode({ ...base, ...patch })).toBe(mode);
     });
   });
 
