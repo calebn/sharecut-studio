@@ -58,6 +58,7 @@ from podcast_mcp.util.coded_error import CodedValueError
 from podcast_mcp.util.fingerprint import FileStamp, file_stamp
 from podcast_mcp.util.hardware import cpu_budget
 from podcast_mcp.util.parallel import run_parallel
+from podcast_mcp.util.process import IN_PROCESS_FFMPEG, IN_PROCESS_FFPROBE
 from podcast_mcp.util.project_state import project_state_lock, snapshot_project
 
 _LOG = logging.getLogger(__name__)
@@ -615,6 +616,8 @@ def _record_name(
 ) -> str | None:
     """The record's name, or ``None`` when the evidence cannot be named (best effort: a record is never worth failing a build)."""
     if build_id is None:
+        return None
+    if build_id[0] in (IN_PROCESS_FFMPEG, IN_PROCESS_FFPROBE):
         return None
     try:
         return evidence_records.record_key(
