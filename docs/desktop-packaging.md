@@ -452,9 +452,9 @@ another; it needs its dependencies already built or fetched. A cold checkout nee
   is a rejection, a duplicate or an authentication refusal by its wording, and only network
   wording (the shorter `NETWORK` list) reads as unreachable. The lookup reads the top-level array
   `altool --list-apps` prints (or an object with an `applications` array) and needs an entry
-  whose `bundleId` equals the bundle identifier exactly. altool's own retry lines for an Apple
-  5xx, printed before a parseable object, are not an error on `validate`; on `upload` they still
-  leave the attempt unresolved. A rejection with no readable message
+  whose `bundleId` equals the bundle identifier exactly. Real list-apps output begins
+  with a banner line and may include altool's own retry `ERROR` lines before the array; the
+  lookup reads past them. A rejection with no readable message
   prints "Apple rejected the build and gave no readable reason" and names the step log.
   `--retry-unknown-upload` goes past the block and is recorded on the new
   attempt (`retried_unknown_upload`). An unresolved attempt is never closed, so after a retry that

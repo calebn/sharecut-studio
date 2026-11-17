@@ -147,12 +147,6 @@ APPLE_API_CODE = re.compile(
 
 DOCUMENT_LINE = re.compile(r"^[\[{]", re.M)
 JSON_LOOKING = re.compile(r"\s*[\[\]{}\"]")
-RETRY_LINE = re.compile(
-    r"^\d{4}-\d\d-\d\d \d\d:\d\d:\d\d\.\d{3} ERROR: \[CDASCAPI\.[0-9A-Fa-f]+\] "
-    r"APP STORE CONNECT API [\w-]+: received status code (?P<status>5\d\d); "
-    r"internal server error\. \([A-Z0-9]+\) \((?P=status)\)$\n?",
-    re.M,
-)
 MESSAGE_LINES = 5
 MESSAGE_WIDTH = 200
 
@@ -259,11 +253,7 @@ def classify_upload(exit_code: int, text: str) -> AppleAnswer:
 
 def classify_altool(exit_code: int, text: str) -> AppleAnswer:
     """The reading for steps that change nothing at Apple (validate, app record lookup)."""
-    located = locate_document(text)
-    document = located[1] if located and isinstance(located[1], dict) else None
-    if exit_code == 0 and located and document is not None:
-        # altool retries an Apple 5xx itself and prints a line per retry before an answer that succeeds
-        text = RETRY_LINE.sub("", text[: located[0]]) + text[located[0] :]
+    document = altool_document(text)
     messages = altool_messages(text, document)
     if exit_code == 0 and not messages:
         return AppleAnswer(Verdict.OK)
