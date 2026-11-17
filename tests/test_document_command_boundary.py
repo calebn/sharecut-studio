@@ -427,7 +427,7 @@ def test_host_http_undo_history_rerender_render_failure_is_conflict_with_rerende
 
 
 def test_host_http_undo_history_rerender_stale_head_never_renders(minimal_project, monkeypatch):
-    _ws, head = _history_project(minimal_project, undone=False)
+    _ws, _head = _history_project(minimal_project, undone=False)
     calls: list[int] = []
 
     def _runner(*args, **kwargs):
