@@ -14,6 +14,7 @@ export function DawProvider({
   shareCapabilities = null,
   shareTranscriptWords = false,
   shareAuthor = null,
+  shareName = null,
 }: {
   children: ReactNode;
   projectPath: string;
@@ -22,6 +23,7 @@ export function DawProvider({
   shareCapabilities?: string[] | null;
   shareTranscriptWords?: boolean;
   shareAuthor?: string | null;
+  shareName?: string | null;
 }) {
   const hydrate = useDawStore((s) => s.hydrate);
   useEffect(() => {
@@ -32,6 +34,7 @@ export function DawProvider({
       shareCapabilities,
       shareAuthor,
       shareTranscriptWords,
+      shareName,
     );
   }, [
     hydrate,
@@ -41,6 +44,7 @@ export function DawProvider({
     shareCapabilities,
     shareAuthor,
     shareTranscriptWords,
+    shareName,
   ]);
   return <>{children}</>;
 }

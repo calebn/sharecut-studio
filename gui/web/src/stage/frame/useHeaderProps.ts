@@ -36,8 +36,9 @@ export function useHeaderProps(): Omit<
   AppHeaderProps,
   "peopleSlot" | "menuPeople"
 > {
-  const { title, guestMode, shell } = useDaw((s) => ({
-    title: s.project?.meta.name ?? null,
+  const { name, shareName, guestMode, shell } = useDaw((s) => ({
+    name: s.project?.meta.name ?? null,
+    shareName: s.shareName,
     guestMode: s.guestMode,
     shell: s.shellBreakpoint,
   }));
@@ -49,8 +50,9 @@ export function useHeaderProps(): Omit<
   const stages = useStageBarProps();
   const { preference, setPreference } = useTheme();
   const role = stageRoleOf(guestMode);
+  const host = isHostRole(role);
   const [dismissed, setDismissed] = useState<readonly string[]>([]);
-  const guest: AppHeaderProps["guest"] = isHostRole(role)
+  const guest: AppHeaderProps["guest"] = host
     ? undefined
     : {
         version: version?.label ?? "Shared link",
@@ -86,8 +88,8 @@ export function useHeaderProps(): Omit<
     [],
   );
   return {
-    title: title ?? "Project",
-    loading: title === null,
+    title: name ?? shareName ?? (host ? "Project" : "Episode"),
+    loading: name === null,
     save: save ?? undefined,
     stages,
     guest,
@@ -97,7 +99,7 @@ export function useHeaderProps(): Omit<
     onRedo: history.onRedo,
     onInvite: () => runPointerCommand("share.manage"),
     onPalette: () => runPointerCommand("ui.toggleCommandPalette"),
-    onRename: isHostRole(role) ? onRename : undefined,
+    onRename: host ? onRename : undefined,
     onHistory: history.history ? onHistory : undefined,
     appearance: {
       value: preference,

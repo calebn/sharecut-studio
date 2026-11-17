@@ -113,6 +113,7 @@ type ProjectSlice = Pick<
   | "shareCapabilities"
   | "shareTranscriptWords"
   | "shareAuthor"
+  | "shareName"
   | "reviewPeaks"
   | "setReviewPeaks"
   | "heldTrim"
@@ -143,6 +144,7 @@ export const createProjectSlice: StateCreator<
   shareCapabilities: null as string[] | null,
   shareTranscriptWords: false,
   shareAuthor: null as string | null,
+  shareName: null as string | null,
   reviewPeaks: [] as readonly number[],
   projectEditBasis: () => {
     const state = get();
@@ -272,6 +274,7 @@ export const createProjectSlice: StateCreator<
     shareCapabilities = null,
     shareAuthor = null,
     shareTranscriptWords = false,
+    shareName = null,
   ) => {
     const samePath = get().projectPath === projectPath;
     const { exportRequested, transcriptRequested, transcriptFindReplaceOpen } =
@@ -291,6 +294,7 @@ export const createProjectSlice: StateCreator<
       shareCapabilities,
       shareTranscriptWords,
       shareAuthor,
+      shareName,
       ...uiAlwaysInitial(),
       // Preserve transport on a same-project shell refresh. A project switch
       // starts a new session and discards the previous project's status (#78).

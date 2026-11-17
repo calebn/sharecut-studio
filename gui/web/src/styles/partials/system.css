@@ -457,6 +457,12 @@
   min-inline-size: 0;
 }
 
+/* The title is as wide as its own text, not as the sub line under it, so its box does not change when "Shared link" becomes the version label. */
+.sys-header-guest > .sys-header-title {
+  align-self: flex-start;
+  max-inline-size: 100%;
+}
+
 .sys-header-sub {
   display: flex;
   align-items: center;
@@ -681,6 +687,20 @@ button.sys-version-line {
 
   .sys-header-left .sys-save-count {
     display: inline;
+  }
+}
+
+/* The studio's guest column (title, then a sub line with the role chip and its hint) is taller than the bar on a first visit, so it starts at the bar's top; the loading header starts there too, whatever its own sub line holds. */
+.sys-app-header--loading .sys-header-left {
+  align-self: start;
+}
+
+/* The loading screen's header has no Stage bar, and `data-shell` does not exist
+   while a guest loads, so the rule above that lets a narrow desktop window grow
+   the bar would apply. It is as tall here as the studio's guest bar on a phone. */
+@container sys-app-header (max-width: 40rem) {
+  .sys-app-header-host .sys-app-header.sys-app-header--loading {
+    block-size: var(--app-header-height-phone);
   }
 }
 
@@ -1989,6 +2009,16 @@ html:not([data-shell="phone"])
   block-size: 15rem;
 }
 
+/* With the header drawn by the caller, the grid starts below it. */
+.sys-skeleton-blocks--guest.sys-skeleton-blocks--headed {
+  padding-block-start: var(--space-4);
+}
+
+.sys-skeleton-blocks--guest.sys-skeleton-blocks--headed
+  .sys-skeleton-block--player {
+  grid-row: 1;
+}
+
 .sys-skeleton-blocks--guest .sys-skeleton-block--queue {
   grid-column: 1;
 }
@@ -2011,6 +2041,13 @@ html:not([data-shell="phone"])
 
 .sys-skeleton-blocks--guest[data-shell="phone"] .sys-skeleton-block--queue {
   display: none;
+}
+
+/* The grey block that stands in for the name in the loading header: one line of the title's size. */
+.sys-header-guest > .sys-skeleton-block--title {
+  inline-size: 8rem;
+  block-size: 1.125rem;
+  border-radius: var(--radius-sm);
 }
 
 .sys-skeleton-slow {
