@@ -40,9 +40,8 @@ export function useCoverPress({
   /** The cover's title element. */
   title: RefObject<HTMLElement | null>;
 }): { busy: boolean; status: string; press: () => void } {
-  const held = useHeldBusy(trying, HELD_BUSY_MS);
+  const { busy, press: holdBusy } = useHeldBusy(trying, HELD_BUSY_MS);
   const [pressedKey, setPressedKey] = useState<string | null>(null);
-  const { busy } = held;
   useEffect(() => {
     if (pressedKey === null || busy) return;
     const active = document.activeElement;
@@ -67,7 +66,7 @@ export function useCoverPress({
     busy,
     status,
     press: () => {
-      held.press();
+      holdBusy();
       setPressedKey(key);
     },
   };
