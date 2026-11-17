@@ -654,8 +654,8 @@ Record rooms and E2E flags come from shared helpers: `gui/web/e2e/recordRoom.ts`
 (`openHostRecordRoom`, `ensureHostRecordCommand`, `clickHostTransport`,
 `joinAsGuest`, which names the guest only after its socket
 has joined (`fillGuestDisplayName`) and returns once the room's roster lists
-that name (#764), `joinAsProducer`, whose socket opens only on Join so it
-registers the typed name; both type the name through `fillDisplayNameField`),
+that name (#764), `joinAsProducer`, whose page looks in as soon as it loads and
+sends the typed name with Join; both type the name through `fillDisplayNameField`),
 `gui/web/e2e/keeperContexts.ts` (`RECORDER_CONTEXT`,
 `keeperContextSource`) and `gui/web/e2e/keeperOpfs.ts` for keeper OPFS inspection,
 `gui/web/e2e/wavPeak.ts` (landed and bounced WAV peaks, via `landedTrackPeak`
