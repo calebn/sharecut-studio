@@ -635,46 +635,6 @@
   overflow-wrap: anywhere;
 }
 
-/* The line takes its height from the tiles, not from what the viewer could
-   see: the grid shrinks, and its rows with it, down to a floor, so no tile or
-   listener the room showed without the line moves under the dock. */
-.sys-room-view[data-looking-in] .sys-room-view-grid {
-  flex: 0 1 auto;
-  min-block-size: 0;
-  grid-auto-rows: minmax(
-    min(
-      6rem,
-      calc(
-        (
-          min(100cqw, 45rem) -
-          (var(--sys-room-view-columns, 2) - 1) *
-          var(--space-3)
-        ) /
-        var(--sys-room-view-columns, 2) *
-        0.75
-      )
-    ),
-    1fr
-  );
-}
-
-/* The row floor is measured against the stage, so enlarged text cannot push
-   it past what a tile in its column can be. */
-.sys-room-view[data-looking-in] .sys-room-view-stage {
-  container-type: inline-size;
-}
-
-.sys-room-view[data-looking-in] .sys-room-view-grid > .sys-room-tile,
-.sys-room-view[data-looking-in] .sys-room-view-grid > .sys-room-slot {
-  align-self: stretch;
-  min-block-size: 0;
-}
-
-.sys-room-view[data-looking-in] .sys-room-slot > .sys-room-tile {
-  block-size: 100%;
-  min-block-size: 0;
-}
-
 .sys-room-looking-in > svg {
   flex: none;
 }
