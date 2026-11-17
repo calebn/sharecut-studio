@@ -14,6 +14,7 @@ import {
 import {
   headerBoxes,
   installProbes,
+  lateArrivals,
   type Rect,
   readProbes,
   type ShiftEntry,
@@ -181,7 +182,7 @@ for (const size of SIZES) {
             await holdFirstProject(guest, token, 1500);
             await guest.goto(`/r/${token}`, { waitUntil: "commit" });
             await landed(guest, name);
-            await guest.waitForTimeout(1000);
+            await lateArrivals(guest, size.touch);
             const probes = await readProbes(guest);
             runs.push({ sum: shiftSum(probes), entries: probes.shifts });
           }
