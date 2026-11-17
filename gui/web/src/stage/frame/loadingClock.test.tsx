@@ -3,12 +3,7 @@ import { StrictMode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useLoadingClock } from "./loadingClock";
 
-// The clock is module state: each test starts well after the last one ended.
-let day = 0;
-beforeEach(() => {
-  vi.useFakeTimers();
-  vi.setSystemTime(new Date(Date.UTC(2026, 0, 1) + ++day * 86_400_000));
-});
+beforeEach(() => vi.useFakeTimers());
 afterEach(() => vi.useRealTimers());
 
 const waited = (view: { result: { current: number } }) => view.result.current;

@@ -11,7 +11,7 @@ export type ShiftEntry = {
 export type Probes = {
   shifts: ShiftEntry[];
   /** `html[data-shell]` in the first microtask after `.stage-frame--guest` was added; null until it was. */
-  shellAtFrame: string | null | "unset";
+  shellAtFrame: string | null;
   /** Every text the header's visible title (the studio's or the loading screen's) held, with when it first did. */
   titles: { at: number; text: string }[];
   /** The count of grey blocks after every change to the page, until the studio frame was added. */

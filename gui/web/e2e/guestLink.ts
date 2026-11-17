@@ -136,7 +136,7 @@ export async function holdFirstProject(page: Page, token: string, ms: number) {
       held = true;
       await new Promise((resolve) => setTimeout(resolve, ms));
     }
-    await route.continue();
+    await route.fallback();
   });
 }
 
@@ -148,7 +148,7 @@ export async function holdChunk(page: Page, name: string) {
   });
   await page.route(`**/assets/${name}-*.js`, async (route) => {
     await open;
-    await route.continue();
+    await route.fallback();
   });
   return { release: () => release() };
 }
