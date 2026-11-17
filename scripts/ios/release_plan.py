@@ -15,6 +15,7 @@ import shutil
 import tempfile
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
+from functools import partial
 from pathlib import Path
 from typing import Literal
 
@@ -184,10 +185,12 @@ def export_options_parts(team: Secret) -> tuple[Part, ...]:
     return (head, team, tail)
 
 
-def tool_outcome(result: SpawnResult, _: Workspace) -> Outcome:
+def tool_outcome(
+    result: SpawnResult, _: Workspace, bundle_identifier: str | None = None
+) -> Outcome:
     if result.exit_code == 0:
         return OK
-    hint = signing_hint(result.output)
+    hint = signing_hint(result.output, bundle_identifier)
     if hint:
         return Failure.SIGNING, hint
     return Failure.TOOL, f"exited {result.exit_code}"
@@ -326,7 +329,7 @@ def plan_build(
                     (PrivateFile(options, export_options_parts(inputs.team)),),
                 ),
                 True,
-                tool_outcome,
+                partial(tool_outcome, bundle_identifier=inputs.identity.bundle_identifier),
             )
         )
     steps.append(

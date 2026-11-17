@@ -23,6 +23,12 @@ class Failure(enum.Enum):
     GUARD = 10
 
 
+NO_CERTIFICATE = r"no signing certificate"
+NO_PROFILES = r"no profiles for ['\"]?[^'\"\s]+['\"]? were found"
+CLOUD_PERMISSION = r"cloud signing permission"
+BUNDLE_ID = re.compile(r"[A-Za-z0-9.-]{1,155}")
+UNKNOWN_APP = "this app's bundle id"
+
 SIGNING_HINTS: tuple[tuple[re.Pattern[str], str], ...] = (
     (
         re.compile(r"no accounts|no account for team|add an account", re.I),
@@ -35,6 +41,13 @@ SIGNING_HINTS: tuple[tuple[re.Pattern[str], str], ...] = (
     (
         re.compile(r"private key.*(not installed|missing|not found)|missing private key", re.I),
         "A distribution certificate exists but its private key is on another Mac. Export it from that Mac or revoke the certificate, then run again.",
+    ),
+    (
+        re.compile(
+            rf"^(?!.*{NO_CERTIFICATE})(?=.*{NO_PROFILES})(?=.*(?:{CLOUD_PERMISSION}|forbidden_error))",
+            re.I | re.S,
+        ),
+        "Xcode could not create the App Store provisioning profile for {app} with this App Store Connect API key, so the export has nothing to sign with; give the key the Admin role (cloud-managed distribution signing needs it), then run again. If the key cannot have that role, create an App Store profile for {app} by hand at developer.apple.com and install it, but the export may not pick up a profile installed by hand, so check the result of the next run.",
     ),
     (
         re.compile(
@@ -52,7 +65,7 @@ SIGNING_HINTS: tuple[tuple[re.Pattern[str], str], ...] = (
         "The team has no registered device, and automatic signing needs one. Register an iPhone in the developer account or connect it once.",
     ),
     (
-        re.compile(r"cloud signing permission", re.I),
+        re.compile(CLOUD_PERMISSION, re.I),
         "The App Store Connect API key's role cannot use cloud-managed distribution certificates. Create the Apple Distribution certificate once in Xcode (Settings > Accounts > Manage Certificates), or give the API key the Admin role, then run again.",
     ),
     (
@@ -65,8 +78,14 @@ SIGNING_HINTS: tuple[tuple[re.Pattern[str], str], ...] = (
 )
 
 
-def signing_hint(tail: str) -> str | None:
-    return next((sentence for pattern, sentence in SIGNING_HINTS if pattern.search(tail)), None)
+def signing_hint(tail: str, bundle_identifier: str | None = None) -> str | None:
+    app = (
+        bundle_identifier
+        if bundle_identifier and BUNDLE_ID.fullmatch(bundle_identifier)
+        else UNKNOWN_APP
+    )
+    sentence = next((sentence for pattern, sentence in SIGNING_HINTS if pattern.search(tail)), None)
+    return sentence.replace("{app}", app) if sentence else None
 
 
 class Verdict(enum.Enum):
