@@ -339,11 +339,7 @@ each with an ear glyph) and, when the server reports that people with the
 producer link are looking in without having joined, the **looking-in line**
 ("Someone with the producer link is looking in", or "3 people with the producer
 link are looking in"). The line names nobody. It sits directly under the
-header and above the tiles. The dock never
-moves. The tiles and the listener row sit lower by the line and one gap, and
-where the column is short, such as a small window or a full room on a narrow
-phone, the tile grid also gets shorter so that nothing the room showed without
-the line is pushed out of view, until the room already had to scroll. Under the
+header and above the tiles. Under the
 Declined bar the room behind stays inert and dimmed; the line is drawn in its own
 strip under the header, above the scrim's veil, so it stays readable and is
 still read out by a screen reader. The guest's consent **Details** repeats it
