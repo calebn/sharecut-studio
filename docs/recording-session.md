@@ -360,8 +360,10 @@ spoken. One during the room-tone countdown is spoken at the next room update
 after it, only if the room is then waiting or stopped and the person is still looking in.
 The host page drops its spoken note when nobody is looking in. The count is the
 snapshot's runtime `watchers` field. A client shows the line only for a whole
-number from 1 to 99 and reads anything else, or a missing field, as nobody; no
-server sends the field yet. A guest's consent **Details** names the producers who
+number from 1 to 99 and reads anything else, or a missing field, as nobody. The
+server sends it when a producer link's socket connects with `observe=1` (see
+[Looking in on a room](#looking-in-on-a-room-observe1)); no page opens the link
+that way yet, so nothing shows in the product today. A guest's consent **Details** names the producers who
 have joined ("Rosa is listening and won't be recorded") and, once a count is
 sent, the looking-in line; a producer joining mid-take triggers the same join
 notification as a guest.
