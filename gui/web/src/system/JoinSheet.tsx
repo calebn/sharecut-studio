@@ -225,6 +225,7 @@ export function JoinSheet({
 }: JoinSheetProps) {
   const producerLineId = useId();
   const producerSeenId = useId();
+  const [openedSeen] = useState(seenByRoom);
   const nameRef = useRef<HTMLInputElement>(null);
   const formRef = useRef<HTMLFormElement>(null);
   const primaryRef = useRef<HTMLButtonElement>(null);
@@ -427,11 +428,17 @@ export function JoinSheet({
               {JOIN_TEXT.producerLine}
             </p>
             {seenByRoom ? (
-              <p id={producerSeenId} className="sys-join-line sys-join-seen">
+              <p
+                id={producerSeenId}
+                className="sys-join-line sys-join-listen sys-join-seen"
+              >
                 <SystemIcon name="eye" size={24} />
                 {JOIN_TEXT.producerSeen}
               </p>
             ) : null}
+            <p className="sr-only" aria-live="polite">
+              {seenByRoom && !openedSeen ? JOIN_TEXT.producerSeen : ""}
+            </p>
             {notice ? (
               <p role="alert" className="sys-join-reason">
                 {notice}

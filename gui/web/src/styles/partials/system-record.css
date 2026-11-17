@@ -1507,14 +1507,13 @@ html:not([data-shell="phone"], [data-shell="tablet"])
   font-size: var(--font-size-body);
 }
 
-.sys-join-seen {
-  display: flex;
-  align-items: center;
-  gap: var(--space-3);
+.sys-join-listen > svg {
+  flex: none;
 }
 
-.sys-join-seen > svg {
-  flex: none;
+.sys-join-seen {
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-ui);
 }
 
 .sys-join-details {
