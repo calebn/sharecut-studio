@@ -115,7 +115,9 @@ test.describe("looking in, against the real server", () => {
         const guest = await guestCtx.newPage();
         await markSharecutE2e(guest);
         await joinAsGuest(guest, room.guest.token, "Ava");
-        await expect(host.getByText("Ava").first()).toBeVisible();
+        await expect(
+          host.getByText("Ava", { exact: true }).first(),
+        ).toBeVisible();
         await expect(
           host.locator(".sys-room-looking-in", { hasText: ONE }),
         ).toBeHidden();
