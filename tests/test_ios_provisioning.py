@@ -36,8 +36,14 @@ def facts(**changes: object) -> ProfileFacts:
     return ProfileFacts(**fields)  # type: ignore[arg-type]
 
 
-def resolve(values: dict[str, str] | None = None, profiles: tuple[ProfileFacts, ...] = ()):
-    return release_inputs.resolve_provisioning(values or {}, profiles, TEAM, BUNDLE, NOW)
+def resolve(
+    values: dict[str, str] | None = None,
+    profiles: tuple[ProfileFacts, ...] = (),
+    unreadable: int = 0,
+):
+    return release_inputs.resolve_provisioning(
+        values or {}, profiles, TEAM, BUNDLE, NOW, unreadable
+    )
 
 
 def why(problems: list[release_inputs.InputProblem]) -> str:
@@ -57,11 +63,6 @@ def test_one_discovered_valid_profile_is_used_with_the_default_certificate() -> 
     assert problems == [] and chosen is not None
     assert chosen.profile.reveal() == NAME and repr(chosen.profile) == "<provisioning-profile>"
     assert chosen.certificate == "Apple Distribution" and chosen.bundle_identifier == BUNDLE
-
-
-def test_the_same_profile_found_in_both_directories_counts_once() -> None:
-    chosen, problems = resolve(profiles=(facts(), facts()))
-    assert problems == [] and chosen is not None
 
 
 def test_the_certificate_comes_from_the_value_when_set() -> None:
@@ -159,6 +160,45 @@ def test_an_explicit_name_outside_the_safe_characters_is_refused_before_matching
     assert name not in why(problems)
 
 
+def test_two_usable_profiles_sharing_a_name_refuse_instead_of_picking_one() -> None:
+    chosen, problems = resolve(profiles=(facts(), facts(expires=NOW + timedelta(days=300))))
+    assert chosen is None and "2 valid" in why(problems)
+
+
+def test_an_explicit_name_carried_by_two_installed_profiles_refuses_even_if_one_is_valid() -> None:
+    expired = facts(expires=NOW - timedelta(days=1))
+    chosen, problems = resolve({"APPLE_PROVISIONING_PROFILE": NAME}, (expired, facts()))
+    assert chosen is None and problems[0].name == "APPLE_PROVISIONING_PROFILE"
+    assert "2 installed profiles" in why(problems) and NAME not in why(problems)
+
+
+def test_unreadable_files_alone_refuse_with_the_count_and_no_names() -> None:
+    chosen, problems = resolve(unreadable=3)
+    assert chosen is None and "3" in why(problems) and "could not be read" in why(problems)
+
+
+def test_some_unreadable_files_among_readable_ones_are_tolerated() -> None:
+    chosen, problems = resolve(profiles=(facts(),), unreadable=2)
+    assert problems == [] and chosen is not None
+
+
+def test_a_rejected_only_refusal_says_why_there_is_no_automatic_fallback() -> None:
+    _, problems = resolve(profiles=(facts(get_task_allow=True),))
+    text = why(problems)
+    assert "automatic" in text and "install a valid App Store profile" in text
+
+
+@pytest.mark.parametrize(
+    "changes", [{"ExpirationDate": "2027-06-01"}, {"Name": 5}, {"TeamIdentifier": "BBBBBBBBBB"}]
+)
+def test_read_profile_rejects_wrongly_typed_fields_as_unreadable(
+    changes: dict[str, object],
+) -> None:
+    text = profile_plist(**changes).decode()
+    with pytest.raises(ValueError):
+        provisioning.read_profile(Path("p"), run=lambda argv, **_: text)
+
+
 def test_facts_problems_is_empty_for_a_valid_app_store_profile() -> None:
     assert provisioning.facts_problems(facts(), TEAM, BUNDLE, NOW) == []
 
@@ -211,9 +251,28 @@ def test_discover_scans_only_the_given_directories_and_skips_unreadable_files(
             raise ToolFailed("security exited 1")
         return facts(name=f"Profile {path.stem}")
 
-    found = provisioning.discover([first, second, tmp_path / "absent"], reader)
+    found, unreadable = provisioning.discover([first, second, tmp_path / "absent"], reader)
+    assert unreadable == 1
     assert sorted(seen) == ["1.mobileprovision", "2.mobileprovision", "3.mobileprovision"]
     assert sorted(p.name for p in found) == ["Profile 1", "Profile 3"]
+
+
+def test_a_profile_found_in_both_directories_is_discovered_once(tmp_path: Path) -> None:
+    first, second = tmp_path / "a", tmp_path / "b"
+    for directory in (first, second):
+        directory.mkdir()
+        (directory / "same.mobileprovision").write_text("x")
+    assert provisioning.discover([first, second], lambda path: facts()) == ([facts()], 0)
+
+
+def test_every_file_unreadable_is_counted(tmp_path: Path) -> None:
+    (tmp_path / "a.mobileprovision").write_text("x")
+    (tmp_path / "b.mobileprovision").write_text("x")
+
+    def reader(path: Path) -> ProfileFacts:
+        raise ToolFailed("security exited 127")
+
+    assert provisioning.discover([tmp_path], reader) == ([], 2)
 
 
 def test_the_default_directories_are_the_two_installed_profile_locations_never_downloads(
@@ -360,10 +419,10 @@ def test_only_a_signed_build_looks_for_installed_profiles(
 
     def discover(directories: list[Path]) -> list[ProfileFacts]:
         looked.append(directories)
-        return [facts()]
+        return [facts()], 0
 
     monkeypatch.setattr(Path, "home", lambda: tmp_path)
     monkeypatch.setattr(provisioning, "discover", discover)
-    assert ios_release.installed_profiles(Signing.NONE) == [] and not looked
-    assert ios_release.installed_profiles(Signing.APP_STORE) == [facts()]
+    assert ios_release.installed_profiles(Signing.NONE) == ([], 0) and not looked
+    assert ios_release.installed_profiles(Signing.APP_STORE) == ([facts()], 0)
     assert looked == [provisioning.default_directories(tmp_path)]
