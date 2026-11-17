@@ -50,6 +50,18 @@ function setup(snapshot: RecordSnapshot | null, meId: string | null = "p_g") {
   );
 }
 
+/** The one-minute room-tone round, 50 s left. */
+const counting = (snapshot: RecordSnapshot): RecordSnapshot => ({
+  ...snapshot,
+  room_tone: {
+    round: 1,
+    requested_wall_ms: 0,
+    duration_ms: 60000,
+    participant_ids: [],
+  },
+  countdown_left_ms: 50000,
+});
+
 describe("useRosterAnnouncer", () => {
   it("is silent for who is already in the room", () => {
     const { result } = setup(room([host, me, sam]));
@@ -280,20 +292,30 @@ describe("useRosterAnnouncer", () => {
       );
     });
 
-    it("is silent for who is already looking in on first render", () => {
+    it("is silent about who is already looking in on first render", () => {
       const { result, rerender } = setup(at(1));
       expect(result.current).toBe("");
       rerender({ snapshot: at(2), meId: "p_g" });
       expect(result.current).toBe("");
     });
 
-    it("stays silent while recording, paused or counting down", () => {
+    it("stays silent while recording or paused", () => {
       const { result, rerender } = setup(at(0, "recording"));
       rerender({ snapshot: at(1, "recording"), meId: "p_g" });
       expect(result.current).toBe("");
       rerender({ snapshot: at(0, "paused"), meId: "p_g" });
       rerender({ snapshot: at(1, "paused"), meId: "p_g" });
       expect(result.current).toBe("");
+    });
+
+    it("holds an arrival during the room-tone countdown and speaks it when the countdown ends", () => {
+      const { result, rerender } = setup(at(0));
+      rerender({ snapshot: counting(at(1)), meId: "p_g" });
+      expect(result.current).toBe("");
+      rerender({ snapshot: counting(at(1)), meId: "p_g" });
+      expect(result.current).toBe("");
+      rerender({ snapshot: at(1), meId: "p_g" });
+      expect(result.current).toBe(LINE);
     });
 
     it("stays silent on a leave and on a change from one to more", () => {
@@ -353,7 +375,7 @@ describe("useLookingInAnnouncer", () => {
       initialProps: { snapshot },
     });
 
-  it("is silent without a snapshot and for who is already looking in", () => {
+  it("is silent without a snapshot and about who is already looking in", () => {
     const { result, rerender } = setupHost(null);
     expect(result.current).toBe("");
     rerender({ snapshot: at(1) });
@@ -367,7 +389,37 @@ describe("useLookingInAnnouncer", () => {
     rerender({ snapshot: at(1) });
     expect(result.current).toBe(LINE);
     rerender({ snapshot: at(0) });
+    expect(result.current).toBe("");
     rerender({ snapshot: at(3) });
+    expect(result.current).toBe("");
+  });
+
+  it("announces the first arrival in each room, even when the words repeat, and clears the note between", () => {
+    const { result, rerender } = setupHost(at(0));
+    rerender({ snapshot: at(1) });
+    expect(result.current).toBe(LINE);
+    rerender({ snapshot: at(0) });
+    expect(result.current).toBe("");
+    rerender({ snapshot: at(0, "lobby", "room2") });
+    expect(result.current).toBe("");
+    rerender({ snapshot: at(1, "lobby", "room2") });
+    expect(result.current).toBe(LINE);
+  });
+
+  it("announces a new room's arrival when the last room ended with someone looking in", () => {
+    const { result, rerender } = setupHost(at(0));
+    rerender({ snapshot: at(1) });
+    rerender({ snapshot: at(1, "lobby", "room2") });
+    expect(result.current).toBe(LINE);
+    rerender({ snapshot: at(2, "recording", "room3") });
+    expect(result.current).toBe("");
+  });
+
+  it("holds an arrival during the room-tone countdown and speaks it when the countdown ends", () => {
+    const { result, rerender } = setupHost(at(0));
+    rerender({ snapshot: counting(at(1)) });
+    expect(result.current).toBe("");
+    rerender({ snapshot: at(1) });
     expect(result.current).toBe(LINE);
   });
 

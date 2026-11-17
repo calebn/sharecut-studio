@@ -13,35 +13,55 @@ function liveIds(participants: readonly RecordParticipant[], meId: string) {
 
 type LookingInWatch = {
   watchers: number | null;
+  /** The room the count was last read in. */
+  room: string | null;
   /** The room whose first looking-in arrival was already announced. */
   announcedRoom: string | null;
 };
 
-const NO_LOOKING_IN: LookingInWatch = { watchers: null, announcedRoom: null };
+const NO_LOOKING_IN: LookingInWatch = {
+  watchers: null,
+  room: null,
+  announcedRoom: null,
+};
+
+/** A room-tone round is counting down: the room is quiet on purpose. */
+const countingDown = (snapshot: RecordSnapshot) =>
+  Boolean(snapshot.room_tone) && (snapshot.countdown_left_ms ?? 0) > 0;
 
 /**
  * The one polite line for people looking in: the first rise from none to some
- * in a room, seen while it is waiting or stopped, never during a take.
+ * in a room, seen while it is waiting or stopped, never during a take or the
+ * room-tone countdown. A rise that lands in a countdown is held and spoken
+ * once the countdown ends in the lobby. A room this page has not seen before
+ * starts from none, so its first arrival is spoken even if the last room ended
+ * with someone looking in.
  */
 function watchLookingIn(
   before: LookingInWatch,
   snapshot: RecordSnapshot,
 ): { watch: LookingInWatch; line: string | null } {
+  if (countingDown(snapshot)) return { watch: before, line: null };
   const watchers = lookingInCount(snapshot.watchers);
+  const room = snapshot.session_id;
+  const known =
+    before.room !== null && before.room !== room
+      ? { ...before, watchers: 0 }
+      : before;
   const rose =
-    before.watchers === 0 &&
+    known.watchers === 0 &&
     watchers > 0 &&
-    before.announcedRoom !== snapshot.session_id &&
+    known.announcedRoom !== room &&
     (snapshot.state === "lobby" || snapshot.state === "stopped");
   if (rose) {
     return {
-      watch: { watchers, announcedRoom: snapshot.session_id },
+      watch: { watchers, room, announcedRoom: room },
       line: lookingInLine(watchers),
     };
   }
-  return before.watchers === watchers
-    ? { watch: before, line: null }
-    : { watch: { ...before, watchers }, line: null };
+  return known.watchers === watchers && known.room === room
+    ? { watch: known, line: null }
+    : { watch: { ...known, watchers, room }, line: null };
 }
 
 type RosterObservation = {
@@ -154,9 +174,12 @@ export function useLookingInAnnouncer(snapshot: RecordSnapshot | null): string {
   if (snapshot) {
     const looking = watchLookingIn(seen.watch, snapshot);
     if (looking.watch !== seen.watch || looking.line) {
+      // The note goes with the people: it stays only while someone is looking in.
+      const stays =
+        looking.watch.watchers !== 0 && looking.watch.room === seen.watch.room;
       setSeen({
         watch: looking.watch,
-        announcement: looking.line ?? seen.announcement,
+        announcement: looking.line ?? (stays ? seen.announcement : ""),
       });
     }
   }

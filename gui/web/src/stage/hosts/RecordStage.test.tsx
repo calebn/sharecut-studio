@@ -405,6 +405,34 @@ describe("Record stage", () => {
     expect(polite()).toContain(line);
   });
 
+  it("announces the first arrival in each room to the host and drops the note when nobody is looking in", async () => {
+    setRoom({ participants: [hostPerson(), avaGuest()], watchers: 0 });
+    mount();
+    await waitFor(() => expect(record()).toBeEnabled());
+    const line = "Someone with the producer link is looking in";
+    const polite = () =>
+      [...document.querySelectorAll("[aria-live='polite'] .sr-only")].map(
+        (el) => el.textContent,
+      );
+    const room = (session_id: string, watchers: number, ns: number) =>
+      act(() =>
+        setRoom({
+          participants: [hostPerson(), avaGuest()],
+          session_id,
+          watchers,
+          server_time_ns: ns,
+        }),
+      );
+    room("room1", 1, 5);
+    expect(polite()).toContain(line);
+    room("room1", 0, 6);
+    expect(polite()).not.toContain(line);
+    room("room2", 0, 7);
+    expect(polite()).not.toContain(line);
+    room("room2", 1, 8);
+    expect(polite()).toContain(line);
+  });
+
   it("does not make a host alone in the room wait for a guest", async () => {
     setRoom({ participants: [hostPerson()] });
     const { baseElement } = mount();
