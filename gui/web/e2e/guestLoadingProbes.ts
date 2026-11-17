@@ -56,8 +56,8 @@ export async function installProbes(page: Page): Promise<void> {
           : ""
       }`;
     };
-    new PerformanceObserver((list) => {
-      for (const entry of list.getEntries()) {
+    const take = (entries: PerformanceEntryList) => {
+      for (const entry of entries) {
         const shift = entry as PerformanceEntry & {
           value: number;
           hadRecentInput: boolean;
@@ -78,7 +78,11 @@ export async function installProbes(page: Page): Promise<void> {
           })),
         });
       }
-    }).observe({ type: "layout-shift", buffered: true });
+    };
+    const observer = new PerformanceObserver((list) => take(list.getEntries()));
+    observer.observe({ type: "layout-shift", buffered: true });
+    (window as unknown as { __takeShifts: () => void }).__takeShifts = () =>
+      take(observer.takeRecords());
     let lastTitle: string | null = null;
     const look = () => {
       const now = performance.now();
@@ -119,9 +123,45 @@ export async function installProbes(page: Page): Promise<void> {
   });
 }
 
+/** The probes so far, with the layout shifts the observer has recorded but not yet delivered. */
 export async function readProbes(page: Page): Promise<Probes> {
-  return page.evaluate(
-    () => (window as unknown as { __probes: Probes }).__probes,
+  return page.evaluate(() => {
+    const w = window as unknown as {
+      __probes: Probes;
+      __takeShifts: () => void;
+    };
+    w.__takeShifts();
+    return w.__probes;
+  });
+}
+
+/**
+ * Waits for what arrives after the studio has landed, each on its own state:
+ * the transcript's first word, the guest's own avatar in the header's right
+ * side (the presence answer), and on a phone the Listen strip's scrubber. Then
+ * two animation frames pass in the page, so the shifts those arrivals cause
+ * have been laid out and recorded. Each is a locator wait that fails at the
+ * test timeout if the thing never comes; none is a pause.
+ */
+export async function lateArrivals(page: Page, touch: boolean): Promise<void> {
+  await page
+    .locator(".stage-host-guest-script .sys-script-word")
+    .first()
+    .waitFor({ state: "attached" });
+  await page
+    .locator(".sys-header-right .avatar-face")
+    .first()
+    .waitFor({ state: "attached" });
+  if (touch)
+    await page
+      .locator(".sys-listen-dock-strip .sys-overview")
+      .first()
+      .waitFor({ state: "attached" });
+  await page.evaluate(
+    () =>
+      new Promise<void>((resolve) =>
+        requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
+      ),
   );
 }
 
