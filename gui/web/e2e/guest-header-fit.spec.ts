@@ -224,7 +224,8 @@ test(`at ${at(PHONE)} the name's place does not depend on which font has loaded`
           await rightSideArrived(guest);
           await afterFrames(guest);
           const blocked = (await headerBoxes(guest)).title;
-          near(blocked, loaded, 1, ["y"], `${role}, fonts blocked:`);
+          // Half a pixel is a line a pixel taller or shorter in a column that is centred.
+          near(blocked, loaded, 0.01, ["y", "h"], `${role}, fonts blocked:`);
         },
         { visit: "returning" },
       );
