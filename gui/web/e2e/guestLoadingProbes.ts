@@ -1,4 +1,6 @@
-import type { Page } from "@playwright/test";
+import { mkdirSync } from "node:fs";
+import { join } from "node:path";
+import { expect, type Page } from "@playwright/test";
 
 export type Rect = { x: number; y: number; w: number; h: number };
 
@@ -186,4 +188,42 @@ export async function headerBoxes(page: Page) {
       block: box(host?.querySelector(".sys-skeleton-block--title")),
     };
   });
+}
+
+export const HEADER_HEIGHT = { phone: 45, desktop: 49 } as const;
+export const SHIFT_BUDGET = 0.002;
+export const ALL = ["x", "y", "w", "h"] as const;
+export const NOT_WIDTH = ["x", "y", "h"] as const;
+
+/** Soft-checks that `got` is `want` within `tolerance` px on each of `keys`. */
+export const near = (
+  got: Rect | null,
+  want: Rect | null,
+  tolerance = 1,
+  keys: readonly (keyof Rect)[] = ALL,
+  state = "",
+) => {
+  expect.soft(got, "the title has a box").not.toBeNull();
+  expect.soft(want, "the title has a box to compare with").not.toBeNull();
+  if (!got || !want) return;
+  for (const key of keys)
+    expect
+      .soft(
+        Math.abs(got[key] - want[key]),
+        `${state} ${key}: ${JSON.stringify(got)} against ${JSON.stringify(want)}`,
+      )
+      .toBeLessThanOrEqual(tolerance);
+};
+
+/** The screen reader's line, not the "Still loading…" row that has a status role too. */
+export const status = (page: Page) =>
+  page.locator("main.guest-loading > [role=status]");
+
+const SHOTS = process.env.GUEST_LOADING_SHOTS;
+
+/** Saves a screenshot under `GUEST_LOADING_SHOTS` when it is set. */
+export async function shot(page: Page, name: string) {
+  if (!SHOTS) return;
+  mkdirSync(SHOTS, { recursive: true });
+  await page.screenshot({ path: join(SHOTS, `${name}.png`) });
 }

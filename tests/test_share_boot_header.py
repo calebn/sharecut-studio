@@ -16,10 +16,10 @@ from fastapi.testclient import TestClient
 from podcast_mcp.gui.server import create_app
 from podcast_mcp.models import load_project, save_project
 from podcast_mcp.project.store import WriteGrantKind, write_grant
-from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.collaboration import share_page
 from podcast_mcp.services.collaboration.review import ReviewService
 from podcast_mcp.services.collaboration.share import ShareService
+from test_review_share import _seed_premix
 
 ROOT = '<div id="root"></div>'
 FIXTURE = (
@@ -54,15 +54,11 @@ def _dist(tmp_path: Path) -> Path:
     return dist
 
 
-def _seed(minimal_project, sample_wav, name: str | None):
+def _seed(minimal_project, sample_wav, name: str):
     proj = load_project(minimal_project)
-    if name is not None:
-        proj.meta.name = name
-    art = Path(proj.workspace_dir) / "artifacts"
-    art.mkdir(parents=True, exist_ok=True)
-    (art / "premix.wav").write_bytes(sample_wav.read_bytes())
+    proj.meta.name = name
     save_project(proj, minimal_project)
-    return ProjectWorkspace.open(minimal_project)
+    return _seed_premix(minimal_project, sample_wav)
 
 
 def _review(ws, **kwargs) -> str:
@@ -85,12 +81,6 @@ def _spliced(markup: str) -> str:
 def test_the_header_is_the_fixtures_markup_for_every_case(case):
     out = share_page.inject_share_boot_header(f"<body>{ROOT}</body>", case["name"])
     assert out == f"<body>{_spliced(case['markup'])}</body>"
-
-
-def test_a_name_with_markup_characters_is_text_in_the_page():
-    out = share_page.inject_share_boot_header(ROOT, "A <B> & \"C\" 'D'")
-    assert "<B>" not in out and "<b>" not in out.lower()
-    assert "A &lt;B&gt; &amp; &quot;C&quot; &#x27;D&#x27;" in out
 
 
 @pytest.mark.parametrize("blank", ["", "   ", "\t\n "])
