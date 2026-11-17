@@ -181,7 +181,8 @@ function moveHistory(
           action === "undo" &&
           toast &&
           (toast.undo === expectedHeadId ||
-            toast.merged?.entries.includes(expectedHeadId))
+            toast.merged?.entries.includes(expectedHeadId) ||
+            toast.lapsed?.entries.includes(expectedHeadId))
         )
           useDawStore.getState().dismissFeedbackToast(toast.id);
       }
