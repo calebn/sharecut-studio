@@ -30,7 +30,7 @@ export const NARROW_PHONE = {
 } as const;
 
 export const ROLES = ["viewer", "commenter", "editor"] as const;
-export type GuestRole = (typeof ROLES)[number];
+type GuestRole = (typeof ROLES)[number];
 
 export async function press(button: Locator, touch: boolean) {
   if (touch) {

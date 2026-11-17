@@ -20,7 +20,7 @@ import {
   headerBoxes,
   headerInventory,
   installProbes,
-  landed,
+  landedSettled,
   near,
   openLanded,
   pressTargets,
@@ -239,9 +239,7 @@ test(`at ${at(PHONE)} the name's place does not depend on which font has loaded`
         async (guest) => {
           await guest.route("**/*.{woff,woff2}", (route) => route.abort());
           await guest.goto(`/r/${links[role]}`);
-          await landed(guest, name);
-          await rightSideArrived(guest);
-          await afterFrames(guest);
+          await landedSettled(guest, name);
           const blocked = (await headerBoxes(guest)).title;
           expect(
             await loadedFontFaces(guest),
@@ -258,69 +256,51 @@ test(`at ${at(PHONE)} the name's place does not depend on which font has loaded`
   });
 });
 
-test(`at ${at(PHONE)} an Editor link's landing moves under ${SHIFT_BUDGET} in each of ${LANDINGS} landings`, async ({
-  browser,
-}) => {
-  test.setTimeout(120_000);
-  await withGuestLinks(browser, async (links, host) => {
-    const name = await episodeName(host, links.editor);
-    await withGuestPage(browser, PHONE, async (guest) => {
-      await installProbes(guest);
-      for (let run = 0; run < LANDINGS; run += 1) {
-        await holdFirstProject(guest, links.editor, 1500);
-        await guest.goto(`/r/${links.editor}`, { waitUntil: "commit" });
-        await landed(guest, name);
-        await rightSideArrived(guest);
-        await afterFrames(guest);
-        const probes = await readProbes(guest);
-        expect(shiftSum(probes), JSON.stringify(probes.shifts)).toBeLessThan(
-          SHIFT_BUDGET,
-        );
-      }
-    });
-  });
-});
-
-test(`at ${at(NARROW_PHONE)} an Editor link's landing is measured: the bar keeps its height, and what shifts is printed`, async ({
-  browser,
-}) => {
-  test.setTimeout(120_000);
-  await withGuestLinks(browser, async (links, host) => {
-    const name = await episodeName(host, links.editor);
-    await withGuestPage(browser, NARROW_PHONE, async (guest) => {
-      await installProbes(guest);
-      const runs: unknown[] = [];
-      for (let run = 0; run < LANDINGS; run += 1) {
-        await holdFirstProject(guest, links.editor, 1500);
-        await guest.goto(`/r/${links.editor}`, { waitUntil: "commit" });
-        await expect(guest.locator(".sys-header-title")).toBeVisible();
-        await fontsReady(guest);
-        const loading = (await headerBoxes(guest)).host;
-        await landed(guest, name);
-        await rightSideArrived(guest);
-        await afterFrames(guest);
-        const bar = (await headerBoxes(guest)).host;
-        const probes = await readProbes(guest);
-        runs.push({
-          sum: shiftSum(probes),
-          sources: probes.shifts.flatMap((entry) =>
-            entry.sources.map((s) => ({ value: entry.value, ...s })),
-          ),
+for (const size of [PHONE, NARROW_PHONE]) {
+  test(`at ${at(size)} an Editor link's landing keeps the bar's height in each of ${LANDINGS} landings, and ${size === PHONE ? `moves under ${SHIFT_BUDGET}` : "what shifts is printed"}`, async ({
+    browser,
+  }) => {
+    test.setTimeout(120_000);
+    await withGuestLinks(browser, async (links, host) => {
+      const name = await episodeName(host, links.editor);
+      await withGuestPage(browser, size, async (guest) => {
+        await installProbes(guest);
+        const runs: unknown[] = [];
+        for (let run = 0; run < LANDINGS; run += 1) {
+          await holdFirstProject(guest, links.editor, 1500);
+          await guest.goto(`/r/${links.editor}`, { waitUntil: "commit" });
+          await expect(guest.locator(".sys-header-title")).toBeVisible();
+          await fontsReady(guest);
+          const loading = (await headerBoxes(guest)).host;
+          await landedSettled(guest, name);
+          const bar = (await headerBoxes(guest)).host;
+          const probes = await readProbes(guest);
+          expect
+            .soft(
+              bar?.h,
+              `landing ${run + 1}: the bar after, against ${loading?.h} while loading`,
+            )
+            .toBe(loading?.h);
+          if (size === PHONE)
+            expect(
+              shiftSum(probes),
+              JSON.stringify(probes.shifts),
+            ).toBeLessThan(SHIFT_BUDGET);
+          runs.push({
+            sum: shiftSum(probes),
+            sources: probes.shifts.flatMap((entry) =>
+              entry.sources.map((s) => ({ value: entry.value, ...s })),
+            ),
+          });
+        }
+        test.info().annotations.push({
+          type: "layout-shift",
+          description: JSON.stringify(runs),
         });
-        expect
-          .soft(
-            bar?.h,
-            `landing ${run + 1}: the bar after, against ${loading?.h} while loading`,
-          )
-          .toBe(loading?.h);
-      }
-      test.info().annotations.push({
-        type: "layout-shift",
-        description: JSON.stringify(runs),
       });
     });
   });
-});
+}
 
 test(`at ${at(PHONE)} and ${at(NARROW_PHONE)} at 200% text nothing in the header overlaps or is cut without an ellipsis`, async ({
   browser,

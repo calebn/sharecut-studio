@@ -187,12 +187,17 @@ export async function afterFrames(page: Page): Promise<void> {
   );
 }
 
-/** Opens a review link and waits until its header has everything it will hold. */
-export async function openLanded(page: Page, token: string, name: string) {
-  await page.goto(`/r/${token}`);
+/** The studio has landed and its header has everything it will hold. */
+export async function landedSettled(page: Page, name: string) {
   await landed(page, name);
   await rightSideArrived(page);
   await afterFrames(page);
+}
+
+/** Opens a review link and waits until its header has everything it will hold. */
+export async function openLanded(page: Page, token: string, name: string) {
+  await page.goto(`/r/${token}`);
+  await landedSettled(page, name);
 }
 
 /**
@@ -285,7 +290,7 @@ export async function shot(page: Page, name: string, clip?: Rect) {
 export const SHOTS_ON = SHOTS !== undefined;
 
 /** Every visible thing in the header bar, with its box, and the bar's own box and rule. */
-export type Inventory = {
+type Inventory = {
   bar: Rect;
   /** The bar's bottom border: the last pixel row of its box. */
   rule: number;
@@ -346,7 +351,7 @@ export function reachingPast(inventory: Inventory): string[] {
   return past.sort((a, b) => b.by - a.by).map((p) => p.text);
 }
 
-export type TargetReport = {
+type TargetReport = {
   name: string;
   box: Rect;
   /** The area, `side` wide and tall at least, that must press the control: it holds the control's box and lies where the control answers. */
@@ -568,9 +573,7 @@ export async function headerAcrossLanding(
   await expect(status(page)).toHaveText(`Loading ${name}…`);
   await fontsReady(page);
   const drawn = await headerBoxes(page);
-  await landed(page, name);
-  await rightSideArrived(page);
-  await afterFrames(page);
+  await landedSettled(page, name);
   return { written, drawn, landed: await headerBoxes(page) };
 }
 
