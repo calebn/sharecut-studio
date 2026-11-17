@@ -101,7 +101,9 @@ def test_status_whisper_size_follows_the_requested_variant(monkeypatch) -> None:
 def test_ready_needs_ffmpeg_and_every_required_model(monkeypatch) -> None:
     from podcast_mcp.services.pipeline import bootstrap as boot
 
-    pair = type("Pair", (), {"source": "bundled", "is_available": lambda self: True})()
+    pair = type(
+        "Pair", (), {"source": "bundled", "is_in_process": False, "is_available": lambda self: True}
+    )()
     monkeypatch.setattr(boot, "resolve_ffmpeg_pair", lambda **_kwargs: pair)
     monkeypatch.setattr(
         boot,
