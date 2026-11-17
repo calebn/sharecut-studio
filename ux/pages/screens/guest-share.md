@@ -97,6 +97,8 @@ Step flows: [Guest journeys](#/journeys).
 
 The separate static role chip is an image whose accessible name starts with
 **Editor: can edit**, **Commenter: can comment** or **Viewer: can listen**.
+The button is as big as its chip (24 px tall); on a touch screen it presses
+over 44 px, an area that reaches up over the name and stops at the bar's edge.
 
 The automatic role hint is eligible on visits until it is dismissed for that
 browser role; its appearance is not persisted. If the hint is still visible on
