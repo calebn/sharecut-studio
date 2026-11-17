@@ -5,9 +5,10 @@ import { describe, expect, it } from "vitest";
 import { ReviewLoadingScreen } from "./ReviewLoadingScreen";
 
 /**
- * The page the server answers carries this loading header before the script
- * runs (`inject_share_boot_header`); tests/test_share_boot_header.py reads the
- * same file. React's first commit then draws the same bytes, so nothing moves.
+ * Compares the component's static markup for a name with the fixture bytes that
+ * tests/test_share_boot_header.py also reads (what the server writes into the
+ * page). That the takeover in a browser moves nothing is proved by
+ * e2e/guest-boot-name.spec.ts, not here.
  */
 const CASES = (
   JSON.parse(
