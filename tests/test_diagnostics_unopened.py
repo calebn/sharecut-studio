@@ -685,3 +685,43 @@ def test_a_key_in_a_prefixed_log_line_is_not_in_the_bundle(
         assert "Daniela" not in text, name
         assert "Secretname" not in text, name
     assert "align_method" in members["sidecar.log"]
+
+
+def test_ordinary_lines_between_two_validation_blocks_reach_the_bundle(
+    minimal_project, bundle_env, monkeypatch, tmp_path
+):
+    speaker = "Dani" + "ela Secret" + "name"
+    log = tmp_path / "state" / "sidecar.log"
+    log.parent.mkdir()
+    handler = logging.FileHandler(log)
+    handler.setFormatter(logging.Formatter("%(levelname)s:%(name)s:%(message)s"))
+    logger = logging.getLogger("podcast_mcp.probe_between")
+    logger.propagate = False
+    logger.setLevel(logging.INFO)
+    logger.addHandler(handler)
+    try:
+        logger.error("tool arguments rejected: %s", _outer_error(speaker))
+        logger.info("ordinary line A render finished in 3.5s")
+        logger.warning("ordinary line B disk 12.5 GB free")
+        logger.error("second call rejected: %s", _outer_error(speaker + " two"))
+        logger.info("ordinary line C after")
+        handler.flush()
+    finally:
+        logger.removeHandler(handler)
+        handler.close()
+    assert speaker in log.read_text()
+    monkeypatch.setattr(diagnostics_mod, "sidecar_log_candidates", lambda: [log])
+    with _client(minimal_project) as client:
+        response = client.post("/api/diagnostics/bundle", json={})
+    members = _members(response.json()["path"])
+    text = members["sidecar.log"]
+    assert "Daniela" not in text
+    assert "Secretname" not in text
+    for line in (
+        "INFO:podcast_mcp.probe_between:ordinary line A render finished in 3.5s\n",
+        "WARNING:podcast_mcp.probe_between:ordinary line B disk 12.5 GB free\n",
+        "INFO:podcast_mcp.probe_between:ordinary line C after",
+        "ERROR:podcast_mcp.probe_between:second call rejected: 1 validation error for _Outer\n",
+    ):
+        assert line in text
+    assert text.count("meta.*.align_method") == 2

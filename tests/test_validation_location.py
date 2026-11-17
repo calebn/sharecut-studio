@@ -244,3 +244,24 @@ def test_a_position_that_cannot_be_resolved_masks_every_later_word():
 
     assert _safe_location(Holder, ("either", "Leaf", "word")) == "either.*.*"
     assert _safe_location(Holder, ("anything", 2, "word")) == "anything.2.*"
+
+
+def test_a_field_with_only_a_validation_alias_keeps_its_declared_name(minimal_project):
+    # ``EpisodeProject.transcript_data`` is read from ``transcripts`` and has no ``alias``.
+    data = json.loads(minimal_project.read_text())
+    data["transcripts"] = {
+        "per_track": [{"track_id": "t", "words": [{"text": {"v": 1}, "start": "x"}]}]
+    }
+    _write(minimal_project, data)
+    with pytest.raises(ProjectUnreadableError) as caught:
+        load_project(minimal_project)
+    assert "unexpected contents at transcripts.per_track.0.words.0.text" in str(caught.value)
+
+
+def test_a_dict_key_under_a_validation_alias_field_is_still_a_star(minimal_project):
+    data = json.loads(minimal_project.read_text())
+    data["transcripts"] = {"per_track": {MARK: 1}}
+    _write(minimal_project, data)
+    with pytest.raises(ProjectUnreadableError) as caught:
+        load_project(minimal_project)
+    assert MARK not in str(caught.value)
