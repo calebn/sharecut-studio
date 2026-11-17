@@ -229,6 +229,10 @@ export function RoomView({
     device,
   });
   const lookingInText = loading ? null : lookingInLine(lookingIn);
+  // Declined makes the body inert; the looking-in line is the one part that
+  // stays readable, so then the inert goes on its neighbours instead.
+  const lineStaysLive = Boolean(declined) && lookingInText !== null;
+  const partInert = lineStaysLive ? true : undefined;
   const pinned =
     phase.kind === "live" || phase.kind === "paused"
       ? clockText(phase.clockSec)
@@ -336,7 +340,10 @@ export function RoomView({
           {loading || !statusKnown ? null : <RoomStatusPill phase={phase} />}
         </header>
       )}
-      <div className="sys-room-view-body" inert={declined ? true : undefined}>
+      <div
+        className="sys-room-view-body"
+        inert={declined && !lineStaysLive ? true : undefined}
+      >
         <Stage embedded={embedded} title={title}>
           {lookingInText === null ? null : (
             <p className="sys-room-looking-in">
@@ -345,12 +352,13 @@ export function RoomView({
             </p>
           )}
           {alertsInFrame ? null : (
-            <div className="sys-room-view-alert">
+            <div className="sys-room-view-alert" inert={partInert}>
               <RoomAlert alerts={model.alerts} />
             </div>
           )}
           <div
             className="sys-room-view-grid"
+            inert={partInert}
             aria-busy={loading ? true : undefined}
             style={
               {
@@ -398,7 +406,7 @@ export function RoomView({
                 )}
           </div>
           {!loading && model.listeners.length > 0 ? (
-            <ListenerRow>
+            <ListenerRow inert={partInert}>
               {model.listeners.map((listener) => (
                 <ListenerAvatar
                   key={listener.key}
@@ -410,7 +418,11 @@ export function RoomView({
           ) : null}
         </Stage>
         {!loading && model.railOpen ? (
-          <aside className="sys-room-view-rail" aria-label="Comments and takes">
+          <aside
+            className="sys-room-view-rail"
+            aria-label="Comments and takes"
+            inert={partInert}
+          >
             {railContent}
           </aside>
         ) : null}

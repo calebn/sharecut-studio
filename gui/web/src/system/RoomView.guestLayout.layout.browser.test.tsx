@@ -556,3 +556,40 @@ describe("the Declined state", () => {
     }
   }
 });
+
+describe("the looking-in line under the Declined bar", () => {
+  const sizes = [
+    [320, 640, "phone"],
+    [390, 844, "phone"],
+    [667, 375, "phone-landscape"],
+    [768, 1024, "desktop"],
+    [1280, 800, "desktop"],
+  ] as const;
+  for (const seat of ["guest", "producer"] as const) {
+    for (const [width, height, viewerWidth] of sizes) {
+      it(`sits above the scrim for a ${seat} at ${width}x${height}`, async () => {
+        const room = await render(width, height, {
+          seat,
+          phase: LIVE,
+          viewerWidth,
+          declined: { onJoin: noop },
+          people: [OTHERS[0] as RoomPerson, ME],
+          lookingIn: 3,
+        });
+        const line = room.querySelector(".sys-room-looking-in") as Element;
+        const scrim = room.querySelector(".sys-declined-scrim") as Element;
+        const box = rect(line);
+        expect(rect(scrim).top).toBeLessThanOrEqual(box.top);
+        expect(rect(scrim).bottom).toBeGreaterThanOrEqual(box.bottom);
+        const top = document.elementFromPoint(
+          box.left + box.width / 2,
+          box.top + box.height / 2,
+        );
+        expect(top === line || line.contains(top)).toBe(true);
+        expect(Number(getComputedStyle(line).zIndex)).toBeGreaterThan(
+          Number(getComputedStyle(scrim.parentElement as Element).zIndex),
+        );
+      });
+    }
+  }
+});
