@@ -13,6 +13,7 @@ from urllib.parse import quote
 import pytest
 from fastapi.testclient import TestClient
 from filelock import Timeout
+from pydantic import BaseModel, ValidationError
 
 from podcast_mcp.gui.routes import diagnostics as diagnostics_route
 from podcast_mcp.gui.server import create_app
@@ -628,3 +629,59 @@ def test_a_failed_job_message_with_a_folder_that_has_spaces_is_not_in_the_bundle
     for name, text in members.items():
         assert "ZQDani" not in text, name
         assert "dani.wav" not in text, name
+
+
+class _Inner(BaseModel):
+    align_method: str
+
+
+class _Outer(BaseModel):
+    meta: dict[str, _Inner]
+
+
+def _outer_error(key: str) -> ValidationError:
+    try:
+        _Outer.model_validate({"meta": {key: {"align_method": 7}}})
+    except ValidationError as exc:
+        return exc
+    raise AssertionError("the model accepted the damage")
+
+
+@pytest.mark.parametrize("shape", ["exc_info", "percent_s", "wrapped"])
+def test_a_key_in_a_prefixed_log_line_is_not_in_the_bundle(
+    minimal_project, bundle_env, monkeypatch, tmp_path, shape
+):
+    key = "Dani" + "ela Secret" + "name"  # built here: a traceback quotes the source line
+    log = tmp_path / "state" / "sidecar.log"
+    log.parent.mkdir()
+    handler = logging.FileHandler(log)
+    handler.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(name)s: %(message)s"))
+    logger = logging.getLogger("podcast_mcp.probe_keys")
+    logger.addHandler(handler)
+    try:
+        error = _outer_error(key)
+        if shape == "exc_info":
+            try:
+                raise error
+            except ValidationError:
+                logger.error("failed", exc_info=True)
+        elif shape == "percent_s":
+            logger.error("failed: %s", error)
+        else:
+            try:
+                raise RuntimeError(f"wrapped: {error}") from error
+            except RuntimeError:
+                logger.error("failed", exc_info=True)
+        handler.flush()
+    finally:
+        logger.removeHandler(handler)
+        handler.close()
+    assert key in log.read_text()
+    monkeypatch.setattr(diagnostics_mod, "sidecar_log_candidates", lambda: [log])
+    with _client(minimal_project) as client:
+        response = client.post("/api/diagnostics/bundle", json={})
+    members = _members(response.json()["path"])
+    for name, text in members.items():
+        assert "Daniela" not in text, name
+        assert "Secretname" not in text, name
+    assert "align_method" in members["sidecar.log"]
