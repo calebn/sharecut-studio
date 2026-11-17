@@ -83,6 +83,11 @@ if TYPE_CHECKING:
         TranscriptTimingChangedError,
         WordTimingTarget,
     )
+    from podcast_mcp.services.document.transcript_flag_results import (
+        WordAutomaticResult,
+        WordsIgnoredResult,
+        WordSuppressedResult,
+    )
 
 __all__ = [
     "DEFAULT_LIMIT",
@@ -131,7 +136,10 @@ __all__ = [
     "TranscriptTimingChangedError",
     "TransportPath",
     "TrimBoundaryTarget",
+    "WordAutomaticResult",
+    "WordSuppressedResult",
     "WordTimingTarget",
+    "WordsIgnoredResult",
     "build_golden_ear",
     "cross_process_bridge",
     "cross_process_lease",
@@ -175,6 +183,9 @@ _MODULE_BY_NAME = {
     "FeedFieldPinResult": "feed_results",
     "FeedService": "feed",
     "FeedViewKind": "feed",
+    "WordAutomaticResult": "transcript_flag_results",
+    "WordSuppressedResult": "transcript_flag_results",
+    "WordsIgnoredResult": "transcript_flag_results",
     "SHOW_KEY": "feed",
     "describe_fields": "feed",
     "DEFAULT_LIMIT": "golden_ear",

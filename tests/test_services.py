@@ -838,7 +838,7 @@ def test_edit_service_set_words_ignored_undo_restores_flag(minimal_project):
     _with_words(ws)
     svc = TranscriptService(ws)
     out = svc.set_words_ignored("host", 1, 1, True)
-    assert out["changed"] == 1
+    assert out.changed == 1
     assert ws.project.transcripts[0].words[1].ignored is True
 
     HistoryService(ws).undo()
@@ -858,7 +858,7 @@ def test_edit_service_set_word_suppressed_stale_expected_text_raises(minimal_pro
     assert ws.project.transcripts[0].words[0].suppressed is False
 
     out = svc.set_word_suppressed("host", 0, True, expected_text="teh")
-    assert out["suppressed"] is True
+    assert out.suppressed is True
     assert ws.project.transcripts[0].words[0].suppressed is True
 
 
@@ -870,9 +870,9 @@ def test_edit_service_set_word_automatic_clears_lock_only(minimal_project):
     assert ws.project.transcripts[0].words[0].audibility_locked is True
 
     out = svc.set_word_automatic("host", 0)
-    assert out["audibility_locked"] is False
+    assert out.audibility_locked is False
     # suppressed is untouched by the unlock; only a later reconcile changes it.
-    assert out["suppressed"] is True
+    assert out.suppressed is True
     word = ws.project.transcripts[0].words[0]
     assert word.audibility_locked is False
     assert word.suppressed is True
@@ -907,7 +907,7 @@ def test_edit_service_set_word_automatic_stale_expected_text_raises(minimal_proj
     assert ws.project.transcripts[0].words[0].audibility_locked is True
 
     out = svc.set_word_automatic("host", 0, expected_text="teh")
-    assert out["audibility_locked"] is False
+    assert out.audibility_locked is False
 
 
 def test_edit_service_set_words_ignored_stale_expected_text_raises(minimal_project):
@@ -922,7 +922,7 @@ def test_edit_service_set_words_ignored_stale_expected_text_raises(minimal_proje
     assert not any(w.ignored for w in ws.project.transcripts[0].words)
 
     out = svc.set_words_ignored("host", 0, 1, True, expected_text="teh end")
-    assert out["changed"] == 2
+    assert out.changed == 2
 
 
 def test_edit_service_noop_edits_leave_transcript_unflagged(minimal_project):
