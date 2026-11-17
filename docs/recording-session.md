@@ -339,14 +339,9 @@ joined, each with an ear glyph) and, when the server reports that people with
 the producer link are looking in without having joined, the **looking-in
 line** ("Someone with the producer link is looking in", or "3 people with the
 producer link are looking in"). The line names nobody. It is the first line of
-the room's main area, directly under the header and above the tiles. The
-tile grid gives it its height: the tiles get a little shorter, their bottoms,
-the listener row and the dock stay where the room showed them, and nothing the
-room showed without the line is hidden, down to a stage about 600 px tall; below
-that the room already scrolled. This is pinned for the host studio at a 1280x800
-and a 1024x700 viewport, a guest and a producer on a 667x375 landscape phone
-with 2 and 3 people, a guest at 767 portrait and at 768 with the rail open, and a
-guest in dark at 390. The line keeps full strength under the Declined bar. The guest's consent **Details** repeats it with
+the room's main area, directly under the header and above the tiles. When the line shows, the
+tile grid makes room for it: the tiles get a little shorter, so the listener
+row and the dock stay where they were. The line keeps full strength under the Declined bar. The guest's consent **Details** repeats it with
 "They can see the room but can't hear it." Each of the host, guest and
 producer pages announces the first arrival in each room, once and politely, while
 the room is waiting or stopped. An arrival during a take is not spoken then, and
