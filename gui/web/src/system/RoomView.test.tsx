@@ -853,7 +853,7 @@ describe("RoomView as the host", () => {
       );
     });
 
-    it("shows the looking-in line from outside the inert body when declined", () => {
+    it("puts the looking-in line in the Declined layer, before the bar, and nowhere else", () => {
       const { container } = renderRoom({
         declined: { onJoin: () => {} },
         people: [HOST, { ...JON, you: true }, { ...ROSA, role: "producer" }],
@@ -863,14 +863,36 @@ describe("RoomView as the host", () => {
         ".sys-room-view-body",
       ) as HTMLElement;
       expect(body).toHaveAttribute("inert");
-      const line = container.querySelector(
-        ".sys-room-looking-in",
-      ) as HTMLElement;
+      const lines = container.querySelectorAll(
+        ".sys-room-looking-in, .sys-declined-looking-in",
+      );
+      expect(lines).toHaveLength(1);
+      const line = lines[0] as HTMLElement;
+      expect(line).toHaveClass("sys-declined-looking-in");
+      expect(line).toHaveTextContent(
+        "2 people with the producer link are looking in",
+      );
       expect(line.closest("[inert]")).toBeNull();
+      expect(line.closest("[aria-hidden='true']")).toBeNull();
       expect(body).not.toContainElement(line);
-      expect(
-        container.querySelector("section[aria-label='Looking in']"),
-      ).toContainElement(line);
+      const layer = container.querySelector(".sys-declined") as HTMLElement;
+      expect(layer).toContainElement(line);
+      expect(line.nextElementSibling).toHaveClass("sys-declined-bar");
+      expect(container.querySelector(".sys-room-looking-in-strip")).toBeNull();
+      expect(container.querySelector("[data-looking-in]")).toBeNull();
+    });
+
+    it("keeps the Declined layer as develop had it when nobody is looking in", () => {
+      const { container } = renderRoom({
+        declined: { onJoin: () => {} },
+        people: [HOST, { ...JON, you: true }],
+        lookingIn: 0,
+      });
+      const layer = container.querySelector(".sys-declined") as HTMLElement;
+      expect(layer.querySelector(".sys-declined-looking-in")).toBeNull();
+      expect(layer.children).toHaveLength(2);
+      expect(layer.firstElementChild).toHaveClass("sys-declined-scrim");
+      expect(layer.lastElementChild).toHaveClass("sys-declined-bar");
     });
 
     it("keeps the looking-in line first in the stage when not declined", () => {
