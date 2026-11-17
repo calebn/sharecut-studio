@@ -75,6 +75,7 @@ async function render(
       onLeave: noop,
       onMute: noop,
       onComment: noop,
+      lookingIn: 0,
       ...props,
     }),
   );
@@ -290,5 +291,73 @@ describe("the host studio's phone dock stays as develop had it", () => {
         ).toBeCloseTo(narrow ? 16 : 24, 0);
       });
     }
+  }
+});
+
+describe("the looking-in line on a portrait phone", () => {
+  const four = [...OTHERS.slice(0, 3), ME];
+  const LINE = "3 people with the producer link are looking in";
+
+  for (const width of [320, 390]) {
+    for (const seat of ["guest", "producer"] as const) {
+      it(`sits under the header and clears the tiles, own cue and dock at ${width}, ${seat}, four people`, async () => {
+        const room = await render(width, 844, {
+          seat,
+          phase: LIVE,
+          viewerWidth: "phone",
+          people: four,
+          lookingIn: 3,
+        });
+        const line = room.querySelector(".sys-room-looking-in") as Element;
+        const header = rect(room.querySelector("header") as Element);
+        const first = rect(room.querySelector(".sys-room-tile") as Element);
+        const dock = rect(room.querySelector(".sys-dock") as Element);
+        const cue = rect(room.querySelector(".sys-room-devices") as Element);
+        const box = rect(line);
+        expect(line.textContent).toBe(LINE);
+        expect(header.height).toBeCloseTo(44, 0);
+        expect(box.top).toBeGreaterThanOrEqual(header.bottom);
+        expect(box.bottom).toBeLessThanOrEqual(first.top);
+        expect(box.bottom).toBeLessThanOrEqual(cue.top);
+        expect(box.right).toBeLessThanOrEqual(width);
+        expect(dock.bottom).toBeLessThanOrEqual(844 + 0.5);
+        expect(dock.height).toBeCloseTo(101, 0);
+        for (const tile of room.querySelectorAll(".sys-room-tile")) {
+          expect(rect(tile).bottom).toBeLessThanOrEqual(dock.top + 0.5);
+        }
+      });
+    }
+
+    it(`moves the tiles down by its own height and one stage gap at ${width}`, async () => {
+      const top = async (lookingIn: number) => {
+        const room = await render(width, 844, {
+          seat: "guest",
+          phase: LIVE,
+          viewerWidth: "phone",
+          people: four,
+          lookingIn,
+        });
+        const line = room.querySelector(".sys-room-looking-in");
+        const stage = room.querySelector(".sys-room-view-stage") as Element;
+        return {
+          gap: Number.parseFloat(getComputedStyle(stage).rowGap),
+          tile: rect(room.querySelector(".sys-room-tile") as Element).top,
+          header: rect(room.querySelector("header") as Element).height,
+          dock: rect(room.querySelector(".sys-dock") as Element).height,
+          line: line ? rect(line).height : 0,
+        };
+      };
+      const without = await top(0);
+      root?.unmount();
+      host?.remove();
+      const withLine = await top(3);
+      expect(withLine.header).toBe(without.header);
+      expect(withLine.dock).toBe(without.dock);
+      // Its own height plus the one stage gap that separates it from the tiles.
+      expect(withLine.tile - without.tile).toBeCloseTo(
+        withLine.line + withLine.gap,
+        0,
+      );
+    });
   }
 });

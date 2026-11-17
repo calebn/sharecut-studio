@@ -316,7 +316,6 @@ export function RoomView({
           ) : null}
           {target ? <div className="sys-room-view-target">{target}</div> : null}
           <RoomStatusPill phase={phase} />
-          {lookingInRow}
         </div>
       ) : (
         <header
@@ -341,11 +340,11 @@ export function RoomView({
           </h1>
           {target ? <div className="sys-room-view-target">{target}</div> : null}
           {loading || !statusKnown ? null : <RoomStatusPill phase={phase} />}
-          {lookingInRow}
         </header>
       )}
       <div className="sys-room-view-body" inert={declined ? true : undefined}>
         <Stage embedded={embedded} title={title}>
+          {lookingInRow}
           {alertsInFrame ? null : (
             <div className="sys-room-view-alert">
               <RoomAlert alerts={model.alerts} />

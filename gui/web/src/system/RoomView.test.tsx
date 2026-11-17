@@ -353,29 +353,34 @@ describe("RoomView", () => {
     it.each([
       [1, "Someone with the producer link is looking in"],
       [3, "3 people with the producer link are looking in"],
-    ])("shows %i as a line beside the listeners", async (lookingIn, text) => {
-      const { container } = renderRoom({
-        seat: "host",
-        people: [HOST, JON, { ...ROSA, you: false }],
-        lookingIn,
-      });
-      const row = screen.getByText(text);
-      expect(row.tagName).toBe("P");
-      expect(row.closest("ul")).toBeNull();
-      expect(
-        screen.getByRole("list", { name: "Listening" }),
-      ).not.toContainElement(row);
-      const stage = container.querySelector(".sys-room-view-stage");
-      expect(stage).not.toContainElement(row);
-      expect(row.compareDocumentPosition(stage as Element)).toBe(
-        Node.DOCUMENT_POSITION_FOLLOWING,
-      );
-      const glyph = row.querySelector("svg");
-      expect(glyph).not.toBeNull();
-      expect(glyph?.closest("[aria-hidden='true']")).not.toBeNull();
-      expect(row).not.toHaveAttribute("role");
-      await expectNoA11yViolations(container);
-    });
+    ])(
+      "shows %i as the first line of the stage, under the header",
+      async (lookingIn, text) => {
+        const { container } = renderRoom({
+          seat: "host",
+          people: [HOST, JON, { ...ROSA, you: false }],
+          lookingIn,
+        });
+        const row = screen.getByText(text);
+        expect(row.tagName).toBe("P");
+        expect(row.closest("ul")).toBeNull();
+        expect(
+          screen.getByRole("list", { name: "Listening" }),
+        ).not.toContainElement(row);
+        const stage = container.querySelector(".sys-room-view-stage");
+        expect(stage).toContainElement(row);
+        expect(stage?.firstElementChild).toBe(row);
+        expect(container.querySelector("header")).not.toContainElement(row);
+        expect(
+          container.querySelector("header")?.compareDocumentPosition(row),
+        ).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+        const glyph = row.querySelector("svg");
+        expect(glyph).not.toBeNull();
+        expect(glyph?.closest("[aria-hidden='true']")).not.toBeNull();
+        expect(row).not.toHaveAttribute("role");
+        await expectNoA11yViolations(container);
+      },
+    );
 
     it.each([-1, 2.5, 100, Number.NaN, Number.MAX_SAFE_INTEGER])(
       "shows nothing for %s",
