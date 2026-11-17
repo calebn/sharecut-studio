@@ -105,7 +105,7 @@ export async function installProbes(page: Page): Promise<void> {
           out.blocks.push({ at: now, count });
         if (
           out.stillLoadingAt === null &&
-          document.body.textContent?.includes("Still loading…")
+          document.body?.textContent?.includes("Still loading…")
         )
           out.stillLoadingAt = now;
       }
