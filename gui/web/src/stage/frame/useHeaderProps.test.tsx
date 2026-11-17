@@ -74,7 +74,6 @@ describe("useHeaderProps title", () => {
       },
       { wrapper: guestShell("From the link") },
     );
-    expect(titles[0]).toBe("From the link");
     expect(new Set(titles)).toEqual(new Set(["From the link"]));
   });
 

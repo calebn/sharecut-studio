@@ -8,7 +8,7 @@ export type ShiftEntry = {
   sources: { node: string; from: Rect; to: Rect }[];
 };
 
-export type Probes = {
+type Probes = {
   shifts: ShiftEntry[];
   /** `html[data-shell]` in the first microtask after `.stage-frame--guest` was added; null until it was. */
   shellAtFrame: string | null;
@@ -141,7 +141,6 @@ export async function headerBoxes(page: Page) {
       host: box(host),
       title: box(host?.querySelector(".sys-header-title")),
       block: box(host?.querySelector(".sys-skeleton-block--title")),
-      sub: box(host?.querySelector(".sys-header-sub")),
     };
   });
 }
