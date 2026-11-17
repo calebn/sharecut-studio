@@ -228,8 +228,8 @@ def test_pipeline_slot_job_failure_event_order(tmp_path, monkeypatch) -> None:
         events = tap.drain()
     assert [e["type"] for e in events] == ["status", "done"]
     assert events[-1]["job"]["status"] == "error"
-    assert events[-1]["job"]["error"] == "explode at now"
-    assert events[-1]["job"]["message"] == "explode at now"
+    assert events[-1]["job"]["error"] == "explode at"
+    assert events[-1]["job"]["message"] == "explode at"
 
 
 def test_finished_job_lookup_is_bounded_to_eight_oldest_first() -> None:
