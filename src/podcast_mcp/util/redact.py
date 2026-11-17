@@ -63,10 +63,12 @@ _INPUT_VALUE_HIDDEN = "input_value=<hidden>"
 # Where a validation failed is printed as dotted segments, and a segment may be a dict key of
 # the document (a speaker's name). Two shapes carry it: pydantic's block (a header, then per error
 # the location and an indented line that ends in ``[type=...]``; a key with a newline makes the
-# location run over several lines) and the sentence older builds wrote for a damaged project file.
-_VALIDATION_HEADER = re.compile(r"(?m)^\d+ validation errors? for [^\n]*\n")
+# location run over several lines; the header may follow a prefix on its line, as in a traceback
+# or a timestamped log line, and one location is read to at most 2000 characters, so a header with
+# no entry behind it leaves the text after it as it is) and the sentence older builds wrote for a damaged project file.
+_VALIDATION_HEADER = re.compile(r"(?<!\d)\d+ validation errors? for [^\n]*\n")
 _VALIDATION_ENTRY = re.compile(
-    r"(?P<loc>.*?)(?P<rest>\n  [^\n]*\[type=[^\n]*\](?:\n    For further information[^\n]*)?)",
+    r"(?P<loc>(?s:.{0,2000}?))(?P<rest>\n  [^\n]*\[type=[^\n]*\](?:\n    For further information[^\n]*)?)",
     re.DOTALL,
 )
 _UNREADABLE_PLACE = re.compile(
