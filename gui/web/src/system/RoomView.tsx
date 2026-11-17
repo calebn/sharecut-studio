@@ -229,13 +229,6 @@ export function RoomView({
     device,
   });
   const lookingInText = loading ? null : lookingInLine(lookingIn);
-  const lookingInRow =
-    lookingInText === null ? null : (
-      <p className="sys-room-looking-in">
-        <SystemIcon name="eye" size={16} />
-        {lookingInText}
-      </p>
-    );
   const pinned =
     phase.kind === "live" || phase.kind === "paused"
       ? clockText(phase.clockSec)
@@ -344,7 +337,12 @@ export function RoomView({
       )}
       <div className="sys-room-view-body" inert={declined ? true : undefined}>
         <Stage embedded={embedded} title={title}>
-          {lookingInRow}
+          {lookingInText === null ? null : (
+            <p className="sys-room-looking-in">
+              <SystemIcon name="eye" size={16} />
+              {lookingInText}
+            </p>
+          )}
           {alertsInFrame ? null : (
             <div className="sys-room-view-alert">
               <RoomAlert alerts={model.alerts} />

@@ -588,13 +588,13 @@ describe("GuestRoomApp", () => {
   });
 
   describe("people looking in", () => {
-    const ROW = "Someone with the producer link is looking in";
+    const LINE = "Someone with the producer link is looking in";
     const polite = () =>
       document.querySelector('[aria-live="polite"].sr-only') as HTMLElement;
-    const rowText = () =>
+    const lineText = () =>
       document.querySelector(".sys-room-looking-in")?.textContent ?? null;
 
-    it("names them in the consent Details, and after the room has people looking in", async () => {
+    it("names them in the consent Details and on the page behind it", async () => {
       stubBootstrap();
       render(<GuestRoomApp token="guest-tok" />);
       await screen.findByRole("heading", { name: "Join the room" });
@@ -608,38 +608,38 @@ describe("GuestRoomApp", () => {
         await screen.findByRole("button", { name: "Details" }),
       );
       expect(
-        screen.getByText(`${ROW}. They can see the room but can't hear it.`),
+        screen.getByText(`${LINE}. They can see the room but can't hear it.`),
       ).toBeInTheDocument();
-      expect(rowText()).toBe(ROW);
+      expect(lineText()).toBe(LINE);
     });
 
-    it("shows the row on the guest seat, updates it and announces the first arrival once", async () => {
+    it("shows the line on the guest seat, updates it and announces the first arrival once", async () => {
       stubBootstrap();
       render(<GuestRoomApp token="guest-tok" />);
       await readyToJoin(getUserMedia);
       await userEvent.click(joinButton());
       await screen.findByRole("button", { name: "Leave room" });
-      expect(rowText()).toBeNull();
+      expect(lineText()).toBeNull();
       act(() =>
         sockets[0].onmessage?.(
           snapshotMessage({ watchers: 1, server_time_ns: 10 }, true),
         ),
       );
-      expect(rowText()).toBe(ROW);
-      expect(polite()).toHaveTextContent(ROW);
+      expect(lineText()).toBe(LINE);
+      expect(polite()).toHaveTextContent(LINE);
       act(() =>
         sockets[0].onmessage?.(
           snapshotMessage({ watchers: 3, server_time_ns: 11 }, true),
         ),
       );
-      expect(rowText()).toBe("3 people with the producer link are looking in");
-      expect(polite()).toHaveTextContent(ROW);
+      expect(lineText()).toBe("3 people with the producer link are looking in");
+      expect(polite()).toHaveTextContent(LINE);
       act(() =>
         sockets[0].onmessage?.(
           snapshotMessage({ watchers: 0, server_time_ns: 12 }, true),
         ),
       );
-      expect(rowText()).toBeNull();
+      expect(lineText()).toBeNull();
     });
 
     it("shows nothing for a count that is not a count", async () => {
@@ -654,7 +654,7 @@ describe("GuestRoomApp", () => {
             snapshotMessage({ watchers: bad, server_time_ns: 10 + i }, true),
           ),
         );
-        expect(rowText()).toBeNull();
+        expect(lineText()).toBeNull();
       }
     });
 
@@ -672,11 +672,11 @@ describe("GuestRoomApp", () => {
         );
       send({ state: "recording", take_index: 0, watchers: 0 }, 10);
       send({ state: "recording", take_index: 0, watchers: 1 }, 11);
-      expect(rowText()).toBe(ROW);
-      expect(polite()).not.toHaveTextContent(ROW);
+      expect(lineText()).toBe(LINE);
+      expect(polite()).not.toHaveTextContent(LINE);
       send({ state: "lobby", take_index: 0, watchers: 0 }, 12);
       send({ state: "lobby", take_index: 0, watchers: 1 }, 13);
-      expect(polite()).toHaveTextContent(ROW);
+      expect(polite()).toHaveTextContent(LINE);
     });
   });
 
@@ -803,7 +803,7 @@ describe("GuestRoomApp", () => {
     }),
   };
 
-  it("shows the row and announces it on the producer seat", async () => {
+  it("shows the line and announces it on the producer seat", async () => {
     stubBootstrap(producerBootstrap);
     stubWebSocket(sockets, "silent");
     render(<GuestRoomApp token="prod-tok" />);

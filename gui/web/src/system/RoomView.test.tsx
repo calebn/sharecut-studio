@@ -361,23 +361,23 @@ describe("RoomView", () => {
           people: [HOST, JON, { ...ROSA, you: false }],
           lookingIn,
         });
-        const row = screen.getByText(text);
-        expect(row.tagName).toBe("P");
-        expect(row.closest("ul")).toBeNull();
+        const line = screen.getByText(text);
+        expect(line.tagName).toBe("P");
+        expect(line.closest("ul")).toBeNull();
         expect(
           screen.getByRole("list", { name: "Listening" }),
-        ).not.toContainElement(row);
+        ).not.toContainElement(line);
         const stage = container.querySelector(".sys-room-view-stage");
-        expect(stage).toContainElement(row);
-        expect(stage?.firstElementChild).toBe(row);
-        expect(container.querySelector("header")).not.toContainElement(row);
+        expect(stage).toContainElement(line);
+        expect(stage?.firstElementChild).toBe(line);
+        expect(container.querySelector("header")).not.toContainElement(line);
         expect(
-          container.querySelector("header")?.compareDocumentPosition(row),
+          container.querySelector("header")?.compareDocumentPosition(line),
         ).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
-        const glyph = row.querySelector("svg");
+        const glyph = line.querySelector("svg");
         expect(glyph).not.toBeNull();
         expect(glyph?.closest("[aria-hidden='true']")).not.toBeNull();
-        expect(row).not.toHaveAttribute("role");
+        expect(line).not.toHaveAttribute("role");
         await expectNoA11yViolations(container);
       },
     );

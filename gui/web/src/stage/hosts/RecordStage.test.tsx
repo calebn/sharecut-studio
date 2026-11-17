@@ -316,7 +316,7 @@ describe("Record stage", () => {
     [1, "Someone with the producer link is looking in"],
     [3, "3 people with the producer link are looking in"],
   ])(
-    "shows %i looking in on the host roster, and nothing for none",
+    "shows %i looking in on the host page, and nothing for none",
     async (watchers, text) => {
       setRoom({ participants: [hostPerson(), avaGuest()] });
       mount();
