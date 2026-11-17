@@ -938,6 +938,43 @@ describe("GuestRoomApp", () => {
       expect(rowText()).toBeNull();
     });
 
+    it("says nothing about the room seeing the page when a failed Join leaves it on a socket that was never counted", async () => {
+      await lookIn();
+      look({ watchers: 1, server_time_ns: 101 });
+      expect(
+        screen.getByText(SEEN, { selector: ".sys-join-seen" }),
+      ).toBeVisible();
+      await enterName("Pat");
+      await userEvent.click(
+        screen.getByRole("button", { name: "Join to listen" }),
+      );
+      await waitFor(() => {
+        expect(
+          sockets[0].sent.filter((raw) => raw.includes('"Join"')),
+        ).toHaveLength(1);
+      });
+      act(() => sockets[0].onclose?.({ code: 1006 }));
+      await waitFor(() => expect(sockets).toHaveLength(2));
+      await waitFor(() => {
+        expect(
+          sockets[1].sent.filter((raw) => raw.includes('"Join"')),
+        ).toHaveLength(1);
+      });
+      act(() =>
+        sockets[1].onmessage?.({
+          data: JSON.stringify({
+            plane: "record",
+            type: "Error",
+            code: "invalid_state",
+          }),
+        }),
+      );
+      await screen.findByRole("button", { name: "Join to listen" });
+      expect(
+        screen.queryByText(SEEN, { selector: ".sys-join-seen" }),
+      ).toBeNull();
+    });
+
     it("keeps the count right when the Echo and the snapshot that lists the producer follow one another", async () => {
       await lookIn();
       look({ watchers: 2, server_time_ns: 101 });
