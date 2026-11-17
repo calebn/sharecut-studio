@@ -77,10 +77,13 @@ class GuestWsGuard:
 
     async def close_invalid(self, reason: str) -> None:
         """Close 4403 after a failed check; a socket that gets a frame for its cause gets it first."""
-        if self._invalid_frame is not None:
-            frame = await run_in_threadpool(self._invalid_frame)
-            if frame is not None:
-                await self.send_json(frame)
+        try:
+            if self._invalid_frame is not None:
+                frame = await run_in_threadpool(self._invalid_frame)
+                if frame is not None:
+                    await self.send_json(frame)
+        except Exception:
+            log.exception("closing frame failed")
         await self.close(4403, reason)
 
     async def wait_closed(self) -> None:
