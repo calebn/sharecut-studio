@@ -1,5 +1,3 @@
-import { mkdirSync } from "node:fs";
-import { join } from "node:path";
 import { expect, type Page, test } from "@playwright/test";
 import { expectReadingSurfaceAxeClean } from "./axe";
 import { postDocumentCommand } from "./documentCommand";
@@ -12,52 +10,24 @@ import {
   withGuestLink,
 } from "./guestLink";
 import {
+  ALL,
+  HEADER_HEIGHT,
   headerBoxes,
   installProbes,
   lateArrivals,
+  NOT_WIDTH,
+  near,
   type Rect,
   readProbes,
+  SHIFT_BUDGET,
   type ShiftEntry,
   shiftSum,
+  shot,
+  status,
 } from "./guestLoadingProbes";
 import { createRecordRoom } from "./recordRoom";
 
-const HEADER_HEIGHT = { phone: 45, desktop: 49 } as const;
-const SHIFT_BUDGET = 0.002;
 const LANDINGS = 5;
-const SHOTS = process.env.GUEST_LOADING_SHOTS;
-
-const ALL = ["x", "y", "w", "h"] as const;
-const NOT_WIDTH = ["x", "y", "h"] as const;
-
-const near = (
-  got: Rect | null,
-  want: Rect | null,
-  tolerance = 1,
-  keys: readonly (keyof Rect)[] = ALL,
-  state = "",
-) => {
-  expect.soft(got, "the title has a box").not.toBeNull();
-  expect.soft(want, "the title has a box to compare with").not.toBeNull();
-  if (!got || !want) return;
-  for (const key of keys)
-    expect
-      .soft(
-        Math.abs(got[key] - want[key]),
-        `${state} ${key}: ${JSON.stringify(got)} against ${JSON.stringify(want)}`,
-      )
-      .toBeLessThanOrEqual(tolerance);
-};
-
-/** The screen reader's line, not the "Still loading…" row that has a status role too. */
-const status = (page: Page) =>
-  page.locator("main.guest-loading > [role=status]");
-
-async function shot(page: Page, name: string) {
-  if (!SHOTS) return;
-  mkdirSync(SHOTS, { recursive: true });
-  await page.screenshot({ path: join(SHOTS, `${name}.png`) });
-}
 
 async function landed(page: Page, name: string) {
   await expect(page.locator(".stage-frame--guest")).toBeVisible();

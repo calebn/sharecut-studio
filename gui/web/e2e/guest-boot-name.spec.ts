@@ -1,5 +1,3 @@
-import { mkdirSync } from "node:fs";
-import { join } from "node:path";
 import { expect, type Page, test } from "@playwright/test";
 import { expectReadingSurfaceAxeClean } from "./axe";
 import { postDocumentCommand } from "./documentCommand";
@@ -22,49 +20,22 @@ import {
   withGuestLink,
 } from "./guestLink";
 import {
+  ALL,
+  HEADER_HEIGHT,
   headerBoxes,
   installProbes,
   lateArrivals,
-  type Rect,
+  NOT_WIDTH,
+  near,
   readProbes,
+  SHIFT_BUDGET,
   shiftSum,
+  shot,
+  status,
 } from "./guestLoadingProbes";
 
 const SCRIPT_HOLD_MS = 3000;
 const PROJECT_HOLD_MS = 2000;
-const SHIFT_BUDGET = 0.002;
-const HEADER_HEIGHT = { phone: 45, desktop: 49 } as const;
-const SHOTS = process.env.GUEST_LOADING_SHOTS;
-
-const ALL = ["x", "y", "w", "h"] as const;
-const NOT_WIDTH = ["x", "y", "h"] as const;
-
-const near = (
-  got: Rect | null,
-  want: Rect | null,
-  state: string,
-  keys: readonly (keyof Rect)[] = ALL,
-) => {
-  expect.soft(got, `${state}: a box`).not.toBeNull();
-  expect.soft(want, `${state}: a box to compare with`).not.toBeNull();
-  if (!got || !want) return;
-  for (const key of keys)
-    expect
-      .soft(
-        Math.abs(got[key] - want[key]),
-        `${state} ${key}: ${JSON.stringify(got)} against ${JSON.stringify(want)}`,
-      )
-      .toBeLessThanOrEqual(1);
-};
-
-const status = (page: Page) =>
-  page.locator("main.guest-loading > [role=status]");
-
-async function shot(page: Page, name: string) {
-  if (!SHOTS) return;
-  mkdirSync(SHOTS, { recursive: true });
-  await page.screenshot({ path: join(SHOTS, `${name}.png`) });
-}
 
 /** Console errors and page errors, with the link's token taken out of what is kept. */
 function watchErrors(page: Page, token: string) {
@@ -192,8 +163,8 @@ for (const size of SIZES) {
             });
           });
           await test.step("the same box in the written page, the loading header and the studio", () => {
-            near(run.drawn.title, run.written.title, "loading", ALL);
-            near(run.landed.title, run.written.title, "landed", ALL);
+            near(run.drawn.title, run.written.title, 1, ALL, "loading");
+            near(run.landed.title, run.written.title, 1, ALL, "landed");
             expect(run.drawn.host).toEqual(run.written.host);
             expect(run.landed.host).toEqual(run.written.host);
           });
@@ -259,13 +230,13 @@ for (const size of SIZES) {
               `${size.name}-${kind.replaceAll(" ", "-")}`,
             );
             expect(await guest.locator("#root b").count()).toBe(0);
-            near(run.drawn.title, run.written.title, "loading", ALL);
+            near(run.drawn.title, run.written.title, 1, ALL, "loading");
             // A long name ends in an ellipsis at the room the right-hand
             // controls leave, which the written page does not have yet.
             near(
               run.landed.title,
               run.written.title,
-              "landed",
+              1,
               kind === "120 unbroken characters" ? NOT_WIDTH : ALL,
             );
             expect(run.boot.gaps).toEqual([]);
