@@ -34,6 +34,11 @@ const AXIS_LOOPS: Record<string, { loops: number; reason: string }> = {
     reason:
       "axe contrast on the offline cover reads color, so it runs in both themes (#3891)",
   },
+  "guest-loading-hold.spec.ts": {
+    loops: 1,
+    reason:
+      "the loading header and its grey blocks are drawn from theme colors, and the holds-still check (boxes, shift, shell) is asked in both themes (#3891)",
+  },
   "guest-seek.spec.ts": {
     loops: 1,
     reason:
