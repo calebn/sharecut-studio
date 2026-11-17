@@ -39,7 +39,7 @@ from collections.abc import Callable, Iterator, Mapping, Sequence
 from contextlib import contextmanager
 from contextvars import ContextVar
 from pathlib import Path
-from typing import Any, BinaryIO, NamedTuple, Protocol, runtime_checkable
+from typing import Any, BinaryIO, NamedTuple, Protocol, cast, runtime_checkable
 
 from podcast_mcp.util import host_platform
 
@@ -310,7 +310,8 @@ class InProcessChild:
 
     A PIPE stream is an ``os.pipe`` pair, a file object is handed to the backend as is, and
     DEVNULL or ``None`` give the backend ``None``. ``pid`` is ``None``. A ``kill`` that the
-    backend ignores for ``KILL_GRACE_SEC`` ends the child with ``-9`` and abandons its thread.
+    backend ignores for ``KILL_GRACE_SEC`` ends the child with ``-9``, gives its pipes EOF and
+    abandons its thread. A backend that returns a non-int has failed with code ``1``.
     A ``kill`` before the backend finishes always reports ``-9``, whatever the backend returns,
     as a SIGKILLed ``Popen`` does; one after completion changes nothing. A ``None`` stream is
     ``/dev/null`` here, never inherited from the parent as ``Popen`` would.
@@ -339,6 +340,9 @@ class InProcessChild:
         self._lock = threading.Lock()
         self._grace: threading.Timer | None = None
         self._owned: list[BinaryIO] = []
+        self._owned_fds: list[int] = []
+        self._fd_lock = threading.Lock()
+        self._fds_closed = False
         try:
             stdin_end = self._end("stdin", stdin)
             stdout_end = self._end("stdout", stdout)
@@ -360,15 +364,41 @@ class InProcessChild:
         read_fd, write_fd = os.pipe()
         reading = name == "stdin"
         ours = os.fdopen(write_fd if reading else read_fd, "wb" if reading else "rb")
-        theirs = os.fdopen(read_fd if reading else write_fd, "rb" if reading else "wb")
+        their_fd = read_fd if reading else write_fd
+        theirs = os.fdopen(their_fd, "rb" if reading else "wb", closefd=False)
         setattr(self, name, ours)
         self._owned.append(theirs)
+        self._owned_fds.append(their_fd)
         return theirs
 
     def _close_owned(self) -> None:
         for end in self._owned:
             with contextlib.suppress(OSError):
                 end.close()
+        with self._fd_lock:
+            fds, self._owned_fds = ([] if self._fds_closed else self._owned_fds), []
+            self._fds_closed = True
+        for fd in fds:
+            with contextlib.suppress(OSError):
+                os.close(fd)
+
+    def _detach_owned(self) -> None:
+        """Point the backend's pipe ends at /dev/null without closing their file objects.
+
+        Closing a buffered end that a stuck backend is blocked in waits on its lock. The pipe
+        ends are released at once, so the caller's reads see EOF; the descriptor numbers stay
+        valid until the backend returns, so a late write cannot land on a reused descriptor.
+        """
+        with self._fd_lock:
+            if self._fds_closed or not self._owned_fds:
+                return
+            with contextlib.suppress(OSError):
+                null = os.open(os.devnull, os.O_RDWR)
+                try:
+                    for fd in self._owned_fds:
+                        os.dup2(null, fd)
+                finally:
+                    os.close(null)
 
     def _finish(self, code: int) -> None:
         with self._lock:
@@ -385,6 +415,9 @@ class InProcessChild:
         except BaseException:
             _log.exception("in-process backend failed: %s", self.args[0])
             code = 1
+        if not isinstance(code, int) or isinstance(code, bool):
+            _log.error("in-process backend returned %r, not an int: %s", code, self.args[0])
+            code = 1
         if self._cancel.is_set():
             code = -9
         self._finish(code)
@@ -395,8 +428,7 @@ class InProcessChild:
     def wait(self, timeout: float | None = None) -> int:
         if not self._done.wait(timeout):
             raise TimeoutExpired(self.args, timeout or 0.0)
-        assert self.returncode is not None
-        return self.returncode
+        return cast(int, self.returncode)
 
     def kill(self) -> None:
         if self._done.is_set() or self._cancel.is_set():
@@ -409,7 +441,11 @@ class InProcessChild:
     def _abandon(self) -> None:
         if not self._done.is_set():
             _log.error("in-process backend ignored kill: %s", self.args[0])
-            self._finish(-9)
+            with self._lock:
+                if self.returncode is None:
+                    self.returncode = -9
+            self._detach_owned()
+            self._done.set()
 
     def communicate(self, input: Any = None, timeout: float | None = None) -> tuple[Any, Any]:
         deadline = None if timeout is None else time.monotonic() + timeout

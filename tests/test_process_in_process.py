@@ -7,6 +7,7 @@ import os
 import shutil
 import subprocess
 import threading
+import time
 from dataclasses import replace
 from pathlib import Path
 from typing import Any
@@ -71,6 +72,14 @@ class FakeBackend:
         if behaviour == "ignore_kill":
             threading.Event().wait(30)
             return 0
+        if behaviour == "stuck_read":
+            streams.stdin.read()
+            return 0
+        if behaviour == "stuck_write":
+            streams.stdout.write(b"x" * (8 * MIB))
+            return 0
+        if behaviour == "none":
+            return None
         if behaviour == "flood":
             chunk = b"x" * (p["err_bytes"] // p["lines"])
             for i in range(p["lines"]):
@@ -167,6 +176,36 @@ def test_kill_is_cooperative_and_a_backend_that_ignores_it_is_abandoned(
     child.kill()
     assert child.wait(5) == -9
     assert child.stdout.read() == b""
+
+
+@pytest.mark.parametrize("behaviour", ["stuck_read", "stuck_write"])
+def test_a_backend_stuck_in_a_pipe_call_is_abandoned_and_the_reader_sees_eof(
+    backend: FakeBackend, monkeypatch: pytest.MonkeyPatch, behaviour: str
+) -> None:
+    monkeypatch.setattr(process, "KILL_GRACE_SEC", 0.2)
+    child = process.popen([IN_PROCESS_FFMPEG, behaviour], stdin=process.PIPE, stdout=process.PIPE)
+    threading.Event().wait(0.3)
+    started = time.monotonic()
+    child.kill()
+    waited: list[int] = []
+    waiter = threading.Thread(target=lambda: waited.append(child.wait()), daemon=True)
+    waiter.start()
+    waiter.join(0.2 + 2)
+    assert waited == [-9], "wait() hung on a backend stuck in a pipe call"
+    assert time.monotonic() - started < 0.2 + 2
+    drained: list[bytes] = []
+    reader = threading.Thread(target=lambda: drained.append(child.stdout.read()), daemon=True)
+    reader.start()
+    reader.join(5)
+    assert drained, "the reader never saw EOF"
+    child.stdin.close()
+
+
+def test_a_backend_returning_a_non_int_fails_with_code_one(backend: FakeBackend) -> None:
+    done = process.run([IN_PROCESS_FFMPEG, "none"], capture_output=True)
+    assert done.returncode == 1
+    with pytest.raises(subprocess.CalledProcessError):
+        process.run([IN_PROCESS_FFMPEG, "none"], capture_output=True, check=True)
 
 
 def test_a_kill_before_the_backend_finishes_reports_sigkill_whatever_it_returns(
