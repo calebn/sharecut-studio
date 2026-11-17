@@ -35,10 +35,6 @@ class ProfileFacts(NamedTuple):
 Reader = Callable[[Path], ProfileFacts]
 
 
-def default_directories(home: Path) -> list[Path]:
-    return [home / relative for relative in PROFILE_DIRECTORIES]
-
-
 def typed(source: dict[str, Any], key: str, kind: type) -> Any:
     value = source.get(key)
     if not isinstance(value, kind):

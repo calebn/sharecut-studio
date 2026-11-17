@@ -154,7 +154,7 @@ def installed_profiles(signing: Signing) -> tuple[list[provisioning.ProfileFacts
     """Only a signed build looks; the rehearsal never does."""
     if signing is not Signing.APP_STORE:
         return [], 0
-    return provisioning.discover(provisioning.default_directories(Path.home()))
+    return provisioning.discover([Path.home() / name for name in provisioning.PROFILE_DIRECTORIES])
 
 
 def build(session: Session, unsigned: bool) -> int:

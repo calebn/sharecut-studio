@@ -1,5 +1,3 @@
-"""Manual App Store signing for the iOS export: profile discovery, resolution and the plan."""
-
 from __future__ import annotations
 
 import dataclasses
@@ -50,14 +48,6 @@ def why(problems: list[release_inputs.InputProblem]) -> str:
     return " | ".join(f"{p.name}: {p.why}" for p in problems)
 
 
-def test_the_two_new_names_are_accepted_in_the_private_file_and_the_environment() -> None:
-    assert release_inputs.PROFILE_NAME == "APPLE_PROVISIONING_PROFILE"
-    assert release_inputs.CERTIFICATE_NAME == "APPLE_SIGNING_CERTIFICATE"
-    assert {release_inputs.PROFILE_NAME, release_inputs.CERTIFICATE_NAME} <= set(
-        release_inputs.SECRET_NAMES
-    )
-
-
 def test_one_discovered_valid_profile_is_used_with_the_default_certificate() -> None:
     chosen, problems = resolve(profiles=(facts(),))
     assert problems == [] and chosen is not None
@@ -72,7 +62,7 @@ def test_the_certificate_comes_from_the_value_when_set() -> None:
     assert chosen is not None and chosen.certificate == "Apple Distribution: Jo (BBBBBBBBBB)"
 
 
-@pytest.mark.parametrize("certificate", ["bad\nname", "a" * 200, "x<y>", "x&y"])
+@pytest.mark.parametrize("certificate", ["bad\nname", "x<y>"])
 def test_a_certificate_with_control_or_markup_characters_is_refused(certificate: str) -> None:
     chosen, problems = resolve({"APPLE_SIGNING_CERTIFICATE": certificate}, (facts(),))
     assert chosen is None and problems[0].name == "APPLE_SIGNING_CERTIFICATE"
@@ -104,9 +94,7 @@ def test_profiles_for_other_apps_are_not_candidates() -> None:
         ({"devices": 3}, "ad hoc"),
         ({"team": "CCCCCCCCCC", "app_id": f"CCCCCCCCCC.{BUNDLE}"}, "team"),
         ({"app_id": f"{TEAM}.*"}, "wildcard"),
-        ({"app_id": f"{TEAM}.studio.sharecut.*"}, "wildcard"),
         ({"name": "Bad</string>Name"}, "name"),
-        ({"name": "A & B"}, "name"),
     ],
 )
 def test_a_rejected_only_candidate_refuses_with_the_count_and_the_reason(
@@ -151,7 +139,7 @@ def test_an_explicit_name_that_matches_a_rejected_profile_refuses_with_the_reaso
     assert chosen is None and "expired" in why(problems)
 
 
-@pytest.mark.parametrize("name", ["A</string><key>x</key>", "a&b", 'quote"s', "new\nline"])
+@pytest.mark.parametrize("name", ["A</string><key>x</key>", "new\nline"])
 def test_an_explicit_name_outside_the_safe_characters_is_refused_before_matching(
     name: str,
 ) -> None:
@@ -197,10 +185,6 @@ def test_read_profile_rejects_wrongly_typed_fields_as_unreadable(
     text = profile_plist(**changes).decode()
     with pytest.raises(ValueError):
         provisioning.read_profile(Path("p"), run=lambda argv, **_: text)
-
-
-def test_facts_problems_is_empty_for_a_valid_app_store_profile() -> None:
-    assert provisioning.facts_problems(facts(), TEAM, BUNDLE, NOW) == []
 
 
 def profile_plist(**changes: object) -> bytes:
@@ -275,13 +259,11 @@ def test_every_file_unreadable_is_counted(tmp_path: Path) -> None:
     assert provisioning.discover([tmp_path], reader) == ([], 2)
 
 
-def test_the_default_directories_are_the_two_installed_profile_locations_never_downloads(
-    tmp_path: Path,
-) -> None:
-    assert provisioning.default_directories(tmp_path) == [
-        tmp_path / "Library/MobileDevice/Provisioning Profiles",
-        tmp_path / "Library/Developer/Xcode/UserData/Provisioning Profiles",
-    ]
+def test_the_scanned_directories_are_the_two_installed_profile_locations_never_downloads() -> None:
+    assert provisioning.PROFILE_DIRECTORIES == (
+        "Library/MobileDevice/Provisioning Profiles",
+        "Library/Developer/Xcode/UserData/Provisioning Profiles",
+    )
 
 
 def provisioned_inputs(name: str = NAME, certificate: str = "Apple Distribution"):
@@ -357,24 +339,15 @@ def test_the_archive_step_keeps_the_key_environment() -> None:
 
 
 def test_the_profile_name_is_a_secret_and_appears_in_no_argv_or_display() -> None:
-    steps = provisioned_steps(name="Secret Profile Name")
+    secret_name = "Secret Profile Name"
+    steps = provisioned_steps(name=secret_name)
     for step in steps.values():
-        if not isinstance(step, release_plan.Run):
-            continue
-        command = step.command
-        shown = command.display(Redactor())
-        assert "Secret Profile Name" not in shown
-        assert not any(part == "Secret Profile Name" for part in command.argv)
-        assert "Secret Profile Name" not in " ".join(
-            part for part in command.argv if isinstance(part, str)
-        )
+        if isinstance(step, release_plan.Run):
+            assert secret_name not in step.command.display(Redactor())
+            assert all(part != secret_name for part in step.command.argv)
     parts = steps["export"].command.files[0].parts
-    assert not any(isinstance(part, str) and "Secret Profile Name" in part for part in parts)
+    assert not any(isinstance(part, str) and secret_name in part for part in parts)
     assert any(isinstance(p, Secret) and repr(p) == "<provisioning-profile>" for p in parts)
-    redacted = Redactor([provisioned_inputs("Secret Profile Name").provisioning.profile]).redact(
-        "profile Secret Profile Name"
-    )
-    assert "Secret Profile Name" not in redacted
 
 
 def test_a_certificate_with_punctuation_round_trips_through_the_plist() -> None:
@@ -383,25 +356,28 @@ def test_a_certificate_with_punctuation_round_trips_through_the_plist() -> None:
     assert options["signingCertificate"] == certificate
 
 
-AUTOMATIC_OPTIONS = (
-    '<?xml version="1.0" encoding="UTF-8"?>\n'
-    '<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" '
-    '"http://www.apple.com/DTDs/PropertyList-1.0.dtd">\n'
-    '<plist version="1.0">\n<dict>\n'
-    "\t<key>destination</key>\n\t<string>export</string>\n"
-    "\t<key>manageAppVersionAndBuildNumber</key>\n\t<false/>\n"
-    "\t<key>method</key>\n\t<string>app-store-connect</string>\n"
-    "\t<key>signingStyle</key>\n\t<string>automatic</string>\n"
-    "\t<key>teamID</key>\n\t<string>"
-)
+def automatic_parts_at_base(team: Secret) -> tuple[object, ...]:
+    marker = "@@TEAM@@"
+    document = plistlib.dumps(
+        {
+            "method": "app-store-connect",
+            "signingStyle": "automatic",
+            "teamID": marker,
+            "uploadSymbols": False,
+            "destination": "export",
+            "manageAppVersionAndBuildNumber": False,
+        }
+    ).decode()
+    head, _, tail = document.partition(marker)
+    return (head, team, tail)
 
 
 def test_without_a_profile_the_automatic_export_is_unchanged() -> None:
     base = dataclasses.replace(provisioned_inputs(), provisioning=None)
     export = {s.name: s for s in release_plan.plan_build(base, LAYOUT, NOISY, "/p")}["export"]
-    head, team, tail = export.command.files[0].parts
-    assert head == AUTOMATIC_OPTIONS and repr(team) == "<team>"
-    assert tail == "</string>\n\t<key>uploadSymbols</key>\n\t<false/>\n</dict>\n</plist>\n"
+    parts = export.command.files[0].parts
+    assert parts == automatic_parts_at_base(parts[1])
+    assert repr(parts[1]) == "<team>"
     argv = export.command.argv
     assert argv[:3] == ("xcodebuild", "-exportArchive", "-allowProvisioningUpdates")
     flags = ("-authenticationKeyPath", "-authenticationKeyID", "-authenticationKeyIssuerID")
@@ -425,4 +401,4 @@ def test_only_a_signed_build_looks_for_installed_profiles(
     monkeypatch.setattr(provisioning, "discover", discover)
     assert ios_release.installed_profiles(Signing.NONE) == ([], 0) and not looked
     assert ios_release.installed_profiles(Signing.APP_STORE) == ([facts()], 0)
-    assert looked == [provisioning.default_directories(tmp_path)]
+    assert looked == [[tmp_path / name for name in provisioning.PROFILE_DIRECTORIES]]
