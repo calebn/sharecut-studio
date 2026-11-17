@@ -457,7 +457,7 @@
   min-inline-size: 0;
 }
 
-/* The title is as wide as its own text, not as the sub line under it, so its box does not change when "Shared link" becomes the version label. Its line is as tall as the web font makes it, so the column keeps its height, and the name its place, before the font has loaded. */
+/* The title is as wide as its own text, not as the sub line under it, so its box does not change when "Shared link" becomes the version label. Its line is the same height in every font, so the column keeps its height, and the name its place, before the web font has loaded. */
 .sys-header-guest > .sys-header-title {
   align-self: flex-start;
   max-inline-size: 100%;
@@ -491,14 +491,22 @@
   }
 }
 
-/* A small control in that line presses like a full-size one. Its press area reaches up over the name, which is not pressable, and down to the bar's edge, a hairline below the line, never under the bar. A wide control keeps its own width. */
+/* A small control in that line presses like a full-size one. Its press area reaches up over the name, which is not pressable, and at most a hairline down, never under the bar (the line ends at least a hairline above the bar's inner edge). The role button grows to both sides; the version buttons only toward the line's start, so they never reach the role button beside them. */
 .sys-role-trigger::after,
 .sys-version-pill::after,
 button.sys-version-line::after {
   content: "";
   position: absolute;
   inset-block: calc(100% - var(--press-target) + 1px) -1px;
+}
+
+.sys-role-trigger::after {
   inset-inline: min(0rem, calc((100% - var(--press-target)) / 2));
+}
+
+.sys-version-pill::after,
+button.sys-version-line::after {
+  inset-inline: min(0rem, calc(100% - var(--press-target))) 0;
 }
 
 .sys-role-hint {
@@ -516,6 +524,7 @@ button.sys-version-line::after {
   background: transparent;
   color: inherit;
   font: inherit;
+  font-weight: 500;
   cursor: pointer;
 }
 
