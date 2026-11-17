@@ -66,6 +66,8 @@ from podcast_mcp.util.ws_limits import GUEST_FRAME_MAX_BYTES
 router = APIRouter()
 log = logging.getLogger(__name__)
 
+_INVITE_CLOSED_FRAME = {"plane": "record", "type": "Error", "code": "invite_closed"}
+
 
 @router.get("/api/rec/{token}/bootstrap")
 def get_record_bootstrap(token: str) -> dict[str, Any]:
@@ -155,6 +157,15 @@ async def record_ws(
             and (not watching or joined or svc.invite_closed(share_id) is None)
         )
 
+    def _closed_invite_frame() -> dict[str, Any] | None:
+        # Worker thread. Only a look whose own link is still good and whose invite closed
+        # gets the frame; a revoked or reminted link, a guest or a seat gets none.
+        if svc is None or not watching or joined:
+            return None
+        if not _record_still_valid(token) or svc.invite_closed(share_id) is None:
+            return None
+        return None if joined else dict(_INVITE_CLOSED_FRAME)
+
     def _participant_runtime_valid() -> bool:
         return svc is not None and (
             participant_id is None or svc.participant_not_removed_in_runtime(participant_id)
@@ -162,7 +173,11 @@ async def record_ws(
 
     try:
         svc = await run_in_threadpool(RecordSessionService, ws_proj.project, session_id=session_id)
-        guard = await conn.start(_connection_valid, send_gate=_participant_runtime_valid)
+        guard = await conn.start(
+            _connection_valid,
+            send_gate=_participant_runtime_valid,
+            invalid_frame=_closed_invite_frame,
+        )
         loop = asyncio.get_running_loop()
         # No cross-process lease (#695): only this GUI process writes record state (WebRTC
         # signaling); `podcast record land` writes the session journal, which the session
@@ -177,6 +192,7 @@ async def record_ws(
                 if not await run_in_threadpool(svc.is_current_room):
                     await guard.close(4403, "record room ended")
                 elif await run_in_threadpool(svc.invite_closed, share_id) is not None:
+                    await guard.send_json(dict(_INVITE_CLOSED_FRAME))
                     await guard.close(4403, "invite closed")
                 else:
                     await guard.close(4429, "too many looking in")
@@ -197,10 +213,11 @@ async def record_ws(
                         ):
                             # The invite closed: a look gets what a Join gets, and never a
                             # frame that shows the room after the closure.
+                            await guard.send_json(dict(_INVITE_CLOSED_FRAME))
                             await guard.close(4403, "invite closed")
                             return
                         if not await guard.share_ok_on_frame() or not _participant_runtime_valid():
-                            await guard.close(4403, "participant removed or share revoked")
+                            await guard.close_invalid("participant removed or share revoked")
                             return
                         snap_in = event.get("snapshot")
                         if isinstance(snap_in, dict) and snap_in.get("session_id") != session_id:
@@ -248,7 +265,7 @@ async def record_ws(
             if guard.closed:
                 break
             if not await guard.share_ok_on_frame() or not _participant_runtime_valid():
-                await guard.close(4403, "participant removed or share revoked")
+                await guard.close_invalid("participant removed or share revoked")
                 break
             if len(text) > GUEST_FRAME_MAX_BYTES:
                 if guard.note_malformed():

@@ -3107,7 +3107,7 @@ def test_a_look_on_a_closed_invite_is_refused_like_a_join(
     svc = _close_the_producer_invite(ws, room)
     with _observe(client, room) as obs:
         code, reason, frames = _close_within(obs, 5.0)
-        assert (code, reason, frames) == (4403, "invite closed", [])
+        assert (code, reason, frames) == (4403, "invite closed", [INVITE_CLOSED_ERROR])
     assert svc.snapshot()["watchers"] == 0
 
 
@@ -3136,6 +3136,9 @@ def test_a_refused_look_is_never_counted_from_the_rooms_side(
         assert max(counts) == 0
 
 
+INVITE_CLOSED_ERROR = {"plane": "record", "type": "Error", "code": "invite_closed"}
+
+
 def _drop_room_events(monkeypatch, *, only_removals: bool):
     """Make the hub lose events, as a full socket queue would; returns a switch (a dict)."""
     from podcast_mcp.services.session_sync import get_hub
@@ -3155,7 +3158,7 @@ def _drop_room_events(monkeypatch, *, only_removals: bool):
     return state
 
 
-def test_a_look_open_when_its_invite_closes_is_closed_with_no_frame_and_uncounted(
+def test_a_look_open_when_its_invite_closes_gets_the_error_then_the_close_and_is_uncounted(
     minimal_project, sample_wav, tmp_workspace, monkeypatch
 ):
     from podcast_mcp.gui.routes.guest_ws_common import GuestWsGuard
@@ -3176,7 +3179,7 @@ def test_a_look_open_when_its_invite_closes_is_closed_with_no_frame_and_uncounte
         assert joined["snapshot"]["watchers"] == 1
         _remove_that_producer(ws, room, svc, participant_id)
         code, reason, frames = _close_within(obs, 5.0)
-        assert (code, reason, frames) == (4403, "invite closed", [])
+        assert (code, reason, frames) == (4403, "invite closed", [INVITE_CLOSED_ERROR])
     wait_for_count(0)
 
 
@@ -3279,7 +3282,7 @@ def test_the_next_event_closes_a_look_whose_removal_event_was_lost_and_is_not_se
         lose["dropping"] = False
         RecordControlService(ws).submit_host("SetGuestsSeeNotes", {"enabled": True})
         code, reason, frames = _close_within(obs, 5.0)
-        assert (code, reason, frames) == (4403, "invite closed", [])
+        assert (code, reason, frames) == (4403, "invite closed", [INVITE_CLOSED_ERROR])
     wait_for_count(0)
 
 
@@ -3299,7 +3302,53 @@ def test_the_share_recheck_closes_a_look_whose_removal_event_was_lost(
         lose["dropping"] = True
         _close_the_producer_invite(ws, room)
         code, reason, frames = _close_within(obs, 5.0)
-        assert (code, reason, frames) == (4403, "share revoked or expired", [])
+        assert (code, reason, frames) == (
+            4403,
+            "share revoked or expired",
+            [INVITE_CLOSED_ERROR],
+        )
+    wait_for_count(0)
+
+
+def test_a_frame_from_a_look_whose_invite_closed_gets_the_error_then_the_close(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch
+):
+    from podcast_mcp.gui.routes import guest_ws_common
+
+    monkeypatch.setattr(guest_ws_common, "GUEST_SHARE_RECHECK_ON_FRAME_S", 0.0)
+    ws, room, client = _room(minimal_project, sample_wav, tmp_workspace, monkeypatch)
+    lose = _drop_room_events(monkeypatch, only_removals=False)
+    svc = _room_svc(ws, room)
+    wait_for_count = _watchers_waiter(svc, monkeypatch)
+    with _observe(client, room) as obs:
+        assert obs.receive_json()["snapshot"]["watchers"] == 1
+        lose["dropping"] = True
+        _close_the_producer_invite(ws, room)
+        obs.send_json(_record_command("Heartbeat"))
+        code, _reason, frames = _close_within(obs, 5.0)
+        assert code == 4403
+        assert frames == [INVITE_CLOSED_ERROR]
+    wait_for_count(0)
+
+
+def test_a_revoked_look_gets_no_error_frame_even_when_its_invite_had_closed(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch
+):
+    from podcast_mcp.gui.routes import guest_ws_common
+
+    monkeypatch.setattr(guest_ws_common, "GUEST_SHARE_RECHECK_S", 0.2)
+    ws, room, client = _room(minimal_project, sample_wav, tmp_workspace, monkeypatch)
+    lose = _drop_room_events(monkeypatch, only_removals=False)
+    svc = _room_svc(ws, room)
+    wait_for_count = _watchers_waiter(svc, monkeypatch)
+    with _observe(client, room) as obs:
+        obs.receive_json()
+        lose["dropping"] = True
+        _close_the_producer_invite(ws, room)
+        ShareService(ws).revoke_room(room["session_id"])
+        code, _reason, frames = _close_within(obs, 5.0)
+        assert code == 4403
+        assert all(f.get("type") != "Error" for f in frames)
     wait_for_count(0)
 
 
