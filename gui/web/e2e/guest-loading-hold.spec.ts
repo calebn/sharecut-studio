@@ -3,6 +3,7 @@ import { expectReadingSurfaceAxeClean } from "./axe";
 import { postDocumentCommand } from "./documentCommand";
 import { fontsReady } from "./fontsReady";
 import {
+  blankEpisodeName,
   episodeName,
   holdChunk,
   holdFirstProject,
@@ -149,6 +150,73 @@ for (const size of SIZES) {
               .not.toContain(0);
           });
         });
+      });
+
+      test(`an episode with no name keeps the unnamed loading screen, in the bar the named one has (${theme})`, async ({
+        browser,
+      }) => {
+        await withGuestLink(
+          browser,
+          size,
+          async (guest, token, host, projectPath) => {
+            blankEpisodeName(projectPath);
+            expect(await episodeName(guest, token), "the name is blank").toBe(
+              "",
+            );
+            await guest.emulateMedia({ colorScheme: theme });
+            await holdFirstProject(guest, token, 1500);
+            const studio = await holdChunk(guest, "dawApp");
+            await guest.goto(`/r/${token}`, { waitUntil: "commit" });
+
+            let unnamed: Awaited<ReturnType<typeof headerBoxes>>;
+            await test.step("while /project is held: no name, a grey block where it goes", async () => {
+              await expect(
+                guest.locator(".sys-skeleton-block--player"),
+              ).toBeVisible();
+              await expect(status(guest)).toHaveText("Loading the episode…");
+              await expect(
+                guest.locator(".sys-skeleton-block--title"),
+              ).toBeVisible();
+              await fontsReady(guest);
+              unnamed = await headerBoxes(guest);
+              expect(unnamed.host).toEqual({
+                x: 0,
+                y: 0,
+                w: size.width,
+                h: height,
+              });
+              expect(unnamed.block).not.toBeNull();
+              expect(unnamed.title).toBeNull();
+              await expect(guest.locator(".sys-header-title")).toHaveCount(0);
+              const text = await guest
+                .locator("main.guest-loading")
+                .innerText();
+              expect(text.toLowerCase()).not.toContain("project");
+              await expectReadingSurfaceAxeClean(guest);
+            });
+            studio.release();
+            await expect(guest.locator(".stage-frame--guest")).toBeVisible();
+
+            await test.step("named: the same bar, the same box", async () => {
+              const name = "Pilot episode";
+              await postDocumentCommand(
+                host,
+                "name-writer",
+                "RenameProject",
+                { name },
+                projectPath,
+              );
+              await holdFirstProject(guest, token, 1500);
+              const second = await holdChunk(guest, "dawApp");
+              await guest.goto(`/r/${token}`, { waitUntil: "commit" });
+              await expect(status(guest)).toHaveText(`Loading ${name}…`);
+              await fontsReady(guest);
+              const named = await headerBoxes(guest);
+              expect(named.host).toEqual(unnamed.host);
+              second.release();
+            });
+          },
+        );
       });
 
       test(`the landing moves nothing (${theme}): layout shift under ${SHIFT_BUDGET} in each of ${LANDINGS} landings`, async ({

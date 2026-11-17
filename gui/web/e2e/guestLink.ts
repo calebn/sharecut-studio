@@ -1,3 +1,4 @@
+import fs from "node:fs";
 import { expect, type Locator, type Page } from "@playwright/test";
 import { withShareableProject } from "./shareableProject";
 import { createReviewShare, openHostShare } from "./shareNavigation";
@@ -158,6 +159,19 @@ export async function episodeName(page: Page, token: string): Promise<string> {
   const answer = await page.request.get(`/api/review/${token}/project`);
   expect(answer.ok()).toBeTruthy();
   return ((await answer.json()) as { meta: { name: string } }).meta.name;
+}
+
+/**
+ * Gives the episode a blank name, the way the server's own tests do: in the
+ * project file. The rename command refuses a blank name, so no browser can ask
+ * for this one. The link's next read of the episode answers `meta.name` as "".
+ */
+export function blankEpisodeName(projectPath: string): void {
+  const data = JSON.parse(fs.readFileSync(projectPath, "utf8")) as {
+    meta: { name?: string };
+  };
+  data.meta.name = "";
+  fs.writeFileSync(projectPath, `${JSON.stringify(data, null, 2)}\n`);
 }
 
 export async function withGuestLink(
