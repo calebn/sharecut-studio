@@ -16,6 +16,18 @@ flowchart LR
 | Viewer, Commenter (default) or Editor | **ShareCut Studio guest** | Stages gated by role (a Commenter or Viewer link is Review alone, an Editor link has Edit, Review and Deliver). Role chip in the header. |
 | Any capability set without `view` (API only, no role mints one) | **Cover** | "This link doesn't open anything" with "Ask the person who sent it for a new link." beneath it. |
 
+### While the link loads
+
+The header does not move between the loading screen and the studio: the same bar (full width, 45 px tall on a phone, 49 px on a desktop), the name in the same place and size.
+
+| When | What the guest sees | What a screen reader hears |
+|---|---|---|
+| The link has answered with the episode's name (or the saved copy has it) | The header with the name and a quiet "Loading…" under it, at once; the grey blocks of the guest frame from 300 ms | "Loading <name>…" |
+| The name is not known yet | Nothing for 300 ms, then the header bar with one grey block where the name goes, and the grey blocks; no words | "Loading the episode…" |
+| Still waiting at 4 s, counted from the first screen | "Still loading…" and **Retry** under the blocks | the same line |
+
+The studio then opens on the same header: "Loading…" gives way to "Shared link" and the role, then the version label. A guest's header never reads "Project"; if no name ever arrives it reads "Episode". The recording room has its own loading screen ("Joining the room…").
+
 A review link that cannot load shows a full-page cover instead of the studio, and each cover says one plain sentence chosen from the kind of failure; the cover never shows the server's own text. This covers the failures before the studio opens. A link the host turns off while the episode is open ends on the same cover, after one more check of the link (see "A link that stops working while the episode is open" below); the studio's own first read of the episode, after the studio has opened, reads the same words for the same cause in the region where the transcript would be (see "When the studio's own load fails after it opens" below) and never shows the server's message either.
 
 | Why it did not load | Title | Sentence | Button | Tries again by itself |
