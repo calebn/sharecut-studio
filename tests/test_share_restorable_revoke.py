@@ -19,6 +19,7 @@ from podcast_mcp.services.collaboration.review_shares import list_shares, settle
 from podcast_mcp.services.collaboration.review_versions import get_version
 from podcast_mcp.services.collaboration.share import (
     ShareService,
+    _row_live,
     lookup_share,
     sweep_all_pending,
 )
@@ -745,11 +746,13 @@ def test_a_mint_cannot_take_the_room_lock_while_restore_room_runs(
     real = share_pending.restore
     probes: list[bool] = []
 
+    room_lock = share_module._room_thread_lock(Path(ws.project.workspace_dir).resolve())
+
     def probe() -> None:
-        got = share_module._record_room_lock.acquire(blocking=False)
+        got = room_lock.acquire(blocking=False)
         probes.append(got)
         if got:
-            share_module._record_room_lock.release()
+            room_lock.release()
 
     def watched(*args, **kwargs):
         thread = threading.Thread(target=probe)
@@ -995,3 +998,33 @@ def test_a_room_token_that_ended_meanwhile_is_skipped_without_an_error_log(
         out = svc.revoke_room(room["session_id"])
     assert out["revoked"] == [room["producer"]["token"]]
     assert [r for r in caplog.records if r.levelname == "ERROR"] == []
+
+
+@pytest.mark.usefixtures("effects")
+def test_failed_listing_of_prior_rooms_is_logged_and_the_mint_still_returns_the_room(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch, caplog
+):
+    ws = _seed(minimal_project, sample_wav)
+    real = ShareService._live_other_record_rooms
+    calls = {"n": 0}
+
+    def flaky(self, session_id):
+        calls["n"] += 1
+        if calls["n"] == 1:
+            raise RuntimeError("listing boom")
+        return real(self, session_id)
+
+    revoked: list[str] = []
+    monkeypatch.setattr(ShareService, "_live_other_record_rooms", flaky)
+    monkeypatch.setattr(
+        ShareService, "_revoke_room_tokens", lambda self, sid: revoked.append(sid) or []
+    )
+    with caplog.at_level("ERROR"):
+        room = ShareService(ws).create_record_room()
+    assert "failed to list previous record rooms" in caplog.text
+    assert revoked == []
+    assert {
+        r["session_id"]
+        for r in list_shares(ws.project)
+        if r.get("kind") == "record" and _row_live(r)
+    } == {room["session_id"]}

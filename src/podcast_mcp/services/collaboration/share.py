@@ -4,12 +4,16 @@ from __future__ import annotations
 
 import logging
 import threading
+import time
 import uuid
-from collections.abc import Sequence
+from collections.abc import Iterator, Mapping, Sequence
+from contextlib import contextmanager, nullcontext
 from datetime import datetime
 from functools import lru_cache
 from pathlib import Path
 from typing import Any, TypedDict
+
+from filelock import Timeout
 
 from podcast_mcp.edits.comments import comments_for_view
 from podcast_mcp.edits.pending_preview import DEFAULT_PAD_SEC, PendingPreviewSpan
@@ -53,6 +57,7 @@ from podcast_mcp.services.collaboration.share_registry import (
     RECORD_REVIEW_VERSION_SENTINEL,
     SHARE_KIND_RECORD,
     SHARE_KIND_REVIEW,
+    PendingRevoke,
     RestoreWindowClosedError,
     get_share_registry,
     share_hard_expired,
@@ -80,7 +85,14 @@ from podcast_mcp.util.coded_error import (
     CodedPermissionError,
     CodedValueError,
 )
-from podcast_mcp.util.project_state import FileRevision, ProjectBusyError, file_revision
+from podcast_mcp.util.file_locks import file_lock_holder_pid, shared_file_lock
+from podcast_mcp.util.project_state import (
+    FileRevision,
+    LockContention,
+    ProjectBusyError,
+    file_revision,
+    record_room_lock_path,
+)
 
 log = logging.getLogger(__name__)
 _REFUSED_ADOPTIONS: set[Path] = set()
@@ -111,7 +123,35 @@ _GUEST_PROSODY_SEGMENT_KEYS = frozenset(
 )
 _DEFAULT_SHARE_ORIGIN = "http://127.0.0.1:8765"
 _create_for_host_lock = threading.Lock()
-_record_room_lock = threading.RLock()
+_room_thread_locks: dict[Path, threading.RLock] = {}
+_room_thread_locks_guard = threading.Lock()
+RECORD_ROOM_LOCK_TIMEOUT_SEC = 30.0
+
+
+def _room_thread_lock(workspace: Path) -> threading.RLock:
+    """The in-process room lock of one workspace; ``workspace`` must be a resolved path."""
+    with _room_thread_locks_guard:
+        return _room_thread_locks.setdefault(workspace, threading.RLock())
+
+
+def _row_kind(row: Mapping[str, Any]) -> str:
+    """A row's kind; a legacy row with none is a review link, as the registry reads it."""
+    return str(row.get("kind") or SHARE_KIND_REVIEW)
+
+
+def _is_review_token(
+    token: str, parked: PendingRevoke | None, rows: Sequence[dict[str, Any]]
+) -> bool:
+    if parked is not None:
+        return parked["kind"] == SHARE_KIND_REVIEW
+    return any(row.get("token") == token and _row_kind(row) == SHARE_KIND_REVIEW for row in rows)
+
+
+def _room_busy(path: Path, started: float) -> ProjectBusyError:
+    return ProjectBusyError(
+        str(path),
+        contention=LockContention(time.monotonic() - started, file_lock_holder_pid(path)),
+    )
 
 
 def _row_live(row: dict[str, Any]) -> bool:
@@ -413,6 +453,39 @@ class ShareService:
         invalidate_record_session_cache(project)
         return RecordSessionService.active_session_id(project) == session_id
 
+    @contextmanager
+    def _record_room_guard(self) -> Iterator[None]:
+        """Serialize record room mint, restore and revoke on one project.
+
+        The GUI server and the CLI or MCP are separate processes, and each mint revokes the
+        other's new room, so a thread lock alone leaves no usable link. The guard takes a
+        per-workspace thread lock, then ``room.lock`` across processes. Together they wait at
+        most ``RECORD_ROOM_LOCK_TIMEOUT_SEC``, then raise ``ProjectBusyError``. Re-entrant.
+
+        Taken before the land guard and the project commit lock, because a land-first mint
+        takes both while holding this guard.
+        """
+        workspace = Path(self.ws.project.workspace_dir).resolve()
+        path = record_room_lock_path(workspace)
+        thread_lock = _room_thread_lock(workspace)
+        started = time.monotonic()
+        if not thread_lock.acquire(timeout=RECORD_ROOM_LOCK_TIMEOUT_SEC):
+            raise _room_busy(path, started)
+        try:
+            file_lock = shared_file_lock(path)
+            try:
+                file_lock.acquire(
+                    timeout=max(0.0, RECORD_ROOM_LOCK_TIMEOUT_SEC - (time.monotonic() - started))
+                )
+            except Timeout as exc:
+                raise _room_busy(path, started) from exc
+            try:
+                yield
+            finally:
+                file_lock.release()
+        finally:
+            thread_lock.release()
+
     def create_record_token(
         self,
         *,
@@ -424,7 +497,7 @@ class ShareService:
     ) -> dict[str, Any]:
         """Mint one kind=record token. No object storage upload, proxies, or mix version."""
         caps = record_capabilities_for_role(role)
-        with _record_room_lock:
+        with self._record_room_guard():
             if require_room and not self._is_active_usable_room(session_id):
                 raise KeyError(f"record room not found: {session_id}")
             row = create_share(
@@ -542,7 +615,7 @@ class ShareService:
             unsaved_takes,
         )
 
-        with _record_room_lock:
+        with self._record_room_guard():
             self.sweep_pending()
             assert_no_open_take(self.ws.project)
             left = unsaved_takes(self.ws.project)
@@ -669,28 +742,29 @@ class ShareService:
         With ``restorable_for`` (seconds, capped) the room's irreversible cleanup waits for
         the window end; repeating it on a parked room answers the existing window.
         """
-        if restorable_for is not None:
-            parked = [
-                r
-                for r in share_pending.pending_rows(self.ws, session_id)
-                if r["kind"] == SHARE_KIND_RECORD
-            ]
-            if parked:
-                return dict(self._pending_room(session_id, parked))
-            return dict(self._park_room(session_id, restorable_for, now))
-        finalized = (
-            share_pending.finalize_now(self.ws, session_id, now=now)
-            if share_pending.has_pending(self.ws, session_id)
-            else []
-        )
-        try:
-            revoked = self._revoke_room_tokens(session_id)
-        except KeyError:
-            if not finalized and not share_pending.has_pending(self.ws, session_id):
-                raise
-            return {"session_id": session_id, "revoked": finalized}
-        share_pending.end_room(self.ws, session_id)
-        return {"session_id": session_id, "revoked": revoked}
+        with self._record_room_guard():
+            if restorable_for is not None:
+                parked = [
+                    r
+                    for r in share_pending.pending_rows(self.ws, session_id)
+                    if r["kind"] == SHARE_KIND_RECORD
+                ]
+                if parked:
+                    return dict(self._pending_room(session_id, parked))
+                return dict(self._park_room(session_id, restorable_for, now))
+            finalized = (
+                share_pending.finalize_now(self.ws, session_id, now=now)
+                if share_pending.has_pending(self.ws, session_id)
+                else []
+            )
+            try:
+                revoked = self._revoke_room_tokens(session_id)
+            except KeyError:
+                if not finalized and not share_pending.has_pending(self.ws, session_id):
+                    raise
+                return {"session_id": session_id, "revoked": finalized}
+            share_pending.end_room(self.ws, session_id)
+            return {"session_id": session_id, "revoked": revoked}
 
     def _park_room(self, session_id: str, window: float, now: datetime | None) -> ParkedRoom:
         tokens = [
@@ -740,7 +814,7 @@ class ShareService:
         meanwhile.
         """
         try:
-            with _record_room_lock:
+            with self._record_room_guard():
                 return self._restore_room(session_id, now)
         finally:
             self.sweep_pending(now=now)
@@ -771,7 +845,9 @@ class ShareService:
     def restore(self, token: str, *, now: datetime | None = None) -> RestoredShare:
         """Bring back a share revoked with ``restorable_for``. Idempotent for a live link."""
         try:
-            return self._restore_share(token, now)
+            _, _, is_review = self._classify(token)
+            with nullcontext() if is_review else self._record_room_guard():
+                return self._restore_share(token, now)
         finally:
             self.sweep_pending(now=now)
 
@@ -786,6 +862,19 @@ class ShareService:
             raise RestoreWindowClosedError()
         raise CodedKeyError("share not found", code="share_not_found")
 
+    def _token_state(self, token: str) -> tuple[PendingRevoke | None, Sequence[dict[str, Any]]]:
+        """The parked row of a token and the active rows; a failed read propagates.
+
+        Swallowing it would let a caller treat the token as an unknown kind, and a revoke
+        asked to park a review link would then revoke it for good.
+        """
+        return share_pending.pending_row(self.ws, token), list_shares(self.ws.project)
+
+    def _classify(self, token: str) -> tuple[PendingRevoke | None, Sequence[dict[str, Any]], bool]:
+        """``_token_state`` plus whether the token is a review link (a legacy row with no kind is review)."""
+        parked, rows = self._token_state(token)
+        return parked, rows, _is_review_token(token, parked, rows)
+
     def sweep_pending(self, *, now: datetime | None = None) -> int:
         return share_pending.sweep(self.ws, now=now)
 
@@ -796,9 +885,14 @@ class ShareService:
         restorable_for: float | None = None,
         now: datetime | None = None,
     ) -> dict[str, Any]:
-        if restorable_for is not None:
-            parked = share_pending.pending_row(self.ws, token)
-            if parked is not None:
+        parked, rows, is_review = self._classify(token)
+        # A live or parked review link stays revocable while a room mint, restore or
+        # room revoke holds the guard; any other token waits for it.
+        with nullcontext() if is_review else self._record_room_guard():
+            if not is_review:
+                # Another process may have parked or restored the token while this call waited.
+                parked, rows, is_review = self._classify(token)
+            if restorable_for is not None and parked is not None:
                 return dict(
                     ParkedShare(
                         revoked=True,
@@ -806,32 +900,26 @@ class ShareService:
                         restorable_until=parked["restorable_until"],
                     )
                 )
-        group = share_pending.group_of(self.ws, token)
-        if group is not None and restorable_for is None:
-            share_pending.finalize_now(self.ws, group, now=now)
+            group = share_pending.group_of(self.ws, token)
+            if group is not None and restorable_for is None:
+                share_pending.finalize_now(self.ws, group, now=now)
+                return {"revoked": True, "token": token}
+            if restorable_for is not None and is_review:
+                return dict(self._park_share(token, restorable_for, now))
+
+            version_id: str | None = None
+            kind: str | None = None
+            for row in rows:
+                if row.get("token") == token:
+                    kind = _row_kind(row)
+                    version_id = self._served_version_id(row) or None
+                    break
+            ok = revoke_share(self.ws.project, token)
+            if not ok:
+                raise KeyError("share not found")
+            if kind == SHARE_KIND_REVIEW:
+                share_pending.delete_review_effects(self.ws, [version_id or ""])
             return {"revoked": True, "token": token}
-        if restorable_for is not None and self._is_review_token(token):
-            return dict(self._park_share(token, restorable_for, now))
-
-        version_id: str | None = None
-        kind = SHARE_KIND_REVIEW
-        for row in list_shares(self.ws.project):
-            if row.get("token") == token:
-                kind = str(row.get("kind") or SHARE_KIND_REVIEW)
-                version_id = self._served_version_id(row) or None
-                break
-        ok = revoke_share(self.ws.project, token)
-        if not ok:
-            raise KeyError("share not found")
-        if kind != SHARE_KIND_RECORD:
-            share_pending.delete_review_effects(self.ws, [version_id or ""])
-        return {"revoked": True, "token": token}
-
-    def _is_review_token(self, token: str) -> bool:
-        return any(
-            row.get("token") == token and row.get("kind", SHARE_KIND_REVIEW) == SHARE_KIND_REVIEW
-            for row in list_shares(self.ws.project)
-        )
 
     def _park_share(self, token: str, window: float, now: datetime | None) -> ParkedShare:
         pending = share_pending.park(self.ws, [token], group_id=token, window_sec=window, now=now)

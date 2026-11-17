@@ -125,21 +125,27 @@ a producer becomes recorded next take. Prefix ↔ kind is enforced: `/r/` with a
 cover says the link is invalid and to ask the host for a new link (the API stays 404;
 the cover shipped in PR 2322).
 
-Minting a new room **ends the previous one**: after the new room and its
-`begin_record_session` succeed, every guest and producer token of earlier rooms
-is revoked, so an old link can never admit anyone into today's room and shows
-the same dead-link cover. Revoking on mint does not purge land rollbacks or the
-land lock, so undo for takes already landed survives. Mints are serialized per
-process, so at most one record room is usable. If an old token cannot be
-revoked, the new room stays usable and the call fails with `record_stale_links`
-(GUI 409, CLI and MCP refusal), carrying the new session id and links and the
-old session ids still live; minting again retries the revoke, or revoke those
-session ids. The GUI treats that 409 as a made room: it lists the room, copies the
-guest link and tells the host that links to an earlier room may still work (End
-that room in Share), and it does not mint again on its own. An old guest's open socket is closed by the periodic share
-recheck (within about 5 s while active, 30 s idle), and a joined old guest also
-fails `participant_active` after the remint. Re-invite (`--session-id`) only mints into the
-active room. **Land before minting**: landing reads only the active room, so a
+Minting a new room **ends the previous one** when it can: after the new room and
+its `begin_record_session` succeed, every guest and producer token of earlier rooms
+is revoked, so an old link cannot admit anyone into today's room and shows the same
+dead-link cover. Revoking on mint does not purge land rollbacks or the land lock, so
+undo for takes already landed survives. Minting, restoring and revoking a room are
+serialized across processes on one project by a lock file
+(`artifacts/record/room.lock`), so two of them never interleave; a second caller
+waits up to 30 s, then is refused with `project_busy`. A review link that is live or
+restorable is not blocked by it; one already revoked or expired waits for the lock
+like any unknown token. Ending a room waits behind a land-first mint for up to 30 s,
+then answers `project_busy`, so the host retries. If an old token cannot be revoked,
+the new room stays usable and the call fails with `record_stale_links` (GUI 409, CLI
+and MCP refusal), carrying the new session id and links and the old session ids still
+live; minting again retries the revoke, or revoke those session ids. The GUI treats
+that 409 as a made room: it lists the room, copies the guest link and tells the host
+that links to an earlier room may still work (End that room in Share), and it does
+not mint again on its own. An old guest's open socket is closed by the periodic share
+recheck (within about 5 s while active, 30 s idle), and a joined old guest also fails
+`participant_active` after the remint. Re-invite (`--session-id`) only mints into the
+active room.
+**Land before minting**: landing reads only the active room, so a
 stopped, not-yet-landed take in the old room is orphaned once a new room is
 minted and its guests lose upload resume on the old link. The mint guard blocks
 only `recording` / `paused`; an unsaved stopped take the server can see warns instead, and
