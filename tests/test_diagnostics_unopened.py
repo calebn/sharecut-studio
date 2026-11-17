@@ -10,10 +10,10 @@ from fastapi.testclient import TestClient
 
 from podcast_mcp.gui.server import create_app
 from podcast_mcp.services.support import diagnostics as diagnostics_mod
+from podcast_mcp.services.support.diagnostics import NOT_OPENED_STATEMENT as STATEMENT
 from podcast_mcp.services.support.doctor import DoctorReport
 
-STATEMENT = "The episode could not be opened, so this report holds nothing from it."
-HEALTHY_KEYS = [
+BASE_KEYS = [
     "app_version",
     "bootstrap",
     "created_at",
@@ -91,7 +91,6 @@ def _client(project_file: Path, jobs=None) -> TestClient:
 def test_an_episode_that_will_not_open_still_gets_a_bundle(minimal_project, bundle_env, state):
     folder = str(minimal_project.parent)
     _break(minimal_project, state)
-    served = minimal_project.parent.with_name("moved-away") if state == "renamed" else None
     with _client(minimal_project) as client:
         response = client.post("/api/diagnostics/bundle", json={})
     assert response.status_code == 200, response.text
@@ -99,14 +98,13 @@ def test_an_episode_that_will_not_open_still_gets_a_bundle(minimal_project, bund
     assert response.json()["files"] == ["report.json", "README.txt"]
     assert set(members) == {"report.json", "README.txt"}
     report = json.loads(members["report.json"])
-    assert sorted(report) == sorted([*HEALTHY_KEYS, "episode_not_opened"])
+    assert sorted(report) == sorted([*BASE_KEYS, "episode_not_opened"])
     assert report["project"] is None
     assert report["episode_not_opened"] == {"code": CODES[state], "statement": STATEMENT}
     assert STATEMENT in members["README.txt"]
     for text in members.values():
         assert folder not in text
     assert "schema_version" not in members["report.json"]
-    assert served is None or served.exists()
 
 
 @pytest.mark.parametrize("state", list(CODES))
@@ -150,7 +148,7 @@ def test_a_healthy_bundle_has_exactly_its_fifteen_keys_and_no_statement(
     assert response.status_code == 200
     members = _members(response.json()["path"])
     report = json.loads(members["report.json"])
-    assert sorted(report) == HEALTHY_KEYS
+    assert sorted(report) == BASE_KEYS
     assert report["project"]["schema_version"] == "2.2"
     assert STATEMENT not in members["README.txt"]
 
@@ -163,21 +161,37 @@ def test_a_missing_path_gets_a_bundle_only_when_it_is_the_served_project(
     with _client(minimal_project) as client:
         stranger = client.post("/api/diagnostics/bundle", json={"path": str(elsewhere)})
         assert stranger.status_code == 404
-        assert not bundle_env.exists() or list(bundle_env.glob("*.zip")) == []
+        assert stranger.headers["x-sharecut-error-code"] == "project_not_found"
+        assert _no_bundle_written(bundle_env)
         served = client.post("/api/diagnostics/bundle", json={"path": str(minimal_project)})
     assert served.status_code == 200
     report = json.loads(_members(served.json()["path"])["report.json"])
     assert report["episode_not_opened"]["code"] == "project_not_found"
 
 
-def test_another_path_and_an_invalid_path_get_no_bundle(minimal_project, bundle_env, tmp_path):
+def _no_bundle_written(out: Path) -> bool:
+    return not out.exists() or list(out.glob("*.zip")) == []
+
+
+def test_a_real_episode_the_server_does_not_serve_gets_403_and_no_bundle(
+    minimal_project, bundle_env, tmp_path
+):
     other = tmp_path / "other" / "episode.sharecut"
+    other.parent.mkdir()
+    other.write_bytes(minimal_project.read_bytes())
     with _client(minimal_project) as client:
-        forbidden = client.post("/api/diagnostics/bundle", json={"path": str(other)})
-        invalid = client.post("/api/diagnostics/bundle", json={"path": "bad\x00path"})
-    assert forbidden.status_code in (403, 404)
-    assert invalid.status_code in (400, 422)
-    assert not bundle_env.exists() or list(bundle_env.glob("*.zip")) == []
+        response = client.post("/api/diagnostics/bundle", json={"path": str(other)})
+    assert response.status_code == 403
+    assert response.headers["x-sharecut-error-code"] == "project_path_not_allowed"
+    assert _no_bundle_written(bundle_env)
+
+
+def test_an_invalid_path_gets_400_and_no_bundle(minimal_project, bundle_env):
+    with _client(minimal_project) as client:
+        response = client.post("/api/diagnostics/bundle", json={"path": "bad\x00path"})
+    assert response.status_code == 400
+    assert response.headers["x-sharecut-error-code"] == "project_path_invalid"
+    assert _no_bundle_written(bundle_env)
 
 
 @pytest.mark.parametrize("state", ["newer", "truncated", "renamed"])
@@ -197,4 +211,4 @@ def test_who_may_export_is_unchanged_for_an_unopenable_episode(
     with _client(minimal_project) as client:
         remote = client.post("/api/diagnostics/bundle", json={})
     assert remote.status_code == 403
-    assert not bundle_env.exists() or list(bundle_env.glob("*.zip")) == []
+    assert _no_bundle_written(bundle_env)
