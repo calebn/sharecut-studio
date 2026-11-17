@@ -14,7 +14,7 @@ import { loadHostCommandCount } from "../services/offlineQueue/offlineStore";
 import { canApplyPass12 } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
 import { useDaw } from "../state/useDaw";
-import { ApiError } from "../utils/apiError";
+import { ApiError, errorMessage } from "../utils/apiError";
 import { projectUrl } from "../utils/projectUrl";
 import { SettingsSheet } from "./SettingsSheet";
 
@@ -26,6 +26,11 @@ function parentFolder(projectPath: string): string {
 const PARTIAL_MOVE_CODE = "project_moved_partial";
 const JOIN_FADE_LIMIT_READ_ONLY =
   "This link can view, but not change, episode settings. Ask the host for an editor link.";
+
+type MoveFailure = {
+  opening: symbol | null;
+  message: string;
+};
 
 /** Where a half-finished move left the episode, from the server's refusal body. */
 // Edits still waiting to be saved are queued under the old path, and the
@@ -73,7 +78,15 @@ export function SettingsHost() {
   const [limitDraft, setLimitDraft] = useState<number | null>(null);
   // The draft shows the saved value until the episode's clips catch up with it.
   if (limitDraft !== null && limitDraft === limitMs) setLimitDraft(null);
-  const error = reveal.error ?? mover.error;
+  const [moveOpening, setMoveOpening] = useState<symbol | null>(() =>
+    open ? Symbol("settings-move-feedback") : null,
+  );
+  const [moveFailure, setMoveFailure] = useState<MoveFailure | null>(null);
+  const moveError =
+    moveOpening !== null && moveFailure?.opening === moveOpening
+      ? moveFailure.message
+      : null;
+  const error = reveal.error ?? moveError;
   const localClientId = useDaw((s) => s.localClientId);
   // Busy ends before the page unloads; keep Move disabled until it does.
   const [leaving, setLeaving] = useState(false);
@@ -85,47 +98,54 @@ export function SettingsHost() {
   const [wasOpen, setWasOpen] = useState(open);
   if (open !== wasOpen) {
     setWasOpen(open);
+    setMoveOpening(open ? Symbol("settings-move-feedback") : null);
     if (!open) {
       reveal.setError(null);
-      mover.setError(null);
+      setMoveFailure(null);
       limit.setError(null);
     }
   }
   const { setSettingsSheetOpen, setModelsSheetOpen, setCommandPaletteOpen } =
     useDawStore.getState();
   const revealFolder = () => {
-    mover.setError(null);
+    setMoveFailure(null);
     void reveal.run(() => revealProject(projectPath));
   };
   // A move reloads the page at the new path, so the sheet never shows a stale folder.
   const moveFolder = () => {
+    const opening = moveOpening;
     reveal.setError(null);
+    setMoveFailure(null);
     void mover.run(async () => {
-      await refuseWhileEditsQueued(projectPath);
-      const picked = await pickFolder();
-      if ("unavailable" in picked) {
-        throw new Error(
-          "This computer couldn't open a folder dialog, so the episode stays where it is.",
-        );
-      }
-      if ("cancelled" in picked) return;
-      await refuseWhileEditsQueued(projectPath);
       try {
-        const moved = await moveProject(
-          projectPath,
-          picked.folder,
-          localClientId,
-        );
-        setLeaving(true);
-        window.location.assign(
-          projectUrl(window.location.href, moved.project_path),
-        );
+        await refuseWhileEditsQueued(projectPath);
+        const picked = await pickFolder();
+        if ("unavailable" in picked) {
+          throw new Error(
+            "This computer couldn't open a folder dialog, so the episode stays where it is.",
+          );
+        }
+        if ("cancelled" in picked) return;
+        await refuseWhileEditsQueued(projectPath);
+        try {
+          const moved = await moveProject(
+            projectPath,
+            picked.folder,
+            localClientId,
+          );
+          setLeaving(true);
+          window.location.assign(
+            projectUrl(window.location.href, moved.project_path),
+          );
+        } catch (error) {
+          // The folder did move: stay on the old path and the next save misses.
+          const there = movedTo(error);
+          if (there === null) throw error;
+          setLeaving(true);
+          window.location.assign(projectUrl(window.location.href, there));
+        }
       } catch (error) {
-        // The folder did move: stay on the old path and the next save misses.
-        const there = movedTo(error);
-        if (there === null) throw error;
-        setLeaving(true);
-        window.location.assign(projectUrl(window.location.href, there));
+        setMoveFailure({ opening, message: errorMessage(error) });
       }
     });
   };
