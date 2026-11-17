@@ -25,7 +25,7 @@ from scripts.ios import (
     release_run,
 )
 from scripts.ios import release_record as record_module
-from scripts.ios.release_classify import Failure, Verdict
+from scripts.ios.release_classify import Failure, Lookup, Verdict
 from scripts.ios.release_inputs import BuildNumber, Checkout, Identity, InputError, Signing
 from scripts.ios.release_run import Command
 from scripts.ios.release_secrets import Redactor, Secret
@@ -815,8 +815,8 @@ def test_altool_answers_are_classified(code: int, text: str, verdict: Verdict) -
 
 
 def test_the_app_record_lookup_reads_the_real_list_apps_output() -> None:
-    assert release_classify.app_record_exists(REAL_CAPTURE, APP)
-    assert release_classify.app_record_exists(REAL_LISTING, APP)
+    assert release_classify.app_record_lookup(REAL_CAPTURE, APP) is Lookup.FOUND
+    assert release_classify.app_record_lookup(REAL_LISTING, APP) is Lookup.FOUND
 
 
 @pytest.mark.parametrize(
@@ -829,13 +829,11 @@ def test_the_app_record_lookup_reads_the_real_list_apps_output() -> None:
         altool_listing({**listed_app("studio.sharecut.other"), "sku": APP}),
         altool_listing({**listed_app("studio.sharecut.other"), "BundleId": APP}),
         "[]\n",
-        '[1, "studio.sharecut.app", null, ["studio.sharecut.app"]]',
-        '[{"name": "ShareCut"}, {"bundleId": null}, {"bundleId": ["studio.sharecut.app"]}]',
-        '{"applications": [{"BundleId": "studio.sharecut.app"}]}',
-        '{"applications": "studio.sharecut.app"}',
-        '{"bundleId": "studio.sharecut.app"}',
-        "not json",
-        "",
+        "[\n\n]\n",
+        '[{"bundleId": null}, {"bundleId": ["studio.sharecut.app"]}, {"type": "apps"}]',
+        '{"applications": [{"type": "apps", "BundleId": "studio.sharecut.app"}]}',
+        '{"applications": []}',
+        RETRY_LINES + "[]\n",
     ],
     ids=[
         "other-id",
@@ -845,28 +843,237 @@ def test_the_app_record_lookup_reads_the_real_list_apps_output() -> None:
         "id-only-in-another-field",
         "capitalised-key",
         "empty-array",
-        "non-dict-elements",
-        "missing-or-malformed-bundle-id",
+        "empty-array-with-a-blank-line",
+        "malformed-bundle-ids-on-app-shaped-entries",
         "object-form-with-the-old-invented-key",
-        "object-form-with-a-string",
-        "single-object",
-        "not-json",
-        "empty-output",
+        "empty-object-form",
+        "empty-array-after-retry-lines",
     ],
 )
-def test_the_app_record_lookup_matches_only_the_bundle_identifier_exactly(listing: str) -> None:
-    assert not release_classify.app_record_exists(listing, APP)
+def test_a_parsed_list_without_the_bundle_identifier_means_no_app_record(listing: str) -> None:
+    assert release_classify.app_record_lookup(listing, APP) is Lookup.MISSING
+
+
+@pytest.mark.parametrize(
+    "listing",
+    [
+        '[1, "studio.sharecut.app", null, ["studio.sharecut.app"]]',
+        json.dumps([listed_app(), 1]),
+        '{"applications": "studio.sharecut.app"}',
+        '{"applications": null}',
+        '[{"name": "ShareCut"}]',
+        '{"applications": [{"BundleId": "studio.sharecut.app"}]}',
+        '[{"code": 500, "message": "An unexpected error occurred."}]',
+        '[{"product-errors": [{"code": 500}]}]',
+        '[{"code": 500, "user-info": {"bundleId": "studio.sharecut.app"}}]',
+        '[{"applications": [{"bundleId": "studio.sharecut.app"}]}]',
+        json.dumps([listed_app("studio.sharecut.other"), {"code": 500}]),
+        '{"bundleId": "studio.sharecut.app"}',
+        "{}",
+        "5",
+        '"studio.sharecut.app"',
+        "not json",
+        "",
+        "   \n",
+    ],
+    ids=[
+        "non-dict-elements",
+        "one-non-dict-element-beside-the-app",
+        "applications-is-a-string",
+        "applications-is-null",
+        "entry-without-an-app-shape",
+        "applications-entry-with-the-wrong-key-case",
+        "list-of-error-objects",
+        "list-of-product-errors-objects",
+        "bundle-id-only-inside-an-error",
+        "nested-applications-in-a-list",
+        "an-error-entry-beside-an-app",
+        "single-object",
+        "empty-object",
+        "scalar",
+        "string",
+        "not-json",
+        "empty-output",
+        "blank-output",
+    ],
+)
+def test_output_that_is_not_a_parsed_list_is_no_answer_about_the_app_record(listing: str) -> None:
+    assert release_classify.app_record_lookup(listing, APP) is Lookup.UNANSWERED
 
 
 def test_the_app_record_lookup_keeps_the_applications_object_form() -> None:
     listing = json.dumps({"applications": [listed_app("studio.sharecut.other"), listed_app()]})
-    assert release_classify.app_record_exists(listing, APP)
-    assert not release_classify.app_record_exists(json.dumps({"applications": []}), APP)
+    assert release_classify.app_record_lookup(listing, APP) is Lookup.FOUND
+    empty = json.dumps({"applications": []})
+    assert release_classify.app_record_lookup(empty, APP) is Lookup.MISSING
 
 
 def test_the_app_record_is_found_among_several_apps() -> None:
     listing = altool_listing(listed_app("studio.sharecut.other"), listed_app())
-    assert release_classify.app_record_exists(RETRY_LINES + listing, APP)
+    assert release_classify.app_record_lookup(RETRY_LINES + listing, APP) is Lookup.FOUND
+
+
+REAL_5XX_OBJECT = r"""{
+  "os-version" : "Version 26.7.1 (Build 25G241)",
+  "product-errors" : [
+    {
+      "code" : 500,
+      "message" : "An unexpected error occurred.",
+      "underlying-errors" : [
+        {
+          "code" : -19241,
+          "message" : "An unexpected error occurred.",
+          "underlying-errors" : [
+
+          ],
+          "user-info" : {
+            "NSLocalizedDescription" : "An unexpected error occurred.",
+            "NSLocalizedFailureReason" : "An unexpected error occurred on the server side. If this issue continues, contact us at https://developer.apple.com/contact/.",
+            "code" : "UNEXPECTED_ERROR",
+            "detail" : "An unexpected error occurred on the server side. If this issue continues, contact us at https://developer.apple.com/contact/.",
+            "status" : "500",
+            "title" : "An unexpected error occurred."
+          }
+        }
+      ],
+      "user-info" : {
+        "NSLocalizedDescription" : "An unexpected error occurred.",
+        "NSLocalizedFailureReason" : "An unexpected error occurred on the server side. If this issue continues, contact us at https://developer.apple.com/contact/. (ID: <req-id-26>)",
+        "NSUnderlyingError" : "Error Domain=IrisAPI Code=-19241 \"An unexpected error occurred.\" UserInfo={status=500, code=UNEXPECTED_ERROR, title=An unexpected error occurred., detail=An unexpected error occurred on the server side. If this issue continues, contact us at https://developer.apple.com/contact/., NSLocalizedFailureReason=An unexpected error occurred on the server side. If this issue continues, contact us at https://developer.apple.com/contact/., NSLocalizedDescription=An unexpected error occurred.}",
+        "iris-code" : "UNEXPECTED_ERROR"
+      }
+    }
+  ],
+  "tool-path" : "/Applications/Xcode.app/Contents/SharedFrameworks/ContentDelivery.framework/Resources",
+  "tool-version" : "26.10.1 (171001)"
+}
+"""
+
+
+REAL_5XX_ERRORS = "".join(
+    f"2026-11-17 13:08:{seconds:02d}.{millis:03d} ERROR: [CDASCAPI.101283020] APP STORE CONNECT "
+    "API list-apps: received status code 500; internal server error. (<req-id-26>) (500)\n"
+    for seconds, millis in ((11, 140), (16, 215), (21, 290), (26, 366), (31, 441), (36, 517))
+)
+REAL_5XX_ALTOOL = REAL_5XX_ERRORS + REAL_5XX_OBJECT
+REAL_5XX_TOOL_LINE = (
+    "ios_release: app record failed: App Store Connect has no app record for this bundle "
+    "identifier. Create the app in App Store Connect first.\n"
+)
+REAL_5XX_CAPTURE = REAL_5XX_ALTOOL + REAL_5XX_TOOL_LINE
+NO_APP_RECORD = "App Store Connect has no app record for this bundle identifier"
+
+
+@pytest.mark.parametrize(
+    "text", [REAL_5XX_ALTOOL, ALTOOL_BANNER + REAL_5XX_ALTOOL, REAL_5XX_CAPTURE, REAL_5XX_OBJECT]
+)
+def test_the_real_apple_5xx_object_is_no_answer_about_the_app_record(text: str) -> None:
+    assert release_classify.app_record_lookup(text, APP) is Lookup.UNANSWERED
+
+
+def test_the_real_5xx_object_parses_as_the_error_object_it_is() -> None:
+    document = release_classify.altool_document(REAL_5XX_ALTOOL)
+    assert document is not None and document["product-errors"]
+    assert release_classify.altool_document(REAL_5XX_CAPTURE) is None
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        json.dumps({"product-errors": [], "applications": [listed_app()]}),
+        json.dumps({"product-errors": [{"code": 500}], "applications": [listed_app()]}),
+        json.dumps({"product-errors": [], "applications": []}),
+        json.dumps({"errors": [{"code": 500}], "applications": [listed_app()]}),
+        json.dumps({"errors": [{"code": 500}], "applications": []}),
+        json.dumps({"status": 500, "applications": [listed_app()]}),
+        '{"product-errors": []}',
+        '{"product-errors": null}',
+        '{"product-errors": "boom"}',
+        '{"product-errors": [{}]}',
+    ],
+    ids=[
+        "empty-errors-with-the-app",
+        "errors-with-the-app",
+        "empty-errors-with-no-apps",
+        "errors-key-with-the-app",
+        "errors-key-with-no-apps",
+        "status-with-the-app",
+        "empty-errors-only",
+        "null-errors",
+        "string-errors",
+        "empty-error-entry",
+    ],
+)
+def test_an_error_object_is_no_answer_even_when_it_also_carries_applications(text: str) -> None:
+    assert release_classify.app_record_lookup(text, APP) is Lookup.UNANSWERED
+
+
+def test_error_lines_inside_the_array_are_no_answer_and_not_a_missing_app() -> None:
+    lines = REAL_LISTING.splitlines(keepends=True)
+    interleaved = "".join(lines[:5]) + RETRY + "\n" + "".join(lines[5:])
+    assert release_classify.app_record_lookup(interleaved, APP) is Lookup.UNANSWERED
+    assert release_classify.app_record_lookup(REAL_LISTING + "uploaded\n", APP) is Lookup.UNANSWERED
+
+
+def test_an_oversize_list_is_no_answer_and_not_a_missing_app() -> None:
+    padding = "x" * release_run.OUTPUT_LIMIT
+    text = altool_listing(listed_app("studio.sharecut.other", name=padding))
+    assert len(text) >= release_run.OUTPUT_LIMIT
+    assert release_classify.app_record_lookup(text, APP) is Lookup.UNANSWERED
+
+
+def lookup_run(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, answer: tuple[int, str]
+) -> tuple[int, list[Command]]:
+    code, ran, _, _ = drive_upload(tmp_path, monkeypatch, answers={"--list-apps": answer})
+    return code, ran
+
+
+@pytest.mark.parametrize("text", [REAL_5XX_ALTOOL, REAL_5XX_CAPTURE])
+def test_the_real_5xx_on_exit_0_stops_as_unreachable_and_not_as_a_missing_app(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    text: str,
+) -> None:
+    code, ran = lookup_run(tmp_path, monkeypatch, (0, text))
+    out = capsys.readouterr().out
+    assert code == Failure.TOOL.value
+    assert release_classify.SENTENCES[Verdict.UNREACHABLE] in out
+    assert NO_APP_RECORD not in out and "Create the app" not in out
+    assert not any("--validate-app" in c.argv for c in ran)
+    assert record_module.read_record(tmp_path).validations == []
+
+
+def test_a_parsed_list_without_the_app_on_exit_0_still_means_create_the_app(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    for text in (
+        "[]\n",
+        '{"applications": []}',
+        altool_listing(listed_app("studio.sharecut.other")),
+    ):
+        code, ran = lookup_run(tmp_path, monkeypatch, (0, RETRY_LINES + text))
+        out = capsys.readouterr().out
+        assert code == Failure.APPLE_REJECTED.value and NO_APP_RECORD in out
+        assert not any("--validate-app" in c.argv for c in ran)
+
+
+def test_a_parsed_list_with_the_app_on_exit_0_goes_on_to_validate(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    code, ran = lookup_run(tmp_path, monkeypatch, (0, REAL_CAPTURE))
+    assert code == 0
+    assert any("--validate-app" in c.argv for c in ran)
+
+
+@pytest.mark.parametrize("text", [REAL_5XX_ALTOOL, "", "not json", REAL_CAPTURE, "[]"])
+def test_a_lookup_that_exits_nonzero_keeps_its_old_answer_whatever_it_printed(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, text: str
+) -> None:
+    code, ran = lookup_run(tmp_path, monkeypatch, (1, text))
+    assert code == Failure.APPLE_REJECTED.value
+    assert not any("--validate-app" in c.argv for c in ran)
 
 
 def test_the_value_reader_returns_the_array_and_the_dict_reader_never_does() -> None:
@@ -1894,7 +2101,9 @@ def test_validate_and_the_app_record_lookup_keep_their_answers_for_the_same_outp
     code, ran, _, _ = drive_upload(
         tmp, monkeypatch, answers={"--list-apps": NO_ANSWER[case].altool}
     )
-    assert code == Failure.APPLE_REJECTED.value
+    exit_0_list = NO_ANSWER[case].code == 0 and NO_ANSWER[case].text == "[]"
+    missing = NO_ANSWER[case].code != 0 or exit_0_list
+    assert code == (Failure.APPLE_REJECTED if missing else Failure.TOOL).value
     assert not any("--validate-app" in c.argv for c in ran)
     assert record_module.read_record(tmp).validations == []
 
@@ -2303,7 +2512,7 @@ def test_parsing_never_searches_the_output_for_a_start(
     assert release_classify.altool_document(flood) is None
     assert release_classify.classify_upload(0, flood).verdict is Verdict.UNREACHABLE
     assert release_classify.classify_altool(0, flood).verdict is Verdict.OK
-    assert not release_classify.app_record_exists(flood, "studio.sharecut.app")
+    assert release_classify.app_record_lookup(flood, "studio.sharecut.app") is Lookup.UNANSWERED
     assert len(attempts) <= 4
 
 
@@ -2317,7 +2526,7 @@ def test_a_parser_limit_is_no_document_on_upload_validate_and_the_lookup(
     assert release_classify.classify_altool(code, text).verdict is (
         Verdict.OK if code == 0 else Verdict.REJECTED
     )
-    assert not release_classify.app_record_exists(text, "studio.sharecut.app")
+    assert release_classify.app_record_lookup(text, "studio.sharecut.app") is Lookup.UNANSWERED
 
 
 @pytest.mark.parametrize("flag", ["--validate-app", "--list-apps"])

@@ -268,13 +268,29 @@ def classify_altool(exit_code: int, text: str) -> AppleAnswer:
     return AppleAnswer(Verdict.REJECTED, messages)
 
 
-def app_record_exists(text: str, bundle_identifier: str) -> bool:
-    """Whether the list-apps output has an app with exactly this bundle identifier."""
+class Lookup(enum.Enum):
+    FOUND = "found"
+    MISSING = "missing"
+    UNANSWERED = "unanswered"
+
+
+def app_shaped(app: object) -> bool:
+    return isinstance(app, dict) and (app.get("type") == "apps" or "bundleId" in app)
+
+
+def app_record_lookup(text: str, bundle_identifier: str) -> Lookup:
+    """Only a parsed list of apps answers the lookup: an array, or an object whose only key is
+    ``applications``. Anything else is no answer, because Apple did not say the app is missing: an
+    error object, unreadable or oversize output, and a list of anything but app objects."""
     value = altool_value(text)
-    apps = value.get("applications") if isinstance(value, dict) else value
-    return isinstance(apps, list) and any(
-        isinstance(app, dict) and app.get("bundleId") == bundle_identifier for app in apps
-    )
+    if isinstance(value, dict):
+        apps = value["applications"] if value.keys() == {"applications"} else None
+    else:
+        apps = value
+    if not isinstance(apps, list) or not all(app_shaped(app) for app in apps):
+        return Lookup.UNANSWERED
+    found = any(app["bundleId"] == bundle_identifier for app in apps if "bundleId" in app)
+    return Lookup.FOUND if found else Lookup.MISSING
 
 
 SENTENCES = {
