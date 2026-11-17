@@ -27,10 +27,10 @@ function exportFailureSentence(error: unknown): string {
       return "ShareCut isn't answering. Check that it is still running on this computer.";
     }
     if (error.code === BUNDLE_WRITE_FAILED_CODE) {
-      return "ShareCut couldn't save the report. Check that this computer has free space, then try again.";
+      return "ShareCut couldn't save the diagnostics. Check that this computer has free space, then try again.";
     }
   }
-  return "ShareCut couldn't make the report. Try again.";
+  return "ShareCut couldn't export the diagnostics. Try again.";
 }
 
 type Props = {

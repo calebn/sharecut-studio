@@ -167,22 +167,22 @@ describe("HelpDialog", () => {
       "a failed write",
       () =>
         new ApiError("disk full at /secret/path", "bundle_write_failed", 400),
-      "ShareCut couldn't save the report. Check that this computer has free space, then try again.",
+      "ShareCut couldn't save the diagnostics. Check that this computer has free space, then try again.",
     ],
     [
       "a failed build",
       () => new ApiError("Traceback /secret/path", "bundle_build_failed", 500),
-      "ShareCut couldn't make the report. Try again.",
+      "ShareCut couldn't export the diagnostics. Try again.",
     ],
     [
       "a refusal",
       () => new ApiError("Project not found: /secret/path", null, 403),
-      "ShareCut couldn't make the report. Try again.",
+      "ShareCut couldn't export the diagnostics. Try again.",
     ],
     [
       "a thrown error",
       () => new Error("disk full at /secret/path"),
-      "ShareCut couldn't make the report. Try again.",
+      "ShareCut couldn't export the diagnostics. Try again.",
     ],
     [
       "no answer",
