@@ -661,12 +661,13 @@ describe("the looking-in line under the Declined bar", () => {
         for (const selector of [
           ".sys-declined-bar",
           ".sys-declined-bar button",
-          ".sys-room-view-peek",
           ".sys-dock",
         ]) {
-          const other = room.querySelector(selector);
-          if (other) expect(overlap(box, rect(other)), selector).toBe(false);
+          const other = room.querySelector(selector) as Element;
+          expect(overlap(box, rect(other)), selector).toBe(false);
         }
+        const peek = room.querySelector(".sys-room-view-peek");
+        if (peek) expect(overlap(box, rect(peek)), "peek").toBe(false);
         expect(box.top).toBeGreaterThanOrEqual(
           rect(room.querySelector("header") as Element).bottom,
         );
