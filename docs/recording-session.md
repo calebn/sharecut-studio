@@ -1250,14 +1250,14 @@ soon as the room code is loaded, with `observe=1` and no name, so the name stays
 until the press, and it sends nothing: no Join, no Heartbeat and no queued comment. **Join to
 listen** sends Join on that same socket, with the name and the lease kept on this device,
 and Heartbeats start once the room has answered the Join; a press made while the socket is still
-connecting sends on open (if the server then refuses that look with 4429, the page retries at once with a
+connecting sends on open (if the server then refuses that look with 4429, the page retries after a quarter of a second with a
 joining socket, not after the usual wait), and one made while it waits to reconnect opens a joining socket at
 once. The sheet stays on "Joining…" until the room confirms the producer. A non-terminal error
 before then returns the sheet to **Join to listen** with the reason under the listen line (the
 room's alert slot does not repeat it, and **Not now** clears it), and a second press sends Join
 again on the same socket; after 4 seconds on Joining… the sheet adds "Still connecting to the
-room. Choose Not now to stop trying." A look that closes for any reason, such as the room refusing it with 4429 (more than four are looking in),
-drops the room the sheet was showing, with its pill and its sentence, and is retried quietly after the usual wait; the
+room. Choose Not now to stop trying." A look that closes, such as the room refusing it with 4429 (more than four are looking in),
+drops the room the sheet was showing, with its pill and its sentence, and is retried quietly after the usual wait (a revoked link ends the page's access instead); the
 room comes back with the first snapshot of the next socket that the room has counted. A server that does not know
 `observe` stays silent, so the sheet shows no room and no sentence and the press still joins.
 **Not now** closes the socket: the room behind the bar shows no status pill, no people and no
