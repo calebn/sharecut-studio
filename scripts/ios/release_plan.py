@@ -170,7 +170,7 @@ def overlay_argument(identity: Identity, build_number: str) -> str:
 
 
 def export_options_parts(
-    team: Secret, provisioning: Provisioning | None = None
+    team: Secret, provisioning: Provisioning | None, bundle_identifier: str
 ) -> tuple[Part, ...]:
     """The ExportOptions.plist text with the team (and, for manual signing, the profile name)
     left as secrets to be revealed only when the file is written."""
@@ -183,19 +183,14 @@ def export_options_parts(
         "destination": "export",
         "manageAppVersionAndBuildNumber": False,
     }
+    secrets = {team_marker: team}
     if provisioning is not None:
         options["signingStyle"] = "manual"
         options["signingCertificate"] = provisioning.certificate
-        options["provisioningProfiles"] = {provisioning.bundle_identifier: profile_marker}
-    document = plistlib.dumps(options).decode()
-    secrets: list[tuple[str, Secret]] = [(team_marker, team)]
-    if provisioning is not None:
-        secrets.append((profile_marker, provisioning.profile))
-    parts: list[Part] = []
-    for marker, secret in sorted(secrets, key=lambda pair: document.index(pair[0])):
-        head, _, document = document.partition(marker)
-        parts += [head, secret]
-    return (*parts, document)
+        options["provisioningProfiles"] = {bundle_identifier: profile_marker}
+        secrets[profile_marker] = provisioning.profile
+    pieces = re.split(f"({'|'.join(secrets)})", plistlib.dumps(options).decode())
+    return tuple(secrets.get(piece, piece) for piece in pieces)
 
 
 def tool_outcome(result: SpawnResult, _: Workspace) -> Outcome:
@@ -344,7 +339,14 @@ def plan_build(
                     ),
                     layout.desktop,
                     bare,
-                    (PrivateFile(options, export_options_parts(inputs.team, inputs.provisioning)),),
+                    (
+                        PrivateFile(
+                            options,
+                            export_options_parts(
+                                inputs.team, inputs.provisioning, inputs.identity.bundle_identifier
+                            ),
+                        ),
+                    ),
                 ),
                 True,
                 tool_outcome,

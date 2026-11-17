@@ -62,7 +62,7 @@ def test_one_discovered_valid_profile_is_used_with_the_default_certificate() -> 
     chosen, problems = resolve(profiles=(facts(),))
     assert problems == [] and chosen is not None
     assert chosen.profile.reveal() == NAME and repr(chosen.profile) == "<provisioning-profile>"
-    assert chosen.certificate == "Apple Distribution" and chosen.bundle_identifier == BUNDLE
+    assert chosen.certificate == "Apple Distribution"
 
 
 def test_the_certificate_comes_from_the_value_when_set() -> None:
@@ -297,7 +297,7 @@ def provisioned_inputs(name: str = NAME, certificate: str = "Apple Distribution"
             Secret("11111111-2222-3333-4444-555555555555", "issuer"),
             Secret("/k.p8", "key-path"),
         ),
-        release_inputs.Provisioning(Secret(name, "provisioning-profile"), certificate, BUNDLE),
+        release_inputs.Provisioning(Secret(name, "provisioning-profile"), certificate),
     )
 
 

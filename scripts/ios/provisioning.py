@@ -39,16 +39,28 @@ def default_directories(home: Path) -> list[Path]:
     return [home / relative for relative in PROFILE_DIRECTORIES]
 
 
+def typed(source: dict[str, Any], key: str, kind: type) -> Any:
+    value = source.get(key)
+    if not isinstance(value, kind):
+        raise ValueError(f"{key} is not a {kind.__name__}")
+    return value
+
+
 def read_profile(path: Path, run: Callable[..., str] = capture) -> ProfileFacts:
-    decoded: dict[str, Any] = plistlib.loads(
+    decoded = plistlib.loads(
         run(["security", "cms", "-D", "-i", str(path)], path=TOOL_PATH).encode()
     )
-    entitlements = decoded.get("Entitlements", {})
-    expires: datetime = decoded["ExpirationDate"]
+    if not isinstance(decoded, dict):
+        raise ValueError("a profile is a dictionary")
+    entitlements = typed(decoded, "Entitlements", dict)
+    teams = typed(decoded, "TeamIdentifier", list)
+    if not teams or not isinstance(teams[0], str):
+        raise ValueError("TeamIdentifier holds no team")
+    expires = typed(decoded, "ExpirationDate", datetime)
     return ProfileFacts(
-        name=decoded["Name"],
-        team=decoded["TeamIdentifier"][0],
-        app_id=entitlements["application-identifier"],
+        name=typed(decoded, "Name", str),
+        team=teams[0],
+        app_id=typed(entitlements, "application-identifier", str),
         expires=expires.replace(tzinfo=expires.tzinfo or UTC),
         provisions_all=bool(decoded.get("ProvisionsAllDevices")),
         devices=len(decoded.get("ProvisionedDevices") or ()),
@@ -56,19 +68,30 @@ def read_profile(path: Path, run: Callable[..., str] = capture) -> ProfileFacts:
     )
 
 
-def discover(directories: Iterable[Path], reader: Reader = read_profile) -> list[ProfileFacts]:
+def discover(
+    directories: Iterable[Path], reader: Reader = read_profile
+) -> tuple[list[ProfileFacts], int]:
     """Every readable profile in *directories*, each distinct one once (Xcode keeps copies in
-    both places). A file the reader cannot decode is skipped: it is not a candidate."""
+    both places), and how many files could not be read."""
     found: dict[ProfileFacts, None] = {}
+    unreadable = 0
     for directory in directories:
         if not directory.is_dir():
             continue
         for path in sorted(directory.glob("*.mobileprovision")):
             try:
                 found[reader(path)] = None
-            except (ToolFailed, OSError, ValueError, KeyError, IndexError, TypeError):
-                continue
-    return list(found)
+            except (
+                ToolFailed,
+                OSError,
+                ValueError,
+                KeyError,
+                IndexError,
+                TypeError,
+                AttributeError,
+            ):
+                unreadable += 1
+    return list(found), unreadable
 
 
 def bundle_of(app_id: str) -> str:

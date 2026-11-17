@@ -118,7 +118,6 @@ class Provisioning:
 
     profile: Secret
     certificate: str
-    bundle_identifier: str
 
 
 @dataclass(frozen=True)
@@ -250,11 +249,11 @@ def resolve_provisioning(
     team: str,
     bundle: str,
     now: datetime,
+    unreadable: int = 0,
 ) -> tuple[Provisioning | None, list[InputProblem]]:
-    """Pick the profile for a manual export. A named profile must be installed and valid and never
-    falls back. Without a name, one valid profile is used; none installed for this app keeps the
-    automatic path (``None``); profiles installed but all unusable refuse, with counts and reasons
-    and never a profile name."""
+    """Pick the profile for a manual export. A named profile never falls back; with no name, one
+    usable profile is used, none for this app keeps the automatic path, and anything else refuses
+    with counts and reasons, never a profile name."""
     source = "private file, environment or installed profiles"
     certificate = values.get(CERTIFICATE_NAME) or DEFAULT_CERTIFICATE
     if not CERTIFICATE.fullmatch(certificate):
@@ -264,20 +263,30 @@ def resolve_provisioning(
     explicit = values.get(PROFILE_NAME, "")
     if explicit:
         return resolve_named(explicit, certificate, profiles, team, bundle, now)
-    candidates = [facts for facts in dict.fromkeys(profiles) if concerns(facts, bundle)]
+    candidates = [facts for facts in profiles if concerns(facts, bundle)]
     if not candidates:
-        return None, []
+        if profiles or not unreadable:
+            return None, []
+        why = (
+            f"{unreadable} profile file(s) could not be read (is `security` available?); "
+            "the build stops rather than guess, because automatic signing with the API key "
+            "cannot create a profile"
+        )
+        return None, [InputProblem("provisioning profile", source, why)]
     usable = [f for f in candidates if not facts_problems(f, team, bundle, now)]
-    names = sorted({facts.name for facts in usable})
-    if len(names) == 1:
-        return Provisioning(Secret(names[0], "provisioning-profile"), certificate, bundle), []
-    if names:
-        why = f"{len(names)} valid App Store profiles are installed for {bundle}; set {PROFILE_NAME} to pick one"
+    if len(usable) == 1:
+        return Provisioning(Secret(usable[0].name, "provisioning-profile"), certificate), []
+    if usable:
+        why = (
+            f"{len(usable)} valid App Store profiles are installed for {bundle}; keep one, or set "
+            f"{PROFILE_NAME} when their names differ"
+        )
     else:
         why = (
             f"{len(candidates)} installed profile(s) for {bundle} cannot sign an App Store export: "
-            f"{reason_counts(candidates, team, bundle, now)}; install a valid App Store profile "
-            f"or set {PROFILE_NAME}"
+            f"{reason_counts(candidates, team, bundle, now)}. The build stops instead of using "
+            "automatic signing, which cannot create a profile with the API key; install a valid "
+            f"App Store profile or set {PROFILE_NAME} to one"
         )
     return None, [InputProblem("provisioning profile", source, why)]
 
@@ -291,18 +300,17 @@ def resolve_named(
     now: datetime,
 ) -> tuple[Provisioning | None, list[InputProblem]]:
     source = "private file, environment or installed profiles"
+    named = [facts for facts in profiles if facts.name == explicit]
     if not safe_name(explicit):
         why = "has characters outside letters, digits, space and . _ -"
+    elif not named:
+        why = "names no installed profile"
+    elif len(named) > 1:
+        why = f"{len(named)} installed profiles carry that name; remove the extra ones"
+    elif reasons := facts_problems(named[0], team, bundle, now):
+        why = f"names a profile that cannot sign an App Store export for {bundle}: {', '.join(reasons)}"
     else:
-        named = [facts for facts in dict.fromkeys(profiles) if facts.name == explicit]
-        if any(not facts_problems(facts, team, bundle, now) for facts in named):
-            return Provisioning(Secret(explicit, "provisioning-profile"), certificate, bundle), []
-        why = (
-            "names no installed profile"
-            if not named
-            else f"{len(named)} installed profile(s) of that name cannot sign an App Store export "
-            f"for {bundle}: {reason_counts(named, team, bundle, now)}"
-        )
+        return Provisioning(Secret(explicit, "provisioning-profile"), certificate), []
     return None, [InputProblem(PROFILE_NAME, source, why)]
 
 
@@ -383,6 +391,7 @@ def resolve_build_inputs(
     toolchain_problem: InputProblem | None = None,
     home: Path | None = None,
     profiles: Sequence[ProfileFacts] = (),
+    unreadable_profiles: int = 0,
 ) -> BuildInputs:
     problems = list(file_problems)
     identity, found = load_identity(environ)
@@ -399,7 +408,12 @@ def resolve_build_inputs(
         problems += found
         if team is not None and identity is not None:
             provisioning, found = resolve_provisioning(
-                values, profiles, values[TEAM_NAME], identity.bundle_identifier, now
+                values,
+                profiles,
+                values[TEAM_NAME],
+                identity.bundle_identifier,
+                now,
+                unreadable_profiles,
             )
             problems += found
         if checkout.dirty:
