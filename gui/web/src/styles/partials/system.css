@@ -1836,6 +1836,7 @@ html:not([data-shell="phone"])
   margin: 0;
   font-size: var(--font-size-card-title);
   line-height: 1.2;
+  text-wrap: balance;
 }
 
 .sys-cover-text {

@@ -57,8 +57,9 @@ export const MARKER_500: FailedAnswer = {
 export async function failShell(
   page: Page,
   who: { token: string } | "host",
-  fail: FailedAnswer,
+  initial: FailedAnswer,
 ) {
+  let fail = initial;
   let failing = true;
   let requests = 0;
   const pattern =
@@ -78,6 +79,10 @@ export async function failShell(
   return {
     lift: () => {
       failing = false;
+    },
+    /** The next failed answers say `next` instead. */
+    answerWith: (next: FailedAnswer) => {
+      fail = next;
     },
     requests: () => requests,
   };
@@ -167,3 +172,56 @@ export async function expectCoverInWindow(page: Page) {
   expect(fit.outside, JSON.stringify(fit)).toEqual([]);
   expect(fit.overflow, JSON.stringify(fit)).toBeLessThanOrEqual(0);
 }
+
+/** How many words sit on the last line of a text node's element (a title or a sentence). */
+export function lastLineWordCount(element: Locator): Promise<number> {
+  return element.evaluate((el) => {
+    const text = el.firstChild as Text;
+    const words = [...text.data.matchAll(/\S+/g)];
+    const top = (word: RegExpMatchArray) => {
+      const range = document.createRange();
+      range.setStart(text, word.index ?? 0);
+      range.setEnd(text, (word.index ?? 0) + word[0].length);
+      return range.getBoundingClientRect().top;
+    };
+    const lastTop = top(words[words.length - 1]!);
+    return words.filter((word) => top(word) === lastTop).length;
+  });
+}
+
+/**
+ * Starts watching for `text` to first appear on the page and records, in the
+ * same task that put it there, what holds focus. Read the result with
+ * `focusWhenSeen`. A poll that only passes after the busy hold would hide a
+ * button that held focus for a moment.
+ */
+export async function watchFocusWhenSeen(page: Page, text: string) {
+  await page.evaluate((wanted) => {
+    const seen = new Promise<string>((resolve) => {
+      const look = () => {
+        if (!document.body.textContent?.includes(wanted)) return false;
+        const active = document.activeElement;
+        resolve(
+          active?.getAttribute("data-cover-action") ??
+            `${active?.tagName.toLowerCase()}:${active?.textContent}`,
+        );
+        return true;
+      };
+      if (look()) return;
+      const observer = new MutationObserver(() => {
+        if (look()) observer.disconnect();
+      });
+      observer.observe(document.body, {
+        subtree: true,
+        childList: true,
+        characterData: true,
+      });
+    });
+    (window as unknown as { __focusSeen: Promise<string> }).__focusSeen = seen;
+  }, text);
+}
+
+export const focusWhenSeen = (page: Page) =>
+  page.evaluate(
+    () => (window as unknown as { __focusSeen: Promise<string> }).__focusSeen,
+  );

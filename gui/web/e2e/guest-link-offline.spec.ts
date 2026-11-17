@@ -4,6 +4,7 @@ import { fontsReady } from "./fontsReady";
 import {
   expectCoverInWindow,
   failBootstrap,
+  lastLineWordCount,
   press,
   SHORT_WINDOW,
   SIZES,
@@ -273,18 +274,7 @@ for (const size of SIZES) {
           const sentence = guest.getByRole("main").locator(".sys-cover-text");
           await expect(sentence).toHaveText(OFFLINE_SENTENCE);
           await fontsReady(guest);
-          const lastLine = await sentence.evaluate((el) => {
-            const text = el.firstChild as Text;
-            const words = [...text.data.matchAll(/\S+/g)];
-            const top = (word: RegExpMatchArray) => {
-              const range = document.createRange();
-              range.setStart(text, word.index ?? 0);
-              range.setEnd(text, (word.index ?? 0) + word[0].length);
-              return range.getBoundingClientRect().top;
-            };
-            const lastTop = top(words[words.length - 1]!);
-            return words.filter((word) => top(word) === lastTop).length;
-          });
+          const lastLine = await lastLineWordCount(sentence);
           expect(lastLine).toBeGreaterThan(1);
         });
       });
