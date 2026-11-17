@@ -690,9 +690,21 @@ button.sys-version-line {
   }
 }
 
-/* The studio's guest column (title, then a sub line with the role chip and its hint) is taller than the bar on a first visit, so it starts at the bar's top; the loading header starts there too, whatever its own sub line holds. */
-.sys-app-header--loading .sys-header-left {
+/* A guest's title line sits at the bar's top whatever the sub line under it holds (its role button is a touch target, taller than what is left of the bar), in the studio's header and in the loading header alike. */
+.sys-app-header--loading .sys-header-left,
+.sys-header-left:has(> .sys-header-guest) {
   align-self: start;
+}
+
+/* What waits for data keeps its place from the first frame on a touch screen: the Listen strip is a touch target once it can seek, and the guest's own avatar joins the header's right side when presence answers. */
+@media (pointer: coarse) {
+  .sys-listen-dock-strip .sys-overview {
+    min-block-size: var(--touch-min);
+  }
+
+  .sys-app-header:has(.sys-header-guest) .sys-header-people-slot {
+    min-inline-size: var(--touch-min);
+  }
 }
 
 /* The loading screen's header has no Stage bar, and `data-shell` does not exist

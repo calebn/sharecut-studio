@@ -292,8 +292,6 @@ export interface DawState {
   shareTranscriptWords: boolean;
   /** This guest's share author (``PendingEditView.author``) from bootstrap; null for host. */
   shareAuthor: string | null;
-  /** The episode's name as the link's own answer (or its saved copy) gave it; null for a host and until known. */
-  shareName: string | null;
   /** The review episode's overview-strip envelope (0..1 columns); empty for a host or until loaded. */
   reviewPeaks: readonly number[];
   playheadSec: number;
@@ -624,6 +622,5 @@ export interface DawStore
     shareCapabilities?: string[] | null,
     shareAuthor?: string | null,
     shareTranscriptWords?: boolean,
-    shareName?: string | null,
   ) => void;
 }

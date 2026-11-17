@@ -5,6 +5,7 @@ import { useReviewPeaks } from "../../hooks/useReviewPeaks";
 import { useReviewVersion } from "../../hooks/useReviewVersion";
 import { type ThemePreference, useTheme } from "../../hooks/useTheme";
 import { useDawStore } from "../../state/dawStore";
+import { useShareName } from "../../state/shareName";
 import { stageRoleOf } from "../../state/stageRoutes";
 import { useDaw } from "../../state/useDaw";
 import type { AppHeaderProps } from "../../system/AppHeader";
@@ -36,9 +37,9 @@ export function useHeaderProps(): Omit<
   AppHeaderProps,
   "peopleSlot" | "menuPeople"
 > {
-  const { name, shareName, guestMode, shell } = useDaw((s) => ({
+  const shareName = useShareName();
+  const { name, guestMode, shell } = useDaw((s) => ({
     name: s.project?.meta.name ?? null,
-    shareName: s.shareName,
     guestMode: s.guestMode,
     shell: s.shellBreakpoint,
   }));
