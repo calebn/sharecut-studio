@@ -1,4 +1,4 @@
-"""A review link's page names the episode before the script has loaded (#3891).
+"""A review link's page names the episode before the script has loaded.
 
 The server writes the loading header into the page's root for exactly the links
 whose tab title it already sets to the episode's name. Every other answer is the
