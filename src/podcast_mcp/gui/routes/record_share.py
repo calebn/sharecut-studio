@@ -164,7 +164,7 @@ async def record_ws(
             return None
         if not _record_still_valid(token) or svc.invite_closed(share_id) is None:
             return None
-        return None if joined else dict(_INVITE_CLOSED_FRAME)
+        return dict(_INVITE_CLOSED_FRAME)
 
     def _participant_runtime_valid() -> bool:
         return svc is not None and (
