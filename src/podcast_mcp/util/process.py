@@ -13,6 +13,11 @@ Both are properties of the desktop ``_spawn``. A runner installed with ``using_r
 replaces ``_spawn``, so its children are not niceness-wrapped, not registered by
 ``detached_children`` and not seen by ``kill_detached_children``, and the host gate
 (``can_spawn_processes``) is the runner's job.
+
+This module also owns the ``subprocess`` error types (``CalledProcessError``,
+``SubprocessError``, ``TimeoutExpired``, ``CompletedProcess``): other modules import them
+from here, and ``tests/test_process_guard.py`` fails any other module under ``src`` that
+imports ``subprocess`` or starts a program itself.
 """
 
 from __future__ import annotations
