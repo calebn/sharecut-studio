@@ -241,6 +241,16 @@ lib (a `staticlib`) with Python.xcframework linked into it; there is no sidecar 
   still names the machine and is not part of the app or the `.ipa`; never ship it. With no
   signing identity the `install_python` phase signs the frameworks it makes ad hoc, because
   `codesign` refuses an empty identity.
+- **Nested framework plists (#3955).** BeeWare's `install_dylib` gives every module framework an
+  application Info.plist (`CFBundlePackageType` `APPL`, minimum OS 13.0, identifiers such as
+  `studio.sharecut.app.numpy.random.-pcg64`), so `altool` read each one as a second app and
+  rejected the upload. After `install_python`, the same phase runs `scripts/ios/framework_plists.py
+  fix`, which makes each such plist `FMWK`, repairs a malformed identifier (a segment starting
+  with `-` gets a `p`), aligns the minimum OS to 17.0 (only where it changed the packaging type), and the phase re-signs each generated framework whose signature no longer verifies, so a failed earlier build cannot leave a stale seal.
+  A framework that already has a valid `FMWK` plist, `Python.framework` included, is untouched.
+  `check_layout` runs the same `check`, so the release build and the upload both fail on a
+  nested plist that is not `FMWK`, malformed, duplicated or equal to the app's identifier. The
+  phase needs `python3` on the build machine in every configuration.
 - **Store metadata and privacy.** The template's Info.plist sets `ITSAppUsesNonExemptEncryption`
   to `false`; the name under the icon is the build's `productName` (the release tool sets it from
   the profile's `short_name`) (owner declaration, 2026-11-14: the
