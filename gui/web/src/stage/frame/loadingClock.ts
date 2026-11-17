@@ -7,7 +7,8 @@ let started = 0;
 let holders = 0;
 let leftAt = Number.NEGATIVE_INFINITY;
 
-const continues = (at: number) => holders > 0 || at - leftAt <= HANDOFF_MS;
+const continues = (at: number) =>
+  holders > 0 || (at >= leftAt && at - leftAt <= HANDOFF_MS);
 
 /** Tests only: no screen is held and none just left. */
 export function resetLoadingClockForTests() {
@@ -28,7 +29,7 @@ export function useLoadingClock(): number {
   const [{ begin, waited }] = useState(() => {
     const at = Date.now();
     const begin = continues(at) ? started : at;
-    return { begin, waited: at - begin };
+    return { begin, waited: Math.max(0, at - begin) };
   });
   useEffect(() => {
     started = begin;

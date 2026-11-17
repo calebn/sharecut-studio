@@ -34,6 +34,7 @@ import { GuestPageCover, NotServedCover } from "./stage/frame/StatusCovers";
 import { HomeScreen } from "./stages/home/HomeScreen";
 import { composerPatch, initialSession } from "./state/composerSession";
 import { useDawStore } from "./state/dawStore";
+import { cleanShareName } from "./state/shareName";
 import { DawProvider } from "./state/store";
 import { collectUnsent, type UnsentText } from "./state/unsentText";
 import type { ProjectView } from "./types/project";
@@ -393,7 +394,7 @@ function AppInner() {
             capabilities: caps,
             transcriptWords: bootstrap.reads_transcript_words,
             author: bootstrap.author ?? null,
-            name: bootstrap.meta?.name || null,
+            name: cleanShareName(bootstrap.meta?.name),
           },
         };
       } catch (e: unknown) {
@@ -425,7 +426,7 @@ function AppInner() {
               capabilities: null,
               transcriptWords: false,
               author: null,
-              name: cachedProject.meta?.name || null,
+              name: cleanShareName(cachedProject.meta?.name),
             },
             cached: { key, project: cachedProject },
           };
