@@ -1252,8 +1252,9 @@ soon as the room code is loaded, with `observe=1` and no name, so the name stays
 until the press, and it sends nothing: no Join, no Heartbeat and no queued comment. **Join to
 listen** sends Join on that same socket, with the name and the lease kept on this device,
 and Heartbeats start once the room has answered the Join; a press made while the socket is still
-connecting sends on open (if that socket closes for any reason before the room answers the Join, the page
-retries after a quarter of a second with a joining socket, not after the usual wait), and one made while it waits to reconnect opens a joining socket at
+connecting sends on open (if that socket closes before the room answers the Join, the page
+retries after a quarter of a second with a joining socket, not after the usual wait; a revoked link ends
+the page's access instead), and one made while it waits to reconnect opens a joining socket at
 once. The sheet stays on "Joining…" until the room confirms the producer. A non-terminal error
 before then returns the sheet to **Join to listen** with the reason under the listen line (the
 room's alert slot does not repeat it, and **Not now** clears it), and a second press sends Join
