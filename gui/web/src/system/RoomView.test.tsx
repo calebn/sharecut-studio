@@ -876,8 +876,11 @@ describe("RoomView as the host", () => {
       expect(line.closest("[aria-hidden='true']")).toBeNull();
       expect(body).not.toContainElement(line);
       const layer = container.querySelector(".sys-declined") as HTMLElement;
-      expect(layer).toContainElement(line);
-      expect(line.nextElementSibling).toHaveClass("sys-declined-bar");
+      const bar = layer.querySelector(".sys-declined-bar") as HTMLElement;
+      expect(bar).toContainElement(line);
+      expect(bar.firstElementChild).toBe(line);
+      expect(line.querySelector("svg")).toHaveAttribute("aria-hidden", "true");
+      expect(layer.children).toHaveLength(2);
       expect(container.querySelector("[data-looking-in]")).toBeNull();
     });
 
@@ -892,6 +895,7 @@ describe("RoomView as the host", () => {
       expect(layer.children).toHaveLength(2);
       expect(layer.firstElementChild).toHaveClass("sys-declined-scrim");
       expect(layer.lastElementChild).toHaveClass("sys-declined-bar");
+      expect(layer.lastElementChild?.firstElementChild?.tagName).toBe("svg");
     });
 
     it("keeps the looking-in line first in the stage when not declined", () => {

@@ -424,10 +424,11 @@ describe("the looking-in line under the Declined bar", () => {
     height: number,
     viewerWidth: "phone" | "phone-landscape" | "desktop",
     lookingIn: number,
+    phase: RoomPhase = LIVE,
   ) =>
     render(width, height, {
       seat,
-      phase: LIVE,
+      phase,
       viewerWidth,
       declined: { onJoin: noop },
       alerts: [{ kind: "mic-lost", onAction: noop }],
@@ -506,10 +507,19 @@ describe("the looking-in line under the Declined bar", () => {
           expect(line.closest("[inert]")).toBeNull();
           const box = rect(line);
           const now = boxesOf(room);
-          expect(overlap(box, now.bar)).toBe(false);
-          expect(Math.abs(box.bottom - now.bar.top)).toBeLessThanOrEqual(0.5);
+          // The line covers the bar's own top rule: its bottom is the bar's
+          // padding-box top, so no gap and no second rule shows between the
+          // line's text and the bar's.
+          const barEl = room.querySelector(".sys-declined-bar") as HTMLElement;
+          expect(barEl.clientTop).toBe(1);
+          expect(
+            Math.abs(box.bottom - (now.bar.top + barEl.clientTop)),
+          ).toBeLessThanOrEqual(0.5);
+          expect(box.top).toBeLessThan(now.bar.top);
+          expect(getComputedStyle(line).backgroundColor).toBe(
+            getComputedStyle(barEl).backgroundColor,
+          );
           expect(box.right).toBeLessThanOrEqual(width + 0.5);
-          expect(box.top).toBeGreaterThanOrEqual(-0.5);
           expect(same(now.header, without.header)).toBe(true);
           expect(same(now.dock, without.dock)).toBe(true);
           expect(same(now.bar, without.bar)).toBe(true);
@@ -533,17 +543,108 @@ describe("the looking-in line under the Declined bar", () => {
             const hit = document.elementFromPoint(x, y);
             expect(hit === button || button.contains(hit)).toBe(true);
           }
-          for (const [x, y] of [
-            [box.left + 1, box.top + 1],
-            [box.right - 1, box.bottom - 1],
-          ] as const) {
-            const hit = document.elementFromPoint(x, y);
-            expect(hit === line || line.contains(hit)).toBe(true);
-          }
+          const hit = document.elementFromPoint(box.right - 1, box.bottom - 1);
+          expect(hit === line || line.contains(hit)).toBe(true);
         } finally {
           document.documentElement.style.fontSize = "";
         }
       });
+    }
+  }
+
+  const WAITING: RoomPhase = { kind: "waiting", host: "Maya" };
+  const insideBar = (room: HTMLElement) =>
+    [
+      ".sys-declined-bar",
+      ".sys-declined-bar > svg",
+      ".sys-declined-text",
+      ".sys-declined-line",
+      ".sys-declined-reason",
+      ".sys-declined-bar button",
+    ].map((selector) => {
+      const el = room.querySelector(selector);
+      return el ? rect(el) : null;
+    });
+
+  for (const [width, height] of [
+    [414, 330],
+    [320, 400],
+  ] as const) {
+    for (const [label, seat, phase] of [
+      ["guest held", "guest", LIVE],
+      ["guest not held", "guest", WAITING],
+      ["producer", "producer", LIVE],
+    ] as const) {
+      for (const lookers of [1, 99]) {
+        it(`leaves the bar and everything in it as without the line for a ${label} at ${width}x${height}, 200% text, ${lookers} looking in`, async () => {
+          document.documentElement.style.fontSize = "200%";
+          try {
+            const without = insideBar(
+              await declinedRoom(
+                seat,
+                width,
+                height,
+                "phone-landscape",
+                0,
+                phase,
+              ),
+            );
+            root?.unmount();
+            host?.remove();
+            const room = await declinedRoom(
+              seat,
+              width,
+              height,
+              "phone-landscape",
+              lookers,
+              phase,
+            );
+            const now = insideBar(room);
+            for (const [index, box] of now.entries()) {
+              const was = without[index];
+              expect(box === null, `item ${index}`).toBe(was === null);
+              if (box && was)
+                expect(same(box, was), `item ${index}`).toBe(true);
+            }
+            const bar = rect(
+              room.querySelector(".sys-declined-bar") as Element,
+            );
+            const line = room.querySelector(
+              ".sys-declined-looking-in",
+            ) as Element;
+            const box = rect(line);
+            expect(Math.abs(box.bottom - (bar.top + 1))).toBeLessThanOrEqual(
+              0.5,
+            );
+            for (const selector of [
+              ".sys-declined-text",
+              ".sys-declined-bar button",
+              ".sys-declined-bar > svg",
+            ]) {
+              expect(
+                overlap(box, rect(room.querySelector(selector) as Element)),
+                selector,
+              ).toBe(false);
+            }
+            const button = room.querySelector(
+              ".sys-declined-bar button",
+            ) as Element;
+            const join = rect(button);
+            for (const [x, y] of [
+              [join.left + join.width / 2, join.top + join.height / 2],
+              [join.left + 6, join.top + 6],
+              [join.right - 6, join.top + 6],
+              [join.left + 6, join.bottom - 6],
+              [join.right - 6, join.bottom - 6],
+            ] as const) {
+              const hit = document.elementFromPoint(x, y);
+              expect(hit === button || button.contains(hit)).toBe(true);
+            }
+          } finally {
+            document.documentElement.style.fontSize = "";
+          }
+        });
+      }
     }
   }
 
