@@ -339,14 +339,18 @@ joined, each with an ear glyph) and, when the server reports that people with
 the producer link are looking in without having joined, the **looking-in
 line** ("Someone with the producer link is looking in", or "3 people with the
 producer link are looking in"). The line names nobody. It is the first line of
-the room's main area, directly under the header and above the tiles, so the
-header and dock keep their sizes and the tiles start one line (and one gap)
-lower. The host on a laptop (1280 and 1024 wide) or a phone with Comments open,
-and a guest and a producer on a 320 or 390 wide phone with four people in the
-room, see it without scrolling. The guest's consent **Details** repeats it with
-"They can see the room but can't hear it." The host, guest and producer pages
-each announce it once per room, politely, when the first one arrives while the
-room is waiting or stopped, never during a take. The count is the snapshot's
+the room's main area, directly under the header and above the tiles. The
+tile grid gives it its height (tiles get a little smaller), so the header, the
+dock, every tile and the listener row stay where the room showed them without
+the line. This is measured on the host studio at 1280x800 and 1024x700, for a
+guest and a producer on a 667x375 landscape phone, and at 320, 390, 767 and 768
+wide. The line keeps full strength under the Declined bar. The guest's consent **Details** repeats it with
+"They can see the room but can't hear it." Each of the host, guest and
+producer pages announces the first arrival in each room, once and politely, while
+the room is waiting or stopped. An arrival during a take is not spoken then, and
+one during the room-tone countdown is spoken when the countdown ends if the
+person is still looking in. The host page drops its spoken note when nobody is
+looking in. The count is the snapshot's
 runtime `watchers` field. A client shows the line only for a whole number from
 1 to 99 and reads anything else, or a missing field, as nobody; no server sends
 the field yet. The consent copy says "producers/listeners may be present and are
