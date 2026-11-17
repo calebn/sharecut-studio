@@ -353,8 +353,9 @@ after it, only if the room is then waiting or stopped and the person is still lo
 The host page drops its spoken note when nobody is looking in. The count is the
 snapshot's runtime `watchers` field. A client shows the line only for a whole
 number from 1 to 99 and reads anything else, or a missing field, as nobody. The
-server puts it in every snapshot the GUI server sends (its sockets, `GET /api/record/state` and the host page's commands; the MCP record state tool and `podcast record state` leave it out): `0` when nobody is looking, and it rises when a
-producer link's socket connects with `observe=1` (see
+GUI server puts it in every snapshot it sends (its sockets, `GET /api/record/state`
+and the host page's commands; the MCP record state tool and `podcast record state`
+leave it out): `0` when nobody is looking, and it rises when a producer link's socket connects with `observe=1` (see
 [Looking in on a room](#looking-in-on-a-room-observe1)); no page opens the link
 that way yet, so nothing shows in the product today. A guest's consent
 **Details** names the producers who have joined ("Rosa is listening and won't
