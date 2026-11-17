@@ -61,3 +61,22 @@ def test_an_empty_remainder_falls_back_to_the_phase():
 def test_the_cap_and_the_first_line_stay():
     assert len(short_fail_message("x" * 250) or "") == 200
     assert short_fail_message("first line /a b\nsecond") == "first line"
+
+
+@pytest.mark.parametrize(
+    ("line", "expected"),
+    [
+        (r"\\nas\share dir\a.wav: denied", "denied"),
+        ("/Users/al/My Show/a.wav: No such file", "No such file"),
+        ("C:\\Users\\Al Smith\\a.wav: gone", "gone"),
+    ],
+)
+def test_a_path_that_opens_the_line_leaves_no_separator(line, expected):
+    assert short_fail_message(line) == expected
+
+
+def test_a_lone_slash_is_not_a_path():
+    # The old per-token rule drops the bare slash (it did before the path rule existed); the
+    # words around it stay.
+    assert short_fail_message("Progress 50 / 100 frames") == "Progress 50 100 frames"
+    assert short_fail_message("Progress 50 /") == "Progress 50"

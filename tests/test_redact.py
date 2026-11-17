@@ -731,3 +731,45 @@ def test_sanitize_of_two_megabytes_with_locations_stays_fast() -> None:
     out = sanitize(text, field_names=_NAMES)
     assert time.perf_counter() - start < 10
     assert "Zelda" not in out
+
+
+def _entry(key: str) -> str:
+    return (
+        f"meta.{key}.align_method\n"
+        "  Input should be a valid string [type=string_type]\n"
+        "    For further information visit https://errors.pydantic.dev/2.14/v/string_type"
+    )
+
+
+@pytest.mark.parametrize(
+    "prefix",
+    [
+        "pydantic_core._pydantic_core.ValidationError: ",
+        "2026-11-17 10:00:00,885 ERROR probe: failed: ",
+        "RuntimeError: wrapped: ",
+        "ERROR:    ",
+        "",
+    ],
+)
+def test_sanitize_masks_a_location_whose_header_is_not_at_the_line_start(prefix: str) -> None:
+    text = f"{prefix}2 validation errors for Outer\n{_entry('Daniela Secretname')}\nnext line"
+    out = sanitize(text, field_names=_NAMES)
+    assert "Daniela" not in out
+    assert "Secretname" not in out
+    assert out.startswith(f"{prefix}2 validation errors for Outer\nmeta.*.align_method\n")
+    assert out.endswith("\nnext line")
+
+
+def test_a_header_with_no_entry_leaves_the_lines_after_it_unchanged() -> None:
+    tail = "\n  Something indented [type=elsewhere]"
+    lines = "".join(f"GET /api/item.{n} 200 ok.line\n" for n in range(200))
+    text = "x: 2 validation errors for Outer\n" + lines + "y" * 2500 + tail
+    assert sanitize(text, field_names=_NAMES) == text
+
+
+def test_thousands_of_bare_headers_are_fast() -> None:
+    text = ("1 validation error for Outer\n" + "some ordinary line. with dots\n") * 4500
+    text = text[: 256 * 1024]
+    start = time.perf_counter()
+    assert sanitize(text, field_names=_NAMES) == text
+    assert time.perf_counter() - start < 5
