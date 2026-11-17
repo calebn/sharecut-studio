@@ -23,11 +23,15 @@ class Failure(enum.Enum):
     GUARD = 10
 
 
-NO_CERTIFICATE = r"no signing certificate"
-NO_PROFILES = r"no profiles for ['\"]?[^'\"\s]+['\"]? were found"
+NO_CERTIFICATE = (
+    r"no\s+(?:signing\s+)?certificate|no certificate for team|apple distribution[^\n]*not found"
+)
+NO_PROFILES = r"no profiles for ['\"]?(?P<id>[^'\"\s]+)['\"]? were found"
 CLOUD_PERMISSION = r"cloud signing permission"
+LICENSE = r"license agreement|agreement .*(?:updated|accept)"
+DEVICES = r"no devices|doesn't include any devices|no registered devices"
 BUNDLE_ID = re.compile(r"[A-Za-z0-9.-]{1,155}")
-UNKNOWN_APP = "this app's bundle id"
+UNKNOWN_BUNDLE_ID = "this app's bundle id"
 
 SIGNING_HINTS: tuple[tuple[re.Pattern[str], str], ...] = (
     (
@@ -44,10 +48,11 @@ SIGNING_HINTS: tuple[tuple[re.Pattern[str], str], ...] = (
     ),
     (
         re.compile(
-            rf"^(?!.*{NO_CERTIFICATE})(?=.*{NO_PROFILES})(?=.*(?:{CLOUD_PERMISSION}|forbidden_error))",
+            rf"^(?!.*(?:{NO_CERTIFICATE}|{LICENSE}|{DEVICES}))(?=.*{NO_PROFILES})"
+            rf"(?=.*(?:{CLOUD_PERMISSION}|forbidden_error))",
             re.I | re.S,
         ),
-        "Xcode could not create the App Store provisioning profile for {app} with this App Store Connect API key, so the export has nothing to sign with; give the key the Admin role (cloud-managed distribution signing needs it), then run again. If the key cannot have that role, create an App Store profile for {app} by hand at developer.apple.com and install it, but the export may not pick up a profile installed by hand, so check the result of the next run.",
+        "Xcode could not create the App Store profile for {app} with this API key. Give the key the Admin role (cloud-managed signing usually needs it), then run again; if that is not possible, a profile created by hand may work, though the export may not pick it up.",
     ),
     (
         re.compile(
@@ -57,11 +62,11 @@ SIGNING_HINTS: tuple[tuple[re.Pattern[str], str], ...] = (
         "The account's role cannot create certificates or profiles. Sign in to Xcode with an Admin or App Manager Apple ID.",
     ),
     (
-        re.compile(r"license agreement|agreement .*(?:updated|accept)", re.I),
+        re.compile(LICENSE, re.I),
         "A developer agreement is waiting to be accepted at developer.apple.com. Accept it, then run again.",
     ),
     (
-        re.compile(r"no devices|doesn't include any devices|no registered devices", re.I),
+        re.compile(DEVICES, re.I),
         "The team has no registered device, and automatic signing needs one. Register an iPhone in the developer account or connect it once.",
     ),
     (
@@ -78,14 +83,15 @@ SIGNING_HINTS: tuple[tuple[re.Pattern[str], str], ...] = (
 )
 
 
-def signing_hint(tail: str, bundle_identifier: str | None = None) -> str | None:
-    app = (
-        bundle_identifier
-        if bundle_identifier and BUNDLE_ID.fullmatch(bundle_identifier)
-        else UNKNOWN_APP
-    )
-    sentence = next((sentence for pattern, sentence in SIGNING_HINTS if pattern.search(tail)), None)
-    return sentence.replace("{app}", app) if sentence else None
+def signing_hint(tail: str) -> str | None:
+    for pattern, sentence in SIGNING_HINTS:
+        if match := pattern.search(tail):
+            identifier = match.groupdict().get("id")
+            if identifier is None:
+                return sentence
+            app = identifier if BUNDLE_ID.fullmatch(identifier) else UNKNOWN_BUNDLE_ID
+            return sentence.replace("{app}", app)
+    return None
 
 
 class Verdict(enum.Enum):
