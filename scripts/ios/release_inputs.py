@@ -38,8 +38,8 @@ TEAM_NAME, KEY_ID_NAME, ISSUER_NAME, KEY_PATH_NAME = (
 TEAM_SECRETS = (TEAM_NAME,)
 KEY_SECRETS = (KEY_ID_NAME, ISSUER_NAME)
 PROFILE_NAME, CERTIFICATE_NAME = "APPLE_PROVISIONING_PROFILE", "APPLE_SIGNING_CERTIFICATE"
-PROFILE_NAMES = (PROFILE_NAME, CERTIFICATE_NAME)
-SECRET_NAMES = (*TEAM_SECRETS, *KEY_SECRETS, KEY_PATH_NAME, *PROFILE_NAMES)
+SECRET_NAMES = (*TEAM_SECRETS, *KEY_SECRETS, KEY_PATH_NAME, PROFILE_NAME, CERTIFICATE_NAME)
+PROVISIONING_SOURCE = "private file, environment or installed profiles"
 DEFAULT_CERTIFICATE = "Apple Distribution"
 CERTIFICATE = re.compile(r"^[A-Za-z0-9 .,_:()'-]{1,100}$")
 PLACEHOLDER_TEAM = "AAAAAAAAAA"
@@ -113,9 +113,6 @@ class BuildInputs:
 
 @dataclass(frozen=True)
 class Provisioning:
-    """A manual App Store signing choice: the installed profile's name (a secret), the
-    certificate that signs and the bundle identifier the profile is for."""
-
     profile: Secret
     certificate: str
 
@@ -251,14 +248,14 @@ def resolve_provisioning(
     now: datetime,
     unreadable: int = 0,
 ) -> tuple[Provisioning | None, list[InputProblem]]:
-    """Pick the profile for a manual export. A named profile never falls back; with no name, one
-    usable profile is used, none for this app keeps the automatic path, and anything else refuses
-    with counts and reasons, never a profile name."""
-    source = "private file, environment or installed profiles"
+    """A named profile never falls back; unnamed, one usable profile is used and none for this app
+    keeps the automatic path. Anything else refuses with counts and reasons, never a name."""
     certificate = values.get(CERTIFICATE_NAME) or DEFAULT_CERTIFICATE
     if not CERTIFICATE.fullmatch(certificate):
         return None, [
-            InputProblem(CERTIFICATE_NAME, source, "has characters a certificate name never has")
+            InputProblem(
+                CERTIFICATE_NAME, PROVISIONING_SOURCE, "has characters a certificate name never has"
+            )
         ]
     explicit = values.get(PROFILE_NAME, "")
     if explicit:
@@ -272,7 +269,7 @@ def resolve_provisioning(
             "the build stops rather than guess, because automatic signing with the API key "
             "cannot create a profile"
         )
-        return None, [InputProblem("provisioning profile", source, why)]
+        return None, [InputProblem("provisioning profile", PROVISIONING_SOURCE, why)]
     usable = [f for f in candidates if not facts_problems(f, team, bundle, now)]
     if len(usable) == 1:
         return Provisioning(Secret(usable[0].name, "provisioning-profile"), certificate), []
@@ -288,7 +285,7 @@ def resolve_provisioning(
             "automatic signing, which cannot create a profile with the API key; install a valid "
             f"App Store profile or set {PROFILE_NAME} to one"
         )
-    return None, [InputProblem("provisioning profile", source, why)]
+    return None, [InputProblem("provisioning profile", PROVISIONING_SOURCE, why)]
 
 
 def resolve_named(
@@ -299,7 +296,6 @@ def resolve_named(
     bundle: str,
     now: datetime,
 ) -> tuple[Provisioning | None, list[InputProblem]]:
-    source = "private file, environment or installed profiles"
     named = [facts for facts in profiles if facts.name == explicit]
     if not safe_name(explicit):
         why = "has characters outside letters, digits, space and . _ -"
@@ -308,10 +304,13 @@ def resolve_named(
     elif len(named) > 1:
         why = f"{len(named)} installed profiles carry that name; remove the extra ones"
     elif reasons := facts_problems(named[0], team, bundle, now):
-        why = f"names a profile that cannot sign an App Store export for {bundle}: {', '.join(reasons)}"
+        why = (
+            f"names a profile that cannot sign an App Store export for {bundle}: "
+            f"{', '.join(reasons)}"
+        )
     else:
         return Provisioning(Secret(explicit, "provisioning-profile"), certificate), []
-    return None, [InputProblem(PROFILE_NAME, source, why)]
+    return None, [InputProblem(PROFILE_NAME, PROVISIONING_SOURCE, why)]
 
 
 def reason_counts(profiles: Sequence[ProfileFacts], team: str, bundle: str, now: datetime) -> str:
