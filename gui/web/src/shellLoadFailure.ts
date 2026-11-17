@@ -14,13 +14,6 @@ import {
 } from "./utils/apiError";
 import { NOT_SERVED_TITLE } from "./utils/notServed";
 
-/**
- * Why the studio's first read of the episode failed, after the studio had
- * opened, for the one reader (guest or host) who is looking at it. Chosen from
- * the status, the error code and the error class alone: nothing the server
- * said (`message`, `detail`, a body) is kept or read, so no sentence here can
- * carry it.
- */
 export type ShellGuestFailure = GuestLoadFailure | { kind: "doubt" };
 
 export type HostLoadKind =
@@ -31,6 +24,13 @@ export type HostLoadKind =
   | "not-answering"
   | "other";
 
+/**
+ * Why the studio's first read of the episode failed, after the studio had
+ * opened, for the one reader (guest or host) who is looking at it. Chosen from
+ * the status, the error code and the error class alone: nothing the server
+ * said (`message`, `detail`, a body) is kept or read, so no sentence here can
+ * carry it.
+ */
 export type ShellFailure =
   | { audience: "guest"; failure: ShellGuestFailure }
   | { audience: "host"; kind: HostLoadKind };
@@ -188,7 +188,7 @@ const HOST_WORDS: Record<HostLoadKind, HostWords> = {
  * The fixed words for a failure. `stageTitle` is the region's own title
  * ("The transcript didn't load" on Review, "Could not load the project"
  * elsewhere); `name` is the episode's name from its path, or empty. A guest
- * reads the page cover's words for the same cause, called and not copied.
+ * reads the page cover's words for the same cause.
  */
 export function shellFailureCover(
   failure: ShellFailure,

@@ -8,8 +8,8 @@ export const TRYING_LABEL = "Trying…";
 export const RETRY_ACTION = "retry";
 
 /**
- * How a cover answers a press on its retry button, the same on every cover a
- * guest meets: the button reads busy (for at least `HELD_BUSY_MS`), a polite
+ * How a cover answers a press on its retry button, the same on every cover that
+ * shows it: the button reads busy (for at least `HELD_BUSY_MS`), a polite
  * status line says "Trying again…" and then what came of it. `key` is what
  * makes two failures "the same cover" (the title, or a kind that several
  * covers share a title across); `trying` is any attempt in flight, pressed

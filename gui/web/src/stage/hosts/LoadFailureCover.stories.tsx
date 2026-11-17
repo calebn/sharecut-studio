@@ -149,7 +149,7 @@ export const HostRetrying: Story = {
   },
 };
 
-/** The transcript's own refresh (#3884): fixed words, no status line. */
+/** The transcript's own refresh: fixed words, no status line. */
 export const TranscriptDetail: Story = {
   args: {
     stage: "review",

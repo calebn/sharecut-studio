@@ -273,8 +273,8 @@ describe("focus after a press answered by a different cover", () => {
   });
 });
 
-describe("the transcript's own failure (#3884)", () => {
-  it("reads as it always did", async () => {
+describe("the transcript's own failure", () => {
+  it("reads its fixed words with the button and no status line", async () => {
     const onRetry = vi.fn();
     show({ source: "detail", onRetry }, "review");
     const alert = screen.getByRole("alert");
