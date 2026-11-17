@@ -50,7 +50,6 @@ import type {
   LaneHeightMode,
   LayerVisibility,
   MergedEdits,
-  PointerKind,
   RangeDraft,
   ShellBreakpoint,
   ToastAction,
@@ -676,9 +675,9 @@ export const createUiSlice: StateCreator<DawStore, [], [], UiSlice> = (
       }
     },
     scrollLeft: 0,
-    // The desktop estimate until the
-    // timeline measures, so first-render readers never see 0.
-    timelineViewportWidth: estimateTimelineViewportWidth("desktop"),
+    // The shell's estimate until the timeline measures, so first-render
+    // readers never see 0.
+    timelineViewportWidth: estimateTimelineViewportWidth(readShell()),
     setTimelineViewportWidth: (px) => {
       // A hidden or zero-width scrollport measures 0: keep the shell estimate.
       const timelineViewportWidth =
@@ -719,7 +718,7 @@ export const createUiSlice: StateCreator<DawStore, [], [], UiSlice> = (
     shellBreakpoint: readShell(),
     // The capability baseline, so the first render has nothing to correct;
     // usePointerType() keeps it live from pointer events.
-    pointerKind: initialPointerKind() as PointerKind,
+    pointerKind: initialPointerKind(),
     snapEnabled: readSnapPref(),
     laneHeightMode: lanePref.mode,
     laneHeightPx: lanePref.px,
