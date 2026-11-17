@@ -282,6 +282,9 @@ export function useRecordSync(
               return;
             }
             if (msg.code === RECORD_INVITE_CLOSED) {
+              if (!joined && openedWatching && cachedRef.current?.lease) {
+                return;
+              }
               endAccess(RECORD_INVITE_CLOSED, ctx);
               return;
             }

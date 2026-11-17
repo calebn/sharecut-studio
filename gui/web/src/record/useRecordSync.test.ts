@@ -802,6 +802,66 @@ describe("useRecordSync", () => {
         expect(hook.result.current.error).toBe("access_removed");
       });
 
+      const closedFrame = {
+        plane: "record",
+        type: "Error",
+        code: "invite_closed",
+      };
+
+      it("shows the invite closed screen when the look is told so and no lease is cached", async () => {
+        vi.useFakeTimers();
+        const hook = watching("watch");
+        await settle();
+        await act(async () => {
+          FakeWebSocket.instances[0].emit(closedFrame);
+          FakeWebSocket.instances[0].close(4403);
+        });
+        expect(hook.result.current.error).toBe(RECORD_INVITE_CLOSED);
+        await act(async () => {
+          await vi.advanceTimersByTimeAsync(5000);
+        });
+        expect(FakeWebSocket.instances).toHaveLength(1);
+      });
+
+      it("ignores that frame on a look when a lease is cached, so the look only stops", async () => {
+        vi.useFakeTimers();
+        loadRecordParticipant.mockResolvedValue(held);
+        const hook = watching("watch");
+        await settle();
+        await act(async () => {
+          FakeWebSocket.instances[0].emit(closedFrame);
+          FakeWebSocket.instances[0].close(4403);
+        });
+        expect(hook.result.current.error).toBeNull();
+        hook.rerender({ m: "join" });
+        await settle();
+        expect(FakeWebSocket.instances).toHaveLength(2);
+      });
+
+      it("ends access when the 4403 comes after the Join was answered on the same socket", async () => {
+        vi.useFakeTimers();
+        loadRecordParticipant.mockResolvedValue(held);
+        const hook = watching("watch");
+        await settle();
+        hook.rerender({ m: "join" });
+        await act(async () => {
+          FakeWebSocket.instances[0].emit({
+            plane: "record",
+            type: "Echo",
+            participant_id: "p_prod",
+            lease: "kept",
+          });
+        });
+        await act(async () => {
+          FakeWebSocket.instances[0].close(4403);
+        });
+        expect(hook.result.current.error).toBe("access_removed");
+        await act(async () => {
+          await vi.advanceTimersByTimeAsync(5000);
+        });
+        expect(FakeWebSocket.instances).toHaveLength(1);
+      });
+
       it("lets the press that came first retry as a join", async () => {
         vi.useFakeTimers();
         loadRecordParticipant.mockResolvedValue(held);
