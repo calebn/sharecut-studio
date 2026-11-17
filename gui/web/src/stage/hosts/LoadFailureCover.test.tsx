@@ -1,5 +1,6 @@
 import { act, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { type ReactNode, useLayoutEffect, useRef } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   type HostLoadKind,
@@ -225,6 +226,57 @@ describe("focus after a press answered by a different cover", () => {
       shell(hostCause("not-answering")),
     );
     expect(screen.getByRole("button", { name: "Try again" })).toHaveFocus();
+  });
+
+  /** A parent that, like the Review stage, takes focus back to its own root when focus that was inside it falls to the body. */
+  function RescuingStage({ children }: { children: ReactNode }) {
+    const root = useRef<HTMLDivElement>(null);
+    const wasInside = useRef(false);
+    useLayoutEffect(() => {
+      const el = root.current;
+      if (!el) return;
+      if (wasInside.current && document.activeElement === document.body) {
+        el.focus();
+      }
+      wasInside.current = el.contains(document.activeElement);
+    });
+    return (
+      <div ref={root} tabIndex={-1} data-testid="stage">
+        {children}
+      </div>
+    );
+  }
+
+  /** Press Try again on `first` and let `next` answer while the busy hold is still on. */
+  function pressThenAnswerAtOnce(first: Shell, next: Shell) {
+    const ui = (f: Shell) => (
+      <RescuingStage>
+        <LoadFailureCover stage="review" failure={f} />
+      </RescuingStage>
+    );
+    const view = render(ui(first));
+    const retry = screen.getByRole("button", { name: "Try again" });
+    retry.focus();
+    act(() => retry.click());
+    view.rerender(ui({ ...first, trying: true }));
+    act(() => void vi.advanceTimersByTime(HELD_BUSY_MS / 4));
+    view.rerender(ui({ ...next, trying: false }));
+  }
+
+  it("puts focus on the title at once when a cover with no button answers inside a parent that rescues focus", () => {
+    pressThenAnswerAtOnce(
+      shell({ audience: "guest", failure: { kind: "server" } }, { name: "" }),
+      shell({ audience: "guest", failure: { kind: "sign-in" } }, { name: "" }),
+    );
+    expect(screen.getByRole("heading")).toHaveFocus();
+  });
+
+  it("puts focus on Try again at once when missing is answered by other, not on the node that now says All projects", () => {
+    pressThenAnswerAtOnce(
+      shell(hostCause("missing")),
+      shell(hostCause("other")),
+    );
+    expect(screen.getByRole("button", { name: "Trying…" })).toHaveFocus();
   });
 
   it("does not take focus back from a button outside the cover", () => {

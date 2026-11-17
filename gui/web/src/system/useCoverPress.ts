@@ -1,4 +1,4 @@
-import { type RefObject, useEffect, useState } from "react";
+import { type RefObject, useLayoutEffect, useRef, useState } from "react";
 import { HELD_BUSY_MS, useHeldBusy } from "./useHeldBusy";
 
 /** What the retry button says while a press is being answered. */
@@ -21,7 +21,9 @@ export const RETRY_ACTION = "retry";
  *
  * Focus follows the press: when a different cover answers, it stays on the
  * retry button if the new cover still has one (wherever it sits), else moves
- * to the new cover's title. A cover that changes without a press moves nothing.
+ * to the new cover's title, in the same commit as the new cover and without
+ * waiting for the busy hold. A cover that changes without a press moves
+ * nothing, and neither does focus the person put outside the cover.
  */
 export function useCoverPress({
   key,
@@ -42,18 +44,25 @@ export function useCoverPress({
 }): { busy: boolean; status: string; press: () => void } {
   const { busy, press: holdBusy } = useHeldBusy(trying, HELD_BUSY_MS);
   const [pressedKey, setPressedKey] = useState<string | null>(null);
-  useEffect(() => {
-    if (pressedKey === null || busy) return;
+  const placed = useRef({ key, hasRetry: false });
+  // A layout effect, and not held back by the busy hold: a child's runs before
+  // its parent's in one commit, so focus is on the right element before a
+  // stage that rescues lost focus looks, and no frame has it on a button that
+  // now means something else.
+  useLayoutEffect(() => {
+    const retry = scope.current?.querySelector<HTMLElement>(
+      `[data-cover-action="${RETRY_ACTION}"]`,
+    );
+    const before = placed.current;
+    placed.current = { key, hasRetry: retry != null };
+    if (pressedKey === null) return;
+    if (before.key === key && before.hasRetry === (retry != null)) return;
     const active = document.activeElement;
     const lost = !active || active === document.body;
     // Focus the person moved elsewhere in the meantime is theirs to keep.
     if (!lost && !scope.current?.contains(active)) return;
-    if (pressedKey === key && !lost) return;
-    const retry = scope.current?.querySelector<HTMLElement>(
-      `[data-cover-action="${RETRY_ACTION}"]`,
-    );
     (retry ?? title.current)?.focus();
-  }, [key, busy, pressedKey, scope, title]);
+  });
 
   // The status speaks only about the press it answers: an attempt nobody
   // pressed starting forgets it.
