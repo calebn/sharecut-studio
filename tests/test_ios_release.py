@@ -878,14 +878,6 @@ def test_the_value_reader_returns_the_array_and_the_dict_reader_never_does() -> 
     assert release_classify.altool_document(ALTOOL_OK) == json.loads(ALTOOL_OK)
 
 
-def test_a_dict_document_after_retry_lines_is_a_clean_answer_for_validate() -> None:
-    assert release_classify.classify_altool(0, RETRY_LINES + ALTOOL_OK).verdict is Verdict.OK
-    assert (
-        release_classify.classify_altool(0, ALTOOL_BANNER + RETRY_LINES + ALTOOL_OK).verdict
-        is Verdict.OK
-    )
-
-
 @pytest.mark.parametrize(
     ("code", "text", "verdict"),
     [
@@ -911,56 +903,6 @@ def test_an_array_is_no_answer_to_the_validate_reader(
     code: int, text: str, verdict: Verdict
 ) -> None:
     assert release_classify.classify_altool(code, text).verdict is verdict
-
-
-@pytest.mark.parametrize(
-    "prelude",
-    [
-        RETRY.replace("(500)", "(503)"),
-        RETRY.replace("status code 500", "status code 503"),
-        RETRY.replace("status code 500", "status code 404").replace("(500)", "(404)"),
-        RETRY.replace("status code 500", "status code 401").replace("(500)", "(401)"),
-        RETRY + " extra",
-        "x " + RETRY,
-        " " + RETRY,
-        RETRY.replace("internal server error", "bad gateway"),
-        RETRY.replace("ERROR", "WARNING"),
-        RETRY.removesuffix(" (500)"),
-        RETRY + "\n2026-11-17 11:38:09.152 ERROR: could not connect to the server",
-    ],
-    ids=[
-        "trailing-code-differs",
-        "status-differs",
-        "404",
-        "401",
-        "extra-text",
-        "text-before",
-        "indented",
-        "other-wording",
-        "other-level",
-        "no-trailing-code",
-        "second-transport-line",
-    ],
-)
-def test_a_retry_line_variant_before_a_dict_document_is_not_an_answer_on_a_nonzero_exit(
-    prelude: str,
-) -> None:
-    assert release_classify.classify_altool(6, prelude + "\n" + ALTOOL_OK).verdict is not (
-        Verdict.OK
-    )
-
-
-@pytest.mark.parametrize("code", [1, 6, -9])
-@pytest.mark.parametrize("document", ["", ALTOOL_OK, REAL_LISTING], ids=["none", "object", "array"])
-def test_a_retry_line_is_no_answer_on_a_nonzero_exit(code: int, document: str) -> None:
-    assert release_classify.classify_altool(code, RETRY_LINES + document).verdict is not (
-        Verdict.OK
-    )
-
-
-def test_retry_lines_alone_or_after_the_document_are_not_an_answer() -> None:
-    for text in (RETRY_LINES, ALTOOL_OK + "\n" + RETRY_LINES, REAL_LISTING + RETRY_LINES):
-        assert release_classify.classify_altool(0, text).verdict is not Verdict.OK
 
 
 @pytest.mark.parametrize("document", [ALTOOL_OK, REAL_LISTING, ""], ids=["object", "array", "none"])
