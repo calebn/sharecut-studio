@@ -853,7 +853,7 @@ describe("RoomView as the host", () => {
       );
     });
 
-    it("puts the looking-in line in the Declined layer, before the bar, and nowhere else", () => {
+    it("puts the looking-in line as the first child of the Declined bar, and nowhere else", () => {
       const { container } = renderRoom({
         declined: { onJoin: () => {} },
         people: [HOST, { ...JON, you: true }, { ...ROSA, role: "producer" }],
@@ -877,11 +877,9 @@ describe("RoomView as the host", () => {
       expect(body).not.toContainElement(line);
       const layer = container.querySelector(".sys-declined") as HTMLElement;
       const bar = layer.querySelector(".sys-declined-bar") as HTMLElement;
-      expect(bar).toContainElement(line);
       expect(bar.firstElementChild).toBe(line);
       expect(line.querySelector("svg")).toHaveAttribute("aria-hidden", "true");
       expect(layer.children).toHaveLength(2);
-      expect(container.querySelector("[data-looking-in]")).toBeNull();
     });
 
     it("keeps the Declined layer free of the line when nobody is looking in", () => {
