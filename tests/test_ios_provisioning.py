@@ -8,7 +8,7 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pytest
-from scripts.ios import provisioning, release_inputs, release_plan
+from scripts.ios import ios_release, provisioning, release_inputs, release_plan
 from scripts.ios.provisioning import ProfileFacts
 from scripts.ios.release_inputs import BuildNumber, Checkout, Identity, Signing
 from scripts.ios.release_run import ToolFailed
@@ -318,9 +318,10 @@ def test_the_profile_name_is_a_secret_and_appears_in_no_argv_or_display() -> Non
     assert "Secret Profile Name" not in redacted
 
 
-def test_a_certificate_with_markup_is_escaped_in_the_plist() -> None:
-    options = options_of(provisioned_steps(certificate="Apple Distribution: A & B (BBBBBBBBBB)"))
-    assert options["signingCertificate"] == "Apple Distribution: A & B (BBBBBBBBBB)"
+def test_a_certificate_with_punctuation_round_trips_through_the_plist() -> None:
+    certificate = "Apple Distribution: O'Neil, Jo (BBBBBBBBBB)"
+    options = options_of(provisioned_steps(certificate=certificate)["export"])
+    assert options["signingCertificate"] == certificate
 
 
 AUTOMATIC_OPTIONS = (
@@ -350,3 +351,19 @@ def test_without_a_profile_the_automatic_export_is_unchanged() -> None:
         "<key-id>",
         "<issuer>",
     ]
+
+
+def test_only_a_signed_build_looks_for_installed_profiles(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    looked: list[list[Path]] = []
+
+    def discover(directories: list[Path]) -> list[ProfileFacts]:
+        looked.append(directories)
+        return [facts()]
+
+    monkeypatch.setattr(Path, "home", lambda: tmp_path)
+    monkeypatch.setattr(provisioning, "discover", discover)
+    assert ios_release.installed_profiles(Signing.NONE) == [] and not looked
+    assert ios_release.installed_profiles(Signing.APP_STORE) == [facts()]
+    assert looked == [provisioning.default_directories(tmp_path)]

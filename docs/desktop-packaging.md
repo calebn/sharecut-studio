@@ -330,8 +330,15 @@ another; it needs its dependencies already built or fetched. A cold checkout nee
   id, issuer and key path come from a private file, mode `0600`, owned by you and outside the
   repository: `SHARECUT_IOS_RELEASE_ENV`, else `~/.config/sharecut/ios-release.env`, lines
   `APPLE_DEVELOPMENT_TEAM=`, `APPLE_API_KEY=`, `APPLE_API_ISSUER=`, `APPLE_API_KEY_PATH=` (the
-  key path defaults to `~/.appstoreconnect/private_keys/AuthKey_<id>.p8`). The environment
-  overrides the file. The tool checks the key file's mode and location and never opens it. Every
+  key path defaults to `~/.appstoreconnect/private_keys/AuthKey_<id>.p8`) and the optional
+  `APPLE_PROVISIONING_PROFILE=` (the installed App Store profile's name, letters, digits, space
+  and `. _ -`) and `APPLE_SIGNING_CERTIFICATE=` (default `Apple Distribution`). The environment
+  overrides the file. A signed `build` looks in `~/Library/MobileDevice/Provisioning Profiles` and
+  `~/Library/Developer/Xcode/UserData/Provisioning Profiles` (never Downloads): one valid App
+  Store profile for the team and bundle identifier, or the named one, switches the export to
+  manual signing with that profile and no API-key flags; none installed keeps the automatic
+  export, and profiles that are installed but unusable (expired, development, ad hoc,
+  enterprise, wildcard, another team) refuse the build with counts and reasons. The tool checks the key file's mode and location and never opens it. Every
   problem is reported together, before anything runs. When the file is missing and a value the
   command needs is unset, the report starts with one line naming the file (the path
   `SHARECUT_IOS_RELEASE_ENV` gave, or the default location and how to change it) and then lists each
@@ -354,7 +361,9 @@ another; it needs its dependencies already built or fetched. A cold checkout nee
   without them Xcode needs a signed-in account and fails with "No Accounts". Then, signed, the
   tool's own `xcodebuild -exportArchive -allowProvisioningUpdates -authenticationKeyPath
   -authenticationKeyID -authenticationKeyIssuerID` with a private `ExportOptions.plist` (method `app-store-connect`,
-  automatic signing, `uploadSymbols` false because dSYMs carry build paths, and
+  automatic signing; with an installed profile, manual signing with `signingCertificate` and
+  `provisioningProfiles` and none of the update or key flags, since the key's role cannot create
+  a profile; `uploadSymbols` false because dSYMs carry build paths, and
   `manageAppVersionAndBuildNumber` false so Xcode cannot rewrite the build number). The
   archive and export directories are deleted once the IPA is collected. Child processes get an
   explicit environment allowlist (`PATH` with the rustup toolchain first, `HOME`, `USER`,

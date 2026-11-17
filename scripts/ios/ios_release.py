@@ -24,7 +24,7 @@ sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "src"))
 
 from scripts.ios import bundle_checks as checks
-from scripts.ios import private_paths
+from scripts.ios import private_paths, provisioning
 from scripts.ios.build_payload import PayloadError, rustup_toolchain_bin
 from scripts.ios.release_classify import Failure
 from scripts.ios.release_deliver import plan_deliver
@@ -146,7 +146,15 @@ def key_secrets(key: AscKey | None) -> list[Secret]:
 
 def build_redactor(inputs: BuildInputs, root: Path) -> Redactor:
     team = [inputs.team] if inputs.team is not None else []
-    return Redactor([*team, *key_secrets(inputs.key)], machine_directories(root))
+    profile = [inputs.provisioning.profile] if inputs.provisioning is not None else []
+    return Redactor([*team, *profile, *key_secrets(inputs.key)], machine_directories(root))
+
+
+def installed_profiles(signing: Signing) -> list[provisioning.ProfileFacts]:
+    """The profiles Xcode has installed; only a signed build looks, the rehearsal never does."""
+    if signing is not Signing.APP_STORE:
+        return []
+    return provisioning.discover(provisioning.default_directories(Path.home()))
 
 
 def build(session: Session, unsigned: bool) -> int:
@@ -167,6 +175,7 @@ def build(session: Session, unsigned: bool) -> int:
         checkout=Checkout(commit, dirty),
         recorded=recorded_numbers(layout.release_root, version or ""),
         toolchain_problem=toolchain_problem,
+        profiles=installed_profiles(signing),
     )
     session.redactor = build_redactor(inputs, layout.root)
     steps = plan_build(inputs, layout, os.environ, path)

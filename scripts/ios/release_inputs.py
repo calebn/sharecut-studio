@@ -11,12 +11,14 @@ import enum
 import os
 import re
 import stat
+from collections import Counter
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 
 from scripts import version_policy
+from scripts.ios.provisioning import ProfileFacts, concerns, facts_problems, safe_name
 from scripts.ios.release_secrets import Secret
 
 from podcast_mcp.config.distribution import (
@@ -35,7 +37,11 @@ TEAM_NAME, KEY_ID_NAME, ISSUER_NAME, KEY_PATH_NAME = (
 )
 TEAM_SECRETS = (TEAM_NAME,)
 KEY_SECRETS = (KEY_ID_NAME, ISSUER_NAME)
-SECRET_NAMES = (*TEAM_SECRETS, *KEY_SECRETS, KEY_PATH_NAME)
+PROFILE_NAME, CERTIFICATE_NAME = "APPLE_PROVISIONING_PROFILE", "APPLE_SIGNING_CERTIFICATE"
+PROFILE_NAMES = (PROFILE_NAME, CERTIFICATE_NAME)
+SECRET_NAMES = (*TEAM_SECRETS, *KEY_SECRETS, KEY_PATH_NAME, *PROFILE_NAMES)
+DEFAULT_CERTIFICATE = "Apple Distribution"
+CERTIFICATE = re.compile(r"^[A-Za-z0-9 .,_:()'-]{1,100}$")
 PLACEHOLDER_TEAM = "AAAAAAAAAA"
 DEV_IDENTIFIER = "studio.sharecut.dev"
 TEN = re.compile(r"^[A-Z0-9]{10}$")
@@ -102,6 +108,17 @@ class BuildInputs:
     team: Secret | None
     checkout: Checkout
     key: AscKey | None
+    provisioning: Provisioning | None = None
+
+
+@dataclass(frozen=True)
+class Provisioning:
+    """A manual App Store signing choice: the installed profile's name (a secret), the
+    certificate that signs and the bundle identifier the profile is for."""
+
+    profile: Secret
+    certificate: str
+    bundle_identifier: str
 
 
 @dataclass(frozen=True)
@@ -227,6 +244,73 @@ def resolve_asc_key(
     return key, []
 
 
+def resolve_provisioning(
+    values: Mapping[str, str],
+    profiles: Sequence[ProfileFacts],
+    team: str,
+    bundle: str,
+    now: datetime,
+) -> tuple[Provisioning | None, list[InputProblem]]:
+    """Pick the profile for a manual export. A named profile must be installed and valid and never
+    falls back. Without a name, one valid profile is used; none installed for this app keeps the
+    automatic path (``None``); profiles installed but all unusable refuse, with counts and reasons
+    and never a profile name."""
+    source = "private file, environment or installed profiles"
+    certificate = values.get(CERTIFICATE_NAME) or DEFAULT_CERTIFICATE
+    if not CERTIFICATE.fullmatch(certificate):
+        return None, [
+            InputProblem(CERTIFICATE_NAME, source, "has characters a certificate name never has")
+        ]
+    explicit = values.get(PROFILE_NAME, "")
+    if explicit:
+        return resolve_named(explicit, certificate, profiles, team, bundle, now)
+    candidates = [facts for facts in dict.fromkeys(profiles) if concerns(facts, bundle)]
+    if not candidates:
+        return None, []
+    usable = [f for f in candidates if not facts_problems(f, team, bundle, now)]
+    names = sorted({facts.name for facts in usable})
+    if len(names) == 1:
+        return Provisioning(Secret(names[0], "provisioning-profile"), certificate, bundle), []
+    if names:
+        why = f"{len(names)} valid App Store profiles are installed for {bundle}; set {PROFILE_NAME} to pick one"
+    else:
+        why = (
+            f"{len(candidates)} installed profile(s) for {bundle} cannot sign an App Store export: "
+            f"{reason_counts(candidates, team, bundle, now)}; install a valid App Store profile "
+            f"or set {PROFILE_NAME}"
+        )
+    return None, [InputProblem("provisioning profile", source, why)]
+
+
+def resolve_named(
+    explicit: str,
+    certificate: str,
+    profiles: Sequence[ProfileFacts],
+    team: str,
+    bundle: str,
+    now: datetime,
+) -> tuple[Provisioning | None, list[InputProblem]]:
+    source = "private file, environment or installed profiles"
+    if not safe_name(explicit):
+        why = "has characters outside letters, digits, space and . _ -"
+    else:
+        named = [facts for facts in dict.fromkeys(profiles) if facts.name == explicit]
+        if any(not facts_problems(facts, team, bundle, now) for facts in named):
+            return Provisioning(Secret(explicit, "provisioning-profile"), certificate, bundle), []
+        why = (
+            "names no installed profile"
+            if not named
+            else f"{len(named)} installed profile(s) of that name cannot sign an App Store export "
+            f"for {bundle}: {reason_counts(named, team, bundle, now)}"
+        )
+    return None, [InputProblem(PROFILE_NAME, source, why)]
+
+
+def reason_counts(profiles: Sequence[ProfileFacts], team: str, bundle: str, now: datetime) -> str:
+    counts = Counter(r for facts in profiles for r in facts_problems(facts, team, bundle, now))
+    return ", ".join(f"{count} {reason}" for reason, count in sorted(counts.items()))
+
+
 def key_file_problems(path: Path, checkout: Path) -> list[InputProblem]:
     """The key file is checked by its metadata only; the tool never opens it."""
     name, source = KEY_PATH_NAME, "private file or environment"
@@ -298,6 +382,7 @@ def resolve_build_inputs(
     recorded: Sequence[BuildNumber],
     toolchain_problem: InputProblem | None = None,
     home: Path | None = None,
+    profiles: Sequence[ProfileFacts] = (),
 ) -> BuildInputs:
     problems = list(file_problems)
     identity, found = load_identity(environ)
@@ -306,11 +391,17 @@ def resolve_build_inputs(
     problems += found
     team: Secret | None = None
     key: AscKey | None = None
+    provisioning: Provisioning | None = None
     if signing is Signing.APP_STORE:
         team, found = resolve_team(values)
         problems += found
         key, found = resolve_asc_key(values, home or Path.home(), root)
         problems += found
+        if team is not None and identity is not None:
+            provisioning, found = resolve_provisioning(
+                values, profiles, values[TEAM_NAME], identity.bundle_identifier, now
+            )
+            problems += found
         if checkout.dirty:
             problems.append(
                 InputProblem(
@@ -330,4 +421,4 @@ def resolve_build_inputs(
         )
     if problems or identity is None or version is None:
         raise InputError(problems)
-    return BuildInputs(identity, version, number, signing, team, checkout, key)
+    return BuildInputs(identity, version, number, signing, team, checkout, key, provisioning)
