@@ -348,7 +348,7 @@ first arrival in each room, once and politely, while the room is waiting or
 stopped. The guest and producer pages do the same, and a later room's arrival is
 spoken again even when its words match an earlier one. An arrival during a take is never
 spoken. One during the room-tone countdown is spoken at the next room update
-after it, only if the room is then waiting and the person is still looking in.
+after it, only if the room is then waiting or stopped and the person is still looking in.
 The host page drops its spoken note when nobody is looking in. The count is the
 snapshot's runtime `watchers` field. A client shows the line only for a whole
 number from 1 to 99 and reads anything else, or a missing field, as nobody; no
