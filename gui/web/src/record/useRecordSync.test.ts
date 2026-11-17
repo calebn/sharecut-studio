@@ -871,6 +871,17 @@ describe("useRecordSync", () => {
       expect(hook.result.current.snapshot?.watchers).toBe(2);
     });
 
+    it("stops counting the page as counted when the look ends by choice", async () => {
+      const hook = watching("watch");
+      await settle();
+      await act(async () => {
+        FakeWebSocket.instances[0].emit(lobby(1, 10));
+      });
+      expect(hook.result.current.counted).toBe(true);
+      hook.rerender({ m: "off" });
+      expect(hook.result.current.counted).toBe(false);
+    });
+
     it("keeps the room it showed when a socket that was asked to join closes before the Echo", async () => {
       vi.useFakeTimers();
       const hook = watching("watch");

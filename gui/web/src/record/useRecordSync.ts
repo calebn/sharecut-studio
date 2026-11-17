@@ -249,7 +249,6 @@ export function useRecordSync(
         sendRef.current = ctx.send;
         phaseRef.current = "open";
         joinSentRef.current = false;
-        setCounted(false);
         setConnected(true);
         setError(null);
         if (modeRef.current === "join") {
@@ -348,6 +347,7 @@ export function useRecordSync(
       socket.stop();
       stopHeartbeat();
       phaseRef.current = "idle";
+      setCounted(false);
       setConnected(false);
       sendRef.current = null;
       if (!joined && modeRef.current === "off") {

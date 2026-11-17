@@ -667,6 +667,35 @@ describe("JoinSheet producer", () => {
     expect(status()).toHaveTextContent(SEEN);
   });
 
+  it("speaks the sentence once per open sheet, however often it comes and goes", async () => {
+    const SEEN = "The room can see that someone is looking in.";
+    const { rerender } = render(<Harness seat="producer" name="Rosa" />);
+    const region = document.querySelector(
+      '[aria-live="polite"]',
+    ) as HTMLElement;
+    rerender(<Harness seat="producer" name="Rosa" seenByRoom />);
+    expect(region).toHaveTextContent(SEEN);
+    let changes = 0;
+    const watch = new MutationObserver((records) => {
+      changes += records.length;
+    });
+    watch.observe(region, {
+      childList: true,
+      subtree: true,
+      characterData: true,
+    });
+    rerender(<Harness seat="producer" name="Rosa" />);
+    expect(screen.queryAllByText(SEEN)).toHaveLength(1);
+    rerender(<Harness seat="producer" name="Rosa" seenByRoom />);
+    rerender(<Harness seat="producer" name="Rosa" />);
+    rerender(<Harness seat="producer" name="Rosa" seenByRoom />);
+    await Promise.resolve();
+    watch.disconnect();
+    expect(changes).toBe(0);
+    expect(region).toHaveTextContent(SEEN);
+    expect(screen.getAllByText(SEEN)).toHaveLength(2);
+  });
+
   it("leaves the status empty when the sentence was there at open, so it is read once, as the description", () => {
     const SEEN = "The room can see that someone is looking in.";
     render(<Harness seat="producer" name="Rosa" seenByRoom />);
