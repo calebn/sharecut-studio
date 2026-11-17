@@ -155,6 +155,21 @@ def test_a_healthy_bundle_has_exactly_its_fifteen_keys_and_no_statement(
     assert STATEMENT not in members["README.txt"]
 
 
+def test_a_missing_path_gets_a_bundle_only_when_it_is_the_served_project(
+    minimal_project, bundle_env, tmp_path
+):
+    elsewhere = tmp_path / "elsewhere" / "episode.sharecut"
+    _break(minimal_project, "renamed")
+    with _client(minimal_project) as client:
+        stranger = client.post("/api/diagnostics/bundle", json={"path": str(elsewhere)})
+        assert stranger.status_code == 404
+        assert not bundle_env.exists() or list(bundle_env.glob("*.zip")) == []
+        served = client.post("/api/diagnostics/bundle", json={"path": str(minimal_project)})
+    assert served.status_code == 200
+    report = json.loads(_members(served.json()["path"])["report.json"])
+    assert report["episode_not_opened"]["code"] == "project_not_found"
+
+
 def test_another_path_and_an_invalid_path_get_no_bundle(minimal_project, bundle_env, tmp_path):
     other = tmp_path / "other" / "episode.sharecut"
     with _client(minimal_project) as client:

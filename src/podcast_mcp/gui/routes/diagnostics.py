@@ -8,21 +8,30 @@ from pathlib import Path
 from typing import Any
 
 import httpx
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 
 from podcast_mcp.config.distribution import runtime_distribution_metadata
 from podcast_mcp.gui.routes.deps import (
+    ERROR_CODE_HEADER,
+    PROJECT_NOT_FOUND_CODE,
     coded_exception_error,
     coded_http_error,
     resolve_project,
+)
+from podcast_mcp.models import EpisodeProject
+from podcast_mcp.models.episode import ProjectUnreadableError
+from podcast_mcp.models.project_format import (
+    ProjectVersionNewerError,
+    ProjectVersionUnsupportedError,
 )
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.jobs import JobManager
 from podcast_mcp.services.support import (
     MAX_BUNDLE_BYTES,
     DiagnosticsService,
+    UnopenedEpisode,
     default_bundle_dir,
     get_report_status,
     is_allowed_bundle_name,
@@ -31,6 +40,7 @@ from podcast_mcp.services.support import (
     resolve_bundle_file,
     submit_bundle,
 )
+from podcast_mcp.util.coded_error import CodedFileNotFoundError
 
 router = APIRouter()
 log = logging.getLogger(__name__)
@@ -78,15 +88,42 @@ def _register_bundle(request: Request, filename: str, directory: Path) -> None:
         _bundle_registry_unlocked(request)[filename] = str(directory)
 
 
-def _load_project(request: Request, path: str | None):
+def _load_project(
+    request: Request, path: str | None
+) -> tuple[EpisodeProject | None, UnopenedEpisode | None]:
+    """The opened episode, or what is known about one that will not open (nothing is read from it)."""
     raw = (path or "").strip()
     if not raw:
         served = getattr(request.app.state, "served_project", None)
         if served is None:
-            return None
+            return None, None
         raw = str(served)
-    project_path = resolve_project(raw, request)
-    return ProjectWorkspace.open(project_path).project
+    try:
+        project_path = resolve_project(raw, request)
+    except HTTPException as exc:
+        served = getattr(request.app.state, "served_project", None)
+        if (
+            exc.status_code != 404
+            or (exc.headers or {}).get(ERROR_CODE_HEADER) != PROJECT_NOT_FOUND_CODE
+            or served is None
+            or Path(raw).expanduser().resolve() != Path(served).resolve()
+        ):
+            raise
+        return None, _unopened(PROJECT_NOT_FOUND_CODE, Path(raw).expanduser().resolve())
+    try:
+        return ProjectWorkspace.open(project_path).project, None
+    except (
+        ProjectUnreadableError,
+        ProjectVersionNewerError,
+        ProjectVersionUnsupportedError,
+        CodedFileNotFoundError,
+    ) as exc:
+        return None, _unopened(exc.code, project_path)
+
+
+def _unopened(code: str, project_file: Path) -> UnopenedEpisode:
+    log.warning("diagnostics bundle for an episode that did not open (%s)", code)
+    return UnopenedEpisode(code=code, workspace=project_file.parent)
 
 
 @router.get("/api/diagnostics")
@@ -112,12 +149,13 @@ def create_diagnostics_bundle(
     request: Request,
 ) -> dict[str, Any]:
     out_dir = default_bundle_dir()
-    project = _load_project(request, body.path)
+    project, unopened = _load_project(request, body.path)
     try:
         report = DiagnosticsService().build_bundle(
             project,
             out_dir=out_dir,
             job_snapshots=_job_snapshots(request),
+            unopened=unopened,
         )
     except OSError:
         log.exception("diagnostics bundle write failed")

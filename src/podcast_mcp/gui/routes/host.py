@@ -16,6 +16,10 @@ from podcast_mcp.gui.middleware_host_binding import websocket_host_binding_denie
 from podcast_mcp.gui.routes.deps import SOCKET_QUERY, host_credential, resolve_project
 from podcast_mcp.gui.routes.guest_ws_common import GuestWsGuard, WsTaskSet
 from podcast_mcp.gui.routes.session import apply_ws_client_message, apply_ws_viewer_state
+from podcast_mcp.models.project_format import (
+    ProjectVersionNewerError,
+    ProjectVersionUnsupportedError,
+)
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.document import cross_process_lease
 from podcast_mcp.services.document_sync import (
@@ -107,7 +111,11 @@ async def host_ws(
         workspace = document.ws
         return workspace, SessionSyncService(workspace.project), document
 
-    workspace, session, document = await run_in_threadpool(open_services)
+    try:
+        workspace, session, document = await run_in_threadpool(open_services)
+    except (ProjectVersionNewerError, ProjectVersionUnsupportedError) as exc:
+        await websocket.close(code=4400, reason=exc.code)
+        return
     await websocket.accept()
     guard = GuestWsGuard(
         websocket,
