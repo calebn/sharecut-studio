@@ -1518,7 +1518,14 @@ test.describe("a producer looks in before joining", () => {
         await expect(
           producer.getByRole("dialog", { name: /Ava/ }),
         ).toBeVisible();
-        await expect(producer.getByText(SEEN_BY_ROOM)).toBeVisible();
+        await expect(
+          producer.locator(".sys-join-seen", { hasText: SEEN_BY_ROOM }),
+        ).toBeVisible();
+        await expect(
+          producer.locator('.sys-join-dialog [aria-live="polite"]', {
+            hasText: SEEN_BY_ROOM,
+          }),
+        ).toHaveCount(1);
         await expect(
           producer.getByRole("group", { name: /, you$/ }),
         ).toHaveCount(0);
@@ -1562,12 +1569,58 @@ test.describe("a producer looks in before joining", () => {
           )
           .toBe(1);
         expect(await watcherCount(host, projectPath)).toBe(0);
+        await expect(host.getByText("Pat, listening")).toHaveCount(1);
         expect(
           await host.evaluate(
             () => (window as unknown as { __rowWithPat: boolean }).__rowWithPat,
           ),
         ).toBe(false);
       },
+    );
+  });
+
+  test("the sheet keeps Join to listen, Not now and the new line in view on a small phone", async ({
+    browser,
+  }: {
+    browser: Browser;
+  }) => {
+    test.slow();
+    await withLiveTake(
+      browser,
+      async ({ producer, token }) => {
+        await markSharecutE2e(producer);
+        await openRecordLink(producer, token);
+        const sentence = producer.locator(".sys-join-seen", {
+          hasText: SEEN_BY_ROOM,
+        });
+        await expect(sentence).toBeVisible();
+        const viewport = producer.viewportSize();
+        if (!viewport) throw new Error("no viewport");
+        for (const control of [
+          producer.getByRole("button", { name: "Join to listen" }),
+          producer.getByRole("button", { name: "Not now" }),
+        ]) {
+          const box = await boxOf(control);
+          expect(box.y + box.height).toBeLessThanOrEqual(viewport.height);
+          expect(box.x).toBeGreaterThanOrEqual(0);
+          expect(box.x + box.width).toBeLessThanOrEqual(viewport.width);
+        }
+        const listen = await boxOf(
+          producer.getByText(
+            "You'll listen and comment. You won't be recorded.",
+          ),
+        );
+        const seen = await boxOf(sentence);
+        expect(Math.abs(seen.x - listen.x)).toBeLessThanOrEqual(1);
+        expect(
+          await producer.evaluate(
+            () =>
+              document.documentElement.scrollWidth <=
+              document.documentElement.clientWidth,
+          ),
+        ).toBe(true);
+      },
+      { viewport: { width: 360, height: 640 }, hasTouch: true, isMobile: true },
     );
   });
 
