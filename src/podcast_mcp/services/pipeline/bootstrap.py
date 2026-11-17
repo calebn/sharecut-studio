@@ -37,6 +37,7 @@ from podcast_mcp.services.pipeline.install_failure import (
 from podcast_mcp.util import host_platform
 from podcast_mcp.util.asset_sources import DOWNLOAD_TASK_ID, DownloadProgress, cdn_base_configured
 from podcast_mcp.util.binaries import (
+    IN_PROCESS_NOT_LINKED,
     FFmpegPairResolutionError,
     resolve_ffmpeg_pair,
 )
@@ -115,6 +116,8 @@ def component_status(*, whisper_model: str | None = None) -> dict[str, Any]:
         ffmpeg_pair = None
         ffmpeg_error = str(exc)
     ffmpeg_ok = ffmpeg_pair is not None and ffmpeg_pair.is_available()
+    if ffmpeg_pair is not None and ffmpeg_pair.is_in_process and not ffmpeg_ok:
+        ffmpeg_error = IN_PROCESS_NOT_LINKED
     ffmpeg_state = (
         "unsupported"
         if host.media_tools == "unavailable"
