@@ -345,14 +345,16 @@ on top of the Declined bar, above the veil, so it is not greyed and a screen
 reader still reads it. The guest's consent **Details** repeats it
 with "They can see the room but can't hear it." The host page announces the
 first arrival in each room, once and politely, while the room is waiting or
-stopped. The guest and producer pages do the same, and a later room's arrival is
+stopped. The guest page does the same, and so does a producer page once it has joined
+(a producer page that has not joined announces nothing), and a later room's arrival is
 spoken again even when its words match an earlier one. An arrival during a take is never
 spoken. One during the room-tone countdown is spoken at the next room update
 after it, only if the room is then waiting or stopped and the person is still looking in.
 The host page drops its spoken note when nobody is looking in. The count is the
 snapshot's runtime `watchers` field. A client shows the line only for a whole
 number from 1 to 99 and reads anything else, or a missing field, as nobody. The
-server sends it when a producer link's socket connects with `observe=1` (see
+server puts it in every snapshot: `0` when nobody is looking, and it rises when a
+producer link's socket connects with `observe=1` (see
 [Looking in on a room](#looking-in-on-a-room-observe1)); no page opens the link
 that way yet, so nothing shows in the product today. A guest's consent
 **Details** names the producers who have joined ("Rosa is listening and won't
@@ -2219,7 +2221,7 @@ Guest recording sockets await workspace/service setup, Join, and each subsequent
 
 A producer link may open `WS /api/rec/{token}/ws?observe=1` (plus the usual `client_id`) to look at the room before it joins. The server honours the query for the producer role only. A guest link or any other value connects as a plain socket and sees nothing until it sends Join.
 
-- **Counted.** Each looking-in socket takes one admission slot and no seat in the room. The server publishes a `Snapshot` frame to the room when a socket starts looking and when it stops, and the snapshot carries `watchers`: the number of sockets looking in on this room right now (an integer, `0` when none). `watchers` is process-local presence. It is stamped when a snapshot is built, never written to the record log or the saved session, and left out of `record_state_tool` and `podcast record state` (another process would report a false `0`). `GET /api/record/state`, the host page's own commands and the record plane on `/api/host/ws` carry it.
+- **Counted.** Each looking-in socket takes one admission slot and no seat in the room. The server publishes a `Snapshot` frame to the room when a socket starts looking and when it stops, and the snapshot carries `watchers`: the number of sockets looking in on this room right now (an integer, `0` when none). The count includes the looker's own socket, so a page that looks in must subtract itself before it shows the number to the person looking. `watchers` is process-local presence. It is stamped when a snapshot is built, never written to the record log or the saved session, and left out of `record_state_tool` and `podcast record state` (another process would report a false `0`). `GET /api/record/state`, the host page's own commands and the record plane on `/api/host/ws` carry it.
 - **What it receives.** Only `Applied` and `Snapshot` events, each sent as a bare `Snapshot` frame: the guest filter, then `comments` emptied. No Echo, `target`, lease key, note or comment, and no `Signal`. Its first frame is the snapshot published when it started looking: frames built before the room was told of it are not sent to it, so every frame it gets already counts it. A Join refused with `room_full` that cannot put the count back closes the socket 4403.
 - **What it may send.** Only Join. Anything else gets `Error` with `join_first`. Join on the same socket joins the room as a producer. The socket stops counting in the same `Applied` that lists the person, so the room never shows the person and the count together. A Join refused with `room_full` leaves the socket looking in.
 - **Cap.** At most 4 sockets look in on one room (`WATCHERS_PER_ROOM`). A fifth is closed with 4429 and reason `too many looking in`.
