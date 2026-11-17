@@ -36,10 +36,9 @@ import { urlOf } from "./test/urlOf";
 const STATE_WAIT_MS = 5_000;
 const TEST_LIMIT_MS = 2 * STATE_WAIT_MS;
 const defaultWaitMs = getConfig().asyncUtilTimeout;
-beforeAll(() => {
-  configure({ asyncUtilTimeout: STATE_WAIT_MS });
-  vi.setConfig({ testTimeout: TEST_LIMIT_MS });
-});
+// Vitest reads the limit when a test is defined, before any beforeAll runs.
+vi.setConfig({ testTimeout: TEST_LIMIT_MS });
+beforeAll(() => configure({ asyncUtilTimeout: STATE_WAIT_MS }));
 afterAll(() => {
   configure({ asyncUtilTimeout: defaultWaitMs });
   vi.resetConfig();
