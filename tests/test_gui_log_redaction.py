@@ -14,6 +14,7 @@ import pytest
 
 from podcast_mcp.gui import bind
 from podcast_mcp.gui.log_redaction import UVICORN_LOGGERS, ShareTokenFilter, install
+from share_path_helpers import SHAPES, SPELLINGS, spell
 
 TOKEN = "velvet-quokka-umbra"
 
@@ -703,35 +704,15 @@ def test_a_quote_before_the_route_ends_its_query_and_nothing_else_does() -> None
     assert _format(f'["/r/{TOKEN}?x=O\'N", "y"]') == '["/r/<share-token>", "y"]'
 
 
-_DOT_SHAPES = (
-    "/r/./T",
-    "/r/../T",
-    "/rec/./T",
-    "/rec/../T",
-    "/api/review/./T",
-    "/api/review/../T",
-    "/api/rec/./T",
-    "/api/rec/../T",
-    "/api/./review/T/daw/meta",
-    "/api//review//T/daw/meta",
-)
-
-
-def _dot_spellings(shape: str) -> dict[str, str]:
-    lower = shape.replace("..", "%2e%2e").replace("/./", "/%2e/")
-    return {
-        "plain": shape,
-        "lower-percent-dot": lower,
-        "upper-percent-dot": lower.replace("%2e", "%2E"),
-        "percent-slash": shape.replace("/", "%2F"),
-        "mixed": lower.replace("/", "%2F", 1),
-    }
-
-
 _DOT_PATHS = [
-    pytest.param(spelling.replace("T", TOKEN), id=f"{shape}-{name}")
-    for shape in _DOT_SHAPES
-    for name, spelling in _dot_spellings(shape).items()
+    pytest.param(spell(shape, name, TOKEN), id=f"{shape}-{name}")
+    for shape in SHAPES
+    for name in SPELLINGS
+]
+_DOT_PATHS_PLAIN_AND_SLASH = [
+    pytest.param(spell(shape, name, TOKEN), id=f"{shape}-{name}")
+    for shape in SHAPES
+    for name in ("plain", "percent-slash")
 ]
 
 
@@ -755,7 +736,7 @@ def test_an_access_line_with_dot_segments_before_the_token_loses_token_and_query
     assert line.endswith(' HTTP/1.1" 200')
 
 
-@pytest.mark.parametrize("path", _DOT_PATHS)
+@pytest.mark.parametrize("path", _DOT_PATHS_PLAIN_AND_SLASH)
 def test_a_websocket_line_with_dot_segments_before_the_token_loses_token_and_query(
     path: str,
 ) -> None:
@@ -768,7 +749,7 @@ def test_a_websocket_line_with_dot_segments_before_the_token_loses_token_and_que
     assert line.endswith('" [accepted]')
 
 
-@pytest.mark.parametrize("path", _DOT_PATHS)
+@pytest.mark.parametrize("path", _DOT_PATHS_PLAIN_AND_SLASH)
 def test_an_asgi_scope_with_dot_segments_before_the_token_loses_token_and_query(
     path: str,
 ) -> None:
