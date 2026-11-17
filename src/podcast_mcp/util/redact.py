@@ -61,16 +61,19 @@ _HOST_PATH = re.compile(
 _INPUT_VALUE = re.compile(r"input_value=(?:[^\r\n]*(?=, input_type=)|[^\r\n]*)")
 _INPUT_VALUE_HIDDEN = "input_value=<hidden>"
 # Where a validation failed is printed as dotted segments, and a segment may be a dict key of
-# the document (a speaker's name). Two shapes carry it: pydantic's block (a header, then per error
-# the location and an indented line that ends in ``[type=...]``; a key with a newline makes the
-# location run over several lines; the header may follow a prefix on its line, as in a traceback
-# or a timestamped log line, and one location is read to at most 2000 characters, so a header with
-# no entry behind it leaves the text after it as it is) and the sentence older builds wrote for a damaged project file.
-_VALIDATION_HEADER = re.compile(r"(?<!\d)\d+ validation errors? for [^\n]*\n")
-_VALIDATION_ENTRY = re.compile(
-    r"(?P<loc>(?s:.{0,2000}?))(?P<rest>\n  [^\n]*\[type=[^\n]*\](?:\n    For further information[^\n]*)?)",
-    re.DOTALL,
-)
+# the document (a speaker's name). Two shapes carry it. Pydantic's block is a header
+# ``N validation error(s) for <title>`` (anywhere in a line, then the line's end; the title is
+# a class name, so over 500 characters it is not a header) and then AT MOST N entries; one entry
+# is ONE location line (up to 2000 characters), a line of two spaces that ends its message with
+# ``[type=...]``, and optionally a ``    For further information`` line. Where the next line is
+# not such an entry the block ends and everything after is left byte for byte (a line that only
+# says "3 validation errors for the upload" is no block). Only a matched entry's location line
+# is rewritten. A key that itself holds a line break is outside this rule (the episode file's own
+# keys never get this far: ``load_project`` masks them at the source). The other shape is the
+# sentence older builds wrote for a damaged project file.
+_VALIDATION_HEADER = re.compile(r"(?<!\d)(\d{1,6}) validation errors? for [^\r\n]{0,500}\r?\n")
+_LOCATION_MAX = 2000
+_FURTHER_INFO = "    For further information"
 _UNREADABLE_PLACE = re.compile(
     r"(?P<head>\(unexpected contents at )"
     r"(?P<loc>(?s:.{0,2000}?)(?=\)\. Restore it from a backup)|[^\n]*)"
@@ -88,6 +91,26 @@ def _mask_location(location: str, names: frozenset[str] | None) -> str:
     )
 
 
+def _entry_at(text: str, at: int) -> tuple[int, int] | None:
+    """The end of the location line and of the entry that starts at ``at``, or ``None``."""
+    nl = text.find("\n", at, at + _LOCATION_MAX + 2)
+    if nl == -1:
+        return None
+    loc_end = nl - 1 if nl > at and text[nl - 1] == "\r" else nl
+    if loc_end - at > _LOCATION_MAX or not text.startswith("  ", nl + 1):
+        return None
+    msg_nl = text.find("\n", nl + 1)
+    msg_end = len(text) if msg_nl == -1 else msg_nl
+    message = text[nl + 1 : msg_end].removesuffix("\r")
+    if not message.endswith("]") or "[type=" not in message:
+        return None
+    end = msg_end
+    if msg_nl != -1 and text.startswith(_FURTHER_INFO, msg_nl + 1):
+        info_nl = text.find("\n", msg_nl + 1)
+        end = len(text) if info_nl == -1 else info_nl
+    return loc_end, end
+
+
 def _mask_validation_locations(text: str, names: frozenset[str] | None) -> str:
     if "validation error" in text:
         pieces: list[str] = []
@@ -96,15 +119,16 @@ def _mask_validation_locations(text: str, names: frozenset[str] | None) -> str:
             if header.start() < pos:
                 continue
             at = header.end()
-            pieces.append(text[pos:at])
-            while (entry := _VALIDATION_ENTRY.match(text, at)) is not None:
-                pieces.append(_mask_location(entry.group("loc"), names) + entry.group("rest"))
-                at = entry.end()
-                if not text.startswith("\n", at):
+            for _ in range(int(header.group(1))):
+                entry = _entry_at(text, at)
+                if entry is None:
                     break
-                pieces.append("\n")
-                at += 1
-            pos = at
+                loc_end, end = entry
+                pieces.append(text[pos:at])
+                pieces.append(_mask_location(text[at:loc_end], names) if loc_end > at else "")
+                pieces.append(text[loc_end:end])
+                pos = end
+                at = end + 1
         pieces.append(text[pos:])
         text = "".join(pieces)
     if "(unexpected contents at " in text:

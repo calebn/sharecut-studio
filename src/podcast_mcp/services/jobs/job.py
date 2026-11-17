@@ -37,6 +37,9 @@ JobKind = Literal[
 ]
 
 _GUI_FAIL_MAX = 200
+# Only this much of the first line is looked at: the result is cut to 200 anyway, and a path
+# search over a megabyte of text is not worth its time.
+_GUI_EXAMINE_MAX = 2000
 
 
 def _token_looks_like_abs_path(token: str) -> bool:
@@ -58,13 +61,72 @@ _PATH_END_COLON = re.compile(r":(?:\s|$)")
 _CLOSERS = {"'": "'", '"': '"', "(": ")", "[": "]", "{": "}", "<": ">"}
 
 
+_FILE_EXTENSION = re.compile(r"\.[A-Za-z0-9]{1,5}$")
+_EXTENSION_LOOKAHEAD = 6
+_OPENING = "'\"([{<"
+
+
+def _closing_index(line: str, begin: int, opener: str) -> int:
+    """Where the one just before ``begin`` closes (index of the closer), or ``-1``.
+
+    A quote closes only when what follows it is not a letter or a digit (the apostrophe in
+    ``Dani's Ep``); a bracket closes when its own depth returns to zero, so brackets nest.
+    """
+    closer = _CLOSERS[opener]
+    if opener == closer:
+        at = line.find(closer, begin + 1)
+        while at != -1:
+            if at + 1 >= len(line) or not line[at + 1].isalnum():
+                return at
+            at = line.find(closer, at + 1)
+        return -1
+    depth = 1
+    for at in range(begin, len(line)):
+        if line[at] == opener:
+            depth += 1
+        elif line[at] == closer:
+            depth -= 1
+            if depth == 0:
+                return at
+    return -1
+
+
+def _open_path_end(line: str, begin: int) -> int:
+    """The end of a path that opens the line and has no end mark.
+
+    It ends after the last space-separated token that holds a path separator; when that token
+    does not end in a file extension (``My Show/a`` of ``My Show/a b.wav``) the path takes the
+    tokens after it up to the first one that does, within the next six. With none, the rest of
+    the line goes: when unsure it removes more.
+    """
+    tokens = [(m.start(), m.end()) for m in re.finditer(r"\S+", line[begin:])]
+    last = max(
+        (
+            i
+            for i, (lo, hi) in enumerate(tokens)
+            if "/" in line[begin + lo : begin + hi] or "\\" in line[begin + lo : begin + hi]
+        ),
+        default=-1,
+    )
+    if last == -1:
+        return len(line)
+    if _FILE_EXTENSION.search(line[begin + tokens[last][0] : begin + tokens[last][1]]):
+        return begin + tokens[last][1]
+    for i in range(last + 1, min(len(tokens), last + 1 + _EXTENSION_LOOKAHEAD)):
+        if _FILE_EXTENSION.search(line[begin + tokens[i][0] : begin + tokens[i][1]]):
+            return begin + tokens[i][1]
+    return len(line)
+
+
 def _drop_abs_paths(line: str) -> tuple[str, bool]:
     """``line`` without its absolute paths, spaces in them included, and whether any went.
 
     A path with spaces has no end this can know, so it is cut from its start to the first
     of: the quote or bracket that closes the one opened just before it, a colon followed by a
-    space or the end (an error's own separator), or the end of the line. When unsure it
-    removes more: the promise is no host path.
+    space or the end (an error's own separator), or the end of the line. A path that opens the
+    line (nothing but an opening quote or bracket before it) with none of these ends where
+    ``_open_path_end`` says, so what follows it stays. When unsure it removes more: the promise
+    is no host path.
     """
     pieces: list[str] = []
     pos = 0
@@ -72,14 +134,19 @@ def _drop_abs_paths(line: str) -> tuple[str, bool]:
     while (start := _PATH_START.search(line, pos)) is not None:
         begin = start.start()
         opener = line[begin - 1] if begin > 0 and line[begin - 1] in _CLOSERS else ""
-        end = len(line)
-        colon = _PATH_END_COLON.search(line, begin + 1)
-        if colon is not None:
-            end = colon.start()
+        end = -1
         if opener:
-            close = line.find(_CLOSERS[opener], begin + 1)
+            close = _closing_index(line, begin, opener)
             if close != -1:
                 end = close + 1
+        if end == -1:
+            colon = _PATH_END_COLON.search(line, begin + 1)
+            if colon is not None:
+                end = colon.start()
+            elif begin == 0 or (begin == 1 and opener and line[0] in _OPENING):
+                end = _open_path_end(line, begin)
+            else:
+                end = len(line)
         pieces.append(line[pos : begin - 1 if opener else begin])
         pos = end
         removed = True
@@ -100,7 +167,7 @@ def short_fail_message(message: str | None, phase: str | None = None) -> str | N
     line = message.strip().splitlines()[0] if message.strip() else ""
     if line.lower().startswith("traceback"):
         line = ""
-    line = " ".join(line.split())
+    line = " ".join(line.split())[:_GUI_EXAMINE_MAX]
     line, removed = _drop_abs_paths(line)
     line = " ".join(tok for tok in line.split() if not _token_looks_like_abs_path(tok))
     if removed:
