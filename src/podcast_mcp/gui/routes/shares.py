@@ -166,6 +166,7 @@ def create_host_record_room(
             "message": str(exc),
             "room": exc.room,
             "stale_session_ids": exc.stale_session_ids,
+            "unverified": exc.unverified,
         }
         raise coded_http_error(409, detail, code=exc.code) from exc
     except RecordStateError as exc:

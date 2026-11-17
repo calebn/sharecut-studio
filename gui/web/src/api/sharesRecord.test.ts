@@ -154,6 +154,23 @@ describe("createHostRecordRoom", () => {
     ).resolves.toEqual({ ...room, linksStale: true });
   });
 
+  it("treats an unverified stale-links 409 with an empty id list as a made room", async () => {
+    hostFetch.mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          detail: { room, stale_session_ids: [], unverified: true },
+        }),
+        {
+          status: 409,
+          headers: { "X-Sharecut-Error-Code": "record_stale_links" },
+        },
+      ),
+    );
+    await expect(
+      createHostRecordRoom("/tmp/episode.sharecut"),
+    ).resolves.toEqual({ ...room, linksStale: true });
+  });
+
   it("still rejects any other conflict, and a stale-links body without a room", async () => {
     hostFetch.mockResolvedValueOnce(
       new Response(JSON.stringify({ detail: "A room is already open." }), {

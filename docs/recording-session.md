@@ -138,9 +138,12 @@ like any unknown token. Ending a room waits behind a land-first mint for up to 3
 then answers `project_busy`, so the host retries. If an old token cannot be revoked,
 the new room stays usable and the call fails with `record_stale_links` (GUI 409, CLI
 and MCP refusal), carrying the new session id and links and the old session ids still
-live; minting again retries the revoke, or revoke those session ids. The GUI treats
+live; minting again retries the revoke, or revoke those session ids. When neither
+listing of the earlier rooms succeeds, the error carries `unverified: true` and an
+empty `stale_session_ids`: earlier links may still work, and minting again checks
+them and ends any that are live, including the new room. The GUI treats
 that 409 as a made room: it lists the room, copies the guest link and tells the host
-that links to an earlier room may still work (End that room in Share), and it does
+that links to an earlier room may still work (End that room in Invite), and it does
 not mint again on its own. An old guest's open socket is closed by the periodic share
 recheck (within about 5 s while active, 30 s idle), and a joined old guest also fails
 `participant_active` after the remint. Re-invite (`--session-id`) only mints into the

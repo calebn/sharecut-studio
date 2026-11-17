@@ -164,17 +164,34 @@ class RecordStaleLinksError(CodedError):
     code = "record_stale_links"
 
     def __init__(
-        self, session_id: str, room: dict[str, Any], stale_session_ids: Sequence[str]
+        self,
+        session_id: str,
+        room: dict[str, Any],
+        stale_session_ids: Sequence[str],
+        *,
+        unverified: bool = False,
     ) -> None:
         self.session_id = session_id
         self.room = room
         self.stale_session_ids = list(stale_session_ids)
-        old = ", ".join(self.stale_session_ids)
+        self.unverified = unverified
+        if unverified:
+            tail = (
+                "but earlier record rooms could not be checked, so their invite links "
+                "may still work. Minting another room checks them again and ends any "
+                "that are live, including this one. Or end each earlier room in Invite "
+                "or with `podcast review revoke-share --session-id`."
+            )
+        else:
+            old = ", ".join(self.stale_session_ids)
+            tail = (
+                f"but invite links of earlier room(s) {old} are still live. "
+                "Minting another room retries the revoke, or revoke each of those session ids."
+            )
         super().__init__(
             f"New record room {session_id} is ready "
             f"(guest {room['guest'].get('url')}, producer {room['producer'].get('url')}), "
-            f"but invite links of earlier room(s) {old} are still live. "
-            "Minting another room retries the revoke, or revoke each of those session ids."
+            f"{tail}"
         )
 
 
@@ -665,8 +682,10 @@ class ShareService:
             if left.takes:
                 room["warning"] = describe_unsaved_takes(left)
             attempted: Sequence[str] = []
+            listed = False
             try:
                 attempted = self._live_other_record_rooms(session_id)
+                listed = True
             except Exception:
                 log.exception("failed to list previous record rooms")
             for prior in attempted:
@@ -674,14 +693,16 @@ class ShareService:
                     self._revoke_room_tokens(prior)
                 except Exception:
                     log.exception("failed to revoke previous record room %s", prior)
+            unverified = False
             try:
                 stale = self._live_other_record_rooms(session_id)
             except Exception:
                 log.exception("failed to verify previous record rooms")
                 stale = attempted
+                unverified = not listed
             invalidate_record_session_cache(self.ws.project)
-            if stale:
-                raise RecordStaleLinksError(session_id, room, stale)
+            if unverified or stale:
+                raise RecordStaleLinksError(session_id, room, stale, unverified=unverified)
             return room
 
     def _live_other_record_rooms(self, session_id: str) -> Sequence[str]:
