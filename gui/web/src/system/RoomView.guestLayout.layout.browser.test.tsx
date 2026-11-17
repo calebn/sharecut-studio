@@ -742,3 +742,95 @@ describe("the looking-in line under the Declined bar", () => {
     }
   });
 });
+
+describe("the looking-in line at enlarged text", () => {
+  const HOST_ME: RoomPerson = {
+    role: "host",
+    person: { name: "Maya", colorIndex: 1 },
+    you: true,
+    presence: "live",
+    connection: "good",
+    level: 1,
+    speaking: true,
+  };
+  const sizes = [
+    [320, 568, "phone"],
+    [390, 844, "phone"],
+    [667, 375, "phone-landscape"],
+    [768, 1024, "desktop"],
+    [1280, 800, "desktop"],
+  ] as const;
+  const tiles = (room: HTMLElement) =>
+    [...room.querySelectorAll(".sys-room-tile")].map((tile) => rect(tile));
+  const intersect = (a: DOMRect, b: DOMRect) =>
+    a.left < b.right - 0.5 &&
+    b.left < a.right - 0.5 &&
+    a.top < b.bottom - 0.5 &&
+    b.top < a.bottom - 0.5;
+
+  for (const percent of [150, 200]) {
+    for (const seat of ["guest", "producer", "host"] as const) {
+      for (const [width, height, viewerWidth] of sizes) {
+        for (const count of [1, 4]) {
+          it(`keeps every tile inside its column at ${percent}% text for a ${seat} at ${width}x${height} with ${count} ${count === 1 ? "person" : "people"}`, async () => {
+            document.documentElement.style.fontSize = `${percent}%`;
+            try {
+              const props = {
+                seat,
+                phase: LIVE,
+                viewerWidth,
+                defaultNotesOpen: viewerWidth === "desktop",
+                embedded: seat === "host",
+                people:
+                  seat === "host"
+                    ? [HOST_ME, ...OTHERS.slice(0, count - 1)]
+                    : [...OTHERS.slice(0, count - 1), ME],
+              } as const;
+              const without = await render(width, height, {
+                ...props,
+                lookingIn: 0,
+              });
+              const before = tiles(without);
+              root?.unmount();
+              host?.remove();
+              const room = await render(width, height, {
+                ...props,
+                lookingIn: 3,
+              });
+              const grid = room.querySelector(".sys-room-view-grid") as Element;
+              const columns = getComputedStyle(grid)
+                .gridTemplateColumns.split(" ")
+                .map(Number.parseFloat);
+              const widest = Math.max(...columns);
+              const boxes = tiles(room);
+              const stage = rect(
+                room.querySelector(".sys-room-view-stage") as Element,
+              );
+              const rail = room.querySelector(".sys-room-view-rail");
+              expect(boxes).toHaveLength(before.length);
+              for (const [index, box] of boxes.entries()) {
+                expect(box.width).toBeLessThanOrEqual(widest + 0.5);
+                expect(box.width).toBeLessThanOrEqual(
+                  (before[index] as DOMRect).width + 0.5,
+                );
+                expect(box.height).toBeLessThanOrEqual(
+                  (before[index] as DOMRect).height + 0.5,
+                );
+                expect(box.left).toBeGreaterThanOrEqual(stage.left - 0.5);
+                expect(box.right).toBeLessThanOrEqual(stage.right + 0.5);
+                if (rail) {
+                  expect(box.right).toBeLessThanOrEqual(rect(rail).left + 0.5);
+                }
+                for (const other of boxes.slice(index + 1)) {
+                  expect(intersect(box, other)).toBe(false);
+                }
+              }
+            } finally {
+              document.documentElement.style.fontSize = "";
+            }
+          });
+        }
+      }
+    }
+  }
+});
