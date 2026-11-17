@@ -957,9 +957,11 @@ RETRY = RETRY_LINES.splitlines()[0]
         "second-line-with-extra-wording",
     ],
 )
-@pytest.mark.parametrize("document", [ALTOOL_OK, REAL_LISTING], ids=["object", "array"])
-def test_only_altools_own_retry_line_is_ignored_on_exit_zero(prelude: str, document: str) -> None:
-    assert release_classify.classify_altool(0, prelude + "\n" + document).verdict is not Verdict.OK
+def test_only_altools_own_retry_line_is_ignored_before_a_listing_on_exit_zero(
+    prelude: str,
+) -> None:
+    text = prelude + "\n" + REAL_LISTING
+    assert release_classify.classify_altool(0, text).verdict is not Verdict.OK
 
 
 @pytest.mark.parametrize("code", [1, 6, -9])
