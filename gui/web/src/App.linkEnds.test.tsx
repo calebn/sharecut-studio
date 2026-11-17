@@ -335,7 +335,7 @@ describe("a review link turned off while the episode is open", () => {
         const { late } = await endedWithOneAttemptHeld(opens);
         let loadingSeen = false;
         const watcher = new MutationObserver(() => {
-          if (document.body.textContent?.includes("Loading project"))
+          if (document.body.textContent?.includes("Loading the episode"))
             loadingSeen = true;
         });
         watcher.observe(document.body, {

@@ -125,10 +125,50 @@ export async function expectServerWordsAbsent(
   expect(leaks, `the server's words reached: ${leaks.join(", ")}`).toEqual([]);
 }
 
+/**
+ * Holds the first answer of the episode's own read (`/project`) for `ms`. The
+ * header's own read of the version label comes next and is not held.
+ */
+export async function holdFirstProject(page: Page, token: string, ms: number) {
+  let held = false;
+  await page.route(`**/api/review/${token}/project`, async (route) => {
+    if (!held) {
+      held = true;
+      await new Promise((resolve) => setTimeout(resolve, ms));
+    }
+    await route.continue();
+  });
+}
+
+/** Holds the built chunk `assets/<name>-*.js` until `release()`. */
+export async function holdChunk(page: Page, name: string) {
+  let release: () => void = () => {};
+  const open = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  await page.route(`**/assets/${name}-*.js`, async (route) => {
+    await open;
+    await route.continue();
+  });
+  return { release: () => release() };
+}
+
+/** The episode's name, as the link's own read answers it. */
+export async function episodeName(page: Page, token: string): Promise<string> {
+  const answer = await page.request.get(`/api/review/${token}/project`);
+  expect(answer.ok()).toBeTruthy();
+  return ((await answer.json()) as { meta: { name: string } }).meta.name;
+}
+
 export async function withGuestLink(
   browser: Parameters<typeof withBrowserPages>[0],
   size: Size,
-  run: (guest: Page, token: string) => Promise<void>,
+  run: (
+    guest: Page,
+    token: string,
+    host: Page,
+    projectPath: string,
+  ) => Promise<void>,
 ) {
   await withShareableProject(async (projectPath) => {
     await withBrowserPages(
@@ -143,7 +183,7 @@ export async function withGuestLink(
       async ([host, guest]) => {
         await openHostShare(host!, projectPath);
         const token = await createReviewShare(host!, projectPath, "commenter");
-        await run(guest!, token);
+        await run(guest!, token, host!, projectPath);
       },
     );
   });

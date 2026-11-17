@@ -108,8 +108,50 @@ describe("guest loading never shows host chrome", () => {
       expect(offline.load).toHaveBeenCalled();
     });
     expect(await screen.findByRole("status")).toHaveTextContent(
-      "Loading project…",
+      "Loading Stale episode…",
     );
+    expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent(
+      "Stale episode",
+    );
+    expectGuestSkeleton(container);
+  });
+
+  it("names the episode from the link's own answer while the studio loads, and never says project", async () => {
+    window.history.pushState({}, "", "/r/named");
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL) => {
+        const url = urlOf(input);
+        if (url.includes("/features")) {
+          return new Response(
+            JSON.stringify({ api_version: 1, features: ["share.ui.routes"] }),
+            { status: 200 },
+          );
+        }
+        if (url.endsWith("/api/review/named/project")) {
+          return new Response(
+            JSON.stringify({
+              capabilities: ["view", "comment"],
+              guest_mode: "comment",
+              reads_transcript_words: false,
+              meta: { name: "Pilot episode" },
+            }),
+            { status: 200 },
+          );
+        }
+        throw new TypeError("Failed to fetch");
+      }),
+    );
+    const { container } = render(<App />);
+    await vi.waitFor(() => {
+      expect(screen.getByRole("status")).toHaveTextContent(
+        "Loading Pilot episode…",
+      );
+    });
+    expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent(
+      "Pilot episode",
+    );
+    expect(container.textContent?.toLowerCase()).not.toContain("project");
     expectGuestSkeleton(container);
   });
 });

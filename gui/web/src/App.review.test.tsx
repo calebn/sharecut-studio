@@ -922,7 +922,9 @@ describe("App loading screens before the features answer", () => {
     stall();
     const { container } = render(<App />);
     expect(container.querySelector("main.guest-loading")).not.toBeNull();
-    expect(screen.getByRole("status")).toHaveTextContent("Loading project…");
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "Loading the episode…",
+    );
     expect(container.querySelector(".loading-screen")).toBeNull();
   });
 
