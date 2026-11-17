@@ -160,7 +160,7 @@ to UX partners; for UI copy, this table wins.
 | Episode saved by a newer version | The host's line when the server answers `project_version_newer`: `A newer version of ShareCut saved "{name}". Update ShareCut, then open it again.` with **All projects** only, because trying again cannot help until ShareCut is updated. Never the version number or the server's words | "format", "project format", "Internal Server Error" |
 | Episode in a format ShareCut doesn't read | The host's line when the server answers `project_version_unsupported`: `ShareCut can't open "{name}" because its file is in a format this version doesn't read. Open it with the version of ShareCut that saved it, or restore the file from a backup.` with **All projects** first and **Try again** | "damaged", "unsupported version", "project format" |
 | Couldn't open the episode | The host's line for any other failure of the first read: `ShareCut couldn't open "{name}". Try again. If it keeps happening, open Help and choose Report a problem.` with **Try again** and **All projects**. The same words are said whatever the server answered; Help's **Report a problem** then makes a report even though the episode did not open | "internal error", "Internal Server Error", a guess about a newer version |
-| Report couldn't be made | The report step's line when **Export** fails, chosen by what failed and never the server's words: `ShareCut couldn't save the report. Check that this computer has free space, then try again.` when the zip could not be written; `ShareCut isn't answering. Check that it is still running on this computer.` when nothing answered; otherwise `ShareCut couldn't make the report. Try again.` An episode that will not open is not a failure: the report is made and says so inside | "disk full", a path, "Internal Server Error" |
+| Diagnostics couldn't be exported | The report step's line when **Export** fails, chosen by what failed and never the server's words: `ShareCut couldn't save the diagnostics. Check that this computer has free space, then try again.` when the zip could not be written; `ShareCut isn't answering. Check that it is still running on this computer.` when the server gives no answer, or a gateway error; otherwise `ShareCut couldn't export the diagnostics. Try again.` An episode that will not open is not a failure: the zip is made and says so inside | "disk full", a path, "Internal Server Error" |
 
 Why this matters: Surface 2's audit found users confusing producer
 (a record-room link) with the review-role dropdown — the table above
@@ -419,7 +419,8 @@ the empty state, not a separate discovery task.
   never the server's words, announced as an alert. A guest reads the sentence the
   review-link page reads for the same cause (see `ux/pages/screens/guest-share.md`);
   a host reads the sentence for an episode that can't be found, can't be read, is
-  in use, is open elsewhere, isn't answering or couldn't be opened (Terminology).
+  in use, is open elsewhere, isn't answering, was saved by a newer version, is in a
+  format this version doesn't read or couldn't be opened (Terminology).
   The title is "Could not load the project" ("The transcript didn't load" on
   Review), except "The host's computer is asleep", "You're offline" and "This
   episode isn't open on this computer", which keep the title of the same cause
@@ -428,8 +429,10 @@ the empty state, not a separate discovery task.
   again…" and then "Still …" for the same failure or the new cause, and the sentence
   does not change. When a different cover answers the press, focus stays on the
   button if the new cover still has one, wherever it sits, and otherwise moves to
-  the new cover's title. A host whose episode can't be found, can't be read or couldn't be
-  opened also has **All projects**, first where trying again cannot help.
+  the new cover's title. A host's cover also has **All projects**: alone for a newer-format episode
+  (trying again cannot help), first for an episode that can't be found, can't be
+  read or is in a format this version doesn't read, and second for one that
+  couldn't be opened.
 - **Form errors are wired, not just shown.** `Field` sets
   `aria-describedby` to its error; `InlineError` carries
   `role="alert"`. Fix the primitives once; every caller inherits it.
@@ -660,7 +663,7 @@ shipped at the port; #1031 shipped it. The adjacent MCP note shipped in #1027.
 ## Changelog
 
 - 2026-11-17 Every roster has a place to say when people are looking in (#3834): above the tiles, host, guest and producer pages show "Someone with the producer link is looking in" or "3 people with the producer link are looking in", and the guest's consent Details adds "They can see the room but can't hear it." Each of the three pages announces the first arrival in each room once, while the room is waiting or stopped (not during a take or the room-tone countdown). Added the Looking in term. The pages draw the line from a `watchers` count that no server sends yet, so no roster shows it today.
-- 2026-11-17 An episode that will not open says why, and Help still makes a report (#3926): a newer-format episode has its own cover sentence with **All projects** only, a file in a format this version doesn't read has its own, and the general "couldn't open" sentence stops guessing about versions and points to Help, Report a problem. **Export** makes a report when the episode is missing, damaged or of another format (it holds nothing from the episode and says so), and its failure line is one of three fixed sentences instead of the server's text.
+- 2026-11-17 An episode that will not open says why, and Help still makes a report (#3926): a newer-format episode has its own cover sentence with **All projects** only, a file in a format this version doesn't read has its own, and the general "couldn't open" sentence stops guessing about versions and points to Help, Report a problem. **Export** makes the diagnostics zip when the episode is missing, damaged or of another format (it holds nothing from the episode and says so), and its failure line is one of three fixed sentences instead of the server's text.
 - 2026-11-16 The record room fits a portrait phone (#3834): the header gives its width to the episode title (the ShareCut symbol, the title on up to two lines), the dock says its words under its buttons (a guest's: Mute or Unmute, Comment while a take runs or is paused, Leave; a producer's: Comment while a take runs or is paused, Leave) and drops the Comments toggle for the strip above it, tiles start under the header, and the guest's own tile reads "Ava (you)" with a Devices cue (a landscape phone keeps the wordmark, the icon-only dock and the toggle, and up to 767 px wide has no cue). Added the (you) term.
 - 2026-11-16 The studio's own load failure says a fixed sentence (#3891, the studio's first read): the cover in the stage body (the transcript region on Review) no longer prints what the server answered, for a guest or a host. A guest reads the review-link covers' words for the same cause, and the page tries again by itself where those words say it does (30 seconds after an attempt ends, and an attempt can itself take up to 30 seconds); a host reads one sentence per kind (can't be found, can't be read, in use, open elsewhere, isn't answering, couldn't open) with **All projects** where trying again cannot help. A press on **Try again** no longer swaps the sentence for "Trying again…": the button reads "Trying…" and a status line says "Trying again…", then "Still …". The unsent-text box takes its direction from the text.
 - 2026-11-16 Headphones are an honest choice on a phone (#3834): on a phone the Join and Device sheets offer "I'm wearing headphones" and "I'm not wearing headphones", Join works after either answer, and not wearing shows "Others may hear their own echo and be heard in your recording. Keep your volume low."; the host, producers and the guest see a crossed-out headphones glyph on that guest's tile ("Maya, not wearing headphones"). A laptop or tablet keeps the toggle and "Put on headphones first". Terminology rows added.
