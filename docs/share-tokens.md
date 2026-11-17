@@ -401,7 +401,9 @@ old room pending, so restoring it answers `record_room_conflict`). Remint is ref
 take first. A successful remint revokes every guest and producer token of the
 earlier rooms (land rollbacks survive; an unlanded stopped take the server can see only warns, and
 `--land-first` lands it first); a revoke
-that fails raises `record_stale_links` with the new room and the old session ids. Re-invite
+that fails raises `record_stale_links` with the new room and the old session ids (when neither
+listing of the earlier rooms succeeds, it carries `unverified: true` and no ids; the next mint
+checks them again and ends that new room too). Re-invite
 (`--session-id`) requires a usable room that is the active one. A crash after the guest mint can leave a one-token room;
 the same revoke path still clears it. Prefix↔kind is enforced by
 `lookup_share(..., kind=)`. Recorded clients (`join`) upload full-quality recording chunks on
