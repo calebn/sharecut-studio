@@ -24,6 +24,7 @@ import { useDaw } from "../state/useDaw";
 import { AppHeader } from "../system/AppHeader";
 import { expectNoA11yViolations } from "../test/a11y";
 import { setChrome } from "../test/chrome";
+import { deferred } from "../test/deferred";
 import { waitForDialogFocus } from "../test/dialogFocus";
 import { minimalProject } from "../test/fixtures";
 import { modelStatus, modelsApi, registryRows } from "../test/renderWithModels";
@@ -400,6 +401,106 @@ describe("Move…", () => {
     expect(assign).not.toHaveBeenCalled();
     await waitFor(() => expect(button).toHaveFocus());
   });
+
+  it.each(["before reopen", "after reopen"])(
+    "retires a closed opening's Move refusal when it arrives %s",
+    async (settlement) => {
+      tauri.on = true;
+      inProject();
+      const pending = deferred<Awaited<ReturnType<typeof moveProject>>>();
+      vi.mocked(pickFolder).mockResolvedValue({ folder: "/Users/ada/Archive" });
+      vi.mocked(moveProject).mockReturnValueOnce(pending.promise);
+      const user = userEvent.setup();
+      render(<Harness />);
+      let sheet = await openSettings();
+      await user.click(within(sheet).getByRole("button", { name: "Move…" }));
+      await waitFor(() => expect(moveProject).toHaveBeenCalledOnce());
+      await user.keyboard("{Escape}");
+      expect(screen.queryByRole("dialog", { name: "Settings" })).toBeNull();
+
+      if (settlement === "after reopen") {
+        sheet = await openSettings();
+        const moving = within(sheet).getByRole("button", { name: "Moving…" });
+        const reveal = within(sheet).getByRole("button", {
+          name: "Reveal in folder",
+        });
+        expect(moving).toBeDisabled();
+        expect(reveal).toBeDisabled();
+        await user.click(moving);
+        await user.click(reveal);
+        expect(moveProject).toHaveBeenCalledOnce();
+        expect(pickFolder).toHaveBeenCalledOnce();
+        expect(revealProject).not.toHaveBeenCalled();
+      }
+      await act(async () => pending.reject(new Error("Old Move refusal")));
+      if (settlement === "before reopen") sheet = await openSettings();
+      expect(within(sheet).queryByRole("alert")).toBeNull();
+      expect(
+        within(sheet).getByRole("button", { name: "Move…" }),
+      ).toBeEnabled();
+      expect(assign).not.toHaveBeenCalled();
+
+      vi.mocked(moveProject).mockRejectedValueOnce(
+        new Error("New Move refusal"),
+      );
+      await user.click(within(sheet).getByRole("button", { name: "Move…" }));
+      expect(await within(sheet).findByRole("alert")).toHaveTextContent(
+        "New Move refusal",
+      );
+      expect(assign).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each(["success", "partial move"])(
+    "navigates after close on %s and keeps both actions disabled until unload",
+    async (outcome) => {
+      tauri.on = true;
+      inProject();
+      const destination = "/Users/ada/Archive/ep-12/episode.sharecut";
+      const pending = deferred<Awaited<ReturnType<typeof moveProject>>>();
+      vi.mocked(pickFolder).mockResolvedValue({ folder: "/Users/ada/Archive" });
+      vi.mocked(moveProject).mockReturnValueOnce(pending.promise);
+      const user = userEvent.setup();
+      render(<Harness />);
+      let sheet = await openSettings();
+      await user.click(within(sheet).getByRole("button", { name: "Move…" }));
+      await waitFor(() => expect(moveProject).toHaveBeenCalledOnce());
+      await user.keyboard("{Escape}");
+      expect(screen.queryByRole("dialog", { name: "Settings" })).toBeNull();
+      await act(async () => {
+        if (outcome === "success") {
+          pending.resolve({
+            project_path: destination,
+            previous_path: PROJECT_PATH,
+          });
+        } else {
+          pending.reject(
+            new ApiError(
+              "Some links could not be updated.",
+              "project_moved_partial",
+              409,
+              null,
+              {
+                detail: { project_path: destination },
+              },
+            ),
+          );
+        }
+      });
+      expect(assign).toHaveBeenCalledOnce();
+      expect(String(assign.mock.calls[0]?.[0])).toContain(
+        encodeURIComponent(destination),
+      );
+      sheet = await openSettings();
+      expect(
+        within(sheet).getByRole("button", { name: "Moving…" }),
+      ).toBeDisabled();
+      expect(
+        within(sheet).getByRole("button", { name: "Reveal in folder" }),
+      ).toBeDisabled();
+      expect(within(sheet).queryByRole("alert")).toBeNull();
+    },
+  );
 
   it("follows the folder when the move only half finished", async () => {
     tauri.on = true;
