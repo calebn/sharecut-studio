@@ -217,6 +217,7 @@ describe("guest loading never shows host chrome", () => {
 
   it("shows no name for a link the server no longer knows, even with a saved copy that has one", async () => {
     window.history.pushState({}, "", "/r/off");
+    offline.clear.mockResolvedValue(undefined);
     offline.load.mockResolvedValue({
       project: { meta: { name: "Stale episode" } },
       saved_at: 1,
