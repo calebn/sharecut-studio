@@ -28,12 +28,34 @@ import { useMicPermission } from "./useMicPermission";
 import { useOutputDevice } from "./useOutputDevice";
 import { useRecordLiveComments } from "./useRecordLiveComments";
 import {
+  effectiveRecordMode,
   isRecordAccessEnded,
   RECORD_INVITE_CLOSED,
+  type RecordSocketMode,
   useRecordSync,
 } from "./useRecordSync";
 import { useRoomToneCapture } from "./useRoomToneCapture";
 import { usePastTakeClipping, useTakeClipping } from "./useTakeClipping";
+
+/**
+ * A guest, or a producer who pressed Join to listen, is in the room. A producer
+ * only looks until then, and Not now ends the look.
+ */
+export function requestedRecordMode(room: {
+  bootstrapped: boolean;
+  producer: boolean;
+  producerJoined: boolean;
+  producerDismissed: boolean;
+  left: boolean;
+}): RecordSocketMode {
+  if (!room.bootstrapped || room.left) {
+    return "off";
+  }
+  if (!room.producer || room.producerJoined) {
+    return "join";
+  }
+  return room.producerDismissed ? "off" : "watch";
+}
 
 function storageKey(token: string, suffix: string): string {
   return `record:${token}:${suffix}`;
@@ -64,6 +86,7 @@ export function useGuestRoom(
     () => readLocal(storageKey(token, "mic")) || "",
   );
   const [producerJoined, setProducerJoined] = useState(false);
+  const [producerDismissed, setProducerDismissed] = useState(false);
   const [left, setLeft] = useState(false);
   const leave = useCallback(() => setLeft(true), []);
 
@@ -91,12 +114,16 @@ export function useGuestRoom(
   const syncName =
     (nameTyped || producerJoined || heldAsJoined ? name.trim() : "") ||
     (producer ? "Producer" : "Guest");
+  const requestedMode = requestedRecordMode({
+    bootstrapped: !!bootstrap,
+    producer,
+    producerJoined,
+    producerDismissed,
+    left,
+  });
   const { snapshot, me, send, error, clearError, connected, lease } =
-    useRecordSync(
-      token,
-      syncName,
-      !!bootstrap && (!producer || producerJoined) && !left,
-    );
+    useRecordSync(token, syncName, requestedMode);
+  const socketMode = effectiveRecordMode(requestedMode, error);
   const accessEnded = isRecordAccessEnded(error);
   const inviteClosed = error === RECORD_INVITE_CLOSED;
   const joinedName = (producer ? producerJoined : me?.consented === true)
@@ -111,7 +138,7 @@ export function useGuestRoom(
     me,
     connected,
     send,
-    captureKeys: true,
+    captureKeys: !!me,
   });
 
   const micEnabled =
@@ -425,6 +452,9 @@ export function useGuestRoom(
     setDeviceId,
     producerJoined,
     setProducerJoined,
+    producerDismissed,
+    setProducerDismissed,
+    socketMode,
     resumeUpload,
     left,
     leave,

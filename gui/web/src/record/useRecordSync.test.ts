@@ -9,6 +9,7 @@ import {
   RECORD_ACCESS_REMOVED,
   RECORD_INVITE_CLOSED,
   RECORD_SYNC_ERROR_FALLBACK_COPY,
+  type RecordSocketMode,
   recordSyncErrorCopy,
   useRecordSync,
 } from "./useRecordSync";
@@ -474,15 +475,15 @@ describe("useRecordSync", () => {
 
   it("reports disconnected and refuses sends once the hook is disabled", async () => {
     const { result, rerender } = renderHook(
-      ({ enabled }) => useRecordSync("tok", "Ava", enabled),
-      { initialProps: { enabled: true } },
+      ({ mode }) => useRecordSync("tok", "Ava", mode),
+      { initialProps: { mode: "join" as RecordSocketMode } },
     );
     await act(async () => {
       await Promise.resolve();
       await Promise.resolve();
     });
     expect(result.current.connected).toBe(true);
-    rerender({ enabled: false });
+    rerender({ mode: "off" });
     expect(result.current.connected).toBe(false);
     expect(result.current.send("Heartbeat")).toBe(false);
   });
@@ -648,6 +649,204 @@ describe("useRecordSync", () => {
         ws.emit(snapshot("recording", 300));
       });
       expect(result.current.snapshot?.state).toBe("recording");
+    });
+  });
+
+  describe("looking in before the join", () => {
+    const commands = (ws: FakeWebSocket) =>
+      ws.sent.map(
+        (raw) =>
+          JSON.parse(raw) as { command_type?: string; payload?: unknown },
+      );
+    const settle = () =>
+      act(async () => {
+        await Promise.resolve();
+        await Promise.resolve();
+      });
+    const lobby = (watchers: number, ns: number) => ({
+      plane: "record",
+      type: "Snapshot",
+      snapshot: {
+        session_id: "room1",
+        state: "lobby",
+        take_index: -1,
+        participants: [],
+        caps: { recorded: 4, producers: 2 },
+        watchers,
+        server_time_ns: ns,
+      },
+    });
+    const watching = (mode: RecordSocketMode) =>
+      renderHook(({ m }) => useRecordSync("tok", "Ava", m), {
+        initialProps: { m: mode },
+      });
+
+    it("opens with observe and no name, and sends nothing, not even a Heartbeat", async () => {
+      vi.useFakeTimers();
+      watching("watch");
+      await settle();
+      const url = new URL(FakeWebSocket.instances[0].url);
+      expect(url.searchParams.get("observe")).toBe("1");
+      expect(url.searchParams.has("name")).toBe(false);
+      expect(url.searchParams.has("client_id")).toBe(true);
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(10_000);
+      });
+      expect(FakeWebSocket.instances[0].sent).toEqual([]);
+    });
+
+    it("joins on the same socket when the mode turns to join, and beats only after the Echo", async () => {
+      vi.useFakeTimers();
+      loadRecordParticipant.mockResolvedValue({
+        participant_id: "p_prod",
+        lease: "kept",
+      });
+      const hook = watching("watch");
+      await settle();
+      const ws = FakeWebSocket.instances[0];
+      hook.rerender({ m: "join" });
+      expect(FakeWebSocket.instances).toHaveLength(1);
+      expect(commands(ws)).toEqual([
+        expect.objectContaining({
+          command_type: "Join",
+          payload: {
+            display_name: "Ava",
+            participant_id: "p_prod",
+            lease: "kept",
+          },
+        }),
+      ]);
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(10_000);
+      });
+      expect(commands(ws)).toHaveLength(1);
+      await act(async () => {
+        ws.emit({
+          plane: "record",
+          type: "Echo",
+          participant_id: "p_prod",
+          lease: "kept",
+        });
+        await vi.advanceTimersByTimeAsync(5000);
+      });
+      expect(commands(ws).map((c) => c.command_type)).toEqual([
+        "Join",
+        "Heartbeat",
+      ]);
+    });
+
+    it("sends the Join on open when the mode turns to join while still connecting", async () => {
+      FakeWebSocket.reset({ autoOpen: false });
+      const hook = watching("watch");
+      await settle();
+      const ws = FakeWebSocket.instances[0];
+      hook.rerender({ m: "join" });
+      expect(ws.sent).toEqual([]);
+      await act(async () => {
+        ws.open();
+      });
+      expect(commands(ws).map((c) => c.command_type)).toEqual(["Join"]);
+      expect(FakeWebSocket.instances).toHaveLength(1);
+    });
+
+    it("opens a joining socket at once when the mode turns to join during a backoff", async () => {
+      vi.useFakeTimers();
+      const hook = watching("watch");
+      await settle();
+      await act(async () => {
+        FakeWebSocket.instances[0].close(4429);
+      });
+      expect(FakeWebSocket.instances).toHaveLength(1);
+      hook.rerender({ m: "join" });
+      await settle();
+      expect(FakeWebSocket.instances).toHaveLength(2);
+      const joining = FakeWebSocket.instances[1];
+      expect(new URL(joining.url).searchParams.has("observe")).toBe(false);
+      expect(commands(joining).map((c) => c.command_type)).toEqual(["Join"]);
+    });
+
+    it("keeps looking on a reconnect, and joins with the lease on one after the press", async () => {
+      vi.useFakeTimers();
+      loadRecordParticipant.mockResolvedValue({
+        participant_id: "p_prod",
+        lease: "kept",
+      });
+      const hook = watching("watch");
+      await settle();
+      await act(async () => {
+        FakeWebSocket.instances[0].close(1006);
+        await vi.advanceTimersByTimeAsync(1000);
+      });
+      const again = FakeWebSocket.instances[1];
+      expect(new URL(again.url).searchParams.get("observe")).toBe("1");
+      expect(again.sent).toEqual([]);
+      hook.rerender({ m: "join" });
+      await act(async () => {
+        again.close(1006);
+        await vi.advanceTimersByTimeAsync(1000);
+      });
+      const joined = FakeWebSocket.instances.at(-1);
+      expect(new URL(joined?.url ?? "").searchParams.has("observe")).toBe(
+        false,
+      );
+      expect(commands(joined as FakeWebSocket)[0]).toMatchObject({
+        command_type: "Join",
+        payload: { participant_id: "p_prod", lease: "kept" },
+      });
+    });
+
+    it("counts the first snapshot of a look as a healthy connection", async () => {
+      vi.useFakeTimers();
+      vi.spyOn(Math, "random").mockReturnValue(0.9);
+      watching("watch");
+      await settle();
+      await act(async () => {
+        FakeWebSocket.instances[0].close(1006);
+        await vi.advanceTimersByTimeAsync(500);
+      });
+      expect(FakeWebSocket.instances).toHaveLength(2);
+      await act(async () => {
+        FakeWebSocket.instances[1].emit(lobby(1, 10));
+        FakeWebSocket.instances[1].close(1006);
+        await vi.advanceTimersByTimeAsync(480);
+      });
+      expect(FakeWebSocket.instances).toHaveLength(3);
+    });
+
+    it("clears the snapshot and closes the socket when the look ends", async () => {
+      const hook = watching("watch");
+      await settle();
+      const ws = FakeWebSocket.instances[0];
+      await act(async () => {
+        ws.emit(lobby(1, 10));
+      });
+      expect(hook.result.current.snapshot?.watchers).toBe(1);
+      hook.rerender({ m: "off" });
+      expect(hook.result.current.snapshot).toBeNull();
+      expect(hook.result.current.connected).toBe(false);
+      expect(ws.closed).toBe(true);
+    });
+
+    it("joins again on the same socket after a failed Join sent the mode back to watch", async () => {
+      const hook = watching("watch");
+      await settle();
+      const ws = FakeWebSocket.instances[0];
+      hook.rerender({ m: "join" });
+      hook.rerender({ m: "watch" });
+      hook.rerender({ m: "join" });
+      expect(commands(ws).map((c) => c.command_type)).toEqual(["Join", "Join"]);
+      expect(FakeWebSocket.instances).toHaveLength(1);
+    });
+
+    it("stops looking for good on a full room", async () => {
+      const hook = watching("watch");
+      await settle();
+      const ws = FakeWebSocket.instances[0];
+      await act(async () => {
+        ws.emit({ plane: "record", type: "Error", code: "room_full" });
+      });
+      expect(hook.result.current.error).toBe("room_full");
+      expect(ws.closed).toBe(true);
     });
   });
 });
