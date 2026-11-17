@@ -636,14 +636,18 @@ class RecordSessionService:
         with _CONN_LOCK:
             return connection_id in _WATCHERS.get((self._hub_key, self.session_id), ())
 
-    def watch(self, connection_id: str) -> int | None:
+    def watch(self, connection_id: str, share_id: str) -> int | None:
         """Count this socket as looking in and tell the room.
 
         Returns the ``server_time_ns`` of the snapshot that counts it (frames stamped
-        earlier do not), or None when the room is over or the looks are full.
+        earlier do not), or None when the room is over, the link's invite is closed
+        (the same rule Join applies) or the looks are full. A failed publish leaves
+        no count behind.
         """
         with self._authority_lock:
             if self._model().session_id != self.session_id:
+                return None
+            if self.invite_closed(share_id) is not None:
                 return None
             key = (self._hub_key, self.session_id)
             with _CONN_LOCK:
@@ -651,7 +655,11 @@ class RecordSessionService:
                 if len(ids) >= WATCHERS_PER_ROOM and connection_id not in ids:
                     return None
                 _WATCHERS[key] = ids | {connection_id}
-            return self._publish_snapshot()
+            try:
+                return self._publish_snapshot()
+            except BaseException:
+                _discard_watcher(self._hub_key, self.session_id, connection_id)
+                raise
 
     def unwatch(self, connection_id: str) -> None:
         with self._authority_lock:

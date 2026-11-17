@@ -89,6 +89,11 @@ def _stamp_of(event: dict[str, Any]) -> int:
     return stamp if isinstance(stamp, int) else 0
 
 
+def _removes_someone(event: dict[str, Any]) -> bool:
+    command = event.get("command")
+    return isinstance(command, dict) and command.get("type") == "RemoveParticipant"
+
+
 def _record_still_valid(token: str) -> bool:
     try:
         row = lookup_share(token, kind=SHARE_KIND_RECORD)
@@ -167,14 +172,16 @@ async def record_ws(
         q = hub.subscribe(hub_key, loop)
         counted_at = 0
         if watching:
-            stamp = await run_in_threadpool(svc.watch, connection_id)
+            stamp = await run_in_threadpool(svc.watch, connection_id, share_id)
             counted = stamp is not None
             counted_at = stamp or 0
             if not counted:
-                if await run_in_threadpool(svc.is_current_room):
-                    await guard.close(4429, "too many looking in")
-                else:
+                if not await run_in_threadpool(svc.is_current_room):
                     await guard.close(4403, "record room ended")
+                elif await run_in_threadpool(svc.invite_closed, share_id) is not None:
+                    await guard.close(4403, "invite closed")
+                else:
+                    await guard.close(4429, "too many looking in")
                 return
 
         async def _pump() -> None:
@@ -198,6 +205,12 @@ async def record_ws(
                                 role=role,
                             )
                         elif watching:
+                            if _removes_someone(event) and (
+                                await run_in_threadpool(svc.invite_closed, share_id) is not None
+                            ):
+                                # A removal closed this link's invite: it gets what a Join gets.
+                                await guard.close(4403, "invite closed")
+                                return
                             # Never show a room that has not been told: frames built before
                             # this socket was counted carry a count without it.
                             frame = None if _stamp_of(event) < counted_at else observer_view(event)
