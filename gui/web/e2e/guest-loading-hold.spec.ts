@@ -84,27 +84,37 @@ for (const size of SIZES) {
           await guest.emulateMedia({ colorScheme: theme });
           await installProbes(guest);
           await holdFirstProject(guest, token, 2500);
+          let projectAnswered = false;
+          guest.on("response", (response) => {
+            if (response.url().endsWith(`/api/review/${token}/project`))
+              projectAnswered = true;
+          });
           const studio = await holdChunk(guest, "dawApp");
           await guest.goto(`/r/${token}`, { waitUntil: "commit" });
 
-          let unnamed: Awaited<ReturnType<typeof headerBoxes>>;
-          await test.step("while /project is held: the unnamed loading frame", async () => {
+          let written: Awaited<ReturnType<typeof headerBoxes>>;
+          await test.step("while /project is held: the name the page wrote, in the title's place", async () => {
             await expect(
               guest.locator(".sys-skeleton-block--player"),
             ).toBeVisible();
             await shot(guest, `${size.name}-${theme}-1s`);
             await expect
               .soft(status(guest))
-              .toHaveText("Loading the episode…", { timeout: 3000 });
-            unnamed = await headerBoxes(guest);
-            expect.soft(unnamed.host).toEqual({
+              .toHaveText(`Loading ${name}…`, { timeout: 1000 });
+            expect
+              .soft(projectAnswered, "/project had not answered yet")
+              .toBe(false);
+            await fontsReady(guest);
+            written = await headerBoxes(guest);
+            expect.soft(written.host).toEqual({
               x: 0,
               y: 0,
               w: size.width,
               h: height,
             });
-            expect.soft(unnamed.block).not.toBeNull();
-            expect.soft(unnamed.title).toBeNull();
+            expect.soft(written.block).toBeNull();
+            expect.soft(written.title).not.toBeNull();
+            await expect(guest.locator(".sys-header-title")).toHaveText(name);
           });
 
           let named: Awaited<ReturnType<typeof headerBoxes>>;
@@ -134,6 +144,7 @@ for (const size of SIZES) {
             const first = await headerBoxes(guest);
             expect.soft(first.host).toEqual(named.host);
             near(first.title, named.title);
+            near(named.title, written.title);
             await landed(guest, name);
             await shot(guest, `${size.name}-${theme}-landed`);
             const last = await headerBoxes(guest);
@@ -144,7 +155,7 @@ for (const size of SIZES) {
               h: height,
             });
             near(last.title, named.title);
-            const boxes = JSON.stringify({ unnamed, named, first, last });
+            const boxes = JSON.stringify({ written, named, first, last });
             test.info().annotations.push({ type: "boxes", description: boxes });
           });
 
@@ -236,13 +247,8 @@ for (const size of SIZES) {
         await holdFirstProject(guest, token, 2000);
         const studio = await holdChunk(guest, "dawApp");
         await guest.goto(`/r/${token}`, { waitUntil: "commit" });
-        await expect(status(guest)).toHaveText("Loading the episode…");
-        const unnamedText = await guest
-          .locator("main.guest-loading")
-          .innerText();
-        expect(unnamedText.toLowerCase()).not.toContain("project");
         await expect(status(guest)).toHaveText(`Loading ${name}…`, {
-          timeout: 8000,
+          timeout: 1000,
         });
         const namedText = await guest.locator("main.guest-loading").innerText();
         expect(namedText.toLowerCase()).not.toContain("project");
@@ -251,7 +257,7 @@ for (const size of SIZES) {
       });
     });
 
-    test("axe finds nothing on the unnamed and the named loading screen", async ({
+    test("axe finds nothing on the loading screen, with the name the page gave", async ({
       browser,
     }) => {
       await withGuestLink(browser, size, async (guest, token) => {
@@ -262,9 +268,8 @@ for (const size of SIZES) {
         await expect(
           guest.locator(".sys-skeleton-block--player"),
         ).toBeVisible();
-        await expectReadingSurfaceAxeClean(guest);
         await expect(status(guest)).toHaveText(`Loading ${name}…`, {
-          timeout: 8000,
+          timeout: 1000,
         });
         await expectReadingSurfaceAxeClean(guest);
         studio.release();
