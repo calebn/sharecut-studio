@@ -18,6 +18,7 @@ from podcast_mcp.services.collaboration.review import ReviewService
 from podcast_mcp.services.collaboration.review_shares import list_shares, settle_shares_pending
 from podcast_mcp.services.collaboration.review_versions import get_version
 from podcast_mcp.services.collaboration.share import (
+    RecordStaleLinksError,
     ShareService,
     _row_live,
     lookup_share,
@@ -1028,3 +1029,73 @@ def test_failed_listing_of_prior_rooms_is_logged_and_the_mint_still_returns_the_
         for r in list_shares(ws.project)
         if r.get("kind") == "record" and _row_live(r)
     } == {room["session_id"]}
+
+
+def _live_record_rooms(ws: ProjectWorkspace) -> set[str]:
+    return {
+        r["session_id"]
+        for r in list_shares(ws.project)
+        if r.get("kind") == "record" and _row_live(r)
+    }
+
+
+@pytest.mark.usefixtures("effects")
+def test_a_mint_whose_room_listings_both_fail_is_not_reported_as_success(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch, caplog
+):
+    ws = _seed(minimal_project, sample_wav)
+    prior = _room(ws)
+    real = ShareService._live_other_record_rooms
+    healthy = {"on": False}
+
+    def listing(self, session_id):
+        if not healthy["on"]:
+            raise RuntimeError("listing boom")
+        return real(self, session_id)
+
+    monkeypatch.setattr(ShareService, "_live_other_record_rooms", listing)
+    with caplog.at_level("ERROR"), pytest.raises(RecordStaleLinksError) as stale:
+        ShareService(ws).create_record_room()
+    new = stale.value.room
+    assert stale.value.code == "record_stale_links"
+    assert stale.value.session_id == new["session_id"]
+    assert new["guest"]["url"] in str(stale.value)
+    assert _live_record_rooms(ws) == {prior["session_id"], new["session_id"]}
+
+    healthy["on"] = True
+    retry = ShareService(ws).create_record_room()
+    assert _live_record_rooms(ws) == {retry["session_id"]}
+
+
+@pytest.mark.usefixtures("effects")
+def test_a_single_failed_listing_or_revoke_keeps_its_existing_outcome(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch
+):
+    ws = _seed(minimal_project, sample_wav)
+    prior = _room(ws)
+    real_list = ShareService._live_other_record_rooms
+    calls = {"n": 0}
+
+    def first_fails(self, session_id):
+        calls["n"] += 1
+        if calls["n"] == 1:
+            raise RuntimeError("listing boom")
+        return real_list(self, session_id)
+
+    monkeypatch.setattr(ShareService, "_live_other_record_rooms", first_fails)
+    with pytest.raises(RecordStaleLinksError) as stale:
+        ShareService(ws).create_record_room()
+    assert stale.value.stale_session_ids == [prior["session_id"]]
+    monkeypatch.setattr(ShareService, "_live_other_record_rooms", real_list)
+
+    real_revoke = ShareService._revoke_room_tokens
+
+    def revoke_fails(self, sid):
+        raise OSError("disk")
+
+    monkeypatch.setattr(ShareService, "_revoke_room_tokens", revoke_fails)
+    live_before = _live_record_rooms(ws)
+    with pytest.raises(RecordStaleLinksError) as stale2:
+        ShareService(ws).create_record_room()
+    assert set(stale2.value.stale_session_ids) == live_before
+    monkeypatch.setattr(ShareService, "_revoke_room_tokens", real_revoke)
