@@ -284,15 +284,9 @@ export function RoomTileSkeleton() {
   );
 }
 
-export function ListenerRow({
-  children,
-  inert,
-}: {
-  children: ReactNode;
-  inert?: boolean;
-}) {
+export function ListenerRow({ children }: { children: ReactNode }) {
   return (
-    <ul className="sys-room-listeners" aria-label="Listening" inert={inert}>
+    <ul className="sys-room-listeners" aria-label="Listening">
       {children}
     </ul>
   );

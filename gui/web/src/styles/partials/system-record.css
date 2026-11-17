@@ -1570,11 +1570,30 @@ html:not([data-shell="phone"], [data-shell="tablet"])
   opacity: 0.4;
 }
 
-/* The scrim's veil would grey the one line that says who can see the room, so
-   under Declined the line is lifted above it. */
-.sys-room-view[data-declined] .sys-room-looking-in {
+/* Declined makes the body inert, so the line is drawn from outside it, under the
+   header, and lifted above the scrim's veil so the one line that says who can
+   see the room stays readable. */
+.sys-room-looking-in-strip {
   position: relative;
   z-index: var(--z-edit-overlay);
+  flex: none;
+  padding-block-start: var(--space-5);
+  padding-inline: var(--space-5);
+}
+
+.sys-room-view[data-width="phone-landscape"][data-line-outside] {
+  grid-template-rows: auto auto minmax(0, 1fr);
+}
+
+.sys-room-view[data-width="phone-landscape"] .sys-room-looking-in-strip {
+  grid-column: 1 / -1;
+}
+
+.sys-room-view[data-width="phone-landscape"][data-line-outside]
+  .sys-room-view-body,
+.sys-room-view[data-width="phone-landscape"][data-line-outside]
+  .sys-room-view-dock {
+  grid-row: 3;
 }
 
 .sys-declined {
