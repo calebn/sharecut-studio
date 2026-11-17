@@ -299,6 +299,7 @@ export function RoomView({
       data-declined={declined ? "" : undefined}
       data-page={page ? "" : undefined}
       data-loading={loading ? "" : undefined}
+      data-looking-in={lookingInText === null ? undefined : ""}
     >
       {embedded ? (
         <div className="sys-room-view-header sys-room-view-header--embedded">

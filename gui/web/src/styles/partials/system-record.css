@@ -635,6 +635,26 @@
   overflow-wrap: anywhere;
 }
 
+/* The line takes its height from the tiles, not from what the viewer could
+   see: the grid shrinks, and its rows with it, down to a floor, so no tile or
+   listener the room showed without the line moves under the dock. */
+.sys-room-view[data-looking-in] .sys-room-view-grid {
+  flex: 0 1 auto;
+  min-block-size: 0;
+  grid-auto-rows: minmax(6rem, 1fr);
+}
+
+.sys-room-view[data-looking-in] .sys-room-view-grid > .sys-room-tile,
+.sys-room-view[data-looking-in] .sys-room-view-grid > .sys-room-slot {
+  align-self: stretch;
+  min-block-size: 0;
+}
+
+.sys-room-view[data-looking-in] .sys-room-slot > .sys-room-tile {
+  block-size: 100%;
+  min-block-size: 0;
+}
+
 .sys-room-looking-in > svg {
   flex: none;
 }
@@ -1547,10 +1567,6 @@ html:not([data-shell="phone"], [data-shell="tablet"])
    peek bar docks at the bottom edge above the safe area. */
 .sys-room-view[data-declined] .sys-room-view-grid,
 .sys-room-view[data-declined] .sys-room-listeners,
-.sys-room-view[data-declined] .sys-room-looking-in {
-  opacity: 0.4;
-}
-
 .sys-declined {
   position: absolute;
   inset: 0;

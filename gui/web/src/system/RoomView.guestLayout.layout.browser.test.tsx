@@ -361,3 +361,178 @@ describe("the looking-in line on a portrait phone", () => {
     });
   }
 });
+
+describe("the looking-in line hides nothing develop showed", () => {
+  const PRODUCER: RoomPerson = {
+    role: "producer",
+    person: { name: "Pat", colorIndex: 4 },
+    presence: "live",
+    connection: "good",
+  };
+  const HOST: RoomPerson = {
+    role: "host",
+    person: { name: "Maya", colorIndex: 1 },
+    you: true,
+    presence: "live",
+    connection: "good",
+    level: 1,
+    speaking: true,
+  };
+  // How far the stage's content runs past what the viewer can see.
+  const hidden = (room: HTMLElement) => {
+    const stage = room.querySelector(".sys-room-view-stage") as HTMLElement;
+    return Math.max(0, stage.scrollHeight - stage.clientHeight);
+  };
+  const dockBottom = (room: HTMLElement) =>
+    rect(room.querySelector(".sys-dock") as Element).bottom;
+  const tileHeight = (room: HTMLElement) =>
+    rect(room.querySelector(".sys-room-tile") as Element).height;
+
+  type Case = {
+    name: string;
+    width: number;
+    height: number;
+    props: Parameters<typeof render>[2];
+  };
+  const guestPeople = (count: number) => [...OTHERS.slice(0, count - 1), ME];
+  const cases: Case[] = [
+    {
+      name: "host studio 1280x800 with three people and a listener",
+      width: 1280,
+      height: 722,
+      props: {
+        seat: "host",
+        phase: LIVE,
+        embedded: true,
+        viewerWidth: "desktop",
+        defaultNotesOpen: true,
+        people: [
+          HOST,
+          OTHERS[1] as RoomPerson,
+          OTHERS[2] as RoomPerson,
+          PRODUCER,
+        ],
+      },
+    },
+    {
+      name: "host studio 1024x700 with three people and a listener",
+      width: 1024,
+      height: 622,
+      props: {
+        seat: "host",
+        phase: LIVE,
+        embedded: true,
+        viewerWidth: "desktop",
+        defaultNotesOpen: true,
+        people: [
+          HOST,
+          OTHERS[1] as RoomPerson,
+          OTHERS[2] as RoomPerson,
+          PRODUCER,
+        ],
+      },
+    },
+    ...(["guest", "producer"] as const).flatMap((seat) =>
+      [2, 3].map(
+        (count): Case => ({
+          name: `${seat} on a 667x375 landscape phone with ${count} people`,
+          width: 667,
+          height: 375,
+          props: {
+            seat,
+            phase: LIVE,
+            viewerWidth: "phone-landscape",
+            people: guestPeople(count),
+          },
+        }),
+      ),
+    ),
+    {
+      name: "guest at 767 portrait with four people",
+      width: 767,
+      height: 1024,
+      props: {
+        seat: "guest",
+        phase: LIVE,
+        viewerWidth: "phone",
+        people: guestPeople(4),
+      },
+    },
+    {
+      name: "guest at 768 with the rail open",
+      width: 768,
+      height: 1024,
+      props: {
+        seat: "guest",
+        phase: LIVE,
+        viewerWidth: "desktop",
+        defaultNotesOpen: true,
+        people: guestPeople(4),
+      },
+    },
+  ];
+
+  const compare = async (item: Case) => {
+    const without = await render(item.width, item.height, {
+      ...item.props,
+      lookingIn: 0,
+    });
+    const before = {
+      hidden: hidden(without),
+      dock: dockBottom(without),
+      tile: tileHeight(without),
+    };
+    root?.unmount();
+    host?.remove();
+    const room = await render(item.width, item.height, {
+      ...item.props,
+      lookingIn: 3,
+    });
+    const line = room.querySelector(".sys-room-looking-in") as Element;
+    expect(line).not.toBeNull();
+    expect(hidden(room)).toBeLessThanOrEqual(before.hidden + 0.5);
+    expect(dockBottom(room)).toBeCloseTo(before.dock, 0);
+    expect(tileHeight(room)).toBeLessThanOrEqual(before.tile + 0.5);
+    const stage = rect(room.querySelector(".sys-room-view-stage") as Element);
+    expect(rect(line).top).toBeGreaterThanOrEqual(stage.top);
+    expect(rect(line).bottom).toBeLessThanOrEqual(stage.bottom);
+  };
+
+  for (const item of cases) {
+    it(`${item.name}`, () => compare(item));
+  }
+
+  it("holds in dark for a guest at 390 with four people", async () => {
+    document.documentElement.dataset.theme = "dark";
+    try {
+      await compare({
+        name: "dark",
+        width: 390,
+        height: 844,
+        props: {
+          seat: "guest",
+          phase: LIVE,
+          viewerWidth: "phone",
+          people: guestPeople(4),
+        },
+      });
+    } finally {
+      delete document.documentElement.dataset.theme;
+    }
+  });
+});
+
+describe("the looking-in line in the Declined state", () => {
+  it("stays at full strength so it can still be read", async () => {
+    const room = await render(390, 844, {
+      seat: "guest",
+      phase: LIVE,
+      viewerWidth: "phone",
+      declined: { onJoin: noop },
+      people: [OTHERS[0] as RoomPerson, ME],
+      lookingIn: 2,
+    });
+    const line = room.querySelector(".sys-room-looking-in") as Element;
+    expect(getComputedStyle(line).opacity).toBe("1");
+  });
+});
