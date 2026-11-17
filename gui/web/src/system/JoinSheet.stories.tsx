@@ -218,7 +218,7 @@ export const GuestReady: Story = {
 };
 
 export const GuestLookingIn: Story = {
-  args: { mic: MIC_READY, headphones: true, lookingIn: 1 },
+  args: { mic: MIC_READY, headphones: "on", lookingIn: 1 },
   play: async ({ viewMode }) => {
     if (viewMode === "docs") return;
     const dialog = await sheet();
