@@ -11,7 +11,7 @@ export function stageAvailable(stage: StageId, role: StageRole): boolean {
  * A load that failed, and what the stage body says about it. `shell` is the
  * studio's first read of the episode: it carries the kind of failure and no
  * text, so the cover can only say a fixed sentence. `detail` is the
- * transcript's own refresh (#3884), whose words are fixed.
+ * transcript's own refresh, whose words are fixed.
  */
 export type LoadFailure =
   | {

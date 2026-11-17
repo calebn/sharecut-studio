@@ -333,7 +333,7 @@ describe("the words", () => {
   ] as const;
 
   it.each(GUEST_ROWS)(
-    "a guest's %j reads what slice 1 reads for the same cause",
+    "a guest's %j reads what the page cover reads for the same cause",
     (failure, title, button, auto) => {
       const shell = cover({ audience: "guest", failure });
       const page = guestLoadCover(failure);
@@ -349,7 +349,7 @@ describe("the words", () => {
     },
   );
 
-  it("says slice 2's doubt sentence, with a button and no retry by itself, when a link may be gone", () => {
+  it("says the link-doubt sentence, with a button and no retry by itself, when a link may be gone", () => {
     expect(
       cover({ audience: "guest", failure: { kind: "doubt" } }),
     ).toMatchObject({
