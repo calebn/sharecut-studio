@@ -2799,7 +2799,7 @@ def test_unwatch_twice_publishes_once(minimal_project, sample_wav, tmp_workspace
     svc = _room_svc(ws, room)
     published: list[dict] = []
     monkeypatch.setattr(get_hub(), "publish", lambda _key, event: published.append(event))
-    assert isinstance(svc.watch("c1"), int)
+    assert isinstance(svc.watch("c1", room["producer"]["id"]), int)
     svc.unwatch("c1")
     svc.unwatch("c1")
     assert [e["snapshot"]["watchers"] for e in published] == [1, 0]
@@ -2921,7 +2921,7 @@ def test_observer_is_never_sent_a_frame_built_before_it_was_counted(
     _ws, room, client = _room(minimal_project, sample_wav, tmp_workspace, monkeypatch)
     original = RecordSessionService.watch
 
-    def host_acts_then_watch(self, connection_id):
+    def host_acts_then_watch(self, connection_id, share_id):
         get_hub().publish(
             self._hub_key,
             {
@@ -2931,7 +2931,7 @@ def test_observer_is_never_sent_a_frame_built_before_it_was_counted(
                 "snapshot": self.snapshot(),
             },
         )
-        return original(self, connection_id)
+        return original(self, connection_id, share_id)
 
     monkeypatch.setattr(RecordSessionService, "watch", host_acts_then_watch)
     with _observe(client, room) as obs:
@@ -3015,7 +3015,7 @@ def test_remint_clears_the_watcher_registry_and_only_state_frames_reach_an_obser
     ws, room, _client = _room(minimal_project, sample_wav, tmp_workspace, monkeypatch)
     svc = _room_svc(ws, room)
     hub_key = record_hub_key(ws.project)
-    assert svc.watch("c1") is not None
+    assert svc.watch("c1", room["producer"]["id"]) is not None
     assert watcher_count(hub_key, room["session_id"]) == 1
     clear_connections_for_hub(hub_key)
     assert watcher_count(hub_key, room["session_id"]) == 0
@@ -3025,3 +3025,135 @@ def test_remint_clears_the_watcher_registry_and_only_state_frames_reach_an_obser
     assert observer_view({"plane": "record", "type": "Applied", "snapshot": snap})["type"] == (
         "Snapshot"
     )
+
+
+def _join_through_the_producer_invite(ws, room) -> tuple[RecordSessionService, str]:
+    svc = _room_svc(ws, room)
+    echo, _snap = svc.join(
+        share_id=room["producer"]["id"],
+        role="producer",
+        display_name="Pat",
+        client_id="gone",
+        connection_id="gone-conn",
+        capabilities=["join", "monitor"],
+    )
+    return svc, echo["participant_id"]
+
+
+def _remove_that_producer(ws, room, svc: RecordSessionService, participant_id: str) -> None:
+    RecordControlService(ws).submit_host(
+        "RemoveParticipant", payload={"participant_id": participant_id}
+    )
+    assert svc.invite_closed(room["producer"]["id"]) is InviteClosure.REMOVED
+
+
+def _close_the_producer_invite(ws, room) -> RecordSessionService:
+    """A producer joins through the producer link, then the host removes them."""
+    svc, participant_id = _join_through_the_producer_invite(ws, room)
+    _remove_that_producer(ws, room, svc, participant_id)
+    return svc
+
+
+def test_a_look_on_a_closed_invite_is_refused_like_a_join(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch
+):
+    ws, room, client = _room(minimal_project, sample_wav, tmp_workspace, monkeypatch)
+    svc = _close_the_producer_invite(ws, room)
+    with _observe(client, room) as obs:
+        with pytest.raises(WebSocketDisconnect) as closed:
+            obs.receive_json()
+        assert closed.value.code == 4403
+    assert svc.snapshot()["watchers"] == 0
+
+
+def test_a_look_open_when_its_invite_closes_is_closed_with_no_frame_and_uncounted(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch
+):
+    from podcast_mcp.gui.routes.guest_ws_common import GuestWsGuard
+
+    ws, room, client = _room(minimal_project, sample_wav, tmp_workspace, monkeypatch)
+
+    async def always_ok(self):
+        # Switch the share recheck off so only the removal check can close the look.
+        return True
+
+    monkeypatch.setattr(GuestWsGuard, "share_ok_on_frame", always_ok)
+    svc = _room_svc(ws, room)
+    wait_for_count = _watchers_waiter(svc, monkeypatch)
+    with _observe(client, room) as obs:
+        assert obs.receive_json()["snapshot"]["watchers"] == 1
+        svc, participant_id = _join_through_the_producer_invite(ws, room)
+        joined = obs.receive_json()
+        assert joined["snapshot"]["watchers"] == 1
+        _remove_that_producer(ws, room, svc, participant_id)
+        # The very next thing on the socket is the close: no frame follows the removal.
+        with pytest.raises(WebSocketDisconnect) as closed:
+            obs.receive_json()
+        assert closed.value.code == 4403
+    wait_for_count(0)
+
+
+def test_join_on_a_look_whose_invite_closed_meanwhile_is_refused_as_today(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch
+):
+    import asyncio
+    import threading
+
+    from podcast_mcp.gui.routes.guest_ws_common import GuestWsGuard
+
+    ws, room, client = _room(minimal_project, sample_wav, tmp_workspace, monkeypatch)
+    svc = _room_svc(ws, room)
+    armed = threading.Event()
+    held = threading.Event()
+    release = threading.Event()
+    original = GuestWsGuard.share_ok_on_frame
+
+    async def gated(self):
+        if armed.is_set() and not held.is_set():
+            held.set()
+            await asyncio.get_running_loop().run_in_executor(None, release.wait, 5.0)
+        return await original(self)
+
+    monkeypatch.setattr(GuestWsGuard, "share_ok_on_frame", gated)
+    with _observe(client, room) as obs:
+        assert obs.receive_json()["snapshot"]["watchers"] == 1
+        armed.set()
+        _close_the_producer_invite(ws, room)
+        assert held.wait(5.0), "the pump never took the removal"
+        _join(obs, name="Cy")
+        err = _drain_until(obs, lambda m: m.get("type") == "Error")
+        assert err["code"] == "invite_closed"
+        with pytest.raises(WebSocketDisconnect) as closed:
+            obs.receive_json()
+        assert closed.value.code == 4403
+        release.set()
+    assert svc.snapshot()["watchers"] == 0
+
+
+def test_a_failed_publish_leaves_no_count_behind(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch
+):
+    from podcast_mcp.services.record.service import record_hub_key, watcher_count
+
+    ws, room, _client = _room(minimal_project, sample_wav, tmp_workspace, monkeypatch)
+    svc = _room_svc(ws, room)
+
+    def boom(self):
+        raise RuntimeError("publish failed")
+
+    monkeypatch.setattr(RecordSessionService, "_publish_snapshot", boom)
+    with pytest.raises(RuntimeError, match="publish failed"):
+        svc.watch("c1", room["producer"]["id"])
+    assert watcher_count(record_hub_key(ws.project), room["session_id"]) == 0
+
+
+def test_a_look_cannot_start_on_a_room_that_was_reminted(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch
+):
+    from podcast_mcp.services.record.service import record_hub_key, watcher_count
+
+    ws, room, _client = _room(minimal_project, sample_wav, tmp_workspace, monkeypatch)
+    old = _room_svc(ws, room)
+    ShareService(ws).create_record_room()
+    assert old.watch("c1", room["producer"]["id"]) is None
+    assert watcher_count(record_hub_key(ws.project), room["session_id"]) == 0
