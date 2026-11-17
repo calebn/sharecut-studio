@@ -9,7 +9,7 @@ import time
 from collections.abc import Callable
 from dataclasses import dataclass
 from enum import StrEnum
-from typing import Any
+from typing import Any, TypedDict
 
 from podcast_mcp.models import EpisodeProject
 from podcast_mcp.project.store import ProjectStore
@@ -261,7 +261,15 @@ def clear_connections_for_hub(hub_key: str) -> None:
             _WATCHERS.pop(room, None)
 
 
-def observer_view(event: dict[str, Any]) -> dict[str, Any] | None:
+class ObserverFrame(TypedDict):
+    """The one frame shape a looking-in socket receives."""
+
+    plane: str
+    type: str
+    snapshot: dict[str, Any]
+
+
+def observer_view(event: dict[str, Any]) -> ObserverFrame | None:
     """What a producer link sees while only looking in: the room's state, nothing else.
 
     Only ``Applied`` and ``Snapshot`` pass, each as a bare ``Snapshot`` frame through the
