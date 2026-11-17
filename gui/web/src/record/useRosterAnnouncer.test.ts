@@ -65,15 +65,15 @@ const counting = (snapshot: RecordSnapshot): RecordSnapshot => ({
 describe("useRosterAnnouncer", () => {
   it("is silent for who is already in the room", () => {
     const { result } = setup(room([host, me, sam]));
-    expect(result.current).toBe("");
+    expect(result.current.text).toBe("");
   });
 
   it("announces a join and a leave", () => {
     const { result, rerender } = setup(room());
     rerender({ snapshot: room([host, me, sam]), meId: "p_g" });
-    expect(result.current).toBe("Sam joined");
+    expect(result.current.text).toBe("Sam joined");
     rerender({ snapshot: room([host, me]), meId: "p_g" });
-    expect(result.current).toBe("Sam left");
+    expect(result.current.text).toBe("Sam left");
   });
 
   it("counts a dropped connection and a removal as leaving", () => {
@@ -82,7 +82,7 @@ describe("useRosterAnnouncer", () => {
       snapshot: room([host, me, { ...sam, connected: false }, pat]),
       meId: "p_g",
     });
-    expect(result.current).toBe("Sam left");
+    expect(result.current.text).toBe("Sam left");
     rerender({
       snapshot: room([
         host,
@@ -92,32 +92,32 @@ describe("useRosterAnnouncer", () => {
       ]),
       meId: "p_g",
     });
-    expect(result.current).toBe("Pat left");
+    expect(result.current.text).toBe("Pat left");
   });
 
   it("says every change in one snapshot, and keeps names after someone goes", () => {
     const { result, rerender } = setup(room([host, me, sam]));
     rerender({ snapshot: room([me, pat]), meId: "p_g" });
-    expect(result.current).toBe("Pat joined. Hana left. Sam left");
+    expect(result.current.text).toBe("Pat joined. Hana left. Sam left");
   });
 
   it("never announces the viewer's own arrival or departure", () => {
     const { result, rerender } = setup(room([host]));
     rerender({ snapshot: room([host, me]), meId: "p_g" });
-    expect(result.current).toBe("");
+    expect(result.current.text).toBe("");
   });
 
   it("waits for the viewer's identity before taking its baseline", () => {
     const { result, rerender } = setup(room([host, me]), null);
     rerender({ snapshot: room([host, me]), meId: "p_g" });
     rerender({ snapshot: room([host, me, sam]), meId: "p_g" });
-    expect(result.current).toBe("Sam joined");
+    expect(result.current.text).toBe("Sam joined");
   });
 
   it("reads what someone else wrote, not how many there are", () => {
     const first = comment("c1", "p_host", "Earlier note");
     const { result, rerender } = setup(room([host, me], [first]));
-    expect(result.current).toBe("");
+    expect(result.current.text).toBe("");
     rerender({
       snapshot: room(
         [host, me],
@@ -129,7 +129,7 @@ describe("useRosterAnnouncer", () => {
       ),
       meId: "p_g",
     });
-    expect(result.current).toBe("Hana: Retake that");
+    expect(result.current.text).toBe("Hana: Retake that");
   });
 
   it("describes a marker rather than reading its placeholder", () => {
@@ -138,19 +138,19 @@ describe("useRosterAnnouncer", () => {
       snapshot: room([host, me], [comment("c1", "p_host", MARKER_BODY)]),
       meId: "p_g",
     });
-    expect(result.current).toBe("Hana added a marker");
+    expect(result.current.text).toBe("Hana added a marker");
   });
 
   it("retains history and its line through missing snapshots and identity", () => {
     const { result, rerender } = setup(room());
     rerender({ snapshot: room([host, me, sam]), meId: "p_g" });
-    expect(result.current).toBe("Sam joined");
+    expect(result.current.text).toBe("Sam joined");
     rerender({ snapshot: null, meId: null });
-    expect(result.current).toBe("Sam joined");
+    expect(result.current.text).toBe("Sam joined");
     rerender({ snapshot: room([host, me, sam, pat]), meId: null });
-    expect(result.current).toBe("Sam joined");
+    expect(result.current.text).toBe("Sam joined");
     rerender({ snapshot: room([host, me, sam, pat]), meId: "p_g" });
-    expect(result.current).toBe("Pat joined");
+    expect(result.current.text).toBe("Pat joined");
   });
 
   it("remembers a silent rename for a later departure", () => {
@@ -159,9 +159,9 @@ describe("useRosterAnnouncer", () => {
       snapshot: room([host, me, { ...sam, display_name: "Samuel" }]),
       meId: "p_g",
     });
-    expect(result.current).toBe("");
+    expect(result.current.text).toBe("");
     rerender({ snapshot: room(), meId: "p_g" });
-    expect(result.current).toBe("Samuel left");
+    expect(result.current.text).toBe("Samuel left");
   });
 
   it("preserves duplicate new comment rows and then remembers their id", () => {
@@ -171,18 +171,18 @@ describe("useRosterAnnouncer", () => {
       comment("same", "p_host", "Second"),
     ];
     rerender({ snapshot: room([host, me], comments), meId: "p_g" });
-    expect(result.current).toBe("Hana: First. Hana: Second");
+    expect(result.current.text).toBe("Hana: First. Hana: Second");
     rerender({ snapshot: room([host, me], comments), meId: "p_g" });
-    expect(result.current).toBe("Hana: First. Hana: Second");
+    expect(result.current.text).toBe("Hana: First. Hana: Second");
     rerender({ snapshot: room([host, me, sam], comments), meId: "p_g" });
-    expect(result.current).toBe("Sam joined");
+    expect(result.current.text).toBe("Sam joined");
   });
 
   it("keeps history while changing the viewer identity", () => {
     const snapshot = room([host, me, sam]);
     const { result, rerender } = setup(snapshot);
     rerender({ snapshot, meId: "p_s" });
-    expect(result.current).toBe("Ava joined. Sam left");
+    expect(result.current.text).toBe("Ava joined. Sam left");
   });
 
   it("converges with a fresh value-equal snapshot on each render", () => {
@@ -191,11 +191,11 @@ describe("useRosterAnnouncer", () => {
         useRosterAnnouncer(room(joined ? [host, me, sam] : [host, me]), "p_g"),
       { initialProps: { joined: false } },
     );
-    expect(result.current).toBe("");
+    expect(result.current.text).toBe("");
     rerender({ joined: true });
-    expect(result.current).toBe("Sam joined");
+    expect(result.current.text).toBe("Sam joined");
     rerender({ joined: true });
-    expect(result.current).toBe("Sam joined");
+    expect(result.current.text).toBe("Sam joined");
   });
 
   it("does not remember a positively attempted abandoned roster", async () => {
@@ -209,7 +209,7 @@ describe("useRosterAnnouncer", () => {
       snapshot: RecordSnapshot;
       suspend: boolean;
     }) {
-      const line = useRosterAnnouncer(snapshot, "p_g");
+      const line = useRosterAnnouncer(snapshot, "p_g").text;
       if (suspend) {
         attempted();
         throw pending;
@@ -258,7 +258,7 @@ describe("useRosterAnnouncer", () => {
 
   it("stays silent without a snapshot", () => {
     const { result } = setup(null);
-    expect(result.current).toBe("");
+    expect(result.current.text).toBe("");
   });
   describe("someone looking in", () => {
     const LINE = "Someone with the producer link is looking in";
@@ -277,49 +277,66 @@ describe("useRosterAnnouncer", () => {
     it("announces the first rise from none in the lobby, once", () => {
       const { result, rerender } = setup(at(0));
       rerender({ snapshot: at(1), meId: "p_g" });
-      expect(result.current).toBe(LINE);
+      expect(result.current.text).toBe(LINE);
       rerender({ snapshot: at(0), meId: "p_g" });
-      expect(result.current).toBe(LINE);
+      expect(result.current.text).toBe(LINE);
       rerender({ snapshot: at(2), meId: "p_g" });
-      expect(result.current).toBe(LINE);
+      expect(result.current.text).toBe(LINE);
     });
 
     it("announces a rise in a stopped room, and from a server that sends no count", () => {
       const { result, rerender } = setup(at(undefined, "stopped"));
       rerender({ snapshot: at(3, "stopped"), meId: "p_g" });
-      expect(result.current).toBe(
+      expect(result.current.text).toBe(
         "3 people with the producer link are looking in",
       );
     });
 
     it("is silent about who is already looking in on first render", () => {
       const { result, rerender } = setup(at(1));
-      expect(result.current).toBe("");
+      expect(result.current.text).toBe("");
       rerender({ snapshot: at(2), meId: "p_g" });
-      expect(result.current).toBe("");
+      expect(result.current.text).toBe("");
+    });
+
+    it("moves the sequence only for a looking-in arrival, not for a join, a comment or a change of count", () => {
+      const { result, rerender } = setup(at(0));
+      expect(result.current.seq).toBe(0);
+      rerender({ snapshot: room([host, me, sam]), meId: "p_g" });
+      expect(result.current.text).toBe("Sam joined");
+      expect(result.current.seq).toBe(0);
+      rerender({ snapshot: at(1), meId: "p_g" });
+      expect(result.current.seq).toBe(1);
+      rerender({ snapshot: at(3), meId: "p_g" });
+      expect(result.current.seq).toBe(1);
+      rerender({ snapshot: at(0), meId: "p_g" });
+      expect(result.current.seq).toBe(1);
+      rerender({ snapshot: at(0, "lobby", "room2"), meId: "p_g" });
+      rerender({ snapshot: at(1, "lobby", "room2"), meId: "p_g" });
+      expect(result.current.seq).toBe(2);
     });
 
     it("stays silent while recording or paused", () => {
       const { result, rerender } = setup(at(0, "recording"));
       rerender({ snapshot: at(1, "recording"), meId: "p_g" });
-      expect(result.current).toBe("");
+      expect(result.current.text).toBe("");
       rerender({ snapshot: at(0, "paused"), meId: "p_g" });
       rerender({ snapshot: at(1, "paused"), meId: "p_g" });
-      expect(result.current).toBe("");
+      expect(result.current.text).toBe("");
     });
 
     it("holds an arrival during the room-tone countdown and speaks it at the next update after the countdown", () => {
       const { result, rerender } = setup(at(0));
       rerender({ snapshot: counting(at(1)), meId: "p_g" });
-      expect(result.current).toBe("");
+      expect(result.current.text).toBe("");
       rerender({ snapshot: counting(at(1)), meId: "p_g" });
-      expect(result.current).toBe("");
+      expect(result.current.text).toBe("");
       // The server keeps room_tone set once the round is over.
       rerender({
         snapshot: { ...counting(at(1)), countdown_left_ms: 0 },
         meId: "p_g",
       });
-      expect(result.current).toBe(LINE);
+      expect(result.current.text).toBe(LINE);
     });
 
     it("stays silent on a leave and on a change from one to more", () => {
@@ -328,16 +345,16 @@ describe("useRosterAnnouncer", () => {
       rerender({ snapshot: at(2), meId: "p_g" });
       rerender({ snapshot: at(1), meId: "p_g" });
       rerender({ snapshot: at(0), meId: "p_g" });
-      expect(result.current).toBe(LINE);
+      expect(result.current.text).toBe(LINE);
     });
 
     it("announces a lobby rise after a rise that was seen during a take", () => {
       const { result, rerender } = setup(at(0, "recording"));
       rerender({ snapshot: at(1, "recording"), meId: "p_g" });
-      expect(result.current).toBe("");
+      expect(result.current.text).toBe("");
       rerender({ snapshot: at(0, "lobby"), meId: "p_g" });
       rerender({ snapshot: at(1, "lobby"), meId: "p_g" });
-      expect(result.current).toBe(LINE);
+      expect(result.current.text).toBe(LINE);
     });
 
     it.each([-1, 2.5, 100, Number.NaN, "2"])(
@@ -348,7 +365,7 @@ describe("useRosterAnnouncer", () => {
           snapshot: at(bad as unknown as number),
           meId: "p_g",
         });
-        expect(result.current).toBe("");
+        expect(result.current.text).toBe("");
       },
     );
 
@@ -357,10 +374,10 @@ describe("useRosterAnnouncer", () => {
       rerender({ snapshot: at(1), meId: "p_g" });
       rerender({ snapshot: at(0), meId: "p_g" });
       rerender({ snapshot: at(2), meId: "p_g" });
-      expect(result.current).toBe(LINE);
+      expect(result.current.text).toBe(LINE);
       rerender({ snapshot: at(0, "lobby", "room2"), meId: "p_g" });
       rerender({ snapshot: at(3, "lobby", "room2"), meId: "p_g" });
-      expect(result.current).toBe(
+      expect(result.current.text).toBe(
         "3 people with the producer link are looking in",
       );
     });

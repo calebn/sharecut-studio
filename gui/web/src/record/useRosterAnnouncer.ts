@@ -70,6 +70,8 @@ type RosterObservation = {
   comments: ReadonlySet<string> | null;
   lookingIn: LookingInWatch;
   announcement: string;
+  /** Counts the looking-in arrivals spoken, so the page can render a new note for each. */
+  lookingSeq: number;
 };
 
 function sameOrder(before: ReadonlySet<string>, now: ReadonlySet<string>) {
@@ -135,6 +137,7 @@ function observeRoster(
     comments,
     lookingIn: looking.watch,
     announcement: lines.length ? lines.join(". ") : before.announcement,
+    lookingSeq: looking.line ? before.lookingSeq + 1 : before.lookingSeq,
   };
 }
 
@@ -146,20 +149,21 @@ function observeRoster(
 export function useRosterAnnouncer(
   snapshot: RecordSnapshot | null,
   meId: string | null,
-): string {
+): { text: string; seq: number } {
   const [observation, setObservation] = useState<RosterObservation>(() => ({
     people: null,
     names: new Map(),
     comments: null,
     lookingIn: NO_LOOKING_IN,
     announcement: "",
+    lookingSeq: 0,
   }));
   const next = useMemo(
     () => observeRoster(observation, snapshot, meId),
     [observation, snapshot, meId],
   );
   if (next !== observation) setObservation(next);
-  return observation.announcement;
+  return { text: observation.announcement, seq: observation.lookingSeq };
 }
 
 /**

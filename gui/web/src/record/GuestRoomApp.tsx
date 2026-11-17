@@ -591,7 +591,9 @@ function GuestRoomSession({
         ) : null}
         {monitor.hearing && connected ? <p>{HEARING_COPY}</p> : null}
         {keeperActions.notice ? <p>{keeperActions.notice}</p> : null}
-        {announcement ? <p>{announcement}</p> : null}
+        {announcement.text ? (
+          <p key={announcement.seq}>{announcement.text}</p>
+        ) : null}
         {toneAnnouncement ? (
           <p key={toneAnnouncement.seq}>{toneAnnouncement.text}</p>
         ) : null}
