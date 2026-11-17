@@ -35,6 +35,7 @@ from podcast_mcp.services.support.doctor import (
 )
 from podcast_mcp.util import host_platform
 from podcast_mcp.util.atomic_file import publish_completed_file
+from podcast_mcp.util.coded_error import CodedValueError
 from podcast_mcp.util.diagnostics_bundle_contract import (
     MAX_BUNDLE_BYTES,
     diagnostics_log_archive_name,
@@ -491,7 +492,10 @@ class DiagnosticsService:
         unopened: UnopenedEpisode | None = None,
     ) -> BundleReport:
         if project is not None and unopened is not None:
-            raise ValueError("a bundle describes an opened episode or an unopened one, not both")
+            raise CodedValueError(
+                "a bundle describes an opened episode or an unopened one, not both",
+                code="bundle_episode_conflict",
+            )
         home = Path.home()
         workspace: Path | None = None
         if project is not None and project.workspace_dir:
