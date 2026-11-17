@@ -461,6 +461,17 @@ export const Producer: Story = {
   },
 };
 
+export const ProducerSeenByRoom: Story = {
+  args: { seat: "producer", name: "Rosa Diaz", seenByRoom: true },
+  play: async ({ viewMode }) => {
+    if (viewMode === "docs") return;
+    const dialog = await sheet();
+    await expect(
+      dialog.getByText("The room can see that someone is looking in."),
+    ).toBeVisible();
+  },
+};
+
 export const ProducerJoining: Story = {
   args: { seat: "producer", name: "Rosa Diaz", joining: true },
   play: async ({ viewMode }) => {
