@@ -24,7 +24,7 @@ from collections.abc import Callable, Iterator, Mapping, Sequence
 from contextlib import contextmanager
 from contextvars import ContextVar
 from pathlib import Path
-from typing import Any
+from typing import Any, Protocol, runtime_checkable
 
 from podcast_mcp.util import host_platform
 
@@ -191,6 +191,46 @@ def _with_niceness(cmd: list[str]) -> list[str]:
     return [nice, "-n", str(niceness), *cmd] if nice else cmd
 
 
+@runtime_checkable
+class Child(Protocol):
+    """What ``run`` and ``popen`` need of a started program; ``subprocess.Popen`` is one."""
+
+    stdin: Any
+    stdout: Any
+    stderr: Any
+    returncode: int | None
+    pid: int | None
+
+    def poll(self) -> int | None: ...
+
+    def wait(self, timeout: float | None = None) -> int: ...
+
+    def communicate(self, input: Any = None, timeout: float | None = None) -> tuple[Any, Any]: ...
+
+    def kill(self) -> None: ...
+
+    def __enter__(self) -> Any: ...
+
+    def __exit__(self, *exc: Any) -> Any: ...
+
+
+class Runner(Protocol):
+    """A replacement for the module's ``_spawn``: starts ``cmd`` and returns its :class:`Child`."""
+
+    def __call__(
+        self,
+        cmd: list[str],
+        *,
+        stdin: Any = None,
+        stdout: Any = None,
+        stderr: Any = None,
+        text: bool | None = None,
+        cwd: str | Path | None = None,
+        env: Mapping[str, str] | None = None,
+        start_new_session: bool = False,
+    ) -> Child: ...
+
+
 class SpawnUnavailableError(OSError):
     """This host cannot start other programs (``ENOSYS``). Callers that already catch ``OSError`` report it."""
 
@@ -232,6 +272,27 @@ def _spawn(
         if detach:
             _detached.add(proc)
     return proc
+
+
+_runner_lock = threading.Lock()
+
+
+@contextmanager
+def using_runner(runner: Runner) -> Iterator[None]:
+    """Make ``run`` and ``popen`` start children through ``runner`` while inside this block.
+
+    Process-wide, so worker threads see it too. For host startup and serial tests: do not
+    swap while other threads are spawning.
+    """
+    global _spawn
+    with _runner_lock:
+        previous = _spawn
+        _spawn = runner  # type: ignore[assignment]
+    try:
+        yield
+    finally:
+        with _runner_lock:
+            _spawn = previous
 
 
 def run(
