@@ -82,7 +82,9 @@ podcast record assign-track --project episode.sharecut --participant p_ab12cd34 
 1. Mint a room (`create_record_room_tool` or the Invite sheet's Record links group, **Create record links**).
    Minting ends the previous room: its links show the dead-link cover.
    Send the **guest** `/rec/` URL to talent and the **producer** URL only to the
-   silent listener.
+   silent listener. A producer link shows the live room behind its Join sheet before the
+   press (the page looks in over the same connection), and the host and guests see
+   "Someone with the producer link is looking in" while it does.
 2. Open the **Record** stage in the Stage bar (or Invite → **Open Record stage**). The host browser will ask for a mic; that dry tap is
    the host's full-quality recording (`p_host`).
 3. Guests enter a name, check headphones and click **Allow microphone**, then
@@ -91,7 +93,9 @@ podcast record assign-track --project episode.sharecut --participant p_ab12cd34 
    open. The recorder is armed on Join and record and writes **zero bytes**
    until Start. Room tone is host-triggered with `record_room_tone_tool` (see
    the tool table above), not a step of joining. Producers enter a name
-   and **Join to listen** (no mic, no consent, no full-quality recording).
+   and **Join to listen** (no mic, no consent, no full-quality recording); **Not now**
+   ends their look at the room. `record_state_tool` and `podcast record state` do not
+   report who is looking in (that count lives in the GUI server only).
 4. `record_state_tool` / the Record stage: Start stays disabled while `start_blockers`
    is non-empty. Each row has a `code`:
    - `{"code": "no_recorder"}` — nobody recorded yet (the host's Join

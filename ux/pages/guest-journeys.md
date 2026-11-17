@@ -510,14 +510,14 @@ The host can correct a person's track before accepting a staged session. If Acce
 
 ```mermaid
 flowchart TD
-  open[Open producer record link] --> sheet[Join sheet: name]
+  open[Open producer record link] --> sheet[Join sheet over the live room: name]
   sheet --> wait[Join to listen; wait for host Start]
   wait --> rec[Listen to mix-minus of all recorded peers]
   rec --> note[Leave a live comment or Marker]
   note --> stop[Host Stop]
 ```
 
-1. Producer lands on the same room with the Join sheet (name, **Join to listen**: "You'll listen and comment. You won't be recorded."); they appear in the room's listening row once they press **Join to listen**.
+1. Producer lands on the same room with the Join sheet (name, **Join to listen**: "You'll listen and comment. You won't be recorded."). The sheet's title says who is there, and behind it the room is live, with its status pill and tiles. Once the room has counted the producer, the sheet says "The room can see that someone is looking in." under the listen line, and the host and the guests see "Someone with the producer link is looking in" while the producer looks (the producer's own page does not count them). **Not now** ends the look and leaves no room behind the bar. They appear in the room's listening row once they press **Join to listen**, and the looking-in line goes in the same moment.
 2. No `getUserMedia`, no consent, no room tone, no full-quality recording, no saving panel,
    no mic meter or clip alert.
 3. Host Start does not wait on the producer.
