@@ -162,6 +162,17 @@ describe("the host's classification of the studio's first read", () => {
       api(500, "project_not_found"),
       "missing",
     ],
+    ["400 project_version_newer", api(400, "project_version_newer"), "newer"],
+    [
+      "a 500 project_version_newer: the code wins",
+      api(500, "project_version_newer"),
+      "newer",
+    ],
+    [
+      "400 project_version_unsupported",
+      api(400, "project_version_unsupported"),
+      "unsupported",
+    ],
     ["400 project_path_invalid", api(400, "project_path_invalid"), "other"],
     ["503 project_busy", api(503, "project_busy"), "busy"],
     [
@@ -245,8 +256,22 @@ describe("the words", () => {
       "ShareCut isn't answering.",
     ],
     [
+      "newer",
+      `A newer version of ShareCut saved "Rosa and Maya". Update ShareCut, then open it again.`,
+      { retry: null, home: true, lead: "home" },
+      "",
+      "A newer version of ShareCut saved the episode.",
+    ],
+    [
+      "unsupported",
+      `ShareCut can't open "Rosa and Maya" because its file is in a format this version doesn't read. Open it with the version of ShareCut that saved it, or restore the file from a backup.`,
+      { retry: "Try again", home: true, lead: "home" },
+      "Still can't open it.",
+      "This version can't read the file.",
+    ],
+    [
       "other",
-      `ShareCut couldn't open "Rosa and Maya". If a newer version of ShareCut saved it, update ShareCut first.`,
+      `ShareCut couldn't open "Rosa and Maya". Try again. If it keeps happening, open Help and choose Report a problem.`,
       { retry: "Try again", home: true, lead: "retry" },
       "Still not loading.",
       "It didn't open.",
@@ -285,7 +310,13 @@ describe("the words", () => {
       "ShareCut can't read this episode because its file is damaged. Restore the file from a backup, or open a copy of the episode.",
     );
     expect(hostCover("other", "").sentence).toBe(
-      "ShareCut couldn't open this episode. If a newer version of ShareCut saved it, update ShareCut first.",
+      "ShareCut couldn't open this episode. Try again. If it keeps happening, open Help and choose Report a problem.",
+    );
+    expect(hostCover("newer", "").sentence).toBe(
+      "A newer version of ShareCut saved this episode. Update ShareCut, then open it again.",
+    );
+    expect(hostCover("unsupported", "").sentence).toBe(
+      "ShareCut can't open this episode because its file is in a format this version doesn't read. Open it with the version of ShareCut that saved it, or restore the file from a backup.",
     );
   });
 
@@ -304,6 +335,8 @@ describe("the words", () => {
       "busy",
       "elsewhere",
       "not-answering",
+      "newer",
+      "unsupported",
       "other",
     ];
     for (const kind of kinds) {
@@ -397,6 +430,8 @@ describe("the words", () => {
       "busy",
       "elsewhere",
       "not-answering",
+      "newer",
+      "unsupported",
       "other",
     ] as const) {
       expect(autoRetryMsOf({ audience: "host", kind })).toBeNull();
@@ -430,6 +465,7 @@ describe("what the server said never reaches a sentence", () => {
     "project_path_invalid",
     "project_path_not_allowed",
     "project_version_newer",
+    "project_version_unsupported",
     "authz_denied",
     "rate_limited",
     "internal_error",
@@ -471,6 +507,19 @@ describe("what the server said never reaches a sentence", () => {
       }
     },
   );
+
+  it("never tells a host to update ShareCut for a failure that is not a newer file", () => {
+    for (const error of everyError()) {
+      const failure = host(error);
+      const { sentence } = shellFailureCover(failure, {
+        stageTitle: STAGE,
+        name: "Rosa and Maya",
+      });
+      if (failure.audience === "host" && failure.kind !== "newer") {
+        expect(sentence).not.toMatch(/newer version/i);
+      }
+    }
+  });
 
   it("falls to the general sentence for a shape nothing knows", () => {
     for (const error of [undefined, "boom", {}, 42]) {
