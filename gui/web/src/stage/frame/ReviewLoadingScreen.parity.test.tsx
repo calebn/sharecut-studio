@@ -5,10 +5,10 @@ import { describe, expect, it } from "vitest";
 import { ReviewLoadingScreen } from "./ReviewLoadingScreen";
 
 /**
- * Compares the component's static markup for a name with the fixture bytes that
- * tests/test_share_boot_header.py also reads (what the server writes into the
- * page). That the takeover in a browser moves nothing is proved by
- * e2e/guest-boot-name.spec.ts, not here.
+ * The fixture holds the bytes the server writes into the page for a name;
+ * tests/test_share_boot_header.py checks the server against it and this checks
+ * the component. That nothing moves when the script takes over is for
+ * e2e/guest-boot-name.spec.ts.
  */
 const CASES = (
   JSON.parse(

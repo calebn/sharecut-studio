@@ -153,7 +153,7 @@ for (const size of SIZES) {
             `${size.name}-${theme}`,
           );
 
-          await test.step("the DOM read after the first-paint entry holds the name and Loading…, with the script still away", () => {
+          await test.step("after the browser's first paint, with the script still held, the header holds the name and Loading…", () => {
             expect(run.paintedAfterHtml).toBeLessThan(1000);
             expect(run.written.host).toEqual({
               x: 0,
