@@ -1778,7 +1778,8 @@ def _step_into(ann: Any, part: str | int) -> tuple[Any, bool]:
     if isinstance(ann, type) and issubclass(ann, BaseModel):
         if isinstance(part, str):
             for name, field in ann.model_fields.items():
-                if part == name or part == field.alias:
+                va = field.validation_alias
+                if part == name or part == field.alias or (isinstance(va, str) and part == va):
                     return field.annotation, True
         return None, False
     if origin in (list, set, frozenset, tuple, collections.abc.Sequence, collections.abc.Set):
