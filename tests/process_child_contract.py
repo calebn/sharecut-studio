@@ -1,9 +1,9 @@
-"""Conformance cases for anything a spawn point may return as a ``Child`` (#3932).
+"""Conformance cases for anything a spawn point may return as a ``Child``.
 
-Importable so another lane can run the same cases against its own child unchanged:
+Importable: any child factory can run these cases:
 
     from process_child_contract import CASES, run_case
-    run_case(name, make_child)
+    run_case(name, make_child, tmp_path)
 
 ``make_child(behaviour, *, cwd=None, env=None, **params)`` returns a started child whose
 stdin, stdout and stderr are all pipes carrying bytes. Behaviours (``params``):
@@ -100,7 +100,7 @@ def _drain(stream: Any, sink: list[bytes]) -> threading.Thread:
     return thread
 
 
-def case_shape(make_child: MakeChild) -> None:
+def case_shape(make_child: MakeChild, tmp: Path) -> None:
     child = make_child("wait_stdin", code=0)
     assert isinstance(child, Child)
     assert child.pid is None or isinstance(child.pid, int)
@@ -109,7 +109,7 @@ def case_shape(make_child: MakeChild) -> None:
     assert child.wait() == 0
 
 
-def case_stdin_back_pressure(make_child: MakeChild) -> None:
+def case_stdin_back_pressure(make_child: MakeChild, tmp: Path) -> None:
     child = make_child("echo")
     failures: list[BaseException] = []
 
@@ -129,7 +129,7 @@ def case_stdin_back_pressure(make_child: MakeChild) -> None:
     assert child.wait() == 0
 
 
-def case_stdout(make_child: MakeChild) -> None:
+def case_stdout(make_child: MakeChild, tmp: Path) -> None:
     expected = [b"line %d\n" % i for i in range(500)]
     child = make_child("lines", n=500)
     assert list(child.stdout) == expected
@@ -141,20 +141,18 @@ def case_stdout(make_child: MakeChild) -> None:
     assert child.wait() == 0
 
 
-def case_stderr(make_child: MakeChild) -> None:
+def case_stderr(make_child: MakeChild, tmp: Path) -> None:
     child = make_child("stderr_exit", out=b"", err=b"boom\n", code=2)
     assert child.wait() == 2
     assert child.stderr.read() == b"boom\n"
 
 
-def case_wait_and_poll(make_child: MakeChild) -> None:
-    from podcast_mcp.util.process import TimeoutExpired
-
+def case_wait_and_poll(make_child: MakeChild, tmp: Path) -> None:
     child = make_child("wait_stdin", code=7)
     assert child.poll() is None
     try:
         child.wait(timeout=0.2)
-    except TimeoutExpired:
+    except process.TimeoutExpired:
         pass
     else:
         raise AssertionError("wait(timeout) returned for a running child")
@@ -167,7 +165,7 @@ def case_wait_and_poll(make_child: MakeChild) -> None:
     assert child.poll() == 7
 
 
-def case_kill_unblocks_reader(make_child: MakeChild) -> None:
+def case_kill_unblocks_reader(make_child: MakeChild, tmp: Path) -> None:
     child = make_child("block")
     seen: list[bytes] = []
     reader = _drain(child.stdout, seen)
@@ -183,7 +181,7 @@ def case_kill_unblocks_reader(make_child: MakeChild) -> None:
     child.kill()
 
 
-def case_context_manager(make_child: MakeChild) -> None:
+def case_context_manager(make_child: MakeChild, tmp: Path) -> None:
     child = make_child("wait_stdin", code=0)
     with child as entered:
         assert entered is child
@@ -193,7 +191,7 @@ def case_context_manager(make_child: MakeChild) -> None:
     assert child.stderr.closed
 
 
-def case_both_pipes(make_child: MakeChild) -> None:
+def case_both_pipes(make_child: MakeChild, tmp: Path) -> None:
     child = make_child("flood", lines=64, err_bytes=MIB)
     err: list[bytes] = []
     drain = _drain(child.stderr, err)
@@ -204,10 +202,10 @@ def case_both_pipes(make_child: MakeChild) -> None:
     assert child.wait() == 0
 
 
-def case_run_contract(make_child: MakeChild) -> None:
+def case_run_contract(make_child: MakeChild, tmp: Path) -> None:
     def runner_of(
         spy_box: list[Spy], behaviour: str, error: BaseException | None = None, **params: Any
-    ):
+    ) -> Callable[..., Spy]:
         def runner(cmd: list[str], **kwargs: Any) -> Spy:
             spy = Spy(make_child(behaviour, **params), error)
             spy_box.append(spy)
@@ -272,7 +270,7 @@ def case_argv_cwd_env(make_child: MakeChild, tmp: Path) -> None:
     cmd, kwargs = seen[0]
     assert cmd == ["tool", "p", "3"]
     assert all(type(part) is str for part in cmd)
-    assert kwargs.get("shell") in (None, False)
+    assert set(kwargs) == {"stdin", "stdout", "stderr", "cwd", "env", "start_new_session"}
     assert Path(report[0].removeprefix("cwd=")).resolve() == tmp.resolve()
     assert report[1] == "var=on"
 
@@ -291,8 +289,8 @@ CASES: dict[str, Callable[..., None]] = {
 }
 
 
-def run_case(name: str, make_child: MakeChild, tmp: Path | None = None) -> None:
-    """Run one case under a deadline; kill every child it made so nothing outlives it."""
+def run_case(name: str, make_child: MakeChild, tmp: Path) -> None:
+    """Run one case under a deadline; kill every child it made and restore the spawn point."""
     made: list[Child] = []
 
     def tracked(behaviour: str, **params: Any) -> Child:
@@ -300,26 +298,25 @@ def run_case(name: str, make_child: MakeChild, tmp: Path | None = None) -> None:
         made.append(child)
         return child
 
-    case = CASES[name]
     outcome: list[BaseException] = []
 
     def body() -> None:
         try:
-            if name == "argv_cwd_env":
-                assert tmp is not None
-                case(tracked, tmp)
-            else:
-                case(tracked)
+            CASES[name](tracked, tmp)
         except BaseException as exc:
             outcome.append(exc)
 
+    installed = process._spawn
     worker = threading.Thread(target=body, daemon=True, name=f"contract-{name}")
     worker.start()
-    worker.join(DEADLINE_SECONDS)
-    hung = worker.is_alive()
-    for child in made:
-        with contextlib.suppress(Exception):
-            child.kill()
+    try:
+        worker.join(DEADLINE_SECONDS)
+        hung = worker.is_alive()
+    finally:
+        process._spawn = installed
+        for child in made:
+            with contextlib.suppress(Exception):
+                child.kill()
     if hung:
         raise AssertionError(f"{name} did not finish within {DEADLINE_SECONDS}s")
     if outcome:

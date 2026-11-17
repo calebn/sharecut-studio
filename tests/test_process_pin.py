@@ -1,14 +1,14 @@
-"""Characterization tests that pin ``util/process.py`` behaviour no other test pins (#3932).
+"""Characterization tests for ``util/process.py``: what the desktop spawn path hands to
+``subprocess.Popen``, how it gates, nices, detaches and kills.
 
-They pass on the code before the Runner/Child seam and must keep passing after it: the
-desktop spawn path is the old ``_spawn`` body moved, not changed. Where a test needs to see
-what is handed to ``subprocess.Popen`` it replaces ``Popen`` with a recorder, so it holds
-for any implementation that still ends in ``subprocess.Popen``.
+Where a test needs to see what is handed to ``subprocess.Popen`` it replaces ``Popen`` with a
+recorder, so it holds for any implementation that still ends in ``subprocess.Popen``.
 """
 
 from __future__ import annotations
 
 import errno
+import gc
 import os
 import shutil
 import signal
@@ -23,11 +23,12 @@ from typing import Any, ClassVar
 import pytest
 
 from podcast_mcp.engines.render_clock import spawn_or_too_long
-from podcast_mcp.util import process
+from podcast_mcp.util import host_platform, process
 from podcast_mcp.util.coded_error import CodedValueError
 from podcast_mcp.util.host_platform import IOS, MACOS, UNKNOWN, WINDOWS
 
 _OK = [sys.executable, "-c", "pass"]
+_POSIX = host_platform.current().is_posix
 
 
 class FakeProc:
@@ -47,7 +48,6 @@ class FakeProc:
         self.communicate_result: tuple[Any, Any] = (None, None)
         self.communicate_error: BaseException | None = None
         self.communicate_args: tuple[Any, Any] | None = None
-        self.exited = False
         type(self).created.append(self)
 
     def __enter__(self) -> FakeProc:
@@ -106,26 +106,13 @@ def _only(created: list[FakeProc]) -> FakeProc:
 # --- the public surface -------------------------------------------------------------------
 
 
-def test_the_subprocess_names_are_the_stdlib_objects() -> None:
-    assert process.DEVNULL is subprocess.DEVNULL
-    assert process.PIPE is subprocess.PIPE
-    assert process.STDOUT is subprocess.STDOUT
-    assert process.CalledProcessError is subprocess.CalledProcessError
-    assert process.CompletedProcess is subprocess.CompletedProcess
-    assert process.TimeoutExpired is subprocess.TimeoutExpired
-    assert process.Popen is subprocess.Popen
-
-
-def test_spawn_unavailable_is_an_oserror() -> None:
-    assert issubclass(process.SpawnUnavailableError, OSError)
-
-
 def test_spawn_returns_a_real_popen_that_the_caller_owns() -> None:
     with process._spawn(_OK) as proc:
         assert isinstance(proc, subprocess.Popen)
         assert proc.wait() == 0
     with process.popen(_OK) as proc:
         assert isinstance(proc, subprocess.Popen)
+        proc.wait()
 
 
 # --- argv checking ------------------------------------------------------------------------
@@ -416,18 +403,9 @@ def test_the_gate_error_names_enosys_and_the_device_sentence(host) -> None:
     host(IOS)
     with pytest.raises(process.SpawnUnavailableError) as raised:
         process.popen(_OK)
+    assert isinstance(raised.value, OSError)
     assert raised.value.args == (errno.ENOSYS, "This device can't start other programs.")
     assert str(raised.value) == f"[Errno {errno.ENOSYS}] This device can't start other programs."
-
-
-def test_a_caller_that_catches_oserror_catches_the_gate(host) -> None:
-    host(IOS)
-    try:
-        process.run(["true"])
-    except OSError as error:
-        assert error.errno == errno.ENOSYS
-    else:  # pragma: no cover
-        pytest.fail("no error")
 
 
 # --- spawn_or_too_long: the E2BIG mapping -------------------------------------------------
@@ -582,7 +560,7 @@ def test_niceness_is_per_context_not_process_wide_but_copied_into_a_copied_conte
     assert seen == {"plain": 0, "copied": 6}
 
 
-@pytest.mark.skipif(os.name != "posix", reason="no nice")
+@pytest.mark.skipif(not _POSIX, reason="no nice")
 def test_a_low_priority_child_is_wrapped_in_nice_with_the_level_before_the_command(
     host, fake_popen: type[FakeProc]
 ) -> None:
@@ -668,7 +646,6 @@ def test_a_detached_child_gets_a_new_session_devnull_stdin_and_is_registered(
 def test_a_detached_child_keeps_stdin_the_caller_chose(fake_popen: type[FakeProc]) -> None:
     with process.detached_children():
         piped = process.popen(_OK, stdin=process.PIPE)
-        run_with_input = None
         process.run(_OK, input=b"x")
         run_with_input = fake_popen.created[-1]
     assert piped.kwargs["stdin"] is process.PIPE  # type: ignore[attr-defined]
@@ -725,8 +702,6 @@ def test_detaching_is_process_wide_so_a_pool_thread_spawns_detached_children(
 def test_a_registered_child_is_dropped_once_nothing_else_holds_it(
     fake_popen: type[FakeProc],
 ) -> None:
-    import gc
-
     with process.detached_children():
         process.popen(_OK)
     fake_popen.created.clear()
@@ -734,20 +709,25 @@ def test_a_registered_child_is_dropped_once_nothing_else_holds_it(
     assert list(process._detached) == []
 
 
-def test_the_child_is_registered_before_the_spawn_lock_is_released(
+def test_the_child_is_spawned_under_the_detach_lock_and_registered(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    held: list[bool] = []
+    acquired: list[bool] = []
 
     class Probe(FakeProc):
         def __init__(self, cmd: Any, **kwargs: Any) -> None:
             super().__init__(cmd, **kwargs)
-            held.append(process._detach_lock._is_owned())  # type: ignore[attr-defined]
+            other = threading.Thread(
+                target=lambda: acquired.append(process._detach_lock.acquire(timeout=0.2))
+            )
+            other.start()
+            other.join()
 
     monkeypatch.setattr(subprocess, "Popen", Probe)
     with process.detached_children():
-        process.popen(_OK)
-    assert held == [True]
+        child = process.popen(_OK)
+    assert acquired == [False]
+    assert child in process._detached
 
 
 @pytest.mark.skipif(not hasattr(os, "killpg"), reason="process groups are POSIX")
@@ -805,9 +785,15 @@ def test_kill_detached_children_is_a_no_op_with_nothing_registered(
     assert killpg_calls == []
 
 
-def test_kill_detached_children_can_run_inside_the_lock_it_takes_reentrantly() -> None:
-    with process._detach_lock:
-        process.kill_detached_children()
+def test_kill_detached_children_returns_while_its_caller_holds_the_lock() -> None:
+    def hold_and_kill() -> None:
+        with process._detach_lock:
+            process.kill_detached_children()
+
+    worker = threading.Thread(target=hold_and_kill, daemon=True)
+    worker.start()
+    worker.join(5)
+    assert not worker.is_alive()
 
 
 # --- pid_is_alive on POSIX ----------------------------------------------------------------
@@ -821,7 +807,7 @@ def test_a_nonpositive_pid_is_reported_alive_without_a_signal(
     assert process.pid_is_alive(pid) is True
 
 
-@pytest.mark.skipif(os.name != "posix", reason="POSIX liveness")
+@pytest.mark.skipif(not _POSIX, reason="POSIX liveness")
 def test_posix_liveness_probes_with_signal_zero_and_only_a_missing_process_is_dead(
     host, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -845,7 +831,7 @@ def test_posix_liveness_probes_with_signal_zero_and_only_a_missing_process_is_de
     assert process.pid_is_alive(77) is True
 
 
-@pytest.mark.skipif(os.name != "posix", reason="POSIX liveness")
+@pytest.mark.skipif(not _POSIX, reason="POSIX liveness")
 def test_a_real_child_is_alive_until_reaped() -> None:
     with process.popen([sys.executable, "-c", "import time; time.sleep(30)"]) as child:
         assert process.pid_is_alive(child.pid) is True

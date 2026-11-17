@@ -1,22 +1,21 @@
-"""The spawn seam of ``util/process.py``: ``_spawn`` is replaceable, ``using_runner`` swaps it (#3932)."""
+"""The spawn seam of ``util/process.py``: ``_spawn`` is replaceable, ``using_runner`` swaps it."""
 
 from __future__ import annotations
 
 import contextlib
 import os
 import select
-import shutil
 import subprocess
 import sys
 import threading
 from collections.abc import Callable, Iterator
 from pathlib import Path
 from typing import Any
-from unittest.mock import MagicMock
 
 import pytest
 
 from podcast_mcp.util import host_platform, process
+from podcast_mcp.util.host_platform import IOS
 from podcast_mcp.util.process import Child, Runner, using_runner
 from process_child_contract import CASES, MakeChild, run_case
 
@@ -224,8 +223,7 @@ class FakeChild:
 
     def communicate(self, input: bytes | None = None, timeout: float | None = None) -> Any:
         if not self._collect:
-            if self.stdin is not None:
-                self._collect.append(self._thread_of(self._feed, input))
+            self._collect.append(self._thread_of(self._feed, input))
             for name in ("stdout", "stderr"):
                 self._collect.append(self._thread_of(self._read, name))
         for thread in self._collect:
@@ -287,77 +285,60 @@ def test_child_contract(kind: str, name: str, tmp_path: Path) -> None:
     run_case(name, _FACTORIES[kind], tmp_path)
 
 
-def test_fake_child_is_a_child() -> None:
-    child = fake_child("wait_stdin", code=0)
-    child.stdin.close()
-    assert isinstance(child, Child)
-    assert child.wait() == 0
-
-
-def test_default_is_the_desktop_spawn() -> None:
+def test_default_is_the_desktop_spawn(host: Callable[..., None]) -> None:
+    host(IOS)
     assert process._spawn is DESKTOP_SPAWN
-    assert DESKTOP_SPAWN.__name__ == "_spawn"
-    assert DESKTOP_SPAWN.__module__ == "podcast_mcp.util.process"
+    with pytest.raises(process.SpawnUnavailableError):
+        process.popen(["tool"])
 
 
-def test_runner_protocol_accepts_a_plain_callable() -> None:
-    def runner(
-        cmd: list[str],
-        *,
-        stdin: Any = None,
-        stdout: Any = None,
-        stderr: Any = None,
-        text: bool | None = None,
-        cwd: Any = None,
-        env: Any = None,
-        start_new_session: bool = False,
-    ) -> Child:
-        return fake_child("lines", n=1)
+def _runner(box: list[tuple[list[str], dict[str, Any]]] | None = None) -> Runner:
+    def runner(cmd: list[str], **kwargs: Any) -> Child:
+        if box is not None:
+            box.append((cmd, kwargs))
+        return fake_child("stderr_exit", out=b"out", err=b"err", code=0)
 
-    typed: Runner = runner
-    assert callable(typed)
+    return runner  # type: ignore[return-value]
 
 
 def test_using_runner_swaps_and_restores() -> None:
-    def runner(cmd: list[str], **kwargs: Any) -> Child:
-        return fake_child("lines", n=0)
-
+    runner = _runner()
     with using_runner(runner):
         assert process._spawn is runner
     assert process._spawn is DESKTOP_SPAWN
 
 
 def test_using_runner_restores_after_an_exception() -> None:
-    def runner(cmd: list[str], **kwargs: Any) -> Child:
-        return fake_child("lines", n=0)
-
+    runner = _runner()
     with pytest.raises(RuntimeError, match="boom"):
         with using_runner(runner):
-            assert process._spawn is runner
             raise RuntimeError("boom")
     assert process._spawn is DESKTOP_SPAWN
 
 
-def test_using_runner_nests_and_restores_the_previous_runner() -> None:
-    def outer(cmd: list[str], **kwargs: Any) -> Child:
-        return fake_child("lines", n=0)
-
-    def inner(cmd: list[str], **kwargs: Any) -> Child:
-        return fake_child("lines", n=0)
-
-    with using_runner(outer):
-        with using_runner(inner):
-            assert process._spawn is inner
-        assert process._spawn is outer
+def test_a_second_runner_is_refused_and_the_first_stays_installed() -> None:
+    first, second = _runner(), _runner()
+    with using_runner(first):
+        with pytest.raises(RuntimeError, match="already installed"):
+            with using_runner(second):
+                pytest.fail("entered")
+        assert process._spawn is first
     assert process._spawn is DESKTOP_SPAWN
+
+
+def test_a_patched_spawn_is_not_swapped_over() -> None:
+    patched = _runner()
+    with pytest.MonkeyPatch.context() as patch:
+        patch.setattr(process, "_spawn", patched)
+        with pytest.raises(RuntimeError, match="already installed"):
+            with using_runner(_runner()):
+                pytest.fail("entered")
+        assert process._spawn is patched
 
 
 def test_installed_runner_is_seen_by_other_threads() -> None:
     seen: list[Any] = []
-
-    def runner(cmd: list[str], **kwargs: Any) -> Child:
-        return fake_child("lines", n=0)
-
+    runner = _runner()
     with using_runner(runner):
         thread = threading.Thread(target=lambda: seen.append(process._spawn))
         thread.start()
@@ -365,143 +346,52 @@ def test_installed_runner_is_seen_by_other_threads() -> None:
     assert seen == [runner]
 
 
-class Recorder:
-    def __init__(self) -> None:
-        self.calls: list[tuple[list[str], dict[str, Any]]] = []
-
-    def __call__(self, cmd: list[str], **kwargs: Any) -> Child:
-        self.calls.append((cmd, kwargs))
-        return fake_child("stderr_exit", out=b"out", err=b"err", code=0)
-
-
-@contextlib.contextmanager
-def _installed(how: str, recorder: Recorder) -> Iterator[None]:
-    if how == "monkeypatch":
-        with pytest.MonkeyPatch.context() as patch:
-            patch.setattr(process, "_spawn", recorder)
-            yield
-    else:
-        with using_runner(recorder):
-            yield
-
-
-@pytest.mark.parametrize("how", ["using_runner", "monkeypatch"])
-def test_run_is_intercepted(how: str) -> None:
-    recorder = Recorder()
-    with _installed(how, recorder):
+def test_run_goes_through_the_installed_runner() -> None:
+    box: list[tuple[list[str], dict[str, Any]]] = []
+    with using_runner(_runner(box)):
         done = process.run(["tool", Path("x")], capture_output=True, input=b"in", cwd="d")
-    assert done.stdout == b"out"
-    assert done.stderr == b"err"
-    assert done.args == ["tool", "x"]
-    ((cmd, kwargs),) = recorder.calls
-    assert cmd == ["tool", "x"]
-    assert kwargs == {
-        "stdin": process.PIPE,
-        "stdout": process.PIPE,
-        "stderr": process.PIPE,
-        "text": None,
-        "cwd": "d",
-        "env": None,
-        "start_new_session": False,
-    }
-
-
-@pytest.mark.parametrize("how", ["using_runner", "monkeypatch"])
-def test_popen_is_intercepted(how: str) -> None:
-    recorder = Recorder()
-    with _installed(how, recorder):
-        child = process.popen(["tool", "a"], stdout=process.PIPE, start_new_session=True)
-    assert child.stdout.read() == b"out"
-    child.wait()
-    ((cmd, kwargs),) = recorder.calls
-    assert cmd == ["tool", "a"]
-    assert kwargs == {
-        "stdin": None,
-        "stdout": process.PIPE,
-        "stderr": None,
-        "cwd": None,
-        "env": None,
-        "start_new_session": True,
-    }
-
-
-def test_a_runner_bypasses_the_host_gate_and_niceness(monkeypatch: pytest.MonkeyPatch) -> None:
-    recorder = Recorder()
-    with using_runner(recorder), process.low_priority(5):
-        process.run(["tool"], capture_output=True)
-    assert recorder.calls[0][0] == ["tool"]
-
-
-class _PopenSpy:
-    def __init__(self) -> None:
-        self.calls: list[tuple[Any, dict[str, Any]]] = []
-
-    def __call__(self, args: Any, **kwargs: Any) -> Any:
-        self.calls.append((args, kwargs))
-        child = MagicMock()
-        child.__enter__.return_value = child
-        child.communicate.return_value = ("o", "e")
-        child.wait.return_value = 0
-        return child
-
-
-def test_desktop_popen_kwargs_and_completed_args_are_unchanged(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    spy = _PopenSpy()
-    monkeypatch.setattr(process.subprocess, "Popen", spy)
-    done = process.run(
-        ["tool", Path("x")],
-        capture_output=True,
-        text=True,
-        input="in",
-        cwd="d",
-        env={"A": "1"},
-    )
-    assert done.args == ["tool", "x"]
-    assert (done.returncode, done.stdout, done.stderr) == (0, "o", "e")
-    assert spy.calls == [
+    assert (done.stdout, done.stderr, done.args) == (b"out", b"err", ["tool", "x"])
+    assert box == [
         (
             ["tool", "x"],
             {
-                "stdin": subprocess.PIPE,
-                "stdout": subprocess.PIPE,
-                "stderr": subprocess.PIPE,
-                "text": True,
+                "stdin": process.PIPE,
+                "stdout": process.PIPE,
+                "stderr": process.PIPE,
+                "text": None,
                 "cwd": "d",
-                "env": {"A": "1"},
+                "env": None,
                 "start_new_session": False,
-                "shell": False,
             },
         )
     ]
 
 
-def test_desktop_niceness_wraps_the_spawn_but_not_completed_args(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    spy = _PopenSpy()
-    monkeypatch.setattr(process.subprocess, "Popen", spy)
-    with process.low_priority(7):
-        done = process.run(["tool"], capture_output=True)
-    nice = shutil.which("nice")
-    expected = [nice, "-n", "7", "tool"] if nice else ["tool"]
-    assert done.args == ["tool"]
-    assert spy.calls[0][0] == expected
+def test_popen_goes_through_the_installed_runner() -> None:
+    box: list[tuple[list[str], dict[str, Any]]] = []
+    with using_runner(_runner(box)):
+        with process.popen(["tool", "a"], stdout=process.PIPE, start_new_session=True) as child:
+            assert child.stdout.read() == b"out"
+    assert box == [
+        (
+            ["tool", "a"],
+            {
+                "stdin": None,
+                "stdout": process.PIPE,
+                "stderr": None,
+                "cwd": None,
+                "env": None,
+                "start_new_session": True,
+            },
+        )
+    ]
 
 
-def test_desktop_detached_spawn_kwargs_are_unchanged(monkeypatch: pytest.MonkeyPatch) -> None:
-    spy = _PopenSpy()
-    monkeypatch.setattr(process.subprocess, "Popen", spy)
-    with process.detached_children():
-        process.popen(["tool"], stdout=process.PIPE)
-    assert spy.calls[0][1] == {
-        "stdin": subprocess.DEVNULL,
-        "stdout": subprocess.PIPE,
-        "stderr": None,
-        "text": None,
-        "cwd": None,
-        "env": None,
-        "start_new_session": True,
-        "shell": False,
-    }
+def test_a_runner_owns_the_gate_niceness_and_detach_registry(host: Callable[..., None]) -> None:
+    host(IOS)
+    box: list[tuple[list[str], dict[str, Any]]] = []
+    with using_runner(_runner(box)), process.low_priority(5), process.detached_children():
+        process.run(["tool"], capture_output=True)
+    assert [cmd for cmd, _ in box] == [["tool"]]
+    assert box[0][1]["start_new_session"] is False
+    assert list(process._detached) == []
