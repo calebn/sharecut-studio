@@ -102,6 +102,55 @@ describe("history.undo / history.redo (Mod+Z, Mod+Shift+Z)", () => {
     });
   });
 
+  describe("the toast that offered the undone entry", () => {
+    function standingToast(
+      undo: string,
+      merged?: { entries: HistoryEntryId[] },
+    ) {
+      useDawStore.getState().announceStatus("Approved 1 pending edit", {
+        undo: undo as HistoryEntryId,
+      });
+      if (merged) {
+        const toast = useDawStore.getState().feedbackToast;
+        useDawStore.setState({
+          feedbackToast: toast ? { ...toast, undo: null, merged } : null,
+        });
+      }
+    }
+
+    it("goes away when Undo undoes its entry", async () => {
+      standingToast("seen-by-tab");
+      vi.mocked(undoHistory).mockResolvedValueOnce("before" as HistoryEntryId);
+      expect(await execute("history.undo")).toEqual({ status: "ok" });
+      expect(useDawStore.getState().feedbackToast).toBeNull();
+    });
+
+    it("goes away when Undo undoes one of its merged entries", async () => {
+      standingToast("x", {
+        entries: ["other" as HistoryEntryId, "seen-by-tab" as HistoryEntryId],
+      });
+      vi.mocked(undoHistory).mockResolvedValueOnce("before" as HistoryEntryId);
+      expect(await execute("history.undo")).toEqual({ status: "ok" });
+      expect(useDawStore.getState().feedbackToast).toBeNull();
+    });
+
+    it("stays when it is about another entry", async () => {
+      standingToast("some-other-entry");
+      vi.mocked(undoHistory).mockResolvedValueOnce("before" as HistoryEntryId);
+      expect(await execute("history.undo")).toEqual({ status: "ok" });
+      expect(useDawStore.getState().feedbackToast?.undo).toBe(
+        "some-other-entry",
+      );
+    });
+
+    it("is left alone by Redo", async () => {
+      standingToast("seen-by-tab");
+      vi.mocked(redoHistory).mockResolvedValueOnce("after" as HistoryEntryId);
+      expect(await execute("history.redo")).toEqual({ status: "ok" });
+      expect(useDawStore.getState().feedbackToast?.undo).toBe("seen-by-tab");
+    });
+  });
+
   it("guards redo the same way", async () => {
     vi.mocked(redoHistory).mockRejectedValueOnce(
       new ApiError("Did not redo", "history_stale", 409),
