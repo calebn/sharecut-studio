@@ -882,7 +882,7 @@ def test_the_export_step_names_the_id_and_no_tool_output(tmp_path: Path) -> None
     bin_dir = tmp_path / "bin"
     bin_dir.mkdir()
     fake_tool(bin_dir / "npx", 0)
-    private_key = f"/Users/x/.appstoreconnect/private_keys/AuthKey_{KEY_ID}.p8"
+    private_key = f"/Users/someone/.appstoreconnect/private_keys/AuthKey_{KEY_ID}.p8"
     fake_tool(
         bin_dir / "xcodebuild",
         4,
