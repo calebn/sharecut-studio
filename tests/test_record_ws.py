@@ -2714,30 +2714,67 @@ def test_observer_join_swaps_watcher_for_producer_in_one_frame_and_keeps_one_pum
 def test_join_never_slips_an_observer_frame_after_the_producer_snapshot(
     minimal_project, sample_wav, tmp_workspace, monkeypatch
 ):
+    import asyncio
+    import threading
+
+    from podcast_mcp.gui.routes.guest_ws_common import GuestWsGuard
     from podcast_mcp.services.session_sync import get_hub
 
     _ws, room, client = _room(minimal_project, sample_wav, tmp_workspace, monkeypatch)
     original = RecordSessionService.join
+    original_send = GuestWsGuard.send_json
+    original_invite_closed = RecordSessionService.invite_closed
+    test_thread = threading.get_ident()
+    in_join: set[int] = set()
+    armed = threading.Event()
+    pump_read_invite = threading.Event()
+    release = threading.Event()
 
-    def join_then_publish(self, **kwargs):
-        out = original(self, **kwargs)
-        get_hub().publish(
-            self._hub_key,
-            {
-                "plane": "record",
-                "type": "Applied",
-                "command": {"type": "SetGuestsSeeNotes", "participant_id": "p_host"},
-                "snapshot": self.snapshot(),
-            },
-        )
-        return out
+    def join_with_an_event_in_flight(self, **kwargs):
+        # An event is published while the Join is still running. A pump that does not wait for
+        # the Join reads the invite (it has not joined yet); real code waits on the send lock.
+        in_join.add(threading.get_ident())
+        try:
+            get_hub().publish(
+                self._hub_key,
+                {
+                    "plane": "record",
+                    "type": "Applied",
+                    "command": {"type": "SetGuestsSeeNotes", "participant_id": "p_host"},
+                    "snapshot": self.snapshot(),
+                },
+            )
+            pump_read_invite.wait(0.5)  # bounded; only a pump that ignores the lock sets it
+            return original(self, **kwargs)
+        finally:
+            in_join.discard(threading.get_ident())
 
-    monkeypatch.setattr(RecordSessionService, "join", join_then_publish)
+    def invite_closed_seen(self, share_id):
+        me = threading.get_ident()
+        if armed.is_set() and me != test_thread and me not in in_join:
+            pump_read_invite.set()
+        return original_invite_closed(self, share_id)
+
+    async def send_json_held(self, payload):
+        # An observer view (no `target`) sent once the Join is under way is held until the test
+        # has seen the Echo and the Snapshot. Real code never sends one, so never waits here.
+        snap = payload.get("snapshot")
+        if armed.is_set() and isinstance(snap, dict) and "target" not in snap:
+            await asyncio.get_running_loop().run_in_executor(None, release.wait, 5.0)
+        await original_send(self, payload)
+
+    monkeypatch.setattr(RecordSessionService, "join", join_with_an_event_in_flight)
+    monkeypatch.setattr(RecordSessionService, "invite_closed", invite_closed_seen)
+    monkeypatch.setattr(GuestWsGuard, "send_json", send_json_held)
     with _observe(client, room) as obs:
         obs.receive_json()
+        armed.set()
         _join(obs, name="Pat")
         _drain_until(obs, lambda m: m.get("type") == "Echo")
-        after = [obs.receive_json() for _ in range(3)]
+        first = obs.receive_json()
+        assert first["type"] == "Snapshot"
+        release.set()
+        after = [first] + [obs.receive_json() for _ in range(2)]
         assert [frame["type"] for frame in after] == ["Snapshot", "Applied", "Applied"]
         for frame in after:
             assert "target" in frame["snapshot"]
