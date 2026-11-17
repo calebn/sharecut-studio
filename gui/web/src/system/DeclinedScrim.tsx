@@ -46,18 +46,18 @@ export function DeclinedScrim({
   return (
     <div className="sys-declined">
       <div className="sys-declined-scrim" aria-hidden="true" />
-      {lookingIn ? (
-        <p className="sys-declined-looking-in">
-          <SystemIcon name="eye" size={16} />
-          {lookingIn}
-        </p>
-      ) : null}
       <section
         ref={barRef}
         tabIndex={-1}
         className="sys-declined-bar"
         aria-label={text.label}
       >
+        {lookingIn ? (
+          <p className="sys-declined-looking-in">
+            <SystemIcon name="eye" size={16} />
+            {lookingIn}
+          </p>
+        ) : null}
         <SystemIcon name={text.glyph} size={20} />
         <div className="sys-declined-text">
           <p id={lineId} className="sys-declined-line">
