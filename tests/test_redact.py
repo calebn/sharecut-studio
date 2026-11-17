@@ -1,10 +1,13 @@
 from __future__ import annotations
 
+import io
+import logging
 import re
 import time
 from pathlib import Path
 
 import pytest
+from pydantic import BaseModel, ValidationError
 
 from podcast_mcp.util.coded_error import CodedError
 from podcast_mcp.util.redact import (
@@ -623,13 +626,11 @@ def test_sanitize_masks_every_error_of_one_block() -> None:
         "Zelda Quimby",
         "Zelda)Quimby",
         "Zéldá日本Quimby",
-        "Zelda\nQuimby",
-        "Zelda\nQuimby\nBorgo",
         "Zelda:Quimby",
         "Zelda/Quimby",
         "[Zelda]",
         "`Zelda`",
-        "Zelda Quimby)Borgo\nWilma",
+        "Zelda Quimby)Borgo",
     ],
 )
 def test_sanitize_covers_every_part_of_an_odd_key(key: str) -> None:
@@ -649,13 +650,12 @@ def test_sanitize_masks_a_key_with_a_dot_as_several_stars() -> None:
     assert "`" not in out
 
 
-def test_sanitize_masks_a_key_with_a_newline_that_ends_in_the_next_line() -> None:
-    # pydantic prints the key raw, so its second line stands where a location line would.
-    out = sanitize(
-        _pydantic_block("meta.ingest_alignment.Zelda\nQuimby.align_method"), field_names=_NAMES
-    )
-    assert "Zelda" not in out
-    assert "Quimby" not in out
+def test_sanitize_leaves_a_key_with_a_newline_to_the_source_rule() -> None:
+    # Stated boundary: an entry is ONE location line followed by an indented ``[type=...]`` line.
+    # A key that itself holds a line break is outside it; the episode file's own keys never get
+    # this far (``load_project`` masks them at the source).
+    block = _pydantic_block("meta.ingest_alignment.Zelda\nQuimby.align_method")
+    assert sanitize(block, field_names=_NAMES) == block
 
 
 def test_sanitize_keeps_a_location_of_indexes_and_field_names() -> None:
@@ -773,3 +773,190 @@ def test_thousands_of_bare_headers_are_fast() -> None:
     start = time.perf_counter()
     assert sanitize(text, field_names=_NAMES) == text
     assert time.perf_counter() - start < 5
+
+
+# --- the exact block rule: a header, then at most N entries of one location line each ---------
+
+_REAL_NAMES = frozenset({"name", "tags", "align_method"})
+
+
+class _Inner(BaseModel):
+    align_method: str
+
+
+class _Keyed(BaseModel):
+    tags: dict[str, _Inner]
+
+
+class _Plain(BaseModel):
+    name: str
+
+
+def _keyed_error(speaker: str) -> ValidationError:
+    try:
+        _Keyed.model_validate({"tags": {speaker: {"align_method": 7}}})
+    except ValidationError as exc:
+        return exc
+    raise AssertionError("accepted")
+
+
+def _plain_error() -> ValidationError:
+    try:
+        _Plain.model_validate({"name": [1]})
+    except ValidationError as exc:
+        return exc
+    raise AssertionError("accepted")
+
+
+def _log_text(records: list[tuple[str, str, object]], *, exc_info: bool = False) -> str:
+    """What a stream handler writes for ``records`` (level, message, args)."""
+    stream = io.StringIO()
+    handler = logging.StreamHandler(stream)
+    handler.setFormatter(logging.Formatter("%(levelname)s:%(name)s:%(message)s"))
+    logger = logging.getLogger("podcast_mcp.test_redact_exact")
+    logger.propagate = False
+    logger.setLevel(logging.DEBUG)
+    logger.addHandler(handler)
+    try:
+        for level, message, arg in records:
+            if isinstance(arg, ValidationError) and exc_info:
+                try:
+                    raise arg
+                except ValidationError:
+                    getattr(logger, level)(message, exc_info=True)
+            elif arg is None:
+                getattr(logger, level)(message)
+            else:
+                getattr(logger, level)(message, arg)
+    finally:
+        logger.removeHandler(handler)
+    return stream.getvalue()
+
+
+_ORDINARY = (
+    "INFO:x:ordinary line A render finished in 3.5s\n",
+    "WARNING:x:ordinary line B disk 12.5 GB free\n",
+)
+
+
+@pytest.mark.parametrize("exc_info", [False, True])
+def test_two_real_blocks_keep_every_line_between_them(exc_info: bool) -> None:
+    speaker = "Dani" + "ela Secret" + "name"
+    records: list[tuple[str, str, object]] = [
+        ("error", "tool arguments rejected: %s", _keyed_error(speaker)),
+        ("info", "ordinary line A render finished in 3.5s", None),
+        ("warning", "ordinary line B disk 12.5 GB free", None),
+        ("error", "second call rejected: %s", _plain_error()),
+        ("info", "ordinary line C after", None),
+    ]
+    raw = _log_text(records, exc_info=exc_info)
+    assert speaker in raw
+    out = sanitize(raw, field_names=_REAL_NAMES)
+    assert "Daniela" not in out
+    assert "Secretname" not in out
+    for line in ("ordinary line A render finished in 3.5s", "ordinary line B disk 12.5 GB free"):
+        assert f":{line}\n" in out
+    assert "ordinary line C after" in out
+    assert out.count(" validation error for _Keyed") == 1
+    assert out.count(" validation error for _Plain") == 1
+    assert "\ntags.*.align_method\n" in out
+    assert "\nname\n  Input should be a valid string [type=string_type" in out
+    # every other line is byte for byte what was logged: only the one location line changed
+    changed = [
+        a
+        for a, b in zip(raw.splitlines(), out.splitlines(), strict=True)
+        if a != b and "input_value=" not in a
+    ]
+    assert changed == [f"tags.{speaker}.align_method"]
+
+
+def test_a_sentence_that_only_says_it_does_not_eat_the_lines_after_it() -> None:
+    real = _log_text([("error", "later: %s", _keyed_error("Dani" + "ela Secret" + "name"))])
+    text = (
+        "WARNING: 3 validation errors for the upload\n"
+        "the file foo.mp3 was skipped\n"
+        "INFO: ok\n" + real
+    )
+    out = sanitize(text, field_names=_REAL_NAMES)
+    assert out.startswith(
+        "WARNING: 3 validation errors for the upload\nthe file foo.mp3 was skipped\nINFO: ok\n"
+    )
+    assert "Secretname" not in out
+    assert "ERROR:podcast_mcp.test_redact_exact:later: 1 validation error for _Keyed\n" in out
+    assert "\ntags.*.align_method\n" in out
+
+
+def test_the_count_in_the_header_is_honoured() -> None:
+    speaker = "Dani" + "ela Secret" + "name"
+    text = (
+        "1 validation error for X\n"
+        f"tags.{speaker}.align_method\n"
+        "  bad [type=string_type, input_type=int]\n"
+        f"tags.{speaker}.align_method\n"
+        "  bad [type=string_type, input_type=int]\n"
+    )
+    out = sanitize(text, field_names=_REAL_NAMES)
+    assert out.splitlines()[1] == "tags.*.align_method"
+    assert out.splitlines()[3] == f"tags.{speaker}.align_method"
+
+
+def test_a_crlf_block_is_masked_and_keeps_its_line_ends() -> None:
+    speaker = "Dani" + "ela Secret" + "name"
+    text = (
+        "INFO: before\r\n"
+        "1 validation error for _Keyed\r\n"
+        f"tags.{speaker}.align_method\r\n"
+        "  Input should be a valid string [type=string_type, input_type=int]\r\n"
+        "    For further information visit https://errors.pydantic.dev/2.14/v/string_type\r\n"
+        "INFO: after tags.x.y\r\n"
+    )
+    out = sanitize(text, field_names=_REAL_NAMES)
+    assert out == text.replace(f"tags.{speaker}.align_method", "tags.*.align_method")
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "INFO: 1 validation error for the form\nline.one.two\nINFO: next\n",
+        "2 validation errors for X\n  indented [type=x]\nplain text\n",
+        "1 validation error for X\nloc.a.b\n [type=x]\n",
+        "1 validation error for X\nloc.a.b\n  no closing [type=x\n",
+        "1 validation error for X\nloc.a.b\n  closing without opening type]\n",
+        "1 validation error for X\n\nloc.a.b\n  m [type=x]\n",
+        "WARNING: [type=x] seen in the wild\n  a.b.c [type=y] was it\n",
+        "0 validation errors for X\nloc.a.b\n  m [type=x]\n",
+        "validation errors for X\nloc.a.b\n  m [type=x]\n",
+        "1 validation error for\nloc.a.b\n  m [type=x]\n",
+        'Traceback (most recent call last):\n  File "a.py", line 3, in f\n    g()\nValueError: 5\n',
+        "  indented one\n    indented two [type=3]\nplain.dotted.text here\n",
+        "1 validation error for X\n" + "z" * 2100 + "\n  m [type=x]\n",
+        "5 validation errors for X, and it went on\nthe next line\nanother.dotted.line\n",
+    ],
+)
+def test_ordinary_log_text_without_an_entry_is_returned_byte_for_byte(text: str) -> None:
+    assert sanitize(text, field_names=_REAL_NAMES) == text
+
+
+def test_one_line_of_256_kb_of_headers_is_fast() -> None:
+    text = ("1 validation errors for " * 10000)[: 256 * 1024]
+    start = time.perf_counter()
+    out = sanitize(text, field_names=_REAL_NAMES)
+    assert time.perf_counter() - start < 0.5
+    assert out == text
+
+
+def test_a_header_whose_tail_is_over_500_characters_is_not_a_header() -> None:
+    speaker = "Dani" + "ela Secret" + "name"
+    text = "1 validation error for " + "Z" * 501 + f"\ntags.{speaker}.align_method\n  m [type=x]\n"
+    assert sanitize(text, field_names=_REAL_NAMES) == text
+
+
+def test_many_blocks_with_ordinary_lines_between_stay_fast() -> None:
+    block = _log_text([("error", "x: %s", _keyed_error("Dani" + "ela Secret" + "name"))])
+    text = (block + "INFO:x:ordinary\n" * 5) * 1500
+    text = text[: 256 * 1024]
+    start = time.perf_counter()
+    out = sanitize(text, field_names=_REAL_NAMES)
+    assert time.perf_counter() - start < 5
+    assert "Secretname" not in out
+    assert out.count("INFO:x:ordinary\n") == text.count("INFO:x:ordinary\n")

@@ -80,3 +80,56 @@ def test_a_lone_slash_is_not_a_path():
     # words around it stay.
     assert short_fail_message("Progress 50 / 100 frames") == "Progress 50 100 frames"
     assert short_fail_message("Progress 50 /") == "Progress 50"
+
+
+@pytest.mark.parametrize(
+    ("line", "expected"),
+    [
+        ("/Volumes/Backup/dani.wav is not a valid WAV", "is not a valid WAV"),
+        ("/p/a.wav and /p/b.wav are the same file", "are the same file"),
+        ("/Users/host/My Show/a b.wav is not a valid WAV", "is not a valid WAV"),
+        ("'/Volumes/Backup/dani.wav is not a valid WAV", "is not a valid WAV"),
+        ("/p", None),
+        ("/Users/host/My Show/a b.wav", None),
+        ("cannot open /Users/host/My Show/a b.wav", "cannot open"),
+    ],
+)
+def test_a_path_that_opens_the_line_with_no_end_mark_ends_at_its_last_separator_token(
+    line, expected
+):
+    out = short_fail_message(line)
+    assert out == expected
+    for word in ("Volumes", "Backup", "dani", "Show", "Users"):
+        assert word not in (out or "")
+
+
+@pytest.mark.parametrize(
+    ("line", "expected"),
+    [
+        ("No such file '/home/host/Dani's Ep/raw/dani.wav'", "No such file"),
+        ("failed (/home/host/My (v2) Ep/raw/dani.wav) because x", "failed because x"),
+        ("failed [/home/host/My [v2] Ep/raw/dani.wav] because x", "failed because x"),
+        ("No such file '/home/host/Dani's Ep/raw/dani.wav' twice", "No such file twice"),
+    ],
+)
+def test_a_closer_only_closes_where_it_is_not_inside_a_word_and_brackets_nest(line, expected):
+    out = short_fail_message(line)
+    assert out == expected
+    for word in ("Dani", "Ep", "raw", "dani", "v2"):
+        assert word not in (out or "")
+
+
+def test_a_huge_first_line_is_only_examined_for_its_first_2000_characters():
+    import time
+
+    shapes = [
+        ("'/a' " * 60000) + ": x",
+        "'/a b' " * 40000,
+        "(/a (b) " * 40000,
+        "x " + ("/a b " * 60000),
+    ]
+    for shape in shapes:
+        start = time.perf_counter()
+        out = short_fail_message(shape)
+        assert time.perf_counter() - start < 0.5
+        assert out is None or len(out) <= 200
