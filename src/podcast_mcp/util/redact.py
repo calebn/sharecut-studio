@@ -11,7 +11,7 @@ from podcast_mcp.util.host_session_wire import EXCHANGE_PARAM, EXCHANGE_PATH, SE
 
 _SLASH = r"(?:/|%(?:25)?2[Ff])"
 _DOT = r"(?:\.|%(?:25)?2[Ee])"
-_SEP = rf"(?:{_SLASH}(?:{_DOT}{{1,2}}{_SLASH})*)+"
+_SEP_WITH_DOTS = rf"(?:{_SLASH}(?:{_DOT}{{1,2}}{_SLASH})*)+"
 _SHARE_PATH_ROOTS = (
     "r",
     "rec",
@@ -20,9 +20,9 @@ _SHARE_PATH_ROOTS = (
     "api/shares",
     "api/shares/record",
 )
-_SHARE_ROOTS = "|".join(root.replace("/", _SEP) for root in _SHARE_PATH_ROOTS)
+_SHARE_ROOTS = "|".join(root.replace("/", _SEP_WITH_DOTS) for root in _SHARE_PATH_ROOTS)
 _SHARE_TOKEN = re.compile(
-    rf"(?P<prefix>{_SLASH}(?i:{_SHARE_ROOTS}){_SEP})"
+    rf"(?P<prefix>{_SLASH}(?i:{_SHARE_ROOTS}){_SEP_WITH_DOTS})"
     r"(?P<token>[A-Za-z0-9_-]{8,}(?:-[A-Za-z0-9_-]+)*)"
 )
 _BOOT_TOKEN = re.compile(
