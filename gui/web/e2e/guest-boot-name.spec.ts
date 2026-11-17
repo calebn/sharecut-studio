@@ -238,6 +238,7 @@ for (const size of SIZES) {
               run.written.title,
               1,
               kind === "120 unbroken characters" ? NOT_WIDTH : ALL,
+              "landed",
             );
             expect(run.boot.gaps).toEqual([]);
             expect(run.errors).toEqual([]);
