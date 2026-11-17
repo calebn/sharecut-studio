@@ -843,6 +843,38 @@ describe("RoomView as the host", () => {
       expect(container.querySelector(".sys-pill")).toBeNull();
     });
 
+    it("keeps the whole body inert when declined with no one looking in", () => {
+      const { container } = renderRoom({
+        declined: { onJoin: () => {} },
+        people: [HOST, { ...JON, you: true }],
+      });
+      expect(container.querySelector(".sys-room-view-body")).toHaveAttribute(
+        "inert",
+      );
+    });
+
+    it("leaves only the looking-in line live when declined, and everything else inert", () => {
+      const { container } = renderRoom({
+        declined: { onJoin: () => {} },
+        people: [HOST, { ...JON, you: true }, { ...ROSA, role: "producer" }],
+        lookingIn: 2,
+      });
+      const line = container.querySelector(".sys-room-looking-in") as Element;
+      expect(line.closest("[inert]")).toBeNull();
+      expect(
+        container.querySelector(".sys-room-view-body"),
+      ).not.toHaveAttribute("inert");
+      for (const selector of [
+        ".sys-room-view-grid",
+        ".sys-room-listeners",
+        ".sys-room-view-alert",
+      ]) {
+        const part = container.querySelector(selector);
+        if (part) expect(part).toHaveAttribute("inert");
+      }
+      expect(container.querySelector(".sys-room-view-rail")).toBeNull();
+    });
+
     it("adds nothing to a room that has not declined", () => {
       const { container } = renderRoom();
       expect(container.querySelector(".sys-declined")).toBeNull();

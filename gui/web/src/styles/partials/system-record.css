@@ -1570,6 +1570,13 @@ html:not([data-shell="phone"], [data-shell="tablet"])
   opacity: 0.4;
 }
 
+/* The scrim's veil would grey the one line that says who can see the room, so
+   under Declined the line is lifted above it. */
+.sys-room-view[data-declined] .sys-room-looking-in {
+  position: relative;
+  z-index: var(--z-edit-overlay);
+}
+
 .sys-declined {
   position: absolute;
   inset: 0;
