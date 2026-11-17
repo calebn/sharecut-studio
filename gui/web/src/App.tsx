@@ -28,6 +28,7 @@ import {
 import { isShareProjectKey, shareProjectKey } from "./shareMode";
 import { parseShareRoute } from "./shareRoute";
 import { GuestLoadingScreen } from "./stage/frame/GuestLoadingScreen";
+import { ReviewLoadingScreen } from "./stage/frame/ReviewLoadingScreen";
 import { StageLoading } from "./stage/frame/StageLoading";
 import { GuestPageCover, NotServedCover } from "./stage/frame/StatusCovers";
 import { HomeScreen } from "./stages/home/HomeScreen";
@@ -77,6 +78,8 @@ type GuestAccess = {
   capabilities: string[] | null;
   transcriptWords: boolean;
   author: string | null;
+  /** The episode's name, when the link's answer or its saved copy gave one. */
+  name: string | null;
 };
 type CachedGuestProject = { key: string; project: ProjectView };
 type BootstrapRequest = {
@@ -250,6 +253,7 @@ function AppInner() {
   const shareCapabilities = guest?.capabilities ?? null;
   const shareTranscriptWords = guest?.transcriptWords ?? false;
   const shareAuthor = guest?.author ?? null;
+  const shareName = guest?.name ?? null;
   const shareBootstrapping = current.status === "pending";
   // A hung features call is not a dead button: asking again replaces it.
   const retry = () => {
@@ -258,7 +262,7 @@ function AppInner() {
   };
   const projectLoading = () =>
     reviewToken || shareKey || isShareProjectKey(projectPath ?? "") ? (
-      <GuestLoadingScreen label="Loading project…" onRetry={retry} />
+      <ReviewLoadingScreen name={shareName} onRetry={retry} />
     ) : (
       <StageLoading
         stage={
@@ -389,6 +393,7 @@ function AppInner() {
             capabilities: caps,
             transcriptWords: bootstrap.reads_transcript_words,
             author: bootstrap.author ?? null,
+            name: bootstrap.meta?.name || null,
           },
         };
       } catch (e: unknown) {
@@ -420,6 +425,7 @@ function AppInner() {
               capabilities: null,
               transcriptWords: false,
               author: null,
+              name: cachedProject.meta?.name || null,
             },
             cached: { key, project: cachedProject },
           };
@@ -493,7 +499,7 @@ function AppInner() {
     );
   }
   if (reviewToken && (!featuresReady || (shareBootstrapping && !error))) {
-    return <GuestLoadingScreen label="Loading project…" onRetry={retry} />;
+    return <ReviewLoadingScreen name={shareName} onRetry={retry} />;
   }
   if (!featuresReady) {
     return projectLoading();
@@ -525,6 +531,7 @@ function AppInner() {
         shareCapabilities={shareCapabilities}
         shareTranscriptWords={shareTranscriptWords}
         shareAuthor={shareAuthor}
+        shareName={shareName}
       >
         <Suspense fallback={projectLoading()}>
           <DawApp guestShare />

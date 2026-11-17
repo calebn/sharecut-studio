@@ -399,7 +399,7 @@ export function AppHeader({
         <div className="sys-header-left">
           {guest ? (
             <div className="sys-header-guest">
-              <span className="sys-header-title" aria-hidden="true">
+              <span className="sys-header-title" dir="auto" aria-hidden="true">
                 {title}
               </span>
               <span className="sys-header-sub">

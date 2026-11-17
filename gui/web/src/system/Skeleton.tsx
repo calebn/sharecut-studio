@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { useAfter } from "../hooks/useAfter";
 import { useViewportClass } from "../hooks/useViewportClass";
 import { Button } from "../ui";
@@ -5,7 +6,7 @@ import { BusyLabel } from "./BusyLabel";
 import { TRYING_LABEL } from "./useCoverPress";
 import { useHeldBusy } from "./useHeldBusy";
 
-type Phase = "blank" | "blocks" | "slow";
+export type SkeletonPhase = "blank" | "blocks" | "slow";
 
 export const SKELETON_RETRY_MS = 4000;
 
@@ -31,9 +32,13 @@ export type SkeletonProps = {
   retryMs?: number;
   /** Fixes the elapsed time (stories, tests). Without it the timers run. */
   elapsedMs?: number;
+  /** How long the screen has already waited at its first render, when it takes over from another one. Without `elapsedMs` the timers count the rest. */
+  waitedMs?: number;
   /** Real layout of the destination. */
   layout?: "list" | "cards" | "guest";
   rows?: number;
+  /** The guest layout's header, drawn in place of its grey header block. It is told the phase. */
+  head?: (phase: SkeletonPhase) => ReactNode;
   onRetry?: () => void;
 };
 
@@ -50,7 +55,14 @@ const GUEST_BLOCKS = [
   "center",
 ] as const;
 
-const phaseOf = (elapsed: number, blankMs: number, retryMs: number): Phase =>
+/** The same, when the caller draws the header itself. */
+const GUEST_BODY_BLOCKS = GUEST_BLOCKS.filter((part) => part !== "header");
+
+const phaseOf = (
+  elapsed: number,
+  blankMs: number,
+  retryMs: number,
+): SkeletonPhase =>
   elapsed >= retryMs ? "slow" : elapsed >= blankMs ? "blocks" : "blank";
 
 /**
@@ -61,20 +73,27 @@ export function Skeleton({
   blankMs = 300,
   retryMs = SKELETON_RETRY_MS,
   elapsedMs,
+  waitedMs = 0,
   layout = "list",
   rows = 4,
+  head,
   onRetry,
 }: SkeletonProps) {
   const controlled = elapsedMs !== undefined;
-  const blocks = useAfter(controlled ? null : blankMs);
-  const slow = useAfter(controlled ? null : retryMs);
-  const phase: Phase = controlled
+  const blocks = useAfter(
+    controlled || waitedMs >= blankMs ? null : blankMs - waitedMs,
+  );
+  const slow = useAfter(
+    controlled || waitedMs >= retryMs ? null : retryMs - waitedMs,
+  );
+  const phase: SkeletonPhase = controlled
     ? phaseOf(elapsedMs, blankMs, retryMs)
-    : slow
+    : slow || waitedMs >= retryMs
       ? "slow"
-      : blocks
+      : blocks || waitedMs >= blankMs
         ? "blocks"
         : "blank";
+  const headed = layout === "guest" && head !== undefined;
   const shell = useViewportClass();
   // The skeleton stays mounted through a retry, so nothing else shows the press
   // landed. The hold lasts `retryMs`, the time the skeleton waits before it
@@ -87,14 +106,15 @@ export function Skeleton({
       aria-busy="true"
       data-phase={phase}
     >
+      {layout === "guest" ? head?.(phase) : null}
       {phase === "blank" ? null : (
         <div
-          className={`sys-skeleton-blocks sys-skeleton-blocks--${layout}`}
+          className={`sys-skeleton-blocks sys-skeleton-blocks--${layout}${headed ? " sys-skeleton-blocks--headed" : ""}`}
           data-shell={layout === "guest" ? shell : undefined}
           aria-hidden="true"
         >
           {layout === "guest"
-            ? GUEST_BLOCKS.map((part, at) => (
+            ? (headed ? GUEST_BODY_BLOCKS : GUEST_BLOCKS).map((part, at) => (
                 <span
                   // biome-ignore lint/suspicious/noArrayIndexKey: static placeholders
                   key={at}
