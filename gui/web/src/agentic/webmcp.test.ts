@@ -47,7 +47,7 @@ describe("DAW WebMCP tools", () => {
   }
 
   for (const [state, project, reason] of [
-    ["loading", null, "Loading project…"],
+    ["loading", null, "Loading…"],
     ["empty", minimalProject(), "Import audio to play."],
   ] as const) {
     it(`reports the ${state} refusal and leaves transport inert`, async () => {
