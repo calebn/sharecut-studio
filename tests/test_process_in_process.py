@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import errno
+import gc
 import os
 import resource
 import shutil
@@ -231,6 +232,72 @@ def test_an_abandoned_child_gives_eof_with_no_descriptor_left_to_open(
     runner.join(10)
     assert not runner.is_alive(), "the with-exit hung after the kill"
     assert outcome == {"code": -9, "eof": b""}
+
+
+def _open_fds() -> set[str]:
+    return set(os.listdir("/proc/self/fd"))
+
+
+@pytest.mark.skipif(not Path("/proc/self/fd").is_dir(), reason="needs /proc/self/fd")
+def test_a_failed_thread_start_closes_every_owned_descriptor(
+    backend: FakeBackend, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    real_start = threading.Thread.start
+
+    def start(self: threading.Thread) -> None:
+        if self.name == "in-process-child":
+            raise RuntimeError("can't start new thread")
+        real_start(self)
+
+    monkeypatch.setattr(threading.Thread, "start", start)
+    before = _open_fds()
+    for _ in range(5):
+        with pytest.raises(RuntimeError):
+            process.popen(
+                [IN_PROCESS_FFMPEG], stdin=process.PIPE, stdout=process.PIPE, stderr=process.PIPE
+            )
+    gc.collect()
+    assert _open_fds() - before == set()
+
+
+def test_a_kill_whose_grace_timer_cannot_start_abandons_at_once(
+    backend: FakeBackend, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def no_start(self: threading.Timer) -> None:
+        raise RuntimeError("can't start new thread")
+
+    monkeypatch.setattr(threading.Timer, "start", no_start)
+    outcome: dict[str, Any] = {}
+
+    def run_with_timeout() -> None:
+        with pytest.raises(subprocess.TimeoutExpired):
+            process.run([IN_PROCESS_FFMPEG, "ignore_kill"], capture_output=True, timeout=0.2)
+        outcome["timeout"] = True
+
+    def with_exit() -> None:
+        with process.popen([IN_PROCESS_FFMPEG, "ignore_kill"], stdout=process.PIPE) as child:
+            pass
+        outcome["code"] = child.returncode
+
+    for target in (run_with_timeout, with_exit):
+        runner = threading.Thread(target=target, daemon=True)
+        runner.start()
+        runner.join(10)
+        assert not runner.is_alive(), f"{target.__name__} hung"
+    assert outcome == {"timeout": True, "code": -9}
+
+
+def test_kill_with_a_failing_grace_timer_ends_with_sigkill(
+    backend: FakeBackend, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def no_start(self: threading.Timer) -> None:
+        raise RuntimeError("can't start new thread")
+
+    monkeypatch.setattr(threading.Timer, "start", no_start)
+    child = process.popen([IN_PROCESS_FFMPEG, "ignore_kill"], stdout=process.PIPE)
+    child.kill()
+    assert child.wait(5) == -9
+    assert child.stdout.read() == b""
 
 
 def test_a_backend_returning_a_non_int_fails_with_code_one(backend: FakeBackend) -> None:
