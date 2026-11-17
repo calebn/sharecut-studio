@@ -351,16 +351,21 @@ export type TargetReport = {
   box: Rect;
   /** The `side` x `side` area (or the control's own box when that is larger) that must press the control. */
   area: Rect;
+  /** The longest stretch, in px, over which the control answers a press in its middle column, inside the bar. */
+  tall: number;
   answered: number;
   asked: number;
 };
 
 /**
  * Where a press would land. For each visible button in the header bar (the
- * coach tip's own Dismiss left out), the `side` px square that holds its box
- * and sits as near its centre as the bar allows is tried on a grid of points
- * with `elementFromPoint`: every point must answer the control or something in
- * it. `only` narrows the controls to those matching the selector.
+ * coach tip's own Dismiss left out), the longest stretch inside the bar over
+ * which it answers `elementFromPoint` down its middle column is found, and
+ * the `side` px square that holds its box and lies on that stretch (or, when
+ * the stretch is shorter, as near its centre as the bar allows) is tried on a
+ * grid of points: every point must answer the control or something in it. The
+ * four rounded corners of the square are not tried. `only` narrows the
+ * controls to those matching the selector.
  */
 export async function pressTargets(
   page: Page,
@@ -383,14 +388,30 @@ export async function pressTargets(
         if (el.closest(".sys-coach-tip")) continue;
         const box = el.getBoundingClientRect();
         if (box.width <= 1 || box.height <= 1) continue;
+        const answers = (px: number, py: number) => {
+          const hit = document.elementFromPoint(px, py);
+          return hit !== null && (hit === el || el.contains(hit));
+        };
         const w = Math.max(want, box.width);
         const h = Math.max(want, box.height);
-        const x = clamp(
-          box.x + box.width / 2 - w / 2,
-          0,
-          window.innerWidth - w,
-        );
-        const y = clamp(box.y + box.height / 2 - h / 2, bar.top, inner - h);
+        const cx = box.x + box.width / 2;
+        const cy = box.y + box.height / 2;
+        let run = { from: 0, to: 0 };
+        let open: number | null = null;
+        for (let py = Math.ceil(bar.top); py <= Math.floor(inner); py += 1) {
+          const yes = py < inner && answers(cx, py + 0.5);
+          if (yes && open === null) open = py;
+          if (!yes && open !== null) {
+            if (py - open > run.to - run.from) run = { from: open, to: py };
+            open = null;
+          }
+        }
+        const tall = run.to - run.from;
+        const y =
+          tall >= h - 0.5
+            ? clamp(cy - h / 2, run.from, run.to - h)
+            : clamp(cy - h / 2, bar.top, inner - h);
+        const x = clamp(cx - w / 2, 0, window.innerWidth - w);
         let answered = 0;
         let asked = 0;
         for (let i = 0; i < 5; i += 1) {
@@ -399,9 +420,8 @@ export async function pressTargets(
             if ((i === 0 || i === 4) && (j === 0 || j === 4)) continue;
             const px = x + 1 + ((w - 2) * i) / 4;
             const py = y + 1 + ((h - 2) * j) / 4;
-            const hit = document.elementFromPoint(px, py);
             asked += 1;
-            if (hit && (hit === el || el.contains(hit))) answered += 1;
+            if (answers(px, py)) answered += 1;
           }
         }
         const label = el.getAttribute("aria-label");
@@ -409,6 +429,7 @@ export async function pressTargets(
           name: label ?? (el.textContent ?? "").trim().slice(0, 30),
           box: { x: box.x, y: box.y, w: box.width, h: box.height },
           area: { x, y, w, h },
+          tall,
           answered,
           asked,
         });
@@ -439,7 +460,7 @@ export function targetProblems(
   for (const c of report.controls) {
     if (c.answered < c.asked)
       problems.push(
-        `"${c.name}" (${fmt(c.box)}) answers ${c.answered} of ${c.asked} points of its ${c.area.w.toFixed(0)} x ${c.area.h.toFixed(0)} area (${fmt(c.area)})`,
+        `"${c.name}" (${fmt(c.box)}) answers ${c.answered} of ${c.asked} points of its ${c.area.w.toFixed(0)} x ${c.area.h.toFixed(0)} area (${fmt(c.area)}), over ${c.tall} px of height inside the bar`,
       );
     if (c.box.y + c.box.h > inner + 0.05)
       problems.push(

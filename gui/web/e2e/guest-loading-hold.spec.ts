@@ -346,7 +346,7 @@ for (const size of SIZES) {
       });
     });
 
-    test("an Editor link keeps Undo, Redo and the save mark centred while only the guest column sits at the bar's top", async ({
+    test("an Editor link keeps the guest column, Undo, Redo and the save mark centred in the bar", async ({
       browser,
     }) => {
       await withGuestLink(
@@ -373,6 +373,7 @@ for (const size of SIZES) {
             );
             return {
               cell: box(cell),
+              column: box(cell?.querySelector(".sys-header-guest")),
               title: box(cell?.querySelector(".sys-header-title")),
               undo: box(buttons?.[0]),
               redo: box(buttons?.[1]),
@@ -381,8 +382,15 @@ for (const size of SIZES) {
           });
           const middle = (b: { y: number; h: number } | null) =>
             (b?.y ?? 0) + (b?.h ?? 0) / 2;
-          expect(boxes.title?.y).toBeCloseTo(0, 0);
-          for (const control of [boxes.undo, boxes.redo, boxes.save]) {
+          // The name's 18 px line and the 24 px line under it.
+          expect(boxes.column?.h).toBeCloseTo(42, 0);
+          expect(boxes.title?.h).toBeCloseTo(18, 0);
+          for (const control of [
+            boxes.column,
+            boxes.undo,
+            boxes.redo,
+            boxes.save,
+          ]) {
             expect(control).not.toBeNull();
             expect(
               Math.abs(middle(control) - middle(boxes.cell)),

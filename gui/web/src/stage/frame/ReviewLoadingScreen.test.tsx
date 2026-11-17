@@ -181,15 +181,23 @@ describe("the loading header's styles", () => {
     );
   });
 
-  it("aligns only the guest column to the bar's top, and stretches its cell so the controls beside it stay centred", () => {
+  it("gives the second line one height and the name's line a fixed one, so the column is the same in every state and font", () => {
     const css = squash(systemCss());
-    expect(css).toContain(
-      ".sys-header-left:has(> .sys-header-guest) { align-self: stretch; }",
+    const sub = css.match(/\.sys-header-sub \{([^}]*)\}/);
+    expect(sub?.[1]).toContain("block-size: var(--pill-height)");
+    expect(sub?.[1]).toContain("line-height: 1rem");
+    expect(css).toMatch(
+      /\.sys-header-guest > \.sys-header-title \{[^}]*line-height: 1\.125rem/,
     );
-    expect(css).toContain(
-      ".sys-header-left > .sys-header-guest { align-self: start; }",
+  });
+
+  it("centres the guest column like every other cell of the bar, pinned to nothing", () => {
+    const css = squash(systemCss());
+    expect(css).not.toContain(".sys-header-left:has(> .sys-header-guest)");
+    expect(css).not.toMatch(
+      /\.sys-header-left > \.sys-header-guest \{ align-self/,
     );
-    expect(css).not.toMatch(/\.sys-header-left\s*(,|\{ align-self: start)/);
+    expect(css).not.toMatch(/\.sys-header-guest \{[^}]*align-self/);
   });
 
   it("keeps the grey title block's 18 px line box and draws a shorter grey inside it, off the bar's edge", () => {
