@@ -1550,32 +1550,6 @@ html:not([data-shell="phone"], [data-shell="tablet"])
   opacity: 0.4;
 }
 
-/* Declined makes the body inert, so the line is drawn from outside it, under the
-   header, and lifted above the scrim's veil so the one line that says who can
-   see the room stays readable. */
-.sys-room-looking-in-strip {
-  position: relative;
-  z-index: var(--z-edit-overlay);
-  flex: none;
-  padding-block-start: var(--space-5);
-  padding-inline: var(--space-5);
-}
-
-.sys-room-view[data-width="phone-landscape"][data-line-outside] {
-  grid-template-rows: auto auto minmax(0, 1fr);
-}
-
-.sys-room-view[data-width="phone-landscape"] .sys-room-looking-in-strip {
-  grid-column: 1 / -1;
-}
-
-.sys-room-view[data-width="phone-landscape"][data-line-outside]
-  .sys-room-view-body,
-.sys-room-view[data-width="phone-landscape"][data-line-outside]
-  .sys-room-view-dock {
-  grid-row: 3;
-}
-
 .sys-declined {
   position: absolute;
   inset: 0;
@@ -1609,6 +1583,28 @@ html:not([data-shell="phone"], [data-shell="tablet"])
   border-block-start: 1px solid var(--color-border);
   background: var(--color-bg-elevated);
   color: var(--color-text-primary);
+}
+
+/* The looking-in line sits directly on top of the bar, in the bar's own
+   surface, so it is above the veil and never greyed. */
+.sys-declined-looking-in {
+  position: relative;
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: var(--space-3);
+  margin: 0;
+  padding-block: var(--space-3) 0;
+  padding-inline: var(--space-5);
+  border-block-start: 1px solid var(--color-border);
+  background: var(--color-bg-elevated);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-ui);
+  overflow-wrap: anywhere;
+}
+
+.sys-declined-looking-in > svg {
+  flex: none;
 }
 
 .sys-declined-text {
