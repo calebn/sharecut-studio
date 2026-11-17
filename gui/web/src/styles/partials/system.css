@@ -457,20 +457,71 @@
   min-inline-size: 0;
 }
 
-/* The title is as wide as its own text, not as the sub line under it, so its box does not change when "Shared link" becomes the version label. */
+/* The title is as wide as its own text, not as the sub line under it, so its box does not change when "Shared link" becomes the version label. Its line is as tall as the web font makes it, so the column keeps its height, and the name its place, before the font has loaded. */
 .sys-header-guest > .sys-header-title {
   align-self: flex-start;
   max-inline-size: 100%;
+  line-height: 1.125rem;
 }
 
+/* The line under the name is one Status pill tall, with or without a role chip, a version pill or only "Loading…", so the two lines fit the bar. What in it is pressed grows its press area (below), not the line. */
 .sys-header-sub {
+  --press-target: var(--control-height);
+
   display: flex;
   align-items: center;
   gap: var(--space-3);
   min-inline-size: 0;
+  block-size: var(--pill-height);
   white-space: nowrap;
   color: var(--color-text-secondary);
-  font-size: var(--font-size-small);
+  font-size: var(--font-size-ui);
+  line-height: 1rem;
+}
+
+@media (pointer: coarse) {
+  .sys-header-sub {
+    --press-target: var(--touch-min);
+  }
+}
+
+@container sys-app-header (max-width: 40rem) {
+  .sys-header-sub {
+    --press-target: var(--touch-min);
+  }
+}
+
+/* A small control in that line presses like a full-size one. Its press area reaches up over the name, which is not pressable, and down to the bar's edge, a hairline below the line, never under the bar. A wide control keeps its own width. */
+.sys-role-trigger::after,
+.sys-version-pill::after,
+button.sys-version-line::after {
+  content: "";
+  position: absolute;
+  inset-block: calc(100% - var(--press-target) + 1px) -1px;
+  inset-inline: min(0rem, calc((100% - var(--press-target)) / 2));
+}
+
+.sys-role-hint {
+  display: inline-flex;
+  align-items: center;
+}
+
+.sys-role-trigger {
+  position: relative;
+  display: inline-flex;
+  flex: none;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-lg);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.sys-role-trigger:hover .sys-role {
+  background: var(--color-hover);
+  color: var(--color-text-primary);
 }
 
 .sys-header-sub .sys-mono {
@@ -490,7 +541,6 @@
   align-items: center;
   min-inline-size: 0;
   max-inline-size: 100%;
-  overflow: hidden;
 }
 
 .sys-version-line {
@@ -500,7 +550,6 @@
   max-inline-size: 100%;
   gap: var(--space-1);
   min-inline-size: 0;
-  overflow: hidden;
   padding: 0;
   border: 0;
   background: none;
@@ -509,6 +558,8 @@
 }
 
 button.sys-version-line {
+  position: relative;
+  block-size: var(--pill-height);
   cursor: pointer;
 }
 
@@ -538,8 +589,9 @@ button.sys-version-line {
   align-items: center;
   max-inline-size: 100%;
   gap: var(--space-1);
+  position: relative;
   min-inline-size: 0;
-  block-size: var(--control-height-compact);
+  block-size: var(--pill-height);
   padding-inline: var(--space-3);
   border: 0;
   border-radius: var(--radius-xl);
@@ -566,18 +618,6 @@ button.sys-version-line {
 @container sys-app-header (max-width: 40rem) {
   .sys-version-pill-action {
     display: none;
-  }
-
-  .sys-version-pill,
-  button.sys-version-line {
-    min-block-size: 2.75rem;
-  }
-}
-
-@media (pointer: coarse) {
-  .sys-version-pill,
-  button.sys-version-line {
-    min-block-size: var(--touch-min);
   }
 }
 
@@ -688,15 +728,6 @@ button.sys-version-line {
   .sys-header-left .sys-save-count {
     display: inline;
   }
-}
-
-/* A guest's title line sits at the bar's top whatever the sub line under it holds (its role button is a touch target, taller than what is left of the bar), in the studio's header and in the loading header alike. Only that column aligns to the start: the cell stretches to the bar, so the controls beside it (Undo, Redo, the save mark) stay centred where they always were. */
-.sys-header-left:has(> .sys-header-guest) {
-  align-self: stretch;
-}
-
-.sys-header-left > .sys-header-guest {
-  align-self: start;
 }
 
 /* What waits for data keeps its place from the first frame on a touch screen: the Listen strip is a touch target once it can seek, and the guest's own avatar joins the header's right side when presence answers. */

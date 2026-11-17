@@ -121,7 +121,7 @@ function RoleHint({ guest }: { guest: NonNullable<AppHeaderProps["guest"]> }) {
 
   return (
     <>
-      <span ref={outsideRef}>
+      <span ref={outsideRef} className="sys-role-hint">
         <CoachTip
           edge
           text={guest.hint.text}
@@ -133,7 +133,7 @@ function RoleHint({ guest }: { guest: NonNullable<AppHeaderProps["guest"]> }) {
         <button
           ref={triggerRef}
           type="button"
-          className="sys-icon-btn"
+          className="sys-role-trigger"
           aria-label={`Explain ${label} role`}
           aria-haspopup="dialog"
           aria-expanded={mode === "manual"}
