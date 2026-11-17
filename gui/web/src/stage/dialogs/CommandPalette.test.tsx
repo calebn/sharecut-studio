@@ -12,7 +12,13 @@ import { presenceProjectInitial } from "../../state/presenceSlice";
 import { DawProvider } from "../../state/store";
 import { setChrome } from "../../test/chrome";
 import { waitForDialogFocus } from "../../test/dialogFocus";
-import { minimalProject, sessionRoster } from "../../test/fixtures";
+import {
+  minimalProject,
+  sessionClient,
+  sessionRoster,
+} from "../../test/fixtures";
+import { stubViewportShell } from "../../test/viewportShell";
+import { useShellAttributes } from "../frame/useShellAttributes";
 import { CommandPalette } from "./CommandPalette";
 
 const ctxOverride = vi.hoisted(() => ({
@@ -88,6 +94,7 @@ describe("CommandPalette", () => {
 
   afterEach(() => {
     useDawStore.setState(presenceProjectInitial());
+    vi.unstubAllGlobals();
   });
 
   it("lists keyed and keyless catalog commands together", () => {
@@ -514,6 +521,136 @@ describe("CommandPalette", () => {
       .setup()
       .click(within(people).getByRole("option", { name: /^Ana/ }));
     expect(useDawStore.getState().followingClientId).toBe("ana-1");
+    expect(useDawStore.getState().chrome.commandPaletteOpen).toBe(false);
+  });
+
+  function seedPalettePerson(playhead: number | null = null) {
+    useDawStore.setState({
+      localClientId: "me",
+      guestMode: "edit",
+      shellBreakpoint: "desktop",
+      stage: "edit",
+      sessionClients: sessionRoster([
+        sessionClient({
+          client_id: "ana-1",
+          role: "viewer",
+          label: "Ana",
+          last_seen_ns: Date.now() * 1e6,
+          playhead_sec: playhead,
+          meta: {
+            display_name: "Ana",
+            following: "leader",
+            ui: { tab: "transcript", mobile_mode: "text" },
+          },
+        }),
+      ]),
+    });
+  }
+
+  function peopleOptions() {
+    return within(screen.getByRole("group", { name: "People" })).getAllByRole(
+      "option",
+    );
+  }
+
+  function ShellBridge() {
+    useShellAttributes();
+    return null;
+  }
+
+  function resizePalette(shell: "desktop" | "phone") {
+    act(() => {
+      stubViewportShell(shell);
+      window.dispatchEvent(new Event("resize"));
+    });
+    expect(useDawStore.getState().shellBreakpoint).toBe(shell);
+    expect(useDawStore.getState().chrome.commandPaletteOpen).toBe(true);
+  }
+
+  it.each([null, 12])(
+    "updates People actions across an open-palette resize with playhead %s",
+    async (playhead) => {
+      seedPalettePerson(playhead);
+      stubViewportShell("desktop");
+      render(
+        <DawProvider
+          projectPath="/tmp/p.json"
+          initialProject={minimalProject()}
+        >
+          <ShellBridge />
+          <CommandPalette />
+        </DawProvider>,
+      );
+      const roster = useDawStore.getState().sessionClients;
+      const project = useDawStore.getState().project;
+      expect(peopleOptions()).toHaveLength(playhead === null ? 1 : 2);
+      resizePalette("phone");
+      expect(peopleOptions()).toHaveLength(2);
+      const user = userEvent.setup();
+      await waitForDialogFocus();
+      await user.type(screen.getByRole("combobox"), "Ana");
+      await user.keyboard("{ArrowDown}{ArrowDown}");
+      expect(screen.getByText(/Enter: Go to Ana/)).toBeTruthy();
+      resizePalette("desktop");
+      expect(peopleOptions()).toHaveLength(playhead === null ? 1 : 2);
+      expect(useDawStore.getState().sessionClients).toBe(roster);
+      expect(useDawStore.getState().project).toBe(project);
+    },
+  );
+
+  it("updates People actions when the current stage changes without a roster frame", () => {
+    seedPalettePerson();
+    renderPalette();
+    expect(peopleOptions()).toHaveLength(1);
+    act(() => useDawStore.setState({ stage: "review" }));
+    expect(peopleOptions()).toHaveLength(2);
+    act(() => useDawStore.setState({ stage: "edit" }));
+    expect(peopleOptions()).toHaveLength(1);
+  });
+
+  it("removes an unreachable People destination when the viewer role changes", () => {
+    seedPalettePerson();
+    useDawStore.setState({ stage: "review" });
+    renderPalette();
+    expect(peopleOptions()).toHaveLength(2);
+    act(() => useDawStore.setState({ guestMode: "view" }));
+    expect(peopleOptions()).toHaveLength(1);
+    act(() => useDawStore.setState({ guestMode: "edit" }));
+    expect(peopleOptions()).toHaveLength(2);
+  });
+
+  it("uses the current People context when reopened after a closed context change", () => {
+    seedPalettePerson();
+    renderPalette();
+    expect(peopleOptions()).toHaveLength(1);
+    act(() => useDawStore.getState().setCommandPaletteOpen(false));
+    act(() => useDawStore.setState({ shellBreakpoint: "phone" }));
+    act(() => useDawStore.getState().setCommandPaletteOpen(true));
+    expect(peopleOptions()).toHaveLength(2);
+  });
+
+  it("keeps the searched and selected People action through a parent render and dispatches Go to", async () => {
+    seedPalettePerson();
+    useDawStore.setState({ shellBreakpoint: "phone" });
+    const goTo = vi.fn(() => ({ status: "ok" as const }));
+    registerCommand("presence.goTo", goTo);
+    renderPalette();
+    const user = userEvent.setup();
+    await waitForDialogFocus();
+    const search = screen.getByRole("combobox");
+    await user.type(search, "Ana");
+    await user.keyboard("{ArrowDown}{ArrowDown}");
+    expect(screen.getByText(/Enter: Go to Ana/)).toBeTruthy();
+    const selected = search.getAttribute("aria-activedescendant");
+    act(() => useDawStore.setState({ pointerKind: "coarse" }));
+    expect(search).toHaveValue("Ana");
+    expect(search).toHaveAttribute("aria-activedescendant", selected);
+    expect(screen.getByText(/Enter: Go to Ana/)).toBeTruthy();
+    await user.keyboard("{Enter}");
+    expect(goTo).toHaveBeenCalledExactlyOnceWith(
+      { clientId: "ana-1" },
+      expect.objectContaining({ shellBreakpoint: "phone", stage: "edit" }),
+    );
     expect(useDawStore.getState().chrome.commandPaletteOpen).toBe(false);
   });
 
