@@ -119,3 +119,15 @@ def test_a_healthy_shell_read_is_unchanged(minimal_project):
         )
     assert response.status_code == 200
     assert "x-sharecut-error-code" not in response.headers
+
+
+def test_an_integer_version_is_capped_like_a_text_one(minimal_project):
+    digits = "7" * 4000
+    minimal_project.write_text(minimal_project.read_text().replace('"2.2"', digits, 1))
+    with TestClient(create_app(served_project=minimal_project), raise_server_exceptions=False) as c:
+        response = c.get("/api/document/state", params={"path": str(minimal_project)})
+    assert response.status_code == 400
+    detail = response.json()["detail"]
+    assert len(detail) < 400
+    assert "7" * 25 not in detail
+    assert "7" * 24 in detail

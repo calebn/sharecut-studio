@@ -1,14 +1,22 @@
 from __future__ import annotations
 
 import json
+import logging
+import os
+import re
 import zipfile
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import MagicMock
+from urllib.parse import quote
 
 import pytest
 from fastapi.testclient import TestClient
+from filelock import Timeout
 
+from podcast_mcp.gui.routes import diagnostics as diagnostics_route
 from podcast_mcp.gui.server import create_app
+from podcast_mcp.project.store import WriteGrantKind, write_grant
 from podcast_mcp.services.support import diagnostics as diagnostics_mod
 from podcast_mcp.services.support.diagnostics import NOT_OPENED_STATEMENT as STATEMENT
 from podcast_mcp.services.support.doctor import DoctorReport
@@ -212,3 +220,207 @@ def test_who_may_export_is_unchanged_for_an_unopenable_episode(
         remote = client.post("/api/diagnostics/bundle", json={})
     assert remote.status_code == 403
     assert _no_bundle_written(bundle_env)
+
+
+def test_the_percent_encoded_folder_in_a_server_log_line_is_replaced(
+    minimal_project, bundle_env, monkeypatch, tmp_path
+):
+    folder = minimal_project.parent
+    encoded = quote(str(minimal_project), safe="")
+    log = tmp_path / "state" / "sidecar.log"
+    log.parent.mkdir()
+    log.write_text(
+        f'INFO:     127.0.0.1:34074 - "WebSocket /api/host/ws?path={encoded}&client_id=v" 403\n'
+        f'INFO:     127.0.0.1:34075 - "GET /api/document/state?path={encoded.lower()} HTTP/1.1" 400\n'
+    )
+    monkeypatch.setattr(diagnostics_mod, "sidecar_log_candidates", lambda: [log])
+    for state in ("healthy", "newer"):
+        if state == "newer":
+            _break(minimal_project, state)
+        with _client(minimal_project) as client:
+            response = client.post("/api/diagnostics/bundle", json={})
+        assert response.status_code == 200, response.text
+        members = _members(response.json()["path"])
+        assert "path=<workspace>%2Fepisode.sharecut&client_id=v" in members["sidecar.log"]
+        for text in members.values():
+            assert str(folder) not in text
+            assert folder.name not in text
+            assert quote(str(folder), safe="") not in text
+            assert quote(str(folder), safe="").lower() not in text
+
+
+class _Rows(logging.Handler):
+    def __init__(self) -> None:
+        super().__init__(logging.WARNING)
+        self.texts: list[str] = []
+
+    def emit(self, record: logging.LogRecord) -> None:
+        self.texts.append(self.format(record))
+
+
+def _wrong_shape(project_file: Path) -> None:
+    """Valid JSON that is not a project: a marker sits in each field that fails validation."""
+    data = json.loads(project_file.read_text())
+    data["meta"]["name"] = {"v": MARKERS["name"]}
+    data["timeline"]["tracks"] = [{"id": {"v": MARKERS["track"]}, "name": [MARKERS["track"]]}]
+    data["timeline"]["clips"] = [{"id": [MARKERS["clip"]], "start": MARKERS["clip"]}]
+    data["transcripts"]["per_track"] = [
+        {"track_id": "t", "words": [{"text": {"v": MARKERS["word"]}, "start": MARKERS["word"]}]}
+    ]
+    project_file.write_text(json.dumps(data))
+
+
+MARKERS = {
+    "name": "ZQNAME81",
+    "track": "ZQTRACK82",
+    "word": "ZQWORD83",
+    "clip": "ZQCLIP84",
+}
+
+
+def test_a_guest_mcp_call_on_a_damaged_episode_leaves_none_of_it_in_the_bundle(
+    minimal_project, published_share, bundle_env, monkeypatch, tmp_path
+):
+    with write_grant(WriteGrantKind.DISPATCHER):
+        token = published_share()[2]["token"]
+    _wrong_shape(minimal_project)
+    log = tmp_path / "state" / "sidecar.log"
+    log.parent.mkdir()
+    handler = logging.FileHandler(log)
+    handler.setLevel(logging.WARNING)
+    logging.getLogger().addHandler(handler)
+    monkeypatch.setattr(diagnostics_mod, "sidecar_log_candidates", lambda: [log])
+    try:
+        with _client(minimal_project) as client:
+            guest = client.post(
+                f"/mcp/{token}/mcp",
+                headers={"Accept": "application/json, text/event-stream"},
+                json={"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {}},
+            )
+            handler.flush()
+            assert any(m in log.read_text() for m in ("Resolving a guest MCP share", "Field")), (
+                guest.text
+            )
+            response = client.post("/api/diagnostics/bundle", json={})
+    finally:
+        logging.getLogger().removeHandler(handler)
+        handler.close()
+    assert response.status_code == 200, response.text
+    members = _members(response.json()["path"])
+    assert "sidecar.log" in members
+    folder = minimal_project.parent
+    for name, text in members.items():
+        for marker in MARKERS.values():
+            assert marker not in text, (name, marker)
+        assert str(folder) not in text
+        assert folder.name not in text
+
+
+def test_no_route_logs_the_content_of_a_damaged_episode(
+    minimal_project, published_share, bundle_env
+):
+    with write_grant(WriteGrantKind.DISPATCHER):
+        token = published_share()[2]["token"]
+    _wrong_shape(minimal_project)
+    rows = _Rows()
+    rows.setFormatter(logging.Formatter("%(message)s"))
+    logging.getLogger().addHandler(rows)
+    fill = {"token": token, "path": str(minimal_project)}
+    try:
+        for served in (None, minimal_project):
+            app = create_app(served_project=served)
+            client = TestClient(app, raise_server_exceptions=False)
+            for route, operations in app.openapi()["paths"].items():
+                if "shutdown" in route:
+                    continue
+                url = re.sub(r"\{(\w+)(:\w+)?\}", lambda m: fill.get(m.group(1), "x1"), route)
+                for method in operations:
+                    if method.upper() not in ("GET", "POST", "PUT", "PATCH", "DELETE"):
+                        continue
+                    client.request(
+                        method.upper(),
+                        url,
+                        params={"phase": "shell", "path": str(minimal_project)},
+                        json=None if method.upper() == "GET" else {},
+                    )
+            for guest_url in (f"/mcp/{token}/mcp", f"/r/{token}/mcp"):
+                client.post(
+                    guest_url,
+                    headers={"Accept": "application/json, text/event-stream"},
+                    json={"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {}},
+                )
+    finally:
+        logging.getLogger().removeHandler(rows)
+    assert rows.texts
+    for text in rows.texts:
+        for marker in MARKERS.values():
+            assert marker not in text, text[:300]
+
+
+def _history_index(project_file: Path) -> None:
+    index = project_file.parent / "history" / "index.json"
+    index.parent.mkdir(exist_ok=True)
+    index.write_text("{not json " + MARKERS["name"])
+
+
+def _unreadable_mode(project_file: Path) -> None:
+    project_file.chmod(0)
+
+
+def _deeply_nested(project_file: Path) -> None:
+    project_file.write_text("[" * 100000 + MARKERS["name"])
+
+
+def _long_integer(project_file: Path) -> None:
+    project_file.write_text('{"version": ' + "7" * 5000 + ', "meta": {}}')
+
+
+@pytest.mark.parametrize(
+    "damage",
+    [_history_index, _unreadable_mode, _deeply_nested, _long_integer],
+)
+def test_any_failure_to_open_the_episode_still_gets_a_bundle(minimal_project, bundle_env, damage):
+    if damage is _unreadable_mode and os.geteuid() == 0:
+        pytest.skip("root reads a file whatever its mode bits")
+    folder = str(minimal_project.parent)
+    damage(minimal_project)
+    try:
+        with _client(minimal_project) as client:
+            response = client.post("/api/diagnostics/bundle", json={})
+    finally:
+        minimal_project.chmod(0o644)
+    assert response.status_code == 200, response.text
+    members = _members(response.json()["path"])
+    report = json.loads(members["report.json"])
+    assert report["project"] is None
+    code = report["episode_not_opened"]["code"]
+    assert re.fullmatch(r"[a-z][a-z0-9_]{2,63}", code), code
+    for text in members.values():
+        assert folder not in text
+        assert MARKERS["name"] not in text
+        assert "7777777" not in text
+
+
+def test_a_busy_episode_gets_a_bundle_without_it(minimal_project, bundle_env, monkeypatch):
+    def busy(_path):
+        raise Timeout(str(minimal_project) + ".lock")
+
+    monkeypatch.setattr("podcast_mcp.gui.routes.diagnostics.ProjectWorkspace.open", busy)
+    with _client(minimal_project) as client:
+        response = client.post("/api/diagnostics/bundle", json={})
+    assert response.status_code == 200, response.text
+    members = _members(response.json()["path"])
+    assert json.loads(members["report.json"])["episode_not_opened"]["code"] == "project_busy"
+    for text in members.values():
+        assert str(minimal_project.parent) not in text
+
+
+def test_an_interrupt_is_not_swallowed_by_the_export(minimal_project, monkeypatch):
+    def interrupted(_path):
+        raise KeyboardInterrupt
+
+    monkeypatch.setattr("podcast_mcp.gui.routes.diagnostics.resolve_project", lambda p, r: Path(p))
+    monkeypatch.setattr("podcast_mcp.gui.routes.diagnostics.ProjectWorkspace.open", interrupted)
+    request = SimpleNamespace(app=SimpleNamespace(state=SimpleNamespace(served_project=None)))
+    with pytest.raises(KeyboardInterrupt):
+        diagnostics_route._load_project(request, str(minimal_project))
