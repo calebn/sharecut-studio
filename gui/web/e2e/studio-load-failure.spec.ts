@@ -649,7 +649,6 @@ const STATE_CODES: Record<UnopenableState, string> = {
   missing: "project_not_found",
 };
 
-/** Change the throwaway episode so it will not open; returns a way to put the folder back. */
 function breakEpisode(projectPath: string, state: UnopenableState) {
   assertDisposableE2eProject(projectPath);
   if (state === "missing") {
@@ -670,7 +669,6 @@ function breakEpisode(projectPath: string, state: UnopenableState) {
   return () => {};
 }
 
-/** From the failed studio: the Project menu's Help, then Report a problem, then Export. */
 async function exportReportFromHelp(page: Page, size: Size) {
   await press(projectMenuButton(page), size.touch);
   const menu = page.getByRole("menu", { name: "Project menu" });
