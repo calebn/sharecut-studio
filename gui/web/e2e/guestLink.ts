@@ -1,5 +1,10 @@
 import fs from "node:fs";
-import { expect, type Locator, type Page } from "@playwright/test";
+import {
+  type BrowserContextOptions,
+  expect,
+  type Locator,
+  type Page,
+} from "@playwright/test";
 import { withShareableProject } from "./shareableProject";
 import { createReviewShare, openHostShare } from "./shareNavigation";
 import { withBrowserPages } from "./twoBrowserPages";
@@ -16,7 +21,7 @@ export const SIZES = [
   { name: "desktop", width: 1280, height: 800, touch: false },
 ] as const;
 
-/** The narrowest phone the app supports: the header folds its right side at exactly this width (20 rem). */
+/** The narrowest phone the specs open (the app states no minimum): the header folds its right side at exactly this width (20 rem). */
 export const NARROW_PHONE = {
   name: "narrow",
   width: 320,
@@ -185,6 +190,33 @@ export function blankEpisodeName(projectPath: string): void {
   fs.writeFileSync(projectPath, `${JSON.stringify(data, null, 2)}\n`);
 }
 
+/**
+ * A shared project with the host's own page open on it, the guest contexts
+ * asked for after it, and a link for each of `roles`. The host stays open so a
+ * guest finds a person in the header's people slot, as a real one does.
+ */
+async function withSharedProject(
+  browser: Parameters<typeof withBrowserPages>[0],
+  guests: BrowserContextOptions[],
+  roles: readonly GuestRole[],
+  run: (
+    pages: Page[],
+    links: Record<GuestRole, string>,
+    projectPath: string,
+  ) => Promise<void>,
+) {
+  await withShareableProject(async (projectPath) => {
+    await withBrowserPages(browser, [{}, ...guests], async (pages) => {
+      const [host] = pages;
+      await openHostShare(host!, projectPath);
+      const links = {} as Record<GuestRole, string>;
+      for (const role of roles)
+        links[role] = await createReviewShare(host!, projectPath, role);
+      await run(pages, links, projectPath);
+    });
+  });
+}
+
 export async function withGuestLink(
   browser: Parameters<typeof withBrowserPages>[0],
   size: Size,
@@ -196,23 +228,35 @@ export async function withGuestLink(
   ) => Promise<void>,
   role: "commenter" | "editor" = "commenter",
 ) {
-  await withShareableProject(async (projectPath) => {
-    await withBrowserPages(
-      browser,
-      [
-        {},
-        {
-          viewport: { width: size.width, height: size.height },
-          hasTouch: size.touch,
-        },
-      ],
-      async ([host, guest]) => {
-        await openHostShare(host!, projectPath);
-        const token = await createReviewShare(host!, projectPath, role);
-        await run(guest!, token, host!, projectPath);
+  await withSharedProject(
+    browser,
+    [
+      {
+        viewport: { width: size.width, height: size.height },
+        hasTouch: size.touch,
       },
-    );
-  });
+    ],
+    [role],
+    async ([host, guest], links, projectPath) =>
+      run(guest!, links[role], host!, projectPath),
+  );
+}
+
+/** One shared project with a link for each role and the host's page open on it. */
+export async function withGuestLinks(
+  browser: Parameters<typeof withBrowserPages>[0],
+  run: (
+    links: Record<GuestRole, string>,
+    host: Page,
+    projectPath: string,
+  ) => Promise<void>,
+) {
+  await withSharedProject(
+    browser,
+    [],
+    ROLES,
+    async ([host], links, projectPath) => run(links, host!, projectPath),
+  );
 }
 
 /** A window too short for the cover's usual offset: a desktop at 200% zoom. */
@@ -291,29 +335,6 @@ export const focusWhenSeen = (page: Page) =>
   page.evaluate(
     () => (window as unknown as { __focusSeen: Promise<string> }).__focusSeen,
   );
-
-/**
- * One shared project with a link for each role and the host's own page open on
- * it, so a guest finds a person in the header's people slot as a real one does.
- */
-export async function withGuestLinks(
-  browser: Parameters<typeof withBrowserPages>[0],
-  run: (
-    links: Record<GuestRole, string>,
-    host: Page,
-    projectPath: string,
-  ) => Promise<void>,
-) {
-  await withShareableProject(async (projectPath) => {
-    await withBrowserPages(browser, [{}], async ([host]) => {
-      await openHostShare(host!, projectPath);
-      const links = {} as Record<GuestRole, string>;
-      for (const role of ROLES)
-        links[role] = await createReviewShare(host!, projectPath, role);
-      await run(links, host!, projectPath);
-    });
-  });
-}
 
 /** A guest who has read every role's first-visit hint already. */
 export async function seeEveryHint(page: Page) {
