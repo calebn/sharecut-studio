@@ -124,6 +124,7 @@ export const JOIN_TEXT = {
   producerSlow: "Still connecting to the room. Choose Not now to stop trying.",
   decline: "Not now",
   producerLine: "You'll listen and comment. You won't be recorded.",
+  producerSeen: "The room can see that someone is looking in.",
   headphones: "I'm wearing headphones",
   notWearingHeadphones: "I'm not wearing headphones",
   wearingShort: "Wearing",

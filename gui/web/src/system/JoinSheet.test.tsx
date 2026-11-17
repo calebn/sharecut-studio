@@ -636,6 +636,31 @@ describe("JoinSheet producer", () => {
     expect(onJoin).toHaveBeenCalledOnce();
   });
 
+  it("says the room can see someone is looking in, as part of the dialog's description", async () => {
+    const SEEN = "The room can see that someone is looking in.";
+    const { rerender } = render(
+      <Harness seat="producer" name="Rosa" seenByRoom />,
+    );
+    const dialog = screen.getByRole("dialog");
+    expect(dialog).toHaveAccessibleDescription(
+      `You'll listen and comment. You won't be recorded. ${SEEN}`,
+    );
+    expect(screen.getByText(SEEN)).toBeVisible();
+    await expectNoA11yViolations(document.body);
+    rerender(<Harness seat="producer" name="Rosa" />);
+    expect(screen.queryByText(SEEN)).toBeNull();
+    expect(screen.getByRole("dialog")).toHaveAccessibleDescription(
+      "You'll listen and comment. You won't be recorded.",
+    );
+  });
+
+  it("never says it on the guest seat", () => {
+    render(<Harness seenByRoom />);
+    expect(
+      screen.queryByText("The room can see that someone is looking in."),
+    ).toBeNull();
+  });
+
   it("waits for a name", () => {
     render(<Harness seat="producer" />);
     expect(primary("Join to listen")).toBeDisabled();
