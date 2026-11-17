@@ -1,5 +1,5 @@
-import { fireEvent, render, screen } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { act, fireEvent, render, screen } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { Skeleton, SkeletonBlock } from "./Skeleton";
 
 describe("SkeletonBlock", () => {
@@ -31,6 +31,77 @@ describe("Skeleton Retry", () => {
     expect(screen.getByRole("button", { name: "Trying…" })).toHaveAttribute(
       "aria-busy",
       "true",
+    );
+  });
+});
+
+describe("Skeleton guest layout with a head", () => {
+  afterEach(() => vi.useRealTimers());
+
+  it("leaves out the grey header block, puts the head first with the phase, and keeps the other blocks", () => {
+    const head = vi.fn((phase: string) => <header data-head={phase} />);
+    const { container } = render(
+      <Skeleton layout="guest" elapsedMs={500} head={head} />,
+    );
+    expect(head).toHaveBeenCalledWith("blocks");
+    const skeleton = container.querySelector(".sys-skeleton") as HTMLElement;
+    expect(skeleton.firstElementChild).toHaveAttribute("data-head", "blocks");
+    expect(container.querySelector(".sys-skeleton-block--header")).toBeNull();
+    expect(
+      container.querySelector(".sys-skeleton-block--player"),
+    ).not.toBeNull();
+  });
+
+  it("gives the head the blank phase before 300 ms", () => {
+    const { container } = render(
+      <Skeleton
+        layout="guest"
+        elapsedMs={0}
+        head={(phase) => <header data-head={phase} />}
+      />,
+    );
+    expect(container.querySelector("[data-head]")).toHaveAttribute(
+      "data-head",
+      "blank",
+    );
+  });
+
+  it("keeps today's grey header block without a head", () => {
+    const { container } = render(<Skeleton layout="guest" elapsedMs={500} />);
+    expect(
+      container.querySelector(".sys-skeleton-block--header"),
+    ).not.toBeNull();
+  });
+});
+
+describe("Skeleton waitedMs", () => {
+  afterEach(() => vi.useRealTimers());
+
+  it("opens in the phase the time already waited has reached, and counts the rest", () => {
+    vi.useFakeTimers();
+    const { container } = render(<Skeleton layout="guest" waitedMs={200} />);
+    const phase = () =>
+      container.querySelector(".sys-skeleton")?.getAttribute("data-phase");
+    expect(phase()).toBe("blank");
+    act(() => void vi.advanceTimersByTime(100));
+    expect(phase()).toBe("blocks");
+    act(() => void vi.advanceTimersByTime(3699));
+    expect(phase()).toBe("blocks");
+    act(() => void vi.advanceTimersByTime(1));
+    expect(phase()).toBe("slow");
+  });
+
+  it("opens straight into blocks, or into Still loading…, when that much has passed", () => {
+    const blocks = render(<Skeleton layout="guest" waitedMs={350} />);
+    expect(blocks.container.querySelector(".sys-skeleton")).toHaveAttribute(
+      "data-phase",
+      "blocks",
+    );
+    blocks.unmount();
+    const slow = render(<Skeleton layout="guest" waitedMs={4200} />);
+    expect(slow.container.querySelector(".sys-skeleton")).toHaveAttribute(
+      "data-phase",
+      "slow",
     );
   });
 });

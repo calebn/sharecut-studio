@@ -5,14 +5,18 @@ import { expectNoA11yViolations } from "../../test/a11y";
 import { systemCss } from "../../test/systemCss";
 import { GuestLoadingScreen } from "./GuestLoadingScreen";
 
-describe("GuestLoadingScreen", () => {
+const ROOM = "Joining the room…";
+
+describe("GuestLoadingScreen (the recording room's)", () => {
   beforeEach(() => vi.useFakeTimers());
   afterEach(() => vi.useRealTimers());
 
   it("draws nothing for 300 ms, then the guest frame, then Retry at 4 s", async () => {
     const onRetry = vi.fn();
-    const { container } = render(<GuestLoadingScreen onRetry={onRetry} />);
-    expect(screen.getByRole("status")).toHaveTextContent("Loading project…");
+    const { container } = render(
+      <GuestLoadingScreen label={ROOM} onRetry={onRetry} />,
+    );
+    expect(screen.getByRole("status")).toHaveTextContent(ROOM);
     expect(container.querySelectorAll(".sys-skeleton-block")).toHaveLength(0);
     act(() => void vi.advanceTimersByTime(300));
     for (const part of ["header", "player", "queue", "center"])
@@ -28,9 +32,20 @@ describe("GuestLoadingScreen", () => {
     await expectNoA11yViolations(container);
   });
 
+  it("keeps the room's tree: the grey header block, no header bar, no heading", () => {
+    const { container } = render(<GuestLoadingScreen label={ROOM} />);
+    act(() => void vi.advanceTimersByTime(300));
+    expect(
+      container.querySelector(".sys-skeleton-block--header"),
+    ).not.toBeNull();
+    expect(container.querySelector(".sys-app-header-host")).toBeNull();
+    expect(screen.queryByRole("heading")).toBeNull();
+    expect(screen.getByRole("status")).toHaveTextContent(ROOM);
+  });
+
   it("answers a press on the 4 s Retry with Trying… for as long as the screen waited before offering it, then offers Retry again", () => {
     const onRetry = vi.fn();
-    render(<GuestLoadingScreen onRetry={onRetry} />);
+    render(<GuestLoadingScreen label={ROOM} onRetry={onRetry} />);
     act(() => void vi.advanceTimersByTime(4000));
     const retry = screen.getByRole("button", { name: "Retry" });
     fireEvent.click(retry);
@@ -52,14 +67,14 @@ describe("GuestLoadingScreen", () => {
   });
 
   it("does not say Trying… when no retry is wired, because nothing is being tried", () => {
-    render(<GuestLoadingScreen />);
+    render(<GuestLoadingScreen label={ROOM} />);
     act(() => void vi.advanceTimersByTime(4000));
     fireEvent.click(screen.getByRole("button", { name: "Retry" }));
     expect(screen.queryByRole("button", { name: "Trying…" })).toBeNull();
   });
 
   it("gives Retry the touch-min target at every size and the status row the block gutter", () => {
-    render(<GuestLoadingScreen onRetry={() => {}} />);
+    render(<GuestLoadingScreen label={ROOM} onRetry={() => {}} />);
     act(() => void vi.advanceTimersByTime(4000));
     const retry = screen.getByRole("button", { name: "Retry" });
     expect(retry).toHaveClass("sys-skeleton-retry");
