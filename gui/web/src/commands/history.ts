@@ -176,6 +176,14 @@ function moveHistory(
         useDawStore.getState().dismissFeedbackToast(waitingToast);
       if (landed !== null) {
         retireOwnCommandHead(observation);
+        const toast = useDawStore.getState().feedbackToast;
+        if (
+          action === "undo" &&
+          toast &&
+          (toast.undo === expectedHeadId ||
+            toast.merged?.entries.includes(expectedHeadId))
+        )
+          useDawStore.getState().dismissFeedbackToast(toast.id);
       }
       return { status: "ok" };
     } finally {
