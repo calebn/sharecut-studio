@@ -3114,6 +3114,49 @@ def test_a_look_open_when_its_invite_closes_is_closed_with_no_frame_and_uncounte
     wait_for_count(0)
 
 
+def test_a_look_that_joins_with_a_lease_while_its_invite_check_runs_stays_open(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch
+):
+    import threading
+
+    ws, room, client = _room(minimal_project, sample_wav, tmp_workspace, monkeypatch)
+    test_thread = threading.get_ident()
+    entered = threading.Event()
+    release = threading.Event()
+    armed = threading.Event()
+    original = RecordSessionService.invite_closed
+
+    def gated(self, share_id):
+        # The first check made off the test thread after arming (the pump's) waits for the test.
+        if armed.is_set() and threading.get_ident() != test_thread and not entered.is_set():
+            entered.set()
+            assert release.wait(5.0)
+        return original(self, share_id)
+
+    monkeypatch.setattr(RecordSessionService, "invite_closed", gated)
+    svc = _room_svc(ws, room)
+    with _observe(client, room) as obs:
+        assert obs.receive_json()["snapshot"]["watchers"] == 1
+        armed.set()
+        keeper, _snap = svc.join(
+            share_id=room["producer"]["id"],
+            role="producer",
+            display_name="Kay",
+            client_id="kay",
+            connection_id="kay-conn",
+            capabilities=["join", "monitor"],
+        )
+        svc.disconnect(keeper["participant_id"], connection_id="kay-conn")
+        _svc, gone = _join_through_the_producer_invite(ws, room)
+        _remove_that_producer(ws, room, svc, gone)
+        assert entered.wait(5.0)
+        _join(obs, name="Kay", participant_id=keeper["participant_id"], lease=keeper["lease"])
+        _drain_until(obs, lambda m: m.get("type") == "Echo")
+        release.set()
+        obs.send_json(_record_command("Heartbeat"))
+        _drain_until(obs, lambda m: m.get("command_type") == "Heartbeat")
+
+
 def test_the_next_event_closes_a_look_whose_removal_event_was_lost_and_is_not_sent(
     minimal_project, sample_wav, tmp_workspace, monkeypatch
 ):
@@ -3254,37 +3297,21 @@ def test_a_plain_socket_that_has_not_joined_stays_open_when_its_invite_closes(
 def test_join_on_a_look_whose_invite_closed_meanwhile_is_refused_as_today(
     minimal_project, sample_wav, tmp_workspace, monkeypatch
 ):
-    import asyncio
-    import threading
-
-    from podcast_mcp.gui.routes.guest_ws_common import GuestWsGuard
-
     ws, room, client = _room(minimal_project, sample_wav, tmp_workspace, monkeypatch)
+    lose = _drop_room_events(monkeypatch, only_removals=False)
     svc = _room_svc(ws, room)
-    armed = threading.Event()
-    held = threading.Event()
-    release = threading.Event()
-    original = GuestWsGuard.share_ok_on_frame
-
-    async def gated(self):
-        if armed.is_set() and not held.is_set():
-            held.set()
-            await asyncio.get_running_loop().run_in_executor(None, release.wait, 5.0)
-        return await original(self)
-
-    monkeypatch.setattr(GuestWsGuard, "share_ok_on_frame", gated)
     with _observe(client, room) as obs:
         assert obs.receive_json()["snapshot"]["watchers"] == 1
-        armed.set()
+        # The pump hears nothing of the closure, so only the Join path can refuse.
+        lose["dropping"] = True
         _close_the_producer_invite(ws, room)
-        assert held.wait(5.0), "the pump never took the removal"
         _join(obs, name="Cy")
         err = _drain_until(obs, lambda m: m.get("type") == "Error")
         assert err["code"] == "invite_closed"
-        with pytest.raises(WebSocketDisconnect) as closed:
-            obs.receive_json()
-        assert closed.value.code == 4403
-        release.set()
+        lose["dropping"] = False
+        RecordControlService(ws).submit_host("SetGuestsSeeNotes", {"enabled": True})
+        code, reason, _frames = _close_within(obs, 5.0)
+        assert (code, reason) == (4403, "invite closed")
     assert svc.snapshot()["watchers"] == 0
 
 

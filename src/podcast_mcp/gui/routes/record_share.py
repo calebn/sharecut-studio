@@ -139,6 +139,7 @@ async def record_ws(
     participant_id: str | None = None
     svc: RecordSessionService | None = None
     joined = False
+    joining = False
     watching = observe == "1" and role == "producer"
     counted = False
     send_lock = asyncio.Lock()
@@ -152,8 +153,13 @@ async def record_ws(
             and (participant_id is None or svc.participant_active(participant_id))
             # A look that has not joined follows its invite: the pump closes it on the
             # removal event, and this recheck catches the event if the queue lost it.
-            and (not watching or joined or svc.invite_closed(share_id) is None)
+            and (not watching or joined or joining or _invite_open_or_joining(svc))
         )
+
+    def _invite_open_or_joining(service: RecordSessionService) -> bool:
+        # This runs in a worker thread: a Join that starts or finishes while the invite is
+        # read makes the socket a seat, so the flags are read again after the read.
+        return service.invite_closed(share_id) is None or joined or joining
 
     def _participant_runtime_valid() -> bool:
         return svc is not None and (
@@ -189,12 +195,16 @@ async def record_ws(
                     event = await q.get()
                     if (
                         watching
-                        and not joined
+                        and not (joined or joining)
                         and await run_in_threadpool(svc.invite_closed, share_id) is not None
                     ):
                         # The invite closed: a look gets what a Join gets, before any frame.
-                        await guard.close(4403, "invite closed")
-                        return
+                        # A Join holds the send lock from start to answer, so once the lock
+                        # is ours the socket has either joined (a seat now) or stayed a look.
+                        async with send_lock:
+                            if not joined:
+                                await guard.close(4403, "invite closed")
+                                return
                     if not await guard.share_ok_on_frame() or not _participant_runtime_valid():
                         await guard.close(4403, "participant removed or share revoked")
                         return
@@ -308,6 +318,7 @@ async def record_ws(
                     # The pump filters by who this socket is, so it waits out the Join:
                     # nothing else goes out between the Join and the Snapshot that follows.
                     async with send_lock:
+                        joining = True
                         try:
                             echo, snap = await run_in_threadpool(
                                 svc.join,
@@ -325,6 +336,7 @@ async def record_ws(
                                 watching_connection_id=connection_id if counted else None,
                             )
                         except Exception:
+                            joining = False
                             if counted and not await run_in_threadpool(
                                 svc.is_watching, connection_id
                             ):
