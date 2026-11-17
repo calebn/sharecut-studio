@@ -55,7 +55,7 @@ const GUEST_BLOCKS = [
   "center",
 ] as const;
 
-/** The same, when the caller draws the header itself. */
+/** The guest blocks without the header block, for a caller that draws its own header. */
 const GUEST_BODY_BLOCKS = GUEST_BLOCKS.filter((part) => part !== "header");
 
 const phaseOf = (
