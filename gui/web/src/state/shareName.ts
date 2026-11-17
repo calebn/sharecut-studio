@@ -10,3 +10,8 @@ export const ShareNameContext = createContext<string | null>(null);
 export function useShareName(): string | null {
   return useContext(ShareNameContext);
 }
+
+/** The name a link's answer or saved copy carries, trimmed; empty or not text is no name. */
+export function cleanShareName(name: unknown): string | null {
+  return typeof name === "string" && name.trim() !== "" ? name.trim() : null;
+}

@@ -38,6 +38,18 @@ describe("useLoadingClock", () => {
     expect(waited(later)).toBe(0);
   });
 
+  it("counts no negative time when the clock is set back while a screen is held", () => {
+    const first = renderHook(() => useLoadingClock());
+    act(() => void vi.advanceTimersByTime(200));
+    vi.setSystemTime(Date.now() - 3_600_000);
+    const second = renderHook(() => useLoadingClock());
+    expect(waited(second)).toBe(0);
+    first.unmount();
+    second.unmount();
+    const later = renderHook(() => useLoadingClock());
+    expect(waited(later)).toBe(0);
+  });
+
   it("holds one start through the double mount of StrictMode", () => {
     let seen = -1;
     function Probe() {

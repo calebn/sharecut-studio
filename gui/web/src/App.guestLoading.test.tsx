@@ -154,4 +154,87 @@ describe("guest loading never shows host chrome", () => {
     expect(container.textContent?.toLowerCase()).not.toContain("project");
     expectGuestSkeleton(container);
   });
+
+  const answerProject = (project: Response) =>
+    vi.fn(async (input: RequestInfo | URL) => {
+      const url = urlOf(input);
+      if (url.includes("/features")) {
+        return new Response(
+          JSON.stringify({ api_version: 1, features: ["share.ui.routes"] }),
+          { status: 200 },
+        );
+      }
+      if (url.endsWith("/project")) return project.clone();
+      throw new TypeError("Failed to fetch");
+    });
+  const projectAnswer = (name: unknown) =>
+    new Response(
+      JSON.stringify({
+        capabilities: ["view", "comment"],
+        guest_mode: "comment",
+        reads_transcript_words: false,
+        meta: { name },
+      }),
+      { status: 200 },
+    );
+
+  it("trims the name the link answers with", async () => {
+    window.history.pushState({}, "", "/r/padded");
+    vi.stubGlobal("fetch", answerProject(projectAnswer("  Pilot episode \n")));
+    render(<App />);
+    await vi.waitFor(() => {
+      expect(screen.getByRole("status")).toHaveTextContent(
+        /^Loading Pilot episode…$/,
+      );
+    });
+    expect(screen.getByRole("heading", { level: 1 }).textContent).toBe(
+      "Pilot episode",
+    );
+  });
+
+  it("takes a name of only spaces, or one that is not text, for no name", async () => {
+    window.history.pushState({}, "", "/r/blank");
+    vi.stubGlobal("fetch", answerProject(projectAnswer("   ")));
+    const blank = render(<App />);
+    await vi.waitFor(() => {
+      expect(screen.getByRole("status")).toHaveTextContent(
+        "Loading the episode…",
+      );
+    });
+    expect(screen.getByRole("heading", { level: 1 }).textContent).toBe(
+      "Episode",
+    );
+    blank.unmount();
+    vi.stubGlobal("fetch", answerProject(projectAnswer({ not: "text" })));
+    resetFeaturesCache();
+    render(<App />);
+    await vi.waitFor(() => {
+      expect(screen.getByRole("status")).toHaveTextContent(
+        "Loading the episode…",
+      );
+    });
+  });
+
+  it("shows no name for a link the server no longer knows, even with a saved copy that has one", async () => {
+    window.history.pushState({}, "", "/r/off");
+    offline.load.mockResolvedValue({
+      project: { meta: { name: "Stale episode" } },
+      saved_at: 1,
+    });
+    vi.stubGlobal(
+      "fetch",
+      answerProject(
+        new Response(JSON.stringify({ detail: "No such share." }), {
+          status: 404,
+          headers: { "X-Sharecut-Error-Code": "share_not_found" },
+        }),
+      ),
+    );
+    const { container } = render(<App />);
+    await vi.waitFor(() => {
+      expect(container.querySelector("main.guest-loading")).toBeNull();
+    });
+    expect(container.textContent).not.toContain("Stale episode");
+    expect(screen.queryByText(/Loading .*…/)).toBeNull();
+  });
 });
