@@ -714,6 +714,78 @@ def altool_error(message: str) -> str:
     return json.dumps({"product-errors": [{"code": -19232, "message": message}]})
 
 
+RELATIONSHIPS = (
+    "routingAppCoverage",
+    "appStoreVersionLocalizations",
+    "appStoreReviewDetail",
+    "appStoreVersionSubmission",
+    "appStoreVersionExperiments",
+    "customerReviews",
+    "alternativeDistributionPackage",
+    "appStoreVersionPhasedRelease",
+    "appClipDefaultExperience",
+    "gameCenterAppVersion",
+    "appStoreVersionExperimentsV2",
+    "build",
+)
+API = "https://api.appstoreconnect.apple.com/v1/appStoreVersions"
+VERSION_ID = "00000000-0000-0000-0000-000000000000"
+ALTOOL_BANNER = (
+    "Running altool at path "
+    "'/Applications/Xcode.app/Contents/SharedFrameworks/ContentDelivery.framework/Resources/altool'..."
+    "\n\n"
+)
+RETRY_LINES = "".join(
+    f"2026-11-17 11:38:0{n}.076 ERROR: [CDASCAPI.105A07020] APP STORE CONNECT API list-apps: "
+    f"received status code 500; internal server error. ({code}) (500)\n"
+    for n, code in ((4, "5TF655OIIDKQQPKUO57UI3TZQY"), (9, "5M5N7BSJ5KFDYAOEDUGBBHB3WE"))
+)
+
+
+def listed_app(bundle_identifier: str = "studio.sharecut.app", name: str = "ShareCut") -> dict:
+    relationships = {
+        relation: {
+            "links": {
+                "related": f"{API}/{VERSION_ID}/{relation}",
+                "self": f"{API}/{VERSION_ID}/relationships/{relation}",
+            }
+        }
+        for relation in RELATIONSHIPS
+    }
+    version = {
+        "id": VERSION_ID,
+        "relationships": relationships,
+        "links": {"self": f"{API}/{VERSION_ID}"},
+        "type": "appStoreVersions",
+        "attributes": {
+            "releaseType": "AFTER_APPROVAL",
+            "platform": "IOS",
+            "versionString": "1.0",
+            "appStoreState": "PREPARE_FOR_SUBMISSION",
+        },
+    }
+    return {
+        "appStoreVersions": [version],
+        "streamlinedPurchasingEnabled": True,
+        "id": "1234567890",
+        "sku": "sss-sssssss-sss",
+        "primaryLocale": "en-US",
+        "bundleId": bundle_identifier,
+        "type": "apps",
+        "name": name,
+        "isOrEverWasMadeForKids": False,
+    }
+
+
+def altool_listing(*apps: dict) -> str:
+    return json.dumps(list(apps), indent=2, separators=(",", " : ")) + "\n"
+
+
+REAL_LISTING = altool_listing(listed_app())
+REAL_CAPTURE = ALTOOL_BANNER + RETRY_LINES + REAL_LISTING
+APP_ID = "studio.sharecut.app"
+
+
 def apple_error(message: str, **fields: object) -> str:
     return json.dumps({"product-errors": [{"code": "ITMS-90022", "message": message, **fields}]})
 
@@ -742,15 +814,175 @@ def test_altool_answers_are_classified(code: int, text: str, verdict: Verdict) -
     assert release_classify.classify_altool(code, text).verdict is verdict
 
 
-def test_the_app_record_lookup_reads_the_filtered_list() -> None:
-    listing = json.dumps(
-        {"applications": [{"BundleId": "studio.sharecut.app", "Name": "ShareCut"}]}
+def test_the_app_record_lookup_reads_the_real_list_apps_output() -> None:
+    assert release_classify.app_record_exists(REAL_CAPTURE, APP_ID)
+    assert release_classify.app_record_exists(REAL_LISTING, APP_ID)
+    assert release_classify.app_record_exists(ALTOOL_BANNER + REAL_LISTING, APP_ID)
+
+
+@pytest.mark.parametrize(
+    "listing",
+    [
+        altool_listing(listed_app("studio.sharecut.other")),
+        altool_listing(listed_app("studio.sharecut.app2")),
+        altool_listing(listed_app("xstudio.sharecut.app")),
+        altool_listing(listed_app("studio.sharecut.other", name=APP_ID)),
+        altool_listing({**listed_app("studio.sharecut.other"), "sku": APP_ID}),
+        altool_listing({**listed_app("studio.sharecut.other"), "BundleId": APP_ID}),
+        "[]\n",
+        '[1, "studio.sharecut.app", null, ["studio.sharecut.app"]]',
+        '[{"name": "ShareCut"}, {"bundleId": null}, {"bundleId": ["studio.sharecut.app"]}]',
+        '{"applications": [{"BundleId": "studio.sharecut.app"}]}',
+        '{"applications": "studio.sharecut.app"}',
+        '{"bundleId": "studio.sharecut.app"}',
+        "not json",
+        "",
+    ],
+    ids=[
+        "other-id",
+        "id-with-a-suffix",
+        "id-with-a-prefix",
+        "id-only-in-a-name",
+        "id-only-in-another-field",
+        "capitalised-key",
+        "empty-array",
+        "non-dict-elements",
+        "missing-or-malformed-bundle-id",
+        "object-form-with-the-old-invented-key",
+        "object-form-with-a-string",
+        "single-object",
+        "not-json",
+        "empty-output",
+    ],
+)
+def test_the_app_record_lookup_matches_only_the_bundle_identifier_exactly(listing: str) -> None:
+    assert not release_classify.app_record_exists(listing, APP_ID)
+
+
+def test_the_app_record_lookup_keeps_the_applications_object_form() -> None:
+    listing = json.dumps({"applications": [listed_app("studio.sharecut.other"), listed_app()]})
+    assert release_classify.app_record_exists(listing, APP_ID)
+    assert not release_classify.app_record_exists(json.dumps({"applications": []}), APP_ID)
+
+
+def test_the_app_record_is_found_among_several_apps() -> None:
+    listing = altool_listing(listed_app("studio.sharecut.other"), listed_app())
+    assert release_classify.app_record_exists(RETRY_LINES + listing, APP_ID)
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        REAL_LISTING.rstrip().removesuffix("]"),
+        REAL_LISTING + "done\n",
+        REAL_LISTING + REAL_LISTING,
+        "[1]\n" + REAL_LISTING,
+        "{}\n" + REAL_LISTING,
+        "warning [x]\n[\n" + REAL_LISTING,
+        "  " + REAL_LISTING,
+        "[\n" * 32_000,
+        "[" + '"a' * release_run.OUTPUT_LIMIT + '"]',
+        "[" * 200_000 + "]" * 200_000,
+    ],
+    ids=[
+        "truncated-array",
+        "trailing-text",
+        "two-arrays",
+        "json-looking-line-before",
+        "object-line-before",
+        "bracket-line-before-the-start",
+        "indented-start",
+        "start-flood",
+        "output-as-long-as-the-captured-tail",
+        "deep-nesting",
+    ],
+)
+def test_an_array_is_a_document_only_when_it_is_the_whole_remainder(text: str) -> None:
+    assert release_classify.altool_value(text) is None
+    assert not release_classify.app_record_exists(text, APP_ID)
+
+
+def test_the_value_reader_returns_the_array_and_the_dict_reader_never_does() -> None:
+    assert release_classify.altool_value(REAL_CAPTURE) == [listed_app()]
+    assert release_classify.altool_value(ALTOOL_OK) == json.loads(ALTOOL_OK)
+    assert release_classify.altool_value("") is None
+    assert release_classify.altool_document(REAL_CAPTURE) is None
+    assert release_classify.altool_document("[]") is None
+    assert release_classify.altool_document(ALTOOL_OK) == json.loads(ALTOOL_OK)
+    assert release_classify.product_errors(release_classify.altool_document("[]")) == ()
+
+
+def test_the_real_capture_is_a_clean_answer_for_validate_steps() -> None:
+    assert release_classify.classify_altool(0, REAL_CAPTURE).verdict is Verdict.OK
+    assert release_classify.classify_altool(0, RETRY_LINES + ALTOOL_OK).verdict is Verdict.OK
+    assert (
+        release_classify.classify_altool(0, ALTOOL_BANNER + RETRY_LINES + ALTOOL_OK).verdict
+        is Verdict.OK
     )
-    assert release_classify.app_record_exists(listing, "studio.sharecut.app")
-    assert not release_classify.app_record_exists(
-        json.dumps({"applications": []}), "studio.sharecut.app"
+
+
+RETRY = RETRY_LINES.splitlines()[0]
+
+
+@pytest.mark.parametrize(
+    "prelude",
+    [
+        RETRY.replace("(500)", "(503)"),
+        RETRY.replace("status code 500", "status code 503"),
+        RETRY.replace("status code 500", "status code 404").replace("(500)", "(404)"),
+        RETRY.replace("status code 500", "status code 401").replace("(500)", "(401)"),
+        RETRY + " extra",
+        "x " + RETRY,
+        " " + RETRY,
+        RETRY.replace("internal server error", "bad gateway"),
+        RETRY.replace("ERROR", "WARNING"),
+        RETRY.removesuffix(" (500)"),
+        RETRY + "\n2026-11-17 11:38:09.152 ERROR: could not connect to the server",
+        RETRY + "\nCould not connect to the server",
+        RETRY + "\n" + RETRY.replace("list-apps", "list apps; connection reset"),
+    ],
+    ids=[
+        "trailing-code-differs",
+        "status-differs",
+        "404",
+        "401",
+        "extra-text",
+        "text-before",
+        "indented",
+        "other-wording",
+        "other-level",
+        "no-trailing-code",
+        "second-transport-line",
+        "second-transport-line-without-error",
+        "second-line-with-extra-wording",
+    ],
+)
+@pytest.mark.parametrize("document", [ALTOOL_OK, REAL_LISTING], ids=["object", "array"])
+def test_only_altools_own_retry_line_is_ignored_on_exit_zero(prelude: str, document: str) -> None:
+    assert release_classify.classify_altool(0, prelude + "\n" + document).verdict is not Verdict.OK
+
+
+@pytest.mark.parametrize("code", [1, 6, -9])
+@pytest.mark.parametrize("document", ["", ALTOOL_OK, REAL_LISTING], ids=["none", "object", "array"])
+def test_a_retry_line_is_no_answer_on_a_nonzero_exit(code: int, document: str) -> None:
+    assert release_classify.classify_altool(code, RETRY_LINES + document).verdict is not (
+        Verdict.OK
     )
-    assert not release_classify.app_record_exists("not json", "studio.sharecut.app")
+
+
+def test_retry_lines_alone_or_after_the_document_are_not_an_answer() -> None:
+    for text in (RETRY_LINES, ALTOOL_OK + "\n" + RETRY_LINES, REAL_LISTING + RETRY_LINES):
+        assert release_classify.classify_altool(0, text).verdict is not Verdict.OK
+
+
+@pytest.mark.parametrize("document", [ALTOOL_OK, REAL_LISTING, ""], ids=["object", "array", "none"])
+@pytest.mark.parametrize("code", [0, 1])
+def test_a_retry_line_still_leaves_an_upload_unresolved(code: int, document: str) -> None:
+    """Closing an upload attempt lifts the block on a second upload, and no real exit 0 upload
+    capture exists to show these lines are harmless there."""
+    answer = release_classify.classify_upload(code, ALTOOL_BANNER + RETRY_LINES + document)
+    assert answer.verdict is Verdict.UNREACHABLE
+    assert release_classify.classify_upload(0, ALTOOL_OK).verdict is Verdict.OK
 
 
 @pytest.mark.parametrize(
@@ -1395,7 +1627,7 @@ def test_the_retry_flag_belongs_to_upload_only() -> None:
 
 
 GUARD_EXIT = 10
-GOOD_LISTING = json.dumps({"applications": [{"BundleId": "studio.sharecut.app"}]})
+GOOD_LISTING = altool_listing(listed_app())
 
 
 def fake_apple(
