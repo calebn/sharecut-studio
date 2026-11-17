@@ -169,7 +169,6 @@ def case_kill_unblocks_reader(make_child: MakeChild, tmp: Path) -> None:
     child = make_child("block")
     seen: list[bytes] = []
     reader = _drain(child.stdout, seen)
-    time.sleep(0.1)
     started = time.monotonic()
     child.kill()
     assert time.monotonic() - started < 2.0
