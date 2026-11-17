@@ -450,7 +450,11 @@ another; it needs its dependencies already built or fetched. A cold checkout nee
   each. `validate` and the app record lookup change nothing at Apple and keep
   their looser reading: exit 0 with no error message is fine whatever the output, any other exit
   is a rejection, a duplicate or an authentication refusal by its wording, and only network
-  wording (the shorter `NETWORK` list) reads as unreachable. A rejection with no readable message
+  wording (the shorter `NETWORK` list) reads as unreachable. The lookup reads the top-level array `altool --list-apps` prints (or an object with an
+  `applications` array) and needs an entry whose `bundleId` equals the bundle identifier exactly.
+  altool's own retry lines of an Apple 500 (`ERROR: [CDASCAPI.…] … received status code 500;
+  internal server error. (…) (500)`) before a document that parses are not an error on an exit 0
+  of `validate` or the lookup; on `upload` they still leave the attempt unresolved. A rejection with no readable message
   prints "Apple rejected the build and gave no readable reason" and names the step log.
   `--retry-unknown-upload` goes past the block and is recorded on the new
   attempt (`retried_unknown_upload`). An unresolved attempt is never closed, so after a retry that
