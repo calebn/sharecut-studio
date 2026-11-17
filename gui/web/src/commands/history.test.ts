@@ -113,7 +113,7 @@ describe("history.undo / history.redo (Mod+Z, Mod+Shift+Z)", () => {
       if (merged) {
         const toast = useDawStore.getState().feedbackToast;
         useDawStore.setState({
-          feedbackToast: toast ? { ...toast, undo: null, merged } : null,
+          feedbackToast: toast ? { ...toast, merged } : null,
         });
       }
     }
@@ -126,9 +126,37 @@ describe("history.undo / history.redo (Mod+Z, Mod+Shift+Z)", () => {
     });
 
     it("goes away when Undo undoes one of its merged entries", async () => {
-      standingToast("x", {
-        entries: ["other" as HistoryEntryId, "seen-by-tab" as HistoryEntryId],
+      standingToast("seen-by-tab", {
+        entries: ["seen-by-tab" as HistoryEntryId, "other" as HistoryEntryId],
       });
+      vi.mocked(undoHistory).mockResolvedValueOnce("before" as HistoryEntryId);
+      expect(await execute("history.undo")).toEqual({ status: "ok" });
+      expect(useDawStore.getState().feedbackToast).toBeNull();
+    });
+
+    it("goes away when its Undo already lapsed and Undo undoes its entry", async () => {
+      standingToast("seen-by-tab");
+      const toast = useDawStore.getState().feedbackToast;
+      useDawStore.getState().dropFeedbackUndo(toast!.id);
+      expect(useDawStore.getState().feedbackToast?.undo).toBeNull();
+      vi.mocked(undoHistory).mockResolvedValueOnce("before" as HistoryEntryId);
+      expect(await execute("history.undo")).toEqual({ status: "ok" });
+      expect(useDawStore.getState().feedbackToast).toBeNull();
+    });
+
+    it("stays for an Undo of a later edit, then goes with the Undo of its own entry", async () => {
+      standingToast("seen-by-tab");
+      showHead("later-edit");
+      const toast = useDawStore.getState().feedbackToast;
+      useDawStore.getState().dropFeedbackUndo(toast!.id);
+      vi.mocked(undoHistory).mockResolvedValueOnce(
+        "seen-by-tab" as HistoryEntryId,
+      );
+      expect(await execute("history.undo")).toEqual({ status: "ok" });
+      expect(useDawStore.getState().feedbackToast).toMatchObject({
+        message: "Approved 1 pending edit",
+      });
+      showHead("seen-by-tab");
       vi.mocked(undoHistory).mockResolvedValueOnce("before" as HistoryEntryId);
       expect(await execute("history.undo")).toEqual({ status: "ok" });
       expect(useDawStore.getState().feedbackToast).toBeNull();
