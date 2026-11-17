@@ -28,14 +28,22 @@ import { urlOf } from "./test/urlOf";
 
 /**
  * Every wait here is for a state (the studio, the cover, the host's calls), so
- * it may last as long as the test itself (Vitest's default of 5 s) instead of
- * the one second Testing Library gives `waitFor` and `findBy*`, which a busy
- * machine can overrun.
+ * it may last longer than the one second Testing Library gives `waitFor` and
+ * `findBy*`, which a busy machine can overrun. The tests' own limit is twice
+ * the wait, so a wait that runs out reports what it was waiting for instead of
+ * the test being cut off first.
  */
 const STATE_WAIT_MS = 5_000;
+const TEST_LIMIT_MS = 2 * STATE_WAIT_MS;
 const defaultWaitMs = getConfig().asyncUtilTimeout;
-beforeAll(() => configure({ asyncUtilTimeout: STATE_WAIT_MS }));
-afterAll(() => configure({ asyncUtilTimeout: defaultWaitMs }));
+beforeAll(() => {
+  configure({ asyncUtilTimeout: STATE_WAIT_MS });
+  vi.setConfig({ testTimeout: TEST_LIMIT_MS });
+});
+afterAll(() => {
+  configure({ asyncUtilTimeout: defaultWaitMs });
+  vi.resetConfig();
+});
 
 /** A studio stand-in: a reply field that registers its draft, and a button that makes the page's own kind of request. */
 function FakeStudio() {
