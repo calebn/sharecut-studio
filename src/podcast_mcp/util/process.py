@@ -351,13 +351,13 @@ class InProcessChild:
             stdout_end = self._end("stdout", stdout)
             stderr_end = stdout_end if stderr == STDOUT else self._end("stderr", stderr)
             ends = Streams(stdin_end, stdout_end, stderr_end)
+            self._thread = threading.Thread(
+                target=self._main, args=(backend, ends), daemon=True, name="in-process-child"
+            )
+            self._thread.start()
         except BaseException:
             self._close_owned()
             raise
-        self._thread = threading.Thread(
-            target=self._main, args=(backend, ends), daemon=True, name="in-process-child"
-        )
-        self._thread.start()
 
     def _end(self, name: str, spec: Any) -> Any:
         if spec is None or spec == DEVNULL:
@@ -436,7 +436,11 @@ class InProcessChild:
         self._cancel.set()
         self._grace = threading.Timer(KILL_GRACE_SEC, self._abandon)
         self._grace.daemon = True
-        self._grace.start()
+        try:
+            self._grace.start()
+        except RuntimeError:
+            self._grace = None
+            self._abandon()
 
     def _abandon(self) -> None:
         if not self._done.is_set():
