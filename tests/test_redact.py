@@ -554,6 +554,20 @@ def test_sanitize_replaces_the_percent_encoded_workspace(folder: str, encoded: l
         ), spelling
 
 
+def test_sanitize_replaces_a_capitalised_folder_written_with_lowercase_hex_escapes() -> None:
+    folder = Path("/Srv/Shows/My Episode")
+    line = 'GET /api/document/state?path=%2fSrv%2fShows%2fMy%20Episode%2fep.sharecut HTTP/1.1" 400'
+    out = sanitize(line, home=Path("/Users/host"), workspace=folder)
+    assert out == 'GET /api/document/state?path=<workspace>%2fep.sharecut HTTP/1.1" 400'
+
+
+def test_sanitize_does_not_match_a_folder_whose_letters_differ_in_case() -> None:
+    # A path is case-sensitive: other letters name another folder, so it stays as written.
+    line = "path=%2fsrv%2fshows%2fmy%20episode%2fep.sharecut"
+    out = sanitize(line, home=Path("/Users/host"), workspace=Path("/Srv/Shows/My Episode"))
+    assert out == line
+
+
 def test_sanitize_replaces_the_percent_encoded_home_and_extra_paths() -> None:
     line = "a %2FUsers%2Fhost%2F.cache b %2Fopt%2Fpodcast-cache%2Fx"
     out = sanitize(
