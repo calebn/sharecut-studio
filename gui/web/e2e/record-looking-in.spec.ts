@@ -20,7 +20,7 @@ function withWatchers(value: unknown): void {
   }
 }
 
-/** Until a server sends `watchers`, the page is shown a snapshot that carries it. */
+/** Forces a count of 3, so the plural line shows without three observer sockets. */
 async function stubWatchers(context: BrowserContext): Promise<void> {
   await context.routeWebSocket(/.*/, (socket) => {
     const server = socket.connectToServer();

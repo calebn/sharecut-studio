@@ -363,10 +363,10 @@ snapshot's runtime `watchers` field. A client shows the line only for a whole
 number from 1 to 99 and reads anything else, or a missing field, as nobody. The
 server sends it when a producer link's socket connects with `observe=1` (see
 [Looking in on a room](#looking-in-on-a-room-observe1)); no page opens the link
-that way yet, so nothing shows in the product today. A guest's consent **Details** names the producers who
-have joined ("Rosa is listening and won't be recorded") and, once a count is
-sent, the looking-in line; a producer joining mid-take triggers the same join
-notification as a guest.
+that way yet, so nothing shows in the product today. A guest's consent
+**Details** names the producers who have joined ("Rosa is listening and won't
+be recorded") and, once a count is sent, the looking-in line; a producer joining
+mid-take triggers the same join notification as a guest.
 
 When the host or a recorded guest is running or finalizing a local keeper in
 the Tauri desktop shell, native window close and the macOS app menu/Cmd+Q
