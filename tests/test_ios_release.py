@@ -870,6 +870,20 @@ def test_the_hint_names_the_id_from_the_failing_line() -> None:
     assert hint.count("studio.sharecut.app.widget") == 1
 
 
+@pytest.mark.parametrize("length", [154, 155])
+def test_an_id_up_to_the_length_bound_is_named(length: int) -> None:
+    identifier = "a" * length
+    line = f"error: exportArchive No profiles for '{identifier}' were found"
+    assert hint_for(f"{CLOUD_LINE}\n{line}").count(identifier) == 1
+
+
+def test_the_last_no_profiles_line_names_the_id() -> None:
+    first = "error: exportArchive No profiles for 'studio.sharecut.app' were found"
+    last = "error: exportArchive No profiles for 'studio.sharecut.app.widget' were found"
+    hint = hint_for(f"{CLOUD_LINE}\n{first}\n{last}")
+    assert "studio.sharecut.app.widget" in hint
+
+
 @pytest.mark.parametrize("identifier", ["a/b", "x" * 156, "bad{app}"])
 def test_an_unusable_id_in_the_line_is_never_echoed(identifier: str) -> None:
     line = f"error: exportArchive No profiles for '{identifier}' were found"
@@ -905,7 +919,7 @@ def test_the_export_step_names_the_id_and_no_tool_output(tmp_path: Path) -> None
         assert raw not in sentence
 
 
-@pytest.mark.parametrize("text", ["agreement ", "private key "])
+@pytest.mark.parametrize("text", ["agreement ", "private key ", "apple distribution "])
 def test_the_signing_hints_stay_fast_on_a_long_repetitive_tail(text: str) -> None:
     tail = text * (64 * 1024 // len(text))
     started = time.perf_counter()

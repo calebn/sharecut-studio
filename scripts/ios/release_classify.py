@@ -23,9 +23,7 @@ class Failure(enum.Enum):
     GUARD = 10
 
 
-NO_CERTIFICATE = (
-    r"no\s+(?:signing\s+)?certificate|no certificate for team|apple distribution[^\n]*not found"
-)
+NO_CERTIFICATE = r"no\s+(?:signing\s+)?certificate|apple distribution[^\n]{0,200}not found"
 NO_PROFILES = r"no profiles for ['\"]?(?P<id>[^'\"\s]+)['\"]? were found"
 CLOUD_PERMISSION = r"cloud signing permission"
 LICENSE = r"license agreement|agreement [^\n]{0,200}(?:updated|accept)"
