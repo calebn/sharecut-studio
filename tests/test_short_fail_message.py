@@ -11,24 +11,24 @@ from podcast_mcp.services.jobs.job import short_fail_message
     ("line", "expected"),
     [
         (
-            "ffmpeg failed: /Users/al/Shows/Episode 12 with Dani/raw/dani.wav: No such file or directory",
+            "ffmpeg failed: /Users/host/Shows/Episode 12 with Dani/raw/dani.wav: No such file or directory",
             "ffmpeg failed: No such file or directory",
         ),
         (
-            "Could not read /Users/al/My Show: permission denied",
+            "Could not read /Users/host/My Show: permission denied",
             "Could not read: permission denied",
         ),
         (r"Could not read C:\Users\Al Smith\Ep 12\raw\a.wav", "Could not read"),
         ("Could not read C:/Users/Al Smith/Ep 12/a.wav: gone", "Could not read: gone"),
-        ("Could not read '/Users/al/My Show/a b.wav' twice", "Could not read twice"),
-        ('Could not read "/Users/al/My Show/a b.wav" twice', "Could not read twice"),
-        ("Could not read (/Users/al/My Show/a b.wav) twice", "Could not read twice"),
+        ("Could not read '/Users/host/My Show/a b.wav' twice", "Could not read twice"),
+        ('Could not read "/Users/host/My Show/a b.wav" twice', "Could not read twice"),
+        ("Could not read (/Users/host/My Show/a b.wav) twice", "Could not read twice"),
         (
-            "copy /Users/al/My Show/a.wav: failed, then /Users/al/Other Show/b.wav: gone",
+            "copy /Users/host/My Show/a.wav: failed, then /Users/host/Other Show/b.wav: gone",
             "copy: failed, then: gone",
         ),
-        ("cannot open /Users/al/My Show/a b.wav", "cannot open"),
-        ("path=/Users/al/My Show/a b.wav: refused", "path=: refused"),
+        ("cannot open /Users/host/My Show/a b.wav", "cannot open"),
+        ("path=/Users/host/My Show/a b.wav: refused", "path=: refused"),
     ],
 )
 def test_an_absolute_path_is_removed_whole_with_its_spaces(line, expected):
@@ -53,8 +53,8 @@ def test_a_relative_path_a_url_and_plain_text_stay(line):
 
 
 def test_an_empty_remainder_falls_back_to_the_phase():
-    assert short_fail_message("/Users/al/My Show/a b.wav", phase="align") == "align"
-    assert short_fail_message("'/Users/al/My Show': ", phase="mix") == "mix"
+    assert short_fail_message("/Users/host/My Show/a b.wav", phase="align") == "align"
+    assert short_fail_message("'/Users/host/My Show': ", phase="mix") == "mix"
     assert short_fail_message(r"C:\Users\Al Smith\Ep 12", phase=None) is None
 
 
@@ -67,7 +67,7 @@ def test_the_cap_and_the_first_line_stay():
     ("line", "expected"),
     [
         (r"\\nas\share dir\a.wav: denied", "denied"),
-        ("/Users/al/My Show/a.wav: No such file", "No such file"),
+        ("/Users/host/My Show/a.wav: No such file", "No such file"),
         ("C:\\Users\\Al Smith\\a.wav: gone", "gone"),
     ],
 )
