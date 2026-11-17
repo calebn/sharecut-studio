@@ -9,6 +9,7 @@ import os
 import plistlib
 import stat
 import sys
+import time
 from datetime import UTC, datetime, timedelta, timezone
 from pathlib import Path
 from typing import NamedTuple
@@ -902,6 +903,14 @@ def test_the_export_step_names_the_id_and_no_tool_output(tmp_path: Path) -> None
     assert_profile_hint(sentence)
     for raw in (KEY_ID, ISSUER, "/k.p8", "private_keys"):
         assert raw not in sentence
+
+
+@pytest.mark.parametrize("text", ["agreement ", "private key "])
+def test_the_signing_hints_stay_fast_on_a_long_repetitive_tail(text: str) -> None:
+    tail = text * (64 * 1024 // len(text))
+    started = time.perf_counter()
+    release_classify.signing_hint(tail)
+    assert time.perf_counter() - started < 0.5
 
 
 def fake_key() -> release_inputs.AscKey:
