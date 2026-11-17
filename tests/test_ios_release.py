@@ -912,13 +912,39 @@ def test_the_value_reader_returns_the_array_and_the_dict_reader_never_does() -> 
     assert release_classify.product_errors(release_classify.altool_document("[]")) == ()
 
 
-def test_the_real_capture_is_a_clean_answer_for_validate_steps() -> None:
-    assert release_classify.classify_altool(0, REAL_CAPTURE).verdict is Verdict.OK
+def test_a_dict_document_after_retry_lines_is_a_clean_answer_for_validate() -> None:
     assert release_classify.classify_altool(0, RETRY_LINES + ALTOOL_OK).verdict is Verdict.OK
     assert (
         release_classify.classify_altool(0, ALTOOL_BANNER + RETRY_LINES + ALTOOL_OK).verdict
         is Verdict.OK
     )
+
+
+@pytest.mark.parametrize(
+    ("code", "text", "verdict"),
+    [
+        (0, REAL_CAPTURE, Verdict.REJECTED),
+        (0, REAL_LISTING, Verdict.OK),
+        (0, '[{"product-errors":[{"code":"ENTITY_ERROR.X","message":"bad"}]}]', Verdict.REJECTED),
+        (0, '[{"message":"network error"}]', Verdict.UNREACHABLE),
+        (0, "could not connect\n" + REAL_LISTING, Verdict.OK),
+        (1, REAL_CAPTURE, Verdict.REJECTED),
+        (1, '[{"message":"network error"}]', Verdict.UNREACHABLE),
+    ],
+    ids=[
+        "real-capture",
+        "listing-without-error-words",
+        "product-errors-in-an-array",
+        "network-wording-in-an-array",
+        "transport-line-before-a-listing",
+        "real-capture-nonzero",
+        "network-wording-nonzero",
+    ],
+)
+def test_an_array_is_no_answer_to_the_validate_reader(
+    code: int, text: str, verdict: Verdict
+) -> None:
+    assert release_classify.classify_altool(code, text).verdict is verdict
 
 
 RETRY = RETRY_LINES.splitlines()[0]
@@ -957,11 +983,12 @@ RETRY = RETRY_LINES.splitlines()[0]
         "second-line-with-extra-wording",
     ],
 )
-def test_only_altools_own_retry_line_is_ignored_before_a_listing_on_exit_zero(
+def test_a_retry_line_variant_before_a_dict_document_is_not_an_answer_on_a_nonzero_exit(
     prelude: str,
 ) -> None:
-    text = prelude + "\n" + REAL_LISTING
-    assert release_classify.classify_altool(0, text).verdict is not Verdict.OK
+    assert release_classify.classify_altool(6, prelude + "\n" + ALTOOL_OK).verdict is not (
+        Verdict.OK
+    )
 
 
 @pytest.mark.parametrize("code", [1, 6, -9])
