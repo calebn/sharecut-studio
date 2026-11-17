@@ -28,7 +28,7 @@ NO_CERTIFICATE = (
 )
 NO_PROFILES = r"no profiles for ['\"]?(?P<id>[^'\"\s]+)['\"]? were found"
 CLOUD_PERMISSION = r"cloud signing permission"
-LICENSE = r"license agreement|agreement .*(?:updated|accept)"
+LICENSE = r"license agreement|agreement [^\n]{0,200}(?:updated|accept)"
 DEVICES = r"no devices|doesn't include any devices|no registered devices"
 BUNDLE_ID = re.compile(r"[A-Za-z0-9.-]{1,155}")
 UNKNOWN_BUNDLE_ID = "this app's bundle id"
@@ -43,7 +43,9 @@ SIGNING_HINTS: tuple[tuple[re.Pattern[str], str], ...] = (
         "The team has reached its limit of distribution certificates. Revoke an unused one in the developer account, then run again.",
     ),
     (
-        re.compile(r"private key.*(not installed|missing|not found)|missing private key", re.I),
+        re.compile(
+            r"private key[^\n]{0,200}(not installed|missing|not found)|missing private key", re.I
+        ),
         "A distribution certificate exists but its private key is on another Mac. Export it from that Mac or revoke the certificate, then run again.",
     ),
     (
