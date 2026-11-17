@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import errno
 import os
+import resource
 import shutil
 import subprocess
 import threading
@@ -199,6 +200,37 @@ def test_a_backend_stuck_in_a_pipe_call_is_abandoned_and_the_reader_sees_eof(
     reader.join(5)
     assert drained, "the reader never saw EOF"
     child.stdin.close()
+
+
+def test_an_abandoned_child_gives_eof_with_no_descriptor_left_to_open(
+    backend: FakeBackend, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(process, "KILL_GRACE_SEC", 0.1)
+    soft, hard = resource.getrlimit(resource.RLIMIT_NOFILE)
+    outcome: dict[str, Any] = {}
+
+    def scenario() -> None:
+        with process.popen(
+            [IN_PROCESS_FFMPEG, "ignore_kill"], stdin=process.PIPE, stdout=process.PIPE
+        ) as child:
+            probe = os.open(os.devnull, os.O_RDONLY)
+            os.close(probe)
+            resource.setrlimit(resource.RLIMIT_NOFILE, (probe, hard))
+            try:
+                with pytest.raises(OSError) as exhausted:
+                    os.open(os.devnull, os.O_RDONLY)
+                assert exhausted.value.errno == errno.EMFILE
+                child.kill()
+                outcome["code"] = child.wait()
+            finally:
+                resource.setrlimit(resource.RLIMIT_NOFILE, (soft, hard))
+            outcome["eof"] = child.stdout.read()
+
+    runner = threading.Thread(target=scenario, daemon=True)
+    runner.start()
+    runner.join(10)
+    assert not runner.is_alive(), "the with-exit hung after the kill"
+    assert outcome == {"code": -9, "eof": b""}
 
 
 def test_a_backend_returning_a_non_int_fails_with_code_one(backend: FakeBackend) -> None:

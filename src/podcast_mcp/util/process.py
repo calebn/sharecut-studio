@@ -343,7 +343,10 @@ class InProcessChild:
         self._owned_fds: list[int] = []
         self._fd_lock = threading.Lock()
         self._fds_closed = False
+        self._null_fd: int | None = None
         try:
+            if PIPE in (stdin, stdout, stderr):
+                self._null_fd = os.open(os.devnull, os.O_RDWR)
             stdin_end = self._end("stdin", stdin)
             stdout_end = self._end("stdout", stdout)
             stderr_end = stdout_end if stderr == STDOUT else self._end("stderr", stderr)
@@ -377,6 +380,8 @@ class InProcessChild:
                 end.close()
         with self._fd_lock:
             fds, self._owned_fds = ([] if self._fds_closed else self._owned_fds), []
+            if not self._fds_closed and self._null_fd is not None:
+                fds.append(self._null_fd)
             self._fds_closed = True
         for fd in fds:
             with contextlib.suppress(OSError):
@@ -390,15 +395,10 @@ class InProcessChild:
         valid until the backend returns, so a late write cannot land on a reused descriptor.
         """
         with self._fd_lock:
-            if self._fds_closed or not self._owned_fds:
+            if self._fds_closed or self._null_fd is None:
                 return
-            with contextlib.suppress(OSError):
-                null = os.open(os.devnull, os.O_RDWR)
-                try:
-                    for fd in self._owned_fds:
-                        os.dup2(null, fd)
-                finally:
-                    os.close(null)
+            for fd in self._owned_fds:
+                os.dup2(self._null_fd, fd)
 
     def _finish(self, code: int) -> None:
         with self._lock:
