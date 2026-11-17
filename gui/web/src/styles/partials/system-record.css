@@ -1566,7 +1566,10 @@ html:not([data-shell="phone"], [data-shell="tablet"])
 /* Declined: tiles dim to 40%, a light layer takes the pointer, and a 72 px
    peek bar docks at the bottom edge above the safe area. */
 .sys-room-view[data-declined] .sys-room-view-grid,
-.sys-room-view[data-declined] .sys-room-listeners,
+.sys-room-view[data-declined] .sys-room-listeners {
+  opacity: 0.4;
+}
+
 .sys-declined {
   position: absolute;
   inset: 0;

@@ -522,17 +522,37 @@ describe("the looking-in line hides nothing develop showed", () => {
   });
 });
 
-describe("the looking-in line in the Declined state", () => {
-  it("stays at full strength so it can still be read", async () => {
-    const room = await render(390, 844, {
-      seat: "guest",
-      phase: LIVE,
-      viewerWidth: "phone",
-      declined: { onJoin: noop },
-      people: [OTHERS[0] as RoomPerson, ME],
-      lookingIn: 2,
-    });
-    const line = room.querySelector(".sys-room-looking-in") as Element;
-    expect(getComputedStyle(line).opacity).toBe("1");
-  });
+describe("the Declined state", () => {
+  for (const [width, height, viewerWidth] of [
+    [390, 844, "phone"],
+    [1280, 800, "desktop"],
+  ] as const) {
+    for (const lookingIn of [0, 3]) {
+      it(`dims the tiles at 40% in flow at ${width}, looking in ${lookingIn}`, async () => {
+        const room = await render(width, height, {
+          seat: "guest",
+          phase: LIVE,
+          viewerWidth,
+          declined: { onJoin: noop },
+          people: [OTHERS[0] as RoomPerson, ME],
+          lookingIn,
+        });
+        const grid = room.querySelector(".sys-room-view-grid") as Element;
+        const style = getComputedStyle(grid);
+        expect(style.position).toBe("static");
+        expect(style.opacity).toBe("0.4");
+        const header = rect(room.querySelector("header") as Element);
+        for (const tile of room.querySelectorAll(".sys-room-tile")) {
+          expect(rect(tile).top).toBeGreaterThanOrEqual(header.bottom);
+          expect(rect(tile).bottom).toBeLessThanOrEqual(height);
+        }
+        const line = room.querySelector(".sys-room-looking-in");
+        if (lookingIn > 0) {
+          expect(getComputedStyle(line as Element).opacity).toBe("1");
+        } else {
+          expect(line).toBeNull();
+        }
+      });
+    }
+  }
 });
