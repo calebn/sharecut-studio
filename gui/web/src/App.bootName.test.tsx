@@ -122,4 +122,14 @@ describe("the name the server wrote into the page", () => {
       "Loading the episode…",
     );
   });
+
+  it("is not shown on a share project key, which is no review route", () => {
+    window.history.pushState({}, "", "/?project=share:direct-token");
+    vi.stubGlobal("fetch", never());
+    const { container } = render(<App bootName="Pilot episode" />);
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "Loading the episode…",
+    );
+    expect(container.textContent).not.toContain("Pilot episode");
+  });
 });
