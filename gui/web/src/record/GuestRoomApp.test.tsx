@@ -642,6 +642,38 @@ describe("GuestRoomApp", () => {
       expect(lineText()).toBeNull();
     });
 
+    it("renders a new note for a later room's arrival that uses the same words", async () => {
+      stubBootstrap();
+      render(<GuestRoomApp token="guest-tok" />);
+      await readyToJoin(getUserMedia);
+      await userEvent.click(joinButton());
+      await screen.findByRole("button", { name: "Leave room" });
+      const send = (extra: Record<string, unknown>) =>
+        act(() => sockets[0].onmessage?.(snapshotMessage(extra, true)));
+      send({ watchers: 0, server_time_ns: 9 });
+      send({ watchers: 1, server_time_ns: 10 });
+      expect(polite()).toHaveTextContent(LINE);
+      send({ watchers: 0, server_time_ns: 11 });
+      send({ session_id: "room2", watchers: 0, server_time_ns: 12 });
+      const added: string[] = [];
+      const watch = new MutationObserver((records) => {
+        for (const record of records) {
+          for (const node of record.addedNodes) {
+            if (node.textContent?.includes("looking in")) {
+              added.push(node.textContent);
+            }
+          }
+        }
+      });
+      watch.observe(polite(), { childList: true, subtree: true });
+      send({ session_id: "room2", watchers: 1, server_time_ns: 13 });
+      await Promise.resolve();
+      send({ session_id: "room2", watchers: 3, server_time_ns: 14 });
+      await Promise.resolve();
+      watch.disconnect();
+      expect(added).toEqual([LINE]);
+    });
+
     it("shows nothing for a count that is not a count", async () => {
       stubBootstrap();
       render(<GuestRoomApp token="guest-tok" />);
