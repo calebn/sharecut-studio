@@ -3093,6 +3093,27 @@ def test_a_look_open_when_its_invite_closes_is_closed_with_no_frame_and_uncounte
     wait_for_count(0)
 
 
+def test_the_share_recheck_closes_a_look_whose_removal_event_was_lost(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch
+):
+    from podcast_mcp.gui.routes import guest_ws_common, record_share
+
+    monkeypatch.setattr(guest_ws_common, "GUEST_SHARE_RECHECK_S", 0.2)
+    # The pump never notices the removal, as if its event had been dropped from the queue.
+    monkeypatch.setattr(record_share, "_removes_someone", lambda _event: False)
+    ws, room, client = _room(minimal_project, sample_wav, tmp_workspace, monkeypatch)
+    svc = _room_svc(ws, room)
+    wait_for_count = _watchers_waiter(svc, monkeypatch)
+    with _observe(client, room) as obs:
+        assert obs.receive_json()["snapshot"]["watchers"] == 1
+        _close_the_producer_invite(ws, room)
+        with pytest.raises(WebSocketDisconnect) as closed:
+            for _ in range(200):
+                obs.receive_json()
+        assert closed.value.code == 4403
+    wait_for_count(0)
+
+
 def test_join_on_a_look_whose_invite_closed_meanwhile_is_refused_as_today(
     minimal_project, sample_wav, tmp_workspace, monkeypatch
 ):
