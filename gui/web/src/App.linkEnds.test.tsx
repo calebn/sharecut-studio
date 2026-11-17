@@ -143,6 +143,9 @@ async function openEpisode(token: string) {
   window.history.pushState({}, "", `/r/${token}`);
   render(<App />);
   await screen.findByText("Guest studio");
+  // The studio is on screen a moment before the dead-link watch listens (it
+  // subscribes in a passive effect), and a doubt reported before that is dropped.
+  await act(async () => {});
 }
 
 beforeEach(() => {
