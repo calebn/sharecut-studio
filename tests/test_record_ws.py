@@ -2875,6 +2875,7 @@ def test_remint_closes_old_sockets_without_leaking_the_new_room(
             code, why, frames = _close_within(sock, 5.0)
             assert (code, why) == (4403, reason)
             assert fresh["session_id"] not in str(frames)
+            assert all(f.get("code") != "invite_closed" for f in frames)
         assert new_svc.snapshot()["watchers"] == 0
 
 
@@ -3329,6 +3330,67 @@ def test_a_frame_from_a_look_whose_invite_closed_gets_the_error_then_the_close(
         assert code == 4403
         assert frames == [INVITE_CLOSED_ERROR]
     wait_for_count(0)
+
+
+def test_a_recheck_still_closes_the_look_when_building_the_frame_fails(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch
+):
+    from podcast_mcp.gui.routes import guest_ws_common
+
+    monkeypatch.setattr(guest_ws_common, "GUEST_SHARE_RECHECK_S", 0.2)
+    ws, room, client = _room(minimal_project, sample_wav, tmp_workspace, monkeypatch)
+    lose = _drop_room_events(monkeypatch, only_removals=False)
+    svc = _room_svc(ws, room)
+    wait_for_count = _watchers_waiter(svc, monkeypatch)
+    import threading
+
+    test_thread = threading.get_ident()
+    original = RecordSessionService.invite_closed
+    calls = {"armed": False, "n": 0}
+
+    def second_read_fails(self, share_id):
+        # The recheck reads the invite once to decide, then once to build the frame.
+        if calls["armed"] and threading.get_ident() != test_thread:
+            calls["n"] += 1
+            if calls["n"] > 1:
+                raise RuntimeError("frame hook failed")
+        return original(self, share_id)
+
+    monkeypatch.setattr(RecordSessionService, "invite_closed", second_read_fails)
+    with _observe(client, room) as obs:
+        assert obs.receive_json()["snapshot"]["watchers"] == 1
+        lose["dropping"] = True
+        calls["armed"] = True
+        _close_the_producer_invite(ws, room)
+        code, reason, frames = _close_within(obs, 5.0)
+        assert (code, reason) == (4403, "share revoked or expired")
+        assert frames == []
+    wait_for_count(0)
+
+
+@pytest.mark.parametrize("link", ["guest", "producer"])
+def test_a_joined_socket_removed_by_the_host_is_closed_without_an_invite_closed_error(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch, link
+):
+    from podcast_mcp.gui.routes import guest_ws_common
+
+    monkeypatch.setattr(guest_ws_common, "GUEST_SHARE_RECHECK_S", 0.2)
+    ws, room, client = _room(minimal_project, sample_wav, tmp_workspace, monkeypatch)
+    lose = _drop_room_events(monkeypatch, only_removals=False)
+    path = f"/api/rec/{room[link]['token']}/ws" + ("?observe=1" if link == "producer" else "")
+    with client.websocket_connect(path) as sock:
+        if link == "producer":
+            sock.receive_json()
+        _join(sock, name="Sam")
+        echo = _drain_until(sock, lambda m: m.get("type") == "Echo")
+        # No event reaches the socket, so only the periodic share recheck can close it.
+        lose["dropping"] = True
+        RecordControlService(ws).submit_host(
+            "RemoveParticipant", payload={"participant_id": echo["participant_id"]}
+        )
+        code, reason, frames = _close_within(sock, 5.0)
+        assert (code, reason) == (4403, "share revoked or expired")
+        assert all(f.get("code") != "invite_closed" for f in frames)
 
 
 def test_a_revoked_look_gets_no_error_frame_even_when_its_invite_had_closed(
