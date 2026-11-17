@@ -8,6 +8,7 @@ import {
   holdChunk,
   holdFirstProject,
   SIZES,
+  seeEveryHint,
   withGuestLink,
 } from "./guestLink";
 import {
@@ -330,9 +331,7 @@ for (const size of SIZES) {
         await expect(hint).toBeHidden();
         const dismissed = await headerBoxes(guest);
         states["landed, hint dismissed"] = dismissed.title;
-        await guest.addInitScript(() => {
-          localStorage.setItem("sharecut.roleHintSeen.commenter", "1");
-        });
+        await seeEveryHint(guest);
         const returning = await open();
         await expect(guest.getByRole("note")).toHaveCount(0);
         states["loading, returning"] = returning.loading.title;
@@ -354,9 +353,7 @@ for (const size of SIZES) {
         size,
         async (guest, token) => {
           const name = await episodeName(guest, token);
-          await guest.addInitScript(() => {
-            localStorage.setItem("sharecut.roleHintSeen.editor", "1");
-          });
+          await seeEveryHint(guest);
           await guest.goto(`/r/${token}`);
           await landed(guest, name);
           await expect(
@@ -367,11 +364,13 @@ for (const size of SIZES) {
               const r = el?.getBoundingClientRect();
               return r ? { y: r.y, h: r.height } : null;
             };
+            const bar = document.querySelector(".sys-app-header");
             const cell = document.querySelector(".sys-header-left");
             const buttons = cell?.querySelectorAll(
               ".sys-header-history button",
             );
             return {
+              bar: box(bar),
               cell: box(cell),
               column: box(cell?.querySelector(".sys-header-guest")),
               title: box(cell?.querySelector(".sys-header-title")),
@@ -393,7 +392,7 @@ for (const size of SIZES) {
           ]) {
             expect(control).not.toBeNull();
             expect(
-              Math.abs(middle(control) - middle(boxes.cell)),
+              Math.abs(middle(control) - middle(boxes.bar)),
             ).toBeLessThanOrEqual(0.5);
           }
         },
