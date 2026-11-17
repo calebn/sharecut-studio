@@ -423,7 +423,7 @@ describe("Prepare host", () => {
       within(screen.getByRole("alert")).getByRole("heading"),
     ).toHaveTextContent("Could not load the project");
     expect(screen.getByRole("alert")).toHaveTextContent(
-      `ShareCut couldn't open "Rosa". If a newer version of ShareCut saved it, update ShareCut first.`,
+      `ShareCut couldn't open "Rosa". Try again. If it keeps happening, open Help and choose Report a problem.`,
     );
     await userEvent.click(screen.getByRole("button", { name: "Try again" }));
     expect(onRetry).toHaveBeenCalledOnce();
