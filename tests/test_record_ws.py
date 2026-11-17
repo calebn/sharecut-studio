@@ -3027,11 +3027,13 @@ def test_remint_clears_the_watcher_registry_and_only_state_frames_reach_an_obser
     )
 
 
-def _join_through_the_producer_invite(ws, room) -> tuple[RecordSessionService, str]:
+def _join_through_the_producer_invite(
+    ws, room, *, link: str = "producer"
+) -> tuple[RecordSessionService, str]:
     svc = _room_svc(ws, room)
     echo, _snap = svc.join(
-        share_id=room["producer"]["id"],
-        role="producer",
+        share_id=room[link]["id"],
+        role=link,
         display_name="Pat",
         client_id="gone",
         connection_id="gone-conn",
@@ -3040,11 +3042,13 @@ def _join_through_the_producer_invite(ws, room) -> tuple[RecordSessionService, s
     return svc, echo["participant_id"]
 
 
-def _remove_that_producer(ws, room, svc: RecordSessionService, participant_id: str) -> None:
+def _remove_that_producer(
+    ws, room, svc: RecordSessionService, participant_id: str, *, link: str = "producer"
+) -> None:
     RecordControlService(ws).submit_host(
         "RemoveParticipant", payload={"participant_id": participant_id}
     )
-    assert svc.invite_closed(room["producer"]["id"]) is InviteClosure.REMOVED
+    assert svc.invite_closed(room[link]["id"]) is InviteClosure.REMOVED
 
 
 def _close_the_producer_invite(ws, room) -> RecordSessionService:
@@ -3107,11 +3111,101 @@ def test_the_share_recheck_closes_a_look_whose_removal_event_was_lost(
     with _observe(client, room) as obs:
         assert obs.receive_json()["snapshot"]["watchers"] == 1
         _close_the_producer_invite(ws, room)
-        with pytest.raises(WebSocketDisconnect) as closed:
-            for _ in range(200):
-                obs.receive_json()
-        assert closed.value.code == 4403
+        assert _close_code_within(obs, 5.0) == 4403
     wait_for_count(0)
+
+
+def _close_code_within(sock, secs: float) -> int:
+    """Read ``sock`` in a worker until it closes; fail in ``secs`` if it never does."""
+    import threading
+
+    done = threading.Event()
+    code: list[int] = []
+
+    def read() -> None:
+        try:
+            while True:
+                sock.receive_json()
+        except WebSocketDisconnect as closed:
+            code.append(closed.code)
+        finally:
+            done.set()
+
+    threading.Thread(target=read, daemon=True).start()
+    assert done.wait(secs), "the socket was never closed"
+    assert code, "the socket ended without a close code"
+    return code[0]
+
+
+def _recheck_counter(monkeypatch):
+    """Count share rechecks; ``settled(mark)`` blocks until three more have started.
+
+    The recheck loop is sequential and stops at the first failed one, so a third recheck
+    starting after ``mark`` proves the one before it began after ``mark`` and passed.
+    """
+    import threading
+
+    from podcast_mcp.gui.routes import record_share
+
+    ran = threading.Condition()
+    count = 0
+    original = record_share._record_still_valid
+
+    def counted(token):
+        nonlocal count
+        with ran:
+            count += 1
+            ran.notify_all()
+        return original(token)
+
+    monkeypatch.setattr(record_share, "_record_still_valid", counted)
+
+    def mark() -> int:
+        with ran:
+            return count
+
+    def settled(since: int) -> None:
+        with ran:
+            ok = ran.wait_for(lambda: count >= since + 3, 5.0)
+        assert ok, "the share recheck never ran"
+
+    return mark, settled
+
+
+def test_a_joined_producer_stays_open_when_another_person_on_its_link_is_removed(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch
+):
+    from podcast_mcp.gui.routes import guest_ws_common
+
+    monkeypatch.setattr(guest_ws_common, "GUEST_SHARE_RECHECK_S", 0.2)
+    ws, room, client = _room(minimal_project, sample_wav, tmp_workspace, monkeypatch)
+    mark, settled = _recheck_counter(monkeypatch)
+    with _observe(client, room) as sock:
+        sock.receive_json()
+        _join(sock, name="Sam")
+        _drain_until(sock, lambda m: m.get("type") == "Echo")
+        svc, lee = _join_through_the_producer_invite(ws, room)
+        _remove_that_producer(ws, room, svc, lee)
+        settled(mark())
+        sock.send_json(_record_command("Heartbeat"))
+        _drain_until(sock, lambda m: m.get("command_type") == "Heartbeat")
+
+
+@pytest.mark.parametrize("link", ["guest", "producer"])
+def test_a_plain_socket_that_has_not_joined_stays_open_when_its_invite_closes(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch, link
+):
+    from podcast_mcp.gui.routes import guest_ws_common
+
+    monkeypatch.setattr(guest_ws_common, "GUEST_SHARE_RECHECK_S", 0.2)
+    ws, room, client = _room(minimal_project, sample_wav, tmp_workspace, monkeypatch)
+    mark, settled = _recheck_counter(monkeypatch)
+    with client.websocket_connect(f"/api/rec/{room[link]['token']}/ws?client_id=plain-1") as sock:
+        svc, gone = _join_through_the_producer_invite(ws, room, link=link)
+        _remove_that_producer(ws, room, svc, gone, link=link)
+        settled(mark())
+        sock.send_json(_record_command("Heartbeat"))
+        assert sock.receive_json().get("code") == "join_first"
 
 
 def test_join_on_a_look_whose_invite_closed_meanwhile_is_refused_as_today(
