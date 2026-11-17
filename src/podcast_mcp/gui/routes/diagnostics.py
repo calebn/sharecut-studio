@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import re
 import threading
 from pathlib import Path
 from typing import Any
@@ -10,6 +11,7 @@ from typing import Any
 import httpx
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import FileResponse
+from filelock import Timeout
 from pydantic import BaseModel, Field
 
 from podcast_mcp.config.distribution import runtime_distribution_metadata
@@ -21,13 +23,9 @@ from podcast_mcp.gui.routes.deps import (
     resolve_project,
 )
 from podcast_mcp.models import EpisodeProject
-from podcast_mcp.models.episode import ProjectUnreadableError
-from podcast_mcp.models.project_format import (
-    ProjectVersionNewerError,
-    ProjectVersionUnsupportedError,
-)
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.jobs import JobManager
+from podcast_mcp.services.media import TranscriptContextBusyError
 from podcast_mcp.services.support import (
     MAX_BUNDLE_BYTES,
     DiagnosticsService,
@@ -40,7 +38,10 @@ from podcast_mcp.services.support import (
     resolve_bundle_file,
     submit_bundle,
 )
-from podcast_mcp.util.coded_error import CodedFileNotFoundError
+from podcast_mcp.util.project_state import PROJECT_BUSY_CODE
+
+PROJECT_OPEN_FAILED_CODE = "project_open_failed"
+_FIXED_CODE = re.compile(r"[a-z][a-z0-9_]{2,63}")
 
 router = APIRouter()
 log = logging.getLogger(__name__)
@@ -111,17 +112,27 @@ def _load_project(
         return None, _unopened(PROJECT_NOT_FOUND_CODE, Path(raw).expanduser().resolve())
     try:
         return ProjectWorkspace.open(project_path).project, None
-    except (
-        ProjectUnreadableError,
-        ProjectVersionNewerError,
-        ProjectVersionUnsupportedError,
-        CodedFileNotFoundError,
-    ) as exc:
-        return None, _unopened(exc.code, project_path)
+    except Exception as exc:
+        # The export exists for the day the episode is broken, so whatever stopped the open
+        # (a damaged history index, a file the app may not read, a lock held elsewhere) still
+        # gets a bundle that holds nothing from the episode. Only a fixed code is kept.
+        return None, _unopened(_failure_code(exc), project_path, exc)
 
 
-def _unopened(code: str, project_file: Path) -> UnopenedEpisode:
-    log.warning("diagnostics bundle for an episode that did not open (%s)", code)
+def _failure_code(exc: Exception) -> str:
+    """The code a failed open is reported under: its own when it is a fixed identifier."""
+    if isinstance(exc, Timeout | TranscriptContextBusyError):
+        return PROJECT_BUSY_CODE
+    code = getattr(exc, "code", None)
+    if isinstance(code, str) and _FIXED_CODE.fullmatch(code):
+        return code
+    return PROJECT_OPEN_FAILED_CODE
+
+
+def _unopened(code: str, project_file: Path, exc: Exception | None = None) -> UnopenedEpisode:
+    # The exception's class and the code only: its message can hold the episode's own words.
+    cause = type(exc).__name__ if exc is not None else "none"
+    log.warning("diagnostics bundle for an episode that did not open (%s, %s)", cause, code)
     return UnopenedEpisode(code=code, workspace=project_file.parent)
 
 
