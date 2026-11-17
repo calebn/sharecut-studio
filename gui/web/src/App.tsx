@@ -225,7 +225,7 @@ function admitBootstrap(
   };
 }
 
-function AppInner() {
+function AppInner({ bootName }: { bootName: string | null }) {
   const shareRoute = shareRouteFromLocation();
   const reviewToken = shareRoute?.kind === "review" ? shareRoute.token : null;
   const recordToken = shareRoute?.kind === "record" ? shareRoute.token : null;
@@ -254,7 +254,8 @@ function AppInner() {
   const shareCapabilities = guest?.capabilities ?? null;
   const shareTranscriptWords = guest?.transcriptWords ?? false;
   const shareAuthor = guest?.author ?? null;
-  const shareName = guest?.name ?? null;
+  // The page's own name stands in until the link's answer or its saved copy has one.
+  const shareName = guest?.name ?? (reviewToken ? bootName : null);
   const shareBootstrapping = current.status === "pending";
   // A hung features call is not a dead button: asking again replaces it.
   const retry = () => {
@@ -559,7 +560,7 @@ function isGuestLocation(): boolean {
   return shareRouteFromLocation() !== null || isShareProjectKey(project ?? "");
 }
 
-export default function App() {
+export default function App({ bootName = null }: { bootName?: string | null }) {
   const notServed = readNotServed();
   if (notServed) {
     return (
@@ -571,7 +572,7 @@ export default function App() {
       </main>
     );
   }
-  const inner = <AppInner />;
+  const inner = <AppInner bootName={bootName} />;
   return (
     <FeatureProvider>
       {isGuestLocation() ? inner : <ModelsProvider>{inner}</ModelsProvider>}
