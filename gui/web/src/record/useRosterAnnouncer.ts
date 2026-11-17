@@ -166,10 +166,15 @@ export function useRosterAnnouncer(
  * The host page's one polite line, for people looking in only: the host sees
  * the people and the comments, so nothing else is read out.
  */
-export function useLookingInAnnouncer(snapshot: RecordSnapshot | null): string {
+export function useLookingInAnnouncer(snapshot: RecordSnapshot | null): {
+  text: string;
+  /** Counts each spoken line, so the page can render a new note for each one. */
+  seq: number;
+} {
   const [seen, setSeen] = useState({
     watch: NO_LOOKING_IN,
     announcement: "",
+    seq: 0,
   });
   if (snapshot) {
     const looking = watchLookingIn(seen.watch, snapshot);
@@ -180,8 +185,9 @@ export function useLookingInAnnouncer(snapshot: RecordSnapshot | null): string {
       setSeen({
         watch: looking.watch,
         announcement: looking.line ?? (stays ? seen.announcement : ""),
+        seq: looking.line ? seen.seq + 1 : seen.seq,
       });
     }
   }
-  return seen.announcement;
+  return { text: seen.announcement, seq: seen.seq };
 }

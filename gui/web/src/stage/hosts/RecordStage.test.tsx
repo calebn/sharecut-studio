@@ -433,6 +433,41 @@ describe("Record stage", () => {
     expect(polite()).toContain(line);
   });
 
+  it("changes the polite region again for a second room that opens at one, straight after a first", async () => {
+    setRoom({ participants: [hostPerson(), avaGuest()], watchers: 0 });
+    mount();
+    await waitFor(() => expect(record()).toBeEnabled());
+    const region = document.querySelector(
+      ".stage-host-record-notices",
+    ) as Element;
+    const room = (session_id: string, watchers: number, ns: number) =>
+      act(() =>
+        setRoom({
+          participants: [hostPerson(), avaGuest()],
+          session_id,
+          watchers,
+          server_time_ns: ns,
+        }),
+      );
+    room("room1", 0, 4);
+    room("room1", 1, 5);
+    const added: string[] = [];
+    const watch = new MutationObserver((records) => {
+      for (const record of records) {
+        for (const node of record.addedNodes) {
+          if (node.textContent?.includes("looking in")) {
+            added.push(node.textContent);
+          }
+        }
+      }
+    });
+    watch.observe(region, { childList: true, subtree: true });
+    room("room2", 1, 6);
+    await Promise.resolve();
+    watch.disconnect();
+    expect(added).toEqual(["Someone with the producer link is looking in"]);
+  });
+
   it("does not make a host alone in the room wait for a guest", async () => {
     setRoom({ participants: [hostPerson()] });
     const { baseElement } = mount();
