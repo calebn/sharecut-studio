@@ -23,7 +23,7 @@ from podcast_mcp.config.defaults import bin_cache_dir
 from podcast_mcp.util import host_platform
 from podcast_mcp.util.bounded_cache import BoundedCache
 from podcast_mcp.util.ffmpeg_policy import ffmpeg_policy
-from podcast_mcp.util.process import TimeoutExpired, run
+from podcast_mcp.util.process import IN_PROCESS_FFMPEG, IN_PROCESS_FFPROBE, TimeoutExpired, run
 
 SelectionSource = Literal["explicit", "bundle", "homebrew", "path", "cache", "in_process"]
 
@@ -47,8 +47,6 @@ class FFmpegPair:
         return all(shutil.which(command) is not None for command in (self.ffmpeg, self.ffprobe))
 
 
-IN_PROCESS_FFMPEG = "in-process:ffmpeg"
-IN_PROCESS_FFPROBE = "in-process:ffprobe"
 IN_PROCESS_VERSION = (0, 0, 0)
 IN_PROCESS_BUILD_ID = "in-process:unlinked"
 IN_PROCESS_NOT_LINKED = "ShareCut's in-process FFmpeg is not linked in this build."
