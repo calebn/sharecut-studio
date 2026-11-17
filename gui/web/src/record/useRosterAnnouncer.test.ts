@@ -428,6 +428,32 @@ describe("useLookingInAnnouncer", () => {
     expect(result.current.text).toBe(LINE);
   });
 
+  it("moves the sequence only when a line is spoken", () => {
+    const { result, rerender } = setupHost(at(0));
+    expect(result.current.seq).toBe(0);
+    rerender({ snapshot: at(1) });
+    expect(result.current.seq).toBe(1);
+    rerender({ snapshot: at(1) });
+    expect(result.current.seq).toBe(1);
+    rerender({ snapshot: at(3) });
+    expect(result.current.seq).toBe(1);
+    rerender({
+      snapshot: recordSnapshot({
+        watchers: 3,
+        session_id: "room1",
+        participants: [recordParticipant({ participant_id: "p_x" })],
+      }),
+    });
+    expect(result.current.seq).toBe(1);
+    rerender({ snapshot: at(3, "stopped") });
+    expect(result.current.seq).toBe(1);
+    rerender({ snapshot: at(0, "stopped") });
+    expect(result.current.seq).toBe(1);
+    rerender({ snapshot: at(0, "lobby", "room2") });
+    rerender({ snapshot: at(1, "lobby", "room2") });
+    expect(result.current.seq).toBe(2);
+  });
+
   it("holds its tongue during a take, then announces a lobby rise", () => {
     const { result, rerender } = setupHost(at(0, "recording"));
     rerender({ snapshot: at(1, "recording") });
