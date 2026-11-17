@@ -113,6 +113,17 @@ How to report
 """
 
 
+NOT_OPENED_STATEMENT = "The episode could not be opened, so this report holds nothing from it."
+
+
+@dataclass(frozen=True)
+class UnopenedEpisode:
+    """An episode the host asked about that could not be opened: why, and where its folder is."""
+
+    code: str
+    workspace: Path
+
+
 @dataclass(frozen=True)
 class BundleReport:
     path: Path
@@ -426,11 +437,15 @@ def _build_report_json(
     home: Path,
     workspace: Path | None,
     job_snapshots: list[dict[str, Any]] | None,
+    unopened: UnopenedEpisode | None = None,
 ) -> dict[str, Any]:
     doctor = run_doctor_checks(project)
     model = resolve_whisper_model()
     disk_target = workspace if workspace is not None else Path.home()
-    return {
+    disk_free = _disk_free_bytes(disk_target)
+    if disk_free is None and unopened is not None:
+        disk_free = _disk_free_bytes(Path.home())
+    report = {
         "app_version": podcast_mcp.__version__,
         "python": python_runtime_info(),
         "os": {
@@ -448,7 +463,7 @@ def _build_report_json(
         "gui_dist_present": _gui_dist_present(),
         "doctor": doctor.to_json(),
         "bootstrap": component_status(),
-        "disk_free_bytes": _disk_free_bytes(disk_target),
+        "disk_free_bytes": disk_free,
         "project": _project_counts(project),
         "jobs": _sanitize_job_snapshots(
             job_snapshots,
@@ -458,6 +473,9 @@ def _build_report_json(
         "env": collect_env_flags(),
         "created_at": datetime.now(UTC).isoformat(),
     }
+    if unopened is not None:
+        report["episode_not_opened"] = {"code": unopened.code, "statement": NOT_OPENED_STATEMENT}
+    return report
 
 
 class DiagnosticsService:
@@ -470,11 +488,16 @@ class DiagnosticsService:
         out_dir: Path,
         include_logs: bool = True,
         job_snapshots: list[dict[str, Any]] | None = None,
+        unopened: UnopenedEpisode | None = None,
     ) -> BundleReport:
+        if project is not None and unopened is not None:
+            raise ValueError("a bundle describes an opened episode or an unopened one, not both")
         home = Path.home()
         workspace: Path | None = None
         if project is not None and project.workspace_dir:
             workspace = Path(project.workspace_dir)
+        elif unopened is not None:
+            workspace = unopened.workspace
         out_dir = out_dir.expanduser()
         out_dir.mkdir(parents=True, exist_ok=True)
 
@@ -490,6 +513,7 @@ class DiagnosticsService:
                 home=home,
                 workspace=workspace,
                 job_snapshots=job_snapshots,
+                unopened=unopened,
             )
             report_text = sanitize(
                 json.dumps(payload, indent=2, default=str),
@@ -499,7 +523,10 @@ class DiagnosticsService:
 
             task.set_phase("redacting", "Redacting logs…")
             logs = _collect_logs(include_logs=include_logs, home=home, workspace=workspace)
-            README = sanitize(_README, **_redact_kwargs(home=home, workspace=workspace))
+            README = sanitize(
+                _README + (f"\n{NOT_OPENED_STATEMENT}\n" if unopened is not None else ""),
+                **_redact_kwargs(home=home, workspace=workspace),
+            )
             tokens = sorted(get_share_registry().known_tokens())
             report_text = _mask_share_tokens(report_text, tokens)
             logs = {name: _mask_share_tokens(body, tokens) for name, body in logs.items()}
