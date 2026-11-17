@@ -200,6 +200,8 @@ export function useRecordSync(
     let openedWatching = false;
     let accessEnded = false;
     let lookRefused = false;
+    const lookWithSavedPlace = () =>
+      !joined && openedWatching && Boolean(cachedRef.current?.lease);
     phaseRef.current = "connecting";
     joinSentRef.current = false;
     const endAccess = (
@@ -282,7 +284,7 @@ export function useRecordSync(
               return;
             }
             if (msg.code === RECORD_INVITE_CLOSED) {
-              if (!joined && openedWatching && cachedRef.current?.lease) {
+              if (lookWithSavedPlace()) {
                 return;
               }
               endAccess(RECORD_INVITE_CLOSED, ctx);
@@ -342,7 +344,7 @@ export function useRecordSync(
           ctx.retryIn(RECORD_QUICK_RETRY_MS);
         }
         if (isTerminalWsClose(event.code) && !accessEnded) {
-          if (!joined && openedWatching && cachedRef.current?.lease) {
+          if (lookWithSavedPlace()) {
             lookRefused = modeRef.current === "watch";
           } else {
             endAccess(RECORD_ACCESS_REMOVED);
