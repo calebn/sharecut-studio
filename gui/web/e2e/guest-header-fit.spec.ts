@@ -45,6 +45,14 @@ const THEMES = ["light", "dark"] as const;
 /** Short enough to fit the room an Editor's name has beside Undo and Redo on the narrowest phone. */
 const SHORT_NAME = "Pilot";
 
+/** The web fonts the page has loaded, by family and weight. */
+const loadedFontFaces = (page: Page) =>
+  page.evaluate(() =>
+    [...document.fonts]
+      .filter((face) => face.status === "loaded")
+      .map((face) => `${face.family} ${face.weight}`),
+  );
+
 const barHeight = (size: Size) =>
   size.touch ? HEADER_HEIGHT.phone : HEADER_HEIGHT.desktop;
 const at = (size: Size) => `${size.width}x${size.height}`;
@@ -87,7 +95,7 @@ for (const size of [PHONE, NARROW_PHONE, DESKTOP]) {
 }
 
 for (const size of [PHONE, NARROW_PHONE]) {
-  test(`at ${at(size)} every press target in a guest's header is ${TOUCH_MIN} px square, inside the bar, and clear of the next`, async ({
+  test(`at ${at(size)} every press target in a guest's header is ${TOUCH_MIN} px square, inside the bar, and clear of the next, and nothing in the header answers a press just under the bar`, async ({
     browser,
   }) => {
     await withGuestLinks(browser, async (links, host) => {
@@ -116,7 +124,7 @@ for (const size of [PHONE, NARROW_PHONE]) {
   });
 }
 
-test(`at ${at(DESKTOP)} the role button answers a press over 32 px of height, inside the bar`, async ({
+test(`at ${at(DESKTOP)} the role button answers a press over 32 px of height, inside the bar, keeps the chip's weight 500, and nothing in the header answers a press just under the bar`, async ({
   browser,
 }) => {
   await withGuestLinks(browser, async (links, host) => {
@@ -136,6 +144,15 @@ test(`at ${at(DESKTOP)} the role button answers a press over 32 px of height, in
           expect
             .soft(targetProblems(report), `${role}: the role button's area`)
             .toEqual([]);
+          // The word in the chip is weight 500, as the button's own styles gave it on develop.
+          expect
+            .soft(
+              await guest
+                .locator('button[aria-label^="Explain"] .sys-role > span')
+                .evaluate((word) => getComputedStyle(word).fontWeight),
+              `${role}: the chip's word`,
+            )
+            .toBe("500");
         }
       },
       { visit: "returning" },
@@ -144,7 +161,7 @@ test(`at ${at(DESKTOP)} the role button answers a press over 32 px of height, in
 });
 
 for (const size of [PHONE, NARROW_PHONE]) {
-  test(`at ${at(size)} the name and the bar keep their boxes from the written page to the loading header to the studio`, async ({
+  test(`at ${at(size)} a short name and the bar keep their boxes from the written page to the loading header to the studio`, async ({
     browser,
   }) => {
     test.setTimeout(120_000);
@@ -210,6 +227,8 @@ test(`at ${at(PHONE)} the name's place does not depend on which font has loaded`
         PHONE,
         async (guest) => {
           await openLanded(guest, links[role], name);
+          // The check below can only see a blocked font if a loaded one shows.
+          expect(await loadedFontFaces(guest)).not.toEqual([]);
           loaded = (await headerBoxes(guest)).title;
         },
         { visit: "returning" },
@@ -224,7 +243,13 @@ test(`at ${at(PHONE)} the name's place does not depend on which font has loaded`
           await rightSideArrived(guest);
           await afterFrames(guest);
           const blocked = (await headerBoxes(guest)).title;
-          // Half a pixel is a line a pixel taller or shorter in a column that is centred.
+          expect(
+            await loadedFontFaces(guest),
+            `${role}: the web fonts the page loaded`,
+          ).toEqual([]);
+          // The fallback font's line is 17 px where the web font's is 18, so a name
+          // whose line depends on the font is off by a pixel in a column that is
+          // centred; 0.01 px leaves no room for that.
           near(blocked, loaded, 0.01, ["y", "h"], `${role}, fonts blocked:`);
         },
         { visit: "returning" },
@@ -366,8 +391,14 @@ test(`at ${at(PHONE)} and ${at(NARROW_PHONE)} at 200% text nothing in the header
   });
 });
 
-for (const size of [PHONE, NARROW_PHONE]) {
-  test(`at ${at(size)} a new version's pill and the line it folds into sit in the bar and press over their own area`, async ({
+// An Editor's second line on the narrowest phone leaves a version button about
+// 20 px, the least room it has beside the role button.
+for (const [size, role] of [
+  [PHONE, "commenter"],
+  [NARROW_PHONE, "commenter"],
+  [NARROW_PHONE, "editor"],
+] as const) {
+  test(`at ${at(size)} a new version's pill and the line it folds into sit in the bar and press over their own area, for ${role === "editor" ? "an Editor" : "a Commenter"} link`, async ({
     browser,
   }) => {
     test.setTimeout(120_000);
@@ -377,10 +408,10 @@ for (const size of [PHONE, NARROW_PHONE]) {
         browser,
         size,
         async (guest) => {
-          await openLanded(guest, links.commenter, name);
+          await openLanded(guest, links[role], name);
           const before = (await headerInventory(guest)).bar.h;
           await guest.route(
-            `**/api/review/${links.commenter}/project`,
+            `**/api/review/${links[role]}/project`,
             async (route) => {
               const answer = await route.fetch();
               const body = await answer.json();
@@ -460,7 +491,12 @@ test(`at ${at(PHONE)} axe finds nothing in the landed header of the three roles,
   });
 });
 
-/** The header controls' boxes on develop, 04fc34d5: the host's, and a guest's on a desktop. */
+/**
+ * The header controls' boxes on develop, 04fc34d5: the host's, and a guest's on
+ * a desktop. The host is alone in its project, with no guest connected: a guest's
+ * avatar on the right takes 44 px of the phone's row, so a host with one has its
+ * Undo and Redo 44 px further left (x 138 and 182).
+ */
 const DEVELOP: Record<string, Record<string, Rect>> = {
   "host phone": {
     bar: { x: 0, y: 0, w: 390, h: 45 },
@@ -494,8 +530,12 @@ async function controlBoxes(page: Page, selectors: Record<string, string>) {
   return page.evaluate((wanted) => {
     const out: Record<string, { x: number; y: number; w: number; h: number }> =
       {};
+    const header = document.querySelector(".sys-app-header-host");
     for (const [label, selector] of Object.entries(wanted)) {
-      const r = document.querySelector(selector)?.getBoundingClientRect();
+      // ":scope" is the header itself; the rest are looked up inside it.
+      const r = (
+        selector === ":scope" ? header : header?.querySelector(selector)
+      )?.getBoundingClientRect();
       if (r) out[label] = { x: r.x, y: r.y, w: r.width, h: r.height };
     }
     return out;
@@ -503,13 +543,13 @@ async function controlBoxes(page: Page, selectors: Record<string, string>) {
 }
 
 const HOST_CONTROLS = {
-  bar: ".sys-app-header-host",
+  bar: ":scope",
   project: ".sys-header-project",
   undo: 'button[aria-label="Undo"]',
   redo: 'button[aria-label="Redo"]',
 };
 const GUEST_CONTROLS = {
-  bar: ".sys-app-header-host",
+  bar: ":scope",
   undo: 'button[aria-label="Undo"]',
   redo: 'button[aria-label="Redo"]',
   appearance: 'button[aria-label="Appearance"]',
