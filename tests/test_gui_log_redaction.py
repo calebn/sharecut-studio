@@ -701,3 +701,92 @@ def test_raw_punctuation_in_a_query_does_not_end_it(query: str) -> None:
 def test_a_quote_before_the_route_ends_its_query_and_nothing_else_does() -> None:
     assert _format(f"['/r/{TOKEN}?x=(a,b)', 'y']") == "['/r/<share-token>', 'y']"
     assert _format(f'["/r/{TOKEN}?x=O\'N", "y"]') == '["/r/<share-token>", "y"]'
+
+
+_DOT_SHAPES = (
+    "/r/./T",
+    "/r/../T",
+    "/rec/./T",
+    "/rec/../T",
+    "/api/review/./T",
+    "/api/review/../T",
+    "/api/rec/./T",
+    "/api/rec/../T",
+    "/api/./review/T/daw/meta",
+    "/api//review//T/daw/meta",
+)
+
+
+def _dot_spellings(shape: str) -> dict[str, str]:
+    lower = shape.replace("..", "%2e%2e").replace("/./", "/%2e/")
+    return {
+        "plain": shape,
+        "lower-percent-dot": lower,
+        "upper-percent-dot": lower.replace("%2e", "%2E"),
+        "percent-slash": shape.replace("/", "%2F"),
+        "mixed": lower.replace("/", "%2F", 1),
+    }
+
+
+_DOT_PATHS = [
+    pytest.param(spelling.replace("T", TOKEN), id=f"{shape}-{name}")
+    for shape in _DOT_SHAPES
+    for name, spelling in _dot_spellings(shape).items()
+]
+
+
+@pytest.mark.parametrize("path", _DOT_PATHS)
+def test_an_access_line_with_dot_segments_before_the_token_loses_token_and_query(
+    path: str,
+) -> None:
+    line = _format(
+        '%s - "%s %s HTTP/%s" %d',
+        "127.0.0.1:5000",
+        "GET",
+        f"{path}?name=Ava&client_id=viewer-1",
+        "1.1",
+        200,
+    )
+
+    assert TOKEN not in line
+    assert "Ava" not in line
+    assert "viewer-1" not in line
+    assert line.startswith('127.0.0.1:5000 - "GET ')
+    assert line.endswith(' HTTP/1.1" 200')
+
+
+@pytest.mark.parametrize("path", _DOT_PATHS)
+def test_a_websocket_line_with_dot_segments_before_the_token_loses_token_and_query(
+    path: str,
+) -> None:
+    line = _format(
+        '%s - "WebSocket %s" [accepted]', "127.0.0.1:5000", f"{path}?name=Ava&client_id=viewer-1"
+    )
+
+    assert TOKEN not in line
+    assert "Ava" not in line
+    assert line.endswith('" [accepted]')
+
+
+@pytest.mark.parametrize("path", _DOT_PATHS)
+def test_an_asgi_scope_with_dot_segments_before_the_token_loses_token_and_query(
+    path: str,
+) -> None:
+    scope = {
+        "type": "websocket",
+        "path": path,
+        "raw_path": path.encode(),
+        "query_string": b"name=Ava",
+    }
+    line = _format("%s [%d] Started scope=%s", "ws", 1, scope)
+
+    assert TOKEN not in line
+    assert "Ava" not in line
+    assert "'type': 'websocket'" in line
+
+
+@pytest.mark.parametrize("path", ["/r/.hidden-file-name", "/r/.../" + TOKEN])
+def test_a_dotted_name_that_is_not_a_dot_segment_keeps_its_query(path: str) -> None:
+    line = _format('%s - "WebSocket %s" 403', "1.2.3.4:5", f"{path}?name=Ava")
+
+    assert line == f'1.2.3.4:5 - "WebSocket {path}?name=Ava" 403'
