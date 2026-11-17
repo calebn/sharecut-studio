@@ -18,7 +18,7 @@ flowchart LR
 
 ### While the link loads
 
-The header does not move between the loading screen and the studio: the same bar (full width, 45 px tall on a phone, 49 px on a desktop), the name in the same place and size.
+The bar and the name hold still between the loading screen and the studio: the same bar (full width, 45 px tall on a phone, 49 px on a desktop; a window that is not a phone and is 40 rem wide or narrower, large text, gets a taller studio bar on two rows), the name in the same place and size. The version label arrives in the line under the name when the studio reads the episode.
 
 | When | What the guest sees | What a screen reader hears |
 |---|---|---|
