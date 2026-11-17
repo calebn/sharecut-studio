@@ -9,7 +9,7 @@ import math
 import sqlite3
 import threading
 from collections.abc import Iterator, Mapping
-from contextlib import contextmanager
+from contextlib import contextmanager, nullcontext
 from dataclasses import replace
 from pathlib import Path
 from typing import Any, Literal, NotRequired, TypedDict
@@ -65,7 +65,13 @@ from podcast_mcp.services.session_sync import (
 )
 from podcast_mcp.util.coded_error import CodedError, CodedPermissionError
 from podcast_mcp.util.fingerprint import file_stamp
-from podcast_mcp.util.project_state import FileRevision, project_file_revision, project_state_lock
+from podcast_mcp.util.project_state import (
+    REQUEST_RENDER_LOCK_TIMEOUT_SEC,
+    FileRevision,
+    project_file_revision,
+    project_state_lock,
+    render_lock,
+)
 from podcast_mcp.util.write_failure import project_write_failed
 
 log = logging.getLogger(__name__)
@@ -688,7 +694,7 @@ class DocumentSyncService:
         # error fails the command before the project changes. The apply's commit also saves
         # the command as ``document_sync.last_command``, so after a crash or an I/O failure
         # of the journal INSERT or COMMIT after the apply, the next submit journals it
-        # first. Undo/redo with rerender holds both locks for its render. Every
+        # first. Undo/redo with rerender takes the render lock first, then holds both locks for its render. Every
         # document.db writer (this and publish_document_changed) enters through
         # _journal_write_lock and takes the project lock first, so another writer waits on
         # the project lock (30 s, then filelock.Timeout), not on sqlite's busy timeout; a
@@ -727,7 +733,13 @@ class DocumentSyncService:
 
                 return sanitize_guest_document_event(reply)
             return reply
-        with self._journal_write_lock() as store:
+        rerender_lock = (
+            render_lock(self.ws.project, timeout=REQUEST_RENDER_LOCK_TIMEOUT_SEC)
+            if command.type in {"UndoHistory", "RedoHistory"}
+            and bool(command.payload.get("rerender"))
+            else nullcontext()
+        )
+        with rerender_lock, self._journal_write_lock() as store:
             # The file this command applies on top of, after transaction() adopted any
             # outside write; clients chain it to the last file they received (#657).
             file_before = _file_wire(self.ws.loaded_file_revision)
