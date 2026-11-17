@@ -200,7 +200,8 @@ async def record_ws(
                         elif watching:
                             # Never show a room that has not been told: frames built before
                             # this socket was counted carry a count without it.
-                            view = None if _stamp_of(event) < counted_at else observer_view(event)
+                            frame = None if _stamp_of(event) < counted_at else observer_view(event)
+                            view = None if frame is None else dict(frame)
                         else:
                             view = None
                         if view is None:
