@@ -148,6 +148,24 @@ def test_a_gone_folder_still_reports_free_space(minimal_project, bundle_env):
     assert isinstance(report["disk_free_bytes"], int)
 
 
+@pytest.mark.parametrize("version", ["99.31415", "unsup-zq77", "2.2.7.8.9.1"])
+def test_the_format_value_is_in_no_member_and_the_readme_gains_one_sentence(
+    minimal_project, bundle_env, version
+):
+    with _client(minimal_project) as client:
+        healthy = _members(client.post("/api/diagnostics/bundle", json={}).json()["path"])
+    data = json.loads(minimal_project.read_text())
+    data["version"] = version
+    minimal_project.write_text(json.dumps(data))
+    with _client(minimal_project) as client:
+        response = client.post("/api/diagnostics/bundle", json={})
+    assert response.status_code == 200, response.text
+    members = _members(response.json()["path"])
+    for name, text in members.items():
+        assert version not in text, name
+    assert members["README.txt"] == healthy["README.txt"] + f"\n{STATEMENT}\n"
+
+
 def test_a_healthy_bundle_has_exactly_its_fifteen_keys_and_no_statement(
     minimal_project, bundle_env
 ):
