@@ -635,41 +635,42 @@
   overflow-wrap: anywhere;
 }
 
-/* The line takes its height from the tiles: the grid may shrink, and its rows
-   with it, down to a floor that is never taller than a tile in its column, so
-   at any text size a tile stays in its column and tiles never overlap. */
+/* The line takes its height from the tiles, not from what the viewer could
+   see: the grid shrinks, and its rows with it, down to a floor, so no tile or
+   listener the room showed without the line moves under the dock. */
 .sys-room-view[data-looking-in] .sys-room-view-grid {
-  container-type: inline-size;
   flex: 0 1 auto;
   min-block-size: 0;
+  grid-auto-rows: minmax(
+    min(
+      6rem,
+      calc(
+        (
+          min(100cqw, 45rem) -
+          (var(--sys-room-view-columns, 2) - 1) *
+          var(--space-3)
+        ) /
+        var(--sys-room-view-columns, 2) *
+        0.75
+      )
+    ),
+    1fr
+  );
+}
+
+/* The row floor is measured against the stage, so enlarged text cannot push
+   it past what a tile in its column can be. */
+.sys-room-view[data-looking-in] .sys-room-view-stage {
+  container-type: inline-size;
 }
 
 .sys-room-view[data-looking-in] .sys-room-view-grid > .sys-room-tile,
 .sys-room-view[data-looking-in] .sys-room-view-grid > .sys-room-slot {
-  --sys-room-column: calc(
-    (100cqw - (var(--sys-room-view-columns, 2) - 1) * var(--space-3)) /
-    var(--sys-room-view-columns, 2)
-  );
-
   align-self: stretch;
-  justify-self: center;
-  max-inline-size: 100%;
-  min-block-size: min(6rem, calc(var(--sys-room-column) * 0.75));
-}
-
-/* A tile's padding gives way before its column does. */
-.sys-room-view[data-looking-in] .sys-room-view-grid .sys-room-tile {
-  padding: min(var(--space-3), calc(var(--sys-room-column) / 8));
-}
-
-.sys-room-view[data-looking-in] .sys-room-slot {
-  display: grid;
-  justify-self: stretch;
+  min-block-size: 0;
 }
 
 .sys-room-view[data-looking-in] .sys-room-slot > .sys-room-tile {
-  justify-self: center;
-  max-inline-size: 100%;
   block-size: 100%;
   min-block-size: 0;
 }
