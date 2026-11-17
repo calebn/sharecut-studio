@@ -989,6 +989,61 @@ describe("useGuestRoom", () => {
     });
   });
 
+  describe("the M key", () => {
+    const press = () => {
+      const event = new KeyboardEvent("keydown", {
+        key: "m",
+        bubbles: true,
+        cancelable: true,
+      });
+      act(() => {
+        window.dispatchEvent(event);
+      });
+      return event;
+    };
+    const recording = (participants: unknown[]) =>
+      snapshotOf({
+        state: "recording",
+        take_index: 0,
+        recording_ms: 1000,
+        participants: participants as (typeof guest)[],
+      });
+
+    it("is left alone on a producer page that has not joined", async () => {
+      stubFetch(producerBootstrap);
+      renderHook(() => useGuestRoom("prod-tok"));
+      await waitFor(() => expect(sockets).toHaveLength(1));
+      act(() =>
+        sockets[0]?.emit({
+          type: "Snapshot",
+          snapshot: recording([{ ...guest, consented: true }]),
+        }),
+      );
+      expect(press().defaultPrevented).toBe(false);
+      expect(sockets[0]?.commands("Comment")).toHaveLength(0);
+    });
+
+    it("drops a marker once the producer is in the room", async () => {
+      stubFetch(producerBootstrap);
+      const { result } = renderHook(() => useGuestRoom("prod-tok"));
+      await waitFor(() => expect(sockets).toHaveLength(1));
+      act(() => result.current.setProducerJoined(true));
+      await waitFor(() => expect(sockets[0]?.commands("Join")).toHaveLength(1));
+      act(() => {
+        sockets[0]?.emit({ type: "Echo", participant_id: "p_g", lease: "l" });
+        sockets[0]?.emit({
+          type: "Snapshot",
+          snapshot: recording([
+            { ...guest, role: "producer", consented: null },
+          ]),
+        });
+      });
+      await waitFor(() => expect(result.current.me).not.toBeNull());
+      expect(press().defaultPrevented).toBe(true);
+      expect(sockets[0]?.commands("Comment")).toHaveLength(1);
+    });
+  });
+
   describe("requestedRecordMode", () => {
     const base = {
       bootstrapped: true,

@@ -164,6 +164,7 @@ function GuestRoomSession({
     producerDismissed,
     setProducerDismissed,
     socketMode,
+    counted,
     resumeUpload,
   } = room;
 
@@ -393,7 +394,7 @@ function GuestRoomSession({
   const ownLook = producerOutside && watchers > 0 ? 1 : 0;
   const lookingIn = watchers - ownLook;
   const seenByRoom =
-    producer && socketMode === "watch" && connected && ownLook > 0;
+    producer && socketMode === "watch" && connected && counted && ownLook > 0;
   const people = roomPeople(snapshot, {
     youId: meId ?? null,
     youLevel: level,

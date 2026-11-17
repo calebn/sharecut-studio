@@ -126,6 +126,7 @@ export function useRecordSync(
   const [connected, setConnected] = useState(false);
   const [meId, setMeId] = useState<string | null>(null);
   const [lease, setLease] = useState<string | null>(null);
+  const [counted, setCounted] = useState(false);
   const sendRef = useRef<WsSender | null>(null);
   const clientIdRef = useRef(documentClientId());
   const currentName = useStableCallback(() => displayName);
@@ -196,6 +197,7 @@ export function useRecordSync(
     }
     let heartbeat: number | null = null;
     let joined = false;
+    let openedWatching = false;
     let accessEnded = false;
     phaseRef.current = "connecting";
     joinSentRef.current = false;
@@ -226,8 +228,15 @@ export function useRecordSync(
     };
 
     const socket = openPlaneSocket<RecordMsg>({
-      url: () =>
-        recordWsUrl(token, clientIdRef.current, currentName(), modeRef.current),
+      url: () => {
+        openedWatching = modeRef.current === "watch";
+        return recordWsUrl(
+          token,
+          clientIdRef.current,
+          currentName(),
+          modeRef.current,
+        );
+      },
       prepare: async () => {
         phaseRef.current = "connecting";
         cachedRef.current = skipLeaseRef.current
@@ -240,6 +249,7 @@ export function useRecordSync(
         sendRef.current = ctx.send;
         phaseRef.current = "open";
         joinSentRef.current = false;
+        setCounted(false);
         setConnected(true);
         setError(null);
         if (modeRef.current === "join") {
@@ -305,6 +315,7 @@ export function useRecordSync(
             });
           }
           if (msg.snapshot) {
+            setCounted(true);
             if (modeRef.current === "watch") {
               ctx.markHealthy();
             }
@@ -315,11 +326,18 @@ export function useRecordSync(
           }
         },
       },
-      onClose: (event) => {
+      onClose: (event, ctx) => {
         phaseRef.current = "backoff";
+        setCounted(false);
         setConnected(false);
         sendRef.current = null;
         stopHeartbeat();
+        if (!joined && modeRef.current === "watch") {
+          setSnapshot(null);
+        }
+        if (!joined && openedWatching && modeRef.current === "join") {
+          ctx.retryIn(RECORD_QUICK_RETRY_MS);
+        }
         if (isTerminalWsClose(event.code) && !accessEnded) {
           endAccess(RECORD_ACCESS_REMOVED);
         }
@@ -364,6 +382,7 @@ export function useRecordSync(
     clearError,
     connected,
     lease,
+    counted,
     socketMode: mode,
   };
 }

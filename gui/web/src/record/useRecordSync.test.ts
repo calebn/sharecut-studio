@@ -838,6 +838,87 @@ describe("useRecordSync", () => {
       expect(FakeWebSocket.instances).toHaveLength(1);
     });
 
+    it("drops the room it showed when a look closes, and counts nothing until the next socket's first snapshot", async () => {
+      vi.useFakeTimers();
+      const hook = watching("watch");
+      await settle();
+      await act(async () => {
+        FakeWebSocket.instances[0].emit(lobby(1, 10));
+      });
+      expect(hook.result.current.snapshot?.watchers).toBe(1);
+      expect(hook.result.current.counted).toBe(true);
+      await act(async () => {
+        FakeWebSocket.instances[0].close(1006);
+      });
+      expect(hook.result.current.snapshot).toBeNull();
+      expect(hook.result.current.counted).toBe(false);
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(1000);
+      });
+      expect(FakeWebSocket.instances).toHaveLength(2);
+      expect(hook.result.current.connected).toBe(true);
+      expect(hook.result.current.snapshot).toBeNull();
+      expect(hook.result.current.counted).toBe(false);
+      await act(async () => {
+        FakeWebSocket.instances[1].close(4429);
+      });
+      expect(hook.result.current.snapshot).toBeNull();
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(31_000);
+        FakeWebSocket.instances.at(-1)?.emit(lobby(2, 20));
+      });
+      expect(hook.result.current.counted).toBe(true);
+      expect(hook.result.current.snapshot?.watchers).toBe(2);
+    });
+
+    it("keeps the room it showed when a socket that was asked to join closes before the Echo", async () => {
+      vi.useFakeTimers();
+      const hook = watching("watch");
+      await settle();
+      await act(async () => {
+        FakeWebSocket.instances[0].emit(lobby(1, 10));
+      });
+      hook.rerender({ m: "join" });
+      await act(async () => {
+        FakeWebSocket.instances[0].close(1006);
+      });
+      expect(hook.result.current.snapshot?.watchers).toBe(1);
+      expect(hook.result.current.counted).toBe(false);
+    });
+
+    it("retries a press made while connecting at once when the server then refuses the look", async () => {
+      vi.useFakeTimers();
+      vi.spyOn(Math, "random").mockReturnValue(0.9);
+      FakeWebSocket.reset({ autoOpen: false });
+      const hook = watching("watch");
+      await settle();
+      const first = FakeWebSocket.instances[0];
+      hook.rerender({ m: "join" });
+      await act(async () => {
+        first.open();
+        first.close(4429);
+      });
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(300);
+      });
+      expect(FakeWebSocket.instances).toHaveLength(2);
+      expect(
+        new URL(FakeWebSocket.instances[1].url).searchParams.has("observe"),
+      ).toBe(false);
+    });
+
+    it("does not hurry a guest's reconnect after an early close", async () => {
+      vi.useFakeTimers();
+      vi.spyOn(Math, "random").mockReturnValue(0.9);
+      watching("join");
+      await settle();
+      await act(async () => {
+        FakeWebSocket.instances[0].close(1006);
+        await vi.advanceTimersByTimeAsync(300);
+      });
+      expect(FakeWebSocket.instances).toHaveLength(1);
+    });
+
     it("stops looking for good on a full room", async () => {
       const hook = watching("watch");
       await settle();
