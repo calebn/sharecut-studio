@@ -665,6 +665,190 @@ describe("AppHeader as a guest", () => {
   });
 });
 
+describe("AppHeader first-visit role hint: a press and a key", () => {
+  const TEXT = "You can comment and suggest cuts. The host decides.";
+
+  function hintHeader(
+    extra: Partial<NonNullable<AppHeaderProps["guest"]>["hint"]> = {},
+  ) {
+    const onDismiss = vi.fn();
+    const reached = vi.fn();
+    const view = render(
+      <>
+        <button type="button" onKeyDown={reached}>
+          Outside
+        </button>
+        <AppHeader
+          title="Episode"
+          guest={{
+            version: "v3",
+            role: "commenter",
+            hint: { text: TEXT, shown: true, onDismiss, ...extra },
+          }}
+        />
+      </>,
+    );
+    const trigger = screen.getByRole("button", {
+      name: "Explain Commenter role",
+    });
+    return { ...view, onDismiss, reached, trigger };
+  }
+
+  it("closes on a click on its sentence, once, and moves no focus", async () => {
+    const { onDismiss, trigger } = hintHeader();
+    await userEvent.click(screen.getByText(TEXT));
+    expect(onDismiss).toHaveBeenCalledOnce();
+    expect(screen.queryByRole("note")).toBeNull();
+    expect(trigger).not.toHaveFocus();
+  });
+
+  it("does not close on the press itself, so nothing under the bubble can be hit", () => {
+    const { onDismiss } = hintHeader();
+    const sentence = screen.getByText(TEXT);
+    fireEvent.pointerDown(sentence);
+    fireEvent.mouseDown(sentence);
+    expect(onDismiss).not.toHaveBeenCalled();
+    expect(screen.getByRole("note")).toBeVisible();
+    fireEvent.click(sentence);
+    expect(onDismiss).toHaveBeenCalledOnce();
+  });
+
+  it("closes on a click on the bubble's own padding", () => {
+    const { onDismiss } = hintHeader();
+    fireEvent.click(screen.getByRole("note"));
+    expect(onDismiss).toHaveBeenCalledOnce();
+    expect(screen.queryByRole("note")).toBeNull();
+  });
+
+  it("still closes through the X once, and hands focus to the Role button", async () => {
+    const { onDismiss, trigger } = hintHeader();
+    await userEvent.click(screen.getByRole("button", { name: "Dismiss hint" }));
+    expect(onDismiss).toHaveBeenCalledOnce();
+    expect(screen.queryByRole("note")).toBeNull();
+    expect(trigger).toHaveFocus();
+  });
+
+  it("does not open the explanation after a press on the sentence", async () => {
+    const { trigger } = hintHeader();
+    await userEvent.click(screen.getByText(TEXT));
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(trigger).toHaveAttribute("aria-expanded", "false");
+  });
+
+  it("closes on a letter key pressed outside, without stopping it", () => {
+    const { onDismiss, reached } = hintHeader();
+    const notPrevented = fireEvent.keyDown(screen.getByText("Outside"), {
+      key: "l",
+    });
+    expect(onDismiss).toHaveBeenCalledOnce();
+    expect(screen.queryByRole("note")).toBeNull();
+    expect(notPrevented).toBe(true);
+    expect(reached).toHaveBeenCalledOnce();
+  });
+
+  it("closes on Escape pressed outside", () => {
+    const { onDismiss } = hintHeader();
+    fireEvent.keyDown(document.body, { key: "Escape" });
+    expect(onDismiss).toHaveBeenCalledOnce();
+    expect(screen.queryByRole("note")).toBeNull();
+  });
+
+  it("closes on Escape with focus on the X and hands focus to the Role button", async () => {
+    const { onDismiss, trigger } = hintHeader();
+    screen.getByRole("button", { name: "Dismiss hint" }).focus();
+    await userEvent.keyboard("{Escape}");
+    expect(onDismiss).toHaveBeenCalledOnce();
+    expect(screen.queryByRole("note")).toBeNull();
+    expect(trigger).toHaveFocus();
+  });
+
+  it.each(["Shift", "Control", "Alt", "Meta", "Tab"])(
+    "stays up on a %s press on its own",
+    (key) => {
+      const { onDismiss } = hintHeader();
+      fireEvent.keyDown(document.body, { key });
+      expect(onDismiss).not.toHaveBeenCalled();
+      expect(screen.getByRole("note")).toBeVisible();
+    },
+  );
+
+  it.each([
+    ["Enter", "{Enter}"],
+    ["Space", " "],
+  ])(
+    "closes on %s on the Role button without opening the dialog, and the next opens it",
+    async (_name, key) => {
+      const { onDismiss, trigger } = hintHeader();
+      trigger.focus();
+      await userEvent.keyboard(key);
+      expect(onDismiss).toHaveBeenCalledOnce();
+      expect(screen.queryByRole("note")).toBeNull();
+      expect(screen.queryByRole("dialog")).toBeNull();
+      await userEvent.keyboard(key);
+      expect(screen.getByRole("dialog")).toHaveTextContent(TEXT);
+    },
+  );
+
+  it.each([
+    ["Enter", "{Enter}"],
+    ["Space", " "],
+  ])(
+    "closes on %s on the X, once, with focus on the Role button",
+    async (_name, key) => {
+      const { onDismiss, trigger } = hintHeader();
+      screen.getByRole("button", { name: "Dismiss hint" }).focus();
+      await userEvent.keyboard(key);
+      expect(onDismiss).toHaveBeenCalledOnce();
+      expect(screen.queryByRole("note")).toBeNull();
+      expect(trigger).toHaveFocus();
+    },
+  );
+
+  it("listens to no key once it is closed", () => {
+    const { onDismiss } = hintHeader({ shown: false });
+    fireEvent.keyDown(document.body, { key: "l" });
+    expect(onDismiss).not.toHaveBeenCalled();
+  });
+});
+
+describe("AppHeader first-visit role hint: said once", () => {
+  const TEXT = "You can comment and suggest cuts. The host decides.";
+  const guestOf = (
+    hint: NonNullable<AppHeaderProps["guest"]>["hint"],
+  ): AppHeaderProps["guest"] => ({ version: "v3", role: "commenter", hint });
+
+  it("reports itself once when its bubble appears", () => {
+    const onShown = vi.fn();
+    const hint = { text: TEXT, shown: true, onDismiss: vi.fn(), onShown };
+    const { again } = setup({ guest: guestOf(hint) });
+    expect(onShown).toHaveBeenCalledOnce();
+    again({ guest: guestOf({ ...hint }) });
+    again({ guest: guestOf({ ...hint, text: `${TEXT}` }) });
+    expect(onShown).toHaveBeenCalledOnce();
+  });
+
+  it("does not report a hint that never shows", () => {
+    const onShown = vi.fn();
+    setup({
+      guest: guestOf({ text: TEXT, shown: false, onDismiss: vi.fn(), onShown }),
+    });
+    expect(onShown).not.toHaveBeenCalled();
+  });
+
+  it("does not report again on its dismissal or when the explanation opens", async () => {
+    const onShown = vi.fn();
+    const hint = { text: TEXT, shown: true, onDismiss: vi.fn(), onShown };
+    const { again } = setup({ guest: guestOf(hint) });
+    await userEvent.click(screen.getByRole("button", { name: "Dismiss hint" }));
+    again({ guest: guestOf({ ...hint, shown: false }) });
+    await userEvent.click(
+      screen.getByRole("button", { name: "Explain Commenter role" }),
+    );
+    expect(screen.getByRole("dialog")).toBeVisible();
+    expect(onShown).toHaveBeenCalledOnce();
+  });
+});
+
 describe("AppHeader Project menu", () => {
   it("keeps Invite, search and the People rows reachable when the header's right side gives way", async () => {
     const user = userEvent.setup();

@@ -332,6 +332,44 @@ describe("StageFrame roles", () => {
     localStorage.removeItem("sharecut.roleHintSeen.commenter");
   });
 
+  it("says the first-visit sentence once through the status region, and not to a returning guest", () => {
+    const SENTENCE = "You can comment and suggest cuts. The host decides.";
+    localStorage.removeItem("sharecut.roleHintSeen.commenter");
+    useDawStore.getState().announceStatus("");
+    useDawStore.setState({ guestMode: "comment", stage: "review" });
+    const seq = useDawStore.getState().statusAnnouncementSeq;
+    const first = mount();
+    const spoken = () =>
+      screen
+        .getAllByRole("status")
+        .filter((region) => region.textContent === SENTENCE);
+    expect(spoken()).toHaveLength(1);
+    expect(useDawStore.getState().statusAnnouncementSeq).toBe(seq + 1);
+    expect(useDawStore.getState().feedbackToast).toBeNull();
+    first.unmount();
+    localStorage.setItem("sharecut.roleHintSeen.commenter", "1");
+    useDawStore.getState().announceStatus("");
+    const quiet = useDawStore.getState().statusAnnouncementSeq;
+    mount();
+    expect(spoken()).toHaveLength(0);
+    expect(useDawStore.getState().statusAnnouncementSeq).toBe(quiet);
+    localStorage.removeItem("sharecut.roleHintSeen.commenter");
+  });
+
+  it("shows a guest reading the saved copy no hint, and writes no flag", async () => {
+    localStorage.clear();
+    useDawStore.setState({
+      projectPath: "share:tok",
+      guestMode: "view",
+      shareCapabilities: null,
+      stage: "review",
+    });
+    mount();
+    expect(screen.queryByRole("note")).toBeNull();
+    expect(screen.queryByText(/The host decides/)).toBeNull();
+    expect(localStorage.length).toBe(0);
+  });
+
   it("explains a Viewer link and remembers only the viewer role", async () => {
     useDawStore.setState({ guestMode: "view", stage: "review" });
     mount();
