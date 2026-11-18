@@ -19,11 +19,12 @@ class HistoryStatusResult(_HistoryResult):
 
 
 class HistoryMoveResult(HistoryStatusResult):
-    pass
+    guest_step: bool = False
 
 
 class HistoryMoveRerenderedResult(HistoryStatusResult):
     preview: dict[str, Any]
+    guest_step: bool = False
 
 
 class HistoryEntryResult(_HistoryResult):

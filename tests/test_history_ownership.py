@@ -355,3 +355,62 @@ def test_the_host_undoes_a_guest_step_as_before_and_the_entry_names_the_host(
     assert chapters(minimal_project) == []
     undone = [e for e in load_project(minimal_project).history.entries if e.undone_by]
     assert [(e.author, e.undone_by) for e in undone] == [(author, "host")]
+
+
+def host_move(project: Path, kind: str) -> dict:
+    reply = DocumentSyncService.open(project).submit(
+        DocumentCommand(
+            type=f"{kind}History",
+            payload=history_move(project),
+            client_id="host",
+            client_seq=None,
+            role="viewer",
+        ),
+        range_policy="apply",
+    )
+    return reply
+
+
+def test_the_host_is_told_when_a_move_takes_back_or_brings_back_a_guests_step(
+    minimal_project, sample_wav
+):
+    token, _author = editor_link(minimal_project, sample_wav)
+    client = TestClient(create_app())
+    guest_chapter(client, token, "Mine", 1)
+
+    assert host_move(minimal_project, "Undo")["guest_step"] is True
+    assert host_move(minimal_project, "Redo")["guest_step"] is True
+    assert chapters(minimal_project) == ["Mine"]
+
+
+def test_the_host_is_not_told_for_their_own_step(minimal_project):
+    host_chapter(minimal_project, "Hosts")
+
+    assert "guest_step" not in host_move(minimal_project, "Undo")
+    assert "guest_step" not in host_move(minimal_project, "Redo")
+
+
+def test_a_guests_own_move_reply_never_carries_guest_step(minimal_project, sample_wav):
+    token, _author = editor_link(minimal_project, sample_wav)
+    client = TestClient(create_app())
+    guest_chapter(client, token, "Mine", 1)
+
+    undone = guest_move(client, token, "Undo", minimal_project, 2)
+
+    assert undone.status_code == 200, undone.text
+    assert "guest_step" not in undone.json()
+    redone = guest_move(client, token, "Redo", minimal_project, 3)
+    assert "guest_step" not in redone.json()
+
+
+def test_the_host_is_told_when_their_undo_takes_back_a_guests_comment(minimal_project, sample_wav):
+    token, _author = editor_link(minimal_project, sample_wav)
+    client = TestClient(create_app())
+    posted = client.post(
+        f"/api/review/{token}/comments",
+        json={"body": "Fix", "author": "g", "timeline_start": 1.0},
+    )
+    assert posted.status_code == 200, posted.text
+
+    assert host_move(minimal_project, "Undo")["guest_step"] is True
+    assert load_project(minimal_project).comments == []
