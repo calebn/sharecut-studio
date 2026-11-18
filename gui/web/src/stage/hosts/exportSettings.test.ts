@@ -156,9 +156,29 @@ describe("exportSettingsFromConfig", () => {
     const label = (spec: { ext: string; codec?: string }) =>
       exportSettingsFromConfig({ export: { formats: [spec] } }).choices[0]
         .label;
-    expect(label({ ext: "m4a" })).toBe("M4A (AAC)");
+    expect(label({ ext: "m4a" })).toBe("M4A (AAC) · 128 kbps");
     expect(label({ ext: "flac", codec: "aac" })).toBe("FLAC · lossless");
     expect(label({ ext: "mp3", codec: "aac" })).toBe("MP3");
+  });
+
+  it("resolves a bare configured m4a to the preset spec", () => {
+    const settings = exportSettingsFromConfig({
+      export: { formats: [{ ext: "m4a" }] },
+    });
+    expect(settings.choices[0].spec).toEqual(M4A_PRESET);
+    expect(selectedFormats(settings, ["m4a"])).toEqual([M4A_PRESET]);
+  });
+
+  it("reads a bare m4a the way the server does", () => {
+    const bare = exportSettingsFromConfig({
+      export: { formats: [{ ext: "m4a", codec: null, extra_args: [] }] },
+    });
+    expect(bare.choices[0].spec).toEqual(M4A_PRESET);
+    const custom = exportSettingsFromConfig({
+      export: { formats: [{ ext: "m4a", codec: "alac" }] },
+    });
+    expect(custom.choices[0].spec).toEqual({ ext: "m4a", codec: "alac" });
+    expect(custom.choices[0].label).toBe("M4A");
   });
 
   it("sends every checked format, M4A and FLAC together", () => {
