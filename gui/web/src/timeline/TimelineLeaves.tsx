@@ -66,9 +66,8 @@ export function FollowPlayheadChip() {
 }
 
 /**
- * It selects a boolean, so a tick re-renders it only when the pill appears or
- * goes. It unmounts on activation, so focus moves to the scroller first, which
- * is a target, not a control.
+ * It unmounts on activation, so focus moves to the scroller first and a
+ * keyboard user is not dropped.
  */
 export function TimelineFollowPill({
   timeViewportPx,
