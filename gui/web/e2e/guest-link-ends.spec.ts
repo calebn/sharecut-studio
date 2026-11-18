@@ -1,7 +1,7 @@
 import { expect, type Locator, type Page, test } from "@playwright/test";
 import { postDocumentCommand } from "./documentCommand";
 import { fontsReady } from "./fontsReady";
-import { press, SIZES, type Size } from "./guestLink";
+import { press, revokeLink, SIZES, type Size } from "./guestLink";
 import { guestSavedCopy } from "./offlineQueue";
 import { withShareableProject } from "./shareableProject";
 import {
@@ -97,12 +97,8 @@ const serverWordsSeen = (page: Page) =>
 
 type Link = { token: string; projectPath: string; host: Page };
 
-async function revoke({ host, token, projectPath }: Link) {
-  const ended = await host.request.post(`/api/shares/${token}/revoke`, {
-    data: { path: projectPath },
-  });
-  expect(ended.ok(), await ended.text()).toBeTruthy();
-}
+const revoke = ({ host, token, projectPath }: Link) =>
+  revokeLink(host, token, projectPath);
 
 /** A real share on the real server, opened by a guest on the studio. */
 async function withOpenGuest(

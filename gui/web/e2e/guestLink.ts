@@ -9,6 +9,18 @@ import { withShareableProject } from "./shareableProject";
 import { createReviewShare, openHostShare } from "./shareNavigation";
 import { withBrowserPages } from "./twoBrowserPages";
 
+/** The host turns a review link off, as the Share menu does. */
+export async function revokeLink(
+  host: Page,
+  token: string,
+  projectPath: string,
+) {
+  const ended = await host.request.post(`/api/shares/${token}/revoke`, {
+    data: { path: projectPath },
+  });
+  expect(ended.ok(), await ended.text()).toBeTruthy();
+}
+
 export type Size = {
   name: string;
   width: number;

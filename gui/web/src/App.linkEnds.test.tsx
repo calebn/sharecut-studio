@@ -88,6 +88,11 @@ const offline = vi.hoisted(() => ({
   clear: vi.fn(),
   retire: vi.fn(),
 }));
+const audio = vi.hoisted(() => ({ forget: vi.fn() }));
+vi.mock("./audio/chunkCache", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("./audio/chunkCache")>()),
+  forgetLinkAudio: audio.forget,
+}));
 vi.mock("./services/offlineQueue/offlineStore", async (importOriginal) => ({
   ...(await importOriginal<
     typeof import("./services/offlineQueue/offlineStore")
@@ -153,6 +158,7 @@ beforeEach(() => {
   offline.load.mockReset().mockResolvedValue(undefined);
   offline.clear.mockReset().mockResolvedValue(undefined);
   offline.retire.mockReset().mockResolvedValue(undefined);
+  audio.forget.mockReset().mockResolvedValue(undefined);
   useDawStore.setState(composerPatch(initialSession));
   resetFeaturesCache();
 });
@@ -204,6 +210,7 @@ describe("a review link turned off while the episode is open", () => {
     expect(useDawStore.getState().isPlaying).toBe(false);
     expect(useDawStore.getState().composer).toEqual(initialSession);
     expect(offline.retire).toHaveBeenCalledExactlyOnceWith("ends-1");
+    expect(audio.forget).toHaveBeenCalledExactlyOnceWith("ends-1");
 
     const seen = spy.mock.calls.length;
     await act(async () => {
@@ -212,6 +219,26 @@ describe("a review link turned off while the episode is open", () => {
       );
     });
     expect(spy.mock.calls.length).toBe(seen);
+  });
+
+  it("gives up the audio only once the cover is on screen, and the cover never waits for it", async () => {
+    let coverWhenAsked: boolean | null = null;
+    audio.forget.mockImplementation(() => {
+      coverWhenAsked =
+        document.body.textContent?.includes(
+          "This link doesn't open anything",
+        ) ?? false;
+      return new Promise(() => {});
+    });
+    stubHost({ project: [OPEN, DEAD], meta: DEAD });
+    await openEpisode("ends-forget");
+    fireEvent.click(screen.getByRole("button", { name: "Ask" }));
+    await screen.findByRole("heading", {
+      name: "This link doesn't open anything",
+    });
+    expect(audio.forget).toHaveBeenCalledExactlyOnceWith("ends-forget");
+    expect(coverWhenAsked).toBe(true);
+    expect(offline.retire).toHaveBeenCalledExactlyOnceWith("ends-forget");
   });
 
   it("has no block and no button when nothing was typed", async () => {
@@ -243,6 +270,7 @@ describe("a review link turned off while the episode is open", () => {
       "still here",
     );
     expect(offline.retire).not.toHaveBeenCalled();
+    expect(audio.forget).not.toHaveBeenCalled();
   });
 
   it.each([
@@ -270,6 +298,7 @@ describe("a review link turned off while the episode is open", () => {
       await act(async () => {});
       expect(screen.getByText("Guest studio")).toBeInTheDocument();
       expect(offline.retire).not.toHaveBeenCalled();
+      expect(audio.forget).not.toHaveBeenCalled();
     },
   );
 

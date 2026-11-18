@@ -20,6 +20,12 @@ const offline = vi.hoisted(() => ({
   clear: vi.fn(),
 }));
 
+const audio = vi.hoisted(() => ({ forget: vi.fn() }));
+vi.mock("./audio/chunkCache", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("./audio/chunkCache")>()),
+  forgetLinkAudio: audio.forget,
+}));
+
 vi.mock("./services/offlineQueue/offlineStore", async (importOriginal) => ({
   ...(await importOriginal<
     typeof import("./services/offlineQueue/offlineStore")
@@ -33,6 +39,7 @@ describe("App review route", () => {
     offline.load.mockReset();
     offline.clear.mockReset();
     offline.clear.mockResolvedValue(undefined);
+    audio.forget.mockReset().mockResolvedValue(undefined);
     resetFeaturesCache();
     window.history.pushState({}, "", "/r/no-view");
   });
@@ -154,6 +161,7 @@ describe("App review route", () => {
       await screen.findByText("This link doesn't open anything"),
     ).toBeInTheDocument();
     expect(offline.clear).toHaveBeenCalledWith("revoked");
+    expect(audio.forget).toHaveBeenCalledExactlyOnceWith("revoked");
     expect(screen.queryByText("Stale episode")).not.toBeInTheDocument();
   });
 
@@ -197,6 +205,7 @@ describe("App review route", () => {
       await screen.findByText("This link doesn't open anything"),
     ).toBeInTheDocument();
     expect(offline.clear).not.toHaveBeenCalled();
+    expect(audio.forget).not.toHaveBeenCalled();
   });
 
   it("shows the cover even when clearing the snapshot never settles", async () => {
@@ -213,6 +222,23 @@ describe("App review route", () => {
     expect(
       await screen.findByText("This link doesn't open anything"),
     ).toBeInTheDocument();
+  });
+
+  it("shows the cover when forgetting the audio never settles", async () => {
+    window.history.pushState({}, "", "/r/hung-audio");
+    audio.forget.mockReturnValue(new Promise(() => {}));
+    stubBootstrapFailure(
+      () =>
+        new Response(JSON.stringify({ detail: "x" }), {
+          status: 404,
+          headers: { "X-Sharecut-Error-Code": "share_not_found" },
+        }),
+    );
+    render(<App />);
+    expect(
+      await screen.findByText("This link doesn't open anything"),
+    ).toBeInTheDocument();
+    expect(audio.forget).toHaveBeenCalledExactlyOnceWith("hung-audio");
   });
 
   it("shows the cover when clearing the snapshot rejects", async () => {
@@ -246,6 +272,7 @@ describe("App review route", () => {
       screen.queryByText("This link doesn't open anything"),
     ).not.toBeInTheDocument();
     expect(offline.clear).not.toHaveBeenCalled();
+    expect(audio.forget).not.toHaveBeenCalled();
   });
 
   it("shows a Try now cover for an unreachable host with no saved copy", async () => {
@@ -312,6 +339,7 @@ describe("App review route", () => {
           name: "The host's computer is asleep",
         }),
       ).toBeInTheDocument();
+      expect(audio.forget).not.toHaveBeenCalled();
       const before = calls;
       fireEvent.click(screen.getByRole("button", { name: "Try now" }));
       await vi.waitFor(() => expect(calls).toBeGreaterThan(before));
@@ -340,6 +368,7 @@ describe("App review route", () => {
       // heading is found: flush it once, as React does, before asserting.
       await act(async () => {});
       expect(title).toHaveFocus();
+      expect(audio.forget).not.toHaveBeenCalled();
       expect(screen.getByRole("main")).not.toHaveAttribute("tabindex");
       expect(screen.getByText(sentence)).toBeVisible();
       const before = calls;
@@ -409,6 +438,7 @@ describe("App review route", () => {
       await screen.findByRole("heading", { name: "This link did not load" });
       expect(screen.getByText(sentence)).toBeVisible();
       expect(document.body).not.toHaveTextContent("SENTINEL-1");
+      expect(audio.forget).not.toHaveBeenCalled();
     },
   );
 
@@ -421,6 +451,7 @@ describe("App review route", () => {
       render(<App />);
       await screen.findByRole("heading", { name: "This link did not load" });
       expect(screen.queryByRole("button")).toBeNull();
+      expect(audio.forget).not.toHaveBeenCalled();
     },
   );
 
