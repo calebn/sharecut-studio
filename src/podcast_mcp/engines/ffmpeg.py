@@ -2780,9 +2780,7 @@ class FFmpegEngine:
 
     def _has_filter(self, name: str) -> bool:
         names = self._listed_names("-filters")
-        if names is None:
-            names = self._listed_names_cache["-filters"] = set()
-        return name in names
+        return names is not None and name in names
 
     def annotate_time_marks(
         self,
