@@ -8,6 +8,7 @@ import {
   overlayOpen,
   subscribeModalOpen,
 } from "../ui/modalGate";
+import { errorMessage } from "../utils/apiError";
 import {
   argsFromKeyEvent,
   ignoresKeyRepeat,
@@ -150,10 +151,20 @@ export function useDawKeymapListener(): void {
             }
             return;
           }
-          const result = await execute(cmd.id, argsFromKeyEvent(e, cmd.id), {
-            ctx,
-            skipWhen: true,
-          });
+          let result: Awaited<ReturnType<typeof execute>>;
+          try {
+            result = await execute(cmd.id, argsFromKeyEvent(e, cmd.id), {
+              ctx,
+              skipWhen: true,
+            });
+          } catch (error) {
+            useDawStore
+              .getState()
+              .announceStatus(`${def.label} failed: ${errorMessage(error)}`, {
+                tone: "error",
+              });
+            return;
+          }
           if (
             result.status === "disabled" &&
             !result.told &&

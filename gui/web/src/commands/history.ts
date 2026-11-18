@@ -1,4 +1,4 @@
-import { HISTORY_STALE_CODE, redoHistory, undoHistory } from "../api";
+import { redoHistory, undoHistory } from "../api";
 import {
   type DocumentScope,
   documentScope,
@@ -15,7 +15,12 @@ import {
   savesLandedMark,
 } from "../state/documentSendOrder";
 import { type HistoryEntryId, parseHistoryEntryId } from "../types/project";
-import { ApiError, errorMessage } from "../utils/apiError";
+import {
+  ApiError,
+  errorMessage,
+  HISTORY_REFUSAL_CODES,
+  HISTORY_STALE_CODE,
+} from "../utils/apiError";
 import { execute, registerCommand } from "./execute";
 import { flushPendingMix } from "./trackMix";
 import type { ExecuteResult } from "./types";
@@ -123,20 +128,20 @@ function moveHistory(
   const run = async (): Promise<ExecuteResult> => {
     let landed: HistoryEntryId | null = null;
     try {
-      const refuse = (): ExecuteResult => {
-        queued?.drop(STALE_COPY[action]);
+      const refuse = (reason: string = STALE_COPY[action]): ExecuteResult => {
+        queued?.drop(reason);
         const standing = useDawStore.getState().feedbackToast;
         useDawStore
           .getState()
           .announceStatus(
-            STALE_COPY[action],
+            reason,
             queued && standing?.undo && standing.undo !== explicit
               ? { toast: false, tone: "error" }
               : { tone: "error" },
           );
         return {
           status: "disabled",
-          reason: STALE_COPY[action],
+          reason,
           told: true,
         };
       };
@@ -166,8 +171,8 @@ function moveHistory(
           { expectedHeadId, scope },
         );
       } catch (e) {
-        if (e instanceof ApiError && e.code === HISTORY_STALE_CODE) {
-          return refuse();
+        if (e instanceof ApiError && HISTORY_REFUSAL_CODES.has(e.code)) {
+          return e.code === HISTORY_STALE_CODE ? refuse() : refuse(e.message);
         }
         throw e;
       }

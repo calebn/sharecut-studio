@@ -39,6 +39,7 @@ import { DocumentCommand } from "../types/documentCommands.generated";
 import { parseHistoryEntryId } from "../types/project";
 import {
   ApiError,
+  HISTORY_REFUSAL_CODES,
   isRetryLater,
   projectUnavailableReason,
   refusalReason,
@@ -223,6 +224,10 @@ async function settleHistoryFailure(
       true,
     );
     return new Error(reason);
+  }
+  if (HISTORY_REFUSAL_CODES.has(failure.code)) {
+    await settleCommandOutcome(projectPath, cmd, null, true);
+    return failure;
   }
   await settleCommandOutcome(
     projectPath,

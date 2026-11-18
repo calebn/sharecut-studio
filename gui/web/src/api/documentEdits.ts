@@ -49,9 +49,6 @@ export async function submitDocumentCommand(
   return submitQueuedDocumentCommand(projectPath, type, payload, opts);
 }
 
-/** The server refused an undo or redo because history moved past `expectedHeadId`. */
-export const HISTORY_STALE_CODE = "history_stale";
-
 export type HistoryMoveOptions = {
   rerender?: boolean;
   scope: DocumentScope;
