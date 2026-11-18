@@ -414,3 +414,28 @@ def test_the_host_is_told_when_their_undo_takes_back_a_guests_comment(minimal_pr
 
     assert host_move(minimal_project, "Undo")["guest_step"] is True
     assert load_project(minimal_project).comments == []
+
+
+def test_a_guests_second_undo_cannot_take_back_an_unrecorded_host_change(
+    minimal_project, sample_wav
+):
+    token, _author = editor_link(minimal_project, sample_wav)
+    host = ProjectWorkspace.open(minimal_project)
+    with host.transaction() as project:
+        project.meta.name = "HOSTRENAME"
+        host.save()
+    client = TestClient(create_app())
+    guest_chapter(client, token, "Mine", 1)
+
+    first = guest_move(client, token, "Undo", minimal_project, 2)
+    assert first.status_code == 200, first.text
+    state = client.get(f"/api/review/{token}/daw/document/state?phase=full").json()
+    assert (state["history"]["can_undo"], state["history"]["can_redo"]) == (False, True)
+    before = stored(minimal_project)
+
+    second = guest_move(client, token, "Undo", minimal_project, 3)
+
+    assert second.status_code == 400, second.text
+    assert second.headers["X-Sharecut-Error-Code"] == "nothing_of_yours_to_undo"
+    assert stored(minimal_project) == before
+    assert load_project(minimal_project).meta.name == "HOSTRENAME"

@@ -158,13 +158,13 @@ def test_history_move_results_validate_preview_presence():
         "head_id": "root",
     }
     plain = HistoryMoveResult.model_validate(status)
-    assert list(plain.model_dump()) == [*status, "guest_step"]
+    assert list(plain.model_dump()) == list(status)
     with pytest.raises(ValidationError):
         HistoryMoveResult.model_validate({**status, "preview": {}})
     with pytest.raises(ValidationError):
         HistoryMoveRerenderedResult.model_validate(status)
     rerendered = HistoryMoveRerenderedResult.model_validate({**status, "preview": {"ready": True}})
-    assert list(rerendered.model_dump()) == [*status, "preview", "guest_step"]
+    assert list(rerendered.model_dump()) == [*status, "preview"]
     with pytest.raises(ValidationError):
         HistoryMoveRerenderedResult.model_validate({**status, "preview": None})
 
@@ -177,7 +177,7 @@ def test_history_moves_return_status_models_with_optional_preview(minimal_projec
     undone = service.undo()
     status_keys = {"cursor", "total", "can_undo", "can_redo", "current_label", "head_id"}
     assert type(undone) is HistoryMoveResult
-    assert set(undone.model_dump()) == status_keys | {"guest_step"}
+    assert set(undone.model_dump()) == status_keys
     with (
         patch("podcast_mcp.services.document.history.rerender_preview"),
         patch(
@@ -187,7 +187,7 @@ def test_history_moves_return_status_models_with_optional_preview(minimal_projec
     ):
         redone = service.redo(rerender=True)
     assert type(redone) is HistoryMoveRerenderedResult
-    assert set(redone.model_dump()) == status_keys | {"preview", "guest_step"}
+    assert set(redone.model_dump()) == status_keys | {"preview"}
     assert redone.preview == {"ready": True}
 
 
@@ -409,7 +409,7 @@ def _status_text(cursor, total, can_undo, can_redo, label, head, preview=None):
         f'  "can_undo": {can_undo},',
         f'  "can_redo": {can_redo},',
         f'  "current_label": "{label}",',
-        f'  "head_id": "{head}",',
+        f'  "head_id": "{head}"' + ("," if preview else ""),
     ]
     if preview:
         lines += [
@@ -421,9 +421,8 @@ def _status_text(cursor, total, can_undo, can_redo, label, head, preview=None):
             '    "nested": {',
             '      "n": 1',
             "    }",
-            "  },",
+            "  }",
         ]
-    lines.append('  "guest_step": false')
     lines.append("}")
     return "\n".join(lines)
 
@@ -450,7 +449,7 @@ def test_mcp_undo_redo_goto_wire_json(history_project, stub_render, rerender):
     assert history_goto_tool(path, 0, rerender=rerender) == goto
     assert history_goto_tool(path, 2, rerender=rerender) == (REDO_RR if rerender else REDO)
 
-    expected_keys = STATUS_KEYS + (["preview"] if rerender else []) + ["guest_step"]
+    expected_keys = STATUS_KEYS + (["preview"] if rerender else [])
     assert list(_dict(undo)) == expected_keys
 
 
@@ -463,7 +462,7 @@ def test_mcp_move_default_is_not_rerendered(history_project):
 @pytest.mark.parametrize("rerender", [False, True])
 def test_service_move_result_shape(history_project, stub_render, rerender):
     service = HistoryService(ProjectWorkspace.open(history_project))
-    extra = (["preview"] if rerender else []) + ["guest_step"]
+    extra = ["preview"] if rerender else []
     model = HistoryMoveRerenderedResult if rerender else HistoryMoveResult
 
     undone = service.undo(rerender=rerender)
@@ -477,7 +476,6 @@ def test_service_move_result_shape(history_project, stub_render, rerender):
         "current_label": "two",
         "head_id": "000000000002",
         **({"preview": PREVIEW} if rerender else {}),
-        "guest_step": False,
     }
     redone = service.redo(rerender=rerender)
     assert type(redone) is model
@@ -500,7 +498,7 @@ def test_document_plane_handlers_wire_json(history_project, stub_render, rerende
     undone = undo_history(ws, payload)
     assert type(undone) is dict
     assert json.dumps(undone) == json.dumps(_dict(UNDO_RR if rerender else UNDO))
-    assert list(undone) == STATUS_KEYS + (["preview"] if rerender else []) + ["guest_step"]
+    assert list(undone) == STATUS_KEYS + (["preview"] if rerender else [])
 
     redone = redo_history(ws, {**payload, "expected_head_id": "000000000002"})
     assert type(redone) is dict
@@ -509,11 +507,10 @@ def test_document_plane_handlers_wire_json(history_project, stub_render, rerende
         '{"cursor": 2, "total": 3, "can_undo": true, "can_redo": false, '
         '"current_label": "three", "head_id": "000000000003"'
         + (
-            ', "preview": {"ready": true, "stems": ["host"], "nested": {"n": 1}}'
+            ', "preview": {"ready": true, "stems": ["host"], "nested": {"n": 1}}}'
             if rerender
-            else ""
+            else "}"
         )
-        + ', "guest_step": false}'
     )
 
 
@@ -547,7 +544,7 @@ def _unicode_status(cursor, can_undo, can_redo, label, head, rerender):
     return (
         f'{{\n  "cursor": {cursor},\n  "total": 3,\n  "can_undo": {can_undo},\n'
         f'  "can_redo": {can_redo},\n  "current_label": "{label}",\n  "head_id": "{head}"'
-        f'{tail},\n  "guest_step": false\n}}'
+        f"{tail}\n}}"
     )
 
 
