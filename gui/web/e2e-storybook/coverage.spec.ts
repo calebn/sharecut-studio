@@ -7,7 +7,6 @@ import {
   type Page,
 } from "@playwright/test";
 import { expectStoryAxeClean } from "../e2e/axe";
-import { STORYBOOK_ONLY } from "../src/storybook/storybookOnlyStories";
 import { expectRootFit, expectShellFit } from "./shellFit";
 import { type StoryTheme, storyUrl } from "./storyUrl";
 
@@ -26,10 +25,12 @@ const THEMES: StoryTheme[] = ["light", "dark"];
 /**
  * Each worker opens Storybook once and moves between stories through the
  * preview channel, as the Storybook UI does, so a story costs a render and an
- * axe run rather than a page load. A story is checked at every width on that
- * live page. A story tagged `wide-only` cannot render at the phone width, so it
- * is checked at 1280 only and must say why in `parameters.wideOnlyReason`. A story named for a phone width is checked at
- * 360 only, and never carries `wide-only`.
+ * axe run rather than a page load. Only stories tagged `storybook-only` run
+ * here; the in-browser sweep skips them because they need the Storybook
+ * runtime. A story is checked at every width on that live page. A story tagged
+ * `wide-only` cannot render at the phone width, so it is checked at 1280 only
+ * and must say why in `parameters.wideOnlyReason`. A story named for a phone
+ * width is checked at 360 only, and never carries `wide-only`.
  */
 const isPhoneStory = (story: IndexEntry) => /\bphone\b/i.test(story.name);
 const widthsFor = (story: IndexEntry) =>
@@ -169,7 +170,7 @@ async function settle(page: Page) {
 
 for (const theme of THEMES) {
   for (const story of stories) {
-    if (!STORYBOOK_ONLY.includes(story.id)) continue;
+    if (!story.tags?.includes("storybook-only")) continue;
     test(`${story.title} / ${story.name} in ${theme}`, async ({
       storybook: page,
     }) => {
