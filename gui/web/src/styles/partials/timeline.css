@@ -1277,11 +1277,11 @@ html[data-shell="phone"] .pending-actions > .ui-control {
   position: absolute;
   inset-block-start: calc(
     var(--ruler-height) +
-    var(--marker-lane-height, 0px) +
+    var(--marker-lane-height, 0rem) +
     var(--space-3)
   );
   inset-inline-end: calc(
-    var(--timeline-scrollbar-inline, 0px) +
+    var(--timeline-scrollbar-inline, 0rem) +
     var(--space-4)
   );
   z-index: var(--z-timeline-chrome);
