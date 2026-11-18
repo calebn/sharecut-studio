@@ -318,13 +318,17 @@ class ProjectWorkspace:
     def undo(self, *, expected_head_id: str | None = None) -> HistoryStatus:
         """Step back one history entry and commit it (``expected_head_id`` as ``apply_undo``)."""
         return self._move_history(
-            lambda mgr, project: mgr.apply_undo(project, expected_head_id=expected_head_id)
+            lambda mgr, project: mgr.apply_undo(
+                project, expected_head_id=expected_head_id, guest=self.share_author
+            )
         )
 
     def redo(self, *, expected_head_id: str | None = None) -> HistoryStatus:
         """Step forward one history entry and commit it."""
         return self._move_history(
-            lambda mgr, project: mgr.apply_redo(project, expected_head_id=expected_head_id)
+            lambda mgr, project: mgr.apply_redo(
+                project, expected_head_id=expected_head_id, guest=self.share_author
+            )
         )
 
     def goto(self, index: int) -> HistoryStatus:

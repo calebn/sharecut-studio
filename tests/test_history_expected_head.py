@@ -516,10 +516,14 @@ def test_a_guest_undo_refuses_an_agent_edit_the_guest_never_saw(minimal_project,
     assert "agent-cut" in _decision_ids(minimal_project)
 
     current = _status(minimal_project).head_id
-    undone = _guest_undo(client, token, {"expected_head_id": current}, seq=3)
-    assert undone.status_code == 200, undone.text
-    assert "agent-cut" not in _decision_ids(minimal_project)
-    assert undone.json()["history_head_id"] == _status(minimal_project).head_id
+    refused = _guest_undo(client, token, {"expected_head_id": current}, seq=3)
+    assert refused.status_code == 400, refused.text
+    assert refused.headers["X-Sharecut-Error-Code"] == "nothing_of_yours_to_undo"
+    assert refused.json() == {
+        "detail": "There is nothing of yours to undo. The latest change is someone else's."
+    }
+    assert "agent-cut" in _decision_ids(minimal_project)
+    assert _status(minimal_project).head_id == current
 
 
 def test_undo_is_unavailable_when_only_previews_sit_under_the_cursor(minimal_project):
