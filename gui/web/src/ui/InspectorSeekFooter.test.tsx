@@ -2,6 +2,7 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { clearRegisteredCommands } from "../commands/execute";
+import * as playSpanModule from "../commands/playSpan";
 import { registerDawCommands } from "../commands/register";
 import { useDawStore } from "../state/dawStore";
 import { expectNoA11yViolations } from "../test/a11y";
@@ -54,6 +55,22 @@ describe("InspectorSeekFooter", () => {
     expect(s.playheadSec).toBe(9.5);
     expect(s.playUntilSec).toBe(12.5);
     expect(s.isPlaying).toBe(true);
+  });
+
+  it("forwards its padding to playSpan", async () => {
+    const user = userEvent.setup();
+    const spy = vi.spyOn(playSpanModule, "playSpan");
+    render(
+      <InspectorSeekFooter
+        seekSec={10}
+        playStart={10}
+        playEnd={12}
+        padSec={0.5}
+      />,
+    );
+    await user.click(screen.getByRole("button", { name: "Play around" }));
+    expect(spy).toHaveBeenCalledWith(10, 12, 0.5);
+    spy.mockRestore();
   });
 
   it("says why it cannot play", async () => {
