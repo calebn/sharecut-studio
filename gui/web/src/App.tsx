@@ -1,6 +1,7 @@
 import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import { flushSync } from "react-dom";
 import { isLinkEnded, loadReviewBootstrap, markLinkEnded } from "./api";
+import { forgetLinkAudio } from "./audio/chunkCache";
 import {
   classifyBootstrapFailure,
   type GuestLoadFailure,
@@ -407,6 +408,7 @@ function AppInner({ bootName }: { bootName: string | null }) {
         if (failure.kind === "bad-link") {
           if (e instanceof ApiError && e.code === "share_not_found") {
             void clearOfflineSnapshot(reviewToken).catch(() => undefined);
+            void forgetLinkAudio(reviewToken);
           }
           outcome = { kind: "error", error: { failure } };
           return;
@@ -484,6 +486,8 @@ function AppInner({ bootName }: { bootName: string | null }) {
       );
     });
     void retireOfflineSnapshot(token);
+    // Started after the cover is on screen and never waited for.
+    void forgetLinkAudio(token);
   };
   useDeadLinkWatch(shareKey ? reviewToken : null, endSession);
 
