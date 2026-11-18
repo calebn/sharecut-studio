@@ -787,11 +787,12 @@ describe("GuestRoomApp", () => {
     stubBootstrap(producerBootstrap);
     render(<GuestRoomApp token="prod-tok" />);
     await waitFor(() => expect(sockets).toHaveLength(1));
-    sockets[0].close = vi.fn();
+    const close = vi.fn();
+    sockets[0].close = close;
     await userEvent.click(
       await screen.findByRole("button", { name: "Not now" }),
     );
-    expect(sockets[0].close).toHaveBeenCalled();
+    expect(close).toHaveBeenCalled();
     expect(
       screen.getByRole("region", { name: "Not in the room" }),
     ).toBeVisible();
@@ -974,12 +975,13 @@ describe("GuestRoomApp", () => {
 
     it("ends the look on Not now: no pill, no people, no row", async () => {
       await lookIn();
-      sockets[0].close = vi.fn();
+      const close = vi.fn();
+      sockets[0].close = close;
       look({ watchers: 2, server_time_ns: 101 });
       expect(rowText()).not.toBeNull();
       await userEvent.click(screen.getByRole("button", { name: "Not now" }));
       await screen.findByRole("region", { name: "Not in the room" });
-      expect(sockets[0].close).toHaveBeenCalled();
+      expect(close).toHaveBeenCalled();
       expect(document.querySelector(".sys-pill-text")).toBeNull();
       expect(screen.queryByText("Hana")).toBeNull();
       expect(rowText()).toBeNull();
