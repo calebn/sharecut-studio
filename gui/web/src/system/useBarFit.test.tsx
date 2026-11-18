@@ -39,10 +39,13 @@ describe("findFitLevel", () => {
 
 describe("useBarFit", () => {
   let lowest = 0;
+  /** How many times the bar was measured (once per level tried). */
+  let passes = 0;
   const original = Element.prototype.getBoundingClientRect;
 
   beforeEach(() => {
     lowest = 0;
+    passes = 0;
     // A bar 400 px wide whose right column runs out of it until `lowest`
     // levels of the bar have been given up.
     Element.prototype.getBoundingClientRect = function rect(this: Element) {
@@ -60,9 +63,13 @@ describe("useBarFit", () => {
           y: 0,
           toJSON: () => ({}),
         }) as DOMRect;
-      if (this.classList.contains("sys-player")) return make(0, 400);
+      if (this.classList.contains("sys-player")) {
+        passes += 1;
+        return make(0, 400);
+      }
+      if (this.classList.contains("sys-player-host")) return make(0, 400);
       if (this.parentElement?.classList.contains("sys-player-left"))
-        return make(8, 60);
+        return make(8, 60 + lowest);
       if (this.parentElement?.classList.contains("sys-player-center"))
         return make(180, 40);
       if (this.parentElement?.classList.contains("sys-player-right"))
@@ -96,6 +103,74 @@ describe("useBarFit", () => {
     lowest = 0;
     rerender(<Player {...base} solo="Rosa" />);
     expect(fit(container)).toBe("0");
+  });
+
+  it("measures nothing when only the time advances within its digits, 100 times", () => {
+    const { container, rerender } = render(
+      <Player {...base} time="10:00.000" />,
+    );
+    expect(fit(container)).toBe("0");
+    const afterFirstFit = passes;
+    expect(afterFirstFit).toBe(1);
+    for (let tick = 1; tick <= 100; tick += 1) {
+      rerender(
+        <Player
+          {...base}
+          time={`10:${String(tick % 60).padStart(2, "0")}.${String(tick).padStart(3, "0")}`}
+        />,
+      );
+    }
+    expect(passes).toBe(afterFirstFit);
+  });
+
+  it("fits once more when the clock gains a digit", () => {
+    const { rerender } = render(<Player {...base} time="59:59.999" />);
+    const before = passes;
+    rerender(<Player {...base} time="1:00:00.000" />);
+    expect(passes - before).toBe(1);
+  });
+
+  it("fits once more when a pill appears or a name changes", () => {
+    const { rerender } = render(<Player {...base} />);
+    const before = passes;
+    rerender(<Player {...base} solo="Rosa" />);
+    expect(passes - before).toBe(1);
+    rerender(<Player {...base} solo="Rosalind" />);
+    expect(passes - before).toBe(2);
+    rerender(<Player {...base} solo="Rosalind" />);
+    expect(passes - before).toBe(2);
+  });
+
+  it("settles: a report of unchanged sizes measures nothing, a change measures once", () => {
+    const { container } = render(<Player {...base} />);
+    const host = container.querySelector<HTMLElement>(".sys-player-host");
+    if (!host) throw new Error("no host");
+    const observer = FakeResizeObserver.of(host);
+    const before = passes;
+    for (let report = 0; report < 5; report += 1) observer.fire();
+    expect(passes).toBe(before);
+    lowest = 2;
+    observer.fire();
+    // One search tried levels 0, 1 and 2; the changes it made wake the
+    // observer again and it must stay idle.
+    expect(passes - before).toBe(3);
+    for (let report = 0; report < 5; report += 1) observer.fire();
+    expect(passes - before).toBe(3);
+    expect(fit(container)).toBe("2");
+  });
+
+  it("fits again when the pointer type changes", () => {
+    const listeners: (() => void)[] = [];
+    vi.stubGlobal("matchMedia", () => ({
+      matches: false,
+      addEventListener: (_: string, listener: () => void) =>
+        listeners.push(listener),
+      removeEventListener: () => undefined,
+    }));
+    const { container } = render(<Player {...base} />);
+    lowest = 3;
+    for (const listener of listeners) listener();
+    expect(fit(container)).toBe("3");
   });
 
   it("fits again when the bar is resized", () => {

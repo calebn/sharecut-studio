@@ -1,4 +1,4 @@
-import { type RefObject, useLayoutEffect } from "react";
+import { type RefObject, useLayoutEffect, useRef } from "react";
 import { useResizeObserver } from "../ui/useResizeObserver";
 
 /**
@@ -82,6 +82,20 @@ export function barFits(host: HTMLElement): boolean {
   );
 }
 
+/** Everything in the three columns: what the bar's size and its contents' sizes tell. */
+const CONTENTS =
+  ".sys-player-left > *, .sys-player-center > *, .sys-player-right > *";
+
+/** The sizes of the bar and of what is in its columns, as one string. */
+function sizesOf(host: HTMLElement): string {
+  return [host, ...Array.from(host.querySelectorAll(CONTENTS))]
+    .map((el) => {
+      const rect = el.getBoundingClientRect();
+      return `${Math.round(rect.width * 2)}x${Math.round(rect.height * 2)}`;
+    })
+    .join(",");
+}
+
 /** Sets `data-fit` on `host` to the lowest level at which the bar fits. */
 export function fitBar(host: HTMLElement): void {
   host.dataset.fit = String(
@@ -92,40 +106,108 @@ export function fitBar(host: HTMLElement): void {
   );
 }
 
+/** Fits the bar and keeps the sizes it ended with, so a report of those sizes does nothing. */
+function refit(host: HTMLElement, settled: { current: string }): void {
+  fitBar(host);
+  settled.current = sizesOf(host);
+}
+
+interface FitProps {
+  time: string;
+  cuts?: string;
+  rate?: number;
+  solo?: string;
+  state?: string;
+  status?: string;
+  guest?: boolean;
+  following?: { name: string; detail?: string };
+  hearMenu?: unknown;
+  onComment?: unknown;
+}
+
 /**
- * Sets `data-fit` on the bar's host before the first paint, and again when what
- * the bar holds changes (every render), when it resizes, when an attribute of
- * `<html>` changes (the text size) and when the fonts finish loading. Pass
- * `on` false for the dock and the expanded form: no attribute, no observers.
+ * What, besides a size, can change the fit: the strings and flags the bar
+ * draws. Not `time` itself (it changes every tick and a digit's width is fixed),
+ * only its length (the clock gaining a digit).
  */
-export function useBarFit(ref: RefObject<HTMLElement | null>, on: boolean) {
-  // No dependency list: the bar's contents are whatever its props render.
+export function barFitKey(props: FitProps): string {
+  return [
+    props.time.length,
+    props.cuts,
+    props.rate,
+    props.solo,
+    props.state,
+    props.status,
+    props.guest ? "guest" : "host",
+    props.following?.name,
+    props.following?.detail,
+    props.hearMenu ? "hear" : "",
+    props.onComment ? "comment" : "",
+  ].join("|");
+}
+
+/**
+ * Sets `data-fit` on the bar's host before the first paint and again when
+ * something that can change the fit changes: `key` (see `barFitKey`), a size
+ * of the bar or of what is in its columns (a ResizeObserver: a pill appearing,
+ * a name changing, the clock gaining a digit), an attribute of `<html>` (the
+ * text size), the fonts finishing loading, or the pointer type. A re-render
+ * that changes none of them measures nothing. A search changes the columns'
+ * sizes and so wakes the observer again; the sizes at the end of a search are
+ * kept and an observer report that finds the same sizes does nothing, so one
+ * change costs one search (at most two with the key). `on` false for the dock
+ * and the expanded form: no attribute, no observers.
+ */
+export function useBarFit(
+  ref: RefObject<HTMLElement | null>,
+  on: boolean,
+  key: string,
+) {
+  /** The sizes the last search ended with. */
+  const settled = useRef("");
+  /** The bar and the key the last search was for. */
+  const fitted = useRef<{ host: HTMLElement; key: string } | null>(null);
+  // No dependency list: the bar's host can change without any input here
+  // changing; a render with the same host and key does nothing.
   useLayoutEffect(() => {
     const host = ref.current;
-    if (!on || !host) return;
-    fitBar(host);
+    if (!on || !host) {
+      fitted.current = null;
+      return;
+    }
+    if (fitted.current?.host === host && fitted.current.key === key) return;
+    fitted.current = { host, key };
+    refit(host, settled);
   });
   useResizeObserver(
-    ref,
+    [
+      ref,
+      () =>
+        ref.current ? Array.from(ref.current.querySelectorAll(CONTENTS)) : [],
+    ],
     () => {
-      if (ref.current) fitBar(ref.current);
+      const host = ref.current;
+      if (host && sizesOf(host) !== settled.current) refit(host, settled);
     },
     on,
   );
   useLayoutEffect(() => {
     const host = ref.current;
     if (!on || !host) return;
-    const refit = () => fitBar(host);
+    const again = () => refit(host, settled);
     // A text-size or theme change sets an attribute on <html>: the widths of the
     // contents change, the bar's does not.
-    const root = new MutationObserver(refit);
+    const root = new MutationObserver(again);
     root.observe(document.documentElement, { attributes: true });
     const fonts = document.fonts;
-    void fonts?.ready.then(refit);
-    fonts?.addEventListener?.("loadingdone", refit);
+    void fonts?.ready.then(again);
+    fonts?.addEventListener?.("loadingdone", again);
+    const pointer = window.matchMedia?.("(pointer: coarse)");
+    pointer?.addEventListener?.("change", again);
     return () => {
       root.disconnect();
-      fonts?.removeEventListener?.("loadingdone", refit);
+      fonts?.removeEventListener?.("loadingdone", again);
+      pointer?.removeEventListener?.("change", again);
     };
   }, [ref, on]);
 }
