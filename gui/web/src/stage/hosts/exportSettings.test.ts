@@ -153,10 +153,14 @@ describe("exportSettingsFromConfig", () => {
   });
 
   it("labels M4A as AAC only when the codec is AAC", () => {
-    const label = (spec: { ext: string; codec?: string }) =>
+    const label = (spec: Record<string, unknown>) =>
       exportSettingsFromConfig({ export: { formats: [spec] } }).choices[0]
         .label;
     expect(label({ ext: "m4a" })).toBe("M4A (AAC) · 128 kbps");
+    expect(label({ ext: "m4a", bitrate_kbps: 96 })).toBe("M4A (AAC) · 96 kbps");
+    expect(label({ ext: "m4a", codec: "alac", bitrate_kbps: 96 })).toBe(
+      "M4A · 96 kbps",
+    );
     expect(label({ ext: "flac", codec: "aac" })).toBe("FLAC · lossless");
     expect(label({ ext: "mp3", codec: "aac" })).toBe("MP3");
   });
@@ -164,7 +168,9 @@ describe("exportSettingsFromConfig", () => {
   it("resolves a bare configured m4a to the preset spec", () => {
     for (const entry of [
       { ext: "m4a" },
+      { extension: "m4a" },
       { ext: "m4a", codec: null, extra_args: [] },
+      { ext: "m4a", codec: "", format: "" },
     ]) {
       const settings = exportSettingsFromConfig({
         export: { formats: [entry] },
