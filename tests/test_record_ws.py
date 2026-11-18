@@ -3374,7 +3374,9 @@ def test_a_joined_socket_removed_by_the_host_is_closed_without_an_invite_closed_
 ):
     from podcast_mcp.gui.routes import guest_ws_common
 
-    monkeypatch.setattr(guest_ws_common, "GUEST_SHARE_RECHECK_S", 0.2)
+    # No timer closes the socket: only the check that follows the socket's own next frame.
+    monkeypatch.setattr(guest_ws_common, "GUEST_SHARE_RECHECK_S", 1000.0)
+    monkeypatch.setattr(guest_ws_common, "GUEST_SHARE_RECHECK_ON_FRAME_S", 0.0)
     ws, room, client = _room(minimal_project, sample_wav, tmp_workspace, monkeypatch)
     lose = _drop_room_events(monkeypatch, only_removals=False)
     path = f"/api/rec/{room[link]['token']}/ws" + ("?observe=1" if link == "producer" else "")
@@ -3383,13 +3385,17 @@ def test_a_joined_socket_removed_by_the_host_is_closed_without_an_invite_closed_
             sock.receive_json()
         _join(sock, name="Sam")
         echo = _drain_until(sock, lambda m: m.get("type") == "Echo")
-        # No event reaches the socket, so only the periodic share recheck can close it.
+        # The Join's own Applied is the last event the pump has, so none is pending below.
+        _drain_until(sock, lambda m: m.get("type") == "Applied")
         lose["dropping"] = True
         RecordControlService(ws).submit_host(
             "RemoveParticipant", payload={"participant_id": echo["participant_id"]}
         )
+        sock.send_json(_record_command("Heartbeat"))
         code, reason, frames = _close_within(sock, 5.0)
-        assert (code, reason) == (4403, "share revoked or expired")
+        # The participant gate would close a removed socket on any send with its own reason,
+        # so this reason also shows that no frame was attempted.
+        assert (code, reason) == (4403, "participant removed or share revoked")
         assert all(f.get("code") != "invite_closed" for f in frames)
 
 
@@ -3398,7 +3404,10 @@ def test_a_revoked_look_gets_no_error_frame_even_when_its_invite_had_closed(
 ):
     from podcast_mcp.gui.routes import guest_ws_common
 
-    monkeypatch.setattr(guest_ws_common, "GUEST_SHARE_RECHECK_S", 0.2)
+    # No timer closes the look: only the check that follows its own next frame, which
+    # runs after the invite closed and the link was revoked.
+    monkeypatch.setattr(guest_ws_common, "GUEST_SHARE_RECHECK_S", 1000.0)
+    monkeypatch.setattr(guest_ws_common, "GUEST_SHARE_RECHECK_ON_FRAME_S", 0.0)
     ws, room, client = _room(minimal_project, sample_wav, tmp_workspace, monkeypatch)
     lose = _drop_room_events(monkeypatch, only_removals=False)
     svc = _room_svc(ws, room)
@@ -3408,6 +3417,7 @@ def test_a_revoked_look_gets_no_error_frame_even_when_its_invite_had_closed(
         lose["dropping"] = True
         _close_the_producer_invite(ws, room)
         ShareService(ws).revoke_room(room["session_id"])
+        obs.send_json(_record_command("Heartbeat"))
         code, _reason, frames = _close_within(obs, 5.0)
         assert code == 4403
         assert all(f.get("type") != "Error" for f in frames)
