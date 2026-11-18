@@ -1039,6 +1039,46 @@ describe("GuestRoomApp", () => {
       ).toBeNull();
     });
 
+    it("drops the room it showed and looks again when a failed Join leaves the page on a socket that is not looking", async () => {
+      await lookIn();
+      look({ watchers: 1, server_time_ns: 101 });
+      await screen.findByRole("heading", { name: "Hana and Ava are here" });
+      await enterName("Pat");
+      await userEvent.click(
+        screen.getByRole("button", { name: "Join to listen" }),
+      );
+      await waitFor(() => {
+        expect(
+          sockets[0].sent.filter((raw) => raw.includes('"Join"')),
+        ).toHaveLength(1);
+      });
+      act(() => sockets[0].onclose?.({ code: 1006 }));
+      await waitFor(() => expect(sockets).toHaveLength(2));
+      await waitFor(() => {
+        expect(
+          sockets[1].sent.filter((raw) => raw.includes('"Join"')),
+        ).toHaveLength(1);
+      });
+      act(() =>
+        sockets[1].onmessage?.({
+          data: JSON.stringify({
+            plane: "record",
+            type: "Error",
+            code: "invalid_state",
+          }),
+        }),
+      );
+      await screen.findByRole("button", { name: "Join to listen" });
+      expect(document.querySelector(".sys-pill-text")).toBeNull();
+      expect(
+        screen.queryByRole("heading", { name: "Hana and Ava are here" }),
+      ).toBeNull();
+      await waitFor(() => expect(sockets).toHaveLength(3));
+      expect(
+        new URL(sockets[2].url, "http://x").searchParams.get("observe"),
+      ).toBe("1");
+    });
+
     it("keeps the count right when the Echo and the snapshot that lists the producer follow one another", async () => {
       await lookIn();
       look({ watchers: 2, server_time_ns: 101 });

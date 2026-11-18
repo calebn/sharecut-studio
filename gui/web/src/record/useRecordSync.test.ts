@@ -1030,6 +1030,32 @@ describe("useRecordSync", () => {
       expect(hook.result.current.counted).toBe(false);
     });
 
+    it("drops the kept room and opens a look again when the mode returns to watch on a joining socket", async () => {
+      vi.useFakeTimers();
+      vi.spyOn(Math, "random").mockReturnValue(0.9);
+      const hook = watching("watch");
+      await settle();
+      await act(async () => {
+        FakeWebSocket.instances[0].emit(lobby(1, 10));
+      });
+      hook.rerender({ m: "join" });
+      await act(async () => {
+        FakeWebSocket.instances[0].close(1006);
+      });
+      expect(hook.result.current.snapshot).not.toBeNull();
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(300);
+      });
+      expect(FakeWebSocket.instances).toHaveLength(2);
+      hook.rerender({ m: "watch" });
+      await settle();
+      expect(hook.result.current.snapshot).toBeNull();
+      expect(FakeWebSocket.instances).toHaveLength(3);
+      expect(
+        new URL(FakeWebSocket.instances[2].url).searchParams.get("observe"),
+      ).toBe("1");
+    });
+
     it("retries a press made while connecting at once when the server then refuses the look", async () => {
       vi.useFakeTimers();
       vi.spyOn(Math, "random").mockReturnValue(0.9);

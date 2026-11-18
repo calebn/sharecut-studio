@@ -135,6 +135,7 @@ export function useRecordSync(
     Awaited<ReturnType<typeof loadRecordParticipant>> | undefined
   >(undefined);
   const joinSentRef = useRef(false);
+  const seatSocketRef = useRef(false);
   const phaseRef = useRef<"idle" | "connecting" | "open" | "backoff">("idle");
   const [restart, setRestart] = useState(0);
   const mode =
@@ -200,6 +201,7 @@ export function useRecordSync(
     let openedWatching = false;
     let accessEnded = false;
     let lookRefused = false;
+    seatSocketRef.current = false;
     const lookWithSavedPlace = () =>
       !joined && openedWatching && Boolean(cachedRef.current?.lease);
     phaseRef.current = "connecting";
@@ -233,6 +235,7 @@ export function useRecordSync(
     const socket = openPlaneSocket<RecordMsg>({
       url: () => {
         openedWatching = modeRef.current === "watch";
+        seatSocketRef.current = !openedWatching;
         return recordWsUrl(
           token,
           clientIdRef.current,
@@ -309,6 +312,7 @@ export function useRecordSync(
           }
           if (msg.type === "Echo" && msg.participant_id && msg.lease) {
             joined = true;
+            seatSocketRef.current = false;
             ctx.markHealthy();
             startHeartbeat();
             skipLeaseRef.current = false;
@@ -369,6 +373,11 @@ export function useRecordSync(
   useEffect(() => {
     if (mode !== "join") {
       joinSentRef.current = false;
+      if (mode === "watch" && seatSocketRef.current) {
+        seatSocketRef.current = false;
+        setSnapshot(null);
+        setRestart((n) => n + 1);
+      }
       return;
     }
     if (phaseRef.current === "open") {
