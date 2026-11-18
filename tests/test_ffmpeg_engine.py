@@ -1138,7 +1138,12 @@ def test_listed_names_are_cached_and_a_failed_listing_is_not():
         assert broken._has_filter("drawbox") is False
         assert broken._has_filter("drawbox") is False
         assert broken._has_filter("drawtext") is False
-        assert broken._listed_names("-filters") == set()
+        assert broken._listed_names("-filters") is None
+    listing = MagicMock(stdout=" T.. drawbox   V->V  Draw a colored box\n", returncode=0)
+    with patch("podcast_mcp.engines.ffmpeg.run", return_value=listing) as spawned:
+        assert broken._has_filter("drawbox") is True
+        assert broken._has_filter("drawbox") is True
+        assert spawned.call_count == 1
 
 
 def test_supports_encode_needs_the_encoder_and_the_muxer_and_a_readable_listing():

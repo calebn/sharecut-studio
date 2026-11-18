@@ -99,6 +99,18 @@ describe("format sizes", () => {
   });
 });
 
+describe("a bare configured m4a", () => {
+  it("is sized at the preset's 128 kbps", () => {
+    const settings = exportSettingsFromConfig({
+      export: { formats: [{ ext: "m4a" }] },
+    });
+    const options = exportOptionsOf(flowOf({ settings, selected: ["m4a"] }));
+    expect(options.formats?.find((o) => o.id === "m4a")?.bytesPerSecond).toBe(
+      16_000,
+    );
+  });
+});
+
 describe("exportOptionsOf", () => {
   it("offers the project's formats and the loudness sentence, and hides what has no backend", () => {
     const options = exportOptionsOf(flowOf());
