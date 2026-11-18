@@ -1082,6 +1082,61 @@ describe("GuestRoomApp", () => {
       ).toBe("1");
     });
 
+    it("leaves no alert in the room when the press that follows the restart succeeds", async () => {
+      await lookIn();
+      look({ watchers: 1, server_time_ns: 101 });
+      await screen.findByRole("heading", { name: "Hana and Ava are here" });
+      await enterName("Pat");
+      await userEvent.click(
+        screen.getByRole("button", { name: "Join to listen" }),
+      );
+      await waitFor(() => {
+        expect(
+          sockets[0].sent.filter((raw) => raw.includes('"Join"')),
+        ).toHaveLength(1);
+      });
+      act(() => sockets[0].onclose?.({ code: 1006 }));
+      await waitFor(() => expect(sockets).toHaveLength(2));
+      await waitFor(() => {
+        expect(
+          sockets[1].sent.filter((raw) => raw.includes('"Join"')),
+        ).toHaveLength(1);
+      });
+      act(() =>
+        sockets[1].onmessage?.({
+          data: JSON.stringify({
+            plane: "record",
+            type: "Error",
+            code: "invalid_state",
+          }),
+        }),
+      );
+      await waitFor(() => expect(sockets).toHaveLength(3));
+      await userEvent.click(
+        await screen.findByRole("button", { name: "Join to listen" }),
+      );
+      await waitFor(() => {
+        expect(
+          sockets[2].sent.filter((raw) => raw.includes('"Join"')),
+        ).toHaveLength(1);
+      });
+      act(() => sockets[2].onmessage?.(producerEcho));
+      act(() =>
+        sockets[2].onmessage?.(
+          producerSnapshot({ state: "recording", server_time_ns: 100 }),
+        ),
+      );
+      await waitFor(() => {
+        expect(
+          screen.queryByRole("button", { name: /Join to listen/ }),
+        ).toBeNull();
+      });
+      expect(
+        screen.queryByText("That isn't possible in the room's current state."),
+      ).toBeNull();
+      expect(screen.queryByRole("button", { name: "Dismiss" })).toBeNull();
+    });
+
     it("keeps the count right when the Echo and the snapshot that lists the producer follow one another", async () => {
       await lookIn();
       look({ watchers: 2, server_time_ns: 101 });
@@ -1288,6 +1343,54 @@ describe("GuestRoomApp", () => {
       expect(sockets).toHaveLength(1);
     },
   );
+
+  const REFUSED = "That isn't possible in the room's current state.";
+
+  it("leaves no alert in the room after a second press succeeds", async () => {
+    await pressJoinToListen();
+    await sendError("invalid_state");
+    expect(screen.getByRole("alert")).toHaveTextContent(REFUSED);
+    await userEvent.click(
+      await screen.findByRole("button", { name: "Join to listen" }),
+    );
+    await waitFor(() => {
+      expect(
+        sockets[0].sent.filter((raw) => raw.includes('"Join"')),
+      ).toHaveLength(2);
+    });
+    act(() => sockets[0].onmessage?.(producerEcho));
+    act(() =>
+      sockets[0].onmessage?.(
+        producerSnapshot({ state: "recording", server_time_ns: 100 }),
+      ),
+    );
+    await waitFor(() => {
+      expect(
+        screen.queryByRole("button", { name: /Join to listen/ }),
+      ).toBeNull();
+    });
+    expect(screen.queryByText(REFUSED)).toBeNull();
+    expect(screen.queryByRole("button", { name: "Dismiss" })).toBeNull();
+  });
+
+  it("shows the new reason when a second press is refused too", async () => {
+    await pressJoinToListen();
+    await sendError("invalid_state");
+    await userEvent.click(
+      await screen.findByRole("button", { name: "Join to listen" }),
+    );
+    await waitFor(() => {
+      expect(
+        sockets[0].sent.filter((raw) => raw.includes('"Join"')),
+      ).toHaveLength(2);
+    });
+    await sendError("rate_limited");
+    await screen.findByRole("button", { name: "Join to listen" });
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      recordSyncErrorCopy("rate_limited") ?? "",
+    );
+    expect(screen.queryByText(REFUSED)).toBeNull();
+  });
 
   it("does not hang on a second tab's lease_in_use: Not now still cancels", async () => {
     await pressJoinToListen();
