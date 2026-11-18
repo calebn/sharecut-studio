@@ -1746,6 +1746,82 @@ describe("the decoded audio the engine holds", () => {
     r.engine.dispose();
   });
 
+  /** Plays on from 50 s, where every extension lands 5 s into a chunk, until one has landed after 300 s. */
+  async function playUntilExtendedEarlyInChunk(r: ReturnType<typeof rig>) {
+    r.engine.play(50);
+    await flush();
+    let through = 0;
+    for (let ctxSec = 1; ctxSec < 3000; ctxSec += 1) {
+      await advanceTo(r.handle, ctxSec);
+      const horizon = Reflect.get(r.engine, "horizon") as {
+        throughSec: number;
+      } | null;
+      if (!horizon || horizon.throughSec === through) continue;
+      through = horizon.throughSec;
+      const timelineSec = r.engine.currentTimeSec();
+      if (timelineSec > 300 && timelineSec % CHUNK_SEC === 5)
+        return timelineSec;
+    }
+    throw new Error("no extension landed early in a chunk");
+  }
+
+  it("skips back 15 s across a chunk boundary after a long listen without a fetch or a decode", async () => {
+    const r = rig(7200);
+    const at = await playUntilExtendedEarlyInChunk(r);
+    const back = Math.floor((at - 15) / CHUNK_SEC);
+    expect(back).toBeLessThan(Math.floor(at / CHUNK_SEC));
+    for (const id of TRACK_IDS)
+      expect(chunkIndexes(r.held().buffers, id)).toContain(back);
+    const fetches = r.fetchChunk.mock.calls.length;
+    const decodes = r.handle.decode.mock.calls.length;
+    r.engine.seek(at - 15);
+    await flush();
+    expect(r.fetchChunk.mock.calls.length).toBe(fetches);
+    expect(r.handle.decode.mock.calls.length).toBe(decodes);
+    expect(
+      soundingAt(r.handle.created, r.handle.ctx.currentTime + 0.5, 1),
+    ).toBe(TRACK_IDS.length);
+    expect(r.events.onFailure).not.toHaveBeenCalled();
+    r.engine.dispose();
+  });
+
+  it("releases the chunks the playhead left behind when it pauses between wakes", async () => {
+    const r = rig(7200, ["host"]);
+    const at = await playUntilExtendedEarlyInChunk(r);
+    const behind = Math.floor(at / CHUNK_SEC) - 1;
+    r.handle.setTime(r.handle.ctx.currentTime + 70);
+    await flush();
+    expect(chunkIndexes(r.held().buffers, "host")).toContain(behind);
+    const t = r.engine.pause();
+    expect(t).toBe(at + 70);
+    expect(chunkIndexes(r.held().buffers, "host")).not.toContain(behind);
+    expectConsistent(r.held());
+    r.engine.dispose();
+  });
+
+  it("releases the chunks the playhead left behind while an extension was fetching", async () => {
+    const r = rig(7200, ["host"]);
+    const gate = deferred<ArrayBuffer>();
+    r.fetchChunk.mockImplementation(async (ref: ImmutableChunkRef) => {
+      r.fetched.push(ref.url);
+      return ref.url === "host/c4"
+        ? gate.promise
+        : new ArrayBuffer(48000 * CHUNK_SEC);
+    });
+    r.engine.play(50);
+    await flush();
+    await advanceTo(r.handle, 75);
+    expect(r.fetched).toContain("host/c4");
+    expect(chunkIndexes(r.held().buffers, "host")).toContain(1);
+    r.handle.setTime(145);
+    gate.resolve(new ArrayBuffer(48000 * CHUNK_SEC));
+    await flush();
+    expect(chunkIndexes(r.held().buffers, "host")).toContain(4);
+    expect(chunkIndexes(r.held().buffers, "host")).not.toContain(1);
+    expectConsistent(r.held());
+    r.engine.dispose();
+  });
+
   it("still plays a seek back beyond the margin, fetching what it needs", async () => {
     const r = rig(7200);
     r.engine.play(0);
