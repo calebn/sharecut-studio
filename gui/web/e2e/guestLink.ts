@@ -22,6 +22,29 @@ export async function revokeLink(
   expect(ended.ok(), await ended.text()).toBeTruthy();
 }
 
+/** One link in the host's list, as `GET /api/shares` answers it. */
+export type ShareRow = {
+  token: string;
+  url: string | null;
+  docs_role: string | null;
+  mcp_url: string | null;
+  follow_latest?: boolean;
+  usable: boolean;
+  session_id?: string | null;
+};
+
+/** The host's list of links for `projectPath`, every row, usable or not. */
+export async function hostList(
+  host: Page,
+  projectPath: string,
+): Promise<ShareRow[]> {
+  const res = await host.request.get(
+    `/api/shares?path=${encodeURIComponent(projectPath)}`,
+  );
+  expect(res.ok(), await res.text()).toBeTruthy();
+  return ((await res.json()) as { shares: ShareRow[] }).shares;
+}
+
 /** The title of the cover for a link that does not open anything. */
 export const DEAD_TITLE = "This link doesn't open anything";
 

@@ -14,6 +14,7 @@ from podcast_mcp.models import (
     EditDecisionType,
     EpisodeProject,
     HistoryEntry,
+    ReviewMixVersion,
     SocialClipCandidate,
     TimelineComment,
     load_project,
@@ -23,6 +24,7 @@ from podcast_mcp.models.history import ProjectHistory
 from podcast_mcp.project.history import HistoryManager
 from podcast_mcp.project.history import rollback as rollback_mod
 from podcast_mcp.project.history.manager import (
+    apply_snapshot_to_project,
     snapshot_from_project,
     write_snapshot,
 )
@@ -38,6 +40,7 @@ from podcast_mcp.project.store import (
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.util import atomic_file
 from podcast_mcp.util.atomic_json import write_json_atomic
+from podcast_mcp.util.coded_error import CodedValueError
 
 
 def _run(path, project, *args, **kwargs):
@@ -688,3 +691,127 @@ def test_write_snapshot_round_trips_through_read(minimal_project):
     entry = HistoryEntry(id="shared-writer", label="snap", snapshot_file=rel)
     restored = HistoryManager(ProjectStore(minimal_project))._read_snapshot(proj, entry)
     assert restored.model_dump() == snapshot_from_project(proj).model_dump()
+
+
+def _review_comment(comment_id: str) -> TimelineComment:
+    return TimelineComment(
+        id=comment_id,
+        body="a note",
+        author="guest",
+        created_at="2026-01-01T00:00:00Z",
+        timeline_start=1.0,
+    )
+
+
+def _version(version_id: str) -> ReviewMixVersion:
+    return ReviewMixVersion(
+        id=version_id,
+        label="v1",
+        created_at="2026-01-01T00:00:00Z",
+        audio_relpath=f"artifacts/review/{version_id}/mix.wav",
+    )
+
+
+def _history_with_a_publish_step(project_path: Path) -> HistoryManager:
+    """A history an older build wrote: the publish of a review version is steps 0 and 1."""
+    mgr = HistoryManager(ProjectStore(project_path))
+    proj = load_project(project_path)
+    mgr.record(proj, "before publish review version", force=True)
+    proj.review.versions = [_version("ver-1")]
+    proj.review.active_version_id = "ver-1"
+    mgr.record(proj, "after publish review version", force=True)
+    proj.review.comments = [_review_comment("c1")]
+    mgr.record(proj, "after add comment")
+    save_project(proj, project_path)
+    return mgr
+
+
+def _review_state(project: EpisodeProject) -> tuple[list[str], str | None, list[str]]:
+    return (
+        [v.id for v in project.review.versions],
+        project.review.active_version_id,
+        [c.id for c in project.review.comments],
+    )
+
+
+def test_undo_and_redo_keep_the_review_versions_and_follow_the_comments(minimal_project):
+    mgr = _history_with_a_publish_step(minimal_project)
+
+    proj = load_project(minimal_project)
+    mgr.apply_undo(proj)
+    assert _review_state(proj) == (["ver-1"], "ver-1", [])
+    mgr.apply_undo(proj)
+    assert _review_state(proj) == (["ver-1"], "ver-1", [])
+    mgr.apply_redo(proj)
+    mgr.apply_redo(proj)
+    assert _review_state(proj) == (["ver-1"], "ver-1", ["c1"])
+
+
+def test_goto_keeps_the_review_versions_and_follows_the_comments(minimal_project):
+    mgr = _history_with_a_publish_step(minimal_project)
+
+    proj = load_project(minimal_project)
+    mgr.apply_goto(proj, 0)
+    assert _review_state(proj) == (["ver-1"], "ver-1", [])
+    mgr.apply_goto(proj, 2)
+    assert _review_state(proj) == (["ver-1"], "ver-1", ["c1"])
+
+
+def test_a_history_move_keeps_the_versions_whatever_shape_the_snapshot_holds(minimal_project):
+    mgr = HistoryManager(ProjectStore(minimal_project))
+    proj = load_project(minimal_project)
+    old = snapshot_from_project(proj)
+    old.review = {"comments": [], "versions": [{"unknown": "shape"}], "active_version_id": 7}
+    mgr.record(proj, "older shape", force=True, snapshot=old)
+    proj.review.versions = [_version("ver-1")]
+    proj.review.active_version_id = "ver-1"
+    mgr.record(proj, "with a version", force=True)
+    save_project(proj, minimal_project)
+
+    proj = load_project(minimal_project)
+    mgr.apply_undo(proj)
+    assert _review_state(proj) == (["ver-1"], "ver-1", [])
+
+
+def test_a_failed_commit_restore_still_brings_the_whole_review_section_back(minimal_project):
+    proj = load_project(minimal_project)
+    proj.review.versions = [_version("ver-1")]
+    proj.review.active_version_id = "ver-1"
+    snap = snapshot_from_project(proj)
+    proj.review.versions = []
+    proj.review.active_version_id = None
+
+    apply_snapshot_to_project(proj, snap)
+
+    assert _review_state(proj) == (["ver-1"], "ver-1", [])
+
+
+def test_nothing_to_undo_and_nothing_to_redo_are_coded_refusals(minimal_project):
+    mgr = HistoryManager(ProjectStore(minimal_project))
+    proj = load_project(minimal_project)
+    mgr.record(proj, "only", force=True)
+    save_project(proj, minimal_project)
+    proj = load_project(minimal_project)
+
+    with pytest.raises(CodedValueError, match="Nothing to undo") as undo:
+        mgr.apply_undo(proj)
+    with pytest.raises(CodedValueError, match="Nothing to redo") as redo:
+        mgr.apply_redo(proj)
+
+    assert undo.value.code == "nothing_to_undo"
+    assert redo.value.code == "nothing_to_redo"
+
+
+def test_a_refused_undo_leaves_the_cursor_where_it_was(minimal_project):
+    mgr = HistoryManager(ProjectStore(minimal_project))
+    proj = load_project(minimal_project)
+    mgr.record(proj, "start", force=True)
+    mgr.record(proj, "render", force=True, operation="render_preview")
+    save_project(proj, minimal_project)
+    proj = load_project(minimal_project)
+    assert proj.history.cursor == 1
+
+    with pytest.raises(ValueError, match="Nothing to undo"):
+        mgr.apply_undo(proj)
+
+    assert proj.history.cursor == 1
