@@ -696,7 +696,7 @@ describe("useProxyTransport", () => {
     );
   });
 
-  it("drops the audio a live manifest no longer names, for this link only", async () => {
+  it("drops the audio a live manifest no longer names, naming the manifest's chunks and the link's token", async () => {
     renderHook(() => useProxyTransport());
     await ready();
     await vi.waitFor(() => expect(pruneLinkAudio).toHaveBeenCalledOnce());

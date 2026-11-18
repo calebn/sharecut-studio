@@ -365,7 +365,7 @@ describe("the audio a link's guest keeps", () => {
       expect(fake.names()).toEqual([]);
     });
 
-    it("counts a later chunk of the same link as a new start, after a forgetting", async () => {
+    it("keeps audio again when the same link is opened again after a forgetting", async () => {
       const m = await load();
       const fake = fakeCaches();
       vi.stubGlobal("caches", fake.storage);
@@ -450,25 +450,44 @@ describe("the audio a link's guest keeps", () => {
       expect(fetchSpy).toHaveBeenCalledOnce();
     });
 
-    it("keeps the request's own error when the fetch fails and the cache fails too", async () => {
+    it.each<[Method, Fault]>([
+      ["open", "reject"],
+      ["match", "reject"],
+    ])(
+      "keeps the request's own error when the fetch fails and %s %s",
+      async (method, fault) => {
+        const m = await load();
+        const fake = fakeCaches();
+        fake.faults[method] = fault;
+        vi.stubGlobal("caches", fake.storage);
+        vi.stubGlobal(
+          "fetch",
+          vi.fn(
+            async () =>
+              new Response("gone", {
+                status: 404,
+                headers: { "X-Sharecut-Error-Code": "proxy_not_found" },
+              }),
+          ),
+        );
+        await expect(
+          m.cachedFetchArrayBuffer(`share:${freshLink()}`, ref(0, "/x/0")),
+        ).rejects.toMatchObject({ code: "proxy_not_found", status: 404 });
+      },
+    );
+
+    it("returns the bytes when the chunk's address cannot be made", async () => {
       const m = await load();
       const fake = fakeCaches();
-      fake.faults.put = "reject";
-      fake.faults.delete = "reject";
       vi.stubGlobal("caches", fake.storage);
-      vi.stubGlobal(
-        "fetch",
-        vi.fn(
-          async () =>
-            new Response("gone", {
-              status: 404,
-              headers: { "X-Sharecut-Error-Code": "proxy_not_found" },
-            }),
-        ),
+      vi.stubGlobal("location", undefined);
+      stubFetch();
+      const bytes = await m.cachedFetchArrayBuffer(
+        `share:${freshLink()}`,
+        ref(0, "/x/0"),
       );
-      await expect(
-        m.cachedFetchArrayBuffer(`share:${freshLink()}`, ref(0, "/x/0")),
-      ).rejects.toMatchObject({ code: "proxy_not_found", status: 404 });
+      expect(bytes.byteLength).toBe(3);
+      expect(fake.calls.put).toBe(0);
     });
   });
 
@@ -511,12 +530,17 @@ describe("the audio a link's guest keeps", () => {
 
       for (const method of ["has", "open", "keys", "delete"] as const) {
         const broken = fakeCaches();
-        broken.seed(`sharecut-link-audio:broken-${method}`);
+        // One entry the keep list does not name, so `delete` is reached.
+        const store = await broken.storage.open(
+          `${m.LINK_AUDIO_PREFIX}broken-${method}`,
+        );
+        await store.put("https://example.test/stale", new Response("x"));
         broken.faults[method] = "reject";
         vi.stubGlobal("caches", broken.storage);
         await expect(
           m.pruneLinkAudio(`broken-${method}`, []),
         ).resolves.toBeUndefined();
+        expect(broken.calls[method]).toBeGreaterThan(method === "open" ? 1 : 0);
       }
       vi.stubGlobal("caches", undefined);
       await expect(m.pruneLinkAudio(freshLink(), [])).resolves.toBeUndefined();
