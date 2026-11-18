@@ -696,7 +696,7 @@ describe("useProxyTransport", () => {
     );
   });
 
-  it("drops the audio a live manifest no longer names, naming the manifest's chunks and the link's token", async () => {
+  it("prunes the link's audio to the chunks a live manifest names", async () => {
     renderHook(() => useProxyTransport());
     await ready();
     await vi.waitFor(() => expect(pruneLinkAudio).toHaveBeenCalledOnce());
@@ -711,7 +711,7 @@ describe("useProxyTransport", () => {
     ]);
   });
 
-  it("does not drop any audio for a manifest read from the saved copy", async () => {
+  it("does not prune the link's audio for a manifest read from the saved copy", async () => {
     vi.mocked(loadProxyManifest).mockRejectedValue(new Error("offline"));
     vi.mocked(loadOfflineSnapshot).mockResolvedValue({
       manifest: manifestFor(),
