@@ -129,7 +129,15 @@ def snapshot_editable_state(project: Any) -> dict[str, Any]:
     }
 
 
-def apply_editable_snapshot(project: Any, snap: dict[str, Any]) -> None:
+def apply_editable_snapshot(
+    project: Any, snap: dict[str, Any], *, keep_review_versions: bool = False
+) -> None:
+    """Restore every editable section from ``snap``.
+
+    ``keep_review_versions`` is for a history move: published review versions and the active
+    choice are made once and never taken back, so the project's own stay and the snapshot's
+    are not read; its comments still follow the snapshot.
+    """
     from podcast_mcp.models.episode import (
         EditorialSection,
         MixSection,
@@ -154,7 +162,14 @@ def apply_editable_snapshot(project: Any, snap: dict[str, Any]) -> None:
         restored.guid = kept.guid or restored.guid
         restored.first_exported_at = kept.first_exported_at or restored.first_exported_at
     project.feed = restored
-    project.review = ReviewSection.model_validate(snap.get("review") or {"comments": []})
+    restored_review = snap.get("review") or {"comments": []}
+    if keep_review_versions:
+        restored_review = {
+            "comments": restored_review.get("comments", []),
+            "versions": project.review.versions,
+            "active_version_id": project.review.active_version_id,
+        }
+    project.review = ReviewSection.model_validate(restored_review)
     project.render.last_completed_step = snap.get("render_last_completed_step")
     meta = snap.get("meta")
     if meta and "name" in meta:

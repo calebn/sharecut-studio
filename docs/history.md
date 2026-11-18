@@ -80,9 +80,15 @@ episode/
 Each snapshot stores a **full copy** of editable v2 sections (not diffs), so undo/redo and arbitrary cursor jumps are O(1):
 
 - `sources`, `timeline` (tracks + clips), `editorial`, `transcripts` (per_track + combined)
-- `mix`, `social`, `feed` (podcast listing pins, guid and first export time; see [podcast-feed.md](podcast-feed.md)), `review` (timeline comments), `render_last_completed_step`
+- `mix`, `social`, `feed` (podcast listing pins, guid and first export time; see [podcast-feed.md](podcast-feed.md)), `review` (timeline comments; the review versions travel in each snapshot but a history move does not restore them), `render_last_completed_step`
 
 Undo/redo restores the snapshot and **`ProjectStore.commit()`** writes `episode.sharecut`.
+
+### Review versions are not history steps
+
+A published review version is made once, like the feed's guid, and is not undoable state. Undo, Redo and go-to-step restore `review.comments` from the snapshot but keep the project's own `review.versions` and `review.active_version_id` (`apply_editable_snapshot(..., keep_review_versions=True)`), and never read the snapshot's `versions`. `snapshots_equal` ignores both fields, like `render_last_completed_step`, so a change that touches only review versions records no step, whoever makes it: publishing, choosing the active version, encoding the review mp3, uploading it to the object store and clearing the key all run through `ProjectWorkspace.mutate` with the same checkpoint, rollback and commit and no `before` / `after` entry, so making a share link adds no step and the next edit's Undo is one press. A mutation that changes a version and anything else is an edit and records as before. Histories an older build wrote may hold `before` / `after publish review version` entries; moving onto one changes no review data. Only the failed-commit restore and `apply_auto` put the snapshot's whole review section back.
+
+An Undo or Redo with nothing to move to raises `CodedValueError` with code `nothing_to_undo` or `nothing_to_redo` (host route 400, MCP `error_code`, guest 400 with "There is nothing to undo." / "There is nothing to redo."), and a refused Undo leaves the in-memory cursor where it was.
 
 Snapshot files and the project store's transcript cache are written atomically (a temp file in the same directory, then a replace), so a crash leaves the old file or the new one and never a truncated one.
 
@@ -111,7 +117,7 @@ next commit rewrites it from the project's history, and its snapshots stay behin
 harmless orphans. The warning names the reason: a current entry that holds other state (a
 commit that never landed), a current snapshot that is missing or unreadable (damage or an
 out-of-band delete), or no current entry. Snapshots are compared in their saved JSON form
-(`project.store.snapshots_equal`), excluding `render_last_completed_step`.
+(`project.store.snapshots_equal`), excluding `render_last_completed_step` and the review versions with the active choice.
 The pipeline cursor is saved and restored with each snapshot, but advancing it
 alone does not create an undo action or invalidate an otherwise matching index.
 
