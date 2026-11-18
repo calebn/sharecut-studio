@@ -42,7 +42,12 @@ export function CoachTip({
   const anchorRef = useRef<HTMLSpanElement>(null);
   const bubbleRef = useRef<HTMLSpanElement>(null);
   const pressed = useEffectEvent((event: MouseEvent) => {
-    if (!(event.target as Element).closest(".sys-coach-close")) onPress?.();
+    if (
+      event.target instanceof Element &&
+      event.target.closest(".sys-coach-close")
+    )
+      return;
+    onPress?.();
   });
   // A click, not a pointerdown: the bubble stays under the finger for the whole
   // press, so nothing beneath it is hit. A listener on the note itself, which

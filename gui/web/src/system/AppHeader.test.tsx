@@ -694,12 +694,14 @@ describe("AppHeader first-visit role hint: a press and a key", () => {
     return { ...view, onDismiss, reached, trigger };
   }
 
-  it("closes on a click on its sentence, once, and moves no focus", async () => {
+  it("closes on a click on its sentence, once, moves no focus and opens no dialog", async () => {
     const { onDismiss, trigger } = hintHeader();
     await userEvent.click(screen.getByText(TEXT));
     expect(onDismiss).toHaveBeenCalledOnce();
     expect(screen.queryByRole("note")).toBeNull();
     expect(trigger).not.toHaveFocus();
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(trigger).toHaveAttribute("aria-expanded", "false");
   });
 
   it("stays up on a pointer or mouse press alone and closes on the click", () => {
@@ -726,13 +728,6 @@ describe("AppHeader first-visit role hint: a press and a key", () => {
     expect(onDismiss).toHaveBeenCalledOnce();
     expect(screen.queryByRole("note")).toBeNull();
     expect(trigger).toHaveFocus();
-  });
-
-  it("does not open the explanation after a press on the sentence", async () => {
-    const { trigger } = hintHeader();
-    await userEvent.click(screen.getByText(TEXT));
-    expect(screen.queryByRole("dialog")).toBeNull();
-    expect(trigger).toHaveAttribute("aria-expanded", "false");
   });
 
   it("closes on a letter key pressed outside, without stopping it", () => {
@@ -831,7 +826,6 @@ describe("AppHeader first-visit role hint: said once", () => {
     const { again } = setup({ guest: guestOf(hint) });
     expect(onShown).toHaveBeenCalledOnce();
     again({ guest: guestOf({ ...hint }) });
-    again({ guest: guestOf({ ...hint, text: `${TEXT}` }) });
     expect(onShown).toHaveBeenCalledOnce();
   });
 
