@@ -1,5 +1,6 @@
 import { render } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { FakeResizeObserver, stubResizeObserver } from "../test/resizeObserver";
 import { Player, type PlayerProps } from "./Player";
 import { findFitLevel, MAX_FIT_LEVEL } from "./useBarFit";
 
@@ -38,14 +39,10 @@ describe("findFitLevel", () => {
 
 describe("useBarFit", () => {
   let lowest = 0;
-  let resize: (() => void) | null = null;
-  let observed = false;
   const original = Element.prototype.getBoundingClientRect;
 
   beforeEach(() => {
     lowest = 0;
-    resize = null;
-    observed = false;
     // A bar 400 px wide whose right column runs out of it until `lowest`
     // levels of the bar have been given up.
     Element.prototype.getBoundingClientRect = function rect(this: Element) {
@@ -72,20 +69,7 @@ describe("useBarFit", () => {
         return make(level >= lowest ? 300 : 210, 40);
       return make(0, 0);
     };
-    vi.stubGlobal(
-      "ResizeObserver",
-      class {
-        callback: () => void;
-        constructor(callback: () => void) {
-          this.callback = callback;
-        }
-        observe() {
-          observed = true;
-          resize = this.callback;
-        }
-        disconnect() {}
-      },
-    );
+    stubResizeObserver();
   });
 
   afterEach(() => {
@@ -119,8 +103,9 @@ describe("useBarFit", () => {
     const { container } = render(<Player {...base} />);
     expect(fit(container)).toBe("1");
     lowest = 5;
-    expect(observed).toBe(true);
-    resize?.();
+    const host = container.querySelector<HTMLElement>(".sys-player-host");
+    if (!host) throw new Error("no host");
+    FakeResizeObserver.of(host).fire();
     expect(fit(container)).toBe("5");
   });
 
