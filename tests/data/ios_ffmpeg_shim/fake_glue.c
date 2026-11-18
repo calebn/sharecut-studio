@@ -73,10 +73,7 @@ void fake_stray_write(void) {
     pthread_mutex_lock(&mu);
     FILE *o = stray_out, *e = stray_err;
     pthread_mutex_unlock(&mu);
-    if (o) {
-        fputs("stray-out\n", o);
-        fflush(o);
-    }
+    if (o) fputs("stray-out\n", o);
     if (e) fputs("stray-err\n", e);
     fputs("stray-fresh\n", sc_err());
 }
@@ -175,6 +172,8 @@ int sc_glue_run(int tool, int argc, char **argv) {
             stray_out = sc_out();
             stray_err = sc_err();
             pthread_mutex_unlock(&mu);
+        } else if (strcmp(t, "unflushed") == 0) {
+            fputs("unflushed\n", sc_out());
         } else if (strcmp(t, "started") == 0) {
             fputs("started\n", sc_err());
         } else if (strcmp(t, "progress") == 0) {

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import contextlib
 import ctypes
 import errno
 import importlib.util
@@ -49,10 +50,7 @@ class Session:
 
 
 class FakeNative:
-    """The four ``sc_ffmpeg_*`` symbols as ctypes callbacks; start dups fds like native does.
-
-    State is per session id in ``sessions``; the plain events are set when any session reaches that state.
-    """
+    """The four ``sc_ffmpeg_*`` symbols as ctypes callbacks; start dups fds like native does."""
 
     def __init__(
         self,
@@ -577,6 +575,22 @@ def test_a_dlopen_failure_is_unavailable_not_an_error(
     assert binaries._in_process_linked() is False
 
 
+def test_an_unavailable_library_is_logged_only_on_an_in_process_host(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    def refuse(name: Any) -> None:
+        raise OSError(errno.ENOENT, "dlopen failed")
+
+    monkeypatch.setattr(ctypes, "CDLL", refuse)
+    with caplog.at_level("INFO", logger=native_ffmpeg._log.name):
+        with host_platform.using(replace(MACOS, media_tools="executables")):
+            assert native_ffmpeg.is_available() is False
+        assert not caplog.records
+        with host_platform.using(ROW):
+            assert native_ffmpeg.is_available() is False
+    assert "dlopen failed" in caplog.text
+
+
 def test_a_missing_symbol_is_missing_not_installed(
     host: None, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -643,6 +657,31 @@ def test_install_native_backend_installs_once_and_serves_spawns(
     assert native_ffmpeg.install_native_backend() is True
     assert process.run([IN_PROCESS_FFMPEG], capture_output=True).stdout == b"ok"
     assert len(fake.sessions) == 1
+
+
+def test_install_native_backend_is_safe_to_race(
+    host: None, monkeypatch: pytest.MonkeyPatch, uninstall: None
+) -> None:
+    monkeypatch.setattr(ctypes, "CDLL", lambda name: FakeNative())
+    gate = threading.Barrier(2, timeout=0.3)
+    real = native_ffmpeg.is_available
+
+    def gated() -> bool:
+        with contextlib.suppress(threading.BrokenBarrierError):
+            gate.wait()
+        return real()
+
+    monkeypatch.setattr(native_ffmpeg, "is_available", gated)
+    results: list[bool] = []
+    threads = [
+        threading.Thread(target=lambda: results.append(native_ffmpeg.install_native_backend()))
+        for _ in range(2)
+    ]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join(BOUND_SEC)
+    assert results == [True, True]
 
 
 def test_install_native_backend_declines_without_the_library(host: None, uninstall: None) -> None:

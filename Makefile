@@ -90,8 +90,6 @@ ios-testflight:
 ios-release-rehearsal:
 	uv run python scripts/ios/ios_release.py build --unsigned
 
-# FFmpeg.framework for the iOS app (macOS with Xcode and the iPhoneOS/iPhoneSimulator SDKs; not CI).
-# Output: gui/desktop/src-tauri/ios-ffmpeg/out/<device|sim>/FFmpeg.framework. See gui/desktop/src-tauri/ios/ffmpeg/README.md.
 ios-ffmpeg-device:
 	./scripts/ios/build_ffmpeg.sh device
 
