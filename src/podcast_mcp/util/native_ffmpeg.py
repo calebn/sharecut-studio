@@ -95,10 +95,25 @@ def _fd(stream: BinaryIO | None) -> int:
 
 
 class NativeFFmpegBackend:
+    """``InProcessBackend`` over the ``sc_ffmpeg_*`` C ABI (docs/desktop-packaging.md#ios-native-ffmpeg-abi).
+
+    Contract with the native side:
+
+    - Native ``dup()``s each fd >= 0 during ``start`` and closes its dups when the session ends;
+      the caller owns its own fds and native never closes them. Streams are flushed first.
+    - ``cancel`` must return promptly, stop the session and close the session's dups (each at most
+      once) at once, even if ``wait`` returns later.
+    - A caller's pipe reader sees EOF only when the native's dups are closed AND the caller-side
+      write end is released. ``process`` releases that end when ``wait`` returns, or after
+      ``KILL_GRACE_SEC`` at the latest, so EOF after a kill can take up to that grace.
+    - A native error is never success: it becomes exit code 1 with one stderr line.
+    """
+
     def __init__(self, lib: Any = None) -> None:
         self._fns = _bind(load_library(lib))
 
     def run(self, argv: list[str], streams: Streams, cancel: threading.Event) -> int:
+        """Run one tool to completion: start, forward ``cancel`` through a watcher, wait, reap."""
         tool = _TOOL_NAMES.get(argv[0]) if argv else None
         if tool is None:
             return self._fail(streams, f"not a native tool: {argv[:1]!r}")
@@ -135,6 +150,7 @@ class NativeFFmpegBackend:
         return code
 
     def _watch(self, session: int, cancel: threading.Event, done: threading.Event) -> None:
+        """Poll until ``done``; on ``cancel`` call ``sc_ffmpeg_cancel`` once and stop."""
         while not done.is_set():
             if cancel.wait(_CANCEL_POLL_SEC):
                 self._fns["sc_ffmpeg_cancel"](session)

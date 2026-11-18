@@ -22,6 +22,9 @@ from podcast_mcp.util.native_ffmpeg import NativeFFmpegBackend, NativeFFmpegUnav
 from podcast_mcp.util.process import IN_PROCESS_FFMPEG, IN_PROCESS_FFPROBE, Streams
 
 ROW = replace(IOS, media_tools="in_process")
+BOUND_SEC = (
+    3.0  # every blocking wait in the fakes is bounded, so a broken forwarder fails by assertion
+)
 START = ctypes.CFUNCTYPE(
     ctypes.c_int64,
     ctypes.c_int,
@@ -58,6 +61,7 @@ class FakeNative:
         self.cancelled = threading.Event()
         self.release = threading.Event()
         self.finished = threading.Event()
+        self.waited: list[int] = []
         self._thread: threading.Thread | None = None
         self._dups: list[int] = []
         self._closed = False
@@ -105,7 +109,8 @@ class FakeNative:
 
     def _wait(self, session: int) -> int:
         assert self._thread is not None
-        self._thread.join()
+        self.waited.append(session)
+        self._thread.join(BOUND_SEC)
         return self.code if self.wait_result is None else self.wait_result
 
     def _cancel(self, session: int) -> None:
@@ -121,15 +126,16 @@ class Blocking(FakeNative):
     def _ffmpeg(self, in_fd: int, out_fd: int, err_fd: int) -> None:
         try:
             if self.honour_cancel:
-                self.cancelled.wait()
+                self.cancelled.wait(BOUND_SEC)
             else:
-                self.release.wait()
+                self.release.wait(BOUND_SEC)
         finally:
             self._close(in_fd, out_fd, err_fd)
 
     def _wait(self, session: int) -> int:
         assert self._thread is not None
-        self._thread.join()
+        self.waited.append(session)
+        self._thread.join(BOUND_SEC)
         return -9 if self.cancelled.is_set() and self.code == 0 else self.code
 
 
@@ -138,12 +144,12 @@ class SlowWait(Blocking):
 
     def _ffmpeg(self, in_fd: int, out_fd: int, err_fd: int) -> None:
         try:
-            self.release.wait()
+            self.release.wait(BOUND_SEC)
         finally:
             self._close(in_fd, out_fd, err_fd)
 
     def _wait(self, session: int) -> int:
-        self.release.wait(5)
+        self.release.wait(BOUND_SEC)
         return super()._wait(session)
 
 
@@ -439,6 +445,7 @@ def test_run_survives_a_thread_start_failure_and_reaps_the_session(
         )
     assert fake.cancelled.is_set()
     assert fake.finished.is_set()
+    assert fake.waited == [1]
 
 
 @pytest.mark.parametrize("result", [-(2**40), -(2**63), -(2**31) - 1])
@@ -469,9 +476,9 @@ def test_the_stream_is_flushed_before_start() -> None:
             NativeFFmpegBackend(fake).run(
                 [IN_PROCESS_FFMPEG], Streams(None, spy, None), threading.Event()
             )
+            assert Spy.flushed >= 1  # before close(), which flushes anyway
         finally:
             spy.close()
-    assert Spy.flushed >= 1
 
 
 def test_a_lookalike_sentinel_is_not_a_native_tool() -> None:
