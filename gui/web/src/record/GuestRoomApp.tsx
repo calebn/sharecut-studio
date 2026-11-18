@@ -284,6 +284,7 @@ function GuestRoomSession({
   const join = () => {
     meterRef.current.resume();
     if (producer) {
+      clearError();
       setProducerJoined(true);
       return;
     }
