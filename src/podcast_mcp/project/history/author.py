@@ -14,8 +14,13 @@ from contextvars import ContextVar
 HOST_AUTHOR = "host"
 AGENT_AUTHOR = "agent"
 SYSTEM_AUTHOR = "system"
+SHARE_AUTHOR_PREFIX = "share:"
 
 _author: ContextVar[str] = ContextVar("history_author", default=HOST_AUTHOR)
+
+
+def is_guest_author(author: str | None) -> bool:
+    return author is not None and author.startswith(SHARE_AUTHOR_PREFIX)
 
 
 def current_history_author() -> str:

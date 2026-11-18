@@ -859,6 +859,8 @@ class DocumentSyncService:
         # move expects it. Null when history did not move. The id is opaque, so guests
         # get it too.
         moved = {"history_head_id": head_after if head_after != head_before else None}
+        if result_payload.get("guest_step") is True:
+            asks["guest_step"] = True
         if audience == "guest":
             from podcast_mcp.services.collaboration import sanitize_guest_document_event
 

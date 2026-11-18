@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime
-from typing import Any, NamedTuple
+from typing import Any, Literal, NamedTuple
 
 from pydantic import BaseModel, Field
 
@@ -69,6 +69,12 @@ class ProjectHistory(BaseModel):
         return next(
             (e for e in self.entries[self.cursor + 1 :] if e.operation != "render_preview"), None
         )
+
+    def entry_moved(self, action: Literal["undo", "redo"]) -> HistoryEntry | None:
+        """The entry a one-step Undo takes back or a one-step Redo brings back, or ``None``."""
+        if action == "undo":
+            return self.undo_target()
+        return self.entries[self.cursor + 1] if self.can_redo() else None
 
     def step_owners(self) -> StepOwners:
         """The author of the step Undo takes back and the one who undid the step Redo brings

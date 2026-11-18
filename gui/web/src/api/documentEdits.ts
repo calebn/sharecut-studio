@@ -73,6 +73,15 @@ async function moveHistoryHead(
     },
     opts.scope,
   );
+  if (result.guest_step === true) {
+    useDawStore
+      .getState()
+      .announceStatus(
+        type === DocumentCommand.UndoHistory
+          ? "Undid a guest's change."
+          : "Redid a guest's change.",
+      );
+  }
   return replyHistoryHead(result);
 }
 

@@ -261,6 +261,14 @@ class HistoryManager:
         self._save_index(project)
         return self.status(project)
 
+    def entry_moved(
+        self, project: EpisodeProject, action: Literal["undo", "redo", "goto"]
+    ) -> HistoryEntry | None:
+        """The entry the next ``action`` takes back or brings back; a goto names none."""
+        if action == "goto":
+            return None
+        return self._load_index(project).entry_moved(action)
+
     def tip_entry_index(self, project: EpisodeProject, operation: str) -> int | None:
         """Index of the newest ``operation`` entry when the cursor sits at the tip and only
         preview renders follow it, else None (the caller's change is not the latest edit)."""
