@@ -214,6 +214,23 @@ describe("useActingKeyDown", () => {
     expect(bubble).toHaveBeenCalledOnce();
   });
 
+  it("runs before the target's own handler, even one that stops the key", () => {
+    const onKey = vi.fn();
+    function Target() {
+      useActingKeyDown(true, onKey);
+      return (
+        <button type="button" onKeyDown={(event) => event.stopPropagation()}>
+          Target
+        </button>
+      );
+    }
+    render(<Target />);
+    fireEvent.keyDown(screen.getByRole("button", { name: "Target" }), {
+      key: "l",
+    });
+    expect(onKey).toHaveBeenCalledOnce();
+  });
+
   it.each(["Shift", "Control", "Alt", "Meta", "Tab"])(
     "ignores a %s press on its own",
     (key) => {

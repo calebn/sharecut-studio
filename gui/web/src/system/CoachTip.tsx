@@ -47,13 +47,14 @@ export function CoachTip({
   // A click, not a pointerdown: the bubble stays under the finger for the whole
   // press, so nothing beneath it is hit. A listener on the note itself, which
   // has no role to press, keeps the accessibility lint's rules for controls.
+  const pressable = onPress !== undefined;
   useEffect(() => {
     const bubble = bubbleRef.current;
-    if (!shown || !bubble || !onPress) return;
+    if (!shown || !bubble || !pressable) return;
     const listener = (event: MouseEvent) => pressed(event);
     bubble.addEventListener("click", listener);
     return () => bubble.removeEventListener("click", listener);
-  }, [shown, onPress]);
+  }, [shown, pressable]);
   // The close button unmounts with the tip; hand focus back to the anchor.
   const dismissFromClose = () => {
     const target =

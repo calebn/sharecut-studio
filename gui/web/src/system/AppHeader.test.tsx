@@ -702,7 +702,7 @@ describe("AppHeader first-visit role hint: a press and a key", () => {
     expect(trigger).not.toHaveFocus();
   });
 
-  it("does not close on the press itself, so nothing under the bubble can be hit", () => {
+  it("stays up on a pointer or mouse press alone and closes on the click", () => {
     const { onDismiss } = hintHeader();
     const sentence = screen.getByText(TEXT);
     fireEvent.pointerDown(sentence);
@@ -804,10 +804,18 @@ describe("AppHeader first-visit role hint: a press and a key", () => {
     },
   );
 
-  it("listens to no key once it is closed", () => {
+  it("a hint that never showed dismisses on no key", () => {
     const { onDismiss } = hintHeader({ shown: false });
     fireEvent.keyDown(document.body, { key: "l" });
     expect(onDismiss).not.toHaveBeenCalled();
+  });
+
+  it("a key after the dismissal does not dismiss again", async () => {
+    const { onDismiss } = hintHeader();
+    await userEvent.click(screen.getByText(TEXT));
+    fireEvent.keyDown(document.body, { key: "l" });
+    fireEvent.keyDown(document.body, { key: "Escape" });
+    expect(onDismiss).toHaveBeenCalledOnce();
   });
 });
 
