@@ -1036,11 +1036,11 @@ def _share_entry_file(row: dict[str, Any]) -> Path:
         return workspace / EPISODE_PROJECT_FILENAME
 
 
-def workspace_from_share_row(row: dict[str, Any]) -> ProjectWorkspace:
+def workspace_from_share_row(row: dict[str, Any], *, author: str | None = None) -> ProjectWorkspace:
     candidate = _share_entry_file(row)
     if not candidate.is_file():
         raise CodedFileNotFoundError("episode project missing for share", code="project_not_found")
-    return ProjectWorkspace.open(candidate)
+    return ProjectWorkspace.open(candidate, share_author=author)
 
 
 def share_episode_name(row: dict[str, Any]) -> str:
@@ -1061,7 +1061,7 @@ def open_share_workspace(
     mix-version check.
     """
     row = lookup_share(token, kind=kind)
-    ws = workspace_from_share_row(row)
+    ws = workspace_from_share_row(row, author=share_author(row))
     vid = str(row.get("review_version_id") or "")
     if vid and row.get("follow_latest"):
         # A follow-latest link serves the active version; downstream readers of
