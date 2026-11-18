@@ -134,9 +134,8 @@ def apply_editable_snapshot(
 ) -> None:
     """Restore every editable section from ``snap``.
 
-    ``keep_review_versions`` is for a history move: published review versions and the active
-    choice are made once and never taken back, so the project's own stay and the snapshot's
-    are not read; its comments still follow the snapshot.
+    A history move passes ``keep_review_versions``. The project keeps its own review versions
+    and active choice, and the snapshot's are not read. Comments follow the snapshot.
     """
     from podcast_mcp.models.episode import (
         EditorialSection,
