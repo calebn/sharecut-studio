@@ -376,7 +376,7 @@ void     sc_ffmpeg_cancel(int64_t session);
   - `-stdin`, `-stdin:<spec>`, `-filter_script[:spec]`, `-filter_complex_script*` and every
     `-/...` option except exactly `-/filter_complex`, whose file operand is scanned like any other
     argument (the render engine emits it for long graphs).
-  - a `..` path component (`../x`, `a/../b`, `a/..`).
+  - a `..` path component (leading, middle or trailing).
   - the text `pattern_type`, `movie=`, `amovie=` or `format_opts`, which stops option strings
     smuggled into a filtergraph.
   - `dev/` or `proc/` at the start of the argument (after an optional `./` and one `/`) or after
