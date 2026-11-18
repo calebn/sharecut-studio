@@ -58,7 +58,7 @@ Prefix `/rec/` with a review token opens the recording invalid-link cover: “Th
 6. "Phone" for these rules is the portrait 767 layout class, including portrait widths from 600 to 767 (spec-record.md:172 says under 600), as Join sheet departure 2 already says.
 7. On every guest-page tile except those of a landscape phone up to 767 px wide (so on a portrait phone, a tablet, a laptop and a wider landscape phone, with the Comments rail open or closed) the avatar area starts 20 px lower than the spec's tile. That keeps the Devices cue clear of the avatar and of its full level ring and keeps the avatars level with each other; the own tile's level meter still makes its avatar sit a few pixels higher than the others, as before. The cue is 16 px high. The host studio's tiles and those of a landscape phone up to 767 px wide keep the spec's position.
 
-### Looking in: where it departs from the record spec (issue 3834; nothing shows until a page opens a producer link with `observe=1`)
+### Looking in: where it departs from the record spec (issue 3834)
 
 1. The spec's roster (CMP-REC-ROSTER, spec-record.md:235-238) ends at the listener row. When `watchers` is 1 or more, a nameless looking-in line sits on the host, guest and producer rosters above the tiles and under the header, not after the listener row, so it is the first thing in the room's main area.
 2. When `watchers` is 1 or more, the guest's consent **Details** (SCR-REC-LOBBY-GUEST) says that someone with the producer link is looking in and that they cannot hear the room.

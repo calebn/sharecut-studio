@@ -1253,12 +1253,12 @@ until the press, and it sends nothing: no Join, no Heartbeat and no queued comme
 listen** sends Join on that same socket, with the name and the lease kept on this device,
 and Heartbeats start once the room has answered the Join; a press made while the socket is still
 connecting sends on open (if that socket closes before the room answers the Join, the page
-retries after a quarter of a second with a joining socket, not after the usual wait; a revoked link ends
-the page's access instead), and one made while it waits to reconnect opens a joining socket at
+retries after a quarter of a second with a joining socket, not after the usual wait; if the socket is closed with 4403 instead, the page's access ends,
+unless the page holds a saved place, in which case the joining socket is tried and a 4403 on it ends the access), and one made while it waits to reconnect opens a joining socket at
 once. The sheet stays on "Joining…" until the room confirms the producer. A non-terminal error
 before then returns the sheet to **Join to listen** with the reason under the listen line (the
 room's alert slot does not repeat it, and **Not now** clears it), and a second press sends Join
-again on the same socket; after 4 seconds on Joining… the sheet adds "Still connecting to the
+again on the same socket (if the Join was sent on a joining socket that replaced a look, the page drops the room the sheet was showing and looks again); after 4 seconds on Joining… the sheet adds "Still connecting to the
 room. Choose Not now to stop trying." A look that closes, such as the room refusing it with 4429 (more than four are looking in),
 drops the room the sheet was showing, with its pill and its sentence, and is retried quietly after the usual wait; the
 room comes back with the first snapshot of the next socket that the room has counted. A look closed with 4403 (for example because the link was revoked, or because the invite closed after the host removed someone who joined through it) ends the page's access, unless the page holds a saved place in the room from an earlier visit on this device (a lease). That page's look only stops: the room behind the sheet goes, the look is not retried, no cover shows, and **Join to listen** opens a joining socket with the saved place, which the server still accepts when only the invite closed. If that joining socket is closed with 4403, access ends as it does for any guest. A press made while the look was still connecting gets the quick retry as a joining socket in the same way. Without a saved place, which cover shows depends on what the look was told before the close: after the `invite_closed` Error the page shows the Invite link closed cover, as a refused Join does; a bare 4403 (a revoked or reminted link, or an ended room) shows the ended cover. Every 4403 a look gets because its invite closed comes after the `invite_closed` Error, whichever check closed it. A server that does not know
@@ -1661,8 +1661,7 @@ Non-terminal record errors from the room (`forbidden`, `invalid_state`,
 `rate_limited`, `join_first`, `malformed`, or an unknown code) show a persistent
 alert with a **Dismiss** action under the role line; `room_full` and the
 access-ended codes keep their own screens and are never dismissed. A later
-non-terminal code (for example the heartbeat's `join_first` after
-`room_full`) never replaces a terminal one.
+non-terminal code never replaces a terminal one.
 
 On the host, every failed `record.start` / `pause` / `resume` / `stop` /
 `land` command (from the keyboard, command palette or the Record stage buttons,
@@ -2142,7 +2141,7 @@ the written WAV within 1 ms), `keeper/takeClipping.test.ts`, `alertGates.test.ts
 | Pause / Resume | Host pauses at recording 60 s (wall 60 s), resumes at wall 70 s: every participant has segment 1 ending at 60 s and segment 2 starting at recording **60 s ± 1 frame** (clips abut, no gap, no zeros); keeper bytes written during the pause = **0**; PAUSED indicator asserted on all clients; a guest joining during the pause consents and gets `join_offset_ms` = 60 s; a late `pause` (or reconnect) truncates/discards samples ≥ `pause_wall_ms` from the versioned pause log; a drop that intersects a pause does **not** resume the same segment. Guest cannot trigger pause. |
 | Takes | Stop then Start: take 2 lands after take 1 + `take_gap_ms` (2 s) **even if take 1 is still uploading**; a participant absent from take 2 has no clip there; tracks = union; no re-consent prompt shown to already-consented clients; deleting take 1 is refused while its manifest is non-terminal; a tombstone voids in-flight ACK and leaves take 2 at offset 0. |
 | Cap / decline | 5th guest (or 3rd producer) gets the full-room page and never calls `getUserMedia`; a client that declines consent (Not now) sees the declined scrim and cannot rejoin as a guest until the room waits for a take. |
-| Producer transparency | With one producer present, every guest's roster shows the listener row containing the producer; the guest's consent Details names the producer who has joined (`JoinSheet.test.tsx`); producer joining mid-take fires the same join notification as a guest; a producer page that has not joined looks in, so the host and guests see the looking-in line, the producer sees the live room and says nothing about themself (`record-lobby.spec.ts`); roles cannot change during a take. |
+| Producer transparency | With one producer present, every guest's roster shows the listener row containing the producer; the guest's consent Details names the producer who has joined (`JoinSheet.test.tsx`); producer joining mid-take fires the same join notification as a guest; a producer page that has not joined looks in, so the host and guests see the looking-in line, the producer sees the live room, which never names the producer who is looking, and the producer's sheet tells them the room can see that someone is looking in (`record-lobby.spec.ts`); roles cannot change during a take. |
 | Live comments | Guest adds a comment (`body` `"Marker"` or a typed comment) at host recording clock 123.4 s in take 1: after landing, `review.comments[]` has one `TimelineComment` at `123.4 s ± 0.25 s` (no lead, no `title`/`metadata`) created through `add_comment` under `ProjectWorkspace.mutate()` (undo removes it); host rewrote `recording_ms` from `pressed_wall_ms` + `pauses[]`; a comment during PAUSED lands at the pause point; before landing the host and producer lists contain it, the other guest's list contains a `Marker` but not a typed comment unless the host turned on `guests_see_notes` (host-enforced); deleting take 1 deletes its comments; a comment queued while a client was disconnected upserts once on reconnect (no duplicate); browser end-to-end in the Playwright US-1 scenario (`e2e/record-lobby.spec.ts`). |
 
 ## Next PR: recording links (checklist)
