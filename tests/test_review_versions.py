@@ -1239,6 +1239,48 @@ def test_a_publish_between_two_edits_leaves_one_undo_press_for_each(minimal_proj
 
 
 @requires_safe_failed_cleanup
+def test_redo_keeps_the_versions_a_publish_added_after_the_step_it_lands_on(
+    minimal_project, sample_wav
+):
+    ws = _seed_premix(minimal_project, sample_wav)
+    _add_note(ws, "x", "edit x")
+    ver = ReviewService(ws).publish(label="v1")
+    _add_note(ws, "y", "edit y")
+    ws = ProjectWorkspace.open(minimal_project)
+
+    def versions() -> tuple[list[str], str | None]:
+        persisted = load_project(minimal_project)
+        return [v.id for v in persisted.review.versions], persisted.review.active_version_id
+
+    published = ([ver["id"]], ver["id"])
+    assert versions() == published
+    for move in (ws.undo, ws.undo, ws.redo, ws.redo):
+        move()
+        assert versions() == published
+    assert _comment_ids(minimal_project) == ["x", "y"]
+
+
+@requires_safe_failed_cleanup
+def test_the_first_publish_of_an_empty_history_records_the_starting_entry_once(
+    minimal_project, sample_wav
+):
+    ws = _seed_premix(minimal_project, sample_wav)
+    mgr = HistoryManager(ProjectStore(minimal_project))
+    assert mgr.status(load_project(minimal_project)).total == 0
+
+    svc = ReviewService(ws)
+    svc.publish(label="A")
+
+    status = mgr.status(load_project(minimal_project))
+    assert [e.label for e in mgr.list_entries(load_project(minimal_project))] == [
+        "before publish review version"
+    ]
+    assert (status.total, status.can_undo) == (1, False)
+    svc.publish(label="B")
+    assert mgr.status(load_project(minimal_project)).total == 1
+
+
+@requires_safe_failed_cleanup
 def test_a_mutation_that_changes_a_version_and_an_edit_still_records_its_step(
     minimal_project, sample_wav
 ):

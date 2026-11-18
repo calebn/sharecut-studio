@@ -815,3 +815,18 @@ def test_a_refused_undo_leaves_the_cursor_where_it_was(minimal_project):
         mgr.apply_undo(proj)
 
     assert proj.history.cursor == 1
+
+
+def test_a_refused_redo_leaves_the_cursor_where_it_was(minimal_project):
+    mgr = HistoryManager(ProjectStore(minimal_project))
+    proj = load_project(minimal_project)
+    mgr.record(proj, "start", force=True)
+    mgr.record(proj, "edit", force=True)
+    save_project(proj, minimal_project)
+    proj = load_project(minimal_project)
+    assert proj.history.cursor == 1
+
+    with pytest.raises(ValueError, match="Nothing to redo"):
+        mgr.apply_redo(proj)
+
+    assert proj.history.cursor == 1
