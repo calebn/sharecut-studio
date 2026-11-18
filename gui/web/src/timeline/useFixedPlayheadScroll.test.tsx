@@ -881,6 +881,100 @@ describe("useFixedPlayheadScroll", () => {
     expect(useDawStore.getState().scrollLeft).toBe(300);
   });
 
+  describe("timeline follow suspension", () => {
+    const realStopFollow = useDawStore.getState().stopFollow;
+    const followFlag = () => useDawStore.getState().timelineFollowPlayhead;
+
+    beforeEach(() => {
+      useDawStore.setState({
+        isPlaying: true,
+        timelineFollowPlayhead: true,
+      });
+    });
+
+    afterEach(() => {
+      useDawStore.setState({
+        isPlaying: false,
+        stopFollow: realStopFollow,
+        followingClientId: null,
+      });
+    });
+
+    it("a person's desktop scroll while playing sets timelineFollowPlayhead false", () => {
+      const hook = renderHook(() =>
+        useFixedPlayheadScroll({ ...input, fixedPlayhead: false }),
+      );
+      el.addEventListener("scroll", () => hook.result.current.onScroll());
+      el.scrollLeft = 300;
+      act(() => {
+        el.dispatchEvent(new Event("scroll"));
+      });
+      expect(followFlag()).toBe(false);
+    });
+
+    it("leaves the flag alone for a phone scroll, a programmatic write and its echo", () => {
+      const phone = renderHook(() => useFixedPlayheadScroll(input));
+      el.addEventListener("scroll", () => phone.result.current.onScroll());
+      el.scrollLeft = 300;
+      act(() => {
+        el.dispatchEvent(new Event("scroll"));
+      });
+      expect(followFlag()).toBe(true);
+      const desktop = renderHook(() =>
+        useFixedPlayheadScroll({ ...input, fixedPlayhead: false }),
+      );
+      act(() => desktop.result.current.writeScroll(el, 120, 0));
+      act(() => {
+        el.dispatchEvent(new Event("scroll"));
+      });
+      act(() => raf.fire(0));
+      act(() => {
+        el.dispatchEvent(new Event("scroll"));
+      });
+      expect(followFlag()).toBe(true);
+    });
+
+    it("wheel or pinch zoom while playing sets timelineFollowPlayhead false", () => {
+      timelineViewportRegistry.setTimelineElement(el);
+      const hook = renderHook(() =>
+        useFixedPlayheadScroll({ ...input, fixedPlayhead: false }),
+      );
+      act(() => hook.result.current.applyZoomAt(20, 300));
+      expect(followFlag()).toBe(false);
+      timelineViewportRegistry.setTimelineElement(null);
+    });
+
+    it("wheel zoom while paused leaves the flag on", () => {
+      useDawStore.setState({ isPlaying: false });
+      timelineViewportRegistry.setTimelineElement(el);
+      const hook = renderHook(() =>
+        useFixedPlayheadScroll({ ...input, fixedPlayhead: false }),
+      );
+      act(() => hook.result.current.applyZoomAt(20, 300));
+      expect(followFlag()).toBe(true);
+      timelineViewportRegistry.setTimelineElement(null);
+    });
+
+    it("a person's scroll while presence-following still sets the flag false", () => {
+      const stopFollow = vi.fn();
+      useDawStore.setState({ followingClientId: "leader", stopFollow });
+      const hook = renderHook(() =>
+        useFixedPlayheadScroll({
+          ...input,
+          fixedPlayhead: false,
+          followingClientId: "leader",
+        }),
+      );
+      el.addEventListener("scroll", () => hook.result.current.onScroll());
+      el.scrollLeft = 300;
+      act(() => {
+        el.dispatchEvent(new Event("scroll"));
+      });
+      expect(stopFollow).toHaveBeenCalledWith("local");
+      expect(followFlag()).toBe(false);
+    });
+  });
+
   it("gates pointer zoom scroll until the animation frame releases it", () => {
     timelineViewportRegistry.setTimelineElement(el);
     Object.defineProperty(el, "clientWidth", { value: 400 });

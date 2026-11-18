@@ -37,3 +37,16 @@ export async function expectPlaybackAdvancesThenHolds(
   await page.waitForTimeout(PAUSE_HOLD_MS);
   expect(parseTimecodeSec(await clock.innerText())).toBe(paused);
 }
+
+/** Playhead to `sec` (whole seconds): Home, then one-second nudges. */
+export async function seekTo(page: Page, sec: number): Promise<void> {
+  await page.evaluate(() => {
+    if (document.activeElement instanceof HTMLElement) {
+      document.activeElement.blur();
+    }
+  });
+  await page.keyboard.press("Home");
+  for (let i = 0; i < sec; i++) {
+    await page.keyboard.press("ArrowRight");
+  }
+}

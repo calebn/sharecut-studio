@@ -1188,3 +1188,35 @@ describe("remote selection before its target is here", () => {
     expect(useDawStore.getState().selection).toBeNull();
   });
 });
+
+describe("dawStore timeline follow flag", () => {
+  const { setTimelineFollowPlayhead } = useDawStore.getState();
+
+  afterEach(() => setTimelineFollowPlayhead(true));
+
+  it("defaults true and flips with its setter", () => {
+    expect(useDawStore.getInitialState().timelineFollowPlayhead).toBe(true);
+    setTimelineFollowPlayhead(false);
+    expect(useDawStore.getState().timelineFollowPlayhead).toBe(false);
+    setTimelineFollowPlayhead(true);
+    expect(useDawStore.getState().timelineFollowPlayhead).toBe(true);
+  });
+
+  it("does not notify subscribers when the setter repeats the current value", () => {
+    setTimelineFollowPlayhead(true);
+    const listener = vi.fn();
+    const off = useDawStore.subscribe(listener);
+    setTimelineFollowPlayhead(true);
+    off();
+    expect(listener).not.toHaveBeenCalled();
+  });
+
+  it("is on again after a project switch, not after a reload of the same project", () => {
+    useDawStore.getState().hydrate("/tmp/a.json", minimalProject());
+    setTimelineFollowPlayhead(false);
+    useDawStore.getState().hydrate("/tmp/a.json", minimalProject());
+    expect(useDawStore.getState().timelineFollowPlayhead).toBe(false);
+    useDawStore.getState().hydrate("/tmp/b.json", minimalProject());
+    expect(useDawStore.getState().timelineFollowPlayhead).toBe(true);
+  });
+});
