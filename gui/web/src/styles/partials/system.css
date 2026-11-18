@@ -1152,9 +1152,8 @@ button.sys-version-line {
    Status pills' text (the title and the accessible text stay), 2 the Following
    detail, 3 the skip buttons, 4 the cuts, 5 the hear menu's chevron, 6 the
    other pills (Following, Solo, Updating mix, the Playback rate and the
-   status). The Audio error pill,
-   Retry, Play, the clock, A and B and a guest's Comment are never given up
-   here. If level 6 still does not fit, the status text's ellipsis and the
+   status). The Audio error pill, Retry, Play, the clock, A and B and a guest's
+   Comment are never given up here. If level 6 still does not fit, the status text's ellipsis and the
    40, 22 and 14 rem rules (and the 50 and 60 rem rules, which hide the same
    things earlier at those widths) take over. A Following or Solo name past
    about 8 characters and the Following detail past about 16 are cut short
@@ -1314,8 +1313,8 @@ button.sys-version-line {
 }
 
 /* A guest keeps Comment in an Audio error: Play, the clock, Comment, the error
-   pill and Retry are too wide for 22 rem with any gap or padding, so under
-   22 rem they sit edge to edge (each a whole touch target), and from the 14 rem
+   pill and Retry are too wide for a bar under 22 rem with any gap or padding, so
+   there they sit edge to edge (each a whole touch target), and from the 14 rem
    fold to 16 rem, where an hours clock leaves them no room, the clock is set
    smaller (it is not a control; an hours clock can still touch Play between
    14 and 14.5 rem). */

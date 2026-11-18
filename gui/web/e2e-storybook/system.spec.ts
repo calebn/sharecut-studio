@@ -443,7 +443,7 @@ const BAR_STATES: Record<string, BarArgs> = {
     state: "error",
     ...STALE,
   },
-  // The states the round 4 reviewers found overlapping.
+  // Combinations the sweep below also runs by name.
   hostfollowerrstale: {
     ...MS,
     ...HOST,
@@ -507,7 +507,7 @@ function pillStory(args: BarArgs) {
     : "system-player--ready";
 }
 
-/** The bar's controls as the page shows them, the overlaps and the squeezes. */
+/** Runs inside the page (it is sent as source), so it uses nothing from this module. */
 const measureBar = () => {
   const bar = document.querySelector<HTMLElement>(
     ".sys-player-host > .sys-player",
@@ -807,7 +807,6 @@ const measurePlans = async ({ plans }: { plans: Plan[] }) => {
   return rows;
 };
 
-/** A browser context for a pointer, and pages on it that report a ResizeObserver loop. */
 async function pointerContext(
   browser: import("@playwright/test").Browser,
   pointer: "fine" | "coarse",
@@ -923,7 +922,7 @@ for (const pointer of ["fine", "coarse"] as const) {
                 width <= window.to,
             );
             // Develop hid a guest's Comment during an Audio error below 50 rem;
-            // the bar keeps it (bound: a guest who may comment keeps Comment).
+            // the bar keeps it, since a guest may comment.
             const keepsComment = Boolean(args.guest && args.state === "error");
             const strip = (signature: string | undefined) => {
               if (!keepsComment || signature === undefined) return signature;
@@ -1049,7 +1048,7 @@ function comboArgs(combo: Combo): BarArgs {
   return args;
 }
 
-/** The generated sweep's combinations, as `[name, args]`: all pairs, then the states the reviewers found. */
+/** The generated sweep's combinations, as `[name, args]`: all pairs, then the named combinations that overlapped at some width. */
 function sweepStates(): [string, BarArgs][] {
   const generated = pairwise(allCombos()).map((combo): [string, BarArgs] => [
     Object.values(combo).join("-"),
