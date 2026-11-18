@@ -321,7 +321,7 @@ test("a live link's kept audio plays from the saved copy when the connection is 
   });
 });
 
-test("a chunk is never kept by the browser's own cache, and a dead link's chunk is refused by the server", async ({
+test("a chunk is answered private, no-store, and the server refuses a dead link's chunk", async ({
   browser,
 }) => {
   await withLinks(browser, 1, async ({ host, guest, projectPath, tokens }) => {

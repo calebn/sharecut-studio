@@ -9,7 +9,10 @@ import { chunkRefKey, type ImmutableChunkRef } from "./proxyMath";
  */
 const LINK_AUDIO_PREFIX = "sharecut-link-audio:";
 
-/** The one cache every link used to share; it keeps audio of links that ended long ago. */
+/**
+ * The cache that all links shared under this name. Its entries are keyed by
+ * URL and can belong to links that ended long ago, so it is deleted and never read.
+ */
 const SHARED_CACHE = "podcast-proxy-v1";
 
 /**
