@@ -579,6 +579,22 @@ it("Mod+Z with nothing to undo does not send the command (#2168)", async () => {
   expect(undoHistory).toHaveBeenCalledTimes(1);
 });
 
+it("Mod+Z tells an Editor there is nothing of theirs to undo, without sending it", async () => {
+  render(<KeymapHost />);
+  vi.mocked(undoHistory).mockClear();
+  showHistory({ can_undo: false, can_redo: false });
+  useDawStore.setState({
+    projectPath: "share:tok",
+    guestMode: "edit",
+    shareCapabilities: ["view", "play", "comment", "edit"],
+  });
+  await pressModZ(false);
+  expect(undoHistory).not.toHaveBeenCalled();
+  expect(useDawStore.getState().statusAnnouncement).toBe(
+    "There is nothing of yours to undo. The latest change is someone else's.",
+  );
+});
+
 it("Mod+Shift+Z with nothing to redo does not send the command (#2168)", async () => {
   render(<KeymapHost />);
   vi.mocked(redoHistory).mockClear();

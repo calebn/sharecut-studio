@@ -108,4 +108,6 @@ export type CommandDef = {
   breaksFollow?: true;
   /** A key press the command refuses says why in the live region (`mutates` commands always do). */
   announcesRefusal?: true;
+  /** A key press its `when` gate turns away says why in the live region. */
+  announcesGate?: true;
 };
