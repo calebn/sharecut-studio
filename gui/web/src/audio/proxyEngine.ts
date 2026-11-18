@@ -360,12 +360,16 @@ export class ProxyEngine {
     }
   }
 
-  /** In-flight chunks are not in `buffers`, and sounding sources hold their own buffer. */
+  /**
+   * In-flight chunks are not in `buffers`, and sounding sources hold their own buffer.
+   * Clips the manifest does not cover yet keep nothing: pruning must not throw into
+   * pause, dispose or the pump, and playing them reports the failure itself.
+   */
   private pruneBuffers(fromSec: number, toSec: number): void {
     const snapshot = this.snapshot;
     const keep = new Set<string>();
     if (snapshot)
-      for (const slice of this.slicesBetween(snapshot, fromSec, toSec))
+      for (const slice of this.slicesBetween(snapshot, fromSec, toSec, "skip"))
         keep.add(chunkRefKey(slice.chunk));
     for (const [key, buf] of this.buffers) {
       if (keep.has(key)) continue;
@@ -449,6 +453,7 @@ export class ProxyEngine {
     snapshot: ProxyPlaybackSnapshot,
     startSec: number,
     endSec: number,
+    onMissing: "throw" | "skip" = "throw",
   ): ScheduledSlice[] {
     return Object.values(snapshot.clipsByTrack).flatMap((clips) =>
       buildSchedule(
@@ -457,6 +462,7 @@ export class ProxyEngine {
         endSec,
         snapshot.manifest,
         snapshot.volumeByTrack,
+        onMissing,
       ),
     );
   }
