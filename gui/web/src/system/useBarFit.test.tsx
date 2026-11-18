@@ -41,46 +41,47 @@ describe("useBarFit", () => {
   let lowest = 0;
   /** How many times the bar was measured (once per level tried). */
   let passes = 0;
-  const original = Element.prototype.getBoundingClientRect;
 
   beforeEach(() => {
     lowest = 0;
     passes = 0;
     // A bar 400 px wide whose right column runs out of it until `lowest`
     // levels of the bar have been given up.
-    Element.prototype.getBoundingClientRect = function rect(this: Element) {
-      const host = this.closest<HTMLElement>(".sys-player-host");
-      const level = Number(host?.dataset.fit ?? 0);
-      const make = (left: number, width: number) =>
-        ({
-          left,
-          right: left + width,
-          width,
-          height: 56,
-          top: 0,
-          bottom: 56,
-          x: left,
-          y: 0,
-          toJSON: () => ({}),
-        }) as DOMRect;
-      if (this.classList.contains("sys-player")) {
-        passes += 1;
-        return make(0, 400);
-      }
-      if (this.classList.contains("sys-player-host")) return make(0, 400);
-      if (this.parentElement?.classList.contains("sys-player-left"))
-        return make(8, 60 + lowest);
-      if (this.parentElement?.classList.contains("sys-player-center"))
-        return make(180, 40);
-      if (this.parentElement?.classList.contains("sys-player-right"))
-        return make(level >= lowest ? 300 : 210, 40);
-      return make(0, 0);
-    };
+    vi.spyOn(Element.prototype, "getBoundingClientRect").mockImplementation(
+      function rect(this: Element) {
+        const host = this.closest<HTMLElement>(".sys-player-host");
+        const level = Number(host?.dataset.fit ?? 0);
+        const make = (left: number, width: number) =>
+          ({
+            left,
+            right: left + width,
+            width,
+            height: 56,
+            top: 0,
+            bottom: 56,
+            x: left,
+            y: 0,
+            toJSON: () => ({}),
+          }) as DOMRect;
+        if (this.classList.contains("sys-player")) {
+          passes += 1;
+          return make(0, 400);
+        }
+        if (this.classList.contains("sys-player-host")) return make(0, 400);
+        if (this.parentElement?.classList.contains("sys-player-left"))
+          return make(8, 60 + lowest);
+        if (this.parentElement?.classList.contains("sys-player-center"))
+          return make(180, 40);
+        if (this.parentElement?.classList.contains("sys-player-right"))
+          return make(level >= lowest ? 300 : 210, 40);
+        return make(0, 0);
+      },
+    );
     stubResizeObserver();
   });
 
   afterEach(() => {
-    Element.prototype.getBoundingClientRect = original;
+    vi.restoreAllMocks();
     vi.unstubAllGlobals();
     vi.useRealTimers();
   });
@@ -237,7 +238,7 @@ describe("useBarFit", () => {
   });
 
   it("stays at level 0 where nothing has a layout", () => {
-    Element.prototype.getBoundingClientRect = original;
+    vi.restoreAllMocks();
     const { container } = render(<Player {...base} state="error" />);
     expect(fit(container)).toBe("0");
   });
