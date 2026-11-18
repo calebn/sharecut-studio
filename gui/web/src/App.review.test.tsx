@@ -87,6 +87,8 @@ describe("App review route", () => {
         name: "This link doesn't open anything",
       }),
     ).toHaveTextContent("Ask the person who sent it for a new link.");
+    expect(offline.clear).not.toHaveBeenCalled();
+    expect(audio.forget).not.toHaveBeenCalled();
     expect(
       fetchMock.mock.calls.some((call) =>
         urlOf(call[0] as RequestInfo | URL).endsWith("/audio"),
@@ -476,6 +478,8 @@ describe("App review route", () => {
       ),
     ).toBeVisible();
     expect(screen.getByRole("button", { name: "Retry" })).toBeVisible();
+    expect(offline.clear).not.toHaveBeenCalled();
+    expect(audio.forget).not.toHaveBeenCalled();
     const before = calls;
     await act(async () => {
       await vi.advanceTimersByTimeAsync(31_000);
@@ -507,6 +511,8 @@ describe("App review route", () => {
       vi.useFakeTimers({ shouldAdvanceTime: true });
       render(<App />);
       await screen.findByRole("heading", { name: "This link did not load" });
+      expect(offline.clear).not.toHaveBeenCalled();
+      expect(audio.forget).not.toHaveBeenCalled();
       const before = calls;
       await act(async () => {
         await vi.advanceTimersByTimeAsync(delay - 1_000);
