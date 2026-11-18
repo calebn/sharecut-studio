@@ -385,6 +385,7 @@ One-off encode without re-running the full pipeline:
 podcast pipeline export-audio --project episode.sharecut
 podcast pipeline export-audio --project episode.sharecut \
   --formats '[{"ext":"opus","codec":"libopus","bitrate_kbps":96}]'
+podcast pipeline export-audio --project episode.sharecut --formats '[{"ext":"m4a"}]'
 ```
 
 MCP: `export_audio_tool` with optional `formats` (same array shape).
