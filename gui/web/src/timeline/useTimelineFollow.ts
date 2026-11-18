@@ -46,7 +46,7 @@ export function revealPlayhead(
 /**
  * Writes go through `writeScroll` and land at once, so the echo check can tell
  * them from a person's scroll: the timeline scroller must never get
- * `scroll-behavior: smooth`. It never writes the playhead.
+ * `scroll-behavior: smooth`.
  */
 export function TimelineFollow({ binding, sessionSec }: Props) {
   const latest = useRef({ binding, sessionSec });
@@ -73,15 +73,20 @@ export function TimelineFollow({ binding, sessionSec }: Props) {
       moveScrollTo(current, el, target);
     };
     const reveal = (s: DawStore) => {
-      const view = {
-        playheadSec: s.playheadSec,
-        zoomPxPerSec: s.zoomPxPerSec,
-        viewportPx: latest.current.binding.timeViewportPx,
-      };
-      const el = latest.current.binding.scrollRef.current;
-      if (el && isPlayheadOffscreen({ ...view, scrollPx: s.scrollLeft })) {
-        revealPlayhead(latest.current.binding, el, {
-          viewportPx: view.viewportPx,
+      const { binding: current } = latest.current;
+      const el = current.scrollRef.current;
+      const viewportPx = current.timeViewportPx;
+      if (
+        el &&
+        isPlayheadOffscreen({
+          playheadSec: s.playheadSec,
+          zoomPxPerSec: s.zoomPxPerSec,
+          viewportPx,
+          scrollPx: s.scrollLeft,
+        })
+      ) {
+        revealPlayhead(current, el, {
+          viewportPx,
           canvasWidthPx: canvasWidth(s.zoomPxPerSec),
         });
       }

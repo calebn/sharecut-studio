@@ -356,16 +356,29 @@ describe("TimelineView scroll to playhead", () => {
     expect(scroller.scrollLeft).toBe(0);
   });
 
-  it("does not count a sub-pixel clamp as a scroll", () => {
-    const scroller = mount(false);
-    useDawStore.setState({ playheadSec: 5, scrollLeft: 0.4 });
-    scroller.scrollLeft = 0.4;
-    let scrolled = true;
-    act(() => {
-      scrolled = playheadScrollRegistry.scrollAllToPlayhead();
-    });
-    expect(scrolled).toBe(false);
-  });
+  it.each([
+    [100.3, false],
+    [100.5, true],
+  ])(
+    "a browser clamp at %s from 99.9 counts as a scroll: %s",
+    (max, expected) => {
+      const scroller = mount(false);
+      let left = 99.9;
+      Object.defineProperty(scroller, "scrollLeft", {
+        configurable: true,
+        get: () => left,
+        set(v: number) {
+          left = Math.min(v, max);
+        },
+      });
+      useDawStore.setState({ playheadSec: 30.2, scrollLeft: 99.9 });
+      let scrolled = !expected;
+      act(() => {
+        scrolled = playheadScrollRegistry.scrollAllToPlayhead();
+      });
+      expect(scrolled).toBe(expected);
+    },
+  );
 
   it("clamps to the end of the canvas", () => {
     const scroller = mount(false);
