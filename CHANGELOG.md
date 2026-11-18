@@ -25,6 +25,7 @@
 
 ### Fixes
 
+* Playing a comment, a word's Hear in Review, a conflict row's Hear and the inspector footer's Play around now say why they cannot play, for a share guest without the play capability or a project with no tracks, instead of doing nothing (#3499).
 * The master step skips the oversampled true-peak measure on limiter rounds whose sample peak already shows they cannot converge (#2891). It screens each non-final round with integrated loudness and sample peak, and measures exactly only when the round might converge and on the final round, so the drive sequence, render count, mastered file and `master_qc.json` are unchanged and the step is about 1 to 4 s faster on a 5-minute premix that reaches the limiter (a round it skips saves about 2 s).
 
 * Notes, waive reasons and vocabulary terms sent by a share guest (HTTP or MCP) are now refused with a 422 when they hold a control character or a bidi override (null, escape, U+202E and the like), and a vocabulary term is trimmed and must be one line; line breaks and tabs stay fine in notes and reasons, and so do joiners (#2827)
