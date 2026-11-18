@@ -1,4 +1,5 @@
 import fs from "node:fs";
+import path from "node:path";
 import { expect, type Page, test } from "@playwright/test";
 import {
   openEnvelopePoint,
@@ -441,6 +442,34 @@ test("phone shells keep every control a finger can use at 360, 390 and 767 wide"
   page,
 }) => {
   expect(await sweep(page, PHONES), "controls a finger cannot use").toBe("");
+});
+
+test("phone shells keep the Audio error pill and Retry a finger can use at 360, 390 and 767 wide", async ({
+  page,
+}) => {
+  await withShareableProject(async (projectPath) => {
+    // The fixture has clips and no mix, so a premix file that cannot be played
+    // is what the audio element fails to load: the Player's real error state.
+    const artifacts = path.join(path.dirname(projectPath), "artifacts");
+    fs.mkdirSync(artifacts, { recursive: true });
+    fs.writeFileSync(path.join(artifacts, "premix.wav"), "not audio");
+    const reports: string[] = [];
+    for (const cell of PHONES.filter((phone) => phone.rootPx === 16)) {
+      await arrive(page, cell, (p) => openHostShare(p, projectPath));
+      await expect(page.locator(".sys-pill--danger")).toBeVisible();
+      await expect(page.getByRole("button", { name: "Retry" })).toBeVisible();
+      await settle(page);
+      const failures = await reachFailures(page, {
+        scope: ".stage-frame-player",
+        dense: DENSE,
+        sizeExempt: SIZE_EXEMPT,
+      });
+      if (failures.length > 0) {
+        reports.push(`${cell.name}\n${describeReach(failures)}`);
+      }
+    }
+    expect(reports.join("\n\n"), "controls a finger cannot use").toBe("");
+  });
 });
 
 test("loaded tablet Player stays reachable at 200% text", async ({ page }) => {

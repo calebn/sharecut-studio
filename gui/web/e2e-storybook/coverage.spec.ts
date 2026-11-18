@@ -9,6 +9,7 @@ import {
 import { expectStoryAxeClean } from "../e2e/axe";
 import { STORYBOOK_ONLY } from "../src/storybook/storybookOnlyStories";
 import { expectRootFit, expectShellFit } from "./shellFit";
+import { emit } from "./storyChannel";
 import { type StoryTheme, storyUrl } from "./storyUrl";
 
 interface IndexEntry {
@@ -84,9 +85,7 @@ base("no phone-named story is tagged wide-only", () => {
 
 const STORYBOOK_URL = "http://127.0.0.1:6010";
 
-type Channel = { emit: (event: string, payload: unknown) => void };
 type PreviewWindow = {
-  __STORYBOOK_ADDONS_CHANNEL__: Channel;
   __STORYBOOK_PREVIEW__?: {
     currentRender?: {
       id?: string;
@@ -111,16 +110,6 @@ const test = base.extend<object, { storybook: Page }>({
     { scope: "worker" },
   ],
 });
-
-const emit = (page: Page, event: string, payload: unknown) =>
-  page.evaluate(
-    ({ event, payload }) =>
-      (window as unknown as PreviewWindow).__STORYBOOK_ADDONS_CHANNEL__.emit(
-        event,
-        payload,
-      ),
-    { event, payload },
-  );
 
 const renderSettled = (page: Page, id?: string) =>
   page.waitForFunction(

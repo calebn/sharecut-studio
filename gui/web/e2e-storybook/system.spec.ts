@@ -5,6 +5,8 @@ import {
   ENVELOPE_TOP_DB,
   gainToDb,
 } from "../src/system/envelopeMath";
+import { BASELINE } from "./playerBarBaseline";
+import { emit } from "./storyChannel";
 import { storyUrl } from "./storyUrl";
 
 /**
@@ -226,10 +228,10 @@ test("System controls show the 2 px accent focus ring", async ({ page }) => {
   }).toPass();
 });
 
-test("System/Player follow pill X has a 44 px hit area at 360", async ({
+test("System/Player follow pill X has a 44 px hit area at 800", async ({
   page,
 }) => {
-  await open(page, "system-player--following-partial", 360);
+  await open(page, "system-player--following-partial", 800);
   const x = page.getByRole("button", { name: /^Stop following/ });
   await expect(x).toBeVisible();
   const box = await x.boundingBox();
@@ -253,9 +255,9 @@ test("System/Player error pill and Retry stay clear of Play and the skips (#2576
 }) => {
   const args = "state:error;status:No mix yet";
   // 801 to 960 is where the error pill and Retry outgrew the side column
-  // beside the skips; 960 (60 rem) is the widest the status text gives way, and
-  // it is back, readable, from 961 up. The story fills the viewport, so the
-  // Player's container is as wide as the viewport.
+  // beside the skips. The status text gives way to them, and stays for assistive
+  // tech. The story fills the viewport, so the Player's container is as wide as
+  // the viewport.
   for (const width of [801, 850, 896, 940, 960, 961, 1280]) {
     await page.setViewportSize({ width, height: 800 });
     await page.emulateMedia({ colorScheme: "light", reducedMotion: "reduce" });
@@ -276,7 +278,6 @@ test("System/Player error pill and Retry stay clear of Play and the skips (#2576
         scroll: document.documentElement.scrollWidth,
         statusKept: (status?.textContent ?? "") !== "",
         statusDisplayed: style !== null && style.display !== "none",
-        statusClipped: (status?.getBoundingClientRect().width ?? 0) <= 1,
         overlaps: [...right.children].filter((el) => {
           const r = el.getBoundingClientRect();
           return (
@@ -293,11 +294,508 @@ test("System/Player error pill and Retry stay clear of Play and the skips (#2576
       scroll: width,
       statusKept: true,
       statusDisplayed: true,
-      statusClipped: width <= 960,
       overlaps: 0,
     });
   }
 });
+
+test("System/Player dock keeps its status pill and transport at 801 to 960 (#2576)", async ({
+  page,
+}) => {
+  await page.emulateMedia({ colorScheme: "light", reducedMotion: "reduce" });
+  for (const width of [801, 900, 960]) {
+    await page.setViewportSize({ width, height: 400 });
+    await page.goto(
+      `${storyUrl("system-player--dock", { theme: "light" })}&args=state:error;status:No mix yet`,
+    );
+    const dock = page.locator(".sys-listen-dock");
+    await expect(dock.getByRole("button", { name: "Retry" })).toBeVisible();
+    for (const name of ["Back 15 seconds", "Play", "Forward 15 seconds"]) {
+      await expect(
+        dock.getByRole("button", { name }),
+        `${name} at ${width}`,
+      ).toBeVisible();
+    }
+    await expect(
+      dock.locator(".sys-player-pill-text"),
+      `pill text at ${width}`,
+    ).toBeVisible();
+  }
+});
+
+const FOLLOWING = {
+  name: "Rosa",
+  colorIndex: 1,
+  detail: "in Pipeline (host-only) · auditioning FX",
+};
+const MS = { time: "12:04.250", total: "52:10.000" };
+const HOURS = { time: "00:12:04.250", total: "01:02:52.000" };
+const HOST = { hearMenu: { mode: "mix" } };
+const CUTS = { cuts: "−4:10" };
+const HOURS_CUTS = { cuts: "−14:10" };
+const STALE = { status: "Mix out of date" };
+
+/**
+ * What the app really passes a bar (`usePlayerProps`): a timecode with
+ * milliseconds (hours from an hour of audio), the hear menu for a host and the
+ * Following pill's stop button. The first group is what develop laid out
+ * without overlap and is held to what develop showed (`BASELINE`); the second
+ * is busier than develop could hold and only has to be clean.
+ */
+const BAR_STATES: Record<string, BarArgs> = {
+  plain: { ...MS, ...HOST, ...CUTS },
+  plainnocuts: { ...MS, ...HOST },
+  plainguest: { ...MS, guest: true },
+  plainguestcuts: { ...MS, guest: true, ...CUTS },
+  solo: { ...MS, ...HOST, ...CUTS, solo: "Rosa" },
+  mixonly: { ...MS, ...HOST, ...CUTS, state: "mix-updating" },
+  erroronly: { ...MS, ...HOST, ...CUTS, state: "error" },
+  errornocuts: { ...MS, ...HOST, state: "error" },
+  staleonly: { ...MS, ...HOST, ...CUTS, ...STALE },
+  guesterror: { ...MS, guest: true, state: "error" },
+  guestmix: { ...MS, guest: true, state: "mix-updating" },
+  followcuts: { ...MS, ...HOST, ...CUTS, following: FOLLOWING },
+  followalone: { ...MS, ...HOST, following: FOLLOWING },
+  guestfollow: { ...MS, guest: true, following: FOLLOWING },
+  hoursplain: { ...HOURS, ...HOST, ...HOURS_CUTS },
+  hourssolo: { ...HOURS, ...HOST, ...HOURS_CUTS, solo: "Rosa" },
+  hoursfollow: { ...HOURS, ...HOST, ...HOURS_CUTS, following: FOLLOWING },
+  rate: { ...MS, ...HOST, ...CUTS, rate: 2 },
+  solomix: { ...MS, ...HOST, ...CUTS, solo: "Rosa", state: "mix-updating" },
+  soloerr: { ...MS, ...HOST, ...CUTS, solo: "Rosa", state: "error" },
+  stalesolo: { ...MS, ...HOST, ...CUTS, ...STALE, solo: "Rosa" },
+  staleerr: { ...MS, ...HOST, ...CUTS, ...STALE, state: "error" },
+  followsolo: { ...MS, ...HOST, ...CUTS, following: FOLLOWING, solo: "Rosa" },
+  mixup: {
+    ...MS,
+    ...HOST,
+    ...CUTS,
+    following: FOLLOWING,
+    solo: "Rosa",
+    state: "mix-updating",
+  },
+  stackerr: {
+    ...MS,
+    ...HOST,
+    ...CUTS,
+    following: FOLLOWING,
+    solo: "Rosa",
+    state: "error",
+  },
+  hoursstack: {
+    ...HOURS,
+    ...HOST,
+    ...HOURS_CUTS,
+    following: FOLLOWING,
+    solo: "Rosa",
+    state: "error",
+  },
+  rateerr: {
+    ...MS,
+    ...HOST,
+    ...CUTS,
+    rate: 2,
+    solo: "Rosa",
+    state: "error",
+  },
+  longstatus: {
+    ...MS,
+    ...HOST,
+    state: "error",
+    status: "Import audio to play.",
+    playUnavailable: true,
+  },
+  longfollow: {
+    ...MS,
+    ...HOST,
+    ...CUTS,
+    following: { ...FOLLOWING, name: "Rosalind-Margaret" },
+  },
+  longsolo: { ...MS, ...HOST, ...CUTS, solo: "Rosalind-Margaret" },
+  longstack: {
+    ...MS,
+    ...HOST,
+    ...CUTS,
+    following: { ...FOLLOWING, name: "Rosalind-Margaret" },
+    solo: "Rosalind-Margaret",
+    state: "mix-updating",
+  },
+  widestatus: {
+    ...MS,
+    ...HOST,
+    ...CUTS,
+    status: "WWWWWWWWWWWWWWWWWWWWWWWW",
+  },
+  guesterr: {
+    ...MS,
+    guest: true,
+    following: FOLLOWING,
+    state: "error",
+    status: "Mix out of date",
+  },
+};
+type BarArgs = Record<string, unknown>;
+
+/** The Status pills the bar draws for these props, to know when the story has caught up. */
+function pillCount(args: BarArgs) {
+  return (
+    (["cuts", "rate", "following", "status"] as const).filter(
+      (key) => key in args,
+    ).length +
+    (!args.guest && "solo" in args ? 1 : 0) +
+    (args.state ? 1 : 0)
+  );
+}
+
+function pillStory(args: BarArgs) {
+  return args.following
+    ? "system-player--following-partial"
+    : "system-player--ready";
+}
+
+/** The bar's controls as the page shows them, the overlaps and the squeezes. */
+const measureBar = () => {
+  const bar = document.querySelector<HTMLElement>(
+    ".sys-player-host > .sys-player",
+  );
+  if (!bar) throw new Error("Player did not render");
+  const probe = document.createElement("div");
+  probe.style.blockSize = "var(--player-height)";
+  document.body.append(probe);
+  const token = probe.getBoundingClientRect().height;
+  probe.remove();
+  const box = bar.getBoundingClientRect();
+  const shown = (el: Element) => {
+    const r = el.getBoundingClientRect();
+    return r.width > 1 && r.height > 1;
+  };
+  const kindOf = (el: Element): string => {
+    if (el.matches(".sys-player-skip"))
+      return el.getAttribute("aria-label")?.startsWith("Back")
+        ? "skip back"
+        : "skip forward";
+    const byClass: [string, string][] = [
+      [".sys-player-now", "time"],
+      [".sys-play", "play"],
+      [".sys-player-ab", "A/B"],
+      [".sys-player-hear-more", "hear options"],
+      [".sys-player-comment", "comment"],
+      [".sys-player-cuts", "cuts"],
+      [".sys-player-following", "following"],
+      [".sys-player-solo", "solo"],
+      [".sys-player-mix", "updating mix"],
+      [".sys-player-rate", "speed"],
+      [".sys-pill--danger", "audio error"],
+      [".sys-player-retry", "retry"],
+      [".sys-player-status", "status"],
+    ];
+    for (const [selector, kind] of byClass)
+      if (el.matches(selector)) return kind;
+    return el.className;
+  };
+  const controls = [
+    ...bar.querySelectorAll(
+      ".sys-player-now, .sys-player-skip, .sys-play, .sys-player-ab, .sys-player-hear-more, .sys-player-comment, .sys-player-left > .pill, .sys-player-right > .pill, .sys-player-right > .sys-player-status, .sys-player-right > button",
+    ),
+  ].filter(shown);
+  const problems: string[] = [];
+  for (let i = 0; i < controls.length; i++) {
+    const a = controls[i].getBoundingClientRect();
+    if (a.left < box.left - 0.5 || a.right > box.right + 0.5) {
+      problems.push(`${kindOf(controls[i])} spills past the bar`);
+    }
+    for (let j = i + 1; j < controls.length; j++) {
+      const b = controls[j].getBoundingClientRect();
+      const across = Math.min(a.right, b.right) - Math.max(a.left, b.left);
+      const down = Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top);
+      if (across > 0.5 && down > 0.5) {
+        problems.push(
+          `${kindOf(controls[i])} overlaps ${kindOf(controls[j])} by ${across.toFixed(1)}`,
+        );
+      }
+    }
+  }
+  const withText: string[] = [];
+  const withDetail: string[] = [];
+  for (const pill of bar.querySelectorAll<HTMLElement>(".pill")) {
+    const holder = pill.closest<HTMLElement>(".sys-player-status");
+    if (!shown(pill) || (holder && !shown(holder))) continue;
+    const kind = kindOf(holder ?? pill);
+    const icon = pill.querySelector("svg");
+    if (icon && icon.getBoundingClientRect().width < 11.5) {
+      problems.push(
+        `${kind} glyph is ${icon.getBoundingClientRect().width.toFixed(1)} wide`,
+      );
+    }
+    if (holder) {
+      const room = holder.getBoundingClientRect();
+      const own = pill.getBoundingClientRect();
+      if (own.left < room.left - 0.5 || own.right > room.right + 0.5) {
+        problems.push(
+          `${kind} runs ${(own.right - room.right).toFixed(1)} past its room`,
+        );
+      }
+    }
+    for (const part of pill.querySelectorAll<HTMLElement>(
+      ".sys-player-pill-text, .sys-player-pill-detail",
+    )) {
+      if (
+        shown(part) &&
+        part.scrollWidth > part.clientWidth + 1 &&
+        getComputedStyle(part).textOverflow !== "ellipsis"
+      ) {
+        problems.push(`${kind} text is cut off without an ellipsis`);
+      }
+    }
+    const text = pill.querySelector(".sys-player-pill-text");
+    if (text && shown(text)) withText.push(kind);
+    if (text && !shown(text) && !pill.getAttribute("title")) {
+      problems.push(`glyph-only ${kind} has no tooltip`);
+    }
+    const detail = pill.querySelector(".sys-player-pill-detail");
+    if (detail && shown(detail)) withDetail.push(kind);
+    const stop = pill.querySelector<HTMLElement>(".sys-pill-x");
+    if (
+      stop &&
+      (matchMedia("(pointer: coarse)").matches ||
+        innerWidth /
+          parseFloat(getComputedStyle(document.documentElement).fontSize) <=
+          50)
+    ) {
+      const r = stop.getBoundingClientRect();
+      const reach = (dx: number, dy: number) => {
+        const hit = document.elementFromPoint(
+          r.left + r.width / 2 + dx,
+          r.top + r.height / 2 + dy,
+        );
+        return hit === stop || stop.contains(hit);
+      };
+      const half =
+        (20 * parseFloat(getComputedStyle(document.documentElement).fontSize)) /
+        16;
+      const inside = Math.min(half, innerWidth - 1 - (r.left + r.width / 2));
+      for (const [dx, dy] of [
+        [inside, 0],
+        [-half, 0],
+        [0, half],
+        [0, -half],
+      ]) {
+        if (!reach(dx, dy))
+          problems.push(
+            `Stop following is not reachable ${dx}, ${dy} from its centre`,
+          );
+      }
+    }
+  }
+  const danger = bar.querySelector<HTMLElement>(".sys-pill--danger");
+  const retry = bar.querySelector<HTMLElement>(".sys-player-retry");
+  for (const el of [danger, retry]) {
+    if (el && shown(el) && el.scrollWidth > el.clientWidth) {
+      problems.push(`${kindOf(el)} is clipped`);
+    }
+  }
+  if (Math.abs(box.height - token) > 0.5) {
+    problems.push(`bar is ${box.height}, token is ${token}`);
+  }
+  if (document.documentElement.scrollWidth > innerWidth) {
+    problems.push("the page scrolls");
+  }
+  const kinds = [...new Set(controls.map(kindOf))].sort();
+  const texts = [...new Set(withText)].sort();
+  const details = [...new Set(withDetail)].sort();
+  return {
+    problems,
+    kinds,
+    signature:
+      kinds.join(",") +
+      (texts.length ? `|t:${texts.join(",")}` : "") +
+      (details.length ? `|d:${details.join(",")}` : ""),
+  };
+};
+
+const BAR_WIDTHS = [
+  360, 370, 375, 378, 390, 414, 448, 449, 576, 577, 641, 642, 672, 673, 700,
+  714, 736, 737, 768, 800, 801, 818, 864, 865, 896, 960, 961, 962, 976, 980,
+  984, 994, 1048, 1100, 1180, 1200, 1280, 1312, 1314, 1400,
+];
+const BAR_TEXT_SIZES = [
+  { root: 24, widths: [360, 456, 600, 800, 978, 980, 1000, 1050, 1092] },
+  { root: 32, widths: [360, 456, 600, 800, 1000] },
+];
+
+/**
+ * Where a rung sits a little past the width develop first fitted at, so the bar
+ * shows fewer controls than develop did while develop was still clean. Each
+ * window is the rung's rounding or the sharing of one rung between two
+ * configurations that differ by under 1.5 rem; the bar may drop controls in it
+ * but never show one develop did not.
+ */
+const SHOWS_LESS: {
+  pointer: "fine" | "coarse" | "both";
+  from: number;
+  to: number;
+  why: string;
+}[] = [
+  {
+    pointer: "both",
+    from: 394,
+    to: 397,
+    why: "cuts rung, no pill (24.75 rem)",
+  },
+  {
+    pointer: "both",
+    from: 430,
+    to: 449,
+    why: "cuts rung shared by one pill (28 rem)",
+  },
+  {
+    pointer: "both",
+    from: 372,
+    to: 389,
+    why: "chevron rung for Following (24.25 rem)",
+  },
+  {
+    pointer: "coarse",
+    from: 644,
+    to: 677,
+    why: "skip rungs under touch (41 and 42.25 rem)",
+  },
+  {
+    pointer: "coarse",
+    from: 866,
+    to: 889,
+    why: "pill text rung for an error or Following under touch (55.5 rem)",
+  },
+  {
+    pointer: "fine",
+    from: 982,
+    to: 993,
+    why: "Following detail rung (62 rem)",
+  },
+  {
+    pointer: "coarse",
+    from: 1058,
+    to: 1065,
+    why: "Following detail rung under touch (66.5 rem)",
+  },
+];
+
+/** Whether the bar shows nothing that develop's signature did not. */
+function showsNoMore(head: string, develop: string) {
+  const parts = (signature: string) =>
+    signature
+      .split("|")
+      .map((part) => new Set(part.replace(/^[td]:/, "").split(",")));
+  const [headParts, developParts] = [parts(head), parts(develop)];
+  return headParts.every((part, index) =>
+    [...part].every((kind) => developParts[index]?.has(kind)),
+  );
+}
+
+/** Where in a band of develop's layout to check the bar: both ends and every so often between. */
+function bandWidths(from: number, to: number) {
+  const widths = new Set([from, to]);
+  for (let width = from + 64; width < to; width += 64) widths.add(width);
+  return [...widths];
+}
+
+for (const pointer of ["fine", "coarse"] as const) {
+  test(`System/Player bar keeps its controls apart and shows what develop showed where it fitted, ${pointer} pointer (#2576)`, async ({
+    browser,
+  }) => {
+    const context = await browser.newContext({
+      baseURL: "http://127.0.0.1:6010",
+      viewport: { width: 800, height: 400 },
+      colorScheme: "light",
+      reducedMotion: "reduce",
+      ...(pointer === "coarse"
+        ? { hasTouch: true, isMobile: true, deviceScaleFactor: 2 }
+        : {}),
+    });
+    const page = await context.newPage();
+    const failures: string[] = [];
+    let open: string | null = null;
+    for (const [name, args] of Object.entries(BAR_STATES)) {
+      const story = pillStory(args);
+      if (open !== story) {
+        open = story;
+        await page.goto(storyUrl(story, { theme: "light" }));
+        await expect(page.locator(".sys-player")).toBeVisible();
+        await page.evaluate(() => document.fonts.ready);
+      }
+      await emit(page, "resetStoryArgs", { storyId: story });
+      await page.waitForFunction(
+        (pills) =>
+          document.querySelectorAll(".sys-player .pill").length === pills,
+        args.following ? 1 : 0,
+      );
+      await emit(page, "updateStoryArgs", {
+        storyId: story,
+        updatedArgs: args,
+      });
+      await page.waitForFunction(
+        ([mode, pills, guest]) =>
+          (document
+            .querySelector(".sys-player-host")
+            ?.getAttribute("data-state") ?? "") === mode &&
+          document.querySelectorAll(".sys-player .pill").length === pills &&
+          (document.querySelector(".sys-player-comment--guest") !== null) ===
+            guest,
+        [
+          args.state === "mix-updating" || args.state === "error"
+            ? args.state
+            : "",
+          pillCount(args),
+          args.guest === true,
+        ] as const,
+      );
+      const bands = BASELINE[name]?.[pointer] ?? [];
+      const sizes = [
+        {
+          root: 16,
+          widths: [
+            ...new Set([
+              ...BAR_WIDTHS,
+              ...bands.flatMap(([from, to]) => bandWidths(from, to)),
+            ]),
+          ],
+        },
+        ...BAR_TEXT_SIZES,
+      ];
+      for (const { root, widths } of sizes) {
+        await page.evaluate((px) => {
+          document.documentElement.style.fontSize = `${px}px`;
+        }, root);
+        for (const width of widths) {
+          await page.setViewportSize({ width, height: 400 });
+          const found = await page.evaluate(measureBar);
+          const where = `${pointer} ${width} px at ${root} px text, ${name}`;
+          for (const problem of found.problems)
+            failures.push(`${where}: ${problem}`);
+          if (root !== 16) continue;
+          const band = bands.find(([from, to]) => width >= from && width <= to);
+          const slack = SHOWS_LESS.some(
+            (rung) =>
+              (rung.pointer === "both" || rung.pointer === pointer) &&
+              width >= rung.from &&
+              width <= rung.to,
+          );
+          if (
+            band &&
+            found.signature !== band[2] &&
+            !(slack && showsNoMore(found.signature, band[2]))
+          ) {
+            failures.push(
+              `${where}: shows ${found.signature}, develop showed ${band[2]}`,
+            );
+          }
+        }
+      }
+    }
+    await context.close();
+    expect(failures).toEqual([]);
+  });
+}
 
 test("System/Marker a chapter's span leaves the lane under it to the marker beneath", async ({
   page,
