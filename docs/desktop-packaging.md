@@ -319,6 +319,47 @@ lib (a `staticlib`) with Python.xcframework linked into it; there is no sidecar 
   relay config and no sqlite file with an `active_shares` table, and the registry file is mode
   0600 in a 0700 directory. It is `partly_observed` until the engine has opened the registry.
 
+<a id="ios-native-ffmpeg-abi"></a>
+**iOS native FFmpeg ABI (#3974, stage 3 slice 6a).** `src/podcast_mcp/util/native_ffmpeg.py`
+holds `NativeFFmpegBackend`, the `InProcessBackend` that runs `in-process:ffmpeg` and
+`in-process:ffprobe` argv on four C functions the app exports. No native library implements them
+yet and no host row uses the backend; slice 6b adds the library and the bundle check that its
+symbols survive linking (`nm` on the app executable), which this slice does not have.
+
+```c
+int      sc_ffmpeg_abi_version(void);   /* must return 1 */
+int64_t  sc_ffmpeg_start(int argc, const char* const* argv, int in_fd, int out_fd, int err_fd);
+int      sc_ffmpeg_wait(int64_t session);
+void     sc_ffmpeg_cancel(int64_t session);
+```
+
+- **Binding.** ctypes `CDLL` (never `PyDLL`: `PyDLL` keeps the GIL, so a blocked `wait` would stop
+  the cancel watcher). The module loads nothing at import. `is_available()` returns `False` on a
+  host whose `media_tools` is not `in_process` before any ctypes call; elsewhere it looks the four
+  names up in this process (`dlopen(NULL)`) and calls `sc_ffmpeg_abi_version` only. A missing
+  symbol or a version other than 1 is unavailable, and nothing is installed.
+- **argv.** `argv[0]` is the tool name, `ffmpeg` or `ffprobe` (Python maps the sentinel). The array
+  has `argc` strings and a NULL slot. Native copies every string before `start` returns.
+- **Sessions.** `start` returns an id >= 1 (never reused in a process) or `-errno`, and leaves no
+  dup behind on failure. `wait` returns an exit code in 0..255 or `-errno` (`-ESRCH` for an
+  unknown or already-waited id). `cancel` is idempotent and a no-op for an unknown id. It asks the
+  session to stop and closes the session's dups of the caller's in, out and err fds before it
+  returns, or at the latest within 5 s (the Python `KILL_GRACE_SEC`), even if the media work has
+  not finished: the caller's reader of a pipe then sees EOF. `wait` may still return later. A
+  native that ignores `cancel` or keeps its dups does not hang `run` or `wait` (Python reports
+  `-9` after the grace) but gives no EOF until its session ends. There are no callbacks.
+- **File descriptors.** `-1` means none. Native `dup()`s each fd >= 0 before `start` returns and
+  closes its dups when the session ends; the caller owns and closes its own fds and native never
+  closes them. A dup shares the file offset, so a caller reading a tempfile stderr back must
+  `seek(0)` first. Streams need a real `fileno()`.
+- **Errors.** A negative `start`, a `wait` outside 0..255 or an unknown tool is exit code `1` with
+  one line on stderr. A native error is never reported as success, and the backend never starts
+  a program.
+- **Linking.** The app target's existing `settings: base:` block in
+  `gui/desktop/src-tauri/ios/project.yml` carries `OTHER_LDFLAGS: ["$(inherited)",
+  "-Wl,-export_dynamic"]` so the linker keeps the four symbols visible to `dlsym`. Do not add a
+  second `settings:` key to that target: YAML silently keeps only the last.
+
 <a id="ios-release"></a>
 **iOS release (#3810, stage 2).** `scripts/ios/ios_release.py` builds a release `.ipa` for the
 owner's bundle identifier, checks it, validates it with App Store Connect and uploads it to

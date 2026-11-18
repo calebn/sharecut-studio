@@ -56,7 +56,9 @@ IN_PROCESS_PAIR = FFmpegPair(
 
 
 def _in_process_linked() -> bool:
-    return False
+    from podcast_mcp.util import native_ffmpeg
+
+    return native_ffmpeg.is_available()
 
 
 class FFmpegPairResolutionError(RuntimeError):

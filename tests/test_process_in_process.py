@@ -475,3 +475,46 @@ def test_the_proxy_identity_of_a_desktop_pair_is_content_hashed(
     binaries = captured.identity_payload["binaries"]
     assert binaries == [sha256_file(Path(tool)) for tool in tools]
     assert not {IN_PROCESS_FFMPEG, IN_PROCESS_FFPROBE} & set(binaries)
+
+
+def test_the_backend_contract_hands_argv_streams_and_event_and_the_int_becomes_returncode(
+    backend: FakeBackend,
+) -> None:
+    backend.params = {"code": 7}
+    done = process.run([IN_PROCESS_FFMPEG, "x"], capture_output=True)
+    assert done.returncode == 7
+    (argv,) = backend.calls
+    assert argv == [IN_PROCESS_FFMPEG, "x"] and isinstance(argv, list)
+    (cancel,) = backend.cancels
+    assert isinstance(cancel, threading.Event)
+
+
+def test_the_public_shape_of_the_backend_seam() -> None:
+    import inspect
+
+    assert Streams._fields == ("stdin", "stdout", "stderr")
+    assert list(inspect.signature(process.InProcessBackend.run).parameters) == [
+        "self",
+        "argv",
+        "streams",
+        "cancel",
+    ]
+    assert inspect.isgeneratorfunction(process.using_in_process_backend.__wrapped__)
+    assert process._in_process_backend is None
+
+
+def test_the_installed_backend_is_cleared_on_exit_and_a_streams_triple_reaches_run(
+    host,
+) -> None:
+    seen: list[Streams] = []
+
+    class Spy:
+        def run(self, argv: list[str], streams: Streams, cancel: threading.Event) -> int:
+            seen.append(streams)
+            return 0
+
+    host(ROW)
+    with process.using_in_process_backend(Spy()):
+        assert process.run([IN_PROCESS_FFMPEG], capture_output=True).returncode == 0
+    assert process._in_process_backend is None
+    assert isinstance(seen[0], Streams)
