@@ -448,10 +448,20 @@ describe("TimelineView scroll to playhead", () => {
       expect(pill()).toBeNull();
     });
 
-    it("never shows the pill with a fixed playhead", () => {
+    it("never shows the pill with a fixed playhead, even when the view is far from the playhead", () => {
       useDawStore.setState({ playheadSec: 80 });
       setFollow(false);
       mount(true);
+      act(() => useDawStore.setState({ scrollLeft: 0, playheadSec: 80 }));
+      expect(pill()).toBeNull();
+    });
+
+    it("hides the pill while following another person", () => {
+      useDawStore.setState({ playheadSec: 80 });
+      mount(false);
+      act(() => setFollow(false));
+      expect(pill()).not.toBeNull();
+      act(() => useDawStore.setState({ followingClientId: "leader" }));
       expect(pill()).toBeNull();
     });
 
