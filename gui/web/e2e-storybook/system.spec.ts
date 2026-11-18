@@ -433,6 +433,50 @@ const BAR_STATES: Record<string, BarArgs> = {
     state: "error",
     status: "Mix out of date",
   },
+  // The states the round 4 reviewers found overlapping.
+  hostfollowerrstale: {
+    ...MS,
+    ...HOST,
+    ...CUTS,
+    following: FOLLOWING,
+    state: "error",
+    ...STALE,
+  },
+  hostfollowerrimport: {
+    ...MS,
+    ...HOST,
+    following: FOLLOWING,
+    state: "error",
+    status: "Import audio to play.",
+    playUnavailable: true,
+  },
+  fourpills: {
+    ...MS,
+    ...HOST,
+    ...CUTS,
+    following: FOLLOWING,
+    solo: "Rosa",
+    state: "mix-updating",
+    ...STALE,
+  },
+  ratefourpills: {
+    ...MS,
+    ...HOST,
+    ...CUTS,
+    rate: 2,
+    solo: "Rosa",
+    state: "mix-updating",
+    ...STALE,
+  },
+  hoursratestack: {
+    ...HOURS,
+    ...HOST,
+    ...HOURS_CUTS,
+    rate: 2,
+    solo: "Rosa",
+    state: "error",
+    ...STALE,
+  },
 };
 type BarArgs = Record<string, unknown>;
 
@@ -452,6 +496,12 @@ function pillStory(args: BarArgs) {
     ? "system-player--following-partial"
     : "system-player--ready";
 }
+
+/** Two frames: the bar's ResizeObserver has run and the fit it set has been laid out. */
+const settle = () =>
+  new Promise<void>((resolve) =>
+    requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
+  );
 
 /** The bar's controls as the page shows them, the overlaps and the squeezes. */
 const measureBar = () => {
@@ -589,6 +639,27 @@ const measureBar = () => {
   }
   const danger = bar.querySelector<HTMLElement>(".sys-pill--danger");
   const retry = bar.querySelector<HTMLElement>(".sys-player-retry");
+  // Above 14 rem (below it develop's fold keeps only Play, the clock and the
+  // hear menu) the Audio error pill, Retry and a guest's Comment stay visible.
+  const rootSize = parseFloat(
+    getComputedStyle(document.documentElement).fontSize,
+  );
+  // (Develop's 50 rem error rule also takes Comment, a guest's too, away.)
+  const width = box.width / rootSize;
+  if (width > 14.01) {
+    for (const [el, name] of [
+      [danger, "Audio error pill"],
+      [retry, "Retry"],
+      [
+        width > 50 || !danger
+          ? bar.querySelector(".sys-player-comment--guest")
+          : null,
+        "guest Comment",
+      ],
+    ] as const) {
+      if (el && !shown(el)) problems.push(`${name} is not visible`);
+    }
+  }
   for (const el of [danger, retry]) {
     if (el && shown(el) && el.scrollWidth > el.clientWidth) {
       problems.push(`${kindOf(el)} is clipped`);
@@ -624,71 +695,53 @@ const BAR_TEXT_SIZES = [
 ];
 
 /**
- * Where a rung sits a little past the width develop first fitted at, so the bar
- * shows fewer controls than develop did while develop was still clean. Each
- * window is the rung's rounding or the sharing of one rung between two
- * configurations that differ by under 1.5 rem; the bar may drop controls in it
- * but never show one develop did not.
+ * The one place the bar shows less than develop where develop was clean. The
+ * bar gives up pill text before it cuts the status short (the status ellipsis
+ * is the last resort), so for the last 16 px before a status text fits whole,
+ * develop showed it with an ellipsis and the bar shows the pills' glyphs alone
+ * (level 1 hides every pill's text). Each window is the width range, in px at
+ * the default text size, where that was so for the state; in it the bar may
+ * drop the pills' text but no control, and never shows a control or text
+ * develop did not.
  */
-const SHOWS_LESS: {
-  pointer: "fine" | "coarse" | "both";
+const STATUS_ELLIPSIS: {
+  state: string;
+  pointer: "fine" | "coarse";
   from: number;
   to: number;
-  why: string;
 }[] = [
-  {
-    pointer: "both",
-    from: 394,
-    to: 397,
-    why: "cuts rung, no pill (24.75 rem)",
-  },
-  {
-    pointer: "both",
-    from: 430,
-    to: 449,
-    why: "cuts rung shared by one pill (28 rem)",
-  },
-  {
-    pointer: "both",
-    from: 372,
-    to: 389,
-    why: "chevron rung for Following (24.25 rem)",
-  },
-  {
-    pointer: "coarse",
-    from: 644,
-    to: 677,
-    why: "skip rungs under touch (41 and 42.25 rem)",
-  },
-  {
-    pointer: "coarse",
-    from: 866,
-    to: 889,
-    why: "pill text rung for an error or Following under touch (55.5 rem)",
-  },
-  {
-    pointer: "fine",
-    from: 982,
-    to: 993,
-    why: "Following detail rung (62 rem)",
-  },
-  {
-    pointer: "coarse",
-    from: 1058,
-    to: 1065,
-    why: "Following detail rung under touch (66.5 rem)",
-  },
+  { state: "staleonly", pointer: "coarse", from: 801, to: 816 },
+  { state: "stalesolo", pointer: "fine", from: 901, to: 916 },
+  { state: "stalesolo", pointer: "coarse", from: 977, to: 992 },
+  { state: "staleerr", pointer: "fine", from: 1017, to: 1032 },
+  { state: "staleerr", pointer: "coarse", from: 1095, to: 1110 },
+  { state: "longstatus", pointer: "fine", from: 1071, to: 1086 },
+  { state: "longstatus", pointer: "coarse", from: 1149, to: 1164 },
+  { state: "widestatus", pointer: "fine", from: 1055, to: 1070 },
+  { state: "widestatus", pointer: "coarse", from: 1131, to: 1146 },
+  { state: "ratefourpills", pointer: "fine", from: 1113, to: 1128 },
+  { state: "ratefourpills", pointer: "coarse", from: 1189, to: 1204 },
+  { state: "hoursratestack", pointer: "fine", from: 1193, to: 1208 },
+  { state: "hoursratestack", pointer: "coarse", from: 1271, to: 1286 },
 ];
 
-/** Whether the bar shows nothing that develop's signature did not. */
+/** Whether the bar shows the controls develop did, and the text of some of its pills. */
 function showsNoMore(head: string, develop: string) {
-  const parts = (signature: string) =>
-    signature
-      .split("|")
-      .map((part) => new Set(part.replace(/^[td]:/, "").split(",")));
-  const [headParts, developParts] = [parts(head), parts(develop)];
-  return headParts.every((part, index) =>
-    [...part].every((kind) => developParts[index]?.has(kind)),
+  const split = (signature: string) => {
+    const [controls, ...rest] = signature.split("|");
+    const part = (prefix: string) =>
+      rest.find((entry) => entry.startsWith(prefix))?.slice(2) ?? "";
+    return {
+      controls,
+      text: part("t:").split(",").filter(Boolean),
+      detail: part("d:"),
+    };
+  };
+  const [now, before] = [split(head), split(develop)];
+  return (
+    now.controls === before.controls &&
+    now.detail === before.detail &&
+    now.text.every((kind) => before.text.includes(kind))
   );
 }
 
@@ -768,17 +821,19 @@ for (const pointer of ["fine", "coarse"] as const) {
         }, root);
         for (const width of widths) {
           await page.setViewportSize({ width, height: 400 });
+          await page.evaluate(settle);
           const found = await page.evaluate(measureBar);
           const where = `${pointer} ${width} px at ${root} px text, ${name}`;
           for (const problem of found.problems)
             failures.push(`${where}: ${problem}`);
           if (root !== 16) continue;
           const band = bands.find(([from, to]) => width >= from && width <= to);
-          const slack = SHOWS_LESS.some(
-            (rung) =>
-              (rung.pointer === "both" || rung.pointer === pointer) &&
-              width >= rung.from &&
-              width <= rung.to,
+          const slack = STATUS_ELLIPSIS.some(
+            (window) =>
+              window.state === name &&
+              window.pointer === pointer &&
+              width >= window.from &&
+              width <= window.to,
           );
           if (
             band &&
@@ -794,6 +849,192 @@ for (const pointer of ["fine", "coarse"] as const) {
     }
     await context.close();
     expect(failures).toEqual([]);
+  });
+}
+
+/**
+ * Every combination of what the bar can hold, as the app passes it: a name
+ * (none, short, long) for Following and for Solo, the mix updating or an Audio
+ * error, a status (none, short, long), a Playback rate (only without Following,
+ * as `usePlayerProps` has it), the clock (milliseconds, hours, with and without
+ * the cuts), and a host or a guest (no hear menu, no Solo). Comment is always
+ * there. 432 combinations.
+ */
+function sweepCombos() {
+  const combos: { name: string; args: BarArgs }[] = [];
+  const followings = [
+    ["nofollow", undefined, false],
+    ["rate", undefined, true],
+    ["follow", FOLLOWING, false],
+    ["longfollow", { ...FOLLOWING, name: "Rosalind-Margaret" }, false],
+  ] as const;
+  const solos = [
+    ["nosolo", undefined],
+    ["solo", "Rosa"],
+    ["longsolo", "Rosalind-Margaret"],
+  ] as const;
+  const states = [
+    ["idle", undefined],
+    ["mix", "mix-updating"],
+    ["error", "error"],
+  ] as const;
+  const statuses = [
+    ["nostatus", undefined],
+    ["stale", "Mix out of date"],
+    ["longstatus", "Mix out of date: 3 edits are not in it yet"],
+  ] as const;
+  const clocks = [
+    ["ms", { ...MS }],
+    ["mscuts", { ...MS, ...CUTS }],
+    ["hourscuts", { ...HOURS, ...HOURS_CUTS }],
+  ] as const;
+  for (const guest of [false, true])
+    for (const [fn, following, rate] of followings)
+      for (const [sn, solo] of solos) {
+        if (guest && solo) continue;
+        for (const [stn, state] of states)
+          for (const [un, status] of statuses)
+            for (const [cn, clock] of clocks) {
+              const args: BarArgs = { ...clock };
+              if (guest) args.guest = true;
+              else args.hearMenu = { mode: "mix" };
+              if (following) args.following = following;
+              if (rate) args.rate = 2;
+              if (solo) args.solo = solo;
+              if (state) args.state = state;
+              if (status) args.status = status;
+              combos.push({
+                name: [guest ? "guest" : "host", fn, sn, stn, un, cn].join("-"),
+                args,
+              });
+            }
+      }
+  return combos;
+}
+
+const SWEEP_WIDTHS = [
+  360, 414, 480, 577, 641, 700, 800, 961, 1000, 1100, 1280, 1400,
+];
+
+for (const pointer of ["fine", "coarse"] as const) {
+  test(`System/Player bar fits every combination of what it holds at 12 widths, ${pointer} pointer (#2576)`, async ({
+    browser,
+  }) => {
+    test.setTimeout(600_000);
+    const combos = sweepCombos();
+    expect(combos).toHaveLength(432);
+    const runs: {
+      story: string;
+      root: number;
+      widths: number[];
+      every: number;
+    }[] = [];
+    for (const story of [
+      "system-player--ready",
+      "system-player--following-partial",
+    ]) {
+      const chunks = [
+        SWEEP_WIDTHS.slice(0, 4),
+        SWEEP_WIDTHS.slice(4, 8),
+        SWEEP_WIDTHS.slice(8),
+      ];
+      for (const widths of chunks)
+        runs.push({ story, root: 16, widths, every: 1 });
+      // A sample at 150% and 200% text.
+      runs.push({ story, root: 24, widths: [360, 600, 978, 1280], every: 7 });
+      runs.push({ story, root: 32, widths: [360, 600, 1000, 1280], every: 7 });
+    }
+    const context = await browser.newContext({
+      baseURL: "http://127.0.0.1:6010",
+      viewport: { width: 800, height: 400 },
+      colorScheme: "light",
+      reducedMotion: "reduce",
+      ...(pointer === "coarse"
+        ? { hasTouch: true, isMobile: true, deviceScaleFactor: 2 }
+        : {}),
+    });
+    const failures: string[] = [];
+    const run = async (job: (typeof runs)[number]) => {
+      const page = await context.newPage();
+      await page.goto(storyUrl(job.story, { theme: "light" }));
+      await expect(page.locator(".sys-player")).toBeVisible();
+      await page.evaluate(() => document.fonts.ready);
+      const following = job.story.includes("following");
+      const mine = combos.filter(
+        ({ args }, index) =>
+          Boolean(args.following) === following && index % job.every === 0,
+      );
+      await page.evaluate((root) => {
+        document.documentElement.style.fontSize = `${root}px`;
+      }, job.root);
+      for (const width of job.widths) {
+        await page.setViewportSize({ width, height: 400 });
+        const found = await page.evaluate(
+          async ({ source, settleSource, story, items }) => {
+            const measure = new Function(`return (${source})`)();
+            const settle = new Function(`return (${settleSource})`)();
+            const channel = (
+              window as unknown as {
+                __STORYBOOK_ADDONS_CHANNEL__: {
+                  emit: (event: string, payload: unknown) => void;
+                };
+              }
+            ).__STORYBOOK_ADDONS_CHANNEL__;
+            const out: string[] = [];
+            for (const { name, args } of items) {
+              channel.emit("resetStoryArgs", { storyId: story });
+              channel.emit("updateStoryArgs", {
+                storyId: story,
+                updatedArgs: args,
+              });
+              const pills =
+                (["cuts", "rate", "following", "status"] as const).filter(
+                  (key) => key in args,
+                ).length +
+                (!args.guest && "solo" in args ? 1 : 0) +
+                (args.state ? 1 : 0);
+              const want =
+                args.state === "mix-updating" || args.state === "error"
+                  ? args.state
+                  : "";
+              for (let frame = 0; frame < 120; frame++) {
+                const host = document.querySelector(".sys-player-host");
+                if (
+                  (host?.getAttribute("data-state") ?? "") === want &&
+                  document.querySelectorAll(".sys-player .pill").length ===
+                    pills &&
+                  (document.querySelector(".sys-player-comment--guest") !==
+                    null) ===
+                    (args.guest === true) &&
+                  host?.hasAttribute("data-fit")
+                )
+                  break;
+                await new Promise((resolve) => requestAnimationFrame(resolve));
+              }
+              await settle();
+              const result = measure();
+              for (const problem of result.problems)
+                out.push(`${name}: ${problem}`);
+            }
+            return out;
+          },
+          {
+            source: measureBar.toString(),
+            settleSource: settle.toString(),
+            story: job.story,
+            items: mine,
+          },
+        );
+        for (const line of found)
+          failures.push(
+            `${pointer} ${width} px at ${job.root} px text, ${line}`,
+          );
+      }
+      await page.close();
+    };
+    await Promise.all(runs.map(run));
+    expect(failures.slice(0, 40)).toEqual([]);
+    await context.close();
   });
 }
 
