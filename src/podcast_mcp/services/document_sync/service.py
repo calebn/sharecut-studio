@@ -441,8 +441,11 @@ def _delta_snapshot(
     }
 
 
+_GUEST_ONLY_KEYS = frozenset({"_guest_snapshot", "_history_owners"})
+
+
 def host_document_event(event: dict[str, Any]) -> dict[str, Any]:
-    return {key: value for key, value in event.items() if key != "_guest_snapshot"}
+    return {key: value for key, value in event.items() if key not in _GUEST_ONLY_KEYS}
 
 
 class DocumentSyncService:
@@ -596,11 +599,21 @@ class DocumentSyncService:
             "snapshot": api_snap,
             "server_seq": row["server_seq"] if server_seq is None else server_seq,
         }
-        published = (
-            {**event, "_guest_snapshot": guest_snapshot} if guest_snapshot is not None else event
-        )
+        published = {**event, "_history_owners": self.ws.project.history.step_owners()}
+        if guest_snapshot is not None:
+            published["_guest_snapshot"] = guest_snapshot
         get_hub().publish(self._project_key, published)
         return event
+
+    def guest_document_state(self, *, projection: str) -> dict[str, Any]:
+        """A guest's document snapshot and, read under the same lock, who owns the next Undo
+        and Redo (``_history_owners``, which ``sanitize_guest_document_event`` turns into the
+        viewer's two flags)."""
+        with self._project_ownership():
+            return {
+                "snapshot": self.document_snapshot(projection=projection),
+                "_history_owners": self.ws.project.history.step_owners(),
+            }
 
     @contextmanager
     def _journal_write_lock(self) -> Iterator[SyncStore]:
@@ -861,6 +874,7 @@ class DocumentSyncService:
                         ),
                     }
                 ),
+                "_history_owners": self.ws.project.history.step_owners(),
                 **asks,
                 **moved,
             }

@@ -20,6 +20,7 @@ from podcast_mcp.edits.pending_preview import DEFAULT_PAD_SEC, PendingPreviewSpa
 from podcast_mcp.engines.play_audit import premix_path
 from podcast_mcp.engines.timeline_render import timeline_duration_sec
 from podcast_mcp.models.episode import ExactRangeTarget
+from podcast_mcp.models.history import StepOwners
 from podcast_mcp.project.io import EPISODE_PROJECT_FILENAME, adopt_retired_entry_file, open_project
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.collaboration import share_pending
@@ -1175,6 +1176,13 @@ def _guest_history(history: Any) -> dict[str, Any]:
     return {**_GUEST_EMPTY_HISTORY, "head_id": head}
 
 
+def _with_viewer_flags(history: Any, owners: StepOwners, viewer: str) -> dict[str, Any]:
+    """*history* with the two flags this *viewer* is entitled to: a step is theirs only when
+    they wrote it (Undo) or undid it (Redo). Booleans only; no id leaves the server."""
+    base = history if isinstance(history, dict) else {}
+    return {**base, "can_undo": owners.undo == viewer, "can_redo": owners.redo == viewer}
+
+
 def _guest_view_is_full(view: dict[str, Any]) -> bool:
     """True for a complete ProjectView; false for patch slices (TRACKS/CLIPS/FX/…)."""
     return "project_path" in view
@@ -1292,7 +1300,7 @@ def _guest_file_signature(value: Any) -> dict[str, int] | None:
 
 
 def sanitize_guest_document_event(
-    event: dict[str, Any], *, words: GuestWords = GuestWords.NONE
+    event: dict[str, Any], *, words: GuestWords = GuestWords.NONE, viewer: str | None = None
 ) -> dict[str, Any]:
     """Sanitize a document-plane hub event for share guests.
 
@@ -1300,9 +1308,12 @@ def sanitize_guest_document_event(
     and reduces ``command`` to ``{"type": ...}`` only. ``snapshot.history`` keeps
     only the opaque ``head_id`` (``_guest_history``): labels/params can embed local paths.
     ``snapshot.file`` / ``snapshot.file_before`` are reduced to numeric
-    ``{mtime_ns, size}``.
+    ``{mtime_ns, size}``. ``_history_owners`` is always dropped; with a *viewer* (their
+    ``share:<id>``) on a frame that is not a resync, it becomes that viewer's ``can_undo``
+    and ``can_redo`` in ``snapshot.history``.
     """
     out = dict(event)
+    owners = out.pop("_history_owners", None)
     guest_snapshot = out.pop("_guest_snapshot", None)
     if guest_snapshot is not None:
         out["snapshot"] = guest_snapshot
@@ -1326,6 +1337,8 @@ def sanitize_guest_document_event(
                     snap.pop(key)
                 else:
                     snap[key] = signature
+        if viewer is not None and owners is not None and not snap.get("resync"):
+            snap["history"] = _with_viewer_flags(snap.get("history"), owners, viewer)
         out["snapshot"] = snap
     return _drop_absolute_path_strings(out)
 
@@ -1426,10 +1439,15 @@ def share_daw_project_view(token: str, *, phase: str | None = None) -> dict[str,
     """ShareCut Studio ProjectView for guests with the ``view`` capability."""
     from podcast_mcp.services.document_sync import dump_projection_locked
 
-    _row, ws = require_share_cap(token, CAP_VIEW)
+    row, ws = require_share_cap(token, CAP_VIEW)
     projection = parse_view_projection(phase)
     dumped = dump_projection_locked(ws, projection=projection.value, audience="guest")
-    return sanitize_guest_project_view(dumped)
+    view = sanitize_guest_project_view(dumped)
+    if "history" in view:
+        view["history"] = _with_viewer_flags(
+            view["history"], ws.project.history.step_owners(), share_author(row)
+        )
+    return view
 
 
 def share_daw_meta(token: str) -> dict[str, Any]:
