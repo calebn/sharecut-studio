@@ -256,9 +256,8 @@ def test_service_publish_failure_keeps_persisted_versions_unchanged(
 
 
 @requires_safe_failed_cleanup
-@pytest.mark.parametrize("failure", ["history", "commit"])
 def test_service_publish_removes_media_after_persistence_failure(
-    minimal_project, sample_wav, monkeypatch, failure
+    minimal_project, sample_wav, monkeypatch
 ):
     project = load_project(minimal_project)
     art = Path(project.workspace_dir) / "artifacts"
@@ -278,24 +277,14 @@ def test_service_publish_removes_media_after_persistence_failure(
         mp3.write_bytes(b"encoded")
 
     monkeypatch.setattr(review_versions.FFmpegEngine, "export_mp3", export_mp3)
-    if failure == "history":
-        original_record = HistoryManager.record
 
-        def fail_after_history(self, project, label, **kwargs):
-            if label == "after publish review version":
-                raise RuntimeError("history failed")
-            return original_record(self, project, label, **kwargs)
+    def fail_commit(self, project):
+        raise RuntimeError("commit failed")
 
-        monkeypatch.setattr(HistoryManager, "record", fail_after_history)
-    else:
-
-        def fail_commit(self, project):
-            raise RuntimeError("commit failed")
-
-        monkeypatch.setattr(ProjectStore, "commit", fail_commit)
+    monkeypatch.setattr(ProjectStore, "commit", fail_commit)
 
     ws = ProjectWorkspace.open(minimal_project)
-    with pytest.raises(RuntimeError, match=f"{failure} failed"):
+    with pytest.raises(RuntimeError, match="commit failed"):
         ReviewService(ws).publish(label="new")
 
     assert not (art / "review" / "new-version").exists()
@@ -1178,6 +1167,114 @@ def test_list_and_set_active(minimal_project, sample_wav, tmp_workspace):
     assert persisted.review.active_version_id == b["id"]
     path = version_audio_path(persisted, b["id"])
     assert path.is_file()
+
+
+@requires_safe_failed_cleanup
+def test_publishing_and_choosing_the_active_version_write_no_history_step(
+    minimal_project, sample_wav
+):
+    proj = load_project(minimal_project)
+    art = Path(proj.workspace_dir) / "artifacts"
+    art.mkdir(parents=True, exist_ok=True)
+    (art / "premix.wav").write_bytes(sample_wav.read_bytes())
+    mgr = HistoryManager(ProjectStore(minimal_project))
+    mgr.record(proj, "an earlier edit", force=True)
+    save_project(proj, minimal_project)
+    ws = ProjectWorkspace.open(minimal_project)
+    before = mgr.status(ws.project)
+
+    svc = ReviewService(ws)
+    a = svc.publish(label="A")
+    b = svc.publish(label="B", set_active=False)
+    svc.set_active(b["id"])
+
+    after = mgr.status(load_project(minimal_project))
+    assert (after.total, after.cursor, after.head_id) == (
+        before.total,
+        before.cursor,
+        before.head_id,
+    )
+    assert [v.id for v in load_project(minimal_project).review.versions] == [a["id"], b["id"]]
+
+
+def _add_note(ws: ProjectWorkspace, comment_id: str, label: str) -> None:
+    ws.mutate(
+        f"before {label}",
+        f"after {label}",
+        lambda p: add_comment(
+            p, body=label, author="guest", timeline_start=1.0, comment_id=comment_id
+        ),
+    )
+
+
+def _comment_ids(project_path) -> list[str]:
+    return [c.id for c in load_project(project_path).review.comments]
+
+
+@requires_safe_failed_cleanup
+def test_a_publish_between_two_edits_leaves_one_undo_press_for_each(minimal_project, sample_wav):
+    proj = load_project(minimal_project)
+    art = Path(proj.workspace_dir) / "artifacts"
+    art.mkdir(parents=True, exist_ok=True)
+    (art / "premix.wav").write_bytes(sample_wav.read_bytes())
+    save_project(proj, minimal_project)
+    ws = ProjectWorkspace.open(minimal_project)
+    _add_note(ws, "x", "edit x")
+    ver = ReviewService(ws).publish(label="v1")
+    _add_note(ws, "y", "edit y")
+
+    entries = ws.history().list_entries(load_project(minimal_project))
+    assert [e.label for e in entries] == ["before edit x", "after edit x", "after edit y"]
+    ws = ProjectWorkspace.open(minimal_project)
+    ws.undo()
+    assert _comment_ids(minimal_project) == ["x"]
+    ws.undo()
+    assert _comment_ids(minimal_project) == []
+    assert not ws.history().status(ws.project).can_undo
+    persisted = load_project(minimal_project)
+    assert [v.id for v in persisted.review.versions] == [ver["id"]]
+    assert persisted.review.active_version_id == ver["id"]
+
+
+@requires_safe_failed_cleanup
+def test_a_mutation_that_changes_a_version_and_an_edit_still_records_its_step(
+    minimal_project, sample_wav
+):
+    proj = load_project(minimal_project)
+    art = Path(proj.workspace_dir) / "artifacts"
+    art.mkdir(parents=True, exist_ok=True)
+    (art / "premix.wav").write_bytes(sample_wav.read_bytes())
+    save_project(proj, minimal_project)
+    ws = ProjectWorkspace.open(minimal_project)
+    ver = ReviewService(ws).publish(label="v1")
+
+    def both(p):
+        get_version(p, ver["id"]).label = "renamed"
+        add_comment(p, body="note", author="guest", timeline_start=1.0, comment_id="n")
+
+    ws.mutate("before both", "after both", both)
+
+    status = ws.history().status(load_project(minimal_project))
+    assert status.current_label == "after both"
+    ws.undo()
+    assert _comment_ids(minimal_project) == []
+
+
+@requires_safe_failed_cleanup
+def test_the_history_index_still_matches_the_project_after_a_publish(minimal_project, sample_wav):
+    from podcast_mcp.project.store import HistoryMatch, match_history_to_project
+
+    proj = load_project(minimal_project)
+    art = Path(proj.workspace_dir) / "artifacts"
+    art.mkdir(parents=True, exist_ok=True)
+    (art / "premix.wav").write_bytes(sample_wav.read_bytes())
+    save_project(proj, minimal_project)
+    ws = ProjectWorkspace.open(minimal_project)
+    _add_note(ws, "x", "edit x")
+    ReviewService(ws).publish(label="v1")
+
+    saved = load_project(minimal_project)
+    assert match_history_to_project(saved, saved.history) is HistoryMatch.MATCHES
 
 
 def _publish(minimal_project, sample_wav):
@@ -2153,7 +2250,7 @@ def test_publish_keeps_committed_media_when_lock_release_fails(
 
 
 @requires_safe_failed_cleanup
-def test_publish_keeps_media_after_a_late_failure_and_undo(
+def test_publish_keeps_the_media_files_when_the_saved_project_no_longer_lists_the_version(
     minimal_project, sample_wav, monkeypatch
 ):
     from contextlib import contextmanager
@@ -2167,7 +2264,7 @@ def test_publish_keeps_media_after_a_late_failure_and_undo(
     def fail_after_committed_transaction():
         with original_transaction() as project:
             yield project
-        HistoryManager(ProjectStore(ws.path)).apply_undo(ws.project)
+        ws.project.review.versions = []
         ws.save()
         raise OSError("transaction exit failed")
 
@@ -2175,9 +2272,4 @@ def test_publish_keeps_media_after_a_late_failure_and_undo(
     with pytest.raises(OSError, match="transaction exit failed"):
         ReviewService(ws).publish(label="redo candidate")
 
-    saved = load_project(minimal_project)
-    assert saved.review.versions == []
-    assert saved.history.can_redo()
     assert (art / "review" / "redo-version" / "mix.wav").is_file()
-    HistoryManager(ProjectStore(ws.path)).apply_redo(saved)
-    assert [version.id for version in saved.review.versions] == ["redo-version"]

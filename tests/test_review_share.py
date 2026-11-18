@@ -2486,35 +2486,6 @@ def test_guest_waveform_warm_tiles_do_not_parse_project(minimal_project, sample_
         assert review_load.call_count == 0
 
 
-def test_guest_waveform_deleted_version_revokes_share(minimal_project, sample_wav):
-    from podcast_mcp.services.collaboration.review_shares import (
-        list_shares_for_workspace,
-        resolve_share,
-    )
-
-    client, token = _waveform_share(minimal_project, sample_wav, ["play", "view"])
-    share_id = resolve_share(token)["id"]
-    key = client.get(f"/api/review/{token}/daw/waveform/status").json()["media"]["track:host"][
-        "key"
-    ]
-    url = f"/api/review/{token}/daw/waveform/tiles/{key}"
-    params = {"ref": "track:host", "level": 0, "start": 0}
-    assert client.get(url, params=params).status_code == 200
-
-    project = load_project(minimal_project)
-    project.review.versions = []
-    save_project(project, minimal_project)
-    denied = client.get(url, params=params)
-    assert denied.status_code == 404
-    assert denied.headers["cache-control"] == "no-store"
-    assert resolve_share(token) is None
-    side = next(
-        row for row in list_shares_for_workspace(minimal_project.parent) if row["id"] == share_id
-    )
-    assert side["revoked"] is True
-    assert "token" not in side
-
-
 def test_guest_waveform_live_sidecar_access_and_registry_capability(minimal_project, sample_wav):
     from podcast_mcp.services.collaboration.review_shares import (
         resolve_share,
@@ -2861,25 +2832,118 @@ def test_guest_document_key_error_is_fixed_conflict_without_laundering_secret(
     assert response.headers["x-sharecut-error-code"] == "document_conflict"
 
 
-def test_deleted_review_version_revokes_share_with_coded_404(
-    minimal_project, sample_wav, tmp_workspace, monkeypatch
-):
-    from podcast_mcp.services.collaboration import lookup_share
+MISSING_VERSION_SENTENCE = "This link's audio isn't available right now. Ask the host to check it."
 
-    ws = _seed_premix(minimal_project, sample_wav)
-    version = ReviewService(ws).publish(label="Deleted")
-    token = ShareService(ws).create(review_version_id=version["id"], capabilities=["view", "play"])[
-        "token"
-    ]
+
+def _share_row(minimal_project, share_id: str) -> dict:
+    from podcast_mcp.services.collaboration.review_shares import list_shares_for_workspace
+
+    return next(r for r in list_shares_for_workspace(minimal_project.parent) if r["id"] == share_id)
+
+
+def _drop_versions(minimal_project) -> list:
     project = load_project(minimal_project)
+    versions = list(project.review.versions)
     project.review.versions = []
     save_project(project, minimal_project)
+    return versions
+
+
+def _bring_versions_back(minimal_project, versions: list) -> None:
+    project = load_project(minimal_project)
+    project.review.versions = versions
+    save_project(project, minimal_project)
+
+
+@pytest.mark.parametrize("role", ["viewer", "commenter", "editor"])
+def test_a_link_whose_version_is_missing_is_refused_and_not_revoked(
+    minimal_project, sample_wav, tmp_workspace, role
+):
+    from podcast_mcp.services.collaboration.share import open_share_workspace
+    from podcast_mcp.services.collaboration.share_registry import get_share_registry
+    from podcast_mcp.util.coded_error import CodedKeyError
+
+    ws = _seed_premix(minimal_project, sample_wav)
+    version = ReviewService(ws).publish(label="Missing")
+    share = ShareService(ws).create(
+        review_version_id=version["id"], capabilities=capabilities_for_role(role)
+    )
+    token = share["token"]
+    versions = _drop_versions(minimal_project)
+
+    with pytest.raises(CodedKeyError) as refused:
+        open_share_workspace(token)
+    assert refused.value.code == "review_version_not_found"
     response = TestClient(create_app()).get(f"/api/review/{token}/daw/project")
     assert response.status_code == 404
-    assert response.json() == {"detail": GENERIC_GUEST_MESSAGE}
-    assert response.headers["x-sharecut-error-code"] == "share_not_found"
-    with pytest.raises(KeyError, match="invalid or revoked share token"):
-        lookup_share(token)
+    assert response.json() == {"detail": MISSING_VERSION_SENTENCE}
+    assert response.headers["x-sharecut-error-code"] == "review_version_not_found"
+    assert _share_row(minimal_project, share["id"])["revoked"] is False
+    assert get_share_registry().get_active(token) is not None
+
+    _bring_versions_back(minimal_project, versions)
+    assert TestClient(create_app()).get(f"/api/review/{token}/daw/project").status_code == 200
+
+
+def test_a_refused_link_warns_once_per_version_and_logs_the_rest_quietly(
+    minimal_project, sample_wav, tmp_workspace, caplog
+):
+    import logging
+
+    from podcast_mcp.services.collaboration.share import open_share_workspace
+    from podcast_mcp.util.coded_error import CodedKeyError
+
+    ws = _seed_premix(minimal_project, sample_wav)
+    version = ReviewService(ws).publish(label="Missing")
+    token = ShareService(ws).create(review_version_id=version["id"], capabilities=["view"])["token"]
+    _drop_versions(minimal_project)
+
+    with caplog.at_level(logging.DEBUG, logger="podcast_mcp.services.collaboration.share"):
+        for _ in range(2):
+            with pytest.raises(CodedKeyError):
+                open_share_workspace(token)
+
+    refusals = [r for r in caplog.records if "Refusing share" in r.getMessage()]
+    assert [r.levelno for r in refusals] == [logging.WARNING, logging.DEBUG]
+
+
+def test_a_link_whose_version_is_missing_serves_nothing(minimal_project, sample_wav, tmp_workspace):
+    ws = _seed_premix(minimal_project, sample_wav)
+    version = ReviewService(ws).publish(label="Missing")
+    token = ShareService(ws).create(
+        review_version_id=version["id"], capabilities=capabilities_for_role("editor")
+    )["token"]
+    _drop_versions(minimal_project)
+    client = TestClient(create_app())
+
+    for path in ("daw/project", "daw/document/state", "daw/meta", "audio"):
+        response = client.get(f"/api/review/{token}/{path}")
+        assert response.status_code == 404, path
+        assert response.headers["x-sharecut-error-code"] == "review_version_not_found", path
+
+
+def test_the_tile_route_refuses_a_missing_version_and_does_not_revoke(minimal_project, sample_wav):
+    from podcast_mcp.services.collaboration.review_shares import resolve_share
+
+    client, token = _waveform_share(minimal_project, sample_wav, ["play", "view"])
+    share_id = resolve_share(token)["id"]
+    key = client.get(f"/api/review/{token}/daw/waveform/status").json()["media"]["track:host"][
+        "key"
+    ]
+    url = f"/api/review/{token}/daw/waveform/tiles/{key}"
+    params = {"ref": "track:host", "level": 0, "start": 0}
+    assert client.get(url, params=params).status_code == 200
+    versions = _drop_versions(minimal_project)
+
+    denied = client.get(url, params=params)
+
+    assert denied.status_code == 404
+    assert denied.headers["x-sharecut-error-code"] == "review_version_not_found"
+    assert denied.headers["cache-control"] == "no-store"
+    assert resolve_share(token) is not None
+    assert _share_row(minimal_project, share_id)["revoked"] is False
+    _bring_versions_back(minimal_project, versions)
+    assert client.get(url, params=params).status_code == 200
 
 
 @pytest.mark.parametrize("missing", ["proxy", "hash", "index", "file"])

@@ -539,3 +539,93 @@ def test_undo_stays_available_when_an_edit_sits_under_the_preview(minimal_projec
     _preview_render(minimal_project, "render-1")
 
     assert _status(minimal_project).can_undo is True
+
+
+# --- Nothing to undo and nothing to redo are coded refusals --------------------------
+
+
+def test_undo_and_redo_with_nothing_to_move_to_carry_codes(minimal_project):
+    _seed(minimal_project)
+    svc = HistoryService(ProjectWorkspace.open(minimal_project))
+
+    with pytest.raises(ValueError, match="Nothing to undo") as undo:
+        svc.undo()
+    with pytest.raises(ValueError, match="Nothing to redo") as redo:
+        svc.redo()
+
+    assert undo.value.code == "nothing_to_undo"
+    assert redo.value.code == "nothing_to_redo"
+
+
+@pytest.mark.parametrize(
+    ("command_type", "code"),
+    [("UndoHistory", "nothing_to_undo"), ("RedoHistory", "nothing_to_redo")],
+)
+def test_the_host_route_answers_a_refused_move_with_its_code(minimal_project, command_type, code):
+    _seed(minimal_project)
+    _preview_render(minimal_project, "render-1")
+
+    response = TestClient(create_app()).post(
+        "/api/document/command",
+        params={"path": str(minimal_project)},
+        json={
+            "type": command_type,
+            "payload": {"expected_head_id": _status(minimal_project).head_id},
+            "client_id": "tab",
+            "role": "viewer",
+            "client_seq": 1,
+        },
+    )
+
+    assert response.status_code == 400, response.text
+    assert response.headers["X-Sharecut-Error-Code"] == code
+
+
+def test_a_guest_redo_with_nothing_to_redo_is_a_400_with_a_sentence(
+    minimal_project, published_share, caplog
+):
+    _seed(minimal_project)
+    token = _editor_share(published_share)
+    client = TestClient(create_app())
+    head = _status(minimal_project).head_id
+
+    response = client.post(
+        f"/api/review/{token}/daw/document/command",
+        json={
+            "type": "RedoHistory",
+            "payload": {"expected_head_id": head},
+            "client_id": "guest-tab",
+            "client_seq": 1,
+            "role": "guest",
+        },
+    )
+
+    assert response.status_code == 400, response.text
+    assert response.json() == {"detail": "There is nothing to redo."}
+    assert response.headers["X-Sharecut-Error-Code"] == "nothing_to_redo"
+    assert not [r for r in caplog.records if r.exc_info]
+    assert _status(minimal_project).head_id == head
+
+
+def test_mcp_redo_with_nothing_to_redo_reports_its_code(minimal_project):
+    _seed(minimal_project)
+
+    with pytest.raises(ValueError, match="Nothing to redo") as refused:
+        mcp_server.history_redo(str(minimal_project))
+
+    assert refused.value.code == "nothing_to_redo"
+
+
+@pytest.mark.asyncio
+async def test_mcp_redo_tool_call_reports_nothing_to_redo(minimal_project):
+    pytest.importorskip("mcp.client")
+    from mcp.client import Client
+
+    _seed(minimal_project)
+
+    async with Client(mcp_server.mcp) as client:
+        result = await client.call_tool("history_redo", {"project_path": str(minimal_project)})
+
+    assert result.is_error is True
+    assert (result.structured_content or {}).get("error_code") == "nothing_to_redo"
+    assert "Nothing to redo" in result.structured_content["error"]
