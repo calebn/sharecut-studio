@@ -1254,7 +1254,7 @@ and Heartbeats start once the room has accepted the Join; a press made while the
 connecting sends on open (if that socket closes before the room answers the Join, the page
 retries after a quarter of a second with a joining socket, not after the usual wait; a close with 4403 follows the 4403 rule below instead), and one made while it waits to reconnect opens a joining socket at
 once. While the Join is pending the sheet reads "Joining…". A non-terminal error
-before then returns the sheet to **Join to listen** with the reason under the listen line (the
+while the sheet reads "Joining…" returns the sheet to **Join to listen** with the reason under the listen line (the
 room's alert slot does not repeat it). **Not now** or a new press clears that reason; a press refused again shows its own reason, and one that succeeds leaves no alert for it in the room. A second press sends Join again. When the first Join was sent on a joining socket that replaced a look, the page drops the room the sheet was showing as soon as that Join is refused. After 4 seconds on Joining… the sheet adds "Still connecting to the
 room. Choose Not now to stop trying." A look that closes before **Join to listen** is pressed, such as the room refusing it with 4429 (more than four are looking in),
 drops the room the sheet was showing, with its pill and its sentence, and is retried quietly after the usual wait; the
