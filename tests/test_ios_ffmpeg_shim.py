@@ -734,7 +734,72 @@ POLICY_REJECT = [
     ["ffmpeg", "echo", "-i", "a.wav", "dev/stdout"],
     ["ffmpeg", "echo", "-i", "a.wav", "-vf", "movie=dev/stderr", "out.wav"],
     ["ffmpeg", "echo", "-i", "proc/self/fd/3", "out.wav"],
+    ["ffmpeg", "echo", "-stdin:v", "-i", "a.wav", "out.wav"],
+    ["ffmpeg", "echo", "-stdin:", "-i", "a.wav", "out.wav"],
+    ["ffmpeg", "echo", "-stdin:0", "-i", "a.wav", "out.wav"],
+    ["ffmpeg", "echo", "-f", "image2", "-pattern_type", "glob", "-i", "x*.png", "out.wav"],
+    ["ffmpeg", "echo", "-pattern_type", "sequence", "-i", "a.wav", "out.wav"],
+    ["ffmpeg", "echo", "-i", "dev//fd/5", "out.wav"],
+    ["ffmpeg", "echo", "-i", "dev/./fd/5", "out.wav"],
+    ["ffmpeg", "echo", "-i", "dev/./stdin", "out.wav"],
+    ["ffmpeg", "echo", "-i", "proc/./self/fd/5", "out.wav"],
+    ["ffmpeg", "echo", "-i", "./dev//fd/5", "out.wav"],
+    ["ffmpeg", "echo", "-i", "d\\ev//fd/3", "out.wav"],
+    ["ffmpeg", "echo", "-f", "lavfi", "-i", "amovie=dev//fd/3", "out.wav"],
+    ["ffmpeg", "echo", "-/filter_complex", "g.txt", "out.wav"],
+    ["ffmpeg", "echo", "-/af", "g.txt", "-i", "a.wav", "out.wav"],
+    ["ffmpeg", "echo", "-i", "a.wav", "-filter_script", "g.txt", "out.wav"],
+    ["ffmpeg", "echo", "-i", "a.wav", "-filter_script:a", "g.txt", "out.wav"],
+    ["ffmpeg", "echo", "-i", "a.wav", "-filter_complex_script", "g.txt", "out.wav"],
+    ["ffmpeg", "echo", "-i", "a.wav", "-vf", "movie=a;amovie=pipe:3", "out.wav"],
+    ["ffmpeg", "echo", "-i", "a.wav", "-vf", "x;file:x", "out.wav"],
+    ["ffmpeg", "echo", "-i", "a.wav", "-metadata", "title=x", "-f", "tee", "[f=wav]pipe:3"],
 ]
+
+POLICY_OK.extend(
+    [
+        (
+            ["ffmpeg", "echo", "-metadata", "title=Profile: Jane", "-i", "a.wav", "out.wav"],
+            [
+                "tool=0",
+                "ffmpeg",
+                "-nostdin",
+                "echo",
+                "-metadata",
+                "title=Profile: Jane",
+                "-i",
+                "a.wav",
+                "out.wav",
+            ],
+        ),
+        (
+            [
+                "ffmpeg",
+                "echo",
+                "-i",
+                "a.wav",
+                "-metadata:s:a:0",
+                "title=/dev/ and proc/ talk",
+                "o.wav",
+            ],
+            [
+                "tool=0",
+                "ffmpeg",
+                "-nostdin",
+                "echo",
+                "-i",
+                "a.wav",
+                "-metadata:s:a:0",
+                "title=/dev/ and proc/ talk",
+                "o.wav",
+            ],
+        ),
+        (
+            ["ffmpeg", "echo", "-i", "/x/profile:1.wav", "/x/out.wav"],
+            ["tool=0", "ffmpeg", "-nostdin", "echo", "-i", "/x/profile:1.wav", "/x/out.wav"],
+        ),
+    ]
+)
 
 
 @pytest.mark.parametrize(

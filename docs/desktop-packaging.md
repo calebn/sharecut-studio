@@ -367,11 +367,18 @@ void     sc_ffmpeg_cancel(int64_t session);
   raises `ValueError`): an accepted, fail-closed divergence.
 - **Argv policy.** For `ffmpeg` the core inserts `-nostdin` at `argv[1]`. A bare `-` after `-i` or
   `-progress`, or as the last argument, and `pipe:N` / `fd:N` (N = 0, 1 or 2) in those positions are
-  rewritten to a private dup numbered >= 3, never 0..2. The core rejects `-stdin`, a `-` anywhere
-  else, a stream that was not provided, and any argument that contains `pipe:`, `fd:`, `file:`,
-  `/dev/`, `/proc/`, `dev/fd`, `dev/stdin`, `dev/stdout`, `dev/stderr` or `proc/self`; that scan
-  ignores every backslash, single quote and double quote, so filtergraph escaping such as
-  `amovie=pipe\\:3` does not hide a token. A rejected session still returns a valid id; its `wait`
+  rewritten to a private dup numbered >= 3, never 0..2. Before scanning, each argument is normalised: backslashes and quotes are dropped, runs of `/`
+  collapse to one, `/./` segments and a leading `./` are removed. On that copy the core rejects `-stdin`
+  and `-stdin:<spec>`, any option starting `-/`, `-filter_script[:spec]`, `-filter_complex_script`,
+  `-pattern_type` and `-glob`, a `-` anywhere else, a stream that was not provided, and any argument
+  that contains `/dev/`, `/proc/`, `dev/fd`, `dev/stdin`, `dev/stdout`, `dev/stderr` or `proc/self`, or
+  `pipe:`, `fd:` or `file:` at the start of the argument or after a character that is not a letter or
+  digit (`Profile: Jane` and `profile:1.wav` pass; `amovie=pipe:3` and `;file:x` do not). The value
+  directly after an option whose name starts with `-metadata` is not scanned, so titles and albums
+  pass. The policy reads argv only and is defence in depth for argv built by the app's own engines,
+  not a sandbox for untrusted argv: `-protocol_whitelist`, `-safe` and `-allowed_extensions` are not
+  policed, so the glue must never widen ffmpeg's defaults. A blocking read on `fd:N` / `pipe:N` is not
+  interrupted by cancel; the bridge must close the writer, as for writes. A rejected session still returns a valid id; its `wait`
   returns `1` after one `sc_ffmpeg: ...` line on stderr and the tool never runs. Cancelling a queued
   session makes `wait` return `255` and the tool never runs. An exit code outside 0..255 becomes
   `1`, and `sc_tool_exit` codes are masked with `0xff`.
