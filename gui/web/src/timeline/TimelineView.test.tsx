@@ -356,6 +356,17 @@ describe("TimelineView scroll to playhead", () => {
     expect(scroller.scrollLeft).toBe(0);
   });
 
+  it("does not count a sub-pixel clamp as a scroll", () => {
+    const scroller = mount(false);
+    useDawStore.setState({ playheadSec: 5, scrollLeft: 0.4 });
+    scroller.scrollLeft = 0.4;
+    let scrolled = true;
+    act(() => {
+      scrolled = playheadScrollRegistry.scrollAllToPlayhead();
+    });
+    expect(scrolled).toBe(false);
+  });
+
   it("clamps to the end of the canvas", () => {
     const scroller = mount(false);
     useDawStore.setState({ playheadSec: 58 });

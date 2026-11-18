@@ -37,7 +37,7 @@ export function announceWaveformAmp(): void {
   );
 }
 
-/** A zoom while playing would page the playhead away from what the person is looking at. */
+/** Zoom, fit and zoom to selection while playing would page the playhead away from what the person is looking at. */
 export function suspendTimelineFollow(): void {
   const s = useDawStore.getState();
   if (s.isPlaying) s.setTimelineFollowPlayhead(false);

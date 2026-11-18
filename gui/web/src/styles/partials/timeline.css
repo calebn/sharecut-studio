@@ -1306,7 +1306,11 @@ html[data-shell="phone"] .pending-actions > .ui-control {
   outline: none;
 }
 
-.timeline-scroll:focus-visible {
-  outline: var(--focus-ring-width) solid var(--color-accent);
-  outline-offset: -2px;
+.timeline-area:has(.timeline-scroll:focus-visible)::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: var(--z-timeline-popover);
+  border: var(--focus-ring-width) solid var(--color-accent);
+  pointer-events: none;
 }
