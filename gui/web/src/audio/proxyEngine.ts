@@ -615,7 +615,7 @@ export class ProxyEngine {
     if (!this.playing || !horizon) return;
     this.pruneEnded();
     const t = this.currentTimeSec();
-    this.pruneBuffers(t - SKIP_BACK_KEEP_SEC, horizon.throughSec);
+    this.pruneBuffers(t - SKIP_BACK_KEEP_SEC, Math.max(t, horizon.throughSec));
     if (t >= this.endSec) {
       this.finish();
       return;
