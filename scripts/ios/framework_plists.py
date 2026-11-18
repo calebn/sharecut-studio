@@ -14,6 +14,7 @@ import stat
 import struct
 import sys
 import tempfile
+import unicodedata
 from pathlib import Path
 from xml.parsers.expat import ExpatError
 
@@ -27,6 +28,10 @@ SUFFIX = ".framework"
 
 def frameworks(app: Path) -> list[Path]:
     return sorted(p for p in app.rglob("*") if p.name.casefold().endswith(SUFFIX))
+
+
+def has_control_character(name: str) -> bool:
+    return any(unicodedata.category(char) in {"Cc", "Zl", "Zp"} for char in name)
 
 
 def read_plist(path: Path) -> dict[str, object]:
@@ -99,6 +104,8 @@ def fix(app: Path) -> list[str]:
     for folder in frameworks(app):
         stem = folder.name[: -len(SUFFIX)]
         path = folder / "Info.plist"
+        if has_control_character(folder.name):
+            raise ValueError(f"{folder.relative_to(app).as_posix()!r} has a control character")
         if folder.is_symlink() or not folder.is_dir() or path.is_symlink():
             raise ValueError(f"{folder.relative_to(app)} is a symlink or not a directory")
         if not path.is_file():
@@ -123,6 +130,8 @@ def generated(app: Path) -> list[str]:
     prefix = f"{app_identifier(app)}."
     found = []
     for folder in frameworks(app):
+        if has_control_character(folder.name):
+            raise ValueError(f"{folder.relative_to(app).as_posix()!r} has a control character")
         try:
             identifier = read_plist(folder / "Info.plist").get("CFBundleIdentifier")
         except (OSError, ValueError):
@@ -172,6 +181,9 @@ def check(app: Path) -> list[str]:
     for folder in frameworks(app):
         name = folder.relative_to(app).as_posix()
         stem = folder.name[: -len(SUFFIX)]
+        if has_control_character(folder.name):
+            problems.append(f"{name!r} has a control character")
+            continue
         if folder.is_symlink() or not folder.is_dir():
             problems.append(f"{name} is a symlink or not a directory")
             continue

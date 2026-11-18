@@ -83,6 +83,26 @@ def test_a_clean_layout_passes(tmp_path: Path) -> None:
     assert (report.ok, report.facts) == (True, {"mach_o_files": 2})
 
 
+def test_a_bundle_shaped_like_the_real_app_has_no_problems(tmp_path: Path) -> None:
+    files = {
+        "ShareCut": MACHO,
+        "Info.plist": plistlib.dumps({"CFBundleIdentifier": APP_ID}),
+        "LaunchScreen.storyboardc/Info.plist": b"bplist00",
+        "Base.lproj/Main.storyboardc/Info.plist": b"bplist00",
+        "Frameworks/Python.framework/Python": MACHO,
+        "Frameworks/Python.framework/Info.plist": framework_plist(
+            "Python", CFBundleIdentifier="org.python.python"
+        ),
+    }
+    for module in ("numpy", "numpy.random.pcg-64", "scikit-learn"):
+        files[f"Frameworks/{module}.framework/{module}"] = MACHO
+        files[f"Frameworks/{module}.framework/Info.plist"] = framework_plist(
+            module, CFBundleIdentifier=f"{APP_ID}.{module}"
+        )
+    problems = checks.check_layout(make_app(tmp_path, files)).problems
+    assert problems == ()
+
+
 def test_every_layout_violation_is_named(tmp_path: Path) -> None:
     app = make_app(
         tmp_path,
@@ -247,6 +267,11 @@ def test_imported_symbols_reads_nm_output_per_mach_o(
         "Frameworks/x.xcframework/Info.plist",
         "Frameworks/bare/Info.plist",
         "app_packages/pkg/Info.plist",
+        "Frameworks/x.storyboardc/Info.plist",
+        "PlugIns/y.appex/Info.plist",
+        "a/b/Main.storyboardc/Info.plist",
+        "Resources/Main.storyboardc/Info.plist",
+        "Base.lproj/Main.storyboardc/deeper/Info.plist",
     ],
 )
 def test_nested_info_plist_outside_allowlist_is_named(tmp_path: Path, relative: str) -> None:
