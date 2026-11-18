@@ -1,9 +1,9 @@
 ---
 name: podcast-master-export
 description: >-
-  Master episode loudness and export WAV, MP3, M4A, and transcripts. Use for final
-  delivery to podcast hosts (Spotify, Apple, etc.). For stem/range bounces
-  without mastering use podcast-bounce-export.
+  Master episode loudness and export WAV, MP3, M4A, and transcripts. Use for
+  final delivery to podcast hosts (Spotify, Apple, etc.). For stem/range
+  bounces without mastering use podcast-bounce-export.
 ---
 
 # Master and export
@@ -160,8 +160,6 @@ export:
       codec: flac
     - ext: m4a
 ```
-
-A bare `{ext: m4a}` is the 128 kbps AAC preset.
 
 Per-format options: `codec`, `format` (container `-f`), `bitrate_kbps`, `sample_rate`, `channels`, `extra_args` (list of extra FFmpeg argv tokens).
 
