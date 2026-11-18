@@ -6,7 +6,7 @@ ShareCut Studio works on your phone, not just your desktop. The mobile version i
 
 ## Five stages, one job each
 
-At the bottom of the screen you'll see five tabs, one for each stage of making an episode. The player sits just above them on every stage. When the player is narrow it keeps Play and the clock clear of the other controls, and nothing in it shrinks or overlaps. When its contents do not fit it drops the status pills' names (each stays in the pill's tooltip), then the skip buttons, the cuts change and the other pills, so a player with fewer pills keeps more; a long name is cut short with an ellipsis. Every one of them is in the expanded player, which opens when you tap the time.
+At the bottom of the screen you'll see five tabs, one for each stage of making an episode. The player sits just above them on every stage. When the player is narrow it measures what it holds and keeps Play and the clock clear of the other controls. Only as far as it takes for nothing to overlap, it drops the status pills' names (each stays in the pill's tooltip), then the skip buttons, the cuts change and the other pills, so a player with fewer pills keeps more; a long name is cut short with an ellipsis. Every one of them is in the expanded player, which opens when you tap the time.
 
 | Stage | What it's for |
 |-------|---------------|
