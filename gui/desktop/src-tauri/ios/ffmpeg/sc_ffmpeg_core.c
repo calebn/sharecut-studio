@@ -54,6 +54,7 @@ static struct session *current;
 static int queued;
 static uint64_t counter;
 static int worker_started;
+static pthread_t worker_thread;
 
 static pthread_mutex_t discard_lock = PTHREAD_MUTEX_INITIALIZER;
 static FILE *discard;
@@ -235,18 +236,18 @@ static char *normalise_arg(const char *arg) {
     return out;
 }
 
-// A protocol word matches at the token start or after one of = , ; [ ] ( ) | or / (not "./").
+// A protocol word matches at the token start or after one of = , ; [ ] ( ) | : + or / (not "./").
 static int has_protocol_word(const char *text, const char *word) {
     for (const char *p = strstr(text, word); p; p = strstr(p + 1, word)) {
         if (p == text) return 1;
         if (p[-1] == '/' && !(p - 1 == text + 1 && text[0] == '.')) return 1;
-        if (p[-1] != '/' && strchr("=,;[]()|", p[-1])) return 1;
+        if (p[-1] != '/' && strchr("=,;[]()|:+", p[-1])) return 1;
     }
     return 0;
 }
 
 // "dev/" or "proc/" at the token start (after an optional "./" and one optional '/') or after
-// = : , ; [ ] ( ) or space.
+// = : + , ; [ ] ( ) or space, with one optional '/' between the delimiter and the directory.
 static int has_device_dir(const char *text) {
     const char *head = text + (strncmp(text, "./", 2) == 0 ? 2 : 0);
     head += *head == '/';
@@ -255,7 +256,9 @@ static int has_device_dir(const char *text) {
         size_t len = strlen(dirs[i]);
         if (strncmp(head, dirs[i], len) == 0) return 1;
         for (const char *p = strstr(text, dirs[i]); p; p = strstr(p + 1, dirs[i]))
-            if (p > text && strchr("=:,;[]() ", p[-1])) return 1;
+            if (p > text && (strchr("=:+,;[]() ", p[-1]) ||
+                             (p[-1] == '/' && p - 1 > text && strchr("=:+,;[]() ", p[-2]))))
+                return 1;
     }
     return 0;
 }
@@ -413,14 +416,25 @@ nomem:
 
 static void *worker_main(void *unused);
 
+// Process-wide SIGUSR2, no SA_RESTART: a kick fails a blocked read(2) or write(2) with EINTR.
+static void kick_handler(int signo) {
+    (void)signo;
+}
+
 static int start_worker(void) {
     pthread_attr_t attr;
     pthread_t thread;
+    struct sigaction action;
+    memset(&action, 0, sizeof action);
+    action.sa_handler = kick_handler;
+    sigemptyset(&action.sa_mask);
+    if (sigaction(SIGUSR2, &action, NULL) != 0) return errno;
     pthread_attr_init(&attr);
     pthread_attr_setstacksize(&attr, STACK_BYTES);
     pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);
     int rc = pthread_create(&thread, &attr, worker_main, NULL);
     pthread_attr_destroy(&attr);
+    if (rc == 0) worker_thread = thread;
     return rc;
 }
 
@@ -490,6 +504,7 @@ SC_EXPORT void sc_ffmpeg_cancel(int64_t id) {
             sc_glue_interrupt();
         }
         close_originals(s);
+        if (!s->reject) pthread_kill(worker_thread, SIGUSR2);
     }
     pthread_mutex_unlock(&lock);
 }

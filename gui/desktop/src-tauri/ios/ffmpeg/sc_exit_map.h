@@ -1,4 +1,4 @@
-/* Forced include for FFmpeg, lame and opus: a function-like exit() that unwinds to the session owner. */
+/* Forced include for FFmpeg, lame and opus: exit() and abort() (134) unwind to the session owner. */
 #ifndef SC_EXIT_MAP_H
 #define SC_EXIT_MAP_H
 
@@ -10,6 +10,8 @@
 
 #undef exit
 #define exit(code) sc_tool_exit(code)
+#undef abort
+#define abort() sc_tool_exit(134)
 
 #endif
 

@@ -334,6 +334,8 @@ def test_forced_include_headers_define_the_macros() -> None:
     assert "#define exit(code) sc_tool_exit(code)" in exit_map
     assert "#ifndef __ASSEMBLER__" in exit_map
     assert not re.search(r"#define exit\s", exit_map)
+    assert "#define abort() sc_tool_exit(134)" in exit_map
+    assert not re.search(r"#define abort\s", exit_map)
     core = (GLUE_DIR / "sc_ffmpeg_core.h").read_text(encoding="utf-8")
     assert "void sc_tool_exit(int code) __attribute__((noreturn));" in core
 
@@ -704,3 +706,25 @@ def test_the_exit_map_replaces_an_exit_macro_that_is_already_defined(tmp_path: P
         ["-c", "-I", str(GLUE_DIR), "-Dexit(c)=other(c)", "-include", "sc_exit_map.h", "x.c"],
         tmp_path,
     )
+
+
+@NEEDS_CC
+def test_the_exit_map_turns_a_call_to_abort_into_the_exit_path_and_spares_other_names(
+    tmp_path: Path,
+) -> None:
+    (tmp_path / "x.c").write_text(
+        "int abort_on_flags(int f) { return f; }\n"
+        "void go(int f) { if (abort_on_flags(f)) abort(); }\n",
+        encoding="utf-8",
+    )
+    _cc(["-c", "-I", str(GLUE_DIR), "-include", "sc_exit_map.h", "x.c"], tmp_path)
+    done = subprocess.run(
+        [COMPILER, "-E", "-I", str(GLUE_DIR), "-include", "sc_exit_map.h", "x.c"],
+        cwd=tmp_path,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert done.returncode == 0, done.stderr
+    assert "sc_tool_exit(134)" in done.stdout
+    assert "abort_on_flags(f)" in done.stdout

@@ -193,7 +193,7 @@ def check_ffmpeg_framework(app: Path, runner: NmRunner = xcrun_nm) -> CheckRepor
         )
     if size > FFMPEG_SIZE_BUDGET:
         problems.append(f"FFmpeg is {size} bytes, over the {FFMPEG_SIZE_BUDGET} byte budget")
-    exported = {name for name in exported_symbols(binary, runner) if name.startswith("sc_")}
+    exported = set(exported_symbols(binary, runner))
     problems += [f"FFmpeg does not export {name}" for name in sorted(FFMPEG_EXPORTS - exported)]
     problems += [f"FFmpeg exports unexpected {name}" for name in sorted(exported - FFMPEG_EXPORTS)]
     return CheckReport(

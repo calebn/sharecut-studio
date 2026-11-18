@@ -507,6 +507,43 @@ def test_cancel_running_session_blocked_reading_input(shim: Shim) -> None:
     assert fd_count() == before
 
 
+def cancel_until_done(shim: Shim, session: int, seconds: float = 10.0) -> int:
+    result: list[int] = []
+    thread = threading.Thread(target=lambda: result.append(shim.wait(session)), daemon=True)
+    thread.start()
+    deadline = time.monotonic() + seconds
+    while not result and time.monotonic() < deadline:
+        shim.cancel(session)
+        thread.join(0.01)
+    assert result, "the session stayed blocked across repeated cancels"
+    return result[0]
+
+
+def test_cancel_wakes_a_worker_blocked_in_a_plain_read(shim: Shim) -> None:
+    before = fd_count()
+    with Pipes() as pipes:
+        session = shim.launch(["ffprobe", "started", "readblock", "-i", "pipe:0"], pipes)
+        read_until(pipes.err_r, b"started\n")
+        assert cancel_until_done(shim, session) == 255
+        assert read_until(pipes.err_r) == b""
+    assert fd_count() == before
+    code, out, _ = shim.run(["ffprobe", "echo"])
+    assert code == 0 and out.startswith(b"tool=1")
+
+
+def test_cancel_wakes_a_worker_blocked_in_a_plain_write(shim: Shim) -> None:
+    before = fd_count()
+    with Pipes() as pipes:
+        writes = shim.cdll.fake_big_writes()
+        session = shim.launch(["ffmpeg", "started", "writeblock"], pipes)
+        read_until(pipes.err_r, b"started\n")
+        wait_for(lambda: shim.cdll.fake_big_writes() > writes, "the big write to start")
+        assert cancel_until_done(shim, session) == 255
+    code, out, _ = shim.run(["ffmpeg", "echo"])
+    assert code == 0 and out.startswith(b"tool=0")
+    assert fd_count() == before
+
+
 def test_owner_thread_exit_returns_its_code(shim: Shim) -> None:
     before = fd_count()
     with Pipes() as pipes:
@@ -629,27 +666,6 @@ def test_writes_after_non_owner_exit_go_to_discard(shim: Shim) -> None:
         assert finish_within(shim, session, 5.0) == 1
     code, out, _ = shim.run(["ffmpeg", "echo"])
     assert code == 0 and out.startswith(b"tool=0")
-
-
-def test_closing_the_reader_releases_a_write_blocked_across_cancel(shim: Shim) -> None:
-    before = fd_count()
-    with Pipes() as pipes:
-        writes = shim.cdll.fake_big_writes()
-        session = shim.launch(["ffmpeg", "started", "bigout"], pipes)
-        read_until(pipes.err_r, b"started\n")
-        wait_for(lambda: shim.cdll.fake_big_writes() > writes, "the big write to start")
-        shim.cancel(session)
-        result: list[int] = []
-        thread = threading.Thread(target=lambda: result.append(shim.wait(session)), daemon=True)
-        thread.start()
-        thread.join(LAUNCH_SEC)
-        assert not result
-        pipes.close_fd(pipes.out_r)
-        thread.join(5.0)
-        assert result and result[0] in (0, 255)
-    code, out, _ = shim.run(["ffmpeg", "echo"])
-    assert code == 0 and out.startswith(b"tool=0")
-    assert fd_count() == before
 
 
 EXHAUST_SCRIPT = textwrap.dedent(
@@ -892,10 +908,25 @@ POLICY_REJECT.extend(
         ["ffmpeg", "echo", "-i", "a.wav", "-vf", "a|file:b", "out.wav"],
         ["ffmpeg", "echo", "-i", "a.wav", "/pipe:3"],
         ["ffmpeg", "echo", "-i", "a.wav", "-vf", "x/file:y", "out.wav"],
+        # Protocol words and device directories behind a protocol prefix.
+        ["ffmpeg", "echo", "-i", "concat:fd:5", "out.wav"],
+        ["ffmpeg", "echo", "-i", "concat:pipe:3", "out.wav"],
+        ["ffmpeg", "echo", "-i", "cache:fd:5", "out.wav"],
+        ["ffmpeg", "echo", "-i", "subfile,,start,0,end,0,,:fd:5", "out.wav"],
+        ["ffmpeg", "echo", "-i", "concat:file:x", "out.wav"],
+        ["ffmpeg", "echo", "-i", "async:fd:9", "out.wav"],
+        ["ffmpeg", "echo", "-i", "crypto:fd:9", "out.wav"],
+        ["ffmpeg", "echo", "-i", "data:fd:9", "out.wav"],
+        ["ffmpeg", "echo", "-i", "unix:fd:9", "out.wav"],
+        ["ffmpeg", "echo", "-i", "concat:/dev/null", "out.wav"],
+        ["ffmpeg", "echo", "-i", "concat:/proc/self/fd/3", "out.wav"],
+        ["ffmpeg", "echo", "-i", "crypto+pipe:3", "out.wav"],
+        ["ffmpeg", "echo", "-i", "crypto+/dev/null", "out.wav"],
     ]
 )
 
 PLAIN_OK = [
+    ["-protocol_whitelist", "file,crypto,data", "-i", "a.wav", "out.wav"],
     ["-i", "/srv/x/dev/notes.wav", "/srv/x/dev/out.wav"],
     ["-i", "/srv/me/mydev/fdr/a.wav", "/srv/me/mydev/fdr/b.wav"],
     ["-i", "/srv/me/proc/a.wav", "/srv/me/mydevproc/b.wav"],

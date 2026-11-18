@@ -387,7 +387,7 @@ def test_the_four_exports_and_a_small_binary_pass(
 ) -> None:
     monkeypatch.setattr(checks, "FFMPEG_EMBEDDED", True)
     app = ffmpeg_app(tmp_path)
-    report = checks.check_ffmpeg_framework(app, fake_nm(FFMPEG_NM + "_av_log\n_ff_x\n"))
+    report = checks.check_ffmpeg_framework(app, fake_nm(FFMPEG_NM))
     assert report.problems == ()
     assert report.facts["exports"] == sorted(checks.FFMPEG_EXPORTS)
 
@@ -398,9 +398,11 @@ def test_the_four_exports_and_a_small_binary_pass(
         (FFMPEG_NM.replace("_sc_ffmpeg_wait\n", ""), "does not export sc_ffmpeg_wait"),
         (FFMPEG_NM + "_sc_ffmpeg_extra\n", "unexpected sc_ffmpeg_extra"),
         ("", "does not export sc_ffmpeg_abi_version"),
+        (FFMPEG_NM + "_av_log\n", "unexpected av_log"),
+        (FFMPEG_NM + "_main\n", "unexpected main"),
     ],
 )
-def test_the_sc_exports_must_be_exactly_the_four(
+def test_the_exports_must_be_exactly_the_four(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, text: str, problem: str
 ) -> None:
     monkeypatch.setattr(checks, "FFMPEG_EMBEDDED", True)
