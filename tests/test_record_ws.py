@@ -3252,6 +3252,13 @@ def test_a_look_that_joins_with_a_lease_on_a_closed_invite_stays_open_as_a_seat(
         _drain_until(obs, lambda m: m.get("type") == "Echo")
         lose["dropping"] = False
         RecordControlService(ws).submit_host("SetGuestsSeeNotes", {"enabled": True})
+        # The pump has handled the host event once its frame reaches the seat; a pump that
+        # still applied the look rule would have closed the socket instead of sending it.
+        _drain_until(
+            obs,
+            lambda m: m.get("snapshot", {}).get("guests_see_notes") is True,
+            n=50,
+        )
         obs.send_json(_record_command("Heartbeat"))
         _drain_until(obs, lambda m: m.get("command_type") == "Heartbeat")
 
