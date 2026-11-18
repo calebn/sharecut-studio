@@ -82,9 +82,9 @@ export function barFits(host: HTMLElement): boolean {
   );
 }
 
-/** Everything in the three columns: what the bar's size and its contents' sizes tell. */
+/** The three columns and everything in them: what the bar's size and its contents' sizes tell. */
 const CONTENTS =
-  ".sys-player-left > *, .sys-player-center > *, .sys-player-right > *";
+  ".sys-player-left, .sys-player-center, .sys-player-right, .sys-player-left > *, .sys-player-center > *, .sys-player-right > *";
 
 /** The sizes of the bar and of what is in its columns, as one string. */
 function sizesOf(host: HTMLElement): string {

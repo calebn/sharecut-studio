@@ -159,6 +159,22 @@ describe("useBarFit", () => {
     expect(fit(container)).toBe("2");
   });
 
+  it("observes the bar, its three columns and what is in them", () => {
+    const { container } = render(<Player {...base} cuts="-4:10" solo="Rosa" />);
+    const host = container.querySelector<HTMLElement>(".sys-player-host");
+    if (!host) throw new Error("no host");
+    const watched = new Set(FakeResizeObserver.of(host).targets);
+    const wanted = [
+      host,
+      ...host.querySelectorAll(
+        ".sys-player-left, .sys-player-center, .sys-player-right, .sys-player-left > *, .sys-player-center > *, .sys-player-right > *",
+      ),
+    ];
+    expect(wanted.length).toBeGreaterThan(10);
+    for (const el of wanted) expect(watched.has(el)).toBe(true);
+    expect(watched.size).toBe(wanted.length);
+  });
+
   it("fits again when the pointer type changes", () => {
     const listeners: (() => void)[] = [];
     vi.stubGlobal("matchMedia", () => ({
