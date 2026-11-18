@@ -15,7 +15,7 @@ my_episode/
 │   ├── index.json          # Mirror of project.history (optional)
 │   └── snapshots/          # Full editable-state snapshots for undo/redo
 ├── artifacts/              # Rendered intermediates (premix, per-track WAVs)
-└── export/                 # Final deliverables (WAV, MP3, SRT, MD)
+└── export/                 # Final deliverables (WAV, MP3, M4A, SRT, MD)
 ```
 
 ## Top-level sections

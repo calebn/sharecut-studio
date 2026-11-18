@@ -231,6 +231,9 @@ def export_audio_tool(
     cancels the request (``notifications/cancelled``) the encode stops, the tool raises
     ``CancelledProgress("Export cancelled")`` and an earlier export is left untouched. Do not
     wait for a reply to the cancelled request (over JSON-RPC there is none); check ``export/``.
+
+    ``formats`` objects name an extension (``{"ext": "mp3"}``, ``{"ext": "flac"}``); a bare
+    ``{"ext": "m4a"}`` is the 128 kbps AAC preset.
     """
     ws = ProjectWorkspace.open(project_path)
     result = PipelineService(ws).export_audio(formats, cancel_check=current_cancel_check())
@@ -247,7 +250,7 @@ def bounce_audio_tool(
     """Bounce selected (or all) stems to export/bounces/ without mastering.
 
     Times are timeline seconds. ``track_ids`` lists the stems, or omit for all
-    non-muted mixable tracks. ``formats`` lists extensions (e.g. ``["wav", "mp3"]``);
+    non-muted mixable tracks. ``formats`` lists extensions (e.g. ``["wav", "mp3", "m4a"]``);
     default wav only.
     """
     from podcast_mcp.services.media import BounceRequest, BounceService

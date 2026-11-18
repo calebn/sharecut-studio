@@ -27,7 +27,7 @@ class ExportFormatSpec:
     def from_dict(cls, raw: dict[str, Any]) -> ExportFormatSpec:
         ext = str(raw.get("ext") or raw.get("extension") or "").lstrip(".").lower()
         if not ext:
-            raise ValueError("export format requires 'ext' (e.g. mp3, flac, opus)")
+            raise ValueError("export format requires 'ext' (e.g. mp3, flac, opus, m4a)")
         given = {key for key, value in raw.items() if value not in (None, "", [])}
         if given <= {"ext", "extension"} and ext in EXPORT_PRESETS:
             return EXPORT_PRESETS[ext]
