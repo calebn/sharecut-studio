@@ -53,7 +53,7 @@ function extent(column: Element): Box | null {
  * content leaves the bar or runs into the next column, and the status text is
  * not cut short. Geometry only, so it does not depend on the font.
  */
-export function barFits(host: HTMLElement): boolean {
+function barFits(host: HTMLElement): boolean {
   const bar = host.firstElementChild;
   if (!bar) return true;
   const outer = bar.getBoundingClientRect();
@@ -97,7 +97,7 @@ function sizesOf(host: HTMLElement): string {
 }
 
 /** Sets `data-fit` on `host` to the lowest level at which the bar fits. */
-export function fitBar(host: HTMLElement): void {
+function fitBar(host: HTMLElement): void {
   host.dataset.fit = String(
     findFitLevel((level) => {
       host.dataset.fit = String(level);
