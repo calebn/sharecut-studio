@@ -1536,7 +1536,7 @@ describe("the decoded audio the engine holds (#3789)", () => {
   const CHUNK_BYTES = 48000 * CHUNK_SEC * 4;
   const TRACK_IDS = ["host", "guest", "cohost", "solo"];
   /** Retained span per track: 30 s back, up to 165 s ahead, a chunk of rounding at each end, and one chunk of slack for a batch decoded before it is pruned. */
-  const CHUNKS_PER_TRACK_BOUND = 7;
+  const CHUNKS_PER_TRACK_BOUND = 5;
 
   /** Each track gets its own hash so its chunks have distinct keys. */
   function multitrack(durationSec: number, trackIds = TRACK_IDS) {
