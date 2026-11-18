@@ -249,9 +249,10 @@ lib (a `staticlib`) with Python.xcframework linked into it; there is no sidecar 
   with `-` gets a `p`), aligns the minimum OS to 17.0 (only where it changed the packaging type), and the phase re-signs every framework `fix` rewrote plus each generated one, when its signature no longer verifies, so a failed earlier build cannot leave a stale seal.
   `fix` creates a missing plist from the executable, validates every framework before writing anything (all or nothing), then writes each plist on its own, so a run that dies partway leaves some frameworks fixed and is repaired by rerunning (`fix` is idempotent; it also removes a stale `.Info.plist.*.tmp` left by a killed write, and `check_layout` reports one), refuses a symlinked framework or plist, and writes each plist atomically (temporary file, then rename).
   A framework that already has a valid `FMWK` plist, `Python.framework` included, is untouched and keeps its `MinimumOSVersion` 13.0.
-  `check_layout` runs the same `check`, so the release build and the upload both fail on a
+  `list`, `fix` and `check` refuse a framework name with a control character (a newline could split a line in the build phase loop). `check_layout` runs the same `check`, so the release build and the upload both fail on a
   nested plist that is not `FMWK`, malformed, duplicated or equal to the app's identifier. The
   phase needs `python3` on the build machine in every configuration.
+  `check_layout` also denies by default any other `Info.plist`: only the app root, `Frameworks/<name>.framework/`, and a compiled storyboard (`<name>.storyboardc/` at the app root or inside an `*.lproj` directory) may hold one.
 - **Store metadata and privacy.** The template's Info.plist sets `ITSAppUsesNonExemptEncryption`
   to `false`; the name under the icon is the build's `productName` (the release tool sets it from
   the profile's `short_name`) (owner declaration, 2026-11-14: the

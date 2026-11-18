@@ -84,9 +84,16 @@ def check_layout(app: Path) -> CheckReport:
             and len(parts) >= 3
             and parts[1].casefold().endswith(".framework")
         )
+        in_storyboard = (
+            path.name == "Info.plist"
+            and parts[-2:-1] != ()
+            and parts[-2].casefold().endswith(".storyboardc")
+            and (len(parts) == 2 or (len(parts) == 3 and parts[0].casefold().endswith(".lproj")))
+        )
         if path.name.casefold() == "info.plist" and not (
             parts == ("Info.plist",)
             or (in_framework and len(parts) == 3 and path.name == "Info.plist")
+            or in_storyboard
         ):
             problems.append(f"unexpected Info.plist {relative.as_posix()}")
         if parts == ("Info.plist",) and path.is_symlink():

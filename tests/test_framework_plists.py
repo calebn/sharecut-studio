@@ -382,3 +382,17 @@ def test_fix_removes_stale_temporary_siblings_before_writing(tmp_path: Path) -> 
     fp.fix(app)
     assert not stale.exists()
     assert keep.exists()
+
+
+@pytest.mark.parametrize("name", ["a\nb", "a\rb", "a\x1bb", "a\x7fb", f"a{chr(0x2028)}b"])
+def test_a_framework_name_with_a_control_character_is_refused(tmp_path: Path, name: str) -> None:
+    app = make_tree(tmp_path, [])
+    folder = app / "Frameworks" / f"{name}.framework"
+    folder.mkdir()
+    (folder / name).write_bytes(b"\xcf\xfa\xed\xfe")
+    write_plist(folder / "Info.plist", appl_plist(name))
+    with pytest.raises(ValueError, match="control character"):
+        fp.fix(app)
+    with pytest.raises(ValueError, match="control character"):
+        fp.generated(app)
+    assert any("control character" in problem for problem in fp.check(app))
