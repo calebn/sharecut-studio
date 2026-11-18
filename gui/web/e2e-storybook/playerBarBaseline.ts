@@ -5,8 +5,9 @@
  * text size; signature is the controls, then "|t:" the pills with their text,
  * then "|d:" the pills with their detail. The bar must keep showing exactly
  * that wherever develop had no overlap, bar the short windows SHOWS_LESS names
- * in system.spec.ts: it gives a control up only when the control did not fit. Widths where develop overlapped are not listed; there
- * the bar only has to be clean.
+ * in system.spec.ts: it gives a control up only when the control did not fit.
+ * Widths where develop overlapped are not listed; there the bar only has to be
+ * clean.
  */
 export type Band = readonly [from: number, to: number, shown: string];
 export type Baseline = Record<"fine" | "coarse", readonly Band[]>;

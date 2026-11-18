@@ -1140,8 +1140,8 @@ button.sys-version-line {
 }
 
 /* The bar (not the Listen dock, which shares the host) gives a control up only
-   when what it holds does not fit, and only a status text or a name inside a
-   pill ever ellipsizes. Player.tsx sets `data-pills` (how many pills the bar
+   when what it holds does not fit, and only a status text, a name inside a pill
+   or the Following detail ever ellipsizes. Player.tsx sets `data-pills` (how many pills the bar
    draws: Status pills, the Audio error pill, the Playback rate) and
    `data-long-clock` (an hours clock or a rate, so a longer left column) on the
    host. Every rung is a plain container width in rem for one configuration,
@@ -1188,7 +1188,7 @@ button.sys-version-line {
   max-inline-size: 100%;
 }
 
-/* Pill text: a host following alone, wider than develop's 50 rem glyph-only rule by the pill's name */
+/* Pill text: a host following alone, wider than the 50 rem glyph-only rule above by the pill's name */
 @container sys-player (max-width: 50.6rem) {
   .sys-player-host:has(.sys-player-ab):has(.sys-player-following)
     .sys-player-pill-text {
@@ -1366,7 +1366,7 @@ button.sys-version-line {
   }
 }
 
-/* Comment: an Audio error with three pills (develop drops it at 50 rem) */
+/* Comment: an Audio error with three pills (the 50 rem rule above drops it) */
 @container sys-player (max-width: 58.5rem) {
   .sys-player-host[data-state="error"][data-pills="3"] .sys-player-comment {
     display: none;
@@ -1458,7 +1458,7 @@ button.sys-version-line {
     }
   }
 
-  /* Comment: Solo with an Audio error (develop drops it at 50 rem) */
+  /* Comment: Solo with an Audio error (the 50 rem rule above drops it) */
   @container sys-player (max-width: 52rem) {
     .sys-player-host[data-state="error"][data-pills="2"] .sys-player-comment {
       display: none;
