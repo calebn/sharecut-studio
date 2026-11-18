@@ -113,8 +113,6 @@ test("a guest editor's undo names the head it was sent, takes back only their ow
       expect(stale.headers()["x-sharecut-error-code"]).toBe("history_stale");
       expect(chapterTitles(projectPath)).toContain("Agent chapter");
 
-      // Once the guest has received it and made a step of their own, their Mod+Z
-      // sends that head and takes back only their step.
       await expect(guest.getByLabel("Chapter Agent chapter")).toBeVisible();
       const own = await guest.request.post(
         `/api/review/${token}/daw/document/command`,
