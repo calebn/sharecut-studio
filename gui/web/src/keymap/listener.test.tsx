@@ -24,6 +24,7 @@ import { clipRow, minimalProject, sampleTrack } from "../test/fixtures";
 import { BottomSheet } from "../ui/BottomSheet";
 import { Dialog } from "../ui/Dialog";
 import { Menu, MenuItem } from "../ui/Menu";
+import { ApiError } from "../utils/apiError";
 import { useDawKeymapListener } from "./listener";
 
 const actualExecute = (
@@ -605,6 +606,37 @@ it("Mod+Z still sends while an edit's save is in flight (#2168)", async () => {
   landed();
   await save;
   await waitFor(() => expect(undoHistory).toHaveBeenCalledTimes(1));
+});
+
+it("Mod+Z tells a refused Undo once and leaves nothing unhandled", async () => {
+  render(<KeymapHost />);
+  vi.mocked(undoHistory).mockReset();
+  vi.mocked(undoHistory).mockRejectedValueOnce(
+    new ApiError(
+      "There is nothing of yours to undo. The latest change is someone else's.",
+      "nothing_of_yours_to_undo",
+      400,
+    ),
+  );
+  showHistory({ can_undo: true, can_redo: false });
+  await pressModZ(false);
+  expect(undoHistory).toHaveBeenCalledTimes(1);
+  expect(useDawStore.getState().statusAnnouncement).toBe(
+    "There is nothing of yours to undo. The latest change is someone else's.",
+  );
+});
+
+it("Mod+Z announces an Undo that failed outright instead of dropping it", async () => {
+  render(<KeymapHost />);
+  vi.mocked(undoHistory).mockReset();
+  vi.mocked(undoHistory).mockRejectedValueOnce(
+    new ApiError("Server unavailable", "internal_error", 503),
+  );
+  showHistory({ can_undo: true, can_redo: false });
+  await pressModZ(false);
+  expect(useDawStore.getState().statusAnnouncement).toBe(
+    "Undo failed: Server unavailable",
+  );
 });
 
 async function press(

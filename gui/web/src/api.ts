@@ -63,7 +63,6 @@ export {
   deleteSocialClip,
   duplicateSegment,
   extractRoomToneBedCommand,
-  HISTORY_STALE_CODE,
   moveClips,
   moveSegment,
   pasteSegment,

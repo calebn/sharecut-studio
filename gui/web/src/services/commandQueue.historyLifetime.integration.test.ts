@@ -44,6 +44,10 @@ describe("history command lifetime at queue admission", () => {
       configurable: true,
       value: commandLocks(),
     });
+    Object.defineProperty(navigator, "onLine", {
+      configurable: true,
+      value: true,
+    });
     sessionStorage.clear();
     vi.resetModules();
     vi.clearAllMocks();
@@ -673,5 +677,134 @@ describe("history command lifetime at queue admission", () => {
     ).rejects.toThrow("Undo and Redo are unavailable offline");
 
     expect(queue.enqueueHostCommand).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    {
+      route: "host",
+      code: "history_stale",
+      message: "The project changed",
+      status: 409,
+    },
+    {
+      route: "host",
+      code: "nothing_to_undo",
+      message: "Nothing to undo",
+      status: 400,
+    },
+    {
+      route: "guest",
+      code: "nothing_of_yours_to_undo",
+      message:
+        "There is nothing of yours to undo. The latest change is someone else's.",
+      status: 400,
+    },
+    {
+      route: "guest",
+      code: "nothing_of_yours_to_redo",
+      message:
+        "There is nothing of yours to redo. Redo brings back only what you undid.",
+      status: 400,
+    },
+  ] as const)(
+    "tells a $route $code refusal without a Needs attention row",
+    async ({ route, code, message, status }) => {
+      const path =
+        route === "host" ? "/tmp/history-told.json" : "share:history-told";
+      const { useDawStore } = await import("../state/dawStore");
+      const { minimalProject } = await import("../test/fixtures");
+      const authority = await import("../document/authorityState");
+      useDawStore.setState({
+        projectPath: path,
+        shareCapabilities: EDITOR_CAPABILITIES,
+        project: minimalProject(),
+      });
+      authority.resetDocumentAuthority(path);
+      let stored: QueuedCommand[] = [];
+      const store = async (...args: unknown[]) => {
+        stored = [args[args.length - 1] as QueuedCommand];
+        return { persisted: true, hadPredecessor: false };
+      };
+      queue.enqueueHostCommand.mockImplementation(store);
+      queue.enqueueCommand.mockImplementation(store);
+      queue.loadHostCommandQueue.mockImplementation(async () => stored);
+      queue.loadCommandQueue.mockImplementation(async () => stored);
+      const fetchSpy = vi.fn(
+        async () =>
+          new Response(JSON.stringify({ detail: message }), {
+            status,
+            headers: {
+              "Content-Type": "application/json",
+              "X-Sharecut-Error-Code": code,
+            },
+          }),
+      );
+      vi.stubGlobal("fetch", fetchSpy);
+      const { submitLiveHistoryCommand } = await import("./commandQueue");
+
+      await expect(
+        submitLiveHistoryCommand(
+          path,
+          code.endsWith("redo") ? "RedoHistory" : "UndoHistory",
+          { expected_head_id: "visible-head" },
+          authority.documentScope(),
+        ),
+      ).rejects.toMatchObject({ code, message });
+
+      expect(fetchSpy).toHaveBeenCalledTimes(1);
+      const settle =
+        route === "host"
+          ? queue.settleHostCommandOutcome
+          : queue.settleGuestCommandOutcome;
+      expect(settle).toHaveBeenCalledTimes(1);
+      expect(settle.mock.calls[0]?.[2]).toBeNull();
+    },
+  );
+
+  it("keeps a Needs attention row for a failed Undo that is not a told refusal", async () => {
+    const path = "/tmp/history-kept.json";
+    const { useDawStore } = await import("../state/dawStore");
+    const { minimalProject } = await import("../test/fixtures");
+    const authority = await import("../document/authorityState");
+    useDawStore.setState({
+      projectPath: path,
+      shareCapabilities: EDITOR_CAPABILITIES,
+      project: minimalProject(),
+    });
+    authority.resetDocumentAuthority(path);
+    let stored: QueuedCommand[] = [];
+    queue.enqueueHostCommand.mockImplementation(async (...args: unknown[]) => {
+      stored = [args[args.length - 1] as QueuedCommand];
+      return { persisted: true, hadPredecessor: false };
+    });
+    queue.loadHostCommandQueue.mockImplementation(async () => stored);
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(
+        async () =>
+          new Response(JSON.stringify({ detail: "boom" }), {
+            status: 400,
+            headers: {
+              "Content-Type": "application/json",
+              "X-Sharecut-Error-Code": "something_else",
+            },
+          }),
+      ),
+    );
+    const { submitLiveHistoryCommand } = await import("./commandQueue");
+
+    await expect(
+      submitLiveHistoryCommand(
+        path,
+        "UndoHistory",
+        { expected_head_id: "visible-head" },
+        authority.documentScope(),
+      ),
+    ).rejects.toMatchObject({ code: "something_else" });
+
+    expect(queue.settleHostCommandOutcome.mock.calls[0]?.[2]).toMatchObject({
+      kind: "refused",
+      reason: "boom",
+    });
   });
 });
