@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { urlOf } from "../test/urlOf";
 import { ApiError } from "../utils/apiError";
 import { cachedFetchArrayBuffer } from "./chunkCache";
 import type { ImmutableChunkRef } from "./proxyMath";
@@ -157,7 +158,7 @@ const freshLink = () => {
 function stubFetch(hold?: Promise<void>) {
   const spy = vi.fn(async (input: RequestInfo | URL) => {
     await hold;
-    const url = String(input);
+    const url = urlOf(input);
     return new Response(new Uint8Array([url.length, 7, 7]));
   });
   vi.stubGlobal("fetch", spy);
