@@ -1302,7 +1302,11 @@ html[data-shell="phone"] .pending-actions > .ui-control {
   }
 }
 
-/* Back to playhead hands focus to the scroller; it is a target, not a control. */
 .timeline-scroll:focus:not(:focus-visible) {
   outline: none;
+}
+
+.timeline-scroll:focus-visible {
+  outline: var(--focus-ring-width) solid var(--color-accent);
+  outline-offset: -2px;
 }

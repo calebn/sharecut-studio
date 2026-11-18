@@ -345,6 +345,17 @@ describe("TimelineView scroll to playhead", () => {
     expect(useDawStore.getState().scrollLeft).toBe(100);
   });
 
+  it("reports no scroll when the playhead is already where the scroll would land", () => {
+    const scroller = mount(false);
+    useDawStore.setState({ playheadSec: 5, scrollLeft: 0 });
+    let scrolled = true;
+    act(() => {
+      scrolled = playheadScrollRegistry.scrollAllToPlayhead();
+    });
+    expect(scrolled).toBe(false);
+    expect(scroller.scrollLeft).toBe(0);
+  });
+
   it("clamps to the end of the canvas", () => {
     const scroller = mount(false);
     useDawStore.setState({ playheadSec: 58 });

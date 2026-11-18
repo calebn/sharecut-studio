@@ -219,8 +219,7 @@ for (const layout of LAYOUTS) {
         ["ruler", ruler],
         ["track headers", headers],
       ] as const) {
-        expect(other, `${name} is on screen here`).not.toBeNull();
-        if (!other) continue;
+        if (!other) throw new Error(`${name} is not on screen`);
         expect(
           overlaps(pillBox, other),
           `${name} ${JSON.stringify(other)}`,

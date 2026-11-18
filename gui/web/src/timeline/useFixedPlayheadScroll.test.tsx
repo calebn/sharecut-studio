@@ -900,6 +900,31 @@ describe("useFixedPlayheadScroll", () => {
       });
     });
 
+    it("a person's desktop scroll while playing sets the flag false", () => {
+      const hook = renderHook(() =>
+        useFixedPlayheadScroll({ ...input, fixedPlayhead: false }),
+      );
+      el.addEventListener("scroll", () => hook.result.current.onScroll());
+      el.scrollLeft = 300;
+      act(() => {
+        el.dispatchEvent(new Event("scroll"));
+      });
+      expect(followFlag()).toBe(false);
+    });
+
+    it("a person's desktop scroll while paused sets the flag false", () => {
+      useDawStore.setState({ isPlaying: false });
+      const hook = renderHook(() =>
+        useFixedPlayheadScroll({ ...input, fixedPlayhead: false }),
+      );
+      el.addEventListener("scroll", () => hook.result.current.onScroll());
+      el.scrollLeft = 300;
+      act(() => {
+        el.dispatchEvent(new Event("scroll"));
+      });
+      expect(followFlag()).toBe(false);
+    });
+
     it("leaves the flag alone for a phone scroll, a programmatic write and its echo", () => {
       const phone = renderHook(() => useFixedPlayheadScroll(input));
       el.addEventListener("scroll", () => phone.result.current.onScroll());
@@ -943,7 +968,7 @@ describe("useFixedPlayheadScroll", () => {
       timelineViewportRegistry.setTimelineElement(null);
     });
 
-    it("a person's desktop scroll while playing sets the flag false, also while presence-following", () => {
+    it("a person's scroll while presence-following stops the follow and sets the flag false", () => {
       const stopFollow = vi.fn();
       useDawStore.setState({ followingClientId: "leader", stopFollow });
       const hook = renderHook(() =>
