@@ -848,6 +848,34 @@ describe("GuestRoomApp", () => {
     const rowText = () =>
       document.querySelector(".sys-room-looking-in")?.textContent ?? null;
 
+    const refuseJoinOnTheRetrySocket = async () => {
+      await enterName("Pat");
+      await userEvent.click(
+        screen.getByRole("button", { name: "Join to listen" }),
+      );
+      await waitFor(() => {
+        expect(
+          sockets[0].sent.filter((raw) => raw.includes('"Join"')),
+        ).toHaveLength(1);
+      });
+      act(() => sockets[0].onclose?.({ code: 1006 }));
+      await waitFor(() => expect(sockets).toHaveLength(2));
+      await waitFor(() => {
+        expect(
+          sockets[1].sent.filter((raw) => raw.includes('"Join"')),
+        ).toHaveLength(1);
+      });
+      act(() =>
+        sockets[1].onmessage?.({
+          data: JSON.stringify({
+            plane: "record",
+            type: "Error",
+            code: "invalid_state",
+          }),
+        }),
+      );
+    };
+
     async function lookIn() {
       stubBootstrap(producerBootstrap);
       stubWebSocket(sockets, "silent");
@@ -1008,31 +1036,7 @@ describe("GuestRoomApp", () => {
       expect(
         screen.getByText(SEEN, { selector: ".sys-join-seen" }),
       ).toBeVisible();
-      await enterName("Pat");
-      await userEvent.click(
-        screen.getByRole("button", { name: "Join to listen" }),
-      );
-      await waitFor(() => {
-        expect(
-          sockets[0].sent.filter((raw) => raw.includes('"Join"')),
-        ).toHaveLength(1);
-      });
-      act(() => sockets[0].onclose?.({ code: 1006 }));
-      await waitFor(() => expect(sockets).toHaveLength(2));
-      await waitFor(() => {
-        expect(
-          sockets[1].sent.filter((raw) => raw.includes('"Join"')),
-        ).toHaveLength(1);
-      });
-      act(() =>
-        sockets[1].onmessage?.({
-          data: JSON.stringify({
-            plane: "record",
-            type: "Error",
-            code: "invalid_state",
-          }),
-        }),
-      );
+      await refuseJoinOnTheRetrySocket();
       await screen.findByRole("button", { name: "Join to listen" });
       expect(
         screen.queryByText(SEEN, { selector: ".sys-join-seen" }),
@@ -1043,31 +1047,7 @@ describe("GuestRoomApp", () => {
       await lookIn();
       look({ watchers: 1, server_time_ns: 101 });
       await screen.findByRole("heading", { name: "Hana and Ava are here" });
-      await enterName("Pat");
-      await userEvent.click(
-        screen.getByRole("button", { name: "Join to listen" }),
-      );
-      await waitFor(() => {
-        expect(
-          sockets[0].sent.filter((raw) => raw.includes('"Join"')),
-        ).toHaveLength(1);
-      });
-      act(() => sockets[0].onclose?.({ code: 1006 }));
-      await waitFor(() => expect(sockets).toHaveLength(2));
-      await waitFor(() => {
-        expect(
-          sockets[1].sent.filter((raw) => raw.includes('"Join"')),
-        ).toHaveLength(1);
-      });
-      act(() =>
-        sockets[1].onmessage?.({
-          data: JSON.stringify({
-            plane: "record",
-            type: "Error",
-            code: "invalid_state",
-          }),
-        }),
-      );
+      await refuseJoinOnTheRetrySocket();
       await screen.findByRole("button", { name: "Join to listen" });
       expect(document.querySelector(".sys-pill-text")).toBeNull();
       expect(
@@ -1086,31 +1066,7 @@ describe("GuestRoomApp", () => {
       await lookIn();
       look({ watchers: 1, server_time_ns: 101 });
       await screen.findByRole("heading", { name: "Hana and Ava are here" });
-      await enterName("Pat");
-      await userEvent.click(
-        screen.getByRole("button", { name: "Join to listen" }),
-      );
-      await waitFor(() => {
-        expect(
-          sockets[0].sent.filter((raw) => raw.includes('"Join"')),
-        ).toHaveLength(1);
-      });
-      act(() => sockets[0].onclose?.({ code: 1006 }));
-      await waitFor(() => expect(sockets).toHaveLength(2));
-      await waitFor(() => {
-        expect(
-          sockets[1].sent.filter((raw) => raw.includes('"Join"')),
-        ).toHaveLength(1);
-      });
-      act(() =>
-        sockets[1].onmessage?.({
-          data: JSON.stringify({
-            plane: "record",
-            type: "Error",
-            code: "invalid_state",
-          }),
-        }),
-      );
+      await refuseJoinOnTheRetrySocket();
       await waitFor(() => expect(sockets).toHaveLength(3));
       await userEvent.click(
         await screen.findByRole("button", { name: "Join to listen" }),
