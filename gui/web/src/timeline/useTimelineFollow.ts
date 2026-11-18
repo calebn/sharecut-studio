@@ -6,7 +6,10 @@ import {
   isPlayheadOffscreen,
   revealTargetPx,
 } from "../utils/timelineFollow";
-import { timelineCanvasSize } from "../utils/timelineViewport";
+import {
+  SCROLL_SYNC_EPS_PX,
+  timelineCanvasSize,
+} from "../utils/timelineViewport";
 import type { ScrollBinding } from "./useFixedPlayheadScroll";
 
 type Props = Readonly<{
@@ -16,8 +19,7 @@ type Props = Readonly<{
 
 type Mover = Pick<ScrollBinding, "writeScroll" | "leadPx">;
 
-/** Writes the scroll and mirrors it to the store; true when the scroller moved. */
-export function moveScrollTo(
+function moveScrollTo(
   { writeScroll, leadPx }: Mover,
   el: HTMLElement,
   target: number,
@@ -25,10 +27,9 @@ export function moveScrollTo(
   const before = el.scrollLeft;
   writeScroll(el, target, leadPx);
   useDawStore.getState().setScrollLeft(target);
-  return el.scrollLeft !== before;
+  return Math.abs(el.scrollLeft - before) > SCROLL_SYNC_EPS_PX;
 }
 
-/** Scrolls the playhead into view; true when the scroller moved. */
 export function revealPlayhead(
   binding: Mover,
   el: HTMLElement,

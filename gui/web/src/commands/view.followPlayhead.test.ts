@@ -97,22 +97,11 @@ describe("view.followPlayhead", () => {
     useDawStore.setState({ announceStatus });
     const off = playheadScrollRegistry.register("timeline", () => moved);
 
-    await execute("view.followPlayhead");
-
-    off();
-    expect(announceStatus).toHaveBeenCalledTimes(calls);
-  });
-
-  it("does not announce when the timeline has nothing to scroll, as on the phone", async () => {
-    const announceStatus = vi.fn();
-    useDawStore.setState({ announceStatus, timelineFollowPlayhead: false });
-    const off = playheadScrollRegistry.register("timeline", () => false);
-
     const result = await execute("view.followPlayhead");
 
     off();
     expect(result.status).toBe("ok");
-    expect(announceStatus).not.toHaveBeenCalled();
+    expect(announceStatus).toHaveBeenCalledTimes(calls);
   });
 
   it("is disabled outside the Edit stage", async () => {
