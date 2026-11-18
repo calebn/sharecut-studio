@@ -246,8 +246,9 @@ lib (a `staticlib`) with Python.xcframework linked into it; there is no sidecar 
   `studio.sharecut.app.numpy.random.-pcg64`), so `altool` read each one as a second app and
   rejected the upload. After `install_python`, the same phase runs `scripts/ios/framework_plists.py
   fix`, which makes each such plist `FMWK`, repairs a malformed identifier (a segment starting
-  with `-` gets a `p`), aligns the minimum OS to 17.0 (only where it changed the packaging type), and the phase re-signs each generated framework whose signature no longer verifies, so a failed earlier build cannot leave a stale seal.
-  A framework that already has a valid `FMWK` plist, `Python.framework` included, is untouched.
+  with `-` gets a `p`), aligns the minimum OS to 17.0 (only where it changed the packaging type), and the phase re-signs every framework `fix` rewrote plus each generated one, when its signature no longer verifies, so a failed earlier build cannot leave a stale seal.
+  `fix` creates a missing plist from the executable, validates every framework before writing anything (all or nothing), then writes each plist on its own, so a run that dies partway leaves some frameworks fixed and is repaired by rerunning (`fix` is idempotent; it also removes a stale `.Info.plist.*.tmp` left by a killed write, and `check_layout` reports one), refuses a symlinked framework or plist, and writes each plist atomically (temporary file, then rename).
+  A framework that already has a valid `FMWK` plist, `Python.framework` included, is untouched and keeps its `MinimumOSVersion` 13.0.
   `check_layout` runs the same `check`, so the release build and the upload both fail on a
   nested plist that is not `FMWK`, malformed, duplicated or equal to the app's identifier. The
   phase needs `python3` on the build machine in every configuration.
