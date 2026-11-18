@@ -1047,9 +1047,17 @@ describe("useRecordSync", () => {
         await vi.advanceTimersByTimeAsync(300);
       });
       expect(FakeWebSocket.instances).toHaveLength(2);
+      await act(async () => {
+        FakeWebSocket.instances[1].emit({
+          plane: "record",
+          type: "Error",
+          code: "invalid_state",
+        });
+      });
       hook.rerender({ m: "watch" });
       await settle();
       expect(hook.result.current.snapshot).toBeNull();
+      expect(hook.result.current.error).toBe("invalid_state");
       expect(FakeWebSocket.instances).toHaveLength(3);
       expect(
         new URL(FakeWebSocket.instances[2].url).searchParams.get("observe"),

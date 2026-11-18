@@ -1074,6 +1074,9 @@ describe("GuestRoomApp", () => {
         screen.queryByRole("heading", { name: "Hana and Ava are here" }),
       ).toBeNull();
       await waitFor(() => expect(sockets).toHaveLength(3));
+      expect(screen.getByRole("alert")).toHaveTextContent(
+        "That isn't possible in the room's current state.",
+      );
       expect(
         new URL(sockets[2].url, "http://x").searchParams.get("observe"),
       ).toBe("1");
