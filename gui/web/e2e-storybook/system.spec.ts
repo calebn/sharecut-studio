@@ -1144,7 +1144,7 @@ test("System/Player each fit level gives up one more thing, in order (#2576)", a
     "skip buttons",
     "cuts",
     "hear chevron",
-    "other pills",
+    "other pills and the status",
   ];
   for (let level = 0; level <= 6; level++) {
     const hidden = await page.evaluate((fit) => {
@@ -1168,7 +1168,7 @@ test("System/Player each fit level gives up one more thing, in order (#2576)", a
         gone(".sys-player-cuts"),
         gone(".sys-player-hear-more"),
         gone(
-          ".sys-player-following, .sys-player-solo, .sys-player-mix, .sys-player-rate",
+          ".sys-player-following, .sys-player-solo, .sys-player-mix, .sys-player-rate, .sys-player-status",
         ),
       ];
     }, level);

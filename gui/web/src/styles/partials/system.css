@@ -1148,11 +1148,11 @@ button.sys-version-line {
    `data-fit="0"` and steps `data-fit` up until no column of the bar runs into
    the next or out of the bar and no Status pill's text is cut short (when it
    mounts and when a size, the text, the fonts or the pointer type change, not
-   on every render), so the
-   rules below are one per level and cumulative: 1 the Status pills' text (the
-   title and the accessible text stay), 2 the Following detail, 3 the skip
-   buttons, 4 the cuts, 5 the hear menu's chevron, 6 the other pills (Following,
-   Solo, Updating mix, the Playback rate and the status). The Audio error pill,
+   on every render), so the rules below are one per level and cumulative: 1 the
+   Status pills' text (the title and the accessible text stay), 2 the Following
+   detail, 3 the skip buttons, 4 the cuts, 5 the hear menu's chevron, 6 the
+   other pills (Following, Solo, Updating mix, the Playback rate and the
+   status). The Audio error pill,
    Retry, Play, the clock, A and B and a guest's Comment are never given up
    here. If level 6 still does not fit, the status text's ellipsis and the
    40, 22 and 14 rem rules (and the 50 and 60 rem rules, which hide the same
