@@ -514,6 +514,17 @@ button.sys-version-line::after {
   align-items: center;
 }
 
+/* A press on the sentence closes the hint, so on touch the bubble is a press target and its X sets the 44 px height with no padding above or below. Closer to the bar, two lines end above the page's first line of text. */
+@media (pointer: coarse) {
+  .sys-role-hint .sys-coach-tip {
+    padding-block: 0;
+  }
+
+  .sys-role-hint .sys-coach-tip--below {
+    inset-block-start: calc(100% + var(--space-1));
+  }
+}
+
 .sys-role-trigger {
   position: relative;
   display: inline-flex;
