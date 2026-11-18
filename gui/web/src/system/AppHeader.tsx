@@ -22,6 +22,7 @@ import { SaveIndicator, type SaveIndicatorProps } from "./SaveIndicator";
 import { StageBar, type StageBarProps } from "./StageBar";
 import { StageMenu } from "./StageMenu";
 import { SystemIcon } from "./SystemIcon";
+import { useActingKeyDown } from "./useCoachTip";
 import { VerbButton } from "./VerbButton";
 import { type NewVersionUpdate, VersionLine } from "./VersionLine";
 
@@ -114,6 +115,20 @@ function RoleHint({ guest }: { guest: NonNullable<AppHeaderProps["guest"]> }) {
     onOutside: dismissAutomatic,
     enabled: mode === "automatic",
     capture: true,
+  });
+  // The next key closes it and still does its job. Enter and Space on the X or
+  // the Role button are those controls' own clicks, which close it themselves.
+  useActingKeyDown(mode === "automatic", (event) => {
+    const inside =
+      event.target instanceof Node &&
+      (outsideRef.current?.contains(event.target) ?? false);
+    if (event.key === "Escape") {
+      dismissAutomatic();
+      // The X is about to unmount: keep focus on the control that stays.
+      if (inside) triggerRef.current?.focus({ preventScroll: true });
+    } else if (!inside) {
+      dismissAutomatic();
+    }
   });
 
   const chip = <RoleChip access={guest.role} compact={guest.compact} />;
