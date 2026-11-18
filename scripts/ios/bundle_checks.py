@@ -15,6 +15,7 @@ from pathlib import Path
 from typing import Any
 
 from scripts.ios.framework_plists import check as check_framework_plists
+from scripts.ios.framework_plists import is_stale_temporary
 from scripts.ios.release_run import capture
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -76,13 +77,24 @@ def check_layout(app: Path) -> CheckReport:
     problems: list[str] = []
     machos = 0
     for path in sorted(app.rglob("*")):
-        if path.is_symlink() or not path.is_file():
-            continue
         relative = path.relative_to(app)
         parts = relative.parts
         in_framework = (
-            parts[0] == "Frameworks" and len(parts) >= 3 and parts[1].endswith(".framework")
+            parts[0] == "Frameworks"
+            and len(parts) >= 3
+            and parts[1].casefold().endswith(".framework")
         )
+        if path.name.casefold() == "info.plist" and not (
+            parts == ("Info.plist",)
+            or (in_framework and len(parts) == 3 and path.name == "Info.plist")
+        ):
+            problems.append(f"unexpected Info.plist {relative.as_posix()}")
+        if parts == ("Info.plist",) and path.is_symlink():
+            problems.append("symlinked Info.plist at the app root")
+        if is_stale_temporary(path.name) and not path.is_dir():
+            problems.append(f"stale temporary file {relative.as_posix()}")
+        if path.is_symlink() or not path.is_file():
+            continue
         if path.suffix == ".a":
             problems.append(f"static library {relative}")
         elif path.suffix in {".so", ".dylib"} and not in_framework:

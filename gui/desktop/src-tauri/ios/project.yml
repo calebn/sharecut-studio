@@ -156,14 +156,18 @@ targets:
       - script: |
           set -e
           if [ -z "${EXPANDED_CODE_SIGN_IDENTITY:-}" ]; then export EXPANDED_CODE_SIGN_IDENTITY=-; fi
-          source "$PROJECT_DIR/../../ios-payload/Python.xcframework/build/utils.sh"
+          . "$PROJECT_DIR/../../ios-payload/Python.xcframework/build/utils.sh"
           install_python ../../ios-payload/Python.xcframework app_packages
           FW_TOOL="$PROJECT_DIR/../../../../../scripts/ios/framework_plists.py"
-          python3 -I "$FW_TOOL" fix "$CODESIGNING_FOLDER_PATH" > /dev/null
-          GENERATED=$(python3 -I "$FW_TOOL" list "$CODESIGNING_FOLDER_PATH")
-          for FW in $GENERATED; do
+          TOUCHED=$(python3 -I "$FW_TOOL" fix "$CODESIGNING_FOLDER_PATH")
+          PREFIXED=$(python3 -I "$FW_TOOL" list "$CODESIGNING_FOLDER_PATH")
+          SIGN=$(printf '%s\n%s\n' "$TOUCHED" "$PREFIXED" | sort -u)
+          while IFS= read -r FW; do
+            [ -n "$FW" ] || continue
             /usr/bin/codesign --verify --strict "$CODESIGNING_FOLDER_PATH/$FW" 2>/dev/null || /usr/bin/codesign --force --sign "$EXPANDED_CODE_SIGN_IDENTITY" ${OTHER_CODE_SIGN_FLAGS:-} -o runtime --timestamp=none --preserve-metadata=entitlements,flags --generate-entitlement-der "$CODESIGNING_FOLDER_PATH/$FW"
-          done
+          done <<EOF
+          $SIGN
+          EOF
         name: Process Python libraries
     {{~#if ios-post-compile-scripts}}
     postCompileScripts:

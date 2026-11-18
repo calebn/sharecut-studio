@@ -45,7 +45,7 @@ def test_nested_framework_plists_are_fixed_and_resigned_after_install_python() -
     fix = TEMPLATE.index('python3 -I "$FW_TOOL" fix "$CODESIGNING_FOLDER_PATH"')
     assert install < fix < TEMPLATE.index("/usr/bin/codesign --force --sign", fix)
     assert "scripts/ios/framework_plists.py" in TEMPLATE
-    assert "for FW in $GENERATED; do" in TEMPLATE
+    assert "while IFS= read -r FW; do" in TEMPLATE
     assert "--preserve-metadata=identifier" not in TEMPLATE
 
 
@@ -181,7 +181,12 @@ def phase_script() -> str:
     return "\n".join(line[10:] for line in lines) + "\n"
 
 
-def run_phase(tmp_path: Path, plists: dict[str, dict[str, object]], valid: set[str]):
+def run_phase(
+    tmp_path: Path,
+    plists: dict[str, dict[str, object]],
+    valid: set[str],
+    shell: str = "bash",
+):
     gen = tmp_path / "gui/desktop/src-tauri/gen/apple"
     gen.mkdir(parents=True)
     build = tmp_path / "gui/desktop/src-tauri/ios-payload/Python.xcframework/build"
@@ -221,7 +226,7 @@ def run_phase(tmp_path: Path, plists: dict[str, dict[str, object]], valid: set[s
         "VALID": "|".join(valid) or "none-valid",
     }
     result = subprocess.run(
-        ["bash", "-c", script], env=env, capture_output=True, text=True, check=False
+        [shell, "-c", script], env=env, capture_output=True, text=True, check=False
     )
     calls = log.read_text(encoding="utf-8").splitlines() if log.exists() else []
     return result, calls, app
@@ -321,3 +326,54 @@ def test_the_app_exports_its_native_ffmpeg_symbols_from_the_target_base_block() 
     assert base.count('OTHER_LDFLAGS: ["$(inherited)", "-Wl,-export_dynamic"]') == 1
     assert TEMPLATE.count("OTHER_LDFLAGS") == 1
     assert TEMPLATE.count("-Wl,") == 1
+
+
+def test_minimum_os_is_one_value_everywhere() -> None:
+    from scripts.ios import bundle_checks, framework_plists
+
+    assert (
+        framework_plists.FRAMEWORK_MINIMUM_OS
+        == bundle_checks.MINIMUM_OS
+        == OVERLAY["bundle"]["iOS"]["minimumSystemVersion"]
+        == "17.0"
+    )
+
+
+def test_a_framework_outside_the_app_prefix_is_rewritten_and_resigned(tmp_path: Path) -> None:
+    foreign = appl("mod_a")
+    foreign["CFBundleIdentifier"] = "com.other.vendor.mod-a"
+    result, calls, app = run_phase(tmp_path, {"mod_a": foreign}, valid=set())
+    assert result.returncode == 0, result.stderr
+    assert (
+        plistlib.loads((app / "Frameworks/mod_a.framework/Info.plist").read_bytes())[
+            "CFBundlePackageType"
+        ]
+        == "FMWK"
+    )
+    forced = [c for c in calls if "--force" in c]
+    assert len(forced) == 1 and forced[0].endswith(f"{app}/Frameworks/mod_a.framework")
+
+
+def test_the_phase_signs_a_framework_whose_name_has_a_space_by_its_exact_path(
+    tmp_path: Path,
+) -> None:
+    spaced = appl("my mod")
+    spaced["CFBundleIdentifier"] = "studio.sharecut.app.my-mod"
+    result, calls, app = run_phase(tmp_path, {"my mod": spaced}, valid=set(), shell="/bin/sh")
+    assert result.returncode == 0, result.stderr
+    target = f"{app}/Frameworks/my mod.framework"
+    assert [c for c in calls if "--verify" in c] == [f"--verify --strict {target}"]
+    forced = [c for c in calls if "--force" in c]
+    assert len(forced) == 1 and forced[0].endswith(f"--generate-entitlement-der {target}")
+
+
+def test_the_phase_runs_under_posix_sh(tmp_path: Path) -> None:
+    result, calls, _ = run_phase(tmp_path, {"mod_a": appl("mod_a")}, valid=set(), shell="/bin/sh")
+    assert result.returncode == 0, result.stderr
+    assert len([c for c in calls if "--force" in c]) == 1
+
+
+def test_phase_with_no_python_modules_calls_codesign_nothing(tmp_path: Path) -> None:
+    result, calls, _ = run_phase(tmp_path, {}, valid=set(), shell="/bin/sh")
+    assert result.returncode == 0, result.stderr
+    assert calls == []

@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import os
 import plistlib
+import stat
 import subprocess
 import sys
 from pathlib import Path
@@ -250,3 +252,133 @@ def test_list_prints_only_the_generated_frameworks(tmp_path: Path) -> None:
     app = make_tree(tmp_path, ["numpy.random._pcg64"])
     fp.fix(app)
     assert fp.generated(app) == ["Frameworks/numpy.random._pcg64.framework"]
+
+
+ROOT = Path(__file__).resolve().parents[1]
+
+
+def deep_bplist(depth: int) -> bytes:
+    out = bytearray(b"bplist00")
+    offsets = []
+    for index in range(depth):
+        offsets.append(len(out))
+        out += b"\xa1" + (index + 1).to_bytes(4, "big")
+    offsets.append(len(out))
+    out += b"\x10\x01"
+    table = len(out)
+    for offset in offsets:
+        out += offset.to_bytes(4, "big")
+    out += bytes(6) + bytes([4, 4])
+    out += (depth + 1).to_bytes(8, "big") + (0).to_bytes(8, "big") + table.to_bytes(8, "big")
+    return bytes(out)
+
+
+def fifo_app(root: Path) -> Path:
+    app = make_tree(root, [])
+    folder = app / "Frameworks" / "x.framework"
+    folder.mkdir()
+    (folder / "x").write_bytes(b"\xcf\xfa\xed\xfe")
+    os.mkfifo(folder / "Info.plist")
+    return app
+
+
+@pytest.mark.parametrize("call", ["fp.fix", "fp.check", "bc.check_layout"])
+def test_fifo_plist_is_refused(tmp_path: Path, call: str) -> None:
+    app = fifo_app(tmp_path)
+    code = (
+        "import sys; from pathlib import Path; "
+        "from scripts.ios import framework_plists as fp, bundle_checks as bc; "
+        f"{call}(Path(sys.argv[1]))"
+    )
+    try:
+        subprocess.run(
+            [
+                sys.executable,
+                "-I",
+                "-c",
+                f"import sys; sys.path.insert(0, {str(ROOT)!r}); {code}",
+                str(app),
+            ],
+            timeout=10,
+            capture_output=True,
+            check=False,
+        )
+    except subprocess.TimeoutExpired:
+        pytest.fail(f"{call} hung on a FIFO Info.plist")
+
+
+def test_deep_binary_plist_is_a_value_error(tmp_path: Path) -> None:
+    path = tmp_path / "Info.plist"
+    path.write_bytes(deep_bplist(5000))
+    with pytest.raises(ValueError):
+        fp.read_plist(path)
+
+
+def test_deep_binary_plist_is_a_check_problem_not_a_crash(tmp_path: Path) -> None:
+    app = make_tree(tmp_path, [])
+    folder = app / "Frameworks" / "x.framework"
+    folder.mkdir()
+    (folder / "x").write_bytes(b"\xcf\xfa\xed\xfe")
+    (folder / "Info.plist").write_bytes(deep_bplist(5000))
+    assert any("x.framework" in problem and "unreadable" in problem for problem in fp.check(app))
+
+
+def test_uppercase_framework_suffix_is_fixed(tmp_path: Path) -> None:
+    app = make_tree(tmp_path, [])
+    folder = app / "Frameworks" / "x.Framework"
+    folder.mkdir()
+    (folder / "x").write_bytes(b"\xcf\xfa\xed\xfe")
+    write_plist(folder / "Info.plist", appl_plist("x"))
+    assert fp.fix(app) == ["Frameworks/x.Framework"]
+
+
+def test_a_failed_replace_leaves_the_plist_and_its_folder_untouched(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    app = make_tree(tmp_path, ["mod_a"])
+    folder = app / "Frameworks" / "mod_a.framework"
+    plist = folder / "Info.plist"
+    plist.chmod(0o600)
+    before = plist.read_bytes()
+    listing = sorted(p.name for p in folder.iterdir())
+
+    def refuse(*args: object, **kwargs: object) -> None:
+        raise OSError(28, "No space left on device")
+
+    monkeypatch.setattr(os, "replace", refuse)
+    with pytest.raises(OSError):
+        fp.fix(app)
+    assert plist.read_bytes() == before
+    assert sorted(p.name for p in folder.iterdir()) == listing
+    assert stat.S_IMODE(plist.stat().st_mode) == 0o600
+
+
+BAD_ENCODING = b'<?xml version="1.0" encoding="UTFO8"?><plist version="1.0"><dict/></plist>'
+
+
+def test_an_unknown_encoding_is_a_value_error(tmp_path: Path) -> None:
+    path = tmp_path / "Info.plist"
+    path.write_bytes(BAD_ENCODING)
+    with pytest.raises(ValueError):
+        fp.read_plist(path)
+
+
+def test_an_unknown_encoding_is_a_check_problem_not_a_crash(tmp_path: Path) -> None:
+    app = make_tree(tmp_path, [])
+    folder = app / "Frameworks" / "x.framework"
+    folder.mkdir()
+    (folder / "x").write_bytes(b"\xcf\xfa\xed\xfe")
+    (folder / "Info.plist").write_bytes(BAD_ENCODING)
+    assert any("x.framework" in problem and "unreadable" in problem for problem in fp.check(app))
+
+
+def test_fix_removes_stale_temporary_siblings_before_writing(tmp_path: Path) -> None:
+    app = make_tree(tmp_path, ["mod_a"])
+    folder = app / "Frameworks" / "mod_a.framework"
+    stale = folder / ".Info.plist.abc123.tmp"
+    stale.write_bytes(b"partial")
+    keep = folder / "notes.tmp"
+    keep.write_bytes(b"x")
+    fp.fix(app)
+    assert not stale.exists()
+    assert keep.exists()

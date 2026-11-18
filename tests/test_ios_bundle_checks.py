@@ -237,3 +237,70 @@ def test_imported_symbols_reads_nm_output_per_mach_o(
     app = make_app(tmp_path, {"ShareCut": MACHO, "text.txt": b"x"})
     monkeypatch.setattr(checks, "capture", lambda argv: "_stat\n_malloc\n")
     assert checks.imported_symbols(app) == {"ShareCut": frozenset({"_stat", "_malloc"})}
+
+
+@pytest.mark.parametrize(
+    "relative",
+    [
+        "PlugIns/x.appex/Info.plist",
+        "Frameworks/x.bundle/Info.plist",
+        "Frameworks/x.xcframework/Info.plist",
+        "Frameworks/bare/Info.plist",
+        "app_packages/pkg/Info.plist",
+    ],
+)
+def test_nested_info_plist_outside_allowlist_is_named(tmp_path: Path, relative: str) -> None:
+    app = framework_app(tmp_path, {})
+    nested = app / relative
+    nested.parent.mkdir(parents=True)
+    nested.write_bytes(framework_plist("q", CFBundlePackageType="APPL"))
+    assert f"unexpected Info.plist {relative}" in checks.check_layout(app).problems
+
+
+def test_a_symlinked_info_plist_outside_allowlist_is_named(tmp_path: Path) -> None:
+    app = framework_app(tmp_path, {})
+    nested = app / "app_packages/pkg/Info.plist"
+    nested.parent.mkdir(parents=True)
+    nested.symlink_to(app / "Info.plist")
+    assert "unexpected Info.plist app_packages/pkg/Info.plist" in checks.check_layout(app).problems
+
+
+def test_uppercase_framework_suffix_is_checked(tmp_path: Path) -> None:
+    app = framework_app(tmp_path, {})
+    folder = app / "Frameworks/x.Framework"
+    folder.mkdir(parents=True)
+    (folder / "x").write_bytes(MACHO)
+    (folder / "Info.plist").write_bytes(framework_plist("x", CFBundlePackageType="APPL"))
+    problems = checks.check_layout(app).problems
+    assert any("x.Framework" in problem and "APPL" in problem for problem in problems)
+
+
+def test_an_unknown_encoding_plist_is_unreadable_not_a_crash(tmp_path: Path) -> None:
+    bad = b'<?xml version="1.0" encoding="UTFO8"?><plist version="1.0"><dict/></plist>'
+    app = framework_app(tmp_path, {"numpy": bad})
+    assert any("unreadable" in problem for problem in checks.check_layout(app).problems)
+
+
+@pytest.mark.parametrize(
+    "relative",
+    [
+        "Frameworks/numpy.framework/.Info.plist.abc123.tmp",
+        "Frameworks/.Info.plist.abc123.tmp",
+        ".Info.plist.abc123.tmp",
+        "app_packages/pkg/.Info.plist.abc123.tmp",
+    ],
+)
+def test_a_stale_atomic_write_temporary_is_named(tmp_path: Path, relative: str) -> None:
+    app = framework_app(tmp_path, {"numpy": framework_plist("numpy", CFBundlePackageType="FMWK")})
+    stale = app / relative
+    stale.parent.mkdir(parents=True, exist_ok=True)
+    stale.write_bytes(b"partial")
+    assert f"stale temporary file {relative}" in checks.check_layout(app).problems
+
+
+def test_a_symlinked_root_info_plist_is_named(tmp_path: Path) -> None:
+    app = framework_app(tmp_path, {})
+    (app / "Info.plist").unlink()
+    (app / "elsewhere.plist").write_bytes(plistlib.dumps({"CFBundleIdentifier": APP_ID}))
+    (app / "Info.plist").symlink_to(app / "elsewhere.plist")
+    assert "symlinked Info.plist" in " ".join(checks.check_layout(app).problems)

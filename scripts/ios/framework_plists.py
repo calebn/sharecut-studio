@@ -7,9 +7,13 @@ runs this file directly with the system python3.
 
 from __future__ import annotations
 
+import os
 import plistlib
 import re
+import stat
+import struct
 import sys
+import tempfile
 from pathlib import Path
 from xml.parsers.expat import ExpatError
 
@@ -18,21 +22,58 @@ SEGMENT = r"[A-Za-z0-9][A-Za-z0-9-]*"
 IDENTIFIER = re.compile(rf"{SEGMENT}(?:\.{SEGMENT})*")
 SEGMENT_ONLY = re.compile(SEGMENT)
 PLATFORMS = ["iPhoneOS"]
+SUFFIX = ".framework"
 
 
 def frameworks(app: Path) -> list[Path]:
-    return sorted(app.rglob("*.framework"))
+    return sorted(p for p in app.rglob("*") if p.name.casefold().endswith(SUFFIX))
 
 
 def read_plist(path: Path) -> dict[str, object]:
+    descriptor = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
     try:
-        with path.open("rb") as handle:
+        if not stat.S_ISREG(os.fstat(descriptor).st_mode):
+            raise ValueError(f"{path} is not a regular file")
+        handle = os.fdopen(descriptor, "rb")
+    except BaseException:
+        os.close(descriptor)
+        raise
+    try:
+        with handle:
             loaded = plistlib.load(handle)
-    except ExpatError as error:
+    except (
+        ExpatError,
+        plistlib.InvalidFileException,
+        RecursionError,
+        OverflowError,
+        UnicodeDecodeError,
+        LookupError,
+        IndexError,
+        struct.error,
+    ) as error:
         raise ValueError(f"{path} is not a valid plist: {error}") from error
     if not isinstance(loaded, dict):
         raise ValueError("not a dictionary")
     return loaded
+
+
+def is_stale_temporary(name: str) -> bool:
+    return name.startswith(".Info.plist.") and name.endswith(".tmp")
+
+
+def write_atomic(path: Path, data: bytes) -> None:
+    mode = stat.S_IMODE(path.stat().st_mode) if path.exists() else 0o644
+    descriptor, temporary = tempfile.mkstemp(dir=path.parent, prefix=".Info.plist.", suffix=".tmp")
+    try:
+        with os.fdopen(descriptor, "wb") as handle:
+            handle.write(data)
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.chmod(temporary, mode)
+        os.replace(temporary, path)
+    except BaseException:
+        Path(temporary).unlink(missing_ok=True)
+        raise
 
 
 def app_identifier(app: Path) -> str:
@@ -56,7 +97,7 @@ def fix(app: Path) -> list[str]:
     app_id = app_identifier(app)
     pending: list[tuple[Path, Path, dict[str, object]]] = []
     for folder in frameworks(app):
-        stem = folder.name.removesuffix(".framework")
+        stem = folder.name[: -len(SUFFIX)]
         path = folder / "Info.plist"
         if folder.is_symlink() or not folder.is_dir() or path.is_symlink():
             raise ValueError(f"{folder.relative_to(app)} is a symlink or not a directory")
@@ -68,8 +109,12 @@ def fix(app: Path) -> list[str]:
                 continue
             plist = repaired
         pending.append((folder, path, plist))
+    for folder in frameworks(app):
+        for stale in folder.iterdir():
+            if is_stale_temporary(stale.name) and not stale.is_dir():
+                stale.unlink()
     for _, path, plist in pending:
-        path.write_bytes(plistlib.dumps(plist, fmt=plistlib.FMT_XML))
+        write_atomic(path, plistlib.dumps(plist, fmt=plistlib.FMT_XML))
     return [folder.relative_to(app).as_posix() for folder, _, _ in pending]
 
 
@@ -126,7 +171,7 @@ def check(app: Path) -> list[str]:
         app_id = ""
     for folder in frameworks(app):
         name = folder.relative_to(app).as_posix()
-        stem = folder.name.removesuffix(".framework")
+        stem = folder.name[: -len(SUFFIX)]
         if folder.is_symlink() or not folder.is_dir():
             problems.append(f"{name} is a symlink or not a directory")
             continue
