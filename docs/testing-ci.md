@@ -148,8 +148,8 @@ A and AA tags, including contrast and label-content-name-mismatch.
 `src/storybook/storySweep.sweep.browser.test.tsx` (`npm run test:stories`,
 Vitest browser mode, sharded 4 ways in `storybook.yml`) checks each story in both
 themes and its supported phone and desktop widths. The few stories that need the
-Storybook runtime (`src/storybook/storybookOnlyStories.ts`) stay in
-`e2e-storybook/coverage.spec.ts`. These checks do not certify the live
+Storybook runtime carry the `storybook-only` tag, which the sweep skips, and run
+in `e2e-storybook/coverage.spec.ts` instead. These checks do not certify the live
 palette, which also needs browser verification against the current catalog.
 
 Storybook specs open story frames through `storyUrl()` in
