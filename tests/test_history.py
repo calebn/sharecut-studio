@@ -372,6 +372,36 @@ def test_load_index_from_disk(minimal_project):
     assert entries[0].label == "persisted"
 
 
+def test_entry_author_and_undone_by_survive_the_index_round_trip(tmp_path):
+    index_path = tmp_path / "index.json"
+    history = ProjectHistory(
+        cursor=1,
+        entries=[
+            HistoryEntry(id="a" * 12, label="old", snapshot_file="history/snapshots/a.json"),
+            HistoryEntry(
+                id="b" * 12,
+                label="signed",
+                snapshot_file="history/snapshots/b.json",
+                author="share:abc123",
+                undone_by="host",
+            ),
+        ],
+    )
+    write_json_atomic(index_path, history.model_dump(mode="json"))
+
+    on_disk = json.loads(index_path.read_text(encoding="utf-8"))["entries"]
+    assert [(e["author"], e["undone_by"]) for e in on_disk] == [
+        (None, None),
+        ("share:abc123", "host"),
+    ]
+    read = read_history_index(index_path)
+    assert read is not None
+    assert [(e.label, e.author, e.undone_by) for e in read.entries] == [
+        ("old", None, None),
+        ("signed", "share:abc123", "host"),
+    ]
+
+
 def test_read_snapshot_invalid_v1_format(minimal_project):
     proj = load_project(minimal_project)
     mgr = HistoryManager(ProjectStore(minimal_project))

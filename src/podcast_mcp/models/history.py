@@ -18,6 +18,8 @@ class HistoryEntry(BaseModel):
     snapshot_file: str
     operation: str | None = None
     params: dict[str, Any] | None = None
+    author: str | None = None
+    undone_by: str | None = None
 
 
 class ProjectHistory(BaseModel):
