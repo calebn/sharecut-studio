@@ -247,7 +247,8 @@ static int has_protocol_word(const char *text, const char *word) {
 }
 
 // "dev/" or "proc/" at the token start (after an optional "./" and one optional '/') or after
-// = : + , ; [ ] ( ) or space, with one optional '/' between the delimiter and the directory.
+// = : , ; [ ] ( ) | or space, with one optional '/' between the delimiter and the directory
+// (a '+' counts only before that '/').
 static int has_device_dir(const char *text) {
     const char *head = text + (strncmp(text, "./", 2) == 0 ? 2 : 0);
     head += *head == '/';
@@ -256,8 +257,8 @@ static int has_device_dir(const char *text) {
         size_t len = strlen(dirs[i]);
         if (strncmp(head, dirs[i], len) == 0) return 1;
         for (const char *p = strstr(text, dirs[i]); p; p = strstr(p + 1, dirs[i]))
-            if (p > text && (strchr("=:+,;[]() ", p[-1]) ||
-                             (p[-1] == '/' && p - 1 > text && strchr("=:+,;[]() ", p[-2]))))
+            if (p > text && (strchr("=:,;[]()| ", p[-1]) ||
+                             (p[-1] == '/' && p - 1 > text && strchr("=:+,;[]()| ", p[-2]))))
                 return 1;
     }
     return 0;
@@ -553,6 +554,10 @@ static int run_tool(struct session *s) {
 
 static void *worker_main(void *unused) {
     (void)unused;
+    sigset_t kick;
+    sigemptyset(&kick);
+    sigaddset(&kick, SIGUSR2);
+    pthread_sigmask(SIG_UNBLOCK, &kick, NULL);
     for (;;) {
         pthread_mutex_lock(&lock);
         while (!queue_head) pthread_cond_wait(&wake, &lock);
