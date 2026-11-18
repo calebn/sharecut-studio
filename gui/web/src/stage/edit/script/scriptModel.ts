@@ -81,10 +81,9 @@ export function wordKey(ref: ScriptWordRef): string {
 function cutWordKey(ref: ScriptWordRef, text: string): string {
   const index = ref.wordIndex;
   return JSON.stringify([
-    wordKey({
-      ...ref,
-      wordIndex: index != null && index < 0 ? -1 - index : index,
-    }),
+    ref.trackId,
+    ref.sourceId,
+    index != null && index < 0 ? -1 - index : index,
     text,
   ]);
 }
