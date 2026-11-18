@@ -23,10 +23,12 @@ export function playSpan(
   start: number,
   end: number,
   padSec = DEFAULT_AUDITION_PAD_SEC,
+  beforeStart?: () => void,
 ): ExecuteResult {
   const s = useDawStore.getState();
   const reason = playGate(s);
   if (reason) return { status: "disabled", reason };
+  beforeStart?.();
   playTimelineRange({
     start,
     end,

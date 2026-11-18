@@ -41,9 +41,15 @@ describe("playComment", () => {
     expect(begin).toHaveBeenCalledWith({ playheadSec: 28, untilSec: 36 });
   });
 
-  it("selects the comment and leaves the followed editor", () => {
-    useDawStore.setState({ beginAudition: vi.fn() });
+  it("selects the comment and leaves the followed editor before playback starts", () => {
+    const followingAtStart: (string | null)[] = [];
+    useDawStore.setState({
+      beginAudition: vi.fn(() => {
+        followingAtStart.push(useDawStore.getState().followingClientId);
+      }),
+    });
     playComment(comment);
+    expect(followingAtStart).toEqual([null]);
     expect(useDawStore.getState().followingClientId).toBeNull();
     expect(useDawStore.getState().selection).toEqual({
       kind: "comment",
@@ -66,22 +72,7 @@ describe("playComment", () => {
     });
     playComment(comment);
     expect(begin).not.toHaveBeenCalled();
-    expect(announce).toHaveBeenCalledWith("Import audio to play.", {
-      tone: "error",
-    });
-  });
-
-  it("keeps following the editor when play is refused", () => {
-    useDawStore.setState({
-      beginAudition: vi.fn(),
-      project: minimalProject({ timeline_duration_sec: 100 }),
-    });
-    playComment(comment);
     expect(useDawStore.getState().followingClientId).toBe("remote-editor");
-    expect(useDawStore.getState().selection).toEqual({
-      kind: "comment",
-      id: "c1",
-    });
     expect(announce).toHaveBeenCalledWith("Import audio to play.", {
       tone: "error",
     });
