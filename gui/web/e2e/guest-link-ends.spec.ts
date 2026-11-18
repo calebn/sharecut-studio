@@ -1,7 +1,7 @@
 import { expect, type Locator, type Page, test } from "@playwright/test";
 import { postDocumentCommand } from "./documentCommand";
 import { fontsReady } from "./fontsReady";
-import { press, revokeLink, SIZES, type Size } from "./guestLink";
+import { DEAD_TITLE, press, revokeLink, SIZES, type Size } from "./guestLink";
 import { guestSavedCopy } from "./offlineQueue";
 import { withShareableProject } from "./shareableProject";
 import {
@@ -26,7 +26,6 @@ const LANDSCAPE = {
   touch: true,
 } as const;
 
-const DEAD_TITLE = "This link doesn't open anything";
 const DEAD_SENTENCE = "Ask the person who sent it for a new link.";
 const ASLEEP_TITLE = "The host's computer is asleep";
 const SERVER_WORDS = "invalid or revoked";

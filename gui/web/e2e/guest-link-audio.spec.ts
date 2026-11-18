@@ -1,10 +1,15 @@
 import fs from "node:fs";
 import path from "node:path";
 import { expect, type Page, type Route, test } from "@playwright/test";
-import { revokeLink } from "./guestLink";
-import { guestLinkAudio } from "./offlineQueue";
-import { withShareableProject } from "./shareableProject";
-import { createReviewShare, openGuestShare } from "./shareNavigation";
+import {
+  DEAD_TITLE,
+  loseConnectionOnLoad,
+  revokeLink,
+  SIZES,
+  withSharedProject,
+} from "./guestLink";
+import { guestLinkAudio, guestSavedCopy } from "./offlineQueue";
+import { openGuestShare } from "./shareNavigation";
 import { withBrowserPages } from "./twoBrowserPages";
 
 /**
@@ -13,8 +18,7 @@ import { withBrowserPages } from "./twoBrowserPages";
  * episode is 60 seconds with one chunk a track, so a played link holds two.
  */
 
-const PHONE = { width: 390, height: 844 };
-const DEAD_TITLE = "This link doesn't open anything";
+const PHONE = SIZES[0];
 /** The fixture is one minute long, one chunk a track, two tracks. */
 const CHUNKS = 2;
 const CHUNK_PATH = /\/daw\/proxy\/[^/]+\/[^/]+\/\d+$/;
@@ -34,23 +38,23 @@ async function withLinks(
   run: (links: Links) => Promise<void>,
   guestOptions: { init?: () => void } = {},
 ) {
-  await withShareableProject(async (projectPath) => {
-    await withBrowserPages(
-      browser,
-      [{}, { viewport: PHONE, hasTouch: true }],
-      async ([host, guest]) => {
-        await host!.goto("/");
-        const tokens: string[] = [];
-        for (let i = 0; i < count; i += 1)
-          tokens.push(await createReviewShare(host!, projectPath, "commenter"));
-        if (guestOptions.init) await guest!.addInitScript(guestOptions.init);
-        // The page's own clock is stepped to reach the cover without waiting
-        // out the page's 30 second poll.
-        await guest!.clock.install();
-        await run({ host: host!, guest: guest!, projectPath, tokens });
-      },
-    );
-  });
+  await withSharedProject(
+    browser,
+    [{ viewport: PHONE, hasTouch: PHONE.touch }],
+    ["commenter", "editor"].slice(0, count) as ("commenter" | "editor")[],
+    async ([host, guest], links, projectPath) => {
+      if (guestOptions.init) await guest!.addInitScript(guestOptions.init);
+      // The page's own clock is stepped to reach the cover without waiting
+      // out the page's 30 second poll.
+      await guest!.clock.install();
+      await run({
+        host: host!,
+        guest: guest!,
+        projectPath,
+        tokens: Object.values(links),
+      });
+    },
+  );
 }
 
 function countChunkRequests(page: Page) {
@@ -98,6 +102,38 @@ async function pause(page: Page) {
     .getByRole("button", { name: "Pause", exact: true })
     .click({ timeout: 3_000 })
     .catch(() => undefined);
+}
+
+/**
+ * Remembers every audio context the page makes, from before its scripts run;
+ * `advanced()` is true once one is running and its clock has moved on.
+ */
+async function audioClocks(page: Page) {
+  await page.addInitScript(() => {
+    const scope = window as unknown as Record<string, unknown>;
+    const made: BaseAudioContext[] = [];
+    scope.__contexts = made;
+    for (const name of ["AudioContext", "webkitAudioContext"]) {
+      const Native = scope[name] as typeof AudioContext | undefined;
+      if (!Native) continue;
+      scope[name] = new Proxy(Native, {
+        construct(target, args, newTarget) {
+          const context = Reflect.construct(target, args, newTarget);
+          made.push(context);
+          return context;
+        },
+      });
+    }
+  });
+  return {
+    advanced: () =>
+      page.evaluate(() =>
+        (
+          (window as unknown as { __contexts?: BaseAudioContext[] })
+            .__contexts ?? []
+        ).some((c) => c.state === "running" && c.currentTime > 0.5),
+      ),
+  };
 }
 
 const cover = (page: Page) => page.getByRole("heading", { name: DEAD_TITLE });
@@ -263,6 +299,28 @@ test("a live link replays from the device without asking the server again", asyn
   });
 });
 
+test("a live link's kept audio plays from the saved copy when the connection is lost on load", async ({
+  browser,
+}) => {
+  await withLinks(browser, 1, async ({ guest, tokens }) => {
+    const [token] = tokens as [string];
+    const clock = await audioClocks(guest);
+    await open(guest, token);
+    await playUntilKept(guest, token);
+    await expect.poll(() => guestSavedCopy(guest, token)).not.toBeNull();
+
+    await loseConnectionOnLoad(guest, token);
+    await expect(guest.locator(".stage-frame--guest")).toBeVisible();
+    await dismissHint(guest);
+    const chunks = countChunkRequests(guest);
+    await guest.getByRole("button", { name: "Play", exact: true }).click();
+
+    await expect.poll(() => clock.advanced()).toBe(true);
+    expect(chunks.started).toBe(0);
+    await expect(guest.getByText(/audio error/i)).toHaveCount(0);
+  });
+});
+
 test("a chunk is never kept by the browser's own cache, and a dead link's chunk is refused by the server", async ({
   browser,
 }) => {
@@ -299,7 +357,7 @@ test("a chunk is never kept by the browser's own cache, and a dead link's chunk 
   });
 });
 
-test("a browser whose cache refuses still plays a live link and still shows the cover when it ends", async ({
+test("a browser whose cache rejects still plays a live link and still shows the cover when it ends", async ({
   browser,
 }) => {
   const refuse = () => {
@@ -314,21 +372,28 @@ test("a browser whose cache refuses still plays a live link and still shows the 
     async ({ host, guest, projectPath, tokens }) => {
       const [token] = tokens as [string];
       const errors: string[] = [];
-      guest.on("pageerror", (error) => errors.push(error.message));
+      // A line that names the link must never reach a failure message.
+      const redact = (text: string) => text.split(token).join("<token>");
+      guest.on("pageerror", (error) => errors.push(redact(error.message)));
       guest.on("console", (message) => {
         // The browser itself reports every 404 the ended link answers.
         if (
           message.type() === "error" &&
           !message.text().startsWith("Failed to load resource")
         )
-          errors.push(message.text());
+          errors.push(redact(message.text()));
       });
+      const chunks = countChunkRequests(guest);
+      const clock = await audioClocks(guest);
       await open(guest, token);
       await guest.getByRole("button", { name: "Play", exact: true }).click();
       await expect(
         guest.getByRole("button", { name: "Pause", exact: true }),
       ).toBeVisible({ timeout: 20_000 });
       await expect(guest.getByText(/audio error/i)).toHaveCount(0);
+      // The audio was fetched and played, not only shown as playing.
+      await expect.poll(() => chunks.finished).toBeGreaterThan(0);
+      await expect.poll(() => clock.advanced()).toBe(true);
 
       await revokeLink(host, token, projectPath);
       await untilCover(guest);
