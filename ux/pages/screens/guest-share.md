@@ -114,6 +114,23 @@ leaves the outside control's pointer behavior and click intact, including an
 already-focused scrub field's uncommitted draft. It dismisses an automatic
 hint while leaving focus on the outside control.
 
+A press on the hint itself, on its sentence or its padding, closes it, records
+it as seen and moves no focus. It closes when the press ends, so nothing under
+the hint is pressed. The next key press anywhere closes it and still does its
+own job (`L` plays, a typed character lands); Escape always closes it; Shift,
+Control, Alt and Meta alone and Tab do not, so Tab still reaches the hint's
+Dismiss button. Enter or Space on Dismiss closes it and focuses the role
+button; on the role button they only dismiss, and the next opens the dialog. The
+sentence is said once, through the page's status region, when the hint appears,
+and not again on a re-render, on dismissal or when the dialog opens; a returning
+guest hears nothing. On a touch screen the hint is 44 px tall and hangs 4 px
+under the header bar, so it ends above the first line of the transcript at 390
+and 320 px wide; on a desktop it is 40 px tall. A saved copy opened offline shows
+no hint and writes no flag, because the copy opens read-only and the link's role
+is not known there; once the server answers, the link's own role shows its hint
+once. In a private window, or with browser storage blocked, nothing can remember
+the dismissal and the hint returns on the next load.
+
 **Comment field on a phone:** on the phone layout (767 px and narrower) a Viewer or Commenter link uses the Listen layout: a Viewer link has no Comment button, no selection bar and no text field, and on a Commenter link no text field is on screen until the guest taps **Comment** in the Listen dock, which pins the time, pauses an episode that is playing, and opens the composer above the dock; **Post** or **Close** plays on if Comment paused it and nothing touched playback since, and returns focus to the Comment button. The transcript selection bar's Comment on a Commenter link also pauses an episode that is playing and opens the composer, but pins the selected range, replacing the time of text kept by Close; only on this layout does opening the composer pause. An Editor link on a phone keeps the Player bar and the always-present comment field, docked at the foot of the Review panel (inline in the card when the layout is 30rem tall or less; the keyboard does not count); the bar's Comment button, visible without a menu (also on a short landscape phone), opens the composer and leaves playback running. A landscape phone wider than 767 px uses the tablet shell. On a tablet, a desktop and for the host the field stays at the top of the card.
 
 **Approve in the queue:** an Editor decides the suggested cuts in the Review queue with **Cut** and **Keep** (the Review badge counts them); Find more, unsure-word Fix and Resolve stay host-only. Approve and Reject also work from the Timeline overlay, and as Cut and Keep from the Action bar.
