@@ -31,7 +31,14 @@ def frameworks(app: Path) -> list[Path]:
 
 
 def has_control_character(name: str) -> bool:
-    return any(unicodedata.category(char) in {"Cc", "Zl", "Zp"} for char in name)
+    return any(
+        unicodedata.category(char).startswith("C") or unicodedata.category(char) in {"Zl", "Zp"}
+        for char in name
+    )
+
+
+def has_unsafe_path(app: Path, folder: Path) -> bool:
+    return any(has_control_character(part) for part in folder.relative_to(app).parts)
 
 
 def read_plist(path: Path) -> dict[str, object]:
@@ -104,7 +111,7 @@ def fix(app: Path) -> list[str]:
     for folder in frameworks(app):
         stem = folder.name[: -len(SUFFIX)]
         path = folder / "Info.plist"
-        if has_control_character(folder.name):
+        if has_unsafe_path(app, folder):
             raise ValueError(f"{folder.relative_to(app).as_posix()!r} has a control character")
         if folder.is_symlink() or not folder.is_dir() or path.is_symlink():
             raise ValueError(f"{folder.relative_to(app)} is a symlink or not a directory")
@@ -130,7 +137,7 @@ def generated(app: Path) -> list[str]:
     prefix = f"{app_identifier(app)}."
     found = []
     for folder in frameworks(app):
-        if has_control_character(folder.name):
+        if has_unsafe_path(app, folder):
             raise ValueError(f"{folder.relative_to(app).as_posix()!r} has a control character")
         try:
             identifier = read_plist(folder / "Info.plist").get("CFBundleIdentifier")
@@ -181,7 +188,7 @@ def check(app: Path) -> list[str]:
     for folder in frameworks(app):
         name = folder.relative_to(app).as_posix()
         stem = folder.name[: -len(SUFFIX)]
-        if has_control_character(folder.name):
+        if has_unsafe_path(app, folder):
             problems.append(f"{name!r} has a control character")
             continue
         if folder.is_symlink() or not folder.is_dir():

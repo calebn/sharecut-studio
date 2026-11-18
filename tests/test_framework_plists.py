@@ -396,3 +396,35 @@ def test_a_framework_name_with_a_control_character_is_refused(tmp_path: Path, na
     with pytest.raises(ValueError, match="control character"):
         fp.generated(app)
     assert any("control character" in problem for problem in fp.check(app))
+
+
+def test_a_control_character_in_a_parent_directory_is_refused(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    app = make_tree(tmp_path, [])
+    parent = app / "Frameworks" / "x\n.."
+    folder = parent / "Z.framework"
+    folder.mkdir(parents=True)
+    (folder / "Z").write_bytes(b"\xcf\xfa\xed\xfe")
+    write_plist(folder / "Info.plist", appl_plist("Z"))
+    with pytest.raises(ValueError, match="control character"):
+        fp.fix(app)
+    with pytest.raises(ValueError, match="control character"):
+        fp.generated(app)
+    assert any("control character" in problem for problem in fp.check(app))
+    for command in ("fix", "list"):
+        assert fp.main(["framework_plists.py", command, str(app)]) == 2
+    assert capsys.readouterr().out == ""
+
+
+def test_a_non_utf8_name_is_refused_without_a_traceback(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    app = make_tree(tmp_path, [])
+    folder = Path(os.fsdecode(bytes(app / "Frameworks") + b"/bad\xff.framework"))
+    folder.mkdir()
+    (folder / "bad").write_bytes(b"\xcf\xfa\xed\xfe")
+    write_plist(folder / "Info.plist", appl_plist("bad"))
+    for command in ("fix", "list", "check"):
+        assert fp.main(["framework_plists.py", command, str(app)]) in {1, 2}
+    assert "Traceback" not in capsys.readouterr().err

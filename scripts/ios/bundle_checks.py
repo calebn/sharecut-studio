@@ -96,8 +96,8 @@ def check_layout(app: Path) -> CheckReport:
             or in_storyboard
         ):
             problems.append(f"unexpected Info.plist {relative.as_posix()}")
-        if parts == ("Info.plist",) and path.is_symlink():
-            problems.append("symlinked Info.plist at the app root")
+        if path.name == "Info.plist" and path.is_symlink():
+            problems.append(f"symlinked Info.plist {relative.as_posix()}")
         if is_stale_temporary(path.name) and not path.is_dir():
             problems.append(f"stale temporary file {relative.as_posix()}")
         if path.is_symlink() or not path.is_file():
