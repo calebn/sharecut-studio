@@ -127,6 +127,7 @@ function RoleHint({ guest }: { guest: NonNullable<AppHeaderProps["guest"]> }) {
           text={guest.hint.text}
           shown={mode === "automatic"}
           onDismiss={dismissAutomaticFromTip}
+          onPress={dismissAutomatic}
         >
           <span aria-hidden="true" />
         </CoachTip>
