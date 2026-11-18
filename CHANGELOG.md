@@ -25,7 +25,7 @@
 
 ### Fixes
 
-* A guest's listening no longer fills memory with decoded audio (#3789). The guest player now keeps only the decoded chunks inside its scheduled window plus the 30 s behind the playhead, so a skip back of 15 s still plays without a fetch or a decode, and it counts every channel of a decoded buffer. A seek decodes from its target instead of 120 s before it. In a synthetic two-hour, four-track listen the decoded audio peaks near 132 MiB where it filled the 500 MiB cap (505 MiB) before.
+* A guest's listening now holds decoded audio only for the scheduled window plus 30 s behind the playhead, so a two-hour four-track listen peaks near 132 MiB instead of reaching the 500 MiB cap (#3789). A skip back inside those 30 s during continuous play needs no fetch or decode, and a seek decodes from its target instead of 120 s before it.
 * Playing a comment, a word's Hear in Review, a conflict row's Hear and the inspector footer's Play around now say why they cannot play, for a share guest without the play capability or a project with no tracks, instead of doing nothing (#3499).
 * The master step skips the oversampled true-peak measure on limiter rounds whose sample peak already shows they cannot converge (#2891). It screens each non-final round with integrated loudness and sample peak, and measures exactly only when the round might converge and on the final round, so the drive sequence, render count, mastered file and `master_qc.json` are unchanged and the step is about 1 to 4 s faster on a 5-minute premix that reaches the limiter (a round it skips saves about 2 s).
 
