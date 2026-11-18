@@ -519,7 +519,7 @@ describe("command governance", () => {
     });
   });
 
-  it("canUndo and canRedo follow the history flags, canUndo also in-flight saves and guests", async () => {
+  it("canUndo and canRedo follow the history flags, canUndo also in-flight saves, guests included", async () => {
     const history = (can_undo: boolean, can_redo: boolean) =>
       ({
         meta: { name: "t" },
@@ -570,8 +570,20 @@ describe("command governance", () => {
 
     useDawStore.setState({ guestMode: "editor" });
     const guest = buildCommandContext();
-    expect(evaluateWhen("canUndo", guest)).toEqual({ ok: true });
-    expect(evaluateWhen("canRedo", guest)).toEqual({ ok: true });
+    expect(evaluateWhen("canUndo", guest)).toEqual({
+      ok: false,
+      reason:
+        "There is nothing of yours to undo. The latest change is someone else's.",
+    });
+    expect(evaluateWhen("canRedo", guest)).toEqual({
+      ok: false,
+      reason:
+        "There is nothing of yours to redo. Redo brings back only what you undid.",
+    });
+    useDawStore.setState({ project: history(true, true) });
+    const owned = buildCommandContext();
+    expect(evaluateWhen("canUndo", owned)).toEqual({ ok: true });
+    expect(evaluateWhen("canRedo", owned)).toEqual({ ok: true });
     useDawStore.setState({ guestMode: null });
   });
 

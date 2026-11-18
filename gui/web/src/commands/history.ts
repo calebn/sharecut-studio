@@ -6,7 +6,6 @@ import {
   ownCommandHead,
   retireOwnCommandHead,
 } from "../document/authorityState";
-import { canApplyPass12 } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
 import {
   documentActivityBusy,
@@ -22,6 +21,7 @@ import {
   HISTORY_STALE_CODE,
 } from "../utils/apiError";
 import { execute, registerCommand } from "./execute";
+import { historyRoleRefusal } from "./historyAvailability";
 import { flushPendingMix } from "./trackMix";
 import type { ExecuteResult } from "./types";
 import { queueMove, runsAfterSaveCopy } from "./undoWait";
@@ -34,11 +34,6 @@ const STALE_COPY = {
 const FAILED_COPY = {
   undo: "Undo did not run.",
   redo: "Redo did not run.",
-} as const;
-
-const NEEDS_EDITOR = {
-  undo: "Undo needs Editor access",
-  redo: "Redo needs Editor access",
 } as const;
 
 const NO_HEAD = "Open a project first.";
@@ -85,12 +80,9 @@ function moveHistory(
   projectPath: string,
   args: Record<string, unknown>,
 ): Promise<ExecuteResult> {
-  const daw = useDawStore.getState();
-  if (!canApplyPass12(daw.projectPath, daw.guestMode, daw.shareCapabilities)) {
-    return Promise.resolve({
-      status: "disabled",
-      reason: NEEDS_EDITOR[action],
-    });
+  const roleRefusal = historyRoleRefusal(useDawStore.getState(), action);
+  if (roleRefusal !== null) {
+    return Promise.resolve({ status: "disabled", reason: roleRefusal });
   }
   const explicit = parseHistoryEntryId(args.expectedHeadId);
   const scope = documentScope();
