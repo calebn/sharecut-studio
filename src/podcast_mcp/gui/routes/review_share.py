@@ -546,8 +546,8 @@ def get_daw_proxy_chunk(token: str, track_id: str, proxy_hash: str, chunk_idx: i
         content_disposition_type="inline",
         headers={
             "Accept-Ranges": "bytes",
-            # The guest's page keeps replays in Cache Storage, which it clears when the
-            # link ends. No HTTP cache, shared or private, may keep audio past that.
+            # The guest's page keeps replays in Cache Storage, which it clears when it
+            # learns the link has ended. no-store: no HTTP cache keeps a copy.
             "Cache-Control": "private, no-store",
         },
     )
