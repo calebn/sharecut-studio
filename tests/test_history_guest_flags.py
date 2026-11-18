@@ -250,3 +250,14 @@ def test_the_document_service_reads_the_owners_it_publishes(minimal_project):
 
     assert state["_history_owners"] == StepOwners(None, None)
     assert state["snapshot"]["history"]["can_undo"] is False
+
+
+def test_a_replayed_guest_command_keeps_the_guests_flags(minimal_project, sample_wav):
+    (token, _author), _other = two_editor_links(minimal_project, sample_wav)
+    client = TestClient(create_app())
+    command(client, token, "A", 1)
+
+    retry = command(client, token, "A", 1)
+
+    assert retry["idempotent"] is True
+    assert flags(retry["snapshot"]["history"]) == (True, False)
