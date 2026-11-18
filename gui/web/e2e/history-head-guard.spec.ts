@@ -80,7 +80,7 @@ test("two fast Mod+Z presses undo two changes, the second expecting where the fi
   });
 });
 
-test("a guest editor's undo names the head it was sent, and a stale one is refused", async ({
+test("a guest editor's undo names the head it was sent, takes back only their own step, and a stale one is refused", async ({
   browser,
   page,
 }) => {
@@ -113,8 +113,23 @@ test("a guest editor's undo names the head it was sent, and a stale one is refus
       expect(stale.headers()["x-sharecut-error-code"]).toBe("history_stale");
       expect(chapterTitles(projectPath)).toContain("Agent chapter");
 
-      // Once the guest has received it, the guest's own Mod+Z sends that head.
+      // Once the guest has received it and made a step of their own, their Mod+Z
+      // sends that head and takes back only their step.
       await expect(guest.getByLabel("Chapter Agent chapter")).toBeVisible();
+      const own = await guest.request.post(
+        `/api/review/${token}/daw/document/command`,
+        {
+          data: {
+            type: "AddChapter",
+            payload: { time: 3, title: "Guest chapter" },
+            client_id: "e2e-own-guest",
+            client_seq: 1,
+            role: "guest",
+          },
+        },
+      );
+      expect(own.ok(), await own.text()).toBe(true);
+      await expect(guest.getByLabel("Chapter Guest chapter")).toBeVisible();
       const current = await historyHead(page, projectPath);
       const undo = guest.waitForResponse(isHistoryMove);
       await guest
@@ -129,7 +144,8 @@ test("a guest editor's undo names the head it was sent, and a stale one is refus
       expect(response.status()).toBe(200);
       await expect
         .poll(() => chapterTitles(projectPath))
-        .not.toContain("Agent chapter");
+        .not.toContain("Guest chapter");
+      expect(chapterTitles(projectPath)).toContain("Agent chapter");
     } finally {
       await guestContext.close();
     }
