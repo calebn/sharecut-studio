@@ -366,6 +366,81 @@ describe("TimelineView scroll to playhead", () => {
     expect(useDawStore.getState().scrollLeft).toBe(0);
   });
 
+  describe("follow while playing", () => {
+    const setFollow = (on: boolean) =>
+      useDawStore.setState({ timelineFollowPlayhead: on });
+
+    beforeEach(() => {
+      execute.mockReset();
+      useDawStore.setState({ isPlaying: false });
+      setFollow(true);
+    });
+
+    afterEach(() => {
+      useDawStore.setState({ isPlaying: false });
+    });
+
+    const pill = () =>
+      screen.queryByRole("button", { name: "Back to playhead in timeline" });
+
+    it("pages the desktop timeline when playback reaches the right margin", () => {
+      const scroller = mount(false);
+      useDawStore.setState({ isPlaying: true });
+      act(() => useDawStore.getState().setPlayheadSec(30, "playback"));
+      expect(scroller.scrollLeft).toBe(0);
+      act(() => useDawStore.getState().setPlayheadSec(38, "playback"));
+      expect(scroller.scrollLeft).toBe(200);
+      expect(useDawStore.getState().scrollLeft).toBe(200);
+    });
+
+    it("leaves the phone's fixed playhead on its own recenter alone", () => {
+      const scroller = mount(true);
+      useDawStore.setState({ isPlaying: true });
+      act(() => useDawStore.getState().setPlayheadSec(45, "playback"));
+      expect(scroller.scrollLeft).toBe(450);
+    });
+
+    it("shows Back to playhead while follow is off and the playhead is off-screen", () => {
+      useDawStore.setState({ playheadSec: 80 });
+      mount(false);
+      act(() => setFollow(false));
+      expect(pill()).not.toBeNull();
+      act(() => setFollow(true));
+      expect(pill()).toBeNull();
+      act(() => setFollow(false));
+      expect(pill()).not.toBeNull();
+      act(() => useDawStore.setState({ playheadSec: 5 }));
+      expect(pill()).toBeNull();
+    });
+
+    it("never shows the pill with a fixed playhead", () => {
+      useDawStore.setState({ playheadSec: 80 });
+      setFollow(false);
+      mount(true);
+      expect(pill()).toBeNull();
+    });
+
+    it("moves focus to the timeline when the pill is activated, so a keyboard user is not dropped", () => {
+      useDawStore.setState({ playheadSec: 80 });
+      const scroller = mount(false);
+      act(() => setFollow(false));
+      const button = pill() as HTMLElement;
+      button.focus();
+      fireEvent.click(button);
+      expect(document.activeElement).toBe(scroller);
+    });
+
+    it("runs view.followPlayhead from the pill", () => {
+      useDawStore.setState({ playheadSec: 80 });
+      mount(false);
+      act(() => setFollow(false));
+      fireEvent.click(pill() as HTMLElement);
+      expect(execute.mock.calls.map((call) => call[0])).toContain(
+        "view.followPlayhead",
+      );
+    });
+  });
+
   it("declines with a fixed playhead, which is always centred", () => {
     const scroller = mount(true);
     const before = scroller.scrollLeft;

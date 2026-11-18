@@ -42,4 +42,16 @@ describe("playheadScrollRegistry", () => {
     expect(second).toHaveBeenCalledTimes(1);
     offSecond();
   });
+
+  it("scrollToPlayhead targets one surface and leaves the other alone", () => {
+    const script = vi.fn(() => true);
+    const timeline = vi.fn(() => true);
+    const offScript = playheadScrollRegistry.register("script", script);
+    const offTimeline = playheadScrollRegistry.register("timeline", timeline);
+    playheadScrollRegistry.scrollToPlayhead("timeline");
+    expect(timeline).toHaveBeenCalledTimes(1);
+    expect(script).not.toHaveBeenCalled();
+    offScript();
+    offTimeline();
+  });
 });

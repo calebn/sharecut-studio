@@ -1,5 +1,6 @@
 import { expect, type Locator, type Page, test } from "@playwright/test";
 import { e2eProjectPath } from "./env";
+import { seekTo } from "./playback";
 import { openPanel, openProject } from "./stageNav";
 import { servePendingEditsCleared } from "./transcriptEdit";
 
@@ -85,19 +86,6 @@ async function openFollowedTranscript(page: Page): Promise<Locator> {
   );
   expect(overflow, "the transcript list scrolls").toBeGreaterThan(200);
   return list;
-}
-
-/** Playhead to `sec` (whole seconds): Home, then one-second nudges. */
-async function seekTo(page: Page, sec: number): Promise<void> {
-  await page.evaluate(() => {
-    if (document.activeElement instanceof HTMLElement) {
-      document.activeElement.blur();
-    }
-  });
-  await page.keyboard.press("Home");
-  for (let i = 0; i < sec; i++) {
-    await page.keyboard.press("ArrowRight");
-  }
 }
 
 /** scrollTop once the follow ease has finished. */
