@@ -2,6 +2,7 @@
 #define _GNU_SOURCE
 #include "sc_ffmpeg_core.h"
 
+#include <ctype.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <pthread.h>
@@ -176,22 +177,58 @@ static int all_digits(const char *p) {
     return 1;
 }
 
-static int mentions_forbidden(const char *arg) {
-    static const char *const forbidden[] = {
-        "pipe:", "fd:", "file:", "/dev/", "/proc/", "dev/fd", "dev/stdin", "dev/stdout",
-        "dev/stderr", "proc/self",
-    };
-    if (strcmp(arg, "-stdin") == 0) return 1;
-    char *plain = malloc(strlen(arg) + 1);
-    if (!plain) return 1;
+// Strip escapes and quotes, collapse runs of '/', drop "/./" segments and a leading "./".
+static char *normalise_arg(const char *arg) {
+    size_t n = strlen(arg);
+    char *plain = malloc(n + 1);
+    if (!plain) return NULL;
     char *w = plain;
     for (const char *r = arg; *r; r++)
         if (*r != '\\' && *r != '\'' && *r != '"') *w++ = *r;
     *w = '\0';
-    int found = 0;
-    for (size_t i = 0; i < sizeof forbidden / sizeof *forbidden && !found; i++)
-        found = strstr(plain, forbidden[i]) != NULL;
+    char *out = malloc(n + 1);
+    if (!out) {
+        free(plain);
+        return NULL;
+    }
+    w = out;
+    for (const char *r = plain; *r; r++) {
+        if (*r == '/' && w > out && w[-1] == '/') continue;
+        if (*r == '.' && r[1] == '/' && (w == out || w[-1] == '/')) {
+            r++;
+            continue;
+        }
+        *w++ = *r;
+    }
+    *w = '\0';
     free(plain);
+    return out;
+}
+
+// Protocol words match at the token start or after a character that is not a letter or digit.
+static int has_protocol_word(const char *text, const char *word) {
+    for (const char *p = strstr(text, word); p; p = strstr(p + 1, word))
+        if (p == text || !isalnum((unsigned char)p[-1])) return 1;
+    return 0;
+}
+
+static int mentions_forbidden(const char *arg) {
+    static const char *const protocols[] = {"pipe:", "fd:", "file:"};
+    static const char *const substrings[] = {
+        "/dev/", "/proc/", "dev/fd", "dev/stdin", "dev/stdout", "dev/stderr", "proc/self",
+    };
+    char *text = normalise_arg(arg);
+    if (!text) return 1;
+    int found = strcmp(text, "-stdin") == 0 || strncmp(text, "-stdin:", 7) == 0 ||
+                strncmp(text, "-/", 2) == 0 || strcmp(text, "-filter_script") == 0 ||
+                strncmp(text, "-filter_script:", 15) == 0 ||
+                strncmp(text, "-filter_complex_script", 22) == 0 ||
+                strncmp(text, "-pattern_type", 13) == 0 || strcmp(text, "-glob") == 0;
+    for (size_t i = 0; i < sizeof protocols / sizeof *protocols && !found; i++)
+        found = has_protocol_word(text, protocols[i]);
+    for (size_t i = 0; i < sizeof substrings / sizeof *substrings && !found; i++)
+        found = strstr(text, substrings[i]) != NULL;
+    free(text);
     return found;
 }
 
@@ -251,6 +288,7 @@ static int apply_policy(struct session *s) {
     int ffmpeg = s->tool == 0;
     for (int i = 1; i < s->argc && !s->reject; i++) {
         const char *prev = s->argv[i - 1];
+        if (strncmp(prev, "-metadata", 9) == 0) continue;
         int after_input = strcmp(prev, "-i") == 0;
         int after_progress = strcmp(prev, "-progress") == 0;
         if (after_input || after_progress || i == s->argc - 1) {
