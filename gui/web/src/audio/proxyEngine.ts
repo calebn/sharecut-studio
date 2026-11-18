@@ -31,9 +31,8 @@ const WINDOW_PAD_SEC = 120;
 const LOW_WATER_CTX_SEC = 45;
 /** Time constant for a live gain change (reaches ~99% in 5x this). */
 const GAIN_GLIDE_SEC = 0.01;
-/** Decoded audio kept behind the playhead, so a short skip back needs no fetch or decode. */
+/** Decoded audio kept behind the playhead, so a short skip back during continuous play needs no fetch or decode. */
 const SKIP_BACK_KEEP_SEC = 30;
-/** Hard cap behind the window bound, for many tracks or long chunks. */
 const LRU_BUDGET_BYTES = 500 * 1024 * 1024;
 
 export interface ProxyPlaybackSnapshot {
@@ -361,11 +360,7 @@ export class ProxyEngine {
     }
   }
 
-  /**
-   * Releases every decoded chunk that no slice between `fromSec` and `toSec`
-   * needs. A chunk still in flight is not in `buffers` yet, and a source that
-   * is sounding holds its own reference to its buffer, so neither is affected.
-   */
+  /** In-flight chunks are not in `buffers`, and sounding sources hold their own buffer. */
   private pruneBuffers(fromSec: number, toSec: number): void {
     const snapshot = this.snapshot;
     const keep = new Set<string>();
@@ -488,9 +483,8 @@ export class ProxyEngine {
     const snapshot = this.snapshot;
     if (!snapshot || !this.playing) return;
     // A slice that straddles the target is still included; nothing before it can sound.
-    const windowStart = timelineSec;
     const windowEnd = timelineSec + WINDOW_PAD_SEC;
-    const slices = this.slicesBetween(snapshot, windowStart, windowEnd);
+    const slices = this.slicesBetween(snapshot, timelineSec, windowEnd);
     const decoded = new Map<string, AudioBuffer>();
     await this.decodeInto(decoded, slices, generation);
     if (!this.playing || generation !== this.scheduleGeneration) return;
