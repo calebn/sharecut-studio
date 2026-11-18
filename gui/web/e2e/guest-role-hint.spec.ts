@@ -77,6 +77,8 @@ type HintBoxes = {
   firstLine: Box | null;
   /** Whether any of the note's content is clipped by its own box. */
   clipped: boolean;
+  /** The bubble's block padding. */
+  padding: number;
 };
 
 async function hintBoxes(page: Page): Promise<HintBoxes> {
@@ -116,6 +118,7 @@ async function hintBoxes(page: Page): Promise<HintBoxes> {
       close: box(close),
       header: box(header),
       firstLine,
+      padding: Number.parseFloat(getComputedStyle(note).paddingTop),
       clipped:
         note.scrollWidth > note.clientWidth + 1 ||
         note.scrollHeight > note.clientHeight + 1 ||
@@ -275,6 +278,12 @@ test.describe("the first-visit role hint's box on a touch screen", () => {
               .toBeLessThanOrEqual(boxes.window.h);
             expect.soft(boxes.clipped, at).toBe(false);
             expect
+              .soft(
+                boxes.close.y + boxes.close.h / 2,
+                `${at}: the X is centred on the bubble`,
+              )
+              .toBeCloseTo(boxes.note.y + boxes.note.h / 2, 0);
+            expect
               .soft(boxes.note.y - boxes.header.bottom, at)
               .toBeCloseTo(3, 1);
             if (role === "commenter") {
@@ -300,6 +309,13 @@ test.describe("the first-visit role hint's box on a touch screen", () => {
             expect
               .soft(large.close.bottom, atLarge)
               .toBeLessThanOrEqual(large.window.h);
+            expect.soft(large.padding, atLarge).toBeGreaterThan(0);
+            expect
+              .soft(large.sentence.y - large.note.y, atLarge)
+              .toBeGreaterThanOrEqual(large.padding - 0.5);
+            expect
+              .soft(large.note.bottom - large.sentence.bottom, atLarge)
+              .toBeGreaterThanOrEqual(large.padding - 0.5);
             expect
               .soft(large.note.h, atLarge)
               .toBeLessThanOrEqual(LARGE_TEXT_HEIGHT[size.width][role]);
