@@ -47,6 +47,15 @@ function dropSharedCacheOnce(): void {
   void deleteCache(SHARED_CACHE);
 }
 
+/** The chunk's address, or null: an address that cannot be made means no cache this time, never a failed chunk. */
+function addressOrNull(ref: ImmutableChunkRef): string | null {
+  try {
+    return entryAddress(ref);
+  } catch {
+    return null;
+  }
+}
+
 /** The link's cache, or null when the browser will not give one: the cache is an aid, never a reason for audio to fail. */
 async function openLinkCache(token: string): Promise<Cache | null> {
   try {
@@ -77,10 +86,10 @@ export async function cachedFetchArrayBuffer(
     return (await apiFetch(projectKey, { url: ref.url })).arrayBuffer();
   }
   const generation = generationOf(token);
-  const cache = await openLinkCache(token);
+  const address = addressOrNull(ref);
+  const cache = address === null ? null : await openLinkCache(token);
   try {
-    const address = entryAddress(ref);
-    if (cache) {
+    if (cache && address !== null) {
       const hit = await readHit(cache, address);
       if (hit) return hit;
     }
@@ -88,7 +97,12 @@ export async function cachedFetchArrayBuffer(
     const copy = res.clone();
     // The bytes come first: nothing the cache does may keep them from the player.
     const bytes = await res.arrayBuffer();
-    if (cache && generationOf(token) === generation && !isLinkEnded(token)) {
+    if (
+      cache &&
+      address !== null &&
+      generationOf(token) === generation &&
+      !isLinkEnded(token)
+    ) {
       try {
         await cache.put(address, copy);
       } catch {
