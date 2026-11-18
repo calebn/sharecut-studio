@@ -22,7 +22,7 @@ class _GuestStepMarked(HistoryStatusResult):
     guest_step: bool = False
 
     @model_serializer(mode="wrap")
-    def _omit_false_guest_step(self, handler: SerializerFunctionWrapHandler) -> dict[str, Any]:
+    def _omit_false_guest_step(self, handler: SerializerFunctionWrapHandler) -> Any:
         out = handler(self)
         if not self.guest_step:
             out.pop("guest_step", None)
