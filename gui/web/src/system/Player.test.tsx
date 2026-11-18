@@ -154,6 +154,47 @@ describe("Player", () => {
     expect(onRetry).toHaveBeenCalledTimes(2);
   });
 
+  it("tells the stylesheet what the bar holds, and the dock nothing", () => {
+    const { container, rerender } = render(
+      <Player
+        {...base}
+        time="1:02:04.250"
+        rate={2}
+        solo="Rosa"
+        state="mix-updating"
+      />,
+    );
+    const host = () =>
+      container.querySelector<HTMLElement>(".sys-player-host") as HTMLElement;
+    expect(host().dataset.pills).toBe("3");
+    expect(host().hasAttribute("data-long-clock")).toBe(true);
+    rerender(<Player {...base} />);
+    expect(host().dataset.pills).toBe("0");
+    expect(host().hasAttribute("data-long-clock")).toBe(false);
+    rerender(<Player {...base} form="dock" guest />);
+    expect(host().dataset.pills).toBeUndefined();
+    expect(host().getAttribute("style")).toBeNull();
+  });
+
+  it("gives each Status pill a tooltip, since a narrow bar shows only its glyph", () => {
+    const { rerender } = render(
+      <Player {...base} solo="Rosa" state="mix-updating" />,
+    );
+    expect(screen.getByText("Solo Rosa").closest(".pill")).toHaveAttribute(
+      "title",
+      "Solo Rosa",
+    );
+    expect(screen.getByText("Updating mix").closest(".pill")).toHaveAttribute(
+      "title",
+      "Updating mix",
+    );
+    rerender(<Player {...base} state="error" />);
+    expect(screen.getByText("Audio error").closest(".pill")).toHaveAttribute(
+      "title",
+      "Audio error",
+    );
+  });
+
   it("tells a chapter row's index, and collapses with a named icon button", async () => {
     const user = userEvent.setup();
     const onChapter = vi.fn();

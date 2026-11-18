@@ -1037,10 +1037,9 @@ button.sys-version-line {
   pointer-events: none;
 }
 
-/* At 40 rem and under the Player drops the skip buttons (design system 2,
-   Frame 4) and the "/ total" (the button's name still carries it). Each Status
-   pill is its glyph, text kept for assistive tech (also up to 50 rem, below).
-   Touch targets are sized for a phone. */
+/* At 40 rem and under the Player is one row: the skip buttons and the "/ total"
+   go (the button's name still carries it) and each Status pill is its glyph,
+   text kept for assistive tech. Touch targets are sized for a phone. */
 @container sys-player (max-width: 40rem) {
   .sys-player {
     grid-template-columns: auto 1fr auto;
@@ -1108,10 +1107,8 @@ button.sys-version-line {
 }
 
 /* Under 50 rem the Status pill is its glyph and the text stays for assistive
-   tech: the right-hand controls and the pill's text do not fit the side column
-   of a wide phone. Between 40 and 50 rem the skip buttons are still shown, and
-   the A and B toggles slid under them; at 40 rem and under the rule above
-   already hides the skip buttons and this rule repeats the glyph-only pill. */
+   tech, and an Audio error gives its Comment button's room to the error pill
+   and Retry. */
 @container sys-player (max-width: 50rem) {
   /* During an audio error the Comment button gives its room (the status text
      already has, under 60 rem) to the error pill and Retry: with all of them,
@@ -1142,6 +1139,340 @@ button.sys-version-line {
   }
 }
 
+/* The bar (not the Listen dock, which shares the host) gives a control up only
+   when what it holds does not fit, and only a status text or a name inside a
+   pill ever ellipsizes. Player.tsx sets `data-pills` (how many pills the bar
+   draws: Status pills, the Audio error pill, the Playback rate) and
+   `data-long-clock` (an hours clock or a rate, so a longer left column) on the
+   host. Every rung is a plain container width in rem for one configuration,
+   read off the bar laid out at the default text size with a name or detail at
+   its longest, as the last width at which the control touched the next one,
+   plus a few pixels; the comment on each says which configuration. As the bar
+   narrows it gives up the pills' text, the Following detail, the skip buttons,
+   the cuts, the hear chevron, then the other pills. `:has(.sys-player-ab)`
+   marks a host: a guest has no hear menu and keeps more. Under 40 rem and at
+   22 and 14 rem the rules further down apply. */
+.sys-player-host > .sys-player {
+  overflow-x: clip;
+}
+
+.sys-player-host > .sys-player .sys-player-pill > svg,
+.sys-player-host > .sys-player .sys-pill-x {
+  flex: none;
+}
+
+.sys-player-host > .sys-player .sys-player-following .sys-player-pill-text {
+  max-inline-size: 18ch;
+}
+
+.sys-player-host > .sys-player .sys-player-solo .sys-player-pill-text {
+  max-inline-size: 13ch;
+}
+
+.sys-player-host > .sys-player .sys-player-pill-detail {
+  max-inline-size: 16ch;
+}
+
+.sys-player-host > .sys-player .sys-player-pill-text,
+.sys-player-host > .sys-player .sys-player-pill-detail {
+  min-inline-size: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sys-player-host > .sys-player .sys-player-status {
+  min-inline-size: 0;
+}
+
+.sys-player-host > .sys-player .sys-player-status .pill {
+  max-inline-size: 100%;
+}
+
+/* Pill text: a host following alone, wider than develop's 50 rem glyph-only rule by the pill's name */
+@container sys-player (max-width: 50.6rem) {
+  .sys-player-host:has(.sys-player-ab):has(.sys-player-following)
+    .sys-player-pill-text {
+    position: absolute;
+    inline-size: 1px;
+    block-size: 1px;
+    margin: -1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+}
+
+/* Pill text: Solo with an Audio error */
+@container sys-player (max-width: 61rem) {
+  .sys-player-host[data-pills="2"] .sys-player-pill-text {
+    position: absolute;
+    inline-size: 1px;
+    block-size: 1px;
+    margin: -1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+}
+
+/* Pill text: Following, Solo and Updating mix together */
+@container sys-player (max-width: 77.5rem) {
+  .sys-player-host[data-pills="3"] .sys-player-pill-text {
+    position: absolute;
+    inline-size: 1px;
+    block-size: 1px;
+    margin: -1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+}
+
+/* Following detail: Following alone */
+@container sys-player (max-width: 62rem) {
+  .sys-player-host:has(.sys-player-ab) .sys-player-pill-detail {
+    display: none;
+  }
+}
+
+/* Following detail: Following with Solo */
+@container sys-player (max-width: 72.75rem) {
+  .sys-player-host[data-pills="2"] .sys-player-pill-detail {
+    display: none;
+  }
+}
+
+/* Following detail: Following, Solo and Updating mix */
+@container sys-player (max-width: 88rem) {
+  .sys-player-host[data-pills="3"] .sys-player-pill-detail {
+    display: none;
+  }
+}
+
+/* Skips, wider than 40 rem: Solo with an Audio error */
+@container sys-player (max-width: 42rem) {
+  .sys-player-host[data-pills="2"] .sys-player-skip {
+    display: none;
+  }
+}
+
+/* Skips: Following, Solo and Updating mix; an hours clock or a rate */
+@container sys-player (max-width: 51.5rem) {
+  .sys-player-host:is([data-pills="3"], [data-long-clock]) .sys-player-skip {
+    display: none;
+  }
+}
+
+/* Cuts in the one-row layout: clock, cuts and the hear menu alone */
+@container sys-player (max-width: 24.75rem) {
+  .sys-player-host:has(.sys-player-ab) .sys-player-cuts {
+    display: none;
+  }
+}
+
+/* Cuts: one pill (Following needed 27.9 rem), or a longer left column */
+@container sys-player (max-width: 28rem) {
+  .sys-player-host:is([data-pills="1"], [data-long-clock]) .sys-player-cuts {
+    display: none;
+  }
+}
+
+/* Cuts: two pills, or a longer left column and a pill */
+@container sys-player (max-width: 30.25rem) {
+  .sys-player-host:is([data-pills="2"], [data-long-clock]:not([data-pills="0"]))
+    .sys-player-cuts {
+    display: none;
+  }
+}
+
+/* Cuts: three pills */
+@container sys-player (max-width: 32.5rem) {
+  .sys-player-host[data-pills="3"] .sys-player-cuts {
+    display: none;
+  }
+}
+
+/* Cuts: a longer left column and three pills */
+@container sys-player (max-width: 34.75rem) {
+  .sys-player-host[data-long-clock][data-pills="3"] .sys-player-cuts {
+    display: none;
+  }
+}
+
+/* Cuts above 40 rem: an hours clock or a rate with the cuts */
+@container sys-player (min-width: 40.01rem) and (max-width: 44rem) {
+  .sys-player-host[data-long-clock] .sys-player-cuts {
+    display: none;
+  }
+}
+
+/* Hear chevron: Following alone */
+@container sys-player (max-width: 24.25rem) {
+  .sys-player-host:has(.sys-player-following) .sys-player-hear-more {
+    display: none;
+  }
+}
+
+/* Hear chevron: two pills (a rate with an Audio error needed 28 rem), or a longer left column and a pill */
+@container sys-player (max-width: 28.25rem) {
+  .sys-player-host:is([data-pills="2"], [data-long-clock]:not([data-pills="0"]))
+    .sys-player-hear-more {
+    display: none;
+  }
+}
+
+/* Hear chevron: three pills */
+@container sys-player (max-width: 31rem) {
+  .sys-player-host[data-pills="3"] .sys-player-hear-more {
+    display: none;
+  }
+}
+
+/* Hear chevron: an Audio error at a very large text size */
+@container sys-player (max-width: 15.25rem) {
+  .sys-player-host[data-state="error"] .sys-player-hear-more {
+    display: none;
+  }
+}
+
+/* Hear chevron: an hours clock at a very large text size */
+@container sys-player (max-width: 12.5rem) {
+  .sys-player-host[data-long-clock] .sys-player-hear-more {
+    display: none;
+  }
+}
+
+/* Other pills: two of them on a 360 px phone */
+@container sys-player (max-width: 23.7rem) {
+  .sys-player-host[data-pills="2"]
+    :is(.sys-player-solo, .sys-player-following, .sys-player-mix) {
+    display: none;
+  }
+}
+
+/* Other pills: three of them in the one-row layout */
+@container sys-player (max-width: 28rem) {
+  .sys-player-host[data-pills="3"]
+    :is(.sys-player-solo, .sys-player-following, .sys-player-mix) {
+    display: none;
+  }
+}
+
+/* Other pills above 40 rem: three of them */
+@container sys-player (min-width: 40.01rem) and (max-width: 48.5rem) {
+  .sys-player-host[data-pills="3"]
+    :is(.sys-player-solo, .sys-player-following, .sys-player-mix) {
+    display: none;
+  }
+}
+
+/* Comment: an Audio error with three pills (develop drops it at 50 rem) */
+@container sys-player (max-width: 58.5rem) {
+  .sys-player-host[data-state="error"][data-pills="3"] .sys-player-comment {
+    display: none;
+  }
+}
+
+@media (pointer: coarse) {
+  /* A 44 px target makes each of these rungs sit later: */
+  /* Pill text: Solo with an Audio error */
+  @container sys-player (max-width: 65.5rem) {
+    .sys-player-host[data-pills="2"] .sys-player-pill-text {
+      position: absolute;
+      inline-size: 1px;
+      block-size: 1px;
+      margin: -1px;
+      overflow: hidden;
+      clip-path: inset(50%);
+      white-space: nowrap;
+    }
+  }
+
+  /* Pill text: Following, Solo and Updating mix */
+  @container sys-player (max-width: 82.25rem) {
+    .sys-player-host[data-pills="3"] .sys-player-pill-text {
+      position: absolute;
+      inline-size: 1px;
+      block-size: 1px;
+      margin: -1px;
+      overflow: hidden;
+      clip-path: inset(50%);
+      white-space: nowrap;
+    }
+  }
+
+  /* Pill text: a host with an Audio error or Following alone */
+  @container sys-player (max-width: 55.5rem) {
+    .sys-player-host:has(.sys-player-ab):is(
+        [data-state="error"],
+        :has(.sys-player-following)
+      )
+      .sys-player-pill-text {
+      position: absolute;
+      inline-size: 1px;
+      block-size: 1px;
+      margin: -1px;
+      overflow: hidden;
+      clip-path: inset(50%);
+      white-space: nowrap;
+    }
+  }
+
+  /* Following detail: Following alone */
+  @container sys-player (max-width: 66.5rem) {
+    .sys-player-host:has(.sys-player-ab) .sys-player-pill-detail {
+      display: none;
+    }
+  }
+
+  /* Following detail: Following with Solo */
+  @container sys-player (max-width: 77.5rem) {
+    .sys-player-host[data-pills="2"] .sys-player-pill-detail {
+      display: none;
+    }
+  }
+
+  /* Skips: the cuts beside them, or a host's Audio error */
+  @container sys-player (max-width: 41rem) {
+    .sys-player-host:is(
+        :has(.sys-player-cuts),
+        [data-state="error"]:has(.sys-player-ab)
+      )
+      .sys-player-skip {
+      display: none;
+    }
+  }
+
+  /* Skips: a host following alone */
+  @container sys-player (max-width: 42.25rem) {
+    .sys-player-host:has(.sys-player-ab):has(.sys-player-following)
+      .sys-player-skip {
+      display: none;
+    }
+  }
+
+  /* Skips: Solo with an Audio error */
+  @container sys-player (max-width: 47rem) {
+    .sys-player-host[data-pills="2"] .sys-player-skip {
+      display: none;
+    }
+  }
+
+  /* Comment: Solo with an Audio error (develop drops it at 50 rem) */
+  @container sys-player (max-width: 52rem) {
+    .sys-player-host[data-state="error"][data-pills="2"] .sys-player-comment {
+      display: none;
+    }
+  }
+
+  /* Following: Following with Solo, above 40 rem */
+  @container sys-player (min-width: 40.01rem) and (max-width: 44rem) {
+    .sys-player-host[data-pills="2"] .sys-player-following {
+      display: none;
+    }
+  }
+}
+
 /* A 360 px phone is short of room for Play, the clock and the four controls at
    the usual spacing: tighter gaps and a smaller clock keep every 44 px target
    clear of the next. */
@@ -1155,6 +1486,33 @@ button.sys-version-line {
   }
 
   .sys-player-host .sys-player-now {
+    font-size: var(--font-size-ui);
+  }
+}
+
+@container sys-player (max-width: 22rem) {
+  .sys-player-host > .sys-player .sys-player-ab,
+  .sys-player-host
+    > .sys-player
+    .sys-player-right
+    > :not(
+      .sys-player-hear,
+      .sys-pill--danger,
+      .sys-player-retry,
+      .sys-player-comment--guest
+    ) {
+    display: none;
+  }
+
+  .sys-player-host > .sys-player .sys-player-left > :not(.sys-player-time) {
+    display: none;
+  }
+
+  .sys-player-host > .sys-player {
+    padding-inline: var(--space-1);
+  }
+
+  .sys-player-host > .sys-player .sys-player-now {
     font-size: var(--font-size-ui);
   }
 }

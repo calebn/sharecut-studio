@@ -17,6 +17,7 @@ import {
   ToggleButton,
 } from "../ui";
 import { SKIP_SEC } from "../utils/time";
+import { barSignals } from "./barSignals";
 import { OverviewStrip, type OverviewTick } from "./OverviewStrip";
 import { PlayerChapters } from "./PlayerChapters";
 import { SystemIcon } from "./SystemIcon";
@@ -177,7 +178,7 @@ function PlayCluster(props: PlayerProps & { statusId: string }) {
 /** The cuts delta: the edited length changes, so it stays beside the time. */
 function CutsPill({ cuts }: Pick<PlayerProps, "cuts">) {
   return cuts ? (
-    <Pill title="Length change from your cuts">
+    <Pill className="sys-player-cuts" title="Length change from your cuts">
       <span className="sys-mono">{cuts}</span>
     </Pill>
   ) : null;
@@ -185,7 +186,7 @@ function CutsPill({ cuts }: Pick<PlayerProps, "cuts">) {
 
 function RatePill({ rate }: Pick<PlayerProps, "rate">) {
   return rate !== undefined ? (
-    <Pill title="Playback speed">
+    <Pill className="sys-player-rate" title="Playback speed">
       <span
         className="sys-mono"
         role="status"
@@ -229,7 +230,7 @@ function StatePills({
       </span>
       {following?.detail ? (
         <Pill
-          className="sys-player-pill"
+          className="sys-player-pill sys-player-following"
           title={`Following ${following.name} · ${following.detail}`}
         >
           <SystemIcon name="locate-fixed" size={12} />
@@ -253,24 +254,30 @@ function StatePills({
         </Pill>
       ) : null}
       {solo && !guest ? (
-        <Pill className="sys-player-pill">
+        <Pill
+          className="sys-player-pill sys-player-solo"
+          title={`Solo ${solo}`}
+        >
           <SystemIcon name="headphones" size={12} />
           <span className="sys-player-pill-text">Solo {solo}</span>
         </Pill>
       ) : null}
       {state === "mix-updating" ? (
-        <Pill className="sys-player-pill">
+        <Pill className="sys-player-pill sys-player-mix" title="Updating mix">
           <SystemIcon name="progress-ring" size={12} progress={0.3} />
           <span className="sys-player-pill-text">Updating mix</span>
         </Pill>
       ) : null}
       {state === "error" ? (
         <>
-          <Pill className="sys-player-pill sys-pill--danger">
+          <Pill
+            className="sys-player-pill sys-pill--danger"
+            title="Audio error"
+          >
             <SystemIcon name="octagon-alert" size={12} />
             <span className="sys-player-pill-text">Audio error</span>
           </Pill>
-          <Button variant="link" onClick={onRetry}>
+          <Button variant="link" className="sys-player-retry" onClick={onRetry}>
             Retry
           </Button>
         </>
@@ -534,12 +541,15 @@ export function Player(props: PlayerProps) {
   }, [form]);
   if (form === "dock") return <Dock {...props} statusId={statusId} />;
   if (form === "bar") {
+    const signals = barSignals(props);
     return (
       <div
         role="group"
         aria-label="Player"
         className="sys-player-host"
         data-state={state}
+        data-pills={signals.pills}
+        data-long-clock={signals.longClock ? "" : undefined}
       >
         <div className="sys-player">
           <div className="sys-player-left">
