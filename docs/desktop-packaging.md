@@ -354,14 +354,17 @@ void     sc_ffmpeg_cancel(int64_t session);
   promptly. From that moment the session's stdout and stderr streams (`sc_out()`, `sc_err()`) are
   redirected to a discard stream, so no new output reaches the caller. The streams the worker
   already holds stay open until the tool returns. For a running session `cancel` also sends
-  `SIGUSR2` to the worker thread. The core installs a no-op `SIGUSR2` handler without `SA_RESTART`
-  at the first `start`, process-wide, so the host must not use `SIGUSR2` for anything else. The
-  signal makes a `read(2)` or `write(2)` blocked on a pipe fail with `EINTR`, and libav's retry
-  loop then checks the interrupt latch and returns, so a tool blocked on `pipe:N` / `fd:N` input
-  or output exits within a moment of `cancel`. The kick is best effort: a signal that lands just
-  before the tool enters the blocking call is lost (repeating `cancel` sends it again, and the
-  Python still releases its ends at `KILL_GRACE_SEC` at the latest), and a tool blocked in
-  something other than a pipe read or write is not woken. A write the tool makes through the
+  `SIGUSR2` once to the worker thread, which unblocks `SIGUSR2` in its own signal mask at start.
+  The core installs a no-op `SIGUSR2` handler without `SA_RESTART` at the first `start`. The
+  handler is process-wide, so the host must not use `SIGUSR2` for anything else, and a host thread
+  that receives it sees `EINTR` from interruptible calls. The signal makes a `read(2)` or
+  `write(2)` blocked on a pipe on the worker thread fail with `EINTR`, and libav's retry loop
+  then checks the interrupt latch and returns. The kick is best effort only. It reaches the
+  worker thread alone: real ffmpeg runs demux and mux I/O on its own scheduler threads, so a read
+  blocked there is not woken by the kick. The kick is sent once per cancel and is lost if it lands
+  just before the tool enters the blocking call, and a tool blocked in something other than a
+  pipe read or write is not woken. The backstop is the bridge closing the caller's pipe ends,
+  which Python does at `KILL_GRACE_SEC` at the latest. A write the tool makes through the
   discard stream never blocks. A caller's
   reader of a pipe sees EOF only when the native's dups are closed (when the tool returns) and the
   caller-side write end is released; Python releases that end when `wait` returns, or after

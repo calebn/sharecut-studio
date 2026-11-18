@@ -544,6 +544,63 @@ def test_cancel_wakes_a_worker_blocked_in_a_plain_write(shim: Shim) -> None:
     assert fd_count() == before
 
 
+BLOCKED_MASK_SCRIPT = textwrap.dedent(
+    """
+    import ctypes, os, select, signal, sys, threading
+    lib = ctypes.CDLL(sys.argv[1])
+    lib.sc_ffmpeg_start.restype = ctypes.c_int64
+    lib.sc_ffmpeg_start.argtypes = [ctypes.c_int, ctypes.POINTER(ctypes.c_char_p)] + [ctypes.c_int] * 3
+    lib.sc_ffmpeg_wait.argtypes = [ctypes.c_int64]
+    lib.sc_ffmpeg_cancel.argtypes = [ctypes.c_int64]
+    in_r, in_w = os.pipe()
+    err_r, err_w = os.pipe()
+    out_r, out_w = os.pipe()
+    argv = [b"ffprobe", b"started", b"readblock", b"-i", b"pipe:0", None]
+    array = (ctypes.c_char_p * len(argv))(*argv)
+    box = []
+    def creator():
+        signal.pthread_sigmask(signal.SIG_BLOCK, {signal.SIGUSR2})
+        box.append(lib.sc_ffmpeg_start(len(argv) - 1, array, in_r, out_w, err_w))
+    maker = threading.Thread(target=creator)
+    maker.start()
+    maker.join()
+    session = box[0]
+    assert session >= 1, session
+    for fd in (in_r, out_w, err_w):
+        os.close(fd)
+    seen = b""
+    while not seen.endswith(b"started\\n"):
+        assert select.select([err_r], [], [], 20)[0]
+        seen += os.read(err_r, 4096)
+    result = []
+    waiter = threading.Thread(target=lambda: result.append(lib.sc_ffmpeg_wait(session)), daemon=True)
+    waiter.start()
+    for _ in range(1000):
+        lib.sc_ffmpeg_cancel(session)
+        waiter.join(0.01)
+        if result:
+            break
+    os._exit(0 if result == [255] else 3)
+    """
+)
+
+
+def test_cancel_wakes_a_read_when_the_creating_thread_blocks_sigusr2(
+    built: Path, tmp_path: Path
+) -> None:
+    script = tmp_path / "blocked_mask.py"
+    script.write_text(BLOCKED_MASK_SCRIPT, encoding="utf-8")
+    done = subprocess.run(
+        [sys.executable, "-I", str(script), str(built)],
+        capture_output=True,
+        text=True,
+        check=False,
+        timeout=60,
+        env=os.environ,
+    )
+    assert done.returncode == 0, done.stderr
+
+
 def test_owner_thread_exit_returns_its_code(shim: Shim) -> None:
     before = fd_count()
     with Pipes() as pipes:
@@ -922,6 +979,11 @@ POLICY_REJECT.extend(
         ["ffmpeg", "echo", "-i", "concat:/proc/self/fd/3", "out.wav"],
         ["ffmpeg", "echo", "-i", "crypto+pipe:3", "out.wav"],
         ["ffmpeg", "echo", "-i", "crypto+/dev/null", "out.wav"],
+        ["ffmpeg", "echo", "-i", "concat:a.wav|/dev/fd/3", "out.wav"],
+        ["ffmpeg", "echo", "-i", "a.wav", "tee:a.wav|/dev/fd/3"],
+        ["ffmpeg", "echo", "-i", "concat:a.wav|proc/self/fd/3", "out.wav"],
+        ["ffmpeg", "echo", "-i", "concat:a.wav|/dev/null", "out.wav"],
+        ["ffmpeg", "echo", "-i", "concat:a.wav|dev/fd/3", "out.wav"],
     ]
 )
 
@@ -930,6 +992,8 @@ PLAIN_OK = [
     ["-i", "/srv/x/dev/notes.wav", "/srv/x/dev/out.wav"],
     ["-i", "/srv/me/mydev/fdr/a.wav", "/srv/me/mydev/fdr/b.wav"],
     ["-i", "/srv/me/proc/a.wav", "/srv/me/mydevproc/b.wav"],
+    ["-i", "/srv/c+dev/a.wav", "/srv/c+proc/b.wav"],
+    ["-i", "concat:a.wav|b.wav", "out.wav"],
     ["-i", "/srv/me/Gold file: draft.wav", "/srv/me/Sub-file:2.wav"],
     ["-i", "/x/hotpipe:1.wav", "/x/under_fd:2.wav"],
     ["-i", "./pipe:3", "./fd:3.wav"],
