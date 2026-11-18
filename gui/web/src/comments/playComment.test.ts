@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { clearRegisteredCommands } from "../commands/execute";
+import { PLAY_DENIED_REASON } from "../commands/rangeActions";
 import { registerDawCommands } from "../commands/register";
 import { useDawStore } from "../state/dawStore";
 import { minimalProject, sampleTrack } from "../test/fixtures";
@@ -66,6 +67,35 @@ describe("playComment", () => {
     playComment(comment);
     expect(begin).not.toHaveBeenCalled();
     expect(announce).toHaveBeenCalledWith("Import audio to play.", {
+      tone: "error",
+    });
+  });
+
+  it("keeps following the editor when play is refused", () => {
+    useDawStore.setState({
+      beginAudition: vi.fn(),
+      project: minimalProject({ timeline_duration_sec: 100 }),
+    });
+    playComment(comment);
+    expect(useDawStore.getState().followingClientId).toBe("remote-editor");
+    expect(useDawStore.getState().selection).toEqual({
+      kind: "comment",
+      id: "c1",
+    });
+    expect(announce).toHaveBeenCalledWith("Import audio to play.", {
+      tone: "error",
+    });
+  });
+
+  it("keeps following the editor when a guest may not play", () => {
+    useDawStore.setState({
+      beginAudition: vi.fn(),
+      guestMode: "view",
+      shareCapabilities: [],
+    });
+    playComment(comment);
+    expect(useDawStore.getState().followingClientId).toBe("remote-editor");
+    expect(announce).toHaveBeenCalledWith(PLAY_DENIED_REASON, {
       tone: "error",
     });
   });
