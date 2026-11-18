@@ -153,6 +153,35 @@ static int read_all(int fd) {
     return (int)total;
 }
 
+static int libav_read_all(int fd) {
+    char buf[4096];
+    long total = 0;
+    for (;;) {
+        if (is_interrupted()) break;
+        ssize_t n = read(fd, buf, sizeof buf);
+        if (n == 0) break;
+        if (n > 0) total += n;
+        else if (errno != EINTR) break;
+    }
+    close(fd);
+    return is_interrupted() ? -1 : (int)total;
+}
+
+static int libav_write_all(int fd) {
+    static char chunk[1 << 20];
+    size_t done = 0;
+    pthread_mutex_lock(&mu);
+    big_writes++;
+    pthread_mutex_unlock(&mu);
+    while (done < sizeof chunk) {
+        if (is_interrupted()) return -1;
+        ssize_t n = write(fd, chunk + done, sizeof chunk - done);
+        if (n > 0) done += (size_t)n;
+        else if (n < 0 && errno != EINTR) break;
+    }
+    return 0;
+}
+
 int sc_glue_run(int tool, int argc, char **argv) {
     long gen;
     pthread_mutex_lock(&mu);
@@ -226,6 +255,16 @@ int sc_glue_run(int tool, int argc, char **argv) {
                 fprintf(sc_out(), "bytes=%d\n", n);
                 fflush(sc_out());
             }
+        } else if (strcmp(t, "readblock") == 0) {
+            for (int k = 1; k + 1 < argc; k++) {
+                if (strcmp(argv[k], "-i") != 0) continue;
+                int n = libav_read_all(fd_of(argv[k + 1]));
+                if (n < 0) return 255;
+                fprintf(sc_out(), "bytes=%d\n", n);
+                fflush(sc_out());
+            }
+        } else if (strcmp(t, "writeblock") == 0) {
+            if (libav_write_all(fileno(sc_out())) < 0) return 255;
         } else if (strcmp(t, "writeout") == 0) {
             int fd = fd_of(argv[argc - 1]);
             if (fd >= 0 && write(fd, "payload", 7) == 7) close(fd);

@@ -21,6 +21,8 @@ GNU Lesser General Public License, version 2.1 or later.
     https://downloads.xiph.org/releases/opus/opus-1.6.1.tar.gz
     sha256 6ffcb593207be92584df15b32466ed64bbec99109f007c82205f0194572411a1
 
+zlib is linked from the iOS SDK (libz.tbd) and is not built from source here.
+
 These URLs and checksums are the ones pinned in contracts/ffmpeg-build.json
 in the application source repository.
 

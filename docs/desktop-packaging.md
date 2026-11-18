@@ -353,10 +353,16 @@ void     sc_ffmpeg_cancel(int64_t session);
   stop, closes the session's original dups of the caller's in, out and err fds, and returns
   promptly. From that moment the session's stdout and stderr streams (`sc_out()`, `sc_err()`) are
   redirected to a discard stream, so no new output reaches the caller. The streams the worker
-  already holds stay open until the tool returns, and a write already blocked on a full pipe is not
-  woken by `cancel` (neither Darwin nor Linux wakes it when its own dup is closed): it returns with
-  `EPIPE` when the caller's reader closes its end (SIGPIPE is ignored), which the Python bridge does
-  within `KILL_GRACE_SEC`. Until then `wait` and every queued session wait behind it. A caller's
+  already holds stay open until the tool returns. For a running session `cancel` also sends
+  `SIGUSR2` to the worker thread. The core installs a no-op `SIGUSR2` handler without `SA_RESTART`
+  at the first `start`, process-wide, so the host must not use `SIGUSR2` for anything else. The
+  signal makes a `read(2)` or `write(2)` blocked on a pipe fail with `EINTR`, and libav's retry
+  loop then checks the interrupt latch and returns, so a tool blocked on `pipe:N` / `fd:N` input
+  or output exits within a moment of `cancel`. The kick is best effort: a signal that lands just
+  before the tool enters the blocking call is lost (repeating `cancel` sends it again, and the
+  Python still releases its ends at `KILL_GRACE_SEC` at the latest), and a tool blocked in
+  something other than a pipe read or write is not woken. A write the tool makes through the
+  discard stream never blocks. A caller's
   reader of a pipe sees EOF only when the native's dups are closed (when the tool returns) and the
   caller-side write end is released; Python releases that end when `wait` returns, or after
   `KILL_GRACE_SEC` at the latest, so after a kill the reader can be blocked for up to that grace. A
@@ -397,7 +403,8 @@ void     sc_ffmpeg_cancel(int64_t session);
   one free-form route, and the user's own agent controls it. `unix:` and `tcp:` URLs and global
   options such as `-protocol_whitelist`, `-safe`, `-allowed_extensions` and `-report` are not
   policed, so the glue must never widen ffmpeg's defaults. A blocking read on `fd:N` / `pipe:N` is
-  not interrupted by cancel; the bridge must close the writer, as for writes. A rejected session
+  woken by the `SIGUSR2` kick of `cancel` (best effort, see Sessions); the bridge still closes the
+  writer. A rejected session
   still returns a valid id; its `wait` returns `1` after one `sc_ffmpeg: ...` line on stderr and
   the tool never runs. Cancelling a queued session makes `wait` return `255` and the tool never
   runs. An exit code outside 0..255 becomes `1`, and `sc_tool_exit` codes are masked with `0xff`.
