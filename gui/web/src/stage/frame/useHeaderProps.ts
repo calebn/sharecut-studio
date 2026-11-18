@@ -74,6 +74,11 @@ export function useHeaderProps(): Omit<
             markRoleHintSeen(role);
             setDismissed((current) => [...current, role]);
           },
+          // The frame's one polite live region says it; a toast would repeat the bubble.
+          onShown: () =>
+            useDawStore
+              .getState()
+              .announceStatus(ROLE_HINT_TEXT[role], { toast: false }),
         },
       };
   const onMenuCommand = useCallback((command: string) => {

@@ -1,4 +1,12 @@
-import { type ReactNode, type RefObject, useId, useRef, useState } from "react";
+import {
+  type ReactNode,
+  type RefObject,
+  useEffect,
+  useEffectEvent,
+  useId,
+  useRef,
+  useState,
+} from "react";
 import { useLongPress } from "../hooks/useLongPress";
 import type { ThemePreference } from "../hooks/useTheme";
 import {
@@ -58,7 +66,13 @@ export type AppHeaderProps = {
     update?: NewVersionUpdate;
     role: LinkRole;
     compact?: boolean;
-    hint?: { text: string; shown: boolean; onDismiss: () => void };
+    hint?: {
+      text: string;
+      shown: boolean;
+      onDismiss: () => void;
+      /** Called once when the automatic hint appears, so the sentence can be said. */
+      onShown?: () => void;
+    };
   };
   /** Theme row at the bottom of the Project menu. */
   appearance?: {
@@ -130,6 +144,14 @@ function RoleHint({ guest }: { guest: NonNullable<AppHeaderProps["guest"]> }) {
       dismissAutomatic();
     }
   });
+  const announced = useRef(false);
+  const announce = useEffectEvent(() => guest.hint?.onShown?.());
+  useEffect(() => {
+    if (mode !== "automatic" || announced.current) return;
+    // Once per mount, though development runs this effect twice.
+    announced.current = true;
+    announce();
+  }, [mode]);
 
   const chip = <RoleChip access={guest.role} compact={guest.compact} />;
   if (!guest.hint) return chip;

@@ -317,18 +317,14 @@ describe("StageFrame roles", () => {
     localStorage.removeItem("sharecut.roleHintSeen.commenter");
     useDawStore.setState({ guestMode: "comment", stage: "review" });
     const first = mount();
-    expect(
-      screen.getByText("You can comment and suggest cuts. The host decides."),
-    ).toBeInTheDocument();
+    expect(screen.getByRole("note")).toHaveTextContent(
+      "You can comment and suggest cuts. The host decides.",
+    );
     await userEvent.click(screen.getByRole("button", { name: /dismiss/i }));
-    expect(
-      screen.queryByText("You can comment and suggest cuts. The host decides."),
-    ).toBeNull();
+    expect(screen.queryByRole("note")).toBeNull();
     first.unmount();
     mount();
-    expect(
-      screen.queryByText("You can comment and suggest cuts. The host decides."),
-    ).toBeNull();
+    expect(screen.queryByRole("note")).toBeNull();
     localStorage.removeItem("sharecut.roleHintSeen.commenter");
   });
 
@@ -366,16 +362,15 @@ describe("StageFrame roles", () => {
     });
     mount();
     expect(screen.queryByRole("note")).toBeNull();
-    expect(screen.queryByText(/The host decides/)).toBeNull();
     expect(localStorage.length).toBe(0);
   });
 
   it("explains a Viewer link and remembers only the viewer role", async () => {
     useDawStore.setState({ guestMode: "view", stage: "review" });
     mount();
-    expect(
-      screen.getByText("You can listen along. The host decides."),
-    ).toBeInTheDocument();
+    expect(screen.getByRole("note")).toHaveTextContent(
+      "You can listen along. The host decides.",
+    );
     await userEvent.click(screen.getByRole("button", { name: /dismiss/i }));
     expect(localStorage.getItem("sharecut.roleHintSeen.viewer")).toBe("1");
     expect(localStorage.getItem("sharecut.roleHintSeen.commenter")).toBeNull();
@@ -386,19 +381,17 @@ describe("StageFrame roles", () => {
     localStorage.removeItem("sharecut.roleHintSeen.editor");
     useDawStore.setState({ guestMode: null, stage: "edit" });
     mount();
-    expect(screen.queryByText(/The host decides/)).toBeNull();
+    expect(screen.queryByRole("note")).toBeNull();
     act(() => useDawStore.setState({ guestMode: "edit" }));
-    expect(
-      screen.getByText(
-        "You can edit and comment. The host decides what ships.",
-      ),
-    ).toBeInTheDocument();
+    expect(screen.getByRole("note")).toHaveTextContent(
+      "You can edit and comment. The host decides what ships.",
+    );
     localStorage.removeItem("sharecut.roleHintSeen.editor");
   });
 
   it("shows a host no role hint", () => {
     mount();
-    expect(screen.queryByText(/The host decides/)).toBeNull();
+    expect(screen.queryByRole("note")).toBeNull();
   });
 
   it("puts the phone tab bar under the stage on a phone", () => {
