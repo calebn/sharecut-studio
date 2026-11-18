@@ -746,7 +746,7 @@ POLICY_REJECT = [
     ["ffmpeg", "echo", "-i", "./dev//fd/5", "out.wav"],
     ["ffmpeg", "echo", "-i", "d\\ev//fd/3", "out.wav"],
     ["ffmpeg", "echo", "-f", "lavfi", "-i", "amovie=dev//fd/3", "out.wav"],
-    ["ffmpeg", "echo", "-/filter_complex", "g.txt", "out.wav"],
+    ["ffmpeg", "echo", "-/filter_complex_threads", "2", "out.wav"],
     ["ffmpeg", "echo", "-/af", "g.txt", "-i", "a.wav", "out.wav"],
     ["ffmpeg", "echo", "-i", "a.wav", "-filter_script", "g.txt", "out.wav"],
     ["ffmpeg", "echo", "-i", "a.wav", "-filter_script:a", "g.txt", "out.wav"],
@@ -755,6 +755,99 @@ POLICY_REJECT = [
     ["ffmpeg", "echo", "-i", "a.wav", "-vf", "x;file:x", "out.wav"],
     ["ffmpeg", "echo", "-i", "a.wav", "-metadata", "title=x", "-f", "tee", "[f=wav]pipe:3"],
 ]
+FORMAT_OPTS_GLOB = "movie=filename=/de?/fd/5:f=image2:format_opts=pattern_type\\=glob"
+POLICY_REJECT.extend(
+    [
+        # Option strings carried inside a filtergraph.
+        ["ffmpeg", "echo", "-f", "lavfi", "-i", FORMAT_OPTS_GLOB, "-f", "null", "-"],
+        ["ffmpeg", "echo", "-filter_complex", FORMAT_OPTS_GLOB.replace("movie", "amovie", 1), "o"],
+        [
+            "ffmpeg",
+            "echo",
+            "-f",
+            "lavfi",
+            "-i",
+            "movie=/d?v/f?/3:f=image2:format_opts='pattern_type=glob'",
+            "o",
+        ],
+        ["ffmpeg", "echo", "-f", "lavfi", "-i", "movie=x.png:format_opts=a=b", "o"],
+        ["ffmpeg", "echo", "-f", "lavfi", "-i", "amovie=x.wav", "o.wav"],
+        ["ffmpeg", "echo", "-f", "lavfi", "-i", "a;MOVIE=x.png", "o.wav"],
+        # Directory hops and relative spellings of /dev and /proc.
+        ["ffmpeg", "echo", "-i", "dev/pts/../fd/5", "out.wav"],
+        ["ffmpeg", "echo", "-i", "a.wav", "-progress", "dev/shm/../fd/7", "out.wav"],
+        ["ffmpeg", "echo", "-i", "a.wav", "-fpre", "dev/shm/../fd/8", "out.wav"],
+        ["ffmpeg", "echo", "-i", "a.wav", "dev/shm/../fd/6"],
+        ["ffmpeg", "echo", "-i", "x/../dev/fd/3", "out.wav"],
+        ["ffmpeg", "echo", "-i", "../a.wav", "out.wav"],
+        ["ffmpeg", "echo", "-i", "a.wav", "/tmp/x/..", "out.wav"],
+        ["ffmpeg", "echo", "-i", "a.wav", "-vf", "movie=a/../b", "out.wav"],
+        ["ffmpeg", "echo", "-i", "proc/thread-self/fd/5", "out.wav"],
+        ["ffmpeg", "echo", "-i", "proc/1/fd/1", "out.wav"],
+        ["ffmpeg", "echo", "-i", "/proc/1/fd/1", "out.wav"],
+        ["ffmpeg", "echo", "-i", "/proc/thread-self/fd/0", "out.wav"],
+        ["ffmpeg", "echo", "-i", "/DEV/fd/3", "out.wav"],
+        ["ffmpeg", "echo", "-i", "/Dev/Stdin", "out.wav"],
+        ["ffmpeg", "echo", "-i", "a.wav", "-vf", "movie=dev/fd/3", "out.wav"],
+        ["ffmpeg", "echo", "-i", "a.wav", "-vf", "x:dev/fd/3", "out.wav"],
+        ["ffmpeg", "echo", "-i", "a.wav", "-vf", "x(proc/1/fd/1)", "out.wav"],
+        ["ffmpeg", "echo", "-i", "a.wav", "-vf", "x dev/fd/3", "out.wav"],
+        ["ffmpeg", "echo", "-i", "a.wav", "-vf", "[a]dev/fd/3[b]", "out.wav"],
+        # -metadata exempts only the text before the first = of its own value.
+        ["ffmpeg", "echo", "-i", "a.wav", "-passlogfile", "-metadata", "/dev/fd/3"],
+        ["ffmpeg", "echo", "-i", "a.wav", "-metadata", "-metadata", "pipe:3"],
+        ["ffmpeg", "echo", "-i", "a.wav", "-user_agent", "-metadata", "pipe:3"],
+        ["ffmpeg", "echo", "-i", "a.wav", "-metadata", "pipe:3"],
+        ["ffmpeg", "echo", "-i", "a.wav", "-metadata", "/dev/fd/3", "o.wav"],
+        ["ffmpeg", "echo", "-i", "a.wav", "-metadatax", "pipe:3", "o.wav"],
+        ["ffmpeg", "echo", "-i", "a.wav", "-metadata=v", "/dev/fd/3", "o.wav"],
+        ["ffmpeg", "echo", "-i", "a.wav", "-metadata", "x", "-vf", "movie=fd:1", "o.wav"],
+        ["ffmpeg", "echo", "-i", "a.wav", "-metadata", "pipe:3=x", "o.wav"],
+        # Other -/ options, graph scripts and the filter file operand.
+        ["ffmpeg", "echo", "-/filter_complex", "/dev/fd/3", "out.wav"],
+        ["ffmpeg", "echo", "-/filter_complex", "../g.txt", "out.wav"],
+        ["ffmpeg", "echo", "-/filter_complex_threads", "2", "out.wav"],
+        ["ffmpeg", "echo", "-/filter_complexx", "g.txt", "out.wav"],
+        ["ffmpeg", "echo", "-i", "a.wav", "-/vf", "g.txt", "out.wav"],
+        # Protocol words after the anchors, including a slash.
+        ["ffmpeg", "echo", "-f", "lavfi", "-i", "amovie=pipe:3", "out.wav"],
+        ["ffmpeg", "echo", "-i", "a.wav", "-f", "tee", "[f=wav]pipe:3"],
+        ["ffmpeg", "echo", "-i", "a.wav", "-vf", ";file:x", "out.wav"],
+        ["ffmpeg", "echo", "-i", "a.wav", "-vf", "x,fd:3", "out.wav"],
+        ["ffmpeg", "echo", "-i", "a.wav", "-vf", "(pipe:3)", "out.wav"],
+        ["ffmpeg", "echo", "-i", "a.wav", "-vf", "a|file:b", "out.wav"],
+        ["ffmpeg", "echo", "-i", "a.wav", "/pipe:3"],
+        ["ffmpeg", "echo", "-i", "a.wav", "-vf", "x/file:y", "out.wav"],
+    ]
+)
+
+PLAIN_OK = [
+    ["-i", "/Users/x/dev/notes.wav", "/Users/x/dev/out.wav"],
+    ["-i", "/Users/me/mydev/fdr/a.wav", "/Users/me/mydev/fdr/b.wav"],
+    ["-i", "/Users/me/proc/a.wav", "/Users/me/mydevproc/b.wav"],
+    ["-i", "/Users/me/Gold file: draft.wav", "/Users/me/Sub-file:2.wav"],
+    ["-i", "/x/hotpipe:1.wav", "/x/under_fd:2.wav"],
+    ["-i", "./pipe:3", "./fd:3.wav"],
+    ["-i", "a.wav", "-vf", "drawtext=text=Gold file: draft:x=1", "out.wav"],
+    ["-i", "a.wav", "-vf", "drawtext=text=Sub-file:2", "out.wav"],
+    ["-/filter_complex", "/tmp/.render-graph-x/graph.txt", "-map", "[out]", "out.wav"],
+    ["-i", "a.wav", "-/filter_complex", "/tmp/g/graph.txt", "-map", "[out]", "out.wav"],
+    ["-i", "a.wav", "-metadata", "title=a=/dev/fd/3", "out.wav"],
+    ["-i", "a.wav", "-metadata", "title=movie=x format_opts=y pipe:3", "out.wav"],
+    ["-i", "a.wav", "-metadata:s:a:0", "title=/dev/ and proc/ talk ../x", "out.wav"],
+    ["-i", "a.wav", "-metadata", "x", "-metadata", "title=Hi: there", "out.wav"],
+    ["-i", "a.wav", "-metadata", "title=a", "-metadata", "artist=file: b", "out.wav"],
+]
+POLICY_OK.extend(
+    (["ffmpeg", "echo", *plain], ["tool=0", "ffmpeg", "-nostdin", "echo", *plain])
+    for plain in PLAIN_OK
+)
+POLICY_OK.append(
+    (
+        ["ffmpeg", "echo", "-i", "a.wav", "-metadata", "-"],
+        ["tool=0", "ffmpeg", "-nostdin", "echo", "-i", "a.wav", "-metadata", "pipe:#"],
+    )
+)
 
 POLICY_OK.extend(
     [

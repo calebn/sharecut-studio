@@ -177,14 +177,14 @@ static int all_digits(const char *p) {
     return 1;
 }
 
-// Strip escapes and quotes, collapse runs of '/', drop "/./" segments and a leading "./".
+// Strip escapes and quotes, lower-case ASCII, collapse runs of '/' and "/./" segments.
 static char *normalise_arg(const char *arg) {
     size_t n = strlen(arg);
     char *plain = malloc(n + 1);
     if (!plain) return NULL;
     char *w = plain;
     for (const char *r = arg; *r; r++)
-        if (*r != '\\' && *r != '\'' && *r != '"') *w++ = *r;
+        if (*r != '\\' && *r != '\'' && *r != '"') *w++ = (char)tolower((unsigned char)*r);
     *w = '\0';
     char *out = malloc(n + 1);
     if (!out) {
@@ -194,7 +194,7 @@ static char *normalise_arg(const char *arg) {
     w = out;
     for (const char *r = plain; *r; r++) {
         if (*r == '/' && w > out && w[-1] == '/') continue;
-        if (*r == '.' && r[1] == '/' && (w == out || w[-1] == '/')) {
+        if (*r == '.' && r[1] == '/' && w > out && w[-1] == '/') {
             r++;
             continue;
         }
@@ -205,29 +205,56 @@ static char *normalise_arg(const char *arg) {
     return out;
 }
 
-// Protocol words match at the token start or after a character that is not a letter or digit.
+// A protocol word matches at the token start or after one of = , ; [ ] ( ) | or / (not "./").
 static int has_protocol_word(const char *text, const char *word) {
-    for (const char *p = strstr(text, word); p; p = strstr(p + 1, word))
-        if (p == text || !isalnum((unsigned char)p[-1])) return 1;
+    for (const char *p = strstr(text, word); p; p = strstr(p + 1, word)) {
+        if (p == text) return 1;
+        if (p[-1] == '/' && !(p - 1 == text + 1 && text[0] == '.')) return 1;
+        if (p[-1] != '/' && strchr("=,;[]()|", p[-1])) return 1;
+    }
     return 0;
 }
 
-static int mentions_forbidden(const char *arg) {
+// "dev/" or "proc/" at the token start (after an optional "./" and one optional '/') or after
+// = : , ; [ ] ( ) or space.
+static int has_device_dir(const char *text) {
+    const char *head = text + (strncmp(text, "./", 2) == 0 ? 2 : 0);
+    head += *head == '/';
+    static const char *const dirs[] = {"dev/", "proc/"};
+    for (size_t i = 0; i < sizeof dirs / sizeof *dirs; i++) {
+        size_t len = strlen(dirs[i]);
+        if (strncmp(head, dirs[i], len) == 0) return 1;
+        for (const char *p = strstr(text, dirs[i]); p; p = strstr(p + 1, dirs[i]))
+            if (p > text && strchr("=:,;[]() ", p[-1])) return 1;
+    }
+    return 0;
+}
+
+static int has_dotdot_component(const char *text) {
+    for (const char *p = text; (p = strstr(p, "..")) != NULL; p++)
+        if ((p == text || p[-1] == '/') && (p[2] == '/' || p[2] == '\0')) return 1;
+    return 0;
+}
+
+// metadata_value: the token follows -metadata[:spec], so only the text before the first '=' counts.
+static int mentions_forbidden(const char *arg, int metadata_value) {
     static const char *const protocols[] = {"pipe:", "fd:", "file:"};
-    static const char *const substrings[] = {
-        "/dev/", "/proc/", "dev/fd", "dev/stdin", "dev/stdout", "dev/stderr", "proc/self",
+    static const char *const words[] = {
+        "pattern_type", "movie=", "amovie=", "format_opts", "dev/std", "proc/self",
     };
     char *text = normalise_arg(arg);
     if (!text) return 1;
-    int found = strcmp(text, "-stdin") == 0 || strncmp(text, "-stdin:", 7) == 0 ||
-                strncmp(text, "-/", 2) == 0 || strcmp(text, "-filter_script") == 0 ||
-                strncmp(text, "-filter_script:", 15) == 0 ||
-                strncmp(text, "-filter_complex_script", 22) == 0 ||
-                strncmp(text, "-pattern_type", 13) == 0 || strcmp(text, "-glob") == 0;
+    char *eq = metadata_value ? strchr(text, '=') : NULL;
+    if (eq) *eq = '\0';
+    int found = has_dotdot_component(text) || has_device_dir(text);
+    found = found || strcmp(text, "-stdin") == 0 || strncmp(text, "-stdin:", 7) == 0 ||
+            (strncmp(text, "-/", 2) == 0 && strcmp(text, "-/filter_complex") != 0) ||
+            strcmp(text, "-filter_script") == 0 || strncmp(text, "-filter_script:", 15) == 0 ||
+            strncmp(text, "-filter_complex_script", 22) == 0;
     for (size_t i = 0; i < sizeof protocols / sizeof *protocols && !found; i++)
         found = has_protocol_word(text, protocols[i]);
-    for (size_t i = 0; i < sizeof substrings / sizeof *substrings && !found; i++)
-        found = strstr(text, substrings[i]) != NULL;
+    for (size_t i = 0; i < sizeof words / sizeof *words && !found; i++)
+        found = strstr(text, words[i]) != NULL;
     free(text);
     return found;
 }
@@ -254,7 +281,7 @@ static int add_copy(struct session *s, int stream, int index, const char *prefix
     return 0;
 }
 
-static int rewrite_path(struct session *s, int index, int dash_stream) {
+static int rewrite_path(struct session *s, int index, int dash_stream, int metadata_value) {
     const char *arg = s->argv[index];
     int stream;
     const char *prefix;
@@ -274,7 +301,8 @@ static int rewrite_path(struct session *s, int index, int dash_stream) {
         }
         stream = digits[0] - '0';
     } else {
-        if (mentions_forbidden(arg)) s->reject = "argument names a forbidden location";
+        if (mentions_forbidden(arg, metadata_value))
+            s->reject = "argument names a forbidden location";
         return 0;
     }
     if (s->orig[stream] < 0) {
@@ -288,16 +316,16 @@ static int apply_policy(struct session *s) {
     int ffmpeg = s->tool == 0;
     for (int i = 1; i < s->argc && !s->reject; i++) {
         const char *prev = s->argv[i - 1];
-        if (strncmp(prev, "-metadata", 9) == 0) continue;
+        int metadata_value = strcmp(prev, "-metadata") == 0 || strncmp(prev, "-metadata:", 10) == 0;
         int after_input = strcmp(prev, "-i") == 0;
         int after_progress = strcmp(prev, "-progress") == 0;
         if (after_input || after_progress || i == s->argc - 1) {
             int dash_stream = after_input ? 0 : after_progress ? 1 : ffmpeg ? 1 : 0;
-            int rc = rewrite_path(s, i, dash_stream);
+            int rc = rewrite_path(s, i, dash_stream, metadata_value);
             if (rc) return rc;
         } else if (strcmp(s->argv[i], "-") == 0) {
             s->reject = "- is only allowed after -i, after -progress or as the last argument";
-        } else if (mentions_forbidden(s->argv[i])) {
+        } else if (mentions_forbidden(s->argv[i], metadata_value)) {
             s->reject = "argument names a forbidden location";
         }
     }
