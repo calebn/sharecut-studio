@@ -1530,3 +1530,351 @@ describe("playing a timeline longer than the first window", () => {
     });
   });
 });
+
+describe("the decoded audio the engine holds (#3789)", () => {
+  const CHUNK_SEC = 60;
+  const CHUNK_BYTES = 48000 * CHUNK_SEC * 4;
+  const TRACK_IDS = ["host", "guest", "cohost", "solo"];
+  /** Retained span per track: 30 s back, up to 165 s ahead, a chunk of rounding at each end, and one chunk of slack for a batch decoded before it is pruned. */
+  const CHUNKS_PER_TRACK_BOUND = 7;
+
+  /** Each track gets its own hash so its chunks have distinct keys. */
+  function multitrack(durationSec: number, trackIds = TRACK_IDS) {
+    const chunkCount = Math.ceil(durationSec / CHUNK_SEC);
+    const tracks: Record<string, ProxyManifest["tracks"][string]> = {};
+    const clipsByTrack: Record<string, ClipRow[]> = {};
+    for (const id of trackIds) {
+      tracks[id] = {
+        hash: id.padEnd(16, "0"),
+        chunk_sec: CHUNK_SEC,
+        overlap_ms: 200,
+        chunk_count: chunkCount,
+        duration_sec: durationSec,
+        urls: Array.from({ length: chunkCount }, (_, i) => `${id}/c${i}`),
+      };
+      clipsByTrack[id] = [
+        {
+          id: `clip-${id}`,
+          track_id: id,
+          source_start: 0,
+          source_end: durationSec,
+          timeline_start: 0,
+          timeline_end: durationSec,
+          fade_in_ms: 0,
+          fade_out_ms: 0,
+          join_in_mode: "fade",
+          source_id: null,
+          source_duration_sec: null,
+          recording_key: null,
+        },
+      ];
+    }
+    return {
+      manifest: {
+        revision: "long",
+        project_basis: {
+          history_head_id: "root",
+          render_hashes: {},
+          clips: {},
+        },
+        tracks,
+        artifacts: {},
+        occurrences: {},
+      } as ProxyManifest,
+      clipsByTrack,
+      tracks: trackIds.map((id) => ({ id, gain_db: 0, muted: false })),
+      durationSec,
+    };
+  }
+
+  function rig(durationSec: number, trackIds = TRACK_IDS) {
+    const handle = makeCtx();
+    const fetched: string[] = [];
+    const fetchChunk = vi.fn(async (ref: ImmutableChunkRef) => {
+      fetched.push(ref.url);
+      return new ArrayBuffer(48000 * CHUNK_SEC);
+    });
+    const events = engineEvents();
+    const engine = new ProxyEngine(handle.ctx, fetchChunk, events);
+    const held = () => ({
+      buffers: Reflect.get(engine, "buffers") as Map<string, AudioBuffer>,
+      lru: Reflect.get(engine, "lru") as string[],
+      bytes: Reflect.get(engine, "decodedBytes") as number,
+    });
+    // The largest total seen at any decode, including the chunk about to land.
+    let peak = 0;
+    const decodeImpl = handle.decode.getMockImplementation();
+    handle.decode.mockImplementation(async (ab: ArrayBuffer) => {
+      peak = Math.max(peak, held().bytes + ab.byteLength * 4);
+      return decodeImpl?.(ab) as Promise<AudioBuffer>;
+    });
+    engine.setSnapshot(multitrack(durationSec, trackIds));
+    return {
+      handle,
+      engine,
+      events,
+      fetchChunk,
+      fetched,
+      held,
+      peak: () => Math.max(peak, held().bytes),
+    };
+  }
+
+  function expectConsistent(held: ReturnType<ReturnType<typeof rig>["held"]>) {
+    let sum = 0;
+    for (const buf of held.buffers.values())
+      sum += buf.length * buf.numberOfChannels * 4;
+    expect(held.bytes).toBe(sum);
+    expect(new Set(held.lru)).toEqual(new Set(held.buffers.keys()));
+    expect(held.lru).toHaveLength(held.buffers.size);
+  }
+
+  const chunkIndexes = (held: Map<string, AudioBuffer>, trackId: string) =>
+    [...held.keys()]
+      .map((key) => JSON.parse(key) as [string, string | null, string, number])
+      .filter(([, , hash]) => hash === trackId.padEnd(16, "0"))
+      .map(([, , , index]) => index)
+      .sort((a, b) => a - b);
+
+  /** Plays on in 10 s steps until the horizon runs at least `ahead` s past the playhead, as it does just after an extension. */
+  async function listenUntilAhead(
+    r: ReturnType<typeof rig>,
+    fromCtx: number,
+    toCtx: number,
+    ahead: number,
+  ): Promise<number> {
+    for (let ctxSec = fromCtx; ctxSec <= toCtx; ctxSec += 10) {
+      await advanceTo(r.handle, ctxSec);
+      const horizon = Reflect.get(r.engine, "horizon") as {
+        throughSec: number;
+      } | null;
+      if (
+        ctxSec >= toCtx - 200 &&
+        horizon &&
+        horizon.throughSec - ctxSec >= ahead
+      )
+        return ctxSec;
+    }
+    throw new Error("the horizon never ran far enough ahead");
+  }
+
+  it("holds a bounded window while a two-hour four-track episode plays to the end", async () => {
+    const r = rig(7200);
+    r.engine.play(0);
+    await flush();
+    const bound = TRACK_IDS.length * CHUNKS_PER_TRACK_BOUND * CHUNK_BYTES;
+    for (let ctxSec = 30; ctxSec < 7200; ctxSec += 30) {
+      await advanceTo(r.handle, ctxSec);
+      const held = r.held();
+      expect(held.bytes, `at ${ctxSec} s`).toBeLessThanOrEqual(bound);
+      expectConsistent(held);
+      expect(soundingAt(r.handle.created, ctxSec + 0.5, 1)).toBe(
+        TRACK_IDS.length,
+      );
+      if (ctxSec >= 30) {
+        const back = Math.floor((ctxSec - 15) / CHUNK_SEC);
+        for (const id of TRACK_IDS)
+          expect(chunkIndexes(held.buffers, id)).toContain(back);
+      }
+    }
+    expect(r.peak()).toBeLessThanOrEqual(bound);
+    expect(r.events.onFailure).not.toHaveBeenCalled();
+    r.engine.dispose();
+  });
+
+  it("skips back 15 s after a long listen without a fetch or a decode", async () => {
+    const r = rig(7200);
+    r.engine.play(0);
+    await flush();
+    const at = await listenUntilAhead(r, 10, 3000, 105);
+    const fetches = r.fetchChunk.mock.calls.length;
+    const decodes = r.handle.decode.mock.calls.length;
+    const sources = r.handle.created.length;
+    r.engine.seek(at - 15);
+    await flush();
+    expect(r.fetchChunk.mock.calls.length).toBe(fetches);
+    expect(r.handle.decode.mock.calls.length).toBe(decodes);
+    expect(r.handle.created.length).toBeGreaterThan(sources);
+    expect(soundingAt(r.handle.created, at + 0.5, 1)).toBe(TRACK_IDS.length);
+    expect(r.events.onFailure).not.toHaveBeenCalled();
+    r.engine.dispose();
+  });
+
+  it("still plays a seek back beyond the margin, fetching what it needs", async () => {
+    const r = rig(7200);
+    r.engine.play(0);
+    await flush();
+    const at = await listenUntilAhead(r, 10, 3000, 105);
+    const fetches = r.fetchChunk.mock.calls.length;
+    r.engine.seek(at - 600);
+    await flush();
+    expect(r.fetchChunk.mock.calls.length).toBeGreaterThan(fetches);
+    expect(soundingAt(r.handle.created, at + 0.5, 1)).toBe(TRACK_IDS.length);
+    expect(r.events.onFailure).not.toHaveBeenCalled();
+    r.engine.dispose();
+  });
+
+  it("holds the same bound across far forward and far back seeks", async () => {
+    const r = rig(7200);
+    r.engine.play(0);
+    await flush();
+    const bound = TRACK_IDS.length * CHUNKS_PER_TRACK_BOUND * CHUNK_BYTES;
+    let ctxSec = 0;
+    for (const target of [100, 6000, 3000, 20, 7000]) {
+      ctxSec += 1;
+      r.handle.setTime(ctxSec);
+      r.engine.seek(target);
+      await flush();
+      expect(soundingAt(r.handle.created, ctxSec + 0.5, 1)).toBe(
+        TRACK_IDS.length,
+      );
+      expect(r.held().bytes).toBeLessThanOrEqual(bound);
+      expectConsistent(r.held());
+    }
+    expect(r.peak()).toBeLessThanOrEqual(bound);
+    expect(r.events.onFailure).not.toHaveBeenCalled();
+    r.engine.dispose();
+  });
+
+  it("decodes nothing behind the target of a seek", async () => {
+    const r = rig(7200, ["host"]);
+    r.engine.play(1000);
+    await flush();
+    // 1000 s is in chunk 16 (960 to 1020); the window ends at 1120, in chunk 18.
+    expect(r.fetched.sort()).toEqual(["host/c16", "host/c17", "host/c18"]);
+    expect(soundingAt(r.handle.created, 0.5, 1)).toBe(1);
+    r.engine.dispose();
+  });
+
+  it("plays the slice that straddles the target of a seek into the middle of a chunk", async () => {
+    const r = rig(7200, ["host"]);
+    r.engine.play(1010);
+    await flush();
+    expect(r.fetched).toContain("host/c16");
+    expect(soundingAt(r.handle.created, 0.5, 1)).toBe(1);
+    expect(r.handle.created[0].start.mock.calls[0][1]).toBeGreaterThan(49);
+    r.engine.dispose();
+  });
+
+  it("keeps the margin window while paused and resumes from it without a fetch", async () => {
+    const r = rig(7200);
+    r.engine.play(0);
+    await flush();
+    const at = await listenUntilAhead(r, 10, 3000, 105);
+    const t = r.engine.pause();
+    const held = r.held();
+    // 30 s back and 120 s ahead span at most four chunks per track.
+    expect(held.bytes).toBeLessThanOrEqual(TRACK_IDS.length * 4 * CHUNK_BYTES);
+    expectConsistent(held);
+    for (const id of TRACK_IDS)
+      expect(chunkIndexes(held.buffers, id)).toContain(
+        Math.floor((t - 15) / CHUNK_SEC),
+      );
+    const fetches = r.fetchChunk.mock.calls.length;
+    r.handle.setTime(at + 5);
+    r.engine.play(t - 15);
+    await flush();
+    expect(r.fetchChunk.mock.calls.length).toBe(fetches);
+    expect(soundingAt(r.handle.created, at + 5.5, 1)).toBe(TRACK_IDS.length);
+    r.engine.dispose();
+  });
+
+  it("keeps a live source playing after its chunk leaves the cache", async () => {
+    const r = rig(7200, ["host"]);
+    r.engine.play(0);
+    await flush();
+    await advanceTo(r.handle, 100);
+    const live = r.handle.created.filter(
+      ({ stop }) => stop.mock.calls.length === 0,
+    );
+    const buffers = live.map((source) => source.buffer);
+    expect(live.length).toBeGreaterThan(0);
+    const prune = Reflect.get(r.engine, "pruneBuffers") as (
+      fromSec: number,
+      toSec: number,
+    ) => void;
+    prune.call(r.engine, 5000, 5100);
+    expect(r.held().buffers.size).toBe(0);
+    expect(r.held().bytes).toBe(0);
+    expect(r.held().lru).toEqual([]);
+    expect(live.map((source) => source.buffer)).toEqual(buffers);
+    for (const source of live) expect(source.stop).not.toHaveBeenCalled();
+    r.engine.dispose();
+  });
+
+  it("holds every chunk a live source is playing from", async () => {
+    const r = rig(7200);
+    r.engine.play(0);
+    await flush();
+    for (let ctxSec = 30; ctxSec < 1500; ctxSec += 30) {
+      await advanceTo(r.handle, ctxSec);
+      const buffers = new Set(r.held().buffers.values());
+      for (const source of r.handle.created) {
+        if (source.stop.mock.calls.length > 0) continue;
+        const [when, , duration] = source.start.mock.calls[0];
+        if (when <= ctxSec && ctxSec < when + duration)
+          expect(buffers.has(source.buffer as AudioBuffer)).toBe(true);
+      }
+    }
+    r.engine.dispose();
+  });
+
+  it("does not prune a decode that is still in flight", async () => {
+    const r = rig(1200, ["host"]);
+    const gate = deferred<ArrayBuffer>();
+    r.fetchChunk.mockImplementation(async (ref: ImmutableChunkRef) => {
+      r.fetched.push(ref.url);
+      return ref.url === "host/c10"
+        ? gate.promise
+        : new ArrayBuffer(48000 * CHUNK_SEC);
+    });
+    r.engine.play(0);
+    await flush();
+    r.handle.setTime(1);
+    r.engine.seek(600);
+    await flush();
+    const prune = Reflect.get(r.engine, "pruneBuffers") as (
+      fromSec: number,
+      toSec: number,
+    ) => void;
+    prune.call(r.engine, 0, 60);
+    gate.resolve(new ArrayBuffer(48000 * CHUNK_SEC));
+    await flush();
+    expect(soundingAt(r.handle.created, 1.5, 1)).toBe(1);
+    expect(chunkIndexes(r.held().buffers, "host")).toContain(10);
+    expectConsistent(r.held());
+    expect(r.events.onFailure).not.toHaveBeenCalled();
+    r.engine.dispose();
+  });
+
+  it("counts every channel of a decoded buffer", async () => {
+    const r = rig(600, ["host"]);
+    r.handle.decode.mockImplementation(
+      async (ab: ArrayBuffer) =>
+        ({
+          length: ab.byteLength,
+          duration: 1,
+          numberOfChannels: 2,
+          sampleRate: 48000,
+        }) as AudioBuffer,
+    );
+    r.engine.play(0);
+    await flush();
+    const held = r.held();
+    expect(held.buffers.size).toBeGreaterThan(0);
+    expect(held.bytes).toBe(held.buffers.size * 48000 * CHUNK_SEC * 2 * 4);
+    r.engine.dispose();
+  });
+
+  it("releases everything when disposed", async () => {
+    const r = rig(7200);
+    r.engine.play(0);
+    await flush();
+    await advanceTo(r.handle, 500);
+    expect(r.held().buffers.size).toBeGreaterThan(0);
+    r.engine.dispose();
+    expect(r.held().buffers.size).toBe(0);
+    expect(r.held().lru).toEqual([]);
+    expect(r.held().bytes).toBe(0);
+  });
+});
