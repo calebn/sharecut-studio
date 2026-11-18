@@ -8,14 +8,18 @@ import {
   SIZES,
   withSharedProject,
 } from "./guestLink";
-import { guestLinkAudio, guestSavedCopy } from "./offlineQueue";
+import {
+  guestLinkAudio,
+  guestSavedCopy,
+  SHARED_AUDIO_CACHE,
+} from "./offlineQueue";
+import { playButton } from "./playback";
 import { openGuestShare } from "./shareNavigation";
 import { withBrowserPages } from "./twoBrowserPages";
 
 /**
  * What a guest's browser keeps of the audio it played through a review link:
- * it stays while the link is alive, and goes when the link ends. The fixture
- * episode is 60 seconds with one chunk a track, so a played link holds two.
+ * it stays while the link is alive, and goes when the link ends.
  */
 
 const PHONE = SIZES[0];
@@ -82,7 +86,7 @@ async function open(page: Page, token: string) {
 
 /** Presses Play until every chunk of the episode is in the link's cache, then pauses. */
 async function playUntilKept(page: Page, token: string) {
-  const play = page.getByRole("button", { name: "Play", exact: true });
+  const play = playButton(page);
   await expect
     .poll(
       async () => {
@@ -170,7 +174,6 @@ test("a link turned off while open gives up its audio, and nothing comes back", 
     const [token] = tokens as [string];
     await open(guest, token);
     await playUntilKept(guest, token);
-    expect((await guestLinkAudio(guest, token)).entries).toBe(CHUNKS);
 
     await revokeLink(host, token, projectPath);
     await untilCover(guest);
@@ -191,7 +194,6 @@ test("a link opened after it was turned off gives up the audio kept earlier", as
     const [token] = tokens as [string];
     await open(guest, token);
     await playUntilKept(guest, token);
-    expect((await guestLinkAudio(guest, token)).entries).toBe(CHUNKS);
 
     await guest.goto("/");
     await revokeLink(host, token, projectPath);
@@ -224,7 +226,7 @@ test("a chunk still on its way when the link ends is not kept, and none is asked
     });
     const chunks = countChunkRequests(guest);
     await open(guest, token);
-    const play = guest.getByRole("button", { name: "Play", exact: true });
+    const play = playButton(guest);
     await expect
       .poll(async () => {
         if (held.length === 0 && (await play.isVisible()))
@@ -259,7 +261,6 @@ test("turning one link off leaves the audio kept through another link", async ({
     await playUntilKept(guest, ending);
     await playUntilKept(other, living);
     const before = await guestLinkAudio(other, living);
-    expect(before.entries).toBe(CHUNKS);
 
     await revokeLink(host, ending, projectPath);
     await untilCover(guest);
@@ -280,13 +281,12 @@ test("a live link replays from the device without asking the server again", asyn
     await open(guest, token);
     await playUntilKept(guest, token);
     const kept = await guestLinkAudio(guest, token);
-    expect(kept.entries).toBe(CHUNKS);
 
     const chunks = countChunkRequests(guest);
     await guest.reload();
     await expect(guest.locator(".stage-frame--guest")).toBeVisible();
     await dismissHint(guest);
-    await guest.getByRole("button", { name: "Play", exact: true }).click();
+    await playButton(guest).click();
     await expect(
       guest.getByRole("button", { name: "Pause", exact: true }),
     ).toBeVisible({ timeout: 20_000 });
@@ -313,7 +313,7 @@ test("a live link's kept audio plays from the saved copy when the connection is 
     await expect(guest.locator(".stage-frame--guest")).toBeVisible();
     await dismissHint(guest);
     const chunks = countChunkRequests(guest);
-    await guest.getByRole("button", { name: "Play", exact: true }).click();
+    await playButton(guest).click();
 
     await expect.poll(() => clock.advanced()).toBe(true);
     expect(chunks.started).toBe(0);
@@ -386,7 +386,7 @@ test("a browser whose cache rejects still plays a live link and still shows the 
       const chunks = countChunkRequests(guest);
       const clock = await audioClocks(guest);
       await open(guest, token);
-      await guest.getByRole("button", { name: "Play", exact: true }).click();
+      await playButton(guest).click();
       await expect(
         guest.getByRole("button", { name: "Pause", exact: true }),
       ).toBeVisible({ timeout: 20_000 });
@@ -410,10 +410,10 @@ test("the old cache every link shared is removed the first time a link's audio i
   await withLinks(browser, 1, async ({ guest, tokens }) => {
     const [token] = tokens as [string];
     await open(guest, token);
-    await guest.evaluate(async () => {
-      const cache = await caches.open("podcast-proxy-v1");
+    await guest.evaluate(async (name) => {
+      const cache = await caches.open(name);
       await cache.put("/old-audio", new Response("old"));
-    });
+    }, SHARED_AUDIO_CACHE);
     expect((await guestLinkAudio(guest, token)).shared).toBe(1);
 
     await playUntilKept(guest, token);
@@ -462,7 +462,5 @@ test("a link keeps only the audio its current version names", async ({
       .poll(async () => (await guestLinkAudio(guest, token)).entries)
       .toBe(0);
     await playUntilKept(guest, token);
-
-    expect((await guestLinkAudio(guest, token)).entries).toBe(CHUNKS);
   });
 });
