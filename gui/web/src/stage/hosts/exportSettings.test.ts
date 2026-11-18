@@ -162,18 +162,19 @@ describe("exportSettingsFromConfig", () => {
   });
 
   it("resolves a bare configured m4a to the preset spec", () => {
-    const settings = exportSettingsFromConfig({
-      export: { formats: [{ ext: "m4a" }] },
-    });
-    expect(settings.choices[0].spec).toEqual(M4A_PRESET);
-    expect(selectedFormats(settings, ["m4a"])).toEqual([M4A_PRESET]);
+    for (const entry of [
+      { ext: "m4a" },
+      { ext: "m4a", codec: null, extra_args: [] },
+    ]) {
+      const settings = exportSettingsFromConfig({
+        export: { formats: [entry] },
+      });
+      expect(settings.choices[0].spec).toEqual(M4A_PRESET);
+      expect(selectedFormats(settings, ["m4a"])).toEqual([M4A_PRESET]);
+    }
   });
 
-  it("reads a bare m4a the way the server does", () => {
-    const bare = exportSettingsFromConfig({
-      export: { formats: [{ ext: "m4a", codec: null, extra_args: [] }] },
-    });
-    expect(bare.choices[0].spec).toEqual(M4A_PRESET);
+  it("keeps a non-AAC m4a spec and drops the AAC label", () => {
     const custom = exportSettingsFromConfig({
       export: { formats: [{ ext: "m4a", codec: "alac" }] },
     });
