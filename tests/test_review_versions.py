@@ -1169,14 +1169,21 @@ def test_list_and_set_active(minimal_project, sample_wav, tmp_workspace):
     assert path.is_file()
 
 
-@requires_safe_failed_cleanup
-def test_publishing_and_choosing_the_active_version_write_no_history_step(
-    minimal_project, sample_wav
-):
+def _seed_premix(minimal_project, sample_wav) -> ProjectWorkspace:
     proj = load_project(minimal_project)
     art = Path(proj.workspace_dir) / "artifacts"
     art.mkdir(parents=True, exist_ok=True)
     (art / "premix.wav").write_bytes(sample_wav.read_bytes())
+    save_project(proj, minimal_project)
+    return ProjectWorkspace.open(minimal_project)
+
+
+@requires_safe_failed_cleanup
+def test_publishing_and_choosing_the_active_version_write_no_history_step(
+    minimal_project, sample_wav
+):
+    _seed_premix(minimal_project, sample_wav)
+    proj = load_project(minimal_project)
     mgr = HistoryManager(ProjectStore(minimal_project))
     mgr.record(proj, "an earlier edit", force=True)
     save_project(proj, minimal_project)
@@ -1213,12 +1220,7 @@ def _comment_ids(project_path) -> list[str]:
 
 @requires_safe_failed_cleanup
 def test_a_publish_between_two_edits_leaves_one_undo_press_for_each(minimal_project, sample_wav):
-    proj = load_project(minimal_project)
-    art = Path(proj.workspace_dir) / "artifacts"
-    art.mkdir(parents=True, exist_ok=True)
-    (art / "premix.wav").write_bytes(sample_wav.read_bytes())
-    save_project(proj, minimal_project)
-    ws = ProjectWorkspace.open(minimal_project)
+    ws = _seed_premix(minimal_project, sample_wav)
     _add_note(ws, "x", "edit x")
     ver = ReviewService(ws).publish(label="v1")
     _add_note(ws, "y", "edit y")
@@ -1240,12 +1242,7 @@ def test_a_publish_between_two_edits_leaves_one_undo_press_for_each(minimal_proj
 def test_a_mutation_that_changes_a_version_and_an_edit_still_records_its_step(
     minimal_project, sample_wav
 ):
-    proj = load_project(minimal_project)
-    art = Path(proj.workspace_dir) / "artifacts"
-    art.mkdir(parents=True, exist_ok=True)
-    (art / "premix.wav").write_bytes(sample_wav.read_bytes())
-    save_project(proj, minimal_project)
-    ws = ProjectWorkspace.open(minimal_project)
+    ws = _seed_premix(minimal_project, sample_wav)
     ver = ReviewService(ws).publish(label="v1")
 
     def both(p):
@@ -1264,12 +1261,7 @@ def test_a_mutation_that_changes_a_version_and_an_edit_still_records_its_step(
 def test_the_history_index_still_matches_the_project_after_a_publish(minimal_project, sample_wav):
     from podcast_mcp.project.store import HistoryMatch, match_history_to_project
 
-    proj = load_project(minimal_project)
-    art = Path(proj.workspace_dir) / "artifacts"
-    art.mkdir(parents=True, exist_ok=True)
-    (art / "premix.wav").write_bytes(sample_wav.read_bytes())
-    save_project(proj, minimal_project)
-    ws = ProjectWorkspace.open(minimal_project)
+    ws = _seed_premix(minimal_project, sample_wav)
     _add_note(ws, "x", "edit x")
     ReviewService(ws).publish(label="v1")
 
