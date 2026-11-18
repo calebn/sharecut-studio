@@ -37,7 +37,8 @@ export function announceWaveformAmp(): void {
   );
 }
 
-function suspendTimelineFollow(): void {
+/** A zoom while playing would page the playhead away from what the person is looking at. */
+export function suspendTimelineFollow(): void {
   const s = useDawStore.getState();
   if (s.isPlaying) s.setTimelineFollowPlayhead(false);
 }
@@ -95,8 +96,9 @@ export function registerViewCommands(): void {
     const s = useDawStore.getState();
     if (!s.project) return NO_PROJECT;
     s.setTimelineFollowPlayhead(true);
-    playheadScrollRegistry.scrollToPlayhead("timeline");
-    s.announceStatus("Following the playhead");
+    if (playheadScrollRegistry.scrollToPlayhead("timeline")) {
+      s.announceStatus("Following the playhead");
+    }
     return { status: "ok" };
   });
 

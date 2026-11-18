@@ -505,12 +505,6 @@ describe("palette coverage of the removed menus", () => {
     },
   );
 
-  it("lists view.followPlayhead in the palette on the Edit stage", () => {
-    useDawStore.setState({ stage: "edit" });
-    const rows = paletteCommands(buildCommandContext());
-    expect(rows.map((row) => row.id)).toContain("view.followPlayhead");
-  });
-
   it("covers a command once per surface at most", () => {
     const seen = new Set<string>();
     for (const e of REMOVED_SURFACES) {
@@ -518,5 +512,23 @@ describe("palette coverage of the removed menus", () => {
       expect(seen.has(key), `${key} is listed twice`).toBe(false);
       seen.add(key);
     }
+  });
+});
+
+describe("palette listing of view.followPlayhead", () => {
+  beforeEach(() => {
+    registerDawCommands();
+    useDawStore
+      .getState()
+      .hydrate(
+        "/tmp/palette-coverage.json",
+        minimalProject({ tracks: [sampleTrack()] }),
+      );
+  });
+
+  it("is listed on the Edit stage", () => {
+    useDawStore.setState({ stage: "edit" });
+    const rows = paletteCommands(buildCommandContext());
+    expect(rows.map((row) => row.id)).toContain("view.followPlayhead");
   });
 });

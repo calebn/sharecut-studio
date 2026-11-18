@@ -563,7 +563,7 @@ const HOT_FIELD_ALLOWLIST: readonly AllowEntry[] = [
   {
     file: "timeline/TimelineLeaves.tsx",
     reason:
-      "small leaves that read split hover and follow presence themselves; TimelineFollowPill reads the playhead and scroll in a selector that returns one boolean, so a tick renders it only when the pill appears or goes",
+      "small leaves that read split hover and follow presence themselves; the follow pill reads the playhead in a boolean selector, so a tick renders it only on show or hide",
   },
   {
     file: "timeline/FixedPlayheadNeedle.tsx",

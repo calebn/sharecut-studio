@@ -1047,7 +1047,7 @@
         ]
       },
       "omit": {
-        "keyboard_reason": "pill and palette only; view state, so no agent twin (docs/entry-points.md)"
+        "keyboard_reason": "pill and palette only"
       },
       "tooltip": "Follow the playhead again during playback",
       "presence": {

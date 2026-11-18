@@ -38,7 +38,6 @@ export async function expectPlaybackAdvancesThenHolds(
   expect(parseTimecodeSec(await clock.innerText())).toBe(paused);
 }
 
-/** Playhead to `sec` (whole seconds): Home, then one-second nudges. */
 export async function seekTo(page: Page, sec: number): Promise<void> {
   await page.evaluate(() => {
     if (document.activeElement instanceof HTMLElement) {

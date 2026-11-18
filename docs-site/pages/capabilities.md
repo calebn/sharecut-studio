@@ -70,7 +70,7 @@ Effect `project` changes the saved project, review state, transcripts or artifac
 | Zoom out | view | `view.zoomOut` | `-` | `pinch` | `editCorner` | — | — | — | — | none · look |
 | Zoom to selection | view | `view.zoomToSelection` | `Z` | — | — | — | — | — | — | none · look |
 | Fit session width | view | `view.fit` | `\` | — | `editCorner` | — | — | — | — | none · look |
-| Back to playhead | view | `view.followPlayhead` | — (pill and palette only; view state, so no agent twin (docs/entry-points.md)) | — | `timeline.followPill` | — | — | — | — | none · none |
+| Back to playhead | view | `view.followPlayhead` | — (pill and palette only) | — | `timeline.followPill` | — | — | — | — | none · none |
 | Go to Record | view | `stage.record` | `Mod+1` | — | `stageBar`, `editPlusMenu` | — | — | — | — | none · look |
 | Go to Prepare | view | `stage.prepare` | `Mod+2` | — | `stageBar` | — | — | — | — | none · look |
 | Go to Edit | view | `stage.edit` | `Mod+3` | — | `stageBar` | — | — | — | — | none · look |

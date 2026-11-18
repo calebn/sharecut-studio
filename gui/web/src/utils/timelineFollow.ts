@@ -29,10 +29,7 @@ const clampToCanvas = (
   }: Pick<FollowGeometry, "viewportPx" | "canvasWidthPx">,
 ) => clamp(scrollPx, 0, Math.max(0, canvasWidthPx - viewportPx));
 
-/**
- * Null when no page is needed. A flip lands the playhead near the left so the
- * next page lasts longest.
- */
+/** A flip lands the playhead near the left so the next page lasts longest. */
 export function followPageTarget(geometry: FollowGeometry): number | null {
   const { playheadSec, zoomPxPerSec, viewportPx, scrollPx } = geometry;
   const x = playheadX(geometry);
