@@ -53,7 +53,6 @@ import {
   MARKER_ROW_HEIGHT,
   RULER_HEIGHT,
 } from "../utils/layout";
-import { revealTargetPx } from "../utils/timelineFollow";
 import { clientXToTimelineSec } from "../utils/timelinePointer";
 import {
   domToLogicalScrollLeft,
@@ -132,7 +131,7 @@ import {
 } from "./useFixedPlayheadScroll";
 import { useRangeGesture } from "./useRangeGesture";
 import { useSplitAtPointer } from "./useSplitAtPointer";
-import { TimelineFollow } from "./useTimelineFollow";
+import { revealPlayhead, TimelineFollow } from "./useTimelineFollow";
 import { useTouchPress } from "./useTouchPress";
 
 type Props = {
@@ -427,18 +426,12 @@ export function TimelineViewView({ fixedPlayhead = false, headerSlot }: Props) {
         if (!el || fixedPlayhead) {
           return false;
         }
-        const { playheadSec, zoomPxPerSec: zoom } = useDawStore.getState();
-        const target = revealTargetPx({
-          playheadSec,
-          zoomPxPerSec: zoom,
+        return revealPlayhead({ writeScroll, leadPx }, el, {
           viewportPx: timeViewportPx,
           canvasWidthPx: width,
         });
-        writeScroll(el, target, leadPx);
-        setScrollLeft(target);
-        return true;
       }),
-    [fixedPlayhead, timeViewportPx, width, leadPx, writeScroll, setScrollLeft],
+    [fixedPlayhead, timeViewportPx, width, leadPx, writeScroll],
   );
 
   useEffect(() => {

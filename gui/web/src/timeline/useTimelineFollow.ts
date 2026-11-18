@@ -14,15 +14,38 @@ type Props = Readonly<{
   sessionSec: number;
 }>;
 
+type Mover = Pick<ScrollBinding, "writeScroll" | "leadPx">;
+
+/** Writes the scroll and mirrors it to the store; true when the scroller moved. */
+export function moveScrollTo(
+  { writeScroll, leadPx }: Mover,
+  el: HTMLElement,
+  target: number,
+): boolean {
+  const before = el.scrollLeft;
+  writeScroll(el, target, leadPx);
+  useDawStore.getState().setScrollLeft(target);
+  return el.scrollLeft !== before;
+}
+
+/** Scrolls the playhead into view; true when the scroller moved. */
+export function revealPlayhead(
+  binding: Mover,
+  el: HTMLElement,
+  view: { viewportPx: number; canvasWidthPx: number },
+): boolean {
+  const { playheadSec, zoomPxPerSec } = useDawStore.getState();
+  return moveScrollTo(
+    binding,
+    el,
+    revealTargetPx({ playheadSec, zoomPxPerSec, ...view }),
+  );
+}
+
 /**
- * A timeline mounting turns the follow on, which sheds a flag the phone or
- * another stage left off. It subscribes instead of rendering per tick, and
- * sizes the canvas from the store's zoom so a zoom lands on its own canvas.
- * Writes go through the binding's `writeScroll`, so the scroll handler counts
- * them as ours; they are plain `scrollLeft` assignments because the echo check
- * needs the write to land at once, so the timeline scroller must never get
- * `scroll-behavior: smooth`. The phone's fixed playhead and presence Follow
- * own their own viewport. It never writes the playhead.
+ * Writes go through `writeScroll` and land at once, so the echo check can tell
+ * them from a person's scroll: the timeline scroller must never get
+ * `scroll-behavior: smooth`. It never writes the playhead.
  */
 export function TimelineFollow({ binding, sessionSec }: Props) {
   const latest = useRef({ binding, sessionSec });
@@ -46,8 +69,7 @@ export function TimelineFollow({ binding, sessionSec }: Props) {
       if (!el) {
         return;
       }
-      current.writeScroll(el, target, current.leadPx);
-      useDawStore.getState().setScrollLeft(target);
+      moveScrollTo(current, el, target);
     };
     const reveal = (s: DawStore) => {
       const view = {
@@ -55,13 +77,12 @@ export function TimelineFollow({ binding, sessionSec }: Props) {
         zoomPxPerSec: s.zoomPxPerSec,
         viewportPx: latest.current.binding.timeViewportPx,
       };
-      if (isPlayheadOffscreen({ ...view, scrollPx: s.scrollLeft })) {
-        moveTo(
-          revealTargetPx({
-            ...view,
-            canvasWidthPx: canvasWidth(s.zoomPxPerSec),
-          }),
-        );
+      const el = latest.current.binding.scrollRef.current;
+      if (el && isPlayheadOffscreen({ ...view, scrollPx: s.scrollLeft })) {
+        revealPlayhead(latest.current.binding, el, {
+          viewportPx: view.viewportPx,
+          canvasWidthPx: canvasWidth(s.zoomPxPerSec),
+        });
       }
     };
     return useDawStore.subscribe((s, prev) => {

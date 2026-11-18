@@ -89,6 +89,20 @@ describe("view.followPlayhead", () => {
     expect(announceStatus).toHaveBeenCalledWith("Following the playhead");
   });
 
+  it.each([
+    ["scrolls", true, 1],
+    ["does not scroll", false, 0],
+  ])("announces only when the timeline %s", async (_name, moved, calls) => {
+    const announceStatus = vi.fn();
+    useDawStore.setState({ announceStatus });
+    const off = playheadScrollRegistry.register("timeline", () => moved);
+
+    await execute("view.followPlayhead");
+
+    off();
+    expect(announceStatus).toHaveBeenCalledTimes(calls);
+  });
+
   it("does not announce when the timeline has nothing to scroll, as on the phone", async () => {
     const announceStatus = vi.fn();
     useDawStore.setState({ announceStatus, timelineFollowPlayhead: false });
