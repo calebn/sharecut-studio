@@ -387,7 +387,6 @@ describe("the audio a link's guest keeps", () => {
       ["match", "reject"],
       ["put", "throw"],
       ["put", "reject"],
-      ["delete", "reject"],
     ])(
       "returns the bytes after one request when %s %s",
       async (method, fault) => {
@@ -403,6 +402,33 @@ describe("the audio a link's guest keeps", () => {
         );
 
         expect(bytes.byteLength).toBe(3);
+        expect(fetchSpy).toHaveBeenCalledOnce();
+      },
+    );
+
+    it.each<Fault>(["throw", "reject"])(
+      "returns the bytes after one request when the link is forgotten while the request is held and delete %s",
+      async (fault) => {
+        const m = await load();
+        const fake = fakeCaches();
+        fake.faults.delete = fault;
+        vi.stubGlobal("caches", fake.storage);
+        const answer = gate();
+        const fetchSpy = stubFetch(answer.held());
+        const token = freshLink();
+
+        const pending = m.cachedFetchArrayBuffer(
+          `share:${token}`,
+          ref(0, "/x/0"),
+        );
+        await vi.waitFor(() => expect(fetchSpy).toHaveBeenCalledOnce());
+        await m.forgetLinkAudio(token);
+        const deletesBefore = fake.calls.delete;
+        answer.open();
+
+        expect((await pending).byteLength).toBe(3);
+        // The `finally` of the chunk call issued its own delete, which failed.
+        expect(fake.calls.delete).toBeGreaterThan(deletesBefore);
         expect(fetchSpy).toHaveBeenCalledOnce();
       },
     );
