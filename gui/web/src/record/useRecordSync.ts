@@ -136,6 +136,7 @@ export function useRecordSync(
   >(undefined);
   const joinSentRef = useRef(false);
   const seatSocketRef = useRef(false);
+  const keepErrorOnOpenRef = useRef(false);
   const phaseRef = useRef<"idle" | "connecting" | "open" | "backoff">("idle");
   const [restart, setRestart] = useState(0);
   const mode =
@@ -256,7 +257,11 @@ export function useRecordSync(
         phaseRef.current = "open";
         joinSentRef.current = false;
         setConnected(true);
-        setError(null);
+        if (keepErrorOnOpenRef.current) {
+          keepErrorOnOpenRef.current = false;
+        } else {
+          setError(null);
+        }
         if (modeRef.current === "join") {
           sendJoin();
         }
@@ -375,6 +380,7 @@ export function useRecordSync(
       joinSentRef.current = false;
       if (mode === "watch" && seatSocketRef.current) {
         seatSocketRef.current = false;
+        keepErrorOnOpenRef.current = true;
         setSnapshot(null);
         setRestart((n) => n + 1);
       }
