@@ -659,8 +659,20 @@ def test_undo_and_redo_never_end_a_link(minimal_project, sample_wav, actor):
     tokens = links_with_a_legacy_publish_step(minimal_project, sample_wav)
     client = TestClient(create_app())
     assert_every_link_answers(client, tokens)
-    listed = share_list_state(minimal_project)
     seq = itertools.count(1)
+    if actor == "editor":
+        wrote = client.post(
+            f"/api/review/{tokens['editor']}/daw/document/command",
+            json={
+                "type": "AddChapter",
+                "payload": {"title": "Mine", "time": 1.0},
+                "client_id": "editor-tab",
+                "client_seq": next(seq),
+                "role": "guest",
+            },
+        )
+        assert wrote.status_code == 200, wrote.text
+    listed = share_list_state(minimal_project)
 
     def move(command_type: str) -> None:
         payload = history_move(minimal_project)

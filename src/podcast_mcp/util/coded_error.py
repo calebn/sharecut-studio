@@ -58,6 +58,8 @@ _GUEST_MESSAGES = {
     "move_others_connected": "Someone else has this episode open. Ask them to close it, then move it.",
     "move_room_open": "A recording room is open for this episode. End it before moving the episode.",
     "no_mix": "No mix is available yet. Ask the host to refresh it.",
+    "nothing_of_yours_to_redo": "There is nothing of yours to redo. Redo brings back only what you undid.",
+    "nothing_of_yours_to_undo": "There is nothing of yours to undo. The latest change is someone else's.",
     "nothing_to_redo": "There is nothing to redo.",
     "nothing_to_undo": "There is nothing to undo.",
     "pending_edit_changed": "This edit changed since you reviewed it. Review the updated edit before trying again.",

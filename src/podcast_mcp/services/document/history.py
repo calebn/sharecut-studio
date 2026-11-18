@@ -110,7 +110,9 @@ class HistoryService:
         anyway comes back whole (``HistoryManager.apply_undo``)."""
         return self._move(
             "undo",
-            lambda project: self._mgr.apply_undo(project, expected_head_id=expected_head_id),
+            lambda project: self._mgr.apply_undo(
+                project, expected_head_id=expected_head_id, guest=self.ws.share_author
+            ),
             rerender=rerender,
         )
 
@@ -120,7 +122,9 @@ class HistoryService:
         """Redo the next entry, guarded by ``expected_head_id`` like ``undo``."""
         return self._move(
             "redo",
-            lambda project: self._mgr.apply_redo(project, expected_head_id=expected_head_id),
+            lambda project: self._mgr.apply_redo(
+                project, expected_head_id=expected_head_id, guest=self.ws.share_author
+            ),
             rerender=rerender,
         )
 
