@@ -8,6 +8,7 @@ import {
   useState,
 } from "react";
 import { loadHistoryDiff } from "../api";
+import { historyAvailability } from "../commands/historyAvailability";
 import { executePointerCommand } from "../commands/pointer";
 import { useLatestRequest } from "../hooks/useLatestRequest";
 import { useProjectMutation } from "../hooks/useProjectMutation";
@@ -39,11 +40,22 @@ type DiffView = {
 const NEEDS_EDITOR_REASON = "Undo and redo need Editor access.";
 
 export function HistoryPanel() {
-  const { project, projectPath, canEdit } = useDaw((s) => ({
-    project: s.project,
-    projectPath: s.projectPath,
-    canEdit: canApplyPass12(s.projectPath, s.guestMode, s.shareCapabilities),
-  }));
+  const { project, projectPath, guestMode, shareCapabilities } = useDaw(
+    (s) => ({
+      project: s.project,
+      projectPath: s.projectPath,
+      guestMode: s.guestMode,
+      shareCapabilities: s.shareCapabilities,
+    }),
+  );
+  const canEdit = canApplyPass12(projectPath, guestMode, shareCapabilities);
+  const guest = guestMode != null;
+  const available = historyAvailability({
+    project,
+    projectPath,
+    guestMode,
+    shareCapabilities,
+  });
   const { busy, error, run, setError } = useProjectMutation();
   const [view, setView] = useState<DiffView>({
     selected: null,
@@ -106,7 +118,6 @@ export function HistoryPanel() {
     return null;
   }
 
-  const { can_undo, can_redo } = project.history;
   const historyHydrated = project.meta.hydration?.history_groups !== false;
 
   const runHistoryAction = async (action: "undo" | "redo") => {
@@ -205,8 +216,10 @@ export function HistoryPanel() {
                 ? NEEDS_EDITOR_REASON
                 : busy
                   ? BUSY_REASON
-                  : !can_undo
-                    ? "Make an edit to undo it."
+                  : !available.undo.ok
+                    ? guest
+                      ? available.undo.reason
+                      : "Make an edit to undo it."
                     : undefined
             }
             onClick={() => void runHistoryAction("undo")}
@@ -219,8 +232,10 @@ export function HistoryPanel() {
                 ? NEEDS_EDITOR_REASON
                 : busy
                   ? BUSY_REASON
-                  : !can_redo
-                    ? "Undo an edit first to redo it."
+                  : !available.redo.ok
+                    ? guest
+                      ? available.redo.reason
+                      : "Undo an edit first to redo it."
                     : undefined
             }
             onClick={() => void runHistoryAction("redo")}
