@@ -1253,8 +1253,7 @@ until the press, and it sends nothing: no Join, no Heartbeat and no queued comme
 listen** sends Join on that same socket, with the name and the lease kept on this device,
 and Heartbeats start once the room has answered the Join; a press made while the socket is still
 connecting sends on open (if that socket closes before the room answers the Join, the page
-retries after a quarter of a second with a joining socket, not after the usual wait; if the socket is closed with 4403 instead, the page's access ends,
-unless the page holds a saved place, in which case the joining socket is tried and a 4403 on it ends the access), and one made while it waits to reconnect opens a joining socket at
+retries after a quarter of a second with a joining socket, not after the usual wait; a close with 4403 follows the 4403 rule below instead), and one made while it waits to reconnect opens a joining socket at
 once. The sheet stays on "Joining…" until the room confirms the producer. A non-terminal error
 before then returns the sheet to **Join to listen** with the reason under the listen line (the
 room's alert slot does not repeat it, and **Not now** clears it), and a second press sends Join
