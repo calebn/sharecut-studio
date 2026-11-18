@@ -381,8 +381,8 @@ void     sc_ffmpeg_cancel(int64_t session);
     smuggled into a filtergraph.
   - `dev/` or `proc/` at the start of the argument (after an optional `./` and one `/`) or after
     one of `= : , ; [ ] ( )` or a space, and the text `dev/std` or `proc/self`. `/dev/fd/3`,
-    `proc/1/fd/1` and `amovie=dev/fd/3` are rejected; `/Users/x/dev/notes.wav` and
-    `/Users/me/mydev/fdr/a.wav` pass.
+    `proc/1/fd/1` and `amovie=dev/fd/3` are rejected; `/srv/x/dev/notes.wav` and
+    `/srv/me/mydev/fdr/a.wav` pass.
   - `pipe:`, `fd:` or `file:` at the start of the argument or right after one of `= , ; [ ] ( ) |`
     or `/`, but not after a space, `-` or `_` or inside a word (`Gold file: draft.wav`,
     `Sub-file:2.wav`, `profile:1.wav` pass; `amovie=pipe:3`, `[f=wav]pipe:3`, `;file:x` and

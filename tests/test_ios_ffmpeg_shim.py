@@ -822,10 +822,10 @@ POLICY_REJECT.extend(
 )
 
 PLAIN_OK = [
-    ["-i", "/Users/x/dev/notes.wav", "/Users/x/dev/out.wav"],
-    ["-i", "/Users/me/mydev/fdr/a.wav", "/Users/me/mydev/fdr/b.wav"],
-    ["-i", "/Users/me/proc/a.wav", "/Users/me/mydevproc/b.wav"],
-    ["-i", "/Users/me/Gold file: draft.wav", "/Users/me/Sub-file:2.wav"],
+    ["-i", "/srv/x/dev/notes.wav", "/srv/x/dev/out.wav"],
+    ["-i", "/srv/me/mydev/fdr/a.wav", "/srv/me/mydev/fdr/b.wav"],
+    ["-i", "/srv/me/proc/a.wav", "/srv/me/mydevproc/b.wav"],
+    ["-i", "/srv/me/Gold file: draft.wav", "/srv/me/Sub-file:2.wav"],
     ["-i", "/x/hotpipe:1.wav", "/x/under_fd:2.wav"],
     ["-i", "./pipe:3", "./fd:3.wav"],
     ["-i", "a.wav", "-vf", "drawtext=text=Gold file: draft:x=1", "out.wav"],
