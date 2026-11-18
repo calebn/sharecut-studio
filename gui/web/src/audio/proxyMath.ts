@@ -343,6 +343,25 @@ export function chunkRefKey(ref: ImmutableChunkRef): string {
   return JSON.stringify([ref.kind, ref.artifactId, ref.hash, ref.index]);
 }
 
+/** Every chunk the manifest names, of every track and occurrence artifact. */
+export function manifestChunkRefs(
+  manifest: ProxyManifest,
+): ImmutableChunkRef[] {
+  const refs: ImmutableChunkRef[] = [];
+  const name = (
+    kind: ImmutableChunkRef["kind"],
+    descriptors: Readonly<Record<string, ProxyArtifactManifest>>,
+  ) => {
+    for (const [artifactId, { hash, urls }] of Object.entries(descriptors))
+      urls.forEach((url, index) =>
+        refs.push({ kind, artifactId, hash, index, url }),
+      );
+  };
+  name("track", manifest.tracks);
+  name("artifact", manifest.artifacts);
+  return refs;
+}
+
 export function chunkIndexForSource(srcSec: number, chunkSec: number): number {
   return chunkSec <= 0 ? 0 : Math.max(0, Math.floor(srcSec / chunkSec));
 }
