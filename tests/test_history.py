@@ -773,7 +773,7 @@ def test_a_history_move_keeps_the_versions_whatever_shape_the_snapshot_holds(min
     assert _review_state(proj) == (["ver-1"], "ver-1", [])
 
 
-def test_a_failed_commit_restore_still_brings_the_whole_review_section_back(minimal_project):
+def test_restoring_after_a_failed_commit_brings_the_whole_review_section_back(minimal_project):
     proj = load_project(minimal_project)
     proj.review.versions = [_version("ver-1")]
     proj.review.active_version_id = "ver-1"

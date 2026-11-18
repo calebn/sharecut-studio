@@ -6,7 +6,7 @@ import { goToStage } from "./stageNav";
 
 /**
  * An Editor's Undo and Redo move the episode's history and never take a
- * review link away: every link still opens the episode after each press, the
+ * review link away: every link opens the episode after each press, the
  * host's list of links is unchanged, no answer is a server error, and a press
  * with nothing to move to says so in words and does not read as a failed save.
  */

@@ -1258,7 +1258,7 @@ def test_a_mutation_that_changes_a_version_and_an_edit_still_records_its_step(
 
 
 @requires_safe_failed_cleanup
-def test_the_history_index_still_matches_the_project_after_a_publish(minimal_project, sample_wav):
+def test_the_history_index_matches_the_project_after_a_publish(minimal_project, sample_wav):
     from podcast_mcp.project.store import HistoryMatch, match_history_to_project
 
     ws = _seed_premix(minimal_project, sample_wav)
