@@ -370,6 +370,7 @@ export function buildSchedule(
   windowEndSec: number,
   manifest: ProxyManifest,
   volumeByTrack: Readonly<Record<string, readonly VolumePoint[]>> = {},
+  onMissing: "throw" | "skip" = "throw",
 ): ScheduledSlice[] {
   const out: ScheduledSlice[] = [];
   const {
@@ -406,7 +407,10 @@ export function buildSchedule(
     const descriptor = binding
       ? manifest.artifacts[artifactId]
       : manifest.tracks[artifactId];
-    if (!descriptor) throw new Error("Missing proxy descriptor for occurrence");
+    if (!descriptor) {
+      if (onMissing === "skip") continue;
+      throw new Error("Missing proxy descriptor for occurrence");
+    }
     const envelope: ClipEnvelope = {
       // The render applies the envelope of the lane the clip sits on, not the
       // lane its audio came from.
@@ -464,8 +468,10 @@ export function buildSchedule(
       )
         continue;
       const url = descriptor.urls[index];
-      if (index >= descriptor.chunk_count || !url)
+      if (index >= descriptor.chunk_count || !url) {
+        if (onMissing === "skip") continue;
         throw new Error("Missing proxy chunk for occurrence");
+      }
       out.push({
         chunk: {
           kind: binding ? "artifact" : "track",

@@ -1068,6 +1068,97 @@ describe("playing a timeline longer than the first window", () => {
     engine.dispose();
   });
 
+  describe("with a manifest that lags the clips", () => {
+    function lagBehind(snapshot: ReturnType<typeof episode>): void {
+      (snapshot.manifest as { tracks: ProxyManifest["tracks"] }).tracks = {};
+    }
+
+    it("reports the failure on play and still suspends and leaves the session", async () => {
+      const handle = makeCtx();
+      const failure = vi.fn();
+      const engine = new ProxyEngine(
+        handle.ctx,
+        async () => new ArrayBuffer(64),
+        engineEvents({ onFailure: failure }),
+      );
+      const snapshot = episode(400);
+      lagBehind(snapshot);
+      engine.setSnapshot(snapshot);
+      vi.mocked(leavePlaybackSession).mockClear();
+      engine.play(0);
+      await flush();
+      expect(failure).toHaveBeenCalledExactlyOnceWith(
+        expect.objectContaining({
+          message: "Missing proxy descriptor for occurrence",
+        }),
+        null,
+      );
+      expect(handle.suspend).toHaveBeenCalled();
+      expect(leavePlaybackSession).toHaveBeenCalled();
+      engine.dispose();
+    });
+
+    it("pauses without throwing and suspends", async () => {
+      const handle = makeCtx();
+      const engine = new ProxyEngine(
+        handle.ctx,
+        async () => new ArrayBuffer(64),
+        engineEvents(),
+      );
+      const snapshot = episode(400);
+      engine.setSnapshot(snapshot);
+      engine.play(0);
+      await flush();
+      lagBehind(snapshot);
+      vi.mocked(leavePlaybackSession).mockClear();
+      expect(() => engine.pause()).not.toThrow();
+      expect(handle.suspend).toHaveBeenCalled();
+      expect(leavePlaybackSession).toHaveBeenCalled();
+      engine.dispose();
+    });
+
+    it("disposes without throwing and closes the context", async () => {
+      const handle = makeCtx();
+      const engine = new ProxyEngine(
+        handle.ctx,
+        async () => new ArrayBuffer(64),
+        engineEvents(),
+      );
+      const snapshot = episode(400);
+      engine.setSnapshot(snapshot);
+      engine.play(0);
+      await flush();
+      lagBehind(snapshot);
+      expect(() => engine.dispose()).not.toThrow();
+      expect(handle.close).toHaveBeenCalledOnce();
+    });
+
+    it("keeps pumping without throwing", async () => {
+      const handle = makeCtx();
+      const failure = vi.fn();
+      const engine = new ProxyEngine(
+        handle.ctx,
+        async () => new ArrayBuffer(64),
+        engineEvents({ onFailure: failure }),
+      );
+      const snapshot = episode(400);
+      engine.setSnapshot(snapshot);
+      engine.play(0);
+      await flush();
+      lagBehind(snapshot);
+      const unhandled = vi.fn();
+      process.on("unhandledRejection", unhandled);
+      try {
+        await expect(advanceTo(handle, 10)).resolves.toBeUndefined();
+        await flush();
+      } finally {
+        process.off("unhandledRejection", unhandled);
+      }
+      expect(unhandled).not.toHaveBeenCalled();
+      engine.dispose();
+    });
+  });
+
   describe("while an extension is still fetching", () => {
     async function playUntilExtensionPending(rate = 1) {
       const handle = makeCtx();
