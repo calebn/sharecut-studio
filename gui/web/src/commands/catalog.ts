@@ -552,6 +552,7 @@ export const COMMANDS: Record<string, CommandDef> = {
     when: "editStage",
     notes:
       "Follow the playhead again during playback and bring it into view in the timeline (no default key)",
+    breaksFollow: true,
   },
   "view.waveformZoomIn": {
     id: "view.waveformZoomIn",
