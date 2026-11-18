@@ -310,8 +310,11 @@ class InProcessChild:
 
     A PIPE stream is an ``os.pipe`` pair, a file object is handed to the backend as is, and
     DEVNULL or ``None`` give the backend ``None``. ``pid`` is ``None``. A ``kill`` that the
-    backend ignores for ``KILL_GRACE_SEC`` ends the child with ``-9``, gives its pipes EOF and
-    abandons its thread. A backend that returns a non-int has failed with code ``1``.
+    backend ignores for ``KILL_GRACE_SEC`` ends the child with ``-9`` at once (``wait`` never
+    hangs) and abandons its thread. It releases only this side's pipe ends: a reader sees EOF
+    after the abandon only if the backend has closed its own stream ends on cancel (the native
+    ABI requires that); a backend that keeps them delays EOF until it returns. A backend that
+    returns a non-int has failed with code ``1``.
     A ``kill`` before the backend finishes always reports ``-9``, whatever the backend returns,
     as a SIGKILLed ``Popen`` does; one after completion changes nothing. A ``None`` stream is
     ``/dev/null`` here, never inherited from the parent as ``Popen`` would.
@@ -391,8 +394,9 @@ class InProcessChild:
         """Point the backend's pipe ends at /dev/null without closing their file objects.
 
         Closing a buffered end that a stuck backend is blocked in waits on its lock. The pipe
-        ends are released at once, so the caller's reads see EOF; the descriptor numbers stay
-        valid until the backend returns, so a late write cannot land on a reused descriptor.
+        ends are released at once (the caller's reads see EOF once the backend has closed its own
+        ends too); the descriptor numbers stay valid until the backend returns, so a late write
+        cannot land on a reused descriptor.
         """
         with self._fd_lock:
             if self._fds_closed or self._null_fd is None:

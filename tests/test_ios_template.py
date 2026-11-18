@@ -270,3 +270,54 @@ def test_a_failing_fix_aborts_the_phase_before_any_codesign(tmp_path: Path) -> N
 
 def test_the_phase_runs_with_errexit() -> None:
     assert phase_script().startswith("set -e\n")
+
+
+def app_target_block() -> str:
+    return TEMPLATE[TEMPLATE.index("targets:\n  {{app.name}}_iOS:\n") :]
+
+
+def test_the_app_target_has_exactly_one_settings_mapping_with_a_base_block() -> None:
+    block = app_target_block()
+    assert block.count("\n    settings:\n") == 1
+    assert block.count("\n      base:\n") == 1
+    assert TEMPLATE.count("\n  {{app.name}}_iOS:\n") == 1
+    assert TEMPLATE.count("targets:\n") == 1
+    assert [line for line in TEMPLATE.splitlines() if line.startswith("settings:")] == []
+
+
+def test_the_app_target_base_settings_are_exactly_these_keys_in_order() -> None:
+    block = app_target_block()
+    start = block.index("    settings:\n      base:\n") + len("    settings:\n      base:\n")
+    end = block.index("      groups: [app]\n", start)
+    keys = [line.split(":", 1)[0].strip() for line in block[start:end].splitlines()]
+    assert keys == [
+        "ENABLE_BITCODE",
+        "ENABLE_USER_SCRIPT_SANDBOXING",
+        "ARCHS",
+        "VALID_ARCHS",
+        "LIBRARY_SEARCH_PATHS[arch=x86_64]",
+        "LIBRARY_SEARCH_PATHS[arch=arm64]",
+        "ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES",
+        "EXCLUDED_ARCHS[sdk=iphoneos*]",
+        "OTHER_LDFLAGS",
+    ]
+    assert block[start:end].count("        ENABLE_BITCODE: false\n") == 1
+    assert "        ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES: true\n" in block[start:end]
+    assert "        EXCLUDED_ARCHS[sdk=iphoneos*]: x86_64\n" in block[start:end]
+
+
+def test_the_template_sets_no_dead_strip_override() -> None:
+    for name in ("DEAD_CODE_STRIPPING", "STRIP_STYLE"):
+        assert name not in TEMPLATE
+    assert TEMPLATE.count("groups: [app]") == 2
+
+
+def test_the_app_exports_its_native_ffmpeg_symbols_from_the_target_base_block() -> None:
+    targets = TEMPLATE[TEMPLATE.index("\ntargets:") :]
+    assert targets.count("\n    settings:\n") == 1
+    base = targets[
+        targets.index("    settings:\n      base:\n") : targets.index("      groups: [app]")
+    ]
+    assert base.count('OTHER_LDFLAGS: ["$(inherited)", "-Wl,-export_dynamic"]') == 1
+    assert TEMPLATE.count("OTHER_LDFLAGS") == 1
+    assert TEMPLATE.count("-Wl,") == 1
