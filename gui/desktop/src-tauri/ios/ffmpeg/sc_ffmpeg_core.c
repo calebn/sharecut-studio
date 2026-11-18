@@ -177,10 +177,22 @@ static int all_digits(const char *p) {
 }
 
 static int mentions_forbidden(const char *arg) {
-    static const char *const forbidden[] = {"pipe:", "fd:", "file:", "/dev/", "/proc/"};
-    for (size_t i = 0; i < sizeof forbidden / sizeof *forbidden; i++)
-        if (strstr(arg, forbidden[i])) return 1;
-    return 0;
+    static const char *const forbidden[] = {
+        "pipe:", "fd:", "file:", "/dev/", "/proc/", "dev/fd", "dev/stdin", "dev/stdout",
+        "dev/stderr", "proc/self",
+    };
+    if (strcmp(arg, "-stdin") == 0) return 1;
+    char *plain = malloc(strlen(arg) + 1);
+    if (!plain) return 1;
+    char *w = plain;
+    for (const char *r = arg; *r; r++)
+        if (*r != '\\' && *r != '\'' && *r != '"') *w++ = *r;
+    *w = '\0';
+    int found = 0;
+    for (size_t i = 0; i < sizeof forbidden / sizeof *forbidden && !found; i++)
+        found = strstr(plain, forbidden[i]) != NULL;
+    free(plain);
+    return found;
 }
 
 static int add_copy(struct session *s, int stream, int index, const char *prefix) {

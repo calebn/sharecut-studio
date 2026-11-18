@@ -5,6 +5,7 @@ from __future__ import annotations
 import ast
 import ctypes
 import errno
+import fcntl
 import os
 import random
 import re
@@ -720,6 +721,19 @@ POLICY_REJECT = [
     ["ffmpeg", "echo", "-i", "a.wav", "-vf", "movie=fd:1", "out.wav"],
     ["ffprobe", "echo", "-show_streams", "pipe:5"],
     ["ffprobe", "echo", "-", "-of", "json"],
+    ["ffmpeg", "echo", "-f", "lavfi", "-i", "amovie=pipe\\:3", "out.wav"],
+    ["ffmpeg", "echo", "-f", "lavfi", "-i", "amovie=pipe\\\\:3", "out.wav"],
+    ["ffmpeg", "echo", "-i", "a.wav", "-vf", "subtitles=p\\ipe\\\\:4", "out.wav"],
+    ["ffmpeg", "echo", "-i", "a.wav", "-vf", "movie='pipe':3", "out.wav"],
+    ["ffmpeg", "echo", "-i", "a.wav", "-vf", 'movie=f"d":1', "out.wav"],
+    ["ffmpeg", "echo", "-i", "a.wav", "-vf", "movie=fi'le':x", "out.wav"],
+    ["ffmpeg", "echo", "-stdin", "-i", "a.wav", "out.wav"],
+    ["ffmpeg", "echo", "-i", "a.wav", "out.wav", "-stdin"],
+    ["ffmpeg", "echo", "-i", "dev/fd/3", "out.wav"],
+    ["ffmpeg", "echo", "-i", "dev/stdin", "out.wav"],
+    ["ffmpeg", "echo", "-i", "a.wav", "dev/stdout"],
+    ["ffmpeg", "echo", "-i", "a.wav", "-vf", "movie=dev/stderr", "out.wav"],
+    ["ffmpeg", "echo", "-i", "proc/self/fd/3", "out.wav"],
 ]
 
 
@@ -755,6 +769,51 @@ def test_argv_policy_rejects_with_one_stderr_line(shim: Shim, argv: list[str]) -
     assert err.startswith(b"sc_ffmpeg: ") and err.endswith(b"\n") and err.count(b"\n") == 1
     assert shim.counters() == runs
     assert fd_count() == before
+
+
+def test_argv_copies_are_close_on_exec(shim: Shim) -> None:
+    with Pipes() as pipes:
+        session = shim.launch(["ffmpeg", "echo", "hold", "-i", "pipe:0", "pipe:1"], pipes)
+        lines = read_until(pipes.out_r, b"pipe:").decode().splitlines()
+        assert all(fcntl.fcntl(n, fcntl.F_GETFD) & fcntl.FD_CLOEXEC for n in numbers(lines))
+        shim.release()
+        assert shim.wait(session) == 0
+
+
+def test_progress_dash_maps_to_the_out_stream(shim: Shim) -> None:
+    argv = ["ffmpeg", "echo", "-progress", "-", "out.wav"]
+    with Pipes() as pipes:
+        session = shim.start(argv, -1, pipes.out_w, -1)
+        pipes.hand_over()
+        assert shim.wait(session) == 0
+    with Pipes() as pipes:
+        session = shim.start(argv, -1, -1, pipes.err_w)
+        pipes.hand_over()
+        assert shim.wait(session) == 1
+
+
+def test_argc_boundary_is_4096(shim: Shim) -> None:
+    for argc, expected in ((4096, 0), (4097, -errno.EINVAL)):
+        array = (ctypes.c_char_p * (argc + 1))(b"ffmpeg", b"echo", *[b"x"] * (argc - 2), None)
+        session = shim.start_raw(array, argc, -1, -1, -1)
+        assert (shim.wait(session) if session > 0 else session) == expected
+
+
+def test_second_concurrent_wait_gets_esrch(shim: Shim) -> None:
+    with Pipes() as pipes:
+        session = shim.hold("twice", pipes)
+        results: list[int] = []
+        waiters = [
+            threading.Thread(target=lambda: results.append(shim.wait(session))) for _ in "ab"
+        ]
+        for waiter in waiters:
+            waiter.start()
+        wait_for(lambda: len(results) == 1, "the losing waiter returns")
+        assert results == [-errno.ESRCH]
+        shim.release()
+        for waiter in waiters:
+            waiter.join(BOUND_SEC)
+    assert sorted(results) == [-errno.ESRCH, 0]
 
 
 def test_policy_rejects_a_stream_that_was_not_provided(shim: Shim) -> None:
