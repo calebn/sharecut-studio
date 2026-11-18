@@ -10,6 +10,7 @@ import {
   useOfflineAttention,
 } from "../../services/offlineQueue/offlineAttention";
 import { isShareProjectKey } from "../../shareMode";
+import { useReadsSavedCopy } from "../../state/savedCopy";
 import { useDaw } from "../../state/useDaw";
 import { useDocumentBusy } from "../../state/useDocumentBusy";
 import { latestSaveOutcome, type SaveState, saveStateOf } from "./saveState";
@@ -49,7 +50,7 @@ export function useSaveState(): {
 } {
   const projectPath = useDaw((s) => s.projectPath);
   const guest = isShareProjectKey(projectPath);
-  const unreachable = useDaw((s) => guest && s.shareCapabilities === null);
+  const unreachable = useReadsSavedCopy();
   const busy = useDocumentBusy(projectPath);
   const attention = useOfflineAttention(projectPath || null);
   const state = !projectPath
