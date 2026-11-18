@@ -780,7 +780,10 @@ class DocumentSyncService:
                 if audience == "guest":
                     from podcast_mcp.services.collaboration import sanitize_guest_document_event
 
-                    return sanitize_guest_document_event(reply)
+                    return {
+                        **sanitize_guest_document_event(reply),
+                        "_history_owners": self.ws.project.history.step_owners(),
+                    }
                 return reply
 
             before = None
