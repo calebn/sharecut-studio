@@ -1269,8 +1269,10 @@ describe("GuestRoomApp", () => {
       await screen.findByRole("button", { name: "Join to listen" }),
     );
     await waitFor(() => expect(sockets).toHaveLength(1));
-    sockets[0].close = vi.fn();
+    const close = vi.fn();
+    sockets[0].close = close;
     await screen.findByRole("button", { name: /Joining/ });
+    return close;
   }
   const sendError = (code: string) =>
     act(() =>
@@ -1282,14 +1284,14 @@ describe("GuestRoomApp", () => {
   it.each(["invalid_state", "rate_limited", "something_new"])(
     "returns the sheet with the reason when Join fails with %s, and a second press tries again",
     async (code) => {
-      await pressJoinToListen();
+      const close = await pressJoinToListen();
       await sendError(code);
       const again = await screen.findByRole("button", {
         name: "Join to listen",
       });
       expect(again).toBeEnabled();
       expect(screen.getByRole("alert")).toBeVisible();
-      expect(sockets[0].close).not.toHaveBeenCalled();
+      expect(close).not.toHaveBeenCalled();
       await userEvent.click(again);
       await waitFor(() => {
         expect(
@@ -1304,7 +1306,7 @@ describe("GuestRoomApp", () => {
 
   it("leaves no alert in the room after a second press succeeds", async () => {
     await pressJoinToListen();
-    await sendError("invalid_state");
+    sendError("invalid_state");
     expect(screen.getByRole("alert")).toHaveTextContent(REFUSED);
     await userEvent.click(
       await screen.findByRole("button", { name: "Join to listen" }),
@@ -1331,7 +1333,7 @@ describe("GuestRoomApp", () => {
 
   it("shows the new reason when a second press is refused too", async () => {
     await pressJoinToListen();
-    await sendError("invalid_state");
+    sendError("invalid_state");
     await userEvent.click(
       await screen.findByRole("button", { name: "Join to listen" }),
     );
@@ -1340,7 +1342,7 @@ describe("GuestRoomApp", () => {
         sockets[0].sent.filter((raw) => raw.includes('"Join"')),
       ).toHaveLength(2);
     });
-    await sendError("rate_limited");
+    sendError("rate_limited");
     await screen.findByRole("button", { name: "Join to listen" });
     expect(screen.getByRole("alert")).toHaveTextContent(
       recordSyncErrorCopy("rate_limited") ?? "",

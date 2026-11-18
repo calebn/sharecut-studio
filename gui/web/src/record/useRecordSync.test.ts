@@ -1064,6 +1064,32 @@ describe("useRecordSync", () => {
       ).toBe("1");
     });
 
+    it("does not restart a joining socket that was answered when the mode returns to watch", async () => {
+      vi.useFakeTimers();
+      vi.spyOn(Math, "random").mockReturnValue(0.9);
+      const hook = watching("watch");
+      await settle();
+      hook.rerender({ m: "join" });
+      await act(async () => {
+        FakeWebSocket.instances[0].close(1006);
+      });
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(300);
+      });
+      expect(FakeWebSocket.instances).toHaveLength(2);
+      await act(async () => {
+        FakeWebSocket.instances[1].emit({
+          plane: "record",
+          type: "Echo",
+          participant_id: "p_prod",
+          lease: "kept",
+        });
+      });
+      hook.rerender({ m: "watch" });
+      await settle();
+      expect(FakeWebSocket.instances).toHaveLength(2);
+    });
+
     it("retries a press made while connecting at once when the server then refuses the look", async () => {
       vi.useFakeTimers();
       vi.spyOn(Math, "random").mockReturnValue(0.9);
