@@ -329,3 +329,17 @@ def test_a_symlinked_root_info_plist_is_named(tmp_path: Path) -> None:
     (app / "elsewhere.plist").write_bytes(plistlib.dumps({"CFBundleIdentifier": APP_ID}))
     (app / "Info.plist").symlink_to(app / "elsewhere.plist")
     assert "symlinked Info.plist" in " ".join(checks.check_layout(app).problems)
+
+
+@pytest.mark.parametrize(
+    "relative", ["Main.storyboardc/Info.plist", "Base.lproj/Main.storyboardc/Info.plist"]
+)
+def test_a_symlinked_storyboard_info_plist_is_named(tmp_path: Path, relative: str) -> None:
+    app = framework_app(tmp_path, {})
+    nested = app / relative
+    nested.parent.mkdir(parents=True)
+    nested.symlink_to(app / "Info.plist")
+    assert any(
+        "symlinked Info.plist" in problem and relative in problem
+        for problem in checks.check_layout(app).problems
+    )
