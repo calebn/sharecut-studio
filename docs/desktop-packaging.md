@@ -345,19 +345,24 @@ void     sc_ffmpeg_cancel(int64_t session);
 - **argv.** `argv[0]` is the tool name, `ffmpeg` or `ffprobe` (Python maps the sentinel). The array
   has `argc` strings and a NULL slot. Native copies every string before `start` returns.
 - **Sessions.** `start` returns an id >= 1 (never reused in a process) or `-errno`, and leaves no
-  dup behind on failure. `wait` returns an exit code in 0..255 or `-errno` (`-ESRCH` for an
-  unknown or already-waited id). `cancel` is idempotent and a no-op for an unknown id. It asks the
-  session to stop and closes the session's dups of the caller's in, out and err fds before it
-  returns, or at the latest within 5 s (the Python `KILL_GRACE_SEC`), even if the media work has
-  not finished, and closes each dup at most once. `cancel` itself must return promptly and must
-  wake any native thread blocked in a read or write. `wait` may still return later. A caller's
-  reader of a pipe sees EOF only when both the native's dups are closed (on `cancel`) and the
+  dup behind on failure (it returns `-EMFILE` when the first start cannot create its discard
+  stream). `wait` returns an exit code in 0..255 or `-errno` (`-ESRCH` for an unknown or
+  already-waited id). `cancel` is idempotent and a no-op for an unknown id. It asks the session to
+  stop, closes the session's original dups of the caller's in, out and err fds, and returns
+  promptly. From that moment the session's stdout and stderr streams (`sc_out()`, `sc_err()`) are
+  redirected to a discard stream, so no new output reaches the caller. The streams the worker
+  already holds stay open until the tool returns, and a write already blocked on a full pipe is not
+  woken by `cancel` (neither Darwin nor Linux wakes it when its own dup is closed): it returns with
+  `EPIPE` when the caller's reader closes its end (SIGPIPE is ignored), which the Python bridge does
+  within `KILL_GRACE_SEC`. Until then `wait` and every queued session wait behind it. A caller's
+  reader of a pipe sees EOF only when the native's dups are closed (when the tool returns) and the
   caller-side write end is released; Python releases that end when `wait` returns, or after
-  `KILL_GRACE_SEC` at the latest, so after a kill the reader can be blocked for up to that grace.
-  A native that ignores `cancel` or keeps its dups does not hang `run` or `wait` (Python reports
-  `-9` after the grace) but gives no EOF until its session ends. There are no callbacks.
-  A NUL in argv is rejected only inside the backend (exit 1, where `subprocess` raises
-  `ValueError`): an accepted, fail-closed divergence.
+  `KILL_GRACE_SEC` at the latest, so after a kill the reader can be blocked for up to that grace. A
+  native that ignores `cancel` does not hang `run` or `wait` (Python reports `-9` after the grace)
+  but gives no EOF until its session ends. Limitations: two overlapping sessions must not be given
+  the same pipe, and a thread of a finished session must not call the tool's exit path later. There
+  are no callbacks. A NUL in argv is rejected only inside the backend (exit 1, where `subprocess`
+  raises `ValueError`): an accepted, fail-closed divergence.
 - **File descriptors.** `-1` means none. Native `dup()`s each fd >= 0 before `start` returns and
   closes its dups when the session ends; the caller owns and closes its own fds and native never
   closes them. A dup shares the file offset, so a caller reading a tempfile stderr back must
