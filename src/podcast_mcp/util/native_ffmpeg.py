@@ -90,7 +90,7 @@ def install_native_backend() -> bool:
     with _install_lock:
         if _installed is not None:
             return True
-        if host_platform.current().media_tools != "in_process" or not is_available():
+        if not is_available():
             return False
         stack = contextlib.ExitStack()
         try:

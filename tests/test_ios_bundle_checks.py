@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import errno
+import inspect
 import json
 import plistlib
 from pathlib import Path
@@ -413,6 +415,49 @@ def test_a_missing_ffmpeg_binary_is_a_problem(
     app = make_app(tmp_path, {"ShareCut": MACHO})
     report = checks.check_ffmpeg_framework(app, fake_nm(FFMPEG_NM))
     assert report.problems == ("Frameworks/FFmpeg.framework/FFmpeg is missing",)
+
+
+def test_a_symlinked_ffmpeg_binary_is_a_problem(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(checks, "FFMPEG_EMBEDDED", True)
+    app = make_app(tmp_path, {"Frameworks/FFmpeg.framework/real": MACHO})
+    (app / checks.FFMPEG_BINARY).symlink_to("real")
+    report = checks.check_ffmpeg_framework(app, fake_nm(FFMPEG_NM))
+    assert report.problems == ("Frameworks/FFmpeg.framework/FFmpeg is missing",)
+
+
+def test_an_unreadable_ffmpeg_binary_is_a_problem(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def unreadable(path: Path) -> bool:
+        raise PermissionError(errno.EACCES, "denied")
+
+    monkeypatch.setattr(checks, "FFMPEG_EMBEDDED", True)
+    monkeypatch.setattr(checks, "is_macho", unreadable)
+    report = checks.check_ffmpeg_framework(ffmpeg_app(tmp_path), fake_nm(FFMPEG_NM))
+    assert len(report.problems) == 1 and "is unreadable" in report.problems[0]
+
+
+def test_every_nm_consumer_defaults_to_xcrun() -> None:
+    for function in (
+        checks.imported_symbols,
+        checks.exported_symbols,
+        checks.check_ffmpeg_framework,
+    ):
+        assert inspect.signature(function).parameters["runner"].default is checks.xcrun_nm
+
+
+def test_the_default_runner_asks_xcrun_nm(monkeypatch: pytest.MonkeyPatch) -> None:
+    calls: list[list[str]] = []
+
+    def capture(command: list[str]) -> str:
+        calls.append(command)
+        return "_x\n"
+
+    monkeypatch.setattr(checks, "capture", capture)
+    assert checks.exported_symbols(Path("bin")) == {"x"}
+    assert calls == [["xcrun", "nm", "-gU", "-j", "bin"]]
 
 
 def test_a_binary_over_the_size_budget_fails(

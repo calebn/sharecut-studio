@@ -8,6 +8,8 @@ case "$PLAT" in
   sim) SDK=iphonesimulator; PLATFORM_NAME=iPhoneSimulator ;;
   *) echo "usage: $0 <device|sim>" >&2; exit 2 ;;
 esac
+export PATH="/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin"
+command -v xcrun >/dev/null || { echo "xcrun not found: this build needs Xcode and the $PLATFORM_NAME SDK" >&2; exit 1; }
 
 ROOT=$(cd "$(dirname "$0")/../.." && pwd)
 CONTRACT=$ROOT/contracts/ffmpeg-build.json
@@ -22,7 +24,6 @@ WORK=$BUILD/framework
 MINOS=17.0
 JOBS=${SC_FFMPEG_JOBS:-$(sysctl -n hw.ncpu)}
 
-export PATH="/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin"
 export LC_ALL=C TZ=UTC ZERO_AR_DATE=1
 
 pin() {
@@ -33,7 +34,6 @@ for key in sys.argv[2].split("."):
 print("\n".join(node) if isinstance(node, list) else node)' "$CONTRACT" "$1"
 }
 
-command -v xcrun >/dev/null || { echo "xcrun not found: this build needs Xcode and the $PLATFORM_NAME SDK" >&2; exit 1; }
 if [ "$PLAT" = device ]; then MIN="-miphoneos-version-min=$MINOS"; else MIN="-mios-simulator-version-min=$MINOS"; fi
 SYSROOT=$(xcrun --sdk "$SDK" --show-sdk-path)
 CLANG=$(xcrun --sdk "$SDK" -f clang)
@@ -120,7 +120,6 @@ LIBS="libavdevice libavfilter libavformat libavcodec libswresample libswscale li
 TOOL_OBJS="fftools/cmdutils.o fftools/ffmpeg_dec.o fftools/ffmpeg_demux.o fftools/ffmpeg_enc.o fftools/ffmpeg_filter.o fftools/ffmpeg_hw.o fftools/ffmpeg_mux.o fftools/ffmpeg_mux_init.o fftools/ffmpeg_opt.o fftools/ffmpeg_sched.o fftools/opt_common.o fftools/sync_queue.o fftools/thread_queue.o fftools/graph/graphprint.o fftools/resources/graph.css.o fftools/resources/graph.html.o fftools/resources/resman.o fftools/textformat/avtextformat.o fftools/textformat/tf_compact.o fftools/textformat/tf_default.o fftools/textformat/tf_flat.o fftools/textformat/tf_ini.o fftools/textformat/tf_json.o fftools/textformat/tf_mermaid.o fftools/textformat/tf_xml.o fftools/textformat/tw_avio.o fftools/textformat/tw_buffer.o fftools/textformat/tw_stdout.o"
 LIB_ARCHIVES=""
 for lib in $LIBS; do LIB_ARCHIVES="$LIB_ARCHIVES $lib/$lib.a"; done
-# shellcheck disable=SC2086
 nice -n 10 make -j"$JOBS" $LIB_ARCHIVES $TOOL_OBJS > "$BUILD/ffmpeg-make.log" 2>&1
 
 rm -rf "$WORK"; mkdir -p "$WORK"
@@ -128,11 +127,9 @@ TOOL_FLAGS=$(printf 'print:\n\t@echo $(CPPFLAGS) $(CFLAGS)\n' | make -s -f ffbui
 PLAIN_FLAGS=${TOOL_FLAGS//-include sc_fftools_stdio.h/}
 PLAIN_FLAGS=${PLAIN_FLAGS//-include sc_exit_map.h/}
 compile_tool() {
-  # shellcheck disable=SC2086
   $CC $TOOL_FLAGS -I. -I"$FFSRC" -Wno-missing-prototypes "${@:2}" -c "$1" -o "$WORK/$(basename "$1" .c).o"
 }
 compile_plain() {
-  # shellcheck disable=SC2086
   $CC $PLAIN_FLAGS -I. -I"$FFSRC" -c "$1" -o "$WORK/$(basename "$1" .c).o"
 }
 compile_plain "$GLUE/sc_ffmpeg_core.c"
@@ -143,7 +140,6 @@ compile_tool "$GLUE/sc_ffprobe_tool.c" -Dmain=sc_ffprobe_main -Dprogram_name=ffp
 printf '_sc_ffmpeg_abi_version\n_sc_ffmpeg_start\n_sc_ffmpeg_wait\n_sc_ffmpeg_cancel\n' > "$WORK/exports.txt"
 FW=$OUT/FFmpeg.framework
 rm -rf "$FW"; mkdir -p "$FW"
-# shellcheck disable=SC2086
 $CC -dynamiclib -o "$FW/FFmpeg" -install_name @rpath/FFmpeg.framework/FFmpeg -compatibility_version 1 -current_version "$(pin version)" \
   -exported_symbols_list "$WORK/exports.txt" -Wl,-dead_strip -Wl,-x \
   "$WORK/sc_ffmpeg_core.o" "$WORK/sc_ffmpeg_glue.o" "$WORK/sc_ffmpeg_tool.o" "$WORK/sc_ffprobe_tool.o" $TOOL_OBJS $LIB_ARCHIVES \

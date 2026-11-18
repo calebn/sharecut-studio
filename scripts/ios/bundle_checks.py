@@ -171,15 +171,12 @@ def imported_symbols(app: Path, runner: NmRunner = xcrun_nm) -> dict[str, frozen
 
 
 def exported_symbols(binary: Path, runner: NmRunner = xcrun_nm) -> frozenset[str]:
-    """Defined external symbols of one Mach-O, without the leading underscore."""
     return frozenset(
         name.removeprefix("_") for name in runner(binary, ["-gU", "-j"]).split() if name
     )
 
 
 def check_ffmpeg_framework(app: Path, runner: NmRunner = xcrun_nm) -> CheckReport:
-    """The embedded FFmpeg framework exports exactly the four ``sc_ffmpeg_*`` names and fits the
-    size budget. A no-op while ``FFMPEG_EMBEDDED`` says the app does not carry it yet."""
     if not FFMPEG_EMBEDDED:
         return CheckReport("ffmpeg framework", facts={"status": "not embedded yet"})
     binary = app / FFMPEG_BINARY

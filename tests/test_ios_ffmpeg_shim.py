@@ -578,6 +578,51 @@ def test_randomized_stray_writes_after_the_session_ended_never_touch_a_freed_fil
     assert fd_count() == before
 
 
+def test_output_the_tool_never_flushed_still_reaches_its_own_session(shim: Shim) -> None:
+    code, out, _ = shim.run(["ffmpeg", "unflushed"])
+    assert code == 0 and out == b"unflushed\n"
+
+
+def test_buffered_stray_output_is_dropped_before_the_next_session_starts(shim: Shim) -> None:
+    with Pipes() as first:
+        session = shim.launch(["ffmpeg", "capture"], first)
+        assert shim.wait(session) == 0
+        shim.cdll.fake_stray_write()
+        assert read_until(first.out_r) == b""
+    code, out, _ = shim.run(["ffmpeg", "echo"])
+    assert code == 0 and out.startswith(b"tool=0\n")
+
+
+def fd_links() -> dict[int, str]:
+    links = {}
+    for name in os.listdir(FD_DIR):
+        try:
+            links[int(name)] = os.readlink(f"{FD_DIR}/{name}")
+        except OSError:
+            continue
+    return links
+
+
+def inheritable(target: str) -> list[int]:
+    return [
+        fd
+        for fd, link in fd_links().items()
+        if fd >= 3 and link == target and os.get_inheritable(fd)
+    ]
+
+
+def test_the_persistent_stream_descriptors_never_leak_into_children(shim: Shim) -> None:
+    with Pipes() as pipes:
+        session = shim.hold("cloexec", pipes)
+        pipe = f"pipe:[{os.fstat(pipes.out_r).st_ino}]"
+        assert list(fd_links().values()).count(pipe) >= 2
+        assert inheritable(pipe) == []
+        shim.release()
+        assert shim.wait(session) == 0
+    assert list(fd_links().values()).count("/dev/null") >= 3
+    assert inheritable("/dev/null") == []
+
+
 def test_writes_after_non_owner_exit_go_to_discard(shim: Shim) -> None:
     with Pipes() as pipes:
         session = shim.launch(["ffmpeg", "thread-exit:7", "bigerr"], pipes)
@@ -642,8 +687,12 @@ EXHAUST_SCRIPT = textwrap.dedent(
     after = count()
     assert after == before, (before, after)
     assert lib.sc_out() and lib.sc_err()
-    for _ in range(3):
+    for _ in (1, 2):
         os.close(held.pop())
+        mark = count()
+        assert lib.sc_ffmpeg_start(2, array, -1, -1, -1) == -errno.EMFILE
+        assert count() == mark
+    os.close(held.pop())
     session = lib.sc_ffmpeg_start(2, array, -1, -1, -1)
     assert session >= 1, session
     assert lib.sc_ffmpeg_wait(session) == 0
