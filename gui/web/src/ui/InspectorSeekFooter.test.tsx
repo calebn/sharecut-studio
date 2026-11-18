@@ -15,6 +15,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  vi.restoreAllMocks();
   clearRegisteredCommands();
 });
 
@@ -70,7 +71,6 @@ describe("InspectorSeekFooter", () => {
     );
     await user.click(screen.getByRole("button", { name: "Play around" }));
     expect(spy).toHaveBeenCalledWith(10, 12, 0.5);
-    spy.mockRestore();
   });
 
   it("says why it cannot play", async () => {

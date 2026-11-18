@@ -11,11 +11,8 @@ export function playComment(c: TimelineComment): void {
     c.timeline_start,
     c.timeline_end ?? c.timeline_start,
     PAD_SEC,
+    // beginAudition does not break follow, and follow must be off before playback starts.
+    () => s.stopFollow("local"),
   );
-  if (r.status === "disabled") {
-    s.announceStatus(r.reason, { tone: "error" });
-    return;
-  }
-  // beginAudition does not break follow, so break it once playback starts.
-  s.stopFollow("local");
+  if (r.status === "disabled") s.announceStatus(r.reason, { tone: "error" });
 }
