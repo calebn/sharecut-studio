@@ -107,6 +107,19 @@ describe("view.followPlayhead", () => {
     expect(useDawStore.getState().followingClientId).toBeNull();
   });
 
+  it("reports no project and leaves the flag alone when none is open", async () => {
+    useDawStore.setState({ timelineFollowPlayhead: false, project: null });
+    const timeline = vi.fn(() => true);
+    const off = playheadScrollRegistry.register("timeline", timeline);
+
+    const result = await execute("view.followPlayhead", {}, { skipWhen: true });
+
+    off();
+    expect(result.status).toBe("disabled");
+    expect(followFlag()).toBe(false);
+    expect(timeline).not.toHaveBeenCalled();
+  });
+
   it("is disabled outside the Edit stage", async () => {
     useDawStore.setState({ stage: "deliver" });
     expect((await execute("view.followPlayhead")).status).toBe("disabled");

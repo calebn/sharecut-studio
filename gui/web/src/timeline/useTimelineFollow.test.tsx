@@ -248,6 +248,19 @@ describe("TimelineFollow", () => {
     expect(flag()).toBe(false);
   });
 
+  it("a browser clamp that lands a fraction of a pixel off does not clear the flag", () => {
+    left = 2600;
+    useDawStore.setState({ scrollLeft: 2600, playheadSec: 270 });
+    const view = render(<Harness />);
+    act(() => raf.fire(0));
+    clientWidth = 600;
+    scrollWidth = 3000.3;
+    left = 2400.2;
+    view.rerender(<Harness timeViewportPx={600} />);
+    scrollEvent();
+    expect(flag()).toBe(true);
+  });
+
   it("is inert with a fixed playhead", () => {
     render(<Harness fixedPlayhead />);
     tick(50);
