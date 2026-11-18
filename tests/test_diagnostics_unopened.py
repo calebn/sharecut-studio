@@ -176,7 +176,7 @@ def test_a_healthy_bundle_has_exactly_its_fifteen_keys_and_no_statement(
     members = _members(response.json()["path"])
     report = json.loads(members["report.json"])
     assert sorted(report) == BASE_KEYS
-    assert report["project"]["schema_version"] == "2.2"
+    assert report["project"]["schema_version"] == "2.3"
     assert STATEMENT not in members["README.txt"]
 
 

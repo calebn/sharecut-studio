@@ -5,7 +5,7 @@ from typing import Any
 
 from podcast_mcp.util.coded_error import CodedValueError
 
-SUPPORTED_PROJECT_VERSION = "2.2"
+SUPPORTED_PROJECT_VERSION = "2.3"
 
 Step = Callable[[dict[str, Any]], None]
 
@@ -18,11 +18,16 @@ def _add_transcript_asr_language(data: dict[str, Any]) -> None:
     """2.1 to 2.2: ``Transcript.asr_language`` is new and absent means no language was recorded."""
 
 
+def _add_history_entry_authors(data: dict[str, Any]) -> None:
+    """2.2 to 2.3: ``HistoryEntry.author`` and ``undone_by`` are new and absent means unknown."""
+
+
 # One entry per released format: the version it moves to, and the edit that moves a document
 # there. Shared by `podcast episode upgrade` and the in-memory migration in `load_project`.
 STEPS: dict[str, tuple[str, Step]] = {
     "2.0": ("2.1", _add_timeline_join_fade_limit),
     "2.1": ("2.2", _add_transcript_asr_language),
+    "2.2": ("2.3", _add_history_entry_authors),
 }
 
 
