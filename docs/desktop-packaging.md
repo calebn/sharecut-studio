@@ -333,8 +333,10 @@ int      sc_ffmpeg_wait(int64_t session);
 void     sc_ffmpeg_cancel(int64_t session);
 ```
 
-- **Binding.** ctypes `CDLL` (never `PyDLL`: `PyDLL` keeps the GIL, so a blocked `wait` would stop
-  the cancel watcher). The module loads nothing at import. `is_available()` returns `False` on a
+- **Binding.** ctypes `CDLL(None)` is the standard loader; it only finds the symbols. Python
+  rebuilds each prototype with `CFUNCTYPE` from the function's address, and that is what releases
+  the GIL during a call, so a blocked `wait` does not stop the cancel watcher. The module loads
+  nothing at import. `is_available()` returns `False` on a
   host whose `media_tools` is not `in_process` before any ctypes call; elsewhere it looks the four
   names up in this process (`dlopen(NULL)`) and calls `sc_ffmpeg_abi_version` only. A missing
   symbol or a version other than 1 is unavailable, and nothing is installed.
@@ -345,9 +347,15 @@ void     sc_ffmpeg_cancel(int64_t session);
   unknown or already-waited id). `cancel` is idempotent and a no-op for an unknown id. It asks the
   session to stop and closes the session's dups of the caller's in, out and err fds before it
   returns, or at the latest within 5 s (the Python `KILL_GRACE_SEC`), even if the media work has
-  not finished: the caller's reader of a pipe then sees EOF. `wait` may still return later. A
-  native that ignores `cancel` or keeps its dups does not hang `run` or `wait` (Python reports
+  not finished, and closes each dup at most once. `cancel` itself must return promptly and must
+  wake any native thread blocked in a read or write. `wait` may still return later. A caller's
+  reader of a pipe sees EOF only when both the native's dups are closed (on `cancel`) and the
+  caller-side write end is released; Python releases that end when `wait` returns, or after
+  `KILL_GRACE_SEC` at the latest, so after a kill the reader can be blocked for up to that grace.
+  A native that ignores `cancel` or keeps its dups does not hang `run` or `wait` (Python reports
   `-9` after the grace) but gives no EOF until its session ends. There are no callbacks.
+  A NUL in argv is rejected only inside the backend (exit 1, where `subprocess` raises
+  `ValueError`): an accepted, fail-closed divergence.
 - **File descriptors.** `-1` means none. Native `dup()`s each fd >= 0 before `start` returns and
   closes its dups when the session ends; the caller owns and closes its own fds and native never
   closes them. A dup shares the file offset, so a caller reading a tempfile stderr back must
