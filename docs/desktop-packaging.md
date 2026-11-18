@@ -324,9 +324,10 @@ lib (a `staticlib`) with Python.xcframework linked into it; there is no sidecar 
 <a id="ios-native-ffmpeg-abi"></a>
 **iOS native FFmpeg ABI (#3974, stage 3 slice 6a).** `src/podcast_mcp/util/native_ffmpeg.py`
 holds `NativeFFmpegBackend`, the `InProcessBackend` that runs `in-process:ffmpeg` and
-`in-process:ffprobe` argv on four C functions the app exports. No native library implements them
-yet and no host row uses the backend; slice 6b adds the library and the bundle check that its
-symbols survive linking (`nm` on the app executable), which this slice does not have.
+`in-process:ffprobe` argv on four C functions the app exports. The portable session core
+(`gui/desktop/src-tauri/ios/ffmpeg/sc_ffmpeg_core.c`) is in tree and the FFmpeg glue lands
+separately; no host row uses the backend yet, and the bundle check that the symbols survive linking
+(`nm` on the app executable) is still to come.
 
 ```c
 int      sc_ffmpeg_abi_version(void);   /* must return 1 */
@@ -345,8 +346,9 @@ void     sc_ffmpeg_cancel(int64_t session);
 - **argv.** `argv[0]` is the tool name, `ffmpeg` or `ffprobe` (Python maps the sentinel). The array
   has `argc` strings and a NULL slot. Native copies every string before `start` returns.
 - **Sessions.** `start` returns an id >= 1 (never reused in a process) or `-errno`, and leaves no
-  dup behind on failure (it returns `-EMFILE` when the first start cannot create its discard
-  stream). `wait` returns an exit code in 0..255 or `-errno` (`-ESRCH` for an unknown or
+  dup behind on failure. It returns `-errno` from the `open`, `F_DUPFD` or `fdopen` that creates the
+  discard stream (typically `-EMFILE`) and retries on every start until that stream exists. At most
+  16 sessions wait in the queue: a further `start` returns `-EAGAIN`. `wait` returns an exit code in 0..255 or `-errno` (`-ESRCH` for an unknown or
   already-waited id). `cancel` is idempotent and a no-op for an unknown id. It asks the session to
   stop, closes the session's original dups of the caller's in, out and err fds, and returns
   promptly. From that moment the session's stdout and stderr streams (`sc_out()`, `sc_err()`) are
@@ -363,6 +365,16 @@ void     sc_ffmpeg_cancel(int64_t session);
   the same pipe, and a thread of a finished session must not call the tool's exit path later. There
   are no callbacks. A NUL in argv is rejected only inside the backend (exit 1, where `subprocess`
   raises `ValueError`): an accepted, fail-closed divergence.
+- **Argv policy.** For `ffmpeg` the core inserts `-nostdin` at `argv[1]`. A bare `-` after `-i` or
+  `-progress`, or as the last argument, and `pipe:N` / `fd:N` (N = 0, 1 or 2) in those positions are
+  rewritten to a private dup numbered >= 3, never 0..2. The core rejects `-stdin`, a `-` anywhere
+  else, a stream that was not provided, and any argument that contains `pipe:`, `fd:`, `file:`,
+  `/dev/`, `/proc/`, `dev/fd`, `dev/stdin`, `dev/stdout`, `dev/stderr` or `proc/self`; that scan
+  ignores every backslash, single quote and double quote, so filtergraph escaping such as
+  `amovie=pipe\\:3` does not hide a token. A rejected session still returns a valid id; its `wait`
+  returns `1` after one `sc_ffmpeg: ...` line on stderr and the tool never runs. Cancelling a queued
+  session makes `wait` return `255` and the tool never runs. An exit code outside 0..255 becomes
+  `1`, and `sc_tool_exit` codes are masked with `0xff`.
 - **File descriptors.** `-1` means none. Native `dup()`s each fd >= 0 before `start` returns and
   closes its dups when the session ends; the caller owns and closes its own fds and native never
   closes them. A dup shares the file offset, so a caller reading a tempfile stderr back must

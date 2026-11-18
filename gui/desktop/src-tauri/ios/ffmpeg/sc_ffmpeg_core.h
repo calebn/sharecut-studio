@@ -16,6 +16,8 @@ FILE *sc_out(void);
 FILE *sc_err(void);
 void sc_tool_exit(int code);
 
+/* sc_glue_reset and sc_glue_interrupt run with the core lock held: keep them quick and never call
+   sc_ffmpeg_*, sc_out, sc_err or sc_tool_exit from them. */
 int sc_glue_run(int tool, int argc, char **argv);
 void sc_glue_reset(void);
 void sc_glue_interrupt(void);
