@@ -67,10 +67,31 @@ base("the geometry title sets name existing stories", () => {
   ).toEqual([]);
 });
 
-base("every storybook-only story id names a real story", () => {
-  const ids = new Set(stories.map((story) => story.id));
-  expect(STORYBOOK_ONLY.filter((id) => !ids.has(id))).toEqual([]);
-});
+const STORYBOOK_ONLY_IDS = [
+  "stages-edit-workspace--loading",
+  "stages-edit-trackcolumn--loading",
+  "templates-timeline--loading",
+  "stages-deliver-podcast-listing--writing",
+  "stages-review-host--find-more",
+  "stages-review-host--find-more-busy",
+  "stages-review-host--queue",
+  "stages-review-host--queue-phone",
+  "stages-review-host--unsure-words",
+  "stages-review-host--unsure-words-phone",
+  "stages-edit-speakerpopover--open",
+];
+
+base(
+  "exactly the stories the in-browser sweep cannot run carry storybook-only",
+  () => {
+    expect(
+      stories
+        .filter((story) => story.tags?.includes("storybook-only"))
+        .map((story) => story.id)
+        .sort(),
+    ).toEqual([...STORYBOOK_ONLY_IDS].sort());
+  },
+);
 
 base("no phone-named story is tagged wide-only", () => {
   expect(
