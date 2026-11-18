@@ -2,13 +2,13 @@ import { useEffect } from "react";
 import { COMMANDS } from "../commands/catalog";
 import { buildCommandContext, evaluateWhen } from "../commands/context";
 import { execute } from "../commands/execute";
+import { announceFailure } from "../commands/refusal";
 import { useDawStore } from "../state/dawStore";
 import {
   keymapHandoff,
   overlayOpen,
   subscribeModalOpen,
 } from "../ui/modalGate";
-import { errorMessage } from "../utils/apiError";
 import {
   argsFromKeyEvent,
   ignoresKeyRepeat,
@@ -128,7 +128,7 @@ export function useDawKeymapListener(): void {
           }
           const gate = evaluateWhen(def.when, ctx);
           if (!gate.ok) {
-            if (def.announcesGate && !e.repeat) {
+            if (def.announcesGate && ctx.hasProject && !e.repeat) {
               e.preventDefault();
               useDawStore
                 .getState()
@@ -165,11 +165,7 @@ export function useDawKeymapListener(): void {
               skipWhen: true,
             });
           } catch (error) {
-            useDawStore
-              .getState()
-              .announceStatus(`${def.label} failed: ${errorMessage(error)}`, {
-                tone: "error",
-              });
+            announceFailure(def.label, error);
             return;
           }
           if (

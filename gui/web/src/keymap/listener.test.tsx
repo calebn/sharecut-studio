@@ -579,6 +579,15 @@ it("Mod+Z with nothing to undo does not send the command (#2168)", async () => {
   expect(undoHistory).toHaveBeenCalledTimes(1);
 });
 
+it("Mod+Z with no project open stays silent", async () => {
+  render(<KeymapHost />);
+  vi.mocked(undoHistory).mockClear();
+  useDawStore.setState({ project: null, statusAnnouncement: "" });
+  await pressModZ(false);
+  expect(undoHistory).not.toHaveBeenCalled();
+  expect(useDawStore.getState().statusAnnouncement).toBe("");
+});
+
 it("Mod+Z tells an Editor there is nothing of theirs to undo, without sending it", async () => {
   render(<KeymapHost />);
   vi.mocked(undoHistory).mockClear();
