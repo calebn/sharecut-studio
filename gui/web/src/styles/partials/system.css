@@ -514,10 +514,10 @@ button.sys-version-line::after {
   align-items: center;
 }
 
-/* A press on the sentence closes the hint, so on touch the bubble is a press target. Its 44 px X sets the height, with no padding above or below, and the bubble sits closer to the bar so two lines end above the first line of text. Larger text grows the bubble and may reach that line. */
+/* A press on the sentence closes the hint, so on touch the bubble is a press target at least 44 px tall: the X is taken out of the height sum by the margin that cancels the bubble's block padding, so the height is the taller of text plus padding and 44 px, and larger text keeps its padding above and below. The bubble sits closer to the bar so two lines end above the first line of text at the default size. */
 @media (pointer: coarse) {
-  .sys-role-hint .sys-coach-tip {
-    padding-block: 0;
+  .sys-role-hint .sys-coach-close {
+    margin-block: calc(-1 * var(--space-1));
   }
 
   .sys-role-hint .sys-coach-tip--below {
