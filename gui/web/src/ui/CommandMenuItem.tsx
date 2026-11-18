@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { announceFailure } from "../commands/refusal";
 import { ariaKeyShortcutsFor, displayShortcutFor } from "../keymap/registry";
 import { MenuItem } from "./Menu";
 import { useCommand } from "./useCommand";
@@ -63,7 +64,9 @@ export function CommandMenuItem({
       keyShortcuts={keyShortcuts}
       onSelect={() => {
         onSelect?.();
-        void run(args, { skipWhen: !respectWhen });
+        run(args, { skipWhen: !respectWhen }).catch((error: unknown) =>
+          announceFailure(label, error),
+        );
       }}
     >
       {children ?? (short ? shortLabel : label)}
