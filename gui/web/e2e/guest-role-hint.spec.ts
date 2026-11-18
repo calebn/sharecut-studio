@@ -245,7 +245,7 @@ test.describe("the first-visit role hint's box on a touch screen", () => {
   // The tallest the bubble may be at 200% text, by width. The Viewer's one line takes the smallest cap of its width.
   const LARGE_TEXT_HEIGHT: Record<number, Record<Role, number>> = {
     390: { viewer: 112, commenter: 112, editor: 112 },
-    320: { viewer: 176, commenter: 176, editor: 208 },
+    320: { viewer: 144, commenter: 176, editor: 208 },
   };
   for (const size of PHONES) {
     test(`is 44 px tall in every role, clear of the Commenter's first line of text and inside the window, and at 200% text cuts nothing, keeps the X on screen and stays under its height cap at ${size.width}x${size.height}`, async ({

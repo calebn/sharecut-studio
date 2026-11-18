@@ -134,8 +134,9 @@ and 320 px wide. At larger text it grows with its text and may reach that line.
 On a desktop it is 40 px tall.
 
 A saved copy opened offline shows no hint and writes no flag. The copy opens
-read-only, so the link's role is not known there. Once the server answers, the
-link's own role shows its hint once.
+read-only, so the link's role is not known there. The next load that reaches
+the server shows the link's own role and its hint once. A saved copy that is
+already open does not change until it is reloaded.
 
 In a private window, or with browser storage blocked, nothing can remember the
 dismissal, so the hint returns on the next load.

@@ -348,6 +348,7 @@ describe("StageFrame roles", () => {
     const quiet = useDawStore.getState().statusAnnouncementSeq;
     mount();
     expect(spoken()).toHaveLength(0);
+    expect(screen.queryByText(/The host decides/)).toBeNull();
     expect(useDawStore.getState().statusAnnouncementSeq).toBe(quiet);
     localStorage.removeItem("sharecut.roleHintSeen.commenter");
   });
@@ -392,6 +393,7 @@ describe("StageFrame roles", () => {
   it("shows a host no role hint", () => {
     mount();
     expect(screen.queryByRole("note")).toBeNull();
+    expect(screen.queryByText(/The host decides/)).toBeNull();
   });
 
   it("puts the phone tab bar under the stage on a phone", () => {

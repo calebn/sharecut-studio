@@ -283,6 +283,9 @@ describe("App review route", () => {
     expect(
       screen.getByText("This page tries again every 30 seconds."),
     ).toBeVisible();
+    // The cover focuses its title in a passive effect, which runs after the
+    // heading is found: flush it once, as React does, before asserting.
+    await act(async () => {});
     expect(screen.getByRole("heading", { level: 1 })).toHaveFocus();
     expect(screen.getByRole("main")).not.toHaveAttribute("tabindex");
     reachable = true;
@@ -333,6 +336,9 @@ describe("App review route", () => {
         level: 1,
         name: "This link did not load",
       });
+      // The cover focuses its title in a passive effect, which runs after the
+      // heading is found: flush it once, as React does, before asserting.
+      await act(async () => {});
       expect(title).toHaveFocus();
       expect(screen.getByRole("main")).not.toHaveAttribute("tabindex");
       expect(screen.getByText(sentence)).toBeVisible();
@@ -639,7 +645,11 @@ describe("App review route", () => {
 
     it("is told so, with the page's words, when the first load fails", async () => {
       render(<App />);
-      expect(await offlineCover()).toHaveFocus();
+      const cover = await offlineCover();
+      // The cover focuses its title in a passive effect, which runs after the
+      // heading is found: flush it once, as React does, before asserting.
+      await act(async () => {});
+      expect(cover).toHaveFocus();
       expect(
         screen.getByText(
           "This page opens the episode by itself when your connection is back.",

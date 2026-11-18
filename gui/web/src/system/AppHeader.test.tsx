@@ -6,7 +6,7 @@ import {
   waitFor,
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { useState } from "react";
+import { StrictMode, useState } from "react";
 import { describe, expect, it, vi } from "vitest";
 import { ScriptDivider } from "../stage/edit/ScriptDivider";
 import { expectNoA11yViolations } from "../test/a11y";
@@ -634,6 +634,27 @@ describe("AppHeader as a guest", () => {
       expect(trigger).toHaveFocus();
     },
   );
+
+  it("says an automatic hint once even where development runs effects twice", () => {
+    const onShown = vi.fn();
+    const hint = {
+      text: "You can comment.",
+      shown: true,
+      onDismiss: vi.fn(),
+      onShown,
+    };
+    render(
+      <StrictMode>
+        <AppHeader
+          title="Episode 14"
+          save={SAVE}
+          guest={{ version: "v3", role: "commenter", hint }}
+        />
+      </StrictMode>,
+    );
+    expect(screen.getByRole("note")).toBeVisible();
+    expect(onShown).toHaveBeenCalledTimes(1);
+  });
 
   it("starts a fresh hint lifetime when the guest role changes", () => {
     const hint = { text: "Role details.", shown: true, onDismiss: vi.fn() };
