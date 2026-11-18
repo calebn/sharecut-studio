@@ -32,7 +32,7 @@ my_episode/
 | `social` | Social clip candidates |
 | `feed` | The podcast listing's stored state: `show_id`, the minted `guid` and `first_exported_at`, and `pins` ([Feed](#feed)). Undo and redo restore it |
 | `review` | Timeline comments and action items (session-clock feedback) |
-| `history` | Undo/redo cursor and snapshot index |
+| `history` | Undo/redo cursor and snapshot index; each entry names its `author` (`host`, `agent`, `system` or `share:<id>`) and, once undone, who undid it (`undone_by`) |
 | `document_sync` | `last_command`: the document-plane command saved on the same commit as its apply, for crash recovery (#575, [session-sync.md § Command identity and retries](session-sync.md#command-identity-and-retries)). Not an editable layer; undo/redo never restore it |
 
 `history` is always an object: a project with no recorded snapshots saves an empty `ProjectHistory` (`{"cursor": -1, "entries": []}`), and a legacy `"history": null` loads as that empty history. An empty saved history adopts `history/index.json` only when the index's current entry matches the saved editable state ([history.md § Storage layout](history.md#storage-layout)). A track's optional `room_tone`, `room_tone_origin`, `gate_fill` and `proxy` are saved as `null` when absent; `schemas/episode.project.schema.json` accepts that, so a file written by `save_project` validates as-is.
@@ -175,7 +175,7 @@ Undo/redo restores snapshot → `ProjectStore.commit()` updates `episode.sharecu
 
 ## Version policy
 
-Only **`version: "2.2"`** is supported. `2.1` added `timeline.join_fade_max_ms`; `2.2` added `transcripts.per_track[].asr_language`. A `2.0` or `2.1` file opens and is upgraded in memory (written as `2.2` by the next save); other older or newer versions and flat layouts are refused at load time with a coded error; `podcast episode upgrade --project <old episode.sharecut> --output <new workspace dir>` writes a `2.2` copy of a `2.0` or `2.1` workspace and leaves the source unchanged ([project-format.md](project-format.md#upgrade-after-a-real-format-break)).
+Only **`version: "2.3"`** is supported. `2.1` added `timeline.join_fade_max_ms`; `2.2` added `transcripts.per_track[].asr_language`; `2.3` added `history.entries[].author` and `undone_by` (who wrote a history step and who undid it; `null` on a step an older build wrote). A `2.0`, `2.1` or `2.2` file opens and is upgraded in memory (written as `2.3` by the next save); other older or newer versions and flat layouts are refused at load time with a coded error; `podcast episode upgrade --project <old episode.sharecut> --output <new workspace dir>` writes a `2.3` copy of a `2.0`, `2.1` or `2.2` workspace and leaves the source unchanged ([project-format.md](project-format.md#upgrade-after-a-real-format-break)).
 
 ## Prior art
 

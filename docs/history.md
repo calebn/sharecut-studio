@@ -21,6 +21,7 @@ the server. A history command waiting behind older queued edits is refused
 until those edits are sent. Undo and Redo are unavailable offline. On a share
 link only the host and an Editor can Undo or Redo: a Viewer or Commenter gets a
 disabled command ("Undo needs Editor access") and nothing is sent to the server.
+An Editor's Undo and Redo move only their own step ([Whose step a guest can move](#whose-step-a-guest-can-move)).
 
 The browser may retain a history command briefly in its IndexedDB queue to
 reserve its place relative to other edits. History commands are never replayed.
@@ -88,7 +89,7 @@ Undo/redo restores the snapshot and **`ProjectStore.commit()`** writes `episode.
 
 A published review version is made once, like the feed's guid, and is not undoable state. Undo, Redo and go-to-step restore `review.comments` from the snapshot but keep the project's own `review.versions` and `review.active_version_id` (`apply_editable_snapshot(..., keep_review_versions=True)`), and never read the snapshot's `versions`. `snapshots_equal` ignores both fields, like `render_last_completed_step`, so a change that touches only review versions records no step, whoever makes it, once the history has an entry (when it is empty, the first such change records the episode's starting entry, which Undo cannot move below): publishing, choosing the active version, encoding the review mp3, uploading it to the object store and clearing the key all run through `ProjectWorkspace.mutate` with the same checkpoint, rollback and commit and no `before` / `after` entry, so making a share link adds no step and the next edit's Undo is one press. A mutation that changes a version and anything else is an edit and records a step. Histories an older build wrote may hold `before` / `after publish review version` entries; moving onto one changes no review data. Only the failed-commit restore and `apply_auto` put the snapshot's whole review section back.
 
-An Undo or Redo with nothing to move to raises `CodedValueError` with code `nothing_to_undo` or `nothing_to_redo` (host route 400, MCP `error_code`, guest 400 with "There is nothing to undo." / "There is nothing to redo."), and a refused Undo leaves the in-memory cursor where it was.
+An Undo or Redo with nothing to move to raises `CodedValueError` with code `nothing_to_undo` or `nothing_to_redo` (host route 400, MCP `error_code`, guest 400 with "There is nothing to undo." / "There is nothing to redo."; a guest whose latest step is someone else's gets `nothing_of_yours_to_undo` / `nothing_of_yours_to_redo`, below), and a refused Undo leaves the in-memory cursor where it was.
 
 Snapshot files and the project store's transcript cache are written atomically (a temp file in the same directory, then a replace), so a crash leaves the old file or the new one and never a truncated one.
 
@@ -261,6 +262,23 @@ labels and params (they can embed local paths) but keep the opaque `head_id`
 A guest editor's Mod+Z or two-finger tap sends it like the host's, so a guest cannot
 revert an agent edit it never received. A guest command reply carries
 `history_head_id` too.
+
+## Whose step a guest can move
+
+Every `HistoryEntry` records its `author` (project format 2.3): `host` (the app's own person and the CLI), `agent` (an MCP tool call), `system` (a job's own steps, including the `after merging concurrent edits` entry) or `share:<registry id>` (a guest, stamped by the guest's workspace itself, so no guest route passes it). `undone_by` records who took the step back. Both are `null` on a step an older build wrote, which is never a guest's. The value rides a ContextVar read once where an entry is built (`project/history/author.py`).
+
+A guest's Undo takes back only the step they wrote, and their Redo brings back only a step they undid. The rule is pure on `ProjectHistory` (`undo_target`, `redo_target`, `step_owners`):
+
+- Undo judges the latest entry that is not a `render_preview` (the automatic mix that lands after an edit never blocks). It must be the guest's own. A host edit, another guest's step, a comment or suggestion decision by someone else, a pipeline step, a merge entry and a pre-2.3 entry all block, because a whole-snapshot stack cannot skip a step without removing it too.
+- Redo judges the first entry after the cursor that is not a `render_preview`. Its `undone_by` must be the guest's own `share:<id>`. When the host undid a guest's edit, the guest cannot redo it.
+- A refusal is `CodedValueError` code `nothing_of_yours_to_undo` ("There is nothing of yours to undo. The latest change is someone else's.", HTTP 400, guest MCP the same text) or `nothing_of_yours_to_redo` ("There is nothing of yours to redo. Redo brings back only what you undid."). It runs after the stale-head and `nothing_to_*` checks and before anything is applied, so the project file and `history/index.json` are untouched. The host, host MCP and CLI pass no guest and behave as before.
+- `goto` stays host only.
+
+The guest view carries only two booleans, `can_undo` and `can_redo`, true for that viewer under this rule. The hub event holds the internal owners (`_history_owners`, read under the project lock), and `sanitize_guest_document_event(viewer=...)` turns them into the viewer's flags on the guest's hello, state read, reply, socket frames and project view. No author id, label or path leaves the server, and the shared guest delta stays the same for every guest.
+
+The host's Undo and Redo keep their mechanics and may take back a guest's edit or comment. `HistoryMoveResult.guest_step` is true when the entry moved has a `share:` author, the document reply carries it to the host's tab, and the page announces "Undid a guest's change." or "Redid a guest's change.". A guest's own reply and views never carry it.
+
+In the web app one selector, `commands/historyAvailability.ts`, answers Undo and Redo for every role: Viewer and Commenter get "needs Editor access", an Editor and the host get the flag, and Undo also counts a save in flight. The keys, palette rows, two-finger tap, header, Inspector sheet and History tab read it, so they never disagree. A key press the selector turns away is not sent and says why (for a guest, the server's sentence). The five history refusal codes (`history_stale`, `nothing_to_undo`, `nothing_to_redo` and the two above) are told once and never filed as a conflict in Needs attention.
 
 **Toast Undo.** A document command's reply carries `history_head_id`: the entry the
 command left at the head, read in the same locked step as its apply. It is null when
