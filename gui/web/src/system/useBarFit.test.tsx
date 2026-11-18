@@ -39,11 +39,13 @@ describe("findFitLevel", () => {
 describe("useBarFit", () => {
   let lowest = 0;
   let resize: (() => void) | null = null;
+  let observed = false;
   const original = Element.prototype.getBoundingClientRect;
 
   beforeEach(() => {
     lowest = 0;
     resize = null;
+    observed = false;
     // A bar 400 px wide whose right column runs out of it until `lowest`
     // levels of the bar have been given up.
     Element.prototype.getBoundingClientRect = function rect(this: Element) {
@@ -73,10 +75,14 @@ describe("useBarFit", () => {
     vi.stubGlobal(
       "ResizeObserver",
       class {
+        callback: () => void;
         constructor(callback: () => void) {
-          resize = callback;
+          this.callback = callback;
         }
-        observe() {}
+        observe() {
+          observed = true;
+          resize = this.callback;
+        }
         disconnect() {}
       },
     );
@@ -113,6 +119,7 @@ describe("useBarFit", () => {
     const { container } = render(<Player {...base} />);
     expect(fit(container)).toBe("1");
     lowest = 5;
+    expect(observed).toBe(true);
     resize?.();
     expect(fit(container)).toBe("5");
   });

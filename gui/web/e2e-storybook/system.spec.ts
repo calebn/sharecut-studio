@@ -1038,6 +1038,70 @@ for (const pointer of ["fine", "coarse"] as const) {
   });
 }
 
+test("System/Player each fit level gives up one more thing, in order (#2576)", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1400, height: 400 });
+  await page.emulateMedia({ colorScheme: "light", reducedMotion: "reduce" });
+  const story = "system-player--following-partial";
+  await page.goto(storyUrl(story, { theme: "light" }));
+  await expect(page.locator(".sys-player")).toBeVisible();
+  await emit(page, "updateStoryArgs", {
+    storyId: story,
+    updatedArgs: {
+      ...MS,
+      ...HOST,
+      ...CUTS,
+      rate: 2,
+      following: FOLLOWING,
+      solo: "Rosa",
+      state: "mix-updating",
+      ...STALE,
+    },
+  });
+  await expect(page.locator(".sys-player-solo")).toBeVisible();
+  // Wide enough that develop's rules hide nothing, so the levels alone decide.
+  const gives = [
+    "pill text",
+    "Following detail",
+    "skip buttons",
+    "cuts",
+    "hear chevron",
+    "other pills",
+  ];
+  for (let level = 0; level <= 6; level++) {
+    const hidden = await page.evaluate((fit) => {
+      const host = document.querySelector<HTMLElement>(".sys-player-host");
+      if (!host) throw new Error("no host");
+      host.dataset.fit = String(fit);
+      const gone = (selector: string) => {
+        const els = [...host.querySelectorAll<HTMLElement>(selector)];
+        return (
+          els.length > 0 &&
+          els.every((el) => {
+            const r = el.getBoundingClientRect();
+            return r.width <= 1.5 || r.height <= 1.5;
+          })
+        );
+      };
+      return [
+        gone(".sys-player-pill-text"),
+        gone(".sys-player-pill-detail"),
+        gone(".sys-player-skip"),
+        gone(".sys-player-cuts"),
+        gone(".sys-player-hear-more"),
+        gone(
+          ".sys-player-following, .sys-player-solo, .sys-player-mix, .sys-player-rate",
+        ),
+      ];
+    }, level);
+    expect(
+      hidden.map((gone, index) => (gone ? gives[index] : null)).filter(Boolean),
+      `at level ${level}`,
+    ).toEqual(gives.slice(0, level));
+  }
+});
+
 test("System/Marker a chapter's span leaves the lane under it to the marker beneath", async ({
   page,
 }) => {
