@@ -1,3 +1,4 @@
+import { playSpan } from "../../commands/playSpan";
 import {
   PLAY_DENIED_REASON,
   runRangeAction,
@@ -14,7 +15,6 @@ import {
 import type { OfflineConflict } from "../../services/offlineQueue/offlineStore";
 import { hasShareCapability } from "../../shareMode";
 import { useDawStore } from "../../state/dawStore";
-import { playTimelineRange } from "../../utils/playRange";
 import { formatTimeShort } from "../../utils/time";
 
 const HEAR_PAD_SEC = 2;
@@ -88,15 +88,12 @@ export function conflictRowActions(projectPath: string): Actions {
         tell(HEAR_NEEDS_PROJECT);
         return;
       }
-      playTimelineRange({
-        start: found.suggestion.startSec,
-        end: found.suggestion.endSec,
-        padSec: HEAR_PAD_SEC,
-        beginAudition: state.beginAudition,
-        setPlayheadSec: state.setPlayheadSec,
-        setPlayUntilSec: state.setPlayUntilSec,
-        setIsPlaying: state.setIsPlaying,
-      });
+      const r = playSpan(
+        found.suggestion.startSec,
+        found.suggestion.endSec,
+        HEAR_PAD_SEC,
+      );
+      if (r.status === "disabled") tell(r.reason);
     },
     onDrop: (row) =>
       once(row, async () => {

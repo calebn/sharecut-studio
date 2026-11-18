@@ -1,9 +1,11 @@
 import { hasShareCapability, isShareProjectKey } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
 import { transportAvailability } from "../state/transportAvailability";
-import { playTimelineRange } from "../utils/playRange";
+import {
+  DEFAULT_AUDITION_PAD_SEC,
+  playTimelineRange,
+} from "../utils/playRange";
 import { PLAY_DENIED_REASON } from "./rangeActions";
-import { seekTransport } from "./seek";
 import type { ExecuteResult } from "./types";
 
 type DawState = ReturnType<typeof useDawStore.getState>;
@@ -20,7 +22,7 @@ function playGate(s: DawState): string | null {
 export function playSpan(
   start: number,
   end: number,
-  padSec: number,
+  padSec = DEFAULT_AUDITION_PAD_SEC,
 ): ExecuteResult {
   const s = useDawStore.getState();
   const reason = playGate(s);
@@ -30,9 +32,6 @@ export function playSpan(
     end,
     padSec,
     beginAudition: s.beginAudition,
-    setPlayheadSec: (sec) => void seekTransport(sec),
-    setPlayUntilSec: s.setPlayUntilSec,
-    setIsPlaying: s.setIsPlaying,
   });
   return { status: "ok" };
 }

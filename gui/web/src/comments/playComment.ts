@@ -1,21 +1,18 @@
-import { seekTransport } from "../commands/seek";
+import { playSpan } from "../commands/playSpan";
 import { useDawStore } from "../state/dawStore";
 import type { TimelineComment } from "../types/project";
-import { playTimelineRange } from "../utils/playRange";
 
 const PAD_SEC = 2;
 
-export async function playComment(c: TimelineComment): Promise<void> {
-  useDawStore.getState().setSelection({ kind: "comment", id: c.id });
-  await seekTransport(c.timeline_start);
+export function playComment(c: TimelineComment): void {
   const s = useDawStore.getState();
-  playTimelineRange({
-    start: c.timeline_start,
-    end: c.timeline_end ?? c.timeline_start,
-    padSec: PAD_SEC,
-    beginAudition: s.beginAudition,
-    setPlayheadSec: s.setPlayheadSec,
-    setPlayUntilSec: s.setPlayUntilSec,
-    setIsPlaying: s.setIsPlaying,
-  });
+  s.setSelection({ kind: "comment", id: c.id });
+  // beginAudition does not break follow, so break it here.
+  s.stopFollow("local");
+  const r = playSpan(
+    c.timeline_start,
+    c.timeline_end ?? c.timeline_start,
+    PAD_SEC,
+  );
+  if (r.status === "disabled") s.announceStatus(r.reason, { tone: "error" });
 }

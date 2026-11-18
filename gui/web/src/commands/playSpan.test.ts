@@ -32,6 +32,13 @@ describe("playSpan", () => {
     expect(playSpan(10, 12, 0.5)).toEqual({ status: "ok" });
   });
 
+  it("pads by the default audition pad when none is given", () => {
+    expect(playSpan(10, 12)).toEqual({ status: "ok" });
+    const s = useDawStore.getState();
+    expect(s.playheadSec).toBe(9.5);
+    expect(s.playUntilSec).toBe(12.5);
+  });
+
   it("plays the padded span and ends armed with its stop bound", () => {
     expect(playSpan(10, 12, 0.5)).toEqual({ status: "ok" });
     const s = useDawStore.getState();

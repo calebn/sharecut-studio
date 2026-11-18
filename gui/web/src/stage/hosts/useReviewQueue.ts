@@ -20,6 +20,7 @@ import {
   releaseSessionPreview,
   warmSessionPreview,
 } from "../../audio/pendingPreview";
+import { playSpan } from "../../commands/playSpan";
 import {
   executePointerCommand,
   runPointerCommand,
@@ -77,7 +78,6 @@ import {
   type HeldCut,
   heldReasonText,
 } from "../../utils/pendingReviewPass";
-import { playTimelineRange } from "../../utils/playRange";
 import { useStableCallback } from "../../utils/useStableCallback";
 import { useReviewAttention } from "./useReviewAttention";
 import { useReviewComments } from "./useReviewComments";
@@ -807,17 +807,10 @@ export function useReviewQueue(guestShare = false) {
           .announceStatus("This word is not on the timeline.", {
             tone: "error",
           });
-      const { beginAudition, setPlayheadSec, setPlayUntilSec, setIsPlaying } =
-        useDawStore.getState();
-      return playTimelineRange({
-        start: at,
-        end: endSec ?? at,
-        padSec: HEAR_PAD_SEC,
-        beginAudition,
-        setPlayheadSec,
-        setPlayUntilSec,
-        setIsPlaying,
-      });
+      const r = playSpan(at, endSec ?? at, HEAR_PAD_SEC);
+      if (r.status === "disabled")
+        useDawStore.getState().announceStatus(r.reason, { tone: "error" });
+      return;
     }
     const suggestionId = sessionIdOf(id);
     if (suggestionId) {

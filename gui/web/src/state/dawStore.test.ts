@@ -371,6 +371,22 @@ describe("dawStore listen-first transport", () => {
     expect(s.playUntilSec).toBe(3);
   });
 
+  it("beginAudition leaves a followed editor alone and clears a source preview", () => {
+    useDawStore.setState({ followingClientId: "remote-editor" });
+    useDawStore.getState().beginSourcePreview({
+      ownerId: "word",
+      startSec: 1,
+      endSec: 3,
+      media: { kind: "rendered", url: "u" },
+    });
+    const gen = useDawStore.getState().sourcePreviewGeneration;
+    useDawStore.getState().beginAudition({ playheadSec: 1, untilSec: 3 });
+    const s = useDawStore.getState();
+    expect(s.followingClientId).toBe("remote-editor");
+    expect(s.sourcePreview).toBeNull();
+    expect(s.sourcePreviewGeneration).toBe(gen + 1);
+  });
+
   it("a transport seek during an audition clears the stop bound and keeps playing", async () => {
     registerDawCommands();
     useDawStore.setState({

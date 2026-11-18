@@ -1,11 +1,11 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { clearRegisteredCommands } from "../commands/execute";
 import { registerDawCommands } from "../commands/register";
 import { useDawStore } from "../state/dawStore";
 import { expectNoA11yViolations } from "../test/a11y";
-import { minimalProject } from "../test/fixtures";
+import { minimalProject, sampleTrack } from "../test/fixtures";
 import { InspectorSeekFooter } from "./InspectorSeekFooter";
 
 beforeEach(() => {
@@ -21,7 +21,10 @@ describe("InspectorSeekFooter", () => {
   beforeEach(() => {
     useDawStore
       .getState()
-      .hydrate("/tmp/test/episode.sharecut", minimalProject());
+      .hydrate(
+        "/tmp/test/episode.sharecut",
+        minimalProject({ tracks: [sampleTrack()] }),
+      );
     useDawStore.setState({
       playheadSec: 0,
       playUntilSec: null,
@@ -51,6 +54,21 @@ describe("InspectorSeekFooter", () => {
     expect(s.playheadSec).toBe(9.5);
     expect(s.playUntilSec).toBe(12.5);
     expect(s.isPlaying).toBe(true);
+  });
+
+  it("says why it cannot play", async () => {
+    const user = userEvent.setup();
+    const announce = vi.fn();
+    useDawStore.setState({ announceStatus: announce });
+    useDawStore
+      .getState()
+      .hydrate("/tmp/test/episode.sharecut", minimalProject());
+    render(<InspectorSeekFooter seekSec={10} playStart={10} playEnd={12} />);
+    await user.click(screen.getByRole("button", { name: "Play around" }));
+    expect(useDawStore.getState().isPlaying).toBe(false);
+    expect(announce).toHaveBeenCalledWith("Import audio to play.", {
+      tone: "error",
+    });
   });
 
   it("hides play when showPlay is false", () => {
