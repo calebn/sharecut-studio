@@ -3235,6 +3235,9 @@ def test_a_look_that_joins_with_a_lease_on_a_closed_invite_stays_open_as_a_seat(
     svc = _room_svc(ws, room)
     with _observe(client, room) as obs:
         assert obs.receive_json()["snapshot"]["watchers"] == 1
+        # The look hears nothing from here until it has joined: no event reaches its pump, so
+        # the outcome does not depend on how fast the pump runs.
+        lose["dropping"] = True
         keeper, _snap = svc.join(
             share_id=room["producer"]["id"],
             role="producer",
@@ -3244,8 +3247,6 @@ def test_a_look_that_joins_with_a_lease_on_a_closed_invite_stays_open_as_a_seat(
             capabilities=["join", "monitor"],
         )
         svc.disconnect(keeper["participant_id"], connection_id="kay-conn")
-        # The look hears nothing of the closure, then rejoins with a valid lease.
-        lose["dropping"] = True
         _close_the_producer_invite(ws, room)
         _join(obs, name="Kay", participant_id=keeper["participant_id"], lease=keeper["lease"])
         _drain_until(obs, lambda m: m.get("type") == "Echo")
