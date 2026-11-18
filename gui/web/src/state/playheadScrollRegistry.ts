@@ -16,4 +16,8 @@ export const playheadScrollRegistry = {
     }
     return scrolled;
   },
+  /** Scrolls one surface only, so re-arming the timeline leaves the Script where it is. */
+  scrollToPlayhead: (surface: PlayheadSurface): void => {
+    scrollers.get(surface)?.();
+  },
 };

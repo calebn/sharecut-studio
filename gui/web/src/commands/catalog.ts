@@ -544,6 +544,15 @@ export const COMMANDS: Record<string, CommandDef> = {
     notes: "\\: timeline focused",
     breaksFollow: true,
   },
+  "view.followPlayhead": {
+    id: "view.followPlayhead",
+    category: "view",
+    label: "Back to playhead",
+    keywords: ["follow", "catch", "scroll", "reveal"],
+    when: "editStage",
+    notes:
+      "Follow the playhead again during playback and bring it into view in the timeline (no default key)",
+  },
   "view.waveformZoomIn": {
     id: "view.waveformZoomIn",
     category: "view",

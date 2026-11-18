@@ -562,7 +562,8 @@ const HOT_FIELD_ALLOWLIST: readonly AllowEntry[] = [
   },
   {
     file: "timeline/TimelineLeaves.tsx",
-    reason: "small leaves that read split hover and follow presence themselves",
+    reason:
+      "small leaves that read split hover and follow presence themselves; TimelineFollowPill reads the playhead and scroll in a selector that returns one boolean, so a tick renders it only when the pill appears or goes",
   },
   {
     file: "timeline/FixedPlayheadNeedle.tsx",
@@ -572,6 +573,11 @@ const HOT_FIELD_ALLOWLIST: readonly AllowEntry[] = [
     file: "timeline/useFixedPlayheadScroll.ts",
     reason:
       "TimelineScrollSync and FixedPlayheadRecenter alone select hot scroll and transport fields; the parent hook selects only actions",
+  },
+  {
+    file: "timeline/useTimelineFollow.ts",
+    reason:
+      "render-null leaf that follows the live playhead and scroll in a store subscription, never in render",
   },
   {
     file: "timeline/PieceWaveforms.tsx",

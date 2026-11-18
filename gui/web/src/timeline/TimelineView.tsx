@@ -53,7 +53,7 @@ import {
   MARKER_ROW_HEIGHT,
   RULER_HEIGHT,
 } from "../utils/layout";
-import { clamp } from "../utils/math";
+import { revealTargetPx } from "../utils/timelineFollow";
 import { clientXToTimelineSec } from "../utils/timelinePointer";
 import {
   domToLogicalScrollLeft,
@@ -95,7 +95,11 @@ import { PrecisionLayer } from "./precision/PrecisionLayer";
 import { precisionHandoff } from "./precision/precisionController";
 import { RecordingOverlay, RecordingScrollExtent } from "./RecordingOverlay";
 import { snapActive } from "./snapOverlay";
-import { FollowPlayheadChip, SplitGuide } from "./TimelineLeaves";
+import {
+  FollowPlayheadChip,
+  SplitGuide,
+  TimelineFollowPill,
+} from "./TimelineLeaves";
 import { TimelinePhysicalOverlays } from "./TimelinePhysicalOverlays";
 import { TimelinePresence } from "./TimelinePresence";
 import { TimelineRuler } from "./TimelineRuler";
@@ -128,6 +132,7 @@ import {
 } from "./useFixedPlayheadScroll";
 import { useRangeGesture } from "./useRangeGesture";
 import { useSplitAtPointer } from "./useSplitAtPointer";
+import { TimelineFollow } from "./useTimelineFollow";
 import { useTouchPress } from "./useTouchPress";
 
 type Props = {
@@ -423,11 +428,12 @@ export function TimelineViewView({ fixedPlayhead = false, headerSlot }: Props) {
           return false;
         }
         const { playheadSec, zoomPxPerSec: zoom } = useDawStore.getState();
-        const target = clamp(
-          playheadSec * zoom - timeViewportPx / 2,
-          0,
-          Math.max(0, width - timeViewportPx),
-        );
+        const target = revealTargetPx({
+          playheadSec,
+          zoomPxPerSec: zoom,
+          viewportPx: timeViewportPx,
+          canvasWidthPx: width,
+        });
         writeScroll(el, target, leadPx);
         setScrollLeft(target);
         return true;
@@ -812,6 +818,7 @@ export function TimelineViewView({ fixedPlayhead = false, headerSlot }: Props) {
     <>
       <TimelineScrollSync binding={scroll.binding} />
       <FixedPlayheadRecenter binding={scroll.binding} />
+      <TimelineFollow binding={scroll.binding} sessionSec={sessionSec} />
     </>
   );
 
@@ -922,6 +929,7 @@ export function TimelineViewView({ fixedPlayhead = false, headerSlot }: Props) {
             <div
               className="timeline-scroll"
               ref={scrollRef}
+              tabIndex={fixedPlayhead ? undefined : -1}
               onScroll={scroll.onScroll}
               onPointerMove={onTimelinePointerMove}
             >
@@ -1143,6 +1151,12 @@ export function TimelineViewView({ fixedPlayhead = false, headerSlot }: Props) {
               phone={fixedPlayhead}
             />
             <PrecisionLayer />
+            {fixedPlayhead ? null : (
+              <TimelineFollowPill
+                timeViewportPx={timeViewportPx}
+                scrollRef={scrollRef}
+              />
+            )}
             <div className="timeline-edge timeline-edge--start" aria-hidden />
             <div className="timeline-edge timeline-edge--end" aria-hidden />
           </div>

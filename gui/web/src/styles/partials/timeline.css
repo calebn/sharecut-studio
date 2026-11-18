@@ -1270,3 +1270,41 @@ html[data-shell="phone"] .pending-actions > .ui-control {
   position: absolute;
   inset: 0;
 }
+
+/* Back to playhead floats top right, under the ruler and the marker row, so it
+   stays clear of the edit corner (bottom right), the header column (left) and
+   the playhead (the pill only shows while the needle is out of view). The
+   doubled selector beats .ui-control's transparent fill and border. */
+.ui-control.timeline-follow-pill {
+  position: absolute;
+  inset-block-start: calc(
+    var(--ruler-height) +
+    var(--marker-lane-height, 0px) +
+    var(--space-3)
+  );
+  inset-inline-end: calc(
+    var(--timeline-scrollbar-inline, 0px) +
+    var(--space-4)
+  );
+  z-index: var(--z-timeline-chrome);
+  gap: var(--space-1);
+  min-block-size: 2rem;
+  padding-inline: var(--space-4);
+  border-color: var(--color-border-strong);
+  border-radius: var(--radius-xl);
+  background: var(--color-bg-overlay);
+  box-shadow: var(--shadow-floating);
+  color: var(--color-text-on-overlay);
+  font-size: var(--font-size-small);
+}
+
+@media (pointer: coarse) {
+  .ui-control.timeline-follow-pill {
+    min-block-size: var(--touch-min);
+  }
+}
+
+/* Back to playhead hands focus to the scroller; it is a target, not a control. */
+.timeline-scroll:focus {
+  outline: none;
+}

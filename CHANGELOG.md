@@ -25,6 +25,7 @@
 
 ### Fixes
 
+* The desktop and tablet timeline now follows the playhead while audio plays: it pages when the playhead nears the right edge, a scroll or zoom of your own pauses it, and Play or the new Back to playhead command and pill resume it (#3771).
 * A failed ffmpeg filter listing is no longer remembered as empty, so the next check reads it again.
 * A guest's listening now holds decoded audio only for the scheduled window plus 30 s behind the playhead, so a two-hour four-track listen peaks near 132 MiB instead of reaching the 500 MiB cap (#3789). A skip back inside those 30 s during continuous play needs no fetch or decode, and a seek decodes from its target instead of 120 s before it.
 * Playing a comment, a word's Hear in Review, a conflict row's Hear and the inspector footer's Play around now say why they cannot play, for a share guest without the play capability or a project with no tracks, instead of doing nothing (#3499).
