@@ -32,7 +32,6 @@ from podcast_mcp.services.collaboration.review_shares import (
     register_share_globally,
     resolve_share,
     revoke_share,
-    revoke_share_for_workspace,
     share_holds_media,
     sidecar_share,
     touch_share_last_used_for_workspace,
@@ -97,6 +96,21 @@ from podcast_mcp.util.project_state import (
 
 log = logging.getLogger(__name__)
 _REFUSED_ADOPTIONS: set[Path] = set()
+_REFUSED_VERSIONS: set[tuple[str, str]] = set()
+
+
+def _missing_version_refusal(row: dict[str, Any], version_id: str) -> CodedKeyError:
+    """The refusal for a link whose review version is gone; the link itself stays as it is.
+
+    It opens again once the version is back. A guest page asks many times, so the host's log
+    gets one warning per workspace and version in this process and debug lines after that.
+    """
+    seen = (str(row.get("project_workspace") or ""), version_id)
+    level = logging.DEBUG if seen in _REFUSED_VERSIONS else logging.WARNING
+    _REFUSED_VERSIONS.add(seen)
+    log.log(level, "Refusing share: review version %s missing from %s", version_id, seen[0])
+    return CodedKeyError(f"review version not found: {version_id}", code="review_version_not_found")
+
 
 # Guest DAW audio kinds - never raw (host media paths) or arbitrary kinds.
 _DAW_AUDIO_KINDS = frozenset({"premix", "stem", "processed", "review"})
@@ -1005,17 +1019,6 @@ def lookup_share(token: str, *, kind: str | None = None) -> dict[str, Any]:
     return row
 
 
-def _mark_share_revoked(token: str, *, ws: ProjectWorkspace | None = None) -> None:
-    """Mark a share revoked in the project sidecar (if known) and demote registry."""
-    if ws is not None:
-        revoke_share(ws.project, token)
-        return
-    entry = resolve_share(token)
-    if entry is not None:
-        entry["revoked"] = True
-        register_share_globally(entry)
-
-
 def _share_entry_file(row: dict[str, Any]) -> Path:
     """The entry file of a share row's workspace, adopting a retired name.
 
@@ -1069,15 +1072,7 @@ def open_share_workspace(
         try:
             get_version(ws.project, vid)
         except KeyError:
-            # Version deleted/reset after share was minted - revoke so guests
-            # stop polling and host logs stay quiet.
-            log.warning(
-                "Auto-revoking share: review version %s missing from %s",
-                vid,
-                row.get("project_workspace"),
-            )
-            _mark_share_revoked(token, ws=ws)
-            raise CodedKeyError("invalid or revoked share token", code="share_not_found") from None
+            raise _missing_version_refusal(row, vid) from None
     return row, ws
 
 
@@ -1499,18 +1494,12 @@ def share_daw_waveform_tiles(
     vid = str(row.get("review_version_id") or "")
     if vid and row.get("follow_latest"):
         # Any live version keeps a follow-latest link valid; the check below then
-        # only revokes when the project has lost every version it could serve.
+        # only refuses when the project has lost every version it could serve.
         live = _current_review_version_ids(project_path)
         if live:
             vid = ""
     if vid and vid not in _current_review_version_ids(project_path):
-        log.warning(
-            "Auto-revoking share: review version %s missing from %s",
-            vid,
-            row.get("project_workspace"),
-        )
-        revoke_share_for_workspace(project_path.parent, token)
-        raise CodedKeyError("invalid or revoked share token", code="share_not_found")
+        raise _missing_version_refusal(row, vid)
     if not has_capability(row.get("capabilities"), CAP_VIEW):
         raise CodedPermissionError("share does not allow view", code="share_capability_required")
     if not ref.startswith(_GUEST_WAVEFORM_REFS):

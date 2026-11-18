@@ -215,18 +215,27 @@ def snapshots_equal(a: ProjectStateSnapshot, b: ProjectStateSnapshot) -> bool:
     field whose Python type drifts on a JSON round trip (datetime, tuple, Decimal) from
     reading as a difference. ``render_last_completed_step`` is kept in each snapshot so
     undo can restore it, but changing pipeline progress alone is not an undoable edit.
+    Review versions and the active choice are not undoable state either: history moves
+    keep them, so a change that touches only them (publishing, encoding or uploading a
+    review mix) is not a step.
     """
     a_state = a.model_dump(mode="json", by_alias=True)
     b_state = b.model_dump(mode="json", by_alias=True)
     a_state.pop("render_last_completed_step", None)
     b_state.pop("render_last_completed_step", None)
+    for state in (a_state, b_state):
+        review = state.get("review")
+        if isinstance(review, dict):
+            review.pop("versions", None)
+            review.pop("active_version_id", None)
     return a_state == b_state
 
 
 def match_history_to_project(project: EpisodeProject, history: ProjectHistory) -> HistoryMatch:
     """How ``history``'s current entry compares to ``project``'s editable state.
 
-    Every commit that records history saves the state its current entry snapshots, so an
+    Every commit that records history saves the state its current entry snapshots (review
+    versions aside, which ``snapshots_equal`` ignores), so an
     index whose current entry holds other state (``STATE_DIFFERS``) was written by a commit
     that never landed, for example a process killed between ``record(after)`` and
     ``save_project`` (#576). A missing or unreadable snapshot points at damage or an

@@ -16,7 +16,7 @@ from podcast_mcp.project.store import (
     snapshots_equal,
 )
 from podcast_mcp.util.atomic_json import write_json_atomic, write_text_atomic
-from podcast_mcp.util.coded_error import CodedError
+from podcast_mcp.util.coded_error import CodedError, CodedValueError
 from podcast_mcp.util.project_state import project_commit_lock
 
 EDITABLE_FIELDS: tuple[str, ...] = tuple(ProjectStateSnapshot.model_fields.keys())
@@ -25,8 +25,12 @@ EDITABLE_FIELDS: tuple[str, ...] = tuple(ProjectStateSnapshot.model_fields.keys(
 def apply_snapshot_to_project(
     project: EpisodeProject,
     snapshot: ProjectStateSnapshot,
+    *,
+    keep_review_versions: bool = False,
 ) -> None:
-    apply_editable_snapshot(project, snapshot.model_dump())
+    apply_editable_snapshot(
+        project, snapshot.model_dump(), keep_review_versions=keep_review_versions
+    )
 
 
 def write_snapshot(project: EpisodeProject, snapshot: ProjectStateSnapshot, entry_id: str) -> str:
@@ -194,12 +198,14 @@ class HistoryManager:
         history = self._load_index(project)
         if not _behind_render_only(history, expected_head_id):
             _require_head(history, "undo", expected_head_id)
-        history.cursor = history.undo_origin()
-        if not history.can_undo():
-            raise ValueError("Nothing to undo")
-        history.cursor -= 1
+        origin = history.undo_origin()
+        if origin <= 0:
+            raise CodedValueError("Nothing to undo", code="nothing_to_undo")
+        history.cursor = origin - 1
         entry = history.entries[history.cursor]
-        apply_snapshot_to_project(project, self._read_snapshot(project, entry))
+        apply_snapshot_to_project(
+            project, self._read_snapshot(project, entry), keep_review_versions=True
+        )
         project.history = history
         self._save_index(project)
         return self.status(project)
@@ -208,10 +214,12 @@ class HistoryManager:
         history = self._load_index(project)
         _require_head(history, "redo", expected_head_id)
         if not history.can_redo():
-            raise ValueError("Nothing to redo")
+            raise CodedValueError("Nothing to redo", code="nothing_to_redo")
         history.cursor += 1
         entry = history.entries[history.cursor]
-        apply_snapshot_to_project(project, self._read_snapshot(project, entry))
+        apply_snapshot_to_project(
+            project, self._read_snapshot(project, entry), keep_review_versions=True
+        )
         project.history = history
         self._save_index(project)
         return self.status(project)
@@ -222,7 +230,9 @@ class HistoryManager:
             raise ValueError(f"History index out of range: {index}")
         history.cursor = index
         entry = history.entries[history.cursor]
-        apply_snapshot_to_project(project, self._read_snapshot(project, entry))
+        apply_snapshot_to_project(
+            project, self._read_snapshot(project, entry), keep_review_versions=True
+        )
         project.history = history
         self._save_index(project)
         return self.status(project)
