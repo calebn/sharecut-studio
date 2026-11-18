@@ -31,6 +31,9 @@ const WINDOW_PAD_SEC = 120;
 const LOW_WATER_CTX_SEC = 45;
 /** Time constant for a live gain change (reaches ~99% in 5x this). */
 const GAIN_GLIDE_SEC = 0.01;
+/** Decoded audio kept behind the playhead, so a short skip back needs no fetch or decode. */
+const SKIP_BACK_KEEP_SEC = 30;
+/** Hard cap behind the window bound, for many tracks or long chunks. */
 const LRU_BUDGET_BYTES = 500 * 1024 * 1024;
 
 export interface ProxyPlaybackSnapshot {
@@ -69,6 +72,10 @@ interface ActiveSource {
   source: AudioBufferSourceNode;
   gain: GainNode;
   endCtxTime: number;
+}
+
+function bufferBytes(buf: AudioBuffer): number {
+  return buf.length * buf.numberOfChannels * 4;
 }
 
 export class ProxyEngine {
@@ -238,6 +245,7 @@ export class ProxyEngine {
     this.scheduleGeneration += 1;
     this.stopSources();
     this.originTimelineSec = t;
+    this.pruneBuffers(t - SKIP_BACK_KEEP_SEC, t + WINDOW_PAD_SEC);
     leavePlaybackSession();
     void this.ctx.suspend();
     return t;
@@ -347,9 +355,29 @@ export class ProxyEngine {
       }
       const buf = this.buffers.get(evict);
       if (buf) {
-        this.decodedBytes -= buf.length * 4;
+        this.decodedBytes -= bufferBytes(buf);
         this.buffers.delete(evict);
       }
+    }
+  }
+
+  /**
+   * Releases every decoded chunk that no slice between `fromSec` and `toSec`
+   * needs. A chunk still in flight is not in `buffers` yet, and a source that
+   * is sounding holds its own reference to its buffer, so neither is affected.
+   */
+  private pruneBuffers(fromSec: number, toSec: number): void {
+    const snapshot = this.snapshot;
+    const keep = new Set<string>();
+    if (snapshot)
+      for (const slice of this.slicesBetween(snapshot, fromSec, toSec))
+        keep.add(chunkRefKey(slice.chunk));
+    for (const [key, buf] of this.buffers) {
+      if (keep.has(key)) continue;
+      this.buffers.delete(key);
+      this.decodedBytes -= bufferBytes(buf);
+      const i = this.lru.indexOf(key);
+      if (i >= 0) this.lru.splice(i, 1);
     }
   }
 
@@ -370,7 +398,7 @@ export class ProxyEngine {
       const buf = await this.ctx.decodeAudioData(ab.slice(0));
       if (generation !== this.scheduleGeneration) return null;
       this.buffers.set(key, buf);
-      this.touchLru(key, buf.length * 4);
+      this.touchLru(key, bufferBytes(buf));
       return buf;
     } catch (error) {
       if (generation === this.scheduleGeneration) this.fail(error, ref);
@@ -459,7 +487,8 @@ export class ProxyEngine {
     const generation = ++this.scheduleGeneration;
     const snapshot = this.snapshot;
     if (!snapshot || !this.playing) return;
-    const windowStart = Math.max(0, timelineSec - WINDOW_PAD_SEC);
+    // A slice that straddles the target is still included; nothing before it can sound.
+    const windowStart = timelineSec;
     const windowEnd = timelineSec + WINDOW_PAD_SEC;
     const slices = this.slicesBetween(snapshot, windowStart, windowEnd);
     const decoded = new Map<string, AudioBuffer>();
@@ -468,6 +497,7 @@ export class ProxyEngine {
     this.stopSources();
     this.place(slices, decoded, this.currentTimeSec());
     this.horizon = { generation, throughSec: windowEnd };
+    this.pruneBuffers(this.currentTimeSec() - SKIP_BACK_KEEP_SEC, windowEnd);
     this.arm();
   }
 
@@ -534,6 +564,7 @@ export class ProxyEngine {
     if (!this.playing || generation !== this.scheduleGeneration) return;
     this.place(slices, decoded, this.currentTimeSec());
     horizon.throughSec = to;
+    this.pruneBuffers(this.currentTimeSec() - SKIP_BACK_KEEP_SEC, to);
     this.arm();
   }
 
@@ -590,6 +621,7 @@ export class ProxyEngine {
     if (!this.playing || !horizon) return;
     this.pruneEnded();
     const t = this.currentTimeSec();
+    this.pruneBuffers(t - SKIP_BACK_KEEP_SEC, horizon.throughSec);
     if (t >= this.endSec) {
       this.finish();
       return;
