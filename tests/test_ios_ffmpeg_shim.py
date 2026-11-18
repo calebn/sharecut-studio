@@ -161,6 +161,8 @@ class Shim:
         c.fake_last_argc.restype = ctypes.c_int
         c.fake_reused_fd.restype = ctypes.c_int
         c.fake_set_reset_delay_ms.argtypes = [ctypes.c_int]
+        c.fake_reset_starts.restype = ctypes.c_int
+        c.fake_big_writes.restype = ctypes.c_int
 
     def start_raw(self, array: Any, argc: int, in_fd: int, out_fd: int, err_fd: int) -> int:
         return self.cdll.sc_ffmpeg_start(argc, array, in_fd, out_fd, err_fd)
@@ -217,6 +219,13 @@ def shim(built: Path) -> Shim:
     code, out, _ = instance.run(["ffmpeg", "echo"])
     assert code == 0 and out.startswith(b"tool=0\n")
     return instance
+
+
+def wait_for(predicate: Any, what: str, timeout: float = BOUND_SEC) -> None:
+    deadline = time.monotonic() + timeout
+    while not predicate():
+        assert time.monotonic() < deadline, f"timed out waiting for {what}"
+        select.select([], [], [], 0.005)
 
 
 def numbers(lines: list[str]) -> list[int]:
@@ -459,8 +468,9 @@ def test_cancel_during_slow_reset_is_not_lost(shim: Shim) -> None:
     with Pipes() as pipes:
         shim.cdll.fake_set_reset_delay_ms(300)
         try:
+            starts = shim.cdll.fake_reset_starts()
             session = shim.launch(["ffmpeg", "started", "block"], pipes)
-            time.sleep(0.1)
+            wait_for(lambda: shim.cdll.fake_reset_starts() > starts, "the slow reset to start")
             shim.cancel(session)
             assert shim.wait(session) == 255
         finally:
@@ -553,9 +563,10 @@ def test_writes_after_non_owner_exit_go_to_discard(shim: Shim) -> None:
 def test_closing_the_reader_releases_a_write_blocked_across_cancel(shim: Shim) -> None:
     before = fd_count()
     with Pipes() as pipes:
+        writes = shim.cdll.fake_big_writes()
         session = shim.launch(["ffmpeg", "started", "bigout"], pipes)
         read_until(pipes.err_r, b"started\n")
-        time.sleep(LAUNCH_SEC)
+        wait_for(lambda: shim.cdll.fake_big_writes() > writes, "the big write to start")
         shim.cancel(session)
         result: list[int] = []
         thread = threading.Thread(target=lambda: result.append(shim.wait(session)), daemon=True)

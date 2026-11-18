@@ -17,7 +17,7 @@ static pthread_mutex_t mu = PTHREAD_MUTEX_INITIALIZER;
 static pthread_cond_t cv = PTHREAD_COND_INITIALIZER;
 static int interrupted;
 static long release_gen;
-static int resets, runs, interrupts;
+static int resets, runs, interrupts, reset_starts, big_writes;
 static char order[8192];
 static int reset_delay_ms, last_argc, reused_fd = -1;
 
@@ -30,6 +30,7 @@ static int is_interrupted(void) {
 
 void sc_glue_reset(void) {
     pthread_mutex_lock(&mu);
+    reset_starts++;
     int delay = reset_delay_ms;
     pthread_mutex_unlock(&mu);
     if (delay) usleep((useconds_t)delay * 1000);
@@ -80,6 +81,20 @@ void fake_counters(int *out) {
     out[1] = runs;
     out[2] = interrupts;
     pthread_mutex_unlock(&mu);
+}
+
+int fake_reset_starts(void) {
+    pthread_mutex_lock(&mu);
+    int v = reset_starts;
+    pthread_mutex_unlock(&mu);
+    return v;
+}
+
+int fake_big_writes(void) {
+    pthread_mutex_lock(&mu);
+    int v = big_writes;
+    pthread_mutex_unlock(&mu);
+    return v;
 }
 
 void fake_order(char *buf, int cap) {
@@ -154,6 +169,9 @@ int sc_glue_run(int tool, int argc, char **argv) {
         } else if (strcmp(t, "bigerr") == 0 || strcmp(t, "bigout") == 0) {
             FILE *f = t[3] == 'e' ? sc_err() : sc_out();
             static char chunk[1 << 20];
+            pthread_mutex_lock(&mu);
+            big_writes++;
+            pthread_mutex_unlock(&mu);
             fwrite(chunk, 1, sizeof chunk, f);
             fflush(f);
         } else if (strcmp(t, "stubborn") == 0) {
