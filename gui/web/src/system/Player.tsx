@@ -17,10 +17,10 @@ import {
   ToggleButton,
 } from "../ui";
 import { SKIP_SEC } from "../utils/time";
-import { barSignals } from "./barSignals";
 import { OverviewStrip, type OverviewTick } from "./OverviewStrip";
 import { PlayerChapters } from "./PlayerChapters";
 import { SystemIcon } from "./SystemIcon";
+import { useBarFit } from "./useBarFit";
 import { VerbButton } from "./VerbButton";
 
 export type PlayerChapter = { title: string; time: string; at: number };
@@ -509,6 +509,7 @@ export function Player(props: PlayerProps) {
   const headingId = useId();
   const statusId = useId();
   const barToggleRef = useRef<HTMLButtonElement>(null);
+  const barHostRef = useRef<HTMLDivElement>(null);
   const collapseRef = useRef<HTMLButtonElement>(null);
   const lastForm = useRef(props.form);
   const {
@@ -539,17 +540,16 @@ export function Player(props: PlayerProps) {
       preventScroll: true,
     });
   }, [form]);
+  useBarFit(barHostRef, form === "bar");
   if (form === "dock") return <Dock {...props} statusId={statusId} />;
   if (form === "bar") {
-    const signals = barSignals(props);
     return (
       <div
         role="group"
         aria-label="Player"
         className="sys-player-host"
         data-state={state}
-        data-pills={signals.pills}
-        data-long-clock={signals.longClock ? "" : undefined}
+        ref={barHostRef}
       >
         <div className="sys-player">
           <div className="sys-player-left">
