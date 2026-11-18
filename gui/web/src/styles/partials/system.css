@@ -1107,14 +1107,18 @@ button.sys-version-line {
 }
 
 /* Under 50 rem the Status pill is its glyph and the text stays for assistive
-   tech, and an Audio error gives its Comment button's room to the error pill
-   and Retry. */
+   tech, and an Audio error gives a host's Comment button's room to the error
+   pill and Retry (a guest's Comment stays: the measured fit below gives up
+   other things for it). */
 @container sys-player (max-width: 50rem) {
-  /* During an audio error the Comment button gives its room (the status text
-     already has, under 60 rem) to the error pill and Retry: with all of them,
-     the right-hand controls outgrow the side column and slide under Play. The
-     A and B toggles stay, since switching what you hear can clear the error. */
-  .sys-player-host[data-state="error"] .sys-player-right > .sys-icon-btn {
+  /* During an audio error a host's Comment button gives its room (the status
+     text already has, under 60 rem) to the error pill and Retry: with all of
+     them, the right-hand controls outgrow the side column and slide under Play.
+     The A and B toggles stay, since switching what you hear can clear the
+     error. A guest has no A or B and may comment, so its Comment stays. */
+  .sys-player-host[data-state="error"]
+    .sys-player-right
+    > .sys-icon-btn:not(.sys-player-comment--guest) {
     display: none;
   }
 
@@ -1142,7 +1146,9 @@ button.sys-version-line {
 /* The bar (not the Listen dock, which shares the host and gets no attribute)
    gives controls up by measurement. Player.tsx (useBarFit) lays the bar out at
    `data-fit="0"` and steps `data-fit` up until no column of the bar runs into
-   the next or out of the bar and no Status pill's text is cut short, so the
+   the next or out of the bar and no Status pill's text is cut short (when it
+   mounts and when a size, the text, the fonts or the pointer type change, not
+   on every render), so the
    rules below are one per level and cumulative: 1 the Status pills' text (the
    title and the accessible text stay), 2 the Following detail, 3 the skip
    buttons, 4 the cuts, 5 the hear menu's chevron, 6 the other pills (Following,
@@ -1304,6 +1310,33 @@ button.sys-version-line {
 
   .sys-player-host > .sys-player .sys-player-now {
     font-size: var(--font-size-ui);
+  }
+}
+
+/* A guest keeps Comment in an Audio error: Play, the clock, Comment, the error
+   pill and Retry are too wide for 22 rem with any gap or padding, so under
+   22 rem they sit edge to edge (each a whole touch target), and from the 14 rem
+   fold to 16 rem, where an hours clock leaves them no room, the clock is set
+   smaller (it is not a control; an hours clock can still touch Play between
+   14 and 14.5 rem). */
+@container sys-player (max-width: 22rem) {
+  .sys-player-host[data-state="error"]:has(.sys-player-comment--guest)
+    > .sys-player {
+    gap: 0;
+    padding-inline: 0;
+  }
+
+  .sys-player-host[data-state="error"]:has(.sys-player-comment--guest)
+    > .sys-player
+    .sys-player-right {
+    gap: 0;
+  }
+}
+
+@container sys-player (width > 14rem) and (width <= 16rem) {
+  .sys-player-host[data-state="error"]:has(.sys-player-comment--guest)
+    .sys-player-now {
+    font-size: var(--font-size-micro);
   }
 }
 

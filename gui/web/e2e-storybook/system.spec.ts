@@ -433,6 +433,16 @@ const BAR_STATES: Record<string, BarArgs> = {
     state: "error",
     status: "Mix out of date",
   },
+  // A guest in an Audio error with an hours clock is the widest bar a guest
+  // has just above the 14 rem fold.
+  guesterrhours: { ...HOURS, guest: true, state: "error" },
+  guesterrhoursfollow: {
+    ...HOURS,
+    guest: true,
+    following: FOLLOWING,
+    state: "error",
+    ...STALE,
+  },
   // The states the round 4 reviewers found overlapping.
   hostfollowerrstale: {
     ...MS,
@@ -496,12 +506,6 @@ function pillStory(args: BarArgs) {
     ? "system-player--following-partial"
     : "system-player--ready";
 }
-
-/** Two frames: the bar's ResizeObserver has run and the fit it set has been laid out. */
-const settle = () =>
-  new Promise<void>((resolve) =>
-    requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
-  );
 
 /** The bar's controls as the page shows them, the overlaps and the squeezes. */
 const measureBar = () => {
@@ -608,7 +612,7 @@ const measureBar = () => {
     if (
       stop &&
       (matchMedia("(pointer: coarse)").matches ||
-        innerWidth /
+        box.width /
           parseFloat(getComputedStyle(document.documentElement).fontSize) <=
           50)
     ) {
@@ -623,7 +627,7 @@ const measureBar = () => {
       const half =
         (20 * parseFloat(getComputedStyle(document.documentElement).fontSize)) /
         16;
-      const inside = Math.min(half, innerWidth - 1 - (r.left + r.width / 2));
+      const inside = Math.min(half, box.right - 1 - (r.left + r.width / 2));
       for (const [dx, dy] of [
         [inside, 0],
         [-half, 0],
@@ -644,18 +648,12 @@ const measureBar = () => {
   const rootSize = parseFloat(
     getComputedStyle(document.documentElement).fontSize,
   );
-  // (Develop's 50 rem error rule also takes Comment, a guest's too, away.)
   const width = box.width / rootSize;
   if (width > 14.01) {
     for (const [el, name] of [
       [danger, "Audio error pill"],
       [retry, "Retry"],
-      [
-        width > 50 || !danger
-          ? bar.querySelector(".sys-player-comment--guest")
-          : null,
-        "guest Comment",
-      ],
+      [bar.querySelector(".sys-player-comment--guest"), "guest Comment"],
     ] as const) {
       if (el && !shown(el)) problems.push(`${name} is not visible`);
     }
@@ -685,13 +683,13 @@ const measureBar = () => {
 };
 
 const BAR_WIDTHS = [
-  360, 370, 375, 378, 390, 414, 448, 449, 576, 577, 641, 642, 672, 673, 700,
-  714, 736, 737, 768, 800, 801, 818, 864, 865, 896, 960, 961, 962, 976, 980,
-  984, 994, 1048, 1100, 1180, 1200, 1280, 1312, 1314, 1400,
+  232, 360, 370, 375, 378, 390, 414, 448, 449, 576, 577, 641, 642, 672, 673,
+  700, 714, 736, 737, 768, 800, 801, 818, 864, 865, 896, 960, 961, 962, 976,
+  980, 984, 994, 1048, 1100, 1180, 1200, 1280, 1312, 1314, 1400,
 ];
 const BAR_TEXT_SIZES = [
-  { root: 24, widths: [360, 456, 600, 800, 978, 980, 1000, 1050, 1092] },
-  { root: 32, widths: [360, 456, 600, 800, 1000] },
+  { root: 24, widths: [342, 360, 456, 600, 800, 978, 980, 1000, 1050, 1092] },
+  { root: 32, widths: [456, 600, 800, 1000] },
 ];
 
 /**
@@ -752,290 +750,368 @@ function bandWidths(from: number, to: number) {
   return [...widths];
 }
 
+type PlayerPage = import("@playwright/test").Page;
+type Plan = { root: number; widths: number[] };
+
+/**
+ * In the page: for each plan (a text size and widths) set the bar host's width
+ * (the host is the container, so this is the width the bar is laid out at),
+ * wait for the bar's own ResizeObserver to have fitted it, and measure. One
+ * round trip for a whole state, no reloads and no viewport resizes.
+ */
+const measurePlans = async ({ plans }: { plans: Plan[] }) => {
+  const measure = (
+    window as unknown as {
+      measureBarInPage: () => { problems: string[]; signature: string };
+    }
+  ).measureBarInPage;
+  const host = document.querySelector<HTMLElement>(".sys-player-host");
+  if (!host) throw new Error("Player did not render");
+  const rows: {
+    root: number;
+    width: number;
+    found: ReturnType<typeof measure>;
+  }[] = [];
+  for (const { root, widths } of plans) {
+    document.documentElement.style.fontSize = `${root}px`;
+    for (const width of widths) {
+      host.style.width = `${width}px`;
+      await new Promise<void>((resolve) => {
+        const observer = new ResizeObserver(() => {
+          observer.disconnect();
+          resolve();
+        });
+        observer.observe(host);
+      });
+      // Observers are not told in a fixed order: one more frame, and the bar's
+      // has certainly run.
+      await new Promise<void>((resolve) =>
+        requestAnimationFrame(() => resolve()),
+      );
+      // A font still loading changes widths; the bar fits again when it is in.
+      while (document.fonts.status !== "loaded")
+        await new Promise<void>((resolve) =>
+          requestAnimationFrame(() => resolve()),
+        );
+      const found = measure();
+      // Let the observers' follow-up notifications (the fit's own changes to
+      // the columns) pass before the next width.
+      await new Promise<void>((resolve) =>
+        requestAnimationFrame(() => resolve()),
+      );
+      rows.push({ root, width, found });
+    }
+  }
+  host.style.width = "";
+  document.documentElement.style.fontSize = "";
+  return rows;
+};
+
+/** A browser context for a pointer, and pages on it that report a ResizeObserver loop. */
+async function pointerContext(
+  browser: import("@playwright/test").Browser,
+  pointer: "fine" | "coarse",
+) {
+  return browser.newContext({
+    baseURL: "http://127.0.0.1:6010",
+    viewport: { width: 1400, height: 400 },
+    colorScheme: "light",
+    reducedMotion: "reduce",
+    ...(pointer === "coarse"
+      ? { hasTouch: true, isMobile: true, deviceScaleFactor: 2 }
+      : {}),
+  });
+}
+
+function watchLoops(page: PlayerPage, loops: string[]) {
+  page.on("pageerror", (error) => loops.push(error.message));
+  page.on("console", (message) => {
+    if (message.type() === "error") loops.push(message.text());
+  });
+}
+
+/** Opens the story for `args` (when it is not open) and shows them. */
+async function showArgs(
+  page: PlayerPage,
+  open: { story: string | null },
+  args: BarArgs,
+) {
+  const story = pillStory(args);
+  if (open.story !== story) {
+    open.story = story;
+    await page.goto(storyUrl(story, { theme: "light" }));
+    await expect(page.locator(".sys-player")).toBeVisible();
+    await page.evaluate(() => document.fonts.ready);
+    await page.evaluate(`window.measureBarInPage = ${measureBar.toString()}`);
+  }
+  await emit(page, "resetStoryArgs", { storyId: story });
+  await emit(page, "updateStoryArgs", { storyId: story, updatedArgs: args });
+  await page.waitForFunction(
+    ([mode, pills, guest]) =>
+      (document.querySelector(".sys-player-host")?.getAttribute("data-state") ??
+        "") === mode &&
+      document.querySelectorAll(".sys-player .pill").length === pills &&
+      (document.querySelector(".sys-player-comment--guest") !== null) ===
+        guest &&
+      document.querySelector(".sys-player-host")?.hasAttribute("data-fit") ===
+        true,
+    [
+      args.state === "mix-updating" || args.state === "error" ? args.state : "",
+      pillCount(args),
+      args.guest === true,
+    ] as const,
+  );
+  // The glyphs these args draw may need a font that loads now; the bar fits
+  // again when it has (a font changes widths).
+  await page.waitForFunction(() => document.fonts.status === "loaded");
+}
+
+const LOOPS = /ResizeObserver loop/;
+
 for (const pointer of ["fine", "coarse"] as const) {
   test(`System/Player bar keeps its controls apart and shows what develop showed where it fitted, ${pointer} pointer (#2576)`, async ({
     browser,
   }) => {
     test.setTimeout(300_000);
-    const context = await browser.newContext({
-      baseURL: "http://127.0.0.1:6010",
-      viewport: { width: 800, height: 400 },
-      colorScheme: "light",
-      reducedMotion: "reduce",
-      ...(pointer === "coarse"
-        ? { hasTouch: true, isMobile: true, deviceScaleFactor: 2 }
-        : {}),
-    });
-    const page = await context.newPage();
+    const context = await pointerContext(browser, pointer);
     const failures: string[] = [];
-    let open: string | null = null;
-    for (const [name, args] of Object.entries(BAR_STATES)) {
-      const story = pillStory(args);
-      if (open !== story) {
-        open = story;
-        await page.goto(storyUrl(story, { theme: "light" }));
-        await expect(page.locator(".sys-player")).toBeVisible();
-        await page.evaluate(() => document.fonts.ready);
-      }
-      await emit(page, "resetStoryArgs", { storyId: story });
-      await page.waitForFunction(
-        (pills) =>
-          document.querySelectorAll(".sys-player .pill").length === pills,
-        args.following ? 1 : 0,
-      );
-      await emit(page, "updateStoryArgs", {
-        storyId: story,
-        updatedArgs: args,
-      });
-      await page.waitForFunction(
-        ([mode, pills, guest]) =>
-          (document
-            .querySelector(".sys-player-host")
-            ?.getAttribute("data-state") ?? "") === mode &&
-          document.querySelectorAll(".sys-player .pill").length === pills &&
-          (document.querySelector(".sys-player-comment--guest") !== null) ===
-            guest,
-        [
-          args.state === "mix-updating" || args.state === "error"
-            ? args.state
-            : "",
-          pillCount(args),
-          args.guest === true,
-        ] as const,
-      );
-      const bands = BASELINE[name]?.[pointer] ?? [];
-      const sizes = [
-        {
-          root: 16,
-          widths: [
-            ...new Set([
-              ...BAR_WIDTHS,
-              ...bands.flatMap(([from, to]) => bandWidths(from, to)),
-            ]),
-          ],
-        },
-        ...BAR_TEXT_SIZES,
-      ];
-      for (const { root, widths } of sizes) {
-        await page.evaluate((px) => {
-          document.documentElement.style.fontSize = `${px}px`;
-        }, root);
-        for (const width of widths) {
-          await page.setViewportSize({ width, height: 400 });
-          await page.evaluate(settle);
-          const found = await page.evaluate(measureBar);
-          const where = `${pointer} ${width} px at ${root} px text, ${name}`;
-          for (const problem of found.problems)
-            failures.push(`${where}: ${problem}`);
-          if (root !== 16) continue;
-          const band = bands.find(([from, to]) => width >= from && width <= to);
-          const slack = STATUS_ELLIPSIS.some(
-            (window) =>
-              window.state === name &&
-              window.pointer === pointer &&
-              width >= window.from &&
-              width <= window.to,
-          );
-          if (
-            band &&
-            found.signature !== band[2] &&
-            !(slack && showsNoMore(found.signature, band[2]))
-          ) {
-            failures.push(
-              `${where}: shows ${found.signature}, develop showed ${band[2]}`,
+    const loops: string[] = [];
+    const entries = Object.entries(BAR_STATES).sort(
+      ([, a], [, b]) =>
+        Number(Boolean(a.following)) - Number(Boolean(b.following)),
+    );
+    const chunks: (typeof entries)[] = [[], [], [], []];
+    entries.forEach((entry, index) =>
+      chunks[index % chunks.length].push(entry),
+    );
+    await Promise.all(
+      chunks.map(async (chunk) => {
+        const page = await context.newPage();
+        watchLoops(page, loops);
+        const open = { story: null as string | null };
+        for (const [name, args] of chunk) {
+          await showArgs(page, open, args);
+          const bands = BASELINE[name]?.[pointer] ?? [];
+          const plans: Plan[] = [
+            {
+              root: 16,
+              widths: [
+                ...new Set([
+                  ...BAR_WIDTHS,
+                  ...bands.flatMap(([from, to]) => bandWidths(from, to)),
+                ]),
+              ],
+            },
+            ...BAR_TEXT_SIZES,
+          ];
+          const rows = await page.evaluate(measurePlans, {
+            plans,
+          });
+          for (const { root, width, found } of rows) {
+            const where = `${pointer} ${width} px at ${root} px text, ${name}`;
+            for (const problem of found.problems)
+              failures.push(`${where}: ${problem}`);
+            if (root !== 16) continue;
+            const band = bands.find(
+              ([from, to]) => width >= from && width <= to,
             );
+            const slack = STATUS_ELLIPSIS.some(
+              (window) =>
+                window.state === name &&
+                window.pointer === pointer &&
+                width >= window.from &&
+                width <= window.to,
+            );
+            // Develop hid a guest's Comment during an Audio error below 50 rem;
+            // the bar keeps it (bound: a guest who may comment keeps Comment).
+            const keepsComment = Boolean(args.guest && args.state === "error");
+            const strip = (signature: string | undefined) => {
+              if (!keepsComment || signature === undefined) return signature;
+              const [controls, ...rest] = signature.split("|");
+              return [
+                controls
+                  .split(",")
+                  .filter((kind) => kind !== "comment")
+                  .join(","),
+                ...rest,
+              ].join("|");
+            };
+            const now = strip(found.signature);
+            const before = strip(band?.[2]);
+            if (
+              band &&
+              now !== before &&
+              !(slack && showsNoMore(found.signature, band[2]))
+            ) {
+              failures.push(
+                `${where}: shows ${found.signature}, develop showed ${band[2]}`,
+              );
+            }
           }
         }
-      }
-    }
+        await page.close();
+      }),
+    );
     await context.close();
     expect(failures).toEqual([]);
+    expect(loops.filter((message) => LOOPS.test(message))).toEqual([]);
   });
 }
 
-/**
- * Every combination of what the bar can hold, as the app passes it: a name
- * (none, short, long) for Following and for Solo, the mix updating or an Audio
- * error, a status (none, short, long), a Playback rate (only without Following,
- * as `usePlayerProps` has it), the clock (milliseconds, hours, with and without
- * the cuts), and a host or a guest (no hear menu, no Solo). Comment is always
- * there. 432 combinations.
- */
-function sweepCombos() {
-  const combos: { name: string; args: BarArgs }[] = [];
-  const followings = [
-    ["nofollow", undefined, false],
-    ["rate", undefined, true],
-    ["follow", FOLLOWING, false],
-    ["longfollow", { ...FOLLOWING, name: "Rosalind-Margaret" }, false],
-  ] as const;
-  const solos = [
-    ["nosolo", undefined],
-    ["solo", "Rosa"],
-    ["longsolo", "Rosalind-Margaret"],
-  ] as const;
-  const states = [
-    ["idle", undefined],
-    ["mix", "mix-updating"],
-    ["error", "error"],
-  ] as const;
-  const statuses = [
-    ["nostatus", undefined],
-    ["stale", "Mix out of date"],
-    ["longstatus", "Mix out of date: 3 edits are not in it yet"],
-  ] as const;
-  const clocks = [
-    ["ms", { ...MS }],
-    ["mscuts", { ...MS, ...CUTS }],
-    ["hourscuts", { ...HOURS, ...HOURS_CUTS }],
-  ] as const;
-  for (const guest of [false, true])
-    for (const [fn, following, rate] of followings)
-      for (const [sn, solo] of solos) {
-        if (guest && solo) continue;
-        for (const [stn, state] of states)
-          for (const [un, status] of statuses)
-            for (const [cn, clock] of clocks) {
-              const args: BarArgs = { ...clock };
-              if (guest) args.guest = true;
-              else args.hearMenu = { mode: "mix" };
-              if (following) args.following = following;
-              if (rate) args.rate = 2;
-              if (solo) args.solo = solo;
-              if (state) args.state = state;
-              if (status) args.status = status;
-              combos.push({
-                name: [guest ? "guest" : "host", fn, sn, stn, un, cn].join("-"),
-                args,
-              });
-            }
-      }
-  return combos;
+/** A factor of a combination: its name and the values it takes. */
+const FACTORS = {
+  guest: [false, true],
+  following: ["none", "short", "long"],
+  solo: ["none", "short", "long"],
+  state: ["idle", "mix-updating", "error"],
+  status: ["none", "short", "long"],
+  rate: [false, true],
+  clock: ["ms", "mscuts", "hourscuts"],
+} as const;
+type Combo = { [K in keyof typeof FACTORS]: (typeof FACTORS)[K][number] };
+
+/** The combinations the app can produce (a guest has no Solo pill, a rate is not shown while following). */
+function allCombos(): Combo[] {
+  const out: Combo[] = [];
+  for (const guest of FACTORS.guest)
+    for (const following of FACTORS.following)
+      for (const solo of FACTORS.solo)
+        for (const state of FACTORS.state)
+          for (const status of FACTORS.status)
+            for (const rate of FACTORS.rate)
+              for (const clock of FACTORS.clock) {
+                if (guest && solo !== "none") continue;
+                if (rate && following !== "none") continue;
+                out.push({
+                  guest,
+                  following,
+                  solo,
+                  state,
+                  status,
+                  rate,
+                  clock,
+                });
+              }
+  return out;
 }
 
-const SWEEP_WIDTHS = [
-  360, 414, 480, 577, 641, 700, 800, 961, 1000, 1100, 1280, 1400,
+/** A small set of combinations in which every pair of values of two factors meets at least once (greedy all-pairs). */
+function pairwise(candidates: Combo[]): Combo[] {
+  const keys = Object.keys(FACTORS) as (keyof Combo)[];
+  const pairsOf = (combo: Combo) => {
+    const pairs: string[] = [];
+    for (let i = 0; i < keys.length; i++)
+      for (let j = i + 1; j < keys.length; j++)
+        pairs.push(`${keys[i]}=${combo[keys[i]]}|${keys[j]}=${combo[keys[j]]}`);
+    return pairs;
+  };
+  const wanted = new Set(candidates.flatMap(pairsOf));
+  const chosen: Combo[] = [];
+  while (wanted.size > 0) {
+    let best: Combo | null = null;
+    let bestGain = 0;
+    for (const candidate of candidates) {
+      const gain = pairsOf(candidate).filter((pair) => wanted.has(pair)).length;
+      if (gain > bestGain) {
+        best = candidate;
+        bestGain = gain;
+      }
+    }
+    if (!best) break;
+    for (const pair of pairsOf(best)) wanted.delete(pair);
+    chosen.push(best);
+  }
+  return chosen;
+}
+
+const NAMES = { short: "Rosa", long: "Rosalind-Margaret" } as const;
+const STATUSES = {
+  short: "Mix out of date",
+  long: "Mix out of date: 3 edits are not in it yet",
+} as const;
+
+function comboArgs(combo: Combo): BarArgs {
+  const args: BarArgs = {
+    ...(combo.clock === "ms"
+      ? MS
+      : combo.clock === "mscuts"
+        ? { ...MS, ...CUTS }
+        : { ...HOURS, ...HOURS_CUTS }),
+  };
+  if (combo.guest) args.guest = true;
+  else args.hearMenu = { mode: "mix" };
+  if (combo.following !== "none")
+    args.following = { ...FOLLOWING, name: NAMES[combo.following] };
+  if (combo.rate) args.rate = 2;
+  if (combo.solo !== "none") args.solo = NAMES[combo.solo];
+  if (combo.state !== "idle") args.state = combo.state;
+  if (combo.status !== "none") args.status = STATUSES[combo.status];
+  return args;
+}
+
+/** The generated sweep's combinations, as `[name, args]`: all pairs, then the states the reviewers found. */
+function sweepStates(): [string, BarArgs][] {
+  const generated = pairwise(allCombos()).map((combo): [string, BarArgs] => [
+    Object.values(combo).join("-"),
+    comboArgs(combo),
+  ]);
+  const found = [
+    "hostfollowerrstale",
+    "hostfollowerrimport",
+    "fourpills",
+    "ratefourpills",
+    "hoursratestack",
+    "guesterr",
+  ].map((name): [string, BarArgs] => [name, BAR_STATES[name]]);
+  return [...generated, ...found];
+}
+
+/**
+ * Widths at and around where the bar gives things up: just under and over the
+ * phone cut-over (40 rem), the 50 and 60 rem rules, mid-range, and wide.
+ */
+const SWEEP_PLANS: Plan[] = [
+  { root: 16, widths: [360, 641, 801, 961, 1180, 1400] },
+  { root: 24, widths: [360, 800, 1200] },
+  { root: 32, widths: [360, 800, 1200] },
 ];
 
 for (const pointer of ["fine", "coarse"] as const) {
-  test(`System/Player bar fits every combination of what it holds at 12 widths, ${pointer} pointer (#2576)`, async ({
+  test(`System/Player bar fits a covering set of what it holds at six widths, ${pointer} pointer (#2576)`, async ({
     browser,
   }) => {
-    test.setTimeout(600_000);
-    const combos = sweepCombos();
-    expect(combos).toHaveLength(432);
-    const runs: {
-      story: string;
-      root: number;
-      widths: number[];
-      every: number;
-    }[] = [];
-    for (const story of [
-      "system-player--ready",
-      "system-player--following-partial",
-    ]) {
-      const chunks = [
-        SWEEP_WIDTHS.slice(0, 4),
-        SWEEP_WIDTHS.slice(4, 8),
-        SWEEP_WIDTHS.slice(8),
-      ];
-      for (const widths of chunks)
-        runs.push({ story, root: 16, widths, every: 1 });
-      // A sample at 150% and 200% text.
-      runs.push({ story, root: 24, widths: [360, 600, 978, 1280], every: 7 });
-      runs.push({ story, root: 32, widths: [360, 600, 1000, 1280], every: 7 });
-    }
-    const context = await browser.newContext({
-      baseURL: "http://127.0.0.1:6010",
-      viewport: { width: 800, height: 400 },
-      colorScheme: "light",
-      reducedMotion: "reduce",
-      ...(pointer === "coarse"
-        ? { hasTouch: true, isMobile: true, deviceScaleFactor: 2 }
-        : {}),
-    });
+    test.setTimeout(300_000);
+    const states = sweepStates();
+    expect(states.length).toBeLessThan(80);
+    const context = await pointerContext(browser, pointer);
     const failures: string[] = [];
-    const run = async (job: (typeof runs)[number]) => {
-      const page = await context.newPage();
-      await page.goto(storyUrl(job.story, { theme: "light" }));
-      await expect(page.locator(".sys-player")).toBeVisible();
-      await page.evaluate(() => document.fonts.ready);
-      const following = job.story.includes("following");
-      const mine = combos.filter(
-        ({ args }, index) =>
-          Boolean(args.following) === following && index % job.every === 0,
-      );
-      await page.evaluate((root) => {
-        document.documentElement.style.fontSize = `${root}px`;
-      }, job.root);
-      for (const width of job.widths) {
-        await page.setViewportSize({ width, height: 400 });
-        const found = await page.evaluate(
-          async ({ source, settleSource, story, items }) => {
-            const measure = new Function(`return (${source})`)();
-            const settle = new Function(`return (${settleSource})`)();
-            const channel = (
-              window as unknown as {
-                __STORYBOOK_ADDONS_CHANNEL__: {
-                  emit: (event: string, payload: unknown) => void;
-                };
-              }
-            ).__STORYBOOK_ADDONS_CHANNEL__;
-            const out: string[] = [];
-            for (const { name, args } of items) {
-              channel.emit("resetStoryArgs", { storyId: story });
-              channel.emit("updateStoryArgs", {
-                storyId: story,
-                updatedArgs: args,
-              });
-              const pills =
-                (["cuts", "rate", "following", "status"] as const).filter(
-                  (key) => key in args,
-                ).length +
-                (!args.guest && "solo" in args ? 1 : 0) +
-                (args.state ? 1 : 0);
-              const want =
-                args.state === "mix-updating" || args.state === "error"
-                  ? args.state
-                  : "";
-              for (let frame = 0; frame < 120; frame++) {
-                const host = document.querySelector(".sys-player-host");
-                if (
-                  (host?.getAttribute("data-state") ?? "") === want &&
-                  document.querySelectorAll(".sys-player .pill").length ===
-                    pills &&
-                  (document.querySelector(".sys-player-comment--guest") !==
-                    null) ===
-                    (args.guest === true) &&
-                  host?.hasAttribute("data-fit")
-                )
-                  break;
-                await new Promise((resolve) => requestAnimationFrame(resolve));
-              }
-              await settle();
-              const result = measure();
-              for (const problem of result.problems)
-                out.push(`${name}: ${problem}`);
-            }
-            return out;
-          },
-          {
-            source: measureBar.toString(),
-            settleSource: settle.toString(),
-            story: job.story,
-            items: mine,
-          },
-        );
-        for (const line of found)
-          failures.push(
-            `${pointer} ${width} px at ${job.root} px text, ${line}`,
-          );
-      }
-      await page.close();
-    };
-    await Promise.all(runs.map(run));
-    expect(failures.slice(0, 40)).toEqual([]);
+    const loops: string[] = [];
+    const chunks = [
+      states.filter(([, args]) => !args.following),
+      states.filter(([, args]) => args.following),
+    ];
+    await Promise.all(
+      chunks.map(async (chunk) => {
+        const page = await context.newPage();
+        watchLoops(page, loops);
+        const open = { story: null as string | null };
+        for (const [name, args] of chunk) {
+          await showArgs(page, open, args);
+          const rows = await page.evaluate(measurePlans, {
+            plans: SWEEP_PLANS,
+          });
+          for (const { root, width, found } of rows)
+            for (const problem of found.problems)
+              failures.push(
+                `${pointer} ${width} px at ${root} px text, ${name}: ${problem}`,
+              );
+        }
+        await page.close();
+      }),
+    );
     await context.close();
+    expect(failures.slice(0, 40)).toEqual([]);
+    expect(loops.filter((message) => LOOPS.test(message))).toEqual([]);
   });
 }
 
