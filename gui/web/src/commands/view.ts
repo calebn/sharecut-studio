@@ -37,10 +37,16 @@ export function announceWaveformAmp(): void {
   );
 }
 
+function suspendTimelineFollow(): void {
+  const s = useDawStore.getState();
+  if (s.isPlaying) s.setTimelineFollowPlayhead(false);
+}
+
 export function registerViewCommands(): void {
   registerCommand("view.zoomIn", () => {
     const s = useDawStore.getState();
     if (!s.project) return NO_PROJECT;
+    suspendTimelineFollow();
     s.applyAnchoredZoom(s.zoomPxPerSec * discreteZoomFactor("in"));
     return { status: "ok" };
   });
@@ -48,6 +54,7 @@ export function registerViewCommands(): void {
   registerCommand("view.zoomOut", () => {
     const s = useDawStore.getState();
     if (!s.project) return NO_PROJECT;
+    suspendTimelineFollow();
     s.applyAnchoredZoom(s.zoomPxPerSec * discreteZoomFactor("out"));
     return { status: "ok" };
   });
@@ -55,6 +62,7 @@ export function registerViewCommands(): void {
   registerCommand("view.fit", () => {
     const s = useDawStore.getState();
     if (!s.project) return NO_PROJECT;
+    suspendTimelineFollow();
     s.fitToWindow(s.measureTimelineViewport());
     return { status: "ok" };
   });
@@ -78,7 +86,17 @@ export function registerViewCommands(): void {
       (viewport * ZOOM_TO_SELECTION_FILL) / len,
       s.project.timeline_duration_sec,
     );
+    suspendTimelineFollow();
     s.zoomToSpan(span.start, span.end, zoom);
+    return { status: "ok" };
+  });
+
+  registerCommand("view.followPlayhead", () => {
+    const s = useDawStore.getState();
+    if (!s.project) return NO_PROJECT;
+    s.setTimelineFollowPlayhead(true);
+    playheadScrollRegistry.scrollToPlayhead("timeline");
+    s.announceStatus("Following the playhead");
     return { status: "ok" };
   });
 

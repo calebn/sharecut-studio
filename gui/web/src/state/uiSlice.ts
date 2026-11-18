@@ -338,6 +338,7 @@ type UiSlice = Pick<
   | "composer"
   | "listenLoadFailed"
   | "transcriptFollowPlayhead"
+  | "timelineFollowPlayhead"
   | "transcriptInlineEditRequest"
   | "setTranscriptInlineEditRequest"
   | "transcriptInlineEditFailure"
@@ -363,6 +364,7 @@ type UiSlice = Pick<
   | "setScrollLeft"
   | "selectFromInspector"
   | "setTranscriptFollowPlayhead"
+  | "setTimelineFollowPlayhead"
   | "toggleTranscriptFollowPlayhead"
   | "setTranscriptInlineEditFailure"
   | "setChapterAddPending"
@@ -420,6 +422,7 @@ export function uiProjectInitial() {
     highlightStaleRender: false,
     renderPreviewBusy: false,
     chapterAddPending: false,
+    timelineFollowPlayhead: true,
     joinMutationInFlight: false,
     joinDraft: null,
     rippleTrim: null,
@@ -710,6 +713,7 @@ export const createUiSlice: StateCreator<DawStore, [], [], UiSlice> = (
     } satisfies LayerVisibility,
     listenLoadFailed: false,
     transcriptFollowPlayhead: true,
+    timelineFollowPlayhead: true,
     transcriptInlineEditFailure: null as TranscriptInlineEditFailure | null,
     showCutAwayUtterances: false,
     timelineFocused: true,
@@ -758,6 +762,12 @@ export const createUiSlice: StateCreator<DawStore, [], [], UiSlice> = (
     },
     setTranscriptFollowPlayhead: (transcriptFollowPlayhead) =>
       set({ transcriptFollowPlayhead }),
+    setTimelineFollowPlayhead: (timelineFollowPlayhead) =>
+      set((s) =>
+        s.timelineFollowPlayhead === timelineFollowPlayhead
+          ? s
+          : { timelineFollowPlayhead },
+      ),
     toggleTranscriptFollowPlayhead: () =>
       set((s) => ({ transcriptFollowPlayhead: !s.transcriptFollowPlayhead })),
     setTranscriptInlineEditRequest: (transcriptInlineEditRequest) =>
