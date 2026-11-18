@@ -1592,7 +1592,9 @@ def test_proxy_manifest_local_fallback(minimal_project, sample_wav, tmp_workspac
     chunk = client.get(entry["urls"][0])
     assert chunk.status_code == 200
     assert chunk.headers["content-type"].startswith("audio/mpeg")
-    assert "immutable" in chunk.headers.get("cache-control", "")
+    # The guest's page keeps the audio in Cache Storage, which it can clear when
+    # the link ends; no browser or shared cache may keep it for the link's holder.
+    assert chunk.headers["cache-control"] == "private, no-store"
 
 
 def test_proxy_manifest_binds_second_recording_for_review_link(

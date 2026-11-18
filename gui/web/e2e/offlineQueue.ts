@@ -50,3 +50,35 @@ export const guestSavedCopy = (page: Page, token: string) =>
       }),
     `snap:${token}`,
   );
+
+/** The name of the cache that holds one review link's audio, and the old cache every link shared. */
+const LINK_AUDIO_CACHE = "sharecut-link-audio:";
+const SHARED_AUDIO_CACHE = "podcast-proxy-v1";
+
+/**
+ * The audio the guest's browser keeps in Cache Storage: the entries and bytes
+ * held for this link, and the entries left in the old cache every link shared.
+ * Names carry the token, so only counts leave the page.
+ */
+export const guestLinkAudio = (page: Page, token: string) =>
+  page.evaluate(
+    async ([linkName, sharedName]) => {
+      const sizeOf = async (name: string) => {
+        if (typeof caches === "undefined" || !(await caches.has(name)))
+          return { entries: 0, bytes: 0 };
+        const cache = await caches.open(name);
+        const keys = await cache.keys();
+        let bytes = 0;
+        for (const key of keys) {
+          const res = await cache.match(key);
+          bytes += res ? (await res.arrayBuffer()).byteLength : 0;
+        }
+        return { entries: keys.length, bytes };
+      };
+      return {
+        ...(await sizeOf(linkName!)),
+        shared: (await sizeOf(sharedName!)).entries,
+      };
+    },
+    [`${LINK_AUDIO_CACHE}${token}`, SHARED_AUDIO_CACHE],
+  );
