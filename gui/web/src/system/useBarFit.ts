@@ -1,4 +1,5 @@
 import { type RefObject, useLayoutEffect } from "react";
+import { useResizeObserver } from "../ui/useResizeObserver";
 
 /**
  * How many things the bar can give up, in order (system.css has one rule per
@@ -92,9 +93,10 @@ export function fitBar(host: HTMLElement): void {
 }
 
 /**
- * Sets `data-fit` on the bar's host before the first paint, and again when
- * what the bar holds changes (every render), when it resizes, when <html>'s attributes
- * change (text size) and when the fonts finish loading. Off (no attribute) for the dock and the expanded form.
+ * Sets `data-fit` on the bar's host before the first paint, and again when what
+ * the bar holds changes (every render), when it resizes, when an attribute of
+ * `<html>` changes (the text size) and when the fonts finish loading. Pass
+ * `on` false for the dock and the expanded form: no attribute, no observers.
  */
 export function useBarFit(ref: RefObject<HTMLElement | null>, on: boolean) {
   // No dependency list: the bar's contents are whatever its props render.
@@ -103,13 +105,17 @@ export function useBarFit(ref: RefObject<HTMLElement | null>, on: boolean) {
     if (!on || !host) return;
     fitBar(host);
   });
+  useResizeObserver(
+    ref,
+    () => {
+      if (ref.current) fitBar(ref.current);
+    },
+    on,
+  );
   useLayoutEffect(() => {
     const host = ref.current;
     if (!on || !host) return;
     const refit = () => fitBar(host);
-    const observer =
-      typeof ResizeObserver === "undefined" ? null : new ResizeObserver(refit);
-    observer?.observe(host);
     // A text-size or theme change sets an attribute on <html>: the widths of the
     // contents change, the bar's does not.
     const root = new MutationObserver(refit);
@@ -118,7 +124,6 @@ export function useBarFit(ref: RefObject<HTMLElement | null>, on: boolean) {
     void fonts?.ready.then(refit);
     fonts?.addEventListener?.("loadingdone", refit);
     return () => {
-      observer?.disconnect();
       root.disconnect();
       fonts?.removeEventListener?.("loadingdone", refit);
     };

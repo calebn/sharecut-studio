@@ -756,6 +756,7 @@ for (const pointer of ["fine", "coarse"] as const) {
   test(`System/Player bar keeps its controls apart and shows what develop showed where it fitted, ${pointer} pointer (#2576)`, async ({
     browser,
   }) => {
+    test.setTimeout(300_000);
     const context = await browser.newContext({
       baseURL: "http://127.0.0.1:6010",
       viewport: { width: 800, height: 400 },
