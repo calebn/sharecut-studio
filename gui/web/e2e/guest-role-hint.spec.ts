@@ -1,6 +1,7 @@
-import { expect, type Page, type Route, test } from "@playwright/test";
+import { expect, type Page, test } from "@playwright/test";
 import { fontsReady } from "./fontsReady";
 import {
+  loseConnectionOnLoad,
   NARROW_PHONE,
   ROLES,
   SIZES,
@@ -486,25 +487,6 @@ test.describe("the first-visit role hint is said once", () => {
 });
 
 test.describe("the first-visit role hint on a saved copy", () => {
-  /** The page asks for the episode, and the device loses its connection while that request is out. */
-  async function loseConnectionOnLoad(page: Page, token: string) {
-    let asked = 0;
-    let release: (route: Route) => void = () => {};
-    const first = new Promise<Route>((resolve) => {
-      release = resolve;
-    });
-    await page.route(`**/api/review/${token}/project`, async (route) => {
-      asked += 1;
-      if (asked === 1) return release(route);
-      return route.abort("internetdisconnected");
-    });
-    await page.goto(`/r/${token}`);
-    const held = await first;
-    await page.context().setOffline(true);
-    await expect.poll(() => page.evaluate(() => navigator.onLine)).toBe(false);
-    await held.abort("internetdisconnected");
-  }
-
   for (const size of [PHONE, DESKTOP]) {
     for (const role of ["commenter", "editor"] as const) {
       test(`shows a ${role} link opened without a connection no hint, and its own once the connection is back at ${size.width}x${size.height}`, async ({
