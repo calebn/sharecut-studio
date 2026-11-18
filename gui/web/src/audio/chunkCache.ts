@@ -7,7 +7,7 @@ import { chunkRefKey, type ImmutableChunkRef } from "./proxyMath";
  * Each review link keeps its audio in a cache of its own, so forgetting a link
  * is one delete of one name and cannot touch another link's audio.
  */
-export const LINK_AUDIO_PREFIX = "sharecut-link-audio:";
+const LINK_AUDIO_PREFIX = "sharecut-link-audio:";
 
 /** The one cache every link used to share; it keeps audio of links that ended long ago. */
 const SHARED_CACHE = "podcast-proxy-v1";

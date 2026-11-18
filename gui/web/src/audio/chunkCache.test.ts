@@ -60,6 +60,8 @@ for (const cacheAvailable of [false, true]) {
 
 const HASH = "a".repeat(64);
 const LEGACY = "podcast-proxy-v1";
+/** The cache name is also read by the browser spec, so the test states it in full. */
+const LINK_AUDIO_PREFIX = "sharecut-link-audio:";
 
 function ref(index: number, url: string, hash = HASH): ImmutableChunkRef {
   return { kind: "track", artifactId: "host", hash, index, url };
@@ -187,11 +189,11 @@ describe("the audio a link's guest keeps", () => {
 
     expect(second.byteLength).toBe(first.byteLength);
     expect(fetchSpy).toHaveBeenCalledOnce();
-    const own = fake.entries(`${m.LINK_AUDIO_PREFIX}${token}`);
+    const own = fake.entries(`${LINK_AUDIO_PREFIX}${token}`);
     expect(own).toHaveLength(1);
     // The address is the chunk's identity; no URL the server issued is in it.
     expect(own[0]).not.toContain("/chunk/0");
-    expect(fake.names()).toEqual([`${m.LINK_AUDIO_PREFIX}${token}`]);
+    expect(fake.names()).toEqual([`${LINK_AUDIO_PREFIX}${token}`]);
   });
 
   it("serves the same chunk under a different URL from the cache (a presigned URL changes on every read)", async () => {
@@ -225,8 +227,8 @@ describe("the audio a link's guest keeps", () => {
 
     await m.forgetLinkAudio(gone);
 
-    expect(fake.names()).toEqual([`${m.LINK_AUDIO_PREFIX}${kept}`]);
-    expect(fake.entries(`${m.LINK_AUDIO_PREFIX}${kept}`)).toHaveLength(2);
+    expect(fake.names()).toEqual([`${LINK_AUDIO_PREFIX}${kept}`]);
+    expect(fake.entries(`${LINK_AUDIO_PREFIX}${kept}`)).toHaveLength(2);
     fetchSpy.mockClear();
     await m.cachedFetchArrayBuffer(`share:${kept}`, ref(1, "/x/1"));
     expect(fetchSpy).not.toHaveBeenCalled();
@@ -240,7 +242,7 @@ describe("the audio a link's guest keeps", () => {
     await m.cachedFetchArrayBuffer("share:a-b-c", ref(0, "/x/0"));
     await m.cachedFetchArrayBuffer("share:a-b-c-d", ref(0, "/x/0"));
     await m.forgetLinkAudio("a-b-c");
-    expect(fake.names()).toEqual([`${m.LINK_AUDIO_PREFIX}a-b-c-d`]);
+    expect(fake.names()).toEqual([`${LINK_AUDIO_PREFIX}a-b-c-d`]);
   });
 
   describe("forgetLinkAudio", () => {
@@ -322,48 +324,29 @@ describe("the audio a link's guest keeps", () => {
       expect(fake.names()).toEqual([]);
     });
 
-    it("leaves the link without a cache when the forgetting comes while the write waits", async () => {
-      const m = await load();
-      const fake = fakeCaches();
-      const write = gate();
-      fake.faults.put = write.held;
-      vi.stubGlobal("caches", fake.storage);
-      stubFetch();
-      const token = freshLink();
+    it.each<"open" | "put">(["open", "put"])(
+      "leaves the link without a cache when the forgetting comes while %s waits",
+      async (step) => {
+        const m = await load();
+        const fake = fakeCaches();
+        const waiting = gate();
+        fake.faults[step] = waiting.held;
+        vi.stubGlobal("caches", fake.storage);
+        stubFetch();
+        const token = freshLink();
 
-      const pending = m.cachedFetchArrayBuffer(
-        `share:${token}`,
-        ref(0, "/x/0"),
-      );
-      await vi.waitFor(() => expect(fake.calls.put).toBe(1));
-      await m.forgetLinkAudio(token);
-      write.open();
-      await pending;
+        const pending = m.cachedFetchArrayBuffer(
+          `share:${token}`,
+          ref(0, "/x/0"),
+        );
+        await vi.waitFor(() => expect(fake.calls[step]).toBe(1));
+        await m.forgetLinkAudio(token);
+        waiting.open();
+        await pending;
 
-      expect(fake.entries(`${m.LINK_AUDIO_PREFIX}${token}`)).toEqual([]);
-      expect(fake.names()).toEqual([]);
-    });
-
-    it("leaves no empty cache when the forgetting comes while the cache is being opened", async () => {
-      const m = await load();
-      const fake = fakeCaches();
-      const opening = gate();
-      fake.faults.open = opening.held;
-      vi.stubGlobal("caches", fake.storage);
-      stubFetch();
-      const token = freshLink();
-
-      const pending = m.cachedFetchArrayBuffer(
-        `share:${token}`,
-        ref(0, "/x/0"),
-      );
-      await vi.waitFor(() => expect(fake.calls.open).toBe(1));
-      await m.forgetLinkAudio(token);
-      opening.open();
-      await pending;
-
-      expect(fake.names()).toEqual([]);
-    });
+        expect(fake.names()).toEqual([]);
+      },
+    );
 
     it("keeps audio again when the same link is opened again after a forgetting", async () => {
       const m = await load();
@@ -373,7 +356,7 @@ describe("the audio a link's guest keeps", () => {
       const token = freshLink();
       await m.forgetLinkAudio(token);
       await m.cachedFetchArrayBuffer(`share:${token}`, ref(0, "/x/0"));
-      expect(fake.entries(`${m.LINK_AUDIO_PREFIX}${token}`)).toHaveLength(1);
+      expect(fake.entries(`${LINK_AUDIO_PREFIX}${token}`)).toHaveLength(1);
     });
   });
 
@@ -512,8 +495,8 @@ describe("the audio a link's guest keeps", () => {
         current.map((chunk) => ({ ...chunk, url: `${chunk.url}?sig=2` })),
       );
 
-      expect(fake.entries(`${m.LINK_AUDIO_PREFIX}${token}`)).toHaveLength(2);
-      expect(fake.entries(`${m.LINK_AUDIO_PREFIX}${other}`)).toHaveLength(1);
+      expect(fake.entries(`${LINK_AUDIO_PREFIX}${token}`)).toHaveLength(2);
+      expect(fake.entries(`${LINK_AUDIO_PREFIX}${other}`)).toHaveLength(1);
       fetchSpy.mockClear();
       for (const chunk of current) await m.cachedFetchArrayBuffer(key, chunk);
       expect(fetchSpy).not.toHaveBeenCalled();
@@ -532,7 +515,7 @@ describe("the audio a link's guest keeps", () => {
         const broken = fakeCaches();
         // One entry the keep list does not name, so `delete` is reached.
         const store = await broken.storage.open(
-          `${m.LINK_AUDIO_PREFIX}broken-${method}`,
+          `${LINK_AUDIO_PREFIX}broken-${method}`,
         );
         await store.put("https://example.test/stale", new Response("x"));
         broken.faults[method] = "reject";

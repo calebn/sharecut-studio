@@ -53,7 +53,7 @@ export const guestSavedCopy = (page: Page, token: string) =>
 
 /** The name of the cache that holds one review link's audio, and the old cache every link shared. */
 const LINK_AUDIO_CACHE = "sharecut-link-audio:";
-const SHARED_AUDIO_CACHE = "podcast-proxy-v1";
+export const SHARED_AUDIO_CACHE = "podcast-proxy-v1";
 
 /**
  * The audio the guest's browser keeps in Cache Storage: the entries and bytes

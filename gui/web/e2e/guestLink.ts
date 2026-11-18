@@ -381,7 +381,7 @@ export async function withGuestPage(
   );
 }
 
-export type Answer = "offline" | "refused" | "through";
+type Answer = "offline" | "refused" | "through";
 
 /** Holds the episode request the page makes on load, so the device can lose its connection while it is out. */
 export async function holdFirstRequest(page: Page, token: string) {
