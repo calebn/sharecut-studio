@@ -1052,7 +1052,7 @@
       "tooltip": "Follow the playhead again during playback",
       "presence": {
         "cursor": "none",
-        "follow": "none"
+        "follow": "look"
       }
     },
     {

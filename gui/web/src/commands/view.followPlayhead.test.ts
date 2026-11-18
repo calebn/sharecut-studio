@@ -63,15 +63,9 @@ describe("view commands suspend the timeline follow", () => {
 });
 
 describe("view.followPlayhead", () => {
-  it("re-arms, scrolls only the timeline, and does not stop a presence follow", async () => {
-    const stopFollow = vi.fn();
+  it("re-arms and scrolls only the timeline", async () => {
     const announceStatus = vi.fn();
-    useDawStore.setState({
-      stopFollow,
-      announceStatus,
-      followingClientId: "leader",
-      timelineFollowPlayhead: false,
-    });
+    useDawStore.setState({ announceStatus, timelineFollowPlayhead: false });
     const timeline = vi.fn(() => true);
     const script = vi.fn(() => true);
     const offTimeline = playheadScrollRegistry.register("timeline", timeline);
@@ -85,7 +79,6 @@ describe("view.followPlayhead", () => {
     expect(followFlag()).toBe(true);
     expect(timeline).toHaveBeenCalledTimes(1);
     expect(script).not.toHaveBeenCalled();
-    expect(stopFollow).not.toHaveBeenCalled();
     expect(announceStatus).toHaveBeenCalledWith("Following the playhead");
   });
 
@@ -102,6 +95,16 @@ describe("view.followPlayhead", () => {
     off();
     expect(result.status).toBe("ok");
     expect(announceStatus).toHaveBeenCalledTimes(calls);
+  });
+
+  it("leaves a presence follow, since it scrolls the local timeline", async () => {
+    useDawStore.setState({ followingClientId: "leader" });
+    const off = playheadScrollRegistry.register("timeline", () => true);
+
+    await execute("view.followPlayhead");
+
+    off();
+    expect(useDawStore.getState().followingClientId).toBeNull();
   });
 
   it("is disabled outside the Edit stage", async () => {
