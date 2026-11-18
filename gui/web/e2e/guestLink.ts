@@ -23,7 +23,7 @@ export async function revokeLink(
 }
 
 /** One link in the host's list, as `GET /api/shares` answers it. */
-export type ShareRow = {
+type ShareRow = {
   token: string;
   url: string | null;
   docs_role: string | null;
