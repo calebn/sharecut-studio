@@ -613,6 +613,7 @@ export const COMMANDS: Record<string, CommandDef> = {
     variants: ["Undo replacements", "Undo timing"],
     keywords: ["revert", "go back"],
     when: "canUndo",
+    announcesGate: true,
   },
   "history.redo": {
     id: "history.redo",
@@ -620,6 +621,7 @@ export const COMMANDS: Record<string, CommandDef> = {
     label: "Redo",
     keywords: ["repeat"],
     when: "canRedo",
+    announcesGate: true,
   },
   "ui.toggleCommandPalette": {
     id: "ui.toggleCommandPalette",

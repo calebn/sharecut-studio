@@ -128,6 +128,13 @@ export function useDawKeymapListener(): void {
           }
           const gate = evaluateWhen(def.when, ctx);
           if (!gate.ok) {
+            if (def.announcesGate && !e.repeat) {
+              e.preventDefault();
+              useDawStore
+                .getState()
+                .announceStatus(gate.reason, { tone: "error" });
+              return;
+            }
             continue;
           }
           e.preventDefault();
