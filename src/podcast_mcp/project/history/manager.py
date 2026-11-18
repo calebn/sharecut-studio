@@ -7,6 +7,7 @@ from typing import Literal
 from podcast_mcp.models.episode import EpisodeProject
 from podcast_mcp.models.history import HistoryEntry, ProjectHistory, ProjectStateSnapshot
 from podcast_mcp.models.project_format import apply_editable_snapshot
+from podcast_mcp.project.history.author import current_history_author
 from podcast_mcp.project.store import (
     ProjectStore,
     history_index_path,
@@ -183,6 +184,7 @@ class HistoryManager:
             snapshot_file=rel,
             operation=operation,
             params=params,
+            author=current_history_author(),
         )
 
         if history.cursor < len(history.entries) - 1:

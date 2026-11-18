@@ -14,6 +14,7 @@ from typing import Any, cast
 
 from podcast_mcp.export.names import BOUNCES_DIRNAME
 from podcast_mcp.models.episode import ExactRangeTarget
+from podcast_mcp.project.history.author import SYSTEM_AUTHOR, history_author
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.jobs.catalog import JobCatalog
 from podcast_mcp.services.jobs.events import LIVE_JOB_STATUSES, TERMINAL_JOB_STATUSES
@@ -630,6 +631,10 @@ class JobManager:
         return job
 
     def _run_job(self, job: Job) -> None:
+        with history_author(SYSTEM_AUTHOR):
+            self._run_job_as_system(job)
+
+    def _run_job_as_system(self, job: Job) -> None:
         with job._lock:
             job.status = "running"
             job.started_at = time.monotonic()
