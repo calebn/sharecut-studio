@@ -265,9 +265,12 @@ class HistoryManager:
         self, project: EpisodeProject, action: Literal["undo", "redo", "goto"]
     ) -> HistoryEntry | None:
         """The entry the next ``action`` takes back or brings back; a goto names none."""
-        if action == "goto":
-            return None
-        return self._load_index(project).entry_moved(action)
+        history = self._load_index(project)
+        if action == "undo":
+            return history.undo_target()
+        if action == "redo" and history.can_redo():
+            return history.entries[history.cursor + 1]
+        return None
 
     def tip_entry_index(self, project: EpisodeProject, operation: str) -> int | None:
         """Index of the newest ``operation`` entry when the cursor sits at the tip and only

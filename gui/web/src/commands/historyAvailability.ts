@@ -25,7 +25,7 @@ const NOTHING = {
   },
 } as const;
 
-export function editUnsaved(projectPath: string): boolean {
+function editUnsaved(projectPath: string): boolean {
   return documentActivityBusy(projectPath) || hasDocumentDrafts();
 }
 
@@ -34,11 +34,9 @@ export function historyRoleRefusal(
   s: HistoryState,
   action: "undo" | "redo",
 ): string | null {
-  return canApplyHistoryRole(s) ? null : NEEDS_EDITOR[action];
-}
-
-function canApplyHistoryRole(s: HistoryState): boolean {
-  return canApplyPass12(s.projectPath, s.guestMode, s.shareCapabilities);
+  return canApplyPass12(s.projectPath, s.guestMode, s.shareCapabilities)
+    ? null
+    : NEEDS_EDITOR[action];
 }
 
 type HistoryState = Pick<
@@ -53,7 +51,7 @@ type HistoryState = Pick<
  * step by the time the press runs.
  */
 export function historyAvailability(s: HistoryState): HistoryAvailability {
-  if (!canApplyHistoryRole(s)) {
+  if (historyRoleRefusal(s, "undo") !== null) {
     return {
       undo: { ok: false, reason: NEEDS_EDITOR.undo },
       redo: { ok: false, reason: NEEDS_EDITOR.redo },
