@@ -422,7 +422,10 @@ def test_a_non_utf8_name_is_refused_without_a_traceback(
 ) -> None:
     app = make_tree(tmp_path, [])
     folder = Path(os.fsdecode(bytes(app / "Frameworks") + b"/bad\xff.framework"))
-    folder.mkdir()
+    try:
+        folder.mkdir()
+    except OSError:
+        pytest.skip("filesystem refuses non-UTF-8 names")
     (folder / "bad").write_bytes(b"\xcf\xfa\xed\xfe")
     write_plist(folder / "Info.plist", appl_plist("bad"))
     for command in ("fix", "list", "check"):
