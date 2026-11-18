@@ -239,8 +239,13 @@ test.describe("a press on the first-visit role hint itself", () => {
 });
 
 test.describe("the first-visit role hint's box on a touch screen", () => {
+  // The tallest the bubble may be at 200% text, by width. The Viewer's one line takes the smallest cap of its width.
+  const LARGE_TEXT_HEIGHT: Record<number, Record<Role, number>> = {
+    390: { viewer: 112, commenter: 112, editor: 112 },
+    320: { viewer: 176, commenter: 176, editor: 208 },
+  };
   for (const size of PHONES) {
-    test(`is 44 px tall in every role, clear of the first line of text and inside the window at ${size.width}x${size.height}`, async ({
+    test(`is 44 px tall in every role, clear of the Commenter's first line of text and inside the window, and at 200% text cuts nothing, keeps the X on screen and stays under its height cap at ${size.width}x${size.height}`, async ({
       browser,
     }) => {
       await withGuestLinks(browser, async (links) => {
@@ -249,8 +254,7 @@ test.describe("the first-visit role hint's box on a touch screen", () => {
             await firstVisit(guest, links[role], role);
             const boxes = await hintBoxes(guest);
             const at = `${role} at ${size.width}: note ${describeBox(boxes.note)}`;
-            expect.soft(boxes.note.h, at).toBeLessThanOrEqual(44);
-            expect.soft(boxes.note.h, at).toBeGreaterThanOrEqual(44);
+            expect.soft(boxes.note.h, at).toBe(44);
             expect.soft(boxes.close.w, at).toBeCloseTo(44, 1);
             expect.soft(boxes.close.h, at).toBeCloseTo(44, 1);
             expect
@@ -283,38 +287,22 @@ test.describe("the first-visit role hint's box on a touch screen", () => {
                 )
                 .toBeLessThanOrEqual(boxes.firstLine!.y);
             }
-          });
-        }
-      });
-    });
-  }
 
-  // The tallest the bubble may be at 200% text. The Viewer's one line has no measured cell, so it takes the smallest published cap of its width.
-  const TODAY: Record<string, Partial<Record<Role, number>>> = {
-    "390": { viewer: 112, commenter: 112, editor: 112 },
-    "320": { viewer: 176, commenter: 176, editor: 208 },
-  };
-  for (const size of PHONES) {
-    test(`cuts nothing, keeps the X on screen and grows no taller than before at 200% text at ${size.width}x${size.height}`, async ({
-      browser,
-    }) => {
-      await withGuestLinks(browser, async (links) => {
-        for (const role of ROLES) {
-          await withGuestPage(browser, size, async (guest) => {
-            await firstVisit(guest, links[role], role);
             await setRootFontSize(guest, 32);
             await afterFrames(guest);
-            const boxes = await hintBoxes(guest);
-            const at = `${role} at ${size.width}, 200%: note ${describeBox(boxes.note)}`;
-            expect(boxes.clipped, at).toBe(false);
-            expect(boxes.close.x, at).toBeGreaterThanOrEqual(0);
-            expect(boxes.close.x + boxes.close.w, at).toBeLessThanOrEqual(
-              boxes.window.w,
-            );
-            expect(boxes.close.bottom, at).toBeLessThanOrEqual(boxes.window.h);
-            expect(boxes.note.h, at).toBeLessThanOrEqual(
-              TODAY[String(size.width)]![role]!,
-            );
+            const large = await hintBoxes(guest);
+            const atLarge = `${role} at ${size.width}, 200%: note ${describeBox(large.note)}`;
+            expect.soft(large.clipped, atLarge).toBe(false);
+            expect.soft(large.close.x, atLarge).toBeGreaterThanOrEqual(0);
+            expect
+              .soft(large.close.x + large.close.w, atLarge)
+              .toBeLessThanOrEqual(large.window.w);
+            expect
+              .soft(large.close.bottom, atLarge)
+              .toBeLessThanOrEqual(large.window.h);
+            expect
+              .soft(large.note.h, atLarge)
+              .toBeLessThanOrEqual(LARGE_TEXT_HEIGHT[size.width][role]);
           });
         }
       });

@@ -1,4 +1,4 @@
-import { isShareProjectKey } from "../utils/can";
+import { isShareProjectKey } from "../shareMode";
 import type { DawState } from "./types";
 import { useDaw } from "./useDaw";
 
@@ -7,7 +7,7 @@ import { useDaw } from "./useDaw";
  * project the link's answer never gave capabilities for. The copy opens
  * read-only, so the link's role is not known there.
  */
-export function readsSavedCopy(
+function readsSavedCopy(
   state: Pick<DawState, "projectPath" | "shareCapabilities">,
 ): boolean {
   return (
