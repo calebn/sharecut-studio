@@ -1,0 +1,17 @@
+--- a/fftools/ffmpeg_opt.c
++++ b/fftools/ffmpeg_opt.c
+@@ -83,6 +83,14 @@
+ 
+ static int file_overwrite     = 0;
+ static int no_file_overwrite  = 0;
++
++void sc_ffmpeg_opt_reset(void);
++void sc_ffmpeg_opt_reset(void)
++{
++    file_overwrite    = 0;
++    no_file_overwrite = 0;
++}
++
+ int ignore_unknown_streams = 0;
+ int copy_unknown_streams = 0;
+ int recast_media = 0;

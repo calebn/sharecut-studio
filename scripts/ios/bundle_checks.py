@@ -9,7 +9,7 @@ from __future__ import annotations
 import json
 import plistlib
 import re
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -22,6 +22,13 @@ ROOT = Path(__file__).resolve().parents[2]
 PRIVACY_CONTRACT = ROOT / "contracts" / "ios-privacy.json"
 MINIMUM_OS = "17.0"
 BUILD_NUMBER = re.compile(r"^(?:0|[1-9]\d*)(?:\.(?:0|[1-9]\d*)){2}$")
+FFMPEG_EMBEDDED = False
+FFMPEG_SIZE_BUDGET = 25 * 1024 * 1024
+FFMPEG_BINARY = Path("Frameworks") / "FFmpeg.framework" / "FFmpeg"
+FFMPEG_EXPORTS = frozenset(
+    {"sc_ffmpeg_abi_version", "sc_ffmpeg_start", "sc_ffmpeg_wait", "sc_ffmpeg_cancel"}
+)
+NmRunner = Callable[[Path, list[str]], str]
 MACHO_MAGICS = (b"\xcf\xfa\xed\xfe", b"\xca\xfe\xba\xbe", b"\xfe\xed\xfa\xcf", b"\xbe\xba\xfe\xca")
 
 
@@ -148,14 +155,53 @@ def load_privacy_contract(path: Path = PRIVACY_CONTRACT) -> Mapping[str, Mapping
     return json.loads(path.read_text(encoding="utf-8"))["categories"]
 
 
-def imported_symbols(app: Path) -> dict[str, frozenset[str]]:
+def xcrun_nm(binary: Path, flags: list[str]) -> str:
+    return capture(["xcrun", "nm", *flags, str(binary)])
+
+
+def imported_symbols(app: Path, runner: NmRunner = xcrun_nm) -> dict[str, frozenset[str]]:
     """Undefined symbols of every Mach-O in the bundle, keyed by its bundle-relative path."""
     imports = {}
     for path in sorted(app.rglob("*")):
         if path.is_file() and not path.is_symlink() and is_macho(path):
-            output = capture(["xcrun", "nm", "-u", "-j", str(path)])
-            imports[path.relative_to(app).as_posix()] = frozenset(output.split())
+            imports[path.relative_to(app).as_posix()] = frozenset(
+                runner(path, ["-u", "-j"]).split()
+            )
     return imports
+
+
+def exported_symbols(binary: Path, runner: NmRunner = xcrun_nm) -> frozenset[str]:
+    """Defined external symbols of one Mach-O, without the leading underscore."""
+    return frozenset(
+        name.removeprefix("_") for name in runner(binary, ["-gU", "-j"]).split() if name
+    )
+
+
+def check_ffmpeg_framework(app: Path, runner: NmRunner = xcrun_nm) -> CheckReport:
+    """The embedded FFmpeg framework exports exactly the four ``sc_ffmpeg_*`` names and fits the
+    size budget. A no-op while ``FFMPEG_EMBEDDED`` says the app does not carry it yet."""
+    if not FFMPEG_EMBEDDED:
+        return CheckReport("ffmpeg framework", facts={"status": "not embedded yet"})
+    binary = app / FFMPEG_BINARY
+    if binary.is_symlink() or not binary.is_file():
+        return CheckReport("ffmpeg framework", (f"{FFMPEG_BINARY.as_posix()} is missing",))
+    problems: list[str] = []
+    try:
+        if not is_macho(binary):
+            problems.append(f"{FFMPEG_BINARY.as_posix()} is not a Mach-O file")
+        size = binary.stat().st_size
+    except OSError as error:
+        return CheckReport(
+            "ffmpeg framework", (f"{FFMPEG_BINARY.as_posix()} is unreadable: {error}",)
+        )
+    if size > FFMPEG_SIZE_BUDGET:
+        problems.append(f"FFmpeg is {size} bytes, over the {FFMPEG_SIZE_BUDGET} byte budget")
+    exported = {name for name in exported_symbols(binary, runner) if name.startswith("sc_")}
+    problems += [f"FFmpeg does not export {name}" for name in sorted(FFMPEG_EXPORTS - exported)]
+    problems += [f"FFmpeg exports unexpected {name}" for name in sorted(exported - FFMPEG_EXPORTS)]
+    return CheckReport(
+        "ffmpeg framework", tuple(problems), facts={"size": size, "exports": sorted(exported)}
+    )
 
 
 def used_categories(

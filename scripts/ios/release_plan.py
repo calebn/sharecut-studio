@@ -455,6 +455,7 @@ def artifact_checks(
         Local("path scan", lambda ws: scan_check(ws, layout.root)),
         Local("info plist", lambda ws: plist_check(ws, expect)),
         Local("bundle layout", lambda ws: checks.check_layout(unpack(ws))),
+        Local("ffmpeg framework", lambda ws: checks.check_ffmpeg_framework(unpack(ws))),
         Local("privacy", privacy_check),
     ]
     if signed:

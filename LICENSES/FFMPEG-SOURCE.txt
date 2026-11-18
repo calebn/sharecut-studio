@@ -1,0 +1,66 @@
+FFmpeg, lame and opus in the ShareCut iOS app: source information
+
+Status: draft. Legal review of this text, of the dynamic and replaceable
+FFmpeg.framework arrangement, and of the period and channel of the written
+offer below is pending. Nothing here has been approved by counsel.
+
+What the app contains
+
+The iOS app embeds one dynamic framework, FFmpeg.framework (bundle id
+studio.sharecut.ffmpeg), built from the sources below. FFmpeg is configured
+without --enable-gpl and without --enable-nonfree, so it is licensed under the
+GNU Lesser General Public License, version 2.1 or later.
+
+  FFmpeg 9.0.2   LGPL 2.1 or later
+    https://ffmpeg.org/releases/ffmpeg-9.0.2.tar.xz
+    sha256 8c3850283eb25fa026482078a04051e0be17347b09ef81a0849bec15a96e002e
+  lame 4.0       LGPL
+    https://downloads.sourceforge.net/project/lame/lame/4.0/lame-4.0.tar.gz
+    sha256 3df5124d5ad3a98312ffd7ba6a9b36230e4f8a3e66d3ce0f425e336c32d216eb
+  opus 1.6.1     BSD 3-clause
+    https://downloads.xiph.org/releases/opus/opus-1.6.1.tar.gz
+    sha256 6ffcb593207be92584df15b32466ed64bbec99109f007c82205f0194572411a1
+
+These URLs and checksums are the ones pinned in contracts/ffmpeg-build.json
+in the application source repository.
+
+Changes to the upstream sources
+
+Two patches are applied to the FFmpeg 9.0.2 tree before it is built. Both live
+in gui/desktop/src-tauri/ios/ffmpeg/patches/ and are pinned by sha256 in
+contracts/ffmpeg-build.json.
+
+  ffmpeg-opt-reset.patch
+    sha256 8ed5e87f16da7f22f713a03b8a771a098abcbda4df96d3f06f7961dcbc6aa2cc
+    Adds sc_ffmpeg_opt_reset() to fftools/ffmpeg_opt.c so that the -y and -n
+    option state does not carry over from one run to the next.
+  ffprobe-no-exit.patch
+    sha256 6ec1e2bdf1d6edb799c507aee501886467342d523742e937ff94c3528e268d5e
+    Turns the five exit(1) calls in fftools/ffprobe.c into error returns.
+
+Besides the patches, the framework links original code of the application
+(a session core, FFmpeg glue and two wrapper translation units that include
+fftools/ffmpeg.c and fftools/ffprobe.c, plus two forced-include headers that
+route standard output, standard error and exit() of the tools). It is in
+gui/desktop/src-tauri/ios/ffmpeg/.
+
+How to rebuild the framework
+
+On macOS with Xcode and the iPhoneOS and iPhoneSimulator SDKs:
+
+  make ios-ffmpeg-device
+  make ios-ffmpeg-sim
+
+Both run scripts/ios/build_ffmpeg.sh, which downloads the three archives
+above, checks their sha256, applies the patches to a copy, configures and
+builds lame, opus and FFmpeg for arm64, and links FFmpeg.framework into
+gui/desktop/src-tauri/ios-ffmpeg/out/<device|sim>/. The full configure options
+are in contracts/ffmpeg-build.json (lame_configure, opus_configure,
+ffmpeg_configure) and in scripts/ios/build_ffmpeg.sh.
+
+Written offer
+
+[Text of the written offer, its period and the contact address: pending legal
+review. Until then the complete corresponding source is the application
+source repository at the commit the app was built from, together with the
+archives named above.]

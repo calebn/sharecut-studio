@@ -20,6 +20,7 @@ static long release_gen;
 static int resets, runs, interrupts, reset_starts, big_writes;
 static char order[8192];
 static int reset_delay_ms, last_argc, reused_fd = -1;
+static FILE *stray_out, *stray_err;
 
 static int is_interrupted(void) {
     pthread_mutex_lock(&mu);
@@ -66,6 +67,18 @@ int fake_reused_fd(void) {
     int v = reused_fd;
     pthread_mutex_unlock(&mu);
     return v;
+}
+
+void fake_stray_write(void) {
+    pthread_mutex_lock(&mu);
+    FILE *o = stray_out, *e = stray_err;
+    pthread_mutex_unlock(&mu);
+    if (o) {
+        fputs("stray-out\n", o);
+        fflush(o);
+    }
+    if (e) fputs("stray-err\n", e);
+    fputs("stray-fresh\n", sc_err());
 }
 
 void fake_release(void) {
@@ -157,6 +170,11 @@ int sc_glue_run(int tool, int argc, char **argv) {
             fprintf(sc_out(), "tool=%d\n", tool);
             for (int k = 0; k < argc; k++) fprintf(sc_out(), "%s\n", argv[k]);
             fflush(sc_out());
+        } else if (strcmp(t, "capture") == 0) {
+            pthread_mutex_lock(&mu);
+            stray_out = sc_out();
+            stray_err = sc_err();
+            pthread_mutex_unlock(&mu);
         } else if (strcmp(t, "started") == 0) {
             fputs("started\n", sc_err());
         } else if (strcmp(t, "progress") == 0) {
