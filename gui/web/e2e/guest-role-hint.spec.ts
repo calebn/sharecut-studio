@@ -142,15 +142,14 @@ const untouched = (page: Page) =>
 
 test.describe("a press on the first-visit role hint itself", () => {
   for (const size of [...PHONES, DESKTOP]) {
-    test(`closes it, records it and acts on nothing under it at ${size.width}x${size.height}`, async ({
+    test(`closes it and records it at ${size.width}x${size.height}`, async ({
       browser,
     }) => {
       await withGuestLinks(browser, async (links) => {
         await withGuestPage(browser, size, async (guest) => {
           await firstVisit(guest, links.commenter, "commenter");
-          const before = await untouched(guest);
           const boxes = await hintBoxes(guest);
-          // The sentence's own middle, down in the bubble's padding: where a first line of text lay under it.
+          // Near the bubble's foot, inside its padding.
           await press(
             guest,
             size,
@@ -162,12 +161,59 @@ test.describe("a press on the first-visit role hint itself", () => {
             `a press at the bubble's foot (${describeBox(boxes.note)}) left the hint up`,
           ).toHaveCount(0);
           expect(await seenFlags(guest)).toEqual(["-", "1", "-"]);
-          await afterFrames(guest);
-          expect(await untouched(guest)).toEqual(before);
         });
       });
     });
   }
+
+  test("a tap on the sentence where a word lies under it closes it and presses that word not", async ({
+    browser,
+  }) => {
+    await withGuestLinks(browser, async (links) => {
+      await withGuestPage(browser, NARROW_PHONE, async (guest) => {
+        await firstVisit(guest, links.commenter, "commenter");
+        // Larger text lays the bubble over the first line, so there is a word to press under it.
+        await setRootFontSize(guest, 32);
+        await afterFrames(guest);
+        const spot = await guest.evaluate((selector) => {
+          const note = document.querySelector<HTMLElement>(selector)!;
+          const nb = note.getBoundingClientRect();
+          const closeLeft = note
+            .querySelector("button")!
+            .getBoundingClientRect().left;
+          for (const word of document.querySelectorAll(".sys-script-word")) {
+            const b = word.getBoundingClientRect();
+            const left = Math.max(b.left, nb.left);
+            const right = Math.min(b.right, nb.right, closeLeft - 8);
+            const top = Math.max(b.top, nb.top);
+            const bottom = Math.min(b.bottom, nb.bottom);
+            if (right - left < 4 || bottom - top < 4) continue;
+            const x = (left + right) / 2;
+            const y = (top + bottom) / 2;
+            const stack = document.elementsFromPoint(x, y);
+            const onNote = stack.findIndex((el) => note.contains(el));
+            const onWord = stack.findIndex((el) => word.contains(el));
+            return { x, y, onNote, onWord };
+          }
+          return null;
+        }, NOTE);
+        expect(spot, "no word lies under the bubble").not.toBeNull();
+        expect(spot!.onNote, JSON.stringify(spot)).toBe(0);
+        expect(spot!.onWord, JSON.stringify(spot)).toBeGreaterThan(0);
+        const before = await untouched(guest);
+        await guest.touchscreen.tap(spot!.x, spot!.y);
+        await expect(guest.locator(NOTE)).toHaveCount(0);
+        expect(await seenFlags(guest)).toEqual(["-", "1", "-"]);
+        await afterFrames(guest);
+        expect(await untouched(guest)).toEqual(before);
+        // The control: the same word, now bare, does seek.
+        await guest.touchscreen.tap(spot!.x, spot!.y);
+        await expect
+          .poll(async () => (await untouched(guest)).elapsed)
+          .not.toBe(before.elapsed);
+      });
+    });
+  });
 
   test("closes it on a press on the sentence's own text, with no dialog opened", async ({
     browser,
@@ -194,7 +240,7 @@ test.describe("a press on the first-visit role hint itself", () => {
 
 test.describe("the first-visit role hint's box on a touch screen", () => {
   for (const size of PHONES) {
-    test(`is 44 px tall at most, clear of the first line of text and inside the window at ${size.width}x${size.height}`, async ({
+    test(`is 44 px tall in every role, clear of the first line of text and inside the window at ${size.width}x${size.height}`, async ({
       browser,
     }) => {
       await withGuestLinks(browser, async (links) => {
@@ -224,6 +270,9 @@ test.describe("the first-visit role hint's box on a touch screen", () => {
               .soft(boxes.note.bottom, at)
               .toBeLessThanOrEqual(boxes.window.h);
             expect.soft(boxes.clipped, at).toBe(false);
+            expect
+              .soft(boxes.note.y - boxes.header.bottom, at)
+              .toBeCloseTo(3, 1);
             if (role === "commenter") {
               // The first line of text is the page's, so nothing of it may sit under the bubble.
               expect(boxes.firstLine, at).not.toBeNull();
@@ -240,17 +289,17 @@ test.describe("the first-visit role hint's box on a touch screen", () => {
     });
   }
 
-  // What the bubble measured at 200% text before: it must never be larger.
+  // The tallest the bubble may be at 200% text. The Viewer's one line has no measured cell, so it takes the smallest published cap of its width.
   const TODAY: Record<string, Partial<Record<Role, number>>> = {
-    "390": { commenter: 112, editor: 112 },
-    "320": { commenter: 176, editor: 208 },
+    "390": { viewer: 112, commenter: 112, editor: 112 },
+    "320": { viewer: 176, commenter: 176, editor: 208 },
   };
   for (const size of PHONES) {
     test(`cuts nothing, keeps the X on screen and grows no taller than before at 200% text at ${size.width}x${size.height}`, async ({
       browser,
     }) => {
       await withGuestLinks(browser, async (links) => {
-        for (const role of ["commenter", "editor"] as const) {
+        for (const role of ROLES) {
           await withGuestPage(browser, size, async (guest) => {
             await firstVisit(guest, links[role], role);
             await setRootFontSize(guest, 32);
@@ -299,6 +348,9 @@ test.describe("keys and the first-visit role hint", () => {
     await withGuestLinks(browser, async (links) => {
       await withGuestPage(browser, DESKTOP, async (guest) => {
         await firstVisit(guest, links.commenter, "commenter");
+        await expect(
+          guest.getByRole("button", { name: "Play", exact: true }).first(),
+        ).toBeVisible();
         await guest.keyboard.press("l");
         await expect(guest.locator(NOTE)).toHaveCount(0);
         await expect(
@@ -466,6 +518,9 @@ test.describe("the first-visit role hint on a saved copy", () => {
             await expect(
               guest.getByRole("button", { name: /^Explain .* role$/ }),
             ).toBeVisible();
+            await expect(guest.getByRole("alert").first()).toContainText(
+              /offline/i,
+            );
             await afterFrames(guest);
             expect(
               await guest.locator(NOTE).allInnerTexts(),
