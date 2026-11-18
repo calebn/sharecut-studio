@@ -713,7 +713,6 @@ export const createUiSlice: StateCreator<DawStore, [], [], UiSlice> = (
     } satisfies LayerVisibility,
     listenLoadFailed: false,
     transcriptFollowPlayhead: true,
-    timelineFollowPlayhead: true,
     transcriptInlineEditFailure: null as TranscriptInlineEditFailure | null,
     showCutAwayUtterances: false,
     timelineFocused: true,

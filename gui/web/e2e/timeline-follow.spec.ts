@@ -21,7 +21,6 @@ type Probe = {
 
 type Box = { x: number; y: number; width: number; height: number };
 
-/** Installs `window.__probe`, which counts every frame the needle is outside the time viewport. */
 async function watchPlayhead(page: Page): Promise<void> {
   await page.evaluate(() => {
     const probe: Probe = {
@@ -103,13 +102,13 @@ async function box(page: Page, selector: string): Promise<Box | null> {
   return (await target.count()) ? target.boundingBox() : null;
 }
 
+test.afterEach(async ({ page }) => {
+  const pause = page.getByRole("button", { name: "Pause" });
+  if (await pause.isVisible()) await pause.click();
+});
+
 test.describe("desktop timeline follow", () => {
   test.use({ viewport: { width: 1280, height: 800 } });
-
-  test.afterEach(async ({ page }) => {
-    const pause = page.getByRole("button", { name: "Pause" });
-    if (await pause.isVisible()) await pause.click();
-  });
 
   test("the playhead stays inside the time viewport through a page flip", async ({
     page,
@@ -199,12 +198,7 @@ for (const layout of LAYOUTS) {
   test.describe(`Back to playhead pill, ${layout.name}`, () => {
     test.use({ viewport: layout.viewport, hasTouch: layout.touch });
 
-    test.afterEach(async ({ page }) => {
-      const pause = page.getByRole("button", { name: "Pause" });
-      if (await pause.isVisible()) await pause.click();
-    });
-
-    test("sits clear of the edit corner, the ruler and the header column, and one activation resumes the follow and nothing else", async ({
+    test("pill clears the edit corner, ruler and headers; one tap resumes the follow", async ({
       page,
     }) => {
       await openZoomedTimeline(page);
@@ -215,24 +209,24 @@ for (const layout of LAYOUTS) {
 
       const pill = page.getByRole("button", { name: PILL });
       const pillBox = await pill.boundingBox();
-      expect(pillBox).not.toBeNull();
+      if (!pillBox) throw new Error("pill not measured");
       const area = await box(page, ".timeline-area");
       const ruler = await box(page, ".timeline-ruler");
       const headers = await box(page, ".track-headers-chrome");
       const corner = await box(page, ".edit-corner");
-      expect(corner, "the edit corner is on screen here").not.toBeNull();
       for (const [name, other] of [
         ["edit corner", corner],
         ["ruler", ruler],
         ["track headers", headers],
       ] as const) {
-        if (!other || !pillBox) continue;
+        expect(other, `${name} is on screen here`).not.toBeNull();
+        if (!other) continue;
         expect(
           overlaps(pillBox, other),
           `${name} ${JSON.stringify(other)}`,
         ).toBe(false);
       }
-      if (!area || !pillBox) throw new Error("timeline area not measured");
+      if (!area) throw new Error("timeline area not measured");
       expect(pillBox.x + pillBox.width).toBeLessThanOrEqual(
         area.x + area.width,
       );
@@ -276,7 +270,7 @@ const { defaultBrowserType: _iphoneBrowser, ...iPhone } = devices["iPhone 13"];
 test.describe("phone timeline keeps its fixed playhead", () => {
   test.use(iPhone);
 
-  test("never shows the desktop pill while a scroll leaves the playhead behind", async ({
+  test("never shows the desktop pill on the fixed playhead during playback", async ({
     page,
   }) => {
     await openProject(page, e2eProjectPath);

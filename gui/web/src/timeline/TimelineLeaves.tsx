@@ -66,9 +66,8 @@ export function FollowPlayheadChip() {
 }
 
 /**
- * Back to playhead for the desktop timeline. It selects a boolean, so a tick
- * re-renders it only when the pill appears or goes; it unmounts on activation,
- * so focus moves to the scroller first.
+ * It selects a boolean, so a tick re-renders it only when the pill appears or
+ * goes; it unmounts on activation, so focus moves to the scroller first.
  */
 export function TimelineFollowPill({
   timeViewportPx,

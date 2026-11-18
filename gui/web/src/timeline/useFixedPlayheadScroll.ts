@@ -7,6 +7,7 @@ import {
   useRef,
 } from "react";
 import { seekTransport } from "../commands/seek";
+import { suspendTimelineFollow } from "../commands/view";
 import {
   isProgrammaticScroll,
   withProgrammaticScroll,
@@ -17,6 +18,7 @@ import {
   timelineViewportRegistry,
   type VisualPan,
 } from "../state/timelineViewportRegistry";
+import { clamp } from "../utils/math";
 import {
   domToLogicalScrollLeft,
   fixedLineOffsetPx,
@@ -101,7 +103,7 @@ function isBrowserClamp(
   el: Pick<HTMLElement, "scrollWidth" | "clientWidth">,
 ): boolean {
   const max = Math.max(0, el.scrollWidth - el.clientWidth);
-  const held = Math.min(max, Math.max(0, useDawStore.getState().scrollLeft));
+  const held = clamp(useDawStore.getState().scrollLeft, 0, max);
   return Math.abs(dom - held) <= SCROLL_SYNC_EPS_PX;
 }
 
@@ -276,9 +278,7 @@ export function useFixedPlayheadScroll({
   };
 
   const applyZoomAt = (nextZoom: number, clientX: number) => {
-    if (!fixedPlayhead && useDawStore.getState().isPlaying) {
-      setTimelineFollowPlayhead(false);
-    }
+    if (!fixedPlayhead) suspendTimelineFollow();
     anchoringZoom.current = true;
     noteZoomPointerClientX(clientX);
     applyAnchoredZoom(nextZoom, clientX);

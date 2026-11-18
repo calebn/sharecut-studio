@@ -48,22 +48,18 @@ afterEach(() => {
 });
 
 describe("view commands suspend the timeline follow", () => {
-  it.each(["view.zoomIn", "view.zoomOut", "view.fit", "view.zoomToSelection"])(
-    "%s while playing sets the flag false",
-    async (id) => {
-      useDawStore.setState({ isPlaying: true });
-      expect((await execute(id)).status).toBe("ok");
-      expect(followFlag()).toBe(false);
-    },
-  );
-
-  it.each(["view.zoomIn", "view.fit"])(
-    "%s while paused leaves the flag on",
-    async (id) => {
-      expect((await execute(id)).status).toBe("ok");
-      expect(followFlag()).toBe(true);
-    },
-  );
+  it.each([
+    ["view.zoomIn", true],
+    ["view.zoomOut", true],
+    ["view.fit", true],
+    ["view.zoomToSelection", true],
+    ["view.zoomIn", false],
+    ["view.fit", false],
+  ])("%s with playing=%s leaves the flag %s", async (id, playing) => {
+    useDawStore.setState({ isPlaying: playing });
+    expect((await execute(id)).status).toBe("ok");
+    expect(followFlag()).toBe(!playing);
+  });
 });
 
 describe("view.followPlayhead", () => {
@@ -91,6 +87,18 @@ describe("view.followPlayhead", () => {
     expect(script).not.toHaveBeenCalled();
     expect(stopFollow).not.toHaveBeenCalled();
     expect(announceStatus).toHaveBeenCalledWith("Following the playhead");
+  });
+
+  it("does not announce when the timeline has nothing to scroll, as on the phone", async () => {
+    const announceStatus = vi.fn();
+    useDawStore.setState({ announceStatus, timelineFollowPlayhead: false });
+    const off = playheadScrollRegistry.register("timeline", () => false);
+
+    const result = await execute("view.followPlayhead");
+
+    off();
+    expect(result.status).toBe("ok");
+    expect(announceStatus).not.toHaveBeenCalled();
   });
 
   it("is disabled outside the Edit stage", async () => {

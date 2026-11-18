@@ -115,8 +115,6 @@ describe("TimelineFollow", () => {
     act(() => {
       el.dispatchEvent(new Event("scroll"));
     });
-  const playheadX = () =>
-    useDawStore.getState().playheadSec * ZOOM - el.scrollLeft;
 
   it("pages the view when a playing playhead reaches the right margin", () => {
     render(<Harness />);
@@ -126,7 +124,7 @@ describe("TimelineFollow", () => {
     tick(37);
     expect(el.scrollLeft).toBe(310);
     expect(useDawStore.getState().scrollLeft).toBe(310);
-    expect(playheadX()).toBe(60);
+    expect(useDawStore.getState().playheadSec * ZOOM - el.scrollLeft).toBe(60);
     expect(flag()).toBe(true);
   });
 
