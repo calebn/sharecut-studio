@@ -4,6 +4,7 @@ import {
   expect,
   type Locator,
   type Page,
+  type Route,
 } from "@playwright/test";
 import { withShareableProject } from "./shareableProject";
 import { createReviewShare, openHostShare } from "./shareNavigation";
@@ -20,6 +21,9 @@ export async function revokeLink(
   });
   expect(ended.ok(), await ended.text()).toBeTruthy();
 }
+
+/** The title of the cover for a link that does not open anything. */
+export const DEAD_TITLE = "This link doesn't open anything";
 
 export type Size = {
   name: string;
@@ -207,7 +211,7 @@ export function blankEpisodeName(projectPath: string): void {
  * asked for after it, and a link for each of `roles`. The host stays open so a
  * guest finds a person in the header's people slot, as a real one does.
  */
-async function withSharedProject(
+export async function withSharedProject(
   browser: Parameters<typeof withBrowserPages>[0],
   guests: BrowserContextOptions[],
   roles: readonly GuestRole[],
@@ -375,4 +379,44 @@ export async function withGuestPage(
       await run(guest!);
     },
   );
+}
+
+export type Answer = "offline" | "refused" | "through";
+
+/** Holds the episode request the page makes on load, so the device can lose its connection while it is out. */
+export async function holdFirstRequest(page: Page, token: string) {
+  let answer: Answer = "offline";
+  let asked = 0;
+  let release: (route: Route) => void = () => {};
+  const first = new Promise<Route>((resolve) => {
+    release = resolve;
+  });
+  await page.route(`**/api/review/${token}/project`, async (route) => {
+    asked += 1;
+    if (asked === 1) return release(route);
+    if (answer === "through") return route.continue();
+    return route.abort(
+      answer === "offline" ? "internetdisconnected" : "connectionrefused",
+    );
+  });
+  return {
+    first,
+    asked: () => asked,
+    answerWith: (next: Answer) => {
+      answer = next;
+    },
+  };
+}
+
+export const deviceOnLine = (page: Page) =>
+  page.evaluate(() => navigator.onLine);
+
+export async function loseConnectionOnLoad(page: Page, token: string) {
+  const held = await holdFirstRequest(page, token);
+  await page.goto(`/r/${token}`);
+  const route = await held.first;
+  await page.context().setOffline(true);
+  await expect.poll(() => deviceOnLine(page)).toBe(false);
+  await route.abort("internetdisconnected");
+  return held;
 }
