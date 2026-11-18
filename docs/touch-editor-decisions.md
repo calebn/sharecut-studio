@@ -939,8 +939,9 @@ below for 800×360 and 844×390 sideways are the strip's, before the column.
   held sideways, the leave-room share of the slot can shrink to nothing (1 px
   at a 32 px root font), so a folded frame's compact sheet drops its half
   detent where half the slot cannot hold the one-row chrome and a touch row
-  (R-short-11, `halfDetentFits`): it opens at full, and a stored half shows as
-  full. Expand, Collapse and Close stay on screen. The drawer has one bounded body scroller. Native focus reveal
+  (R-short-11; `e2e-compat/touch-drawer.spec.ts` expects full for a 636 px wide
+  phone held sideways and for a 32 px root font): it opens at full, and a stored
+  half shows as full. Expand, Collapse and Close stay on screen. The drawer has one bounded body scroller. Native focus reveal
   brings the active field and its complete label below the pinned header when
   the label fits; the sheet scrolls within its own content instead of measuring
   a dynamic scroll-padding value (`focusAndReveal`, `revealBelowChrome`).
