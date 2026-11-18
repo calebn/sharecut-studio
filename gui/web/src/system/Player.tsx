@@ -20,7 +20,7 @@ import { SKIP_SEC } from "../utils/time";
 import { OverviewStrip, type OverviewTick } from "./OverviewStrip";
 import { PlayerChapters } from "./PlayerChapters";
 import { SystemIcon } from "./SystemIcon";
-import { useBarFit } from "./useBarFit";
+import { barFitKey, useBarFit } from "./useBarFit";
 import { VerbButton } from "./VerbButton";
 
 export type PlayerChapter = { title: string; time: string; at: number };
@@ -540,7 +540,7 @@ export function Player(props: PlayerProps) {
       preventScroll: true,
     });
   }, [form]);
-  useBarFit(barHostRef, form === "bar");
+  useBarFit(barHostRef, form === "bar", barFitKey(props));
   if (form === "dock") return <Dock {...props} statusId={statusId} />;
   if (form === "bar") {
     return (
