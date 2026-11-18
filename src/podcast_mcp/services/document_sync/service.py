@@ -26,6 +26,7 @@ from podcast_mcp.edits.range_target import RangeChangedError
 from podcast_mcp.edits.transcript_correct import TranscriptTextChangedError
 from podcast_mcp.edits.transcript_timing import TranscriptTimingChangedError
 from podcast_mcp.models import EpisodeProject, SavedDocumentCommand
+from podcast_mcp.models.history import StepOwners
 from podcast_mcp.project.history import StaleHistoryError
 from podcast_mcp.project.store import WriteGrantKind, commit_landed, write_grant
 from podcast_mcp.services.app import ProjectWorkspace
@@ -236,6 +237,11 @@ def dry_run_result(ws: ProjectWorkspace, command: DocumentCommand) -> RestoreRes
         if command.payload.get("dry_run") or planned.status == "conflict":
             return planned
     return None
+
+
+class GuestDocumentState(TypedDict):
+    snapshot: dict[str, Any]
+    _history_owners: StepOwners
 
 
 class RestoreConflictsAsk(TypedDict, total=False):
@@ -605,7 +611,7 @@ class DocumentSyncService:
         get_hub().publish(self._project_key, published)
         return event
 
-    def guest_document_state(self, *, projection: str) -> dict[str, Any]:
+    def guest_document_state(self, *, projection: str) -> GuestDocumentState:
         """A guest's document snapshot and, read under the same lock, who owns the next Undo
         and Redo (``_history_owners``, which ``sanitize_guest_document_event`` turns into the
         viewer's two flags)."""

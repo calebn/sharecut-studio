@@ -1300,7 +1300,7 @@ def _guest_file_signature(value: Any) -> dict[str, int] | None:
 
 
 def sanitize_guest_document_event(
-    event: dict[str, Any], *, words: GuestWords = GuestWords.NONE, viewer: str | None = None
+    event: Mapping[str, Any], *, words: GuestWords = GuestWords.NONE, viewer: str | None = None
 ) -> dict[str, Any]:
     """Sanitize a document-plane hub event for share guests.
 
