@@ -16,7 +16,7 @@ type Role = (typeof ROLES)[number];
 
 const [PHONE, DESKTOP] = SIZES;
 const PHONES = [PHONE, NARROW_PHONE] as const;
-/** Tall enough that the transcript has room to scroll. */
+/** Short enough that the transcript has more lines than fit, so a scroll moves it. */
 const SHORT_PHONE: Size = {
   name: "short",
   width: 390,
