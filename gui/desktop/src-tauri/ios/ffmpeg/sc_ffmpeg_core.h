@@ -14,7 +14,7 @@ SC_EXPORT void sc_ffmpeg_cancel(int64_t session);
 
 FILE *sc_out(void);
 FILE *sc_err(void);
-void sc_tool_exit(int code);
+void sc_tool_exit(int code) __attribute__((noreturn));
 
 /* sc_out and sc_err are the session's streams; after cancel (or a non-owner sc_tool_exit) they
    become the discard stream. sc_tool_exit unwinds by siglongjmp on the worker thread and ends

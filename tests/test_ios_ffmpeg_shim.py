@@ -159,6 +159,7 @@ class Shim:
         c.fake_counters.argtypes = [ctypes.POINTER(ctypes.c_int)]
         c.fake_order.argtypes = [ctypes.c_char_p, ctypes.c_int]
         c.fake_release.restype = None
+        c.fake_stray_write.restype = None
         c.fake_last_argc.restype = ctypes.c_int
         c.fake_reused_fd.restype = ctypes.c_int
         c.fake_set_reset_delay_ms.argtypes = [ctypes.c_int]
@@ -553,6 +554,30 @@ def test_writes_after_cancel_go_to_discard_and_never_block(shim: Shim) -> None:
     assert fd_count() == before
 
 
+def test_randomized_stray_writes_after_the_session_ended_never_touch_a_freed_file(
+    shim: Shim,
+) -> None:
+    before = fd_count()
+    with Pipes() as first:
+        session = shim.launch(["ffmpeg", "capture", "echo"], first)
+        assert shim.wait(session) == 0
+        assert read_until(first.out_r).startswith(b"tool=0\n")
+        assert read_until(first.err_r) == b""
+        strays = [threading.Thread(target=shim.cdll.fake_stray_write) for _ in range(4)]
+        for thread in strays:
+            thread.start()
+        for _ in range(5):
+            code, out, _ = shim.run(["ffmpeg", "echo"])
+            assert code == 0 and out.startswith(b"tool=0\n")
+        for thread in strays:
+            thread.join(BOUND_SEC)
+            assert not thread.is_alive()
+        shim.cdll.fake_stray_write()
+        assert read_until(first.out_r, timeout=2.0) == b""
+        assert read_until(first.err_r, timeout=2.0) == b""
+    assert fd_count() == before
+
+
 def test_writes_after_non_owner_exit_go_to_discard(shim: Shim) -> None:
     with Pipes() as pipes:
         session = shim.launch(["ffmpeg", "thread-exit:7", "bigerr"], pipes)
@@ -617,8 +642,8 @@ EXHAUST_SCRIPT = textwrap.dedent(
     after = count()
     assert after == before, (before, after)
     assert lib.sc_out() and lib.sc_err()
-    os.close(held.pop())
-    os.close(held.pop())
+    for _ in range(3):
+        os.close(held.pop())
     session = lib.sc_ffmpeg_start(2, array, -1, -1, -1)
     assert session >= 1, session
     assert lib.sc_ffmpeg_wait(session) == 0

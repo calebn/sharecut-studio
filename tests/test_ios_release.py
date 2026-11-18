@@ -326,6 +326,7 @@ def test_the_signed_plan_archives_only_exports_and_may_touch_apple() -> None:
         "path scan",
         "info plist",
         "bundle layout",
+        "ffmpeg framework",
         "privacy",
         "signature",
         "record",
@@ -1318,6 +1319,7 @@ def test_validate_and_upload_plans_differ_by_the_guard_and_the_upload(tmp_path: 
         "path scan",
         "info plist",
         "bundle layout",
+        "ffmpeg framework",
         "privacy",
         "signature",
         "app record",
@@ -1508,7 +1510,7 @@ def test_validate_and_upload_dry_runs_show_the_plan_and_the_token(
     assert ios_release.main(["validate", "--dry-run"]) == 0
     out = capsys.readouterr().out
     assert KEY_ID not in out and ISSUER not in out and "--api-key <key-id>" in out
-    assert "upload --confirm" not in out.split("dry run")[0] and " 8 validate" in out
+    assert "upload --confirm" not in out.split("dry run")[0] and " 9 validate" in out
     assert ios_release.main(["upload", "--dry-run", "--confirm", record.token()]) == 0
     out = capsys.readouterr().out
     assert " upload guard" in out and "--upload-app" in out

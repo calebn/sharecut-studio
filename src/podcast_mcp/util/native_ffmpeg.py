@@ -5,6 +5,7 @@ Nothing is loaded at import; a native error is never reported as success.
 
 from __future__ import annotations
 
+import contextlib
 import ctypes
 import errno
 import logging
@@ -12,7 +13,7 @@ import os
 import threading
 from typing import Any, BinaryIO
 
-from podcast_mcp.util import host_platform
+from podcast_mcp.util import host_platform, process
 from podcast_mcp.util.process import IN_PROCESS_FFMPEG, IN_PROCESS_FFPROBE, Streams
 
 ABI_VERSION = 1
@@ -73,11 +74,31 @@ def load_library(lib: Any = None) -> Any:
 def is_available() -> bool:
     try:
         load_library()
-    except NativeFFmpegUnavailable as exc:
+    except OSError as exc:
         if host_platform.current().media_tools == "in_process":
             _log.info("native ffmpeg unavailable: %s", exc)
         return False
     return True
+
+
+_installed: contextlib.ExitStack | None = None
+_install_lock = threading.Lock()
+
+
+def install_native_backend() -> bool:
+    global _installed
+    with _install_lock:
+        if _installed is not None:
+            return True
+        if host_platform.current().media_tools != "in_process" or not is_available():
+            return False
+        stack = contextlib.ExitStack()
+        try:
+            stack.enter_context(process.using_in_process_backend(NativeFFmpegBackend()))
+        except RuntimeError:
+            return False
+        _installed = stack
+        return True
 
 
 def _errno_text(result: int) -> str:
@@ -101,8 +122,9 @@ class NativeFFmpegBackend:
 
     - Native ``dup()``s each fd >= 0 during ``start`` and closes its dups when the session ends;
       the caller owns its own fds and native never closes them. Streams are flushed first.
-    - ``cancel`` must return promptly, stop the session and close the session's dups (each at most
-      once) at once, even if ``wait`` returns later.
+      ``start`` never blocks: it returns a session id at once.
+    - ``cancel`` must return promptly, stop the session and close the session's originals (each at
+      most once) at once, even if ``wait`` returns later; libav closes its own copies.
     - A caller's pipe reader sees EOF only when the native's dups are closed AND the caller-side
       write end is released. ``process`` releases that end when ``wait`` returns, or after
       ``KILL_GRACE_SEC`` at the latest, so EOF after a kill can take up to that grace.

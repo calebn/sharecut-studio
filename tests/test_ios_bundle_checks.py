@@ -343,3 +343,108 @@ def test_a_symlinked_storyboard_info_plist_is_named(tmp_path: Path, relative: st
         "symlinked Info.plist" in problem and relative in problem
         for problem in checks.check_layout(app).problems
     )
+
+
+FFMPEG_NM = "_sc_ffmpeg_abi_version\n_sc_ffmpeg_start\n_sc_ffmpeg_wait\n_sc_ffmpeg_cancel\n"
+
+
+def fake_nm(text: str, seen: list[tuple[Path, list[str]]] | None = None) -> checks.NmRunner:
+    def run(binary: Path, flags: list[str]) -> str:
+        if seen is not None:
+            seen.append((binary, flags))
+        return text
+
+    return run
+
+
+def ffmpeg_app(tmp_path: Path, body: bytes = b"") -> Path:
+    return make_app(tmp_path, {"Frameworks/FFmpeg.framework/FFmpeg": MACHO + body})
+
+
+def test_the_ffmpeg_check_is_a_no_op_until_the_framework_is_embedded(tmp_path: Path) -> None:
+    assert checks.FFMPEG_EMBEDDED is False
+    app = make_app(tmp_path, {"ShareCut": MACHO})
+    report = checks.check_ffmpeg_framework(app, fake_nm("nothing"))
+    assert report.ok and report.name == "ffmpeg framework"
+    assert report.facts == {"status": "not embedded yet"}
+
+
+def test_exported_symbols_asks_nm_for_defined_globals_and_drops_the_underscore(
+    tmp_path: Path,
+) -> None:
+    seen: list[tuple[Path, list[str]]] = []
+    path = tmp_path / "FFmpeg"
+    assert checks.exported_symbols(path, fake_nm(FFMPEG_NM + "_other\n", seen)) == (
+        checks.FFMPEG_EXPORTS | {"other"}
+    )
+    assert seen == [(path, ["-gU", "-j"])]
+
+
+def test_the_four_exports_and_a_small_binary_pass(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(checks, "FFMPEG_EMBEDDED", True)
+    app = ffmpeg_app(tmp_path)
+    report = checks.check_ffmpeg_framework(app, fake_nm(FFMPEG_NM + "_av_log\n_ff_x\n"))
+    assert report.problems == ()
+    assert report.facts["exports"] == sorted(checks.FFMPEG_EXPORTS)
+
+
+@pytest.mark.parametrize(
+    ("text", "problem"),
+    [
+        (FFMPEG_NM.replace("_sc_ffmpeg_wait\n", ""), "does not export sc_ffmpeg_wait"),
+        (FFMPEG_NM + "_sc_ffmpeg_extra\n", "unexpected sc_ffmpeg_extra"),
+        ("", "does not export sc_ffmpeg_abi_version"),
+    ],
+)
+def test_the_sc_exports_must_be_exactly_the_four(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, text: str, problem: str
+) -> None:
+    monkeypatch.setattr(checks, "FFMPEG_EMBEDDED", True)
+    report = checks.check_ffmpeg_framework(ffmpeg_app(tmp_path), fake_nm(text))
+    assert any(problem in line for line in report.problems)
+
+
+def test_a_missing_ffmpeg_binary_is_a_problem(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(checks, "FFMPEG_EMBEDDED", True)
+    app = make_app(tmp_path, {"ShareCut": MACHO})
+    report = checks.check_ffmpeg_framework(app, fake_nm(FFMPEG_NM))
+    assert report.problems == ("Frameworks/FFmpeg.framework/FFmpeg is missing",)
+
+
+def test_a_binary_over_the_size_budget_fails(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(checks, "FFMPEG_EMBEDDED", True)
+    monkeypatch.setattr(checks, "FFMPEG_SIZE_BUDGET", 64)
+    small = checks.check_ffmpeg_framework(
+        ffmpeg_app(tmp_path / "a", b"\0" * 48), fake_nm(FFMPEG_NM)
+    )
+    big = checks.check_ffmpeg_framework(ffmpeg_app(tmp_path / "b", b"\0" * 49), fake_nm(FFMPEG_NM))
+    assert small.ok
+    assert any("over the 64 byte budget" in line for line in big.problems)
+
+
+def test_the_size_budget_is_25_mib() -> None:
+    assert checks.FFMPEG_SIZE_BUDGET == 25 * 1024 * 1024
+
+
+def test_a_framework_binary_that_is_not_macho_fails(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(checks, "FFMPEG_EMBEDDED", True)
+    app = make_app(tmp_path, {"Frameworks/FFmpeg.framework/FFmpeg": b"text"})
+    report = checks.check_ffmpeg_framework(app, fake_nm(FFMPEG_NM))
+    assert any("not a Mach-O" in line for line in report.problems)
+
+
+def test_imported_symbols_takes_a_runner(tmp_path: Path) -> None:
+    app = make_app(tmp_path, {"ShareCut": MACHO})
+    seen: list[tuple[Path, list[str]]] = []
+    assert checks.imported_symbols(app, fake_nm("_stat\n", seen)) == {
+        "ShareCut": frozenset({"_stat"})
+    }
+    assert seen[0][1] == ["-u", "-j"]

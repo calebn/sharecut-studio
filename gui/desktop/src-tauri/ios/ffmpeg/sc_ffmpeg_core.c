@@ -58,6 +58,9 @@ static int worker_started;
 static pthread_mutex_t discard_lock = PTHREAD_MUTEX_INITIALIZER;
 static FILE *discard;
 static FILE *fallback;
+static FILE *slot_file[3];
+static int slot_fd[3] = {-1, -1, -1};
+static int null_fd = -1;
 static _Atomic(FILE *) out_file;
 static _Atomic(FILE *) err_file;
 static atomic_int stopped;
@@ -65,21 +68,48 @@ static _Thread_local sigjmp_buf *owner_jump;
 
 static int dup_high(int fd) { return fcntl(fd, F_DUPFD_CLOEXEC, 3); }
 
+static FILE *open_null_file(int base, int stream) {
+    int high = stream == 0 ? base : dup_high(base);
+    if (high < 0) return NULL;
+    FILE *f = fdopen(high, "w");
+    if (!f) {
+        if (stream != 0) close(high);
+        return NULL;
+    }
+    if (stream == 2) setvbuf(f, NULL, _IONBF, 0);
+    if (stream >= 1) slot_fd[stream] = high;
+    else null_fd = high;
+    return f;
+}
+
 static int ensure_discard(void) {
     int rc = 0;
     pthread_mutex_lock(&discard_lock);
     if (!discard) {
         signal(SIGPIPE, SIG_IGN);
-        int low = open("/dev/null", O_WRONLY | O_CLOEXEC);
-        if (low < 0) {
+        int base = open("/dev/null", O_WRONLY | O_CLOEXEC);
+        if (base >= 0 && base < 3) {
+            int high = dup_high(base);
+            close(base);
+            base = high;
+        }
+        if (base < 0) {
             rc = -errno;
         } else {
-            int high = dup_high(low);
-            rc = high < 0 ? -errno : 0;
-            close(low);
-            if (high >= 0 && !(discard = fdopen(high, "w"))) {
-                rc = -errno;
-                close(high);
+            FILE *made = open_null_file(base, 0);
+            FILE *out = made ? open_null_file(base, 1) : NULL;
+            FILE *err = out ? open_null_file(base, 2) : NULL;
+            if (err) {
+                slot_file[1] = out;
+                slot_file[2] = err;
+                discard = made;
+            } else {
+                rc = errno ? -errno : -EMFILE;
+                if (made) fclose(made);
+                else close(base);
+                if (out) fclose(out);
+                null_fd = -1;
+                slot_fd[1] = slot_fd[2] = -1;
             }
         }
     }
@@ -481,15 +511,18 @@ void sc_tool_exit(int code) {
 
 static FILE *open_stream(struct session *s, int stream) {
     if (s->orig[stream] < 0) return NULL;
-    int fd = dup_high(s->orig[stream]);
-    if (fd < 0) return NULL;
-    FILE *f = fdopen(fd, "w");
-    if (!f) {
-        close(fd);
-        return NULL;
-    }
-    if (stream == 2) setvbuf(f, NULL, _IONBF, 0);
+    FILE *f = slot_file[stream];
+    fflush(f);
+    if (dup2(s->orig[stream], slot_fd[stream]) < 0) return NULL;
+    fcntl(slot_fd[stream], F_SETFD, FD_CLOEXEC);
     return f;
+}
+
+static void close_stream(FILE *f, int stream) {
+    if (!f) return;
+    fflush(f);
+    dup2(null_fd, slot_fd[stream]);
+    fcntl(slot_fd[stream], F_SETFD, FD_CLOEXEC);
 }
 
 static int run_tool(struct session *s) {
@@ -529,8 +562,8 @@ static void *worker_main(void *unused) {
         }
         atomic_store(&out_file, NULL);
         atomic_store(&err_file, NULL);
-        if (out) fclose(out);
-        if (err) fclose(err);
+        close_stream(out, 1);
+        close_stream(err, 2);
         pthread_mutex_lock(&lock);
         if (s->failed || code < 0 || code > 255) code = 1;
         s->code = code;
