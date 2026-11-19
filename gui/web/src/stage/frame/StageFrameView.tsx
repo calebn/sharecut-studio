@@ -75,11 +75,20 @@ export function StageFrameView({
         {children}
       </main>
       {player ? (
-        <div ref={bindings?.player} className="stage-frame-player">
+        <div
+          ref={bindings?.player}
+          className="stage-frame-player"
+          role="region"
+          aria-label="Playback controls"
+        >
           {player}
         </div>
       ) : null}
-      {tabs ? <div className="stage-frame-tabs">{tabs}</div> : null}
+      {tabs ? (
+        <nav className="stage-frame-tabs" aria-label="Stages">
+          {tabs}
+        </nav>
+      ) : null}
       {sheet}
       {live}
       {overlay}
