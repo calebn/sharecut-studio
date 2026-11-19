@@ -374,8 +374,9 @@ void     sc_ffmpeg_cancel(int64_t session);
   caller reads or the native returns. A write the tool makes through the
   discard stream never blocks. A caller's
   reader of a pipe sees EOF only when the native's dups are closed (when the tool returns) and the
-  caller-side write end is released; Python releases that end when `wait` returns, or, if the
-  tool ignores the cancel, releases the stdin write end at `KILL_GRACE_SEC`. A
+  caller-side write end is released. `wait` does not release a caller's stdin writer: the caller
+  closes it (`communicate` and `__exit__` do), or, if the tool ignores the cancel, Python
+  releases it at `KILL_GRACE_SEC`. A
   native that ignores `cancel` does not hang `run` or `wait` (Python reports `-9` after the grace)
   but a stdout or stderr reader gets no EOF until its session ends (a stdin reader gets it at the grace). Limitations: two overlapping sessions must not be given
   the same pipe, and a thread of a finished session must not call the tool's exit path later. There
@@ -396,11 +397,12 @@ void     sc_ffmpeg_cancel(int64_t session);
   - the text `pattern_type`, `movie=`, `amovie=` or `format_opts`, which stops option strings
     smuggled into a filtergraph.
   - `dev/` or `proc/` at the start of the argument (after an optional `./` and one `/`) or after
-    one of `= : , ; [ ] ( )` or a space, and the text `dev/std` or `proc/self`. `/dev/fd/3`,
-    `proc/1/fd/1` and `amovie=dev/fd/3` are rejected; `/srv/x/dev/notes.wav` and
+    one of `= : , ; [ ] ( ) |` or a space (one optional `/` may sit between that delimiter and
+    the directory, and `+` counts as a delimiter only before that `/`), and the text `dev/std`
+    or `proc/self`. `/dev/fd/3`, `proc/1/fd/1` and `amovie=dev/fd/3` are rejected; `/srv/x/dev/notes.wav` and
     `/srv/me/mydev/fdr/a.wav` pass.
-  - `pipe:`, `fd:` or `file:` at the start of the argument or right after one of `= , ; [ ] ( ) |`
-    or `/`, but not after a space, `-` or `_` or inside a word (`Gold file: draft.wav`,
+  - `pipe:`, `fd:` or `file:` at the start of the argument or right after one of
+    `= , ; [ ] ( ) | : +` or `/`, but not after a space, `-` or `_` or inside a word (`Gold file: draft.wav`,
     `Sub-file:2.wav`, `profile:1.wav` pass; `amovie=pipe:3`, `[f=wav]pipe:3`, `;file:x` and
     `/pipe:3` do not; `./pipe:3` is a plain relative file and passes).
 
