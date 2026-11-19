@@ -376,7 +376,8 @@ void     sc_ffmpeg_cancel(int64_t session);
   reader of a pipe sees EOF only when the native's dups are closed (when the tool returns) and the
   caller-side write end is released. `wait` does not release a caller's stdin writer: the caller
   closes it (`communicate` and `__exit__` do), or, if the tool ignores the cancel, Python
-  releases it at `KILL_GRACE_SEC`. A
+  releases it at `KILL_GRACE_SEC`. The release never waits on a caller's write or flush that is
+  blocked on a full pipe: such a call stays blocked until the native reads or returns. A
   native that ignores `cancel` does not hang `run` or `wait` (Python reports `-9` after the grace)
   but a stdout or stderr reader gets no EOF until its session ends (a stdin reader gets it at the grace). Limitations: two overlapping sessions must not be given
   the same pipe, and a thread of a finished session must not call the tool's exit path later. There

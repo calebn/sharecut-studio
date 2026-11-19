@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import contextlib
 import errno
 import gc
+import io
 import os
 import resource
 import shutil
@@ -524,7 +526,7 @@ def test_a_caller_close_during_the_stdin_release_cannot_clobber_a_reused_descrip
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     child = process.InProcessChild(
-        [IN_PROCESS_FFMPEG, "wait_stdin"], FakeBackend(), stdin=process.PIPE
+        [IN_PROCESS_FFMPEG, "wait_stdin"], FakeBackend(code=0), stdin=process.PIPE
     )
     writer = child.stdin
     closer_started = threading.Event()
@@ -539,7 +541,16 @@ def test_a_caller_close_during_the_stdin_release_cannot_clobber_a_reused_descrip
         closer_started.set()
         closer.start()
         closer.join(0.2)
-        held["sentinel"] = os.open(sentinel_path, os.O_RDONLY)
+        sentinel = os.open(sentinel_path, os.O_RDONLY)
+        try:
+            os.fstat(number)
+        except OSError:
+            # The number was freed: force the sentinel onto it, whatever the fd numbering.
+            os.dup2(sentinel, number)
+            os.close(sentinel)
+            sentinel = number
+        held["sentinel"] = sentinel
+        held["number"] = number
         return number
 
     monkeypatch.setattr(type(writer), "fileno", fileno)
@@ -549,6 +560,62 @@ def test_a_caller_close_during_the_stdin_release_cannot_clobber_a_reused_descrip
         assert closer_started.is_set() and not closer.is_alive()
         assert os.read(held["sentinel"], 1) == b"x"
     finally:
-        os.close(held["sentinel"])
+        if held["sentinel"] != held["number"]:
+            os.close(held["sentinel"])
         child.kill()
         child.wait(5)
+
+
+def test_a_writer_blocked_on_a_full_pipe_cannot_stall_the_abandon(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(process, "KILL_GRACE_SEC", 0.1)
+    never = threading.Event()
+    held: list[int] = []
+
+    class Ignores:
+        def run(self, argv: list[str], streams: Any, cancel: threading.Event) -> int:
+            held.append(os.dup(streams.stdin.fileno()))  # a native dup keeps the pipe readable-open
+            never.wait(30)
+            return 0
+
+    child = process.InProcessChild([IN_PROCESS_FFMPEG, "x"], Ignores(), stdin=process.PIPE)
+    writer = child.stdin
+    real_flush = io.BufferedWriter.flush
+    calls = {"n": 0}
+    writer_blocked = threading.Event()  # never set: a bounded pause
+    hook_done = threading.Event()
+
+    def flush(self: Any) -> None:
+        calls["n"] += 1
+        if calls["n"] == 1:
+            real_flush(self)
+
+            def write_forever() -> None:
+                with contextlib.suppress(BaseException):
+                    self.write(b"x" * (4 << 20))
+
+            threading.Thread(target=write_forever, daemon=True).start()
+            writer_blocked.wait(0.3)  # bounded: the writer now blocks holding the buffer lock
+            hook_done.set()
+            return
+        real_flush(self)
+
+    monkeypatch.setattr(process._CallerStdin, "flush", flush)
+    closer = threading.Thread(target=writer.close, daemon=True)
+    closer.start()
+    assert hook_done.wait(5)
+    closer.join(0.2)  # the closer now sits in the gate, behind the writer's buffer lock
+    waited: list[int] = []
+    waiter = threading.Thread(
+        target=lambda: (child.kill(), waited.append(child.wait(10))), daemon=True
+    )
+    waiter.start()
+    waiter.join(5)
+    try:
+        assert not waiter.is_alive(), "kill/wait hung behind a writer blocked on a full pipe"
+        assert waited == [-9]
+    finally:
+        never.set()
+        for fd in held:
+            os.close(fd)
