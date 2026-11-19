@@ -674,6 +674,134 @@ jobs:
           retention-days: 7
           if-no-files-found: ignore
 
+  independent-editor-parity:
+    name: Editor parity (${{ matrix.side }})
+    needs: changes
+    if: >-
+      github.event_name == 'pull_request' &&
+      github.event.pull_request.number == 3923 &&
+      github.event.pull_request.base.sha == 'f495e264f76a2b75de44e1e5443fe2f1dd98d3b1' &&
+      github.event.pull_request.draft != true &&
+      needs.changes.outputs.e2e == 'true'
+    runs-on: ubuntu-24.04
+    container:
+      image: ${{ needs.changes.outputs.playwright-image }}
+      options: --init --ipc=host
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - side: control
+            revision: f495e264f76a2b75de44e1e5443fe2f1dd98d3b1
+            tree: 608fd6c2adafaeeb00159b746ddb5590393a82f6
+          - side: candidate
+            revision: b4bdc4c71378fcaf30dfd6b069f74182773bf4b1
+            tree: 7b2eb3c78d06add0d070da2c14923ebd64de58fd
+    env:
+      PLAYWRIGHT_JSON_OUTPUT_FILE: playwright-report/parity.json
+      BROWSER_RAW_REPORT: playwright-report/parity.json
+      BROWSER_CAPTURE_RECEIPT: ${{ github.workspace }}/.browser-capture-parity.txt
+    steps:
+      - name: Use runner temporary storage
+        run: |
+          umask 077
+          tmpdir="$(mktemp -d /var/tmp/sharecut-ci.XXXXXX)"
+          printf 'TMPDIR=%s\n' "$tmpdir" >> "$GITHUB_ENV"
+
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ matrix.revision }}
+          persist-credentials: false
+
+      - uses: actions/checkout@v7
+        with:
+          ref: 5eed071928d78b6bcef35e251fdae79c09dbfd58
+          path: .parity-fixture
+          persist-credentials: false
+
+      - name: Verify paired source and install the fixed fixture
+        env:
+          PROOF_REVISION: ${{ matrix.revision }}
+          PROOF_TREE: ${{ matrix.tree }}
+        run: |
+          set -eu
+          test "$(git rev-parse HEAD)" = "$PROOF_REVISION"
+          test "$(git rev-parse 'HEAD^{tree}')" = "$PROOF_TREE"
+          test "$(git -C .parity-fixture rev-parse HEAD)" = 5eed071928d78b6bcef35e251fdae79c09dbfd58
+          fixture=gui/web/e2e/stage-shell.spec.ts
+          projector=scripts/browser_public_report.py
+          test "$(git hash-object --no-filters ".parity-fixture/$fixture")" = 359643caf8290dc9bf1a1f67ee954267c96a631c
+          test "$(git hash-object --no-filters ".parity-fixture/$projector")" = 04c2cd3ace209caf763f98dd006144a6ef11f7ab
+          test "$(git hash-object --no-filters scripts/private_browser_command.sh)" = 5f6f01262b9153c9c145d1d8dfec3bc028db77db
+          cp -- ".parity-fixture/$fixture" "$fixture"
+          cp -- ".parity-fixture/$projector" "$projector"
+          rm -rf -- .parity-fixture
+
+      - name: Initialize browser result publication
+        run: |
+          rm -f -- "$BROWSER_CAPTURE_RECEIPT" "gui/web/playwright-public/parity.json"
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+
+      - name: Install FFmpeg
+        uses: ./.github/actions/setup-ffmpeg
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: gui/web/package-lock.json
+
+      - name: Install GUI Python deps
+        uses: ./.github/actions/install-locked-python
+        with:
+          extras: gui
+
+      - name: Install frontend deps
+        timeout-minutes: 10
+        working-directory: gui/web
+        run: |
+          printf 'TMPDIR: %s\n' "$TMPDIR"
+          df -hT /tmp "$TMPDIR"
+          python - <<'PY'
+          import os
+          from pathlib import Path
+
+          from podcast_mcp.util.registry_privacy import registry_privacy
+
+          with registry_privacy(Path(os.environ["TMPDIR"]), (), create=False) as verify:
+              verify()
+          PY
+          npm ci
+
+      - name: Build Sharecut Studio static assets
+        working-directory: gui/web
+        run: VITE_SHARECUT_E2E=1 npm run build
+
+      - name: Playwright parity
+        working-directory: gui/web
+        run: bash ../../scripts/private_browser_command.sh npm run test:e2e -- e2e/stage-shell.spec.ts --grep "^an Editor's comment survives a normal reload-derived save and Undo/Redo restores only that comment$"
+
+      - name: Project private parity receipt
+        id: parity-projection
+        if: always()
+        run: >-
+          python3 scripts/browser_public_report.py
+          --report "gui/web/$PLAYWRIGHT_JSON_OUTPUT_FILE"
+          --output "gui/web/playwright-public/parity.json"
+          --capture-receipt "$BROWSER_CAPTURE_RECEIPT"
+
+      - name: Require completed Editor parity
+        if: always()
+        env:
+          PROJECTED: ${{ steps.parity-projection.outcome }}
+          OUTCOME: ${{ steps.parity-projection.outputs.functional_outcome }}
+          PHASE: ${{ steps.parity-projection.outputs.functional_phase }}
+        run: test "$PROJECTED:$OUTCOME:$PHASE" = 'success:passed:body_complete'
+
   frontend-e2e:
     runs-on: ubuntu-24.04
     needs: [changes, frontend-e2e-suites]
