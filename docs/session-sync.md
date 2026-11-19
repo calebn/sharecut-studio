@@ -823,9 +823,10 @@ validated before authority lookup.
 Permission to apply and human acoustic intent are separate. The host document route
 provides the internal context for selected ranges, cut/delete/trim gestures,
 pending-bound edits and explicit approval, but only for the host `viewer` role; the
-`agent` and `cli` roles stay programmatic there. Guests stay programmatic on the share
-route and in guest MCP, even with Editor capabilities, so a guest cannot waive the host
-agent's acoustic check. Submitted intent, author, confirmation and snap flags cannot
+`agent` and `cli` roles stay programmatic there. The browser share route treats an Editor
+link as a person at the page (a Commenter link stays programmatic); the guest MCP route
+stays programmatic for its own commands, though a pending edit an Editor retimed from the
+page keeps that person's stamp, as does the Editor's own `override_audio_checks`. Submitted intent, author, confirmation and snap flags cannot
 supply this context. Human approval of an agent proposal changes only transient application
 intent; its persisted `proposal_origin` remains programmatic. Exact and source proposal
 assessment preserves selected bounds and records measured risk before offering the row;
