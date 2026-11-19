@@ -230,6 +230,28 @@ def plan_build(
                     tool_outcome,
                 )
             )
+    # Xcode links FFmpeg.xcframework and the project's pre-build guard needs it, so both steps come
+    # before the payload and the archive. build_ffmpeg.sh rebuilds FFmpeg from source each run.
+    steps.append(
+        Run(
+            "ffmpeg build",
+            Command(("./scripts/ios/build_ffmpeg.sh", "device"), layout.root, bare),
+            False,
+            tool_outcome,
+        )
+    )
+    steps.append(
+        Run(
+            "ffmpeg xcframework",
+            Command(
+                ("uv", "run", "python", "scripts/ios/ffmpeg_framework.py", "assemble"),
+                layout.root,
+                bare,
+            ),
+            False,
+            tool_outcome,
+        )
+    )
     steps.append(
         Run(
             "device payload",
