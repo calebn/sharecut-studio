@@ -228,7 +228,9 @@ lib (a `staticlib`) with Python.xcframework linked into it; there is no sidecar 
   `src-tauri/ios-payload/FFmpeg.xcframework` (untracked) from whichever of
   `ios-ffmpeg/out/{device,sim}/FFmpeg.framework` exist. It copies each framework to a staging
   folder, adds the framework's own `PrivacyInfo.xcprivacy`
-  (`gui/desktop/src-tauri/ios/ffmpeg/PrivacyInfo.xcprivacy`), runs `xcodebuild -create-xcframework`
+  (`gui/desktop/src-tauri/ios/ffmpeg/PrivacyInfo.xcprivacy`; its categories and reason codes are
+  copied from the app manifest, not read from the framework's imports, and are unconfirmed like
+  `contracts/ios-privacy.json`), runs `xcodebuild -create-xcframework`
   and swaps the result in whole, so a failed run keeps the previous xcframework. A device-only
   assemble drops the Simulator slice until `make ios-ffmpeg-sim` runs again. `ffmpeg_framework.py
   check --sdk iphoneos|iphonesimulator` finds the slice through the xcframework's `Info.plist`

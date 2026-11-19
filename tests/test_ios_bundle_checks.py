@@ -436,9 +436,10 @@ def test_the_framework_must_carry_its_own_privacy_manifest(tmp_path: Path) -> No
     assert report.problems == (f"{FFMPEG_PRIVACY} is missing",)
 
 
-def test_a_privacy_manifest_that_is_not_a_plist_fails(tmp_path: Path) -> None:
+@pytest.mark.parametrize("body", [b"not a plist", b"<plist><dict>"])
+def test_a_privacy_manifest_that_is_not_a_plist_fails(tmp_path: Path, body: bytes) -> None:
     app = ffmpeg_app(tmp_path)
-    (app / FFMPEG_PRIVACY).write_bytes(b"not a plist")
+    (app / FFMPEG_PRIVACY).write_bytes(body)
     report = checks.check_ffmpeg_framework(app, fake_nm(FFMPEG_NM))
     assert report.problems == (f"{FFMPEG_PRIVACY} is not a property list",)
 

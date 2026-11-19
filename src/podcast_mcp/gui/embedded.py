@@ -128,11 +128,7 @@ class _Listener:
 
 
 def _install_media_tools() -> None:
-    """Install the in-process FFmpeg backend when this host runs media tools in-process.
-
-    Desktop rows return before any import. A missing library or an unexpected native failure is
-    logged and leaves the audio tools reported as unavailable; it never fails the boot.
-    """
+    """Install the in-process FFmpeg backend; a failure is logged and never fails the boot."""
     if host_platform.current().media_tools != "in_process":
         return
     try:

@@ -13,6 +13,7 @@ from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
+from xml.parsers.expat import ExpatError
 
 from scripts.ios.framework_plists import check as check_framework_plists
 from scripts.ios.framework_plists import is_stale_temporary
@@ -220,7 +221,7 @@ def ffmpeg_privacy_problems(app: Path) -> list[str]:
         return [f"{name} is missing"]
     try:
         loaded = plistlib.loads(manifest.read_bytes())
-    except (plistlib.InvalidFileException, ValueError, OSError):
+    except (ValueError, ExpatError, OSError):
         return [f"{name} is not a property list"]
     return [] if isinstance(loaded, dict) else [f"{name} is not a property list"]
 

@@ -379,6 +379,18 @@ def test_the_framework_is_built_and_assembled_before_the_payload_and_never_touch
             assert "APPLE_DEVELOPMENT_TEAM" not in step.command.env
 
 
+def test_the_ffmpeg_step_runs_the_real_check_against_the_unpacked_app(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(release_plan, "unpack", lambda ws: tmp_path)
+    step = next(
+        s for s in release_plan.artifact_checks(None, LAYOUT, False) if s.name == "ffmpeg framework"
+    )
+    report = step.action(release_plan.Workspace(out=tmp_path, build_number="1.2.3"))
+    assert report is not None
+    assert report.problems == ("Frameworks/FFmpeg.framework/FFmpeg is missing",)
+
+
 KEY_NAMES = ("APPLE_API_KEY", "APPLE_API_ISSUER", "APPLE_API_KEY_PATH")
 
 

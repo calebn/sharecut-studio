@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import errno
+import json
 from dataclasses import replace
 from pathlib import Path
 from typing import Any
@@ -12,9 +13,9 @@ from host_session_helpers import LOOPBACK_PEER, exchange
 from podcast_mcp.engines.models.registry import MODELS
 from podcast_mcp.gui.server import create_app
 from podcast_mcp.services.pipeline import bootstrap as boot
-from podcast_mcp.util import process
+from podcast_mcp.util import native_ffmpeg, process
 from podcast_mcp.util.binaries import FFmpegPairResolutionError, resolve_ffmpeg_pair
-from podcast_mcp.util.host_platform import IOS, MACOS, UNKNOWN, HostPlatform
+from podcast_mcp.util.host_platform import IOS, MACOS, UNKNOWN
 
 MEDIA_SENTENCE = "ShareCut can't process audio on this device yet."
 
@@ -91,11 +92,8 @@ def test_bootstrap_status_reports_unsupported_components_and_the_host(host) -> N
     }
 
 
-@pytest.mark.parametrize("row", [UNKNOWN], ids=lambda row: row.name)
-def test_a_host_that_cannot_process_audio_reports_every_model_unsupported(
-    row: HostPlatform, host
-) -> None:
-    host(row)
+def test_a_host_that_cannot_process_audio_reports_every_model_unsupported(host) -> None:
+    host(UNKNOWN)
     for status in (boot.component_status(), _route_status()):
         assert [m["id"] for m in status["models"]] == [spec.id for spec in MODELS]
         for model in status["models"]:
@@ -108,8 +106,6 @@ def test_a_host_that_cannot_process_audio_reports_every_model_unsupported(
 def test_the_ios_row_without_a_linked_library_reports_tools_missing_and_models_unsupported(
     host, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    from podcast_mcp.util import native_ffmpeg
-
     monkeypatch.setattr(native_ffmpeg, "is_available", lambda: False)
     host(IOS)
     assert IOS.media_tools == "in_process"
@@ -126,8 +122,6 @@ def test_the_ios_row_without_a_linked_library_reports_tools_missing_and_models_u
 def test_the_ios_row_with_a_linked_library_lets_models_report_their_own_state(
     host, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    from podcast_mcp.util import native_ffmpeg
-
     monkeypatch.setattr(native_ffmpeg, "is_available", lambda: True)
     host(IOS)
     states = {m["id"]: m["state"] for m in boot.component_status()["models"]}
@@ -136,12 +130,7 @@ def test_the_ios_row_with_a_linked_library_lets_models_report_their_own_state(
 
 
 def test_the_unsupported_fixture_matches_the_engine_answer(host) -> None:
-    """The web fixture claims the engine's answer for a host that cannot process audio.
-
-    The fixture keeps the iOS name and capabilities of the row before it ran media tools
-    in-process, so the test builds that shape from the row."""
-    import json
-
+    """The fixture keeps the iOS row as it was before media tools ran in-process."""
     fixture = json.loads(
         (Path(__file__).parent / "fixtures" / "bootstrap_status" / "unsupported.json").read_text(
             encoding="utf-8"

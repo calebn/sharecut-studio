@@ -1,16 +1,13 @@
 """Assemble and check the app's ``FFmpeg.xcframework``.
 
-``scripts/ios/build_ffmpeg.sh`` writes one ``FFmpeg.framework`` per SDK under
-``gui/desktop/src-tauri/ios-ffmpeg/out/<device|sim>``. The Xcode project links one xcframework from
-``ios-payload`` (the same shape as ``Python.xcframework``), so Xcode picks the slice for the SDK.
+``build_ffmpeg.sh`` writes one ``FFmpeg.framework`` per SDK under ``ios-ffmpeg/out/<device|sim>``;
+the Xcode project links the one xcframework in ``ios-payload``.
 
-    ffmpeg_framework.py assemble                       build ios-payload/FFmpeg.xcframework
+    ffmpeg_framework.py assemble
     ffmpeg_framework.py check --sdk iphoneos|iphonesimulator
 
-``assemble`` takes whichever slices exist and replaces the xcframework as a whole, so a failed run
-keeps the previous one. ``check`` runs from the Xcode build phase with the system python3 and no
-environment, so this file uses the standard library only. Slice names are read from the
-xcframework's own ``Info.plist``, never guessed.
+``check`` runs from an Xcode build phase with the system python3, so this file is standard library
+only. Slice names come from the xcframework's own ``Info.plist``.
 """
 
 from __future__ import annotations
@@ -23,6 +20,7 @@ import subprocess
 import sys
 from collections.abc import Callable, Sequence
 from pathlib import Path
+from xml.parsers.expat import ExpatError
 
 ROOT = Path(__file__).resolve().parents[2]
 TAURI = Path("gui/desktop/src-tauri")
@@ -121,7 +119,7 @@ def slice_framework(xcframework: Path, name: str) -> Path | None:
                 and entry.get("SupportedPlatformVariant") == variant
             ):
                 return xcframework / entry["LibraryIdentifier"] / entry["LibraryPath"]
-    except (OSError, ValueError, KeyError, TypeError, AttributeError):
+    except (OSError, ValueError, ExpatError, KeyError, TypeError, AttributeError):
         return None
     return None
 
