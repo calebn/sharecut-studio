@@ -1150,6 +1150,33 @@ describe("AppHeader rename", () => {
   });
 });
 
+describe("AppHeader disabled Undo and Redo", () => {
+  it("describe why they are off and keep the key hint when they are on", () => {
+    setup({
+      canUndo: false,
+      canRedo: false,
+      undoReason: "There is nothing of yours to undo.",
+      redoReason: "There is nothing of yours to redo.",
+    });
+    const undo = screen.getByRole("button", { name: "Undo" });
+    const redo = screen.getByRole("button", { name: "Redo" });
+    expect(undo).toBeDisabled();
+    expect(undo).toHaveAttribute("title", "There is nothing of yours to undo.");
+    expect(redo).toHaveAttribute("title", "There is nothing of yours to redo.");
+  });
+
+  it("keep the key hint as the title while they are on", () => {
+    setup({ canUndo: true, canRedo: true, undoReason: "unused" });
+    expect(screen.getByRole("button", { name: "Undo" })).not.toHaveAttribute(
+      "title",
+      "unused",
+    );
+    expect(
+      screen.getByRole("button", { name: "Undo" }).getAttribute("title"),
+    ).toMatch(/^Undo/);
+  });
+});
+
 describe("AppHeader undo hint", () => {
   const HINT = {
     text: "Two-finger tap to undo",

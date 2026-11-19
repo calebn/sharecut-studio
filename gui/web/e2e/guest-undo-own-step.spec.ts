@@ -17,10 +17,8 @@ import { goToStage, openProjectDialog } from "./stageNav";
  * disappears.
  */
 
-const UNDO_SENTENCE =
-  "There is nothing of yours to undo. The latest change is someone else's.";
-const REDO_SENTENCE =
-  "There is nothing of yours to redo. Redo brings back only what you undid.";
+const UNDO_SENTENCE = "There is nothing of yours to undo.";
+const REDO_SENTENCE = "There is nothing of yours to redo.";
 
 function chapterTitles(projectPath: string): string[] {
   const data = JSON.parse(fs.readFileSync(projectPath, "utf8"));

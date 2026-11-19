@@ -5,7 +5,12 @@ import { canApplyPass12 } from "../../shareMode";
 import { useDaw } from "../../state/useDaw";
 import { useDocumentBusy } from "../../state/useDocumentBusy";
 
-export type HistoryAvailability = { canUndo: boolean; canRedo: boolean };
+export type HistoryAvailability = {
+  canUndo: boolean;
+  canRedo: boolean;
+  undoReason?: string;
+  redoReason?: string;
+};
 
 export function useHistoryControls() {
   const { projectPath, guestMode, shareCapabilities, project } = useDaw(
@@ -25,7 +30,12 @@ export function useHistoryControls() {
     shareCapabilities,
   });
   const history = canApplyPass12(projectPath, guestMode, shareCapabilities)
-    ? { canUndo: shown.undo.ok, canRedo: shown.redo.ok }
+    ? {
+        canUndo: shown.undo.ok,
+        canRedo: shown.redo.ok,
+        undoReason: shown.undo.ok ? undefined : shown.undo.reason,
+        redoReason: shown.redo.ok ? undefined : shown.redo.reason,
+      }
     : null;
 
   return {

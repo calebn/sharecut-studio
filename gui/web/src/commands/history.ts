@@ -210,24 +210,23 @@ const HISTORY_LABEL = { undo: "Undo", redo: "Redo" } as const;
 
 /**
  * Runs Undo or Redo from a control or gesture. A failure is announced
- * ("Undo failed: …"), never dropped. `dispatch` is `execute` (keyboard-style
+ * ("Undo failed: …"), never dropped. A refusal that is already a sentence is
+ * announced as it is, the same words the key press speaks. `dispatch` is `execute` (keyboard-style
  * gates) unless the caller passes the pointer bridge.
  */
 export function runHistoryAction(
   action: keyof typeof HISTORY_LABEL,
   dispatch: (id: string) => Promise<ExecuteResult> = (id) => execute(id),
 ): void {
+  const announce = (message: string) =>
+    useDawStore.getState().announceStatus(message, { tone: "error" });
   const report = (reason: string) =>
-    useDawStore
-      .getState()
-      .announceStatus(`${HISTORY_LABEL[action]} failed: ${reason}`, {
-        tone: "error",
-      });
+    announce(`${HISTORY_LABEL[action]} failed: ${reason}`);
   void dispatch(`history.${action}`)
     .then((result) => {
       if (result.status === "ok") return;
       if (result.status === "disabled") {
-        if (!result.told && result.reason.trim()) report(result.reason);
+        if (!result.told && result.reason.trim()) announce(result.reason);
         return;
       }
       report("unavailable");

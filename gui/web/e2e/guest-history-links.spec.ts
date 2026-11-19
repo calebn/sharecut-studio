@@ -16,8 +16,8 @@ import { goToStage } from "./stageNav";
 const [, DESKTOP] = SIZES;
 const MOVES = { U: "Control+z", R: "Control+Shift+z" } as const;
 const NOTHING = {
-  U: "There is nothing of yours to undo. The latest change is someone else's.",
-  R: "There is nothing of yours to redo. Redo brings back only what you undid.",
+  U: "There is nothing of yours to undo.",
+  R: "There is nothing of yours to redo.",
 } as const;
 const OWN_STEPS = 2;
 type Move = keyof typeof MOVES;

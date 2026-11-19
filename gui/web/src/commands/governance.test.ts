@@ -572,13 +572,11 @@ describe("command governance", () => {
     const guest = buildCommandContext();
     expect(evaluateWhen("canUndo", guest)).toEqual({
       ok: false,
-      reason:
-        "There is nothing of yours to undo. The latest change is someone else's.",
+      reason: "There is nothing of yours to undo.",
     });
     expect(evaluateWhen("canRedo", guest)).toEqual({
       ok: false,
-      reason:
-        "There is nothing of yours to redo. Redo brings back only what you undid.",
+      reason: "There is nothing of yours to redo.",
     });
     useDawStore.setState({ project: history(true, true) });
     const owned = buildCommandContext();

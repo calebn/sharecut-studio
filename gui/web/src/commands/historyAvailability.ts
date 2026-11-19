@@ -20,8 +20,8 @@ const NEEDS_EDITOR = {
 const NOTHING = {
   host: { undo: "Nothing to undo", redo: "Nothing to redo" },
   guest: {
-    undo: "There is nothing of yours to undo. The latest change is someone else's.",
-    redo: "There is nothing of yours to redo. Redo brings back only what you undid.",
+    undo: "There is nothing of yours to undo.",
+    redo: "There is nothing of yours to redo.",
   },
 } as const;
 

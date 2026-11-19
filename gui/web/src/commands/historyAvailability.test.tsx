@@ -19,10 +19,8 @@ vi.mock("../api", async (importOriginal) => ({
   loadHistoryDiff: vi.fn(),
 }));
 
-const GUEST_UNDO =
-  "There is nothing of yours to undo. The latest change is someone else's.";
-const GUEST_REDO =
-  "There is nothing of yours to redo. Redo brings back only what you undid.";
+const GUEST_UNDO = "There is nothing of yours to undo.";
+const GUEST_REDO = "There is nothing of yours to redo.";
 
 const ROLES = {
   host: { projectPath: "/tmp/ep", guestMode: null, shareCapabilities: null },
@@ -140,7 +138,12 @@ describe("historyAvailability", () => {
       if (role === "viewer" || role === "commenter") {
         expect(header).toBeNull();
       } else {
-        expect(header).toEqual({ canUndo: undo.ok, canRedo: redo.ok });
+        expect(header).toEqual({
+          canUndo: undo.ok,
+          canRedo: redo.ok,
+          undoReason: undo.ok ? undefined : undo.reason,
+          redoReason: redo.ok ? undefined : redo.reason,
+        });
       }
 
       const { unmount } = render(<HistoryPanel />);
