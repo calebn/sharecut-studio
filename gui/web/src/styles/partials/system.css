@@ -1268,8 +1268,7 @@ button.sys-version-line {
   white-space: nowrap;
 }
 
-/* Level 4: the skip buttons go (display: none, so no focusable invisible
-   button). The expanded Player has Back and Forward 15 s. */
+/* Level 4: the skip buttons go whole. */
 .sys-player-host:is(
     [data-fit="4"],
     [data-fit="5"],
