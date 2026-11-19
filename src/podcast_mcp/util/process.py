@@ -256,7 +256,10 @@ class Runner(Protocol):
 
 
 class SpawnUnavailableError(OSError):
-    """This host cannot start other programs (``ENOSYS``). Callers that already catch ``OSError`` report it."""
+    """This host cannot start other programs (``ENOSYS``).
+
+    Callers that already catch ``OSError`` report it.
+    """
 
 
 class Streams(NamedTuple):
@@ -310,6 +313,28 @@ class _CallerStdin(io.BufferedWriter):
     """The caller's write end of an in-process stdin pipe; ``broken`` makes a write raise EPIPE."""
 
     broken = False
+
+    def __init__(self, raw: io.RawIOBase) -> None:
+        super().__init__(raw)
+        self._gate = threading.Lock()
+
+    def release(self, null_fd: int) -> None:
+        """Point this descriptor at ``null_fd`` unless the writer is closed.
+
+        The check and the ``dup2`` run under the lock that ``close`` takes, so a close cannot free
+        the number in between and let the ``dup2`` replace a descriptor that reuses it.
+        """
+        with self._gate:
+            if self.closed:
+                return
+            with contextlib.suppress(OSError, ValueError):
+                os.dup2(null_fd, self.fileno())
+
+    def close(self) -> None:
+        with contextlib.suppress(OSError, ValueError):
+            self.flush()
+        with self._gate:
+            super().close()
 
     def write(self, buffer: Any, /) -> int:
         if self.broken:
@@ -425,8 +450,9 @@ class InProcessChild:
         """Release the caller's write end of stdin so a read blocked on it in the backend sees EOF.
 
         /dev/null replaces the pipe on the same descriptor number, which the writer still owns
-        and closes once, so a concurrent write cannot reach a reused descriptor. Later writes
-        raise ``BrokenPipeError``.
+        and closes once. The writer's own lock orders this against its ``close``, so neither a
+        concurrent write nor a concurrent close can reach a reused descriptor. Later writes raise
+        ``BrokenPipeError``.
         """
         stdin = self.stdin
         if not isinstance(stdin, _CallerStdin):
@@ -435,8 +461,7 @@ class InProcessChild:
         with self._fd_lock:
             if self._fds_closed or self._null_fd is None:
                 return
-            with contextlib.suppress(OSError, ValueError):
-                os.dup2(self._null_fd, stdin.fileno())
+            stdin.release(self._null_fd)
 
     def _finish(self, code: int) -> None:
         with self._lock:

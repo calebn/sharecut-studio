@@ -518,3 +518,37 @@ def test_the_installed_backend_is_cleared_on_exit_and_a_streams_triple_reaches_r
         assert process.run([IN_PROCESS_FFMPEG], capture_output=True).returncode == 0
     assert process._in_process_backend is None
     assert isinstance(seen[0], Streams)
+
+
+def test_a_caller_close_during_the_stdin_release_cannot_clobber_a_reused_descriptor(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    child = process.InProcessChild(
+        [IN_PROCESS_FFMPEG, "wait_stdin"], FakeBackend(), stdin=process.PIPE
+    )
+    writer = child.stdin
+    closer_started = threading.Event()
+    closer = threading.Thread(target=writer.close, daemon=True)
+    sentinel_path = tmp_path / "sentinel"
+    sentinel_path.write_bytes(b"x")
+    held: dict[str, Any] = {}
+    real_fileno = type(writer).fileno
+
+    def fileno(self: Any) -> int:
+        number = real_fileno(self)
+        closer_started.set()
+        closer.start()
+        closer.join(0.2)
+        held["sentinel"] = os.open(sentinel_path, os.O_RDONLY)
+        return number
+
+    monkeypatch.setattr(type(writer), "fileno", fileno)
+    try:
+        child._release_caller_stdin()
+        closer.join(5)
+        assert closer_started.is_set() and not closer.is_alive()
+        assert os.read(held["sentinel"], 1) == b"x"
+    finally:
+        os.close(held["sentinel"])
+        child.kill()
+        child.wait(5)
