@@ -10,6 +10,7 @@ import {
   hostGoneMidTake,
   joinHere,
   joinMic,
+  onTakeRoster,
   ownSaving,
   tookAnyTake,
   tookPart,
@@ -1185,6 +1186,7 @@ describe("guestCovers Join again on the unsent cover", () => {
     const cover = guestCovers(
       unsentLeft({ onRetry, leaseStillFresh: () => false }),
     );
+    expect(cover?.tertiary).toMatchObject({ label: "Join again" });
     cover?.tertiary?.onClick();
     expect(onRetry).not.toHaveBeenCalled();
   });
@@ -1231,6 +1233,12 @@ describe("holdsJoinSheet", () => {
     localSegments: null,
     localUnreadable: false,
     ...over,
+  });
+
+  it("has nobody on a take roster before the guest is known", () => {
+    expect(onTakeRoster(rostered, null)).toBe(false);
+    expect(onTakeRoster(null, me)).toBe(false);
+    expect(onTakeRoster(rostered, me)).toBe(true);
   });
 
   it("holds while the device scan of a take this guest was on is unread", () => {

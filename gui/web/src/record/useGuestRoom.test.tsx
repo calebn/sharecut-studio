@@ -434,6 +434,24 @@ describe("useGuestRoom", () => {
     expect(result.current.connected).toBe(false);
   });
 
+  it("has no keeper identity before the first take and one once a take exists", async () => {
+    stubFetch(guestBootstrap);
+    const { result } = renderHook(() => useGuestRoom("guest-tok"));
+    await waitFor(() => expect(result.current.me?.participant_id).toBe("p_g"));
+    expect(result.current.keeperIdentity).toBeNull();
+    await act(async () => {
+      sockets[0]?.emit({
+        type: "Snapshot",
+        snapshot: snapshotOf({ state: "stopped", take_index: 0 }),
+      });
+    });
+    expect(result.current.keeperIdentity).toEqual({
+      sessionId: "room1",
+      participantId: "p_g",
+      takeIndex: 0,
+    });
+  });
+
   describe("leaseFresh", () => {
     const DAY = 24 * 60 * 60 * 1000;
 
