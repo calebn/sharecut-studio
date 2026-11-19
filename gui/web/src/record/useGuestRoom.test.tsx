@@ -807,6 +807,23 @@ describe("useGuestRoom", () => {
       expect(result.current.sinkError).toBeNull();
     });
 
+    it("reads the device as unreadable while its storage cannot be opened, and not otherwise", async () => {
+      const opening = deferred<MemorySink>();
+      vi.mocked(createOpfsSink).mockReturnValueOnce(opening.promise);
+      stubFetch(guestBootstrap);
+      const { result } = renderHook(() => useGuestRoom("guest-tok"));
+      await waitFor(() => expect(createOpfsSink).toHaveBeenCalledTimes(1));
+      expect(result.current.localUnreadable).toBe(false);
+      await act(async () => opening.reject(new Error("quota")));
+      await waitFor(() =>
+        expect(result.current.sinkError).toBe(UPLOAD_SINK_ERROR_COPY),
+      );
+      expect(result.current.localUnreadable).toBe(true);
+      act(() => result.current.retryStorage());
+      await waitFor(() => expect(result.current.sink).not.toBeNull());
+      expect(result.current.localUnreadable).toBe(false);
+    });
+
     it.each(["resolve", "reject"])(
       "retires an old storage initialization after retry on late %s",
       async (settlement) => {

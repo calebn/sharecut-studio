@@ -58,6 +58,7 @@ export type RoomViewInput = {
 
 export type DeviceWork = {
   uploading?: boolean;
+  verifying?: boolean;
   /** The keeper is still writing the take. */
   finishing?: boolean;
   capturingTone?: boolean;
@@ -221,7 +222,11 @@ function guestLeaveHeld(
     return LEAVE_DURING_TAKE_REASON;
   }
   if (device.finishing) return LEAVE_WHILE_FINISHING_REASON;
-  if (device.uploading && phase.kind === "saving" && !phase.failed) {
+  if (
+    (device.uploading || device.verifying) &&
+    phase.kind === "saving" &&
+    !phase.failed
+  ) {
     return LEAVE_WHILE_SAVING_REASON;
   }
   return device.capturingTone ? LEAVE_DURING_TONE_REASON : undefined;

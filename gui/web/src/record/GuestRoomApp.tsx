@@ -521,6 +521,11 @@ function GuestRoomSession({
             producer ? null : upload,
             room.localSegments,
           ),
+          verifying:
+            !producer &&
+            upload.fileAck &&
+            room.localSegments === null &&
+            !room.localUnreadable,
           finishing: !room.captureSettled,
           capturingTone: roomTone.status === "capturing",
         }}

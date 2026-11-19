@@ -445,7 +445,8 @@ export function useGuestRoom(
     localRecording: localKeeper.found,
     localSegments: localKeeper.segments,
     recordedHere: recordedThisPage || tookAnyTake(snapshot, me),
-    localUnreadable: localKeeper.failed,
+    localUnreadable:
+      localKeeper.failed || (sink === null && sinkError !== null),
     roomTone,
     liveComments,
     captureSettled,
