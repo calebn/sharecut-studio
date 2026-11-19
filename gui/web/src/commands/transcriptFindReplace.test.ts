@@ -61,16 +61,33 @@ describe("transcript.findReplace", () => {
       chrome: { transcriptFindReplaceOpen: false },
     });
   });
-  it("denies edit guests and clears open state on project switch", async () => {
+  it("opens for an editor link and clears open state on project switch", async () => {
     await execute("transcript.findReplace", {}, { skipWhen: true });
     expect(useDawStore.getState().chrome.transcriptFindReplaceOpen).toBe(true);
     useDawStore
       .getState()
       .hydrate("share:guest", minimalProject(), "edit", ["edit"]);
     useDawStore.setState({ stage: "review", timelineFocused: true });
+    expect(useDawStore.getState().chrome.transcriptFindReplaceOpen).toBe(false);
     expect(
       (await execute("transcript.findReplace", {}, { skipWhen: true })).status,
-    ).toBe("disabled");
+    ).toBe("ok");
+    expect(useDawStore.getState().stage).toBe("edit");
+  });
+  it.each([
+    ["comment", ["play", "view", "comment"]],
+    ["view", ["play", "view"]],
+  ])("tells a %s link it needs Editor access", async (guestMode, caps) => {
+    useDawStore
+      .getState()
+      .hydrate("share:guest", minimalProject(), guestMode, caps);
+    useDawStore.setState({ stage: "review", timelineFocused: true });
+    expect(
+      await execute("transcript.findReplace", {}, { skipWhen: true }),
+    ).toEqual({
+      status: "disabled",
+      reason: "Fixing text needs Editor access",
+    });
     expect(useDawStore.getState()).toMatchObject({
       stage: "review",
       timelineFocused: true,

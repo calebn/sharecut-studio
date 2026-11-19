@@ -89,7 +89,7 @@ export const KEYMAP_COMMANDS: readonly KeymapCommand[] = [
     keys: ["F2"],
     bareKey: true,
     noRepeat: true,
-    when: "hostProjectLoaded",
+    when: "canFixText",
     notes: "F2: Fix text on the selected word",
   },
   {

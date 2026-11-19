@@ -24,6 +24,10 @@ import {
   scriptBodyFocused,
   transcriptLoading,
 } from "./afterCutWindow";
+import {
+  type FixTextAvailability,
+  fixTextAvailability,
+} from "./fixTextAvailability";
 import { focusedClipHandleKind } from "./focusedClipHandle";
 import {
   type HistoryAvailability,
@@ -56,6 +60,7 @@ export type CommandContext = {
   allowedStages: readonly StageId[];
   hasProject: boolean;
   historyAvailability: HistoryAvailability;
+  fixTextAvailability: FixTextAvailability;
   shellBreakpoint: string;
   playheadSec: number;
   timelineDurationSec: number;
@@ -181,6 +186,7 @@ export function buildCommandContext(
     allowedStages: stagesForRole(stageRoleOf(s.guestMode)),
     hasProject: s.project != null,
     historyAvailability: historyAvailability(s),
+    fixTextAvailability: fixTextAvailability(s),
     shellBreakpoint: s.shellBreakpoint,
     playheadSec: s.playheadSec,
     timelineDurationSec: s.project?.timeline_duration_sec ?? Infinity,
@@ -375,6 +381,8 @@ export function evaluateWhen(
       return ctx.canManageProjects
         ? { ok: true }
         : { ok: false, reason: "Project create/open is host-only" };
+    case "canFixText":
+      return ctx.fixTextAvailability;
     case "hostProjectLoaded":
       if (!ctx.canManageProjects) {
         return {

@@ -3,6 +3,7 @@ import { useDawStore } from "../state/dawStore";
 import { oneWordOf, wordSelection } from "../utils/rangeSelect";
 import { findTranscriptWord, wordSeekSec } from "../utils/transcript";
 import { registerCommand } from "./execute";
+import { fixTextAvailability } from "./fixTextAvailability";
 import type { ExecuteResult } from "./types";
 
 export function registerTranscriptWordCommands(): void {
@@ -38,9 +39,9 @@ export function registerTranscriptWordCommands(): void {
     return { status: "ok" };
   });
   registerCommand("transcript.editWordInline", () => {
+    const available = fixTextAvailability(useDawStore.getState());
+    if (!available.ok) return { status: "disabled", reason: available.reason };
     const s = useDawStore.getState();
-    if (!s.project || isShareProjectKey(s.projectPath))
-      return { status: "disabled", reason: "Host project required" };
     const sel = s.selection;
     if (sel?.kind !== "transcriptRange")
       return { status: "disabled", reason: "Select words to fix" };
@@ -60,17 +61,12 @@ export function requestInlineEdit(
   endWordIndex: number = wordIndex,
 ): ExecuteResult {
   const s = useDawStore.getState();
-  if (!s.project || isShareProjectKey(s.projectPath))
-    return { status: "disabled", reason: "Host project required" };
-  if (
-    !trackId ||
-    !Number.isInteger(wordIndex) ||
-    wordIndex < 0 ||
-    s.project.meta.hydration?.transcript_words === false
-  ) {
+  const available = fixTextAvailability(s);
+  if (!available.ok) return { status: "disabled", reason: available.reason };
+  if (!trackId || !Number.isInteger(wordIndex) || wordIndex < 0) {
     return { status: "disabled", reason: "Word correction unavailable" };
   }
-  const word = findTranscriptWord(s.project, trackId, wordIndex, sourceId);
+  const word = findTranscriptWord(s.project!, trackId, wordIndex, sourceId);
   if (!word || wordSeekSec(word) == null)
     return { status: "disabled", reason: "Word is not timed" };
   s.setTranscriptInlineEditRequest({

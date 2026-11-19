@@ -3138,7 +3138,7 @@
       "service": "ShareCut Studio UI",
       "industry_standard_key": false,
       "gates": [
-        "hostProjectLoaded"
+        "canFixText"
       ],
       "surfaces": {
         "command": "transcript.editWordInline",
@@ -3606,7 +3606,7 @@
       "service": "TranscriptService.replace_transcript_matches",
       "industry_standard_key": false,
       "gates": [
-        "hostProjectLoaded"
+        "canFixText"
       ],
       "surfaces": {
         "command": "transcript.findReplace",
