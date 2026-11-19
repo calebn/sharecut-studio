@@ -389,7 +389,7 @@ flowchart TD
    while the host has the file but this device's copy has not been read yet, or
    the file finishes writing, and says why when pressed). During a take Leave opens
    after the host has been gone for 60 seconds, with a warning that leaving stops
-   recording on this device and keeps what it recorded there. Once the host holds
+   recording on this device and asks the guest to keep the page open so it can reach the host. Once the host holds
    the file the dock reads "Saved to project. You can close this page." with
    **Done**, which leaves the room. A screen
    reader hears each segment start and finish politely, not each chunk; the guest

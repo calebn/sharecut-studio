@@ -556,7 +556,7 @@ export function guestCovers(source: CoverSource): CoverProps | null {
       title: "This session has ended",
       children:
         source.stake === "finishing"
-          ? "Finishing your full-quality recording…"
+          ? "Finishing your full-quality recording… Keep this page open."
           : "Thanks for recording.",
     };
   }
@@ -570,7 +570,7 @@ export function guestCovers(source: CoverSource): CoverProps | null {
       glyph: "door-open",
       title: "You left the room",
       children: finishing
-        ? "Finishing your full-quality recording…"
+        ? "Finishing your full-quality recording… Keep this page open."
         : source.stake === "saved"
           ? `Your recording is saved to ${host}'s project. You can close this page.`
           : "You can close this page.",

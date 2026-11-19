@@ -1373,13 +1373,15 @@ connection is up. That wait is a timer on this page: it starts over when the hos
 returns, when this page's connection drops and on a reload, and the server's
 host-offline stamp is not read. Once it ends Leave is open on a live, paused or
 reconnecting take and its description is the warning "Leaving stops recording on this
-device. What you've recorded stays on this device until you save it." On a laptop that
+device. Keep this page open so it can reach the host." On a laptop that
 line shows under the dock at all times and one press leaves; on a phone the short line
-"Leaving stops recording here. Your recording stays on this device." shows on the first
+"Leaving stops recording here. Keep this page open to send it." shows on the first
 press and a second press within 5 seconds leaves. Leaving mid-take stops the mic, the
 keeper finishes the segment on this device, the page shows "Your recording didn't finish
-saving" with **Save my recording**, and the host's Stop counts this guest as unsaved
-until their recording is uploaded. A host whose connection is open but dead counts as
+saving" with **Save my recording** (only until the host has the file: while the page stays
+open it uploads by itself once the host is back and the page then reads "You left the room"),
+and the host's Stop counts this guest as unsaved until their recording is uploaded. Closing
+the page ends that upload; the recording stays in the keeper store on this device. A host whose connection is open but dead counts as
 there until the server drops it. Leave is also held while this guest's own upload is moving ("Your recording is still
 saving"), while the server has the file but this device's segment count is not known yet
 and the scan has not been given up on ("Your recording is still saving"), while the
@@ -1398,7 +1400,7 @@ the "You left the room" Cover with **Join again**. Covers replace the room for a
 link, "The room is full" (**Try again**), "Invite link closed", "You left the room"
 (**Join again**), "Your recording didn't finish saving" and "This session has ended". One
 rule decides what a leaving guest has at stake, from this device and not from consent: a
-capture still finishing reads "Finishing your full-quality recording…" with no "close this
+capture still finishing reads "Finishing your full-quality recording… Keep this page open." with no "close this
 page" line and no Join again, a saved take says it is in the host's project even while
 its local copy waits to be reclaimed, a recording the keeper store can still save or
 recover shows the didn't-finish-saving Cover with **Save my recording** and **Try saving

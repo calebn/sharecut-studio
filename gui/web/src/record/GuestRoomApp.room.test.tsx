@@ -1015,7 +1015,7 @@ describe("GuestRoomApp after Leave", () => {
     fakeRoom({ ...failedSave, captureSettled: false, localRecording: true });
     render(<GuestRoomApp token="t" />);
     expect(
-      screen.getByText("Finishing your full-quality recording…"),
+      screen.getByText("Finishing your full-quality recording… Keep this page open."),
     ).toBeInTheDocument();
     expect(screen.queryByText(/close this page/)).toBeNull();
     expect(screen.queryByRole("button", { name: "Join again" })).toBeNull();
@@ -1165,7 +1165,7 @@ describe("GuestRoomApp when the host is gone mid-take", () => {
   };
   const hostBack = { state: "recording" as const, participants: [host, me] };
   const WARNING =
-    "Leaving stops recording on this device. What you've recorded stays on this device until you save it.";
+    "Leaving stops recording on this device. Keep this page open so it can reach the host.";
   const wait = (ms: number) =>
     act(() => {
       vi.advanceTimersByTime(ms);

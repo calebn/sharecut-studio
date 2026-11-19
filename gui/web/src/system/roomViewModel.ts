@@ -99,9 +99,9 @@ type RoomViewModel = {
 
 const LEAVE_DURING_TAKE_REASON = "You can leave after this take.";
 const LEAVE_WARNING =
-  "Leaving stops recording on this device. What you've recorded stays on this device until you save it.";
+  "Leaving stops recording on this device. Keep this page open so it can reach the host.";
 const LEAVE_WARNING_SHORT =
-  "Leaving stops recording here. Your recording stays on this device.";
+  "Leaving stops recording here. Keep this page open to send it.";
 const LEAVE_WHILE_SAVING_REASON = "Your recording is still saving";
 const LEAVE_WHILE_FINISHING_REASON = "Your recording is still finishing";
 const LEAVE_DURING_TONE_REASON = "Finish or cancel the room tone first";
