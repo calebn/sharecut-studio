@@ -1276,40 +1276,84 @@ test("System/Player in a short frame the bar removes the skip buttons, A and B, 
   );
 });
 
-test("System/Player in a short frame the pills, the cuts, the rate and the status keep their names and take no room (#2576)", async ({
-  page,
-}) => {
-  const host = await wideBar(page, {
-    ...BAR_STATES.followmixstale,
-    rate: 2,
-  });
+/** What a folded bar names and how much room each of `selectors` takes. */
+async function foldedPills(
+  page: PlayerPage,
+  args: BarArgs,
+  names: string[],
+  selectors: string[],
+) {
+  const host = await wideBar(page, args);
   await foldFrame(page);
   const tree = await host.ariaSnapshot();
-  for (const name of [
-    "Following Rosa",
-    "Updating mix",
-    "Mix out of date",
-    "Playback speed 2×",
-    "−4:10",
-  ])
-    expect(tree, name).toContain(name);
-  const drawn = await host.evaluate((el) => {
+  for (const name of names) expect(tree, name).toContain(name);
+  const drawn = await host.evaluate((el, list) => {
     const bar = el.querySelector<HTMLElement>(".sys-player");
     if (!bar) throw new Error("no bar");
-    const widths = [
-      ".sys-player-following",
-      ".sys-player-mix",
-      ".sys-player-status",
-      ".sys-player-cuts",
-      ".sys-player-rate",
-    ].map((selector) => {
+    const widths = list.map((selector) => {
       const found = el.querySelector(selector);
       return found ? found.getBoundingClientRect().width : -1;
     });
     return { widths, height: bar.getBoundingClientRect().height };
-  });
+  }, selectors);
   expect(drawn.widths.every((width) => width >= 0 && width <= 2)).toBe(true);
   expect(drawn.height).toBeLessThanOrEqual(45);
+}
+
+test("System/Player in a short frame the Following and Updating mix pills, the cuts and the status keep their names and take no room (#2576)", async ({
+  page,
+}) => {
+  await foldedPills(
+    page,
+    BAR_STATES.followmixstale,
+    ["Following Rosa", "Updating mix", "Mix out of date", "−4:10"],
+    [
+      ".sys-player-following",
+      ".sys-player-mix",
+      ".sys-player-status",
+      ".sys-player-cuts",
+    ],
+  );
+});
+
+test("System/Player in a short frame the rate keeps its name and takes no room (#2576)", async ({
+  page,
+}) => {
+  await foldedPills(
+    page,
+    BAR_STATES.ratemixstale,
+    ["Playback speed 2×", "Updating mix", "Mix out of date"],
+    [".sys-player-rate", ".sys-player-mix", ".sys-player-status"],
+  );
+});
+
+test("System/Player in a short frame an Audio error keeps its pill and Retry, and a guest on the phone shell keeps Comment, each drawn and named (#2576)", async ({
+  page,
+}) => {
+  const phone = () =>
+    page.evaluate(() => {
+      document.documentElement.dataset.shell = "phone";
+    });
+  const host = await wideBar(page, BAR_STATES.followerrstale);
+  await phone();
+  await foldFrame(page);
+  await expect(host.getByTitle("Audio error")).toBeVisible();
+  await expect(host.getByRole("button", { name: "Retry" })).toBeVisible();
+  await expect(host.getByRole("button", { name: "Comment" })).toHaveCount(0);
+
+  const guest = await wideBar(page, BAR_STATES.guesterr);
+  await phone();
+  await foldFrame(page);
+  await expect(guest.getByTitle("Audio error")).toBeVisible();
+  await expect(guest.getByRole("button", { name: "Retry" })).toBeVisible();
+  await expect(
+    guest.getByRole("button", { name: "Comment", exact: true }),
+  ).toBeVisible();
+
+  await page.evaluate(() => {
+    delete document.documentElement.dataset.shell;
+  });
+  await expect(guest.getByRole("button", { name: "Comment" })).toHaveCount(0);
 });
 
 test("System/Player the expanded Player keeps the skip buttons and A and B in a short frame, where the bar removes them (#2576)", async ({
