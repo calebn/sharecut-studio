@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { isChunkLoadError } from "./isChunkLoadError";
 import { RoomLoadBoundary } from "./RoomLoadBoundary";
@@ -38,7 +38,7 @@ describe("RoomLoadBoundary", () => {
     expect(screen.getByText("The room")).toBeInTheDocument();
   });
 
-  it("covers a failed room chunk with the network copy, a Reload button and the tab title", () => {
+  it("covers a failed room chunk with the network copy, a Reload button and the tab title", async () => {
     render(
       <RoomLoadBoundary>
         <Thrower error={chunkError()} />
@@ -53,13 +53,15 @@ describe("RoomLoadBoundary", () => {
     expect(
       screen.getByText(/Check your internet connection, then try again/),
     ).toBeInTheDocument();
-    expect(document.title).toBe("Couldn't reach the room | ShareCut Studio");
+    await waitFor(() =>
+      expect(document.title).toBe("Couldn't reach the room | ShareCut Studio"),
+    );
     fireEvent.click(screen.getByRole("button", { name: "Reload" }));
     expect(reload).toHaveBeenCalledTimes(1);
     expect(logged).toHaveBeenCalled();
   });
 
-  it("covers any other error with its own words and title, never the network copy", () => {
+  it("covers any other error with its own words and title, never the network copy", async () => {
     render(
       <RoomLoadBoundary>
         <Thrower error={new Error("undefined is not a function")} />
@@ -72,8 +74,10 @@ describe("RoomLoadBoundary", () => {
       }),
     ).toBeInTheDocument();
     expect(screen.queryByText(/internet connection/)).toBeNull();
-    expect(document.title).toBe(
-      "Something went wrong with the room | ShareCut Studio",
+    await waitFor(() =>
+      expect(document.title).toBe(
+        "Something went wrong with the room | ShareCut Studio",
+      ),
     );
     expect(screen.getByRole("button", { name: "Reload" })).toBeInTheDocument();
     expect(logged).toHaveBeenCalled();
