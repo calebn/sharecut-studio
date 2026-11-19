@@ -280,7 +280,7 @@ describe("a words selection when one of its own words changes", () => {
   it("keeps the run when only a word before it is respelled", () => {
     start(snapshot());
     useDawStore.getState().setProject(snapshot({ retext: { 2: "corrected" } }));
-    expect(now()).not.toBeNull();
+    expect(now()).toEqual(PICK);
   });
 
   it("clears when a middle selected word moves to another recording", () => {

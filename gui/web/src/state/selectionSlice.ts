@@ -109,8 +109,8 @@ const sameScript = (a: ProjectView, b: ProjectView) =>
 /**
  * The selection patch a project replacement implies for a selected run of
  * words, or nothing when it still stands. The store keeps `word_index`
- * numbers, which another session's phrase correction that changes the word count renumbers: the words are followed to
- * their new numbers, or the selection is cleared when they cannot be proven.
+ * numbers, which another session's phrase correction that changes the word
+ * count renumbers: the words are followed to their new numbers, or the selection is cleared when they cannot be proven.
  * The guest Review Script looks after itself. While an own range action is in
  * flight, or a replacement has no words yet, the selection is left as it is
  * and judged from the project it was named in at the next replacement that

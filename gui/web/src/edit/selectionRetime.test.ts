@@ -160,7 +160,7 @@ describe("retimedInPlace", () => {
     );
   });
 
-  it("is true when a respelled word reads like a twin of the same recording", () => {
+  it("is true when a respelled word takes the text of another word in the recording", () => {
     expect(retimedInPlace(before, edited({ 1: { text: "d" } }), 1, 2)).toBe(
       true,
     );
