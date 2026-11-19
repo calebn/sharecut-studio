@@ -1043,3 +1043,46 @@ async def test_proxy_ws_forwards_query_to_local_gui():
     assert connect.call_args.args[0] == (
         "ws://127.0.0.1:8765/api/review/tok/daw/ws?client_id=viewer-abc&name=Ada+L"
     )
+
+
+@pytest.mark.asyncio
+async def test_proxy_ws_forwards_a_producer_look_in_query_raw():
+    import websockets
+
+    client = TunnelClient(RelayConfig(local_gui_url="http://127.0.0.1:8765"))
+
+    async def send(payload: dict) -> None:
+        return None
+
+    class _FakeLocal:
+        close_code = 1000
+        close_reason = ""
+
+        def __aiter__(self):
+            return self._frames()
+
+        async def _frames(self):
+            if False:
+                yield ""
+
+    class _Ctx:
+        async def __aenter__(self):
+            return _FakeLocal()
+
+        async def __aexit__(self, *args):
+            return False
+
+    with patch.object(websockets, "connect", return_value=_Ctx()) as connect:
+        await client._proxy_ws(
+            {
+                "id": "sid-look",
+                "path": "api/rec/ws",
+                "query": "client_id=prod-1&name=Pat+Q%26A&observe=1",
+                "share_token": "rtok",
+            },
+            send=send,
+            streams={},
+        )
+    assert connect.call_args.args[0] == (
+        "ws://127.0.0.1:8765/api/rec/rtok/ws?client_id=prod-1&name=Pat+Q%26A&observe=1"
+    )
