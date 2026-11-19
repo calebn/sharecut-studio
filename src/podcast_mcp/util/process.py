@@ -310,47 +310,109 @@ def _encoding() -> str:
 
 
 class _CallerStdin(io.BufferedWriter):
-    """The caller's write end of an in-process stdin pipe; ``broken`` makes a write raise EPIPE."""
+    """The caller's write end of an in-process stdin pipe; ``broken`` makes a write raise EPIPE.
+
+    The descriptor number is freed exactly once, and never while a ``write`` or ``flush`` on it is
+    in flight. ``_gate`` is a short lock held only for counter updates, a ``dup2`` and an
+    ``open``, never across a write, a flush or the buffer lock. A call registers in ``_in_flight``
+    under the gate before it touches the descriptor and deregisters after. ``close`` sets
+    ``_closing`` under the gate; a call that starts after that raises ``ValueError``. If calls are
+    still in flight, ``close`` points the descriptor at /dev/null (the number stays valid and owned)
+    and returns without waiting; whoever drops ``_in_flight`` to zero after ``_closing`` is set
+    (the last call, or ``close`` itself when none is in flight) frees the descriptor, outside the
+    gate. A write blocked on a full pipe is not interrupted: it stays blocked until the reader
+    reads or the other ends close, and it then finishes on the original pipe or on /dev/null.
+    """
 
     broken = False
+    _closing = False
+    _freed = False
+    _in_flight = 0
 
     def __init__(self, raw: io.RawIOBase) -> None:
         super().__init__(raw)
         self._gate = threading.Lock()
 
-    def release(self, null_fd: int) -> None:
-        """Point this descriptor at ``null_fd`` unless the writer is closed.
+    @property
+    def closed(self) -> bool:
+        return self._closing or super().closed
 
-        The check and the ``dup2`` run under ``_gate``, the only lock ``close`` takes around
-        freeing the descriptor, so a close cannot free the number in between and let the ``dup2``
-        replace a descriptor that reuses it. ``_gate`` is never held across a flush or the buffer
-        lock, so a writer blocked on a full pipe cannot make this wait.
+    def _enter(self) -> None:
+        with self._gate:
+            if self._closing:
+                raise ValueError("I/O operation on closed file")
+            self._in_flight += 1
+
+    def _leave(self) -> None:
+        with self._gate:
+            self._in_flight -= 1
+            last = self._closing and self._in_flight == 0 and not self._freed
+            self._freed = self._freed or last
+        if last:
+            with contextlib.suppress(OSError):
+                self.raw.close()
+
+    def release(self, null_fd: int) -> None:
+        """Point this descriptor at ``null_fd`` unless the writer is closing or closed.
+
+        The check and the ``dup2`` run under ``_gate``, and the descriptor is freed only after
+        ``_closing`` is set under it, so the number cannot be freed or reused in between. The gate
+        is never held across a write or flush, so a blocked writer cannot make this wait.
         """
         with self._gate:
-            if self.closed:
+            if self._closing:
                 return
             with contextlib.suppress(OSError, ValueError):
                 os.dup2(null_fd, self.fileno())
 
     def close(self) -> None:
-        """Flush if possible, then free the descriptor.
+        """Flush if possible, then close; the descriptor is freed once no call is in flight.
 
-        The flush runs with no lock of ours held. Only the raw ``close`` runs under ``_gate``;
-        the buffered ``close`` (which takes the buffer lock and flushes) would let a writer
-        blocked on a full pipe hold ``_gate`` hostage, so it runs after the raw is closed, when
-        it has nothing left to do.
+        The flush runs with no lock of ours held (it may block on a full pipe, as a close of any
+        buffered pipe writer does). Closing again is a no-op.
         """
         with contextlib.suppress(OSError, ValueError):
             self.flush()
-        with self._gate:
-            self.raw.close()
-        with contextlib.suppress(OSError, ValueError):
-            super().close()
+        try:
+            null_fd = os.open(os.devnull, os.O_RDWR)
+        except OSError:
+            null_fd = -1
+        try:
+            with self._gate:
+                if self._closing:
+                    return
+                self._closing = True
+                busy = self._in_flight > 0
+                if busy:
+                    if null_fd >= 0:
+                        with contextlib.suppress(OSError, ValueError):
+                            os.dup2(null_fd, self.fileno())
+                else:
+                    self._freed = True
+        finally:
+            if null_fd >= 0:
+                os.close(null_fd)
+        if not busy:
+            with contextlib.suppress(OSError):
+                self.raw.close()
+            with contextlib.suppress(OSError, ValueError):
+                super().close()
 
     def write(self, buffer: Any, /) -> int:
         if self.broken:
             raise BrokenPipeError(errno.EPIPE, os.strerror(errno.EPIPE))
-        return super().write(buffer)
+        self._enter()
+        try:
+            return super().write(buffer)
+        finally:
+            self._leave()
+
+    def flush(self) -> None:
+        self._enter()
+        try:
+            super().flush()
+        finally:
+            self._leave()
 
 
 class InProcessChild:
@@ -461,8 +523,9 @@ class InProcessChild:
         """Release the caller's write end of stdin so a read blocked on it in the backend sees EOF.
 
         /dev/null replaces the pipe on the same descriptor number, which the writer still owns
-        and closes once. The writer's ``_gate`` (never held across a flush) orders this against its ``close``, so neither a
-        concurrent write nor a concurrent close can reach a reused descriptor. Later writes raise
+        and frees once. The writer never frees the number while a write or flush on it is in
+        flight (see ``_CallerStdin``), so neither a concurrent write nor a concurrent close can
+        reach a reused descriptor, and this never waits on a blocked writer. Later writes raise
         ``BrokenPipeError``.
         """
         stdin = self.stdin
