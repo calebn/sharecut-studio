@@ -557,6 +557,14 @@ The existing save status owns queued feedback. Planning dry runs are unchanged.
 The typed command boundary rejects negative or nonfinite primary and additional
 split times before an edit or proposal can be saved.
 
+`ApproveEdits` and `RejectEdits` replies carry `review_result` beside the event, for host and
+guest alike, because a guest's command keeps only its type. It is `{count, held, approved_ids?}`:
+`count` is the number of edits decided, `held` lists the cuts an Approve left pending as
+`{id, label, reason}` (empty when none), and `approved_ids` appears when the request asked for
+a held report (`hold_blocked` or `skip_unsure`). A guest's `label` and `reason` read in the plain
+words of a held-cut refusal, and a row never carries the hold code. A reply that asks to confirm
+cutting other speech carries no count and no `review_result`. A retry returns the same fact.
+
 ### Document command types
 
 Every command type has one `CommandSpec` in `services/document_sync/registry.py`: its payload
@@ -669,7 +677,7 @@ Do **not** expose Swagger on the public relay (`docs_url=None`). Host OpenAPI de
 
 **Structural apply vs propose:** `services/document_sync/policy.py` (`resolve_structural_mode`). Host (`caps is None`) and Editors apply immediately (History undo). Commenters only append pending decisions; Approve/Reject via existing Pass 1 commands.
 
-**Speech review:** a programmatic rippling `TrimClipEdge`, `DeleteClip`, `CutRange` or `ApproveEdits` may hold when it cuts other speech. A `needs_confirmation` result carries the review message and measured `speech` (removed spans, per-track words and sound spans); a mapped peer hold uses the structured cut-hold error. Both leave the project unchanged. Studio's trusted interactive route supplies transient human application intent when a person explicitly approves. Any other caller that may run the command (CLI, host MCP, a guest MCP with the Editor capability) sets `override_audio_checks: true` in the payload to skip the audio-quality and cut-position checks for that call; the History entry and applied edits record the actor and surface (`audio_check_override`). Structural checks still apply to interactive approval.
+**Speech review:** a programmatic rippling `TrimClipEdge`, `DeleteClip`, `CutRange` or `ApproveEdits` may hold when it cuts other speech. A `needs_confirmation` result carries the review message and measured `speech` (removed spans, per-track words and sound spans); a mapped peer hold uses the structured cut-hold error. Both leave the project unchanged. Studio's trusted interactive route (the host page, and an Editor review link's page) supplies transient human application intent when a person explicitly approves; a Commenter link does not. Any other caller that may run the command (CLI, host MCP, a guest MCP with the Editor capability) sets `override_audio_checks: true` in the payload to skip the audio-quality and cut-position checks for that call; the History entry and applied edits record the actor and surface (`audio_check_override`). Structural checks still apply to interactive approval.
 
 REST `/api/comments*` still mutates via `CommentService` and best-effort notifies the document hub (`notify_comments_changed` → `COMMENTS` projection). New GUI mutations (history, edits, transcript, envelopes, markers) use the document command path only. Host: `POST /api/document/command`. Guest shares: `POST /api/review/{token}/daw/document/command` with `authorize_document_command` (`ROLE_DOCUMENT_COMMANDS` in `services/document_sync/capabilities.py`, derived from each `CommandSpec.guest` in `registry.py`: Commenters get the suggest set, Editors the edit set; `policy.py` chooses apply vs propose). **Remote MCP** guests use the same allowlists via `guest_submit_document_command` ([host-online-relay.md](host-online-relay.md) § Remote MCP). Authz: same `authorize_client` as session WS for host (strict mode + token for non-loopback); relayed share traffic is refused.
 

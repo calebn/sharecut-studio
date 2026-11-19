@@ -222,3 +222,73 @@ def test_host_approve_rows_name_the_hold_code(world):
             "code": "source_geometry",
         }
     ]
+
+
+def test_editor_reject_reply_carries_the_count_the_page_parses(world):
+    ids = _suggest_cut(world, UNCLE)
+    rejected = world.guest("editor", "RejectEdits", {"ids": ids})
+    assert rejected.status_code == 200, rejected.text
+    body = rejected.json()
+    assert body["review_result"] == {"count": 1, "held": []}
+    assert body["command"] == {"type": "RejectEdits"}
+
+
+def test_editor_approve_reply_carries_count_and_no_held_rows(world):
+    ids = _suggest_cut(world, UNCLE)
+    approved = world.guest("editor", "ApproveEdits", {"ids": ids})
+    assert approved.status_code == 200, approved.text
+    body = approved.json()
+    assert body["review_result"] == {"count": 1, "held": []}
+    assert body["command"] == {"type": "ApproveEdits"}
+
+
+def test_editor_approve_reply_names_a_held_cut_in_words_without_its_code(world):
+    ids = _stage_cut_then_move_its_audio(world)
+    approved = world.guest("editor", "ApproveEdits", {"ids": ids, "hold_blocked": True})
+    assert approved.status_code == 200, approved.text
+    assert approved.json()["review_result"] == {
+        "count": 0,
+        "held": [
+            {
+                "id": ids[0],
+                "label": "Reference's cut at 0:02.5",
+                "reason": "that part of the recording is no longer in one piece on the timeline",
+            }
+        ],
+        "approved_ids": [],
+    }
+
+
+def test_editor_approve_reply_lists_the_ids_it_approved(world):
+    ids = _suggest_cut(world, UNCLE)
+    approved = world.guest("editor", "ApproveEdits", {"ids": ids, "hold_blocked": True})
+    assert approved.status_code == 200, approved.text
+    assert approved.json()["review_result"] == {"count": 1, "held": [], "approved_ids": ids}
+
+
+def test_host_reply_has_the_same_review_result(world):
+    ids = _stage_cut_then_move_its_audio(world)
+    approved = world.host("ApproveEdits", {"ids": ids, "hold_blocked": True})
+    assert approved.status_code == 200, approved.text
+    assert approved.json()["review_result"] == {
+        "count": 0,
+        "held": [
+            {
+                "id": ids[0],
+                "label": "reference's cut at 0:02.5",
+                "reason": "the selected audio no longer has one complete, continuous placement",
+            }
+        ],
+        "approved_ids": [],
+    }
+
+
+def test_a_retried_reject_carries_the_same_review_result(world):
+    ids = _suggest_cut(world, UNCLE)
+    first = world.guest("editor", "RejectEdits", {"ids": ids}, command_id="cmd_reject_once")
+    retry = world.guest("editor", "RejectEdits", {"ids": ids}, command_id="cmd_reject_once")
+    assert retry.status_code == 200, retry.text
+    assert retry.json()["idempotent"] is True
+    assert (
+        retry.json()["review_result"] == first.json()["review_result"] == {"count": 1, "held": []}
+    )

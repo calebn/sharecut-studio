@@ -43,9 +43,9 @@ class AlignedShareWorld:
         url = f"/api/document/command?path={quote(str(self.path))}"
         return self.client.post(url, json=_body(type_, payload, "viewer"))
 
-    def guest(self, link: str, type_: str, payload: dict[str, Any]):
+    def guest(self, link: str, type_: str, payload: dict[str, Any], command_id: str | None = None):
         url = f"/api/review/{self.tokens[link]}/daw/document/command"
-        return self.client.post(url, json=_body(type_, payload, "guest"))
+        return self.client.post(url, json=_body(type_, payload, "guest", command_id))
 
     def mcp(self, link: str, type_: str, payload: dict[str, Any]) -> dict[str, Any]:
         arguments = {"type": type_, "payload": payload, "command_id": f"cmd_{uuid.uuid4().hex}"}
@@ -60,14 +60,16 @@ class AlignedShareWorld:
         )
 
 
-def _body(type_: str, payload: dict[str, Any], role: str) -> dict[str, Any]:
+def _body(
+    type_: str, payload: dict[str, Any], role: str, command_id: str | None = None
+) -> dict[str, Any]:
     return {
         "type": type_,
         "payload": payload,
-        "client_id": f"c-{uuid.uuid4().hex[:6]}",
+        "client_id": f"client-of-{command_id}" if command_id else f"c-{uuid.uuid4().hex[:6]}",
         "client_seq": None,
         "role": role,
-        "command_id": f"cmd_{uuid.uuid4().hex}",
+        "command_id": command_id or f"cmd_{uuid.uuid4().hex}",
     }
 
 

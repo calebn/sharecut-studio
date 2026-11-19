@@ -23,6 +23,7 @@ from podcast_mcp.edits.comments import comments_for_view
 from podcast_mcp.edits.decisions import PendingEditChangedError
 from podcast_mcp.edits.edit_log import RestoreResult
 from podcast_mcp.edits.range_target import RangeChangedError
+from podcast_mcp.edits.source_removals import PLAIN_HOLD_REASONS, plain_label
 from podcast_mcp.edits.transcript_correct import TranscriptTextChangedError
 from podcast_mcp.edits.transcript_timing import TranscriptTimingChangedError
 from podcast_mcp.models import EpisodeProject, SavedDocumentCommand
@@ -254,6 +255,49 @@ def _restore_conflicts(command: DocumentCommand, result: Mapping[str, Any]) -> R
     if command.type == "RestoreAppliedEdit" and result.get("status") == "conflict":
         return {"restore_conflicts": result["conflicts"]}
     return {}
+
+
+class _ReviewHeld(TypedDict):
+    id: str
+    label: str
+    reason: str
+
+
+class _ReviewResult(TypedDict):
+    count: int
+    held: list[_ReviewHeld]
+    approved_ids: NotRequired[list[str]]
+
+
+class ReviewReplyAsk(TypedDict, total=False):
+    review_result: _ReviewResult
+
+
+def _review_reply_facts(command_type: str, result: object, audience: str) -> ReviewReplyAsk:
+    """How many edits an Approve or Reject decided, and which cuts Approve left pending.
+
+    A guest's sanitized ``command`` carries no result, so the page reads this top-level fact
+    for both audiences. A guest's rows read in the plain words of a refusal and never carry
+    the hold code.
+    """
+    if command_type not in {"ApproveEdits", "RejectEdits"} or not isinstance(result, Mapping):
+        return {}
+    count = result.get("count")
+    if isinstance(count, bool) or not isinstance(count, int):
+        return {}
+    guest = audience == "guest"
+    held: list[_ReviewHeld] = []
+    for row in result.get("held") or []:
+        reason = str(row["reason"])
+        label = str(row["label"])
+        if guest:
+            reason = PLAIN_HOLD_REASONS.get(str(row.get("code")), reason)
+            label = plain_label(label)
+        held.append({"id": str(row["id"]), "label": label, "reason": reason})
+    review: _ReviewResult = {"count": count, "held": held}
+    if "approved_ids" in result:
+        review["approved_ids"] = [str(i) for i in result["approved_ids"]]
+    return {"review_result": review}
 
 
 class _SplitPiece(TypedDict):
@@ -777,6 +821,11 @@ class DocumentSyncService:
                     "server_seq": existing["server_seq"],
                     "idempotent": True,
                     **_stored_asks(existing),
+                    **_review_reply_facts(
+                        str(existing["type"]),
+                        (existing.get("payload") or {}).get("result"),
+                        audience,
+                    ),
                     **_split_reply_facts(
                         str(existing["type"]),
                         (existing.get("payload") or {}).get("result"),
@@ -860,6 +909,7 @@ class DocumentSyncService:
         confirmation = result_payload.get("needs_confirmation")
         asks = {"needs_confirmation": confirmation} if confirmation is not None else {}
         asks.update(_restore_conflicts(command, result_payload))
+        asks.update(_review_reply_facts(command.type, result_payload, audience))
         asks.update(
             _split_reply_facts(command.type, result_payload, command.payload.get("track_ids"))
         )
