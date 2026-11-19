@@ -816,23 +816,39 @@ the `changes` job did not succeed. `fail-fast: true` cancels the other suites
 once one fails, because a rerun repeats the whole set anyway. Local wrappers
 still run sequentially within one checkout.
 
-CI uploads one `playwright-reports-<name>` artifact per matrix job
-(`playwright-reports-main-1of4` ... `playwright-reports-main-4of4` and
-`playwright-reports-compat-chromium` and `playwright-reports-compat-webkit`, or
-`playwright-reports-main-smoke` on a PR) on successful and failed runs. Each holds
-`<name>.json` with per-test durations, retries and errors. The matrix sets
-`PLAYWRIGHT_JSON_OUTPUT_FILE` for each job. Download them all with
-`gh run download <run-id> --pattern 'playwright-reports-*'` and sum durations
-per spec file across the shard reports. Compare successful runs at the same
-test scope, and separate browser execution from dependency install and
-server/build setup. A local timing run can use
-`PLAYWRIGHT_JSON_OUTPUT_FILE=/tmp/main.json npm run test:e2e -- --reporter=json`,
-and `npm run test:e2e -- --shard=2/4` reproduces one CI shard.
-Playwright uploads native `trace.zip` and `error-context.md` files as separate
-`playwright-test-results-<name>` artifacts whenever either file exists. This
-also retains diagnostics from a failed attempt when a retry passes. The upload
-keeps the matrix suffix and seven-day retention. It excludes Playwright run
-metadata from clean jobs.
+### Browser result publication
+
+CI captures each complete browser command's console and GitHub file-command output
+in a private runner directory. The ordinary command, test selection, retries and
+fixture teardown remain unchanged, and its exit status still gates the job.
+Raw reports, traces, error contexts, screenshots and videos stay on that runner;
+they are not uploaded or printed into annotations or job summaries.
+
+`scripts/browser_public_report.py` projects the raw Playwright JSON into
+`gui/web/playwright-public/<name>.json`. CI uploads only that exact file as
+`playwright-public-<name>` with seven-day retention. The projection retains one
+ordinal per logical test, enumerated final/expected/attempt statuses, retry
+numbers, durations and a count of global errors. It drops titles, paths,
+project names, errors, logs, attachments, configuration and metadata. Ordinals
+identify only their position within that report, not stable case identities
+across heads, shards or runs. Bind execution to the workflow's head/run metadata;
+do not infer a named case's result from an ordinal without separate authorized
+source/collection evidence.
+
+Uploads and summaries require the projection step to succeed. The existing
+test-area summary reads only the projection. It still counts
+logical tests and sums all retry durations, which can overlap and are not job
+wall time. Missing or malformed raw reports fail projection and leave no public
+file; neither stale results nor raw parse errors are published. A projection
+failure cannot turn an unsuccessful browser command into a successful check.
+Storybook browser commands use the same private console boundary and projected
+summary. Its static Pages build/deployment policy is unchanged.
+
+This boundary prevents publication rather than preventing Playwright from
+creating diagnostics. Do not upload the private directory or broaden the
+artifact path. Raw diagnostics require a separately authorized private review
+route. Unit checks use fabricated marker strings and child commands only; they
+do not open an authenticated page or reproduce a disclosure.
 
 ## What to test where
 
