@@ -223,6 +223,7 @@ PATH_RULES: tuple[tuple[Glob, Scope], ...] = tuple(
         ("AGENTS.md", Scope.OTHER),
         ("CHANGELOG.md", Scope.OTHER),
         ("LICENSE", Scope.OTHER),
+        ("LICENSES/**", Scope.OTHER),
         ("Makefile", Scope.OTHER),
         ("README.md", Scope.OTHER),
         ("release-please-config.json", Scope.OTHER),

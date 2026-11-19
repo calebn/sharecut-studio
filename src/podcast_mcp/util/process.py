@@ -321,8 +321,10 @@ class _CallerStdin(io.BufferedWriter):
     def release(self, null_fd: int) -> None:
         """Point this descriptor at ``null_fd`` unless the writer is closed.
 
-        The check and the ``dup2`` run under the lock that ``close`` takes, so a close cannot free
-        the number in between and let the ``dup2`` replace a descriptor that reuses it.
+        The check and the ``dup2`` run under ``_gate``, the only lock ``close`` takes around
+        freeing the descriptor, so a close cannot free the number in between and let the ``dup2``
+        replace a descriptor that reuses it. ``_gate`` is never held across a flush or the buffer
+        lock, so a writer blocked on a full pipe cannot make this wait.
         """
         with self._gate:
             if self.closed:
@@ -331,9 +333,18 @@ class _CallerStdin(io.BufferedWriter):
                 os.dup2(null_fd, self.fileno())
 
     def close(self) -> None:
+        """Flush if possible, then free the descriptor.
+
+        The flush runs with no lock of ours held. Only the raw ``close`` runs under ``_gate``;
+        the buffered ``close`` (which takes the buffer lock and flushes) would let a writer
+        blocked on a full pipe hold ``_gate`` hostage, so it runs after the raw is closed, when
+        it has nothing left to do.
+        """
         with contextlib.suppress(OSError, ValueError):
             self.flush()
         with self._gate:
+            self.raw.close()
+        with contextlib.suppress(OSError, ValueError):
             super().close()
 
     def write(self, buffer: Any, /) -> int:
@@ -450,7 +461,7 @@ class InProcessChild:
         """Release the caller's write end of stdin so a read blocked on it in the backend sees EOF.
 
         /dev/null replaces the pipe on the same descriptor number, which the writer still owns
-        and closes once. The writer's own lock orders this against its ``close``, so neither a
+        and closes once. The writer's ``_gate`` (never held across a flush) orders this against its ``close``, so neither a
         concurrent write nor a concurrent close can reach a reused descriptor. Later writes raise
         ``BrokenPipeError``.
         """
