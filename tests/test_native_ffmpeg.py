@@ -428,7 +428,10 @@ def test_abandon_closes_the_callers_stdin_so_a_blocked_read_ends_and_the_next_se
         assert fake.started.acquire(timeout=BOUND_SEC)
         child.kill()
         assert child.wait(BOUND_SEC) == -9
-        assert child.stdin is not None and child.stdin.closed
+        assert child.stdin is not None
+        with pytest.raises(BrokenPipeError):
+            child.stdin.write(b"x")
+        child.stdin.close()
         assert fake.finished.wait(BOUND_SEC)
         second = process.popen([IN_PROCESS_FFMPEG], stdin=process.PIPE)
         assert second.stdin is not None

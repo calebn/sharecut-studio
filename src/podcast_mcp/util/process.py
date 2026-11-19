@@ -26,6 +26,7 @@ from __future__ import annotations
 import contextlib
 import ctypes
 import errno
+import io
 import locale
 import logging
 import os
@@ -305,17 +306,29 @@ def _encoding() -> str:
     return locale.getpreferredencoding(False)
 
 
+class _CallerStdin(io.BufferedWriter):
+    """The caller's write end of an in-process stdin pipe; ``broken`` makes a write raise EPIPE."""
+
+    broken = False
+
+    def write(self, buffer: Any, /) -> int:
+        if self.broken:
+            raise BrokenPipeError(errno.EPIPE, os.strerror(errno.EPIPE))
+        return super().write(buffer)
+
+
 class InProcessChild:
     """A :class:`Child` whose program is ``backend.run`` on a daemon thread.
 
     A PIPE stream is an ``os.pipe`` pair, a file object is handed to the backend as is, and
     DEVNULL or ``None`` give the backend ``None``. ``pid`` is ``None``. A ``kill`` that the
     backend ignores for ``KILL_GRACE_SEC`` ends the child with ``-9`` at once (``wait`` never
-    hangs) and abandons its thread. At the abandon it closes the caller's write end of a stdin
-    pipe (a backend blocked reading it sees EOF) and detaches the backend's own pipe ends; the
-    caller's stdout and stderr read ends stay open: a reader sees EOF after the abandon only if the backend has closed its own stream ends on cancel (the native
-    ABI requires that); a backend that keeps them delays EOF until it returns. A backend that
-    returns a non-int has failed with code ``1``.
+    hangs) and abandons its thread. At the abandon it releases the caller's write end of a stdin
+    pipe (a backend blocked reading it sees EOF; a later write raises ``BrokenPipeError``) and
+    detaches the backend's own pipe ends. The caller's stdout and stderr read ends stay open: a
+    reader sees EOF after the abandon only if the backend has closed its own stream ends on
+    cancel (the native ABI requires that); a backend that keeps them delays EOF until it
+    returns. A backend that returns a non-int has failed with code ``1``.
     A ``kill`` before the backend finishes always reports ``-9``, whatever the backend returns,
     as a SIGKILLed ``Popen`` does; one after completion changes nothing. A ``None`` stream is
     ``/dev/null`` here, never inherited from the parent as ``Popen`` would.
@@ -370,7 +383,10 @@ class InProcessChild:
             return spec
         read_fd, write_fd = os.pipe()
         reading = name == "stdin"
-        ours = os.fdopen(write_fd if reading else read_fd, "wb" if reading else "rb")
+        if reading:
+            ours: Any = _CallerStdin(io.FileIO(write_fd, "wb"))
+        else:
+            ours = os.fdopen(read_fd, "rb")
         their_fd = read_fd if reading else write_fd
         theirs = os.fdopen(their_fd, "rb" if reading else "wb", closefd=False)
         setattr(self, name, ours)
@@ -406,15 +422,21 @@ class InProcessChild:
                 os.dup2(self._null_fd, fd)
 
     def _release_caller_stdin(self) -> None:
-        """Close the caller's write end of stdin so a read blocked on it in the backend sees EOF.
+        """Release the caller's write end of stdin so a read blocked on it in the backend sees EOF.
 
-        Only the raw descriptor is closed: the buffered writer's lock may be held by a caller that
-        is itself blocked in a write, and a flush of pending bytes into a full pipe would block.
+        /dev/null replaces the pipe on the same descriptor number, which the writer still owns
+        and closes once, so a concurrent write cannot reach a reused descriptor. Later writes
+        raise ``BrokenPipeError``.
         """
-        raw = getattr(self.stdin, "raw", self.stdin)
-        if raw is not None:
+        stdin = self.stdin
+        if not isinstance(stdin, _CallerStdin):
+            return
+        stdin.broken = True
+        with self._fd_lock:
+            if self._fds_closed or self._null_fd is None:
+                return
             with contextlib.suppress(OSError, ValueError):
-                raw.close()
+                os.dup2(self._null_fd, stdin.fileno())
 
     def _finish(self, code: int) -> None:
         with self._lock:

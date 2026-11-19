@@ -368,15 +368,16 @@ void     sc_ffmpeg_cancel(int64_t session);
   written did not return until the caller closed its write end, because ffprobe sets no libav
   interrupt callback and retries the read. The backstop is the bridge closing the caller's write end
   of the stdin pipe, which Python does at `KILL_GRACE_SEC` at the latest when the tool has not
-  returned (the stdout and stderr read ends stay open). The Simulator observation of about 1 s
-  covers the probe stage on the worker thread; a block on a demux thread in mid-stream is covered
-  only by this backstop. A write the tool makes through the
+  returned (the stdout and stderr read ends stay open). The Simulator 1 s return was observed once,
+  at the probe stage, and is not a guarantee. The backstop releases only the caller's stdin pipe:
+  a demux or mux thread blocked on a stdout or stderr write is not covered by any path until the
+  caller reads or the native returns. A write the tool makes through the
   discard stream never blocks. A caller's
   reader of a pipe sees EOF only when the native's dups are closed (when the tool returns) and the
   caller-side write end is released; Python releases that end when `wait` returns, or, if the
-  tool ignores the cancel, closes the stdin write end at `KILL_GRACE_SEC`. A
+  tool ignores the cancel, releases the stdin write end at `KILL_GRACE_SEC`. A
   native that ignores `cancel` does not hang `run` or `wait` (Python reports `-9` after the grace)
-  but gives no EOF until its session ends. Limitations: two overlapping sessions must not be given
+  but a stdout or stderr reader gets no EOF until its session ends (a stdin reader gets it at the grace). Limitations: two overlapping sessions must not be given
   the same pipe, and a thread of a finished session must not call the tool's exit path later. There
   are no callbacks. A NUL in argv is rejected only inside the backend (exit 1, where `subprocess`
   raises `ValueError`): an accepted, fail-closed divergence.
