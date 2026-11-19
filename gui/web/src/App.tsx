@@ -10,6 +10,7 @@ import {
 import { ApiError } from "./utils/apiError";
 import { readNotServed } from "./utils/notServed";
 import "./styles/daw.css";
+import "./stage/edit/script/registerTranscriptSelectionFollower";
 import { FeatureProvider } from "./extensions/FeatureProvider";
 import {
   useFeaturesReady,

@@ -1,5 +1,12 @@
-import type { ScriptWordRef } from "../stage/edit/script/scriptModel";
-import type { ScriptTurn } from "../system/scriptPieces";
+/** A project word as the store names it. The Script's own ref type is assignable to this. */
+export type ScriptWordRef = {
+  trackId: string;
+  sourceId: string | null;
+  wordIndex: number | null;
+};
+
+/** What the follow needs of a Script line: whether it shows words yet, and their numbers. */
+type ScriptTurn = { words: readonly { index: number }[] };
 
 type TurnSpan = {
   trackId: string;

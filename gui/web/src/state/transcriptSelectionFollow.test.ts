@@ -8,6 +8,7 @@ import {
   wordAt,
 } from "../test/transcriptSelectionFixtures";
 import type { ProjectView, Selection } from "../types/project";
+import "../stage/edit/script/registerTranscriptSelectionFollower";
 import { useDawStore } from "./dawStore";
 
 const PATH = "/tmp/test/episode.sharecut";
@@ -159,6 +160,7 @@ describe("a replacement that cannot be judged yet", () => {
         },
       };
     });
+    await import("../stage/edit/script/registerTranscriptSelectionFollower");
     const { useDawStore: store } = await import("./dawStore");
     const b = snapshot({ removed: [1, 2] });
     store.getState().hydrate(PATH, snapshot());
@@ -186,5 +188,21 @@ describe("a replacement that adds a line before the selected run", () => {
       },
     });
     expect(now()).toBe(stored);
+  });
+});
+
+describe("the app bootstrap", () => {
+  it("registers the follower the store judges a run with", async () => {
+    vi.resetModules();
+    const { judgeTranscriptSelection } = await import(
+      "./transcriptSelectionJudge"
+    );
+    const from = snapshot();
+    const next = snapshot({ removed: [1, 2] });
+    const unregistered = judgeTranscriptSelection(from, PICK as never, next);
+    expect(unregistered).toEqual({ kind: "keep" });
+    await import("../App");
+    const judged = judgeTranscriptSelection(from, PICK as never, next);
+    expect(judged.kind).toBe("move");
   });
 });
