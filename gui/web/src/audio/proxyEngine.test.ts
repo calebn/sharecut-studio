@@ -1238,25 +1238,276 @@ describe("playing a timeline longer than the first window", () => {
       engine.dispose();
     });
 
-    it("stops everything once and wakes nothing when the extension's fetch fails", async () => {
+    it("retries the extension's failed fetch and stops everything once when the sound is nearly out", async () => {
       const { handle, engine, gate, failure, onEnded } =
         await playUntilExtensionPending();
       const error = new TypeError("Failed to fetch");
       expect(soundingAt(handle.created, 75.5, 1)).toBe(1);
       gate.reject(error);
       await flush();
+      expect(failure).not.toHaveBeenCalled();
+      expect(soundingAt(handle.created, 75.5, 1)).toBe(1);
+      for (let ctxSec = 76; ctxSec <= 130; ctxSec += 1) {
+        await advanceTo(handle, ctxSec);
+      }
       expect(failure).toHaveBeenCalledExactlyOnceWith(
         error,
         expect.objectContaining({ index: 2 }),
       );
-      expect(soundingAt(handle.created, 75.5, 1)).toBe(0);
+      expect(soundingAt(handle.created, 120.5, 1)).toBe(0);
       const created = handle.created.length;
       await advanceTo(handle, 200);
       expect(handle.created).toHaveLength(created);
-      expect(engine.currentTimeSec()).toBe(75);
+      expect(engine.currentTimeSec()).toBe(115);
       expect(onEnded).not.toHaveBeenCalled();
       engine.dispose();
     });
+
+    it("reports once at the give-up point when the extension's fetch never settles", async () => {
+      const { handle, engine, failure, onEnded } =
+        await playUntilExtensionPending();
+      for (let ctxSec = 76; ctxSec <= 114; ctxSec += 1) {
+        await advanceTo(handle, ctxSec);
+      }
+      expect(failure).not.toHaveBeenCalled();
+      await advanceTo(handle, 115);
+      expect(failure).toHaveBeenCalledExactlyOnceWith(expect.any(Error), null);
+      await advanceTo(handle, 200);
+      expect(failure).toHaveBeenCalledTimes(1);
+      expect(engine.currentTimeSec()).toBe(115);
+      expect(onEnded).not.toHaveBeenCalled();
+      engine.dispose();
+    });
+
+    it.each([
+      ["pause", (engine: ProxyEngine) => engine.pause()],
+      ["seek", (engine: ProxyEngine) => engine.seek(300)],
+      ["rate change", (engine: ProxyEngine) => engine.setPlaybackRate(2)],
+    ])(
+      "leaves nothing late after a %s while the extension's fetch hangs",
+      async (_name, interrupt) => {
+        const { handle, engine, failure } = await playUntilExtensionPending();
+        interrupt(engine);
+        await flush();
+        const reports = failure.mock.calls.length;
+        for (let ctxSec = 76; ctxSec <= 140; ctxSec += 1) {
+          await advanceTo(handle, ctxSec);
+        }
+        expect(failure).toHaveBeenCalledTimes(reports);
+        engine.dispose();
+      },
+    );
+  });
+
+  describe("when a chunk fetch fails during an extension", () => {
+    const RETRY_GIVE_UP_SEC = 5;
+    const FIRST_WINDOW_END_SEC = 120;
+    const FLAKY_CHUNK_INDEX = 2;
+    const SEEK_FAIL_FROM_INDEX = 5;
+    const FIRST_CHUNK_INDEX = 0;
+
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    async function playWithFlakyChunk(failures: number) {
+      vi.useFakeTimers();
+      const handle = makeCtx();
+      let attempts = 0;
+      const fetchChunk = vi.fn(async (ref: ImmutableChunkRef) => {
+        if (ref.index === FLAKY_CHUNK_INDEX) {
+          attempts += 1;
+          if (attempts <= failures) throw new TypeError("Failed to fetch");
+        }
+        return new ArrayBuffer(64);
+      });
+      const failure = vi.fn();
+      const engine = new ProxyEngine(
+        handle.ctx,
+        fetchChunk,
+        engineEvents({ onFailure: failure }),
+      );
+      engine.setSnapshot(episode(400));
+      engine.play(0);
+      await flush();
+      for (let ctxSec = 1; ctxSec <= 75; ctxSec += 1) {
+        await advanceTo(handle, ctxSec);
+      }
+      return { handle, engine, fetchChunk, failure };
+    }
+
+    async function tick(handle: ReturnType<typeof makeCtx>, ctxSec: number) {
+      await vi.advanceTimersByTimeAsync(1000);
+      await advanceTo(handle, ctxSec);
+    }
+
+    it("keeps playing and places the retried slice on time after two failed attempts", async () => {
+      const { handle, engine, failure } = await playWithFlakyChunk(2);
+      for (let ctxSec = 76; ctxSec <= 190; ctxSec += 1) {
+        await tick(handle, ctxSec);
+        expect(failure).not.toHaveBeenCalled();
+        expect(
+          soundingAt(handle.created, ctxSec + 0.5, 1),
+          `sources sounding at ctx ${ctxSec + 0.5} s`,
+        ).toBe(1);
+      }
+      expect(handle.suspend).not.toHaveBeenCalled();
+      expect(engine.currentTimeSec()).toBe(190);
+      const retried = handle.created
+        .map(({ start }) => start.mock.calls[0])
+        .filter(([when]) => when === FIRST_WINDOW_END_SEC);
+      expect(retried).toHaveLength(1);
+      expect(retried[0][2]).toBe(60);
+      engine.dispose();
+    });
+
+    it("reports a chunk that keeps failing once, near the end of the scheduled sound", async () => {
+      const { handle, engine, failure } = await playWithFlakyChunk(
+        Number.POSITIVE_INFINITY,
+      );
+      let reportedAtCtxSec: number | null = null;
+      for (let ctxSec = 76; ctxSec <= 140; ctxSec += 1) {
+        await tick(handle, ctxSec);
+        if (reportedAtCtxSec === null && failure.mock.calls.length > 0)
+          reportedAtCtxSec = ctxSec;
+      }
+      expect(failure).toHaveBeenCalledExactlyOnceWith(
+        expect.any(TypeError),
+        expect.objectContaining({ index: FLAKY_CHUNK_INDEX }),
+      );
+      expect(reportedAtCtxSec).toBeGreaterThanOrEqual(
+        FIRST_WINDOW_END_SEC - RETRY_GIVE_UP_SEC,
+      );
+      expect(reportedAtCtxSec).toBeLessThanOrEqual(FIRST_WINDOW_END_SEC);
+      expect(engine.currentTimeSec()).toBeGreaterThanOrEqual(
+        FIRST_WINDOW_END_SEC - RETRY_GIVE_UP_SEC,
+      );
+      expect(engine.currentTimeSec()).toBeLessThanOrEqual(FIRST_WINDOW_END_SEC);
+      expect(soundingAt(handle.created, 120.5, 1)).toBe(0);
+      engine.dispose();
+    });
+
+    it("reports a chunk that fails to decode at once, without retrying", async () => {
+      vi.useFakeTimers();
+      const handle = makeCtx();
+      const decodeError = new EvalError("Unable to decode audio data");
+      handle.decode.mockImplementation(async (ab: ArrayBuffer) => {
+        if (ab.byteLength === 99) throw decodeError;
+        return {
+          length: 48000,
+          duration: 1,
+          numberOfChannels: 1,
+          sampleRate: 48000,
+        } as AudioBuffer;
+      });
+      const fetchChunk = vi.fn(
+        async (ref: ImmutableChunkRef) =>
+          new ArrayBuffer(ref.index === FLAKY_CHUNK_INDEX ? 99 : 64),
+      );
+      const failure = vi.fn();
+      const engine = new ProxyEngine(
+        handle.ctx,
+        fetchChunk,
+        engineEvents({ onFailure: failure }),
+      );
+      engine.setSnapshot(episode(400));
+      engine.play(0);
+      await flush();
+      for (let ctxSec = 1; ctxSec <= 80; ctxSec += 1) {
+        await advanceTo(handle, ctxSec);
+      }
+      await tick(handle, 81);
+      expect(failure).toHaveBeenCalledExactlyOnceWith(
+        decodeError,
+        expect.objectContaining({ index: FLAKY_CHUNK_INDEX }),
+      );
+      expect(
+        fetchChunk.mock.calls.filter(
+          ([ref]) => ref.index === FLAKY_CHUNK_INDEX,
+        ),
+      ).toHaveLength(1);
+      engine.dispose();
+    });
+
+    it("reports a failing first schedule at once", async () => {
+      vi.useFakeTimers();
+      const handle = makeCtx();
+      const failure = vi.fn();
+      const engine = new ProxyEngine(
+        handle.ctx,
+        async () => {
+          throw new TypeError("Failed to fetch");
+        },
+        engineEvents({ onFailure: failure }),
+      );
+      engine.setSnapshot(episode(400));
+      engine.play(0);
+      await flush();
+      expect(failure).toHaveBeenCalledExactlyOnceWith(
+        expect.any(TypeError),
+        expect.objectContaining({ index: FIRST_CHUNK_INDEX }),
+      );
+      expect(handle.created).toHaveLength(0);
+      engine.dispose();
+    });
+
+    it("reports a failing seek schedule at once", async () => {
+      vi.useFakeTimers();
+      const handle = makeCtx();
+      const failure = vi.fn();
+      const engine = new ProxyEngine(
+        handle.ctx,
+        async (ref) => {
+          if (ref.index >= SEEK_FAIL_FROM_INDEX)
+            throw new TypeError("Failed to fetch");
+          return new ArrayBuffer(64);
+        },
+        engineEvents({ onFailure: failure }),
+      );
+      engine.setSnapshot(episode(400));
+      engine.play(0);
+      await flush();
+      expect(failure).not.toHaveBeenCalled();
+      engine.seek(300);
+      await flush();
+      expect(failure).toHaveBeenCalledExactlyOnceWith(
+        expect.any(TypeError),
+        expect.objectContaining({ index: SEEK_FAIL_FROM_INDEX }),
+      );
+      engine.dispose();
+    });
+
+    it.each([
+      ["pause", (engine: ProxyEngine) => engine.pause()],
+      ["seek", (engine: ProxyEngine) => engine.seek(300)],
+    ])(
+      "leaves nothing late after a %s while the retry waits",
+      async (_name, interrupt) => {
+        const { handle, engine, fetchChunk, failure } =
+          await playWithFlakyChunk(Number.POSITIVE_INFINITY);
+        await tick(handle, 76);
+        interrupt(engine);
+        await flush();
+        const reports = failure.mock.calls.length;
+        const sources = handle.created.length;
+        const slowFetches = () =>
+          fetchChunk.mock.calls.filter(
+            ([ref]) => ref.index === FLAKY_CHUNK_INDEX,
+          ).length;
+        const fetches = slowFetches();
+        for (let ctxSec = 77; ctxSec <= 140; ctxSec += 1) {
+          await tick(handle, ctxSec);
+        }
+        expect(failure).toHaveBeenCalledTimes(reports);
+        expect(slowFetches()).toBe(fetches);
+        expect(
+          handle.created
+            .slice(sources)
+            .filter(({ start }) => start.mock.calls[0][0] === 120),
+        ).toHaveLength(0);
+        engine.dispose();
+      },
+    );
   });
 
   it("after a late wake fetches nothing that already ended and resumes in sync", async () => {

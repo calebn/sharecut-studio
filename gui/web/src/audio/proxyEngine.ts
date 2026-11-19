@@ -29,6 +29,9 @@ export interface TrackInfo {
 
 const WINDOW_PAD_SEC = 120;
 const LOW_WATER_CTX_SEC = 45;
+/** A failing extension is retried until this much scheduled sound is left, then reported. */
+const RETRY_GIVE_UP_SEC = 5;
+const RETRY_BACKOFF_MAX_SEC = 4;
 /** Time constant for a live gain change (reaches ~99% in 5x this). */
 const GAIN_GLIDE_SEC = 0.01;
 /** Decoded audio kept behind the playhead, so a short skip back during continuous play needs no fetch or decode. */
@@ -58,8 +61,31 @@ export interface ProxyEngineEvents {
   onSystemPlay: () => void;
 }
 
+class ChunkFetchError extends Error {
+  readonly ref: ImmutableChunkRef;
+
+  constructor(ref: ImmutableChunkRef, cause: unknown) {
+    super("chunk fetch failed", { cause });
+    this.ref = ref;
+  }
+}
+
+interface ExtendRetry {
+  attempt: number;
+  wakeSec: number;
+  /** The first attempt's batch end, so a retry asks for the same chunks. */
+  batchEndSec: number;
+  error: unknown;
+  ref: ImmutableChunkRef;
+}
+
 interface Horizon {
   readonly generation: number;
+  /** An extension is fetching; a sentinel wake must not start another. */
+  busy: boolean;
+  retry: ExtendRetry | null;
+  /** Where a failing or hung extension is reported; null when it started after the sound ran out. */
+  giveUpSec: number | null;
   /**
    * Timeline seconds, exclusive. Every slice that starts before it has exactly
    * one source in this generation; no slice that starts at or after it has one.
@@ -391,9 +417,15 @@ export class ProxyEngine {
       this.touchLru(key, 0);
       return existing;
     }
+    let ab: ArrayBuffer;
     try {
-      const ab = await this.fetchChunk(ref);
+      ab = await this.fetchChunk(ref);
+    } catch (error) {
       if (generation !== this.scheduleGeneration) return null;
+      throw new ChunkFetchError(ref, error);
+    }
+    if (generation !== this.scheduleGeneration) return null;
+    try {
       const buf = await this.ctx.decodeAudioData(ab.slice(0));
       if (generation !== this.scheduleGeneration) return null;
       this.buffers.set(key, buf);
@@ -445,7 +477,9 @@ export class ProxyEngine {
   private schedule(timelineSec: number): void {
     const generation = this.scheduleGeneration + 1;
     void this.scheduleAround(timelineSec).catch((error: unknown) => {
-      if (generation === this.scheduleGeneration) this.fail(error, null);
+      if (generation !== this.scheduleGeneration) return;
+      if (error instanceof ChunkFetchError) this.fail(error.cause, error.ref);
+      else this.fail(error, null);
     });
   }
 
@@ -496,7 +530,13 @@ export class ProxyEngine {
     if (!this.playing || generation !== this.scheduleGeneration) return;
     this.stopSources();
     this.place(slices, decoded, this.currentTimeSec());
-    this.horizon = { generation, throughSec: windowEnd };
+    this.horizon = {
+      generation,
+      throughSec: windowEnd,
+      busy: false,
+      retry: null,
+      giveUpSec: null,
+    };
     this.pruneBuffers(this.currentTimeSec() - SKIP_BACK_KEEP_SEC, windowEnd);
     this.arm();
   }
@@ -550,8 +590,9 @@ export class ProxyEngine {
     const from = horizon.throughSec;
     const t = this.currentTimeSec();
     const to =
+      horizon.retry?.batchEndSec ??
       Math.max(from, t) +
-      Math.max(WINDOW_PAD_SEC, 2 * LOW_WATER_CTX_SEC * this.playbackRate);
+        Math.max(WINDOW_PAD_SEC, 2 * LOW_WATER_CTX_SEC * this.playbackRate);
     // A slice that straddles `from` already has its source from the earlier batch;
     // one that has already ended is not worth fetching after a late wake.
     const slices = this.slicesBetween(snapshot, from, to).filter(
@@ -560,15 +601,58 @@ export class ProxyEngine {
         slice.whenTimelineSec + slice.durationSec > t,
     );
     const decoded = new Map<string, AudioBuffer>();
-    await this.decodeInto(decoded, slices, generation);
+    const giveUpSec = this.giveUpPointSec(horizon);
+    horizon.giveUpSec = t < giveUpSec ? giveUpSec : null;
+    horizon.busy = true;
+    this.arm();
+    try {
+      await this.decodeInto(decoded, slices, generation);
+    } catch (error) {
+      horizon.busy = false;
+      if (!this.playing || generation !== this.scheduleGeneration) return;
+      if (!(error instanceof ChunkFetchError)) throw error;
+      this.retryLater(horizon, error, to);
+      return;
+    }
+    horizon.busy = false;
     if (!this.playing || generation !== this.scheduleGeneration) return;
+    horizon.retry = null;
     this.place(slices, decoded, this.currentTimeSec());
     horizon.throughSec = to;
     this.pruneBuffers(this.currentTimeSec() - SKIP_BACK_KEEP_SEC, to);
     this.arm();
   }
 
+  private retryLater(
+    horizon: Horizon,
+    error: ChunkFetchError,
+    batchEndSec: number,
+  ): void {
+    const t = this.currentTimeSec();
+    const giveUpSec = horizon.giveUpSec;
+    if (giveUpSec === null || t >= giveUpSec) {
+      this.fail(error.cause, error.ref);
+      return;
+    }
+    const attempt = horizon.retry?.attempt ?? 0;
+    const backoffSec = Math.min(2 ** attempt, RETRY_BACKOFF_MAX_SEC);
+    horizon.retry = {
+      attempt: attempt + 1,
+      wakeSec: Math.min(t + backoffSec * this.playbackRate, giveUpSec),
+      batchEndSec,
+      error: error.cause,
+      ref: error.ref,
+    };
+    this.arm();
+  }
+
+  private giveUpPointSec(horizon: Horizon): number {
+    return horizon.throughSec - RETRY_GIVE_UP_SEC * this.playbackRate;
+  }
+
   private wakeTimelineSec(horizon: Horizon): number {
+    if (horizon.busy) return horizon.giveUpSec ?? Number.POSITIVE_INFINITY;
+    if (horizon.retry) return horizon.retry.wakeSec;
     const duration = this.endSec;
     return horizon.throughSec >= duration
       ? duration
@@ -582,6 +666,7 @@ export class ProxyEngine {
     if (!horizon) return;
     const { generation } = horizon;
     const wakeTimelineSec = this.wakeTimelineSec(horizon);
+    if (wakeTimelineSec === Number.POSITIVE_INFINITY) return;
     if (this.currentTimeSec() >= wakeTimelineSec) {
       queueMicrotask(() => {
         if (generation === this.scheduleGeneration) this.pump();
@@ -621,7 +706,25 @@ export class ProxyEngine {
     if (!this.playing || !horizon) return;
     this.pruneEnded();
     const t = this.currentTimeSec();
-    this.pruneBuffers(t - SKIP_BACK_KEEP_SEC, Math.max(t, horizon.throughSec));
+    this.pruneBuffers(
+      t - SKIP_BACK_KEEP_SEC,
+      Math.max(t, horizon.retry?.batchEndSec ?? horizon.throughSec),
+    );
+    if (
+      (horizon.busy || horizon.retry) &&
+      horizon.giveUpSec !== null &&
+      t >= horizon.giveUpSec
+    ) {
+      this.fail(
+        horizon.retry?.error ?? new Error("chunk fetch timed out"),
+        horizon.retry?.ref ?? null,
+      );
+      return;
+    }
+    if (horizon.busy) {
+      this.arm();
+      return;
+    }
     if (t >= this.endSec) {
       this.finish();
       return;

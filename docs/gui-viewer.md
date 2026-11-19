@@ -899,7 +899,13 @@ project's timeline duration and its last clip end, as in the render. There the
 engine pauses itself and reports the end. The transport parks the playhead
 there (an audition that reaches the end also clears its range), and Play again
 starts from 0. A snapshot that moves the end reschedules like a clip
-change. `hostPlaybackMeterMonitor.ts` fetches
+change. A chunk fetch that fails while the horizon extends is retried (after
+1 s, 2 s, then every 4 s) until 5 s of scheduled sound remain, and only then
+is the failure reported once. A fetch that never settles is reported at that same
+point, but only when the extension started before it. Play, seek, a rate
+change or an edit restarts the retry window. A failure in the first batch
+after a schedule or seek is reported at once, and so is a decode failure.
+`hostPlaybackMeterMonitor.ts` fetches
 processed PCM16 stems and validated raw PCM16 recordings through finite byte
 ranges checked against each asset's ETag. Compatible source sample grids share
 bounded native WAV readers with separate per-track channel taps and gains. Each
