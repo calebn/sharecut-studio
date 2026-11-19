@@ -57,6 +57,14 @@ describe("a words selection across another session's renumber", () => {
     expect(useDawStore.getState().inspectorKey).toBe("transcriptRange");
   });
 
+  it("clears a run whose middle word is respelled while a word before it is removed", () => {
+    start(snapshot());
+    useDawStore
+      .getState()
+      .setProject(snapshot({ removed: [1], retext: { 7: "zzz" } }));
+    expect(now()).toBeNull();
+  });
+
   it("keeps the same selection object when the cut is after it", () => {
     const stored = start(snapshot());
     useDawStore.getState().setProject(snapshot({ removed: [9] }));
