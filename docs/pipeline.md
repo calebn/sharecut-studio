@@ -835,15 +835,14 @@ fade of a clip on the cut's track whose edge touches the cut (`cut_quality.fade_
 The window is on the timeline, so a clip placed away from its source time counts where it plays.
 A cut is never cached when a clip fade over 1 s, on any track, runs into its window. A long fade
 outside the window is not refused. Any crossfade join of a clip in the window, whichever side
-its neighbour is on and whatever length its fade (long or short), adds the overlap and the borrow
-to the key's `joins` (`crossfade_ms_at_join` and the `join_borrow_sec` of `join_render_fields`);
+its neighbour is on, adds the overlap and the borrow to the key's `joins` (`crossfade_ms_at_join`,
+the larger of the shorter fade and half the longer, and the `join_borrow_sec` of `join_render_fields`);
 these carry the neighbour's fade and length and other clips' mutes, none of which the
-window hashes when the neighbour lies outside it. A join with no overlap adds nothing. On a
-dialogue track the key also moves on any clip edit through `base_profile`, the digest of the
-batch-base profile inputs (`cut_proof.BatchBase.stamp`, which covers every dialogue track's
-clips, mutes and fades), so there `joins` is a second guard. It decides the key where the base
-profile does not move: a payload judged alone against the same `base_profile`, or the clips of a
-non-dialogue track, which the stamp does not read. The render shortens a fade to half its clip, so a ramp
+window hashes when the neighbour lies outside it. A join with no overlap adds nothing. The key also carries `base_profile`, the digest
+(`cut_proof.BatchBase.stamp`) of the batch-base profile inputs of every dialogue track's clips,
+mutes and fades. The stamp is computed once per batch, at its first check and before anything is
+applied, so a clip edit applied inside the batch does not move it, and neither does any edit to a
+non-dialogue track, which the stamp does not read. In those cases `joins` is what moves the key. The render shortens a fade to half its clip, so a ramp
 in the window can depend on a clip end outside it. When a fade in the window is longer than half
 its clip, the key hashes that clip's length. The key also hashes the words in the window and the
 span the pause is observed over. That span is its two ends, which the longest fade of a touching
