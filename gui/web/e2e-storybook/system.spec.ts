@@ -921,7 +921,7 @@ test("System/Player each fit level gives up one more thing, in order (#2576)", a
 });
 
 /** Opens a bar of `args` in a 380 px host, for a phone's bar, and returns its host. */
-async function phoneBar(page: PlayerPage, args: BarArgs, width = 380) {
+async function phoneBar(page: PlayerPage, args: BarArgs) {
   await page.setViewportSize({ width: 1400, height: 400 });
   await page.emulateMedia({ colorScheme: "light", reducedMotion: "reduce" });
   await page.goto(storyUrl(pillStory(args), { theme: "light" }));
@@ -933,7 +933,7 @@ async function phoneBar(page: PlayerPage, args: BarArgs, width = 380) {
   const host = page.locator(".sys-player-host");
   await host.evaluate((el, w) => {
     el.style.width = `${w}px`;
-  }, width);
+  }, 380);
   return host;
 }
 
@@ -961,7 +961,7 @@ test("System/Player the pills a phone's bar hides stay in the accessibility tree
 test("System/Player the Hear menu opens beside the bar at the level that hid its chevron (#2576)", async ({
   page,
 }) => {
-  const host = await phoneBar(page, BAR_STATES.followcuts, 380);
+  const host = await phoneBar(page, BAR_STATES.followcuts);
   await expect(host).toHaveAttribute("data-fit", /^[678]$/);
   const chevron = await host.locator(".sys-player-hear-more").boundingBox();
   expect(chevron?.width ?? 0).toBeLessThanOrEqual(2);
