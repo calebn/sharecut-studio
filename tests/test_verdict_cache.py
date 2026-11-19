@@ -802,3 +802,42 @@ def test_a_duplicate_clip_s_mute_far_from_the_window_leaves_the_key(tmp_path: Pa
     clear = _duplicate_mute_key(project, None, duplicate_source=(30.0, 38.0))
     far = _duplicate_mute_key(project, 33.0, duplicate_source=(30.0, 38.0))
     assert clear == far
+
+
+def _out_join_key(project: EpisodeProject, next_end: float) -> str:
+    """Key of the first cut; the clip in its window crossfades into a next clip far past it."""
+    edit = project.edit_decisions[0]
+    project.clips = [
+        Clip(
+            id="window",
+            track_id="host",
+            source_start=0,
+            source_end=20.0,
+            timeline_start=0,
+            fade_out_ms=400,
+        ),
+        Clip(
+            id="beyond",
+            track_id="host",
+            source_start=20.0,
+            source_end=next_end,
+            timeline_start=20.0,
+            join_in_mode=ClipJoinMode.CROSSFADE,
+            fade_in_ms=400,
+        ),
+    ]
+    found = verdict_cache.verdict_key(project, edit, **_KEY_ARGS)
+    assert found is not None
+    return found
+
+
+def test_a_next_clip_past_the_window_that_sets_a_crossfade_borrow_changes_the_key(
+    tmp_path: Path,
+) -> None:
+    project = _project(tmp_path)
+    # Nothing but the out-side join sees this: the window has no clip before it, the next clip
+    # has no fade-out to hash and keeps its start and fade-in, and a quarter of its length caps
+    # the borrow at 0.1 s (0.4 s long) or at the 0.2 s that the 400 ms fades give (4 s long).
+    short = _out_join_key(project, 20.4)
+    long = _out_join_key(project, 24.0)
+    assert short != long
