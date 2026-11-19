@@ -2,6 +2,7 @@ import importlib.util
 import json
 import os
 import re
+import shlex
 import signal
 import stat
 import subprocess
@@ -18,6 +19,57 @@ assert spec and spec.loader
 public_report = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(public_report)
 MARKER = "FABRICATED_ORDINARY_MARKER"
+
+
+def test_all_fixed_npm_matrix_commands_preserve_argv_and_failure_inside_capture(tmp_path):
+    from script_loader import load_script
+
+    plan = load_script("ci_plan", register=True)
+    commands = [
+        job.command
+        for job in [*plan.main_shards(), plan.smoke_job(), *plan.full_compat(), *plan.pr_compat()]
+    ]
+    binary = tmp_path / "bin"
+    binary.mkdir()
+    fake_npm = binary / "npm"
+    fake_npm.write_text(
+        f"#!{sys.executable}\n"
+        "import json,os,sys\n"
+        "with open(os.environ['ARGV_RECEIPT'], 'w') as stream: json.dump(sys.argv[1:],stream)\n"
+        "sys.exit(7)\n"
+    )
+    fake_npm.chmod(0o700)
+    receipt = tmp_path / "argv.json"
+    env = {
+        **os.environ,
+        "PATH": f"{binary}{os.pathsep}{os.environ['PATH']}",
+        "RUNNER_TEMP": str(tmp_path),
+        "ARGV_RECEIPT": str(receipt),
+    }
+    env.pop("BROWSER_RAW_REPORT", None)
+    for command in commands:
+        assert re.fullmatch(r"[A-Za-z0-9_./:= -]+", command)
+        args = shlex.split(command)
+        assert args[:2] == ["npm", "run"]
+        result = subprocess.run(
+            [
+                "bash",
+                "--noprofile",
+                "--norc",
+                "-eo",
+                "pipefail",
+                "-c",
+                f"bash {shlex.quote(str(CAPTURE))} {command}",
+            ],
+            env=env,
+            cwd=tmp_path,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        assert result.returncode == 7
+        assert json.loads(receipt.read_text()) == args[1:]
+        assert result.stderr == ""
 
 
 def report():

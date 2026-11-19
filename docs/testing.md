@@ -838,7 +838,10 @@ source/collection evidence.
 Uploads and summaries require the projection step to succeed. The existing
 test-area summary reads only the projection. It still counts
 logical tests and sums all retry durations, which can overlap and are not job
-wall time. Missing or malformed raw reports fail projection and leave no public
+wall time. Browser summaries also display `Global browser errors: N`, including
+zero, without rendering error messages. The total is separate from logical-test
+statuses and never changes the browser command's exit result. Invalid totals
+are reported as unavailable rather than echoed. Missing or malformed raw reports fail projection and leave no public
 file; neither stale results nor raw parse errors are published. A projection
 failure cannot turn an unsuccessful browser command into a successful check.
 Storybook browser commands use the same private console boundary and projected

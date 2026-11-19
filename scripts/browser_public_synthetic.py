@@ -14,7 +14,7 @@ MARKER = "FABRICATED_BROWSER_CANARY_ORDINARY_TEXT"
 PINNED = {
     "scripts/private_browser_command.sh": "28dc0c5b15c3ab50c9dbdf0ad6d41bfa45081ed7f4b9ff8d81fe760a16dcc896",
     "scripts/browser_public_report.py": "4c1c192cc771cbc472eed419201cd08ab25aabd1cb378914a46dae76a030f0ef",
-    "scripts/test_area_summary.py": "da636e243c6067ffbee7f39d13215600f080bb1e4cee0a16e12cadb04827bf4e",
+    "scripts/test_area_summary.py": "655156965f52460d32c98163b4126484d6dd4ca6c3b837bd80da9bd4741229f1",
 }
 
 
@@ -27,7 +27,7 @@ def expected(mode: str) -> dict:
         ]
     return {
         "format": "sharecut-browser-public-v1",
-        "global_error_count": 0,
+        "global_error_count": 2 if mode == "failure-retry" else 0,
         "suites": [
             {
                 "specs": [
@@ -86,6 +86,7 @@ def produce(mode: str) -> int:
     raw, _, _ = paths()
     data = expected(mode)
     data["config"] = {"metadata": MARKER}
+    data["errors"] = [{"message": MARKER}] * data["global_error_count"]
     data["suites"][0]["title"] = MARKER
     for spec in data["suites"][0]["specs"]:
         spec["title"] = MARKER
@@ -120,6 +121,7 @@ def verify_summary(mode: str) -> None:
         "| Area | Logical tests | Final statuses | Summed test duration |\n"
         "| --- | ---: | --- | --- |\n"
         f"{row}\n\n"
+        f"Global browser errors: {2 if mode == 'failure-retry' else 0}.\n\n"
         "Summed test and retry durations can overlap when tests run in parallel. "
         "They are not job wall time. Missing report data is shown as unavailable.\n"
     )

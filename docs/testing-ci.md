@@ -718,8 +718,10 @@ guards remain in place. It has only `contents: read`, with no browser, guest,
 server, media, package installation or live invitation data.
 
 Four fabricated cases exercise success, failure with retry data, malformed
-JSON and stale JSON. The helper pins the capture, projector and summary bytes
-from commit `6acbc04fcd5edd6fd7fe5d589d4d001d49691a79`. Expected synthetic
+JSON and stale JSON. The helper pins the reviewed capture, projector and summary
+bytes; changing a boundary requires updating and reviewing that explicit digest.
+The failure/retry fixture includes two fabricated global errors, whose total
+must appear in the exact bounded summary without copying their messages. Expected synthetic
 failures use `continue-on-error` only so a final assertion can check the
 original step `outcome`; it rejects unexpected outcomes. A green synthetic
 job therefore does not reclassify the failed child as a passed browser test.
