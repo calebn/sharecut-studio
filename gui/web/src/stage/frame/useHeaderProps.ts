@@ -25,6 +25,7 @@ import {
   ROLE_HINT_TEXT,
   roleHintSeen,
 } from "../../utils/roleHint";
+import { announceAfterNextStatus } from "./announceAfterNextStatus";
 import { useHistoryControls } from "./useHistoryControls";
 import { useSaveIndicator } from "./useSaveIndicator";
 import { useStageBarProps } from "./useStageBarProps";
@@ -113,10 +114,13 @@ export function useHeaderProps(): Omit<
                 }
               },
               // The frame's one polite live region says it; a toast would repeat the bubble.
+              // The reminder rises as the edit lands, ahead of the edit's own status, which would replace it.
               onShown: () =>
-                useDawStore
-                  .getState()
-                  .announceStatus(hintText, { toast: false }),
+                hintKind === "stakes"
+                  ? announceAfterNextStatus(hintText)
+                  : useDawStore
+                      .getState()
+                      .announceStatus(hintText, { toast: false }),
             }
           : undefined,
       };

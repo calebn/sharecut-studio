@@ -375,6 +375,10 @@ describe("StageFrame roles", () => {
     );
     await userEvent.click(screen.getByRole("button", { name: /dismiss/i }));
     expect(screen.getByRole("note")).toHaveTextContent(STAKES);
+    act(() => {
+      useDawStore.getState().announceStatus('Cut "uncle"', { toast: false });
+    });
+    await act(async () => {});
     const spoken = screen
       .getAllByRole("status")
       .filter((region) => region.textContent === STAKES);
