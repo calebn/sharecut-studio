@@ -1268,6 +1268,19 @@ button.sys-version-line {
   white-space: nowrap;
 }
 
+/* Level 4: the skip buttons go (display: none, so no focusable invisible
+   button). The expanded Player has Back and Forward 15 s. */
+.sys-player-host:is(
+    [data-fit="4"],
+    [data-fit="5"],
+    [data-fit="6"],
+    [data-fit="7"],
+    [data-fit="8"]
+  )
+  .sys-player-skip {
+  display: none;
+}
+
 /* Level 6: the hear menu's chevron goes, but only where A and B are drawn (they
    open the same menu, by a right-click or a long press). Under 22 rem, and in a
    folded frame, A and B are not drawn and the chevron is the bar's only hear
@@ -1289,19 +1302,6 @@ button.sys-version-line {
   }
 }
 
-/* Level 4: the skip buttons go (display: none, so no focusable invisible
-   button). The expanded Player has Back and Forward 15 s. */
-.sys-player-host:is(
-    [data-fit="4"],
-    [data-fit="5"],
-    [data-fit="6"],
-    [data-fit="7"],
-    [data-fit="8"]
-  )
-  .sys-player-skip {
-  display: none;
-}
-
 /* Level 7: Stop following has no place left to be seen, so it goes whole. */
 .sys-player-host:is([data-fit="7"], [data-fit="8"]) .sys-pill-x {
   display: none;
@@ -1310,8 +1310,8 @@ button.sys-version-line {
 /* Level 8, the fold: Play, the clock and the hear menu's chevron are the one row
    (a guest has no hear menu). Reached only when a guest's Comment, the Audio
    error pill and Retry do not fit beside them: under about 13.4 rem with a
-   milliseconds clock and 14.5 rem with an hours clock (a phone up to about
-   450 px wide at 200% text). The expanded Player has Retry and the error. */
+   milliseconds clock and 14.5 rem with an hours clock (a 360 or 390 px phone at
+   200% text). The expanded Player has Retry and the error. */
 .sys-player-host[data-fit="8"] .sys-player-right > :not(.sys-player-hear) {
   display: none;
 }
@@ -1382,12 +1382,12 @@ button.sys-version-line {
   }
 }
 
-/* Under 14 rem (a phone at 200% text) the gap and the clock size of the rule
-   above are set here too, unscoped, so they reach the expanded Player (that
-   rule is scoped to the host), the bar's clock is set smaller so Play, the clock
-   and the hear menu's chevron fit, and the A and B toggles are in the Hear menu
-   (and the expanded Player). A guest's Comment, the Audio error pill and Retry
-   stay while they fit (level 8 above hides them when they do not). */
+/* Under 14 rem (a phone at 200% text) the clock, the gap and the A and B toggles
+   are set here without the host scope, so they reach the expanded Player too
+   (the A and B toggles are in the Hear menu), and the bar's clock is smaller
+   still so Play, the clock and the hear menu's chevron fit. A guest's Comment,
+   the Audio error pill and Retry stay while they fit (level 8 above hides them
+   when they do not). */
 @container sys-player (max-width: 14rem) {
   .sys-player-now {
     font-size: var(--font-size-ui);
