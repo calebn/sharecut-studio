@@ -396,3 +396,89 @@ describe("a words selection with no project in the store", () => {
     expect(now()).toBe(stored);
   });
 });
+
+describe("a selection that is not a run of words", () => {
+  const OTHERS: [string, Selection][] = [
+    ["envelope", { kind: "envelope", trackId: "a" }],
+    ["envelope point", { kind: "envelopePoint", trackId: "a", pointId: "p1" }],
+    ["clip", { kind: "clip", id: "c0", trackId: "a" }],
+    ["track", { kind: "track", trackId: "a" }],
+    ["seam", { kind: "seam", id: "eb:c0:c1", trackId: "a" }],
+  ];
+  const changed = () => snapshot({ removed: [1, 2] });
+
+  function pick(selection: Selection) {
+    useDawStore.getState().hydrate(PATH, snapshot());
+    useDawStore.getState().setSelection(selection);
+    const stored = now();
+    expect(stored).toEqual(selection);
+    return stored;
+  }
+
+  it.each(OTHERS)("%s is kept by a replaced project", (_kind, selection) => {
+    const stored = pick(selection);
+    useDawStore.getState().setProject(changed());
+    expect(now()).toBe(stored);
+  });
+
+  it.each(OTHERS)("%s is kept by a same-path hydrate", (_kind, selection) => {
+    const stored = pick(selection);
+    useDawStore.getState().hydrate(PATH, changed());
+    expect(now()).toBe(stored);
+  });
+
+  it.each(OTHERS)(
+    "%s is kept when an own range action ends",
+    (_kind, selection) => {
+      const stored = pick(selection);
+      useDawStore.getState().setRangeBusy(true);
+      useDawStore.getState().setProject(changed());
+      useDawStore.getState().setRangeBusy(false);
+      expect(now()).toBe(stored);
+    },
+  );
+});
+
+describe("a words selection by the role the session holds", () => {
+  const moved = () => snapshot({ removed: [1, 2] });
+
+  it.each(["comment", "view", "review"])(
+    "is left to the guest script for guest mode %s on a replaced project",
+    (guestMode) => {
+      const stored = start(snapshot());
+      useDawStore.setState({ guestMode });
+      useDawStore.getState().setProject(moved());
+      expect(now()).toBe(stored);
+    },
+  );
+
+  it.each(["comment", "view", "review"])(
+    "is left to the guest script for guest mode %s when an own range action ends",
+    (guestMode) => {
+      const stored = start(snapshot());
+      useDawStore.setState({ guestMode });
+      useDawStore.getState().setRangeBusy(true);
+      useDawStore.getState().setProject(moved());
+      useDawStore.getState().setRangeBusy(false);
+      expect(now()).toBe(stored);
+    },
+  );
+
+  it("follows for an editor guest on a replaced project", () => {
+    const b = moved();
+    start(snapshot());
+    useDawStore.setState({ guestMode: "edit" });
+    useDawStore.getState().setProject(b);
+    expect(named(b, now())).toEqual(["w6", "w7", "w8"]);
+  });
+
+  it("follows for an editor guest when an own range action ends", () => {
+    const b = moved();
+    start(snapshot());
+    useDawStore.setState({ guestMode: "edit" });
+    useDawStore.getState().setRangeBusy(true);
+    useDawStore.getState().setProject(b);
+    useDawStore.getState().setRangeBusy(false);
+    expect(named(b, now())).toEqual(["w6", "w7", "w8"]);
+  });
+});
