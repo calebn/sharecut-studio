@@ -219,11 +219,15 @@ export function useBarFit(
       attributeFilter: ROOT_ATTRIBUTES,
     });
     const fonts = document.fonts;
-    void fonts?.ready.then(again);
+    let live = true;
+    void fonts?.ready.then(() => {
+      if (live) again();
+    });
     fonts?.addEventListener?.("loadingdone", again);
     const pointer = window.matchMedia?.("(pointer: coarse)");
     pointer?.addEventListener?.("change", again);
     return () => {
+      live = false;
       root.disconnect();
       fonts?.removeEventListener?.("loadingdone", again);
       pointer?.removeEventListener?.("change", again);
