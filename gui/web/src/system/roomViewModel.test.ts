@@ -281,6 +281,43 @@ describe("roomViewModel alerts", () => {
     ]);
   });
 
+  it.each([
+    ["live", LIVE],
+    ["paused", { kind: "paused", take: 1, clockSec: 90 }],
+    ["reconnecting", { kind: "reconnecting", paused: false, clockSec: 43 }],
+  ] as const)(
+    "shows host-offline to a guest while the take is %s",
+    (_name, phase) => {
+      expect(
+        roomViewModel(base({ phase, people: [host({ presence: "left" })] }))
+          .alerts,
+      ).toEqual([{ kind: "host-offline", name: "Maya Okafor" }]);
+    },
+  );
+
+  it.each([
+    ["waiting", WAITING],
+    ["countdown", { kind: "countdown", secondsLeft: 3 }],
+    ["saving", { kind: "saving", savedPeople: 0, totalPeople: 1 }],
+    ["saved", { kind: "saved" }],
+  ] as const)(
+    "shows no host-offline to a guest outside a take (%s)",
+    (_name, phase) => {
+      expect(
+        roomViewModel(
+          base({
+            phase,
+            people: [host({ presence: "left" }), host({ connection: "lost" })],
+          }),
+        ).alerts,
+      ).toEqual([]);
+      expect(
+        roomViewModel(base({ phase, people: [host({ connection: "lost" })] }))
+          .alerts,
+      ).toEqual([]);
+    },
+  );
+
   it("never shows host-offline to the host", () => {
     const model = roomViewModel(
       base({ role: "host", people: [host({ you: true, presence: "left" })] }),
