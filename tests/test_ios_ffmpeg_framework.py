@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import importlib.util
 import plistlib
+import re
 import shutil
 import subprocess
 import sys
@@ -278,3 +279,17 @@ def test_the_privacy_manifest_source_is_a_valid_manifest_without_tracking() -> N
     types = manifest["NSPrivacyAccessedAPITypes"]
     assert types
     assert all(entry["NSPrivacyAccessedAPITypeReasons"] for entry in types)
+
+
+@pytest.mark.parametrize(
+    ("target", "argument"), [("ios-ffmpeg-device", "device"), ("ios-ffmpeg-sim", "sim")]
+)
+def test_each_make_target_builds_the_framework_then_assembles_the_xcframework(
+    target: str, argument: str
+) -> None:
+    makefile = (ROOT / "Makefile").read_text(encoding="utf-8")
+    recipe = (
+        rf"^{target}:\n\t\./scripts/ios/build_ffmpeg\.sh {argument}\n"
+        r"\tuv run python scripts/ios/ffmpeg_framework\.py assemble\n"
+    )
+    assert re.search(recipe, makefile, re.M)
