@@ -126,6 +126,104 @@ describe("Cover", () => {
     expect(onClick).not.toHaveBeenCalled();
   });
 
+  it("renders a tertiary action after the primary and secondary and fires it", async () => {
+    const tertiary = vi.fn();
+    render(
+      <Cover
+        size="page"
+        glyph="eye-off"
+        title="Title"
+        primary={{ label: "Go", onClick: vi.fn() }}
+        secondary={{ label: "Later", onClick: vi.fn() }}
+        tertiary={{ label: "Again", onClick: tertiary }}
+      >
+        Body.
+      </Cover>,
+    );
+    expect(
+      screen.getAllByRole("button").map((button) => button.textContent),
+    ).toEqual(["Go", "Later", "Again"]);
+    await userEvent.click(screen.getByRole("button", { name: "Again" }));
+    expect(tertiary).toHaveBeenCalledOnce();
+  });
+
+  it("tabs through the primary, secondary and tertiary in that order", async () => {
+    render(
+      <Cover
+        size="page"
+        glyph="eye-off"
+        title="Title"
+        primary={{ label: "Go", onClick: vi.fn() }}
+        secondary={{ label: "Later", onClick: vi.fn() }}
+        tertiary={{ label: "Again", onClick: vi.fn() }}
+      >
+        Body.
+      </Cover>,
+    );
+    await userEvent.tab();
+    expect(screen.getByRole("button", { name: "Go" })).toHaveFocus();
+    await userEvent.tab();
+    expect(screen.getByRole("button", { name: "Later" })).toHaveFocus();
+    await userEvent.tab();
+    expect(screen.getByRole("button", { name: "Again" })).toHaveFocus();
+  });
+
+  it("renders the actions block for a tertiary action alone", () => {
+    const { container } = render(
+      <Cover
+        size="region"
+        glyph="eye-off"
+        title="Title"
+        tertiary={{ label: "Again", onClick: vi.fn() }}
+      >
+        Body.
+      </Cover>,
+    );
+    expect(container.querySelector(".sys-cover-actions")).not.toBeNull();
+    expect(screen.getByRole("button", { name: "Again" })).toBeInTheDocument();
+  });
+
+  it("keeps the status line after the last action", () => {
+    render(
+      <Cover
+        size="page"
+        glyph="eye-off"
+        title="Title"
+        primary={{ label: "Go", onClick: vi.fn() }}
+        secondary={{ label: "Later", onClick: vi.fn() }}
+        tertiary={{ label: "Again", onClick: vi.fn() }}
+        status="Still asleep."
+      >
+        Body.
+      </Cover>,
+    );
+    const again = screen.getByRole("button", { name: "Again" });
+    const status = screen.getByRole("status");
+    expect(again.parentElement).toBe(status.parentElement);
+    expect(
+      again.compareDocumentPosition(status) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+  });
+
+  it("holds a busy tertiary in place, aria-disabled and aria-busy, and ignores presses", async () => {
+    const onClick = vi.fn();
+    render(
+      <Cover
+        size="region"
+        glyph="eye-off"
+        title="Title"
+        tertiary={{ label: "Again", onClick, busy: true }}
+      >
+        Body.
+      </Cover>,
+    );
+    const again = screen.getByRole("button", { name: "Again" });
+    expect(again).toHaveAttribute("aria-disabled", "true");
+    expect(again).toHaveAttribute("aria-busy", "true");
+    await userEvent.click(again);
+    expect(onClick).not.toHaveBeenCalled();
+  });
+
   it("names the work in words while busy, holds the idle label's width, and returns to the idle label", () => {
     const action = { label: "Save it again", onClick: vi.fn() };
     const { rerender } = render(

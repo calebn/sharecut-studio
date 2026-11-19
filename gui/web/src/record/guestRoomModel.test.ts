@@ -1067,6 +1067,125 @@ describe("guestCovers after leaving", () => {
   });
 });
 
+describe("guestCovers Join again on the unsent cover", () => {
+  const download = vi.fn();
+  const recover = vi.fn();
+  const unsentLeft = (over: Record<string, unknown> = {}) => ({
+    ...coverSource,
+    left: true,
+    stake: "unsent" as const,
+    host: "Hana",
+    leaseFresh: true,
+    onRetry: vi.fn(),
+    keeperActions: { ...actions, download, recover },
+    ...over,
+  });
+
+  it("offers Join again as a tertiary action under Save my recording and Try saving again", () => {
+    const onRetry = vi.fn();
+    const cover = guestCovers(unsentLeft({ onRetry }));
+    expect(cover).toMatchObject({
+      title: "Your recording didn't finish saving",
+      children:
+        "It's safe on this device. Save it and send it to Hana. Or join again from this page.",
+      primary: { label: "Save my recording" },
+      secondary: { label: "Try saving again" },
+      tertiary: { label: "Join again" },
+    });
+    cover?.tertiary?.onClick();
+    expect(onRetry).toHaveBeenCalledOnce();
+  });
+
+  it("does not promise an upload", () => {
+    const cover = guestCovers(unsentLeft());
+    expect(cover?.children).toEqual(
+      expect.not.stringMatching(/upload|send it from here/i),
+    );
+  });
+
+  it("keeps the plain copy and no Join again when the lease is not known to be fresh", () => {
+    for (const leaseFresh of [false, undefined]) {
+      const cover = guestCovers(unsentLeft({ leaseFresh }));
+      expect(cover?.tertiary).toBeUndefined();
+      expect(cover?.children).toBe(
+        "It's safe on this device. Save it and send it to Hana.",
+      );
+    }
+  });
+
+  it("offers no Join again without a retry to run", () => {
+    const cover = guestCovers(unsentLeft({ onRetry: undefined }));
+    expect(cover?.tertiary).toBeUndefined();
+    expect(cover?.children).toBe(
+      "It's safe on this device. Save it and send it to Hana.",
+    );
+  });
+
+  it("offers no Join again to a guest the host removed", () => {
+    const cover = guestCovers(unsentLeft({ accessEnded: true }));
+    expect(cover).toMatchObject({
+      title: "Your recording didn't finish saving",
+      primary: { label: "Save my recording" },
+    });
+    expect(cover?.tertiary).toBeUndefined();
+  });
+
+  it("offers no Join again once the invite link is closed", () => {
+    const cover = guestCovers(
+      unsentLeft({ accessEnded: true, inviteClosed: true }),
+    );
+    expect(cover?.title).toBe("Invite link closed");
+    expect(cover?.tertiary).toBeUndefined();
+  });
+
+  it("offers no Join again when the device could not be read", () => {
+    const cover = guestCovers(unsentLeft({ localUnreadable: true }));
+    expect(cover).toMatchObject({
+      children:
+        "We couldn't check this device. Try saving it again, or save a copy.",
+    });
+    expect(cover?.tertiary).toBeUndefined();
+  });
+
+  it("offers no Join again while capture is still finishing", () => {
+    const cover = guestCovers(unsentLeft({ stake: "finishing" }));
+    expect(cover?.tertiary).toBeUndefined();
+    expect(cover?.primary).toBeUndefined();
+  });
+
+  it("offers no Join again on Check your downloads", () => {
+    const cover = guestCovers(
+      unsentLeft({ keeperActions: { ...actions, download, downloaded: true } }),
+    );
+    expect(cover?.title).toBe("Check your downloads");
+    expect(cover?.tertiary).toBeUndefined();
+  });
+
+  it("leaves the saved cover as it was, with Join again as its primary", () => {
+    const cover = guestCovers(unsentLeft({ stake: "saved" }));
+    expect(cover).toMatchObject({
+      title: "You left the room",
+      primary: { label: "Join again" },
+    });
+    expect(cover?.tertiary).toBeUndefined();
+  });
+
+  it("holds Join again busy with the other actions while a save runs", () => {
+    const cover = guestCovers(
+      unsentLeft({
+        keeperActions: {
+          ...actions,
+          busy: true,
+          running: "recover",
+          download,
+          recover,
+        },
+      }),
+    );
+    expect(cover?.tertiary).toMatchObject({ label: "Join again", busy: true });
+  });
+});
+
 describe("guestTakes", () => {
   const take = (index: number, ids: string[]) => ({
     take_index: index,

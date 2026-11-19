@@ -29,6 +29,7 @@ function room(over: Partial<Parameters<typeof guestCoverProps>[0]> = {}) {
     accessEnded: false,
     inviteClosed: false,
     left: false,
+    leaseFresh: false,
     captureSettled: true,
     localRecording: true,
     producer: false,
@@ -591,6 +592,127 @@ describe("after Save my recording handed the whole zip to the browser", () => {
     expect(
       await screen.findByRole("button", { name: "Save it again" }),
     ).toBeInTheDocument();
+  });
+
+  describe("Join again after leaving with a recording on this device", () => {
+    const take = {
+      snapshot: recordSnapshot({ participants: [host], take_index: 0 }),
+    };
+    const keeperActions = (over: Partial<KeeperRecoveryActions> = {}) => ({
+      busy: false,
+      downloaded: false,
+      error: null,
+      notice: null,
+      download: vi.fn(),
+      recover: vi.fn(),
+      ...over,
+    });
+
+    it("lists Join again third, with a sentence that promises no upload, and a press hands back to the caller", async () => {
+      const { onRetry, container } = show({
+        ...take,
+        left: true,
+        leaseFresh: true,
+        keeperActions: keeperActions(),
+      });
+      expect(
+        screen.getByRole("heading", {
+          level: 1,
+          name: "Your recording didn't finish saving",
+        }),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByText(
+          "It's safe on this device. Save it and send it to Hana. Or join again from this page.",
+        ),
+      ).toBeInTheDocument();
+      expect(
+        screen.getAllByRole("button").map((button) => button.textContent),
+      ).toEqual(["Save my recording", "Try saving again", "Join again"]);
+      await userEvent.click(screen.getByRole("button", { name: "Join again" }));
+      expect(onRetry).toHaveBeenCalledOnce();
+      await expectNoA11yViolations(container);
+    });
+
+    it("tabs from Try saving again to Join again", async () => {
+      show({
+        ...take,
+        left: true,
+        leaseFresh: true,
+        keeperActions: keeperActions(),
+      });
+      await userEvent.tab();
+      expect(
+        screen.getByRole("button", { name: "Save my recording" }),
+      ).toHaveFocus();
+      await userEvent.tab();
+      expect(
+        screen.getByRole("button", { name: "Try saving again" }),
+      ).toHaveFocus();
+      await userEvent.tab();
+      expect(screen.getByRole("button", { name: "Join again" })).toHaveFocus();
+    });
+
+    it("ignores a press on Join again while a save runs", async () => {
+      const { onRetry } = show({
+        ...take,
+        left: true,
+        leaseFresh: true,
+        keeperActions: keeperActions({ busy: true, running: "recover" }),
+      });
+      const again = screen.getByRole("button", { name: "Join again" });
+      expect(again).toHaveAttribute("aria-disabled", "true");
+      await userEvent.click(again);
+      expect(onRetry).not.toHaveBeenCalled();
+    });
+
+    it.each([
+      ["the lease is not known to be fresh", { left: true, leaseFresh: false }],
+      ["the host removed the guest", { accessEnded: true, leaseFresh: true }],
+      [
+        "the invite link closed",
+        { accessEnded: true, inviteClosed: true, leaseFresh: true },
+      ],
+      [
+        "the device could not be read",
+        { left: true, leaseFresh: true, localUnreadable: true },
+      ],
+    ])("offers no Join again when %s", (_name, over) => {
+      show({ ...take, ...over, keeperActions: keeperActions() });
+      expect(screen.queryByRole("button", { name: "Join again" })).toBeNull();
+      expect(
+        screen.getByRole("button", { name: "Save my recording" }),
+      ).toBeInTheDocument();
+    });
+
+    it("offers no Join again on Check your downloads", () => {
+      show({
+        ...take,
+        left: true,
+        leaseFresh: true,
+        keeperActions: keeperActions({ downloaded: true }),
+      });
+      expect(
+        screen.getByRole("heading", { level: 1, name: "Check your downloads" }),
+      ).toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: "Join again" })).toBeNull();
+    });
+
+    it("keeps Join again as the only action on You left the room once every segment is acknowledged", () => {
+      show({
+        ...take,
+        left: true,
+        leaseFresh: true,
+        upload: { fileAck: true, seenSegments: 1 },
+        keeperActions: keeperActions(),
+      });
+      expect(
+        screen.getByRole("heading", { level: 1, name: "You left the room" }),
+      ).toBeInTheDocument();
+      expect(
+        screen.getAllByRole("button").map((button) => button.textContent),
+      ).toEqual(["Join again"]);
+    });
   });
 
   describe("when the device holds audio the zip lacks", () => {
