@@ -32,6 +32,16 @@ The build needs Xcode's clang and the iPhoneOS and iPhoneSimulator SDKs, and CI 
 - State is reset by name. `-report` (an open report file in `opt_common.c`) and the function-local `static` throttles of `print_report` are not reset, and `-report` should not be used. A run that ends through `exit()` leaves the heap of the abandoned frames allocated.
 - `ffmpeg -n` onto an existing file prints "already exists" and exits 0: FFmpeg maps `AVERROR_EXIT` to 0 in `main`.
 - The core rejects any argument that contains `/dev/`.
+- Not fixed here, by decision:
+  - M4: the lame and opus builds are reused without a stamp; delete `build/` after changing a pin.
+  - M5: a failed open in ffprobe leaks the input context once per failure.
+  - M6: `opt_common` and hardware-device globals are not reset after an `sc_tool_exit` unwind.
+  - M7: the process-wide `signal(SIGINT, SIG_DFL)` and the `getchar` path are reachable only without `-nostdin`, which the core always inserts.
+  - L1: the ffprobe banner prints the ffmpeg identity.
+  - L2: the error flag of the persistent slot `FILE`s is sticky.
+  - L3: the build script word-splits paths with spaces and hardcodes the fftools object list.
+  - L5: a non-owner `sc_tool_exit` leaves locks held.
+  - H-A: the `SIGUSR2` kick reaches only the worker thread; the Simulator 1 s cancel observation covers the probe stage, and a mid-stream block on a demux thread is covered only by the bridge closing the stdin pipe.
 
 ## License and source offer
 

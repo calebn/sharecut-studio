@@ -366,12 +366,15 @@ void     sc_ffmpeg_cancel(int64_t session);
   pipe read or write is not woken. On the Simulator, ffmpeg on a blocked `pipe:0` or a long
   lavfi job returned from `wait` about 1 s after cancel, but ffprobe on `pipe:0` that is never
   written did not return until the caller closed its write end, because ffprobe sets no libav
-  interrupt callback and retries the read. The backstop is the bridge closing the caller's pipe ends,
-  which Python does at `KILL_GRACE_SEC` at the latest. A write the tool makes through the
+  interrupt callback and retries the read. The backstop is the bridge closing the caller's write end
+  of the stdin pipe, which Python does at `KILL_GRACE_SEC` at the latest when the tool has not
+  returned (the stdout and stderr read ends stay open). The Simulator observation of about 1 s
+  covers the probe stage on the worker thread; a block on a demux thread in mid-stream is covered
+  only by this backstop. A write the tool makes through the
   discard stream never blocks. A caller's
   reader of a pipe sees EOF only when the native's dups are closed (when the tool returns) and the
-  caller-side write end is released; Python releases that end when `wait` returns, or after
-  `KILL_GRACE_SEC` at the latest, so after a kill the reader can be blocked for up to that grace. A
+  caller-side write end is released; Python releases that end when `wait` returns, or, if the
+  tool ignores the cancel, closes the stdin write end at `KILL_GRACE_SEC`. A
   native that ignores `cancel` does not hang `run` or `wait` (Python reports `-9` after the grace)
   but gives no EOF until its session ends. Limitations: two overlapping sessions must not be given
   the same pipe, and a thread of a finished session must not call the tool's exit path later. There
