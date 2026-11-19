@@ -1,12 +1,22 @@
+import { createHash } from "node:crypto";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
 import { expect, type Page, test } from "@playwright/test";
 import type { ProjectView } from "../src/types/project";
 import { expectPageAxeClean } from "./axe";
-import { e2eProjectPath } from "./env";
+import { registerE2eCleanupWorkspace } from "./cleanupManifest";
+import { assertDisposableE2eProject, e2eProjectPath } from "./env";
+import { createEpisodeFromHome, openHome } from "./home";
 import {
   createRelocatedE2eProject,
   removeRelocatedE2eProject,
 } from "./liveProject";
-import { switchE2eProject, withShareableProject } from "./shareableProject";
+import {
+  silenceWav,
+  switchE2eProject,
+  withShareableProject,
+} from "./shareableProject";
 import {
   createReviewShare,
   openGuestShare,
@@ -543,4 +553,177 @@ test.describe("Stage shell on a guest link", () => {
       );
     });
   });
+});
+
+test("an Editor's chapter survives a normal reload-derived save and Undo/Redo restores only that chapter", async ({
+  page,
+  browser,
+}) => {
+  const workspaceDir = fs.mkdtempSync(
+    path.join(os.tmpdir(), "sharecut-e2e-derived-"),
+  );
+  if (!registerE2eCleanupWorkspace(workspaceDir))
+    throw new Error("Owned cleanup registration required");
+  const projectPath = path.join(workspaceDir, "episode.sharecut");
+  assertDisposableE2eProject(projectPath);
+  const guestContext = await browser.newContext({
+    viewport: { width: 1280, height: 800 },
+  });
+  const digest = (value: string | Buffer) =>
+    createHash("sha256").update(value).digest("hex");
+  type Saved = {
+    history: {
+      cursor: number;
+      entries: { id: string; author?: string | null }[];
+    };
+    editorial?: { chapters?: unknown[] };
+    chapters?: unknown[];
+    render: {
+      proxy_manifests?: {
+        revision: string;
+        project_basis: { history_head_id: string };
+        tracks: Record<string, unknown>;
+      }[];
+    };
+  };
+  const chaptersOf = (project: Saved) => {
+    const chapters = project.editorial?.chapters ?? project.chapters;
+    if (!Array.isArray(chapters))
+      throw new Error("Saved synthetic chapter list missing");
+    return chapters;
+  };
+  const read = () => {
+    const bytes = fs.readFileSync(projectPath);
+    const project = JSON.parse(bytes.toString("utf8")) as Saved;
+    const stat = fs.statSync(projectPath, { bigint: true });
+    return {
+      project,
+      bytes: digest(bytes),
+      history: digest(JSON.stringify(project.history)),
+      index: digest(
+        fs.readFileSync(path.join(workspaceDir, "history", "index.json")),
+      ),
+      certificate: `${stat.dev}:${stat.ino}:${stat.size}:${stat.mtimeNs}:${stat.ctimeNs}`,
+    };
+  };
+  try {
+    await openHome(page);
+    await createEpisodeFromHome(page, {
+      name: "Derived save QA",
+      workspaceDir,
+    });
+    await expect(page.getByRole("dialog", { name: "Invite" })).toBeVisible();
+    await page.keyboard.press("Escape");
+    await expect(page.getByRole("dialog", { name: "Invite" })).toBeHidden();
+    await goToStage(page, "prepare");
+    const chooser = page.waitForEvent("filechooser");
+    await page
+      .getByRole("button", { name: /^Import audio/ })
+      .first()
+      .click();
+    await (await chooser).setFiles({
+      name: "synthetic.wav",
+      mimeType: "audio/wav",
+      buffer: silenceWav(2),
+    });
+    await goToStage(page, "edit");
+    await expect(page.locator(".clip-block").first()).toBeVisible();
+
+    await openProjectDialog(page, "share");
+    await page
+      .getByRole("button", { name: "Editor: can edit", exact: true })
+      .click();
+    await page
+      .getByRole("button", { name: "Copy new Editor link", exact: true })
+      .click();
+    await page
+      .getByRole("button", { name: "Refresh mix", exact: true })
+      .click();
+    const made = page.locator(".sys-link").filter({
+      has: page.getByRole("img", { name: "Editor: can edit", exact: true }),
+    });
+    const address = made.locator(".sys-link-text");
+    await expect(address).toHaveAttribute("title", /\/r\//);
+    const guestURL = await address.getAttribute("title");
+    if (!guestURL)
+      throw new Error("The normal Invite flow did not create a link");
+    if (new URL(guestURL).origin !== new URL(page.url()).origin)
+      throw new Error("Invite did not provide a same-origin test link");
+    await page.keyboard.press("Escape");
+
+    const guest = await guestContext.newPage();
+    await guest.goto(guestURL);
+    await expect(guest.locator(".stage-frame--guest")).toBeVisible();
+    await guest.getByRole("tab", { name: "Edit", exact: true }).click();
+    await expect
+      .poll(
+        () =>
+          Object.keys(read().project.render.proxy_manifests?.[0]?.tracks ?? {})
+            .length,
+      )
+      .toBeGreaterThan(0);
+    const markers = guest.locator(
+      '.sys-marker[data-kind="chapter"] .sys-marker-hit',
+    );
+    const originalMarkers = await markers.count();
+    const originalChapters = digest(JSON.stringify(chaptersOf(read().project)));
+    await guest.locator(".clip-block").first().click({ button: "right" });
+    await guest
+      .locator(".edit-create-menu")
+      .getByRole("menuitem", { name: /Add chapter here/ })
+      .click();
+    await expect(markers).toHaveCount(originalMarkers + 1);
+    await expect(
+      guest.getByRole("button", { name: "Undo", exact: true }),
+    ).toBeEnabled();
+    const before = read();
+    const own = before.project.history.entries[before.project.history.cursor];
+    expect(
+      typeof own?.author === "string" && own.author.startsWith("share:"),
+    ).toBe(true);
+
+    const previousGeneration = before.project.render.proxy_manifests?.[0];
+    expect(typeof previousGeneration?.revision === "string").toBe(true);
+    expect(previousGeneration?.project_basis.history_head_id === own?.id).toBe(
+      false,
+    );
+
+    await guest.reload();
+    await expect(guest.locator(".stage-frame--guest")).toBeVisible();
+    await expect
+      .poll(
+        () =>
+          read().project.render.proxy_manifests?.[0]?.project_basis
+            .history_head_id,
+      )
+      .toBe(own?.id);
+    const after = read();
+    expect(
+      after.project.render.proxy_manifests?.[0]?.revision ===
+        previousGeneration?.revision,
+    ).toBe(false);
+    expect(after.bytes === before.bytes).toBe(false);
+    expect(after.certificate === before.certificate).toBe(false);
+    expect(after.history === before.history).toBe(true);
+    expect(after.index === before.index).toBe(true);
+    await guest.getByRole("tab", { name: "Edit", exact: true }).click();
+    await expect(markers).toHaveCount(originalMarkers + 1);
+    await guest.getByRole("button", { name: "Undo", exact: true }).click();
+    await expect(markers).toHaveCount(originalMarkers);
+    await expect
+      .poll(() => digest(JSON.stringify(chaptersOf(read().project))))
+      .toBe(originalChapters);
+    await guest.getByRole("button", { name: "Redo", exact: true }).click();
+    await expect(markers).toHaveCount(originalMarkers + 1);
+    await expect
+      .poll(() => digest(JSON.stringify(chaptersOf(read().project))))
+      .toBe(digest(JSON.stringify(chaptersOf(before.project))));
+  } finally {
+    try {
+      await guestContext.close();
+    } finally {
+      await openStageProject(page, e2eProjectPath);
+    }
+  }
+  process.stdout.write("sharecut-3923-ui-derived-save: case completed\n");
 });
