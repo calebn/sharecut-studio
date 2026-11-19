@@ -381,7 +381,8 @@ void     sc_ffmpeg_cancel(int64_t session);
   `close` of the stdin writer likewise does not wait for a write in flight (after its own flush):
   it points the descriptor at /dev/null and returns, and the descriptor number is freed only when
   that write has returned, so a write never lands on a reused descriptor. A write started after the
-  close raises `ValueError`. A
+  close raises `ValueError`, or `BrokenPipeError` once Python has released the pipe at the grace
+  period (the broken flag is checked first). A
   native that ignores `cancel` does not hang `run` or `wait` (Python reports `-9` after the grace)
   but a stdout or stderr reader gets no EOF until its session ends (a stdin reader gets it at the grace). Limitations: two overlapping sessions must not be given
   the same pipe, and a thread of a finished session must not call the tool's exit path later. There
