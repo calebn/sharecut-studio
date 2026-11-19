@@ -1143,8 +1143,11 @@ button.sys-version-line {
    chevron (above 22 rem outside a short frame, where A and B open the same
    menu), 7 the other pills, the rate and the status, 8 Comment, Retry and the
    Audio error pill. Pills are hidden visually and keep their names; the skip
-   buttons, Stop following, Comment and Retry are `display: none` so no invisible
-   control takes focus. */
+   buttons, Stop following, Comment and Retry are `display: none`, so they take no
+   focus. The hear chevron is the exception: at levels 6 to 8 above 22 rem
+   outside a short frame it is a 1 px clipped box, not `display: none`, so Tab
+   still reaches it and Enter opens the Hear menu, with no visible focus ring. A
+   known limit. */
 .sys-player-host > .sys-player .sys-player-pill > svg,
 .sys-player-host > .sys-player .sys-pill-x {
   flex: none;
