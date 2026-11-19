@@ -344,7 +344,7 @@ rows. A producer opens the **producer** `/rec/{token}` as a **receive-only**
 mesh peer — no `getUserMedia`, no send track, no keeper. **Transparency is
 mandatory:**
 every client's roster shows the **listener row** (the producers in the room,
-each with an ear glyph, when there are any) and, when the server reports that people with the
+each with an ear glyph) when a producer is in the room and, when the server reports that people with the
 producer link are looking in without having joined, the **looking-in line**
 ("Someone with the producer link is looking in", or "3 people with the producer
 link are looking in"). The line names nobody. It sits directly under the
