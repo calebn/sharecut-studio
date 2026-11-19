@@ -505,7 +505,8 @@ const measureBar = () => {
     }
   }
   // The Audio error pill, Retry and a guest's Comment go only when they do not
-  // fit beside Play and the clock (about 14 rem); above 14.5 rem they stay.
+  // fit beside Play, the clock and the chevron (13.4 to 14.5 rem); above 14.5
+  // rem they stay.
   if (box.width / rootSize > 14.5) {
     for (const selector of [
       ".sys-pill--danger",
