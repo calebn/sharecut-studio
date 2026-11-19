@@ -1,6 +1,7 @@
 import { act, renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { loadRecordParticipant } from "../services/offlineQueue/offlineStore";
+import { deferred } from "../test/deferred";
 import { useLeaseFreshWhileLeft } from "./useLeaseFreshWhileLeft";
 
 vi.mock("../services/offlineQueue/offlineStore", () => ({
@@ -81,6 +82,83 @@ describe("useLeaseFreshWhileLeft", () => {
     expect(result.current.leaseFresh).toBe(true);
     await act(async () => {
       rerender({ left: false });
+    });
+    expect(result.current.leaseFresh).toBe(false);
+    expect(result.current.leaseStillFresh()).toBe(false);
+  });
+
+  it("is not fresh on the first frame of a second left period before its read answers", async () => {
+    const { result, rerender } = await leave(Date.now() - DAY);
+    expect(result.current.leaseFresh).toBe(true);
+    await act(async () => {
+      rerender({ left: false });
+    });
+    const held = deferred<
+      Awaited<ReturnType<typeof loadRecordParticipant>> | undefined
+    >();
+    vi.mocked(loadRecordParticipant).mockReturnValue(
+      held.promise as ReturnType<typeof loadRecordParticipant>,
+    );
+    await act(async () => {
+      rerender({ left: true });
+    });
+    expect(result.current.leaseFresh).toBe(false);
+  });
+
+  it("ignores a read that answers after the page left again", async () => {
+    const first = deferred<
+      Awaited<ReturnType<typeof loadRecordParticipant>> | undefined
+    >();
+    vi.mocked(loadRecordParticipant).mockReturnValue(
+      first.promise as ReturnType<typeof loadRecordParticipant>,
+    );
+    const { result, rerender } = renderHook(
+      ({ left }) => useLeaseFreshWhileLeft("tok", left),
+      { initialProps: { left: true } },
+    );
+    await act(async () => {
+      rerender({ left: false });
+    });
+    cache(undefined);
+    await act(async () => {
+      rerender({ left: true });
+    });
+    await act(async () => {
+      first.resolve({
+        participant_id: "p_g",
+        lease: "l",
+        issuedAt: Date.now() - DAY,
+      });
+    });
+    expect(result.current.leaseFresh).toBe(false);
+    expect(result.current.leaseStillFresh()).toBe(false);
+  });
+
+  it("drops the pending timer of an earlier left period", async () => {
+    const { result, rerender } = await leave(Date.now() - 6 * DAY + 1000);
+    expect(result.current.leaseFresh).toBe(true);
+    await act(async () => {
+      rerender({ left: false });
+    });
+    cache(Date.now() - DAY);
+    await act(async () => {
+      rerender({ left: true });
+    });
+    expect(result.current.leaseFresh).toBe(true);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(2000);
+    });
+    expect(result.current.leaseFresh).toBe(true);
+  });
+
+  it("is not fresh when the cached lease cannot be read", async () => {
+    vi.mocked(loadRecordParticipant).mockRejectedValue(new Error("idb"));
+    const { result, rerender } = renderHook(
+      ({ left }) => useLeaseFreshWhileLeft("tok", left),
+      { initialProps: { left: false } },
+    );
+    await act(async () => {
+      rerender({ left: true });
     });
     expect(result.current.leaseFresh).toBe(false);
     expect(result.current.leaseStillFresh()).toBe(false);

@@ -2,8 +2,6 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { loadRecordParticipant } from "../services/offlineQueue/offlineStore";
 import { leaseKnownYoungEnough, msUntilLeaseStale } from "./participantLease";
 
-const MAX_TIMER_MS = 2 ** 31 - 1;
-
 export function useLeaseFreshWhileLeft(token: string, left: boolean) {
   const [young, setYoung] = useState(false);
   const entry =
@@ -27,7 +25,7 @@ export function useLeaseFreshWhileLeft(token: string, left: boolean) {
           return;
         }
         setYoung(true);
-        timer = setTimeout(() => setYoung(false), Math.min(wait, MAX_TIMER_MS));
+        timer = setTimeout(() => setYoung(false), wait);
       },
       () => undefined,
     );

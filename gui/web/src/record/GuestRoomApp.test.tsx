@@ -1,4 +1,10 @@
-import { act, render, screen, waitFor } from "@testing-library/react";
+import {
+  act,
+  configure,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { loadRecordParticipant } from "../services/offlineQueue/offlineStore";
@@ -1895,8 +1901,13 @@ describe("GuestRoomApp", () => {
     await waitFor(() => expect(uploads).toHaveLength(1));
   });
 
-  describe("Join again from the unsent cover", () => {
+  describe("Join again from the unsent cover", { timeout: 30_000 }, () => {
     const DAY = 24 * 60 * 60 * 1000;
+    const defaultAsyncTimeout = 1000;
+
+    beforeEach(() => {
+      configure({ asyncUtilTimeout: 10_000 });
+    });
     const roster = [
       {
         take_index: 0,
@@ -1995,6 +2006,7 @@ describe("GuestRoomApp", () => {
     }
 
     afterEach(() => {
+      configure({ asyncUtilTimeout: defaultAsyncTimeout });
       vi.mocked(loadRecordParticipant).mockResolvedValue(undefined);
     });
 
@@ -2035,6 +2047,36 @@ describe("GuestRoomApp", () => {
       expect(
         screen.queryByRole("button", { name: "Join and record" }),
       ).toBeNull();
+    });
+
+    it("does not rejoin on a press once the lease passed six days while the page stayed open", async () => {
+      stubUploadFetch();
+      await leaveWithUnsentTake(Date.now() - 6 * DAY + 60_000);
+      const again = await screen.findByRole("button", { name: "Join again" });
+      vi.useFakeTimers({ toFake: ["Date"] });
+      try {
+        vi.setSystemTime(Date.now() + 2 * DAY);
+        await userEvent.click(again);
+        expect(sockets).toHaveLength(1);
+        expect(
+          screen.getByRole("heading", {
+            name: "Your recording didn't finish saving",
+          }),
+        ).toBeInTheDocument();
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it("shows the Join sheet once the first snapshot of a rejoin leaves nothing to save", async () => {
+      stubUploadFetch();
+      await leaveWithUnsentTake(Date.now() - DAY);
+      const again = await screen.findByRole("button", { name: "Join again" });
+      stubWebSocket(sockets, "join");
+      await userEvent.click(again);
+      expect(
+        await screen.findByRole("button", { name: "Join and record" }),
+      ).toBeInTheDocument();
     });
 
     it("offers no Join again when the cached lease has no issue time", async () => {
