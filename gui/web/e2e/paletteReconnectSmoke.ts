@@ -1,4 +1,3 @@
-import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import fs from "node:fs";
 import {
@@ -15,7 +14,7 @@ import {
   type SessionRoster,
 } from "../src/presence/roster";
 import type { SessionClient } from "../src/types/session";
-import { e2eBaseURL, repoRoot } from "./env";
+import { e2eBaseURL } from "./env";
 import { followPill, openPeopleMenu } from "./follow";
 import { installNetworkOutage } from "./networkOutage";
 import {
@@ -341,10 +340,6 @@ export function registerPaletteReconnectSmoke() {
         outcome: "NOT_EXECUTED",
       };
       try {
-        const sha = execFileSync("git", ["rev-parse", "HEAD"], {
-          cwd: repoRoot,
-          encoding: "utf8",
-        }).trim();
         const version = browser.version();
         const executable = browser.browserType().executablePath();
         if (
@@ -356,7 +351,6 @@ export function registerPaletteReconnectSmoke() {
           );
         }
         Object.assign(receipt, {
-          sha,
           browserVersion: version,
           browserRevision: 1254,
           fixtureSha256: createHash("sha256")
