@@ -1,0 +1,45 @@
+name: independent-3915-draft-only
+on:
+  pull_request:
+    types: [opened]
+    branches: [develop]
+    paths:
+      - '.github/workflows/verify-3915-draft.yml'
+      - '.github/verification/3915/**'
+permissions:
+  contents: read
+concurrency:
+  group: independent-3915-one-shot
+  cancel-in-progress: false
+jobs:
+  isolated-script-find:
+    if: >-
+      github.repository == 'calebn/sharecut-studio' &&
+      github.event.pull_request.head.repo.full_name == 'calebn/sharecut-studio' &&
+      github.event.pull_request.head.ref == 'verify/3915-independent-draft-20261119' &&
+      github.event.pull_request.base.ref == 'develop' &&
+      github.event.pull_request.draft == true
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    container:
+      image: mcr.microsoft.com/playwright:v1.65.0-noble
+      options: --init --ipc=host
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+          fetch-depth: 1
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1
+        with:
+          node-version: '24'
+          package-manager-cache: false
+      - name: Fixed synthetic evidence only
+        shell: bash
+        run: |
+          set -euo pipefail
+          python .github/verification/3915/test_classify.py >/dev/null 2>&1
+          python .github/verification/3915/runner.py
