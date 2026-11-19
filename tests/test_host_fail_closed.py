@@ -66,18 +66,18 @@ def test_a_desktop_host_still_spawns(host) -> None:
 
 
 def test_a_host_without_media_tools_names_the_reason_in_one_sentence(host) -> None:
-    host(IOS)
+    host(UNKNOWN)
     with pytest.raises(FFmpegPairResolutionError) as refused:
         resolve_ffmpeg_pair(force_refresh=True)
     assert str(refused.value) == "ShareCut can't process audio on this device yet."
 
 
 def test_bootstrap_status_reports_unsupported_components_and_the_host(host) -> None:
-    host(IOS)
+    host(UNKNOWN)
     status = boot.component_status()
     assert status["ready"] is False
     assert status["host"] == {
-        "name": "ios",
+        "name": "unknown",
         "can_spawn_processes": False,
         "loopback_is_trusted": False,
         "media_tools": "unavailable",
@@ -91,7 +91,7 @@ def test_bootstrap_status_reports_unsupported_components_and_the_host(host) -> N
     }
 
 
-@pytest.mark.parametrize("row", [IOS, UNKNOWN], ids=lambda row: row.name)
+@pytest.mark.parametrize("row", [UNKNOWN], ids=lambda row: row.name)
 def test_a_host_that_cannot_process_audio_reports_every_model_unsupported(
     row: HostPlatform, host
 ) -> None:
@@ -103,6 +103,55 @@ def test_a_host_that_cannot_process_audio_reports_every_model_unsupported(
             assert model["hint"] == MEDIA_SENTENCE, model["id"]
             assert "bootstrap" not in model, model["id"]
             assert "path" not in model, model["id"]
+
+
+def test_the_ios_row_without_a_linked_library_reports_tools_missing_and_models_unsupported(
+    host, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from podcast_mcp.util import native_ffmpeg
+
+    monkeypatch.setattr(native_ffmpeg, "is_available", lambda: False)
+    host(IOS)
+    assert IOS.media_tools == "in_process"
+    for status in (boot.component_status(), _route_status()):
+        assert status["ready"] is False
+        assert status["tools"]["ffmpeg"]["state"] == "missing"
+        assert status["tools"]["ffmpeg"]["source"] == "in_process"
+        for model in status["models"]:
+            assert model["state"] == "unsupported", model["id"]
+            assert model["hint"] == MEDIA_SENTENCE, model["id"]
+            assert "bootstrap" not in model, model["id"]
+
+
+def test_the_ios_row_with_a_linked_library_lets_models_report_their_own_state(
+    host, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from podcast_mcp.util import native_ffmpeg
+
+    monkeypatch.setattr(native_ffmpeg, "is_available", lambda: True)
+    host(IOS)
+    states = {m["id"]: m["state"] for m in boot.component_status()["models"]}
+    assert states["whisper"] == "unsupported"
+    assert states["rnnoise"] != "unsupported"
+
+
+def test_the_unsupported_fixture_matches_the_engine_answer(host) -> None:
+    """The web fixture claims the engine's answer for a host that cannot process audio.
+
+    The fixture keeps the iOS name and capabilities of the row before it ran media tools
+    in-process, so the test builds that shape from the row."""
+    import json
+
+    fixture = json.loads(
+        (Path(__file__).parent / "fixtures" / "bootstrap_status" / "unsupported.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    host(replace(IOS, media_tools="unavailable"))
+    status = boot.component_status()
+    assert fixture["host"] == status["host"]
+    assert fixture["tools"] == status["tools"]
+    assert fixture["models"] == status["models"]
 
 
 def test_a_host_that_can_process_audio_but_not_transcribe_blocks_whisper_alone(host) -> None:
