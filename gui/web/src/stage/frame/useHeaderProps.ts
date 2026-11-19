@@ -55,6 +55,9 @@ export function useHeaderProps(): Omit<
   const role = stageRoleOf(guestMode);
   const host = isHostRole(role);
   const [dismissed, setDismissed] = useState<readonly string[]>([]);
+  // The saved copy opens read-only whatever the link allows, so no role is
+  // known to name or to explain.
+  const showRole = !savedCopy;
   const guest: AppHeaderProps["guest"] = host
     ? undefined
     : {
@@ -67,23 +70,23 @@ export function useHeaderProps(): Omit<
               onListen: reloadPage,
             }
           : undefined,
-        role,
+        role: showRole ? role : undefined,
         compact: shell === "phone",
-        hint: {
-          text: ROLE_HINT_TEXT[role],
-          // The saved copy opens read-only whatever the link allows, so it
-          // knows no role to speak for and has no flag to write.
-          shown: !savedCopy && !dismissed.includes(role) && !roleHintSeen(role),
-          onDismiss: () => {
-            markRoleHintSeen(role);
-            setDismissed((current) => [...current, role]);
-          },
-          // The frame's one polite live region says it; a toast would repeat the bubble.
-          onShown: () =>
-            useDawStore
-              .getState()
-              .announceStatus(ROLE_HINT_TEXT[role], { toast: false }),
-        },
+        hint: showRole
+          ? {
+              text: ROLE_HINT_TEXT[role],
+              shown: !dismissed.includes(role) && !roleHintSeen(role),
+              onDismiss: () => {
+                markRoleHintSeen(role);
+                setDismissed((current) => [...current, role]);
+              },
+              // The frame's one polite live region says it; a toast would repeat the bubble.
+              onShown: () =>
+                useDawStore
+                  .getState()
+                  .announceStatus(ROLE_HINT_TEXT[role], { toast: false }),
+            }
+          : undefined,
       };
   const onMenuCommand = useCallback((command: string) => {
     if (command === "help") {
