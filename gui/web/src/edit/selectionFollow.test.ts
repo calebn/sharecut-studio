@@ -95,6 +95,16 @@ describe("following a selection across two Script models", () => {
     ).toEqual({ kind: "clear" });
   });
 
+  it("clears when the word's source start moved by half a millisecond", () => {
+    const before = modelOf([ONE]);
+    expect(
+      followSelection(
+        remember(before, 0),
+        modelOf([{ ...ONE, start: 1.0005 }]),
+      ),
+    ).toEqual({ kind: "clear" });
+  });
+
   it("moves to the new numbers when the word was renumbered", () => {
     const before = modelOf([ONE]);
     const after = modelOf([{ start: 0, text: "x" }, ONE]);
@@ -251,13 +261,24 @@ describe("waiting for words that are not live yet", () => {
     });
   });
 
-  it("does not wait for a bar line that ends before the word", () => {
+  it.each([
+    ["starts after the word", { start: 2, end: 3 }],
+    ["ends before the word", { start: 0, end: 0.5 }],
+    [
+      "ends a fraction of a millisecond before the word",
+      { start: 0, end: 0.9995 },
+    ],
+    [
+      "starts a fraction of a millisecond after the word",
+      { start: 1.0005, end: 3 },
+    ],
+  ])("does not wait for a bar line that %s", (_edge, span) => {
     const before = modelOf([ONE]);
     const after = modelOf([ONE], {
       turns: [{ words: [{ index: 0 }] }, { words: [] }],
       spans: [
         { trackId: "a", sourceId: null, start: 5, end: 6 },
-        { trackId: "a", sourceId: null, start: 2, end: 3 },
+        { trackId: "a", sourceId: null, ...span },
       ],
     });
     expect(followSelection(remember(before, 0), after)).toEqual({
@@ -338,9 +359,13 @@ describe("a word that exists as several copies", () => {
   });
 
   it.each([
-    ["start", { start: 1.5, end: 2 }],
-    ["end", { start: 1, end: 2.5 }],
-  ])("clears when the picked copy's timeline %s moved", (_edge, time) => {
+    ["start later", { start: 1.5, end: 2 }],
+    ["end later", { start: 1, end: 2.5 }],
+    ["start earlier", { start: 0.5, end: 2 }],
+    ["end earlier", { start: 1, end: 1.5 }],
+    ["start by half a millisecond", { start: 1.0005, end: 2 }],
+    ["end by half a millisecond", { start: 1, end: 2.0005 }],
+  ])("clears when the picked copy's timeline %s", (_edge, time) => {
     const before = modelOf([COPY_A, COPY_B]);
     expect(
       followSelection(remember(before, 0), modelOf([{ ...COPY_A, time }])),

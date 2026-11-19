@@ -547,10 +547,13 @@ describe("judging a run from the numbers the store holds", () => {
     });
   });
 
-  it("clears when a moved end has no word_index", () => {
+  it.each([
+    ["last", "w8"],
+    ["first", "w6"],
+  ])("clears when a moved %s word has no word_index", (_end, text) => {
     const unnumbered = withWordsEdited(next, (words) =>
       words.map((w) =>
-        w.text === "w8" ? { ...w, word_index: null as never } : w,
+        w.text === text ? { ...w, word_index: null as never } : w,
       ),
     );
     expect(judgeWithScriptModel(prior, PICK as never, unnumbered)).toEqual({
@@ -735,6 +738,12 @@ describe("a words selection in a recording, track or line other than the first",
     useDawStore.getState().setProject(b);
     expect(now()).toEqual({ ...onB, startWordIndex: 4, endWordIndex: 6 });
     expect(named(b, now())).toEqual(["w6", "w7", "w8"]);
+  });
+
+  it("keeps the same selection object for a run on another track when nothing in it moved", () => {
+    const stored = pick(snapshot({ track: "b" }), onB);
+    useDawStore.getState().setProject(snapshot({ track: "b", removed: [9] }));
+    expect(now()).toBe(stored);
   });
 
   it("clears a run whose word in a later line is respelled with a renumber before it", () => {
