@@ -517,7 +517,9 @@ test("an edit the server holds is told in words on the Editor's Review page and 
       const held = `Applied 0, held 1. Reference's cut at 0:02.5 is held: ${HELD_REASON}.`;
       await expectFeedback(guest!, held);
       await expect(card).toContainText(HELD_REASON);
-      await expect(card).toContainText("The host resolves this one.");
+      await expect(card).toContainText(
+        "Keep it, or cut a smaller part in Edit.",
+      );
       await expect(attention(guest!)).toHaveCount(0);
       await expect(guest!.getByRole("alert")).toHaveCount(0);
       const page = await guest!.locator("body").innerText();

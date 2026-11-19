@@ -574,7 +574,9 @@ export function ReviewStage({
                     ? "The host resolves comments."
                     : selected?.blocked
                       ? guest
-                        ? "The host resolves this one."
+                        ? canDecide
+                          ? "Keep it, or cut a smaller part in Edit."
+                          : "The host resolves this one."
                         : "Open it in Edit to resolve."
                       : selected?.kind === "comment" && selected.result
                         ? "Already resolved."

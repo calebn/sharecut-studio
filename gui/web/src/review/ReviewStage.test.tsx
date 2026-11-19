@@ -355,10 +355,23 @@ describe("ReviewStage", () => {
     expect(screen.queryByRole("button", { name: /Fix text/ })).toBeNull();
     expect(screen.queryByRole("button", { name: /Looks right/ })).toBeNull();
     expect(screen.getByRole("button", { name: "Cut" })).toBeDisabled();
-    expect(screen.getByText("The host resolves this one.")).toBeVisible();
+    expect(
+      screen.getByText("Keep it, or cut a smaller part in Edit."),
+    ).toBeVisible();
+    expect(screen.queryByText("The host resolves this one.")).toBeNull();
     const before = decided();
     press("Enter");
     expect(decided()).toBe(before);
+  });
+
+  it("never offers a Commenter or Viewer guest the Editor's next step on a blocked row", () => {
+    const items = QUEUE_ITEMS.map((i) =>
+      i.id === "f1" ? { ...i, blocked: true } : i,
+    );
+    setup({ initialItems: items, initialSelectedId: "f1", guest: true });
+    expect(
+      screen.queryByText("Keep it, or cut a smaller part in Edit."),
+    ).toBeNull();
   });
 
   it("shows a non-guest the unsure-word controls", () => {
