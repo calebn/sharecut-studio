@@ -445,11 +445,11 @@ test("phone shells keep every control a finger can use at 360, 390 and 767 wide"
 });
 
 /**
- * Phones where the Audio error pill and Retry fit beside Play, the clock and
- * the hear menu's chevron (from about 13.4 rem with a milliseconds clock): 100%
- * text on each phone, 150% text on the two narrow ones, and 200% text on the
- * widest only. Under that the bar folds to Play, the clock and the chevron, and
- * Retry is in the expanded Player (tap the time).
+ * Phones where the Audio error pill and Retry are drawn beside Play, the clock
+ * and the hear menu's chevron: 100% text on each phone, 150% text on the two
+ * narrow ones, and 200% text on the widest only. A 360 or 390 px phone at 200%
+ * text folds to Play, the clock and the chevron, and Retry is in the expanded
+ * Player (tap the time).
  */
 const RETRY_CELLS: readonly Cell[] = [
   ...PHONES.filter((phone) => phone.rootPx === 16),
