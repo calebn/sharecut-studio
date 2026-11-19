@@ -178,8 +178,8 @@ Deferred path and interim constraints: [cross-platform-byok.md](cross-platform-b
 <a id="ios-app-3810"></a>
 **iOS app (#3810, stage 1).** `make ios-sim` builds the Simulator app and launches it. It
 needs `make ios-ffmpeg-sim` first; with the FFmpeg framework linked the audio tools report
-installed, and an app built without it says audio tools are not available on this device. The
-app is the `sharecut` lib (a `staticlib`) with Python.xcframework and FFmpeg.xcframework linked
+installed, and an app built without it shows the Audio tools card as missing, and its model rows
+read "ShareCut can't process audio on this device yet." The app is the `sharecut` lib (a `staticlib`) with Python.xcframework and FFmpeg.xcframework linked
 into it; there is no sidecar process.
 
 - **Build.** `scripts/ios/ios_sim.sh run` first ensures the payload (`build_payload.py --ensure`;
@@ -233,7 +233,10 @@ into it; there is no sidecar process.
   (`gui/desktop/src-tauri/ios/ffmpeg/PrivacyInfo.xcprivacy`; its categories and reason codes are
   copied from the app manifest, not read from the framework's imports, and are unconfirmed like
   `contracts/ios-privacy.json`), runs `xcodebuild -create-xcframework`
-  and swaps the result in whole, so a failed run keeps the previous xcframework. A device-only
+  and swaps the result in with two renames, so an xcodebuild failure or a failed final rename keeps
+  the previous xcframework. An interruption between the renames leaves the payload without
+  `FFmpeg.xcframework` until `make ios-ffmpeg-device` or `make ios-ffmpeg-sim` runs again; the old
+  copy stays hidden as `.FFmpeg.xcframework.old.<pid>`. A device-only
   assemble drops the Simulator slice until `make ios-ffmpeg-sim` runs again. `ffmpeg_framework.py
   check --sdk iphoneos|iphonesimulator` finds the slice through the xcframework's `Info.plist`
   (slice names are never guessed) and is what the template's "Check FFmpeg framework" pre-build
