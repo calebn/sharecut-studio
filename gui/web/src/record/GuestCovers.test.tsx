@@ -33,6 +33,7 @@ function room(over: Partial<Parameters<typeof guestCoverProps>[0]> = {}) {
     localRecording: true,
     producer: false,
     localSegments: 1,
+    localUnreadable: false,
     recordedHere: false,
     upload: { fileAck: false, seenSegments: 0 },
     keeperActions: {
@@ -725,6 +726,49 @@ describe("after Save my recording handed the whole zip to the browser", () => {
       expect(recorded?.secondary?.label).toBe("Try saving again");
     },
   );
+
+  it("says the device could not be checked, not that it is safe, once its scan is unreadable", () => {
+    const base = {
+      localRecording: false,
+      localSegments: null,
+      recordedHere: true,
+      keeperActions: {
+        busy: false,
+        error: null,
+        notice: null,
+        downloaded: false,
+        download: vi.fn(),
+        recover: vi.fn(),
+      },
+      snapshot: recordSnapshot({ participants: [host], take_index: 0 }),
+    };
+    const readable = guestCoverProps(room({ ...base, left: true }), {
+      onRetry: vi.fn(),
+      phase: waiting,
+    });
+    expect(readable?.children).toBe(
+      "It's safe on this device. Save it and send it to Hana.",
+    );
+    const unreadable = guestCoverProps(
+      room({ ...base, left: true, localUnreadable: true }),
+      { onRetry: vi.fn(), phase: waiting },
+    );
+    expect(unreadable?.children).toBe(
+      "We couldn't check this device. Try saving it again, or save a copy.",
+    );
+    const closed = guestCoverProps(
+      room({
+        ...base,
+        accessEnded: true,
+        inviteClosed: true,
+        localUnreadable: true,
+      }),
+      { onRetry: vi.fn(), phase: waiting },
+    );
+    expect(closed?.children).toBe(
+      "Hana closed this invite link. We couldn't check this device. Try saving it again, or save a copy, or ask for a new link.",
+    );
+  });
 
   it("keeps the unsent wording after a reload when the roster shows this guest recorded", () => {
     const self = recordParticipant({
