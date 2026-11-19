@@ -11,13 +11,15 @@ import { clipRow, minimalProject, sampleTrack } from "./fixtures";
 const STEP = 0.5;
 
 function utterance(
+  trackId: string,
   sourceId: string | null,
+  speaker: string,
   words: TranscriptWordView[],
 ): CombinedUtterance {
   return {
-    track_id: "a",
+    track_id: trackId,
     source_id: sourceId,
-    speaker: "A",
+    speaker,
     start: 0,
     end: 5,
     text: "",
@@ -68,13 +70,19 @@ export function snapshot(
     straddle?: number;
     /** The text the straddling copy carries, when it differs from the word it repeats. */
     straddleText?: string;
+    /** The track every word, clip and cut sits on. */
+    track?: string;
+    /** Source words that open a new utterance, spoken by the other speaker. */
+    split?: readonly number[];
   } = {},
 ): ProjectView {
+  const trackId = opts.track ?? "a";
   const cutAway = opts.cutAway ?? [];
   const removed = opts.removed ?? [];
   const gone = [...removed, ...cutAway];
   const words: TranscriptWordView[] = [];
   const sourceOf: (string | null)[] = [];
+  const opensAt: boolean[] = [];
   for (let i = 0; i < 10; i++) {
     if (removed.includes(i)) continue;
     const shift = gone.filter((r) => r < i).length * STEP - (opts.shift ?? 0);
@@ -90,10 +98,12 @@ export function snapshot(
     sourceOf.push(
       opts.otherSource?.words.includes(i) ? opts.otherSource.sourceId : null,
     );
+    opensAt.push(opts.split?.includes(i) ?? false);
   }
   for (const extra of opts.extra ?? []) {
     words.push({ ...extra, word_index: words.length });
     sourceOf.push(null);
+    opensAt.push(false);
   }
   const gaps = gone.map((r) => ({ at: r * STEP, len: STEP }));
   const kept: [number, number][] = [];
@@ -107,7 +117,7 @@ export function snapshot(
   const clips = kept.map(([s, e], n) => {
     const row = clipRow({
       id: `c${n}`,
-      track_id: "a",
+      track_id: trackId,
       source_start: s,
       source_end: e,
       timeline_start: cursor,
@@ -117,19 +127,21 @@ export function snapshot(
     return row;
   });
   const utterances: CombinedUtterance[] = [];
+  let speaker = "A";
   for (let at = 0; at < words.length; at++) {
     const previous = utterances[utterances.length - 1];
     const sourceId = sourceOf[at] ?? null;
-    if (previous && previous.source_id === sourceId) {
+    if (previous && previous.source_id === sourceId && !opensAt[at]) {
       previous.words!.push(words[at]!);
       continue;
     }
-    utterances.push(utterance(sourceId, [words[at]!]));
+    if (opensAt[at]) speaker = speaker === "A" ? "B" : "A";
+    utterances.push(utterance(trackId, sourceId, speaker, [words[at]!]));
   }
   if (opts.straddle !== undefined) {
     const copy = words.find((w) => w.text === `w${opts.straddle}`)!;
     utterances.push(
-      utterance(null, [
+      utterance(trackId, null, "A", [
         {
           ...copy,
           ...(opts.straddleText === undefined
@@ -143,7 +155,7 @@ export function snapshot(
     each.text = (each.words ?? []).map((w) => w.text).join(" ");
   const boundaries: EditBoundaryView[] = cutAway.map((i) => ({
     id: `cut${i}`,
-    track_id: "a",
+    track_id: trackId,
     left_clip_id: "c0",
     right_clip_id: "c1",
     timeline_join_sec: i * STEP - gone.filter((r) => r < i).length * STEP,
@@ -152,7 +164,7 @@ export function snapshot(
     has_cutaway: true,
     cutaway_word_ids: [
       {
-        track_id: "a",
+        track_id: trackId,
         source_id: null,
         word_index: words.findIndex((w) => w.text === `w${i}`),
         text: `w${i}`,
@@ -162,8 +174,8 @@ export function snapshot(
     ],
   }));
   const base = minimalProject({
-    tracks: [sampleTrack({ id: "a" })],
-    clips: { tracks: { a: clips }, clip_count: clips.length },
+    tracks: [sampleTrack({ id: trackId })],
+    clips: { tracks: { [trackId]: clips }, clip_count: clips.length },
     transcript: {
       utterances:
         opts.withWords === false
@@ -193,7 +205,8 @@ export function named(project: ProjectView, selection: Selection): string[] {
   const out: string[] = [];
   for (let i = selection.startWordIndex; i <= selection.endWordIndex; i++)
     out.push(
-      findTranscriptWord(project, "a", i, selection.sourceId)?.text ?? "(none)",
+      findTranscriptWord(project, selection.trackId, i, selection.sourceId)
+        ?.text ?? "(none)",
     );
   return out;
 }
