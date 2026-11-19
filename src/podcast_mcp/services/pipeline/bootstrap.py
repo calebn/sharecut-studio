@@ -37,8 +37,8 @@ from podcast_mcp.services.pipeline.install_failure import (
 from podcast_mcp.util import host_platform
 from podcast_mcp.util.asset_sources import DOWNLOAD_TASK_ID, DownloadProgress, cdn_base_configured
 from podcast_mcp.util.binaries import (
-    IN_PROCESS_NOT_LINKED,
     FFmpegPairResolutionError,
+    in_process_problem,
     resolve_ffmpeg_pair,
 )
 from podcast_mcp.util.coded_error import CodedValueError
@@ -76,8 +76,10 @@ def model_status(
     can process audio but not transcribe reports whisper alone as ``unsupported``. A host whose
     media tools run in-process counts as unable to process audio until the FFmpeg library is
     linked, so an unlinked build reports every model ``unsupported`` with the same sentence
-    instead of offering a download that cannot make audio work. An unexpected error is reported,
-    never raised.
+    instead of offering a download that cannot make audio work. Once linked, only RNNoise (it
+    runs through FFmpeg) can be offered: whisper, the word aligner and the speaker model are
+    ``unsupported`` on a host without the transcription stack, because their runtime is not
+    shipped there. An unexpected error is reported, never raised.
     """
     spec = model_spec(model_id)
     base = model_base(model_id, variant)
@@ -86,8 +88,13 @@ def model_status(
         host.media_tools == "in_process" and not _in_process_linked()
     ):
         return {**base, "state": "unsupported", "hint": host_platform.MEDIA_UNAVAILABLE}
-    if model_id == "whisper" and host.transcription == "unavailable":
-        return {**base, "state": "unsupported", "hint": host_platform.TRANSCRIPTION_UNAVAILABLE}
+    if host.transcription == "unavailable" and model_id != "rnnoise":
+        hint = (
+            host_platform.TRANSCRIPTION_UNAVAILABLE
+            if model_id == "whisper"
+            else host_platform.MEDIA_UNAVAILABLE
+        )
+        return {**base, "state": "unsupported", "hint": hint}
     try:
         record = model_record(model_id, variant, memoize=memoize)
         path = str(spec.location())
@@ -128,7 +135,7 @@ def component_status(*, whisper_model: str | None = None) -> dict[str, Any]:
         ffmpeg_error = str(exc)
     ffmpeg_ok = ffmpeg_pair is not None and ffmpeg_pair.is_available()
     if ffmpeg_pair is not None and ffmpeg_pair.is_in_process and not ffmpeg_ok:
-        ffmpeg_error = IN_PROCESS_NOT_LINKED
+        ffmpeg_error = in_process_problem()
     ffmpeg_state = (
         "unsupported"
         if host.media_tools == "unavailable"

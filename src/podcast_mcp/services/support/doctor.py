@@ -27,8 +27,8 @@ from podcast_mcp.models import EpisodeProject
 from podcast_mcp.util.binaries import (
     IN_PROCESS_FFMPEG,
     IN_PROCESS_FFPROBE,
-    IN_PROCESS_NOT_LINKED,
     FFmpegPairResolutionError,
+    in_process_problem,
     resolve_ffmpeg_pair,
 )
 from podcast_mcp.util.hardware import accelerator_preference, hardware_profile
@@ -325,10 +325,10 @@ def ffmpeg_probe_info() -> dict[str, Any]:
     try:
         pair = resolve_ffmpeg_pair()
         if pair.is_in_process:
-            linked = pair.is_available()
+            problem = in_process_problem()
             info = {
-                "ok": linked,
-                "version": "in-process FFmpeg" if linked else IN_PROCESS_NOT_LINKED,
+                "ok": problem is None,
+                "version": "in-process FFmpeg" if problem is None else problem,
                 "path": IN_PROCESS_FFMPEG,
                 "source": "in_process",
             }

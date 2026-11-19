@@ -81,6 +81,11 @@ def is_available() -> bool:
     return True
 
 
+def is_installed() -> bool:
+    """Whether the native backend serves in-process tool argv now (linked is not enough)."""
+    return process.in_process_backend_installed()
+
+
 _installed: contextlib.ExitStack | None = None
 _install_lock = threading.Lock()
 

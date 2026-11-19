@@ -8,11 +8,12 @@ from podcast_mcp.engines import ungated_audio
 from podcast_mcp.engines.ffmpeg import FFmpegEngine
 from podcast_mcp.services.pipeline import bootstrap, config
 from podcast_mcp.services.support import doctor
-from podcast_mcp.util import binaries, host_platform
+from podcast_mcp.util import binaries, host_platform, native_ffmpeg, process
 from podcast_mcp.util.binaries import (
     IN_PROCESS_BUILD_ID,
     IN_PROCESS_FFMPEG,
     IN_PROCESS_FFPROBE,
+    IN_PROCESS_NOT_INSTALLED,
     IN_PROCESS_NOT_LINKED,
     IN_PROCESS_PAIR,
     FFmpegPair,
@@ -123,3 +124,52 @@ def test_a_desktop_row_keeps_its_build_id_and_status_payloads(monkeypatch, host,
         "path": "/x/ffmpeg",
         "hint": "Install a matching FFmpeg 9.0.2 or later 9.x pair; see docs/setup.md",
     }
+
+
+class _Backend:
+    """Stands in for the native backend: only its presence in process.py matters here."""
+
+
+def _statuses() -> tuple[dict, dict, dict, tuple[bool, str]]:
+    return (
+        bootstrap.component_status()["tools"]["ffmpeg"],
+        config.component_status()["ffmpeg"],
+        doctor.ffmpeg_probe_info()["ffmpeg"],
+        FFmpegEngine().check_available(),
+    )
+
+
+def test_linked_and_installed_is_the_only_state_that_says_installed(monkeypatch, host):
+    monkeypatch.setattr(native_ffmpeg, "is_available", lambda: True)
+    host(IN_PROCESS_ROW)
+    with process.using_in_process_backend(_Backend()):  # type: ignore[arg-type]
+        assert native_ffmpeg.is_installed() is True
+        boot, cfg, info, check = _statuses()
+        assert bootstrap.component_status()["tools"]["ffmpeg"]["state"] == "installed"
+    assert boot["state"] == "installed" and boot["hint"] is None
+    assert cfg == {"state": "installed", "source": "in_process"}
+    assert info["ok"] is True and info["version"] == "in-process FFmpeg"
+    assert check == (True, "in-process FFmpeg")
+
+
+def test_linked_but_not_installed_is_missing_with_its_own_hint(monkeypatch, host):
+    monkeypatch.setattr(native_ffmpeg, "is_available", lambda: True)
+    host(IN_PROCESS_ROW)
+    assert native_ffmpeg.is_installed() is False
+    boot, cfg, info, check = _statuses()
+    assert boot["state"] == "missing"
+    assert boot["hint"] == IN_PROCESS_NOT_INSTALLED != IN_PROCESS_NOT_LINKED
+    assert cfg == {"state": "missing", "source": "in_process", "hint": IN_PROCESS_NOT_INSTALLED}
+    assert info["ok"] is False and info["version"] == IN_PROCESS_NOT_INSTALLED
+    assert check == (False, IN_PROCESS_NOT_INSTALLED)
+    assert bootstrap.component_status()["ready"] is False
+
+
+def test_unlinked_is_missing_with_the_not_linked_hint(monkeypatch, host):
+    monkeypatch.setattr(native_ffmpeg, "is_available", lambda: False)
+    host(IN_PROCESS_ROW)
+    boot, cfg, info, check = _statuses()
+    assert boot["state"] == "missing" and boot["hint"] == IN_PROCESS_NOT_LINKED
+    assert cfg["hint"] == IN_PROCESS_NOT_LINKED
+    assert info["version"] == IN_PROCESS_NOT_LINKED
+    assert check == (False, IN_PROCESS_NOT_LINKED)
