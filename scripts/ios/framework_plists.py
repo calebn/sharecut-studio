@@ -41,6 +41,19 @@ def has_unsafe_path(app: Path, folder: Path) -> bool:
     return any(has_control_character(part) for part in folder.relative_to(app).parts)
 
 
+# What plistlib raises for a hostile or truncated file, beyond the OSError of reading it.
+PLIST_ERRORS = (
+    ExpatError,
+    plistlib.InvalidFileException,
+    RecursionError,
+    OverflowError,
+    UnicodeDecodeError,
+    LookupError,
+    IndexError,
+    struct.error,
+)
+
+
 def read_plist(path: Path) -> dict[str, object]:
     descriptor = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
     try:
@@ -53,16 +66,7 @@ def read_plist(path: Path) -> dict[str, object]:
     try:
         with handle:
             loaded = plistlib.load(handle)
-    except (
-        ExpatError,
-        plistlib.InvalidFileException,
-        RecursionError,
-        OverflowError,
-        UnicodeDecodeError,
-        LookupError,
-        IndexError,
-        struct.error,
-    ) as error:
+    except PLIST_ERRORS as error:
         raise ValueError(f"{path} is not a valid plist: {error}") from error
     if not isinstance(loaded, dict):
         raise ValueError("not a dictionary")

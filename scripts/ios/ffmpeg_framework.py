@@ -13,12 +13,15 @@ only. Slice names come from the xcframework's own ``Info.plist``.
 from __future__ import annotations
 
 import argparse
+import contextlib
+import fcntl
 import os
 import plistlib
 import shutil
+import struct
 import subprocess
 import sys
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Iterator, Sequence
 from pathlib import Path
 from xml.parsers.expat import ExpatError
 
@@ -28,6 +31,7 @@ OUT = TAURI / "ios-ffmpeg/out"
 PAYLOAD = TAURI / "ios-payload"
 MANIFEST = TAURI / "ios/ffmpeg/PrivacyInfo.xcprivacy"
 XCFRAMEWORK = "FFmpeg.xcframework"
+LOCK = f".{XCFRAMEWORK}.lock"
 FRAMEWORK = "FFmpeg.framework"
 BINARY = "FFmpeg"
 PRIVACY = "PrivacyInfo.xcprivacy"
@@ -37,6 +41,16 @@ SLICES = {
     "sim": ("ios-ffmpeg-sim", "simulator"),
 }
 SDKS = {"iphoneos": "device", "iphonesimulator": "sim"}
+
+# What plistlib raises for a hostile or truncated index (this file imports nothing from the repo).
+PLIST_ERRORS = (
+    ExpatError,
+    RecursionError,
+    OverflowError,
+    LookupError,
+    IndexError,
+    struct.error,
+)
 
 Runner = Callable[[Sequence[str]], None]
 
@@ -65,8 +79,28 @@ def create_argv(frameworks: Sequence[Path], output: Path) -> list[str]:
     return [*argv, "-output", str(output)]
 
 
+@contextlib.contextmanager
+def assembling(payload: Path) -> Iterator[None]:
+    """Hold the payload's assemble lock, so ``make -j ios-ffmpeg`` cannot run two assembles at once.
+
+    A second assemble waits, then sees the slices the first one's make target finished.
+    """
+    payload.mkdir(parents=True, exist_ok=True)
+    with (payload / LOCK).open("a") as handle:
+        fcntl.flock(handle, fcntl.LOCK_EX)
+        try:
+            yield
+        finally:
+            fcntl.flock(handle, fcntl.LOCK_UN)
+
+
 def assemble(root: Path, runner: Runner = run_xcodebuild) -> list[str]:
     """Build ``ios-payload/FFmpeg.xcframework`` from the slices that exist; return their names."""
+    with assembling(root / PAYLOAD):
+        return _assemble(root, runner)
+
+
+def _assemble(root: Path, runner: Runner) -> list[str]:
     slices = built_slices(root)
     if not slices:
         raise FrameworkError(
@@ -119,7 +153,7 @@ def slice_framework(xcframework: Path, name: str) -> Path | None:
                 and entry.get("SupportedPlatformVariant") == variant
             ):
                 return xcframework / entry["LibraryIdentifier"] / entry["LibraryPath"]
-    except (OSError, ValueError, ExpatError, KeyError, TypeError, AttributeError):
+    except (OSError, ValueError, KeyError, TypeError, AttributeError, *PLIST_ERRORS):
         return None
     return None
 

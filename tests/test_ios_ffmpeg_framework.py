@@ -12,7 +12,8 @@ import re
 import shutil
 import subprocess
 import sys
-from collections.abc import Sequence
+import threading
+from collections.abc import Callable, Sequence
 from pathlib import Path
 
 import pytest
@@ -142,7 +143,10 @@ def test_a_failed_xcodebuild_keeps_the_previous_xcframework_and_leaves_no_stagin
     with pytest.raises(subprocess.CalledProcessError):
         tool.assemble(root, failing)
     assert (xcframework(root) / "Info.plist").read_bytes() == before
-    assert [p.name for p in xcframework(root).parent.iterdir()] == ["FFmpeg.xcframework"]
+    assert sorted(p.name for p in xcframework(root).parent.iterdir()) == [
+        ".FFmpeg.xcframework.lock",
+        "FFmpeg.xcframework",
+    ]
 
 
 def test_a_second_assemble_replaces_the_first_and_leaves_no_staging(tmp_path: Path) -> None:
@@ -154,7 +158,10 @@ def test_a_second_assemble_replaces_the_first_and_leaves_no_staging(tmp_path: Pa
     sim.write_bytes(b"sim")
     tool.assemble(root, FakeXcodebuild())
     assert (xcframework(root) / "ios-arm64-simulator/FFmpeg.framework/FFmpeg").is_file()
-    assert [p.name for p in xcframework(root).parent.iterdir()] == ["FFmpeg.xcframework"]
+    assert sorted(p.name for p in xcframework(root).parent.iterdir()) == [
+        ".FFmpeg.xcframework.lock",
+        "FFmpeg.xcframework",
+    ]
 
 
 def test_the_xcodebuild_argv_names_each_framework_and_one_output(tmp_path: Path) -> None:
@@ -300,3 +307,77 @@ def test_each_make_target_builds_the_framework_then_assembles_the_xcframework(
         r"\tuv run python scripts/ios/ffmpeg_framework\.py assemble\n"
     )
     assert re.search(recipe, makefile, re.M)
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        b'<?xml version="1.0" encoding="x-bogus"?><plist version="1.0"><dict/></plist>',
+        b"bplist00\x00",
+        b"<plist>" + b"<array>" * 5000,
+    ],
+)
+def test_an_index_that_plistlib_cannot_decode_is_a_missing_slice_not_a_traceback(
+    tmp_path: Path, body: bytes
+) -> None:
+    root = checkout(tmp_path)
+    tool.assemble(root, FakeXcodebuild())
+    (xcframework(root) / "Info.plist").write_bytes(body)
+    problem = tool.check(root, "iphoneos")
+    assert problem is not None and "make ios-ffmpeg-device" in problem
+
+
+def test_two_assembles_never_overlap(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """``make -j ios-ffmpeg`` starts both assembles at once: the second waits for the first."""
+    root = checkout(tmp_path)
+    inside = threading.Event()
+    second_started = threading.Event()
+    second_entered = threading.Event()
+    running: list[str] = []
+    overlaps: list[str] = []
+    real_flock = tool.fcntl.flock
+
+    def flock(handle: object, operation: int) -> None:
+        if threading.current_thread().name == "second" and operation == tool.fcntl.LOCK_EX:
+            second_started.set()
+        real_flock(handle, operation)  # type: ignore[arg-type]
+
+    monkeypatch.setattr(tool.fcntl, "flock", flock)
+
+    def runner(name: str) -> Callable[[Sequence[str]], None]:
+        fake = FakeXcodebuild()
+
+        def run(argv: Sequence[str]) -> None:
+            if running:
+                overlaps.append(name)
+            running.append(name)
+            try:
+                if name == "first":
+                    inside.set()
+                    second_started.wait(5)
+                    # A working lock keeps the second out: this wait times out. Without one the
+                    # second gets here and sets the event.
+                    second_entered.wait(0.3)
+                else:
+                    second_entered.set()
+                fake(argv)
+            finally:
+                running.remove(name)
+
+        return run
+
+    results: dict[str, list[str]] = {}
+
+    def work(name: str) -> None:
+        results[name] = tool.assemble(root, runner(name))
+
+    first = threading.Thread(target=work, args=("first",), name="first")
+    second = threading.Thread(target=work, args=("second",), name="second")
+    first.start()
+    assert inside.wait(5)
+    second.start()
+    first.join(10)
+    second.join(10)
+    assert overlaps == []
+    assert results == {"first": ["device", "sim"], "second": ["device", "sim"]}
+    assert (xcframework(root) / "Info.plist").is_file()
