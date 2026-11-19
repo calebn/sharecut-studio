@@ -1,7 +1,7 @@
 name: independent-3915-draft-only
 on:
   pull_request:
-    types: [opened]
+    types: [synchronize]
     branches: [develop]
     paths:
       - '.github/workflows/verify-3915-draft.yml'
@@ -14,6 +14,9 @@ concurrency:
 jobs:
   isolated-script-find:
     if: >-
+      github.event.action == 'synchronize' &&
+      github.event.pull_request.number == 4008 &&
+      github.event.before == 'c3a3a66d2fac6533f967ad8fe4116c2f5bf0eb02' &&
       github.repository == 'calebn/sharecut-studio' &&
       github.event.pull_request.head.repo.full_name == 'calebn/sharecut-studio' &&
       github.event.pull_request.head.ref == 'verify/3915-independent-draft-20261119' &&
@@ -42,4 +45,5 @@ jobs:
         run: |
           set -euo pipefail
           python .github/verification/3915/test_classify.py >/dev/null 2>&1
+          python .github/verification/3915/test_setup.py >/dev/null 2>&1
           python .github/verification/3915/runner.py

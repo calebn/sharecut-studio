@@ -10,6 +10,7 @@ import sys
 import tempfile
 import wave
 from classify import classify, pair
+from overlay import install_overlays
 
 PARENT = '1f460f495ac3013a96121f03176bd36d7219c0ff'
 HEAD = 'cbf4b66f756a43c3e57a13362cf9a2061397ea17'
@@ -30,7 +31,7 @@ def output(args, cwd):
     return subprocess.check_output(args,cwd=cwd,env=ENV,stderr=subprocess.DEVNULL,text=True).strip()
 
 def emit(n, status):
-    assert n in {*range(1,8), *range(101,113), *range(201,213)}
+    assert n in {*range(1,9), *range(101,113), *range(201,213)}
     assert status in ('PASS','BLOCKED','EXPECTED_REGRESSION','BEHAVIOR_CONFIRMED')
     print(json.dumps({'ordinal':n,'status':status},separators=(',',':')),flush=True)
 
@@ -58,13 +59,6 @@ def prepare():
     if lock['packages']['node_modules/@playwright/test']['version'] != '1.65.0': raise RuntimeError('BLOCKED')
     for file in ['gui/web/package-lock.json','uv.lock','pyproject.toml']:
         if (CHECKOUTS/'parent'/file).read_bytes() != (CHECKOUTS/'head'/file).read_bytes(): raise RuntimeError('BLOCKED')
-    for name in ['parent','head']:
-        p=CHECKOUTS/name
-        # Explicit allowlist: synthetic factory and JSON only, no other spec or guest test.
-        for rel in ['gui/web/e2e/scriptRecordingIdentityProject.ts','gui/web/e2e/fixtures/script-recording-identity.sharecut']:
-            if name == 'parent': shutil.copyfile(CHECKOUTS/'head'/rel,p/rel)
-        overlays = {'independent-3915.spec.ts':'e2e/independent-3915.spec.ts','reporter.ts':'e2e/independent3915-reporter.ts','playwright.independent.config.ts':'playwright.independent.config.ts','run.ts':'scripts/independent3915-run.ts'}
-        for src,dst in overlays.items(): shutil.copyfile(HERE/src,p/'gui/web'/dst)
     identity("parent_source",PARENT); identity("head_source",HEAD)
     identity("npm_lock",hashlib.sha256((CHECKOUTS/'head/gui/web/package-lock.json').read_bytes()).hexdigest())
     identity("python_lock",hashlib.sha256((CHECKOUTS/'head/uv.lock').read_bytes()).hexdigest())
@@ -72,6 +66,12 @@ def prepare():
     identity("python",".".join(map(str,sys.version_info[:3])))
     identity("node",output(['node','--version'],CHECKOUTS)); identity("playwright",lock['packages']['node_modules/@playwright/test']['version'])
     emit(1,'PASS')
+    try:
+        install_overlays(CHECKOUTS,HERE)
+    except Exception:
+        emit(8,'BLOCKED')
+        raise
+    emit(8,'PASS')
     bootstrap=CHECKOUTS/'bootstrap'
     run([sys.executable,'-m','venv',str(bootstrap)],CHECKOUTS)
     run([str(bootstrap/'bin/python'),'-m','pip','install','--disable-pip-version-check','uv==0.13.9'],CHECKOUTS)
