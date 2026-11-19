@@ -11,10 +11,10 @@ import { ApiError, CUT_SCOPE_CHANGED_CODE } from "../../../utils/apiError";
 import { cutAllMessage, cutKey, matchCutOf } from "./findCut";
 import type { ScriptModel } from "./scriptModel";
 
-function cutAllFailure(error: unknown, projectPath: string | null): unknown {
+function cutAllFailure(error: unknown, projectPath: string): unknown {
   if (!(error instanceof ApiError)) return error;
   if (error.code === CUT_SCOPE_CHANGED_CODE) {
-    if (projectPath !== null && isShareProjectKey(projectPath))
+    if (isShareProjectKey(projectPath))
       return new Error(error.message);
     if (/need audio review/.test(error.message))
       return new Error(
