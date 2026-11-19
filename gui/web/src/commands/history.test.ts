@@ -1052,7 +1052,7 @@ describe("runHistoryAction", () => {
     },
   );
 
-  it("publishes its failure prefix when an untold reason was just announced", async () => {
+  it("announces an untold reason as it is, even when it was just announced", async () => {
     const reason = "Nothing selected";
     const announcement = vi.spyOn(useDawStore.getState(), "announceStatus");
     let settle!: (result: { status: "disabled"; reason: string }) => void;
@@ -1068,12 +1068,10 @@ describe("runHistoryAction", () => {
     await pending;
     await Promise.resolve();
 
-    expect(announcement).toHaveBeenLastCalledWith(`Undo failed: ${reason}`, {
+    expect(announcement).toHaveBeenLastCalledWith(reason, {
       tone: "error",
     });
-    expect(useDawStore.getState().statusAnnouncement).toBe(
-      `Undo failed: ${reason}`,
-    );
+    expect(useDawStore.getState().statusAnnouncement).toBe(reason);
     expect(useDawStore.getState().feedbackToast?.tone).toBe("error");
   });
 

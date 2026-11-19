@@ -105,6 +105,8 @@ export function useHeaderProps(): Omit<
     guest,
     canUndo: history.history?.canUndo ?? false,
     canRedo: history.history?.canRedo ?? false,
+    undoReason: history.history?.undoReason,
+    redoReason: history.history?.redoReason,
     onUndo: history.onUndo,
     onRedo: history.onRedo,
     onInvite: () => runPointerCommand("share.manage"),

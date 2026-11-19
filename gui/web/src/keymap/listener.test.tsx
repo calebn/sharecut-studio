@@ -600,7 +600,7 @@ it("Mod+Z tells an Editor there is nothing of theirs to undo, without sending it
   await pressModZ(false);
   expect(undoHistory).not.toHaveBeenCalled();
   expect(useDawStore.getState().statusAnnouncement).toBe(
-    "There is nothing of yours to undo. The latest change is someone else's.",
+    "There is nothing of yours to undo.",
   );
 });
 

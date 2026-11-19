@@ -83,6 +83,9 @@ export type AppHeaderProps = {
   loading?: boolean;
   canUndo?: boolean;
   canRedo?: boolean;
+  /** Why Undo or Redo is off, as the disabled button's title. */
+  undoReason?: string;
+  redoReason?: string;
   onUndo?: () => void;
   undoHint?: CoachHint;
   onRedo?: () => void;
@@ -391,6 +394,8 @@ export function AppHeader({
   loading = false,
   canUndo = true,
   canRedo = true,
+  undoReason,
+  redoReason,
   onUndo,
   undoHint,
   onRedo,
@@ -487,12 +492,14 @@ export function AppHeader({
                   <VerbButton
                     verb="undo"
                     disabled={loading || !canUndo}
+                    {...(loading || canUndo ? {} : { title: undoReason })}
                     onClick={onUndo}
                   />
                 </CoachTip>
                 <VerbButton
                   verb="redo"
                   disabled={loading || !canRedo}
+                  {...(loading || canRedo ? {} : { title: redoReason })}
                   onClick={onRedo}
                 />
               </span>
