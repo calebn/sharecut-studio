@@ -23,7 +23,7 @@ function liveWords(model: SelectionModel, from: number, to: number) {
   return words;
 }
 
-/** A word cut or retimed inside the run makes it a different run. */
+/** On the ordinary path, a word cut or retimed inside the run makes it a different run. */
 function sameWords(
   before: SelectionModel,
   from: number,

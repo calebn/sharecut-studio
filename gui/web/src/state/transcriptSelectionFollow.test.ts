@@ -107,7 +107,7 @@ describe("a words selection when one of its own words changes", () => {
     expect(now()).toBe(stored);
   });
 
-  it("keeps the run when only the end of its last word moved", () => {
+  it("keeps the run through the ordinary follow when only the end of its last word moved (no start moves, so not a retime)", () => {
     const stored = start(snapshot());
     const edited = withWordsEdited(snapshot(), (words) =>
       words.map((word) =>
@@ -574,6 +574,13 @@ describe("a words selection by the role the session holds", () => {
     useDawStore.setState({ guestMode: "edit" });
     useDawStore.getState().setProject(b);
     expect(named(b, now())).toEqual(["w6", "w7", "w8"]);
+  });
+
+  it("keeps the selection for an editor guest when a selected word is retimed in place", () => {
+    const stored = start(snapshot());
+    useDawStore.setState({ guestMode: "edit" });
+    useDawStore.getState().setProject(snapshot({ retime: { 7: 0.1 } }));
+    expect(now()).toBe(stored);
   });
 
   it("follows for an editor guest when an own range action ends", () => {
