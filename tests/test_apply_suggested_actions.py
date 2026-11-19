@@ -460,3 +460,50 @@ def test_a_speaker_bleed_hold_also_applies_as_a_session_ripple(
     out = service.apply_suggested_actions(["um"], application_intent=CutIntent.HUMAN_BOUNDARIES)
     assert out.applied == {"cut": 1}
     assert out.cut_over_speaker == 1
+
+
+GUEST = "share:aaaaaaaaaaaa"
+
+
+def _bytes_on_disk(path: str) -> bytes:
+    return Path(path).read_bytes()
+
+
+def test_a_guest_cannot_revise_a_batch_the_host_applied(tmp_path, sample_wav, monkeypatch) -> None:
+    path = _project(tmp_path, sample_wav)
+    monkeypatch.setattr(suggested_actions, "another_speaker_over", lambda *_, **_kw: True)
+    EditService(ProjectWorkspace.open(path)).apply_suggested_actions()
+    before = _bytes_on_disk(path)
+
+    guest = ProjectWorkspace.open(path, share_author=GUEST)
+    with pytest.raises(Exception, match="Nothing of yours to revise") as refused:
+        EditService(guest).apply_suggested_actions(overrides={"um": "leave"}, revise=True)
+
+    assert refused.value.code == "nothing_of_yours_to_undo"
+    assert _bytes_on_disk(path) == before
+    assert _pending(path) == ["manual"]
+
+
+def test_a_guest_can_revise_their_own_batch(tmp_path, sample_wav, monkeypatch) -> None:
+    path = _project(tmp_path, sample_wav)
+    monkeypatch.setattr(suggested_actions, "another_speaker_over", lambda *_, **_kw: True)
+    EditService(ProjectWorkspace.open(path, share_author=GUEST)).apply_suggested_actions()
+
+    out = EditService(ProjectWorkspace.open(path, share_author=GUEST)).apply_suggested_actions(
+        overrides={"um": "leave"}, revise=True
+    )
+
+    assert out.applied == {"lower": 1, "leave": 2}
+    assert _pending(path) == ["manual"]
+
+
+def test_the_host_can_revise_a_guest_batch(tmp_path, sample_wav, monkeypatch) -> None:
+    path = _project(tmp_path, sample_wav)
+    monkeypatch.setattr(suggested_actions, "another_speaker_over", lambda *_, **_kw: True)
+    EditService(ProjectWorkspace.open(path, share_author=GUEST)).apply_suggested_actions()
+
+    out = EditService(ProjectWorkspace.open(path)).apply_suggested_actions(
+        overrides={"um": "leave"}, revise=True
+    )
+
+    assert out.applied == {"lower": 1, "leave": 2}
