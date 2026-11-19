@@ -25,8 +25,6 @@ test.use({
   launchOptions: { args: [...CHROMIUM_FAKE_MEDIA_ARGS] },
 });
 
-// Samples TICKS times, one poll interval apart, and fails if any sample saw the
-// unwanted alert; the poll condition is the sample count, not a sleep.
 async function sampleAbsent(seen: () => Promise<number>) {
   let samples = 0;
   let bad = 0;
