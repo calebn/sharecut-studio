@@ -84,15 +84,29 @@ describe("Player", () => {
     );
   });
 
+  it("shows the Playback rate in the expanded readout, where the bar may have dropped it", () => {
+    render(<Player {...base} form="expanded" rate={2} />);
+    const readout = document.querySelector(".sys-player-readout");
+    expect(readout).toContainElement(
+      screen.getByRole("status", { name: "Playback speed 2×" }),
+    );
+    expect(screen.getByText("2×").closest(".pill")).toHaveAttribute(
+      "title",
+      "Playback speed",
+    );
+  });
+
   it("shows no total duration when the episode has none yet", () => {
     render(<Player {...base} form="expanded" total="00:00.000" duration={0} />);
     expect(document.querySelector(".sys-player-total")).toBeNull();
   });
 
   it("does not hide the total duration label on a narrow Player", () => {
-    const css = systemCss();
+    // A rule starts after a brace, a semicolon or a comment, however its
+    // selector is wrapped.
+    const css = systemCss().replace(/\s+/g, " ");
     const hides = (sel: string) =>
-      new RegExp(`(^|\\n)\\s*${sel}\\s*\\{[^}]*display:\\s*none`);
+      new RegExp(`(^|[{};]|\\*/) ?${sel} ?\\{[^}]*display: ?none`);
     expect(css).toMatch(hides("\\.sys-player-time \\.sys-player-total"));
     expect(css).not.toMatch(hides("\\.sys-player-total"));
     expect(css).not.toMatch(
