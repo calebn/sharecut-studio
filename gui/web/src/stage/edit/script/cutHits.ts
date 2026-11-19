@@ -14,8 +14,7 @@ import type { ScriptModel } from "./scriptModel";
 function cutAllFailure(error: unknown, projectPath: string): unknown {
   if (!(error instanceof ApiError)) return error;
   if (error.code === CUT_SCOPE_CHANGED_CODE) {
-    if (isShareProjectKey(projectPath))
-      return new Error(error.message);
+    if (isShareProjectKey(projectPath)) return new Error(error.message);
     if (/need audio review/.test(error.message))
       return new Error(
         "Some of these matches are held for an audio check. Nothing was cut.",
