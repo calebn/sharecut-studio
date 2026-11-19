@@ -31,17 +31,23 @@ The build needs Xcode's clang and the iPhoneOS and iPhoneSimulator SDKs, and CI 
 
 - State is reset by name. `-report` (an open report file in `opt_common.c`) and the function-local `static` throttles of `print_report` are not reset, and `-report` should not be used. A run that ends through `exit()` leaves the heap of the abandoned frames allocated.
 - `ffmpeg -n` onto an existing file prints "already exists" and exits 0: FFmpeg maps `AVERROR_EXIT` to 0 in `main`.
-- The core rejects any argument that contains `/dev/`.
+- The core rejects `dev/` and `proc/` at the start of an argument token or after a delimiter, and `dev/std`, `proc/self` anywhere; `/srv/x/dev/notes.wav` passes.
 - Not fixed here, by decision:
   - M4: the lame and opus builds are reused without a stamp; delete `build/` after changing a pin.
   - M5: a failed open in ffprobe leaks the input context once per failure.
   - M6: `opt_common` and hardware-device globals are not reset after an `sc_tool_exit` unwind.
-  - M7: the process-wide `signal(SIGINT, SIG_DFL)` and the `getchar` path are reachable only without `-nostdin`, which the core always inserts.
+  - M7: the process-wide `signal(SIGINT, SIG_DFL)` and the `getchar` path are reachable only without `-nostdin`, which the core inserts for ffmpeg only; ffprobe's stdin paths are unverified.
   - L1: the ffprobe banner prints the ffmpeg identity.
   - L2: the error flag of the persistent slot `FILE`s is sticky.
   - L3: the build script word-splits paths with spaces and hardcodes the fftools object list.
   - L5: a non-owner `sc_tool_exit` leaves locks held.
-  - H-A: the `SIGUSR2` kick reaches only the worker thread; the Simulator 1 s cancel observation covers the probe stage, and a mid-stream block on a demux thread is covered only by the bridge closing the stdin pipe.
+  - H-A: the `SIGUSR2` kick reaches only the worker thread; the Simulator 1 s cancel return was one observation at the probe stage, not a guarantee; the bridge's stdin close at `KILL_GRACE_SEC` is the only backstop and does not cover a demux or mux thread blocked on a stdout or stderr write.
+  - CFLAGS is split: the configure probes run without the forced includes, and `make CFLAGS=` for lame and opus replaces their flags and adds them.
+  - zlib is linked from the iOS SDK; `contracts/ffmpeg-build.json` still pins a zlib source and a 12.0 deployment target the script never reads.
+  - L-1: the `SIGUSR2` kick can land in the worker's own `fflush`, so the tail output of a cancelled session is lost.
+  - L-2: a space after a delimiter is not a protocol-word boundary (`concat:a.wav| pipe:0` is accepted); safe only if libav does not trim blanks (unverified).
+  - L-4: a cancelled running session returned 0 on the Simulator, not 255 (the Python layer reports -9).
+  - L-5: `cfg_stub` in the build script defines no `sc_out`; a probe that needs it fails the first build loudly.
 
 ## License and source offer
 
