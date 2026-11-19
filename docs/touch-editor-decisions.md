@@ -198,7 +198,7 @@ new gesture:
 
 - A long press on a word that moves selects a range. Hold, then drag over the
   words; the range extends under the finger and commits when it lifts.
-- A long press that does not move opens word correction (host).
+- A long press that does not move opens word correction (host or Editor link).
 - A move before the hold scrolls and selects nothing.
 - A second finger cancels the drag and restores the earlier selection.
 
