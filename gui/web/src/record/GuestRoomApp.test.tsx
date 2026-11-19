@@ -1306,7 +1306,7 @@ describe("GuestRoomApp", () => {
 
   it("leaves no alert in the room after a second press succeeds", async () => {
     await pressJoinToListen();
-    sendError("invalid_state");
+    await sendError("invalid_state");
     expect(screen.getByRole("alert")).toHaveTextContent(REFUSED);
     await userEvent.click(
       await screen.findByRole("button", { name: "Join to listen" }),
@@ -1333,7 +1333,7 @@ describe("GuestRoomApp", () => {
 
   it("shows the new reason when a second press is refused too", async () => {
     await pressJoinToListen();
-    sendError("invalid_state");
+    await sendError("invalid_state");
     await userEvent.click(
       await screen.findByRole("button", { name: "Join to listen" }),
     );
@@ -1342,7 +1342,7 @@ describe("GuestRoomApp", () => {
         sockets[0].sent.filter((raw) => raw.includes('"Join"')),
       ).toHaveLength(2);
     });
-    sendError("rate_limited");
+    await sendError("rate_limited");
     await screen.findByRole("button", { name: "Join to listen" });
     expect(screen.getByRole("alert")).toHaveTextContent(
       recordSyncErrorCopy("rate_limited") ?? "",
