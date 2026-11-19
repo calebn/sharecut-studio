@@ -39,6 +39,8 @@ build() {
   (cd "$ROOT/gui/web" && { [ -d node_modules ] || npm ci; } && npm run --silent build)
   (cd "$DESKTOP" && { [ -d node_modules ] || npm ci; })
   payload --ensure
+  # The FFmpeg.framework is built by `make ios-ffmpeg-sim`; fail here with that hint, not inside Xcode.
+  (cd "$ROOT" && uv run python scripts/ios/ffmpeg_framework.py check --sdk iphonesimulator)
   rm -rf "$TAURI/gen/apple"
   (cd "$DESKTOP" && npm run --silent tauri -- ios init --ci </dev/null)
   (cd "$DESKTOP" && npm run --silent tauri -- ios build --target aarch64-sim --debug --ci </dev/null)
