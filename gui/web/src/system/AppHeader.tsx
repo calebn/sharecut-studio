@@ -137,6 +137,7 @@ function RoleHint({
     onOutside: dismissAutomatic,
     enabled: mode === "automatic",
     capture: true,
+    events: ["pointerdown", "click"],
   });
   // The next key closes it and still does its job. Enter and Space on the X or
   // the Role button are those controls' own clicks, which close it themselves.

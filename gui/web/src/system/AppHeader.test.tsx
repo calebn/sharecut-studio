@@ -766,6 +766,43 @@ describe("AppHeader first-visit role hint: a press and a key", () => {
     expect(onDismiss).toHaveBeenCalledOnce();
   });
 
+  it("closes on a click outside that had no pointerdown, once", () => {
+    const { onDismiss } = hintHeader();
+    fireEvent.click(screen.getByText("Outside"));
+    expect(onDismiss).toHaveBeenCalledOnce();
+    expect(screen.queryByRole("note")).toBeNull();
+  });
+
+  it("closes once on a real press outside, not again on the click that follows", async () => {
+    const { onDismiss } = hintHeader();
+    await userEvent.click(screen.getByText("Outside"));
+    expect(onDismiss).toHaveBeenCalledOnce();
+  });
+
+  it("stays up on a wheel over the page", () => {
+    const { onDismiss } = hintHeader();
+    fireEvent.wheel(document.body);
+    expect(onDismiss).not.toHaveBeenCalled();
+    expect(screen.getByRole("note")).toBeVisible();
+  });
+
+  it("stays up on a letter or an arrow key with focus on the Role button", () => {
+    const { onDismiss, trigger } = hintHeader();
+    trigger.focus();
+    fireEvent.keyDown(trigger, { key: "a" });
+    fireEvent.keyDown(trigger, { key: "ArrowRight" });
+    expect(onDismiss).not.toHaveBeenCalled();
+    expect(screen.getByRole("note")).toBeVisible();
+  });
+
+  it("closes on Enter on the Role button", async () => {
+    const { onDismiss, trigger } = hintHeader();
+    trigger.focus();
+    await userEvent.keyboard("{Enter}");
+    expect(onDismiss).toHaveBeenCalledOnce();
+    expect(screen.queryByRole("note")).toBeNull();
+  });
+
   it("closes on a click on the bubble's own padding", () => {
     const { onDismiss } = hintHeader();
     fireEvent.click(screen.getByRole("note"));

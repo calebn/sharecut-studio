@@ -7,10 +7,12 @@ function Harness({
   onOutside,
   enabled = true,
   capture = false,
+  events,
 }: {
   onOutside: () => void;
   enabled?: boolean;
   capture?: boolean;
+  events?: readonly ("pointerdown" | "click")[];
 }) {
   const [panel, setPanel] = useState<HTMLDivElement | null>(null);
   const [trigger, setTrigger] = useState<HTMLButtonElement | null>(null);
@@ -19,6 +21,7 @@ function Harness({
     onOutside,
     enabled,
     capture,
+    events,
   });
   return (
     <div>
@@ -34,6 +37,20 @@ function Harness({
 }
 
 describe("useOutsidePointerDown", () => {
+  it("ignores a click by default and hears it when events names it", () => {
+    const onOutside = vi.fn();
+    const { rerender } = render(<Harness onOutside={onOutside} />);
+    fireEvent.click(screen.getByText("Outside"));
+    expect(onOutside).not.toHaveBeenCalled();
+    rerender(
+      <Harness onOutside={onOutside} events={["pointerdown", "click"]} />,
+    );
+    fireEvent.click(screen.getByText("Inside"));
+    expect(onOutside).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByText("Outside"));
+    expect(onOutside).toHaveBeenCalledOnce();
+  });
+
   it("reads a foreign anchor's live target without requiring a rerender", () => {
     const onOutside = vi.fn();
     const first = document.createElement("button");
