@@ -12,147 +12,6 @@ from pathlib import Path
 
 FINAL_STATUSES = frozenset({"expected", "unexpected", "flaky", "skipped"})
 ATTEMPT_STATUSES = frozenset({"passed", "failed", "timedOut", "skipped", "interrupted"})
-FUNCTIONAL_CASE_FILE = "stage-shell.spec.ts"
-FUNCTIONAL_CASE_TITLE = "an Editor's comment survives a normal reload-derived save and Undo/Redo restores only that comment"
-FUNCTIONAL_OUTCOMES = frozenset(
-    {"passed", "failed", "timed_out", "interrupted", "flaky", "skipped", "unknown"}
-)
-
-
-def functional_case_outcome(source: dict) -> str:
-    matches = []
-
-    def visit(suites: list) -> None:
-        for suite in suites:
-            for spec in suite["specs"]:
-                if (
-                    spec.get("file") == FUNCTIONAL_CASE_FILE
-                    and spec.get("title") == FUNCTIONAL_CASE_TITLE
-                ):
-                    matches.extend(spec["tests"])
-            visit(suite.get("suites", []))
-
-    visit(source["suites"])
-    if len(matches) != 1 or source.get("errors"):
-        return "unknown"
-    test = matches[0]
-    results = test["results"]
-    if not results:
-        return "unknown"
-    statuses = [result["status"] for result in results]
-    final = test["status"]
-    if final == "skipped" and statuses == ["skipped"]:
-        return "skipped"
-    if test["expectedStatus"] != "passed":
-        return "unknown"
-    if final == "expected" and all(status == "passed" for status in statuses):
-        return "passed"
-    if (
-        final == "flaky"
-        and statuses[-1] == "passed"
-        and any(status in {"failed", "timedOut"} for status in statuses[:-1])
-    ):
-        return "flaky"
-    if final == "unexpected":
-        return {"failed": "failed", "timedOut": "timed_out", "interrupted": "interrupted"}.get(
-            statuses[-1], "unknown"
-        )
-    return "unknown"
-
-
-FUNCTIONAL_PHASES = (
-    "never_started",
-    "entered",
-    "host_ready",
-    "share_ready",
-    "editor_ready",
-    "composer_ready",
-    "comment_saved",
-    "derived_checked",
-    "review_reopened",
-    "comment_observed",
-    "undo_clicked",
-    "visible_removal",
-    "persistence_wait",
-    "undo_checked",
-    "body_complete",
-)
-PHASE_ANNOTATION = "sharecut.functional-last-completed.v1"
-
-
-def functional_case_phase(source: dict) -> str:
-    matches = []
-
-    def visit(suites: list) -> None:
-        for suite in suites:
-            for spec in suite["specs"]:
-                if (
-                    spec.get("file") == FUNCTIONAL_CASE_FILE
-                    and spec.get("title") == FUNCTIONAL_CASE_TITLE
-                ):
-                    matches.extend(spec["tests"])
-            visit(suite.get("suites", []))
-
-    visit(source["suites"])
-    if len(matches) != 1 or source.get("errors"):
-        return "unknown"
-    test = matches[0]
-    if test["expectedStatus"] not in {"passed", "skipped"}:
-        return "unknown"
-    results = test["results"]
-    if not results or [r["retry"] for r in results] != list(range(len(results))):
-        return "unknown"
-    chosen = next(
-        (r for r in results if r["status"] in {"failed", "timedOut", "interrupted"}), results[-1]
-    )
-    if test["expectedStatus"] == "skipped" and chosen["status"] != "skipped":
-        return "unknown"
-    annotations = chosen.get("annotations")
-    if not isinstance(annotations, list):
-        return "unknown"
-    markers = [
-        a
-        for a in annotations
-        if isinstance(a, dict)
-        and isinstance(a.get("type"), str)
-        and a["type"].startswith("sharecut.functional-last-completed.")
-    ]
-    if len(markers) != 1 or markers[0].get("type") != PHASE_ANNOTATION:
-        return "unknown"
-    phase = markers[0].get("description")
-    if not isinstance(phase, str) or phase not in FUNCTIONAL_PHASES:
-        return "unknown"
-    if chosen["status"] == "interrupted":
-        return "unknown"
-    if chosen["status"] == "passed" and phase != "body_complete":
-        return "unknown"
-    if chosen["status"] == "skipped" and phase != "never_started":
-        return "unknown"
-    return phase
-
-
-def write_phase_output(phase: str) -> None:
-    if phase not in (*FUNCTIONAL_PHASES, "unknown"):
-        return
-    output = os.environ.get("GITHUB_OUTPUT")
-    if output:
-        try:
-            with Path(output).open("a", encoding="utf-8") as stream:
-                stream.write(f"functional_phase={phase}\n")
-        except OSError:
-            pass
-
-
-def write_functional_output(outcome: str) -> None:
-    if not isinstance(outcome, str) or outcome not in FUNCTIONAL_OUTCOMES:
-        return
-    output = os.environ.get("GITHUB_OUTPUT")
-    if output:
-        try:
-            with Path(output).open("a", encoding="utf-8") as stream:
-                stream.write(f"functional_outcome={outcome}\n")
-        except OSError:
-            pass
 
 
 class InvalidReport(ValueError):
@@ -237,7 +96,7 @@ def project(report: object) -> dict:
     }
 
 
-def write_projection(source: Path, output: Path, receipt: Path) -> tuple[str, str]:
+def write_projection(source: Path, output: Path, receipt: Path) -> None:
     if source.resolve() == output.resolve():
         raise InvalidReport
     # A failed read must not leave an earlier projection available for upload.
@@ -252,10 +111,7 @@ def write_projection(source: Path, output: Path, receipt: Path) -> tuple[str, st
     ):
         raise InvalidReport
     with source.open(encoding="utf-8") as stream:
-        raw = json.load(stream)
-        public = project(raw)
-        outcome = functional_case_outcome(raw)
-        phase = functional_case_phase(raw)
+        public = project(json.load(stream))
     output.parent.mkdir(parents=True, exist_ok=True)
     temporary: str | None = None
     try:
@@ -270,8 +126,6 @@ def write_projection(source: Path, output: Path, receipt: Path) -> tuple[str, st
         if temporary is not None:
             Path(temporary).unlink(missing_ok=True)
 
-    return outcome, phase
-
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
@@ -280,9 +134,7 @@ def main() -> int:
     parser.add_argument("--capture-receipt", required=True, type=Path)
     args = parser.parse_args()
     try:
-        outcome, phase = write_projection(args.report, args.output, args.capture_receipt)
-        write_functional_output(outcome)
-        write_phase_output(phase)
+        write_projection(args.report, args.output, args.capture_receipt)
     except (OSError, ValueError, TypeError, RecursionError, OverflowError):
         print("Browser result projection unavailable; raw diagnostics withheld.")
         return 2
