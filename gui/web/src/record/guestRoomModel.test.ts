@@ -1171,6 +1171,24 @@ describe("guestCovers Join again on the unsent cover", () => {
     expect(cover?.tertiary).toBeUndefined();
   });
 
+  it("runs the retry on a press while the lease is still fresh", () => {
+    const onRetry = vi.fn();
+    const cover = guestCovers(
+      unsentLeft({ onRetry, leaseStillFresh: () => true }),
+    );
+    cover?.tertiary?.onClick();
+    expect(onRetry).toHaveBeenCalledOnce();
+  });
+
+  it("does not run the retry on a press once the lease went stale", () => {
+    const onRetry = vi.fn();
+    const cover = guestCovers(
+      unsentLeft({ onRetry, leaseStillFresh: () => false }),
+    );
+    cover?.tertiary?.onClick();
+    expect(onRetry).not.toHaveBeenCalled();
+  });
+
   it("holds Join again busy with the other actions while a save runs", () => {
     const cover = guestCovers(
       unsentLeft({
