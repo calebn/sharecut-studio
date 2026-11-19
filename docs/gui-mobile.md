@@ -582,7 +582,7 @@ Two-finger Undo is active only while a project is loaded and the shared Undo com
 | Long-press | Hold on a Script word, then drag to select a word range | Available |
 | Pinch | Zoom in/out on timeline | Available |
 | Swipe right on a comment card (Review queue, phone) | Resolve (Undo toast follows); left does nothing | Available |
-| Double-tap word | Fix text (hosts); first tap selects the word | Available |
+| Double-tap word | Fix text (hosts and Editor links); first tap selects the word | Available |
 
 ## Wireframes (ASCII)
 

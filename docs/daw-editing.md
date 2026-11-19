@@ -222,7 +222,7 @@ Shift-click extends from the original word on the same track, including backward
 
 - **Keyboard word actions:** Enter on a focused, unselected word selects it and
 seeks; Enter or F2 on a selected word opens Fix text for a hydrated host
-project. F2 does nothing on guest shares or while a correction is saving.
+project or an Editor link. F2 does nothing on a Commenter or Viewer link or while a correction is saving.
 Enter in the Fix text field saves and Escape cancels.
 
 - Tooltip / `aria-label` copy for GUI chrome lives on capability rows (`tooltip` / `tooltip_pressed`) in [`contracts/capabilities.manifest.json`](../contracts/capabilities.manifest.json); generated into `gui/web/src/capabilities/copy.ts` via `make schema-export`
@@ -511,7 +511,7 @@ Guest/share agents use **capability-filtered remote MCP** and/or guest HTTP — 
 
 ### Transcript find and replace
 
-Hosts can open **Find and replace** from the Script's Find button or the command palette. Enter a word or phrase and its replacement, choose **Match case** if needed, then select **Replace** to change only the current match (the Find bar's highlighted hit; it then moves on to the next hit) or **Replace all**. Search matches whole word tokens, ignores surrounding punctuation for matching, and keeps existing edge punctuation unless the replacement explicitly supplies that edge. Replace all stays focusable while it waits, and a line under the row says why (an empty search, no matches, or a replacement without a letter or a number, or a request in flight). Case matching is off by default; replacement case is exactly what the host enters. Regular expressions and partial-word replacement are not supported.
+Hosts and Editor links can open **Find and replace** from the Script's Find button or the command palette. Enter a word or phrase and its replacement, choose **Match case** if needed, then select **Replace** to change only the current match (the Find bar's highlighted hit; it then moves on to the next hit) or **Replace all**. Search matches whole word tokens, ignores surrounding punctuation for matching, and keeps existing edge punctuation unless the replacement explicitly supplies that edge. Replace all stays focusable while it waits, and a line under the row says why (an empty search, no matches, or a replacement without a letter or a number, or a request in flight). Case matching is off by default; replacement case is exactly what the host enters. Regular expressions and partial-word replacement are not supported.
 
 The preview lists before/after text with track, source recording, and source-media time. It searches every stored source transcript, including cut-away text. Suppressed and ignored words are skipped and cannot bridge a phrase; the preview reports their count. Unchanged replacements do not create history. Preview rows load into the list in groups of 100; **Show more replacements** reveals the next group, while **Replace all** applies the complete counted set.
 
