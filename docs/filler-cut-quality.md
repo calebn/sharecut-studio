@@ -104,7 +104,7 @@ enforced-by:
 An intentional manual user edit may apply without acoustic-safety vetoes. Programmatic
 and agentic decisions keep those checks. Intent follows the acting role and the route: only
 the host `viewer` role and an Editor review link on the browser route are manual users; a
-Commenter link, the guest MCP route, `agent` and `cli` roles are programmatic.
+Commenter link, the guest MCP route's own commands, `agent` and `cli` roles are programmatic.
 The host route trusts the declared role, so a local process that claims `viewer` is treated
 as the host. This decision does not remove finite bounds,
 finalized-edge preservation, current-placement validation, structural validity, pad
