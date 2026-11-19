@@ -57,14 +57,14 @@ export type AppHeaderProps = {
    * stays, and the menu holds only what the right side held. Default true.
    */
   stagesInMenu?: boolean;
-  /** A guest: the title gets a second line with the version and a Role chip. */
+  /** A guest: the title gets a second line with the version and a Role chip. A saved copy has no role to show. */
   guest?: {
     version: string;
     /** True: the link plays whatever version is current. False: pinned. Omitted: not known yet. */
     followsLatest?: boolean;
     /** A following link's host published: shows the New version pill. */
     update?: NewVersionUpdate;
-    role: LinkRole;
+    role?: LinkRole;
     compact?: boolean;
     hint?: {
       text: string;
@@ -106,7 +106,13 @@ const MAX_AVATARS = 3;
 
 type RoleHintMode = "automatic" | "closed" | "manual";
 
-function RoleHint({ guest }: { guest: NonNullable<AppHeaderProps["guest"]> }) {
+function RoleHint({
+  guest,
+  role,
+}: {
+  guest: NonNullable<AppHeaderProps["guest"]>;
+  role: LinkRole;
+}) {
   const triggerRef = useRef<HTMLButtonElement>(null);
   const outsideRef = useRef<HTMLSpanElement>(null);
   const panelId = useId();
@@ -115,8 +121,7 @@ function RoleHint({ guest }: { guest: NonNullable<AppHeaderProps["guest"]> }) {
     eligible ? "automatic" : "closed",
   );
   if (!eligible && mode === "automatic") setMode("closed");
-  const label =
-    ROLES.find((role) => role.id === guest.role)?.label ?? guest.role;
+  const label = ROLES.find((entry) => entry.id === role)?.label ?? role;
 
   const dismissAutomatic = () => {
     if (mode !== "automatic") return;
@@ -156,7 +161,7 @@ function RoleHint({ guest }: { guest: NonNullable<AppHeaderProps["guest"]> }) {
     announce();
   }, [mode]);
 
-  const chip = <RoleChip access={guest.role} compact={guest.compact} />;
+  const chip = <RoleChip access={role} compact={guest.compact} />;
   if (!guest.hint) return chip;
 
   return (
@@ -451,7 +456,9 @@ export function AppHeader({
                   followsLatest={guest.followsLatest}
                   update={guest.update}
                 />
-                <RoleHint key={guest.role} guest={guest} />
+                {guest.role ? (
+                  <RoleHint key={guest.role} guest={guest} role={guest.role} />
+                ) : null}
               </span>
             </div>
           ) : (

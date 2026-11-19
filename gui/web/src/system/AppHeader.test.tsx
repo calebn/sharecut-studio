@@ -133,6 +133,36 @@ describe("AppHeader as a guest", () => {
     );
   });
 
+  it.each([false, true])(
+    "shows no Role chip, and keeps the version, when the role is not known (compact %s)",
+    (compact) => {
+      setup({ guest: { version: "Rough cut", compact } });
+      for (const { label } of ROLES) {
+        expect(
+          screen.queryByRole("img", { name: new RegExp(`^${label}: `) }),
+        ).toBeNull();
+      }
+      expect(screen.queryByRole("button", { name: /role/ })).toBeNull();
+      expect(screen.getByText("Rough cut")).toBeInTheDocument();
+    },
+  );
+
+  it("still shows the New version pill, and no Undo or Redo, when the role is not known", () => {
+    setup({
+      guest: {
+        version: "Rough cut",
+        followsLatest: true,
+        update: { id: "v2", label: "Intro fix", onListen: vi.fn() },
+      },
+    });
+    expect(
+      screen.getByRole("button", { name: /New version: Intro fix/ }),
+    ).toBeInTheDocument();
+    for (const name of GUEST_EDIT_CONTROLS) {
+      expect(screen.queryByRole("button", { name })).toBeNull();
+    }
+  });
+
   it("shows the hint once and dismisses it", async () => {
     const onDismiss = vi.fn();
     const hint = { text: "You can comment.", shown: true, onDismiss };

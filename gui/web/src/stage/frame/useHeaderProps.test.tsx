@@ -116,18 +116,21 @@ describe("useHeaderProps role hint", () => {
     expect(after.feedbackToast).toBeNull();
   });
 
-  it("is not shown, and writes no flag, while the guest reads the saved copy", () => {
+  it("names no role, offers no hint and writes no flag while the guest reads the saved copy", () => {
     asCommenter(null);
     const { result } = renderHook(() => useHeaderProps());
-    expect(result.current.guest?.hint?.shown).toBe(false);
+    expect(result.current.guest?.version).toBe("Shared link");
+    expect(result.current.guest?.role).toBeUndefined();
+    expect(result.current.guest?.hint).toBeUndefined();
     expect(localStorage.length).toBe(0);
   });
 
   it("is shown for the link's role once the server has answered", () => {
     asCommenter(null);
     const { result } = renderHook(() => useHeaderProps());
-    expect(result.current.guest?.hint?.shown).toBe(false);
+    expect(result.current.guest?.hint).toBeUndefined();
     act(() => asCommenter(["view"]));
+    expect(result.current.guest?.role).toBe("commenter");
     expect(result.current.guest?.hint?.shown).toBe(true);
     expect(result.current.guest?.hint?.text).toBe(SENTENCE);
   });
