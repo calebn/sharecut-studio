@@ -127,6 +127,28 @@ class _Listener:
         self.sock.close()
 
 
+def _install_media_tools() -> None:
+    """Install the in-process FFmpeg backend when this host runs media tools in-process.
+
+    Desktop rows return before any import. A missing library or an unexpected native failure is
+    logged and leaves the audio tools reported as unavailable; it never fails the boot.
+    """
+    if host_platform.current().media_tools != "in_process":
+        return
+    try:
+        from podcast_mcp.util import native_ffmpeg
+
+        if native_ffmpeg.is_available():
+            if native_ffmpeg.install_native_backend():
+                log.info("in-process FFmpeg installed")
+            else:
+                log.warning("in-process FFmpeg is linked but its backend was not installed")
+        else:
+            log.warning("in-process FFmpeg is not linked; audio tools stay unavailable")
+    except Exception:
+        log.exception("in-process FFmpeg install failed; audio tools stay unavailable")
+
+
 class _Engine:
     def __init__(self, start_timeout_sec: float = START_TIMEOUT_SEC) -> None:
         self._lock = threading.Lock()
@@ -166,6 +188,7 @@ class _Engine:
     def _bind(self) -> int:
         listener: _Listener | None = None
         try:
+            _install_media_tools()
             if self._app is None:
                 from podcast_mcp.gui.server import create_app
 

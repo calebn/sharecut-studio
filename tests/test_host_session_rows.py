@@ -1,7 +1,7 @@
 """Every row whose loopback is not trusted gets the same owner session rule (#3810).
 
-The ``iOS`` row and the fail-closed ``UNKNOWN`` row differ in name only, so each surface the
-rule gates is held on both. A pure authorization and HTTP test may select a row directly.
+The ``iOS`` row and the fail-closed ``UNKNOWN`` row differ in name and media tools, and the
+session rule reads neither, so each surface the rule gates is held on both. A pure authorization and HTTP test may select a row directly.
 """
 
 from __future__ import annotations
