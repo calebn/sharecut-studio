@@ -1015,7 +1015,9 @@ describe("GuestRoomApp after Leave", () => {
     fakeRoom({ ...failedSave, captureSettled: false, localRecording: true });
     render(<GuestRoomApp token="t" />);
     expect(
-      screen.getByText("Finishing your full-quality recording… Keep this page open."),
+      screen.getByText(
+        "Finishing your full-quality recording… Keep this page open.",
+      ),
     ).toBeInTheDocument();
     expect(screen.queryByText(/close this page/)).toBeNull();
     expect(screen.queryByRole("button", { name: "Join again" })).toBeNull();

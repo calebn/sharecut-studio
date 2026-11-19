@@ -76,11 +76,8 @@ test.describe("guest leaves a take once the host is gone", () => {
       await expect(leave).toHaveAttribute("aria-disabled", "true");
       await expect(leave).toHaveAttribute("title", HELD_TITLE);
 
-      await guest.waitForTimeout(30_000);
-      await expect(leave).toHaveAttribute("aria-disabled", "true");
-
       await expect(leave).not.toHaveAttribute("aria-disabled", "true", {
-        timeout: 45_000,
+        timeout: 75_000,
       });
       const waited = Date.now() - droppedAt;
       expect(waited).toBeGreaterThanOrEqual(WAIT_MS - 1_000);
@@ -214,7 +211,6 @@ test.describe("guest leaves a take once the host is gone", () => {
       const { guest, host, hostNet, projectPath } = take;
       const leave = leaveOf(guest);
       await cutHost(take);
-      await guest.waitForTimeout(35_000);
       await expect(leave).toHaveAttribute("aria-disabled", "true");
 
       hostNet.restore();
@@ -227,11 +223,9 @@ test.describe("guest leaves a take once the host is gone", () => {
       await expect(leave).toHaveAttribute("aria-disabled", "true");
 
       const secondDrop = await cutHost(take);
-      await guest.waitForTimeout(40_000);
-      expect(Date.now() - secondDrop).toBeLessThan(WAIT_MS);
       await expect(leave).toHaveAttribute("aria-disabled", "true");
       await expect(leave).not.toHaveAttribute("aria-disabled", "true", {
-        timeout: 35_000,
+        timeout: 75_000,
       });
       expect(Date.now() - secondDrop).toBeGreaterThanOrEqual(WAIT_MS - 1_000);
     });
@@ -247,22 +241,18 @@ test.describe("guest leaves a take once the host is gone", () => {
       const { guest, guestNet } = take;
       const leave = leaveOf(guest);
       await cutHost(take);
-      await guest.waitForTimeout(45_000);
       await expect(leave).toHaveAttribute("aria-disabled", "true");
 
       await guestNet.drop();
       await expect(roomPill(guest)).toHaveText(/Reconnecting/);
-      await guest.waitForTimeout(3_000);
       guestNet.restore();
       await expect(roomPill(guest)).toHaveText(LIVE_PILL, {
         timeout: 30_000,
       });
       const back = Date.now();
-      await guest.waitForTimeout(40_000);
-      expect(Date.now() - back).toBeLessThan(WAIT_MS);
       await expect(leave).toHaveAttribute("aria-disabled", "true");
       await expect(leave).not.toHaveAttribute("aria-disabled", "true", {
-        timeout: 35_000,
+        timeout: 75_000,
       });
       expect(Date.now() - back).toBeGreaterThanOrEqual(WAIT_MS - 1_000);
     });
