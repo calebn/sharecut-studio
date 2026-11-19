@@ -1371,8 +1371,8 @@ and other people's new comments. **Leave** is held while a take runs ("You can l
 this take.") until this page has seen the host gone for 60 seconds while its own
 connection is up. That wait is a timer on this page: it starts over when the host
 returns, when this page's connection drops and on a reload, and the server's
-host-offline stamp is not read. Once it ends Leave is open on a live, paused or
-reconnecting take and its description is the warning "Leaving stops recording on this
+host-offline stamp is not read. Once it ends Leave is open on a live or paused
+take and its description is the warning "Leaving stops recording on this
 device. Keep this page open so it can reach the host." On a laptop that
 line shows under the dock at all times and one press leaves; on a phone the short line
 "Leaving stops recording here. Keep this page open to send it." shows on the first
