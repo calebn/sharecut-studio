@@ -68,6 +68,7 @@ export function useLocalKeeper(args: {
     sink: ByteSink;
     sessionId: string;
     participantId: string;
+    takeIndex: number;
   } | null>(null);
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: recheck re-runs the probe on purpose
@@ -85,10 +86,11 @@ export function useLocalKeeper(args: {
       const stillUnreadable =
         unreadableFor.current?.sink === sink &&
         unreadableFor.current.sessionId === sessionId &&
-        unreadableFor.current.participantId === participantId;
+        unreadableFor.current.participantId === participantId &&
+        unreadableFor.current.takeIndex === takeIndex;
       const unreadable = keeper === null && (retried || stillUnreadable);
       unreadableFor.current = unreadable
-        ? { sink, sessionId, participantId }
+        ? { sink, sessionId, participantId, takeIndex }
         : null;
       setAnswer({
         sink,

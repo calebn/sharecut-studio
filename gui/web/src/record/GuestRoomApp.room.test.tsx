@@ -207,6 +207,29 @@ describe("GuestRoomApp in the room", () => {
     expect(leave()).toHaveAttribute("title", "Your recording is still saving");
   });
 
+  it("does not hold Leave on the device count before the server has the file", () => {
+    fakeRoom({
+      snapshot: {
+        ...stopped,
+        takes: [
+          {
+            take_index: 0,
+            session_start_wall_ms: 1000,
+            session_start_iso: "t",
+            stopped_wall_ms: 61_000,
+            pauses: [],
+            consented_participant_ids: ["p_g"],
+          },
+        ],
+      },
+      localSegments: null,
+      upload: { acked: 0, total: 0, fileAck: false, uploading: false },
+    });
+    render(<GuestRoomApp token="t" />);
+    expect(screen.getAllByText(/^Saving · /).length).toBeGreaterThan(0);
+    expect(leave()).not.toHaveAttribute("aria-disabled");
+  });
+
   it("lets Leave go once the device count is unreadable", () => {
     fakeRoom({
       snapshot: stopped,

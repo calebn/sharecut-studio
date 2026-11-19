@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import App from "./App";
 import { resetFeaturesCache } from "./extensions/features";
@@ -77,7 +77,11 @@ describe("App record route when the room code fails to load", () => {
         ),
       ).toBeInTheDocument();
       expect(container).not.toBeEmptyDOMElement();
-      expect(document.title).toBe("Couldn't reach the room | ShareCut Studio");
+      await waitFor(() =>
+        expect(document.title).toBe(
+          "Couldn't reach the room | ShareCut Studio",
+        ),
+      );
       fireEvent.click(screen.getByRole("button", { name: "Reload" }));
       expect(reload).toHaveBeenCalledTimes(1);
     },
