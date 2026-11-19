@@ -11,6 +11,7 @@ export type GuestLoadFailure =
       kind:
         | "bad-link"
         | "unreachable"
+        | "offline"
         | "busy"
         | "sign-in"
         | "restricted"
@@ -22,7 +23,7 @@ export type GuestLoadFailure =
   | { kind: "rate-limited"; retryAfterSec: number | null };
 
 export type GuestLoadCover = {
-  glyph: "moon" | "triangle-alert" | "unlink";
+  glyph: "moon" | "triangle-alert" | "unlink" | "cloud-off";
   title: string;
   sentence: string;
   /** The cover's one button, or null when nothing a guest does here helps. */
@@ -41,7 +42,7 @@ const BAD_LINK_TITLE = "This link doesn't open anything";
 const BAD_LINK_SENTENCE = "Ask the person who sent it for a new link.";
 
 const NOT_LOADED_TITLE = "This link did not load";
-const STILL_NOT_LOADING = "Still not loading.";
+export const STILL_NOT_LOADING = "Still not loading.";
 
 const retryAfterMs = (seconds: number | null): number =>
   seconds === null
@@ -57,19 +58,42 @@ const waitInWords = (ms: number): string =>
       ? "in about a minute"
       : "in about two minutes";
 
-export function classifyBootstrapFailure(error: unknown): GuestLoadFailure {
+/**
+ * No reply came back from the host: nothing answered, or a relay in between
+ * said the host did not. A busy host (`project_busy`) did answer.
+ */
+export function noAnswerStatus(
+  status: number | null,
+  code: string | null,
+): boolean {
+  return (
+    status === null ||
+    status === 502 ||
+    status === 504 ||
+    (status === 503 && code !== "project_busy")
+  );
+}
+
+/**
+ * `deviceOnline` is what the browser said when the attempt failed. A request
+ * that got no answer while it says there is no connection is the guest's own
+ * device. Every other failure keeps its cover: something answered, or the page
+ * cannot tell, and it says nothing it cannot know.
+ */
+export function classifyBootstrapFailure(
+  error: unknown,
+  deviceOnline = true,
+): GuestLoadFailure {
   if (!(error instanceof ApiError)) {
     return error instanceof SyntaxError
       ? { kind: "intercepted" }
       : { kind: "unreachable" };
   }
   const { status, code } = error;
-  if (
-    status === null ||
-    status === 502 ||
-    status === 504 ||
-    (status === 503 && code !== "project_busy")
-  ) {
+  if (status === null && !deviceOnline) {
+    return { kind: "offline" };
+  }
+  if (noAnswerStatus(status, code)) {
     return { kind: "unreachable" };
   }
   if (status === 503) {
@@ -92,11 +116,20 @@ export function classifyBootstrapFailure(error: unknown): GuestLoadFailure {
   return { kind: "server" };
 }
 
-export function guestLoadCover(failure: GuestLoadFailure): GuestLoadCover {
+/**
+ * The words for a failure. A cover that sits inside a region of the studio
+ * passes that region's own title and button for the causes that have none of
+ * their own; the defaults are the full-page cover's.
+ */
+export function guestLoadCover(
+  failure: GuestLoadFailure,
+  genericTitle: string = NOT_LOADED_TITLE,
+  genericButton: string = "Retry",
+): GuestLoadCover {
   const notLoaded = {
     glyph: "triangle-alert",
-    title: NOT_LOADED_TITLE,
-    button: "Retry",
+    title: genericTitle,
+    button: genericButton,
     autoRetryMs: null,
     stillFailing: STILL_NOT_LOADING,
   } as const;
@@ -118,6 +151,16 @@ export function guestLoadCover(failure: GuestLoadFailure): GuestLoadCover {
         button: "Try now",
         autoRetryMs: AUTO_RETRY_MS,
         stillFailing: "Still asleep.",
+      };
+    case "offline":
+      return {
+        glyph: "cloud-off",
+        title: "You're offline",
+        sentence:
+          "This page opens the episode by itself when your connection is back.",
+        button: "Try now",
+        autoRetryMs: AUTO_RETRY_MS,
+        stillFailing: "Still offline.",
       };
     case "busy":
       return {

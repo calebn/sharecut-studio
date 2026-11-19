@@ -157,7 +157,10 @@ export function cutFadeHint(cutIn: boolean, cutOut: boolean): string | null {
 }
 
 /** One line on what render does at this clip's incoming join. */
-export function joinRenderNote(clip: ClipRow): string | null {
+export function joinRenderNote(
+  clip: ClipRow,
+  chosenMs?: number,
+): string | null {
   if (clip.join_left_clip_id == null) {
     return null;
   }
@@ -171,7 +174,16 @@ export function joinRenderNote(clip: ClipRow): string | null {
         clip.join_crossfade_blocked;
       return `Crossfade will not blend: ${why}. It renders as a plain join.`;
     }
-    return `Renders as a ${clip.join_crossfade_ms ?? 0} ms crossfade overlap.`;
+    const overlap = clip.join_crossfade_ms ?? 0;
+    const chosen = Math.round(chosenMs ?? Number.NaN);
+    if (chosen > overlap) {
+      const why =
+        chosen - overlap < 10
+          ? "the overlap moves in 10 ms steps"
+          : "the recordings leave less room than that";
+      return `Renders as a ${overlap} ms crossfade overlap: the ${chosen} ms you set plays as ${overlap} ms because ${why}.`;
+    }
+    return `Renders as a ${overlap} ms crossfade overlap.`;
   }
   return "Renders as a fade at the join: each clip fades at its edge.";
 }

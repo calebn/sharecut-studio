@@ -1,13 +1,10 @@
 import type { CSSProperties } from "react";
 import { initials, presenceColorVar } from "../presence/colors";
+import type { PersonData } from "./personData";
 import { PERSON_STATES, type PersonTileState } from "./personStates";
 import { SystemIcon } from "./SystemIcon";
 
-export type PersonData = {
-  name: string;
-  /** Index into the eight presence colours. */
-  colorIndex: number;
-};
+export type { PersonData };
 
 export type PersonAvatarSize = 20 | 24 | 28 | 32;
 

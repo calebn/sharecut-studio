@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import logging
-import subprocess
 import threading
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass
@@ -27,6 +26,7 @@ from podcast_mcp.util.dsp import (
     frame_band_filtered_db,
 )
 from podcast_mcp.util.parallel import run_parallel
+from podcast_mcp.util.process import CalledProcessError
 from podcast_mcp.util.tracks import dialogue_track_ids, track_audio_path
 
 log = logging.getLogger(__name__)
@@ -76,7 +76,7 @@ class BandLevels:
         duration = (self._block + lead + self._margin) * LEVEL_FRAME_SEC
         try:
             samples = self._read(start, duration)
-        except (OSError, ValueError, subprocess.CalledProcessError):
+        except (OSError, ValueError, CalledProcessError):
             return None
         if not np.all(np.isfinite(samples)):
             return None

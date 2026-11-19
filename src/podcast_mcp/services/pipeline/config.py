@@ -321,22 +321,33 @@ def component_status(*, whisper_model: str | None = None) -> dict[str, Any]:
 
     out: dict[str, Any] = {}
     try:
-        from podcast_mcp.util.binaries import FFmpegPairResolutionError, resolve_ffmpeg_pair
+        from podcast_mcp.util.binaries import (
+            IN_PROCESS_NOT_LINKED,
+            FFmpegPairResolutionError,
+            resolve_ffmpeg_pair,
+        )
 
         pair = resolve_ffmpeg_pair(force_refresh=True)
         path = pair.ffmpeg
         ok = pair.is_available()
-        out["ffmpeg"] = {
-            "state": "installed" if ok else "missing",
-            "path": path,
-            **(
-                {}
-                if ok
-                else {
-                    "hint": "Install a matching FFmpeg 9.0.2 or later 9.x pair; see docs/setup.md"
-                }
-            ),
-        }
+        if pair.is_in_process:
+            out["ffmpeg"] = {
+                "state": "installed" if ok else "missing",
+                "source": "in_process",
+                **({} if ok else {"hint": IN_PROCESS_NOT_LINKED}),
+            }
+        else:
+            out["ffmpeg"] = {
+                "state": "installed" if ok else "missing",
+                "path": path,
+                **(
+                    {}
+                    if ok
+                    else {
+                        "hint": "Install a matching FFmpeg 9.0.2 or later 9.x pair; see docs/setup.md"
+                    }
+                ),
+            }
     except FFmpegPairResolutionError as exc:
         out["ffmpeg"] = {"state": "missing", "hint": str(exc)}
 

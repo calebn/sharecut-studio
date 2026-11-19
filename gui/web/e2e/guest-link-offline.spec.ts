@@ -1,0 +1,308 @@
+import { expect, type Page, test } from "@playwright/test";
+import { expectReadingSurfaceAxeClean } from "./axe";
+import { fontsReady } from "./fontsReady";
+import {
+  deviceOnLine,
+  expectCoverInWindow,
+  failBootstrap,
+  holdFirstRequest,
+  lastLineWordCount,
+  loseConnectionOnLoad,
+  press,
+  SHORT_WINDOW,
+  SIZES,
+  withGuestLink,
+} from "./guestLink";
+import { guestSavedCopy } from "./offlineQueue";
+import { openGuestShare } from "./shareNavigation";
+import { setTheme } from "./theme";
+
+const OFFLINE_TITLE = "You're offline";
+const OFFLINE_SENTENCE =
+  "This page opens the episode by itself when your connection is back.";
+const ASLEEP_TITLE = "The host's computer is asleep";
+
+type Seen = { asleep: boolean; offline: boolean };
+
+/** A cover can show for a moment and be replaced, so a poll afterwards would miss it: record from before the page's scripts run. */
+async function watchWords(page: Page) {
+  await page.addInitScript(() => {
+    const seen = { asleep: false, offline: false };
+    (window as unknown as { __seen: Seen }).__seen = seen;
+    const look = () => {
+      const text = document.body?.textContent ?? "";
+      seen.asleep ||= text.includes("asleep");
+      seen.offline ||= /offline/i.test(text);
+    };
+    new MutationObserver(look).observe(document, {
+      subtree: true,
+      childList: true,
+      characterData: true,
+    });
+  });
+}
+
+const wordsSeen = (page: Page) =>
+  page.evaluate(() => (window as unknown as { __seen: Seen }).__seen);
+
+/** Capture phase, so the page's own listener never runs: shows the 30 second retry needs no `online` event. */
+async function swallowOnlineEvent(page: Page) {
+  await page.addInitScript(() => {
+    window.addEventListener(
+      "online",
+      (e) => e.stopImmediatePropagation(),
+      true,
+    );
+  });
+}
+
+/**
+ * The page's clock stops, so a retry the page makes before anyone moves it
+ * cannot be its 30 second timer. The studio itself needs time to run, so a test
+ * resumes the clock once it has seen that request go out.
+ */
+async function freezeTime(page: Page) {
+  await page.clock.install();
+  await page.clock.pauseAt(Date.now() + 5_000);
+}
+
+const activeElement = (page: Page) =>
+  page.evaluate(() => {
+    const active = document.activeElement;
+    return active ? `${active.tagName}:${active.textContent}` : "none";
+  });
+
+for (const size of SIZES) {
+  test.describe(`a guest whose own device has no connection at ${size.width}x${size.height}`, () => {
+    test("is told so in the cover's words, with focus on the title, and never that the host is asleep", async ({
+      browser,
+    }) => {
+      await withGuestLink(browser, size, async (guest, token) => {
+        await watchWords(guest);
+        await loseConnectionOnLoad(guest, token);
+        const main = guest.getByRole("main");
+        await expect(
+          main.getByRole("heading", { level: 1, name: OFFLINE_TITLE }),
+        ).toBeVisible();
+        await expect(main.getByText(OFFLINE_SENTENCE)).toBeVisible();
+        await expect(
+          main.getByRole("button", { name: "Try now" }),
+        ).toBeVisible();
+        await expect
+          .poll(() => activeElement(guest))
+          .toBe(`H1:${OFFLINE_TITLE}`);
+        expect((await wordsSeen(guest)).asleep).toBe(false);
+      });
+    });
+
+    test("opens the episode by itself when the browser reports the connection back, with no press and the clock standing still", async ({
+      browser,
+    }) => {
+      await withGuestLink(browser, size, async (guest, token) => {
+        await watchWords(guest);
+        await freezeTime(guest);
+        const held = await loseConnectionOnLoad(guest, token);
+        await expect(
+          guest.getByRole("heading", { name: OFFLINE_TITLE }),
+        ).toBeVisible();
+        const before = held.asked();
+        held.answerWith("through");
+        await guest.context().setOffline(false);
+        await expect.poll(() => held.asked()).toBe(before + 1);
+        await guest.clock.resume();
+        await expect(guest.locator(".stage-frame--guest")).toBeVisible();
+        expect((await wordsSeen(guest)).asleep).toBe(false);
+      });
+    });
+
+    test("says the host is asleep, and no longer that the device is offline, when the connection is back and the host is down", async ({
+      browser,
+    }) => {
+      await withGuestLink(browser, size, async (guest, token) => {
+        await freezeTime(guest);
+        const held = await loseConnectionOnLoad(guest, token);
+        await expect(
+          guest.getByRole("main").getByRole("heading"),
+        ).toBeVisible();
+        held.answerWith("refused");
+        await guest.context().setOffline(false);
+        await expect(
+          guest.getByRole("heading", { name: ASLEEP_TITLE }),
+        ).toBeVisible();
+        await expect(guest.getByRole("main")).not.toContainText(/offline/i);
+      });
+    });
+
+    test("keeps the asleep cover for a device that is online and cannot reach the host", async ({
+      browser,
+    }) => {
+      await withGuestLink(browser, size, async (guest, token) => {
+        await watchWords(guest);
+        await failBootstrap(guest, token, "abort");
+        await guest.goto(`/r/${token}`);
+        const main = guest.getByRole("main");
+        await expect(
+          main.getByRole("heading", { name: ASLEEP_TITLE }),
+        ).toBeVisible();
+        await press(main.getByRole("button", { name: "Try now" }), size.touch);
+        await expect(main.getByRole("status")).toHaveText("Still asleep.");
+        expect((await wordsSeen(guest)).offline).toBe(false);
+      });
+    });
+
+    test("opens the saved copy, with the region saying it is offline, when the connection is lost on load", async ({
+      browser,
+    }) => {
+      await withGuestLink(browser, size, async (guest, token) => {
+        await watchWords(guest);
+        await openGuestShare(guest, token);
+        await expect.poll(() => guestSavedCopy(guest, token)).not.toBeNull();
+        await loseConnectionOnLoad(guest, token);
+        await expect(guest.locator(".stage-frame--guest")).toBeVisible();
+        await expect(guest.getByText("Saved copy").first()).toBeVisible();
+        await expect(guest.locator("main h1")).toHaveCount(0);
+        // The studio's own first read fails too, with no connection: its
+        // region says so in the page cover's words, over the saved copy.
+        await expect(
+          guest.getByRole("alert").getByRole("heading", {
+            level: 2,
+            name: OFFLINE_TITLE,
+          }),
+        ).toBeVisible();
+      });
+    });
+
+    test("opens by itself after 30 seconds when the browser never sends the online event", async ({
+      browser,
+    }) => {
+      await withGuestLink(browser, size, async (guest, token) => {
+        await swallowOnlineEvent(guest);
+        await freezeTime(guest);
+        const held = await loseConnectionOnLoad(guest, token);
+        await expect(
+          guest.getByRole("main").getByRole("heading"),
+        ).toBeVisible();
+        const before = held.asked();
+        held.answerWith("through");
+        await guest.context().setOffline(false);
+        await expect.poll(() => deviceOnLine(guest)).toBe(true);
+        expect(held.asked()).toBe(before);
+        await guest.clock.runFor(30_500);
+        await expect.poll(() => held.asked()).toBe(before + 1);
+        await guest.clock.resume();
+        await expect(guest.locator(".stage-frame--guest")).toBeVisible();
+      });
+    });
+
+    test("answers a press on Try now with Still offline. on the same button", async ({
+      browser,
+    }) => {
+      await withGuestLink(browser, size, async (guest, token) => {
+        await loseConnectionOnLoad(guest, token);
+        const main = guest.getByRole("main");
+        const button = main.getByRole("button", { name: "Try now" });
+        await expect(button).toBeVisible();
+        await fontsReady(guest);
+        const rest = await button.boundingBox();
+        await button.evaluate((el) => {
+          el.setAttribute("data-probe", "same-button");
+        });
+
+        await press(button, size.touch);
+
+        const probe = main.locator("[data-probe=same-button]");
+        await expect(probe).toHaveAttribute("aria-busy", "true", {
+          timeout: 100,
+        });
+        await expect(main.getByRole("status")).toHaveText("Still offline.");
+        await expect(main.getByRole("heading")).toHaveText(OFFLINE_TITLE);
+        await expect(probe).toBeVisible();
+        expect(await probe.boundingBox()).toEqual(rest);
+        await expect
+          .poll(() =>
+            guest.evaluate(
+              () =>
+                document.activeElement?.getAttribute("data-probe") ?? "none",
+            ),
+          )
+          .toBe("same-button");
+      });
+    });
+
+    if (!size.touch) {
+      test("never leaves one word alone on the sentence's last line", async ({
+        browser,
+      }) => {
+        await withGuestLink(browser, size, async (guest, token) => {
+          await loseConnectionOnLoad(guest, token);
+          const sentence = guest.getByRole("main").locator(".sys-cover-text");
+          await expect(sentence).toHaveText(OFFLINE_SENTENCE);
+          await fontsReady(guest);
+          const lastLine = await lastLineWordCount(sentence);
+          expect(lastLine).toBeGreaterThan(1);
+        });
+      });
+    }
+
+    test("answers a press on the asleep cover that lands on the offline cover with the new title, not Still", async ({
+      browser,
+    }) => {
+      await withGuestLink(browser, size, async (guest, token) => {
+        const held = await holdFirstRequest(guest, token);
+        await guest.goto(`/r/${token}`);
+        const route = await held.first;
+        await route.abort("connectionrefused");
+        const main = guest.getByRole("main");
+        await expect(
+          main.getByRole("heading", { name: ASLEEP_TITLE }),
+        ).toBeVisible();
+        held.answerWith("offline");
+        await guest.context().setOffline(true);
+        await expect.poll(() => deviceOnLine(guest)).toBe(false);
+
+        await press(main.getByRole("button", { name: "Try now" }), size.touch);
+
+        await expect(
+          main.getByRole("heading", { name: OFFLINE_TITLE }),
+        ).toBeVisible();
+        await expect(main.getByRole("status")).toHaveText(`${OFFLINE_TITLE}.`);
+      });
+    });
+
+    for (const colorScheme of ["light", "dark"] as const) {
+      test(`passes axe in the ${colorScheme} theme`, async ({ browser }) => {
+        await withGuestLink(browser, size, async (guest, token) => {
+          await loseConnectionOnLoad(guest, token);
+          await expect(
+            guest.getByRole("heading", { name: OFFLINE_TITLE }),
+          ).toBeVisible();
+          await setTheme(guest, colorScheme);
+          await fontsReady(guest);
+          await expectReadingSurfaceAxeClean(guest);
+        });
+      });
+    }
+  });
+}
+
+test.describe(`the offline cover in a short window, ${SHORT_WINDOW.width}x${SHORT_WINDOW.height}`, () => {
+  test("keeps the title, sentence and whole button in view, before and after a failed press", async ({
+    browser,
+  }) => {
+    await withGuestLink(browser, SHORT_WINDOW, async (guest, token) => {
+      await loseConnectionOnLoad(guest, token);
+      const main = guest.getByRole("main");
+      await expect(
+        main.getByRole("heading", { name: OFFLINE_TITLE }),
+      ).toBeVisible();
+      await fontsReady(guest);
+      await expectCoverInWindow(guest);
+      await press(
+        main.getByRole("button", { name: "Try now" }),
+        SHORT_WINDOW.touch,
+      );
+      await expect(main.getByRole("status")).toHaveText("Still offline.");
+      await expectCoverInWindow(guest);
+    });
+  });
+});

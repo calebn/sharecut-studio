@@ -47,7 +47,8 @@ export function shellBreakpointFromMatchMedia(
   return "desktop";
 }
 
-function readShell(): ShellBreakpoint {
+/** The shell the viewport has now; the store starts from it, so the first render has nothing to correct. */
+export function readShell(): ShellBreakpoint {
   if (
     typeof window === "undefined" ||
     typeof window.matchMedia !== "function"

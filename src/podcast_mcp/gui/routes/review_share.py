@@ -546,7 +546,9 @@ def get_daw_proxy_chunk(token: str, track_id: str, proxy_hash: str, chunk_idx: i
         content_disposition_type="inline",
         headers={
             "Accept-Ranges": "bytes",
-            "Cache-Control": "public, max-age=31536000, immutable",
+            # An HTTP cache would keep the audio after the link ends, and the page
+            # cannot clear it. Replays come from Cache Storage, which the page can.
+            "Cache-Control": "private, no-store",
         },
     )
 
@@ -559,10 +561,10 @@ def get_daw_document_state(
     _rate_limit(token, "read")
     with guest_boundary(log, "review request"):
         row, ws = require_share_cap(token, CAP_VIEW)
-        snapshot = DocumentSyncService(ws).document_snapshot(projection=phase)
         return sanitize_guest_document_event(
-            {"snapshot": snapshot},
+            DocumentSyncService(ws).guest_document_state(projection=phase),
             words=guest_words(row.get("capabilities")),
+            viewer=share_author(row),
         )["snapshot"]
 
 
@@ -661,7 +663,8 @@ def post_daw_document_command(token: str, body: DocumentCommandRequest) -> dict[
                 structural_mode=body.structural_mode,
                 author=share_author(row),
                 trusted_context=command_context_for_role(cmd.role),
-            )
+            ),
+            viewer=share_author(row),
         )
 
 
@@ -923,6 +926,7 @@ async def daw_ws(
             return
         row, ws_proj = await run_in_threadpool(require_share_cap, token, CAP_VIEW)
         share_id = share_id_of(row)
+        viewer = share_author(row)
         conn = await admit_guest_ws(websocket, token, share_id=share_id, log_label="guest ws")
         if conn is None:
             return
@@ -989,10 +993,9 @@ async def daw_ws(
                     {
                         "type": "Snapshot",
                         "plane": "document",
-                        "snapshot": await run_in_threadpool(
-                            doc_svc.document_snapshot, projection="shell"
-                        ),
-                    }
+                        **await run_in_threadpool(doc_svc.guest_document_state, projection="shell"),
+                    },
+                    viewer=viewer,
                 )
             )
 
@@ -1019,7 +1022,7 @@ async def daw_ws(
                 try:
                     while True:
                         event = await q_doc.get()
-                        await guard.send_json(sanitize_guest_document_event(event))
+                        await guard.send_json(sanitize_guest_document_event(event, viewer=viewer))
                 except asyncio.CancelledError:
                     raise
                 except Exception:

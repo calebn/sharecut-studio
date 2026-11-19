@@ -32,7 +32,10 @@ from podcast_mcp.models.episode import (
     TrackProxy,
     Transcript,
     TranscriptWord,
+    save_project,
 )
+from podcast_mcp.project.store import WriteGrantKind, write_grant
+from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.util.coded_error import CodedValueError
 from podcast_mcp.util.hashing import sha256_file
 
@@ -464,7 +467,7 @@ def test_model_equal_content_alias_preserves_key_and_seals_runtime_binding(
         captured.validate(project, engine, defaults=load_defaults())
 
 
-def test_history_is_excluded_from_semantics_but_included_in_validation(capture_project):
+def test_history_is_excluded_from_semantics_and_validation(capture_project):
     from podcast_mcp.models.history import HistoryEntry
 
     project, engine = capture_project
@@ -474,5 +477,68 @@ def test_history_is_excluded_from_semantics_but_included_in_validation(capture_p
     )
     project.history.cursor = 0
     assert _capture(project, engine).input_hash == captured.input_hash
-    with pytest.raises(CodedValueError):
-        captured.validate(project, engine, defaults=load_defaults())
+    captured.validate(project, engine, defaults=load_defaults())
+
+
+@pytest.fixture
+def saved_capture(capture_project):
+    project, engine = capture_project
+    with write_grant(WriteGrantKind.DISPATCHER):
+        path = save_project(project)
+    workspace = ProjectWorkspace.open(path)
+    return workspace, engine, _capture(workspace.project, engine)
+
+
+@pytest.mark.parametrize("path", ["share", "web"])
+def test_comment_saved_after_capture_does_not_invalidate_it(
+    saved_capture, save_comment, save_web_comment, path
+):
+    workspace, engine, captured = saved_capture
+
+    (save_comment if path == "share" else save_web_comment)(workspace.path)
+
+    current = ProjectWorkspace.open(workspace.path).project
+    assert current.review.comments
+    captured.validate(current, engine, defaults=load_defaults())
+
+
+@pytest.mark.parametrize("edit", ["clip_move", "mute", "gain", "clip_source_unset"])
+def test_audible_edit_saved_after_capture_invalidates_it(saved_capture, save_audible_edit, edit):
+    workspace, engine, captured = saved_capture
+
+    save_audible_edit(workspace.path, edit)
+
+    current = ProjectWorkspace.open(workspace.path).project
+    with pytest.raises(CodedValueError) as raised:
+        captured.validate(current, engine, defaults=load_defaults())
+    assert raised.value.code == "bleed_restore_inputs_changed"
+
+
+def test_undoing_an_audible_edit_invalidates_the_capture(saved_capture, save_audible_edit):
+    from podcast_mcp.services.document.history import HistoryService
+
+    workspace, engine, _ = saved_capture
+    with write_grant(WriteGrantKind.DISPATCHER):
+        HistoryService(workspace).record("baseline")
+    save_audible_edit(workspace.path, "clip_move")
+    edited = ProjectWorkspace.open(workspace.path)
+    history = HistoryService(edited)
+    with write_grant(WriteGrantKind.DISPATCHER):
+        history.record("moved")
+    captured = _capture(edited.project, engine)
+
+    with write_grant(WriteGrantKind.DISPATCHER):
+        history.undo()
+
+    current = ProjectWorkspace.open(workspace.path).project
+    with pytest.raises(CodedValueError) as raised:
+        captured.validate(current, engine, defaults=load_defaults())
+    assert raised.value.code == "bleed_restore_inputs_changed"
+
+
+def test_reload_round_trip_keeps_capture_valid(saved_capture):
+    workspace, engine, captured = saved_capture
+
+    current = ProjectWorkspace.open(workspace.path).project
+
+    captured.validate(current, engine, defaults=load_defaults())

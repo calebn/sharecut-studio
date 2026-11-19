@@ -83,10 +83,11 @@ export function useRecordLiveComments(opts: {
 
   useEffect(() => {
     const acked = new Set(ackedKey ? ackedKey.split("\0").filter(Boolean) : []);
-    const remaining = connected
+    const sending = connected && me !== null;
+    const remaining = sending
       ? retainUnackedComments(token, acked)
       : loadCommentQueue(token).filter((row) => !acked.has(row.id));
-    if (!connected) {
+    if (!sending) {
       return;
     }
     for (const queued of remaining) {
@@ -98,7 +99,7 @@ export function useRecordLiveComments(opts: {
         flushedRef.current.add(queued.id);
       }
     }
-  }, [ackedKey, connected, token, sendComment]);
+  }, [ackedKey, connected, me, token, sendComment]);
 
   useEffect(() => {
     if (!captureKeys) {

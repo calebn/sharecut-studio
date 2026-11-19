@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { useDawStore } from "../state/dawStore";
 import { minimalProject, sampleTrack } from "../test/fixtures";
 import { clearRegisteredCommands } from "./execute";
@@ -30,6 +30,28 @@ describe("playSpan", () => {
       shareCapabilities: ["view", "play"],
     });
     expect(playSpan(10, 12, 0.5)).toEqual({ status: "ok" });
+  });
+
+  it("runs beforeStart once when play is accepted", () => {
+    const before = vi.fn();
+    playSpan(10, 12, 0.5, before);
+    expect(before).toHaveBeenCalledTimes(1);
+  });
+
+  it("skips beforeStart when play is refused", () => {
+    useDawStore
+      .getState()
+      .hydrate("/tmp/play-span/empty.sharecut", minimalProject());
+    const before = vi.fn();
+    expect(playSpan(10, 12, 0.5, before).status).toBe("disabled");
+    expect(before).not.toHaveBeenCalled();
+  });
+
+  it("pads by the default audition pad when none is given", () => {
+    expect(playSpan(10, 12)).toEqual({ status: "ok" });
+    const s = useDawStore.getState();
+    expect(s.playheadSec).toBe(9.5);
+    expect(s.playUntilSec).toBe(12.5);
   });
 
   it("plays the padded span and ends armed with its stop bound", () => {

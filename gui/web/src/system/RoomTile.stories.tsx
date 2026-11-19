@@ -73,6 +73,27 @@ export const Live: Story = {
   },
 };
 
+const onPress = fn();
+
+export const OwnTile: Story = {
+  args: {
+    ...LIVE,
+    person: JON,
+    you: true,
+    isMe: true,
+    onPress,
+    level: 0.3,
+  },
+  play: async ({ canvasElement }) => {
+    await expect(tileByName(canvasElement, "Jon, you")).toBeVisible();
+    await expect(within(canvasElement).getByText("(you)")).toBeVisible();
+    await userEvent.click(
+      within(canvasElement).getByRole("button", { name: "Devices" }),
+    );
+    await expect(onPress).toHaveBeenCalled();
+  },
+};
+
 export const Speaking: Story = {
   args: { ...LIVE, level: 0.8, speaking: true },
   play: async ({ canvasElement }) => {

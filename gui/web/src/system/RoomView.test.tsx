@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
+import { expectNoA11yViolations } from "../test/a11y";
 import { notesNaming, readableText } from "../test/readableText";
 import { SRC_ROOT } from "../test/sourceFiles";
 import type { NoteItem } from "./notesRailModel";
@@ -39,6 +40,7 @@ const renderRoom = (rest: Partial<RoomViewProps> = {}) => {
     selfName: "Jon",
     onSendNote,
     ...rest,
+    lookingIn: rest.lookingIn ?? 0,
   };
   const view = render(<RoomView {...props} />);
   return { onSendNote, ...view };
@@ -55,7 +57,7 @@ describe("RoomView", () => {
     expect(
       screen.getByRole("group", { name: "Maya Okafor, host" }),
     ).toBeVisible();
-    expect(screen.getByRole("group", { name: "Jon" })).toBeVisible();
+    expect(screen.getByRole("group", { name: "Jon, you" })).toBeVisible();
     expect(document.querySelectorAll(".sys-room-host")).toHaveLength(1);
   });
 
@@ -77,6 +79,7 @@ describe("RoomView", () => {
     ).toBeVisible();
     rerender(
       <RoomView
+        lookingIn={0}
         seat="guest"
         title="Episode 14"
         people={[HOST, JON]}
@@ -97,6 +100,7 @@ describe("RoomView", () => {
       title: "Episode 14",
       sessionName: "Session 3",
       people: [HOST, JON],
+      lookingIn: 0,
       phase: LIVE,
       notes: [],
       selfName: "Host",
@@ -309,6 +313,7 @@ describe("RoomView", () => {
   it("the dock shows the seat's controls and hides Comment while waiting", () => {
     const { rerender } = render(
       <RoomView
+        lookingIn={0}
         seat="guest"
         title="Episode 14"
         people={[HOST, JON]}
@@ -321,6 +326,7 @@ describe("RoomView", () => {
     expect(names()).toEqual(["Mute", "Comments", "Leave room"]);
     rerender(
       <RoomView
+        lookingIn={0}
         seat="guest"
         title="Episode 14"
         people={[HOST, JON]}
@@ -341,6 +347,74 @@ describe("RoomView", () => {
     });
     expect(screen.getByText("You, listening")).toBeInTheDocument();
     expect(screen.getByRole("list", { name: "Listening" })).toBeInTheDocument();
+  });
+
+  describe("looking in", () => {
+    it.each([
+      [1, "Someone with the producer link is looking in"],
+      [3, "3 people with the producer link are looking in"],
+    ])(
+      "shows %i as the first line of the stage, under the header",
+      async (lookingIn, text) => {
+        const { container } = renderRoom({
+          seat: "host",
+          people: [HOST, JON, { ...ROSA, you: false }],
+          lookingIn,
+        });
+        const line = screen.getByText(text);
+        expect(line.tagName).toBe("P");
+        expect(line.closest("ul")).toBeNull();
+        expect(
+          screen.getByRole("list", { name: "Listening" }),
+        ).not.toContainElement(line);
+        const stage = container.querySelector(".sys-room-view-stage");
+        expect(stage).toContainElement(line);
+        expect(stage?.firstElementChild).toBe(line);
+        expect(container.querySelector("header")).not.toContainElement(line);
+        expect(
+          container.querySelector("header")?.compareDocumentPosition(line),
+        ).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+        const glyph = line.querySelector("svg");
+        expect(glyph).not.toBeNull();
+        expect(glyph?.closest("[aria-hidden='true']")).not.toBeNull();
+        expect(line).not.toHaveAttribute("role");
+        await expectNoA11yViolations(container);
+      },
+    );
+
+    it.each([-1, 2.5, 100, Number.NaN, Number.MAX_SAFE_INTEGER])(
+      "shows nothing for %s",
+      (lookingIn) => {
+        renderRoom({ lookingIn });
+        expect(document.querySelector(".sys-room-looking-in")).toBeNull();
+      },
+    );
+
+    it("shows nothing for nobody, and still shows the line with no listeners", () => {
+      const { rerender } = renderRoom({ people: [HOST, JON], lookingIn: 0 });
+      expect(document.querySelector(".sys-room-looking-in")).toBeNull();
+      rerender(
+        <RoomView
+          seat="guest"
+          title="Episode 14"
+          people={[HOST, JON]}
+          phase={LIVE}
+          notes={[]}
+          selfName="Jon"
+          onSendNote={vi.fn()}
+          lookingIn={1}
+        />,
+      );
+      expect(
+        screen.getByText("Someone with the producer link is looking in"),
+      ).toBeInTheDocument();
+      expect(screen.queryByRole("list", { name: "Listening" })).toBeNull();
+    });
+
+    it("leaves the line out while the room loads", () => {
+      renderRoom({ loading: true, people: [], lookingIn: 2 });
+      expect(document.querySelector(".sys-room-looking-in")).toBeNull();
+    });
   });
 
   it("shows no Invite button for a host without an invite handler", () => {
@@ -376,6 +450,7 @@ describe("RoomView", () => {
     );
     rerender(
       <RoomView
+        lookingIn={0}
         seat="producer"
         title="Episode 14"
         people={[HOST, ROSA]}
@@ -388,6 +463,7 @@ describe("RoomView", () => {
     expect(screen.queryByRole("button", { name: /clear time/ })).toBeNull();
     rerender(
       <RoomView
+        lookingIn={0}
         seat="producer"
         title="Episode 14"
         people={[HOST, ROSA]}
@@ -448,23 +524,15 @@ describe("RoomView on a phone", () => {
     expect(
       screen.getByRole("dialog", { name: "Comments" }),
     ).toBeInTheDocument();
+    expect(peek).toHaveAttribute("aria-expanded", "true");
     expect(screen.getByLabelText("Add a comment")).toBeInTheDocument();
-  });
-
-  it("the dock's Comments button opens the sheet and shows it pressed", async () => {
-    renderRoom({ viewerWidth: "phone", notes: NOTES });
-    const button = screen.getByRole("button", { name: "Comments" });
-    expect(button).toHaveAttribute("aria-pressed", "false");
-    await userEvent.click(button);
-    expect(
-      screen.getByRole("dialog", { name: "Comments" }),
-    ).toBeInTheDocument();
-    expect(button).toHaveAttribute("aria-pressed", "true");
   });
 
   it("posts a comment from the sheet with the live clock time", async () => {
     const { onSendNote } = renderRoom({ viewerWidth: "phone" });
-    await userEvent.click(screen.getByRole("button", { name: "Comments" }));
+    await userEvent.click(
+      document.querySelector(".sys-room-view-peek") as HTMLElement,
+    );
     const dialog = await screen.findByRole("dialog", { name: "Comments" });
     // The sheet moves focus to Close on the next frame; typing before that loses the field.
     await waitFor(() =>
@@ -484,11 +552,6 @@ describe("RoomView on a phone", () => {
       time: "12:04",
       everyone: false,
     });
-  });
-
-  it("keeps the same dock buttons as the desktop for the seat", () => {
-    renderRoom({ viewerWidth: "phone" });
-    expect(names()).toEqual(["Mute", "Comment", "Comments", "Leave room"]);
   });
 
   it("has no peek line and no rail in landscape, and the Comments button still opens the sheet", async () => {
@@ -582,6 +645,7 @@ describe("RoomView as the host", () => {
     ]);
     rerender(
       <RoomView
+        lookingIn={0}
         seat="host"
         title="Episode 14"
         people={[HOST_YOU]}
@@ -686,6 +750,7 @@ describe("RoomView as the host", () => {
       screen.getByRole("button", { name: "Mute" }).focus();
       rerender(
         <RoomView
+          lookingIn={0}
           seat="guest"
           title="Episode 14"
           people={[HOST, JON]}
@@ -716,6 +781,7 @@ describe("RoomView as the host", () => {
         seat: "guest",
         title: "Episode 14",
         people: [HOST, JON],
+        lookingIn: 0,
         phase: LIVE,
         notes: [],
         selfName: "Jon",
@@ -723,7 +789,9 @@ describe("RoomView as the host", () => {
         viewerWidth: "phone",
       };
       const { rerender } = render(<RoomView {...props} />);
-      await userEvent.click(screen.getByRole("button", { name: "Comments" }));
+      await userEvent.click(
+        document.querySelector(".sys-room-view-peek") as HTMLElement,
+      );
       expect(
         await screen.findByRole("dialog", { name: "Comments" }),
       ).toBeInTheDocument();
@@ -773,6 +841,66 @@ describe("RoomView as the host", () => {
     it("leaves the status pill out until the room's snapshot is known", () => {
       const { container } = renderRoom({ statusKnown: false });
       expect(container.querySelector(".sys-pill")).toBeNull();
+    });
+
+    it("keeps the whole body inert when declined with no one looking in", () => {
+      const { container } = renderRoom({
+        declined: { onJoin: () => {} },
+        people: [HOST, { ...JON, you: true }],
+      });
+      expect(container.querySelector(".sys-room-view-body")).toHaveAttribute(
+        "inert",
+      );
+    });
+
+    it("puts the looking-in line as the first child of the Declined bar, and nowhere else", () => {
+      const { container } = renderRoom({
+        declined: { onJoin: () => {} },
+        people: [HOST, { ...JON, you: true }, { ...ROSA, role: "producer" }],
+        lookingIn: 2,
+      });
+      const body = container.querySelector(
+        ".sys-room-view-body",
+      ) as HTMLElement;
+      expect(body).toHaveAttribute("inert");
+      const lines = container.querySelectorAll(
+        ".sys-room-looking-in, .sys-declined-looking-in",
+      );
+      expect(lines).toHaveLength(1);
+      const line = lines[0] as HTMLElement;
+      expect(line).toHaveClass("sys-declined-looking-in");
+      expect(line).toHaveTextContent(
+        "2 people with the producer link are looking in",
+      );
+      expect(line.closest("[inert]")).toBeNull();
+      expect(line.closest("[aria-hidden='true']")).toBeNull();
+      expect(body).not.toContainElement(line);
+      const layer = container.querySelector(".sys-declined") as HTMLElement;
+      const bar = layer.querySelector(".sys-declined-bar") as HTMLElement;
+      expect(bar.firstElementChild).toBe(line);
+      expect(line.querySelector("svg")).toHaveAttribute("aria-hidden", "true");
+      expect(layer.children).toHaveLength(2);
+    });
+
+    it("keeps the Declined layer free of the line when nobody is looking in", () => {
+      const { container } = renderRoom({
+        declined: { onJoin: () => {} },
+        people: [HOST, { ...JON, you: true }],
+        lookingIn: 0,
+      });
+      const layer = container.querySelector(".sys-declined") as HTMLElement;
+      expect(layer.querySelector(".sys-declined-looking-in")).toBeNull();
+      expect(layer.children).toHaveLength(2);
+      expect(layer.firstElementChild).toHaveClass("sys-declined-scrim");
+      expect(layer.lastElementChild).toHaveClass("sys-declined-bar");
+      expect(layer.lastElementChild?.firstElementChild?.tagName).toBe("svg");
+    });
+
+    it("keeps the looking-in line first in the stage when not declined", () => {
+      const { container } = renderRoom({ lookingIn: 2 });
+      const stage = container.querySelector(".sys-room-view-stage");
+      expect(stage?.firstElementChild).toHaveClass("sys-room-looking-in");
+      expect(container.querySelector("[inert]")).toBeNull();
     });
 
     it("adds nothing to a room that has not declined", () => {
@@ -840,6 +968,7 @@ describe("RoomView as the host", () => {
     expect(h1).not.toHaveFocus();
     rerender(
       <RoomView
+        lookingIn={0}
         seat="producer"
         title="Episode 14"
         people={[HOST, JON]}
@@ -965,10 +1094,12 @@ describe("RoomView comments naming", () => {
               ).toHaveTextContent("Comments");
             } else if (viewerWidth === "phone") {
               expect(text).toContain("Comments");
-              screen.getByRole("dialog", { name: "Comments" });
+              screen.getByRole("dialog", {
+                name: takes ? "Comments and takes" : "Comments",
+              });
             } else if (open) {
               screen.getByRole("complementary", {
-                name: "Comments and takes",
+                name: takes ? "Comments and takes" : "Comments",
               });
             }
             unmount();
@@ -1000,12 +1131,87 @@ describe("RoomView comments naming", () => {
       const toggle = screen.getByRole("button", { name: "Comments" });
       await userEvent.click(toggle);
       await userEvent.click(toggle);
+      await userEvent.click(toggle);
       expect(screen.getByRole("tab", { name: "Comments" })).toHaveAttribute(
         "aria-selected",
         "true",
       );
     },
   );
+
+  it("names the rail Comments until a Takes tab exists, then Comments and takes", () => {
+    const { unmount } = renderRoom({ defaultNotesOpen: true });
+    expect(
+      screen.getByRole("complementary", { name: "Comments" }),
+    ).toBeVisible();
+    expect(screen.queryByRole("tab")).toBeNull();
+    unmount();
+    renderRoom({ takes: <p>Take 1 saved</p>, defaultNotesOpen: true });
+    expect(
+      screen.getByRole("complementary", { name: "Comments and takes" }),
+    ).toBeVisible();
+    expect(screen.getAllByRole("tab")).toHaveLength(2);
+  });
+
+  it.each([
+    ["host", [{ ...HOST, you: true }]],
+    ["guest", [HOST, JON]],
+    ["producer", [HOST, ROSA]],
+  ] as const)(
+    "the %s's Comments toggle is pressed only while the Comments tab shows, and from Takes it shows Comments",
+    async (seat, people) => {
+      renderRoom({
+        seat,
+        people: [...people],
+        takes: <p>Take 1 saved</p>,
+        defaultNotesOpen: true,
+      });
+      const toggle = screen.getByRole("button", { name: "Comments" });
+      expect(toggle).toHaveAttribute("aria-pressed", "true");
+      await userEvent.click(screen.getByRole("tab", { name: "Takes" }));
+      expect(toggle).toHaveAttribute("aria-pressed", "false");
+      await userEvent.click(toggle);
+      expect(screen.getByRole("tab", { name: "Comments" })).toHaveAttribute(
+        "aria-selected",
+        "true",
+      );
+      expect(toggle).toHaveAttribute("aria-pressed", "true");
+      expect(screen.getByRole("complementary")).toBeVisible();
+      expect(toggle).toHaveFocus();
+      await userEvent.click(toggle);
+      expect(screen.queryByRole("complementary")).toBeNull();
+      expect(toggle).toHaveAttribute("aria-pressed", "false");
+    },
+  );
+
+  it("keeps the toggle pressed on a rail with no Takes tab, and closes it on press", async () => {
+    renderRoom({ defaultNotesOpen: true });
+    const toggle = screen.getByRole("button", { name: "Comments" });
+    expect(toggle).toHaveAttribute("aria-pressed", "true");
+    await userEvent.click(toggle);
+    expect(screen.queryByRole("complementary")).toBeNull();
+    expect(toggle).toHaveAttribute("aria-pressed", "false");
+  });
+
+  it("names the phone sheet Comments until a Takes tab exists", async () => {
+    const { unmount } = renderRoom({ viewerWidth: "phone", notes: NOTES });
+    await userEvent.click(
+      document.querySelector(".sys-room-view-peek") as HTMLElement,
+    );
+    expect(screen.getByRole("dialog", { name: "Comments" })).toBeVisible();
+    unmount();
+    renderRoom({
+      viewerWidth: "phone",
+      notes: NOTES,
+      takes: <p>Take 1 saved</p>,
+    });
+    await userEvent.click(
+      document.querySelector(".sys-room-view-peek") as HTMLElement,
+    );
+    expect(
+      screen.getByRole("dialog", { name: "Comments and takes" }),
+    ).toBeVisible();
+  });
 
   it.each([
     ["host", [{ ...HOST, you: true }]],
@@ -1024,10 +1230,9 @@ describe("RoomView comments naming", () => {
       );
       await userEvent.click(screen.getByRole("tab", { name: "Takes" }));
       await userEvent.click(
-        within(screen.getByRole("dialog", { name: "Comments" })).getByRole(
-          "button",
-          { name: "Close" },
-        ),
+        within(
+          screen.getByRole("dialog", { name: "Comments and takes" }),
+        ).getByRole("button", { name: "Close" }),
       );
       await userEvent.click(
         document.querySelector(".sys-room-view-peek") as HTMLElement,
@@ -1038,22 +1243,89 @@ describe("RoomView comments naming", () => {
       );
     },
   );
+});
 
-  it("the phone dock button reopens the sheet on the Comments tab", async () => {
+describe("RoomView phone layout (3834 PR 7)", () => {
+  const commentsButtons = () =>
+    screen.queryAllByRole("button", { name: /^Comments/ });
+
+  it("a phone guest has one door to Comments, the peek, and a labelled dock", () => {
+    renderRoom({ viewerWidth: "phone" });
+    expect(commentsButtons()).toHaveLength(1);
+    expect(commentsButtons()[0]).toHaveClass("sys-room-view-peek");
+    expect(document.querySelector(".sys-dock")).toHaveAttribute(
+      "data-labelled",
+    );
+    expect(names()).toEqual(["Mute", "Comment", "Leave room"]);
+  });
+
+  it("a phone producer has the peek only and Comment, Leave", () => {
     renderRoom({
       seat: "producer",
       people: [HOST, ROSA],
+      selfName: "Rosa Diaz",
       viewerWidth: "phone",
-      takes: <p>Take 1 saved</p>,
-      defaultNotesOpen: true,
     });
-    await userEvent.click(screen.getByRole("tab", { name: "Takes" }));
-    const toggle = screen.getByRole("button", { name: "Comments" });
-    await userEvent.click(toggle);
-    await userEvent.click(toggle);
-    expect(screen.getByRole("tab", { name: "Comments" })).toHaveAttribute(
-      "aria-selected",
-      "true",
-    );
+    expect(commentsButtons()).toHaveLength(1);
+    expect(commentsButtons()[0]).toHaveClass("sys-room-view-peek");
+    expect(names()).toEqual(["Comment", "Leave room"]);
+  });
+
+  it("an embedded host on a phone keeps the dock's Comments toggle, unlabelled", () => {
+    renderRoom({
+      seat: "host",
+      people: [HOST_YOU],
+      embedded: true,
+      viewerWidth: "phone",
+    });
+    expect(commentsButtons()).toHaveLength(2);
+    expect(
+      within(document.querySelector(".sys-dock") as HTMLElement).getByRole(
+        "button",
+        { name: "Comments" },
+      ),
+    ).toBeInTheDocument();
+    expect(document.querySelector(".sys-dock-label")).toBeNull();
+  });
+
+  it("a desktop guest keeps the dock's Comments toggle", () => {
+    renderRoom({ viewerWidth: "desktop" });
+    expect(commentsButtons()).toHaveLength(1);
+    expect(commentsButtons()[0]).not.toHaveClass("sys-room-view-peek");
+    expect(document.querySelector(".sys-dock-label")).toBeNull();
+  });
+
+  it("a landscape phone keeps the toggle too", () => {
+    renderRoom({ viewerWidth: "phone-landscape" });
+    expect(
+      within(document.querySelector(".sys-dock") as HTMLElement).getByRole(
+        "button",
+        { name: "Comments" },
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("the page header holds the brand symbol and the name ShareCut once", () => {
+    renderRoom({ viewerWidth: "phone" });
+    const header = screen.getByRole("banner");
+    expect(header.querySelector(".sys-room-view-symbol")).not.toBeNull();
+    expect(within(header).getAllByText("ShareCut")).toHaveLength(1);
+  });
+
+  it("the guest's own tile says you, the embedded host's does not", () => {
+    const { unmount } = renderRoom({ onSelfPress: vi.fn() });
+    expect(screen.getByRole("group", { name: "Jon, you" })).toBeVisible();
+    expect(screen.getByRole("button", { name: "Devices" })).toBeVisible();
+    unmount();
+    renderRoom({
+      seat: "host",
+      people: [HOST_YOU],
+      embedded: true,
+      onSelfPress: vi.fn(),
+    });
+    expect(
+      screen.getByRole("group", { name: "Maya Okafor, host" }),
+    ).toBeVisible();
+    expect(screen.queryByText("(you)")).toBeNull();
   });
 });

@@ -77,6 +77,11 @@ from podcast_mcp.util.project_state import (
     render_lock,
 )
 
+from .transcript_flag_results import (
+    WordAutomaticResult,
+    WordsIgnoredResult,
+    WordSuppressedResult,
+)
 from .transcript_timing import word_timing_media
 
 log = logging.getLogger(__name__)
@@ -610,18 +615,25 @@ class TranscriptService(WorkspaceService):
         *,
         expected_text: str | None = None,
         source_id: str | None = None,
-    ) -> dict:
+    ) -> WordSuppressedResult:
         """Toggle suppressed on one word. ``expected_text`` guards against a stale index (#744)."""
-        return self._guarded_transcript_edit(
-            "set word suppressed",
-            track_id,
-            word_index,
-            word_index,
-            expected_text,
-            lambda p: set_word_suppressed(
-                p, track_id, word_index, suppressed, source_id, defaults=self.ws.effective_config()
-            ),
-            source_id,
+        return WordSuppressedResult(
+            **self._guarded_transcript_edit(
+                "set word suppressed",
+                track_id,
+                word_index,
+                word_index,
+                expected_text,
+                lambda p: set_word_suppressed(
+                    p,
+                    track_id,
+                    word_index,
+                    suppressed,
+                    source_id,
+                    defaults=self.ws.effective_config(),
+                ),
+                source_id,
+            )
         )
 
     def set_word_automatic(
@@ -631,19 +643,21 @@ class TranscriptService(WorkspaceService):
         *,
         expected_text: str | None = None,
         source_id: str | None = None,
-    ) -> dict:
+    ) -> WordAutomaticResult:
         """Clear a word's suppression lock; ``suppressed`` waits for the next reconcile (#824).
 
         ``expected_text`` guards against a stale index the same as ``set_word_suppressed``.
         """
-        return self._guarded_transcript_edit(
-            "return word to automatic",
-            track_id,
-            word_index,
-            word_index,
-            expected_text,
-            lambda p: set_word_automatic(p, track_id, word_index, source_id),
-            source_id,
+        return WordAutomaticResult(
+            **self._guarded_transcript_edit(
+                "return word to automatic",
+                track_id,
+                word_index,
+                word_index,
+                expected_text,
+                lambda p: set_word_automatic(p, track_id, word_index, source_id),
+                source_id,
+            )
         )
 
     def set_words_ignored(
@@ -655,21 +669,23 @@ class TranscriptService(WorkspaceService):
         *,
         expected_text: str | None = None,
         source_id: str | None = None,
-    ) -> dict:
+    ) -> WordsIgnoredResult:
         """Text-and-audio hide for a word range, muted at render without a cut (#633).
 
         ``expected_text`` guards against a stale index range (#744).
         """
-        return self._guarded_transcript_edit(
-            "set words ignored",
-            track_id,
-            start_word_index,
-            end_word_index,
-            expected_text,
-            lambda p: set_words_ignored(
-                p, track_id, start_word_index, end_word_index, ignored, source_id
-            ),
-            source_id,
+        return WordsIgnoredResult(
+            **self._guarded_transcript_edit(
+                "set words ignored",
+                track_id,
+                start_word_index,
+                end_word_index,
+                expected_text,
+                lambda p: set_words_ignored(
+                    p, track_id, start_word_index, end_word_index, ignored, source_id
+                ),
+                source_id,
+            )
         )
 
     def low_confidence_words(self, threshold: float | None = None) -> list[dict]:

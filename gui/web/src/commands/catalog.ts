@@ -544,6 +544,16 @@ export const COMMANDS: Record<string, CommandDef> = {
     notes: "\\: timeline focused",
     breaksFollow: true,
   },
+  "view.followPlayhead": {
+    id: "view.followPlayhead",
+    category: "view",
+    label: "Back to playhead",
+    keywords: ["follow", "catch", "scroll", "reveal"],
+    when: "editStage",
+    notes:
+      "Follow the playhead again during playback and bring it into view in the timeline (no default key)",
+    breaksFollow: true,
+  },
   "view.waveformZoomIn": {
     id: "view.waveformZoomIn",
     category: "view",
@@ -603,6 +613,7 @@ export const COMMANDS: Record<string, CommandDef> = {
     variants: ["Undo replacements", "Undo timing"],
     keywords: ["revert", "go back"],
     when: "canUndo",
+    announcesGate: true,
   },
   "history.redo": {
     id: "history.redo",
@@ -610,6 +621,7 @@ export const COMMANDS: Record<string, CommandDef> = {
     label: "Redo",
     keywords: ["repeat"],
     when: "canRedo",
+    announcesGate: true,
   },
   "ui.toggleCommandPalette": {
     id: "ui.toggleCommandPalette",

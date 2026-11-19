@@ -21,11 +21,15 @@ export type ExportSettings = {
   master: Partial<MasterAudioSettings>;
 };
 
+const M4A_PRESET: Readonly<ExportFormatSpec> = {
+  ext: "m4a",
+  codec: "aac",
+  format: "ipod",
+  bitrate_kbps: 128,
+};
+
 const OFFERED: readonly ParsedFormat[] = [
-  {
-    key: "m4a",
-    spec: { ext: "m4a", codec: "aac", format: "ipod", bitrate_kbps: 128 },
-  },
+  { key: "m4a", spec: M4A_PRESET },
   { key: "flac", spec: { ext: "flac", codec: "flac" } },
 ];
 
@@ -52,9 +56,22 @@ function formatKey({ ext, extension }: Readonly<ExportFormatSpec>): string {
   return key;
 }
 
+function isBareFormat(spec: Readonly<Record<string, unknown>>): boolean {
+  return Object.entries(spec).every(
+    ([name, value]) =>
+      name === "ext" ||
+      name === "extension" ||
+      value == null ||
+      value === "" ||
+      (Array.isArray(value) && value.length === 0),
+  );
+}
+
 function parseExportFormat(value: unknown): ParsedFormat {
   const spec = { ...asRecord(value) };
-  return { key: formatKey(spec), spec };
+  const key = formatKey(spec);
+  if (key === "m4a" && isBareFormat(spec)) return { key, spec: M4A_PRESET };
+  return { key, spec };
 }
 
 function formatChoiceLabel({ key, spec }: ParsedFormat): string {

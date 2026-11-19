@@ -2,6 +2,7 @@ import { useState } from "react";
 import { seekTransport } from "../../commands/seek";
 import { useCommentActions } from "../../comments";
 import { canReply, canSetAction, commentRole } from "../../shareMode";
+import { useUnsentText } from "../../state/unsentText";
 import { useDaw } from "../../state/useDaw";
 import { CommentCard } from "../../system/CommentCard";
 import { InlineError } from "../../ui";
@@ -24,6 +25,7 @@ export function CommentThread({ commentId }: { commentId: string }) {
   );
   const role = commentRole(projectPath, guestMode);
   const [replyBody, setReplyBody] = useState("");
+  useUnsentText("Your reply", replyBody);
   const { busy, error, resolve, reply, toggleAction } = useCommentActions({
     role,
   });

@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { clearRegisteredCommands } from "../../commands/execute";
 import { registerDawCommands } from "../../commands/register";
 import { useDawStore } from "../../state/dawStore";
+import { collectUnsent } from "../../state/unsentText";
 import { expectNoA11yViolations } from "../../test/a11y";
 import {
   minimalProject,
@@ -135,6 +136,28 @@ describe("comment sheet sections", () => {
       author: expect.any(String),
     });
     expect(input).toHaveValue("");
+  });
+
+  it("hands its unsent reply to collectUnsent, until it is sent or the thread goes", async () => {
+    const user = userEvent.setup();
+    const view = open();
+    expect(collectUnsent()).toEqual([]);
+    await user.type(
+      screen.getByRole("textbox", { name: "Reply to caleb" }),
+      "  Keep this section ",
+    );
+    expect(collectUnsent()).toEqual([
+      { label: "Your reply", text: "  Keep this section " },
+    ]);
+    await user.click(screen.getByRole("button", { name: "Reply" }));
+    expect(collectUnsent()).toEqual([]);
+    await user.type(
+      screen.getByRole("textbox", { name: "Reply to caleb" }),
+      "another",
+    );
+    expect(collectUnsent()).toHaveLength(1);
+    view.unmount();
+    expect(collectUnsent()).toEqual([]);
   });
 
   it("hides the reply form from shares without reply permission", () => {

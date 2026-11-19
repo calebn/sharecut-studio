@@ -148,6 +148,30 @@ def test_guest_http_copy_for_known_code_ignores_host_diagnostic(
     assert diagnostic not in response.text
 
 
+@pytest.mark.parametrize(
+    ("code", "sentence"),
+    [
+        ("nothing_to_undo", "There is nothing to undo."),
+        ("nothing_to_redo", "There is nothing to redo."),
+    ],
+)
+def test_an_empty_history_move_is_a_400_with_approved_copy(
+    guest_client, monkeypatch, caplog, code, sentence
+):
+    from podcast_mcp.util.coded_error import CodedValueError
+
+    def fail(*_args, **_kwargs):
+        raise CodedValueError("Nothing to move to /private/host/history", code=code)
+
+    monkeypatch.setattr(review_share, "share_daw_project_view", fail)
+    response = guest_client.get("/api/review/token/daw/project")
+
+    assert response.status_code == 400
+    assert response.json() == {"detail": sentence}
+    assert response.headers["x-sharecut-error-code"] == code
+    assert not [r for r in caplog.records if r.exc_info]
+
+
 @pytest.mark.parametrize("kind", ["sqlite", "timeout"])
 def test_busy_cause_beats_coded_wrapper(guest_client, monkeypatch, kind):
     import sqlite3

@@ -396,7 +396,7 @@ describe("a link with chapters, no transcript and a failed load", () => {
   it("still lists the chapters from the dock", () => {
     join("view", { transcript: false });
     mount({
-      loadFailure: { title: "x", message: "Could not load", onRetry: () => {} },
+      loadFailure: { source: "detail", onRetry: () => {} },
     });
     expect(
       screen.getByRole("button", { name: /^Chapters/ }),

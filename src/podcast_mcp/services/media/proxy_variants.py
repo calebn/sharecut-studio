@@ -42,6 +42,7 @@ from podcast_mcp.util.workspace_paths import resolve_within
 _SAFE_ID = re.compile(r"[A-Za-z0-9_-]{1,128}\Z")
 _HASH = re.compile(r"(?:[0-9a-f]{16}|[0-9a-f]{64})\Z")
 _SERVICE_REVISION = "proxy-service-v1"
+_HEAD_FIELD = {"history_head_id"}
 
 
 def _digest(payload: Any) -> str:
@@ -575,7 +576,9 @@ def _ensure(ws: ProjectWorkspace, track_id: str | None) -> ProxyManifestGenerati
                     occurrences=occurrences,
                 )
                 with ws.transaction() as current:
-                    if project_basis(current, defaults) != basis:
+                    if project_basis(current, defaults).model_dump(
+                        exclude=_HEAD_FIELD
+                    ) != basis.model_dump(exclude=_HEAD_FIELD):
                         raise CodedValueError(
                             "Proxy inputs changed; retry", code="proxy_inputs_changed"
                         )

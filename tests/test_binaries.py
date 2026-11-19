@@ -402,3 +402,31 @@ def test_the_executable_suffix_comes_from_the_row(host, row_name, suffix):
 
     host(getattr(host_platform, row_name))
     assert binaries._exe_suffix() == suffix
+
+
+def test_a_pairs_availability_asks_which_for_both_commands(monkeypatch):
+    from podcast_mcp.util import binaries
+
+    asked = []
+    found = {"/x/ffmpeg": "/x/ffmpeg", "/x/ffprobe": None}
+
+    def which(command):
+        asked.append(command)
+        return found[command]
+
+    monkeypatch.setattr(binaries.shutil, "which", which)
+    pair = binaries.FFmpegPair("/x/ffmpeg", "/x/ffprobe", (9, 0, 2), "explicit")
+    assert pair.is_available() is False
+    found["/x/ffprobe"] = "/x/ffprobe"
+    assert pair.is_available() is True
+    assert asked == ["/x/ffmpeg", "/x/ffprobe", "/x/ffmpeg", "/x/ffprobe"]
+
+
+def test_the_build_id_is_the_command_release_and_file_stamp_content(tmp_path, monkeypatch):
+    from podcast_mcp.engines.ungated_audio import ffmpeg_build_id
+    from podcast_mcp.util.fingerprint import file_stamp
+
+    paths = executable_pair(tmp_path / "explicit", "9.0.2")
+    monkeypatch.setenv("PODCAST_MCP_FFMPEG", str(paths[0]))
+    monkeypatch.setenv("PODCAST_MCP_FFPROBE", str(paths[1]))
+    assert ffmpeg_build_id() == (str(paths[0]), (9, 0, 2), file_stamp(paths[0]).content)

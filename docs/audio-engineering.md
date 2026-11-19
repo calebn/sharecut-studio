@@ -1728,7 +1728,11 @@ render lock. `RenderSection.proxy_manifests` retains the current and one previou
 complete generation. Ordered chunk digests bind new public hashes to actual
 encoded bytes. Publication uses the shared `util/atomic_directory.py` no-replace
 rename, synchronizes files and the namespace before one derived metadata save,
-and revalidates captured inputs before accepting the generation. It adds no
+and revalidates captured inputs before accepting the generation. The revalidation
+compares render hashes and clips (not the history head) and the project without
+its `review`, `history` and `document_sync` sections, so a comment saved
+mid-build, whether through the share path or the host GUI's document command, does
+not refuse the generation while an audible edit still does. The build adds no
 History step. Existing accepted URLs are never overwritten or purged on refusal.
 A complete unaccepted directory alone grants no read authority.
 

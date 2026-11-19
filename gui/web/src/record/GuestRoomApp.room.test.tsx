@@ -61,6 +61,7 @@ type Overrides = {
   captureSettled?: boolean;
   localRecording?: boolean;
   localSegments?: number | null;
+  localUnreadable?: boolean;
 };
 
 function fakeRoom(over: Overrides = {}) {
@@ -153,7 +154,7 @@ function fakeRoom(over: Overrides = {}) {
     localRecording: over.localRecording ?? false,
     localSegments: over.localSegments === undefined ? 0 : over.localSegments,
     recordedHere: false,
-    localUnreadable: false,
+    localUnreadable: over.localUnreadable ?? false,
     name: "Ava",
     setName: vi.fn(),
     headphones: "on",
@@ -190,6 +191,55 @@ describe("GuestRoomApp in the room", () => {
     expect(leave()).toHaveAttribute("aria-disabled", "true");
     expect(leave()).toHaveAttribute("title", "Your recording is still saving");
     expect(screen.getByText("Saving · 33%")).toBeInTheDocument();
+  });
+
+  it("holds Leave while the server has the file and the device count is not known yet", () => {
+    fakeRoom({
+      snapshot: stopped,
+      localSegments: null,
+      upload: { acked: 3, total: 3, fileAck: true },
+    });
+    render(<GuestRoomApp token="t" />);
+    expect(
+      screen.getByText("Saving · 0 of 1 · keep this page open"),
+    ).toBeInTheDocument();
+    expect(leave()).toHaveAttribute("aria-disabled", "true");
+    expect(leave()).toHaveAttribute("title", "Your recording is still saving");
+  });
+
+  it("does not hold Leave on the device count before the server has the file", () => {
+    fakeRoom({
+      snapshot: {
+        ...stopped,
+        takes: [
+          {
+            take_index: 0,
+            session_start_wall_ms: 1000,
+            session_start_iso: "t",
+            stopped_wall_ms: 61_000,
+            pauses: [],
+            consented_participant_ids: ["p_g"],
+          },
+        ],
+      },
+      localSegments: null,
+      upload: { acked: 0, total: 0, fileAck: false, uploading: false },
+    });
+    render(<GuestRoomApp token="t" />);
+    expect(screen.getAllByText(/^Saving · /).length).toBeGreaterThan(0);
+    expect(leave()).not.toHaveAttribute("aria-disabled");
+  });
+
+  it("lets Leave go once the device count is unreadable", () => {
+    fakeRoom({
+      snapshot: stopped,
+      localSegments: null,
+      localUnreadable: true,
+      upload: { acked: 3, total: 3, fileAck: true },
+    });
+    render(<GuestRoomApp token="t" />);
+    expect(screen.getByText("Saving stopped")).toBeInTheDocument();
+    expect(leave()).not.toHaveAttribute("aria-disabled");
   });
 
   it("holds Leave during a take and says why on press", async () => {
@@ -452,6 +502,21 @@ describe("GuestRoomApp in the room", () => {
       screen.getByText("Hana dropped. You're still recording on this device."),
     ).toBeInTheDocument();
     expect(screen.queryByText(/Lost connection to the room/)).toBeNull();
+  });
+
+  it.each([
+    ["in the lobby", { state: "lobby" as const }],
+    ["after Stop", { state: "stopped" as const, take_index: 0 }],
+  ])("says nothing about the host dropping %s", (_name, snapshot) => {
+    fakeRoom({
+      snapshot: {
+        ...snapshot,
+        participants: [{ ...host, connected: false }, me],
+      },
+    });
+    render(<GuestRoomApp token="t" />);
+    expect(screen.queryByText(/dropped/)).toBeNull();
+    expect(screen.queryByText(/still recording on this device/)).toBeNull();
   });
 
   it("reads Reconnecting… on the guest's own tile when the socket drops while waiting", () => {

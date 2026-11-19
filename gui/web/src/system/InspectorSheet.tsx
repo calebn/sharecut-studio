@@ -80,6 +80,8 @@ export type InspectorPhoneProps = InspectorBase & {
 export type InspectorHistory = {
   canUndo: boolean;
   canRedo: boolean;
+  undoReason?: string;
+  redoReason?: string;
   onUndo: () => void;
   onRedo: () => void;
 };
@@ -519,11 +521,13 @@ function Takeover({
               <VerbButton
                 verb="undo"
                 disabled={!history.canUndo}
+                {...(history.canUndo ? {} : { title: history.undoReason })}
                 onClick={history.onUndo}
               />
               <VerbButton
                 verb="redo"
                 disabled={!history.canRedo}
+                {...(history.canRedo ? {} : { title: history.redoReason })}
                 onClick={history.onRedo}
               />
             </>

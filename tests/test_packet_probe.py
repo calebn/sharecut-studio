@@ -4,6 +4,7 @@ import io
 import json
 import os
 import sys
+from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
@@ -11,6 +12,7 @@ import pytest
 from podcast_mcp.engines import ffmpeg as module
 from podcast_mcp.engines.ffmpeg import AudioProbe, FFmpegEngine
 from podcast_mcp.util.coded_error import CodedValueError
+from podcast_mcp.util.project_state import file_revision
 
 
 class PacketChild:
@@ -297,3 +299,105 @@ def test_first_decoded_pts_argv_and_timeout(tmp_path, monkeypatch):
 def test_first_decoded_pts_unknown_is_none(tmp_path, monkeypatch, returncode, stdout):
     _first_pts_run(monkeypatch, returncode=returncode, stdout=stdout)
     assert FFmpegEngine()._first_decoded_pts(tmp_path / "a.mkv", untrusted=False) is None
+
+
+def test_desktop_scan_keys_the_resolved_ffprobe_and_its_revision(tmp_path, monkeypatch):
+    real = tmp_path / "real_ffprobe"
+    real.write_bytes(b"binary one")
+    link = tmp_path / "ffprobe_link"
+    link.symlink_to(real)
+    media = tmp_path / "a.ogg"
+    media.write_bytes(b"media")
+    module._cached_audio_extent.cache_clear()
+    reads: list[str] = []
+    stamped: list[Path] = []
+    original = module.file_revision
+
+    def read(ffprobe, path, *, untrusted):
+        reads.append(ffprobe)
+        return 0.0, 2.0
+
+    def spy(path):
+        stamped.append(path)
+        return original(path)
+
+    monkeypatch.setattr(module, "_read_audio_extent", read)
+    monkeypatch.setattr(module, "file_revision", spy)
+    engine = FFmpegEngine()
+    engine.ffprobe = str(link)
+    resolved = str(Path(engine.ffprobe).resolve())
+    assert resolved == str(real.resolve()) != str(link)
+
+    assert engine._scan_audio_extent(media, untrusted=False) == (0.0, 2.0)
+    assert reads == [resolved]
+    assert Path(resolved) in stamped and link not in stamped
+    assert stamped.count(Path(resolved)) == 2  # the key and the post-read check
+    first_revision = file_revision(real.resolve())
+    assert engine._scan_audio_extent(media, untrusted=False) == (0.0, 2.0)
+    assert reads == [resolved]  # served from the cache
+
+    replacement = tmp_path / "replacement"
+    replacement.write_bytes(b"binary two, longer")
+    os.replace(replacement, real)
+    assert engine._scan_audio_extent(media, untrusted=False) == (0.0, 2.0)
+    assert reads == [resolved, resolved]  # the replaced binary invalidated the entry
+    assert file_revision(real.resolve()) != first_revision
+
+
+def test_desktop_scan_failure_yields_without_the_shortfall_check(packet_probe, monkeypatch):
+    engine, path, metadata = packet_probe
+    metadata["streams"][0]["duration"] = "4"
+    metadata["streams"].append({"codec_type": "video"})
+    monkeypatch.setattr(engine, "_scan_audio_extent", lambda *_a, **_k: None)
+    seen: list[list[str]] = []
+    real_popen = module.popen
+
+    def spawn(cmd, **kwargs):
+        seen.append(list(cmd))
+        script = (
+            "import os; os.write(1, b'\\0' * 4 * 8000);"
+            "os.write(2, b'out_time_us=1000000\\nprogress=end\\n')"
+        )
+        return real_popen([sys.executable, "-c", script], **kwargs)
+
+    monkeypatch.setattr(module, "popen", spawn)
+    info = engine.probe(path)
+    assert info.duration_estimated is True
+    rate, channels, chunks = engine.stream_pcm_f32(path)
+    frames = sum(len(c) for c in chunks)  # no "ended short" raise
+    assert frames > 0
+    assert (rate, channels) == (48000, 1)
+    assert seen and "-progress" not in seen[-1]
+
+
+def test_stream_pcm_f32_argv_puts_progress_pipe2_right_after_the_binary(tmp_path, monkeypatch):
+    engine = FFmpegEngine()
+    media = tmp_path / "a.wav"
+    media.write_bytes(b"x")
+    argv = engine._pcm_f32_argv(media, 8000, 2)
+    captured: list[list[str]] = []
+    real_popen = module.popen
+
+    def spawn(cmd, **kwargs):
+        captured.append(list(cmd))
+        script = "import os; os.write(2, b'out_time_us=1000000\\nprogress=end\\n')"
+        return real_popen([sys.executable, "-c", script], **kwargs)
+
+    monkeypatch.setattr(module, "popen", spawn)
+    list(
+        FFmpegEngine._read_pcm_f32(
+            argv, 2, chunk_frames=10, timeout_sec=30.0, expected_duration_sec=1.0
+        )
+    )
+    list(FFmpegEngine._read_pcm_f32(argv, 2, chunk_frames=10, timeout_sec=30.0))
+    with_progress, without = captured
+    assert with_progress == [
+        argv[0],
+        "-progress",
+        "pipe:2",
+        *argv[1:-1],
+        "-af",
+        "asetpts=PTS-STARTPTS",
+        argv[-1],
+    ]
+    assert without == argv

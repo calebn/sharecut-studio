@@ -68,8 +68,8 @@ describe("PlayerBar", () => {
     render(<PlayerBar />);
     const play = screen.getByRole("button", { name: "Play" });
     expect(play).toHaveAttribute("aria-disabled", "true");
-    expect(play).toHaveAccessibleDescription("Loading project…");
-    expect(screen.getByText("Loading project…")).toBeVisible();
+    expect(play).toHaveAccessibleDescription("Loading…");
+    expect(screen.getByText("Loading…")).toBeVisible();
   });
 
   it("gives a guest the mix only: no A/B and no hear menu", () => {

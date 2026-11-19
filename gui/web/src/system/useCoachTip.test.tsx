@@ -10,7 +10,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useDawStore } from "../state/dawStore";
 import { _resetCoachTipsForTests, coachTipOwner } from "../utils/coachTip";
 import { CoachTip } from "./CoachTip";
-import { useCoachTip } from "./useCoachTip";
+import { isActingKey, useActingKeyDown, useCoachTip } from "./useCoachTip";
 
 beforeEach(() => {
   localStorage.clear();
@@ -172,5 +172,88 @@ describe("useCoachTip after unmount", () => {
     act(() => result.current.release());
     expect(coachTipOwner()).toBeNull();
     expect(localStorage.getItem("sharecut.coachTipSeen.trim")).toBeNull();
+  });
+});
+
+describe("isActingKey", () => {
+  it.each([
+    ["Shift", false],
+    ["Control", false],
+    ["Alt", false],
+    ["Meta", false],
+    ["Tab", false],
+    ["Escape", true],
+    ["Enter", true],
+    [" ", true],
+    ["l", true],
+    ["ArrowDown", true],
+  ])("%j: %s", (key, acting) => {
+    expect(isActingKey(new KeyboardEvent("keydown", { key }))).toBe(acting);
+  });
+});
+
+describe("useActingKeyDown", () => {
+  it("calls back for an acting key, in the capture phase, leaving the event alone", () => {
+    const onKey = vi.fn();
+    const bubble = vi.fn();
+    function Target() {
+      useActingKeyDown(true, onKey);
+      return (
+        <button type="button" onKeyDown={bubble}>
+          Target
+        </button>
+      );
+    }
+    render(<Target />);
+    const notPrevented = fireEvent.keyDown(
+      screen.getByRole("button", { name: "Target" }),
+      { key: "l" },
+    );
+    expect(onKey).toHaveBeenCalledOnce();
+    expect(notPrevented).toBe(true);
+    expect(bubble).toHaveBeenCalledOnce();
+  });
+
+  it("runs before the target's own handler, even one that stops the key", () => {
+    const onKey = vi.fn();
+    function Target() {
+      useActingKeyDown(true, onKey);
+      return (
+        <button type="button" onKeyDown={(event) => event.stopPropagation()}>
+          Target
+        </button>
+      );
+    }
+    render(<Target />);
+    fireEvent.keyDown(screen.getByRole("button", { name: "Target" }), {
+      key: "l",
+    });
+    expect(onKey).toHaveBeenCalledOnce();
+  });
+
+  it.each(["Shift", "Control", "Alt", "Meta", "Tab"])(
+    "ignores a %s press on its own",
+    (key) => {
+      const onKey = vi.fn();
+      renderHook(() => useActingKeyDown(true, onKey));
+      fireEvent.keyDown(document.body, { key });
+      expect(onKey).not.toHaveBeenCalled();
+    },
+  );
+
+  it("listens only while enabled and calls the latest handler", () => {
+    const first = vi.fn();
+    const second = vi.fn();
+    const { rerender } = renderHook(
+      ({ enabled, onKey }) => useActingKeyDown(enabled, onKey),
+      { initialProps: { enabled: false, onKey: first } },
+    );
+    fireEvent.keyDown(document.body, { key: "l" });
+    expect(first).not.toHaveBeenCalled();
+    rerender({ enabled: true, onKey: first });
+    rerender({ enabled: true, onKey: second });
+    fireEvent.keyDown(document.body, { key: "l" });
+    expect(first).not.toHaveBeenCalled();
+    expect(second).toHaveBeenCalledOnce();
   });
 });

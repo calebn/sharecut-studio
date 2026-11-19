@@ -13,6 +13,8 @@ export type DeclinedScrimProps = {
   seat: DeclinedSeat;
   /** Opens the Join sheet at the consent step. */
   onJoin: () => void;
+  /** The looking-in line, shown directly on top of the bar. */
+  lookingIn?: string | null;
 };
 
 /**
@@ -23,7 +25,12 @@ export type DeclinedScrimProps = {
  * focus, because the room behind it goes inert: the Join button when it works,
  * the bar itself while it is held.
  */
-export function DeclinedScrim({ phase, seat, onJoin }: DeclinedScrimProps) {
+export function DeclinedScrim({
+  phase,
+  seat,
+  onJoin,
+  lookingIn,
+}: DeclinedScrimProps) {
   const text = DECLINED_TEXT[seat];
   const { disabledReason } = declinedPeek(phase, seat);
   const lineId = useId();
@@ -45,6 +52,12 @@ export function DeclinedScrim({ phase, seat, onJoin }: DeclinedScrimProps) {
         className="sys-declined-bar"
         aria-label={text.label}
       >
+        {lookingIn ? (
+          <p className="sys-declined-looking-in">
+            <SystemIcon name="eye" size={16} />
+            {lookingIn}
+          </p>
+        ) : null}
         <SystemIcon name={text.glyph} size={20} />
         <div className="sys-declined-text">
           <p id={lineId} className="sys-declined-line">

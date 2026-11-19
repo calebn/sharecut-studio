@@ -146,6 +146,7 @@ Available via toolbar / `execute`; some also appear in the in-app palette. Comma
 | Toggle track mute | `track.muteToggle` | Project loaded | Mute (edit.mute) on a track: saved mix mute (SetTrackMute) for the host and editors; listen-only mute for other guests (Args: { trackId? }) |
 | Set track volume | `track.setVolume` | Host or shared edit mode | Args: { trackId?, db }: SetTrackFader, the saved volume on top of staging gain (-60 to +12 dB) |
 | Clear solo | `track.clearSolo` | Project loaded | Unsolo every track: the Solo on chip above the track headers, phone status row and Mix sheet (listen-only, no key) |
+| Back to playhead | `view.followPlayhead` | editStage | Follow the playhead again during playback and bring it into view in the timeline (no default key) |
 | Fit tracks to window height | `view.fitTracksHeight` | Always (when not typing in a field or on a focused Scrub field) | Toggle: fill the stage height, or a fixed track height |
 | Snap to cut points | `view.toggleSnap` | Project loaded | The Snap toggle in the Edit corner: moves, trims and the suggestion Start/End pull to nearby cut points. Alt inverts it for one gesture |
 | Export transcript… | `export.transcript` | Loaded host project | Go to Deliver and focus the Transcript Export → export/ |

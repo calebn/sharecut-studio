@@ -7,7 +7,7 @@ import {
   useRef,
   useState,
 } from "react";
-import { BrandLockup } from "../ui";
+import { BrandLockup, BrandSymbol } from "../ui";
 import type { DrawerDetent } from "../ui/BottomSheet";
 import { Tab, TabList } from "../ui/Tabs";
 import { DeclinedScrim } from "./DeclinedScrim";
@@ -28,6 +28,7 @@ import { clockText, type RoomPhase } from "./roomPhase";
 import {
   type DeviceWork,
   gridColumns,
+  lookingInLine,
   type RoomPerson,
   type RoomRole,
   roomViewModel,
@@ -51,6 +52,7 @@ export type RoomViewProps = {
   /** The session's own name, shown first in the embedded header; omitted until known. */
   sessionName?: string;
   people: RoomPerson[];
+  lookingIn: number;
   phase: RoomPhase;
   viewerWidth?: ViewerWidth;
   alerts?: RoomAlertInput[];
@@ -162,6 +164,7 @@ export function RoomView({
   title,
   sessionName,
   people,
+  lookingIn,
   phase,
   viewerWidth = "desktop",
   alerts,
@@ -225,6 +228,16 @@ export function RoomView({
     selfName,
     device,
   });
+  const lookingInText = loading ? null : lookingInLine(lookingIn);
+  // Under Declined the body is inert and dimmed, so the line is drawn by the
+  // Declined layer on top of its bar instead.
+  const lookingInNote =
+    lookingInText === null || declined ? null : (
+      <p className="sys-room-looking-in">
+        <SystemIcon name="eye" size={16} />
+        {lookingInText}
+      </p>
+    );
   const pinned =
     phase.kind === "live" || phase.kind === "paused"
       ? clockText(phase.clockSec)
@@ -285,6 +298,9 @@ export function RoomView({
       </div>
     );
   const { dock } = model;
+  const panelsLabel = takes === undefined ? "Comments" : "Comments and takes";
+  const commentsShowing =
+    model.notesOpen && (takes === undefined || railTab === "comments");
 
   return (
     <div
@@ -311,6 +327,7 @@ export function RoomView({
           className="sys-room-view-header"
           aria-busy={loading ? true : undefined}
         >
+          <BrandSymbol className="sys-room-view-symbol" />
           <BrandLockup name="ShareCut" className="sys-room-view-wordmark" />
           <h1
             className="sys-room-view-title"
@@ -332,6 +349,7 @@ export function RoomView({
       )}
       <div className="sys-room-view-body" inert={declined ? true : undefined}>
         <Stage embedded={embedded} title={title}>
+          {lookingInNote}
           {alertsInFrame ? null : (
             <div className="sys-room-view-alert">
               <RoomAlert alerts={model.alerts} />
@@ -375,7 +393,11 @@ export function RoomView({
                     <RoomTile
                       key={tile.key}
                       {...(tile.props.presence === "live" && tile.props.isMe
-                        ? { ...tile.props, onPress: onSelfPress }
+                        ? {
+                            ...tile.props,
+                            onPress: onSelfPress,
+                            you: !embedded,
+                          }
                         : tile.props)}
                     />
                   ),
@@ -394,7 +416,7 @@ export function RoomView({
           ) : null}
         </Stage>
         {!loading && model.railOpen ? (
-          <aside className="sys-room-view-rail" aria-label="Comments and takes">
+          <aside className="sys-room-view-rail" aria-label={panelsLabel}>
             {railContent}
           </aside>
         ) : null}
@@ -446,7 +468,9 @@ export function RoomView({
           muted={muted}
           showComment={model.showComment}
           unreadNotes={unreadNotes}
-          notesOpen={model.notesOpen}
+          notes={!model.phoneDock}
+          labelled={model.phoneDock}
+          notesOpen={commentsShowing}
           dock={dock}
           onDone={onDone}
           onMute={onMute}
@@ -454,6 +478,10 @@ export function RoomView({
           onPause={onPause}
           onStop={onStopPaused}
           onNotes={() => {
+            if (model.notesOpen && takes !== undefined && railTab === "takes") {
+              setRailTab("comments");
+              return;
+            }
             if (!model.notesOpen) setRailTab("comments");
             setNotesChoice(!model.notesOpen);
           }}
@@ -466,12 +494,13 @@ export function RoomView({
           phase={phase}
           seat={seat === "producer" ? "producer" : "guest"}
           onJoin={declined.onJoin}
+          lookingIn={lookingInText}
         />
       ) : null}
       {viewerWidth === "desktop" || loading ? null : (
         <Sheet
           form="bottom"
-          title="Comments"
+          title={panelsLabel}
           open={model.sheetOpen && !declined}
           onClose={closeSheet}
           detent={detent}

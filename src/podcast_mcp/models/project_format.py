@@ -5,7 +5,7 @@ from typing import Any
 
 from podcast_mcp.util.coded_error import CodedValueError
 
-SUPPORTED_PROJECT_VERSION = "2.2"
+SUPPORTED_PROJECT_VERSION = "2.3"
 
 Step = Callable[[dict[str, Any]], None]
 
@@ -18,11 +18,16 @@ def _add_transcript_asr_language(data: dict[str, Any]) -> None:
     """2.1 to 2.2: ``Transcript.asr_language`` is new and absent means no language was recorded."""
 
 
+def _add_history_entry_authors(data: dict[str, Any]) -> None:
+    """2.2 to 2.3: ``HistoryEntry.author`` and ``undone_by`` are new and absent means unknown."""
+
+
 # One entry per released format: the version it moves to, and the edit that moves a document
 # there. Shared by `podcast episode upgrade` and the in-memory migration in `load_project`.
 STEPS: dict[str, tuple[str, Step]] = {
     "2.0": ("2.1", _add_timeline_join_fade_limit),
     "2.1": ("2.2", _add_transcript_asr_language),
+    "2.2": ("2.3", _add_history_entry_authors),
 }
 
 
@@ -55,10 +60,11 @@ def version_label(version: object) -> str:
     if isinstance(version, bool) or version is None:
         return ""
     if isinstance(version, int | float):
-        return repr(version)
-    if _version_key(version) is None:
+        text = repr(version)
+    elif _version_key(version) is None:
         return ""
-    text = str(version)
+    else:
+        text = str(version)
     return text if len(text) <= _MAX_SHOWN else text[:_MAX_SHOWN] + "…"
 
 
@@ -128,7 +134,14 @@ def snapshot_editable_state(project: Any) -> dict[str, Any]:
     }
 
 
-def apply_editable_snapshot(project: Any, snap: dict[str, Any]) -> None:
+def apply_editable_snapshot(
+    project: Any, snap: dict[str, Any], *, keep_review_versions: bool = False
+) -> None:
+    """Restore every editable section from ``snap``.
+
+    A history move passes ``keep_review_versions``. The project keeps its own review versions
+    and active choice, and the snapshot's are not read. Comments follow the snapshot.
+    """
     from podcast_mcp.models.episode import (
         EditorialSection,
         MixSection,
@@ -153,7 +166,14 @@ def apply_editable_snapshot(project: Any, snap: dict[str, Any]) -> None:
         restored.guid = kept.guid or restored.guid
         restored.first_exported_at = kept.first_exported_at or restored.first_exported_at
     project.feed = restored
-    project.review = ReviewSection.model_validate(snap.get("review") or {"comments": []})
+    restored_review = snap.get("review") or {"comments": []}
+    if keep_review_versions:
+        restored_review = {
+            "comments": restored_review.get("comments", []),
+            "versions": project.review.versions,
+            "active_version_id": project.review.active_version_id,
+        }
+    project.review = ReviewSection.model_validate(restored_review)
     project.render.last_completed_step = snap.get("render_last_completed_step")
     meta = snap.get("meta")
     if meta and "name" in meta:

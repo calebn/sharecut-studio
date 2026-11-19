@@ -538,7 +538,14 @@ def test_playwright_summary_reads_the_report_configured_for_its_matrix_job() -> 
         step for step in job["steps"] if step.get("name") == "Summarize Playwright tests"
     )
 
-    assert '--report "gui/web/$PLAYWRIGHT_JSON_OUTPUT_FILE"' in summary["run"]
+    assert '--report "gui/web/playwright-public/${{ matrix.name }}.json"' in summary["run"]
+    assert (
+        summary["if"] == "${{ always() && steps.browser-public-projection.outcome == 'success' }}"
+    )
+    projection = next(
+        step for step in job["steps"] if step.get("name") == "Project public browser results"
+    )
+    assert '--report "gui/web/$PLAYWRIGHT_JSON_OUTPUT_FILE"' in projection["run"]
     assert "--report gui/web/playwright-report/main.json" not in summary["run"]
 
 

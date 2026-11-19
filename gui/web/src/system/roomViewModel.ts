@@ -58,6 +58,7 @@ export type RoomViewInput = {
 
 export type DeviceWork = {
   uploading?: boolean;
+  verifying?: boolean;
   /** The keeper is still writing the take. */
   finishing?: boolean;
   capturingTone?: boolean;
@@ -83,6 +84,8 @@ type RoomViewModel = {
   columns: 1 | 2 | 3 | 4;
   listeners: RoomListener[];
   dockSeat: DockSeat;
+  /** A guest or producer on the portrait phone layout: the peek is their one door to Comments and the dock words its buttons. */
+  phoneDock: boolean;
   showComment: boolean;
   railOpen: boolean;
   sheetOpen: boolean;
@@ -159,10 +162,19 @@ export function tileProps(entry: RoomPerson): RoomTileProps {
 
 /**
  * Host-offline is the guest's alert: the host has left, or their connection
- * dropped while they are on air. Only a guest's view shows it; a producer's
- * room has no recording of its own to fall back on.
+ * dropped while they are on air. Only a guest's view shows it, and only while a
+ * take is live, paused or reconnecting: outside a take nothing is being
+ * recorded here, and the host's tile already reads Left. A producer's room has
+ * no recording of its own to fall back on.
  */
-function hostOffline(people: RoomPerson[]): RoomAlertInput[] {
+function hostOffline(people: RoomPerson[], phase: RoomPhase): RoomAlertInput[] {
+  if (
+    phase.kind !== "live" &&
+    phase.kind !== "paused" &&
+    phase.kind !== "reconnecting"
+  ) {
+    return [];
+  }
   const host = people.find((person) => person.role === "host");
   if (!host) return [];
   const dropped =
@@ -219,7 +231,11 @@ function guestLeaveHeld(
     return LEAVE_DURING_TAKE_REASON;
   }
   if (device.finishing) return LEAVE_WHILE_FINISHING_REASON;
-  if (device.uploading && phase.kind === "saving" && !phase.failed) {
+  if (
+    (device.uploading || device.verifying) &&
+    phase.kind === "saving" &&
+    !phase.failed
+  ) {
     return LEAVE_WHILE_SAVING_REASON;
   }
   return device.capturingTone ? LEAVE_DURING_TONE_REASON : undefined;
@@ -243,6 +259,28 @@ function roomDock(
   return phase.kind === "saved"
     ? { kind: "done", text: SAVED_DOCK_LINE, leaveHeld }
     : { kind: "controls", leaveHeld };
+}
+
+/** The producer link holds a handful of sockets; a count past this is not one the server sent. */
+export const LOOKING_IN_MAX = 99;
+
+/** A snapshot's `watchers` crosses the wire unchecked: only 1 to `LOOKING_IN_MAX` counts. */
+export function lookingInCount(raw: unknown): number {
+  return typeof raw === "number" &&
+    Number.isInteger(raw) &&
+    raw >= 1 &&
+    raw <= LOOKING_IN_MAX
+    ? raw
+    : 0;
+}
+
+/** The line for people looking in through the producer link, or null for nobody. */
+export function lookingInLine(count: number): string | null {
+  const people = lookingInCount(count);
+  if (people === 0) return null;
+  return people === 1
+    ? "Someone with the producer link is looking in"
+    : `${people} people with the producer link are looking in`;
 }
 
 export function gridColumns(
@@ -298,12 +336,13 @@ export function roomViewModel(input: RoomViewInput): RoomViewModel {
       : null;
   const columns = gridColumns(viewerWidth, tiles.length);
 
-  const derived = role === "guest" ? hostOffline(people) : [];
+  const derived = role === "guest" ? hostOffline(people, phase) : [];
   return {
     tiles,
     columns,
     listeners,
     dockSeat: role,
+    phoneDock: viewerWidth === "phone" && role !== "host",
     showComment:
       phase.kind === "live" ||
       phase.kind === "paused" ||

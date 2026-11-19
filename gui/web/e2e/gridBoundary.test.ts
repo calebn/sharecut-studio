@@ -29,6 +29,26 @@ const AXIS_LOOPS: Record<string, { loops: number; reason: string }> = {
     reason:
       "the Model need row acceptance asks for contrast-enabled axe on the row at three viewports in both themes (#2046)",
   },
+  "guest-boot-name.spec.ts": {
+    loops: 1,
+    reason:
+      "the header the server writes is painted by the stylesheet alone before any script has chosen a theme, so its colors, boxes and axe contrast are asked in both themes (#3891)",
+  },
+  "guest-header-fit.spec.ts": {
+    loops: 2,
+    reason:
+      "the axe check of the landed guest header reads color, so it runs in both themes; the second loop only files the optional pictures, which are skipped unless a folder is named",
+  },
+  "guest-link-offline.spec.ts": {
+    loops: 1,
+    reason:
+      "axe contrast on the offline cover reads color, so it runs in both themes (#3891)",
+  },
+  "guest-loading-hold.spec.ts": {
+    loops: 1,
+    reason:
+      "the loading header and its grey blocks are drawn from theme colors, and the holds-still check (boxes, shift, shell) is asked in both themes (#3891)",
+  },
   "guest-seek.spec.ts": {
     loops: 1,
     reason:

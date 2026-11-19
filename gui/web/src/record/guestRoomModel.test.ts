@@ -732,6 +732,28 @@ describe("guestCovers", () => {
     });
   });
 
+  it("does not call the device safe on a closed invite when its scan could not be read", () => {
+    const cover = guestCovers({
+      ...coverSource,
+      accessEnded: true,
+      inviteClosed: true,
+      host: "Hana",
+      stake: "unsent",
+      localUnreadable: true,
+      keeperActions: { ...actions, download: vi.fn(), recover: vi.fn() },
+    });
+    expect(cover).toMatchObject({
+      title: "Invite link closed",
+      children:
+        "Hana closed this invite link. We couldn't check this device. Try saving it again, or save a copy, or ask for a new link.",
+      primary: { label: "Save my recording" },
+      secondary: { label: "Try saving again" },
+    });
+    expect(cover?.children).toEqual(
+      expect.not.stringContaining("safe on this device"),
+    );
+  });
+
   it("keeps Save and Recover on a closed invite while a local take is unsent", () => {
     const download = vi.fn();
     const recover = vi.fn();
@@ -842,6 +864,46 @@ describe("guestCovers", () => {
     expect(leftRunning?.secondary).toMatchObject({
       busy: true,
       busyLabel: "Saving…",
+    });
+  });
+
+  it("does not call the device safe when its scan could not be read", () => {
+    const download = vi.fn();
+    const recover = vi.fn();
+    const unreadable = {
+      ...coverSource,
+      stake: "unsent" as const,
+      host: "Hana",
+      localUnreadable: true,
+      keeperActions: { ...actions, download, recover },
+    };
+    for (const state of [{ accessEnded: true }, { left: true }]) {
+      const cover = guestCovers({ ...unreadable, ...state });
+      expect(cover).toMatchObject({
+        title: "Your recording didn't finish saving",
+        children:
+          "We couldn't check this device. Try saving it again, or save a copy.",
+        primary: { label: "Save my recording" },
+        secondary: { label: "Try saving again" },
+      });
+      expect(cover?.children).toEqual(
+        expect.not.stringContaining("safe on this device"),
+      );
+    }
+  });
+
+  it("keeps the safe wording when the scan was readable", () => {
+    expect(
+      guestCovers({
+        ...coverSource,
+        accessEnded: true,
+        stake: "unsent",
+        host: "Hana",
+        localUnreadable: false,
+        keeperActions: actions,
+      }),
+    ).toMatchObject({
+      children: "It's safe on this device. Save it and send it to Hana.",
     });
   });
 

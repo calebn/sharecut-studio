@@ -1,6 +1,7 @@
 import { type ReactNode, useEffect } from "react";
 import type { ProjectView } from "../types/project";
 import { useDawStore } from "./dawStore";
+import { ShareNameContext } from "./shareName";
 
 /**
  * Thin provider: hydrates the Zustand DAW store from App bootstrap props.
@@ -14,6 +15,7 @@ export function DawProvider({
   shareCapabilities = null,
   shareTranscriptWords = false,
   shareAuthor = null,
+  shareName = null,
 }: {
   children: ReactNode;
   projectPath: string;
@@ -22,6 +24,7 @@ export function DawProvider({
   shareCapabilities?: string[] | null;
   shareTranscriptWords?: boolean;
   shareAuthor?: string | null;
+  shareName?: string | null;
 }) {
   const hydrate = useDawStore((s) => s.hydrate);
   useEffect(() => {
@@ -42,5 +45,9 @@ export function DawProvider({
     shareAuthor,
     shareTranscriptWords,
   ]);
-  return <>{children}</>;
+  return (
+    <ShareNameContext.Provider value={shareName}>
+      {children}
+    </ShareNameContext.Provider>
+  );
 }

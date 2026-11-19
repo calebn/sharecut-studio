@@ -9,7 +9,7 @@ from pathlib import Path
 
 import pytest
 
-from podcast_mcp.util.sqlite_wal import ensure_wal, retry_transient
+from podcast_mcp.util.sqlite_wal import ensure_wal, retry_access_denied, retry_transient
 
 
 def _error(message: str, code: int) -> sqlite3.OperationalError:
@@ -380,3 +380,66 @@ def test_a_failing_reopen_is_reported_and_the_terminal_note_counts_reopens(
         with pytest.raises(sqlite3.OperationalError, match="unable to open") as failed:
             retry_transient(real, step, monotonic=clock.monotonic, sleep=clock.sleep, reopen=refuse)
         assert "reopen after attempt 1" in failed.value.__notes__[-1]
+
+
+def _access_denied(winerror: int = 5) -> PermissionError:
+    error = PermissionError(13, "Access is denied")
+    error.winerror = winerror  # type: ignore[attr-defined]
+    return error
+
+
+def test_a_transient_access_denied_is_retried_until_the_step_lands() -> None:
+    clock = _Clock()
+    answers = [_access_denied(), _access_denied()]
+    calls = 0
+
+    def step() -> None:
+        nonlocal calls
+        calls += 1
+        if answers:
+            raise answers.pop(0)
+
+    retry_access_denied(
+        step, timeout_sec=1.0, retry_sec=0.25, monotonic=clock.monotonic, sleep=clock.sleep
+    )
+    assert calls == 3
+    assert clock.slept == [0.25, 0.25]
+
+
+def test_a_persistent_access_denied_stops_at_the_deadline_with_a_note() -> None:
+    clock = _Clock()
+    error = _access_denied()
+
+    def step() -> None:
+        raise error
+
+    with pytest.raises(PermissionError) as caught:
+        retry_access_denied(
+            step, timeout_sec=0.5, retry_sec=0.25, monotonic=clock.monotonic, sleep=clock.sleep
+        )
+    assert caught.value is error
+    assert "attempts=3" in error.__notes__[0]
+    assert "terminal_reason=deadline" in error.__notes__[0]
+    assert clock.slept == [0.25, 0.25]
+
+
+@pytest.mark.parametrize(
+    "error",
+    [PermissionError(13, "Permission denied"), _access_denied(32), FileNotFoundError(2, "gone")],
+)
+def test_other_errors_are_not_retried_as_access_denied(error: OSError) -> None:
+    clock = _Clock()
+    calls = 0
+
+    def step() -> None:
+        nonlocal calls
+        calls += 1
+        raise error
+
+    with pytest.raises(type(error)):
+        retry_access_denied(
+            step, timeout_sec=1.0, retry_sec=0.25, monotonic=clock.monotonic, sleep=clock.sleep
+        )
+    assert calls == 1
+    assert clock.slept == []
+    assert not hasattr(error, "__notes__")

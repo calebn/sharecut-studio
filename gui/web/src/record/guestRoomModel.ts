@@ -7,6 +7,7 @@ import type { RoomSaving } from "../system/roomTileModel";
 import type { RoomRole, ViewerWidth } from "../system/roomViewModel";
 import type { TakeInput, TakeLineInput } from "../system/takesTrayModel";
 import { dbToFraction } from "../ui/metering";
+import { NETWORK_COVER_COPY } from "./bootCopy";
 import { hostRoomPhase } from "./hostRoomPhase";
 import type { TakeClipping } from "./keeper/clipRegions";
 import type { MicPermissionStatus } from "./micPermission";
@@ -402,12 +403,16 @@ type CoverSource = {
   stake: GuestStake;
   keeperActions: KeeperRecoveryActions;
   host?: string;
+  localUnreadable?: boolean;
   onRetry?: () => void;
 };
 
 const page = { size: "page" } as const;
 
 const SAVING_LABEL = "Saving…";
+
+const UNREADABLE_DEVICE_COPY =
+  "We couldn't check this device. Try saving it again, or save a copy.";
 
 function unsentRecordingCover(source: CoverSource, host: string): CoverProps {
   if (source.keeperActions.downloaded) {
@@ -418,7 +423,9 @@ function unsentRecordingCover(source: CoverSource, host: string): CoverProps {
     ...page,
     glyph: "door-open",
     title: "Your recording didn't finish saving",
-    children: `It's safe on this device. Save it and send it to ${host}.`,
+    children: source.localUnreadable
+      ? UNREADABLE_DEVICE_COPY
+      : `It's safe on this device. Save it and send it to ${host}.`,
     primary: download
       ? {
           label: "Save my recording",
@@ -449,13 +456,7 @@ const BOOT_COVERS: Record<BootFailure, BootCover> = {
     children: "Ask the person who invited you for a new link.",
     retry: false,
   },
-  network: {
-    glyph: "cloud-off",
-    title: "Couldn't reach the room",
-    children:
-      "Check your internet connection, then try again. If it keeps happening, let the person who invited you know.",
-    retry: true,
-  },
+  network: { ...NETWORK_COVER_COPY, retry: true },
   server: {
     glyph: "triangle-alert",
     title: "The room didn't answer",
@@ -501,7 +502,9 @@ export function guestCovers(source: CoverSource): CoverProps | null {
         glyph: "door-open",
         title: "Invite link closed",
         children: hasLocal
-          ? `${capitalized(host)} closed this invite link. Your recording is safe on this device. Save it and send it to ${host}, or ask for a new link.`
+          ? source.localUnreadable
+            ? `${capitalized(host)} closed this invite link. We couldn't check this device. Try saving it again, or save a copy, or ask for a new link.`
+            : `${capitalized(host)} closed this invite link. Your recording is safe on this device. Save it and send it to ${host}, or ask for a new link.`
           : `${capitalized(host)} closed this invite link. Ask for a new link.`,
         primary:
           hasLocal && download
@@ -624,6 +627,7 @@ type CoverRoom = Pick<
   | "keeperActions"
   | "localRecording"
   | "localSegments"
+  | "localUnreadable"
   | "recordedHere"
   | "snapshot"
 > & { upload: Pick<RecordUploadProgress, "fileAck" | "seenSegments"> };
@@ -662,6 +666,7 @@ export function guestCoverProps(
     }),
     keeperActions,
     host: guestHostName(room.snapshot),
+    localUnreadable: room.localUnreadable,
     onRetry: options.onRetry,
   });
 }

@@ -15,6 +15,8 @@ type CoverAction = {
   busy?: boolean;
   /** What the button says while busy. The wider of it and the idle label sets the width. */
   busyLabel?: string;
+  /** Names the action in the markup, so a caller can find it after the cover changes. */
+  actionId?: string;
 };
 
 const Spinner = () => (
@@ -55,8 +57,9 @@ function ActionLabel({
   );
 }
 
-function pressProps({ busy, busyLabel, onClick }: CoverAction) {
+function pressProps({ busy, busyLabel, onClick, actionId }: CoverAction) {
   return {
+    "data-cover-action": actionId,
     // Only a button that shows its busy label looks like it is working; one
     // that is busy without a label keeps the shared disabled look.
     "data-working": busy && busyLabel ? "true" : undefined,

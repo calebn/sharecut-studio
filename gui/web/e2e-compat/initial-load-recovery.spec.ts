@@ -35,7 +35,9 @@ async function proveHungLoadRecovers(
 
   const cover = page.getByRole("alert");
   await expect(cover).toContainText("Could not load the project");
-  await expect(cover).toContainText("The server didn't answer.");
+  await expect(cover).toContainText(
+    "ShareCut isn't answering. Check that it is still running on this computer.",
+  );
   await expect(cover).toBeInViewport();
   const attempts = stateRequests.length;
 
@@ -52,9 +54,11 @@ async function proveHungLoadRecovers(
   await retry.focus();
   await retry.click();
   await expect.poll(() => stateRequests.length).toBe(attempts + 1);
-  // The same button stays, busy and focused, while the retry is in flight.
-  await expect(retry).toHaveAttribute("aria-busy", "true");
-  await expect(retry).toBeFocused();
+  // The same button stays, busy and focused, while the retry is in flight; it
+  // reads "Trying…" meanwhile.
+  const busy = cover.getByRole("button", { name: "Trying…" });
+  await expect(busy).toHaveAttribute("aria-busy", "true");
+  await expect(busy).toBeFocused();
   await (held as Route | null)?.continue();
   await expect(cover).toBeHidden();
   await expect(page.getByRole("heading", { level: 1 })).toContainText(

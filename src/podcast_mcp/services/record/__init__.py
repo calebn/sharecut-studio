@@ -40,6 +40,7 @@ if TYPE_CHECKING:
         filter_record_event_for_guest,
         forget_workspace_runtime,
         invalidate_record_session_cache,
+        observer_view,
         record_hub_key,
         route_record_ws_message,
     )
@@ -98,6 +99,7 @@ __all__ = [
     "land_first_would_work",
     "left_behind_message",
     "list_record_sessions",
+    "observer_view",
     "parse_participant_id",
     "parse_session_target",
     "parse_upload_kind",
@@ -142,6 +144,7 @@ _MODULE_BY_NAME = {
     "filter_record_event_for_guest": "service",
     "forget_workspace_runtime": "service",
     "invalidate_record_session_cache": "service",
+    "observer_view": "service",
     "parse_participant_id": "upload",
     "parse_session_target": "state",
     "parse_upload_kind": "upload",

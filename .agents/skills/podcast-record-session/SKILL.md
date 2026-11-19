@@ -22,7 +22,7 @@ Each keeper reports how many segments it opened (`SegmentReport`), and a take st
 report is judged by the last count it sent; a guest that never reported, by the Pause/Resume inference.
 After that the host copies each segment into `raw/` and registers one clip at
 `take_offset_s + join_offset_ms / 1000` (2 s gap between takes). During REC or
-PAUSED, everyone can add a live comment (`C` for the host, `M` for a guest → `body` `"Marker"`; typed notes
+PAUSED, everyone can add a live comment (`C` for the host, `M` for a guest → `body` `"Marker"`; typed comments
 use the same path). Comments land as ordinary `review.comments[]` at
 `take_offset_s + recording_ms / 1000`. Producers never capture, send, or save a recording.
 
@@ -82,7 +82,10 @@ podcast record assign-track --project episode.sharecut --participant p_ab12cd34 
 1. Mint a room (`create_record_room_tool` or the Invite sheet's Record links group, **Create record links**).
    Minting ends the previous room: its links show the dead-link cover.
    Send the **guest** `/rec/` URL to talent and the **producer** URL only to the
-   silent listener.
+   silent listener. A producer link shows the live room behind its Join sheet before the
+   press (the page looks in over the same connection), and the host and guests see
+   "Someone with the producer link is looking in" while it does. Once the host removes
+   someone who joined through that link, the invite is closed and a look on it is refused, or closed if it is already open.
 2. Open the **Record** stage in the Stage bar (or Invite → **Open Record stage**). The host browser will ask for a mic; that dry tap is
    the host's full-quality recording (`p_host`).
 3. Guests enter a name, check headphones and click **Allow microphone**, then
@@ -91,7 +94,9 @@ podcast record assign-track --project episode.sharecut --participant p_ab12cd34 
    open. The recorder is armed on Join and record and writes **zero bytes**
    until Start. Room tone is host-triggered with `record_room_tone_tool` (see
    the tool table above), not a step of joining. Producers enter a name
-   and **Join to listen** (no mic, no consent, no full-quality recording).
+   and **Join to listen** (no mic, no consent, no full-quality recording); **Not now**
+   ends their look at the room. `record_state_tool` and `podcast record state` do not
+   report who is looking in (that count lives in the GUI server only).
 4. `record_state_tool` / the Record stage: Start stays disabled while `start_blockers`
    is non-empty. Each row has a `code`:
    - `{"code": "no_recorder"}` — nobody recorded yet (the host's Join
@@ -112,8 +117,8 @@ podcast record assign-track --project episode.sharecut --participant p_ab12cd34 
    ("Saving to project… N of M chunks", then "Saved to project") until the
    file ACK; the host Record stage lists the same status per participant. Mute writes zeros (file stays continuous) and stops that
    person's send. **C** on the host, **M** for a guest (or the Marker button) posts a live comment with body
-   `"Marker"`; typed notes use the same path. Guests see their own comments and every
-   marker in the room, and other notes only while the host's `guests_see_notes` setting is on. Host DAW `daw.record.marker`
+   `"Marker"`; typed comments use the same path. Guests see their own comments and every
+   marker in the room, and other comments only while the host's `guests_see_notes` setting is on. Host DAW `daw.record.marker`
    is `omit.guest` because guests use `GuestRoomApp`, not the host catalog. Host and
    producer see all live comments. After land they become ordinary timeline
    comments on the host.

@@ -10,7 +10,7 @@ from typer.testing import CliRunner
 from podcast_mcp.cli.main import app
 from podcast_mcp.models import load_project
 from podcast_mcp.models.project_format import SUPPORTED_PROJECT_VERSION
-from podcast_mcp.project.store import WriteGrantKind, write_grant
+from podcast_mcp.project.store import WriteGrantKind, read_history_index, write_grant
 from podcast_mcp.project.upgrade import upgrade_workspace
 from podcast_mcp.util.coded_error import CodedValueError
 from script_loader import load_script
@@ -36,13 +36,13 @@ def synthetic_old(tmp_path: Path, version: str = "2.0") -> Path:
     return source
 
 
-def test_the_project_version_is_2_2_everywhere() -> None:
+def test_the_project_version_is_2_3_everywhere() -> None:
     schema = json.loads((ROOT / "schemas/episode.project.schema.json").read_text(encoding="utf-8"))
-    assert SUPPORTED_PROJECT_VERSION == "2.2"
-    assert schema["properties"]["version"]["const"] == "2.2"
+    assert SUPPORTED_PROJECT_VERSION == "2.3"
+    assert schema["properties"]["version"]["const"] == "2.3"
     fields = schema["$defs"]["TimelineSection"]["properties"]["join_fade_max_ms"]
     assert (fields["minimum"], fields["maximum"]) == (0, 200)
-    assert load_project(DEVELOPMENT / PROJECT).version == "2.2"
+    assert load_project(DEVELOPMENT / PROJECT).version == "2.3"
 
 
 def test_ordinary_loading_opens_the_old_version_in_memory_and_leaves_the_file(
@@ -50,7 +50,7 @@ def test_ordinary_loading_opens_the_old_version_in_memory_and_leaves_the_file(
 ) -> None:
     source = synthetic_old(tmp_path)
     before = (source / PROJECT).read_bytes()
-    assert load_project(source / PROJECT).version == "2.2"
+    assert load_project(source / PROJECT).version == "2.3"
     assert (source / PROJECT).read_bytes() == before
 
 
@@ -84,13 +84,13 @@ def test_the_cli_upgrades_a_2_0_workspace_and_leaves_the_source_alone(tmp_path: 
     assert json.loads(result.output) == {
         "project": str(output.resolve() / PROJECT),
         "from_version": "2.0",
-        "to_version": "2.2",
+        "to_version": "2.3",
     }
     assert compat.inventory(source, ignore_locks=True) == before
 
     upgraded = load_project(output / PROJECT)
     current = load_project(DEVELOPMENT / PROJECT)
-    assert upgraded.version == "2.2"
+    assert upgraded.version == "2.3"
     assert upgraded.timeline.join_fade_max_ms is None
     assert (
         "join_fade_max_ms"
@@ -111,13 +111,13 @@ def test_an_upgrade_rewrites_the_version_and_adds_no_value(tmp_path: Path) -> No
     output = tmp_path / "out"
     upgrade_workspace(source / PROJECT, output)
     written = json.loads((output / PROJECT).read_text(encoding="utf-8"))
-    assert written["version"] == "2.2"
+    assert written["version"] == "2.3"
     assert "join_fade_max_ms" not in written["timeline"]
     assert json.loads((source / PROJECT).read_text(encoding="utf-8"))["version"] == "2.0"
     assert load_project(output / PROJECT).timeline.join_fade_max_ms is None
 
 
-def test_the_frozen_v0_1_2_release_upgrades_to_2_2_with_history_and_media_intact(
+def test_the_frozen_v0_1_2_release_upgrades_to_2_3_with_history_and_media_intact(
     tmp_path: Path,
 ) -> None:
     ledger = {release.id: release for release in compat.read_ledger(ROOT).releases}
@@ -131,10 +131,10 @@ def test_the_frozen_v0_1_2_release_upgrades_to_2_2_with_history_and_media_intact
 
     output = tmp_path / "upgraded"
     result = upgrade_workspace(frozen / PROJECT, output)
-    assert (result.from_version, result.to_version) == ("2.0", "2.2")
+    assert (result.from_version, result.to_version) == ("2.0", "2.3")
 
     written = json.loads((output / PROJECT).read_text(encoding="utf-8"))
-    assert written["version"] == "2.2"
+    assert written["version"] == "2.3"
     assert "join_fade_max_ms" not in written["timeline"]
     assert {key: value for key, value in written.items() if key != "version"} == {
         key: value for key, value in old.items() if key != "version"
@@ -187,7 +187,7 @@ def test_the_source_is_read_and_copied_under_the_project_commit_lock(
 
 @pytest.mark.parametrize(
     ("version", "code"),
-    [("2.2", "upgrade_not_needed"), ("1.0", "upgrade_unsupported_version")],
+    [("2.3", "upgrade_not_needed"), ("1.0", "upgrade_unsupported_version")],
 )
 def test_versions_that_cannot_be_upgraded_publish_nothing(tmp_path: Path, version, code) -> None:
     source = synthetic_old(tmp_path, version)
@@ -222,7 +222,7 @@ def test_the_source_must_be_a_project_file(tmp_path: Path) -> None:
     assert unreadable.value.code == "upgrade_source_invalid"
 
 
-@pytest.mark.parametrize("version", ["2.3", "3.0"])
+@pytest.mark.parametrize("version", ["2.4", "3.0"])
 def test_upgrading_a_newer_project_says_to_update_the_app(tmp_path: Path, version) -> None:
     source = synthetic_old(tmp_path, version)
     with pytest.raises(CodedValueError, match="Update the app") as refusal:
@@ -238,7 +238,7 @@ def test_upgrading_a_number_version_does_not_read_as_an_upgradable_2_0(tmp_path:
     assert refusal.value.code == "upgrade_unsupported_version"
 
 
-def test_a_2_1_project_upgrades_to_2_2_and_a_transcript_records_no_language(
+def test_a_2_1_project_upgrades_to_2_3_and_a_transcript_records_no_language(
     tmp_path: Path,
 ) -> None:
     source = synthetic_old(tmp_path, "2.1")
@@ -249,8 +249,54 @@ def test_a_2_1_project_upgrades_to_2_2_and_a_transcript_records_no_language(
     (source / PROJECT).write_text(json.dumps(document, indent=2), encoding="utf-8")
     output = tmp_path / "out"
     result = upgrade_workspace(source / PROJECT, output)
-    assert (result.from_version, result.to_version) == ("2.1", "2.2")
+    assert (result.from_version, result.to_version) == ("2.1", "2.3")
     upgraded = load_project(output / PROJECT)
     assert [(t.track_id, t.asr_language, t.words[0].text) for t in upgraded.transcripts] == [
         ("host", None, "hi")
+    ]
+
+
+def test_a_2_2_project_upgrades_to_2_3_and_its_history_entries_have_no_author(
+    tmp_path: Path,
+) -> None:
+    source = synthetic_old(tmp_path, "2.2")
+    output = tmp_path / "out"
+    result = upgrade_workspace(source / PROJECT, output)
+    assert (result.from_version, result.to_version) == ("2.2", "2.3")
+    assert json.loads((output / PROJECT).read_text(encoding="utf-8"))["version"] == "2.3"
+    index = read_history_index(output / "history" / "index.json")
+    assert index is not None
+    assert [(e.label, e.author, e.undone_by) for e in index.entries] == [
+        ("Development state 0", None, None),
+        ("Development state 1", None, None),
+        ("Development state 2", None, None),
+    ]
+
+
+def test_the_frozen_v0_1_2_history_opens_through_the_loader_without_authors(
+    tmp_path: Path,
+) -> None:
+    release = {r.id: r for r in compat.read_ledger(ROOT).releases}["v0-1-2"]
+    frozen = tmp_path / "frozen"
+    shutil.copytree(release.directory(ROOT), frozen)
+    project = load_project(frozen / PROJECT)
+    assert project.version == "2.3"
+    index = read_history_index(frozen / "history" / "index.json")
+    assert index is not None
+    assert len(index.entries) == 6
+    assert {(e.author, e.undone_by) for e in index.entries} == {(None, None)}
+
+
+def test_a_2_2_project_opens_through_plain_load_at_2_3_with_authorless_history(
+    tmp_path: Path,
+) -> None:
+    source = synthetic_old(tmp_path, "2.2")
+    before = (source / PROJECT).read_bytes()
+    project = load_project(source / PROJECT)
+    assert project.version == "2.3"
+    assert (source / PROJECT).read_bytes() == before
+    assert [(e.label, e.author, e.undone_by) for e in project.history.entries] == [
+        ("Development state 0", None, None),
+        ("Development state 1", None, None),
+        ("Development state 2", None, None),
     ]

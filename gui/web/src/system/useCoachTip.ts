@@ -1,6 +1,7 @@
 import {
   useCallback,
   useEffect,
+  useEffectEvent,
   useRef,
   useState,
   useSyncExternalStore,
@@ -18,6 +19,32 @@ import {
 } from "../utils/coachTip";
 
 const NOT_ACTING_KEYS = new Set(["Shift", "Control", "Alt", "Meta", "Tab"]);
+
+/** A key that does something: a modifier alone and Tab (which only moves focus) do not count. */
+export function isActingKey(event: KeyboardEvent): boolean {
+  return !NOT_ACTING_KEYS.has(event.key);
+}
+
+/**
+ * Calls `onKey` for the next acting key while `enabled`, wherever focus is. It
+ * listens in the capture phase and never stops or changes the key, so the key
+ * still does its own job.
+ */
+export function useActingKeyDown(
+  enabled: boolean,
+  onKey: (event: KeyboardEvent) => void,
+): void {
+  const handle = useEffectEvent(onKey);
+  useEffect(() => {
+    if (!enabled) return;
+    const listener = (event: KeyboardEvent) => {
+      if (isActingKey(event)) handle(event);
+    };
+    window.addEventListener("keydown", listener, { capture: true });
+    return () =>
+      window.removeEventListener("keydown", listener, { capture: true });
+  }, [enabled]);
+}
 
 export type CoachTipControl = {
   text: string;
@@ -55,8 +82,7 @@ export function useCoachTip(id: CoachTipId): CoachTipControl {
     // would otherwise catch that same press in the bubble phase.
     const onAction = (event: Event) => {
       if ((event.target as Element | null)?.closest?.(".sys-coach-tip")) return;
-      if (event instanceof KeyboardEvent && NOT_ACTING_KEYS.has(event.key))
-        return;
+      if (event instanceof KeyboardEvent && !isActingKey(event)) return;
       dismissCoachTip(id);
     };
     window.addEventListener("pointerdown", onAction, { capture: true });

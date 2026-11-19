@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import copy
 import math
-import subprocess
 from collections.abc import Callable, Iterable, Mapping, Sequence
 from contextlib import ExitStack
 from dataclasses import dataclass, replace
@@ -133,6 +132,7 @@ from podcast_mcp.project.merge import adopt_project_state
 from podcast_mcp.util.batch_scope import batch_scope, frozen_state, unscoped
 from podcast_mcp.util.coded_error import CodedValueError
 from podcast_mcp.util.intervals import subtract_intervals
+from podcast_mcp.util.process import SubprocessError
 from podcast_mcp.util.timebase import TimelineSec
 from podcast_mcp.util.tracks import dialogue_track_ids
 
@@ -214,7 +214,7 @@ def _completed_holds(
         verdict_cache.mark_unstable()
         effects = ()
         unavailable = dict.fromkeys(ids, "late_mpeg_audio")
-    except (OSError, ValueError, subprocess.SubprocessError):
+    except (OSError, ValueError, SubprocessError):
         verdict_cache.mark_unstable()
         effects = ()
         unavailable = dict.fromkeys(ids, "audio_unavailable")

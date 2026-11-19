@@ -11,6 +11,7 @@ import { clearRegisteredCommands } from "../../commands/execute";
 import { registerDawCommands } from "../../commands/register";
 import { resolveCommentAnchor } from "../../comments/commentAnchor";
 import { useDawStore } from "../../state/dawStore";
+import { collectUnsent } from "../../state/unsentText";
 import { expectNoA11yViolations } from "../../test/a11y";
 import { composing, noComposer } from "../../test/composerStore";
 import {
@@ -58,6 +59,7 @@ function join(
       comments,
       pending_edits: pending,
       timeline_duration_sec: 600,
+      tracks: [sampleTrack()],
     }),
     mode,
     CAPS[mode],
@@ -565,6 +567,21 @@ describe("Review queue for a guest", () => {
     });
   });
 
+  it("hands the unsent replies of the queue to collectUnsent, until each is sent or the queue goes", async () => {
+    const user = userEvent.setup();
+    join("comment", [sampleComment({ id: "c1" })]);
+    const view = render(<ReviewHost guestShare />);
+    expect(collectUnsent()).toEqual([]);
+    await user.type(screen.getByRole("textbox", { name: /^Reply/ }), "thanks ");
+    expect(collectUnsent()).toEqual([{ label: "Your reply", text: "thanks " }]);
+    await user.click(screen.getByRole("button", { name: /^Reply/ }));
+    expect(collectUnsent()).toEqual([]);
+    await user.type(screen.getByRole("textbox", { name: /^Reply/ }), "again");
+    expect(collectUnsent()).toEqual([{ label: "Your reply", text: "again" }]);
+    view.unmount();
+    expect(collectUnsent()).toEqual([]);
+  });
+
   describe("comment field placement", () => {
     beforeEach(() => {
       clearRegisteredCommands();
@@ -775,7 +792,12 @@ describe("Review queue for a guest", () => {
       render(
         <ReviewHost
           guestShare
-          loadFailure={{ message: "No answer.", onRetry }}
+          loadFailure={{
+            source: "shell",
+            cause: { audience: "guest", failure: { kind: "server" } },
+            name: "",
+            onRetry,
+          }}
         />,
       );
       const alert = screen.getByRole("alert");

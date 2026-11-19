@@ -4,6 +4,7 @@ import { Cover } from "../../system/Cover";
 import { Skeleton } from "../../system/Skeleton";
 import type { StageId } from "../../types/stage";
 import type { HostState, LoadFailure } from "./hostModels";
+import { ShellFailureCover } from "./ShellFailureCover";
 
 type HostBodyProps = {
   stage: StageId;
@@ -17,6 +18,13 @@ type HostBodyProps = {
   children: ReactNode;
 };
 
+/** The region's own title for a failure that has no cause of its own to name. */
+function regionTitle(stage: StageId): string {
+  return stage === "review"
+    ? "The transcript didn't load"
+    : "Could not load the project";
+}
+
 /** The load failure at region size: the Cover and its Try again. */
 export function LoadFailureCover({
   stage,
@@ -25,16 +33,15 @@ export function LoadFailureCover({
   stage: StageId;
   failure?: LoadFailure | null;
 }) {
+  if (failure?.source === "shell") {
+    return <ShellFailureCover title={regionTitle(stage)} failure={failure} />;
+  }
   return (
     <div role="alert">
       <Cover
         size="region"
         glyph="triangle-alert"
-        title={
-          stage === "review"
-            ? "The transcript didn't load"
-            : "Could not load the project"
-        }
+        title={regionTitle(stage)}
         primary={
           failure
             ? {
@@ -45,7 +52,7 @@ export function LoadFailureCover({
             : undefined
         }
       >
-        {failure?.message ?? "Try again in a moment."}
+        Try again in a moment.
       </Cover>
     </div>
   );
@@ -53,8 +60,8 @@ export function LoadFailureCover({
 
 /**
  * A stage host's scroller: the loading skeleton and the load failure Cover share it.
- * The failure Cover stays mounted while Try again runs (`failure.recovering`), so
- * its button keeps focus.
+ * The failure Cover stays mounted while Try again runs, so its button keeps
+ * focus.
  */
 export function HostBody({
   stage,

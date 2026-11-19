@@ -84,6 +84,7 @@ function Anchored(
 const settled = () => new Promise<void>((done) => setTimeout(done, 80));
 
 export const Open: Story = {
+  tags: ["storybook-only"],
   render: (args) => <Anchored {...args} />,
   play: async ({ args }) => {
     const popover = within(document.body);

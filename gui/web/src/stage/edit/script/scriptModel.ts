@@ -1,5 +1,5 @@
 import { transcriptWordPresenceAnchor } from "../../../presence/anchors";
-import type { PersonData } from "../../../system/Person";
+import type { PersonData } from "../../../system/personData";
 import type {
   ScriptMark,
   ScriptSelection,
@@ -66,6 +66,8 @@ export type ScriptModel = {
   timeOf: (index: number) => { start: number; end: number } | null;
   /** Whether the word is one an applied cut took out. */
   isCut: (index: number) => boolean;
+  /** Source seconds; a cut does not move it. */
+  starts: readonly number[];
 };
 
 /** The speaker palette has eight colours; a track takes one by its position. */
@@ -141,6 +143,7 @@ function markOf(
 type DraftWord = {
   ref: ScriptWordRef;
   text: string;
+  start: number;
   seek: number | null;
   end: number | null;
   mark?: ScriptMark;
@@ -171,6 +174,7 @@ function cutWordsOf(boundary: EditBoundaryView): DraftWord[] {
       wordIndex: word.word_index,
     },
     text: word.text,
+    start: word.start,
     seek: NO_TIME,
     end: NO_TIME,
     mark: { kind: "cut", id: boundary.id, seconds },
@@ -242,6 +246,7 @@ export function buildScriptModel(input: ScriptModelInput): ScriptModel {
             wordIndex: word.word_index ?? null,
           },
           text: word.text,
+          start: word.start,
           seek: wordSeek(word),
           end: word.timeline_end ?? NO_TIME,
           ...(mark ? { mark } : {}),
@@ -286,6 +291,7 @@ export function buildScriptModel(input: ScriptModelInput): ScriptModel {
   const times: Array<{ start: number; end: number } | null> = [];
   const cutAt: boolean[] = [];
   const seeks: Array<number | null> = [];
+  const starts: number[] = [];
   const first = new Map<string, number>();
   const last = new Map<string, number>();
   const seen = new Map<string, number>();
@@ -302,6 +308,7 @@ export function buildScriptModel(input: ScriptModelInput): ScriptModel {
       const index = refs.length;
       refs.push(word.ref);
       seeks.push(word.seek);
+      starts.push(word.start);
       cutAt.push(word.cut);
       times.push(
         word.seek != null && word.end != null
@@ -383,6 +390,7 @@ export function buildScriptModel(input: ScriptModelInput): ScriptModel {
     seekSecOf: (index) => seeks[index] ?? NO_TIME,
     timeOf: (index) => times[index] ?? NO_TIME,
     isCut: (index) => cutAt[index] === true,
+    starts,
   };
 }
 

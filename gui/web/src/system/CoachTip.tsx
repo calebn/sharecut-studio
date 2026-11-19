@@ -1,4 +1,4 @@
-import { type ReactNode, useRef } from "react";
+import { type ReactNode, useEffect, useEffectEvent, useRef } from "react";
 import { CoachTipBubble } from "./CoachTipBubble";
 
 /** What a view needs to render one tip it does not own. */
@@ -24,6 +24,8 @@ export type CoachTipProps = {
   shown: boolean;
   /** Called by the close button and by any click or key activation on the anchor. */
   onDismiss?: () => void;
+  /** Called by a press on the bubble itself, which the close button and the anchor do not cover. */
+  onPress?: () => void;
 };
 
 /** A one-line hint anchored to an element at the moment of first need. */
@@ -35,8 +37,29 @@ export function CoachTip({
   edge = false,
   shown,
   onDismiss,
+  onPress,
 }: CoachTipProps) {
   const anchorRef = useRef<HTMLSpanElement>(null);
+  const bubbleRef = useRef<HTMLSpanElement>(null);
+  const pressed = useEffectEvent((event: MouseEvent) => {
+    if (
+      event.target instanceof Element &&
+      event.target.closest(".sys-coach-close")
+    )
+      return;
+    onPress?.();
+  });
+  // A click, not a pointerdown: the bubble stays under the finger for the whole
+  // press, so nothing beneath it is hit. A listener on the note itself, which
+  // has no role to press, keeps the accessibility lint's rules for controls.
+  const pressable = onPress !== undefined;
+  useEffect(() => {
+    const bubble = bubbleRef.current;
+    if (!shown || !bubble || !pressable) return;
+    const listener = (event: MouseEvent) => pressed(event);
+    bubble.addEventListener("click", listener);
+    return () => bubble.removeEventListener("click", listener);
+  }, [shown, pressable]);
   // The close button unmounts with the tip; hand focus back to the anchor.
   const dismissFromClose = () => {
     const target =
@@ -59,6 +82,7 @@ export function CoachTip({
       </span>
       {shown ? (
         <CoachTipBubble
+          ref={bubbleRef}
           text={text}
           placement={placement}
           className={align === "end" ? "sys-coach-tip--end" : undefined}

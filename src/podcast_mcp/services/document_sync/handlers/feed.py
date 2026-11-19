@@ -9,8 +9,8 @@ from podcast_mcp.services.document import FeedService
 
 
 def set_feed_field(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
-    return FeedService(ws).set_field(str(p["key"]), p["value"], p.get("by", "person"))
+    return FeedService(ws).set_field(str(p["key"]), p["value"], p.get("by", "person")).model_dump()
 
 
 def clear_feed_field(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
-    return FeedService(ws).clear_field(str(p["key"]))
+    return FeedService(ws).clear_field(str(p["key"])).model_dump()

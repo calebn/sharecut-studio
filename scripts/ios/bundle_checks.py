@@ -14,6 +14,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+from scripts.ios.framework_plists import check as check_framework_plists
+from scripts.ios.framework_plists import is_stale_temporary
 from scripts.ios.release_run import capture
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -71,17 +73,35 @@ def is_macho(path: Path) -> bool:
 
 def check_layout(app: Path) -> CheckReport:
     """No static libraries, no loose shared object, and every Mach-O is the main executable or
-    inside a framework."""
+    inside a framework, and every nested framework carries a framework Info.plist."""
     problems: list[str] = []
     machos = 0
     for path in sorted(app.rglob("*")):
-        if path.is_symlink() or not path.is_file():
-            continue
         relative = path.relative_to(app)
         parts = relative.parts
         in_framework = (
-            parts[0] == "Frameworks" and len(parts) >= 3 and parts[1].endswith(".framework")
+            parts[0] == "Frameworks"
+            and len(parts) >= 3
+            and parts[1].casefold().endswith(".framework")
         )
+        in_storyboard = (
+            path.name == "Info.plist"
+            and parts[-2:-1] != ()
+            and parts[-2].casefold().endswith(".storyboardc")
+            and (len(parts) == 2 or (len(parts) == 3 and parts[0].casefold().endswith(".lproj")))
+        )
+        if path.name.casefold() == "info.plist" and not (
+            parts == ("Info.plist",)
+            or (in_framework and len(parts) == 3 and path.name == "Info.plist")
+            or in_storyboard
+        ):
+            problems.append(f"unexpected Info.plist {relative.as_posix()}")
+        if path.name == "Info.plist" and path.is_symlink():
+            problems.append(f"symlinked Info.plist {relative.as_posix()}")
+        if is_stale_temporary(path.name) and not path.is_dir():
+            problems.append(f"stale temporary file {relative.as_posix()}")
+        if path.is_symlink() or not path.is_file():
+            continue
         if path.suffix == ".a":
             problems.append(f"static library {relative}")
         elif path.suffix in {".so", ".dylib"} and not in_framework:
@@ -92,6 +112,7 @@ def check_layout(app: Path) -> CheckReport:
             machos += 1
             if not in_framework and len(parts) != 1:
                 problems.append(f"Mach-O outside the executable and Frameworks: {relative}")
+    problems += check_framework_plists(app)
     return CheckReport("bundle layout", tuple(problems), facts={"mach_o_files": machos})
 
 

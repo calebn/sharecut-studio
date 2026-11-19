@@ -20,7 +20,7 @@ from podcast_mcp.engines.session_timeline import (
 )
 from podcast_mcp.models import ClipJoinMode, EpisodeProject
 from podcast_mcp.util.batch_scope import scoped_by_file, scoped_by_file_if_held, snapshot
-from podcast_mcp.util.binaries import resolve_ffmpeg_pair
+from podcast_mcp.util.binaries import IN_PROCESS_BUILD_ID, resolve_ffmpeg_pair
 from podcast_mcp.util.coded_error import CodedValueError
 from podcast_mcp.util.fingerprint import FileStamp, file_stamp
 from podcast_mcp.util.tracks import track_audio_path
@@ -72,6 +72,8 @@ def _same_bits(got: np.ndarray, want: np.ndarray) -> bool:
 
 def ffmpeg_build_id() -> tuple[object, ...]:
     pair = resolve_ffmpeg_pair()
+    if pair.is_in_process:
+        return (pair.ffmpeg, pair.version, IN_PROCESS_BUILD_ID)
     return (pair.ffmpeg, pair.version, file_stamp(Path(pair.ffmpeg)).content)
 
 

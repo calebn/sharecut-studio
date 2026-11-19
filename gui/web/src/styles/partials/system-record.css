@@ -170,6 +170,42 @@
   cursor: not-allowed;
 }
 
+/* Bottom-aligned so the 64 and 48 px discs share one baseline of words. */
+.sys-dock[data-labelled] {
+  align-items: flex-end;
+}
+
+.sys-dock[data-labelled] .sys-dock-center,
+.sys-dock[data-labelled] .sys-dock-far {
+  align-items: flex-end;
+}
+
+.sys-dock[data-labelled] .sys-dock-btn:has(> .sys-dock-label) {
+  margin-block-end: calc(var(--space-1) + 1rem);
+}
+
+.sys-dock-label {
+  position: absolute;
+  inset-block-start: calc(100% + var(--space-1));
+  inset-inline-start: 50%;
+  translate: -50% 0;
+  color: var(--color-text-primary);
+  font-size: var(--font-size-small);
+  font-weight: 400;
+  line-height: 1rem;
+  white-space: nowrap;
+}
+
+/* A held Leave dims its disc and glyph but keeps the word at full strength. */
+.sys-dock[data-labelled] .sys-dock-btn[aria-disabled="true"] {
+  opacity: 1;
+  border-color: var(--color-border-subtle);
+}
+
+.sys-dock[data-labelled] .sys-dock-btn[aria-disabled="true"] > svg {
+  opacity: 0.5;
+}
+
 .sys-dock-badge {
   position: absolute;
   inset-block-start: calc(-1 * var(--space-1));
@@ -187,6 +223,40 @@
 .sys-dock-status {
   color: var(--color-text-secondary);
   font-size: var(--font-size-body);
+}
+
+/* The status line and Done stack under the buttons on the whole portrait phone
+   class of the guest page, whatever width the dock container reaches; the host
+   studio keeps the container query below. */
+.sys-room-view[data-width="phone"]:not([data-embedded]) .sys-dock-far {
+  margin-inline-start: calc(-1 * var(--space-3));
+}
+
+.sys-room-view[data-width="phone"]:not([data-embedded])
+  .sys-dock-center:has(> .sys-dock-status),
+.sys-room-view[data-width="phone"]:not([data-embedded])
+  .sys-dock-far:has(> .sys-dock-done) {
+  display: contents;
+}
+
+.sys-room-view[data-width="phone"]:not([data-embedded])
+  .sys-dock-center
+  > .sys-dock-status {
+  order: 1;
+  flex: 1 0 100%;
+  text-align: center;
+}
+
+.sys-room-view[data-width="phone"]:not([data-embedded]) .sys-dock-done {
+  order: 2;
+  flex: 1 1 0;
+}
+
+.sys-room-view[data-width="phone"]:not([data-embedded])
+  .sys-dock-center
+  > .sys-dock-status
+  ~ .sys-dock-notes {
+  order: 3;
 }
 
 /* A host's phone dock has no Notes button. */
@@ -420,7 +490,44 @@
   flex: 1;
 }
 
+.sys-room-line {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-1);
+  min-inline-size: 0;
+}
+
+.sys-room-you {
+  flex: none;
+  color: var(--color-text-secondary);
+}
+
+/* The guest's own tile: a quiet pill that says the tile leads to Devices. It sits
+   top-start, where only the host's Record glyph ever goes. */
+.sys-room-devices {
+  position: absolute;
+  inset-block-start: var(--space-3);
+  inset-inline-start: var(--space-3);
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding-inline: var(--space-3);
+  border-radius: var(--radius-xl);
+  background: var(--color-bg-sunken);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-small);
+  line-height: 1rem;
+}
+
+/* Every guest-page tile, not just the own one, so the avatars stay level and
+   clear the Devices cue and the speaking ring. A landscape phone has no cue. */
+.sys-room-view:not([data-embedded], [data-width="phone-landscape"])
+  .sys-room-main {
+  margin-block-start: calc(var(--space-5) + var(--space-1));
+}
+
 .sys-room-name {
+  min-inline-size: 0;
   overflow: hidden;
   font-weight: 600;
   text-overflow: ellipsis;
@@ -515,6 +622,21 @@
   margin: 0;
   padding: 0;
   list-style: none;
+}
+
+.sys-room-looking-in {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: var(--space-3);
+  margin: 0;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-ui);
+  overflow-wrap: anywhere;
+}
+
+.sys-room-looking-in > svg {
+  flex: none;
 }
 
 .sys-room-listener {
@@ -802,6 +924,10 @@
   block-size: 1.5rem;
 }
 
+.sys-room-view-symbol {
+  display: none;
+}
+
 .sys-room-view-title {
   flex: 1 1 0;
   min-inline-size: 0;
@@ -883,6 +1009,45 @@
   padding-inline: var(--space-4);
 }
 
+/* On a portrait phone the symbol stands for the brand so the episode title, which
+   proves the guest is in the right room, gets the width: up to two lines inside
+   the same 44 px, and only a pill too long for the rest gives way. */
+.sys-room-view[data-width="phone"]:not([data-embedded]) .sys-room-view-header {
+  flex-wrap: nowrap;
+}
+
+.sys-room-view[data-width="phone"]:not([data-embedded]) .sys-room-view-symbol {
+  display: block;
+  flex: none;
+  inline-size: 1.25rem;
+  block-size: 1.25rem;
+}
+
+.sys-room-view[data-width="phone"]:not([data-embedded])
+  .sys-room-view-wordmark {
+  display: none;
+}
+
+.sys-room-view[data-width="phone"]:not([data-embedded]) .sys-room-view-title {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  min-inline-size: 5rem;
+  line-height: 1rem;
+  overflow-wrap: anywhere;
+  white-space: normal;
+}
+
+.sys-room-view[data-width="phone"]:not([data-embedded]) .sys-pill {
+  flex: 0 1 auto;
+  min-inline-size: 0;
+}
+
+.sys-room-view[data-width="phone"]:not([data-embedded]) .sys-pill-text {
+  min-inline-size: 0;
+}
+
 .sys-room-view[data-width="phone"] .sys-room-view-stage,
 .sys-room-view[data-width="phone-landscape"] .sys-room-view-stage {
   gap: var(--space-3);
@@ -898,6 +1063,11 @@
 .sys-room-view[data-width="phone"] .sys-room-tile,
 .sys-room-view[data-width="phone-landscape"] .sys-room-tile {
   aspect-ratio: 1;
+}
+
+/* The embedded host studio keeps its centring. */
+.sys-room-view[data-width="phone"]:not([data-embedded]) .sys-room-view-grid {
+  margin-block: 0;
 }
 
 .sys-room-view-peek {
@@ -939,6 +1109,14 @@
 
 .sys-room-view[data-width="phone"] .sys-room-view-dock > .sys-dock {
   min-block-size: 5.5rem;
+}
+
+/* One height for every labelled state: border, padding, the 64 px disc, its word
+   and the gap above it, so a lone Leave does not make the dock jump at Start. */
+.sys-room-view[data-width="phone"]
+  .sys-room-view-dock
+  > .sys-dock[data-labelled] {
+  min-block-size: calc(1px + 2 * var(--space-3) + 4rem + var(--space-1) + 1rem);
 }
 
 .sys-room-view[data-width="phone-landscape"] {
@@ -989,6 +1167,11 @@
 
 .sys-room-view[data-width="phone-landscape"] .sys-dock-far {
   margin-inline-start: 0;
+}
+
+/* Landscape tiles are too small for the cue beside the avatar. */
+.sys-room-view[data-width="phone-landscape"] .sys-room-devices {
+  display: none;
 }
 
 .sys-room-view[data-width="phone-landscape"] .sys-dock-hint {
@@ -1324,6 +1507,15 @@ html:not([data-shell="phone"], [data-shell="tablet"])
   font-size: var(--font-size-body);
 }
 
+.sys-join-listen > svg {
+  flex: none;
+}
+
+.sys-join-seen {
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-ui);
+}
+
 .sys-join-details {
   color: var(--color-text-secondary);
   font-size: var(--font-size-ui);
@@ -1400,6 +1592,40 @@ html:not([data-shell="phone"], [data-shell="tablet"])
   border-block-start: 1px solid var(--color-border);
   background: var(--color-bg-elevated);
   color: var(--color-text-primary);
+}
+
+/* The looking-in line sits directly on top of the bar, out of its flow, in the
+   bar's own surface: it grows upward from the bar's padding edge (so it covers
+   the bar's top rule and the two read as one surface), never moves anything in
+   the bar, and is above the veil so it is not greyed. */
+.sys-declined-looking-in {
+  position: absolute;
+  inset-block-end: 100%;
+  inset-inline: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  box-sizing: border-box;
+  margin: 0;
+  padding-block: var(--space-3);
+  padding-inline: var(--space-5);
+  border-block-start: 1px solid var(--color-border);
+  background: var(--color-bg-elevated);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-ui);
+  overflow-wrap: anywhere;
+}
+
+/* The line covers the bar's top border, which is where the shared focus ring
+   falls, so with a line the ring is drawn inside the bar instead, its outer
+   edge on the padding box. */
+.sys-declined-bar:has(> .sys-declined-looking-in):focus-visible {
+  outline: var(--focus-ring-width) solid var(--color-accent);
+  outline-offset: calc(-1 * (var(--focus-ring-width) + 1px));
+}
+
+.sys-declined-looking-in > svg {
+  flex: none;
 }
 
 .sys-declined-text {

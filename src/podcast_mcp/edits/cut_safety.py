@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import logging
 import math
-import subprocess
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, replace
 from pathlib import Path
@@ -94,6 +93,7 @@ from podcast_mcp.project import transcript_context
 from podcast_mcp.util.coded_error import CodedValueError
 from podcast_mcp.util.intervals import merge_intervals, subtract_intervals
 from podcast_mcp.util.media_identity import same_recording
+from podcast_mcp.util.process import SubprocessError
 from podcast_mcp.util.timebase import SourceSec, TimelineSec
 from podcast_mcp.util.tracks import dialogue_track_ids, recording_audio_path
 
@@ -630,7 +630,7 @@ def complete_effect_acoustics(
                     try:
                         if not same_recording(effect.recording, recording):
                             continue
-                    except (OSError, ValueError, subprocess.SubprocessError):
+                    except (OSError, ValueError, SubprocessError):
                         unresolved_placement = True
                         continue
                     if effect.before is None:
@@ -648,7 +648,7 @@ def complete_effect_acoustics(
                 else:
                     track_id, offset = next(iter(placements))
                     join_subjects[edit_id] = (track_id, offset, recording)
-            except (KeyError, OSError, ValueError, subprocess.SubprocessError):
+            except (KeyError, OSError, ValueError, SubprocessError):
                 join_subjects[edit_id] = None
     unavailable = unavailable or {}
     unavailable_ids = frozenset(unavailable) - manual_ids - paused
@@ -678,7 +678,7 @@ def complete_effect_acoustics(
             else:
                 cache = recording_cache(effect.recording)
                 share = measured
-        except (OSError, ValueError, subprocess.SubprocessError):
+        except (OSError, ValueError, SubprocessError):
             verdict_cache.mark_unstable()
             for edit_id in ids:
                 flags.setdefault(edit_id, []).append("audio_unavailable")
@@ -745,7 +745,7 @@ def complete_effect_acoustics(
                     continue
                 try:
                     matches_recording = same_recording(effect.recording, subject[2])
-                except (KeyError, OSError, ValueError, subprocess.SubprocessError):
+                except (KeyError, OSError, ValueError, SubprocessError):
                     verdict_cache.mark_unstable()
                     joins[edit_id] = "audio_unavailable"
                     continue
@@ -773,7 +773,7 @@ def complete_effect_acoustics(
                         )
                         for edit_id in quality_ids
                     )
-            except (OSError, ValueError, subprocess.SubprocessError):
+            except (OSError, ValueError, SubprocessError):
                 verdict_cache.mark_unstable()
                 joins.update((edit_id, "audio_unavailable") for edit_id in quality_ids)
     if join_subjects.keys() - join_scored - joins.keys():
@@ -891,7 +891,7 @@ def assess_held_source(
     flags: list[str] = []
     try:
         cache = audio_cache or source_audio_cache(project, track_id, source_id)
-    except (OSError, ValueError, subprocess.SubprocessError):
+    except (OSError, ValueError, SubprocessError):
         verdict_cache.mark_unstable()
         return HeldAcoustics(("audio_unavailable",))
     words = CutWordIndex.from_transcript(

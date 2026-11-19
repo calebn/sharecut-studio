@@ -1165,3 +1165,53 @@ def test_manifest_route_withholds_the_loopback_origin_from_relayed_requests(
     )
     review_share.get_daw_proxy_manifest("token", request)
     assert seen == [expected]
+
+
+def _after_first_encode(monkeypatch, fast_encode, action):
+    fired = False
+
+    def encode(*args, **kwargs):
+        nonlocal fired
+        fast_encode(*args, **kwargs)
+        if not fired:
+            fired = True
+            action()
+
+    monkeypatch.setattr(pm, "_encode_chunk", encode)
+
+
+@pytest.mark.parametrize("path", ["share", "web"])
+def test_comment_saved_while_building_does_not_fail_the_manifest(
+    workspace, monkeypatch, fast_encode, save_comment, save_web_comment, path
+):
+    ws = workspace
+    save = save_comment if path == "share" else save_web_comment
+    _after_first_encode(monkeypatch, fast_encode, lambda: save(ws.path))
+
+    generation = pv.ensure_proxy_manifest(ws)
+
+    saved = ProjectWorkspace.open(ws.path).project
+    assert [c.body for c in saved.review.comments] == ["note"]
+    assert saved.render.proxy_manifests == [generation]
+
+
+@pytest.mark.parametrize(
+    ("edit", "code"),
+    [
+        ("clip_move", "proxy_inputs_changed"),
+        ("gain", "proxy_inputs_changed"),
+        ("mute", "bleed_restore_inputs_changed"),
+        ("source_change", "bleed_restore_inputs_changed"),
+    ],
+)
+def test_audible_edit_while_building_still_fails_the_manifest(
+    workspace, monkeypatch, fast_encode, save_audible_edit, edit, code
+):
+    ws = workspace
+    _choice(ws)
+    _after_first_encode(monkeypatch, fast_encode, lambda: save_audible_edit(ws.path, edit))
+
+    with pytest.raises(CodedValueError) as raised:
+        pv.ensure_proxy_manifest(ws)
+
+    assert raised.value.code == code

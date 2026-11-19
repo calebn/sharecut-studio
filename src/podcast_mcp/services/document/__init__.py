@@ -39,6 +39,7 @@ if TYPE_CHECKING:
         FeedViewKind,
         describe_fields,
     )
+    from podcast_mcp.services.document.feed_results import FeedFieldPinResult
     from podcast_mcp.services.document.golden_ear import (
         DEFAULT_LIMIT,
         LISTEN_DIRNAME,
@@ -50,6 +51,8 @@ if TYPE_CHECKING:
         EmptyHistoryDiffResult,
         HistoryDiffResult,
         HistoryListResult,
+        HistoryMoveRerenderedResult,
+        HistoryMoveResult,
         PopulatedHistoryDiffResult,
     )
     from podcast_mcp.services.document.kit_apply import KitApplyReport, submit_kit_apply
@@ -80,6 +83,11 @@ if TYPE_CHECKING:
         TranscriptTimingChangedError,
         WordTimingTarget,
     )
+    from podcast_mcp.services.document.transcript_flag_results import (
+        WordAutomaticResult,
+        WordsIgnoredResult,
+        WordSuppressedResult,
+    )
 
 __all__ = [
     "DEFAULT_LIMIT",
@@ -102,10 +110,13 @@ __all__ = [
     "ExportBusyError",
     "ExportFilesService",
     "ExportedFile",
+    "FeedFieldPinResult",
     "FeedService",
     "FeedViewKind",
     "HistoryDiffResult",
     "HistoryListResult",
+    "HistoryMoveRerenderedResult",
+    "HistoryMoveResult",
     "HistoryService",
     "KitApplyReport",
     "PendingPreviewSpan",
@@ -125,7 +136,10 @@ __all__ = [
     "TranscriptTimingChangedError",
     "TransportPath",
     "TrimBoundaryTarget",
+    "WordAutomaticResult",
+    "WordSuppressedResult",
     "WordTimingTarget",
+    "WordsIgnoredResult",
     "build_golden_ear",
     "cross_process_bridge",
     "cross_process_lease",
@@ -166,6 +180,7 @@ _MODULE_BY_NAME = {
     "ExportFilesService": "export_files",
     "ExportedFile": "export_files",
     "ServedFile": "export_files",
+    "FeedFieldPinResult": "feed_results",
     "FeedService": "feed",
     "FeedViewKind": "feed",
     "SHOW_KEY": "feed",
@@ -179,6 +194,8 @@ _MODULE_BY_NAME = {
     "EmptyHistoryDiffResult": "history_results",
     "HistoryDiffResult": "history_results",
     "HistoryListResult": "history_results",
+    "HistoryMoveRerenderedResult": "history_results",
+    "HistoryMoveResult": "history_results",
     "PopulatedHistoryDiffResult": "history_results",
     "PENDING_PREVIEW_PAD_DEFAULT_SEC": "play_pending",
     "PENDING_PREVIEW_PAD_MAX_SEC": "play_pending",
@@ -205,6 +222,9 @@ _MODULE_BY_NAME = {
     "ExportBusyError": "transcript",
     "TranscriptTimingChangedError": "transcript",
     "WordTimingTarget": "transcript",
+    "WordAutomaticResult": "transcript_flag_results",
+    "WordSuppressedResult": "transcript_flag_results",
+    "WordsIgnoredResult": "transcript_flag_results",
 }
 
 

@@ -1,4 +1,10 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useInsertionEffect,
+  useRef,
+  useState,
+} from "react";
 import { applyServerClock } from "../presence/clock";
 import {
   clearRecordParticipant,
@@ -14,9 +20,24 @@ import { isTerminalWsClose } from "../utils/wsClose";
 import { emitRecordSignal, isRecordSignal } from "./monitor/signalBus";
 import { type RecordSnapshot, shouldApplyRecordSnapshot } from "./types";
 
-function recordWsUrl(token: string, clientId: string, name: string): string {
+/**
+ * What a record socket does. `watch` only looks at the room (a producer link
+ * before Join), `join` is in it, `off` has no socket.
+ */
+export type RecordSocketMode = "off" | "watch" | "join";
+
+function recordWsUrl(
+  token: string,
+  clientId: string,
+  name: string,
+  mode: RecordSocketMode,
+): string {
   const proto = window.location.protocol === "https:" ? "wss" : "ws";
-  const q = new URLSearchParams({ client_id: clientId, name });
+  const q = new URLSearchParams(
+    mode === "watch"
+      ? { client_id: clientId, observe: "1" }
+      : { client_id: clientId, name },
+  );
   return `${proto}://${window.location.host}/api/rec/${encodeURIComponent(token)}/ws?${q.toString()}`;
 }
 
@@ -98,17 +119,32 @@ export function recordSyncErrorCopy(error: string | null): string | null {
 export function useRecordSync(
   token: string,
   displayName: string,
-  enabled = true,
+  requestedMode: RecordSocketMode = "join",
 ) {
   const [snapshot, setSnapshot] = useState<RecordSnapshot | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [connected, setConnected] = useState(false);
   const [meId, setMeId] = useState<string | null>(null);
   const [lease, setLease] = useState<string | null>(null);
+  const [counted, setCounted] = useState(false);
   const sendRef = useRef<WsSender | null>(null);
   const clientIdRef = useRef(documentClientId());
   const currentName = useStableCallback(() => displayName);
   const skipLeaseRef = useRef(false);
+  const cachedRef = useRef<
+    Awaited<ReturnType<typeof loadRecordParticipant>> | undefined
+  >(undefined);
+  const joinSentRef = useRef(false);
+  const seatSocketRef = useRef(false);
+  const keepErrorOnOpenRef = useRef(false);
+  const phaseRef = useRef<"idle" | "connecting" | "open" | "backoff">("idle");
+  const [restart, setRestart] = useState(0);
+  const mode =
+    error !== null && isTerminalRecordError(error) ? "off" : requestedMode;
+  const modeRef = useRef(mode);
+  useInsertionEffect(() => {
+    modeRef.current = mode;
+  }, [mode]);
 
   const send = useCallback(
     (
@@ -134,14 +170,43 @@ export function useRecordSync(
     [token],
   );
 
+  const sendJoin = useCallback(() => {
+    const sender = sendRef.current;
+    if (!sender || joinSentRef.current) {
+      return;
+    }
+    joinSentRef.current = true;
+    const cached = cachedRef.current;
+    const payload: Record<string, unknown> = {
+      display_name: currentName() || "Guest",
+    };
+    if (cached?.participant_id && cached.lease) {
+      payload.participant_id = cached.participant_id;
+      payload.lease = cached.lease;
+    }
+    sender({
+      type: "Record",
+      command_type: "Join",
+      payload,
+      client_seq: nextRecordClientSeq(token),
+    });
+  }, [token, currentName]);
+
+  const active = mode !== "off";
   useEffect(() => {
-    if (!enabled) {
+    if (!active) {
       return;
     }
     let heartbeat: number | null = null;
     let joined = false;
+    let openedWatching = false;
     let accessEnded = false;
-    let cached: Awaited<ReturnType<typeof loadRecordParticipant>>;
+    let lookRefused = false;
+    seatSocketRef.current = false;
+    const lookWithSavedPlace = () =>
+      !joined && openedWatching && Boolean(cachedRef.current?.lease);
+    phaseRef.current = "connecting";
+    joinSentRef.current = false;
     const endAccess = (
       reason: RecordAccessEndedReason,
       ctx?: PlaneSocketContext,
@@ -156,11 +221,32 @@ export function useRecordSync(
         heartbeat = null;
       }
     };
+    const startHeartbeat = () => {
+      stopHeartbeat();
+      heartbeat = window.setInterval(() => {
+        sendRef.current?.({
+          type: "Record",
+          command_type: "Heartbeat",
+          payload: {},
+          client_seq: nextRecordClientSeq(token),
+        });
+      }, 5000);
+    };
 
     const socket = openPlaneSocket<RecordMsg>({
-      url: () => recordWsUrl(token, clientIdRef.current, currentName()),
+      url: () => {
+        openedWatching = modeRef.current === "watch";
+        seatSocketRef.current = !openedWatching;
+        return recordWsUrl(
+          token,
+          clientIdRef.current,
+          currentName(),
+          modeRef.current,
+        );
+      },
       prepare: async () => {
-        cached = skipLeaseRef.current
+        phaseRef.current = "connecting";
+        cachedRef.current = skipLeaseRef.current
           ? undefined
           : await loadRecordParticipant(token);
         joined = false;
@@ -168,30 +254,17 @@ export function useRecordSync(
       },
       onOpen: (ctx) => {
         sendRef.current = ctx.send;
+        phaseRef.current = "open";
+        joinSentRef.current = false;
         setConnected(true);
-        setError(null);
-        const payload: Record<string, unknown> = {
-          display_name: currentName() || "Guest",
-        };
-        if (cached?.participant_id && cached.lease) {
-          payload.participant_id = cached.participant_id;
-          payload.lease = cached.lease;
+        if (keepErrorOnOpenRef.current) {
+          keepErrorOnOpenRef.current = false;
+        } else {
+          setError(null);
         }
-        ctx.send({
-          type: "Record",
-          command_type: "Join",
-          payload,
-          client_seq: nextRecordClientSeq(token),
-        });
-        stopHeartbeat();
-        heartbeat = window.setInterval(() => {
-          sendRef.current?.({
-            type: "Record",
-            command_type: "Heartbeat",
-            payload: {},
-            client_seq: nextRecordClientSeq(token),
-          });
-        }, 5000);
+        if (modeRef.current === "join") {
+          sendJoin();
+        }
       },
       onReceive: (msg) => applyServerClock(msg.snapshot?.server_time_ns),
       onMalformed: () =>
@@ -219,6 +292,9 @@ export function useRecordSync(
               return;
             }
             if (msg.code === RECORD_INVITE_CLOSED) {
+              if (lookWithSavedPlace()) {
+                return;
+              }
               endAccess(RECORD_INVITE_CLOSED, ctx);
               return;
             }
@@ -241,7 +317,9 @@ export function useRecordSync(
           }
           if (msg.type === "Echo" && msg.participant_id && msg.lease) {
             joined = true;
+            seatSocketRef.current = false;
             ctx.markHealthy();
+            startHeartbeat();
             skipLeaseRef.current = false;
             setMeId(msg.participant_id);
             setLease(msg.lease);
@@ -251,6 +329,10 @@ export function useRecordSync(
             });
           }
           if (msg.snapshot) {
+            setCounted(true);
+            if (modeRef.current === "watch") {
+              ctx.markHealthy();
+            }
             const incoming = msg.snapshot;
             setSnapshot((current) =>
               shouldApplyRecordSnapshot(incoming, current) ? incoming : current,
@@ -258,23 +340,58 @@ export function useRecordSync(
           }
         },
       },
-      onClose: (event) => {
+      onClose: (event, ctx) => {
+        phaseRef.current = "backoff";
+        setCounted(false);
         setConnected(false);
         sendRef.current = null;
         stopHeartbeat();
+        if (!joined && modeRef.current === "watch") {
+          setSnapshot(null);
+        }
+        if (!joined && openedWatching && modeRef.current === "join") {
+          ctx.retryIn(RECORD_QUICK_RETRY_MS);
+        }
         if (isTerminalWsClose(event.code) && !accessEnded) {
-          endAccess(RECORD_ACCESS_REMOVED);
+          if (lookWithSavedPlace()) {
+            lookRefused = modeRef.current === "watch";
+          } else {
+            endAccess(RECORD_ACCESS_REMOVED);
+          }
         }
       },
-      shouldReconnect: () => !accessEnded,
+      shouldReconnect: () => !accessEnded && !lookRefused,
     });
     return () => {
       socket.stop();
       stopHeartbeat();
+      phaseRef.current = "idle";
+      setCounted(false);
       setConnected(false);
       sendRef.current = null;
+      if (!joined && modeRef.current === "off") {
+        setSnapshot(null);
+      }
     };
-  }, [token, enabled, currentName]);
+  }, [token, active, currentName, sendJoin, restart]);
+
+  useEffect(() => {
+    if (mode !== "join") {
+      joinSentRef.current = false;
+      if (mode === "watch" && seatSocketRef.current) {
+        seatSocketRef.current = false;
+        keepErrorOnOpenRef.current = true;
+        setSnapshot(null);
+        setRestart((n) => n + 1);
+      }
+      return;
+    }
+    if (phaseRef.current === "open") {
+      sendJoin();
+    } else if (phaseRef.current === "backoff") {
+      setRestart((n) => n + 1);
+    }
+  }, [mode, sendJoin]);
 
   const clearError = useCallback(() => {
     setError((current) => keepTerminalRecordError(current, null));
@@ -282,5 +399,15 @@ export function useRecordSync(
 
   const me =
     snapshot?.participants.find((p) => p.participant_id === meId) ?? null;
-  return { snapshot, me, send, error, clearError, connected, lease };
+  return {
+    snapshot,
+    me,
+    send,
+    error,
+    clearError,
+    connected,
+    lease,
+    counted,
+    socketMode: mode,
+  };
 }

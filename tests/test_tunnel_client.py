@@ -1003,7 +1003,25 @@ async def test_run_once_ws_dispatch_paths():
 
 
 @pytest.mark.asyncio
-async def test_proxy_ws_forwards_query_to_local_gui():
+@pytest.mark.parametrize(
+    ("path", "query", "token", "expected"),
+    [
+        (
+            "api/review/daw/ws",
+            "client_id=viewer-abc&name=Ada+L",
+            "tok",
+            "ws://127.0.0.1:8765/api/review/tok/daw/ws?client_id=viewer-abc&name=Ada+L",
+        ),
+        (
+            "api/rec/ws",
+            "client_id=prod-1&name=Pat+Q%26A&observe=1",
+            "rtok",
+            "ws://127.0.0.1:8765/api/rec/rtok/ws?client_id=prod-1&name=Pat+Q%26A&observe=1",
+        ),
+    ],
+    ids=["review", "producer-look-in"],
+)
+async def test_proxy_ws_forwards_query_to_local_gui(path, query, token, expected):
     import websockets
 
     client = TunnelClient(RelayConfig(local_gui_url="http://127.0.0.1:8765"))
@@ -1033,13 +1051,11 @@ async def test_proxy_ws_forwards_query_to_local_gui():
         await client._proxy_ws(
             {
                 "id": "sid-query",
-                "path": "api/review/daw/ws",
-                "query": "client_id=viewer-abc&name=Ada+L",
-                "share_token": "tok",
+                "path": path,
+                "query": query,
+                "share_token": token,
             },
             send=send,
             streams={},
         )
-    assert connect.call_args.args[0] == (
-        "ws://127.0.0.1:8765/api/review/tok/daw/ws?client_id=viewer-abc&name=Ada+L"
-    )
+    assert connect.call_args.args[0] == expected

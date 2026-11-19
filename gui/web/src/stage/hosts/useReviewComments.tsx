@@ -31,6 +31,7 @@ import {
 } from "../../shareMode";
 import { useDawStore } from "../../state/dawStore";
 import { listenLayoutOf } from "../../state/stageRoutes";
+import { useUnsentText } from "../../state/unsentText";
 import { useDaw } from "../../state/useDaw";
 import { CommentCard } from "../../system/CommentCard";
 import type { BodyEdit } from "../../system/Composer";
@@ -115,6 +116,7 @@ export function useReviewComments(guest: boolean) {
     new Map(),
   );
   const [replies, setReplies] = useState<Readonly<Record<string, string>>>({});
+  useUnsentText("Your reply", Object.values(replies));
   const actions = useCommentActions({ role });
   const replyRef = useRef<HTMLTextAreaElement>(null);
   const inFlight = useRef(
@@ -444,7 +446,7 @@ export function useReviewComments(guest: boolean) {
       <>
         <CommentCard
           comment={commentCardOf(c, resolved, duration)}
-          onSelect={() => void playComment(c)}
+          onSelect={() => playComment(c)}
           onResolve={
             !guest && resolved ? () => void resolve(c.id, false) : undefined
           }
@@ -497,7 +499,7 @@ export function useReviewComments(guest: boolean) {
       posted,
       onPlayComment: (id: string) => {
         const c = comments?.find((x) => x.id === commentIdOf(id));
-        if (c) void playComment(c);
+        if (c) playComment(c);
       },
       onReply: () => replyRef.current?.focus(),
     },

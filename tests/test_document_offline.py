@@ -242,15 +242,17 @@ def test_share_audio_permission_and_redirect_errors(
     assert share_mod.resolve_share_audio_redirect(token) is None
 
 
-def test_open_share_auto_revokes_missing_version(
+def test_open_share_refuses_a_missing_version_without_revoking(
     minimal_project, sample_wav, tmp_workspace, monkeypatch, caplog
 ):
-    """Stale shares auto-revoke when the review version is gone."""
+    """A link whose review version is gone is refused; it is not turned off."""
     import json
     import logging
     from pathlib import Path
 
     import podcast_mcp.services.collaboration.share as share_mod
+    from podcast_mcp.services.collaboration.share_registry import get_share_registry
+    from podcast_mcp.util.coded_error import CodedKeyError
 
     monkeypatch.setattr(
         "podcast_mcp.services.media.proxy_media.load_object_store_config",
@@ -277,14 +279,11 @@ def test_open_share_auto_revokes_missing_version(
     ws.mutate("before clear versions", "after clear versions", _clear)
 
     with caplog.at_level(logging.WARNING, logger="podcast_mcp.services.collaboration.share"):
-        with pytest.raises(KeyError, match="invalid or revoked"):
+        with pytest.raises(CodedKeyError) as refused:
             share_mod.open_share_workspace(token)
-    assert any("Auto-revoking share" in r.message for r in caplog.records)
-    from podcast_mcp.services.collaboration.share_registry import get_share_registry
-
-    reg = get_share_registry()
-    assert reg.get_active(token) is None
-    assert reg.is_reserved(token)  # demoted to cooldown, still reserved
+    assert refused.value.code == "review_version_not_found"
+    assert any("Refusing share" in r.message for r in caplog.records)
+    assert get_share_registry().get_active(token) is not None
     sidecar = [
         row
         for row in json.loads(
@@ -294,7 +293,5 @@ def test_open_share_auto_revokes_missing_version(
         )
         if row.get("id") == share["id"]
     ]
-    assert sidecar and sidecar[0].get("revoked") is True
-    # Second lookup fails as revoked without another auto-revoke pass.
-    with pytest.raises(KeyError, match="invalid or revoked"):
-        share_mod.lookup_share(token)
+    assert sidecar and sidecar[0].get("revoked") is False
+    assert share_mod.lookup_share(token)["id"] == share["id"]

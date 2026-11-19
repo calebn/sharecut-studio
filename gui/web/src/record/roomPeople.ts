@@ -5,7 +5,8 @@ import type { RecordParticipant, RecordSnapshot } from "./types";
 export const HOST_PARTICIPANT_ID = "p_host";
 
 type RoomPeopleOptions = {
-  youId?: string;
+  /** The viewer's own participant id; null when the viewer is nobody in the room yet. */
+  youId: string | null;
   youLevel?: number;
   youSpeaking?: boolean;
   dropped?: boolean;
@@ -38,12 +39,12 @@ function presenceOf(person: RecordParticipant, you: boolean) {
 
 export function roomPeople(
   snapshot: RecordSnapshot | null,
-  options: RoomPeopleOptions = {},
+  options: RoomPeopleOptions,
 ): RoomPerson[] {
   if (!snapshot) {
     return [];
   }
-  const youId = options.youId ?? HOST_PARTICIPANT_ID;
+  const { youId } = options;
   const people: RoomPerson[] = [];
   snapshot.participants.forEach((participant, index) => {
     if (participant.removed) {

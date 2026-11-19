@@ -248,6 +248,7 @@ export const Reordering: Story = {
 };
 
 export const Loading: Story = {
+  tags: ["storybook-only"],
   parameters: { episode: { state: { project: null } } },
   play: async ({ canvasElement }) => {
     await expect(

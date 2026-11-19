@@ -43,7 +43,7 @@ SHARED_FIELDS: dict[str, str] = {
     "FeedSection": ("first_exported_at guid pins show_id"),
     "Pin": ("basis by value"),
     "ExactRangeTarget": ("clips intervals kind media_seals track_ids"),
-    "HistoryEntry": ("created_at id label operation params snapshot_file"),
+    "HistoryEntry": ("author created_at id label operation params snapshot_file undone_by"),
     "InsertAnchor": ("at_sec kind offset_s side source_id source_sec track_id"),
     "MixSection": ("automation_envelopes processing_chains"),
     "PipelineRun": ("id started_at steps"),

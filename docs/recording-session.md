@@ -56,10 +56,10 @@ Category SOTA is **Riverside / Zencastr / SquadCast / Descript Rooms**, not Zoom
   storage check and headphones** before a guest joins; the host starts the
   optional one-minute room tone from the room.
 - While recording: a persistent **status pill** (`m:ss · Take N`) in the room header and on the host Record stage, plus a start notification. PAUSED, saving and local capture failure remain distinct text states and alerts.
-- **Live timestamped notes** are table stakes: Riverside markers (`M` key →
+- **Live timestamped comments** are table stakes: Riverside markers (`M` key →
   dots on the editor timeline), Zencastr Footnotes (host-only), Descript Rooms
   Editor Comments (host/co-host/producer; guests see markers and their own
-  notes, and other people's notes only if the host allows it; land in the
+  comments, and other people's comments only if the host allows it; land in the
   project).
 - **Non-recorded producer** is the premium tier at all three: Descript Control
   Room (hears all, silent unless push-to-talk, can start/stop, leaves comments;
@@ -75,7 +75,7 @@ download; it is at most a lossy backup. Keepers must target WAV/PCM.
 - Riverside is always-on cloud. ShareCut beta needs the **host laptop online**.
   Mitigation: keep recording locally + resume chunked upload; guest copy
   "{Host} dropped. You're still recording on this device." when the host leaves
-  while the guest is connected, and "Lost connection to the room. You're still
+  while the guest is connected and a take is live, paused or reconnecting, and "Lost connection to the room. You're still
   recording on this device." when the guest's own page loses its connection while
   they are in the take.
 - Video-first creators expect cameras on day one. **Audio-first MVP**; external
@@ -96,9 +96,9 @@ download; it is at most a lossy backup. Keepers must target WAV/PCM.
 | **Recording clock** vs **wall offset** | `recording_ms = wall_ms − Σ(resume − pause)`. `join_offset_ms` is always recording-clock. |
 | **Participant** | Anyone in the room (guest, producer, or host-as-talent). |
 | **Guest** | Recorded role: `join monitor comment`. |
-| **Producer** | Listen + comment, not recorded; shown in the "Not recorded" roster group. |
+| **Producer** | Listen + comment, not recorded. |
 | **Host** | Owns the episode; starts/stops/pauses; is also a recorded participant. |
-| **Live marker (comment)** | Same `TimelineComment` as review notes. `C` (host; a guest keeps `M`) posts `body` `"Marker"` — a live marker comment, **not** a `ChapterMarker` or a second type. Lands in `review.comments[]`. |
+| **Live marker (comment)** | Same `TimelineComment` as review comments. `C` (host; a guest keeps `M`) posts `body` `"Marker"` — a live marker comment, **not** a `ChapterMarker` or a second type. Lands in `review.comments[]`. |
 | **Full-quality recording** (code: *keeper*) | Local dry WAV per recorded participant. UI status per participant and segment: "Saving to project…", then "Saved to project". |
 | **Monitor** | WebRTC send/receive graph (lossy; the page asks for no echo cancellation). |
 | **Mix-minus** | Speaker bus plays remotes only; local capture never to destination. |
@@ -125,21 +125,30 @@ a producer becomes recorded next take. Prefix ↔ kind is enforced: `/r/` with a
 cover says the link is invalid and to ask the host for a new link (the API stays 404;
 the cover shipped in PR 2322).
 
-Minting a new room **ends the previous one**: after the new room and its
-`begin_record_session` succeed, every guest and producer token of earlier rooms
-is revoked, so an old link can never admit anyone into today's room and shows
-the same dead-link cover. Revoking on mint does not purge land rollbacks or the
-land lock, so undo for takes already landed survives. Mints are serialized per
-process, so at most one record room is usable. If an old token cannot be
-revoked, the new room stays usable and the call fails with `record_stale_links`
-(GUI 409, CLI and MCP refusal), carrying the new session id and links and the
-old session ids still live; minting again retries the revoke, or revoke those
-session ids. The GUI treats that 409 as a made room: it lists the room, copies the
-guest link and tells the host that links to an earlier room may still work (End
-that room in Share), and it does not mint again on its own. An old guest's open socket is closed by the periodic share
-recheck (within about 5 s while active, 30 s idle), and a joined old guest also
-fails `participant_active` after the remint. Re-invite (`--session-id`) only mints into the
-active room. **Land before minting**: landing reads only the active room, so a
+Minting a new room **ends the previous one** when it can: after the new room and
+its `begin_record_session` succeed, every guest and producer token of earlier rooms
+is revoked, so an old link cannot admit anyone into today's room and shows the same
+dead-link cover. Revoking on mint does not purge land rollbacks or the land lock, so
+undo for takes already landed survives. Minting, restoring and revoking a room are
+serialized across processes on one project by a lock file
+(`artifacts/record/room.lock`), so two of them never interleave; a second caller
+waits up to 30 s, then is refused with `project_busy`. A review link that is live or
+restorable is not blocked by it; one already revoked or expired waits for the lock
+like any unknown token. Ending a room waits behind a land-first mint for up to 30 s,
+then answers `project_busy`, so the host retries. If an old token cannot be revoked,
+the new room stays usable and the call fails with `record_stale_links` (GUI 409, CLI
+and MCP refusal), carrying the new session id and links and the old session ids still
+live; minting again retries the revoke, or revoke those session ids. When neither
+listing of the earlier rooms succeeds, the error carries `unverified: true` and an
+empty `stale_session_ids`: earlier links may still work, and minting again checks
+them and ends any that are live, including the new room. The GUI treats
+that 409 as a made room: it lists the room, copies the guest link and tells the host
+that links to an earlier room may still work (End that room in Invite), and it does
+not mint again on its own. An old guest's open socket is closed by the periodic share
+recheck (within about 5 s while active, 30 s idle), and a joined old guest also fails
+`participant_active` after the remint. Re-invite (`--session-id`) only mints into the
+active room.
+**Land before minting**: landing reads only the active room, so a
 stopped, not-yet-landed take in the old room is orphaned once a new room is
 minted and its guests lose upload resume on the old link. The mint guard blocks
 only `recording` / `paused`; an unsaved stopped take the server can see warns instead, and
@@ -334,10 +343,34 @@ model. Riverside's heard-by-guests producer and Descript push-to-talk are later
 rows. A producer opens the **producer** `/rec/{token}` as a **receive-only**
 mesh peer — no `getUserMedia`, no send track, no keeper. **Transparency is
 mandatory:**
-every client's roster shows a **"Not recorded"** group listing producers; the
-consent copy says "producers/listeners may be present and are shown in the
-roster"; a producer joining mid-take triggers the same join notification as a
-guest.
+every client's roster shows the **listener row** (the producers in the room,
+each with an ear glyph) when a producer is in the room and, when the server reports that people with the
+producer link are looking in without having joined, the **looking-in line**
+("Someone with the producer link is looking in", or "3 people with the producer
+link are looking in"). The line names nobody. It sits directly under the
+header and above the tiles. Under the
+Declined bar the room stays inert and dimmed as before, and the line sits directly
+on top of the Declined bar, above the veil, so it is not greyed and a screen
+reader still reads it. The guest's consent **Details** repeats it
+with "They can see the room but can't hear it." The host page announces the
+first arrival in each room, once and politely, while the room is waiting or
+stopped. The guest page does the same, and so does a producer page once it has joined
+(a producer page that has not joined announces nothing about other people looking in; its own sheet tells it the room can see it, in words), and a later room's arrival is
+spoken again even when its words match an earlier one. An arrival during a take is never
+spoken. One during the room-tone countdown is spoken at the next room update
+after it, only if the room is then waiting or stopped and the person is still looking in.
+The host page drops its spoken note when nobody is looking in. The count is the
+snapshot's runtime `watchers` field. A client shows the line only for a whole
+number from 1 to 99 and reads anything else, or a missing field, as nobody. The
+GUI server puts it in every snapshot it sends (its sockets, `GET /api/record/state`
+and the host page's commands; the MCP record state tool and `podcast record state`
+leave it out): `0` when nobody is looking, and it rises when a producer link's socket connects with `observe=1` (see
+[Looking in on a room](#looking-in-on-a-room-observe1)), which every page that loads the room on a
+producer link does as soon as the room code is loaded. The page that looks in takes its own socket out of the count it shows, so a
+lone producer looking in sees no line, while the host and the guests do. A guest's consent
+**Details** names the producers who have joined ("Rosa is listening and won't
+be recorded") and, while the snapshot's `watchers` count says someone else is looking in, the looking-in line; a producer joining
+mid-take triggers the same join notification as a guest.
 
 When the host or a recorded guest is running or finalizing a local keeper in
 the Tauri desktop shell, native window close and the macOS app menu/Cmd+Q
@@ -472,7 +505,8 @@ keeper backup in MVP. Stop shows a **blocking saving panel** ("Saving to project
 participants; guest sees own) until ACK or stall. An incomplete local segment
 after capture has settled is retained for recovery and reported separately;
 it cannot receive a file ACK and does not hold Leave. A guest's Leave is held while
-their own upload is moving, and while Stop is still finalizing the last segment
+their own upload is moving, while the server has the file and this device's segment count is not
+known yet (until the scan answers or reads as unreadable), and while Stop is still finalizing the last segment
 until its complete metadata lands or capture latches a failure (a latched
 failure counts as settled so recovery and export appear). The room reads "Saving to project… N of M chunks"
 while finalized WAV totals are known, then "Saved to project" once the file is ACK'd. When a participant has
@@ -824,8 +858,9 @@ comes from the participant's role (`RoomPerson.role`), not from who is viewing.
 
 A recorded guest who has accepted recording and said they are not wearing headphones has a
 crossed-out headphones glyph on their live tile, and "not wearing headphones" in its accessible
-name ("Maya Okafor, not wearing headphones"). The host, producers and the guest's own tile show
-it; other guests do not. It clears when the guest says they are wearing them, or when the tile
+name ("Maya Okafor, not wearing headphones"; on the guest's own page "Maya Okafor, you, not wearing
+headphones", since that tile also reads "(you)" and leads to Devices). The host, producers and the
+guest's own tile show it; other guests do not. It clears when the guest says they are wearing them, or when the tile
 is no longer live. It is a display choice, not a privacy boundary: the room's snapshot carries
 every participant's answer (`roomPeople.ts`).
 
@@ -906,7 +941,11 @@ Saving:
   finished take (`useTakeClipping` for the current take, `usePastTakeClipping` for
   earlier ones). The guest room gets a Takes tab in its Comments rail only once one of
   their takes clipped; it lists the clipped takes with their own line and no Hear.
-  A producer has none.
+  A producer has none. Until a Takes tab exists the rail is named "Comments" (the
+  accessible name of the rail, and of the phone sheet); with one it is named "Comments
+  and takes". The Comments toggle in the dock reads as pressed only while the Comments
+  tab is showing, so on the Takes tab it is not pressed, and pressing it there shows the
+  Comments tab and leaves the rail open; a second press closes the rail.
 
 **Limitations.** Recovered crash segments, older clients and consolidated
 sources carry no regions. A truncated clip with no
@@ -1128,7 +1167,21 @@ row still open as its reason ("Add your name first", "Allow your microphone
 first", "Put on headphones first" (on a phone, "Say if you're wearing headphones first"),
 "Fix storage first"). A producer sees the name
 row and **Join to listen** ("You'll listen and comment. You won't be
-recorded."); producers skip the mic, storage and headphones rows.
+recorded."); producers skip the mic, storage and headphones rows. Behind a producer's
+sheet is the live room, not a blank one: the title names the people who are there, and the room
+shows its tiles, the real status pill and the looking-in line for other producer pages,
+out of reach while the sheet is open. Once the room has counted this page as looking in,
+the sheet adds "The room can see that someone is looking in." under the listen line. The count
+comes from the current socket's own first snapshot, so a snapshot kept from an earlier socket never
+shows it. A screen reader hears the sentence at most once each time the sheet is opened: the sheet holds a polite
+live region from the moment it opens, and the first time the sentence arrives after the sheet
+opened it is put in the region. When the sentence goes, the region is emptied with it, and
+if it comes back while the sheet is still open only the visible line returns and nothing is spoken again.
+A sentence already there when the sheet opens is read as part of the dialog's description,
+after its title, together with the listen line, and the live region stays empty so it is not read
+twice. Reopening the sheet from the Not now bar starts again. The sentence is left out when the room sends no count, as an older server does. The room
+never names the producer who is looking, and no tile is marked as the producer's own until they
+have joined.
 
 ### Decision: Headphones are an honest choice on a phone
 
@@ -1174,7 +1227,7 @@ rows and at most 88dvh, with the room's header above it (and the status pill onc
 screen under 30rem tall at any width (a phone on its side), or under 37.5rem wide and
 44rem tall (a small phone upright), the sheet scrolls as one, footer included, with
 the consent sentence directly above **Join and record**; on taller screens the consent
-sentence and the buttons stay pinned and only the rows scroll. The sheet has one **Close**, and **Not now**, Escape and Close all decline, a producer's also while the sheet reads Joining… (the connection is closed, the Not now bar shows, and a producer the room had already listed shows to the host as left);
+sentence and the buttons stay pinned and only the rows scroll. The sheet has one **Close**, and **Not now**, Escape and Close all decline, a producer's also while the sheet reads Joining… (Not now closes the connection, so the look ends too: the Not now bar shows, and a producer the room had already listed shows to the host as left);
 a press on the scrim beside the sheet does nothing (`Dialog` with `scrimDismisses`
 false), because consent is answered with a button. Each row is its status line with
 its control full width underneath, on one left edge. Every control is at least 44 px.
@@ -1198,13 +1251,23 @@ pressed **Join and record** (which sends the name as `UpdateName` just before `C
 even before the first reply from the room), or the room already holds the guest as joined.
 The last case covers a reconnect after joining, including after a reload; the first hello
 right after a reload still says "Guest", because the room's record of the guest is not
-known yet, and the name follows in `UpdateName` once it is. A producer's socket opens only
-after **Join to listen**, so its first hello already carries the name. The sheet stays on
-"Joining…" until the room confirms the producer. A non-terminal error before then returns
-the sheet to **Join to listen** with the reason under the listen line (the room's alert
-slot does not repeat it, and **Not now** clears it), and a second press opens a new
-connection; after 4 seconds on Joining… the sheet adds "Still connecting to the room.
-Choose Not now to stop trying." When a producer's sheet closes on the confirmed room, focus
+known yet, and the name follows in `UpdateName` once it is. A producer's socket opens as
+soon as the room code is loaded, with `observe=1` and no name, so the name stays off the wire
+until the press, and it sends nothing: no Join, no Heartbeat and no queued comment. **Join to
+listen** sends Join on that socket while it is open, with the name and the lease kept on this device,
+and Heartbeats start once the room has accepted the Join; a press made while the socket is still
+connecting sends on open (if that socket closes before the room answers the Join, the page
+retries after a quarter of a second with a joining socket, not after the usual wait; a close with 4403 follows the 4403 rule below instead), and one made while it waits to reconnect opens a joining socket at
+once. While the Join is pending the sheet reads "Joining…". A non-terminal error
+while the sheet reads "Joining…" returns the sheet to **Join to listen** with the reason under the listen line (the
+room's alert slot does not repeat it). **Not now** or a new press clears that reason; a press refused again shows its own reason, and one that succeeds leaves no alert for it in the room. A second press sends Join again. When the first Join was sent on a joining socket that replaced a look, the page drops the room the sheet was showing as soon as that Join is refused. After 4 seconds on Joining… the sheet adds "Still connecting to the
+room. Choose Not now to stop trying." A look that closes before **Join to listen** is pressed, such as the room refusing it with 4429,
+drops the room the sheet was showing, with its pill and its sentence, and is retried quietly after the usual wait; the
+room comes back with the first snapshot of the next socket that the room has counted. A look closed with 4403 (for example because the link was revoked, or because the invite closed after the host removed someone who joined through it) ends the page's access, unless the page holds a saved place in the room from an earlier visit on this device (a lease). That page's look only stops: the room behind the sheet goes, the look is not retried, no cover shows, and **Join to listen** opens a joining socket with the saved place. If that joining socket is closed with 4403, access ends. A press made while the look was still connecting gets the quick retry as a joining socket in the same way. Without a saved place, which cover shows depends on what the look was told before the close: after the `invite_closed` Error the page shows the Invite link closed cover, as a refused Join does; a bare 4403 (a revoked or reminted link, or an ended room) shows the ended cover. Every 4403 a look gets because its invite closed comes after the `invite_closed` Error, whichever check closed it. A server that does not know
+`observe` stays silent, so the sheet shows no room and no sentence and the press still joins.
+**Not now** closes the socket: the room behind the bar shows no status pill, no people and no
+looking-in line, and the page counts as no longer looking in. The bar's **Join to listen** brings
+the sheet back and looks in again. When a producer's sheet closes on the confirmed room, focus
 moves to the room's title. The room behind the sheet shows no status pill until the page
 holds a snapshot, and its Comments field reads "You can comment once you're in the room."
 until the producer is listed. A guest who has
@@ -1297,16 +1360,23 @@ slot: "Your mic stopped." (**Reconnect mic**), "No sound is reaching the recorde
 (**Finish saving**), "Lost connection to the room. You're still recording on this
 device." (this page's connection dropped mid-take; nothing is raised while paused, and a
 producer gets none), "{Host} dropped. You're still recording on this device." (the host
-left or dropped while this page is connected), "You can't hear the room. Recording is
+left or dropped while this page is connected and a take is live, paused or reconnecting;
+in the lobby or after Stop nothing is being recorded here and the host's tile already
+reads Left, so no alert is raised), "You can't hear the room. Recording is
 fine." (**Retry**), "You're clipping. Move back a little." (after the third clip in 30 s)
 and "You're muted." (after 10 s of speech while muted). Hidden screen-reader lines
 announce "Recording in full quality on this device.", "Hearing the room.", joins, leaves
 and other people's new comments. **Leave** is held while a take runs ("You can leave after
 this take."), while this guest's own upload is moving ("Your recording is still
-saving"), while the keeper is still writing the take ("Your recording is still
-finishing") and while room tone records on this device ("Finish or cancel the room tone
-first"). The reason is the button's description at all times, and a press shows it. A
-failed save releases Leave, and so does a saving line with no upload behind it. Once the
+saving"), while the server has the file but this device's segment count is not known yet
+and the scan has not been given up on ("Your recording is still saving"), while the
+keeper is still writing the take ("Your recording is still finishing") and while room
+tone records on this device ("Finish or cancel the room tone first"). The reason is the
+button's description at all times, and a press shows it. A failed save releases Leave,
+and so does a saving line with no upload behind it. The device scan gives up after 5
+seconds, is tried once more after 2 seconds, and a second failure (or a device storage
+that cannot be opened at all) reads as unreadable, which turns the saving line into
+"Saving stopped." and releases Leave. Once the
 file ACK lands the dock reads "Saved to project. You can close this page." with
 **Done**, which leaves the room and closes the page where the browser allows, and is held
 for the same reasons. Leave closes this page's room connection, which
@@ -1453,11 +1523,12 @@ stateDiagram-v2
 | Mic blocked in the Linux Tauri desktop app | "Microphone access is blocked in this Linux desktop window. Retry once, or open ShareCut Studio in your browser and allow microphone access there." |
 | Mic permission prompt in the Linux Tauri desktop app | "Waiting for the desktop webview microphone permission prompt…" |
 | No input device | "No microphone was found. Connect an input device, then Retry." |
-| Invite closed | Cover "Invite link closed"; "{Host} closed this invite link. Ask for a new link."; while a full-quality WAV of the take is still on the device (read from the keeper store, so it holds after a reload; not once every segment has landed and been cleared) it adds "Your recording is safe on this device. Save it and send it to {host}, or ask for a new link." with **Save my recording** / **Try saving again** |
+| Invite closed | Cover "Invite link closed"; "{Host} closed this invite link. Ask for a new link."; while a full-quality WAV of the take is still on the device (read from the keeper store, so it holds after a reload; not once every segment has landed and been cleared) it adds "Your recording is safe on this device. Save it and send it to {host}, or ask for a new link." with **Save my recording** / **Try saving again**; when the device scan could not be read (the retry also failed) it adds "We couldn't check this device. Try saving it again, or save a copy, or ask for a new link." instead, because nothing then says the recording is safe |
 | Link refused (any 4xx except 408 and 429) | Cover "This link doesn't open a room"; "Ask the person who invited you for a new link."; no button, no retry |
 | No answer from the network (no response at all, or a reply whose body could not be read) | Cover "Couldn't reach the room"; "Check your internet connection, then try again. If it keeps happening, let the person who invited you know."; **Try again** looks the room up again, and so does the browser's `online` event, once |
+| The room's page code fails to load (the browser could not fetch or run the room script) | Cover "Couldn't reach the room" with the network sentence above, and **Reload**, which reloads the page; the tab reads "Couldn't reach the room \| ShareCut Studio". Any other error that stops the room page draws the cover "Something went wrong with the room"; "Reload the page to try again. If it keeps happening, let the person who invited you know."; **Reload**; the error is also written to the browser console. Neither cover says the recording is kept, because a reload stops capture on that page |
 | Server or host didn't answer (5xx including a sleeping host's 503, 408, 429, an error reply) | Cover "The room didn't answer"; "Try again in a minute. If it keeps happening, let the person who invited you know."; **Try again** |
-| After **Save my recording** handed the whole zip to the browser (ended, closed invite, or left the room) | Cover "Check your downloads"; "Look for the zip file of your recording and send it to {host}. If it isn't there, save it again."; text button **Save it again**, which reads "Saving…" at the same width and keeps focus while it runs (**Save my recording** and **Try saving again** read "Saving…" only on the one pressed, and both ignore presses meanwhile); the cover, heading and tab stay unless that run fails. Whenever a guest cover appears or its title changes, focus moves to the cover heading so a screen reader reads the new message. The cover offers Save while the device holds any segment the last upload pass did not see, whatever an earlier acknowledgement said, and an acknowledgement never carries into a later take. A "Couldn't reach the room" cover retries once by itself when the browser came back online during the attempt before it. It belongs to the audio that was downloaded: a zip saved while the room was live or paused, or while capture was still running, or one that a resume overlapped, or any segment the device holds that the zip lacked (a later segment, a later take, or a device count that could not be read), shows "Your recording didn't finish saving" with **Save my recording** instead, and "Finishing your full-quality recording…" outranks it while capture settles. A recording the server acknowledged shows the ended cover instead, even while the device still holds its copy for the reclaim grace. "Saved" and "unsent" read one acknowledgement rule in every cover and in the dock: the server's acknowledgement counts only for the take it was given for and only while the device holds no more segments than that pass saw; an unreadable device count is never read as saved. A failed device scan is tried once more after a short delay and again on the next upload pass; meanwhile an acknowledged upload shows "Saving…" without holding Leave, and once the retry also fails it reads as "Saving stopped." with **Resume saving** (which re-scans) and **Save a copy**. A guest the server's take roster lists as recorded, or whose page recorded, shows "Your recording didn't finish saving" with **Try saving again** instead of "Thanks for recording." or "You can close this page." A partial export keeps "Your recording didn't finish saving" |
+| After **Save my recording** handed the whole zip to the browser (ended, closed invite, or left the room) | Cover "Check your downloads"; "Look for the zip file of your recording and send it to {host}. If it isn't there, save it again."; text button **Save it again**, which reads "Saving…" at the same width and keeps focus while it runs (**Save my recording** and **Try saving again** read "Saving…" only on the one pressed, and both ignore presses meanwhile); the cover, heading and tab stay unless that run fails. Whenever a guest cover appears or its title changes, focus moves to the cover heading so a screen reader reads the new message. The cover offers Save while the device holds any segment the last upload pass did not see, whatever an earlier acknowledgement said, and an acknowledgement never carries into a later take. A "Couldn't reach the room" cover retries once by itself when the browser came back online during the attempt before it. It belongs to the audio that was downloaded: a zip saved while the room was live or paused, or while capture was still running, or one that a resume overlapped, or any segment the device holds that the zip lacked (a later segment, a later take, or a device count that could not be read), shows "Your recording didn't finish saving" with **Save my recording** instead, and "Finishing your full-quality recording…" outranks it while capture settles. A recording the server acknowledged shows the ended cover instead, even while the device still holds its copy for the reclaim grace. "Saved" and "unsent" read one acknowledgement rule in every cover and in the dock: the server's acknowledgement counts only for the take it was given for and only while the device holds no more segments than that pass saw; an unreadable device count is never read as saved. A failed device scan is tried once more after a short delay and again on the next upload pass; meanwhile an acknowledged upload shows "Saving…" and holds Leave ("Your recording is still saving"), a scan that does not answer within 5 seconds counts as failed, and once the retry also fails (or the device storage cannot be opened) it reads as "Saving stopped." with **Resume saving** (which re-scans) and **Save a copy**, and Leave is free; that verdict holds through later rechecks (Leave, a finished run) until a scan succeeds, so the covers keep saying the device could not be checked and Leave does not hold again. A guest the server's take roster lists as recorded, or whose page recorded, shows "Your recording didn't finish saving" with **Try saving again** instead of "Thanks for recording." or "You can close this page." That cover says "It's safe on this device. Save it and send it to {host}." only while the device scan could be read; once the scan is unreadable it says "We couldn't check this device. Try saving it again, or save a copy." and keeps both buttons. A partial export keeps "Your recording didn't finish saving" |
 | Tab title | `{state} \| {episode}` (`{state} \| ShareCut Studio` while the episode is unknown). State: the shown cover's title; "Joining the room" before the room code is looked up; "Join to listen" (producer, until the room lists them); "Join the room"; "Not being recorded" (guest after Not now); "Not in the room" (producer after Not now); then the pill's phase: Waiting, Stay quiet, Recording, Paused, Saving to project…, Saving stopped, Saved to project, Reconnecting… |
 | Room tone (host Record stage) | "Record 1 minute of room tone"; while capturing "Stay quiet · 0:42" with a bar, **End early** and **Cancel** |
 | Room tone for a guest who joined late (alert row) | "Record 1 minute of room tone." **Record room tone** / **Skip**; while capturing the row reads "Stay quiet · 0:42" with a bar, **End early** and **Cancel** (any capturing guest sees it, host-started or not) |
@@ -1473,7 +1544,7 @@ stateDiagram-v2
 | Paused | Status pill `Paused · m:ss` |
 | Host reconnect pause | "Paused: the host was offline for {N}s. Resume when everyone is ready." (host DAW only; guests keep the Paused pill) |
 | Room connection lost | Alert "Lost connection to the room. You're still recording on this device." and the pill `m:ss · Reconnecting…` (this page's own connection; none while paused) |
-| Host offline | Alert "{Host} dropped. You're still recording on this device." (the host left or dropped while this page is connected) |
+| Host offline | Alert "{Host} dropped. You're still recording on this device." (the host left or dropped while this page is connected and a take is live, paused or reconnecting; no alert in the lobby, during the countdown, while saving or once saved) |
 | Saving (own status) | "Saving to project… {n} of {total} chunks. Keep this tab open." Several segments add one line each: "Take 1 segment 2: Saving to project… 1 of 2 chunks". |
 | Saved, not landed | "Saved to project. This device keeps its copy until the host lands it on the timeline." |
 | Saved and landed | "Saved to project and on the timeline. This device's copy clears automatically." (only after ACK **and** confirmed landing) |
@@ -1483,7 +1554,7 @@ stateDiagram-v2
 | Storage unavailable | "This device can't store your full-quality recording. Check that this browser or app allows local storage, then retry." with **Retry storage check** |
 | Host status (per participant and segment) | "Ava: Saving to project… 1 of 3 chunks", "Ava: Saved to project"; with several segments "Ava, take 1 segment 2: Saved to project"; a failed land adds "Landing failed. Use Retry on the take." |
 | Full room | Cover "The room is full" / "Ask {host} to make space or send you a new link." with **Try again** |
-| Declined | Guest: scrim "You're not being recorded." with **Join recording** ("You can join after this take." while a take is not waiting). Producer: scrim "You're not in the room yet. You won't be recorded." with **Join to listen**, never held by a take |
+| Declined | Guest: scrim "You're not being recorded." with **Join recording** ("You can join after this take." while a take is not waiting). Producer: scrim "You're not in the room yet. You won't be recorded." with **Join to listen**, never held by a take; Not now has ended the look, so no room, pill or looking-in line sits behind the scrim |
 
 ### Host Record stage
 
@@ -1581,7 +1652,7 @@ cannot. Every button runs the same `record.*` command as the palette.
 Guest keeps recording locally **when the segment is still open** (tunnel/host
 offline, mic held); monitor tracks end; closed segments retry upload (the
 open segment waits until it closes); rejoin the same
-token. Copy: the "{Host} dropped." or "Lost connection to the room." alert, per the copy
+token. Copy: the "{Host} dropped." (while a take runs) or "Lost connection to the room." alert, per the copy
 table above. Intentional leave /
 lost mic uses **segments** ([Roster changes](#roster-changes-join-leave-rejoin-pause-takes)).
 Producers simply lose audio and reconnect.
@@ -1600,8 +1671,7 @@ Non-terminal record errors from the room (`forbidden`, `invalid_state`,
 `rate_limited`, `join_first`, `malformed`, or an unknown code) show a persistent
 alert with a **Dismiss** action under the role line; `room_full` and the
 access-ended codes keep their own screens and are never dismissed. A later
-non-terminal code (for example the heartbeat's `join_first` after
-`room_full`) never replaces a terminal one.
+non-terminal code never replaces a terminal one.
 
 On the host, every failed `record.start` / `pause` / `resume` / `stop` /
 `land` command (from the keyboard, command palette or the Record stage buttons,
@@ -2081,7 +2151,7 @@ the written WAV within 1 ms), `keeper/takeClipping.test.ts`, `alertGates.test.ts
 | Pause / Resume | Host pauses at recording 60 s (wall 60 s), resumes at wall 70 s: every participant has segment 1 ending at 60 s and segment 2 starting at recording **60 s ± 1 frame** (clips abut, no gap, no zeros); keeper bytes written during the pause = **0**; PAUSED indicator asserted on all clients; a guest joining during the pause consents and gets `join_offset_ms` = 60 s; a late `pause` (or reconnect) truncates/discards samples ≥ `pause_wall_ms` from the versioned pause log; a drop that intersects a pause does **not** resume the same segment. Guest cannot trigger pause. |
 | Takes | Stop then Start: take 2 lands after take 1 + `take_gap_ms` (2 s) **even if take 1 is still uploading**; a participant absent from take 2 has no clip there; tracks = union; no re-consent prompt shown to already-consented clients; deleting take 1 is refused while its manifest is non-terminal; a tombstone voids in-flight ACK and leaves take 2 at offset 0. |
 | Cap / decline | 5th guest (or 3rd producer) gets the full-room page and never calls `getUserMedia`; a client that declines consent (Not now) sees the declined scrim and cannot rejoin as a guest until the room waits for a take. |
-| Producer transparency | With one producer present, every guest's roster shows a "Not recorded" group containing the producer; the consent copy contains the listeners sentence; producer joining mid-take fires the same join notification as a guest; roles cannot change during a take. |
+| Producer transparency | With one producer present, every guest's roster shows the listener row containing the producer; the guest's consent Details names the producer who has joined (`JoinSheet.test.tsx`); producer joining mid-take fires the same join notification as a guest; a producer page that has not joined looks in, so the host and guests see the looking-in line, the producer sees the live room, which never names the producer who is looking, and the producer's sheet tells them the room can see that someone is looking in (`record-lobby.spec.ts`); roles cannot change during a take. |
 | Live comments | Guest adds a comment (`body` `"Marker"` or a typed comment) at host recording clock 123.4 s in take 1: after landing, `review.comments[]` has one `TimelineComment` at `123.4 s ± 0.25 s` (no lead, no `title`/`metadata`) created through `add_comment` under `ProjectWorkspace.mutate()` (undo removes it); host rewrote `recording_ms` from `pressed_wall_ms` + `pauses[]`; a comment during PAUSED lands at the pause point; before landing the host and producer lists contain it, the other guest's list contains a `Marker` but not a typed comment unless the host turned on `guests_see_notes` (host-enforced); deleting take 1 deletes its comments; a comment queued while a client was disconnected upserts once on reconnect (no duplicate); browser end-to-end in the Playwright US-1 scenario (`e2e/record-lobby.spec.ts`). |
 
 ## Next PR: recording links (checklist)
@@ -2192,7 +2262,21 @@ The host recording plane shares `/api/host/ws` with session presence and documen
 
 ## Guest socket service work
 
-Guest recording sockets await workspace/service setup, Join, and each subsequent room command in worker threads. Service construction starts only after concurrency admission succeeds and is covered by the admission cleanup scope. The event-loop owner updates the participant identity and sends the direct Echo and initial Snapshot before starting queued fanout. Commands remain sequential for each connection. Periodic and on-frame authorization checks run off the event loop; the final same-process removal check stays at the send boundary. Shutdown awaits room disconnect in a cancellation-shielded cleanup scope before releasing the socket's admission slot.
+Guest recording sockets await workspace/service setup, Join, and each subsequent room command in worker threads. Service construction starts only after concurrency admission succeeds and is covered by the admission cleanup scope. The event-loop owner updates the participant identity and sends the direct Echo and initial Snapshot under the send lock the pump also takes, so no queued frame goes out between them. On `/api/rec/{token}/ws` the pump starts before any Join, once the socket has subscribed to the hub (a look with `observe=1`, once it is counted). It sends nothing to a plain socket that has not joined, and a counted look gets bare Snapshot frames until it joins. Commands remain sequential for each connection. Periodic and on-frame authorization checks run off the event loop; the final same-process removal check stays at the send boundary. Shutdown awaits room disconnect in a cancellation-shielded cleanup scope before releasing the socket's admission slot.
+
+## Looking in on a room (`?observe=1`)
+
+A producer link may open `WS /api/rec/{token}/ws?observe=1` (plus the usual `client_id`) to look at the room before it joins. The server honours the query for the producer role only. A guest link or any other value connects as a plain socket and sees nothing until it sends Join.
+
+- **Counted.** Each looking-in socket takes one admission slot and no seat in the room. The server publishes a `Snapshot` frame to the room when a socket starts looking and when it stops, and the snapshot carries `watchers`: the number of sockets looking in on this room right now (an integer, `0` when none). The count includes the looker's own socket, so a page that looks in must subtract itself before it shows the number to the person looking. `watchers` is process-local presence. It is stamped when a snapshot is built, never written to the record log or the saved session, and left out of `record_state_tool` and `podcast record state` (another process would report a false `0`). `GET /api/record/state`, the host page's own commands and the record plane on `/api/host/ws` carry it.
+- **What it receives.** Only `Applied` and `Snapshot` events, each sent as a bare `Snapshot` frame: the guest filter, then `comments` emptied. No Echo, `target`, lease key or comment, and no `Signal`. The `invite_closed` Error described under Closed invite, sent just before a 4403, is the one frame other than those Snapshot frames that a look can be sent without having sent anything itself; its other frames are answers to what it sends (see What it may send). Its first frame is the snapshot published when it started looking: frames built before the room was told of it are not sent to it, so every frame it gets already counts it. A refused Join (for example `room_full`) that cannot put the count back closes the socket 4403.
+- **What it may send.** Only a Record frame carrying a Join. No other frame acts on the room. Any other text frame is answered with an `Error`, which is `join_first` unless an earlier check on the frame answers first with its own code (for example `rate_limited`), or, when the share check finds its invite closed, with `invite_closed` followed by the 4403 close, or, when it is not JSON or is over the size limit, it is counted as malformed and dropped without a reply, and too many of them close the socket with 4400. A binary frame closes the socket with 1011, as on any record socket. A Join on the same socket that is accepted joins the room as a producer. The socket stops counting in the same `Applied` that lists the person, so the room never shows the person and the count together. A Join refused with `room_full` leaves the socket looking in.
+- **Cap.** At most 4 sockets look in on one room (`WATCHERS_PER_ROOM`). A fifth look on a room that is current, whose link's invite is open, is closed with 4429 and reason `too many looking in`. The checks run in this order: the link's own socket limit (`PODCAST_GUEST_WS_CONCURRENT`, 8 by default while `PODCAST_RATE_LIMIT` is on, counting every socket on the link; 4429 with its own reason), then the room (4403 `record room ended`), then the invite (the `invite_closed` Error and 4403 `invite closed`), then the cap.
+- **Room pin.** Every record share socket, joined, looking or plain, is closed with 4403 on the first event that carries a snapshot from a different room (a `Signal` has none, and does not trigger it), so a remint never feeds the new room to an old link. The reason is `record room ended`, unless an earlier check on that socket closes it first with its own 4403 reason. No frame of the new room is sent either way.
+- **Closed invite.** A look follows the same invite rule as Join. On an invite that is closed (the host removed someone who joined through that link, or removed someone whose link is unknown, which closes every invite of the room), a look is refused at admission, and a look already open is closed with 4403 before any frame that shows the room after the closure: at its next room event, before that event's frame is sent, or earlier by the socket's share check, on a frame its page sends (checked at most every 5 s) or at the periodic 30 s recheck. Every one of these 4403 closes is preceded by one Error frame `{"plane": "record", "type": "Error", "code": "invite_closed"}` that carries no room data. The share check asks the invite again before it closes a look, so a look closed because its link was revoked or the room was reminted gets the 4403 with no Error frame. This rule closes looks only: a guest, a joined producer and a socket that never asked to look are not closed by it. A Join refused for a closed invite is answered with `invite_closed` and the 4403, as before. A look that closes this way leaves the count with its socket, and a look refused at admission is never counted.
+- **Leaving.** A clean close removes the count at once. A revoked link or an ended room closes within one share recheck (30 s). A tab that dies without closing is dropped by the websocket keepalive, which the GUI server pins at a 20 s ping and a 20 s pong timeout (`podcast_mcp/gui/bind.py`), so about 40 s on a direct connection. A guest through the public relay is dropped by the relay's own keepalive, which is not pinned here.
+- **Old servers.** A server without this feature ignores the query and stays silent until Join, and the snapshot has no `watchers`.
+- **Who opens it.** The record page on a producer link, once it has loaded the room (a page that shows a cover instead never does): `observe=1` and `client_id`, no `name`. It sends nothing while it looks. **Join to listen** sends Join on the same socket while it is open, **Not now** closes it, and a look refused with 4429 or a silent old server leaves the page with no preview. A look closed with 4403 ends the page's access (the Invite link closed cover when the `invite_closed` Error came first, which is every close for a closed invite, otherwise the ended cover), except on a page that holds a saved place from an earlier visit (its look just stops, the sheet stays, and **Join to listen** sends Join with that place). A page that looks in subtracts its own socket from `watchers` before it shows the line, and says so on its sheet only once `watchers` is 1 or more.
 
 ## Recording UI consistency checks
 

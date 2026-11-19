@@ -49,9 +49,6 @@ export async function submitDocumentCommand(
   return submitQueuedDocumentCommand(projectPath, type, payload, opts);
 }
 
-/** The server refused an undo or redo because history moved past `expectedHeadId`. */
-export const HISTORY_STALE_CODE = "history_stale";
-
 export type HistoryMoveOptions = {
   rerender?: boolean;
   scope: DocumentScope;
@@ -76,6 +73,15 @@ async function moveHistoryHead(
     },
     opts.scope,
   );
+  if (result.guest_step === true) {
+    useDawStore
+      .getState()
+      .announceStatus(
+        type === DocumentCommand.UndoHistory
+          ? "Undid a guest's change."
+          : "Redid a guest's change.",
+      );
+  }
   return replyHistoryHead(result);
 }
 

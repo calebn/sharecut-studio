@@ -6,6 +6,18 @@ export const TRANSCRIPT_REFINE_REQUIRED_CODE = "transcript_refine_required";
 export const TRANSCRIPT_REFINE_REFUSAL =
   "This is blocked until transcript refinement is done. A host can review the transcript or waive it with a reason.";
 
+/** The server refused an undo or redo because history moved past `expectedHeadId`. */
+export const HISTORY_STALE_CODE = "history_stale";
+
+/** An Undo or Redo the server declined in plain words; nothing changed and nothing needs attention. */
+export const HISTORY_REFUSAL_CODES: ReadonlySet<string | null> = new Set([
+  HISTORY_STALE_CODE,
+  "nothing_to_undo",
+  "nothing_to_redo",
+  "nothing_of_yours_to_undo",
+  "nothing_of_yours_to_redo",
+]);
+
 const MODEL_NEEDED_CODE = "model_needed";
 
 export type ModelNeeded = {
@@ -82,6 +94,8 @@ export function writeFailureReason(failure: ApiError): string | null {
 
 export const PROJECT_NOT_FOUND_CODE = "project_not_found";
 export const PROJECT_UNREADABLE_CODE = "project_unreadable";
+export const PROJECT_VERSION_NEWER_CODE = "project_version_newer";
+export const PROJECT_VERSION_UNSUPPORTED_CODE = "project_version_unsupported";
 
 export function projectUnavailableReason(
   failure: ApiError,
@@ -150,7 +164,11 @@ const MAX_MESSAGE_DEPTH = 3;
 /** Parse a failed fetch Response into a short user-facing message. */
 export async function readApiError(res: Response): Promise<string> {
   const text = await res.text().catch(() => "");
-  return parseFailureText(text, res.status).message;
+  return guestSafeMessage(
+    res,
+    res.headers.get(ERROR_CODE_HEADER),
+    parseFailureText(text, res.status).message,
+  );
 }
 
 function parseFailureText(
@@ -243,11 +261,49 @@ function asRecord(value: unknown): Record<string, unknown> | null {
     : null;
 }
 
+export const ERROR_CODE_HEADER = "X-Sharecut-Error-Code";
+
+const SHARE_NOT_FOUND_CODE = "share_not_found";
+
+/** The server's one answer for a link that is off, unknown or expired. */
+export function isDeadLinkAnswer(
+  status: number | null,
+  code: string | null,
+): boolean {
+  return status === 404 && code === SHARE_NOT_FOUND_CODE;
+}
+
+/**
+ * What a guest reads when a review route answers that its link is gone. True
+ * whether the link is off (the page replaces the studio with its cover within
+ * a moment) or the answer was a stray (trying again works).
+ */
+export const LINK_DOUBT_MESSAGE =
+  "That didn't go through. Try again in a moment.";
+
+/** True for a dead-link answer from a guest route, never from the host's share management. */
+function isGuestDeadLinkAnswer(res: Response, code: string | null): boolean {
+  if (!isDeadLinkAnswer(res.status, code) || !res.url) return false;
+  return new URL(res.url, "http://localhost").pathname.startsWith(
+    "/api/review/",
+  );
+}
+
+function guestSafeMessage(
+  res: Response,
+  code: string | null,
+  message: string,
+): string {
+  return isGuestDeadLinkAnswer(res, code) ? LINK_DOUBT_MESSAGE : message;
+}
+
 /** Preserve a stable server error code and HTTP status alongside its message. */
 export async function readApiFailure(res: Response): Promise<ApiError> {
   const text = await res.text().catch(() => "");
-  const { message, body } = parseFailureText(text, res.status);
-  const code = res.headers.get("X-Sharecut-Error-Code");
+  const parsed = parseFailureText(text, res.status);
+  const { body } = parsed;
+  const code = res.headers.get(ERROR_CODE_HEADER);
+  const message = guestSafeMessage(res, code, parsed.message);
   const model =
     res.status === 409 && code === MODEL_NEEDED_CODE
       ? pickModelNeeded(body)

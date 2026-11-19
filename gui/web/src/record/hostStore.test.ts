@@ -52,6 +52,20 @@ describe("record host preview lifetime", () => {
     },
   );
 
+  it("applies a newer snapshot that differs only in watchers", () => {
+    useRecordHostStore
+      .getState()
+      .setSnapshot(
+        recordSnapshot({ state: "paused", server_time_ns: 11, watchers: 0 }),
+      );
+    useRecordHostStore
+      .getState()
+      .setSnapshot(
+        recordSnapshot({ state: "paused", server_time_ns: 12, watchers: 2 }),
+      );
+    expect(useRecordHostStore.getState().snapshot?.watchers).toBe(2);
+  });
+
   it.each<Partial<RecordSnapshot>>([
     { state: "stopped", server_time_ns: 9 },
     { state: "stopped", server_time_ns: 10 },

@@ -63,7 +63,6 @@ export {
   deleteSocialClip,
   duplicateSegment,
   extractRoomToneBedCommand,
-  HISTORY_STALE_CODE,
   moveClips,
   moveSegment,
   pasteSegment,
@@ -128,6 +127,13 @@ export {
 export { loadFeed, sendFeedEdit, sendFeedWrite } from "./api/feed";
 export { apiSend, HOST_KEY, isHostProjectKey } from "./api/http";
 export { openJobStream } from "./api/jobStream";
+export {
+  isDeadLinkAnswer,
+  isLinkEnded,
+  markLinkEnded,
+  reportLinkDoubt,
+  subscribeLinkDoubt,
+} from "./api/linkState";
 export {
   audioUrl,
   loadProxyManifest,

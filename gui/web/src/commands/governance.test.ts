@@ -338,26 +338,6 @@ const PLAYHEAD_WRITERS: PlayheadWriter[] = [
     reason:
       "pinch and pointer zoom move the playhead to the time under the line with setPlayheadSec so a bounded audition keeps its stop bound; scrub goes through seekTransport",
   },
-  {
-    prefix: "comments/playComment.ts",
-    reason:
-      "injects the raw store setter into playTimelineRange instead of seekTransport (follow-up)",
-  },
-  {
-    prefix: "stage/hosts/useReviewQueue.ts",
-    reason:
-      "Hear injects the raw store setter into playTimelineRange instead of seekTransport (follow-up)",
-  },
-  {
-    prefix: "stage/hosts/conflictRowActions.ts",
-    reason:
-      "Hear injects the raw store setter into playTimelineRange like playComment does (follow-up)",
-  },
-  {
-    prefix: "utils/playRange.ts",
-    reason:
-      "calls an injected setter; playComment and useReviewQueue pass the raw store setter (follow-up)",
-  },
 ];
 
 const PLAYHEAD_KEY = /\bsetPlayheadSec\??\s*:/g;
@@ -539,7 +519,7 @@ describe("command governance", () => {
     });
   });
 
-  it("canUndo and canRedo follow the history flags, canUndo also in-flight saves and guests", async () => {
+  it("canUndo and canRedo follow the history flags, canUndo also in-flight saves, guests included", async () => {
     const history = (can_undo: boolean, can_redo: boolean) =>
       ({
         meta: { name: "t" },
@@ -590,8 +570,18 @@ describe("command governance", () => {
 
     useDawStore.setState({ guestMode: "editor" });
     const guest = buildCommandContext();
-    expect(evaluateWhen("canUndo", guest)).toEqual({ ok: true });
-    expect(evaluateWhen("canRedo", guest)).toEqual({ ok: true });
+    expect(evaluateWhen("canUndo", guest)).toEqual({
+      ok: false,
+      reason: "There is nothing of yours to undo.",
+    });
+    expect(evaluateWhen("canRedo", guest)).toEqual({
+      ok: false,
+      reason: "There is nothing of yours to redo.",
+    });
+    useDawStore.setState({ project: history(true, true) });
+    const owned = buildCommandContext();
+    expect(evaluateWhen("canUndo", owned)).toEqual({ ok: true });
+    expect(evaluateWhen("canRedo", owned)).toEqual({ ok: true });
     useDawStore.setState({ guestMode: null });
   });
 

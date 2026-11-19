@@ -2,6 +2,7 @@ import type { RippleTrim } from "../edit/ripplePreview";
 import type { PresenceDeltaChanges, SessionRoster } from "../presence/roster";
 import type { RoutedTarget } from "../timeline/hitRouting";
 import type { PipelineJobSnapshot } from "../types/pipeline";
+import type { PointerKind } from "../types/pointerKind";
 import type {
   ClipRow,
   ExactRangeTarget,
@@ -109,12 +110,7 @@ export type DawTab = PresenceTab;
 
 export type ShellBreakpoint = "phone" | "tablet" | "desktop";
 
-/**
- * Last-used pointing device kind: fine (mouse/pen) vs coarse (touch).
- * Tracked live from Pointer Events; drives input-mode adaptation (e.g. the
- * presence `mobile_mode` payload), never presence visibility.
- */
-export type PointerKind = "fine" | "coarse";
+export type { PointerKind };
 
 export interface CommentDraft {
   startSec: number;
@@ -341,6 +337,7 @@ export interface DawState {
   /** The project's load failed, so the Listen middle shows the failure. */
   listenLoadFailed: boolean;
   transcriptFollowPlayhead: boolean;
+  timelineFollowPlayhead: boolean;
   transcriptInlineEditRequest: TranscriptInlineEditRequest | null;
   /** Late failure of an inline word fix; outlives a Script remount. */
   transcriptInlineEditFailure: TranscriptInlineEditFailure | null;
@@ -483,6 +480,7 @@ export interface DawState {
     mods?: { shift?: boolean; mod?: boolean },
   ) => void;
   setTranscriptFollowPlayhead: (on: boolean) => void;
+  setTimelineFollowPlayhead: (on: boolean) => void;
   toggleTranscriptFollowPlayhead: () => void;
   setTranscriptInlineEditRequest: (
     request: TranscriptInlineEditRequest | null,

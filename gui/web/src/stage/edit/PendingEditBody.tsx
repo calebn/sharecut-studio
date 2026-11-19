@@ -39,6 +39,7 @@ import {
   isShareProjectKey,
 } from "../../shareMode";
 import { useDawStore } from "../../state/dawStore";
+import { useUnsentText } from "../../state/unsentText";
 import { useDaw } from "../../state/useDaw";
 import { CommentCard } from "../../system/CommentCard";
 import { Composer } from "../../system/Composer";
@@ -177,6 +178,7 @@ export function PendingEditBody({
   const role = commentRole(projectPath, guestMode);
   const [author, setAuthor] = useState(() => sessionDisplayName(role));
   const [askBody, setAskBody] = useState("");
+  useUnsentText("Your note", askBody);
   const replyField = useRef<HTMLTextAreaElement | null>(null);
   const focusReplyOnMount = useRef(false);
   const setReplyField = useCallback((node: HTMLTextAreaElement | null) => {

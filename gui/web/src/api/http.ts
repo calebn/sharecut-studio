@@ -8,7 +8,18 @@
 import { authHeaders } from "../sessionAuth";
 import { reviewApiBase, SHARE_PREFIX } from "../shareMode";
 import { recordApiBase } from "../shareRoute";
-import { ApiError, isAbortError, readApiFailure } from "../utils/apiError";
+import {
+  ApiError,
+  ERROR_CODE_HEADER,
+  isAbortError,
+  readApiFailure,
+} from "../utils/apiError";
+import {
+  endedRequestError,
+  isDeadLinkAnswer,
+  isLinkEnded,
+  reportLinkDoubt,
+} from "./linkState";
 
 const RECORD_PREFIX = "record:";
 
@@ -89,7 +100,21 @@ export async function apiSend(
   init?: RequestInit,
 ): Promise<Response> {
   const [url, requestInit] = resolve(projectKey, route, init);
-  return fetch(url, requestInit);
+  // Only a review share can end; host and recording keys never take part.
+  const token = projectKey.startsWith(SHARE_PREFIX)
+    ? projectKey.slice(SHARE_PREFIX.length)
+    : null;
+  if (token !== null && isLinkEnded(token)) throw endedRequestError();
+  const res = await fetch(url, requestInit);
+  // Only a 404 has its header read: every other answer is none of this.
+  if (
+    token !== null &&
+    res.status === 404 &&
+    isDeadLinkAnswer(res.status, res.headers.get(ERROR_CODE_HEADER))
+  ) {
+    reportLinkDoubt(token);
+  }
+  return res;
 }
 
 function isTransportFailure(error: unknown): boolean {

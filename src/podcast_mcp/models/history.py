@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime
-from typing import Any
+from typing import Any, NamedTuple
 
 from pydantic import BaseModel, Field
 
@@ -18,6 +18,15 @@ class HistoryEntry(BaseModel):
     snapshot_file: str
     operation: str | None = None
     params: dict[str, Any] | None = None
+    author: str | None = None
+    undone_by: str | None = None
+
+
+class StepOwners(NamedTuple):
+    """Who may take back (``undo``) and bring back (``redo``) the next step, as stored."""
+
+    undo: str | None
+    redo: str | None
 
 
 class ProjectHistory(BaseModel):
@@ -46,6 +55,26 @@ class ProjectHistory(BaseModel):
 
     def can_redo(self) -> bool:
         return self.cursor >= 0 and self.cursor < len(self.entries) - 1
+
+    def undo_target(self) -> HistoryEntry | None:
+        """The entry an Undo takes back: the latest one that is not an automatic preview."""
+        origin = self.undo_origin()
+        return self.entries[origin] if 0 < origin < len(self.entries) else None
+
+    def redo_target(self) -> HistoryEntry | None:
+        """The entry a Redo brings back: the first one after the cursor that is not an
+        automatic preview. A press moves one entry, so it may land on a preview first."""
+        if not self.can_redo():
+            return None
+        return next(
+            (e for e in self.entries[self.cursor + 1 :] if e.operation != "render_preview"), None
+        )
+
+    def step_owners(self) -> StepOwners:
+        """The author of the step Undo takes back and the one who undid the step Redo brings
+        back. A guest may move a step only when it is theirs; ``None`` is never a guest's."""
+        undo, redo = self.undo_target(), self.redo_target()
+        return StepOwners(undo.author if undo else None, redo.undone_by if redo else None)
 
     def edit_head_id(self) -> str:
         """Id of the latest entry at or below the cursor that is not an automatic

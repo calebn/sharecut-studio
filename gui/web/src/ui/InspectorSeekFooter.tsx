@@ -1,6 +1,6 @@
+import { playSpan } from "../commands/playSpan";
 import { seekTransport } from "../commands/seek";
-import { useDaw } from "../state/useDaw";
-import { playTimelineRange } from "../utils/playRange";
+import { useDawStore } from "../state/dawStore";
 import {
   InspectorSeekFooterView,
   type InspectorSeekFooterViewProps,
@@ -28,27 +28,15 @@ export function InspectorSeekFooter({
   padSec,
   ...view
 }: Props) {
-  const { setPlayUntilSec, setIsPlaying, beginAudition } = useDaw((s) => ({
-    setPlayUntilSec: s.setPlayUntilSec,
-    setIsPlaying: s.setIsPlaying,
-    beginAudition: s.beginAudition,
-  }));
-
   return (
     <InspectorSeekFooterView
       {...view}
       onSeek={() => void seekTransport(seekSec)}
-      onPlay={() =>
-        playTimelineRange({
-          setPlayheadSec: (sec) => void seekTransport(sec),
-          start: playStart,
-          end: playEnd,
-          padSec,
-          beginAudition,
-          setPlayUntilSec,
-          setIsPlaying,
-        })
-      }
+      onPlay={() => {
+        const r = playSpan(playStart, playEnd, padSec);
+        if (r.status === "disabled")
+          useDawStore.getState().announceStatus(r.reason, { tone: "error" });
+      }}
     />
   );
 }

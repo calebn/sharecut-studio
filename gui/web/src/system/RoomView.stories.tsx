@@ -114,6 +114,7 @@ const meta: Meta<typeof RoomView> = {
     seat: "guest",
     title: TITLE,
     people: [HOST, JON_YOU, ANNEKE_GUEST],
+    lookingIn: 0,
     phase: LIVE,
     notes: [],
     selfName: "Jon",
@@ -209,7 +210,7 @@ export const GuestLiveMuted: Story = {
       "Leave room",
     ]);
     await expect(
-      within(canvasElement).getByRole("group", { name: /Jon, muted/ }),
+      within(canvasElement).getByRole("group", { name: /Jon, you, muted/ }),
     ).toBeInTheDocument();
   },
 };
@@ -441,16 +442,47 @@ const landscapeParameters = {
     "The landscape phone layout needs more than 360 px of width for four tiles beside the dock bar.",
 } as const;
 
+export const LookingInOne: Story = {
+  args: {
+    seat: "guest",
+    people: [HOST, JON_YOU, ROSA_PRODUCER],
+    phase: WAITING,
+    lookingIn: 1,
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(
+      canvas.getByText("Someone with the producer link is looking in"),
+    ).toBeVisible();
+  },
+};
+
+export const LookingInSeveral: Story = {
+  args: { ...LookingInOne.args, seat: "host", lookingIn: 3 },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(
+      canvas.getByText("3 people with the producer link are looking in"),
+    ).toBeVisible();
+  },
+};
+
+export const LookingInPhone: Story = {
+  args: { ...phone, ...LookingInOne.args, lookingIn: 3 },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(
+      canvas.getByText("3 people with the producer link are looking in"),
+    ).toBeVisible();
+  },
+};
+
 export const GuestWaitingPhone: Story = {
   args: { ...phone, people: [HOST, JON_YOU], phase: WAITING, notes: [] },
   play: async ({ canvasElement }) => {
     await expect(tileCount(canvasElement)).toBe(2);
     await expect(peekText(canvasElement)).toContain("No comments yet");
-    await expect(dockNames(canvasElement)).toEqual([
-      "Mute",
-      "Comments",
-      "Leave room",
-    ]);
+    await expect(dockNames(canvasElement)).toEqual(["Mute", "Leave room"]);
   },
 };
 
@@ -495,6 +527,25 @@ export const LoadingPhone: Story = {
   },
 };
 
+const LONG_TITLE = "Aligned dialogue and the long road";
+
+export const GuestWaitingPhoneLongTitle: Story = {
+  args: {
+    ...phone,
+    title: LONG_TITLE,
+    people: [HOST, JON_YOU],
+    phase: WAITING,
+    notes: [],
+  },
+  play: async ({ canvasElement }) => {
+    const title = within(canvasElement).getByRole("heading", { level: 1 });
+    await expect(title).toHaveTextContent(LONG_TITLE);
+    await expect(title.scrollHeight).toBeLessThanOrEqual(
+      title.clientHeight + 1,
+    );
+  },
+};
+
 export const GuestLivePhone: Story = {
   args: {
     ...phone,
@@ -509,7 +560,6 @@ export const GuestLivePhone: Story = {
     await expect(dockNames(canvasElement)).toEqual([
       "Mute",
       "Comment",
-      "Comments",
       "Leave room",
     ]);
   },
@@ -521,7 +571,7 @@ export const GuestLivePhoneNotesSheet: Story = {
   play: async ({ canvasElement, viewMode }) => {
     if (viewMode === "docs") return;
     const dialog = await openDialogByLauncher(canvasElement, {
-      launcherName: "Comments",
+      launcherName: /^Comments/,
       dialogName: "Comments",
     });
     await expect(
@@ -547,11 +597,7 @@ export const ProducerPhone: Story = {
     await expect(peekText(canvasElement)).toContain(
       "Jon: My own note, kept for me.",
     );
-    await expect(dockNames(canvasElement)).toEqual([
-      "Comment",
-      "Comments",
-      "Leave room",
-    ]);
+    await expect(dockNames(canvasElement)).toEqual(["Comment", "Leave room"]);
   },
 };
 

@@ -17,6 +17,10 @@ from starlette.responses import JSONResponse, Response
 
 from podcast_mcp.gui.host_reveal import REVEAL_REFUSED
 from podcast_mcp.models.episode import ProjectUnreadableError
+from podcast_mcp.models.project_format import (
+    ProjectVersionNewerError,
+    ProjectVersionUnsupportedError,
+)
 from podcast_mcp.project.io import ensure_utf8_path
 from podcast_mcp.services.document_sync import DocumentConflictError
 from podcast_mcp.services.media import TranscriptContextBusyError
@@ -43,6 +47,7 @@ from podcast_mcp.util.tool_refusal import tool_refusal
 ERROR_CODE_HEADER = "X-Sharecut-Error-Code"
 NO_STORE = {"Cache-Control": "no-store"}
 SHARE_LOGIN_PATH = "/auth/login"
+PROJECT_NOT_FOUND_CODE = "project_not_found"
 
 
 class _AsciiJSONResponse(JSONResponse):
@@ -133,6 +138,13 @@ async def project_unreadable_exception_handler(request: Request, exc: Exception)
     assert isinstance(exc, ProjectUnreadableError)
     return await http_exception_response(
         request, coded_http_error(500, str(exc), code=exc.code, headers=NO_STORE)
+    )
+
+
+async def project_version_exception_handler(request: Request, exc: Exception) -> Response:
+    assert isinstance(exc, (ProjectVersionNewerError, ProjectVersionUnsupportedError))
+    return await http_exception_response(
+        request, coded_http_error(400, str(exc), code=exc.code, headers=NO_STORE)
     )
 
 
@@ -321,7 +333,9 @@ def resolve_project(path: str, request: Request | WebSocket | None = None) -> Pa
             400, f"project path is not valid UTF-8: {path!a}", code="project_path_invalid"
         ) from exc
     if not exists:
-        raise coded_http_error(404, f"Project not found: {project_path}", code="project_not_found")
+        raise coded_http_error(
+            404, f"Project not found: {project_path}", code=PROJECT_NOT_FOUND_CODE
+        )
     try:
         ensure_utf8_path(project_path)
     except ValueError as exc:

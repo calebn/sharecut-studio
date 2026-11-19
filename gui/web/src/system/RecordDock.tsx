@@ -3,7 +3,7 @@ import { Button } from "../ui";
 import { RecordButton, type RecordButtonProps } from "./RecordButton";
 import { SystemIcon } from "./SystemIcon";
 import { usePressHint } from "./usePressHint";
-import { VerbButton } from "./VerbButton";
+import { DockLabel, VerbButton } from "./VerbButton";
 import { hintOf, verbOf } from "./verbDisplay";
 
 export type DockSeat = "host" | "guest" | "producer";
@@ -32,6 +32,10 @@ export type RecordDockProps = {
   showComment?: boolean;
   /** Unread comments, shown as a count on the Comments button. */
   unreadNotes?: number;
+  /** False drops the Comments toggle where another control already opens the list. */
+  notes?: boolean;
+  /** Prints a word under each round control, for a dock with no tooltips to hover. */
+  labelled?: boolean;
   notesOpen?: boolean;
   dock?: RecordDockMode;
   /** The Done primary's handler, shown when `dock` is `done`. */
@@ -59,6 +63,8 @@ export function RecordDock({
   muted = false,
   showComment = true,
   unreadNotes = 0,
+  notes: showNotes = true,
+  labelled = false,
   notesOpen = false,
   dock = CONTROLS,
   onDone,
@@ -79,6 +85,8 @@ export function RecordDock({
     "aria-describedby": leaveHeld ? hintId : undefined,
     onClick: leaveHeld ? hint.show : onExit,
   });
+  const word = (text: string) =>
+    labelled ? <DockLabel>{text}</DockLabel> : null;
   const mute = (
     <button
       type="button"
@@ -91,6 +99,7 @@ export function RecordDock({
         name={muted ? "mic-off" : "mic"}
         size={seat === "guest" ? 24 : 20}
       />
+      {word(muted ? "Unmute" : "Mute")}
     </button>
   );
   const comment = showComment ? (
@@ -102,10 +111,11 @@ export function RecordDock({
           : "sys-dock-btn"
       }
       size={seat === "producer" ? 24 : 20}
+      caption={labelled ? "Comment" : undefined}
       onClick={onComment}
     />
   ) : null;
-  const notes = (
+  const notes = showNotes ? (
     <button
       type="button"
       className="sys-dock-btn sys-dock-notes"
@@ -123,7 +133,7 @@ export function RecordDock({
         </span>
       ) : null}
     </button>
-  );
+  ) : null;
 
   let center: ReactNode;
   if (dock.kind !== "controls") {
@@ -182,6 +192,7 @@ export function RecordDock({
     <div
       className="sys-dock"
       data-seat={seat}
+      data-labelled={labelled ? "" : undefined}
       role="group"
       aria-label="Recording controls"
     >
@@ -206,6 +217,7 @@ export function RecordDock({
             {...exit(onLeave, "Leave room")}
           >
             <SystemIcon name="door-open" size={20} />
+            {word("Leave")}
           </button>
         )}
       </div>

@@ -497,6 +497,32 @@ describe("Review host decisions", () => {
     },
   );
 
+  it("Undo of a row the speaker chip hides ends the chip and lists the row", async () => {
+    mount([
+      edit("f1", "filler", 10, { track_id: "host" }),
+      edit("f2", "filler", 20, { track_id: "guest" }),
+      edit("f3", "filler", 30, { track_id: "host" }),
+    ]);
+    server.omitSnapshot = true;
+    press("Enter");
+    await undoButton();
+    expect(heading()).toBe("filler f2");
+    await userEvent.click(screen.getByRole("button", { name: /^guest, 1$/ }));
+    server.omitSnapshot = false;
+    await userEvent.click(screen.getByRole("button", { name: "Undo" }));
+    await waitFor(() => expect(sent("UndoHistory")).toHaveLength(1));
+    await waitFor(() => expect(heading()).toBe("filler f1"));
+    expect(screen.getByRole("button", { name: "Everyone" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    expect(
+      within(screen.getByRole("region", { name: "Review queue" })).getAllByText(
+        /f1/,
+      ).length,
+    ).toBeGreaterThan(0);
+  });
+
   it("Mod+Z undoes the last decision, and no Review key moves the transport", async () => {
     mount();
     stage().focus();

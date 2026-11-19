@@ -10,7 +10,6 @@ from collections.abc import Callable
 from contextlib import ExitStack
 from dataclasses import dataclass
 from pathlib import Path
-from subprocess import CalledProcessError
 from typing import Any, BinaryIO, TypeVar
 
 from podcast_mcp.engines.audio import (
@@ -31,7 +30,7 @@ from podcast_mcp.util.bounded_cache import BoundedCache
 from podcast_mcp.util.coded_error import CodedValueError
 from podcast_mcp.util.fingerprint import FileStamp, file_stamp
 from podcast_mcp.util.parallel import run_parallel
-from podcast_mcp.util.process import run
+from podcast_mcp.util.process import CalledProcessError, run
 from podcast_mcp.util.wav import open_wav
 
 # Line-anchored: FFmpeg indents multi-line tag values in its metadata dump, so a forged

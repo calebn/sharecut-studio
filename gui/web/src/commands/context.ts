@@ -1,4 +1,3 @@
-import { hasDocumentDrafts } from "../document/pendingDrafts";
 import {
   canApplyPass12,
   canComment,
@@ -13,7 +12,6 @@ import {
 } from "../shareMode";
 import type { AfterCut, AfterCutDirection } from "../state/afterCutSlice";
 import { useDawStore } from "../state/dawStore";
-import { documentActivityBusy } from "../state/documentSendOrder";
 import { type RoomKeyHandlers, roomKeys } from "../state/roomKeys";
 import { stageRoleOf, stagesForRole } from "../state/stageRoutes";
 import type { DawStore } from "../state/types";
@@ -27,6 +25,10 @@ import {
   transcriptLoading,
 } from "./afterCutWindow";
 import { focusedClipHandleKind } from "./focusedClipHandle";
+import {
+  type HistoryAvailability,
+  historyAvailability,
+} from "./historyAvailability";
 import type { ContextPredicateId } from "./types";
 
 export type CommandContext = {
@@ -53,9 +55,7 @@ export type CommandContext = {
   /** Stages the open link's role may enter (all five for the host). */
   allowedStages: readonly StageId[];
   hasProject: boolean;
-  canApplyHistory: boolean;
-  canUndo: boolean;
-  canRedo: boolean;
+  historyAvailability: HistoryAvailability;
   shellBreakpoint: string;
   playheadSec: number;
   timelineDurationSec: number;
@@ -77,10 +77,6 @@ export type CommandContext = {
   recordStageActive: boolean;
   roomKeys: RoomKeyHandlers | null;
 };
-
-function editUnsaved(projectPath: string): boolean {
-  return documentActivityBusy(projectPath) || hasDocumentDrafts();
-}
 
 function sameWords(a: Selection, b: Selection): boolean {
   if (a === b) return true;
@@ -146,11 +142,6 @@ export function buildCommandContext(
           (track) => track.id === selection.trackId,
         ) ?? -1)
       : -1;
-  const historyAllowed = canApplyPass12(
-    s.projectPath,
-    s.guestMode,
-    s.shareCapabilities,
-  );
   return {
     stage: s.stage,
     focusedFadeHandle: focusedClipHandleKind() === "fade",
@@ -189,15 +180,7 @@ export function buildCommandContext(
     canManageProjects: canManageProjects(s.projectPath),
     allowedStages: stagesForRole(stageRoleOf(s.guestMode)),
     hasProject: s.project != null,
-    canApplyHistory: historyAllowed,
-    canUndo:
-      historyAllowed &&
-      (s.guestMode != null ||
-        (s.project?.history?.can_undo ?? false) ||
-        editUnsaved(s.projectPath)),
-    canRedo:
-      historyAllowed &&
-      (s.guestMode != null || (s.project?.history?.can_redo ?? false)),
+    historyAvailability: historyAvailability(s),
     shellBreakpoint: s.shellBreakpoint,
     playheadSec: s.playheadSec,
     timelineDurationSec: s.project?.timeline_duration_sec ?? Infinity,
@@ -322,22 +305,12 @@ export function evaluateWhen(
       if (!ctx.hasProject) {
         return { ok: false, reason: "No project loaded" };
       }
-      if (!ctx.canApplyHistory) {
-        return { ok: false, reason: "Undo needs Editor access" };
-      }
-      return ctx.canUndo
-        ? { ok: true }
-        : { ok: false, reason: "Nothing to undo" };
+      return ctx.historyAvailability.undo;
     case "canRedo":
       if (!ctx.hasProject) {
         return { ok: false, reason: "No project loaded" };
       }
-      if (!ctx.canApplyHistory) {
-        return { ok: false, reason: "Redo needs Editor access" };
-      }
-      return ctx.canRedo
-        ? { ok: true }
-        : { ok: false, reason: "Nothing to redo" };
+      return ctx.historyAvailability.redo;
     case "stageAllowed:record":
     case "stageAllowed:prepare":
     case "stageAllowed:edit":

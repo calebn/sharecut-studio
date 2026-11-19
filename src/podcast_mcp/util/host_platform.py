@@ -19,7 +19,7 @@ from pathlib import Path
 from typing import Literal
 
 Kernel = Literal["darwin", "linux", "nt", "other"]
-MediaTools = Literal["executables", "unavailable"]
+MediaTools = Literal["executables", "unavailable", "in_process"]
 Transcription = Literal["faster_whisper", "unavailable"]
 FileDialog = Literal["osascript", "powershell", "zenity"]
 RevealTool = Literal["open", "explorer", "xdg-open"]

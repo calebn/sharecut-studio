@@ -4,6 +4,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+import pytest
+
 SCRIPT = Path(__file__).resolve().parents[1] / "scripts" / "test_area_summary.py"
 
 
@@ -140,3 +142,35 @@ def test_junit_with_unsupported_root_is_unavailable_instead_of_zero_passed(
         "| Python | N/A | N/A | unavailable: report malformed or has an unknown shape |" in output
     )
     assert "passed: 0" not in output
+
+
+@pytest.mark.parametrize("count", [0, 3])
+def test_public_playwright_summary_surfaces_global_error_total_without_text(tmp_path, count):
+    output = _run_summary(
+        tmp_path,
+        "playwright",
+        "main-e2e",
+        json.dumps({"suites": [], "global_error_count": count, "extra": "FABRICATED_ERROR_TEXT"}),
+    )
+    assert f"Global browser errors: {count}." in output
+    assert "FABRICATED_ERROR_TEXT" not in output
+
+
+@pytest.mark.parametrize("count", [True, -1, 1.5, "FABRICATED_ERROR_TEXT", 2**53 + 1])
+def test_public_playwright_summary_rejects_invalid_global_error_count(tmp_path, count):
+    output = _run_summary(
+        tmp_path, "playwright", "main-e2e", json.dumps({"suites": [], "global_error_count": count})
+    )
+    assert "unavailable: report malformed or has an unknown shape" in output
+    assert "FABRICATED_ERROR_TEXT" not in output
+
+
+def test_raw_playwright_summary_counts_global_errors_without_copying_messages(tmp_path):
+    output = _run_summary(
+        tmp_path,
+        "playwright",
+        "stories",
+        json.dumps({"suites": [], "errors": [{"message": "FABRICATED_ERROR_TEXT"}]}),
+    )
+    assert "Global browser errors: 1." in output
+    assert "FABRICATED_ERROR_TEXT" not in output

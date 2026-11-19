@@ -697,23 +697,22 @@ diagnosticTest(
       await page
         .getByRole("button", { name: "Refresh mix", exact: true })
         .click();
-      phase = "wait-editor-link";
+      phase = "wait-ui-mix-recovery";
+      // The completed UI invitation witnesses actual mix recovery. Its public
+      // relay address is not the isolated GUI's navigation address.
       const made = page.locator(".sys-link").filter({
         has: page.getByRole("img", { name: "Editor: can edit", exact: true }),
       });
-      const address = made.locator(".sys-link-text");
-      await expect(address).toHaveAttribute("title", /\/r\//);
-      const guestURL = await address.getAttribute("title");
-      if (!guestURL)
-        throw new Error("The normal Invite flow did not create a link");
-      if (new URL(guestURL).origin !== new URL(page.url()).origin)
-        throw new Error("Invite did not provide a same-origin test link");
+      await expect(made).toBeVisible();
       await page.keyboard.press("Escape");
 
-      phase = "open-guest-link";
+      phase = "create-local-editor-role";
+      // Use the established host-authorized fixture on this same application.
+      // The UI-created invitation stays unused; neither address is forwarded.
+      const token = await createReviewShare(page, projectPath, "editor");
+      phase = "open-local-editor-role";
       const guest = await guestContext.newPage();
-      await guest.goto(guestURL);
-      await expect(guest.locator(".stage-frame--guest")).toBeVisible();
+      await openGuestShare(guest, token);
       await guest.getByRole("tab", { name: "Edit", exact: true }).click();
       await expect
         .poll(
@@ -800,7 +799,14 @@ diagnosticTest(
       );
     }
     try {
-      await openStageProject(page, e2eProjectPath);
+      await page.close();
+    } catch (error) {
+      cleanupErrors.push(
+        new Error(`Host page cleanup failed [${classificationOf(error)}]`),
+      );
+    }
+    try {
+      await switchE2eProject(e2eProjectPath);
     } catch (error) {
       cleanupErrors.push(
         new Error(

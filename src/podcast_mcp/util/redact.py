@@ -10,6 +10,8 @@ from urllib.parse import unquote
 from podcast_mcp.util.host_session_wire import EXCHANGE_PARAM, EXCHANGE_PATH, SESSION_COOKIE
 
 _SLASH = r"(?:/|%(?:25)?2[Ff])"
+_DOT = r"(?:\.|%(?:25)?2[Ee])"
+_SEP_WITH_DOTS = rf"(?:{_SLASH}(?:{_DOT}{{1,2}}{_SLASH})*)+"
 _SHARE_PATH_ROOTS = (
     "r",
     "rec",
@@ -18,9 +20,9 @@ _SHARE_PATH_ROOTS = (
     "api/shares",
     "api/shares/record",
 )
-_SHARE_ROOTS = "|".join(root.replace("/", _SLASH) for root in _SHARE_PATH_ROOTS)
+_SHARE_ROOTS = "|".join(root.replace("/", _SEP_WITH_DOTS) for root in _SHARE_PATH_ROOTS)
 _SHARE_TOKEN = re.compile(
-    rf"(?P<prefix>{_SLASH}(?i:{_SHARE_ROOTS}){_SLASH}+)"
+    rf"(?P<prefix>{_SLASH}(?i:{_SHARE_ROOTS}){_SEP_WITH_DOTS})"
     r"(?P<token>[A-Za-z0-9_-]{8,}(?:-[A-Za-z0-9_-]+)*)"
 )
 _BOOT_TOKEN = re.compile(
@@ -53,8 +55,87 @@ _HOST_PATH = re.compile(
     r"|/"
     r"|(?i:%2f|%5c)"
 )
+# pydantic prints the offending value of a failed field as ``input_value=<repr>, input_type=<type>``
+# on one line; the repr is the document's own data and may hold ``, input_type=`` itself, so it
+# runs to the last one on the line (or to the end of the line when there is none).
+_INPUT_VALUE = re.compile(r"input_value=(?:[^\r\n]*(?=, input_type=)|[^\r\n]*)")
+_INPUT_VALUE_HIDDEN = "input_value=<hidden>"
+# Where a validation failed is printed as dotted segments, and a segment may be a dict key of
+# the document (a speaker's name). Two shapes carry it. Pydantic's block is a header
+# ``N validation error(s) for <title>`` (anywhere in a line, then the line's end; the title is
+# a class name, so over 500 characters it is not a header) and then AT MOST N entries; one entry
+# is ONE location line (up to 2000 characters), a line of two spaces that ends its message with
+# ``[type=...]``, and optionally a ``    For further information`` line. Where the next line is
+# not such an entry the block ends and everything after is left byte for byte (a line that only
+# says "3 validation errors for the upload" is no block). Only a matched entry's location line
+# is rewritten. A key that itself holds a line break is outside this rule (the episode file's own
+# keys never get this far: ``load_project`` masks them at the source). The other shape is the
+# sentence older builds wrote for a damaged project file.
+_VALIDATION_HEADER = re.compile(r"(?<!\d)(\d{1,6}) validation errors? for [^\r\n]{0,500}\r?\n")
+_LOCATION_MAX = 2000
+_FURTHER_INFO = "    For further information"
+_UNREADABLE_PLACE = re.compile(
+    r"(?P<head>\(unexpected contents at )"
+    r"(?P<loc>(?s:.{0,2000}?)(?=\)\. Restore it from a backup)|[^\n]*)"
+)
 _LOOPBACK_V4 = re.compile(r"^127\.")
 _LOOPBACK_V6 = frozenset({"::1", "0:0:0:0:0:0:0:1"})
+
+
+def _mask_location(location: str, names: frozenset[str] | None) -> str:
+    """``location`` with every segment that is not a number or a known field name as ``*``."""
+    kept = names or frozenset()
+    return ".".join(
+        seg if seg == "*" or (seg.isdecimal() and seg.isascii()) or seg in kept else "*"
+        for seg in location.split(".")
+    )
+
+
+def _entry_at(text: str, at: int) -> tuple[int, int] | None:
+    """The end of the location line and of the entry that starts at ``at``, or ``None``."""
+    nl = text.find("\n", at, at + _LOCATION_MAX + 2)
+    if nl == -1:
+        return None
+    loc_end = nl - 1 if nl > at and text[nl - 1] == "\r" else nl
+    if loc_end - at > _LOCATION_MAX or not text.startswith("  ", nl + 1):
+        return None
+    msg_nl = text.find("\n", nl + 1)
+    msg_end = len(text) if msg_nl == -1 else msg_nl
+    message = text[nl + 1 : msg_end].removesuffix("\r")
+    if not message.endswith("]") or "[type=" not in message:
+        return None
+    end = msg_end
+    if msg_nl != -1 and text.startswith(_FURTHER_INFO, msg_nl + 1):
+        info_nl = text.find("\n", msg_nl + 1)
+        end = len(text) if info_nl == -1 else info_nl
+    return loc_end, end
+
+
+def _mask_validation_locations(text: str, names: frozenset[str] | None) -> str:
+    if "validation error" in text:
+        pieces: list[str] = []
+        pos = 0
+        for header in _VALIDATION_HEADER.finditer(text):
+            if header.start() < pos:
+                continue
+            at = header.end()
+            for _ in range(int(header.group(1))):
+                entry = _entry_at(text, at)
+                if entry is None:
+                    break
+                loc_end, end = entry
+                pieces.append(text[pos:at])
+                pieces.append(_mask_location(text[at:loc_end], names) if loc_end > at else "")
+                pieces.append(text[loc_end:end])
+                pos = end
+                at = end + 1
+        pieces.append(text[pos:])
+        text = "".join(pieces)
+    if "(unexpected contents at " in text:
+        text = _UNREADABLE_PLACE.sub(
+            lambda m: m.group("head") + _mask_location(m.group("loc"), names), text
+        )
+    return text
 
 
 def _path_forms(path: Path) -> list[str]:
@@ -68,10 +149,29 @@ def _path_forms(path: Path) -> list[str]:
     return sorted((f for f in forms if f), key=len, reverse=True)
 
 
+def _encoded_form(form: str) -> re.Pattern[str]:
+    """Match ``form`` as a browser or server writes it in a URL: any character of it may be
+    percent-encoded (UTF-8 bytes, hex in either case), and a space may be ``+``."""
+    parts: list[str] = []
+    for char in form:
+        spellings = [re.escape(char)]
+        escaped = "".join(f"%(?i:{byte:02x})" for byte in char.encode("utf-8"))
+        spellings.append(escaped)
+        if char == " ":
+            spellings.append(r"\+")
+        parts.append("(?:" + "|".join(spellings) + ")")
+    return re.compile("".join(parts))
+
+
 def _replace_path(text: str, path: Path, token: str) -> str:
-    for form in _path_forms(path):
+    forms = _path_forms(path)
+    for form in forms:
         if form and form in text:
             text = text.replace(form, token)
+    if "%" in text or "+" in text:
+        for form in forms:
+            if form:
+                text = _encoded_form(form).sub(lambda _m: token, text)
     return text
 
 
@@ -98,6 +198,9 @@ def redact_share_paths(text: str) -> str:
     The routes are the guest ``/r/``, ``/rec/``, ``/api/review/`` and ``/mcp/`` roots (so
     ``/api/rec/`` too, through ``/rec/``) and the host ``/api/shares/<token>/revoke|restore`` and
     ``/api/shares/record/<token>/replace`` paths.
+    A ``.`` or ``..`` segment (also ``%2e``) or a doubled separator before the token is skipped,
+    so ``/r/../<token>`` and ``/api//review//<token>`` are masked; a walk-out through a named
+    segment such as ``/r/x/../<token>`` is not.
     ``tests/test_share_path_routes.py`` fails when a mounted route puts a token somewhere else.
     """
     return _SHARE_TOKEN.sub(lambda m: f"{m.group('prefix')}<share-token>", text)
@@ -109,8 +212,12 @@ def sanitize(
     home: Path | None = None,
     workspace: Path | None = None,
     extra: Sequence[tuple[Path, str]] | None = None,
+    field_names: frozenset[str] | None = None,
 ) -> str:
     """Return ``text`` with host paths and secrets replaced by placeholders.
+
+    A validation error's location keeps its numbers and the ``field_names`` (the names the
+    models declare); any other segment is a key of the document and becomes ``*``.
 
     Share routes go through ``redact_share_paths``. Bare coolnames in free text are not
     matched here: the diagnostics bundle masks the registry's tokens by value on top
@@ -118,7 +225,8 @@ def sanitize(
     """
     if not text:
         return text
-    out = text
+    out = _INPUT_VALUE.sub(_INPUT_VALUE_HIDDEN, text)
+    out = _mask_validation_locations(out, field_names)
     extras = sorted(extra or (), key=lambda pair: len(str(pair[0])), reverse=True)
     for path, token in extras:
         out = _replace_path(out, path, token)

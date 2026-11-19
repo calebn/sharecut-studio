@@ -5,6 +5,7 @@ import {
   ENVELOPE_TOP_DB,
   gainToDb,
 } from "../src/system/envelopeMath";
+import { emit } from "./storyChannel";
 import { storyUrl } from "./storyUrl";
 
 /**
@@ -226,10 +227,10 @@ test("System controls show the 2 px accent focus ring", async ({ page }) => {
   }).toPass();
 });
 
-test("System/Player follow pill X has a 44 px hit area at 360", async ({
+test("System/Player follow pill X has a 44 px hit area at 800", async ({
   page,
 }) => {
-  await open(page, "system-player--following-partial", 360);
+  await open(page, "system-player--following-partial", 800);
   const x = page.getByRole("button", { name: /^Stop following/ });
   await expect(x).toBeVisible();
   const box = await x.boundingBox();
@@ -253,9 +254,9 @@ test("System/Player error pill and Retry stay clear of Play and the skips (#2576
 }) => {
   const args = "state:error;status:No mix yet";
   // 801 to 960 is where the error pill and Retry outgrew the side column
-  // beside the skips; 960 (60 rem) is the widest the status text gives way, and
-  // it is back, readable, from 961 up. The story fills the viewport, so the
-  // Player's container is as wide as the viewport.
+  // beside the skips. The status text gives way to them, and stays for assistive
+  // tech. The story fills the viewport, so the Player's container is as wide as
+  // the viewport.
   for (const width of [801, 850, 896, 940, 960, 961, 1280]) {
     await page.setViewportSize({ width, height: 800 });
     await page.emulateMedia({ colorScheme: "light", reducedMotion: "reduce" });
@@ -276,7 +277,6 @@ test("System/Player error pill and Retry stay clear of Play and the skips (#2576
         scroll: document.documentElement.scrollWidth,
         statusKept: (status?.textContent ?? "") !== "",
         statusDisplayed: style !== null && style.display !== "none",
-        statusClipped: (status?.getBoundingClientRect().width ?? 0) <= 1,
         overlaps: [...right.children].filter((el) => {
           const r = el.getBoundingClientRect();
           return (
@@ -293,10 +293,1099 @@ test("System/Player error pill and Retry stay clear of Play and the skips (#2576
       scroll: width,
       statusKept: true,
       statusDisplayed: true,
-      statusClipped: width <= 960,
       overlaps: 0,
     });
   }
+});
+
+test("System/Player dock keeps its status pill and transport at 801 to 960 (#2576)", async ({
+  page,
+}) => {
+  await page.emulateMedia({ colorScheme: "light", reducedMotion: "reduce" });
+  for (const width of [801, 900, 960]) {
+    await page.setViewportSize({ width, height: 400 });
+    await page.goto(
+      `${storyUrl("system-player--dock", { theme: "light" })}&args=state:error;status:No mix yet`,
+    );
+    const dock = page.locator(".sys-listen-dock");
+    await expect(dock.getByRole("button", { name: "Retry" })).toBeVisible();
+    for (const name of ["Back 15 seconds", "Play", "Forward 15 seconds"]) {
+      await expect(
+        dock.getByRole("button", { name }),
+        `${name} at ${width}`,
+      ).toBeVisible();
+    }
+    await expect(
+      dock.locator(".sys-player-pill-text"),
+      `pill text at ${width}`,
+    ).toBeVisible();
+  }
+});
+
+const FOLLOWING = {
+  name: "Rosa",
+  colorIndex: 1,
+  detail: "in Pipeline (host-only) · auditioning FX",
+};
+const MS = { time: "12:04.250", total: "52:10.000" };
+const HOURS = { time: "00:12:04.250", total: "01:02:52.000" };
+const HOST = { hearMenu: { mode: "mix" } };
+const CUTS = { cuts: "−4:10" };
+const HOURS_CUTS = { cuts: "−14:10" };
+const STALE = { status: "Mix out of date" };
+type BarArgs = Record<string, unknown>;
+
+/** A host's bar as the app passes it (`usePlayerProps`): a timecode with milliseconds, the cuts and the hear menu, plus `more`. */
+const hostBar = (more: BarArgs): BarArgs => ({
+  ...MS,
+  ...HOST,
+  ...CUTS,
+  ...more,
+});
+const followErr = hostBar({ following: FOLLOWING, state: "error" });
+const followMix = hostBar({ following: FOLLOWING, state: "mix-updating" });
+const BAR_STATES: Record<string, BarArgs> = {
+  followcuts: hostBar({ following: FOLLOWING }),
+  followerr: followErr,
+  followerrstale: { ...followErr, ...STALE },
+  followmix: followMix,
+  followmixstale: { ...followMix, ...STALE },
+  ratemixstale: hostBar({ rate: 2, state: "mix-updating", ...STALE }),
+  guesterr: {
+    ...MS,
+    guest: true,
+    following: FOLLOWING,
+    state: "error",
+    ...STALE,
+  },
+  guesterrhours: { ...HOURS, guest: true, state: "error" },
+};
+
+/** The Status pills the bar draws for these props, to know when the story has caught up. */
+function pillCount(args: BarArgs) {
+  return (
+    (["cuts", "rate", "following", "status"] as const).filter(
+      (key) => key in args,
+    ).length + (args.state ? 1 : 0)
+  );
+}
+
+function pillStory(args: BarArgs) {
+  return args.following
+    ? "system-player--following-partial"
+    : "system-player--ready";
+}
+
+/**
+ * Runs inside the page (it is sent as source), so it uses nothing from this
+ * module. `problems` are what a person would see go wrong; `squeezed` is a
+ * status text cut short with an ellipsis (allowed, but the fit avoids it);
+ * `kinds` are the controls drawn.
+ */
+const measureBar = () => {
+  const bar = document.querySelector<HTMLElement>(
+    ".sys-player-host > .sys-player",
+  );
+  if (!bar) throw new Error("Player did not render");
+  const probe = document.createElement("div");
+  probe.style.blockSize = "var(--player-height)";
+  document.body.append(probe);
+  const token = probe.getBoundingClientRect().height;
+  probe.remove();
+  const box = bar.getBoundingClientRect();
+  const rootSize = parseFloat(
+    getComputedStyle(document.documentElement).fontSize,
+  );
+  const shown = (el: Element) => {
+    const r = el.getBoundingClientRect();
+    return r.width > 1 && r.height > 1;
+  };
+  const kindOf = (el: Element): string => {
+    if (el.matches(".sys-player-skip"))
+      return el.getAttribute("aria-label")?.startsWith("Back")
+        ? "skip back"
+        : "skip forward";
+    const byClass: [string, string][] = [
+      [".sys-player-time", "time"],
+      [".sys-play", "play"],
+      [".sys-player-ab", "A/B"],
+      [".sys-player-hear-more", "hear options"],
+      [".sys-player-comment", "comment"],
+      [".sys-player-cuts", "cuts"],
+      [".sys-player-following", "following"],
+      [".sys-player-mix", "updating mix"],
+      [".sys-player-rate", "speed"],
+      [".sys-pill--danger", "audio error"],
+      [".sys-player-retry", "retry"],
+      [".sys-player-status", "status"],
+    ];
+    return byClass.find(([selector]) => el.matches(selector))?.[1] ?? "?";
+  };
+  const controls = [
+    ...bar.querySelectorAll(
+      ".sys-player-time, .sys-player-skip, .sys-play, .sys-player-ab, .sys-player-hear-more, .sys-player-comment, .sys-player-left > .pill, .sys-player-right > .pill, .sys-player-right > .sys-player-status, .sys-player-right > button",
+    ),
+  ].filter(shown);
+  const problems: string[] = [];
+  const squeezed: string[] = [];
+  controls.forEach((control, i) => {
+    const a = control.getBoundingClientRect();
+    if (a.left < box.left - 0.5 || a.right > box.right + 0.5)
+      problems.push(`${kindOf(control)} spills past the bar`);
+    for (const other of controls.slice(i + 1)) {
+      const b = other.getBoundingClientRect();
+      const across = Math.min(a.right, b.right) - Math.max(a.left, b.left);
+      const down = Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top);
+      if (across > 0.5 && down > 0.5)
+        problems.push(
+          `${kindOf(control)} overlaps ${kindOf(other)} by ${across.toFixed(1)}`,
+        );
+    }
+  });
+  for (const pill of bar.querySelectorAll<HTMLElement>(".pill")) {
+    const holder = pill.closest<HTMLElement>(".sys-player-status");
+    if (
+      holder &&
+      !shown(holder) &&
+      getComputedStyle(holder).position !== "absolute"
+    )
+      squeezed.push("status is squeezed to nothing");
+    if (!shown(pill) || (holder && !shown(holder))) continue;
+    const kind = kindOf(holder ?? pill);
+    const icon = pill.querySelector("svg");
+    if (icon && icon.getBoundingClientRect().width < 11.5)
+      problems.push(`${kind} glyph is squeezed`);
+    if (holder) {
+      const room = holder.getBoundingClientRect();
+      const own = pill.getBoundingClientRect();
+      if (own.left < room.left - 0.5 || own.right > room.right + 0.5)
+        squeezed.push(`${kind} runs past its room`);
+    }
+    for (const part of pill.querySelectorAll<HTMLElement>(
+      ".sys-player-pill-text, .sys-player-pill-detail",
+    )) {
+      // A status squeezed to nothing is cut short too; visually hidden text is not.
+      if (
+        getComputedStyle(part).position === "absolute" ||
+        part.scrollWidth <= part.clientWidth
+      )
+        continue;
+      if (holder) squeezed.push(`${kind} text is cut short`);
+      if (
+        shown(part) &&
+        part.scrollWidth > part.clientWidth + 1 &&
+        getComputedStyle(part).textOverflow !== "ellipsis"
+      )
+        problems.push(`${kind} text is cut off without an ellipsis`);
+    }
+    const text = pill.querySelector(".sys-player-pill-text");
+    if (text && !shown(text) && !pill.getAttribute("title"))
+      problems.push(`glyph-only ${kind} has no tooltip`);
+    const stop = pill.querySelector<HTMLElement>(".sys-pill-x");
+    if (
+      stop &&
+      (matchMedia("(pointer: coarse)").matches || box.width / rootSize <= 50)
+    ) {
+      const r = stop.getBoundingClientRect();
+      const half = (20 * rootSize) / 16;
+      const inside = Math.min(half, box.right - 1 - (r.left + r.width / 2));
+      for (const [dx, dy] of [
+        [inside, 0],
+        [-half, 0],
+        [0, half],
+        [0, -half],
+      ]) {
+        const hit = document.elementFromPoint(
+          r.left + r.width / 2 + dx,
+          r.top + r.height / 2 + dy,
+        );
+        if (hit !== stop && !stop.contains(hit))
+          problems.push(`Stop following is not reachable at ${dx}, ${dy}`);
+      }
+    }
+  }
+  // The Audio error pill, Retry and a guest's Comment stay above 14.5 rem.
+  if (box.width / rootSize > 14.5) {
+    for (const selector of [
+      ".sys-pill--danger",
+      ".sys-player-retry",
+      ".sys-player-comment--guest",
+    ]) {
+      const el = bar.querySelector(selector);
+      if (el && !shown(el)) problems.push(`${kindOf(el)} is not visible`);
+      if (el && shown(el) && el.scrollWidth > el.clientWidth)
+        problems.push(`${kindOf(el)} is clipped`);
+    }
+  }
+  // Where A and B are not drawn the chevron is the bar's only hear menu: it is
+  // there and, under a coarse pointer, a whole touch target.
+  const hear = bar.querySelector(".sys-player-hear");
+  const ab = bar.querySelector(".sys-player-ab");
+  const more = bar.querySelector(".sys-player-hear-more");
+  if (hear && !(ab && shown(ab))) {
+    if (!more || !shown(more)) problems.push("the hear menu has no trigger");
+    else {
+      const r = more.getBoundingClientRect();
+      const hit = document.elementFromPoint(
+        r.left + r.width / 2,
+        r.top + r.height / 2,
+      );
+      if (hit !== more && !more.contains(hit))
+        problems.push("hear options is not what a tap at its centre reaches");
+      if (
+        r.left + r.width / 2 < box.left ||
+        r.left + r.width / 2 > box.right ||
+        r.top + r.height / 2 < box.top ||
+        r.top + r.height / 2 > box.bottom
+      )
+        problems.push("hear options has its centre outside the bar");
+    }
+    if (more && shown(more) && matchMedia("(pointer: coarse)").matches) {
+      const r = more.getBoundingClientRect();
+      const touch = (44 * rootSize) / 16;
+      if (r.width < touch - 0.5 || r.height < touch - 0.5)
+        problems.push(
+          `hear options is ${r.width.toFixed(1)} x ${r.height.toFixed(1)}`,
+        );
+    }
+  }
+  if (Math.abs(box.height - token) > 0.5)
+    problems.push(`bar is ${box.height}, token is ${token}`);
+  if (document.documentElement.scrollWidth > innerWidth)
+    problems.push("the page scrolls");
+  return {
+    problems,
+    squeezed,
+    kinds: [...new Set(controls.map(kindOf))].sort(),
+  };
+};
+
+type PlayerPage = import("@playwright/test").Page;
+type Plan = { root: number; widths: number[] };
+
+/**
+ * In the page: for each plan (a text size and widths) set the bar host's width
+ * (the host is the container, so this is the width the bar is laid out at),
+ * wait for the bar's own ResizeObserver to have fitted it, and measure. At a
+ * level above 0 it also measures one level lower, in the same task so the
+ * observers cannot refit between: the fit is minimal when that bar has a
+ * problem. One round trip for a whole state, no reloads and no viewport resizes.
+ */
+const measurePlans = async ({ plans }: { plans: Plan[] }) => {
+  type Found = { problems: string[]; squeezed: string[]; kinds: string[] };
+  const measure = (window as unknown as { measureBarInPage: () => Found })
+    .measureBarInPage;
+  const host = document.querySelector<HTMLElement>(".sys-player-host");
+  if (!host) throw new Error("Player did not render");
+  const frame = () =>
+    new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+  const rows: {
+    root: number;
+    width: number;
+    fit: number;
+    found: Found;
+    lower: Found | null;
+  }[] = [];
+  for (const { root, widths } of plans) {
+    document.documentElement.style.fontSize = `${root}px`;
+    for (const width of widths) {
+      host.style.width = `${width}px`;
+      await new Promise<void>((resolve) => {
+        const observer = new ResizeObserver(() => {
+          observer.disconnect();
+          resolve();
+        });
+        observer.observe(host);
+      });
+      // Observers are not told in a fixed order; a font still loading changes
+      // widths and the bar fits again when it is in.
+      await frame();
+      while (document.fonts.status !== "loaded") await frame();
+      const fit = Number(host.dataset.fit);
+      const found = measure();
+      let lower: Found | null = null;
+      if (fit > 0) {
+        host.dataset.fit = String(fit - 1);
+        lower = measure();
+        host.dataset.fit = String(fit);
+      }
+      // Let the observers' follow-up notifications (the fit's own changes to
+      // the columns) pass before the next width.
+      await frame();
+      rows.push({ root, width, fit, found, lower });
+    }
+  }
+  host.style.width = "";
+  document.documentElement.style.fontSize = "";
+  return rows;
+};
+
+function pointerContext(
+  browser: import("@playwright/test").Browser,
+  pointer: "fine" | "coarse",
+) {
+  return browser.newContext({
+    baseURL: "http://127.0.0.1:6010",
+    viewport: { width: 1400, height: 400 },
+    colorScheme: "light",
+    reducedMotion: "reduce",
+    ...(pointer === "coarse"
+      ? { hasTouch: true, isMobile: true, deviceScaleFactor: 2 }
+      : {}),
+  });
+}
+
+/** Opens the story for `args` (when it is not open) and shows them. */
+async function showArgs(
+  page: PlayerPage,
+  open: { story: string | null },
+  args: BarArgs,
+  loops: string[],
+) {
+  const story = pillStory(args);
+  if (open.story !== story) {
+    open.story = story;
+    page.on("pageerror", (error) => loops.push(error.message));
+    page.on("console", (message) => {
+      if (message.type() === "error") loops.push(message.text());
+    });
+    await page.goto(storyUrl(story, { theme: "light" }));
+    await expect(page.locator(".sys-player")).toBeVisible();
+    await page.evaluate(() => document.fonts.ready);
+    await page.evaluate(`window.measureBarInPage = ${measureBar.toString()}`);
+  }
+  await emit(page, "resetStoryArgs", { storyId: story });
+  await emit(page, "updateStoryArgs", { storyId: story, updatedArgs: args });
+  await page.waitForFunction(
+    ([mode, pills, guest]) =>
+      (document.querySelector(".sys-player-host")?.getAttribute("data-state") ??
+        "") === mode &&
+      document.querySelectorAll(".sys-player .pill").length === pills &&
+      (document.querySelector(".sys-player-comment--guest") !== null) ===
+        guest &&
+      document.querySelector(".sys-player-host")?.hasAttribute("data-fit") ===
+        true &&
+      document.fonts.status === "loaded",
+    [
+      args.state === "mix-updating" || args.state === "error" ? args.state : "",
+      pillCount(args),
+      args.guest === true,
+    ] as const,
+  );
+}
+
+/** What a bar can hold, one factor at a time: each value is a name and the props it adds. */
+const FACTORS: [string, BarArgs][][] = [
+  [
+    ["host", HOST],
+    ["guest", { guest: true }],
+  ],
+  [
+    ["nofollow", {}],
+    ["follow", { following: FOLLOWING }],
+    ["longfollow", { following: { ...FOLLOWING, name: "Rosalind-Margaret" } }],
+  ],
+  [
+    ["idle", {}],
+    ["mix", { state: "mix-updating" }],
+    ["error", { state: "error" }],
+  ],
+  [
+    ["nostatus", {}],
+    ["stale", STALE],
+    ["longstale", { status: "Mix out of date: 3 edits are not in it yet" }],
+  ],
+  [
+    ["norate", {}],
+    ["rate", { rate: 2 }],
+  ],
+  [
+    ["ms", MS],
+    ["mscuts", { ...MS, ...CUTS }],
+    ["hourscuts", { ...HOURS, ...HOURS_CUTS }],
+  ],
+];
+
+/** Every combination the app can produce (it shows a rate only while it is not following), as `[name, args]`. */
+function allCombos(): [string, BarArgs][] {
+  let combos: [string, BarArgs][] = [["", {}]];
+  for (const values of FACTORS)
+    combos = combos.flatMap(([name, args]) =>
+      values.map(([value, more]): [string, BarArgs] => [
+        `${name}-${value}`,
+        { ...args, ...more },
+      ]),
+    );
+  return combos.filter(([, args]) => !(args.rate && args.following));
+}
+
+/** A small set of combinations in which every pair of values of two factors meets at least once (greedy all-pairs), then the named states. */
+function sweepStates(): [string, BarArgs][] {
+  const candidates = allCombos();
+  const pairsOf = ([name]: [string, BarArgs]) => {
+    const values = name.split("-").slice(1);
+    return values.flatMap((a, i) =>
+      values.slice(i + 1).map((b, j) => `${i}:${a}|${i + 1 + j}:${b}`),
+    );
+  };
+  const wanted = new Set(candidates.flatMap(pairsOf));
+  const chosen: [string, BarArgs][] = [];
+  while (wanted.size > 0) {
+    let best = candidates[0];
+    let gain = 0;
+    for (const candidate of candidates) {
+      const count = pairsOf(candidate).filter((pair) =>
+        wanted.has(pair),
+      ).length;
+      if (count > gain) [best, gain] = [candidate, count];
+    }
+    for (const pair of pairsOf(best)) wanted.delete(pair);
+    chosen.push(best);
+  }
+  return [...chosen, ...Object.entries(BAR_STATES)];
+}
+
+/** Widths at and around where the bar gives things up: 232 px (14.5 rem), phones, the 40, 50 and 60 rem rules, wide. */
+const SWEEP_PLANS: Plan[] = [
+  { root: 16, widths: [232, 360, 414, 641, 700, 801, 900, 961, 1180, 1400] },
+  { root: 24, widths: [342, 360, 800, 1200] },
+  { root: 32, widths: [456, 360, 800, 1200] },
+];
+
+/** Runs `plans` for every state of `states` on its own page, two at a time (one for the Following story, one for the other). */
+async function runStates(
+  browser: import("@playwright/test").Browser,
+  pointer: "fine" | "coarse",
+  states: [string, BarArgs][],
+  plans: Plan[],
+) {
+  const context = await pointerContext(browser, pointer);
+  const rows: (Awaited<ReturnType<typeof measurePlans>>[number] & {
+    where: string;
+  })[] = [];
+  const loops: string[] = [];
+  await Promise.all(
+    [false, true].map(async (following) => {
+      const page = await context.newPage();
+      const open = { story: null as string | null };
+      for (const [name, args] of states) {
+        if (Boolean(args.following) !== following) continue;
+        await showArgs(page, open, args, loops);
+        for (const row of await page.evaluate(measurePlans, { plans }))
+          rows.push({
+            ...row,
+            where: `${pointer} ${row.width} px at ${row.root} px text, ${name}`,
+          });
+      }
+      await page.close();
+    }),
+  );
+  await context.close();
+  return {
+    rows,
+    loops: loops.filter((message) => /ResizeObserver loop/.test(message)),
+  };
+}
+
+for (const pointer of ["fine", "coarse"] as const) {
+  test(`System/Player bar keeps its controls apart, and gives up no more than it must, for a covering set of what it holds, ${pointer} pointer (#2576)`, async ({
+    browser,
+  }) => {
+    test.setTimeout(300_000);
+    const states = sweepStates();
+    expect(states.length).toBeLessThan(80);
+    const { rows, loops } = await runStates(
+      browser,
+      pointer,
+      states,
+      SWEEP_PLANS,
+    );
+    const problems = rows.flatMap((row) =>
+      row.found.problems.map((problem) => `${row.where}: ${problem}`),
+    );
+    const cut = rows.flatMap((row) =>
+      row.found.squeezed.map((what) => `${row.where}: ${what}`),
+    );
+    // One level less must show a problem: the bar gave up nothing it could keep.
+    const needless = rows
+      .filter(
+        (row) =>
+          row.lower &&
+          row.lower.problems.length + row.lower.squeezed.length === 0,
+      )
+      .map((row) => `${row.where}: fits at ${row.fit - 1}, was ${row.fit}`);
+    expect(problems.slice(0, 40)).toEqual([]);
+    expect(cut.slice(0, 40)).toEqual([]);
+    expect(needless.slice(0, 40)).toEqual([]);
+    expect(rows.filter((row) => row.fit > 0).length).toBeGreaterThan(100);
+    expect(loops).toEqual([]);
+  });
+
+  test(`System/Player bar shows no less as it widens from 600 to 900 px, ${pointer} pointer (#2576)`, async ({
+    browser,
+  }) => {
+    test.setTimeout(300_000);
+    const widths = Array.from({ length: 76 }, (_, i) => 600 + 4 * i);
+    const states = [
+      "followcuts",
+      "followerr",
+      "followmix",
+      "followmixstale",
+    ].map((name): [string, BarArgs] => [name, BAR_STATES[name]]);
+    const { rows } = await runStates(browser, pointer, states, [
+      { root: 16, widths },
+    ]);
+    const shrinks: string[] = [];
+    rows.forEach((row, i) => {
+      const narrower = rows[i - 1];
+      if (!narrower || row.width < narrower.width) return;
+      const lost = narrower.found.kinds.filter(
+        (kind) => !row.found.kinds.includes(kind),
+      );
+      if (lost.length) shrinks.push(`${row.where} lost ${lost.join(", ")}`);
+    });
+    expect(shrinks).toEqual([]);
+  });
+}
+
+/**
+ * In the page: for each width, every fit level in turn (set by hand, in one task
+ * so the bar's observers cannot refit between them), with the hear trigger
+ * problems and the controls drawn at that level.
+ */
+const measureLevels = async ({ plans }: { plans: Plan[] }) => {
+  type Found = { problems: string[]; kinds: string[] };
+  const measure = (window as unknown as { measureBarInPage: () => Found })
+    .measureBarInPage;
+  const host = document.querySelector<HTMLElement>(".sys-player-host");
+  if (!host) throw new Error("Player did not render");
+  const frame = () =>
+    new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+  const rows: { root: number; width: number; level: number; found: Found }[] =
+    [];
+  for (const { root, widths } of plans) {
+    document.documentElement.style.fontSize = `${root}px`;
+    for (const width of widths) {
+      host.style.width = `${width}px`;
+      await frame();
+      await frame();
+      while (document.fonts.status !== "loaded") await frame();
+      const fitted = host.dataset.fit ?? "0";
+      for (let level = 0; level <= 8; level += 1) {
+        host.dataset.fit = String(level);
+        rows.push({ root, width, level, found: measure() });
+      }
+      host.dataset.fit = fitted;
+      await frame();
+    }
+  }
+  host.style.width = "";
+  document.documentElement.style.fontSize = "";
+  return rows;
+};
+
+for (const pointer of ["fine", "coarse"] as const) {
+  test(`System/Player a hear trigger is drawn at every fit level where A and B are not, ${pointer} pointer (#2576)`, async ({
+    browser,
+  }) => {
+    test.setTimeout(120_000);
+    const context = await pointerContext(browser, pointer);
+    const page = await context.newPage();
+    const plans = [
+      { root: 16, widths: [224, 300, 352, 360, 390, 420] },
+      { root: 24, widths: [344, 360, 420, 528, 540] },
+      { root: 32, widths: [344, 360, 456, 704, 720] },
+    ];
+    const rows: (Awaited<ReturnType<typeof measureLevels>>[number] & {
+      name: string;
+    })[] = [];
+    const open = { story: null as string | null };
+    const names = [
+      "followerrstale",
+      "followmixstale",
+      "ratemixstale",
+      "followcuts",
+    ];
+    for (const name of names) {
+      await showArgs(page, open, BAR_STATES[name], []);
+      for (const row of await page.evaluate(measureLevels, { plans }))
+        rows.push({ ...row, name });
+    }
+    await context.close();
+    const missing = rows
+      .flatMap((row) =>
+        row.found.problems
+          .filter((problem) =>
+            /^(the hear menu has no trigger|hear options (is|has) )/.test(
+              problem,
+            ),
+          )
+          .map(
+            (problem) =>
+              `${row.name}, level ${row.level} at ${row.width} px, ${row.root} px text: ${problem}`,
+          ),
+      )
+      .slice(0, 20);
+    expect(missing).toEqual([]);
+    for (const name of names)
+      expect(
+        new Set(
+          rows
+            .filter(
+              (row) => row.name === name && !row.found.kinds.includes("A/B"),
+            )
+            .map((row) => row.level),
+        ),
+        name,
+      ).toEqual(new Set([0, 1, 2, 3, 4, 5, 6, 7, 8]));
+  });
+}
+
+const FULL = [
+  "A/B",
+  "comment",
+  "cuts",
+  "following",
+  "hear options",
+  "play",
+  "skip back",
+  "skip forward",
+  "time",
+];
+
+/** At these widths a bar shows exactly these controls: `[state, pointer, root, width, kinds]`. */
+const SHOWN: [string, "fine" | "coarse", number, number, string[]][] = [
+  ["followcuts", "fine", 16, 1400, FULL],
+  ["followmixstale", "fine", 16, 641, [...FULL, "status", "updating mix"]],
+  ["followmixstale", "coarse", 16, 390, ["A/B", "comment", "play", "time"]],
+  [
+    "followerrstale",
+    "fine",
+    16,
+    360,
+    ["A/B", "audio error", "following", "play", "retry", "time"],
+  ],
+  [
+    "guesterrhours",
+    "fine",
+    32,
+    456,
+    ["audio error", "comment", "play", "retry", "time"],
+  ],
+  ["guesterrhours", "fine", 32, 360, ["play", "time"]],
+  [
+    "followerrstale",
+    "coarse",
+    24,
+    360,
+    ["audio error", "hear options", "play", "retry", "time"],
+  ],
+  ["followerrstale", "coarse", 32, 360, ["hear options", "play", "time"]],
+  ["followerrstale", "fine", 32, 360, ["hear options", "play", "time"]],
+  ["followmixstale", "coarse", 16, 340, ["hear options", "play", "time"]],
+];
+
+test("System/Player at a few widths the bar shows exactly these controls (#2576)", async ({
+  browser,
+}) => {
+  test.setTimeout(120_000);
+  for (const [name, pointer, root, width, kinds] of SHOWN) {
+    const { rows } = await runStates(
+      browser,
+      pointer,
+      [[name, BAR_STATES[name]]],
+      [{ root, widths: [width] }],
+    );
+    expect(
+      rows[0].found.kinds,
+      `${name}, ${pointer} pointer, ${width} px at ${root} px text`,
+    ).toEqual([...kinds].sort());
+  }
+});
+
+test("System/Player each fit level gives up one more thing, in order (#2576)", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1400, height: 400 });
+  await page.emulateMedia({ colorScheme: "light", reducedMotion: "reduce" });
+  const story = "system-player--following-partial";
+  await page.goto(storyUrl(story, { theme: "light" }));
+  await expect(page.locator(".sys-player")).toBeVisible();
+  const args = BAR_STATES.followmixstale;
+  await emit(page, "updateStoryArgs", { storyId: story, updatedArgs: args });
+  await expect(page.locator(".sys-player-mix")).toBeVisible();
+  // At 1400 px no container rule hides anything, so the levels alone decide.
+  const gives = [
+    "the total",
+    "Following detail",
+    "pill text",
+    "skip buttons",
+    "cuts",
+    "hear chevron",
+    "other pills and the status",
+  ];
+  for (let level = 0; level <= 8; level++) {
+    const hidden = await page.evaluate((fit) => {
+      const host = document.querySelector<HTMLElement>(".sys-player-host");
+      if (!host) throw new Error("no host");
+      host.dataset.fit = String(fit);
+      const gone = (selector: string) => {
+        const els = [...host.querySelectorAll<HTMLElement>(selector)];
+        return (
+          els.length > 0 &&
+          els.every((el) => {
+            const r = el.getBoundingClientRect();
+            return r.width <= 1.5 || r.height <= 1.5;
+          })
+        );
+      };
+      return [
+        gone(".sys-player-time .sys-player-total"),
+        gone(".sys-player-pill-detail"),
+        gone(".sys-player-pill-text"),
+        gone(".sys-player-skip"),
+        gone(".sys-player-cuts"),
+        gone(".sys-player-hear-more"),
+        gone(
+          ".sys-player-following, .sys-player-mix, .sys-player-status, .sys-pill-x",
+        ),
+      ];
+    }, level);
+    expect(
+      hidden.map((gone, index) => (gone ? gives[index] : null)).filter(Boolean),
+      `at level ${level}`,
+    ).toEqual(gives.slice(0, Math.min(level, gives.length)));
+  }
+});
+
+/** Opens a bar of `args` in a 380 px host, for a phone's bar, and returns its host. */
+async function phoneBar(page: PlayerPage, args: BarArgs) {
+  await page.setViewportSize({ width: 1400, height: 400 });
+  await page.emulateMedia({ colorScheme: "light", reducedMotion: "reduce" });
+  await page.goto(storyUrl(pillStory(args), { theme: "light" }));
+  await expect(page.locator(".sys-player")).toBeVisible();
+  await emit(page, "updateStoryArgs", {
+    storyId: pillStory(args),
+    updatedArgs: args,
+  });
+  const host = page.locator(".sys-player-host");
+  await host.evaluate((el, w) => {
+    el.style.width = `${w}px`;
+  }, 380);
+  return host;
+}
+
+test("System/Player the pills a phone's bar hides stay in the accessibility tree (#2576)", async ({
+  page,
+}) => {
+  const host = await phoneBar(page, BAR_STATES.followmixstale);
+  await expect(host).toHaveAttribute("data-fit", "7");
+  const tree = await host.ariaSnapshot();
+  for (const name of ["Following Rosa", "Updating mix", "Mix out of date"])
+    expect(tree, name).toContain(name);
+  await expect(page.getByRole("button", { name: "Hear options" })).toHaveCount(
+    1,
+  );
+  await expect(
+    page.getByRole("button", { name: /^Stop following/ }),
+  ).toHaveCount(0);
+  const rated = await phoneBar(page, BAR_STATES.ratemixstale);
+  await expect(rated).toHaveAttribute("data-fit", "7");
+  await expect(
+    page.getByRole("status", { name: "Playback speed 2×" }),
+  ).toHaveCount(1);
+});
+
+/** A bar of `args` in a frame tall enough to hold it, at `root` px text and `width` px wide. */
+async function tallBar(
+  page: PlayerPage,
+  args: BarArgs,
+  root: number,
+  width: number,
+) {
+  const host = await phoneBar(page, args);
+  await page.setViewportSize({ width: 1400, height: 900 });
+  await expect(page.locator("html")).not.toHaveAttribute("data-frame-short");
+  await page.evaluate((px) => {
+    document.documentElement.style.fontSize = `${px}px`;
+  }, root);
+  await host.evaluate((el, w) => {
+    el.style.width = `${w}px`;
+  }, width);
+  await expect
+    .poll(() => host.evaluate((el) => el.getBoundingClientRect().width))
+    .toBe(width);
+  return host;
+}
+
+test("System/Player under 22 rem at 150% text the pills, the cuts and the rate stay in the accessibility tree, and the controls whose home is the expanded Player do not (#2576)", async ({
+  page,
+}) => {
+  const host = await tallBar(
+    page,
+    { ...BAR_STATES.followmixstale, rate: 2 },
+    24,
+    360,
+  );
+  await expect(host.locator(".sys-player-mix")).toHaveCount(1);
+  await expect(host.locator(".sys-player-rate")).toHaveCount(1);
+  const tree = await host.ariaSnapshot();
+  for (const name of [
+    "Following Rosa",
+    "Updating mix",
+    "Mix out of date",
+    "Playback speed 2×",
+    "−4:10",
+  ])
+    expect(tree, name).toContain(name);
+  const gone = await host.evaluate((el) =>
+    [".sys-player-ab", ".sys-player-comment", ".sys-pill-x"].map((selector) => {
+      const found = el.querySelector(selector);
+      return found ? getComputedStyle(found).display : "absent";
+    }),
+  );
+  expect(gone).toEqual(["none", "none", "none"]);
+  await open(page, "system-player--expanded", 360);
+  await expect(page.getByRole("button", { name: "Comment" })).toBeVisible();
+});
+
+test("System/Player at the fold the pills and the Audio error pill keep their names and Retry and Comment are removed (#2576)", async ({
+  page,
+}) => {
+  const host = await tallBar(page, BAR_STATES.followerrstale, 32, 360);
+  await expect(host).toHaveAttribute("data-fit", "8");
+  const tree = await host.ariaSnapshot();
+  for (const name of ["Following Rosa", "Mix out of date", "Audio error"])
+    expect(tree, name).toContain(name);
+  await expect(host.getByRole("button", { name: "Retry" })).toHaveCount(0);
+  await expect(host.locator(".sys-player-retry")).toBeHidden();
+  await expect(host.locator(".sys-player-comment")).toBeHidden();
+  const guest = await tallBar(page, BAR_STATES.guesterr, 32, 360);
+  await expect(guest).toHaveAttribute("data-fit", "8");
+  expect(await guest.ariaSnapshot()).toContain("Audio error");
+  await expect(guest.locator(".sys-player-retry")).toBeHidden();
+  await expect(guest.locator(".sys-player-comment")).toBeHidden();
+});
+
+test("System/Player a folded frame draws the hear chevron at level 6 above 22 rem, where an open one hides it (#2576)", async ({
+  page,
+}) => {
+  const host = await phoneBar(page, BAR_STATES.followcuts);
+  const widths = await host.evaluate((el) => {
+    const more = el.querySelector<HTMLElement>(".sys-player-hear-more");
+    if (!more) throw new Error("no chevron");
+    const html = document.documentElement;
+    el.style.width = "400px";
+    el.dataset.fit = "6";
+    const open = more.getBoundingClientRect().width;
+    html.dataset.frameShort = "";
+    const folded = more.getBoundingClientRect().width;
+    delete html.dataset.frameShort;
+    return { open, folded };
+  });
+  expect(widths.open).toBeLessThanOrEqual(2);
+  expect(widths.folded).toBeGreaterThan(20);
+});
+
+test("System/Player levels 4 and 5 keep a home for what they hide: the cuts keep their name and title, the skips are in the expanded Player (#2576)", async ({
+  page,
+}) => {
+  const host = await phoneBar(page, BAR_STATES.followcuts);
+  await expect(host).toHaveAttribute("data-fit", /^[5678]$/);
+  expect(await host.ariaSnapshot()).toContain("−4:10");
+  // In one step, so the bar's own observers cannot refit between the levels.
+  const seen = await host.evaluate((el) => {
+    const cuts = el.querySelector<HTMLElement>(".sys-player-cuts");
+    const skip = el.querySelector<HTMLElement>(".sys-player-skip");
+    if (!cuts || !skip) throw new Error("no cuts or skip");
+    return [4, 5].map((level) => {
+      (el as HTMLElement).dataset.fit = String(level);
+      return {
+        level,
+        inTree: getComputedStyle(cuts).display !== "none",
+        drawn: cuts.getBoundingClientRect().width > 2,
+        title: cuts.title,
+        text: cuts.textContent,
+        skipDisplay: getComputedStyle(skip).display,
+      };
+    });
+  });
+  expect(seen).toEqual([
+    {
+      level: 4,
+      inTree: true,
+      drawn: true,
+      title: "Length change from your cuts",
+      text: "−4:10",
+      skipDisplay: "none",
+    },
+    {
+      level: 5,
+      inTree: true,
+      drawn: false,
+      title: "Length change from your cuts",
+      text: "−4:10",
+      skipDisplay: "none",
+    },
+  ]);
+  await open(page, "system-player--expanded", 360);
+  for (const name of ["Back 15 seconds", "Forward 15 seconds"])
+    await expect(page.getByRole("button", { name })).toBeVisible();
+});
+
+async function foldFrame(page: PlayerPage) {
+  await page.evaluate(() => {
+    document.documentElement.dataset.frameShort = "";
+  });
+}
+
+/** A host's bar of `args`, 1400 px wide. */
+async function wideBar(page: PlayerPage, args: BarArgs) {
+  const host = await phoneBar(page, args);
+  await host.evaluate((el) => {
+    el.style.width = "1400px";
+  });
+  return host;
+}
+
+test("System/Player in a short frame the bar removes the skip buttons, A and B, Stop following and a host's Comment (#2576)", async ({
+  page,
+}) => {
+  const host = await wideBar(page, BAR_STATES.followmixstale);
+  const names = [
+    "Back 15 seconds",
+    "Forward 15 seconds",
+    "A",
+    "B",
+    "Comment",
+    "Stop following Rosa",
+  ];
+  for (const name of names)
+    await expect(
+      host.getByRole("button", { name, exact: true }),
+      `${name} before`,
+    ).toHaveCount(1);
+  await foldFrame(page);
+  for (const name of names)
+    await expect(
+      host.getByRole("button", { name, exact: true }),
+      `${name} after`,
+    ).toHaveCount(0);
+  await expect(host.getByRole("button", { name: "Hear options" })).toHaveCount(
+    1,
+  );
+});
+
+/** What a folded bar names and how much room each of `selectors` takes. */
+async function foldedPills(
+  page: PlayerPage,
+  args: BarArgs,
+  names: string[],
+  selectors: string[],
+) {
+  const host = await wideBar(page, args);
+  await foldFrame(page);
+  const tree = await host.ariaSnapshot();
+  for (const name of names) expect(tree, name).toContain(name);
+  const drawn = await host.evaluate((el, list) => {
+    const bar = el.querySelector<HTMLElement>(".sys-player");
+    if (!bar) throw new Error("no bar");
+    const widths = list.map((selector) => {
+      const found = el.querySelector(selector);
+      return found ? found.getBoundingClientRect().width : -1;
+    });
+    return { widths, height: bar.getBoundingClientRect().height };
+  }, selectors);
+  expect(drawn.widths.every((width) => width >= 0 && width <= 2)).toBe(true);
+  expect(drawn.height).toBeLessThanOrEqual(45);
+}
+
+test("System/Player in a short frame the Following and Updating mix pills, the cuts and the status keep their names and take no room (#2576)", async ({
+  page,
+}) => {
+  await foldedPills(
+    page,
+    BAR_STATES.followmixstale,
+    ["Following Rosa", "Updating mix", "Mix out of date", "−4:10"],
+    [
+      ".sys-player-following",
+      ".sys-player-mix",
+      ".sys-player-status",
+      ".sys-player-cuts",
+    ],
+  );
+});
+
+test("System/Player in a short frame the rate keeps its name and takes no room (#2576)", async ({
+  page,
+}) => {
+  await foldedPills(
+    page,
+    BAR_STATES.ratemixstale,
+    ["Playback speed 2×", "Updating mix", "Mix out of date"],
+    [".sys-player-rate", ".sys-player-mix", ".sys-player-status"],
+  );
+});
+
+test("System/Player in a short frame an Audio error keeps its pill and Retry, and a guest on the phone shell keeps Comment, each drawn and named (#2576)", async ({
+  page,
+}) => {
+  const phone = () =>
+    page.evaluate(() => {
+      document.documentElement.dataset.shell = "phone";
+    });
+  const host = await wideBar(page, BAR_STATES.followerrstale);
+  await phone();
+  await foldFrame(page);
+  await expect(host.getByTitle("Audio error")).toBeVisible();
+  await expect(host.getByRole("button", { name: "Retry" })).toBeVisible();
+  await expect(host.getByRole("button", { name: "Comment" })).toHaveCount(0);
+
+  const guest = await wideBar(page, BAR_STATES.guesterr);
+  await phone();
+  await foldFrame(page);
+  await expect(guest.getByTitle("Audio error")).toBeVisible();
+  await expect(guest.getByRole("button", { name: "Retry" })).toBeVisible();
+  await expect(
+    guest.getByRole("button", { name: "Comment", exact: true }),
+  ).toBeVisible();
+
+  await page.evaluate(() => {
+    delete document.documentElement.dataset.shell;
+  });
+  await expect(guest.getByRole("button", { name: "Comment" })).toHaveCount(0);
+});
+
+test("System/Player the expanded Player keeps the skip buttons and A and B in a short frame, where the bar removes them (#2576)", async ({
+  page,
+}) => {
+  await open(page, "system-player--expanded", 360);
+  await foldFrame(page);
+  for (const name of ["Back 15 seconds", "Forward 15 seconds", "A", "B"])
+    await expect(page.getByRole("button", { name, exact: true })).toBeVisible();
+});
+
+test("System/Player the Hear menu opens beside the bar at the level that hid its chevron (#2576)", async ({
+  page,
+}) => {
+  const host = await phoneBar(page, BAR_STATES.followcuts);
+  await expect(host).toHaveAttribute("data-fit", /^[678]$/);
+  const chevron = await host.locator(".sys-player-hear-more").boundingBox();
+  expect(chevron?.width ?? 0).toBeLessThanOrEqual(2);
+  await host
+    .getByRole("button", { name: "B", exact: true })
+    .click({ button: "right" });
+  const panel = page.getByRole("menu", { name: "Hear" });
+  await expect(panel).toBeVisible();
+  const [menu, group] = await Promise.all([
+    panel.boundingBox(),
+    host.locator(".sys-player-hear").boundingBox(),
+  ]);
+  if (!menu || !group) throw new Error("no boxes");
+  // Under the A/B group, as with the chevron: not at the corner of the screen.
+  expect(Math.abs(menu.y - (group.y + group.height))).toBeLessThan(8);
+  expect(menu.x < group.x + group.width).toBe(true);
+  expect(menu.x + menu.width > group.x).toBe(true);
 });
 
 test("System/Marker a chapter's span leaves the lane under it to the marker beneath", async ({

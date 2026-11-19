@@ -19,8 +19,9 @@ from scripts.ios.release_classify import (
     UPLOAD_UNREACHABLE,
     AppleAnswer,
     Failure,
+    Lookup,
     Verdict,
-    app_record_exists,
+    app_record_lookup,
     classify_altool,
     classify_upload,
     sentence,
@@ -89,11 +90,14 @@ def lookup_outcome(result: SpawnResult, bundle_identifier: str) -> Outcome:
     if result.exit_code != 0:
         answer = classify_altool(result.exit_code, result.output)
         return Failure.APPLE_REJECTED, sentence(answer)
-    if not app_record_exists(result.output, bundle_identifier):
-        return (
-            Failure.APPLE_REJECTED,
-            "App Store Connect has no app record for this bundle identifier. Create the app in App Store Connect first.",
-        )
+    match app_record_lookup(result.output, bundle_identifier):
+        case Lookup.MISSING:
+            return (
+                Failure.APPLE_REJECTED,
+                "App Store Connect has no app record for this bundle identifier. Create the app in App Store Connect first.",
+            )
+        case Lookup.UNANSWERED:
+            return Failure.TOOL, sentence(AppleAnswer(Verdict.UNREACHABLE, ()))
     return OK
 
 

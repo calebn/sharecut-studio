@@ -220,4 +220,85 @@ describe("RecordDock", () => {
     expect(screen.queryByRole("button", { name: "Record" })).toBeNull();
     expect(screen.queryByRole("button", { name: "Pause take" })).toBeNull();
   });
+
+  describe("labelled phone dock", () => {
+    const visibleWords = () =>
+      [...document.querySelectorAll(".sys-dock-label")].map(
+        (label) => label.textContent,
+      );
+
+    it("prints Mute, Comment and Leave under their discs, names unchanged", () => {
+      render(<RecordDock seat="guest" labelled notes={false} />);
+      expect(visibleWords()).toEqual(["Mute", "Comment", "Leave"]);
+      expect(names()).toEqual(["Mute", "Comment", "Leave room"]);
+      for (const label of document.querySelectorAll(".sys-dock-label")) {
+        expect(label).toHaveAttribute("aria-hidden", "true");
+        expect(label.closest("button")).not.toBeNull();
+      }
+      expect(document.querySelector(".sys-dock")).toHaveAttribute(
+        "data-labelled",
+      );
+    });
+
+    it("says Unmute when muted", () => {
+      render(<RecordDock seat="guest" muted labelled notes={false} />);
+      expect(visibleWords()).toEqual(["Unmute", "Comment", "Leave"]);
+    });
+
+    it("a producer's dock is Comment and Leave", () => {
+      render(<RecordDock seat="producer" labelled notes={false} />);
+      expect(visibleWords()).toEqual(["Comment", "Leave"]);
+    });
+
+    it("a held Leave keeps its word and its reason", () => {
+      render(
+        <RecordDock
+          seat="guest"
+          labelled
+          notes={false}
+          dock={{
+            kind: "controls",
+            leaveHeld: "You can leave after this take.",
+          }}
+        />,
+      );
+      const leave = screen.getByRole("button", { name: "Leave room" });
+      expect(leave).toHaveAttribute("aria-disabled", "true");
+      expect(leave).toHaveTextContent("Leave");
+    });
+
+    it("has no Comments toggle in controls, status or done mode", () => {
+      const { rerender } = render(<RecordDock seat="guest" notes={false} />);
+      const toggle = () => screen.queryByRole("button", { name: /^Comments/ });
+      expect(toggle()).toBeNull();
+      rerender(
+        <RecordDock
+          seat="guest"
+          notes={false}
+          dock={{ kind: "status", text: "Saving" }}
+        />,
+      );
+      expect(toggle()).toBeNull();
+      rerender(
+        <RecordDock
+          seat="guest"
+          notes={false}
+          dock={{ kind: "done", text: "Saved to project." }}
+        />,
+      );
+      expect(toggle()).toBeNull();
+      expect(screen.getByRole("button", { name: "Done" })).toBeVisible();
+    });
+  });
+
+  it("an unlabelled dock keeps its Comments toggle and prints no words", () => {
+    render(<RecordDock seat="host" record={record} />);
+    expect(
+      screen.getByRole("button", { name: "Comments" }),
+    ).toBeInTheDocument();
+    expect(document.querySelector(".sys-dock-label")).toBeNull();
+    expect(document.querySelector(".sys-dock")).not.toHaveAttribute(
+      "data-labelled",
+    );
+  });
 });

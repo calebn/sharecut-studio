@@ -166,10 +166,10 @@ def test_history_service_status_goto_diff_undo(minimal_project):
     listing = svc.list_entries()
     assert listing.groups
     goto = svc.goto(0)
-    assert goto["cursor"] == 0
+    assert goto.cursor == 0
     ws.record_snapshot("three", force=True)
     undo = svc.undo()
-    assert "can_redo" in undo
+    assert undo.can_redo is True
     reloaded = ProjectWorkspace.open(minimal_project)
     # the snapshots hold the same audio, so the move marks nothing stale (#424)
     assert reloaded.project.reconciliation_stale is False
@@ -244,7 +244,7 @@ def test_history_service_mutation_groups_and_rerender(minimal_project):
         ),
     ):
         out = HistoryService(ws).undo(rerender=True)
-    assert "preview" in out
+    assert out.preview == {"ok": True}
     with (
         patch("podcast_mcp.services.document.history.rerender_preview"),
         patch(
@@ -253,7 +253,7 @@ def test_history_service_mutation_groups_and_rerender(minimal_project):
         ),
     ):
         out = HistoryService(ws).redo(rerender=True)
-    assert "preview" in out
+    assert out.preview == {"ok": True}
 
 
 def test_history_goto_rerender_flag(minimal_project) -> None:
@@ -269,8 +269,8 @@ def test_history_goto_rerender_flag(minimal_project) -> None:
     ):
         out = HistoryService(ws).goto(0, rerender=True)
     rr.assert_called_once()
-    assert out["cursor"] == 0
-    assert "preview" in out
+    assert out.cursor == 0
+    assert out.preview == {"ok": True}
 
 
 def test_transcript_service_get_formats(minimal_project):
@@ -838,7 +838,7 @@ def test_edit_service_set_words_ignored_undo_restores_flag(minimal_project):
     _with_words(ws)
     svc = TranscriptService(ws)
     out = svc.set_words_ignored("host", 1, 1, True)
-    assert out["changed"] == 1
+    assert out.changed == 1
     assert ws.project.transcripts[0].words[1].ignored is True
 
     HistoryService(ws).undo()
@@ -858,7 +858,7 @@ def test_edit_service_set_word_suppressed_stale_expected_text_raises(minimal_pro
     assert ws.project.transcripts[0].words[0].suppressed is False
 
     out = svc.set_word_suppressed("host", 0, True, expected_text="teh")
-    assert out["suppressed"] is True
+    assert out.suppressed is True
     assert ws.project.transcripts[0].words[0].suppressed is True
 
 
@@ -870,9 +870,9 @@ def test_edit_service_set_word_automatic_clears_lock_only(minimal_project):
     assert ws.project.transcripts[0].words[0].audibility_locked is True
 
     out = svc.set_word_automatic("host", 0)
-    assert out["audibility_locked"] is False
+    assert out.audibility_locked is False
     # suppressed is untouched by the unlock; only a later reconcile changes it.
-    assert out["suppressed"] is True
+    assert out.suppressed is True
     word = ws.project.transcripts[0].words[0]
     assert word.audibility_locked is False
     assert word.suppressed is True
@@ -907,7 +907,7 @@ def test_edit_service_set_word_automatic_stale_expected_text_raises(minimal_proj
     assert ws.project.transcripts[0].words[0].audibility_locked is True
 
     out = svc.set_word_automatic("host", 0, expected_text="teh")
-    assert out["audibility_locked"] is False
+    assert out.audibility_locked is False
 
 
 def test_edit_service_set_words_ignored_stale_expected_text_raises(minimal_project):
@@ -922,7 +922,23 @@ def test_edit_service_set_words_ignored_stale_expected_text_raises(minimal_proje
     assert not any(w.ignored for w in ws.project.transcripts[0].words)
 
     out = svc.set_words_ignored("host", 0, 1, True, expected_text="teh end")
-    assert out["changed"] == 2
+    assert out.changed == 2
+
+
+def test_word_flag_results_are_frozen(minimal_project):
+    from pydantic import ValidationError
+
+    ws = ProjectWorkspace.open(minimal_project)
+    _with_words(ws)
+    svc = TranscriptService(ws)
+
+    suppressed = svc.set_word_suppressed("host", 0, True)
+    automatic = svc.set_word_automatic("host", 0)
+    ignored = svc.set_words_ignored("host", 0, 1, True)
+
+    for result in (suppressed, automatic, ignored):
+        with pytest.raises(ValidationError):
+            result.track_id = "guest"
 
 
 def test_edit_service_noop_edits_leave_transcript_unflagged(minimal_project):
