@@ -19,15 +19,11 @@ export type TranscriptSelectionJudge = (
   next: ProjectView,
 ) => TranscriptSelectionJudgment;
 
-/** Without a registered judge the selection is left as it is. */
 const KEEP: TranscriptSelectionJudge = () => ({ kind: "keep" });
 
 let judge: TranscriptSelectionJudge = KEEP;
 
-/**
- * The Script model that can name a run's words lives above `state`, so the
- * store takes it by registration. Registering again replaces the judge.
- */
+/** The Script model that names a run's words lives above `state`, so the store takes it by registration. */
 export function registerTranscriptSelectionFollower(
   next: TranscriptSelectionJudge,
 ): void {

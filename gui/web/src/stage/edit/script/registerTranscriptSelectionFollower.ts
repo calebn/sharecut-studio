@@ -4,8 +4,10 @@ import {
   type SelectionModel,
   selectionEndOf,
 } from "../../../edit/selectionFollow";
-import type { TranscriptSelectionJudge } from "../../../state/transcriptSelectionJudge";
-import { registerTranscriptSelectionFollower } from "../../../state/transcriptSelectionJudge";
+import {
+  registerTranscriptSelectionFollower,
+  type TranscriptSelectionJudge,
+} from "../../../state/transcriptSelectionJudge";
 import { scriptModelFor } from "./scriptHostModel";
 import { selectionModelOfProject } from "./scriptSelectionModel";
 

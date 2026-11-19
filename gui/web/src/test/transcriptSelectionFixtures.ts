@@ -197,3 +197,18 @@ export function named(project: ProjectView, selection: Selection): string[] {
     );
   return out;
 }
+
+/** The project with its first utterance's words replaced by what `edit` makes of them. */
+export function withWordsEdited(
+  project: ProjectView,
+  edit: (words: TranscriptWordView[]) => TranscriptWordView[],
+): ProjectView {
+  const [first, ...rest] = project.transcript!.utterances;
+  return {
+    ...project,
+    transcript: {
+      ...project.transcript!,
+      utterances: [{ ...first!, words: edit([...first!.words!]) }, ...rest],
+    },
+  };
+}
