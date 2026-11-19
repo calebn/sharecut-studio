@@ -19,10 +19,9 @@ function cache(issuedAt: number | undefined) {
 
 async function leave(issuedAt: number | undefined) {
   cache(issuedAt);
-  const hook = renderHook(
-    ({ left }) => useLeaseFreshWhileLeft("tok", left),
-    { initialProps: { left: false } },
-  );
+  const hook = renderHook(({ left }) => useLeaseFreshWhileLeft("tok", left), {
+    initialProps: { left: false },
+  });
   await act(async () => {
     hook.rerender({ left: true });
   });
