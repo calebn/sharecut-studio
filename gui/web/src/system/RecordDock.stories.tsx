@@ -149,6 +149,29 @@ export const GuestLeaveHeld: Story = {
   },
 };
 
+export const GuestLeaveAfterHostGone: Story = {
+  args: {
+    seat: "guest",
+    record: undefined,
+    dock: {
+      kind: "controls",
+      leaveWarning:
+        "Leaving stops recording on this device. What you've recorded stays on this device until you save it.",
+    },
+  },
+  play: async ({ canvasElement }) => {
+    const leave = within(canvasElement).getByRole("button", {
+      name: "Leave room",
+    });
+    await expect(leave).not.toHaveAttribute("aria-disabled");
+    await expect(
+      within(canvasElement).getByText(
+        /^Leaving stops recording on this device/,
+      ),
+    ).toBeVisible();
+  },
+};
+
 export const RecordProducer: Story = {
   args: { seat: "producer", record: undefined, notesOpen: true },
   play: async ({ canvasElement }) => {

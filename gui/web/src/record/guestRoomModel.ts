@@ -4,7 +4,11 @@ import type { JoinMic } from "../system/joinSheetModel";
 import type { RoomAlertInput } from "../system/roomAlertModel";
 import { clockText, type RoomPhase } from "../system/roomPhase";
 import type { RoomSaving } from "../system/roomTileModel";
-import type { RoomRole, ViewerWidth } from "../system/roomViewModel";
+import type {
+  RoomPerson,
+  RoomRole,
+  ViewerWidth,
+} from "../system/roomViewModel";
 import type { TakeInput, TakeLineInput } from "../system/takesTrayModel";
 import { dbToFraction } from "../ui/metering";
 import { NETWORK_COVER_COPY } from "./bootCopy";
@@ -368,6 +372,19 @@ export function guestRoomAlerts(
     alerts.push({ kind: "notice", message: notice });
   }
   return alerts;
+}
+
+export function hostGoneMidTake(
+  people: readonly RoomPerson[],
+  phase: RoomPhase,
+  connected: boolean,
+): boolean {
+  if (!connected || (phase.kind !== "live" && phase.kind !== "paused")) {
+    return false;
+  }
+  return people.some(
+    (person) => person.role === "host" && person.presence === "left",
+  );
 }
 
 type GuestStake = "finishing" | "saved" | "unsent" | "none";
