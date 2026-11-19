@@ -179,7 +179,7 @@ def _stage_cut_then_move_its_audio(world):
 
 HELD_SENTENCE = (
     "Reference's cut at 0:02.5 was not applied because that part of the recording is no longer "
-    "in one piece on the timeline. Nothing was changed."
+    "in one piece on the timeline. Nothing was changed. Select it again to try another cut."
 )
 
 
@@ -203,7 +203,8 @@ def test_guest_mcp_editor_hold_reads_the_plain_acoustic_sentence(world):
         "ok": False,
         "error": (
             "Reference's cut at 0:02.5 was not applied because the edit would start or end "
-            "inside a word or a breath, and that could be heard. Nothing was changed."
+            "inside a word or a breath, and that could be heard. Nothing was changed. "
+            "Move the edges off the word or breath and try again."
         ),
         "error_code": "cut_scope_changed",
     }
