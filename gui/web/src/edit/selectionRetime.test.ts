@@ -119,7 +119,7 @@ describe("retimedInPlace", () => {
     ).toBe(false);
   });
 
-  it("is true when only the end or timeline place of a word outside the run changed", () => {
+  it("is true when only the timeline place of a word outside the run changed", () => {
     const next = edited({ 1: { start: 1.2 } });
     const timed = (shift: number): SelectionModel => ({
       ...next,
