@@ -3016,7 +3016,16 @@ def test_the_host_socket_record_plane_carries_the_watcher_count(
             # receive_json has no timeout, so a socket that never sends the frame would hang
             # the test; reading on a thread lets the assertions above bound each wait.
             threading.Thread(target=read_host, daemon=True).start()
-            await_watchers(host_frames, 1)
+            attach_types = []
+            while len(attach_types) < 2:
+                try:
+                    attach = host_frames.get(timeout=5.0)
+                except queue.Empty:
+                    raise AssertionError("no host record attach Echo and Snapshot") from None
+                if attach.get("plane") == "record":
+                    attach_types.append(attach["type"])
+                    assert attach["snapshot"].get("watchers") == 1
+            assert attach_types == ["Echo", "Snapshot"]
             obs.close()
             wait_for_count(0)
             await_watchers(host_frames, 0)
