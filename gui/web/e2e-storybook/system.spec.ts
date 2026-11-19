@@ -504,9 +504,7 @@ const measureBar = () => {
       }
     }
   }
-  // The Audio error pill, Retry and a guest's Comment go only when they do not
-  // fit beside Play, the clock and the chevron (13.4 to 14.5 rem); above 14.5
-  // rem they stay.
+  // The Audio error pill, Retry and a guest's Comment stay above 14.5 rem.
   if (box.width / rootSize > 14.5) {
     for (const selector of [
       ".sys-pill--danger",
@@ -747,7 +745,7 @@ function sweepStates(): [string, BarArgs][] {
   return [...chosen, ...Object.entries(BAR_STATES)];
 }
 
-/** Widths at and around where the bar gives things up: the 14.5 rem edge, phones, the 40, 50 and 60 rem rules, wide. */
+/** Widths at and around where the bar gives things up: 232 px (14.5 rem), phones, the 40, 50 and 60 rem rules, wide. */
 const SWEEP_PLANS: Plan[] = [
   { root: 16, widths: [232, 360, 414, 641, 700, 801, 900, 961, 1180, 1400] },
   { root: 24, widths: [342, 360, 800, 1200] },
@@ -1185,7 +1183,7 @@ test("System/Player a folded frame draws the hear chevron at level 6 above 22 re
   expect(widths.folded).toBeGreaterThan(20);
 });
 
-test("System/Player levels 4 and 5 keep a home for what they hide: the cuts keep their name and tooltip, the skips are in the expanded Player (#2576)", async ({
+test("System/Player levels 4 and 5 keep a home for what they hide: the cuts keep their name and title, the skips are in the expanded Player (#2576)", async ({
   page,
 }) => {
   const host = await phoneBar(page, BAR_STATES.followcuts);
