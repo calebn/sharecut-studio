@@ -782,7 +782,7 @@ describe("ScriptHost Find", () => {
     expect(useDawStore.getState().rangeBusy).toBe(false);
   });
 
-  it("tells an editing guest the host has to review an edit that needs another review", async () => {
+  it("tells an editing guest in the server's words why a match was held", async () => {
     seedScript({
       projectPath: "share:abc",
       guestMode: "edit",
@@ -791,7 +791,7 @@ describe("ScriptHost Find", () => {
     });
     vi.mocked(submitDocumentCommand).mockRejectedValue(
       new ApiError(
-        "This edit needs another review. Ask the host to review it in the editor before applying it.",
+        "Reference's cut at 0:02.5 was not applied because the full recording is not available right now. Nothing was changed.",
         "cut_scope_changed",
         400,
       ),
@@ -801,7 +801,7 @@ describe("ScriptHost Find", () => {
     await userEvent.click(screen.getByRole("button", { name: "Cut all 1" }));
     expect(
       await screen.findByText(
-        "Nothing was cut. The host has to review this edit first.",
+        "Reference's cut at 0:02.5 was not applied because the full recording is not available right now. Nothing was changed.",
       ),
     ).toBeInTheDocument();
   });

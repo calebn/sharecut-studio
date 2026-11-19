@@ -186,7 +186,7 @@ describe("seamsOnTrack", () => {
   it("counts the tracks of a record cut on two tracks", () => {
     const record = removal("r1", 4, 6.4, { track_ids: [TRACK, "tomas-voice"] });
     const seam = onlyCut(seamsOnTrack(project([A, B], [record]), TRACK));
-    const plan = keepPlan(seam);
+    const plan = keepPlan(seam, "host");
     expect(plan.kind === "restore" && plan.trackCount).toBe(2);
   });
 
@@ -224,13 +224,13 @@ describe("keepPlan", () => {
   }
 
   it("restores every ready record in one batch", () => {
-    expect(keepPlan(cut([removal("r1", 4, 5), removal("r2", 5, 6.4)]))).toEqual(
-      {
-        kind: "restore",
-        ids: ["r1", "r2"],
-        trackCount: 1,
-      },
-    );
+    expect(
+      keepPlan(cut([removal("r1", 4, 5), removal("r2", 5, 6.4)]), "host"),
+    ).toEqual({
+      kind: "restore",
+      ids: ["r1", "r2"],
+      trackCount: 1,
+    });
   });
 
   it("restores a record blocked only by another record in the batch", () => {
@@ -242,7 +242,7 @@ describe("keepPlan", () => {
         blocked_by: ["r2"],
       },
     });
-    expect(keepPlan(cut([blocked, removal("r2", 5, 6.4)]))).toEqual({
+    expect(keepPlan(cut([blocked, removal("r2", 5, 6.4)]), "host")).toEqual({
       kind: "restore",
       ids: ["r1", "r2"],
       trackCount: 1,
@@ -258,7 +258,7 @@ describe("keepPlan", () => {
         blocked_by: ["rX"],
       },
     });
-    expect(keepPlan(cut([blocked]))).toEqual({
+    expect(keepPlan(cut([blocked]), "host")).toEqual({
       kind: "disabled",
       reason: "Undo the later trim first",
       openHistory: false,
@@ -274,7 +274,7 @@ describe("keepPlan", () => {
         blocked_by: [],
       },
     });
-    expect(keepPlan(cut([orphan]))).toEqual({
+    expect(keepPlan(cut([orphan]), "host")).toEqual({
       kind: "disabled",
       reason: "The audio is no longer there",
       openHistory: false,
@@ -290,8 +290,29 @@ describe("keepPlan", () => {
       reason: UNDO_IN_HISTORY,
       openHistory: true,
     };
-    expect(keepPlan(cut([historyOnly]))).toEqual(expected);
-    expect(keepPlan(cut([removal("r2", 4, 5), historyOnly]))).toEqual(expected);
-    expect(keepPlan(cut([]))).toEqual(expected);
+    expect(keepPlan(cut([historyOnly]), "host")).toEqual(expected);
+    expect(keepPlan(cut([removal("r2", 4, 5), historyOnly]), "host")).toEqual(
+      expected,
+    );
+    expect(keepPlan(cut([]), "host")).toEqual(expected);
+  });
+
+  it("tells a guest a history-only cut cannot be put back, without sending them to an empty History", () => {
+    const historyOnly = removal("r1", 4, 6.4, {
+      restore: { state: "history_only" },
+    });
+    expect(keepPlan(cut([historyOnly]), "guest")).toEqual({
+      kind: "disabled",
+      reason:
+        "This cut can't be put back on its own. Undo takes back your own latest change; for anything else, ask the host.",
+      openHistory: false,
+    });
+  });
+
+  it("restores a guest's restorable cut like the host's", () => {
+    expect(keepPlan(cut([removal("r1", 4, 5)]), "guest")).toMatchObject({
+      kind: "restore",
+      ids: ["r1"],
+    });
   });
 });
