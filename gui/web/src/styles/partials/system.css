@@ -1312,14 +1312,15 @@ button.sys-version-line {
    error pill and Retry do not fit beside them: under about 13.4 rem with a
    milliseconds clock and 14.5 rem with an hours clock (a 360 or 390 px phone at
    200% text). The expanded Player has Retry and the error. */
-.sys-player-host[data-fit="8"] .sys-player-right > :not(.sys-player-hear) {
+.sys-player-host[data-fit="8"]
+  .sys-player-right
+  > :is(.sys-player-comment, .sys-player-retry) {
   display: none;
 }
 
 /* The Audio error pill is not a control: at the fold it is hidden visually and
    keeps its name. */
 .sys-player-host[data-fit="8"] .sys-player-right > .sys-pill--danger {
-  display: flex;
   position: absolute;
   inline-size: 1px;
   block-size: 1px;
@@ -1451,8 +1452,10 @@ html[data-frame-short] .sys-player {
   min-block-size: var(--touch-min);
 }
 
-html[data-frame-short] .sys-player-skip,
-html[data-frame-short] .sys-player-ab,
+html[data-frame-short]
+  .sys-player-host
+  > .sys-player
+  :is(.sys-player-skip, .sys-player-ab),
 html[data-frame-short] .sys-player-left > :not(.sys-player-time),
 html[data-frame-short]
   .sys-player-right

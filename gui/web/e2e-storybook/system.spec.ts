@@ -1094,25 +1094,37 @@ test("System/Player the pills a phone's bar hides stay in the accessibility tree
   ).toHaveCount(1);
 });
 
+/** A bar of `args` in a frame tall enough to hold it, at `root` px text and `width` px wide. */
+async function tallBar(
+  page: PlayerPage,
+  args: BarArgs,
+  root: number,
+  width: number,
+) {
+  const host = await phoneBar(page, args);
+  await page.setViewportSize({ width: 1400, height: 900 });
+  await expect(page.locator("html")).not.toHaveAttribute("data-frame-short");
+  await page.evaluate((px) => {
+    document.documentElement.style.fontSize = `${px}px`;
+  }, root);
+  await host.evaluate((el, w) => {
+    el.style.width = `${w}px`;
+  }, width);
+  await expect
+    .poll(() => host.evaluate((el) => el.getBoundingClientRect().width))
+    .toBe(width);
+  return host;
+}
+
 test("System/Player under 22 rem at 150% text the pills, the cuts and the rate stay in the accessibility tree, and the controls whose home is the expanded Player do not (#2576)", async ({
   page,
 }) => {
-  const host = await phoneBar(page, {
-    ...BAR_STATES.followmixstale,
-    rate: 2,
-  });
-  // A tall frame: a short one (the 400 px phoneBar sets) hides them whole, as develop did.
-  await page.setViewportSize({ width: 1400, height: 900 });
-  await expect(page.locator("html")).not.toHaveAttribute("data-frame-short");
-  await page.evaluate(() => {
-    document.documentElement.style.fontSize = "24px";
-  });
-  await host.evaluate((el) => {
-    el.style.width = "360px";
-  });
-  await expect
-    .poll(() => host.evaluate((el) => el.getBoundingClientRect().width))
-    .toBe(360);
+  const host = await tallBar(
+    page,
+    { ...BAR_STATES.followmixstale, rate: 2 },
+    24,
+    360,
+  );
   await expect(host.locator(".sys-player-mix")).toHaveCount(1);
   await expect(host.locator(".sys-player-rate")).toHaveCount(1);
   const tree = await host.ariaSnapshot();
@@ -1135,22 +1147,22 @@ test("System/Player under 22 rem at 150% text the pills, the cuts and the rate s
   await expect(page.getByRole("button", { name: "Comment" })).toBeVisible();
 });
 
-test("System/Player at the fold a guest's Audio error pill keeps its name and Retry is removed (#2576)", async ({
+test("System/Player at the fold the pills and the Audio error pill keep their names and Retry and Comment are removed (#2576)", async ({
   page,
 }) => {
-  const host = await phoneBar(page, BAR_STATES.guesterr);
-  await page.setViewportSize({ width: 1400, height: 900 });
-  await expect(page.locator("html")).not.toHaveAttribute("data-frame-short");
-  await page.evaluate(() => {
-    document.documentElement.style.fontSize = "32px";
-  });
-  await host.evaluate((el) => {
-    el.style.width = "360px";
-  });
+  const host = await tallBar(page, BAR_STATES.followerrstale, 32, 360);
   await expect(host).toHaveAttribute("data-fit", "8");
-  expect(await host.ariaSnapshot()).toContain("Audio error");
+  const tree = await host.ariaSnapshot();
+  for (const name of ["Following Rosa", "Mix out of date", "Audio error"])
+    expect(tree, name).toContain(name);
   await expect(host.getByRole("button", { name: "Retry" })).toHaveCount(0);
   await expect(host.locator(".sys-player-retry")).toBeHidden();
+  await expect(host.locator(".sys-player-comment")).toBeHidden();
+  const guest = await tallBar(page, BAR_STATES.guesterr, 32, 360);
+  await expect(guest).toHaveAttribute("data-fit", "8");
+  expect(await guest.ariaSnapshot()).toContain("Audio error");
+  await expect(guest.locator(".sys-player-retry")).toBeHidden();
+  await expect(guest.locator(".sys-player-comment")).toBeHidden();
 });
 
 test("System/Player a folded frame draws the hear chevron at level 6 above 22 rem, where an open one hides it (#2576)", async ({
@@ -1217,6 +1229,17 @@ test("System/Player levels 4 and 5 keep a home for what they hide: the cuts keep
   await open(page, "system-player--expanded", 360);
   for (const name of ["Back 15 seconds", "Forward 15 seconds"])
     await expect(page.getByRole("button", { name })).toBeVisible();
+});
+
+test("System/Player the expanded Player keeps the skip buttons and A and B in a short frame, where the bar removes them (#2576)", async ({
+  page,
+}) => {
+  await open(page, "system-player--expanded", 360);
+  await page.evaluate(() => {
+    document.documentElement.dataset.frameShort = "";
+  });
+  for (const name of ["Back 15 seconds", "Forward 15 seconds", "A", "B"])
+    await expect(page.getByRole("button", { name, exact: true })).toBeVisible();
 });
 
 test("System/Player the Hear menu opens beside the bar at the level that hid its chevron (#2576)", async ({
