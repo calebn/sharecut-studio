@@ -503,10 +503,9 @@ describe("Player", () => {
     expect(comment).toHaveClass("sys-player-comment");
     expect(comment).toHaveClass("sys-player-comment--guest");
     const css = systemCss();
-    const folded = css.match(
-      /html\[data-frame-short\]\s*\.sys-player-right\s*>\s*([^{]*)\{[^}]*display:\s*none/,
+    expect(css).toMatch(
+      /html\[data-frame-short\][^{]*\.sys-player-comment:not\(\.sys-player-comment--guest\)[^{]*\{[^}]*display:\s*none/,
     );
-    expect(folded?.[1]).toContain(".sys-player-comment--guest");
     expect(css).toMatch(
       /html\[data-frame-short\]:not\(\[data-shell="phone"\]\)\s*\.sys-player-comment--guest\s*\{[^}]*display:\s*none/,
     );

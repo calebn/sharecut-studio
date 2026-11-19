@@ -1145,10 +1145,6 @@ button.sys-version-line {
    Audio error pill. Pills are hidden visually and keep their names; the skip
    buttons, Stop following, Comment and Retry are `display: none` so no invisible
    control takes focus. */
-.sys-player-host > .sys-player {
-  overflow-x: clip;
-}
-
 .sys-player-host > .sys-player .sys-player-pill > svg,
 .sys-player-host > .sys-player .sys-pill-x {
   flex: none;
@@ -1404,9 +1400,10 @@ button.sys-version-line {
    the tab bar and the lanes' floor, so a phone held sideways at large text, or a
    small phone at 200% text) keeps the Player as one touch-height row: Play, the
    clock and the hear menu, plus, for a guest on the phone shell, an icon-only
-   Comment. The skip buttons, the cuts, the A and B toggles, Comment for a host
-   or off the phone and the status chips give way. The Audio error pill and
-   Retry stay until level 8. */
+   Comment. The skip buttons, A and B, Stop following and Comment for a host or
+   off the phone are removed; the pills, the cuts, the rate and the status are
+   hidden visually and keep their names. The Audio error pill and Retry stay
+   until level 8. */
 html[data-frame-short] .sys-player {
   min-block-size: var(--touch-min);
 }
@@ -1414,17 +1411,36 @@ html[data-frame-short] .sys-player {
 html[data-frame-short]
   .sys-player-host
   > .sys-player
-  :is(.sys-player-skip, .sys-player-ab),
-html[data-frame-short] .sys-player-left > :not(.sys-player-time),
-html[data-frame-short]
-  .sys-player-right
-  > :not(
-    .sys-player-hear,
-    .sys-player-comment--guest,
-    .sys-pill--danger,
-    .sys-player-retry
+  :is(
+    .sys-player-skip,
+    .sys-player-ab,
+    .sys-pill-x,
+    .sys-player-comment:not(.sys-player-comment--guest)
   ) {
   display: none;
+}
+
+html[data-frame-short]
+  .sys-player-host
+  > .sys-player
+  :is(
+    .sys-player-following,
+    .sys-player-solo,
+    .sys-player-mix,
+    .sys-player-status,
+    .sys-player-cuts,
+    .sys-player-rate
+  ) {
+  position: absolute;
+  inline-size: 1px;
+  block-size: 1px;
+  min-inline-size: 0;
+  min-block-size: 0;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
 }
 
 html[data-frame-short]:not([data-shell="phone"]) .sys-player-comment--guest {
