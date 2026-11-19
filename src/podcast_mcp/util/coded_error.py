@@ -32,8 +32,8 @@ GENERIC_GUEST_MESSAGE = "That didn't work; ask the host to check this episode."
 """Fallback for a code without approved guest-facing copy."""
 
 _GUEST_MESSAGES = {
-    "clip_not_found": "That clip is unavailable. Ask the host to refresh the project.",
-    "cut_scope_changed": "That edit was not applied. Nothing was changed. Ask the host to look at it in the editor.",
+    "clip_not_found": "That clip is unavailable. Reload the page to see the latest version.",
+    "cut_scope_changed": "That edit was not applied. Nothing was changed. Select it again to try another cut, or leave a comment for the host.",
     "empty_text": "Enter some text and try again.",
     "enrollment_past_end": "A voice sample is past the end of this recording. Choose a sample inside the audio.",
     "export_busy": "This project is busy with an export or render. Try again when it finishes.",
@@ -102,7 +102,7 @@ _GUEST_MESSAGES = {
     "speaker_split_already_split": "This track is already split by speaker.",
     "speaker_split_multiple_recordings": "This track plays more than one recording, so it can't be split by speaker.",
     "speaker_split_no_media": "This track has no recording to split.",
-    "track_not_found": "That track is unavailable. Ask the host to refresh the project.",
+    "track_not_found": "That track is unavailable. Reload the page to see the latest version.",
     "transcript_changed": "The transcript changed since you reviewed it. Review the updated transcript before trying again.",
     "transcript_empty": "Every word is cut, so there is nothing to export.",
     "transcript_source_ambiguous": "This transcript can't be searched right now. Ask the host to regenerate it.",

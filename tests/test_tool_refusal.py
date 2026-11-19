@@ -193,7 +193,10 @@ def test_guest_message_never_holds_part_of_a_folder_name(folder: str) -> None:
 def test_guest_message_is_selected_by_code_not_host_message() -> None:
     exc = CodedValueError("unknown track_id: 'Talkin' Shop'", code="track_not_found")
 
-    assert exc.guest_message() == "That track is unavailable. Ask the host to refresh the project."
+    assert (
+        exc.guest_message()
+        == "That track is unavailable. Reload the page to see the latest version."
+    )
 
 
 @pytest.mark.parametrize(
@@ -243,7 +246,7 @@ def test_guest_message_is_derived_after_pickle() -> None:
     exc = CodedValueError("bad /Users/host/x.wav", code="track_not_found")
 
     assert pickle.loads(pickle.dumps(exc)).guest_message() == (
-        "That track is unavailable. Ask the host to refresh the project."
+        "That track is unavailable. Reload the page to see the latest version."
     )
 
 
@@ -256,7 +259,8 @@ def test_conflict_wrapping_uses_effective_code_for_guest_message() -> None:
 
     assert str(conflict) == str(cause)
     assert (
-        conflict.guest_message() == "That clip is unavailable. Ask the host to refresh the project."
+        conflict.guest_message()
+        == "That clip is unavailable. Reload the page to see the latest version."
     )
     assert conflict.code == "clip_not_found"
 
@@ -282,7 +286,7 @@ _SURFACE_HOST_TEXTS = {
 }
 
 _SURFACE_CODES = {
-    "track_not_found": "That track is unavailable. Ask the host to refresh the project.",
+    "track_not_found": "That track is unavailable. Reload the page to see the latest version.",
     "export_busy": "This project is busy with an export or render. Try again when it finishes.",
     "project_write_failed": (
         "Your change could not be saved on the host's computer. "

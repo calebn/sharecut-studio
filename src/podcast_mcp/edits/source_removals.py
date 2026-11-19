@@ -65,6 +65,18 @@ PLAIN_HOLD_REASONS: Mapping[str, str] = {
     "pause_air": "it could not keep enough quiet room sound in the pause",
     "pause_join": "the pause would sound abrupt where it joins",
 }
+_RETRY_LATER = "Try again in a moment, or leave a comment for the host."
+_SELECT_AGAIN = "Select it again to try another cut."
+DEFAULT_NEXT_STEP = "Leave a comment for the host."
+HOLD_NEXT_STEPS: Mapping[str, str] = {
+    "acoustic_edge": "Move the edges off the word or breath and try again.",
+    "source_geometry": _SELECT_AGAIN,
+    "operation_scope": _SELECT_AGAIN,
+    "scope_unavailable": _RETRY_LATER,
+    "media_extent_unavailable": _RETRY_LATER,
+    "speaker_bleed": _RETRY_LATER,
+    "peer_speech": _RETRY_LATER,
+}
 _UNNAMED_EDIT = "That edit"
 PEER_SPEECH_PLAIN = "someone else is speaking there and would be cut off"
 GENERIC_HOLD_REASON = "it could not be applied"
@@ -214,7 +226,9 @@ class ScopeChangedAtApproval(CodedError, ValueError):
             f"{self.plain_reason_for(hold)}."
             for hold in self.held
         )
-        message = " ".join([*sentences, "Nothing was changed."])
+        steps = {HOLD_NEXT_STEPS.get(hold.reason, DEFAULT_NEXT_STEP) for hold in self.held}
+        next_step = steps.pop() if len(steps) == 1 else DEFAULT_NEXT_STEP
+        message = " ".join([*sentences, "Nothing was changed.", next_step])
         return guest_message_for_code(self.code) if mentions_host_path(message) else message
 
     def for_delivery(self, delivery: Literal["saved", "suggested"]) -> ScopeChangedAtApproval:
