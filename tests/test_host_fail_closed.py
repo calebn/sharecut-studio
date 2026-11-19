@@ -119,14 +119,28 @@ def test_the_ios_row_without_a_linked_library_reports_tools_missing_and_models_u
             assert "bootstrap" not in model, model["id"]
 
 
-def test_the_ios_row_with_a_linked_library_lets_models_report_their_own_state(
+TRANSCRIBE_SENTENCE = "ShareCut can't transcribe audio on this device yet."
+
+
+def test_the_ios_row_with_a_linked_library_offers_rnnoise_alone(
     host, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    """The aligner and speaker models are ONNX (no onnxruntime on iOS); whisper needs
+    faster-whisper. Only RNNoise, which runs through FFmpeg, may be offered."""
     monkeypatch.setattr(native_ffmpeg, "is_available", lambda: True)
     host(IOS)
-    states = {m["id"]: m["state"] for m in boot.component_status()["models"]}
-    assert states["whisper"] == "unsupported"
-    assert states["rnnoise"] != "unsupported"
+    for status in (boot.component_status(), _route_status()):
+        by_id = {m["id"]: m for m in status["models"]}
+        assert set(by_id) == {"whisper", "rnnoise", "word-aligner", "speaker-ecapa"}
+        assert by_id["rnnoise"]["state"] == "missing"
+        assert "bootstrap" in by_id["rnnoise"]
+        assert by_id["whisper"]["state"] == "unsupported"
+        assert by_id["whisper"]["hint"] == TRANSCRIBE_SENTENCE
+        for model_id in ("word-aligner", "speaker-ecapa"):
+            assert by_id[model_id]["state"] == "unsupported", model_id
+            assert by_id[model_id]["hint"] == MEDIA_SENTENCE, model_id
+            assert "bootstrap" not in by_id[model_id], model_id
+            assert "path" not in by_id[model_id], model_id
 
 
 def test_the_unsupported_fixture_matches_the_engine_answer(host) -> None:
@@ -152,9 +166,10 @@ def test_a_host_that_can_process_audio_but_not_transcribe_blocks_whisper_alone(h
     )
     assert {i: s for i, (s, _) in states.items() if i != "whisper"} == {
         "rnnoise": "missing",
-        "word-aligner": "missing",
-        "speaker-ecapa": "missing",
+        "word-aligner": "unsupported",
+        "speaker-ecapa": "unsupported",
     }
+    assert states["word-aligner"][1] == MEDIA_SENTENCE
 
 
 def test_a_desktop_host_reports_each_model_as_it_did_before(host) -> None:

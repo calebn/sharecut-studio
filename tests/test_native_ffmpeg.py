@@ -629,8 +629,12 @@ def test_a_missing_symbol_is_missing_not_installed(
     assert bootstrap.component_status()["tools"]["ffmpeg"]["state"] == "missing"
     assert config.component_status()["ffmpeg"]["state"] == "missing"
     monkeypatch.setattr(ctypes, "CDLL", lambda *args, **kwargs: FakeNative())
-    assert bootstrap.component_status()["tools"]["ffmpeg"]["state"] == "installed"
-    assert config.component_status()["ffmpeg"]["state"] == "installed"
+    # Linked is not installed: the backend must also serve argv (#4014).
+    assert bootstrap.component_status()["tools"]["ffmpeg"]["state"] == "missing"
+    assert config.component_status()["ffmpeg"]["state"] == "missing"
+    with process.using_in_process_backend(NativeFFmpegBackend(FakeNative())):
+        assert bootstrap.component_status()["tools"]["ffmpeg"]["state"] == "installed"
+        assert config.component_status()["ffmpeg"]["state"] == "installed"
 
 
 def test_cancel_hits_only_its_own_overlapping_session() -> None:
