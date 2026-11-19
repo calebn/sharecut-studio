@@ -444,7 +444,20 @@ test("phone shells keep every control a finger can use at 360, 390 and 767 wide"
   expect(await sweep(page, PHONES), "controls a finger cannot use").toBe("");
 });
 
-test("phone shells keep the Audio error pill and Retry a finger can use at 360, 390 and 767 wide", async ({
+/**
+ * Phones where the Audio error pill and Retry fit beside Play and the clock
+ * (about 13 rem and up for a host): 100% text, 150% text on the two phones, and
+ * 200% text on the widest. Under that the bar folds to Play, the clock and the
+ * hear menu, and Retry is in the expanded Player (tap the time).
+ */
+const RETRY_CELLS: readonly Cell[] = [
+  ...PHONES.filter((phone) => phone.rootPx === 16),
+  { name: "phone 360, 150% text", width: 360, height: 780, rootPx: 24 },
+  { name: "phone 390, 150% text", width: 390, height: 844, rootPx: 24 },
+  { name: "phone max 767, 200% text", width: 767, height: 1000, rootPx: 32 },
+];
+
+test("phone shells keep the Audio error pill and Retry a finger can use at 360, 390 and 767 wide, at 100%, 150% and 200% text", async ({
   page,
 }) => {
   await withShareableProject(async (projectPath) => {
@@ -454,7 +467,7 @@ test("phone shells keep the Audio error pill and Retry a finger can use at 360, 
     fs.mkdirSync(artifacts, { recursive: true });
     fs.writeFileSync(path.join(artifacts, "premix.wav"), "not audio");
     const reports: string[] = [];
-    for (const cell of PHONES.filter((phone) => phone.rootPx === 16)) {
+    for (const cell of RETRY_CELLS) {
       await arrive(page, cell, (p) => openHostShare(p, projectPath));
       await expect(page.locator(".sys-pill--danger")).toBeVisible();
       await expect(page.getByRole("button", { name: "Retry" })).toBeVisible();

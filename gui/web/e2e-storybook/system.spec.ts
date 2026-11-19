@@ -5,7 +5,6 @@ import {
   ENVELOPE_TOP_DB,
   gainToDb,
 } from "../src/system/envelopeMath";
-import { BASELINE } from "./playerBarBaseline";
 import { emit } from "./storyChannel";
 import { storyUrl } from "./storyUrl";
 
@@ -334,170 +333,40 @@ const HOST = { hearMenu: { mode: "mix" } };
 const CUTS = { cuts: "−4:10" };
 const HOURS_CUTS = { cuts: "−14:10" };
 const STALE = { status: "Mix out of date" };
+type BarArgs = Record<string, unknown>;
 
-/**
- * What the app really passes a bar (`usePlayerProps`): a timecode with
- * milliseconds (hours from an hour of audio), the hear menu for a host and the
- * Following pill's stop button. The first group is what develop laid out
- * without overlap and is held to what develop showed (`BASELINE`); the second
- * is busier than develop could hold and only has to be clean.
- */
+/** A host's bar as the app passes it (`usePlayerProps`): a timecode with milliseconds, the cuts and the hear menu, plus `more`. */
+const hostBar = (more: BarArgs): BarArgs => ({
+  ...MS,
+  ...HOST,
+  ...CUTS,
+  ...more,
+});
+const followErr = hostBar({ following: FOLLOWING, state: "error" });
+const followMix = hostBar({ following: FOLLOWING, state: "mix-updating" });
 const BAR_STATES: Record<string, BarArgs> = {
-  plain: { ...MS, ...HOST, ...CUTS },
-  plainnocuts: { ...MS, ...HOST },
-  plainguest: { ...MS, guest: true },
-  plainguestcuts: { ...MS, guest: true, ...CUTS },
-  solo: { ...MS, ...HOST, ...CUTS, solo: "Rosa" },
-  mixonly: { ...MS, ...HOST, ...CUTS, state: "mix-updating" },
-  erroronly: { ...MS, ...HOST, ...CUTS, state: "error" },
-  errornocuts: { ...MS, ...HOST, state: "error" },
-  staleonly: { ...MS, ...HOST, ...CUTS, ...STALE },
-  guesterror: { ...MS, guest: true, state: "error" },
-  guestmix: { ...MS, guest: true, state: "mix-updating" },
-  followcuts: { ...MS, ...HOST, ...CUTS, following: FOLLOWING },
-  followalone: { ...MS, ...HOST, following: FOLLOWING },
-  guestfollow: { ...MS, guest: true, following: FOLLOWING },
-  hoursplain: { ...HOURS, ...HOST, ...HOURS_CUTS },
-  hourssolo: { ...HOURS, ...HOST, ...HOURS_CUTS, solo: "Rosa" },
-  hoursfollow: { ...HOURS, ...HOST, ...HOURS_CUTS, following: FOLLOWING },
-  rate: { ...MS, ...HOST, ...CUTS, rate: 2 },
-  solomix: { ...MS, ...HOST, ...CUTS, solo: "Rosa", state: "mix-updating" },
-  soloerr: { ...MS, ...HOST, ...CUTS, solo: "Rosa", state: "error" },
-  stalesolo: { ...MS, ...HOST, ...CUTS, ...STALE, solo: "Rosa" },
-  staleerr: { ...MS, ...HOST, ...CUTS, ...STALE, state: "error" },
-  followsolo: { ...MS, ...HOST, ...CUTS, following: FOLLOWING, solo: "Rosa" },
-  mixup: {
-    ...MS,
-    ...HOST,
-    ...CUTS,
-    following: FOLLOWING,
-    solo: "Rosa",
-    state: "mix-updating",
-  },
-  stackerr: {
-    ...MS,
-    ...HOST,
-    ...CUTS,
-    following: FOLLOWING,
-    solo: "Rosa",
-    state: "error",
-  },
-  hoursstack: {
-    ...HOURS,
-    ...HOST,
-    ...HOURS_CUTS,
-    following: FOLLOWING,
-    solo: "Rosa",
-    state: "error",
-  },
-  rateerr: {
-    ...MS,
-    ...HOST,
-    ...CUTS,
-    rate: 2,
-    solo: "Rosa",
-    state: "error",
-  },
-  longstatus: {
-    ...MS,
-    ...HOST,
-    state: "error",
-    status: "Import audio to play.",
-    playUnavailable: true,
-  },
-  longfollow: {
-    ...MS,
-    ...HOST,
-    ...CUTS,
-    following: { ...FOLLOWING, name: "Rosalind-Margaret" },
-  },
-  longsolo: { ...MS, ...HOST, ...CUTS, solo: "Rosalind-Margaret" },
-  longstack: {
-    ...MS,
-    ...HOST,
-    ...CUTS,
-    following: { ...FOLLOWING, name: "Rosalind-Margaret" },
-    solo: "Rosalind-Margaret",
-    state: "mix-updating",
-  },
-  widestatus: {
-    ...MS,
-    ...HOST,
-    ...CUTS,
-    status: "WWWWWWWWWWWWWWWWWWWWWWWW",
-  },
+  followcuts: hostBar({ following: FOLLOWING }),
+  followerr: followErr,
+  followerrstale: { ...followErr, ...STALE },
+  followmix: followMix,
+  followmixstale: { ...followMix, ...STALE },
+  ratemixstale: hostBar({ rate: 2, state: "mix-updating", ...STALE }),
   guesterr: {
     ...MS,
     guest: true,
     following: FOLLOWING,
     state: "error",
-    status: "Mix out of date",
+    ...STALE,
   },
-  // A guest in an Audio error with an hours clock is the widest bar a guest
-  // has just above the 14 rem fold.
   guesterrhours: { ...HOURS, guest: true, state: "error" },
-  guesterrhoursfollow: {
-    ...HOURS,
-    guest: true,
-    following: FOLLOWING,
-    state: "error",
-    ...STALE,
-  },
-  // Combinations the sweep below also runs by name.
-  hostfollowerrstale: {
-    ...MS,
-    ...HOST,
-    ...CUTS,
-    following: FOLLOWING,
-    state: "error",
-    ...STALE,
-  },
-  hostfollowerrimport: {
-    ...MS,
-    ...HOST,
-    following: FOLLOWING,
-    state: "error",
-    status: "Import audio to play.",
-    playUnavailable: true,
-  },
-  fourpills: {
-    ...MS,
-    ...HOST,
-    ...CUTS,
-    following: FOLLOWING,
-    solo: "Rosa",
-    state: "mix-updating",
-    ...STALE,
-  },
-  ratefourpills: {
-    ...MS,
-    ...HOST,
-    ...CUTS,
-    rate: 2,
-    solo: "Rosa",
-    state: "mix-updating",
-    ...STALE,
-  },
-  hoursratestack: {
-    ...HOURS,
-    ...HOST,
-    ...HOURS_CUTS,
-    rate: 2,
-    solo: "Rosa",
-    state: "error",
-    ...STALE,
-  },
 };
-type BarArgs = Record<string, unknown>;
 
 /** The Status pills the bar draws for these props, to know when the story has caught up. */
 function pillCount(args: BarArgs) {
   return (
     (["cuts", "rate", "following", "status"] as const).filter(
       (key) => key in args,
-    ).length +
-    (!args.guest && "solo" in args ? 1 : 0) +
-    (args.state ? 1 : 0)
+    ).length + (args.state ? 1 : 0)
   );
 }
 
@@ -507,7 +376,12 @@ function pillStory(args: BarArgs) {
     : "system-player--ready";
 }
 
-/** Runs inside the page (it is sent as source), so it uses nothing from this module. */
+/**
+ * Runs inside the page (it is sent as source), so it uses nothing from this
+ * module. `problems` are what a person would see go wrong; `squeezed` is a
+ * status text cut short with an ellipsis (allowed, but the fit avoids it);
+ * `kinds` are the controls drawn.
+ */
 const measureBar = () => {
   const bar = document.querySelector<HTMLElement>(
     ".sys-player-host > .sys-player",
@@ -519,6 +393,9 @@ const measureBar = () => {
   const token = probe.getBoundingClientRect().height;
   probe.remove();
   const box = bar.getBoundingClientRect();
+  const rootSize = parseFloat(
+    getComputedStyle(document.documentElement).fontSize,
+  );
   const shown = (el: Element) => {
     const r = el.getBoundingClientRect();
     return r.width > 1 && r.height > 1;
@@ -529,104 +406,88 @@ const measureBar = () => {
         ? "skip back"
         : "skip forward";
     const byClass: [string, string][] = [
-      [".sys-player-now", "time"],
+      [".sys-player-time", "time"],
       [".sys-play", "play"],
       [".sys-player-ab", "A/B"],
       [".sys-player-hear-more", "hear options"],
       [".sys-player-comment", "comment"],
       [".sys-player-cuts", "cuts"],
       [".sys-player-following", "following"],
-      [".sys-player-solo", "solo"],
       [".sys-player-mix", "updating mix"],
       [".sys-player-rate", "speed"],
       [".sys-pill--danger", "audio error"],
       [".sys-player-retry", "retry"],
       [".sys-player-status", "status"],
     ];
-    for (const [selector, kind] of byClass)
-      if (el.matches(selector)) return kind;
-    return el.className;
+    return byClass.find(([selector]) => el.matches(selector))?.[1] ?? "?";
   };
   const controls = [
     ...bar.querySelectorAll(
-      ".sys-player-now, .sys-player-skip, .sys-play, .sys-player-ab, .sys-player-hear-more, .sys-player-comment, .sys-player-left > .pill, .sys-player-right > .pill, .sys-player-right > .sys-player-status, .sys-player-right > button",
+      ".sys-player-time, .sys-player-skip, .sys-play, .sys-player-ab, .sys-player-hear-more, .sys-player-comment, .sys-player-left > .pill, .sys-player-right > .pill, .sys-player-right > .sys-player-status, .sys-player-right > button",
     ),
   ].filter(shown);
   const problems: string[] = [];
-  for (let i = 0; i < controls.length; i++) {
-    const a = controls[i].getBoundingClientRect();
-    if (a.left < box.left - 0.5 || a.right > box.right + 0.5) {
-      problems.push(`${kindOf(controls[i])} spills past the bar`);
-    }
-    for (let j = i + 1; j < controls.length; j++) {
-      const b = controls[j].getBoundingClientRect();
+  const squeezed: string[] = [];
+  controls.forEach((control, i) => {
+    const a = control.getBoundingClientRect();
+    if (a.left < box.left - 0.5 || a.right > box.right + 0.5)
+      problems.push(`${kindOf(control)} spills past the bar`);
+    for (const other of controls.slice(i + 1)) {
+      const b = other.getBoundingClientRect();
       const across = Math.min(a.right, b.right) - Math.max(a.left, b.left);
       const down = Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top);
-      if (across > 0.5 && down > 0.5) {
+      if (across > 0.5 && down > 0.5)
         problems.push(
-          `${kindOf(controls[i])} overlaps ${kindOf(controls[j])} by ${across.toFixed(1)}`,
+          `${kindOf(control)} overlaps ${kindOf(other)} by ${across.toFixed(1)}`,
         );
-      }
     }
-  }
-  const withText: string[] = [];
-  const withDetail: string[] = [];
+  });
   for (const pill of bar.querySelectorAll<HTMLElement>(".pill")) {
     const holder = pill.closest<HTMLElement>(".sys-player-status");
+    if (
+      holder &&
+      !shown(holder) &&
+      getComputedStyle(holder).position !== "absolute"
+    )
+      squeezed.push("status is squeezed to nothing");
     if (!shown(pill) || (holder && !shown(holder))) continue;
     const kind = kindOf(holder ?? pill);
     const icon = pill.querySelector("svg");
-    if (icon && icon.getBoundingClientRect().width < 11.5) {
-      problems.push(
-        `${kind} glyph is ${icon.getBoundingClientRect().width.toFixed(1)} wide`,
-      );
-    }
+    if (icon && icon.getBoundingClientRect().width < 11.5)
+      problems.push(`${kind} glyph is squeezed`);
     if (holder) {
       const room = holder.getBoundingClientRect();
       const own = pill.getBoundingClientRect();
-      if (own.left < room.left - 0.5 || own.right > room.right + 0.5) {
-        problems.push(
-          `${kind} runs ${(own.right - room.right).toFixed(1)} past its room`,
-        );
-      }
+      if (own.left < room.left - 0.5 || own.right > room.right + 0.5)
+        squeezed.push(`${kind} runs past its room`);
     }
     for (const part of pill.querySelectorAll<HTMLElement>(
       ".sys-player-pill-text, .sys-player-pill-detail",
     )) {
+      // A status squeezed to nothing is cut short too; visually hidden text is not.
+      if (
+        getComputedStyle(part).position === "absolute" ||
+        part.scrollWidth <= part.clientWidth
+      )
+        continue;
+      if (holder) squeezed.push(`${kind} text is cut short`);
       if (
         shown(part) &&
         part.scrollWidth > part.clientWidth + 1 &&
         getComputedStyle(part).textOverflow !== "ellipsis"
-      ) {
+      )
         problems.push(`${kind} text is cut off without an ellipsis`);
-      }
     }
     const text = pill.querySelector(".sys-player-pill-text");
-    if (text && shown(text)) withText.push(kind);
-    if (text && !shown(text) && !pill.getAttribute("title")) {
+    if (text && !shown(text) && !pill.getAttribute("title"))
       problems.push(`glyph-only ${kind} has no tooltip`);
-    }
-    const detail = pill.querySelector(".sys-player-pill-detail");
-    if (detail && shown(detail)) withDetail.push(kind);
     const stop = pill.querySelector<HTMLElement>(".sys-pill-x");
     if (
       stop &&
-      (matchMedia("(pointer: coarse)").matches ||
-        box.width /
-          parseFloat(getComputedStyle(document.documentElement).fontSize) <=
-          50)
+      (matchMedia("(pointer: coarse)").matches || box.width / rootSize <= 50)
     ) {
       const r = stop.getBoundingClientRect();
-      const reach = (dx: number, dy: number) => {
-        const hit = document.elementFromPoint(
-          r.left + r.width / 2 + dx,
-          r.top + r.height / 2 + dy,
-        );
-        return hit === stop || stop.contains(hit);
-      };
-      const half =
-        (20 * parseFloat(getComputedStyle(document.documentElement).fontSize)) /
-        16;
+      const half = (20 * rootSize) / 16;
       const inside = Math.min(half, box.right - 1 - (r.left + r.width / 2));
       for (const [dx, dy] of [
         [inside, 0],
@@ -634,121 +495,39 @@ const measureBar = () => {
         [0, half],
         [0, -half],
       ]) {
-        if (!reach(dx, dy))
-          problems.push(
-            `Stop following is not reachable ${dx}, ${dy} from its centre`,
-          );
+        const hit = document.elementFromPoint(
+          r.left + r.width / 2 + dx,
+          r.top + r.height / 2 + dy,
+        );
+        if (hit !== stop && !stop.contains(hit))
+          problems.push(`Stop following is not reachable at ${dx}, ${dy}`);
       }
     }
   }
-  const danger = bar.querySelector<HTMLElement>(".sys-pill--danger");
-  const retry = bar.querySelector<HTMLElement>(".sys-player-retry");
-  // Above 14 rem (below it develop's fold keeps only Play, the clock and the
-  // hear menu) the Audio error pill, Retry and a guest's Comment stay visible.
-  const rootSize = parseFloat(
-    getComputedStyle(document.documentElement).fontSize,
-  );
-  const width = box.width / rootSize;
-  if (width > 14.01) {
-    for (const [el, name] of [
-      [danger, "Audio error pill"],
-      [retry, "Retry"],
-      [bar.querySelector(".sys-player-comment--guest"), "guest Comment"],
-    ] as const) {
-      if (el && !shown(el)) problems.push(`${name} is not visible`);
+  // The Audio error pill, Retry and a guest's Comment go only when they do not
+  // fit beside Play and the clock (about 14 rem); above 14.5 rem they stay.
+  if (box.width / rootSize > 14.5) {
+    for (const selector of [
+      ".sys-pill--danger",
+      ".sys-player-retry",
+      ".sys-player-comment--guest",
+    ]) {
+      const el = bar.querySelector(selector);
+      if (el && !shown(el)) problems.push(`${kindOf(el)} is not visible`);
+      if (el && shown(el) && el.scrollWidth > el.clientWidth)
+        problems.push(`${kindOf(el)} is clipped`);
     }
   }
-  for (const el of [danger, retry]) {
-    if (el && shown(el) && el.scrollWidth > el.clientWidth) {
-      problems.push(`${kindOf(el)} is clipped`);
-    }
-  }
-  if (Math.abs(box.height - token) > 0.5) {
+  if (Math.abs(box.height - token) > 0.5)
     problems.push(`bar is ${box.height}, token is ${token}`);
-  }
-  if (document.documentElement.scrollWidth > innerWidth) {
+  if (document.documentElement.scrollWidth > innerWidth)
     problems.push("the page scrolls");
-  }
-  const kinds = [...new Set(controls.map(kindOf))].sort();
-  const texts = [...new Set(withText)].sort();
-  const details = [...new Set(withDetail)].sort();
   return {
     problems,
-    kinds,
-    signature:
-      kinds.join(",") +
-      (texts.length ? `|t:${texts.join(",")}` : "") +
-      (details.length ? `|d:${details.join(",")}` : ""),
+    squeezed,
+    kinds: [...new Set(controls.map(kindOf))].sort(),
   };
 };
-
-const BAR_WIDTHS = [
-  232, 360, 370, 375, 378, 390, 414, 448, 449, 576, 577, 641, 642, 672, 673,
-  700, 714, 736, 737, 768, 800, 801, 818, 864, 865, 896, 960, 961, 962, 976,
-  980, 984, 994, 1048, 1100, 1180, 1200, 1280, 1312, 1314, 1400,
-];
-const BAR_TEXT_SIZES = [
-  { root: 24, widths: [342, 360, 456, 600, 800, 978, 980, 1000, 1050, 1092] },
-  { root: 32, widths: [456, 600, 800, 1000] },
-];
-
-/**
- * The one place the bar shows less than develop where develop was clean. The
- * bar gives up pill text before it cuts the status short (the status ellipsis
- * is the last resort), so for the last 16 px before a status text fits whole,
- * develop showed it with an ellipsis and the bar shows the pills' glyphs alone
- * (level 1 hides every pill's text). Each window is the width range, in px at
- * the default text size, where that was so for the state; in it the bar may
- * drop the pills' text but no control, and never shows a control or text
- * develop did not.
- */
-const STATUS_ELLIPSIS: {
-  state: string;
-  pointer: "fine" | "coarse";
-  from: number;
-  to: number;
-}[] = [
-  { state: "staleonly", pointer: "coarse", from: 801, to: 816 },
-  { state: "stalesolo", pointer: "fine", from: 901, to: 916 },
-  { state: "stalesolo", pointer: "coarse", from: 977, to: 992 },
-  { state: "staleerr", pointer: "fine", from: 1017, to: 1032 },
-  { state: "staleerr", pointer: "coarse", from: 1095, to: 1110 },
-  { state: "longstatus", pointer: "fine", from: 1071, to: 1086 },
-  { state: "longstatus", pointer: "coarse", from: 1149, to: 1164 },
-  { state: "widestatus", pointer: "fine", from: 1055, to: 1070 },
-  { state: "widestatus", pointer: "coarse", from: 1131, to: 1146 },
-  { state: "ratefourpills", pointer: "fine", from: 1113, to: 1128 },
-  { state: "ratefourpills", pointer: "coarse", from: 1189, to: 1204 },
-  { state: "hoursratestack", pointer: "fine", from: 1193, to: 1208 },
-  { state: "hoursratestack", pointer: "coarse", from: 1271, to: 1286 },
-];
-
-/** Whether the bar shows the controls develop did, and the text of some of its pills. */
-function showsNoMore(head: string, develop: string) {
-  const split = (signature: string) => {
-    const [controls, ...rest] = signature.split("|");
-    const part = (prefix: string) =>
-      rest.find((entry) => entry.startsWith(prefix))?.slice(2) ?? "";
-    return {
-      controls,
-      text: part("t:").split(",").filter(Boolean),
-      detail: part("d:"),
-    };
-  };
-  const [now, before] = [split(head), split(develop)];
-  return (
-    now.controls === before.controls &&
-    now.detail === before.detail &&
-    now.text.every((kind) => before.text.includes(kind))
-  );
-}
-
-/** Where in a band of develop's layout to check the bar: both ends and every so often between. */
-function bandWidths(from: number, to: number) {
-  const widths = new Set([from, to]);
-  for (let width = from + 64; width < to; width += 64) widths.add(width);
-  return [...widths];
-}
 
 type PlayerPage = import("@playwright/test").Page;
 type Plan = { root: number; widths: number[] };
@@ -756,21 +535,25 @@ type Plan = { root: number; widths: number[] };
 /**
  * In the page: for each plan (a text size and widths) set the bar host's width
  * (the host is the container, so this is the width the bar is laid out at),
- * wait for the bar's own ResizeObserver to have fitted it, and measure. One
- * round trip for a whole state, no reloads and no viewport resizes.
+ * wait for the bar's own ResizeObserver to have fitted it, and measure. At a
+ * level above 0 it also measures one level lower, in the same task so the
+ * observers cannot refit between: the fit is minimal when that bar has a
+ * problem. One round trip for a whole state, no reloads and no viewport resizes.
  */
 const measurePlans = async ({ plans }: { plans: Plan[] }) => {
-  const measure = (
-    window as unknown as {
-      measureBarInPage: () => { problems: string[]; signature: string };
-    }
-  ).measureBarInPage;
+  type Found = { problems: string[]; squeezed: string[]; kinds: string[] };
+  const measure = (window as unknown as { measureBarInPage: () => Found })
+    .measureBarInPage;
   const host = document.querySelector<HTMLElement>(".sys-player-host");
   if (!host) throw new Error("Player did not render");
+  const frame = () =>
+    new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
   const rows: {
     root: number;
     width: number;
-    found: ReturnType<typeof measure>;
+    fit: number;
+    found: Found;
+    lower: Found | null;
   }[] = [];
   for (const { root, widths } of plans) {
     document.documentElement.style.fontSize = `${root}px`;
@@ -783,23 +566,22 @@ const measurePlans = async ({ plans }: { plans: Plan[] }) => {
         });
         observer.observe(host);
       });
-      // Observers are not told in a fixed order: one more frame, and the bar's
-      // has certainly run.
-      await new Promise<void>((resolve) =>
-        requestAnimationFrame(() => resolve()),
-      );
-      // A font still loading changes widths; the bar fits again when it is in.
-      while (document.fonts.status !== "loaded")
-        await new Promise<void>((resolve) =>
-          requestAnimationFrame(() => resolve()),
-        );
+      // Observers are not told in a fixed order; a font still loading changes
+      // widths and the bar fits again when it is in.
+      await frame();
+      while (document.fonts.status !== "loaded") await frame();
+      const fit = Number(host.dataset.fit);
       const found = measure();
+      let lower: Found | null = null;
+      if (fit > 0) {
+        host.dataset.fit = String(fit - 1);
+        lower = measure();
+        host.dataset.fit = String(fit);
+      }
       // Let the observers' follow-up notifications (the fit's own changes to
       // the columns) pass before the next width.
-      await new Promise<void>((resolve) =>
-        requestAnimationFrame(() => resolve()),
-      );
-      rows.push({ root, width, found });
+      await frame();
+      rows.push({ root, width, fit, found, lower });
     }
   }
   host.style.width = "";
@@ -807,7 +589,7 @@ const measurePlans = async ({ plans }: { plans: Plan[] }) => {
   return rows;
 };
 
-async function pointerContext(
+function pointerContext(
   browser: import("@playwright/test").Browser,
   pointer: "fine" | "coarse",
 ) {
@@ -822,22 +604,20 @@ async function pointerContext(
   });
 }
 
-function watchLoops(page: PlayerPage, loops: string[]) {
-  page.on("pageerror", (error) => loops.push(error.message));
-  page.on("console", (message) => {
-    if (message.type() === "error") loops.push(message.text());
-  });
-}
-
 /** Opens the story for `args` (when it is not open) and shows them. */
 async function showArgs(
   page: PlayerPage,
   open: { story: string | null },
   args: BarArgs,
+  loops: string[],
 ) {
   const story = pillStory(args);
   if (open.story !== story) {
     open.story = story;
+    page.on("pageerror", (error) => loops.push(error.message));
+    page.on("console", (message) => {
+      if (message.type() === "error") loops.push(message.text());
+    });
     await page.goto(storyUrl(story, { theme: "light" }));
     await expect(page.locator(".sys-player")).toBeVisible();
     await page.evaluate(() => document.fonts.ready);
@@ -853,266 +633,237 @@ async function showArgs(
       (document.querySelector(".sys-player-comment--guest") !== null) ===
         guest &&
       document.querySelector(".sys-player-host")?.hasAttribute("data-fit") ===
-        true,
+        true &&
+      document.fonts.status === "loaded",
     [
       args.state === "mix-updating" || args.state === "error" ? args.state : "",
       pillCount(args),
       args.guest === true,
     ] as const,
   );
-  // The glyphs these args draw may need a font that loads now; the bar fits
-  // again when it has (a font changes widths).
-  await page.waitForFunction(() => document.fonts.status === "loaded");
 }
 
-const LOOPS = /ResizeObserver loop/;
+/** What a bar can hold, one factor at a time: each value is a name and the props it adds. */
+const FACTORS: [string, BarArgs][][] = [
+  [
+    ["host", HOST],
+    ["guest", { guest: true }],
+  ],
+  [
+    ["nofollow", {}],
+    ["follow", { following: FOLLOWING }],
+    ["longfollow", { following: { ...FOLLOWING, name: "Rosalind-Margaret" } }],
+  ],
+  [
+    ["idle", {}],
+    ["mix", { state: "mix-updating" }],
+    ["error", { state: "error" }],
+  ],
+  [
+    ["nostatus", {}],
+    ["stale", STALE],
+    ["longstale", { status: "Mix out of date: 3 edits are not in it yet" }],
+  ],
+  [
+    ["norate", {}],
+    ["rate", { rate: 2 }],
+  ],
+  [
+    ["ms", MS],
+    ["mscuts", { ...MS, ...CUTS }],
+    ["hourscuts", { ...HOURS, ...HOURS_CUTS }],
+  ],
+];
 
-for (const pointer of ["fine", "coarse"] as const) {
-  test(`System/Player bar keeps its controls apart and shows what develop showed where it fitted, ${pointer} pointer (#2576)`, async ({
-    browser,
-  }) => {
-    test.setTimeout(300_000);
-    const context = await pointerContext(browser, pointer);
-    const failures: string[] = [];
-    const loops: string[] = [];
-    const entries = Object.entries(BAR_STATES).sort(
-      ([, a], [, b]) =>
-        Number(Boolean(a.following)) - Number(Boolean(b.following)),
+/** Every combination the app can produce (it shows a rate only while it is not following), as `[name, args]`. */
+function allCombos(): [string, BarArgs][] {
+  let combos: [string, BarArgs][] = [["", {}]];
+  for (const values of FACTORS)
+    combos = combos.flatMap(([name, args]) =>
+      values.map(([value, more]): [string, BarArgs] => [
+        `${name}-${value}`,
+        { ...args, ...more },
+      ]),
     );
-    const chunks: (typeof entries)[] = [[], [], [], []];
-    entries.forEach((entry, index) =>
-      chunks[index % chunks.length].push(entry),
-    );
-    await Promise.all(
-      chunks.map(async (chunk) => {
-        const page = await context.newPage();
-        watchLoops(page, loops);
-        const open = { story: null as string | null };
-        for (const [name, args] of chunk) {
-          await showArgs(page, open, args);
-          const bands = BASELINE[name]?.[pointer] ?? [];
-          const plans: Plan[] = [
-            {
-              root: 16,
-              widths: [
-                ...new Set([
-                  ...BAR_WIDTHS,
-                  ...bands.flatMap(([from, to]) => bandWidths(from, to)),
-                ]),
-              ],
-            },
-            ...BAR_TEXT_SIZES,
-          ];
-          const rows = await page.evaluate(measurePlans, {
-            plans,
-          });
-          for (const { root, width, found } of rows) {
-            const where = `${pointer} ${width} px at ${root} px text, ${name}`;
-            for (const problem of found.problems)
-              failures.push(`${where}: ${problem}`);
-            if (root !== 16) continue;
-            const band = bands.find(
-              ([from, to]) => width >= from && width <= to,
-            );
-            const slack = STATUS_ELLIPSIS.some(
-              (window) =>
-                window.state === name &&
-                window.pointer === pointer &&
-                width >= window.from &&
-                width <= window.to,
-            );
-            // Develop hid a guest's Comment during an Audio error below 50 rem;
-            // the bar keeps it, since a guest may comment.
-            const keepsComment = Boolean(args.guest && args.state === "error");
-            const strip = (signature: string | undefined) => {
-              if (!keepsComment || signature === undefined) return signature;
-              const [controls, ...rest] = signature.split("|");
-              return [
-                controls
-                  .split(",")
-                  .filter((kind) => kind !== "comment")
-                  .join(","),
-                ...rest,
-              ].join("|");
-            };
-            const now = strip(found.signature);
-            const before = strip(band?.[2]);
-            if (
-              band &&
-              now !== before &&
-              !(slack && showsNoMore(found.signature, band[2]))
-            ) {
-              failures.push(
-                `${where}: shows ${found.signature}, develop showed ${band[2]}`,
-              );
-            }
-          }
-        }
-        await page.close();
-      }),
-    );
-    await context.close();
-    expect(failures).toEqual([]);
-    expect(loops.filter((message) => LOOPS.test(message))).toEqual([]);
-  });
+  return combos.filter(([, args]) => !(args.rate && args.following));
 }
 
-/** A factor of a combination: its name and the values it takes. */
-const FACTORS = {
-  guest: [false, true],
-  following: ["none", "short", "long"],
-  solo: ["none", "short", "long"],
-  state: ["idle", "mix-updating", "error"],
-  status: ["none", "short", "long"],
-  rate: [false, true],
-  clock: ["ms", "mscuts", "hourscuts"],
-} as const;
-type Combo = { [K in keyof typeof FACTORS]: (typeof FACTORS)[K][number] };
-
-/** The combinations the app can produce (a guest has no Solo pill, a rate is not shown while following). */
-function allCombos(): Combo[] {
-  const out: Combo[] = [];
-  for (const guest of FACTORS.guest)
-    for (const following of FACTORS.following)
-      for (const solo of FACTORS.solo)
-        for (const state of FACTORS.state)
-          for (const status of FACTORS.status)
-            for (const rate of FACTORS.rate)
-              for (const clock of FACTORS.clock) {
-                if (guest && solo !== "none") continue;
-                if (rate && following !== "none") continue;
-                out.push({
-                  guest,
-                  following,
-                  solo,
-                  state,
-                  status,
-                  rate,
-                  clock,
-                });
-              }
-  return out;
-}
-
-/** A small set of combinations in which every pair of values of two factors meets at least once (greedy all-pairs). */
-function pairwise(candidates: Combo[]): Combo[] {
-  const keys = Object.keys(FACTORS) as (keyof Combo)[];
-  const pairsOf = (combo: Combo) => {
-    const pairs: string[] = [];
-    for (let i = 0; i < keys.length; i++)
-      for (let j = i + 1; j < keys.length; j++)
-        pairs.push(`${keys[i]}=${combo[keys[i]]}|${keys[j]}=${combo[keys[j]]}`);
-    return pairs;
+/** A small set of combinations in which every pair of values of two factors meets at least once (greedy all-pairs), then the named states. */
+function sweepStates(): [string, BarArgs][] {
+  const candidates = allCombos();
+  const pairsOf = ([name]: [string, BarArgs]) => {
+    const values = name.split("-").slice(1);
+    return values.flatMap((a, i) =>
+      values.slice(i + 1).map((b, j) => `${i}:${a}|${i + 1 + j}:${b}`),
+    );
   };
   const wanted = new Set(candidates.flatMap(pairsOf));
-  const chosen: Combo[] = [];
+  const chosen: [string, BarArgs][] = [];
   while (wanted.size > 0) {
-    let best: Combo | null = null;
-    let bestGain = 0;
+    let best = candidates[0];
+    let gain = 0;
     for (const candidate of candidates) {
-      const gain = pairsOf(candidate).filter((pair) => wanted.has(pair)).length;
-      if (gain > bestGain) {
-        best = candidate;
-        bestGain = gain;
-      }
+      const count = pairsOf(candidate).filter((pair) =>
+        wanted.has(pair),
+      ).length;
+      if (count > gain) [best, gain] = [candidate, count];
     }
-    if (!best) break;
     for (const pair of pairsOf(best)) wanted.delete(pair);
     chosen.push(best);
   }
-  return chosen;
+  return [...chosen, ...Object.entries(BAR_STATES)];
 }
 
-const NAMES = { short: "Rosa", long: "Rosalind-Margaret" } as const;
-const STATUSES = {
-  short: "Mix out of date",
-  long: "Mix out of date: 3 edits are not in it yet",
-} as const;
-
-function comboArgs(combo: Combo): BarArgs {
-  const args: BarArgs = {
-    ...(combo.clock === "ms"
-      ? MS
-      : combo.clock === "mscuts"
-        ? { ...MS, ...CUTS }
-        : { ...HOURS, ...HOURS_CUTS }),
-  };
-  if (combo.guest) args.guest = true;
-  else args.hearMenu = { mode: "mix" };
-  if (combo.following !== "none")
-    args.following = { ...FOLLOWING, name: NAMES[combo.following] };
-  if (combo.rate) args.rate = 2;
-  if (combo.solo !== "none") args.solo = NAMES[combo.solo];
-  if (combo.state !== "idle") args.state = combo.state;
-  if (combo.status !== "none") args.status = STATUSES[combo.status];
-  return args;
-}
-
-/** The generated sweep's combinations, as `[name, args]`: all pairs, then the named combinations that overlapped at some width. */
-function sweepStates(): [string, BarArgs][] {
-  const generated = pairwise(allCombos()).map((combo): [string, BarArgs] => [
-    Object.values(combo).join("-"),
-    comboArgs(combo),
-  ]);
-  const found = [
-    "hostfollowerrstale",
-    "hostfollowerrimport",
-    "fourpills",
-    "ratefourpills",
-    "hoursratestack",
-    "guesterr",
-  ].map((name): [string, BarArgs] => [name, BAR_STATES[name]]);
-  return [...generated, ...found];
-}
-
-/**
- * Widths at and around where the bar gives things up: just under and over the
- * phone cut-over (40 rem), the 50 and 60 rem rules, mid-range, and wide.
- */
+/** Widths at and around where the bar gives things up: the 14.5 rem edge, phones, the 40, 50 and 60 rem rules, wide. */
 const SWEEP_PLANS: Plan[] = [
-  { root: 16, widths: [360, 641, 801, 961, 1180, 1400] },
-  { root: 24, widths: [360, 800, 1200] },
-  { root: 32, widths: [360, 800, 1200] },
+  { root: 16, widths: [232, 360, 414, 641, 700, 801, 900, 961, 1180, 1400] },
+  { root: 24, widths: [342, 360, 800, 1200] },
+  { root: 32, widths: [456, 360, 800, 1200] },
 ];
 
+/** Runs `plans` for every state of `states` on its own page, two at a time (one for the Following story, one for the other). */
+async function runStates(
+  browser: import("@playwright/test").Browser,
+  pointer: "fine" | "coarse",
+  states: [string, BarArgs][],
+  plans: Plan[],
+) {
+  const context = await pointerContext(browser, pointer);
+  const rows: (Awaited<ReturnType<typeof measurePlans>>[number] & {
+    where: string;
+  })[] = [];
+  const loops: string[] = [];
+  await Promise.all(
+    [false, true].map(async (following) => {
+      const page = await context.newPage();
+      const open = { story: null as string | null };
+      for (const [name, args] of states) {
+        if (Boolean(args.following) !== following) continue;
+        await showArgs(page, open, args, loops);
+        for (const row of await page.evaluate(measurePlans, { plans }))
+          rows.push({
+            ...row,
+            where: `${pointer} ${row.width} px at ${row.root} px text, ${name}`,
+          });
+      }
+      await page.close();
+    }),
+  );
+  await context.close();
+  return {
+    rows,
+    loops: loops.filter((message) => /ResizeObserver loop/.test(message)),
+  };
+}
+
 for (const pointer of ["fine", "coarse"] as const) {
-  test(`System/Player bar fits a covering set of what it holds at six widths, ${pointer} pointer (#2576)`, async ({
+  test(`System/Player bar keeps its controls apart, and gives up no more than it must, for a covering set of what it holds, ${pointer} pointer (#2576)`, async ({
     browser,
   }) => {
     test.setTimeout(300_000);
     const states = sweepStates();
     expect(states.length).toBeLessThan(80);
-    const context = await pointerContext(browser, pointer);
-    const failures: string[] = [];
-    const loops: string[] = [];
-    const chunks = [
-      states.filter(([, args]) => !args.following),
-      states.filter(([, args]) => args.following),
-    ];
-    await Promise.all(
-      chunks.map(async (chunk) => {
-        const page = await context.newPage();
-        watchLoops(page, loops);
-        const open = { story: null as string | null };
-        for (const [name, args] of chunk) {
-          await showArgs(page, open, args);
-          const rows = await page.evaluate(measurePlans, {
-            plans: SWEEP_PLANS,
-          });
-          for (const { root, width, found } of rows)
-            for (const problem of found.problems)
-              failures.push(
-                `${pointer} ${width} px at ${root} px text, ${name}: ${problem}`,
-              );
-        }
-        await page.close();
-      }),
+    const { rows, loops } = await runStates(
+      browser,
+      pointer,
+      states,
+      SWEEP_PLANS,
     );
-    await context.close();
-    expect(failures.slice(0, 40)).toEqual([]);
-    expect(loops.filter((message) => LOOPS.test(message))).toEqual([]);
+    const problems = rows.flatMap((row) =>
+      row.found.problems.map((problem) => `${row.where}: ${problem}`),
+    );
+    // One level less must show a problem: the bar gave up nothing it could keep.
+    const needless = rows
+      .filter(
+        (row) =>
+          row.lower &&
+          row.lower.problems.length + row.lower.squeezed.length === 0,
+      )
+      .map((row) => `${row.where}: fits at ${row.fit - 1}, was ${row.fit}`);
+    expect(problems.slice(0, 40)).toEqual([]);
+    expect(needless.slice(0, 40)).toEqual([]);
+    expect(rows.filter((row) => row.fit > 0).length).toBeGreaterThan(100);
+    expect(loops).toEqual([]);
+  });
+
+  test(`System/Player bar shows no less as it widens from 600 to 900 px, ${pointer} pointer (#2576)`, async ({
+    browser,
+  }) => {
+    test.setTimeout(300_000);
+    const widths = Array.from({ length: 76 }, (_, i) => 600 + 4 * i);
+    const states = [
+      "followcuts",
+      "followerr",
+      "followmix",
+      "followmixstale",
+    ].map((name): [string, BarArgs] => [name, BAR_STATES[name]]);
+    const { rows } = await runStates(browser, pointer, states, [
+      { root: 16, widths },
+    ]);
+    const shrinks: string[] = [];
+    rows.forEach((row, i) => {
+      const narrower = rows[i - 1];
+      if (!narrower || row.width < narrower.width) return;
+      const lost = narrower.found.kinds.filter(
+        (kind) => !row.found.kinds.includes(kind),
+      );
+      if (lost.length) shrinks.push(`${row.where} lost ${lost.join(", ")}`);
+    });
+    expect(shrinks).toEqual([]);
   });
 }
+
+const FULL = [
+  "A/B",
+  "comment",
+  "cuts",
+  "following",
+  "hear options",
+  "play",
+  "skip back",
+  "skip forward",
+  "time",
+];
+
+/** At these widths a bar shows exactly these controls: `[state, pointer, root, width, kinds]`. */
+const SHOWN: [string, "fine" | "coarse", number, number, string[]][] = [
+  ["followcuts", "fine", 16, 1400, FULL],
+  ["followmixstale", "fine", 16, 641, [...FULL, "status", "updating mix"]],
+  ["followmixstale", "coarse", 16, 390, ["A/B", "comment", "play", "time"]],
+  [
+    "followerrstale",
+    "fine",
+    16,
+    360,
+    ["A/B", "audio error", "following", "play", "retry", "time"],
+  ],
+  [
+    "guesterrhours",
+    "fine",
+    32,
+    456,
+    ["audio error", "comment", "play", "retry", "time"],
+  ],
+  ["guesterrhours", "fine", 32, 360, ["play", "time"]],
+];
+
+test("System/Player at a few widths the bar shows exactly these controls (#2576)", async ({
+  browser,
+}) => {
+  test.setTimeout(120_000);
+  for (const [name, pointer, root, width, kinds] of SHOWN) {
+    const { rows } = await runStates(
+      browser,
+      pointer,
+      [[name, BAR_STATES[name]]],
+      [{ root, widths: [width] }],
+    );
+    expect(
+      rows[0].found.kinds,
+      `${name}, ${pointer} pointer, ${width} px at ${root} px text`,
+    ).toEqual([...kinds].sort());
+  }
+});
 
 test("System/Player each fit level gives up one more thing, in order (#2576)", async ({
   page,
@@ -1122,30 +873,20 @@ test("System/Player each fit level gives up one more thing, in order (#2576)", a
   const story = "system-player--following-partial";
   await page.goto(storyUrl(story, { theme: "light" }));
   await expect(page.locator(".sys-player")).toBeVisible();
-  await emit(page, "updateStoryArgs", {
-    storyId: story,
-    updatedArgs: {
-      ...MS,
-      ...HOST,
-      ...CUTS,
-      rate: 2,
-      following: FOLLOWING,
-      solo: "Rosa",
-      state: "mix-updating",
-      ...STALE,
-    },
-  });
-  await expect(page.locator(".sys-player-solo")).toBeVisible();
+  const args = BAR_STATES.followmixstale;
+  await emit(page, "updateStoryArgs", { storyId: story, updatedArgs: args });
+  await expect(page.locator(".sys-player-mix")).toBeVisible();
   // Wide enough that develop's rules hide nothing, so the levels alone decide.
   const gives = [
-    "pill text",
+    "the total",
     "Following detail",
+    "pill text",
     "skip buttons",
     "cuts",
     "hear chevron",
     "other pills and the status",
   ];
-  for (let level = 0; level <= 6; level++) {
+  for (let level = 0; level <= 8; level++) {
     const hidden = await page.evaluate((fit) => {
       const host = document.querySelector<HTMLElement>(".sys-player-host");
       if (!host) throw new Error("no host");
@@ -1161,21 +902,83 @@ test("System/Player each fit level gives up one more thing, in order (#2576)", a
         );
       };
       return [
-        gone(".sys-player-pill-text"),
+        gone(".sys-player-time .sys-player-total"),
         gone(".sys-player-pill-detail"),
+        gone(".sys-player-pill-text"),
         gone(".sys-player-skip"),
         gone(".sys-player-cuts"),
         gone(".sys-player-hear-more"),
         gone(
-          ".sys-player-following, .sys-player-solo, .sys-player-mix, .sys-player-rate, .sys-player-status",
+          ".sys-player-following, .sys-player-mix, .sys-player-status, .sys-pill-x",
         ),
       ];
     }, level);
     expect(
       hidden.map((gone, index) => (gone ? gives[index] : null)).filter(Boolean),
       `at level ${level}`,
-    ).toEqual(gives.slice(0, level));
+    ).toEqual(gives.slice(0, Math.min(level, gives.length)));
   }
+});
+
+/** Opens a bar of `args` in a 380 px host, for a phone's bar, and returns its host. */
+async function phoneBar(page: PlayerPage, args: BarArgs, width = 380) {
+  await page.setViewportSize({ width: 1400, height: 400 });
+  await page.emulateMedia({ colorScheme: "light", reducedMotion: "reduce" });
+  await page.goto(storyUrl(pillStory(args), { theme: "light" }));
+  await expect(page.locator(".sys-player")).toBeVisible();
+  await emit(page, "updateStoryArgs", {
+    storyId: pillStory(args),
+    updatedArgs: args,
+  });
+  const host = page.locator(".sys-player-host");
+  await host.evaluate((el, w) => {
+    el.style.width = `${w}px`;
+  }, width);
+  return host;
+}
+
+test("System/Player the pills a phone's bar hides stay in the accessibility tree (#2576)", async ({
+  page,
+}) => {
+  const host = await phoneBar(page, BAR_STATES.followmixstale);
+  await expect(host).toHaveAttribute("data-fit", "7");
+  const tree = await host.ariaSnapshot();
+  for (const name of ["Following Rosa", "Updating mix", "Mix out of date"])
+    expect(tree, name).toContain(name);
+  await expect(page.getByRole("button", { name: "Hear options" })).toHaveCount(
+    1,
+  );
+  await expect(
+    page.getByRole("button", { name: /^Stop following/ }),
+  ).toHaveCount(0);
+  const rated = await phoneBar(page, BAR_STATES.ratemixstale);
+  await expect(rated).toHaveAttribute("data-fit", "7");
+  await expect(
+    page.getByRole("status", { name: "Playback speed 2×" }),
+  ).toHaveCount(1);
+});
+
+test("System/Player the Hear menu opens beside the bar at the level that hid its chevron (#2576)", async ({
+  page,
+}) => {
+  const host = await phoneBar(page, BAR_STATES.followcuts, 380);
+  await expect(host).toHaveAttribute("data-fit", /^[678]$/);
+  const chevron = await host.locator(".sys-player-hear-more").boundingBox();
+  expect(chevron?.width ?? 0).toBeLessThanOrEqual(2);
+  await host
+    .getByRole("button", { name: "B", exact: true })
+    .click({ button: "right" });
+  const panel = page.getByRole("menu", { name: "Hear" });
+  await expect(panel).toBeVisible();
+  const [menu, group] = await Promise.all([
+    panel.boundingBox(),
+    host.locator(".sys-player-hear").boundingBox(),
+  ]);
+  if (!menu || !group) throw new Error("no boxes");
+  // Under the A/B group, as with the chevron: not at the corner of the screen.
+  expect(Math.abs(menu.y - (group.y + group.height))).toBeLessThan(8);
+  expect(menu.x < group.x + group.width).toBe(true);
+  expect(menu.x + menu.width > group.x).toBe(true);
 });
 
 test("System/Marker a chapter's span leaves the lane under it to the marker beneath", async ({

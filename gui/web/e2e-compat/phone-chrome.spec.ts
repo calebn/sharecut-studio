@@ -15,11 +15,11 @@ import type { PendingEditView } from "../src/types/project";
 
 /*
  * #1077 phone chrome on Chromium and WebKit with touch emulation: a phone
- * held sideways (932x432) keeps two whole compact lanes in view, the App
- * header carries Undo and Redo on both shells, the editor page never scrolls
- * under the fixed shell, a 360 px phone keeps the range toggle, Zoom, Undo and
- * Redo whole, Keep decides a queue item at a thumb-sized target, and an iPad in
- * landscape keeps Select range and the add-track button.
+ * held sideways (932x432) keeps at least two whole compact lanes in view,
+ * the App header carries Undo and Redo on both shells, the editor page never
+ * scrolls under the fixed shell, a 360 px phone keeps the range toggle, Zoom,
+ * Undo and Redo whole, Keep decides a queue item at a thumb-sized target, and
+ * an iPad in landscape keeps Select range and the add-track button.
  */
 
 test.use({ hasTouch: true, isMobile: true });
@@ -62,7 +62,7 @@ async function visibleLanes(page: Page) {
   });
 }
 
-test("a phone held sideways keeps two whole compact lanes and Undo in reach", async ({
+test("a phone held sideways keeps at least two whole compact lanes and Undo in reach", async ({
   page,
 }) => {
   await page.setViewportSize(LANDSCAPE);
