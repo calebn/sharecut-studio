@@ -846,7 +846,6 @@ async function submitThroughQueue(
     }
     // A host's live approval blocked by the transcript-refine gate is answered where they
     // tapped it (the Waive form), so it is not a Needs attention item too.
-    // A guest's live edit held by a placement check is told in words where they tapped it.
     const answeredInline =
       !opts.replaying &&
       (failure.code === CUT_SCOPE_CHANGED_CODE

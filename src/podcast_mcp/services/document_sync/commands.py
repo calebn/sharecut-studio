@@ -131,11 +131,7 @@ class DocumentCommand:
 
 @dataclass(frozen=True)
 class TrustedCommandContext:
-    """Origin facts that only a server-side command adapter may establish.
-
-    The host route stamps it for the host's own viewer role. The browser guest route stamps it
-    for an Editor share only.
-    """
+    """Origin facts that only a server-side command adapter may establish."""
 
     boundary_intent: CutIntent = CutIntent.PROGRAMMATIC
 
