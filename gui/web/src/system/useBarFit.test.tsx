@@ -1,8 +1,16 @@
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { render } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { FakeResizeObserver, stubResizeObserver } from "../test/resizeObserver";
+import { SRC_ROOT } from "../test/sourceFiles";
 import { Player, type PlayerProps } from "./Player";
 import { findFitLevel, MAX_FIT_LEVEL } from "./useBarFit";
+
+const playerCss = readFileSync(
+  join(SRC_ROOT, "styles/partials/system.css"),
+  "utf8",
+);
 
 const base: PlayerProps = {
   form: "bar",
@@ -12,6 +20,12 @@ const base: PlayerProps = {
   onPlayPause: () => undefined,
   hearMenu: { mode: "mix", onMode: () => undefined },
 };
+
+const follow = (name: string) => ({
+  name,
+  colorIndex: 1,
+  detail: "in Pipeline",
+});
 
 describe("findFitLevel", () => {
   it("is the lowest level at which the bar fits", () => {
@@ -84,6 +98,9 @@ describe("useBarFit", () => {
     vi.restoreAllMocks();
     vi.unstubAllGlobals();
     vi.useRealTimers();
+    Reflect.deleteProperty(document, "fonts");
+    document.documentElement.style.fontSize = "";
+    document.documentElement.removeAttribute("data-unrelated");
   });
 
   const fit = (container: HTMLElement) =>
@@ -102,7 +119,7 @@ describe("useBarFit", () => {
     const { container, rerender } = render(<Player {...base} />);
     expect(fit(container)).toBe("2");
     lowest = 0;
-    rerender(<Player {...base} solo="Rosa" />);
+    rerender(<Player {...base} following={follow("Rosa")} />);
     expect(fit(container)).toBe("0");
   });
 
@@ -134,11 +151,11 @@ describe("useBarFit", () => {
   it("fits once more when a pill appears or a name changes", () => {
     const { rerender } = render(<Player {...base} />);
     const before = passes;
-    rerender(<Player {...base} solo="Rosa" />);
+    rerender(<Player {...base} following={follow("Rosa")} />);
     expect(passes - before).toBe(1);
-    rerender(<Player {...base} solo="Rosalind" />);
+    rerender(<Player {...base} following={follow("Rosalind")} />);
     expect(passes - before).toBe(2);
-    rerender(<Player {...base} solo="Rosalind" />);
+    rerender(<Player {...base} following={follow("Rosalind")} />);
     expect(passes - before).toBe(2);
   });
 
@@ -161,7 +178,9 @@ describe("useBarFit", () => {
   });
 
   it("observes the bar, its three columns and what is in them", () => {
-    const { container } = render(<Player {...base} cuts="-4:10" solo="Rosa" />);
+    const { container } = render(
+      <Player {...base} cuts="-4:10" status="Mix out of date" />,
+    );
     const host = container.querySelector<HTMLElement>(".sys-player-host");
     if (!host) throw new Error("no host");
     const watched = new Set(FakeResizeObserver.of(host).targets);
@@ -207,7 +226,65 @@ describe("useBarFit", () => {
     lowest = 4;
     document.documentElement.style.fontSize = "24px";
     await vi.waitFor(() => expect(fit(container)).toBe("4"));
-    document.documentElement.style.fontSize = "";
+  });
+
+  it("measures nothing when an attribute of <html> that no rule reads is written", async () => {
+    render(<Player {...base} />);
+    const before = passes;
+    document.documentElement.setAttribute("data-unrelated", "1");
+    document.documentElement.setAttribute("data-unrelated", "2");
+    // A write that does matter, with the sizes unchanged, is read and not searched.
+    document.documentElement.style.userSelect = "none";
+    await new Promise<void>((resolve) => queueMicrotask(resolve));
+    await new Promise<void>((resolve) => setTimeout(resolve, 0));
+    expect(passes).toBe(before);
+    document.documentElement.style.userSelect = "";
+  });
+
+  it("gives up the 40 rem layout (level 1), then the Following detail (level 2), then the pills' text (level 3)", () => {
+    const style = document.createElement("style");
+    // jsdom reads the fit's own rules; the container queries around them it cannot.
+    style.textContent = playerCss.slice(
+      playerCss.indexOf("/* The bar (not the Listen dock"),
+      playerCss.indexOf("/* A 360 px phone is short of room"),
+    );
+    document.head.append(style);
+    try {
+      const { container } = render(
+        <Player
+          {...base}
+          following={{ name: "Rosa", colorIndex: 1, detail: "in Pipeline" }}
+          onUnfollow={() => undefined}
+        />,
+      );
+      const host = container.querySelector<HTMLElement>(".sys-player-host");
+      if (!host) throw new Error("no host");
+      const total = host.querySelector(".sys-player-time .sys-player-total");
+      const detail = host.querySelector(".sys-player-pill-detail");
+      const text = host.querySelector(
+        ".sys-player-following .sys-player-pill-text",
+      );
+      const bar = host.querySelector(".sys-player");
+      if (!total || !detail || !text || !bar) throw new Error("no parts");
+      const seen = (level: number) => {
+        host.dataset.fit = String(level);
+        return {
+          total: getComputedStyle(total).display !== "none",
+          compact:
+            getComputedStyle(bar).gridTemplateColumns === "auto 1fr auto",
+          detail: getComputedStyle(detail).display !== "none",
+          text: getComputedStyle(text).position !== "absolute",
+        };
+      };
+      expect([0, 1, 2, 3].map(seen)).toEqual([
+        { total: true, compact: false, detail: true, text: true },
+        { total: false, compact: true, detail: true, text: true },
+        { total: false, compact: true, detail: false, text: true },
+        { total: false, compact: true, detail: false, text: false },
+      ]);
+    } finally {
+      style.remove();
+    }
   });
 
   it("fits again when the fonts finish loading", async () => {
@@ -234,7 +311,6 @@ describe("useBarFit", () => {
     lowest = 5;
     listeners.loadingdone?.();
     expect(fit(container)).toBe("5");
-    Reflect.deleteProperty(document, "fonts");
   });
 
   it("stays at level 0 where nothing has a layout", () => {
