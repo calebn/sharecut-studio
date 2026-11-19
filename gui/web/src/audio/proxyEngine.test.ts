@@ -1387,6 +1387,90 @@ describe("playing a timeline longer than the first window", () => {
       engine.dispose();
     });
 
+    const STEP_SEC = 0.25;
+
+    /** Plays at `rate` with the flaky chunk always failing, stepping the audio clock finely enough to see each attempt. */
+    async function playWithDeadChunk(rate: number, untilTimelineSec: number) {
+      vi.useFakeTimers();
+      const handle = makeCtx();
+      const attempts: Array<{ timelineSec: number }> = [];
+      const requested: number[] = [];
+      let engine: ProxyEngine | null = null;
+      const fetchChunk = vi.fn(async (ref: ImmutableChunkRef) => {
+        if (ref.index === FLAKY_CHUNK_INDEX) {
+          attempts.push({ timelineSec: engine?.currentTimeSec() ?? 0 });
+          throw new TypeError("Failed to fetch");
+        }
+        requested.push(ref.index);
+        return new ArrayBuffer(64);
+      });
+      let failedAtTimelineSec: number | null = null;
+      const failure = vi.fn(() => {
+        failedAtTimelineSec = engine?.currentTimeSec() ?? null;
+      });
+      engine = new ProxyEngine(
+        handle.ctx,
+        fetchChunk,
+        engineEvents({ onFailure: failure }),
+      );
+      engine.setSnapshot(episode(400));
+      engine.setPlaybackRate(rate);
+      engine.play(0);
+      await flush();
+      for (
+        let ctxSec = STEP_SEC;
+        engine.currentTimeSec() < untilTimelineSec &&
+        failedAtTimelineSec === null;
+        ctxSec += STEP_SEC
+      ) {
+        await vi.advanceTimersByTimeAsync(STEP_SEC * 1000);
+        await advanceTo(handle, ctxSec);
+      }
+      return { engine, attempts, requested, failedAtTimelineSec };
+    }
+
+    function gapsOf(attempts: Array<{ timelineSec: number }>): number[] {
+      return attempts
+        .slice(1)
+        .map((a, i) => a.timelineSec - attempts[i].timelineSec);
+    }
+
+    it("retries after 1 s, 2 s, then every 4 s while plenty of sound is left", async () => {
+      const { engine, attempts, failedAtTimelineSec } = await playWithDeadChunk(
+        1,
+        FIRST_WINDOW_END_SEC - 2 * RETRY_GIVE_UP_SEC,
+      );
+      expect(failedAtTimelineSec).toBeNull();
+      expect(gapsOf(attempts).slice(0, 4)).toEqual([1, 2, 4, 4]);
+      engine.dispose();
+    });
+
+    it.each([0.5, 2])(
+      "scales the backoff and the give-up point with the playback rate (%s x)",
+      async (rate) => {
+        const { engine, attempts, failedAtTimelineSec } =
+          await playWithDeadChunk(rate, FIRST_WINDOW_END_SEC);
+        const gaps = gapsOf(attempts);
+        expect(gaps.slice(0, 4)).toEqual([1, 2, 4, 4].map((s) => s * rate));
+        expect(failedAtTimelineSec).toBe(
+          FIRST_WINDOW_END_SEC - RETRY_GIVE_UP_SEC * rate,
+        );
+        engine.dispose();
+      },
+    );
+
+    it("asks a retry for the same chunks as the first attempt", async () => {
+      const { engine, attempts, requested } = await playWithDeadChunk(
+        1,
+        FIRST_WINDOW_END_SEC - 2 * RETRY_GIVE_UP_SEC,
+      );
+      expect(attempts.length).toBeGreaterThan(2);
+      // The first attempt's batch is chunks 0-3; a retry must neither widen it
+      // nor shrink it so far that a chunk already fetched is asked for again.
+      expect([...requested].sort()).toEqual([0, 1, 3]);
+      engine.dispose();
+    });
+
     it("reports a chunk that fails to decode at once, without retrying", async () => {
       vi.useFakeTimers();
       const handle = makeCtx();
