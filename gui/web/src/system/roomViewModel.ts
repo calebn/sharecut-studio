@@ -162,10 +162,19 @@ export function tileProps(entry: RoomPerson): RoomTileProps {
 
 /**
  * Host-offline is the guest's alert: the host has left, or their connection
- * dropped while they are on air. Only a guest's view shows it; a producer's
- * room has no recording of its own to fall back on.
+ * dropped while they are on air. Only a guest's view shows it, and only while a
+ * take is live, paused or reconnecting: outside a take nothing is being
+ * recorded here, and the host's tile already reads Left. A producer's room has
+ * no recording of its own to fall back on.
  */
-function hostOffline(people: RoomPerson[]): RoomAlertInput[] {
+function hostOffline(people: RoomPerson[], phase: RoomPhase): RoomAlertInput[] {
+  if (
+    phase.kind !== "live" &&
+    phase.kind !== "paused" &&
+    phase.kind !== "reconnecting"
+  ) {
+    return [];
+  }
   const host = people.find((person) => person.role === "host");
   if (!host) return [];
   const dropped =
@@ -327,7 +336,7 @@ export function roomViewModel(input: RoomViewInput): RoomViewModel {
       : null;
   const columns = gridColumns(viewerWidth, tiles.length);
 
-  const derived = role === "guest" ? hostOffline(people) : [];
+  const derived = role === "guest" ? hostOffline(people, phase) : [];
   return {
     tiles,
     columns,

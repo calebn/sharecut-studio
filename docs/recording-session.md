@@ -75,7 +75,7 @@ download; it is at most a lossy backup. Keepers must target WAV/PCM.
 - Riverside is always-on cloud. ShareCut beta needs the **host laptop online**.
   Mitigation: keep recording locally + resume chunked upload; guest copy
   "{Host} dropped. You're still recording on this device." when the host leaves
-  while the guest is connected, and "Lost connection to the room. You're still
+  while the guest is connected and a take is live, paused or reconnecting, and "Lost connection to the room. You're still
   recording on this device." when the guest's own page loses its connection while
   they are in the take.
 - Video-first creators expect cameras on day one. **Audio-first MVP**; external
@@ -1356,7 +1356,9 @@ slot: "Your mic stopped." (**Reconnect mic**), "No sound is reaching the recorde
 (**Finish saving**), "Lost connection to the room. You're still recording on this
 device." (this page's connection dropped mid-take; nothing is raised while paused, and a
 producer gets none), "{Host} dropped. You're still recording on this device." (the host
-left or dropped while this page is connected), "You can't hear the room. Recording is
+left or dropped while this page is connected and a take is live, paused or reconnecting;
+in the lobby or after Stop nothing is being recorded here and the host's tile already
+reads Left, so no alert is raised), "You can't hear the room. Recording is
 fine." (**Retry**), "You're clipping. Move back a little." (after the third clip in 30 s)
 and "You're muted." (after 10 s of speech while muted). Hidden screen-reader lines
 announce "Recording in full quality on this device.", "Hearing the room.", joins, leaves
@@ -1538,7 +1540,7 @@ stateDiagram-v2
 | Paused | Status pill `Paused · m:ss` |
 | Host reconnect pause | "Paused: the host was offline for {N}s. Resume when everyone is ready." (host DAW only; guests keep the Paused pill) |
 | Room connection lost | Alert "Lost connection to the room. You're still recording on this device." and the pill `m:ss · Reconnecting…` (this page's own connection; none while paused) |
-| Host offline | Alert "{Host} dropped. You're still recording on this device." (the host left or dropped while this page is connected) |
+| Host offline | Alert "{Host} dropped. You're still recording on this device." (the host left or dropped while this page is connected and a take is live, paused or reconnecting; no alert in the lobby, during the countdown, while saving or once saved) |
 | Saving (own status) | "Saving to project… {n} of {total} chunks. Keep this tab open." Several segments add one line each: "Take 1 segment 2: Saving to project… 1 of 2 chunks". |
 | Saved, not landed | "Saved to project. This device keeps its copy until the host lands it on the timeline." |
 | Saved and landed | "Saved to project and on the timeline. This device's copy clears automatically." (only after ACK **and** confirmed landing) |
@@ -1646,7 +1648,7 @@ cannot. Every button runs the same `record.*` command as the palette.
 Guest keeps recording locally **when the segment is still open** (tunnel/host
 offline, mic held); monitor tracks end; closed segments retry upload (the
 open segment waits until it closes); rejoin the same
-token. Copy: the "{Host} dropped." or "Lost connection to the room." alert, per the copy
+token. Copy: the "{Host} dropped." (while a take runs) or "Lost connection to the room." alert, per the copy
 table above. Intentional leave /
 lost mic uses **segments** ([Roster changes](#roster-changes-join-leave-rejoin-pause-takes)).
 Producers simply lose audio and reconnect.

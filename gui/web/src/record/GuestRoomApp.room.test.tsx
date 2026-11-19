@@ -481,6 +481,21 @@ describe("GuestRoomApp in the room", () => {
     expect(screen.queryByText(/Lost connection to the room/)).toBeNull();
   });
 
+  it.each([
+    ["in the lobby", { state: "lobby" as const }],
+    ["after Stop", { state: "stopped" as const, take_index: 0 }],
+  ])("says nothing about the host dropping %s", (_name, snapshot) => {
+    fakeRoom({
+      snapshot: {
+        ...snapshot,
+        participants: [{ ...host, connected: false }, me],
+      },
+    });
+    render(<GuestRoomApp token="t" />);
+    expect(screen.queryByText(/dropped/)).toBeNull();
+    expect(screen.queryByText(/still recording on this device/)).toBeNull();
+  });
+
   it("reads Reconnecting… on the guest's own tile when the socket drops while waiting", () => {
     fakeRoom({ snapshot: { state: "lobby" } });
     (current.room as { connected: boolean }).connected = false;
