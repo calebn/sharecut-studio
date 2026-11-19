@@ -526,7 +526,23 @@ const measureBar = () => {
   const more = bar.querySelector(".sys-player-hear-more");
   if (hear && !(ab && shown(ab))) {
     if (!more || !shown(more)) problems.push("the hear menu has no trigger");
-    else if (matchMedia("(pointer: coarse)").matches) {
+    else {
+      const r = more.getBoundingClientRect();
+      const hit = document.elementFromPoint(
+        r.left + r.width / 2,
+        r.top + r.height / 2,
+      );
+      if (hit !== more && !more.contains(hit))
+        problems.push("hear options is not what a tap at its centre reaches");
+      if (
+        r.left + r.width / 2 < box.left ||
+        r.left + r.width / 2 > box.right ||
+        r.top + r.height / 2 < box.top ||
+        r.top + r.height / 2 > box.bottom
+      )
+        problems.push("hear options has its centre outside the bar");
+    }
+    if (more && shown(more) && matchMedia("(pointer: coarse)").matches) {
       const r = more.getBoundingClientRect();
       const touch = (44 * rootSize) / 16;
       if (r.width < touch - 0.5 || r.height < touch - 0.5)
@@ -873,32 +889,53 @@ for (const pointer of ["fine", "coarse"] as const) {
     test.setTimeout(120_000);
     const context = await pointerContext(browser, pointer);
     const page = await context.newPage();
-    await showArgs(page, { story: null }, BAR_STATES.followerrstale, []);
-    const rows = await page.evaluate(measureLevels, {
-      plans: [
-        { root: 16, widths: [224, 300, 352, 360, 390, 420] },
-        { root: 24, widths: [344, 360, 420, 528, 540] },
-        { root: 32, widths: [344, 360, 456, 704, 720] },
-      ],
-    });
+    const plans = [
+      { root: 16, widths: [224, 300, 352, 360, 390, 420] },
+      { root: 24, widths: [344, 360, 420, 528, 540] },
+      { root: 32, widths: [344, 360, 456, 704, 720] },
+    ];
+    const rows: (Awaited<ReturnType<typeof measureLevels>>[number] & {
+      name: string;
+    })[] = [];
+    const open = { story: null as string | null };
+    const names = [
+      "followerrstale",
+      "followmixstale",
+      "ratemixstale",
+      "followcuts",
+    ];
+    for (const name of names) {
+      await showArgs(page, open, BAR_STATES[name], []);
+      for (const row of await page.evaluate(measureLevels, { plans }))
+        rows.push({ ...row, name });
+    }
     await context.close();
     const missing = rows
       .flatMap((row) =>
         row.found.problems
           .filter((problem) =>
-            /^(the hear menu has no trigger|hear options is )/.test(problem),
+            /^(the hear menu has no trigger|hear options (is|has) )/.test(
+              problem,
+            ),
           )
           .map(
             (problem) =>
-              `level ${row.level} at ${row.width} px, ${row.root} px text: ${problem}`,
+              `${row.name}, level ${row.level} at ${row.width} px, ${row.root} px text: ${problem}`,
           ),
       )
       .slice(0, 20);
     expect(missing).toEqual([]);
-    const without = rows.filter((row) => !row.found.kinds.includes("A/B"));
-    expect(new Set(without.map((row) => row.level))).toEqual(
-      new Set([0, 1, 2, 3, 4, 5, 6, 7, 8]),
-    );
+    for (const name of names)
+      expect(
+        new Set(
+          rows
+            .filter(
+              (row) => row.name === name && !row.found.kinds.includes("A/B"),
+            )
+            .map((row) => row.level),
+        ),
+        name,
+      ).toEqual(new Set([0, 1, 2, 3, 4, 5, 6, 7, 8]));
   });
 }
 
@@ -1055,6 +1092,85 @@ test("System/Player the pills a phone's bar hides stay in the accessibility tree
   await expect(
     page.getByRole("status", { name: "Playback speed 2×" }),
   ).toHaveCount(1);
+});
+
+test("System/Player under 22 rem at 150% text the pills, the cuts and the rate stay in the accessibility tree, and the controls whose home is the expanded Player do not (#2576)", async ({
+  page,
+}) => {
+  const host = await phoneBar(page, {
+    ...BAR_STATES.followmixstale,
+    rate: 2,
+  });
+  // A tall frame: a short one (the 400 px phoneBar sets) hides them whole, as develop did.
+  await page.setViewportSize({ width: 1400, height: 900 });
+  await expect(page.locator("html")).not.toHaveAttribute("data-frame-short");
+  await page.evaluate(() => {
+    document.documentElement.style.fontSize = "24px";
+  });
+  await host.evaluate((el) => {
+    el.style.width = "360px";
+  });
+  await expect
+    .poll(() => host.evaluate((el) => el.getBoundingClientRect().width))
+    .toBe(360);
+  await expect(host.locator(".sys-player-mix")).toHaveCount(1);
+  await expect(host.locator(".sys-player-rate")).toHaveCount(1);
+  const tree = await host.ariaSnapshot();
+  for (const name of [
+    "Following Rosa",
+    "Updating mix",
+    "Mix out of date",
+    "Playback speed 2×",
+    "−4:10",
+  ])
+    expect(tree, name).toContain(name);
+  const gone = await host.evaluate((el) =>
+    [".sys-player-ab", ".sys-player-comment", ".sys-pill-x"].map((selector) => {
+      const found = el.querySelector(selector);
+      return found ? getComputedStyle(found).display : "absent";
+    }),
+  );
+  expect(gone).toEqual(["none", "none", "none"]);
+  await open(page, "system-player--expanded", 360);
+  await expect(page.getByRole("button", { name: "Comment" })).toBeVisible();
+});
+
+test("System/Player at the fold a guest's Audio error pill keeps its name and Retry is removed (#2576)", async ({
+  page,
+}) => {
+  const host = await phoneBar(page, BAR_STATES.guesterr);
+  await page.setViewportSize({ width: 1400, height: 900 });
+  await expect(page.locator("html")).not.toHaveAttribute("data-frame-short");
+  await page.evaluate(() => {
+    document.documentElement.style.fontSize = "32px";
+  });
+  await host.evaluate((el) => {
+    el.style.width = "360px";
+  });
+  await expect(host).toHaveAttribute("data-fit", "8");
+  expect(await host.ariaSnapshot()).toContain("Audio error");
+  await expect(host.getByRole("button", { name: "Retry" })).toHaveCount(0);
+  await expect(host.locator(".sys-player-retry")).toBeHidden();
+});
+
+test("System/Player a folded frame draws the hear chevron at level 6 above 22 rem, where an open one hides it (#2576)", async ({
+  page,
+}) => {
+  const host = await phoneBar(page, BAR_STATES.followcuts);
+  const widths = await host.evaluate((el) => {
+    const more = el.querySelector<HTMLElement>(".sys-player-hear-more");
+    if (!more) throw new Error("no chevron");
+    const html = document.documentElement;
+    el.style.width = "400px";
+    el.dataset.fit = "6";
+    const open = more.getBoundingClientRect().width;
+    html.dataset.frameShort = "";
+    const folded = more.getBoundingClientRect().width;
+    delete html.dataset.frameShort;
+    return { open, folded };
+  });
+  expect(widths.open).toBeLessThanOrEqual(2);
+  expect(widths.folded).toBeGreaterThan(20);
 });
 
 test("System/Player levels 4 and 5 keep a home for what they hide: the cuts keep their name and tooltip, the skips are in the expanded Player (#2576)", async ({
