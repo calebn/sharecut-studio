@@ -170,7 +170,7 @@ export const COMMANDS: Record<string, CommandDef> = {
     category: "view",
     label: "Show or hide Script",
     keywords: ["transcript", "text", "pane"],
-    when: "hasProject",
+    when: "timelineSurface",
     notes: "T: the Script pane beside the timeline in Edit",
   },
   "view.scriptFocus": {
@@ -178,7 +178,7 @@ export const COMMANDS: Record<string, CommandDef> = {
     category: "view",
     label: "Script focus",
     keywords: ["writer", "text only", "collapse timeline"],
-    when: "hasProject",
+    when: "timelineSurface",
     notes: "Shift+T: collapses the timeline to its strip so Script fills Edit",
   },
   "edit.history": {
@@ -314,7 +314,7 @@ export const COMMANDS: Record<string, CommandDef> = {
     category: "edit",
     label: "Mute",
     keywords: ["silence", "ignore"],
-    when: "hasProject",
+    when: "timelineSurface",
     notes:
       "M: ignore the selected words, mute the selected range or clip, else mute the targeted track",
   },
@@ -422,7 +422,7 @@ export const COMMANDS: Record<string, CommandDef> = {
     category: "edit",
     label: "Comment on range",
     shortLabel: "Comment",
-    when: "hasProject",
+    when: "canComment",
   },
   "range.bounce": {
     id: "range.bounce",
@@ -430,7 +430,7 @@ export const COMMANDS: Record<string, CommandDef> = {
     label: "Export selected range",
     shortLabel: "Export",
     keywords: ["render", "mixdown", "bounce"],
-    when: "hasProject",
+    when: "hostProjectLoaded",
   },
   "range.arm": {
     id: "range.arm",
@@ -476,7 +476,7 @@ export const COMMANDS: Record<string, CommandDef> = {
     category: "edit",
     label: "Toggle track mute",
     keywords: ["silence"],
-    when: "hasProject",
+    when: "timelineSurface",
     notes:
       "Mute (edit.mute) on a track: saved mix mute (SetTrackMute) for the host and editors; listen-only mute for other guests (Args: { trackId? })",
   },
@@ -496,7 +496,7 @@ export const COMMANDS: Record<string, CommandDef> = {
     category: "edit",
     label: "Toggle track solo",
     keywords: ["isolate"],
-    when: "hasProject",
+    when: "timelineSurface",
     notes:
       "Shift+S: listen-only solo for the selected track, never saved in the mix (Args: { trackId? })",
   },
@@ -504,7 +504,7 @@ export const COMMANDS: Record<string, CommandDef> = {
     id: "track.clearSolo",
     category: "edit",
     label: "Clear solo",
-    when: "hasProject",
+    when: "timelineSurface",
     notes:
       "Unsolo every track: the Solo on chip above the track headers, phone status row and Mix sheet (listen-only, no key)",
   },
@@ -577,7 +577,7 @@ export const COMMANDS: Record<string, CommandDef> = {
     category: "view",
     label: "Fit tracks to window height",
     keywords: ["vertical"],
-    when: "always",
+    when: "timelineSurface",
     notes: "Toggle: fill the stage height, or a fixed track height",
   },
   "view.toggleSnap": {
@@ -586,7 +586,7 @@ export const COMMANDS: Record<string, CommandDef> = {
     label: "Snap to cut points",
     shortLabel: "Snap",
     keywords: ["magnet", "align", "cut points", "drag"],
-    when: "hasProject",
+    when: "timelineSurface",
     notes:
       "The Snap toggle in the Edit corner: moves, trims and the suggestion Start/End pull to nearby cut points. Alt inverts it for one gesture",
   },
@@ -1009,7 +1009,7 @@ export const COMMANDS: Record<string, CommandDef> = {
     id: "view.showCutAway",
     category: "view",
     label: "Show cut away",
-    when: "always",
+    when: "timelineSurface",
   },
   "edit.trimClipEdge": {
     id: "edit.trimClipEdge",

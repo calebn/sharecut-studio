@@ -131,10 +131,7 @@ export function rangeActionDescriptors(
 
 let previewUrl: string | null = null;
 
-export async function runRangeAction(
-  action: RangeAction,
-  override?: ExactRangeTarget,
-): Promise<ExecuteResult> {
+function resolveRangeAction(action: RangeAction, override?: ExactRangeTarget) {
   const state = useDawStore.getState();
   const resolved = override
     ? { targets: [override], reason: null }
@@ -145,11 +142,28 @@ export async function runRangeAction(
   const descriptor = rangeActionDescriptors(state, target).find(
     (d) => d.action === action,
   )!;
-  if (descriptor.reason || !target || !state.project)
+  const reason =
+    descriptor.reason ??
+    (target && state.project
+      ? null
+      : (resolved.reason ?? "Choose the audible occurrence"));
+  return { state, target, reason };
+}
+
+/** Why a range action cannot run on the current selection, or null when it can. */
+export function rangeActionReason(action: RangeAction): string | null {
+  return resolveRangeAction(action).reason;
+}
+
+export async function runRangeAction(
+  action: RangeAction,
+  override?: ExactRangeTarget,
+): Promise<ExecuteResult> {
+  const { state, target, reason } = resolveRangeAction(action, override);
+  if (reason || !target || !state.project)
     return {
       status: "disabled",
-      reason:
-        descriptor.reason ?? resolved.reason ?? "Choose the audible occurrence",
+      reason: reason ?? "Choose the audible occurrence",
     };
   if (action === "comment") {
     openCommentDraft(commentDraftFromRange(target));
@@ -390,22 +404,27 @@ async function fillRoomToneInRange(
   return { status: "ok" };
 }
 
-export function armRangeDraft(): ExecuteResult {
+/** Why a range cannot be armed now, or null when it can (or is armed and will disarm). */
+export function armRangeReason(): string | null {
   const s = useDawStore.getState();
   if (!s.project || s.rangeBusy || s.joinMutationInFlight)
-    return {
-      status: "disabled",
-      reason: "Open a project and wait for the current edit",
-    };
+    return "Open a project and wait for the current edit";
+  if (s.rangeArmed) return null;
+  if (isRangeSelection(s.selection)) return "A range is already selected";
+  return seedRangeDraft(s.project, s.playheadSec, s.selection)
+    ? null
+    : "Nothing to select yet";
+}
+
+export function armRangeDraft(): ExecuteResult {
+  const reason = armRangeReason();
+  if (reason) return { status: "disabled", reason };
+  const s = useDawStore.getState();
   if (s.rangeArmed) {
     s.setRangeArmed(false);
     return { status: "ok" };
   }
-  if (isRangeSelection(s.selection))
-    return { status: "disabled", reason: "A range is already selected" };
-  const draft = seedRangeDraft(s.project, s.playheadSec, s.selection);
-  if (!draft) return { status: "disabled", reason: "Nothing to select yet" };
-  s.armRange(draft);
+  s.armRange(seedRangeDraft(s.project!, s.playheadSec, s.selection)!);
   return { status: "ok" };
 }
 

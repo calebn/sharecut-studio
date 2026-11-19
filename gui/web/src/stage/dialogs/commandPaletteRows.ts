@@ -8,7 +8,17 @@
 
 import type { RecentProject } from "../../api";
 import { COMMANDS, listCatalogIds } from "../../commands/catalog";
-import { type CommandContext, evaluateWhen } from "../../commands/context";
+import {
+  type CommandContext,
+  evaluateWhen,
+  gateNeverRuns,
+} from "../../commands/context";
+import {
+  armRangeReason,
+  RANGE_ACTIONS,
+  type RangeAction,
+  rangeActionReason,
+} from "../../commands/rangeActions";
 import {
   displayShortcutFor,
   KEYMAP_CATEGORY_ORDER,
@@ -45,6 +55,20 @@ function groupOf(id: string): PaletteCommandGroup | undefined {
       : undefined;
 }
 
+const RANGE_ACTION_BY_COMMAND = new Map<string, RangeAction>(
+  RANGE_ACTIONS.map((action) => [`range.${action}`, action]),
+);
+
+/**
+ * A guest's range rows take their reason from the selection, so a row that
+ * would only answer "Choose a range" when pressed says it first.
+ */
+function guestRangeReason(id: string): string | null {
+  const action = RANGE_ACTION_BY_COMMAND.get(id);
+  if (action) return rangeActionReason(action);
+  return id === "range.arm" ? armRangeReason() : null;
+}
+
 /**
  * Runnable catalog commands in category order. A palette click runs a command
  * the way a pointer does, so focus-only keyboard gates (timeline or transcript
@@ -68,7 +92,9 @@ export function paletteCommands(
         def != null &&
         def.paletteRunnable !== false &&
         def.id !== "ui.toggleCommandPalette" &&
-        (scope !== "home" || def.home === true),
+        (scope !== "home" || def.home === true) &&
+        // A guest link leaves out what its role can never run; the host's rows are unchanged.
+        !gateNeverRuns(def.when, ctx),
     )
     .map((def): PaletteCommand => {
       const keyed = keymapCommandById(def.id);
@@ -83,7 +109,11 @@ export function paletteCommands(
         shortcut: displayShortcutFor(def.id) ?? null,
         ...(keyed ? { defaultKey: keyed.keys[0] } : {}),
         ...(keyed?.collision ? { note: keyed.collision } : {}),
-        disabledReason: gate.ok ? null : gate.reason,
+        disabledReason: gate.ok
+          ? ctx.guestMode === null
+            ? null
+            : guestRangeReason(def.id)
+          : gate.reason,
         ...(group ? { group } : {}),
         ...(icon ? { icon } : {}),
       };

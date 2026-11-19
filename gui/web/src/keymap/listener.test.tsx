@@ -677,6 +677,28 @@ async function press(
   return vi.mocked(execute).mock.calls.map(([id]) => id);
 }
 
+it.each([
+  ["view", ["view", "play"], false],
+  ["comment", ["view", "play", "comment", "suggest"], false],
+  ["edit", ["view", "play", "comment", "edit"], true],
+])(
+  "M on a %s link runs Mute only where the link has a timeline, and says nothing where it has none",
+  async (guestMode, shareCapabilities, runs) => {
+    render(<KeymapHost />);
+    useDawStore.setState({
+      projectPath: "share:tok",
+      guestMode,
+      shareCapabilities,
+      stage: "review",
+      statusAnnouncement: "",
+    });
+    expect(await press(document.body, { key: "m" })).toEqual(
+      runs ? ["edit.mute"] : [],
+    );
+    expect(useDawStore.getState().statusAnnouncement).toBe("");
+  },
+);
+
 it("binds the Action bar's keys: S, X, I, ., B, C, Shift+C and Shift+S", async () => {
   render(<KeymapHost />);
   const canvas = screen.getByTestId("canvas");

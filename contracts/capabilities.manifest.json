@@ -835,7 +835,7 @@
       "service": "ShareCut Studio command bus \u2192 services/document",
       "industry_standard_key": false,
       "gates": [
-        "hasProject"
+        "timelineSurface"
       ],
       "surfaces": {
         "command": "track.muteToggle",
@@ -865,7 +865,7 @@
       "service": "ShareCut Studio command bus \u2192 services/document",
       "industry_standard_key": true,
       "gates": [
-        "hasProject"
+        "timelineSurface"
       ],
       "surfaces": {
         "command": "track.soloToggle",
@@ -890,7 +890,7 @@
       "service": "ShareCut Studio command bus \u2192 services/document",
       "industry_standard_key": false,
       "gates": [
-        "hasProject"
+        "timelineSurface"
       ],
       "surfaces": {
         "command": "track.clearSolo",
@@ -1225,7 +1225,7 @@
       "service": "ShareCut Studio command bus \u2192 services/document",
       "industry_standard_key": false,
       "gates": [
-        "hasProject"
+        "timelineSurface"
       ],
       "surfaces": {
         "command": "view.toggleScript",
@@ -1248,7 +1248,7 @@
       "service": "ShareCut Studio command bus \u2192 services/document",
       "industry_standard_key": false,
       "gates": [
-        "hasProject"
+        "timelineSurface"
       ],
       "surfaces": {
         "command": "view.scriptFocus",
@@ -1317,7 +1317,7 @@
       "service": "ShareCut Studio UI",
       "industry_standard_key": false,
       "gates": [
-        "always"
+        "timelineSurface"
       ],
       "surfaces": {
         "command": "view.fitTracksHeight"
@@ -1340,7 +1340,7 @@
       "service": "ShareCut Studio UI",
       "industry_standard_key": false,
       "gates": [
-        "hasProject"
+        "timelineSurface"
       ],
       "surfaces": {
         "command": "view.toggleSnap",
@@ -3223,7 +3223,7 @@
       "service": "ShareCut Studio UI",
       "industry_standard_key": false,
       "gates": [
-        "always"
+        "timelineSurface"
       ],
       "surfaces": {
         "command": "view.showCutAway",
@@ -3770,7 +3770,7 @@
       "service": "CommentService",
       "industry_standard_key": false,
       "gates": [
-        "hasProject"
+        "canComment"
       ],
       "surfaces": {
         "command": "range.comment",
@@ -3798,7 +3798,7 @@
       "service": "BounceService",
       "industry_standard_key": false,
       "gates": [
-        "hasProject"
+        "hostProjectLoaded"
       ],
       "surfaces": {
         "command": "range.bounce",
@@ -4017,7 +4017,7 @@
       "service": "ShareCut Studio command bus \u2192 services/document",
       "industry_standard_key": true,
       "gates": [
-        "hasProject"
+        "timelineSurface"
       ],
       "surfaces": {
         "command": "edit.mute",

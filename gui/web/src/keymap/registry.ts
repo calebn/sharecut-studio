@@ -463,7 +463,7 @@ export const KEYMAP_COMMANDS: readonly KeymapCommand[] = [
     keys: ["M"],
     bareKey: true,
     noRepeat: true,
-    when: "hasProject",
+    when: "timelineSurface",
     collision:
       "M mutes what is selected (words, a range, a clip), else the targeted track; with a room open, M mutes your mic instead",
   },
@@ -531,7 +531,7 @@ export const KEYMAP_COMMANDS: readonly KeymapCommand[] = [
     requireShift: true,
     shiftOnDefaultKey: true,
     noRepeat: true,
-    when: "hasProject",
+    when: "timelineSurface",
     notes: "Shift+S: S is Split",
   },
   {
@@ -693,7 +693,7 @@ export const KEYMAP_COMMANDS: readonly KeymapCommand[] = [
     keys: ["T"],
     bareKey: true,
     requireShift: false,
-    when: "hasProject",
+    when: "timelineSurface",
     notes: "Edit stage",
   },
   {
@@ -703,7 +703,7 @@ export const KEYMAP_COMMANDS: readonly KeymapCommand[] = [
     keys: ["T"],
     bareKey: true,
     requireShift: true,
-    when: "hasProject",
+    when: "timelineSurface",
     notes: "Shift+T: Edit stage",
   },
   {

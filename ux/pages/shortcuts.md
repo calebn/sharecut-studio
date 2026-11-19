@@ -72,8 +72,8 @@ Open the in-app cheatsheet with **?** while ShareCut Studio is focused.
 | `Mod+K` | Split at playhead (`edit.bladeCut`) | editStageStructural | Mod+K: split at the playhead — Mod+K splits; K alone pauses and returns |
 | `Mod+A` | Select all tracks (`track.selectAll`) | Timeline focused | Mod+A: Logic-style track targeting |
 | `Mod+Shift+A` | Deselect all tracks (`track.deselectAll`) | Timeline focused | Mod+Shift+A: Logic-style; empty targeting |
-| `M` | Mute (`edit.mute`) | Project loaded | M mutes what is selected (words, a range, a clip), else the targeted track; with a room open, M mutes your mic instead |
-| `Shift+S` | Toggle track solo (`track.soloToggle`) | Project loaded | Shift+S: S is Split |
+| `M` | Mute (`edit.mute`) | Project loaded, on a link with a timeline | M mutes what is selected (words, a range, a clip), else the targeted track; with a room open, M mutes your mic instead |
+| `Shift+S` | Toggle track solo (`track.soloToggle`) | Project loaded, on a link with a timeline | Shift+S: S is Split |
 | `S` | Split (`edit.split`) | editStageStructural | S: split at the playhead, or at both edges of the selected words or range, as one undo step — S splits; Shift+S solos the targeted track; Mod+K splits at the playhead |
 | `Shift+Space` | Hear (`edit.hear`) | editStage | Shift+Space: hear the selection |
 | `A` | Hear before (`edit.hearBefore`) | suggestionSelected | A: the suggestion as it is now |
@@ -94,8 +94,8 @@ Open the in-app cheatsheet with **?** while ShareCut Studio is focused.
 | `-` | Zoom out (`view.zoomOut`) | Timeline focused | Timeline focused; also numpad - |
 | `Z` | Zoom to selection (`view.zoomToSelection`) | editStage | Edit stage; Mod+Z is Undo |
 | `\` | Fit session width (`view.fit`) | Timeline focused | Timeline focused |
-| `T` | Show or hide Script (`view.toggleScript`) | Project loaded | Edit stage |
-| `Shift+T` | Script focus (`view.scriptFocus`) | Project loaded | Shift+T: Edit stage |
+| `T` | Show or hide Script (`view.toggleScript`) | Project loaded, on a link with a timeline | Edit stage |
+| `Shift+T` | Script focus (`view.scriptFocus`) | Project loaded, on a link with a timeline | Shift+T: Edit stage |
 | `Shift+ArrowUp` | Waveform amplitude zoom in (`view.waveformZoomIn`) | Timeline focused | Shift+ArrowUp: timeline focused |
 | `Shift+ArrowDown` | Waveform amplitude zoom out (`view.waveformZoomOut`) | Timeline focused | Shift+ArrowDown: timeline focused |
 | `Alt+=` | Increase track height (`view.trackHeightIncrease`) | Timeline focused | Alt+=: timeline focused; 72 / 104 / 144 / 192 / 240 px |
@@ -140,15 +140,15 @@ Available via toolbar / `execute`; some also appear in the in-app palette. Comma
 | Mute selected range | `range.mute` | Edit stage, or a link that suggests edits |  |
 | Fill range with room tone | `range.fillRoomTone` | editStage |  |
 | Move to speaker | `range.moveSpeakerLane` | Project loaded | Args: { toLaneId }. The Action bar's More menu shows Move to {speaker} on one split lane |
-| Comment on range | `range.comment` | Project loaded |  |
-| Export selected range | `range.bounce` | Project loaded |  |
+| Comment on range | `range.comment` | Host or a link that can comment |  |
+| Export selected range | `range.bounce` | Loaded host project |  |
 | Select a range | `range.arm` | Project loaded |  |
-| Toggle track mute | `track.muteToggle` | Project loaded | Mute (edit.mute) on a track: saved mix mute (SetTrackMute) for the host and editors; listen-only mute for other guests (Args: { trackId? }) |
+| Toggle track mute | `track.muteToggle` | Project loaded, on a link with a timeline | Mute (edit.mute) on a track: saved mix mute (SetTrackMute) for the host and editors; listen-only mute for other guests (Args: { trackId? }) |
 | Set track volume | `track.setVolume` | Host or shared edit mode | Args: { trackId?, db }: SetTrackFader, the saved volume on top of staging gain (-60 to +12 dB) |
-| Clear solo | `track.clearSolo` | Project loaded | Unsolo every track: the Solo on chip above the track headers, phone status row and Mix sheet (listen-only, no key) |
+| Clear solo | `track.clearSolo` | Project loaded, on a link with a timeline | Unsolo every track: the Solo on chip above the track headers, phone status row and Mix sheet (listen-only, no key) |
 | Back to playhead | `view.followPlayhead` | editStage | Follow the playhead again during playback and bring it into view in the timeline (no default key) |
-| Fit tracks to window height | `view.fitTracksHeight` | Always (when not typing in a field or on a focused Scrub field) | Toggle: fill the stage height, or a fixed track height |
-| Snap to cut points | `view.toggleSnap` | Project loaded | The Snap toggle in the Edit corner: moves, trims and the suggestion Start/End pull to nearby cut points. Alt inverts it for one gesture |
+| Fit tracks to window height | `view.fitTracksHeight` | Project loaded, on a link with a timeline | Toggle: fill the stage height, or a fixed track height |
+| Snap to cut points | `view.toggleSnap` | Project loaded, on a link with a timeline | The Snap toggle in the Edit corner: moves, trims and the suggestion Start/End pull to nearby cut points. Alt inverts it for one gesture |
 | Export transcript… | `export.transcript` | Loaded host project | Go to Deliver and focus the Transcript Export → export/ |
 | Share… | `share.manage` | Loaded host project | Open the Invite sheet on any stage: review, record and listen links. Args: at = record to open at the Record links |
 | Create record room | `record.createRoom` | Loaded host project | Mint guest + producer links in place and copy the guest link |
@@ -174,7 +174,7 @@ Available via toolbar / `execute`; some also appear in the in-app palette. Comma
 | Find and replace transcript | `transcript.findReplace` | Host or an editor link, words loaded | Finds, counts and highlights a phrase even when another speaker's turn sits between its words; only the phrase's own words are highlighted, selected and replaced. Replace changes the current match alone and Replace all changes every match, each as one undo step |
 | Extend transcript range | `transcript.extendRange` | Project loaded | Args: { edge: 'start' \| 'end', by: 1 \| -1 }: moves one edge of the selected word range by one word; a selection change only (#1029) |
 | Ignore / restore transcript words | `transcript.ignoreWords` | Project loaded | Args: { trackId?, startWordIndex?, endWordIndex?, ignored? }: struck through and muted at render, no cut (#633); host-only |
-| Show cut away | `view.showCutAway` | Always (when not typing in a field or on a focused Scrub field) |  |
+| Show cut away | `view.showCutAway` | Project loaded, on a link with a timeline |  |
 | Roll clip join | `edit.rollClipJoin` | Host or shared edit mode | Join diamond + transcript boundary roll both edges |
 | Set clip gain | `edit.setClipGain` | Host or shared edit mode | Gain field in the clip inspector (-60 to +12 dB, 0.5 dB steps); with several clips selected it sets every one to the typed level |
 | Set clip join | `edit.setClipJoin` | Host or shared edit mode | Join type on the Seam bar and in the clip inspector, Length in the clip inspector and the Seam sheet; the timeline Seam diamond opens the bar |

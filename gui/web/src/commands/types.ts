@@ -32,6 +32,7 @@ export type ContextPredicateId =
   | "editStageSplitSpeakers"
   | "editStageOrRangeSuggest"
   | "hasProject"
+  | "timelineSurface"
   | "canApplyPass12"
   | "canRefreshMix"
   | "canIngestMedia"
