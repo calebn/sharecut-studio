@@ -803,6 +803,10 @@ for (const pointer of ["fine", "coarse"] as const) {
     const problems = rows.flatMap((row) =>
       row.found.problems.map((problem) => `${row.where}: ${problem}`),
     );
+    // The bar gives up the "/ total" or more before it cuts the status text short.
+    const cut = rows.flatMap((row) =>
+      row.found.squeezed.map((what) => `${row.where}: ${what}`),
+    );
     // One level less must show a problem: the bar gave up nothing it could keep.
     const needless = rows
       .filter(
@@ -812,6 +816,7 @@ for (const pointer of ["fine", "coarse"] as const) {
       )
       .map((row) => `${row.where}: fits at ${row.fit - 1}, was ${row.fit}`);
     expect(problems.slice(0, 40)).toEqual([]);
+    expect(cut.slice(0, 40)).toEqual([]);
     expect(needless.slice(0, 40)).toEqual([]);
     expect(rows.filter((row) => row.fit > 0).length).toBeGreaterThan(100);
     expect(loops).toEqual([]);
@@ -1227,6 +1232,83 @@ test("System/Player levels 4 and 5 keep a home for what they hide: the cuts keep
   await open(page, "system-player--expanded", 360);
   for (const name of ["Back 15 seconds", "Forward 15 seconds"])
     await expect(page.getByRole("button", { name })).toBeVisible();
+});
+
+/** A host's bar of `args` wide enough to draw everything, before and after its frame folds. */
+async function wideBar(page: PlayerPage, args: BarArgs) {
+  const host = await phoneBar(page, args);
+  await host.evaluate((el) => {
+    el.style.width = "1400px";
+  });
+  const fold = () =>
+    page.evaluate(() => {
+      document.documentElement.dataset.frameShort = "";
+    });
+  return { host, fold };
+}
+
+test("System/Player in a short frame the bar removes the skip buttons, A and B, Stop following and a host's Comment (#2576)", async ({
+  page,
+}) => {
+  const { host, fold } = await wideBar(page, BAR_STATES.followmixstale);
+  const names = [
+    "Back 15 seconds",
+    "Forward 15 seconds",
+    "A",
+    "B",
+    "Comment",
+    "Stop following Rosa",
+  ];
+  for (const name of names)
+    await expect(
+      host.getByRole("button", { name, exact: true }),
+      `${name} before`,
+    ).toHaveCount(1);
+  await fold();
+  for (const name of names)
+    await expect(
+      host.getByRole("button", { name, exact: true }),
+      `${name} after`,
+    ).toHaveCount(0);
+  await expect(host.getByRole("button", { name: "Hear options" })).toHaveCount(
+    1,
+  );
+});
+
+test("System/Player in a short frame the pills, the cuts, the rate and the status keep their names and take no room (#2576)", async ({
+  page,
+}) => {
+  const { host, fold } = await wideBar(page, {
+    ...BAR_STATES.followmixstale,
+    rate: 2,
+  });
+  await fold();
+  const tree = await host.ariaSnapshot();
+  for (const name of [
+    "Following Rosa",
+    "Updating mix",
+    "Mix out of date",
+    "Playback speed 2×",
+    "−4:10",
+  ])
+    expect(tree, name).toContain(name);
+  const drawn = await host.evaluate((el) => {
+    const bar = el.querySelector<HTMLElement>(".sys-player");
+    if (!bar) throw new Error("no bar");
+    const widths = [
+      ".sys-player-following",
+      ".sys-player-mix",
+      ".sys-player-status",
+      ".sys-player-cuts",
+      ".sys-player-rate",
+    ].map((selector) => {
+      const found = el.querySelector(selector);
+      return found ? found.getBoundingClientRect().width : -1;
+    });
+    return { widths, height: bar.getBoundingClientRect().height };
+  });
+  expect(drawn.widths.every((width) => width >= 0 && width <= 2)).toBe(true);
+  expect(drawn.height).toBeLessThanOrEqual(45);
 });
 
 test("System/Player the expanded Player keeps the skip buttons and A and B in a short frame, where the bar removes them (#2576)", async ({

@@ -229,13 +229,21 @@ describe("useBarFit", () => {
     expect(fit(container)).toBe("5");
   });
 
-  it("fits again when the text size changes on <html>", async () => {
+  it.each([
+    ["style", "font-size: 24px"],
+    ["class", "large-text"],
+    ["lang", "de"],
+    ["data-theme", "dark"],
+    ["data-shell", "phone"],
+    ["data-frame-short", ""],
+  ])("fits again when %s changes on <html>", async (attribute, value) => {
     lowest = 1;
     const { container } = render(<Player {...base} />);
     lowest = 4;
-    document.documentElement.style.fontSize = "24px";
+    document.documentElement.setAttribute(attribute, value);
     await flush();
     expect(fit(container)).toBe("4");
+    document.documentElement.removeAttribute(attribute);
   });
 
   it("reads nothing when an attribute of <html> that no rule reads is written, and reads but does not search for one that is", async () => {

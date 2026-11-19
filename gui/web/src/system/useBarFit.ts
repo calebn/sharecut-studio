@@ -49,8 +49,8 @@ function extent(column: Element): Box | null {
 
 /**
  * True when what the bar draws at its current level is whole: no column's
- * content leaves the bar or runs into the next column, and the status text is
- * not cut short. Geometry only, so it does not depend on the font.
+ * content runs into the column before it or past the bar's left edge, and the
+ * status text is not cut short. Geometry only, so it does not depend on the font.
  */
 function barFits(host: HTMLElement): boolean {
   const bar = host.firstElementChild;
@@ -63,7 +63,6 @@ function barFits(host: HTMLElement): boolean {
     if (box.left < previous - 0.5) return false;
     previous = box.right;
   }
-  if (previous > outer.right + 0.5) return false;
   const holder = statusPill(bar);
   const pill = holder?.firstElementChild;
   if (holder && pill) {
