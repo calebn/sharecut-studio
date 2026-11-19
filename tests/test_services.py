@@ -925,6 +925,22 @@ def test_edit_service_set_words_ignored_stale_expected_text_raises(minimal_proje
     assert out.changed == 2
 
 
+def test_word_flag_results_are_frozen(minimal_project):
+    from pydantic import ValidationError
+
+    ws = ProjectWorkspace.open(minimal_project)
+    _with_words(ws)
+    svc = TranscriptService(ws)
+
+    suppressed = svc.set_word_suppressed("host", 0, True)
+    automatic = svc.set_word_automatic("host", 0)
+    ignored = svc.set_words_ignored("host", 0, 1, True)
+
+    for result in (suppressed, automatic, ignored):
+        with pytest.raises(ValidationError):
+            result.track_id = "guest"
+
+
 def test_edit_service_noop_edits_leave_transcript_unflagged(minimal_project):
     ws = ProjectWorkspace.open(minimal_project)
     _with_words(ws)

@@ -726,6 +726,34 @@ def test_transcript_suppress_word_cmd_automatic(minimal_project, monkeypatch):
     }
 
 
+def test_transcript_suppress_word_cmd_default_prints_suppressed_result(minimal_project):
+    project = _setup_edit_project(minimal_project)
+    result = runner.invoke(
+        app,
+        [
+            "transcript",
+            "suppress-word",
+            "--project",
+            str(project),
+            "--track",
+            "host",
+            "--word-index",
+            "0",
+        ],
+    )
+    assert result.exit_code == 0
+    word = load_project(project).transcripts[0].words[0]
+    output = click.unstyle(result.output)
+    assert json.loads(output) == {
+        "track_id": "host",
+        "source_id": None,
+        "word_index": 0,
+        "suppressed": True,
+        "text": word.text,
+    }
+    assert list(json.loads(output)) == ["track_id", "source_id", "word_index", "suppressed", "text"]
+
+
 def test_transcript_suppress_word_cmd_automatic_rejects_suppressed_flag(minimal_project):
     project = _setup_edit_project(minimal_project)
     result = runner.invoke(
