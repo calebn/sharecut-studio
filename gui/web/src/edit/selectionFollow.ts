@@ -33,9 +33,9 @@ export type SelectionModel = {
 /**
  * One end of a selection. A word is the same word when its recording, its
  * place in that recording (its source-time start, which a cut does not move)
- * and its text are: its line and its `word_index` change when a cut
- * splits a line, or when another edit renumbers words. A phrase correction that re-splits, or the
- * aligner, changes the start, so such a word is not found and the selection is
+ * and its text are: its line and its `word_index` change when an edit
+ * renumbers words. A phrase correction that re-splits, or the aligner,
+ * changes the start, so such a word is not found and the selection is
  * cleared, not followed. `ref` and `time` are what the store was given for
  * it; `copies` is how many words matched it then, so a single match later
  * proves it only for a word that was alone.
