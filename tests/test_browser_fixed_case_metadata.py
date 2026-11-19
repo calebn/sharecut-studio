@@ -199,7 +199,7 @@ class DesignTests(unittest.TestCase):
                     else:
                         self.assertEqual(
                             output.read_text(),
-                            f"functional_outcome={'unknown' if mode == 'absent' else 'passed'}\n",
+                            f"functional_outcome={'unknown' if mode == 'absent' else 'passed'}\nfunctional_phase=unknown\n",
                         )
 
     def test_three_metadata_steps_use_only_fixed_conditions_and_noops(self):

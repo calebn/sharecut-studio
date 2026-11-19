@@ -578,6 +578,61 @@ jobs:
         continue-on-error: true
         run: ':'
 
+      - name: SC3923_EDITOR_COMMENT_V1 LAST_NEVER_STARTED
+        if: ${{ always() && matrix.name == 'main-smoke' && (steps.browser-public-projection.outcome == 'success' && steps.browser-public-projection.outputs.functional_phase == 'never_started') }}
+        continue-on-error: true
+        run: ':'
+
+      - name: SC3923_EDITOR_COMMENT_V1 LAST_ENTERED
+        if: ${{ always() && matrix.name == 'main-smoke' && (steps.browser-public-projection.outcome == 'success' && steps.browser-public-projection.outputs.functional_phase == 'entered') }}
+        continue-on-error: true
+        run: ':'
+
+      - name: SC3923_EDITOR_COMMENT_V1 LAST_HOST_READY
+        if: ${{ always() && matrix.name == 'main-smoke' && (steps.browser-public-projection.outcome == 'success' && steps.browser-public-projection.outputs.functional_phase == 'host_ready') }}
+        continue-on-error: true
+        run: ':'
+
+      - name: SC3923_EDITOR_COMMENT_V1 LAST_SHARE_READY
+        if: ${{ always() && matrix.name == 'main-smoke' && (steps.browser-public-projection.outcome == 'success' && steps.browser-public-projection.outputs.functional_phase == 'share_ready') }}
+        continue-on-error: true
+        run: ':'
+
+      - name: SC3923_EDITOR_COMMENT_V1 LAST_EDITOR_READY
+        if: ${{ always() && matrix.name == 'main-smoke' && (steps.browser-public-projection.outcome == 'success' && steps.browser-public-projection.outputs.functional_phase == 'editor_ready') }}
+        continue-on-error: true
+        run: ':'
+
+      - name: SC3923_EDITOR_COMMENT_V1 LAST_COMPOSER_READY
+        if: ${{ always() && matrix.name == 'main-smoke' && (steps.browser-public-projection.outcome == 'success' && steps.browser-public-projection.outputs.functional_phase == 'composer_ready') }}
+        continue-on-error: true
+        run: ':'
+
+      - name: SC3923_EDITOR_COMMENT_V1 LAST_COMMENT_SAVED
+        if: ${{ always() && matrix.name == 'main-smoke' && (steps.browser-public-projection.outcome == 'success' && steps.browser-public-projection.outputs.functional_phase == 'comment_saved') }}
+        continue-on-error: true
+        run: ':'
+
+      - name: SC3923_EDITOR_COMMENT_V1 LAST_DERIVED_CHECKED
+        if: ${{ always() && matrix.name == 'main-smoke' && (steps.browser-public-projection.outcome == 'success' && steps.browser-public-projection.outputs.functional_phase == 'derived_checked') }}
+        continue-on-error: true
+        run: ':'
+
+      - name: SC3923_EDITOR_COMMENT_V1 LAST_UNDO_CHECKED
+        if: ${{ always() && matrix.name == 'main-smoke' && (steps.browser-public-projection.outcome == 'success' && steps.browser-public-projection.outputs.functional_phase == 'undo_checked') }}
+        continue-on-error: true
+        run: ':'
+
+      - name: SC3923_EDITOR_COMMENT_V1 LAST_BODY_COMPLETE
+        if: ${{ always() && matrix.name == 'main-smoke' && (steps.browser-public-projection.outcome == 'success' && steps.browser-public-projection.outputs.functional_phase == 'body_complete') }}
+        continue-on-error: true
+        run: ':'
+
+      - name: SC3923_EDITOR_COMMENT_V1 LAST_UNKNOWN
+        if: ${{ always() && matrix.name == 'main-smoke' && (steps.browser-public-projection.outcome != 'success' || !contains(fromJSON('["never_started","entered","host_ready","share_ready","editor_ready","composer_ready","comment_saved","derived_checked","undo_checked","body_complete"]'), steps.browser-public-projection.outputs.functional_phase)) }}
+        continue-on-error: true
+        run: ':'
+
       - name: Summarize Playwright tests
         if: ${{ always() && steps.browser-public-projection.outcome == 'success' }}
         continue-on-error: true

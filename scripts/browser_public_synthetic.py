@@ -13,7 +13,7 @@ MODES = ("success", "failure-retry", "malformed", "stale")
 MARKER = "FABRICATED_BROWSER_CANARY_ORDINARY_TEXT"
 PINNED = {
     "scripts/private_browser_command.sh": "28dc0c5b15c3ab50c9dbdf0ad6d41bfa45081ed7f4b9ff8d81fe760a16dcc896",
-    "scripts/browser_public_report.py": "a338273e4c93cdc3083bd566796b59a1bc71e03da699ecac94d3fde070be4aa2",
+    "scripts/browser_public_report.py": "9e0deac538b1de8ae6a8d6915c2d41c163e04c790a5b6f0c3eb04410c9c28681",
     "scripts/test_area_summary.py": "655156965f52460d32c98163b4126484d6dd4ca6c3b837bd80da9bd4741229f1",
 }
 

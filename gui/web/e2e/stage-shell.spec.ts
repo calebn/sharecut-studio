@@ -38,7 +38,53 @@ import {
 } from "./stageNav";
 import { withBrowserPages } from "./twoBrowserPages";
 
-const diagnosticTest = test.extend<{}, { privateDiagnostic: void }>({
+const CASE_PHASES = [
+  "never_started",
+  "entered",
+  "host_ready",
+  "share_ready",
+  "editor_ready",
+  "composer_ready",
+  "comment_saved",
+  "derived_checked",
+  "undo_checked",
+  "body_complete",
+] as const;
+type CompletedCasePhase = Exclude<
+  (typeof CASE_PHASES)[number],
+  "never_started"
+>;
+
+const diagnosticTest = test.extend<
+  { caseProgress: (phase: CompletedCasePhase) => void },
+  { privateDiagnostic: void }
+>({
+  caseProgress: [
+    async ({ privateDiagnostic: _privateDiagnostic }, runFixture, testInfo) => {
+      let index = 0;
+      try {
+        await runFixture((phase) => {
+          const next = CASE_PHASES.indexOf(phase);
+          if (index === 0 && next === 1) {
+            index = 1;
+            return;
+          }
+          if (testInfo.status !== "passed") return;
+          index = index >= 0 && next === index + 1 ? next : -1;
+        });
+      } finally {
+        try {
+          testInfo.annotations.push({
+            type: "sharecut.functional-last-completed.v1",
+            description: CASE_PHASES[index] ?? "unknown",
+          });
+        } catch {
+          // A missing diagnostic remains unknown; it cannot change the test result.
+        }
+      }
+    },
+    { auto: true },
+  ],
   trace: "off",
   screenshot: "off",
   video: "off",
@@ -579,7 +625,8 @@ test.describe("Stage shell on a guest link", () => {
 
 diagnosticTest(
   "an Editor's comment survives a normal reload-derived save and Undo/Redo restores only that comment",
-  async ({ page, browser }) => {
+  async ({ page, browser, caseProgress }) => {
+    caseProgress("entered");
     let workspaceDir = "";
     let projectPath = "";
     let guestContext: BrowserContext | undefined;
@@ -657,6 +704,7 @@ diagnosticTest(
       phase = "dismiss-record-invite";
       await page.keyboard.press("Escape");
       await expect(page.getByRole("dialog", { name: "Invite" })).toBeHidden();
+      caseProgress("host_ready");
       phase = "open-prepare";
       await goToStage(page, "prepare");
       phase = "choose-audio";
@@ -699,6 +747,7 @@ diagnosticTest(
       await expect(made).toBeVisible();
       await page.keyboard.press("Escape");
 
+      caseProgress("share_ready");
       phase = "create-local-editor-role";
       // Use the established host-authorized fixture on this same application.
       // The UI-created invitation stays unused; neither address is forwarded.
@@ -715,6 +764,7 @@ diagnosticTest(
             ).length,
         )
         .toBeGreaterThan(0);
+      caseProgress("editor_ready");
       phase = "observe-initial-manifest";
       const originalComments = digest(
         JSON.stringify(read().project.review.comments),
@@ -732,6 +782,7 @@ diagnosticTest(
       await composer
         .getByRole("textbox", { name: "Your name", exact: true })
         .fill("Synthetic editor");
+      caseProgress("composer_ready");
       await composer.getByRole("button", { name: "Post", exact: true }).click();
       await expect(comment).toHaveCount(1);
       await expect
@@ -742,6 +793,7 @@ diagnosticTest(
             ).length,
         )
         .toBe(1);
+      caseProgress("comment_saved");
       await expect(
         guest.getByRole("button", { name: "Undo", exact: true }),
       ).toBeEnabled();
@@ -778,6 +830,7 @@ diagnosticTest(
       expect(after.certificate === before.certificate).toBe(false);
       expect(after.history === before.history).toBe(true);
       expect(after.index === before.index).toBe(true);
+      caseProgress("derived_checked");
       await guest.getByRole("tab", { name: "Review", exact: true }).click();
       await expect(comment).toHaveCount(1);
       phase = "undo-editor-comment";
@@ -786,12 +839,14 @@ diagnosticTest(
       await expect
         .poll(() => digest(JSON.stringify(read().project.review.comments)))
         .toBe(originalComments);
+      caseProgress("undo_checked");
       phase = "redo-editor-comment";
       await guest.getByRole("button", { name: "Redo", exact: true }).click();
       await expect(comment).toHaveCount(1);
       await expect
         .poll(() => digest(JSON.stringify(read().project.review.comments)))
         .toBe(digest(JSON.stringify(before.project.review.comments)));
+      caseProgress("body_complete");
     } catch (error) {
       bodyFailed = true;
       bodyClassification = classificationOf(error);
