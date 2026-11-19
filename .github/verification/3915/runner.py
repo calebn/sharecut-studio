@@ -11,7 +11,7 @@ import tempfile
 import wave
 from classify import classify, pair
 from overlay import install_overlays
-from setup_support import checked_process, python_library_directory
+from setup_support import checked_process, python_library_directory, RuntimePathBlocked, RUNTIME_ERRORS
 
 PARENT = '1f460f495ac3013a96121f03176bd36d7219c0ff'
 HEAD = 'cbf4b66f756a43c3e57a13362cf9a2061397ea17'
@@ -42,7 +42,7 @@ def emit(n, status):
 def setup_receipt(n,status,error):
     assert n in {10,11,12,13,20,21,22,23,30,31,32,33,34,40,41,42,50,51,52,60}
     assert status in ('PASS','BLOCKED')
-    assert error in ('NONE','SPAWN_FAILED','EXIT_NONZERO','TIMEOUT','RUNTIME_PATH_INVALID')
+    assert error in {'NONE','SPAWN_FAILED','EXIT_NONZERO','TIMEOUT','RUNTIME_PATH_INVALID'} | RUNTIME_ERRORS
     print(json.dumps({'ordinal':n,'status':status,'error':error},separators=(',',':')),flush=True)
 
 def identity(name, value):
@@ -129,6 +129,9 @@ def main():
     try:
         try:
             ENV['LD_LIBRARY_PATH']=python_library_directory(os.environ,sys.executable,sys.base_prefix,'.'.join(map(str,sys.version_info[:3])))
+        except RuntimePathBlocked as error:
+            setup_receipt(30,'BLOCKED',error.code)
+            raise
         except Exception:
             setup_receipt(30,'BLOCKED','RUNTIME_PATH_INVALID')
             raise

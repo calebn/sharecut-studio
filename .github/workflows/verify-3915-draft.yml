@@ -16,7 +16,7 @@ jobs:
     if: >-
       github.event.action == 'synchronize' &&
       github.event.pull_request.number == 4008 &&
-      github.event.before == '47fa5a1f097947ba6c05ab750ea7740a7df90f4c' &&
+      github.event.before == 'f5b7801f3e08b398570e4277564ff26a0785ffc4' &&
       github.repository == 'calebn/sharecut-studio' &&
       github.event.pull_request.head.repo.full_name == 'calebn/sharecut-studio' &&
       github.event.pull_request.head.ref == 'verify/3915-independent-draft-20261119' &&
@@ -33,18 +33,23 @@ jobs:
           ref: ${{ github.event.pull_request.head.sha }}
           persist-credentials: false
           fetch-depth: 1
-      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0
+      - id: python
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0
         with:
           python-version: '3.12'
+          architecture: 'x64'
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1
         with:
           node-version: '24'
           package-manager-cache: false
       - name: Fixed synthetic evidence only
         shell: bash
+        env:
+          V3915_PYTHON_PATH: ${{ steps.python.outputs.python-path }}
+          V3915_PYTHON_VERSION: ${{ steps.python.outputs.python-version }}
         run: |
           set -euo pipefail
-          python .github/verification/3915/test_classify.py >/dev/null 2>&1
-          python .github/verification/3915/test_setup.py >/dev/null 2>&1
-          python .github/verification/3915/test_process.py >/dev/null 2>&1
-          python .github/verification/3915/runner.py
+          "$V3915_PYTHON_PATH" .github/verification/3915/test_classify.py >/dev/null 2>&1
+          "$V3915_PYTHON_PATH" .github/verification/3915/test_setup.py >/dev/null 2>&1
+          "$V3915_PYTHON_PATH" .github/verification/3915/test_process.py >/dev/null 2>&1
+          "$V3915_PYTHON_PATH" .github/verification/3915/runner.py

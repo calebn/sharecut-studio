@@ -20,21 +20,44 @@ def checked_process(args, cwd, env, log, receipt, ordinal, timeout=1200, capture
     receipt(ordinal,'PASS','NONE')
     return result.stdout if capture else 0
 
+RUNTIME_ERRORS = frozenset({
+    'CACHE_METADATA_MISSING','CACHE_RESOLVE_FAILED','CACHE_ROOT_UNRECOGNIZED',
+    'LOCATION_METADATA_MISSING','LOCATION_RESOLVE_FAILED','VERSION_MISMATCH',
+    'CACHE_LAYOUT_MISMATCH','PREFIX_MISMATCH','EXECUTABLE_MISMATCH',
+    'ACTION_OUTPUT_MISSING','ACTION_OUTPUT_MISMATCH','LIBRARY_MISMATCH',
+    'OWNER_MISMATCH','METADATA_IO_ERROR',
+})
+
+class RuntimePathBlocked(SetupBlocked):
+    def __init__(self, code):
+        assert code in RUNTIME_ERRORS
+        self.code=code
+        super().__init__(code)
+
 def python_library_directory(source, executable, base_prefix, version, owner=None):
-    # setup-python's pinned find-python.ts exports installDir/lib on Linux.
-    # Reconstruct ONLY that entry, never forward arbitrary inherited loader paths.
+    # Match pinned setup-python.ts: nonempty AGENT_TOOLSDIRECTORY overrides cache
+    # within the action process. That override need not be exported to later steps.
     owner=os.getuid() if owner is None else owner
-    cache=Path(source.get('RUNNER_TOOL_CACHE',''))
-    location=Path(source.get('pythonLocation',''))
-    if not cache.is_absolute() or not location.is_absolute(): raise SetupBlocked()
-    cache=cache.resolve(strict=True); location=location.resolve(strict=True)
-    if str(cache) not in ('/opt/hostedtoolcache','/__t'): raise SetupBlocked()
-    if not re.fullmatch(r'3\.12\.[0-9]+',version): raise SetupBlocked()
-    if location != cache/'Python'/version/'x64': raise SetupBlocked()
-    if Path(base_prefix).resolve(strict=True) != location: raise SetupBlocked()
-    if not Path(executable).resolve(strict=True).is_relative_to(location/'bin'): raise SetupBlocked()
-    lib=(location/'lib').resolve(strict=True)
-    if lib != location/'lib' or not lib.is_dir(): raise SetupBlocked()
-    for path in (cache,location,lib):
-        if path.stat().st_uid not in (0,owner): raise SetupBlocked()
+    def require(ok, code):
+        if not ok: raise RuntimePathBlocked(code)
+    def resolved(raw, missing, failed):
+        require(bool(raw) and Path(raw).is_absolute(),missing)
+        try: return Path(raw).resolve(strict=True)
+        except OSError: raise RuntimePathBlocked(failed) from None
+    cache=resolved(source.get('AGENT_TOOLSDIRECTORY','').strip() or source.get('RUNNER_TOOL_CACHE',''), 'CACHE_METADATA_MISSING','CACHE_RESOLVE_FAILED')
+    require(str(cache) in ('/opt/hostedtoolcache','/__t'),'CACHE_ROOT_UNRECOGNIZED')
+    location=resolved(source.get('pythonLocation',''),'LOCATION_METADATA_MISSING','LOCATION_RESOLVE_FAILED')
+    require(bool(re.fullmatch(r'3\.12\.[0-9]+',version)) and source.get('V3915_PYTHON_VERSION') == version,'VERSION_MISMATCH')
+    require(location == cache/'Python'/version/'x64','CACHE_LAYOUT_MISMATCH')
+    action_exe=resolved(source.get('V3915_PYTHON_PATH',''),'ACTION_OUTPUT_MISSING','ACTION_OUTPUT_MISMATCH')
+    try:
+        require(Path(base_prefix).resolve(strict=True) == location,'PREFIX_MISMATCH')
+        exe=Path(executable).resolve(strict=True)
+        require(action_exe == exe,'ACTION_OUTPUT_MISMATCH')
+        require(exe.is_relative_to(location/'bin'),'EXECUTABLE_MISMATCH')
+        lib=(location/'lib').resolve(strict=True)
+        require(lib == location/'lib' and lib.is_dir(),'LIBRARY_MISMATCH')
+        for path in (cache,location,lib):
+            require(path.stat().st_uid in (0,owner),'OWNER_MISMATCH')
+    except OSError: raise RuntimePathBlocked('METADATA_IO_ERROR') from None
     return str(lib)
