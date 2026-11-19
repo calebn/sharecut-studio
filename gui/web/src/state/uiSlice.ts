@@ -37,6 +37,7 @@ import {
 import { composerPatch, initialSession } from "./composerSession";
 import { joinJobCopy } from "./jobCopy";
 import { inspectKeyOf } from "./selection";
+import { transcriptSelectionFollowPatch } from "./selectionSlice";
 import { timelineViewportRegistry } from "./timelineViewportRegistry";
 import type {
   AnnouncedJobKind,
@@ -697,7 +698,13 @@ export const createUiSlice: StateCreator<DawStore, [], [], UiSlice> = (
       set({ rangeArmed: true, rangeDraft, agentRangeScope: null }),
     setRangeDraft: (rangeDraft) => set({ rangeDraft }),
     setAgentRangeScope: (agentRangeScope) => set({ agentRangeScope }),
-    setRangeBusy: (rangeBusy) => set({ rangeBusy }),
+    setRangeBusy: (rangeBusy) =>
+      set((s) => ({
+        rangeBusy,
+        ...(rangeBusy
+          ? {}
+          : transcriptSelectionFollowPatch({ ...s, rangeBusy }, s.project)),
+      })),
     inspectorKey: null as string | null,
     setInspectorOpen: (open) =>
       set((s) => ({

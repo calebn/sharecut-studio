@@ -242,6 +242,8 @@ independent of duration or mute.
 
 A selection across speakers covers that time on both tracks. See [Transcript in DAW](daw-editing.md#pass-4--transcript-in-daw) for Shift-click and drag behavior.
 
+The store keeps a run of words in one track as `word_index` numbers, which another session's cut renumbers. For a host and an Editor guest, a project replacement through `setProject` or a same-path `hydrate` (so the sync deltas, the DETAIL merge, undo and redo) moves those numbers to the picked words, or clears the selection when a picked word was cut, retimed, re-spelled or cannot be proven. A held-trim preview or its discard sets the project directly and does not run the follow; it never changes the transcript. While an own range action is in flight, or while a replacement has no words yet, the stored numbers are left as they are and may name other words in the meantime; they are judged against the project the selection was named in when the action ends or the words arrive, and a selection made while the words were missing is cleared then. Correcting the text of a selected word also clears the selection. A review guest's Script does not use this: it follows in the Script itself from the ends it remembers.
+
 Keyboard word actions: Enter on a focused, unselected word selects it and
 seeks; Enter or F2 on a selected word opens Fix text for a hydrated host
 project. F2 does nothing on guest shares, or while a correction is saving.

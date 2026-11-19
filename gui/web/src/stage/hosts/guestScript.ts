@@ -229,5 +229,6 @@ export function guestScriptModelOf(g: GuestScriptModel): ScriptModel {
     seekSecOf: (index) => g.wordStarts[index] ?? null,
     timeOf: (index) => g.times[index] ?? null,
     isCut: () => false,
+    starts: g.words.map((word) => word.start),
   };
 }
