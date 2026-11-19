@@ -210,7 +210,7 @@ describe("stage commands", () => {
     (id) => {
       const ctx = as("commenter", "review");
       expect(evaluateWhen(COMMANDS[id].when, ctx)).toEqual({ ok: true });
-      expect(rowReason(id)).toBeNull();
+      expect(rowReason(id)).toBe("Choose a range");
     },
   );
 
@@ -223,21 +223,24 @@ describe("stage commands", () => {
     expect(rowReason(id)).toBe(STAGE_REASON);
   });
 
-  it.each(RANGE_EDITS)("%s is enabled for an Editor link on Edit", (id) => {
-    as("editor", "edit");
-    expect(rowReason(id)).toBeNull();
-  });
+  it.each(RANGE_EDITS)(
+    "%s asks an Editor link on Edit to choose a range first",
+    (id) => {
+      as("editor", "edit");
+      expect(rowReason(id)).toBe("Choose a range");
+    },
+  );
 
-  it("keeps fillRoomTone on the Edit stage for a suggest-only link", () => {
+  it("leaves fillRoomTone out for a suggest-only link, which has no Edit stage", () => {
     as("commenter", "review");
-    expect(rowReason("range.fillRoomTone")).toBe(STAGE_REASON);
+    expect(rowReason("range.fillRoomTone")).toBeUndefined();
   });
 
   it.each(["commentOnly", "viewer", "noCaps"] as const)(
-    "range.cut stays disabled for %s on Review",
+    "range.cut is left out for %s on Review",
     (role) => {
       as(role, "review");
-      expect(rowReason("range.cut")).toBe(STAGE_REASON);
+      expect(rowReason("range.cut")).toBeUndefined();
     },
   );
 

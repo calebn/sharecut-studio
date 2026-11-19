@@ -114,14 +114,20 @@ describe("paletteCommands", () => {
     expect(play?.disabledReason).toBeNull();
   });
 
-  it("gives host-only commands their reason on a review link", () => {
+  it("leaves host-only commands out of a review link and keeps their reason for the host", () => {
+    expect(
+      rowsNow().find((r) => r.id === "transport.shuttleBack")?.disabledReason,
+    ).toBeNull();
+    useDawStore.setState({ projectPath: "/tmp/empty.json", project: null });
+    expect(
+      rowsNow().find((r) => r.id === "export.deliverables")?.disabledReason,
+    ).toBe("No project loaded");
     useDawStore
       .getState()
       .hydrate(shareProjectKey("tok"), minimalProject(), "view", ["play"]);
-    const exportRow = rowsNow().find((r) => r.id === "export.deliverables");
-    expect(exportRow?.disabledReason).toBe(
-      "Host-only (not available on review links)",
-    );
+    expect(
+      rowsNow().find((r) => r.id === "export.deliverables"),
+    ).toBeUndefined();
   });
 
   it("puts the five stage commands and the hand-off in Stages, with the stage icons, and help.* in Help", () => {
@@ -149,14 +155,14 @@ describe("paletteCommands", () => {
     expect(rows.get("view.showCutAway")?.icon).toBeUndefined();
   });
 
-  it("keeps the stage gates: a guest link gets the reason on stages it cannot enter", () => {
+  it("leaves out the stages a guest link cannot enter", () => {
     useDawStore
       .getState()
       .hydrate(shareProjectKey("tok"), minimalProject(), "view", ["play"]);
     const rows = new Map(rowsNow().map((r) => [r.id, r]));
-    expect(rows.get("stage.deliver")?.disabledReason).toBe(
-      "Not available on this link",
-    );
+    expect(rows.has("stage.deliver")).toBe(false);
+    expect(rows.has("stage.edit")).toBe(false);
+    expect(rows.get("stage.review")?.disabledReason).toBeNull();
   });
 
   it("keeps the story fixture in step with the catalog and keymap", () => {

@@ -11,7 +11,9 @@ import { ApiError } from "../utils/apiError";
 import { startBounce } from "./bounceRunnerHandle";
 import { clearRegisteredCommands, execute } from "./execute";
 import {
+  armRangeReason,
   rangeActionDescriptors,
+  rangeActionReason,
   registerRangeCommands,
   runRangeAction,
 } from "./rangeActions";
@@ -611,5 +613,43 @@ describe("a range made from Script words while the words refresh", () => {
   it("runs when it was drawn on the timeline", async () => {
     choose(false);
     expect(await runRangeAction("comment")).toEqual({ status: "ok" });
+  });
+});
+
+describe("the reason a range row carries before it is pressed", () => {
+  it("is the reason the press would give, and null for a range that can be used", () => {
+    expect(rangeActionReason("comment")).toBeNull();
+    expect(rangeActionReason("fillRoomTone")).toBe(
+      "No gap between clips in this range",
+    );
+    useDawStore.setState({ selection: null });
+    expect(rangeActionReason("comment")).toBe("Choose a range");
+    expect(rangeActionReason("play")).toBe("Choose a range");
+  });
+
+  it("names the host-only export for a guest link", () => {
+    useDawStore.setState({
+      projectPath: "share:tok",
+      guestMode: "edit",
+      shareCapabilities: ["view", "play", "comment", "edit", "suggest"],
+    });
+    expect(rangeActionReason("bounce")).toBe(
+      "Only the host can export selected tracks",
+    );
+  });
+
+  it("says why a range cannot be armed, as the press would", () => {
+    useDawStore.setState({
+      selection: null,
+      rangeArmed: false,
+      playheadSec: 2,
+    });
+    expect(armRangeReason()).toBeNull();
+    useDawStore.setState({ selection: { kind: "range", target } });
+    expect(armRangeReason()).toBe("A range is already selected");
+    useDawStore.setState({ selection: null, project: null });
+    expect(armRangeReason()).toBe(
+      "Open a project and wait for the current edit",
+    );
   });
 });

@@ -332,6 +332,13 @@ export function evaluateWhen(
       return ctx.hasProject
         ? { ok: true }
         : { ok: false, reason: "No project loaded" };
+    case "timelineSurface":
+      if (!ctx.hasProject) {
+        return { ok: false, reason: "No project loaded" };
+      }
+      return ctx.guestMode !== null && !ctx.allowedStages.includes("edit")
+        ? { ok: false, reason: "This link has no timeline" }
+        : { ok: true };
     case "canApplyPass12":
       if (!ctx.hasProject) {
         return { ok: false, reason: "No project loaded" };
@@ -452,5 +459,92 @@ export function evaluateWhen(
         : { ok: false, reason: "No take is open" };
     default:
       return { ok: false, reason: `Unknown when: ${String(when)}` };
+  }
+}
+
+/**
+ * Whether a guest link can never run a row, whatever the project's state, so
+ * the palette leaves it out instead of listing it with a reason. The host
+ * (`guestMode` null) and a page with no project yet (role flags can read false
+ * for a moment) are never "never". A new predicate must say here whether it is
+ * a role (never) or a state (stays, greyed with its reason); the `never` check
+ * fails the build until it does.
+ */
+export function gateNeverRuns(
+  when: ContextPredicateId,
+  ctx: CommandContext,
+): boolean {
+  if (ctx.guestMode === null || !ctx.hasProject) return false;
+  const noEditStage = !ctx.allowedStages.includes("edit");
+  const noTrackInspector = noEditStage || !ctx.canIngestMedia;
+  switch (when) {
+    case "canManageProjects":
+    case "hostProjectLoaded":
+      return true;
+    case "stageAllowed:record":
+    case "stageAllowed:prepare":
+    case "stageAllowed:edit":
+    case "stageAllowed:review":
+    case "stageAllowed:deliver":
+      return !ctx.allowedStages.includes(
+        when.slice("stageAllowed:".length) as StageId,
+      );
+    case "recordStageActive":
+    case "roomKeysActive":
+    case "roomTakeIdle":
+    case "roomTakeLive":
+      return !ctx.allowedStages.includes("record");
+    case "canComment":
+      return !ctx.canComment;
+    case "canEditMix":
+      return !ctx.canEditMix;
+    case "canEditEnvelopes":
+      return !ctx.canEditEnvelopes;
+    case "canIngestMedia":
+      return !ctx.canIngestMedia;
+    case "canRefreshMix":
+      return !ctx.canRefreshMix;
+    case "canApplyPass12":
+    case "canUndo":
+    case "canRedo":
+      return !ctx.canApplyPass12;
+    case "canSuggestStructural":
+      return !ctx.canSuggestStructural;
+    case "canFixText":
+    case "editStage":
+    case "suggestionSelected":
+    case "timelineFocused":
+    case "timelineSurface":
+      return noEditStage;
+    case "editStageStructural":
+      return noEditStage || !ctx.canSuggestStructural;
+    case "editStagePass12":
+      return noEditStage || !ctx.canApplyPass12;
+    case "editStageOrRangeSuggest":
+      return noEditStage && ctx.rangeEditMode === "none";
+    case "editStageIngest":
+    case "editStageTrackInspector":
+    case "editStageMoveSelectedTrackUp":
+    case "editStageMoveSelectedTrackDown":
+    case "trackInspectorSelected":
+    case "canMoveSelectedTrackUp":
+    case "canMoveSelectedTrackDown":
+      return noTrackInspector;
+    case "editStageSplitSpeakers":
+    case "canSplitSpeakers":
+      return noEditStage || !ctx.canManageProjects;
+    case "focusedFadeHandle":
+    case "focusedTrimHandle":
+    case "always":
+    case "editorFocused":
+    case "hasProject":
+    case "hasInspectorSelection":
+    case "afterCutActive":
+    case "following":
+      return false;
+    default: {
+      const unclassified: never = when;
+      return unclassified;
+    }
   }
 }
