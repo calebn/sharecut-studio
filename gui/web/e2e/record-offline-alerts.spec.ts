@@ -1,13 +1,12 @@
-import {
-  type Browser,
-  type BrowserContextOptions,
-  devices,
-  expect,
-  type Page,
-  test,
-} from "@playwright/test";
+import { type Browser, expect, type Page, test } from "@playwright/test";
 import { CHROMIUM_FAKE_MEDIA_ARGS } from "./launchOptions";
-import { LAPTOP, type LiveTake, shot, withLiveTake } from "./recordLiveTake";
+import {
+  LAPTOP,
+  LIVE_PILL,
+  type LiveTake,
+  PHONE,
+  withLiveTake,
+} from "./recordLiveTake";
 import {
   ensureHostRecordCommand,
   expectNoRoomAlert,
@@ -16,13 +15,9 @@ import {
   roomPill,
 } from "./recordRoom";
 
-const { defaultBrowserType: _iphoneBrowser, ...iPhone } = devices["iPhone 13"];
-const PHONE: BrowserContextOptions = { ...iPhone, deviceScaleFactor: 2 };
-
 const CONNECTION_LOST =
   "Lost connection to the room. You're still recording on this device.";
 const SAVING_STOPPED = "Saving stopped.";
-const LIVE_PILL = /^\d+:\d{2} · Take \d+$/;
 const TICKS = 5;
 const TICK_MS = 2_000;
 
@@ -64,18 +59,15 @@ for (const [name, options] of [
       uploads.failing = true;
       await expectRoomAlert(guest, SAVING_STOPPED);
       await expectNoRoomAlert(guest, CONNECTION_LOST);
-      await shot(guest, `F-${name}-1-real-failure-while-connected`);
 
       await guestNet.drop();
       await expect(roomPill(guest)).toHaveText(/Reconnecting/);
       await expectOnlyConnectionAlert(guest);
-      await shot(guest, `F-${name}-2-offline-one-alert`);
 
       guestNet.restore();
       await expect(roomPill(guest)).toHaveText(LIVE_PILL, { timeout: 30_000 });
       await expectNoRoomAlert(guest, CONNECTION_LOST);
       await expectRoomAlert(guest, SAVING_STOPPED);
-      await shot(guest, `F-${name}-3-back-online-failure-shown`);
     });
   });
 }
@@ -114,7 +106,6 @@ test("a saved guest sees no alert when the connection drops", async ({
       );
     }
     await expect(roomPill(guest)).toHaveText("Saved");
-    await shot(guest, "F-laptop-4-saved-guest-after-drop");
   });
 });
 
@@ -131,7 +122,6 @@ test("a paused take keeps its alerts: no connection alert, and saving stopped on
     await guestNet.drop();
     await expectRoomAlert(guest, SAVING_STOPPED);
     await expectNoRoomAlert(guest, CONNECTION_LOST);
-    await shot(guest, "F-laptop-5-paused-take-offline");
     guestNet.restore();
     await expect(roomAlertSlot(guest).getByText(SAVING_STOPPED)).toHaveCount(
       0,

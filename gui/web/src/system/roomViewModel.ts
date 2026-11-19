@@ -6,7 +6,7 @@ import {
 } from "./notesRailModel";
 import type { PersonData } from "./Person";
 import type { RecordFace } from "./RecordButton";
-import type { DockSeat, RecordDockMode } from "./RecordDock";
+import type { DockSeat, LeaveExit, RecordDockMode } from "./RecordDock";
 import type { RoomAlertInput } from "./roomAlertModel";
 import { type RoomPhase, savingPercent } from "./roomPhase";
 import {
@@ -57,7 +57,6 @@ export type RoomViewInput = {
 };
 
 export type DeviceWork = {
-  /** The host has been gone from a take long enough that a guest may leave it. */
   hostGoneLong?: boolean;
   uploading?: boolean;
   verifying?: boolean;
@@ -225,16 +224,11 @@ function savingLine(phase: Extract<RoomPhase, { kind: "saving" }>): string {
     : `Saving · ${percent}% · keep this page open`;
 }
 
-type GuestExit = Pick<
-  Extract<RecordDockMode, { kind: "controls" }>,
-  "leaveHeld" | "leaveWarning" | "leaveConfirm"
->;
-
 function guestExit(
   phase: RoomPhase,
   device: DeviceWork,
   viewerWidth: ViewerWidth,
-): GuestExit {
+): LeaveExit {
   const onAir =
     phase.kind === "live" ||
     phase.kind === "paused" ||

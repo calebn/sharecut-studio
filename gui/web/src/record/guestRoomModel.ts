@@ -623,7 +623,6 @@ export function ownSaving(
   upload: RecordUploadProgress | null | undefined,
   localSegments: number | null,
   localUnreadable = false,
-  connectionLost = false,
 ): RoomSaving | null {
   if (!upload) {
     return null;
@@ -631,10 +630,7 @@ export function ownSaving(
   if (uploadAcknowledged(upload, localSegments)) {
     return "saved";
   }
-  if (
-    (upload.error && !connectionLost) ||
-    (localUnreadable && upload.fileAck)
-  ) {
+  if (upload.error || (localUnreadable && upload.fileAck)) {
     return "failed";
   }
   return upload.total > 0 ? { done: upload.acked, total: upload.total } : null;

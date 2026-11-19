@@ -415,12 +415,7 @@ function GuestRoomSession({
     saving:
       meId && state === "stopped" && !producer
         ? {
-            [meId]: ownSaving(
-              upload,
-              room.localSegments,
-              room.localUnreadable,
-              inTake && phase.kind === "reconnecting" && !phase.paused,
-            ),
+            [meId]: ownSaving(upload, room.localSegments, room.localUnreadable),
           }
         : undefined,
   });
