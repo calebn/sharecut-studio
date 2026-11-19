@@ -993,6 +993,7 @@ function recordParticipantKey(token: string): string {
 export type RecordParticipantLease = {
   participant_id: string;
   lease: string;
+  issuedAt?: number;
 };
 
 export async function saveRecordParticipant(

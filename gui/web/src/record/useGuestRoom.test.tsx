@@ -458,16 +458,13 @@ describe("useGuestRoom", () => {
         issuedAt: Date.now() - DAY,
       });
       expect(result.current.leaseFresh).toBe(false);
-      let release: (value: unknown) => void = () => undefined;
-      vi.mocked(loadRecordParticipant).mockReturnValue(
-        new Promise((resolve) => {
-          release = resolve;
-        }) as ReturnType<typeof loadRecordParticipant>,
-      );
+      const held =
+        deferred<Awaited<ReturnType<typeof loadRecordParticipant>>>();
+      vi.mocked(loadRecordParticipant).mockReturnValue(held.promise);
       act(() => result.current.leave());
       expect(result.current.leaseFresh).toBe(false);
       await act(async () =>
-        release({
+        held.resolve({
           participant_id: "p_g",
           lease: "l",
           issuedAt: Date.now() - DAY,
@@ -741,6 +738,38 @@ describe("useGuestRoom", () => {
     expect(sockets[1]?.commands("Join")[0]).toMatchObject({
       payload: { display_name: "Ava Okafor" },
     });
+  });
+
+  it("sends the remembered name on the Join of a rejoin that carries the identity of a recording this device holds", async () => {
+    localStorage.setItem("sharecut.recordName", "Ava");
+    stubFetch(guestBootstrap);
+    renderHook(() =>
+      useGuestRoom("guest-tok", {
+        carried: { sessionId: "room1", participantId: "p_g", takeIndex: 0 },
+      }),
+    );
+    await waitFor(() => expect(sockets[0]?.commands("Join")).toHaveLength(1));
+    expect(
+      (
+        JSON.parse(sockets[0]?.sent[0] ?? "{}") as {
+          payload: { display_name: string };
+        }
+      ).payload.display_name,
+    ).toBe("Ava");
+  });
+
+  it("keeps the name off the Join when nothing is carried", async () => {
+    localStorage.setItem("sharecut.recordName", "Ava");
+    stubFetch(guestBootstrap);
+    renderHook(() => useGuestRoom("guest-tok"));
+    await waitFor(() => expect(sockets[0]?.commands("Join")).toHaveLength(1));
+    expect(
+      (
+        JSON.parse(sockets[0]?.sent[0] ?? "{}") as {
+          payload: { display_name: string };
+        }
+      ).payload.display_name,
+    ).toBe("Guest");
   });
 
   it("keeps a remembered name off a reconnect when the guest never acted", async () => {

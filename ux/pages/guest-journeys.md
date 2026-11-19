@@ -444,7 +444,9 @@ flowchart TD
    Removal during REC stops microphone capture and saving, then shows the Cover
    "Your recording didn't finish saving" for the full-quality recording kept on this
    device, with **Save my recording** and **Try saving again** once capture has
-   settled and the device holds something to save. A naturally expired lease can start a fresh
+   settled and the device holds something to save, and no Join again (a guest
+   removed while away reaches this Cover only after pressing Join again on the
+   Cover they left on). A naturally expired lease can start a fresh
    guest identity in the still-open room, unless someone who joined through the
    same link was removed; then the guest sees "Invite link closed" and needs a
    fresh link from the host. When that guest still holds a finished take on this

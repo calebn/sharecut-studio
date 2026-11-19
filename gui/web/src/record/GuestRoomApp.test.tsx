@@ -2052,6 +2052,30 @@ describe("GuestRoomApp", () => {
       expect(screen.queryByRole("button", { name: "Join again" })).toBeNull();
     });
 
+    it("keeps Save my recording when the room moved on and the link answers invite_closed", async () => {
+      stubUploadFetch();
+      await leaveWithUnsentTake(Date.now() - DAY);
+      const again = await screen.findByRole("button", { name: "Join again" });
+      stubWebSocket(sockets, "silent");
+      await userEvent.click(again);
+      await waitFor(() => expect(sockets).toHaveLength(2));
+      await waitFor(() => expect(sockets[1]?.sent.length).toBeGreaterThan(0));
+      sockets[1]?.onmessage?.({
+        data: JSON.stringify({
+          plane: "record",
+          type: "Error",
+          code: "invite_closed",
+        }),
+      });
+      expect(
+        await screen.findByRole("heading", { name: "Invite link closed" }),
+      ).toBeInTheDocument();
+      expect(
+        await screen.findByRole("button", { name: "Save my recording" }),
+      ).toBeEnabled();
+      expect(screen.queryByRole("button", { name: "Join again" })).toBeNull();
+    });
+
     it("lands a guest removed while away on the removed-access cover with Save my recording", async () => {
       stubUploadFetch();
       await leaveWithUnsentTake(Date.now() - DAY);
