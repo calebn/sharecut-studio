@@ -461,6 +461,7 @@ type CoverSource = {
   host?: string;
   localUnreadable?: boolean;
   leaseFresh?: boolean;
+  leaseStillFresh?: () => boolean;
   onRetry?: () => void;
 };
 
@@ -472,6 +473,17 @@ const JOIN_AGAIN_COPY = "Or join again from this page.";
 
 const UNREADABLE_DEVICE_COPY =
   "We couldn't check this device. Try saving it again, or save a copy.";
+
+function guardedJoinAgain(
+  join: () => void,
+  stillFresh: (() => boolean) | undefined,
+): () => void {
+  return () => {
+    if (stillFresh?.() ?? true) {
+      join();
+    }
+  };
+}
 
 function unsentRecordingCover(
   source: CoverSource,
@@ -615,7 +627,9 @@ export function guestCovers(source: CoverSource): CoverProps | null {
       return unsentRecordingCover(
         source,
         host,
-        source.leaseFresh ? source.onRetry : undefined,
+        source.leaseFresh && source.onRetry
+          ? guardedJoinAgain(source.onRetry, source.leaseStillFresh)
+          : undefined,
       );
     }
     const finishing = source.stake === "finishing";
@@ -709,6 +723,7 @@ type CoverRoom = Pick<
 > & {
   upload: Pick<RecordUploadProgress, "fileAck" | "seenSegments">;
   keeperIdentity?: { takeIndex: number } | null;
+  leaseStillFresh?: () => boolean;
 };
 
 /** The page-sized Cover this room needs instead of the room, or null. */
@@ -747,6 +762,7 @@ export function guestCoverProps(
     host: guestHostName(room.snapshot),
     localUnreadable: room.localUnreadable,
     leaseFresh: room.leaseFresh,
+    leaseStillFresh: room.leaseStillFresh,
     onRetry: options.onRetry,
   });
 }

@@ -142,7 +142,7 @@ export function useGuestRoom(
     counted,
     socketMode,
   } = useRecordSync(token, syncName, requestedMode);
-  const leaseFresh = useLeaseFreshWhileLeft(token, left);
+  const { leaseFresh, leaseStillFresh } = useLeaseFreshWhileLeft(token, left);
   const accessEnded = isRecordAccessEnded(error);
   const inviteClosed = error === RECORD_INVITE_CLOSED;
   const joinedName = (producer ? producerJoined : me?.consented === true)
@@ -497,6 +497,7 @@ export function useGuestRoom(
     resumeUpload,
     left,
     leaseFresh,
+    leaseStillFresh,
     keeperIdentity,
     leave,
   };

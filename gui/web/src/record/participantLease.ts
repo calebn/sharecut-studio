@@ -16,6 +16,16 @@ export function leaseKnownYoungEnough(
   );
 }
 
+export function msUntilLeaseStale(
+  entry: RecordParticipantLease | undefined,
+  now: number,
+): number | null {
+  if (!leaseKnownYoungEnough(entry, now) || entry?.issuedAt === undefined) {
+    return null;
+  }
+  return entry.issuedAt + REJOIN_LEASE_MAX_AGE_MS - now + 1;
+}
+
 export function stampLease(
   cached: RecordParticipantLease | undefined,
   minted: { participant_id: string; lease: string },
