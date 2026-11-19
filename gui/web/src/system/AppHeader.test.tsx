@@ -1027,6 +1027,33 @@ describe("AppHeader second bubble: the Editor's reminder", () => {
   });
 });
 
+describe("AppHeader reminder with no first-visit sentence", () => {
+  const STAKES_TEXT =
+    "You changed the host's episode, and everyone sees it. Undo takes back only your own step.";
+
+  it("opens the reminder when it is raised on a page whose first sentence was seen on an earlier visit", () => {
+    const onShown = vi.fn();
+    const hintOf = (shown: boolean) => ({
+      kind: "stakes" as const,
+      text: STAKES_TEXT,
+      shown,
+      onDismiss: vi.fn(),
+      onShown,
+    });
+    const { again } = setup({
+      title: "Episode",
+      guest: { version: "v3", role: "editor", hint: hintOf(false) },
+    });
+    expect(screen.queryByRole("note")).toBeNull();
+    again({
+      title: "Episode",
+      guest: { version: "v3", role: "editor", hint: hintOf(true) },
+    });
+    expect(screen.getByRole("note")).toHaveTextContent(STAKES_TEXT);
+    expect(onShown).toHaveBeenCalledOnce();
+  });
+});
+
 describe("AppHeader first-visit role hint: said once", () => {
   const TEXT = "You can comment and suggest cuts. The host decides.";
   const guestOf = (
