@@ -311,8 +311,9 @@ class InProcessChild:
     A PIPE stream is an ``os.pipe`` pair, a file object is handed to the backend as is, and
     DEVNULL or ``None`` give the backend ``None``. ``pid`` is ``None``. A ``kill`` that the
     backend ignores for ``KILL_GRACE_SEC`` ends the child with ``-9`` at once (``wait`` never
-    hangs) and abandons its thread. It releases only this side's pipe ends: a reader sees EOF
-    after the abandon only if the backend has closed its own stream ends on cancel (the native
+    hangs) and abandons its thread. At the abandon it closes the caller's write end of a stdin
+    pipe (a backend blocked reading it sees EOF) and detaches the backend's own pipe ends; the
+    caller's stdout and stderr read ends stay open: a reader sees EOF after the abandon only if the backend has closed its own stream ends on cancel (the native
     ABI requires that); a backend that keeps them delays EOF until it returns. A backend that
     returns a non-int has failed with code ``1``.
     A ``kill`` before the backend finishes always reports ``-9``, whatever the backend returns,
@@ -404,6 +405,17 @@ class InProcessChild:
             for fd in self._owned_fds:
                 os.dup2(self._null_fd, fd)
 
+    def _release_caller_stdin(self) -> None:
+        """Close the caller's write end of stdin so a read blocked on it in the backend sees EOF.
+
+        Only the raw descriptor is closed: the buffered writer's lock may be held by a caller that
+        is itself blocked in a write, and a flush of pending bytes into a full pipe would block.
+        """
+        raw = getattr(self.stdin, "raw", self.stdin)
+        if raw is not None:
+            with contextlib.suppress(OSError, ValueError):
+                raw.close()
+
     def _finish(self, code: int) -> None:
         with self._lock:
             if self.returncode is None:
@@ -453,6 +465,7 @@ class InProcessChild:
                 if self.returncode is None:
                     self.returncode = -9
             self._detach_owned()
+            self._release_caller_stdin()
             self._done.set()
 
     def communicate(self, input: Any = None, timeout: float | None = None) -> tuple[Any, Any]:
@@ -461,10 +474,10 @@ class InProcessChild:
 
         def feed() -> None:
             data = input.encode(_encoding()) if isinstance(input, str) else input
-            with contextlib.suppress(OSError):
+            with contextlib.suppress(OSError, ValueError):
                 if data:
                     self.stdin.write(data)
-            with contextlib.suppress(OSError):
+            with contextlib.suppress(OSError, ValueError):
                 self.stdin.close()
 
         def drain(name: str) -> None:

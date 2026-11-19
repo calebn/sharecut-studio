@@ -126,8 +126,10 @@ class NativeFFmpegBackend:
     - ``cancel`` must return promptly, stop the session and close the session's originals (each at
       most once) at once, even if ``wait`` returns later; libav closes its own copies.
     - A caller's pipe reader sees EOF only when the native's dups are closed AND the caller-side
-      write end is released. ``process`` releases that end when ``wait`` returns, or after
-      ``KILL_GRACE_SEC`` at the latest, so EOF after a kill can take up to that grace.
+      write end is released. ``process`` releases that end when ``wait`` returns, or, for a tool
+      that ignores the cancel, closes the caller's stdin write end at ``KILL_GRACE_SEC``, so a
+      read blocked on it ends then. The caller's stdout and stderr read ends are not released
+      there: a reader sees EOF only when the native's dups are closed.
     - A native error is never success: it becomes exit code 1 with one stderr line.
     """
 

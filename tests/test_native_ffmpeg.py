@@ -184,6 +184,11 @@ class SlowWait(Blocking):
         return super()._wait(session_id)
 
 
+def read_all(child: Any) -> bytes:
+    assert child.stdout is not None
+    return child.stdout.read()
+
+
 @pytest.fixture
 def host():
     with host_platform.using(ROW):
@@ -413,6 +418,24 @@ def test_a_backend_that_ignores_cancel_is_abandoned_after_the_grace(
         assert fake.finished.wait(2)
 
 
+def test_abandon_closes_the_callers_stdin_so_a_blocked_read_ends_and_the_next_session_runs(
+    host: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(process, "KILL_GRACE_SEC", 0.2)
+    fake = FakeNative(honour_cancel=False)
+    with process.using_in_process_backend(NativeFFmpegBackend(fake)):
+        child = process.popen([IN_PROCESS_FFMPEG], stdin=process.PIPE)
+        assert fake.started.acquire(timeout=BOUND_SEC)
+        child.kill()
+        assert child.wait(BOUND_SEC) == -9
+        assert child.stdin is not None and child.stdin.closed
+        assert fake.finished.wait(BOUND_SEC)
+        second = process.popen([IN_PROCESS_FFMPEG], stdin=process.PIPE)
+        assert second.stdin is not None
+        second.stdin.close()
+        assert second.wait(BOUND_SEC) == 0
+
+
 def test_a_reader_sees_eof_after_kill_and_abandon_with_a_conformant_native(
     host: None, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -424,7 +447,7 @@ def test_a_reader_sees_eof_after_kill_and_abandon_with_a_conformant_native(
         assert child.wait(2) == -9
         assert fake.cancelled.is_set()
         result: list[bytes] = []
-        reader = threading.Thread(target=lambda: result.append(child.stdout.read()), daemon=True)
+        reader = threading.Thread(target=lambda: result.append(read_all(child)), daemon=True)
         reader.start()
         reader.join(2)
         assert not reader.is_alive()
@@ -444,9 +467,7 @@ def test_a_native_that_ignores_cancel_never_hangs_wait_though_eof_is_delayed(
             assert child.wait(2) == -9
             assert not fake.finished.is_set()
             result: list[bytes] = []
-            reader = threading.Thread(
-                target=lambda: result.append(child.stdout.read()), daemon=True
-            )
+            reader = threading.Thread(target=lambda: result.append(read_all(child)), daemon=True)
             reader.start()
             reader.join(0.5)
             assert reader.is_alive()  # the native still holds its dups: no EOF yet
