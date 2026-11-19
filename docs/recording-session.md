@@ -96,7 +96,7 @@ download; it is at most a lossy backup. Keepers must target WAV/PCM.
 | **Recording clock** vs **wall offset** | `recording_ms = wall_ms − Σ(resume − pause)`. `join_offset_ms` is always recording-clock. |
 | **Participant** | Anyone in the room (guest, producer, or host-as-talent). |
 | **Guest** | Recorded role: `join monitor comment`. |
-| **Producer** | Listen + comment, not recorded; shown in the listener row of every roster. |
+| **Producer** | Listen + comment, not recorded. |
 | **Host** | Owns the episode; starts/stops/pauses; is also a recorded participant. |
 | **Live marker (comment)** | Same `TimelineComment` as review comments. `C` (host; a guest keeps `M`) posts `body` `"Marker"` — a live marker comment, **not** a `ChapterMarker` or a second type. Lands in `review.comments[]`. |
 | **Full-quality recording** (code: *keeper*) | Local dry WAV per recorded participant. UI status per participant and segment: "Saving to project…", then "Saved to project". |
