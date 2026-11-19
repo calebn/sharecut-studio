@@ -8,12 +8,7 @@ import { hintOf, verbOf } from "./verbDisplay";
 
 export type DockSeat = "host" | "guest" | "producer";
 
-/**
- * `leaveWarning` is what the exit costs once it is open: it is the button's
- * description, always on show unless `leaveConfirm` asks for a second press,
- * which a press reveals first.
- */
-type LeaveExit = {
+export type LeaveExit = {
   leaveHeld?: string;
   leaveWarning?: string;
   leaveConfirm?: boolean;

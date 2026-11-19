@@ -1,11 +1,4 @@
-import {
-  type Browser,
-  type BrowserContextOptions,
-  devices,
-  expect,
-  type Page,
-  test,
-} from "@playwright/test";
+import { type Browser, expect, type Page, test } from "@playwright/test";
 import {
   keeperSegmentWavBytes,
   ONE_SECOND_KEEPER_WAV_BYTES,
@@ -14,8 +7,9 @@ import { CHROMIUM_FAKE_MEDIA_ARGS } from "./launchOptions";
 import {
   boxOf,
   LAPTOP,
+  LIVE_PILL,
   type LiveTake,
-  shot,
+  PHONE,
   withLiveTake,
 } from "./recordLiveTake";
 import {
@@ -27,9 +21,6 @@ import {
   roomTile,
   waitForSegmentsAcked,
 } from "./recordRoom";
-
-const { defaultBrowserType: _iphoneBrowser, ...iPhone } = devices["iPhone 13"];
-const PHONE: BrowserContextOptions = { ...iPhone, deviceScaleFactor: 2 };
 
 const HOST_DROPPED = /dropped\. You're still recording on this device\./;
 const HELD_TITLE = "You can leave after this take.";
@@ -84,7 +75,6 @@ test.describe("guest leaves a take once the host is gone", () => {
       const droppedAt = await cutHost(take);
       await expect(leave).toHaveAttribute("aria-disabled", "true");
       await expect(leave).toHaveAttribute("title", HELD_TITLE);
-      await shot(guest, "A-laptop-1-host-gone-leave-held");
 
       await guest.waitForTimeout(30_000);
       await expect(leave).toHaveAttribute("aria-disabled", "true");
@@ -106,9 +96,8 @@ test.describe("guest leaves a take once the host is gone", () => {
       expect(openDock.height - heldDock.height).toBeLessThanOrEqual(
         noteBox.height + 12,
       );
-      await shot(guest, "A-laptop-2-leave-open-with-warning");
 
-      await expect(roomPill(guest)).toHaveText(/^\d+:\d{2} · Take \d+$/);
+      await expect(roomPill(guest)).toHaveText(LIVE_PILL);
       const upload = { blocked: true };
       await guest.route(/\/api\/rec\/[^/]+\/upload/, (route) =>
         upload.blocked ? route.abort("failed") : route.fallback(),
@@ -119,7 +108,6 @@ test.describe("guest leaves a take once the host is gone", () => {
           name: /You left the room|didn't finish saving/,
         }),
       ).toBeVisible();
-      await shot(guest, "A-laptop-3-after-leave");
 
       await guestIsGone(take);
       await expect
@@ -134,15 +122,9 @@ test.describe("guest leaves a take once the host is gone", () => {
         .toBe(true);
       await expect(roomTile(host, "Ava")).toContainText(/Left/);
       await ensureHostRecordCommand(host, projectPath, "Stop", "stopped");
-      await expect(roomDlg.getByText(/Saving/).first()).toBeVisible({
-        timeout: 20_000,
-      });
-      await shot(host, "A-laptop-4-host-saving-0-of-2");
-
       await expect(roomDlg.getByText(/Saving · \d of 2/).first()).toBeVisible({
         timeout: 20_000,
       });
-      await shot(host, "A-laptop-4-host-saving-guest-unsaved");
 
       const saveButton = guest.getByRole("button", {
         name: "Save my recording",
@@ -160,7 +142,6 @@ test.describe("guest leaves a take once the host is gone", () => {
       await expect(
         guest.getByRole("heading", { name: "You left the room" }),
       ).toBeVisible({ timeout: 30_000 });
-      await shot(guest, "A-laptop-5-after-host-has-it");
     });
   });
 
@@ -179,7 +160,6 @@ test.describe("guest leaves a take once the host is gone", () => {
 
       await cutHost(take);
       await expect(leave).toHaveAttribute("aria-disabled", "true");
-      await shot(guest, "A-phone-1-host-gone-leave-held");
 
       await expect(leave).not.toHaveAttribute("aria-disabled", "true", {
         timeout: 75_000,
@@ -188,13 +168,11 @@ test.describe("guest leaves a take once the host is gone", () => {
       await expect(note).toBeHidden();
       const openDock = await boxOf(dock);
       expect(openDock.height).toBeCloseTo(heldDock.height, 0);
-      await shot(guest, "A-phone-2-leave-open-before-press");
 
       await leave.tap();
       await expect(note).toBeVisible();
       await expect(note).toHaveText(WARNING_SHORT);
-      await expect(roomPill(guest)).toHaveText(/^\d+:\d{2} · Take \d+$/);
-      await shot(guest, "A-phone-3-first-press-reveals-warning");
+      await expect(roomPill(guest)).toHaveText(LIVE_PILL);
 
       await guest.setViewportSize({ width: 667, height: 375 });
       await expect(note).toBeHidden({ timeout: 10_000 });
@@ -205,8 +183,7 @@ test.describe("guest leaves a take once the host is gone", () => {
       expect(bubble.y).toBeGreaterThanOrEqual(0);
       expect(bubble.x + bubble.width).toBeLessThanOrEqual(667);
       expect(bubble.y + bubble.height).toBeLessThanOrEqual(375);
-      await expect(roomPill(guest)).toHaveText(/^\d+:\d{2} · Take \d+$/);
-      await shot(guest, "A-phone-4-landscape-bubble-after-first-press");
+      await expect(roomPill(guest)).toHaveText(LIVE_PILL);
 
       await guest.setViewportSize({ width: 390, height: 844 });
       await expect(note).toBeHidden({ timeout: 10_000 });
@@ -223,7 +200,6 @@ test.describe("guest leaves a take once the host is gone", () => {
           name: /You left the room|didn't finish saving/,
         }),
       ).toBeVisible();
-      await shot(guest, "A-phone-5-after-second-press");
       await guestIsGone(take);
     });
   });
@@ -278,7 +254,7 @@ test.describe("guest leaves a take once the host is gone", () => {
       await expect(roomPill(guest)).toHaveText(/Reconnecting/);
       await guest.waitForTimeout(3_000);
       guestNet.restore();
-      await expect(roomPill(guest)).toHaveText(/^\d+:\d{2} · Take \d+$/, {
+      await expect(roomPill(guest)).toHaveText(LIVE_PILL, {
         timeout: 30_000,
       });
       const back = Date.now();

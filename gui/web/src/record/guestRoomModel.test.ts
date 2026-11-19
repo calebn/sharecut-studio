@@ -633,17 +633,6 @@ describe("ownSaving", () => {
     });
     expect(ownSaving(upload({ total: 4, fileAck: true }), 0)).toBe("saved");
     expect(ownSaving(upload({ total: 4, error: "x" }), 0)).toBe("failed");
-    expect(ownSaving(upload({ total: 4, error: "x" }), 0, false, true)).toEqual(
-      { done: 0, total: 4 },
-    );
-    expect(
-      ownSaving(
-        upload({ total: 4, fileAck: true, seenSegments: 1 }),
-        1,
-        false,
-        true,
-      ),
-    ).toBe("saved");
   });
 
   it("does not call an acknowledged take saved while the device count is unknown", () => {

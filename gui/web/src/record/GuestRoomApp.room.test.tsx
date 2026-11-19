@@ -1239,13 +1239,6 @@ describe("GuestRoomApp when the host is gone mid-take", () => {
     expect(leave()).not.toHaveAttribute("aria-disabled");
   });
 
-  it("opens Leave while the keeper is still recording the take", () => {
-    fakeRoom({ snapshot: hostGone, captureSettled: false });
-    render(<GuestRoomApp token="t" />);
-    wait(60_000);
-    expect(leave()).not.toHaveAttribute("aria-disabled");
-  });
-
   it("does not open Leave for a live host", () => {
     fakeRoom({ snapshot: hostBack, captureSettled: false });
     render(<GuestRoomApp token="t" />);

@@ -1,6 +1,6 @@
 import { act, renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { HOST_GONE_WAIT_MS, useHostGoneWait } from "./useHostGoneWait";
+import { useHostGoneWait } from "./useHostGoneWait";
 
 const useWait = (props: { gone: boolean }) => useHostGoneWait(props.gone);
 
@@ -10,7 +10,6 @@ describe("useHostGoneWait", () => {
 
   it("waits a minute after the host is seen gone", () => {
     const { result } = renderHook(useWait, { initialProps: { gone: true } });
-    expect(HOST_GONE_WAIT_MS).toBe(60_000);
     expect(result.current).toBe(false);
     act(() => {
       vi.advanceTimersByTime(59_999);

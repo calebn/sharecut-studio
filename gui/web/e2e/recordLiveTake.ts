@@ -1,6 +1,7 @@
 import {
   type Browser,
   type BrowserContextOptions,
+  devices,
   expect,
   type Locator,
   type Page,
@@ -30,6 +31,11 @@ export const LAPTOP: BrowserContextOptions = {
   deviceScaleFactor: 2,
 };
 
+const { defaultBrowserType: _iphoneBrowser, ...iPhone } = devices["iPhone 13"];
+export const PHONE: BrowserContextOptions = { ...iPhone, deviceScaleFactor: 2 };
+
+export const LIVE_PILL = /^\d+:\d{2} · Take \d+$/;
+
 export type LiveTake = {
   host: Page;
   guest: Page;
@@ -42,10 +48,6 @@ export type LiveTake = {
   room: Awaited<ReturnType<typeof createRecordRoom>>;
 };
 
-/**
- * A host on a laptop and one guest, with a take recording on both keepers.
- * The host's own socket and the guest's tunnel can be cut separately.
- */
 export async function withLiveTake(
   browser: Browser,
   guestOptions: BrowserContextOptions,
@@ -103,14 +105,6 @@ export async function withLiveTake(
       });
     });
   }, switchE2eProject);
-}
-
-const SHOTS_DIR = process.env.TRAIL_SHOTS_DIR;
-
-/** Write a screenshot only when a run asks for them with TRAIL_SHOTS_DIR. */
-export async function shot(page: Page, name: string): Promise<void> {
-  if (!SHOTS_DIR) return;
-  await page.screenshot({ path: `${SHOTS_DIR}/${name}.png` });
 }
 
 export async function boxOf(locator: Locator) {
