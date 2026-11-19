@@ -953,9 +953,9 @@ def test_guest_mcp_commenter_suggests_a_ripple_and_the_editor_confirms_it(
         assert reply["result"]["isError"] is True
         assert reply["result"]["structuredContent"]["error_code"] == "cut_scope_changed"
         assert reply["result"]["content"][0]["text"] == (
-            "This edit needs another review. Ask the host to review it in the editor before applying it."
+            "Host's cut at 0:08.0 was not applied because Guest is speaking there and would be "
+            "cut off. Nothing was changed."
         )
-        assert "Guest" not in reply["result"]["content"][0]["text"]
         assert _geometry(episode) == before
 
     _submit(episode, "ApproveEdits", {"ids": [suggestion.id]}, trusted_context=INTERACTIVE_COMMAND)

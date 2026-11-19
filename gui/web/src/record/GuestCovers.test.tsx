@@ -208,7 +208,9 @@ describe("GuestCovers", () => {
       },
     );
     expect(
-      screen.getByText("Finishing your full-quality recording…"),
+      screen.getByText(
+        "Finishing your full-quality recording… Keep this page open.",
+      ),
     ).toBeInTheDocument();
     expect(screen.queryByText(/close this page/)).toBeNull();
     expect(screen.queryByRole("button", { name: "Join again" })).toBeNull();
@@ -227,7 +229,9 @@ describe("GuestCovers", () => {
   it("covers ended access, and waits for the capture to settle", () => {
     const { unmount } = show({ accessEnded: true, captureSettled: false });
     expect(
-      screen.getByText("Finishing your full-quality recording…"),
+      screen.getByText(
+        "Finishing your full-quality recording… Keep this page open.",
+      ),
     ).toBeInTheDocument();
     unmount();
     show({ accessEnded: true });

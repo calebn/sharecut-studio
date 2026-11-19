@@ -2,14 +2,17 @@
 
 from __future__ import annotations
 
+import contextlib
 import errno
 import gc
+import io
 import os
 import resource
 import shutil
 import subprocess
 import threading
 import time
+import types
 from dataclasses import replace
 from pathlib import Path
 from typing import Any
@@ -518,3 +521,165 @@ def test_the_installed_backend_is_cleared_on_exit_and_a_streams_triple_reaches_r
         assert process.run([IN_PROCESS_FFMPEG], capture_output=True).returncode == 0
     assert process._in_process_backend is None
     assert isinstance(seen[0], Streams)
+
+
+class _ProbeRaw(io.FileIO):
+    """A raw stdin end that reports when a write is inside it and counts its closes."""
+
+    def __init__(self, fd: int, mode: str = "wb", *, gate: threading.Event | None = None) -> None:
+        super().__init__(fd, mode)
+        self.in_write = threading.Event()
+        self.gate = gate
+        self.closes = 0
+
+    def write(self, data: Any, /) -> int | None:
+        self.in_write.set()
+        if self.gate is not None:
+            assert self.gate.wait(10), "test never released the write"
+        return super().write(data)
+
+    def close(self) -> None:
+        self.closes += 1
+        super().close()
+
+
+def _close_with_a_write_in_flight(
+    monkeypatch: pytest.MonkeyPatch, writer: Any, raw: _ProbeRaw
+) -> tuple[threading.Thread, threading.Thread]:
+    """Run ``close()`` so that a write enters the raw write right after the close's own flush.
+
+    Returns the closer thread and the writer thread; the writer is inside the raw write when
+    this returns.
+    """
+    real_flush = process._CallerStdin.flush
+    first = threading.Event()
+
+    def write_forever() -> None:
+        with contextlib.suppress(BaseException):
+            writer.write(b"x" * (1 << 20))
+
+    writer_thread = threading.Thread(target=write_forever, daemon=True)
+
+    def flush(self: Any) -> None:
+        real_flush(self)
+        if not first.is_set():
+            first.set()
+            writer_thread.start()
+            assert raw.in_write.wait(10)
+
+    monkeypatch.setattr(process._CallerStdin, "flush", flush)
+    closer = threading.Thread(target=writer.close, daemon=True)
+    closer.start()
+    assert first.wait(10) and raw.in_write.wait(10)
+    return closer, writer_thread
+
+
+def test_a_close_never_frees_the_descriptor_while_a_write_is_in_flight(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    read_fd, write_fd = os.pipe()
+    gate = threading.Event()
+    raw = _ProbeRaw(write_fd, gate=gate)
+    writer = process._CallerStdin(raw)
+    closer, writer_thread = _close_with_a_write_in_flight(monkeypatch, writer, raw)
+    sentinel = -1
+    try:
+        closer.join(10)
+        assert not closer.is_alive(), "close waited for a write in flight"
+        assert not raw.closed and raw.closes == 0
+        os.fstat(write_fd)  # the number is still allocated: it cannot be reused
+        sentinel = os.open(os.devnull, os.O_RDONLY)
+        assert sentinel != write_fd
+        assert writer.closed
+        with pytest.raises(ValueError):
+            writer.write(b"late")
+    finally:
+        gate.set()
+        writer_thread.join(10)
+        closer.join(10)
+        if sentinel >= 0:
+            os.close(sentinel)
+        os.close(read_fd)
+    assert not writer_thread.is_alive()
+    assert raw.closed and raw.closes == 1
+    with pytest.raises(OSError):
+        os.fstat(write_fd)
+
+
+def test_the_descriptor_is_freed_exactly_once_however_close_and_release_interleave(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    read_fd, write_fd = os.pipe()
+    gate = threading.Event()
+    raw = _ProbeRaw(write_fd, gate=gate)
+    writer = process._CallerStdin(raw)
+    closer, writer_thread = _close_with_a_write_in_flight(monkeypatch, writer, raw)
+    null_fd = os.open(os.devnull, os.O_RDWR)
+    try:
+        closer.join(10)
+        writer.close()  # a second close while the write is still in flight
+        writer.release(null_fd)  # a release after the close does nothing
+        assert raw.closes == 0
+    finally:
+        gate.set()
+        writer_thread.join(10)
+        os.close(read_fd)
+    writer.close()
+    writer.close()
+    assert raw.closes == 1
+    # The number is free again and may be reused: a later release must not touch its new owner.
+    sentinel_path = tmp_path / "sentinel"
+    sentinel_path.write_bytes(b"x")
+    sentinel = os.open(sentinel_path, os.O_RDONLY)
+    try:
+        writer.release(null_fd)
+        assert os.read(sentinel, 1) == b"x"
+    finally:
+        os.close(sentinel)
+        os.close(null_fd)
+
+
+def test_a_writer_blocked_on_a_full_pipe_cannot_stall_the_abandon(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(process, "KILL_GRACE_SEC", 0.1)
+    never = threading.Event()
+    held: list[int] = []
+    probes: list[_ProbeRaw] = []
+
+    def make_raw(fd: int, mode: str) -> _ProbeRaw:
+        probes.append(_ProbeRaw(fd, mode))
+        return probes[0]
+
+    monkeypatch.setattr(
+        process, "io", types.SimpleNamespace(FileIO=make_raw, RawIOBase=io.RawIOBase)
+    )
+
+    class Ignores:
+        def run(self, argv: list[str], streams: Any, cancel: threading.Event) -> int:
+            held.append(os.dup(streams.stdin.fileno()))  # a native dup keeps the pipe open
+            never.wait(30)
+            return 0
+
+    child = process.InProcessChild([IN_PROCESS_FFMPEG, "x"], Ignores(), stdin=process.PIPE)
+    raw = probes[0]
+    # A real pipe nobody reads: the write blocks inside write(2) until the pipe breaks.
+    closer, writer_thread = _close_with_a_write_in_flight(monkeypatch, child.stdin, raw)
+    try:
+        closer.join(10)
+        assert not closer.is_alive()
+        waited: list[int] = []
+        waiter = threading.Thread(
+            target=lambda: (child.kill(), waited.append(child.wait(10))), daemon=True
+        )
+        waiter.start()
+        waiter.join(5)
+        assert not waiter.is_alive(), "kill/wait hung behind a writer blocked on a full pipe"
+        assert waited == [-9]
+    finally:
+        never.set()
+        for fd in held:
+            os.close(fd)
+        writer_thread.join(10)
+    assert not writer_thread.is_alive()
+    assert raw.closed and raw.closes == 1

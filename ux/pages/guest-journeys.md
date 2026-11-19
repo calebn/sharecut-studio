@@ -111,6 +111,7 @@ flowchart TD
    An Editor link also opens **Deliver**, which shows the **Podcast listing** alone (no export, bounce or sharing). The Editor edits the episode's values (title, intro, notes, the episode's own hosting address) and the show's plain values (name, description, author, category), and writes the feed file; each value an Editor sets carries a quiet **Guest** mark. The show itself, the show's hosting address template and local artwork stay with the host ("Only the host can change this."), and artwork and hosting addresses must be https addresses (a bad one is refused in plain words before it is sent). A note at the top reads "You can edit this listing. The show and the hosting template stay with the host." A Commenter or Viewer link has no Deliver stage.
 2. The Review tab in the phone's bottom Stage bar carries the count of cuts waiting for review plus open comments (a cut over an unsure word is the host's and is not counted for an Editor) and opens the Review queue (an Editor link has no Listen layout).
 3. Listen-first: hear after (Suggested; skip the pending band) or before from the Action bar, then Cut or Keep (Approve or Reject on the sheet and card for a split, an exact range or a suggestion with no accept action). Ask lives in the pending inspector thread.
+4. An Editor also edits the episode by hand: **Cut** and **Mute** on a selected word or range, **Fix text** and **Find and replace**, and **Keep** on the seam of an approved cut. Each applies on the host's episode, the toast offers Undo for the Editor's own step, and a hold from the server is told in one plain sentence, not as a Needs attention conflict.
 
 ---
 
@@ -387,12 +388,14 @@ flowchart TD
    once the host holds the verified file; their own tile shows the same state. The
    room asks the guest to keep the tab open (Leave is held while the upload moves,
    while the host has the file but this device's copy has not been read yet, or
-   the file finishes writing, and says why when pressed). Once the host holds
+   the file finishes writing, and says why when pressed). During a take Leave opens
+   after the host has been gone for 60 seconds, with a warning that leaving stops
+   recording on this device and asks the guest to keep the page open so it can reach the host. Once the host holds
    the file the dock reads "Saved to project. You can close this page." with
    **Done**, which leaves the room. A screen
    reader hears each segment start and finish politely, not each chunk; the guest
    room shows no chunk counts. For an incomplete or stalled take the alerts offer
-   **Resume saving** and **Save a copy** ("Saving stopped."), or **Finish saving**
+   **Resume saving** and **Save a copy** ("Saving stopped.", which a dropped connection mid-take does not raise while its own alert shows, and never raises for a saved guest), or **Finish saving**
    ("We found part of your recording."). The host's Record stage shows "Saving to
    project…" then "Saved to project" for every recorded participant and segment.
    Download produces one ZIP containing all

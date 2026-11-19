@@ -40,6 +40,8 @@ export type KeepPlan =
   | { kind: "disabled"; reason: string; openHistory: boolean };
 
 export const UNDO_IN_HISTORY = "Undo this in History";
+export const GUEST_HISTORY_ONLY =
+  "This cut can't be put back on its own. Undo takes back your own latest change; for anything else, ask the host.";
 
 export function seamIdOf(left: { id: string }, right: { id: string }): SeamId {
   return `eb:${left.id}:${right.id}`;
@@ -210,13 +212,15 @@ export function seamById(project: ProjectView, id: string): Seam | null {
   );
 }
 
-export function keepPlan(seam: CutSeam): KeepPlan {
+export function keepPlan(seam: CutSeam, audience: "host" | "guest"): KeepPlan {
   const { records } = seam;
   if (
     records.length === 0 ||
     records.some((record) => record.restore.state === "history_only")
   ) {
-    return { kind: "disabled", reason: UNDO_IN_HISTORY, openHistory: true };
+    return audience === "guest"
+      ? { kind: "disabled", reason: GUEST_HISTORY_ONLY, openHistory: false }
+      : { kind: "disabled", reason: UNDO_IN_HISTORY, openHistory: true };
   }
   const ids = records.map((record) => record.id);
   for (const record of records) {

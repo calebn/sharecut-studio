@@ -26,6 +26,7 @@ from __future__ import annotations
 import contextlib
 import ctypes
 import errno
+import io
 import locale
 import logging
 import os
@@ -255,7 +256,10 @@ class Runner(Protocol):
 
 
 class SpawnUnavailableError(OSError):
-    """This host cannot start other programs (``ENOSYS``). Callers that already catch ``OSError`` report it."""
+    """This host cannot start other programs (``ENOSYS``).
+
+    Callers that already catch ``OSError`` report it.
+    """
 
 
 class Streams(NamedTuple):
@@ -298,11 +302,124 @@ def using_in_process_backend(backend: InProcessBackend) -> Iterator[None]:
             _in_process_backend = None
 
 
+def in_process_backend_installed() -> bool:
+    """Whether an in-process backend is installed right now."""
+    with _runner_lock:
+        return _in_process_backend is not None
+
+
 _PIPES_OUT = ("stdout", "stderr")
 
 
 def _encoding() -> str:
     return locale.getpreferredencoding(False)
+
+
+class _CallerStdin(io.BufferedWriter):
+    """The caller's write end of an in-process stdin pipe; ``broken`` makes a write raise EPIPE.
+
+    The descriptor number is freed exactly once, and never while a ``write`` or ``flush`` on it is
+    in flight. ``_gate`` is a short lock held only for counter updates, a ``dup2`` and an
+    ``open``, never across a write, a flush or the buffer lock. A call registers in ``_in_flight``
+    under the gate before it touches the descriptor and deregisters after. ``close`` sets
+    ``_closing`` under the gate; a call that starts after that raises ``ValueError`` (or
+    ``BrokenPipeError`` when ``broken`` was set first, as the abandon path does). If calls are
+    still in flight, ``close`` points the descriptor at /dev/null (the number stays valid and owned)
+    and returns without waiting; whoever drops ``_in_flight`` to zero after ``_closing`` is set
+    (the last call, or ``close`` itself when none is in flight) frees the descriptor, outside the
+    gate. A write blocked on a full pipe is not interrupted: it stays blocked until the reader
+    reads or the other ends close, and it then finishes on the original pipe or on /dev/null.
+    """
+
+    broken = False
+    _closing = False
+    _freed = False
+    _in_flight = 0
+
+    def __init__(self, raw: io.RawIOBase) -> None:
+        super().__init__(raw)
+        self._gate = threading.Lock()
+
+    @property
+    def closed(self) -> bool:
+        return self._closing or super().closed
+
+    def _enter(self) -> None:
+        with self._gate:
+            if self._closing:
+                raise ValueError("I/O operation on closed file")
+            self._in_flight += 1
+
+    def _leave(self) -> None:
+        with self._gate:
+            self._in_flight -= 1
+            last = self._closing and self._in_flight == 0 and not self._freed
+            self._freed = self._freed or last
+        if last:
+            with contextlib.suppress(OSError):
+                self.raw.close()
+
+    def release(self, null_fd: int) -> None:
+        """Point this descriptor at ``null_fd`` unless the writer is closing or closed.
+
+        The check and the ``dup2`` run under ``_gate``, and the descriptor is freed only after
+        ``_closing`` is set under it, so the number cannot be freed or reused in between. The gate
+        is never held across a write or flush, so a blocked writer cannot make this wait.
+        """
+        with self._gate:
+            if self._closing:
+                return
+            with contextlib.suppress(OSError, ValueError):
+                os.dup2(null_fd, self.fileno())
+
+    def close(self) -> None:
+        """Flush if possible, then close; the descriptor is freed once no call is in flight.
+
+        The flush runs with no lock of ours held (it may block on a full pipe, as a close of any
+        buffered pipe writer does). Closing again is a no-op.
+        """
+        with contextlib.suppress(OSError, ValueError):
+            self.flush()
+        try:
+            null_fd = os.open(os.devnull, os.O_RDWR)
+        except OSError:
+            null_fd = -1
+        try:
+            with self._gate:
+                if self._closing:
+                    return
+                self._closing = True
+                busy = self._in_flight > 0
+                if busy:
+                    if null_fd >= 0:
+                        with contextlib.suppress(OSError, ValueError):
+                            os.dup2(null_fd, self.fileno())
+                else:
+                    self._freed = True
+        finally:
+            if null_fd >= 0:
+                os.close(null_fd)
+        if not busy:
+            with contextlib.suppress(OSError):
+                self.raw.close()
+            with contextlib.suppress(OSError, ValueError):
+                super().close()
+
+    def write(self, buffer: Any, /) -> int:
+        if self.broken:
+            raise BrokenPipeError(errno.EPIPE, os.strerror(errno.EPIPE))
+        self._enter()
+        try:
+            return super().write(buffer)
+        finally:
+            self._leave()
+
+    def flush(self) -> None:
+        self._enter()
+        try:
+            super().flush()
+        finally:
+            self._leave()
 
 
 class InProcessChild:
@@ -311,10 +428,12 @@ class InProcessChild:
     A PIPE stream is an ``os.pipe`` pair, a file object is handed to the backend as is, and
     DEVNULL or ``None`` give the backend ``None``. ``pid`` is ``None``. A ``kill`` that the
     backend ignores for ``KILL_GRACE_SEC`` ends the child with ``-9`` at once (``wait`` never
-    hangs) and abandons its thread. It releases only this side's pipe ends: a reader sees EOF
-    after the abandon only if the backend has closed its own stream ends on cancel (the native
-    ABI requires that); a backend that keeps them delays EOF until it returns. A backend that
-    returns a non-int has failed with code ``1``.
+    hangs) and abandons its thread. At the abandon it releases the caller's write end of a stdin
+    pipe (a backend blocked reading it sees EOF; a later write raises ``BrokenPipeError``) and
+    detaches the backend's own pipe ends. The caller's stdout and stderr read ends stay open: a
+    reader sees EOF after the abandon only if the backend has closed its own stream ends on
+    cancel (the native ABI requires that); a backend that keeps them delays EOF until it
+    returns. A backend that returns a non-int has failed with code ``1``.
     A ``kill`` before the backend finishes always reports ``-9``, whatever the backend returns,
     as a SIGKILLed ``Popen`` does; one after completion changes nothing. A ``None`` stream is
     ``/dev/null`` here, never inherited from the parent as ``Popen`` would.
@@ -369,7 +488,10 @@ class InProcessChild:
             return spec
         read_fd, write_fd = os.pipe()
         reading = name == "stdin"
-        ours = os.fdopen(write_fd if reading else read_fd, "wb" if reading else "rb")
+        if reading:
+            ours: Any = _CallerStdin(io.FileIO(write_fd, "wb"))
+        else:
+            ours = os.fdopen(read_fd, "rb")
         their_fd = read_fd if reading else write_fd
         theirs = os.fdopen(their_fd, "rb" if reading else "wb", closefd=False)
         setattr(self, name, ours)
@@ -403,6 +525,24 @@ class InProcessChild:
                 return
             for fd in self._owned_fds:
                 os.dup2(self._null_fd, fd)
+
+    def _release_caller_stdin(self) -> None:
+        """Release the caller's write end of stdin so a read blocked on it in the backend sees EOF.
+
+        /dev/null replaces the pipe on the same descriptor number, which the writer still owns
+        and frees once. The writer never frees the number while a write or flush on it is in
+        flight (see ``_CallerStdin``), so neither a concurrent write nor a concurrent close can
+        reach a reused descriptor, and this never waits on a blocked writer. Later writes raise
+        ``BrokenPipeError``.
+        """
+        stdin = self.stdin
+        if not isinstance(stdin, _CallerStdin):
+            return
+        stdin.broken = True
+        with self._fd_lock:
+            if self._fds_closed or self._null_fd is None:
+                return
+            stdin.release(self._null_fd)
 
     def _finish(self, code: int) -> None:
         with self._lock:
@@ -453,6 +593,7 @@ class InProcessChild:
                 if self.returncode is None:
                     self.returncode = -9
             self._detach_owned()
+            self._release_caller_stdin()
             self._done.set()
 
     def communicate(self, input: Any = None, timeout: float | None = None) -> tuple[Any, Any]:
@@ -461,10 +602,10 @@ class InProcessChild:
 
         def feed() -> None:
             data = input.encode(_encoding()) if isinstance(input, str) else input
-            with contextlib.suppress(OSError):
+            with contextlib.suppress(OSError, ValueError):
                 if data:
                     self.stdin.write(data)
-            with contextlib.suppress(OSError):
+            with contextlib.suppress(OSError, ValueError):
                 self.stdin.close()
 
         def drain(name: str) -> None:

@@ -1,0 +1,39 @@
+--- a/fftools/ffprobe.c
++++ b/fftools/ffprobe.c
+@@ -2614,7 +2614,7 @@
+ 
+     ifile->streams = av_calloc(fmt_ctx->nb_streams, sizeof(*ifile->streams));
+     if (!ifile->streams)
+-        exit(1);
++        return AVERROR(ENOMEM);
+     ifile->nb_streams = fmt_ctx->nb_streams;
+ 
+     /* bind a decoder to each input stream */
+@@ -2635,15 +2635,15 @@
+             err = filter_codec_opts(codec_opts, stream->codecpar->codec_id,
+                                     fmt_ctx, stream, codec, &opts, NULL);
+             if (err < 0)
+-                exit(1);
++                return err;
+ 
+             ist->dec_ctx = avcodec_alloc_context3(codec);
+             if (!ist->dec_ctx)
+-                exit(1);
++                return AVERROR(ENOMEM);
+ 
+             err = avcodec_parameters_to_context(ist->dec_ctx, stream->codecpar);
+             if (err < 0)
+-                exit(1);
++                return err;
+ 
+             if (do_show_log) {
+                 // For logging it is needed to disable at least frame threads as otherwise
+@@ -2659,7 +2659,7 @@
+             if (avcodec_open2(ist->dec_ctx, codec, &opts) < 0) {
+                 av_log(NULL, AV_LOG_WARNING, "Could not open codec for input stream %d\n",
+                        stream->index);
+-                exit(1);
++                return AVERROR(EINVAL);
+             }
+ 
+             if ((t = av_dict_iterate(opts, NULL))) {

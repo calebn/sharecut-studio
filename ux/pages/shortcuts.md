@@ -55,7 +55,7 @@ Open the in-app cheatsheet with **?** while ShareCut Studio is focused.
 
 | Shortcut | Command | When | Notes |
 |----------|---------|------|-------|
-| `F2` | Edit focused transcript word (`transcript.editWordInline`) | Loaded host project | F2: Fix text on the selected word |
+| `F2` | Edit focused transcript word (`transcript.editWordInline`) | Host or an editor link, words loaded | F2: Fix text on the selected word |
 | `Escape` | Clear selection (`edit.clearSelection`) | hasInspectorSelection | Drops an armed range draft first, then closes the Inspector, then clears the selection and track targeting |
 | `Tab` | Next occurrence (`edit.nextOccurrence`) | afterCutActive | After a words cut, selects the next place the same words were said; Shift+Tab the previous |
 | `ArrowLeft` | Set clip fade (`edit.setClipFade`) | focusedFadeHandle | Left/Right 1 ms; Shift 10 ms. Release to save; Escape cancels. |
@@ -171,7 +171,7 @@ Available via toolbar / `execute`; some also appear in the in-app palette. Comma
 | Remove extracted room tone | `track.clearRoomTone` | editStageTrackInspector | Takes the cut room-tone bed off the inspector track (args { trackId? }); a recorded bed is never removed. ClearExtractedRoomToneBed, one undo step |
 | Reorder track | `track.reorder` | editStageIngest | Args: { trackId?, index }: ReorderTrack; drag headers use skipWhen |
 | Adjust word timing | `transcript.adjustTiming` | Loaded host project | Source-clock boundaries for the selected transcript word |
-| Find and replace transcript | `transcript.findReplace` | Loaded host project | Finds, counts and highlights a phrase even when another speaker's turn sits between its words; only the phrase's own words are highlighted, selected and replaced. Replace changes the current match alone and Replace all changes every match, each as one undo step |
+| Find and replace transcript | `transcript.findReplace` | Host or an editor link, words loaded | Finds, counts and highlights a phrase even when another speaker's turn sits between its words; only the phrase's own words are highlighted, selected and replaced. Replace changes the current match alone and Replace all changes every match, each as one undo step |
 | Extend transcript range | `transcript.extendRange` | Project loaded | Args: { edge: 'start' \| 'end', by: 1 \| -1 }: moves one edge of the selected word range by one word; a selection change only (#1029) |
 | Ignore / restore transcript words | `transcript.ignoreWords` | Project loaded | Args: { trackId?, startWordIndex?, endWordIndex?, ignored? }: struck through and muted at render, no cut (#633); host-only |
 | Show cut away | `view.showCutAway` | Always (when not typing in a field or on a focused Scrub field) |  |

@@ -1166,7 +1166,7 @@ saved in a project, the cut stays unapplied with `cut_scope_changed`. The host
 message says to re-encode the recording and re-add it as a track. The recording
 may be anywhere in the checked audio, so the message does not attribute the
 failure to each held cut's track. Other unreadable audio keeps the generic
-audio-review message. Guests keep the fixed `cut_scope_changed` review message.
+audio-review message. A guest reads one plain sentence per held cut, naming whose cut it is, where, and why it was not applied (`edits/source_removals.py:PLAIN_HOLD_REASONS`), then "Nothing was changed." It carries no path and no engineering term. A range cut with no pending edit, such as the timeline cut or a clip-edge trim, names the selected speakers and start in that sentence. A held row in an Approve reply reads a plain sentence per hold code, and an unmapped code reads "it could not be applied" (`edits/source_removals.py:guest_hold_reason`). The fixed `cut_scope_changed` message ("That edit was not applied. Nothing was changed. Ask the host to look at it in the editor.") stays only as the fallback when the sentence would name a host path.
 The diagnostic does not change cut policy or audio-check override eligibility.
 
 `FFmpegEngine.probe` reports the selected first audio stream's length, counted from its first sample, as `duration_sec`, and the lead between the container origin and that first sample as `audio_start_sec` (see [Late-start audio](#late-start-audio-2175)). A late audio start no longer lengthens the extent. `AudioProbe.duration_estimated` describes endpoint uncertainty. Multiple streams alone do not imply uncertainty.

@@ -118,6 +118,113 @@ describe("RecordDock", () => {
     expect(onDone).toHaveBeenCalledOnce();
   });
 
+  describe("a Leave with a warning", () => {
+    afterEach(() => vi.useRealTimers());
+    const warning = "Leaving stops recording here.";
+
+    it("leaves on one press and shows the warning at rest", () => {
+      const onLeave = vi.fn();
+      render(
+        <RecordDock
+          seat="guest"
+          dock={{ kind: "controls", leaveWarning: warning }}
+          onLeave={onLeave}
+        />,
+      );
+      const leave = screen.getByRole("button", { name: "Leave room" });
+      expect(leave).not.toHaveAttribute("aria-disabled");
+      expect(leave).toHaveAttribute("title", warning);
+      expect(leave).toHaveAccessibleDescription(warning);
+      const note = document.getElementById(
+        leave.getAttribute("aria-describedby") ?? "",
+      );
+      expect(note).toHaveAttribute("data-shown");
+      act(() => leave.click());
+      expect(onLeave).toHaveBeenCalledOnce();
+    });
+
+    it("reveals the warning on the first press and leaves on the second when asked to confirm", () => {
+      vi.useFakeTimers();
+      const onLeave = vi.fn();
+      render(
+        <RecordDock
+          seat="guest"
+          dock={{ kind: "controls", leaveWarning: warning, leaveConfirm: true }}
+          onLeave={onLeave}
+        />,
+      );
+      const leave = screen.getByRole("button", { name: "Leave room" });
+      const note = document.getElementById(
+        leave.getAttribute("aria-describedby") ?? "",
+      );
+      expect(leave).not.toHaveAttribute("aria-disabled");
+      expect(leave).toHaveAccessibleDescription(warning);
+      expect(note).not.toHaveAttribute("data-shown");
+      act(() => leave.click());
+      expect(onLeave).not.toHaveBeenCalled();
+      expect(note).toHaveAttribute("data-shown");
+      act(() => leave.click());
+      expect(onLeave).toHaveBeenCalledOnce();
+    });
+
+    it("asks again once the warning has gone away", () => {
+      vi.useFakeTimers();
+      const onLeave = vi.fn();
+      render(
+        <RecordDock
+          seat="guest"
+          dock={{ kind: "controls", leaveWarning: warning, leaveConfirm: true }}
+          onLeave={onLeave}
+        />,
+      );
+      const leave = screen.getByRole("button", { name: "Leave room" });
+      act(() => leave.click());
+      act(() => {
+        vi.advanceTimersByTime(6000);
+      });
+      act(() => leave.click());
+      expect(onLeave).not.toHaveBeenCalled();
+    });
+
+    it("keeps the confirm window open until 5 s after the first press", () => {
+      vi.useFakeTimers();
+      const onLeave = vi.fn();
+      render(
+        <RecordDock
+          seat="guest"
+          dock={{ kind: "controls", leaveWarning: warning, leaveConfirm: true }}
+          onLeave={onLeave}
+        />,
+      );
+      const leave = screen.getByRole("button", { name: "Leave room" });
+      act(() => leave.click());
+      act(() => {
+        vi.advanceTimersByTime(4900);
+      });
+      act(() => leave.click());
+      expect(onLeave).toHaveBeenCalledOnce();
+    });
+
+    it("closes the confirm window once 5 s have passed", () => {
+      vi.useFakeTimers();
+      const onLeave = vi.fn();
+      render(
+        <RecordDock
+          seat="guest"
+          dock={{ kind: "controls", leaveWarning: warning, leaveConfirm: true }}
+          onLeave={onLeave}
+        />,
+      );
+      const leave = screen.getByRole("button", { name: "Leave room" });
+      act(() => leave.click());
+      act(() => {
+        vi.advanceTimersByTime(5000);
+      });
+      act(() => leave.click());
+      expect(onLeave).not.toHaveBeenCalled();
+    });
+  });
+
   describe("a held Leave", () => {
     afterEach(() => vi.useRealTimers());
 

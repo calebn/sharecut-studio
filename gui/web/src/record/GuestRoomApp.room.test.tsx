@@ -1,6 +1,6 @@
-import { render, screen, within } from "@testing-library/react";
+import { act, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { expectNoA11yViolations, expectOutsideLiveRegions } from "../test/a11y";
 import { recordParticipant, recordSnapshot } from "../test/fixtures";
 import { GuestRoomApp } from "./GuestRoomApp";
@@ -1015,7 +1015,9 @@ describe("GuestRoomApp after Leave", () => {
     fakeRoom({ ...failedSave, captureSettled: false, localRecording: true });
     render(<GuestRoomApp token="t" />);
     expect(
-      screen.getByText("Finishing your full-quality recording…"),
+      screen.getByText(
+        "Finishing your full-quality recording… Keep this page open.",
+      ),
     ).toBeInTheDocument();
     expect(screen.queryByText(/close this page/)).toBeNull();
     expect(screen.queryByRole("button", { name: "Join again" })).toBeNull();
@@ -1155,5 +1157,162 @@ describe("GuestRoomApp dock outside the saving phase", () => {
     expect(screen.queryByText(SAVING)).toBeNull();
     expect(dock().notes).toBeInTheDocument();
     expect(screen.getByText("Saving stopped")).toBeInTheDocument();
+  });
+});
+
+describe("GuestRoomApp when the host is gone mid-take", () => {
+  const hostGone = {
+    state: "recording" as const,
+    participants: [{ ...host, connected: false }, me],
+  };
+  const hostBack = { state: "recording" as const, participants: [host, me] };
+  const WARNING =
+    "Leaving stops recording on this device. Keep this page open so it can reach the host.";
+  const wait = (ms: number) =>
+    act(() => {
+      vi.advanceTimersByTime(ms);
+    });
+  type Room = ReturnType<typeof fakeRoom>;
+  const show = (
+    room: Room,
+    snapshot: Partial<Room["snapshot"]>,
+    connected = true,
+  ) => {
+    room.snapshot = { ...room.snapshot, ...snapshot };
+    room.connected = connected;
+  };
+
+  beforeEach(() => vi.useFakeTimers());
+  afterEach(() => vi.useRealTimers());
+
+  it("lets Leave through after a minute, with the warning, and leaves on one press", () => {
+    const room = fakeRoom({ snapshot: hostGone, captureSettled: false });
+    render(<GuestRoomApp token="t" />);
+    wait(59_000);
+    expect(leave()).toHaveAttribute("aria-disabled", "true");
+    expect(leave()).toHaveAttribute("title", "You can leave after this take.");
+    wait(1000);
+    expect(leave()).not.toHaveAttribute("aria-disabled");
+    expect(leave()).toHaveAttribute("title", WARNING);
+    expect(leave()).toHaveAccessibleDescription(WARNING);
+    act(() => leave().click());
+    expect(room.leave).toHaveBeenCalledOnce();
+  });
+
+  it("holds Leave again when the host returns, and waits a full minute after the next drop", () => {
+    const room = fakeRoom({ snapshot: hostGone, captureSettled: false });
+    const { rerender } = render(<GuestRoomApp token="t" />);
+    wait(30_000);
+    show(room, hostBack);
+    rerender(<GuestRoomApp token="t" />);
+    wait(40_000);
+    expect(leave()).toHaveAttribute("aria-disabled", "true");
+    show(room, hostGone);
+    rerender(<GuestRoomApp token="t" />);
+    wait(59_000);
+    expect(leave()).toHaveAttribute("aria-disabled", "true");
+    wait(1000);
+    expect(leave()).not.toHaveAttribute("aria-disabled");
+  });
+
+  it("starts the wait over when this page's own connection drops", () => {
+    const room = fakeRoom({ snapshot: hostGone, captureSettled: false });
+    const { rerender } = render(<GuestRoomApp token="t" />);
+    wait(50_000);
+    show(room, {}, false);
+    rerender(<GuestRoomApp token="t" />);
+    wait(30_000);
+    expect(leave()).toHaveAttribute("aria-disabled", "true");
+    show(room, {}, true);
+    rerender(<GuestRoomApp token="t" />);
+    wait(59_000);
+    expect(leave()).toHaveAttribute("aria-disabled", "true");
+    wait(1000);
+    expect(leave()).not.toHaveAttribute("aria-disabled");
+  });
+
+  it("opens Leave on a paused take too", () => {
+    fakeRoom({
+      snapshot: { ...hostGone, state: "paused" },
+      captureSettled: false,
+    });
+    render(<GuestRoomApp token="t" />);
+    wait(60_000);
+    expect(leave()).not.toHaveAttribute("aria-disabled");
+  });
+
+  it("does not open Leave for a live host", () => {
+    fakeRoom({ snapshot: hostBack, captureSettled: false });
+    render(<GuestRoomApp token="t" />);
+    wait(5 * 60_000);
+    expect(leave()).toHaveAttribute("aria-disabled", "true");
+  });
+});
+
+describe("GuestRoomApp offline alerts", () => {
+  const SAVING_STOPPED = "Saving stopped.";
+  const CONNECTION =
+    "Lost connection to the room. You're still recording on this device.";
+
+  it("shows only the connection alert when the socket drops mid-take", () => {
+    const room = fakeRoom({ upload: { error: "Network error" } });
+    room.connected = false;
+    render(<GuestRoomApp token="t" />);
+    expect(screen.getByText(CONNECTION)).toBeInTheDocument();
+    expect(screen.queryByText(SAVING_STOPPED)).toBeNull();
+    expect(screen.queryByText(/^\+\d/)).toBeNull();
+  });
+
+  it("shows the real failure once the connection is back", () => {
+    const room = fakeRoom({ upload: { error: "Network error" } });
+    room.connected = false;
+    const { rerender } = render(<GuestRoomApp token="t" />);
+    room.connected = true;
+    rerender(<GuestRoomApp token="t" />);
+    expect(screen.getByText(SAVING_STOPPED)).toBeInTheDocument();
+    expect(screen.queryByText(CONNECTION)).toBeNull();
+  });
+
+  it("keeps the failure on a paused take, which raises no connection alert", () => {
+    const room = fakeRoom({
+      snapshot: { state: "paused" },
+      upload: { error: "Network error" },
+    });
+    room.connected = false;
+    render(<GuestRoomApp token="t" />);
+    expect(screen.getByText(SAVING_STOPPED)).toBeInTheDocument();
+    expect(screen.queryByText(CONNECTION)).toBeNull();
+  });
+
+  it("tells a saved guest nothing when the connection drops", () => {
+    const room = fakeRoom({
+      snapshot: stopped,
+      localSegments: 1,
+      upload: {
+        acked: 1,
+        total: 1,
+        fileAck: true,
+        seenSegments: 1,
+        landed: true,
+        error: "Network error",
+      },
+    });
+    room.connected = false;
+    render(<GuestRoomApp token="t" />);
+    expect(
+      screen.getByText("Saved to project. You can close this page."),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(SAVING_STOPPED)).toBeNull();
+  });
+
+  it("still says saving stopped after Stop when the upload is not acknowledged", () => {
+    const room = fakeRoom({
+      snapshot: stopped,
+      localSegments: 1,
+      upload: { acked: 0, total: 1, error: "Network error" },
+    });
+    room.connected = false;
+    render(<GuestRoomApp token="t" />);
+    expect(screen.getByText(SAVING_STOPPED)).toBeInTheDocument();
   });
 });

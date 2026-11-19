@@ -30,7 +30,8 @@ CORE_DIR = ROOT / "gui" / "desktop" / "src-tauri" / "ios" / "ffmpeg"
 FAKE_GLUE = ROOT / "tests" / "data" / "ios_ffmpeg_shim" / "fake_glue.c"
 SANITIZER = os.environ.get("SC_SHIM_SANITIZER", "")
 BOUND_SEC = 20.0
-FD_DIR = "/proc/self/fd" if Path("/proc/self/fd").is_dir() else "/dev/fd"
+HAS_PROC_FD = Path("/proc/self/fd").is_dir()
+FD_DIR = "/proc/self/fd" if HAS_PROC_FD else "/dev/fd"
 COMPILER = shutil.which("cc") or shutil.which("gcc") or shutil.which("clang")
 LAUNCH_SEC = 0.25
 
@@ -159,6 +160,7 @@ class Shim:
         c.fake_counters.argtypes = [ctypes.POINTER(ctypes.c_int)]
         c.fake_order.argtypes = [ctypes.c_char_p, ctypes.c_int]
         c.fake_release.restype = None
+        c.fake_stray_write.restype = None
         c.fake_last_argc.restype = ctypes.c_int
         c.fake_reused_fd.restype = ctypes.c_int
         c.fake_set_reset_delay_ms.argtypes = [ctypes.c_int]
@@ -216,6 +218,8 @@ class Shim:
 
 @pytest.fixture(scope="module")
 def shim(built: Path) -> Shim:
+    for fd in inheritable("/dev/null"):
+        os.set_inheritable(fd, False)
     instance = Shim(ctypes.CDLL(str(built)))
     code, out, _ = instance.run(["ffmpeg", "echo"])
     assert code == 0 and out.startswith(b"tool=0\n")
@@ -506,6 +510,100 @@ def test_cancel_running_session_blocked_reading_input(shim: Shim) -> None:
     assert fd_count() == before
 
 
+def cancel_until_done(shim: Shim, session: int, seconds: float = 10.0) -> int:
+    result: list[int] = []
+    thread = threading.Thread(target=lambda: result.append(shim.wait(session)), daemon=True)
+    thread.start()
+    deadline = time.monotonic() + seconds
+    while not result and time.monotonic() < deadline:
+        shim.cancel(session)
+        thread.join(0.01)
+    assert result, "the session stayed blocked across repeated cancels"
+    return result[0]
+
+
+def test_cancel_wakes_a_worker_blocked_in_a_plain_read(shim: Shim) -> None:
+    before = fd_count()
+    with Pipes() as pipes:
+        session = shim.launch(["ffprobe", "started", "readblock", "-i", "pipe:0"], pipes)
+        read_until(pipes.err_r, b"started\n")
+        assert cancel_until_done(shim, session) == 255
+        assert read_until(pipes.err_r) == b""
+    assert fd_count() == before
+    code, out, _ = shim.run(["ffprobe", "echo"])
+    assert code == 0 and out.startswith(b"tool=1")
+
+
+def test_cancel_wakes_a_worker_blocked_in_a_plain_write(shim: Shim) -> None:
+    before = fd_count()
+    with Pipes() as pipes:
+        writes = shim.cdll.fake_big_writes()
+        session = shim.launch(["ffmpeg", "started", "writeblock"], pipes)
+        read_until(pipes.err_r, b"started\n")
+        wait_for(lambda: shim.cdll.fake_big_writes() > writes, "the big write to start")
+        assert cancel_until_done(shim, session) == 255
+    code, out, _ = shim.run(["ffmpeg", "echo"])
+    assert code == 0 and out.startswith(b"tool=0")
+    assert fd_count() == before
+
+
+BLOCKED_MASK_SCRIPT = textwrap.dedent(
+    """
+    import ctypes, os, select, signal, sys, threading
+    lib = ctypes.CDLL(sys.argv[1])
+    lib.sc_ffmpeg_start.restype = ctypes.c_int64
+    lib.sc_ffmpeg_start.argtypes = [ctypes.c_int, ctypes.POINTER(ctypes.c_char_p)] + [ctypes.c_int] * 3
+    lib.sc_ffmpeg_wait.argtypes = [ctypes.c_int64]
+    lib.sc_ffmpeg_cancel.argtypes = [ctypes.c_int64]
+    in_r, in_w = os.pipe()
+    err_r, err_w = os.pipe()
+    out_r, out_w = os.pipe()
+    argv = [b"ffprobe", b"started", b"readblock", b"-i", b"pipe:0", None]
+    array = (ctypes.c_char_p * len(argv))(*argv)
+    box = []
+    def creator():
+        signal.pthread_sigmask(signal.SIG_BLOCK, {signal.SIGUSR2})
+        box.append(lib.sc_ffmpeg_start(len(argv) - 1, array, in_r, out_w, err_w))
+    maker = threading.Thread(target=creator)
+    maker.start()
+    maker.join()
+    session = box[0]
+    assert session >= 1, session
+    for fd in (in_r, out_w, err_w):
+        os.close(fd)
+    seen = b""
+    while not seen.endswith(b"started\\n"):
+        assert select.select([err_r], [], [], 20)[0]
+        seen += os.read(err_r, 4096)
+    result = []
+    waiter = threading.Thread(target=lambda: result.append(lib.sc_ffmpeg_wait(session)), daemon=True)
+    waiter.start()
+    for _ in range(1000):
+        lib.sc_ffmpeg_cancel(session)
+        waiter.join(0.01)
+        if result:
+            break
+    os._exit(0 if result == [255] else 3)
+    """
+)
+
+
+def test_cancel_wakes_a_read_when_the_creating_thread_blocks_sigusr2(
+    built: Path, tmp_path: Path
+) -> None:
+    script = tmp_path / "blocked_mask.py"
+    script.write_text(BLOCKED_MASK_SCRIPT, encoding="utf-8")
+    done = subprocess.run(
+        [sys.executable, "-I", str(script), str(built)],
+        capture_output=True,
+        text=True,
+        check=False,
+        timeout=60,
+        env=os.environ,
+    )
+    assert done.returncode == 0, done.stderr
+
+
 def test_owner_thread_exit_returns_its_code(shim: Shim) -> None:
     before = fd_count()
     with Pipes() as pipes:
@@ -553,33 +651,88 @@ def test_writes_after_cancel_go_to_discard_and_never_block(shim: Shim) -> None:
     assert fd_count() == before
 
 
+def test_randomized_stray_writes_after_the_session_ended_never_touch_a_freed_file(
+    shim: Shim,
+) -> None:
+    before = fd_count()
+    with Pipes() as first:
+        session = shim.launch(["ffmpeg", "capture", "echo"], first)
+        assert shim.wait(session) == 0
+        assert read_until(first.out_r).startswith(b"tool=0\n")
+        assert read_until(first.err_r) == b""
+        strays = [threading.Thread(target=shim.cdll.fake_stray_write) for _ in range(4)]
+        for thread in strays:
+            thread.start()
+        for _ in range(5):
+            code, out, _ = shim.run(["ffmpeg", "echo"])
+            assert code == 0 and out.startswith(b"tool=0\n")
+        for thread in strays:
+            thread.join(BOUND_SEC)
+            assert not thread.is_alive()
+        shim.cdll.fake_stray_write()
+        assert read_until(first.out_r, timeout=2.0) == b""
+        assert read_until(first.err_r, timeout=2.0) == b""
+    assert fd_count() == before
+
+
+def test_output_the_tool_never_flushed_still_reaches_its_own_session(shim: Shim) -> None:
+    code, out, _ = shim.run(["ffmpeg", "unflushed"])
+    assert code == 0 and out == b"unflushed\n"
+
+
+def test_buffered_stray_output_is_dropped_before_the_next_session_starts(shim: Shim) -> None:
+    with Pipes() as first:
+        session = shim.launch(["ffmpeg", "capture"], first)
+        assert shim.wait(session) == 0
+        shim.cdll.fake_stray_write()
+        assert read_until(first.out_r) == b""
+    code, out, _ = shim.run(["ffmpeg", "echo"])
+    assert code == 0 and out.startswith(b"tool=0\n")
+
+
+def fd_links() -> dict[int, str]:
+    links = {}
+    for name in os.listdir(FD_DIR):
+        try:
+            links[int(name)] = os.readlink(f"{FD_DIR}/{name}")
+        except OSError:
+            continue
+    return links
+
+
+def inheritable(target: str) -> list[int]:
+    return [
+        fd
+        for fd, link in fd_links().items()
+        if fd >= 3 and link == target and os.get_inheritable(fd)
+    ]
+
+
+@pytest.mark.skipif(
+    not HAS_PROC_FD,
+    reason="needs /proc/self/fd symlinks; /dev/fd entries are not symlinks on macOS "
+    "and pipes have no portable path there",
+)
+def test_the_persistent_stream_descriptors_never_leak_into_children(shim: Shim) -> None:
+    with Pipes() as pipes:
+        session = shim.hold("cloexec", pipes)
+        try:
+            pipe = f"pipe:[{os.fstat(pipes.out_r).st_ino}]"
+            assert list(fd_links().values()).count(pipe) >= 2
+            assert inheritable(pipe) == []
+        finally:
+            shim.release()
+        assert shim.wait(session) == 0
+    assert list(fd_links().values()).count("/dev/null") >= 3
+    assert inheritable("/dev/null") == []
+
+
 def test_writes_after_non_owner_exit_go_to_discard(shim: Shim) -> None:
     with Pipes() as pipes:
         session = shim.launch(["ffmpeg", "thread-exit:7", "bigerr"], pipes)
         assert finish_within(shim, session, 5.0) == 1
     code, out, _ = shim.run(["ffmpeg", "echo"])
     assert code == 0 and out.startswith(b"tool=0")
-
-
-def test_closing_the_reader_releases_a_write_blocked_across_cancel(shim: Shim) -> None:
-    before = fd_count()
-    with Pipes() as pipes:
-        writes = shim.cdll.fake_big_writes()
-        session = shim.launch(["ffmpeg", "started", "bigout"], pipes)
-        read_until(pipes.err_r, b"started\n")
-        wait_for(lambda: shim.cdll.fake_big_writes() > writes, "the big write to start")
-        shim.cancel(session)
-        result: list[int] = []
-        thread = threading.Thread(target=lambda: result.append(shim.wait(session)), daemon=True)
-        thread.start()
-        thread.join(LAUNCH_SEC)
-        assert not result
-        pipes.close_fd(pipes.out_r)
-        thread.join(5.0)
-        assert result and result[0] in (0, 255)
-    code, out, _ = shim.run(["ffmpeg", "echo"])
-    assert code == 0 and out.startswith(b"tool=0")
-    assert fd_count() == before
 
 
 EXHAUST_SCRIPT = textwrap.dedent(
@@ -617,7 +770,11 @@ EXHAUST_SCRIPT = textwrap.dedent(
     after = count()
     assert after == before, (before, after)
     assert lib.sc_out() and lib.sc_err()
-    os.close(held.pop())
+    for _ in (1, 2):
+        os.close(held.pop())
+        mark = count()
+        assert lib.sc_ffmpeg_start(2, array, -1, -1, -1) == -errno.EMFILE
+        assert count() == mark
     os.close(held.pop())
     session = lib.sc_ffmpeg_start(2, array, -1, -1, -1)
     assert session >= 1, session
@@ -818,13 +975,35 @@ POLICY_REJECT.extend(
         ["ffmpeg", "echo", "-i", "a.wav", "-vf", "a|file:b", "out.wav"],
         ["ffmpeg", "echo", "-i", "a.wav", "/pipe:3"],
         ["ffmpeg", "echo", "-i", "a.wav", "-vf", "x/file:y", "out.wav"],
+        # Protocol words and device directories behind a protocol prefix.
+        ["ffmpeg", "echo", "-i", "concat:fd:5", "out.wav"],
+        ["ffmpeg", "echo", "-i", "concat:pipe:3", "out.wav"],
+        ["ffmpeg", "echo", "-i", "cache:fd:5", "out.wav"],
+        ["ffmpeg", "echo", "-i", "subfile,,start,0,end,0,,:fd:5", "out.wav"],
+        ["ffmpeg", "echo", "-i", "concat:file:x", "out.wav"],
+        ["ffmpeg", "echo", "-i", "async:fd:9", "out.wav"],
+        ["ffmpeg", "echo", "-i", "crypto:fd:9", "out.wav"],
+        ["ffmpeg", "echo", "-i", "data:fd:9", "out.wav"],
+        ["ffmpeg", "echo", "-i", "unix:fd:9", "out.wav"],
+        ["ffmpeg", "echo", "-i", "concat:/dev/null", "out.wav"],
+        ["ffmpeg", "echo", "-i", "concat:/proc/self/fd/3", "out.wav"],
+        ["ffmpeg", "echo", "-i", "crypto+pipe:3", "out.wav"],
+        ["ffmpeg", "echo", "-i", "crypto+/dev/null", "out.wav"],
+        ["ffmpeg", "echo", "-i", "concat:a.wav|/dev/fd/3", "out.wav"],
+        ["ffmpeg", "echo", "-i", "a.wav", "tee:a.wav|/dev/fd/3"],
+        ["ffmpeg", "echo", "-i", "concat:a.wav|proc/self/fd/3", "out.wav"],
+        ["ffmpeg", "echo", "-i", "concat:a.wav|/dev/null", "out.wav"],
+        ["ffmpeg", "echo", "-i", "concat:a.wav|dev/fd/3", "out.wav"],
     ]
 )
 
 PLAIN_OK = [
+    ["-protocol_whitelist", "file,crypto,data", "-i", "a.wav", "out.wav"],
     ["-i", "/srv/x/dev/notes.wav", "/srv/x/dev/out.wav"],
     ["-i", "/srv/me/mydev/fdr/a.wav", "/srv/me/mydev/fdr/b.wav"],
     ["-i", "/srv/me/proc/a.wav", "/srv/me/mydevproc/b.wav"],
+    ["-i", "/srv/c+dev/a.wav", "/srv/c+proc/b.wav"],
+    ["-i", "concat:a.wav|b.wav", "out.wav"],
     ["-i", "/srv/me/Gold file: draft.wav", "/srv/me/Sub-file:2.wav"],
     ["-i", "/x/hotpipe:1.wav", "/x/under_fd:2.wav"],
     ["-i", "./pipe:3", "./fd:3.wav"],

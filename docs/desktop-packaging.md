@@ -176,12 +176,16 @@ iOS/Android app is not an `externalBin` port — in-process libav, same React UI
 Deferred path and interim constraints: [cross-platform-byok.md](cross-platform-byok.md).
 
 <a id="ios-app-3810"></a>
-**iOS app (#3810, stage 1).** `make ios-sim` builds the Simulator app and launches it; the
-Home screen says audio tools are not available on this device yet. The app is the `sharecut`
-lib (a `staticlib`) with Python.xcframework linked into it; there is no sidecar process.
+**iOS app (#3810, stage 1).** `make ios-sim` builds the Simulator app and launches it. It
+needs `make ios-ffmpeg-sim` first; with the FFmpeg framework linked and its backend installed at engine start the audio tools report
+installed (linked without the backend they read missing with their own sentence), and an app built without it shows the Audio tools card as missing, and its model rows
+read "ShareCut can't process audio on this device yet." Once linked, only the noise-reduction model (RNNoise, which runs through FFmpeg) can be offered: the word aligner and speaker model are ONNX models and the phone has no onnxruntime, so they stay unsupported with the same sentence, and so does Whisper ("can't transcribe"). The app is the `sharecut` lib (a `staticlib`) with Python.xcframework and FFmpeg.xcframework linked
+into it; there is no sidecar process.
 
 - **Build.** `scripts/ios/ios_sim.sh run` first ensures the payload (`build_payload.py --ensure`;
-  the generated Xcode project needs `ios-payload/` at init), then runs `tauri ios init`, then
+  the generated Xcode project needs `ios-payload/` at init), checks that
+  `ios-payload/FFmpeg.xcframework` has a Simulator slice (`ffmpeg_framework.py check --sdk
+  iphonesimulator`; run `make ios-ffmpeg-sim` once if it stops there), then runs `tauri ios init`, then
   `tauri ios build --target aarch64-sim --debug`; `launch` and `proof` take the product of this
   checkout's own generated Xcode project (`xcodebuild -showBuildSettings`), never the newest
   `sharecut-*` DerivedData folder, which can belong to another worktree. The overlay
@@ -221,6 +225,25 @@ lib (a `staticlib`) with Python.xcframework linked into it; there is no sidecar 
   The two cached artifacts the script makes itself, the unpacked `Python.xcframework` and the
   cross-built wheel, each have a sha256 recorded beside them and are rebuilt when it no longer
   matches.
+- **FFmpeg framework.** `make ios-ffmpeg-device` and `make ios-ffmpeg-sim` run
+  `build_ffmpeg.sh` and then `scripts/ios/ffmpeg_framework.py assemble`, which builds
+  `src-tauri/ios-payload/FFmpeg.xcframework` (untracked) from whichever of
+  `ios-ffmpeg/out/{device,sim}/FFmpeg.framework` exist. It copies each framework to a staging
+  folder, adds the framework's own `PrivacyInfo.xcprivacy`
+  (`gui/desktop/src-tauri/ios/ffmpeg/PrivacyInfo.xcprivacy`; its categories and reason codes are
+  copied from the app manifest, not read from the framework's imports, and are unconfirmed like
+  `contracts/ios-privacy.json`), runs `xcodebuild -create-xcframework`
+  and swaps the result in with two renames, so an xcodebuild failure or a failed final rename keeps
+  the previous xcframework. An interruption between the renames leaves the payload without
+  `FFmpeg.xcframework` until `make ios-ffmpeg-device` or `make ios-ffmpeg-sim` runs again; the old
+  copy stays hidden as `.FFmpeg.xcframework.old.<pid>`. The assemble holds an exclusive `flock` on
+  `ios-payload/.FFmpeg.xcframework.lock`, so `make -j ios-ffmpeg` runs the two assembles one after
+  the other, never together. A device-only
+  assemble drops the Simulator slice until `make ios-ffmpeg-sim` runs again. `ffmpeg_framework.py
+  check --sdk iphoneos|iphonesimulator` finds the slice through the xcframework's `Info.plist`
+  (slice names are never guessed) and is what the template's "Check FFmpeg framework" pre-build
+  phase and `ios_sim.sh` call: a missing slice stops the build with the `make` target to run,
+  before the Rust build starts.
 - **Release build hygiene.** A release build of the Rust library carried 1364 strings naming
   the build machine's home directory (1303 cargo registry paths in tokio's panic locations, 61
   Swift build paths). The template's "Build Rust Code" phase evals `scripts/ios/private_paths.py
@@ -295,7 +318,7 @@ lib (a `staticlib`) with Python.xcframework linked into it; there is no sidecar 
   generous multiple of the worst measurement; a start that passes it shows the retryable failure.
   A recheck after returning to the foreground has 20 seconds (`RECHECK_DEADLINE`); the prototype's
   listener answered again about 5 seconds after the return.
-- **Not there yet.** Audio tools (FFmpeg), transcription, recording, Universal Links and CI signing. A signed build in TestFlight is the release tool below; a run on a device is the owner's. Home's Import audio and Record are refused while audio tools are unavailable, so a project cannot yet be made in the UI. Projects live in the app's Documents folder and show in the Files app. Recent entries are stored relative to it ([persistence.md](persistence.md)).
+- **Not there yet.** Transcription, recording, Universal Links and CI signing. Audio tools run in-process through `FFmpeg.framework`; in a build where that framework is not linked, status reports the tools `missing` and every model `unsupported` with one sentence. A signed build in TestFlight is the release tool below; a run on a device is the owner's. Home's Import audio and Record are refused while audio tools are unavailable, so a build without the framework cannot make a project in the UI. Projects live in the app's Documents folder and show in the Files app. Recent entries are stored relative to it ([persistence.md](persistence.md)).
 - **Request audit (debug builds only).** `podcast_mcp.gui.request_audit` appends one JSON line per
   HTTP response and WebSocket outcome to `Library/Logs/ShareCut/request-audit.jsonl`: the method,
   the path without its query string and with any share-link token replaced by `<share-token>`, the status and whether the query was empty. It never reads a
@@ -325,9 +348,9 @@ lib (a `staticlib`) with Python.xcframework linked into it; there is no sidecar 
 **iOS native FFmpeg ABI (#3974, stage 3 slice 6a).** `src/podcast_mcp/util/native_ffmpeg.py`
 holds `NativeFFmpegBackend`, the `InProcessBackend` that runs `in-process:ffmpeg` and
 `in-process:ffprobe` argv on four C functions the app exports. The portable session core
-(`gui/desktop/src-tauri/ios/ffmpeg/sc_ffmpeg_core.c`) is in tree and the FFmpeg glue lands
-separately; no host row uses the backend yet, and the bundle check that the symbols survive linking
-(`nm` on the app executable) is still to come.
+(`gui/desktop/src-tauri/ios/ffmpeg/sc_ffmpeg_core.c`) and the FFmpeg glue are in tree; the iOS row uses the backend, `gui/embedded.py` installs it at engine start when the
+library is linked, and `bundle_checks.check_ffmpeg_framework` checks that the framework exports
+exactly the four functions.
 
 ```c
 int      sc_ffmpeg_abi_version(void);   /* must return 1 */
@@ -353,15 +376,38 @@ void     sc_ffmpeg_cancel(int64_t session);
   stop, closes the session's original dups of the caller's in, out and err fds, and returns
   promptly. From that moment the session's stdout and stderr streams (`sc_out()`, `sc_err()`) are
   redirected to a discard stream, so no new output reaches the caller. The streams the worker
-  already holds stay open until the tool returns, and a write already blocked on a full pipe is not
-  woken by `cancel` (neither Darwin nor Linux wakes it when its own dup is closed): it returns with
-  `EPIPE` when the caller's reader closes its end (SIGPIPE is ignored), which the Python bridge does
-  within `KILL_GRACE_SEC`. Until then `wait` and every queued session wait behind it. A caller's
+  already holds stay open until the tool returns. For a running session `cancel` also sends
+  `SIGUSR2` once to the worker thread, which unblocks `SIGUSR2` in its own signal mask at start.
+  The core installs a no-op `SIGUSR2` handler without `SA_RESTART` at the first `start`. The
+  handler is process-wide, so the host must not use `SIGUSR2` for anything else, and a host thread
+  that receives it sees `EINTR` from interruptible calls. The signal makes a `read(2)` or
+  `write(2)` blocked on a pipe on the worker thread fail with `EINTR`, and libav's retry loop
+  then checks the interrupt latch and returns. The kick is best effort only. It reaches the
+  worker thread alone: real ffmpeg runs demux and mux I/O on its own scheduler threads, so a read
+  blocked there is not woken by the kick. The kick is sent once per cancel and is lost if it lands
+  just before the tool enters the blocking call, and a tool blocked in something other than a
+  pipe read or write is not woken. On the Simulator, ffmpeg on a blocked `pipe:0` or a long
+  lavfi job returned from `wait` about 1 s after cancel, but ffprobe on `pipe:0` that is never
+  written did not return until the caller closed its write end, because ffprobe sets no libav
+  interrupt callback and retries the read. The backstop is the bridge closing the caller's write end
+  of the stdin pipe, which Python does at `KILL_GRACE_SEC` at the latest when the tool has not
+  returned (the stdout and stderr read ends stay open). The Simulator 1 s return was observed once,
+  at the probe stage, and is not a guarantee. The backstop releases only the caller's stdin pipe:
+  a demux or mux thread blocked on a stdout or stderr write is not covered by any path until the
+  caller reads or the native returns. A write the tool makes through the
+  discard stream never blocks. A caller's
   reader of a pipe sees EOF only when the native's dups are closed (when the tool returns) and the
-  caller-side write end is released; Python releases that end when `wait` returns, or after
-  `KILL_GRACE_SEC` at the latest, so after a kill the reader can be blocked for up to that grace. A
+  caller-side write end is released. `wait` does not release a caller's stdin writer: the caller
+  closes it (`communicate` and `__exit__` do), or, if the tool ignores the cancel, Python
+  releases it at `KILL_GRACE_SEC`. The release never waits on a caller's write or flush that is
+  blocked on a full pipe: such a call stays blocked until the native reads or returns. A caller's
+  `close` of the stdin writer likewise does not wait for a write in flight (after its own flush):
+  it points the descriptor at /dev/null and returns, and the descriptor number is freed only when
+  that write has returned, so a write never lands on a reused descriptor. A write started after the
+  close raises `ValueError`, or `BrokenPipeError` once Python has released the pipe at the grace
+  period (the broken flag is checked first). A
   native that ignores `cancel` does not hang `run` or `wait` (Python reports `-9` after the grace)
-  but gives no EOF until its session ends. Limitations: two overlapping sessions must not be given
+  but a stdout or stderr reader gets no EOF until its session ends (a stdin reader gets it at the grace). Limitations: two overlapping sessions must not be given
   the same pipe, and a thread of a finished session must not call the tool's exit path later. There
   are no callbacks. A NUL in argv is rejected only inside the backend (exit 1, where `subprocess`
   raises `ValueError`): an accepted, fail-closed divergence.
@@ -380,11 +426,12 @@ void     sc_ffmpeg_cancel(int64_t session);
   - the text `pattern_type`, `movie=`, `amovie=` or `format_opts`, which stops option strings
     smuggled into a filtergraph.
   - `dev/` or `proc/` at the start of the argument (after an optional `./` and one `/`) or after
-    one of `= : , ; [ ] ( )` or a space, and the text `dev/std` or `proc/self`. `/dev/fd/3`,
-    `proc/1/fd/1` and `amovie=dev/fd/3` are rejected; `/srv/x/dev/notes.wav` and
+    one of `= : , ; [ ] ( ) |` or a space (one optional `/` may sit between that delimiter and
+    the directory, and `+` counts as a delimiter only before that `/`), and the text `dev/std`
+    or `proc/self`. `/dev/fd/3`, `proc/1/fd/1` and `amovie=dev/fd/3` are rejected; `/srv/x/dev/notes.wav` and
     `/srv/me/mydev/fdr/a.wav` pass.
-  - `pipe:`, `fd:` or `file:` at the start of the argument or right after one of `= , ; [ ] ( ) |`
-    or `/`, but not after a space, `-` or `_` or inside a word (`Gold file: draft.wav`,
+  - `pipe:`, `fd:` or `file:` at the start of the argument or right after one of
+    `= , ; [ ] ( ) | : +` or `/`, but not after a space, `-` or `_` or inside a word (`Gold file: draft.wav`,
     `Sub-file:2.wav`, `profile:1.wav` pass; `amovie=pipe:3`, `[f=wav]pipe:3`, `;file:x` and
     `/pipe:3` do not; `./pipe:3` is a plain relative file and passes).
 
@@ -397,7 +444,8 @@ void     sc_ffmpeg_cancel(int64_t session);
   one free-form route, and the user's own agent controls it. `unix:` and `tcp:` URLs and global
   options such as `-protocol_whitelist`, `-safe`, `-allowed_extensions` and `-report` are not
   policed, so the glue must never widen ffmpeg's defaults. A blocking read on `fd:N` / `pipe:N` is
-  not interrupted by cancel; the bridge must close the writer, as for writes. A rejected session
+  woken by the `SIGUSR2` kick of `cancel` (best effort, see Sessions); the bridge still closes the
+  writer. A rejected session
   still returns a valid id; its `wait` returns `1` after one `sc_ffmpeg: ...` line on stderr and
   the tool never runs. Cancelling a queued session makes `wait` return `255` and the tool never
   runs. An exit code outside 0..255 becomes `1`, and `sc_tool_exit` codes are masked with `0xff`.
@@ -415,6 +463,12 @@ void     sc_ffmpeg_cancel(int64_t session);
   `gui/desktop/src-tauri/ios/project.yml` carries `OTHER_LDFLAGS: ["$(inherited)",
   "-Wl,-export_dynamic"]` so the linker keeps the four symbols visible to `dlsym`. Do not add a
   second `settings:` key to that target: YAML silently keeps only the last.
+- **FFmpeg framework.** The template links and embeds `ios-payload/FFmpeg.xcframework` with
+  `embed: true`, `codeSign: true` and `link: true`, exactly as it does Python, so one dependency
+  line serves the device and the Simulator and the framework is a load-time dependency of the
+  app. The four symbols are reached through `CDLL(None)`; whether that finds them in a linked
+  framework on a device is proved on a Mac. The framework is arm64 only, so the Simulator target
+  excludes `x86_64` (`EXCLUDED_ARCHS[sdk=iphonesimulator*]`, beside the existing device line).
 
 <a id="ios-release"></a>
 **iOS release (#3810, stage 2).** `scripts/ios/ios_release.py` builds a release `.ipa` for the
@@ -470,7 +524,9 @@ another; it needs its dependencies already built or fetched. A cold checkout nee
   version; a clock set into the future makes later numbers look older, and only a new marketing
   version fixes that. The marketing version is the repository's own, after
   `scripts/version_policy.py` agrees.
-- **What a build does.** Web build, payload for `iphoneos`, a fresh `gen/apple`, `tauri ios init`,
+- **What a build does.** Web build, the FFmpeg framework (`build_ffmpeg.sh device`, then
+  `ffmpeg_framework.py assemble`; FFmpeg is rebuilt from source each run, lame and opus are
+  reused, so this step is long), payload for `iphoneos`, a fresh `gen/apple`, `tauri ios init`,
   `tauri ios build --archive-only` (Tauri adds `-allowProvisioningUpdates` itself; `--no-sign`
   for the rehearsal). A signed archive gets `APPLE_API_KEY`, `APPLE_API_ISSUER` and
   `APPLE_API_KEY_PATH` in its environment, which Tauri turns into the `-authentication*` flags;

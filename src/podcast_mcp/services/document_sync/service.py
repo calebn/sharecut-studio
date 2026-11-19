@@ -21,8 +21,13 @@ from podcast_mcp.edits.clip_fades import ClipFadeChangedError
 from podcast_mcp.edits.clip_gain import ClipGainChangedError
 from podcast_mcp.edits.comments import comments_for_view
 from podcast_mcp.edits.decisions import PendingEditChangedError
-from podcast_mcp.edits.edit_log import RestoreResult
+from podcast_mcp.edits.edit_log import (
+    GUEST_LOCAL_RESTORE_MESSAGE,
+    LOCAL_RESTORE_REQUIRES_HISTORY,
+    RestoreResult,
+)
 from podcast_mcp.edits.range_target import RangeChangedError
+from podcast_mcp.edits.source_removals import guest_hold_reason, plain_label
 from podcast_mcp.edits.transcript_correct import TranscriptTextChangedError
 from podcast_mcp.edits.transcript_timing import TranscriptTimingChangedError
 from podcast_mcp.models import EpisodeProject, SavedDocumentCommand
@@ -248,12 +253,66 @@ class RestoreConflictsAsk(TypedDict, total=False):
     restore_conflicts: list[dict[str, Any]]
 
 
-def _restore_conflicts(command: DocumentCommand, result: Mapping[str, Any]) -> RestoreConflictsAsk:
+def _restore_conflicts(
+    command: DocumentCommand, result: Mapping[str, Any], audience: str
+) -> RestoreConflictsAsk:
     """The conflicts of a refused Restore at the top of the reply, which a guest's
-    sanitized ``command`` no longer carries."""
-    if command.type == "RestoreAppliedEdit" and result.get("status") == "conflict":
-        return {"restore_conflicts": result["conflicts"]}
-    return {}
+    sanitized ``command`` no longer carries. A guest has no History to send them to, so a
+    cut that only History can undo reads in the guest's own words."""
+    if command.type != "RestoreAppliedEdit" or result.get("status") != "conflict":
+        return {}
+    conflicts = result["conflicts"]
+    if audience == "guest":
+        conflicts = [
+            {**row, "message": GUEST_LOCAL_RESTORE_MESSAGE}
+            if row.get("code") == LOCAL_RESTORE_REQUIRES_HISTORY
+            else row
+            for row in conflicts
+        ]
+    return {"restore_conflicts": conflicts}
+
+
+class _ReviewHeld(TypedDict):
+    id: str
+    label: str
+    reason: str
+
+
+class _ReviewResult(TypedDict):
+    count: int
+    held: list[_ReviewHeld]
+    approved_ids: NotRequired[list[str]]
+
+
+class ReviewReplyAsk(TypedDict, total=False):
+    review_result: _ReviewResult
+
+
+def _review_reply_facts(command_type: str, result: object, audience: str) -> ReviewReplyAsk:
+    """How many edits an Approve or Reject decided, and which cuts Approve left pending.
+
+    A guest's sanitized ``command`` carries no result, so the page reads this top-level fact
+    for both audiences. A guest's rows read in the plain words of a refusal and never carry
+    the hold code.
+    """
+    if command_type not in {"ApproveEdits", "RejectEdits"} or not isinstance(result, Mapping):
+        return {}
+    count = result.get("count")
+    if isinstance(count, bool) or not isinstance(count, int):
+        return {}
+    guest = audience == "guest"
+    held: list[_ReviewHeld] = []
+    for row in result.get("held") or []:
+        reason = str(row["reason"])
+        label = str(row["label"])
+        if guest:
+            reason = guest_hold_reason(str(row.get("code") or ""), reason)
+            label = plain_label(label)
+        held.append({"id": str(row["id"]), "label": label, "reason": reason})
+    review: _ReviewResult = {"count": count, "held": held}
+    if "approved_ids" in result:
+        review["approved_ids"] = [str(i) for i in result["approved_ids"]]
+    return {"review_result": review}
 
 
 class _SplitPiece(TypedDict):
@@ -743,7 +802,7 @@ class DocumentSyncService:
                     "server_seq": seq,
                 },
                 "server_seq": seq,
-                **_restore_conflicts(command, planned_result),
+                **_restore_conflicts(command, planned_result, audience),
             }
             if command.payload.get("dry_run"):
                 reply["dry_run"] = True
@@ -777,6 +836,11 @@ class DocumentSyncService:
                     "server_seq": existing["server_seq"],
                     "idempotent": True,
                     **_stored_asks(existing),
+                    **_review_reply_facts(
+                        str(existing["type"]),
+                        (existing.get("payload") or {}).get("result"),
+                        audience,
+                    ),
                     **_split_reply_facts(
                         str(existing["type"]),
                         (existing.get("payload") or {}).get("result"),
@@ -859,7 +923,8 @@ class DocumentSyncService:
         # guest) gets the confirmation to show, beside the sanitized event.
         confirmation = result_payload.get("needs_confirmation")
         asks = {"needs_confirmation": confirmation} if confirmation is not None else {}
-        asks.update(_restore_conflicts(command, result_payload))
+        asks.update(_restore_conflicts(command, result_payload, audience))
+        asks.update(_review_reply_facts(command.type, result_payload, audience))
         asks.update(
             _split_reply_facts(command.type, result_payload, command.payload.get("track_ids"))
         )

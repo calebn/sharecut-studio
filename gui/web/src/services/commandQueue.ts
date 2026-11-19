@@ -39,6 +39,7 @@ import { DocumentCommand } from "../types/documentCommands.generated";
 import { parseHistoryEntryId } from "../types/project";
 import {
   ApiError,
+  CUT_SCOPE_CHANGED_CODE,
   HISTORY_REFUSAL_CODES,
   isRetryLater,
   projectUnavailableReason,
@@ -843,13 +844,13 @@ async function submitThroughQueue(
       if (staysQueued) return queuedResult(command_id, client_seq);
       throw failure;
     }
-    // A host's live approval blocked by the transcript-refine gate is answered where they
-    // tapped it (the Waive form), so it is not a Needs attention item too.
     const answeredInline =
-      failure.code === TRANSCRIPT_REFINE_REQUIRED_CODE &&
-      opts.refineRecoveryInline === true &&
       !opts.replaying &&
-      !isShareProjectKey(projectPath);
+      (failure.code === CUT_SCOPE_CHANGED_CODE
+        ? isShareProjectKey(projectPath)
+        : failure.code === TRANSCRIPT_REFINE_REQUIRED_CODE &&
+          opts.refineRecoveryInline === true &&
+          !isShareProjectKey(projectPath));
     await settleCommandOutcome(
       projectPath,
       cmd,

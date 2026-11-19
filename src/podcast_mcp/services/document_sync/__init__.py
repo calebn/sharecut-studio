@@ -14,6 +14,7 @@ if TYPE_CHECKING:
         DocumentCommandType,
         TrustedCommandContext,
         command_context_for_role,
+        command_context_for_share,
     )
     from podcast_mcp.services.document_sync.errors import DocumentConflictError
     from podcast_mcp.services.document_sync.external_apply import apply_external_document_edit
@@ -89,6 +90,7 @@ __all__ = [
     "after_agent_mutation",
     "apply_external_document_edit",
     "command_context_for_role",
+    "command_context_for_share",
     "describe_document_commands",
     "document_command_from_body",
     "document_command_json_schema",
@@ -130,6 +132,7 @@ _MODULE_BY_NAME = {
     "DocumentCommandType": "commands",
     "INTERACTIVE_COMMAND": "commands",
     "command_context_for_role": "commands",
+    "command_context_for_share": "commands",
     "PROGRAMMATIC_COMMAND": "commands",
     "TrustedCommandContext": "commands",
     "DocumentConflictError": "errors",

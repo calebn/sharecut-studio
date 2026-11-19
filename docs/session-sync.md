@@ -557,6 +557,14 @@ The existing save status owns queued feedback. Planning dry runs are unchanged.
 The typed command boundary rejects negative or nonfinite primary and additional
 split times before an edit or proposal can be saved.
 
+`ApproveEdits` and `RejectEdits` replies carry `review_result` beside the event, for host and
+guest alike, because a guest's command keeps only its type. It is `{count, held, approved_ids?}`:
+`count` is the number of edits decided, `held` lists the cuts an Approve left pending as
+`{id, label, reason}` (empty when none), and `approved_ids` appears when the request asked for
+a held report (`hold_blocked` or `skip_unsure`). A guest's `label` and `reason` read in the plain
+words of a held-cut refusal, and a row never carries the hold code. A reply that asks to confirm
+cutting other speech carries no count and no `review_result`. A retry returns the same fact.
+
 ### Document command types
 
 Every command type has one `CommandSpec` in `services/document_sync/registry.py`: its payload
@@ -600,7 +608,7 @@ Do **not** expose Swagger on the public relay (`docs_url=None`). Host OpenAPI de
 | `UndoHistory`, `RedoHistory` | `HistoryService` | optional `rerender`; required `expected_head_id`, the history head the client saw (`root` before any entry; refused as invalid when missing, 409 `history_stale` unless it is still the head; [history.md § Guarded undo and redo](history.md#guarded-undo-and-redo-expected-head)) |
 | `ApproveEdits`, `RejectEdits` | `EditService` | `ids: string[]`; `hold_blocked` reports held cuts instead of refusing the batch; `skip_unsure` (bulk guard) leaves every cut that covers an unsure word pending as `held` with reason `unsure_word`, forced on for a guest's multi-edit approve ([gui-integration.md § Unsure words](gui-integration.md#unsure-words)); trusted interactive context, or `override_audio_checks` from a caller that may run the command, overrides the acoustic holds (not the unsure hold) |
 | `UpdatePendingEdit` | `EditService.update_pending` | `id`, `start`, `end`, `snap?`, `expected?` (saved track/type/clock/bounds) |
-| `RestoreAppliedEdit` | `EditService.revert_applied` | `ids` (applied-edit log ids), `dry_run` (default false). Returns `RestoreResult{status: restored\|planned\|conflict, conflicts, summary}`. One History step for all ids; `dry_run` and conflicts write nothing: no History step, no journal row, no `server_seq` advance. An auto-applied ripple cut restores through its `ReinsertClips` inverse; a cut that a later cut touched returns a conflict whose `blocked_by` names the record to restore first. Records without an `inverse` (`restore.state: history_only`) return a `local_restore_requires_history` conflict; choose guarded `UndoHistory` for the whole action. A retry of a succeeded Restore with the same `command_id` returns the stored result (`idempotent: true`) before any plan. The reply also carries the conflicts at the top level as `restore_conflicts`, because a guest's `command` is reduced to its type |
+| `RestoreAppliedEdit` | `EditService.revert_applied` | `ids` (applied-edit log ids), `dry_run` (default false). Returns `RestoreResult{status: restored\|planned\|conflict, conflicts, summary}`. One History step for all ids; `dry_run` and conflicts write nothing: no History step, no journal row, no `server_seq` advance. An auto-applied ripple cut restores through its `ReinsertClips` inverse; a cut that a later cut touched returns a conflict whose `blocked_by` names the record to restore first. Records without an `inverse` (`restore.state: history_only`) return a `local_restore_requires_history` conflict; choose guarded `UndoHistory` for the whole action. A retry of a succeeded Restore with the same `command_id` returns the stored result (`idempotent: true`) before any plan. The reply also carries the conflicts at the top level as `restore_conflicts`, because a guest's `command` is reduced to its type; for a guest the `local_restore_requires_history` message reads "This cut can't be put back on its own. Undo takes back your own latest change; for anything else, ask the host." |
 | `SetClipFade` | `TimelineService.set_clip_fade` | `clip_id`, `fade_in_ms`, `fade_out_ms`, optional `fade_in_curve` / `fade_out_curve` (`linear`, `equal_power`, `s`; left out keeps the clip's curve), `expected: {fade_in_ms, fade_out_ms, fade_in_curve?, fade_out_curve?}` |
 | `SetClipsFade` | `TimelineService.set_clips_fade` | `fades: [{clip_id, fade_in_ms, fade_out_ms, fade_in_curve?, fade_out_curve?, expected}]`, one history entry; any stale `expected` (lengths or curves) returns `clip_fade_changed` for all |
 | `SetJoinFadeLimit` | `TimelineService.set_join_fade_limit` | `ms` (0 to 200, or null for the app default): the episode's Longest automatic join fade for the automatic join writers; saved in `timeline.join_fade_max_ms`, one history entry, no stem goes stale; refreshes the CLIPS slice (`join_fade_limit_ms`) |
@@ -669,7 +677,7 @@ Do **not** expose Swagger on the public relay (`docs_url=None`). Host OpenAPI de
 
 **Structural apply vs propose:** `services/document_sync/policy.py` (`resolve_structural_mode`). Host (`caps is None`) and Editors apply immediately (History undo). Commenters only append pending decisions; Approve/Reject via existing Pass 1 commands.
 
-**Speech review:** a programmatic rippling `TrimClipEdge`, `DeleteClip`, `CutRange` or `ApproveEdits` may hold when it cuts other speech. A `needs_confirmation` result carries the review message and measured `speech` (removed spans, per-track words and sound spans); a mapped peer hold uses the structured cut-hold error. Both leave the project unchanged. Studio's trusted interactive route supplies transient human application intent when a person explicitly approves. Any other caller that may run the command (CLI, host MCP, a guest MCP with the Editor capability) sets `override_audio_checks: true` in the payload to skip the audio-quality and cut-position checks for that call; the History entry and applied edits record the actor and surface (`audio_check_override`). Structural checks still apply to interactive approval.
+**Speech review:** a programmatic rippling `TrimClipEdge`, `DeleteClip`, `CutRange` or `ApproveEdits` may hold when it cuts other speech. A `needs_confirmation` result carries the review message and measured `speech` (removed spans, per-track words and sound spans); a mapped peer hold uses the structured cut-hold error. Both leave the project unchanged. Studio's trusted interactive route (the host page, and an Editor review link's page) supplies transient human application intent when a person explicitly approves; a Commenter link does not. Any other caller that may run the command (CLI, host MCP, a guest MCP with the Editor capability) sets `override_audio_checks: true` in the payload to skip the audio-quality and cut-position checks for that call; the History entry and applied edits record the actor and surface (`audio_check_override`). Structural checks still apply to interactive approval.
 
 REST `/api/comments*` still mutates via `CommentService` and best-effort notifies the document hub (`notify_comments_changed` → `COMMENTS` projection). New GUI mutations (history, edits, transcript, envelopes, markers) use the document command path only. Host: `POST /api/document/command`. Guest shares: `POST /api/review/{token}/daw/document/command` with `authorize_document_command` (`ROLE_DOCUMENT_COMMANDS` in `services/document_sync/capabilities.py`, derived from each `CommandSpec.guest` in `registry.py`: Commenters get the suggest set, Editors the edit set; `policy.py` chooses apply vs propose). **Remote MCP** guests use the same allowlists via `guest_submit_document_command` ([host-online-relay.md](host-online-relay.md) § Remote MCP). Authz: same `authorize_client` as session WS for host (strict mode + token for non-loopback); relayed share traffic is refused.
 
@@ -815,9 +823,10 @@ validated before authority lookup.
 Permission to apply and human acoustic intent are separate. The host document route
 provides the internal context for selected ranges, cut/delete/trim gestures,
 pending-bound edits and explicit approval, but only for the host `viewer` role; the
-`agent` and `cli` roles stay programmatic there. Guests stay programmatic on the share
-route and in guest MCP, even with Editor capabilities, so a guest cannot waive the host
-agent's acoustic check. Submitted intent, author, confirmation and snap flags cannot
+`agent` and `cli` roles stay programmatic there. The browser share route treats an Editor
+link as a person at the page (a Commenter link stays programmatic); the guest MCP route
+stays programmatic for its own commands, though a pending edit an Editor retimed from the
+page keeps that person's stamp, as does the Editor's own `override_audio_checks`. Submitted intent, author, confirmation and snap flags cannot
 supply this context. Human approval of an agent proposal changes only transient application
 intent; its persisted `proposal_origin` remains programmatic. Exact and source proposal
 assessment preserves selected bounds and records measured risk before offering the row;

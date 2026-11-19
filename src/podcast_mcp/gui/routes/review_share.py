@@ -112,7 +112,7 @@ from podcast_mcp.services.document import (
 from podcast_mcp.services.document_sync import (
     COMMENT_BODY_MAX,
     DocumentSyncService,
-    command_context_for_role,
+    command_context_for_share,
     document_command_from_body,
     document_hub_key,
 )
@@ -662,7 +662,7 @@ def post_daw_document_command(token: str, body: DocumentCommandRequest) -> dict[
                 range_policy="apply",
                 structural_mode=body.structural_mode,
                 author=share_author(row),
-                trusted_context=command_context_for_role(cmd.role),
+                trusted_context=command_context_for_share(row.get("capabilities")),
             ),
             viewer=share_author(row),
         )

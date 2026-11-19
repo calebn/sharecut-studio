@@ -1,5 +1,5 @@
 import { selectionSpan } from "../edit/editSelection";
-import { canApplyPass12, isShareProjectKey } from "../shareMode";
+import { canApplyPass12 } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
 import { playheadScrollRegistry } from "../state/playheadScrollRegistry";
 import { stageRoleOf, stagesForRole } from "../state/stageRoutes";
@@ -17,6 +17,7 @@ import {
   formatWaveformAmp,
 } from "../utils/zoom";
 import { registerCommand } from "./execute";
+import { fixTextAvailability } from "./fixTextAvailability";
 
 const ZOOM_TO_SELECTION_FILL = 0.9;
 const NO_PROJECT = { status: "disabled", reason: "No project" } as const;
@@ -218,8 +219,8 @@ export function registerViewCommands(): void {
 export function registerTranscriptViewCommands(): void {
   registerCommand("transcript.findReplace", () => {
     const state = useDawStore.getState();
-    if (!state.project || isShareProjectKey(state.projectPath))
-      return { status: "disabled", reason: "Host project required" };
+    const available = fixTextAvailability(state);
+    if (!available.ok) return { status: "disabled", reason: available.reason };
     state.openStage("edit");
     state.setScriptCollapsed(false);
     useDawStore

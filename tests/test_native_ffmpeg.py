@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import contextlib
 import ctypes
 import errno
 import importlib.util
@@ -11,6 +12,7 @@ import os
 import subprocess
 import tempfile
 import threading
+import time
 from dataclasses import replace
 from typing import Any
 
@@ -35,6 +37,18 @@ START = ctypes.CFUNCTYPE(
 )
 
 
+class Session:
+    def __init__(self) -> None:
+        self.thread: threading.Thread | None = None
+        self.dups: list[int] = []
+        self.closed = False
+        self.close_lock = threading.Lock()
+        self.cancelled = threading.Event()
+        self.release = threading.Event()
+        self.finished = threading.Event()
+        self.argv: list[bytes] = []
+
+
 class FakeNative:
     """The four ``sc_ffmpeg_*`` symbols as ctypes callbacks; start dups fds like native does."""
 
@@ -48,6 +62,7 @@ class FakeNative:
         honour_cancel: bool = True,
         out: bytes = b"",
         err: bytes = b"",
+        start_delay: float = 0.0,
     ) -> None:
         self.code = code
         self.start_result = start_result
@@ -55,37 +70,48 @@ class FakeNative:
         self.honour_cancel = honour_cancel
         self.out = out
         self.err = err
+        self.start_delay = start_delay
         self.argvs: list[list[bytes]] = []
         self.fds: list[tuple[int, int, int]] = []
         self.stdin_data = b""
+        self.sessions: dict[int, Session] = {}
         self.cancelled = threading.Event()
         self.release = threading.Event()
         self.finished = threading.Event()
         self.waited: list[int] = []
-        self._thread: threading.Thread | None = None
-        self._dups: list[int] = []
-        self._closed = False
-        self._close_lock = threading.Lock()
+        self.start_durations: list[float] = []
+        self.started = threading.Semaphore(0)
+        self._next = 1
         self.sc_ffmpeg_abi_version = ctypes.CFUNCTYPE(ctypes.c_int)(lambda: version)
         self.sc_ffmpeg_start = START(self._start)
         self.sc_ffmpeg_wait = ctypes.CFUNCTYPE(ctypes.c_int, ctypes.c_int64)(self._wait)
         self.sc_ffmpeg_cancel = ctypes.CFUNCTYPE(None, ctypes.c_int64)(self._cancel)
 
     def _start(self, argc: int, argv: Any, in_fd: int, out_fd: int, err_fd: int) -> int:
+        began = time.monotonic()
         if self.start_result is not None:
             return self.start_result
         assert argv[argc] is None
-        self.argvs.append([argv[i] for i in range(argc)])
+        session = Session()
+        session.argv = [argv[i] for i in range(argc)]
+        self.argvs.append(session.argv)
         self.fds.append((in_fd, out_fd, err_fd))
-        dups = [os.dup(fd) if fd >= 0 else -1 for fd in (in_fd, out_fd, err_fd)]
-        self._dups = dups
-        self._closed = False
-        self._thread = threading.Thread(target=self._ffmpeg, args=dups, daemon=True)
-        self._thread.start()
-        return 1
+        session.dups = [os.dup(fd) if fd >= 0 else -1 for fd in (in_fd, out_fd, err_fd)]
+        session.thread = threading.Thread(
+            target=self._ffmpeg, args=(session, *session.dups), daemon=True
+        )
+        session.thread.start()
+        session_id = self._next
+        self._next += 1
+        self.sessions[session_id] = session
+        self.start_durations.append(time.monotonic() - began)
+        self.started.release()
+        return session_id
 
-    def _ffmpeg(self, in_fd: int, out_fd: int, err_fd: int) -> None:
+    def _ffmpeg(self, session: Session, in_fd: int, out_fd: int, err_fd: int) -> None:
         try:
+            if self.start_delay:
+                threading.Event().wait(self.start_delay)
             if in_fd >= 0:
                 chunks = []
                 while chunk := os.read(in_fd, 65536):
@@ -96,61 +122,71 @@ class FakeNative:
             if err_fd >= 0 and self.err:
                 os.write(err_fd, self.err)
         finally:
-            self._close(in_fd, out_fd, err_fd)
+            self._close(session, in_fd, out_fd, err_fd)
 
-    def _close(self, *fds: int) -> None:
-        with self._close_lock:
-            if not self._closed:
-                self._closed = True
+    def _close(self, session: Session, *fds: int) -> None:
+        with session.close_lock:
+            if not session.closed:
+                session.closed = True
                 for fd in fds:
                     if fd >= 0:
                         os.close(fd)
+        session.finished.set()
         self.finished.set()
 
-    def _wait(self, session: int) -> int:
-        assert self._thread is not None
-        self.waited.append(session)
-        self._thread.join(BOUND_SEC)
+    def _wait(self, session_id: int) -> int:
+        session = self.sessions[session_id]
+        assert session.thread is not None
+        self.waited.append(session_id)
+        session.thread.join(BOUND_SEC)
         return self.code if self.wait_result is None else self.wait_result
 
-    def _cancel(self, session: int) -> None:
+    def _cancel(self, session_id: int) -> None:
         """Conformant: stop and close the session's dups at once. Otherwise ignore the call."""
-        if self.honour_cancel:
+        session = self.sessions.get(session_id)
+        if session is not None and self.honour_cancel:
+            session.cancelled.set()
             self.cancelled.set()
-            self._close(*self._dups)
+            self._close(session, *session.dups)
 
 
 class Blocking(FakeNative):
     """A session that runs until cancelled (or released)."""
 
-    def _ffmpeg(self, in_fd: int, out_fd: int, err_fd: int) -> None:
+    def _ffmpeg(self, session: Session, in_fd: int, out_fd: int, err_fd: int) -> None:
         try:
             if self.honour_cancel:
-                self.cancelled.wait(BOUND_SEC)
+                session.cancelled.wait(BOUND_SEC)
             else:
                 self.release.wait(BOUND_SEC)
         finally:
-            self._close(in_fd, out_fd, err_fd)
+            self._close(session, in_fd, out_fd, err_fd)
 
-    def _wait(self, session: int) -> int:
-        assert self._thread is not None
-        self.waited.append(session)
-        self._thread.join(BOUND_SEC)
-        return -9 if self.cancelled.is_set() and self.code == 0 else self.code
+    def _wait(self, session_id: int) -> int:
+        session = self.sessions[session_id]
+        assert session.thread is not None
+        self.waited.append(session_id)
+        session.thread.join(BOUND_SEC)
+        return -9 if session.cancelled.is_set() and self.code == 0 else self.code
 
 
 class SlowWait(Blocking):
     """Cancel closes the dups at once, but the session and ``wait`` end only once released."""
 
-    def _ffmpeg(self, in_fd: int, out_fd: int, err_fd: int) -> None:
+    def _ffmpeg(self, session: Session, in_fd: int, out_fd: int, err_fd: int) -> None:
         try:
             self.release.wait(BOUND_SEC)
         finally:
-            self._close(in_fd, out_fd, err_fd)
+            self._close(session, in_fd, out_fd, err_fd)
 
-    def _wait(self, session: int) -> int:
+    def _wait(self, session_id: int) -> int:
         self.release.wait(BOUND_SEC)
-        return super()._wait(session)
+        return super()._wait(session_id)
+
+
+def read_all(child: Any) -> bytes:
+    assert child.stdout is not None
+    return child.stdout.read()
 
 
 @pytest.fixture
@@ -382,6 +418,27 @@ def test_a_backend_that_ignores_cancel_is_abandoned_after_the_grace(
         assert fake.finished.wait(2)
 
 
+def test_abandon_closes_the_callers_stdin_so_a_blocked_read_ends_and_the_next_session_runs(
+    host: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(process, "KILL_GRACE_SEC", 0.2)
+    fake = FakeNative(honour_cancel=False)
+    with process.using_in_process_backend(NativeFFmpegBackend(fake)):
+        child = process.popen([IN_PROCESS_FFMPEG], stdin=process.PIPE)
+        assert fake.started.acquire(timeout=BOUND_SEC)
+        child.kill()
+        assert child.wait(BOUND_SEC) == -9
+        assert child.stdin is not None
+        with pytest.raises(BrokenPipeError):
+            child.stdin.write(b"x")
+        child.stdin.close()
+        assert fake.finished.wait(BOUND_SEC)
+        second = process.popen([IN_PROCESS_FFMPEG], stdin=process.PIPE)
+        assert second.stdin is not None
+        second.stdin.close()
+        assert second.wait(BOUND_SEC) == 0
+
+
 def test_a_reader_sees_eof_after_kill_and_abandon_with_a_conformant_native(
     host: None, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -393,7 +450,7 @@ def test_a_reader_sees_eof_after_kill_and_abandon_with_a_conformant_native(
         assert child.wait(2) == -9
         assert fake.cancelled.is_set()
         result: list[bytes] = []
-        reader = threading.Thread(target=lambda: result.append(child.stdout.read()), daemon=True)
+        reader = threading.Thread(target=lambda: result.append(read_all(child)), daemon=True)
         reader.start()
         reader.join(2)
         assert not reader.is_alive()
@@ -413,9 +470,7 @@ def test_a_native_that_ignores_cancel_never_hangs_wait_though_eof_is_delayed(
             assert child.wait(2) == -9
             assert not fake.finished.is_set()
             result: list[bytes] = []
-            reader = threading.Thread(
-                target=lambda: result.append(child.stdout.read()), daemon=True
-            )
+            reader = threading.Thread(target=lambda: result.append(read_all(child)), daemon=True)
             reader.start()
             reader.join(0.5)
             assert reader.is_alive()  # the native still holds its dups: no EOF yet
@@ -498,3 +553,185 @@ def test_the_watcher_thread_is_joined_before_run_returns() -> None:
 def test_the_module_never_references_subprocess() -> None:
     source = inspect.getsource(native_ffmpeg)
     assert "subprocess" not in source and "Popen" not in source and "PyDLL(" not in source
+
+
+def test_the_cancel_poll_constant_is_pinned() -> None:
+    assert native_ffmpeg._CANCEL_POLL_SEC == 0.05
+
+
+def test_cancel_reaches_native_within_a_few_polls() -> None:
+    fake = Blocking()
+    cancel = threading.Event()
+    runner = threading.Thread(
+        target=NativeFFmpegBackend(fake).run,
+        args=([IN_PROCESS_FFMPEG], Streams(None, None, None), cancel),
+        daemon=True,
+    )
+    runner.start()
+    assert fake.started.acquire(timeout=BOUND_SEC)
+    began = time.monotonic()
+    cancel.set()
+    assert fake.cancelled.wait(BOUND_SEC)
+    assert time.monotonic() - began < 10 * native_ffmpeg._CANCEL_POLL_SEC
+    runner.join(BOUND_SEC)
+    assert not runner.is_alive()
+
+
+def test_start_never_waits_for_the_tool() -> None:
+    fake = FakeNative(start_delay=0.4)
+    began = time.monotonic()
+    code = NativeFFmpegBackend(fake).run(
+        [IN_PROCESS_FFMPEG], Streams(None, None, None), threading.Event()
+    )
+    assert code == 0
+    assert time.monotonic() - began >= 0.4
+    assert fake.start_durations and fake.start_durations[0] < 0.25
+
+
+def test_a_dlopen_failure_is_unavailable_not_an_error(
+    host: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def refuse(name: Any) -> None:
+        raise OSError(errno.ENOENT, "dlopen failed")
+
+    monkeypatch.setattr(ctypes, "CDLL", refuse)
+    assert native_ffmpeg.is_available() is False
+    assert binaries._in_process_linked() is False
+
+
+def test_an_unavailable_library_is_logged_only_on_an_in_process_host(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    def refuse(name: Any) -> None:
+        raise OSError(errno.ENOENT, "dlopen failed")
+
+    monkeypatch.setattr(ctypes, "CDLL", refuse)
+    with caplog.at_level("INFO", logger=native_ffmpeg._log.name):
+        with host_platform.using(replace(MACOS, media_tools="executables")):
+            assert native_ffmpeg.is_available() is False
+        assert not caplog.records
+        with host_platform.using(ROW):
+            assert native_ffmpeg.is_available() is False
+    assert "dlopen failed" in caplog.text
+
+
+def test_a_missing_symbol_is_missing_not_installed(
+    host: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from podcast_mcp.services.pipeline import bootstrap, config
+
+    monkeypatch.setenv("PODCAST_MCP_CACHE", tempfile.mkdtemp())
+    for variable in ("PODCAST_MCP_FFMPEG", "PODCAST_MCP_FFPROBE", "PODCAST_MCP_FFMPEG_BUNDLE"):
+        monkeypatch.delenv(variable, raising=False)
+    broken = FakeNative()
+    del broken.sc_ffmpeg_wait
+    monkeypatch.setattr(ctypes, "CDLL", lambda *args, **kwargs: broken)
+    assert bootstrap.component_status()["tools"]["ffmpeg"]["state"] == "missing"
+    assert config.component_status()["ffmpeg"]["state"] == "missing"
+    monkeypatch.setattr(ctypes, "CDLL", lambda *args, **kwargs: FakeNative())
+    # Linked is not installed: the backend must also serve argv (#4014).
+    assert bootstrap.component_status()["tools"]["ffmpeg"]["state"] == "missing"
+    assert config.component_status()["ffmpeg"]["state"] == "missing"
+    with process.using_in_process_backend(NativeFFmpegBackend(FakeNative())):
+        assert bootstrap.component_status()["tools"]["ffmpeg"]["state"] == "installed"
+        assert config.component_status()["ffmpeg"]["state"] == "installed"
+
+
+def test_cancel_hits_only_its_own_overlapping_session() -> None:
+    fake = Blocking()
+    backend = NativeFFmpegBackend(fake)
+    cancels = {"a": threading.Event(), "b": threading.Event()}
+    codes: dict[str, int] = {}
+
+    def go(name: str) -> None:
+        codes[name] = backend.run(
+            [IN_PROCESS_FFMPEG, name], Streams(None, None, None), cancels[name]
+        )
+
+    threads = [threading.Thread(target=go, args=(name,), daemon=True) for name in cancels]
+    for thread in threads:
+        thread.start()
+    assert fake.started.acquire(timeout=BOUND_SEC)
+    assert fake.started.acquire(timeout=BOUND_SEC)
+    by_name = {session.argv[1]: session for session in fake.sessions.values()}
+    assert set(by_name) == {b"a", b"b"}
+    cancels["a"].set()
+    assert by_name[b"a"].cancelled.wait(BOUND_SEC)
+    assert by_name[b"a"].finished.wait(BOUND_SEC)
+    assert not by_name[b"b"].cancelled.is_set()
+    assert not by_name[b"b"].finished.is_set()
+    cancels["b"].set()
+    for thread in threads:
+        thread.join(BOUND_SEC)
+    assert codes == {"a": 1, "b": 1}
+    assert sorted(fake.waited) == sorted(fake.sessions)
+
+
+@pytest.fixture
+def uninstall():
+    yield
+    stack = native_ffmpeg._installed
+    native_ffmpeg._installed = None
+    if stack is not None:
+        stack.close()
+
+
+def test_install_native_backend_installs_once_and_serves_spawns(
+    host: None, monkeypatch: pytest.MonkeyPatch, uninstall: None
+) -> None:
+    fake = FakeNative(out=b"ok")
+    monkeypatch.setattr(ctypes, "CDLL", lambda name: fake)
+    assert native_ffmpeg.install_native_backend() is True
+    assert native_ffmpeg.install_native_backend() is True
+    assert process.run([IN_PROCESS_FFMPEG], capture_output=True).stdout == b"ok"
+    assert len(fake.sessions) == 1
+
+
+def test_install_native_backend_is_safe_to_race(
+    host: None, monkeypatch: pytest.MonkeyPatch, uninstall: None
+) -> None:
+    monkeypatch.setattr(ctypes, "CDLL", lambda *args, **kwargs: FakeNative())
+    gate = threading.Barrier(2, timeout=0.3)
+    real = native_ffmpeg.is_available
+
+    def gated() -> bool:
+        with contextlib.suppress(threading.BrokenBarrierError):
+            gate.wait()
+        return real()
+
+    monkeypatch.setattr(native_ffmpeg, "is_available", gated)
+    results: list[bool] = []
+    threads = [
+        threading.Thread(target=lambda: results.append(native_ffmpeg.install_native_backend()))
+        for _ in range(2)
+    ]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join(BOUND_SEC)
+    assert results == [True, True]
+
+
+def test_install_native_backend_declines_without_the_library(host: None, uninstall: None) -> None:
+    assert native_ffmpeg.install_native_backend() is False
+    assert native_ffmpeg._installed is None
+    with pytest.raises(process.SpawnUnavailableError):
+        process.run([IN_PROCESS_FFMPEG], capture_output=True)
+
+
+def test_install_native_backend_declines_on_a_desktop_row(
+    monkeypatch: pytest.MonkeyPatch, uninstall: None
+) -> None:
+    monkeypatch.setattr(ctypes, "CDLL", lambda *args, **kwargs: FakeNative())
+    with host_platform.using(replace(MACOS, media_tools="executables")):
+        assert native_ffmpeg.install_native_backend() is False
+    assert native_ffmpeg._installed is None
+
+
+def test_install_native_backend_declines_when_another_backend_is_installed(
+    host: None, monkeypatch: pytest.MonkeyPatch, uninstall: None
+) -> None:
+    monkeypatch.setattr(ctypes, "CDLL", lambda *args, **kwargs: FakeNative())
+    with process.using_in_process_backend(NativeFFmpegBackend(FakeNative())):
+        assert native_ffmpeg.install_native_backend() is False
+    assert native_ffmpeg._installed is None

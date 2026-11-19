@@ -409,6 +409,43 @@ def test_guest_reply_hides_command_payload_and_still_reports_the_conflict(tmp_pa
     assert [c["code"] for c in reply["restore_conflicts"]] == ["local_restore_requires_history"]
 
 
+@pytest.mark.parametrize("dry_run", [False, True])
+def test_guest_reply_tells_a_history_only_cut_in_guest_words(tmp_path, dry_run):
+    ws = _trim_workspace(tmp_path)
+    record_id = ws.project.editorial.edit_log[0].id
+    reply = _guest_submit(ws, [record_id], dry_run=dry_run)
+    assert reply["restore_conflicts"] == [
+        {
+            "code": "local_restore_requires_history",
+            "record_id": record_id,
+            "track_id": None,
+            "blocked_by": [],
+            "message": (
+                "This cut can't be put back on its own. Undo takes back your own latest "
+                "change; for anything else, ask the host."
+            ),
+        }
+    ]
+
+
+def test_host_reply_keeps_the_history_message_for_a_history_only_cut(tmp_path):
+    ws = _trim_workspace(tmp_path)
+    record_id = ws.project.editorial.edit_log[0].id
+    command = DocumentCommand(
+        type="RestoreAppliedEdit",
+        payload={"ids": [record_id]},
+        client_id="host",
+        client_seq=None,
+        role="host",
+    )
+    reply = DocumentSyncService.open(ws.path).submit(command)
+    assert reply["restore_conflicts"][0]["message"] == (
+        "This edit cannot be restored individually. Use History Undo to restore the whole "
+        "action. History Undo also undoes the other edits in that action. You may need to "
+        "undo later actions first."
+    )
+
+
 def test_guest_dry_run_plan_reply_hides_command_payload(tmp_path):
     ws = _mute_workspace(tmp_path)
     reply = _guest_submit(ws, [ws.project.editorial.edit_log[0].id], dry_run=True)

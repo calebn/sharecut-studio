@@ -61,5 +61,21 @@
     "--enable-static",
     "--disable-extra-programs",
     "--disable-doc"
+  ],
+  "patches": [
+    {
+      "name": "ffmpeg-opt-reset",
+      "path": "gui/desktop/src-tauri/ios/ffmpeg/patches/ffmpeg-opt-reset.patch",
+      "sha256": "8ed5e87f16da7f22f713a03b8a771a098abcbda4df96d3f06f7961dcbc6aa2cc",
+      "applies_to": "ffmpeg",
+      "platform": "ios"
+    },
+    {
+      "name": "ffprobe-no-exit",
+      "path": "gui/desktop/src-tauri/ios/ffmpeg/patches/ffprobe-no-exit.patch",
+      "sha256": "6ec1e2bdf1d6edb799c507aee501886467342d523742e937ff94c3528e268d5e",
+      "applies_to": "ffmpeg",
+      "platform": "ios"
+    }
   ]
 }

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import errno
+import inspect
 import json
 import plistlib
 from pathlib import Path
@@ -343,3 +345,242 @@ def test_a_symlinked_storyboard_info_plist_is_named(tmp_path: Path, relative: st
         "symlinked Info.plist" in problem and relative in problem
         for problem in checks.check_layout(app).problems
     )
+
+
+FFMPEG_NM = "_sc_ffmpeg_abi_version\n_sc_ffmpeg_start\n_sc_ffmpeg_wait\n_sc_ffmpeg_cancel\n"
+
+
+def fake_nm(text: str, seen: list[tuple[Path, list[str]]] | None = None) -> checks.NmRunner:
+    def run(binary: Path, flags: list[str]) -> str:
+        if seen is not None:
+            seen.append((binary, flags))
+        return text
+
+    return run
+
+
+FFMPEG_PRIVACY = "Frameworks/FFmpeg.framework/PrivacyInfo.xcprivacy"
+
+
+def ffmpeg_app(tmp_path: Path, body: bytes = b"") -> Path:
+    return make_app(
+        tmp_path,
+        {
+            "Frameworks/FFmpeg.framework/FFmpeg": MACHO + body,
+            FFMPEG_PRIVACY: plistlib.dumps({"NSPrivacyTracking": False}),
+        },
+    )
+
+
+def test_the_ffmpeg_framework_is_embedded() -> None:
+    assert checks.FFMPEG_EMBEDDED is True
+
+
+def test_flag_off_and_no_framework_is_not_embedded_and_passes(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(checks, "FFMPEG_EMBEDDED", False)
+    app = make_app(tmp_path, {"ShareCut": MACHO})
+    report = checks.check_ffmpeg_framework(app, fake_nm("nothing"))
+    assert report.ok and report.name == "ffmpeg framework"
+    assert report.facts == {"status": "not embedded"}
+
+
+def test_flag_off_with_a_framework_present_fails(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(checks, "FFMPEG_EMBEDDED", False)
+    report = checks.check_ffmpeg_framework(ffmpeg_app(tmp_path), fake_nm(FFMPEG_NM))
+    assert not report.ok
+    assert any("is in the bundle but FFMPEG_EMBEDDED is False" in p for p in report.problems)
+
+
+def test_flag_off_with_an_empty_framework_folder_fails(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(checks, "FFMPEG_EMBEDDED", False)
+    app = make_app(tmp_path, {"ShareCut": MACHO})
+    (app / checks.FFMPEG_BINARY.parent).mkdir(parents=True)
+    report = checks.check_ffmpeg_framework(app, fake_nm("nothing"))
+    assert any("FFMPEG_EMBEDDED is False" in p for p in report.problems)
+
+
+def test_flag_off_with_a_symlinked_framework_fails(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(checks, "FFMPEG_EMBEDDED", False)
+    app = make_app(tmp_path, {"ShareCut": MACHO})
+    (app / "Frameworks").mkdir()
+    (app / checks.FFMPEG_BINARY.parent).symlink_to("nowhere")
+    report = checks.check_ffmpeg_framework(app, fake_nm("nothing"))
+    assert any("FFMPEG_EMBEDDED is False" in p for p in report.problems)
+
+
+def test_flag_on_with_no_framework_fails(tmp_path: Path) -> None:
+    app = make_app(tmp_path, {"ShareCut": MACHO})
+    report = checks.check_ffmpeg_framework(app, fake_nm(FFMPEG_NM))
+    assert report.problems == ("Frameworks/FFmpeg.framework/FFmpeg is missing",)
+
+
+def test_flag_on_with_a_framework_that_exports_the_wrong_names_fails(tmp_path: Path) -> None:
+    report = checks.check_ffmpeg_framework(ffmpeg_app(tmp_path), fake_nm("_av_log\n"))
+    assert any("does not export sc_ffmpeg_abi_version" in p for p in report.problems)
+    assert any("unexpected av_log" in p for p in report.problems)
+
+
+def test_the_framework_must_carry_its_own_privacy_manifest(tmp_path: Path) -> None:
+    app = ffmpeg_app(tmp_path)
+    assert checks.check_ffmpeg_framework(app, fake_nm(FFMPEG_NM)).ok
+    (app / FFMPEG_PRIVACY).unlink()
+    report = checks.check_ffmpeg_framework(app, fake_nm(FFMPEG_NM))
+    assert report.problems == (f"{FFMPEG_PRIVACY} is missing",)
+
+
+@pytest.mark.parametrize("body", [b"not a plist", b"<plist><dict>"])
+def test_a_privacy_manifest_that_is_not_a_plist_fails(tmp_path: Path, body: bytes) -> None:
+    app = ffmpeg_app(tmp_path)
+    (app / FFMPEG_PRIVACY).write_bytes(body)
+    report = checks.check_ffmpeg_framework(app, fake_nm(FFMPEG_NM))
+    assert report.problems == (f"{FFMPEG_PRIVACY} is not a property list",)
+
+
+def test_exported_symbols_asks_nm_for_defined_globals_and_drops_the_underscore(
+    tmp_path: Path,
+) -> None:
+    seen: list[tuple[Path, list[str]]] = []
+    path = tmp_path / "FFmpeg"
+    assert checks.exported_symbols(path, fake_nm(FFMPEG_NM + "_other\n", seen)) == (
+        checks.FFMPEG_EXPORTS | {"other"}
+    )
+    assert seen == [(path, ["-gU", "-j"])]
+
+
+def test_the_four_exports_and_a_small_binary_pass(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(checks, "FFMPEG_EMBEDDED", True)
+    app = ffmpeg_app(tmp_path)
+    report = checks.check_ffmpeg_framework(app, fake_nm(FFMPEG_NM))
+    assert report.problems == ()
+    assert report.facts["exports"] == sorted(checks.FFMPEG_EXPORTS)
+
+
+@pytest.mark.parametrize(
+    ("text", "problem"),
+    [
+        (FFMPEG_NM.replace("_sc_ffmpeg_wait\n", ""), "does not export sc_ffmpeg_wait"),
+        (FFMPEG_NM + "_sc_ffmpeg_extra\n", "unexpected sc_ffmpeg_extra"),
+        ("", "does not export sc_ffmpeg_abi_version"),
+        (FFMPEG_NM + "_av_log\n", "unexpected av_log"),
+        (FFMPEG_NM + "_main\n", "unexpected main"),
+    ],
+)
+def test_the_exports_must_be_exactly_the_four(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, text: str, problem: str
+) -> None:
+    monkeypatch.setattr(checks, "FFMPEG_EMBEDDED", True)
+    report = checks.check_ffmpeg_framework(ffmpeg_app(tmp_path), fake_nm(text))
+    assert any(problem in line for line in report.problems)
+
+
+def test_a_missing_ffmpeg_binary_is_a_problem(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(checks, "FFMPEG_EMBEDDED", True)
+    app = make_app(tmp_path, {"ShareCut": MACHO})
+    report = checks.check_ffmpeg_framework(app, fake_nm(FFMPEG_NM))
+    assert report.problems == ("Frameworks/FFmpeg.framework/FFmpeg is missing",)
+
+
+def test_a_symlinked_ffmpeg_binary_is_a_problem(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(checks, "FFMPEG_EMBEDDED", True)
+    app = make_app(tmp_path, {"Frameworks/FFmpeg.framework/real": MACHO})
+    (app / checks.FFMPEG_BINARY).symlink_to("real")
+    report = checks.check_ffmpeg_framework(app, fake_nm(FFMPEG_NM))
+    assert report.problems == ("Frameworks/FFmpeg.framework/FFmpeg is missing",)
+
+
+def test_an_unreadable_ffmpeg_binary_is_a_problem(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def unreadable(path: Path) -> bool:
+        raise PermissionError(errno.EACCES, "denied")
+
+    monkeypatch.setattr(checks, "FFMPEG_EMBEDDED", True)
+    monkeypatch.setattr(checks, "is_macho", unreadable)
+    report = checks.check_ffmpeg_framework(ffmpeg_app(tmp_path), fake_nm(FFMPEG_NM))
+    assert len(report.problems) == 1 and "is unreadable" in report.problems[0]
+
+
+def test_every_nm_consumer_defaults_to_xcrun() -> None:
+    for function in (
+        checks.imported_symbols,
+        checks.exported_symbols,
+        checks.check_ffmpeg_framework,
+    ):
+        assert inspect.signature(function).parameters["runner"].default is checks.xcrun_nm
+
+
+def test_the_default_runner_asks_xcrun_nm(monkeypatch: pytest.MonkeyPatch) -> None:
+    calls: list[list[str]] = []
+
+    def capture(command: list[str]) -> str:
+        calls.append(command)
+        return "_x\n"
+
+    monkeypatch.setattr(checks, "capture", capture)
+    assert checks.exported_symbols(Path("bin")) == {"x"}
+    assert calls == [["xcrun", "nm", "-gU", "-j", "bin"]]
+
+
+def test_a_binary_over_the_size_budget_fails(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(checks, "FFMPEG_EMBEDDED", True)
+    monkeypatch.setattr(checks, "FFMPEG_SIZE_BUDGET", 64)
+    small = checks.check_ffmpeg_framework(
+        ffmpeg_app(tmp_path / "a", b"\0" * 48), fake_nm(FFMPEG_NM)
+    )
+    big = checks.check_ffmpeg_framework(ffmpeg_app(tmp_path / "b", b"\0" * 49), fake_nm(FFMPEG_NM))
+    assert small.ok
+    assert any("over the 64 byte budget" in line for line in big.problems)
+
+
+def test_the_size_budget_is_25_mib() -> None:
+    assert checks.FFMPEG_SIZE_BUDGET == 25 * 1024 * 1024
+
+
+def test_a_framework_binary_that_is_not_macho_fails(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(checks, "FFMPEG_EMBEDDED", True)
+    app = make_app(tmp_path, {"Frameworks/FFmpeg.framework/FFmpeg": b"text"})
+    report = checks.check_ffmpeg_framework(app, fake_nm(FFMPEG_NM))
+    assert any("not a Mach-O" in line for line in report.problems)
+
+
+def test_imported_symbols_takes_a_runner(tmp_path: Path) -> None:
+    app = make_app(tmp_path, {"ShareCut": MACHO})
+    seen: list[tuple[Path, list[str]]] = []
+    assert checks.imported_symbols(app, fake_nm("_stat\n", seen)) == {
+        "ShareCut": frozenset({"_stat"})
+    }
+    assert seen[0][1] == ["-u", "-j"]
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        b'<?xml version="1.0" encoding="x-bogus"?><plist version="1.0"><dict/></plist>',
+        b"bplist00\x00",
+    ],
+)
+def test_a_privacy_manifest_with_a_hostile_encoding_is_one_problem_not_a_traceback(
+    tmp_path: Path, body: bytes
+) -> None:
+    app = ffmpeg_app(tmp_path)
+    (app / FFMPEG_PRIVACY).write_bytes(body)
+    report = checks.check_ffmpeg_framework(app, fake_nm(FFMPEG_NM))
+    assert report.problems == (f"{FFMPEG_PRIVACY} is not a property list",)

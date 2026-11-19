@@ -317,6 +317,8 @@ def test_the_signed_plan_archives_only_exports_and_may_touch_apple() -> None:
         "web dependencies",
         "web build",
         "desktop dependencies",
+        "ffmpeg build",
+        "ffmpeg xcframework",
         "device payload",
         "reset generated project",
         "xcode project",
@@ -326,6 +328,7 @@ def test_the_signed_plan_archives_only_exports_and_may_touch_apple() -> None:
         "path scan",
         "info plist",
         "bundle layout",
+        "ffmpeg framework",
         "privacy",
         "signature",
         "record",
@@ -353,6 +356,39 @@ def test_the_signed_plan_archives_only_exports_and_may_touch_apple() -> None:
         "destination": "export",
         "manageAppVersionAndBuildNumber": False,
     }
+
+
+def test_the_framework_is_built_and_assembled_before_the_payload_and_never_touches_apple() -> None:
+    for signing in (Signing.APP_STORE, Signing.NONE):
+        steps = steps_by_name(
+            release_plan.plan_build(build_inputs(signing), LAYOUT, NOISY, "/rustup:/usr/bin")
+        )
+        build, assemble = steps["ffmpeg build"], steps["ffmpeg xcframework"]
+        assert build.command.argv == ("./scripts/ios/build_ffmpeg.sh", "device")
+        assert assemble.command.argv == (
+            "uv",
+            "run",
+            "python",
+            "scripts/ios/ffmpeg_framework.py",
+            "assemble",
+        )
+        for step in (build, assemble):
+            assert not step.contacts_apple
+            assert step.command.cwd == LAYOUT.root
+            assert "APPLE_API_KEY" not in step.command.env
+            assert "APPLE_DEVELOPMENT_TEAM" not in step.command.env
+
+
+def test_the_ffmpeg_step_runs_the_real_check_against_the_unpacked_app(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(release_plan, "unpack", lambda ws: tmp_path)
+    step = next(
+        s for s in release_plan.artifact_checks(None, LAYOUT, False) if s.name == "ffmpeg framework"
+    )
+    report = step.action(release_plan.Workspace(out=tmp_path, build_number="1.2.3"))
+    assert report is not None
+    assert report.problems == ("Frameworks/FFmpeg.framework/FFmpeg is missing",)
 
 
 KEY_NAMES = ("APPLE_API_KEY", "APPLE_API_ISSUER", "APPLE_API_KEY_PATH")
@@ -1318,6 +1354,7 @@ def test_validate_and_upload_plans_differ_by_the_guard_and_the_upload(tmp_path: 
         "path scan",
         "info plist",
         "bundle layout",
+        "ffmpeg framework",
         "privacy",
         "signature",
         "app record",
@@ -1508,7 +1545,7 @@ def test_validate_and_upload_dry_runs_show_the_plan_and_the_token(
     assert ios_release.main(["validate", "--dry-run"]) == 0
     out = capsys.readouterr().out
     assert KEY_ID not in out and ISSUER not in out and "--api-key <key-id>" in out
-    assert "upload --confirm" not in out.split("dry run")[0] and " 8 validate" in out
+    assert "upload --confirm" not in out.split("dry run")[0] and " 9 validate" in out
     assert ios_release.main(["upload", "--dry-run", "--confirm", record.token()]) == 0
     out = capsys.readouterr().out
     assert " upload guard" in out and "--upload-app" in out
@@ -1795,6 +1832,9 @@ def fake_apple(
     monkeypatch.setattr(release_plan, "privacy_check", lambda ws: checks.CheckReport("privacy"))
     monkeypatch.setattr(release_plan, "signature_check", signature)
     monkeypatch.setattr(checks, "check_layout", lambda app: checks.CheckReport("bundle layout"))
+    monkeypatch.setattr(
+        checks, "check_ffmpeg_framework", lambda app: checks.CheckReport("ffmpeg framework")
+    )
 
     ran: list[Command] = []
 

@@ -20,6 +20,7 @@ static long release_gen;
 static int resets, runs, interrupts, reset_starts, big_writes;
 static char order[8192];
 static int reset_delay_ms, last_argc, reused_fd = -1;
+static FILE *stray_out, *stray_err;
 
 static int is_interrupted(void) {
     pthread_mutex_lock(&mu);
@@ -66,6 +67,15 @@ int fake_reused_fd(void) {
     int v = reused_fd;
     pthread_mutex_unlock(&mu);
     return v;
+}
+
+void fake_stray_write(void) {
+    pthread_mutex_lock(&mu);
+    FILE *o = stray_out, *e = stray_err;
+    pthread_mutex_unlock(&mu);
+    if (o) fputs("stray-out\n", o);
+    if (e) fputs("stray-err\n", e);
+    fputs("stray-fresh\n", sc_err());
 }
 
 void fake_release(void) {
@@ -143,6 +153,35 @@ static int read_all(int fd) {
     return (int)total;
 }
 
+static int libav_read_all(int fd) {
+    char buf[4096];
+    long total = 0;
+    for (;;) {
+        if (is_interrupted()) break;
+        ssize_t n = read(fd, buf, sizeof buf);
+        if (n == 0) break;
+        if (n > 0) total += n;
+        else if (errno != EINTR) break;
+    }
+    close(fd);
+    return is_interrupted() ? -1 : (int)total;
+}
+
+static int libav_write_all(int fd) {
+    static char chunk[1 << 20];
+    size_t done = 0;
+    pthread_mutex_lock(&mu);
+    big_writes++;
+    pthread_mutex_unlock(&mu);
+    while (done < sizeof chunk) {
+        if (is_interrupted()) return -1;
+        ssize_t n = write(fd, chunk + done, sizeof chunk - done);
+        if (n > 0) done += (size_t)n;
+        else if (n < 0 && errno != EINTR) break;
+    }
+    return 0;
+}
+
 int sc_glue_run(int tool, int argc, char **argv) {
     long gen;
     pthread_mutex_lock(&mu);
@@ -157,6 +196,13 @@ int sc_glue_run(int tool, int argc, char **argv) {
             fprintf(sc_out(), "tool=%d\n", tool);
             for (int k = 0; k < argc; k++) fprintf(sc_out(), "%s\n", argv[k]);
             fflush(sc_out());
+        } else if (strcmp(t, "capture") == 0) {
+            pthread_mutex_lock(&mu);
+            stray_out = sc_out();
+            stray_err = sc_err();
+            pthread_mutex_unlock(&mu);
+        } else if (strcmp(t, "unflushed") == 0) {
+            fputs("unflushed\n", sc_out());
         } else if (strcmp(t, "started") == 0) {
             fputs("started\n", sc_err());
         } else if (strcmp(t, "progress") == 0) {
@@ -209,6 +255,16 @@ int sc_glue_run(int tool, int argc, char **argv) {
                 fprintf(sc_out(), "bytes=%d\n", n);
                 fflush(sc_out());
             }
+        } else if (strcmp(t, "readblock") == 0) {
+            for (int k = 1; k + 1 < argc; k++) {
+                if (strcmp(argv[k], "-i") != 0) continue;
+                int n = libav_read_all(fd_of(argv[k + 1]));
+                if (n < 0) return 255;
+                fprintf(sc_out(), "bytes=%d\n", n);
+                fflush(sc_out());
+            }
+        } else if (strcmp(t, "writeblock") == 0) {
+            if (libav_write_all(fileno(sc_out())) < 0) return 255;
         } else if (strcmp(t, "writeout") == 0) {
             int fd = fd_of(argv[argc - 1]);
             if (fd >= 0 && write(fd, "payload", 7) == 7) close(fd);

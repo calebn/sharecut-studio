@@ -6,6 +6,7 @@ import {
   guestRoomPhase,
   guestTakes,
   guestViewerWidth,
+  hostGoneMidTake,
   joinHere,
   joinMic,
   ownSaving,
@@ -539,6 +540,57 @@ describe("guestRoomAlerts", () => {
     ).toEqual([]);
   });
 
+  describe("while this page is offline", () => {
+    const offline = {
+      ...source,
+      uploadError: "Network error",
+      phase: { kind: "reconnecting" as const, paused: false, clockSec: 43 },
+    };
+    const kinds = (input: Parameters<typeof guestRoomAlerts>[0]) =>
+      guestRoomAlerts(input).map((alert) => alert.kind);
+
+    it("shows only the connection alert on a take the guest is in", () => {
+      expect(kinds(offline)).toEqual(["connection-lost"]);
+    });
+
+    it("brings the upload failure back once the page is connected again", () => {
+      expect(kinds({ ...offline, phase: source.phase })).toEqual([
+        "saving-failed",
+      ]);
+    });
+
+    it("keeps the upload failure on a paused take, where no connection alert is raised", () => {
+      expect(
+        kinds({
+          ...offline,
+          state: "paused",
+          phase: { kind: "reconnecting", paused: true },
+        }),
+      ).toEqual(["saving-failed"]);
+    });
+
+    it("keeps the upload failure for a guest who is on air but not in the take", () => {
+      expect(kinds({ ...offline, inTake: false })).toEqual(["saving-failed"]);
+    });
+
+    it("keeps the upload failure after Stop", () => {
+      expect(
+        kinds({
+          ...offline,
+          state: "stopped",
+          phase: { kind: "saving", savedPeople: 0, totalPeople: 1 },
+        }),
+      ).toEqual(["saving-failed"]);
+    });
+
+    it("keeps the other alerts beside the connection alert", () => {
+      expect(kinds({ ...offline, micLost: true })).toEqual([
+        "mic-lost",
+        "connection-lost",
+      ]);
+    });
+  });
+
   it("a dropped socket raises no connection alert for a guest outside the take", () => {
     expect(
       guestRoomAlerts({
@@ -716,7 +768,7 @@ describe("guestCovers", () => {
         }),
       ).toMatchObject({
         title: "This session has ended",
-        children: "Finishing your full-quality recording…",
+        children: "Finishing your full-quality recording… Keep this page open.",
       });
     });
   });
@@ -915,7 +967,9 @@ describe("guestCovers", () => {
     });
     expect(
       guestCovers({ ...coverSource, accessEnded: true, stake: "finishing" }),
-    ).toMatchObject({ children: "Finishing your full-quality recording…" });
+    ).toMatchObject({
+      children: "Finishing your full-quality recording… Keep this page open.",
+    });
     const cover = guestCovers({
       ...coverSource,
       accessEnded: true,
@@ -998,7 +1052,7 @@ describe("guestCovers after leaving", () => {
     });
     expect(cover).toMatchObject({
       title: "You left the room",
-      children: "Finishing your full-quality recording…",
+      children: "Finishing your full-quality recording… Keep this page open.",
       primary: undefined,
     });
   });
@@ -1142,5 +1196,78 @@ describe("joinMic while the input switches", () => {
     expect(
       joinMic({ status: "denied", stream: null, devices }, options),
     ).toEqual({ status: "denied" });
+  });
+});
+
+describe("hostGoneMidTake", () => {
+  const people = (hostLeft: boolean) =>
+    roomPeople(
+      recordSnapshot({
+        state: "recording",
+        participants: [
+          recordParticipant({
+            participant_id: "p_host",
+            role: "host",
+            display_name: "Hana",
+            connected: !hostLeft,
+          }),
+          me,
+        ],
+      }),
+      { youId: "p_g" },
+    );
+  const live = { kind: "live" as const, take: 1, clockSec: 5 };
+
+  it("is true when the host is seen gone on a live or paused take and this page is connected", () => {
+    expect(hostGoneMidTake(people(true), live, true)).toBe(true);
+    expect(
+      hostGoneMidTake(people(true), { kind: "paused", clockSec: 5 }, true),
+    ).toBe(true);
+  });
+
+  it("is false while the host is there", () => {
+    expect(hostGoneMidTake(people(false), live, true)).toBe(false);
+  });
+
+  it("is false while the host is there and another guest has left", () => {
+    const room = roomPeople(
+      recordSnapshot({
+        state: "recording",
+        participants: [
+          recordParticipant({
+            participant_id: "p_host",
+            role: "host",
+            display_name: "Hana",
+          }),
+          me,
+          recordParticipant({
+            participant_id: "p_o",
+            display_name: "Cy",
+            connected: false,
+          }),
+        ],
+      }),
+      { youId: "p_g" },
+    );
+    expect(room.find((person) => person.id === "p_o")?.presence).toBe("left");
+    expect(hostGoneMidTake(room, live, true)).toBe(false);
+  });
+
+  it("is false when this page's own connection is down, whatever the stale snapshot says", () => {
+    expect(
+      hostGoneMidTake(
+        people(true),
+        { kind: "reconnecting", paused: false, clockSec: 5 },
+        false,
+      ),
+    ).toBe(false);
+    expect(hostGoneMidTake(people(true), live, false)).toBe(false);
+  });
+
+  it("is false outside a take", () => {
+    expect(
+      hostGoneMidTake(people(true), { kind: "waiting", host: "Hana" }, true),
+    ).toBe(false);
+    expect(hostGoneMidTake(people(true), { kind: "saved" }, true)).toBe(false);
   });
 });
