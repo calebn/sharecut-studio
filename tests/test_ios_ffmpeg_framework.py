@@ -226,6 +226,13 @@ def test_the_check_finds_slices_by_the_index_and_not_by_a_folder_name(tmp_path: 
     assert tool.check(root, "iphoneos") is None
 
 
+def test_an_index_that_is_not_xml_is_a_missing_slice(tmp_path: Path) -> None:
+    root = checkout(tmp_path)
+    tool.assemble(root, FakeXcodebuild())
+    (xcframework(root) / "Info.plist").write_bytes(b"<plist><dict>")
+    assert tool.check(root, "iphoneos") is not None
+
+
 def test_an_unknown_sdk_is_refused() -> None:
     with pytest.raises(tool.FrameworkError, match="watchos"):
         tool.check(ROOT, "watchos")
