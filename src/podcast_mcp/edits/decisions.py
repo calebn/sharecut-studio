@@ -36,11 +36,6 @@ from podcast_mcp.util.coded_error import CodedError, CodedKeyError, CodedValueEr
 from podcast_mcp.util.review import reject_by_id
 
 
-def _speaker_name(project: EpisodeProject, track_id: str) -> str:
-    track = project.track_by_id(track_id)
-    return track_id if track is None else track.speaker or track.label or track_id
-
-
 def edit_timeline_range(
     project: EpisodeProject, edit: EditDecision, timeline: SessionTimeline | None = None
 ) -> tuple[float, float] | None:
@@ -161,6 +156,7 @@ class HeldEdit:
     edit_id: str
     label: str
     reason: str
+    code: str = ""
 
 
 @dataclass(frozen=True)

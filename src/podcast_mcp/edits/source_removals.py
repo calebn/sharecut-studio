@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from collections.abc import Mapping, Sequence
+from collections.abc import Iterable, Mapping, Sequence
 from typing import Literal
 
 from podcast_mcp.config.defaults import EffectiveConfig
@@ -18,7 +18,8 @@ from podcast_mcp.models import (
     EpisodeProject,
 )
 from podcast_mcp.models.episode import RangeInterval
-from podcast_mcp.util.coded_error import CodedError
+from podcast_mcp.util.coded_error import CodedError, guest_message_for_code
+from podcast_mcp.util.redact import mentions_host_path
 from podcast_mcp.util.timebase import clock_label
 
 _PAD_EDGE_MATCH_SEC = 0.05
@@ -50,11 +51,26 @@ _EDGE_FINDINGS = {
 }
 
 
-def _lane_problem(lane: LaneUnavailable, speakers: Mapping[str, str]) -> str:
+PLAIN_HOLD_REASONS: Mapping[str, str] = {
+    "acoustic_edge": "the edit would start or end inside a word or a breath, and that could be heard",
+    "source_geometry": "that part of the recording is no longer in one piece on the timeline",
+    "stored_track_pause": "a pause can only be shortened for the whole recording, not for one speaker",
+    "speaker_bleed": "that sound is another speaker's voice on this microphone",
+    "scope_unavailable": "the other speakers' audio could not be checked",
+    "media_extent_unavailable": "the full recording is not available right now",
+    "operation_scope": "other audio plays inside it that this edit would not remove",
+    "pause_not_shorter": "it would not make the pause any shorter",
+    "pause_imperceptible": "it would shorten the pause too little to hear",
+    "pause_air": "it could not keep enough quiet room sound in the pause",
+    "pause_join": "the pause would sound abrupt where it joins",
+}
+_UNNAMED_EDIT = "That edit"
+_UNNAMED_PEER = "someone else"
+
+
+def _lane_problem(lane: LaneUnavailable, name: str) -> str:
     cause = lane.cause if isinstance(lane.cause, str) else lane.cause.cause
-    return (
-        f"{speakers.get(lane.track_id, lane.track_id)} {_LANE_PROBLEMS.get(cause, _UNCHECKED_LANE)}"
-    )
+    return f"{name} {_LANE_PROBLEMS.get(cause, _UNCHECKED_LANE)}"
 
 
 STALE_REASON = "its audio was already cut away, so it no longer plays"
@@ -62,10 +78,25 @@ STALE_REASON = "its audio was already cut away, so it no longer plays"
 
 def cut_label(project: EpisodeProject, edit: EditDecision) -> str:
     """People's name for a pending cut: whose, what kind and where in the recording."""
-    track = project.track_by_id(edit.track_id)
-    who = (track.speaker or track.label or track.id) if track else edit.track_id
-    kind = "pause trim" if is_pause_reason(edit.reason) else "cut"
+    speakers = speakers_by_track(project)
+    if edit.exact_range is not None:
+        who = " and ".join(speakers.get(tid, tid) for tid in edit.exact_range.track_ids)
+        kind = "mute" if edit.type is EditDecisionType.MUTE else "cut"
+    else:
+        who = speakers.get(edit.track_id, edit.track_id)
+        kind = "pause trim" if is_pause_reason(edit.reason) else "cut"
     return f"{who}'s {kind} at {clock_label(edit.start)}"
+
+
+def speakers_by_track(project: EpisodeProject) -> dict[str, str]:
+    return {t.id: t.speaker or t.label or t.id for t in project.tracks}
+
+
+def plain_label(label: str | None) -> str:
+    """A cut's name as a sentence start; a name that looks like a path is withheld."""
+    if not label or mentions_host_path(label):
+        return _UNNAMED_EDIT
+    return label[:1].upper() + label[1:]
 
 
 class ScopeChangedAtApproval(CodedError, ValueError):
@@ -87,6 +118,16 @@ class ScopeChangedAtApproval(CodedError, ValueError):
             details.append(f"{label} was not applied because {self.reason_for(hold)}.")
         hint = [_APPLY_ANYWAY] if any(hold_is_overridable(h) for h in held) else []
         super().__init__(" ".join([*details, _SELECT_OR_REJECT, *hint]))
+
+    @classmethod
+    def for_project(
+        cls,
+        project: EpisodeProject,
+        held: Sequence[CutScopeHold],
+        edits: Iterable[EditDecision] = (),
+    ) -> ScopeChangedAtApproval:
+        """The refusal with speaker names and each cut's label read from ``project``."""
+        return cls(held, speakers_by_track(project), {e.id: cut_label(project, e) for e in edits})
 
     def reason_for(self, hold: CutScopeHold) -> str:
         """Why this one cut was held, in words the list can show beside it."""
@@ -114,12 +155,37 @@ class ScopeChangedAtApproval(CodedError, ValueError):
             hold.reason,
             f"{peers or 'another track'} is speaking where the session cut would remove it",
         )
-        if hold.unavailable_lanes:
-            problems = "; ".join(
-                _lane_problem(lane, self.speakers) for lane in hold.unavailable_lanes
-            )
-            why += f" ({problems})"
-        return why
+        return why + self._lane_suffix(hold)
+
+    def _lane_suffix(self, hold: CutScopeHold) -> str:
+        if not hold.unavailable_lanes:
+            return ""
+        problems = "; ".join(
+            _lane_problem(lane, self.speakers.get(lane.track_id, lane.track_id))
+            for lane in hold.unavailable_lanes
+        )
+        return f" ({problems})"
+
+    def plain_reason_for(self, hold: CutScopeHold) -> str:
+        """Why this cut was held, in words with no engineering terms and no path."""
+        if hold.reason == "peer_speech":
+            names = [self.speakers.get(peer, _UNNAMED_PEER) for peer in hold.peers]
+            names = [_UNNAMED_PEER if mentions_host_path(n) else n for n in names]
+            who = " and ".join(dict.fromkeys(names)) or _UNNAMED_PEER
+            verb = "are" if len(set(names)) > 1 else "is"
+            why = f"{who} {verb} speaking there and would be cut off"
+        else:
+            why = PLAIN_HOLD_REASONS[hold.reason]
+        return why + self._lane_suffix(hold)
+
+    def guest_message(self) -> str:
+        sentences = dict.fromkeys(
+            f"{plain_label(self.cuts.get(hold.edit_id))} was not applied because "
+            f"{self.plain_reason_for(hold)}."
+            for hold in self.held
+        )
+        message = " ".join([*sentences, "Nothing was changed."])
+        return guest_message_for_code(self.code) if mentions_host_path(message) else message
 
     def for_delivery(self, delivery: Literal["saved", "suggested"]) -> ScopeChangedAtApproval:
         error = ScopeChangedAtApproval(self.held, self.speakers, self.cuts)

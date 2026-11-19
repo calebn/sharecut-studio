@@ -146,3 +146,79 @@ def test_editor_apply_suggested_actions_follows_host_intent(world):
     project = load_project(world.path)
     assert project.edit_decisions == []
     assert len(project.editorial.edit_log) == 1
+
+
+def _stage_cut_then_move_its_audio(world):
+    staged = world.host(
+        "StageWordsCut",
+        {"track_id": "reference", "start_word_index": UNCLE, "end_word_index": UNCLE},
+    )
+    assert staged.status_code == 200, staged.text
+    split = world.host("SplitAtTime", {"at_time": 2.65, "track_ids": ["reference"]})
+    assert split.status_code == 200, split.text
+    right = next(
+        c
+        for c in load_project(world.path).clips
+        if c.track_id == "reference" and c.timeline_start > 2.0
+    )
+    moved = world.host(
+        "MoveClips",
+        {
+            "clips": [
+                {
+                    "clip_id": right.id,
+                    "timeline_start": right.timeline_start + 1.0,
+                    "track_id": "reference",
+                }
+            ]
+        },
+    )
+    assert moved.status_code == 200, moved.text
+    return [e.id for e in load_project(world.path).edit_decisions]
+
+
+HELD_SENTENCE = (
+    "Reference's cut at 0:02.5 was not applied because that part of the recording is no longer "
+    "in one piece on the timeline. Nothing was changed."
+)
+
+
+def test_guest_hold_reaches_the_editor_in_words(world):
+    ids = _stage_cut_then_move_its_audio(world)
+    refused = world.guest("editor", "ApproveEdits", {"ids": ids})
+    assert refused.status_code == 400
+    assert refused.headers["x-sharecut-error-code"] == "cut_scope_changed"
+    assert refused.json()["detail"] == HELD_SENTENCE
+    assert [r.operation for r in load_project(world.path).editorial.edit_log] == [
+        "split_clips_at",
+        "move_clips",
+    ]
+
+
+def test_guest_mcp_editor_hold_reads_the_plain_acoustic_sentence(world):
+    out = world.mcp("mcp", "EditSelectedRange", {"action": "cut", "targets": [world.target(UNCLE)]})
+    result = out["result"]
+    assert result["isError"] is True
+    assert result["structuredContent"] == {
+        "ok": False,
+        "error": (
+            "Reference's cut at 0:02.5 was not applied because the edit would start or end "
+            "inside a word or a breath, and that could be heard. Nothing was changed."
+        ),
+        "error_code": "cut_scope_changed",
+    }
+
+
+def test_host_approve_rows_name_the_hold_code(world):
+    ids = _stage_cut_then_move_its_audio(world)
+    approved = world.host("ApproveEdits", {"ids": ids, "hold_blocked": True})
+    assert approved.status_code == 200, approved.text
+    held = approved.json()["command"]["payload"]["result"]["held"]
+    assert held == [
+        {
+            "id": ids[0],
+            "label": "reference's cut at 0:02.5",
+            "reason": "the selected audio no longer has one complete, continuous placement",
+            "code": "source_geometry",
+        }
+    ]
