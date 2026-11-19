@@ -343,8 +343,8 @@ model. Riverside's heard-by-guests producer and Descript push-to-talk are later
 rows. A producer opens the **producer** `/rec/{token}` as a **receive-only**
 mesh peer — no `getUserMedia`, no send track, no keeper. **Transparency is
 mandatory:**
-when a producer is in the room, every client's roster shows the **listener row** (the producers in the room,
-each with an ear glyph) and, when the server reports that people with the
+every client's roster shows the **listener row** (the producers in the room,
+each with an ear glyph, when there are any) and, when the server reports that people with the
 producer link are looking in without having joined, the **looking-in line**
 ("Someone with the producer link is looking in", or "3 people with the producer
 link are looking in"). The line names nobody. It sits directly under the
@@ -2249,7 +2249,7 @@ The host recording plane shares `/api/host/ws` with session presence and documen
 
 ## Guest socket service work
 
-Guest recording sockets await workspace/service setup, Join, and each subsequent room command in worker threads. Service construction starts only after concurrency admission succeeds and is covered by the admission cleanup scope. The event-loop owner updates the participant identity and sends the direct Echo and initial Snapshot under the send lock the pump also takes, so no queued frame goes out between them. The pump itself starts at admission and sends a socket that has not joined no room frame (a look gets bare Snapshot frames). Commands remain sequential for each connection. Periodic and on-frame authorization checks run off the event loop; the final same-process removal check stays at the send boundary. Shutdown awaits room disconnect in a cancellation-shielded cleanup scope before releasing the socket's admission slot.
+Guest recording sockets await workspace/service setup, Join, and each subsequent room command in worker threads. Service construction starts only after concurrency admission succeeds and is covered by the admission cleanup scope. The event-loop owner updates the participant identity and sends the direct Echo and initial Snapshot under the send lock the pump also takes, so no queued frame goes out between them. The pump starts before any Join, once the socket has subscribed to the hub (a look, once it is counted). It sends nothing to a socket that is neither joined nor looking in, and a look gets bare Snapshot frames. Commands remain sequential for each connection. Periodic and on-frame authorization checks run off the event loop; the final same-process removal check stays at the send boundary. Shutdown awaits room disconnect in a cancellation-shielded cleanup scope before releasing the socket's admission slot.
 
 ## Looking in on a room (`?observe=1`)
 
