@@ -326,3 +326,10 @@ def test_pipeline_analyze_json_progress_reports_phases(tmp_path):
 
     payload = json.loads(result.stdout)
     assert payload["report_summary"]["track_count"] == 0
+
+
+@pytest.mark.parametrize("command", ["export-audio", "bounce"])
+def test_export_commands_help_mentions_m4a(command):
+    result = runner.invoke(app, ["pipeline", command, "--help"], env={"COLUMNS": "200"})
+    assert result.exit_code == 0
+    assert "m4a" in result.output
