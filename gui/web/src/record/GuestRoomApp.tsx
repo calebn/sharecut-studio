@@ -34,6 +34,7 @@ import {
   guestRoomPhase,
   guestTakes,
   guestViewerWidth,
+  hostGoneMidTake,
   joinHere,
   joinMic,
   ownSaving,
@@ -65,6 +66,7 @@ import {
 } from "./types";
 import { useGuestRoom } from "./useGuestRoom";
 import { useGuestRoomTone } from "./useGuestRoomTone";
+import { useHostGoneWait } from "./useHostGoneWait";
 import { useInputPeakDb } from "./useInputPeakDb";
 import { useLateRoomTone } from "./useLateRoomTone";
 import { useMutedSpeech } from "./useMutedSpeech";
@@ -412,6 +414,10 @@ function GuestRoomSession({
         : undefined,
   });
 
+  const hostGoneLong = useHostGoneWait(
+    !producer && hostGoneMidTake(people, phase, connected),
+  );
+
   const cover = guestCoverProps(room, { onRetry, phase });
   useDocumentTitle(
     guestTabTitle({
@@ -517,6 +523,7 @@ function GuestRoomSession({
         }
         onComment={liveComments.postMarker}
         device={{
+          hostGoneLong,
           uploading: uploadInFlight(
             producer ? null : upload,
             room.localSegments,

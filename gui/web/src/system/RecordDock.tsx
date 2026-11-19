@@ -9,16 +9,29 @@ import { hintOf, verbOf } from "./verbDisplay";
 export type DockSeat = "host" | "guest" | "producer";
 
 /**
+ * `leaveWarning` is what the exit costs once it is open: it is the button's
+ * description, always on show unless `leaveConfirm` asks for a second press,
+ * which a press reveals first.
+ */
+type LeaveExit = {
+  leaveHeld?: string;
+  leaveWarning?: string;
+  leaveConfirm?: boolean;
+};
+
+/**
  * `status` replaces the secondaries after Stop. `done` is the same line over a
  * Done primary in place of Leave. `leaveHeld` is why the exit is held: it stays
  * pressable and a press shows the reason.
  */
 export type RecordDockMode =
-  | { kind: "controls"; leaveHeld?: string }
-  | { kind: "status"; text: ReactNode; leaveHeld?: string }
-  | { kind: "done"; text: ReactNode; leaveHeld?: string };
+  | ({ kind: "controls" } & LeaveExit)
+  | ({ kind: "status"; text: ReactNode } & LeaveExit)
+  | ({ kind: "done"; text: ReactNode } & LeaveExit);
 
 const CONTROLS: RecordDockMode = { kind: "controls" };
+
+const CONFIRM_HINT_MS = 5000;
 
 export type RecordDockProps = {
   seat: DockSeat;
@@ -76,14 +89,19 @@ export function RecordDock({
   onMore,
   onLeave,
 }: RecordDockProps) {
-  const hint = usePressHint();
+  const { leaveHeld, leaveWarning, leaveConfirm } = dock;
+  const hint = usePressHint(leaveConfirm ? CONFIRM_HINT_MS : undefined);
   const hintId = useId();
-  const { leaveHeld } = dock;
+  const leaveNote = leaveHeld ?? leaveWarning;
   const exit = (onExit?: () => void, title?: string) => ({
-    title: leaveHeld ?? title,
+    title: leaveNote ?? title,
     "aria-disabled": leaveHeld ? true : undefined,
-    "aria-describedby": leaveHeld ? hintId : undefined,
-    onClick: leaveHeld ? hint.show : onExit,
+    "aria-describedby": leaveNote ? hintId : undefined,
+    onClick: leaveHeld
+      ? hint.show
+      : leaveConfirm
+        ? () => (hint.shown ? onExit?.() : hint.show())
+        : onExit,
   });
   const word = (text: string) =>
     labelled ? <DockLabel>{text}</DockLabel> : null;
@@ -221,13 +239,15 @@ export function RecordDock({
           </button>
         )}
       </div>
-      {leaveHeld && seat !== "host" ? (
+      {leaveNote && seat !== "host" ? (
         <span
           id={hintId}
           className="sys-dock-hint"
-          data-shown={hint.shown || undefined}
+          data-shown={
+            hint.shown || (!!leaveWarning && !leaveConfirm) || undefined
+          }
         >
-          {leaveHeld}
+          {leaveNote}
         </span>
       ) : null}
     </div>

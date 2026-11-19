@@ -6,6 +6,7 @@ import {
   guestRoomPhase,
   guestTakes,
   guestViewerWidth,
+  hostGoneMidTake,
   joinHere,
   joinMic,
   ownSaving,
@@ -1142,5 +1143,54 @@ describe("joinMic while the input switches", () => {
     expect(
       joinMic({ status: "denied", stream: null, devices }, options),
     ).toEqual({ status: "denied" });
+  });
+});
+
+describe("hostGoneMidTake", () => {
+  const people = (hostLeft: boolean) =>
+    roomPeople(
+      recordSnapshot({
+        state: "recording",
+        participants: [
+          recordParticipant({
+            participant_id: "p_host",
+            role: "host",
+            display_name: "Hana",
+            connected: !hostLeft,
+          }),
+          me,
+        ],
+      }),
+      { youId: "p_g" },
+    );
+  const live = { kind: "live" as const, take: 1, clockSec: 5 };
+
+  it("is true when the host is seen gone on a live or paused take and this page is connected", () => {
+    expect(hostGoneMidTake(people(true), live, true)).toBe(true);
+    expect(
+      hostGoneMidTake(people(true), { kind: "paused", clockSec: 5 }, true),
+    ).toBe(true);
+  });
+
+  it("is false while the host is there", () => {
+    expect(hostGoneMidTake(people(false), live, true)).toBe(false);
+  });
+
+  it("is false when this page's own connection is down, whatever the stale snapshot says", () => {
+    expect(
+      hostGoneMidTake(
+        people(true),
+        { kind: "reconnecting", paused: false, clockSec: 5 },
+        false,
+      ),
+    ).toBe(false);
+    expect(hostGoneMidTake(people(true), live, false)).toBe(false);
+  });
+
+  it("is false outside a take", () => {
+    expect(
+      hostGoneMidTake(people(true), { kind: "waiting", host: "Hana" }, true),
+    ).toBe(false);
+    expect(hostGoneMidTake(people(true), { kind: "saved" }, true)).toBe(false);
   });
 });

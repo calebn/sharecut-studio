@@ -387,7 +387,9 @@ flowchart TD
    once the host holds the verified file; their own tile shows the same state. The
    room asks the guest to keep the tab open (Leave is held while the upload moves,
    while the host has the file but this device's copy has not been read yet, or
-   the file finishes writing, and says why when pressed). Once the host holds
+   the file finishes writing, and says why when pressed). During a take Leave opens
+   after the host has been gone for 60 seconds, with a warning that leaving stops
+   recording on this device and keeps what it recorded there. Once the host holds
    the file the dock reads "Saved to project. You can close this page." with
    **Done**, which leaves the room. A screen
    reader hears each segment start and finish politely, not each chunk; the guest
