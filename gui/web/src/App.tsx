@@ -22,6 +22,7 @@ import { AskDialog } from "./feedback/AskDialog";
 import { useBackOnline } from "./hooks/useBackOnline";
 import { useDeadLinkWatch } from "./hooks/useDeadLinkWatch";
 import { ModelsProvider } from "./models";
+import { RoomLoadBoundary } from "./record/RoomLoadBoundary";
 import {
   clearOfflineSnapshot,
   loadOfflineSnapshot,
@@ -494,16 +495,18 @@ function AppInner({ bootName }: { bootName: string | null }) {
 
   if (recordToken && !error) {
     return (
-      <Suspense
-        fallback={
-          <GuestLoadingScreen
-            label="Joining the room…"
-            onRetry={() => window.location.reload()}
-          />
-        }
-      >
-        <GuestRoomApp token={recordToken} />
-      </Suspense>
+      <RoomLoadBoundary>
+        <Suspense
+          fallback={
+            <GuestLoadingScreen
+              label="Joining the room…"
+              onRetry={() => window.location.reload()}
+            />
+          }
+        >
+          <GuestRoomApp token={recordToken} />
+        </Suspense>
+      </RoomLoadBoundary>
     );
   }
   if (reviewToken && (!featuresReady || (shareBootstrapping && !error))) {

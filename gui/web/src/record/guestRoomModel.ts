@@ -7,6 +7,7 @@ import type { RoomSaving } from "../system/roomTileModel";
 import type { RoomRole, ViewerWidth } from "../system/roomViewModel";
 import type { TakeInput, TakeLineInput } from "../system/takesTrayModel";
 import { dbToFraction } from "../ui/metering";
+import { NETWORK_COVER_COPY } from "./bootCopy";
 import { hostRoomPhase } from "./hostRoomPhase";
 import type { TakeClipping } from "./keeper/clipRegions";
 import type { MicPermissionStatus } from "./micPermission";
@@ -449,13 +450,7 @@ const BOOT_COVERS: Record<BootFailure, BootCover> = {
     children: "Ask the person who invited you for a new link.",
     retry: false,
   },
-  network: {
-    glyph: "cloud-off",
-    title: "Couldn't reach the room",
-    children:
-      "Check your internet connection, then try again. If it keeps happening, let the person who invited you know.",
-    retry: true,
-  },
+  network: { ...NETWORK_COVER_COPY, retry: true },
   server: {
     glyph: "triangle-alert",
     title: "The room didn't answer",
