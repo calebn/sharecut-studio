@@ -16,6 +16,8 @@ from podcast_mcp.edits.cut_application import approve_edits, precompute_verdicts
 from podcast_mcp.edits.cut_speech import LaneSourceExtent
 from podcast_mcp.models import (
     Clip,
+    ClipJoinMode,
+    ClipMuteRegion,
     CutIntent,
     EditDecision,
     EpisodeProject,
@@ -674,3 +676,129 @@ def test_a_long_fade_on_a_far_clip_does_not_widen_the_read_window(tmp_path: Path
     project.clips[0].source_end = 5.0
     project.clips[0].fade_out_ms = 800
     assert verdict_cache._reach_sec(project, edit, span, load_defaults(), None) > base + 0.5
+
+
+def _neighbour_key(
+    project: EpisodeProject,
+    neighbour_start: float,
+    join: ClipJoinMode,
+    neighbour_fade_out_ms: int = 400,
+) -> str:
+    """Key of the second cut; h2 starts at ``edge`` and h1, wholly before the window, is its neighbour."""
+    edit = project.edit_decisions[1]
+    edge = 22.6
+    project.clips = [
+        Clip(
+            id="h0", track_id="host", source_start=0, source_end=neighbour_start, timeline_start=0
+        ),
+        Clip(
+            id="h1",
+            track_id="host",
+            source_start=neighbour_start,
+            source_end=edge,
+            timeline_start=neighbour_start,
+            fade_out_ms=neighbour_fade_out_ms,
+        ),
+        Clip(
+            id="h2",
+            track_id="host",
+            source_start=edge,
+            source_end=24.2,
+            timeline_start=edge,
+            fade_in_ms=400,
+            fade_out_ms=1000,
+            join_in_mode=join,
+        ),
+        Clip(
+            id="h3",
+            track_id="host",
+            source_start=24.2,
+            source_end=float(SECONDS),
+            timeline_start=24.2,
+        ),
+    ]
+    found = verdict_cache.verdict_key(
+        project, edit, **{**_KEY_ARGS, "span": (edit.start, edit.end)}
+    )
+    assert found is not None
+    return found
+
+
+def test_a_neighbour_before_the_window_that_sets_a_crossfade_borrow_changes_the_key(
+    tmp_path: Path,
+) -> None:
+    project = _project(tmp_path)
+    # The neighbour ends before the window; a quarter of it caps the borrow into the clip that
+    # the window's fade-out shortens by, so 0.4 s and 4.2 s of it borrow differently.
+    short = _neighbour_key(project, 22.2, ClipJoinMode.CROSSFADE)
+    long = _neighbour_key(project, 18.4, ClipJoinMode.CROSSFADE)
+    assert short != long
+
+
+def test_a_neighbour_fade_before_the_window_that_changes_the_overlap_changes_the_key(
+    tmp_path: Path,
+) -> None:
+    project = _project(tmp_path)
+    # The neighbour is so short that a quarter of it caps the borrow at 0.1 s either way, so
+    # only the overlap (400 ms against 500 ms) differs.
+    short = _neighbour_key(project, 22.2, ClipJoinMode.CROSSFADE, 400)
+    longer = _neighbour_key(project, 22.2, ClipJoinMode.CROSSFADE, 1000)
+    assert short != longer
+
+
+def test_a_neighbour_before_the_window_that_does_not_blend_leaves_the_key(tmp_path: Path) -> None:
+    project = _project(tmp_path)
+    assert _neighbour_key(project, 22.2, ClipJoinMode.FADE) == _neighbour_key(
+        project, 20.4, ClipJoinMode.FADE
+    )
+
+
+def _duplicate_mute_key(
+    project: EpisodeProject, muted_at: float | None, *, duplicate_source: tuple[float, float]
+) -> str:
+    edit = project.edit_decisions[0]
+    project.clips = [
+        Clip(id="a", track_id="host", source_start=0, source_end=5.0, timeline_start=0),
+        Clip(
+            id="b",
+            track_id="host",
+            source_start=5.0,
+            source_end=20.0,
+            timeline_start=5.0,
+            join_in_mode=ClipJoinMode.CROSSFADE,
+            fade_in_ms=100,
+            fade_out_ms=0,
+        ),
+        Clip(
+            id="dup",
+            track_id="host",
+            source_start=duplicate_source[0],
+            source_end=duplicate_source[1],
+            timeline_start=60.0,
+            mute_regions=[]
+            if muted_at is None
+            else [ClipMuteRegion(start_s=muted_at, end_s=muted_at + 0.5)],
+        ),
+    ]
+    project.clips[0].fade_out_ms = 100
+    found = verdict_cache.verdict_key(project, edit, **_KEY_ARGS)
+    assert found is not None
+    return found
+
+
+def test_a_duplicate_clip_s_mute_that_cuts_a_join_s_borrow_in_the_window_changes_the_key(
+    tmp_path: Path,
+) -> None:
+    project = _project(tmp_path)
+    # The duplicate plays the same recording elsewhere on the timeline; its mute starts 2 ms
+    # past the join, which leaves the crossfade no room to borrow.
+    clear = _duplicate_mute_key(project, None, duplicate_source=(4.0, 8.0))
+    cut = _duplicate_mute_key(project, 5.002, duplicate_source=(4.0, 8.0))
+    assert clear != cut
+
+
+def test_a_duplicate_clip_s_mute_far_from_the_window_leaves_the_key(tmp_path: Path) -> None:
+    project = _project(tmp_path)
+    clear = _duplicate_mute_key(project, None, duplicate_source=(30.0, 38.0))
+    far = _duplicate_mute_key(project, 33.0, duplicate_source=(30.0, 38.0))
+    assert clear == far

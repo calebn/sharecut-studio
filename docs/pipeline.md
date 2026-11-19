@@ -834,7 +834,11 @@ out to the words its check observes. The longest fade is the cut crossfade, the 
 fade of a clip on the cut's track whose edge touches the cut (`cut_quality.fade_reach_sec`).
 The window is on the timeline, so a clip placed away from its source time counts where it plays.
 A cut is never cached when a clip fade over 1 s, on any track, runs into its window. A long fade
-outside the window leaves the cut cached. The render shortens a fade to half its clip, so a ramp
+outside the window is not refused, but one that sets the overlap of a crossfade join with
+a clip in the window moves the key: for each such join it hashes the overlap and the borrow
+(`crossfade_ms_at_join` and the `join_borrow_sec` of `join_render_fields`), which carry the neighbour's fade
+and length and other clips' mutes. A far fade that sets no such join adds nothing to the key's
+`joins`. The render shortens a fade to half its clip, so a ramp
 in the window can depend on a clip end outside it. When a fade in the window is longer than half
 its clip, the key hashes that clip's length. The key also hashes the words in the window and the
 span the pause is observed over. That span is its two ends, which the longest fade of a touching
