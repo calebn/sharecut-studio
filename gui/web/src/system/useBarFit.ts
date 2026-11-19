@@ -2,11 +2,8 @@ import { type RefObject, useLayoutEffect, useRef } from "react";
 import { useResizeObserver } from "../ui/useResizeObserver";
 
 /**
- * How many things the bar can give up, in order (system.css has one rule per
- * level): 1 the 40 rem layout (no "/ total", `auto 1fr auto`), 2 the Following
- * detail, 3 the Status pills' text, 4 the skip buttons, 5 the cuts, 6 the hear
- * menu's chevron, 7 the other pills and the status, 8 a guest's Comment, the
- * Audio error pill and Retry (the 14 rem fold).
+ * How many things the bar can give up, in order; system.css has one rule per
+ * level and lists them.
  */
 export const MAX_FIT_LEVEL = 8;
 

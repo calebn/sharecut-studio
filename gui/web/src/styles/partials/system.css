@@ -1160,7 +1160,7 @@ button.sys-version-line {
    never given up. If level 8 still does not fit, the status text's ellipsis and
    the 22 and 14 rem rules (and the 50 and 60 rem rules, which hide the same
    things earlier at those widths) take over. A Following or Solo name past
-   about 8 characters and the Following detail past about 16 are cut short with
+   about 8 characters and the Following detail past about 14 are cut short with
    an ellipsis whatever the level. */
 .sys-player-host > .sys-player {
   overflow-x: clip;

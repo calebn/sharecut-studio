@@ -876,7 +876,7 @@ test("System/Player each fit level gives up one more thing, in order (#2576)", a
   const args = BAR_STATES.followmixstale;
   await emit(page, "updateStoryArgs", { storyId: story, updatedArgs: args });
   await expect(page.locator(".sys-player-mix")).toBeVisible();
-  // Wide enough that develop's rules hide nothing, so the levels alone decide.
+  // At 1400 px no container rule hides anything, so the levels alone decide.
   const gives = [
     "the total",
     "Following detail",
