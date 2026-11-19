@@ -7,9 +7,10 @@ import {
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { createRef } from "react";
-import { afterEach, beforeEach, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { redoHistory, undoHistory } from "../api";
 import { startBounce } from "../commands/bounceRunnerHandle";
+import { registerComposerFocus } from "../commands/composerFocus";
 import { clearRegisteredCommands, execute } from "../commands/execute";
 import { registerFocusedClipHandle } from "../commands/focusedClipHandle";
 import { registerDawCommands } from "../commands/register";
@@ -698,6 +699,81 @@ it.each([
     expect(useDawStore.getState().statusAnnouncement).toBe("");
   },
 );
+
+describe("Q focuses the Review composer", () => {
+  let focused: ReturnType<typeof vi.fn<() => boolean>>;
+  let release: () => void;
+  const enter = (
+    guestMode: "view" | "comment" | "edit" | null,
+    shareCapabilities: string[] | null,
+    over: Record<string, unknown> = {},
+  ) =>
+    useDawStore.setState({
+      projectPath: guestMode === null ? "/tmp/keymap-project" : "share:tok",
+      guestMode,
+      shareCapabilities,
+      stage: "review",
+      shellBreakpoint: "desktop",
+      ...over,
+    });
+  beforeEach(() => {
+    focused = vi.fn(() => true);
+    release = registerComposerFocus(focused);
+    render(<KeymapHost />);
+  });
+  afterEach(() => release());
+
+  it.each([
+    ["a Commenter", "comment", ["view", "play", "comment", "suggest"]],
+    ["an Editor", "edit", ["view", "play", "comment", "edit"]],
+  ] as const)(
+    "focuses the field for %s, and leaves the key unprevented",
+    async (_n, mode, caps) => {
+      enter(mode, [...caps]);
+      const event = new KeyboardEvent("keydown", {
+        key: "q",
+        bubbles: true,
+        cancelable: true,
+      });
+      await act(async () => {
+        document.body.dispatchEvent(event);
+      });
+      expect(focused).toHaveBeenCalledOnce();
+      expect(event.defaultPrevented).toBe(false);
+    },
+  );
+
+  it.each([
+    ["a Viewer", () => enter("view", ["view", "play"])],
+    [
+      "an Editor on Edit",
+      () =>
+        enter("edit", ["view", "play", "comment", "edit"], { stage: "edit" }),
+    ],
+    [
+      "a phone",
+      () =>
+        enter("comment", ["view", "play", "comment"], {
+          shellBreakpoint: "phone",
+        }),
+    ],
+    ["the host", () => enter(null, null)],
+  ] as const)("does nothing for %s", async (_n, setUp) => {
+    setUp();
+    await press(document.body, { key: "q" });
+    expect(focused).not.toHaveBeenCalled();
+  });
+
+  it("does nothing with Ctrl held or with focus already in a field", async () => {
+    enter("comment", ["view", "play", "comment"]);
+    await press(document.body, { key: "q", ctrlKey: true });
+    const field = document.createElement("textarea");
+    document.body.append(field);
+    await press(field, { key: "q" });
+    field.remove();
+    expect(focused).not.toHaveBeenCalled();
+  });
+});
 
 it("binds the Action bar's keys: S, X, I, ., B, C, Shift+C and Shift+S", async () => {
   render(<KeymapHost />);

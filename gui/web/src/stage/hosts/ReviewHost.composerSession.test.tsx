@@ -2,6 +2,7 @@ import { act, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { openCommentDraft } from "../../commands/comments";
+import { focusComposerFromKey } from "../../commands/composerFocus";
 import { clearRegisteredCommands } from "../../commands/execute";
 import { runPointerCommand } from "../../commands/pointer";
 import { registerDawCommands } from "../../commands/register";
@@ -192,6 +193,26 @@ describe("every way to open the composer", () => {
     act(() => openCommentDraft(range));
     await user.click(screen.getByRole("button", { name: "Close" }));
     expect(playing()).toBe(false);
+  });
+});
+
+describe("the composer's focus key", () => {
+  it("focuses the field of a desktop Commenter's page, and stops once the page is gone", () => {
+    stubViewportShell("desktop");
+    join("comment");
+    useDawStore.setState({ shellBreakpoint: "desktop" });
+    const view = mount();
+    expect(focusComposerFromKey()).toBe(true);
+    expect(field()).toHaveFocus();
+    view.unmount();
+    expect(focusComposerFromKey()).toBe(false);
+  });
+
+  it("is not offered on a phone, where the field opens from the dock", () => {
+    stubViewportShell("phone");
+    join("comment");
+    mount();
+    expect(focusComposerFromKey()).toBe(false);
   });
 });
 
