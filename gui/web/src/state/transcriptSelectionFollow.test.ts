@@ -49,10 +49,12 @@ describe("a words selection across another session's renumber", () => {
     expect(named(b, now())).toEqual(["w6", "w7", "w8"]);
   });
 
-  it("clears when a selected word is retimed", () => {
-    start(snapshot());
+  it("keeps the selection when a selected word is retimed in place", () => {
+    const stored = start(snapshot());
+    useDawStore.setState({ inspectorKey: "transcriptRange" });
     useDawStore.getState().setProject(snapshot({ retime: { 7: 0.1 } }));
-    expect(now()).toBeNull();
+    expect(now()).toBe(stored);
+    expect(useDawStore.getState().inspectorKey).toBe("transcriptRange");
   });
 
   it("keeps the same selection object when the cut is after it", () => {
@@ -80,11 +82,89 @@ describe("a words selection across another session's renumber", () => {
 
 describe("a words selection when one of its own words changes", () => {
   it.each([
-    ["first", { 6: 0.1 }],
-    ["last", { 8: 0.1 }],
-  ])("clears when the %s selected word is retimed", (_end, retime) => {
-    start(snapshot());
+    ["first start", { 6: 0.1 }],
+    ["last start", { 8: 0.1 }],
+    ["first and last start", { 6: -0.1, 8: 0.1 }],
+    ["every start", { 6: 0.1, 7: 0.1, 8: 0.1 }],
+  ])("keeps the run when its %s is retimed in place", (_end, retime) => {
+    const stored = start(snapshot());
     useDawStore.getState().setProject(snapshot({ retime }));
+    expect(now()).toBe(stored);
+  });
+
+  it("keeps a single selected word retimed in place", () => {
+    const single: Selection = {
+      kind: "transcriptRange",
+      trackId: "a",
+      sourceId: null,
+      startWordIndex: 7,
+      endWordIndex: 7,
+    };
+    useDawStore.getState().hydrate(PATH, snapshot());
+    useDawStore.getState().setSelection(single);
+    const stored = now();
+    useDawStore.getState().setProject(snapshot({ retime: { 7: -0.1 } }));
+    expect(now()).toBe(stored);
+  });
+
+  it("keeps the run when only the end of its last word moved", () => {
+    const stored = start(snapshot());
+    const edited = withWordsEdited(snapshot(), (words) =>
+      words.map((word) =>
+        word.word_index === 8 ? { ...word, end: word.end + 0.2 } : word,
+      ),
+    );
+    useDawStore.getState().setProject(edited);
+    expect(now()).toBe(stored);
+  });
+
+  it("clears when a retimed word is not the only change", () => {
+    start(snapshot());
+    useDawStore
+      .getState()
+      .setProject(snapshot({ retime: { 7: 0.1 }, retext: { 8: "corrected" } }));
+    expect(now()).toBeNull();
+  });
+
+  it("clears when a retime comes with a renumber before the run", () => {
+    start(snapshot());
+    useDawStore
+      .getState()
+      .setProject(snapshot({ retime: { 7: 0.1 }, removed: [1] }));
+    expect(now()).toBeNull();
+  });
+
+  it("clears when a word outside the run is retimed with it", () => {
+    start(snapshot());
+    useDawStore.getState().setProject(snapshot({ retime: { 7: 0.1, 2: 0.1 } }));
+    expect(now()).toBeNull();
+  });
+
+  it("clears when a retimed word lands nearer an equal-text word than itself", () => {
+    const dup = wordAt(6, 0, 9.9, { start: 3.1, end: 3.4 });
+    start(snapshot({ extra: [dup] }));
+    useDawStore
+      .getState()
+      .setProject(snapshot({ extra: [dup], retime: { 6: 9 } }));
+    expect(now()).toBeNull();
+  });
+
+  it("clears when a retime moves a word to another recording", () => {
+    start(snapshot());
+    useDawStore.getState().setProject(
+      snapshot({
+        retime: { 7: 0.1 },
+        otherSource: { words: [7], sourceId: "s2" },
+      }),
+    );
+    expect(now()).toBeNull();
+  });
+
+  it("clears when a retimed word is also cut but still listed", () => {
+    start(snapshot());
+    useDawStore
+      .getState()
+      .setProject(snapshot({ retime: { 7: 0.1 }, cutAway: [7] }));
     expect(now()).toBeNull();
   });
 
@@ -380,7 +460,7 @@ describe("the inspector of a followed words selection", () => {
   it("closes when the run is cleared", () => {
     start(snapshot());
     useDawStore.setState({ inspectorKey: "transcriptRange" });
-    useDawStore.getState().setProject(snapshot({ retime: { 7: 0.1 } }));
+    useDawStore.getState().setProject(snapshot({ retext: { 7: "corrected" } }));
     expect(now()).toBeNull();
     expect(useDawStore.getState().inspectorKey).toBeNull();
   });
