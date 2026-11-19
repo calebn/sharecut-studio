@@ -126,7 +126,6 @@ class ScopeChangedAtApproval(CodedError, ValueError):
         held: Sequence[CutScopeHold],
         edits: Iterable[EditDecision] = (),
     ) -> ScopeChangedAtApproval:
-        """The refusal with speaker names and each cut's label read from ``project``."""
         return cls(held, speakers_by_track(project), {e.id: cut_label(project, e) for e in edits})
 
     def reason_for(self, hold: CutScopeHold) -> str:
@@ -167,7 +166,6 @@ class ScopeChangedAtApproval(CodedError, ValueError):
         return f" ({problems})"
 
     def plain_reason_for(self, hold: CutScopeHold) -> str:
-        """Why this cut was held, in words with no engineering terms and no path."""
         if hold.reason == "peer_speech":
             names = [self.speakers.get(peer, _UNNAMED_PEER) for peer in hold.peers]
             names = [_UNNAMED_PEER if mentions_host_path(n) else n for n in names]

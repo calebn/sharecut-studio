@@ -86,8 +86,7 @@ const addressable = (
 
 /**
  * Fix text on the Script (Enter, F2 or a double-tap on words). It is the
- * host's and an Editor guest's: only a person who may edit, with the words
- * settled, may correct them. A phrase is one correction on
+ * host's and an Editor guest's. A phrase is one correction on
  * one track, so a span across tracks is refused before the field opens, and so
  * is one that holds cut-out words. Commit sends the words the field opened with
  * as the expected text; a refusal keeps the field open with the reason under

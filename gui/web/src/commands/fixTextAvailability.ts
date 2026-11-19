@@ -10,12 +10,7 @@ type FixTextState = Pick<
 
 const NEEDS_EDITOR = "Fixing text needs Editor access";
 
-/**
- * The one answer to "can this tab fix a word's text, or find and replace".
- * The server holds both to an Editor, so the host and an Editor link pass and a
- * Commenter or Viewer link reads why not. The F2 key, palette, action bar,
- * Script and Find all read it.
- */
+/** The server holds Fix text and Find and replace to an Editor, so the client refuses a Commenter or Viewer link too. */
 export function fixTextAvailability(s: FixTextState): FixTextAvailability {
   if (!s.project) return { ok: false, reason: "No project loaded" };
   if (!canApplyPass12(s.projectPath, s.guestMode, s.shareCapabilities))
