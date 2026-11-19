@@ -47,6 +47,11 @@ const CASE_PHASES = [
   "composer_ready",
   "comment_saved",
   "derived_checked",
+  "review_reopened",
+  "comment_observed",
+  "undo_clicked",
+  "visible_removal",
+  "persistence_wait",
   "undo_checked",
   "body_complete",
 ] as const;
@@ -832,10 +837,15 @@ diagnosticTest(
       expect(after.index === before.index).toBe(true);
       caseProgress("derived_checked");
       await guest.getByRole("tab", { name: "Review", exact: true }).click();
+      caseProgress("review_reopened");
       await expect(comment).toHaveCount(1);
+      caseProgress("comment_observed");
       phase = "undo-editor-comment";
       await guest.getByRole("button", { name: "Undo", exact: true }).click();
+      caseProgress("undo_clicked");
       await expect(comment).toHaveCount(0);
+      caseProgress("visible_removal");
+      caseProgress("persistence_wait");
       await expect
         .poll(() => digest(JSON.stringify(read().project.review.comments)))
         .toBe(originalComments);

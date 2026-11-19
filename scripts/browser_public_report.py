@@ -69,6 +69,11 @@ FUNCTIONAL_PHASES = (
     "composer_ready",
     "comment_saved",
     "derived_checked",
+    "review_reopened",
+    "comment_observed",
+    "undo_clicked",
+    "visible_removal",
+    "persistence_wait",
     "undo_checked",
     "body_complete",
 )

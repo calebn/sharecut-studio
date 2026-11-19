@@ -618,6 +618,31 @@ jobs:
         continue-on-error: true
         run: ':'
 
+      - name: SC3923_EDITOR_COMMENT_V1 LAST_REVIEW_REOPENED
+        if: ${{ always() && matrix.name == 'main-smoke' && (steps.browser-public-projection.outcome == 'success' && steps.browser-public-projection.outputs.functional_phase == 'review_reopened') }}
+        continue-on-error: true
+        run: ':'
+
+      - name: SC3923_EDITOR_COMMENT_V1 LAST_COMMENT_OBSERVED
+        if: ${{ always() && matrix.name == 'main-smoke' && (steps.browser-public-projection.outcome == 'success' && steps.browser-public-projection.outputs.functional_phase == 'comment_observed') }}
+        continue-on-error: true
+        run: ':'
+
+      - name: SC3923_EDITOR_COMMENT_V1 LAST_UNDO_CLICKED
+        if: ${{ always() && matrix.name == 'main-smoke' && (steps.browser-public-projection.outcome == 'success' && steps.browser-public-projection.outputs.functional_phase == 'undo_clicked') }}
+        continue-on-error: true
+        run: ':'
+
+      - name: SC3923_EDITOR_COMMENT_V1 LAST_VISIBLE_REMOVAL
+        if: ${{ always() && matrix.name == 'main-smoke' && (steps.browser-public-projection.outcome == 'success' && steps.browser-public-projection.outputs.functional_phase == 'visible_removal') }}
+        continue-on-error: true
+        run: ':'
+
+      - name: SC3923_EDITOR_COMMENT_V1 LAST_PERSISTENCE_WAIT
+        if: ${{ always() && matrix.name == 'main-smoke' && (steps.browser-public-projection.outcome == 'success' && steps.browser-public-projection.outputs.functional_phase == 'persistence_wait') }}
+        continue-on-error: true
+        run: ':'
+
       - name: SC3923_EDITOR_COMMENT_V1 LAST_UNDO_CHECKED
         if: ${{ always() && matrix.name == 'main-smoke' && (steps.browser-public-projection.outcome == 'success' && steps.browser-public-projection.outputs.functional_phase == 'undo_checked') }}
         continue-on-error: true
@@ -629,7 +654,7 @@ jobs:
         run: ':'
 
       - name: SC3923_EDITOR_COMMENT_V1 LAST_UNKNOWN
-        if: ${{ always() && matrix.name == 'main-smoke' && (steps.browser-public-projection.outcome != 'success' || !contains(fromJSON('["never_started","entered","host_ready","share_ready","editor_ready","composer_ready","comment_saved","derived_checked","undo_checked","body_complete"]'), steps.browser-public-projection.outputs.functional_phase)) }}
+        if: ${{ always() && matrix.name == 'main-smoke' && (steps.browser-public-projection.outcome != 'success' || !contains(fromJSON('["never_started","entered","host_ready","share_ready","editor_ready","composer_ready","comment_saved","derived_checked","review_reopened","comment_observed","undo_clicked","visible_removal","persistence_wait","undo_checked","body_complete"]'), steps.browser-public-projection.outputs.functional_phase)) }}
         continue-on-error: true
         run: ':'
 
