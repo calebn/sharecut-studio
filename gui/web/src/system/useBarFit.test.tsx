@@ -253,7 +253,7 @@ describe("useBarFit", () => {
       const { container } = render(
         <Player
           {...base}
-          following={{ name: "Rosa", colorIndex: 1, detail: "in Pipeline" }}
+          following={follow("Rosa")}
           onUnfollow={() => undefined}
         />,
       );
