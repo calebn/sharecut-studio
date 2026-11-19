@@ -2,7 +2,7 @@
 """Export / check tests/fixtures/bootstrap_status/unsupported.json.
 
 The file is the body of ``GET /api/bootstrap/status`` as the real app answers it on a host that
-cannot process audio (the iOS row). The web tests and Storybook stories read it instead of
+cannot process audio (the unknown-host row). The web tests and Storybook stories read it instead of
 building status rows by hand, so a row the engine reports differently fails here first.
 
 Usage:
@@ -49,7 +49,7 @@ def payload() -> dict[str, Any]:
         from podcast_mcp.gui.server import create_app
         from podcast_mcp.util import host_platform
 
-        with host_platform.using(host_platform.IOS):
+        with host_platform.using(host_platform.UNKNOWN):
             app = create_app()
             client = TestClient(app, client=("127.0.0.1", 50000))
             sign_in(client, app)

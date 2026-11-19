@@ -130,13 +130,13 @@ def test_the_ios_row_with_a_linked_library_lets_models_report_their_own_state(
 
 
 def test_the_unsupported_fixture_matches_the_engine_answer(host) -> None:
-    """The fixture keeps the iOS row as it was before media tools ran in-process."""
+    """The fixture is the engine's answer on a host that cannot process audio."""
     fixture = json.loads(
         (Path(__file__).parent / "fixtures" / "bootstrap_status" / "unsupported.json").read_text(
             encoding="utf-8"
         )
     )
-    host(replace(IOS, media_tools="unavailable"))
+    host(UNKNOWN)
     status = boot.component_status()
     assert fixture["host"] == status["host"]
     assert fixture["tools"] == status["tools"]
