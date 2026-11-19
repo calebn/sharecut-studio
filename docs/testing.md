@@ -818,40 +818,9 @@ still run sequentially within one checkout.
 
 ### Browser result publication
 
-CI captures each complete browser command's console and GitHub file-command output
-in a private runner directory. The ordinary command, test selection, retries and
-fixture teardown remain unchanged, and its exit status still gates the job.
-Raw reports, traces, error contexts, screenshots and videos stay on that runner;
-they are not uploaded or printed into annotations or job summaries.
-
-`scripts/browser_public_report.py` projects the raw Playwright JSON into
-`gui/web/playwright-public/<name>.json`. CI uploads only that exact file as
-`playwright-public-<name>` with seven-day retention. The projection retains one
-ordinal per logical test, enumerated final/expected/attempt statuses, retry
-numbers, durations and a count of global errors. It drops titles, paths,
-project names, errors, logs, attachments, configuration and metadata. Ordinals
-identify only their position within that report, not stable case identities
-across heads, shards or runs. Bind execution to the workflow's head/run metadata;
-do not infer a named case's result from an ordinal without separate authorized
-source/collection evidence.
-
-Uploads and summaries require the projection step to succeed. The existing
-test-area summary reads only the projection. It still counts
-logical tests and sums all retry durations, which can overlap and are not job
-wall time. Browser summaries also display `Global browser errors: N`, including
-zero, without rendering error messages. The total is separate from logical-test
-statuses and never changes the browser command's exit result. Invalid totals
-are reported as unavailable rather than echoed. Missing or malformed raw reports fail projection and leave no public
-file; neither stale results nor raw parse errors are published. A projection
-failure cannot turn an unsuccessful browser command into a successful check.
-Storybook browser commands use the same private console boundary and projected
-summary. Its static Pages build/deployment policy is unchanged.
-
-This boundary prevents publication rather than preventing Playwright from
-creating diagnostics. Do not upload the private directory or broaden the
-artifact path. Raw diagnostics require a separately authorized private review
-route. Unit checks use fabricated marker strings and child commands only; they
-do not open an authenticated page or reproduce a disclosure.
+CI publishes bounded browser results while raw diagnostics stay on the runner.
+See [Browser result publication](testing-ci.md#browser-result-publication) for the
+retained fields, failure gates, and private-review limits.
 
 ## What to test where
 

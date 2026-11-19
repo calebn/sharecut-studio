@@ -104,6 +104,106 @@ def test_distribution_profile_normalizes_urls_used_by_overlay_and_runtime_metada
     assert profile.release_manifest_url == "https://download.example.test/latest.json"
 
 
+def _cargo_distribution_constants(stdout: str, manifest: Path) -> Path:
+    messages = [json.loads(line) for line in stdout.splitlines() if line.startswith("{")]
+    packages = {
+        message["package_id"]
+        for message in messages
+        if message.get("reason") == "compiler-artifact"
+        and Path(message["manifest_path"]).resolve() == manifest.resolve()
+    }
+    assert len(packages) == 1, "Cargo must identify exactly one package for the manifest"
+    package = packages.pop()
+    assert isinstance(package, str) and package, "Cargo package ID must be nonempty"
+    outputs = [
+        message["out_dir"]
+        for message in messages
+        if message.get("reason") == "build-script-executed" and message["package_id"] == package
+    ]
+    assert len(outputs) == 1, "Cargo must report exactly one build-script output for the package"
+    output = outputs[0]
+    assert isinstance(output, str) and output, "Cargo build-script output must be nonempty"
+    generated = Path(output) / "distribution.rs"
+    assert generated.is_file(), "Cargo build-script output must contain distribution.rs"
+    return generated
+
+
+@pytest.fixture
+def cargo_distribution_messages(tmp_path: Path) -> tuple[Path, Path, list[dict[str, object]]]:
+    manifest = tmp_path / "desktop/Cargo.toml"
+    output = tmp_path / "separate-build-cache/opaque-output"
+    output.mkdir(parents=True)
+    generated = output / "distribution.rs"
+    generated.write_text('pub const CONTROL: &str = "ordinary";\n', encoding="utf-8")
+    messages: list[dict[str, object]] = [
+        {
+            "reason": "compiler-artifact",
+            "manifest_path": str(tmp_path / "dependency/Cargo.toml"),
+            "package_id": "opaque-dependency",
+        },
+        {
+            "reason": "build-script-executed",
+            "package_id": "opaque-dependency",
+            "out_dir": str(tmp_path / "unrelated"),
+        },
+        {
+            "reason": "compiler-artifact",
+            "manifest_path": str(manifest),
+            "package_id": "opaque-desktop",
+        },
+        {
+            "reason": "build-script-executed",
+            "package_id": "opaque-desktop",
+            "out_dir": str(output),
+        },
+    ]
+    return manifest, generated, messages
+
+
+@pytest.mark.parametrize("fresh", [False, True])
+def test_cargo_distribution_output_follows_exact_manifest_and_reported_directory(
+    cargo_distribution_messages: tuple[Path, Path, list[dict[str, object]]], fresh: bool
+) -> None:
+    manifest, generated, messages = cargo_distribution_messages
+    messages[2]["fresh"] = fresh
+    messages.insert(3, dict(messages[2]))
+    stdout = "ordinary non-JSON tool output\n" + "\n".join(map(json.dumps, messages))
+    assert _cargo_distribution_constants(stdout, manifest) == generated
+    assert generated.read_text(encoding="utf-8") == 'pub const CONTROL: &str = "ordinary";\n'
+
+
+@pytest.mark.parametrize(
+    "mutation",
+    [
+        "missing-package",
+        "ambiguous-package",
+        "missing-output",
+        "ambiguous-output",
+        "empty-output",
+        "missing-file",
+    ],
+)
+def test_cargo_distribution_output_rejects_missing_or_ambiguous_results(
+    cargo_distribution_messages: tuple[Path, Path, list[dict[str, object]]], mutation: str
+) -> None:
+    manifest, generated, messages = cargo_distribution_messages
+    match mutation:
+        case "missing-package":
+            messages.pop(2)
+        case "ambiguous-package":
+            messages.append(messages[2] | {"package_id": "another-package"})
+        case "missing-output":
+            messages.pop(3)
+        case "ambiguous-output":
+            messages.append(dict(messages[3]))
+        case "empty-output":
+            messages[3]["out_dir"] = ""
+        case "missing-file":
+            generated.unlink()
+    with pytest.raises(AssertionError):
+        _cargo_distribution_constants("\n".join(map(json.dumps, messages)), manifest)
+
+
 def test_rust_distribution_constants_use_the_validated_normalized_profile(tmp_path: Path) -> None:
     raw = _valid_profile()
     raw["allowed_https_share_origins"] = [" HTTPS://Share.Example.Test/ "]
@@ -126,6 +226,7 @@ def test_rust_distribution_constants_use_the_validated_normalized_profile(tmp_pa
             "--manifest-path",
             "gui/desktop/src-tauri/Cargo.toml",
             "--no-default-features",
+            "--message-format=json",
         ],
         cwd=ROOT,
         env=env,
@@ -134,7 +235,9 @@ def test_rust_distribution_constants_use_the_validated_normalized_profile(tmp_pa
         text=True,
     )
     assert completed.returncode == 0, completed.stderr
-    generated = next(target_dir.glob("debug/build/sharecut-*/out/distribution.rs"))
+    generated = _cargo_distribution_constants(
+        completed.stdout, ROOT / "gui/desktop/src-tauri/Cargo.toml"
+    )
     constants = generated.read_text(encoding="utf-8")
 
     assert 'ALLOWED_HTTPS_SHARE_ORIGINS: &[&str] = &["https://share.example.test"]' in constants

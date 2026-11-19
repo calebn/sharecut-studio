@@ -241,12 +241,22 @@ def test_projection_rejects_unbound_or_stale_raw_reports(tmp_path, monkeypatch, 
     assert not output.exists()
 
 
-def test_projection_is_compatible_with_existing_safe_summary(tmp_path, monkeypatch):
+@pytest.mark.parametrize("runner_summary_set", [False, True])
+def test_projection_is_compatible_with_existing_safe_summary(
+    tmp_path, monkeypatch, runner_summary_set
+):
+    runner_summary = tmp_path / "runner-summary.md"
+    runner_summary.write_text("Existing runner summary.\n", encoding="utf-8")
+    if runner_summary_set:
+        monkeypatch.setenv("GITHUB_STEP_SUMMARY", str(runner_summary))
+    else:
+        monkeypatch.delenv("GITHUB_STEP_SUMMARY", raising=False)
     receipt = capture_receipt(tmp_path, monkeypatch)
     source = tmp_path / "raw.json"
     source.write_text(json.dumps(report()))
     output = tmp_path / "public.json"
     public_report.write_projection(source, output, receipt)
+    summary = tmp_path / "summary.md"
     child = subprocess.run(
         [
             sys.executable,
@@ -256,14 +266,26 @@ def test_projection_is_compatible_with_existing_safe_summary(tmp_path, monkeypat
             "main-e2e",
             "--report",
             str(output),
+            "--output",
+            str(summary),
         ],
         capture_output=True,
         text=True,
     )
     assert child.returncode == 0
-    assert "flaky: 1" in child.stdout
-    assert "0.0 s" in child.stdout
-    assert MARKER not in child.stdout + child.stderr
+    content = summary.read_text(encoding="utf-8")
+    assert content == (
+        "### Test area summary\n\n"
+        "| Area | Logical tests | Final statuses | Summed test duration |\n"
+        "| --- | ---: | --- | --- |\n"
+        "| Main e2e | 1 | flaky: 1 | summed Playwright attempt durations: 0.0 s |\n\n"
+        "Global browser errors: 1.\n\n"
+        "Summed test and retry durations can overlap when tests run in parallel. "
+        "They are not job wall time. Missing report data is shown as unavailable.\n"
+    )
+    assert child.stdout == child.stderr == ""
+    assert runner_summary.read_text(encoding="utf-8") == "Existing runner summary.\n"
+    assert MARKER not in content + child.stdout + child.stderr
     assert stat.S_IMODE(output.stat().st_mode) == 0o600
 
 

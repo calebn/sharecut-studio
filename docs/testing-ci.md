@@ -694,21 +694,50 @@ Apple's Safari browser. To exercise an installed branded Chrome locally, set
 `E2E_BRANDED_CHROME=1`; CI intentionally uses the reproducible bundled
 Chromium engine.
 
-Browser diagnostics can contain guest invitation addresses, project paths and
-other private values. CI runs the unchanged browser command behind
-`scripts/private_browser_command.sh`: console output and child GitHub
-summary/file-command channels go to private runner files, while the command's
-exit and normal fixture teardown still determine its result.
+### Browser result publication
 
-Only the allowlisted `playwright-public-<name>` JSON projection is uploaded,
-with seven-day retention. It contains ordinal cases, enumerated statuses,
-retry numbers and timing, without free-form report strings. Summaries consume
-that projection. Raw JSON, native traces, automatic `error-context.md`, images
-and video are not uploaded. Storybook browser commands share this console and
-summary boundary; its static Pages artifact and deployment conditions are
-unchanged. See [Browser result publication](testing.md#browser-result-publication) for
-the retained fields and limits. Do not broaden publication without a reviewed
-privacy design. This is not evidence that any existing artifact exposed data.
+Browser diagnostics can contain invitation addresses, project paths and other
+private values.
+
+CI captures each complete browser command's console and GitHub file-command output
+in a private runner directory. The ordinary command, test selection, retries and
+fixture teardown remain unchanged, and its exit status still gates the job.
+Raw reports, traces, `error-context.md`, screenshots and videos stay on that runner;
+they are not uploaded or printed into annotations or job summaries.
+
+`scripts/browser_public_report.py` projects the raw Playwright JSON into
+`gui/web/playwright-public/<name>.json`. CI uploads only that exact file as
+`playwright-public-<name>` with seven-day retention. The projection retains one
+ordinal per logical test, enumerated final/expected/attempt statuses, retry
+numbers, durations and a count of global errors. It drops titles, paths,
+project names, errors, logs, attachments, configuration and metadata. Ordinals
+identify only their position within that report, not stable case identities
+across heads, shards or runs. Bind execution to the workflow's head/run metadata;
+do not infer a named case's result from an ordinal without separate authorized
+source/collection evidence.
+
+Uploads and summaries require the projection step to succeed. The existing
+test-area summary reads only the projection. It still counts
+logical tests and sums all retry durations, which can overlap and are not job
+wall time. Browser summaries also display `Global browser errors: N`, including
+zero, without rendering error messages. The total is separate from logical-test
+statuses and never changes the browser command's exit result. Invalid totals
+are reported as unavailable rather than echoed. Missing or malformed raw reports fail projection and leave no public
+file; neither stale results nor raw parse errors are published. A projection
+failure cannot turn an unsuccessful browser command into a successful check.
+Storybook browser commands use the same private console boundary and projected
+summary. Its static Pages build/deployment policy is unchanged.
+
+This boundary prevents publication rather than preventing Playwright from
+creating diagnostics. Do not upload the private directory or broaden the
+artifact path. Raw diagnostics require a separately authorized private review
+route. Unit checks use fabricated marker strings and child commands only; they
+do not open an authenticated page or reproduce a disclosure.
+
+This is not evidence that any existing artifact exposed data. Do not broaden
+publication without a reviewed privacy design.
+
+#### Synthetic publication validation
 
 The temporary `browser-diagnostics-synthetic` workflow validates this boundary
 only on a `synchronize` event for draft PR #4006 from its same-repository
