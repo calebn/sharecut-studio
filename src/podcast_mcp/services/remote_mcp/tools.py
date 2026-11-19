@@ -352,9 +352,10 @@ def guest_submit_document_command(**kwargs: Any) -> dict[str, Any]:
         capabilities=list(ctx.capabilities),
         structural_mode=data.get("structural_mode"),
         author=ctx.author,
+        audience="guest",
     )
     if isinstance(result, dict):
-        return sanitize_guest_document_event(result)
+        return sanitize_guest_document_event(result, viewer=ctx.author)
     return result
 
 
