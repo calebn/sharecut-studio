@@ -563,6 +563,21 @@ jobs:
           --output "gui/web/playwright-public/${{ matrix.name }}.json"
           --capture-receipt "$BROWSER_CAPTURE_RECEIPT"
 
+      - name: SC3923_EDITOR_COMMENT_V1 PASSED
+        if: ${{ always() && matrix.name == 'main-smoke' && steps.browser-public-projection.outcome == 'success' && steps.browser-public-projection.outputs.functional_outcome == 'passed' }}
+        continue-on-error: true
+        run: ':'
+
+      - name: SC3923_EDITOR_COMMENT_V1 NOT_CLEAN_PASS
+        if: ${{ always() && matrix.name == 'main-smoke' && steps.browser-public-projection.outcome == 'success' && contains(fromJSON('["failed","timed_out","interrupted","flaky","skipped"]'), steps.browser-public-projection.outputs.functional_outcome) }}
+        continue-on-error: true
+        run: ':'
+
+      - name: SC3923_EDITOR_COMMENT_V1 UNKNOWN
+        if: ${{ always() && matrix.name == 'main-smoke' && (steps.browser-public-projection.outcome != 'success' || !contains(fromJSON('["passed","failed","timed_out","interrupted","flaky","skipped"]'), steps.browser-public-projection.outputs.functional_outcome)) }}
+        continue-on-error: true
+        run: ':'
+
       - name: Summarize Playwright tests
         if: ${{ always() && steps.browser-public-projection.outcome == 'success' }}
         continue-on-error: true

@@ -12,6 +12,64 @@ from pathlib import Path
 
 FINAL_STATUSES = frozenset({"expected", "unexpected", "flaky", "skipped"})
 ATTEMPT_STATUSES = frozenset({"passed", "failed", "timedOut", "skipped", "interrupted"})
+FUNCTIONAL_CASE_FILE = "stage-shell.spec.ts"
+FUNCTIONAL_CASE_TITLE = "an Editor's comment survives a normal reload-derived save and Undo/Redo restores only that comment"
+FUNCTIONAL_OUTCOMES = frozenset(
+    {"passed", "failed", "timed_out", "interrupted", "flaky", "skipped", "unknown"}
+)
+
+
+def functional_case_outcome(source: dict) -> str:
+    matches = []
+
+    def visit(suites: list) -> None:
+        for suite in suites:
+            for spec in suite["specs"]:
+                if (
+                    spec.get("file") == FUNCTIONAL_CASE_FILE
+                    and spec.get("title") == FUNCTIONAL_CASE_TITLE
+                ):
+                    matches.extend(spec["tests"])
+            visit(suite.get("suites", []))
+
+    visit(source["suites"])
+    if len(matches) != 1 or source.get("errors"):
+        return "unknown"
+    test = matches[0]
+    results = test["results"]
+    if not results:
+        return "unknown"
+    statuses = [result["status"] for result in results]
+    final = test["status"]
+    if final == "skipped" and statuses == ["skipped"]:
+        return "skipped"
+    if test["expectedStatus"] != "passed":
+        return "unknown"
+    if final == "expected" and all(status == "passed" for status in statuses):
+        return "passed"
+    if (
+        final == "flaky"
+        and statuses[-1] == "passed"
+        and any(status in {"failed", "timedOut"} for status in statuses[:-1])
+    ):
+        return "flaky"
+    if final == "unexpected":
+        return {"failed": "failed", "timedOut": "timed_out", "interrupted": "interrupted"}.get(
+            statuses[-1], "unknown"
+        )
+    return "unknown"
+
+
+def write_functional_output(outcome: str) -> None:
+    if not isinstance(outcome, str) or outcome not in FUNCTIONAL_OUTCOMES:
+        return
+    output = os.environ.get("GITHUB_OUTPUT")
+    if output:
+        try:
+            with Path(output).open("a", encoding="utf-8") as stream:
+                stream.write(f"functional_outcome={outcome}\n")
+        except OSError:
+            pass
 
 
 class InvalidReport(ValueError):
@@ -96,7 +154,7 @@ def project(report: object) -> dict:
     }
 
 
-def write_projection(source: Path, output: Path, receipt: Path) -> None:
+def write_projection(source: Path, output: Path, receipt: Path) -> str:
     if source.resolve() == output.resolve():
         raise InvalidReport
     # A failed read must not leave an earlier projection available for upload.
@@ -111,7 +169,9 @@ def write_projection(source: Path, output: Path, receipt: Path) -> None:
     ):
         raise InvalidReport
     with source.open(encoding="utf-8") as stream:
-        public = project(json.load(stream))
+        raw = json.load(stream)
+        public = project(raw)
+        outcome = functional_case_outcome(raw)
     output.parent.mkdir(parents=True, exist_ok=True)
     temporary: str | None = None
     try:
@@ -126,6 +186,8 @@ def write_projection(source: Path, output: Path, receipt: Path) -> None:
         if temporary is not None:
             Path(temporary).unlink(missing_ok=True)
 
+    return outcome
+
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
@@ -134,7 +196,8 @@ def main() -> int:
     parser.add_argument("--capture-receipt", required=True, type=Path)
     args = parser.parse_args()
     try:
-        write_projection(args.report, args.output, args.capture_receipt)
+        outcome = write_projection(args.report, args.output, args.capture_receipt)
+        write_functional_output(outcome)
     except (OSError, ValueError, TypeError, RecursionError, OverflowError):
         print("Browser result projection unavailable; raw diagnostics withheld.")
         return 2
