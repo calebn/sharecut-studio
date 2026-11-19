@@ -710,6 +710,31 @@ unchanged. See [Browser result publication](testing.md#browser-result-publicatio
 the retained fields and limits. Do not broaden publication without a reviewed
 privacy design. This is not evidence that any existing artifact exposed data.
 
+The temporary `browser-diagnostics-synthetic` workflow validates this boundary
+only on a `synchronize` event for draft PR #4006 from its same-repository
+`chore/browser-diagnostics-privacy-20261119` branch. It checks out the exact
+event head, separately from GitHub's synthetic merge SHA. All normal draft
+guards remain in place. It has only `contents: read`, with no browser, guest,
+server, media, package installation or live invitation data.
+
+Four fabricated cases exercise success, failure with retry data, malformed
+JSON and stale JSON. The helper pins the capture, projector and summary bytes
+from commit `6acbc04fcd5edd6fd7fe5d589d4d001d49691a79`. Expected synthetic
+failures use `continue-on-error` only so a final assertion can check the
+original step `outcome`; it rejects unexpected outcomes. A green synthetic
+job therefore does not reclassify the failed child as a passed browser test.
+The exact projection is validated before summary/upload, and summary content
+is checked before publication. Invalid inputs must remove old public output
+and skip both consumers. Only the two valid, bounded JSON files are eligible
+for one-day artifact retention. Raw canaries remain private runner files.
+
+Local tests execute the commands but do not emulate GitHub's step engine or
+artifact service. Hosted qualification still requires the four actual job
+outcomes, expected skipped consumers, bounded uploaded file manifests and
+synthetic-only log/annotation/summary inspection. This job does not exercise
+application teardown or real cancellation and does not qualify guest runs,
+backlog features or a merge. It has no dispatch or ready-for-review trigger.
+
 The path-filtered `.github/workflows/deploy-config.yml` validates `deploy/` with real `caddy` and `docker compose` (see [§ Deploy config validation](testing.md#deploy-config-validation)).
 
 The centrally selected `.github/workflows/desktop.yml` also builds the web distribution,
