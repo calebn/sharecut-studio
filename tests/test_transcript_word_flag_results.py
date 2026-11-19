@@ -67,6 +67,15 @@ def single_take(minimal_project: Path) -> Path:
 
 
 @pytest.fixture
+def no_take(minimal_project: Path) -> Path:
+    _seed(
+        minimal_project,
+        [Transcript(track_id="host", words=_words(["café", "naïve", "plain", "tail"]))],
+    )
+    return minimal_project
+
+
+@pytest.fixture
 def multi_take(minimal_project: Path) -> Path:
     _seed(
         minimal_project,
@@ -292,5 +301,73 @@ def test_ignored_reply_on_multi_take_lane_counts_only_words_that_flipped(multi_t
             "end_word_index": 2,
             "ignored": True,
             "changed": 1,
+        },
+    )
+
+
+def test_flag_replies_on_a_word_with_no_take_carry_null_source_id(no_take) -> None:
+    svc = DocumentSyncService.open(no_take)
+    commands = [
+        DocumentCommand(
+            type="SetTranscriptWordSuppressed",
+            payload={"track_id": "host", "word_index": 0, "suppressed": True},
+            client_id="c1",
+            role="viewer",
+            client_seq=1,
+        ),
+        DocumentCommand(
+            type="SetTranscriptWordAutomatic",
+            payload={"track_id": "host", "word_index": 0},
+            client_id="c1",
+            role="viewer",
+            client_seq=2,
+        ),
+        DocumentCommand(
+            type="SetTranscriptWordsIgnored",
+            payload={
+                "track_id": "host",
+                "start_word_index": 0,
+                "end_word_index": 1,
+                "ignored": True,
+            },
+            client_id="c1",
+            role="viewer",
+            client_seq=3,
+        ),
+    ]
+    replies = [svc.submit(command) for command in commands]
+    assert all(reply["ok"] for reply in replies)
+    suppressed, automatic, ignored = (reply["command"]["payload"]["result"] for reply in replies)
+
+    assert_wire(
+        suppressed,
+        {
+            "track_id": "host",
+            "source_id": None,
+            "word_index": 0,
+            "suppressed": True,
+            "text": "café",
+        },
+    )
+    assert_wire(
+        automatic,
+        {
+            "track_id": "host",
+            "source_id": None,
+            "word_index": 0,
+            "suppressed": True,
+            "audibility_locked": False,
+            "text": "café",
+        },
+    )
+    assert_wire(
+        ignored,
+        {
+            "track_id": "host",
+            "source_id": None,
+            "start_word_index": 0,
+            "end_word_index": 1,
+            "ignored": True,
+            "changed": 2,
         },
     )

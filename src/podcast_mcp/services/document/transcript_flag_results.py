@@ -3,9 +3,11 @@ from __future__ import annotations
 from pydantic import BaseModel, ConfigDict
 
 
-class WordSuppressedResult(BaseModel):
+class _WordFlagResult(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
+
+class WordSuppressedResult(_WordFlagResult):
     track_id: str
     source_id: str | None
     word_index: int
@@ -13,9 +15,7 @@ class WordSuppressedResult(BaseModel):
     text: str
 
 
-class WordAutomaticResult(BaseModel):
-    model_config = ConfigDict(extra="forbid", frozen=True)
-
+class WordAutomaticResult(_WordFlagResult):
     track_id: str
     source_id: str | None
     word_index: int
@@ -24,9 +24,7 @@ class WordAutomaticResult(BaseModel):
     text: str
 
 
-class WordsIgnoredResult(BaseModel):
-    model_config = ConfigDict(extra="forbid", frozen=True)
-
+class WordsIgnoredResult(_WordFlagResult):
     track_id: str
     source_id: str | None
     start_word_index: int

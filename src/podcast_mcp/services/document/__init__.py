@@ -183,9 +183,6 @@ _MODULE_BY_NAME = {
     "FeedFieldPinResult": "feed_results",
     "FeedService": "feed",
     "FeedViewKind": "feed",
-    "WordAutomaticResult": "transcript_flag_results",
-    "WordSuppressedResult": "transcript_flag_results",
-    "WordsIgnoredResult": "transcript_flag_results",
     "SHOW_KEY": "feed",
     "describe_fields": "feed",
     "DEFAULT_LIMIT": "golden_ear",
@@ -225,6 +222,9 @@ _MODULE_BY_NAME = {
     "ExportBusyError": "transcript",
     "TranscriptTimingChangedError": "transcript",
     "WordTimingTarget": "transcript",
+    "WordAutomaticResult": "transcript_flag_results",
+    "WordSuppressedResult": "transcript_flag_results",
+    "WordsIgnoredResult": "transcript_flag_results",
 }
 
 
