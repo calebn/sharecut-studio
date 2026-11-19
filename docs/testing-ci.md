@@ -402,7 +402,7 @@ with axe before the collected results are asserted.
 | 767x375 phone envelope controls stay in reach and preserve saved points | `gui/web/e2e-compat/envelope-short-phone.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | Invite touch affordances work in the compatibility browser | `gui/web/e2e-compat/touch-affordances.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | clip Inspector touch affordances work in the compatibility browser | `gui/web/e2e-compat/touch-affordances.spec.ts` | CSS / layout | Pass | Pass | Not run |
-| a phone held sideways keeps two whole compact lanes and Undo in reach | `gui/web/e2e-compat/phone-chrome.spec.ts` | CSS / layout | Pass | Pass | Not run |
+| a phone held sideways keeps at least two whole compact lanes and Undo in reach | `gui/web/e2e-compat/phone-chrome.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | a phone in portrait keeps Undo and Redo in the header, the corner controls on one row and four whole lanes | `gui/web/e2e-compat/phone-chrome.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | a 360px phone keeps the range toggle, Zoom, Undo and Redo whole and in reach, and Zoom runs | `gui/web/e2e-compat/phone-chrome.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | Keep decides one queue item at a thumb-sized target, then one Undo brings it back | `gui/web/e2e-compat/phone-chrome.spec.ts` | CSS / layout | Pass | Pass | Not run |
@@ -430,7 +430,7 @@ with axe before the collected results are asserted.
 | the corner controls leave their targets clear | `gui/web/e2e-compat/adaptive-panels.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | a native guest Mute center tap stays at scrollTop zero while acknowledgment is pending | `gui/web/e2e-compat/adaptive-panels.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | phone shells keep every control a finger can use at 360, 390 and 767 wide | `gui/web/e2e-compat/reachability-sweep.spec.ts` | CSS / layout | Pass | Pass | Not run |
-| phone shells keep the Audio error pill and Retry a finger can use at 360, 390 and 767 wide | `gui/web/e2e-compat/reachability-sweep.spec.ts` | CSS / layout | Pass | Pass | Not run |
+| phone shells keep the Audio error pill and Retry a finger can use at 360, 390 and 767 wide, at 100%, 150% and 200% text | `gui/web/e2e-compat/reachability-sweep.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | loaded tablet Player stays reachable at 200% text | `gui/web/e2e-compat/reachability-sweep.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | tablet and desktop shells keep every control a finger can use across 768 to 1195 wide | `gui/web/e2e-compat/reachability-sweep.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | a phone held sideways and an iPad keep every control a finger can use | `gui/web/e2e-compat/reachability-sweep.spec.ts` | CSS / layout | Pass | Pass | Not run |
