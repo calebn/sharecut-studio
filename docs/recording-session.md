@@ -1356,10 +1356,11 @@ alternate local sink path.
 enabled while a take runs; the `M` key adds a marker), Mute and Leave, and alerts in one
 slot: "Your mic stopped." (**Reconnect mic**), "No sound is reaching the recorder."
 (**Check mic**), "This device couldn't save the recording.", "Saving stopped."
-(**Resume saving**, **Save a copy**), "We found part of your recording."
+(**Resume saving**, **Save a copy**; never raised from an upload error once the server has every segment this device holds), "We found part of your recording."
 (**Finish saving**), "Lost connection to the room. You're still recording on this
-device." (this page's connection dropped mid-take; nothing is raised while paused, and a
-producer gets none), "{Host} dropped. You're still recording on this device." (the host
+device." (this page's connection dropped mid-take; while it shows, "Saving stopped." is not
+shown, and it comes back once the connection does if the upload still fails; nothing is raised
+while paused, where "Saving stopped." keeps showing, and a producer gets none), "{Host} dropped. You're still recording on this device." (the host
 left or dropped while this page is connected and a take is live, paused or reconnecting;
 in the lobby or after Stop nothing is being recorded here and the host's tile already
 reads Left, so no alert is raised), "You can't hear the room. Recording is
@@ -1555,7 +1556,7 @@ stateDiagram-v2
 | No audio | Alert "No sound is reaching the recorder." + **Check mic** |
 | Paused | Status pill `Paused · m:ss` |
 | Host reconnect pause | "Paused: the host was offline for {N}s. Resume when everyone is ready." (host DAW only; guests keep the Paused pill) |
-| Room connection lost | Alert "Lost connection to the room. You're still recording on this device." and the pill `m:ss · Reconnecting…` (this page's own connection; none while paused) |
+| Room connection lost | Alert "Lost connection to the room. You're still recording on this device." and the pill `m:ss · Reconnecting…` (this page's own connection; none while paused). "Saving stopped." is not shown beside it, and a guest the server has fully acknowledged never gets it from a drop |
 | Host offline | Alert "{Host} dropped. You're still recording on this device." (the host left or dropped while this page is connected and a take is live, paused or reconnecting; no alert in the lobby, during the countdown, while saving or once saved). After 60 seconds of it Leave opens with a warning |
 | Saving (own status) | "Saving to project… {n} of {total} chunks. Keep this tab open." Several segments add one line each: "Take 1 segment 2: Saving to project… 1 of 2 chunks". |
 | Saved, not landed | "Saved to project. This device keeps its copy until the host lands it on the timeline." |
@@ -2112,7 +2113,7 @@ asserts inbound `Signal` frames (`window.__recordSignalCount`).
 
 The US-1 scenario (`records a remote interview end to end (US-1)`) drives host, guest and producer through the Join sheet, Start, live comments (guest marker via `M`, guest typed comment, producer typed comment visible to host but not the guest), Stop, keeper upload to file ACK, host landing (ACK auto-land or Land, whichever is ready first), clips in `raw/` and on the timeline, and live comments landing as `review.comments[]`. The producer has no keeper or upload. After Saved the guest's dock reads "Saved to project. You can close this page."; Done leaves the room, the page shows "You left the room" and the host's snapshot marks the guest disconnected. Desktop (Tauri) recording stays manual (#193).
 
-`e2e/record-guest-leave.spec.ts` cuts only the host's socket mid-take and waits a real 62 seconds: Leave opens with the warning, a laptop press leaves, a phone needs a second press, the host sees the guest Left and "Saving", a host back before 60 seconds or a drop of the guest's own connection starts the wait over. The US-2 scenario (`e2e/record-host-reconnect.spec.ts` › *recording survives host disconnects (US-2)*) cuts the host's session socket and the guest's record socket and HTTP together (`e2e/networkOutage.ts`). A 2 s blip stays live with no new keeper segment. A 14 s outage shows the alert "Lost connection to the room. You're still recording on this device." and the pill `m:ss · Reconnecting…` while the guest keeper grows, refuses a remint while REC and PAUSED, and forces PAUSED with `pause_reason: "host_reconnect"` when the host returns. After Resume and Stop, every segment file-ACKs on the same `/rec/` token and lands under `raw/`. A drop closes both proxy sides at once, so the server sees a clean close with a fresh heartbeat; the stale-heartbeat and sidecar-crash branches of the Host reconnect row below stay pytest-only.
+`e2e/record-offline-alerts.spec.ts` cuts only the guest's tunnel: one alert while it is down, a real upload failure back after reconnect, nothing for a saved guest, and a paused take keeps "Saving stopped." with no connection alert. `e2e/record-guest-leave.spec.ts` cuts only the host's socket mid-take and waits a real 62 seconds: Leave opens with the warning, a laptop press leaves, a phone needs a second press, the host sees the guest Left and "Saving", a host back before 60 seconds or a drop of the guest's own connection starts the wait over. The US-2 scenario (`e2e/record-host-reconnect.spec.ts` › *recording survives host disconnects (US-2)*) cuts the host's session socket and the guest's record socket and HTTP together (`e2e/networkOutage.ts`). A 2 s blip stays live with no new keeper segment. A 14 s outage shows the alert "Lost connection to the room. You're still recording on this device." and the pill `m:ss · Reconnecting…` while the guest keeper grows, refuses a remint while REC and PAUSED, and forces PAUSED with `pause_reason: "host_reconnect"` when the host returns. After Resume and Stop, every segment file-ACKs on the same `/rec/` token and lands under `raw/`. A drop closes both proxy sides at once, so the server sees a clean close with a fresh heartbeat; the stale-heartbeat and sidecar-crash branches of the Host reconnect row below stay pytest-only.
 
 ### Hard tab kill (manual, real Chrome)
 

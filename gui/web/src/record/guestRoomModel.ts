@@ -364,8 +364,12 @@ export function guestRoomAlerts(
   actions: RoomAlertActions = {},
 ): RoomAlertInput[] {
   const { phase, inTake, notice, ...rest } = source;
-  const alerts = roomAlerts({ ...rest, hydrateError: null }, actions);
-  if (inTake && phase.kind === "reconnecting" && !phase.paused) {
+  const connectionLost =
+    inTake && phase.kind === "reconnecting" && !phase.paused;
+  const alerts = roomAlerts({ ...rest, hydrateError: null }, actions).filter(
+    (alert) => !(connectionLost && alert.kind === "saving-failed"),
+  );
+  if (connectionLost) {
     alerts.push({ kind: "connection-lost" });
   }
   if (notice) {
@@ -619,6 +623,7 @@ export function ownSaving(
   upload: RecordUploadProgress | null | undefined,
   localSegments: number | null,
   localUnreadable = false,
+  connectionLost = false,
 ): RoomSaving | null {
   if (!upload) {
     return null;
@@ -626,7 +631,10 @@ export function ownSaving(
   if (uploadAcknowledged(upload, localSegments)) {
     return "saved";
   }
-  if (upload.error || (localUnreadable && upload.fileAck)) {
+  if (
+    (upload.error && !connectionLost) ||
+    (localUnreadable && upload.fileAck)
+  ) {
     return "failed";
   }
   return upload.total > 0 ? { done: upload.acked, total: upload.total } : null;

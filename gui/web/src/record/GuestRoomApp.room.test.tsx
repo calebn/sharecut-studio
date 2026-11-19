@@ -1253,3 +1253,71 @@ describe("GuestRoomApp when the host is gone mid-take", () => {
     expect(leave()).toHaveAttribute("aria-disabled", "true");
   });
 });
+
+describe("GuestRoomApp offline alerts", () => {
+  const SAVING_STOPPED = "Saving stopped.";
+  const CONNECTION =
+    "Lost connection to the room. You're still recording on this device.";
+
+  it("shows only the connection alert when the socket drops mid-take", () => {
+    const room = fakeRoom({ upload: { error: "Network error" } });
+    room.connected = false;
+    render(<GuestRoomApp token="t" />);
+    expect(screen.getByText(CONNECTION)).toBeInTheDocument();
+    expect(screen.queryByText(SAVING_STOPPED)).toBeNull();
+    expect(screen.queryByText(/^\+\d/)).toBeNull();
+  });
+
+  it("shows the real failure once the connection is back", () => {
+    const room = fakeRoom({ upload: { error: "Network error" } });
+    room.connected = false;
+    const { rerender } = render(<GuestRoomApp token="t" />);
+    room.connected = true;
+    rerender(<GuestRoomApp token="t" />);
+    expect(screen.getByText(SAVING_STOPPED)).toBeInTheDocument();
+    expect(screen.queryByText(CONNECTION)).toBeNull();
+  });
+
+  it("keeps the failure on a paused take, which raises no connection alert", () => {
+    const room = fakeRoom({
+      snapshot: { state: "paused" },
+      upload: { error: "Network error" },
+    });
+    room.connected = false;
+    render(<GuestRoomApp token="t" />);
+    expect(screen.getByText(SAVING_STOPPED)).toBeInTheDocument();
+    expect(screen.queryByText(CONNECTION)).toBeNull();
+  });
+
+  it("tells a saved guest nothing when the connection drops", () => {
+    const room = fakeRoom({
+      snapshot: stopped,
+      localSegments: 1,
+      upload: {
+        acked: 1,
+        total: 1,
+        fileAck: true,
+        seenSegments: 1,
+        landed: true,
+        error: "Network error",
+      },
+    });
+    room.connected = false;
+    render(<GuestRoomApp token="t" />);
+    expect(
+      screen.getByText("Saved to project. You can close this page."),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(SAVING_STOPPED)).toBeNull();
+  });
+
+  it("still says saving stopped after Stop when the upload is not acknowledged", () => {
+    const room = fakeRoom({
+      snapshot: stopped,
+      localSegments: 1,
+      upload: { acked: 0, total: 1, error: "Network error" },
+    });
+    room.connected = false;
+    render(<GuestRoomApp token="t" />);
+    expect(screen.getByText(SAVING_STOPPED)).toBeInTheDocument();
+  });
+});
