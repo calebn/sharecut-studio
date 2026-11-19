@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { dispatchComposer } from "../../commands/composer";
+import { registerComposerFocus } from "../../commands/composerFocus";
 import { resolveCommentAnchor } from "../../comments/commentAnchor";
 import { commentTimeLabel } from "../../comments/commentTimeLabel";
 import { playComment } from "../../comments/playComment";
@@ -184,6 +185,14 @@ export function useReviewComments(guest: boolean) {
   useEffect(() => {
     if (showComposer && commentDraft) composeRef.current?.focus();
   }, [showComposer, commentDraft]);
+  // The first press of Q on a desktop Review page lands in the field (keymap/listener.ts).
+  useEffect(() => {
+    if (!showComposer || shell === "phone") return;
+    return registerComposerFocus(() => {
+      composeRef.current?.focus();
+      return document.activeElement === composeRef.current;
+    });
+  }, [showComposer, shell]);
   // A link that can no longer comment leaves no draft behind, and plays on what the composer paused.
   useEffect(() => {
     if (!mayComment) dispatchComposer({ type: "reset" });

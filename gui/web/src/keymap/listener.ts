@@ -1,5 +1,6 @@
 import { useEffect } from "react";
 import { COMMANDS } from "../commands/catalog";
+import { focusComposerFromKey } from "../commands/composerFocus";
 import { buildCommandContext, evaluateWhen } from "../commands/context";
 import { execute } from "../commands/execute";
 import { announceFailure } from "../commands/refusal";
@@ -117,6 +118,23 @@ export function useDawKeymapListener(): void {
         (cmd) => handedOn == null || handedOn.includes(cmd.id),
       );
       if (!matches.length) {
+        if (
+          e.key.toLowerCase() === "q" &&
+          !e.ctrlKey &&
+          !e.metaKey &&
+          !e.altKey &&
+          !overlayOpen()
+        ) {
+          const ctx = buildCommandContext(e);
+          if (
+            ctx.guestMode !== null &&
+            ctx.canComment &&
+            ctx.stage === "review" &&
+            ctx.shellBreakpoint !== "phone"
+          ) {
+            focusComposerFromKey();
+          }
+        }
         return;
       }
       const ctx = buildCommandContext(e);
