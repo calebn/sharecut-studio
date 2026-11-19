@@ -694,3 +694,54 @@ describe("a words selection by the role the session holds", () => {
     expect(named(b, now())).toEqual(["w6", "w7", "w8"]);
   });
 });
+
+describe("a words selection in a recording, track or line other than the first", () => {
+  const SECOND_RECORDING = { words: [6, 7, 8], sourceId: "s2" };
+  const RUN = {
+    kind: "transcriptRange",
+    trackId: "a",
+    sourceId: null,
+    startWordIndex: 6,
+    endWordIndex: 8,
+  } as const;
+  const inS2: Selection = { ...RUN, sourceId: "s2" };
+  const onB: Selection = { ...RUN, trackId: "b" };
+
+  function pick(project: ProjectView, selection: Selection) {
+    useDawStore.getState().hydrate(PATH, project);
+    useDawStore.getState().setSelection(selection);
+    return now();
+  }
+
+  it("follows a run in a named recording to its new numbers", () => {
+    pick(snapshot({ otherSource: SECOND_RECORDING }), inS2);
+    const b = snapshot({ removed: [1, 2], otherSource: SECOND_RECORDING });
+    useDawStore.getState().setProject(b);
+    expect(now()).toEqual({ ...inS2, startWordIndex: 4, endWordIndex: 6 });
+    expect(named(b, now())).toEqual(["w6", "w7", "w8"]);
+  });
+
+  it("keeps the same selection object for a named recording when nothing in it moved", () => {
+    const stored = pick(snapshot({ otherSource: SECOND_RECORDING }), inS2);
+    useDawStore
+      .getState()
+      .setProject(snapshot({ removed: [9], otherSource: SECOND_RECORDING }));
+    expect(now()).toBe(stored);
+  });
+
+  it("follows a run on another track to its new numbers", () => {
+    pick(snapshot({ track: "b" }), onB);
+    const b = snapshot({ track: "b", removed: [1, 2] });
+    useDawStore.getState().setProject(b);
+    expect(now()).toEqual({ ...onB, startWordIndex: 4, endWordIndex: 6 });
+    expect(named(b, now())).toEqual(["w6", "w7", "w8"]);
+  });
+
+  it("clears a run whose word in a later line is respelled with a renumber before it", () => {
+    pick(snapshot({ split: [7] }), RUN);
+    useDawStore
+      .getState()
+      .setProject(snapshot({ split: [7], removed: [1], retext: { 8: "zzz" } }));
+    expect(now()).toBeNull();
+  });
+});
