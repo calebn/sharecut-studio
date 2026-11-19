@@ -4,6 +4,7 @@ import {
   type SelectionModel,
   selectionEndOf,
 } from "../../../edit/selectionFollow";
+import { retimedInPlace } from "../../../edit/selectionRetime";
 import {
   registerTranscriptSelectionFollower,
   type TranscriptSelectionJudge,
@@ -60,6 +61,8 @@ export const judgeWithScriptModel: TranscriptSelectionJudge = (
     endAt === undefined ? null : selectionEndOf(prior, endAt);
   if (!anchor || !head) return clear;
   const after = selectionModelOfProject(next);
+  if (retimedInPlace(prior, after, anchor.index, head.index))
+    return { kind: "keep" };
   const follow = followSelection({ stored: sel, anchor, head }, after);
   if (follow.kind === "clear") return clear;
   if (follow.kind === "wait") return follow;
