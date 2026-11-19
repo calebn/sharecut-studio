@@ -694,23 +694,21 @@ Apple's Safari browser. To exercise an installed branded Chrome locally, set
 `E2E_BRANDED_CHROME=1`; CI intentionally uses the reproducible bundled
 Chromium engine.
 
-Playwright traces and JSON reports from these runs can contain guest
-record-share tokens (`/rec/<token>` URLs and `/api/shares/record` responses).
-CI uploads timing reports on every run and native `trace.zip` and
-`error-context.md` files when they exist. A separate touch-peek artifact retains
-only these screenshot basename patterns under `gui/web/test-results/**/`:
+Browser diagnostics can contain guest invitation addresses, project paths and
+other private values. CI runs the unchanged browser command behind
+`scripts/private_browser_command.sh`: console output and child GitHub
+summary/file-command channels go to private runner files, while the command's
+exit and normal fixture teardown still determine its result.
 
-- `stow-portrait-360-2-mid-drag-*.png`
-- `restored-focus-portrait-360-*.png`
-- `stow-landscape-636-2-mid-drag-*.png`
-- `restored-focus-landscape-636-*.png`
-- `pending-card-portrait-390-32-*.png`
-- `pending-card-landscape-636-32-*.png`
-
-Keep the seven-day retention and treat these artifacts as sensitive. Do not
-widen the upload to all of `gui/web/test-results/`, all PNGs, audio, project files,
-storage state, raw media, or private files. Other capture files require a
-sanitization plan.
+Only the allowlisted `playwright-public-<name>` JSON projection is uploaded,
+with seven-day retention. It contains ordinal cases, enumerated statuses,
+retry numbers and timing, without free-form report strings. Summaries consume
+that projection. Raw JSON, native traces, automatic `error-context.md`, images
+and video are not uploaded. Storybook browser commands share this console and
+summary boundary; its static Pages artifact and deployment conditions are
+unchanged. See [Browser result publication](testing.md#browser-result-publication) for
+the retained fields and limits. Do not broaden publication without a reviewed
+privacy design. This is not evidence that any existing artifact exposed data.
 
 The path-filtered `.github/workflows/deploy-config.yml` validates `deploy/` with real `caddy` and `docker compose` (see [§ Deploy config validation](testing.md#deploy-config-validation)).
 

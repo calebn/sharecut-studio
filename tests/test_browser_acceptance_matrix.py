@@ -346,7 +346,10 @@ def test_ci_runs_both_browser_suites_on_dispatch_on_every_passing_engine() -> No
     )
     steps = _frontend_e2e_steps()
     runner_steps = [
-        step for step in steps if str(step.get("run", "")).strip() == "${{ matrix.command }}"
+        step
+        for step in steps
+        if str(step.get("run", "")).strip()
+        == "bash ../../scripts/private_browser_command.sh ${{ matrix.command }}"
     ]
     assert len(runner_steps) == 1, f"expected one matrix command step, got {runner_steps}"
     runner = runner_steps[0]
@@ -371,95 +374,42 @@ def test_ci_runs_both_browser_suites_on_dispatch_on_every_passing_engine() -> No
     )
 
 
-def test_ci_uploads_only_native_playwright_failure_diagnostics() -> None:
+def test_ci_publishes_only_projected_browser_counts_and_timings() -> None:
     steps = _frontend_e2e_steps()
-    uploads = [
-        step for step in steps if step.get("name") == "Upload Playwright traces from failed specs"
-    ]
+    uploads = [step for step in steps if step.get("uses") == "actions/upload-artifact@v7"]
     assert len(uploads) == 1
     upload = uploads[0]
-    diagnostic_globs = [
-        "gui/web/test-results/**/trace.zip",
-        "gui/web/test-results/**/error-context.md",
-    ]
-    assert upload["if"] == (
-        f"always() && hashFiles('{diagnostic_globs[0]}', '{diagnostic_globs[1]}') != ''"
+    assert upload["name"] == "Upload public browser results"
+    assert upload["if"] == "${{ always() && steps.browser-public-projection.outcome == 'success' }}"
+    assert upload["with"] == {
+        "name": "playwright-public-${{ matrix.name }}",
+        "path": "gui/web/playwright-public/${{ matrix.name }}.json",
+        "retention-days": 7,
+        "if-no-files-found": "ignore",
+    }
+    projection = next(
+        step for step in steps if step.get("name") == "Project public browser results"
     )
-    assert upload["uses"] == "actions/upload-artifact@v7"
-    artifact = upload["with"]
-    assert artifact["name"] == "playwright-test-results-${{ matrix.name }}"
-    assert artifact["path"].splitlines() == diagnostic_globs
-    assert artifact["retention-days"] == 7
-    assert artifact["if-no-files-found"] == "ignore"
+    assert projection["if"] == "always()"
+    assert projection["id"] == "browser-public-projection"
+    assert projection.get("continue-on-error") is not True
+    assert "scripts/browser_public_report.py" in projection["run"]
 
 
-def test_ci_retains_only_approved_touch_peek_screenshots(tmp_path: Path) -> None:
-    uploads = [
-        step
-        for step in _frontend_e2e_steps()
-        if step.get("name") == "Upload touch-peek screenshots"
-    ]
-    assert len(uploads) == 1
-    upload = uploads[0]
-    assert upload["if"] == "always()"
-    assert upload["uses"] == "actions/upload-artifact@v7"
-    artifact = upload["with"]
-    assert artifact["name"] == "playwright-touch-peek-${{ matrix.name }}"
-    assert artifact["retention-days"] == 7
-    assert artifact["if-no-files-found"] == "ignore"
-    patterns = artifact["path"].splitlines()
-    assert set(patterns) == {
-        "gui/web/test-results/**/stow-portrait-360-2-mid-drag-*.png",
-        "gui/web/test-results/**/restored-focus-portrait-360-*.png",
-        "gui/web/test-results/**/stow-landscape-636-2-mid-drag-*.png",
-        "gui/web/test-results/**/restored-focus-landscape-636-*.png",
-        "gui/web/test-results/**/pending-card-portrait-390-32-*.png",
-        "gui/web/test-results/**/pending-card-landscape-636-32-*.png",
-    }
-    assert len(patterns) == 6
-    intended = {
-        "stow-portrait-360-2-mid-drag-dark.png",
-        "restored-focus-portrait-360-dark.png",
-        "stow-landscape-636-2-mid-drag-dark.png",
-        "restored-focus-landscape-636-dark.png",
-        "pending-card-portrait-390-32-dark.png",
-        "pending-card-landscape-636-32-dark.png",
-    }
-    forbidden = {
-        "unrelated.png",
-        "stow-portrait-360-2-before-drag-dark.png",
-        "restored-focus-portrait-390-dark.png",
-        "pending-card-landscape-636-16-dark.png",
-        "stow-portrait-360-2-mid-drag-dark.json",
-        "restored-focus-portrait-360-dark.wav",
-        "pending-card-portrait-390-32-dark.webm",
-        "episode.sharecut",
-        "storage-state.json",
-        "trace.zip",
-        "error-context.md",
-        "private.txt",
-    }
-    root = tmp_path / "gui/web/test-results"
-    for directory in (root, root / "touch-peek-chromium", root / "compat/nested"):
-        directory.mkdir(parents=True, exist_ok=True)
-        for name in intended | forbidden:
-            (directory / name).touch()
-    outside = tmp_path / "gui/web/private"
-    outside.mkdir()
-    for name in intended:
-        (outside / name).touch()
-    selected = {
-        path.relative_to(tmp_path).as_posix()
-        for pattern in patterns
-        for path in tmp_path.glob(pattern)
-        if path.is_file()
-    }
-    expected = {
-        (directory / name).relative_to(tmp_path).as_posix()
-        for directory in (root, root / "touch-peek-chromium", root / "compat/nested")
-        for name in intended
-    }
-    assert selected == expected
+def test_ci_does_not_publish_browser_screenshots_or_private_raw_files(tmp_path: Path) -> None:
+    upload = next(
+        step for step in _frontend_e2e_steps() if step.get("uses") == "actions/upload-artifact@v7"
+    )
+    public = tmp_path / "gui/web/playwright-public/main-smoke.json"
+    public.parent.mkdir(parents=True)
+    public.touch()
+    for name in ("trace.zip", "error-context.md", "touch-peek.png", "raw.json", "private.txt"):
+        (public.parent / name).touch()
+    raw = tmp_path / "gui/web/playwright-report/main-smoke.json"
+    raw.parent.mkdir(parents=True)
+    raw.touch()
+    selected = upload["with"]["path"].replace("${{ matrix.name }}", "main-smoke")
+    assert list(tmp_path.glob(selected)) == [public]
 
 
 def test_release_pull_requests_run_every_webkit_compat_spec_in_complete_shards() -> None:
