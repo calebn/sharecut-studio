@@ -212,7 +212,7 @@ overlay as a props-only view. Its adapter (`CommentPlaybackBubble.tsx`) keeps
 every store, API and context read while the view takes plain props (`comment`,
 geometry, callbacks). Remote presence is no longer a template:
 `timeline/TimelinePresence.tsx` reads the session roster and the module-level
-server clock (`presence/clock.ts`), owns the join/leave announcer and the
+server clock (`presence/clock.ts`), owns the leave announcer and the
 motion of a playing remote playhead, and feeds the `System/Presence` leaf
 (#2294 S7b W2). The volume envelope is no longer a template either: the lane
 mounts `timeline/LaneEnvelope.tsx` over the `System/Envelope` leaf (#2294 S7b

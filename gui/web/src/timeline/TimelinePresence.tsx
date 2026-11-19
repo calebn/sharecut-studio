@@ -6,7 +6,6 @@ import {
   useRef,
   useState,
 } from "react";
-import { rosterDisplayName } from "../presence/colors";
 import {
   isObservingClient,
   remotePlayheadSec,
@@ -61,7 +60,9 @@ const sameSelection = (a: PresenceSelection, b: PresenceSelection) =>
   a.colorIndex === b.colorIndex;
 
 /**
- * Announces remote joins and departures. The effect keys on the live ids by
+ * Announces remote departures. A join is not spoken: the host is already
+ * there when the roster lands, and the line would replace the first-visit
+ * sentence in the one status slot. The effect keys on the live ids by
  * value, so a render that only replaces client objects (a cursor or playhead
  * move) or changes an unrelated prop does not re-run it.
  */
@@ -74,13 +75,6 @@ function usePresenceAnnouncer(others: SessionClient[]): void {
     prevRef.current = ids;
     if (prev == null) {
       return;
-    }
-    for (const c of others) {
-      if (!prev.has(c.client_id)) {
-        useDawStore
-          .getState()
-          .announceStatus(`${rosterDisplayName(c)} joined`, { toast: false });
-      }
     }
     for (const id of prev) {
       if (!ids.has(id)) {
@@ -149,7 +143,7 @@ function usePlayingFrame(
  * Other people's playheads and selections over the whole time column
  * (OVL-PRESENCE): the system Presence leaf in the ruler's own window, fed by
  * the session roster and the project. It owns what the leaf leaves to its
- * host: who is live (and the join and leave announcements), the motion of a
+ * host: who is live (and the leave announcement), the motion of a
  * playing playhead, and each selection's lane and span.
  */
 export const TimelinePresence = memo(function TimelinePresence({
