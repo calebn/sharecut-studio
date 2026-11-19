@@ -1229,6 +1229,30 @@ describe("hostGoneMidTake", () => {
     expect(hostGoneMidTake(people(false), live, true)).toBe(false);
   });
 
+  it("is false while the host is there and another guest has left", () => {
+    const room = roomPeople(
+      recordSnapshot({
+        state: "recording",
+        participants: [
+          recordParticipant({
+            participant_id: "p_host",
+            role: "host",
+            display_name: "Hana",
+          }),
+          me,
+          recordParticipant({
+            participant_id: "p_o",
+            display_name: "Cy",
+            connected: false,
+          }),
+        ],
+      }),
+      { youId: "p_g" },
+    );
+    expect(room.find((person) => person.id === "p_o")?.presence).toBe("left");
+    expect(hostGoneMidTake(room, live, true)).toBe(false);
+  });
+
   it("is false when this page's own connection is down, whatever the stale snapshot says", () => {
     expect(
       hostGoneMidTake(

@@ -185,6 +185,44 @@ describe("RecordDock", () => {
       act(() => leave.click());
       expect(onLeave).not.toHaveBeenCalled();
     });
+
+    it("keeps the confirm window open until 5 s after the first press", () => {
+      vi.useFakeTimers();
+      const onLeave = vi.fn();
+      render(
+        <RecordDock
+          seat="guest"
+          dock={{ kind: "controls", leaveWarning: warning, leaveConfirm: true }}
+          onLeave={onLeave}
+        />,
+      );
+      const leave = screen.getByRole("button", { name: "Leave room" });
+      act(() => leave.click());
+      act(() => {
+        vi.advanceTimersByTime(4900);
+      });
+      act(() => leave.click());
+      expect(onLeave).toHaveBeenCalledOnce();
+    });
+
+    it("closes the confirm window once 5 s have passed", () => {
+      vi.useFakeTimers();
+      const onLeave = vi.fn();
+      render(
+        <RecordDock
+          seat="guest"
+          dock={{ kind: "controls", leaveWarning: warning, leaveConfirm: true }}
+          onLeave={onLeave}
+        />,
+      );
+      const leave = screen.getByRole("button", { name: "Leave room" });
+      act(() => leave.click());
+      act(() => {
+        vi.advanceTimersByTime(5000);
+      });
+      act(() => leave.click());
+      expect(onLeave).not.toHaveBeenCalled();
+    });
   });
 
   describe("a held Leave", () => {
