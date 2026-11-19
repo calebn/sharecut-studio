@@ -2716,6 +2716,7 @@ def test_join_never_slips_an_observer_frame_after_the_producer_snapshot(
 ):
     import asyncio
     import threading
+    from types import SimpleNamespace
 
     from podcast_mcp.gui.routes import record_share
     from podcast_mcp.gui.routes.guest_ws_common import GuestWsGuard
@@ -2744,15 +2745,7 @@ def test_join_never_slips_an_observer_frame_after_the_producer_snapshot(
                 settle("lock")
             return await super().acquire()
 
-    class AsyncioWithSpyLock:
-        Lock = SpyLock
-
-        def __getattr__(self, name):
-            return getattr(asyncio, name)
-
     def join_with_an_event_in_flight(self, **kwargs):
-        # An event is published while the Join is still running. A pump that does not wait for
-        # the Join reads the invite (it has not joined yet); real code waits on the send lock.
         in_join.add(threading.get_ident())
         join_running.set()
         try:
@@ -2765,8 +2758,8 @@ def test_join_never_slips_an_observer_frame_after_the_producer_snapshot(
                     "snapshot": self.snapshot(),
                 },
             )
-            # The pump either queues behind the Join's send lock (real code) or reads the invite
-            # without it. Waiting for whichever happens is a hang guard, never a window.
+            # Real code queues the pump behind the Join's send lock; a pump that ignores the lock
+            # reads the invite before the Join lands. Either settles the wait, so it only bounds a hang.
             assert pump_settled.wait(5.0), "the pump never reached the room event"
             return original(self, **kwargs)
         finally:
@@ -2790,7 +2783,9 @@ def test_join_never_slips_an_observer_frame_after_the_producer_snapshot(
     monkeypatch.setattr(RecordSessionService, "join", join_with_an_event_in_flight)
     monkeypatch.setattr(RecordSessionService, "invite_closed", invite_closed_seen)
     monkeypatch.setattr(GuestWsGuard, "send_json", send_json_held)
-    monkeypatch.setattr(record_share, "asyncio", AsyncioWithSpyLock())
+    monkeypatch.setattr(
+        record_share, "asyncio", SimpleNamespace(**{**vars(asyncio), "Lock": SpyLock})
+    )
     with _observe(client, room) as obs:
         obs.receive_json()
         armed.set()
@@ -2985,26 +2980,46 @@ def test_watchers_stay_out_of_the_log_saved_data_and_agent_views(
 def test_the_host_socket_record_plane_carries_the_watcher_count(
     minimal_project, sample_wav, tmp_workspace, monkeypatch
 ):
+    import queue
+    import threading
     from urllib.parse import quote
 
     ws, room, client = _room(minimal_project, sample_wav, tmp_workspace, monkeypatch)
     wait_for_count = _watchers_waiter(_room_svc(ws, room), monkeypatch)
-
-    def record_view(frame):
-        return frame.get("plane") == "record" and frame.get("type") in ("Snapshot", "Applied")
-
     url = f"/api/host/ws?path={quote(str(ws.path))}&client_id=owner&document_client_id=doc-owner"
+
+    def await_watchers(host_frames: queue.Queue, count: int) -> None:
+        while True:
+            try:
+                frame = host_frames.get(timeout=5.0)
+            except queue.Empty:
+                raise AssertionError(f"no host record frame carried watchers == {count}") from None
+            is_record_view = frame.get("plane") == "record" and frame.get("type") in (
+                "Snapshot",
+                "Applied",
+            )
+            if is_record_view and frame["snapshot"].get("watchers") == count:
+                return
+
     with _observe(client, room) as obs:
         assert obs.receive_json()["snapshot"]["watchers"] == 1
         with client.websocket_connect(url) as host:
-            attach = _drain_until(host, record_view, n=40)
-            assert attach["snapshot"]["watchers"] == 1
+            host_frames: queue.Queue = queue.Queue()
+
+            def read_host() -> None:
+                try:
+                    while True:
+                        host_frames.put(host.receive_json())
+                except Exception:
+                    return
+
+            # receive_json has no timeout, so a socket that never sends the frame would hang
+            # the test; reading on a thread lets the assertions above bound each wait.
+            threading.Thread(target=read_host, daemon=True).start()
+            await_watchers(host_frames, 1)
             obs.close()
             wait_for_count(0)
-            gone = _drain_until(
-                host, lambda m: record_view(m) and m["snapshot"].get("watchers") == 0, n=40
-            )
-            assert gone["snapshot"]["watchers"] == 0
+            await_watchers(host_frames, 0)
 
 
 def test_observer_is_never_sent_a_frame_built_before_it_was_counted(
