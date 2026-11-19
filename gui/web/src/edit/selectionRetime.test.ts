@@ -66,6 +66,21 @@ describe("retimedInPlace", () => {
     ).toBe(false);
   });
 
+  it("is true when a start moved by half a millisecond", () => {
+    expect(retimedInPlace(before, edited({ 1: { start: 1.0005 } }), 1, 2)).toBe(
+      true,
+    );
+  });
+
+  it("is false for a shift below a microsecond and true for one above two", () => {
+    expect(
+      retimedInPlace(before, edited({ 1: { start: 1 + 5e-7 } }), 1, 2),
+    ).toBe(false);
+    expect(
+      retimedInPlace(before, edited({ 1: { start: 1 + 2e-6 } }), 1, 2),
+    ).toBe(true);
+  });
+
   it("is false when the word count differs", () => {
     expect(retimedInPlace(before, model(BASE.slice(0, 3)), 1, 2)).toBe(false);
   });
@@ -284,6 +299,30 @@ describe("retimedInPlace", () => {
         { text: "b", start: 2.0 },
       ]);
       expect(retimedInPlace(was, now, 0, 0)).toBe(false);
+    });
+
+    it("is true when the twin starts earlier than the old start by more than the move", () => {
+      const was = model([
+        { text: "b", start: -9 },
+        { text: "b", start: 1 },
+      ]);
+      const now = model([
+        { text: "b", start: -9 },
+        { text: "b", start: 1.5 },
+      ]);
+      expect(retimedInPlace(was, now, 1, 1)).toBe(true);
+    });
+
+    it("judges a twin by where it sits after the edit when both were retimed", () => {
+      const was = model([
+        { text: "b", start: 1 },
+        { text: "b", start: 9 },
+      ]);
+      const now = model([
+        { text: "b", start: 1.5 },
+        { text: "b", start: 1.1 },
+      ]);
+      expect(retimedInPlace(was, now, 0, 1)).toBe(false);
     });
 
     it("is true when the twin is just beyond the distance the word moved", () => {
