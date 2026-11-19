@@ -540,6 +540,57 @@ describe("guestRoomAlerts", () => {
     ).toEqual([]);
   });
 
+  describe("while this page is offline", () => {
+    const offline = {
+      ...source,
+      uploadError: "Network error",
+      phase: { kind: "reconnecting" as const, paused: false, clockSec: 43 },
+    };
+    const kinds = (input: Parameters<typeof guestRoomAlerts>[0]) =>
+      guestRoomAlerts(input).map((alert) => alert.kind);
+
+    it("shows only the connection alert on a take the guest is in", () => {
+      expect(kinds(offline)).toEqual(["connection-lost"]);
+    });
+
+    it("brings the upload failure back once the page is connected again", () => {
+      expect(kinds({ ...offline, phase: source.phase })).toEqual([
+        "saving-failed",
+      ]);
+    });
+
+    it("keeps the upload failure on a paused take, where no connection alert is raised", () => {
+      expect(
+        kinds({
+          ...offline,
+          state: "paused",
+          phase: { kind: "reconnecting", paused: true },
+        }),
+      ).toEqual(["saving-failed"]);
+    });
+
+    it("keeps the upload failure for a guest who is on air but not in the take", () => {
+      expect(kinds({ ...offline, inTake: false })).toEqual(["saving-failed"]);
+    });
+
+    it("keeps the upload failure after Stop", () => {
+      expect(
+        kinds({
+          ...offline,
+          state: "stopped",
+          phase: { kind: "saving", savedPeople: 0, totalPeople: 1 },
+        }),
+      ).toEqual(["saving-failed"]);
+    });
+
+    it("keeps the other alerts beside the connection alert", () => {
+      expect(kinds({ ...offline, micLost: true })).toEqual([
+        "mic-lost",
+        "connection-lost",
+      ]);
+    });
+  });
+
   it("a dropped socket raises no connection alert for a guest outside the take", () => {
     expect(
       guestRoomAlerts({
@@ -582,6 +633,17 @@ describe("ownSaving", () => {
     });
     expect(ownSaving(upload({ total: 4, fileAck: true }), 0)).toBe("saved");
     expect(ownSaving(upload({ total: 4, error: "x" }), 0)).toBe("failed");
+    expect(ownSaving(upload({ total: 4, error: "x" }), 0, false, true)).toEqual(
+      { done: 0, total: 4 },
+    );
+    expect(
+      ownSaving(
+        upload({ total: 4, fileAck: true, seenSegments: 1 }),
+        1,
+        false,
+        true,
+      ),
+    ).toBe("saved");
   });
 
   it("does not call an acknowledged take saved while the device count is unknown", () => {

@@ -39,6 +39,7 @@ import {
   joinMic,
   ownSaving,
   tookPart,
+  uploadAcknowledged,
   uploadInFlight,
 } from "./guestRoomModel";
 import { guestTabTitle } from "./guestTabTitle";
@@ -345,7 +346,12 @@ function GuestRoomSession({
       keeperError: keeper.error,
       micLost: micNeedsAttention,
       sinkError: sheetOpen || producer ? null : sinkError,
-      uploadError: producer || recoverable ? null : upload.error,
+      uploadError:
+        producer ||
+        recoverable ||
+        uploadAcknowledged(upload, room.localSegments)
+          ? null
+          : upload.error,
       savingUnverified:
         !producer &&
         state === "stopped" &&
@@ -409,7 +415,12 @@ function GuestRoomSession({
     saving:
       meId && state === "stopped" && !producer
         ? {
-            [meId]: ownSaving(upload, room.localSegments, room.localUnreadable),
+            [meId]: ownSaving(
+              upload,
+              room.localSegments,
+              room.localUnreadable,
+              inTake && phase.kind === "reconnecting" && !phase.paused,
+            ),
           }
         : undefined,
   });

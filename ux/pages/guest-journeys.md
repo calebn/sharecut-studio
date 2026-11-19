@@ -394,7 +394,7 @@ flowchart TD
    **Done**, which leaves the room. A screen
    reader hears each segment start and finish politely, not each chunk; the guest
    room shows no chunk counts. For an incomplete or stalled take the alerts offer
-   **Resume saving** and **Save a copy** ("Saving stopped."), or **Finish saving**
+   **Resume saving** and **Save a copy** ("Saving stopped.", which a dropped connection mid-take does not raise while its own alert shows, and never raises for a saved guest), or **Finish saving**
    ("We found part of your recording."). The host's Record stage shows "Saving to
    project…" then "Saved to project" for every recorded participant and segment.
    Download produces one ZIP containing all
