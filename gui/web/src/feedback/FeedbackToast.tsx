@@ -7,6 +7,7 @@ import {
   runsAfterSaveCopy,
   useWaitingMove,
 } from "../commands/undoWait";
+import { STAGE_BODY_ID } from "../stage/frame/StageFrameView";
 import { useDawStore } from "../state/dawStore";
 import type { ReverseAction } from "../state/types";
 import { useDaw } from "../state/useDaw";
@@ -116,7 +117,10 @@ export function FeedbackToast({ host = null }: { host?: HTMLElement | null }) {
     const focused = portal.querySelector<HTMLElement>(
       `[${FEEDBACK_FOCUS_ATTRIBUTE}]`,
     );
-    (host ?? document.body).append(portal);
+    // Before the stage body, so Tab reaches Dismiss in the first few stops; the region is fixed, so nothing moves on screen.
+    const body = host ? null : document.getElementById(STAGE_BODY_ID);
+    if (body?.parentNode) body.before(portal);
+    else (host ?? document.body).append(portal);
     returnFocusRef.current = focused ? currentSheetClose(host) : null;
     if (!modalOpen() && isValidFeedbackAction(focused)) {
       focused.focus({ preventScroll: true });

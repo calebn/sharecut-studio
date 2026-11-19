@@ -193,7 +193,13 @@ There are three overlay primitives.
    protection priority when a clear position fits (`feedback/toastDock.ts`,
    #2199, #2221). If no clear position fits, the existing fallback can cover a
    control. See [Feedback toast](gui-mobile.md#feedback-toast) for the measured
-   320x300 limit and the Dismiss or resize workaround.
+   320x300 limit and the Dismiss or resize workaround. The toast region sits
+   before the stage body in the page, so Tab reaches its Dismiss in the first
+   stops after the header (it is fixed-position, so nothing moves on screen).
+   Escape dismisses the newest message when focus is outside a field and there
+   is no selection or followed person to end first (`feedback.dismiss`, last in
+   the Escape order), and Escape with focus inside the card dismisses it and
+   returns focus.
    Export (Deliver and in place) reserves result ownership before their start POST. Generic
    success waits only on the original potentially matching starts. Exact-ID
    binding replaces that generic candidate with an owned follow; only a verified

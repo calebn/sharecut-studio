@@ -205,6 +205,17 @@ function ToastCard({
       }
     };
   }, [returnFocusRef]);
+  useEffect(() => {
+    const el = cardRef.current;
+    if (!el) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      event.stopPropagation();
+      dismiss();
+    };
+    el.addEventListener("keydown", onKeyDown);
+    return () => el.removeEventListener("keydown", onKeyDown);
+  }, []);
   const onPointerEnter = (event: PointerEvent<HTMLDivElement>) => {
     if (pointerKindFromPointerType(event.pointerType) !== "coarse")
       setHovered(true);

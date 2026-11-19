@@ -54,6 +54,7 @@ const WHEN_HINTS: Record<string, string> = {
   canFixText: "Host or an editor link, words loaded",
   hostProjectLoaded: "Loaded host project",
   following: "While following another client",
+  toastShown: "A message is showing",
 };
 
 const MARKER_START = "<!-- keymap-cheatsheet:generated -->";

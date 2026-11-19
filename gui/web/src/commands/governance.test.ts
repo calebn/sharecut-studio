@@ -43,6 +43,10 @@ const MANIFEST_CAPABILITIES: ManifestCapability[] = JSON.parse(
 /** Allowlisted non-bus keydown sites (component Escape / a11y widgets). */
 const KEYDOWN_LISTENER_ALLOWLIST = new Set([
   "keymap/listener.ts",
+  // Escape with focus inside the message card dismisses it before the keymap's Escape order (selection, Follow) can act on something else.
+  "ui/Toast.tsx",
+  // The same window-level listener, to prove the Escape a focused message card handles never reaches the keymap.
+  "ui/Toast.test.tsx",
   // A clip drag in progress takes Escape from the document, wherever focus is, so the cancel does not depend on the clip holding focus.
   "system/Clip.tsx",
   "timeline/ClipBlock.tsx",
@@ -82,6 +86,8 @@ const KEYDOWN_LISTENER_ALLOWLIST = new Set([
 ]);
 
 const ON_KEY_DOWN_ALLOWLIST = new Set([
+  // Escape with focus inside the message card dismisses it.
+  "ui/Toast.tsx",
   // Escape closes the online-sharing popover on a Link row, and nothing under it.
   "system/ReachGlyph.tsx",
   // The ARIA tablist pattern: arrows, Home and End move among the tabs.

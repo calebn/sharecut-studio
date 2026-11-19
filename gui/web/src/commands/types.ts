@@ -49,6 +49,7 @@ export type ContextPredicateId =
   | "hasInspectorSelection"
   | "afterCutActive"
   | "following"
+  | "toastShown"
   | "recordStageActive"
   | "roomTakeIdle"
   | "roomTakeLive"

@@ -51,6 +51,10 @@ export const CAPABILITY_COPY: Record<string, CapabilityCopy> = {
     label: "Clear selection",
     tooltip: "Clear selection",
   },
+  "daw.feedback.dismiss": {
+    label: "Dismiss message",
+    tooltip: "Dismiss the newest message",
+  },
   "daw.edit.nextOccurrence": {
     label: "Next occurrence",
     tooltip: "Jump to the next place you said the same words",

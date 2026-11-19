@@ -103,6 +103,7 @@ Open the in-app cheatsheet with **?** while ShareCut Studio is focused.
 
 | Shortcut | Command | When | Notes |
 |----------|---------|------|-------|
+| `Escape` | Dismiss message (`feedback.dismiss`) | A message is showing | After the selection and Follow: Esc dismisses the newest message when focus is not in a field |
 | `C` | Record marker (`record.marker`) | recordStageActive | C on the Record stage: live marker; elsewhere C comments — C drops a marker only on the Record stage; otherwise C comments |
 | `M` | Mute your mic in the room (`room.mute`) | roomKeysActive | M mutes your mic while a room is open; otherwise M mutes |
 | `R` | Record (`room.take`) | roomTakeIdle | R starts a take; hold R to stop it |

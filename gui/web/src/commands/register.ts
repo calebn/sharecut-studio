@@ -10,6 +10,7 @@ import {
 } from "./editing";
 import { registerEditVerbCommands } from "./editVerbs";
 import { registerEnvelopeCommands } from "./envelopes";
+import { registerFeedbackCommands } from "./feedbackToast";
 import { registerHistoryCommands } from "./history";
 import { registerHostCommands } from "./host";
 import { registerNavigationCommands } from "./navigation";
@@ -58,5 +59,6 @@ export function registerDawCommands(): void {
   registerTranscriptWordCommands();
   registerChapterCommands();
   registerEnvelopeCommands();
+  registerFeedbackCommands();
   registerCommentCommands();
 }

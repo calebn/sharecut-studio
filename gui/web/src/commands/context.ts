@@ -79,6 +79,7 @@ export type CommandContext = {
   afterCutActive: boolean;
   suggestionSelected: boolean;
   following: boolean;
+  toastShown: boolean;
   recordStageActive: boolean;
   roomKeys: RoomKeyHandlers | null;
 };
@@ -207,6 +208,7 @@ export function buildCommandContext(
     afterCutActive: afterCutActive(s, key?.shiftKey ? "prev" : "next"),
     suggestionSelected: selection?.kind === "pending",
     following: s.followingClientId != null,
+    toastShown: s.feedbackToast !== null,
     recordStageActive: s.stage === "record",
     roomKeys: roomKeys(),
   };
@@ -441,6 +443,10 @@ export function evaluateWhen(
       return ctx.following
         ? { ok: true }
         : { ok: false, reason: "Not following" };
+    case "toastShown":
+      return ctx.toastShown
+        ? { ok: true }
+        : { ok: false, reason: "No message to dismiss" };
     case "recordStageActive":
       return ctx.recordStageActive
         ? { ok: true }
@@ -541,6 +547,7 @@ export function gateNeverRuns(
     case "hasInspectorSelection":
     case "afterCutActive":
     case "following":
+    case "toastShown":
       return false;
     default: {
       const unclassified: never = when;

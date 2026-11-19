@@ -48,6 +48,18 @@ describe("Toast", () => {
     expect(onDismiss).not.toHaveBeenCalled();
   });
 
+  it("dismisses on Escape with focus inside the card, and keeps the key from the page", async () => {
+    const onDismiss = vi.fn();
+    const onWindowKey = vi.fn();
+    window.addEventListener("keydown", onWindowKey);
+    render(<Toast toast={{ id: 1, message: "Cut" }} onDismiss={onDismiss} />);
+    screen.getByRole("button", { name: "Dismiss" }).focus();
+    await userEvent.keyboard("{Escape}");
+    window.removeEventListener("keydown", onWindowKey);
+    expect(onDismiss).toHaveBeenCalledOnce();
+    expect(onWindowKey).not.toHaveBeenCalled();
+  });
+
   it("shows no action without a handler", () => {
     render(
       <Toast

@@ -275,7 +275,7 @@ describe("keymap registry", () => {
       matchKeymapCommands(keyEvent({ key: "Escape", code: "Escape" })).map(
         (c) => c.id,
       ),
-    ).toEqual(["edit.clearSelection", "presence.unfollow"]);
+    ).toEqual(["edit.clearSelection", "presence.unfollow", "feedback.dismiss"]);
     expect(matchKeymapCommand(keyEvent({ key: "m", code: "KeyM" }))?.id).toBe(
       "room.mute",
     );

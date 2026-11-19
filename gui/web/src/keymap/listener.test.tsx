@@ -700,6 +700,46 @@ it.each([
   },
 );
 
+describe("Escape and the message", () => {
+  beforeEach(() => {
+    render(<KeymapHost />);
+    useDawStore.setState({ selection: null, followingClientId: null });
+    useDawStore.getState().announceStatus("Saved");
+  });
+
+  it("dismisses the newest message when nothing is selected or followed", async () => {
+    expect(await press(document.body, { key: "Escape" })).toEqual([
+      "feedback.dismiss",
+    ]);
+  });
+
+  it("clears a selection first, and leaves the message for the next press", async () => {
+    useDawStore.setState({ selection: { kind: "track", trackId: "t1" } });
+    expect(await press(document.body, { key: "Escape" })).toEqual([
+      "edit.clearSelection",
+    ]);
+  });
+
+  it("stops following before it dismisses the message", async () => {
+    useDawStore.setState({ followingClientId: "peer" });
+    expect(await press(document.body, { key: "Escape" })).toEqual([
+      "presence.unfollow",
+    ]);
+  });
+
+  it("runs nothing with no message up", async () => {
+    useDawStore.setState({ feedbackToast: null });
+    expect(await press(document.body, { key: "Escape" })).toEqual([]);
+  });
+
+  it("does nothing in a text field", async () => {
+    const field = document.createElement("textarea");
+    document.body.append(field);
+    expect(await press(field, { key: "Escape" })).toEqual([]);
+    field.remove();
+  });
+});
+
 describe("Q focuses the Review composer", () => {
   let focused: ReturnType<typeof vi.fn<() => boolean>>;
   let release: () => void;

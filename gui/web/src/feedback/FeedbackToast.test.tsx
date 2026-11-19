@@ -8,6 +8,7 @@ import {
   registerHistoryCommands,
 } from "../commands/history";
 import { activateDocumentScope } from "../document/authorityState";
+import { STAGE_BODY_ID } from "../stage/frame/StageFrameView";
 import { useDawStore } from "../state/dawStore";
 import {
   noteSaveLanded,
@@ -164,6 +165,25 @@ describe("FeedbackToast", () => {
     expect(close).toBeVisible();
     return { dialog, close };
   }
+
+  it("sits before the stage body in the page, so Tab reaches Dismiss early", () => {
+    const body = document.createElement("main");
+    body.id = STAGE_BODY_ID;
+    document.body.append(body);
+    render(<FeedbackToast />);
+    const region = screen.getByRole("region", { name: "Status messages" });
+    expect(region.nextElementSibling).toBe(body);
+  });
+
+  it("stays inside a host it is given", () => {
+    const body = document.createElement("main");
+    body.id = STAGE_BODY_ID;
+    document.body.append(body);
+    const { host } = compactHost();
+    render(<FeedbackToast host={host} />);
+    const region = screen.getByRole("region", { name: "Status messages" });
+    expect(host.contains(region)).toBe(true);
+  });
 
   it.each(["card", "phone"] as const)(
     "returns invalidated focused Undo to the actual current %s Inspector Close",
