@@ -489,7 +489,7 @@ test.describe("the first-visit role hint is said once", () => {
 test.describe("the first-visit role hint on a saved copy", () => {
   for (const size of [PHONE, DESKTOP]) {
     for (const role of ["commenter", "editor"] as const) {
-      test(`shows a ${role} link opened without a connection no hint, and its own once the connection is back at ${size.width}x${size.height}`, async ({
+      test(`shows a ${role} link opened without a connection no role chip and no hint, and its own once the connection is back at ${size.width}x${size.height}`, async ({
         browser,
       }) => {
         await withGuestLinks(browser, async (links) => {
@@ -503,7 +503,14 @@ test.describe("the first-visit role hint on a saved copy", () => {
             await expect(guest.locator(".stage-frame--guest")).toBeVisible();
             await expect(
               guest.getByRole("button", { name: /^Explain .* role$/ }),
-            ).toBeVisible();
+              "the saved copy does not know the link's role, so it has no role button",
+            ).toHaveCount(0);
+            await expect(
+              guest.getByRole("img", {
+                name: /^(Editor|Commenter|Viewer): can /,
+              }),
+              "the saved copy does not know the link's role, so it has no role chip",
+            ).toHaveCount(0);
             await expect(guest.getByRole("alert").first()).toContainText(
               /offline/i,
             );
