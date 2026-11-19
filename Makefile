@@ -92,9 +92,11 @@ ios-release-rehearsal:
 
 ios-ffmpeg-device:
 	./scripts/ios/build_ffmpeg.sh device
+	uv run python scripts/ios/ffmpeg_framework.py assemble
 
 ios-ffmpeg-sim:
 	./scripts/ios/build_ffmpeg.sh sim
+	uv run python scripts/ios/ffmpeg_framework.py assemble
 
 ios-ffmpeg: ios-ffmpeg-device ios-ffmpeg-sim
 

@@ -86,14 +86,14 @@ def test_windows_row() -> None:
     }
 
 
-def test_ios_row_shares_the_darwin_kernel_and_loses_every_desktop_capability() -> None:
+def test_ios_row_shares_the_darwin_kernel_runs_media_tools_in_process_and_loses_the_rest() -> None:
     assert _fields(IOS) == {
         "name": "ios",
         "kernel": "darwin",
         "system_label": "iOS",
         "can_spawn_processes": False,
         "loopback_is_trusted": False,
-        "media_tools": "unavailable",
+        "media_tools": "in_process",
         "transcription": "unavailable",
         "file_dialog": None,
         "reveal_tool": None,

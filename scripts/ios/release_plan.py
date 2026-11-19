@@ -230,6 +230,27 @@ def plan_build(
                     tool_outcome,
                 )
             )
+    # The project's pre-build guard needs FFmpeg.xcframework, so it is built before the archive.
+    steps.append(
+        Run(
+            "ffmpeg build",
+            Command(("./scripts/ios/build_ffmpeg.sh", "device"), layout.root, bare),
+            False,
+            tool_outcome,
+        )
+    )
+    steps.append(
+        Run(
+            "ffmpeg xcframework",
+            Command(
+                ("uv", "run", "python", "scripts/ios/ffmpeg_framework.py", "assemble"),
+                layout.root,
+                bare,
+            ),
+            False,
+            tool_outcome,
+        )
+    )
     steps.append(
         Run(
             "device payload",

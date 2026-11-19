@@ -322,8 +322,8 @@ def component_status(*, whisper_model: str | None = None) -> dict[str, Any]:
     out: dict[str, Any] = {}
     try:
         from podcast_mcp.util.binaries import (
-            IN_PROCESS_NOT_LINKED,
             FFmpegPairResolutionError,
+            in_process_problem,
             resolve_ffmpeg_pair,
         )
 
@@ -331,10 +331,11 @@ def component_status(*, whisper_model: str | None = None) -> dict[str, Any]:
         path = pair.ffmpeg
         ok = pair.is_available()
         if pair.is_in_process:
+            problem = in_process_problem()
             out["ffmpeg"] = {
                 "state": "installed" if ok else "missing",
                 "source": "in_process",
-                **({} if ok else {"hint": IN_PROCESS_NOT_LINKED}),
+                **({} if problem is None else {"hint": problem}),
             }
         else:
             out["ffmpeg"] = {

@@ -359,16 +359,89 @@ def fake_nm(text: str, seen: list[tuple[Path, list[str]]] | None = None) -> chec
     return run
 
 
+FFMPEG_PRIVACY = "Frameworks/FFmpeg.framework/PrivacyInfo.xcprivacy"
+
+
 def ffmpeg_app(tmp_path: Path, body: bytes = b"") -> Path:
-    return make_app(tmp_path, {"Frameworks/FFmpeg.framework/FFmpeg": MACHO + body})
+    return make_app(
+        tmp_path,
+        {
+            "Frameworks/FFmpeg.framework/FFmpeg": MACHO + body,
+            FFMPEG_PRIVACY: plistlib.dumps({"NSPrivacyTracking": False}),
+        },
+    )
 
 
-def test_the_ffmpeg_check_is_a_no_op_until_the_framework_is_embedded(tmp_path: Path) -> None:
-    assert checks.FFMPEG_EMBEDDED is False
+def test_the_ffmpeg_framework_is_embedded() -> None:
+    assert checks.FFMPEG_EMBEDDED is True
+
+
+def test_flag_off_and_no_framework_is_not_embedded_and_passes(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(checks, "FFMPEG_EMBEDDED", False)
     app = make_app(tmp_path, {"ShareCut": MACHO})
     report = checks.check_ffmpeg_framework(app, fake_nm("nothing"))
     assert report.ok and report.name == "ffmpeg framework"
-    assert report.facts == {"status": "not embedded yet"}
+    assert report.facts == {"status": "not embedded"}
+
+
+def test_flag_off_with_a_framework_present_fails(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(checks, "FFMPEG_EMBEDDED", False)
+    report = checks.check_ffmpeg_framework(ffmpeg_app(tmp_path), fake_nm(FFMPEG_NM))
+    assert not report.ok
+    assert any("is in the bundle but FFMPEG_EMBEDDED is False" in p for p in report.problems)
+
+
+def test_flag_off_with_an_empty_framework_folder_fails(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(checks, "FFMPEG_EMBEDDED", False)
+    app = make_app(tmp_path, {"ShareCut": MACHO})
+    (app / checks.FFMPEG_BINARY.parent).mkdir(parents=True)
+    report = checks.check_ffmpeg_framework(app, fake_nm("nothing"))
+    assert any("FFMPEG_EMBEDDED is False" in p for p in report.problems)
+
+
+def test_flag_off_with_a_symlinked_framework_fails(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(checks, "FFMPEG_EMBEDDED", False)
+    app = make_app(tmp_path, {"ShareCut": MACHO})
+    (app / "Frameworks").mkdir()
+    (app / checks.FFMPEG_BINARY.parent).symlink_to("nowhere")
+    report = checks.check_ffmpeg_framework(app, fake_nm("nothing"))
+    assert any("FFMPEG_EMBEDDED is False" in p for p in report.problems)
+
+
+def test_flag_on_with_no_framework_fails(tmp_path: Path) -> None:
+    app = make_app(tmp_path, {"ShareCut": MACHO})
+    report = checks.check_ffmpeg_framework(app, fake_nm(FFMPEG_NM))
+    assert report.problems == ("Frameworks/FFmpeg.framework/FFmpeg is missing",)
+
+
+def test_flag_on_with_a_framework_that_exports_the_wrong_names_fails(tmp_path: Path) -> None:
+    report = checks.check_ffmpeg_framework(ffmpeg_app(tmp_path), fake_nm("_av_log\n"))
+    assert any("does not export sc_ffmpeg_abi_version" in p for p in report.problems)
+    assert any("unexpected av_log" in p for p in report.problems)
+
+
+def test_the_framework_must_carry_its_own_privacy_manifest(tmp_path: Path) -> None:
+    app = ffmpeg_app(tmp_path)
+    assert checks.check_ffmpeg_framework(app, fake_nm(FFMPEG_NM)).ok
+    (app / FFMPEG_PRIVACY).unlink()
+    report = checks.check_ffmpeg_framework(app, fake_nm(FFMPEG_NM))
+    assert report.problems == (f"{FFMPEG_PRIVACY} is missing",)
+
+
+@pytest.mark.parametrize("body", [b"not a plist", b"<plist><dict>"])
+def test_a_privacy_manifest_that_is_not_a_plist_fails(tmp_path: Path, body: bytes) -> None:
+    app = ffmpeg_app(tmp_path)
+    (app / FFMPEG_PRIVACY).write_bytes(body)
+    report = checks.check_ffmpeg_framework(app, fake_nm(FFMPEG_NM))
+    assert report.problems == (f"{FFMPEG_PRIVACY} is not a property list",)
 
 
 def test_exported_symbols_asks_nm_for_defined_globals_and_drops_the_underscore(
@@ -495,3 +568,19 @@ def test_imported_symbols_takes_a_runner(tmp_path: Path) -> None:
         "ShareCut": frozenset({"_stat"})
     }
     assert seen[0][1] == ["-u", "-j"]
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        b'<?xml version="1.0" encoding="x-bogus"?><plist version="1.0"><dict/></plist>',
+        b"bplist00\x00",
+    ],
+)
+def test_a_privacy_manifest_with_a_hostile_encoding_is_one_problem_not_a_traceback(
+    tmp_path: Path, body: bytes
+) -> None:
+    app = ffmpeg_app(tmp_path)
+    (app / FFMPEG_PRIVACY).write_bytes(body)
+    report = checks.check_ffmpeg_framework(app, fake_nm(FFMPEG_NM))
+    assert report.problems == (f"{FFMPEG_PRIVACY} is not a property list",)

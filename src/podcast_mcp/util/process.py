@@ -302,6 +302,12 @@ def using_in_process_backend(backend: InProcessBackend) -> Iterator[None]:
             _in_process_backend = None
 
 
+def in_process_backend_installed() -> bool:
+    """Whether an in-process backend is installed right now."""
+    with _runner_lock:
+        return _in_process_backend is not None
+
+
 _PIPES_OUT = ("stdout", "stderr")
 
 

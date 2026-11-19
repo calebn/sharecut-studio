@@ -98,6 +98,7 @@ targets:
         LIBRARY_SEARCH_PATHS[arch=arm64]: $(inherited) $(PROJECT_DIR)/Externals/arm64/$(CONFIGURATION) $(SDKROOT)/usr/lib/swift $(DEVELOPER_DIR)/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/$(PLATFORM_NAME) $(DEVELOPER_DIR)/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift-5.0/$(PLATFORM_NAME)
         ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES: true
         EXCLUDED_ARCHS[sdk=iphoneos*]: x86_64
+        EXCLUDED_ARCHS[sdk=iphonesimulator*]: x86_64
         OTHER_LDFLAGS: ["$(inherited)", "-Wl,-export_dynamic"]
       groups: [app]
     dependencies:
@@ -109,6 +110,10 @@ targets:
       - framework: {{this}}{{/each}}{{/if}}{{#if ios-vendor-sdks}}{{~#each ios-vendor-sdks}}
       - sdk: {{prefix-path this}}{{/each}}{{/if}}
       - framework: ../../ios-payload/Python.xcframework
+        embed: true
+        codeSign: true
+        link: true
+      - framework: ../../ios-payload/FFmpeg.xcframework
         embed: true
         codeSign: true
         link: true
@@ -140,6 +145,12 @@ targets:
         discoveredDependencyFile: {{this.discovered-dependency-file}}{{/if}}
       {{~/each}}
 
+      - script: |
+          set -eu
+          # A missing or half-built FFmpeg.framework fails here, before the Rust build spends minutes.
+          python3 -I "$PROJECT_DIR/../../../../../scripts/ios/ffmpeg_framework.py" check --sdk "${PLATFORM_NAME:?}"
+        name: Check FFmpeg framework
+        basedOnDependencyAnalysis: false
       - script: |
           # A release build keeps the build machine's paths out of the Rust library.
           if [ "${CONFIGURATION:?}" = release ]; then
