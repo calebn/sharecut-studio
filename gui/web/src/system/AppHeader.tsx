@@ -124,7 +124,8 @@ function RoleHint({
   );
   if (!eligible && mode === "automatic") setMode("closed");
   const kind = guest.hint?.kind ?? "role";
-  const [shownKind, setShownKind] = useState(kind);
+  // The first-visit sentence is only offered at mount; the reminder can be raised later.
+  const [shownKind, setShownKind] = useState(eligible ? kind : "role");
   if (eligible && kind !== shownKind) {
     setShownKind(kind);
     setMode("automatic");
