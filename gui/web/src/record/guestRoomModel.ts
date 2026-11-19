@@ -482,7 +482,7 @@ function unsentRecordingCover(
     return downloadedCover(source.keeperActions, host);
   }
   const { download, recover } = source.keeperActions;
-  const offerJoinAgain = !source.localUnreadable ? joinAgain : undefined;
+  const offerJoinAgain = source.localUnreadable ? undefined : joinAgain;
   return {
     ...page,
     glyph: "door-open",
