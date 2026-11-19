@@ -334,6 +334,28 @@ def test_the_guest_mcp_undo_is_refused_with_the_same_sentence(minimal_project, s
     assert stored(minimal_project) == before
 
 
+def test_the_guest_mcp_undo_reply_carries_the_guests_own_flags(minimal_project, sample_wav):
+    token, _author = editor_link(minimal_project, sample_wav, mcp=True)
+    guest_chapter(TestClient(create_app()), token, "Mine", 1)
+
+    out = handle_mcp_jsonrpc(
+        token,
+        {
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "tools/call",
+            "params": {
+                "name": "guest_submit_document_command",
+                "arguments": {"type": "UndoHistory", "payload": history_move(minimal_project)},
+            },
+        },
+    )
+
+    history = out["result"]["structuredContent"]["snapshot"]["history"]
+    assert (history["can_undo"], history["can_redo"]) == (False, True)
+    assert chapters(minimal_project) == []
+
+
 def test_the_host_undoes_a_guest_step_as_before_and_the_entry_names_the_host(
     minimal_project, sample_wav
 ):
