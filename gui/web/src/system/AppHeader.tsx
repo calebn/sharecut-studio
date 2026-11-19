@@ -67,6 +67,8 @@ export type AppHeaderProps = {
     role?: LinkRole;
     compact?: boolean;
     hint?: {
+      /** The sentence the bubble carries: the first-visit one (the default), or the Editor's reminder that an edit is everyone's. */
+      kind?: "role" | "stakes";
       text: string;
       shown: boolean;
       onDismiss: () => void;
@@ -121,6 +123,12 @@ function RoleHint({
     eligible ? "automatic" : "closed",
   );
   if (!eligible && mode === "automatic") setMode("closed");
+  const kind = guest.hint?.kind ?? "role";
+  const [shownKind, setShownKind] = useState(kind);
+  if (eligible && kind !== shownKind) {
+    setShownKind(kind);
+    setMode("automatic");
+  }
   const label = ROLES.find((entry) => entry.id === role)?.label ?? role;
 
   const dismissAutomatic = () => {
@@ -153,14 +161,14 @@ function RoleHint({
       dismissAutomatic();
     }
   });
-  const announced = useRef(false);
+  const announced = useRef<string | null>(null);
   const announce = useEffectEvent(() => guest.hint?.onShown?.());
   useEffect(() => {
-    if (mode !== "automatic" || announced.current) return;
-    // Once per mount, though development runs this effect twice.
-    announced.current = true;
+    if (mode !== "automatic" || announced.current === kind) return;
+    // Once per sentence, though development runs this effect twice.
+    announced.current = kind;
     announce();
-  }, [mode]);
+  }, [mode, kind]);
 
   const chip = <RoleChip access={role} compact={guest.compact} />;
   if (!guest.hint) return chip;
