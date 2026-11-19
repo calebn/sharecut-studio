@@ -1,5 +1,3 @@
-"""Cut previews name their resolved transcript without merging recordings."""
-
 from pathlib import Path
 
 import pytest

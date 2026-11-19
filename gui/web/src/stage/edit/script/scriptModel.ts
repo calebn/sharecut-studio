@@ -82,12 +82,8 @@ export function wordKey(ref: ScriptWordRef): string {
 
 function cutWordKey(ref: ScriptWordRef, text: string): string {
   const index = ref.wordIndex;
-  return JSON.stringify([
-    ref.trackId,
-    ref.sourceId,
-    index != null && index < 0 ? -1 - index : index,
-    text,
-  ]);
+  const transcriptWordIndex = index != null && index < 0 ? -1 - index : index;
+  return JSON.stringify([ref.trackId, ref.sourceId, transcriptWordIndex, text]);
 }
 
 const NO_TIME = null;
@@ -207,10 +203,6 @@ function cutWordsOf(boundary: EditBoundaryView): DraftWord[] {
 export function buildScriptModel(input: ScriptModelInput): ScriptModel {
   const pending = pendingByTrack(input.pending);
   const grouped = groupConsecutiveSpeakerTurns([...input.utterances]);
-  // A cut word the server still lists in its utterance (mappable false) is
-  // already shown at its join by the boundary, so the running text drops it.
-  // The boundary lists it as a preview at -1 - i, where i is the word's index
-  // in the utterance.
   const shownAtJoin = new Set<string>();
   // The utterance copies dropped below, by project word key, so a caller that
   // names one still finds its cut word at the join.
