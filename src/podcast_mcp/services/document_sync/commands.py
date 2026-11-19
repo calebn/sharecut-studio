@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass, field
 from typing import Any, Literal
 from uuid import uuid4
@@ -131,7 +132,11 @@ class DocumentCommand:
 
 @dataclass(frozen=True)
 class TrustedCommandContext:
-    """Origin facts that only a server-side command adapter may establish."""
+    """Origin facts that only a server-side command adapter may establish.
+
+    The host route stamps it for the host's own viewer role. The browser guest route stamps it
+    for an Editor share only.
+    """
 
     boundary_intent: CutIntent = CutIntent.PROGRAMMATIC
 
@@ -143,3 +148,14 @@ INTERACTIVE_COMMAND = TrustedCommandContext(boundary_intent=CutIntent.HUMAN_BOUN
 def command_context_for_role(role: ClientRole) -> TrustedCommandContext:
     """Only the host's own viewer role stamps a human cut; every other actor is programmatic."""
     return INTERACTIVE_COMMAND if role == "viewer" else PROGRAMMATIC_COMMAND
+
+
+def command_context_for_share(capabilities: Sequence[str] | None) -> TrustedCommandContext:
+    """An Editor share's hand edits are human like the host's; a Commenter's stay programmatic."""
+    from podcast_mcp.services.document_sync.capabilities import edit_commands_allowed
+
+    return (
+        INTERACTIVE_COMMAND
+        if edit_commands_allowed(list(capabilities or []))
+        else PROGRAMMATIC_COMMAND
+    )
