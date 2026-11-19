@@ -367,3 +367,32 @@ describe("judging a run from the numbers the store holds", () => {
     });
   });
 });
+
+describe("the inspector of a followed words selection", () => {
+  it("stays open on the moved run", () => {
+    start(snapshot());
+    useDawStore.setState({ inspectorKey: "transcriptRange" });
+    useDawStore.getState().setProject(snapshot({ removed: [1, 2] }));
+    expect(now()).toEqual({ ...PICK, startWordIndex: 4, endWordIndex: 6 });
+    expect(useDawStore.getState().inspectorKey).toBe("transcriptRange");
+  });
+
+  it("closes when the run is cleared", () => {
+    start(snapshot());
+    useDawStore.setState({ inspectorKey: "transcriptRange" });
+    useDawStore.getState().setProject(snapshot({ retime: { 7: 0.1 } }));
+    expect(now()).toBeNull();
+    expect(useDawStore.getState().inspectorKey).toBeNull();
+  });
+});
+
+describe("a words selection with no project in the store", () => {
+  it("is left as it is when a project arrives", () => {
+    const stored = start(snapshot());
+    useDawStore.setState({ project: null });
+    expect(() =>
+      useDawStore.getState().setProject(snapshot({ removed: [1, 2] })),
+    ).not.toThrow();
+    expect(now()).toBe(stored);
+  });
+});
