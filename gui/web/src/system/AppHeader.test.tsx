@@ -902,6 +902,29 @@ describe("AppHeader first-visit role hint: a press and a key", () => {
   });
 });
 
+describe("AppHeader role explanation dialog", () => {
+  it.each([
+    ["viewer", "Viewer"],
+    ["commenter", "Commenter"],
+    ["editor", "Editor"],
+  ] as const)("is named %s role", async (role, label) => {
+    render(
+      <AppHeader
+        title="Episode"
+        guest={{
+          version: "v3",
+          role,
+          hint: { text: "A sentence.", shown: false, onDismiss: vi.fn() },
+        }}
+      />,
+    );
+    await userEvent.click(
+      screen.getByRole("button", { name: `Explain ${label} role` }),
+    );
+    expect(screen.getByRole("dialog", { name: `${label} role` })).toBeVisible();
+  });
+});
+
 describe("AppHeader second bubble: the Editor's reminder", () => {
   const ROLE_TEXT = "You can edit and comment. The host decides what ships.";
   const STAKES_TEXT =

@@ -433,6 +433,18 @@ describe("StageFrame roles", () => {
     expect(screen.queryByText(/The host decides/)).toBeNull();
   });
 
+  it("names the player and the stage tabs as landmarks", () => {
+    stubMatchMedia(true);
+    mount();
+    expect(
+      screen.getByRole("region", { name: "Playback controls" }),
+    ).toBeInTheDocument();
+    const stages = screen.getByRole("navigation", { name: "Stages" });
+    expect(
+      within(stages).getByRole("tablist", { name: "Stages" }),
+    ).toBeVisible();
+  });
+
   it("puts the phone tab bar under the stage on a phone", () => {
     stubMatchMedia(true);
     mount();

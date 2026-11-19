@@ -13,6 +13,15 @@ describe("MOBILE_GESTURES", () => {
     }
   });
 
+  it("says the double-tap's Fix text is open to an Editor link", () => {
+    const doubleTap = MOBILE_GESTURES.find(
+      (gesture) => gesture.gesture === "Double-tap word",
+    );
+    expect(doubleTap?.description).toBe(
+      "Open Fix text on the word (hosts and Editor links). A single tap selects the word and moves the playhead to it.",
+    );
+  });
+
   it("derives catalog action labels for shipped gestures", () => {
     const undo = MOBILE_GESTURES.find(
       (gesture) => gesture.gesture === "Two-finger tap",

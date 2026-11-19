@@ -51,7 +51,7 @@ export const MOBILE_GESTURES: readonly GestureDef[] = [
     touch: "double-tap",
     commandIds: ["transcript.editWordInline"],
     description:
-      "Open Fix text on the word (hosts). A single tap selects the word and moves the playhead to it.",
+      "Open Fix text on the word (hosts and Editor links). A single tap selects the word and moves the playhead to it.",
   },
 ];
 
