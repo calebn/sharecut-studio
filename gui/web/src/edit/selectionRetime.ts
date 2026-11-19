@@ -7,7 +7,12 @@ import {
 
 const SAME = 1e-6;
 
-function sameRef(before: SelectionModel, after: SelectionModel, at: number) {
+function sameRef(
+  before: SelectionModel,
+  after: SelectionModel,
+  at: number,
+  textFree: boolean,
+) {
   const was = before.refs[at];
   const now = after.refs[at];
   return (
@@ -16,7 +21,7 @@ function sameRef(before: SelectionModel, after: SelectionModel, at: number) {
     was.trackId === now.trackId &&
     was.sourceId === now.sourceId &&
     was.wordIndex === now.wordIndex &&
-    before.words[at]?.text === after.words[at]?.text &&
+    (textFree || before.words[at]?.text === after.words[at]?.text) &&
     (before.cut?.[at] ?? false) === (after.cut?.[at] ?? false)
   );
 }
@@ -25,14 +30,16 @@ const startOf = (model: SelectionModel, at: number) =>
   model.words[at]?.start ?? Number.NaN;
 
 /**
- * Whether the words `from..to` were retimed in place: the Script holds the
- * same words under the same numbers, recording and text, and only the source
- * start of words inside the run differs. Only each word's track, recording,
- * number and text, its cut state, and its start are compared; an end or a
- * timeline place is not. A retimed word must not now sit at or nearer to its
- * old start than an equal-text word of the same recording does, on either
- * side, so no neighbour can be taken for it. False when nothing in the run was
- * retimed.
+ * Whether the words `from..to` were changed in place: the Script holds the
+ * same words under the same numbers and recording, and only the source start
+ * or the text of words inside the run differs (a retime, a respelling, or
+ * both). Only each word's track, recording, number and text, its cut state,
+ * and its start are compared; an end or a timeline place is not. Outside the
+ * run nothing may differ in text or start. A retimed word must not now sit at
+ * or nearer to its old start than an equal-text word of the same recording
+ * does, on either side, so no neighbour can be taken for it. False when
+ * nothing in the run changed, and when the word count differs, since a
+ * correction that merges or splits words renumbers them.
  */
 export function retimedInPlace(
   before: SelectionModel,
@@ -44,19 +51,21 @@ export function retimedInPlace(
   if (after.words.length !== count || after.refs.length !== before.refs.length)
     return false;
   if (from < 0 || to < from || to >= count) return false;
-  let retimed = false;
+  let changed = false;
   for (let at = 0; at < count; at++) {
-    if (!sameRef(before, after, at)) return false;
+    const inRun = at >= from && at <= to;
+    if (!sameRef(before, after, at, inRun)) return false;
     const was = startOf(before, at);
     const now = startOf(after, at);
     if (!Number.isFinite(was) || !Number.isFinite(now)) return false;
     const moved = Math.abs(was - now) > SAME;
-    if (moved && (at < from || at > to)) return false;
+    if (moved && !inRun) return false;
+    if (before.words[at]?.text !== after.words[at]?.text) changed = true;
     if (!moved) continue;
-    retimed = true;
+    changed = true;
     if (nearerRival(after, at, was, Math.abs(now - was))) return false;
   }
-  return retimed;
+  return changed;
 }
 
 function nearerRival(

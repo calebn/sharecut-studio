@@ -118,11 +118,27 @@ describe("a words selection when one of its own words changes", () => {
     expect(now()).toBe(stored);
   });
 
-  it("clears when a retimed word is not the only change", () => {
-    start(snapshot());
+  it("keeps the run when a retimed word comes with a text correction of another word in it", () => {
+    const stored = start(snapshot());
     useDawStore
       .getState()
       .setProject(snapshot({ retime: { 7: 0.1 }, retext: { 8: "corrected" } }));
+    expect(now()).toBe(stored);
+  });
+
+  it("keeps the run when one word is both retimed and respelled", () => {
+    const stored = start(snapshot());
+    useDawStore
+      .getState()
+      .setProject(snapshot({ retime: { 8: 0.1 }, retext: { 8: "corrected" } }));
+    expect(now()).toBe(stored);
+  });
+
+  it("clears when a word before the run is respelled along with a retime in it", () => {
+    start(snapshot());
+    useDawStore
+      .getState()
+      .setProject(snapshot({ retime: { 7: 0.1 }, retext: { 2: "corrected" } }));
     expect(now()).toBeNull();
   });
 
@@ -196,12 +212,75 @@ describe("a words selection when one of its own words changes", () => {
     ["first", 6],
     ["middle", 7],
     ["last", 8],
-  ])("clears when the %s selected word's text is corrected", (_end, word) => {
+  ])(
+    "keeps the run when the %s selected word's text is corrected",
+    (_end, word) => {
+      const stored = start(snapshot());
+      useDawStore.setState({ inspectorKey: "transcriptRange" });
+      useDawStore
+        .getState()
+        .setProject(snapshot({ retext: { [word]: "corrected" } }));
+      expect(now()).toBe(stored);
+      expect(useDawStore.getState().inspectorKey).toBe("transcriptRange");
+    },
+  );
+
+  it("keeps a single selected word whose text is corrected", () => {
+    const single = { ...PICK, startWordIndex: 7, endWordIndex: 7 } as Selection;
+    useDawStore.getState().hydrate(PATH, snapshot());
+    useDawStore.getState().setSelection(single);
+    const stored = now();
+    useDawStore.getState().setProject(snapshot({ retext: { 7: "friend" } }));
+    expect(now()).toBe(stored);
+  });
+
+  it("keeps the run when several of its words are respelled at once", () => {
+    const stored = start(snapshot());
+    useDawStore
+      .getState()
+      .setProject(snapshot({ retext: { 6: "x", 7: "y", 8: "z" } }));
+    expect(now()).toBe(stored);
+  });
+
+  it("clears when a respelled run word is also cut but still listed", () => {
     start(snapshot());
     useDawStore
       .getState()
-      .setProject(snapshot({ retext: { [word]: "corrected" } }));
+      .setProject(snapshot({ retext: { 7: "corrected" }, cutAway: [7] }));
     expect(now()).toBeNull();
+  });
+
+  it("clears when a respelled run word moves to another recording", () => {
+    start(snapshot());
+    useDawStore.getState().setProject(
+      snapshot({
+        retext: { 7: "corrected" },
+        otherSource: { words: [7], sourceId: "s2" },
+      }),
+    );
+    expect(now()).toBeNull();
+  });
+
+  it("clears when a phrase correction turns two selected words into one", () => {
+    start(snapshot());
+    useDawStore
+      .getState()
+      .setProject(snapshot({ removed: [7], retext: { 6: "merged" } }));
+    expect(now()).toBeNull();
+  });
+
+  it("moves the run when a phrase correction before it turns two words into one", () => {
+    start(snapshot());
+    useDawStore
+      .getState()
+      .setProject(snapshot({ removed: [3], retext: { 2: "merged" } }));
+    expect(now()).toEqual({ ...PICK, startWordIndex: 5, endWordIndex: 7 });
+  });
+
+  it("keeps the run when only a word before it is respelled", () => {
+    start(snapshot());
+    useDawStore.getState().setProject(snapshot({ retext: { 2: "corrected" } }));
+    expect(now()).not.toBeNull();
   });
 
   it("clears when a middle selected word moves to another recording", () => {
@@ -253,12 +332,12 @@ describe("a words selection when one of its own words changes", () => {
     expect(now()).toBe(stored);
   });
 
-  it("clears when only the last copy of a straddling end word is corrected", () => {
-    start(snapshot({ straddle: 8 }));
+  it("keeps the selection when only the last copy of a straddling end word is respelled", () => {
+    const stored = start(snapshot({ straddle: 8 }));
     useDawStore
       .getState()
       .setProject(snapshot({ straddle: 8, straddleText: "corrected" }));
-    expect(now()).toBeNull();
+    expect(now()).toBe(stored);
   });
 
   it("judges the run to the last copy of an end word that straddles two utterances", () => {
@@ -484,7 +563,7 @@ describe("the inspector of a followed words selection", () => {
   it("closes when the run is cleared", () => {
     start(snapshot());
     useDawStore.setState({ inspectorKey: "transcriptRange" });
-    useDawStore.getState().setProject(snapshot({ retext: { 7: "corrected" } }));
+    useDawStore.getState().setProject(snapshot({ removed: [7] }));
     expect(now()).toBeNull();
     expect(useDawStore.getState().inspectorKey).toBeNull();
   });
@@ -580,6 +659,20 @@ describe("a words selection by the role the session holds", () => {
     const stored = start(snapshot());
     useDawStore.setState({ guestMode: "edit" });
     useDawStore.getState().setProject(snapshot({ retime: { 7: 0.1 } }));
+    expect(now()).toBe(stored);
+  });
+
+  it("keeps the selection for an editor guest when a selected word's text is corrected", () => {
+    const stored = start(snapshot());
+    useDawStore.setState({ guestMode: "edit" });
+    useDawStore.getState().setProject(snapshot({ retext: { 7: "corrected" } }));
+    expect(now()).toBe(stored);
+  });
+
+  it("is left to the guest script for review mode when a selected word's text is corrected", () => {
+    const stored = start(snapshot());
+    useDawStore.setState({ guestMode: "review" });
+    useDawStore.getState().setProject(snapshot({ retext: { 7: "corrected" } }));
     expect(now()).toBe(stored);
   });
 

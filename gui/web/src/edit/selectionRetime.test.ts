@@ -70,6 +70,11 @@ describe("retimedInPlace", () => {
     expect(retimedInPlace(before, model(BASE.slice(0, 3)), 1, 2)).toBe(false);
   });
 
+  it("is false when a word was added after the run", () => {
+    const longer = model([...BASE, { text: "e", start: 4 }]);
+    expect(retimedInPlace(before, longer, 1, 2)).toBe(false);
+  });
+
   it("is false when the run lies outside the model", () => {
     const next = edited({ 1: { start: 1.2 } });
     expect(retimedInPlace(before, next, -1, 1)).toBe(false);
@@ -78,7 +83,6 @@ describe("retimedInPlace", () => {
   });
 
   it.each([
-    ["text", { text: "x" }],
     ["track", { track: "b" }],
     ["recording", { source: "s2" }],
     ["number", { index: 9 }],
@@ -87,6 +91,79 @@ describe("retimedInPlace", () => {
     expect(
       retimedInPlace(before, edited({ 1: { start: 1.2, ...over } }), 1, 2),
     ).toBe(false);
+  });
+
+  it.each([
+    ["first", 1],
+    ["last", 2],
+  ])(
+    "is true when only the text of the %s word of the run differs",
+    (_end, at) => {
+      expect(
+        retimedInPlace(before, edited({ [at]: { text: "x" } }), 1, 2),
+      ).toBe(true);
+    },
+  );
+
+  it("is true when only the text of a middle word of the run differs", () => {
+    expect(retimedInPlace(before, edited({ 2: { text: "x" } }), 1, 3)).toBe(
+      true,
+    );
+  });
+
+  it("is true when the one word of the run differs only in text", () => {
+    expect(retimedInPlace(before, edited({ 3: { text: "x" } }), 3, 3)).toBe(
+      true,
+    );
+  });
+
+  it("is true when one word is retimed and respelled together", () => {
+    expect(
+      retimedInPlace(before, edited({ 1: { start: 1.2, text: "x" } }), 1, 2),
+    ).toBe(true);
+  });
+
+  it("is true when one word is retimed and another respelled", () => {
+    expect(
+      retimedInPlace(
+        before,
+        edited({ 1: { start: 1.2 }, 2: { text: "x" } }),
+        1,
+        2,
+      ),
+    ).toBe(true);
+  });
+
+  it.each([
+    ["track", { track: "b" }],
+    ["recording", { source: "s2" }],
+    ["number", { index: 9 }],
+    ["cut state", { cut: true }],
+  ])("is false when a respelled word also changes its %s", (_what, over) => {
+    expect(
+      retimedInPlace(before, edited({ 1: { text: "x", ...over } }), 1, 2),
+    ).toBe(false);
+  });
+
+  it("is false when a respelled run comes with a word count change", () => {
+    const merged = model([
+      { text: "a", start: 0 },
+      { text: "x", start: 1 },
+      { text: "d", start: 3 },
+    ]);
+    expect(retimedInPlace(before, merged, 1, 2)).toBe(false);
+  });
+
+  it("is false when a word before the run is respelled and none in it changed", () => {
+    expect(retimedInPlace(before, edited({ 0: { text: "x" } }), 1, 2)).toBe(
+      false,
+    );
+  });
+
+  it("is true when a respelled word reads like a twin of the same recording", () => {
+    expect(retimedInPlace(before, edited({ 1: { text: "d" } }), 1, 2)).toBe(
+      true,
+    );
   });
 
   it("is false when a word outside the run moved, before or after", () => {
@@ -274,6 +351,23 @@ describe("retimeKeeps", () => {
 
   it("keeps a run whose word moved in place", () => {
     expect(keeps(moved({ 1: { start: 1.2 } }))).toBe(true);
+  });
+
+  it("keeps a run whose word was respelled in place", () => {
+    expect(keeps(moved({ 2: { text: "x" } }))).toBe(true);
+  });
+
+  it("does not keep a respelled run whose end is cut", () => {
+    const cutBefore = model(BASE.map((w, at) => ({ ...w, cut: at === 2 })));
+    const cutAfter = model(
+      BASE.map((w, at) => ({
+        ...w,
+        cut: at === 2,
+        text: at === 2 ? "x" : w.text,
+      })),
+    );
+    const { anchor, head } = ends(cutBefore, 1, 2);
+    expect(retimeKeeps(cutBefore, cutAfter, anchor, head)).toBe(false);
   });
 
   it("does not keep when nothing moved", () => {
