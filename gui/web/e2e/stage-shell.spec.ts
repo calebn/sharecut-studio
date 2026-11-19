@@ -578,7 +578,7 @@ test.describe("Stage shell on a guest link", () => {
 });
 
 diagnosticTest(
-  "an Editor's chapter survives a normal reload-derived save and Undo/Redo restores only that chapter",
+  "an Editor's comment survives a normal reload-derived save and Undo/Redo restores only that comment",
   async ({ page, browser }) => {
     let workspaceDir = "";
     let projectPath = "";
@@ -590,8 +590,7 @@ diagnosticTest(
         cursor: number;
         entries: { id: string; author?: string | null }[];
       };
-      editorial?: { chapters?: unknown[] };
-      chapters?: unknown[];
+      review: { comments: { id: string; body: string }[] };
       render: {
         proxy_manifests?: {
           revision: string;
@@ -599,12 +598,6 @@ diagnosticTest(
           tracks: Record<string, unknown>;
         }[];
       };
-    };
-    const chaptersOf = (project: Saved) => {
-      const chapters = project.editorial?.chapters ?? project.chapters;
-      if (!Array.isArray(chapters))
-        throw new Error("Saved synthetic chapter list missing");
-      return chapters;
     };
     const read = () => {
       const bytes = fs.readFileSync(projectPath);
@@ -723,20 +716,32 @@ diagnosticTest(
         )
         .toBeGreaterThan(0);
       phase = "observe-initial-manifest";
-      const markers = guest.locator(
-        '.sys-marker[data-kind="chapter"] .sys-marker-hit',
+      const originalComments = digest(
+        JSON.stringify(read().project.review.comments),
       );
-      const originalMarkers = await markers.count();
-      const originalChapters = digest(
-        JSON.stringify(chaptersOf(read().project)),
-      );
-      phase = "add-editor-chapter";
-      await guest.locator(".clip-block").first().click({ button: "right" });
-      await guest
-        .locator(".edit-create-menu")
-        .getByRole("menuitem", { name: /Add chapter here/ })
-        .click();
-      await expect(markers).toHaveCount(originalMarkers + 1);
+      const commentBody = "Derived save authorship QA";
+      const comment = guest
+        .locator('.sys-queue-row[data-kind="comment"]')
+        .filter({ hasText: commentBody });
+      phase = "post-editor-comment";
+      await guest.getByRole("tab", { name: "Review", exact: true }).click();
+      const composer = guest.locator(".rv-compose");
+      await composer
+        .getByRole("textbox", { name: "Comment", exact: true })
+        .fill(commentBody);
+      await composer
+        .getByRole("textbox", { name: "Your name", exact: true })
+        .fill("Synthetic editor");
+      await composer.getByRole("button", { name: "Post", exact: true }).click();
+      await expect(comment).toHaveCount(1);
+      await expect
+        .poll(
+          () =>
+            read().project.review.comments.filter(
+              (row) => row.body === commentBody,
+            ).length,
+        )
+        .toBe(1);
       await expect(
         guest.getByRole("button", { name: "Undo", exact: true }),
       ).toBeEnabled();
@@ -773,20 +778,20 @@ diagnosticTest(
       expect(after.certificate === before.certificate).toBe(false);
       expect(after.history === before.history).toBe(true);
       expect(after.index === before.index).toBe(true);
-      await guest.getByRole("tab", { name: "Edit", exact: true }).click();
-      await expect(markers).toHaveCount(originalMarkers + 1);
-      phase = "undo-editor-chapter";
+      await guest.getByRole("tab", { name: "Review", exact: true }).click();
+      await expect(comment).toHaveCount(1);
+      phase = "undo-editor-comment";
       await guest.getByRole("button", { name: "Undo", exact: true }).click();
-      await expect(markers).toHaveCount(originalMarkers);
+      await expect(comment).toHaveCount(0);
       await expect
-        .poll(() => digest(JSON.stringify(chaptersOf(read().project))))
-        .toBe(originalChapters);
-      phase = "redo-editor-chapter";
+        .poll(() => digest(JSON.stringify(read().project.review.comments)))
+        .toBe(originalComments);
+      phase = "redo-editor-comment";
       await guest.getByRole("button", { name: "Redo", exact: true }).click();
-      await expect(markers).toHaveCount(originalMarkers + 1);
+      await expect(comment).toHaveCount(1);
       await expect
-        .poll(() => digest(JSON.stringify(chaptersOf(read().project))))
-        .toBe(digest(JSON.stringify(chaptersOf(before.project))));
+        .poll(() => digest(JSON.stringify(read().project.review.comments)))
+        .toBe(digest(JSON.stringify(before.project.review.comments)));
     } catch (error) {
       bodyFailed = true;
       bodyClassification = classificationOf(error);
