@@ -836,7 +836,7 @@ diagnosticTest(
       expect(after.history === before.history).toBe(true);
       expect(after.index === before.index).toBe(true);
       caseProgress("derived_checked");
-      await guest.getByRole("tab", { name: "Review", exact: true }).click();
+      await goToStage(guest, "review");
       caseProgress("review_reopened");
       await expect(comment).toHaveCount(1);
       caseProgress("comment_observed");
