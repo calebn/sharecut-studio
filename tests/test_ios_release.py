@@ -317,6 +317,8 @@ def test_the_signed_plan_archives_only_exports_and_may_touch_apple() -> None:
         "web dependencies",
         "web build",
         "desktop dependencies",
+        "ffmpeg build",
+        "ffmpeg xcframework",
         "device payload",
         "reset generated project",
         "xcode project",
@@ -354,6 +356,27 @@ def test_the_signed_plan_archives_only_exports_and_may_touch_apple() -> None:
         "destination": "export",
         "manageAppVersionAndBuildNumber": False,
     }
+
+
+def test_the_framework_is_built_and_assembled_before_the_payload_and_never_touches_apple() -> None:
+    for signing in (Signing.APP_STORE, Signing.NONE):
+        steps = steps_by_name(
+            release_plan.plan_build(build_inputs(signing), LAYOUT, NOISY, "/rustup:/usr/bin")
+        )
+        build, assemble = steps["ffmpeg build"], steps["ffmpeg xcframework"]
+        assert build.command.argv == ("./scripts/ios/build_ffmpeg.sh", "device")
+        assert assemble.command.argv == (
+            "uv",
+            "run",
+            "python",
+            "scripts/ios/ffmpeg_framework.py",
+            "assemble",
+        )
+        for step in (build, assemble):
+            assert not step.contacts_apple
+            assert step.command.cwd == LAYOUT.root
+            assert "APPLE_API_KEY" not in step.command.env
+            assert "APPLE_DEVELOPMENT_TEAM" not in step.command.env
 
 
 KEY_NAMES = ("APPLE_API_KEY", "APPLE_API_ISSUER", "APPLE_API_KEY_PATH")
@@ -1797,6 +1820,9 @@ def fake_apple(
     monkeypatch.setattr(release_plan, "privacy_check", lambda ws: checks.CheckReport("privacy"))
     monkeypatch.setattr(release_plan, "signature_check", signature)
     monkeypatch.setattr(checks, "check_layout", lambda app: checks.CheckReport("bundle layout"))
+    monkeypatch.setattr(
+        checks, "check_ffmpeg_framework", lambda app: checks.CheckReport("ffmpeg framework")
+    )
 
     ran: list[Command] = []
 
