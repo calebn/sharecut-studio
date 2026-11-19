@@ -285,3 +285,18 @@ def test_the_frozen_v0_1_2_history_opens_through_the_loader_without_authors(
     assert index is not None
     assert len(index.entries) == 6
     assert {(e.author, e.undone_by) for e in index.entries} == {(None, None)}
+
+
+def test_a_2_2_project_opens_through_plain_load_at_2_3_with_authorless_history(
+    tmp_path: Path,
+) -> None:
+    source = synthetic_old(tmp_path, "2.2")
+    before = (source / PROJECT).read_bytes()
+    project = load_project(source / PROJECT)
+    assert project.version == "2.3"
+    assert (source / PROJECT).read_bytes() == before
+    assert [(e.label, e.author, e.undone_by) for e in project.history.entries] == [
+        ("Development state 0", None, None),
+        ("Development state 1", None, None),
+        ("Development state 2", None, None),
+    ]
