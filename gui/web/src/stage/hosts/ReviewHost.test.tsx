@@ -253,9 +253,8 @@ function reply(
     ok: true,
     data: {
       history_head_id: server.head,
-      command: {
-        payload: { result: { count, held, ...extra } },
-      },
+      review_result: { count, held },
+      command: { payload: { result: extra } },
       ...(server.omitSnapshot
         ? {}
         : { snapshot: { server_seq: server.seq, project: projectOf(all) } }),
