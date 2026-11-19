@@ -1155,9 +1155,10 @@ button.sys-version-line {
    (Following, Solo, Updating mix, the Playback rate) and the status, 8 a guest's
    Comment, the Audio error pill and Retry. Hidden things keep a name and another
    home. The pills a level hides stay in the accessibility tree (hidden
-   visually, as the Status pill's text is at 40 rem). The skip buttons (4) and
-   Stop following (7) are `display: none`, so no invisible control takes focus,
-   and so is level 8, the fold: the expanded Player holds all of them. Play and
+   visually, as the Status pill's text is at 40 rem, and so is the Audio error
+   pill at level 8). The skip buttons (4), Stop following (7) and, at level 8,
+   a guest's Comment and Retry are `display: none`, so no invisible control
+   takes focus: the expanded Player holds all of them. Play and
    the clock are never given up, and a hear trigger stays: A and B where they are
    drawn (above 22 rem), else the chevron at every level. If level 8 still does
    not fit, the status text's ellipsis and the 22 and 14 rem rules (and the 50 and
@@ -1315,6 +1316,22 @@ button.sys-version-line {
   display: none;
 }
 
+/* The Audio error pill is not a control: at the fold it is hidden visually and
+   keeps its name. */
+.sys-player-host[data-fit="8"] .sys-player-right > .sys-pill--danger {
+  display: flex;
+  position: absolute;
+  inline-size: 1px;
+  block-size: 1px;
+  min-inline-size: 0;
+  min-block-size: 0;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
 /* A 360 px phone is short of room for Play, the clock and the four controls at
    the usual spacing: tighter gaps and a smaller clock keep every 44 px target
    clear of the next. */
@@ -1332,22 +1349,39 @@ button.sys-version-line {
   }
 }
 
+/* Under 22 rem the pills (Following, Solo, Updating mix, the status), the cuts
+   and the Playback rate are hidden visually and keep their name and tooltip.
+   A and B, a host's Comment and Stop following go whole: the expanded Player
+   (Hear menu with A and B, Comment, Stop following) holds them. */
 @container sys-player (max-width: 22rem) {
   .sys-player-host > .sys-player .sys-player-ab,
   .sys-player-host
     > .sys-player
-    .sys-player-right
-    > :not(
-      .sys-player-hear,
-      .sys-pill--danger,
-      .sys-player-retry,
-      .sys-player-comment--guest
-    ) {
+    .sys-player-comment:not(.sys-player-comment--guest),
+  .sys-player-host > .sys-player .sys-pill-x {
     display: none;
   }
 
-  .sys-player-host > .sys-player .sys-player-left > :not(.sys-player-time) {
-    display: none;
+  .sys-player-host
+    > .sys-player
+    :is(
+      .sys-player-following,
+      .sys-player-solo,
+      .sys-player-mix,
+      .sys-player-status,
+      .sys-player-cuts,
+      .sys-player-rate
+    ) {
+    position: absolute;
+    inline-size: 1px;
+    block-size: 1px;
+    min-inline-size: 0;
+    min-block-size: 0;
+    margin: -1px;
+    padding: 0;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
   }
 
   .sys-player-host > .sys-player {
