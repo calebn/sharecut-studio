@@ -176,9 +176,11 @@ iOS/Android app is not an `externalBin` port — in-process libav, same React UI
 Deferred path and interim constraints: [cross-platform-byok.md](cross-platform-byok.md).
 
 <a id="ios-app-3810"></a>
-**iOS app (#3810, stage 1).** `make ios-sim` builds the Simulator app and launches it; the
-Home screen says audio tools are not available on this device yet. The app is the `sharecut`
-lib (a `staticlib`) with Python.xcframework linked into it; there is no sidecar process.
+**iOS app (#3810, stage 1).** `make ios-sim` builds the Simulator app and launches it. It
+needs `make ios-ffmpeg-sim` first; with the FFmpeg framework linked the audio tools report
+installed, and an app built without it says audio tools are not available on this device. The
+app is the `sharecut` lib (a `staticlib`) with Python.xcframework and FFmpeg.xcframework linked
+into it; there is no sidecar process.
 
 - **Build.** `scripts/ios/ios_sim.sh run` first ensures the payload (`build_payload.py --ensure`;
   the generated Xcode project needs `ios-payload/` at init), checks that
