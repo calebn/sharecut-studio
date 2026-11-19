@@ -63,6 +63,27 @@ describe("useHostGoneWait", () => {
     expect(result.current).toBe(false);
   });
 
+  it("needs a fresh minute after a completed wait, a return and a second drop", () => {
+    const { result, rerender } = renderHook(useWait, {
+      initialProps: { gone: true },
+    });
+    act(() => {
+      vi.advanceTimersByTime(60_000);
+    });
+    expect(result.current).toBe(true);
+    rerender({ gone: false });
+    rerender({ gone: true });
+    expect(result.current).toBe(false);
+    act(() => {
+      vi.advanceTimersByTime(59_999);
+    });
+    expect(result.current).toBe(false);
+    act(() => {
+      vi.advanceTimersByTime(1);
+    });
+    expect(result.current).toBe(true);
+  });
+
   it("is not moved by the wall clock", () => {
     vi.setSystemTime(new Date("2020-01-01T00:00:00Z"));
     const { result } = renderHook(useWait, { initialProps: { gone: true } });
