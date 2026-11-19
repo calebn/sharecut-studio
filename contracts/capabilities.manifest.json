@@ -284,6 +284,22 @@
       "tooltip": "Clear selection"
     },
     {
+      "id": "daw.feedback.dismiss",
+      "label": "Dismiss message",
+      "effect": "session",
+      "service": "ShareCut Studio command bus \u2192 services/document",
+      "industry_standard_key": true,
+      "gates": [
+        "toastShown"
+      ],
+      "surfaces": {
+        "command": "feedback.dismiss",
+        "keyboard": "Escape"
+      },
+      "omit": {},
+      "tooltip": "Dismiss the newest message"
+    },
+    {
       "id": "daw.edit.nextOccurrence",
       "label": "Next occurrence",
       "effect": "session",

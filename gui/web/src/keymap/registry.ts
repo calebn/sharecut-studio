@@ -165,6 +165,16 @@ export const KEYMAP_COMMANDS: readonly KeymapCommand[] = [
       "After the selection: Esc clears what is selected, then stops following",
   },
   {
+    id: "feedback.dismiss",
+    category: "ui",
+    label: "Dismiss message",
+    keys: ["Escape"],
+    bareKey: true,
+    when: "toastShown",
+    notes:
+      "After the selection and Follow: Esc dismisses the newest message when focus is not in a field",
+  },
+  {
     id: "stage.record",
     category: "navigation",
     label: "Go to Record",
@@ -856,8 +866,8 @@ export type SharedKeyOrder = {
 export const SHARED_KEY_ORDER: readonly SharedKeyOrder[] = [
   {
     key: "Escape",
-    order: ["edit.clearSelection", "presence.unfollow"],
-    why: "the innermost thing ends first (design-system element 14): the Inspector, then the selection, then Follow; with nothing selected the first row's when-clause fails and Esc stops following",
+    order: ["edit.clearSelection", "presence.unfollow", "feedback.dismiss"],
+    why: "the innermost thing ends first (design-system element 14): the Inspector, then the selection, then Follow, then the newest message; with nothing selected the first row's when-clause fails and Esc stops following, and with nothing followed it dismisses the message",
   },
   {
     key: "ArrowLeft",

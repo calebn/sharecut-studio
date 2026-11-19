@@ -101,6 +101,13 @@ export const COMMANDS: Record<string, CommandDef> = {
     label: "Stop following",
     when: "following",
   },
+  "feedback.dismiss": {
+    id: "feedback.dismiss",
+    category: "ui",
+    label: "Dismiss message",
+    when: "toastShown",
+    paletteRunnable: false,
+  },
   "comment.resolve": {
     id: "comment.resolve",
     mutates: true,

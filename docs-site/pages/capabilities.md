@@ -19,7 +19,7 @@ documentation annotation, not the runtime share gate.
 
 > **Auto-generated** from [`contracts/capabilities.manifest.json`](https://github.com/calebn/sharecut-studio/blob/main/contracts/capabilities.manifest.json). Do not edit by hand — run `make schema-export`.
 
-**157** capabilities · **122** ShareCut Studio commands · **65** keyed · **218** MCP tools · **17** skills on rows (+ **19** hub skills).
+**158** capabilities · **123** ShareCut Studio commands · **66** keyed · **218** MCP tools · **17** skills on rows (+ **19** hub skills).
 
 Keyboard chords: [UX shortcuts](https://ux.sharecut.studio/#/shortcuts). Document plane: [Document commands](#/document-commands). Guest MCP allowlist: [Remote MCP](#/remote-mcp).
 
@@ -40,6 +40,7 @@ Effect `project` changes the saved project, review state, transcripts or artifac
 | Go to where they are | session | `presence.goTo` | — (not industry-standard; avatar menu) | — | `presence.goTo` | — | — (viewer navigation: an agent has no viewport to move) | — | — | none · none |
 | Stop following | session | `presence.unfollow` | `Escape` | — | `presence.followPill` | — | — | — | — | none · none |
 | Clear selection | session | `edit.clearSelection` | `Escape` | — | — | — | — | — | — | — |
+| Dismiss message | session | `feedback.dismiss` | `Escape` | — | — | — | — | — | — | — |
 | Next occurrence | session | `edit.nextOccurrence` | `Tab` | — | — | — | — | — | — | — |
 | Create here | view | `create.menu` | `Shift+F10` | — | — | — | — | — | — | — |
 | Resolve comment | project | `comment.resolve` | — (Direct comment card button; no standard shortcut) | — | — | `resolve_comment_tool` | `podcast comment resolve` | — | yes | none · none |
