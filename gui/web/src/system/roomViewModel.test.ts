@@ -644,9 +644,9 @@ describe("roomViewModel dock", () => {
   describe("once the host has been gone long enough", () => {
     const device = { hostGoneLong: true };
     const long =
-      "Leaving stops recording on this device. What you've recorded stays on this device until you save it.";
+      "Leaving stops recording on this device. Keep this page open so it can reach the host.";
     const short =
-      "Leaving stops recording here. Your recording stays on this device.";
+      "Leaving stops recording here. Keep this page open to send it.";
 
     it.each(onAir)(
       "lets a guest leave on air and warns on a laptop (%j)",

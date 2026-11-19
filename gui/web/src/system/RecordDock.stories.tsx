@@ -156,7 +156,7 @@ export const GuestLeaveAfterHostGone: Story = {
     dock: {
       kind: "controls",
       leaveWarning:
-        "Leaving stops recording on this device. What you've recorded stays on this device until you save it.",
+        "Leaving stops recording on this device. Keep this page open so it can reach the host.",
     },
   },
   play: async ({ canvasElement }) => {

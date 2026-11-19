@@ -768,7 +768,7 @@ describe("guestCovers", () => {
         }),
       ).toMatchObject({
         title: "This session has ended",
-        children: "Finishing your full-quality recording…",
+        children: "Finishing your full-quality recording… Keep this page open.",
       });
     });
   });
@@ -967,7 +967,7 @@ describe("guestCovers", () => {
     });
     expect(
       guestCovers({ ...coverSource, accessEnded: true, stake: "finishing" }),
-    ).toMatchObject({ children: "Finishing your full-quality recording…" });
+    ).toMatchObject({ children: "Finishing your full-quality recording… Keep this page open." });
     const cover = guestCovers({
       ...coverSource,
       accessEnded: true,
@@ -1050,7 +1050,7 @@ describe("guestCovers after leaving", () => {
     });
     expect(cover).toMatchObject({
       title: "You left the room",
-      children: "Finishing your full-quality recording…",
+      children: "Finishing your full-quality recording… Keep this page open.",
       primary: undefined,
     });
   });

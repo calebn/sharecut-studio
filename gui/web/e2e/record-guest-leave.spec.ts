@@ -25,9 +25,9 @@ import {
 const HOST_DROPPED = /dropped\. You're still recording on this device\./;
 const HELD_TITLE = "You can leave after this take.";
 const WARNING =
-  "Leaving stops recording on this device. What you've recorded stays on this device until you save it.";
+  "Leaving stops recording on this device. Keep this page open so it can reach the host.";
 const WARNING_SHORT =
-  "Leaving stops recording here. Your recording stays on this device.";
+  "Leaving stops recording here. Keep this page open to send it.";
 const WAIT_MS = 60_000;
 
 test.use({
