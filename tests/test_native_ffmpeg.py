@@ -625,10 +625,10 @@ def test_a_missing_symbol_is_missing_not_installed(
         monkeypatch.delenv(variable, raising=False)
     broken = FakeNative()
     del broken.sc_ffmpeg_wait
-    monkeypatch.setattr(ctypes, "CDLL", lambda name: broken)
+    monkeypatch.setattr(ctypes, "CDLL", lambda *args, **kwargs: broken)
     assert bootstrap.component_status()["tools"]["ffmpeg"]["state"] == "missing"
     assert config.component_status()["ffmpeg"]["state"] == "missing"
-    monkeypatch.setattr(ctypes, "CDLL", lambda name: FakeNative())
+    monkeypatch.setattr(ctypes, "CDLL", lambda *args, **kwargs: FakeNative())
     assert bootstrap.component_status()["tools"]["ffmpeg"]["state"] == "installed"
     assert config.component_status()["ffmpeg"]["state"] == "installed"
 
@@ -686,7 +686,7 @@ def test_install_native_backend_installs_once_and_serves_spawns(
 def test_install_native_backend_is_safe_to_race(
     host: None, monkeypatch: pytest.MonkeyPatch, uninstall: None
 ) -> None:
-    monkeypatch.setattr(ctypes, "CDLL", lambda name: FakeNative())
+    monkeypatch.setattr(ctypes, "CDLL", lambda *args, **kwargs: FakeNative())
     gate = threading.Barrier(2, timeout=0.3)
     real = native_ffmpeg.is_available
 
@@ -718,7 +718,7 @@ def test_install_native_backend_declines_without_the_library(host: None, uninsta
 def test_install_native_backend_declines_on_a_desktop_row(
     monkeypatch: pytest.MonkeyPatch, uninstall: None
 ) -> None:
-    monkeypatch.setattr(ctypes, "CDLL", lambda name: FakeNative())
+    monkeypatch.setattr(ctypes, "CDLL", lambda *args, **kwargs: FakeNative())
     with host_platform.using(replace(MACOS, media_tools="executables")):
         assert native_ffmpeg.install_native_backend() is False
     assert native_ffmpeg._installed is None
@@ -727,7 +727,7 @@ def test_install_native_backend_declines_on_a_desktop_row(
 def test_install_native_backend_declines_when_another_backend_is_installed(
     host: None, monkeypatch: pytest.MonkeyPatch, uninstall: None
 ) -> None:
-    monkeypatch.setattr(ctypes, "CDLL", lambda name: FakeNative())
+    monkeypatch.setattr(ctypes, "CDLL", lambda *args, **kwargs: FakeNative())
     with process.using_in_process_backend(NativeFFmpegBackend(FakeNative())):
         assert native_ffmpeg.install_native_backend() is False
     assert native_ffmpeg._installed is None

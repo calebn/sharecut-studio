@@ -30,7 +30,8 @@ CORE_DIR = ROOT / "gui" / "desktop" / "src-tauri" / "ios" / "ffmpeg"
 FAKE_GLUE = ROOT / "tests" / "data" / "ios_ffmpeg_shim" / "fake_glue.c"
 SANITIZER = os.environ.get("SC_SHIM_SANITIZER", "")
 BOUND_SEC = 20.0
-FD_DIR = "/proc/self/fd" if Path("/proc/self/fd").is_dir() else "/dev/fd"
+HAS_PROC_FD = Path("/proc/self/fd").is_dir()
+FD_DIR = "/proc/self/fd" if HAS_PROC_FD else "/dev/fd"
 COMPILER = shutil.which("cc") or shutil.which("gcc") or shutil.which("clang")
 LAUNCH_SEC = 0.25
 
@@ -707,13 +708,20 @@ def inheritable(target: str) -> list[int]:
     ]
 
 
+@pytest.mark.skipif(
+    not HAS_PROC_FD,
+    reason="needs /proc/self/fd symlinks; /dev/fd entries are not symlinks on macOS "
+    "and pipes have no portable path there",
+)
 def test_the_persistent_stream_descriptors_never_leak_into_children(shim: Shim) -> None:
     with Pipes() as pipes:
         session = shim.hold("cloexec", pipes)
-        pipe = f"pipe:[{os.fstat(pipes.out_r).st_ino}]"
-        assert list(fd_links().values()).count(pipe) >= 2
-        assert inheritable(pipe) == []
-        shim.release()
+        try:
+            pipe = f"pipe:[{os.fstat(pipes.out_r).st_ino}]"
+            assert list(fd_links().values()).count(pipe) >= 2
+            assert inheritable(pipe) == []
+        finally:
+            shim.release()
         assert shim.wait(session) == 0
     assert list(fd_links().values()).count("/dev/null") >= 3
     assert inheritable("/dev/null") == []
