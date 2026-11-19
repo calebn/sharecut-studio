@@ -410,8 +410,32 @@ export function registerPaletteReconnectSmoke() {
                 );
                 secrets.push(observerToken);
                 await openGuestShare(follower, followerToken);
+                const followerRoleHint = follower
+                  .locator(".stage-frame-header")
+                  .getByRole("note")
+                  .filter({
+                    hasText:
+                      "You can edit and comment. The host decides what ships.",
+                  });
+                await expect(followerRoleHint).toBeVisible();
+                await followerRoleHint
+                  .getByRole("button", { name: "Dismiss hint", exact: true })
+                  .click();
+                await expect(followerRoleHint).toBeHidden();
                 await phone.showText(follower);
                 await openGuestShare(observer, observerToken);
+                const observerRoleHint = observer
+                  .locator(".stage-frame-header")
+                  .getByRole("note")
+                  .filter({
+                    hasText:
+                      "You can edit and comment. The host decides what ships.",
+                  });
+                await expect(observerRoleHint).toBeVisible();
+                await observerRoleHint
+                  .getByRole("button", { name: "Dismiss hint", exact: true })
+                  .click();
+                await expect(observerRoleHint).toBeHidden();
                 await goToStage(observer, "edit");
                 await expect
                   .poll(
