@@ -82,15 +82,16 @@ const STORYBOOK_ONLY_IDS = [
   "stages-edit-speakerpopover--open",
 ];
 
+const storybookOnly = stories.filter((story) =>
+  story.tags?.includes("storybook-only"),
+);
+
 base(
   "exactly the stories the in-browser sweep cannot run carry storybook-only",
   () => {
-    expect(
-      stories
-        .filter((story) => story.tags?.includes("storybook-only"))
-        .map((story) => story.id)
-        .sort(),
-    ).toEqual([...STORYBOOK_ONLY_IDS].sort());
+    expect(storybookOnly.map((story) => story.id).sort()).toEqual(
+      [...STORYBOOK_ONLY_IDS].sort(),
+    );
   },
 );
 
@@ -169,8 +170,7 @@ async function settle(page: Page) {
 }
 
 for (const theme of THEMES) {
-  for (const story of stories) {
-    if (!story.tags?.includes("storybook-only")) continue;
+  for (const story of storybookOnly) {
     test(`${story.title} / ${story.name} in ${theme}`, async ({
       storybook: page,
     }) => {
