@@ -115,9 +115,7 @@ export function replyHistoryHead(
 function reviewOutcome(result: Record<string, unknown>): ReviewOutcome {
   if (result.queued === true)
     return { queued: true, count: null, historyHead: null, held: [] };
-  const command = result.command;
-  const payload = isSuggestionRecord(command) ? command.payload : null;
-  const review = isSuggestionRecord(payload) ? payload.result : null;
+  const review = result.review_result;
   const count = isSuggestionRecord(review) ? review.count : null;
   if (typeof count !== "number" || !Number.isSafeInteger(count) || count < 0)
     throw new Error("The review reply is missing its affected edit count.");
