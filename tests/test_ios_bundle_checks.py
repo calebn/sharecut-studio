@@ -568,3 +568,19 @@ def test_imported_symbols_takes_a_runner(tmp_path: Path) -> None:
         "ShareCut": frozenset({"_stat"})
     }
     assert seen[0][1] == ["-u", "-j"]
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        b'<?xml version="1.0" encoding="x-bogus"?><plist version="1.0"><dict/></plist>',
+        b"bplist00\x00",
+    ],
+)
+def test_a_privacy_manifest_with_a_hostile_encoding_is_one_problem_not_a_traceback(
+    tmp_path: Path, body: bytes
+) -> None:
+    app = ffmpeg_app(tmp_path)
+    (app / FFMPEG_PRIVACY).write_bytes(body)
+    report = checks.check_ffmpeg_framework(app, fake_nm(FFMPEG_NM))
+    assert report.problems == (f"{FFMPEG_PRIVACY} is not a property list",)
