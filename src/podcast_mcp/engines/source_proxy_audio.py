@@ -134,6 +134,17 @@ class _SourceInput:
         return self.seek.input_args(self.end) if self.seek is not None else []
 
 
+# ``document_sync.last_command`` is written by every web command.
+_NON_AUDIBLE_SECTIONS = ("review", "history", "document_sync")
+
+
+def _audible_state(project_json: str) -> dict[str, Any]:
+    state = json.loads(project_json)
+    for section in _NON_AUDIBLE_SECTIONS:
+        state.pop(section, None)
+    return state
+
+
 @dataclass(frozen=True)
 class _Dependencies:
     project_json: str
@@ -192,7 +203,7 @@ class _Dependencies:
 
     def validate(self, project: EpisodeProject, *, defaults: EffectiveConfig) -> None:
         with project_state_lock(project):
-            if project.model_dump_json() != self.project_json:
+            if _audible_state(project.model_dump_json()) != _audible_state(self.project_json):
                 raise _inputs_changed()
             if any(logical.resolve() != sealed for logical, sealed in self.bindings):
                 raise _inputs_changed()
