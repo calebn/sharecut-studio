@@ -295,7 +295,7 @@ lib (a `staticlib`) with Python.xcframework linked into it; there is no sidecar 
   generous multiple of the worst measurement; a start that passes it shows the retryable failure.
   A recheck after returning to the foreground has 20 seconds (`RECHECK_DEADLINE`); the prototype's
   listener answered again about 5 seconds after the return.
-- **Not there yet.** Audio tools (FFmpeg), transcription, recording, Universal Links and CI signing. A signed build in TestFlight is the release tool below; a run on a device is the owner's. Home's Import audio and Record are refused while audio tools are unavailable, so a project cannot yet be made in the UI. Projects live in the app's Documents folder and show in the Files app. Recent entries are stored relative to it ([persistence.md](persistence.md)).
+- **Not there yet.** Transcription, recording, Universal Links and CI signing. Audio tools run in-process through `FFmpeg.framework`; in a build where that framework is not linked, status reports the tools `missing` and every model `unsupported` with one sentence. A signed build in TestFlight is the release tool below; a run on a device is the owner's. Home's Import audio and Record are refused while audio tools are unavailable, so a build without the framework cannot make a project in the UI. Projects live in the app's Documents folder and show in the Files app. Recent entries are stored relative to it ([persistence.md](persistence.md)).
 - **Request audit (debug builds only).** `podcast_mcp.gui.request_audit` appends one JSON line per
   HTTP response and WebSocket outcome to `Library/Logs/ShareCut/request-audit.jsonl`: the method,
   the path without its query string and with any share-link token replaced by `<share-token>`, the status and whether the query was empty. It never reads a
@@ -325,9 +325,9 @@ lib (a `staticlib`) with Python.xcframework linked into it; there is no sidecar 
 **iOS native FFmpeg ABI (#3974, stage 3 slice 6a).** `src/podcast_mcp/util/native_ffmpeg.py`
 holds `NativeFFmpegBackend`, the `InProcessBackend` that runs `in-process:ffmpeg` and
 `in-process:ffprobe` argv on four C functions the app exports. The portable session core
-(`gui/desktop/src-tauri/ios/ffmpeg/sc_ffmpeg_core.c`) is in tree and the FFmpeg glue lands
-separately; no host row uses the backend yet, and the bundle check that the symbols survive linking
-(`nm` on the app executable) is still to come.
+(`gui/desktop/src-tauri/ios/ffmpeg/sc_ffmpeg_core.c`) and the FFmpeg glue are in tree; the iOS row uses the backend, `gui/embedded.py` installs it at engine start when the
+library is linked, and `bundle_checks.check_ffmpeg_framework` checks that the framework exports
+exactly the four functions.
 
 ```c
 int      sc_ffmpeg_abi_version(void);   /* must return 1 */
