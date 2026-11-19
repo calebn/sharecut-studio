@@ -228,6 +228,17 @@ describe("Player", () => {
     expect(onSkip.mock.calls).toEqual([[-15], [15]]);
   });
 
+  it("has Back and Forward 15 seconds in the expanded form, where the bar's narrow levels leave them", async () => {
+    const user = userEvent.setup();
+    const onSkip = vi.fn();
+    render(<Player {...base} form="expanded" onSkip={onSkip} />);
+    await user.click(screen.getByRole("button", { name: "Back 15 seconds" }));
+    await user.click(
+      screen.getByRole("button", { name: "Forward 15 seconds" }),
+    );
+    expect(onSkip.mock.calls).toEqual([[-15], [15]]);
+  });
+
   it("rings Play in the followed person's colour and leaves the naming to the header pill", () => {
     const { container } = render(
       <Player {...base} following={{ name: "Rosa", colorIndex: 1 }} />,

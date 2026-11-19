@@ -1151,17 +1151,19 @@ button.sys-version-line {
    on every render). The rules below are cumulative, one per level: 1 the
    40 rem layout (the "/ total" goes and the grid is `auto 1fr auto`), 2 the
    Following detail, 3 the Status pills' text, 4 the skip buttons, 5 the cuts,
-   6 the hear menu's chevron, 7 the other pills (Following, Solo, Updating mix,
-   the Playback rate) and the status, 8 a guest's Comment, the Audio error pill
-   and Retry. What a level hides but a person can still read or reach stays in
-   the accessibility tree (hidden visually, as the Status pill's text is at
-   40 rem), except the Stop following button, which has no place left to be
-   seen, and level 8, which is the 14 rem fold. Play, the clock, A and B are
-   never given up. If level 8 still does not fit, the status text's ellipsis and
-   the 22 and 14 rem rules (and the 50 and 60 rem rules, which hide the same
-   things earlier at those widths) take over. A Following or Solo name past
-   about 8 characters and the Following detail past about 14 are cut short with
-   an ellipsis whatever the level. */
+   6 the hear menu's chevron (only where A and B are drawn), 7 the other pills
+   (Following, Solo, Updating mix, the Playback rate) and the status, 8 a guest's
+   Comment, the Audio error pill and Retry. Hidden things keep a name and another
+   home. The pills a level hides stay in the accessibility tree (hidden
+   visually, as the Status pill's text is at 40 rem). The skip buttons (4) and
+   Stop following (7) are `display: none`, so no invisible control takes focus,
+   and so is level 8, the fold: the expanded Player holds all of them. Play and
+   the clock are never given up, and a hear trigger stays: A and B where they are
+   drawn (above 22 rem), else the chevron at every level. If level 8 still does
+   not fit, the status text's ellipsis and the 22 and 14 rem rules (and the 50 and
+   60 rem rules, which hide the same things earlier at those widths) take over. A
+   Following or Solo name past about 8 characters and the Following detail past
+   about 14 are cut short with an ellipsis whatever the level. */
 .sys-player-host > .sys-player {
   overflow-x: clip;
 }
@@ -1228,8 +1230,8 @@ button.sys-version-line {
   display: none;
 }
 
-/* Levels 3, 6 and 7: the Status pills' text (3), the hear menu's chevron (6) and
-   the other pills with the status (7) are hidden visually and stay named. */
+/* Levels 3, 5 and 7: the Status pills' text (3), the cuts (5) and the other pills
+   with the status (7) are hidden visually and keep their name and tooltip. */
 .sys-player-host:is(
     [data-fit="3"],
     [data-fit="4"],
@@ -1239,8 +1241,13 @@ button.sys-version-line {
     [data-fit="8"]
   )
   .sys-player-pill-text,
-.sys-player-host:is([data-fit="6"], [data-fit="7"], [data-fit="8"])
-  .sys-player-hear-more,
+.sys-player-host:is(
+    [data-fit="5"],
+    [data-fit="6"],
+    [data-fit="7"],
+    [data-fit="8"]
+  )
+  .sys-player-cuts,
 .sys-player-host:is([data-fit="7"], [data-fit="8"])
   :is(
     .sys-player-following,
@@ -1261,7 +1268,29 @@ button.sys-version-line {
   white-space: nowrap;
 }
 
-/* Level 4: the skip buttons go. */
+/* Level 6: the hear menu's chevron goes, but only where A and B are drawn (they
+   open the same menu, by a right-click or a long press). Under 22 rem, and in a
+   folded frame, A and B are not drawn and the chevron is the bar's only hear
+   menu, so it stays and the measured fit decides whether it fits. */
+@container sys-player (width > 22rem) {
+  html:not([data-frame-short])
+    .sys-player-host:is([data-fit="6"], [data-fit="7"], [data-fit="8"])
+    .sys-player-hear-more {
+    position: absolute;
+    inline-size: 1px;
+    block-size: 1px;
+    min-inline-size: 0;
+    min-block-size: 0;
+    margin: -1px;
+    padding: 0;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+}
+
+/* Level 4: the skip buttons go (display: none, so no focusable invisible
+   button). The expanded Player has Back and Forward 15 s. */
 .sys-player-host:is(
     [data-fit="4"],
     [data-fit="5"],
@@ -1273,26 +1302,16 @@ button.sys-version-line {
   display: none;
 }
 
-/* Level 5: the cuts go. */
-.sys-player-host:is(
-    [data-fit="5"],
-    [data-fit="6"],
-    [data-fit="7"],
-    [data-fit="8"]
-  )
-  .sys-player-cuts {
-  display: none;
-}
-
 /* Level 7: Stop following has no place left to be seen, so it goes whole. */
 .sys-player-host:is([data-fit="7"], [data-fit="8"]) .sys-pill-x {
   display: none;
 }
 
-/* Level 8, the fold: Play, the clock and the hear menu are the one row. Reached
-   only when the bar is too narrow for a guest's Comment, the Audio error pill
-   and Retry beside them (about 14 rem; the 22 rem rule has already hidden
-   everything else on the right). */
+/* Level 8, the fold: Play, the clock and the hear menu's chevron are the one row
+   (a guest has no hear menu). Reached only when a guest's Comment, the Audio
+   error pill and Retry do not fit beside them: under about 13.4 rem with a
+   milliseconds clock and 14.5 rem with an hours clock (a phone up to about
+   450 px wide at 200% text). The expanded Player has Retry and the error. */
 .sys-player-host[data-fit="8"] .sys-player-right > :not(.sys-player-hear) {
   display: none;
 }
@@ -1341,38 +1360,34 @@ button.sys-version-line {
   }
 }
 
-/* A guest keeps Comment in an Audio error: Play, the clock, Comment, the error
-   pill and Retry are too wide for a bar under 22 rem with any gap or padding, so
-   there they sit edge to edge (each a whole touch target), and from the 14 rem
-   fold to 16 rem, where an hours clock leaves them no room, the clock is set
-   smaller (it is not a control; an hours clock can still touch Play between
-   14 and 14.5 rem). */
+/* In an Audio error Play, the clock, the hear menu's chevron or a guest's
+   Comment, the error pill and Retry are too wide for a bar under 22 rem with any
+   gap or padding, so there they sit edge to edge (each a whole touch target),
+   and from the 14 rem fold to 16 rem, where an hours clock leaves them no room,
+   the clock is set smaller (it is not a control). */
 @container sys-player (max-width: 22rem) {
-  .sys-player-host[data-state="error"]:has(.sys-player-comment--guest)
-    > .sys-player {
+  .sys-player-host[data-state="error"] > .sys-player {
     gap: 0;
     padding-inline: 0;
   }
 
-  .sys-player-host[data-state="error"]:has(.sys-player-comment--guest)
-    > .sys-player
-    .sys-player-right {
+  .sys-player-host[data-state="error"] > .sys-player .sys-player-right {
     gap: 0;
   }
 }
 
 @container sys-player (width > 14rem) and (width <= 16rem) {
-  .sys-player-host[data-state="error"]:has(.sys-player-comment--guest)
-    .sys-player-now {
+  .sys-player-host[data-state="error"] .sys-player-now {
     font-size: var(--font-size-micro);
   }
 }
 
 /* Under 14 rem (a phone at 200% text) the gap and the clock size of the rule
    above are set here too, unscoped, so they reach the expanded Player (that
-   rule is scoped to the host), and the A and B toggles are in the Hear menu (and
-   the expanded Player). A guest's Comment, the Audio error pill and Retry stay
-   while they fit (level 8 above hides them when they do not). */
+   rule is scoped to the host), the bar's clock is set smaller so Play, the clock
+   and the hear menu's chevron fit, and the A and B toggles are in the Hear menu
+   (and the expanded Player). A guest's Comment, the Audio error pill and Retry
+   stay while they fit (level 8 above hides them when they do not). */
 @container sys-player (max-width: 14rem) {
   .sys-player-now {
     font-size: var(--font-size-ui);
@@ -1381,6 +1396,10 @@ button.sys-version-line {
   .sys-player {
     gap: var(--space-1);
     padding-inline: var(--space-1);
+  }
+
+  .sys-player-host > .sys-player .sys-player-now {
+    font-size: var(--font-size-micro);
   }
 
   .sys-player-ab {
