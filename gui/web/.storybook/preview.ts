@@ -1,6 +1,7 @@
 import type { Preview } from "@storybook/react-vite";
 import { createElement } from "react";
 import "../src/styles/daw.css";
+import "../src/stage/edit/script/registerTranscriptSelectionFollower";
 import { THEME_OPTIONS, THEME_STORAGE_KEY } from "../src/hooks/useTheme";
 import { themePreferenceFromGlobals } from "../src/storybook/docsThemeGlobal";
 import { StudioDocsContainer } from "../src/storybook/StudioDocsContainer";

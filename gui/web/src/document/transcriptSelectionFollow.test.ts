@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import "../stage/edit/script/registerTranscriptSelectionFollower";
 import { useDawStore } from "../state/dawStore";
 import { named, PICK, snapshot } from "../test/transcriptSelectionFixtures";
 import type { ProjectView } from "../types/project";
