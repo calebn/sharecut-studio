@@ -49,6 +49,11 @@ const AXIS_LOOPS: Record<string, { loops: number; reason: string }> = {
     reason:
       "the loading header and its grey blocks are drawn from theme colors, and the holds-still check (boxes, shift, shell) is asked in both themes (#3891)",
   },
+  "record-guest-leave.spec.ts": {
+    loops: 1,
+    reason:
+      "the proof screenshots of the unsent cover with Join again are filed per theme, so both are the subject (#3834)",
+  },
   "guest-seek.spec.ts": {
     loops: 1,
     reason:
