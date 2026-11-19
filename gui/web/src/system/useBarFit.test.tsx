@@ -257,7 +257,7 @@ describe("useBarFit", () => {
     const style = document.createElement("style");
     // jsdom reads the fit's own rules; the container queries around them it cannot.
     style.textContent = playerCss.slice(
-      playerCss.indexOf("/* The bar (not the Listen dock"),
+      playerCss.indexOf("/* useBarFit steps `data-fit`"),
       playerCss.indexOf("/* A 360 px phone is short of room"),
     );
     document.head.append(style);
