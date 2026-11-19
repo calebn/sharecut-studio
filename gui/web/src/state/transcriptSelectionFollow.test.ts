@@ -76,6 +76,92 @@ describe("a words selection across another session's renumber", () => {
   });
 });
 
+describe("a words selection when one of its own words changes", () => {
+  it.each([
+    ["first", { 6: 0.1 }],
+    ["last", { 8: 0.1 }],
+  ])("clears when the %s selected word is retimed", (_end, retime) => {
+    start(snapshot());
+    useDawStore.getState().setProject(snapshot({ retime }));
+    expect(now()).toBeNull();
+  });
+
+  it.each([
+    ["first", 6],
+    ["middle", 7],
+    ["last", 8],
+  ])("clears when the %s selected word's text is corrected", (_end, word) => {
+    start(snapshot());
+    useDawStore
+      .getState()
+      .setProject(snapshot({ retext: { [word]: "corrected" } }));
+    expect(now()).toBeNull();
+  });
+
+  it("clears when a middle selected word moves to another recording", () => {
+    start(snapshot());
+    useDawStore
+      .getState()
+      .setProject(snapshot({ otherSource: { words: [7], sourceId: "s2" } }));
+    expect(now()).toBeNull();
+  });
+
+  it("clears when a middle selected word is cut but still listed", () => {
+    start(snapshot());
+    useDawStore.getState().setProject(snapshot({ cutAway: [7] }));
+    expect(now()).toBeNull();
+  });
+
+  it("clears when the first or last selected word is cut but still listed", () => {
+    start(snapshot());
+    useDawStore.getState().setProject(snapshot({ cutAway: [6] }));
+    expect(now()).toBeNull();
+    start(snapshot());
+    useDawStore.getState().setProject(snapshot({ cutAway: [8] }));
+    expect(now()).toBeNull();
+  });
+
+  it("keeps the same selection object when a cut word before the run only moves its place", () => {
+    const stored = start(snapshot());
+    useDawStore.getState().setProject(snapshot({ cutAway: [3] }));
+    expect(now()).toBe(stored);
+  });
+
+  it("keeps the same selection object when the words only moved on the timeline", () => {
+    const stored = start(snapshot());
+    useDawStore.getState().setProject(snapshot({ shift: 2 }));
+    expect(now()).toBe(stored);
+  });
+
+  it("keeps the same selection object when a replacement leaves everything as it was", () => {
+    const stored = start(snapshot());
+    useDawStore.getState().setProject(snapshot());
+    expect(now()).toBe(stored);
+  });
+
+  it("keeps the selection when the end word straddles two utterances and nothing in the run changed", () => {
+    const stored = start(snapshot({ straddle: 8 }));
+    useDawStore
+      .getState()
+      .setProject(snapshot({ straddle: 8, retext: { 0: "edited" } }));
+    expect(now()).toBe(stored);
+  });
+
+  it("clears when only the last copy of a straddling end word is corrected", () => {
+    start(snapshot({ straddle: 8 }));
+    useDawStore
+      .getState()
+      .setProject(snapshot({ straddle: 8, straddleText: "corrected" }));
+    expect(now()).toBeNull();
+  });
+
+  it("judges the run to the last copy of an end word that straddles two utterances", () => {
+    start(snapshot({ straddle: 8 }));
+    useDawStore.getState().setProject(snapshot({ straddle: 8, removed: [9] }));
+    expect(now()).toBeNull();
+  });
+});
+
 describe("while an own range action is in flight", () => {
   it("leaves the selection object alone", () => {
     const stored = start(snapshot());

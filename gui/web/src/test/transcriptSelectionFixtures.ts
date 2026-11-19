@@ -1,4 +1,6 @@
 import type {
+  CombinedUtterance,
+  EditBoundaryView,
   ProjectView,
   Selection,
   TranscriptWordView,
@@ -7,6 +9,24 @@ import { findTranscriptWord } from "../utils/transcript";
 import { clipRow, minimalProject, sampleTrack } from "./fixtures";
 
 const STEP = 0.5;
+
+function utterance(
+  sourceId: string | null,
+  words: TranscriptWordView[],
+): CombinedUtterance {
+  return {
+    track_id: "a",
+    source_id: sourceId,
+    speaker: "A",
+    start: 0,
+    end: 5,
+    text: "",
+    timeline_start: 0,
+    timeline_end: 5,
+    mappable: true,
+    words,
+  };
+}
 
 export function wordAt(
   i: number,
@@ -37,20 +57,45 @@ export function snapshot(
     retime?: Record<number, number>;
     extra?: TranscriptWordView[];
     withWords?: boolean;
+    retext?: Record<number, string>;
+    /** Source words whose utterance names this recording instead of the primary one. */
+    otherSource?: { words: readonly number[]; sourceId: string };
+    /** Source words an applied cut took out but the utterance still lists, so nothing renumbers. */
+    cutAway?: readonly number[];
+    /** Moves every word on the timeline without touching any number. */
+    shift?: number;
+    /** A second utterance repeating this source word, as a word straddling two utterances does. */
+    straddle?: number;
+    /** The text the straddling copy carries, when it differs from the word it repeats. */
+    straddleText?: string;
   } = {},
 ): ProjectView {
+  const cutAway = opts.cutAway ?? [];
   const removed = opts.removed ?? [];
+  const gone = [...removed, ...cutAway];
   const words: TranscriptWordView[] = [];
+  const sourceOf: (string | null)[] = [];
   for (let i = 0; i < 10; i++) {
     if (removed.includes(i)) continue;
-    const shift = removed.filter((r) => r < i).length * STEP;
+    const shift = gone.filter((r) => r < i).length * STEP - (opts.shift ?? 0);
     const word = wordAt(i, words.length, i * STEP - shift);
     if (opts.retime?.[i] !== undefined) word.start += opts.retime[i]!;
+    if (opts.retext?.[i] !== undefined) word.text = opts.retext[i]!;
+    if (cutAway.includes(i)) {
+      word.mappable = false;
+      delete word.timeline_start;
+      delete word.timeline_end;
+    }
     words.push(word);
+    sourceOf.push(
+      opts.otherSource?.words.includes(i) ? opts.otherSource.sourceId : null,
+    );
   }
-  for (const extra of opts.extra ?? [])
+  for (const extra of opts.extra ?? []) {
     words.push({ ...extra, word_index: words.length });
-  const gaps = removed.map((r) => ({ at: r * STEP, len: STEP }));
+    sourceOf.push(null);
+  }
+  const gaps = gone.map((r) => ({ at: r * STEP, len: STEP }));
   const kept: [number, number][] = [];
   let from = 0;
   for (const g of gaps) {
@@ -71,25 +116,61 @@ export function snapshot(
     cursor += e - s;
     return row;
   });
+  const utterances: CombinedUtterance[] = [];
+  for (let at = 0; at < words.length; at++) {
+    const previous = utterances[utterances.length - 1];
+    const sourceId = sourceOf[at] ?? null;
+    if (previous && previous.source_id === sourceId) {
+      previous.words!.push(words[at]!);
+      continue;
+    }
+    utterances.push(utterance(sourceId, [words[at]!]));
+  }
+  if (opts.straddle !== undefined) {
+    const copy = words.find((w) => w.text === `w${opts.straddle}`)!;
+    utterances.push(
+      utterance(null, [
+        {
+          ...copy,
+          ...(opts.straddleText === undefined
+            ? {}
+            : { text: opts.straddleText }),
+        },
+      ]),
+    );
+  }
+  for (const each of utterances)
+    each.text = (each.words ?? []).map((w) => w.text).join(" ");
+  const boundaries: EditBoundaryView[] = cutAway.map((i) => ({
+    id: `cut${i}`,
+    track_id: "a",
+    left_clip_id: "c0",
+    right_clip_id: "c1",
+    timeline_join_sec: i * STEP - gone.filter((r) => r < i).length * STEP,
+    cutaway_source_start: i * STEP,
+    cutaway_source_end: i * STEP + STEP,
+    has_cutaway: true,
+    cutaway_word_ids: [
+      {
+        track_id: "a",
+        source_id: null,
+        word_index: words.findIndex((w) => w.text === `w${i}`),
+        text: `w${i}`,
+        start: i * STEP,
+        end: i * STEP + 0.3,
+      },
+    ],
+  }));
   const base = minimalProject({
     tracks: [sampleTrack({ id: "a" })],
     clips: { tracks: { a: clips }, clip_count: clips.length },
     transcript: {
-      utterances: [
-        {
-          track_id: "a",
-          source_id: null,
-          speaker: "A",
-          start: 0,
-          end: 5,
-          text: words.map((w) => w.text).join(" "),
-          timeline_start: 0,
-          timeline_end: 5,
-          mappable: true,
-          ...(opts.withWords === false ? {} : { words }),
-        },
-      ],
+      utterances:
+        opts.withWords === false
+          ? utterances.map(({ words: _words, ...rest }) => rest)
+          : utterances,
     },
+    ...(boundaries.length > 0 ? { edit_boundaries: boundaries } : {}),
   });
   return opts.withWords === false
     ? {
