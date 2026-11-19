@@ -803,7 +803,6 @@ for (const pointer of ["fine", "coarse"] as const) {
     const problems = rows.flatMap((row) =>
       row.found.problems.map((problem) => `${row.where}: ${problem}`),
     );
-    // The bar gives up the "/ total" or more before it cuts the status text short.
     const cut = rows.flatMap((row) =>
       row.found.squeezed.map((what) => `${row.where}: ${what}`),
     );
@@ -1234,23 +1233,25 @@ test("System/Player levels 4 and 5 keep a home for what they hide: the cuts keep
     await expect(page.getByRole("button", { name })).toBeVisible();
 });
 
-/** A host's bar of `args` wide enough to draw everything, before and after its frame folds. */
+async function foldFrame(page: PlayerPage) {
+  await page.evaluate(() => {
+    document.documentElement.dataset.frameShort = "";
+  });
+}
+
+/** A host's bar of `args`, 1400 px wide. */
 async function wideBar(page: PlayerPage, args: BarArgs) {
   const host = await phoneBar(page, args);
   await host.evaluate((el) => {
     el.style.width = "1400px";
   });
-  const fold = () =>
-    page.evaluate(() => {
-      document.documentElement.dataset.frameShort = "";
-    });
-  return { host, fold };
+  return host;
 }
 
 test("System/Player in a short frame the bar removes the skip buttons, A and B, Stop following and a host's Comment (#2576)", async ({
   page,
 }) => {
-  const { host, fold } = await wideBar(page, BAR_STATES.followmixstale);
+  const host = await wideBar(page, BAR_STATES.followmixstale);
   const names = [
     "Back 15 seconds",
     "Forward 15 seconds",
@@ -1264,7 +1265,7 @@ test("System/Player in a short frame the bar removes the skip buttons, A and B, 
       host.getByRole("button", { name, exact: true }),
       `${name} before`,
     ).toHaveCount(1);
-  await fold();
+  await foldFrame(page);
   for (const name of names)
     await expect(
       host.getByRole("button", { name, exact: true }),
@@ -1278,11 +1279,11 @@ test("System/Player in a short frame the bar removes the skip buttons, A and B, 
 test("System/Player in a short frame the pills, the cuts, the rate and the status keep their names and take no room (#2576)", async ({
   page,
 }) => {
-  const { host, fold } = await wideBar(page, {
+  const host = await wideBar(page, {
     ...BAR_STATES.followmixstale,
     rate: 2,
   });
-  await fold();
+  await foldFrame(page);
   const tree = await host.ariaSnapshot();
   for (const name of [
     "Following Rosa",
@@ -1315,9 +1316,7 @@ test("System/Player the expanded Player keeps the skip buttons and A and B in a 
   page,
 }) => {
   await open(page, "system-player--expanded", 360);
-  await page.evaluate(() => {
-    document.documentElement.dataset.frameShort = "";
-  });
+  await foldFrame(page);
   for (const name of ["Back 15 seconds", "Forward 15 seconds", "A", "B"])
     await expect(page.getByRole("button", { name, exact: true })).toBeVisible();
 });
