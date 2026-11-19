@@ -445,10 +445,11 @@ test("phone shells keep every control a finger can use at 360, 390 and 767 wide"
 });
 
 /**
- * Phones where the Audio error pill and Retry fit beside Play and the clock
- * (about 13 rem and up for a host): 100% text, 150% text on the two phones, and
- * 200% text on the widest. Under that the bar folds to Play, the clock and the
- * hear menu, and Retry is in the expanded Player (tap the time).
+ * Phones where the Audio error pill and Retry fit beside Play, the clock and
+ * the hear menu's chevron (from about 13.4 rem with a milliseconds clock): 100%
+ * text on each phone, 150% text on the two narrow ones, and 200% text on the
+ * widest only. Under that the bar folds to Play, the clock and the chevron, and
+ * Retry is in the expanded Player (tap the time).
  */
 const RETRY_CELLS: readonly Cell[] = [
   ...PHONES.filter((phone) => phone.rootPx === 16),
@@ -457,7 +458,7 @@ const RETRY_CELLS: readonly Cell[] = [
   { name: "phone max 767, 200% text", width: 767, height: 1000, rootPx: 32 },
 ];
 
-test("phone shells keep the Audio error pill and Retry a finger can use at 360, 390 and 767 wide, at 100%, 150% and 200% text", async ({
+test("phone shells keep the Audio error pill and Retry a finger can use at 360, 390 and 767 wide at 100% text, at 360 and 390 at 150% text and at 767 at 200% text", async ({
   page,
 }) => {
   await withShareableProject(async (projectPath) => {
