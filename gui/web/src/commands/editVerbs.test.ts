@@ -13,6 +13,7 @@ import {
 } from "../test/actionBarFixtures";
 import {
   appliedEditRecord,
+  COMMENTER_CAPABILITIES,
   clipRow,
   editBoundaries,
   minimalProject,
@@ -272,6 +273,35 @@ describe("host words Restore", () => {
       else expect(row).toBeUndefined();
       expect((await runMute()).status).toBe("disabled");
       expect(api.setTranscriptWordsIgnored).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each([
+    ["edit", [...COMMENTER_CAPABILITIES, "edit"], undefined],
+    ["comment", COMMENTER_CAPABILITIES, "Fixing text needs Editor access"],
+  ] as const)(
+    "offers Fix text on a word to a %s share only when it may fix text",
+    (guestMode, capabilities, reason) => {
+      host(
+        {
+          kind: "transcriptRange",
+          trackId: MIRA,
+          startWordIndex: 2,
+          endWordIndex: 2,
+        },
+        {
+          project: wordsProject(),
+          projectPath: "share:tok",
+          guestMode,
+          shareCapabilities: [...capabilities],
+        },
+      );
+      const model = barModelOf(factsOf()!, useDawStore.getState());
+      const fix = [...model.items, ...model.more].find(
+        (item) => item.id === "fixText",
+      );
+      expect(fix, "the Fix text item").toBeDefined();
+      expect(fix?.disabledReason).toBe(reason);
     },
   );
 

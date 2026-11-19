@@ -528,7 +528,7 @@ describe("ScriptHost Fix text", () => {
     });
   });
 
-  it("is not offered to a share guest, even an editor", async () => {
+  it("opens for an editor share guest", async () => {
     seedScript({
       projectPath: "share:abc",
       guestMode: "edit",
@@ -537,6 +537,18 @@ describe("ScriptHost Fix text", () => {
     render(<ScriptHost />);
     await userEvent.dblClick(word("show"));
     fireEvent.keyDown(word("show (selected)"), { key: "F2" });
+    expect(field()).toBeInTheDocument();
+  });
+
+  it("is not offered to a commenter share guest", async () => {
+    seedScript({
+      projectPath: "share:abc",
+      guestMode: "comment",
+      shareCapabilities: ["play", "view", "comment"],
+    });
+    render(<ScriptHost />);
+    await userEvent.click(word("show"));
+    await userEvent.keyboard("{F2}");
     expect(screen.queryByRole("textbox")).toBeNull();
   });
 

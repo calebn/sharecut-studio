@@ -73,6 +73,7 @@ import { buildCommandContext, evaluateWhen } from "./context";
 import { runDeleteClips } from "./editing";
 import { inProject, removeEnvelopePoint } from "./envelopes";
 import { registerCommand } from "./execute";
+import { fixTextAvailability } from "./fixTextAvailability";
 import { decideThroughSheet, sheetBusyReason } from "./pendingDecision";
 import { playSpan } from "./playSpan";
 import { executePointerCommand } from "./pointer";
@@ -1020,6 +1021,10 @@ export function barModelOf(
         !canApplyPass12(s.projectPath, s.guestMode, s.shareCapabilities)
       )
         return { id, disabledReason: EDITING_OFF_REASON };
+      if (id === "fixText" && facts.kind !== "chapter") {
+        const available = fixTextAvailability(s);
+        return available.ok ? item : { id, disabledReason: available.reason };
+      }
       if (id === "keep" && facts.kind === "seam") {
         const seam = currentSeam();
         const plan =

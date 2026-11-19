@@ -40,6 +40,7 @@ export type ContextPredicateId =
   | "canComment"
   | "canManageProjects"
   | "hostProjectLoaded"
+  | "canFixText"
   | "trackInspectorSelected"
   | "canMoveSelectedTrackUp"
   | "canMoveSelectedTrackDown"

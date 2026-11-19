@@ -968,10 +968,10 @@ export const COMMANDS: Record<string, CommandDef> = {
     id: "transcript.editWordInline",
     category: "edit",
     label: "Edit focused transcript word",
-    when: "hostProjectLoaded",
+    when: "canFixText",
     paletteRunnable: false,
     notes:
-      "F2 or a double-tap: Fix text on the selected timed word; hydrated host only",
+      "F2 or a double-tap: Fix text on the selected timed word; host or Editor, words hydrated",
   },
   "transcript.findReplace": {
     id: "transcript.findReplace",
@@ -979,7 +979,7 @@ export const COMMANDS: Record<string, CommandDef> = {
     label: "Find and replace transcript",
     shortLabel: "Find and replace",
     keywords: ["search", "spelling"],
-    when: "hostProjectLoaded",
+    when: "canFixText",
     breaksFollow: true,
     notes:
       "Finds, counts and highlights a phrase even when another speaker's turn sits between its words; only the phrase's own words are highlighted, selected and replaced. Replace changes the current match alone and Replace all changes every match, each as one undo step",
