@@ -1,15 +1,17 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { resolveSelectionRange } from "../edit/rangeSelection";
+import { judgeWithScriptModel } from "../stage/edit/script/registerTranscriptSelectionFollower";
 import { minimalProject } from "../test/fixtures";
 import {
   named,
   PICK,
   snapshot,
+  withWordsEdited,
   wordAt,
 } from "../test/transcriptSelectionFixtures";
 import type { ProjectView, Selection } from "../types/project";
-import "../stage/edit/script/registerTranscriptSelectionFollower";
 import { useDawStore } from "./dawStore";
+import { registerTranscriptSelectionFollower } from "./transcriptSelectionJudge";
 
 const PATH = "/tmp/test/episode.sharecut";
 
@@ -170,16 +172,6 @@ describe("while an own range action is in flight", () => {
     expect(now()).toBe(stored);
   });
 
-  it("follows from the project it was named in once the action ends", () => {
-    const b = snapshot({ removed: [1, 2] });
-    start(snapshot());
-    useDawStore.getState().setRangeBusy(true);
-    useDawStore.getState().setProject(b);
-    useDawStore.getState().setRangeBusy(false);
-    useDawStore.getState().setProject({ ...b });
-    expect(named(b, now())).toEqual(["w6", "w7", "w8"]);
-  });
-
   it("follows as soon as the action ends, with no further replacement", () => {
     const b = snapshot({ removed: [1, 2] });
     start(snapshot());
@@ -194,16 +186,6 @@ describe("while an own range action is in flight", () => {
     useDawStore.getState().setRangeBusy(true);
     useDawStore.getState().setProject(snapshot({ removed: [7] }));
     useDawStore.getState().setRangeBusy(false);
-    expect(now()).toBeNull();
-  });
-
-  it("clears after the action when the renumber took a selected word", () => {
-    const b = snapshot({ removed: [7] });
-    start(snapshot());
-    useDawStore.getState().setRangeBusy(true);
-    useDawStore.getState().setProject(b);
-    useDawStore.getState().setRangeBusy(false);
-    useDawStore.getState().setProject({ ...b });
     expect(now()).toBeNull();
   });
 
@@ -290,5 +272,98 @@ describe("the app bootstrap", () => {
     await import("../App");
     const judged = judgeTranscriptSelection(from, PICK as never, next);
     expect(judged.kind).toBe("move");
+  });
+});
+
+describe("a replacement that changes only the edit boundaries", () => {
+  it("is judged, and clears a run that starts on a word the boundary now shows as cut", () => {
+    const listed = snapshot({ cutAway: [7] });
+    const { edit_boundaries, ...bare } = listed;
+    useDawStore.getState().hydrate(PATH, bare);
+    useDawStore
+      .getState()
+      .setSelection({ ...PICK, startWordIndex: 7 } as Selection);
+    useDawStore.getState().setProject({ ...bare, edit_boundaries });
+    expect(now()).toBeNull();
+  });
+});
+
+describe("a selection named while the words were missing", () => {
+  it("is not judged against the words-less project when an own action ends", () => {
+    useDawStore.getState().hydrate(PATH, snapshot({ withWords: false }));
+    useDawStore.getState().setSelection(PICK as Selection);
+    useDawStore.getState().setRangeBusy(true);
+    useDawStore.getState().setProject(snapshot());
+    useDawStore.getState().setRangeBusy(false);
+    expect(now()).toEqual(PICK);
+  });
+
+  it("does not throw when the project is gone as an own action ends", () => {
+    start(snapshot());
+    useDawStore.getState().setRangeBusy(true);
+    useDawStore.getState().setProject(snapshot({ removed: [9] }));
+    useDawStore.setState({ project: null });
+    expect(() => useDawStore.getState().setRangeBusy(false)).not.toThrow();
+  });
+});
+
+describe("a judged move that changes only one end number", () => {
+  afterEach(() => registerTranscriptSelectionFollower(judgeWithScriptModel));
+
+  it.each([
+    ["end", { startWordIndex: 6, endWordIndex: 9 }],
+    ["start", { startWordIndex: 5, endWordIndex: 8 }],
+  ])("updates the %s number", (_end, moved) => {
+    registerTranscriptSelectionFollower(() => ({ kind: "move", ...moved }));
+    start(snapshot());
+    useDawStore.getState().setProject(snapshot({ retime: { 0: 0.01 } }));
+    expect(now()).toEqual({ ...PICK, ...moved });
+  });
+});
+
+describe("judging a run from the numbers the store holds", () => {
+  const prior = snapshot();
+  const next = snapshot({ removed: [1, 2] });
+
+  it.each([
+    ["start", { ...PICK, startWordIndex: 99 }],
+    ["end", { ...PICK, endWordIndex: 99 }],
+  ])(
+    "clears when the %s is not in the project it was named in",
+    (_end, sel) => {
+      expect(judgeWithScriptModel(prior, sel as never, next)).toEqual({
+        kind: "clear",
+      });
+    },
+  );
+
+  it("clears when another session adds a word inside the run", () => {
+    const copy = wordAt(8, 99, 50);
+    const added = withWordsEdited(prior, (words) => [
+      ...words.slice(0, 8),
+      copy,
+      ...words.slice(8),
+    ]);
+    expect(judgeWithScriptModel(prior, PICK as never, added)).toEqual({
+      kind: "clear",
+    });
+  });
+
+  it("clears when the first selected word was cut and is back", () => {
+    const cut = snapshot({ cutAway: [6] });
+    expect(judgeWithScriptModel(cut, PICK as never, snapshot())).toEqual({
+      kind: "clear",
+    });
+  });
+
+  it("clears when a moved end has no word_index", () => {
+    const unnumbered = withWordsEdited(next, (words) =>
+      words.map((w) =>
+        w.text === "w8" ? { ...w, word_index: null as never } : w,
+      ),
+    );
+    expect(judgeWithScriptModel(prior, PICK as never, unnumbered)).toEqual({
+      kind: "clear",
+    });
   });
 });

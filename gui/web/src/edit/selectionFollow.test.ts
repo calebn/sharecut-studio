@@ -157,6 +157,53 @@ describe("following a selection across two Script models", () => {
   });
 });
 
+describe("a selection whose two ends do not agree", () => {
+  const TWO = [ONE, { start: 2 }];
+
+  it.each([
+    ["anchor", [{ start: 2 }]],
+    ["head", [ONE]],
+  ])("clears when only the %s is gone", (_end, left) => {
+    const before = modelOf(TWO);
+    expect(followSelection(remember(before, 0, 1), modelOf(left))).toEqual({
+      kind: "clear",
+    });
+  });
+
+  it.each([
+    ["anchor", [{ ...ONE, held: true }, { start: 2 }]],
+    ["head", [ONE, { start: 2, held: true }]],
+  ])("waits while only the %s is held", (_end, after) => {
+    const before = modelOf(TWO);
+    expect(followSelection(remember(before, 0, 1), modelOf(after))).toEqual({
+      kind: "wait",
+    });
+  });
+
+  it("moves when only the head was renumbered", () => {
+    const before = modelOf(TWO);
+    const after = modelOf([ONE, { start: 2, wordIndex: 5 }]);
+    expect(followSelection(remember(before, 0, 1), after)).toEqual({
+      kind: "move",
+      anchor: 0,
+      head: 1,
+    });
+  });
+
+  it("moves when only the anchor was renumbered", () => {
+    const before = modelOf(TWO);
+    const after = modelOf([
+      { ...ONE, wordIndex: 5 },
+      { start: 2, wordIndex: 1 },
+    ]);
+    expect(followSelection(remember(before, 0, 1), after)).toEqual({
+      kind: "move",
+      anchor: 0,
+      head: 1,
+    });
+  });
+});
+
 describe("waiting for words that are not live yet", () => {
   it("waits while the word is held", () => {
     const before = modelOf([ONE]);
@@ -217,6 +264,33 @@ describe("waiting for words that are not live yet", () => {
       kind: "keep",
     });
   });
+
+  it.each([
+    ["ends exactly where the word starts", { start: 0, end: 1 }],
+    ["starts exactly where the word starts", { start: 1, end: 3 }],
+  ])("waits for a bar line that %s", (_edge, span) => {
+    const before = modelOf([ONE]);
+    const after = modelOf([ONE], {
+      turns: [{ words: [{ index: 0 }] }, { words: [] }],
+      spans: [
+        { trackId: "a", sourceId: null, start: 5, end: 6 },
+        { trackId: "a", sourceId: null, ...span },
+      ],
+    });
+    expect(followSelection(remember(before, 0), after)).toEqual({
+      kind: "wait",
+    });
+  });
+
+  it("does not wait for a line that shows words over the same span", () => {
+    const before = modelOf([ONE]);
+    const after = modelOf([ONE], {
+      spans: [{ trackId: "a", sourceId: null, start: 0, end: 10 }],
+    });
+    expect(followSelection(remember(before, 0), after)).toEqual({
+      kind: "keep",
+    });
+  });
 });
 
 describe("a word that exists as several copies", () => {
@@ -246,6 +320,40 @@ describe("a word that exists as several copies", () => {
     const before = modelOf([COPY_A, COPY_B]);
     const after = modelOf([COPY_A, { ...COPY_B, cut: true, time: null }]);
     expect(followSelection(remember(before, 0), after)).toEqual({
+      kind: "keep",
+    });
+  });
+
+  it("counts a cut copy among the copies", () => {
+    const cutCopy = { ...COPY_B, cut: true, time: null };
+    expect(selectionEndOf(modelOf([COPY_A, cutCopy]), 0)!.copies).toBe(2);
+  });
+
+  it("clears when only the copy that was cut is left live", () => {
+    const cutCopy = { ...COPY_B, cut: true, time: null };
+    const before = modelOf([COPY_A, cutCopy]);
+    expect(followSelection(remember(before, 0), modelOf([COPY_B]))).toEqual({
+      kind: "clear",
+    });
+  });
+
+  it.each([
+    ["start", { start: 1.5, end: 2 }],
+    ["end", { start: 1, end: 2.5 }],
+  ])("clears when the picked copy's timeline %s moved", (_edge, time) => {
+    const before = modelOf([COPY_A, COPY_B]);
+    expect(
+      followSelection(remember(before, 0), modelOf([{ ...COPY_A, time }])),
+    ).toEqual({ kind: "clear" });
+  });
+
+  it("keeps a picked copy whose timeline place is unknown on both sides", () => {
+    const unplaced = [
+      { ...COPY_A, time: null },
+      { ...COPY_B, time: null },
+    ];
+    const before = modelOf(unplaced);
+    expect(followSelection(remember(before, 0), modelOf(unplaced))).toEqual({
       kind: "keep",
     });
   });
