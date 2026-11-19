@@ -625,6 +625,39 @@ describe("roomViewModel dock", () => {
     });
   });
 
+  it("holds a guest's Leave while the server has the file and this device's count is not known yet", () => {
+    expect(
+      roomViewModel(
+        base({
+          role: "guest",
+          device: { verifying: true },
+          phase: { kind: "saving", savedPeople: 0, totalPeople: 1 },
+        }),
+      ).dock,
+    ).toEqual({
+      kind: "status",
+      text: "Saving · 0 of 1 · keep this page open",
+      leaveHeld: "Your recording is still saving",
+    });
+  });
+
+  it("lets Leave go once the saving has failed, even while the count is unknown", () => {
+    expect(
+      roomViewModel(
+        base({
+          role: "guest",
+          device: { verifying: true },
+          phase: {
+            kind: "saving",
+            savedPeople: 0,
+            totalPeople: 1,
+            failed: true,
+          },
+        }),
+      ).dock,
+    ).toEqual({ kind: "controls" });
+  });
+
   it("keeps Leave free while a saving line has no upload behind it", () => {
     expect(
       roomViewModel(
