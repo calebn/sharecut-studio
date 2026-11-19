@@ -1000,19 +1000,18 @@ describe("Menu", () => {
     const user = userEvent.setup();
     const innerHeight = vi.spyOn(window, "innerHeight", "get");
     innerHeight.mockReturnValue(800);
-    const box = (bottom: number) =>
-      ({
-        left: 20,
-        right: 90,
-        top: bottom - 40,
-        bottom,
-        width: 70,
-        height: 40,
-      }) as unknown as DOMRect;
+    const wrapperBox = {
+      left: 20,
+      right: 90,
+      top: 660,
+      bottom: 700,
+      width: 70,
+      height: 40,
+    } as unknown as DOMRect;
     const rect = vi
       .spyOn(Element.prototype, "getBoundingClientRect")
       .mockImplementation(function rect(this: Element) {
-        if (this.getAttribute("data-anchor") !== null) return box(700);
+        if (this.getAttribute("data-anchor") !== null) return wrapperBox;
         return {
           left: 0,
           right: 0,
