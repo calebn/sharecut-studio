@@ -33,7 +33,7 @@ GENERIC_GUEST_MESSAGE = "That didn't work; ask the host to check this episode."
 
 _GUEST_MESSAGES = {
     "clip_not_found": "That clip is unavailable. Ask the host to refresh the project.",
-    "cut_scope_changed": "This edit needs another review. Ask the host to review it in the editor before applying it.",
+    "cut_scope_changed": "That edit was not applied. Nothing was changed. Ask the host to look at it in the editor.",
     "empty_text": "Enter some text and try again.",
     "enrollment_past_end": "A voice sample is past the end of this recording. Choose a sample inside the audio.",
     "export_busy": "This project is busy with an export or render. Try again when it finishes.",

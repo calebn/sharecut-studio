@@ -7,7 +7,6 @@ import pytest
 from podcast_mcp.edits.cut_placement import CutScopeHold
 from podcast_mcp.edits.source_removals import ScopeChangedAtApproval
 from podcast_mcp.edits.timeline_ops import LaneUnavailable
-from podcast_mcp.util.coded_error import guest_message_for_code
 from podcast_mcp.util.redact import mentions_host_path
 
 LABEL = "Reference's cut at 0:02.5"
@@ -112,4 +111,6 @@ def test_a_path_in_a_lane_name_falls_back_to_the_fixed_sentence():
     message = _refusal(
         "scope_unavailable", lanes=lanes, speakers={"guest": "/home/x"}
     ).guest_message()
-    assert message == guest_message_for_code("cut_scope_changed")
+    assert message == (
+        "That edit was not applied. Nothing was changed. Ask the host to look at it in the editor."
+    )

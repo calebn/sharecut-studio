@@ -1172,6 +1172,46 @@ describe("host document command queue", () => {
     });
   });
 
+  it("keeps a held Approve row whose reason is empty or missing", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(
+        async () =>
+          new Response(
+            JSON.stringify({
+              ok: true,
+              history_head_id: null,
+              command: { type: "ApproveEdits" },
+              review_result: {
+                count: 0,
+                held: [
+                  { id: "e2", label: "Ana's cut at 0:02.5", reason: "" },
+                  { id: "e3", label: "That edit" },
+                ],
+              },
+            }),
+            { status: 200 },
+          ),
+      ),
+    );
+    const { approveEdits } = await import("./api");
+    await expect(
+      approveEdits("/tmp/episode.sharecut", ["e2", "e3"], true),
+    ).resolves.toEqual({
+      queued: false,
+      count: 0,
+      historyHead: null,
+      held: [
+        {
+          id: "e2",
+          label: "Ana's cut at 0:02.5",
+          reason: "it could not be applied",
+        },
+        { id: "e3", label: "That edit", reason: "it could not be applied" },
+      ],
+    });
+  });
+
   it("refuses a reply that carries only the command echo", async () => {
     vi.stubGlobal(
       "fetch",
