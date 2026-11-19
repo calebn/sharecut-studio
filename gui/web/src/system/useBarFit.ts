@@ -3,10 +3,12 @@ import { useResizeObserver } from "../ui/useResizeObserver";
 
 /**
  * How many things the bar can give up, in order (system.css has one rule per
- * level): 1 Status pill text, 2 the Following detail, 3 the skip buttons,
- * 4 the cuts, 5 the hear menu's chevron, 6 the other pills.
+ * level): 1 the 40 rem layout (no "/ total", `auto 1fr auto`), 2 the Following
+ * detail, 3 the Status pills' text, 4 the skip buttons, 5 the cuts, 6 the hear
+ * menu's chevron, 7 the other pills and the status, 8 a guest's Comment, the
+ * Audio error pill and Retry (the 14 rem fold).
  */
-export const MAX_FIT_LEVEL = 6;
+export const MAX_FIT_LEVEL = 8;
 
 /** The lowest level at which `fits` is true; the last level when none is. */
 export function findFitLevel(
@@ -112,6 +114,21 @@ function refit(host: HTMLElement, settled: { current: string }): void {
   settled.current = sizesOf(host);
 }
 
+/** Fits the bar again only when the sizes are not the ones the last search ended with. */
+function refitIfResized(host: HTMLElement, settled: { current: string }): void {
+  if (sizesOf(host) !== settled.current) refit(host, settled);
+}
+
+/** The attributes of `<html>` that can change what the bar draws or how wide it draws it. */
+const ROOT_ATTRIBUTES = [
+  "style",
+  "class",
+  "lang",
+  "data-theme",
+  "data-shell",
+  "data-frame-short",
+];
+
 interface FitProps {
   time: string;
   cuts?: string;
@@ -150,13 +167,14 @@ export function barFitKey(props: FitProps): string {
  * Sets `data-fit` on the bar's host before the first paint and again when
  * something that can change the fit changes: `key` (see `barFitKey`), a size
  * of the bar or of what is in its columns (a ResizeObserver: a pill appearing,
- * a name changing, the clock gaining a digit), an attribute of `<html>` (the
- * text size), the fonts finishing loading, or the pointer type. A re-render
- * that changes none of them measures nothing. A search changes the columns'
- * sizes and so wakes the observer again; the sizes at the end of a search are
- * kept and an observer report that finds the same sizes does nothing, so one
- * change costs one search (at most two with the key). `on` false for the dock
- * and the expanded form: no attribute, no observers.
+ * a name changing, the clock gaining a digit), a few attributes of `<html>`
+ * (the text size, the theme), the fonts finishing loading, or the pointer type.
+ * A re-render that changes none of them measures nothing. A search changes the
+ * columns' sizes and so wakes the observer again; the sizes at the end of a
+ * search are kept, and a report of the same sizes (whatever woke it: the
+ * observer, an attribute, the fonts, the pointer) does nothing, so one change
+ * costs one search (at most two with the key). `on` false for the dock and the
+ * expanded form: no attribute, no observers.
  */
 export function useBarFit(
   ref: RefObject<HTMLElement | null>,
@@ -187,18 +205,22 @@ export function useBarFit(
     ],
     () => {
       const host = ref.current;
-      if (host && sizesOf(host) !== settled.current) refit(host, settled);
+      if (host) refitIfResized(host, settled);
     },
     on,
   );
   useLayoutEffect(() => {
     const host = ref.current;
     if (!on || !host) return;
-    const again = () => refit(host, settled);
+    const again = () => refitIfResized(host, settled);
     // A text-size or theme change sets an attribute on <html>: the widths of the
-    // contents change, the bar's does not.
+    // contents change, the bar's does not. Other attributes and style writes
+    // that leave the sizes alone cost one read of them and no search.
     const root = new MutationObserver(again);
-    root.observe(document.documentElement, { attributes: true });
+    root.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ROOT_ATTRIBUTES,
+    });
     const fonts = document.fonts;
     void fonts?.ready.then(again);
     fonts?.addEventListener?.("loadingdone", again);
