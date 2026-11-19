@@ -22,9 +22,10 @@ ROOT = Path(__file__).resolve().parents[2]
 PRIVACY_CONTRACT = ROOT / "contracts" / "ios-privacy.json"
 MINIMUM_OS = "17.0"
 BUILD_NUMBER = re.compile(r"^(?:0|[1-9]\d*)(?:\.(?:0|[1-9]\d*)){2}$")
-FFMPEG_EMBEDDED = False
+FFMPEG_EMBEDDED = True
 FFMPEG_SIZE_BUDGET = 25 * 1024 * 1024
 FFMPEG_BINARY = Path("Frameworks") / "FFmpeg.framework" / "FFmpeg"
+FFMPEG_PRIVACY_MANIFEST = Path("Frameworks") / "FFmpeg.framework" / "PrivacyInfo.xcprivacy"
 FFMPEG_EXPORTS = frozenset(
     {"sc_ffmpeg_abi_version", "sc_ffmpeg_start", "sc_ffmpeg_wait", "sc_ffmpeg_cancel"}
 )
@@ -178,7 +179,15 @@ def exported_symbols(binary: Path, runner: NmRunner = xcrun_nm) -> frozenset[str
 
 def check_ffmpeg_framework(app: Path, runner: NmRunner = xcrun_nm) -> CheckReport:
     if not FFMPEG_EMBEDDED:
-        return CheckReport("ffmpeg framework", facts={"status": "not embedded yet"})
+        framework = app / FFMPEG_BINARY.parent
+        if framework.exists() or framework.is_symlink():
+            return CheckReport(
+                "ffmpeg framework",
+                (
+                    f"{FFMPEG_BINARY.parent.as_posix()} is in the bundle but FFMPEG_EMBEDDED is False",
+                ),
+            )
+        return CheckReport("ffmpeg framework", facts={"status": "not embedded"})
     binary = app / FFMPEG_BINARY
     if binary.is_symlink() or not binary.is_file():
         return CheckReport("ffmpeg framework", (f"{FFMPEG_BINARY.as_posix()} is missing",))
@@ -196,9 +205,24 @@ def check_ffmpeg_framework(app: Path, runner: NmRunner = xcrun_nm) -> CheckRepor
     exported = set(exported_symbols(binary, runner))
     problems += [f"FFmpeg does not export {name}" for name in sorted(FFMPEG_EXPORTS - exported)]
     problems += [f"FFmpeg exports unexpected {name}" for name in sorted(exported - FFMPEG_EXPORTS)]
+    problems += ffmpeg_privacy_problems(app)
     return CheckReport(
         "ffmpeg framework", tuple(problems), facts={"size": size, "exports": sorted(exported)}
     )
+
+
+def ffmpeg_privacy_problems(app: Path) -> list[str]:
+    """A third-party framework ships its own privacy manifest, so the one at the bundle root does
+    not cover it."""
+    manifest = app / FFMPEG_PRIVACY_MANIFEST
+    name = FFMPEG_PRIVACY_MANIFEST.as_posix()
+    if manifest.is_symlink() or not manifest.is_file():
+        return [f"{name} is missing"]
+    try:
+        loaded = plistlib.loads(manifest.read_bytes())
+    except (plistlib.InvalidFileException, ValueError, OSError):
+        return [f"{name} is not a property list"]
+    return [] if isinstance(loaded, dict) else [f"{name} is not a property list"]
 
 
 def used_categories(
