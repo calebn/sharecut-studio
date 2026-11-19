@@ -181,7 +181,9 @@ Home screen says audio tools are not available on this device yet. The app is th
 lib (a `staticlib`) with Python.xcframework linked into it; there is no sidecar process.
 
 - **Build.** `scripts/ios/ios_sim.sh run` first ensures the payload (`build_payload.py --ensure`;
-  the generated Xcode project needs `ios-payload/` at init), then runs `tauri ios init`, then
+  the generated Xcode project needs `ios-payload/` at init), checks that
+  `ios-payload/FFmpeg.xcframework` has a Simulator slice (`ffmpeg_framework.py check --sdk
+  iphonesimulator`; run `make ios-ffmpeg-sim` once if it stops there), then runs `tauri ios init`, then
   `tauri ios build --target aarch64-sim --debug`; `launch` and `proof` take the product of this
   checkout's own generated Xcode project (`xcodebuild -showBuildSettings`), never the newest
   `sharecut-*` DerivedData folder, which can belong to another worktree. The overlay
@@ -221,6 +223,18 @@ lib (a `staticlib`) with Python.xcframework linked into it; there is no sidecar 
   The two cached artifacts the script makes itself, the unpacked `Python.xcframework` and the
   cross-built wheel, each have a sha256 recorded beside them and are rebuilt when it no longer
   matches.
+- **FFmpeg framework.** `make ios-ffmpeg-device` and `make ios-ffmpeg-sim` run
+  `build_ffmpeg.sh` and then `scripts/ios/ffmpeg_framework.py assemble`, which builds
+  `src-tauri/ios-payload/FFmpeg.xcframework` (untracked) from whichever of
+  `ios-ffmpeg/out/{device,sim}/FFmpeg.framework` exist. It copies each framework to a staging
+  folder, adds the framework's own `PrivacyInfo.xcprivacy`
+  (`gui/desktop/src-tauri/ios/ffmpeg/PrivacyInfo.xcprivacy`), runs `xcodebuild -create-xcframework`
+  and swaps the result in whole, so a failed run keeps the previous xcframework. A device-only
+  assemble drops the Simulator slice until `make ios-ffmpeg-sim` runs again. `ffmpeg_framework.py
+  check --sdk iphoneos|iphonesimulator` finds the slice through the xcframework's `Info.plist`
+  (slice names are never guessed) and is what the template's "Check FFmpeg framework" pre-build
+  phase and `ios_sim.sh` call: a missing slice stops the build with the `make` target to run,
+  before the Rust build starts.
 - **Release build hygiene.** A release build of the Rust library carried 1364 strings naming
   the build machine's home directory (1303 cargo registry paths in tokio's panic locations, 61
   Swift build paths). The template's "Build Rust Code" phase evals `scripts/ios/private_paths.py
@@ -440,6 +454,12 @@ void     sc_ffmpeg_cancel(int64_t session);
   `gui/desktop/src-tauri/ios/project.yml` carries `OTHER_LDFLAGS: ["$(inherited)",
   "-Wl,-export_dynamic"]` so the linker keeps the four symbols visible to `dlsym`. Do not add a
   second `settings:` key to that target: YAML silently keeps only the last.
+- **FFmpeg framework.** The template links and embeds `ios-payload/FFmpeg.xcframework` with
+  `embed: true`, `codeSign: true` and `link: true`, exactly as it does Python, so one dependency
+  line serves the device and the Simulator and the framework is a load-time dependency of the
+  app. The four symbols are reached through `CDLL(None)`; whether that finds them in a linked
+  framework on a device is proved on a Mac. The framework is arm64 only, so the Simulator target
+  excludes `x86_64` (`EXCLUDED_ARCHS[sdk=iphonesimulator*]`, beside the existing device line).
 
 <a id="ios-release"></a>
 **iOS release (#3810, stage 2).** `scripts/ios/ios_release.py` builds a release `.ipa` for the
@@ -495,7 +515,9 @@ another; it needs its dependencies already built or fetched. A cold checkout nee
   version; a clock set into the future makes later numbers look older, and only a new marketing
   version fixes that. The marketing version is the repository's own, after
   `scripts/version_policy.py` agrees.
-- **What a build does.** Web build, payload for `iphoneos`, a fresh `gen/apple`, `tauri ios init`,
+- **What a build does.** Web build, the FFmpeg framework (`build_ffmpeg.sh device`, then
+  `ffmpeg_framework.py assemble`; FFmpeg is rebuilt from source each run, lame and opus are
+  reused, so this step is long), payload for `iphoneos`, a fresh `gen/apple`, `tauri ios init`,
   `tauri ios build --archive-only` (Tauri adds `-allowProvisioningUpdates` itself; `--no-sign`
   for the rehearsal). A signed archive gets `APPLE_API_KEY`, `APPLE_API_ISSUER` and
   `APPLE_API_KEY_PATH` in its environment, which Tauri turns into the `-authentication*` flags;
