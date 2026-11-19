@@ -519,7 +519,7 @@ def _join_folds(
     """
     ordered = clips_for_track(project, clip.track_id)
     at = clip_index(ordered, clip.id)
-    sides = (("in", previous_clip(ordered, clip.id), clip),)
+    sides: tuple[tuple[str, Any, Any], ...] = (("in", previous_clip(ordered, clip.id), clip),)
     if at + 1 < len(ordered):
         sides += (("out", clip, ordered[at + 1]),)
     folds: list[_JoinFold] = []
