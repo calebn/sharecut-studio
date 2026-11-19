@@ -499,6 +499,14 @@ test.describe("a guest who left the take can Join again from the unsent cover", 
         ),
       ).toBe(true);
       await shoot(guest, "unsent-join-again-phone-390");
+
+      await guest.setViewportSize({ width: 667, height: 375 });
+      await again.scrollIntoViewIfNeeded();
+      const sideways = await boxOf(again);
+      expect(sideways.x).toBeGreaterThanOrEqual(0);
+      expect(sideways.x + sideways.width).toBeLessThanOrEqual(667);
+      expect(sideways.y).toBeGreaterThanOrEqual(0);
+      expect(sideways.y + sideways.height).toBeLessThanOrEqual(375);
     });
   });
 });

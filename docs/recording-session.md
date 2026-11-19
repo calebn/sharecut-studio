@@ -1436,9 +1436,9 @@ has finished, the zip was not already handed to the browser ("Check your downloa
 Join again), and the cached participant lease is known to be young enough: the page stamps
 `issuedAt` when it caches a newly minted lease (a rejoin that echoes the same lease keeps
 the old stamp, and an entry with no stamp never offers it), and offers Join again only
-within 6 days of it, because the server expires a lease after 7 days
+while it is at most 6 days old (6 days exactly still counts), because the server expires a lease after 7 days
 (`services/record/participants.py`) and the 1 day left over covers a client clock that is
-off. The page reads the stamp once after it leaves, so the first frame has no Join again.
+off. The page reads the stamp once after it leaves, so the first frame has no Join again, then hides the offer by a timer at the moment the lease passes 6 days and checks the age again at the press, which does nothing once the lease is older. The unsent cover does not use the review-link `guest-page-cover--short` layout, so a short window has no rules of its own here; the Playwright phone spec checks that Join again stays inside a 667 by 375 window.
 While **Save my recording** or **Try saving again** runs, **Join again** is held busy with
 them and ignores presses. A press remounts the room the way "You left the room" does.
 

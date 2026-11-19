@@ -1,29 +1,44 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { loadRecordParticipant } from "../services/offlineQueue/offlineStore";
-import { leaseKnownYoungEnough } from "./participantLease";
+import { leaseKnownYoungEnough, msUntilLeaseStale } from "./participantLease";
 
-export function useLeaseFreshWhileLeft(token: string, left: boolean): boolean {
+const MAX_TIMER_MS = 2 ** 31 - 1;
+
+export function useLeaseFreshWhileLeft(token: string, left: boolean) {
   const [young, setYoung] = useState(false);
+  const entry =
+    useRef<Awaited<ReturnType<typeof loadRecordParticipant>>>(undefined);
   useEffect(() => {
+    setYoung(false);
+    entry.current = undefined;
     if (!left) {
       return;
     }
     let live = true;
+    let timer: ReturnType<typeof setTimeout> | undefined;
     loadRecordParticipant(token).then(
-      (entry) => {
-        if (live) {
-          setYoung(leaseKnownYoungEnough(entry, Date.now()));
+      (cached) => {
+        if (!live) {
+          return;
         }
-      },
-      () => {
-        if (live) {
-          setYoung(false);
+        entry.current = cached;
+        const wait = msUntilLeaseStale(cached, Date.now());
+        if (wait === null) {
+          return;
         }
+        setYoung(true);
+        timer = setTimeout(() => setYoung(false), Math.min(wait, MAX_TIMER_MS));
       },
+      () => undefined,
     );
     return () => {
       live = false;
+      clearTimeout(timer);
     };
   }, [token, left]);
-  return left && young;
+  const stillFresh = useCallback(
+    () => leaseKnownYoungEnough(entry.current, Date.now()),
+    [],
+  );
+  return { leaseFresh: left && young, leaseStillFresh: stillFresh };
 }
