@@ -55,14 +55,18 @@ describe("useBarFit", () => {
   let lowest = 0;
   /** How many times the bar was measured (once per level tried). */
   let passes = 0;
+  /** How many boxes anything read, by the search or by a size check. */
+  let reads = 0;
 
   beforeEach(() => {
     lowest = 0;
     passes = 0;
+    reads = 0;
     // A bar 400 px wide whose right column runs out of it until `lowest`
     // levels of the bar have been given up.
     vi.spyOn(Element.prototype, "getBoundingClientRect").mockImplementation(
       function rect(this: Element) {
+        reads += 1;
         const host = this.closest<HTMLElement>(".sys-player-host");
         const level = Number(host?.dataset.fit ?? 0);
         const make = (left: number, width: number) =>
@@ -102,6 +106,11 @@ describe("useBarFit", () => {
     document.documentElement.style.fontSize = "";
     document.documentElement.removeAttribute("data-unrelated");
   });
+
+  /** Lets the microtasks a mutation, a resolved promise or an event queued run. */
+  const flush = async () => {
+    for (let turn = 0; turn < 4; turn += 1) await Promise.resolve();
+  };
 
   const fit = (container: HTMLElement) =>
     container.querySelector<HTMLElement>(".sys-player-host")?.dataset.fit;
@@ -225,19 +234,22 @@ describe("useBarFit", () => {
     const { container } = render(<Player {...base} />);
     lowest = 4;
     document.documentElement.style.fontSize = "24px";
-    await vi.waitFor(() => expect(fit(container)).toBe("4"));
+    await flush();
+    expect(fit(container)).toBe("4");
   });
 
-  it("measures nothing when an attribute of <html> that no rule reads is written", async () => {
+  it("reads nothing when an attribute of <html> that no rule reads is written, and reads but does not search for one that is", async () => {
     render(<Player {...base} />);
-    const before = passes;
+    const searched = passes;
+    const read = reads;
     document.documentElement.setAttribute("data-unrelated", "1");
     document.documentElement.setAttribute("data-unrelated", "2");
-    // A write that does matter, with the sizes unchanged, is read and not searched.
+    await flush();
+    expect(reads).toBe(read);
     document.documentElement.style.userSelect = "none";
-    await new Promise<void>((resolve) => queueMicrotask(resolve));
-    await new Promise<void>((resolve) => setTimeout(resolve, 0));
-    expect(passes).toBe(before);
+    await flush();
+    expect(reads).toBeGreaterThan(read);
+    expect(passes).toBe(searched);
     document.documentElement.style.userSelect = "";
   });
 
@@ -307,10 +319,31 @@ describe("useBarFit", () => {
     expect(fit(container)).toBe("1");
     lowest = 3;
     loaded();
-    await vi.waitFor(() => expect(fit(container)).toBe("3"));
+    await flush();
+    expect(fit(container)).toBe("3");
     lowest = 5;
     listeners.loadingdone?.();
     expect(fit(container)).toBe("5");
+  });
+
+  it("does not fit again for fonts that finish loading after the bar is gone", async () => {
+    let loaded: () => void = () => undefined;
+    Object.defineProperty(document, "fonts", {
+      configurable: true,
+      value: {
+        ready: new Promise<void>((resolve) => {
+          loaded = resolve;
+        }),
+        addEventListener: () => undefined,
+        removeEventListener: () => undefined,
+      },
+    });
+    const { unmount } = render(<Player {...base} />);
+    unmount();
+    const read = reads;
+    loaded();
+    await flush();
+    expect(reads).toBe(read);
   });
 
   it("stays at level 0 where nothing has a layout", () => {
