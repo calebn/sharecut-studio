@@ -634,6 +634,7 @@ export function Player(props: PlayerProps) {
           <span className="sys-player-total">{` / ${total}`}</span>
         ) : null}
         <CutsPill cuts={props.cuts} />
+        <RatePill rate={props.rate} />
         <StatusLine status={props.status} id={statusId} />
         <StatePills {...props} />
       </p>

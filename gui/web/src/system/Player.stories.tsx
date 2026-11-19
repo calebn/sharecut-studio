@@ -62,7 +62,7 @@ const meta: Meta<typeof Player> = {
       ...viewportStoryParameters.docs,
       description: {
         component:
-          "Bar form: 56 px on every device. Time and cuts on the left, back 15 s, Play and forward 15 s in the center, then A/B, Comment and the Status pills (following, solo, mix, audio error) on the right. A/B is the segmented control: A is the original, B the edit. Play is ink-filled, not accent. No control shrinks; the status text and a name or detail inside a pill are cut short with an ellipsis. The bar measures itself and, only as far as it takes to avoid an overlap, drops the Status pills' text, the Following detail, the skip buttons, the cuts, the hear menu's chevron and then the other pills, in that order, so a bar with fewer pills keeps more. Under 22rem only the hear menu, an Audio error with Retry and a guest's Comment stay beside Play and the clock. The expanded form adds a 64 px Overview strip, a 64 px Play and the chapter list; on phone a host shows it in a Sheet.\n\n**Motion.** The expanded form rises with `--motion-panel` and the Play icon swaps with `--motion-toggle` in the animation pass. The loading ring is static here.",
+          "Bar form: 56 px on every device. Time and cuts on the left, back 15 s, Play and forward 15 s in the center, then A/B, Comment and the Status pills (following, solo, mix, audio error) on the right. A/B is the segmented control: A is the original, B the edit. Play is ink-filled, not accent. No control shrinks; the status text and a name or detail inside a pill are cut short with an ellipsis. The bar measures itself and, only as far as it takes to avoid an overlap, drops the \"/ total\", the Following detail, the Status pills' text, the skip buttons, the cuts, the hear menu's chevron and then the other pills, in that order, so a bar with fewer pills keeps more. What it hides keeps its name for assistive tech, and the expanded form has it all. Under 22rem only the hear menu, an Audio error with Retry and a guest's Comment stay beside Play and the clock, and under 14rem they go too when they do not fit. The expanded form adds a 64 px Overview strip, a 64 px Play and the chapter list; on phone a host shows it in a Sheet.\n\n**Motion.** The expanded form rises with `--motion-panel` and the Play icon swaps with `--motion-toggle` in the animation pass. The loading ring is static here.",
       },
     },
   },
@@ -259,6 +259,17 @@ export const ExpandedGuest: Story = {
     const canvas = within(canvasElement);
     await expect(canvas.queryByRole("button", { name: "A" })).toBeNull();
     await expect(canvas.getByRole("button", { name: "Comment" })).toBeVisible();
+  },
+};
+
+/** The bar gives the Playback rate up on a narrow phone; the expanded Player always shows it. */
+export const ExpandedRate: Story = {
+  args: { form: "expanded", rate: 1.5 },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(
+      canvas.getByRole("status", { name: "Playback speed 1.5×" }),
+    ).toBeVisible();
   },
 };
 
