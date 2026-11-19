@@ -518,6 +518,22 @@ const measureBar = () => {
         problems.push(`${kindOf(el)} is clipped`);
     }
   }
+  // Where A and B are not drawn the chevron is the bar's only hear menu: it is
+  // there and, under a coarse pointer, a whole touch target.
+  const hear = bar.querySelector(".sys-player-hear");
+  const ab = bar.querySelector(".sys-player-ab");
+  const more = bar.querySelector(".sys-player-hear-more");
+  if (hear && !(ab && shown(ab))) {
+    if (!more || !shown(more)) problems.push("the hear menu has no trigger");
+    else if (matchMedia("(pointer: coarse)").matches) {
+      const r = more.getBoundingClientRect();
+      const touch = (44 * rootSize) / 16;
+      if (r.width < touch - 0.5 || r.height < touch - 0.5)
+        problems.push(
+          `hear options is ${r.width.toFixed(1)} x ${r.height.toFixed(1)}`,
+        );
+    }
+  }
   if (Math.abs(box.height - token) > 0.5)
     problems.push(`bar is ${box.height}, token is ${token}`);
   if (document.documentElement.scrollWidth > innerWidth)
@@ -813,6 +829,78 @@ for (const pointer of ["fine", "coarse"] as const) {
   });
 }
 
+/**
+ * In the page: for each width, every fit level in turn (set by hand, in one task
+ * so the bar's observers cannot refit between them), with the hear trigger
+ * problems and the controls drawn at that level.
+ */
+const measureLevels = async ({ plans }: { plans: Plan[] }) => {
+  type Found = { problems: string[]; kinds: string[] };
+  const measure = (window as unknown as { measureBarInPage: () => Found })
+    .measureBarInPage;
+  const host = document.querySelector<HTMLElement>(".sys-player-host");
+  if (!host) throw new Error("Player did not render");
+  const frame = () =>
+    new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+  const rows: { root: number; width: number; level: number; found: Found }[] =
+    [];
+  for (const { root, widths } of plans) {
+    document.documentElement.style.fontSize = `${root}px`;
+    for (const width of widths) {
+      host.style.width = `${width}px`;
+      await frame();
+      await frame();
+      while (document.fonts.status !== "loaded") await frame();
+      const fitted = host.dataset.fit ?? "0";
+      for (let level = 0; level <= 8; level += 1) {
+        host.dataset.fit = String(level);
+        rows.push({ root, width, level, found: measure() });
+      }
+      host.dataset.fit = fitted;
+      await frame();
+    }
+  }
+  host.style.width = "";
+  document.documentElement.style.fontSize = "";
+  return rows;
+};
+
+for (const pointer of ["fine", "coarse"] as const) {
+  test(`System/Player a hear trigger is drawn at every fit level where A and B are not, ${pointer} pointer (#2576)`, async ({
+    browser,
+  }) => {
+    test.setTimeout(120_000);
+    const context = await pointerContext(browser, pointer);
+    const page = await context.newPage();
+    await showArgs(page, { story: null }, BAR_STATES.followerrstale, []);
+    const rows = await page.evaluate(measureLevels, {
+      plans: [
+        { root: 16, widths: [224, 300, 352, 360, 390, 420] },
+        { root: 24, widths: [344, 360, 420, 528, 540] },
+        { root: 32, widths: [344, 360, 456, 704, 720] },
+      ],
+    });
+    await context.close();
+    const missing = rows
+      .flatMap((row) =>
+        row.found.problems
+          .filter((problem) =>
+            /^(the hear menu has no trigger|hear options is )/.test(problem),
+          )
+          .map(
+            (problem) =>
+              `level ${row.level} at ${row.width} px, ${row.root} px text: ${problem}`,
+          ),
+      )
+      .slice(0, 20);
+    expect(missing).toEqual([]);
+    const without = rows.filter((row) => !row.found.kinds.includes("A/B"));
+    expect(new Set(without.map((row) => row.level))).toEqual(
+      new Set([0, 1, 2, 3, 4, 5, 6, 7, 8]),
+    );
+  });
+}
+
 const FULL = [
   "A/B",
   "comment",
@@ -845,6 +933,16 @@ const SHOWN: [string, "fine" | "coarse", number, number, string[]][] = [
     ["audio error", "comment", "play", "retry", "time"],
   ],
   ["guesterrhours", "fine", 32, 360, ["play", "time"]],
+  [
+    "followerrstale",
+    "coarse",
+    24,
+    360,
+    ["audio error", "hear options", "play", "retry", "time"],
+  ],
+  ["followerrstale", "coarse", 32, 360, ["hear options", "play", "time"]],
+  ["followerrstale", "fine", 32, 360, ["hear options", "play", "time"]],
+  ["followmixstale", "coarse", 16, 340, ["hear options", "play", "time"]],
 ];
 
 test("System/Player at a few widths the bar shows exactly these controls (#2576)", async ({
@@ -956,6 +1054,52 @@ test("System/Player the pills a phone's bar hides stay in the accessibility tree
   await expect(
     page.getByRole("status", { name: "Playback speed 2×" }),
   ).toHaveCount(1);
+});
+
+test("System/Player levels 4 and 5 keep a home for what they hide: the cuts keep their name and tooltip, the skips are in the expanded Player (#2576)", async ({
+  page,
+}) => {
+  const host = await phoneBar(page, BAR_STATES.followcuts);
+  await expect(host).toHaveAttribute("data-fit", /^[5678]$/);
+  expect(await host.ariaSnapshot()).toContain("−4:10");
+  // In one step, so the bar's own observers cannot refit between the levels.
+  const seen = await host.evaluate((el) => {
+    const cuts = el.querySelector<HTMLElement>(".sys-player-cuts");
+    const skip = el.querySelector<HTMLElement>(".sys-player-skip");
+    if (!cuts || !skip) throw new Error("no cuts or skip");
+    return [4, 5].map((level) => {
+      (el as HTMLElement).dataset.fit = String(level);
+      return {
+        level,
+        inTree: getComputedStyle(cuts).display !== "none",
+        drawn: cuts.getBoundingClientRect().width > 2,
+        title: cuts.title,
+        text: cuts.textContent,
+        skipDisplay: getComputedStyle(skip).display,
+      };
+    });
+  });
+  expect(seen).toEqual([
+    {
+      level: 4,
+      inTree: true,
+      drawn: true,
+      title: "Length change from your cuts",
+      text: "−4:10",
+      skipDisplay: "none",
+    },
+    {
+      level: 5,
+      inTree: true,
+      drawn: false,
+      title: "Length change from your cuts",
+      text: "−4:10",
+      skipDisplay: "none",
+    },
+  ]);
+  await open(page, "system-player--expanded", 360);
+  for (const name of ["Back 15 seconds", "Forward 15 seconds"])
+    await expect(page.getByRole("button", { name })).toBeVisible();
 });
 
 test("System/Player the Hear menu opens beside the bar at the level that hid its chevron (#2576)", async ({
