@@ -5,7 +5,6 @@ import { registerE2eCleanupWorkspace } from "./cleanupManifest";
 import { relocateWorkspaceDir } from "./liveProject";
 import { silenceWav } from "./shareableProject";
 
-/** Six invented words over two generated silent PCM recordings; no copied media. */
 export function createScriptRecordingIdentityProject(prefix: string) {
   const workspaceDir = fs.mkdtempSync(path.join(os.tmpdir(), prefix));
   let registered = false;
