@@ -1,12 +1,4 @@
 import type { StateCreator } from "zustand";
-import {
-  followSelection,
-  type SelectionEnd,
-  type SelectionModel,
-  selectionEndOf,
-} from "../edit/selectionFollow";
-import { scriptModelFor } from "../stage/edit/script/scriptHostModel";
-import { selectionModelOfProject } from "../stage/edit/script/scriptSelectionModel";
 import type { ProjectView, Selection } from "../types/project";
 import {
   chapterSelectionAfter,
@@ -18,6 +10,7 @@ import {
   tracksSelection,
 } from "./selection";
 import { stageRoleOf } from "./stageRoutes";
+import { judgeTranscriptSelection } from "./transcriptSelectionJudge";
 import type { DawStore } from "./types";
 
 const localWrites = new WeakMap<() => DawStore, AbortController>();
@@ -113,31 +106,6 @@ const sameScript = (a: ProjectView, b: ProjectView) =>
   a.transcript?.utterances === b.transcript?.utterances &&
   a.edit_boundaries === b.edit_boundaries;
 
-function liveWords(model: SelectionModel, from: number, to: number) {
-  const words: string[] = [];
-  for (let at = from; at <= to; at++) {
-    const ref = model.refs[at];
-    const word = model.words[at];
-    if (!ref || !word || model.cut?.[at]) continue;
-    words.push(`${ref.trackId}|${ref.sourceId}|${word.start}|${word.text}`);
-  }
-  return words;
-}
-
-/** A word cut or retimed inside the run makes it a different run. */
-function sameWords(
-  before: SelectionModel,
-  from: number,
-  to: number,
-  after: SelectionModel,
-  at: number,
-  end: number,
-) {
-  const was = liveWords(before, from, to);
-  const now = liveWords(after, at, end);
-  return was.length === now.length && was.every((word, i) => word === now[i]);
-}
-
 /**
  * The selection patch a project replacement implies for a selected run of
  * words, or nothing when it still stands. The store keeps `word_index`
@@ -165,54 +133,27 @@ export function transcriptSelectionFollowPatch(
     if (!wordsPending(from)) namedIn.set(sel, from);
     return {};
   }
-  const before = scriptModelFor(from).model;
-  const sourceId = sel.sourceId ?? null;
-  const startAt = before.indexOf({
-    trackId: sel.trackId,
-    sourceId,
-    wordIndex: sel.startWordIndex,
-  });
-  const endAt = before.indexOf(
-    { trackId: sel.trackId, sourceId, wordIndex: sel.endWordIndex },
-    "last",
-  );
-  const prior = selectionModelOfProject(from);
-  const anchor: SelectionEnd | null =
-    startAt === undefined ? null : selectionEndOf(prior, startAt);
-  const head: SelectionEnd | null =
-    endAt === undefined ? null : selectionEndOf(prior, endAt);
   const clear = () => selectionPatch(sel, null, state.inspectorKey);
-  if (!anchor || !head) return clear();
-  const after = selectionModelOfProject(next);
-  const follow = followSelection({ stored: sel, anchor, head }, after);
-  if (follow.kind === "clear") return clear();
-  if (follow.kind === "wait") {
+  const judged = judgeTranscriptSelection(from, sel, next);
+  if (judged.kind === "wait") {
     namedIn.set(sel, from);
     return {};
   }
   namedIn.delete(sel);
-  const kept = follow.kind === "keep";
-  const index = scriptModelFor(next).model.indexOf;
-  const at = kept
-    ? index({ trackId: sel.trackId, sourceId, wordIndex: sel.startWordIndex })
-    : follow.anchor;
-  const to = kept
-    ? index(
-        { trackId: sel.trackId, sourceId, wordIndex: sel.endWordIndex },
-        "last",
-      )
-    : follow.head;
-  if (at === undefined || to === undefined) return clear();
-  if (!sameWords(prior, anchor.index, head.index, after, at, to))
-    return clear();
-  if (kept) return {};
-  const first = after.refs[at]?.wordIndex;
-  const last = after.refs[to]?.wordIndex;
-  if (first == null || last == null) return clear();
-  if (first === sel.startWordIndex && last === sel.endWordIndex) return {};
+  if (judged.kind === "clear") return clear();
+  if (judged.kind === "keep") return {};
+  if (
+    judged.startWordIndex === sel.startWordIndex &&
+    judged.endWordIndex === sel.endWordIndex
+  )
+    return {};
   return selectionPatch(
     sel,
-    { ...sel, startWordIndex: first, endWordIndex: last },
+    {
+      ...sel,
+      startWordIndex: judged.startWordIndex,
+      endWordIndex: judged.endWordIndex,
+    },
     state.inspectorKey,
   );
 }
