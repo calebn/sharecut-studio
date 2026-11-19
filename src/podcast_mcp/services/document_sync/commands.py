@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from collections.abc import Sequence
 from dataclasses import dataclass, field
 from typing import Any, Literal
 from uuid import uuid4
@@ -150,12 +149,8 @@ def command_context_for_role(role: ClientRole) -> TrustedCommandContext:
     return INTERACTIVE_COMMAND if role == "viewer" else PROGRAMMATIC_COMMAND
 
 
-def command_context_for_share(capabilities: Sequence[str] | None) -> TrustedCommandContext:
+def command_context_for_share(capabilities: list[str] | None) -> TrustedCommandContext:
     """An Editor share's hand edits are human like the host's; a Commenter's stay programmatic."""
     from podcast_mcp.services.document_sync.capabilities import edit_commands_allowed
 
-    return (
-        INTERACTIVE_COMMAND
-        if edit_commands_allowed(list(capabilities or []))
-        else PROGRAMMATIC_COMMAND
-    )
+    return INTERACTIVE_COMMAND if edit_commands_allowed(capabilities) else PROGRAMMATIC_COMMAND
