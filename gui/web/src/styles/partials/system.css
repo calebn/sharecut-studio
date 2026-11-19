@@ -1106,16 +1106,10 @@ button.sys-version-line {
   }
 }
 
-/* Under 50 rem the Status pill is its glyph and the text stays for assistive
-   tech, and an Audio error gives a host's Comment button's room to the error
-   pill and Retry (a guest's Comment stays: the measured fit below gives up
-   other things for it). */
 @container sys-player (max-width: 50rem) {
-  /* During an audio error a host's Comment button gives its room (the status
-     text already has, under 60 rem) to the error pill and Retry: with all of
-     them, the right-hand controls outgrow the side column and slide under Play.
-     The A and B toggles stay, since switching what you hear can clear the
-     error. A guest has no A or B and may comment, so its Comment stays. */
+  /* In an Audio error a host's Comment gives its room to the error pill and
+     Retry, which otherwise outgrow the side column and slide under Play. A guest
+     has no A or B and may comment, so its Comment stays. */
   .sys-player-host[data-state="error"]
     .sys-player-right
     > .sys-icon-btn:not(.sys-player-comment--guest) {
@@ -1143,28 +1137,14 @@ button.sys-version-line {
   }
 }
 
-/* The bar (not the Listen dock, which shares the host and gets no attribute)
-   gives controls up by measurement. Player.tsx (useBarFit) lays the bar out at
-   `data-fit="0"` and steps `data-fit` up until no column of the bar runs into
-   the next or out of the bar and no Status pill's text is cut short (when it
-   mounts and when a size, the text, the fonts or the pointer type change, not
-   on every render). The rules below are cumulative, one per level: 1 the
-   40 rem layout (the "/ total" goes and the grid is `auto 1fr auto`), 2 the
-   Following detail, 3 the Status pills' text, 4 the skip buttons, 5 the cuts,
-   6 the hear menu's chevron (only where A and B are drawn), 7 the other pills
-   (Following, Solo, Updating mix, the Playback rate) and the status, 8 a guest's
-   Comment, the Audio error pill and Retry. Hidden things keep a name and another
-   home. The pills a level hides stay in the accessibility tree (hidden
-   visually, as the Status pill's text is at 40 rem, and so is the Audio error
-   pill at level 8). The skip buttons (4), Stop following (7) and, at level 8,
-   a guest's Comment and Retry are `display: none`, so no invisible control
-   takes focus: the expanded Player holds all of them. Play and
-   the clock are never given up, and a hear trigger stays: A and B where they are
-   drawn (above 22 rem), else the chevron at every level. If level 8 still does
-   not fit, the status text's ellipsis and the 22 and 14 rem rules (and the 50 and
-   60 rem rules, which hide the same things earlier at those widths) take over. A
-   Following or Solo name past about 8 characters and the Following detail past
-   about 14 are cut short with an ellipsis whatever the level. */
+/* useBarFit steps `data-fit` up from 0 until the bar fits, and each level gives
+   up one more thing: 1 the 40 rem layout (the "/ total" goes), 2 the Following
+   detail, 3 the Status pills' text, 4 the skip buttons, 5 the cuts, 6 the hear
+   chevron (above 22 rem outside a short frame, where A and B open the same
+   menu), 7 the other pills, the rate and the status, 8 Comment, Retry and the
+   Audio error pill. Pills are hidden visually and keep their names; the skip
+   buttons, Stop following, Comment and Retry are `display: none` so no invisible
+   control takes focus. */
 .sys-player-host > .sys-player {
   overflow-x: clip;
 }
@@ -1231,8 +1211,6 @@ button.sys-version-line {
   display: none;
 }
 
-/* Levels 3, 5 and 7: the Status pills' text (3), the cuts (5) and the other pills
-   with the status (7) are hidden visually and keep their name and tooltip. */
 .sys-player-host:is(
     [data-fit="3"],
     [data-fit="4"],
@@ -1281,10 +1259,8 @@ button.sys-version-line {
   display: none;
 }
 
-/* Level 6: the hear menu's chevron goes, but only where A and B are drawn (they
-   open the same menu, by a right-click or a long press). Under 22 rem, and in a
-   folded frame, A and B are not drawn and the chevron is the bar's only hear
-   menu, so it stays and the measured fit decides whether it fits. */
+/* Level 6: A and B are not drawn at 22 rem and under or in a short frame, so
+   there the chevron is the only hear menu and stays. */
 @container sys-player (width > 22rem) {
   html:not([data-frame-short])
     .sys-player-host:is([data-fit="6"], [data-fit="7"], [data-fit="8"])
@@ -1302,24 +1278,18 @@ button.sys-version-line {
   }
 }
 
-/* Level 7: Stop following has no place left to be seen, so it goes whole. */
 .sys-player-host:is([data-fit="7"], [data-fit="8"]) .sys-pill-x {
   display: none;
 }
 
-/* Level 8, the fold: Play, the clock and the hear menu's chevron are the one row
-   (a guest has no hear menu). Reached only when a guest's Comment, the Audio
-   error pill and Retry do not fit beside them: under about 13.4 rem with a
-   milliseconds clock and 14.5 rem with an hours clock (a 360 or 390 px phone at
-   200% text). The expanded Player has Retry and the error. */
+/* Level 8: Play, the clock and the hear chevron are the one row. The expanded
+   Player holds Comment and Retry. */
 .sys-player-host[data-fit="8"]
   .sys-player-right
   > :is(.sys-player-comment, .sys-player-retry) {
   display: none;
 }
 
-/* The Audio error pill is not a control: at the fold it is hidden visually and
-   keeps its name. */
 .sys-player-host[data-fit="8"] .sys-player-right > .sys-pill--danger {
   position: absolute;
   inline-size: 1px;
@@ -1350,10 +1320,8 @@ button.sys-version-line {
   }
 }
 
-/* Under 22 rem the pills (Following, Solo, Updating mix, the status), the cuts
-   and the Playback rate are hidden visually and keep their name and tooltip.
-   A and B, a host's Comment and Stop following go whole: the expanded Player
-   (Hear menu with A and B, Comment, Stop following) holds them. */
+/* At 22 rem and under the pills, the cuts and the rate are hidden visually; A
+   and B, a host's Comment and Stop following are removed. */
 @container sys-player (max-width: 22rem) {
   .sys-player-host > .sys-player .sys-player-ab,
   .sys-player-host
@@ -1394,11 +1362,6 @@ button.sys-version-line {
   }
 }
 
-/* In an Audio error Play, the clock, the hear menu's chevron or a guest's
-   Comment, the error pill and Retry are too wide for a bar under 22 rem with any
-   gap or padding, so there they sit edge to edge (each a whole touch target),
-   and from the 14 rem fold to 16 rem, where an hours clock leaves them no room,
-   the clock is set smaller (it is not a control). */
 @container sys-player (max-width: 22rem) {
   .sys-player-host[data-state="error"] > .sys-player {
     gap: 0;
@@ -1416,12 +1379,8 @@ button.sys-version-line {
   }
 }
 
-/* Under 14 rem (a phone at 200% text) the clock, the gap and the A and B toggles
-   are set here without the host scope, so they reach the expanded Player too
-   (the A and B toggles are in the Hear menu), and the bar's clock is smaller
-   still so Play, the clock and the hear menu's chevron fit. A guest's Comment,
-   the Audio error pill and Retry stay while they fit (level 8 above hides them
-   when they do not). */
+/* Not scoped to the bar, so the expanded Player gets them too: at 14 rem and
+   under its A and B are in the Hear menu. */
 @container sys-player (max-width: 14rem) {
   .sys-player-now {
     font-size: var(--font-size-ui);
@@ -1446,8 +1405,8 @@ button.sys-version-line {
    small phone at 200% text) keeps the Player as one touch-height row: Play, the
    clock and the hear menu, plus, for a guest on the phone shell, an icon-only
    Comment. The skip buttons, the cuts, the A and B toggles, Comment for a host
-   or off the phone and the status chips give way (the Audio error pill and Retry
-   stay while they fit, level 8). */
+   or off the phone and the status chips give way. The Audio error pill and
+   Retry stay until level 8. */
 html[data-frame-short] .sys-player {
   min-block-size: var(--touch-min);
 }
