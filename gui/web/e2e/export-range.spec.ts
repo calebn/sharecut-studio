@@ -1,10 +1,13 @@
 import { expect, type Page, test } from "@playwright/test";
+import { registerClipCurrentnessSmoke } from "./clipCurrentnessSmoke";
 import { bouncedWavs } from "./exportFiles";
 import { withShareableProject } from "./shareableProject";
 import { goToStage, openProject, selectRangeSec, stageTab } from "./stageNav";
 
 const actionBar = (page: Page) =>
   page.getByRole("group", { name: /^(Selection|Edit) actions$/ });
+
+registerClipCurrentnessSmoke();
 const toast = (page: Page) => page.locator(".ui-toast-region--app .ui-toast");
 
 test("Export on a range writes a WAV in place and the toast offers Download", async ({
