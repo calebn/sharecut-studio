@@ -211,7 +211,7 @@ describe("TimelinePresence", () => {
   });
 
   describe("announcer", () => {
-    it("announces a joined and a departed client by display name", () => {
+    it("announces a departed client and says nothing for one that joins", () => {
       seed([]);
       const { rerender } = render(<Host />);
       act(() => {
@@ -220,26 +220,12 @@ describe("TimelinePresence", () => {
         });
       });
       rerender(<Host />);
-      expect(useDawStore.getState().statusAnnouncement).toBe("BEA joined");
-      useDawStore.setState({ statusAnnouncement: "" });
+      expect(useDawStore.getState().statusAnnouncement).toBe("");
       act(() => {
         useDawStore.setState({ sessionClients: sessionRoster([]) });
       });
       rerender(<Host />);
       expect(useDawStore.getState().statusAnnouncement).toBe("Someone left");
-    });
-
-    it("names a joiner by display name", () => {
-      seed([]);
-      render(<Host />);
-      act(() => {
-        useDawStore.setState({
-          sessionClients: sessionRoster([
-            remote("bea", { meta: { display_name: "Bea" } }),
-          ]),
-        });
-      });
-      expect(useDawStore.getState().statusAnnouncement).toBe("Bea joined");
     });
 
     it("announces nothing when a present client only moves", () => {
