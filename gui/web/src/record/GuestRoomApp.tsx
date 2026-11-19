@@ -34,6 +34,7 @@ import {
   guestRoomPhase,
   guestTakes,
   guestViewerWidth,
+  holdsJoinSheet,
   hostGoneMidTake,
   joinHere,
   joinMic,
@@ -65,7 +66,7 @@ import {
   LOCAL_KEEPER_PENDING_COPY,
   resolveCaptureHealth,
 } from "./types";
-import { useGuestRoom } from "./useGuestRoom";
+import { type KeeperIdentity, useGuestRoom } from "./useGuestRoom";
 import { useGuestRoomTone } from "./useGuestRoomTone";
 import { useHostGoneWait } from "./useHostGoneWait";
 import { useInputPeakDb } from "./useInputPeakDb";
@@ -97,8 +98,14 @@ export function GuestRoomApp({ token }: { token: string }) {
     window.addEventListener("online", mark);
     return () => window.removeEventListener("online", mark);
   }, []);
+  const identity = useRef<KeeperIdentity | null>(null);
+  const [carried, setCarried] = useState<KeeperIdentity | null>(null);
+  const rememberIdentity = useCallback((next: KeeperIdentity) => {
+    identity.current = next;
+  }, []);
   const onRetry = useCallback(() => {
     cameOnline.current = false;
+    setCarried(identity.current);
     setAttempt((n) => n + 1);
   }, []);
   const onlineMissed = useCallback(() => cameOnline.current, []);
@@ -107,6 +114,8 @@ export function GuestRoomApp({ token }: { token: string }) {
       key={attempt}
       token={token}
       retried={attempt > 0}
+      carried={carried}
+      onIdentity={rememberIdentity}
       onRetry={onRetry}
       onlineMissed={onlineMissed}
     />
@@ -116,11 +125,15 @@ export function GuestRoomApp({ token }: { token: string }) {
 function GuestRoomSession({
   token,
   retried,
+  carried,
+  onIdentity,
   onRetry,
   onlineMissed,
 }: {
   token: string;
   retried: boolean;
+  carried: KeeperIdentity | null;
+  onIdentity: (identity: KeeperIdentity) => void;
   onRetry: () => void;
   onlineMissed: () => boolean;
 }) {
@@ -128,7 +141,13 @@ function GuestRoomSession({
   const [joining, setJoining] = useState(false);
   const [deviceOpen, setDeviceOpen] = useState(false);
   const [headphonesGate] = useState(() => headphonesRule(readHeadphonesEnv()));
-  const room = useGuestRoom(token, { rejoining: rejoinOpen });
+  const room = useGuestRoom(token, { rejoining: rejoinOpen, carried });
+  const { keeperIdentity } = room;
+  useEffect(() => {
+    if (keeperIdentity) {
+      onIdentity(keeperIdentity);
+    }
+  }, [keeperIdentity, onIdentity]);
   const {
     bootstrap,
     producer,
@@ -275,9 +294,21 @@ function GuestRoomSession({
       upload.total > 0 ||
       !!upload.error ||
       upload.recoverable);
+  const sheetHeld = holdsJoinSheet({
+    state,
+    consented,
+    snapshot,
+    me,
+    upload,
+    localRecording: room.localRecording,
+    localSegments: room.localSegments,
+    localUnreadable: room.localUnreadable,
+  });
+  const awaitingRejoin = carried !== null && snapshot === null;
   const guestSheet =
     !producer &&
-    ((consented === null && !recovering) || (rejoinOpen && consented !== true));
+    ((consented === null && !recovering && !sheetHeld && !awaitingRejoin) ||
+      (rejoinOpen && consented !== true));
   const producerSheet = producerOutside && !producerDismissed;
   const sheetOpen = guestSheet || producerSheet;
   if (sheetOpen && deviceOpen) {

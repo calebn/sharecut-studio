@@ -2,6 +2,7 @@ import { mkdirSync } from "node:fs";
 import path from "node:path";
 import { type Browser, expect, type Page, test } from "@playwright/test";
 import {
+  keeperSegmentIndexes,
   keeperSegmentWavBytes,
   ONE_SECOND_KEEPER_WAV_BYTES,
 } from "./keeperOpfs";
@@ -360,6 +361,7 @@ test.describe("a guest who left the take can Join again from the unsent cover", 
         .poll(() => keeperSegmentWavBytes(guest, guestKeeper, 0))
         .toBeGreaterThan(ONE_SECOND_KEEPER_WAV_BYTES);
 
+      const socketsAtLeave = sockets.length;
       await hostReturns(take);
       await ensureHostRecordCommand(host, projectPath, "Stop", "stopped");
 
@@ -374,10 +376,10 @@ test.describe("a guest who left the take can Join again from the unsent cover", 
       ).toBeVisible();
       await shoot(guest, "unsent-join-again-laptop");
 
-      const socketsWhileLeft = sockets.length;
+      expect(sockets.length).toBe(socketsAtLeave);
       await watchForJoinSheet(guest);
       await again.click();
-      await expect.poll(() => sockets.length).toBeGreaterThan(socketsWhileLeft);
+      await expect.poll(() => sockets.length).toBeGreaterThan(socketsAtLeave);
       await expect(guest.getByText(/Saving/).first()).toBeVisible({
         timeout: 30_000,
       });
@@ -411,12 +413,15 @@ test.describe("a guest who left the take can Join again from the unsent cover", 
       await hostReturns(take);
       await watchForJoinSheet(guest);
       await guest.getByRole("button", { name: "Join again" }).click();
+      await expect(leaveOf(guest)).toBeVisible();
+      await ensureHostRecordCommand(host, projectPath, "Resume", "recording");
       await expect(roomPill(guest)).toHaveText(LIVE_PILL, { timeout: 30_000 });
+      await guest.getByRole("button", { name: "Reconnect mic" }).click();
       await expect
-        .poll(() => keeperSegmentWavBytes(guest, guestKeeper, 1), {
+        .poll(() => keeperSegmentIndexes(guest, guestKeeper), {
           timeout: 30_000,
         })
-        .toBeGreaterThan(ONE_SECOND_KEEPER_WAV_BYTES);
+        .toEqual([0, 1]);
       expect(await joinSheetSeen(guest)).toBe(false);
 
       upload.blocked = false;
@@ -480,11 +485,11 @@ test.describe("a guest who left the take can Join again from the unsent cover", 
       await expect(again).toBeVisible();
       const boxes = [await boxOf(save), await boxOf(retry), await boxOf(again)];
       const viewport = guest.viewportSize();
-      expect(viewport).toEqual({ width: 390, height: 844 });
+      expect(viewport?.width).toBe(390);
       for (const box of boxes) {
         expect(box.x).toBeGreaterThanOrEqual(0);
         expect(box.x + box.width).toBeLessThanOrEqual(390);
-        expect(box.y + box.height).toBeLessThanOrEqual(844);
+        expect(box.y + box.height).toBeLessThanOrEqual(viewport?.height ?? 0);
       }
       expect(boxes[0].y).toBeLessThan(boxes[1].y);
       expect(boxes[1].y).toBeLessThan(boxes[2].y);

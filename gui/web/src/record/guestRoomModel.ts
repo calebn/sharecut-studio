@@ -74,17 +74,52 @@ export function tookPart(
 }
 
 /** Whether the server's roster puts this guest in any take so far, so it survives a reload. */
-export function tookAnyTake(
+export function onTakeRoster(
   snapshot: RecordSnapshot | null,
   me: RecordParticipant | null,
 ): boolean {
-  if (!snapshot || me?.consented !== true) {
+  if (!snapshot || !me) {
     return false;
   }
   return (snapshot.takes ?? []).some(
     (take) =>
       take.take_index <= snapshot.take_index &&
       take.consented_participant_ids.includes(me.participant_id),
+  );
+}
+
+export function tookAnyTake(
+  snapshot: RecordSnapshot | null,
+  me: RecordParticipant | null,
+): boolean {
+  return me?.consented === true && onTakeRoster(snapshot, me);
+}
+
+type SheetHold = {
+  state: RecordSnapshot["state"] | undefined;
+  consented: boolean | null;
+  snapshot: RecordSnapshot | null;
+  me: RecordParticipant | null;
+  upload: Pick<RecordUploadProgress, "fileAck" | "seenSegments">;
+  localRecording: boolean;
+  localSegments: number | null;
+  localUnreadable: boolean;
+};
+
+export function holdsJoinSheet(input: SheetHold): boolean {
+  if (
+    input.state !== "stopped" ||
+    input.consented !== null ||
+    !onTakeRoster(input.snapshot, input.me)
+  ) {
+    return false;
+  }
+  if (input.localSegments === null) {
+    return !input.localUnreadable;
+  }
+  return (
+    input.localRecording &&
+    !uploadAcknowledged(input.upload, input.localSegments)
   );
 }
 
@@ -425,6 +460,7 @@ type CoverSource = {
   keeperActions: KeeperRecoveryActions;
   host?: string;
   localUnreadable?: boolean;
+  leaseFresh?: boolean;
   onRetry?: () => void;
 };
 
@@ -432,21 +468,28 @@ const page = { size: "page" } as const;
 
 const SAVING_LABEL = "Saving…";
 
+const JOIN_AGAIN_COPY = "Or join again from this page.";
+
 const UNREADABLE_DEVICE_COPY =
   "We couldn't check this device. Try saving it again, or save a copy.";
 
-function unsentRecordingCover(source: CoverSource, host: string): CoverProps {
+function unsentRecordingCover(
+  source: CoverSource,
+  host: string,
+  joinAgain: (() => void) | undefined,
+): CoverProps {
   if (source.keeperActions.downloaded) {
     return downloadedCover(source.keeperActions, host);
   }
   const { download, recover } = source.keeperActions;
+  const offerJoinAgain = !source.localUnreadable ? joinAgain : undefined;
   return {
     ...page,
     glyph: "door-open",
     title: "Your recording didn't finish saving",
     children: source.localUnreadable
       ? UNREADABLE_DEVICE_COPY
-      : `It's safe on this device. Save it and send it to ${host}.`,
+      : `It's safe on this device. Save it and send it to ${host}.${offerJoinAgain ? ` ${JOIN_AGAIN_COPY}` : ""}`,
     primary: download
       ? {
           label: "Save my recording",
@@ -461,6 +504,13 @@ function unsentRecordingCover(source: CoverSource, host: string): CoverProps {
           onClick: recover,
           busy: source.keeperActions.busy,
           busyLabel: runningLabel(source.keeperActions, "recover"),
+        }
+      : undefined,
+    tertiary: offerJoinAgain
+      ? {
+          label: "Join again",
+          onClick: offerJoinAgain,
+          busy: source.keeperActions.busy,
         }
       : undefined,
   };
@@ -548,7 +598,7 @@ export function guestCovers(source: CoverSource): CoverProps | null {
       };
     }
     if (source.stake === "unsent") {
-      return unsentRecordingCover(source, host);
+      return unsentRecordingCover(source, host, undefined);
     }
     return {
       ...page,
@@ -562,7 +612,11 @@ export function guestCovers(source: CoverSource): CoverProps | null {
   }
   if (source.left) {
     if (source.stake === "unsent") {
-      return unsentRecordingCover(source, host);
+      return unsentRecordingCover(
+        source,
+        host,
+        source.leaseFresh ? source.onRetry : undefined,
+      );
     }
     const finishing = source.stake === "finishing";
     return {
@@ -643,6 +697,7 @@ type CoverRoom = Pick<
   | "accessEnded"
   | "inviteClosed"
   | "left"
+  | "leaseFresh"
   | "producer"
   | "captureSettled"
   | "keeperActions"
@@ -651,7 +706,10 @@ type CoverRoom = Pick<
   | "localUnreadable"
   | "recordedHere"
   | "snapshot"
-> & { upload: Pick<RecordUploadProgress, "fileAck" | "seenSegments"> };
+> & {
+  upload: Pick<RecordUploadProgress, "fileAck" | "seenSegments">;
+  keeperIdentity?: { takeIndex: number } | null;
+};
 
 /** The page-sized Cover this room needs instead of the room, or null. */
 export function guestCoverProps(
@@ -662,7 +720,7 @@ export function guestCoverProps(
   // the device holds, there is nothing here to save: whatever the device still
   // holds (a copy kept for the reclaim grace after a download) is a duplicate.
   const hasLocalCopy =
-    (room.snapshot?.take_index ?? -1) >= 0 &&
+    (room.snapshot?.take_index ?? room.keeperIdentity?.takeIndex ?? -1) >= 0 &&
     ((room.localRecording &&
       !uploadAcknowledged(room.upload, room.localSegments)) ||
       (room.localSegments === null && room.recordedHere));
@@ -688,6 +746,7 @@ export function guestCoverProps(
     keeperActions,
     host: guestHostName(room.snapshot),
     localUnreadable: room.localUnreadable,
+    leaseFresh: room.leaseFresh,
     onRetry: options.onRetry,
   });
 }

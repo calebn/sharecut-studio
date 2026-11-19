@@ -80,6 +80,7 @@ export type CoverProps = {
   children: ReactNode;
   primary?: CoverAction;
   secondary?: CoverAction;
+  tertiary?: CoverAction;
   /** Room full: occupant avatars. */
   extra?: ReactNode;
   /**
@@ -102,6 +103,7 @@ export function Cover({
   children,
   primary,
   secondary,
+  tertiary,
   extra,
   status,
   headingLevel: Heading = "h2",
@@ -130,7 +132,7 @@ export function Cover({
           <p className="sys-cover-text">{children}</p>
           {extra}
         </div>
-        {primary || secondary ? (
+        {primary || secondary || tertiary ? (
           <div
             className={`sys-cover-actions${status !== undefined ? " sys-cover-actions--status" : ""}`}
           >
@@ -142,6 +144,11 @@ export function Cover({
             {secondary ? (
               <Button variant="link" {...pressProps(secondary)}>
                 <ActionLabel {...secondary} />
+              </Button>
+            ) : null}
+            {tertiary ? (
+              <Button variant="link" {...pressProps(tertiary)}>
+                <ActionLabel {...tertiary} />
               </Button>
             ) : null}
             {status !== undefined ? (

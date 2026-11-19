@@ -6,6 +6,7 @@ import {
   guestRoomPhase,
   guestTakes,
   guestViewerWidth,
+  holdsJoinSheet,
   hostGoneMidTake,
   joinHere,
   joinMic,
@@ -1183,6 +1184,70 @@ describe("guestCovers Join again on the unsent cover", () => {
       }),
     );
     expect(cover?.tertiary).toMatchObject({ label: "Join again", busy: true });
+  });
+});
+
+describe("holdsJoinSheet", () => {
+  const rostered = recordSnapshot({
+    state: "stopped",
+    take_index: 0,
+    participants: [host, me],
+    takes: [
+      {
+        take_index: 0,
+        session_start_wall_ms: 1000,
+        session_start_iso: "t",
+        stopped_wall_ms: 61_000,
+        pauses: [],
+        consented_participant_ids: ["p_g"],
+      },
+    ],
+  });
+  const input = (over: Partial<Parameters<typeof holdsJoinSheet>[0]> = {}) => ({
+    state: "stopped" as const,
+    consented: null,
+    snapshot: rostered,
+    me,
+    upload: { fileAck: false, seenSegments: 0 },
+    localRecording: false,
+    localSegments: null,
+    localUnreadable: false,
+    ...over,
+  });
+
+  it("holds while the device scan of a take this guest was on is unread", () => {
+    expect(holdsJoinSheet(input())).toBe(true);
+  });
+
+  it("holds while the device holds a segment the server has not acknowledged", () => {
+    expect(
+      holdsJoinSheet(input({ localSegments: 1, localRecording: true })),
+    ).toBe(true);
+  });
+
+  it("lets go once the scan finds nothing, or every segment is acknowledged", () => {
+    expect(holdsJoinSheet(input({ localSegments: 0 }))).toBe(false);
+    expect(
+      holdsJoinSheet(
+        input({
+          localSegments: 1,
+          localRecording: true,
+          upload: { fileAck: true, seenSegments: 1 },
+        }),
+      ),
+    ).toBe(false);
+  });
+
+  it("lets go when the device cannot be read", () => {
+    expect(holdsJoinSheet(input({ localUnreadable: true }))).toBe(false);
+  });
+
+  it("does not hold for a guest who was not on the take, a live room or a consented guest", () => {
+    expect(
+      holdsJoinSheet(input({ snapshot: { ...rostered, takes: [] } })),
+    ).toBe(false);
+    expect(holdsJoinSheet(input({ state: "recording" }))).toBe(false);
+    expect(holdsJoinSheet(input({ consented: true }))).toBe(false);
   });
 });
 

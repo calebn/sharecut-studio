@@ -18,6 +18,7 @@ import { nextSeq } from "../utils/monotonicSeq";
 import { useStableCallback } from "../utils/useStableCallback";
 import { isTerminalWsClose } from "../utils/wsClose";
 import { emitRecordSignal, isRecordSignal } from "./monitor/signalBus";
+import { stampLease } from "./participantLease";
 import { type RecordSnapshot, shouldApplyRecordSnapshot } from "./types";
 
 /**
@@ -323,10 +324,13 @@ export function useRecordSync(
             skipLeaseRef.current = false;
             setMeId(msg.participant_id);
             setLease(msg.lease);
-            void saveRecordParticipant(token, {
-              participant_id: msg.participant_id,
-              lease: msg.lease,
-            });
+            const stamped = stampLease(
+              cachedRef.current,
+              { participant_id: msg.participant_id, lease: msg.lease },
+              Date.now(),
+            );
+            cachedRef.current = stamped;
+            void saveRecordParticipant(token, stamped);
           }
           if (msg.snapshot) {
             setCounted(true);
