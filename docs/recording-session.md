@@ -941,7 +941,11 @@ Saving:
   finished take (`useTakeClipping` for the current take, `usePastTakeClipping` for
   earlier ones). The guest room gets a Takes tab in its Comments rail only once one of
   their takes clipped; it lists the clipped takes with their own line and no Hear.
-  A producer has none.
+  A producer has none. Until a Takes tab exists the rail is named "Comments" (the
+  accessible name of the rail, and of the phone sheet); with one it is named "Comments
+  and takes". The Comments toggle in the dock reads as pressed only while the Comments
+  tab is showing, so on the Takes tab it is not pressed, and pressing it there shows the
+  Comments tab and leaves the rail open; a second press closes the rail.
 
 **Limitations.** Recovered crash segments, older clients and consolidated
 sources carry no regions. A truncated clip with no

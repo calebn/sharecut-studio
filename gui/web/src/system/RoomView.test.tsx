@@ -1094,10 +1094,12 @@ describe("RoomView comments naming", () => {
               ).toHaveTextContent("Comments");
             } else if (viewerWidth === "phone") {
               expect(text).toContain("Comments");
-              screen.getByRole("dialog", { name: "Comments" });
+              screen.getByRole("dialog", {
+                name: takes ? "Comments and takes" : "Comments",
+              });
             } else if (open) {
               screen.getByRole("complementary", {
-                name: "Comments and takes",
+                name: takes ? "Comments and takes" : "Comments",
               });
             }
             unmount();
@@ -1129,12 +1131,87 @@ describe("RoomView comments naming", () => {
       const toggle = screen.getByRole("button", { name: "Comments" });
       await userEvent.click(toggle);
       await userEvent.click(toggle);
+      await userEvent.click(toggle);
       expect(screen.getByRole("tab", { name: "Comments" })).toHaveAttribute(
         "aria-selected",
         "true",
       );
     },
   );
+
+  it("names the rail Comments until a Takes tab exists, then Comments and takes", () => {
+    const { unmount } = renderRoom({ defaultNotesOpen: true });
+    expect(
+      screen.getByRole("complementary", { name: "Comments" }),
+    ).toBeVisible();
+    expect(screen.queryByRole("tab")).toBeNull();
+    unmount();
+    renderRoom({ takes: <p>Take 1 saved</p>, defaultNotesOpen: true });
+    expect(
+      screen.getByRole("complementary", { name: "Comments and takes" }),
+    ).toBeVisible();
+    expect(screen.getAllByRole("tab")).toHaveLength(2);
+  });
+
+  it.each([
+    ["host", [{ ...HOST, you: true }]],
+    ["guest", [HOST, JON]],
+    ["producer", [HOST, ROSA]],
+  ] as const)(
+    "the %s's Comments toggle is pressed only while the Comments tab shows, and from Takes it shows Comments",
+    async (seat, people) => {
+      renderRoom({
+        seat,
+        people: [...people],
+        takes: <p>Take 1 saved</p>,
+        defaultNotesOpen: true,
+      });
+      const toggle = screen.getByRole("button", { name: "Comments" });
+      expect(toggle).toHaveAttribute("aria-pressed", "true");
+      await userEvent.click(screen.getByRole("tab", { name: "Takes" }));
+      expect(toggle).toHaveAttribute("aria-pressed", "false");
+      await userEvent.click(toggle);
+      expect(screen.getByRole("tab", { name: "Comments" })).toHaveAttribute(
+        "aria-selected",
+        "true",
+      );
+      expect(toggle).toHaveAttribute("aria-pressed", "true");
+      expect(screen.getByRole("complementary")).toBeVisible();
+      expect(toggle).toHaveFocus();
+      await userEvent.click(toggle);
+      expect(screen.queryByRole("complementary")).toBeNull();
+      expect(toggle).toHaveAttribute("aria-pressed", "false");
+    },
+  );
+
+  it("keeps the toggle pressed on a rail with no Takes tab, and closes it on press", async () => {
+    renderRoom({ defaultNotesOpen: true });
+    const toggle = screen.getByRole("button", { name: "Comments" });
+    expect(toggle).toHaveAttribute("aria-pressed", "true");
+    await userEvent.click(toggle);
+    expect(screen.queryByRole("complementary")).toBeNull();
+    expect(toggle).toHaveAttribute("aria-pressed", "false");
+  });
+
+  it("names the phone sheet Comments until a Takes tab exists", async () => {
+    const { unmount } = renderRoom({ viewerWidth: "phone", notes: NOTES });
+    await userEvent.click(
+      document.querySelector(".sys-room-view-peek") as HTMLElement,
+    );
+    expect(screen.getByRole("dialog", { name: "Comments" })).toBeVisible();
+    unmount();
+    renderRoom({
+      viewerWidth: "phone",
+      notes: NOTES,
+      takes: <p>Take 1 saved</p>,
+    });
+    await userEvent.click(
+      document.querySelector(".sys-room-view-peek") as HTMLElement,
+    );
+    expect(
+      screen.getByRole("dialog", { name: "Comments and takes" }),
+    ).toBeVisible();
+  });
 
   it.each([
     ["host", [{ ...HOST, you: true }]],
@@ -1153,10 +1230,9 @@ describe("RoomView comments naming", () => {
       );
       await userEvent.click(screen.getByRole("tab", { name: "Takes" }));
       await userEvent.click(
-        within(screen.getByRole("dialog", { name: "Comments" })).getByRole(
-          "button",
-          { name: "Close" },
-        ),
+        within(
+          screen.getByRole("dialog", { name: "Comments and takes" }),
+        ).getByRole("button", { name: "Close" }),
       );
       await userEvent.click(
         document.querySelector(".sys-room-view-peek") as HTMLElement,
