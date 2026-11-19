@@ -34,9 +34,9 @@ export type SelectionModel = {
  * One end of a selection. A word is the same word when its recording, its
  * place in that recording (its source-time start, which a cut does not move)
  * and its text are: its line and its `word_index` both change when a cut
- * splits a line or renumbers. A retime, a phrase correction that re-splits, or
- * the aligner changes the start, so such a word is not found and the selection
- * is cleared, not followed. `ref` and `time` are what the store was given for
+ * splits a line or renumbers. A phrase correction that re-splits, or the
+ * aligner, changes the start, so such a word is not found and the selection is
+ * cleared, not followed. `ref` and `time` are what the store was given for
  * it; `copies` is how many words matched it then, so a single match later
  * proves it only for a word that was alone.
  */
@@ -152,6 +152,11 @@ function findEnd(model: SelectionModel, end: SelectionEnd): Found {
   const same = live.filter((index) => holds(model, end, index));
   // Copies that all hold are one thing to the store: any of them is the pick.
   return same.length > 0 ? { kind: "at", index: same[0]! } : { kind: "gone" };
+}
+
+/** Whether this end sits in a line drawn as bars, or has a held copy: not countable yet. */
+export function endWaits(model: SelectionModel, end: SelectionEnd): boolean {
+  return findEnd(model, end).kind === "wait";
 }
 
 /** The store holds numbers and times, not window positions: those decide. */
