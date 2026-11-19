@@ -316,8 +316,8 @@ class _CallerStdin(io.BufferedWriter):
     in flight. ``_gate`` is a short lock held only for counter updates, a ``dup2`` and an
     ``open``, never across a write, a flush or the buffer lock. A call registers in ``_in_flight``
     under the gate before it touches the descriptor and deregisters after. ``close`` sets
-    ``_closing`` under the gate; a call that starts after that raises ``ValueError`` (or ``BrokenPipeError``
-    when ``broken`` was set first, as the abandon path does). If calls are
+    ``_closing`` under the gate; a call that starts after that raises ``ValueError`` (or
+    ``BrokenPipeError`` when ``broken`` was set first, as the abandon path does). If calls are
     still in flight, ``close`` points the descriptor at /dev/null (the number stays valid and owned)
     and returns without waiting; whoever drops ``_in_flight`` to zero after ``_closing`` is set
     (the last call, or ``close`` itself when none is in flight) frees the descriptor, outside the
