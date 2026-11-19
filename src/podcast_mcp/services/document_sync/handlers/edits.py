@@ -59,7 +59,13 @@ def approve_edits(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
     result: dict[str, Any] = {
         "count": outcome,
         "held": [
-            {"id": h.edit_id, "label": h.label, "reason": h.reason, "code": h.code} for h in held
+            {
+                "id": h.edit_id,
+                "label": h.label,
+                "reason": h.reason,
+                **({"code": h.code} if h.code else {}),
+            }
+            for h in held
         ],
         "unknown_ids": unknown_ids,
     }
