@@ -9,6 +9,10 @@ import { stubMatchMedia } from "../../test/matchMedia";
 import { stubViewportShell } from "../../test/viewportShell";
 import type { HistoryEntryId } from "../../types/project";
 import { _resetCoachTipsForTests } from "../../utils/coachTip";
+import {
+  raiseEditStakes,
+  resetEditStakesForTests,
+} from "../../utils/editStakes";
 import { StageFrame } from "./StageFrame";
 
 vi.mock("../../services/offlineQueue/offlineStore", async (importOriginal) => ({
@@ -45,6 +49,7 @@ function bar() {
 beforeEach(() => {
   localStorage.clear();
   _resetCoachTipsForTests();
+  resetEditStakesForTests();
   stubMatchMedia(false);
   clearRegisteredCommands();
   registerDawCommands();
@@ -351,6 +356,38 @@ describe("StageFrame roles", () => {
     expect(screen.queryByText(/The host decides/)).toBeNull();
     expect(useDawStore.getState().statusAnnouncementSeq).toBe(quiet);
     localStorage.removeItem("sharecut.roleHintSeen.commenter");
+  });
+
+  it("raises the Editor's reminder after the first sentence is dismissed, and says it once", async () => {
+    const STAKES =
+      "You changed the host's episode, and everyone sees it. Undo takes back only your own step.";
+    localStorage.removeItem("sharecut.roleHintSeen.editor");
+    useDawStore.setState({
+      projectPath: "share:alpha",
+      guestMode: "edit",
+      shareCapabilities: ["view", "play", "comment", "edit"],
+      stage: "edit",
+    });
+    mount();
+    act(() => raiseEditStakes("alpha"));
+    expect(screen.getByRole("note")).toHaveTextContent(
+      "You can edit and comment. The host decides what ships.",
+    );
+    await userEvent.click(screen.getByRole("button", { name: /dismiss/i }));
+    expect(screen.getByRole("note")).toHaveTextContent(STAKES);
+    const spoken = screen
+      .getAllByRole("status")
+      .filter((region) => region.textContent === STAKES);
+    expect(spoken).toHaveLength(1);
+    expect(useDawStore.getState().feedbackToast).toBeNull();
+    await userEvent.click(screen.getByRole("button", { name: /dismiss/i }));
+    expect(screen.queryByRole("note")).toBeNull();
+    expect(localStorage.getItem("sharecut.editStakesSeen.alpha")).toBe("1");
+    act(() => raiseEditStakes("alpha"));
+    expect(screen.queryByRole("note")).toBeNull();
+    localStorage.removeItem("sharecut.roleHintSeen.editor");
+    localStorage.removeItem("sharecut.editStakesSeen.alpha");
+    useDawStore.setState({ shareCapabilities: null });
   });
 
   it("shows a guest reading the saved copy no hint, and writes no flag", async () => {

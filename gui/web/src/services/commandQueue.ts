@@ -52,6 +52,7 @@ import {
   newCommandId,
   nextDocumentClientSeq,
 } from "../utils/documentClient";
+import { raiseEditStakes } from "../utils/editStakes";
 import { raceTimeout } from "../utils/raceTimeout";
 import {
   clearVolatileOutcome,
@@ -364,6 +365,9 @@ async function submitQueuedDocumentCommandWithinOwnership(
     const head = parseHistoryEntryId(result.history_head_id);
     if (head && result.queued !== true) {
       noteSaveLanded(projectPath, head, scope);
+      if (active && useDawStore.getState().guestMode === "edit") {
+        raiseEditStakes(shareTokenFromKey(projectPath));
+      }
       const seq = snapshotFromResult(result)?.server_seq ?? result.server_seq;
       if (
         typeof seq === "number" &&
