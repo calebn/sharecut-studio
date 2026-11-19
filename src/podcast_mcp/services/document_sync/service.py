@@ -27,7 +27,7 @@ from podcast_mcp.edits.edit_log import (
     RestoreResult,
 )
 from podcast_mcp.edits.range_target import RangeChangedError
-from podcast_mcp.edits.source_removals import PLAIN_HOLD_REASONS, plain_label
+from podcast_mcp.edits.source_removals import guest_hold_reason, plain_label
 from podcast_mcp.edits.transcript_correct import TranscriptTextChangedError
 from podcast_mcp.edits.transcript_timing import TranscriptTimingChangedError
 from podcast_mcp.models import EpisodeProject, SavedDocumentCommand
@@ -306,7 +306,7 @@ def _review_reply_facts(command_type: str, result: object, audience: str) -> Rev
         reason = str(row["reason"])
         label = str(row["label"])
         if guest:
-            reason = PLAIN_HOLD_REASONS.get(str(row.get("code")), reason)
+            reason = guest_hold_reason(str(row.get("code") or ""), reason)
             label = plain_label(label)
         held.append({"id": str(row["id"]), "label": label, "reason": reason})
     review: _ReviewResult = {"count": count, "held": held}

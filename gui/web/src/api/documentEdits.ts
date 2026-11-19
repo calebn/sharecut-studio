@@ -127,6 +127,8 @@ function reviewOutcome(result: Record<string, unknown>): ReviewOutcome {
   };
 }
 
+const UNDESCRIBED_HOLD = "it could not be applied";
+
 /** Cuts Approve all left pending, each with the reason the list can show. */
 function heldOf(review: unknown): HeldCut[] {
   const held = isSuggestionRecord(review) ? review.held : null;
@@ -134,9 +136,17 @@ function heldOf(review: unknown): HeldCut[] {
   return held.flatMap((row): HeldCut[] =>
     isSuggestionRecord(row) &&
     typeof row.id === "string" &&
-    typeof row.label === "string" &&
-    typeof row.reason === "string"
-      ? [{ id: row.id, label: row.label, reason: row.reason }]
+    typeof row.label === "string"
+      ? [
+          {
+            id: row.id,
+            label: row.label,
+            reason:
+              typeof row.reason === "string" && row.reason !== ""
+                ? row.reason
+                : UNDESCRIBED_HOLD,
+          },
+        ]
       : [],
   );
 }

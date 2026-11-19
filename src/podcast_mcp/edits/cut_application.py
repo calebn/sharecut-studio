@@ -289,7 +289,7 @@ def apply_trim(
         project, plan, application_intent=application_intent, defaults=defaults
     )
     if held:
-        raise ScopeChangedAtApproval.for_project(project, held)
+        raise ScopeChangedAtApproval.for_project(project, held, removal=plan.removal)
     adopt_project_state(project, candidate)
     return report
 
@@ -349,12 +349,12 @@ def apply_timeline_cut(
         mode="ripple" if request.mode is EditMode.RIPPLE else "mute",
     )
     if held:
-        raise ScopeChangedAtApproval.for_project(project, held)
+        raise ScopeChangedAtApproval.for_project(project, held, removal=request.removal)
     receipts = cut_effects.complete_effect_receipts(
         project, candidate, operation_ids=ids, removal=request.removal, clip_ids=request.clip_ids
     )
     if receipts:
-        raise ScopeChangedAtApproval.for_project(project, receipts)
+        raise ScopeChangedAtApproval.for_project(project, receipts, removal=request.removal)
     adopt_project_state(project, candidate)
     return report
 

@@ -7,6 +7,7 @@ from podcast_mcp.config.defaults import EffectiveConfig
 from podcast_mcp.edits.cut_placement import CutScopeHold, inspect_source_remove_placement
 from podcast_mcp.edits.cut_safety import hold_is_overridable, inspect_source_remove
 from podcast_mcp.edits.cut_speech import assess_cut_speech
+from podcast_mcp.edits.ripple import RippleRemoval
 from podcast_mcp.edits.tighten_reasons import is_pause_reason
 from podcast_mcp.edits.timeline_ops import (
     LaneUnavailable,
@@ -65,7 +66,22 @@ PLAIN_HOLD_REASONS: Mapping[str, str] = {
     "pause_join": "the pause would sound abrupt where it joins",
 }
 _UNNAMED_EDIT = "That edit"
+PEER_SPEECH_PLAIN = "someone else is speaking there and would be cut off"
+GENERIC_HOLD_REASON = "it could not be applied"
+_GUEST_HOLD_CODES: Mapping[str, str] = {
+    **PLAIN_HOLD_REASONS,
+    "peer_speech": PEER_SPEECH_PLAIN,
+    "stale": "its audio was already cut away, so it no longer plays",
+    "waits_with_held": "it sits right beside a held cut, so it waits with it",
+    "unsure_word": "it has a word the transcript is not sure of",
+}
 _UNNAMED_PEER = "someone else"
+
+
+def guest_hold_reason(code: str, reason: str) -> str:
+    """A held row's reason as a guest reads it: one path-free sentence, never empty."""
+    plain = _GUEST_HOLD_CODES.get(code) or _GUEST_HOLD_CODES.get(reason)
+    return plain if plain and not mentions_host_path(plain) else GENERIC_HOLD_REASON
 
 
 def _lane_problem(lane: LaneUnavailable, name: str) -> str:
@@ -86,6 +102,17 @@ def cut_label(project: EpisodeProject, edit: EditDecision) -> str:
         who = speakers.get(edit.track_id, edit.track_id)
         kind = "pause trim" if is_pause_reason(edit.reason) else "cut"
     return f"{who}'s {kind} at {clock_label(edit.start)}"
+
+
+def removal_label(project: EpisodeProject, removal: RippleRemoval | None) -> str | None:
+    """People's name for a range cut with no pending edit: whose and where, or None unnamed."""
+    if removal is None or not removal.selected:
+        return None
+    speakers = speakers_by_track(project)
+    who = " and ".join(
+        dict.fromkeys(speakers.get(e.track_id, e.track_id) for e in removal.selected)
+    )
+    return f"{who}'s cut at {clock_label(min(e.start for e in removal.selected))}"
 
 
 def speakers_by_track(project: EpisodeProject) -> dict[str, str]:
@@ -125,8 +152,13 @@ class ScopeChangedAtApproval(CodedError, ValueError):
         project: EpisodeProject,
         held: Sequence[CutScopeHold],
         edits: Iterable[EditDecision] = (),
+        removal: RippleRemoval | None = None,
     ) -> ScopeChangedAtApproval:
-        return cls(held, speakers_by_track(project), {e.id: cut_label(project, e) for e in edits})
+        cuts = {e.id: cut_label(project, e) for e in edits}
+        named = removal_label(project, removal)
+        if named is not None:
+            cuts.update({h.edit_id: named for h in held})
+        return cls(held, speakers_by_track(project), cuts)
 
     def reason_for(self, hold: CutScopeHold) -> str:
         """Why this one cut was held, in words the list can show beside it."""
