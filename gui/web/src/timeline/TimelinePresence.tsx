@@ -27,6 +27,7 @@ import { Presence, type PresenceSelection } from "../system/Presence";
 import { presenceX } from "../system/presenceMath";
 import type { SessionClient } from "../types/session";
 import { RULER_HEIGHT } from "../utils/layout";
+import { roleBubbleUp } from "../utils/roleBubble";
 import { presenceSelections } from "./presenceSelections";
 import { useRulerWindow } from "./useRulerWindow";
 
@@ -60,11 +61,12 @@ const sameSelection = (a: PresenceSelection, b: PresenceSelection) =>
   a.colorIndex === b.colorIndex;
 
 /**
- * Announces remote departures. A join is not spoken: the host is already
- * there when the roster lands, and the line would replace the first-visit
- * sentence in the one status slot. The effect keys on the live ids by
- * value, so a render that only replaces client objects (a cursor or playhead
- * move) or changes an unrelated prop does not re-run it.
+ * Announces remote departures. A join is not spoken: the host is already there
+ * when the roster lands, and the line would replace the first-visit sentence
+ * in the one status slot. A leave is dropped, not queued, while a role bubble
+ * is up, for the same reason. The effect keys on the live ids by value, so a
+ * render that only replaces client objects (a cursor or playhead move) or
+ * changes an unrelated prop does not re-run it.
  */
 function usePresenceAnnouncer(others: SessionClient[]): void {
   const prevRef = useRef<Set<string> | null>(null);
@@ -78,7 +80,11 @@ function usePresenceAnnouncer(others: SessionClient[]): void {
     }
     for (const id of prev) {
       if (!ids.has(id)) {
-        useDawStore.getState().announceStatus("Someone left", { toast: false });
+        if (!roleBubbleUp()) {
+          useDawStore
+            .getState()
+            .announceStatus("Someone left", { toast: false });
+        }
       }
     }
   });

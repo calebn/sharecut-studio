@@ -14,6 +14,7 @@ import {
   sessionRoster,
 } from "../test/fixtures";
 import type { SessionClient } from "../types/session";
+import { setRoleBubbleUp } from "../utils/roleBubble";
 import { TimelinePresence } from "./TimelinePresence";
 import { TimelineRuler } from "./TimelineRuler";
 
@@ -99,6 +100,7 @@ const xOf = (el: HTMLElement) => el.style.getPropertyValue("--sys-presence-x");
 beforeEach(() => leafRenders.mockClear());
 
 afterEach(() => {
+  setRoleBubbleUp(false);
   // Unmount first: a mounted host would announce the roster reset below.
   cleanup();
   useDawStore.setState({
@@ -225,6 +227,28 @@ describe("TimelinePresence", () => {
         useDawStore.setState({ sessionClients: sessionRoster([]) });
       });
       rerender(<Host />);
+      expect(useDawStore.getState().statusAnnouncement).toBe("Someone left");
+    });
+
+    it("drops a leave while a role bubble is up, and speaks the next one after it closes", () => {
+      seed([remote("bea"), remote("cal")]);
+      render(<Host />);
+      setRoleBubbleUp(true);
+      act(() => {
+        useDawStore.setState({
+          sessionClients: sessionRoster([
+            { client_id: "me", role: "viewer" },
+            remote("cal"),
+          ]),
+        });
+      });
+      expect(useDawStore.getState().statusAnnouncement).toBe("");
+      setRoleBubbleUp(false);
+      act(() => {
+        useDawStore.setState({
+          sessionClients: sessionRoster([{ client_id: "me", role: "viewer" }]),
+        });
+      });
       expect(useDawStore.getState().statusAnnouncement).toBe("Someone left");
     });
 

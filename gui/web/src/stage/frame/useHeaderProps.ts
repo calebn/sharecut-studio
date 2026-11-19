@@ -1,9 +1,10 @@
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
 import { runPointerCommand } from "../../commands/pointer";
 import { useRenameProject } from "../../hooks/useRenameProject";
 import { useReviewPeaks } from "../../hooks/useReviewPeaks";
 import { useReviewVersion } from "../../hooks/useReviewVersion";
 import { type ThemePreference, useTheme } from "../../hooks/useTheme";
+import { shareTokenFromKey } from "../../shareMode";
 import { useDawStore } from "../../state/dawStore";
 import { useReadsSavedCopy } from "../../state/savedCopy";
 import { useShareName } from "../../state/shareName";
@@ -11,6 +12,14 @@ import { stageRoleOf } from "../../state/stageRoutes";
 import { useDaw } from "../../state/useDaw";
 import type { AppHeaderProps } from "../../system/AppHeader";
 import { isHostRole } from "../../utils/can";
+import {
+  dismissEditStakes,
+  EDIT_STAKES_TEXT,
+  editStakesUp,
+  markEditStakesSeen,
+  subscribeEditStakes,
+} from "../../utils/editStakes";
+import { setRoleBubbleUp } from "../../utils/roleBubble";
 import {
   markRoleHintSeen,
   ROLE_HINT_TEXT,
@@ -58,6 +67,23 @@ export function useHeaderProps(): Omit<
   // The saved copy opens read-only whatever the link allows, so no role is
   // known to name or to explain.
   const showRole = !savedCopy;
+  const token = useDawStore((s) => shareTokenFromKey(s.projectPath));
+  const stakesRaised = useSyncExternalStore(subscribeEditStakes, editStakesUp);
+  const hintRole = host ? null : role;
+  const roleHintUp =
+    hintRole !== null &&
+    !dismissed.includes(hintRole) &&
+    !roleHintSeen(hintRole);
+  const hintKind = roleHintUp ? "role" : "stakes";
+  const hintText =
+    hintRole !== null && roleHintUp
+      ? ROLE_HINT_TEXT[hintRole]
+      : EDIT_STAKES_TEXT;
+  const hintShown = showRole && (roleHintUp || stakesRaised);
+  useEffect(() => {
+    setRoleBubbleUp(hintShown);
+    return () => setRoleBubbleUp(false);
+  }, [hintShown]);
   const guest: AppHeaderProps["guest"] = host
     ? undefined
     : {
@@ -74,17 +100,23 @@ export function useHeaderProps(): Omit<
         compact: shell === "phone",
         hint: showRole
           ? {
-              text: ROLE_HINT_TEXT[role],
-              shown: !dismissed.includes(role) && !roleHintSeen(role),
+              kind: hintKind,
+              text: hintText,
+              shown: hintShown,
               onDismiss: () => {
-                markRoleHintSeen(role);
-                setDismissed((current) => [...current, role]);
+                if (hintKind === "role") {
+                  markRoleHintSeen(role);
+                  setDismissed((current) => [...current, role]);
+                } else {
+                  markEditStakesSeen(token);
+                  dismissEditStakes();
+                }
               },
               // The frame's one polite live region says it; a toast would repeat the bubble.
               onShown: () =>
                 useDawStore
                   .getState()
-                  .announceStatus(ROLE_HINT_TEXT[role], { toast: false }),
+                  .announceStatus(hintText, { toast: false }),
             }
           : undefined,
       };

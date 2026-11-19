@@ -902,6 +902,108 @@ describe("AppHeader first-visit role hint: a press and a key", () => {
   });
 });
 
+describe("AppHeader second bubble: the Editor's reminder", () => {
+  const ROLE_TEXT = "You can edit and comment. The host decides what ships.";
+  const STAKES_TEXT =
+    "You changed the host's episode, and everyone sees it. Undo takes back only your own step.";
+
+  function editorHeader(hint: NonNullable<AppHeaderProps["guest"]>["hint"]) {
+    return {
+      title: "Episode",
+      guest: { version: "v3", role: "editor" as const, hint },
+    };
+  }
+
+  it("raises the reminder in the same bubble after the first sentence is dismissed, and says it once", async () => {
+    const onShown = vi.fn();
+    const onDismiss = vi.fn();
+    const { rerender } = render(
+      <AppHeader
+        {...editorHeader({
+          kind: "role",
+          text: ROLE_TEXT,
+          shown: true,
+          onDismiss,
+          onShown,
+        })}
+      />,
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Dismiss hint" }));
+    rerender(
+      <AppHeader
+        {...editorHeader({
+          kind: "role",
+          text: ROLE_TEXT,
+          shown: false,
+          onDismiss,
+          onShown,
+        })}
+      />,
+    );
+    expect(screen.queryByRole("note")).toBeNull();
+    const reminderDismiss = vi.fn();
+    const reminderShown = vi.fn();
+    rerender(
+      <AppHeader
+        {...editorHeader({
+          kind: "stakes",
+          text: STAKES_TEXT,
+          shown: true,
+          onDismiss: reminderDismiss,
+          onShown: reminderShown,
+        })}
+      />,
+    );
+    expect(screen.getByRole("note")).toHaveTextContent(STAKES_TEXT);
+    expect(reminderShown).toHaveBeenCalledOnce();
+    expect(
+      screen.getByRole("button", { name: "Explain Editor role" }),
+    ).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Dismiss hint" }));
+    expect(reminderDismiss).toHaveBeenCalledOnce();
+    expect(onDismiss).toHaveBeenCalledOnce();
+    rerender(
+      <AppHeader
+        {...editorHeader({
+          kind: "stakes",
+          text: STAKES_TEXT,
+          shown: false,
+          onDismiss: reminderDismiss,
+          onShown: reminderShown,
+        })}
+      />,
+    );
+    expect(screen.queryByRole("note")).toBeNull();
+    expect(reminderShown).toHaveBeenCalledOnce();
+  });
+
+  it("swaps the sentence in place when the first one closes while the reminder is already waiting", async () => {
+    const onDismiss = vi.fn();
+    const { rerender } = render(
+      <AppHeader
+        {...editorHeader({
+          kind: "role",
+          text: ROLE_TEXT,
+          shown: true,
+          onDismiss,
+        })}
+      />,
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Dismiss hint" }));
+    rerender(
+      <AppHeader
+        {...editorHeader({
+          kind: "stakes",
+          text: STAKES_TEXT,
+          shown: true,
+          onDismiss,
+        })}
+      />,
+    );
+    expect(screen.getByRole("note")).toHaveTextContent(STAKES_TEXT);
+  });
+});
+
 describe("AppHeader first-visit role hint: said once", () => {
   const TEXT = "You can comment and suggest cuts. The host decides.";
   const guestOf = (
