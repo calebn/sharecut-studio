@@ -1,5 +1,6 @@
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { loadRecordParticipant } from "../services/offlineQueue/offlineStore";
 import { deferred } from "../test/deferred";
 import { seedPendingKeeper } from "../test/keepers";
 import { urlOf } from "../test/urlOf";
@@ -431,6 +432,78 @@ describe("useGuestRoom", () => {
     expect(stream.getTracks()[0].stop).toHaveBeenCalled();
     expect(result.current.mic.stream).toBeNull();
     expect(result.current.connected).toBe(false);
+  });
+
+  describe("leaseFresh", () => {
+    const DAY = 24 * 60 * 60 * 1000;
+
+    async function leftRoom(entry: Record<string, unknown> | undefined) {
+      vi.mocked(loadRecordParticipant).mockResolvedValue(
+        entry as Awaited<ReturnType<typeof loadRecordParticipant>>,
+      );
+      stubFetch(guestBootstrap);
+      const hook = renderHook(() => useGuestRoom("guest-tok"));
+      await waitFor(() => expect(hook.result.current.me).not.toBeNull());
+      return hook;
+    }
+
+    afterEach(() => {
+      vi.mocked(loadRecordParticipant).mockResolvedValue(undefined);
+    });
+
+    it("is false before the page has left, and until the cached lease is read", async () => {
+      const { result } = await leftRoom({
+        participant_id: "p_g",
+        lease: "l",
+        issuedAt: Date.now() - DAY,
+      });
+      expect(result.current.leaseFresh).toBe(false);
+      let release: (value: unknown) => void = () => undefined;
+      vi.mocked(loadRecordParticipant).mockReturnValue(
+        new Promise((resolve) => {
+          release = resolve;
+        }) as ReturnType<typeof loadRecordParticipant>,
+      );
+      act(() => result.current.leave());
+      expect(result.current.leaseFresh).toBe(false);
+      await act(async () =>
+        release({
+          participant_id: "p_g",
+          lease: "l",
+          issuedAt: Date.now() - DAY,
+        }),
+      );
+      expect(result.current.leaseFresh).toBe(true);
+    });
+
+    it("is true after leaving with a lease minted five days ago", async () => {
+      const { result } = await leftRoom({
+        participant_id: "p_g",
+        lease: "l",
+        issuedAt: Date.now() - 5 * DAY,
+      });
+      act(() => result.current.leave());
+      await waitFor(() => expect(result.current.leaseFresh).toBe(true));
+    });
+
+    it("stays false after leaving with a lease older than six days", async () => {
+      const { result } = await leftRoom({
+        participant_id: "p_g",
+        lease: "l",
+        issuedAt: Date.now() - 6 * DAY - 60_000,
+      });
+      act(() => result.current.leave());
+      await waitFor(() => expect(loadRecordParticipant).toHaveBeenCalled());
+      await act(async () => undefined);
+      expect(result.current.leaseFresh).toBe(false);
+    });
+
+    it("stays false for a cached lease with no issue time", async () => {
+      const { result } = await leftRoom({ participant_id: "p_g", lease: "l" });
+      act(() => result.current.leave());
+      await act(async () => undefined);
+      expect(result.current.leaseFresh).toBe(false);
+    });
   });
 
   it("falls back from a stale saved microphone and forgets it", async () => {

@@ -57,6 +57,8 @@ type Overrides = {
   takeClippings?: GuestRoom["takeClippings"];
   keeperActions?: Partial<GuestRoom["keeperActions"]>;
   left?: boolean;
+  leaseFresh?: boolean;
+  accessEnded?: boolean;
   roomTone?: Partial<GuestRoom["roomTone"]>;
   captureSettled?: boolean;
   localRecording?: boolean;
@@ -83,7 +85,7 @@ function fakeRoom(over: Overrides = {}) {
     connected: true,
     error: null,
     clearError: vi.fn(),
-    accessEnded: false,
+    accessEnded: over.accessEnded ?? false,
     inviteClosed: false,
     mic: {
       status: "granted",
@@ -165,6 +167,7 @@ function fakeRoom(over: Overrides = {}) {
     setProducerJoined: vi.fn(),
     resumeUpload: vi.fn(),
     left: over.left ?? false,
+    leaseFresh: over.leaseFresh ?? false,
     leave: vi.fn(),
   };
   current.room = room;
@@ -1011,6 +1014,82 @@ describe("GuestRoomApp after Leave", () => {
     expect(download).toHaveBeenCalledOnce();
   });
 
+  it("offers Join again on the unsent cover when the cached lease is fresh", async () => {
+    const download = vi.fn();
+    fakeRoom({
+      ...failedSave,
+      me: { ...me, consented: null },
+      localRecording: true,
+      leaseFresh: true,
+      keeperActions: { download },
+    });
+    render(<GuestRoomApp token="t" />);
+    expect(
+      screen.getByRole("heading", {
+        name: "Your recording didn't finish saving",
+      }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(/Or join again from this page\./),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Join again" }),
+    ).toBeInTheDocument();
+    await userEvent.click(
+      screen.getByRole("button", { name: "Save my recording" }),
+    );
+    expect(download).toHaveBeenCalledOnce();
+  });
+
+  it("offers no Join again on the unsent cover until the lease is known to be fresh", () => {
+    fakeRoom({
+      ...failedSave,
+      me: { ...me, consented: null },
+      localRecording: true,
+      leaseFresh: false,
+      keeperActions: { download: vi.fn() },
+    });
+    render(<GuestRoomApp token="t" />);
+    expect(screen.queryByRole("button", { name: "Join again" })).toBeNull();
+    expect(screen.queryByText(/join again/i)).toBeNull();
+  });
+
+  it("offers no Join again to a guest the host removed while they were away", () => {
+    fakeRoom({
+      ...failedSave,
+      me: { ...me, consented: null },
+      localRecording: true,
+      leaseFresh: true,
+      accessEnded: true,
+      keeperActions: { download: vi.fn() },
+    });
+    render(<GuestRoomApp token="t" />);
+    expect(
+      screen.getByRole("button", { name: "Save my recording" }),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Join again" })).toBeNull();
+  });
+
+  it("holds Join again with the other actions while a save runs", () => {
+    fakeRoom({
+      ...failedSave,
+      me: { ...me, consented: null },
+      localRecording: true,
+      leaseFresh: true,
+      keeperActions: {
+        download: vi.fn(),
+        recover: vi.fn(),
+        busy: true,
+        running: "recover",
+      },
+    });
+    render(<GuestRoomApp token="t" />);
+    expect(screen.getByRole("button", { name: "Join again" })).toHaveAttribute(
+      "aria-disabled",
+      "true",
+    );
+  });
+
   it("never says a guest can close the page while capture is still finishing", () => {
     fakeRoom({ ...failedSave, captureSettled: false, localRecording: true });
     render(<GuestRoomApp token="t" />);
@@ -1032,6 +1111,65 @@ describe("GuestRoomApp after Leave", () => {
     });
     render(<GuestRoomApp token="t" />);
     expect(screen.getByText("You can close this page.")).toBeInTheDocument();
+  });
+});
+
+describe("GuestRoomApp Join sheet on a stopped take", () => {
+  const roster = {
+    ...stopped,
+    takes: [
+      {
+        take_index: 0,
+        session_start_wall_ms: 1000,
+        session_start_iso: "t",
+        stopped_wall_ms: 61_000,
+        pauses: [],
+        consented_participant_ids: ["p_g"],
+      },
+    ],
+  };
+  const joinSheet = () =>
+    screen.queryByRole("button", { name: "Join and record" });
+
+  it("holds the Join sheet while the device scan for a take this guest was on is not read yet", () => {
+    fakeRoom({
+      snapshot: roster,
+      me: { ...me, consented: null },
+      localSegments: null,
+    });
+    render(<GuestRoomApp token="t" />);
+    expect(joinSheet()).toBeNull();
+  });
+
+  it("shows the Join sheet once the scan finds nothing on the device", () => {
+    fakeRoom({
+      snapshot: roster,
+      me: { ...me, consented: null },
+      localSegments: 0,
+    });
+    render(<GuestRoomApp token="t" />);
+    expect(joinSheet()).not.toBeNull();
+  });
+
+  it("shows the Join sheet when the device cannot be read", () => {
+    fakeRoom({
+      snapshot: roster,
+      me: { ...me, consented: null },
+      localSegments: null,
+      localUnreadable: true,
+    });
+    render(<GuestRoomApp token="t" />);
+    expect(joinSheet()).not.toBeNull();
+  });
+
+  it("shows the Join sheet at once for a guest who was not on the take", () => {
+    fakeRoom({
+      snapshot: { ...roster, takes: [] },
+      me: { ...me, consented: null },
+      localSegments: null,
+    });
+    render(<GuestRoomApp token="t" />);
+    expect(joinSheet()).not.toBeNull();
   });
 });
 

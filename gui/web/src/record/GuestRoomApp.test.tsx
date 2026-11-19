@@ -1653,6 +1653,7 @@ describe("GuestRoomApp", () => {
           name: "Your recording didn't finish saving",
         }),
       ).toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: "Join again" })).toBeNull();
       await userEvent.click(
         screen.getByRole("button", { name: "Try saving again" }),
       );
@@ -1892,6 +1893,193 @@ describe("GuestRoomApp", () => {
       (await screen.findAllByText("Stay quiet · 1:00")).length,
     ).toBeGreaterThanOrEqual(1);
     await waitFor(() => expect(uploads).toHaveLength(1));
+  });
+
+  describe("Join again from the unsent cover", () => {
+    const DAY = 24 * 60 * 60 * 1000;
+    const roster = [
+      {
+        take_index: 0,
+        session_start_wall_ms: 1000,
+        session_start_iso: "t",
+        stopped_wall_ms: 61_000,
+        pauses: [],
+        consented_participant_ids: ["p_g"],
+      },
+    ];
+
+    function stubUploadFetch() {
+      const puts: string[] = [];
+      vi.stubGlobal(
+        "fetch",
+        vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+          const url = urlOf(input);
+          if (url.includes("/bootstrap")) {
+            return new Response(
+              JSON.stringify({
+                ...guestBootstrap,
+                build: { capture: false, monitor: false, upload: true },
+              }),
+              { status: 200 },
+            );
+          }
+          if (url.includes("/upload")) {
+            if (init?.method === "POST") {
+              puts.push(url);
+              return new Response(
+                JSON.stringify({
+                  acked: true,
+                  take_index: 0,
+                  participant_id: "p_g",
+                  segment_index: 0,
+                  part_seq: 0,
+                  file_ack: true,
+                }),
+                { status: 200 },
+              );
+            }
+            return new Response(JSON.stringify({ segments: [] }), {
+              status: 200,
+            });
+          }
+          return new Response("not found", { status: 404 });
+        }),
+      );
+      return puts;
+    }
+
+    async function leaveWithUnsentTake(issuedAt: number | undefined) {
+      vi.mocked(loadRecordParticipant).mockResolvedValue({
+        participant_id: "p_g",
+        lease: "lease-1",
+        ...(issuedAt === undefined ? {} : { issuedAt }),
+      });
+      const sink = new MemorySink();
+      await seedPendingKeeper(sink, {
+        sessionId: "room1",
+        takeIndex: 0,
+        participantId: "p_g",
+      });
+      vi.mocked(createOpfsSink).mockResolvedValue(sink);
+      render(<GuestRoomApp token="guest-tok" />);
+      await screen.findByRole("heading", { name: "Join the room" });
+      await waitFor(() => expect(sockets).toHaveLength(1));
+      sockets[0]?.onmessage?.(
+        snapshotMessage(
+          { state: "stopped", take_index: 0, takes: roster },
+          true,
+        ),
+      );
+      await userEvent.click(
+        await screen.findByRole("button", { name: "Leave room" }),
+      );
+      await screen.findByRole("heading", {
+        name: "Your recording didn't finish saving",
+      });
+      return sink;
+    }
+
+    function watchForJoinSheet() {
+      const seen = { sheet: false };
+      const observer = new MutationObserver(() => {
+        if (document.body.textContent?.includes("Join and record")) {
+          seen.sheet = true;
+        }
+      });
+      observer.observe(document.body, {
+        childList: true,
+        subtree: true,
+        characterData: true,
+      });
+      return { seen, stop: () => observer.disconnect() };
+    }
+
+    afterEach(() => {
+      vi.mocked(loadRecordParticipant).mockResolvedValue(undefined);
+    });
+
+    it("rejoins a stopped take with the cached lease and never shows the Join sheet on any frame", async () => {
+      stubUploadFetch();
+      await leaveWithUnsentTake(Date.now() - DAY);
+      const again = await screen.findByRole("button", { name: "Join again" });
+      stubWebSocket(sockets, "silent");
+      const watch = watchForJoinSheet();
+      await userEvent.click(again);
+      await waitFor(() => expect(sockets).toHaveLength(2));
+      await waitFor(() => expect(sockets[1]?.sent.length).toBeGreaterThan(0));
+      expect(JSON.parse(sockets[1]?.sent[0] ?? "{}")).toMatchObject({
+        command_type: "Join",
+        payload: { participant_id: "p_g", lease: "lease-1" },
+      });
+      const message = (data: Record<string, unknown>) => ({
+        data: JSON.stringify({ plane: "record", ...data }),
+      });
+      sockets[1]?.onmessage?.(
+        message({ type: "Echo", participant_id: "p_g", lease: "lease-1" }),
+      );
+      sockets[1]?.onmessage?.(
+        snapshotMessage(
+          { state: "stopped", take_index: 0, takes: roster },
+          null,
+        ),
+      );
+      expect(
+        await screen.findByRole(
+          "button",
+          { name: "Finish saving" },
+          { timeout: 4000 },
+        ),
+      ).toBeInTheDocument();
+      watch.stop();
+      expect(watch.seen.sheet).toBe(false);
+      expect(
+        screen.queryByRole("button", { name: "Join and record" }),
+      ).toBeNull();
+    });
+
+    it("offers no Join again when the cached lease has no issue time", async () => {
+      stubUploadFetch();
+      await leaveWithUnsentTake(undefined);
+      expect(
+        screen.getByRole("button", { name: "Save my recording" }),
+      ).toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: "Join again" })).toBeNull();
+    });
+
+    it("offers no Join again when the cached lease is older than six days", async () => {
+      stubUploadFetch();
+      await leaveWithUnsentTake(Date.now() - 6 * DAY - 60_000);
+      expect(screen.queryByRole("button", { name: "Join again" })).toBeNull();
+    });
+
+    it("lands a guest removed while away on the removed-access cover with Save my recording", async () => {
+      stubUploadFetch();
+      await leaveWithUnsentTake(Date.now() - DAY);
+      const again = await screen.findByRole("button", { name: "Join again" });
+      stubWebSocket(sockets, "silent");
+      await userEvent.click(again);
+      await waitFor(() => expect(sockets).toHaveLength(2));
+      await waitFor(() => expect(sockets[1]?.sent.length).toBeGreaterThan(0));
+      sockets[1]?.onmessage?.({
+        data: JSON.stringify({
+          plane: "record",
+          type: "Error",
+          code: "participant_removed",
+        }),
+      });
+      expect(
+        await screen.findByRole("heading", {
+          name: "Your recording didn't finish saving",
+        }),
+      ).toBeInTheDocument();
+      expect(
+        await screen.findByRole("button", { name: "Save my recording" }),
+      ).toBeEnabled();
+      expect(screen.queryByRole("button", { name: "Join again" })).toBeNull();
+      expect(
+        screen.queryByRole("button", { name: "Join and record" }),
+      ).toBeNull();
+    });
   });
 
   describe("room tone for a guest who joins late", () => {
