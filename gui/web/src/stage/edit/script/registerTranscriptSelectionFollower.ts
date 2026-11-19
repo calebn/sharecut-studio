@@ -81,5 +81,4 @@ export const judgeWithScriptModel: TranscriptSelectionJudge = (
   return { kind: "move", startWordIndex: first, endWordIndex: last };
 };
 
-/** Idempotent: importing this module is what registers the follower. */
 registerTranscriptSelectionFollower(judgeWithScriptModel);
